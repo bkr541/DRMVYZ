@@ -3,6 +3,77 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 174 ms
+  VITE v5.4.21  ready in 168 ms
 
   ➜  Local:   http://127.0.0.1:5173/
+4:12:34 PM [vite] hmr update /src/App.tsx
+4:12:34 PM [vite] Internal server error: /Users/kodyrobinson/Development/DRMVYZ/src/App.tsx: Unterminated JSX contents. (679:10)
+
+  677 |         </div>
+  678 |       </footer>
+> 679 |     </div>
+      |           ^
+  680 |   )
+  681 | }
+  682 |
+  Plugin: vite:react-babel
+  File: /Users/kodyrobinson/Development/DRMVYZ/src/App.tsx:679:10
+  677|          </div>
+  678|        </footer>
+  679|      </div>
+     |            ^
+  680|    )
+  681|  }
+      at constructor (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:365:19)
+      at TypeScriptParserMixin.raise (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:6616:19)
+      at TypeScriptParserMixin.jsxReadToken (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:4460:20)
+      at TypeScriptParserMixin.getTokenFromCode (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:4786:12)
+      at TypeScriptParserMixin.getTokenFromCode (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10004:11)
+      at TypeScriptParserMixin.nextToken (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:5799:10)
+      at TypeScriptParserMixin.next (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:5709:10)
+      at TypeScriptParserMixin.eat (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:5713:12)
+      at TypeScriptParserMixin.expect (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:6915:15)
+      at TypeScriptParserMixin.jsxParseClosingElementAt (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:4692:10)
+      at TypeScriptParserMixin.jsxParseElementAt (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:4707:37)
+      at TypeScriptParserMixin.jsxParseElementAt (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:4710:32)
+      at TypeScriptParserMixin.jsxParseElement (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:4761:17)
+      at TypeScriptParserMixin.parseExprAtom (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:4771:19)
+      at TypeScriptParserMixin.parseExprSubscripts (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11098:23)
+      at TypeScriptParserMixin.parseUpdate (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11083:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11063:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9854:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10916:61)
+      at TypeScriptParserMixin.parseExprOps (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10921:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10898:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10848:21)
+      at /Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9792:39
+      at TypeScriptParserMixin.tryParse (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:6924:20)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9792:18)
+      at /Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10817:39
+      at TypeScriptParserMixin.allowInAnd (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12443:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10817:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12510:17)
+      at TypeScriptParserMixin.parseParenAndDistinguishExpression (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11692:28)
+      at TypeScriptParserMixin.parseExprAtom (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11348:23)
+      at TypeScriptParserMixin.parseExprAtom (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:4776:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11098:23)
+      at TypeScriptParserMixin.parseUpdate (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11083:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11063:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9854:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10916:61)
+      at TypeScriptParserMixin.parseExprOps (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10921:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10898:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10848:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9803:20)
+      at TypeScriptParserMixin.parseExpressionBase (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10801:23)
+      at /Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10797:39
+      at TypeScriptParserMixin.allowInAnd (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12438:16)
+      at TypeScriptParserMixin.parseExpression (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10797:17)
+      at TypeScriptParserMixin.parseReturnStatement (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13159:28)
+      at TypeScriptParserMixin.parseStatementContent (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12815:21)
+      at TypeScriptParserMixin.parseStatementContent (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9525:18)
+      at TypeScriptParserMixin.parseStatementLike (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12784:17)
+      at TypeScriptParserMixin.parseStatementListItem (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12764:17)
+4:12:43 PM [vite] hmr update /src/App.tsx
+4:13:12 PM [vite] hmr update /src/styles.css
+4:13:17 PM [vite] hmr update /src/App.tsx

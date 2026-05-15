@@ -291,6 +291,16 @@ export default function App() {
 
   const monLabel = MONITORING_MODE_LABELS[engine.monitoringMode]
 
+  const NAV_ITEMS: { id: Panel; icon: string; label: string; accent?: string }[] = [
+    { id: 'modules',    icon: '⊞', label: 'MODULES'  },
+    { id: 'mastering',  icon: '◎', label: 'MASTERING' },
+    { id: 'reference',  icon: '⇄', label: 'REFERENCE', accent: secondary },
+    { id: 'monitoring', icon: '◈', label: 'MONITOR'  },
+    { id: 'settings',   icon: '⚙', label: 'SETTINGS' },
+    { id: 'presets',    icon: '⊙', label: 'PRESETS'  },
+    { id: 'recording',  icon: '●', label: 'RECORD'   },
+  ]
+
   return (
     <div
       ref={appRef}
@@ -350,7 +360,6 @@ export default function App() {
                 primaryColor={primary}
               />
 
-              {/* A/B indicator */}
               {engine.referenceTracks.length > 0 && (
                 <button
                   className={`btn-text ab-indicator ${engine.isABMode ? 'ab-active' : ''}`}
@@ -361,7 +370,6 @@ export default function App() {
                 </button>
               )}
 
-              {/* Monitoring mode indicator */}
               <button
                 className={`btn-text mon-indicator ${engine.monitoringMode !== 'stereo' ? 'mon-active' : ''}`}
                 onClick={() => togglePanel('monitoring')}
@@ -371,30 +379,6 @@ export default function App() {
               </button>
 
               <LayoutControls current={layout} onChange={setLayout} primaryColor={primary} />
-              <button className={`btn-text ${panel === 'modules' ? 'active' : ''}`}
-                onClick={() => { togglePanel('modules'); setEditMode(p => !p) }}
-                style={{ '--accent': primary } as React.CSSProperties}>
-                ⊞ Modules
-              </button>
-              <button className={`btn-text ${panel === 'mastering' ? 'active' : ''}`}
-                onClick={() => togglePanel('mastering')}
-                style={{ '--accent': primary } as React.CSSProperties}>
-                ◎ Mastering
-              </button>
-              <button className={`btn-text ${panel === 'reference' ? 'active' : ''}`}
-                onClick={() => togglePanel('reference')}
-                style={{ '--accent': secondary } as React.CSSProperties}>
-                ⇄ Reference
-              </button>
-              <button className={`btn-text ${panel === 'settings' ? 'active' : ''}`}
-                onClick={() => togglePanel('settings')}
-                style={{ '--accent': primary } as React.CSSProperties}>⚙ Settings</button>
-              <button className={`btn-text ${panel === 'presets' ? 'active' : ''}`}
-                onClick={() => togglePanel('presets')}
-                style={{ '--accent': primary } as React.CSSProperties}>⊙ Presets</button>
-              <button className={`btn-text ${panel === 'recording' ? 'active' : ''}`}
-                onClick={() => togglePanel('recording')}
-                style={{ '--accent': primary } as React.CSSProperties}>● Record</button>
               <button className="btn-text" onClick={toggleFullscreen}
                 style={{ '--accent': primary } as React.CSSProperties}>
                 {isFullscreen ? '⊡' : '⊞'} FS
@@ -419,173 +403,197 @@ export default function App() {
         </div>
       </header>
 
-      {/* ── PANELS ── */}
-      {panel === 'monitoring' && !recMode && (
-        <div className="panel-overlay panel-overlay-right">
-          <div className="panel-overlay-header">
-            <span>MONITORING</span>
-            <button className="btn-xs" onClick={() => setPanel(null)}>✕</button>
-          </div>
-          <div className="panel-overlay-scroll">
-            <MonitoringPanel
-              mode={engine.monitoringMode}
-              onChange={(m: MonitoringMode) => { engine.setMonitoringMode(m); }}
-              primaryColor={primary}
-            />
-          </div>
-        </div>
-      )}
+      {/* ── BODY (nav + content) ── */}
+      <div className="app-body">
 
-      {panel === 'reference' && !recMode && (
-        <div className="panel-overlay panel-overlay-right panel-overlay-wide">
-          <div className="panel-overlay-header">
-            <span>REFERENCE TRACKS</span>
-            <button className="btn-xs" onClick={() => setPanel(null)}>✕</button>
-          </div>
-          <div className="panel-overlay-scroll">
-            <ReferencePanel
-              referenceTracks={engine.referenceTracks}
-              activeSlot={engine.activeRefSlot}
-              isABMode={engine.isABMode}
-              autoLoudnessMatch={engine.autoLoudnessMatch}
-              refVolume={engine.refVolume}
-              onAddTrack={engine.addReferenceTrack}
-              onRemoveTrack={engine.removeReferenceTrack}
-              onSetSlot={engine.setActiveRefSlot}
-              onToggleAB={engine.setABMode}
-              onAutoLoudness={engine.setAutoLoudnessMatch}
-              onRefVolume={engine.setRefVolume}
-              primaryColor={primary}
-              secondaryColor={secondary}
-            />
-            {(mainTrack || activeRefTrack) && (
-              <div style={{ padding: '8px 0', height: 160 }}>
-                <WaveformComparison
-                  mainUrl={mainTrack?.url ?? null}
-                  refUrl={activeRefTrack?.url ?? null}
-                  isABMode={engine.isABMode}
-                  primaryColor={primary}
-                  secondaryColor={secondary}
-                />
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {panel === 'mastering' && !recMode && (
-        <div className="panel-overlay panel-overlay-right panel-overlay-wide">
-          <div className="panel-overlay-header">
-            <span>MASTERING ASSISTANT</span>
-            <button className="btn-xs" onClick={() => setPanel(null)}>✕</button>
-          </div>
-          <div className="panel-overlay-scroll">
-            <MasteringAssistant
-              analyser={engine.analyserMaster}
-              analyserL={engine.analyserL}
-              analyserR={engine.analyserR}
-              isActive={engine.isActive}
-              sampleRate={engine.sampleRate}
-              primaryColor={primary}
-              secondaryColor={secondary}
-              spectralFeatures={engine.spectralFeatures}
-              bpmDetecting={engine.bpmDetecting}
-              onDetectBPM={engine.detectBPM}
-            />
-          </div>
-        </div>
-      )}
-
-      {panel === 'settings' && !recMode && (
-        <div className="panel-overlay panel-overlay-right">
-          <div className="panel-overlay-header">
-            <span>SETTINGS</span>
-            <button className="btn-xs" onClick={() => setPanel(null)}>✕</button>
-          </div>
-          <div className="panel-overlay-scroll">
-            <SettingsPanel
-              settings={settings}
-              onChange={updateSettings}
-              modules={modSys.modules}
-              onModuleSettings={modSys.updateModuleSettings}
-              primaryColor={primary}
-              currentTrackName={engine.tracks[engine.currentIndex]?.displayName ?? ''}
-            />
-          </div>
-        </div>
-      )}
-
-      {panel === 'presets' && !recMode && (
-        <div className="panel-overlay panel-overlay-right">
-          <div className="panel-overlay-header">
-            <span>PRESETS</span>
-            <button className="btn-xs" onClick={() => setPanel(null)}>✕</button>
-          </div>
-          <div className="panel-overlay-scroll">
-            <PresetsPanel
-              presets={presets.presets}
-              onSave={handleSavePreset}
-              onLoad={handleLoadPreset}
-              onDelete={presets.deletePreset}
-              onExport={presets.exportPreset}
-              onImport={presets.importPreset}
-              primaryColor={primary}
-            />
-          </div>
-        </div>
-      )}
-
-      {panel === 'recording' && !recMode && (
-        <div className="panel-overlay panel-overlay-right">
-          <div className="panel-overlay-header">
-            <span>RECORDING</span>
-            <button className="btn-xs" onClick={() => setPanel(null)}>✕</button>
-          </div>
-          <div className="panel-overlay-scroll">
-            <RecordingPanel
-              recorderState={recorder.recorderState}
-              recordingTime={recorder.recordingTime}
-              onStart={recorder.startRecording}
-              onStop={recorder.stopRecording}
-              onCaptureBuffer={recorder.exportRingBuffer}
-              onExportPNG={recorder.exportPNG}
-              onToggleRecMode={() => { updateSettings({ recordingMode: !recMode }); setPanel(null) }}
-              recordingMode={recMode}
-              ringBuffer={engine.ringBuffer}
-              primaryColor={primary}
-            />
-          </div>
-        </div>
-      )}
-
-      {panel === 'modules' && !recMode && (
-        <div className="panel-overlay panel-overlay-left">
-          <div className="panel-overlay-header">
-            <span>MODULES</span>
-            <button className="btn-xs" onClick={() => { setPanel(null); setEditMode(false) }}>✕</button>
-          </div>
-          <div className="panel-overlay-scroll">
-            <div className="settings-section-title">ENABLE / REORDER</div>
-            <div className="settings-note">Drag headers to reorder. Click to toggle.</div>
-            {modSys.modules.map(m => (
-              <div key={m.id} className="module-manager-row">
-                <label className="toggle-row">
-                  <input type="checkbox" checked={m.enabled}
-                    onChange={() => modSys.toggleModule(m.id)} />
-                  <span className="toggle-track" style={{ '--accent': primary } as React.CSSProperties}>
-                    <span className="toggle-thumb" />
-                  </span>
-                  <span className="toggle-label">{m.label}</span>
-                </label>
-                <div className="module-mgr-btns">
-                  <button className="sz-btn" onClick={() => modSys.moveModule(m.id, 'up')}>↑</button>
-                  <button className="sz-btn" onClick={() => modSys.moveModule(m.id, 'down')}>↓</button>
-                </div>
-              </div>
+        {/* ── LEFT NAV SIDEBAR ── */}
+        {!recMode && (
+          <nav className="nav-sidebar" style={{ '--primary': primary, '--secondary': secondary } as React.CSSProperties}>
+            {NAV_ITEMS.map(({ id, icon, label, accent }) => (
+              <button
+                key={id}
+                className={`nav-item ${panel === id ? 'active' : ''}`}
+                onClick={() => {
+                  togglePanel(id)
+                  if (id === 'modules') setEditMode(p => panel !== id ? true : !p)
+                }}
+                title={label}
+                style={{ '--accent': accent ?? primary } as React.CSSProperties}
+              >
+                <span className="nav-item-icon">{icon}</span>
+                <span className="nav-item-label">{label}</span>
+              </button>
             ))}
+          </nav>
+        )}
+
+        {/* ── PANELS ── */}
+        {panel === 'monitoring' && !recMode && (
+          <div className="panel-overlay panel-overlay-left panel-overlay-inset">
+            <div className="panel-overlay-header">
+              <span>MONITORING</span>
+              <button className="btn-xs" onClick={() => setPanel(null)}>✕</button>
+            </div>
+            <div className="panel-overlay-scroll">
+              <MonitoringPanel
+                mode={engine.monitoringMode}
+                onChange={(m: MonitoringMode) => { engine.setMonitoringMode(m); }}
+                primaryColor={primary}
+              />
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {panel === 'reference' && !recMode && (
+          <div className="panel-overlay panel-overlay-left panel-overlay-inset panel-overlay-wide">
+            <div className="panel-overlay-header">
+              <span>REFERENCE TRACKS</span>
+              <button className="btn-xs" onClick={() => setPanel(null)}>✕</button>
+            </div>
+            <div className="panel-overlay-scroll">
+              <ReferencePanel
+                referenceTracks={engine.referenceTracks}
+                activeSlot={engine.activeRefSlot}
+                isABMode={engine.isABMode}
+                autoLoudnessMatch={engine.autoLoudnessMatch}
+                refVolume={engine.refVolume}
+                onAddTrack={engine.addReferenceTrack}
+                onRemoveTrack={engine.removeReferenceTrack}
+                onSetSlot={engine.setActiveRefSlot}
+                onToggleAB={engine.setABMode}
+                onAutoLoudness={engine.setAutoLoudnessMatch}
+                onRefVolume={engine.setRefVolume}
+                primaryColor={primary}
+                secondaryColor={secondary}
+              />
+              {(mainTrack || activeRefTrack) && (
+                <div style={{ padding: '8px 0', height: 160 }}>
+                  <WaveformComparison
+                    mainUrl={mainTrack?.url ?? null}
+                    refUrl={activeRefTrack?.url ?? null}
+                    isABMode={engine.isABMode}
+                    primaryColor={primary}
+                    secondaryColor={secondary}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {panel === 'mastering' && !recMode && (
+          <div className="panel-overlay panel-overlay-left panel-overlay-inset panel-overlay-wide">
+            <div className="panel-overlay-header">
+              <span>MASTERING ASSISTANT</span>
+              <button className="btn-xs" onClick={() => setPanel(null)}>✕</button>
+            </div>
+            <div className="panel-overlay-scroll">
+              <MasteringAssistant
+                analyser={engine.analyserMaster}
+                analyserL={engine.analyserL}
+                analyserR={engine.analyserR}
+                isActive={engine.isActive}
+                sampleRate={engine.sampleRate}
+                primaryColor={primary}
+                secondaryColor={secondary}
+                spectralFeatures={engine.spectralFeatures}
+                bpmDetecting={engine.bpmDetecting}
+                onDetectBPM={engine.detectBPM}
+              />
+            </div>
+          </div>
+        )}
+
+        {panel === 'settings' && !recMode && (
+          <div className="panel-overlay panel-overlay-left panel-overlay-inset">
+            <div className="panel-overlay-header">
+              <span>SETTINGS</span>
+              <button className="btn-xs" onClick={() => setPanel(null)}>✕</button>
+            </div>
+            <div className="panel-overlay-scroll">
+              <SettingsPanel
+                settings={settings}
+                onChange={updateSettings}
+                modules={modSys.modules}
+                onModuleSettings={modSys.updateModuleSettings}
+                primaryColor={primary}
+                currentTrackName={engine.tracks[engine.currentIndex]?.displayName ?? ''}
+              />
+            </div>
+          </div>
+        )}
+
+        {panel === 'presets' && !recMode && (
+          <div className="panel-overlay panel-overlay-left panel-overlay-inset">
+            <div className="panel-overlay-header">
+              <span>PRESETS</span>
+              <button className="btn-xs" onClick={() => setPanel(null)}>✕</button>
+            </div>
+            <div className="panel-overlay-scroll">
+              <PresetsPanel
+                presets={presets.presets}
+                onSave={handleSavePreset}
+                onLoad={handleLoadPreset}
+                onDelete={presets.deletePreset}
+                onExport={presets.exportPreset}
+                onImport={presets.importPreset}
+                primaryColor={primary}
+              />
+            </div>
+          </div>
+        )}
+
+        {panel === 'recording' && !recMode && (
+          <div className="panel-overlay panel-overlay-left panel-overlay-inset">
+            <div className="panel-overlay-header">
+              <span>RECORDING</span>
+              <button className="btn-xs" onClick={() => setPanel(null)}>✕</button>
+            </div>
+            <div className="panel-overlay-scroll">
+              <RecordingPanel
+                recorderState={recorder.recorderState}
+                recordingTime={recorder.recordingTime}
+                onStart={recorder.startRecording}
+                onStop={recorder.stopRecording}
+                onCaptureBuffer={recorder.exportRingBuffer}
+                onExportPNG={recorder.exportPNG}
+                onToggleRecMode={() => { updateSettings({ recordingMode: !recMode }); setPanel(null) }}
+                recordingMode={recMode}
+                ringBuffer={engine.ringBuffer}
+                primaryColor={primary}
+              />
+            </div>
+          </div>
+        )}
+
+        {panel === 'modules' && !recMode && (
+          <div className="panel-overlay panel-overlay-left panel-overlay-inset">
+            <div className="panel-overlay-header">
+              <span>MODULES</span>
+              <button className="btn-xs" onClick={() => { setPanel(null); setEditMode(false) }}>✕</button>
+            </div>
+            <div className="panel-overlay-scroll">
+              <div className="settings-section-title">ENABLE / REORDER</div>
+              <div className="settings-note">Drag headers to reorder. Click to toggle.</div>
+              {modSys.modules.map(m => (
+                <div key={m.id} className="module-manager-row">
+                  <label className="toggle-row">
+                    <input type="checkbox" checked={m.enabled}
+                      onChange={() => modSys.toggleModule(m.id)} />
+                    <span className="toggle-track" style={{ '--accent': primary } as React.CSSProperties}>
+                      <span className="toggle-thumb" />
+                    </span>
+                    <span className="toggle-label">{m.label}</span>
+                  </label>
+                  <div className="module-mgr-btns">
+                    <button className="sz-btn" onClick={() => modSys.moveModule(m.id, 'up')}>↑</button>
+                    <button className="sz-btn" onClick={() => modSys.moveModule(m.id, 'down')}>↓</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
       {/* ── MAIN CONTENT ── */}
       <main className="main-content">
@@ -641,11 +649,13 @@ export default function App() {
           {modSys.enabledModules.length === 0 && (
             <div className="module-empty">
               <p>No modules enabled.</p>
-              <p>Click <strong>⊞ Modules</strong> to add visualizers.</p>
+              <p>Click <strong>⊞ MODULES</strong> in the left sidebar to add visualizers.</p>
             </div>
           )}
         </div>
       </main>
+
+      </div>{/* end app-body */}
 
       <footer className="bottom-bar">
         <StatusPanel isPlaying={engine.isPlaying} trackName={displayName}
