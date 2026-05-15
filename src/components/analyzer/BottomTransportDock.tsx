@@ -19,6 +19,7 @@ interface Props {
   onVolume: (v: number) => void
   onSourceChange: (s: AudioSource) => void
   onOpenSettings: () => void
+  onFiles: (files: File[]) => void
 }
 
 function fmtTime(s: number): string {
@@ -39,10 +40,19 @@ function fmtDur(s: number): string {
 export function BottomTransportDock({
   track, isPlaying, currentTime, duration, volume, source, sampleRate,
   hasTrack, onPlay, onPause, onStop, onPrev, onNext, onSeek, onVolume,
-  onSourceChange, onOpenSettings,
+  onSourceChange, onOpenSettings, onFiles,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
+  void dragging; void setDragging
+
+  const handleFiles = (files: FileList | null) => {
+    if (!files) return
+    const audio = Array.from(files).filter(f =>
+      f.type.startsWith('audio/') || /\.(mp3|wav|aiff?|m4a|ogg|flac)$/i.test(f.name)
+    )
+    if (audio.length) onFiles(audio)
+  }
 
   const volPct = `${Math.round(volume * 100)}%`
   const volDb  = volume < 0.001
@@ -135,7 +145,7 @@ export function BottomTransportDock({
         />
       </div>
 
-      {/* Source + Gear */}
+      {/* Source + Upload + Gear */}
       <div className="az-dock-right">
         <select
           className="az-dock-source-select"
@@ -146,6 +156,17 @@ export function BottomTransportDock({
           <option value="microphone">Microphone</option>
           <option value="demo">Demo</option>
         </select>
+
+        <button
+          className="az-dock-upload-btn"
+          title="Upload audio file"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+            <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/>
+          </svg>
+          Add Track
+        </button>
 
         <button
           className="az-dock-gear-btn"
@@ -164,13 +185,7 @@ export function BottomTransportDock({
         accept="audio/*"
         multiple
         className="az-upload-input"
-        onChange={e => {
-          if (!e.target.files) return
-          // Trigger file-loaded event upward — but we need the addTracks callback
-          // This is handled by onSourceChange('file') + drag-drop in parent
-          void e.target.files
-          void dragging; void setDragging
-        }}
+        onChange={e => handleFiles(e.target.files)}
       />
     </div>
   )

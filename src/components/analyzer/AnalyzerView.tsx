@@ -271,6 +271,7 @@ export function AnalyzerView() {
         onVolume={engine.setVolume}
         onSourceChange={handleSourceChange}
         onOpenSettings={() => setShowSettings(s => !s)}
+        onFiles={engine.addTracks}
       />
 
       <input

@@ -1019,6 +1019,29 @@
   background-repeat: no-repeat;
   background-position: right 6px center;
 }
+.az-dock-upload-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 13px;
+  height: 32px;
+  background: rgba(25,191,242,0.1);
+  border: 1px solid rgba(25,191,242,0.3);
+  border-radius: 7px;
+  color: var(--az-cyan);
+  font-family: var(--az-font);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.az-dock-upload-btn:hover {
+  background: rgba(25,191,242,0.18);
+  border-color: rgba(25,191,242,0.55);
+  box-shadow: 0 0 10px rgba(25,191,242,0.18);
+}
+
 .az-dock-gear-btn {
   width: 32px; height: 32px;
   display: flex; align-items: center; justify-content: center;
