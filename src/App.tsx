@@ -8,11 +8,11 @@ import {
   LayoutPreset, ModuleInstance, ModuleWidth, ModuleHeight, AudioSource
 } from './types'
 
-// Layout
-import { Sidebar, type NavItem } from './components/Sidebar'
-import { ModuleContainer }  from './components/ModuleContainer'
-import { LayoutControls }   from './components/LayoutControls'
-import { SourceSelector }   from './components/SourceSelector'
+// Infrastructure
+import { HudFrame }        from './components/HudFrame'
+import { ModuleContainer } from './components/ModuleContainer'
+import { SourceSelector }  from './components/SourceSelector'
+import { SafeMargins }     from './components/SafeMargins'
 
 // Visualizers
 import { SpectrumModule }     from './components/SpectrumModule'
@@ -29,11 +29,14 @@ import { LevelMeterModule }   from './components/LevelMeterModule'
 
 // Panels
 import { AudioUploader }    from './components/AudioUploader'
+import { TransportControls } from './components/TransportControls'
 import { PlaylistPanel }    from './components/PlaylistPanel'
 import { SettingsPanel }    from './components/SettingsPanel'
 import { PresetsPanel }     from './components/PresetsPanel'
 import { RecordingPanel }   from './components/RecordingPanel'
-import { SafeMargins }      from './components/SafeMargins'
+import { LayoutControls }   from './components/LayoutControls'
+import { StatusPanel }      from './components/StatusPanel'
+import { SystemPanel }      from './components/SystemPanel'
 
 // New panels
 import { MonitoringPanel }    from './components/monitoring/MonitoringPanel'
@@ -41,8 +44,8 @@ import { ReferencePanel }     from './components/reference/ReferencePanel'
 import { MasteringAssistant } from './components/mastering/MasteringAssistant'
 import { WaveformComparison } from './components/WaveformComparison'
 
-import { formatTime } from './utils/formatTime'
 import type { MonitoringMode } from './types/audio'
+import { MONITORING_MODE_LABELS } from './types/audio'
 
 // ─── Module renderer ─────────────────────────────────────────────────────────
 function RenderModule({ mod, engine, settings, primary, secondary }: {
@@ -52,15 +55,20 @@ function RenderModule({ mod, engine, settings, primary, secondary }: {
   primary: string
   secondary: string
 }) {
+  // When A/B mode is on, spectrum overlay gets both analysers for comparison
+  const analyserForModule = engine.analyserMaster
+  const analyserLForModule = engine.analyserL
+  const analyserRForModule = engine.analyserR
+
   const common = {
-    analyser:  engine.analyserMaster,
-    analyserL: engine.analyserL,
-    analyserR: engine.analyserR,
-    isActive:  engine.isActive,
+    analyser: analyserForModule,
+    analyserL: analyserLForModule,
+    analyserR: analyserRForModule,
+    isActive: engine.isActive,
     primaryColor:   primary,
     secondaryColor: secondary,
-    showGlow:        false,
-    accentIntensity: 0.5,
+    showGlow:        settings.showGlow,
+    accentIntensity: settings.accentIntensity,
     showPeakHold:    settings.showPeakHold,
     peakDecay:       settings.peakDecay,
     sensitivity:     settings.sensitivity,
@@ -70,10 +78,12 @@ function RenderModule({ mod, engine, settings, primary, secondary }: {
   switch (mod.type) {
     case 'spectrum':
       return <SpectrumModule
-        analyser={common.analyser} isActive={common.isActive}
+        analyser={common.analyser}
+        isActive={common.isActive}
         mode={mod.settings.spectrumMode ?? 'bars'}
         colorMap={mod.settings.colorMap ?? 'cyan-green'}
-        showGlow={false} accentIntensity={0.5}
+        showGlow={common.showGlow}
+        accentIntensity={common.accentIntensity}
         showPeakHold={mod.settings.showPeakHold ?? settings.showPeakHold}
         peakDecay={mod.settings.peakDecay ?? settings.peakDecay}
         showTargetCurve={mod.settings.showTargetCurve ?? false}
@@ -82,73 +92,111 @@ function RenderModule({ mod, engine, settings, primary, secondary }: {
       />
     case 'spectrogram':
       return <SpectrogramModule
-        analyser={common.analyser} isActive={common.isActive}
-        colorMap={mod.settings.colorMap ?? 'cyan-green'}
+        analyser={common.analyser}
+        isActive={common.isActive}
+        colorMap={mod.settings.colorMap ?? 'fire'}
         scrollSpeed={mod.settings.scrollSpeed ?? 2}
         sensitivity={common.sensitivity}
       />
     case 'waveform':
       return <WaveformModule
-        analyser={common.analyser} isActive={common.isActive}
+        analyser={common.analyser}
+        isActive={common.isActive}
         mode={mod.settings.waveformMode ?? 'centered'}
         colorMap={mod.settings.colorMap ?? 'cyan-green'}
-        showGlow={false} accentIntensity={0.5}
-        currentTime={engine.currentTime} duration={engine.duration}
+        showGlow={common.showGlow}
+        accentIntensity={common.accentIntensity}
+        currentTime={engine.currentTime}
+        duration={engine.duration}
       />
     case 'vectorscope':
       return <VectorscopeModule
-        analyserL={common.analyserL} analyserR={common.analyserR}
-        isActive={common.isActive} primaryColor={primary} secondaryColor={secondary}
-        showGlow={false} accentIntensity={0.5}
+        analyserL={common.analyserL}
+        analyserR={common.analyserR}
+        isActive={common.isActive}
+        primaryColor={primary}
+        secondaryColor={secondary}
+        showGlow={common.showGlow}
+        accentIntensity={common.accentIntensity}
       />
     case 'oscilloscope':
       return <OscilloscopeModule
-        analyserL={common.analyserL} analyserR={common.analyserR}
-        isActive={common.isActive} mode={mod.settings.oscMode ?? 'L'}
-        primaryColor={primary} showGlow={false} accentIntensity={0.5}
+        analyserL={common.analyserL}
+        analyserR={common.analyserR}
+        isActive={common.isActive}
+        mode={mod.settings.oscMode ?? 'L'}
+        primaryColor={primary}
+        showGlow={common.showGlow}
+        accentIntensity={common.accentIntensity}
       />
     case 'loudness':
       return <LoudnessModule
-        analyser={common.analyser} isActive={common.isActive}
-        primaryColor={primary} secondaryColor={secondary}
-        showGlow={false} accentIntensity={0.5} sampleRate={common.sampleRate}
+        analyser={common.analyser}
+        isActive={common.isActive}
+        primaryColor={primary}
+        secondaryColor={secondary}
+        showGlow={common.showGlow}
+        accentIntensity={common.accentIntensity}
+        sampleRate={common.sampleRate}
       />
     case 'lr':
       return <LRMeterModule
-        analyserL={common.analyserL} analyserR={common.analyserR}
-        isActive={common.isActive} primaryColor={primary} secondaryColor={secondary}
-        showGlow={false} accentIntensity={0.5}
-        showPeakHold={common.showPeakHold} peakDecay={common.peakDecay}
+        analyserL={common.analyserL}
+        analyserR={common.analyserR}
+        isActive={common.isActive}
+        primaryColor={primary}
+        secondaryColor={secondary}
+        showGlow={common.showGlow}
+        accentIntensity={common.accentIntensity}
+        showPeakHold={common.showPeakHold}
+        peakDecay={common.peakDecay}
       />
     case 'midside':
       return <MidSideModule
-        analyserL={common.analyserL} analyserR={common.analyserR}
-        isActive={common.isActive} primaryColor={primary} secondaryColor={secondary}
-        showGlow={false} accentIntensity={0.5}
-        showPeakHold={common.showPeakHold} peakDecay={common.peakDecay}
+        analyserL={common.analyserL}
+        analyserR={common.analyserR}
+        isActive={common.isActive}
+        primaryColor={primary}
+        secondaryColor={secondary}
+        showGlow={common.showGlow}
+        accentIntensity={common.accentIntensity}
+        showPeakHold={common.showPeakHold}
+        peakDecay={common.peakDecay}
       />
     case 'phase':
       return <PhaseModule
-        analyserL={common.analyserL} analyserR={common.analyserR}
-        isActive={common.isActive} primaryColor={primary} secondaryColor={secondary}
-        showGlow={false} accentIntensity={0.5}
+        analyserL={common.analyserL}
+        analyserR={common.analyserR}
+        isActive={common.isActive}
+        primaryColor={primary}
+        secondaryColor={secondary}
+        showGlow={common.showGlow}
+        accentIntensity={common.accentIntensity}
       />
     case 'bands':
       return <BandMetersModule
-        analyser={common.analyser} isActive={common.isActive}
-        primaryColor={primary} secondaryColor={secondary}
-        showGlow={false} accentIntensity={0.5}
-        showPeakHold={common.showPeakHold} peakDecay={common.peakDecay}
+        analyser={common.analyser}
+        isActive={common.isActive}
+        primaryColor={primary}
+        secondaryColor={secondary}
+        showGlow={common.showGlow}
+        accentIntensity={common.accentIntensity}
+        showPeakHold={common.showPeakHold}
+        peakDecay={common.peakDecay}
         sampleRate={common.sampleRate}
       />
     case 'level':
       return <LevelMeterModule
-        analyser={common.analyser} isActive={common.isActive}
+        analyser={common.analyser}
+        isActive={common.isActive}
         levelMode={mod.settings.levelMode ?? 'rms'}
         vuMode={mod.settings.vuMode ?? 'bar'}
-        primaryColor={primary} secondaryColor={secondary}
-        showGlow={false} accentIntensity={0.5}
-        showPeakHold={common.showPeakHold} peakDecay={common.peakDecay}
+        primaryColor={primary}
+        secondaryColor={secondary}
+        showGlow={common.showGlow}
+        accentIntensity={common.accentIntensity}
+        showPeakHold={common.showPeakHold}
+        peakDecay={common.peakDecay}
         label={mod.label}
       />
     default:
@@ -158,7 +206,7 @@ function RenderModule({ mod, engine, settings, primary, secondary }: {
 
 // ─── App ─────────────────────────────────────────────────────────────────────
 
-type OverlayPanel = 'monitoring' | 'reference' | 'mastering' | 'settings' | 'presets' | 'recording' | 'modules' | null
+type Panel = 'settings' | 'presets' | 'recording' | 'modules' | 'monitoring' | 'reference' | 'mastering' | null
 
 export default function App() {
   const engine   = useAudioEngine()
@@ -168,13 +216,11 @@ export default function App() {
 
   const [layout,      setLayout]      = useState<LayoutPreset>('dashboard')
   const [settings,    setSettings]    = useState<GlobalSettings>(DEFAULT_SETTINGS)
-  const [overlay,     setOverlay]     = useState<OverlayPanel>(null)
-  const [activeNav,   setActiveNav]   = useState<NavItem>('home')
+  const [panel,       setPanel]       = useState<Panel>(null)
   const [editMode,    setEditMode]    = useState(false)
   const [dragId,      setDragId]      = useState<string | null>(null)
-  const [activePreset,setActivePreset]= useState<string | null>(null)
-  const [showPresetSave, setShowPresetSave] = useState(false)
-  const [presetName,  setPresetName]  = useState('')
+  const [showPlaylist,setShowPlaylist] = useState(true)
+  const [isFullscreen,setIsFullscreen]= useState(false)
 
   const appRef = useRef<HTMLDivElement>(null)
 
@@ -184,45 +230,49 @@ export default function App() {
     if ('smoothing' in patch && patch.smoothing !== undefined) engine.setSmoothing(patch.smoothing)
   }, [engine])
 
-  const toggleOverlay = useCallback((p: OverlayPanel) => setOverlay(prev => prev === p ? null : p), [])
+  const togglePanel = useCallback((p: Panel) => setPanel(prev => prev === p ? null : p), [])
 
   const { primary, secondary } = THEME_COLORS[settings.theme]
-  const displayName = settings.displayNameOverride || engine.tracks[engine.currentIndex]?.displayName || ''
-  const currentTrack = engine.tracks[engine.currentIndex] ?? null
-  const activeRefTrack = engine.referenceTracks.find(t => t.slot === engine.activeRefSlot) ?? null
 
-  const handleNav = useCallback((nav: NavItem) => {
-    setActiveNav(nav)
-    // Nav items open their respective overlays
-    const overlayMap: Partial<Record<NavItem, OverlayPanel>> = {
-      settings:  'settings',
-      reference: 'reference',
-      mastering: 'mastering',
-    }
-    const mapped = overlayMap[nav]
-    if (mapped) setOverlay(prev => prev === mapped ? null : mapped)
-    else setOverlay(null)
-  }, [])
+  const displayName = settings.displayNameOverride ||
+    engine.tracks[engine.currentIndex]?.displayName || ''
 
-  const handlePresetLoad = useCallback((id: string) => {
-    if (id === '__default') { setActivePreset(null); return }
+  const handleSourceChange = useCallback(async (s: AudioSource) => {
+    await engine.setSource(s)
+  }, [engine])
+
+  const handleSavePreset = useCallback((name: string) => {
+    presets.savePreset(name, settings, modSys.modules, layout)
+  }, [presets, settings, modSys.modules, layout])
+
+  const handleLoadPreset = useCallback((id: string) => {
     const p = presets.loadPreset(id)
     if (!p) return
     setSettings(p.settings)
     modSys.setModules(p.modules)
     setLayout(p.layout)
-    setActivePreset(id)
+    setPanel(null)
   }, [presets, modSys])
 
-  const handleSavePreset = useCallback(() => {
-    if (!presetName.trim()) return
-    presets.savePreset(presetName.trim(), settings, modSys.modules, layout)
-    setPresetName('')
-    setShowPresetSave(false)
-  }, [presets, settings, modSys.modules, layout, presetName])
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      appRef.current?.requestFullscreen()
+      setIsFullscreen(true)
+    } else {
+      document.exitFullscreen()
+      setIsFullscreen(false)
+    }
+  }, [])
 
-  const recMode = settings.recordingMode
-  const pct = engine.duration > 0 ? (engine.currentTime / engine.duration) * 100 : 0
+  const themeVars = {
+    '--primary': primary,
+    '--secondary': secondary,
+    '--accent-intensity': settings.accentIntensity,
+    '--glow': settings.showGlow
+      ? `0 0 ${settings.accentIntensity * 16}px ${primary}55`
+      : 'none',
+    '--font-scale': settings.fontDensity === 'compact' ? '0.85' : settings.fontDensity === 'large' ? '1.15' : '1',
+  } as React.CSSProperties
 
   const layoutClass = {
     'dashboard':  'layout-dashboard',
@@ -233,305 +283,164 @@ export default function App() {
     '9:16':       'layout-vertical',
   }[layout]
 
+  const recMode = settings.recordingMode
+
+  // Reference track for active slot
+  const activeRefTrack = engine.referenceTracks.find(t => t.slot === engine.activeRefSlot) ?? null
+  const mainTrack = engine.tracks[engine.currentIndex] ?? null
+
+  const monLabel = MONITORING_MODE_LABELS[engine.monitoringMode]
+
   return (
     <div
       ref={appRef}
-      className={`app-root ${layoutClass} ${recMode ? 'recording-mode' : ''}`}
-      style={{ '--primary': primary, '--secondary': secondary } as React.CSSProperties}
+      className={[
+        'app-root',
+        layoutClass,
+        settings.showScanlines  ? 'scanlines'       : '',
+        recMode                 ? 'recording-mode'  : '',
+        settings.transparentBg  ? 'transparent-bg'  : '',
+        editMode                ? 'edit-mode-active' : '',
+      ].filter(Boolean).join(' ')}
+      style={themeVars}
     >
-      {/* ── SIDEBAR ── */}
-      <Sidebar
-        activeNav={activeNav}
-        onNav={handleNav}
-        presets={presets.presets}
-        activePresetId={activePreset}
-        onPresetLoad={handlePresetLoad}
-        onNewPreset={() => setShowPresetSave(true)}
-        monitoringMode={engine.monitoringMode}
-        volume={engine.volume}
-        onVolume={engine.setVolume}
+      {settings.showGrid && <div className="grid-bg" aria-hidden />}
+
+      <HudFrame
         primaryColor={primary}
-        secondaryColor={secondary}
-        theme={settings.theme}
+        showGlow={settings.showGlow}
+        accentIntensity={settings.accentIntensity}
+        recordingMode={recMode}
+        showRecIndicator={settings.showRecIndicator}
       />
 
-      {/* ── MAIN BODY ── */}
-      <div className="app-main">
+      {settings.showSafeMargins && !recMode && (
+        <SafeMargins aspect={settings.safeMarginsAspect} primaryColor={primary} />
+      )}
 
-        {/* ── MODULE AREA ── */}
-        <div className="module-area">
+      {/* ── TOP BAR ── */}
+      <header className="top-bar">
+        {settings.showLogo && (
+          <div className="logo-block">
+            <div className="logo-mark">
+              <span style={{ color: primary }}>DV</span>
+              <span style={{ color: secondary }}>Y</span>
+              <span style={{ color: primary }}>DRM</span>
+            </div>
+            <div className="logo-sub">SIGNAL SYS</div>
+          </div>
+        )}
 
-          {/* Top action bar */}
+        <div className="title-block">
+          <h1 className="main-title">
+            DVYDRM <span style={{ color: secondary }}>//</span> DRMWLD SIGNAL
+          </h1>
+          {displayName && (
+            <div className="now-playing-title" style={{ color: primary }}>{displayName}</div>
+          )}
+        </div>
+
+        <div className="top-right-controls">
           {!recMode && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              marginBottom: 8, flexWrap: 'wrap',
-            }}>
+            <>
               <SourceSelector
                 source={engine.source}
-                onChange={s => engine.setSource(s as AudioSource)}
+                onChange={handleSourceChange}
                 micError={engine.micError}
                 primaryColor={primary}
               />
+
+              {/* A/B indicator */}
               {engine.referenceTracks.length > 0 && (
                 <button
                   className={`btn-text ab-indicator ${engine.isABMode ? 'ab-active' : ''}`}
                   onClick={() => engine.setABMode(!engine.isABMode)}
+                  style={{ '--accent': engine.isABMode ? secondary : primary } as React.CSSProperties}
                 >
-                  {engine.isABMode ? 'B — Reference' : 'A — Main'}
+                  {engine.isABMode ? 'B REF' : 'A MAIN'}
                 </button>
               )}
+
+              {/* Monitoring mode indicator */}
               <button
                 className={`btn-text mon-indicator ${engine.monitoringMode !== 'stereo' ? 'mon-active' : ''}`}
-                onClick={() => toggleOverlay('monitoring')}
-                title="Monitoring mode"
+                onClick={() => togglePanel('monitoring')}
+                style={{ '--accent': primary } as React.CSSProperties}
               >
-                ◈ {engine.monitoringMode !== 'stereo' ? engine.monitoringMode : 'Stereo'}
+                ◈ {monLabel}
               </button>
-              <div style={{ flex: 1 }} />
+
               <LayoutControls current={layout} onChange={setLayout} primaryColor={primary} />
-              <button
-                className={`btn-text ${editMode ? 'active' : ''}`}
-                onClick={() => { setEditMode(p => !p); if (!editMode) toggleOverlay('modules') }}
-              >
-                Edit
+              <button className={`btn-text ${panel === 'modules' ? 'active' : ''}`}
+                onClick={() => { togglePanel('modules'); setEditMode(p => !p) }}
+                style={{ '--accent': primary } as React.CSSProperties}>
+                ⊞ Modules
               </button>
-              {engine.source === 'file' && (
-                <button
-                  className="btn-text"
-                  onClick={() => toggleOverlay('recording')}
-                >
-                  ● Rec
-                </button>
+              <button className={`btn-text ${panel === 'mastering' ? 'active' : ''}`}
+                onClick={() => togglePanel('mastering')}
+                style={{ '--accent': primary } as React.CSSProperties}>
+                ◎ Mastering
+              </button>
+              <button className={`btn-text ${panel === 'reference' ? 'active' : ''}`}
+                onClick={() => togglePanel('reference')}
+                style={{ '--accent': secondary } as React.CSSProperties}>
+                ⇄ Reference
+              </button>
+              <button className={`btn-text ${panel === 'settings' ? 'active' : ''}`}
+                onClick={() => togglePanel('settings')}
+                style={{ '--accent': primary } as React.CSSProperties}>⚙ Settings</button>
+              <button className={`btn-text ${panel === 'presets' ? 'active' : ''}`}
+                onClick={() => togglePanel('presets')}
+                style={{ '--accent': primary } as React.CSSProperties}>⊙ Presets</button>
+              <button className={`btn-text ${panel === 'recording' ? 'active' : ''}`}
+                onClick={() => togglePanel('recording')}
+                style={{ '--accent': primary } as React.CSSProperties}>● Record</button>
+              <button className="btn-text" onClick={toggleFullscreen}
+                style={{ '--accent': primary } as React.CSSProperties}>
+                {isFullscreen ? '⊡' : '⊞'} FS
+              </button>
+              <button className="btn-text btn-rec-toggle"
+                onClick={() => updateSettings({ recordingMode: true })}>
+                ◉ REC MODE
+              </button>
+            </>
+          )}
+          {recMode && (
+            <>
+              {engine.source !== 'file' && (
+                <SourceSelector source={engine.source} onChange={handleSourceChange} micError={engine.micError} primaryColor={primary} />
               )}
-              {recMode && (
-                <button className="rec-exit-btn" onClick={() => updateSettings({ recordingMode: false })}>
-                  EXIT REC
-                </button>
-              )}
-            </div>
+              <button className="btn-text" onClick={() => updateSettings({ recordingMode: false })}
+                style={{ color: 'rgba(255,255,255,0.4)', fontSize: '10px' } as React.CSSProperties}>
+                EXIT REC
+              </button>
+            </>
           )}
-
-          {/* Inline uploader for file source */}
-          {!recMode && engine.source === 'file' && engine.tracks.length === 0 && (
-            <div style={{ marginBottom: 8, maxWidth: 400 }}>
-              <AudioUploader onFiles={engine.addTracks} primaryColor={primary} />
-            </div>
-          )}
-
-          {/* Playlist (when file source + tracks exist) */}
-          {!recMode && engine.source === 'file' && engine.tracks.length > 0 && (
-            <details style={{ marginBottom: 6 }}>
-              <summary style={{
-                fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase',
-                color: 'rgba(224,234,248,0.3)', cursor: 'pointer', marginBottom: 4,
-                userSelect: 'none', listStyle: 'none',
-              }}>
-                Playlist · {engine.tracks.length} track{engine.tracks.length !== 1 ? 's' : ''}
-                {displayName && <span style={{ color: primary, marginLeft: 8 }}>{displayName}</span>}
-              </summary>
-              <div style={{ maxWidth: 600 }}>
-                <PlaylistPanel
-                  tracks={engine.tracks}
-                  currentIndex={engine.currentIndex}
-                  isPlaying={engine.isPlaying}
-                  onSelect={engine.selectTrack}
-                  onRemove={engine.removeTrack}
-                  primaryColor={primary}
-                />
-                <div style={{ marginTop: 6, maxWidth: 300 }}>
-                  <AudioUploader onFiles={engine.addTracks} primaryColor={primary} />
-                </div>
-              </div>
-            </details>
-          )}
-
-          {/* Safe margins */}
-          {settings.showSafeMargins && !recMode && (
-            <SafeMargins aspect={settings.safeMarginsAspect} primaryColor={primary} />
-          )}
-
-          {/* Preset save form */}
-          {showPresetSave && (
-            <div style={{
-              display: 'flex', gap: 6, marginBottom: 8, maxWidth: 340,
-              background: 'rgba(255,255,255,0.04)', borderRadius: 6,
-              padding: '8px 10px', border: '1px solid rgba(255,255,255,0.08)',
-            }}>
-              <input
-                className="presets-name-input"
-                placeholder="Preset name…"
-                value={presetName}
-                onChange={e => setPresetName(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSavePreset()}
-                autoFocus
-              />
-              <button className="btn-text active" onClick={handleSavePreset}>Save</button>
-              <button className="btn-xs" onClick={() => setShowPresetSave(false)}>✕</button>
-            </div>
-          )}
-
-          {/* Module grid */}
-          <div className="module-grid">
-            {modSys.enabledModules.map(mod => (
-              <ModuleContainer
-                key={mod.id}
-                module={mod}
-                primaryColor={primary}
-                showBorders={settings.showModuleBorders}
-                onWidthChange={(w: ModuleWidth) => modSys.setModuleWidth(mod.id, w)}
-                onHeightChange={(h: ModuleHeight) => modSys.setModuleHeight(mod.id, h)}
-                onToggle={() => modSys.toggleModule(mod.id)}
-                onMoveUp={() => modSys.moveModule(mod.id, 'up')}
-                onMoveDown={() => modSys.moveModule(mod.id, 'down')}
-                onDragStart={setDragId}
-                onDragOver={id => { if (dragId && dragId !== id) modSys.swapModules(dragId, id) }}
-                onDrop={() => setDragId(null)}
-                editMode={editMode}
-              >
-                <RenderModule mod={mod} engine={engine} settings={settings} primary={primary} secondary={secondary} />
-              </ModuleContainer>
-            ))}
-
-            {modSys.enabledModules.length === 0 && (
-              <div className="module-empty">
-                <p>No modules enabled.</p>
-                <p>Click <strong>Edit</strong> to manage modules.</p>
-              </div>
-            )}
-          </div>
         </div>
+      </header>
 
-        {/* ── TRANSPORT BAR ── */}
-        <div className="transport-bar">
-          {/* Track info */}
-          <div className="transport-track-info">
-            <div className="transport-thumb">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-              </svg>
-            </div>
-            {currentTrack ? (
-              <div className="transport-track-meta">
-                <div className="transport-track-title">{currentTrack.displayName}</div>
-                <div className="transport-track-artist">DVYDRM</div>
-                <div className="transport-track-tech">
-                  {engine.sampleRate / 1000} kHz · {engine.tracks.length} track{engine.tracks.length !== 1 ? 's' : ''}
-                </div>
-              </div>
-            ) : (
-              <span className="transport-track-empty">No track loaded</span>
-            )}
-          </div>
-
-          {/* Center controls */}
-          <div className="transport-controls-center">
-            <div className="transport-seek-row">
-              <span className="transport-time">{formatTime(engine.currentTime)}</span>
-              <input
-                type="range" className="seek-bar"
-                min={0} max={engine.duration || 1} step={0.01}
-                value={engine.currentTime}
-                onChange={e => engine.seek(parseFloat(e.target.value))}
-                disabled={!currentTrack}
-                style={{ '--pct': `${pct}%` } as React.CSSProperties}
-              />
-              <span className="transport-time">{formatTime(engine.duration)}</span>
-            </div>
-
-            <div className="transport-btns-row">
-              <button className="tb-btn" onClick={engine.prev} disabled={!currentTrack} title="Previous">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
-              </button>
-              <button className="tb-btn" onClick={engine.stop} disabled={!currentTrack} title="Stop">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>
-              </button>
-              <button
-                className="tb-btn-play"
-                onClick={engine.isPlaying ? engine.pause : engine.play}
-                disabled={!currentTrack && engine.source === 'file'}
-                title={engine.isPlaying ? 'Pause' : 'Play'}
-              >
-                {engine.isPlaying
-                  ? <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-                  : <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                }
-              </button>
-              <button className="tb-btn" onClick={engine.next} disabled={!currentTrack} title="Next">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
-              </button>
-              <div style={{ width: 8 }} />
-              <button
-                className={`tb-btn ${settings.recordingMode ? 'active' : ''}`}
-                onClick={() => updateSettings({ recordingMode: !settings.recordingMode })}
-                title="Recording mode"
-                style={{ fontSize: 11, color: settings.recordingMode ? '#ff3d6a' : 'rgba(224,234,248,0.3)' }}
-              >
-                ◉
-              </button>
-            </div>
-          </div>
-
-          {/* Right */}
-          <div className="transport-controls-right">
-            <svg className="tb-vol-icon" viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-            </svg>
-            <input
-              type="range" className="vol-slider"
-              min={0} max={1} step={0.01}
-              value={engine.volume}
-              onChange={e => engine.setVolume(parseFloat(e.target.value))}
-              style={{ '--pct': `${engine.volume * 100}%` } as React.CSSProperties}
-            />
-            <span className="tb-vol-val">{Math.round(engine.volume * 100)}%</span>
-          </div>
-        </div>
-
-        {/* Status strip */}
-        <div className="status-strip">
-          <div className="status-strip-left">
-            <span className="status-ok">● System OK</span>
-            <span>{engine.sampleRate / 1000} kHz</span>
-            {engine.spectralFeatures?.bpm && (
-              <span>{engine.spectralFeatures.bpm.toFixed(1)} BPM</span>
-            )}
-          </div>
-          <div className="status-strip-right">
-            <span style={{ color: primary }}>
-              {engine.source === 'file' ? 'FILE' : engine.source === 'microphone' ? 'MIC INPUT' : 'DEMO MODE'}
-            </span>
-            {engine.monitoringMode !== 'stereo' && (
-              <span>◈ {engine.monitoringMode}</span>
-            )}
-            <span>DRMVYZ v3.0</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ── OVERLAY PANELS ── */}
-
-      {overlay === 'monitoring' && (
+      {/* ── PANELS ── */}
+      {panel === 'monitoring' && !recMode && (
         <div className="panel-overlay panel-overlay-right">
           <div className="panel-overlay-header">
-            <span>Monitoring</span>
-            <button className="btn-xs" onClick={() => setOverlay(null)}>✕</button>
+            <span>MONITORING</span>
+            <button className="btn-xs" onClick={() => setPanel(null)}>✕</button>
           </div>
           <div className="panel-overlay-scroll">
             <MonitoringPanel
               mode={engine.monitoringMode}
-              onChange={(m: MonitoringMode) => engine.setMonitoringMode(m)}
+              onChange={(m: MonitoringMode) => { engine.setMonitoringMode(m); }}
               primaryColor={primary}
             />
           </div>
         </div>
       )}
 
-      {overlay === 'reference' && (
+      {panel === 'reference' && !recMode && (
         <div className="panel-overlay panel-overlay-right panel-overlay-wide">
           <div className="panel-overlay-header">
-            <span>Reference Tracks</span>
-            <button className="btn-xs" onClick={() => setOverlay(null)}>✕</button>
+            <span>REFERENCE TRACKS</span>
+            <button className="btn-xs" onClick={() => setPanel(null)}>✕</button>
           </div>
           <div className="panel-overlay-scroll">
             <ReferencePanel
@@ -549,10 +458,10 @@ export default function App() {
               primaryColor={primary}
               secondaryColor={secondary}
             />
-            {(currentTrack || activeRefTrack) && (
-              <div style={{ height: 160, marginTop: 8 }}>
+            {(mainTrack || activeRefTrack) && (
+              <div style={{ padding: '8px 0', height: 160 }}>
                 <WaveformComparison
-                  mainUrl={currentTrack?.url ?? null}
+                  mainUrl={mainTrack?.url ?? null}
                   refUrl={activeRefTrack?.url ?? null}
                   isABMode={engine.isABMode}
                   primaryColor={primary}
@@ -564,11 +473,11 @@ export default function App() {
         </div>
       )}
 
-      {overlay === 'mastering' && (
+      {panel === 'mastering' && !recMode && (
         <div className="panel-overlay panel-overlay-right panel-overlay-wide">
           <div className="panel-overlay-header">
-            <span>Mastering Assistant</span>
-            <button className="btn-xs" onClick={() => setOverlay(null)}>✕</button>
+            <span>MASTERING ASSISTANT</span>
+            <button className="btn-xs" onClick={() => setPanel(null)}>✕</button>
           </div>
           <div className="panel-overlay-scroll">
             <MasteringAssistant
@@ -587,11 +496,11 @@ export default function App() {
         </div>
       )}
 
-      {overlay === 'settings' && (
+      {panel === 'settings' && !recMode && (
         <div className="panel-overlay panel-overlay-right">
           <div className="panel-overlay-header">
-            <span>Settings</span>
-            <button className="btn-xs" onClick={() => setOverlay(null)}>✕</button>
+            <span>SETTINGS</span>
+            <button className="btn-xs" onClick={() => setPanel(null)}>✕</button>
           </div>
           <div className="panel-overlay-scroll">
             <SettingsPanel
@@ -600,23 +509,23 @@ export default function App() {
               modules={modSys.modules}
               onModuleSettings={modSys.updateModuleSettings}
               primaryColor={primary}
-              currentTrackName={currentTrack?.displayName ?? ''}
+              currentTrackName={engine.tracks[engine.currentIndex]?.displayName ?? ''}
             />
           </div>
         </div>
       )}
 
-      {overlay === 'presets' && (
+      {panel === 'presets' && !recMode && (
         <div className="panel-overlay panel-overlay-right">
           <div className="panel-overlay-header">
-            <span>Presets</span>
-            <button className="btn-xs" onClick={() => setOverlay(null)}>✕</button>
+            <span>PRESETS</span>
+            <button className="btn-xs" onClick={() => setPanel(null)}>✕</button>
           </div>
           <div className="panel-overlay-scroll">
             <PresetsPanel
               presets={presets.presets}
-              onSave={name => { presets.savePreset(name, settings, modSys.modules, layout) }}
-              onLoad={id => handlePresetLoad(id)}
+              onSave={handleSavePreset}
+              onLoad={handleLoadPreset}
               onDelete={presets.deletePreset}
               onExport={presets.exportPreset}
               onImport={presets.importPreset}
@@ -626,11 +535,11 @@ export default function App() {
         </div>
       )}
 
-      {overlay === 'recording' && (
+      {panel === 'recording' && !recMode && (
         <div className="panel-overlay panel-overlay-right">
           <div className="panel-overlay-header">
-            <span>Recording</span>
-            <button className="btn-xs" onClick={() => setOverlay(null)}>✕</button>
+            <span>RECORDING</span>
+            <button className="btn-xs" onClick={() => setPanel(null)}>✕</button>
           </div>
           <div className="panel-overlay-scroll">
             <RecordingPanel
@@ -640,7 +549,7 @@ export default function App() {
               onStop={recorder.stopRecording}
               onCaptureBuffer={recorder.exportRingBuffer}
               onExportPNG={recorder.exportPNG}
-              onToggleRecMode={() => { updateSettings({ recordingMode: !recMode }); setOverlay(null) }}
+              onToggleRecMode={() => { updateSettings({ recordingMode: !recMode }); setPanel(null) }}
               recordingMode={recMode}
               ringBuffer={engine.ringBuffer}
               primaryColor={primary}
@@ -649,18 +558,20 @@ export default function App() {
         </div>
       )}
 
-      {overlay === 'modules' && (
+      {panel === 'modules' && !recMode && (
         <div className="panel-overlay panel-overlay-left">
           <div className="panel-overlay-header">
-            <span>Modules</span>
-            <button className="btn-xs" onClick={() => { setOverlay(null); setEditMode(false) }}>✕</button>
+            <span>MODULES</span>
+            <button className="btn-xs" onClick={() => { setPanel(null); setEditMode(false) }}>✕</button>
           </div>
           <div className="panel-overlay-scroll">
-            <div className="settings-section-title">Enable / Disable</div>
+            <div className="settings-section-title">ENABLE / REORDER</div>
+            <div className="settings-note">Drag headers to reorder. Click to toggle.</div>
             {modSys.modules.map(m => (
               <div key={m.id} className="module-manager-row">
                 <label className="toggle-row">
-                  <input type="checkbox" checked={m.enabled} onChange={() => modSys.toggleModule(m.id)} />
+                  <input type="checkbox" checked={m.enabled}
+                    onChange={() => modSys.toggleModule(m.id)} />
                   <span className="toggle-track" style={{ '--accent': primary } as React.CSSProperties}>
                     <span className="toggle-thumb" />
                   </span>
@@ -675,6 +586,88 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* ── MAIN CONTENT ── */}
+      <main className="main-content">
+        {!recMode && engine.source === 'file' && (
+          <aside className="sidebar-left">
+            <div className="panel panel-uploader">
+              <div className="panel-header"><span>INPUT</span></div>
+              <AudioUploader onFiles={engine.addTracks} primaryColor={primary} />
+            </div>
+            <div className="panel panel-playlist">
+              <div className="panel-header">
+                <span>PLAYLIST <span style={{ color: 'rgba(255,255,255,0.2)' }}>{engine.tracks.length}</span></span>
+                <button className="btn-xs" onClick={() => setShowPlaylist(p => !p)}>{showPlaylist ? '▲' : '▼'}</button>
+              </div>
+              {showPlaylist && (
+                <div className="playlist-scroll">
+                  <PlaylistPanel tracks={engine.tracks} currentIndex={engine.currentIndex}
+                    isPlaying={engine.isPlaying} onSelect={engine.selectTrack}
+                    onRemove={engine.removeTrack} primaryColor={primary} />
+                </div>
+              )}
+            </div>
+            <div className="panel panel-system">
+              <div className="panel-header"><span>SYSTEM</span></div>
+              <SystemPanel isPlaying={engine.isPlaying} currentTime={engine.currentTime}
+                duration={engine.duration} trackCount={engine.tracks.length}
+                moduleCount={modSys.enabledModules.length} primaryColor={primary} />
+            </div>
+          </aside>
+        )}
+
+        <div className="module-grid">
+          {modSys.enabledModules.map(mod => (
+            <ModuleContainer
+              key={mod.id}
+              module={mod}
+              primaryColor={primary}
+              showBorders={settings.showModuleBorders}
+              onWidthChange={(w: ModuleWidth) => modSys.setModuleWidth(mod.id, w)}
+              onHeightChange={(h: ModuleHeight) => modSys.setModuleHeight(mod.id, h)}
+              onToggle={() => modSys.toggleModule(mod.id)}
+              onMoveUp={() => modSys.moveModule(mod.id, 'up')}
+              onMoveDown={() => modSys.moveModule(mod.id, 'down')}
+              onDragStart={setDragId}
+              onDragOver={id => { if (dragId && dragId !== id) modSys.swapModules(dragId, id) }}
+              onDrop={() => setDragId(null)}
+              editMode={editMode}
+            >
+              <RenderModule mod={mod} engine={engine} settings={settings} primary={primary} secondary={secondary} />
+            </ModuleContainer>
+          ))}
+
+          {modSys.enabledModules.length === 0 && (
+            <div className="module-empty">
+              <p>No modules enabled.</p>
+              <p>Click <strong>⊞ Modules</strong> to add visualizers.</p>
+            </div>
+          )}
+        </div>
+      </main>
+
+      <footer className="bottom-bar">
+        <StatusPanel isPlaying={engine.isPlaying} trackName={displayName}
+          source={engine.source} primaryColor={primary} secondaryColor={secondary}
+          showGlow={settings.showGlow} />
+
+        {engine.source === 'file' && (
+          <TransportControls
+            isPlaying={engine.isPlaying} currentTime={engine.currentTime}
+            duration={engine.duration} volume={engine.volume}
+            onPlay={engine.play} onPause={engine.pause} onStop={engine.stop}
+            onPrev={engine.prev} onNext={engine.next}
+            onSeek={engine.seek} onVolume={engine.setVolume}
+            primaryColor={primary} hasTrack={engine.tracks.length > 0}
+          />
+        )}
+
+        <div className="footer-tagline">
+          <span style={{ color: secondary }}>CONNECTED TO THE DREAMWORLD</span>
+          <span style={{ opacity: 0.25 }}>◆ DRMVYZ v3.0 ◆ DVYDRM</span>
+        </div>
+      </footer>
     </div>
   )
 }
