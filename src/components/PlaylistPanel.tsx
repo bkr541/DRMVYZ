@@ -11,33 +11,25 @@ interface Props {
 }
 
 export function PlaylistPanel({ tracks, currentIndex, isPlaying, onSelect, onRemove, primaryColor }: Props) {
-  if (tracks.length === 0) {
-    return (
-      <div className="playlist-empty">
-        <span>No tracks loaded</span>
-      </div>
-    )
-  }
+  if (tracks.length === 0)
+    return <div className="playlist-empty">No tracks loaded</div>
 
   return (
     <ul className="playlist">
       {tracks.map((t, i) => {
         const active = i === currentIndex
         return (
-          <li
-            key={t.id}
+          <li key={t.id}
             className={`playlist-item ${active ? 'active' : ''}`}
             onClick={() => onSelect(i)}
-            style={active ? { '--accent': primaryColor, borderColor: primaryColor } as React.CSSProperties : undefined}
+            style={active ? { borderColor: primaryColor + '55' } as React.CSSProperties : undefined}
           >
-            <span className="pl-index">{active && isPlaying ? '▶' : String(i + 1).padStart(2, '0')}</span>
-            <span className="pl-name">{t.displayName}</span>
+            <span className="pl-index" style={active ? { color: primaryColor } : undefined}>
+              {active && isPlaying ? '▶' : String(i + 1).padStart(2, '0')}
+            </span>
+            <span className="pl-name" style={active ? { color: primaryColor } : undefined}>{t.displayName}</span>
             <span className="pl-dur">{t.duration > 0 ? formatTime(t.duration) : '--:--'}</span>
-            <button
-              className="pl-remove"
-              onClick={e => { e.stopPropagation(); onRemove(t.id) }}
-              title="Remove"
-            >×</button>
+            <button className="pl-remove" onClick={e => { e.stopPropagation(); onRemove(t.id) }}>×</button>
           </li>
         )
       })}

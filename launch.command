@@ -36,7 +36,7 @@ require_cmd() {
   fi
 }
 
-echo "🚀 Starting DRMVYZ locally..."
+echo "🚀 Starting DRMVYZ v2.0 locally..."
 
 if [[ ! -f "$DIR/package.json" ]]; then
   echo "❌ package.json not found. Put launch.command in the DRMVYZ repo root."
@@ -49,7 +49,6 @@ require_cmd lsof
 
 mkdir -p "$LOG_DIR"
 
-# Verify this is the right project
 if ! grep -q '"name"[[:space:]]*:[[:space:]]*"drmvyz"' "$DIR/package.json"; then
   echo "❌ This doesn't look like the DRMVYZ project (name mismatch in package.json)."
   exit 1
@@ -58,13 +57,12 @@ fi
 echo "🧹 Clearing port 5173..."
 lsof -ti :5173 | xargs kill -9 2>/dev/null || true
 
-# Install dependencies if needed
 if [[ ! -d "$DIR/node_modules" ]]; then
   echo "📦 node_modules not found — installing dependencies..."
   npm install
 fi
 
-echo "--- Starting DRMVYZ (Vite :5173) ---"
+echo "--- Starting DRMVYZ v2.0 (Vite :5173) ---"
 : > "$LOG_FILE"
 
 npm run dev -- --host 127.0.0.1 --port 5173 > "$LOG_FILE" 2>&1 &
@@ -93,7 +91,7 @@ if ! curl -s -I "$APP_URL" >/dev/null 2>&1; then
 fi
 
 echo ""
-echo "✅ DRMVYZ is running:"
+echo "✅ DRMVYZ v2.0 is running:"
 echo "   $APP_URL"
 echo ""
 echo "ℹ️  Log: $LOG_FILE"

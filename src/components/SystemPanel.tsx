@@ -6,21 +6,18 @@ interface Props {
   currentTime: number
   duration: number
   trackCount: number
+  moduleCount: number
   primaryColor: string
 }
 
-export function SystemPanel({ isPlaying, currentTime, duration, trackCount, primaryColor }: Props) {
-  const timeRef = useRef(new Date())
+export function SystemPanel({ isPlaying, currentTime, duration, trackCount, moduleCount, primaryColor }: Props) {
   const clockRef = useRef<HTMLSpanElement>(null)
   const frameRef = useRef(0)
 
   useAnimationFrame(() => {
     frameRef.current++
-    if (frameRef.current % 30 === 0) {
-      timeRef.current = new Date()
-      if (clockRef.current) {
-        clockRef.current.textContent = timeRef.current.toLocaleTimeString('en-US', { hour12: false })
-      }
+    if (frameRef.current % 30 === 0 && clockRef.current) {
+      clockRef.current.textContent = new Date().toLocaleTimeString('en-US', { hour12: false })
     }
   })
 
@@ -28,24 +25,18 @@ export function SystemPanel({ isPlaying, currentTime, duration, trackCount, prim
 
   return (
     <div className="system-panel">
-      <div className="sys-row">
-        <span className="sys-key">SYS</span>
-        <span className="sys-val" style={{ color: primaryColor }}>ONLINE</span>
-      </div>
-      <div className="sys-row">
-        <span className="sys-key">TRACKS</span>
-        <span className="sys-val">{trackCount}</span>
-      </div>
-      <div className="sys-row">
-        <span className="sys-key">STATUS</span>
-        <span className="sys-val" style={{ color: isPlaying ? primaryColor : 'rgba(255,255,255,0.3)' }}>
-          {isPlaying ? 'PLAY' : 'IDLE'}
-        </span>
-      </div>
-      <div className="sys-row">
-        <span className="sys-key">PROGRESS</span>
-        <span className="sys-val">{pct}%</span>
-      </div>
+      {[
+        ['SYS',      'ONLINE',                primaryColor],
+        ['TRACKS',   String(trackCount),       undefined],
+        ['MODULES',  String(moduleCount),      undefined],
+        ['STATUS',   isPlaying ? 'PLAY' : 'IDLE', isPlaying ? primaryColor : 'rgba(255,255,255,0.3)'],
+        ['PROGRESS', `${pct}%`,               undefined],
+      ].map(([k, v, c]) => (
+        <div key={k} className="sys-row">
+          <span className="sys-key">{k}</span>
+          <span className="sys-val" style={c ? { color: c } : undefined}>{v}</span>
+        </div>
+      ))}
       <div className="sys-row">
         <span className="sys-key">CLOCK</span>
         <span className="sys-val sys-clock" ref={clockRef}>
