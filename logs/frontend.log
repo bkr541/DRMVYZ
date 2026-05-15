@@ -6,3 +6,6 @@
   VITE v5.4.21  ready in 127 ms
 
   ➜  Local:   http://127.0.0.1:5173/
+4:41:38 AM [vite] hmr update /src/styles.css
+4:42:17 AM [vite] hmr update /src/components/ModuleContainer.tsx
+4:43:45 AM [vite] hmr update /src/App.tsx
