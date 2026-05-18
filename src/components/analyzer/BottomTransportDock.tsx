@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId, useState, useEffect } from 'react'
 import type { Track, AudioSource } from '../../types'
 
 interface Props {
@@ -20,6 +20,7 @@ interface Props {
   onSourceChange: (s: AudioSource) => void
   onOpenSettings: () => void
   onFiles: (files: File[]) => void
+  onMicDevice?: (deviceId: string) => void
 }
 
 function fmtTime(s: number): string {
@@ -40,11 +41,28 @@ function fmtDur(s: number): string {
 export function BottomTransportDock({
   track, isPlaying, currentTime, duration, volume, source, sampleRate,
   hasTrack, onPlay, onPause, onStop, onPrev, onNext, onSeek, onVolume,
-  onSourceChange, onOpenSettings, onFiles,
+  onSourceChange, onOpenSettings, onFiles, onMicDevice,
 }: Props) {
   const fileInputId = useId()
   const [dragging, setDragging] = useState(false)
+  const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([])
+  const [micDeviceId, setMicDeviceId] = useState('')
   void dragging; void setDragging
+
+  useEffect(() => {
+    if (source !== 'microphone') return
+    navigator.mediaDevices?.enumerateDevices()
+      .then(devices => {
+        const inputs = devices.filter(d => d.kind === 'audioinput')
+        setMicDevices(inputs)
+        if (inputs.length && !micDeviceId) {
+          const id = inputs[0].deviceId
+          setMicDeviceId(id)
+          onMicDevice?.(id)
+        }
+      })
+      .catch(() => {})
+  }, [source]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFiles = (files: FileList | null) => {
     if (!files) return
@@ -168,6 +186,19 @@ export function BottomTransportDock({
           <option value="microphone">Microphone</option>
           <option value="demo">Demo</option>
         </select>
+        {source === 'microphone' && micDevices.length > 0 && (
+          <select
+            className="az-dock-source-select"
+            value={micDeviceId}
+            onChange={e => { setMicDeviceId(e.target.value); onMicDevice?.(e.target.value) }}
+          >
+            {micDevices.map(d => (
+              <option key={d.deviceId} value={d.deviceId}>
+                {d.label || `Mic ${d.deviceId.slice(0, 6)}`}
+              </option>
+            ))}
+          </select>
+        )}
 
         <button
           className="az-dock-gear-btn"

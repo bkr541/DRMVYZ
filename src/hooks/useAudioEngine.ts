@@ -99,6 +99,10 @@ export interface AudioEngine {
   refAnalyserL: AnalyserNode | null
   refAnalyserR: AnalyserNode | null
 
+  // Demo mode
+  demoSilent: boolean
+  setDemoSilent: (v: boolean) => void
+
   // Meyda spectral features
   spectralFeatures: SpectralFeatures | null
   bpmDetecting: boolean
@@ -124,6 +128,7 @@ export function useAudioEngine(): AudioEngine {
   const [autoLoudnessMatch, setAutoLoudnessMatch] = useState(true)
   const [spectralFeatures, setSpectralFeatures] = useState<SpectralFeatures | null>(null)
   const [bpmDetecting, setBpmDetecting] = useState(false)
+  const [demoSilent, setDemoSilentState] = useState(true)
 
   // Core graph refs
   const ctxRef           = useRef<AudioContext | null>(null)
@@ -136,6 +141,7 @@ export function useAudioEngine(): AudioEngine {
   const monitoringChainRef = useRef<MonitoringChain | null>(null)
   const abGainARef       = useRef<GainNode | null>(null)  // main → monitoring (A mode)
   const abGainBRef       = useRef<GainNode | null>(null)  // ref → monitoring (B mode)
+  const muteGainRef      = useRef<GainNode | null>(null)  // output mute (for silent demo)
 
   // Reference graph refs
   const refAudioRef      = useRef<HTMLAudioElement | null>(null)
@@ -275,7 +281,14 @@ export function useAudioEngine(): AudioEngine {
     const chain = buildMonitoringChain(ctx, 'stereo')
     monitoringChainRef.current = chain
     monHead.connect(chain.input)
-    chain.output.connect(ctx.destination)
+
+    // Mute gain — sits between monitoring chain and destination.
+    // Keeps signal flowing to analysers while allowing silent output.
+    const muteGain = ctx.createGain()
+    muteGain.gain.value = 1
+    muteGainRef.current = muteGain
+    chain.output.connect(muteGain)
+    muteGain.connect(ctx.destination)
 
     // Meyda for spectral features
     try {
@@ -319,7 +332,8 @@ export function useAudioEngine(): AudioEngine {
     const chain = buildMonitoringChain(ctx, mode)
     monitoringChainRef.current = chain
     monHead.connect(chain.input)
-    chain.output.connect(ctx.destination)
+    const mute = muteGainRef.current
+    chain.output.connect(mute ?? ctx.destination)
   }, [])
 
   // ── A/B mode ────────────────────────────────────────────────────────────────
@@ -451,20 +465,25 @@ export function useAudioEngine(): AudioEngine {
     const hpf = ctx.createBiquadFilter(); hpf.type = 'highpass'; hpf.frequency.value = 3000
     noise.connect(hpf); hpf.connect(gain); noise.start()
     nodes.push(noise, hpf)
-    gain.gain.value = 0
+    // Keep masterGain at 0.35 so analysers see a signal
+    gain.gain.value = 0.35
     demoNodesRef.current = nodes
     activeSourceNodeRef.current = bassG
   }, [ensureContext])
 
   const setSource = useCallback(async (s: AudioSource) => {
     disconnectSource()
-    if (masterGainRef.current) masterGainRef.current.gain.value = s === 'demo' ? 0 : 1
+    if (masterGainRef.current) masterGainRef.current.gain.value = 1
     if (s === 'file') { if (currentIndex >= 0) connectFileSource() }
     else if (s === 'microphone') { await connectMicSource() }
-    else { connectDemoSource() }
+    else {
+      connectDemoSource()
+      // Apply current demoSilent state to mute node
+      if (muteGainRef.current) muteGainRef.current.gain.value = demoSilent ? 0 : 1
+    }
     setSourceState(s)
     setIsPlaying(s === 'demo')
-  }, [disconnectSource, connectFileSource, connectMicSource, connectDemoSource, currentIndex])
+  }, [disconnectSource, connectFileSource, connectMicSource, connectDemoSource, currentIndex, demoSilent])
 
   // ── Track load ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -506,6 +525,13 @@ export function useAudioEngine(): AudioEngine {
     setFftSizeState(n)
     if (aMasterRef.current) aMasterRef.current.fftSize = n
     if (refAnalyserMRef.current) refAnalyserMRef.current.fftSize = n
+  }, [])
+
+  const setDemoSilent = useCallback((v: boolean) => {
+    setDemoSilentState(v)
+    if (muteGainRef.current) {
+      muteGainRef.current.gain.value = v ? 0 : 1
+    }
   }, [])
 
   const setSmoothing = useCallback((n: number) => {
@@ -599,5 +625,6 @@ export function useAudioEngine(): AudioEngine {
     refAnalyserL: refALRef.current,
     refAnalyserR: refARRef.current,
     spectralFeatures, bpmDetecting, detectBPM,
+    demoSilent, setDemoSilent,
   }
 }

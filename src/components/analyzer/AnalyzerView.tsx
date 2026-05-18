@@ -1,6 +1,7 @@
 import { useRef, useState, useCallback } from 'react'
-import { useAudioEngine } from '../../hooks/useAudioEngine'
-import type { AudioSource } from '../../types'
+import { useSharedAudio } from '../../context/AudioEngineContext'
+import { useRecorder }    from '../../hooks/useRecorder'
+import type { AudioSource, FftSize } from '../../types'
 
 import { AnalyzerSidebar }        from './AnalyzerSidebar'
 import { BottomTransportDock }     from './BottomTransportDock'
@@ -14,7 +15,7 @@ import { SpectrumModule }          from '../SpectrumModule'
 import { VectorscopeModule }       from '../VectorscopeModule'
 import { WaveformModule }          from '../WaveformModule'
 
-const CYAN = '#19bff2'
+const CYAN  = '#19bff2'
 const CYAN2 = '#2edcb3'
 
 interface AnalyzerViewProps {
@@ -23,13 +24,16 @@ interface AnalyzerViewProps {
 }
 
 export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerViewProps) {
-  const engine = useAudioEngine()
+  const engine = useSharedAudio()
+  const recorder = useRecorder()
   const { settings: specSettings, update: updateSpec } = useSpectrumSettings()
 
-  const [specMode, setSpecMode] = useState<'Linear' | 'Log'>('Linear')
-  const [stereoMode, setStereoMode] = useState<'Polar' | 'Lissajous'>('Polar')
+  const [specMode,     setSpecMode]     = useState<'Linear' | 'Log'>('Linear')
+  const [stereoMode,   setStereoMode]   = useState<'Polar' | 'Lissajous'>('Polar')
   const [showSettings, setShowSettings] = useState(false)
-  const [dragOver, setDragOver] = useState(false)
+  const [meterMode,    setMeterMode]    = useState<'EBU R128' | 'VU' | 'Peak'>('EBU R128')
+  const [dragOver,     setDragOver]     = useState(false)
+  const [corrVal,      setCorrVal]      = useState(0)  // live correlation value for the bar
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -48,6 +52,8 @@ export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerVi
     if (files.length) engine.addTracks(files)
   }, [engine])
 
+  const corrPct = `${Math.round(((corrVal + 1) / 2) * 100)}%`
+
   return (
     <div
       className="az-root"
@@ -55,9 +61,7 @@ export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerVi
       onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false) }}
       onDrop={handleDrop}
     >
-      {dragOver && (
-        <div className="az-drag-overlay">DROP AUDIO FILES</div>
-      )}
+      {dragOver && <div className="az-drag-overlay">DROP AUDIO FILES</div>}
 
       <div className="az-shell">
         <AnalyzerSidebar activeView={activeView} onNavigate={onNavigate} />
@@ -70,14 +74,10 @@ export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerVi
               <div className="az-panel-header">
                 <span className="az-panel-title">Spectrum Analyzer</span>
                 <div className="az-seg-group">
-                  <button
-                    className={`az-seg-btn ${specMode === 'Linear' ? 'az-seg-btn--active' : ''}`}
-                    onClick={() => setSpecMode('Linear')}
-                  >Linear</button>
-                  <button
-                    className={`az-seg-btn ${specMode === 'Log' ? 'az-seg-btn--active' : ''}`}
-                    onClick={() => setSpecMode('Log')}
-                  >Log</button>
+                  <button className={`az-seg-btn ${specMode === 'Linear' ? 'az-seg-btn--active' : ''}`}
+                    onClick={() => setSpecMode('Linear')}>Linear</button>
+                  <button className={`az-seg-btn ${specMode === 'Log' ? 'az-seg-btn--active' : ''}`}
+                    onClick={() => setSpecMode('Log')}>Log</button>
                 </div>
                 <span className="az-spacer" />
                 <select className="az-select" value={specSettings.mode}
@@ -98,7 +98,7 @@ export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerVi
                   showGlow={false}
                   accentIntensity={0.4}
                   showPeakHold={specSettings.hold}
-                  peakDecay={0.978}
+                  peakDecay={specSettings.peakHold === 'Infinite' ? 0.9999 : specSettings.peakHold === '5 sec' ? 0.993 : specSettings.peakHold === '2 sec' ? 0.978 : 0.96}
                   showTargetCurve={false}
                   sensitivity={1.0}
                   freqScale={specMode}
@@ -113,14 +113,10 @@ export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerVi
                 <span className="az-panel-title">Stereo Image</span>
                 <span className="az-spacer" />
                 <div className="az-seg-group">
-                  <button
-                    className={`az-seg-btn ${stereoMode === 'Polar' ? 'az-seg-btn--active' : ''}`}
-                    onClick={() => setStereoMode('Polar')}
-                  >Polar</button>
-                  <button
-                    className={`az-seg-btn ${stereoMode === 'Lissajous' ? 'az-seg-btn--active' : ''}`}
-                    onClick={() => setStereoMode('Lissajous')}
-                  >Lissajous</button>
+                  <button className={`az-seg-btn ${stereoMode === 'Polar' ? 'az-seg-btn--active' : ''}`}
+                    onClick={() => setStereoMode('Polar')}>Polar</button>
+                  <button className={`az-seg-btn ${stereoMode === 'Lissajous' ? 'az-seg-btn--active' : ''}`}
+                    onClick={() => setStereoMode('Lissajous')}>Lissajous</button>
                 </div>
               </div>
               <div className="az-panel-body">
@@ -129,6 +125,8 @@ export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerVi
                   analyserR={engine.analyserR}
                   isActive={engine.isActive}
                   mode={stereoMode}
+                  onCorr={setCorrVal}
+                  corrPct={corrPct}
                 />
               </div>
             </div>
@@ -157,7 +155,8 @@ export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerVi
               <div className="az-panel-header">
                 <span className="az-panel-title">Level Meters</span>
                 <span className="az-spacer" />
-                <select className="az-select">
+                <select className="az-select" value={meterMode}
+                  onChange={e => setMeterMode(e.target.value as typeof meterMode)}>
                   <option>EBU R128</option>
                   <option>VU</option>
                   <option>Peak</option>
@@ -179,7 +178,21 @@ export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerVi
               <div className="az-panel">
                 <div className="az-panel-header">
                   <span className="az-panel-title">Track Info</span>
+                  {engine.spectralFeatures?.bpm && (
+                    <span className="az-panel-title" style={{ color: CYAN, fontSize: 11 }}>
+                      {Math.round(engine.spectralFeatures.bpm)} BPM
+                    </span>
+                  )}
                   <span className="az-spacer" />
+                  <button
+                    className="az-icon-btn"
+                    title="Detect BPM"
+                    disabled={engine.bpmDetecting || !engine.tracks.length}
+                    onClick={engine.detectBPM}
+                    style={{ fontSize: 10, padding: '2px 6px' }}
+                  >
+                    {engine.bpmDetecting ? '…' : 'BPM'}
+                  </button>
                   <button className="az-overflow-btn">···</button>
                 </div>
                 <div className="az-panel-body">
@@ -242,10 +255,29 @@ export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerVi
             <button className="az-popover-close" onClick={() => setShowSettings(false)}>✕</button>
           </div>
           <div className="az-settings-popover-body">
+
+            {/* Demo source toggle */}
+            {engine.source === 'demo' && (
+              <>
+                <div className="az-popover-section-title">Demo Output</div>
+                <div className="az-seg-group" style={{ marginBottom: 12 }}>
+                  <button
+                    className={`az-seg-btn ${engine.demoSilent ? 'az-seg-btn--active' : ''}`}
+                    onClick={() => engine.setDemoSilent(true)}
+                  >Silent Analysis</button>
+                  <button
+                    className={`az-seg-btn ${!engine.demoSilent ? 'az-seg-btn--active' : ''}`}
+                    onClick={() => engine.setDemoSilent(false)}
+                  >Audible Tone</button>
+                </div>
+              </>
+            )}
+
+            {/* Monitoring mode */}
             <div className="az-popover-section-title">Monitoring Mode</div>
             <select
               className="az-select"
-              style={{ width: '100%' }}
+              style={{ width: '100%', marginBottom: 12 }}
               value={engine.monitoringMode}
               onChange={e => engine.setMonitoringMode(e.target.value as Parameters<typeof engine.setMonitoringMode>[0])}
             >
@@ -253,6 +285,44 @@ export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerVi
                 <option key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</option>
               ))}
             </select>
+
+            {/* FFT size */}
+            <div className="az-popover-section-title">FFT Size</div>
+            <select
+              className="az-select"
+              style={{ width: '100%', marginBottom: 12 }}
+              value={engine.fftSize}
+              onChange={e => engine.setFftSize(Number(e.target.value) as FftSize)}
+            >
+              {([512, 1024, 2048, 4096, 8192] as const).map(n => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+
+            {/* Smoothing */}
+            <div className="az-popover-section-title">
+              Smoothing — {Math.round(engine.smoothing * 100)}%
+            </div>
+            <input
+              type="range" min={0} max={0.99} step={0.01}
+              value={engine.smoothing}
+              onChange={e => engine.setSmoothing(parseFloat(e.target.value))}
+              style={{ width: '100%', marginBottom: 12 }}
+            />
+
+            {/* Ring buffer export */}
+            <div className="az-popover-section-title">Export Ring Buffer</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {([10, 30, 60] as const).map(secs => (
+                <button key={secs}
+                  className="az-icon-btn"
+                  style={{ flex: 1, fontSize: 10, padding: '4px 6px' }}
+                  disabled={!engine.ringBuffer}
+                  onClick={() => recorder.exportRingBuffer(engine.ringBuffer, secs)}
+                >Last {secs}s</button>
+              ))}
+            </div>
+
           </div>
         </div>
       )}
@@ -300,47 +370,24 @@ export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerVi
   )
 }
 
-// Thin wrapper for the existing vectorscope — shows L/R labels and correlation bar
-function StereoImagePanel({ analyserL, analyserR, isActive, mode }: {
-  analyserL: AnalyserNode | null
-  analyserR: AnalyserNode | null
-  isActive: boolean
-  mode: 'Polar' | 'Lissajous'
-}) {
-  const corrRef = useRef<HTMLSpanElement>(null) as React.RefObject<HTMLSpanElement>
-  const markerRef = useRef<HTMLDivElement>(null) as React.RefObject<HTMLDivElement>
-  const bufLRef = useRef<Float32Array<ArrayBuffer> | null>(null) as React.MutableRefObject<Float32Array<ArrayBuffer> | null>
-  const bufRRef = useRef<Float32Array<ArrayBuffer> | null>(null) as React.MutableRefObject<Float32Array<ArrayBuffer> | null>
-
-  return (
-    <StereoImageInner
-      analyserL={analyserL}
-      analyserR={analyserR}
-      isActive={isActive}
-      mode={mode}
-      corrRef={corrRef}
-      markerRef={markerRef}
-      bufLRef={bufLRef}
-      bufRRef={bufRRef}
-    />
-  )
-}
+// ── Stereo Image Panel ────────────────────────────────────────────────
 
 import { useAnimationFrame } from '../../hooks/useAnimationFrame'
 
-function StereoImageInner({
-  analyserL, analyserR, isActive, mode, corrRef, markerRef, bufLRef, bufRRef
-}: {
+function StereoImagePanel({ analyserL, analyserR, isActive, mode, onCorr, corrPct }: {
   analyserL: AnalyserNode | null
   analyserR: AnalyserNode | null
   isActive: boolean
   mode: 'Polar' | 'Lissajous'
-  corrRef: React.RefObject<HTMLSpanElement>
-  markerRef: React.RefObject<HTMLDivElement>
-  bufLRef: React.MutableRefObject<Float32Array<ArrayBuffer> | null>
-  bufRRef: React.MutableRefObject<Float32Array<ArrayBuffer> | null>
+  onCorr: (v: number) => void
+  corrPct: string
 }) {
-  const phaseRef = useRef(0)
+  const corrRef   = useRef<HTMLSpanElement>(null)
+  const fillRef   = useRef<HTMLDivElement>(null)
+  const markerRef = useRef<HTMLDivElement>(null)
+  const bufLRef   = useRef<Float32Array<ArrayBuffer> | null>(null)
+  const bufRRef   = useRef<Float32Array<ArrayBuffer> | null>(null)
+  const phaseRef  = useRef(0)
 
   useAnimationFrame(() => {
     phaseRef.current += 0.02
@@ -366,10 +413,11 @@ function StereoImageInner({
       corr = 0.12 + Math.sin(phaseRef.current * 0.3) * 0.08
     }
 
-    if (corrRef.current) corrRef.current.textContent = corr.toFixed(2)
-    // Map corr -1..1 → 0..100% for the bar
     const pct = ((corr + 1) / 2) * 100
+    if (corrRef.current)   corrRef.current.textContent  = corr.toFixed(2)
     if (markerRef.current) markerRef.current.style.left = `${pct}%`
+    if (fillRef.current)   fillRef.current.style.width  = `${pct}%`
+    onCorr(corr)
   })
 
   return (
@@ -397,14 +445,16 @@ function StereoImageInner({
       <div className="az-correlation-row">
         <span className="az-correlation-label">CORRELATION</span>
         <div className="az-correlation-bar-wrap">
-          <div className="az-correlation-bar-fill" style={{ width: '60%' }} />
-          <div ref={markerRef} className="az-correlation-marker" style={{ left: '60%' }} />
+          <div ref={fillRef} className="az-correlation-bar-fill" style={{ width: corrPct }} />
+          <div ref={markerRef} className="az-correlation-marker" style={{ left: corrPct }} />
         </div>
-        <span ref={corrRef} className="az-correlation-val">0.12</span>
+        <span ref={corrRef} className="az-correlation-val">0.00</span>
       </div>
     </div>
   )
 }
+
+// ── Waveform dual panel ───────────────────────────────────────────────
 
 function WaveformDualPanel({
   trackUrl, currentTime, duration, onSeek

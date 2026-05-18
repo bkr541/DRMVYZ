@@ -1,5 +1,8 @@
-import { useState, useRef, useId, useEffect, useCallback } from 'react'
+import { useState, useRef, useId, useEffect, useCallback, useMemo } from 'react'
 import { AnalyzerSidebar } from '../analyzer/AnalyzerSidebar'
+import { analyzeAudioFile, computeMatchScore } from '../../lib/audioAnalysis'
+import { useReferenceStore } from '../../stores/referenceStore'
+import type { RefTrackRecord } from '../../stores/referenceStore'
 
 // ── Types ─────────────────────────────────────────────────────────────
 interface RefLoudness {
@@ -31,56 +34,52 @@ interface RefTrack {
   url: string
 }
 
-// Accent: main=cyan, ref01=purple, ref02=slate, ref03=orange
 const SLOT_COLORS = ['#19bff2', '#a78bfa', '#94a3b8', '#fb923c']
 
-// ── Mock data ─────────────────────────────────────────────────────────
-function strHash(str: string): number {
-  let h = 5381
-  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0
-  return h
+// ── Adapter: RefTrackRecord → RefTrack (display type) ─────────────────
+function toDisplayTrack(rec: RefTrackRecord): RefTrack {
+  const a = rec.analysis
+  const emptyPeaks = () => Array.from({ length: 200 }, (_, i) => Math.sin(i * 0.08) * 0.06 + 0.04)
+  return {
+    id: rec.id,
+    role: rec.role,
+    refIndex: rec.refIndex,
+    title: rec.title,
+    artist: '—',
+    fileName: rec.fileName,
+    format: rec.format,
+    sampleRate: a ? `${(a.sampleRate / 1000).toFixed(1)} kHz` : (rec.sampleRate !== '—' ? rec.sampleRate : '—'),
+    bitDepth: '24-bit',
+    duration: rec.duration > 0 ? rec.duration : (a?.duration ?? 0),
+    accentColor: rec.accentColor,
+    waveformData: a?.waveformPeaks ?? emptyPeaks(),
+    spectrumData: a?.spectrum ?? new Array(64).fill(0),
+    loudness: a ? {
+      lufs: a.loudness.lufs,
+      truePeak: a.loudness.truePeak,
+      dynamicRange: a.loudness.dynamicRange,
+      crestFactor: a.loudness.crestFactor,
+    } : { lufs: 0, truePeak: 0, dynamicRange: 0, crestFactor: 0 },
+    stereo: a ? {
+      correlation: a.stereo.correlation,
+      width: a.stereo.width,
+      balance: a.stereo.balance,
+    } : { correlation: 0, width: 0, balance: 0 },
+    bands: a ? {
+      lf: a.bands.bass,
+      lmf: a.bands.lowMid,
+      mf: a.bands.mid,
+      hmf: a.bands.highMid,
+      hf: Math.max(a.bands.presence, a.bands.air),
+    } : { lf: 0, lmf: 0, mf: 0, hmf: 0, hf: 0 },
+    url: rec.url,
+  }
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────
 function seededRng(seed: number) {
   let s = seed >>> 0
   return (): number => { s = (s * 1664525 + 1013904223) >>> 0; return s / 0xFFFFFFFF }
-}
-function generateMockAnalysis(file: File, role: 'main' | 'reference', refIndex?: number): RefTrack {
-  const hash = strHash(file.name + file.size)
-  const rng  = seededRng(hash)
-  const waveformData = Array.from({ length: 200 }, (_, i) => {
-    const env = Math.abs(Math.sin(i * 0.05 + hash * 0.00001)) * 0.7 + 0.3
-    return Math.min(1, rng() * env)
-  })
-  const spectrumData = Array.from({ length: 64 }, (_, i) => {
-    const shape = Math.exp(-i * 0.022) * 0.72 + 0.12
-    return Math.min(1, rng() * 0.32 + shape)
-  })
-  const slotIdx = role === 'main' ? 0 : (refIndex ?? 1)
-  return {
-    id: `track-${hash.toString(36)}`,
-    role, refIndex,
-    title: file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '),
-    artist: '—',
-    fileName: file.name,
-    format: (file.name.split('.').pop() ?? 'audio').toUpperCase(),
-    sampleRate: '44.1 kHz',
-    bitDepth: '24-bit',
-    duration: 180 + (hash % 120),
-    accentColor: SLOT_COLORS[slotIdx],
-    waveformData, spectrumData,
-    loudness: {
-      lufs: -12 - rng() * 6,
-      truePeak: -(rng() * 2 + 0.3),
-      dynamicRange: 5 + rng() * 9,
-      crestFactor: 7 + rng() * 7,
-    },
-    stereo: { correlation: 0.55 + rng() * 0.45, width: 30 + rng() * 60, balance: rng() * 8 - 4 },
-    bands: {
-      lf: 0.2 + rng() * 0.65, lmf: 0.3 + rng() * 0.55, mf: 0.35 + rng() * 0.5,
-      hmf: 0.25 + rng() * 0.55, hf: 0.12 + rng() * 0.58,
-    },
-    url: URL.createObjectURL(file),
-  }
 }
 
 function fmtDur(s: number): string {
@@ -129,13 +128,31 @@ function WaveformCanvas({ data, accentColor, height = 60 }: {
 }
 
 // Waveform + time ruler
-function WaveformWithRuler({ data, accentColor, height = 64, duration }: {
+function WaveformWithRuler({ data, accentColor, height = 64, duration, currentTime, onSeek }: {
   data: number[]; accentColor: string; height?: number; duration: number
+  currentTime?: number; onSeek?: (t: number) => void
 }) {
   const marks = [0, 0.25, 0.5, 0.75, 1].map(f => fmtDur(duration * f))
+  const playheadPct = (currentTime !== undefined && duration > 0)
+    ? (currentTime / duration) * 100
+    : -1
+
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!onSeek || duration <= 0) return
+    e.stopPropagation()
+    const rect = e.currentTarget.getBoundingClientRect()
+    const pct  = (e.clientX - rect.left) / rect.width
+    onSeek(Math.max(0, Math.min(duration, pct * duration)))
+  }
+
   return (
-    <div className="ref-waveform-wrap">
-      <WaveformCanvas data={data} accentColor={accentColor} height={height} />
+    <div className="ref-waveform-wrap" onClick={handleClick}>
+      <div className="ref-waveform-canvas-wrap">
+        <WaveformCanvas data={data} accentColor={accentColor} height={height} />
+        {playheadPct >= 0 && (
+          <div className="ref-playhead" style={{ left: `${playheadPct}%` }} />
+        )}
+      </div>
       <div className="ref-waveform-ruler">
         {marks.map((m, i) => <span key={i} className="ref-ruler-tick">{m}</span>)}
       </div>
@@ -176,7 +193,6 @@ function SpectrumMini({ data, accentColor, height = 48 }: {
       grad.addColorStop(1, accentColor + '00')
       ctx.fillStyle = grad
       ctx.fill()
-      // Freq axis labels
       ctx.fillStyle = 'rgba(245,248,250,0.22)'
       ctx.font = `${6 * dpr}px monospace`
       const freqLabels = ['20', '100', '1k', '10k', '20k']
@@ -212,17 +228,14 @@ function StereoMini({ correlation, width, accentColor, size = 60 }: {
     const cx = cW / 2, cy = cH / 2
     const r  = Math.min(cx, cy) - 3 * dpr
 
-    // Outer circle
     ctx.strokeStyle = 'rgba(255,255,255,0.08)'
     ctx.lineWidth = dpr
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke()
-    // Crosshairs
     ctx.strokeStyle = 'rgba(255,255,255,0.05)'
     ctx.beginPath()
     ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r)
     ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy)
     ctx.stroke()
-    // Diagonal guides
     const d = r * 0.707
     ctx.strokeStyle = 'rgba(255,255,255,0.04)'
     ctx.beginPath()
@@ -230,7 +243,6 @@ function StereoMini({ correlation, width, accentColor, size = 60 }: {
     ctx.moveTo(cx + d, cy - d); ctx.lineTo(cx - d, cy + d)
     ctx.stroke()
 
-    // Ellipse blob (45° rotation = vectorscope orientation)
     const sX = Math.max(2, (width / 100) * r * 0.78)
     const sY = Math.max(2, Math.abs(correlation) * r * 0.78)
     ctx.save()
@@ -244,7 +256,6 @@ function StereoMini({ correlation, width, accentColor, size = 60 }: {
     ctx.beginPath()
     ctx.ellipse(0, 0, sX, sY, 0, 0, Math.PI * 2)
     ctx.fill()
-    // Scatter dots
     const rng = seededRng(Math.round(correlation * 1000 + width * 100))
     ctx.fillStyle = accentColor
     for (let i = 0; i < 18; i++) {
@@ -260,7 +271,6 @@ function StereoMini({ correlation, width, accentColor, size = 60 }: {
     ctx.globalAlpha = 1
     ctx.restore()
 
-    // L / R / ±1 labels
     ctx.fillStyle = 'rgba(245,248,250,0.3)'
     ctx.font = `${6.5 * dpr}px monospace`
     ctx.fillText('L', 2, cy + 3)
@@ -285,7 +295,6 @@ function BandBarsV({ bands, accentColor }: { bands: RefBands; accentColor: strin
         <div key={label} className="ref-bandv-col">
           <div className="ref-bandv-segs">
             {Array.from({ length: BAND_SEGS }, (_, j) => {
-              // segs from top (j=0 = top = highest threshold)
               const threshold = (BAND_SEGS - j) / BAND_SEGS
               const lit = val >= threshold
               return (
@@ -329,11 +338,44 @@ function LoudnessStats({ loudness }: { loudness: RefLoudness }) {
   )
 }
 
+// ── Loading overlay ───────────────────────────────────────────────────
+function AnalyzingOverlay({ color, error }: { color: string; error?: string | null }) {
+  if (error) {
+    return (
+      <div style={{
+        position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
+        justifyContent: 'center', background: 'rgba(5,7,9,0.75)', zIndex: 5,
+        flexDirection: 'column', gap: 6, pointerEvents: 'none',
+      }}>
+        <span style={{ color: '#e11d48', fontSize: 10, fontFamily: 'monospace', textAlign: 'center', padding: '0 12px' }}>
+          Analysis failed
+        </span>
+      </div>
+    )
+  }
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
+      justifyContent: 'center', background: 'rgba(5,7,9,0.65)', zIndex: 5,
+      flexDirection: 'column', gap: 8, pointerEvents: 'none',
+    }}>
+      <div style={{
+        width: 20, height: 20, border: `2px solid ${color}40`, borderTopColor: color,
+        borderRadius: '50%', animation: 'spin 0.9s linear infinite',
+      }} />
+      <span style={{ color: `${color}aa`, fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.08em' }}>
+        ANALYZING…
+      </span>
+    </div>
+  )
+}
+
 // ── Main card content ─────────────────────────────────────────────────
-function MainCardContent({ track }: { track: RefTrack }) {
+function MainCardContent({ track, currentTime, onSeek }: {
+  track: RefTrack; currentTime?: number; onSeek?: (t: number) => void
+}) {
   return (
     <div className="ref-main-content">
-      {/* Top: artwork + title/meta */}
       <div className="ref-main-top">
         <div className="ref-main-art" style={{ borderColor: track.accentColor + '30' }}>
           <span className="ref-main-art-letter" style={{ color: track.accentColor }}>
@@ -355,13 +397,12 @@ function MainCardContent({ track }: { track: RefTrack }) {
         </div>
       </div>
 
-      {/* Full-width waveform */}
       <WaveformWithRuler
         data={track.waveformData} accentColor={track.accentColor}
         height={78} duration={track.duration}
+        currentTime={currentTime} onSeek={onSeek}
       />
 
-      {/* Bottom 4-column strip */}
       <div className="ref-main-bottom">
         <div className="ref-main-bottom-cell">
           <SpectrumMini data={track.spectrumData} accentColor={track.accentColor} height={58} />
@@ -384,10 +425,11 @@ function MainCardContent({ track }: { track: RefTrack }) {
 }
 
 // ── Ref card content ──────────────────────────────────────────────────
-function RefCardContent({ track }: { track: RefTrack }) {
+function RefCardContent({ track, currentTime, onSeek }: {
+  track: RefTrack; currentTime?: number; onSeek?: (t: number) => void
+}) {
   return (
     <div className="ref-ref-content">
-      {/* Compact top: small art + meta */}
       <div className="ref-ref-top">
         <div className="ref-ref-art" style={{ borderColor: track.accentColor + '30' }}>
           <span className="ref-ref-art-letter" style={{ color: track.accentColor }}>
@@ -410,13 +452,12 @@ function RefCardContent({ track }: { track: RefTrack }) {
         <button className="ref-card-options">···</button>
       </div>
 
-      {/* Waveform */}
       <WaveformWithRuler
         data={track.waveformData} accentColor={track.accentColor}
         height={56} duration={track.duration}
+        currentTime={currentTime} onSeek={onSeek}
       />
 
-      {/* Bottom 4-column */}
       <div className="ref-ref-bottom">
         <div className="ref-ref-bottom-cell">
           <SpectrumMini data={track.spectrumData} accentColor={track.accentColor} height={50} />
@@ -475,36 +516,49 @@ function EmptySlot({ onUpload, isMain }: { onUpload: (f: File[]) => void; isMain
 }
 
 // ── Main track card ───────────────────────────────────────────────────
-function MainTrackCard({ track, onUpload, onRemove, isSelected, onClick }: {
-  track: RefTrack | null; onUpload: (f: File[]) => void; onRemove: () => void
+function MainTrackCard({ record, track, onUpload, onRemove, isSelected, onClick, currentTime, onSeek }: {
+  record: RefTrackRecord | null; track: RefTrack | null
+  onUpload: (f: File[]) => void; onRemove: () => void
   isSelected: boolean; onClick: () => void
+  currentTime?: number; onSeek?: (t: number) => void
 }) {
-  if (!track) return <EmptySlot onUpload={onUpload} isMain />
+  if (!track || !record) return <EmptySlot onUpload={onUpload} isMain />
   return (
     <div
       className={`ref-main-card ${isSelected ? 'ref-main-card--selected' : ''}`}
       onClick={onClick}
+      style={{ position: 'relative' }}
     >
+      {(record.analyzing || record.analyzeError) && (
+        <AnalyzingOverlay color={track.accentColor} error={record.analyzeError} />
+      )}
       <div className="ref-main-card-header">
         <span className="az-spacer" />
         <span className="ref-badge ref-badge--main">MY TRACK</span>
         <button className="ref-card-options" onClick={e => e.stopPropagation()}>···</button>
         <button className="ref-card-remove" onClick={e => { e.stopPropagation(); onRemove() }} title="Remove">✕</button>
       </div>
-      <MainCardContent track={track} />
+      <MainCardContent
+        track={track}
+        currentTime={isSelected ? currentTime : undefined}
+        onSeek={onSeek}
+      />
     </div>
   )
 }
 
 // ── Reference track card ──────────────────────────────────────────────
-function RefTrackCard({ refIndex, track, onUpload, onRemove, isSelected, onClick }: {
-  refIndex: 1 | 2 | 3; track: RefTrack | null; onUpload: (f: File[]) => void
-  onRemove: () => void; isSelected: boolean; onClick: () => void
+function RefTrackCard({ refIndex, record, track, onUpload, onRemove, isSelected, onClick, currentTime, onSeek }: {
+  refIndex: 1 | 2 | 3
+  record: RefTrackRecord | null; track: RefTrack | null
+  onUpload: (f: File[]) => void; onRemove: () => void
+  isSelected: boolean; onClick: () => void
+  currentTime?: number; onSeek?: (t: number) => void
 }) {
   const label = `REF 0${refIndex}`
   const color = SLOT_COLORS[refIndex]
 
-  if (!track) {
+  if (!track || !record) {
     return (
       <div className="ref-card">
         <div className="ref-card-header">
@@ -517,16 +571,23 @@ function RefTrackCard({ refIndex, track, onUpload, onRemove, isSelected, onClick
   return (
     <div
       className={`ref-card ${isSelected ? 'ref-card--selected' : ''}`}
-      style={{ '--ref-accent': color } as React.CSSProperties}
+      style={{ '--ref-accent': color, position: 'relative' } as React.CSSProperties}
       onClick={onClick}
     >
+      {(record.analyzing || record.analyzeError) && (
+        <AnalyzingOverlay color={color} error={record.analyzeError} />
+      )}
       <div className="ref-card-header">
         <span className="ref-badge" style={{ background: color + '18', color, borderColor: color + '3a' }}>{label}</span>
         <span className="az-spacer" />
         <button className="ref-card-options" onClick={e => e.stopPropagation()}>···</button>
         <button className="ref-card-remove" onClick={e => { e.stopPropagation(); onRemove() }} title="Remove">✕</button>
       </div>
-      <RefCardContent track={track} />
+      <RefCardContent
+        track={track}
+        currentTime={isSelected ? currentTime : undefined}
+        onSeek={onSeek}
+      />
     </div>
   )
 }
@@ -572,14 +633,18 @@ function ReferenceTopBar({ trackCount, loudnessMatch, linkedPlayback, viewMode, 
   )
 }
 
-// ── Reference match panel ─────────────────────────────────────────────
-function ReferenceMatchPanel({ tracks }: { tracks: (RefTrack | null)[] }) {
-  const [, r1, r2, r3] = tracks
-  const refList = [r1, r2, r3]
-  const scores  = refList.map(t => t ? 72 + (strHash(t.id) % 24) : null)
-  const valid   = scores.filter((s): s is number => s !== null)
-  const avg     = valid.length ? Math.round(valid.reduce((a, b) => a + b, 0) / valid.length) : null
-  const C       = 2 * Math.PI * 32
+// ── Reference match panel (real scores) ──────────────────────────────
+function ReferenceMatchPanel({ mainRecord, refRecords }: {
+  mainRecord: RefTrackRecord | null
+  refRecords: (RefTrackRecord | null)[]
+}) {
+  const scores = refRecords.slice(0, 3).map(r => {
+    if (!r?.analysis || !mainRecord?.analysis) return null
+    return computeMatchScore(mainRecord.analysis, r.analysis).overall
+  })
+  const valid = scores.filter((s): s is number => s !== null)
+  const avg   = valid.length ? Math.round(valid.reduce((a, b) => a + b, 0) / valid.length) : null
+  const C     = 2 * Math.PI * 32
 
   return (
     <div className="ref-summary-panel">
@@ -619,7 +684,7 @@ function ReferenceMatchPanel({ tracks }: { tracks: (RefTrack | null)[] }) {
   )
 }
 
-// ── Smart insights panel (4-column horizontal) ────────────────────────
+// ── Smart insights panel ──────────────────────────────────────────────
 const INSIGHT_PATHS = [
   'M0,10 C6,2 12,18 18,10 C24,2 30,18 36,10 C42,2 48,18 54,10 C57,4 60,8 60,10',
   'M0,12 L8,5 L16,15 L24,8 L32,14 L40,4 L48,13 L56,7 L60,10',
@@ -628,9 +693,9 @@ const INSIGHT_PATHS = [
 ]
 const INSIGHT_COLS = [
   { label: 'TONAL BALANCE', path: INSIGHT_PATHS[0], text: 'Close match to REF 03. Slightly more energy in 20–120 Hz and 2–4 kHz.' },
-  { label: 'LOUDNESS',      path: INSIGHT_PATHS[1], text: 'Your track is 1.1 LU below REF 01. Loudness match is active.' },
-  { label: 'STEREO WIDTH',  path: INSIGHT_PATHS[2], text: 'Wider than REF 02, slightly narrower than REF 03.' },
-  { label: 'DYNAMICS',      path: INSIGHT_PATHS[3], text: 'Higher dynamic range than REF 01 & REF 03, closer to REF 02.' },
+  { label: 'LOUDNESS',      path: INSIGHT_PATHS[1], text: 'Compare LUFS values with reference tracks to check target loudness.' },
+  { label: 'STEREO WIDTH',  path: INSIGHT_PATHS[2], text: 'Width comparison reflects mid/side ratio across all loaded references.' },
+  { label: 'DYNAMICS',      path: INSIGHT_PATHS[3], text: 'Dynamic range spread between 400ms chunks, compared to references.' },
 ]
 
 function SmartInsightsPanel() {
@@ -686,13 +751,11 @@ function RefBottomDock({ selected, isPlaying, currentTime, onPlay, onPause, onSt
 
   return (
     <div className="az-dock ref-dock">
-      {/* A/B Compare button */}
       <button className="ref-ab-btn">
         <span className="ref-ab-btn-top">A / B</span>
         <span className="ref-ab-btn-sub">COMPARE</span>
       </button>
 
-      {/* Track info */}
       <div className="az-dock-track" style={{ width: 320 }}>
         <div className="az-dock-thumb" style={{ borderColor: accent + '40' }}>
           <span className="az-dock-thumb-letter" style={{ color: accent + 'aa' }}>{initial}</span>
@@ -708,7 +771,6 @@ function RefBottomDock({ selected, isPlaying, currentTime, onPlay, onPause, onSt
         </div>
       </div>
 
-      {/* Transport */}
       <div className="az-dock-transport">
         <button className="az-transport-btn" title="Previous" disabled={!selected}>
           <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
@@ -728,27 +790,24 @@ function RefBottomDock({ selected, isPlaying, currentTime, onPlay, onPause, onSt
         </button>
       </div>
 
-      {/* Time */}
       <div className="az-dock-time">
         <span className="az-dock-time-current">{fmtDur(currentTime)}.000</span>
         <span className="az-dock-time-total">{selected ? fmtDur(selected.duration) + '.000' : '00:00.000'}</span>
       </div>
 
-      {/* Volume */}
       <div className="az-dock-volume">
         <span className="az-dock-vol-icon">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="rgba(245,248,250,0.4)">
             <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
           </svg>
         </span>
-        <span className="az-dock-vol-db" style={{ fontSize: 9 }}>–1.1 dB</span>
+        <span className="az-dock-vol-db" style={{ fontSize: 9 }}>–0.0 dB</span>
         <input type="range" className="az-dock-vol-slider"
-          min={0} max={1} step={0.005} defaultValue={0.8}
-          style={{ '--pct': '80%' } as React.CSSProperties}
+          min={0} max={1} step={0.005} defaultValue={1.0}
+          style={{ '--pct': '100%' } as React.CSSProperties}
         />
       </div>
 
-      {/* Right: source + gear */}
       <div className="az-dock-right">
         <select className="az-dock-source-select">
           <option>Main Out</option>
@@ -771,28 +830,56 @@ interface Props {
 }
 
 export function ReferenceView({ activeView, onNavigate }: Props) {
-  const [mainTrack,  setMainTrack]  = useState<RefTrack | null>(null)
-  const [refTracks,  setRefTracks]  = useState<[RefTrack | null, RefTrack | null, RefTrack | null]>([null, null, null])
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const {
+    mainTrack: mainRecord,
+    refTracks: refRecords,
+    selectedId,
+    uploadMain, uploadRef,
+    setAnalysis, setError,
+    setSelectedId,
+    removeMain, removeRef,
+  } = useReferenceStore()
+
+  // Convert store records to display tracks
+  const mainTrack = useMemo(() => mainRecord ? toDisplayTrack(mainRecord) : null, [mainRecord])
+  const refTracks = useMemo(
+    () => refRecords.map(r => r ? toDisplayTrack(r) : null) as [RefTrack | null, RefTrack | null, RefTrack | null],
+    [refRecords]
+  )
+
   const [loudnessMatch,  setLoudnessMatch]  = useState(false)
   const [linkedPlayback, setLinkedPlayback] = useState(false)
-  const [viewMode,  setViewMode]  = useState<'Grid' | 'Overlay' | 'A/B'>('Grid')
-  const [isPlaying,   setIsPlaying]   = useState(false)
-  const [currentTime, setCurrentTime] = useState(0)
-  const [dragOver,    setDragOver]    = useState(false)
-  const addInputRef = useRef<HTMLInputElement>(null)
-  const audioRef    = useRef<HTMLAudioElement | null>(null)
+  const [viewMode,       setViewMode]       = useState<'Grid' | 'Overlay' | 'A/B'>('Grid')
+  const [isPlaying,      setIsPlaying]      = useState(false)
+  const [currentTime,    setCurrentTime]    = useState(0)
+  const [dragOver,       setDragOver]       = useState(false)
 
-  const totalTracks = (mainTrack ? 1 : 0) + refTracks.filter(Boolean).length
+  const addInputRef    = useRef<HTMLInputElement>(null)
+  const audioRef       = useRef<HTMLAudioElement | null>(null)
+  const pendingSeekRef = useRef<number | null>(null)
+  const selectedIdRef  = useRef<string | null>(null)
+
+  useEffect(() => { selectedIdRef.current = selectedId }, [selectedId])
+
+  const totalTracks = (mainRecord ? 1 : 0) + refRecords.filter(Boolean).length
 
   const selectedTrack = mainTrack?.id === selectedId ? mainTrack
     : refTracks.find(t => t?.id === selectedId) ?? null
 
-  // Sync audio src when selected track changes
+  // Load audio src when selected track changes
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
     if (selectedTrack) {
+      const onMeta = () => {
+        const t = pendingSeekRef.current
+        if (t !== null) {
+          audio.currentTime = t
+          setCurrentTime(t)
+          pendingSeekRef.current = null
+        }
+      }
+      audio.addEventListener('loadedmetadata', onMeta, { once: true })
       audio.src = selectedTrack.url
       audio.load()
       setCurrentTime(0)
@@ -802,29 +889,82 @@ export function ReferenceView({ activeView, onNavigate }: Props) {
       setIsPlaying(false)
       setCurrentTime(0)
     }
-  }, [selectedTrack?.id])
+  }, [selectedTrack?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Loudness match: adjust volume on ref tracks
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    if (!loudnessMatch) { audio.volume = 1; return }
+    const selRecord = refRecords.find(r => r?.id === selectedId)
+    if (!selRecord?.analysis || !mainRecord?.analysis) { audio.volume = 1; return }
+    const diffDb = mainRecord.analysis.loudness.lufs - selRecord.analysis.loudness.lufs
+    const gain   = Math.pow(10, diffDb / 20)
+    audio.volume = Math.max(0.01, Math.min(1.0, gain))
+  }, [loudnessMatch, selectedId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Linked playback: seek proportionally when switching to a ref track
+  useEffect(() => {
+    if (!linkedPlayback) return
+    const audio = audioRef.current
+    if (!audio) return
+    const selRecord = refRecords.find(r => r?.id === selectedId)
+    if (!selRecord) return
+    const mainDur = mainRecord?.duration ?? 0
+    const refDur  = selRecord.duration   ?? 0
+    if (mainDur <= 0 || refDur <= 0) return
+    const targetTime = (currentTime / mainDur) * refDur
+    if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      audio.currentTime = targetTime
+    } else {
+      pendingSeekRef.current = targetTime
+    }
+  }, [selectedId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Upload handlers (async real analysis) ───────────────────────────
+  const runAnalysis = useCallback((file: File, recordId: string) => {
+    analyzeAudioFile(file)
+      .then(analysis => {
+        const sr = `${(analysis.sampleRate / 1000).toFixed(1)} kHz`
+        setAnalysis(recordId, analysis, sr, analysis.duration)
+      })
+      .catch(err => setError(recordId, String(err)))
+  }, [setAnalysis, setError])
 
   const handleMainUpload = useCallback((files: File[]) => {
     const file = files[0]; if (!file) return
-    const track = generateMockAnalysis(file, 'main')
-    setMainTrack(track); setSelectedId(track.id)
-  }, [])
+    const record = uploadMain(file)
+    runAnalysis(file, record.id)
+  }, [uploadMain, runAnalysis])
 
   const handleRefUpload = useCallback((files: File[], refIndex: 1 | 2 | 3) => {
     const file = files[0]; if (!file) return
-    const track = generateMockAnalysis(file, 'reference', refIndex)
-    setRefTracks(prev => {
-      const next = [...prev] as [RefTrack | null, RefTrack | null, RefTrack | null]
-      next[refIndex - 1] = track; return next
-    })
-  }, [])
+    const record = uploadRef(file, (refIndex - 1) as 0 | 1 | 2)
+    runAnalysis(file, record.id)
+  }, [uploadRef, runAnalysis])
 
   const handleAddAny = useCallback((files: File[]) => {
     if (!files.length) return
-    if (!mainTrack) { handleMainUpload(files); return }
-    const idx = refTracks.findIndex(t => t === null)
+    if (!mainRecord) { handleMainUpload(files); return }
+    const idx = refRecords.findIndex(t => t === null)
     if (idx !== -1) handleRefUpload(files, (idx + 1) as 1 | 2 | 3)
-  }, [mainTrack, refTracks, handleMainUpload, handleRefUpload])
+  }, [mainRecord, refRecords, handleMainUpload, handleRefUpload])
+
+  const handleSeek = useCallback((trackId: string, time: number) => {
+    const audio = audioRef.current
+    if (!audio) return
+    if (selectedIdRef.current === trackId) {
+      if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
+        audio.currentTime = time
+      } else {
+        pendingSeekRef.current = time
+      }
+      setCurrentTime(time)
+    } else {
+      pendingSeekRef.current = time
+      setSelectedId(trackId)
+    }
+  }, [setSelectedId])
 
   return (
     <div
@@ -833,6 +973,8 @@ export function ReferenceView({ activeView, onNavigate }: Props) {
       onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false) }}
       onDrop={e => { e.preventDefault(); setDragOver(false); handleAddAny(Array.from(e.dataTransfer.files).filter(isAudio)) }}
     >
+      {/* spinner keyframe */}
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
       {dragOver && <div className="az-drag-overlay">DROP AUDIO FILES</div>}
       <audio
         ref={audioRef}
@@ -859,39 +1001,33 @@ export function ReferenceView({ activeView, onNavigate }: Props) {
 
           <div className="ref-scroll">
             <MainTrackCard
+              record={mainRecord}
               track={mainTrack}
               onUpload={handleMainUpload}
-              onRemove={() => {
-                if (mainTrack) URL.revokeObjectURL(mainTrack.url)
-                setMainTrack(null)
-                if (selectedId === mainTrack?.id) setSelectedId(null)
-              }}
-              isSelected={selectedId === mainTrack?.id}
-              onClick={() => mainTrack && setSelectedId(mainTrack.id)}
+              onRemove={() => { removeMain(); }}
+              isSelected={selectedId === mainRecord?.id}
+              onClick={() => mainRecord && setSelectedId(mainRecord.id)}
+              currentTime={currentTime}
+              onSeek={mainRecord ? (t) => handleSeek(mainRecord.id, t) : undefined}
             />
 
             <div className="ref-cards-row">
               {([1, 2, 3] as const).map(i => (
                 <RefTrackCard key={i} refIndex={i}
+                  record={refRecords[i - 1]}
                   track={refTracks[i - 1]}
                   onUpload={files => handleRefUpload(files, i)}
-                  onRemove={() => {
-                    const removed = refTracks[i - 1]
-                    if (removed) URL.revokeObjectURL(removed.url)
-                    setRefTracks(prev => {
-                      const next = [...prev] as [RefTrack | null, RefTrack | null, RefTrack | null]
-                      next[i - 1] = null; return next
-                    })
-                    if (selectedId === removed?.id) setSelectedId(null)
-                  }}
-                  isSelected={selectedId === refTracks[i - 1]?.id}
-                  onClick={() => refTracks[i - 1] && setSelectedId(refTracks[i - 1]!.id)}
+                  onRemove={() => removeRef((i - 1) as 0 | 1 | 2)}
+                  isSelected={selectedId === refRecords[i - 1]?.id}
+                  onClick={() => refRecords[i - 1] && setSelectedId(refRecords[i - 1]!.id)}
+                  currentTime={currentTime}
+                  onSeek={refRecords[i - 1] ? (t) => handleSeek(refRecords[i - 1]!.id, t) : undefined}
                 />
               ))}
             </div>
 
             <div className="ref-summary">
-              <ReferenceMatchPanel tracks={[mainTrack, ...refTracks]} />
+              <ReferenceMatchPanel mainRecord={mainRecord} refRecords={[...refRecords]} />
               <SmartInsightsPanel />
               <TargetRangePanel />
             </div>

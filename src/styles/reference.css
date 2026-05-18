@@ -309,7 +309,39 @@
 .ref-card-options:hover { color: var(--az-text-muted); }
 
 /* ── Waveform + ruler ────────────────────────────────────────────────── */
-.ref-waveform-wrap { background: rgba(0,0,0,0.22); border-radius: 4px; overflow: hidden; }
+.ref-waveform-wrap {
+  background: rgba(0,0,0,0.22);
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: crosshair;
+}
+.ref-waveform-canvas-wrap {
+  position: relative;
+}
+.ref-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1.5px;
+  background: rgba(255,255,255,0.85);
+  box-shadow: 0 0 6px rgba(255,255,255,0.45), 0 0 1px rgba(255,255,255,0.9);
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 4;
+  border-radius: 1px;
+}
+.ref-playhead::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid rgba(255,255,255,0.75);
+}
 .ref-waveform-ruler {
   display: flex;
   justify-content: space-between;
