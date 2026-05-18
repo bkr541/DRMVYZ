@@ -1068,52 +1068,93 @@ function ShortcutPanel() {
 }
 
 // ── VyzualzDock ───────────────────────────────────────────────────────
-function VyzualzDock({ isPlaying, bpm, onPlay, onPause }: {
-  isPlaying: boolean; bpm: number; onPlay: () => void; onPause: () => void
-}) {
+function VyzualzDock({ bpm }: { bpm: number }) {
   const { presets, activePresetId } = useVisualStore()
   const preset = presets.find(p => p.id === activePresetId) ?? presets[0]
   const engine = useSharedAudio()
+  const fileInputId = useId()
 
   const [vol, setVol] = useState(1.0)
   const volPct = `${Math.round(vol * 100)}%`
 
+  const track = engine.tracks[engine.currentIndex] ?? null
+  const hasTrack = engine.tracks.length > 0
+
+  const handleFiles = (files: FileList | null) => {
+    if (!files) return
+    const audio = Array.from(files).filter(f =>
+      f.type.startsWith('audio/') || /\.(mp3|wav|aiff?|m4a|ogg|flac)$/i.test(f.name)
+    )
+    if (audio.length) {
+      engine.addTracks(audio)
+      if (engine.source !== 'file') engine.setSource('file')
+    }
+  }
+
+  const initial  = track?.displayName?.[0]?.toUpperCase() ?? '♪'
+  const title    = track?.displayName ?? 'No track loaded'
+  const srLabel  = `${(engine.sampleRate / 1000).toFixed(1)} kHz`
+
   return (
     <div className="az-dock">
-      <div className="az-dock-track" style={{ width: 280 }}>
-        <div className="az-dock-thumb" style={{ borderColor: preset.color + '40', background: preset.gradient }}>
-          <span className="az-dock-thumb-letter" style={{ color: preset.color, fontSize: 11, fontWeight: 800 }}>
-            {preset.name[0]}
+      {/* Track info + upload */}
+      <div className="az-dock-track">
+        <label
+          className="az-dock-thumb"
+          htmlFor={fileInputId}
+          title="Click to load audio"
+          style={{ cursor: 'pointer', borderColor: preset.color + '40' }}
+        >
+          <span className="az-dock-thumb-letter" style={{ color: preset.color + 'cc' }}>
+            {hasTrack ? initial : '♪'}
           </span>
-        </div>
+        </label>
         <div className="az-dock-info">
-          <div className="vz-dock-preset-label">Active Preset</div>
-          <div className="vz-dock-preset-name">{preset.name}</div>
-          <div className="az-dock-format">
-            <span className="az-dock-format-tag">
-              {engine.source === 'microphone' ? 'Microphone' : engine.source === 'demo' ? 'Demo' : 'File'}
-            </span>
-            <span className="az-dock-format-tag">Live</span>
-          </div>
+          <span className="az-dock-title">{title}</span>
+          {hasTrack && (
+            <div className="az-dock-format">
+              <span className="az-dock-format-tag">{srLabel}</span>
+              <span className="az-dock-format-tag">Stereo</span>
+            </div>
+          )}
         </div>
+        <label
+          className="az-dock-upload-btn"
+          htmlFor={fileInputId}
+          title="Upload audio file"
+          style={{ cursor: 'pointer' }}
+        >
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+            <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/>
+          </svg>
+          Add Track
+        </label>
       </div>
 
+      {/* Transport */}
       <div className="az-dock-transport">
-        <button className="az-transport-btn" title="Previous Preset">
+        <button className="az-transport-btn" title="Stop" disabled={!hasTrack}
+          onClick={() => { engine.stop() }}>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>
+        </button>
+        <button className="az-transport-btn" title="Previous" disabled={!hasTrack}
+          onClick={engine.prev}>
           <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
         </button>
         <button
           className="az-play-btn"
-          title={isPlaying ? 'Pause' : 'Play'}
+          title={engine.isPlaying ? 'Pause' : 'Play'}
+          disabled={!hasTrack}
           style={{ borderColor: preset.color, color: preset.color, boxShadow: `0 0 12px ${preset.color}30` }}
-          onClick={isPlaying ? onPause : onPlay}
+          onClick={engine.isPlaying ? engine.pause : engine.play}
         >
-          {isPlaying
+          {engine.isPlaying
             ? <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
             : <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
           }
         </button>
-        <button className="az-transport-btn" title="Next Preset">
+        <button className="az-transport-btn" title="Next" disabled={!hasTrack}
+          onClick={engine.next}>
           <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
         </button>
       </div>
@@ -1122,6 +1163,15 @@ function VyzualzDock({ isPlaying, bpm, onPlay, onPause }: {
         <span className="vz-dock-bpm-label">BPM</span>
         <span className="vz-dock-bpm-val">{bpm}</span>
       </div>
+
+      <input
+        id={fileInputId}
+        type="file"
+        accept="audio/*"
+        multiple
+        className="az-upload-input"
+        onChange={e => handleFiles(e.target.files)}
+      />
 
       <div className="az-dock-volume">
         <span className="az-dock-vol-icon">
@@ -1296,12 +1346,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
         </div>
       </div>
 
-      <VyzualzDock
-        isPlaying={isPlaying}
-        bpm={bpm}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-      />
+      <VyzualzDock bpm={bpm} />
     </div>
   )
 }
