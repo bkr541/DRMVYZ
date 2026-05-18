@@ -14,13 +14,14 @@ interface Props {
   peakDecay: number
   showTargetCurve: boolean
   sensitivity: number
+  freqScale?: 'Linear' | 'Log'
   refAnalyser?: AnalyserNode | null
 }
 
 export function SpectrumModule({
   analyser, isActive, mode, colorMap,
   showGlow, accentIntensity, showPeakHold, peakDecay,
-  showTargetCurve, sensitivity, refAnalyser,
+  showTargetCurve, sensitivity, freqScale = 'Log', refAnalyser,
 }: Props) {
   const canvasRef  = useRef<HTMLCanvasElement>(null)
   const dataRef    = useRef<Uint8Array<ArrayBuffer> | null>(null)
@@ -76,18 +77,25 @@ export function SpectrumModule({
     const barCount = Math.min(freq.length, 120)
     const glow = showGlow ? accentIntensity * 10 : 0
 
+    // Map bar index 0..barCount-1 → x position 0..W using linear or log scale
+    const barX = (i: number) => {
+      if (freqScale === 'Log') {
+        const minLog = Math.log10(1)
+        const maxLog = Math.log10(barCount)
+        return ((Math.log10(i + 1) - minLog) / (maxLog - minLog)) * W
+      }
+      return (i / barCount) * W
+    }
+
     if (mode === 'bars') {
-      const gap = 1
-      const bw = (W - gap * (barCount - 1)) / barCount
       for (let i = 0; i < barCount; i++) {
         const val = (freq[i] / 255) * sensitivity
         const bh = Math.min(H, val * H)
         peaks[i] = showPeakHold ? Math.max(peaks[i] * peakDecay, bh) : 0
-        const x = i * (bw + gap)
-        const [r, g, b] = [cmap[i * 3 % (cmap.length)], cmap[i * 3 + 1 % (cmap.length)], cmap[i * 3 + 2 % (cmap.length)]]
+        const x = barX(i)
+        const bw = Math.max(1, barX(i + 1) - x - 1)
         const colorIdx = Math.floor((freq[i] / 255) * 255)
         const cr = cmap[colorIdx * 3], cg = cmap[colorIdx * 3 + 1], cb = cmap[colorIdx * 3 + 2]
-        void r; void g; void b
         if (showGlow && bh > H * 0.1) { ctx.shadowColor = `rgb(${cr},${cg},${cb})`; ctx.shadowBlur = glow * val }
         else ctx.shadowBlur = 0
         ctx.fillStyle = `rgb(${cr},${cg},${cb})`
@@ -105,7 +113,7 @@ export function SpectrumModule({
       ctx.lineWidth = 2
       for (let i = 0; i <= barCount; i++) {
         const val = Math.min(1, (freq[Math.min(i, freq.length - 1)] / 255) * sensitivity)
-        const x = (i / barCount) * W
+        const x = barX(i)
         const y = H - val * H
         if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y)
       }
@@ -126,11 +134,11 @@ export function SpectrumModule({
       ctx.lineWidth = 2
       for (let i = 0; i <= barCount; i++) {
         const val = Math.min(1, (freq[Math.min(i, freq.length - 1)] / 255) * sensitivity)
-        const x = (i / barCount) * W
+        const x = barX(i)
         const y = H - val * H
         if (i === 0) { ctx.moveTo(x, y); continue }
         const prevVal = Math.min(1, (freq[Math.min(i - 1, freq.length - 1)] / 255) * sensitivity)
-        const prevX = ((i - 1) / barCount) * W
+        const prevX = barX(i - 1)
         const prevY = H - prevVal * H
         const cpX = (prevX + x) / 2
         ctx.bezierCurveTo(cpX, prevY, cpX, y, x, y)
@@ -146,7 +154,7 @@ export function SpectrumModule({
       ctx.setLineDash([4, 6])
       ctx.beginPath()
       for (let i = 0; i <= barCount; i++) {
-        const x = (i / barCount) * W
+        const x = barX(i)
         // Rough ISO 226 equal loudness curve (normalized)
         const freq_hz = (i / barCount) * (analyser?.context?.sampleRate ?? 44100) / 2
         let level = 0.5
@@ -184,7 +192,7 @@ export function SpectrumModule({
       ctx.setLineDash([3, 4])
       ctx.beginPath()
       for (let i = 0; i < refCount; i++) {
-        const x = (i / refCount) * W
+        const x = barX(i)
         const v = (refData[i] / 255) * sensitivity
         const y = H - v * H
         if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y)

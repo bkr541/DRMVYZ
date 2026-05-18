@@ -110,7 +110,12 @@
 .az-nav-item--active {
   color: var(--az-cyan);
   border-left-color: var(--az-cyan);
-  background: rgba(25,191,242,0.07);
+  border-left-width: 2px;
+  background: rgba(25,191,242,0.09);
+  text-shadow: 0 0 12px rgba(25,191,242,0.35);
+}
+.az-nav-item--active svg {
+  filter: drop-shadow(0 0 4px rgba(25,191,242,0.55));
 }
 
 .az-sidebar-footer {
@@ -848,7 +853,7 @@
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
-  width: 240px;
+  width: 340px;
 }
 .az-dock-thumb {
   width: 46px; height: 46px;

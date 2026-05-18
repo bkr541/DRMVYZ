@@ -9,9 +9,10 @@ interface Props {
   secondaryColor: string
   showGlow: boolean
   accentIntensity: number
+  mode?: 'Lissajous' | 'Polar'
 }
 
-export function VectorscopeModule({ analyserL, analyserR, isActive, primaryColor, secondaryColor, showGlow, accentIntensity }: Props) {
+export function VectorscopeModule({ analyserL, analyserR, isActive, primaryColor, secondaryColor, showGlow, accentIntensity, mode = 'Lissajous' }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const bufLRef   = useRef<Float32Array<ArrayBuffer> | null>(null)
   const bufRRef   = useRef<Float32Array<ArrayBuffer> | null>(null)
@@ -56,10 +57,10 @@ export function VectorscopeModule({ analyserL, analyserR, isActive, primaryColor
     ctx.fillText('+', cx - 4, cy - r + 10)
     ctx.fillText('-', cx - 3, cy + r)
 
-    let points: [number, number][]
+    let bufL: Float32Array<ArrayBuffer> | null = null
+    let bufR: Float32Array<ArrayBuffer> | null = null
 
     if (analyserL && analyserR && isActive) {
-      // Real stereo Lissajous — L on X axis, R on Y axis
       const len = analyserL.fftSize
       if (!bufLRef.current || bufLRef.current.length !== len) {
         bufLRef.current = new Float32Array(len) as Float32Array<ArrayBuffer>
@@ -67,42 +68,87 @@ export function VectorscopeModule({ analyserL, analyserR, isActive, primaryColor
       }
       analyserL.getFloatTimeDomainData(bufLRef.current)
       analyserR.getFloatTimeDomainData(bufRRef.current!)
-      const step = Math.max(1, Math.floor(len / 512))
-      points = []
-      for (let i = 0; i < len; i += step) {
-        points.push([
-          cx + bufLRef.current[i] * r * 0.9,
-          cy - bufRRef.current![i] * r * 0.9,
-        ])
-      }
-    } else {
-      // Idle Lissajous figure
-      points = []
-      const t = phaseRef.current
-      for (let i = 0; i < 400; i++) {
-        const a = (i / 400) * Math.PI * 2
-        const lv = Math.sin(a * 3 + t * 0.7) * 0.65 + Math.sin(a + t * 0.3) * 0.12
-        const rv = Math.cos(a * 2 + t * 0.5) * 0.65 + Math.cos(a + t * 0.4) * 0.12
-        points.push([cx + lv * r * 0.8, cy - rv * r * 0.8])
-      }
+      bufL = bufLRef.current
+      bufR = bufRRef.current
     }
 
     if (showGlow) { ctx.shadowColor = primaryColor; ctx.shadowBlur = accentIntensity * 10 }
 
-    // Draw Lissajous path
-    ctx.beginPath()
-    ctx.moveTo(points[0][0], points[0][1])
-    for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1])
-    ctx.strokeStyle = primaryColor + 'aa'
-    ctx.lineWidth = 1.2
-    ctx.stroke()
+    if (mode === 'Polar') {
+      // Polar (mid-side): angle = pan position, radius = amplitude
+      // mid = L+R (center), side = L-R (width)
+      ctx.strokeStyle = primaryColor + 'aa'
+      ctx.lineWidth = 1.2
+      ctx.beginPath()
+      if (bufL && bufR) {
+        const step = Math.max(1, Math.floor(bufL.length / 512))
+        for (let i = 0; i < bufL.length; i += step) {
+          const mid  = (bufL[i] + bufR[i]) * 0.7071
+          const side = (bufL[i] - bufR[i]) * 0.7071
+          const amp   = Math.sqrt(mid * mid + side * side)
+          const angle = Math.atan2(side, mid) // -π/4 (L) to +π/4 (R)
+          const px = cx + Math.sin(angle) * amp * r * 1.2
+          const py = cy - Math.cos(angle) * amp * r * 1.2
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py)
+        }
+      } else {
+        // Idle polar demo
+        const t = phaseRef.current
+        for (let i = 0; i < 360; i++) {
+          const a = (i / 360) * Math.PI * 2
+          const amp = 0.45 + Math.sin(a * 3 + t) * 0.25 + Math.sin(a * 5 + t * 0.7) * 0.1
+          const px = cx + Math.sin(a) * amp * r
+          const py = cy - Math.cos(a) * amp * r
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py)
+        }
+      }
+      ctx.stroke()
 
-    // Accent dots
-    ctx.shadowBlur = showGlow ? accentIntensity * 5 : 0
-    ctx.fillStyle = secondaryColor
-    const dotStep = Math.max(1, Math.floor(points.length / 48))
-    for (let i = 0; i < points.length; i += dotStep) {
-      ctx.beginPath(); ctx.arc(points[i][0], points[i][1], 1, 0, Math.PI * 2); ctx.fill()
+      // Dot accents
+      ctx.shadowBlur = showGlow ? accentIntensity * 5 : 0
+      ctx.fillStyle = secondaryColor
+      if (bufL && bufR) {
+        const dotStep = Math.max(1, Math.floor(bufL.length / 48))
+        for (let i = 0; i < bufL.length; i += dotStep) {
+          const mid  = (bufL[i] + bufR[i]) * 0.7071
+          const side = (bufL[i] - bufR[i]) * 0.7071
+          const amp   = Math.sqrt(mid * mid + side * side)
+          const angle = Math.atan2(side, mid)
+          const px = cx + Math.sin(angle) * amp * r * 1.2
+          const py = cy - Math.cos(angle) * amp * r * 1.2
+          ctx.beginPath(); ctx.arc(px, py, 1, 0, Math.PI * 2); ctx.fill()
+        }
+      }
+    } else {
+      // Lissajous: L on X axis, R on Y axis
+      const points: [number, number][] = []
+      if (bufL && bufR) {
+        const step = Math.max(1, Math.floor(bufL.length / 512))
+        for (let i = 0; i < bufL.length; i += step) {
+          points.push([cx + bufL[i] * r * 0.9, cy - bufR![i] * r * 0.9])
+        }
+      } else {
+        const t = phaseRef.current
+        for (let i = 0; i < 400; i++) {
+          const a  = (i / 400) * Math.PI * 2
+          const lv = Math.sin(a * 3 + t * 0.7) * 0.65 + Math.sin(a + t * 0.3) * 0.12
+          const rv = Math.cos(a * 2 + t * 0.5) * 0.65 + Math.cos(a + t * 0.4) * 0.12
+          points.push([cx + lv * r * 0.8, cy - rv * r * 0.8])
+        }
+      }
+      ctx.beginPath()
+      ctx.moveTo(points[0][0], points[0][1])
+      for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1])
+      ctx.strokeStyle = primaryColor + 'aa'
+      ctx.lineWidth = 1.2
+      ctx.stroke()
+
+      ctx.shadowBlur = showGlow ? accentIntensity * 5 : 0
+      ctx.fillStyle = secondaryColor
+      const dotStep = Math.max(1, Math.floor(points.length / 48))
+      for (let i = 0; i < points.length; i += dotStep) {
+        ctx.beginPath(); ctx.arc(points[i][0], points[i][1], 1, 0, Math.PI * 2); ctx.fill()
+      }
     }
     ctx.shadowBlur = 0
   })

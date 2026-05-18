@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useId, useState } from 'react'
 import type { Track, AudioSource } from '../../types'
 
 interface Props {
@@ -42,7 +42,7 @@ export function BottomTransportDock({
   hasTrack, onPlay, onPause, onStop, onPrev, onNext, onSeek, onVolume,
   onSourceChange, onOpenSettings, onFiles,
 }: Props) {
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileInputId = useId()
   const [dragging, setDragging] = useState(false)
   void dragging; void setDragging
 
@@ -65,15 +65,16 @@ export function BottomTransportDock({
 
   return (
     <div className="az-dock">
-      {/* Track info */}
+      {/* Track info + upload */}
       <div className="az-dock-track">
-        <div
+        <label
           className="az-dock-thumb"
+          htmlFor={fileInputId}
           title="Click to load audio file"
-          onClick={() => fileInputRef.current?.click()}
+          style={{ cursor: 'pointer' }}
         >
           <span className="az-dock-thumb-letter">{initial}</span>
-        </div>
+        </label>
         <div className="az-dock-info">
           <span className="az-dock-title">{title}</span>
           {track && <span className="az-dock-artist">—</span>}
@@ -82,6 +83,17 @@ export function BottomTransportDock({
             <span className="az-dock-format-tag">Stereo</span>
           </div>
         </div>
+        <label
+          className="az-dock-upload-btn"
+          htmlFor={fileInputId}
+          title="Upload audio file"
+          style={{ cursor: 'pointer' }}
+        >
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+            <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/>
+          </svg>
+          Add Track
+        </label>
       </div>
 
       {/* Transport */}
@@ -158,17 +170,6 @@ export function BottomTransportDock({
         </select>
 
         <button
-          className="az-dock-upload-btn"
-          title="Upload audio file"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
-            <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/>
-          </svg>
-          Add Track
-        </button>
-
-        <button
           className="az-dock-gear-btn"
           title="Settings"
           onClick={onOpenSettings}
@@ -180,7 +181,7 @@ export function BottomTransportDock({
       </div>
 
       <input
-        ref={fileInputRef}
+        id={fileInputId}
         type="file"
         accept="audio/*"
         multiple

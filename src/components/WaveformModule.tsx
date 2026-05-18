@@ -1,27 +1,74 @@
-import { useRef } from 'react'
-import { useAnimationFrame } from '../hooks/useAnimationFrame'
-import { WaveformMode, ColorMapName } from '../types'
-import { getColorMap } from '../utils/colorMaps'
+import { useRef, useEffect, useCallback } from 'react'
+
+const PEAK_RES = 2000 // number of peak samples across the full track
 
 interface Props {
-  analyser: AnalyserNode | null
-  isActive: boolean
-  mode: WaveformMode
-  colorMap: ColorMapName
-  showGlow: boolean
-  accentIntensity: number
+  trackUrl: string | null
   currentTime: number
   duration: number
+  color?: string
+  onSeek?: (t: number) => void
 }
 
-export function WaveformModule({ analyser, isActive, mode, colorMap, showGlow, accentIntensity, currentTime, duration }: Props) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const dataRef   = useRef<Uint8Array<ArrayBuffer> | null>(null)
-  const scrollRef = useRef(0) // for scroll mode
-  const phaseRef  = useRef(0)
-  const cmap = getColorMap(colorMap)
+export function WaveformModule({ trackUrl, currentTime, duration, color = 'rgba(200,210,220,0.85)', onSeek }: Props) {
+  const canvasRef   = useRef<HTMLCanvasElement>(null)
+  const peaksRef    = useRef<Float32Array | null>(null)
+  const loadedUrl   = useRef<string | null>(null)
+  const rafRef      = useRef<number>(0)
 
-  useAnimationFrame(() => {
+  // Keep canvas buffer matched to CSS size
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect
+        if (width > 0 && height > 0) {
+          canvas.width  = Math.round(width  * devicePixelRatio)
+          canvas.height = Math.round(height * devicePixelRatio)
+        }
+      }
+    })
+    ro.observe(canvas)
+    return () => ro.disconnect()
+  }, [])
+
+  // Decode audio file → peak array whenever trackUrl changes
+  useEffect(() => {
+    if (!trackUrl || trackUrl === loadedUrl.current) return
+    loadedUrl.current = trackUrl
+    peaksRef.current  = null
+
+    const ac = new (window.AudioContext || (window as never as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
+
+    fetch(trackUrl)
+      .then(r => r.arrayBuffer())
+      .then(buf => ac.decodeAudioData(buf))
+      .then(decoded => {
+        const numCh = decoded.numberOfChannels
+        const len   = decoded.length
+        const mono  = new Float32Array(len)
+        for (let c = 0; c < numCh; c++) {
+          const ch = decoded.getChannelData(c)
+          for (let i = 0; i < len; i++) mono[i] += ch[i] / numCh
+        }
+
+        const peaks    = new Float32Array(PEAK_RES)
+        const chunk    = len / PEAK_RES
+        for (let x = 0; x < PEAK_RES; x++) {
+          const s = Math.floor(x * chunk)
+          const e = Math.min(Math.floor(s + chunk), len)
+          let pk = 0
+          for (let i = s; i < e; i++) { const a = Math.abs(mono[i]); if (a > pk) pk = a }
+          peaks[x] = pk
+        }
+        peaksRef.current = peaks
+        ac.close()
+      })
+      .catch(() => { ac.close() })
+  }, [trackUrl])
+
+  const draw = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
@@ -29,107 +76,57 @@ export function WaveformModule({ analyser, isActive, mode, colorMap, showGlow, a
 
     const W = canvas.width
     const H = canvas.height
-    phaseRef.current += 0.022
-
     ctx.clearRect(0, 0, W, H)
-    ctx.fillStyle = 'rgba(0,0,0,0.25)'
-    ctx.fillRect(0, 0, W, H)
 
-    let wave: Uint8Array<ArrayBuffer>
+    const peaks = peaksRef.current
+    const midY  = H / 2
 
-    if (analyser && isActive) {
-      // Real time-domain waveform data
-      if (!dataRef.current || dataRef.current.length !== analyser.fftSize) {
-        dataRef.current = new Uint8Array(analyser.fftSize) as Uint8Array<ArrayBuffer>
-      }
-      analyser.getByteTimeDomainData(dataRef.current)
-      wave = dataRef.current
-    } else {
-      const len = 1024
-      if (!dataRef.current || dataRef.current.length !== len) {
-        dataRef.current = new Uint8Array(len) as Uint8Array<ArrayBuffer>
-      }
-      for (let i = 0; i < len; i++) {
-        const t = phaseRef.current
-        dataRef.current[i] = Math.round(
-          ((Math.sin(i / len * Math.PI * 6 + t * 2.5) * 0.3 +
-            Math.sin(i / len * Math.PI * 2 + t) * 0.2) * 0.5 + 0.5) * 255
-        )
-      }
-      wave = dataRef.current
-    }
-
-    const midY = H / 2
-    const primaryC = `rgb(${cmap[200 * 3]},${cmap[200 * 3 + 1]},${cmap[200 * 3 + 2]})`
-    const secondaryC = `rgb(${cmap[100 * 3]},${cmap[100 * 3 + 1]},${cmap[100 * 3 + 2]})`
-
-    if (mode === 'centered') {
-      // Centered mirror waveform
-      if (showGlow) { ctx.shadowColor = primaryC; ctx.shadowBlur = accentIntensity * 5 }
-      ctx.beginPath()
-      ctx.strokeStyle = primaryC
-      ctx.lineWidth = 1.5
-      const step = Math.max(1, Math.floor(wave.length / W))
-      for (let x = 0; x < W; x++) {
-        const idx = Math.floor((x / W) * wave.length)
-        const v = (wave[Math.min(idx, wave.length - 1)] / 128) - 1
-        const y = midY + v * (H * 0.44)
-        if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y)
-        void step
-      }
-      ctx.stroke()
-
-      // Mirror below
-      ctx.beginPath()
-      ctx.strokeStyle = secondaryC
+    if (!peaks) {
+      // No track loaded — draw a faint center line
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)'
       ctx.lineWidth = 1
-      ctx.globalAlpha = 0.4
-      for (let x = 0; x < W; x++) {
-        const idx = Math.floor((x / W) * wave.length)
-        const v = (wave[Math.min(idx, wave.length - 1)] / 128) - 1
-        const y = midY - v * (H * 0.44)
-        if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y)
-      }
-      ctx.stroke()
-      ctx.globalAlpha = 1
-    } else {
-      // Scroll mode — waveform scrolls left over time
-      scrollRef.current = (scrollRef.current + 1) % W
-      const offset = scrollRef.current
-
-      if (showGlow) { ctx.shadowColor = primaryC; ctx.shadowBlur = accentIntensity * 4 }
-      ctx.beginPath()
-      ctx.strokeStyle = primaryC
-      ctx.lineWidth = 1.5
-      for (let x = 0; x < W; x++) {
-        const idx = ((x + offset) % W / W) * wave.length
-        const v = (wave[Math.floor(idx) % wave.length] / 128) - 1
-        const y = midY + v * (H * 0.44)
-        if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y)
-      }
-      ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(0, midY); ctx.lineTo(W, midY); ctx.stroke()
+      return
     }
 
-    ctx.shadowBlur = 0
+    const playFrac  = duration > 0 ? Math.max(0, Math.min(1, currentTime / duration)) : 0
+    const playPx    = playFrac * W
+    const barW      = Math.max(1, W / PEAK_RES)
+    const gap       = barW > 2.5 ? 1 : 0
 
-    // Playhead (only for file source with duration)
-    if (duration > 0 && mode === 'centered') {
-      const px = (currentTime / duration) * W
-      ctx.fillStyle = 'rgba(255,255,255,0.08)'
-      ctx.fillRect(0, 0, px, H)
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)'
-      ctx.lineWidth = 1
-      ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke()
+    for (let x = 0; x < W; x++) {
+      const pi   = Math.floor((x / W) * PEAK_RES)
+      const pk   = peaks[Math.min(pi, PEAK_RES - 1)]
+      const barH = Math.max(1, pk * H * 0.92)
+      ctx.fillStyle = x < playPx ? color : 'rgba(200,210,220,0.22)'
+      ctx.fillRect(x * barW, midY - barH / 2, barW - gap, barH)
     }
 
-    // Center axis
-    ctx.strokeStyle = 'rgba(255,255,255,0.05)'
-    ctx.lineWidth = 1
-    ctx.beginPath(); ctx.moveTo(0, midY); ctx.lineTo(W, midY); ctx.stroke()
-  })
+    // Playhead
+    if (duration > 0) {
+      ctx.fillStyle = 'rgba(255,255,255,0.9)'
+      ctx.fillRect(playPx - 0.5, 0, 1.5, H)
+    }
+  }, [currentTime, duration, color])
+
+  // Render loop
+  useEffect(() => {
+    const loop = () => { draw(); rafRef.current = requestAnimationFrame(loop) }
+    rafRef.current = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(rafRef.current)
+  }, [draw])
+
+  const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!onSeek || duration <= 0) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    onSeek(((e.clientX - rect.left) / rect.width) * duration)
+  }
 
   return (
-    <canvas ref={canvasRef} width={600} height={80}
-      style={{ width: '100%', height: '100%', display: 'block' }} />
+    <canvas
+      ref={canvasRef}
+      style={{ width: '100%', height: '100%', display: 'block', cursor: onSeek ? 'pointer' : 'default' }}
+      onClick={handleClick}
+    />
   )
 }

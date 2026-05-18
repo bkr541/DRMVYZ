@@ -17,7 +17,12 @@ import { WaveformModule }          from '../WaveformModule'
 const CYAN = '#19bff2'
 const CYAN2 = '#2edcb3'
 
-export function AnalyzerView() {
+interface AnalyzerViewProps {
+  activeView?: 'analyzer' | 'reference'
+  onNavigate?: (v: 'analyzer' | 'reference') => void
+}
+
+export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerViewProps) {
   const engine = useAudioEngine()
   const { settings: specSettings, update: updateSpec } = useSpectrumSettings()
 
@@ -55,7 +60,7 @@ export function AnalyzerView() {
       )}
 
       <div className="az-shell">
-        <AnalyzerSidebar />
+        <AnalyzerSidebar activeView={activeView} onNavigate={onNavigate} />
 
         <div className="az-main">
           <div className="az-grid">
@@ -96,6 +101,7 @@ export function AnalyzerView() {
                   peakDecay={0.978}
                   showTargetCurve={false}
                   sensitivity={1.0}
+                  freqScale={specMode}
                   refAnalyser={null}
                 />
               </div>
@@ -122,6 +128,7 @@ export function AnalyzerView() {
                   analyserL={engine.analyserL}
                   analyserR={engine.analyserR}
                   isActive={engine.isActive}
+                  mode={stereoMode}
                 />
               </div>
             </div>
@@ -137,12 +144,10 @@ export function AnalyzerView() {
               </div>
               <div className="az-panel-body">
                 <WaveformDualPanel
-                  analyser={engine.analyserMaster}
-                  analyserL={engine.analyserL}
-                  analyserR={engine.analyserR}
-                  isActive={engine.isActive}
+                  trackUrl={track?.url ?? null}
                   currentTime={engine.currentTime}
                   duration={engine.duration}
+                  onSeek={engine.seek}
                 />
               </div>
             </div>
@@ -296,23 +301,23 @@ export function AnalyzerView() {
 }
 
 // Thin wrapper for the existing vectorscope — shows L/R labels and correlation bar
-function StereoImagePanel({ analyserL, analyserR, isActive }: {
+function StereoImagePanel({ analyserL, analyserR, isActive, mode }: {
   analyserL: AnalyserNode | null
   analyserR: AnalyserNode | null
   isActive: boolean
+  mode: 'Polar' | 'Lissajous'
 }) {
   const corrRef = useRef<HTMLSpanElement>(null) as React.RefObject<HTMLSpanElement>
   const markerRef = useRef<HTMLDivElement>(null) as React.RefObject<HTMLDivElement>
   const bufLRef = useRef<Float32Array<ArrayBuffer> | null>(null) as React.MutableRefObject<Float32Array<ArrayBuffer> | null>
   const bufRRef = useRef<Float32Array<ArrayBuffer> | null>(null) as React.MutableRefObject<Float32Array<ArrayBuffer> | null>
 
-  // Compute correlation each frame via a secondary hook-less approach:
-  // We'll piggyback on useAnimationFrame here via a sub-component.
   return (
     <StereoImageInner
       analyserL={analyserL}
       analyserR={analyserR}
       isActive={isActive}
+      mode={mode}
       corrRef={corrRef}
       markerRef={markerRef}
       bufLRef={bufLRef}
@@ -324,11 +329,12 @@ function StereoImagePanel({ analyserL, analyserR, isActive }: {
 import { useAnimationFrame } from '../../hooks/useAnimationFrame'
 
 function StereoImageInner({
-  analyserL, analyserR, isActive, corrRef, markerRef, bufLRef, bufRRef
+  analyserL, analyserR, isActive, mode, corrRef, markerRef, bufLRef, bufRRef
 }: {
   analyserL: AnalyserNode | null
   analyserR: AnalyserNode | null
   isActive: boolean
+  mode: 'Polar' | 'Lissajous'
   corrRef: React.RefObject<HTMLSpanElement>
   markerRef: React.RefObject<HTMLDivElement>
   bufLRef: React.MutableRefObject<Float32Array<ArrayBuffer> | null>
@@ -381,6 +387,7 @@ function StereoImageInner({
           analyserL={analyserL}
           analyserR={analyserR}
           isActive={isActive}
+          mode={mode}
           primaryColor={CYAN}
           secondaryColor={CYAN2}
           showGlow={true}
@@ -399,51 +406,26 @@ function StereoImageInner({
   )
 }
 
-// Dual-lane waveform: L on top, R on bottom, using the existing WaveformModule twice
 function WaveformDualPanel({
-  analyser, analyserL, analyserR, isActive, currentTime, duration
+  trackUrl, currentTime, duration, onSeek
 }: {
-  analyser: AnalyserNode | null
-  analyserL: AnalyserNode | null
-  analyserR: AnalyserNode | null
-  isActive: boolean
+  trackUrl: string | null
   currentTime: number
   duration: number
+  onSeek: (t: number) => void
 }) {
   const durSecs = duration > 0 ? duration : 60
   const marks = makeTimeMarks(durSecs, 6)
-  void analyser
 
   return (
     <div className="az-waveform-body">
       <div className="az-waveform-tracks">
-        <div className="az-waveform-lane">
-          <span className="az-waveform-ch-label">L</span>
-          <WaveformModule
-            analyser={analyserL}
-            isActive={isActive}
-            mode="centered"
-            colorMap="cyan-green"
-            showGlow={false}
-            accentIntensity={0.4}
-            currentTime={currentTime}
-            duration={duration}
-          />
-        </div>
-        <div className="az-waveform-divider" />
-        <div className="az-waveform-lane">
-          <span className="az-waveform-ch-label">R</span>
-          <WaveformModule
-            analyser={analyserR}
-            isActive={isActive}
-            mode="centered"
-            colorMap="cyan-green"
-            showGlow={false}
-            accentIntensity={0.4}
-            currentTime={currentTime}
-            duration={duration}
-          />
-        </div>
+        <WaveformModule
+          trackUrl={trackUrl}
+          currentTime={currentTime}
+          duration={duration}
+          onSeek={onSeek}
+        />
       </div>
       <div className="az-waveform-timeline">
         {marks.map(m => (

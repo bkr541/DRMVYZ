@@ -3,11 +3,24 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 113 ms
+  VITE v5.4.21  ready in 196 ms
 
   ➜  Local:   http://127.0.0.1:5173/
-5:42:46 PM [vite] hmr update /src/components/analyzer/BottomTransportDock.tsx
-5:42:52 PM [vite] hmr update /src/components/analyzer/BottomTransportDock.tsx
-5:43:07 PM [vite] hmr update /src/components/analyzer/BottomTransportDock.tsx
-5:43:16 PM [vite] hmr update /src/styles/analyzer.css
-5:43:20 PM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
+4:28:54 AM [vite] hmr update /src/components/SpectrumModule.tsx
+4:29:03 AM [vite] hmr update /src/components/SpectrumModule.tsx
+4:29:17 AM [vite] hmr update /src/components/SpectrumModule.tsx
+4:29:26 AM [vite] hmr update /src/components/SpectrumModule.tsx
+4:29:30 AM [vite] hmr update /src/components/SpectrumModule.tsx
+4:29:36 AM [vite] hmr update /src/components/SpectrumModule.tsx
+4:29:42 AM [vite] hmr update /src/components/VectorscopeModule.tsx
+4:30:07 AM [vite] hmr update /src/components/VectorscopeModule.tsx
+4:30:14 AM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
+4:30:22 AM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
+4:30:31 AM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
+4:30:36 AM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
+4:30:41 AM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
+4:52:32 AM [vite] hmr update /src/components/analyzer/AnalyzerSidebar.tsx
+4:52:40 AM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
+4:52:44 AM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
+4:52:52 AM [vite] hmr update /src/App.tsx
+4:52:59 AM [vite] page reload src/main.tsx
