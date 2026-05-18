@@ -4,6 +4,7 @@ import App from './App'
 import './styles.css'
 import './styles/analyzer.css'
 import './styles/reference.css'
+import './styles/vyzualz.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

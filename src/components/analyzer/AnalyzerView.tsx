@@ -18,8 +18,8 @@ const CYAN = '#19bff2'
 const CYAN2 = '#2edcb3'
 
 interface AnalyzerViewProps {
-  activeView?: 'analyzer' | 'reference'
-  onNavigate?: (v: 'analyzer' | 'reference') => void
+  activeView?: 'analyzer' | 'reference' | 'vyzualz'
+  onNavigate?: (v: 'analyzer' | 'reference' | 'vyzualz') => void
 }
 
 export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerViewProps) {

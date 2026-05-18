@@ -28,6 +28,7 @@ interface RefTrack {
   loudness: RefLoudness
   stereo: RefStereo
   bands: RefBands
+  url: string
 }
 
 // Accent: main=cyan, ref01=purple, ref02=slate, ref03=orange
@@ -78,6 +79,7 @@ function generateMockAnalysis(file: File, role: 'main' | 'reference', refIndex?:
       lf: 0.2 + rng() * 0.65, lmf: 0.3 + rng() * 0.55, mf: 0.35 + rng() * 0.5,
       hmf: 0.25 + rng() * 0.55, hf: 0.12 + rng() * 0.58,
     },
+    url: URL.createObjectURL(file),
   }
 }
 
@@ -674,8 +676,8 @@ function TargetRangePanel() {
 }
 
 // ── Bottom dock ───────────────────────────────────────────────────────
-function RefBottomDock({ selected, isPlaying, onPlay, onPause, onStop }: {
-  selected: RefTrack | null; isPlaying: boolean
+function RefBottomDock({ selected, isPlaying, currentTime, onPlay, onPause, onStop }: {
+  selected: RefTrack | null; isPlaying: boolean; currentTime: number
   onPlay: () => void; onPause: () => void; onStop: () => void
 }) {
   const accent  = selected?.accentColor ?? '#19bff2'
@@ -728,7 +730,7 @@ function RefBottomDock({ selected, isPlaying, onPlay, onPause, onStop }: {
 
       {/* Time */}
       <div className="az-dock-time">
-        <span className="az-dock-time-current">00:00.000</span>
+        <span className="az-dock-time-current">{fmtDur(currentTime)}.000</span>
         <span className="az-dock-time-total">{selected ? fmtDur(selected.duration) + '.000' : '00:00.000'}</span>
       </div>
 
@@ -764,8 +766,8 @@ function RefBottomDock({ selected, isPlaying, onPlay, onPause, onStop }: {
 
 // ── Main view ─────────────────────────────────────────────────────────
 interface Props {
-  activeView: 'analyzer' | 'reference'
-  onNavigate: (v: 'analyzer' | 'reference') => void
+  activeView: 'analyzer' | 'reference' | 'vyzualz'
+  onNavigate: (v: 'analyzer' | 'reference' | 'vyzualz') => void
 }
 
 export function ReferenceView({ activeView, onNavigate }: Props) {
@@ -775,11 +777,32 @@ export function ReferenceView({ activeView, onNavigate }: Props) {
   const [loudnessMatch,  setLoudnessMatch]  = useState(false)
   const [linkedPlayback, setLinkedPlayback] = useState(false)
   const [viewMode,  setViewMode]  = useState<'Grid' | 'Overlay' | 'A/B'>('Grid')
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [dragOver,  setDragOver]  = useState(false)
+  const [isPlaying,   setIsPlaying]   = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [dragOver,    setDragOver]    = useState(false)
   const addInputRef = useRef<HTMLInputElement>(null)
+  const audioRef    = useRef<HTMLAudioElement | null>(null)
 
   const totalTracks = (mainTrack ? 1 : 0) + refTracks.filter(Boolean).length
+
+  const selectedTrack = mainTrack?.id === selectedId ? mainTrack
+    : refTracks.find(t => t?.id === selectedId) ?? null
+
+  // Sync audio src when selected track changes
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    if (selectedTrack) {
+      audio.src = selectedTrack.url
+      audio.load()
+      setCurrentTime(0)
+      setIsPlaying(false)
+    } else {
+      audio.src = ''
+      setIsPlaying(false)
+      setCurrentTime(0)
+    }
+  }, [selectedTrack?.id])
 
   const handleMainUpload = useCallback((files: File[]) => {
     const file = files[0]; if (!file) return
@@ -803,9 +826,6 @@ export function ReferenceView({ activeView, onNavigate }: Props) {
     if (idx !== -1) handleRefUpload(files, (idx + 1) as 1 | 2 | 3)
   }, [mainTrack, refTracks, handleMainUpload, handleRefUpload])
 
-  const selectedTrack = mainTrack?.id === selectedId ? mainTrack
-    : refTracks.find(t => t?.id === selectedId) ?? null
-
   return (
     <div
       className="az-root"
@@ -814,6 +834,12 @@ export function ReferenceView({ activeView, onNavigate }: Props) {
       onDrop={e => { e.preventDefault(); setDragOver(false); handleAddAny(Array.from(e.dataTransfer.files).filter(isAudio)) }}
     >
       {dragOver && <div className="az-drag-overlay">DROP AUDIO FILES</div>}
+      <audio
+        ref={audioRef}
+        onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime ?? 0)}
+        onEnded={() => { setIsPlaying(false); setCurrentTime(0) }}
+        style={{ display: 'none' }}
+      />
       <input ref={addInputRef} type="file" accept="audio/*" style={{ display: 'none' }}
         onChange={e => { handleAddAny(Array.from(e.target.files ?? []).filter(isAudio)); e.target.value = '' }}
       />
@@ -835,7 +861,11 @@ export function ReferenceView({ activeView, onNavigate }: Props) {
             <MainTrackCard
               track={mainTrack}
               onUpload={handleMainUpload}
-              onRemove={() => { setMainTrack(null); if (selectedId === mainTrack?.id) setSelectedId(null) }}
+              onRemove={() => {
+                if (mainTrack) URL.revokeObjectURL(mainTrack.url)
+                setMainTrack(null)
+                if (selectedId === mainTrack?.id) setSelectedId(null)
+              }}
               isSelected={selectedId === mainTrack?.id}
               onClick={() => mainTrack && setSelectedId(mainTrack.id)}
             />
@@ -847,6 +877,7 @@ export function ReferenceView({ activeView, onNavigate }: Props) {
                   onUpload={files => handleRefUpload(files, i)}
                   onRemove={() => {
                     const removed = refTracks[i - 1]
+                    if (removed) URL.revokeObjectURL(removed.url)
                     setRefTracks(prev => {
                       const next = [...prev] as [RefTrack | null, RefTrack | null, RefTrack | null]
                       next[i - 1] = null; return next
@@ -869,10 +900,14 @@ export function ReferenceView({ activeView, onNavigate }: Props) {
       </div>
 
       <RefBottomDock
-        selected={selectedTrack} isPlaying={isPlaying}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
-        onStop={() => setIsPlaying(false)}
+        selected={selectedTrack} isPlaying={isPlaying} currentTime={currentTime}
+        onPlay={() => { audioRef.current?.play(); setIsPlaying(true) }}
+        onPause={() => { audioRef.current?.pause(); setIsPlaying(false) }}
+        onStop={() => {
+          const audio = audioRef.current
+          if (audio) { audio.pause(); audio.currentTime = 0 }
+          setIsPlaying(false); setCurrentTime(0)
+        }}
       />
     </div>
   )
