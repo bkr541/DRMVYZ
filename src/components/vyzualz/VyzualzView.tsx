@@ -654,10 +654,13 @@ function VyzualzHeader({ analyser, bassLive }: { analyser: AnalyserNode | null; 
 function MediaDeckPanel({ activeMediaId, onSelect }: {
   activeMediaId: string | null; onSelect: (id: string) => void
 }) {
-  const { items, addFiles, removeItem, toggleFavorite } = useMediaStore()
+  const { items, addFiles, removeItem, toggleFavorite, loadFromSupabase } = useMediaStore()
   const [filter, setFilter] = useState<'All' | 'Images' | 'Videos' | 'Favorites'>('All')
   const [dragOver, setDragOver] = useState(false)
   const fileInputId = useId()
+
+  // Load persisted media from Supabase on mount
+  useEffect(() => { loadFromSupabase() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = items.filter(m => {
     if (filter === 'Images')    return m.type === 'image'

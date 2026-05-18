@@ -176,6 +176,21 @@ export interface MediaItemRow {
   updated_at: string
 }
 
+// Only required fields are required in Insert; nullable/defaulted fields are optional
+export interface MediaItemInsert {
+  user_id?: string | null
+  name: string
+  type: MediaType
+  storage_path: string
+  thumbnail_path?: string | null
+  width?: number | null
+  height?: number | null
+  duration_sec?: number | null
+  file_size?: number | null
+  mime_type?: string | null
+  favorite?: boolean
+}
+
 export interface VisualPresetRow {
   id: string
   user_id: string | null
@@ -220,6 +235,10 @@ export interface CanvasExport {
 
 export interface Database {
   public: {
+    Views:          Record<string, never>
+    Functions:      Record<string, never>
+    Enums:          Record<string, never>
+    CompositeTypes: Record<string, never>
     Tables: {
       profiles:               { Row: Profile;              Insert: Omit<Profile, 'created_at'|'updated_at'>;              Update: Partial<Omit<Profile, 'id'>> }
       sessions:               { Row: Session;              Insert: Omit<Session, 'id'>;                                    Update: Partial<Omit<Session, 'id'>> }
@@ -233,7 +252,7 @@ export interface Database {
       reference_sessions:     { Row: ReferenceSessionRow;  Insert: Omit<ReferenceSessionRow,'id'|'created_at'|'updated_at'>; Update: Partial<Omit<ReferenceSessionRow,'id'>> }
       reference_slots:        { Row: ReferenceSlot;        Insert: Omit<ReferenceSlot,'id'|'created_at'>;                 Update: Partial<Omit<ReferenceSlot,'id'>> }
       reference_comparisons:  { Row: ReferenceComparison;  Insert: Omit<ReferenceComparison,'id'|'computed_at'>;           Update: Partial<Omit<ReferenceComparison,'id'>> }
-      media_items:            { Row: MediaItemRow;         Insert: Omit<MediaItemRow,'id'|'created_at'|'updated_at'>;      Update: Partial<Omit<MediaItemRow,'id'>> }
+      media_items:            { Row: MediaItemRow;         Insert: MediaItemInsert;                                        Update: Partial<Omit<MediaItemRow,'id'>> }
       visual_presets:         { Row: VisualPresetRow;      Insert: Omit<VisualPresetRow,'id'|'created_at'|'updated_at'>;   Update: Partial<Omit<VisualPresetRow,'id'>> }
       visual_sessions:        { Row: VisualSessionRow;     Insert: Omit<VisualSessionRow,'id'|'created_at'|'updated_at'>;  Update: Partial<Omit<VisualSessionRow,'id'>> }
       canvas_exports:         { Row: CanvasExport;         Insert: Omit<CanvasExport,'id'|'exported_at'>;                  Update: Partial<Omit<CanvasExport,'id'>> }
