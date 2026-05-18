@@ -136,6 +136,12 @@ const IconLock = () => (
   </svg>
 )
 
+const IconMic = () => (
+  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+  </svg>
+)
+
 const EyeOpen = () => (
   <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
     <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
@@ -276,20 +282,21 @@ function LoginForm({ onSuccess, onSwitch }: { onSuccess: () => void; onSwitch: (
 // ── Signup form ───────────────────────────────────────────────────────────────
 
 function SignupForm({ onSuccess, onSwitch }: { onSuccess: () => void; onSwitch: () => void }) {
-  const [name, setName]         = useState('')
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [confirm, setConfirm]   = useState('')
-  const [showPwd, setShowPwd]   = useState(false)
-  const [showCfm, setShowCfm]   = useState(false)
-  const [agreed, setAgreed]     = useState(false)
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState<string | null>(null)
-  const [done, setDone]         = useState(false)
+  const [name, setName]           = useState('')
+  const [artistName, setArtistName] = useState('')
+  const [email, setEmail]         = useState('')
+  const [password, setPassword]   = useState('')
+  const [confirm, setConfirm]     = useState('')
+  const [showPwd, setShowPwd]     = useState(false)
+  const [showCfm, setShowCfm]     = useState(false)
+  const [agreed, setAgreed]       = useState(false)
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState<string | null>(null)
+  const [done, setDone]           = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!name || !email || !password || !confirm) { setError('Please fill in all fields'); return }
+    if (!name || !artistName || !email || !password || !confirm) { setError('Please fill in all fields'); return }
     if (password.length < 6) { setError('Password must be at least 6 characters'); return }
     if (password !== confirm) { setError('Passwords do not match'); return }
     if (!agreed) { setError('Please agree to the Terms & Privacy Policy'); return }
@@ -298,7 +305,7 @@ function SignupForm({ onSuccess, onSwitch }: { onSuccess: () => void; onSwitch: 
     const { data, error: err } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { display_name: name } },
+      options: { data: { display_name: name, artist_name: artistName } },
     })
     setLoading(false)
     if (err) { setError(err.message); return }
@@ -340,6 +347,11 @@ function SignupForm({ onSuccess, onSwitch }: { onSuccess: () => void; onSwitch: 
         label="FULL NAME" type="text" placeholder="Your name"
         value={name} onChange={setName} icon={<IconUser/>}
         autoComplete="name"
+      />
+      <Field
+        label="ARTIST NAME" type="text" placeholder="Your artist / stage name"
+        value={artistName} onChange={setArtistName} icon={<IconMic/>}
+        autoComplete="off"
       />
       <Field
         label="EMAIL" type="email" placeholder="you@example.com"
