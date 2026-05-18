@@ -39,7 +39,7 @@ export interface VzPreset {
   isDefault?: boolean
 }
 
-const DEFAULT_PRESETS: VzPreset[] = [
+export const DEFAULT_PRESETS: VzPreset[] = [
   {
     id: 'dream-theft',
     name: 'Dream Theft',
@@ -191,6 +191,15 @@ export const useVisualStore = create<VisualState>()(
         bpm: s.bpm,
         bpmSync: s.bpmSync,
       }),
+      // Re-inject default presets after rehydration so they are never missing
+      merge: (persisted, current) => {
+        const p = persisted as Partial<VisualState>
+        return {
+          ...current,
+          ...p,
+          presets: [...DEFAULT_PRESETS, ...(p.presets ?? [])],
+        }
+      },
     }
   )
 )

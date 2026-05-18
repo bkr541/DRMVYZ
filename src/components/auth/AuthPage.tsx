@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { supabase } from '../../lib/supabase'
+import { supabase, supabaseConfigured } from '../../lib/supabase'
 import '../../styles/auth.css'
 
 // ── SVG emblem mark ───────────────────────────────────────────────────────────
@@ -396,6 +396,23 @@ function SignupForm({ onSuccess, onSwitch }: { onSuccess: () => void; onSwitch: 
 
 export function AuthPage({ onAuth }: { onAuth: () => void }) {
   const [mode, setMode] = useState<'login' | 'signup'>('login')
+
+  if (!supabaseConfigured) {
+    return (
+      <div className="auth-root">
+        <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.6)', maxWidth: 400, padding: '0 24px' }}>
+          <div style={{ fontSize: 13, marginBottom: 12, color: '#f87171', fontFamily: 'monospace' }}>
+            ⚠ Supabase not configured
+          </div>
+          <p style={{ fontSize: 12, lineHeight: 1.6 }}>
+            Copy <code>.env.example</code> → <code>.env</code> and set{' '}
+            <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code>,
+            then restart the dev server.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="auth-root">

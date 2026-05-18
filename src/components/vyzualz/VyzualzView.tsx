@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useId, useMemo } from 'react'
 import { AnalyzerSidebar } from '../analyzer/AnalyzerSidebar'
 import { useSharedAudio }  from '../../context/AudioEngineContext'
 import { useMediaStore }   from '../../stores/mediaStore'
-import { useVisualStore }  from '../../stores/visualStore'
+import { useVisualStore, DEFAULT_PRESETS }  from '../../stores/visualStore'
 import type { UploadedMedia } from '../../stores/mediaStore'
 import type { VzEffects, VzPreset } from '../../stores/visualStore'
 
@@ -1070,7 +1070,7 @@ function ShortcutPanel() {
 // ── VyzualzDock ───────────────────────────────────────────────────────
 function VyzualzDock({ bpm }: { bpm: number }) {
   const { presets, activePresetId } = useVisualStore()
-  const preset = presets.find(p => p.id === activePresetId) ?? presets[0]
+  const preset = presets.find(p => p.id === activePresetId) ?? presets[0] ?? DEFAULT_PRESETS[0]
   const engine = useSharedAudio()
   const fileInputId = useId()
 

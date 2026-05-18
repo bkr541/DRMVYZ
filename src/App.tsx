@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabase }            from './lib/supabase'
+import { supabase, supabaseConfigured } from './lib/supabase'
 import { AudioEngineProvider } from './context/AudioEngineContext'
 import { AuthPage }            from './components/auth/AuthPage'
 import { AnalyzerView }        from './components/analyzer/AnalyzerView'
@@ -9,16 +9,17 @@ import { VyzualzView }         from './components/vyzualz/VyzualzView'
 type AppView = 'analyzer' | 'reference' | 'vyzualz'
 
 export default function App() {
-  const [view, setView]   = useState<AppView>('analyzer')
-  const [authed, setAuthed] = useState<boolean | null>(null) // null = checking
+  const [view, setView]     = useState<AppView>('analyzer')
+  const [authed, setAuthed] = useState<boolean | null>(null)
 
   useEffect(() => {
-    // Check existing session on mount
+    // Skip auth check when Supabase is not configured (dev without .env)
+    if (!supabaseConfigured) { setAuthed(false); return }
+
     supabase.auth.getSession().then(({ data }) => {
       setAuthed(!!data.session)
     })
 
-    // Keep in sync with Supabase auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setAuthed(!!session)
     })
