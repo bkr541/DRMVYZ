@@ -2206,7 +2206,6 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
           <div className="vz-body">
             <div className="vz-left">
               <MediaDeckPanel activeMediaId={activeMediaId} onSelect={setActiveMedia} />
-              {timelineEnabled && <TimelinePanel />}
             </div>
 
             <div className="vz-center">
@@ -2236,7 +2235,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                 timelineLoop={timelineLoop}
                 mediaItems={items}
               />
-              <AudioAnalyzerPanel analyser={analyser} />
+              {timelineEnabled && <TimelinePanel />}
             </div>
 
             <div className="vz-right">
@@ -2263,6 +2262,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
               onSave={handleSavePreset}
               onDelete={deletePreset}
             />
+            <AudioAnalyzerPanel analyser={analyser} />
             <SessionPanel
               sessions={sessions}
               sessionsLoading={sessionsLoading}

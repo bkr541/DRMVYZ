@@ -17,7 +17,7 @@ export function TimelinePanel() {
   } = useVisualStore()
 
   const { items } = useMediaStore()
-  const { activeMediaId } = useVisualStore(s => ({ activeMediaId: s.activeMediaId }))
+  const activeMediaId = useVisualStore(s => s.activeMediaId)
 
   const mediaMap = useMemo(() => new Map(items.map(m => [m.id, m])), [items])
 
@@ -35,39 +35,46 @@ export function TimelinePanel() {
   }
 
   return (
-    <div className="vz-panel">
-      <div className="vz-panel-header">
-        <span className="vz-panel-title">Timeline</span>
-        <span className="vz-panel-meta">{fmtSec(totalDuration)}</span>
-        <button className="vz-panel-icon-btn" onClick={clearTimeline} title="Clear timeline">
-          Clear
-        </button>
-      </div>
-
-      <div className="vz-tl-controls">
-        <div className="vz-sync-toggle" onClick={() => setTimelineLoop(!timelineLoop)}>
-          <div className={`vz-sync-track ${timelineLoop ? 'vz-sync-track--on' : ''}`}>
-            <div className="vz-sync-thumb" />
-          </div>
-          <span className="vz-sync-label">Loop</span>
+    <div className="vz-tl-bar">
+      {/* Left controls sidebar */}
+      <div className="vz-tl-sidebar">
+        <div className="vz-tl-sidebar-top">
+          <span className="vz-tl-title">Timeline</span>
+          <span className="vz-tl-duration">{fmtSec(totalDuration)}</span>
         </div>
-
-        <button
-          className="vz-tl-add-btn"
-          disabled={!activeMedia}
-          onClick={() => activeMedia && addTimelineClip(activeMedia.id)}
-          title={activeMedia ? `Add "${activeMedia.title ?? activeMedia.name}"` : 'No active media'}
-        >
-          + Add Active
-        </button>
+        <div className="vz-tl-sidebar-actions">
+          <div className="vz-sync-toggle vz-tl-loop-toggle" onClick={() => setTimelineLoop(!timelineLoop)}>
+            <div className={`vz-sync-track ${timelineLoop ? 'vz-sync-track--on' : ''}`}>
+              <div className="vz-sync-thumb" />
+            </div>
+            <span className="vz-sync-label">Loop</span>
+          </div>
+          <button
+            className="vz-tl-add-btn"
+            disabled={!activeMedia}
+            onClick={() => activeMedia && addTimelineClip(activeMedia.id)}
+            title={activeMedia ? `Add "${activeMedia.title ?? activeMedia.name}"` : 'No active media'}
+          >
+            + Add
+          </button>
+          <button
+            className="vz-tl-clear-btn"
+            onClick={clearTimeline}
+            disabled={timelineClips.length === 0}
+            title="Clear all clips"
+          >
+            Clear
+          </button>
+        </div>
       </div>
 
-      {timelineClips.length === 0 ? (
-        <div className="vz-tl-empty">No clips — add media to get started.</div>
-      ) : (
-        <div className="vz-tl-clips">
-          {timelineClips.map((clip, idx) => (
-            <TimelineClipRow
+      {/* Horizontally scrollable clip track */}
+      <div className="vz-tl-track">
+        {timelineClips.length === 0 ? (
+          <div className="vz-tl-empty">No clips — click + Add to get started</div>
+        ) : (
+          timelineClips.map((clip, idx) => (
+            <TimelineClipCard
               key={clip.id}
               clip={clip}
               media={mediaMap.get(clip.mediaId)}
@@ -78,35 +85,14 @@ export function TimelinePanel() {
               onDuplicate={duplicateTimelineClip}
               onUpdate={updateTimelineClip}
             />
-          ))}
-        </div>
-      )}
-
-      {items.length > 0 && (
-        <div className="vz-tl-quick-add">
-          <span className="vz-tl-quick-label">Quick Add</span>
-          <div className="vz-tl-quick-thumbs">
-            {items.slice(0, 4).map(m => (
-              <button
-                key={m.id}
-                className="vz-tl-quick-thumb"
-                title={m.title ?? m.name}
-                onClick={() => addTimelineClip(m.id)}
-              >
-                {m.thumbnailUrl
-                  ? <img src={m.thumbnailUrl} alt={m.name} />
-                  : <span>{m.type === 'video' ? '▶' : '◻'}</span>
-                }
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+          ))
+        )}
+      </div>
     </div>
   )
 }
 
-function TimelineClipRow({
+function TimelineClipCard({
   clip, media, idx, total,
   onMove, onRemove, onDuplicate, onUpdate,
 }: {
@@ -120,45 +106,43 @@ function TimelineClipRow({
   onUpdate: (id: string, patch: Partial<VzTimelineClip>) => void
 }) {
   return (
-    <div className="vz-tl-clip">
-      <div className="vz-tl-clip-thumb">
+    <div className="vz-tl-card">
+      <div className="vz-tl-card-thumb">
         {media?.thumbnailUrl
           ? <img src={media.thumbnailUrl} alt={media.name} />
           : <span className="vz-tl-thumb-placeholder">{media?.type === 'video' ? '▶' : '◻'}</span>
         }
       </div>
 
-      <div className="vz-tl-clip-info">
-        <span className="vz-tl-clip-name" title={media?.title ?? media?.name ?? clip.mediaId}>
-          {media?.title ?? media?.name ?? '(missing)'}
-        </span>
-        <div className="vz-tl-clip-fields">
-          <input
-            type="number"
-            className="vz-tl-dur-input"
-            min={0.1}
-            max={3600}
-            step={0.5}
-            value={clip.durationSec}
-            onChange={e => {
-              const v = parseFloat(e.target.value)
-              if (!isNaN(v) && v > 0) onUpdate(clip.id, { durationSec: v })
-            }}
-            title="Duration (seconds)"
-          />
-          <select
-            className="az-select vz-tl-mode-select"
-            value={clip.playbackMode}
-            onChange={e => onUpdate(clip.id, { playbackMode: e.target.value as VzTimelineClip['playbackMode'] })}
-          >
-            <option value="trim">Trim</option>
-            <option value="loop">Loop</option>
-            <option value="freeze">Freeze</option>
-          </select>
-        </div>
-      </div>
+      <span className="vz-tl-card-name" title={media?.title ?? media?.name ?? clip.mediaId}>
+        {media?.title ?? media?.name ?? '(missing)'}
+      </span>
 
-      <div className="vz-tl-clip-actions">
+      <input
+        type="number"
+        className="vz-tl-dur-input"
+        min={0.1}
+        max={3600}
+        step={0.5}
+        value={clip.durationSec}
+        onChange={e => {
+          const v = parseFloat(e.target.value)
+          if (!isNaN(v) && v > 0) onUpdate(clip.id, { durationSec: v })
+        }}
+        title="Duration (seconds)"
+      />
+
+      <select
+        className="az-select vz-tl-mode-select"
+        value={clip.playbackMode}
+        onChange={e => onUpdate(clip.id, { playbackMode: e.target.value as VzTimelineClip['playbackMode'] })}
+      >
+        <option value="trim">Trim</option>
+        <option value="loop">Loop</option>
+        <option value="freeze">Freeze</option>
+      </select>
+
+      <div className="vz-tl-card-actions">
         <button className="vz-tl-clip-btn" disabled={idx === 0}
           onClick={() => onMove(clip.id, -1)} title="Move left">‹</button>
         <button className="vz-tl-clip-btn" disabled={idx === total - 1}

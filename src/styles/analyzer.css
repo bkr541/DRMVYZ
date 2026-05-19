@@ -53,20 +53,22 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .az-logo {
-  padding: 22px 22px 18px;
+  padding: 16px 18px;
   border-bottom: 1px solid rgba(255,255,255,0.055);
   display: flex;
   align-items: center;
   gap: 12px;
+  overflow: hidden;
 }
 
 .az-logo-icon {
-  width: 34px;
-  height: 34px;
-  background: var(--az-cyan);
+  width: 56px;
+  height: 56px;
+  background: transparent;
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -74,19 +76,27 @@
   flex-shrink: 0;
 }
 
-.az-logo-text { display: flex; flex-direction: column; gap: 2px; }
+.az-logo-icon img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+}
+
+.az-logo-text { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
 .az-logo-mark {
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.05em;
   color: rgba(245,248,250,0.95);
   line-height: 1;
+  white-space: nowrap;
 }
 .az-logo-sub {
   font-size: 9px;
   letter-spacing: 0.18em;
   color: var(--az-text-faint);
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .az-nav { padding: 10px 0; flex: 1; }
@@ -95,17 +105,21 @@
   display: flex;
   align-items: center;
   gap: 11px;
-  padding: 11px 22px;
-  font-size: 11px;
+  padding: 12px 22px;
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--az-text-faint);
   cursor: pointer;
   border-left: 2px solid transparent;
   transition: all 0.15s;
   user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
 }
+
+.az-nav-label { flex-shrink: 0; }
 .az-nav-item:hover { color: var(--az-text-muted); background: rgba(255,255,255,0.03); }
 .az-nav-item--active {
   color: var(--az-cyan);
@@ -119,28 +133,93 @@
 }
 
 .az-sidebar-footer {
-  padding: 16px 22px;
+  padding: 16px 14px;
   border-top: 1px solid rgba(255,255,255,0.055);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
 }
+.az-footer-meta { display: flex; flex-direction: column; }
 .az-license-label {
   font-size: 9px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--az-text-faint);
+  white-space: nowrap;
 }
-.az-license-type { font-size: 12px; color: var(--az-text-muted); margin-top: 3px; }
+.az-license-type { font-size: 12px; color: var(--az-text-muted); margin-top: 3px; white-space: nowrap; }
 .az-version-row {
   display: flex;
   align-items: center;
   gap: 7px;
   margin-top: 10px;
 }
-.az-version-text { font-size: 10px; color: var(--az-text-faint); }
+.az-version-text { font-size: 10px; color: var(--az-text-faint); white-space: nowrap; }
 .az-status-dot {
   width: 6px; height: 6px; border-radius: 50%;
   background: var(--az-green);
   box-shadow: 0 0 5px rgba(88,209,91,0.55);
+  flex-shrink: 0;
 }
+
+/* Toggle button */
+.az-sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 5px;
+  color: var(--az-text-faint);
+  cursor: pointer;
+  padding: 8px 10px;
+  width: 100%;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.az-sidebar-toggle:hover {
+  color: var(--az-text-muted);
+  background: rgba(255,255,255,0.07);
+}
+
+/* ── Collapsed sidebar ───────────────────────────────────────────────── */
+.az-sidebar--collapsed {
+  width: 72px;
+}
+.az-sidebar--collapsed .az-logo {
+  padding: 16px 0;
+  justify-content: center;
+  gap: 0;
+}
+.az-sidebar--collapsed .az-logo-text { display: none; }
+.az-sidebar--collapsed .az-nav-item {
+  justify-content: center;
+  padding: 14px 0;
+  border-left-color: transparent;
+}
+.az-sidebar--collapsed .az-nav-item--active {
+  border-left-color: transparent;
+  border-top: 2px solid var(--az-cyan);
+  padding-top: 12px;
+}
+.az-sidebar--collapsed .az-nav-label { display: none; }
+.az-sidebar--collapsed .az-sidebar-footer {
+  padding: 12px 8px;
+  align-items: center;
+}
+.az-sidebar--collapsed .az-footer-meta { display: none; }
+.az-sidebar--collapsed .az-sidebar-toggle {
+  padding: 8px;
+  width: auto;
+}
+.az-toggle-label { flex-shrink: 0; }
 
 /* ── Main area ───────────────────────────────────────────────────────── */
 .az-main {
