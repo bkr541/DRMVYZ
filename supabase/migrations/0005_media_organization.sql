@@ -23,7 +23,9 @@ alter table public.media_items
 
 -- ── 2. media_tags ─────────────────────────────────────────────────────────────
 
-create table if not exists public.media_tags (
+drop table if exists public.media_tags cascade;
+
+create table public.media_tags (
   id         uuid primary key default gen_random_uuid(),
   user_id    uuid not null references auth.users(id) on delete cascade,
   name       text not null,
@@ -35,14 +37,19 @@ create table if not exists public.media_tags (
 
 alter table public.media_tags enable row level security;
 
+drop policy if exists "media_tags: own" on public.media_tags;
 create policy "media_tags: own"
   on public.media_tags for all
   using  (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
 -- ── 3. media_item_tags ────────────────────────────────────────────────────────
+-- Drop old table that had (media_id, tag_id) referencing public.tags.
+-- New table uses media_item_id and references the new media_tags table.
 
-create table if not exists public.media_item_tags (
+drop table if exists public.media_item_tags cascade;
+
+create table public.media_item_tags (
   media_item_id uuid not null references public.media_items(id) on delete cascade,
   tag_id        uuid not null references public.media_tags(id)  on delete cascade,
   created_at    timestamptz not null default now(),
@@ -51,20 +58,23 @@ create table if not exists public.media_item_tags (
 
 alter table public.media_item_tags enable row level security;
 
+drop policy if exists "media_item_tags: own" on public.media_item_tags;
 create policy "media_item_tags: own"
   on public.media_item_tags for all
   using (
-    exists (select 1 from public.media_items m where m.id = media_item_id and m.user_id = auth.uid()) and
-    exists (select 1 from public.media_tags  t where t.id = tag_id        and t.user_id = auth.uid())
+    exists (select 1 from public.media_items m where m.id = media_item_tags.media_item_id and m.user_id = auth.uid()) and
+    exists (select 1 from public.media_tags  t where t.id = media_item_tags.tag_id        and t.user_id = auth.uid())
   )
   with check (
-    exists (select 1 from public.media_items m where m.id = media_item_id and m.user_id = auth.uid()) and
-    exists (select 1 from public.media_tags  t where t.id = tag_id        and t.user_id = auth.uid())
+    exists (select 1 from public.media_items m where m.id = media_item_tags.media_item_id and m.user_id = auth.uid()) and
+    exists (select 1 from public.media_tags  t where t.id = media_item_tags.tag_id        and t.user_id = auth.uid())
   );
 
 -- ── 4. media_collections ─────────────────────────────────────────────────────
 
-create table if not exists public.media_collections (
+drop table if exists public.media_collections cascade;
+
+create table public.media_collections (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null references auth.users(id) on delete cascade,
   name        text not null,
@@ -76,6 +86,7 @@ create table if not exists public.media_collections (
 
 alter table public.media_collections enable row level security;
 
+drop policy if exists "media_collections: own" on public.media_collections;
 create policy "media_collections: own"
   on public.media_collections for all
   using  (auth.uid() = user_id)
@@ -83,7 +94,9 @@ create policy "media_collections: own"
 
 -- ── 5. media_collection_items ─────────────────────────────────────────────────
 
-create table if not exists public.media_collection_items (
+drop table if exists public.media_collection_items cascade;
+
+create table public.media_collection_items (
   collection_id uuid not null references public.media_collections(id) on delete cascade,
   media_item_id uuid not null references public.media_items(id)       on delete cascade,
   sort_order    integer not null default 0,
@@ -93,15 +106,16 @@ create table if not exists public.media_collection_items (
 
 alter table public.media_collection_items enable row level security;
 
+drop policy if exists "media_collection_items: own" on public.media_collection_items;
 create policy "media_collection_items: own"
   on public.media_collection_items for all
   using (
-    exists (select 1 from public.media_collections c where c.id = collection_id and c.user_id = auth.uid()) and
-    exists (select 1 from public.media_items       m where m.id = media_item_id and m.user_id = auth.uid())
+    exists (select 1 from public.media_collections c where c.id = media_collection_items.collection_id and c.user_id = auth.uid()) and
+    exists (select 1 from public.media_items       m where m.id = media_collection_items.media_item_id and m.user_id = auth.uid())
   )
   with check (
-    exists (select 1 from public.media_collections c where c.id = collection_id and c.user_id = auth.uid()) and
-    exists (select 1 from public.media_items       m where m.id = media_item_id and m.user_id = auth.uid())
+    exists (select 1 from public.media_collections c where c.id = media_collection_items.collection_id and c.user_id = auth.uid()) and
+    exists (select 1 from public.media_items       m where m.id = media_collection_items.media_item_id and m.user_id = auth.uid())
   );
 
 -- ── 6. Indexes ────────────────────────────────────────────────────────────────
