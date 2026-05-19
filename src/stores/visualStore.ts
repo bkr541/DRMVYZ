@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+// Quality is owned here so sessions can snapshot it
+export type Quality = 'High' | 'Medium' | 'Low'
+
 export interface VzEffects {
   masterIntensity: number
   bassReactivity:  number
@@ -37,6 +40,26 @@ export interface VzPreset {
   effects: VzEffects
   enabledFx: string[]
   isDefault?: boolean
+}
+
+// A session is the full VJ performance state — presets are just look/feel templates
+export interface VzSession {
+  id: string
+  name: string
+  createdAt: number
+  // Media
+  activeMediaId: string | null
+  mediaOrder: string[]             // ordered snapshot of media item IDs
+  // Visual
+  activePresetId: string
+  effects: VzEffects
+  enabledFx: string[]
+  // Timing
+  bpm: number
+  bpmSync: boolean
+  // Output
+  quality: Quality
+  audioSource: 'file' | 'microphone' | 'demo'
 }
 
 export const DEFAULT_PRESETS: VzPreset[] = [
@@ -107,13 +130,15 @@ export const DEFAULT_PRESETS: VzPreset[] = [
 
 interface VisualState {
   effects: VzEffects
-  enabledFxArr: string[]  // stored as array for Zustand persist (Set is not JSON-serializable)
+  enabledFxArr: string[]
   activePresetId: string
   activeMediaId: string | null
   presets: VzPreset[]
+  sessions: VzSession[]
   bpm: number
   bpmSync: boolean
   isPlaying: boolean
+  quality: Quality
 
   setEffect(key: keyof VzEffects, v: number): void
   resetEffects(): void
@@ -125,6 +150,11 @@ interface VisualState {
   setBpm(v: number): void
   toggleBpmSync(): void
   setPlaying(v: boolean): void
+  setQuality(q: Quality): void
+  // Session management
+  saveSession(name: string, audioSource: VzSession['audioSource'], mediaOrder: string[]): void
+  loadSession(id: string): Omit<VzSession, 'id' | 'name' | 'createdAt'> | null
+  deleteSession(id: string): void
 }
 
 export const useVisualStore = create<VisualState>()(
@@ -135,9 +165,11 @@ export const useVisualStore = create<VisualState>()(
       activePresetId: DEFAULT_PRESETS[0].id,
       activeMediaId: null,
       presets: DEFAULT_PRESETS,
+      sessions: [],
       bpm: 120,
       bpmSync: false,
       isPlaying: false,
+      quality: 'High',
 
       setEffect(key, v) {
         set(s => ({ effects: { ...s.effects, [key]: v }, activePresetId: 'custom' }))
@@ -180,6 +212,46 @@ export const useVisualStore = create<VisualState>()(
       setBpm(v) { set({ bpm: Math.max(40, Math.min(300, v)) }) },
       toggleBpmSync() { set(s => ({ bpmSync: !s.bpmSync })) },
       setPlaying(v) { set({ isPlaying: v }) },
+      setQuality(q) { set({ quality: q }) },
+
+      saveSession(name, audioSource, mediaOrder) {
+        const s = get()
+        const session: VzSession = {
+          id: `session-${Date.now().toString(36)}`,
+          name,
+          createdAt: Date.now(),
+          activeMediaId:  s.activeMediaId,
+          mediaOrder,
+          activePresetId: s.activePresetId,
+          effects:        { ...s.effects },
+          enabledFx:      [...s.enabledFxArr],
+          bpm:            s.bpm,
+          bpmSync:        s.bpmSync,
+          quality:        s.quality,
+          audioSource,
+        }
+        set(st => ({ sessions: [...st.sessions, session] }))
+      },
+
+      // Returns the non-id fields so the caller can also restore audio source / media order
+      loadSession(id) {
+        const session = get().sessions.find(s => s.id === id)
+        if (!session) return null
+        set({
+          activeMediaId:  session.activeMediaId,
+          activePresetId: session.activePresetId,
+          effects:        { ...session.effects },
+          enabledFxArr:   [...session.enabledFx],
+          bpm:            session.bpm,
+          bpmSync:        session.bpmSync,
+          quality:        session.quality,
+        })
+        return session
+      },
+
+      deleteSession(id) {
+        set(s => ({ sessions: s.sessions.filter(x => x.id !== id) }))
+      },
     }),
     {
       name: 'drmvyz-visual-store',
@@ -187,9 +259,12 @@ export const useVisualStore = create<VisualState>()(
         effects: s.effects,
         enabledFxArr: s.enabledFxArr,
         activePresetId: s.activePresetId,
+        activeMediaId: s.activeMediaId,
         presets: s.presets.filter(p => !p.isDefault),
+        sessions: s.sessions,
         bpm: s.bpm,
         bpmSync: s.bpmSync,
+        quality: s.quality,
       }),
       // Re-inject default presets after rehydration so they are never missing
       merge: (persisted, current) => {

@@ -97,8 +97,12 @@ function EmblemMark({ size = 120, uid = 'a' }: { size?: number; uid?: string }) 
 function AuthLogo({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`auth-logo ${compact ? 'auth-logo--compact' : ''}`}>
-      <EmblemMark size={compact ? 72 : 106} uid={compact ? 'sm' : 'lg'}/>
-      <span className="auth-logo-wordmark">DRMVYZ</span>
+      <img
+        src="/drmvyz_logo.png"
+        alt="DRMVYZ"
+        className="auth-logo-img"
+        style={{ width: compact ? 72 : 106, height: compact ? 72 : 106, objectFit: 'contain' }}
+      />
     </div>
   )
 }
@@ -110,7 +114,13 @@ function EmblemPanel() {
     <div className="auth-emblem-panel">
       <div className="auth-emblem-glow-outer"/>
       <div className="auth-emblem-glow-inner"/>
-      <EmblemMark size={430} uid="panel"/>
+      <img
+        src="/drmvyz_logo.png"
+        alt=""
+        aria-hidden="true"
+        className="auth-emblem-logo-img"
+        style={{ width: 380, height: 380, objectFit: 'contain', opacity: 0.92 }}
+      />
       <div className="auth-emblem-mist"/>
     </div>
   )

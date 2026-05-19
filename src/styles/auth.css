@@ -96,6 +96,17 @@
   align-items: center;
 }
 
+.auth-logo-img {
+  filter: drop-shadow(0 0 18px rgba(25, 191, 242, 0.6));
+  display: block;
+}
+
+.auth-emblem-logo-img {
+  position: relative;
+  z-index: 1;
+  filter: drop-shadow(0 0 40px rgba(25, 191, 242, 0.45));
+}
+
 .auth-logo-wordmark {
   font-size: 30px;
   font-weight: 900;

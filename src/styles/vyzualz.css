@@ -266,6 +266,83 @@
 .vz-media-scroll::-webkit-scrollbar-track { background: transparent; }
 .vz-media-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
 
+@keyframes vz-skeleton-shimmer {
+  0%   { background-position: 200% 0 }
+  100% { background-position: -200% 0 }
+}
+
+/* ── Media Status Bar ───────────────────────────────────────────────── */
+
+.vz-media-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 9.5px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  border-radius: 0;
+  border-top: 1px solid transparent;
+  border-bottom: 1px solid transparent;
+  overflow: hidden;
+}
+
+.vz-media-status--info {
+  background: rgba(25, 191, 242, 0.07);
+  border-color: rgba(25, 191, 242, 0.12);
+  color: rgba(25, 191, 242, 0.75);
+}
+
+.vz-media-status--warn {
+  background: rgba(251, 191, 36, 0.07);
+  border-color: rgba(251, 191, 36, 0.14);
+  color: rgba(251, 191, 36, 0.8);
+}
+
+.vz-media-status--error {
+  background: rgba(248, 113, 113, 0.07);
+  border-color: rgba(248, 113, 113, 0.14);
+  color: rgba(248, 113, 113, 0.85);
+}
+
+.vz-media-status--ok {
+  background: rgba(88, 209, 91, 0.07);
+  border-color: rgba(88, 209, 91, 0.14);
+  color: rgba(88, 209, 91, 0.8);
+}
+
+.vz-media-status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.vz-media-status-dot--pulse {
+  animation: vz-dot-pulse 1s ease-in-out infinite;
+}
+
+@keyframes vz-dot-pulse {
+  0%, 100% { opacity: 1 }
+  50%       { opacity: 0.2 }
+}
+
+.vz-media-status-dismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: currentColor;
+  opacity: 0.6;
+  font-size: 9px;
+  padding: 0 2px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.vz-media-status-dismiss:hover { opacity: 1; }
+
 .vz-media-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -784,6 +861,98 @@ input[type='range'].vz-slider--color {
   flex-shrink: 0;
   overflow: hidden;
 }
+
+/* ── Session panel ───────────────────────────────────────────────────── */
+.vz-session-panel {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border-left: 1px solid var(--az-border);
+  position: relative;
+  flex-shrink: 0;
+}
+
+.vz-session-save-btn,
+.vz-session-load-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: rgba(25, 191, 242, 0.07);
+  border: 1px solid rgba(25, 191, 242, 0.2);
+  border-radius: 4px;
+  color: rgba(245, 248, 250, 0.65);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+.vz-session-save-btn:hover,
+.vz-session-load-btn:hover {
+  background: rgba(25, 191, 242, 0.14);
+  border-color: rgba(25, 191, 242, 0.4);
+  color: rgba(245, 248, 250, 0.9);
+}
+.vz-session-load-btn--open {
+  background: rgba(25, 191, 242, 0.14);
+  border-color: rgba(25, 191, 242, 0.4);
+}
+
+.vz-session-list {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  min-width: 210px;
+  background: #0a0e14;
+  border: 1px solid rgba(25, 191, 242, 0.25);
+  border-radius: 6px;
+  padding: 4px 0;
+  z-index: 200;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
+}
+
+.vz-session-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+}
+.vz-session-row-name {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  color: rgba(245, 248, 250, 0.75);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 4px 4px;
+  text-align: left;
+  border-radius: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vz-session-row-name:hover { background: rgba(25, 191, 242, 0.1); color: #f5f8fa; }
+.vz-session-row-meta {
+  font-size: 9px;
+  color: rgba(245, 248, 250, 0.3);
+  white-space: nowrap;
+}
+.vz-session-row-del {
+  background: none;
+  border: none;
+  color: rgba(245, 248, 250, 0.25);
+  font-size: 9px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+.vz-session-row-del:hover { color: #e11d48; background: rgba(225, 29, 72, 0.12); }
 
 .vz-presets-section {
   flex: 1;

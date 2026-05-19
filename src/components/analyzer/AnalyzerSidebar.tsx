@@ -8,9 +8,7 @@ export function AnalyzerSidebar({ activeView = 'analyzer', onNavigate }: Props) 
     <aside className="az-sidebar">
       <div className="az-logo">
         <div className="az-logo-icon">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="white">
-            <path d="M12 3C7 3 3 7 3 12s4 9 9 9 9-4 9-9-4-9-9-9zm0 2c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zM7 16c0-2.8 2.2-5 5-5s5 2.2 5 5H7z"/>
-          </svg>
+          <img src="/drmvyz_logo.png" alt="DRMVYZ" style={{ width: 28, height: 28, objectFit: 'contain' }}/>
         </div>
         <div className="az-logo-text">
           <div className="az-logo-mark">DRMVYZ</div>

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { supabase, supabaseConfigured } from '../lib/supabase'
 import type { MediaItemRow } from '../types/database'
+import { useVisualStore } from './visualStore'
 
 // The Database generic in our typed client causes `never` inference for table
 // queries when the schema has complex union types. Use an untyped alias for DB
@@ -16,6 +17,8 @@ export interface UploadedMedia {
   thumbnailUrl: string | null
   meta: string
   favorite: boolean
+  uploading?: boolean     // true while background upload is in progress
+  uploadError?: string    // set when Supabase upload fails; item stays local-only
   storagePath?: string    // set after Supabase upload
   dbId?: string           // Supabase media_items row id
 }
@@ -153,19 +156,40 @@ async function uploadToSupabase(
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 
+// Human-readable error from a Supabase error message
+function interpretError(msg: string): string {
+  const lower = msg.toLowerCase()
+  if (lower.includes('jwt') || lower.includes('unauthorized') || lower.includes('not authenticated')) return 'Session expired — sign in again'
+  if (lower.includes('row-level security') || lower.includes('policy')) return 'Storage permission denied — check RLS policies'
+  if (lower.includes('already exists') || lower.includes('duplicate')) return 'File already exists in storage'
+  if (lower.includes('network') || lower.includes('fetch')) return 'Network error — check connection'
+  if (lower.includes('bucket') && lower.includes('not found')) return 'Storage bucket not found — check Supabase config'
+  return msg.length > 80 ? msg.slice(0, 80) + '…' : msg
+}
+
 interface MediaState {
   items: UploadedMedia[]
   loading: boolean
+  loadError: string | null       // error from loadFromSupabase
+  authRequired: boolean          // true when user is not signed in
+  storageAvailable: boolean      // false when Supabase env vars are missing
+  lastRestored: number | null    // count of items restored; cleared by component after showing
   addFiles(files: File[]): Promise<void>
   loadFromSupabase(): Promise<void>
   removeItem(id: string): void
   toggleFavorite(id: string): void
+  clearLoadError(): void
+  clearRestored(): void
   clear(): void
 }
 
 export const useMediaStore = create<MediaState>((set, get) => ({
   items: [],
   loading: false,
+  loadError: null,
+  authRequired: false,
+  storageAvailable: supabaseConfigured,
+  lastRestored: null,
 
   async addFiles(files) {
     const mediaFiles = files.filter(f =>
@@ -176,34 +200,69 @@ export const useMediaStore = create<MediaState>((set, get) => ({
 
     // Build local items immediately so the UI responds without waiting for upload
     const localItems = await Promise.all(mediaFiles.map(buildLocalItem))
-    set(s => ({ items: [...s.items, ...localItems] }))
+    // Mark all as uploading so the deck shows per-item progress
+    const withUploading = localItems.map(i => ({ ...i, uploading: true }))
+    set(s => ({ items: [...s.items, ...withUploading] }))
 
     // Upload to Supabase in the background
     const userId = await getCurrentUserId()
-    if (!userId) return
+    if (!userId) {
+      // No user — items are local-only; mark auth required so UI can prompt sign-in
+      set(s => ({
+        authRequired: true,
+        items: s.items.map(i =>
+          withUploading.some(w => w.id === i.id) ? { ...i, uploading: false } : i
+        ),
+      }))
+      return
+    }
 
     await Promise.all(
-      localItems.map(async (item, i) => {
+      withUploading.map(async (item, i) => {
         const result = await uploadToSupabase(mediaFiles[i], item, userId)
-        if (!result) return
-        // Patch the local item with storagePath + dbId
+        if (!result) {
+          // Surface the failure on the item card — item stays local-only
+          set(s => ({
+            items: s.items.map(e =>
+              e.id === item.id
+                ? { ...e, uploading: false, uploadError: 'Upload failed — stored locally' }
+                : e
+            ),
+          }))
+          return
+        }
+
+        // Use 'db-{dbId}' as the canonical stable id — matches what loadFromSupabase returns
+        const stableId = `db-${result.dbId}`
         set(s => ({
-          items: s.items.map(existing =>
-            existing.id === item.id
-              ? { ...existing, storagePath: result.storagePath, dbId: result.dbId }
-              : existing
+          items: s.items.map(e =>
+            e.id === item.id
+              ? { ...e, id: stableId, uploading: false, uploadError: undefined, storagePath: result.storagePath, dbId: result.dbId }
+              : e
           ),
         }))
+
+        // Keep visualStore.activeMediaId pointing to the right item
+        const visual = useVisualStore.getState()
+        if (visual.activeMediaId === item.id) {
+          visual.setActiveMedia(stableId)
+        }
       })
     )
   },
 
   async loadFromSupabase() {
-    if (!supabaseConfigured) return
+    if (!supabaseConfigured) {
+      set({ loadError: 'Storage not configured — add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env' })
+      return
+    }
     const userId = await getCurrentUserId()
-    if (!userId) return
+    if (!userId) {
+      set({ authRequired: true })
+      return
+    }
 
-    set({ loading: true })
+    set({ loading: true, loadError: null, authRequired: false })
     try {
       const { data: rows, error } = await db
         .from('media_items')
@@ -211,16 +270,25 @@ export const useMediaStore = create<MediaState>((set, get) => ({
         .eq('user_id', userId)
         .order('created_at', { ascending: false }) as { data: MediaItemRow[] | null; error: { message: string } | null }
 
-      if (error) { console.error('[mediaStore] load:', error.message); return }
-      if (!rows?.length) return
+      if (error) {
+        const msg = interpretError(error.message)
+        console.error('[mediaStore] load:', error.message)
+        set({ loadError: msg })
+        return
+      }
+      if (!rows?.length) {
+        set({ lastRestored: 0 })
+        return
+      }
 
       // Create signed URLs (7 days) for each item
       const items: UploadedMedia[] = await Promise.all(
         rows.map(async (row) => {
-          const { data: signed } = await supabase.storage
+          const { data: signed, error: signErr } = await supabase.storage
             .from('media-items')
             .createSignedUrl(row.storage_path as string, 604800)
 
+          if (signErr) console.warn('[mediaStore] signed URL:', signErr.message, row.storage_path)
           const url = signed?.signedUrl ?? ''
           const isVideo = (row.type as string) === 'video'
           const ext = (row.storage_path as string).split('.').pop()?.toUpperCase() ?? ''
@@ -252,8 +320,12 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       set(s => {
         const dbIds = new Set(items.map(i => i.dbId))
         const localOnly = s.items.filter(i => !i.dbId || !dbIds.has(i.dbId))
-        return { items: [...items, ...localOnly] }
+        return { items: [...items, ...localOnly], lastRestored: items.length }
       })
+    } catch (e) {
+      const msg = e instanceof Error ? interpretError(e.message) : 'Unexpected error loading media'
+      console.error('[mediaStore] loadFromSupabase exception:', e)
+      set({ loadError: msg })
     } finally {
       set({ loading: false })
     }
@@ -294,6 +366,9 @@ export const useMediaStore = create<MediaState>((set, get) => ({
         .then(({ error }: { error: { message: string } | null }) => { if (error) console.error('[mediaStore] toggle fav:', error.message) })
     }
   },
+
+  clearLoadError() { set({ loadError: null }) },
+  clearRestored()  { set({ lastRestored: null }) },
 
   clear() {
     get().items.forEach(i => {

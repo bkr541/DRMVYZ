@@ -4,7 +4,7 @@ import { useSharedAudio }  from '../../context/AudioEngineContext'
 import { useMediaStore }   from '../../stores/mediaStore'
 import { useVisualStore, DEFAULT_PRESETS }  from '../../stores/visualStore'
 import type { UploadedMedia } from '../../stores/mediaStore'
-import type { VzEffects, VzPreset } from '../../stores/visualStore'
+import type { VzEffects, VzPreset, VzSession, Quality } from '../../stores/visualStore'
 
 // ── Constants ─────────────────────────────────────────────────────────
 const EFFECT_CHAIN_ITEMS = ['RGB Split','Glitch Bars','Scanlines','Tunnel','Displacement','Noise Fog','Bloom','Feedback'] as const
@@ -16,6 +16,21 @@ const SHORTCUTS = [
   { key: 'SPC', desc: 'Beat Flash' },
   { key: 'V',   desc: 'Next Media' },
 ]
+
+// ── Quality render config (renderer-only, not stored in session) ──────
+interface QualityConfig {
+  dprCap:        number  // max devicePixelRatio used for backing store
+  bloomBlur:     number  // max blur px for bloom pass (0 = skip blur, alpha-only)
+  glitchMax:     number  // max glitch slice count
+  fogParticles:  number  // noise fog dot count
+  scanlineStep:  number  // px between scanlines
+  tunnelRings:   number  // concentric ring count
+}
+const QUALITY: Record<Quality, QualityConfig> = {
+  High:   { dprCap: 3,   bloomBlur: 10, glitchMax: 5, fogParticles: 600, scanlineStep: 3, tunnelRings: 8 },
+  Medium: { dprCap: 1.5, bloomBlur: 5,  glitchMax: 3, fogParticles: 200, scanlineStep: 4, tunnelRings: 5 },
+  Low:    { dprCap: 1,   bloomBlur: 0,  glitchMax: 1, fogParticles: 50,  scanlineStep: 6, tunnelRings: 3 },
+}
 
 // ── Band helpers ──────────────────────────────────────────────────────
 function getBandAvg(buf: Uint8Array<ArrayBuffer>, sampleRate: number, lo: number, hi: number): number {
@@ -219,11 +234,15 @@ interface CanvasProps {
   effects: VzEffects
   enabledFx: Set<string>
   isPlaying: boolean
+  bpm: number
+  bpmSync: boolean
+  quality: Quality
 }
 
-function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying }: CanvasProps) {
+function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality }: CanvasProps) {
   const canvasRef     = useRef<HTMLCanvasElement>(null)
   const animRef       = useRef<number>(0)
+  const resizeFnRef   = useRef<() => void>(() => {})
 
   // Refs for values that change without needing to restart the RAF loop
   const analyserRef   = useRef<AnalyserNode | null>(null)
@@ -232,12 +251,18 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
   const effectsRef    = useRef<VzEffects>(effects)
   const enabledFxRef  = useRef<Set<string>>(enabledFx)
   const isPlayingRef  = useRef(isPlaying)
+  const bpmRef        = useRef(bpm)
+  const bpmSyncRef    = useRef(bpmSync)
+  const qualityRef    = useRef<Quality>(quality)
   const prevBassRef   = useRef(0)
 
   // Sync refs on every render (cheap assignments)
   useEffect(() => { effectsRef.current  = effects })
   useEffect(() => { enabledFxRef.current = enabledFx })
   useEffect(() => { isPlayingRef.current = isPlaying })
+  useEffect(() => { bpmRef.current = bpm })
+  useEffect(() => { bpmSyncRef.current = bpmSync })
+  useEffect(() => { qualityRef.current = quality; resizeFnRef.current() }, [quality])
 
   useEffect(() => {
     analyserRef.current  = analyser
@@ -262,7 +287,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
       video.muted = true
       video.loop  = true
       video.playsInline = true
-      video.play().catch(() => {})
+      if (isPlayingRef.current) video.play().catch(() => {})
       mediaElRef.current = video
     }
 
@@ -271,6 +296,17 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
       if (el instanceof HTMLVideoElement) { el.pause(); el.src = '' }
     }
   }, [activeMedia?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Control video playback when isPlaying changes
+  useEffect(() => {
+    const el = mediaElRef.current
+    if (!(el instanceof HTMLVideoElement)) return
+    if (isPlaying) {
+      el.play().catch(() => {})
+    } else {
+      el.pause()
+    }
+  }, [isPlaying])
 
   // Main RAF loop — runs once, reads from refs
   useEffect(() => {
@@ -281,10 +317,12 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
 
     function resize() {
       if (!canvas) return
-      const r = canvas.getBoundingClientRect()
-      canvas.width  = Math.round(r.width  * devicePixelRatio)
-      canvas.height = Math.round(r.height * devicePixelRatio)
+      const r   = canvas.getBoundingClientRect()
+      const dpr = Math.min(devicePixelRatio, QUALITY[qualityRef.current].dprCap)
+      canvas.width  = Math.round(r.width  * dpr)
+      canvas.height = Math.round(r.height * dpr)
     }
+    resizeFnRef.current = resize
     const ro = new ResizeObserver(resize)
     ro.observe(canvas)
     resize()
@@ -296,11 +334,17 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
       const W = canvas.width, H = canvas.height
       if (!W || !H) { animRef.current = requestAnimationFrame(frame); return }
 
-      const dpr  = devicePixelRatio
+      const dpr  = Math.min(devicePixelRatio, QUALITY[qualityRef.current].dprCap)
+      const q    = QUALITY[qualityRef.current]
       const t    = performance.now() - startTime
       const eff  = effectsRef.current
       const fxSet = enabledFxRef.current
       const speed = isPlayingRef.current ? 1 : 0.25
+
+      // Beat phase: 0→1 cycling at BPM. Used to quantize visuals when bpmSync is on.
+      const beatMs    = 60000 / Math.max(1, bpmRef.current)
+      const beatPhase = (t % beatMs) / beatMs  // 0→1 per beat
+      const synced    = bpmSyncRef.current
 
       // Read frequency data
       let bass = 0, mid = 0, high = 0
@@ -314,11 +358,37 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         high = getBandAvg(buf, sr, 4000, 16000)
       }
 
-      const bassReact = 1 + bass * eff.bassReactivity * 0.3 * eff.masterIntensity
+      // ── Per-band modulation routing ────────────────────────────────
+      // Smooth bass with EMA to avoid jitter on scale/punch
+      const smoothBass = prevBassRef.current * 0.65 + bass * 0.35
+
+      // Bass → scale pulse & tunnel depth
+      const bassReact = 1 + smoothBass * eff.bassReactivity * 0.35 * eff.masterIntensity
+
+      // Bass transient → impact punch (brief extra scale burst on attack)
+      const bassDelta  = bass - prevBassRef.current
+      const impactMod  = Math.max(0, bassDelta * 2.8)  // 0-1, spikes on hit
+      const punchScale = 1 + impactMod * eff.bassReactivity * 0.25
+
+      // Low-mid → displacement magnitude and feedback retention
+      const dispMod     = eff.displacement + mid * eff.displacement * 1.4
+      const feedbackMod = Math.min(0.97, eff.feedbackTrails + mid * eff.feedbackTrails * 0.5)
+
+      // Highs → glitch probability boost and edge flicker
+      const glitchMod   = eff.glitchAmount * (1 + high * 2.2)
+      const edgeFlicker = high * eff.masterIntensity
+
+      // Overall volume → bloom and brightness modulation
+      const vol      = Math.min(1, (bass + mid + high) / 2.5)
+      const bloomMod = Math.min(1, eff.bloom + vol * eff.bloom * 0.55)
+
+      // Beat boundary → flash hit / transition frame
+      const onBeatBoundary = synced && beatPhase < 0.04
 
       // ── Background / feedback ──────────────────────────────────────
-      if (fxSet.has('Feedback') && eff.feedbackTrails > 0) {
-        ctx.fillStyle = `rgba(5,7,9,${1 - eff.feedbackTrails * 0.92})`
+      // Low-mid modulates feedback retention (smear/bend)
+      if (fxSet.has('Feedback') && feedbackMod > 0) {
+        ctx.fillStyle = `rgba(5,7,9,${1 - feedbackMod * 0.92})`
         ctx.fillRect(0, 0, W, H)
       } else {
         ctx.fillStyle = '#050709'
@@ -327,7 +397,8 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
 
       const mediaEl = mediaElRef.current
       const cx = W / 2, cy = H / 2
-      const scale = bassReact * eff.logoScale
+      // Bass drives scale pulse; impact punch adds brief burst on transient
+      const scale = bassReact * punchScale * eff.logoScale
       const sw = W * scale, sh = H * scale
       const ox = (W - sw) / 2, oy = (H - sh) / 2
 
@@ -335,9 +406,13 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         // ── Tunnel (behind media) ──────────────────────────────────
         if (fxSet.has('Tunnel') && eff.tunnelSpeed > 0) {
           ctx.save()
-          for (let r = 0; r < 8; r++) {
-            const radius = ((t * 0.1 * eff.tunnelSpeed + r * 30) % 280) + 10
-            const alpha  = 0.07 * (1 - radius / 280)
+          // When synced, use beat phase so rings expand on each beat boundary
+          const tunnelT     = synced ? beatPhase * beatMs * eff.tunnelSpeed : t * eff.tunnelSpeed
+          // Bass widens tunnel ring spacing (depth modulation)
+          const tunnelDepth = 1 + smoothBass * eff.bassReactivity * 0.45
+          for (let r = 0; r < q.tunnelRings; r++) {
+            const radius = ((tunnelT * 0.1 + r * 30 * tunnelDepth) % 300) + 10
+            const alpha  = 0.07 * (1 - radius / 300)
             ctx.strokeStyle = `rgba(25,191,242,${alpha})`
             ctx.lineWidth = 1.5 * dpr
             ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.stroke()
@@ -368,11 +443,12 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         ctx.filter = 'none'
         ctx.restore()
 
-        // ── Bloom ──────────────────────────────────────────────────
-        if (fxSet.has('Bloom') && eff.bloom > 0) {
+        // ── Bloom — volume modulates intensity ─────────────────────
+        if (fxSet.has('Bloom') && bloomMod > 0) {
           ctx.save()
-          ctx.filter = `blur(${Math.round(eff.bloom * 10)}px)`
-          ctx.globalAlpha = eff.bloom * 0.45
+          const blurPx = Math.round(bloomMod * q.bloomBlur)
+          if (blurPx > 0) ctx.filter = `blur(${blurPx}px)`
+          ctx.globalAlpha = bloomMod * 0.45
           ctx.globalCompositeOperation = 'screen'
           ctx.drawImage(mediaEl, ox - 2, oy - 2, sw + 4, sh + 4)
           ctx.filter = 'none'
@@ -381,10 +457,12 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
           ctx.restore()
         }
 
-        // ── Displacement ───────────────────────────────────────────
-        if (fxSet.has('Displacement') && eff.displacement > 0) {
-          const offX = Math.sin(t * 0.002) * eff.displacement * 12
-          const offY = Math.cos(t * 0.0017) * eff.displacement * 8
+        // ── Displacement — low-mid drives warp magnitude ───────────
+        if (fxSet.has('Displacement') && dispMod > 0) {
+          // When synced, displacement oscillates with beat phase (peaks at beat boundary)
+          const dispAngle = synced ? beatPhase * Math.PI * 2 : t * 0.002
+          const offX = Math.sin(dispAngle) * dispMod * 12
+          const offY = Math.cos(synced ? beatPhase * Math.PI * 2 : t * 0.0017) * dispMod * 8
           ctx.save()
           ctx.globalAlpha = 0.35 * eff.displacement
           ctx.globalCompositeOperation = 'screen'
@@ -397,8 +475,9 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         }
 
         // ── Glitch bars ────────────────────────────────────────────
-        if (fxSet.has('Glitch Bars') && eff.glitchAmount > 0 && Math.random() < eff.glitchAmount * 0.25) {
-          const numGlitches = Math.ceil(eff.glitchAmount * 5)
+        // Glitch — high freq boosts probability and slice count
+        if (fxSet.has('Glitch Bars') && glitchMod > 0 && Math.random() < glitchMod * 0.25) {
+          const numGlitches = Math.min(Math.ceil(glitchMod * 5), q.glitchMax)
           for (let g = 0; g < numGlitches; g++) {
             const gy = Math.floor(Math.random() * H)
             const gh = Math.floor(Math.random() * 10 + 2)
@@ -418,14 +497,14 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
       // ── Scanlines ──────────────────────────────────────────────────
       if (fxSet.has('Scanlines')) {
         ctx.fillStyle = `rgba(0,0,0,${0.1 + eff.masterIntensity * 0.07})`
-        for (let y = 0; y < H; y += 3) ctx.fillRect(0, y, W, 1)
+        for (let y = 0; y < H; y += q.scanlineStep) ctx.fillRect(0, y, W, 1)
       }
 
       // ── Noise fog ──────────────────────────────────────────────────
       if (fxSet.has('Noise Fog') && eff.masterIntensity > 0.3) {
         ctx.save()
         ctx.globalAlpha = (eff.masterIntensity - 0.3) * 0.12
-        for (let i = 0; i < 600; i++) {
+        for (let i = 0; i < q.fogParticles; i++) {
           ctx.fillStyle = `rgba(25,191,242,${Math.random()})`
           ctx.fillRect(Math.random() * W, Math.random() * H, 1, 1)
         }
@@ -433,12 +512,38 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         ctx.restore()
       }
 
-      // ── Strobe on bass peak ────────────────────────────────────────
-      if (eff.strobe > 0 && bass > 0.72 && bass > prevBassRef.current + 0.08) {
-        ctx.fillStyle = `rgba(255,255,255,${eff.strobe * bass * 0.85})`
+      // ── Strobe — highs modulate sensitivity ───────────────────────
+      // Beat sync: fire on boundary; free: trigger on bass transient.
+      // Highs lower the bass threshold so strobe fires more readily.
+      const highStrobeMod = 1 + high * 1.5
+      const strobeOnBeat  = synced && eff.strobe > 0 && beatPhase < 0.05
+      const strobeOnBass  = !synced && eff.strobe > 0 &&
+        bass > (0.72 / highStrobeMod) && bass > prevBassRef.current + 0.06
+      if (strobeOnBeat || strobeOnBass) {
+        const strobeAlpha = strobeOnBeat
+          ? eff.strobe * (1 - beatPhase / 0.05) * 0.9
+          : eff.strobe * bass * 0.85
+        ctx.fillStyle = `rgba(255,255,255,${strobeAlpha})`
         ctx.fillRect(0, 0, W, H)
       }
-      prevBassRef.current = bass * 0.85
+
+      // ── Beat flash hit (impact frame on beat boundary) ────────────
+      if (onBeatBoundary && eff.masterIntensity > 0.5) {
+        ctx.fillStyle = `rgba(255,255,255,${eff.masterIntensity * 0.12 * (1 - beatPhase / 0.04)})`
+        ctx.fillRect(0, 0, W, H)
+      }
+
+      // ── Edge flicker — highs create a vignette shimmer ────────────
+      if (edgeFlicker > 0.15 && eff.masterIntensity > 0.3) {
+        const flickerAlpha = (edgeFlicker - 0.15) * eff.masterIntensity * 0.45
+        const grad = ctx.createRadialGradient(cx, cy, Math.min(W, H) * 0.3, cx, cy, Math.min(W, H) * 0.55)
+        grad.addColorStop(0, 'rgba(25,191,242,0)')
+        grad.addColorStop(1, `rgba(25,191,242,${flickerAlpha})`)
+        ctx.fillStyle = grad
+        ctx.fillRect(0, 0, W, H)
+      }
+
+      prevBassRef.current = bass * 0.82
 
       // ── HUD corners ────────────────────────────────────────────────
       const cSize  = 14 * dpr
@@ -465,7 +570,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         })
       }
 
-      void mid; void high // suppress unused warning in generative path
+      void vol // used above in bloomMod; suppress if generative path only
       animRef.current = requestAnimationFrame(frame)
     }
 
@@ -650,11 +755,61 @@ function VyzualzHeader({ analyser, bassLive }: { analyser: AnalyserNode | null; 
   )
 }
 
+// ── MediaStatusBar ────────────────────────────────────────────────────
+function MediaStatusBar() {
+  const { loading, loadError, authRequired, storageAvailable, lastRestored, clearLoadError, clearRestored } = useMediaStore()
+
+  // Auto-clear the "restored" success message after 4 seconds
+  useEffect(() => {
+    if (lastRestored === null || lastRestored === 0) return
+    const id = setTimeout(() => clearRestored(), 4000)
+    return () => clearTimeout(id)
+  }, [lastRestored, clearRestored])
+
+  if (loading) return (
+    <div className="vz-media-status vz-media-status--info">
+      <span className="vz-media-status-dot vz-media-status-dot--pulse" />
+      Reloading media library…
+    </div>
+  )
+
+  if (!storageAvailable) return (
+    <div className="vz-media-status vz-media-status--warn">
+      <span className="vz-media-status-dot" />
+      Storage not configured — files are local only
+    </div>
+  )
+
+  if (loadError) return (
+    <div className="vz-media-status vz-media-status--error">
+      <span className="vz-media-status-dot" />
+      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{loadError}</span>
+      <button className="vz-media-status-dismiss" onClick={clearLoadError} title="Dismiss">✕</button>
+    </div>
+  )
+
+  if (authRequired) return (
+    <div className="vz-media-status vz-media-status--info">
+      <span className="vz-media-status-dot" />
+      Sign in to sync media to cloud
+    </div>
+  )
+
+  if (lastRestored !== null && lastRestored > 0) return (
+    <div className="vz-media-status vz-media-status--ok">
+      <span className="vz-media-status-dot" />
+      Restored {lastRestored} media item{lastRestored !== 1 ? 's' : ''}
+    </div>
+  )
+
+  return null
+}
+
 // ── MediaDeckPanel ────────────────────────────────────────────────────
 function MediaDeckPanel({ activeMediaId, onSelect }: {
   activeMediaId: string | null; onSelect: (id: string) => void
 }) {
-  const { items, addFiles, removeItem, toggleFavorite, loadFromSupabase } = useMediaStore()
+  const { items, addFiles, removeItem, toggleFavorite, loadFromSupabase, loading } = useMediaStore()
   const [filter, setFilter] = useState<'All' | 'Images' | 'Videos' | 'Favorites'>('All')
   const [dragOver, setDragOver] = useState(false)
   const fileInputId = useId()
@@ -712,8 +867,20 @@ function MediaDeckPanel({ activeMediaId, onSelect }: {
         ))}
       </div>
 
+      <MediaStatusBar />
+
       <div className="vz-media-scroll">
-        {items.length === 0 ? (
+        {loading && items.length === 0 ? (
+          // Loading skeleton while Supabase fetch is in progress
+          <div className="vz-media-grid" style={{ padding: '8px 4px' }}>
+            {[0, 1, 2].map(i => (
+              <div key={i} className="vz-media-card" style={{ opacity: 0.4, pointerEvents: 'none' }}>
+                <div className="vz-media-thumb" style={{ background: 'linear-gradient(90deg,#0a1420 25%,#0f1f30 50%,#0a1420 75%)', backgroundSize: '200% 100%', animation: 'vz-skeleton-shimmer 1.4s infinite' }}/>
+                <div className="vz-media-info"><div className="vz-media-name" style={{ background: '#0a1420', borderRadius: 2, height: 8, width: '70%' }}/></div>
+              </div>
+            ))}
+          </div>
+        ) : items.length === 0 ? (
           <label
             htmlFor={fileInputId}
             className="ref-empty-slot"
@@ -733,7 +900,8 @@ function MediaDeckPanel({ activeMediaId, onSelect }: {
               <div
                 key={m.id}
                 className={`vz-media-card ${activeMediaId === m.id ? 'vz-media-card--active' : ''}`}
-                onClick={() => onSelect(m.id)}
+                onClick={() => !m.uploading && onSelect(m.id)}
+                style={m.uploading ? { opacity: 0.6, cursor: 'default' } : undefined}
               >
                 <div className="vz-media-thumb" style={{ background: '#050a12', overflow: 'hidden', position: 'relative' }}>
                   {m.thumbnailUrl && (
@@ -743,7 +911,13 @@ function MediaDeckPanel({ activeMediaId, onSelect }: {
                       style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                     />
                   )}
-                  <span className="vz-media-type-badge">{m.type === 'video' ? 'VID' : 'IMG'}</span>
+                  {m.uploading ? (
+                    <span className="vz-media-type-badge" style={{ background: 'rgba(25,191,242,0.25)', color: '#19bff2' }}>↑ SYNC</span>
+                  ) : m.uploadError ? (
+                    <span className="vz-media-type-badge" style={{ background: 'rgba(248,113,113,0.22)', color: '#f87171' }} title={m.uploadError}>⚠ LOCAL</span>
+                  ) : (
+                    <span className="vz-media-type-badge">{m.type === 'video' ? 'VID' : 'IMG'}</span>
+                  )}
                   <button
                     className={`vz-media-star ${m.favorite ? 'vz-media-star--active' : ''}`}
                     onClick={e => { e.stopPropagation(); toggleFavorite(m.id) }}
@@ -775,8 +949,9 @@ function MediaDeckPanel({ activeMediaId, onSelect }: {
 // ── LiveVisualPreview ─────────────────────────────────────────────────
 function LiveVisualPreview({
   analyser, activeMedia, effects, enabledFx,
-  isPlaying, onPlay, onPause,
+  isPlaying, onPlay, onPause, onPrev, onNext,
   bpm, onBpmChange, bpmSync, onToggleBpmSync, onTap,
+  quality, onQualityChange,
   canvasWrapRef,
 }: {
   analyser: AnalyserNode | null
@@ -784,8 +959,10 @@ function LiveVisualPreview({
   effects: VzEffects
   enabledFx: Set<string>
   isPlaying: boolean; onPlay: () => void; onPause: () => void
+  onPrev: () => void; onNext: () => void
   bpm: number; onBpmChange: (v: number) => void
   bpmSync: boolean; onToggleBpmSync: () => void; onTap: () => void
+  quality: Quality; onQualityChange: (q: Quality) => void
   canvasWrapRef: React.RefObject<HTMLDivElement>
 }) {
   void onBpmChange
@@ -798,16 +975,19 @@ function LiveVisualPreview({
           effects={effects}
           enabledFx={enabledFx}
           isPlaying={isPlaying}
+          bpm={bpm}
+          bpmSync={bpmSync}
+          quality={quality}
         />
         <div className="vz-preview-pills">
-          <span className="vz-preview-pill">1920×1080</span>
+          <span className="vz-preview-pill">{quality}</span>
           <span className="vz-preview-pill">60 FPS</span>
-          <span className="vz-preview-pill">GPU</span>
+          <span className="vz-preview-pill">Canvas 2D</span>
         </div>
       </div>
 
       <div className="vz-preview-transport">
-        <button className="vz-preview-trans-btn" title="Previous">
+        <button className="vz-preview-trans-btn" title="Previous" onClick={onPrev}>
           <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
             <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/>
           </svg>
@@ -821,7 +1001,7 @@ function LiveVisualPreview({
           }
         </button>
 
-        <button className="vz-preview-trans-btn" title="Next">
+        <button className="vz-preview-trans-btn" title="Next" onClick={onNext}>
           <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
             <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
           </svg>
@@ -844,10 +1024,11 @@ function LiveVisualPreview({
 
         <div className="vz-header-sep" />
 
-        <select className="az-select">
-          <option>High</option>
-          <option>Medium</option>
-          <option>Low</option>
+        <select className="az-select" value={quality}
+          onChange={e => onQualityChange(e.target.value as Quality)}>
+          <option value="High">High</option>
+          <option value="Medium">Medium</option>
+          <option value="Low">Low</option>
         </select>
       </div>
     </div>
@@ -990,15 +1171,15 @@ function OutputModeCard({ onFullscreen }: { onFullscreen: () => void }) {
   return (
     <div className="vz-output-panel">
       <div className="vz-panel-header" style={{ minHeight: 32 }}>
-        <span className="vz-panel-title">Output Mode</span>
+        <span className="vz-panel-title">Output</span>
       </div>
       <div className="vz-output-body">
-        <select className="az-select">
-          <option>Windowed</option>
-          <option>Fullscreen</option>
-          <option disabled>Pop-out Window (coming soon)</option>
-        </select>
-        <button className="vz-fullscreen-btn" onClick={onFullscreen}>Go Fullscreen</button>
+        <button className="vz-fullscreen-btn" onClick={onFullscreen}>
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" style={{ marginRight: 5 }}>
+            <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+          </svg>
+          Fullscreen Output
+        </button>
         <span className="vz-hotkey-pill">F</span>
       </div>
     </div>
@@ -1070,6 +1251,59 @@ function ShortcutPanel() {
   )
 }
 
+// ── SessionPanel ─────────────────────────────────────────────────────
+function SessionPanel({ sessions, onSave, onLoad, onDelete }: {
+  sessions: VzSession[]
+  onSave: () => void
+  onLoad: (id: string) => void
+  onDelete: (id: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="vz-session-panel">
+      <button className="vz-session-save-btn" onClick={onSave} title="Save current state as a session">
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor">
+          <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
+        </svg>
+        Save Session
+      </button>
+      {sessions.length > 0 && (
+        <button
+          className={`vz-session-load-btn ${open ? 'vz-session-load-btn--open' : ''}`}
+          onClick={() => setOpen(v => !v)}
+          title="Load a saved session"
+        >
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor">
+            <path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/>
+          </svg>
+          Sessions ({sessions.length})
+          <svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor" style={{ marginLeft: 3, opacity: 0.5, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+            <path d="M7 10l5 5 5-5z"/>
+          </svg>
+        </button>
+      )}
+      {open && sessions.length > 0 && (
+        <div className="vz-session-list">
+          {[...sessions].reverse().map(s => (
+            <div key={s.id} className="vz-session-row">
+              <button className="vz-session-row-name" onClick={() => { onLoad(s.id); setOpen(false) }} title={`Load "${s.name}"`}>
+                <svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor" style={{ marginRight: 4, opacity: 0.5 }}>
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+                {s.name}
+              </button>
+              <span className="vz-session-row-meta">
+                {new Date(s.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+              </span>
+              <button className="vz-session-row-del" onClick={() => onDelete(s.id)} title="Delete session">✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── VyzualzDock ───────────────────────────────────────────────────────
 function VyzualzDock({ bpm }: { bpm: number }) {
   const { presets, activePresetId } = useVisualStore()
@@ -1077,7 +1311,7 @@ function VyzualzDock({ bpm }: { bpm: number }) {
   const engine = useSharedAudio()
   const fileInputId = useId()
 
-  const [vol, setVol] = useState(1.0)
+  const vol    = engine.volume
   const volPct = `${Math.round(vol * 100)}%`
 
   const track = engine.tracks[engine.currentIndex] ?? null
@@ -1187,7 +1421,7 @@ function VyzualzDock({ bpm }: { bpm: number }) {
         </span>
         <input type="range" className="az-dock-vol-slider"
           min={0} max={1} step={0.005} value={vol}
-          onChange={e => setVol(parseFloat(e.target.value))}
+          onChange={e => engine.setVolume(parseFloat(e.target.value))}
           style={{ '--pct': volPct } as React.CSSProperties}
         />
       </div>
@@ -1219,14 +1453,23 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   const {
     effects, enabledFxArr,
     activeMediaId, presets, activePresetId,
-    bpm, bpmSync, isPlaying,
+    bpm, bpmSync, isPlaying, quality,
     setEffect, resetEffects, toggleFx, selectPreset, savePreset, deletePreset,
-    setActiveMedia, setBpm, toggleBpmSync, setPlaying,
+    setActiveMedia, setBpm, toggleBpmSync, setPlaying, setQuality,
+    sessions, saveSession, loadSession, deleteSession,
   } = useVisualStore()
 
-  const { items } = useMediaStore()
+  const { items, loading } = useMediaStore()
 
   const enabledFxSet = useMemo(() => new Set(enabledFxArr), [enabledFxArr])
+
+  // After Supabase load completes, restore or auto-select active media
+  useEffect(() => {
+    if (loading) return
+    if (!items.length) return
+    if (activeMediaId && items.some(i => i.id === activeMediaId)) return
+    setActiveMedia(items[0].id)
+  }, [items, activeMediaId, loading, setActiveMedia])
   const activeMedia  = items.find(i => i.id === activeMediaId) ?? null
 
   // Live bass for BeatCanvas
@@ -1257,6 +1500,20 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   const tapTimesRef   = useRef<number[]>([])
   const canvasWrapRef = useRef<HTMLDivElement>(null) as React.RefObject<HTMLDivElement>
 
+  const handlePrevMedia = useCallback(() => {
+    if (!items.length) return
+    const idx = items.findIndex(i => i.id === activeMediaId)
+    const prev = idx <= 0 ? items[items.length - 1] : items[idx - 1]
+    setActiveMedia(prev.id)
+  }, [items, activeMediaId, setActiveMedia])
+
+  const handleNextMedia = useCallback(() => {
+    if (!items.length) return
+    const idx = items.findIndex(i => i.id === activeMediaId)
+    const next = idx === -1 || idx >= items.length - 1 ? items[0] : items[idx + 1]
+    setActiveMedia(next.id)
+  }, [items, activeMediaId, setActiveMedia])
+
   const handleTap = useCallback(() => {
     const now = performance.now()
     const times = tapTimesRef.current
@@ -1277,6 +1534,22 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     const name = prompt('Preset name:')?.trim()
     if (name) savePreset(name)
   }, [savePreset])
+
+  const handleSaveSession = useCallback(() => {
+    const name = prompt('Session name:')?.trim()
+    if (!name) return
+    const mediaOrder = items.map(i => i.id)
+    saveSession(name, engine.source as VzSession['audioSource'], mediaOrder)
+  }, [items, engine.source, saveSession])
+
+  const handleLoadSession = useCallback((id: string) => {
+    const session = loadSession(id)  // applies visual state in the store
+    if (!session) return
+    // Also restore audio source
+    if (session.audioSource && engine.source !== session.audioSource) {
+      engine.setSource(session.audioSource)
+    }
+  }, [loadSession, engine])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -1315,11 +1588,15 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                 isPlaying={isPlaying}
                 onPlay={() => setPlaying(true)}
                 onPause={() => setPlaying(false)}
+                onPrev={handlePrevMedia}
+                onNext={handleNextMedia}
                 bpm={bpm}
                 onBpmChange={setBpm}
                 bpmSync={bpmSync}
                 onToggleBpmSync={toggleBpmSync}
                 onTap={handleTap}
+                quality={quality}
+                onQualityChange={setQuality}
                 canvasWrapRef={canvasWrapRef}
               />
               <AudioAnalyzerPanel analyser={analyser} />
@@ -1343,6 +1620,12 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
               onSelect={selectPreset}
               onSave={handleSavePreset}
               onDelete={deletePreset}
+            />
+            <SessionPanel
+              sessions={sessions}
+              onSave={handleSaveSession}
+              onLoad={handleLoadSession}
+              onDelete={deleteSession}
             />
             <ShortcutPanel />
           </div>
