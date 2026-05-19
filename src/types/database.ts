@@ -1,12 +1,31 @@
 // Auto-maintained TypeScript types for the DRMVYZ Supabase schema.
 // Keep in sync with supabase/migrations/0001_initial_drmvyz_schema.sql
 
-export type AudioSource = 'file' | 'microphone' | 'demo' | 'ring_buffer'
-export type MeterMode   = 'vu' | 'rms' | 'peak' | 'ebu'
-export type ViewMode    = 'analyzer' | 'reference' | 'vyzualz'
-export type Theme       = 'dark' | 'light' | 'system'
-export type MediaType   = 'image' | 'video'
+export type AudioSource  = 'file' | 'microphone' | 'demo' | 'ring_buffer'
+export type MeterMode    = 'vu' | 'rms' | 'peak' | 'ebu'
+export type ViewMode     = 'analyzer' | 'reference' | 'vyzualz'
+export type Theme        = 'dark' | 'light' | 'system'
+export type MediaType    = 'image' | 'video'
 export type ExportFormat = 'png' | 'jpeg' | 'webm' | 'gif'
+export type MediaRoleDb  =
+  | 'background_image' | 'background_video' | 'logo' | 'transparent_element'
+  | 'overlay' | 'character_art' | 'texture' | 'loop' | 'transition'
+  | 'reference' | 'other'
+
+// Rich per-item metadata stored as JSONB in the media_items.metadata column.
+// width/height/duration also live in their own columns for backward compat.
+export interface MediaMetadata {
+  width?:         number
+  height?:        number
+  duration?:      number
+  fps?:           number
+  hasAlpha?:      boolean
+  loopable?:      boolean
+  bpm?:           number
+  key?:           string
+  energy?:        'low' | 'medium' | 'high' | 'peak'
+  dominantColors?: string[]
+}
 
 // ── Shared ────────────────────────────────────────────────────────────────────
 
@@ -172,11 +191,15 @@ export interface MediaItemRow {
   file_size: number | null
   mime_type: string | null
   favorite: boolean
+  // Organization fields (migration 0005)
+  media_role:  MediaRoleDb
+  title:       string | null
+  description: string | null
+  metadata:    MediaMetadata   // JSONB column
   created_at: string
   updated_at: string
 }
 
-// Only required fields are required in Insert; nullable/defaulted fields are optional
 export interface MediaItemInsert {
   user_id?: string | null
   name: string
@@ -189,6 +212,53 @@ export interface MediaItemInsert {
   file_size?: number | null
   mime_type?: string | null
   favorite?: boolean
+  media_role?: MediaRoleDb
+  title?: string | null
+  description?: string | null
+  metadata?: MediaMetadata
+}
+
+export interface MediaTagRow {
+  id: string
+  user_id: string
+  name: string
+  color: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface MediaTagInsert {
+  user_id: string
+  name: string
+  color?: string | null
+}
+
+export interface MediaItemTagRow {
+  media_item_id: string
+  tag_id: string
+  created_at: string
+}
+
+export interface MediaCollectionRow {
+  id: string
+  user_id: string
+  name: string
+  description: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface MediaCollectionInsert {
+  user_id: string
+  name: string
+  description?: string | null
+}
+
+export interface MediaCollectionItemRow {
+  collection_id: string
+  media_item_id: string
+  sort_order: number
+  created_at: string
 }
 
 export interface VisualPresetRow {
@@ -257,12 +327,15 @@ export interface Database {
       reference_sessions:     { Row: ReferenceSessionRow;  Insert: Omit<ReferenceSessionRow,'id'|'created_at'|'updated_at'>; Update: Partial<Omit<ReferenceSessionRow,'id'>> }
       reference_slots:        { Row: ReferenceSlot;        Insert: Omit<ReferenceSlot,'id'|'created_at'>;                 Update: Partial<Omit<ReferenceSlot,'id'>> }
       reference_comparisons:  { Row: ReferenceComparison;  Insert: Omit<ReferenceComparison,'id'|'computed_at'>;           Update: Partial<Omit<ReferenceComparison,'id'>> }
-      media_items:            { Row: MediaItemRow;         Insert: MediaItemInsert;                                        Update: Partial<Omit<MediaItemRow,'id'>> }
-      visual_presets:         { Row: VisualPresetRow;      Insert: Omit<VisualPresetRow,'id'|'created_at'|'updated_at'>;   Update: Partial<Omit<VisualPresetRow,'id'>> }
-      visual_sessions:        { Row: VisualSessionRow;     Insert: Omit<VisualSessionRow,'id'|'created_at'|'updated_at'>;  Update: Partial<Omit<VisualSessionRow,'id'>> }
-      canvas_exports:         { Row: CanvasExport;         Insert: Omit<CanvasExport,'id'|'exported_at'>;                  Update: Partial<Omit<CanvasExport,'id'>> }
-      audio_track_tags:       { Row: { track_id: string; tag_id: string }; Insert: { track_id: string; tag_id: string }; Update: never }
-      media_item_tags:        { Row: { media_id: string; tag_id: string }; Insert: { media_id: string; tag_id: string }; Update: never }
+      media_items:              { Row: MediaItemRow;           Insert: MediaItemInsert;                                                   Update: Partial<Omit<MediaItemRow,'id'>> }
+      media_tags:               { Row: MediaTagRow;            Insert: MediaTagInsert;                                                    Update: Partial<Omit<MediaTagRow,'id'>> }
+      media_item_tags:          { Row: MediaItemTagRow;        Insert: Omit<MediaItemTagRow,'created_at'>;                                Update: never }
+      media_collections:        { Row: MediaCollectionRow;     Insert: MediaCollectionInsert;                                             Update: Partial<Omit<MediaCollectionRow,'id'>> }
+      media_collection_items:   { Row: MediaCollectionItemRow; Insert: Omit<MediaCollectionItemRow,'created_at'>;                        Update: Pick<MediaCollectionItemRow,'sort_order'> }
+      visual_presets:           { Row: VisualPresetRow;        Insert: Omit<VisualPresetRow,'id'|'created_at'|'updated_at'>;     Update: Partial<Omit<VisualPresetRow,'id'>> }
+      visual_sessions:          { Row: VisualSessionRow;       Insert: Omit<VisualSessionRow,'id'|'created_at'|'updated_at'>;    Update: Partial<Omit<VisualSessionRow,'id'>> }
+      canvas_exports:           { Row: CanvasExport;           Insert: Omit<CanvasExport,'id'|'exported_at'>;                    Update: Partial<Omit<CanvasExport,'id'>> }
+      audio_track_tags:         { Row: { track_id: string; tag_id: string }; Insert: { track_id: string; tag_id: string }; Update: never }
     }
   }
 }

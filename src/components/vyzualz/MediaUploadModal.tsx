@@ -1,0 +1,664 @@
+import { useState, useRef, useEffect, useCallback, useId } from 'react'
+import { useMediaStore } from '../../stores/mediaStore'
+import type { MediaCollection } from '../../stores/mediaStore'
+import {
+  MEDIA_ROLES,
+  MEDIA_ROLE_LABELS,
+  MEDIA_ROLE_ICONS,
+  ENERGY_LABELS,
+  MUSICAL_KEYS,
+  suggestMediaRole,
+  roleImpliesAlpha,
+} from '../../lib/mediaRoles'
+import type { MediaRole, MediaEnergy } from '../../lib/mediaRoles'
+
+// ── Local display metadata ────────────────────────────────────────────────────
+// Separate from store queue — purely for thumbnail/dims display in modal file list
+
+interface EntryDisplay {
+  thumbnailUrl: string | null
+  width?: number
+  height?: number
+  duration?: number
+  status: 'ready' | 'uploading' | 'done' | 'error'
+  errorMsg?: string
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function grabVideoThumb(url: string): Promise<string | null> {
+  return new Promise(resolve => {
+    const v = document.createElement('video')
+    v.src = url; v.muted = true; v.playsInline = true
+    v.preload = 'metadata'; v.crossOrigin = 'anonymous'; v.currentTime = 0.5
+    const draw = () => {
+      try {
+        const c = document.createElement('canvas')
+        c.width = 80; c.height = 45
+        c.getContext('2d')?.drawImage(v, 0, 0, 80, 45)
+        resolve(c.toDataURL('image/jpeg', 0.7))
+      } catch { resolve(null) }
+    }
+    v.onseeked = draw; v.onerror = () => resolve(null)
+    v.onloadeddata = () => { if (v.readyState >= 2) draw() }
+  })
+}
+
+function getImgDims(url: string): Promise<{ w: number; h: number } | null> {
+  return new Promise(resolve => {
+    const img = new Image()
+    img.onload  = () => resolve({ w: img.naturalWidth, h: img.naturalHeight })
+    img.onerror = () => resolve(null)
+    img.src = url
+  })
+}
+
+function getVidDuration(url: string): Promise<number> {
+  return new Promise(resolve => {
+    const v = document.createElement('video')
+    v.src = url; v.preload = 'metadata'
+    v.onloadedmetadata = () => resolve(v.duration || 0)
+    v.onerror = () => resolve(0)
+  })
+}
+
+function fmtSize(bytes: number): string {
+  if (bytes < 1024)            return `${bytes} B`
+  if (bytes < 1024 * 1024)     return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}
+
+function fmtDur(s: number): string {
+  const m = Math.floor(s / 60)
+  const sec = Math.floor(s % 60)
+  return `${m}:${sec.toString().padStart(2, '0')}`
+}
+
+const ACCEPT = 'image/png,image/jpeg,image/gif,image/webp,image/svg+xml,video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm,.png,.jpg,.jpeg,.gif,.webp,.svg'
+const MAX_FILE_LABEL = '5 GB'
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function StatusBadge({ status, errorMsg }: { status: EntryDisplay['status']; errorMsg?: string }) {
+  if (status === 'uploading') return <span className="mum-badge mum-badge--uploading">Uploading…</span>
+  if (status === 'done')      return <span className="mum-badge mum-badge--done">Done</span>
+  if (status === 'error')     return <span className="mum-badge mum-badge--error" title={errorMsg}>Error</span>
+  return <span className="mum-badge mum-badge--ready">Ready</span>
+}
+
+function TagChips({ tags, onRemove }: { tags: string[]; onRemove: (t: string) => void }) {
+  return (
+    <>
+      {tags.map(t => (
+        <span key={t} className="mum-chip">
+          {t}
+          <button className="mum-chip-x" onClick={() => onRemove(t)} aria-label={`Remove tag ${t}`}>×</button>
+        </span>
+      ))}
+    </>
+  )
+}
+
+function CollectionChips({ ids, collections, onRemove }: {
+  ids: string[]; collections: MediaCollection[]; onRemove: (id: string) => void
+}) {
+  return (
+    <>
+      {ids.map(id => {
+        const name = collections.find(c => c.id === id)?.name ?? id
+        return (
+          <span key={id} className="mum-chip mum-chip--coll">
+            {name}
+            <button className="mum-chip-x" onClick={() => onRemove(id)} aria-label={`Remove collection ${name}`}>×</button>
+          </span>
+        )
+      })}
+    </>
+  )
+}
+
+// ── Main modal ────────────────────────────────────────────────────────────────
+
+export function MediaUploadModal({ onClose }: { onClose: () => void }) {
+  const {
+    uploadQueue,
+    addFilesToUploadQueue,
+    removeUploadQueueItem,
+    clearUploadQueue,
+    uploadDraft,
+    setUploadDraftRole,
+    setUploadDraftTitle,
+    setUploadDraftDescription,
+    setUploadDraftTags,
+    setUploadDraftCollections,
+    setUploadDraftMetadata,
+    resetUploadDraft,
+    uploadQueuedMedia,
+    collections,
+    createCollection,
+    loadCollections,
+  } = useMediaStore()
+
+  // Local display metadata keyed by tempId — only for thumbnail/dims in file list
+  const [displayMeta, setDisplayMeta] = useState<Map<string, EntryDisplay>>(new Map())
+
+  const [tagInput,  setTagInput]  = useState('')
+  const [collInput, setCollInput] = useState('')
+  const [dragOver,  setDragOver]  = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadAnother, setUploadAnother] = useState(false)
+
+  const fileInputId = useId()
+  const dropRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => { loadCollections() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Close on Escape (unless uploading)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !uploading) onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose, uploading])
+
+  // Auto-suggest role when first file is added
+  useEffect(() => {
+    if (uploadQueue.length === 1) {
+      const role = uploadQueue[0].suggestedRole
+      setUploadDraftRole(role)
+      setUploadDraftMetadata({ hasAlpha: roleImpliesAlpha(role) })
+    }
+  }, [uploadQueue.length]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleRoleChange = (role: MediaRole) => {
+    setUploadDraftRole(role)
+    setUploadDraftMetadata({ hasAlpha: roleImpliesAlpha(role) })
+  }
+
+  const addFiles = useCallback(async (files: File[]) => {
+    const valid = files.filter(f =>
+      f.type.startsWith('image/') || f.type.startsWith('video/') ||
+      /\.(png|jpe?g|gif|webp|svg|mp4|mov|webm)$/i.test(f.name)
+    )
+    if (!valid.length) return
+
+    // Add to store queue first to get tempIds
+    const prevLen = uploadQueue.length
+    addFilesToUploadQueue(valid)
+
+    // Build display metadata async
+    const newMeta = new Map<string, EntryDisplay>()
+    await Promise.all(valid.map(async (file, i) => {
+      // Re-read queue after adding — tempId is generated in store
+      // We need to access the store directly here since state hasn't re-rendered
+      const queue = useMediaStore.getState().uploadQueue
+      const item = queue[prevLen + i]
+      if (!item) return
+
+      const objUrl  = item.previewUrl
+      const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(file.name)
+
+      if (isVideo) {
+        const [thumb, duration] = await Promise.all([grabVideoThumb(objUrl), getVidDuration(objUrl)])
+        newMeta.set(item.tempId, { thumbnailUrl: thumb, duration, status: 'ready' })
+      } else {
+        const dims = await getImgDims(objUrl)
+        newMeta.set(item.tempId, {
+          thumbnailUrl: objUrl,
+          width: dims?.w, height: dims?.h,
+          status: 'ready',
+        })
+      }
+    }))
+
+    setDisplayMeta(prev => {
+      const next = new Map(prev)
+      newMeta.forEach((v, k) => next.set(k, v))
+      return next
+    })
+  }, [uploadQueue.length, addFilesToUploadQueue]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const removeEntry = (tempId: string) => {
+    removeUploadQueueItem(tempId)
+    setDisplayMeta(prev => {
+      const next = new Map(prev)
+      next.delete(tempId)
+      return next
+    })
+  }
+
+  const clearAll = () => {
+    clearUploadQueue()
+    setDisplayMeta(new Map())
+  }
+
+  // Tags
+  const addTag = (raw: string) => {
+    const tag = raw.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-')
+    if (tag && !uploadDraft.tags.includes(tag)) setUploadDraftTags([...uploadDraft.tags, tag])
+    setTagInput('')
+  }
+  const removeTag = (t: string) => setUploadDraftTags(uploadDraft.tags.filter(x => x !== t))
+
+  const handleTagKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); if (tagInput.trim()) addTag(tagInput) }
+    if (e.key === 'Backspace' && !tagInput && uploadDraft.tags.length) {
+      setUploadDraftTags(uploadDraft.tags.slice(0, -1))
+    }
+  }
+
+  // Collections
+  const filteredColls = collections.filter(c =>
+    c.name.toLowerCase().includes(collInput.toLowerCase()) && !uploadDraft.collectionIds.includes(c.id)
+  )
+  const addCollection = (id: string) => {
+    setUploadDraftCollections([...uploadDraft.collectionIds, id])
+    setCollInput('')
+  }
+  const removeCollection = (id: string) =>
+    setUploadDraftCollections(uploadDraft.collectionIds.filter(x => x !== id))
+
+  const handleCollKey = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && collInput.trim()) {
+      e.preventDefault()
+      const existing = collections.find(c => c.name.toLowerCase() === collInput.trim().toLowerCase())
+      if (existing) {
+        addCollection(existing.id)
+      } else {
+        const newId = await createCollection(collInput.trim())
+        if (newId) addCollection(newId)
+      }
+    }
+  }
+
+  // Upload
+  const handleUpload = async () => {
+    if (!uploadQueue.length) return
+    setUploading(true)
+    setDisplayMeta(prev => {
+      const next = new Map(prev)
+      next.forEach((v, k) => next.set(k, { ...v, status: 'uploading' }))
+      return next
+    })
+
+    try {
+      await uploadQueuedMedia()
+      setDisplayMeta(prev => {
+        const next = new Map(prev)
+        next.forEach((v, k) => next.set(k, { ...v, status: 'done' }))
+        return next
+      })
+    } catch (err) {
+      console.error('[MediaUploadModal] upload failed:', err)
+      setDisplayMeta(prev => {
+        const next = new Map(prev)
+        next.forEach((v, k) => next.set(k, { ...v, status: 'error', errorMsg: 'Upload failed' }))
+        return next
+      })
+    } finally {
+      setUploading(false)
+    }
+
+    if (uploadAnother) {
+      setDisplayMeta(new Map())
+      resetUploadDraft()
+    } else {
+      onClose()
+    }
+  }
+
+  // Drag-drop
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault(); setDragOver(false)
+    addFiles(Array.from(e.dataTransfer.files))
+  }
+
+  // Computed display info from first queue item
+  const firstQueueItem = uploadQueue[0]
+  const firstMeta      = firstQueueItem ? displayMeta.get(firstQueueItem.tempId) : undefined
+  const detectedRes    = firstMeta?.width && firstMeta?.height ? `${firstMeta.width} × ${firstMeta.height}` : undefined
+  const detectedDur    = firstMeta?.duration !== undefined ? firstMeta.duration.toFixed(2) : undefined
+
+  const canUpload = uploadQueue.length > 0 && !uploading
+
+  return (
+    <div
+      className="mum-backdrop"
+      onClick={e => { if (e.target === e.currentTarget && !uploading) onClose() }}
+    >
+      <div className="mum-modal" role="dialog" aria-modal="true" aria-label="Media Upload">
+
+        {/* ── Header ─────────────────────────────────────────────────── */}
+        <div className="mum-header">
+          <div>
+            <div className="mum-title">MEDIA UPLOAD</div>
+            <div className="mum-subtitle">Upload media and organize with roles, tags, and collections.</div>
+          </div>
+          <button className="mum-close" onClick={() => { if (!uploading) onClose() }} aria-label="Close">×</button>
+        </div>
+
+        {/* ── Body ───────────────────────────────────────────────────── */}
+        <div className="mum-body">
+
+          {/* Left: drop zone + file list */}
+          <div className="mum-left">
+            <div
+              ref={dropRef}
+              className={`mum-dropzone${dragOver ? ' mum-dropzone--over' : ''}`}
+              onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={onDrop}
+            >
+              <svg className="mum-cloud-icon" viewBox="0 0 64 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M48 32a8 8 0 0 0-8-8h-1.28A18 18 0 1 0 14 32" stroke="#19bff2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M32 38V20M26 26l6-6 6 6" stroke="#19bff2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <div className="mum-drop-label">Drag &amp; drop media here</div>
+              <div className="mum-drop-or">or</div>
+              <label htmlFor={fileInputId} className="mum-browse-btn">Browse Files</label>
+              <input
+                id={fileInputId}
+                type="file"
+                accept={ACCEPT}
+                multiple
+                style={{ display: 'none' }}
+                onChange={e => { addFiles(Array.from(e.target.files ?? [])); e.target.value = '' }}
+              />
+              <div className="mum-drop-hint">Supports: MP4, MOV, WEBM, PNG, JPG, GIF, WEBP, SVG</div>
+              <div className="mum-drop-hint">Max file size: {MAX_FILE_LABEL}</div>
+            </div>
+
+            {/* File list */}
+            {uploadQueue.length > 0 && (
+              <div className="mum-filelist">
+                <div className="mum-filelist-header">
+                  <span>{uploadQueue.length} file{uploadQueue.length !== 1 ? 's' : ''} selected</span>
+                  <button className="mum-filelist-clear" onClick={clearAll} disabled={uploading}>Clear</button>
+                </div>
+                <div className="mum-filelist-items">
+                  {uploadQueue.map(q => {
+                    const dm = displayMeta.get(q.tempId)
+                    return (
+                      <div key={q.tempId} className="mum-file-row">
+                        <div className="mum-file-thumb">
+                          {dm?.thumbnailUrl
+                            ? <img src={dm.thumbnailUrl} alt="" />
+                            : <div className="mum-file-thumb-placeholder" />}
+                        </div>
+                        <div className="mum-file-info">
+                          <div className="mum-file-name">{q.file.name}</div>
+                          <div className="mum-file-meta">
+                            {fmtSize(q.file.size)}
+                            {(dm?.width && dm?.height) ? ` · ${dm.width}×${dm.height}` : ''}
+                            {dm?.duration !== undefined ? ` · ${fmtDur(dm.duration)}` : ''}
+                          </div>
+                        </div>
+                        <StatusBadge status={dm?.status ?? 'ready'} errorMsg={dm?.errorMsg} />
+                        <button
+                          className="mum-file-remove"
+                          onClick={() => removeEntry(q.tempId)}
+                          disabled={uploading}
+                          aria-label="Remove file"
+                        >×</button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right: metadata form */}
+          <div className="mum-right">
+
+            {/* Media Role */}
+            <div className="mum-field">
+              <label className="mum-field-label">MEDIA ROLE<span className="mum-req">*</span></label>
+              <div className="mum-select-wrap">
+                <select
+                  className="mum-select"
+                  value={uploadDraft.role}
+                  onChange={e => handleRoleChange(e.target.value as MediaRole)}
+                >
+                  {MEDIA_ROLES.map(r => (
+                    <option key={r} value={r}>
+                      {MEDIA_ROLE_ICONS[r]}  {MEDIA_ROLE_LABELS[r]}
+                    </option>
+                  ))}
+                </select>
+                <svg className="mum-select-caret" viewBox="0 0 10 6" fill="currentColor">
+                  <path d="M0 0l5 6 5-6z"/>
+                </svg>
+              </div>
+            </div>
+
+            {/* Title */}
+            <div className="mum-field">
+              <label className="mum-field-label">TITLE <span className="mum-opt">(OPTIONAL)</span></label>
+              <input
+                className="mum-input"
+                placeholder="e.g. Portal Loop Alpha"
+                value={uploadDraft.title}
+                onChange={e => setUploadDraftTitle(e.target.value)}
+              />
+            </div>
+
+            {/* Description */}
+            <div className="mum-field">
+              <label className="mum-field-label">DESCRIPTION <span className="mum-opt">(OPTIONAL)</span></label>
+              <textarea
+                className="mum-textarea"
+                rows={3}
+                placeholder="Describe this media…"
+                value={uploadDraft.description}
+                onChange={e => setUploadDraftDescription(e.target.value)}
+              />
+            </div>
+
+            {/* Tags */}
+            <div className="mum-field">
+              <label className="mum-field-label">TAGS</label>
+              <div className="mum-field-hint">Add or create tags to describe this media.</div>
+              <div className="mum-chip-input">
+                <TagChips tags={uploadDraft.tags} onRemove={removeTag} />
+                <input
+                  className="mum-chip-text"
+                  placeholder="Type to add tags…"
+                  value={tagInput}
+                  onChange={e => setTagInput(e.target.value)}
+                  onKeyDown={handleTagKey}
+                  onBlur={() => { if (tagInput.trim()) addTag(tagInput) }}
+                />
+                <svg className="mum-chip-caret" viewBox="0 0 10 6" fill="currentColor">
+                  <path d="M0 0l5 6 5-6z"/>
+                </svg>
+              </div>
+            </div>
+
+            {/* Collections */}
+            <div className="mum-field">
+              <label className="mum-field-label">COLLECTIONS</label>
+              <div className="mum-field-hint">Add this media to one or more collections.</div>
+              <div className="mum-chip-input" style={{ position: 'relative' }}>
+                <CollectionChips
+                  ids={uploadDraft.collectionIds}
+                  collections={collections}
+                  onRemove={removeCollection}
+                />
+                <input
+                  className="mum-chip-text"
+                  placeholder="Type to search or create…"
+                  value={collInput}
+                  onChange={e => setCollInput(e.target.value)}
+                  onKeyDown={handleCollKey}
+                />
+                <svg className="mum-chip-caret" viewBox="0 0 10 6" fill="currentColor">
+                  <path d="M0 0l5 6 5-6z"/>
+                </svg>
+                {collInput && filteredColls.length > 0 && (
+                  <div className="mum-coll-dropdown">
+                    {filteredColls.map(c => (
+                      <button key={c.id} className="mum-coll-option" onClick={() => addCollection(c.id)}>
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {collInput && filteredColls.length === 0 && (
+                  <div className="mum-coll-dropdown">
+                    <button
+                      className="mum-coll-option mum-coll-option--create"
+                      onMouseDown={async e => {
+                        e.preventDefault()
+                        const newId = await createCollection(collInput.trim())
+                        if (newId) { addCollection(newId); setCollInput('') }
+                      }}
+                    >
+                      + Create "{collInput.trim()}"
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Additional Info */}
+            <div className="mum-field">
+              <label className="mum-field-label">ADDITIONAL INFO</label>
+              <div className="mum-addinfo-grid">
+                <div className="mum-addinfo-item">
+                  <div className="mum-addinfo-label">DURATION (SEC)</div>
+                  <input
+                    className="mum-addinfo-input"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="—"
+                    value={detectedDur ?? (uploadDraft.metadata.duration ?? '')}
+                    readOnly={detectedDur !== undefined}
+                    onChange={e => {
+                      if (detectedDur === undefined)
+                        setUploadDraftMetadata({ duration: parseFloat(e.target.value) || undefined })
+                    }}
+                  />
+                </div>
+                <div className="mum-addinfo-item">
+                  <div className="mum-addinfo-label">RESOLUTION</div>
+                  <input
+                    className="mum-addinfo-input"
+                    placeholder="—"
+                    value={detectedRes ?? (uploadDraft.metadata.width && uploadDraft.metadata.height ? `${uploadDraft.metadata.width} × ${uploadDraft.metadata.height}` : '')}
+                    readOnly
+                  />
+                </div>
+                <div className="mum-addinfo-item">
+                  <div className="mum-addinfo-label">FPS <span className="mum-opt">(OPTIONAL)</span></div>
+                  <input
+                    className="mum-addinfo-input"
+                    type="number"
+                    min="1"
+                    max="240"
+                    placeholder="e.g. 30"
+                    value={uploadDraft.metadata.fps ?? ''}
+                    onChange={e => setUploadDraftMetadata({ fps: parseFloat(e.target.value) || undefined })}
+                  />
+                </div>
+                <div className="mum-addinfo-item">
+                  <div className="mum-addinfo-label">LOOPABLE</div>
+                  <label className="mum-toggle">
+                    <input
+                      type="checkbox"
+                      checked={uploadDraft.metadata.loopable ?? false}
+                      onChange={e => setUploadDraftMetadata({ loopable: e.target.checked })}
+                    />
+                    <span className="mum-toggle-track"><span className="mum-toggle-thumb" /></span>
+                  </label>
+                </div>
+                <div className="mum-addinfo-item">
+                  <div className="mum-addinfo-label">HAS ALPHA</div>
+                  <label className="mum-toggle">
+                    <input
+                      type="checkbox"
+                      checked={uploadDraft.metadata.hasAlpha ?? false}
+                      onChange={e => setUploadDraftMetadata({ hasAlpha: e.target.checked })}
+                    />
+                    <span className="mum-toggle-track"><span className="mum-toggle-thumb" /></span>
+                  </label>
+                </div>
+                <div className="mum-addinfo-item">
+                  <div className="mum-addinfo-label">BPM <span className="mum-opt">(OPTIONAL)</span></div>
+                  <input
+                    className="mum-addinfo-input"
+                    type="number"
+                    min="20"
+                    max="300"
+                    placeholder="e.g. 128"
+                    value={uploadDraft.metadata.bpm ?? ''}
+                    onChange={e => setUploadDraftMetadata({ bpm: parseFloat(e.target.value) || undefined })}
+                  />
+                </div>
+                <div className="mum-addinfo-item">
+                  <div className="mum-addinfo-label">KEY <span className="mum-opt">(OPTIONAL)</span></div>
+                  <div className="mum-select-wrap mum-select-wrap--sm">
+                    <select
+                      className="mum-select"
+                      value={uploadDraft.metadata.key ?? ''}
+                      onChange={e => setUploadDraftMetadata({ key: e.target.value || undefined })}
+                    >
+                      <option value="">—</option>
+                      {MUSICAL_KEYS.map(k => <option key={k} value={k}>{k}</option>)}
+                    </select>
+                    <svg className="mum-select-caret" viewBox="0 0 10 6" fill="currentColor">
+                      <path d="M0 0l5 6 5-6z"/>
+                    </svg>
+                  </div>
+                </div>
+                <div className="mum-addinfo-item">
+                  <div className="mum-addinfo-label">ENERGY</div>
+                  <div className="mum-select-wrap mum-select-wrap--sm">
+                    <select
+                      className="mum-select"
+                      value={uploadDraft.metadata.energy ?? ''}
+                      onChange={e => setUploadDraftMetadata({ energy: (e.target.value as MediaEnergy) || undefined })}
+                    >
+                      <option value="">—</option>
+                      {(Object.keys(ENERGY_LABELS) as MediaEnergy[]).map(k => (
+                        <option key={k} value={k}>{ENERGY_LABELS[k]}</option>
+                      ))}
+                    </select>
+                    <svg className="mum-select-caret" viewBox="0 0 10 6" fill="currentColor">
+                      <path d="M0 0l5 6 5-6z"/>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>{/* /mum-right */}
+        </div>{/* /mum-body */}
+
+        {/* ── Footer ─────────────────────────────────────────────────── */}
+        <div className="mum-footer">
+          <button className="mum-cancel-btn" onClick={() => { if (!uploading) onClose() }}>Cancel</button>
+          <label className="mum-upload-another">
+            <input
+              type="checkbox"
+              checked={uploadAnother}
+              onChange={e => setUploadAnother(e.target.checked)}
+            />
+            Upload another
+          </label>
+          <button
+            className="mum-upload-btn"
+            disabled={!canUpload}
+            onClick={handleUpload}
+          >
+            {uploading ? 'Uploading…' : `Upload ${uploadQueue.length > 0 ? uploadQueue.length + ' ' : ''}Media`}
+          </button>
+        </div>
+
+      </div>
+    </div>
+  )
+}

@@ -4,26 +4,83 @@ import {
   listMediaItems,
   createMediaItem,
   updateMediaItem,
+  updateMediaItemRole,
+  updateMediaItemFavorite,
+  updateMediaItemMetadata,
   deleteMediaItem,
   createSignedMediaUrl,
   uploadMediaFile,
   deleteMediaFiles,
+  setMediaItemTags,
+  listMediaItemTagNames,
+  listMediaCollections,
+  createMediaCollection,
+  deleteMediaCollection,
+  listMediaItemCollectionIds,
+  setMediaItemCollections,
+  reorderCollectionItems as dbReorderCollectionItems,
 } from '../lib/mediaDb'
-import type { MediaItemRow } from '../types/database'
+import type { MediaItemRow, MediaMetadata } from '../types/database'
+import { suggestMediaRole } from '../lib/mediaRoles'
+import type { MediaRole, MediaEnergy } from '../lib/mediaRoles'
 import { useVisualStore } from './visualStore'
+
+export type { MediaRole, MediaEnergy }
+export type { MediaMetadata }
+
+// ── Public types ──────────────────────────────────────────────────────────────
 
 export interface UploadedMedia {
   id: string
   name: string
+  title?: string
+  description?: string
   type: 'image' | 'video'
-  url: string             // object URL (local) or signed URL (from Supabase)
+  url: string
   thumbnailUrl: string | null
-  meta: string
+  meta: string              // e.g. "MP4 · 0:08" or "PNG · 1920×1080"
   favorite: boolean
-  uploading?: boolean     // true while background upload is in progress
-  uploadError?: string    // set when Supabase upload fails; item stays local-only
-  storagePath?: string    // set after Supabase upload
-  dbId?: string           // Supabase media_items row id
+  mediaRole: MediaRole
+  tags: string[]
+  collectionIds: string[]
+  metadata: MediaMetadata   // fps, hasAlpha, loopable, bpm, key, energy, width, height, duration, etc.
+  uploading?: boolean
+  uploadError?: string
+  storagePath?: string
+  dbId?: string
+}
+
+export interface UploadQueueItem {
+  tempId: string
+  file: File
+  previewUrl: string        // object URL for preview in modal
+  suggestedRole: MediaRole
+}
+
+export interface UploadDraft {
+  role: MediaRole
+  title: string
+  description: string
+  tags: string[]
+  collectionIds: string[]
+  metadata: MediaMetadata
+}
+
+export type MediaFilter = 'all' | 'images' | 'videos' | 'favorites' | MediaRole
+
+export interface MediaCollection {
+  id: string
+  name: string
+  description?: string
+}
+
+const DEFAULT_DRAFT: UploadDraft = {
+  role: 'other',
+  title: '',
+  description: '',
+  tags: [],
+  collectionIds: [],
+  metadata: {},
 }
 
 // ── Local helpers ─────────────────────────────────────────────────────────────
@@ -87,17 +144,29 @@ function dataUrlToBlob(dataUrl: string): Blob {
   return new Blob([arr], { type: mime })
 }
 
+// Internal upload pipeline shape — carries detected dims/duration for DB columns
 type LocalItem = UploadedMedia & {
   _width?: number
   _height?: number
   _duration?: number
-  _thumbDataUrl?: string  // for videos: the generated thumbnail data URL to upload
+  _thumbDataUrl?: string
 }
 
-async function buildLocalItem(file: File): Promise<LocalItem> {
+interface BuildItemOptions {
+  role?: MediaRole
+  title?: string
+  description?: string
+  tags?: string[]
+  collectionIds?: string[]
+  metadata?: MediaMetadata
+}
+
+async function buildLocalItem(file: File, opts?: BuildItemOptions): Promise<LocalItem> {
   const url     = URL.createObjectURL(file)
   const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|mkv)$/i.test(file.name)
   const ext     = (file.name.split('.').pop() ?? '').toUpperCase()
+  const role    = opts?.role ?? suggestMediaRole(file)
+  const baseMeta: MediaMetadata = opts?.metadata ?? {}
 
   if (isVideo) {
     const [thumbDataUrl, duration] = await Promise.all([
@@ -109,6 +178,12 @@ async function buildLocalItem(file: File): Promise<LocalItem> {
       thumbnailUrl: thumbDataUrl,
       meta: `${ext} · ${fmtDur(duration)}`,
       favorite: false,
+      mediaRole: role,
+      tags: opts?.tags ?? [],
+      collectionIds: opts?.collectionIds ?? [],
+      title: opts?.title,
+      description: opts?.description,
+      metadata: { ...baseMeta, duration },
       _duration: duration,
       _thumbDataUrl: thumbDataUrl ?? undefined,
     }
@@ -120,6 +195,12 @@ async function buildLocalItem(file: File): Promise<LocalItem> {
     thumbnailUrl: url,
     meta: dims ? `${ext} · ${dims.w}×${dims.h}` : ext,
     favorite: false,
+    mediaRole: role,
+    tags: opts?.tags ?? [],
+    collectionIds: opts?.collectionIds ?? [],
+    title: opts?.title,
+    description: opts?.description,
+    metadata: { ...baseMeta, width: dims?.w, height: dims?.h },
     _width: dims?.w,
     _height: dims?.h,
   }
@@ -147,11 +228,9 @@ async function uploadToSupabase(
   try {
     const storagePath = `${userId}/${item.id}/${item.name}`
 
-    // Upload the main file
     const { error: uploadErr } = await uploadMediaFile(storagePath, file, file.type)
     if (uploadErr) { console.error('[mediaStore] storage upload:', uploadErr); return null }
 
-    // For videos: upload thumbnail blob separately so reload doesn't need to re-render it
     let thumbnailStoragePath: string | null = null
     if (item.type === 'video' && item._thumbDataUrl) {
       try {
@@ -159,13 +238,11 @@ async function uploadToSupabase(
         const thumbPath = `${userId}/${item.id}/thumb.jpg`
         const { error: thumbErr } = await uploadMediaFile(thumbPath, thumbBlob, 'image/jpeg')
         if (!thumbErr) thumbnailStoragePath = thumbPath
-      } catch { /* non-fatal; thumbnail will be re-generated on next reload */ }
+      } catch { /* non-fatal */ }
     } else if (item.type === 'image') {
-      // Image is its own thumbnail
       thumbnailStoragePath = storagePath
     }
 
-    // Insert DB row
     const { id: dbId, error: dbErr } = await createMediaItem({
       user_id:        userId,
       name:           item.name,
@@ -174,13 +251,30 @@ async function uploadToSupabase(
       thumbnail_path: thumbnailStoragePath,
       mime_type:      file.type || null,
       file_size:      file.size,
-      width:          item._width  ?? null,
-      height:         item._height ?? null,
-      duration_sec:   item._duration ?? null,
+      width:          item._width  ?? item.metadata.width  ?? null,
+      height:         item._height ?? item.metadata.height ?? null,
+      duration_sec:   item._duration ?? item.metadata.duration ?? null,
       favorite:       false,
+      media_role:     item.mediaRole,
+      title:          item.title    ?? null,
+      description:    item.description ?? null,
+      metadata:       item.metadata,
     })
 
     if (dbErr || !dbId) { console.error('[mediaStore] db insert:', dbErr); return null }
+
+    // Persist tags via normalized junction tables
+    if (item.tags.length) {
+      const { error: tagsErr } = await setMediaItemTags(dbId, userId, item.tags)
+      if (tagsErr) console.warn('[mediaStore] setMediaItemTags:', tagsErr)
+    }
+
+    // Persist collection memberships
+    if (item.collectionIds.length) {
+      const { error: collErr } = await setMediaItemCollections(dbId, item.collectionIds)
+      if (collErr) console.warn('[mediaStore] setMediaItemCollections:', collErr)
+    }
+
     return { storagePath, dbId, thumbnailStoragePath }
   } catch (e) {
     console.error('[mediaStore] uploadToSupabase:', e)
@@ -188,7 +282,7 @@ async function uploadToSupabase(
   }
 }
 
-// ── Error helpers ──────────────────────────────────────────────────────────────
+// ── Error helpers ─────────────────────────────────────────────────────────────
 
 function interpretError(msg: string): string {
   const lower = msg.toLowerCase()
@@ -200,35 +294,204 @@ function interpretError(msg: string): string {
   return msg.length > 80 ? msg.slice(0, 80) + '…' : msg
 }
 
-// ── Store ─────────────────────────────────────────────────────────────────────
+// ── Store interface ───────────────────────────────────────────────────────────
 
 interface MediaState {
   items: UploadedMedia[]
+  collections: MediaCollection[]
   loading: boolean
-  loadError: string | null       // error from loadFromSupabase
-  deleteError: string | null     // error from a failed removeItem
-  authRequired: boolean          // true when user is not signed in
-  storageAvailable: boolean      // false when Supabase env vars are missing
-  lastRestored: number | null    // count of items restored; cleared by component after showing
-  addFiles(files: File[]): Promise<void>
+  collectionsLoading: boolean
+  loadError: string | null
+  deleteError: string | null
+  authRequired: boolean
+  storageAvailable: boolean
+  lastRestored: number | null
+  activeFilter: MediaFilter
+
+  // Modal
+  importModalOpen: boolean
+  openImportMediaModal(): void
+  closeImportMediaModal(): void
+
+  // Upload queue
+  uploadQueue: UploadQueueItem[]
+  addFilesToUploadQueue(files: File[]): void
+  removeUploadQueueItem(tempId: string): void
+  clearUploadQueue(): void
+
+  // Upload draft (shared metadata for all queued files)
+  uploadDraft: UploadDraft
+  setUploadDraftRole(role: MediaRole): void
+  setUploadDraftTitle(title: string): void
+  setUploadDraftDescription(desc: string): void
+  setUploadDraftTags(tags: string[]): void
+  setUploadDraftCollections(ids: string[]): void
+  setUploadDraftMetadata(patch: Partial<MediaMetadata>): void
+  resetUploadDraft(): void
+
+  // Upload
+  uploadQueuedMedia(): Promise<void>
+  addFiles(files: File[]): Promise<void>   // quick drag-drop path (no modal)
+
+  // Load
   loadFromSupabase(): Promise<void>
+
+  // Item mutations
   removeItem(id: string): void
   toggleFavorite(id: string): void
+  toggleFavoriteMedia(id: string): void    // alias for toggleFavorite
   reorderItems(order: string[]): void
+  setMediaRole(mediaId: string, role: MediaRole): void
+  setMediaTags(mediaId: string, tags: string[]): void
+  addMediaTag(mediaId: string, tag: string): void
+  removeMediaTag(mediaId: string, tag: string): void
+  bulkTagMedia(mediaIds: string[], tags: string[]): void
+
+  // Collections
+  loadCollections(): Promise<void>
+  createCollection(name: string, description?: string): Promise<string | null>
+  removeCollection(id: string): void
+  addMediaToCollection(collectionId: string, mediaIds: string[]): void
+  removeMediaFromCollection(collectionId: string, mediaIds: string[]): void
+  reorderCollectionItems(collectionId: string, orderedMediaIds: string[]): Promise<void>
+
+  // Filter
+  filterMedia(filter: MediaFilter): void
+
+  // Error / status
   clearLoadError(): void
   clearDeleteError(): void
   clearRestored(): void
   clear(): void
 }
 
+// ── Store ─────────────────────────────────────────────────────────────────────
+
 export const useMediaStore = create<MediaState>((set, get) => ({
   items: [],
+  collections: [],
   loading: false,
+  collectionsLoading: false,
   loadError: null,
   deleteError: null,
   authRequired: false,
   storageAvailable: supabaseConfigured,
   lastRestored: null,
+  activeFilter: 'all',
+
+  // ── Modal ─────────────────────────────────────────────────────────────────
+
+  importModalOpen: false,
+  openImportMediaModal()  { set({ importModalOpen: true }) },
+  closeImportMediaModal() { set({ importModalOpen: false }) },
+
+  // ── Upload queue ──────────────────────────────────────────────────────────
+
+  uploadQueue: [],
+
+  addFilesToUploadQueue(files) {
+    const mediaFiles = files.filter(f =>
+      f.type.startsWith('image/') || f.type.startsWith('video/') ||
+      /\.(png|jpe?g|gif|webp|mp4|mov|webm|mkv)$/i.test(f.name)
+    )
+    const items: UploadQueueItem[] = mediaFiles.map(file => ({
+      tempId: generateId(),
+      file,
+      previewUrl: URL.createObjectURL(file),
+      suggestedRole: suggestMediaRole(file),
+    }))
+    set(s => ({ uploadQueue: [...s.uploadQueue, ...items] }))
+  },
+
+  removeUploadQueueItem(tempId) {
+    const item = get().uploadQueue.find(q => q.tempId === tempId)
+    if (item) URL.revokeObjectURL(item.previewUrl)
+    set(s => ({ uploadQueue: s.uploadQueue.filter(q => q.tempId !== tempId) }))
+  },
+
+  clearUploadQueue() {
+    get().uploadQueue.forEach(q => URL.revokeObjectURL(q.previewUrl))
+    set({ uploadQueue: [] })
+  },
+
+  // ── Upload draft ──────────────────────────────────────────────────────────
+
+  uploadDraft: { ...DEFAULT_DRAFT },
+
+  setUploadDraftRole(role)               { set(s => ({ uploadDraft: { ...s.uploadDraft, role } })) },
+  setUploadDraftTitle(title)             { set(s => ({ uploadDraft: { ...s.uploadDraft, title } })) },
+  setUploadDraftDescription(description) { set(s => ({ uploadDraft: { ...s.uploadDraft, description } })) },
+  setUploadDraftTags(tags)               { set(s => ({ uploadDraft: { ...s.uploadDraft, tags } })) },
+  setUploadDraftCollections(collectionIds) { set(s => ({ uploadDraft: { ...s.uploadDraft, collectionIds } })) },
+  setUploadDraftMetadata(patch)          { set(s => ({ uploadDraft: { ...s.uploadDraft, metadata: { ...s.uploadDraft.metadata, ...patch } } })) },
+  resetUploadDraft()                     { set({ uploadDraft: { ...DEFAULT_DRAFT } }) },
+
+  // ── Upload: queue-based (modal path) ─────────────────────────────────────
+
+  async uploadQueuedMedia() {
+    const { uploadQueue, uploadDraft } = get()
+    if (!uploadQueue.length) return
+
+    const localItems = await Promise.all(
+      uploadQueue.map(q =>
+        buildLocalItem(q.file, {
+          role:         uploadDraft.role,
+          title:        uploadDraft.title || undefined,
+          description:  uploadDraft.description || undefined,
+          tags:         uploadDraft.tags,
+          collectionIds: uploadDraft.collectionIds,
+          metadata:     uploadDraft.metadata,
+        })
+      )
+    )
+
+    const files = uploadQueue.map(q => q.file)   // capture before queue is cleared
+    const withUploading = localItems.map(i => ({ ...i, uploading: true }))
+    set(s => ({ items: [...s.items, ...withUploading] }))
+    get().clearUploadQueue()
+
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      set(s => ({
+        authRequired: true,
+        items: s.items.map(i =>
+          withUploading.some(w => w.id === i.id) ? { ...i, uploading: false } : i
+        ),
+      }))
+      return
+    }
+
+    await Promise.all(
+      withUploading.map(async (item, i) => {
+        const result = await uploadToSupabase(files[i], item as LocalItem, userId)
+        if (!result) {
+          set(s => ({
+            items: s.items.map(e =>
+              e.id === item.id
+                ? { ...e, uploading: false, uploadError: 'Upload failed — stored locally' }
+                : e
+            ),
+          }))
+          return
+        }
+
+        const stableId = `db-${result.dbId}`
+        const prevId   = item.id
+        set(s => ({
+          items: s.items.map(e =>
+            e.id === prevId
+              ? { ...e, id: stableId, uploading: false, uploadError: undefined, storagePath: result.storagePath, dbId: result.dbId }
+              : e
+          ),
+        }))
+
+        const visual = useVisualStore.getState()
+        if (visual.activeMediaId === prevId) visual.setActiveMedia(stableId)
+      })
+    )
+  },
+
+  // ── Upload: drag-drop path (no modal, auto-detect role) ───────────────────
 
   async addFiles(files) {
     const mediaFiles = files.filter(f =>
@@ -237,12 +500,12 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     )
     if (!mediaFiles.length) return
 
-    // Build local items immediately so the UI responds without waiting for upload
-    const localItems = await Promise.all(mediaFiles.map(buildLocalItem))
+    const localItems = await Promise.all(
+      mediaFiles.map(f => buildLocalItem(f, { role: suggestMediaRole(f) }))
+    )
     const withUploading = localItems.map(i => ({ ...i, uploading: true }))
     set(s => ({ items: [...s.items, ...withUploading] }))
 
-    // Upload to Supabase in background
     const userId = await getCurrentUserId()
     if (!userId) {
       set(s => ({
@@ -268,33 +531,23 @@ export const useMediaStore = create<MediaState>((set, get) => ({
           return
         }
 
-        // Use 'db-{dbId}' as the canonical stable id — matches what loadFromSupabase returns
         const stableId = `db-${result.dbId}`
-        const prevId = item.id
-
+        const prevId   = item.id
         set(s => ({
           items: s.items.map(e =>
             e.id === prevId
-              ? {
-                  ...e,
-                  id: stableId,
-                  uploading: false,
-                  uploadError: undefined,
-                  storagePath: result.storagePath,
-                  dbId: result.dbId,
-                }
+              ? { ...e, id: stableId, uploading: false, uploadError: undefined, storagePath: result.storagePath, dbId: result.dbId }
               : e
           ),
         }))
 
-        // Preserve activeMediaId when the local ID transitions to the stable DB ID
         const visual = useVisualStore.getState()
-        if (visual.activeMediaId === prevId) {
-          visual.setActiveMedia(stableId)
-        }
+        if (visual.activeMediaId === prevId) visual.setActiveMedia(stableId)
       })
     )
   },
+
+  // ── Load from Supabase ────────────────────────────────────────────────────
 
   async loadFromSupabase() {
     if (!supabaseConfigured) {
@@ -302,26 +555,38 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       return
     }
     const userId = await getCurrentUserId()
-    if (!userId) {
-      set({ authRequired: true })
-      return
-    }
+    if (!userId) { set({ authRequired: true }); return }
 
     set({ loading: true, loadError: null, authRequired: false })
     try {
-      const { rows, error } = await listMediaItems(userId)
+      const [
+        { rows, error },
+        { tagMap, error: tagErr },
+        { collMap, error: collErr },
+        { rows: collRows, error: collListErr },
+      ] = await Promise.all([
+        listMediaItems(userId),
+        listMediaItemTagNames(userId),
+        listMediaItemCollectionIds(userId),
+        listMediaCollections(userId),
+      ])
 
-      if (error) {
-        console.error('[mediaStore] load:', error)
-        set({ loadError: interpretError(error) })
-        return
-      }
+      if (error)        { set({ loadError: interpretError(error) }); return }
+      if (tagErr)       console.warn('[mediaStore] tag load:', tagErr)
+      if (collErr)      console.warn('[mediaStore] collection-items load:', collErr)
+      if (collListErr)  console.warn('[mediaStore] collections load:', collListErr)
+
+      const collections: MediaCollection[] = collRows.map(r => ({
+        id: r.id,
+        name: r.name,
+        description: r.description ?? undefined,
+      }))
+
       if (!rows.length) {
-        set({ lastRestored: 0 })
+        set({ lastRestored: 0, collections })
         return
       }
 
-      // Build items from DB rows, generating signed URLs
       const items: UploadedMedia[] = await Promise.all(
         rows.map(async (row: MediaItemRow) => {
           const { url, error: signErr } = await createSignedMediaUrl(row.storage_path)
@@ -329,56 +594,60 @@ export const useMediaStore = create<MediaState>((set, get) => ({
 
           const isVideo = row.type === 'video'
           const ext = row.storage_path.split('.').pop()?.toUpperCase() ?? ''
-
-          const meta = isVideo
+          const displayMeta = isVideo
             ? `${ext} · ${fmtDur(row.duration_sec ?? 0)}`
             : row.width && row.height
               ? `${ext} · ${row.width}×${row.height}`
               : ext
 
-          // Prefer stored thumbnail_path over re-generating from video every load
           let thumbnailUrl: string | null = null
           if (isVideo) {
             if (row.thumbnail_path) {
               const { url: thumbUrl } = await createSignedMediaUrl(row.thumbnail_path)
               thumbnailUrl = thumbUrl
             }
-            // Fallback: grab from video if no stored thumbnail (legacy or failed upload)
             if (!thumbnailUrl && url) thumbnailUrl = await grabVideoThumbnail(url)
           } else {
-            thumbnailUrl = url  // image is its own thumbnail
+            thumbnailUrl = url
+          }
+
+          // Merge DB-column dims into metadata JSONB
+          const mergedMeta: MediaMetadata = {
+            width:    row.width    ?? undefined,
+            height:   row.height   ?? undefined,
+            duration: row.duration_sec ?? undefined,
+            ...((row.metadata as MediaMetadata) ?? {}),
           }
 
           return {
-            id: `db-${row.id}`,
-            dbId: row.id,
-            storagePath: row.storage_path,
-            name: row.name,
-            type: row.type,
-            url: url ?? '',
+            id:           `db-${row.id}`,
+            dbId:         row.id,
+            storagePath:  row.storage_path,
+            name:         row.name,
+            title:        row.title ?? undefined,
+            description:  row.description ?? undefined,
+            type:         row.type,
+            url:          url ?? '',
             thumbnailUrl,
-            meta,
-            favorite: row.favorite,
-          }
+            meta:         displayMeta,
+            favorite:     row.favorite,
+            mediaRole:    row.media_role as MediaRole,
+            tags:         tagMap.get(row.id) ?? [],
+            collectionIds: collMap.get(row.id) ?? [],
+            metadata:     mergedMeta,
+          } satisfies UploadedMedia
         })
       )
 
-      // Merge: keep locally-added items still uploading, replace any with a dbId match
       set(s => {
         const dbIds = new Set(items.map(i => i.dbId))
         const localOnly = s.items.filter(i => !i.dbId || !dbIds.has(i.dbId))
         const merged = [...items, ...localOnly]
-
-        // Correct stale activeMediaId: if it doesn't match any loaded item, select the first one
         const visual = useVisualStore.getState()
-        if (visual.activeMediaId !== null) {
-          const exists = merged.some(i => i.id === visual.activeMediaId)
-          if (!exists) {
-            visual.setActiveMedia(merged[0]?.id ?? null)
-          }
+        if (visual.activeMediaId !== null && !merged.some(i => i.id === visual.activeMediaId)) {
+          visual.setActiveMedia(merged[0]?.id ?? null)
         }
-
-        return { items: merged, lastRestored: items.length }
+        return { items: merged, lastRestored: items.length, collections }
       })
     } catch (e) {
       const msg = e instanceof Error ? interpretError(e.message) : 'Unexpected error loading media'
@@ -389,31 +658,23 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     }
   },
 
+  // ── Item mutations ────────────────────────────────────────────────────────
+
   removeItem(id) {
     const { items } = get()
     const item = items.find(i => i.id === id)
     if (!item) return
-
-    // Optimistic removal from UI
     const remaining = items.filter(i => i.id !== id)
     set({ items: remaining })
-
-    // Revoke object URLs
     if (item.url.startsWith('blob:')) URL.revokeObjectURL(item.url)
     if (item.thumbnailUrl?.startsWith('blob:')) URL.revokeObjectURL(item.thumbnailUrl)
-
-    // If this was the active item, select the next available one
     const visual = useVisualStore.getState()
-    if (visual.activeMediaId === id) {
-      visual.setActiveMedia(remaining[0]?.id ?? null)
-    }
+    if (visual.activeMediaId === id) visual.setActiveMedia(remaining[0]?.id ?? null)
 
-    // Background cleanup: DB row + storage file
     if (item.dbId && supabaseConfigured) {
       const storagePaths = [
         item.storagePath,
-        // Also delete thumbnail if it's a separate file (not the main file)
-        item.storagePath && item.thumbnailUrl && !item.thumbnailUrl.startsWith('blob:') && item.type === 'video'
+        item.storagePath && item.type === 'video'
           ? item.storagePath.replace(/\/[^/]+$/, '/thumb.jpg')
           : null,
       ].filter(Boolean) as string[]
@@ -425,19 +686,11 @@ export const useMediaStore = create<MediaState>((set, get) => ({
         const err = dbResult.error ?? storageResult.error
         if (err) {
           console.error('[mediaStore] delete failed:', err)
-          // Restore item and show error banner
-          set(s => ({
-            items: [item, ...s.items],
-            deleteError: interpretError(err),
-          }))
-          // Restore active selection if we changed it
-          if (visual.activeMediaId !== id) {
-            visual.setActiveMedia(id)
-          }
+          set(s => ({ items: [item, ...s.items], deleteError: interpretError(err) }))
+          if (visual.activeMediaId !== id) visual.setActiveMedia(id)
         }
       }).catch(e => {
         const msg = e instanceof Error ? e.message : 'Delete failed'
-        console.error('[mediaStore] delete exception:', e)
         set(s => ({ items: [item, ...s.items], deleteError: interpretError(msg) }))
         if (visual.activeMediaId !== id) visual.setActiveMedia(id)
       })
@@ -450,18 +703,140 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     const newFav = !item.favorite
     set(s => ({ items: s.items.map(i => i.id === id ? { ...i, favorite: newFav } : i) }))
     if (item.dbId && supabaseConfigured) {
-      updateMediaItem(item.dbId, { favorite: newFav })
+      updateMediaItemFavorite(item.dbId, newFav)
         .then(({ error }) => { if (error) console.error('[mediaStore] toggle fav:', error) })
     }
   },
 
-  reorderItems(order: string[]) {
+  toggleFavoriteMedia(id) { get().toggleFavorite(id) },
+
+  reorderItems(order) {
     set(s => {
       const ordered   = order.map(id => s.items.find(i => i.id === id)).filter(Boolean) as UploadedMedia[]
       const remaining = s.items.filter(i => !order.includes(i.id))
       return { items: [...ordered, ...remaining] }
     })
   },
+
+  setMediaRole(mediaId, role) {
+    const item = get().items.find(i => i.id === mediaId)
+    if (!item) return
+    set(s => ({ items: s.items.map(i => i.id === mediaId ? { ...i, mediaRole: role } : i) }))
+    if (item.dbId && supabaseConfigured) {
+      updateMediaItemRole(item.dbId, role)
+        .then(({ error }) => { if (error) console.error('[mediaStore] setMediaRole:', error) })
+    }
+  },
+
+  setMediaTags(mediaId, tags) {
+    const item = get().items.find(i => i.id === mediaId)
+    if (!item) return
+    set(s => ({ items: s.items.map(i => i.id === mediaId ? { ...i, tags } : i) }))
+    if (item.dbId && supabaseConfigured) {
+      getCurrentUserId().then(userId => {
+        if (!userId) return
+        setMediaItemTags(item.dbId!, userId, tags)
+          .then(({ error }) => { if (error) console.error('[mediaStore] setMediaTags:', error) })
+      })
+    }
+  },
+
+  addMediaTag(mediaId, tag) {
+    const item = get().items.find(i => i.id === mediaId)
+    if (!item || item.tags.includes(tag)) return
+    get().setMediaTags(mediaId, [...item.tags, tag])
+  },
+
+  removeMediaTag(mediaId, tag) {
+    const item = get().items.find(i => i.id === mediaId)
+    if (!item) return
+    get().setMediaTags(mediaId, item.tags.filter(t => t !== tag))
+  },
+
+  bulkTagMedia(mediaIds, tags) {
+    for (const id of mediaIds) {
+      const item = get().items.find(i => i.id === id)
+      if (!item) continue
+      const merged = Array.from(new Set([...item.tags, ...tags]))
+      get().setMediaTags(id, merged)
+    }
+  },
+
+  // ── Collections ───────────────────────────────────────────────────────────
+
+  async loadCollections() {
+    if (!supabaseConfigured) return
+    const userId = await getCurrentUserId()
+    if (!userId) return
+    set({ collectionsLoading: true })
+    try {
+      const { rows, error } = await listMediaCollections(userId)
+      if (error) { console.error('[mediaStore] loadCollections:', error); return }
+      set({ collections: rows.map(r => ({ id: r.id, name: r.name, description: r.description ?? undefined })) })
+    } finally {
+      set({ collectionsLoading: false })
+    }
+  },
+
+  async createCollection(name, description) {
+    if (!supabaseConfigured) return null
+    const userId = await getCurrentUserId()
+    if (!userId) return null
+    const { id, error } = await createMediaCollection({ user_id: userId, name, description })
+    if (error || !id) { console.error('[mediaStore] createCollection:', error); return null }
+    set(s => ({ collections: [...s.collections, { id, name, description }] }))
+    return id
+  },
+
+  removeCollection(id) {
+    set(s => ({ collections: s.collections.filter(c => c.id !== id) }))
+    if (supabaseConfigured) {
+      deleteMediaCollection(id).then(({ error }) => {
+        if (error) console.error('[mediaStore] removeCollection:', error)
+      })
+    }
+  },
+
+  addMediaToCollection(collectionId, mediaIds) {
+    for (const mediaId of mediaIds) {
+      const item = get().items.find(i => i.id === mediaId)
+      if (!item || item.collectionIds.includes(collectionId)) continue
+      const newIds = [...item.collectionIds, collectionId]
+      set(s => ({ items: s.items.map(i => i.id === mediaId ? { ...i, collectionIds: newIds } : i) }))
+      if (item.dbId && supabaseConfigured) {
+        setMediaItemCollections(item.dbId, newIds)
+          .then(({ error }) => { if (error) console.error('[mediaStore] addMediaToCollection:', error) })
+      }
+    }
+  },
+
+  removeMediaFromCollection(collectionId, mediaIds) {
+    for (const mediaId of mediaIds) {
+      const item = get().items.find(i => i.id === mediaId)
+      if (!item) continue
+      const newIds = item.collectionIds.filter(id => id !== collectionId)
+      set(s => ({ items: s.items.map(i => i.id === mediaId ? { ...i, collectionIds: newIds } : i) }))
+      if (item.dbId && supabaseConfigured) {
+        setMediaItemCollections(item.dbId, newIds)
+          .then(({ error }) => { if (error) console.error('[mediaStore] removeMediaFromCollection:', error) })
+      }
+    }
+  },
+
+  async reorderCollectionItems(collectionId, orderedMediaIds) {
+    const dbIds = orderedMediaIds
+      .map(id => get().items.find(i => i.id === id)?.dbId)
+      .filter(Boolean) as string[]
+    if (!dbIds.length || !supabaseConfigured) return
+    const { error } = await dbReorderCollectionItems(collectionId, dbIds)
+    if (error) console.error('[mediaStore] reorderCollectionItems:', error)
+  },
+
+  // ── Filter ────────────────────────────────────────────────────────────────
+
+  filterMedia(filter) { set({ activeFilter: filter }) },
+
+  // ── Error / status ────────────────────────────────────────────────────────
 
   clearLoadError()   { set({ loadError: null }) },
   clearDeleteError() { set({ deleteError: null }) },
@@ -472,6 +847,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       if (i.url.startsWith('blob:')) URL.revokeObjectURL(i.url)
       if (i.thumbnailUrl?.startsWith('blob:')) URL.revokeObjectURL(i.thumbnailUrl)
     })
-    set({ items: [] })
+    get().uploadQueue.forEach(q => URL.revokeObjectURL(q.previewUrl))
+    set({ items: [], uploadQueue: [] })
   },
 }))

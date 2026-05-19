@@ -4,10 +4,12 @@ import { useSharedAudio }  from '../../context/AudioEngineContext'
 import { useMediaStore }   from '../../stores/mediaStore'
 import { useVisualStore, DEFAULT_PRESETS }  from '../../stores/visualStore'
 import type { UploadedMedia } from '../../stores/mediaStore'
-import type { VzEffects, VzPreset, VzSession, Quality } from '../../stores/visualStore'
+import type { VzEffects, VzPreset, VzSession, Quality, PresetScope } from '../../stores/visualStore'
+import { LOOK_SCOPE, SCENE_SCOPE } from '../../stores/visualStore'
 import { extractBandValues, applyModulatedEffects, BAND_LABELS, EFFECT_LABELS } from '../../lib/audioModulation'
 import type { ModulationRoute, AudioBandValues } from '../../lib/audioModulation'
 import { TrackScrubber } from '../shared/TrackScrubber'
+import { MediaUploadModal } from './MediaUploadModal'
 
 // ── Constants ─────────────────────────────────────────────────────────
 const EFFECT_CHAIN_ITEMS = ['RGB Split','Glitch Bars','Scanlines','Tunnel','Displacement','Noise Fog','Bloom','Feedback'] as const
@@ -877,25 +879,60 @@ function MediaStatusBar() {
 }
 
 // ── MediaDeckPanel ────────────────────────────────────────────────────
+
+const ROLE_BADGE: Record<string, string> = {
+  background_image: 'BG', background_video: 'BGV', logo: 'LOGO',
+  transparent_element: 'ALPHA', overlay: 'OVR', character_art: 'CHR',
+  texture: 'TEX', loop: 'LOOP', transition: 'TRNS', reference: 'REF',
+}
+
+type DeckFilter = 'all' | 'images' | 'videos' | 'favorites' | 'backgrounds' | 'logos' | 'transparent' | 'overlays'
+
+const DECK_FILTERS: { key: DeckFilter; label: string }[] = [
+  { key: 'all',         label: 'All'         },
+  { key: 'images',      label: 'Images'      },
+  { key: 'videos',      label: 'Videos'      },
+  { key: 'favorites',   label: 'Favorites'   },
+  { key: 'backgrounds', label: 'Backgrounds' },
+  { key: 'logos',       label: 'Logos'       },
+  { key: 'transparent', label: 'Transparent' },
+  { key: 'overlays',    label: 'Overlays'    },
+]
+
+function matchesDeckFilter(m: UploadedMedia, f: DeckFilter): boolean {
+  switch (f) {
+    case 'images':      return m.type === 'image'
+    case 'videos':      return m.type === 'video'
+    case 'favorites':   return m.favorite
+    case 'backgrounds': return m.mediaRole === 'background_image' || m.mediaRole === 'background_video'
+    case 'logos':       return m.mediaRole === 'logo'
+    case 'transparent': return m.mediaRole === 'transparent_element'
+    case 'overlays':    return m.mediaRole === 'overlay'
+    default:            return true
+  }
+}
+
 function MediaDeckPanel({ activeMediaId, onSelect }: {
   activeMediaId: string | null; onSelect: (id: string) => void
 }) {
-  const { items, addFiles, removeItem, toggleFavorite, loadFromSupabase, loading } = useMediaStore()
-  const [filter, setFilter] = useState<'All' | 'Images' | 'Videos' | 'Favorites'>('All')
+  const {
+    items, addFiles, removeItem, toggleFavorite,
+    loadFromSupabase, loading,
+    importModalOpen, openImportMediaModal, closeImportMediaModal,
+  } = useMediaStore()
+  const [deckFilter, setDeckFilter] = useState<DeckFilter>('all')
   const [dragOver, setDragOver] = useState(false)
-  const fileInputId = useId()
 
   // Load persisted media from Supabase on mount
   useEffect(() => { loadFromSupabase() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filtered = items.filter(m => {
-    if (filter === 'Images')    return m.type === 'image'
-    if (filter === 'Videos')    return m.type === 'video'
-    if (filter === 'Favorites') return m.favorite
-    return true
-  })
+  const filtered = useMemo(
+    () => items.filter(m => matchesDeckFilter(m, deckFilter)),
+    [items, deckFilter]
+  )
 
-  const handleFiles = (files: File[]) => {
+  // Quick drag-drop onto the panel still works without opening the modal
+  const handleQuickDrop = (files: File[]) => {
     const media = files.filter(f =>
       f.type.startsWith('image/') || f.type.startsWith('video/') ||
       /\.(png|jpe?g|gif|webp|mp4|mov|webm|mkv)$/i.test(f.name)
@@ -904,37 +941,31 @@ function MediaDeckPanel({ activeMediaId, onSelect }: {
   }
 
   return (
+    <>
+    {importModalOpen && <MediaUploadModal onClose={closeImportMediaModal} />}
     <div
       className="vz-panel"
       style={{ flex: 1, minHeight: 0 }}
       onDragOver={e => { e.preventDefault(); setDragOver(true) }}
       onDragLeave={() => setDragOver(false)}
-      onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(Array.from(e.dataTransfer.files)) }}
+      onDrop={e => { e.preventDefault(); setDragOver(false); handleQuickDrop(Array.from(e.dataTransfer.files)) }}
     >
       <div className="vz-panel-header">
         <span className="vz-panel-title">Media Deck</span>
-        <label htmlFor={fileInputId} className="vz-import-btn" style={{ cursor: 'pointer' }}>
+        <button className="vz-import-btn" onClick={openImportMediaModal}>
           <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor">
             <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
           </svg>
           Import
-        </label>
-        <input
-          id={fileInputId}
-          type="file"
-          accept="image/*,video/*"
-          multiple
-          style={{ display: 'none' }}
-          onChange={e => { handleFiles(Array.from(e.target.files ?? [])); e.target.value = '' }}
-        />
+        </button>
       </div>
 
       <div className="vz-filter-tabs">
-        {(['All','Images','Videos','Favorites'] as const).map(f => (
-          <button key={f}
-            className={`vz-filter-tab ${filter === f ? 'vz-filter-tab--active' : ''}`}
-            onClick={() => setFilter(f)}
-          >{f}</button>
+        {DECK_FILTERS.map(({ key, label }) => (
+          <button key={key}
+            className={`vz-filter-tab ${deckFilter === key ? 'vz-filter-tab--active' : ''}`}
+            onClick={() => setDeckFilter(key)}
+          >{label}</button>
         ))}
       </div>
 
@@ -952,10 +983,10 @@ function MediaDeckPanel({ activeMediaId, onSelect }: {
             ))}
           </div>
         ) : items.length === 0 ? (
-          <label
-            htmlFor={fileInputId}
+          <div
             className="ref-empty-slot"
             style={{ cursor: 'pointer', margin: 12, height: 120, display: 'flex' }}
+            onClick={openImportMediaModal}
           >
             <div className="ref-empty-icon">
               <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
@@ -964,7 +995,7 @@ function MediaDeckPanel({ activeMediaId, onSelect }: {
             </div>
             <div className="ref-empty-title">Import Media</div>
             <div className="ref-empty-sub" style={{ fontSize: 9 }}>{dragOver ? 'Drop here!' : 'Images & Video'}</div>
-          </label>
+          </div>
         ) : (
           <div className="vz-media-grid">
             {filtered.map(m => (
@@ -986,6 +1017,8 @@ function MediaDeckPanel({ activeMediaId, onSelect }: {
                     <span className="vz-media-type-badge" style={{ background: 'rgba(25,191,242,0.25)', color: '#19bff2' }}>↑ SYNC</span>
                   ) : m.uploadError ? (
                     <span className="vz-media-type-badge" style={{ background: 'rgba(248,113,113,0.22)', color: '#f87171' }} title={m.uploadError}>⚠ LOCAL</span>
+                  ) : ROLE_BADGE[m.mediaRole] ? (
+                    <span className="vz-media-type-badge" style={{ background: 'rgba(10,20,32,0.75)' }}>{ROLE_BADGE[m.mediaRole]}</span>
                   ) : (
                     <span className="vz-media-type-badge">{m.type === 'video' ? 'VID' : 'IMG'}</span>
                   )}
@@ -1005,8 +1038,16 @@ function MediaDeckPanel({ activeMediaId, onSelect }: {
                   >✕</button>
                 </div>
                 <div className="vz-media-info">
-                  <div className="vz-media-name">{m.name}</div>
+                  <div className="vz-media-name">{m.title ?? m.name}</div>
                   <div className="vz-media-meta">{m.meta}</div>
+                  {m.tags.length > 0 && (
+                    <div className="vz-media-tags">
+                      {m.tags.slice(0, 3).map(t => (
+                        <span key={t} className="vz-media-tag">{t}</span>
+                      ))}
+                      {m.tags.length > 3 && <span className="vz-media-tag vz-media-tag--more">+{m.tags.length - 3}</span>}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -1014,6 +1055,7 @@ function MediaDeckPanel({ activeMediaId, onSelect }: {
         )}
       </div>
     </div>
+    </>
   )
 }
 
@@ -1312,33 +1354,139 @@ function OutputModeCard({ onFullscreen }: { onFullscreen: () => void }) {
 }
 
 // ── PresetStrip ───────────────────────────────────────────────────────
+// ── SavePresetDialog ──────────────────────────────────────────────────
+// Inline form that replaces the "New" button while active.
+// Lets the user choose a name and which scene data to include in the preset.
+const SCOPE_FIELDS: { key: keyof PresetScope, label: string, group: 'look' | 'scene' }[] = [
+  { key: 'effects',     label: 'Effects',      group: 'look' },
+  { key: 'enabledFx',   label: 'FX Chain',     group: 'look' },
+  { key: 'modulation',  label: 'Modulation',   group: 'look' },
+  { key: 'activeMedia', label: 'Active Media', group: 'scene' },
+  { key: 'mediaOrder',  label: 'Media Order',  group: 'scene' },
+  { key: 'audioSource', label: 'Audio Source', group: 'scene' },
+  { key: 'bpm',         label: 'BPM',          group: 'scene' },
+  { key: 'bpmSync',     label: 'BPM Sync',     group: 'scene' },
+  { key: 'quality',     label: 'Quality',      group: 'scene' },
+]
+
+function SavePresetDialog({ onSave, onCancel }: {
+  onSave: (name: string, scope: PresetScope) => void
+  onCancel: () => void
+}) {
+  const [name, setName]   = useState('')
+  const [scope, setScope] = useState<PresetScope>(LOOK_SCOPE)
+
+  const toggleField = (key: keyof PresetScope) =>
+    setScope(s => ({ ...s, [key]: !s[key] }))
+
+  const applyQuickScope = (s: PresetScope) => setScope(s)
+
+  const hasScene = SCOPE_FIELDS.some(f => f.group === 'scene' && scope[f.key])
+
+  return (
+    <div className="vz-preset-dialog">
+      <input
+        className="vz-preset-dialog-name"
+        placeholder="Preset name…"
+        value={name}
+        autoFocus
+        onChange={e => setName(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter' && name.trim()) onSave(name.trim(), scope)
+          if (e.key === 'Escape') onCancel()
+        }}
+      />
+
+      <div className="vz-preset-dialog-quick">
+        <button
+          className={`vz-preset-scope-btn${!hasScene ? ' vz-preset-scope-btn--active' : ''}`}
+          onClick={() => applyQuickScope(LOOK_SCOPE)}
+        >Look</button>
+        <button
+          className={`vz-preset-scope-btn${hasScene ? ' vz-preset-scope-btn--active' : ''}`}
+          onClick={() => applyQuickScope(SCENE_SCOPE)}
+        >Scene</button>
+      </div>
+
+      <div className="vz-preset-dialog-scope">
+        <span className="vz-preset-scope-group-label">Visual</span>
+        {SCOPE_FIELDS.filter(f => f.group === 'look').map(f => (
+          <label key={f.key} className="vz-preset-scope-row">
+            <input type="checkbox" checked={!!scope[f.key]} onChange={() => toggleField(f.key)} />
+            {f.label}
+          </label>
+        ))}
+        <span className="vz-preset-scope-group-label" style={{ marginTop: 6 }}>Scene</span>
+        {SCOPE_FIELDS.filter(f => f.group === 'scene').map(f => (
+          <label key={f.key} className="vz-preset-scope-row">
+            <input type="checkbox" checked={!!scope[f.key]} onChange={() => toggleField(f.key)} />
+            {f.label}
+          </label>
+        ))}
+      </div>
+
+      <div className="vz-preset-dialog-actions">
+        <button className="vz-preset-dialog-cancel" onClick={onCancel}>Cancel</button>
+        <button
+          className="vz-preset-dialog-save"
+          disabled={!name.trim()}
+          onClick={() => name.trim() && onSave(name.trim(), scope)}
+        >Save</button>
+      </div>
+    </div>
+  )
+}
+
+// Returns true when a preset contains any scene-level data beyond visual look
+function presetHasScene(p: VzPreset): boolean {
+  const s = p.scope
+  if (!s) return false
+  return !!(s.activeMedia || s.mediaOrder || s.audioSource || s.bpm || s.bpmSync || s.quality || s.modulation)
+}
+
+// ── PresetStrip ───────────────────────────────────────────────────────
 function PresetStrip({ activePresetId, presets, onSelect, onSave, onDelete }: {
   activePresetId: string
   presets: VzPreset[]
   onSelect: (id: string) => void
-  onSave: () => void
+  onSave: (name: string, scope: PresetScope) => void
   onDelete: (id: string) => void
 }) {
+  const [dialogOpen, setDialogOpen] = useState(false)
+
   return (
     <div className="vz-presets-section">
       <div className="vz-presets-header">
         <span className="vz-presets-label">Presets</span>
-        <button className="vz-new-preset-btn" onClick={onSave}>
-          <svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor">
-            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-          </svg>
-          New
-        </button>
+        {!dialogOpen && (
+          <button className="vz-new-preset-btn" onClick={() => setDialogOpen(true)}>
+            <svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor">
+              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+            </svg>
+            New
+          </button>
+        )}
       </div>
+
+      {dialogOpen && (
+        <SavePresetDialog
+          onSave={(name, scope) => { onSave(name, scope); setDialogOpen(false) }}
+          onCancel={() => setDialogOpen(false)}
+        />
+      )}
+
       <div className="vz-preset-cards">
         {presets.map(p => (
           <div
             key={p.id}
             className={`vz-preset-card ${activePresetId === p.id ? 'vz-preset-card--active' : ''}`}
             onClick={() => onSelect(p.id)}
-            title={p.name}
+            title={p.name + (presetHasScene(p) ? ' · Scene preset' : '')}
           >
             <div className="vz-preset-thumb" style={{ background: p.gradient, position: 'relative' }}>
+              {presetHasScene(p) && (
+                <span className="vz-preset-scene-badge" title="Scene preset">◈</span>
+              )}
               {!p.isDefault && (
                 <button
                   onClick={e => { e.stopPropagation(); onDelete(p.id) }}
@@ -1868,10 +2016,24 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   // Sync cloud sessions on mount
   useEffect(() => { syncSessionsFromCloud() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSavePreset = useCallback(() => {
-    const name = prompt('Preset name:')?.trim()
-    if (name) savePreset(name)
-  }, [savePreset])
+  const handleSavePreset = useCallback((name: string, scope: PresetScope) => {
+    savePreset(name, {
+      scope,
+      mediaOrder: scope.mediaOrder ? items.map(i => i.id) : undefined,
+      audioSource: scope.audioSource ? (engine.source as VzSession['audioSource']) : undefined,
+    })
+  }, [savePreset, items, engine.source])
+
+  const handleSelectPreset = useCallback((id: string) => {
+    const scene = selectPreset(id)
+    if (!scene) return
+    if (scene.audioSource && engine.source !== scene.audioSource) {
+      engine.setSource(scene.audioSource)
+    }
+    if (scene.mediaOrder?.length) {
+      reorderItems(scene.mediaOrder)
+    }
+  }, [selectPreset, engine, reorderItems])
 
   const handleSaveSession = useCallback(() => {
     const name = prompt('Session name:')?.trim()
@@ -1907,12 +2069,12 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
       if (e.key === ' ') { e.preventDefault(); setPlaying(!isPlaying) }
       if (e.key >= '1' && e.key <= '5') {
         const preset = presets[parseInt(e.key) - 1]
-        if (preset) selectPreset(preset.id)
+        if (preset) handleSelectPreset(preset.id)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [isPlaying, presets, selectPreset, setPlaying, handleFullscreen])
+  }, [isPlaying, presets, handleSelectPreset, setPlaying, handleFullscreen])
 
   return (
     <div className="az-root">
@@ -1972,7 +2134,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
             <PresetStrip
               activePresetId={activePresetId}
               presets={presets}
-              onSelect={selectPreset}
+              onSelect={handleSelectPreset}
               onSave={handleSavePreset}
               onDelete={deletePreset}
             />

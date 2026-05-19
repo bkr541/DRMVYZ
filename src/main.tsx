@@ -5,6 +5,7 @@ import './styles.css'
 import './styles/analyzer.css'
 import './styles/reference.css'
 import './styles/vyzualz.css'
+import './styles/mediaUploadModal.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

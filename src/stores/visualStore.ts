@@ -43,16 +43,53 @@ export const DEFAULT_EFFECTS: VzEffects = {
   colorShift:      0.00,
 }
 
+// ── PresetScope: controls which fields are saved/restored by a preset ─────────
+// If a field is absent or false, that field is neither saved nor applied on load.
+export interface PresetScope {
+  effects?:     boolean  // VzEffects values
+  enabledFx?:   boolean  // FX chain toggle state
+  modulation?:  boolean  // modulation routes (enabled + amounts)
+  activeMedia?: boolean  // which media item is active
+  mediaOrder?:  boolean  // order of media deck items
+  audioSource?: boolean  // file | microphone | demo
+  bpm?:         boolean
+  bpmSync?:     boolean
+  quality?:     boolean
+}
+
+// Default scope for a lightweight "look" preset (effects only, backward-compat)
+export const LOOK_SCOPE: PresetScope = { effects: true, enabledFx: true }
+
+// Scope that captures the full performance scene
+export const SCENE_SCOPE: PresetScope = {
+  effects: true, enabledFx: true, modulation: true,
+  activeMedia: true, mediaOrder: true, audioSource: true,
+  bpm: true, bpmSync: true, quality: true,
+}
+
 // ── Preset: reusable visual look/effect template ──────────────────────────────
-// Deliberately does NOT include media deck or session state.
 export interface VzPreset {
   id: string
   name: string
   color: string
   gradient: string
+  isDefault?: boolean
+
+  // scope describes what this preset saves/restores (absent = look-only)
+  scope?: PresetScope
+
+  // Visual look (always present)
   effects: VzEffects
   enabledFx: string[]
-  isDefault?: boolean
+
+  // Optional scene fields — only present when the matching scope flag is true
+  modulationRoutes?: ModulationRoute[]
+  activeMediaId?: string | null
+  mediaOrder?: string[]
+  audioSource?: 'file' | 'microphone' | 'demo'
+  bpm?: number
+  bpmSync?: boolean
+  quality?: Quality
 }
 
 // ── Session: full VJ workspace snapshot ───────────────────────────────────────
@@ -175,9 +212,19 @@ interface VisualState {
   setPlaying(v: boolean): void
   setQuality(q: Quality): void
 
-  // ── Preset actions (affect visual look only, not media/session) ────────────
-  selectPreset(id: string): void
-  savePreset(name: string): void
+  // ── Preset actions ─────────────────────────────────────────────────────────
+  // selectPreset applies whatever the preset's scope covers; returns scene
+  // fields the caller must apply externally (mediaOrder, audioSource)
+  selectPreset(id: string): { mediaOrder?: string[], audioSource?: VzSession['audioSource'] } | null
+  savePreset(
+    name: string,
+    opts?: {
+      scope?: PresetScope
+      // extras not held in visualStore — provided by the caller
+      mediaOrder?: string[]
+      audioSource?: VzSession['audioSource']
+    }
+  ): void
   deletePreset(id: string): void
 
   // ── Session actions ────────────────────────────────────────────────────────
@@ -239,20 +286,49 @@ export const useVisualStore = create<VisualState>()(
 
       selectPreset(id) {
         const preset = get().presets.find(p => p.id === id)
-        if (!preset) return
-        // Presets apply visual look only — activeMediaId / session state unchanged
-        set({ effects: preset.effects, enabledFxArr: preset.enabledFx, activePresetId: id })
+        if (!preset) return null
+        const scope = preset.scope ?? LOOK_SCOPE
+        const patch: Partial<VisualState> = { activePresetId: id }
+        if (scope.effects)   patch.effects       = { ...preset.effects }
+        if (scope.enabledFx) patch.enabledFxArr  = [...preset.enabledFx]
+        if (scope.modulation && preset.modulationRoutes) {
+          const savedIds = new Set(preset.modulationRoutes.map(r => r.id))
+          patch.modulationRoutes = [
+            ...preset.modulationRoutes,
+            ...DEFAULT_MODULATION_ROUTES.filter(r => !savedIds.has(r.id)),
+          ]
+        }
+        if (scope.activeMedia !== undefined) patch.activeMediaId = preset.activeMediaId ?? null
+        if (scope.bpm   && preset.bpm   !== undefined) patch.bpm   = preset.bpm
+        if (scope.bpmSync !== undefined) patch.bpmSync = preset.bpmSync ?? false
+        if (scope.quality && preset.quality) patch.quality = preset.quality
+        set(patch)
+        // Return scene fields the caller handles externally
+        const scene: { mediaOrder?: string[], audioSource?: VzSession['audioSource'] } = {}
+        if (scope.mediaOrder  && preset.mediaOrder)  scene.mediaOrder  = preset.mediaOrder
+        if (scope.audioSource && preset.audioSource) scene.audioSource = preset.audioSource
+        return Object.keys(scene).length ? scene : null
       },
-      savePreset(name) {
-        const { effects, enabledFxArr } = get()
+      savePreset(name, opts) {
+        const { effects, enabledFxArr, modulationRoutes, activeMediaId, bpm, bpmSync, quality } = get()
+        const scope = opts?.scope ?? LOOK_SCOPE
         const id = `custom-${Date.now().toString(36)}`
         const newPreset: VzPreset = {
           id, name,
           color:    '#19bff2',
           gradient: 'linear-gradient(135deg,#0a1830 0%,#0a3a55 60%,#19bff2 100%)',
-          effects:  { ...effects },
+          scope,
+          // Visual look always saved
+          effects:   { ...effects },
           enabledFx: [...enabledFxArr],
         }
+        if (scope.modulation)  newPreset.modulationRoutes = modulationRoutes.map(r => ({ ...r }))
+        if (scope.activeMedia) newPreset.activeMediaId    = activeMediaId
+        if (scope.mediaOrder && opts?.mediaOrder) newPreset.mediaOrder = [...opts.mediaOrder]
+        if (scope.audioSource && opts?.audioSource) newPreset.audioSource = opts.audioSource
+        if (scope.bpm)     newPreset.bpm     = bpm
+        if (scope.bpmSync) newPreset.bpmSync = bpmSync
+        if (scope.quality) newPreset.quality = quality
         set(s => ({ presets: [...s.presets, newPreset], activePresetId: id }))
       },
       deletePreset(id) {
