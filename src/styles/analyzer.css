@@ -28,6 +28,7 @@
   --az-radius:       10px;
   --az-radius-sm:    6px;
   --az-font:         'Zen Dots','Inter','Helvetica Neue',system-ui,sans-serif;
+  --az-font-data:    'Exo 2','Inter','Helvetica Neue',system-ui,sans-serif;
 }
 
 /* ── Root shell ──────────────────────────────────────────────────────── */
@@ -274,7 +275,7 @@
   grid-column: 1 / -1;
   grid-row: 3;
   display: grid;
-  grid-template-columns: 230px 1fr 1fr 1fr;
+  grid-template-columns: 285px 1fr 0.6fr 0.6fr;
   gap: 8px;
   height: 220px;
   flex-shrink: 0;
@@ -356,7 +357,7 @@
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 5px;
   color: var(--az-text-muted);
-  font-family: var(--az-font);
+  font-family: var(--az-font-data);
   font-size: 10px;
   padding: 3px 22px 3px 8px;
   outline: none;
@@ -737,14 +738,14 @@
 .az-loudness-body {
   display: flex;
   flex-direction: column;
-  padding: 10px 14px;
-  gap: 10px;
+  padding: 6px 14px 8px;
+  gap: 6px;
   height: 100%;
 }
 .az-loudness-values {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr 1fr;
-  gap: 6px;
+  gap: 4px;
   flex: 1;
   min-height: 0;
 }
@@ -753,10 +754,10 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 5px;
 }
 .az-loudness-big {
-  font-size: 22px;
+  font-size: 34px;
   font-weight: 300;
   font-variant-numeric: tabular-nums;
   color: var(--az-text);
@@ -766,13 +767,13 @@
 .az-loudness-big--warn { color: var(--az-yellow); }
 .az-loudness-big--crit { color: var(--az-red); }
 .az-loudness-unit {
-  font-size: 9px;
+  font-size: 12px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--az-text-faint);
 }
 .az-loudness-sublabel {
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--az-text-faint);
@@ -815,7 +816,7 @@
   justify-content: space-between;
 }
 .az-loudness-scale-tick {
-  font-size: 8px;
+  font-size: 10px;
   color: var(--az-text-faint);
 }
 
@@ -825,18 +826,19 @@
 .az-specsettings-body {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  padding: 10px 12px;
+  justify-content: space-evenly;
+  padding: 4px 12px;
+  height: 100%;
   overflow-y: auto;
 }
 .az-setting-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
 }
 .az-setting-label {
-  font-size: 10px;
+  font-size: 11.5px;
   color: var(--az-text-muted);
   letter-spacing: 0.04em;
   flex-shrink: 0;
@@ -847,7 +849,7 @@
   align-items: center;
   gap: 7px;
   cursor: pointer;
-  font-size: 10px;
+  font-size: 11.5px;
   color: var(--az-text-muted);
 }
 .az-toggle-input { display: none; }
@@ -879,23 +881,23 @@
 .az-monitoring-body {
   display: flex;
   flex-direction: column;
-  padding: 10px 12px;
-  gap: 5px;
+  justify-content: space-evenly;
+  padding: 4px 12px;
   height: 100%;
 }
 .az-mon-stat-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
-  padding: 2px 0;
+  gap: 4px;
+  padding: 1px 0;
 }
 .az-mon-stat-label {
-  font-size: 10px;
+  font-size: 11.5px;
   color: var(--az-text-muted);
 }
 .az-mon-stat-val {
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 600;
   color: var(--az-green);
   font-variant-numeric: tabular-nums;
@@ -903,17 +905,17 @@
 .az-mon-stat-val--warn { color: var(--az-yellow); }
 .az-mon-stat-val--crit { color: var(--az-red); }
 .az-mon-reset {
-  margin-top: auto;
-  padding: 5px 12px;
+  padding: 2px 8px;
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 5px;
+  border-radius: 4px;
   color: var(--az-text-muted);
-  font-family: var(--az-font);
+  font-family: var(--az-font-data);
   font-size: 10px;
+  letter-spacing: 0.04em;
   cursor: pointer;
   transition: all 0.15s;
-  align-self: flex-start;
+  flex-shrink: 0;
 }
 .az-mon-reset:hover { background: rgba(255,255,255,0.09); color: var(--az-text); }
 
@@ -1302,4 +1304,26 @@
 }
 .az-dock-gear-btn--active:hover {
   background: rgba(74,199,219,0.18);
+}
+
+/* ── Exo 2 data font — all in-panel detail / value text ────────────────── */
+.az-trackinfo-key,
+.az-trackinfo-val,
+.az-loudness-big,
+.az-loudness-unit,
+.az-loudness-sublabel,
+.az-loudness-scale-tick,
+.az-mon-stat-label,
+.az-mon-stat-val,
+.az-stereo-label,
+.az-correlation-label,
+.az-correlation-val,
+.az-waveform-time,
+.az-level-lufs-label,
+.az-level-scale-label,
+.az-level-ch-label,
+.az-level-readout,
+.az-setting-label,
+.az-toggle-label {
+  font-family: var(--az-font-data);
 }

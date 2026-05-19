@@ -16,10 +16,12 @@ import type { AudioSource, FftSize } from '../../types'
 import { AnalyzerSidebar }        from './AnalyzerSidebar'
 import { BottomTransportDock }     from './BottomTransportDock'
 import { TrackInfoPanel }          from './TrackInfoPanel'
+import type { TrackInfoHandle }    from './TrackInfoPanel'
 import { LoudnessPanel }           from './LoudnessPanel'
 import { LevelMetersPanel }        from './LevelMetersPanel'
 import { SpectrumSettingsPanel, useSpectrumSettings } from './SpectrumSettingsPanel'
 import { MonitoringStatsPanel }    from './MonitoringStatsPanel'
+import type { MonitoringHandle }   from './MonitoringStatsPanel'
 
 import { SpectrumModule }          from '../SpectrumModule'
 import { VectorscopeModule }       from '../VectorscopeModule'
@@ -45,7 +47,9 @@ export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerVi
   const [dragOver,     setDragOver]     = useState(false)
   const [corrVal,      setCorrVal]      = useState(0)  // live correlation value for the bar
 
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef    = useRef<HTMLInputElement>(null)
+  const monitoringRef   = useRef<MonitoringHandle>(null)
+  const trackInfoRef    = useRef<TrackInfoHandle>(null)
 
   const track = engine.tracks[engine.currentIndex] ?? null
 
@@ -193,25 +197,11 @@ export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerVi
                 <div className="az-panel-header">
                   <MusicNote01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
                   <span className="az-panel-title">Track Info</span>
-                  {engine.spectralFeatures?.bpm && (
-                    <span className="az-panel-title" style={{ color: CYAN, fontSize: 11 }}>
-                      {Math.round(engine.spectralFeatures.bpm)} BPM
-                    </span>
-                  )}
                   <span className="az-spacer" />
-                  <button
-                    className="az-icon-btn"
-                    title="Detect BPM"
-                    disabled={engine.bpmDetecting || !engine.tracks.length}
-                    onClick={engine.detectBPM}
-                    style={{ fontSize: 10, padding: '2px 6px' }}
-                  >
-                    {engine.bpmDetecting ? '…' : 'BPM'}
-                  </button>
-                  <button className="az-overflow-btn">···</button>
+                  <button className="az-mon-reset" onClick={() => trackInfoRef.current?.openPicker()}>+ Add Track</button>
                 </div>
                 <div className="az-panel-body">
-                  <TrackInfoPanel track={track} onFiles={engine.addTracks} />
+                  <TrackInfoPanel ref={trackInfoRef} track={track} onFiles={engine.addTracks} />
                 </div>
               </div>
 
@@ -248,9 +238,12 @@ export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerVi
                 <div className="az-panel-header">
                   <Activity01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
                   <span className="az-panel-title">Monitoring</span>
+                  <span className="az-spacer" />
+                  <button className="az-mon-reset" onClick={() => monitoringRef.current?.reset()}>Reset</button>
                 </div>
                 <div className="az-panel-body">
                   <MonitoringStatsPanel
+                    ref={monitoringRef}
                     analyser={engine.analyserMaster}
                     analyserL={engine.analyserL}
                     analyserR={engine.analyserR}

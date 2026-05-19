@@ -3,27 +3,209 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 111 ms
+  VITE v5.4.21  ready in 202 ms
 
   ➜  Local:   http://127.0.0.1:5173/
-3:21:03 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
-3:21:13 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
-3:21:14 PM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
-3:21:18 PM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
-3:29:31 PM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
-3:29:34 PM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
-3:29:38 PM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
-3:29:41 PM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
-3:29:45 PM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
-3:29:49 PM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
-3:29:52 PM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
-3:29:56 PM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
-3:30:00 PM [vite] hmr update /src/styles/analyzer.css
-3:32:41 PM [vite] hmr update /src/styles/vyzualz.css
-3:32:45 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
-3:32:52 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
-3:32:56 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
-3:32:59 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
-3:33:04 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
-3:33:07 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
-3:33:11 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
+4:56:06 PM [vite] page reload index.html
+4:56:10 PM [vite] hmr update /src/styles/analyzer.css
+4:56:18 PM [vite] hmr update /src/styles/analyzer.css
+4:57:54 PM [vite] hmr update /src/styles/analyzer.css
+5:01:28 PM [vite] hmr update /src/styles/analyzer.css
+5:01:31 PM [vite] hmr update /src/styles/analyzer.css
+5:09:17 PM [vite] hmr update /src/components/analyzer/MonitoringStatsPanel.tsx
+5:09:23 PM [vite] hmr update /src/components/analyzer/MonitoringStatsPanel.tsx
+5:09:23 PM [vite] Internal server error: /Users/kodyrobinson/Development/DRMVYZ/src/components/analyzer/MonitoringStatsPanel.tsx: Missing initializer in const declaration. (15:70)
+
+  13 | }
+  14 |
+> 15 | export const MonitoringStatsPanel = forwardRef<MonitoringHandle, Props>(function MonitoringStatsPanel(
+     |                                                                       ^
+  16 |   { analyser, analyserL, analyserR, isActive, sampleRate }, ref
+  17 | ) {
+  18 |   const freqRef  = useRef<Uint8Array<ArrayBuffer> | null>(null)
+  Plugin: vite:react-babel
+  File: /Users/kodyrobinson/Development/DRMVYZ/src/components/analyzer/MonitoringStatsPanel.tsx:15:70
+  13 |  }
+  14 |  
+  15 |  export const MonitoringStatsPanel = forwardRef<MonitoringHandle, Props>(function MonitoringStatsPanel(
+     |                                                                        ^
+  16 |    { analyser, analyserL, analyserR, isActive, sampleRate }, ref
+  17 |  ) {
+      at constructor (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:365:19)
+      at TypeScriptParserMixin.raise (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:6616:19)
+      at TypeScriptParserMixin.parseVar (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13408:16)
+      at TypeScriptParserMixin.parseVarStatement (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13247:10)
+      at TypeScriptParserMixin.parseVarStatement (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9425:31)
+      at TypeScriptParserMixin.parseStatementContent (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12868:23)
+      at TypeScriptParserMixin.parseStatementContent (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9525:18)
+      at TypeScriptParserMixin.parseStatementLike (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12784:17)
+      at TypeScriptParserMixin.parseStatementListItem (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12764:17)
+      at TypeScriptParserMixin.parseExportDeclaration (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13951:17)
+      at TypeScriptParserMixin.parseExportDeclaration (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9646:85)
+      at TypeScriptParserMixin.maybeParseExportDeclaration (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13910:31)
+      at TypeScriptParserMixin.parseExport (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13829:29)
+      at TypeScriptParserMixin.parseExport (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9402:20)
+      at TypeScriptParserMixin.parseStatementContent (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12895:27)
+      at TypeScriptParserMixin.parseStatementContent (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9525:18)
+      at TypeScriptParserMixin.parseStatementLike (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12784:17)
+      at TypeScriptParserMixin.parseModuleItem (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12761:17)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13333:36)
+      at TypeScriptParserMixin.parseBlockBody (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13326:10)
+      at TypeScriptParserMixin.parseProgram (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12639:10)
+      at TypeScriptParserMixin.parseTopLevel (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12629:25)
+      at TypeScriptParserMixin.parse (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:14505:25)
+      at TypeScriptParserMixin.parse (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10143:18)
+      at parse (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:14539:38)
+      at parser (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/core/lib/parser/index.js:41:34)
+      at parser.next (<anonymous>)
+      at normalizeFile (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/core/lib/transformation/normalize-file.js:64:37)
+      at normalizeFile.next (<anonymous>)
+      at run (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/core/lib/transformation/index.js:22:50)
+      at run.next (<anonymous>)
+      at transform (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/core/lib/transform.js:22:33)
+      at transform.next (<anonymous>)
+      at step (/Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:261:32)
+      at /Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:273:13
+      at async.call.result.err.err (/Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:223:11)
+      at /Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:189:28
+      at /Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/core/lib/gensync-utils/async.js:67:7
+      at /Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:113:33
+      at step (/Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:287:14)
+      at /Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:273:13
+      at async.call.result.err.err (/Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:223:11)
+5:09:27 PM [vite] hmr update /src/components/analyzer/MonitoringStatsPanel.tsx
+5:09:27 PM [vite] Internal server error: /Users/kodyrobinson/Development/DRMVYZ/src/components/analyzer/MonitoringStatsPanel.tsx: Missing initializer in const declaration. (15:70)
+
+  13 | }
+  14 |
+> 15 | export const MonitoringStatsPanel = forwardRef<MonitoringHandle, Props>(function MonitoringStatsPanel(
+     |                                                                       ^
+  16 |   { analyser, analyserL, analyserR, isActive, sampleRate }, ref
+  17 | ) {
+  18 |   const freqRef  = useRef<Uint8Array<ArrayBuffer> | null>(null)
+  Plugin: vite:react-babel
+  File: /Users/kodyrobinson/Development/DRMVYZ/src/components/analyzer/MonitoringStatsPanel.tsx:15:70
+  13 |  }
+  14 |  
+  15 |  export const MonitoringStatsPanel = forwardRef<MonitoringHandle, Props>(function MonitoringStatsPanel(
+     |                                                                        ^
+  16 |    { analyser, analyserL, analyserR, isActive, sampleRate }, ref
+  17 |  ) {
+      at constructor (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:365:19)
+      at TypeScriptParserMixin.raise (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:6616:19)
+      at TypeScriptParserMixin.parseVar (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13408:16)
+      at TypeScriptParserMixin.parseVarStatement (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13247:10)
+      at TypeScriptParserMixin.parseVarStatement (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9425:31)
+      at TypeScriptParserMixin.parseStatementContent (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12868:23)
+      at TypeScriptParserMixin.parseStatementContent (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9525:18)
+      at TypeScriptParserMixin.parseStatementLike (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12784:17)
+      at TypeScriptParserMixin.parseStatementListItem (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12764:17)
+      at TypeScriptParserMixin.parseExportDeclaration (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13951:17)
+      at TypeScriptParserMixin.parseExportDeclaration (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9646:85)
+      at TypeScriptParserMixin.maybeParseExportDeclaration (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13910:31)
+      at TypeScriptParserMixin.parseExport (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13829:29)
+      at TypeScriptParserMixin.parseExport (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9402:20)
+      at TypeScriptParserMixin.parseStatementContent (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12895:27)
+      at TypeScriptParserMixin.parseStatementContent (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9525:18)
+      at TypeScriptParserMixin.parseStatementLike (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12784:17)
+      at TypeScriptParserMixin.parseModuleItem (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12761:17)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13333:36)
+      at TypeScriptParserMixin.parseBlockBody (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13326:10)
+      at TypeScriptParserMixin.parseProgram (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12639:10)
+      at TypeScriptParserMixin.parseTopLevel (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12629:25)
+      at TypeScriptParserMixin.parse (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:14505:25)
+      at TypeScriptParserMixin.parse (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10143:18)
+      at parse (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:14539:38)
+      at parser (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/core/lib/parser/index.js:41:34)
+      at parser.next (<anonymous>)
+      at normalizeFile (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/core/lib/transformation/normalize-file.js:64:37)
+      at normalizeFile.next (<anonymous>)
+      at run (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/core/lib/transformation/index.js:22:50)
+      at run.next (<anonymous>)
+      at transform (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/core/lib/transform.js:22:33)
+      at transform.next (<anonymous>)
+      at step (/Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:261:32)
+      at /Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:273:13
+      at async.call.result.err.err (/Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:223:11)
+      at /Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:189:28
+      at /Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/core/lib/gensync-utils/async.js:67:7
+      at /Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:113:33
+      at step (/Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:287:14)
+      at /Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:273:13
+      at async.call.result.err.err (/Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:223:11)
+5:09:34 PM [vite] hmr update /src/components/analyzer/MonitoringStatsPanel.tsx
+5:09:38 PM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
+5:09:46 PM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
+5:09:53 PM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
+5:10:01 PM [vite] hmr update /src/styles/analyzer.css
+5:10:07 PM [vite] hmr update /src/styles/analyzer.css
+5:10:15 PM [vite] hmr update /src/styles/analyzer.css
+5:11:58 PM [vite] hmr update /src/components/analyzer/TrackInfoPanel.tsx
+5:11:58 PM [vite] Internal server error: /Users/kodyrobinson/Development/DRMVYZ/src/components/analyzer/TrackInfoPanel.tsx: Missing initializer in const declaration. (11:63)
+
+   9 | }
+  10 |
+> 11 | export const TrackInfoPanel = forwardRef<TrackInfoHandle, Props>(function TrackInfoPanel(
+     |                                                                ^
+  12 |   { track, onFiles }, ref
+  13 | ) {
+  14 |   const inputRef = useRef<HTMLInputElement>(null)
+  Plugin: vite:react-babel
+  File: /Users/kodyrobinson/Development/DRMVYZ/src/components/analyzer/TrackInfoPanel.tsx:11:63
+  9  |  }
+  10 |  
+  11 |  export const TrackInfoPanel = forwardRef<TrackInfoHandle, Props>(function TrackInfoPanel(
+     |                                                                 ^
+  12 |    { track, onFiles }, ref
+  13 |  ) {
+      at constructor (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:365:19)
+      at TypeScriptParserMixin.raise (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:6616:19)
+      at TypeScriptParserMixin.parseVar (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13408:16)
+      at TypeScriptParserMixin.parseVarStatement (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13247:10)
+      at TypeScriptParserMixin.parseVarStatement (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9425:31)
+      at TypeScriptParserMixin.parseStatementContent (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12868:23)
+      at TypeScriptParserMixin.parseStatementContent (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9525:18)
+      at TypeScriptParserMixin.parseStatementLike (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12784:17)
+      at TypeScriptParserMixin.parseStatementListItem (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12764:17)
+      at TypeScriptParserMixin.parseExportDeclaration (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13951:17)
+      at TypeScriptParserMixin.parseExportDeclaration (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9646:85)
+      at TypeScriptParserMixin.maybeParseExportDeclaration (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13910:31)
+      at TypeScriptParserMixin.parseExport (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13829:29)
+      at TypeScriptParserMixin.parseExport (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9402:20)
+      at TypeScriptParserMixin.parseStatementContent (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12895:27)
+      at TypeScriptParserMixin.parseStatementContent (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9525:18)
+      at TypeScriptParserMixin.parseStatementLike (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12784:17)
+      at TypeScriptParserMixin.parseModuleItem (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12761:17)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13333:36)
+      at TypeScriptParserMixin.parseBlockBody (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13326:10)
+      at TypeScriptParserMixin.parseProgram (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12639:10)
+      at TypeScriptParserMixin.parseTopLevel (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12629:25)
+      at TypeScriptParserMixin.parse (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:14505:25)
+      at TypeScriptParserMixin.parse (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10143:18)
+      at parse (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:14539:38)
+      at parser (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/core/lib/parser/index.js:41:34)
+      at parser.next (<anonymous>)
+      at normalizeFile (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/core/lib/transformation/normalize-file.js:64:37)
+      at normalizeFile.next (<anonymous>)
+      at run (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/core/lib/transformation/index.js:22:50)
+      at run.next (<anonymous>)
+      at transform (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/core/lib/transform.js:22:33)
+      at transform.next (<anonymous>)
+      at step (/Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:261:32)
+      at /Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:273:13
+      at async.call.result.err.err (/Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:223:11)
+      at /Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:189:28
+      at /Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/core/lib/gensync-utils/async.js:67:7
+      at /Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:113:33
+      at step (/Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:287:14)
+      at /Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:273:13
+      at async.call.result.err.err (/Users/kodyrobinson/Development/DRMVYZ/node_modules/gensync/index.js:223:11)
+5:12:03 PM [vite] hmr update /src/components/analyzer/TrackInfoPanel.tsx
+5:12:07 PM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
+5:12:12 PM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
+5:12:20 PM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
+5:12:26 PM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
+5:15:10 PM [vite] hmr update /src/styles/analyzer.css
+5:15:13 PM [vite] hmr update /src/styles/analyzer.css
+5:16:48 PM [vite] hmr update /src/styles/analyzer.css
+5:16:57 PM [vite] hmr update /src/styles/analyzer.css

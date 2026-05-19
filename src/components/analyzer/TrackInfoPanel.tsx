@@ -1,13 +1,19 @@
-import { useRef } from 'react'
+import { useRef, forwardRef, useImperativeHandle } from 'react'
 import type { Track } from '../../types'
+
+export interface TrackInfoHandle { openPicker: () => void }
 
 interface Props {
   track: Track | null
   onFiles: (files: File[]) => void
 }
 
-export function TrackInfoPanel({ track, onFiles }: Props) {
+export const TrackInfoPanel = forwardRef<TrackInfoHandle, Props>(function TrackInfoPanel(
+  { track, onFiles }, ref
+) {
   const inputRef = useRef<HTMLInputElement>(null)
+
+  useImperativeHandle(ref, () => ({ openPicker: () => inputRef.current?.click() }))
 
   const handleFiles = (files: FileList | null) => {
     if (!files) return
@@ -45,15 +51,6 @@ export function TrackInfoPanel({ track, onFiles }: Props) {
         <Row k="Duration" v={dur}    />
       </div>
 
-      <div className="az-trackinfo-upload">
-        <div
-          className="az-trackinfo-drop-hint"
-          onClick={() => inputRef.current?.click()}
-        >
-          + Add Track
-        </div>
-      </div>
-
       <input
         ref={inputRef}
         className="az-upload-input"
@@ -64,7 +61,7 @@ export function TrackInfoPanel({ track, onFiles }: Props) {
       />
     </div>
   )
-}
+})
 
 function Row({ k, v }: { k: string; v: string }) {
   return (

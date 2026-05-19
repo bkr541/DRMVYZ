@@ -1,6 +1,8 @@
-import { useRef } from 'react'
+import { useRef, forwardRef, useImperativeHandle } from 'react'
 import { useAnimationFrame } from '../../hooks/useAnimationFrame'
 import { calcApproxLUFS, calcTruePeak, calcRMS, linToDb } from '../../utils/dsp'
+
+export interface MonitoringHandle { reset: () => void }
 
 interface Props {
   analyser: AnalyserNode | null
@@ -10,7 +12,9 @@ interface Props {
   sampleRate: number
 }
 
-export function MonitoringStatsPanel({ analyser, analyserL, analyserR, isActive, sampleRate }: Props) {
+export const MonitoringStatsPanel = forwardRef<MonitoringHandle, Props>(function MonitoringStatsPanel(
+  { analyser, analyserL, analyserR, isActive, sampleRate }, ref
+) {
   const freqRef  = useRef<Uint8Array<ArrayBuffer> | null>(null)
   const timeRef  = useRef<Uint8Array<ArrayBuffer> | null>(null)
   const bufLRef  = useRef<Float32Array<ArrayBuffer> | null>(null)
@@ -30,10 +34,12 @@ export function MonitoringStatsPanel({ analyser, analyserL, analyserR, isActive,
   const peakHoldRef = useRef(-100)
 
   const reset = () => {
-    intRef.current  = -60
-    cntRef.current  = 0
+    intRef.current      = -60
+    cntRef.current      = 0
     peakHoldRef.current = -100
   }
+
+  useImperativeHandle(ref, () => ({ reset }))
 
   useAnimationFrame(() => {
     phaseRef.current += 0.04
@@ -126,10 +132,9 @@ export function MonitoringStatsPanel({ analyser, analyserL, analyserR, isActive,
       <Stat label="Crest Factor"  valRef={crestRef} />
       <Stat label="Correlation"   valRef={corrRef}  />
       <Stat label="Balance"       valRef={balRef}   />
-      <button className="az-mon-reset" onClick={reset}>Reset</button>
     </div>
   )
-}
+})
 
 function Stat({ label, valRef }: { label: string; valRef: React.RefObject<HTMLSpanElement> }) {
   return (
