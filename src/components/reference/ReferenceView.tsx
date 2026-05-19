@@ -3,6 +3,7 @@ import { AnalyzerSidebar } from '../analyzer/AnalyzerSidebar'
 import { analyzeAudioFile, computeMatchScore } from '../../lib/audioAnalysis'
 import { useReferenceStore } from '../../stores/referenceStore'
 import type { RefTrackRecord } from '../../stores/referenceStore'
+import { TrackScrubber } from '../shared/TrackScrubber'
 
 // ── Types ─────────────────────────────────────────────────────────────
 interface RefLoudness {
@@ -741,9 +742,10 @@ function TargetRangePanel() {
 }
 
 // ── Bottom dock ───────────────────────────────────────────────────────
-function RefBottomDock({ selected, isPlaying, currentTime, onPlay, onPause, onStop }: {
+function RefBottomDock({ selected, isPlaying, currentTime, onPlay, onPause, onStop, onSeek }: {
   selected: RefTrack | null; isPlaying: boolean; currentTime: number
   onPlay: () => void; onPause: () => void; onStop: () => void
+  onSeek: (t: number) => void
 }) {
   const accent  = selected?.accentColor ?? '#19bff2'
   const initial = selected?.title[0]?.toUpperCase() ?? '♪'
@@ -790,10 +792,13 @@ function RefBottomDock({ selected, isPlaying, currentTime, onPlay, onPause, onSt
         </button>
       </div>
 
-      <div className="az-dock-time">
-        <span className="az-dock-time-current">{fmtDur(currentTime)}.000</span>
-        <span className="az-dock-time-total">{selected ? fmtDur(selected.duration) + '.000' : '00:00.000'}</span>
-      </div>
+      <TrackScrubber
+        currentTime={currentTime}
+        duration={selected?.duration ?? 0}
+        onSeek={onSeek}
+        disabled={!selected}
+        accentColor={accent}
+      />
 
       <div className="az-dock-volume">
         <span className="az-dock-vol-icon">
@@ -1043,6 +1048,16 @@ export function ReferenceView({ activeView, onNavigate }: Props) {
           const audio = audioRef.current
           if (audio) { audio.pause(); audio.currentTime = 0 }
           setIsPlaying(false); setCurrentTime(0)
+        }}
+        onSeek={t => {
+          const audio = audioRef.current
+          if (!audio) return
+          if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
+            audio.currentTime = t
+          } else {
+            pendingSeekRef.current = t
+          }
+          setCurrentTime(t)
         }}
       />
     </div>

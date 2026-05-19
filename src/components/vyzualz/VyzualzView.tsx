@@ -5,6 +5,7 @@ import { useMediaStore }   from '../../stores/mediaStore'
 import { useVisualStore, DEFAULT_PRESETS }  from '../../stores/visualStore'
 import type { UploadedMedia } from '../../stores/mediaStore'
 import type { VzEffects, VzPreset, VzSession, Quality } from '../../stores/visualStore'
+import { TrackScrubber } from '../shared/TrackScrubber'
 
 // ── Constants ─────────────────────────────────────────────────────────
 const EFFECT_CHAIN_ITEMS = ['RGB Split','Glitch Bars','Scanlines','Tunnel','Displacement','Noise Fog','Bloom','Feedback'] as const
@@ -489,9 +490,25 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
             } catch { /* cross-origin guard */ }
           }
         }
-      } else {
-        // ── Generative art fallback ────────────────────────────────
+      } else if (isPlayingRef.current || bass + mid + high > 0.01) {
+        // ── Generative art fallback (only when playing or audio active) ──
         drawGenerativeArt(ctx, W, H, dpr, t, speed, bass, eff)
+      } else {
+        // ── Idle — no media, not playing, no signal ────────────────
+        const cx = W / 2, cy = H / 2
+        ctx.save()
+        ctx.globalAlpha = 0.18
+        ctx.strokeStyle = 'rgba(25,191,242,0.5)'
+        ctx.lineWidth = 1.5 * dpr
+        ctx.beginPath(); ctx.arc(cx, cy, Math.min(W, H) * 0.12, 0, Math.PI * 2); ctx.stroke()
+        ctx.globalAlpha = 1
+        const fs = Math.max(9 * dpr, Math.min(13 * dpr, W * 0.025))
+        ctx.font = `600 ${fs}px 'JetBrains Mono', 'Fira Code', monospace`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillStyle = 'rgba(25,191,242,0.28)'
+        ctx.fillText('NO INPUT', cx, cy)
+        ctx.restore()
       }
 
       // ── Scanlines ──────────────────────────────────────────────────
@@ -1395,6 +1412,15 @@ function VyzualzDock({ bpm }: { bpm: number }) {
           <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
         </button>
       </div>
+
+      {/* Scrubber */}
+      <TrackScrubber
+        currentTime={engine.currentTime}
+        duration={engine.duration}
+        onSeek={engine.seek}
+        disabled={!hasTrack}
+        accentColor={preset.color}
+      />
 
       <div className="vz-dock-bpm-group">
         <span className="vz-dock-bpm-label">BPM</span>

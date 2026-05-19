@@ -1,5 +1,6 @@
 import { useId, useState, useEffect } from 'react'
 import type { Track, AudioSource } from '../../types'
+import { TrackScrubber } from '../shared/TrackScrubber'
 
 interface Props {
   track: Track | null
@@ -151,11 +152,13 @@ export function BottomTransportDock({
         </TransBtn>
       </div>
 
-      {/* Time */}
-      <div className="az-dock-time">
-        <span className="az-dock-time-current">{fmtTime(currentTime)}</span>
-        <span className="az-dock-time-total">{fmtDur(duration)}</span>
-      </div>
+      {/* Scrubber */}
+      <TrackScrubber
+        currentTime={currentTime}
+        duration={duration}
+        onSeek={onSeek}
+        disabled={!hasTrack}
+      />
 
       {/* Volume */}
       <div className="az-dock-volume">
