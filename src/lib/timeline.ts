@@ -57,6 +57,72 @@ export function getActiveTimelineClip(
   }
 }
 
+// ── Clip playback helpers ─────────────────────────────────────────────
+
+export interface ClipSourceRange {
+  inSec: number     // effective source start (≥ 0)
+  outSec: number    // effective source end
+  lengthSec: number // outSec − inSec (always > 0)
+}
+
+/**
+ * Returns the effective source range for a clip.
+ * Pass `HTMLVideoElement.duration` (may be NaN/Infinity when metadata not yet loaded).
+ * For images, pass 0 — the result is not used for drawing logic.
+ */
+export function getClipSourceRange(clip: VzTimelineClip, videoDuration: number): ClipSourceRange {
+  const inSec = Math.max(0, clip.mediaInSec)
+  let outSec: number
+  if (clip.mediaOutSec !== undefined && clip.mediaOutSec > inSec) {
+    outSec = clip.mediaOutSec
+  } else if (isFinite(videoDuration) && videoDuration > 0) {
+    outSec = videoDuration
+  } else {
+    outSec = inSec + clip.durationSec // safe fallback when duration unknown
+  }
+  // Never exceed known video duration
+  if (isFinite(videoDuration) && videoDuration > 0) {
+    outSec = Math.min(outSec, videoDuration)
+  }
+  outSec = Math.max(outSec, inSec + 0.001) // guarantee non-zero length
+  return { inSec, outSec, lengthSec: outSec - inSec }
+}
+
+/**
+ * Returns the desired `video.currentTime` for the given local clip time.
+ * For loop mode the source segment is wrapped; for trim/freeze it is clamped.
+ */
+export function getClipSourceTime(
+  clip: VzTimelineClip,
+  localTimeSec: number,
+  videoDuration: number,
+): number {
+  const { inSec, outSec, lengthSec } = getClipSourceRange(clip, videoDuration)
+  const local = Math.max(0, localTimeSec)
+  switch (clip.playbackMode) {
+    case 'loop':
+      return lengthSec > 0 ? inSec + (local % lengthSec) : inSec
+    case 'trim':
+    case 'freeze':
+    default:
+      return Math.min(inSec + local, outSec - 0.001)
+  }
+}
+
+/**
+ * Returns true when a trim/freeze clip has consumed its source range
+ * and should hold the final frame rather than advancing.
+ */
+export function shouldFreezeClipFrame(
+  clip: VzTimelineClip,
+  localTimeSec: number,
+  videoDuration: number,
+): boolean {
+  if (clip.playbackMode === 'loop') return false
+  const { lengthSec } = getClipSourceRange(clip, videoDuration)
+  return localTimeSec >= lengthSec
+}
+
 /** Returns the clip after `clipId`; wraps to first when loop=true, null when not found or at end */
 export function getNextTimelineClip(
   clips: VzTimelineClip[],

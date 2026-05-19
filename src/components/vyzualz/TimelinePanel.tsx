@@ -129,18 +129,67 @@ function TimelineClipCard({
           const v = parseFloat(e.target.value)
           if (!isNaN(v) && v > 0) onUpdate(clip.id, { durationSec: v })
         }}
-        title="Duration (seconds)"
+        title="Clip duration (seconds)"
       />
 
-      <select
-        className="az-select vz-tl-mode-select"
-        value={clip.playbackMode}
-        onChange={e => onUpdate(clip.id, { playbackMode: e.target.value as VzTimelineClip['playbackMode'] })}
-      >
-        <option value="trim">Trim</option>
-        <option value="loop">Loop</option>
-        <option value="freeze">Freeze</option>
-      </select>
+      {/* Source range: In / Out */}
+      <div className="vz-tl-inout-row">
+        <label className="vz-tl-inout-label">In</label>
+        <input
+          type="number"
+          className="vz-tl-inout-input"
+          min={0}
+          step={0.1}
+          value={clip.mediaInSec}
+          onChange={e => {
+            const v = parseFloat(e.target.value)
+            if (!isNaN(v) && v >= 0) onUpdate(clip.id, { mediaInSec: v })
+          }}
+          title="Media in-point (seconds)"
+        />
+        <label className="vz-tl-inout-label">Out</label>
+        <input
+          type="number"
+          className="vz-tl-inout-input"
+          min={0}
+          step={0.1}
+          value={clip.mediaOutSec ?? ''}
+          placeholder="end"
+          onChange={e => {
+            const raw = e.target.value.trim()
+            if (raw === '') {
+              onUpdate(clip.id, { mediaOutSec: undefined })
+            } else {
+              const v = parseFloat(raw)
+              if (!isNaN(v) && v > 0) onUpdate(clip.id, { mediaOutSec: v })
+            }
+          }}
+          title="Media out-point (seconds, blank = end)"
+        />
+      </div>
+
+      {/* Playback mode + Fit mode on same row */}
+      <div className="vz-tl-mode-row">
+        <select
+          className="az-select vz-tl-mode-select"
+          value={clip.playbackMode}
+          onChange={e => onUpdate(clip.id, { playbackMode: e.target.value as VzTimelineClip['playbackMode'] })}
+          title="Playback mode"
+        >
+          <option value="trim">Trim</option>
+          <option value="loop">Loop</option>
+          <option value="freeze">Freeze</option>
+        </select>
+        <select
+          className="az-select vz-tl-fit-select"
+          value={clip.fitMode}
+          onChange={e => onUpdate(clip.id, { fitMode: e.target.value as VzTimelineClip['fitMode'] })}
+          title="Fit mode"
+        >
+          <option value="cover">Cover</option>
+          <option value="contain">Contain</option>
+        </select>
+      </div>
 
       {/* Transition controls */}
       <div className="vz-tl-transition-row">

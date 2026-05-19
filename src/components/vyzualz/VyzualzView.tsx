@@ -19,7 +19,10 @@ import type { ModulationRoute, AudioBandValues } from '../../lib/audioModulation
 import { TrackScrubber } from '../shared/TrackScrubber'
 import { MediaUploadModal } from './MediaUploadModal'
 import { TimelinePanel } from './TimelinePanel'
-import { getActiveTimelineClip, getNextTimelineClip, getTransitionState } from '../../lib/timeline'
+import {
+  getActiveTimelineClip, getNextTimelineClip, getTransitionState,
+  getClipSourceTime, shouldFreezeClipFrame,
+} from '../../lib/timeline'
 import type { TransitionState } from '../../lib/timeline'
 import type { VzTimelineClip } from '../../types/timeline'
 import type { MediaRole } from '../../lib/mediaRoles'
@@ -411,6 +414,9 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
   const activeMediaRoleRef    = useRef<MediaRole | null>(null)
   const activeMediaFitModeRef = useRef<'cover' | 'contain' | null>(null)
 
+  // Active clip object ref — kept in sync with activeClipIdRef for per-frame video control
+  const activeClipRef = useRef<VzTimelineClip | null>(null)
+
   // Transition rendering refs
   const incomingMediaElRef   = useRef<HTMLImageElement | HTMLVideoElement | null>(null)
   const transitionStateRef   = useRef<TransitionState | null>(null)
@@ -611,11 +617,12 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         lastFrameTimeRef.current = nowMs
 
         const clips = timelineClipsRef.current
-        const { clip } = getActiveTimelineClip(clips, timelineClockRef.current, timelineLoopRef.current)
+        const { clip, localTimeSec } = getActiveTimelineClip(clips, timelineClockRef.current, timelineLoopRef.current)
         const clipId = clip?.id ?? null
 
         if (clipId !== activeClipIdRef.current) {
           activeClipIdRef.current = clipId
+          activeClipRef.current   = clip ?? null
           if (clip) {
             // Sync role refs for the incoming clip's media
             const m = mediaItemsRef.current.find(x => x.id === clip.mediaId)
@@ -641,12 +648,14 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
             const el = pool.get(clip.mediaId) ?? null
             mediaElRef.current = el
             if (el instanceof HTMLVideoElement) {
+              // Seek to initial in-point; manual sync takes over from here
+              el.loop        = false  // we manage looping/trimming ourselves
               el.currentTime = clip.mediaInSec
-              el.loop = clip.playbackMode === 'loop'
               if (isPlayingRef.current) el.play().catch(() => {})
             }
           } else {
             mediaElRef.current = null
+            activeClipRef.current         = null
             activeMediaRoleRef.current    = null
             activeMediaFitModeRef.current = null
           }
@@ -710,6 +719,36 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
           incomingMediaElRef.current = null
           incomingRoleRef.current    = null
           incomingFitModeRef.current = null
+        }
+
+        // ── Per-frame video sync ──────────────────────────────────────
+        // Drives trim / loop (segment) / freeze without relying on native
+        // video.loop, which ignores mediaInSec/mediaOutSec.
+        const DRIFT = 0.12
+        const activeVid = mediaElRef.current
+        if (activeClipRef.current && activeVid instanceof HTMLVideoElement) {
+          const aClip  = activeClipRef.current
+          const dur    = isFinite(activeVid.duration) ? activeVid.duration : 0
+          const frozen = shouldFreezeClipFrame(aClip, localTimeSec, dur)
+
+          if (frozen) {
+            // Hold last valid frame — keep video paused
+            if (!activeVid.paused) activeVid.pause()
+          } else {
+            const desired = getClipSourceTime(aClip, localTimeSec, dur)
+            if (isPlayingRef.current) {
+              if (activeVid.paused) activeVid.play().catch(() => {})
+              if (Math.abs(activeVid.currentTime - desired) > DRIFT) {
+                activeVid.currentTime = desired
+              }
+            } else {
+              // Paused — align frame to current timeline position
+              if (Math.abs(activeVid.currentTime - desired) > DRIFT) {
+                activeVid.currentTime = desired
+              }
+              if (!activeVid.paused) activeVid.pause()
+            }
+          }
         }
       }
 
