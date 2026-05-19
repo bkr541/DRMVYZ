@@ -131,8 +131,8 @@ export const DEFAULT_PRESETS: VzPreset[] = [
   {
     id: 'dream-theft',
     name: 'Dream Theft',
-    color: '#19bff2',
-    gradient: 'linear-gradient(135deg,#0a1830 0%,#0a3a55 60%,#19bff2 100%)',
+    color: '#4ac7db',
+    gradient: 'linear-gradient(135deg,#0a1820 0%,#0e3040 60%,#4ac7db 100%)',
     effects: { ...DEFAULT_EFFECTS, rgbSplit: 0.3, bloom: 0.6, feedbackTrails: 0.2 },
     enabledFx: ['RGB Split', 'Bloom', 'Scanlines'],
     isDefault: true,
@@ -140,8 +140,8 @@ export const DEFAULT_PRESETS: VzPreset[] = [
   {
     id: 'nightmare-signal',
     name: 'Nightmare Signal',
-    color: '#e11d48',
-    gradient: 'linear-gradient(135deg,#1a0010 0%,#550020 60%,#e11d48 100%)',
+    color: '#e05a5a',
+    gradient: 'linear-gradient(135deg,#180a0a 0%,#4a1010 60%,#e05a5a 100%)',
     effects: { ...DEFAULT_EFFECTS, glitchAmount: 0.8, rgbSplit: 0.7, strobe: 0.4, feedbackTrails: 0.5 },
     enabledFx: ['Glitch Bars', 'RGB Split', 'Scanlines', 'Feedback'],
     isDefault: true,
@@ -149,8 +149,8 @@ export const DEFAULT_PRESETS: VzPreset[] = [
   {
     id: 'boss-intro',
     name: 'Boss Intro',
-    color: '#f97316',
-    gradient: 'linear-gradient(135deg,#1a0800 0%,#7a2000 60%,#f97316 100%)',
+    color: '#d8b95a',
+    gradient: 'linear-gradient(135deg,#181008 0%,#4a3010 60%,#d8b95a 100%)',
     effects: { ...DEFAULT_EFFECTS, bassReactivity: 1.0, bloom: 0.9, displacement: 0.6, tunnelSpeed: 0.8 },
     enabledFx: ['Tunnel', 'Bloom', 'Displacement'],
     isDefault: true,
@@ -158,8 +158,8 @@ export const DEFAULT_PRESETS: VzPreset[] = [
   {
     id: 'drmwld-portal',
     name: 'DRMWLD Portal',
-    color: '#a855f7',
-    gradient: 'linear-gradient(135deg,#150020 0%,#5a0090 60%,#a855f7 100%)',
+    color: '#b84fc9',
+    gradient: 'linear-gradient(135deg,#120018 0%,#3a0050 60%,#b84fc9 100%)',
     effects: { ...DEFAULT_EFFECTS, colorShift: 0.6, bloom: 0.7, feedbackTrails: 0.4, tunnelSpeed: 0.5 },
     enabledFx: ['Tunnel', 'Bloom', 'RGB Split'],
     isDefault: true,
@@ -167,8 +167,8 @@ export const DEFAULT_PRESETS: VzPreset[] = [
   {
     id: 'cyber-bloom',
     name: 'Cyber Bloom',
-    color: '#2edcb3',
-    gradient: 'linear-gradient(135deg,#001520 0%,#004a40 60%,#2edcb3 100%)',
+    color: '#61d6aa',
+    gradient: 'linear-gradient(135deg,#071812 0%,#0d3a28 60%,#61d6aa 100%)',
     effects: { ...DEFAULT_EFFECTS, bloom: 1.0, rgbSplit: 0.2, masterIntensity: 1.0 },
     enabledFx: ['Bloom', 'Scanlines'],
     isDefault: true,
@@ -176,8 +176,8 @@ export const DEFAULT_PRESETS: VzPreset[] = [
   {
     id: 'bass-impact',
     name: 'Bass Impact',
-    color: '#fbbf24',
-    gradient: 'linear-gradient(135deg,#1a1200 0%,#604000 60%,#fbbf24 100%)',
+    color: '#d8b95a',
+    gradient: 'linear-gradient(135deg,#151008 0%,#3a2800 60%,#d8b95a 100%)',
     effects: { ...DEFAULT_EFFECTS, bassReactivity: 1.0, strobe: 0.6, glitchAmount: 0.3, displacement: 0.4 },
     enabledFx: ['Glitch Bars', 'Displacement', 'Scanlines'],
     isDefault: true,
@@ -185,8 +185,8 @@ export const DEFAULT_PRESETS: VzPreset[] = [
   {
     id: 'clean-reactive',
     name: 'Clean Audio Reactive',
-    color: '#94a3b8',
-    gradient: 'linear-gradient(135deg,#0f172a 0%,#1e293b 60%,#475569 100%)',
+    color: '#7a9aaa',
+    gradient: 'linear-gradient(135deg,#0b1216 0%,#16232a 60%,#3a5562 100%)',
     effects: { ...DEFAULT_EFFECTS, glitchAmount: 0, rgbSplit: 0, strobe: 0, feedbackTrails: 0, bloom: 0.2 },
     enabledFx: ['Scanlines'],
     isDefault: true,
@@ -348,8 +348,8 @@ export const useVisualStore = create<VisualState>()(
         const id = `custom-${Date.now().toString(36)}`
         const newPreset: VzPreset = {
           id, name,
-          color:    '#19bff2',
-          gradient: 'linear-gradient(135deg,#0a1830 0%,#0a3a55 60%,#19bff2 100%)',
+          color:    '#4ac7db',
+          gradient: 'linear-gradient(135deg,#0a1820 0%,#0e3040 60%,#4ac7db 100%)',
           scope,
           // Visual look always saved
           effects:   { ...effects },

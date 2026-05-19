@@ -22,13 +22,13 @@ function EmblemMark({ size = 120, uid = 'a' }: { size?: number; uid?: string }) 
       <defs>
         <radialGradient id={g} cx="50%" cy="38%" r="65%">
           <stop offset="0%"   stopColor="#a8f0ff"/>
-          <stop offset="35%"  stopColor="#19bff2"/>
+          <stop offset="35%"  stopColor="#4ac7db"/>
           <stop offset="75%"  stopColor="#0678a0"/>
           <stop offset="100%" stopColor="#043f62" stopOpacity="0.6"/>
         </radialGradient>
         <radialGradient id={g2} cx="50%" cy="50%" r="50%">
-          <stop offset="0%"   stopColor="#19bff2" stopOpacity="0.16"/>
-          <stop offset="100%" stopColor="#19bff2" stopOpacity="0"/>
+          <stop offset="0%"   stopColor="#4ac7db" stopOpacity="0.16"/>
+          <stop offset="100%" stopColor="#4ac7db" stopOpacity="0"/>
         </radialGradient>
         <filter id={gl} x="-25%" y="-25%" width="150%" height="150%">
           <feGaussianBlur stdDeviation="2.2" result="b"/>
@@ -44,10 +44,10 @@ function EmblemMark({ size = 120, uid = 'a' }: { size?: number; uid?: string }) 
       <circle cx="60" cy="60" r="56" fill={`url(#${g2})`}/>
 
       {/* Concentric orbital rings */}
-      <circle cx="60" cy="60" r="56" stroke="#19bff2" strokeWidth="0.3" opacity="0.18"/>
-      <circle cx="60" cy="60" r="52" stroke="#19bff2" strokeWidth="0.9" opacity="0.55" filter={`url(#${gl})`}/>
-      <circle cx="60" cy="60" r="47" stroke="#19bff2" strokeWidth="0.4" opacity="0.28"/>
-      <circle cx="60" cy="60" r="42" stroke="#19bff2" strokeWidth="0.6" opacity="0.38" filter={`url(#${gl})`}/>
+      <circle cx="60" cy="60" r="56" stroke="#4ac7db" strokeWidth="0.3" opacity="0.18"/>
+      <circle cx="60" cy="60" r="52" stroke="#4ac7db" strokeWidth="0.9" opacity="0.55" filter={`url(#${gl})`}/>
+      <circle cx="60" cy="60" r="47" stroke="#4ac7db" strokeWidth="0.4" opacity="0.28"/>
+      <circle cx="60" cy="60" r="42" stroke="#4ac7db" strokeWidth="0.6" opacity="0.38" filter={`url(#${gl})`}/>
 
       {/* Bat / crest outer wings */}
       <path
@@ -82,7 +82,7 @@ function EmblemMark({ size = 120, uid = 'a' }: { size?: number; uid?: string }) 
       <ellipse cx="60" cy="54" rx="16" ry="20" fill="#030508"/>
       <ellipse
         cx="60" cy="54" rx="16" ry="20"
-        stroke="#19bff2" strokeWidth="1.1" fill="none"
+        stroke="#4ac7db" strokeWidth="1.1" fill="none"
         opacity="0.65" filter={`url(#${gl})`}
       />
 
@@ -329,8 +329,8 @@ function SignupForm({ onSuccess, onSwitch }: { onSuccess: () => void; onSwitch: 
       <div className="auth-form auth-form--done">
         <div className="auth-done-icon">
           <svg viewBox="0 0 56 56" width="56" height="56" fill="none">
-            <circle cx="28" cy="28" r="26" stroke="#19bff2" strokeWidth="1.5"/>
-            <path d="M17 28.5l7.5 7.5L39 21" stroke="#19bff2" strokeWidth="2"
+            <circle cx="28" cy="28" r="26" stroke="#4ac7db" strokeWidth="1.5"/>
+            <path d="M17 28.5l7.5 7.5L39 21" stroke="#4ac7db" strokeWidth="2"
                   strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </div>

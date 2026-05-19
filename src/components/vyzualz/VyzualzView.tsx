@@ -150,10 +150,10 @@ function BeatCanvas({ bass }: { bass: number }) {
 
       const alpha = 0.35 + beatPulse * 0.6
       const grad = ctx.createLinearGradient(0, 0, cW, 0)
-      grad.addColorStop(0, `rgba(25,191,242,0)`)
-      grad.addColorStop(0.25, `rgba(25,191,242,${alpha})`)
-      grad.addColorStop(0.75, `rgba(25,191,242,${alpha})`)
-      grad.addColorStop(1, `rgba(25,191,242,0)`)
+      grad.addColorStop(0, `rgba(74,199,219,0)`)
+      grad.addColorStop(0.25, `rgba(74,199,219,${alpha})`)
+      grad.addColorStop(0.75, `rgba(74,199,219,${alpha})`)
+      grad.addColorStop(1, `rgba(74,199,219,0)`)
       ctx.fillStyle = grad
       ctx.fill()
 
@@ -163,13 +163,13 @@ function BeatCanvas({ bass }: { bass: number }) {
         const amp = (0.25 + beatPulse * 0.75) * v * mid * 0.85
         if (i === 0) ctx.moveTo(x, mid - amp); else ctx.lineTo(x, mid - amp)
       })
-      ctx.strokeStyle = `rgba(25,191,242,${0.55 + beatPulse * 0.4})`
+      ctx.strokeStyle = `rgba(74,199,219,${0.55 + beatPulse * 0.4})`
       ctx.lineWidth = 1.5 * dpr
       ctx.stroke()
 
       ctx.beginPath()
       ctx.moveTo(0, mid); ctx.lineTo(cW, mid)
-      ctx.strokeStyle = 'rgba(25,191,242,0.1)'
+      ctx.strokeStyle = 'rgba(74,199,219,0.1)'
       ctx.lineWidth = dpr
       ctx.stroke()
 
@@ -197,7 +197,7 @@ function drawGenerativeArt(
   ctx.fillRect(0, 0, W, H)
 
   ctx.save()
-  ctx.strokeStyle = 'rgba(25,191,242,0.04)'
+  ctx.strokeStyle = 'rgba(74,199,219,0.04)'
   ctx.lineWidth = dpr
   for (let i = 0; i < 12; i++) {
     const angle = (i / 12) * Math.PI * 2
@@ -208,7 +208,7 @@ function drawGenerativeArt(
   }
   ctx.restore()
 
-  ctx.strokeStyle = 'rgba(25,191,242,0.04)'
+  ctx.strokeStyle = 'rgba(74,199,219,0.04)'
   ctx.lineWidth = dpr
   for (let i = 1; i <= 5; i++) {
     const y  = cy + (H * 0.5) * (i / 5) ** 1.4
@@ -223,17 +223,17 @@ function drawGenerativeArt(
     const pulse  = Math.sin(t * 0.001 * speed * (1 + r * 0.12) + r * 1.3) * (Math.min(W, H) * 0.012)
     const radius = (baseR + pulse) * (r === 0 ? bassReact : 1)
     const alpha  = 0.06 + Math.sin(t * 0.0013 * speed + r * 1.2) * 0.04
-    ctx.strokeStyle = `rgba(25,191,242,${alpha})`
+    ctx.strokeStyle = `rgba(74,199,219,${alpha})`
     ctx.lineWidth = 1.5 * dpr
-    ctx.shadowColor = '#19bff2'
+    ctx.shadowColor = '#4ac7db'
     ctx.shadowBlur = 8
     ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.stroke()
     ctx.shadowBlur = 0
   }
 
   const innerGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.min(W, H) * 0.18)
-  innerGlow.addColorStop(0, 'rgba(25,191,242,0.07)')
-  innerGlow.addColorStop(1, 'rgba(25,191,242,0)')
+  innerGlow.addColorStop(0, 'rgba(74,199,219,0.07)')
+  innerGlow.addColorStop(1, 'rgba(74,199,219,0)')
   ctx.fillStyle = innerGlow
   ctx.beginPath(); ctx.arc(cx, cy, Math.min(W, H) * 0.18, 0, Math.PI * 2); ctx.fill()
 
@@ -251,16 +251,16 @@ function drawGenerativeArt(
   ctx.fillText('DVYDRM', cx + rgbShift, cy)
   ctx.globalAlpha = 1
 
-  ctx.shadowColor = '#19bff2'
+  ctx.shadowColor = '#4ac7db'
   ctx.shadowBlur = 24 + bass * effects.bloom * 20
-  ctx.fillStyle = 'rgba(25,191,242,0.92)'
+  ctx.fillStyle = 'rgba(74,199,219,0.92)'
   ctx.fillText('DVYDRM', cx, cy)
   ctx.shadowBlur = 0
 
   const subSize = fontSize * 0.26
   ctx.globalAlpha = 0.35
   ctx.font = `400 ${subSize}px Inter, sans-serif`
-  ctx.fillStyle = '#19bff2'
+  ctx.fillStyle = '#4ac7db'
   ctx.fillText('DREAM  WORLD', cx, cy + fontSize * 0.7)
   ctx.globalAlpha = 1
 }
@@ -483,7 +483,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         ctx.fillStyle = `rgba(5,7,9,${1 - feedbackMod * 0.92})`
         ctx.fillRect(0, 0, W, H)
       } else {
-        ctx.fillStyle = '#050709'
+        ctx.fillStyle = '#090d0f'
         ctx.fillRect(0, 0, W, H)
       }
 
@@ -557,7 +557,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
           for (let r = 0; r < q.tunnelRings; r++) {
             const radius = ((tunnelT * 0.1 + r * 30 * tunnelDepth) % 300) + 10
             const alpha  = 0.07 * (1 - radius / 300)
-            ctx.strokeStyle = `rgba(25,191,242,${alpha})`
+            ctx.strokeStyle = `rgba(74,199,219,${alpha})`
             ctx.lineWidth = 1.5 * dpr
             ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.stroke()
           }
@@ -641,7 +641,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         const cx = W / 2, cy = H / 2
         ctx.save()
         ctx.globalAlpha = 0.18
-        ctx.strokeStyle = 'rgba(25,191,242,0.5)'
+        ctx.strokeStyle = 'rgba(74,199,219,0.5)'
         ctx.lineWidth = 1.5 * dpr
         ctx.beginPath(); ctx.arc(cx, cy, Math.min(W, H) * 0.12, 0, Math.PI * 2); ctx.stroke()
         ctx.globalAlpha = 1
@@ -649,7 +649,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         ctx.font = `600 ${fs}px 'JetBrains Mono', 'Fira Code', monospace`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
-        ctx.fillStyle = 'rgba(25,191,242,0.28)'
+        ctx.fillStyle = 'rgba(74,199,219,0.28)'
         ctx.fillText('NO INPUT', cx, cy)
         ctx.restore()
       }
@@ -665,7 +665,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         ctx.save()
         ctx.globalAlpha = (mEff.masterIntensity - 0.3) * 0.12
         for (let i = 0; i < q.fogParticles; i++) {
-          ctx.fillStyle = `rgba(25,191,242,${Math.random()})`
+          ctx.fillStyle = `rgba(74,199,219,${Math.random()})`
           ctx.fillRect(Math.random() * W, Math.random() * H, 1, 1)
         }
         ctx.globalAlpha = 1
@@ -692,8 +692,8 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         ctx.fillRect(0, 0, W, H)
         // Cyan edge ring — clear beat indicator regardless of effects chain state
         const ring = ctx.createRadialGradient(cx, cy, Math.min(W, H) * 0.28, cx, cy, Math.min(W, H) * 0.54)
-        ring.addColorStop(0, 'rgba(25,191,242,0)')
-        ring.addColorStop(1, `rgba(25,191,242,${0.38 * decay})`)
+        ring.addColorStop(0, 'rgba(74,199,219,0)')
+        ring.addColorStop(1, `rgba(74,199,219,${0.38 * decay})`)
         ctx.fillStyle = ring
         ctx.fillRect(0, 0, W, H)
       }
@@ -702,8 +702,8 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
       if (edgeFlicker > 0.15 && mEff.masterIntensity > 0.3) {
         const flickerAlpha = (edgeFlicker - 0.15) * mEff.masterIntensity * 0.45
         const grad = ctx.createRadialGradient(cx, cy, Math.min(W, H) * 0.3, cx, cy, Math.min(W, H) * 0.55)
-        grad.addColorStop(0, 'rgba(25,191,242,0)')
-        grad.addColorStop(1, `rgba(25,191,242,${flickerAlpha})`)
+        grad.addColorStop(0, 'rgba(74,199,219,0)')
+        grad.addColorStop(1, `rgba(74,199,219,${flickerAlpha})`)
         ctx.fillStyle = grad
         ctx.fillRect(0, 0, W, H)
       }
@@ -713,7 +713,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
       // ── HUD corners ────────────────────────────────────────────────
       const cSize  = 14 * dpr
       const margin = 10 * dpr
-      ctx.strokeStyle = 'rgba(25,191,242,0.28)'
+      ctx.strokeStyle = 'rgba(74,199,219,0.28)'
       ctx.lineWidth = 1.5 * dpr
       ;([[margin, margin, 1, 1], [W - margin, margin, -1, 1], [margin, H - margin, 1, -1], [W - margin, H - margin, -1, -1]] as [number,number,number,number][])
         .forEach(([x, y, dx, dy]) => {
@@ -725,7 +725,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
       // ── Freq bars HUD (bottom right when audio active) ────────────
       if (an && buf && rawBands.volume > 0.05) {
         const barW = 3 * dpr, gap = 1 * dpr
-        const barColors = ['#19bff2','#58d15b','#a78bfa','#f97316']
+        const barColors = ['#4ac7db','#61d6aa','#b84fc9','#d8b95a']
         const barVals   = [bass, rawBands.lowMid, high, rawBands.volume]
         barVals.forEach((v, i) => {
           const bh = Math.max(2, v * 30 * dpr)
@@ -804,14 +804,14 @@ function AudioWaveformCanvas({ analyser }: { analyser: AnalyserNode | null }) {
           if (i === 0) ctx.moveTo(x, mid + amp); else ctx.lineTo(x, mid + amp)
         }
       }
-      ctx.strokeStyle = 'rgba(25,191,242,0.65)'
+      ctx.strokeStyle = 'rgba(74,199,219,0.65)'
       ctx.lineWidth = 1.5 * dpr
       ctx.stroke()
 
       ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath()
       const grad = ctx.createLinearGradient(0, 0, 0, H)
-      grad.addColorStop(0, 'rgba(25,191,242,0.15)')
-      grad.addColorStop(1, 'rgba(25,191,242,0)')
+      grad.addColorStop(0, 'rgba(74,199,219,0.15)')
+      grad.addColorStop(1, 'rgba(74,199,219,0)')
       ctx.fillStyle = grad
       ctx.fill()
 
@@ -867,7 +867,7 @@ function VyzualzHeader({ analyser, bassLive }: { analyser: AnalyserNode | null; 
     : engine.source === 'demo' ? 'Demo Signal'
     : 'File Input'
 
-  const BAND_COLORS = ['#19bff2', '#58d15b', '#a78bfa', '#f97316', '#19bff2']
+  const BAND_COLORS = ['#4ac7db', '#61d6aa', '#b84fc9', '#d8b95a', '#4ac7db']
   const BAND_LABELS = ['Bass', 'LMid', 'Mid', 'High', 'Vol']
 
   return (
@@ -1117,7 +1117,7 @@ function MediaDeckPanel({ activeMediaId, onSelect }: {
                     />
                   )}
                   {m.uploading ? (
-                    <span className="vz-media-type-badge" style={{ background: 'rgba(25,191,242,0.25)', color: '#19bff2' }}>↑ SYNC</span>
+                    <span className="vz-media-type-badge" style={{ background: 'rgba(74,199,219,0.25)', color: '#4ac7db' }}>↑ SYNC</span>
                   ) : m.uploadError ? (
                     <span className="vz-media-type-badge" style={{ background: 'rgba(248,113,113,0.22)', color: '#f87171' }} title={m.uploadError}>⚠ LOCAL</span>
                   ) : ROLE_BADGE[m.mediaRole] ? (
@@ -1283,7 +1283,7 @@ function AudioAnalyzerPanel({ analyser }: { analyser: AnalyserNode | null }) {
   }, [analyser])
 
   useEffect(() => {
-    const BAND_COLORS = ['#19bff2', '#58d15b', '#a78bfa', '#f97316', '#19bff2']
+    const BAND_COLORS = ['#4ac7db', '#61d6aa', '#b84fc9', '#d8b95a', '#4ac7db']
     const BANDS_HZ: [number, number][] = [[20,250],[250,1000],[1000,4000],[4000,16000],[20,16000]]
 
     function frame() {
@@ -1326,7 +1326,7 @@ function AudioAnalyzerPanel({ analyser }: { analyser: AnalyserNode | null }) {
                 <div
                   ref={el => { barRefs.current[i] = el }}
                   className="vz-band-bar-fill"
-                  style={{ height: '5%', background: '#19bff2' }}
+                  style={{ height: '5%', background: '#4ac7db' }}
                 />
               </div>
               <span className="vz-band-bar-label">{label}</span>
@@ -2002,7 +2002,7 @@ function VyzualzDock() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                   <span style={{
                     display: 'inline-block', width: 7, height: 7, borderRadius: '50%',
-                    background: storageAvailable && !authRequired ? '#58d15b' : 'rgba(245,248,250,0.2)',
+                    background: storageAvailable && !authRequired ? '#61d6aa' : 'rgba(245,248,250,0.2)',
                     flexShrink: 0,
                   }} />
                   <span style={{ fontSize: 10, color: 'rgba(245,248,250,0.55)' }}>

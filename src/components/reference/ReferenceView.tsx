@@ -35,7 +35,7 @@ interface RefTrack {
   url: string
 }
 
-const SLOT_COLORS = ['#19bff2', '#a78bfa', '#94a3b8', '#fb923c']
+const SLOT_COLORS = ['#4ac7db', '#b84fc9', '#94a3b8', '#d8b95a']
 
 // ── Adapter: RefTrackRecord → RefTrack (display type) ─────────────────
 function toDisplayTrack(rec: RefTrackRecord): RefTrack {
@@ -656,10 +656,10 @@ function ReferenceMatchPanel({ mainRecord, refRecords }: {
             <svg viewBox="0 0 80 80" width="80" height="80">
               <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="6" />
               <circle cx="40" cy="40" r="32" fill="none"
-                stroke="#19bff2" strokeWidth="6" strokeLinecap="round"
+                stroke="#4ac7db" strokeWidth="6" strokeLinecap="round"
                 strokeDasharray={`${C * avg / 100} ${C}`}
                 strokeDashoffset={C * 0.25}
-                style={{ filter: 'drop-shadow(0 0 5px rgba(25,191,242,0.7))' }}
+                style={{ filter: 'drop-shadow(0 0 5px rgba(74,199,219,0.7))' }}
               />
               <text x="40" y="37" textAnchor="middle" fill="rgba(245,248,250,0.92)" fontSize="15" fontWeight="300" fontFamily="Inter,sans-serif">{avg}%</text>
               <text x="40" y="50" textAnchor="middle" fill="rgba(245,248,250,0.3)" fontSize="6.5" fontFamily="Inter,sans-serif">Overall Match</text>
@@ -747,7 +747,7 @@ function RefBottomDock({ selected, isPlaying, currentTime, onPlay, onPause, onSt
   onPlay: () => void; onPause: () => void; onStop: () => void
   onSeek: (t: number) => void
 }) {
-  const accent  = selected?.accentColor ?? '#19bff2'
+  const accent  = selected?.accentColor ?? '#4ac7db'
   const initial = selected?.title[0]?.toUpperCase() ?? '♪'
   const title   = selected?.title ?? 'No track selected'
 

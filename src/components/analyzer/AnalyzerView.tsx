@@ -15,8 +15,8 @@ import { SpectrumModule }          from '../SpectrumModule'
 import { VectorscopeModule }       from '../VectorscopeModule'
 import { WaveformModule }          from '../WaveformModule'
 
-const CYAN  = '#19bff2'
-const CYAN2 = '#2edcb3'
+const CYAN  = '#4ac7db'
+const CYAN2 = '#61d6aa'
 
 interface AnalyzerViewProps {
   activeView?: 'analyzer' | 'reference' | 'vyzualz'

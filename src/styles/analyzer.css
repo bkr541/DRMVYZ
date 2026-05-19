@@ -3,24 +3,31 @@
 ════════════════════════════════════════════════════════════════════════ */
 
 :root {
-  --az-bg:           #0b0d0e;
-  --az-sidebar:      #0d0f10;
-  --az-panel:        #101314;
-  --az-panel2:       #151819;
-  --az-dock:         #0e1011;
-  --az-border:       rgba(255,255,255,0.075);
-  --az-border-s:     rgba(255,255,255,0.12);
-  --az-text:         rgba(245,248,250,0.88);
-  --az-text-muted:   rgba(245,248,250,0.52);
-  --az-text-faint:   rgba(245,248,250,0.28);
-  --az-cyan:         #19bff2;
-  --az-cyan-dim:     rgba(25,191,242,0.45);
-  --az-green:        #58d15b;
-  --az-yellow:       #e8d74a;
-  --az-red:          #e04b44;
-  --az-radius:       12px;
-  --az-radius-sm:    7px;
-  --az-font:         'Inter','Helvetica Neue',system-ui,sans-serif;
+  --az-bg:           #090d0f;
+  --az-sidebar:      #0b1012;
+  --az-panel:        #151a1d;
+  --az-panel2:       #1a2024;
+  --az-dock:         #101416;
+
+  --az-border:       rgba(154,178,188,0.18);
+  --az-border-s:     rgba(154,178,188,0.26);
+
+  --az-text:         rgba(232,238,240,0.88);
+  --az-text-muted:   rgba(196,207,211,0.58);
+  --az-text-faint:   rgba(196,207,211,0.32);
+
+  --az-cyan:         #4ac7db;
+  --az-cyan-rgb:     74,199,219;
+  --az-cyan-dim:     rgba(74,199,219,0.42);
+
+  --az-green:        #61d6aa;
+  --az-yellow:       #d8b95a;
+  --az-red:          #e05a5a;
+  --az-magenta:      #b84fc9;
+
+  --az-radius:       10px;
+  --az-radius-sm:    6px;
+  --az-font:         'Zen Dots','Inter','Helvetica Neue',system-ui,sans-serif;
 }
 
 /* ── Root shell ──────────────────────────────────────────────────────── */
@@ -125,11 +132,11 @@
   color: var(--az-cyan);
   border-left-color: var(--az-cyan);
   border-left-width: 2px;
-  background: rgba(25,191,242,0.09);
-  text-shadow: 0 0 12px rgba(25,191,242,0.35);
+  background: rgba(74,199,219,0.09);
+  text-shadow: 0 0 12px rgba(74,199,219,0.35);
 }
 .az-nav-item--active svg {
-  filter: drop-shadow(0 0 4px rgba(25,191,242,0.55));
+  filter: drop-shadow(0 0 4px rgba(74,199,219,0.55));
 }
 
 .az-sidebar-footer {
@@ -159,7 +166,7 @@
 .az-status-dot {
   width: 6px; height: 6px; border-radius: 50%;
   background: var(--az-green);
-  box-shadow: 0 0 5px rgba(88,209,91,0.55);
+  box-shadow: 0 0 5px rgba(97,214,170,0.55);
   flex-shrink: 0;
 }
 
@@ -234,8 +241,8 @@
   content: 'DROP AUDIO FILES';
   position: absolute;
   inset: 0;
-  background: rgba(25,191,242,0.06);
-  border: 2px dashed rgba(25,191,242,0.4);
+  background: rgba(74,199,219,0.06);
+  border: 2px dashed rgba(74,199,219,0.4);
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -339,7 +346,7 @@
 }
 .az-seg-btn:hover { color: var(--az-text-muted); }
 .az-seg-btn--active {
-  background: rgba(25,191,242,0.18);
+  background: rgba(74,199,219,0.18);
   color: var(--az-cyan);
 }
 
@@ -674,7 +681,7 @@
 .az-trackinfo-artwork-letter {
   font-size: 22px;
   font-weight: 700;
-  color: rgba(25,191,242,0.6);
+  color: rgba(74,199,219,0.6);
 }
 .az-trackinfo-rows {
   display: flex;
@@ -852,7 +859,7 @@
   transition: background 0.2s;
   flex-shrink: 0;
 }
-.az-toggle-input:checked + .az-toggle-track { background: rgba(25,191,242,0.35); }
+.az-toggle-input:checked + .az-toggle-track { background: rgba(74,199,219,0.35); }
 .az-toggle-thumb {
   position: absolute;
   top: 3px; left: 3px;
@@ -978,7 +985,7 @@
   height: 13px;
   border-radius: 50%;
   background: var(--scrub-accent, var(--az-cyan));
-  box-shadow: 0 0 6px rgba(25,191,242,0.45);
+  box-shadow: 0 0 6px rgba(74,199,219,0.45);
   cursor: pointer;
   transition: transform 0.1s;
 }
@@ -994,7 +1001,7 @@
   border-radius: 50%;
   border: none;
   background: var(--scrub-accent, var(--az-cyan));
-  box-shadow: 0 0 6px rgba(25,191,242,0.45);
+  box-shadow: 0 0 6px rgba(74,199,219,0.45);
   cursor: pointer;
 }
 .az-scrubber-input:disabled::-moz-range-thumb {
@@ -1024,7 +1031,7 @@
 .az-dock-thumb-letter {
   font-size: 17px;
   font-weight: 700;
-  color: rgba(25,191,242,0.55);
+  color: rgba(74,199,219,0.55);
 }
 .az-dock-info { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .az-dock-title {
@@ -1084,11 +1091,11 @@
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
   transition: all 0.15s;
-  box-shadow: 0 0 12px rgba(25,191,242,0.18);
+  box-shadow: 0 0 12px rgba(74,199,219,0.18);
 }
 .az-play-btn:hover:not(:disabled) {
-  background: rgba(25,191,242,0.1);
-  box-shadow: 0 0 20px rgba(25,191,242,0.3);
+  background: rgba(74,199,219,0.1);
+  box-shadow: 0 0 20px rgba(74,199,219,0.3);
 }
 .az-play-btn:disabled { opacity: 0.28; cursor: default; }
 
@@ -1151,7 +1158,7 @@
   width: 11px; height: 11px;
   border-radius: 50%;
   background: var(--az-cyan);
-  box-shadow: 0 0 5px rgba(25,191,242,0.5);
+  box-shadow: 0 0 5px rgba(74,199,219,0.5);
   cursor: pointer;
 }
 
@@ -1184,8 +1191,8 @@
   gap: 6px;
   padding: 0 13px;
   height: 32px;
-  background: rgba(25,191,242,0.1);
-  border: 1px solid rgba(25,191,242,0.3);
+  background: rgba(74,199,219,0.1);
+  border: 1px solid rgba(74,199,219,0.3);
   border-radius: 7px;
   color: var(--az-cyan);
   font-family: var(--az-font);
@@ -1196,9 +1203,9 @@
   transition: all 0.15s;
 }
 .az-dock-upload-btn:hover {
-  background: rgba(25,191,242,0.18);
-  border-color: rgba(25,191,242,0.55);
-  box-shadow: 0 0 10px rgba(25,191,242,0.18);
+  background: rgba(74,199,219,0.18);
+  border-color: rgba(74,199,219,0.55);
+  box-shadow: 0 0 10px rgba(74,199,219,0.18);
 }
 
 .az-dock-gear-btn {
@@ -1258,8 +1265,8 @@
 .az-drag-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(25,191,242,0.06);
-  border: 3px dashed rgba(25,191,242,0.45);
+  background: rgba(74,199,219,0.06);
+  border: 3px dashed rgba(74,199,219,0.45);
   z-index: 500;
   display: flex;
   align-items: center;
@@ -1290,9 +1297,9 @@
 /* ── Gear button active state ────────────────────────────────────── */
 .az-dock-gear-btn--active {
   color: var(--az-cyan);
-  background: rgba(25,191,242,0.12);
-  border-color: rgba(25,191,242,0.3);
+  background: rgba(74,199,219,0.12);
+  border-color: rgba(74,199,219,0.3);
 }
 .az-dock-gear-btn--active:hover {
-  background: rgba(25,191,242,0.18);
+  background: rgba(74,199,219,0.18);
 }

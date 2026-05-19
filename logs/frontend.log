@@ -6,3 +6,26 @@
   VITE v5.4.21  ready in 113 ms
 
   ➜  Local:   http://127.0.0.1:5173/
+2:31:49 PM [vite] hmr update /src/styles/analyzer.css
+2:33:43 PM [vite] hmr update /src/styles/analyzer.css
+2:33:43 PM [vite] hmr update /src/styles/vyzualz.css
+2:33:43 PM [vite] hmr update /src/styles/auth.css
+2:33:43 PM [vite] hmr update /src/styles/mediaUploadModal.css
+2:33:43 PM [vite] hmr update /src/styles/mediaUploadModal.css
+2:33:43 PM [vite] hmr update /src/styles/reference.css
+2:41:19 PM [vite] hmr update /src/styles/vyzualz.css
+2:41:19 PM [vite] hmr update /src/styles/analyzer.css
+2:41:27 PM [vite] hmr update /src/styles.css
+2:49:54 PM [vite] hmr update /src/styles.css
+3:00:57 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
+3:01:05 PM [vite] hmr update /src/components/analyzer/AnalyzerView.tsx
+3:01:05 PM [vite] hmr update /src/components/analyzer/LevelMetersPanel.tsx
+3:01:05 PM [vite] hmr update /src/components/reference/ReferenceView.tsx
+3:01:05 PM [vite] hmr update /src/components/auth/AuthPage.tsx
+3:02:55 PM [vite] hmr update /src/components/reference/ReferenceView.tsx
+3:02:55 PM [vite] hmr update /src/components/reference/ReferenceView.tsx
+3:03:15 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx, /src/components/vyzualz/TimelinePanel.tsx, /src/components/vyzualz/MediaUploadModal.tsx
+3:03:23 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx, /src/components/vyzualz/TimelinePanel.tsx, /src/components/vyzualz/MediaUploadModal.tsx
+3:11:12 PM [vite] page reload index.html
+3:11:16 PM [vite] hmr update /src/styles/analyzer.css
+3:11:20 PM [vite] hmr update /src/styles.css

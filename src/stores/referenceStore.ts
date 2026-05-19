@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { TrackAnalysis } from '../lib/audioAnalysis'
 
-const SLOT_COLORS = ['#19bff2', '#a78bfa', '#94a3b8', '#fb923c']
+const SLOT_COLORS = ['#4ac7db', '#b84fc9', '#94a3b8', '#d8b95a']
 
 export interface RefTrackRecord {
   id: string
@@ -34,7 +34,7 @@ function makeRecord(
     format: (file.name.split('.').pop() ?? 'audio').toUpperCase(),
     sampleRate: '—',
     bitDepth: '—',
-    accentColor: SLOT_COLORS[slotIdx] ?? '#19bff2',
+    accentColor: SLOT_COLORS[slotIdx] ?? '#4ac7db',
     url: URL.createObjectURL(file),
     duration: 0,
     analysis: null,
