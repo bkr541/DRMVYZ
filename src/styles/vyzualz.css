@@ -1315,3 +1315,157 @@ input[type='range'].vz-slider--color {
 @media (max-width: 780px) {
   .vz-right { display: none; }
 }
+
+/* ── Modulation panel ────────────────────────────────────────────────── */
+.vz-mod-panel {
+  padding: 0;
+  overflow: visible;
+}
+.vz-mod-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  min-height: 32px;
+}
+.vz-mod-header:hover { background: rgba(255,255,255,0.03); }
+.vz-mod-summary {
+  font-size: 9px;
+  color: rgba(25,191,242,0.55);
+  margin-left: auto;
+  font-family: 'JetBrains Mono', monospace;
+}
+.vz-mod-list {
+  padding: 2px 6px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.vz-mod-route {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 2px;
+  border-radius: 3px;
+  opacity: 0.45;
+  transition: opacity 0.12s;
+}
+.vz-mod-route--on { opacity: 1; }
+.vz-mod-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.vz-mod-dot {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 1px solid rgba(25,191,242,0.4);
+  background: transparent;
+  transition: background 0.1s;
+}
+.vz-mod-dot--on {
+  background: #19bff2;
+  border-color: #19bff2;
+  box-shadow: 0 0 4px rgba(25,191,242,0.7);
+}
+.vz-mod-source {
+  font-size: 9px;
+  font-family: 'JetBrains Mono', monospace;
+  color: #19bff2;
+  width: 28px;
+  flex-shrink: 0;
+  text-align: right;
+}
+.vz-mod-arrow {
+  font-size: 9px;
+  color: rgba(245,248,250,0.25);
+  flex-shrink: 0;
+}
+.vz-mod-target {
+  font-size: 9px;
+  color: rgba(245,248,250,0.7);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vz-mod-amount {
+  width: 44px;
+  height: 3px;
+  flex-shrink: 0;
+  accent-color: #19bff2;
+  cursor: pointer;
+}
+.vz-mod-amount:disabled { opacity: 0.3; cursor: default; }
+.vz-mod-amount-val {
+  font-size: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  color: rgba(245,248,250,0.35);
+  width: 22px;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+/* ── VYZUALZ settings popover positioning ────────────────────────── */
+.vz-settings-popover {
+  bottom: 52px;
+  right: 0;
+  width: 280px;
+  position: absolute;
+}
+
+/* ── Settings panel controls ─────────────────────────────────────── */
+.vz-settings-seg-btn {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 5px;
+  color: rgba(245,248,250,0.55);
+  cursor: pointer;
+  transition: all 0.12s;
+  font-family: var(--az-font);
+}
+.vz-settings-seg-btn:hover {
+  background: rgba(255,255,255,0.09);
+  color: rgba(245,248,250,0.8);
+}
+.vz-settings-seg-btn--active {
+  background: rgba(25,191,242,0.15);
+  border-color: rgba(25,191,242,0.4);
+  color: #19bff2;
+}
+.vz-settings-reset-btn {
+  padding: 4px 10px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 5px;
+  color: rgba(245,248,250,0.45);
+  cursor: pointer;
+  transition: all 0.12s;
+  font-family: var(--az-font);
+}
+.vz-settings-reset-btn:hover {
+  background: rgba(248,113,113,0.12);
+  border-color: rgba(248,113,113,0.3);
+  color: #f87171;
+}

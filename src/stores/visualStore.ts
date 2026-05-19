@@ -7,6 +7,10 @@ import {
   dbDeleteSession,
   loadCloudSessions,
 } from '../lib/sessionDb'
+import {
+  DEFAULT_MODULATION_ROUTES,
+} from '../lib/audioModulation'
+import type { ModulationRoute } from '../lib/audioModulation'
 
 // Quality is owned here so sessions can snapshot it
 export type Quality = 'High' | 'Medium' | 'Low'
@@ -183,6 +187,12 @@ interface VisualState {
   deleteSession(id: string): void
   syncSessionsFromCloud(): Promise<void>
   clearSessionSyncError(): void
+
+  // ── Modulation routing ────────────────────────────────────────────────────
+  modulationRoutes: ModulationRoute[]
+  toggleModulationRoute(id: string): void
+  setModulationRouteAmount(id: string, amount: number): void
+  resetModulationRoutes(): void
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -202,6 +212,7 @@ export const useVisualStore = create<VisualState>()(
       sessions:          [],
       sessionsLoading:   false,
       sessionSyncError:  null,
+      modulationRoutes:  DEFAULT_MODULATION_ROUTES,
 
       // ── Live state ──────────────────────────────────────────────────────────
 
@@ -362,19 +373,40 @@ export const useVisualStore = create<VisualState>()(
       },
 
       clearSessionSyncError() { set({ sessionSyncError: null }) },
+
+      // ── Modulation routing ───────────────────────────────────────────────────
+
+      toggleModulationRoute(id) {
+        set(s => ({
+          modulationRoutes: s.modulationRoutes.map(r =>
+            r.id === id ? { ...r, enabled: !r.enabled } : r
+          ),
+        }))
+      },
+      setModulationRouteAmount(id, amount) {
+        set(s => ({
+          modulationRoutes: s.modulationRoutes.map(r =>
+            r.id === id ? { ...r, amount } : r
+          ),
+        }))
+      },
+      resetModulationRoutes() {
+        set({ modulationRoutes: DEFAULT_MODULATION_ROUTES })
+      },
     }),
     {
       name: 'drmvyz-visual-store',
       partialize: (s) => ({
-        effects:        s.effects,
-        enabledFxArr:   s.enabledFxArr,
-        activePresetId: s.activePresetId,
-        activeMediaId:  s.activeMediaId,
-        presets:        s.presets.filter(p => !p.isDefault),
-        sessions:       s.sessions,
-        bpm:            s.bpm,
-        bpmSync:        s.bpmSync,
-        quality:        s.quality,
+        effects:           s.effects,
+        enabledFxArr:      s.enabledFxArr,
+        activePresetId:    s.activePresetId,
+        activeMediaId:     s.activeMediaId,
+        presets:           s.presets.filter(p => !p.isDefault),
+        sessions:          s.sessions,
+        bpm:               s.bpm,
+        bpmSync:           s.bpmSync,
+        quality:           s.quality,
+        modulationRoutes:  s.modulationRoutes,
       }),
       // Re-inject default presets after rehydration so they are never missing
       merge: (persisted, current) => {
@@ -385,11 +417,19 @@ export const useVisualStore = create<VisualState>()(
           ...s,
           source: (s as VzSession).source ?? 'local',
         })) as VzSession[]
+        // Merge persisted routes with any new defaults added since last save
+        const savedRoutes = (p.modulationRoutes ?? []) as ModulationRoute[]
+        const savedIds    = new Set(savedRoutes.map(r => r.id))
+        const mergedRoutes = [
+          ...savedRoutes,
+          ...DEFAULT_MODULATION_ROUTES.filter(r => !savedIds.has(r.id)),
+        ]
         return {
           ...current,
           ...p,
-          presets:  [...DEFAULT_PRESETS, ...(p.presets ?? [])],
+          presets:          [...DEFAULT_PRESETS, ...(p.presets ?? [])],
           sessions,
+          modulationRoutes: mergedRoutes,
         }
       },
     }

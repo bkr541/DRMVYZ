@@ -5,6 +5,8 @@ import { useMediaStore }   from '../../stores/mediaStore'
 import { useVisualStore, DEFAULT_PRESETS }  from '../../stores/visualStore'
 import type { UploadedMedia } from '../../stores/mediaStore'
 import type { VzEffects, VzPreset, VzSession, Quality } from '../../stores/visualStore'
+import { extractBandValues, applyModulatedEffects, BAND_LABELS, EFFECT_LABELS } from '../../lib/audioModulation'
+import type { ModulationRoute, AudioBandValues } from '../../lib/audioModulation'
 import { TrackScrubber } from '../shared/TrackScrubber'
 
 // ── Constants ─────────────────────────────────────────────────────────
@@ -34,6 +36,8 @@ const QUALITY: Record<Quality, QualityConfig> = {
 }
 
 // ── Band helpers ──────────────────────────────────────────────────────
+// getBandAvg lives in audioModulation.ts; keep a local alias for components
+// that still need it directly (VyzualzHeader, AudioAnalyzerPanel).
 function getBandAvg(buf: Uint8Array<ArrayBuffer>, sampleRate: number, lo: number, hi: number): number {
   const n = buf.length
   const nyq = sampleRate / 2
@@ -267,9 +271,10 @@ interface CanvasProps {
   bpmSync: boolean
   quality: Quality
   audioTime: number   // engine.currentTime in seconds; 0 when no track playing
+  modulationRoutes: ModulationRoute[]
 }
 
-function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, audioTime }: CanvasProps) {
+function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, audioTime, modulationRoutes }: CanvasProps) {
   const canvasRef     = useRef<HTMLCanvasElement>(null)
   const animRef       = useRef<number>(0)
   const resizeFnRef   = useRef<() => void>(() => {})
@@ -286,6 +291,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
   const qualityRef    = useRef<Quality>(quality)
   const audioTimeRef  = useRef(audioTime)
   const prevBassRef   = useRef(0)
+  const routesRef     = useRef<ModulationRoute[]>(modulationRoutes)
 
   // Sync refs on every render (cheap assignments)
   useEffect(() => { effectsRef.current  = effects })
@@ -295,6 +301,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
   useEffect(() => { bpmSyncRef.current = bpmSync })
   useEffect(() => { qualityRef.current = quality; resizeFnRef.current() }, [quality])
   useEffect(() => { audioTimeRef.current = audioTime })
+  useEffect(() => { routesRef.current = modulationRoutes }, [modulationRoutes])
 
   useEffect(() => {
     analyserRef.current  = analyser
@@ -383,41 +390,36 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         ? (audioMs % beatMs) / beatMs
         : (t % beatMs) / beatMs
 
-      // Read frequency data
-      let bass = 0, mid = 0, high = 0
+      // ── Read frequency data + extract bands ───────────────────────
       const an  = analyserRef.current
       const buf = freqBufRef.current
+      let rawBands: AudioBandValues = { bass: 0, lowMid: 0, mid: 0, high: 0, volume: 0, beat: 0 }
       if (an && buf) {
         an.getByteFrequencyData(buf)
-        const sr = an.context.sampleRate
-        bass = getBandAvg(buf, sr, 20,   250)
-        mid  = getBandAvg(buf, sr, 250,  4000)
-        high = getBandAvg(buf, sr, 4000, 16000)
+        rawBands = extractBandValues(buf, an.context.sampleRate, beatPhase, synced)
       }
+      const bass = rawBands.bass
+      const high = rawBands.high
 
       // ── Per-band modulation routing ────────────────────────────────
       // Smooth bass with EMA to avoid jitter on scale/punch
       const smoothBass = prevBassRef.current * 0.65 + bass * 0.35
 
-      // Bass → scale pulse & tunnel depth
-      const bassReact = 1 + smoothBass * eff.bassReactivity * 0.35 * eff.masterIntensity
-
       // Bass transient → impact punch (brief extra scale burst on attack)
       const bassDelta  = bass - prevBassRef.current
-      const impactMod  = Math.max(0, bassDelta * 2.8)  // 0-1, spikes on hit
+      const impactMod  = Math.max(0, bassDelta * 2.8)
       const punchScale = 1 + impactMod * eff.bassReactivity * 0.25
 
-      // Low-mid → displacement magnitude and feedback retention
-      const dispMod     = eff.displacement + mid * eff.displacement * 1.4
-      const feedbackMod = Math.min(0.97, eff.feedbackTrails + mid * eff.feedbackTrails * 0.5)
+      // Apply all enabled modulation routes — additively boosts each effect param
+      const mEff = applyModulatedEffects(eff, { ...rawBands, bass: smoothBass }, routesRef.current)
 
-      // Highs → glitch probability boost and edge flicker
-      const glitchMod   = eff.glitchAmount * (1 + high * 2.2)
-      const edgeFlicker = high * eff.masterIntensity
-
-      // Overall volume → bloom and brightness modulation
-      const vol      = Math.min(1, (bass + mid + high) / 2.5)
-      const bloomMod = Math.min(1, eff.bloom + vol * eff.bloom * 0.55)
+      // Derive renderer-level variables from modulated effects
+      const bassReact   = 1 + smoothBass * mEff.bassReactivity * 0.35 * mEff.masterIntensity
+      const dispMod     = mEff.displacement
+      const feedbackMod = Math.min(0.97, mEff.feedbackTrails)
+      const glitchMod   = mEff.glitchAmount
+      const edgeFlicker = high * mEff.masterIntensity
+      const bloomMod    = Math.min(1, mEff.bloom)
 
       // Beat boundary → flash hit / transition frame
       const onBeatBoundary = synced && beatPhase < 0.04
@@ -458,8 +460,8 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         }
 
         // ── RGB Split ──────────────────────────────────────────────
-        if (fxSet.has('RGB Split') && eff.rgbSplit > 0) {
-          const shift = eff.rgbSplit * 14
+        if (fxSet.has('RGB Split') && mEff.rgbSplit > 0) {
+          const shift = mEff.rgbSplit * 14
           ctx.save()
           ctx.globalCompositeOperation = 'screen'
           ctx.globalAlpha = 0.65
@@ -475,7 +477,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
 
         // ── Main draw ──────────────────────────────────────────────
         ctx.save()
-        if (eff.colorShift > 0) ctx.filter = `hue-rotate(${eff.colorShift * 360}deg)`
+        if (mEff.colorShift > 0) ctx.filter = `hue-rotate(${mEff.colorShift * 360}deg)`
         ctx.drawImage(mediaEl, ox, oy, sw, sh)
         ctx.filter = 'none'
         ctx.restore()
@@ -501,9 +503,9 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
           const offX = Math.sin(dispAngle) * dispMod * 12
           const offY = Math.cos(synced ? beatPhase * Math.PI * 2 : t * 0.0017) * dispMod * 8
           ctx.save()
-          ctx.globalAlpha = 0.35 * eff.displacement
+          ctx.globalAlpha = 0.35 * dispMod
           ctx.globalCompositeOperation = 'screen'
-          if (eff.colorShift > 0) ctx.filter = `hue-rotate(${eff.colorShift * 360 + 90}deg)`
+          if (mEff.colorShift > 0) ctx.filter = `hue-rotate(${mEff.colorShift * 360 + 90}deg)`
           ctx.drawImage(mediaEl, ox + offX, oy + offY, sw, sh)
           ctx.filter = 'none'
           ctx.globalAlpha = 1
@@ -526,9 +528,9 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
             } catch { /* cross-origin guard */ }
           }
         }
-      } else if (isPlayingRef.current || bass + mid + high > 0.01) {
+      } else if (isPlayingRef.current || rawBands.volume > 0.01) {
         // ── Generative art fallback (only when playing or audio active) ──
-        drawGenerativeArt(ctx, W, H, dpr, t, speed, bass, eff)
+        drawGenerativeArt(ctx, W, H, dpr, t, speed, bass, mEff)
       } else {
         // ── Idle — no media, not playing, no signal ────────────────
         const cx = W / 2, cy = H / 2
@@ -549,14 +551,14 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
 
       // ── Scanlines ──────────────────────────────────────────────────
       if (fxSet.has('Scanlines')) {
-        ctx.fillStyle = `rgba(0,0,0,${0.1 + eff.masterIntensity * 0.07})`
+        ctx.fillStyle = `rgba(0,0,0,${0.1 + mEff.masterIntensity * 0.07})`
         for (let y = 0; y < H; y += q.scanlineStep) ctx.fillRect(0, y, W, 1)
       }
 
       // ── Noise fog ──────────────────────────────────────────────────
-      if (fxSet.has('Noise Fog') && eff.masterIntensity > 0.3) {
+      if (fxSet.has('Noise Fog') && mEff.masterIntensity > 0.3) {
         ctx.save()
-        ctx.globalAlpha = (eff.masterIntensity - 0.3) * 0.12
+        ctx.globalAlpha = (mEff.masterIntensity - 0.3) * 0.12
         for (let i = 0; i < q.fogParticles; i++) {
           ctx.fillStyle = `rgba(25,191,242,${Math.random()})`
           ctx.fillRect(Math.random() * W, Math.random() * H, 1, 1)
@@ -565,17 +567,15 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         ctx.restore()
       }
 
-      // ── Strobe — highs modulate sensitivity ───────────────────────
+      // ── Strobe — highs modulate sensitivity via mEff.strobe ──────
       // Beat sync: fire on boundary; free: trigger on bass transient.
-      // Highs lower the bass threshold so strobe fires more readily.
-      const highStrobeMod = 1 + high * 1.5
-      const strobeOnBeat  = synced && eff.strobe > 0 && beatPhase < 0.05
-      const strobeOnBass  = !synced && eff.strobe > 0 &&
-        bass > (0.72 / highStrobeMod) && bass > prevBassRef.current + 0.06
+      const strobeOnBeat = synced && mEff.strobe > 0 && beatPhase < 0.05
+      const strobeOnBass = !synced && mEff.strobe > 0 &&
+        bass > 0.62 && bass > prevBassRef.current + 0.06
       if (strobeOnBeat || strobeOnBass) {
         const strobeAlpha = strobeOnBeat
-          ? eff.strobe * (1 - beatPhase / 0.05) * 0.9
-          : eff.strobe * bass * 0.85
+          ? mEff.strobe * (1 - beatPhase / 0.05) * 0.9
+          : mEff.strobe * bass * 0.85
         ctx.fillStyle = `rgba(255,255,255,${strobeAlpha})`
         ctx.fillRect(0, 0, W, H)
       }
@@ -583,8 +583,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
       // ── Beat flash hit (impact frame on beat boundary) ────────────
       if (onBeatBoundary) {
         const decay = 1 - beatPhase / 0.04
-        // White flash — always visible, scaled by masterIntensity
-        ctx.fillStyle = `rgba(255,255,255,${(0.07 + eff.masterIntensity * 0.11) * decay})`
+        ctx.fillStyle = `rgba(255,255,255,${(0.07 + mEff.masterIntensity * 0.11) * decay})`
         ctx.fillRect(0, 0, W, H)
         // Cyan edge ring — clear beat indicator regardless of effects chain state
         const ring = ctx.createRadialGradient(cx, cy, Math.min(W, H) * 0.28, cx, cy, Math.min(W, H) * 0.54)
@@ -595,8 +594,8 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
       }
 
       // ── Edge flicker — highs create a vignette shimmer ────────────
-      if (edgeFlicker > 0.15 && eff.masterIntensity > 0.3) {
-        const flickerAlpha = (edgeFlicker - 0.15) * eff.masterIntensity * 0.45
+      if (edgeFlicker > 0.15 && mEff.masterIntensity > 0.3) {
+        const flickerAlpha = (edgeFlicker - 0.15) * mEff.masterIntensity * 0.45
         const grad = ctx.createRadialGradient(cx, cy, Math.min(W, H) * 0.3, cx, cy, Math.min(W, H) * 0.55)
         grad.addColorStop(0, 'rgba(25,191,242,0)')
         grad.addColorStop(1, `rgba(25,191,242,${flickerAlpha})`)
@@ -619,10 +618,10 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         })
 
       // ── Freq bars HUD (bottom right when audio active) ────────────
-      if (an && buf && (bass + mid + high) > 0.05) {
+      if (an && buf && rawBands.volume > 0.05) {
         const barW = 3 * dpr, gap = 1 * dpr
         const barColors = ['#19bff2','#58d15b','#a78bfa','#f97316']
-        const barVals   = [bass, mid, high, Math.min(1, (bass+mid+high)/3)]
+        const barVals   = [bass, rawBands.lowMid, high, rawBands.volume]
         barVals.forEach((v, i) => {
           const bh = Math.max(2, v * 30 * dpr)
           const bx = W - margin - (barVals.length - i) * (barW + gap)
@@ -631,7 +630,6 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         })
       }
 
-      void vol // used above in bloomMod; suppress if generative path only
       animRef.current = requestAnimationFrame(frame)
     }
 
@@ -1025,7 +1023,7 @@ function LiveVisualPreview({
   isPlaying, onPlay, onPause, onPrev, onNext,
   bpm, onBpmChange, bpmSync, onToggleBpmSync, onTap,
   quality, onQualityChange,
-  canvasWrapRef, audioTime,
+  canvasWrapRef, audioTime, modulationRoutes,
 }: {
   analyser: AnalyserNode | null
   activeMedia: UploadedMedia | null
@@ -1038,6 +1036,7 @@ function LiveVisualPreview({
   quality: Quality; onQualityChange: (q: Quality) => void
   canvasWrapRef: React.RefObject<HTMLDivElement>
   audioTime: number
+  modulationRoutes: ModulationRoute[]
 }) {
   return (
     <div className="vz-preview-panel">
@@ -1052,6 +1051,7 @@ function LiveVisualPreview({
           bpmSync={bpmSync}
           quality={quality}
           audioTime={audioTime}
+          modulationRoutes={modulationRoutes}
         />
         <div className="vz-preview-pills">
           <span className="vz-preview-pill">{quality}</span>
@@ -1178,6 +1178,57 @@ function AudioAnalyzerPanel({ analyser }: { analyser: AnalyserNode | null }) {
           <AudioWaveformCanvas analyser={analyser} />
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── ModulationPanel ───────────────────────────────────────────────────
+function ModulationPanel({ routes, onToggle, onSetAmount }: {
+  routes: ModulationRoute[]
+  onToggle: (id: string) => void
+  onSetAmount: (id: string, amount: number) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const activeCount = routes.filter(r => r.enabled).length
+
+  return (
+    <div className="vz-panel vz-mod-panel">
+      <button className="vz-panel-header vz-mod-header" onClick={() => setOpen(v => !v)}>
+        <span className="vz-panel-title">Modulation</span>
+        <span className="vz-mod-summary">{activeCount}/{routes.length} active</span>
+        <svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor" style={{ opacity: 0.4, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }}>
+          <path d="M7 10l5 5 5-5z"/>
+        </svg>
+      </button>
+
+      {open && (
+        <div className="vz-mod-list">
+          {routes.map(route => (
+            <div key={route.id} className={`vz-mod-route ${route.enabled ? 'vz-mod-route--on' : ''}`}>
+              <button
+                className="vz-mod-toggle"
+                onClick={() => onToggle(route.id)}
+                title={route.enabled ? 'Disable route' : 'Enable route'}
+              >
+                <span className={`vz-mod-dot ${route.enabled ? 'vz-mod-dot--on' : ''}`} />
+              </button>
+              <span className="vz-mod-source">{BAND_LABELS[route.source]}</span>
+              <span className="vz-mod-arrow">→</span>
+              <span className="vz-mod-target">{EFFECT_LABELS[route.effectId] ?? route.effectId}</span>
+              <input
+                type="range"
+                className="vz-mod-amount"
+                min={0} max={1} step={0.05}
+                value={route.amount}
+                disabled={!route.enabled}
+                title={`Amount: ${route.amount.toFixed(2)}`}
+                onChange={e => onSetAmount(route.id, parseFloat(e.target.value))}
+              />
+              <span className="vz-mod-amount-val">{route.amount.toFixed(2)}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -1462,10 +1513,35 @@ function SessionPanel({ sessions, sessionsLoading, sessionSyncError, onSave, onL
 
 // ── VyzualzDock ───────────────────────────────────────────────────────
 function VyzualzDock() {
-  const { presets, activePresetId, bpm, setBpm, bpmSync, toggleBpmSync } = useVisualStore()
+  const {
+    presets, activePresetId, bpm, setBpm, bpmSync, toggleBpmSync,
+    quality, setQuality, resetEffects, resetModulationRoutes,
+  } = useVisualStore()
+  const { storageAvailable, authRequired } = useMediaStore()
   const preset = presets.find(p => p.id === activePresetId) ?? presets[0] ?? DEFAULT_PRESETS[0]
   const engine = useSharedAudio()
   const fileInputId = useId()
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const gearRef = useRef<HTMLButtonElement>(null)
+
+  // Close on Escape or outside click
+  useEffect(() => {
+    if (!settingsOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSettingsOpen(false) }
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as Node
+      // Dismiss if click is outside the popover and the gear button itself
+      if (gearRef.current?.contains(target)) return
+      const popover = document.querySelector('.vz-settings-popover')
+      if (popover && !popover.contains(target)) setSettingsOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('mousedown', onDown)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('mousedown', onDown)
+    }
+  }, [settingsOpen])
 
   const vol    = engine.volume
   const volPct = `${Math.round(vol * 100)}%`
@@ -1599,15 +1675,98 @@ function VyzualzDock() {
         />
       </div>
 
-      <div className="az-dock-right">
+      <div className="az-dock-right" style={{ position: 'relative' }}>
         <select className="az-dock-source-select">
           <option>Main Out</option>
         </select>
-        <button className="az-dock-gear-btn" title="Settings">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style={{ opacity: 0.5 }}>
+        <button
+          ref={gearRef}
+          className={`az-dock-gear-btn${settingsOpen ? ' az-dock-gear-btn--active' : ''}`}
+          title="VYZUALZ Settings"
+          aria-label="VYZUALZ Settings"
+          aria-expanded={settingsOpen}
+          onClick={() => setSettingsOpen(v => !v)}
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
             <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
           </svg>
         </button>
+
+        {/* ── VYZUALZ Settings panel ─────────────────────────── */}
+        {settingsOpen && (
+          <div className="az-settings-popover vz-settings-popover">
+            <div className="az-settings-popover-header">
+              VYZUALZ Settings
+              <button className="az-popover-close" onClick={() => setSettingsOpen(false)} aria-label="Close settings">✕</button>
+            </div>
+            <div className="az-settings-popover-body">
+
+              {/* Quality */}
+              <div>
+                <div className="az-popover-section-title">Canvas Quality</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {(['High', 'Medium', 'Low'] as const).map(q => (
+                    <button
+                      key={q}
+                      className={`vz-settings-seg-btn${quality === q ? ' vz-settings-seg-btn--active' : ''}`}
+                      onClick={() => setQuality(q)}
+                    >{q}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* BPM Sync */}
+              <div>
+                <div className="az-popover-section-title">BPM Sync</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button
+                    className={`vz-settings-seg-btn${bpmSync ? ' vz-settings-seg-btn--active' : ''}`}
+                    onClick={toggleBpmSync}
+                    style={{ minWidth: 54 }}
+                  >{bpmSync ? 'ON' : 'OFF'}</button>
+                  <span style={{ fontSize: 10, color: 'rgba(245,248,250,0.45)' }}>
+                    {bpmSync ? `Locked to ${bpm} BPM` : 'Free-running beat phase'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Media sync status */}
+              <div>
+                <div className="az-popover-section-title">Media Sync</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <span style={{
+                    display: 'inline-block', width: 7, height: 7, borderRadius: '50%',
+                    background: storageAvailable && !authRequired ? '#58d15b' : 'rgba(245,248,250,0.2)',
+                    flexShrink: 0,
+                  }} />
+                  <span style={{ fontSize: 10, color: 'rgba(245,248,250,0.55)' }}>
+                    {!storageAvailable ? 'Local only — Supabase not configured'
+                      : authRequired   ? 'Signed out — media stored locally'
+                      :                  'Cloud sync enabled'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Reset actions */}
+              <div>
+                <div className="az-popover-section-title">Reset</div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <button
+                    className="vz-settings-reset-btn"
+                    onClick={() => { resetEffects(); setSettingsOpen(false) }}
+                    title="Set all effect sliders back to defaults"
+                  >Reset Effects</button>
+                  <button
+                    className="vz-settings-reset-btn"
+                    onClick={() => { resetModulationRoutes(); setSettingsOpen(false) }}
+                    title="Restore default audio modulation routing"
+                  >Reset Modulation</button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -1632,6 +1791,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     sessions, sessionsLoading, sessionSyncError,
     saveSession, loadSession, renameSession, deleteSession,
     syncSessionsFromCloud, clearSessionSyncError,
+    modulationRoutes, toggleModulationRoute, setModulationRouteAmount,
   } = useVisualStore()
 
   const { items, loading, reorderItems } = useMediaStore()
@@ -1787,6 +1947,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                 onQualityChange={setQuality}
                 canvasWrapRef={canvasWrapRef}
                 audioTime={engine.currentTime}
+                modulationRoutes={modulationRoutes}
               />
               <AudioAnalyzerPanel analyser={analyser} />
             </div>
@@ -1798,6 +1959,11 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                 onReset={resetEffects}
               />
               <EffectChainPanel enabled={enabledFxSet} onToggle={toggleFx} />
+              <ModulationPanel
+                routes={modulationRoutes}
+                onToggle={toggleModulationRoute}
+                onSetAmount={setModulationRouteAmount}
+              />
               <OutputModeCard onFullscreen={handleFullscreen} />
             </div>
           </div>

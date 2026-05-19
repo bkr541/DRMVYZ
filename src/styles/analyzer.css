@@ -1207,3 +1207,13 @@
   line-height: 1;
 }
 .az-popover-close:hover { color: var(--az-text-muted); }
+
+/* ── Gear button active state ────────────────────────────────────── */
+.az-dock-gear-btn--active {
+  color: var(--az-cyan);
+  background: rgba(25,191,242,0.12);
+  border-color: rgba(25,191,242,0.3);
+}
+.az-dock-gear-btn--active:hover {
+  background: rgba(25,191,242,0.18);
+}

@@ -8,7 +8,7 @@
 
 1. Copy env file: `cp .env.example .env`
 2. Fill in `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from your Supabase project dashboard (Settings → API)
-3. Apply migration: paste `supabase/migrations/0001_initial_drmvyz_schema.sql` into the Supabase SQL editor, or run `supabase db push` with the CLI
+3. Apply migrations in order: paste each file from `supabase/migrations/` into the Supabase SQL editor, or run `supabase db push` with the CLI
 
 ## Tables
 
@@ -22,6 +22,18 @@
 | `tags` | User-defined labels |
 | `audio_track_tags` | M2M: tracks ↔ tags |
 | `media_item_tags` | M2M: media items ↔ tags |
+
+#### `profiles` columns
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `uuid` | PK — references `auth.users(id)` |
+| `email` | `text` | Copied from `auth.users.email` |
+| `display_name` | `text` | From signup metadata `display_name` |
+| `artist_name` | `text` | From signup metadata `artist_name` (added in migration 0004) |
+| `avatar_url` | `text` | User-uploaded avatar |
+| `created_at` | `timestamptz` | Auto-set |
+| `updated_at` | `timestamptz` | Auto-updated via trigger |
 
 ### Analyzer View
 
@@ -86,4 +98,14 @@ const { data, error } = await supabase
 
 ## Auth
 
-Supabase Auth is pre-wired. On `auth.users` insert, a trigger auto-creates a `profiles` row and `user_settings` row. Use `supabase.auth.signInWithOAuth`, `signInWithPassword`, etc. as usual.
+Supabase Auth is pre-wired. On `auth.users` insert, a trigger auto-creates a `profiles` row and `user_settings` row. The trigger copies `display_name` and `artist_name` from `raw_user_meta_data`, which the client sets during signup:
+
+```typescript
+await supabase.auth.signUp({
+  email,
+  password,
+  options: { data: { display_name: name, artist_name: artistName } },
+})
+```
+
+Use `supabase.auth.signInWithOAuth`, `signInWithPassword`, etc. as usual.
