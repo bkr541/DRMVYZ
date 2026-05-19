@@ -62,7 +62,7 @@
 }
 
 .vz-input-label {
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--az-text-faint);
@@ -118,7 +118,7 @@
 }
 
 .vz-freq-label {
-  font-size: 7px;
+  font-size: 9px;
   letter-spacing: 0.03em;
   color: var(--az-text-faint);
   text-align: center;
@@ -135,7 +135,7 @@
 }
 
 .vz-beat-label {
-  font-size: 7.5px;
+  font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.14em;
   color: var(--az-cyan);
@@ -154,7 +154,7 @@
 }
 
 .vz-left {
-  width: 214px;
+  width: 250px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -243,7 +243,7 @@
   border-radius: 4px;
   background: none;
   font-family: var(--az-font);
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--az-text-faint);
   cursor: pointer;
@@ -374,7 +374,7 @@
   position: absolute;
   bottom: 3px;
   left: 3px;
-  font-size: 7px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.07em;
   padding: 1px 4px;
@@ -402,7 +402,7 @@
 
 .vz-media-info { padding: 4px 6px 5px; }
 .vz-media-name {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--az-text-muted);
   white-space: nowrap;
@@ -410,7 +410,7 @@
   text-overflow: ellipsis;
 }
 .vz-media-meta {
-  font-size: 8px;
+  font-size: 10px;
   color: var(--az-text-faint);
   margin-top: 1px;
 }
@@ -421,7 +421,7 @@
   margin-top: 3px;
 }
 .vz-media-tag {
-  font-size: 7px;
+  font-size: 9px;
   padding: 1px 4px;
   border-radius: 2px;
   background: rgba(74,199,219,0.1);
@@ -527,7 +527,7 @@
 }
 
 .vz-bpm-label {
-  font-size: 8.5px;
+  font-size: 10.5px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--az-text-faint);
@@ -610,7 +610,7 @@
   background: var(--az-cyan);
 }
 .vz-sync-label {
-  font-size: 9.5px;
+  font-size: 11.5px;
   color: var(--az-text-faint);
 }
 
@@ -669,7 +669,7 @@
 }
 
 .vz-band-bar-label {
-  font-size: 7.5px;
+  font-size: 9.5px;
   letter-spacing: 0.04em;
   color: var(--az-text-faint);
   text-align: center;
@@ -677,7 +677,7 @@
 }
 
 .vz-band-bar-val {
-  font-size: 8.5px;
+  font-size: 10.5px;
   font-weight: 600;
   color: var(--az-text-muted);
   font-variant-numeric: tabular-nums;
@@ -692,7 +692,7 @@
 }
 
 .vz-waveform-label {
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--az-text-faint);
@@ -752,14 +752,14 @@
 }
 
 .vz-slider-label {
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--az-text-faint);
 }
 
 .vz-slider-val {
-  font-size: 9.5px;
+  font-size: 11.5px;
   font-weight: 600;
   color: var(--az-text-muted);
   font-variant-numeric: tabular-nums;
@@ -831,7 +831,7 @@ input[type='range'].vz-slider--color {
   border-radius: 5px;
   color: var(--az-text-faint);
   font-family: var(--az-font);
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-align: center;
@@ -886,7 +886,7 @@ input[type='range'].vz-slider--color {
 .vz-fullscreen-btn:hover { background: rgba(74,199,219,0.2); border-color: rgba(74,199,219,0.5); }
 
 .vz-hotkey-pill {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   padding: 1px 6px;
   background: rgba(255,255,255,0.06);
@@ -971,7 +971,7 @@ input[type='range'].vz-slider--color {
   background: none;
   border: none;
   color: rgba(245, 248, 250, 0.75);
-  font-size: 10px;
+  font-size: 11.5px;
   cursor: pointer;
   padding: 4px 4px;
   text-align: left;
@@ -982,7 +982,7 @@ input[type='range'].vz-slider--color {
 }
 .vz-session-row-name:hover { background: rgba(74,199,219, 0.1); color: #f5f8fa; }
 .vz-session-row-meta {
-  font-size: 9px;
+  font-size: 10.5px;
   color: rgba(245, 248, 250, 0.3);
   white-space: nowrap;
 }
@@ -1094,11 +1094,12 @@ input[type='range'].vz-slider--color {
 }
 
 .vz-presets-label {
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: var(--az-text-faint);
+  color: var(--az-text-muted);
+  font-family: var(--az-font);
 }
 
 .vz-new-preset-btn {
@@ -1157,7 +1158,7 @@ input[type='range'].vz-slider--color {
 
 .vz-preset-name {
   padding: 3px 6px;
-  font-size: 8.5px;
+  font-size: 10.5px;
   font-weight: 600;
   color: var(--az-text-muted);
   white-space: nowrap;
@@ -1182,11 +1183,12 @@ input[type='range'].vz-slider--color {
 }
 
 .vz-shortcuts-label {
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: var(--az-text-faint);
+  color: var(--az-text-muted);
+  font-family: var(--az-font);
   flex-shrink: 0;
 }
 
@@ -1222,7 +1224,7 @@ input[type='range'].vz-slider--color {
 }
 
 .vz-shortcut-desc {
-  font-size: 8px;
+  font-size: 10px;
   color: var(--az-text-faint);
   white-space: nowrap;
   overflow: hidden;
@@ -1240,7 +1242,7 @@ input[type='range'].vz-slider--color {
 }
 
 .vz-dock-preset-label {
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--az-text-faint);
@@ -1266,7 +1268,7 @@ input[type='range'].vz-slider--color {
 }
 
 .vz-dock-bpm-label {
-  font-size: 8.5px;
+  font-size: 10.5px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--az-text-faint);
@@ -1327,7 +1329,7 @@ input[type='range'].vz-slider--color {
 
 /* ── Responsive ──────────────────────────────────────────────────────── */
 @media (max-width: 1200px) {
-  .vz-left  { width: 190px; }
+  .vz-left  { width: 220px; }
   .vz-right { width: 228px; }
 }
 @media (max-width: 980px) {
@@ -1357,7 +1359,7 @@ input[type='range'].vz-slider--color {
 }
 .vz-mod-header:hover { background: rgba(255,255,255,0.03); }
 .vz-mod-summary {
-  font-size: 9px;
+  font-size: 10.5px;
   color: rgba(74,199,219,0.55);
   margin-left: auto;
   font-family: 'JetBrains Mono', monospace;
@@ -1402,7 +1404,7 @@ input[type='range'].vz-slider--color {
   box-shadow: 0 0 4px rgba(74,199,219,0.7);
 }
 .vz-mod-source {
-  font-size: 9px;
+  font-size: 11px;
   font-family: 'JetBrains Mono', monospace;
   color: #4ac7db;
   width: 28px;
@@ -1410,12 +1412,12 @@ input[type='range'].vz-slider--color {
   text-align: right;
 }
 .vz-mod-arrow {
-  font-size: 9px;
+  font-size: 11px;
   color: rgba(245,248,250,0.25);
   flex-shrink: 0;
 }
 .vz-mod-target {
-  font-size: 9px;
+  font-size: 11px;
   color: rgba(245,248,250,0.7);
   flex: 1;
   white-space: nowrap;
@@ -1431,7 +1433,7 @@ input[type='range'].vz-slider--color {
 }
 .vz-mod-amount:disabled { opacity: 0.3; cursor: default; }
 .vz-mod-amount-val {
-  font-size: 8px;
+  font-size: 10px;
   font-family: 'JetBrains Mono', monospace;
   color: rgba(245,248,250,0.35);
   width: 22px;
@@ -1842,4 +1844,19 @@ input[type='range'].vz-slider--color {
   background: rgba(248,113,113,0.15);
   border-color: rgba(248,113,113,0.3);
   color: #f87171;
+}
+
+/* ── Exo 2 data font — all in-panel detail / value text ─────────────────── */
+.vz-freq-label, .vz-beat-label, .vz-input-label, .vz-media-type-badge,
+.vz-media-name, .vz-media-meta, .vz-media-tag,
+.vz-bpm-label, .vz-sync-label,
+.vz-band-bar-label, .vz-band-bar-val, .vz-waveform-label,
+.vz-slider-label, .vz-slider-val,
+.vz-chain-btn, .vz-preset-name,
+.vz-shortcut-desc, .vz-shortcut-key,
+.vz-session-row-name, .vz-session-row-meta,
+.vz-mod-summary, .vz-mod-source, .vz-mod-target, .vz-mod-amount-val,
+.vz-dock-preset-label, .vz-dock-bpm-label,
+.vz-filter-tab, .vz-hotkey-pill {
+  font-family: var(--az-font-data);
 }
