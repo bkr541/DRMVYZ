@@ -1,4 +1,12 @@
 import { useState, useRef, useEffect, useCallback, useId, useMemo } from 'react'
+import {
+  Layers01Icon,
+  ChartHistogramIcon,
+  Route01Icon,
+  MagicWand01Icon,
+  Flowchart01Icon,
+  Tv01Icon,
+} from 'hugeicons-react'
 import { AnalyzerSidebar } from '../analyzer/AnalyzerSidebar'
 import { useSharedAudio }  from '../../context/AudioEngineContext'
 import { useMediaStore }   from '../../stores/mediaStore'
@@ -1054,6 +1062,7 @@ function MediaDeckPanel({ activeMediaId, onSelect }: {
       onDrop={e => { e.preventDefault(); setDragOver(false); handleQuickDrop(Array.from(e.dataTransfer.files)) }}
     >
       <div className="vz-panel-header">
+        <Layers01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
         <span className="vz-panel-title">Media Deck</span>
         <button className="vz-import-btn" onClick={openImportMediaModal}>
           <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor">
@@ -1315,6 +1324,7 @@ function AudioAnalyzerPanel({ analyser }: { analyser: AnalyserNode | null }) {
   return (
     <div className="vz-analyzer-panel">
       <div className="vz-panel-header" style={{ minHeight: 32 }}>
+        <ChartHistogramIcon size={14} color="currentColor" style={{ flexShrink: 0 }} />
         <span className="vz-panel-title">Audio Analyzer</span>
       </div>
       <div className="vz-analyzer-body">
@@ -1354,6 +1364,7 @@ function ModulationPanel({ routes, onToggle, onSetAmount }: {
   return (
     <div className="vz-panel vz-mod-panel">
       <button className="vz-panel-header vz-mod-header" onClick={() => setOpen(v => !v)}>
+        <Route01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
         <span className="vz-panel-title">Modulation</span>
         <span className="vz-mod-summary">{activeCount}/{routes.length} active</span>
         <svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor" style={{ opacity: 0.4, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }}>
@@ -1415,6 +1426,7 @@ function EffectControlsPanel({ effects, onChange, onReset }: {
   return (
     <div className="vz-effects-panel">
       <div className="vz-panel-header">
+        <MagicWand01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
         <span className="vz-panel-title">Effect Controls</span>
         <button className="vz-reset-btn" onClick={onReset}>Reset</button>
       </div>
@@ -1437,6 +1449,7 @@ function EffectChainPanel({ enabled, onToggle }: {
   return (
     <div className="vz-chain-panel">
       <div className="vz-panel-header" style={{ minHeight: 32 }}>
+        <Flowchart01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
         <span className="vz-panel-title">Effect Chain</span>
       </div>
       <div className="vz-chain-grid">
@@ -1456,6 +1469,7 @@ function OutputModeCard({ onFullscreen }: { onFullscreen: () => void }) {
   return (
     <div className="vz-output-panel">
       <div className="vz-panel-header" style={{ minHeight: 32 }}>
+        <Tv01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
         <span className="vz-panel-title">Output</span>
       </div>
       <div className="vz-output-body">

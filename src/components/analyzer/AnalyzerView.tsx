@@ -1,4 +1,14 @@
 import { useRef, useState, useCallback } from 'react'
+import {
+  AudioWave01Icon,
+  ChartHistogramIcon,
+  HeadphonesIcon,
+  SlidersVerticalIcon,
+  MusicNote01Icon,
+  Speaker01Icon,
+  SlidersHorizontalIcon,
+  Activity01Icon,
+} from 'hugeicons-react'
 import { useSharedAudio } from '../../context/AudioEngineContext'
 import { useRecorder }    from '../../hooks/useRecorder'
 import type { AudioSource, FftSize } from '../../types'
@@ -72,6 +82,7 @@ export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerVi
             {/* ── Spectrum Analyzer ── */}
             <div className="az-panel az-panel-spectrum">
               <div className="az-panel-header">
+                <ChartHistogramIcon size={14} color="currentColor" style={{ flexShrink: 0 }} />
                 <span className="az-panel-title">Spectrum Analyzer</span>
                 <div className="az-seg-group">
                   <button className={`az-seg-btn ${specMode === 'Linear' ? 'az-seg-btn--active' : ''}`}
@@ -110,6 +121,7 @@ export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerVi
             {/* ── Stereo Image ── */}
             <div className="az-panel az-panel-stereo">
               <div className="az-panel-header">
+                <HeadphonesIcon size={14} color="currentColor" style={{ flexShrink: 0 }} />
                 <span className="az-panel-title">Stereo Image</span>
                 <span className="az-spacer" />
                 <div className="az-seg-group">
@@ -134,6 +146,7 @@ export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerVi
             {/* ── Waveform ── */}
             <div className="az-panel az-panel-waveform">
               <div className="az-panel-header">
+                <AudioWave01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
                 <span className="az-panel-title">Waveform</span>
                 <span className="az-spacer" />
                 <button className="az-icon-btn" title="Zoom in">+</button>
@@ -153,6 +166,7 @@ export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerVi
             {/* ── Level Meters ── */}
             <div className="az-panel az-panel-levelmeters">
               <div className="az-panel-header">
+                <SlidersVerticalIcon size={14} color="currentColor" style={{ flexShrink: 0 }} />
                 <span className="az-panel-title">Level Meters</span>
                 <span className="az-spacer" />
                 <select className="az-select" value={meterMode}
@@ -177,6 +191,7 @@ export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerVi
               {/* Track Info */}
               <div className="az-panel">
                 <div className="az-panel-header">
+                  <MusicNote01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
                   <span className="az-panel-title">Track Info</span>
                   {engine.spectralFeatures?.bpm && (
                     <span className="az-panel-title" style={{ color: CYAN, fontSize: 11 }}>
@@ -203,6 +218,7 @@ export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerVi
               {/* Loudness */}
               <div className="az-panel">
                 <div className="az-panel-header">
+                  <Speaker01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
                   <span className="az-panel-title">Loudness</span>
                   <span className="az-spacer" />
                   <button className="az-overflow-btn">···</button>
@@ -219,6 +235,7 @@ export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerVi
               {/* Spectrum Settings */}
               <div className="az-panel">
                 <div className="az-panel-header">
+                  <SlidersHorizontalIcon size={14} color="currentColor" style={{ flexShrink: 0 }} />
                   <span className="az-panel-title">Spectrum Settings</span>
                 </div>
                 <div className="az-panel-body">
@@ -229,6 +246,7 @@ export function AnalyzerView({ activeView = 'analyzer', onNavigate }: AnalyzerVi
               {/* Monitoring */}
               <div className="az-panel">
                 <div className="az-panel-header">
+                  <Activity01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
                   <span className="az-panel-title">Monitoring</span>
                 </div>
                 <div className="az-panel-body">
