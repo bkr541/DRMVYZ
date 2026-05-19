@@ -142,6 +142,45 @@ function TimelineClipCard({
         <option value="freeze">Freeze</option>
       </select>
 
+      {/* Transition controls */}
+      <div className="vz-tl-transition-row">
+        <select
+          className="az-select vz-tl-tx-select"
+          value={clip.transition?.type ?? 'cut'}
+          onChange={e => {
+            const type = e.target.value as NonNullable<VzTimelineClip['transition']>['type']
+            onUpdate(clip.id, {
+              transition: type === 'cut'
+                ? undefined
+                : { type, durationSec: clip.transition?.durationSec ?? 0.5 },
+            })
+          }}
+          title="Transition into next clip"
+        >
+          <option value="cut">Cut</option>
+          <option value="crossfade">Crossfade</option>
+          <option value="glitch">Glitch</option>
+          <option value="flash">Flash</option>
+        </select>
+        {clip.transition && clip.transition.type !== 'cut' && (
+          <input
+            type="number"
+            className="vz-tl-tx-dur"
+            min={0.1}
+            max={10}
+            step={0.1}
+            value={clip.transition.durationSec}
+            onChange={e => {
+              const v = parseFloat(e.target.value)
+              if (!isNaN(v) && v > 0 && clip.transition) {
+                onUpdate(clip.id, { transition: { ...clip.transition, durationSec: v } })
+              }
+            }}
+            title="Transition duration (s)"
+          />
+        )}
+      </div>
+
       <div className="vz-tl-card-actions">
         <button className="vz-tl-clip-btn" disabled={idx === 0}
           onClick={() => onMove(clip.id, -1)} title="Move left">‹</button>

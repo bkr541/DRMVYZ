@@ -19,7 +19,8 @@ import type { ModulationRoute, AudioBandValues } from '../../lib/audioModulation
 import { TrackScrubber } from '../shared/TrackScrubber'
 import { MediaUploadModal } from './MediaUploadModal'
 import { TimelinePanel } from './TimelinePanel'
-import { getActiveTimelineClip } from '../../lib/timeline'
+import { getActiveTimelineClip, getNextTimelineClip, getTransitionState } from '../../lib/timeline'
+import type { TransitionState } from '../../lib/timeline'
 import type { VzTimelineClip } from '../../types/timeline'
 import type { MediaRole } from '../../lib/mediaRoles'
 
@@ -410,6 +411,13 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
   const activeMediaRoleRef    = useRef<MediaRole | null>(null)
   const activeMediaFitModeRef = useRef<'cover' | 'contain' | null>(null)
 
+  // Transition rendering refs
+  const incomingMediaElRef   = useRef<HTMLImageElement | HTMLVideoElement | null>(null)
+  const transitionStateRef   = useRef<TransitionState | null>(null)
+  const incomingRoleRef      = useRef<MediaRole | null>(null)
+  const incomingFitModeRef   = useRef<'cover' | 'contain' | null>(null)
+  const prevTransitionOnRef  = useRef(false)
+
   // Sync refs on every render (cheap assignments)
   useEffect(() => { effectsRef.current  = effects })
   useEffect(() => { enabledFxRef.current = enabledFx })
@@ -643,6 +651,66 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
             activeMediaFitModeRef.current = null
           }
         }
+
+        // ── Pre-warm next clip + compute transition state ─────────────
+        // Preload the clip that follows the active one so the pool is ready
+        // before its transition window opens.
+        if (clip) {
+          const nextClip = getNextTimelineClip(clips, clip.id, timelineLoopRef.current)
+          if (nextClip && !mediaPoolRef.current.has(nextClip.mediaId)) {
+            const nm = mediaItemsRef.current.find(x => x.id === nextClip.mediaId)
+            if (nm) {
+              if (nm.type === 'image') {
+                const img = new Image(); img.src = nm.url
+                mediaPoolRef.current.set(nm.id, img)
+              } else {
+                const vid = document.createElement('video')
+                vid.src = nm.url; vid.muted = true; vid.playsInline = true
+                mediaPoolRef.current.set(nm.id, vid)
+              }
+            }
+          }
+        }
+
+        const txState = getTransitionState(clips, timelineClockRef.current, timelineLoopRef.current)
+        transitionStateRef.current = txState
+
+        const txNowActive    = txState !== null
+        const txJustStarted  = txNowActive && !prevTransitionOnRef.current
+        prevTransitionOnRef.current = txNowActive
+
+        if (txState) {
+          const inClip  = txState.incomingClip
+          // Ensure incoming clip element exists in pool
+          if (!mediaPoolRef.current.has(inClip.mediaId)) {
+            const inm = mediaItemsRef.current.find(x => x.id === inClip.mediaId)
+            if (inm) {
+              if (inm.type === 'image') {
+                const img = new Image(); img.src = inm.url
+                mediaPoolRef.current.set(inm.id, img)
+              } else {
+                const vid = document.createElement('video')
+                vid.src = inm.url; vid.muted = true; vid.playsInline = true
+                mediaPoolRef.current.set(inm.id, vid)
+              }
+            }
+          }
+          const inEl = mediaPoolRef.current.get(inClip.mediaId) ?? null
+          incomingMediaElRef.current  = inEl
+          const inm = mediaItemsRef.current.find(x => x.id === inClip.mediaId)
+          incomingRoleRef.current     = inm?.mediaRole ?? null
+          incomingFitModeRef.current  = inClip.fitMode
+          // On transition start: seek + play incoming video from its in-point
+          if (txJustStarted && inEl instanceof HTMLVideoElement) {
+            inEl.currentTime = inClip.mediaInSec
+            inEl.loop        = inClip.playbackMode === 'loop'
+            if (isPlayingRef.current) inEl.play().catch(() => {})
+          }
+        } else {
+          incomingMediaElRef.current = null
+          incomingRoleRef.current    = null
+          incomingFitModeRef.current = null
+        }
       }
 
       const mediaEl = mediaElRef.current
@@ -695,14 +763,159 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
           ctx.restore()
         }
 
-        // ── Main draw ──────────────────────────────────────────────
-        ctx.save()
-        if (compositeOp !== 'source-over') ctx.globalCompositeOperation = compositeOp
-        if (mEff.colorShift > 0) ctx.filter = `hue-rotate(${mEff.colorShift * 360}deg)`
-        ctx.drawImage(mediaEl, ox, oy, sw, sh)
-        ctx.filter = 'none'
-        ctx.globalCompositeOperation = 'source-over'
-        ctx.restore()
+        // ── Main draw (transition-aware) ───────────────────────────
+        {
+          const txState = transitionStateRef.current
+          const inEl    = incomingMediaElRef.current
+
+          // Helper: compute draw rect for incoming clip using its own role/fit/scale
+          const inRole        = incomingRoleRef.current
+          const inFitMode     = incomingFitModeRef.current ?? getDefaultFitModeForRole(inRole)
+          const inScale       = shouldApplyScalePulse(inRole) ? bassReact * punchScale * eff.logoScale : 1
+          const inRect        = inEl ? computeDrawRect(W, H, inEl, inFitMode, inScale, inRole)
+                                     : { ox: 0, oy: 0, sw: W, sh: H }
+          const inCompositeOp = getCompositeOpForRole(inRole)
+
+          if (txState && txState.type !== 'cut') {
+            const p = txState.progress  // 0 → 1
+
+            if (txState.type === 'crossfade') {
+              // ── Outgoing: fade out ────────────────────────────────
+              ctx.save()
+              ctx.globalAlpha = 1 - p
+              if (compositeOp !== 'source-over') ctx.globalCompositeOperation = compositeOp
+              if (mEff.colorShift > 0) ctx.filter = `hue-rotate(${mEff.colorShift * 360}deg)`
+              ctx.drawImage(mediaEl, ox, oy, sw, sh)
+              ctx.filter = 'none'
+              ctx.globalCompositeOperation = 'source-over'
+              ctx.globalAlpha = 1
+              ctx.restore()
+              // ── Incoming: fade in ─────────────────────────────────
+              if (inEl) {
+                ctx.save()
+                ctx.globalAlpha = p
+                if (inCompositeOp !== 'source-over') ctx.globalCompositeOperation = inCompositeOp
+                if (mEff.colorShift > 0) ctx.filter = `hue-rotate(${mEff.colorShift * 360}deg)`
+                ctx.drawImage(inEl, inRect.ox, inRect.oy, inRect.sw, inRect.sh)
+                ctx.filter = 'none'
+                ctx.globalCompositeOperation = 'source-over'
+                ctx.globalAlpha = 1
+                ctx.restore()
+              }
+
+            } else if (txState.type === 'glitch') {
+              const intensity = Math.sin(p * Math.PI)  // 0→peak(p=0.5)→0
+
+              // Outgoing: slightly reduced alpha as chaos rises
+              ctx.save()
+              ctx.globalAlpha = 1 - intensity * 0.35
+              if (compositeOp !== 'source-over') ctx.globalCompositeOperation = compositeOp
+              if (mEff.colorShift > 0) ctx.filter = `hue-rotate(${mEff.colorShift * 360}deg)`
+              ctx.drawImage(mediaEl, ox, oy, sw, sh)
+              ctx.filter = 'none'
+              ctx.globalCompositeOperation = 'source-over'
+              ctx.globalAlpha = 1
+              ctx.restore()
+
+              // Horizontal slice jitter on outgoing
+              const numSlices = Math.ceil(2 + intensity * 7)
+              for (let i = 0; i < numSlices; i++) {
+                const sliceY = Math.floor(Math.random() * H)
+                const sliceH = Math.max(1, Math.floor(Math.random() * 22 + 3))
+                const jitterX = (Math.random() - 0.5) * intensity * 55
+                ctx.save()
+                ctx.beginPath()
+                ctx.rect(0, sliceY, W, Math.min(sliceH, H - sliceY))
+                ctx.clip()
+                ctx.drawImage(mediaEl, ox + jitterX, oy, sw, sh)
+                ctx.restore()
+              }
+
+              // RGB split burst on outgoing
+              if (intensity > 0.2) {
+                const shift = intensity * 20
+                ctx.save()
+                ctx.globalCompositeOperation = 'screen'
+                ctx.globalAlpha = intensity * 0.55
+                ctx.filter = 'sepia(1) saturate(5) hue-rotate(-40deg)'
+                ctx.drawImage(mediaEl, ox - shift, oy, sw, sh)
+                ctx.filter = 'sepia(1) saturate(5) hue-rotate(200deg)'
+                ctx.drawImage(mediaEl, ox + shift, oy, sw, sh)
+                ctx.filter = 'none'
+                ctx.globalCompositeOperation = 'source-over'
+                ctx.globalAlpha = 1
+                ctx.restore()
+              }
+
+              // Incoming clip flashes in near peak
+              if (inEl && intensity > 0.45) {
+                ctx.save()
+                ctx.globalAlpha = Math.min(1, (intensity - 0.45) * 1.82)
+                if (inCompositeOp !== 'source-over') ctx.globalCompositeOperation = inCompositeOp
+                ctx.drawImage(inEl, inRect.ox, inRect.oy, inRect.sw, inRect.sh)
+                ctx.globalCompositeOperation = 'source-over'
+                ctx.globalAlpha = 1
+                ctx.restore()
+              }
+
+              // White brightness flash at peak
+              if (intensity > 0.6) {
+                ctx.save()
+                ctx.globalAlpha = (intensity - 0.6) * 2.5 * 0.4
+                ctx.fillStyle = '#ffffff'
+                ctx.fillRect(0, 0, W, H)
+                ctx.globalAlpha = 1
+                ctx.restore()
+              }
+
+            } else if (txState.type === 'flash') {
+              // Outgoing fades out quickly in the first half
+              ctx.save()
+              ctx.globalAlpha = Math.max(0, 1 - p * 2)
+              if (compositeOp !== 'source-over') ctx.globalCompositeOperation = compositeOp
+              if (mEff.colorShift > 0) ctx.filter = `hue-rotate(${mEff.colorShift * 360}deg)`
+              ctx.drawImage(mediaEl, ox, oy, sw, sh)
+              ctx.filter = 'none'
+              ctx.globalCompositeOperation = 'source-over'
+              ctx.globalAlpha = 1
+              ctx.restore()
+
+              // Incoming fades in starting from p≈0.25
+              if (inEl) {
+                ctx.save()
+                ctx.globalAlpha = Math.min(1, Math.max(0, (p - 0.25) * 2))
+                if (inCompositeOp !== 'source-over') ctx.globalCompositeOperation = inCompositeOp
+                if (mEff.colorShift > 0) ctx.filter = `hue-rotate(${mEff.colorShift * 360}deg)`
+                ctx.drawImage(inEl, inRect.ox, inRect.oy, inRect.sw, inRect.sh)
+                ctx.filter = 'none'
+                ctx.globalCompositeOperation = 'source-over'
+                ctx.globalAlpha = 1
+                ctx.restore()
+              }
+
+              // White/cyan flash peaks at p=0.5 (sin curve)
+              const flashAlpha = Math.sin(p * Math.PI) * 0.88
+              if (flashAlpha > 0.02) {
+                ctx.save()
+                ctx.globalAlpha = flashAlpha
+                ctx.fillStyle = '#ffffff'
+                ctx.fillRect(0, 0, W, H)
+                ctx.globalAlpha = 1
+                ctx.restore()
+              }
+            }
+
+          } else {
+            // ── Normal main draw (no active transition) ───────────
+            ctx.save()
+            if (compositeOp !== 'source-over') ctx.globalCompositeOperation = compositeOp
+            if (mEff.colorShift > 0) ctx.filter = `hue-rotate(${mEff.colorShift * 360}deg)`
+            ctx.drawImage(mediaEl, ox, oy, sw, sh)
+            ctx.filter = 'none'
+            ctx.globalCompositeOperation = 'source-over'
+            ctx.restore()
+          }
+        }
 
         // ── Bloom — volume modulates intensity ─────────────────────
         if (fxSet.has('Bloom') && bloomMod > 0) {

@@ -1816,6 +1816,30 @@ input[type='range'].vz-slider--color {
   padding: 2px 4px !important;
 }
 
+.vz-tl-transition-row {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  width: 100%;
+}
+.vz-tl-tx-select {
+  flex: 1;
+  font-size: 9px !important;
+  padding: 2px 4px !important;
+}
+.vz-tl-tx-dur {
+  width: 38px;
+  padding: 2px 4px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  color: var(--az-text-muted);
+  font-family: var(--az-font-data);
+  font-size: 9px;
+  text-align: right;
+}
+.vz-tl-tx-dur:focus { outline: none; border-color: rgba(74,199,219,0.5); }
+
 .vz-tl-card-actions {
   display: flex;
   gap: 2px;
