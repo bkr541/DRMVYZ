@@ -98,7 +98,7 @@ function AuthLogo({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`auth-logo ${compact ? 'auth-logo--compact' : ''}`}>
       <img
-        src="/drmvyz_logo.png"
+        src="/drmvyz_logo2.png"
         alt="DRMVYZ"
         className="auth-logo-img"
         style={{ width: compact ? 72 : 106, height: compact ? 72 : 106, objectFit: 'contain' }}
@@ -115,7 +115,7 @@ function EmblemPanel() {
       <div className="auth-emblem-glow-outer"/>
       <div className="auth-emblem-glow-inner"/>
       <img
-        src="/drmvyz_logo.png"
+        src="/drmvyz_logo2.png"
         alt=""
         aria-hidden="true"
         className="auth-emblem-logo-img"

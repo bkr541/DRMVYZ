@@ -12,11 +12,7 @@ export function AnalyzerSidebar({ activeView = 'analyzer', onNavigate }: Props) 
     <aside className={`az-sidebar${collapsed ? ' az-sidebar--collapsed' : ''}`}>
       <div className="az-logo">
         <div className="az-logo-icon">
-          <img src="/drmvyz_logo.png" alt="DRMVYZ" />
-        </div>
-        <div className="az-logo-text">
-          <div className="az-logo-mark">DRMVYZ</div>
-          <div className="az-logo-sub">PRO STUDIO</div>
+          <img src="/drmvyz_logo2.png" alt="DRMVYZ" />
         </div>
       </div>
 
