@@ -68,6 +68,34 @@ function VzSlider({ label, value, min = 0, max = 1, step = 0.01, onChange, color
   )
 }
 
+// ── BpmInput ──────────────────────────────────────────────────────────
+function BpmInput({ value, onChange, className }: {
+  value: number; onChange: (v: number) => void; className?: string
+}) {
+  const [draft, setDraft] = useState(String(value))
+
+  // Keep draft in sync when the store value changes externally (e.g. tap tempo)
+  useEffect(() => { setDraft(String(value)) }, [value])
+
+  const commit = (raw: string) => {
+    const v = parseInt(raw, 10)
+    if (!isNaN(v)) onChange(v)          // store clamps to 40-300
+    else           setDraft(String(value))  // revert invalid text
+  }
+
+  return (
+    <input
+      type="number"
+      className={`vz-bpm-input${className ? ' ' + className : ''}`}
+      value={draft}
+      min={40} max={300} step={1}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={e  => commit(e.target.value)}
+      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+    />
+  )
+}
+
 // ── BeatCanvas ────────────────────────────────────────────────────────
 function BeatCanvas({ bass }: { bass: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -238,9 +266,10 @@ interface CanvasProps {
   bpm: number
   bpmSync: boolean
   quality: Quality
+  audioTime: number   // engine.currentTime in seconds; 0 when no track playing
 }
 
-function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality }: CanvasProps) {
+function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, audioTime }: CanvasProps) {
   const canvasRef     = useRef<HTMLCanvasElement>(null)
   const animRef       = useRef<number>(0)
   const resizeFnRef   = useRef<() => void>(() => {})
@@ -255,6 +284,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
   const bpmRef        = useRef(bpm)
   const bpmSyncRef    = useRef(bpmSync)
   const qualityRef    = useRef<Quality>(quality)
+  const audioTimeRef  = useRef(audioTime)
   const prevBassRef   = useRef(0)
 
   // Sync refs on every render (cheap assignments)
@@ -264,6 +294,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
   useEffect(() => { bpmRef.current = bpm })
   useEffect(() => { bpmSyncRef.current = bpmSync })
   useEffect(() => { qualityRef.current = quality; resizeFnRef.current() }, [quality])
+  useEffect(() => { audioTimeRef.current = audioTime })
 
   useEffect(() => {
     analyserRef.current  = analyser
@@ -342,10 +373,15 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
       const fxSet = enabledFxRef.current
       const speed = isPlayingRef.current ? 1 : 0.25
 
-      // Beat phase: 0→1 cycling at BPM. Used to quantize visuals when bpmSync is on.
+      // Beat phase: 0→1 cycling at BPM.
+      // When synced and audio is playing, anchor phase to engine.currentTime so
+      // beat boundaries track the actual track position instead of the canvas clock.
       const beatMs    = 60000 / Math.max(1, bpmRef.current)
-      const beatPhase = (t % beatMs) / beatMs  // 0→1 per beat
       const synced    = bpmSyncRef.current
+      const audioMs   = audioTimeRef.current * 1000
+      const beatPhase = synced && audioMs > 0
+        ? (audioMs % beatMs) / beatMs
+        : (t % beatMs) / beatMs
 
       // Read frequency data
       let bass = 0, mid = 0, high = 0
@@ -545,8 +581,16 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
       }
 
       // ── Beat flash hit (impact frame on beat boundary) ────────────
-      if (onBeatBoundary && eff.masterIntensity > 0.5) {
-        ctx.fillStyle = `rgba(255,255,255,${eff.masterIntensity * 0.12 * (1 - beatPhase / 0.04)})`
+      if (onBeatBoundary) {
+        const decay = 1 - beatPhase / 0.04
+        // White flash — always visible, scaled by masterIntensity
+        ctx.fillStyle = `rgba(255,255,255,${(0.07 + eff.masterIntensity * 0.11) * decay})`
+        ctx.fillRect(0, 0, W, H)
+        // Cyan edge ring — clear beat indicator regardless of effects chain state
+        const ring = ctx.createRadialGradient(cx, cy, Math.min(W, H) * 0.28, cx, cy, Math.min(W, H) * 0.54)
+        ring.addColorStop(0, 'rgba(25,191,242,0)')
+        ring.addColorStop(1, `rgba(25,191,242,${0.38 * decay})`)
+        ctx.fillStyle = ring
         ctx.fillRect(0, 0, W, H)
       }
 
@@ -774,7 +818,11 @@ function VyzualzHeader({ analyser, bassLive }: { analyser: AnalyserNode | null; 
 
 // ── MediaStatusBar ────────────────────────────────────────────────────
 function MediaStatusBar() {
-  const { loading, loadError, authRequired, storageAvailable, lastRestored, clearLoadError, clearRestored } = useMediaStore()
+  const {
+    loading, loadError, deleteError, authRequired,
+    storageAvailable, lastRestored,
+    clearLoadError, clearDeleteError, clearRestored,
+  } = useMediaStore()
 
   // Auto-clear the "restored" success message after 4 seconds
   useEffect(() => {
@@ -794,6 +842,14 @@ function MediaStatusBar() {
     <div className="vz-media-status vz-media-status--warn">
       <span className="vz-media-status-dot" />
       Storage not configured — files are local only
+    </div>
+  )
+
+  if (deleteError) return (
+    <div className="vz-media-status vz-media-status--error">
+      <span className="vz-media-status-dot" />
+      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Delete failed: {deleteError}</span>
+      <button className="vz-media-status-dismiss" onClick={clearDeleteError} title="Dismiss">✕</button>
     </div>
   )
 
@@ -969,7 +1025,7 @@ function LiveVisualPreview({
   isPlaying, onPlay, onPause, onPrev, onNext,
   bpm, onBpmChange, bpmSync, onToggleBpmSync, onTap,
   quality, onQualityChange,
-  canvasWrapRef,
+  canvasWrapRef, audioTime,
 }: {
   analyser: AnalyserNode | null
   activeMedia: UploadedMedia | null
@@ -981,8 +1037,8 @@ function LiveVisualPreview({
   bpmSync: boolean; onToggleBpmSync: () => void; onTap: () => void
   quality: Quality; onQualityChange: (q: Quality) => void
   canvasWrapRef: React.RefObject<HTMLDivElement>
+  audioTime: number
 }) {
-  void onBpmChange
   return (
     <div className="vz-preview-panel">
       <div className="vz-preview-canvas-wrap" ref={canvasWrapRef}>
@@ -995,6 +1051,7 @@ function LiveVisualPreview({
           bpm={bpm}
           bpmSync={bpmSync}
           quality={quality}
+          audioTime={audioTime}
         />
         <div className="vz-preview-pills">
           <span className="vz-preview-pill">{quality}</span>
@@ -1035,7 +1092,7 @@ function LiveVisualPreview({
 
         <div className="vz-bpm-group">
           <span className="vz-bpm-label">BPM</span>
-          <span className="vz-bpm-val">{bpm}</span>
+          <BpmInput value={bpm} onChange={onBpmChange} />
           <button className="vz-tap-btn" onClick={onTap}>TAP</button>
         </div>
 
@@ -1269,13 +1326,39 @@ function ShortcutPanel() {
 }
 
 // ── SessionPanel ─────────────────────────────────────────────────────
-function SessionPanel({ sessions, onSave, onLoad, onDelete }: {
+function SessionPanel({ sessions, sessionsLoading, sessionSyncError, onSave, onLoad, onDelete, onRename, onClearSyncError }: {
   sessions: VzSession[]
+  sessionsLoading: boolean
+  sessionSyncError: string | null
   onSave: () => void
   onLoad: (id: string) => void
   onDelete: (id: string) => void
+  onRename: (id: string, name: string) => void
+  onClearSyncError: () => void
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen]               = useState(false)
+  const [confirmId, setConfirmId]     = useState<string | null>(null)
+  const [renamingId, setRenamingId]   = useState<string | null>(null)
+  const [renameVal, setRenameVal]     = useState('')
+
+  function fmtDate(ts: number) {
+    const d = new Date(ts)
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' +
+           d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  }
+
+  function startRename(s: VzSession) {
+    setRenamingId(s.id)
+    setRenameVal(s.name)
+    setConfirmId(null)
+  }
+
+  function commitRename(id: string) {
+    const trimmed = renameVal.trim()
+    if (trimmed) onRename(id, trimmed)
+    setRenamingId(null)
+  }
+
   return (
     <div className="vz-session-panel">
       <button className="vz-session-save-btn" onClick={onSave} title="Save current state as a session">
@@ -1284,7 +1367,8 @@ function SessionPanel({ sessions, onSave, onLoad, onDelete }: {
         </svg>
         Save Session
       </button>
-      {sessions.length > 0 && (
+
+      {(sessions.length > 0 || sessionsLoading) && (
         <button
           className={`vz-session-load-btn ${open ? 'vz-session-load-btn--open' : ''}`}
           onClick={() => setOpen(v => !v)}
@@ -1293,26 +1377,81 @@ function SessionPanel({ sessions, onSave, onLoad, onDelete }: {
           <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor">
             <path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/>
           </svg>
-          Sessions ({sessions.length})
+          {sessionsLoading ? 'Syncing…' : `Sessions (${sessions.length})`}
           <svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor" style={{ marginLeft: 3, opacity: 0.5, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
             <path d="M7 10l5 5 5-5z"/>
           </svg>
         </button>
       )}
-      {open && sessions.length > 0 && (
+
+      {open && (
         <div className="vz-session-list">
-          {[...sessions].reverse().map(s => (
+          {sessionSyncError && (
+            <div className="vz-session-sync-error">
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>⚠ {sessionSyncError}</span>
+              <button className="vz-session-row-del" onClick={onClearSyncError}>✕</button>
+            </div>
+          )}
+          {sessions.length === 0 && !sessionsLoading && (
+            <div style={{ padding: '8px 10px', fontSize: 10, color: 'rgba(245,248,250,0.35)' }}>No sessions saved yet</div>
+          )}
+          {sessions.map(s => (
             <div key={s.id} className="vz-session-row">
-              <button className="vz-session-row-name" onClick={() => { onLoad(s.id); setOpen(false) }} title={`Load "${s.name}"`}>
-                <svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor" style={{ marginRight: 4, opacity: 0.5 }}>
-                  <path d="M8 5v14l11-7z"/>
-                </svg>
-                {s.name}
-              </button>
-              <span className="vz-session-row-meta">
-                {new Date(s.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-              </span>
-              <button className="vz-session-row-del" onClick={() => onDelete(s.id)} title="Delete session">✕</button>
+              {confirmId === s.id ? (
+                // ── Delete confirmation ──────────────────────────────────────
+                <>
+                  <span className="vz-session-confirm-msg">Delete "{s.name}"?</span>
+                  <button className="vz-session-confirm-yes" onClick={() => { onDelete(s.id); setConfirmId(null) }}>Yes</button>
+                  <button className="vz-session-confirm-no"  onClick={() => setConfirmId(null)}>No</button>
+                </>
+              ) : renamingId === s.id ? (
+                // ── Inline rename ────────────────────────────────────────────
+                <>
+                  <input
+                    className="vz-session-rename-input"
+                    value={renameVal}
+                    autoFocus
+                    onChange={e => setRenameVal(e.target.value)}
+                    onBlur={() => commitRename(s.id)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') commitRename(s.id)
+                      if (e.key === 'Escape') setRenamingId(null)
+                    }}
+                  />
+                  <button className="vz-session-confirm-yes" onMouseDown={() => commitRename(s.id)}>✓</button>
+                </>
+              ) : (
+                // ── Normal row ───────────────────────────────────────────────
+                <>
+                  <span
+                    className={`vz-session-source-badge vz-session-source-badge--${s.source}`}
+                    title={s.source === 'cloud' ? 'Saved to cloud' : 'Local only'}
+                  >
+                    {s.source === 'cloud' ? '☁' : '○'}
+                  </span>
+                  <button
+                    className="vz-session-row-name"
+                    onClick={() => { onLoad(s.id); setOpen(false) }}
+                    title={`Load "${s.name}"`}
+                  >
+                    <svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor" style={{ marginRight: 4, opacity: 0.5, flexShrink: 0 }}>
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                    {s.name}
+                  </button>
+                  <span className="vz-session-row-meta">{fmtDate(s.updatedAt ?? s.createdAt)}</span>
+                  <button
+                    className="vz-session-row-action"
+                    onClick={() => startRename(s)}
+                    title="Rename"
+                  >✎</button>
+                  <button
+                    className="vz-session-row-del"
+                    onClick={() => setConfirmId(s.id)}
+                    title="Delete session"
+                  >✕</button>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -1322,8 +1461,8 @@ function SessionPanel({ sessions, onSave, onLoad, onDelete }: {
 }
 
 // ── VyzualzDock ───────────────────────────────────────────────────────
-function VyzualzDock({ bpm }: { bpm: number }) {
-  const { presets, activePresetId } = useVisualStore()
+function VyzualzDock() {
+  const { presets, activePresetId, bpm, setBpm, bpmSync, toggleBpmSync } = useVisualStore()
   const preset = presets.find(p => p.id === activePresetId) ?? presets[0] ?? DEFAULT_PRESETS[0]
   const engine = useSharedAudio()
   const fileInputId = useId()
@@ -1424,7 +1563,15 @@ function VyzualzDock({ bpm }: { bpm: number }) {
 
       <div className="vz-dock-bpm-group">
         <span className="vz-dock-bpm-label">BPM</span>
-        <span className="vz-dock-bpm-val">{bpm}</span>
+        <BpmInput value={bpm} onChange={setBpm} className="vz-dock-bpm-input" />
+        <button
+          className={`vz-dock-sync-btn${bpmSync ? ' vz-dock-sync-btn--on' : ''}`}
+          onClick={toggleBpmSync}
+          title={bpmSync ? 'BPM Sync: ON — click to disable' : 'BPM Sync: OFF — click to enable'}
+        >
+          {bpmSync && <span className="vz-dock-sync-dot" />}
+          SYNC
+        </button>
       </div>
 
       <input
@@ -1482,10 +1629,12 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     bpm, bpmSync, isPlaying, quality,
     setEffect, resetEffects, toggleFx, selectPreset, savePreset, deletePreset,
     setActiveMedia, setBpm, toggleBpmSync, setPlaying, setQuality,
-    sessions, saveSession, loadSession, deleteSession,
+    sessions, sessionsLoading, sessionSyncError,
+    saveSession, loadSession, renameSession, deleteSession,
+    syncSessionsFromCloud, clearSessionSyncError,
   } = useVisualStore()
 
-  const { items, loading } = useMediaStore()
+  const { items, loading, reorderItems } = useMediaStore()
 
   const enabledFxSet = useMemo(() => new Set(enabledFxArr), [enabledFxArr])
 
@@ -1556,6 +1705,9 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     canvasWrapRef.current?.requestFullscreen?.().catch(() => {})
   }, [])
 
+  // Sync cloud sessions on mount
+  useEffect(() => { syncSessionsFromCloud() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleSavePreset = useCallback(() => {
     const name = prompt('Preset name:')?.trim()
     if (name) savePreset(name)
@@ -1569,13 +1721,23 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   }, [items, engine.source, saveSession])
 
   const handleLoadSession = useCallback((id: string) => {
-    const session = loadSession(id)  // applies visual state in the store
+    const session = loadSession(id)  // applies visual/preset/bpm/quality state
     if (!session) return
-    // Also restore audio source
+    // Restore audio source
     if (session.audioSource && engine.source !== session.audioSource) {
       engine.setSource(session.audioSource)
     }
-  }, [loadSession, engine])
+    // Restore media deck order: put saved items first, extras at the end
+    if (session.mediaOrder?.length) {
+      reorderItems(session.mediaOrder)
+    }
+    // If saved activeMediaId no longer exists, fall back to first item in deck
+    const allIds = items.map(i => i.id)
+    if (session.activeMediaId && !allIds.includes(session.activeMediaId)) {
+      const firstSaved = session.mediaOrder.find(id => allIds.includes(id))
+      setActiveMedia(firstSaved ?? (items[0]?.id ?? null))
+    }
+  }, [loadSession, engine, reorderItems, items, setActiveMedia])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -1624,6 +1786,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                 quality={quality}
                 onQualityChange={setQuality}
                 canvasWrapRef={canvasWrapRef}
+                audioTime={engine.currentTime}
               />
               <AudioAnalyzerPanel analyser={analyser} />
             </div>
@@ -1649,16 +1812,20 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
             />
             <SessionPanel
               sessions={sessions}
+              sessionsLoading={sessionsLoading}
+              sessionSyncError={sessionSyncError}
               onSave={handleSaveSession}
               onLoad={handleLoadSession}
               onDelete={deleteSession}
+              onRename={renameSession}
+              onClearSyncError={clearSessionSyncError}
             />
             <ShortcutPanel />
           </div>
         </div>
       </div>
 
-      <VyzualzDock bpm={bpm} />
+      <VyzualzDock />
     </div>
   )
 }

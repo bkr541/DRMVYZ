@@ -208,12 +208,17 @@ export interface VisualPresetRow {
 export interface VisualSessionRow {
   id: string
   user_id: string | null
+  name: string | null
   active_preset_id: string | null
   active_media_id: string | null
   bpm: number
   bpm_sync: boolean
   effects: Record<string, unknown>
   enabled_fx: string[]
+  media_order: string[]
+  quality: 'High' | 'Medium' | 'Low'
+  audio_source: 'file' | 'microphone' | 'demo'
+  state: Record<string, unknown>
   created_at: string
   updated_at: string
 }

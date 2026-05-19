@@ -1,13 +1,16 @@
 import { create } from 'zustand'
 import { supabase, supabaseConfigured } from '../lib/supabase'
+import {
+  listMediaItems,
+  createMediaItem,
+  updateMediaItem,
+  deleteMediaItem,
+  createSignedMediaUrl,
+  uploadMediaFile,
+  deleteMediaFiles,
+} from '../lib/mediaDb'
 import type { MediaItemRow } from '../types/database'
 import { useVisualStore } from './visualStore'
-
-// The Database generic in our typed client causes `never` inference for table
-// queries when the schema has complex union types. Use an untyped alias for DB
-// operations only; storage calls remain fully typed.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const db = supabase as any
 
 export interface UploadedMedia {
   id: string
@@ -26,7 +29,7 @@ export interface UploadedMedia {
 // ── Local helpers ─────────────────────────────────────────────────────────────
 
 function generateId() {
-  return `media-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
+  return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
 }
 
 function fmtDur(seconds: number): string {
@@ -74,21 +77,40 @@ function grabVideoThumbnail(url: string): Promise<string | null> {
   })
 }
 
-async function buildLocalItem(file: File): Promise<UploadedMedia & {
-  _width?: number; _height?: number; _duration?: number
-}> {
+function dataUrlToBlob(dataUrl: string): Blob {
+  const [header, base64] = dataUrl.split(',')
+  const mimeMatch = header.match(/:(.*?);/)
+  const mime = mimeMatch?.[1] ?? 'image/jpeg'
+  const bytes = atob(base64)
+  const arr = new Uint8Array(bytes.length)
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i)
+  return new Blob([arr], { type: mime })
+}
+
+type LocalItem = UploadedMedia & {
+  _width?: number
+  _height?: number
+  _duration?: number
+  _thumbDataUrl?: string  // for videos: the generated thumbnail data URL to upload
+}
+
+async function buildLocalItem(file: File): Promise<LocalItem> {
   const url     = URL.createObjectURL(file)
   const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|mkv)$/i.test(file.name)
   const ext     = (file.name.split('.').pop() ?? '').toUpperCase()
 
   if (isVideo) {
-    const [thumbUrl, duration] = await Promise.all([grabVideoThumbnail(url), getVideoDuration(url)])
+    const [thumbDataUrl, duration] = await Promise.all([
+      grabVideoThumbnail(url),
+      getVideoDuration(url),
+    ])
     return {
       id: generateId(), name: file.name, type: 'video', url,
-      thumbnailUrl: thumbUrl,
+      thumbnailUrl: thumbDataUrl,
       meta: `${ext} · ${fmtDur(duration)}`,
       favorite: false,
       _duration: duration,
+      _thumbDataUrl: thumbDataUrl ?? undefined,
     }
   }
 
@@ -111,52 +133,63 @@ async function getCurrentUserId(): Promise<string | null> {
   return data.user?.id ?? null
 }
 
+interface UploadResult {
+  storagePath: string
+  dbId: string
+  thumbnailStoragePath: string | null
+}
+
 async function uploadToSupabase(
   file: File,
-  item: UploadedMedia & { _width?: number; _height?: number; _duration?: number },
+  item: LocalItem,
   userId: string,
-): Promise<{ storagePath: string; dbId: string } | null> {
+): Promise<UploadResult | null> {
   try {
-    const ext          = file.name.split('.').pop() ?? 'bin'
-    const storagePath  = `${userId}/${item.id}/${item.name}`
+    const storagePath = `${userId}/${item.id}/${item.name}`
 
-    // Upload file to storage
-    const { error: uploadErr } = await supabase.storage
-      .from('media-items')
-      .upload(storagePath, file, { upsert: false, contentType: file.type })
+    // Upload the main file
+    const { error: uploadErr } = await uploadMediaFile(storagePath, file, file.type)
+    if (uploadErr) { console.error('[mediaStore] storage upload:', uploadErr); return null }
 
-    if (uploadErr) { console.error('[mediaStore] storage upload:', uploadErr.message); return null }
+    // For videos: upload thumbnail blob separately so reload doesn't need to re-render it
+    let thumbnailStoragePath: string | null = null
+    if (item.type === 'video' && item._thumbDataUrl) {
+      try {
+        const thumbBlob = dataUrlToBlob(item._thumbDataUrl)
+        const thumbPath = `${userId}/${item.id}/thumb.jpg`
+        const { error: thumbErr } = await uploadMediaFile(thumbPath, thumbBlob, 'image/jpeg')
+        if (!thumbErr) thumbnailStoragePath = thumbPath
+      } catch { /* non-fatal; thumbnail will be re-generated on next reload */ }
+    } else if (item.type === 'image') {
+      // Image is its own thumbnail
+      thumbnailStoragePath = storagePath
+    }
 
-    // Insert metadata row
-    const { data: row, error: dbErr } = await db
-      .from('media_items')
-      .insert({
-        user_id:      userId,
-        name:         item.name.replace(`.${ext}`, '').replace(/[-_]/g, ' '),
-        type:         item.type,
-        storage_path: storagePath,
-        mime_type:    file.type || null,
-        file_size:    file.size,
-        width:        item._width  ?? null,
-        height:       item._height ?? null,
-        duration_sec: item._duration ?? null,
-        favorite:     false,
-      })
-      .select('id')
-      .single()
+    // Insert DB row
+    const { id: dbId, error: dbErr } = await createMediaItem({
+      user_id:        userId,
+      name:           item.name,
+      type:           item.type,
+      storage_path:   storagePath,
+      thumbnail_path: thumbnailStoragePath,
+      mime_type:      file.type || null,
+      file_size:      file.size,
+      width:          item._width  ?? null,
+      height:         item._height ?? null,
+      duration_sec:   item._duration ?? null,
+      favorite:       false,
+    })
 
-    if (dbErr) { console.error('[mediaStore] db insert:', dbErr.message); return null }
-
-    return { storagePath, dbId: (row as MediaItemRow).id }
+    if (dbErr || !dbId) { console.error('[mediaStore] db insert:', dbErr); return null }
+    return { storagePath, dbId, thumbnailStoragePath }
   } catch (e) {
     console.error('[mediaStore] uploadToSupabase:', e)
     return null
   }
 }
 
-// ── Store ─────────────────────────────────────────────────────────────────────
+// ── Error helpers ──────────────────────────────────────────────────────────────
 
-// Human-readable error from a Supabase error message
 function interpretError(msg: string): string {
   const lower = msg.toLowerCase()
   if (lower.includes('jwt') || lower.includes('unauthorized') || lower.includes('not authenticated')) return 'Session expired — sign in again'
@@ -167,10 +200,13 @@ function interpretError(msg: string): string {
   return msg.length > 80 ? msg.slice(0, 80) + '…' : msg
 }
 
+// ── Store ─────────────────────────────────────────────────────────────────────
+
 interface MediaState {
   items: UploadedMedia[]
   loading: boolean
   loadError: string | null       // error from loadFromSupabase
+  deleteError: string | null     // error from a failed removeItem
   authRequired: boolean          // true when user is not signed in
   storageAvailable: boolean      // false when Supabase env vars are missing
   lastRestored: number | null    // count of items restored; cleared by component after showing
@@ -178,7 +214,9 @@ interface MediaState {
   loadFromSupabase(): Promise<void>
   removeItem(id: string): void
   toggleFavorite(id: string): void
+  reorderItems(order: string[]): void
   clearLoadError(): void
+  clearDeleteError(): void
   clearRestored(): void
   clear(): void
 }
@@ -187,6 +225,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   items: [],
   loading: false,
   loadError: null,
+  deleteError: null,
   authRequired: false,
   storageAvailable: supabaseConfigured,
   lastRestored: null,
@@ -200,14 +239,12 @@ export const useMediaStore = create<MediaState>((set, get) => ({
 
     // Build local items immediately so the UI responds without waiting for upload
     const localItems = await Promise.all(mediaFiles.map(buildLocalItem))
-    // Mark all as uploading so the deck shows per-item progress
     const withUploading = localItems.map(i => ({ ...i, uploading: true }))
     set(s => ({ items: [...s.items, ...withUploading] }))
 
-    // Upload to Supabase in the background
+    // Upload to Supabase in background
     const userId = await getCurrentUserId()
     if (!userId) {
-      // No user — items are local-only; mark auth required so UI can prompt sign-in
       set(s => ({
         authRequired: true,
         items: s.items.map(i =>
@@ -219,9 +256,8 @@ export const useMediaStore = create<MediaState>((set, get) => ({
 
     await Promise.all(
       withUploading.map(async (item, i) => {
-        const result = await uploadToSupabase(mediaFiles[i], item, userId)
+        const result = await uploadToSupabase(mediaFiles[i], item as LocalItem, userId)
         if (!result) {
-          // Surface the failure on the item card — item stays local-only
           set(s => ({
             items: s.items.map(e =>
               e.id === item.id
@@ -234,17 +270,26 @@ export const useMediaStore = create<MediaState>((set, get) => ({
 
         // Use 'db-{dbId}' as the canonical stable id — matches what loadFromSupabase returns
         const stableId = `db-${result.dbId}`
+        const prevId = item.id
+
         set(s => ({
           items: s.items.map(e =>
-            e.id === item.id
-              ? { ...e, id: stableId, uploading: false, uploadError: undefined, storagePath: result.storagePath, dbId: result.dbId }
+            e.id === prevId
+              ? {
+                  ...e,
+                  id: stableId,
+                  uploading: false,
+                  uploadError: undefined,
+                  storagePath: result.storagePath,
+                  dbId: result.dbId,
+                }
               : e
           ),
         }))
 
-        // Keep visualStore.activeMediaId pointing to the right item
+        // Preserve activeMediaId when the local ID transitions to the stable DB ID
         const visual = useVisualStore.getState()
-        if (visual.activeMediaId === item.id) {
+        if (visual.activeMediaId === prevId) {
           visual.setActiveMedia(stableId)
         }
       })
@@ -264,63 +309,76 @@ export const useMediaStore = create<MediaState>((set, get) => ({
 
     set({ loading: true, loadError: null, authRequired: false })
     try {
-      const { data: rows, error } = await db
-        .from('media_items')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false }) as { data: MediaItemRow[] | null; error: { message: string } | null }
+      const { rows, error } = await listMediaItems(userId)
 
       if (error) {
-        const msg = interpretError(error.message)
-        console.error('[mediaStore] load:', error.message)
-        set({ loadError: msg })
+        console.error('[mediaStore] load:', error)
+        set({ loadError: interpretError(error) })
         return
       }
-      if (!rows?.length) {
+      if (!rows.length) {
         set({ lastRestored: 0 })
         return
       }
 
-      // Create signed URLs (7 days) for each item
+      // Build items from DB rows, generating signed URLs
       const items: UploadedMedia[] = await Promise.all(
-        rows.map(async (row) => {
-          const { data: signed, error: signErr } = await supabase.storage
-            .from('media-items')
-            .createSignedUrl(row.storage_path as string, 604800)
+        rows.map(async (row: MediaItemRow) => {
+          const { url, error: signErr } = await createSignedMediaUrl(row.storage_path)
+          if (signErr) console.warn('[mediaStore] signed URL:', signErr, row.storage_path)
 
-          if (signErr) console.warn('[mediaStore] signed URL:', signErr.message, row.storage_path)
-          const url = signed?.signedUrl ?? ''
-          const isVideo = (row.type as string) === 'video'
-          const ext = (row.storage_path as string).split('.').pop()?.toUpperCase() ?? ''
+          const isVideo = row.type === 'video'
+          const ext = row.storage_path.split('.').pop()?.toUpperCase() ?? ''
 
           const meta = isVideo
-            ? `${ext} · ${fmtDur(row.duration_sec as number ?? 0)}`
+            ? `${ext} · ${fmtDur(row.duration_sec ?? 0)}`
             : row.width && row.height
               ? `${ext} · ${row.width}×${row.height}`
               : ext
 
-          const thumbUrl = isVideo ? await grabVideoThumbnail(url) : url
+          // Prefer stored thumbnail_path over re-generating from video every load
+          let thumbnailUrl: string | null = null
+          if (isVideo) {
+            if (row.thumbnail_path) {
+              const { url: thumbUrl } = await createSignedMediaUrl(row.thumbnail_path)
+              thumbnailUrl = thumbUrl
+            }
+            // Fallback: grab from video if no stored thumbnail (legacy or failed upload)
+            if (!thumbnailUrl && url) thumbnailUrl = await grabVideoThumbnail(url)
+          } else {
+            thumbnailUrl = url  // image is its own thumbnail
+          }
 
           return {
-            id: `db-${row.id as string}`,
-            dbId: row.id as string,
-            storagePath: row.storage_path as string,
-            name: row.name as string,
-            type: row.type as 'image' | 'video',
-            url,
-            thumbnailUrl: thumbUrl,
+            id: `db-${row.id}`,
+            dbId: row.id,
+            storagePath: row.storage_path,
+            name: row.name,
+            type: row.type,
+            url: url ?? '',
+            thumbnailUrl,
             meta,
-            favorite: row.favorite as boolean,
+            favorite: row.favorite,
           }
         })
       )
 
-      // Merge: keep locally-added items that haven't finished uploading yet,
-      // replace any that now have a dbId match
+      // Merge: keep locally-added items still uploading, replace any with a dbId match
       set(s => {
         const dbIds = new Set(items.map(i => i.dbId))
         const localOnly = s.items.filter(i => !i.dbId || !dbIds.has(i.dbId))
-        return { items: [...items, ...localOnly], lastRestored: items.length }
+        const merged = [...items, ...localOnly]
+
+        // Correct stale activeMediaId: if it doesn't match any loaded item, select the first one
+        const visual = useVisualStore.getState()
+        if (visual.activeMediaId !== null) {
+          const exists = merged.some(i => i.id === visual.activeMediaId)
+          if (!exists) {
+            visual.setActiveMedia(merged[0]?.id ?? null)
+          }
+        }
+
+        return { items: merged, lastRestored: items.length }
       })
     } catch (e) {
       const msg = e instanceof Error ? interpretError(e.message) : 'Unexpected error loading media'
@@ -332,43 +390,82 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   },
 
   removeItem(id) {
-    const item = get().items.find(i => i.id === id)
+    const { items } = get()
+    const item = items.find(i => i.id === id)
     if (!item) return
 
-    // Revoke object URL if local
+    // Optimistic removal from UI
+    const remaining = items.filter(i => i.id !== id)
+    set({ items: remaining })
+
+    // Revoke object URLs
     if (item.url.startsWith('blob:')) URL.revokeObjectURL(item.url)
     if (item.thumbnailUrl?.startsWith('blob:')) URL.revokeObjectURL(item.thumbnailUrl)
 
-    // Remove from local state immediately
-    set(s => ({ items: s.items.filter(i => i.id !== id) }))
+    // If this was the active item, select the next available one
+    const visual = useVisualStore.getState()
+    if (visual.activeMediaId === id) {
+      visual.setActiveMedia(remaining[0]?.id ?? null)
+    }
 
-    // Clean up Supabase in background
+    // Background cleanup: DB row + storage file
     if (item.dbId && supabaseConfigured) {
-      db.from('media_items').delete().eq('id', item.dbId)
-        .then(({ error }: { error: { message: string } | null }) => { if (error) console.error('[mediaStore] delete row:', error.message) })
+      const storagePaths = [
+        item.storagePath,
+        // Also delete thumbnail if it's a separate file (not the main file)
+        item.storagePath && item.thumbnailUrl && !item.thumbnailUrl.startsWith('blob:') && item.type === 'video'
+          ? item.storagePath.replace(/\/[^/]+$/, '/thumb.jpg')
+          : null,
+      ].filter(Boolean) as string[]
 
-      if (item.storagePath) {
-        supabase.storage.from('media-items').remove([item.storagePath])
-          .then(({ error }) => { if (error) console.error('[mediaStore] delete file:', error.message) })
-      }
+      Promise.all([
+        deleteMediaItem(item.dbId),
+        storagePaths.length ? deleteMediaFiles(storagePaths) : Promise.resolve({ error: null }),
+      ]).then(([dbResult, storageResult]) => {
+        const err = dbResult.error ?? storageResult.error
+        if (err) {
+          console.error('[mediaStore] delete failed:', err)
+          // Restore item and show error banner
+          set(s => ({
+            items: [item, ...s.items],
+            deleteError: interpretError(err),
+          }))
+          // Restore active selection if we changed it
+          if (visual.activeMediaId !== id) {
+            visual.setActiveMedia(id)
+          }
+        }
+      }).catch(e => {
+        const msg = e instanceof Error ? e.message : 'Delete failed'
+        console.error('[mediaStore] delete exception:', e)
+        set(s => ({ items: [item, ...s.items], deleteError: interpretError(msg) }))
+        if (visual.activeMediaId !== id) visual.setActiveMedia(id)
+      })
     }
   },
 
   toggleFavorite(id) {
     const item = get().items.find(i => i.id === id)
     if (!item) return
-    set(s => ({ items: s.items.map(i => i.id === id ? { ...i, favorite: !i.favorite } : i) }))
-    // Sync favorite to DB
+    const newFav = !item.favorite
+    set(s => ({ items: s.items.map(i => i.id === id ? { ...i, favorite: newFav } : i) }))
     if (item.dbId && supabaseConfigured) {
-      db.from('media_items')
-        .update({ favorite: !item.favorite })
-        .eq('id', item.dbId)
-        .then(({ error }: { error: { message: string } | null }) => { if (error) console.error('[mediaStore] toggle fav:', error.message) })
+      updateMediaItem(item.dbId, { favorite: newFav })
+        .then(({ error }) => { if (error) console.error('[mediaStore] toggle fav:', error) })
     }
   },
 
-  clearLoadError() { set({ loadError: null }) },
-  clearRestored()  { set({ lastRestored: null }) },
+  reorderItems(order: string[]) {
+    set(s => {
+      const ordered   = order.map(id => s.items.find(i => i.id === id)).filter(Boolean) as UploadedMedia[]
+      const remaining = s.items.filter(i => !order.includes(i.id))
+      return { items: [...ordered, ...remaining] }
+    })
+  },
+
+  clearLoadError()   { set({ loadError: null }) },
+  clearDeleteError() { set({ deleteError: null }) },
+  clearRestored()    { set({ lastRestored: null }) },
 
   clear() {
     get().items.forEach(i => {

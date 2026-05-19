@@ -521,6 +521,28 @@
   text-align: center;
 }
 
+.vz-bpm-input {
+  width: 44px;
+  background: rgba(25,191,242,0.07);
+  border: 1px solid rgba(25,191,242,0.25);
+  border-radius: 4px;
+  color: var(--az-cyan);
+  font-family: var(--az-font);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  padding: 2px 4px;
+  outline: none;
+  -moz-appearance: textfield;
+}
+.vz-bpm-input::-webkit-inner-spin-button,
+.vz-bpm-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.vz-bpm-input:focus {
+  border-color: rgba(25,191,242,0.55);
+  box-shadow: 0 0 0 2px rgba(25,191,242,0.1);
+}
+
 .vz-tap-btn {
   padding: 2px 8px;
   background: rgba(255,255,255,0.05);
@@ -954,6 +976,85 @@ input[type='range'].vz-slider--color {
 }
 .vz-session-row-del:hover { color: #e11d48; background: rgba(225, 29, 72, 0.12); }
 
+/* Rename / edit button */
+.vz-session-row-action {
+  background: none;
+  border: none;
+  color: rgba(245, 248, 250, 0.22);
+  font-size: 9px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+.vz-session-row-action:hover { color: rgba(25, 191, 242, 0.8); background: rgba(25, 191, 242, 0.08); }
+
+/* Source badge: ○ local | ☁ cloud */
+.vz-session-source-badge {
+  font-size: 9px;
+  flex-shrink: 0;
+  opacity: 0.45;
+  padding: 0 2px;
+}
+.vz-session-source-badge--cloud { color: #19bff2; opacity: 0.7; }
+.vz-session-source-badge--local { color: rgba(245, 248, 250, 0.5); }
+
+/* Inline delete confirmation */
+.vz-session-confirm-msg {
+  flex: 1;
+  font-size: 9px;
+  color: #f87171;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vz-session-confirm-yes,
+.vz-session-confirm-no {
+  background: none;
+  border: 1px solid;
+  border-radius: 2px;
+  font-size: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 2px 5px;
+  white-space: nowrap;
+}
+.vz-session-confirm-yes {
+  border-color: rgba(248, 113, 113, 0.4);
+  color: #f87171;
+}
+.vz-session-confirm-yes:hover { background: rgba(248, 113, 113, 0.12); }
+.vz-session-confirm-no {
+  border-color: rgba(245, 248, 250, 0.15);
+  color: rgba(245, 248, 250, 0.5);
+}
+.vz-session-confirm-no:hover { background: rgba(245, 248, 250, 0.06); }
+
+/* Inline rename input */
+.vz-session-rename-input {
+  flex: 1;
+  background: rgba(25, 191, 242, 0.07);
+  border: 1px solid rgba(25, 191, 242, 0.35);
+  border-radius: 3px;
+  color: #f5f8fa;
+  font-size: 10px;
+  padding: 2px 5px;
+  outline: none;
+  min-width: 0;
+}
+.vz-session-rename-input:focus { border-color: rgba(25, 191, 242, 0.6); }
+
+/* Sync error banner inside the session dropdown */
+.vz-session-sync-error {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: rgba(248, 113, 113, 0.08);
+  border-bottom: 1px solid rgba(248, 113, 113, 0.15);
+  font-size: 9px;
+  color: #f87171;
+}
+
 .vz-presets-section {
   flex: 1;
   min-width: 0;
@@ -1155,6 +1256,52 @@ input[type='range'].vz-slider--color {
   font-weight: 700;
   color: var(--az-cyan);
   font-variant-numeric: tabular-nums;
+}
+
+.vz-dock-bpm-input {
+  width: 52px;
+  font-size: 15px !important;
+}
+
+.vz-dock-sync-btn {
+  padding: 3px 9px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  color: var(--az-text-faint);
+  font-family: var(--az-font);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.vz-dock-sync-btn:hover {
+  background: rgba(25,191,242,0.1);
+  color: var(--az-cyan);
+  border-color: rgba(25,191,242,0.3);
+}
+.vz-dock-sync-btn--on {
+  background: rgba(25,191,242,0.15);
+  border-color: rgba(25,191,242,0.5);
+  color: var(--az-cyan);
+  box-shadow: 0 0 8px rgba(25,191,242,0.2);
+}
+
+.vz-dock-sync-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--az-cyan);
+  animation: vz-sync-dot-pulse 0.5s ease-in-out infinite alternate;
+  flex-shrink: 0;
+}
+@keyframes vz-sync-dot-pulse {
+  from { opacity: 0.4; transform: scale(0.8); }
+  to   { opacity: 1;   transform: scale(1.1); }
 }
 
 /* ── Responsive ──────────────────────────────────────────────────────── */

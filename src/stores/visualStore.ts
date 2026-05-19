@@ -1,5 +1,12 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { supabaseConfigured } from '../lib/supabase'
+import {
+  dbCreateSession,
+  dbUpdateSession,
+  dbDeleteSession,
+  loadCloudSessions,
+} from '../lib/sessionDb'
 
 // Quality is owned here so sessions can snapshot it
 export type Quality = 'High' | 'Medium' | 'Low'
@@ -32,6 +39,8 @@ export const DEFAULT_EFFECTS: VzEffects = {
   colorShift:      0.00,
 }
 
+// ── Preset: reusable visual look/effect template ──────────────────────────────
+// Deliberately does NOT include media deck or session state.
 export interface VzPreset {
   id: string
   name: string
@@ -42,14 +51,17 @@ export interface VzPreset {
   isDefault?: boolean
 }
 
-// A session is the full VJ performance state — presets are just look/feel templates
+// ── Session: full VJ workspace snapshot ───────────────────────────────────────
 export interface VzSession {
-  id: string
+  id: string          // local ID (used in the sessions array)
   name: string
-  createdAt: number
+  createdAt: number   // ms timestamp
+  updatedAt?: number  // ms timestamp; set when synced to cloud
+  source: 'local' | 'cloud'
+  dbId?: string       // Supabase visual_sessions.id — set after cloud save
   // Media
   activeMediaId: string | null
-  mediaOrder: string[]             // ordered snapshot of media item IDs
+  mediaOrder: string[]   // ordered snapshot of media item IDs
   // Visual
   activePresetId: string
   effects: VzEffects
@@ -128,48 +140,70 @@ export const DEFAULT_PRESETS: VzPreset[] = [
   },
 ]
 
+// ── Store interface ───────────────────────────────────────────────────────────
+
 interface VisualState {
+  // Live performance state
   effects: VzEffects
   enabledFxArr: string[]
   activePresetId: string
   activeMediaId: string | null
-  presets: VzPreset[]
-  sessions: VzSession[]
   bpm: number
   bpmSync: boolean
   isPlaying: boolean
   quality: Quality
 
+  // Presets (visual look templates only)
+  presets: VzPreset[]
+
+  // Sessions (full workspace snapshots)
+  sessions: VzSession[]
+  sessionsLoading: boolean
+  sessionSyncError: string | null
+
+  // ── Live state actions ─────────────────────────────────────────────────────
   setEffect(key: keyof VzEffects, v: number): void
   resetEffects(): void
   toggleFx(name: string): void
-  selectPreset(id: string): void
-  savePreset(name: string): void
-  deletePreset(id: string): void
   setActiveMedia(id: string | null): void
   setBpm(v: number): void
   toggleBpmSync(): void
   setPlaying(v: boolean): void
   setQuality(q: Quality): void
-  // Session management
+
+  // ── Preset actions (affect visual look only, not media/session) ────────────
+  selectPreset(id: string): void
+  savePreset(name: string): void
+  deletePreset(id: string): void
+
+  // ── Session actions ────────────────────────────────────────────────────────
   saveSession(name: string, audioSource: VzSession['audioSource'], mediaOrder: string[]): void
-  loadSession(id: string): Omit<VzSession, 'id' | 'name' | 'createdAt'> | null
+  loadSession(id: string): VzSession | null
+  renameSession(id: string, name: string): void
   deleteSession(id: string): void
+  syncSessionsFromCloud(): Promise<void>
+  clearSessionSyncError(): void
 }
+
+// ── Store ─────────────────────────────────────────────────────────────────────
 
 export const useVisualStore = create<VisualState>()(
   persist(
     (set, get) => ({
-      effects: DEFAULT_PRESETS[0].effects,
-      enabledFxArr: DEFAULT_PRESETS[0].enabledFx,
-      activePresetId: DEFAULT_PRESETS[0].id,
-      activeMediaId: null,
-      presets: DEFAULT_PRESETS,
-      sessions: [],
-      bpm: 120,
-      bpmSync: false,
-      isPlaying: false,
-      quality: 'High',
+      effects:           DEFAULT_PRESETS[0].effects,
+      enabledFxArr:      DEFAULT_PRESETS[0].enabledFx,
+      activePresetId:    DEFAULT_PRESETS[0].id,
+      activeMediaId:     null,
+      bpm:               120,
+      bpmSync:           false,
+      isPlaying:         false,
+      quality:           'High',
+      presets:           DEFAULT_PRESETS,
+      sessions:          [],
+      sessionsLoading:   false,
+      sessionSyncError:  null,
+
+      // ── Live state ──────────────────────────────────────────────────────────
 
       setEffect(key, v) {
         set(s => ({ effects: { ...s.effects, [key]: v }, activePresetId: 'custom' }))
@@ -178,16 +212,24 @@ export const useVisualStore = create<VisualState>()(
         set({ effects: DEFAULT_EFFECTS, enabledFxArr: [], activePresetId: 'custom' })
       },
       toggleFx(name) {
-        set(s => {
-          const arr = s.enabledFxArr.includes(name)
+        set(s => ({
+          enabledFxArr: s.enabledFxArr.includes(name)
             ? s.enabledFxArr.filter(x => x !== name)
-            : [...s.enabledFxArr, name]
-          return { enabledFxArr: arr }
-        })
+            : [...s.enabledFxArr, name],
+        }))
       },
+      setActiveMedia(id) { set({ activeMediaId: id }) },
+      setBpm(v)          { set({ bpm: Math.max(40, Math.min(300, v)) }) },
+      toggleBpmSync()    { set(s => ({ bpmSync: !s.bpmSync })) },
+      setPlaying(v)      { set({ isPlaying: v }) },
+      setQuality(q)      { set({ quality: q }) },
+
+      // ── Presets ─────────────────────────────────────────────────────────────
+
       selectPreset(id) {
         const preset = get().presets.find(p => p.id === id)
         if (!preset) return
+        // Presets apply visual look only — activeMediaId / session state unchanged
         set({ effects: preset.effects, enabledFxArr: preset.enabledFx, activePresetId: id })
       },
       savePreset(name) {
@@ -195,9 +237,9 @@ export const useVisualStore = create<VisualState>()(
         const id = `custom-${Date.now().toString(36)}`
         const newPreset: VzPreset = {
           id, name,
-          color: '#19bff2',
+          color:    '#19bff2',
           gradient: 'linear-gradient(135deg,#0a1830 0%,#0a3a55 60%,#19bff2 100%)',
-          effects: { ...effects },
+          effects:  { ...effects },
           enabledFx: [...enabledFxArr],
         }
         set(s => ({ presets: [...s.presets, newPreset], activePresetId: id }))
@@ -208,35 +250,51 @@ export const useVisualStore = create<VisualState>()(
           activePresetId: s.activePresetId === id ? DEFAULT_PRESETS[0].id : s.activePresetId,
         }))
       },
-      setActiveMedia(id) { set({ activeMediaId: id }) },
-      setBpm(v) { set({ bpm: Math.max(40, Math.min(300, v)) }) },
-      toggleBpmSync() { set(s => ({ bpmSync: !s.bpmSync })) },
-      setPlaying(v) { set({ isPlaying: v }) },
-      setQuality(q) { set({ quality: q }) },
+
+      // ── Sessions ─────────────────────────────────────────────────────────────
 
       saveSession(name, audioSource, mediaOrder) {
         const s = get()
+        const localId = `session-${Date.now().toString(36)}`
         const session: VzSession = {
-          id: `session-${Date.now().toString(36)}`,
+          id:            localId,
           name,
-          createdAt: Date.now(),
-          activeMediaId:  s.activeMediaId,
+          createdAt:     Date.now(),
+          source:        'local',
+          activeMediaId: s.activeMediaId,
           mediaOrder,
-          activePresetId: s.activePresetId,
-          effects:        { ...s.effects },
-          enabledFx:      [...s.enabledFxArr],
-          bpm:            s.bpm,
-          bpmSync:        s.bpmSync,
-          quality:        s.quality,
+          activePresetId:s.activePresetId,
+          effects:       { ...s.effects },
+          enabledFx:     [...s.enabledFxArr],
+          bpm:           s.bpm,
+          bpmSync:       s.bpmSync,
+          quality:       s.quality,
           audioSource,
         }
+        // Optimistic local add — visible immediately
         set(st => ({ sessions: [...st.sessions, session] }))
+
+        // Fire-and-forget cloud save; upgrades source to 'cloud' on success
+        if (supabaseConfigured) {
+          dbCreateSession(session).then(({ dbId, error }) => {
+            if (error || !dbId) {
+              console.error('[visualStore] cloud save session:', error)
+              return
+            }
+            set(st => ({
+              sessions: st.sessions.map(x =>
+                x.id === localId ? { ...x, source: 'cloud', dbId, updatedAt: Date.now() } : x
+              ),
+            }))
+          })
+        }
       },
 
-      // Returns the non-id fields so the caller can also restore audio source / media order
       loadSession(id) {
         const session = get().sessions.find(s => s.id === id)
         if (!session) return null
+        // Apply visual state — deliberately does NOT change media deck order here;
+        // the caller is responsible for reordering via mediaStore.reorderItems()
         set({
           activeMediaId:  session.activeMediaId,
           activePresetId: session.activePresetId,
@@ -249,30 +307,89 @@ export const useVisualStore = create<VisualState>()(
         return session
       },
 
-      deleteSession(id) {
-        set(s => ({ sessions: s.sessions.filter(x => x.id !== id) }))
+      renameSession(id, name) {
+        set(s => ({
+          sessions: s.sessions.map(x => x.id === id ? { ...x, name } : x),
+        }))
+        // Sync rename to cloud
+        const session = get().sessions.find(s => s.id === id)
+        if (session?.dbId && supabaseConfigured) {
+          dbUpdateSession(session.dbId, { ...session, name }).then(({ error }) => {
+            if (error) console.error('[visualStore] rename session:', error)
+          })
+        }
       },
+
+      deleteSession(id) {
+        const session = get().sessions.find(s => s.id === id)
+        set(s => ({ sessions: s.sessions.filter(x => x.id !== id) }))
+        if (session?.dbId && supabaseConfigured) {
+          dbDeleteSession(session.dbId).then(({ error }) => {
+            if (error) console.error('[visualStore] delete session:', error)
+          })
+        }
+      },
+
+      async syncSessionsFromCloud() {
+        if (!supabaseConfigured) return
+        set({ sessionsLoading: true, sessionSyncError: null })
+        try {
+          const { sessions: cloudSessions, error } = await loadCloudSessions()
+          if (error) { set({ sessionSyncError: error }); return }
+
+          set(st => {
+            // Keep local-only sessions (no dbId)
+            const localOnly = st.sessions.filter(s => s.source === 'local' && !s.dbId)
+            // Build map of cloud sessions by dbId
+            const cloudMap = new Map(cloudSessions.map(s => [s.dbId!, s]))
+            // Update any existing sessions that now have cloud versions
+            const updated = st.sessions.map(s =>
+              s.dbId && cloudMap.has(s.dbId) ? { ...cloudMap.get(s.dbId)!, id: s.id } : s
+            )
+            // Add cloud sessions not already represented locally
+            const existingDbIds = new Set(updated.map(s => s.dbId).filter(Boolean) as string[])
+            const newCloud = cloudSessions.filter(s => s.dbId && !existingDbIds.has(s.dbId))
+            // Sort: newest first
+            const merged = [...updated.filter(s => !localOnly.find(l => l.id === s.id)), ...localOnly, ...newCloud]
+              .sort((a, b) => (b.updatedAt ?? b.createdAt) - (a.updatedAt ?? a.createdAt))
+            return { sessions: merged }
+          })
+        } catch (e) {
+          set({ sessionSyncError: e instanceof Error ? e.message : 'Sync failed' })
+        } finally {
+          set({ sessionsLoading: false })
+        }
+      },
+
+      clearSessionSyncError() { set({ sessionSyncError: null }) },
     }),
     {
       name: 'drmvyz-visual-store',
       partialize: (s) => ({
-        effects: s.effects,
-        enabledFxArr: s.enabledFxArr,
+        effects:        s.effects,
+        enabledFxArr:   s.enabledFxArr,
         activePresetId: s.activePresetId,
-        activeMediaId: s.activeMediaId,
-        presets: s.presets.filter(p => !p.isDefault),
-        sessions: s.sessions,
-        bpm: s.bpm,
-        bpmSync: s.bpmSync,
-        quality: s.quality,
+        activeMediaId:  s.activeMediaId,
+        presets:        s.presets.filter(p => !p.isDefault),
+        sessions:       s.sessions,
+        bpm:            s.bpm,
+        bpmSync:        s.bpmSync,
+        quality:        s.quality,
       }),
       // Re-inject default presets after rehydration so they are never missing
       merge: (persisted, current) => {
         const p = persisted as Partial<VisualState>
+        // Ensure all rehydrated sessions have a source field (backward compat with
+        // sessions saved before the source field was added)
+        const sessions = (p.sessions ?? []).map(s => ({
+          ...s,
+          source: (s as VzSession).source ?? 'local',
+        })) as VzSession[]
         return {
           ...current,
           ...p,
-          presets: [...DEFAULT_PRESETS, ...(p.presets ?? [])],
+          presets:  [...DEFAULT_PRESETS, ...(p.presets ?? [])],
+          sessions,
         }
       },
     }
