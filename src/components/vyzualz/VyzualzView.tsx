@@ -21,6 +21,7 @@ import { MediaUploadModal } from './MediaUploadModal'
 import { TimelinePanel } from './TimelinePanel'
 import { getActiveTimelineClip } from '../../lib/timeline'
 import type { VzTimelineClip } from '../../types/timeline'
+import type { MediaRole } from '../../lib/mediaRoles'
 
 // ── Constants ─────────────────────────────────────────────────────────
 const EFFECT_CHAIN_ITEMS = ['RGB Split','Glitch Bars','Scanlines','Tunnel','Displacement','Noise Fog','Bloom','Feedback'] as const
@@ -273,6 +274,90 @@ function drawGenerativeArt(
   ctx.globalAlpha = 1
 }
 
+// ── Role-based rendering helpers ─────────────────────────────────────
+
+function shouldRenderRoleByDefault(role: MediaRole | null): boolean {
+  if (!role) return true
+  return role !== 'reference' && role !== 'texture' && role !== 'transition'
+}
+
+function getDefaultFitModeForRole(role: MediaRole | null): 'cover' | 'contain' {
+  if (!role) return 'cover'
+  switch (role) {
+    case 'logo':
+    case 'transparent_element':
+    case 'character_art':
+      return 'contain'
+    default:
+      return 'cover'
+  }
+}
+
+function getCompositeOpForRole(role: MediaRole | null): GlobalCompositeOperation {
+  return role === 'overlay' ? 'screen' : 'source-over'
+}
+
+function shouldApplyScalePulse(role: MediaRole | null): boolean {
+  if (!role || role === 'other') return true
+  return role === 'logo' || role === 'transparent_element' || role === 'character_art'
+}
+
+function getMediaNaturalSize(el: HTMLImageElement | HTMLVideoElement): { w: number; h: number } {
+  if (el instanceof HTMLImageElement) return { w: el.naturalWidth || 0, h: el.naturalHeight || 0 }
+  return { w: el.videoWidth || 0, h: el.videoHeight || 0 }
+}
+
+function computeDrawRect(
+  W: number, H: number,
+  el: HTMLImageElement | HTMLVideoElement,
+  fitMode: 'cover' | 'contain',
+  scale: number,
+  role: MediaRole | null
+): { ox: number; oy: number; sw: number; sh: number } {
+  const { w: imgW, h: imgH } = getMediaNaturalSize(el)
+
+  if (!imgW || !imgH) {
+    // Dimensions not available yet — fill canvas with scale
+    const sw = W * scale, sh = H * scale
+    return { ox: (W - sw) / 2, oy: (H - sh) / 2, sw, sh }
+  }
+
+  const imgAspect    = imgW / imgH
+  const canvasAspect = W / H
+  let drawW: number, drawH: number
+
+  if (fitMode === 'cover') {
+    if (imgAspect >= canvasAspect) {
+      // Image proportionally wider — fit by height so height fills canvas
+      drawH = H * scale
+      drawW = drawH * imgAspect
+    } else {
+      // Image proportionally taller — fit by width so width fills canvas
+      drawW = W * scale
+      drawH = drawW / imgAspect
+    }
+  } else {
+    // contain — show entire image, letterbox/pillarbox as needed
+    if (imgAspect >= canvasAspect) {
+      // Image proportionally wider — constrain by width
+      drawW = W * scale
+      drawH = drawW / imgAspect
+    } else {
+      // Image proportionally taller — constrain by height
+      drawH = H * scale
+      drawW = drawH * imgAspect
+    }
+  }
+
+  let ox = (W - drawW) / 2
+  let oy = (H - drawH) / 2
+
+  // Character art: anchor slightly below center for natural staging
+  if (role === 'character_art') oy = H * 0.55 - drawH / 2
+
+  return { ox, oy, sw: drawW, sh: drawH }
+}
+
 // ── LiveVisualCanvas ──────────────────────────────────────────────────
 interface CanvasProps {
   analyser: AnalyserNode | null
@@ -321,6 +406,10 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
   const timelineClockRef   = useRef(0)
   const lastFrameTimeRef   = useRef<number | null>(null)
 
+  // Role-based rendering refs — updated when active media or timeline clip changes
+  const activeMediaRoleRef    = useRef<MediaRole | null>(null)
+  const activeMediaFitModeRef = useRef<'cover' | 'contain' | null>(null)
+
   // Sync refs on every render (cheap assignments)
   useEffect(() => { effectsRef.current  = effects })
   useEffect(() => { enabledFxRef.current = enabledFx })
@@ -345,6 +434,9 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
     const prev = mediaElRef.current
     if (prev instanceof HTMLVideoElement) { prev.pause(); prev.src = '' }
     mediaElRef.current = null
+    // Sync role so the RAF loop draws with correct fit/composite
+    activeMediaRoleRef.current    = activeMedia?.mediaRole ?? null
+    activeMediaFitModeRef.current = null // no clip override in single-media mode
 
     if (!activeMedia) return
 
@@ -517,9 +609,13 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         if (clipId !== activeClipIdRef.current) {
           activeClipIdRef.current = clipId
           if (clip) {
+            // Sync role refs for the incoming clip's media
+            const m = mediaItemsRef.current.find(x => x.id === clip.mediaId)
+            activeMediaRoleRef.current    = m?.mediaRole ?? null
+            activeMediaFitModeRef.current = clip.fitMode
+
             const pool = mediaPoolRef.current
             if (!pool.has(clip.mediaId)) {
-              const m = mediaItemsRef.current.find(x => x.id === clip.mediaId)
               if (m) {
                 if (m.type === 'image') {
                   const img = new Image()
@@ -543,18 +639,29 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
             }
           } else {
             mediaElRef.current = null
+            activeMediaRoleRef.current    = null
+            activeMediaFitModeRef.current = null
           }
         }
       }
 
       const mediaEl = mediaElRef.current
       const cx = W / 2, cy = H / 2
-      // Bass drives scale pulse; impact punch adds brief burst on transient
-      const scale = bassReact * punchScale * eff.logoScale
-      const sw = W * scale, sh = H * scale
-      const ox = (W - sw) / 2, oy = (H - sh) / 2
 
-      if (mediaEl) {
+      // ── Role-aware draw setup ──────────────────────────────────────
+      const role        = activeMediaRoleRef.current
+      const renderMedia = shouldRenderRoleByDefault(role)
+      const fitMode     = activeMediaFitModeRef.current ?? getDefaultFitModeForRole(role)
+      const compositeOp = getCompositeOpForRole(role)
+      // Scale pulse only for roles that call for bass reactivity (logo, character, transparent, fallback)
+      const scale = shouldApplyScalePulse(role)
+        ? bassReact * punchScale * eff.logoScale
+        : 1
+      const { ox, oy, sw, sh } = mediaEl
+        ? computeDrawRect(W, H, mediaEl, fitMode, scale, role)
+        : { ox: 0, oy: 0, sw: W, sh: H }
+
+      if (mediaEl && renderMedia) {
         // ── Tunnel (behind media) ──────────────────────────────────
         if (fxSet.has('Tunnel') && eff.tunnelSpeed > 0) {
           ctx.save()
@@ -590,9 +697,11 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
 
         // ── Main draw ──────────────────────────────────────────────
         ctx.save()
+        if (compositeOp !== 'source-over') ctx.globalCompositeOperation = compositeOp
         if (mEff.colorShift > 0) ctx.filter = `hue-rotate(${mEff.colorShift * 360}deg)`
         ctx.drawImage(mediaEl, ox, oy, sw, sh)
         ctx.filter = 'none'
+        ctx.globalCompositeOperation = 'source-over'
         ctx.restore()
 
         // ── Bloom — volume modulates intensity ─────────────────────
