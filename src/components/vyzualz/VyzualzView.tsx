@@ -10,6 +10,9 @@ import { extractBandValues, applyModulatedEffects, BAND_LABELS, EFFECT_LABELS } 
 import type { ModulationRoute, AudioBandValues } from '../../lib/audioModulation'
 import { TrackScrubber } from '../shared/TrackScrubber'
 import { MediaUploadModal } from './MediaUploadModal'
+import { TimelinePanel } from './TimelinePanel'
+import { getActiveTimelineClip } from '../../lib/timeline'
+import type { VzTimelineClip } from '../../types/timeline'
 
 // ── Constants ─────────────────────────────────────────────────────────
 const EFFECT_CHAIN_ITEMS = ['RGB Split','Glitch Bars','Scanlines','Tunnel','Displacement','Noise Fog','Bloom','Feedback'] as const
@@ -274,9 +277,14 @@ interface CanvasProps {
   quality: Quality
   audioTime: number   // engine.currentTime in seconds; 0 when no track playing
   modulationRoutes: ModulationRoute[]
+  // Timeline
+  timelineEnabled: boolean
+  timelineClips: VzTimelineClip[]
+  timelineLoop: boolean
+  mediaItems: UploadedMedia[]
 }
 
-function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, audioTime, modulationRoutes }: CanvasProps) {
+function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, audioTime, modulationRoutes, timelineEnabled, timelineClips, timelineLoop, mediaItems }: CanvasProps) {
   const canvasRef     = useRef<HTMLCanvasElement>(null)
   const animRef       = useRef<number>(0)
   const resizeFnRef   = useRef<() => void>(() => {})
@@ -295,6 +303,16 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
   const prevBassRef   = useRef(0)
   const routesRef     = useRef<ModulationRoute[]>(modulationRoutes)
 
+  // Timeline refs
+  const timelineEnabledRef = useRef(timelineEnabled)
+  const timelineClipsRef   = useRef<VzTimelineClip[]>(timelineClips)
+  const timelineLoopRef    = useRef(timelineLoop)
+  const mediaItemsRef      = useRef<UploadedMedia[]>(mediaItems)
+  const mediaPoolRef       = useRef<Map<string, HTMLImageElement | HTMLVideoElement>>(new Map())
+  const activeClipIdRef    = useRef<string | null>(null)
+  const timelineClockRef   = useRef(0)
+  const lastFrameTimeRef   = useRef<number | null>(null)
+
   // Sync refs on every render (cheap assignments)
   useEffect(() => { effectsRef.current  = effects })
   useEffect(() => { enabledFxRef.current = enabledFx })
@@ -304,6 +322,10 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
   useEffect(() => { qualityRef.current = quality; resizeFnRef.current() }, [quality])
   useEffect(() => { audioTimeRef.current = audioTime })
   useEffect(() => { routesRef.current = modulationRoutes }, [modulationRoutes])
+  useEffect(() => { timelineEnabledRef.current = timelineEnabled }, [timelineEnabled])
+  useEffect(() => { timelineClipsRef.current = timelineClips }, [timelineClips])
+  useEffect(() => { timelineLoopRef.current = timelineLoop }, [timelineLoop])
+  useEffect(() => { mediaItemsRef.current = mediaItems }, [mediaItems])
 
   useEffect(() => {
     analyserRef.current  = analyser
@@ -348,6 +370,35 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
       el.pause()
     }
   }, [isPlaying])
+
+  // Reset timeline clock when timeline is enabled; clean up pool when disabled
+  useEffect(() => {
+    if (timelineEnabled) {
+      timelineClockRef.current = 0
+      lastFrameTimeRef.current = null
+      activeClipIdRef.current  = null
+    } else {
+      // Clear pool and give back the mediaElRef to the single-media system
+      mediaPoolRef.current.forEach(el => {
+        if (el instanceof HTMLVideoElement) { el.pause(); el.src = '' }
+      })
+      mediaPoolRef.current.clear()
+      activeClipIdRef.current = null
+    }
+  }, [timelineEnabled])
+
+  // Sync pool when clips change: remove entries no longer referenced, preload current+next
+  useEffect(() => {
+    if (!timelineEnabled) return
+    const activeIds = new Set(timelineClips.map(c => c.mediaId))
+    // Evict stale entries
+    mediaPoolRef.current.forEach((el, id) => {
+      if (!activeIds.has(id)) {
+        if (el instanceof HTMLVideoElement) { el.pause(); el.src = '' }
+        mediaPoolRef.current.delete(id)
+      }
+    })
+  }, [timelineClips, timelineEnabled])
 
   // Main RAF loop — runs once, reads from refs
   useEffect(() => {
@@ -434,6 +485,58 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
       } else {
         ctx.fillStyle = '#050709'
         ctx.fillRect(0, 0, W, H)
+      }
+
+      // ── Timeline clock & active clip ──────────────────────────────
+      if (timelineEnabledRef.current && timelineClipsRef.current.length > 0) {
+        const nowMs = performance.now()
+        const audioT = audioTimeRef.current
+        if (audioT > 0) {
+          // Audio engine time is authoritative — keeps timeline synced to track
+          timelineClockRef.current = audioT
+        } else if (isPlayingRef.current) {
+          // Wall-clock fallback
+          if (lastFrameTimeRef.current !== null) {
+            timelineClockRef.current += (nowMs - lastFrameTimeRef.current) / 1000
+          }
+        }
+        lastFrameTimeRef.current = nowMs
+
+        const clips = timelineClipsRef.current
+        const { clip } = getActiveTimelineClip(clips, timelineClockRef.current, timelineLoopRef.current)
+        const clipId = clip?.id ?? null
+
+        if (clipId !== activeClipIdRef.current) {
+          activeClipIdRef.current = clipId
+          if (clip) {
+            const pool = mediaPoolRef.current
+            if (!pool.has(clip.mediaId)) {
+              const m = mediaItemsRef.current.find(x => x.id === clip.mediaId)
+              if (m) {
+                if (m.type === 'image') {
+                  const img = new Image()
+                  img.src = m.url
+                  pool.set(m.id, img)
+                } else {
+                  const vid = document.createElement('video')
+                  vid.src = m.url
+                  vid.muted = true
+                  vid.playsInline = true
+                  pool.set(m.id, vid)
+                }
+              }
+            }
+            const el = pool.get(clip.mediaId) ?? null
+            mediaElRef.current = el
+            if (el instanceof HTMLVideoElement) {
+              el.currentTime = clip.mediaInSec
+              el.loop = clip.playbackMode === 'loop'
+              if (isPlayingRef.current) el.play().catch(() => {})
+            }
+          } else {
+            mediaElRef.current = null
+          }
+        }
       }
 
       const mediaEl = mediaElRef.current
@@ -1066,6 +1169,7 @@ function LiveVisualPreview({
   bpm, onBpmChange, bpmSync, onToggleBpmSync, onTap,
   quality, onQualityChange,
   canvasWrapRef, audioTime, modulationRoutes,
+  timelineEnabled, onToggleTimeline, timelineClips, timelineLoop, mediaItems,
 }: {
   analyser: AnalyserNode | null
   activeMedia: UploadedMedia | null
@@ -1079,6 +1183,9 @@ function LiveVisualPreview({
   canvasWrapRef: React.RefObject<HTMLDivElement>
   audioTime: number
   modulationRoutes: ModulationRoute[]
+  timelineEnabled: boolean; onToggleTimeline: () => void
+  timelineClips: VzTimelineClip[]; timelineLoop: boolean
+  mediaItems: UploadedMedia[]
 }) {
   return (
     <div className="vz-preview-panel">
@@ -1094,6 +1201,10 @@ function LiveVisualPreview({
           quality={quality}
           audioTime={audioTime}
           modulationRoutes={modulationRoutes}
+          timelineEnabled={timelineEnabled}
+          timelineClips={timelineClips}
+          timelineLoop={timelineLoop}
+          mediaItems={mediaItems}
         />
         <div className="vz-preview-pills">
           <span className="vz-preview-pill">{quality}</span>
@@ -1124,6 +1235,13 @@ function LiveVisualPreview({
         </button>
 
         <div className="az-spacer" />
+
+        <div className="vz-sync-toggle" onClick={onToggleTimeline}>
+          <div className={`vz-sync-track ${timelineEnabled ? 'vz-sync-track--on' : ''}`}>
+            <div className="vz-sync-thumb" />
+          </div>
+          <span className="vz-sync-label">Timeline</span>
+        </div>
 
         <div className="vz-sync-toggle" onClick={onToggleBpmSync}>
           <div className={`vz-sync-track ${bpmSync ? 'vz-sync-track--on' : ''}`}>
@@ -1940,6 +2058,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     saveSession, loadSession, renameSession, deleteSession,
     syncSessionsFromCloud, clearSessionSyncError,
     modulationRoutes, toggleModulationRoute, setModulationRouteAmount,
+    timelineEnabled, timelineClips, timelineLoop, setTimelineEnabled,
   } = useVisualStore()
 
   const { items, loading, reorderItems } = useMediaStore()
@@ -2087,6 +2206,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
           <div className="vz-body">
             <div className="vz-left">
               <MediaDeckPanel activeMediaId={activeMediaId} onSelect={setActiveMedia} />
+              {timelineEnabled && <TimelinePanel />}
             </div>
 
             <div className="vz-center">
@@ -2110,6 +2230,11 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                 canvasWrapRef={canvasWrapRef}
                 audioTime={engine.currentTime}
                 modulationRoutes={modulationRoutes}
+                timelineEnabled={timelineEnabled}
+                onToggleTimeline={() => setTimelineEnabled(!timelineEnabled)}
+                timelineClips={timelineClips}
+                timelineLoop={timelineLoop}
+                mediaItems={items}
               />
               <AudioAnalyzerPanel analyser={analyser} />
             </div>

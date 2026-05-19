@@ -11,6 +11,10 @@ import {
   DEFAULT_MODULATION_ROUTES,
 } from '../lib/audioModulation'
 import type { ModulationRoute } from '../lib/audioModulation'
+import { recalculateTimelineStarts } from '../lib/timeline'
+import type { VzTimelineClip } from '../types/timeline'
+
+export type { VzTimelineClip }
 
 // Quality is owned here so sessions can snapshot it
 export type Quality = 'High' | 'Medium' | 'Low'
@@ -55,6 +59,7 @@ export interface PresetScope {
   bpm?:         boolean
   bpmSync?:     boolean
   quality?:     boolean
+  timeline?:    boolean  // timelineEnabled + timelineClips + timelineLoop
 }
 
 // Default scope for a lightweight "look" preset (effects only, backward-compat)
@@ -64,7 +69,7 @@ export const LOOK_SCOPE: PresetScope = { effects: true, enabledFx: true }
 export const SCENE_SCOPE: PresetScope = {
   effects: true, enabledFx: true, modulation: true,
   activeMedia: true, mediaOrder: true, audioSource: true,
-  bpm: true, bpmSync: true, quality: true,
+  bpm: true, bpmSync: true, quality: true, timeline: true,
 }
 
 // ── Preset: reusable visual look/effect template ──────────────────────────────
@@ -90,6 +95,9 @@ export interface VzPreset {
   bpm?: number
   bpmSync?: boolean
   quality?: Quality
+  timelineEnabled?: boolean
+  timelineClips?: VzTimelineClip[]
+  timelineLoop?: boolean
 }
 
 // ── Session: full VJ workspace snapshot ───────────────────────────────────────
@@ -113,6 +121,10 @@ export interface VzSession {
   // Output
   quality: Quality
   audioSource: 'file' | 'microphone' | 'demo'
+  // Timeline
+  timelineEnabled?: boolean
+  timelineClips?: VzTimelineClip[]
+  timelineLoop?: boolean
 }
 
 export const DEFAULT_PRESETS: VzPreset[] = [
@@ -240,6 +252,19 @@ interface VisualState {
   toggleModulationRoute(id: string): void
   setModulationRouteAmount(id: string, amount: number): void
   resetModulationRoutes(): void
+
+  // ── Timeline ──────────────────────────────────────────────────────────────
+  timelineEnabled: boolean
+  timelineClips:   VzTimelineClip[]
+  timelineLoop:    boolean
+  setTimelineEnabled(enabled: boolean): void
+  setTimelineLoop(loop: boolean): void
+  addTimelineClip(mediaId: string, durationSec?: number): void
+  removeTimelineClip(clipId: string): void
+  duplicateTimelineClip(clipId: string): void
+  reorderTimelineClips(clipIds: string[]): void
+  updateTimelineClip(clipId: string, patch: Partial<VzTimelineClip>): void
+  clearTimeline(): void
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -260,6 +285,9 @@ export const useVisualStore = create<VisualState>()(
       sessionsLoading:   false,
       sessionSyncError:  null,
       modulationRoutes:  DEFAULT_MODULATION_ROUTES,
+      timelineEnabled:   false,
+      timelineClips:     [],
+      timelineLoop:      true,
 
       // ── Live state ──────────────────────────────────────────────────────────
 
@@ -302,6 +330,11 @@ export const useVisualStore = create<VisualState>()(
         if (scope.bpm   && preset.bpm   !== undefined) patch.bpm   = preset.bpm
         if (scope.bpmSync !== undefined) patch.bpmSync = preset.bpmSync ?? false
         if (scope.quality && preset.quality) patch.quality = preset.quality
+        if (scope.timeline && preset.timelineEnabled !== undefined) {
+          patch.timelineEnabled = preset.timelineEnabled
+          patch.timelineClips   = preset.timelineClips ? [...preset.timelineClips] : []
+          patch.timelineLoop    = preset.timelineLoop ?? true
+        }
         set(patch)
         // Return scene fields the caller handles externally
         const scene: { mediaOrder?: string[], audioSource?: VzSession['audioSource'] } = {}
@@ -329,6 +362,12 @@ export const useVisualStore = create<VisualState>()(
         if (scope.bpm)     newPreset.bpm     = bpm
         if (scope.bpmSync) newPreset.bpmSync = bpmSync
         if (scope.quality) newPreset.quality = quality
+        if (scope.timeline) {
+          const { timelineEnabled, timelineClips, timelineLoop } = get()
+          newPreset.timelineEnabled = timelineEnabled
+          newPreset.timelineClips   = [...timelineClips]
+          newPreset.timelineLoop    = timelineLoop
+        }
         set(s => ({ presets: [...s.presets, newPreset], activePresetId: id }))
       },
       deletePreset(id) {
@@ -357,6 +396,9 @@ export const useVisualStore = create<VisualState>()(
           bpmSync:       s.bpmSync,
           quality:       s.quality,
           audioSource,
+          timelineEnabled: s.timelineEnabled,
+          timelineClips:   [...s.timelineClips],
+          timelineLoop:    s.timelineLoop,
         }
         // Optimistic local add — visible immediately
         set(st => ({ sessions: [...st.sessions, session] }))
@@ -383,13 +425,16 @@ export const useVisualStore = create<VisualState>()(
         // Apply visual state — deliberately does NOT change media deck order here;
         // the caller is responsible for reordering via mediaStore.reorderItems()
         set({
-          activeMediaId:  session.activeMediaId,
-          activePresetId: session.activePresetId,
-          effects:        { ...session.effects },
-          enabledFxArr:   [...session.enabledFx],
-          bpm:            session.bpm,
-          bpmSync:        session.bpmSync,
-          quality:        session.quality,
+          activeMediaId:   session.activeMediaId,
+          activePresetId:  session.activePresetId,
+          effects:         { ...session.effects },
+          enabledFxArr:    [...session.enabledFx],
+          bpm:             session.bpm,
+          bpmSync:         session.bpmSync,
+          quality:         session.quality,
+          timelineEnabled: session.timelineEnabled ?? false,
+          timelineClips:   session.timelineClips   ? [...session.timelineClips] : [],
+          timelineLoop:    session.timelineLoop     ?? true,
         })
         return session
       },
@@ -469,6 +514,71 @@ export const useVisualStore = create<VisualState>()(
       resetModulationRoutes() {
         set({ modulationRoutes: DEFAULT_MODULATION_ROUTES })
       },
+
+      // ── Timeline ────────────────────────────────────────────────────────────
+
+      setTimelineEnabled(enabled) {
+        set({ timelineEnabled: enabled })
+      },
+      setTimelineLoop(loop) {
+        set({ timelineLoop: loop })
+      },
+      addTimelineClip(mediaId, durationSec = 5) {
+        const id = (typeof crypto !== 'undefined' && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : `clip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+        const clip: VzTimelineClip = {
+          id,
+          mediaId,
+          startSec: 0,          // recalculated below
+          durationSec,
+          mediaInSec: 0,
+          fitMode: 'cover',
+          playbackMode: 'trim',
+        }
+        set(s => ({
+          timelineClips: recalculateTimelineStarts([...s.timelineClips, clip]),
+        }))
+      },
+      removeTimelineClip(clipId) {
+        set(s => ({
+          timelineClips: recalculateTimelineStarts(s.timelineClips.filter(c => c.id !== clipId)),
+        }))
+      },
+      duplicateTimelineClip(clipId) {
+        set(s => {
+          const idx = s.timelineClips.findIndex(c => c.id === clipId)
+          if (idx === -1) return {}
+          const original = s.timelineClips[idx]
+          const newId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : `clip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+          const copy: VzTimelineClip = { ...original, id: newId, startSec: 0 }
+          const next = [
+            ...s.timelineClips.slice(0, idx + 1),
+            copy,
+            ...s.timelineClips.slice(idx + 1),
+          ]
+          return { timelineClips: recalculateTimelineStarts(next) }
+        })
+      },
+      reorderTimelineClips(clipIds) {
+        set(s => {
+          const map = new Map(s.timelineClips.map(c => [c.id, c]))
+          const reordered = clipIds.map(id => map.get(id)).filter(Boolean) as VzTimelineClip[]
+          return { timelineClips: recalculateTimelineStarts(reordered) }
+        })
+      },
+      updateTimelineClip(clipId, patch) {
+        set(s => ({
+          timelineClips: recalculateTimelineStarts(
+            s.timelineClips.map(c => c.id === clipId ? { ...c, ...patch } : c)
+          ),
+        }))
+      },
+      clearTimeline() {
+        set({ timelineClips: [] })
+      },
     }),
     {
       name: 'drmvyz-visual-store',
@@ -483,6 +593,9 @@ export const useVisualStore = create<VisualState>()(
         bpmSync:           s.bpmSync,
         quality:           s.quality,
         modulationRoutes:  s.modulationRoutes,
+        timelineEnabled:   s.timelineEnabled,
+        timelineClips:     s.timelineClips,
+        timelineLoop:      s.timelineLoop,
       }),
       // Re-inject default presets after rehydration so they are never missing
       merge: (persisted, current) => {
@@ -506,6 +619,10 @@ export const useVisualStore = create<VisualState>()(
           presets:          [...DEFAULT_PRESETS, ...(p.presets ?? [])],
           sessions,
           modulationRoutes: mergedRoutes,
+          // Safe defaults for timeline fields added after initial deploy
+          timelineEnabled:  p.timelineEnabled  ?? false,
+          timelineClips:    (p.timelineClips    ?? []) as VzTimelineClip[],
+          timelineLoop:     p.timelineLoop      ?? true,
         }
       },
     }

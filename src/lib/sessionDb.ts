@@ -3,7 +3,7 @@
 
 import { supabase, supabaseConfigured } from './supabase'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { VzSession, VzEffects, Quality } from '../stores/visualStore'
+import type { VzSession, VzEffects, Quality, VzTimelineClip } from '../stores/visualStore'
 
 const db = supabase as unknown as SupabaseClient
 
@@ -46,6 +46,9 @@ function rowToSession(row: SessionDbRow): VzSession {
     bpmSync:       row.bpm_sync ?? s.bpmSync ?? false,
     quality:       (row.quality as Quality) ?? s.quality ?? 'High',
     audioSource:   (row.audio_source as VzSession['audioSource']) ?? s.audioSource ?? 'file',
+    timelineEnabled: s.timelineEnabled ?? false,
+    timelineClips:   (s.timelineClips  ?? []) as VzTimelineClip[],
+    timelineLoop:    s.timelineLoop    ?? true,
   }
 }
 
