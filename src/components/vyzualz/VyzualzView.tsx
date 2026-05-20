@@ -25,9 +25,15 @@ import {
   getActiveTimelineClip, getNextTimelineClip, getTransitionState,
   getClipSourceTime, shouldFreezeClipFrame,
 } from '../../lib/timeline'
-import type { TransitionState } from '../../lib/timeline'
+import type { TwoClipRenderState } from '../../lib/timeline'
 import type { VzTimelineClip } from '../../types/timeline'
+import { renderTimelineTransition } from '../../lib/transitionRenderer'
 import type { MediaRole } from '../../lib/mediaRoles'
+import {
+  VZ_LAYER_RENDER_ORDER, LAYER_TO_ROLES, LAYER_MANAGED_ROLES,
+  DEFAULT_LAYER_CONFIGS, LAYER_LABELS, LAYER_BLEND_MODES, ROLE_TO_LAYER,
+} from '../../types/vzLayers'
+import type { VzLayerConfig, VzLayerConfigId } from '../../types/vzLayers'
 import {
   drawSpectrumBars, drawCircularSpectrum, drawOscilloscope,
   updateAndDrawBeatRings, updateAndDrawParticles,
@@ -44,6 +50,32 @@ const EFFECT_CHAIN_ITEMS = [
   'Reactive Grid','Camera Shake','Kaleidoscope','Mirror Split','Radial Blur',
   'VHS Static','Datamosh Smear','Edge Glow','Color Cycle',
 ] as const
+
+/** Maps VzEffects keys → their controlling chain item name. Keys absent from this map have no chain gate. */
+const EFFECT_CONTROL_CHAIN_MAP: Partial<Record<keyof VzEffects, string>> = {
+  glitchAmount:    'Glitch Bars',
+  rgbSplit:        'RGB Split',
+  tunnelSpeed:     'Tunnel',
+  displacement:    'Displacement',
+  bloom:           'Bloom',
+  strobe:          'Strobe',
+  feedbackTrails:  'Feedback',
+  colorShift:      'Color Shift',
+  spectrumBars:    'Spectrum Bars',
+  circularSpectrum: 'Circular Spectrum',
+  oscilloscope:    'Oscilloscope',
+  beatRing:        'Beat Ring',
+  particleBurst:   'Particle Burst',
+  reactiveGrid:    'Reactive Grid',
+  cameraShake:     'Camera Shake',
+  kaleidoscope:    'Kaleidoscope',
+  mirrorSplit:     'Mirror Split',
+  radialBlur:      'Radial Blur',
+  vhsStatic:       'VHS Static',
+  datamoshSmear:   'Datamosh Smear',
+  edgeGlow:        'Edge Glow',
+  colorCycle:      'Color Cycle',
+}
 const SHORTCUTS = [
   { key: '1–5', desc: 'Switch Preset' },
   { key: 'F',   desc: 'Fullscreen' },
@@ -69,13 +101,16 @@ const QUALITY: Record<Quality, QualityConfig> = {
 }
 
 // ── VzSlider ──────────────────────────────────────────────────────────
-function VzSlider({ label, value, min = 0, max = 1, step = 0.01, onChange, colorTrack }: {
+function VzSlider({ label, value, min = 0, max = 1, step = 0.01, onChange, colorTrack, chainEnabled }: {
   label: string; value: number; min?: number; max?: number; step?: number
   onChange: (v: number) => void; colorTrack?: boolean
+  /** When explicitly false, renders dimmed with an "Off in chain" hint. */
+  chainEnabled?: boolean
 }) {
-  const pct = `${((value - min) / (max - min)) * 100}%`
+  const pct   = `${((value - min) / (max - min)) * 100}%`
+  const isOff = chainEnabled === false
   return (
-    <div className="vz-slider-wrap">
+    <div className={`vz-slider-wrap${isOff ? ' vz-slider-wrap--off' : ''}`}>
       <div className="vz-slider-header">
         <span className="vz-slider-label">{label}</span>
         <span className="vz-slider-val">{value.toFixed(2)}</span>
@@ -87,6 +122,7 @@ function VzSlider({ label, value, min = 0, max = 1, step = 0.01, onChange, color
         min={min} max={max} step={step} value={value}
         onChange={e => onChange(parseFloat(e.target.value))}
       />
+      {isOff && <span className="vz-slider-chain-hint">Off in chain</span>}
     </div>
   )
 }
@@ -381,9 +417,11 @@ interface CanvasProps {
   timelineLoop: boolean
   mediaItems: UploadedMedia[]
   onFpsUpdate: (fps: number) => void
+  // Layer compositor
+  layerConfigs: VzLayerConfig[]
 }
 
-function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, audioTime, modulationRoutes, timelineEnabled, timelineClips, timelineLoop, mediaItems, onFpsUpdate }: CanvasProps) {
+function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, audioTime, modulationRoutes, timelineEnabled, timelineClips, timelineLoop, mediaItems, onFpsUpdate, layerConfigs }: CanvasProps) {
   const canvasRef     = useRef<HTMLCanvasElement>(null)
   const animRef       = useRef<number>(0)
   const resizeFnRef   = useRef<() => void>(() => {})
@@ -407,6 +445,8 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
   const timelineClipsRef   = useRef<VzTimelineClip[]>(timelineClips)
   const timelineLoopRef    = useRef(timelineLoop)
   const mediaItemsRef      = useRef<UploadedMedia[]>(mediaItems)
+  const layerConfigsRef    = useRef<VzLayerConfig[]>(layerConfigs)
+  // Shared pool: keyed by mediaId, used by both timeline clips and overlay layers
   const mediaPoolRef       = useRef<Map<string, HTMLImageElement | HTMLVideoElement>>(new Map())
   const activeClipIdRef    = useRef<string | null>(null)
   const timelineClockRef   = useRef(0)
@@ -429,7 +469,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
 
   // Transition rendering refs
   const incomingMediaElRef   = useRef<HTMLImageElement | HTMLVideoElement | null>(null)
-  const transitionStateRef   = useRef<TransitionState | null>(null)
+  const transitionStateRef   = useRef<TwoClipRenderState | null>(null)
   const incomingRoleRef      = useRef<MediaRole | null>(null)
   const incomingFitModeRef   = useRef<'cover' | 'contain' | null>(null)
   const prevTransitionOnRef  = useRef(false)
@@ -457,6 +497,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
   useEffect(() => { timelineClipsRef.current = timelineClips }, [timelineClips])
   useEffect(() => { timelineLoopRef.current = timelineLoop }, [timelineLoop])
   useEffect(() => { mediaItemsRef.current = mediaItems }, [mediaItems])
+  useEffect(() => { layerConfigsRef.current = layerConfigs }, [layerConfigs])
 
   useEffect(() => {
     setTimelineClockStoreRef.current = useVisualStore.getState().setTimelineClock
@@ -541,18 +582,23 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
     }
   }, [timelineEnabled])
 
-  // Sync pool when clips change: remove entries no longer referenced, preload current+next
+  // Sync pool when clips or deck changes: evict entries no longer needed by
+  // either the timeline OR the overlay layer compositor.
   useEffect(() => {
-    if (!timelineEnabled) return
-    const activeIds = new Set(timelineClips.map(c => c.mediaId))
-    // Evict stale entries
+    const tlIds    = new Set(timelineClips.map(c => c.mediaId))
+    const layerIds = new Set(
+      mediaItems
+        .filter(m => LAYER_MANAGED_ROLES.has(m.mediaRole))
+        .map(m => m.id)
+    )
+    const keepIds = new Set([...tlIds, ...layerIds])
     mediaPoolRef.current.forEach((el, id) => {
-      if (!activeIds.has(id)) {
+      if (!keepIds.has(id)) {
         if (el instanceof HTMLVideoElement) { el.pause(); el.src = '' }
         mediaPoolRef.current.delete(id)
       }
     })
-  }, [timelineClips, timelineEnabled])
+  }, [timelineClips, mediaItems])
 
   // Main RAF loop — runs once, reads from refs
   useEffect(() => {
@@ -773,10 +819,11 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
           const inm = mediaItemsRef.current.find(x => x.id === inClip.mediaId)
           incomingRoleRef.current     = inm?.mediaRole ?? null
           incomingFitModeRef.current  = inClip.fitMode
-          // On transition start: seek + play incoming video from its in-point
+          // On transition start: seek incoming video to its in-point (localTime = 0)
           if (txJustStarted && inEl instanceof HTMLVideoElement) {
-            inEl.currentTime = inClip.mediaInSec
-            inEl.loop        = inClip.playbackMode === 'loop'
+            const inDur = isFinite(inEl.duration) ? inEl.duration : 0
+            inEl.currentTime = getClipSourceTime(inClip, 0, inDur)
+            inEl.loop        = false  // we manage looping ourselves
             if (isPlayingRef.current) inEl.play().catch(() => {})
           }
         } else {
@@ -785,9 +832,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
           incomingFitModeRef.current = null
         }
 
-        // ── Per-frame video sync ──────────────────────────────────────
-        // Drives trim / loop (segment) / freeze without relying on native
-        // video.loop, which ignores mediaInSec/mediaOutSec.
+        // ── Per-frame video sync (outgoing / primary clip) ────────────
         const DRIFT = 0.12
         const activeVid = mediaElRef.current
         if (activeClipRef.current && activeVid instanceof HTMLVideoElement) {
@@ -796,7 +841,6 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
           const frozen = shouldFreezeClipFrame(aClip, localTimeSec, dur)
 
           if (frozen) {
-            // Hold last valid frame — keep video paused
             if (!activeVid.paused) activeVid.pause()
           } else {
             const desired = getClipSourceTime(aClip, localTimeSec, dur)
@@ -806,12 +850,27 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
                 activeVid.currentTime = desired
               }
             } else {
-              // Paused — align frame to current timeline position
               if (Math.abs(activeVid.currentTime - desired) > DRIFT) {
                 activeVid.currentTime = desired
               }
               if (!activeVid.paused) activeVid.pause()
             }
+          }
+        }
+
+        // ── Per-frame video sync (incoming clip during overlap) ───────
+        const txCurrent = transitionStateRef.current
+        const inVid     = incomingMediaElRef.current
+        if (txCurrent && inVid instanceof HTMLVideoElement) {
+          const inClipSync = txCurrent.incomingClip
+          const inDurSync  = isFinite(inVid.duration) ? inVid.duration : 0
+          const desired    = getClipSourceTime(inClipSync, txCurrent.incomingLocalTimeSec, inDurSync)
+          if (isPlayingRef.current) {
+            if (inVid.paused) inVid.play().catch(() => {})
+            if (Math.abs(inVid.currentTime - desired) > DRIFT) inVid.currentTime = desired
+          } else {
+            if (Math.abs(inVid.currentTime - desired) > DRIFT) inVid.currentTime = desired
+            if (!inVid.paused) inVid.pause()
           }
         }
       }
@@ -895,135 +954,23 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
                                      : { ox: 0, oy: 0, sw: W, sh: H }
           const inCompositeOp = getCompositeOpForRole(inRole)
 
-          if (txState && txState.type !== 'cut') {
-            const p = txState.progress  // 0 → 1
-
-            if (txState.type === 'crossfade') {
-              // ── Outgoing: fade out ────────────────────────────────
-              ctx.save()
-              ctx.globalAlpha = 1 - p
-              if (compositeOp !== 'source-over') ctx.globalCompositeOperation = compositeOp
-              if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
-              ctx.drawImage(mediaEl, ox, oy, sw, sh)
-              ctx.filter = 'none'
-              ctx.globalCompositeOperation = 'source-over'
-              ctx.globalAlpha = 1
-              ctx.restore()
-              // ── Incoming: fade in ─────────────────────────────────
-              if (inEl) {
-                ctx.save()
-                ctx.globalAlpha = p
-                if (inCompositeOp !== 'source-over') ctx.globalCompositeOperation = inCompositeOp
-                if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
-                ctx.drawImage(inEl, inRect.ox, inRect.oy, inRect.sw, inRect.sh)
-                ctx.filter = 'none'
-                ctx.globalCompositeOperation = 'source-over'
-                ctx.globalAlpha = 1
-                ctx.restore()
-              }
-
-            } else if (txState.type === 'glitch') {
-              const intensity = Math.sin(p * Math.PI)  // 0→peak(p=0.5)→0
-
-              // Outgoing: slightly reduced alpha as chaos rises
-              ctx.save()
-              ctx.globalAlpha = 1 - intensity * 0.35
-              if (compositeOp !== 'source-over') ctx.globalCompositeOperation = compositeOp
-              if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
-              ctx.drawImage(mediaEl, ox, oy, sw, sh)
-              ctx.filter = 'none'
-              ctx.globalCompositeOperation = 'source-over'
-              ctx.globalAlpha = 1
-              ctx.restore()
-
-              // Horizontal slice jitter on outgoing
-              const numSlices = Math.ceil(2 + intensity * 7)
-              for (let i = 0; i < numSlices; i++) {
-                const sliceY = Math.floor(Math.random() * H)
-                const sliceH = Math.max(1, Math.floor(Math.random() * 22 + 3))
-                const jitterX = (Math.random() - 0.5) * intensity * 55
-                ctx.save()
-                ctx.beginPath()
-                ctx.rect(0, sliceY, W, Math.min(sliceH, H - sliceY))
-                ctx.clip()
-                ctx.drawImage(mediaEl, ox + jitterX, oy, sw, sh)
-                ctx.restore()
-              }
-
-              // RGB split burst on outgoing
-              if (intensity > 0.2) {
-                const shift = intensity * 20
-                ctx.save()
-                ctx.globalCompositeOperation = 'screen'
-                ctx.globalAlpha = intensity * 0.55
-                ctx.filter = 'sepia(1) saturate(5) hue-rotate(-40deg)'
-                ctx.drawImage(mediaEl, ox - shift, oy, sw, sh)
-                ctx.filter = 'sepia(1) saturate(5) hue-rotate(200deg)'
-                ctx.drawImage(mediaEl, ox + shift, oy, sw, sh)
-                ctx.filter = 'none'
-                ctx.globalCompositeOperation = 'source-over'
-                ctx.globalAlpha = 1
-                ctx.restore()
-              }
-
-              // Incoming clip flashes in near peak
-              if (inEl && intensity > 0.45) {
-                ctx.save()
-                ctx.globalAlpha = Math.min(1, (intensity - 0.45) * 1.82)
-                if (inCompositeOp !== 'source-over') ctx.globalCompositeOperation = inCompositeOp
-                ctx.drawImage(inEl, inRect.ox, inRect.oy, inRect.sw, inRect.sh)
-                ctx.globalCompositeOperation = 'source-over'
-                ctx.globalAlpha = 1
-                ctx.restore()
-              }
-
-              // White brightness flash at peak
-              if (intensity > 0.6) {
-                ctx.save()
-                ctx.globalAlpha = (intensity - 0.6) * 2.5 * 0.4
-                ctx.fillStyle = '#ffffff'
-                ctx.fillRect(0, 0, W, H)
-                ctx.globalAlpha = 1
-                ctx.restore()
-              }
-
-            } else if (txState.type === 'flash') {
-              // Outgoing fades out quickly in the first half
-              ctx.save()
-              ctx.globalAlpha = Math.max(0, 1 - p * 2)
-              if (compositeOp !== 'source-over') ctx.globalCompositeOperation = compositeOp
-              if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
-              ctx.drawImage(mediaEl, ox, oy, sw, sh)
-              ctx.filter = 'none'
-              ctx.globalCompositeOperation = 'source-over'
-              ctx.globalAlpha = 1
-              ctx.restore()
-
-              // Incoming fades in starting from p≈0.25
-              if (inEl) {
-                ctx.save()
-                ctx.globalAlpha = Math.min(1, Math.max(0, (p - 0.25) * 2))
-                if (inCompositeOp !== 'source-over') ctx.globalCompositeOperation = inCompositeOp
-                if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
-                ctx.drawImage(inEl, inRect.ox, inRect.oy, inRect.sw, inRect.sh)
-                ctx.filter = 'none'
-                ctx.globalCompositeOperation = 'source-over'
-                ctx.globalAlpha = 1
-                ctx.restore()
-              }
-
-              // White/cyan flash peaks at p=0.5 (sin curve)
-              const flashAlpha = Math.sin(p * Math.PI) * 0.88
-              if (flashAlpha > 0.02) {
-                ctx.save()
-                ctx.globalAlpha = flashAlpha
-                ctx.fillStyle = '#ffffff'
-                ctx.fillRect(0, 0, W, H)
-                ctx.globalAlpha = 1
-                ctx.restore()
-              }
-            }
-
+          if (txState && txState.config.type !== 'cut') {
+            // ── Transition: delegated to centralized renderer ─────
+            renderTimelineTransition({
+              ctx, W, H,
+              outEl:          mediaEl,
+              outRect:        { ox, oy, sw, sh },
+              outCompositeOp: compositeOp,
+              inEl,
+              inRect,
+              inCompositeOp,
+              config:         txState.config,
+              progress:       txState.progress,
+              time:           t,
+              colorShift:     activeColorShift,
+              bass:           rawBands.bass,
+              beat:           rawBands.beat,
+            })
           } else {
             // ── Normal main draw (no active transition) ───────────
             ctx.save()
@@ -1101,6 +1048,69 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         ctx.fillStyle = 'rgba(74,199,219,0.28)'
         ctx.fillText('NO INPUT', cx, cy)
         ctx.restore()
+      }
+
+      // ── Overlay layer compositor ──────────────────────────────────────
+      // Renders texture → character → logo → overlay in z-order above the
+      // primary media / timeline output.  Each layer draws ALL deck items
+      // whose mediaRole maps to that layer.  Timeline clips are NOT rendered
+      // here — they are handled by the primary media path above.
+      {
+        const layerCfgs  = layerConfigsRef.current
+        const deckItems  = mediaItemsRef.current
+        const pool       = mediaPoolRef.current
+
+        for (const layerId of VZ_LAYER_RENDER_ORDER) {
+          const cfg = layerCfgs.find(c => c.id === layerId)
+          if (!cfg || !cfg.enabled) continue
+
+          const roles      = LAYER_TO_ROLES[layerId]
+          const layerItems = deckItems.filter(m => roles.includes(m.mediaRole as MediaRole))
+          if (!layerItems.length) continue
+
+          for (const item of layerItems) {
+            // Lazy-load element into shared pool
+            if (!pool.has(item.id)) {
+              if (item.type === 'image') {
+                const img = new Image()
+                img.src = item.url
+                pool.set(item.id, img)
+              } else {
+                const vid = document.createElement('video')
+                vid.src = item.url
+                vid.muted = true
+                vid.playsInline = true
+                vid.loop = true
+                if (isPlayingRef.current) vid.play().catch(() => {})
+                pool.set(item.id, vid)
+              }
+            }
+
+            const el = pool.get(item.id)
+            if (!el) continue
+
+            // Keep layer videos synced with global play state
+            if (el instanceof HTMLVideoElement) {
+              if (isPlayingRef.current && el.paused)  el.play().catch(() => {})
+              if (!isPlayingRef.current && !el.paused) el.pause()
+            }
+
+            const layerScale = shouldApplyScalePulse(item.mediaRole as MediaRole)
+              ? bassReact * punchScale * eff.logoScale
+              : 1
+            const rect = computeDrawRect(W, H, el, cfg.fit, layerScale, item.mediaRole as MediaRole)
+
+            ctx.save()
+            ctx.globalAlpha = cfg.opacity
+            if (cfg.blendMode !== 'source-over') ctx.globalCompositeOperation = cfg.blendMode
+            if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
+            ctx.drawImage(el, rect.ox, rect.oy, rect.sw, rect.sh)
+            ctx.filter = 'none'
+            ctx.globalCompositeOperation = 'source-over'
+            ctx.globalAlpha = 1
+            ctx.restore()
+          }
+        }
       }
 
       // ── New canvas effects (post main draw) ────────────────────────
@@ -1724,6 +1734,7 @@ function LiveVisualPreview({
   quality, onQualityChange,
   canvasWrapRef, audioTime, modulationRoutes,
   timelineEnabled, onToggleTimeline, timelineClips, timelineLoop, mediaItems,
+  layerConfigs,
 }: {
   analyser: AnalyserNode | null
   activeMedia: UploadedMedia | null
@@ -1740,6 +1751,7 @@ function LiveVisualPreview({
   timelineEnabled: boolean; onToggleTimeline: () => void
   timelineClips: VzTimelineClip[]; timelineLoop: boolean
   mediaItems: UploadedMedia[]
+  layerConfigs: VzLayerConfig[]
 }) {
   const [liveFps, setLiveFps] = useState(0)
 
@@ -1761,6 +1773,7 @@ function LiveVisualPreview({
           timelineClips={timelineClips}
           timelineLoop={timelineLoop}
           mediaItems={mediaItems}
+          layerConfigs={layerConfigs}
           onFpsUpdate={setLiveFps}
         />
         <div className="vz-preview-pills">
@@ -1967,8 +1980,9 @@ function ModulationPanel({ routes, onToggle, onSetAmount }: {
 }
 
 // ── EffectControlsPanel ───────────────────────────────────────────────
-function EffectControlsPanel({ effects, onChange, onReset }: {
+function EffectControlsPanel({ effects, enabledFx, onChange, onReset }: {
   effects: VzEffects
+  enabledFx: Set<string>
   onChange: (key: keyof VzEffects, v: number) => void
   onReset: () => void
 }) {
@@ -2007,12 +2021,17 @@ function EffectControlsPanel({ effects, onChange, onReset }: {
         <button className="vz-reset-btn" onClick={onReset}>Reset</button>
       </div>
       <div className="vz-effects-scroll">
-        {sliders.map(s => (
-          <VzSlider key={s.key} label={s.label} value={effects[s.key]}
-            min={s.min} max={s.max} colorTrack={s.color}
-            onChange={v => onChange(s.key, v)}
-          />
-        ))}
+        {sliders.map(s => {
+          const chainItem = EFFECT_CONTROL_CHAIN_MAP[s.key]
+          const chainEnabled = chainItem === undefined ? undefined : enabledFx.has(chainItem)
+          return (
+            <VzSlider key={s.key} label={s.label} value={effects[s.key]}
+              min={s.min} max={s.max} colorTrack={s.color}
+              chainEnabled={chainEnabled}
+              onChange={v => onChange(s.key, v)}
+            />
+          )
+        })}
       </div>
     </div>
   )
@@ -2244,6 +2263,77 @@ function PresetStrip({ activePresetId, presets, onSelect, onSave, onDelete }: {
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  )
+}
+
+// ── VzLayersPanel ─────────────────────────────────────────────────────
+function VzLayersPanel() {
+  const { layerConfigs, setLayerConfig, resetLayerConfigs } = useVisualStore()
+  const { items } = useMediaStore()
+
+  const countByLayer = useMemo<Record<VzLayerConfigId, number>>(() => {
+    const counts: Record<VzLayerConfigId, number> = {
+      texture: 0, character: 0, logo: 0, overlay: 0,
+    }
+    for (const item of items) {
+      const layerId = ROLE_TO_LAYER[item.mediaRole as MediaRole]
+      if (layerId) counts[layerId]++
+    }
+    return counts
+  }, [items])
+
+  return (
+    <div className="vz-layers-panel vz-panel">
+      <div className="vz-panel-header">
+        <Layers01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
+        <span className="vz-panel-title">Layers</span>
+        <button className="vz-layers-reset-btn" onClick={resetLayerConfigs} title="Reset to defaults">↺</button>
+      </div>
+      <div className="vz-layers-list">
+        {VZ_LAYER_RENDER_ORDER.map(layerId => {
+          const cfg   = layerConfigs.find(c => c.id === layerId) ?? DEFAULT_LAYER_CONFIGS.find(c => c.id === layerId)!
+          const count = countByLayer[layerId]
+          return (
+            <div
+              key={layerId}
+              className={`vz-layer-row${cfg.enabled ? '' : ' vz-layer-row--off'}`}
+            >
+              <button
+                className={`vz-layer-eye${cfg.enabled ? ' vz-layer-eye--on' : ''}`}
+                onClick={() => setLayerConfig(layerId, { enabled: !cfg.enabled })}
+                title={cfg.enabled ? 'Hide layer' : 'Show layer'}
+              >
+                {cfg.enabled ? '◉' : '○'}
+              </button>
+              <span className="vz-layer-name">
+                {LAYER_LABELS[layerId]}
+                {count > 0 && <span className="vz-layer-count">{count}</span>}
+              </span>
+              <input
+                type="range"
+                className="vz-layer-opacity-slider"
+                min={0} max={1} step={0.05}
+                value={cfg.opacity}
+                disabled={!cfg.enabled}
+                title={`Opacity: ${Math.round(cfg.opacity * 100)}%`}
+                onChange={e => setLayerConfig(layerId, { opacity: parseFloat(e.target.value) })}
+              />
+              <select
+                className="az-select vz-layer-blend-select"
+                value={cfg.blendMode}
+                disabled={!cfg.enabled}
+                title="Blend mode"
+                onChange={e => setLayerConfig(layerId, { blendMode: e.target.value as GlobalCompositeOperation })}
+              >
+                {LAYER_BLEND_MODES.map(bm => (
+                  <option key={bm} value={bm}>{bm}</option>
+                ))}
+              </select>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -2691,6 +2781,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     syncSessionsFromCloud, clearSessionSyncError,
     modulationRoutes, toggleModulationRoute, setModulationRouteAmount,
     timelineEnabled, timelineClips, timelineLoop, setTimelineEnabled,
+    layerConfigs,
   } = useVisualStore()
 
   const { items, loading, reorderItems } = useMediaStore()
@@ -2770,6 +2861,20 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     canvasWrapRef.current?.requestFullscreen?.().catch(() => {})
   }, [])
 
+  const handleTogglePlayback = useCallback(() => {
+    if (engine.isPlaying) {
+      engine.pause()
+      setPlaying(false)
+    } else {
+      if (!engine.tracks.length) {
+        console.warn('[VYZUALZ] No audio track loaded — playback skipped')
+        return
+      }
+      engine.play()
+      setPlaying(true)
+    }
+  }, [engine, setPlaying])
+
   // Stable ref so the mount effect doesn't need syncSessionsFromCloud in its dep array.
   const syncSessionsRef = useRef(syncSessionsFromCloud)
   useEffect(() => { syncSessionsRef.current = syncSessionsFromCloud }, [syncSessionsFromCloud])
@@ -2825,9 +2930,15 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   // Keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return
+      const t = e.target
+      if (
+        t instanceof HTMLInputElement ||
+        t instanceof HTMLTextAreaElement ||
+        t instanceof HTMLSelectElement ||
+        (t instanceof HTMLElement && t.isContentEditable)
+      ) return
       if (e.key === 'f' || e.key === 'F') handleFullscreen()
-      if (e.key === ' ') { e.preventDefault(); setPlaying(!isPlaying) }
+      if (e.key === ' ') { e.preventDefault(); handleTogglePlayback() }
       if (e.key >= '1' && e.key <= '5') {
         const preset = presets[parseInt(e.key) - 1]
         if (preset) handleSelectPreset(preset.id)
@@ -2835,7 +2946,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [isPlaying, presets, handleSelectPreset, setPlaying, handleFullscreen])
+  }, [presets, handleSelectPreset, handleFullscreen, handleTogglePlayback])
 
   return (
     <div className="az-root">
@@ -2852,6 +2963,9 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                   <VyzualzErrorBoundary section="MediaDeck">
                     <MediaDeckPanel activeMediaId={activeMediaId} onSelect={setActiveMedia} />
                   </VyzualzErrorBoundary>
+                  <VyzualzErrorBoundary section="Layers">
+                    <VzLayersPanel />
+                  </VyzualzErrorBoundary>
                 </div>
 
                 <div className="vz-center">
@@ -2862,8 +2976,8 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                       effects={effects}
                       enabledFx={enabledFxSet}
                       isPlaying={isPlaying}
-                      onPlay={() => setPlaying(true)}
-                      onPause={() => setPlaying(false)}
+                      onPlay={handleTogglePlayback}
+                      onPause={handleTogglePlayback}
                       onPrev={handlePrevMedia}
                       onNext={handleNextMedia}
                       onFullscreen={handleFullscreen}
@@ -2882,6 +2996,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                       timelineClips={timelineClips}
                       timelineLoop={timelineLoop}
                       mediaItems={items}
+                      layerConfigs={layerConfigs}
                     />
                   </VyzualzErrorBoundary>
                   {timelineEnabled && (
@@ -2918,6 +3033,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
               <EffectChainPanel enabled={enabledFxSet} onToggle={toggleFx} />
               <EffectControlsPanel
                 effects={effects}
+                enabledFx={enabledFxSet}
                 onChange={setEffect}
                 onReset={resetEffects}
               />

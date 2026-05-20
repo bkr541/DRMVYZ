@@ -52,6 +52,36 @@ export const DEFAULT_MODULATION_ROUTES: ModulationRoute[] = [
   { id: 'beat-rgbSplit',          effectId: 'rgbSplit',        source: 'beat',   amount: 0.35, enabled: true },
   // Beat → hue nudge on beat boundary
   { id: 'beat-colorShift',        effectId: 'colorShift',      source: 'beat',   amount: 0.07, enabled: true, curve: 'easeOut' },
+
+  // ── Newer effect routes ───────────────────────────────────────────────────────
+  // Bass → spectrum bar height pulse
+  { id: 'bass-spectrumBars',      effectId: 'spectrumBars',    source: 'bass',   amount: 0.25, enabled: true },
+  // Bass → beat ring radius swell
+  { id: 'bass-beatRing',          effectId: 'beatRing',        source: 'bass',   amount: 0.35, enabled: true },
+  // Beat → particle burst intensity
+  { id: 'beat-particleBurst',     effectId: 'particleBurst',   source: 'beat',   amount: 0.45, enabled: true },
+  // Bass → camera shake magnitude
+  { id: 'bass-cameraShake',       effectId: 'cameraShake',     source: 'bass',   amount: 0.20, enabled: true },
+  // Mid → reactive grid cell brightness
+  { id: 'mid-reactiveGrid',       effectId: 'reactiveGrid',    source: 'mid',    amount: 0.30, enabled: true },
+  // High → edge glow radius
+  { id: 'high-edgeGlow',          effectId: 'edgeGlow',        source: 'high',   amount: 0.25, enabled: true },
+  // High → VHS noise grain
+  { id: 'high-vhsStatic',         effectId: 'vhsStatic',       source: 'high',   amount: 0.18, enabled: true },
+  // High → hue cycling speed (eased so subtle at rest)
+  { id: 'high-colorCycle',        effectId: 'colorCycle',      source: 'high',   amount: 0.20, enabled: true, curve: 'easeOut' },
+  // Mid → kaleidoscope segment rotation
+  { id: 'mid-kaleidoscope',       effectId: 'kaleidoscope',    source: 'mid',    amount: 0.15, enabled: true },
+  // Bass → radial blur spread
+  { id: 'bass-radialBlur',        effectId: 'radialBlur',      source: 'bass',   amount: 0.20, enabled: true },
+  // Mid → circular spectrum ring amplitude
+  { id: 'mid-circularSpectrum',   effectId: 'circularSpectrum', source: 'mid',   amount: 0.25, enabled: true },
+  // High → oscilloscope waveform brightness
+  { id: 'high-oscilloscope',      effectId: 'oscilloscope',    source: 'high',   amount: 0.20, enabled: true },
+  // Mid → mirror split offset
+  { id: 'mid-mirrorSplit',        effectId: 'mirrorSplit',     source: 'mid',    amount: 0.15, enabled: true },
+  // Beat → datamosh smear burst
+  { id: 'beat-datamoshSmear',     effectId: 'datamoshSmear',   source: 'beat',   amount: 0.20, enabled: true },
 ]
 
 // ── Band display metadata (used by ModulationPanel) ──────────────────────────
@@ -61,6 +91,7 @@ export const BAND_LABELS: Record<AudioBand, string> = {
 }
 
 export const EFFECT_LABELS: Partial<Record<keyof VzEffects, string>> = {
+  // ── Core effects ──────────────────────────────────────────────────────
   bassReactivity:  'Scale Pulse',
   tunnelSpeed:     'Tunnel Depth',
   displacement:    'Displacement',
@@ -71,6 +102,21 @@ export const EFFECT_LABELS: Partial<Record<keyof VzEffects, string>> = {
   bloom:           'Bloom',
   masterIntensity: 'Brightness',
   colorShift:      'Color Shift',
+  // ── Newer effects ─────────────────────────────────────────────────────
+  spectrumBars:    'Spectrum Bars',
+  circularSpectrum: 'Circ Spectrum',
+  oscilloscope:    'Oscilloscope',
+  beatRing:        'Beat Ring',
+  particleBurst:   'Particles',
+  reactiveGrid:    'React Grid',
+  cameraShake:     'Cam Shake',
+  kaleidoscope:    'Kaleidoscope',
+  mirrorSplit:     'Mirror Split',
+  radialBlur:      'Radial Blur',
+  vhsStatic:       'VHS Static',
+  datamoshSmear:   'Datamosh',
+  edgeGlow:        'Edge Glow',
+  colorCycle:      'Color Cycle',
 }
 
 // ── Band extraction ───────────────────────────────────────────────────────────

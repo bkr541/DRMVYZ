@@ -908,6 +908,27 @@ input[type='range'].vz-slider--color {
   ) !important;
 }
 
+/* Dimmed state — matching chain item is off */
+.vz-slider-wrap--off {
+  opacity: 0.38;
+  transition: opacity 0.15s;
+}
+.vz-slider-wrap--off:hover {
+  opacity: 0.58;
+}
+.vz-slider-wrap--off .vz-slider-label {
+  color: rgba(245,248,250,0.38);
+}
+.vz-slider-chain-hint {
+  font-family: var(--az-font, monospace);
+  font-size: 9px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: rgba(245,248,250,0.3);
+  margin-top: 1px;
+  user-select: none;
+}
+
 /* ── Effect Chain ────────────────────────────────────────────────────── */
 .vz-chain-panel {
   height: 140px;
@@ -2143,14 +2164,23 @@ input[type='range'].vz-slider--color {
   gap: 3px;
   align-items: center;
   width: 100%;
+  flex-wrap: wrap;
 }
 .vz-tl-tx-select {
   flex: 1;
+  min-width: 0;
+  font-size: 9px !important;
+  padding: 2px 4px !important;
+}
+.vz-tl-tx-easing {
+  flex: 1;
+  min-width: 0;
   font-size: 9px !important;
   padding: 2px 4px !important;
 }
 .vz-tl-tx-dur {
   width: 38px;
+  flex-shrink: 0;
   padding: 2px 4px;
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.1);
@@ -2161,6 +2191,20 @@ input[type='range'].vz-slider--color {
   text-align: right;
 }
 .vz-tl-tx-dur:focus { outline: none; border-color: rgba(74,199,219,0.5); }
+
+.vz-tl-tx-intensity {
+  width: 34px;
+  flex-shrink: 0;
+  padding: 2px 4px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  color: var(--az-text-muted);
+  font-family: var(--az-font-data);
+  font-size: 9px;
+  text-align: right;
+}
+.vz-tl-tx-intensity:focus { outline: none; border-color: rgba(74,199,219,0.5); }
 
 .vz-tl-card-actions {
   display: flex;
@@ -2351,4 +2395,108 @@ input[type='range'].vz-slider--color {
 }
 .vz-error-boundary__reset:hover {
   background: rgba(248,113,113,0.15);
+}
+
+/* ── VzLayersPanel ───────────────────────────────────────────────────────── */
+
+.vz-layers-panel {
+  margin-top: 6px;
+}
+
+.vz-layers-reset-btn {
+  margin-left: auto;
+  padding: 2px 7px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 3px;
+  color: var(--az-text-faint, rgba(245,248,250,0.4));
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+}
+.vz-layers-reset-btn:hover {
+  color: rgba(245,248,250,0.85);
+  border-color: rgba(255,255,255,0.28);
+}
+
+.vz-layers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 8px 6px;
+}
+
+.vz-layer-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 5px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.03);
+  transition: background 0.12s;
+}
+.vz-layer-row:hover {
+  background: rgba(255,255,255,0.06);
+}
+.vz-layer-row--off {
+  opacity: 0.45;
+}
+
+.vz-layer-eye {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--az-text-faint, rgba(245,248,250,0.4));
+  transition: color 0.12s, background 0.12s;
+  flex-shrink: 0;
+}
+.vz-layer-eye:hover {
+  background: rgba(255,255,255,0.08);
+}
+.vz-layer-eye--on {
+  color: rgba(245,248,250,0.85);
+}
+
+.vz-layer-name {
+  font-family: var(--az-font, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: rgba(245,248,250,0.75);
+  min-width: 60px;
+  flex-shrink: 0;
+}
+
+.vz-layer-count {
+  font-family: var(--az-font, monospace);
+  font-size: 10px;
+  color: var(--az-text-faint, rgba(245,248,250,0.35));
+  min-width: 18px;
+  flex-shrink: 0;
+}
+
+.vz-layer-opacity-slider {
+  flex: 1;
+  min-width: 50px;
+  height: 3px;
+  accent-color: rgba(74,199,219,0.85);
+  cursor: pointer;
+}
+
+.vz-layer-blend-select {
+  font-family: var(--az-font, monospace);
+  font-size: 10px;
+  padding: 2px 4px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 3px;
+  color: rgba(245,248,250,0.65);
+  cursor: pointer;
+  max-width: 88px;
+  flex-shrink: 0;
 }

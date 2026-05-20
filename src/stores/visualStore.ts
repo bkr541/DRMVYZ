@@ -11,10 +11,13 @@ import {
   DEFAULT_MODULATION_ROUTES,
 } from '../lib/audioModulation'
 import type { ModulationRoute } from '../lib/audioModulation'
-import { recalculateTimelineStarts } from '../lib/timeline'
+import { recalculateTimelineStarts, migrateClip } from '../lib/timeline'
 import type { VzTimelineClip } from '../types/timeline'
+import { DEFAULT_LAYER_CONFIGS } from '../types/vzLayers'
+import type { VzLayerConfig, VzLayerConfigId } from '../types/vzLayers'
 
 export type { VzTimelineClip }
+export type { VzLayerConfig, VzLayerConfigId }
 
 // Quality is owned here so sessions can snapshot it
 export type Quality = 'High' | 'Medium' | 'Low'
@@ -298,6 +301,11 @@ interface VisualState {
   timelineClock:    number
   setTimelineClock: (t: number) => void
   scrubTimeline:    (t: number) => void
+
+  // ── Layer compositor ──────────────────────────────────────────────────────
+  layerConfigs: VzLayerConfig[]
+  setLayerConfig(id: VzLayerConfigId, patch: Partial<Omit<VzLayerConfig, 'id'>>): void
+  resetLayerConfigs(): void
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -322,6 +330,7 @@ export const useVisualStore = create<VisualState>()(
       timelineClips:     [],
       timelineLoop:      true,
       timelineClock:     0,
+      layerConfigs:      [...DEFAULT_LAYER_CONFIGS],
 
       // ── Live state ──────────────────────────────────────────────────────────
 
@@ -467,7 +476,9 @@ export const useVisualStore = create<VisualState>()(
           bpmSync:         session.bpmSync,
           quality:         session.quality,
           timelineEnabled: session.timelineEnabled ?? false,
-          timelineClips:   session.timelineClips   ? [...session.timelineClips] : [],
+          timelineClips:   recalculateTimelineStarts(
+            (session.timelineClips ?? []).map(migrateClip)
+          ),
           timelineLoop:    session.timelineLoop     ?? true,
         })
         return session
@@ -615,6 +626,15 @@ export const useVisualStore = create<VisualState>()(
       },
       setTimelineClock(t) { set({ timelineClock: t }) },
       scrubTimeline(t)    { set({ timelineClock: t }) },
+
+      setLayerConfig(id, patch) {
+        set(s => ({
+          layerConfigs: s.layerConfigs.map(c => c.id === id ? { ...c, ...patch } : c),
+        }))
+      },
+      resetLayerConfigs() {
+        set({ layerConfigs: [...DEFAULT_LAYER_CONFIGS] })
+      },
     }),
     {
       name: 'drmvyz-visual-store',
@@ -632,6 +652,7 @@ export const useVisualStore = create<VisualState>()(
         timelineEnabled:   s.timelineEnabled,
         timelineClips:     s.timelineClips,
         timelineLoop:      s.timelineLoop,
+        layerConfigs:      s.layerConfigs,
       }),
       // Re-inject default presets after rehydration so they are never missing
       merge: (persisted, current) => {
@@ -658,10 +679,19 @@ export const useVisualStore = create<VisualState>()(
           presets:          [...DEFAULT_PRESETS, ...(p.presets ?? [])],
           sessions,
           modulationRoutes: mergedRoutes,
-          // Safe defaults for timeline fields added after initial deploy
+          // Safe defaults for timeline fields added after initial deploy.
+          // migrateClip converts deprecated `transition` → `transitionOut`.
           timelineEnabled:  p.timelineEnabled  ?? false,
-          timelineClips:    (p.timelineClips    ?? []) as VzTimelineClip[],
+          timelineClips:    recalculateTimelineStarts(
+            ((p.timelineClips ?? []) as VzTimelineClip[]).map(migrateClip)
+          ),
           timelineLoop:     p.timelineLoop      ?? true,
+          // Merge saved layer configs over defaults so new layers added in
+          // future releases always appear, and user settings are preserved.
+          layerConfigs: DEFAULT_LAYER_CONFIGS.map(d => {
+            const saved = (p.layerConfigs ?? [] as VzLayerConfig[]).find(c => c.id === d.id)
+            return saved ? { ...d, ...saved } : d
+          }),
         }
       },
     }

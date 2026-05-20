@@ -2,8 +2,8 @@ import { useMemo, useRef } from 'react'
 import { useVisualStore } from '../../stores/visualStore'
 import { useMediaStore } from '../../stores/mediaStore'
 import type { UploadedMedia } from '../../stores/mediaStore'
-import type { VzTimelineClip } from '../../types/timeline'
-import { getTimelineDuration } from '../../lib/timeline'
+import type { VzTimelineClip, VzTransitionConfig, VzTransitionType, VzTransitionEasing } from '../../types/timeline'
+import { getTimelineDuration, TRANSITION_LABELS, TRANSITION_DEFAULTS } from '../../lib/timeline'
 
 function fmtSec(sec: number): string {
   return `${sec.toFixed(1)}s`
@@ -254,38 +254,82 @@ function TimelineClipCard({
       <div className="vz-tl-transition-row">
         <select
           className="az-select vz-tl-tx-select"
-          value={clip.transition?.type ?? 'cut'}
+          value={clip.transitionOut?.type ?? 'cut'}
           onChange={e => {
-            const type = e.target.value as NonNullable<VzTimelineClip['transition']>['type']
-            onUpdate(clip.id, {
-              transition: type === 'cut'
-                ? undefined
-                : { type, durationSec: clip.transition?.durationSec ?? 0.5 },
-            })
+            const type = e.target.value as VzTransitionType
+            if (type === 'cut') {
+              onUpdate(clip.id, { transitionOut: undefined })
+            } else {
+              const def = TRANSITION_DEFAULTS[type]
+              onUpdate(clip.id, {
+                transitionOut: {
+                  ...def,
+                  // Preserve existing duration if user already customised it
+                  durationSec: clip.transitionOut?.durationSec ?? def.durationSec,
+                },
+              })
+            }
           }}
-          title="Transition into next clip"
+          title="Transition out to next clip"
         >
-          <option value="cut">Cut</option>
-          <option value="crossfade">Crossfade</option>
-          <option value="glitch">Glitch</option>
-          <option value="flash">Flash</option>
+          {(Object.keys(TRANSITION_LABELS) as VzTransitionType[]).map(type => (
+            <option key={type} value={type}>{TRANSITION_LABELS[type]}</option>
+          ))}
         </select>
-        {clip.transition && clip.transition.type !== 'cut' && (
-          <input
-            type="number"
-            className="vz-tl-tx-dur"
-            min={0.1}
-            max={10}
-            step={0.1}
-            value={clip.transition.durationSec}
-            onChange={e => {
-              const v = parseFloat(e.target.value)
-              if (!isNaN(v) && v > 0 && clip.transition) {
-                onUpdate(clip.id, { transition: { ...clip.transition, durationSec: v } })
-              }
-            }}
-            title="Transition duration (s)"
-          />
+
+        {clip.transitionOut && clip.transitionOut.type !== 'cut' && (
+          <>
+            <input
+              type="number"
+              className="vz-tl-tx-dur"
+              min={0.1}
+              max={clip.durationSec}
+              step={0.1}
+              value={clip.transitionOut.durationSec}
+              onChange={e => {
+                const v = parseFloat(e.target.value)
+                if (!isNaN(v) && v > 0 && clip.transitionOut) {
+                  onUpdate(clip.id, { transitionOut: { ...clip.transitionOut, durationSec: v } })
+                }
+              }}
+              title="Overlap duration (s)"
+            />
+            <select
+              className="az-select vz-tl-tx-easing"
+              value={clip.transitionOut.easing ?? 'linear'}
+              onChange={e => {
+                if (clip.transitionOut) {
+                  onUpdate(clip.id, {
+                    transitionOut: { ...clip.transitionOut, easing: e.target.value as VzTransitionEasing },
+                  })
+                }
+              }}
+              title="Transition easing"
+            >
+              <option value="linear">Linear</option>
+              <option value="easeIn">Ease In</option>
+              <option value="easeOut">Ease Out</option>
+              <option value="easeInOut">Ease In/Out</option>
+              <option value="easeInCubic">Cubic In</option>
+              <option value="easeOutCubic">Cubic Out</option>
+              <option value="easeInOutCubic">Cubic In/Out</option>
+            </select>
+            <input
+              type="number"
+              className="vz-tl-tx-intensity"
+              min={0}
+              max={1}
+              step={0.05}
+              value={clip.transitionOut.intensity ?? 1}
+              onChange={e => {
+                const v = parseFloat(e.target.value)
+                if (!isNaN(v) && clip.transitionOut) {
+                  onUpdate(clip.id, { transitionOut: { ...clip.transitionOut, intensity: Math.max(0, Math.min(1, v)) } })
+                }
+              }}
+              title="Intensity (0–1)"
+            />
+          </>
         )}
       </div>
 
