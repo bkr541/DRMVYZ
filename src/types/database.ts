@@ -1,5 +1,10 @@
 // Auto-maintained TypeScript types for the DRMVYZ Supabase schema.
 // Keep in sync with supabase/migrations/0001_initial_drmvyz_schema.sql
+// Lyric tables added in 0006_lyric_system.sql — see src/types/lyrics.ts for full lyric types.
+import type {
+  LyricDocumentRow, LyricDocumentInsert, LyricDocumentUpdate,
+  LyricCueRow,      LyricCueInsert,      LyricCueUpdate,
+} from './lyrics'
 
 export type AudioSource  = 'file' | 'microphone' | 'demo' | 'ring_buffer'
 export type MeterMode    = 'vu' | 'rms' | 'peak' | 'ebu'
@@ -336,6 +341,8 @@ export interface Database {
       visual_sessions:          { Row: VisualSessionRow;       Insert: Omit<VisualSessionRow,'id'|'created_at'|'updated_at'>;    Update: Partial<Omit<VisualSessionRow,'id'>> }
       canvas_exports:           { Row: CanvasExport;           Insert: Omit<CanvasExport,'id'|'exported_at'>;                    Update: Partial<Omit<CanvasExport,'id'>> }
       audio_track_tags:         { Row: { track_id: string; tag_id: string }; Insert: { track_id: string; tag_id: string }; Update: never }
+      lyric_documents:          { Row: LyricDocumentRow; Insert: LyricDocumentInsert; Update: LyricDocumentUpdate }
+      lyric_cues:               { Row: LyricCueRow;      Insert: LyricCueInsert;      Update: LyricCueUpdate      }
     }
   }
 }

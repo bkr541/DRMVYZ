@@ -652,6 +652,9 @@ export const useVisualStore = create<VisualState>()(
         return {
           ...current,
           ...p,
+          // Spread DEFAULT_EFFECTS first so any fields added after the last save
+          // are never undefined when VzSlider reads them.
+          effects:          { ...DEFAULT_EFFECTS, ...(p.effects ?? {}) },
           presets:          [...DEFAULT_PRESETS, ...(p.presets ?? [])],
           sessions,
           modulationRoutes: mergedRoutes,
