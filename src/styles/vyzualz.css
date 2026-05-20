@@ -186,7 +186,7 @@
 }
 
 .vz-right {
-  width: 252px;
+  width: 302px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -253,7 +253,12 @@
   padding: 5px 10px;
   border-bottom: 1px solid rgba(255,255,255,0.05);
   flex-shrink: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
+.vz-filter-tabs::-webkit-scrollbar { height: 2px; }
+.vz-filter-tabs::-webkit-scrollbar-track { background: transparent; }
+.vz-filter-tabs::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
 
 .vz-filter-tab {
   padding: 3px 8px;
@@ -266,6 +271,8 @@
   color: var(--az-text-faint);
   cursor: pointer;
   transition: all 0.12s;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .vz-filter-tab:hover { color: var(--az-text-muted); }
 .vz-filter-tab--active {
@@ -833,7 +840,7 @@ input[type='range'].vz-slider--color {
 
 /* ── Effect Chain ────────────────────────────────────────────────────── */
 .vz-chain-panel {
-  height: 116px;
+  height: 140px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -846,17 +853,23 @@ input[type='range'].vz-slider--color {
 
 .vz-chain-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr;
-  gap: 5px;
-  padding: 6px 10px 8px;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  padding: 4px 8px 8px;
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: start;
 }
+.vz-chain-grid::-webkit-scrollbar { width: 3px; }
+.vz-chain-grid::-webkit-scrollbar-track { background: transparent; }
+.vz-chain-grid::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
 
 .vz-chain-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 2px;
+  padding: 10px 2px;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 5px;
@@ -1361,7 +1374,7 @@ input[type='range'].vz-slider--color {
 /* ── Responsive ──────────────────────────────────────────────────────── */
 @media (max-width: 1200px) {
   .vz-left  { width: 220px; }
-  .vz-right { width: 228px; }
+  .vz-right { width: 278px; }
 }
 @media (max-width: 980px) {
   .vz-left { display: none; }
