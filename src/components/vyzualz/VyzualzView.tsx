@@ -6,6 +6,8 @@ import {
   MagicWand01Icon,
   Flowchart01Icon,
   Tv01Icon,
+  FavouriteIcon,
+  Delete02Icon,
 } from 'hugeicons-react'
 import { AnalyzerSidebar } from '../analyzer/AnalyzerSidebar'
 import { useSharedAudio }  from '../../context/AudioEngineContext'
@@ -1692,17 +1694,17 @@ function MediaDeckPanel({ activeMediaId, onSelect }: {
                   <button
                     className={`vz-media-star ${m.favorite ? 'vz-media-star--active' : ''}`}
                     onClick={e => { e.stopPropagation(); toggleFavorite(m.id) }}
-                  >★</button>
+                    title={m.favorite ? 'Unfavourite' : 'Favourite'}
+                  >
+                    <FavouriteIcon size={17} color="currentColor" />
+                  </button>
                   <button
                     className="vz-media-remove"
                     onClick={e => { e.stopPropagation(); removeItem(m.id) }}
                     title="Remove"
-                    style={{
-                      position: 'absolute', top: 3, left: 3, background: 'rgba(0,0,0,0.6)',
-                      border: 'none', color: 'rgba(245,248,250,0.5)', cursor: 'pointer',
-                      fontSize: 9, borderRadius: 2, padding: '1px 4px', lineHeight: 1.4,
-                    }}
-                  >✕</button>
+                  >
+                    <Delete02Icon size={15} color="currentColor" />
+                  </button>
                 </div>
                 <div className="vz-media-info">
                   <div className="vz-media-name">{m.title ?? m.name}</div>
@@ -1951,26 +1953,29 @@ function ModulationPanel({ routes, onToggle, onSetAmount }: {
         <div className="vz-mod-list">
           {routes.map(route => (
             <div key={route.id} className={`vz-mod-route ${route.enabled ? 'vz-mod-route--on' : ''}`}>
-              <button
-                className="vz-mod-toggle"
-                onClick={() => onToggle(route.id)}
-                title={route.enabled ? 'Disable route' : 'Enable route'}
-              >
-                <span className={`vz-mod-dot ${route.enabled ? 'vz-mod-dot--on' : ''}`} />
-              </button>
-              <span className="vz-mod-source">{BAND_LABELS[route.source]}</span>
-              <span className="vz-mod-arrow">→</span>
-              <span className="vz-mod-target">{EFFECT_LABELS[route.effectId] ?? route.effectId}</span>
-              <input
-                type="range"
-                className="vz-mod-amount"
-                min={0} max={1} step={0.05}
-                value={route.amount}
-                disabled={!route.enabled}
-                title={`Amount: ${route.amount.toFixed(2)}`}
-                onChange={e => onSetAmount(route.id, parseFloat(e.target.value))}
-              />
-              <span className="vz-mod-amount-val">{route.amount.toFixed(2)}</span>
+              <div className="vz-mod-route-header">
+                <button
+                  className="vz-mod-toggle"
+                  onClick={() => onToggle(route.id)}
+                  title={route.enabled ? 'Disable route' : 'Enable route'}
+                >
+                  <span className={`vz-mod-dot ${route.enabled ? 'vz-mod-dot--on' : ''}`} />
+                </button>
+                <span className="vz-mod-target">{EFFECT_LABELS[route.effectId] ?? route.effectId}</span>
+                <span className="vz-mod-source">{BAND_LABELS[route.source]}</span>
+              </div>
+              <div className="vz-mod-route-slider">
+                <input
+                  type="range"
+                  className="vz-slider vz-mod-amount"
+                  style={{ '--pct': `${route.amount * 100}%` } as React.CSSProperties}
+                  min={0} max={1} step={0.05}
+                  value={route.amount}
+                  title={`Amount: ${route.amount.toFixed(2)}`}
+                  onChange={e => onSetAmount(route.id, parseFloat(e.target.value))}
+                />
+                <span className="vz-mod-amount-val">{route.amount.toFixed(2)}</span>
+              </div>
             </div>
           ))}
         </div>

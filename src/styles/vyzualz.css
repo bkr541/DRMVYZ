@@ -403,7 +403,7 @@
   position: absolute;
   bottom: 3px;
   left: 3px;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.07em;
   padding: 1px 4px;
@@ -416,8 +416,9 @@
 .vz-media-star {
   position: absolute;
   top: 3px;
-  right: 4px;
-  font-size: 11px;
+  left: 4px;
+  display: flex;
+  align-items: center;
   cursor: pointer;
   line-height: 1;
   color: rgba(245,248,250,0.25);
@@ -429,9 +430,24 @@
 .vz-media-star:hover { color: #d8b95a; }
 .vz-media-star--active { color: #d8b95a !important; }
 
+.vz-media-remove {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  color: rgba(248,113,113,0.7);
+  cursor: pointer;
+  padding: 2px;
+  transition: color 0.12s;
+}
+.vz-media-remove:hover { color: #f87171; }
+
 .vz-media-info { padding: 5px 8px 6px; min-width: 0; }
 .vz-media-name {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--az-text-muted);
   white-space: nowrap;
@@ -439,24 +455,24 @@
   text-overflow: ellipsis;
 }
 .vz-media-meta {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--az-text-faint);
-  margin-top: 1px;
+  margin-top: 4px;
 }
 .vz-media-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 2px;
-  margin-top: 3px;
+  margin-top: 5px;
 }
 .vz-media-tag {
-  font-size: 9px;
-  padding: 1px 4px;
-  border-radius: 2px;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 3px;
   background: rgba(74,199,219,0.1);
   color: rgba(74,199,219,0.7);
   white-space: nowrap;
-  max-width: 48px;
+  max-width: 72px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -1593,21 +1609,34 @@ input[type='range'].vz-slider--color {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 2px 6px 6px;
+  padding: 4px 8px 8px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 9px;
 }
+
+/* Per-route item — mirrors vz-layer-item layout */
 .vz-mod-route {
   display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 2px;
-  border-radius: 3px;
+  flex-direction: column;
+  gap: 6px;
   opacity: 0.45;
   transition: opacity 0.12s;
 }
 .vz-mod-route--on { opacity: 1; }
+
+.vz-mod-route-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.vz-mod-route-slider {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .vz-mod-toggle {
   background: none;
   border: none;
@@ -1631,42 +1660,36 @@ input[type='range'].vz-slider--color {
   border-color: #4ac7db;
   box-shadow: 0 0 4px rgba(74,199,219,0.7);
 }
-.vz-mod-source {
-  font-size: 11px;
-  font-family: 'JetBrains Mono', monospace;
-  color: #4ac7db;
-  width: 28px;
-  flex-shrink: 0;
-  text-align: right;
-}
-.vz-mod-arrow {
-  font-size: 11px;
-  color: rgba(245,248,250,0.25);
-  flex-shrink: 0;
-}
 .vz-mod-target {
   font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   color: rgba(245,248,250,0.7);
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.vz-mod-amount {
-  width: 44px;
-  height: 3px;
-  flex-shrink: 0;
-  accent-color: #4ac7db;
-  cursor: pointer;
-}
-.vz-mod-amount:disabled { opacity: 0.3; cursor: default; }
-.vz-mod-amount-val {
-  font-size: 10px;
+.vz-mod-source {
+  font-size: 11px;
   font-family: 'JetBrains Mono', monospace;
-  color: rgba(245,248,250,0.35);
-  width: 22px;
+  color: #4ac7db;
+  flex-shrink: 0;
+}
+.vz-mod-amount {
+  flex: 1;
+  min-width: 0;
+}
+.vz-mod-amount-val {
+  font-size: 11px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--az-text-muted);
+  width: 30px;
   flex-shrink: 0;
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── VYZUALZ settings popover positioning ────────────────────────── */
@@ -2432,7 +2455,7 @@ input[type='range'].vz-slider--color {
 .vz-layers-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 9px;
   padding: 4px 8px 8px;
 }
 
@@ -2440,7 +2463,7 @@ input[type='range'].vz-slider--color {
 .vz-layer-item {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 6px;
 }
 .vz-layer-item--off {
   opacity: 0.38;
