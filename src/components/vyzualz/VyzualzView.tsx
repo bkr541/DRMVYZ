@@ -2957,54 +2957,54 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
           <VyzualzHeader analyser={analyser} bassLive={bassLive} onSaveSession={handleSaveSession} />
 
           <div className="vz-content">
-            <div className="vz-left-center">
-              <div className="vz-body">
-                <div className="vz-left">
-                  <VyzualzErrorBoundary section="MediaDeck">
-                    <MediaDeckPanel activeMediaId={activeMediaId} onSelect={setActiveMedia} />
-                  </VyzualzErrorBoundary>
-                  <VyzualzErrorBoundary section="Layers">
-                    <VzLayersPanel />
-                  </VyzualzErrorBoundary>
-                </div>
+            {/* Left column — full height, same as vz-right */}
+            <div className="vz-left">
+              <VyzualzErrorBoundary section="MediaDeck">
+                <MediaDeckPanel activeMediaId={activeMediaId} onSelect={setActiveMedia} />
+              </VyzualzErrorBoundary>
+              <VyzualzErrorBoundary section="Layers">
+                <VzLayersPanel />
+              </VyzualzErrorBoundary>
+            </div>
 
-                <div className="vz-center">
-                  <VyzualzErrorBoundary section="Canvas">
-                    <LiveVisualPreview
-                      analyser={analyser}
-                      activeMedia={activeMedia}
-                      effects={effects}
-                      enabledFx={enabledFxSet}
-                      isPlaying={isPlaying}
-                      onPlay={handleTogglePlayback}
-                      onPause={handleTogglePlayback}
-                      onPrev={handlePrevMedia}
-                      onNext={handleNextMedia}
-                      onFullscreen={handleFullscreen}
-                      bpm={bpm}
-                      onBpmChange={setBpm}
-                      bpmSync={bpmSync}
-                      onToggleBpmSync={toggleBpmSync}
-                      onTap={handleTap}
-                      quality={quality}
-                      onQualityChange={setQuality}
-                      canvasWrapRef={canvasWrapRef}
-                      audioTime={engine.currentTime}
-                      modulationRoutes={modulationRoutes}
-                      timelineEnabled={timelineEnabled}
-                      onToggleTimeline={() => setTimelineEnabled(!timelineEnabled)}
-                      timelineClips={timelineClips}
-                      timelineLoop={timelineLoop}
-                      mediaItems={items}
-                      layerConfigs={layerConfigs}
-                    />
+            {/* Center column — canvas above, bottom bar only spans this column */}
+            <div className="vz-center-col">
+              <div className="vz-center">
+                <VyzualzErrorBoundary section="Canvas">
+                  <LiveVisualPreview
+                    analyser={analyser}
+                    activeMedia={activeMedia}
+                    effects={effects}
+                    enabledFx={enabledFxSet}
+                    isPlaying={isPlaying}
+                    onPlay={handleTogglePlayback}
+                    onPause={handleTogglePlayback}
+                    onPrev={handlePrevMedia}
+                    onNext={handleNextMedia}
+                    onFullscreen={handleFullscreen}
+                    bpm={bpm}
+                    onBpmChange={setBpm}
+                    bpmSync={bpmSync}
+                    onToggleBpmSync={toggleBpmSync}
+                    onTap={handleTap}
+                    quality={quality}
+                    onQualityChange={setQuality}
+                    canvasWrapRef={canvasWrapRef}
+                    audioTime={engine.currentTime}
+                    modulationRoutes={modulationRoutes}
+                    timelineEnabled={timelineEnabled}
+                    onToggleTimeline={() => setTimelineEnabled(!timelineEnabled)}
+                    timelineClips={timelineClips}
+                    timelineLoop={timelineLoop}
+                    mediaItems={items}
+                    layerConfigs={layerConfigs}
+                  />
+                </VyzualzErrorBoundary>
+                {timelineEnabled && (
+                  <VyzualzErrorBoundary section="Timeline">
+                    <TimelinePanel />
                   </VyzualzErrorBoundary>
-                  {timelineEnabled && (
-                    <VyzualzErrorBoundary section="Timeline">
-                      <TimelinePanel />
-                    </VyzualzErrorBoundary>
-                  )}
-                </div>
+                )}
               </div>
 
               <div className="vz-bottom">
@@ -3029,6 +3029,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
               </div>
             </div>
 
+            {/* Right column — full height */}
             <div className="vz-right">
               <EffectChainPanel enabled={enabledFxSet} onToggle={toggleFx} />
               <EffectControlsPanel
