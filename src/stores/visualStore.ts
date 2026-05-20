@@ -31,6 +31,21 @@ export interface VzEffects {
   feedbackTrails:  number
   logoScale:       number
   colorShift:      number
+  // ── New canvas effects ────────────────────────────────────────────
+  spectrumBars:    number
+  circularSpectrum: number
+  oscilloscope:    number
+  beatRing:        number
+  particleBurst:   number
+  reactiveGrid:    number
+  cameraShake:     number
+  kaleidoscope:    number
+  mirrorSplit:     number
+  radialBlur:      number
+  vhsStatic:       number
+  datamoshSmear:   number
+  edgeGlow:        number
+  colorCycle:      number
 }
 
 export const DEFAULT_EFFECTS: VzEffects = {
@@ -45,6 +60,20 @@ export const DEFAULT_EFFECTS: VzEffects = {
   feedbackTrails:  0.00,
   logoScale:       1.00,
   colorShift:      0.00,
+  spectrumBars:    0.65,
+  circularSpectrum: 0.55,
+  oscilloscope:    0.60,
+  beatRing:        0.70,
+  particleBurst:   0.55,
+  reactiveGrid:    0.45,
+  cameraShake:     0.25,
+  kaleidoscope:    0.50,
+  mirrorSplit:     0.50,
+  radialBlur:      0.40,
+  vhsStatic:       0.35,
+  datamoshSmear:   0.35,
+  edgeGlow:        0.50,
+  colorCycle:      0.45,
 }
 
 // ── PresetScope: controls which fields are saved/restored by a preset ─────────

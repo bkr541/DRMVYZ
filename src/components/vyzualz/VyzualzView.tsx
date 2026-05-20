@@ -27,9 +27,22 @@ import {
 import type { TransitionState } from '../../lib/timeline'
 import type { VzTimelineClip } from '../../types/timeline'
 import type { MediaRole } from '../../lib/mediaRoles'
+import {
+  drawSpectrumBars, drawCircularSpectrum, drawOscilloscope,
+  updateAndDrawBeatRings, updateAndDrawParticles,
+  drawReactiveGrid, getCameraShakeOffset,
+  drawKaleidoscope, drawMirrorSplit, drawRadialBlur,
+  drawVhsStatic, drawDatamoshSmear, drawEdgeGlow, drawColorCycle,
+} from './visualEffects'
+import type { BeatRing, BurstParticle } from './visualEffects'
 
 // ── Constants ─────────────────────────────────────────────────────────
-const EFFECT_CHAIN_ITEMS = ['RGB Split','Glitch Bars','Scanlines','Tunnel','Displacement','Noise Fog','Bloom','Feedback','Strobe','Color Shift'] as const
+const EFFECT_CHAIN_ITEMS = [
+  'RGB Split','Glitch Bars','Scanlines','Tunnel','Displacement','Noise Fog','Bloom','Feedback','Strobe','Color Shift',
+  'Spectrum Bars','Circular Spectrum','Oscilloscope','Beat Ring','Particle Burst',
+  'Reactive Grid','Camera Shake','Kaleidoscope','Mirror Split','Radial Blur',
+  'VHS Static','Datamosh Smear','Edge Glow','Color Cycle',
+] as const
 const SHORTCUTS = [
   { key: '1–5', desc: 'Switch Preset' },
   { key: 'F',   desc: 'Fullscreen' },
@@ -398,6 +411,14 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
   const timelineClockRef   = useRef(0)
   const lastFrameTimeRef   = useRef<number | null>(null)
 
+  // Stateful effect refs — persistent between frames (no re-render on change)
+  const beatRingsRef     = useRef<BeatRing[]>([])
+  const particlesRef     = useRef<BurstParticle[]>([])
+  const offscreenRef     = useRef<HTMLCanvasElement | null>(null)
+  const shakeAmountRef   = useRef(0)
+  const colorCycleHueRef = useRef(0)
+  const timeBufRef       = useRef<Uint8Array<ArrayBuffer> | null>(null)
+
   // Role-based rendering refs — updated when active media or timeline clip changes
   const activeMediaRoleRef    = useRef<MediaRole | null>(null)
   const activeMediaFitModeRef = useRef<'cover' | 'contain' | null>(null)
@@ -454,6 +475,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
   useEffect(() => {
     analyserRef.current  = analyser
     freqBufRef.current   = analyser ? new Uint8Array(analyser.frequencyBinCount) : null
+    timeBufRef.current   = analyser ? new Uint8Array(analyser.fftSize) : null
   }, [analyser])
 
   // Load/unload media element when active media changes
@@ -623,6 +645,8 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
 
       // Beat boundary → flash hit / transition frame
       const onBeatBoundary = synced && beatPhase < 0.04
+      // Free-mode transient detector — used by beat-reactive new effects
+      const beatHit = onBeatBoundary || (!synced && bass > 0.65 && bass > prevBassRef.current + 0.07)
 
       // ── Background / feedback ──────────────────────────────────────
       // Low-mid modulates feedback retention (smear/bend)
@@ -632,6 +656,11 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
       } else {
         ctx.fillStyle = '#090d0f'
         ctx.fillRect(0, 0, W, H)
+      }
+
+      // ── Datamosh Smear: draw previous frame ghost ─────────────────
+      if (fxSet.has('Datamosh Smear') && mEff.datamoshSmear > 0 && offscreenRef.current) {
+        drawDatamoshSmear(ctx, W, H, offscreenRef.current, mEff.datamoshSmear, rawBands.volume)
       }
 
       // ── Timeline clock & active clip ──────────────────────────────
@@ -802,7 +831,23 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         ? computeDrawRect(W, H, mediaEl, fitMode, scale, role)
         : { ox: 0, oy: 0, sw: W, sh: H }
 
+      // ── Camera Shake: apply transform before main scene ──────────
+      let shakeApplied = false
+      if (fxSet.has('Camera Shake') && mEff.cameraShake > 0) {
+        const { dx, dy } = getCameraShakeOffset(shakeAmountRef, smoothBass, beatHit, mEff.cameraShake)
+        if (Math.abs(dx) + Math.abs(dy) > 0.1) {
+          ctx.save()
+          ctx.translate(Math.round(dx), Math.round(dy))
+          shakeApplied = true
+        }
+      }
+
       if (mediaEl && renderMedia) {
+        // ── Reactive Grid (behind media) ───────────────────────────
+        if (fxSet.has('Reactive Grid') && mEff.reactiveGrid > 0) {
+          drawReactiveGrid(ctx, W, H, dpr, t, mEff.reactiveGrid, bass, rawBands.lowMid)
+        }
+
         // ── Tunnel (behind media) ──────────────────────────────────
         if (fxSet.has('Tunnel') && eff.tunnelSpeed > 0) {
           ctx.save()
@@ -1057,6 +1102,53 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         ctx.restore()
       }
 
+      // ── New canvas effects (post main draw) ────────────────────────
+
+      if (fxSet.has('Spectrum Bars') && mEff.spectrumBars > 0 && an && buf) {
+        drawSpectrumBars(ctx, W, H, dpr, buf, mEff.spectrumBars, bass, mEff.masterIntensity)
+      }
+
+      if (fxSet.has('Circular Spectrum') && mEff.circularSpectrum > 0 && an && buf) {
+        drawCircularSpectrum(ctx, W, H, dpr, buf, mEff.circularSpectrum, bass)
+      }
+
+      if (fxSet.has('Oscilloscope') && mEff.oscilloscope > 0) {
+        const tBuf = timeBufRef.current
+        if (an && tBuf) an.getByteTimeDomainData(tBuf)
+        drawOscilloscope(ctx, W, H, dpr, timeBufRef.current, mEff.oscilloscope, rawBands.volume, rawBands.mid, high, t)
+      }
+
+      if (fxSet.has('Beat Ring') && mEff.beatRing > 0) {
+        updateAndDrawBeatRings(ctx, W, H, dpr, beatRingsRef.current, mEff.beatRing, bass, beatHit)
+      }
+
+      if (fxSet.has('Particle Burst') && mEff.particleBurst > 0) {
+        updateAndDrawParticles(ctx, W, H, dpr, particlesRef.current, mEff.particleBurst, bass, beatHit)
+      }
+
+      if (fxSet.has('Kaleidoscope') && mEff.kaleidoscope > 0) {
+        drawKaleidoscope(ctx, W, H, mEff.kaleidoscope)
+      }
+
+      if (fxSet.has('Mirror Split') && mEff.mirrorSplit > 0) {
+        drawMirrorSplit(ctx, W, H, mEff.mirrorSplit)
+      }
+
+      if (fxSet.has('Radial Blur') && mEff.radialBlur > 0) {
+        drawRadialBlur(ctx, W, H, mEff.radialBlur, bass)
+      }
+
+      if (fxSet.has('Edge Glow') && mEff.edgeGlow > 0) {
+        drawEdgeGlow(ctx, W, H, mEff.edgeGlow, rawBands.volume, high)
+      }
+
+      if (fxSet.has('Color Cycle') && mEff.colorCycle > 0) {
+        drawColorCycle(ctx, W, H, colorCycleHueRef, mEff.colorCycle, rawBands.mid, rawBands.volume)
+      }
+
+      // Restore camera shake transform — HUD and scanlines stay in fixed screen space
+      if (shakeApplied) ctx.restore()
+
       // ── Scanlines ──────────────────────────────────────────────────
       if (fxSet.has('Scanlines')) {
         ctx.fillStyle = `rgba(0,0,0,${0.1 + mEff.masterIntensity * 0.07})`
@@ -1109,6 +1201,21 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         grad.addColorStop(1, `rgba(74,199,219,${flickerAlpha})`)
         ctx.fillStyle = grad
         ctx.fillRect(0, 0, W, H)
+      }
+
+      // ── VHS Static ────────────────────────────────────────────────
+      if (fxSet.has('VHS Static') && mEff.vhsStatic > 0) {
+        drawVhsStatic(ctx, W, H, mEff.vhsStatic, t)
+      }
+
+      // ── Datamosh Smear: save this frame for next frame's ghost ────
+      if (fxSet.has('Datamosh Smear') && mEff.datamoshSmear > 0) {
+        if (!offscreenRef.current || offscreenRef.current.width !== W || offscreenRef.current.height !== H) {
+          offscreenRef.current = document.createElement('canvas')
+          offscreenRef.current.width  = W
+          offscreenRef.current.height = H
+        }
+        offscreenRef.current.getContext('2d')?.drawImage(canvas, 0, 0)
       }
 
       prevBassRef.current = bass * 0.82
@@ -1847,17 +1954,31 @@ function EffectControlsPanel({ effects, onChange, onReset }: {
   onReset: () => void
 }) {
   const sliders: { key: keyof VzEffects; label: string; min?: number; max?: number; color?: boolean }[] = [
-    { key: 'masterIntensity', label: 'Master Intensity' },
-    { key: 'bassReactivity',  label: 'Bass Reactivity' },
-    { key: 'glitchAmount',    label: 'Glitch Amount' },
-    { key: 'rgbSplit',        label: 'RGB Split' },
-    { key: 'tunnelSpeed',     label: 'Tunnel Speed' },
-    { key: 'displacement',    label: 'Displacement' },
-    { key: 'bloom',           label: 'Bloom' },
-    { key: 'strobe',          label: 'Strobe' },
-    { key: 'feedbackTrails',  label: 'Feedback Trails' },
-    { key: 'logoScale',       label: 'Logo Scale',    min: 0, max: 2 },
-    { key: 'colorShift',      label: 'Color Shift',   color: true },
+    { key: 'masterIntensity',  label: 'Master Intensity' },
+    { key: 'bassReactivity',   label: 'Bass Reactivity' },
+    { key: 'glitchAmount',     label: 'Glitch Amount' },
+    { key: 'rgbSplit',         label: 'RGB Split' },
+    { key: 'tunnelSpeed',      label: 'Tunnel Speed' },
+    { key: 'displacement',     label: 'Displacement' },
+    { key: 'bloom',            label: 'Bloom' },
+    { key: 'strobe',           label: 'Strobe' },
+    { key: 'feedbackTrails',   label: 'Feedback Trails' },
+    { key: 'logoScale',        label: 'Logo Scale',       min: 0, max: 2 },
+    { key: 'colorShift',       label: 'Color Shift',      color: true },
+    { key: 'spectrumBars',     label: 'Spectrum Bars' },
+    { key: 'circularSpectrum', label: 'Circular Spectrum' },
+    { key: 'oscilloscope',     label: 'Oscilloscope' },
+    { key: 'beatRing',         label: 'Beat Ring' },
+    { key: 'particleBurst',    label: 'Particle Burst' },
+    { key: 'reactiveGrid',     label: 'Reactive Grid' },
+    { key: 'cameraShake',      label: 'Camera Shake' },
+    { key: 'kaleidoscope',     label: 'Kaleidoscope' },
+    { key: 'mirrorSplit',      label: 'Mirror Split' },
+    { key: 'radialBlur',       label: 'Radial Blur' },
+    { key: 'vhsStatic',        label: 'VHS Static' },
+    { key: 'datamoshSmear',    label: 'Datamosh Smear' },
+    { key: 'edgeGlow',         label: 'Edge Glow' },
+    { key: 'colorCycle',       label: 'Color Cycle' },
   ]
   return (
     <div className="vz-effects-panel">
