@@ -2214,9 +2214,81 @@ function PresetStrip({ activePresetId, presets, onSelect, onSave, onDelete }: {
   )
 }
 
+// ── SystemSettingsPanel ───────────────────────────────────────────────
+function SystemSettingsPanel() {
+  const {
+    quality, setQuality, bpmSync, toggleBpmSync, bpm,
+    resetEffects, resetModulationRoutes,
+  } = useVisualStore()
+  const { storageAvailable, authRequired } = useMediaStore()
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div>
+        <div className="az-popover-section-title">Canvas Quality</div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {(['High', 'Medium', 'Low'] as const).map(q => (
+            <button
+              key={q}
+              className={`vz-settings-seg-btn${quality === q ? ' vz-settings-seg-btn--active' : ''}`}
+              onClick={() => setQuality(q)}
+            >{q}</button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div className="az-popover-section-title">BPM Sync</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            className={`vz-settings-seg-btn${bpmSync ? ' vz-settings-seg-btn--active' : ''}`}
+            onClick={toggleBpmSync}
+            style={{ minWidth: 54 }}
+          >{bpmSync ? 'ON' : 'OFF'}</button>
+          <span style={{ fontSize: 11, color: 'rgba(245,248,250,0.45)', fontFamily: 'var(--az-font-data)' }}>
+            {bpmSync ? `Locked to ${bpm} BPM` : 'Free-running beat phase'}
+          </span>
+        </div>
+      </div>
+
+      <div>
+        <div className="az-popover-section-title">Media Sync</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{
+            display: 'inline-block', width: 7, height: 7, borderRadius: '50%',
+            background: storageAvailable && !authRequired ? '#61d6aa' : 'rgba(245,248,250,0.2)',
+            flexShrink: 0,
+          }} />
+          <span style={{ fontSize: 11, color: 'rgba(245,248,250,0.55)', fontFamily: 'var(--az-font-data)' }}>
+            {!storageAvailable ? 'Local only — Supabase not configured'
+              : authRequired   ? 'Signed out — media stored locally'
+              :                  'Cloud sync enabled'}
+          </span>
+        </div>
+      </div>
+
+      <div>
+        <div className="az-popover-section-title">Reset</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <button
+            className="vz-settings-reset-btn"
+            onClick={resetEffects}
+            title="Set all effect sliders back to defaults"
+          >Reset Effects</button>
+          <button
+            className="vz-settings-reset-btn"
+            onClick={resetModulationRoutes}
+            title="Restore default audio modulation routing"
+          >Reset Modulation</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── SettingsModal ─────────────────────────────────────────────────────
 function SettingsModal({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState<'account' | 'shortcuts'>('account')
+  const [tab, setTab] = useState<'account' | 'shortcuts' | 'system'>('account')
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -2241,12 +2313,17 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
               className={`vsm-nav-item${tab === 'shortcuts' ? ' vsm-nav-item--active' : ''}`}
               onClick={() => setTab('shortcuts')}
             >Shortcuts</div>
+            <div
+              className={`vsm-nav-item${tab === 'system' ? ' vsm-nav-item--active' : ''}`}
+              onClick={() => setTab('system')}
+            >System Settings</div>
           </nav>
           <div className="vsm-content">
             {tab === 'account' && (
               <p className="vsm-account-placeholder">Account settings coming soon.</p>
             )}
             {tab === 'shortcuts' && <ShortcutPanel />}
+            {tab === 'system' && <SystemSettingsPanel />}
           </div>
         </div>
       </div>
@@ -2402,34 +2479,11 @@ function SessionPanel({ sessions, sessionsLoading, sessionSyncError, onSave, onL
 // ── VyzualzDock ───────────────────────────────────────────────────────
 function VyzualzDock() {
   const {
-    presets, activePresetId, bpm, setBpm, bpmSync, toggleBpmSync,
-    quality, setQuality, resetEffects, resetModulationRoutes, setPlaying,
+    presets, activePresetId, bpm, setBpm, bpmSync, toggleBpmSync, setPlaying,
   } = useVisualStore()
-  const { storageAvailable, authRequired } = useMediaStore()
   const preset = presets.find(p => p.id === activePresetId) ?? presets[0] ?? DEFAULT_PRESETS[0]
   const engine = useSharedAudio()
   const fileInputId = useId()
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const gearRef = useRef<HTMLButtonElement>(null)
-
-  // Close on Escape or outside click
-  useEffect(() => {
-    if (!settingsOpen) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSettingsOpen(false) }
-    const onDown = (e: MouseEvent) => {
-      const target = e.target as Node
-      // Dismiss if click is outside the popover and the gear button itself
-      if (gearRef.current?.contains(target)) return
-      const popover = document.querySelector('.vz-settings-popover')
-      if (popover && !popover.contains(target)) setSettingsOpen(false)
-    }
-    window.addEventListener('keydown', onKey)
-    window.addEventListener('mousedown', onDown)
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      window.removeEventListener('mousedown', onDown)
-    }
-  }, [settingsOpen])
 
   const vol    = engine.volume
   const volPct = `${Math.round(vol * 100)}%`
@@ -2572,98 +2626,10 @@ function VyzualzDock() {
         />
       </div>
 
-      <div className="az-dock-right" style={{ position: 'relative' }}>
+      <div className="az-dock-right">
         <select className="az-dock-source-select">
           <option>Main Out</option>
         </select>
-        <button
-          ref={gearRef}
-          className={`az-dock-gear-btn${settingsOpen ? ' az-dock-gear-btn--active' : ''}`}
-          title="VYZUALZ Settings"
-          aria-label="VYZUALZ Settings"
-          aria-expanded={settingsOpen}
-          onClick={() => setSettingsOpen(v => !v)}
-        >
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-            <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
-          </svg>
-        </button>
-
-        {/* ── VYZUALZ Settings panel ─────────────────────────── */}
-        {settingsOpen && (
-          <div className="az-settings-popover vz-settings-popover">
-            <div className="az-settings-popover-header">
-              VYZUALZ Settings
-              <button className="az-popover-close" onClick={() => setSettingsOpen(false)} aria-label="Close settings">✕</button>
-            </div>
-            <div className="az-settings-popover-body">
-
-              {/* Quality */}
-              <div>
-                <div className="az-popover-section-title">Canvas Quality</div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {(['High', 'Medium', 'Low'] as const).map(q => (
-                    <button
-                      key={q}
-                      className={`vz-settings-seg-btn${quality === q ? ' vz-settings-seg-btn--active' : ''}`}
-                      onClick={() => setQuality(q)}
-                    >{q}</button>
-                  ))}
-                </div>
-              </div>
-
-              {/* BPM Sync */}
-              <div>
-                <div className="az-popover-section-title">BPM Sync</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <button
-                    className={`vz-settings-seg-btn${bpmSync ? ' vz-settings-seg-btn--active' : ''}`}
-                    onClick={toggleBpmSync}
-                    style={{ minWidth: 54 }}
-                  >{bpmSync ? 'ON' : 'OFF'}</button>
-                  <span style={{ fontSize: 10, color: 'rgba(245,248,250,0.45)' }}>
-                    {bpmSync ? `Locked to ${bpm} BPM` : 'Free-running beat phase'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Media sync status */}
-              <div>
-                <div className="az-popover-section-title">Media Sync</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <span style={{
-                    display: 'inline-block', width: 7, height: 7, borderRadius: '50%',
-                    background: storageAvailable && !authRequired ? '#61d6aa' : 'rgba(245,248,250,0.2)',
-                    flexShrink: 0,
-                  }} />
-                  <span style={{ fontSize: 10, color: 'rgba(245,248,250,0.55)' }}>
-                    {!storageAvailable ? 'Local only — Supabase not configured'
-                      : authRequired   ? 'Signed out — media stored locally'
-                      :                  'Cloud sync enabled'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Reset actions */}
-              <div>
-                <div className="az-popover-section-title">Reset</div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  <button
-                    className="vz-settings-reset-btn"
-                    onClick={() => { resetEffects(); setSettingsOpen(false) }}
-                    title="Set all effect sliders back to defaults"
-                  >Reset Effects</button>
-                  <button
-                    className="vz-settings-reset-btn"
-                    onClick={() => { resetModulationRoutes(); setSettingsOpen(false) }}
-                    title="Restore default audio modulation routing"
-                  >Reset Modulation</button>
-                </div>
-              </div>
-
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )
