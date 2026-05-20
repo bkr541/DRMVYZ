@@ -55,6 +55,7 @@ export interface AudioEngine {
   duration: number
   volume: number
   addTracks: (files: File[]) => void
+  replaceTracks: (files: File[]) => void
   removeTrack: (id: string) => void
   selectTrack: (i: number) => void
   play: () => void
@@ -554,6 +555,19 @@ export function useAudioEngine(): AudioEngine {
     })
   }, [])
 
+  const replaceTracks = useCallback((files: File[]) => {
+    const newTracks: Track[] = files.map(f => ({
+      id: generateId(), name: f.name,
+      displayName: getFilenameWithoutExtension(f.name),
+      url: URL.createObjectURL(f), duration: 0,
+    }))
+    setTracks(prev => {
+      prev.forEach(t => URL.revokeObjectURL(t.url))
+      setCurrentIndex(newTracks.length > 0 ? 0 : -1)
+      return newTracks
+    })
+  }, [])
+
   const removeTrack = useCallback((id: string) => {
     setTracks(prev => {
       const idx = prev.findIndex(t => t.id === id)
@@ -607,7 +621,7 @@ export function useAudioEngine(): AudioEngine {
   return {
     source, setSource, micError, isActive,
     tracks, currentIndex, isPlaying, currentTime, duration, volume,
-    addTracks, removeTrack, selectTrack, play, pause, stop, next, prev, seek, setVolume,
+    addTracks, replaceTracks, removeTrack, selectTrack, play, pause, stop, next, prev, seek, setVolume,
     analyserMaster: aMasterRef.current,
     analyserL: aLRef.current,
     analyserR: aRRef.current,

@@ -383,7 +383,7 @@
 
 .az-overflow-btn {
   background: none; border: none; color: var(--az-text-faint);
-  cursor: pointer; font-size: 14px; letter-spacing: 1px; padding: 0 2px;
+  cursor: pointer; font-size: 18px; letter-spacing: 1px; padding: 0 2px;
   flex-shrink: 0; line-height: 1;
 }
 .az-overflow-btn:hover { color: var(--az-text-muted); }
