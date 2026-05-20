@@ -1786,13 +1786,17 @@ function LiveVisualPreview({
         <div className="az-spacer" />
 
         <div className="vz-timeline-group">
-          <span className="vz-sync-label">Loop</span>
-          <div className="vz-sync-toggle" onClick={onToggleTimeline}>
-            <div className={`vz-sync-track ${timelineEnabled ? 'vz-sync-track--on' : ''}`}>
-              <div className="vz-sync-thumb" />
-            </div>
-            <span className="vz-sync-label">Timeline</span>
-          </div>
+          <button
+            className={`vz-timeline-pill ${timelineEnabled ? 'vz-timeline-pill--on' : ''}`}
+            onClick={onToggleTimeline}
+            title={timelineEnabled ? 'Timeline mode ON — click to disable' : 'Timeline mode OFF — click to enable'}
+          >
+            <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden="true">
+              <path d="M3 5h18v2H3V5zm0 4h12v2H3V9zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/>
+            </svg>
+            <span className="vz-timeline-pill-label">Timeline</span>
+            <span className={`vz-timeline-pill-dot${timelineEnabled ? ' vz-timeline-pill-dot--on' : ''}`} />
+          </button>
         </div>
 
         <div className="vz-sync-toggle" onClick={onToggleBpmSync}>
