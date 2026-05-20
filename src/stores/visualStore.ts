@@ -265,6 +265,10 @@ interface VisualState {
   reorderTimelineClips(clipIds: string[]): void
   updateTimelineClip(clipId: string, patch: Partial<VzTimelineClip>): void
   clearTimeline(): void
+  // Ephemeral — not persisted. Set by the RAF loop each frame.
+  timelineClock:    number
+  setTimelineClock: (t: number) => void
+  scrubTimeline:    (t: number) => void
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -288,6 +292,7 @@ export const useVisualStore = create<VisualState>()(
       timelineEnabled:   false,
       timelineClips:     [],
       timelineLoop:      true,
+      timelineClock:     0,
 
       // ── Live state ──────────────────────────────────────────────────────────
 
@@ -579,6 +584,8 @@ export const useVisualStore = create<VisualState>()(
       clearTimeline() {
         set({ timelineClips: [] })
       },
+      setTimelineClock(t) { set({ timelineClock: t }) },
+      scrubTimeline(t)    { set({ timelineClock: t }) },
     }),
     {
       name: 'drmvyz-visual-store',

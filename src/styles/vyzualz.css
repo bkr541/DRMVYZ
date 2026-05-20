@@ -1733,6 +1733,90 @@ input[type='range'].vz-slider--color {
 .vz-tl-clear-btn:disabled { opacity: 0.3; cursor: default; }
 
 /* Scrollable clip track */
+.vz-tl-right {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Pixel timeline ──────────────────────────────────────────────────── */
+.vz-tl-timeline-wrap {
+  flex-shrink: 0;
+  height: 90px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: rgba(0,0,0,0.12);
+  position: relative;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.vz-tl-timeline-wrap::-webkit-scrollbar { height: 4px; }
+.vz-tl-timeline-wrap::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.12);
+  border-radius: 2px;
+}
+.vz-tl-pixel-track {
+  position: relative;
+  height: 100%;
+  cursor: crosshair;
+  user-select: none;
+}
+.vz-tl-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255,255,255,0.07);
+}
+.vz-tl-tick-label {
+  position: absolute;
+  top: 4px;
+  left: 3px;
+  font-size: 9px;
+  color: var(--az-text-faint);
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+.vz-tl-clip-block {
+  position: absolute;
+  top: 22px;
+  bottom: 8px;
+  background: rgba(74,199,219,0.12);
+  border: 1px solid rgba(74,199,219,0.35);
+  border-radius: 4px;
+  overflow: hidden;
+  padding: 3px 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  pointer-events: none;
+}
+.vz-tl-clip-block-name {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--az-cyan);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vz-tl-clip-block-dur {
+  font-size: 9px;
+  color: var(--az-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.vz-tl-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--az-cyan);
+  transform: translateX(-1px);
+  pointer-events: none;
+  z-index: 10;
+  will-change: left;
+}
+
 .vz-tl-track {
   flex: 1;
   min-width: 0;
@@ -2033,4 +2117,52 @@ input[type='range'].vz-slider--color {
 .vz-dock-preset-label, .vz-dock-bpm-label,
 .vz-filter-tab, .vz-hotkey-pill {
   font-family: var(--az-font-data);
+}
+
+/* ── Error boundary ──────────────────────────────────────────────── */
+.vz-error-boundary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 28px 20px;
+  background: rgba(248,113,113,0.05);
+  border: 1px solid rgba(248,113,113,0.3);
+  border-radius: var(--az-radius, 8px);
+  min-height: 80px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.vz-error-boundary__label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #f87171;
+}
+.vz-error-boundary__message {
+  font-family: var(--az-font, monospace);
+  font-size: 11px;
+  color: var(--az-text-faint, rgba(245,248,250,0.35));
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: 480px;
+  text-align: left;
+  margin: 0;
+}
+.vz-error-boundary__reset {
+  padding: 5px 14px;
+  background: transparent;
+  border: 1px solid rgba(248,113,113,0.4);
+  border-radius: 4px;
+  color: #f87171;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.vz-error-boundary__reset:hover {
+  background: rgba(248,113,113,0.15);
 }

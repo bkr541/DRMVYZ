@@ -75,7 +75,7 @@ export const EFFECT_LABELS: Partial<Record<keyof VzEffects, string>> = {
 
 // ── Band extraction ───────────────────────────────────────────────────────────
 
-function getBandAvg(buf: Uint8Array<ArrayBuffer>, sampleRate: number, lo: number, hi: number): number {
+export function getBandAvg(buf: Uint8Array<ArrayBuffer>, sampleRate: number, lo: number, hi: number): number {
   const n   = buf.length
   const nyq = sampleRate / 2
   const lb  = Math.floor((lo / nyq) * n)

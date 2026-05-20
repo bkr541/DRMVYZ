@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import { useVisualStore } from '../../stores/visualStore'
 import { useMediaStore } from '../../stores/mediaStore'
 import type { UploadedMedia } from '../../stores/mediaStore'
@@ -17,12 +17,23 @@ export function TimelinePanel() {
   } = useVisualStore()
 
   const { items } = useMediaStore()
-  const activeMediaId = useVisualStore(s => s.activeMediaId)
+  const activeMediaId  = useVisualStore(s => s.activeMediaId)
+  const timelineClock  = useVisualStore(s => s.timelineClock)
 
   const mediaMap = useMemo(() => new Map(items.map(m => [m.id, m])), [items])
 
   const totalDuration = getTimelineDuration(timelineClips)
-  const activeMedia = activeMediaId ? (mediaMap.get(activeMediaId) ?? null) : null
+  const activeMedia   = activeMediaId ? (mediaMap.get(activeMediaId) ?? null) : null
+
+  const PX_PER_SEC = 80
+  const rulerRef   = useRef<HTMLDivElement>(null)
+
+  const handleScrubPointer = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!rulerRef.current) return
+    const rect = rulerRef.current.getBoundingClientRect()
+    const t    = (e.clientX - rect.left) / PX_PER_SEC
+    useVisualStore.getState().scrubTimeline(Math.max(0, Math.min(totalDuration, t)))
+  }
 
   const moveClip = (clipId: string, dir: -1 | 1) => {
     const idx = timelineClips.findIndex(c => c.id === clipId)
@@ -68,12 +79,60 @@ export function TimelinePanel() {
         </div>
       </div>
 
-      {/* Horizontally scrollable clip track */}
-      <div className="vz-tl-track">
-        {timelineClips.length === 0 ? (
-          <div className="vz-tl-empty">No clips — click + Add to get started</div>
-        ) : (
-          timelineClips.map((clip, idx) => (
+      {/* Right side: pixel ruler + clip cards */}
+      <div className="vz-tl-right">
+        {/* Pixel timeline: ruler + clip blocks + playhead */}
+        <div className="vz-tl-timeline-wrap">
+          {timelineClips.length === 0 ? (
+            <div className="vz-tl-empty">No clips — click + Add to get started</div>
+          ) : (
+            <div
+              ref={rulerRef}
+              className="vz-tl-pixel-track"
+              style={{ width: Math.max(300, totalDuration * PX_PER_SEC + 40) }}
+              onPointerDown={handleScrubPointer}
+              onPointerMove={e => { if (e.buttons === 1) handleScrubPointer(e) }}
+            >
+              {/* Second tick marks */}
+              {Array.from({ length: Math.ceil(totalDuration) + 1 }, (_, i) => (
+                <div key={i} className="vz-tl-tick" style={{ left: i * PX_PER_SEC }}>
+                  <span className="vz-tl-tick-label">{i}s</span>
+                </div>
+              ))}
+
+              {/* Clip blocks */}
+              {timelineClips.map(clip => {
+                const media = mediaMap.get(clip.mediaId)
+                return (
+                  <div
+                    key={clip.id}
+                    className="vz-tl-clip-block"
+                    style={{
+                      left:  clip.startSec    * PX_PER_SEC,
+                      width: clip.durationSec * PX_PER_SEC,
+                    }}
+                    title={`${media?.title ?? media?.name ?? '(missing)'} — ${clip.durationSec.toFixed(1)}s`}
+                  >
+                    <span className="vz-tl-clip-block-name">
+                      {media?.title ?? media?.name ?? '(missing)'}
+                    </span>
+                    <span className="vz-tl-clip-block-dur">{clip.durationSec.toFixed(1)}s</span>
+                  </div>
+                )
+              })}
+
+              {/* Playhead */}
+              <div
+                className="vz-tl-playhead"
+                style={{ left: timelineClock * PX_PER_SEC }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Clip cards — per-clip property editing */}
+        <div className="vz-tl-track">
+          {timelineClips.map((clip, idx) => (
             <TimelineClipCard
               key={clip.id}
               clip={clip}
@@ -85,8 +144,8 @@ export function TimelinePanel() {
               onDuplicate={duplicateTimelineClip}
               onUpdate={updateTimelineClip}
             />
-          ))
-        )}
+          ))}
+        </div>
       </div>
     </div>
   )

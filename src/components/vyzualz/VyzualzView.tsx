@@ -14,11 +14,12 @@ import { useVisualStore, DEFAULT_PRESETS }  from '../../stores/visualStore'
 import type { UploadedMedia } from '../../stores/mediaStore'
 import type { VzEffects, VzPreset, VzSession, Quality, PresetScope } from '../../stores/visualStore'
 import { LOOK_SCOPE, SCENE_SCOPE } from '../../stores/visualStore'
-import { extractBandValues, applyModulatedEffects, BAND_LABELS, EFFECT_LABELS } from '../../lib/audioModulation'
+import { extractBandValues, applyModulatedEffects, BAND_LABELS, EFFECT_LABELS, getBandAvg } from '../../lib/audioModulation'
 import type { ModulationRoute, AudioBandValues } from '../../lib/audioModulation'
 import { TrackScrubber } from '../shared/TrackScrubber'
 import { MediaUploadModal } from './MediaUploadModal'
 import { TimelinePanel } from './TimelinePanel'
+import { VyzualzErrorBoundary } from './VyzualzErrorBoundary'
 import {
   getActiveTimelineClip, getNextTimelineClip, getTransitionState,
   getClipSourceTime, shouldFreezeClipFrame,
@@ -51,20 +52,6 @@ const QUALITY: Record<Quality, QualityConfig> = {
   High:   { dprCap: 3,   bloomBlur: 10, glitchMax: 5, fogParticles: 600, scanlineStep: 3, tunnelRings: 8 },
   Medium: { dprCap: 1.5, bloomBlur: 5,  glitchMax: 3, fogParticles: 200, scanlineStep: 4, tunnelRings: 5 },
   Low:    { dprCap: 1,   bloomBlur: 0,  glitchMax: 1, fogParticles: 50,  scanlineStep: 6, tunnelRings: 3 },
-}
-
-// ── Band helpers ──────────────────────────────────────────────────────
-// getBandAvg lives in audioModulation.ts; keep a local alias for components
-// that still need it directly (VyzualzHeader, AudioAnalyzerPanel).
-function getBandAvg(buf: Uint8Array<ArrayBuffer>, sampleRate: number, lo: number, hi: number): number {
-  const n = buf.length
-  const nyq = sampleRate / 2
-  const lb = Math.floor((lo / nyq) * n)
-  const hb = Math.min(Math.ceil((hi / nyq) * n), n - 1)
-  if (hb <= lb) return 0
-  let sum = 0
-  for (let i = lb; i <= hb; i++) sum += buf[i]
-  return sum / ((hb - lb + 1) * 255)
 }
 
 // ── VzSlider ──────────────────────────────────────────────────────────
@@ -379,9 +366,10 @@ interface CanvasProps {
   timelineClips: VzTimelineClip[]
   timelineLoop: boolean
   mediaItems: UploadedMedia[]
+  onFpsUpdate: (fps: number) => void
 }
 
-function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, audioTime, modulationRoutes, timelineEnabled, timelineClips, timelineLoop, mediaItems }: CanvasProps) {
+function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, audioTime, modulationRoutes, timelineEnabled, timelineClips, timelineLoop, mediaItems, onFpsUpdate }: CanvasProps) {
   const canvasRef     = useRef<HTMLCanvasElement>(null)
   const animRef       = useRef<number>(0)
   const resizeFnRef   = useRef<() => void>(() => {})
@@ -424,7 +412,17 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
   const incomingFitModeRef   = useRef<'cover' | 'contain' | null>(null)
   const prevTransitionOnRef  = useRef(false)
 
+  // FPS measurement — updated once per second inside the RAF loop
+  const fpsRef            = useRef(0)
+  const fpsFrameCountRef  = useRef(0)
+  const fpsWindowStartRef = useRef<number>(0)
+  const onFpsUpdateRef    = useRef(onFpsUpdate)
+
+  // Timeline clock store writer — grabbed once at mount, stable forever
+  const setTimelineClockStoreRef = useRef<(t: number) => void>(() => {})
+
   // Sync refs on every render (cheap assignments)
+  useEffect(() => { onFpsUpdateRef.current = onFpsUpdate })
   useEffect(() => { effectsRef.current  = effects })
   useEffect(() => { enabledFxRef.current = enabledFx })
   useEffect(() => { isPlayingRef.current = isPlaying })
@@ -437,6 +435,21 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
   useEffect(() => { timelineClipsRef.current = timelineClips }, [timelineClips])
   useEffect(() => { timelineLoopRef.current = timelineLoop }, [timelineLoop])
   useEffect(() => { mediaItemsRef.current = mediaItems }, [mediaItems])
+
+  useEffect(() => {
+    setTimelineClockStoreRef.current = useVisualStore.getState().setTimelineClock
+  }, [])
+
+  // Mirror scrub commands from the UI back into the canvas clock
+  useEffect(() => {
+    return useVisualStore.subscribe((state) => {
+      const t = state.timelineClock
+      if (Math.abs(timelineClockRef.current - t) > 0.05) {
+        timelineClockRef.current = t
+        lastFrameTimeRef.current = null
+      }
+    })
+  }, [])
 
   useEffect(() => {
     analyserRef.current  = analyser
@@ -472,7 +485,11 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
       const el = mediaElRef.current
       if (el instanceof HTMLVideoElement) { el.pause(); el.src = '' }
     }
-  }, [activeMedia?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Intentionally keyed on activeMedia.id only — re-create the media element
+  // when clip identity changes, not on every render. isPlayingRef is a stable
+  // ref; reading .current inside an effect is safe without a dep entry.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeMedia?.id])
 
   // Control video playback when isPlaying changes
   useEffect(() => {
@@ -539,6 +556,18 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
       if (!canvas || !ctx) return
       const W = canvas.width, H = canvas.height
       if (!W || !H) { animRef.current = requestAnimationFrame(frame); return }
+
+      // ── FPS measurement ────────────────────────────────────────────
+      const now = performance.now()
+      fpsFrameCountRef.current += 1
+      if (fpsWindowStartRef.current === 0) fpsWindowStartRef.current = now
+      const elapsed = now - fpsWindowStartRef.current
+      if (elapsed >= 1000) {
+        fpsRef.current = Math.round((fpsFrameCountRef.current * 1000) / elapsed)
+        onFpsUpdateRef.current(fpsRef.current)
+        fpsFrameCountRef.current  = 0
+        fpsWindowStartRef.current = now
+      }
 
       const dpr  = Math.min(devicePixelRatio, QUALITY[qualityRef.current].dprCap)
       const q    = QUALITY[qualityRef.current]
@@ -615,6 +644,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
           }
         }
         lastFrameTimeRef.current = nowMs
+        setTimelineClockStoreRef.current(timelineClockRef.current)
 
         const clips = timelineClipsRef.current
         const { clip, localTimeSec } = getActiveTimelineClip(clips, timelineClockRef.current, timelineLoopRef.current)
@@ -1109,7 +1139,10 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
 
     animRef.current = requestAnimationFrame(frame)
     return () => { cancelAnimationFrame(animRef.current); ro.disconnect() }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // The RAF loop is started once on mount. All props are accessed through refs
+  // (effectsRef, isPlayingRef, etc.) so the loop never needs to restart.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return <canvas ref={canvasRef} className="vz-preview-canvas" />
 }
@@ -1417,8 +1450,12 @@ function MediaDeckPanel({ activeMediaId, onSelect }: {
   const [deckFilter, setDeckFilter] = useState<DeckFilter>('all')
   const [dragOver, setDragOver] = useState(false)
 
-  // Load persisted media from Supabase on mount
-  useEffect(() => { loadFromSupabase() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Stable ref so the mount effect doesn't need loadFromSupabase in its dep array.
+  const loadFromSupabaseRef = useRef(loadFromSupabase)
+  useEffect(() => { loadFromSupabaseRef.current = loadFromSupabase }, [loadFromSupabase])
+
+  // Load persisted media from Supabase exactly once on mount.
+  useEffect(() => { loadFromSupabaseRef.current() }, [])
 
   const filtered = useMemo(
     () => items.filter(m => matchesDeckFilter(m, deckFilter)),
@@ -1579,6 +1616,8 @@ function LiveVisualPreview({
   timelineClips: VzTimelineClip[]; timelineLoop: boolean
   mediaItems: UploadedMedia[]
 }) {
+  const [liveFps, setLiveFps] = useState(0)
+
   return (
     <div className="vz-preview-panel">
       <div className="vz-preview-canvas-wrap" ref={canvasWrapRef}>
@@ -1597,10 +1636,11 @@ function LiveVisualPreview({
           timelineClips={timelineClips}
           timelineLoop={timelineLoop}
           mediaItems={mediaItems}
+          onFpsUpdate={setLiveFps}
         />
         <div className="vz-preview-pills">
           <span className="vz-preview-pill">{quality}</span>
-          <span className="vz-preview-pill">60 FPS</span>
+          <span className="vz-preview-pill">{liveFps > 0 ? `${liveFps} FPS` : '-- FPS'}</span>
           <span className="vz-preview-pill">Canvas 2D</span>
         </div>
       </div>
@@ -2220,7 +2260,7 @@ function SessionPanel({ sessions, sessionsLoading, sessionSyncError, onSave, onL
 function VyzualzDock() {
   const {
     presets, activePresetId, bpm, setBpm, bpmSync, toggleBpmSync,
-    quality, setQuality, resetEffects, resetModulationRoutes,
+    quality, setQuality, resetEffects, resetModulationRoutes, setPlaying,
   } = useVisualStore()
   const { storageAvailable, authRequired } = useMediaStore()
   const preset = presets.find(p => p.id === activePresetId) ?? presets[0] ?? DEFAULT_PRESETS[0]
@@ -2321,7 +2361,15 @@ function VyzualzDock() {
           title={engine.isPlaying ? 'Pause' : 'Play'}
           disabled={!hasTrack}
           style={{ borderColor: preset.color, color: preset.color, boxShadow: `0 0 12px ${preset.color}30` }}
-          onClick={engine.isPlaying ? engine.pause : engine.play}
+          onClick={() => {
+            if (engine.isPlaying) {
+              engine.pause()
+              setPlaying(false)
+            } else {
+              engine.play()
+              setPlaying(true)
+            }
+          }}
         >
           {engine.isPlaying
             ? <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
@@ -2514,6 +2562,12 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   }, [items, activeMediaId, loading, setActiveMedia])
   const activeMedia  = items.find(i => i.id === activeMediaId) ?? null
 
+  // One-way sync: if the audio engine stops on its own (e.g. last track ends),
+  // bring visualStore.isPlaying down so the canvas drops to idle.
+  useEffect(() => {
+    if (!engine.isPlaying && isPlaying) setPlaying(false)
+  }, [engine.isPlaying, isPlaying, setPlaying])
+
   // Live bass for BeatCanvas
   const [bassLive, setBassLive] = useState(0)
   const analyserRef = useRef<AnalyserNode | null>(null)
@@ -2572,8 +2626,12 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     canvasWrapRef.current?.requestFullscreen?.().catch(() => {})
   }, [])
 
-  // Sync cloud sessions on mount
-  useEffect(() => { syncSessionsFromCloud() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Stable ref so the mount effect doesn't need syncSessionsFromCloud in its dep array.
+  const syncSessionsRef = useRef(syncSessionsFromCloud)
+  useEffect(() => { syncSessionsRef.current = syncSessionsFromCloud }, [syncSessionsFromCloud])
+
+  // Sync cloud sessions exactly once on mount.
+  useEffect(() => { syncSessionsRef.current() }, [])
 
   const handleSavePreset = useCallback((name: string, scope: PresetScope) => {
     savePreset(name, {
@@ -2645,38 +2703,46 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
 
           <div className="vz-body">
             <div className="vz-left">
-              <MediaDeckPanel activeMediaId={activeMediaId} onSelect={setActiveMedia} />
+              <VyzualzErrorBoundary section="MediaDeck">
+                <MediaDeckPanel activeMediaId={activeMediaId} onSelect={setActiveMedia} />
+              </VyzualzErrorBoundary>
             </div>
 
             <div className="vz-center">
-              <LiveVisualPreview
-                analyser={analyser}
-                activeMedia={activeMedia}
-                effects={effects}
-                enabledFx={enabledFxSet}
-                isPlaying={isPlaying}
-                onPlay={() => setPlaying(true)}
-                onPause={() => setPlaying(false)}
-                onPrev={handlePrevMedia}
-                onNext={handleNextMedia}
-                onFullscreen={handleFullscreen}
-                bpm={bpm}
-                onBpmChange={setBpm}
-                bpmSync={bpmSync}
-                onToggleBpmSync={toggleBpmSync}
-                onTap={handleTap}
-                quality={quality}
-                onQualityChange={setQuality}
-                canvasWrapRef={canvasWrapRef}
-                audioTime={engine.currentTime}
-                modulationRoutes={modulationRoutes}
-                timelineEnabled={timelineEnabled}
-                onToggleTimeline={() => setTimelineEnabled(!timelineEnabled)}
-                timelineClips={timelineClips}
-                timelineLoop={timelineLoop}
-                mediaItems={items}
-              />
-              {timelineEnabled && <TimelinePanel />}
+              <VyzualzErrorBoundary section="Canvas">
+                <LiveVisualPreview
+                  analyser={analyser}
+                  activeMedia={activeMedia}
+                  effects={effects}
+                  enabledFx={enabledFxSet}
+                  isPlaying={isPlaying}
+                  onPlay={() => setPlaying(true)}
+                  onPause={() => setPlaying(false)}
+                  onPrev={handlePrevMedia}
+                  onNext={handleNextMedia}
+                  onFullscreen={handleFullscreen}
+                  bpm={bpm}
+                  onBpmChange={setBpm}
+                  bpmSync={bpmSync}
+                  onToggleBpmSync={toggleBpmSync}
+                  onTap={handleTap}
+                  quality={quality}
+                  onQualityChange={setQuality}
+                  canvasWrapRef={canvasWrapRef}
+                  audioTime={engine.currentTime}
+                  modulationRoutes={modulationRoutes}
+                  timelineEnabled={timelineEnabled}
+                  onToggleTimeline={() => setTimelineEnabled(!timelineEnabled)}
+                  timelineClips={timelineClips}
+                  timelineLoop={timelineLoop}
+                  mediaItems={items}
+                />
+              </VyzualzErrorBoundary>
+              {timelineEnabled && (
+                <VyzualzErrorBoundary section="Timeline">
+                  <TimelinePanel />
+                </VyzualzErrorBoundary>
+              )}
             </div>
 
             <div className="vz-right">

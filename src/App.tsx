@@ -5,6 +5,7 @@ import { AuthPage }            from './components/auth/AuthPage'
 import { AnalyzerView }        from './components/analyzer/AnalyzerView'
 import { ReferenceView }       from './components/reference/ReferenceView'
 import { VyzualzView }         from './components/vyzualz/VyzualzView'
+import { VyzualzErrorBoundary } from './components/vyzualz/VyzualzErrorBoundary'
 
 type AppView = 'analyzer' | 'reference' | 'vyzualz'
 
@@ -37,7 +38,7 @@ export default function App() {
   return (
     <AudioEngineProvider>
       {view === 'reference' ? <ReferenceView activeView={view} onNavigate={setView}/> :
-       view === 'vyzualz'   ? <VyzualzView   activeView={view} onNavigate={setView}/> :
+       view === 'vyzualz'   ? <VyzualzErrorBoundary section="VyzualzView"><VyzualzView activeView={view} onNavigate={setView}/></VyzualzErrorBoundary> :
                               <AnalyzerView  activeView={view} onNavigate={setView}/>}
     </AudioEngineProvider>
   )
