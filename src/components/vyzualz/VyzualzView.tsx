@@ -29,7 +29,7 @@ import type { VzTimelineClip } from '../../types/timeline'
 import type { MediaRole } from '../../lib/mediaRoles'
 
 // ── Constants ─────────────────────────────────────────────────────────
-const EFFECT_CHAIN_ITEMS = ['RGB Split','Glitch Bars','Scanlines','Tunnel','Displacement','Noise Fog','Bloom','Feedback'] as const
+const EFFECT_CHAIN_ITEMS = ['RGB Split','Glitch Bars','Scanlines','Tunnel','Displacement','Noise Fog','Bloom','Feedback','Strobe','Color Shift'] as const
 const SHORTCUTS = [
   { key: '1–5', desc: 'Switch Preset' },
   { key: 'F',   desc: 'Fullscreen' },
@@ -609,6 +609,10 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
       // Apply all enabled modulation routes — additively boosts each effect param
       const mEff = applyModulatedEffects(eff, { ...rawBands, bass: smoothBass }, routesRef.current)
 
+      // Gate chain-controlled effects — zero out when toggled off in Effect Chain
+      const activeColorShift = fxSet.has('Color Shift') ? mEff.colorShift : 0
+      const activeStrobe     = fxSet.has('Strobe')      ? mEff.strobe     : 0
+
       // Derive renderer-level variables from modulated effects
       const bassReact   = 1 + smoothBass * mEff.bassReactivity * 0.35 * mEff.masterIntensity
       const dispMod     = mEff.displacement
@@ -853,7 +857,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
               ctx.save()
               ctx.globalAlpha = 1 - p
               if (compositeOp !== 'source-over') ctx.globalCompositeOperation = compositeOp
-              if (mEff.colorShift > 0) ctx.filter = `hue-rotate(${mEff.colorShift * 360}deg)`
+              if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
               ctx.drawImage(mediaEl, ox, oy, sw, sh)
               ctx.filter = 'none'
               ctx.globalCompositeOperation = 'source-over'
@@ -864,7 +868,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
                 ctx.save()
                 ctx.globalAlpha = p
                 if (inCompositeOp !== 'source-over') ctx.globalCompositeOperation = inCompositeOp
-                if (mEff.colorShift > 0) ctx.filter = `hue-rotate(${mEff.colorShift * 360}deg)`
+                if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
                 ctx.drawImage(inEl, inRect.ox, inRect.oy, inRect.sw, inRect.sh)
                 ctx.filter = 'none'
                 ctx.globalCompositeOperation = 'source-over'
@@ -879,7 +883,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
               ctx.save()
               ctx.globalAlpha = 1 - intensity * 0.35
               if (compositeOp !== 'source-over') ctx.globalCompositeOperation = compositeOp
-              if (mEff.colorShift > 0) ctx.filter = `hue-rotate(${mEff.colorShift * 360}deg)`
+              if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
               ctx.drawImage(mediaEl, ox, oy, sw, sh)
               ctx.filter = 'none'
               ctx.globalCompositeOperation = 'source-over'
@@ -942,7 +946,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
               ctx.save()
               ctx.globalAlpha = Math.max(0, 1 - p * 2)
               if (compositeOp !== 'source-over') ctx.globalCompositeOperation = compositeOp
-              if (mEff.colorShift > 0) ctx.filter = `hue-rotate(${mEff.colorShift * 360}deg)`
+              if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
               ctx.drawImage(mediaEl, ox, oy, sw, sh)
               ctx.filter = 'none'
               ctx.globalCompositeOperation = 'source-over'
@@ -954,7 +958,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
                 ctx.save()
                 ctx.globalAlpha = Math.min(1, Math.max(0, (p - 0.25) * 2))
                 if (inCompositeOp !== 'source-over') ctx.globalCompositeOperation = inCompositeOp
-                if (mEff.colorShift > 0) ctx.filter = `hue-rotate(${mEff.colorShift * 360}deg)`
+                if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
                 ctx.drawImage(inEl, inRect.ox, inRect.oy, inRect.sw, inRect.sh)
                 ctx.filter = 'none'
                 ctx.globalCompositeOperation = 'source-over'
@@ -978,7 +982,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
             // ── Normal main draw (no active transition) ───────────
             ctx.save()
             if (compositeOp !== 'source-over') ctx.globalCompositeOperation = compositeOp
-            if (mEff.colorShift > 0) ctx.filter = `hue-rotate(${mEff.colorShift * 360}deg)`
+            if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
             ctx.drawImage(mediaEl, ox, oy, sw, sh)
             ctx.filter = 'none'
             ctx.globalCompositeOperation = 'source-over'
@@ -1009,7 +1013,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
           ctx.save()
           ctx.globalAlpha = 0.35 * dispMod
           ctx.globalCompositeOperation = 'screen'
-          if (mEff.colorShift > 0) ctx.filter = `hue-rotate(${mEff.colorShift * 360 + 90}deg)`
+          if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360 + 90}deg)`
           ctx.drawImage(mediaEl, ox + offX, oy + offY, sw, sh)
           ctx.filter = 'none'
           ctx.globalAlpha = 1
@@ -1034,7 +1038,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         }
       } else if (isPlayingRef.current || rawBands.volume > 0.01) {
         // ── Generative art fallback (only when playing or audio active) ──
-        drawGenerativeArt(ctx, W, H, dpr, t, speed, bass, mEff)
+        drawGenerativeArt(ctx, W, H, dpr, t, speed, bass, { ...mEff, colorShift: activeColorShift })
       } else {
         // ── Idle — no media, not playing, no signal ────────────────
         const cx = W / 2, cy = H / 2
@@ -1071,15 +1075,15 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         ctx.restore()
       }
 
-      // ── Strobe — highs modulate sensitivity via mEff.strobe ──────
+      // ── Strobe — highs modulate sensitivity via activeStrobe ──────
       // Beat sync: fire on boundary; free: trigger on bass transient.
-      const strobeOnBeat = synced && mEff.strobe > 0 && beatPhase < 0.05
-      const strobeOnBass = !synced && mEff.strobe > 0 &&
+      const strobeOnBeat = synced && activeStrobe > 0 && beatPhase < 0.05
+      const strobeOnBass = !synced && activeStrobe > 0 &&
         bass > 0.62 && bass > prevBassRef.current + 0.06
       if (strobeOnBeat || strobeOnBass) {
         const strobeAlpha = strobeOnBeat
-          ? mEff.strobe * (1 - beatPhase / 0.05) * 0.9
-          : mEff.strobe * bass * 0.85
+          ? activeStrobe * (1 - beatPhase / 0.05) * 0.9
+          : activeStrobe * bass * 0.85
         ctx.fillStyle = `rgba(255,255,255,${strobeAlpha})`
         ctx.fillRect(0, 0, W, H)
       }
