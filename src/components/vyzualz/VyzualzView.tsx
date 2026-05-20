@@ -2705,84 +2705,88 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
         <div className="vz-main">
           <VyzualzHeader analyser={analyser} bassLive={bassLive} onSaveSession={handleSaveSession} />
 
-          <div className="vz-body">
-            <div className="vz-left">
-              <VyzualzErrorBoundary section="MediaDeck">
-                <MediaDeckPanel activeMediaId={activeMediaId} onSelect={setActiveMedia} />
-              </VyzualzErrorBoundary>
-            </div>
+          <div className="vz-content">
+            <div className="vz-left-center">
+              <div className="vz-body">
+                <div className="vz-left">
+                  <VyzualzErrorBoundary section="MediaDeck">
+                    <MediaDeckPanel activeMediaId={activeMediaId} onSelect={setActiveMedia} />
+                  </VyzualzErrorBoundary>
+                </div>
 
-            <div className="vz-center">
-              <VyzualzErrorBoundary section="Canvas">
-                <LiveVisualPreview
-                  analyser={analyser}
-                  activeMedia={activeMedia}
-                  effects={effects}
-                  enabledFx={enabledFxSet}
-                  isPlaying={isPlaying}
-                  onPlay={() => setPlaying(true)}
-                  onPause={() => setPlaying(false)}
-                  onPrev={handlePrevMedia}
-                  onNext={handleNextMedia}
-                  onFullscreen={handleFullscreen}
-                  bpm={bpm}
-                  onBpmChange={setBpm}
-                  bpmSync={bpmSync}
-                  onToggleBpmSync={toggleBpmSync}
-                  onTap={handleTap}
-                  quality={quality}
-                  onQualityChange={setQuality}
-                  canvasWrapRef={canvasWrapRef}
-                  audioTime={engine.currentTime}
-                  modulationRoutes={modulationRoutes}
-                  timelineEnabled={timelineEnabled}
-                  onToggleTimeline={() => setTimelineEnabled(!timelineEnabled)}
-                  timelineClips={timelineClips}
-                  timelineLoop={timelineLoop}
-                  mediaItems={items}
+                <div className="vz-center">
+                  <VyzualzErrorBoundary section="Canvas">
+                    <LiveVisualPreview
+                      analyser={analyser}
+                      activeMedia={activeMedia}
+                      effects={effects}
+                      enabledFx={enabledFxSet}
+                      isPlaying={isPlaying}
+                      onPlay={() => setPlaying(true)}
+                      onPause={() => setPlaying(false)}
+                      onPrev={handlePrevMedia}
+                      onNext={handleNextMedia}
+                      onFullscreen={handleFullscreen}
+                      bpm={bpm}
+                      onBpmChange={setBpm}
+                      bpmSync={bpmSync}
+                      onToggleBpmSync={toggleBpmSync}
+                      onTap={handleTap}
+                      quality={quality}
+                      onQualityChange={setQuality}
+                      canvasWrapRef={canvasWrapRef}
+                      audioTime={engine.currentTime}
+                      modulationRoutes={modulationRoutes}
+                      timelineEnabled={timelineEnabled}
+                      onToggleTimeline={() => setTimelineEnabled(!timelineEnabled)}
+                      timelineClips={timelineClips}
+                      timelineLoop={timelineLoop}
+                      mediaItems={items}
+                    />
+                  </VyzualzErrorBoundary>
+                  {timelineEnabled && (
+                    <VyzualzErrorBoundary section="Timeline">
+                      <TimelinePanel />
+                    </VyzualzErrorBoundary>
+                  )}
+                </div>
+              </div>
+
+              <div className="vz-bottom">
+                <PresetStrip
+                  activePresetId={activePresetId}
+                  presets={presets}
+                  onSelect={handleSelectPreset}
+                  onSave={handleSavePreset}
+                  onDelete={deletePreset}
                 />
-              </VyzualzErrorBoundary>
-              {timelineEnabled && (
-                <VyzualzErrorBoundary section="Timeline">
-                  <TimelinePanel />
-                </VyzualzErrorBoundary>
-              )}
+                <AudioAnalyzerPanel analyser={analyser} />
+                <SessionPanel
+                  sessions={sessions}
+                  sessionsLoading={sessionsLoading}
+                  sessionSyncError={sessionSyncError}
+                  onSave={handleSaveSession}
+                  onLoad={handleLoadSession}
+                  onDelete={deleteSession}
+                  onRename={renameSession}
+                  onClearSyncError={clearSessionSyncError}
+                />
+              </div>
             </div>
 
             <div className="vz-right">
+              <EffectChainPanel enabled={enabledFxSet} onToggle={toggleFx} />
               <EffectControlsPanel
                 effects={effects}
                 onChange={setEffect}
                 onReset={resetEffects}
               />
-              <EffectChainPanel enabled={enabledFxSet} onToggle={toggleFx} />
               <ModulationPanel
                 routes={modulationRoutes}
                 onToggle={toggleModulationRoute}
                 onSetAmount={setModulationRouteAmount}
               />
             </div>
-          </div>
-
-          <div className="vz-bottom">
-            <PresetStrip
-              activePresetId={activePresetId}
-              presets={presets}
-              onSelect={handleSelectPreset}
-              onSave={handleSavePreset}
-              onDelete={deletePreset}
-            />
-            <AudioAnalyzerPanel analyser={analyser} />
-            <SessionPanel
-              sessions={sessions}
-              sessionsLoading={sessionsLoading}
-              sessionSyncError={sessionSyncError}
-              onSave={handleSaveSession}
-              onLoad={handleLoadSession}
-              onDelete={deleteSession}
-              onRename={renameSession}
-              onClearSyncError={clearSessionSyncError}
-            />
           </div>
         </div>
       </div>

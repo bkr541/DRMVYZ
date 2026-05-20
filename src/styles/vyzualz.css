@@ -144,6 +144,21 @@
 }
 
 /* ── Body: 3-column ──────────────────────────────────────────────────── */
+.vz-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.vz-left-center {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .vz-body {
   flex: 1;
   min-height: 0;
@@ -176,7 +191,10 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  padding: 6px;
+  border-left: 1px solid var(--az-border);
   min-height: 0;
+  overflow-y: auto;
 }
 
 /* ── Panel base ──────────────────────────────────────────────────────── */
@@ -768,7 +786,7 @@
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--az-text-faint);
+  color: rgba(245,248,250,0.7);
 }
 
 .vz-slider-val {
