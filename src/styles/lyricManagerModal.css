@@ -1,0 +1,479 @@
+/* ════════════════════════════════════════════════════════════════════════
+   DRMVYZ — Lyric Manager Modal
+   Mirrors the mum- (Media Upload Modal) visual language exactly.
+════════════════════════════════════════════════════════════════════════ */
+
+/* ── Backdrop ─────────────────────────────────────────────────────────── */
+.lmm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+/* ── Modal shell ──────────────────────────────────────────────────────── */
+.lmm-modal {
+  width: 100%;
+  max-width: 940px;
+  max-height: 90vh;
+  background: #0a0f1a;
+  border: 1px solid rgba(25, 191, 242, 0.15);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(74,199,219,0.08);
+}
+
+/* ── Header ───────────────────────────────────────────────────────────── */
+.lmm-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px 24px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+.lmm-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: rgba(245,248,250,0.92);
+  font-family: var(--az-font);
+}
+.lmm-subtitle {
+  font-size: 11px;
+  color: rgba(245,248,250,0.4);
+  font-family: var(--az-font);
+  margin-top: 3px;
+}
+.lmm-close {
+  background: none;
+  border: none;
+  color: rgba(245,248,250,0.4);
+  font-size: 20px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 4px;
+  transition: color 0.12s;
+  font-family: var(--az-font);
+  flex-shrink: 0;
+}
+.lmm-close:hover { color: rgba(245,248,250,0.85); }
+
+/* ── Body ─────────────────────────────────────────────────────────────── */
+.lmm-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Left panel ───────────────────────────────────────────────────────── */
+.lmm-left {
+  width: 44%;
+  min-width: 280px;
+  max-width: 440px;
+  border-right: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.lmm-left-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── Right panel ──────────────────────────────────────────────────────── */
+.lmm-right {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── Section label (divider) ──────────────────────────────────────────── */
+.lmm-section {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: rgba(245,248,250,0.28);
+  font-family: var(--az-font);
+  text-transform: uppercase;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  margin-top: 4px;
+}
+
+/* ── Field ────────────────────────────────────────────────────────────── */
+.lmm-field { display: flex; flex-direction: column; gap: 5px; }
+.lmm-field-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  color: rgba(245,248,250,0.5);
+  font-family: var(--az-font);
+  text-transform: uppercase;
+}
+.lmm-opt { font-weight: 400; opacity: 0.6; }
+.lmm-field-hint {
+  font-size: 10px;
+  color: rgba(245,248,250,0.3);
+  font-family: var(--az-font);
+  margin-top: -2px;
+}
+
+/* ── Input / textarea ─────────────────────────────────────────────────── */
+.lmm-input, .lmm-textarea {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  color: rgba(245,248,250,0.85);
+  font-size: 12px;
+  font-family: var(--az-font);
+  padding: 7px 10px;
+  outline: none;
+  resize: none;
+  transition: border-color 0.12s;
+  width: 100%;
+  box-sizing: border-box;
+}
+.lmm-input:focus, .lmm-textarea:focus { border-color: rgba(74,199,219,0.4); }
+.lmm-textarea { font-family: 'Courier New', monospace; font-size: 11px; }
+
+/* ── Small number input ───────────────────────────────────────────────── */
+.lmm-num {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  color: rgba(245,248,250,0.85);
+  font-size: 12px;
+  font-family: var(--az-font);
+  padding: 6px 8px;
+  outline: none;
+  transition: border-color 0.12s;
+  width: 100%;
+  box-sizing: border-box;
+}
+.lmm-num:focus { border-color: rgba(74,199,219,0.4); }
+
+/* ── Select ───────────────────────────────────────────────────────────── */
+.lmm-select-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.lmm-select {
+  width: 100%;
+  appearance: none;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  color: rgba(245,248,250,0.85);
+  font-size: 12px;
+  font-family: var(--az-font);
+  padding: 7px 30px 7px 10px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.12s;
+}
+.lmm-select:focus { border-color: rgba(74,199,219,0.4); }
+.lmm-select-caret {
+  position: absolute;
+  right: 10px;
+  width: 8px;
+  height: 6px;
+  color: rgba(245,248,250,0.35);
+  pointer-events: none;
+}
+
+/* ── Two-column mini grid ─────────────────────────────────────────────── */
+.lmm-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.lmm-grid3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+/* ── Inline slider row ────────────────────────────────────────────────── */
+.lmm-slider-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 36px;
+  align-items: center;
+  gap: 8px;
+}
+.lmm-slider-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: rgba(245,248,250,0.5);
+  font-family: var(--az-font);
+  text-transform: uppercase;
+}
+.lmm-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 3px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.lmm-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  background: #4ac7db;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 4px rgba(74,199,219,0.6);
+}
+.lmm-slider-val {
+  font-size: 10px;
+  color: rgba(245,248,250,0.5);
+  font-family: var(--az-font);
+  text-align: right;
+}
+
+/* ── Toggle ───────────────────────────────────────────────────────────── */
+.lmm-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lmm-toggle {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  position: relative;
+  gap: 8px;
+}
+.lmm-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+.lmm-toggle-track {
+  display: block;
+  width: 34px;
+  height: 18px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 9px;
+  transition: background 0.2s;
+  position: relative;
+  flex-shrink: 0;
+}
+.lmm-toggle input:checked ~ .lmm-toggle-track { background: #4ac7db; }
+.lmm-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.lmm-toggle input:checked ~ .lmm-toggle-track .lmm-toggle-thumb { transform: translateX(16px); }
+.lmm-toggle-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: rgba(245,248,250,0.6);
+  font-family: var(--az-font);
+  text-transform: uppercase;
+  user-select: none;
+}
+
+/* ── Import button (secondary accent) ────────────────────────────────── */
+.lmm-import-btn {
+  align-self: flex-start;
+  padding: 7px 16px;
+  background: rgba(74,199,219,0.1);
+  border: 1px solid rgba(74,199,219,0.35);
+  border-radius: 6px;
+  color: #4ac7db;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  font-family: var(--az-font);
+  cursor: pointer;
+  transition: background 0.14s, border-color 0.14s;
+  white-space: nowrap;
+}
+.lmm-import-btn:hover { background: rgba(74,199,219,0.18); border-color: rgba(74,199,219,0.55); }
+.lmm-import-btn:disabled { opacity: 0.35; cursor: default; }
+
+/* ── Error banner ─────────────────────────────────────────────────────── */
+.lmm-error {
+  padding: 8px 12px;
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.25);
+  border-radius: 6px;
+  color: #f87171;
+  font-size: 11px;
+  font-family: var(--az-font);
+  line-height: 1.4;
+}
+
+/* ── Cue list ─────────────────────────────────────────────────────────── */
+.lmm-cue-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.lmm-cue-count {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(245,248,250,0.45);
+  font-family: var(--az-font);
+  text-transform: uppercase;
+}
+.lmm-cue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.lmm-cue-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 8px;
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 5px;
+  min-width: 0;
+}
+.lmm-cue-ts {
+  font-size: 9px;
+  font-family: 'Courier New', monospace;
+  color: #4ac7db;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.lmm-cue-text {
+  flex: 1;
+  font-size: 11px;
+  color: rgba(245,248,250,0.8);
+  font-family: var(--az-font);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.lmm-cue-meta {
+  font-size: 9px;
+  color: rgba(245,248,250,0.3);
+  font-family: var(--az-font);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.lmm-cue-more {
+  font-size: 10px;
+  color: rgba(245,248,250,0.3);
+  font-family: var(--az-font);
+  text-align: center;
+  padding: 4px;
+}
+
+/* ── Active document info ─────────────────────────────────────────────── */
+.lmm-doc-info {
+  padding: 8px 12px;
+  background: rgba(74,199,219,0.05);
+  border: 1px solid rgba(74,199,219,0.15);
+  border-radius: 6px;
+  font-size: 10px;
+  color: rgba(245,248,250,0.5);
+  font-family: var(--az-font);
+  line-height: 1.6;
+}
+.lmm-doc-info strong {
+  color: rgba(245,248,250,0.8);
+  font-weight: 600;
+}
+
+/* ── Inline action link button ────────────────────────────────────────── */
+.lmm-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: rgba(74,199,219,0.7);
+  font-size: 10px;
+  font-family: var(--az-font);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.12s;
+}
+.lmm-link-btn:hover { color: #4ac7db; }
+
+/* ── Footer ───────────────────────────────────────────────────────────── */
+.lmm-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 24px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+.lmm-cancel-btn {
+  padding: 8px 18px;
+  background: none;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  color: rgba(245,248,250,0.5);
+  font-size: 12px;
+  font-family: var(--az-font);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.lmm-cancel-btn:hover { border-color: rgba(255,255,255,0.2); color: rgba(245,248,250,0.8); }
+.lmm-footer-center {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.lmm-save-btn {
+  padding: 8px 22px;
+  background: #4ac7db;
+  border: none;
+  border-radius: 6px;
+  color: #020b12;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-family: var(--az-font);
+  cursor: pointer;
+  transition: background 0.12s, opacity 0.12s;
+  white-space: nowrap;
+}
+.lmm-save-btn:hover:not(:disabled) { background: #3dcff7; }
+.lmm-save-btn:disabled { opacity: 0.35; cursor: default; }
+
+/* ── Scrollbars ───────────────────────────────────────────────────────── */
+.lmm-left-scroll::-webkit-scrollbar,
+.lmm-right::-webkit-scrollbar,
+.lmm-cue-list::-webkit-scrollbar { width: 4px; }
+.lmm-left-scroll::-webkit-scrollbar-track,
+.lmm-right::-webkit-scrollbar-track,
+.lmm-cue-list::-webkit-scrollbar-track { background: transparent; }
+.lmm-left-scroll::-webkit-scrollbar-thumb,
+.lmm-right::-webkit-scrollbar-thumb,
+.lmm-cue-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }

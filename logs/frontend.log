@@ -6,3 +6,8 @@
   VITE v5.4.21  ready in 112 ms
 
   ➜  Local:   http://127.0.0.1:5173/
+2:05:36 AM [vite] page reload src/main.tsx
+2:06:45 AM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
+2:06:52 AM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
+2:07:02 AM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
+2:07:07 AM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx

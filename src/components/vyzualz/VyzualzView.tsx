@@ -18,6 +18,7 @@ import { extractBandValues, applyModulatedEffects, BAND_LABELS, EFFECT_LABELS, g
 import type { ModulationRoute, AudioBandValues } from '../../lib/audioModulation'
 import { TrackScrubber } from '../shared/TrackScrubber'
 import { MediaUploadModal } from './MediaUploadModal'
+import { LyricManagerModal } from './LyricManagerModal'
 import { TimelinePanel } from './TimelinePanel'
 import { VyzualzErrorBoundary } from './VyzualzErrorBoundary'
 import {
@@ -1345,7 +1346,8 @@ function VyzualzHeader({ analyser, bassLive, onSaveSession }: { analyser: Analys
   const analyserRef  = useRef<AnalyserNode | null>(null)
   const freqBufRef   = useRef<Uint8Array<ArrayBuffer> | null>(null)
   const animRef      = useRef<number>(0)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsOpen,     setSettingsOpen]     = useState(false)
+  const [lyricManagerOpen, setLyricManagerOpen] = useState(false)
 
   useEffect(() => {
     analyserRef.current = analyser
@@ -1401,6 +1403,17 @@ function VyzualzHeader({ analyser, bassLive, onSaveSession }: { analyser: Analys
         Save Session
       </button>
 
+      <button
+        className="vz-session-save-btn"
+        onClick={() => setLyricManagerOpen(true)}
+        title="Open Lyric Manager"
+      >
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true">
+          <path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm-1 14H9V7h2v10zm4 0h-2V7h2v10z"/>
+        </svg>
+        Lyric Manager
+      </button>
+
       <div className="vz-header-sep" />
 
       <div className="vz-input-group">
@@ -1449,7 +1462,8 @@ function VyzualzHeader({ analyser, bassLive, onSaveSession }: { analyser: Analys
       </button>
       <button className="az-overflow-btn">···</button>
     </div>
-    {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+    {settingsOpen     && <SettingsModal      onClose={() => setSettingsOpen(false)} />}
+    {lyricManagerOpen && <LyricManagerModal onClose={() => setLyricManagerOpen(false)} />}
   </>
   )
 }
