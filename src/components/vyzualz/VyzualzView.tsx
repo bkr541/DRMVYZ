@@ -1933,7 +1933,7 @@ function ModulationPanel({ routes, onToggle, onSetAmount }: {
   onToggle: (id: string) => void
   onSetAmount: (id: string, amount: number) => void
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   const activeCount = routes.filter(r => r.enabled).length
 
   return (
@@ -2295,42 +2295,41 @@ function VzLayersPanel() {
         {VZ_LAYER_RENDER_ORDER.map(layerId => {
           const cfg   = layerConfigs.find(c => c.id === layerId) ?? DEFAULT_LAYER_CONFIGS.find(c => c.id === layerId)!
           const count = countByLayer[layerId]
+          const pct   = `${cfg.opacity * 100}%`
           return (
-            <div
-              key={layerId}
-              className={`vz-layer-row${cfg.enabled ? '' : ' vz-layer-row--off'}`}
-            >
-              <button
-                className={`vz-layer-eye${cfg.enabled ? ' vz-layer-eye--on' : ''}`}
-                onClick={() => setLayerConfig(layerId, { enabled: !cfg.enabled })}
-                title={cfg.enabled ? 'Hide layer' : 'Show layer'}
-              >
-                {cfg.enabled ? '◉' : '○'}
-              </button>
-              <span className="vz-layer-name">
-                {LAYER_LABELS[layerId]}
-                {count > 0 && <span className="vz-layer-count">{count}</span>}
-              </span>
+            <div key={layerId} className={`vz-layer-item${cfg.enabled ? '' : ' vz-layer-item--off'}`}>
+              <div className="vz-layer-item-header">
+                <button
+                  className={`vz-layer-toggle${cfg.enabled ? ' vz-layer-toggle--on' : ''}`}
+                  onClick={() => setLayerConfig(layerId, { enabled: !cfg.enabled })}
+                  title={cfg.enabled ? 'Hide layer' : 'Show layer'}
+                />
+                <span className="vz-slider-label">
+                  {LAYER_LABELS[layerId]}
+                  {count > 0 && <span className="vz-layer-count">{count}</span>}
+                </span>
+                <span className="vz-slider-val">{Math.round(cfg.opacity * 100)}%</span>
+                <select
+                  className="az-select vz-layer-blend-select"
+                  value={cfg.blendMode}
+                  disabled={!cfg.enabled}
+                  title="Blend mode"
+                  onChange={e => setLayerConfig(layerId, { blendMode: e.target.value as GlobalCompositeOperation })}
+                >
+                  {LAYER_BLEND_MODES.map(bm => (
+                    <option key={bm} value={bm}>{bm}</option>
+                  ))}
+                </select>
+              </div>
               <input
                 type="range"
-                className="vz-layer-opacity-slider"
+                className="vz-slider vz-layer-opacity-slider"
+                style={{ '--pct': pct } as React.CSSProperties}
                 min={0} max={1} step={0.05}
                 value={cfg.opacity}
-                disabled={!cfg.enabled}
                 title={`Opacity: ${Math.round(cfg.opacity * 100)}%`}
                 onChange={e => setLayerConfig(layerId, { opacity: parseFloat(e.target.value) })}
               />
-              <select
-                className="az-select vz-layer-blend-select"
-                value={cfg.blendMode}
-                disabled={!cfg.enabled}
-                title="Blend mode"
-                onChange={e => setLayerConfig(layerId, { blendMode: e.target.value as GlobalCompositeOperation })}
-              >
-                {LAYER_BLEND_MODES.map(bm => (
-                  <option key={bm} value={bm}>{bm}</option>
-                ))}
-              </select>
             </div>
           )
         })}

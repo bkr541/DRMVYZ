@@ -154,7 +154,7 @@
 /* vz-left-center and vz-body are superseded by the flat left/center-col/right layout */
 
 .vz-left {
-  width: 250px;
+  width: 322px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -187,7 +187,7 @@
 }
 
 .vz-right {
-  width: 302px;
+  width: 322px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -1299,15 +1299,17 @@ input[type='range'].vz-slider--color {
   flex-shrink: 0;
 }
 
-/* Preset cards — full-gradient overlay design */
+/* Preset cards — chain-button style, 3-col × 2-row grid with horizontal scroll */
 .vz-preset-cards {
-  display: flex;
-  gap: 8px;
-  padding: 8px 11px;
+  display: grid;
+  grid-template-rows: repeat(2, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: calc((100% - 12px) / 3);
+  gap: 4px;
+  padding: 5px 8px;
   flex: 1;
   overflow-x: auto;
   overflow-y: hidden;
-  align-items: stretch;
   min-height: 0;
 }
 .vz-preset-cards::-webkit-scrollbar { height: 3px; }
@@ -1315,44 +1317,42 @@ input[type='range'].vz-slider--color {
 .vz-preset-cards::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
 
 .vz-preset-card {
-  flex-shrink: 0;
-  width: 130px;
-  border-radius: 10px;
-  border: 1.5px solid rgba(255,255,255,0.1);
+  border-radius: 5px;
+  border: 1px solid rgba(255,255,255,0.1);
   overflow: hidden;
   cursor: pointer;
-  transition: border-color 0.18s, box-shadow 0.18s, transform 0.12s;
+  transition: border-color 0.18s, box-shadow 0.18s;
   display: flex;
   flex-direction: column;
   position: relative;
 }
 .vz-preset-card:hover {
   border-color: rgba(74,199,219,0.45);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.55);
+  box-shadow: 0 0 8px rgba(74,199,219,0.15);
 }
 .vz-preset-card--active {
   border-color: var(--az-cyan) !important;
-  box-shadow: 0 0 18px rgba(74,199,219,0.35), inset 0 0 16px rgba(74,199,219,0.06);
-  transform: none;
+  box-shadow: 0 0 14px rgba(74,199,219,0.35), inset 0 0 10px rgba(74,199,219,0.06);
 }
 
 .vz-preset-card-header {
+  position: absolute;
+  top: 3px;
+  right: 4px;
   display: flex;
+  justify-content: flex-end;
   align-items: flex-start;
-  padding: 7px 8px 0;
-  position: relative;
-  z-index: 1;
-  flex-shrink: 0;
+  z-index: 2;
 }
 
 .vz-preset-card-body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
-  padding: 6px 9px 8px;
-  background: linear-gradient(to top, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.28) 55%, transparent 100%);
+  justify-content: center;
+  align-items: center;
+  padding: 4px 6px;
+  background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.22) 65%, transparent 100%);
   position: relative;
   z-index: 1;
 }
@@ -1365,17 +1365,19 @@ input[type='range'].vz-slider--color {
 }
 
 .vz-preset-name {
-  font-size: 14px;
-  font-weight: 700;
-  color: rgba(255,255,255,0.95);
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.92);
   word-break: break-word;
-  line-height: 1.25;
-  letter-spacing: 0.01em;
+  line-height: 1.3;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: center;
   font-family: var(--az-font);
 }
 .vz-preset-card--active .vz-preset-name {
   color: #fff;
-  text-shadow: 0 0 14px rgba(74,199,219,0.6);
+  text-shadow: 0 0 10px rgba(74,199,219,0.65);
 }
 
 .vz-preset-del-btn {
@@ -1550,8 +1552,8 @@ input[type='range'].vz-slider--color {
 
 /* ── Responsive ──────────────────────────────────────────────────────── */
 @media (max-width: 1200px) {
-  .vz-left  { width: 220px; }
-  .vz-right { width: 278px; }
+  .vz-left  { width: 298px; }
+  .vz-right { width: 298px; }
 }
 @media (max-width: 980px) {
   .vz-left { display: none; }
@@ -1562,8 +1564,10 @@ input[type='range'].vz-slider--color {
 
 /* ── Modulation panel ────────────────────────────────────────────────── */
 .vz-mod-panel {
+  height: 187px;
+  flex-shrink: 0;
   padding: 0;
-  overflow: visible;
+  overflow: hidden;
 }
 .vz-mod-header {
   display: flex;
@@ -1586,6 +1590,9 @@ input[type='range'].vz-slider--color {
   font-family: 'JetBrains Mono', monospace;
 }
 .vz-mod-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   padding: 2px 6px 6px;
   display: flex;
   flex-direction: column;
@@ -2401,7 +2408,8 @@ input[type='range'].vz-slider--color {
 /* ── VzLayersPanel ───────────────────────────────────────────────────────── */
 
 .vz-layers-panel {
-  margin-top: 6px;
+  height: 187px;
+  flex-shrink: 0;
 }
 
 .vz-layers-reset-btn {
@@ -2424,72 +2432,77 @@ input[type='range'].vz-slider--color {
 .vz-layers-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 4px 8px 6px;
+  gap: 6px;
+  padding: 4px 8px 8px;
 }
 
-.vz-layer-row {
+/* Per-layer item — mirrors vz-slider-wrap layout */
+.vz-layer-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.vz-layer-item--off {
+  opacity: 0.38;
+  transition: opacity 0.15s;
+}
+.vz-layer-item--off:hover {
+  opacity: 0.58;
+}
+
+.vz-layer-item-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 5px;
-  border-radius: 4px;
-  background: rgba(255,255,255,0.03);
-  transition: background 0.12s;
-}
-.vz-layer-row:hover {
-  background: rgba(255,255,255,0.06);
-}
-.vz-layer-row--off {
-  opacity: 0.45;
+  gap: 5px;
 }
 
-.vz-layer-eye {
-  width: 20px;
-  height: 20px;
+/* Toggle button — themed like chain buttons */
+.vz-layer-toggle {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.12);
+  cursor: pointer;
+  transition: background 0.14s, border-color 0.14s, box-shadow 0.14s;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 3px;
-  cursor: pointer;
-  color: var(--az-text-faint, rgba(245,248,250,0.4));
-  transition: color 0.12s, background 0.12s;
   flex-shrink: 0;
+  padding: 0;
+  position: relative;
 }
-.vz-layer-eye:hover {
+.vz-layer-toggle::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(245,248,250,0.25);
+  transition: background 0.14s, box-shadow 0.14s;
+}
+.vz-layer-toggle:hover {
   background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.2);
 }
-.vz-layer-eye--on {
-  color: rgba(245,248,250,0.85);
+.vz-layer-toggle--on {
+  background: rgba(74,199,219,0.12);
+  border-color: rgba(74,199,219,0.45);
+  box-shadow: 0 0 7px rgba(74,199,219,0.2), inset 0 0 5px rgba(74,199,219,0.05);
 }
-
-.vz-layer-name {
-  font-family: var(--az-font, monospace);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  color: rgba(245,248,250,0.75);
-  min-width: 60px;
-  flex-shrink: 0;
+.vz-layer-toggle--on::after {
+  background: var(--az-cyan);
+  box-shadow: 0 0 5px rgba(74,199,219,0.6);
 }
 
 .vz-layer-count {
   font-family: var(--az-font, monospace);
   font-size: 10px;
   color: var(--az-text-faint, rgba(245,248,250,0.35));
-  min-width: 18px;
-  flex-shrink: 0;
-}
-
-.vz-layer-opacity-slider {
-  flex: 1;
-  min-width: 50px;
-  height: 3px;
-  accent-color: rgba(74,199,219,0.85);
-  cursor: pointer;
+  margin-left: 3px;
 }
 
 .vz-layer-blend-select {
+  margin-left: auto;
   font-family: var(--az-font, monospace);
   font-size: 10px;
   padding: 2px 4px;
@@ -2500,4 +2513,9 @@ input[type='range'].vz-slider--color {
   cursor: pointer;
   max-width: 88px;
   flex-shrink: 0;
+}
+
+/* Opacity range — identical to Effect Controls slider */
+.vz-layer-opacity-slider {
+  width: 100%;
 }
