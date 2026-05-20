@@ -1840,9 +1840,15 @@ function LiveVisualPreview({
 }
 
 // ── AudioAnalyzerPanel ────────────────────────────────────────────────
+const AZ_BAND_COLORS  = ['#4ac7db', '#61d6aa', '#b84fc9', '#d8b95a', '#4ac7db', '#80dfc0']
+const AZ_BAND_LABELS  = ['Bass', 'Low Mids', 'Mids', 'High Mids', 'Highs', 'Vocal']
+const AZ_BANDS_HZ: [number, number][] = [
+  [20, 250], [250, 800], [800, 2500], [2500, 5000], [5000, 16000], [300, 3000],
+]
+
 function AudioAnalyzerPanel({ analyser }: { analyser: AnalyserNode | null }) {
-  const barRefs = useRef<Array<HTMLDivElement | null>>(Array.from({ length: 5 }, () => null))
-  const valRefs = useRef<Array<HTMLSpanElement | null>>(Array.from({ length: 5 }, () => null))
+  const barRefs = useRef<Array<HTMLDivElement | null>>(Array.from({ length: 6 }, () => null))
+  const valRefs = useRef<Array<HTMLSpanElement | null>>(Array.from({ length: 6 }, () => null))
   const analyserRef = useRef<AnalyserNode | null>(null)
   const freqBufRef  = useRef<Uint8Array<ArrayBuffer> | null>(null)
   const animRef     = useRef<number>(0)
@@ -1853,23 +1859,20 @@ function AudioAnalyzerPanel({ analyser }: { analyser: AnalyserNode | null }) {
   }, [analyser])
 
   useEffect(() => {
-    const BAND_COLORS = ['#4ac7db', '#61d6aa', '#b84fc9', '#d8b95a', '#4ac7db']
-    const BANDS_HZ: [number, number][] = [[20,250],[250,1000],[1000,4000],[4000,16000],[20,16000]]
-
     function frame() {
       const an  = analyserRef.current
       const buf = freqBufRef.current
-      let bands = [0.05, 0.05, 0.05, 0.05, 0.05]
+      let bands = [0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
 
       if (an && buf) {
         an.getByteFrequencyData(buf)
         const sr = an.context.sampleRate
-        bands = BANDS_HZ.map(([lo, hi]) => getBandAvg(buf, sr, lo, hi))
-        bands[4] = Math.min(1, (bands[0] + bands[1] + bands[2] + bands[3]) / 3)
+        bands = AZ_BANDS_HZ.map(([lo, hi]) => getBandAvg(buf, sr, lo, hi))
+        bands[5] = Math.min(1, (bands[1] + bands[2] + bands[3]) / 2.5)
       }
 
       barRefs.current.forEach((el, i) => {
-        if (el) { el.style.height = `${Math.max(2, bands[i] * 100)}%`; el.style.background = BAND_COLORS[i] }
+        if (el) { el.style.height = `${Math.max(2, bands[i] * 100)}%`; el.style.background = AZ_BAND_COLORS[i] }
       })
       valRefs.current.forEach((el, i) => {
         if (el) el.textContent = bands[i].toFixed(2)
@@ -1880,8 +1883,6 @@ function AudioAnalyzerPanel({ analyser }: { analyser: AnalyserNode | null }) {
     return () => cancelAnimationFrame(animRef.current)
   }, [])
 
-  const BAND_LABELS = ['Bass', 'Low Mid', 'Mid', 'High', 'Volume']
-
   return (
     <div className="vz-analyzer-panel">
       <div className="vz-panel-header" style={{ minHeight: 32 }}>
@@ -1890,23 +1891,23 @@ function AudioAnalyzerPanel({ analyser }: { analyser: AnalyserNode | null }) {
       </div>
       <div className="vz-analyzer-body">
         <div className="vz-band-bars">
-          {BAND_LABELS.map((label, i) => (
+          {AZ_BAND_LABELS.map((label, i) => (
             <div key={label} className="vz-band-col">
-              <span ref={el => { valRefs.current[i] = el }} className="vz-band-bar-val">0.05</span>
+              <span
+                ref={el => { valRefs.current[i] = el }}
+                className="vz-band-bar-val"
+                style={{ color: AZ_BAND_COLORS[i] }}
+              >0.05</span>
               <div className="vz-band-bar-track">
                 <div
                   ref={el => { barRefs.current[i] = el }}
                   className="vz-band-bar-fill"
-                  style={{ height: '5%', background: '#4ac7db' }}
+                  style={{ height: '5%', background: AZ_BAND_COLORS[i] }}
                 />
               </div>
               <span className="vz-band-bar-label">{label}</span>
             </div>
           ))}
-        </div>
-        <div className="vz-waveform-row">
-          <span className="vz-waveform-label">LIVE WAVEFORM</span>
-          <AudioWaveformCanvas analyser={analyser} />
         </div>
       </div>
     </div>
@@ -2160,14 +2161,49 @@ function PresetStrip({ activePresetId, presets, onSelect, onSave, onDelete }: {
   onDelete: (id: string) => void
 }) {
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [search, setSearch]         = useState('')
+  const [category, setCategory]     = useState('all')
+
+  const filtered = useMemo(() => {
+    let out = presets
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      out = out.filter(p => p.name.toLowerCase().includes(q))
+    }
+    if (category === 'default') out = out.filter(p =>  p.isDefault)
+    if (category === 'custom')  out = out.filter(p => !p.isDefault)
+    if (category === 'scene')   out = out.filter(p =>  presetHasScene(p))
+    return out
+  }, [presets, search, category])
 
   return (
     <div className="vz-presets-section">
       <div className="vz-presets-header">
         <span className="vz-presets-label">Presets</span>
+        <div className="vz-presets-search-wrap">
+          <svg className="vz-presets-search-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/>
+          </svg>
+          <input
+            className="vz-presets-search"
+            placeholder="Search…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <select
+          className="az-select vz-presets-cat-select"
+          value={category}
+          onChange={e => setCategory(e.target.value)}
+        >
+          <option value="all">All Categories</option>
+          <option value="default">Default</option>
+          <option value="custom">Custom</option>
+          <option value="scene">Scene</option>
+        </select>
         {!dialogOpen && (
           <button className="vz-new-preset-btn" onClick={() => setDialogOpen(true)}>
-            <svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor">
+            <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor">
               <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
             </svg>
             New
@@ -2183,30 +2219,29 @@ function PresetStrip({ activePresetId, presets, onSelect, onSave, onDelete }: {
       )}
 
       <div className="vz-preset-cards">
-        {presets.map(p => (
+        {filtered.map(p => (
           <div
             key={p.id}
             className={`vz-preset-card ${activePresetId === p.id ? 'vz-preset-card--active' : ''}`}
+            style={{ background: p.gradient ?? p.color }}
             onClick={() => onSelect(p.id)}
             title={p.name + (presetHasScene(p) ? ' · Scene preset' : '')}
           >
-            <div className="vz-preset-thumb" style={{ background: p.gradient, position: 'relative' }}>
+            <div className="vz-preset-card-header">
               {presetHasScene(p) && (
                 <span className="vz-preset-scene-badge" title="Scene preset">◈</span>
               )}
               {!p.isDefault && (
                 <button
+                  className="vz-preset-del-btn"
                   onClick={e => { e.stopPropagation(); onDelete(p.id) }}
                   title="Delete"
-                  style={{
-                    position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.6)',
-                    border: 'none', color: 'rgba(245,248,250,0.6)', cursor: 'pointer',
-                    fontSize: 8, borderRadius: 2, padding: '1px 3px', lineHeight: 1.4,
-                  }}
                 >✕</button>
               )}
             </div>
-            <div className="vz-preset-name">{p.name}</div>
+            <div className="vz-preset-card-body">
+              <span className="vz-preset-name">{p.name}</span>
+            </div>
           </div>
         ))}
       </div>
