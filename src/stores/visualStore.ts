@@ -721,9 +721,6 @@ export const useVisualStore = create<VisualState>()(
         bpmSync:           s.bpmSync,
         quality:           s.quality,
         modulationRoutes:  s.modulationRoutes,
-        timelineEnabled:   s.timelineEnabled,
-        timelineClips:     s.timelineClips,
-        timelineLoop:      s.timelineLoop,
         layerConfigs:      s.layerConfigs,
         layerItems:        s.layerItems,
       }),
@@ -752,13 +749,6 @@ export const useVisualStore = create<VisualState>()(
           presets:          [...DEFAULT_PRESETS, ...(p.presets ?? [])],
           sessions,
           modulationRoutes: mergedRoutes,
-          // Safe defaults for timeline fields added after initial deploy.
-          // migrateClip converts deprecated `transition` → `transitionOut`.
-          timelineEnabled:  p.timelineEnabled  ?? false,
-          timelineClips:    recalculateTimelineStarts(
-            ((p.timelineClips ?? []) as VzTimelineClip[]).map(migrateClip)
-          ),
-          timelineLoop:     p.timelineLoop      ?? true,
           // Merge saved layer configs over defaults so new layers added in
           // future releases always appear, and user settings are preserved.
           layerConfigs: DEFAULT_LAYER_CONFIGS.map(d => {

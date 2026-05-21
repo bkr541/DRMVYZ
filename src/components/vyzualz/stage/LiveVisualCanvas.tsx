@@ -606,7 +606,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const ctx = canvas.getContext('2d')
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
     if (!ctx) return
 
     function resize() {
