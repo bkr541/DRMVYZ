@@ -4,7 +4,7 @@ import {
   ChartHistogramIcon,
   Tv01Icon,
 } from 'hugeicons-react'
-import { AnalyzerSidebar } from '../analyzer/AnalyzerSidebar'
+import { VyzualzSidebar } from './VyzualzSidebar'
 import { LyricManagerView } from '../../features/lyrics/LyricManagerView'
 import { useSharedAudio }  from '../../context/AudioEngineContext'
 import { useMediaStore }   from '../../stores/mediaStore'
@@ -704,9 +704,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     return (
       <div className="az-root">
         <div className="az-shell">
-          <AnalyzerSidebar
-            activeView={activeView}
-            onNavigate={onNavigate}
+          <VyzualzSidebar
             compact
             appView={appView}
             onAppViewChange={setAppView}
@@ -722,9 +720,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
       isLeftInspectorCollapsed={isLeftInspectorCollapsed}
       isRightInspectorCollapsed={isRightInspectorCollapsed}
       sidebar={
-        <AnalyzerSidebar
-          activeView={activeView}
-          onNavigate={onNavigate}
+        <VyzualzSidebar
           compact
           appView={appView}
           onAppViewChange={setAppView}

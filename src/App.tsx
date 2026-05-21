@@ -2,15 +2,10 @@ import { useState, useEffect } from 'react'
 import { supabase, supabaseConfigured } from './lib/supabase'
 import { AudioEngineProvider } from './context/AudioEngineContext'
 import { AuthPage }            from './components/auth/AuthPage'
-import { AnalyzerView }        from './components/analyzer/AnalyzerView'
-import { ReferenceView }       from './components/reference/ReferenceView'
 import { VyzualzView }         from './components/vyzualz/VyzualzView'
 import { VyzualzErrorBoundary } from './components/vyzualz/VyzualzErrorBoundary'
 
-type AppView = 'analyzer' | 'reference' | 'vyzualz'
-
 export default function App() {
-  const [view, setView]     = useState<AppView>('vyzualz')
   const [authed, setAuthed] = useState<boolean | null>(null)
 
   useEffect(() => {
@@ -34,12 +29,12 @@ export default function App() {
   // Not authenticated — show auth gate
   if (!authed) return <AuthPage onAuth={() => setAuthed(true)}/>
 
-  // Authenticated — show app
+  // Authenticated — VYZUALZ is the sole view
   return (
     <AudioEngineProvider>
-      {view === 'reference' ? <ReferenceView activeView={view} onNavigate={setView}/> :
-       view === 'vyzualz'   ? <VyzualzErrorBoundary section="VyzualzView"><VyzualzView activeView={view} onNavigate={setView}/></VyzualzErrorBoundary> :
-                              <AnalyzerView  activeView={view} onNavigate={setView}/>}
+      <VyzualzErrorBoundary section="VyzualzView">
+        <VyzualzView activeView="vyzualz" onNavigate={() => {}} />
+      </VyzualzErrorBoundary>
     </AudioEngineProvider>
   )
 }
