@@ -65,7 +65,7 @@
 }
 
 .az-logo {
-  padding: 12px 16px;
+  padding: 0;
   border-bottom: 1px solid rgba(255,255,255,0.055);
   display: flex;
   justify-content: center;
@@ -134,7 +134,7 @@
   text-shadow: 0 0 12px rgba(74,199,219,0.35);
 }
 .az-nav-item--active svg {
-  filter: drop-shadow(0 0 4px rgba(74,199,219,0.55));
+  filter: drop-shadow(0 0 6px rgba(74,199,219,0.4));
 }
 
 .az-sidebar-footer {

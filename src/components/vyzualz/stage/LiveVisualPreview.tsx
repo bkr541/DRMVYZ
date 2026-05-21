@@ -4,14 +4,13 @@ import type { UploadedMedia } from '../../../stores/mediaStore'
 import type { ModulationRoute } from '../../../lib/audioModulation'
 import type { VzTimelineClip } from '../../../types/timeline'
 import type { VzLayerConfig, VzLayerItem } from '../../../types/vzLayers'
-import { BpmInput } from '../BpmInput'
 import { LiveVisualCanvas } from './LiveVisualCanvas'
 import { PreviewOverlay } from './PreviewOverlay'
 
 export function LiveVisualPreview({
   analyser, activeMedia, effects, enabledFx,
   isPlaying, onPlay, onPause, onPrev, onNext, onFullscreen,
-  bpm, onBpmChange, bpmSync, onToggleBpmSync, onTap,
+  bpm, bpmSync,
   quality, onQualityChange,
   canvasWrapRef, audioTime, modulationRoutes,
   timelineEnabled, onToggleTimeline, timelineClips, timelineLoop, mediaItems,
@@ -23,8 +22,8 @@ export function LiveVisualPreview({
   enabledFx: Set<string>
   isPlaying: boolean; onPlay: () => void; onPause: () => void
   onPrev: () => void; onNext: () => void; onFullscreen: () => void
-  bpm: number; onBpmChange: (v: number) => void
-  bpmSync: boolean; onToggleBpmSync: () => void; onTap: () => void
+  bpm: number
+  bpmSync: boolean
   quality: Quality; onQualityChange: (q: Quality) => void
   canvasWrapRef: React.RefObject<HTMLDivElement>
   audioTime: number
@@ -103,19 +102,6 @@ export function LiveVisualPreview({
             <span className="vz-timeline-pill-label">Timeline</span>
             <span className={`vz-timeline-pill-dot${timelineEnabled ? ' vz-timeline-pill-dot--on' : ''}`} />
           </button>
-        </div>
-
-        <div className="vz-sync-toggle" onClick={onToggleBpmSync}>
-          <div className={`vz-sync-track ${bpmSync ? 'vz-sync-track--on' : ''}`}>
-            <div className="vz-sync-thumb" />
-          </div>
-          <span className="vz-sync-label">BPM Sync</span>
-        </div>
-
-        <div className="vz-bpm-group">
-          <span className="vz-bpm-label">BPM</span>
-          <BpmInput value={bpm} onChange={onBpmChange} />
-          <button className="vz-tap-btn" onClick={onTap}>TAP</button>
         </div>
 
         <div className="vz-header-sep" />

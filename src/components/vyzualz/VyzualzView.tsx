@@ -30,6 +30,9 @@ import { PresetStrip }          from './sessions/PresetStrip'
 import { SessionPanel }         from './sessions/SessionPanel'
 import { BpmInput }             from './BpmInput'
 import { LiveVisualPreview }    from './stage/LiveVisualPreview'
+import { VzMiniWaveform }       from './transport/VzMiniWaveform'
+import { VzCueMarkerStrip }     from './transport/VzCueMarkerStrip'
+import { useWaveformPeaks }     from './hooks/useWaveformPeaks'
 import { OutputFrame }          from './stage/OutputFrame'
 import { useVyzualzKeyboard }   from './hooks/useVyzualzKeyboard'
 import { useTapTempo }          from './hooks/useTapTempo'
@@ -211,20 +214,31 @@ function OutputModeCard({ onFullscreen }: { onFullscreen: () => void }) {
 }
 
 
+// ── time formatting helpers ───────────────────────────────────────────
+function fmtPlayTime(secs: number): string {
+  if (!isFinite(secs) || secs < 0) return '--:--.--'
+  const m  = Math.floor(secs / 60)
+  const s  = Math.floor(secs % 60)
+  const cs = Math.floor((secs % 1) * 100)
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(cs).padStart(2, '0')}`
+}
+
 // ── VyzualzDock ───────────────────────────────────────────────────────
 function VyzualzDock() {
   const {
     presets, activePresetId, bpm, setBpm, bpmSync, toggleBpmSync, setPlaying,
+    cuePoint, setCuePoint, beatGridEnabled, setBeatGridEnabled,
+    waveformZoom, setWaveformZoom, cueMarkers, addCueMarker,
   } = useVisualStore()
-  const preset = presets.find(p => p.id === activePresetId) ?? presets[0] ?? DEFAULT_PRESETS[0]
-  const engine = useSharedAudio()
+  const preset      = presets.find(p => p.id === activePresetId) ?? presets[0] ?? DEFAULT_PRESETS[0]
+  const engine      = useSharedAudio()
   const fileInputId = useId()
+  const { handleTap } = useTapTempo()
 
-  const vol    = engine.volume
-  const volPct = `${Math.round(vol * 100)}%`
-
-  const track = engine.tracks[engine.currentIndex] ?? null
+  const track    = engine.tracks[engine.currentIndex] ?? null
   const hasTrack = engine.tracks.length > 0
+
+  const { peaks } = useWaveformPeaks(track?.url ?? null)
 
   const handleFiles = (files: FileList | null) => {
     if (!files) return
@@ -238,13 +252,26 @@ function VyzualzDock() {
     }
   }
 
-  const initial  = track?.displayName?.[0]?.toUpperCase() ?? '♪'
-  const title    = track?.displayName ?? 'No track loaded'
-  const srLabel  = `${(engine.sampleRate / 1000).toFixed(1)} kHz`
+  const handleTogglePlayback = () => {
+    if (engine.isPlaying) { engine.pause(); setPlaying(false) }
+    else                  { engine.play();  setPlaying(true) }
+  }
+
+  const handleCue = () => {
+    if (engine.isPlaying) setCuePoint(engine.currentTime)
+    else engine.seek(cuePoint)
+  }
+
+  const initial = track?.displayName?.[0]?.toUpperCase() ?? '♪'
+  const title   = track?.displayName ?? 'No track loaded'
+  const srLabel = `${(engine.sampleRate / 1000).toFixed(1)} kHz`
+  const vol     = engine.volume
+  const volPct  = `${Math.round(vol * 100)}%`
 
   return (
-    <div className="az-dock">
-      {/* Track info + upload */}
+    <div className="az-dock vz-transport-dock">
+
+      {/* ── Album art + track info (preserved) ────────────────────────── */}
       <div className="az-dock-track">
         <label
           className="az-dock-thumb"
@@ -265,27 +292,17 @@ function VyzualzDock() {
             </div>
           )}
         </div>
-        <label
-          className="az-dock-upload-btn"
-          htmlFor={fileInputId}
-          title="Upload audio file"
-          style={{ cursor: 'pointer' }}
-        >
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
-            <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/>
-          </svg>
+        <label className="az-dock-upload-btn" htmlFor={fileInputId} title="Upload audio file" style={{ cursor: 'pointer' }}>
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>
           Add Track
         </label>
       </div>
 
-      {/* Transport */}
+      <div className="vz-dock-sep" />
+
+      {/* ── Transport buttons ──────────────────────────────────────────── */}
       <div className="az-dock-transport">
-        <button className="az-transport-btn" title="Stop" disabled={!hasTrack}
-          onClick={() => { engine.stop() }}>
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>
-        </button>
-        <button className="az-transport-btn" title="Previous" disabled={!hasTrack}
-          onClick={engine.prev}>
+        <button className="az-transport-btn" title="Previous" disabled={!hasTrack} onClick={engine.prev}>
           <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
         </button>
         <button
@@ -293,58 +310,123 @@ function VyzualzDock() {
           title={engine.isPlaying ? 'Pause' : 'Play'}
           disabled={!hasTrack}
           style={{ borderColor: preset.color, color: preset.color, boxShadow: `0 0 12px ${preset.color}30` }}
-          onClick={() => {
-            if (engine.isPlaying) {
-              engine.pause()
-              setPlaying(false)
-            } else {
-              engine.play()
-              setPlaying(true)
-            }
-          }}
+          onClick={handleTogglePlayback}
         >
           {engine.isPlaying
             ? <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
             : <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
           }
         </button>
-        <button className="az-transport-btn" title="Next" disabled={!hasTrack}
-          onClick={engine.next}>
+        <button className="az-transport-btn" title="Next" disabled={!hasTrack} onClick={engine.next}>
           <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
         </button>
       </div>
 
-      {/* Scrubber */}
-      <TrackScrubber
-        currentTime={engine.currentTime}
-        duration={engine.duration}
-        onSeek={engine.seek}
+      {/* ── CUE ───────────────────────────────────────────────────────── */}
+      <button
+        className="vz-dock-cue-btn"
+        onClick={handleCue}
+        title={engine.isPlaying ? 'Set cue point here' : `Jump to cue (${fmtPlayTime(cuePoint)})`}
         disabled={!hasTrack}
-        accentColor={preset.color}
-      />
+      >
+        CUE
+      </button>
 
-      <div className="vz-dock-bpm-group">
-        <span className="vz-dock-bpm-label">BPM</span>
-        <BpmInput value={bpm} onChange={setBpm} className="vz-dock-bpm-input" />
-        <button
-          className={`vz-dock-sync-btn${bpmSync ? ' vz-dock-sync-btn--on' : ''}`}
-          onClick={toggleBpmSync}
-          title={bpmSync ? 'BPM Sync: ON — click to disable' : 'BPM Sync: OFF — click to enable'}
-        >
-          {bpmSync && <span className="vz-dock-sync-dot" />}
-          SYNC
-        </button>
+      {/* ── SYNC / MASTER ─────────────────────────────────────────────── */}
+      <button
+        className={`vz-dock-sync-master-btn${bpmSync ? ' vz-dock-sync-master-btn--on' : ''}`}
+        onClick={toggleBpmSync}
+        title={bpmSync ? 'BPM Sync: ON — click to disable' : 'BPM Sync: OFF — click to enable'}
+      >
+        {bpmSync && <span className="vz-dock-sync-dot" />}
+        <span className="vz-dock-sync-master-label">SYNC</span>
+        <span className="vz-dock-sync-master-sub">MASTER</span>
+      </button>
+
+      <div className="vz-dock-sep" />
+
+      {/* ── BPM block ─────────────────────────────────────────────────── */}
+      <div className="vz-dock-bpm-block">
+        <span className="vz-dock-bpm-block-label">BPM</span>
+        <div className="vz-dock-bpm-block-row">
+          <span className="vz-dock-bpm-block-val">{bpm.toFixed(2)}</span>
+          <div className="vz-dock-bpm-chevrons">
+            <button className="vz-dock-bpm-chevron" onClick={() => setBpm(bpm + 1)} title="BPM +1">
+              <svg viewBox="0 0 24 24" width="8" height="8" fill="currentColor"><path d="M7 15l5-5 5 5z"/></svg>
+            </button>
+            <button className="vz-dock-bpm-chevron" onClick={() => setBpm(bpm - 1)} title="BPM −1">
+              <svg viewBox="0 0 24 24" width="8" height="8" fill="currentColor"><path d="M7 9l5 5 5-5z"/></svg>
+            </button>
+          </div>
+        </div>
       </div>
 
-      <input
-        id={fileInputId}
-        type="file"
-        accept="audio/*"
-        multiple
-        className="az-upload-input"
-        onChange={e => handleFiles(e.target.files)}
+      {/* ── TAP ───────────────────────────────────────────────────────── */}
+      <button className="vz-dock-tap-btn" onClick={handleTap} title="Tap tempo">TAP</button>
+
+      {/* ── Beat-grid toggle ──────────────────────────────────────────── */}
+      <button
+        className={`vz-dock-beatgrid-btn${beatGridEnabled ? ' vz-dock-beatgrid-btn--on' : ''}`}
+        onClick={() => setBeatGridEnabled(!beatGridEnabled)}
+        title={beatGridEnabled ? 'Beat grid: ON' : 'Beat grid: OFF'}
+      >
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+          <path d="M3 5h2v14H3V5zm4 4h2v6H7V9zm4-3h2v12h-2V6zm4 4h2v4h-2v-4zm4-2h2v8h-2V8z"/>
+        </svg>
+      </button>
+
+      <div className="vz-dock-sep" />
+
+      {/* ── Time display ──────────────────────────────────────────────── */}
+      <div className="vz-dock-time-display">
+        <span className="vz-dock-time-current">{fmtPlayTime(engine.currentTime)}</span>
+        <span className="vz-dock-time-total">{fmtPlayTime(engine.duration)}</span>
+      </div>
+
+      {/* ── Mini waveform ─────────────────────────────────────────────── */}
+      <VzMiniWaveform
+        duration={engine.duration}
+        currentTime={engine.currentTime}
+        peaks={peaks}
+        markers={cueMarkers}
+        onSeek={hasTrack ? engine.seek : undefined}
+        zoom={waveformZoom}
       />
 
+      {/* ── Zoom controls ─────────────────────────────────────────────── */}
+      <div className="vz-dock-zoom-btns">
+        <button
+          className="vz-dock-zoom-btn"
+          onClick={() => setWaveformZoom(waveformZoom * 2)}
+          disabled={waveformZoom >= 16}
+          title="Zoom in"
+        >+</button>
+        <button
+          className="vz-dock-zoom-btn"
+          onClick={() => setWaveformZoom(waveformZoom / 2)}
+          disabled={waveformZoom <= 1}
+          title="Zoom out"
+        >−</button>
+      </div>
+
+      {/* ── Cue marker strip ──────────────────────────────────────────── */}
+      <VzCueMarkerStrip
+        markers={cueMarkers}
+        currentTime={engine.currentTime}
+        onSeek={engine.seek}
+      />
+
+      {/* ── Add marker ────────────────────────────────────────────────── */}
+      <button
+        className="vz-dock-add-marker-btn"
+        onClick={() => addCueMarker({ label: 'Cue', time: engine.currentTime, type: 'custom' })}
+        title="Add cue marker at current time"
+        disabled={!hasTrack}
+      >
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+      </button>
+
+      {/* ── Volume ────────────────────────────────────────────────────── */}
       <div className="az-dock-volume">
         <span className="az-dock-vol-icon">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="rgba(245,248,250,0.4)">
@@ -361,11 +443,14 @@ function VyzualzDock() {
         />
       </div>
 
-      <div className="az-dock-right">
-        <select className="az-dock-source-select">
-          <option>Main Out</option>
-        </select>
-      </div>
+      <input
+        id={fileInputId}
+        type="file"
+        accept="audio/*"
+        multiple
+        className="az-upload-input"
+        onChange={e => handleFiles(e.target.files)}
+      />
     </div>
   )
 }
@@ -652,10 +737,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                   onNext={handleNext}
                   onFullscreen={handleFullscreen}
                   bpm={bpm}
-                  onBpmChange={setBpm}
                   bpmSync={bpmSync}
-                  onToggleBpmSync={toggleBpmSync}
-                  onTap={handleTap}
                   quality={quality}
                   onQualityChange={setQuality}
                   canvasWrapRef={canvasWrapRef}

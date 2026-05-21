@@ -13,11 +13,13 @@ import {
 import type { ModulationRoute } from '../lib/audioModulation'
 import { recalculateTimelineStarts, migrateClip } from '../lib/timeline'
 import type { VzTimelineClip } from '../types/timeline'
+import type { VzCueMarker } from '../types/cue'
 import { DEFAULT_LAYER_CONFIGS, createDefaultLayerItem } from '../types/vzLayers'
 import type { VzLayerConfig, VzLayerConfigId, VzLayerItem } from '../types/vzLayers'
 
 export type { VzTimelineClip }
 export type { VzLayerConfig, VzLayerConfigId, VzLayerItem }
+export type { VzCueMarker }
 
 // Quality is owned here so sessions can snapshot it
 export type Quality = 'High' | 'Medium' | 'Low'
@@ -166,6 +168,9 @@ export interface VzSession {
   timelineClips?: VzTimelineClip[]
   timelineLoop?: boolean
   layerItems?: VzLayerItem[]
+  // Transport extras
+  beatGridEnabled?: boolean
+  cueMarkers?: VzCueMarker[]
 }
 
 export const DEFAULT_PRESETS: VzPreset[] = [
@@ -324,6 +329,20 @@ interface VisualState {
   reorderLayerItem(id: string, direction: 'up' | 'down'): void
   clearLayerItemsForLayer(layerId: VzLayerConfigId): void
   setLayerItemSolo(id: string): void
+
+  // ── Transport extras ──────────────────────────────────────────────────────
+  cuePoint:        number          // ephemeral — not persisted
+  beatGridEnabled: boolean
+  waveformZoom:    number          // ephemeral — not persisted
+  cueMarkers:      VzCueMarker[]
+
+  setCuePoint(t: number): void
+  setBeatGridEnabled(v: boolean): void
+  setWaveformZoom(v: number): void
+  addCueMarker(marker: Omit<VzCueMarker, 'id'>): void
+  removeCueMarker(id: string): void
+  updateCueMarker(id: string, patch: Partial<Omit<VzCueMarker, 'id'>>): void
+  clearCueMarkers(): void
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -350,6 +369,10 @@ export const useVisualStore = create<VisualState>()(
       timelineClock:     0,
       layerConfigs:      [...DEFAULT_LAYER_CONFIGS],
       layerItems:        [],
+      cuePoint:          0,
+      beatGridEnabled:   false,
+      waveformZoom:      1,
+      cueMarkers:        [],
 
       // ── Live state ──────────────────────────────────────────────────────────
 
@@ -462,6 +485,8 @@ export const useVisualStore = create<VisualState>()(
           timelineClips:   [...s.timelineClips],
           timelineLoop:    s.timelineLoop,
           layerItems:      [...s.layerItems],
+          beatGridEnabled: s.beatGridEnabled,
+          cueMarkers:      [...s.cueMarkers],
         }
         // Optimistic local add — visible immediately
         set(st => ({ sessions: [...st.sessions, session] }))
@@ -501,6 +526,9 @@ export const useVisualStore = create<VisualState>()(
           ),
           timelineLoop:    session.timelineLoop     ?? true,
           layerItems:      session.layerItems ?? [],
+          beatGridEnabled: session.beatGridEnabled  ?? false,
+          cueMarkers:      (session.cueMarkers ?? []) as VzCueMarker[],
+          cuePoint:        0,
         })
         return session
       },
@@ -707,6 +735,29 @@ export const useVisualStore = create<VisualState>()(
           ),
         }))
       },
+
+      // ── Transport extras ──────────────────────────────────────────────────
+      setCuePoint(t)        { set({ cuePoint: Math.max(0, t) }) },
+      setBeatGridEnabled(v) { set({ beatGridEnabled: v }) },
+      setWaveformZoom(v)    { set({ waveformZoom: Math.max(1, Math.min(16, v)) }) },
+      addCueMarker(marker) {
+        const id = (crypto.randomUUID?.() ?? `cue-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`) as string
+        set(s => ({
+          cueMarkers: [...s.cueMarkers, { ...marker, id }]
+            .sort((a, b) => a.time - b.time),
+        }))
+      },
+      removeCueMarker(id) {
+        set(s => ({ cueMarkers: s.cueMarkers.filter(m => m.id !== id) }))
+      },
+      updateCueMarker(id, patch) {
+        set(s => ({
+          cueMarkers: s.cueMarkers
+            .map(m => m.id === id ? { ...m, ...patch } : m)
+            .sort((a, b) => a.time - b.time),
+        }))
+      },
+      clearCueMarkers() { set({ cueMarkers: [] }) },
     }),
     {
       name: 'drmvyz-visual-store',
@@ -723,6 +774,8 @@ export const useVisualStore = create<VisualState>()(
         modulationRoutes:  s.modulationRoutes,
         layerConfigs:      s.layerConfigs,
         layerItems:        s.layerItems,
+        beatGridEnabled:   s.beatGridEnabled,
+        cueMarkers:        s.cueMarkers,
       }),
       // Re-inject default presets after rehydration so they are never missing
       merge: (persisted, current) => {
@@ -758,6 +811,8 @@ export const useVisualStore = create<VisualState>()(
             // saved before that field existed (old sessions).
             return { ...d, ...saved, mediaId: saved.mediaId ?? null }
           }),
+          beatGridEnabled: p.beatGridEnabled ?? false,
+          cueMarkers:      (p.cueMarkers ?? []) as VzCueMarker[],
           // Restore saved layer items; migrate from old-style layerConfig.mediaId if absent.
           layerItems: (() => {
             const saved = (p.layerItems ?? []) as VzLayerItem[]

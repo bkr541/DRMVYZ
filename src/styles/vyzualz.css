@@ -1792,6 +1792,362 @@ input[type='range'].vz-slider--color {
   to   { opacity: 1;   transform: scale(1.1); }
 }
 
+/* ── Transport dock overrides ────────────────────────────────────────── */
+
+.az-dock.vz-transport-dock {
+  gap: 6px;
+  padding: 0 10px;
+  height: 84px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.az-dock.vz-transport-dock::-webkit-scrollbar { display: none; }
+
+/* Narrower track block so the rest of the controls have room */
+.vz-transport-dock .az-dock-track {
+  width: 190px;
+  flex-shrink: 0;
+}
+
+/* Vertical separator */
+.vz-dock-sep {
+  width: 1px;
+  height: 38px;
+  background: rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+
+/* CUE button */
+.vz-dock-cue-btn {
+  padding: 0 10px;
+  height: 32px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 4px;
+  color: rgba(255,255,255,0.72);
+  font-family: var(--az-font);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.12s;
+}
+.vz-dock-cue-btn:hover:not(:disabled) {
+  background: rgba(74,199,219,0.12);
+  border-color: rgba(74,199,219,0.45);
+  color: var(--az-cyan);
+}
+.vz-dock-cue-btn:disabled { opacity: 0.3; cursor: default; }
+
+/* SYNC / MASTER button */
+.vz-dock-sync-master-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 11px;
+  height: 36px;
+  min-width: 64px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 4px;
+  color: rgba(255,255,255,0.55);
+  font-family: var(--az-font);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.12s;
+  position: relative;
+}
+.vz-dock-sync-master-btn:hover {
+  background: rgba(74,199,219,0.1);
+  border-color: rgba(74,199,219,0.3);
+  color: rgba(255,255,255,0.85);
+}
+.vz-dock-sync-master-btn--on {
+  background: rgba(74,199,219,0.14);
+  border-color: rgba(74,199,219,0.55);
+  color: var(--az-cyan);
+  box-shadow: 0 0 10px rgba(74,199,219,0.2);
+}
+.vz-dock-sync-master-label {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  line-height: 1;
+}
+.vz-dock-sync-master-sub {
+  font-size: 7px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  opacity: 0.6;
+}
+.vz-dock-sync-master-btn--on .vz-dock-sync-master-sub { opacity: 0.8; }
+
+/* BPM block */
+.vz-dock-bpm-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.vz-dock-bpm-block-label {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.38);
+  line-height: 1;
+}
+.vz-dock-bpm-block-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.vz-dock-bpm-block-val {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--az-cyan);
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
+}
+.vz-dock-bpm-chevrons {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.vz-dock-bpm-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 13px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 3px;
+  color: rgba(255,255,255,0.5);
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.1s;
+}
+.vz-dock-bpm-chevron:hover {
+  background: rgba(74,199,219,0.15);
+  color: var(--az-cyan);
+  border-color: rgba(74,199,219,0.3);
+}
+
+/* TAP button */
+.vz-dock-tap-btn {
+  padding: 0 10px;
+  height: 32px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 4px;
+  color: rgba(255,255,255,0.72);
+  font-family: var(--az-font);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.12s;
+}
+.vz-dock-tap-btn:hover {
+  background: rgba(74,199,219,0.12);
+  border-color: rgba(74,199,219,0.4);
+  color: var(--az-cyan);
+}
+.vz-dock-tap-btn:active {
+  background: rgba(74,199,219,0.24);
+  box-shadow: 0 0 8px rgba(74,199,219,0.3);
+}
+
+/* Beat-grid button */
+.vz-dock-beatgrid-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  color: rgba(255,255,255,0.5);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.12s;
+}
+.vz-dock-beatgrid-btn:hover {
+  background: rgba(74,199,219,0.1);
+  border-color: rgba(74,199,219,0.3);
+  color: var(--az-cyan);
+}
+.vz-dock-beatgrid-btn--on {
+  background: rgba(74,199,219,0.14);
+  border-color: rgba(74,199,219,0.5);
+  color: var(--az-cyan);
+  box-shadow: 0 0 8px rgba(74,199,219,0.18);
+}
+
+/* Time display */
+.vz-dock-time-display {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 0 2px;
+}
+.vz-dock-time-current {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--az-cyan);
+  letter-spacing: 0.03em;
+  line-height: 1;
+  white-space: nowrap;
+}
+.vz-dock-time-total {
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255,255,255,0.36);
+  letter-spacing: 0.03em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Mini waveform canvas */
+.vz-mini-waveform {
+  flex: 1;
+  min-width: 100px;
+  height: 46px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.07);
+  display: block;
+  overflow: hidden;
+}
+
+/* Waveform zoom buttons */
+.vz-dock-zoom-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.vz-dock-zoom-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 3px;
+  color: rgba(255,255,255,0.5);
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: all 0.1s;
+}
+.vz-dock-zoom-btn:hover:not(:disabled) {
+  background: rgba(74,199,219,0.12);
+  color: var(--az-cyan);
+  border-color: rgba(74,199,219,0.3);
+}
+.vz-dock-zoom-btn:disabled { opacity: 0.22; cursor: default; }
+
+/* Cue marker strip */
+.vz-cue-strip {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  max-width: 340px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.vz-cue-strip::-webkit-scrollbar { display: none; }
+
+.vz-cue-marker-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 8px;
+  height: 36px;
+  min-width: 52px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  color: rgba(255,255,255,0.65);
+  font-family: var(--az-font);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.12s;
+}
+.vz-cue-marker-btn:hover {
+  background: rgba(184,79,201,0.12);
+  border-color: rgba(184,79,201,0.38);
+  color: rgba(255,255,255,0.9);
+}
+.vz-cue-marker-btn--active {
+  background: rgba(184,79,201,0.18);
+  border-color: rgba(184,79,201,0.65);
+  color: #fff;
+  box-shadow: 0 0 8px rgba(184,79,201,0.2);
+}
+.vz-cue-marker-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1;
+  white-space: nowrap;
+}
+.vz-cue-marker-time {
+  font-size: 8.5px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255,255,255,0.38);
+  line-height: 1;
+  white-space: nowrap;
+}
+.vz-cue-marker-btn--active .vz-cue-marker-time { color: rgba(255,255,255,0.72); }
+
+/* Add marker (+) button */
+.vz-dock-add-marker-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 36px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  color: rgba(255,255,255,0.42);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.12s;
+}
+.vz-dock-add-marker-btn:hover:not(:disabled) {
+  background: rgba(74,199,219,0.1);
+  border-color: rgba(74,199,219,0.3);
+  color: var(--az-cyan);
+}
+.vz-dock-add-marker-btn:disabled { opacity: 0.28; cursor: default; }
+
 /* ── Responsive ──────────────────────────────────────────────────────── */
 @media (max-width: 1280px) {
   .vz-content {
