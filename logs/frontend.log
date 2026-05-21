@@ -3,13 +3,84 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 114 ms
+  VITE v5.4.21  ready in 148 ms
 
   ➜  Local:   http://127.0.0.1:5173/
-11:34:02 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
-11:34:09 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
-11:34:14 PM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
-11:34:20 PM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
-11:34:25 PM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
-11:34:31 PM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
-11:34:36 PM [vite] hmr update /src/styles/vyzualz.css
+12:54:54 AM [vite] hmr update /src/App.tsx
+12:55:07 AM [vite] hmr update /src/components/analyzer/AnalyzerSidebar.tsx
+1:19:21 AM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
+1:19:28 AM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
+1:19:44 AM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
+1:19:44 AM [vite] Internal server error: /Users/kodyrobinson/Development/DRMVYZ/src/components/vyzualz/VyzualzView.tsx: Identifier 'cx' has already been declared. (1152:12)
+
+  1150 |
+  1151 |       const mediaEl = mediaElRef.current
+> 1152 |       const cx = W / 2, cy = H / 2
+       |             ^
+  1153 |
+  1154 |       // ── Role-aware draw setup ──────────────────────────────────────
+  1155 |       const role        = activeMediaRoleRef.current
+  Plugin: vite:react-babel
+  File: /Users/kodyrobinson/Development/DRMVYZ/src/components/vyzualz/VyzualzView.tsx:1152:12
+  1150|  
+  1151|        const mediaEl = mediaElRef.current
+  1152|        const cx = W / 2, cy = H / 2
+     |              ^
+  1153|  
+  1154|        // ── Role-aware draw setup ──────────────────────────────────────
+      at constructor (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:365:19)
+      at TypeScriptParserMixin.raise (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:6616:19)
+      at TypeScriptScopeHandler.checkRedeclarationInScope (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:1619:19)
+      at TypeScriptScopeHandler.declareName (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:1585:12)
+      at TypeScriptScopeHandler.declareName (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:4892:11)
+      at TypeScriptParserMixin.declareNameFromIdentifier (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:7584:16)
+      at TypeScriptParserMixin.checkIdentifier (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:7580:12)
+      at TypeScriptParserMixin.checkLVal (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:7517:12)
+      at TypeScriptParserMixin.parseVarId (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13429:10)
+      at TypeScriptParserMixin.parseVarId (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9769:11)
+      at TypeScriptParserMixin.parseVar (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13400:12)
+      at TypeScriptParserMixin.parseVarStatement (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13247:10)
+      at TypeScriptParserMixin.parseVarStatement (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9425:31)
+      at TypeScriptParserMixin.parseStatementContent (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12868:23)
+      at TypeScriptParserMixin.parseStatementContent (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9525:18)
+      at TypeScriptParserMixin.parseStatementLike (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12784:17)
+      at TypeScriptParserMixin.parseStatementListItem (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12764:17)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13333:61)
+      at TypeScriptParserMixin.parseBlockBody (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13326:10)
+      at TypeScriptParserMixin.parseBlock (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13314:10)
+      at TypeScriptParserMixin.parseFunctionBody (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12117:24)
+      at TypeScriptParserMixin.parseFunctionBodyAndFinish (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12103:10)
+      at TypeScriptParserMixin.parseFunctionBodyAndFinish (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9189:18)
+      at /Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13462:12
+      at TypeScriptParserMixin.withSmartMixTopicForbiddingContext (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12420:14)
+      at TypeScriptParserMixin.parseFunction (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13461:10)
+      at TypeScriptParserMixin.parseFunctionStatement (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13142:17)
+      at TypeScriptParserMixin.parseStatementContent (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12808:21)
+      at TypeScriptParserMixin.parseStatementContent (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9525:18)
+      at TypeScriptParserMixin.parseStatementLike (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12784:17)
+      at TypeScriptParserMixin.parseStatementListItem (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12764:17)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13333:61)
+      at TypeScriptParserMixin.parseBlockBody (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13326:10)
+      at TypeScriptParserMixin.parseBlock (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:13314:10)
+      at TypeScriptParserMixin.parseFunctionBody (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12117:24)
+      at TypeScriptParserMixin.parseArrowExpression (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12092:10)
+      at TypeScriptParserMixin.parseParenAndDistinguishExpression (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11704:12)
+      at TypeScriptParserMixin.parseExprAtom (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11348:23)
+      at TypeScriptParserMixin.parseExprAtom (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:4776:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11098:23)
+      at TypeScriptParserMixin.parseUpdate (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11083:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11063:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9854:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10916:61)
+      at TypeScriptParserMixin.parseExprOps (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10921:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10898:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10848:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9803:20)
+      at /Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10817:39
+      at TypeScriptParserMixin.allowInAnd (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12443:12)
+1:19:52 AM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
+1:19:58 AM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
+1:20:08 AM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
+1:20:28 AM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
+1:20:37 AM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
+1:20:49 AM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx

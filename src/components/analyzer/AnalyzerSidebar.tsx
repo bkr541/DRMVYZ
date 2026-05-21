@@ -18,28 +18,7 @@ export function AnalyzerSidebar({ activeView = 'analyzer', onNavigate }: Props) 
 
       <nav className="az-nav">
         <div
-          className={`az-nav-item ${activeView === 'analyzer' ? 'az-nav-item--active' : ''}`}
-          onClick={() => onNavigate?.('analyzer')}
-          title="Analyzer"
-        >
-          <svg viewBox="0 0 20 20" width="20" height="20" fill="currentColor">
-            <path d="M3 3h14v2H3V3zm0 4h2v10H3V7zm4 3h2v7H7v-7zm4-2h2v9h-2V8zm4 3h2v6h-2v-6z"/>
-          </svg>
-          <span className="az-nav-label">Analyzer</span>
-        </div>
-        <div
-          className={`az-nav-item ${activeView === 'reference' ? 'az-nav-item--active' : ''}`}
-          onClick={() => onNavigate?.('reference')}
-          title="Reference"
-        >
-          <svg viewBox="0 0 20 20" width="20" height="20" fill="currentColor">
-            <path d="M2 4h16v2H2V4zm0 5h16v2H2V9zm0 5h10v2H2v-2zm12 0v5l4-2.5L14 14z"/>
-          </svg>
-          <span className="az-nav-label">Reference</span>
-        </div>
-        <div
-          className={`az-nav-item ${activeView === 'vyzualz' ? 'az-nav-item--active' : ''}`}
-          onClick={() => onNavigate?.('vyzualz')}
+          className="az-nav-item az-nav-item--active"
           title="Vyzualz"
         >
           <svg viewBox="0 0 20 20" width="20" height="20" fill="currentColor">

@@ -10,7 +10,7 @@ import { VyzualzErrorBoundary } from './components/vyzualz/VyzualzErrorBoundary'
 type AppView = 'analyzer' | 'reference' | 'vyzualz'
 
 export default function App() {
-  const [view, setView]     = useState<AppView>('analyzer')
+  const [view, setView]     = useState<AppView>('vyzualz')
   const [authed, setAuthed] = useState<boolean | null>(null)
 
   useEffect(() => {

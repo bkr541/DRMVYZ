@@ -41,10 +41,12 @@ import {
   drawSpectrumBars, drawCircularSpectrum, drawOscilloscope,
   updateAndDrawBeatRings, updateAndDrawParticles,
   drawReactiveGrid, getCameraShakeOffset,
-  drawKaleidoscope, drawMirrorSplit, drawRadialBlur,
-  drawVhsStatic, drawDatamoshSmear, drawEdgeGlow, drawColorCycle,
+  drawDatamoshSmear,
 } from './visualEffects'
 import type { BeatRing, BurstParticle } from './visualEffects'
+// ── Modular effect system ─────────────────────────────────────────────────────
+import { getEffectsForPhase } from './effects/registry'
+import type { VzFrameContext } from './effects/types'
 import { useLyricsStore } from '../../stores/lyricsStore'
 import type { LyricCue, LyricDocument, LyricStyle, LyricAnimation, LyricEasingName } from '../../types/lyrics'
 
@@ -678,12 +680,11 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
   const lastFrameTimeRef   = useRef<number | null>(null)
 
   // Stateful effect refs — persistent between frames (no re-render on change)
-  const beatRingsRef     = useRef<BeatRing[]>([])
-  const particlesRef     = useRef<BurstParticle[]>([])
-  const offscreenRef     = useRef<HTMLCanvasElement | null>(null)
-  const shakeAmountRef   = useRef(0)
-  const colorCycleHueRef = useRef(0)
-  const timeBufRef       = useRef<Uint8Array<ArrayBuffer> | null>(null)
+  const beatRingsRef   = useRef<BeatRing[]>([])
+  const particlesRef   = useRef<BurstParticle[]>([])
+  const offscreenRef   = useRef<HTMLCanvasElement | null>(null)
+  const shakeAmountRef = useRef(0)
+  const timeBufRef     = useRef<Uint8Array<ArrayBuffer> | null>(null)
 
   // Role-based rendering refs — updated when active media or timeline clip changes
   const activeMediaRoleRef    = useRef<MediaRole | null>(null)
@@ -935,13 +936,37 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
       const dispMod     = mEff.displacement
       const feedbackMod = Math.min(0.97, mEff.feedbackTrails)
       const glitchMod   = mEff.glitchAmount
-      const edgeFlicker = high * mEff.masterIntensity
       const bloomMod    = Math.min(1, mEff.bloom)
 
       // Beat boundary → flash hit / transition frame
       const onBeatBoundary = synced && beatPhase < 0.04
       // Free-mode transient detector — used by beat-reactive new effects
       const beatHit = onBeatBoundary || (!synced && bass > 0.65 && bass > prevBassRef.current + 0.07)
+
+      // Canvas center — used by inline code below and passed to effect modules
+      const cx = W / 2, cy = H / 2
+
+      // ── Per-frame context for modular effects ────────────────────────────
+      const frameCtx: VzFrameContext = {
+        W, H, dpr,
+        time:            t,
+        audioTime:       audioTimeRef.current,
+        bpm:             bpmRef.current,
+        beatPhase,
+        onBeatBoundary,
+        beatHit,
+        audio:           rawBands,
+        masterIntensity: mEff.masterIntensity,
+        quality: {
+          scanlineStep: q.scanlineStep,
+          fogParticles: q.fogParticles,
+          glitchMax:    q.glitchMax,
+          bloomBlur:    q.bloomBlur,
+          tunnelRings:  q.tunnelRings,
+        },
+        cx,
+        cy,
+      }
 
       // ── Background / feedback ──────────────────────────────────────
       // Low-mid modulates feedback retention (smear/bend)
@@ -1124,7 +1149,6 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
       }
 
       const mediaEl = mediaElRef.current
-      const cx = W / 2, cy = H / 2
 
       // ── Role-aware draw setup ──────────────────────────────────────
       const role        = activeMediaRoleRef.current
@@ -1282,7 +1306,6 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         drawGenerativeArt(ctx, W, H, dpr, t, speed, bass, { ...mEff, colorShift: activeColorShift })
       } else {
         // ── Idle — no media, not playing, no signal ────────────────
-        const cx = W / 2, cy = H / 2
         ctx.save()
         ctx.globalAlpha = 0.18
         ctx.strokeStyle = 'rgba(74,199,219,0.5)'
@@ -1403,49 +1426,29 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         updateAndDrawParticles(ctx, W, H, dpr, particlesRef.current, mEff.particleBurst, bass, beatHit)
       }
 
-      if (fxSet.has('Kaleidoscope') && mEff.kaleidoscope > 0) {
-        drawKaleidoscope(ctx, W, H, mEff.kaleidoscope)
-      }
-
-      if (fxSet.has('Mirror Split') && mEff.mirrorSplit > 0) {
-        drawMirrorSplit(ctx, W, H, mEff.mirrorSplit)
-      }
-
-      if (fxSet.has('Radial Blur') && mEff.radialBlur > 0) {
-        drawRadialBlur(ctx, W, H, mEff.radialBlur, bass)
-      }
-
-      if (fxSet.has('Edge Glow') && mEff.edgeGlow > 0) {
-        drawEdgeGlow(ctx, W, H, mEff.edgeGlow, rawBands.volume, high)
-      }
-
-      if (fxSet.has('Color Cycle') && mEff.colorCycle > 0) {
-        drawColorCycle(ctx, W, H, colorCycleHueRef, mEff.colorCycle, rawBands.mid, rawBands.volume)
+      // ── Post-media modular effects (inside camera-shake transform) ────────
+      for (const mod of getEffectsForPhase('postMedia')) {
+        if (!fxSet.has(mod.chainName)) continue
+        const intensity = (mEff as unknown as Record<string, number>)[mod.effectKey] ?? 0
+        if (intensity <= 0) continue
+        mod.draw(ctx, frameCtx, { ...mod.defaultParams, amount: intensity })
       }
 
       // Restore camera shake transform — HUD and scanlines stay in fixed screen space
       if (shakeApplied) ctx.restore()
 
-      // ── Scanlines ──────────────────────────────────────────────────
-      if (fxSet.has('Scanlines') && mEff.scanlines > 0) {
-        ctx.fillStyle = `rgba(0,0,0,${mEff.scanlines * 0.17})`
-        for (let y = 0; y < H; y += q.scanlineStep) ctx.fillRect(0, y, W, 1)
+      // ── Master modular effects (screen-space, post-shake) ─────────────────
+      // Scanlines, Noise Fog, Beat Flash, Edge Flicker, VHS Static
+      for (const mod of getEffectsForPhase('master')) {
+        if (!fxSet.has(mod.chainName)) continue
+        const intensity = (mEff as unknown as Record<string, number>)[mod.effectKey] ?? 0
+        if (intensity <= 0) continue
+        mod.draw(ctx, frameCtx, { ...mod.defaultParams, amount: intensity })
       }
 
-      // ── Noise fog ──────────────────────────────────────────────────
-      if (fxSet.has('Noise Fog') && mEff.noiseFog > 0) {
-        ctx.save()
-        ctx.globalAlpha = mEff.noiseFog * 0.12
-        for (let i = 0; i < q.fogParticles; i++) {
-          ctx.fillStyle = `rgba(74,199,219,${Math.random()})`
-          ctx.fillRect(Math.random() * W, Math.random() * H, 1, 1)
-        }
-        ctx.globalAlpha = 1
-        ctx.restore()
-      }
-
-      // ── Strobe — highs modulate sensitivity via activeStrobe ──────
-      // Beat sync: fire on boundary; free: trigger on bass transient.
+      // ── Strobe — legacy (TODO: modularize once multi-param chain gating is ready)
+      // Requires dual trigger paths (beat-sync vs bass-transient) and activeStrobe gating
+      // that differs from the standard effectKey→chainName pattern.
       const strobeOnBeat = synced && activeStrobe > 0 && beatPhase < 0.05
       const strobeOnBass = !synced && activeStrobe > 0 &&
         bass > 0.62 && bass > prevBassRef.current + 0.06
@@ -1457,34 +1460,8 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         ctx.fillRect(0, 0, W, H)
       }
 
-      // ── Beat flash hit (impact frame on beat boundary) ────────────
-      if (fxSet.has('Beat Flash') && mEff.beatFlash > 0 && onBeatBoundary) {
-        const decay = 1 - beatPhase / 0.04
-        ctx.fillStyle = `rgba(255,255,255,${mEff.beatFlash * 0.18 * decay})`
-        ctx.fillRect(0, 0, W, H)
-        const ring = ctx.createRadialGradient(cx, cy, Math.min(W, H) * 0.28, cx, cy, Math.min(W, H) * 0.54)
-        ring.addColorStop(0, 'rgba(74,199,219,0)')
-        ring.addColorStop(1, `rgba(74,199,219,${0.38 * decay * mEff.beatFlash})`)
-        ctx.fillStyle = ring
-        ctx.fillRect(0, 0, W, H)
-      }
-
-      // ── Edge flicker — highs create a vignette shimmer ────────────
-      if (fxSet.has('Edge Flicker') && mEff.edgeFlicker > 0 && edgeFlicker > 0.15) {
-        const flickerAlpha = (edgeFlicker - 0.15) * mEff.edgeFlicker * 0.45
-        const grad = ctx.createRadialGradient(cx, cy, Math.min(W, H) * 0.3, cx, cy, Math.min(W, H) * 0.55)
-        grad.addColorStop(0, 'rgba(74,199,219,0)')
-        grad.addColorStop(1, `rgba(74,199,219,${flickerAlpha})`)
-        ctx.fillStyle = grad
-        ctx.fillRect(0, 0, W, H)
-      }
-
-      // ── VHS Static ────────────────────────────────────────────────
-      if (fxSet.has('VHS Static') && mEff.vhsStatic > 0) {
-        drawVhsStatic(ctx, W, H, mEff.vhsStatic, t)
-      }
-
       // ── Datamosh Smear: save this frame for next frame's ghost ────
+      // Legacy (TODO: modularize — needs offscreen canvas ref as persistent state)
       if (fxSet.has('Datamosh Smear') && mEff.datamoshSmear > 0) {
         if (!offscreenRef.current || offscreenRef.current.width !== W || offscreenRef.current.height !== H) {
           offscreenRef.current = document.createElement('canvas')
