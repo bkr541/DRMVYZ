@@ -7,6 +7,7 @@ import './styles/reference.css'
 import './styles/vyzualz.css'
 import './styles/mediaUploadModal.css'
 import './styles/lyricManagerModal.css'
+import './styles/lyricManager.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

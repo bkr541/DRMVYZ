@@ -3,13 +3,8 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 111 ms
+  VITE v5.4.21  ready in 112 ms
 
   ➜  Local:   http://127.0.0.1:5173/
-4:59:11 AM [vite] hmr update /src/styles/vyzualz.css
-4:59:43 AM [vite] hmr update /src/components/vyzualz/transport/VzMiniWaveform.tsx
-5:05:20 AM [vite] hmr update /src/components/analyzer/AnalyzerSidebar.tsx
-5:09:49 AM [vite] hmr update /src/styles/analyzer.css
-5:09:52 AM [vite] hmr update /src/components/analyzer/AnalyzerSidebar.tsx
-5:13:50 AM [vite] hmr update /src/styles/analyzer.css
-5:13:55 AM [vite] hmr update /src/styles/analyzer.css
+5:43:47 AM [vite] hmr update /src/styles/vyzualz.css
+5:44:03 AM [vite] hmr update /src/styles/vyzualz.css

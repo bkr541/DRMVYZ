@@ -1,0 +1,162 @@
+import type { LyricCue, LyricDocument, LyricStyle } from '../../../types/lyrics'
+import { validateLyricCues, formatMsCompact } from '../utils/lyricValidation'
+
+interface Props {
+  cues: LyricCue[]
+  document: LyricDocument | null
+  selectedCue: LyricCue | null
+  onPreviewInVisualizer: () => void
+}
+
+function StylePreviewBox({ cue, doc }: { cue: LyricCue; doc: LyricDocument | null }) {
+  const style: Partial<LyricStyle> = { ...doc?.defaultStyle, ...cue.style }
+  const color      = style.color      ?? '#ffffff'
+  const fontSize   = Math.max(12, Math.min(42, (style.fontSize ?? 48) * 0.55))
+  const fontFamily = style.fontFamily ?? 'inherit'
+  const fontWeight = style.fontWeight ?? 700
+  const shadowBlur = style.shadowBlur  ?? 0
+  const shadowColor = style.shadowColor ?? 'transparent'
+  const strokeColor = style.strokeColor ?? 'transparent'
+
+  return (
+    <div className="lmv-preview-cue-box">
+      <div
+        className="lmv-preview-cue-text"
+        style={{
+          color,
+          fontSize,
+          fontFamily,
+          fontWeight,
+          textShadow: shadowBlur > 0 ? `0 0 ${shadowBlur}px ${shadowColor}` : undefined,
+          WebkitTextStroke: style.strokeWidth ? `${style.strokeWidth * 0.5}px ${strokeColor}` : undefined,
+          textAlign: (style.align as React.CSSProperties['textAlign']) ?? 'center',
+          letterSpacing: style.letterSpacing ? `${style.letterSpacing}em` : undefined,
+          textTransform: style.textTransform as React.CSSProperties['textTransform'],
+        }}
+      >
+        {cue.text}
+      </div>
+      <div className="lmv-preview-cue-timing">
+        {formatMsCompact(cue.startMs)} → {formatMsCompact(cue.endMs)}
+      </div>
+    </div>
+  )
+}
+
+export function LyricPreviewPanel({ cues, document, selectedCue, onPreviewInVisualizer }: Props) {
+  const validation = validateLyricCues(cues)
+
+  const fmtMs = (ms: number | null) =>
+    ms !== null ? formatMsCompact(ms) : '—'
+
+  const fmtDuration = (ms: number | null) => {
+    if (ms === null) return '—'
+    const s = ms / 1000
+    const m = Math.floor(s / 60)
+    const sec = (s % 60).toFixed(1)
+    return m > 0 ? `${m}m ${sec}s` : `${sec}s`
+  }
+
+  return (
+    <aside className="lmv-right-panel">
+
+      {/* Live Preview */}
+      <div className="lmv-panel-card">
+        <div className="lmv-panel-card-title">LIVE PREVIEW</div>
+        {selectedCue ? (
+          <StylePreviewBox cue={selectedCue} doc={document} />
+        ) : (
+          <div className="lmv-preview-empty">
+            Select a cue to preview its appearance
+          </div>
+        )}
+        <button
+          className="lmv-btn lmv-btn--ghost lmv-preview-viz-btn"
+          onClick={onPreviewInVisualizer}
+          title="Push draft cues to visualizer for live preview"
+        >
+          Preview in Visualizer
+        </button>
+      </div>
+
+      {/* Validation */}
+      <div className="lmv-panel-card">
+        <div className="lmv-panel-card-title">
+          VALIDATION
+          <span className={`lmv-valid-badge${validation.valid ? ' lmv-valid-badge--ok' : ' lmv-valid-badge--err'}`}>
+            {validation.valid ? 'OK' : `${validation.errors.length} error${validation.errors.length !== 1 ? 's' : ''}`}
+          </span>
+        </div>
+
+        {validation.errors.length > 0 && (
+          <div className="lmv-msg-list lmv-msg-list--error">
+            {validation.errors.map((e, i) => (
+              <div key={i} className="lmv-msg-item">✕ {e}</div>
+            ))}
+          </div>
+        )}
+        {validation.warnings.length > 0 && (
+          <div className="lmv-msg-list lmv-msg-list--warn">
+            {validation.warnings.slice(0, 5).map((w, i) => (
+              <div key={i} className="lmv-msg-item">⚠ {w}</div>
+            ))}
+            {validation.warnings.length > 5 && (
+              <div className="lmv-msg-item lmv-msg-muted">
+                +{validation.warnings.length - 5} more warnings
+              </div>
+            )}
+          </div>
+        )}
+        {validation.valid && validation.warnings.length === 0 && cues.length > 0 && (
+          <div className="lmv-valid-ok-msg">All cues are valid</div>
+        )}
+      </div>
+
+      {/* Stats */}
+      <div className="lmv-panel-card">
+        <div className="lmv-panel-card-title">DOCUMENT STATS</div>
+        <div className="lmv-stats-grid">
+          <div className="lmv-stat-row">
+            <span className="lmv-stat-label">Cues</span>
+            <span className="lmv-stat-value">{validation.cueCount}</span>
+          </div>
+          <div className="lmv-stat-row">
+            <span className="lmv-stat-label">Words</span>
+            <span className="lmv-stat-value">{validation.wordCount}</span>
+          </div>
+          <div className="lmv-stat-row">
+            <span className="lmv-stat-label">Groups</span>
+            <span className="lmv-stat-value">{validation.groupCount}</span>
+          </div>
+          <div className="lmv-stat-row">
+            <span className="lmv-stat-label">Start</span>
+            <span className="lmv-stat-value">{fmtMs(validation.earliestStartMs)}</span>
+          </div>
+          <div className="lmv-stat-row">
+            <span className="lmv-stat-label">End</span>
+            <span className="lmv-stat-value">{fmtMs(validation.latestEndMs)}</span>
+          </div>
+          <div className="lmv-stat-row">
+            <span className="lmv-stat-label">Duration</span>
+            <span className="lmv-stat-value">{fmtDuration(validation.totalDurationMs)}</span>
+          </div>
+          {document && (
+            <>
+              <div className="lmv-stat-row">
+                <span className="lmv-stat-label">Source</span>
+                <span className="lmv-stat-value">{document.sourceType}</span>
+              </div>
+              <div className="lmv-stat-row">
+                <span className="lmv-stat-label">Active</span>
+                <span className={`lmv-stat-value${document.isActive ? ' lmv-stat-active' : ''}`}>
+                  {document.isActive ? 'Yes' : 'No'}
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+    </aside>
+  )
+}

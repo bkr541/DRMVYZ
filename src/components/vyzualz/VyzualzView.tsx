@@ -4,6 +4,7 @@ import {
   Tv01Icon,
 } from 'hugeicons-react'
 import { AnalyzerSidebar } from '../analyzer/AnalyzerSidebar'
+import { LyricManagerView } from '../../features/lyrics/LyricManagerView'
 import { useSharedAudio }  from '../../context/AudioEngineContext'
 import { useMediaStore }   from '../../stores/mediaStore'
 import { useVisualStore, DEFAULT_PRESETS }  from '../../stores/visualStore'
@@ -490,6 +491,9 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   const engine = useSharedAudio()
   const analyser = engine.analyserMaster
 
+  // App-level view: 'visualizer' (default) or 'lyrics'
+  const [appView, setAppView] = useState<'visualizer' | 'lyrics'>('visualizer')
+
   const {
     effects, enabledFxArr,
     activeMediaId, presets, activePresetId,
@@ -658,11 +662,37 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     onSelectPreset: handleSelectPreset,
   })
 
+  // ── Lyrics view ─────────────────────────────────────────────────────
+  if (appView === 'lyrics') {
+    return (
+      <div className="az-root">
+        <div className="az-shell">
+          <AnalyzerSidebar
+            activeView={activeView}
+            onNavigate={onNavigate}
+            compact
+            appView={appView}
+            onAppViewChange={setAppView}
+          />
+          <LyricManagerView onBack={() => setAppView('visualizer')} />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <VyzualzShell
       isLeftInspectorCollapsed={isLeftInspectorCollapsed}
       isRightInspectorCollapsed={isRightInspectorCollapsed}
-      sidebar={<AnalyzerSidebar activeView={activeView} onNavigate={onNavigate} compact />}
+      sidebar={
+        <AnalyzerSidebar
+          activeView={activeView}
+          onNavigate={onNavigate}
+          compact
+          appView={appView}
+          onAppViewChange={setAppView}
+        />
+      }
       topBar={
         <VyzualzTopBar
           analyser={analyser}
