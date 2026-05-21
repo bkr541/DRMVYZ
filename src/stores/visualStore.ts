@@ -816,7 +816,9 @@ export const useVisualStore = create<VisualState>()(
         effectParams:      s.effectParams,
         enabledFxArr:      s.enabledFxArr,
         activePresetId:    s.activePresetId,
-        activeMediaId:     s.activeMediaId,
+        // INTENTIONAL: activeMediaId and layerItems are NOT persisted.
+        // The canvas must start blank on every launch so users begin each session
+        // with a clean slate. This is by design — do not restore these fields.
         presets:           s.presets.filter(p => !p.isDefault),
         sessions:          s.sessions,
         bpm:               s.bpm,
@@ -824,7 +826,6 @@ export const useVisualStore = create<VisualState>()(
         quality:           s.quality,
         modulationRoutes:  s.modulationRoutes,
         layerConfigs:      s.layerConfigs,
-        layerItems:        s.layerItems,
         beatGridEnabled:    s.beatGridEnabled,
         cueMarkers:         s.cueMarkers,
         autoQualityEnabled: s.autoQualityEnabled,
@@ -873,19 +874,10 @@ export const useVisualStore = create<VisualState>()(
           autoQualityMin:     (p as Partial<VisualState>).autoQualityMin     ?? 'Low',
           autoQualityMax:     (p as Partial<VisualState>).autoQualityMax     ?? 'High',
           autoQualityReason:  '',
-          // Restore saved layer items; migrate from old-style layerConfig.mediaId if absent.
-          layerItems: (() => {
-            const saved = (p.layerItems ?? []) as VzLayerItem[]
-            if (saved.length > 0) return saved
-            // Migration: if no items saved but old configs had explicit mediaId, create one item per layer
-            const cfgs = (p.layerConfigs ?? []) as VzLayerConfig[]
-            return cfgs
-              .filter(c => c.mediaId)
-              .map(c => createDefaultLayerItem(c.mediaId!, c.id as VzLayerConfigId, {
-                blendMode: c.blendMode,
-                fitMode:   c.fit,
-              }))
-          })(),
+          // INTENTIONAL: always reset to blank canvas on launch regardless of what
+          // older localStorage snapshots may contain. Do not restore these fields.
+          activeMediaId: null,
+          layerItems:    [],
         }
       },
     }
