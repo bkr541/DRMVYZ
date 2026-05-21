@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { getBandAvg } from '../../../lib/audioModulation'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
-import { LyricManagerModal } from '../LyricManagerModal'
 import { SettingsModal } from '../settings/SettingsModal'
 
 function BeatCanvas({ bass }: { bass: number }) {
@@ -93,8 +92,7 @@ export function VyzualzTopBar({ analyser, bassLive, onSaveSession }: VyzualzTopB
   const analyserRef = useRef<AnalyserNode | null>(null)
   const freqBufRef  = useRef<Uint8Array<ArrayBuffer> | null>(null)
   const animRef     = useRef<number>(0)
-  const [settingsOpen,     setSettingsOpen]     = useState(false)
-  const [lyricManagerOpen, setLyricManagerOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   useEffect(() => {
     analyserRef.current = analyser
@@ -140,19 +138,6 @@ export function VyzualzTopBar({ analyser, bassLive, onSaveSession }: VyzualzTopB
           <div className="vz-header-title">VYZUALZ</div>
           <div className="vz-header-sub">Visual Audio Synthesizer</div>
         </div>
-
-        <div className="vz-header-sep" />
-
-        <button
-          className="vz-session-save-btn"
-          onClick={() => setLyricManagerOpen(true)}
-          title="Open Lyric Manager"
-        >
-          <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true">
-            <path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm-1 14H9V7h2v10zm4 0h-2V7h2v10z"/>
-          </svg>
-          Lyric Manager
-        </button>
 
         <div className="vz-header-sep" />
 
@@ -208,8 +193,7 @@ export function VyzualzTopBar({ analyser, bassLive, onSaveSession }: VyzualzTopB
         </button>
         <button className="az-overflow-btn">···</button>
       </div>
-      {settingsOpen     && <SettingsModal      onClose={() => setSettingsOpen(false)} />}
-      {lyricManagerOpen && <LyricManagerModal  onClose={() => setLyricManagerOpen(false)} />}
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
     </>
   )
 }
