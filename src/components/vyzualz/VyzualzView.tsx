@@ -44,13 +44,190 @@ import {
   drawVhsStatic, drawDatamoshSmear, drawEdgeGlow, drawColorCycle,
 } from './visualEffects'
 import type { BeatRing, BurstParticle } from './visualEffects'
+import { useLyricsStore } from '../../stores/lyricsStore'
+import type { LyricCue, LyricDocument, LyricStyle, LyricAnimation, LyricEasingName } from '../../types/lyrics'
+
+// ── Lyric rendering helpers ───────────────────────────────────────────────────
+
+const LYRIC_DEF_STYLE: LyricStyle = {
+  fontFamily: 'Inter, system-ui, sans-serif',
+  fontSize: 46, fontWeight: 700,
+  color: '#ffffff', opacity: 1,
+  strokeColor: '', strokeWidth: 0,
+  shadowColor: 'rgba(0,0,0,0.85)', shadowBlur: 14, shadowOffsetX: 0, shadowOffsetY: 2,
+  x: 0.5, y: 0.82, align: 'center', baseline: 'middle',
+  maxWidth: 0.88, letterSpacing: 0, lineHeight: 1.3,
+  textTransform: 'none', blendMode: 'source-over',
+}
+
+const LYRIC_DEF_ANIM: LyricAnimation = {
+  in: 'fade', out: 'fade', inMs: 280, outMs: 180,
+  easing: 'easeOut', delayMs: 0, staggerMs: 0,
+  direction: 'up', intensity: 1,
+}
+
+function lyricEase(name: LyricEasingName, t: number): number {
+  switch (name) {
+    case 'easeIn':          return t * t
+    case 'easeOut':         return 1 - (1 - t) * (1 - t)
+    case 'easeInOut':       return t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t)
+    case 'easeOutCubic':    return 1 - (1 - t) ** 3
+    case 'easeInCubic':     return t ** 3
+    case 'easeInOutCubic':  return t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2
+    default:                return t
+  }
+}
+
+function lyricTextTransform(text: string, tf: LyricStyle['textTransform']): string {
+  switch (tf) {
+    case 'uppercase':  return text.toUpperCase()
+    case 'lowercase':  return text.toLowerCase()
+    case 'capitalize': return text.replace(/\b\w/g, c => c.toUpperCase())
+    default:           return text
+  }
+}
+
+function wrapLyricText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string[] {
+  const words = text.split(' ')
+  const lines: string[] = []
+  let line = ''
+  for (const word of words) {
+    const test = line ? `${line} ${word}` : word
+    if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = word }
+    else line = test
+  }
+  if (line) lines.push(line)
+  return lines
+}
+
+function drawLyricCue(
+  ctx: CanvasRenderingContext2D,
+  cue: LyricCue,
+  activeMs: number,
+  doc: LyricDocument | null,
+  W: number, H: number, dpr: number,
+): void {
+  const style: LyricStyle = { ...LYRIC_DEF_STYLE, ...(doc?.defaultStyle ?? {}), ...(cue.style ?? {}) }
+  const anim: LyricAnimation = { ...LYRIC_DEF_ANIM, ...(doc?.defaultAnimation ?? {}), ...(cue.animation ?? {}) }
+
+  const elapsed = activeMs - cue.startMs - anim.delayMs
+  // inT: 0 = just appeared, 1 = fully visible
+  const inT  = Math.max(0, Math.min(1, elapsed / Math.max(1, anim.inMs)))
+  // outT: 0 = fully visible, 1 = fully gone
+  const outT = Math.max(0, Math.min(1, (activeMs - (cue.endMs - anim.outMs)) / Math.max(1, anim.outMs)))
+
+  const easedIn  = lyricEase(anim.easing, inT)
+  const easedOut = lyricEase(anim.easing, outT)
+  const visibility = Math.max(0, Math.min(1, easedIn * (1 - easedOut)))
+  if (visibility <= 0) return
+
+  let displayText = lyricTextTransform(cue.text, style.textTransform)
+  if (anim.in === 'typewriter' && inT < 1) {
+    displayText = displayText.slice(0, Math.max(1, Math.ceil(displayText.length * easedIn)))
+  } else if (anim.out === 'typewriter' && outT > 0) {
+    displayText = displayText.slice(0, Math.max(0, Math.ceil(displayText.length * (1 - easedOut))))
+  }
+
+  const fs     = style.fontSize * dpr
+  const shift  = 28 * dpr * anim.intensity
+  const maxW   = style.maxWidth > 0 ? style.maxWidth * W : W * 0.9
+  const lineH  = fs * style.lineHeight
+
+  // Compute per-animation offsets
+  let tx = 0, ty = 0, sc = 1, blurPx = 0
+
+  // IN animation
+  const ip = 1 - easedIn  // 1 at start → 0 when settled
+  switch (anim.in) {
+    case 'fadeUp':   ty -= shift * ip; break
+    case 'fadeDown': ty += shift * ip; break
+    case 'scale':    sc *= 0.8 + 0.2 * easedIn; break
+    case 'scalePop': sc *= 1 + 0.18 * (1 - easedIn) * Math.sin(easedIn * Math.PI); break
+    case 'slide': {
+      const d = anim.direction
+      if (d === 'up')    ty -= shift * ip
+      else if (d === 'down')  ty += shift * ip
+      else if (d === 'left')  tx -= shift * ip
+      else                    tx += shift * ip
+      break
+    }
+    case 'blurIn':  blurPx = Math.max(blurPx, (1 - easedIn) * 12 * anim.intensity); break
+    case 'glitch':
+    case 'glitchOut': tx += (Math.random() - 0.5) * shift * 0.4 * ip; break
+    default: break
+  }
+
+  // OUT animation
+  const op = easedOut  // 0 settled → 1 gone
+  switch (anim.out) {
+    case 'fadeUp':   ty -= shift * op; break
+    case 'fadeDown': ty += shift * op; break
+    case 'scale':    sc *= 1 - 0.2 * easedOut; break
+    case 'slide': {
+      const d = anim.direction
+      if (d === 'up')    ty -= shift * op
+      else if (d === 'down')  ty += shift * op
+      else if (d === 'left')  tx -= shift * op
+      else                    tx += shift * op
+      break
+    }
+    case 'blurOut': blurPx = Math.max(blurPx, easedOut * 12 * anim.intensity); break
+    case 'glitch':
+    case 'glitchOut': tx += (Math.random() - 0.5) * shift * 0.4 * op; break
+    default: break
+  }
+
+  ctx.save()
+  ctx.globalAlpha = Math.max(0, visibility * style.opacity)
+  ctx.globalCompositeOperation = style.blendMode
+  if (blurPx > 0) ctx.filter = `blur(${blurPx}px)`
+  ctx.font = `${style.fontWeight} ${fs}px ${style.fontFamily}`
+  ctx.textAlign = style.align
+  ctx.textBaseline = style.baseline
+  if (style.letterSpacing > 0) {
+    (ctx as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing = `${style.letterSpacing * dpr}px`
+  }
+  if (style.shadowBlur > 0 || style.shadowOffsetX !== 0 || style.shadowOffsetY !== 0) {
+    ctx.shadowColor   = style.shadowColor
+    ctx.shadowBlur    = style.shadowBlur * dpr
+    ctx.shadowOffsetX = style.shadowOffsetX * dpr
+    ctx.shadowOffsetY = style.shadowOffsetY * dpr
+  }
+
+  ctx.translate(style.x * W + tx, style.y * H + ty)
+  if (sc !== 1) ctx.scale(sc, sc)
+
+  const lines = wrapLyricText(ctx, displayText, maxW)
+  const totalH = lines.length * lineH
+  const startY = -totalH / 2 + lineH / 2
+
+  // Reset shadow for stroke pass
+  const drawLines = (stroke: boolean) => {
+    if (stroke) { ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0 }
+    lines.forEach((ln, i) => {
+      if (stroke) ctx.strokeText(ln, 0, startY + i * lineH)
+      else        ctx.fillText(ln,   0, startY + i * lineH)
+    })
+  }
+
+  ctx.fillStyle = style.color
+  drawLines(false)
+
+  if (style.strokeWidth > 0 && style.strokeColor) {
+    ctx.strokeStyle = style.strokeColor
+    ctx.lineWidth   = style.strokeWidth * dpr
+    drawLines(true)
+  }
+
+  ctx.restore()
+}
 
 // ── Constants ─────────────────────────────────────────────────────────
 const EFFECT_CHAIN_ITEMS = [
   'RGB Split','Glitch Bars','Scanlines','Tunnel','Displacement','Noise Fog','Bloom','Feedback','Strobe','Color Shift',
   'Spectrum Bars','Circular Spectrum','Oscilloscope','Beat Ring','Particle Burst',
   'Reactive Grid','Camera Shake','Kaleidoscope','Mirror Split','Radial Blur',
-  'VHS Static','Datamosh Smear','Edge Glow','Color Cycle',
+  'VHS Static','Datamosh Smear','Edge Glow','Color Cycle','Beat Flash','Edge Flicker',
 ] as const
 
 /** Maps VzEffects keys → their controlling chain item name. Keys absent from this map have no chain gate. */
@@ -77,6 +254,10 @@ const EFFECT_CONTROL_CHAIN_MAP: Partial<Record<keyof VzEffects, string>> = {
   datamoshSmear:   'Datamosh Smear',
   edgeGlow:        'Edge Glow',
   colorCycle:      'Color Cycle',
+  noiseFog:        'Noise Fog',
+  scanlines:       'Scanlines',
+  beatFlash:       'Beat Flash',
+  edgeFlicker:     'Edge Flicker',
 }
 const SHORTCUTS = [
   { key: '1–5', desc: 'Switch Preset' },
@@ -476,6 +657,12 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
   const incomingFitModeRef   = useRef<'cover' | 'contain' | null>(null)
   const prevTransitionOnRef  = useRef(false)
 
+  // Lyrics refs — populated via store subscription, no re-render needed
+  const lyricsEnabledRef  = useRef(false)
+  const lyricsCuesRef     = useRef<LyricCue[]>([])
+  const lyricsOffsetMsRef = useRef(0)
+  const lyricsDocRef      = useRef<LyricDocument | null>(null)
+
   // FPS measurement — updated once per second inside the RAF loop
   const fpsRef            = useRef(0)
   const fpsFrameCountRef  = useRef(0)
@@ -514,6 +701,18 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         lastFrameTimeRef.current = null
       }
     })
+  }, [])
+
+  // Subscribe to lyrics store — no prop threading needed
+  useEffect(() => {
+    const sync = (s: ReturnType<typeof useLyricsStore.getState>) => {
+      lyricsEnabledRef.current  = s.lyricsEnabled
+      lyricsCuesRef.current     = s.cues
+      lyricsOffsetMsRef.current = s.globalOffsetMs
+      lyricsDocRef.current      = s.activeDocument
+    }
+    sync(useLyricsStore.getState())
+    return useLyricsStore.subscribe(sync)
   }, [])
 
   useEffect(() => {
@@ -600,6 +799,13 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         mediaPoolRef.current.delete(id)
       }
     })
+    // If the currently-drawn media was just evicted, clear the canvas media ref
+    // so the old frame doesn't persist (e.g. after clearTimeline)
+    if (timelineClips.length === 0 || !tlIds.has(activeClipIdRef.current ?? '')) {
+      activeClipIdRef.current = null
+      activeClipRef.current   = null
+      if (timelineEnabledRef.current) mediaElRef.current = null
+    }
   }, [timelineClips, mediaItems])
 
   // Main RAF loop — runs once, reads from refs
@@ -1163,15 +1369,15 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
       if (shakeApplied) ctx.restore()
 
       // ── Scanlines ──────────────────────────────────────────────────
-      if (fxSet.has('Scanlines')) {
-        ctx.fillStyle = `rgba(0,0,0,${0.1 + mEff.masterIntensity * 0.07})`
+      if (fxSet.has('Scanlines') && mEff.scanlines > 0) {
+        ctx.fillStyle = `rgba(0,0,0,${mEff.scanlines * 0.17})`
         for (let y = 0; y < H; y += q.scanlineStep) ctx.fillRect(0, y, W, 1)
       }
 
       // ── Noise fog ──────────────────────────────────────────────────
-      if (fxSet.has('Noise Fog') && mEff.masterIntensity > 0.3) {
+      if (fxSet.has('Noise Fog') && mEff.noiseFog > 0) {
         ctx.save()
-        ctx.globalAlpha = (mEff.masterIntensity - 0.3) * 0.12
+        ctx.globalAlpha = mEff.noiseFog * 0.12
         for (let i = 0; i < q.fogParticles; i++) {
           ctx.fillStyle = `rgba(74,199,219,${Math.random()})`
           ctx.fillRect(Math.random() * W, Math.random() * H, 1, 1)
@@ -1194,21 +1400,20 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
       }
 
       // ── Beat flash hit (impact frame on beat boundary) ────────────
-      if (onBeatBoundary) {
+      if (fxSet.has('Beat Flash') && mEff.beatFlash > 0 && onBeatBoundary) {
         const decay = 1 - beatPhase / 0.04
-        ctx.fillStyle = `rgba(255,255,255,${(0.07 + mEff.masterIntensity * 0.11) * decay})`
+        ctx.fillStyle = `rgba(255,255,255,${mEff.beatFlash * 0.18 * decay})`
         ctx.fillRect(0, 0, W, H)
-        // Cyan edge ring — clear beat indicator regardless of effects chain state
         const ring = ctx.createRadialGradient(cx, cy, Math.min(W, H) * 0.28, cx, cy, Math.min(W, H) * 0.54)
         ring.addColorStop(0, 'rgba(74,199,219,0)')
-        ring.addColorStop(1, `rgba(74,199,219,${0.38 * decay})`)
+        ring.addColorStop(1, `rgba(74,199,219,${0.38 * decay * mEff.beatFlash})`)
         ctx.fillStyle = ring
         ctx.fillRect(0, 0, W, H)
       }
 
       // ── Edge flicker — highs create a vignette shimmer ────────────
-      if (edgeFlicker > 0.15 && mEff.masterIntensity > 0.3) {
-        const flickerAlpha = (edgeFlicker - 0.15) * mEff.masterIntensity * 0.45
+      if (fxSet.has('Edge Flicker') && mEff.edgeFlicker > 0 && edgeFlicker > 0.15) {
+        const flickerAlpha = (edgeFlicker - 0.15) * mEff.edgeFlicker * 0.45
         const grad = ctx.createRadialGradient(cx, cy, Math.min(W, H) * 0.3, cx, cy, Math.min(W, H) * 0.55)
         grad.addColorStop(0, 'rgba(74,199,219,0)')
         grad.addColorStop(1, `rgba(74,199,219,${flickerAlpha})`)
@@ -1232,6 +1437,17 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
       }
 
       prevBassRef.current = bass * 0.82
+
+      // ── Lyrics ─────────────────────────────────────────────────────
+      if (lyricsEnabledRef.current && lyricsCuesRef.current.length > 0) {
+        const adjustedMs = audioTimeRef.current * 1000 + lyricsOffsetMsRef.current
+        const cues = lyricsCuesRef.current
+        // Binary-search style: find first cue whose endMs is past current time, then check startMs
+        const activeCue = cues.find(c => c.startMs <= adjustedMs && adjustedMs < c.endMs) ?? null
+        if (activeCue) {
+          drawLyricCue(ctx, activeCue, adjustedMs, lyricsDocRef.current, W, H, dpr)
+        }
+      }
 
       // ── HUD corners ────────────────────────────────────────────────
       const cSize  = 14 * dpr
@@ -1673,6 +1889,11 @@ function MediaDeckPanel({ activeMediaId, onSelect }: {
                 className={`vz-media-card ${activeMediaId === m.id ? 'vz-media-card--active' : ''}`}
                 onClick={() => !m.uploading && onSelect(m.id)}
                 style={m.uploading ? { opacity: 0.6, cursor: 'default' } : undefined}
+                draggable={!m.uploading}
+                onDragStart={e => {
+                  e.dataTransfer.setData('vz/mediaId', m.id)
+                  e.dataTransfer.effectAllowed = 'copy'
+                }}
               >
                 <div className="vz-media-thumb" style={{ background: '#050a12', overflow: 'hidden', position: 'relative' }}>
                   {m.thumbnailUrl && (
@@ -2017,6 +2238,10 @@ function EffectControlsPanel({ effects, enabledFx, onChange, onReset }: {
     { key: 'datamoshSmear',    label: 'Datamosh Smear' },
     { key: 'edgeGlow',         label: 'Edge Glow' },
     { key: 'colorCycle',       label: 'Color Cycle' },
+    { key: 'beatFlash',        label: 'Beat Flash' },
+    { key: 'edgeFlicker',      label: 'Edge Flicker' },
+    { key: 'noiseFog',         label: 'Noise Fog' },
+    { key: 'scanlines',        label: 'Scanlines' },
   ]
   return (
     <div className="vz-effects-panel">
@@ -2784,7 +3009,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     saveSession, loadSession, renameSession, deleteSession,
     syncSessionsFromCloud, clearSessionSyncError,
     modulationRoutes, toggleModulationRoute, setModulationRouteAmount,
-    timelineEnabled, timelineClips, timelineLoop, setTimelineEnabled,
+    timelineEnabled, timelineClips, timelineLoop, setTimelineEnabled, scrubTimeline,
     layerConfigs,
   } = useVisualStore()
 
@@ -2931,6 +3156,13 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     }
   }, [loadSession, engine, reorderItems, items, setActiveMedia])
 
+  const handleTimelineScrub = useCallback((t: number) => {
+    scrubTimeline(t)
+    if (engine.source === 'file' && engine.tracks.length > 0) {
+      engine.seek(t)
+    }
+  }, [scrubTimeline, engine])
+
   // Keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -3006,7 +3238,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                 </VyzualzErrorBoundary>
                 {timelineEnabled && (
                   <VyzualzErrorBoundary section="Timeline">
-                    <TimelinePanel />
+                    <TimelinePanel onScrub={handleTimelineScrub} />
                   </VyzualzErrorBoundary>
                 )}
               </div>

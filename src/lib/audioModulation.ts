@@ -117,6 +117,10 @@ export const EFFECT_LABELS: Partial<Record<keyof VzEffects, string>> = {
   datamoshSmear:   'Datamosh',
   edgeGlow:        'Edge Glow',
   colorCycle:      'Color Cycle',
+  beatFlash:       'Beat Flash',
+  edgeFlicker:     'Edge Flicker',
+  noiseFog:        'Noise Fog',
+  scanlines:       'Scanlines',
 }
 
 // ── Band extraction ───────────────────────────────────────────────────────────

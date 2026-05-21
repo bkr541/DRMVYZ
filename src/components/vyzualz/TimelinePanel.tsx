@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useVisualStore } from '../../stores/visualStore'
 import { useMediaStore } from '../../stores/mediaStore'
 import type { UploadedMedia } from '../../stores/mediaStore'
@@ -9,7 +9,11 @@ function fmtSec(sec: number): string {
   return `${sec.toFixed(1)}s`
 }
 
-export function TimelinePanel() {
+interface TimelinePanelProps {
+  onScrub?: (t: number) => void
+}
+
+export function TimelinePanel({ onScrub }: TimelinePanelProps) {
   const {
     timelineClips, timelineLoop,
     setTimelineLoop, addTimelineClip, removeTimelineClip,
@@ -27,12 +31,32 @@ export function TimelinePanel() {
 
   const PX_PER_SEC = 80
   const rulerRef   = useRef<HTMLDivElement>(null)
+  const [dragOver, setDragOver] = useState(false)
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes('vz/mediaid')) {
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'copy'
+      setDragOver(true)
+    }
+  }
+  const handleDragLeave = () => setDragOver(false)
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    const mediaId = e.dataTransfer.getData('vz/mediaId')
+    if (mediaId) addTimelineClip(mediaId)
+  }
 
   const handleScrubPointer = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!rulerRef.current) return
     const rect = rulerRef.current.getBoundingClientRect()
-    const t    = (e.clientX - rect.left) / PX_PER_SEC
-    useVisualStore.getState().scrubTimeline(Math.max(0, Math.min(totalDuration, t)))
+    const t    = Math.max(0, Math.min(totalDuration, (e.clientX - rect.left) / PX_PER_SEC))
+    if (onScrub) {
+      onScrub(t)
+    } else {
+      useVisualStore.getState().scrubTimeline(t)
+    }
   }
 
   const moveClip = (clipId: string, dir: -1 | 1) => {
@@ -80,11 +104,18 @@ export function TimelinePanel() {
       </div>
 
       {/* Right side: pixel ruler + clip cards */}
-      <div className="vz-tl-right">
+      <div
+        className={`vz-tl-right${dragOver ? ' vz-tl-right--drag-over' : ''}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         {/* Pixel timeline: ruler + clip blocks + playhead */}
         <div className="vz-tl-timeline-wrap">
           {timelineClips.length === 0 ? (
-            <div className="vz-tl-empty">No clips — click + Add to get started</div>
+            <div className="vz-tl-empty">
+              {dragOver ? 'Drop to add clip' : 'No clips — drag from deck or click + Add'}
+            </div>
           ) : (
             <div
               ref={rulerRef}

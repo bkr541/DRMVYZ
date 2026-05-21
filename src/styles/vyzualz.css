@@ -1978,6 +1978,11 @@ input[type='range'].vz-slider--color {
   flex-direction: column;
   overflow: hidden;
 }
+.vz-tl-right--drag-over {
+  outline: 1px dashed rgba(74,199,219,0.55);
+  outline-offset: -2px;
+  background: rgba(74,199,219,0.04);
+}
 
 /* ── Pixel timeline ──────────────────────────────────────────────────── */
 .vz-tl-timeline-wrap {

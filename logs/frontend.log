@@ -3,34 +3,13 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 167 ms
+  VITE v5.4.21  ready in 114 ms
 
   ➜  Local:   http://127.0.0.1:5173/
-12:52:16 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
-12:52:27 PM [vite] hmr update /src/styles/vyzualz.css
-1:04:14 PM [vite] hmr update /src/styles/vyzualz.css
-1:04:15 PM [vite] hmr update /src/styles/vyzualz.css
-1:04:19 PM [vite] hmr update /src/styles/vyzualz.css
-1:10:39 PM [vite] hmr update /src/styles/vyzualz.css
-1:10:40 PM [vite] hmr update /src/styles/vyzualz.css
-1:18:48 PM [vite] hmr update /src/styles/vyzualz.css
-1:19:12 PM [vite] hmr update /src/styles/vyzualz.css
-1:24:05 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
-1:28:39 PM [vite] hmr update /src/styles/vyzualz.css
-1:28:42 PM [vite] hmr update /src/styles/vyzualz.css
-1:28:51 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
-1:36:22 PM [vite] hmr update /src/styles/vyzualz.css
-1:41:21 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
-1:41:23 PM [vite] hmr update /src/styles/vyzualz.css
-1:41:24 PM [vite] hmr update /src/styles/vyzualz.css
-1:47:24 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
-1:47:32 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
-1:47:41 PM [vite] hmr update /src/styles/vyzualz.css
-1:47:46 PM [vite] hmr update /src/styles/vyzualz.css
-1:50:50 PM [vite] hmr update /src/styles/vyzualz.css
-1:50:53 PM [vite] hmr update /src/styles/vyzualz.css
-1:50:55 PM [vite] hmr update /src/styles/vyzualz.css
-1:52:17 PM [vite] hmr update /src/styles/vyzualz.css
-1:53:02 PM [vite] hmr update /src/styles/vyzualz.css
-1:55:26 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
-1:55:47 PM [vite] hmr update /src/styles/vyzualz.css
+11:34:02 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
+11:34:09 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
+11:34:14 PM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
+11:34:20 PM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
+11:34:25 PM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
+11:34:31 PM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
+11:34:36 PM [vite] hmr update /src/styles/vyzualz.css

@@ -49,6 +49,10 @@ export interface VzEffects {
   datamoshSmear:   number
   edgeGlow:        number
   colorCycle:      number
+  beatFlash:       number
+  edgeFlicker:     number
+  noiseFog:        number
+  scanlines:       number
 }
 
 export const DEFAULT_EFFECTS: VzEffects = {
@@ -77,6 +81,10 @@ export const DEFAULT_EFFECTS: VzEffects = {
   datamoshSmear:   0.35,
   edgeGlow:        0.50,
   colorCycle:      0.45,
+  beatFlash:       0.50,
+  edgeFlicker:     0.50,
+  noiseFog:        0.40,
+  scanlines:       0.50,
 }
 
 // ── PresetScope: controls which fields are saved/restored by a preset ─────────
