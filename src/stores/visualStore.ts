@@ -13,11 +13,11 @@ import {
 import type { ModulationRoute } from '../lib/audioModulation'
 import { recalculateTimelineStarts, migrateClip } from '../lib/timeline'
 import type { VzTimelineClip } from '../types/timeline'
-import { DEFAULT_LAYER_CONFIGS } from '../types/vzLayers'
-import type { VzLayerConfig, VzLayerConfigId } from '../types/vzLayers'
+import { DEFAULT_LAYER_CONFIGS, createDefaultLayerItem } from '../types/vzLayers'
+import type { VzLayerConfig, VzLayerConfigId, VzLayerItem } from '../types/vzLayers'
 
 export type { VzTimelineClip }
-export type { VzLayerConfig, VzLayerConfigId }
+export type { VzLayerConfig, VzLayerConfigId, VzLayerItem }
 
 // Quality is owned here so sessions can snapshot it
 export type Quality = 'High' | 'Medium' | 'Low'
@@ -165,6 +165,7 @@ export interface VzSession {
   timelineEnabled?: boolean
   timelineClips?: VzTimelineClip[]
   timelineLoop?: boolean
+  layerItems?: VzLayerItem[]
 }
 
 export const DEFAULT_PRESETS: VzPreset[] = [
@@ -314,6 +315,15 @@ interface VisualState {
   layerConfigs: VzLayerConfig[]
   setLayerConfig(id: VzLayerConfigId, patch: Partial<Omit<VzLayerConfig, 'id'>>): void
   resetLayerConfigs(): void
+
+  // ── Layer items ───────────────────────────────────────────────────────────
+  layerItems: VzLayerItem[]
+  addLayerItem(mediaId: string, layerId: VzLayerConfigId, overrides?: Partial<Omit<VzLayerItem, 'id' | 'mediaId' | 'layerId'>>): void
+  removeLayerItem(id: string): void
+  updateLayerItem(id: string, patch: Partial<Omit<VzLayerItem, 'id'>>): void
+  reorderLayerItem(id: string, direction: 'up' | 'down'): void
+  clearLayerItemsForLayer(layerId: VzLayerConfigId): void
+  setLayerItemSolo(id: string): void
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -339,6 +349,7 @@ export const useVisualStore = create<VisualState>()(
       timelineLoop:      true,
       timelineClock:     0,
       layerConfigs:      [...DEFAULT_LAYER_CONFIGS],
+      layerItems:        [],
 
       // ── Live state ──────────────────────────────────────────────────────────
 
@@ -450,6 +461,7 @@ export const useVisualStore = create<VisualState>()(
           timelineEnabled: s.timelineEnabled,
           timelineClips:   [...s.timelineClips],
           timelineLoop:    s.timelineLoop,
+          layerItems:      [...s.layerItems],
         }
         // Optimistic local add — visible immediately
         set(st => ({ sessions: [...st.sessions, session] }))
@@ -488,6 +500,7 @@ export const useVisualStore = create<VisualState>()(
             (session.timelineClips ?? []).map(migrateClip)
           ),
           timelineLoop:    session.timelineLoop     ?? true,
+          layerItems:      session.layerItems ?? [],
         })
         return session
       },
@@ -643,6 +656,57 @@ export const useVisualStore = create<VisualState>()(
       resetLayerConfigs() {
         set({ layerConfigs: [...DEFAULT_LAYER_CONFIGS] })
       },
+
+      addLayerItem(mediaId, layerId, overrides) {
+        set(s => {
+          // Assign zIndex = max existing in this layer + 1
+          const maxZ = s.layerItems
+            .filter(i => i.layerId === layerId)
+            .reduce((m, i) => Math.max(m, i.zIndex), -1)
+          const item = createDefaultLayerItem(mediaId, layerId, { ...overrides, zIndex: maxZ + 1 })
+          return { layerItems: [...s.layerItems, item] }
+        })
+      },
+      removeLayerItem(id) {
+        set(s => ({ layerItems: s.layerItems.filter(i => i.id !== id) }))
+      },
+      updateLayerItem(id, patch) {
+        set(s => ({
+          layerItems: s.layerItems.map(i => i.id === id ? { ...i, ...patch } : i),
+        }))
+      },
+      reorderLayerItem(id, direction) {
+        set(s => {
+          const item = s.layerItems.find(i => i.id === id)
+          if (!item) return {}
+          // Get siblings in same layer sorted by zIndex
+          const siblings = s.layerItems
+            .filter(i => i.layerId === item.layerId)
+            .sort((a, b) => a.zIndex - b.zIndex)
+          const idx = siblings.findIndex(i => i.id === id)
+          const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+          if (swapIdx < 0 || swapIdx >= siblings.length) return {}
+          const other = siblings[swapIdx]
+          // Swap their zIndexes
+          return {
+            layerItems: s.layerItems.map(i => {
+              if (i.id === id)    return { ...i, zIndex: other.zIndex }
+              if (i.id === other.id) return { ...i, zIndex: item.zIndex }
+              return i
+            }),
+          }
+        })
+      },
+      clearLayerItemsForLayer(layerId) {
+        set(s => ({ layerItems: s.layerItems.filter(i => i.layerId !== layerId) }))
+      },
+      setLayerItemSolo(id) {
+        set(s => ({
+          layerItems: s.layerItems.map(i =>
+            i.id === id ? { ...i, solo: !i.solo } : i
+          ),
+        }))
+      },
     }),
     {
       name: 'drmvyz-visual-store',
@@ -661,6 +725,7 @@ export const useVisualStore = create<VisualState>()(
         timelineClips:     s.timelineClips,
         timelineLoop:      s.timelineLoop,
         layerConfigs:      s.layerConfigs,
+        layerItems:        s.layerItems,
       }),
       // Re-inject default presets after rehydration so they are never missing
       merge: (persisted, current) => {
@@ -698,8 +763,24 @@ export const useVisualStore = create<VisualState>()(
           // future releases always appear, and user settings are preserved.
           layerConfigs: DEFAULT_LAYER_CONFIGS.map(d => {
             const saved = (p.layerConfigs ?? [] as VzLayerConfig[]).find(c => c.id === d.id)
-            return saved ? { ...d, ...saved } : d
+            if (!saved) return d
+            // Spread saved over default; ensure mediaId defaults to null for configs
+            // saved before that field existed (old sessions).
+            return { ...d, ...saved, mediaId: saved.mediaId ?? null }
           }),
+          // Restore saved layer items; migrate from old-style layerConfig.mediaId if absent.
+          layerItems: (() => {
+            const saved = (p.layerItems ?? []) as VzLayerItem[]
+            if (saved.length > 0) return saved
+            // Migration: if no items saved but old configs had explicit mediaId, create one item per layer
+            const cfgs = (p.layerConfigs ?? []) as VzLayerConfig[]
+            return cfgs
+              .filter(c => c.mediaId)
+              .map(c => createDefaultLayerItem(c.mediaId!, c.id as VzLayerConfigId, {
+                blendMode: c.blendMode,
+                fitMode:   c.fit,
+              }))
+          })(),
         }
       },
     }

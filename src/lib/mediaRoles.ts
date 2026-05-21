@@ -90,6 +90,23 @@ export function roleImpliesAlpha(role: MediaRole): boolean {
   return role === 'transparent_element' || role === 'overlay' || role === 'logo'
 }
 
+/**
+ * Roles valid for the primary canvas / background render path.
+ * Layer-managed and helper roles are intentionally excluded so they are never
+ * auto-selected as the main visual source.
+ */
+export const PRIMARY_MEDIA_ROLES = new Set<MediaRole>([
+  'background_image',
+  'background_video',
+  'loop',
+  'other',  // generic catch-all — not a layer-only asset
+])
+
+/** Returns true when an item should be considered a valid primary canvas source. */
+export function isPrimaryMedia(item: { mediaRole: MediaRole }): boolean {
+  return PRIMARY_MEDIA_ROLES.has(item.mediaRole)
+}
+
 export const ENERGY_LABELS: Record<MediaEnergy, string> = {
   low:    'Low',
   medium: 'Medium',

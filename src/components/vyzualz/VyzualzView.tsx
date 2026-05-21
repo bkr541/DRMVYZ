@@ -31,11 +31,12 @@ import type { TwoClipRenderState } from '../../lib/timeline'
 import type { VzTimelineClip } from '../../types/timeline'
 import { renderTimelineTransition } from '../../lib/transitionRenderer'
 import type { MediaRole } from '../../lib/mediaRoles'
+import { isPrimaryMedia } from '../../lib/mediaRoles'
 import {
-  VZ_LAYER_RENDER_ORDER, LAYER_TO_ROLES, LAYER_MANAGED_ROLES,
-  DEFAULT_LAYER_CONFIGS, LAYER_LABELS, LAYER_BLEND_MODES, ROLE_TO_LAYER,
+  VZ_LAYER_RENDER_ORDER,
+  DEFAULT_LAYER_CONFIGS, LAYER_LABELS, LAYER_BLEND_MODES,
 } from '../../types/vzLayers'
-import type { VzLayerConfig, VzLayerConfigId } from '../../types/vzLayers'
+import type { VzLayerConfig, VzLayerConfigId, VzLayerItem } from '../../types/vzLayers'
 import {
   drawSpectrumBars, drawCircularSpectrum, drawOscilloscope,
   updateAndDrawBeatRings, updateAndDrawParticles,
@@ -582,6 +583,45 @@ function computeDrawRect(
   return { ox, oy, sw: drawW, sh: drawH }
 }
 
+// Compute draw width/height for a VzLayerItem based on its fitMode.
+// Returns dimensions relative to the transform pivot (used with ctx.drawImage at anchor offset).
+function computeLayerItemDrawSize(
+  W: number, H: number,
+  el: HTMLImageElement | HTMLVideoElement,
+  fitMode: VzLayerItem['fitMode'],
+): { w: number; h: number } {
+  const { w: iW, h: iH } = getMediaNaturalSize(el)
+  if (!iW || !iH) return { w: W, h: H }
+  switch (fitMode) {
+    case 'stretch':  return { w: W,        h: H        }
+    case 'original': return { w: iW,       h: iH       }
+    case 'cover': {
+      const r = Math.max(W / iW, H / iH)
+      return { w: iW * r, h: iH * r }
+    }
+    case 'contain':
+    default: {
+      const r = Math.min(W / iW, H / iH)
+      return { w: iW * r, h: iH * r }
+    }
+  }
+}
+
+// Offset from the transform pivot so the image's anchor point aligns with (x*W, y*H).
+function getLayerItemAnchorOffset(
+  anchor: VzLayerItem['anchor'],
+  w: number,
+  h: number,
+): { ox: number; oy: number } {
+  switch (anchor) {
+    case 'topLeft':     return { ox: 0,    oy: 0    }
+    case 'topRight':    return { ox: -w,   oy: 0    }
+    case 'bottomLeft':  return { ox: 0,    oy: -h   }
+    case 'bottomRight': return { ox: -w,   oy: -h   }
+    default:            return { ox: -w/2, oy: -h/2 }  // center
+  }
+}
+
 // ── LiveVisualCanvas ──────────────────────────────────────────────────
 interface CanvasProps {
   analyser: AnalyserNode | null
@@ -602,9 +642,10 @@ interface CanvasProps {
   onFpsUpdate: (fps: number) => void
   // Layer compositor
   layerConfigs: VzLayerConfig[]
+  layerItems: VzLayerItem[]
 }
 
-function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, audioTime, modulationRoutes, timelineEnabled, timelineClips, timelineLoop, mediaItems, onFpsUpdate, layerConfigs }: CanvasProps) {
+function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, audioTime, modulationRoutes, timelineEnabled, timelineClips, timelineLoop, mediaItems, onFpsUpdate, layerConfigs, layerItems }: CanvasProps) {
   const canvasRef     = useRef<HTMLCanvasElement>(null)
   const animRef       = useRef<number>(0)
   const resizeFnRef   = useRef<() => void>(() => {})
@@ -629,6 +670,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
   const timelineLoopRef    = useRef(timelineLoop)
   const mediaItemsRef      = useRef<UploadedMedia[]>(mediaItems)
   const layerConfigsRef    = useRef<VzLayerConfig[]>(layerConfigs)
+  const layerItemsRef      = useRef<VzLayerItem[]>(layerItems)
   // Shared pool: keyed by mediaId, used by both timeline clips and overlay layers
   const mediaPoolRef       = useRef<Map<string, HTMLImageElement | HTMLVideoElement>>(new Map())
   const activeClipIdRef    = useRef<string | null>(null)
@@ -687,6 +729,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
   useEffect(() => { timelineLoopRef.current = timelineLoop }, [timelineLoop])
   useEffect(() => { mediaItemsRef.current = mediaItems }, [mediaItems])
   useEffect(() => { layerConfigsRef.current = layerConfigs }, [layerConfigs])
+  useEffect(() => { layerItemsRef.current = layerItems }, [layerItems])
 
   useEffect(() => {
     setTimelineClockStoreRef.current = useVisualStore.getState().setTimelineClock
@@ -783,15 +826,12 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
     }
   }, [timelineEnabled])
 
-  // Sync pool when clips or deck changes: evict entries no longer needed by
-  // either the timeline OR the overlay layer compositor.
+  // Sync pool when clips, deck, or layer assignments change: evict entries no
+  // longer needed by either the timeline OR the overlay layer compositor.
   useEffect(() => {
-    const tlIds    = new Set(timelineClips.map(c => c.mediaId))
-    const layerIds = new Set(
-      mediaItems
-        .filter(m => LAYER_MANAGED_ROLES.has(m.mediaRole))
-        .map(m => m.id)
-    )
+    const tlIds = new Set(timelineClips.map(c => c.mediaId))
+    // Keep pool entries for all layer item media IDs
+    const layerIds = new Set(layerItems.map(i => i.mediaId))
     const keepIds = new Set([...tlIds, ...layerIds])
     mediaPoolRef.current.forEach((el, id) => {
       if (!keepIds.has(id)) {
@@ -806,7 +846,7 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
       activeClipRef.current   = null
       if (timelineEnabledRef.current) mediaElRef.current = null
     }
-  }, [timelineClips, mediaItems])
+  }, [timelineClips, mediaItems, layerConfigs, layerItems])
 
   // Main RAF loop — runs once, reads from refs
   useEffect(() => {
@@ -1258,61 +1298,79 @@ function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying
         ctx.restore()
       }
 
-      // ── Overlay layer compositor ──────────────────────────────────────
-      // Renders texture → character → logo → overlay in z-order above the
-      // primary media / timeline output.  Each layer draws ALL deck items
-      // whose mediaRole maps to that layer.  Timeline clips are NOT rendered
-      // here — they are handled by the primary media path above.
+      // ── Overlay layer compositor ──────────────────────────────────────────────
+      // Renders texture → character → logo → overlay in z-order.
+      // Driven by explicit VzLayerItem instances — no more role-bucket scanning.
+      // Layer-level enabled is the master switch; layer-level opacity is a master multiplier.
+      // Solo: if any item in a layer is soloed, only solo items are drawn.
       {
         const layerCfgs  = layerConfigsRef.current
-        const deckItems  = mediaItemsRef.current
+        const allItems   = layerItemsRef.current
         const pool       = mediaPoolRef.current
+        const deckItems  = mediaItemsRef.current
 
         for (const layerId of VZ_LAYER_RENDER_ORDER) {
           const cfg = layerCfgs.find(c => c.id === layerId)
           if (!cfg || !cfg.enabled) continue
 
-          const roles      = LAYER_TO_ROLES[layerId]
-          const layerItems = deckItems.filter(m => roles.includes(m.mediaRole as MediaRole))
-          if (!layerItems.length) continue
+          // Filter to enabled items for this layer, sorted by zIndex
+          const candidates = allItems
+            .filter(i => i.layerId === layerId && i.enabled)
+            .sort((a, b) => a.zIndex - b.zIndex)
+          if (!candidates.length) continue
 
-          for (const item of layerItems) {
+          // Solo gate: if any item is soloed, only render soloed items
+          const hasSolo  = candidates.some(i => i.solo)
+          const toRender = hasSolo ? candidates.filter(i => i.solo) : candidates
+
+          for (const item of toRender) {
+            const media = deckItems.find(m => m.id === item.mediaId)
+            if (!media) continue
+
             // Lazy-load element into shared pool
-            if (!pool.has(item.id)) {
-              if (item.type === 'image') {
+            if (!pool.has(item.mediaId)) {
+              if (media.type === 'image') {
                 const img = new Image()
-                img.src = item.url
-                pool.set(item.id, img)
+                img.src = media.url
+                pool.set(media.id, img)
               } else {
                 const vid = document.createElement('video')
-                vid.src = item.url
+                vid.src = media.url
                 vid.muted = true
                 vid.playsInline = true
                 vid.loop = true
                 if (isPlayingRef.current) vid.play().catch(() => {})
-                pool.set(item.id, vid)
+                pool.set(media.id, vid)
               }
             }
 
-            const el = pool.get(item.id)
+            const el = pool.get(item.mediaId)
             if (!el) continue
 
-            // Keep layer videos synced with global play state
+            // Sync video play/pause to global play state
             if (el instanceof HTMLVideoElement) {
               if (isPlayingRef.current && el.paused)  el.play().catch(() => {})
               if (!isPlayingRef.current && !el.paused) el.pause()
             }
 
-            const layerScale = shouldApplyScalePulse(item.mediaRole as MediaRole)
-              ? bassReact * punchScale * eff.logoScale
-              : 1
-            const rect = computeDrawRect(W, H, el, cfg.fit, layerScale, item.mediaRole as MediaRole)
+            // Draw size in the item's local transform space
+            const { w, h } = computeLayerItemDrawSize(W, H, el, item.fitMode)
+            // Offset from transform pivot based on anchor
+            const { ox, oy } = getLayerItemAnchorOffset(item.anchor, w, h)
+            // Audio-reactive scale (applied only when flagged)
+            const audioScale = item.audioReactive ? bassReact * punchScale * eff.logoScale : 1
+            const totalScale = item.scale * audioScale
 
             ctx.save()
-            ctx.globalAlpha = cfg.opacity
-            if (cfg.blendMode !== 'source-over') ctx.globalCompositeOperation = cfg.blendMode
+            // Layer opacity × item opacity
+            ctx.globalAlpha = cfg.opacity * item.opacity
+            if (item.blendMode !== 'source-over') ctx.globalCompositeOperation = item.blendMode
             if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
-            ctx.drawImage(el, rect.ox, rect.oy, rect.sw, rect.sh)
+            // Position pivot at normalized canvas coordinates
+            ctx.translate(item.x * W, item.y * H)
+            if (item.rotation !== 0) ctx.rotate(item.rotation * Math.PI / 180)
+            if (totalScale !== 1)    ctx.scale(totalScale, totalScale)
+            ctx.drawImage(el, ox, oy, w, h)
             ctx.filter = 'none'
             ctx.globalCompositeOperation = 'source-over'
             ctx.globalAlpha = 1
@@ -1957,7 +2015,7 @@ function LiveVisualPreview({
   quality, onQualityChange,
   canvasWrapRef, audioTime, modulationRoutes,
   timelineEnabled, onToggleTimeline, timelineClips, timelineLoop, mediaItems,
-  layerConfigs,
+  layerConfigs, layerItems,
 }: {
   analyser: AnalyserNode | null
   activeMedia: UploadedMedia | null
@@ -1975,6 +2033,7 @@ function LiveVisualPreview({
   timelineClips: VzTimelineClip[]; timelineLoop: boolean
   mediaItems: UploadedMedia[]
   layerConfigs: VzLayerConfig[]
+  layerItems: VzLayerItem[]
 }) {
   const [liveFps, setLiveFps] = useState(0)
 
@@ -1997,6 +2056,7 @@ function LiveVisualPreview({
           timelineLoop={timelineLoop}
           mediaItems={mediaItems}
           layerConfigs={layerConfigs}
+          layerItems={layerItems}
           onFpsUpdate={setLiveFps}
         />
         <div className="vz-preview-pills">
@@ -2500,50 +2560,54 @@ function PresetStrip({ activePresetId, presets, onSelect, onSave, onDelete }: {
 
 // ── VzLayersPanel ─────────────────────────────────────────────────────
 function VzLayersPanel() {
-  const { layerConfigs, setLayerConfig, resetLayerConfigs } = useVisualStore()
+  const {
+    layerConfigs, setLayerConfig, resetLayerConfigs,
+    layerItems, addLayerItem, removeLayerItem,
+    updateLayerItem, reorderLayerItem, clearLayerItemsForLayer, setLayerItemSolo,
+    activeMediaId,
+  } = useVisualStore()
   const { items } = useMediaStore()
 
-  const countByLayer = useMemo<Record<VzLayerConfigId, number>>(() => {
-    const counts: Record<VzLayerConfigId, number> = {
-      texture: 0, character: 0, logo: 0, overlay: 0,
-    }
-    for (const item of items) {
-      const layerId = ROLE_TO_LAYER[item.mediaRole as MediaRole]
-      if (layerId) counts[layerId]++
-    }
-    return counts
-  }, [items])
+  // Per-item expanded transform state (local UI only)
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const toggleExpand = (id: string) =>
+    setExpandedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
 
   return (
     <div className="vz-layers-panel vz-panel">
       <div className="vz-panel-header">
         <Layers01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
         <span className="vz-panel-title">Layers</span>
-        <button className="vz-layers-reset-btn" onClick={resetLayerConfigs} title="Reset to defaults">↺</button>
+        <button className="vz-layers-reset-btn" onClick={resetLayerConfigs} title="Reset layer configs">↺</button>
       </div>
       <div className="vz-layers-list">
         {VZ_LAYER_RENDER_ORDER.map(layerId => {
-          const cfg   = layerConfigs.find(c => c.id === layerId) ?? DEFAULT_LAYER_CONFIGS.find(c => c.id === layerId)!
-          const count = countByLayer[layerId]
-          const pct   = `${cfg.opacity * 100}%`
+          const cfg  = layerConfigs.find(c => c.id === layerId) ?? DEFAULT_LAYER_CONFIGS.find(c => c.id === layerId)!
+          const pct  = `${cfg.opacity * 100}%`
+          const lItems = layerItems
+            .filter(i => i.layerId === layerId)
+            .sort((a, b) => a.zIndex - b.zIndex)
+
           return (
             <div key={layerId} className={`vz-layer-item${cfg.enabled ? '' : ' vz-layer-item--off'}`}>
+              {/* Layer header */}
               <div className="vz-layer-item-header">
                 <button
                   className={`vz-layer-toggle${cfg.enabled ? ' vz-layer-toggle--on' : ''}`}
                   onClick={() => setLayerConfig(layerId, { enabled: !cfg.enabled })}
                   title={cfg.enabled ? 'Hide layer' : 'Show layer'}
                 />
-                <span className="vz-slider-label">
-                  {LAYER_LABELS[layerId]}
-                  {count > 0 && <span className="vz-layer-count">{count}</span>}
-                </span>
+                <span className="vz-slider-label">{LAYER_LABELS[layerId]}</span>
                 <span className="vz-slider-val">{Math.round(cfg.opacity * 100)}%</span>
                 <select
                   className="az-select vz-layer-blend-select"
                   value={cfg.blendMode}
                   disabled={!cfg.enabled}
-                  title="Blend mode"
+                  title="Layer blend mode"
                   onChange={e => setLayerConfig(layerId, { blendMode: e.target.value as GlobalCompositeOperation })}
                 >
                   {LAYER_BLEND_MODES.map(bm => (
@@ -2551,13 +2615,169 @@ function VzLayersPanel() {
                   ))}
                 </select>
               </div>
+
+              {/* Layer items list */}
+              {lItems.length > 0 && (
+                <div className="vz-li-list">
+                  {lItems.map((item, idx) => {
+                    const media      = items.find(m => m.id === item.mediaId)
+                    const isExpanded = expandedIds.has(item.id)
+                    const isMissing  = !media
+                    return (
+                      <div key={item.id} className={`vz-li-row${item.enabled ? '' : ' vz-li-row--off'}${isMissing ? ' vz-li-row--missing' : ''}`}>
+                        {/* Primary row */}
+                        <div className="vz-li-row-main">
+                          <button
+                            className={`vz-li-en-btn${item.enabled ? ' vz-li-en-btn--on' : ''}`}
+                            onClick={() => updateLayerItem(item.id, { enabled: !item.enabled })}
+                            title={item.enabled ? 'Disable item' : 'Enable item'}
+                          />
+                          <button
+                            className={`vz-li-solo-btn${item.solo ? ' vz-li-solo-btn--on' : ''}`}
+                            onClick={() => setLayerItemSolo(item.id)}
+                            title="Solo"
+                          >S</button>
+                          <button
+                            className={`vz-li-lock-btn${item.locked ? ' vz-li-lock-btn--on' : ''}`}
+                            onClick={() => !item.locked && updateLayerItem(item.id, { locked: !item.locked })}
+                            title={item.locked ? 'Locked' : 'Lock'}
+                          >{item.locked ? '🔒' : '🔓'}</button>
+                          <span className="vz-li-name" title={isMissing ? `Missing: ${item.mediaId}` : (media?.title ?? media?.name)}>
+                            {isMissing ? '⚠ missing' : (media?.title ?? media?.name ?? '—')}
+                          </span>
+                          <button
+                            className="vz-li-expand-btn"
+                            onClick={() => toggleExpand(item.id)}
+                            title={isExpanded ? 'Collapse' : 'Expand controls'}
+                          >{isExpanded ? '▴' : '▾'}</button>
+                          <button
+                            className="vz-li-up-btn"
+                            disabled={idx === 0}
+                            onClick={() => reorderLayerItem(item.id, 'up')}
+                            title="Move up"
+                          >↑</button>
+                          <button
+                            className="vz-li-down-btn"
+                            disabled={idx === lItems.length - 1}
+                            onClick={() => reorderLayerItem(item.id, 'down')}
+                            title="Move down"
+                          >↓</button>
+                          <button
+                            className="vz-li-remove-btn"
+                            onClick={() => removeLayerItem(item.id)}
+                            title="Remove"
+                          >×</button>
+                        </div>
+
+                        {/* Expanded transform + appearance controls */}
+                        {isExpanded && (
+                          <div className="vz-li-expanded">
+                            <div className="vz-li-row2">
+                              <label className="vz-li-field-label">Opacity</label>
+                              <input
+                                type="range" className="vz-li-slider"
+                                min={0} max={1} step={0.05} value={item.opacity}
+                                onChange={e => updateLayerItem(item.id, { opacity: parseFloat(e.target.value) })}
+                              />
+                              <span className="vz-li-val">{item.opacity.toFixed(2)}</span>
+                            </div>
+                            <div className="vz-li-row2">
+                              <label className="vz-li-field-label">Blend</label>
+                              <select
+                                className="az-select vz-li-select"
+                                value={item.blendMode}
+                                onChange={e => updateLayerItem(item.id, { blendMode: e.target.value as GlobalCompositeOperation })}
+                              >
+                                {LAYER_BLEND_MODES.map(bm => <option key={bm} value={bm}>{bm}</option>)}
+                              </select>
+                            </div>
+                            <div className="vz-li-row2">
+                              <label className="vz-li-field-label">Fit</label>
+                              <select
+                                className="az-select vz-li-select"
+                                value={item.fitMode}
+                                onChange={e => updateLayerItem(item.id, { fitMode: e.target.value as VzLayerItem['fitMode'] })}
+                              >
+                                <option value="contain">Contain</option>
+                                <option value="cover">Cover</option>
+                                <option value="stretch">Stretch</option>
+                                <option value="original">Original</option>
+                              </select>
+                            </div>
+                            <div className="vz-li-row2">
+                              <label className="vz-li-field-label">Anchor</label>
+                              <select
+                                className="az-select vz-li-select"
+                                value={item.anchor}
+                                onChange={e => updateLayerItem(item.id, { anchor: e.target.value as VzLayerItem['anchor'] })}
+                              >
+                                <option value="center">Center</option>
+                                <option value="topLeft">Top Left</option>
+                                <option value="topRight">Top Right</option>
+                                <option value="bottomLeft">Bot Left</option>
+                                <option value="bottomRight">Bot Right</option>
+                              </select>
+                            </div>
+                            <div className="vz-li-transform-grid">
+                              <label className="vz-li-field-label">X</label>
+                              <input type="number" className="vz-li-num" min={0} max={1} step={0.01}
+                                value={item.x} onChange={e => updateLayerItem(item.id, { x: parseFloat(e.target.value) || 0 })} />
+                              <label className="vz-li-field-label">Y</label>
+                              <input type="number" className="vz-li-num" min={0} max={1} step={0.01}
+                                value={item.y} onChange={e => updateLayerItem(item.id, { y: parseFloat(e.target.value) || 0 })} />
+                              <label className="vz-li-field-label">Scale</label>
+                              <input type="number" className="vz-li-num" min={0.01} max={10} step={0.1}
+                                value={item.scale} onChange={e => updateLayerItem(item.id, { scale: parseFloat(e.target.value) || 1 })} />
+                              <label className="vz-li-field-label">Rot°</label>
+                              <input type="number" className="vz-li-num" min={-360} max={360} step={1}
+                                value={item.rotation} onChange={e => updateLayerItem(item.id, { rotation: parseFloat(e.target.value) || 0 })} />
+                            </div>
+                            <div className="vz-li-row2">
+                              <label className="vz-li-field-label">Audio</label>
+                              <button
+                                className={`vz-li-audio-btn${item.audioReactive ? ' vz-li-audio-btn--on' : ''}`}
+                                onClick={() => updateLayerItem(item.id, { audioReactive: !item.audioReactive })}
+                                title="Toggle audio reactivity"
+                              >{item.audioReactive ? 'ON' : 'OFF'}</button>
+                              <button
+                                className="vz-li-reset-btn"
+                                onClick={() => updateLayerItem(item.id, { x: 0.5, y: 0.5, scale: 1, rotation: 0 })}
+                                title="Reset transform"
+                              >↺ Reset</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Add / Clear buttons */}
+              <div className="vz-layer-assign-row">
+                <button
+                  className="vz-li-add-btn"
+                  disabled={!activeMediaId}
+                  title={activeMediaId ? 'Add active media to this layer' : 'Select a media item first'}
+                  onClick={() => activeMediaId && addLayerItem(activeMediaId, layerId)}
+                >+ Active</button>
+                {lItems.length > 0 && (
+                  <button
+                    className="vz-li-clear-btn"
+                    onClick={() => clearLayerItemsForLayer(layerId)}
+                    title="Remove all items from this layer"
+                  >Clear</button>
+                )}
+              </div>
+
+              {/* Layer opacity slider */}
               <input
                 type="range"
                 className="vz-slider vz-layer-opacity-slider"
                 style={{ '--pct': pct } as React.CSSProperties}
                 min={0} max={1} step={0.05}
                 value={cfg.opacity}
-                title={`Opacity: ${Math.round(cfg.opacity * 100)}%`}
+                title={`Layer opacity: ${Math.round(cfg.opacity * 100)}%`}
                 onChange={e => setLayerConfig(layerId, { opacity: parseFloat(e.target.value) })}
               />
             </div>
@@ -3010,19 +3230,23 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     syncSessionsFromCloud, clearSessionSyncError,
     modulationRoutes, toggleModulationRoute, setModulationRouteAmount,
     timelineEnabled, timelineClips, timelineLoop, setTimelineEnabled, scrubTimeline,
-    layerConfigs,
+    layerConfigs, layerItems,
   } = useVisualStore()
 
   const { items, loading, reorderItems } = useMediaStore()
 
   const enabledFxSet = useMemo(() => new Set(enabledFxArr), [enabledFxArr])
 
-  // After Supabase load completes, restore or auto-select active media
+  // After Supabase load completes, restore or auto-select active media.
+  // Only auto-select primary-renderable media (background, loop, other) so that
+  // layer-only assets (logo, overlay, texture, etc.) are never chosen as the
+  // main canvas source automatically.
   useEffect(() => {
     if (loading) return
     if (!items.length) return
     if (activeMediaId && items.some(i => i.id === activeMediaId)) return
-    setActiveMedia(items[0].id)
+    const primary = items.find(isPrimaryMedia)
+    setActiveMedia(primary?.id ?? null)
   }, [items, activeMediaId, loading, setActiveMedia])
   const activeMedia  = items.find(i => i.id === activeMediaId) ?? null
 
@@ -3062,15 +3286,21 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
 
   const handlePrevMedia = useCallback(() => {
     if (!items.length) return
-    const idx = items.findIndex(i => i.id === activeMediaId)
-    const prev = idx <= 0 ? items[items.length - 1] : items[idx - 1]
+    // Navigate within primary-renderable items only; fall back to all items if
+    // the deck contains no primary media.
+    const pool = items.filter(isPrimaryMedia)
+    const nav  = pool.length ? pool : items
+    const idx  = nav.findIndex(i => i.id === activeMediaId)
+    const prev = idx <= 0 ? nav[nav.length - 1] : nav[idx - 1]
     setActiveMedia(prev.id)
   }, [items, activeMediaId, setActiveMedia])
 
   const handleNextMedia = useCallback(() => {
     if (!items.length) return
-    const idx = items.findIndex(i => i.id === activeMediaId)
-    const next = idx === -1 || idx >= items.length - 1 ? items[0] : items[idx + 1]
+    const pool = items.filter(isPrimaryMedia)
+    const nav  = pool.length ? pool : items
+    const idx  = nav.findIndex(i => i.id === activeMediaId)
+    const next = idx === -1 || idx >= nav.length - 1 ? nav[0] : nav[idx + 1]
     setActiveMedia(next.id)
   }, [items, activeMediaId, setActiveMedia])
 
@@ -3148,11 +3378,16 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     if (session.mediaOrder?.length) {
       reorderItems(session.mediaOrder)
     }
-    // If saved activeMediaId no longer exists, fall back to first item in deck
+    // If saved activeMediaId no longer exists, fall back to first primary item
+    // from the saved order, then first primary item in deck, then null.
     const allIds = items.map(i => i.id)
     if (session.activeMediaId && !allIds.includes(session.activeMediaId)) {
-      const firstSaved = session.mediaOrder.find(id => allIds.includes(id))
-      setActiveMedia(firstSaved ?? (items[0]?.id ?? null))
+      const savedPrimary = session.mediaOrder.find(id => {
+        const item = items.find(m => m.id === id)
+        return item && isPrimaryMedia(item)
+      })
+      const fallback = items.find(isPrimaryMedia)?.id ?? null
+      setActiveMedia(savedPrimary ?? fallback)
     }
   }, [loadSession, engine, reorderItems, items, setActiveMedia])
 
@@ -3234,6 +3469,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                     timelineLoop={timelineLoop}
                     mediaItems={items}
                     layerConfigs={layerConfigs}
+                    layerItems={layerItems}
                   />
                 </VyzualzErrorBoundary>
                 {timelineEnabled && (

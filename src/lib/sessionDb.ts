@@ -3,7 +3,7 @@
 
 import { supabase, supabaseConfigured } from './supabase'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { VzSession, VzEffects, Quality, VzTimelineClip } from '../stores/visualStore'
+import type { VzSession, VzEffects, Quality, VzTimelineClip, VzLayerItem } from '../stores/visualStore'
 
 const db = supabase as unknown as SupabaseClient
 
@@ -49,6 +49,7 @@ function rowToSession(row: SessionDbRow): VzSession {
     timelineEnabled: s.timelineEnabled ?? false,
     timelineClips:   (s.timelineClips  ?? []) as VzTimelineClip[],
     timelineLoop:    s.timelineLoop    ?? true,
+    layerItems:      (s.layerItems ?? []) as VzLayerItem[],
   }
 }
 
