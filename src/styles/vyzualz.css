@@ -175,8 +175,7 @@
   position: relative;
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
-  background: rgba(8, 12, 18, 0.96);
+  overflow: visible;
 }
 
 .vz-inspector--left {
@@ -197,6 +196,7 @@
   overflow: hidden;
   opacity: 1;
   transition: opacity 140ms ease;
+  background: rgba(8, 12, 18, 0.96);
 }
 
 .vz-inspector--collapsed .vz-inspector-inner {
@@ -207,7 +207,7 @@
 
 .vz-inspector-toggle {
   position: absolute;
-  z-index: 5;
+  z-index: 20;
   top: 50%;
   transform: translateY(-50%);
   width: 28px;

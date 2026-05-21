@@ -203,7 +203,6 @@ export function LyricManagerView({ onBack }: Props) {
         lyricsEnabled={lyricsEnabled}
         hasDocument={!!activeDocument}
         draftTitle={draftTitle}
-        onBack={onBack}
         onToggleLyricsEnabled={() => setLyricsEnabled(!lyricsEnabled)}
         onSave={doSave}
         onSaveAndEnable={doSaveAndEnable}
