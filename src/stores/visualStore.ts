@@ -13,6 +13,8 @@ import {
 import type { ModulationRoute } from '../lib/audioModulation'
 import { recalculateTimelineStarts, migrateClip } from '../lib/timeline'
 import type { VzTimelineClip } from '../types/timeline'
+import type { VzEffectParams } from '../types/effectParams'
+import { DEFAULT_EFFECT_PARAMS } from '../types/effectParams'
 import type { VzCueMarker } from '../types/cue'
 import { DEFAULT_LAYER_CONFIGS, createDefaultLayerItem } from '../types/vzLayers'
 import type { VzLayerConfig, VzLayerConfigId, VzLayerItem } from '../types/vzLayers'
@@ -128,6 +130,7 @@ export interface VzPreset {
   // Visual look (always present)
   effects: VzEffects
   enabledFx: string[]
+  effectParams?: VzEffectParams
 
   // Optional scene fields — only present when the matching scope flag is true
   modulationRoutes?: ModulationRoute[]
@@ -157,6 +160,7 @@ export interface VzSession {
   activePresetId: string
   effects: VzEffects
   enabledFx: string[]
+  effectParams?: VzEffectParams
   // Timing
   bpm: number
   bpmSync: boolean
@@ -244,6 +248,7 @@ export const DEFAULT_PRESETS: VzPreset[] = [
 interface VisualState {
   // Live performance state
   effects: VzEffects
+  effectParams: VzEffectParams
   enabledFxArr: string[]
   activePresetId: string
   activeMediaId: string | null
@@ -262,6 +267,7 @@ interface VisualState {
 
   // ── Live state actions ─────────────────────────────────────────────────────
   setEffect(key: keyof VzEffects, v: number): void
+  setEffectParam<K extends keyof VzEffectParams>(key: K, params: Partial<NonNullable<VzEffectParams[K]>>): void
   resetEffects(): void
   toggleFx(name: string): void
   setActiveMedia(id: string | null): void
@@ -343,6 +349,17 @@ interface VisualState {
   removeCueMarker(id: string): void
   updateCueMarker(id: string, patch: Partial<Omit<VzCueMarker, 'id'>>): void
   clearCueMarkers(): void
+
+  // ── Auto quality ──────────────────────────────────────────────────────────
+  autoQualityEnabled: boolean
+  autoQualityMin:     Quality
+  autoQualityMax:     Quality
+  autoQualityReason:  string        // ephemeral — not persisted
+
+  setAutoQualityEnabled(v: boolean): void
+  setAutoQualityMin(q: Quality): void
+  setAutoQualityMax(q: Quality): void
+  setAutoQualityReason(r: string): void
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -351,6 +368,7 @@ export const useVisualStore = create<VisualState>()(
   persist(
     (set, get) => ({
       effects:           DEFAULT_PRESETS[0].effects,
+      effectParams:      DEFAULT_EFFECT_PARAMS,
       enabledFxArr:      DEFAULT_PRESETS[0].enabledFx,
       activePresetId:    DEFAULT_PRESETS[0].id,
       activeMediaId:     null,
@@ -373,11 +391,23 @@ export const useVisualStore = create<VisualState>()(
       beatGridEnabled:   false,
       waveformZoom:      1,
       cueMarkers:        [],
+      autoQualityEnabled: false,
+      autoQualityMin:     'Low',
+      autoQualityMax:     'High',
+      autoQualityReason:  '',
 
       // ── Live state ──────────────────────────────────────────────────────────
 
       setEffect(key, v) {
         set(s => ({ effects: { ...s.effects, [key]: v }, activePresetId: 'custom' }))
+      },
+      setEffectParam(key, params) {
+        set(s => ({
+          effectParams: {
+            ...s.effectParams,
+            [key]: { ...(s.effectParams[key] ?? {}), ...params },
+          },
+        }))
       },
       resetEffects() {
         set({ effects: DEFAULT_EFFECTS, enabledFxArr: [], activePresetId: 'custom' })
@@ -402,7 +432,13 @@ export const useVisualStore = create<VisualState>()(
         if (!preset) return null
         const scope = preset.scope ?? LOOK_SCOPE
         const patch: Partial<VisualState> = { activePresetId: id }
-        if (scope.effects)   patch.effects       = { ...preset.effects }
+        if (scope.effects) {
+          patch.effects = { ...preset.effects }
+          // Only restore effectParams if the preset explicitly saved them
+          if (preset.effectParams !== undefined) {
+            patch.effectParams = { ...preset.effectParams }
+          }
+        }
         if (scope.enabledFx) patch.enabledFxArr  = [...preset.enabledFx]
         if (scope.modulation && preset.modulationRoutes) {
           const savedIds = new Set(preset.modulationRoutes.map(r => r.id))
@@ -439,6 +475,12 @@ export const useVisualStore = create<VisualState>()(
           // Visual look always saved
           effects:   { ...effects },
           enabledFx: [...enabledFxArr],
+        }
+        if (scope.effects) {
+          const { effectParams } = get()
+          // Only store effectParams in preset if non-empty (keeps old presets clean)
+          const hasParams = Object.keys(effectParams).length > 0
+          if (hasParams) newPreset.effectParams = { ...effectParams }
         }
         if (scope.modulation)  newPreset.modulationRoutes = modulationRoutes.map(r => ({ ...r }))
         if (scope.activeMedia) newPreset.activeMediaId    = activeMediaId
@@ -477,6 +519,7 @@ export const useVisualStore = create<VisualState>()(
           activePresetId:s.activePresetId,
           effects:       { ...s.effects },
           enabledFx:     [...s.enabledFxArr],
+          effectParams:  { ...s.effectParams },
           bpm:           s.bpm,
           bpmSync:       s.bpmSync,
           quality:       s.quality,
@@ -517,6 +560,7 @@ export const useVisualStore = create<VisualState>()(
           activePresetId:  session.activePresetId,
           effects:         { ...session.effects },
           enabledFxArr:    [...session.enabledFx],
+          effectParams:    session.effectParams ?? DEFAULT_EFFECT_PARAMS,
           bpm:             session.bpm,
           bpmSync:         session.bpmSync,
           quality:         session.quality,
@@ -758,11 +802,18 @@ export const useVisualStore = create<VisualState>()(
         }))
       },
       clearCueMarkers() { set({ cueMarkers: [] }) },
+
+      // ── Auto quality ──────────────────────────────────────────────────────
+      setAutoQualityEnabled(v) { set({ autoQualityEnabled: v }) },
+      setAutoQualityMin(q)     { set({ autoQualityMin: q }) },
+      setAutoQualityMax(q)     { set({ autoQualityMax: q }) },
+      setAutoQualityReason(r)  { set({ autoQualityReason: r }) },
     }),
     {
       name: 'drmvyz-visual-store',
       partialize: (s) => ({
         effects:           s.effects,
+        effectParams:      s.effectParams,
         enabledFxArr:      s.enabledFxArr,
         activePresetId:    s.activePresetId,
         activeMediaId:     s.activeMediaId,
@@ -774,8 +825,12 @@ export const useVisualStore = create<VisualState>()(
         modulationRoutes:  s.modulationRoutes,
         layerConfigs:      s.layerConfigs,
         layerItems:        s.layerItems,
-        beatGridEnabled:   s.beatGridEnabled,
-        cueMarkers:        s.cueMarkers,
+        beatGridEnabled:    s.beatGridEnabled,
+        cueMarkers:         s.cueMarkers,
+        autoQualityEnabled: s.autoQualityEnabled,
+        autoQualityMin:     s.autoQualityMin,
+        autoQualityMax:     s.autoQualityMax,
+        // autoQualityReason is ephemeral — not persisted
       }),
       // Re-inject default presets after rehydration so they are never missing
       merge: (persisted, current) => {
@@ -799,6 +854,7 @@ export const useVisualStore = create<VisualState>()(
           // Spread DEFAULT_EFFECTS first so any fields added after the last save
           // are never undefined when VzSlider reads them.
           effects:          { ...DEFAULT_EFFECTS, ...(p.effects ?? {}) },
+          effectParams:     p.effectParams ?? DEFAULT_EFFECT_PARAMS,
           presets:          [...DEFAULT_PRESETS, ...(p.presets ?? [])],
           sessions,
           modulationRoutes: mergedRoutes,
@@ -811,8 +867,12 @@ export const useVisualStore = create<VisualState>()(
             // saved before that field existed (old sessions).
             return { ...d, ...saved, mediaId: saved.mediaId ?? null }
           }),
-          beatGridEnabled: p.beatGridEnabled ?? false,
-          cueMarkers:      (p.cueMarkers ?? []) as VzCueMarker[],
+          beatGridEnabled:    p.beatGridEnabled    ?? false,
+          cueMarkers:         (p.cueMarkers ?? []) as VzCueMarker[],
+          autoQualityEnabled: (p as Partial<VisualState>).autoQualityEnabled ?? false,
+          autoQualityMin:     (p as Partial<VisualState>).autoQualityMin     ?? 'Low',
+          autoQualityMax:     (p as Partial<VisualState>).autoQualityMax     ?? 'High',
+          autoQualityReason:  '',
           // Restore saved layer items; migrate from old-style layerConfig.mediaId if absent.
           layerItems: (() => {
             const saved = (p.layerItems ?? []) as VzLayerItem[]

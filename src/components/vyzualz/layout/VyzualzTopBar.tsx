@@ -3,12 +3,16 @@ import { getBandAvg } from '../../../lib/audioModulation'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { SettingsModal } from '../settings/SettingsModal'
 
-function BeatCanvas({ bass }: { bass: number }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const animRef   = useRef<number>(0)
-  const bassRef   = useRef(bass)
+function BeatCanvas({ analyser }: { analyser: AnalyserNode | null }) {
+  const canvasRef   = useRef<HTMLCanvasElement>(null)
+  const animRef     = useRef<number>(0)
+  const analyserRef = useRef<AnalyserNode | null>(analyser)
+  const freqBufRef  = useRef<Uint8Array<ArrayBuffer> | null>(null)
 
-  useEffect(() => { bassRef.current = bass }, [bass])
+  useEffect(() => {
+    analyserRef.current = analyser
+    freqBufRef.current  = analyser ? new Uint8Array(analyser.frequencyBinCount) : null
+  }, [analyser])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -24,13 +28,21 @@ function BeatCanvas({ bass }: { bass: number }) {
 
     const shape = [0,0,0.08,0.15,0.9,1,0.7,0.4,0.22,0.14,0.1,0.08,0.06,0.05,0.04,0.03,0.02,0.01,0,0]
 
-    let t = 0
     function frame() {
       if (!canvas || !ctx) return
       ctx.clearRect(0, 0, canvas.width, canvas.height)
       const cW = canvas.width, cH = canvas.height
       const mid = cH / 2
-      const beatPulse = Math.min(1, bassRef.current * 1.4)
+
+      // Compute bass live — no React state involved
+      const an  = analyserRef.current
+      const buf = freqBufRef.current
+      let bass = 0.05
+      if (an && buf) {
+        an.getByteFrequencyData(buf)
+        bass = getBandAvg(buf, an.context.sampleRate, 20, 250)
+      }
+      const beatPulse = Math.min(1, bass * 1.4)
 
       ctx.beginPath()
       shape.forEach((v, i) => {
@@ -70,7 +82,6 @@ function BeatCanvas({ bass }: { bass: number }) {
       ctx.lineWidth = dpr
       ctx.stroke()
 
-      t++
       animRef.current = requestAnimationFrame(frame)
     }
     animRef.current = requestAnimationFrame(frame)
@@ -82,11 +93,10 @@ function BeatCanvas({ bass }: { bass: number }) {
 
 type VyzualzTopBarProps = {
   analyser: AnalyserNode | null
-  bassLive: number
   onSaveSession: () => void
 }
 
-export function VyzualzTopBar({ analyser, bassLive, onSaveSession }: VyzualzTopBarProps) {
+export function VyzualzTopBar({ analyser, onSaveSession }: VyzualzTopBarProps) {
   const engine = useSharedAudio()
   const barRefs     = useRef<Array<HTMLDivElement | null>>(Array.from({ length: 5 }, () => null))
   const analyserRef = useRef<AnalyserNode | null>(null)
@@ -171,7 +181,7 @@ export function VyzualzTopBar({ analyser, bassLive, onSaveSession }: VyzualzTopB
         <div className="vz-header-sep" />
 
         <div className="vz-beat-wrap">
-          <BeatCanvas bass={bassLive} />
+          <BeatCanvas analyser={analyser} />
           <span className="vz-beat-label">KICK</span>
         </div>
 

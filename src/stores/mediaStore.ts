@@ -24,6 +24,7 @@ import type { MediaItemRow, MediaMetadata } from '../types/database'
 import { suggestMediaRole } from '../lib/mediaRoles'
 import type { MediaRole, MediaEnergy } from '../lib/mediaRoles'
 import { useVisualStore } from './visualStore'
+import { generateThumbnail } from '../components/vyzualz/media/generateThumbnail'
 
 export type { MediaRole, MediaEnergy }
 export type { MediaMetadata }
@@ -37,13 +38,15 @@ export interface UploadedMedia {
   description?: string
   type: 'image' | 'video'
   url: string
-  thumbnailUrl: string | null
-  meta: string              // e.g. "MP4 · 0:08" or "PNG · 1920×1080"
+  thumbnailUrl: string | null       // server-side or upload-time generated thumbnail
+  localThumbnailObjectUrl?: string  // client-generated thumbnail (data URL); used when thumbnailUrl is absent
+  proxyUrl?: string                 // reserved: future backend/Electron proxy or transcode URL
+  meta: string                      // e.g. "MP4 · 0:08" or "PNG · 1920×1080"
   favorite: boolean
   mediaRole: MediaRole
   tags: string[]
   collectionIds: string[]
-  metadata: MediaMetadata   // fps, hasAlpha, loopable, bpm, key, energy, width, height, duration, etc.
+  metadata: MediaMetadata           // width, height, duration, fps, hasAlpha, analyzedAt, etc.
   uploading?: boolean
   uploadError?: string
   storagePath?: string
@@ -355,6 +358,9 @@ interface MediaState {
   removeMediaFromCollection(collectionId: string, mediaIds: string[]): void
   reorderCollectionItems(collectionId: string, orderedMediaIds: string[]): Promise<void>
 
+  // Thumbnail generation
+  generateMissingThumbnails(): void
+
   // Filter
   filterMedia(filter: MediaFilter): void
 
@@ -604,9 +610,9 @@ export const useMediaStore = create<MediaState>((set, get) => ({
           if (isVideo) {
             if (row.thumbnail_path) {
               const { url: thumbUrl } = await createSignedMediaUrl(row.thumbnail_path)
-              thumbnailUrl = thumbUrl
+              thumbnailUrl = thumbUrl ?? null
             }
-            if (!thumbnailUrl && url) thumbnailUrl = await grabVideoThumbnail(url)
+            // Missing video thumbnails are generated lazily after load — not blocking here
           } else {
             thumbnailUrl = url
           }
@@ -649,6 +655,8 @@ export const useMediaStore = create<MediaState>((set, get) => ({
         }
         return { items: merged, lastRestored: items.length, collections }
       })
+      // Lazily generate thumbnails for any videos that lack a stored thumb
+      get().generateMissingThumbnails()
     } catch (e) {
       const msg = e instanceof Error ? interpretError(e.message) : 'Unexpected error loading media'
       console.error('[mediaStore] loadFromSupabase exception:', e)
@@ -666,8 +674,9 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     if (!item) return
     const remaining = items.filter(i => i.id !== id)
     set({ items: remaining })
-    if (item.url.startsWith('blob:')) URL.revokeObjectURL(item.url)
-    if (item.thumbnailUrl?.startsWith('blob:')) URL.revokeObjectURL(item.thumbnailUrl)
+    if (item.url.startsWith('blob:'))                         URL.revokeObjectURL(item.url)
+    if (item.thumbnailUrl?.startsWith('blob:'))               URL.revokeObjectURL(item.thumbnailUrl)
+    if (item.localThumbnailObjectUrl?.startsWith('blob:'))    URL.revokeObjectURL(item.localThumbnailObjectUrl)
     const visual = useVisualStore.getState()
     if (visual.activeMediaId === id) visual.setActiveMedia(remaining[0]?.id ?? null)
 
@@ -832,6 +841,30 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     if (error) console.error('[mediaStore] reorderCollectionItems:', error)
   },
 
+  // ── Thumbnail generation ──────────────────────────────────────────────────
+
+  generateMissingThumbnails() {
+    const needsThumb = get().items.filter(i =>
+      !i.uploading && !i.thumbnailUrl && !i.localThumbnailObjectUrl && i.url
+    )
+    for (const item of needsThumb) {
+      generateThumbnail(item.url, item.type).then(result => {
+        if (!result.thumbnailObjectUrl) return
+        set(s => ({
+          items: s.items.map(i =>
+            i.id === item.id
+              ? {
+                  ...i,
+                  localThumbnailObjectUrl: result.thumbnailObjectUrl!,
+                  metadata: { ...i.metadata, analyzedAt: result.analyzedAt },
+                }
+              : i
+          ),
+        }))
+      }).catch(() => { /* non-fatal: leave item with no thumbnail */ })
+    }
+  },
+
   // ── Filter ────────────────────────────────────────────────────────────────
 
   filterMedia(filter) { set({ activeFilter: filter }) },
@@ -844,8 +877,9 @@ export const useMediaStore = create<MediaState>((set, get) => ({
 
   clear() {
     get().items.forEach(i => {
-      if (i.url.startsWith('blob:')) URL.revokeObjectURL(i.url)
-      if (i.thumbnailUrl?.startsWith('blob:')) URL.revokeObjectURL(i.thumbnailUrl)
+      if (i.url.startsWith('blob:'))                         URL.revokeObjectURL(i.url)
+      if (i.thumbnailUrl?.startsWith('blob:'))               URL.revokeObjectURL(i.thumbnailUrl)
+      if (i.localThumbnailObjectUrl?.startsWith('blob:'))    URL.revokeObjectURL(i.localThumbnailObjectUrl)
     })
     get().uploadQueue.forEach(q => URL.revokeObjectURL(q.previewUrl))
     set({ items: [], uploadQueue: [] })

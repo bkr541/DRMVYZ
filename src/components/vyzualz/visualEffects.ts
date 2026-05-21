@@ -193,11 +193,12 @@ export function updateAndDrawParticles(
   intensity: number,
   bass: number,
   beatHit: boolean,
+  maxParticles = 80,
 ) {
   const cx = W / 2, cy = H / 2
-  if (beatHit && particles.length < 80) {
+  if (beatHit && particles.length < maxParticles) {
     const count = Math.floor(6 + bass * 14 * intensity)
-    for (let i = 0; i < count && particles.length < 80; i++) {
+    for (let i = 0; i < count && particles.length < maxParticles; i++) {
       const angle = Math.random() * Math.PI * 2
       const speed = (1.5 + Math.random() * 3) * intensity * (1 + bass * 1.5)
       particles.push({

@@ -1,11 +1,15 @@
 import { useState } from 'react'
 import type { VzEffects, Quality } from '../../../stores/visualStore'
 import type { UploadedMedia } from '../../../stores/mediaStore'
+import type { VzEffectParams } from '../../../types/effectParams'
 import type { ModulationRoute } from '../../../lib/audioModulation'
 import type { VzTimelineClip } from '../../../types/timeline'
 import type { VzLayerConfig, VzLayerItem } from '../../../types/vzLayers'
+import type { PerformanceStats } from '../../../types/performanceStats'
+import { DEFAULT_PERFORMANCE_STATS } from '../../../types/performanceStats'
 import { LiveVisualCanvas } from './LiveVisualCanvas'
 import { PreviewOverlay } from './PreviewOverlay'
+import { OutputHealthIndicator } from '../layout/OutputHealthIndicator'
 
 export function LiveVisualPreview({
   analyser, activeMedia, effects, enabledFx,
@@ -14,7 +18,7 @@ export function LiveVisualPreview({
   quality, onQualityChange,
   canvasWrapRef, audioTime, modulationRoutes,
   timelineEnabled, onToggleTimeline, timelineClips, timelineLoop, mediaItems,
-  layerConfigs, layerItems,
+  layerConfigs, layerItems, effectParams,
 }: {
   analyser: AnalyserNode | null
   activeMedia: UploadedMedia | null
@@ -33,8 +37,9 @@ export function LiveVisualPreview({
   mediaItems: UploadedMedia[]
   layerConfigs: VzLayerConfig[]
   layerItems: VzLayerItem[]
+  effectParams: VzEffectParams
 }) {
-  const [liveFps, setLiveFps] = useState(0)
+  const [liveStats, setLiveStats] = useState<PerformanceStats>(DEFAULT_PERFORMANCE_STATS)
 
   return (
     <div className="vz-preview-panel">
@@ -56,9 +61,10 @@ export function LiveVisualPreview({
           mediaItems={mediaItems}
           layerConfigs={layerConfigs}
           layerItems={layerItems}
-          onFpsUpdate={setLiveFps}
+          effectParams={effectParams}
+          onStatsUpdate={setLiveStats}
         />
-        <PreviewOverlay quality={quality} fps={liveFps} />
+        <PreviewOverlay quality={quality} fps={liveStats.fps} />
       </div>
 
       <div className="vz-preview-transport">
@@ -103,6 +109,10 @@ export function LiveVisualPreview({
             <span className={`vz-timeline-pill-dot${timelineEnabled ? ' vz-timeline-pill-dot--on' : ''}`} />
           </button>
         </div>
+
+        <div className="vz-header-sep" />
+
+        <OutputHealthIndicator stats={liveStats} />
 
         <div className="vz-header-sep" />
 

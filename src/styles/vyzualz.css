@@ -1176,6 +1176,67 @@ input[type='range'].vz-slider--color {
   user-select: none;
 }
 
+/* ── Effect Params sub-controls ─────────────────────────────────────── */
+.vz-param-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px 6px 5px;
+  margin: 1px 0 2px;
+  background: rgba(255,255,255,0.03);
+  border-left: 2px solid rgba(74,199,219,0.25);
+  border-radius: 0 4px 4px 0;
+}
+.vz-param-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.vz-param-label {
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: rgba(245,248,250,0.45);
+  white-space: nowrap;
+  flex: 1;
+}
+.vz-param-input {
+  width: 54px;
+  padding: 2px 5px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  color: var(--az-text-muted);
+  font-family: var(--az-font);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  appearance: textfield;
+  -moz-appearance: textfield;
+  outline: none;
+  transition: border-color 0.12s;
+}
+.vz-param-input::-webkit-outer-spin-button,
+.vz-param-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.vz-param-input:focus { border-color: rgba(74,199,219,0.5); }
+.vz-param-toggle {
+  padding: 2px 7px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  color: rgba(245,248,250,0.38);
+  font-family: var(--az-font);
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.vz-param-toggle--on {
+  background: rgba(74,199,219,0.18);
+  border-color: rgba(74,199,219,0.4);
+  color: #4ac7db;
+}
+
 /* ── Effect Chain ────────────────────────────────────────────────────── */
 .vz-chain-panel {
   height: 140px;
@@ -3332,4 +3393,100 @@ input[type='range'].vz-slider--color {
   border-color: rgba(248,113,113,0.3);
   background: rgba(248,113,113,0.06);
   color: rgba(248,113,113,0.6);
+}
+
+/* ── Output Health Indicator ─────────────────────────────────────── */
+.vz-health-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.vz-health-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.35);
+  cursor: default;
+  white-space: nowrap;
+}
+.vz-health-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.vz-health-fps {
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--az-font-data);
+  color: var(--az-text);
+  min-width: 16px;
+  text-align: right;
+}
+.vz-health-unit {
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--az-text-muted);
+  font-family: var(--az-font-data);
+}
+.vz-health-pill--caution  { border-color: rgba(216,185,90,0.35); }
+.vz-health-pill--critical { border-color: rgba(248,113,113,0.4); }
+
+/* Popup (shown on hover) */
+.vz-health-popup {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  min-width: 180px;
+  background: rgba(8,12,18,0.97);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  padding: 10px 12px;
+  z-index: 200;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+}
+.vz-health-wrap:hover .vz-health-popup {
+  display: block;
+}
+.vz-health-popup-title {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  font-family: var(--az-font-data);
+}
+.vz-health-grid {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 12px;
+  margin-bottom: 6px;
+}
+.vz-health-grid span:nth-child(odd) {
+  font-size: 9px;
+  color: var(--az-text-faint);
+  font-family: var(--az-font-data);
+}
+.vz-health-grid span:nth-child(even) {
+  font-size: 9px;
+  color: var(--az-text);
+  font-family: var(--az-font-data);
+  font-weight: 600;
+  text-align: right;
+}
+.vz-health-warning {
+  font-size: 8.5px;
+  color: #d8b95a;
+  font-family: var(--az-font-data);
+  padding: 2px 0;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  margin-top: 2px;
+}
+.vz-health-warning:first-of-type {
+  margin-top: 4px;
 }

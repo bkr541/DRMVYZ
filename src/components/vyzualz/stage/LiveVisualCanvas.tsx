@@ -16,13 +16,16 @@ import { renderTimelineTransition } from '../../../lib/transitionRenderer'
 import type { MediaRole } from '../../../lib/mediaRoles'
 import { VZ_LAYER_RENDER_ORDER } from '../../../types/vzLayers'
 import type { VzLayerConfig, VzLayerItem } from '../../../types/vzLayers'
+import type { PerformanceStats, WarningLevel } from '../../../types/performanceStats'
+import type { VzEffectParams } from '../../../types/effectParams'
 import {
-  drawSpectrumBars, drawCircularSpectrum, drawOscilloscope,
-  updateAndDrawBeatRings, updateAndDrawParticles,
-  drawReactiveGrid, getCameraShakeOffset,
+  resolveGlitchParams, resolveTunnelParams,
+  GLITCH_DEFAULTS, TUNNEL_DEFAULTS,
+} from '../../../types/effectParams'
+import {
+  getCameraShakeOffset,
   drawDatamoshSmear,
 } from '../visualEffects'
-import type { BeatRing, BurstParticle } from '../visualEffects'
 import { getEffectsForPhase } from '../effects/registry'
 import type { VzFrameContext } from '../effects/types'
 
@@ -205,10 +208,12 @@ interface QualityConfig {
   tunnelRings:   number
 }
 const QUALITY: Record<Quality, QualityConfig> = {
-  High:   { dprCap: 3,   bloomBlur: 10, glitchMax: 5, fogParticles: 600, scanlineStep: 3, tunnelRings: 8 },
-  Medium: { dprCap: 1.5, bloomBlur: 5,  glitchMax: 3, fogParticles: 200, scanlineStep: 4, tunnelRings: 5 },
-  Low:    { dprCap: 1,   bloomBlur: 0,  glitchMax: 1, fogParticles: 50,  scanlineStep: 6, tunnelRings: 3 },
+  High:   { dprCap: 2,    bloomBlur: 10, glitchMax: 5, fogParticles: 600, scanlineStep: 3, tunnelRings: 8 },
+  Medium: { dprCap: 1.25, bloomBlur: 5,  glitchMax: 3, fogParticles: 200, scanlineStep: 4, tunnelRings: 5 },
+  Low:    { dprCap: 1,    bloomBlur: 0,  glitchMax: 1, fogParticles: 50,  scanlineStep: 6, tunnelRings: 3 },
 }
+
+const AUTO_QUALITY_ORDER: Quality[] = ['Low', 'Medium', 'High']
 
 // ── Generative art fallback ───────────────────────────────────────────
 function drawGenerativeArt(
@@ -405,6 +410,37 @@ function getLayerItemAnchorOffset(
   }
 }
 
+// ── Layer render plan ─────────────────────────────────────────────────
+interface CompiledLayerEntry {
+  item: VzLayerItem
+  layerConfig: VzLayerConfig
+  media: UploadedMedia
+}
+
+function buildLayerRenderPlan(
+  layerItems: VzLayerItem[],
+  layerConfigs: VzLayerConfig[],
+  mediaItems: UploadedMedia[],
+): CompiledLayerEntry[] {
+  const plan: CompiledLayerEntry[] = []
+  for (const layerId of VZ_LAYER_RENDER_ORDER) {
+    const cfg = layerConfigs.find(c => c.id === layerId)
+    if (!cfg || !cfg.enabled) continue
+    const candidates = layerItems
+      .filter(i => i.layerId === layerId && i.enabled)
+      .sort((a, b) => a.zIndex - b.zIndex)
+    if (!candidates.length) continue
+    const hasSolo  = candidates.some(i => i.solo)
+    const toRender = hasSolo ? candidates.filter(i => i.solo) : candidates
+    for (const item of toRender) {
+      const media = mediaItems.find(m => m.id === item.mediaId)
+      if (!media) continue
+      plan.push({ item, layerConfig: cfg, media })
+    }
+  }
+  return plan
+}
+
 // ── LiveVisualCanvas ──────────────────────────────────────────────────
 export interface CanvasProps {
   analyser: AnalyserNode | null
@@ -421,12 +457,13 @@ export interface CanvasProps {
   timelineClips: VzTimelineClip[]
   timelineLoop: boolean
   mediaItems: UploadedMedia[]
-  onFpsUpdate: (fps: number) => void
+  onStatsUpdate: (stats: PerformanceStats) => void
   layerConfigs: VzLayerConfig[]
   layerItems: VzLayerItem[]
+  effectParams: VzEffectParams
 }
 
-export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, audioTime, modulationRoutes, timelineEnabled, timelineClips, timelineLoop, mediaItems, onFpsUpdate, layerConfigs, layerItems }: CanvasProps) {
+export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, audioTime, modulationRoutes, timelineEnabled, timelineClips, timelineLoop, mediaItems, onStatsUpdate, layerConfigs, layerItems, effectParams }: CanvasProps) {
   const canvasRef     = useRef<HTMLCanvasElement>(null)
   const animRef       = useRef<number>(0)
   const resizeFnRef   = useRef<() => void>(() => {})
@@ -450,14 +487,14 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   const mediaItemsRef      = useRef<UploadedMedia[]>(mediaItems)
   const layerConfigsRef    = useRef<VzLayerConfig[]>(layerConfigs)
   const layerItemsRef      = useRef<VzLayerItem[]>(layerItems)
+  const layerRenderPlanRef = useRef<CompiledLayerEntry[]>([])
   const mediaPoolRef       = useRef<Map<string, HTMLImageElement | HTMLVideoElement>>(new Map())
   const activeClipIdRef    = useRef<string | null>(null)
   const timelineClockRef   = useRef(0)
   const lastFrameTimeRef   = useRef<number | null>(null)
 
-  const beatRingsRef   = useRef<BeatRing[]>([])
-  const particlesRef   = useRef<BurstParticle[]>([])
-  const offscreenRef   = useRef<HTMLCanvasElement | null>(null)
+  const offscreenRef     = useRef<HTMLCanvasElement | null>(null)
+  const glitchScratchRef = useRef<HTMLCanvasElement | null>(null)
   const shakeAmountRef = useRef(0)
   const timeBufRef     = useRef<Uint8Array<ArrayBuffer> | null>(null)
 
@@ -480,11 +517,25 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   const fpsRef            = useRef(0)
   const fpsFrameCountRef  = useRef(0)
   const fpsWindowStartRef = useRef<number>(0)
-  const onFpsUpdateRef    = useRef(onFpsUpdate)
+  const onStatsUpdateRef  = useRef(onStatsUpdate)
 
-  const setTimelineClockStoreRef = useRef<(t: number) => void>(() => {})
+  const fpsSamplesRef          = useRef<number[]>([])   // rolling 5-sample buffer for avg
+  const droppedFrameCountRef   = useRef(0)              // drops in current 1s window
+  const prevFrameNowRef        = useRef(0)              // perf.now() of previous frame
 
-  useEffect(() => { onFpsUpdateRef.current = onFpsUpdate })
+  const effectParamsRef = useRef<VzEffectParams>(effectParams)
+
+  const lowFpsSinceRef          = useRef(0)   // perf.now() when low-FPS streak began, 0 = none
+  const highFpsSinceRef         = useRef(0)   // perf.now() when high-FPS streak began, 0 = none
+  const lastAutoQualityChangeMsRef = useRef(0)
+
+  const setTimelineClockStoreRef  = useRef<(t: number) => void>(() => {})
+  // Throttle Zustand clock writes to ~15fps so UI panels don't re-render every frame
+  const clockPublishLastMsRef = useRef(0)
+  const CLOCK_PUBLISH_MS = 1000 / 15  // ~66 ms
+
+  useEffect(() => { onStatsUpdateRef.current = onStatsUpdate })
+  useEffect(() => { effectParamsRef.current = effectParams }, [effectParams])
   useEffect(() => { effectsRef.current  = effects })
   useEffect(() => { enabledFxRef.current = enabledFx })
   useEffect(() => { isPlayingRef.current = isPlaying })
@@ -497,8 +548,31 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   useEffect(() => { timelineClipsRef.current = timelineClips }, [timelineClips])
   useEffect(() => { timelineLoopRef.current = timelineLoop }, [timelineLoop])
   useEffect(() => { mediaItemsRef.current = mediaItems }, [mediaItems])
-  useEffect(() => { layerConfigsRef.current = layerConfigs }, [layerConfigs])
-  useEffect(() => { layerItemsRef.current = layerItems }, [layerItems])
+  useEffect(() => {
+    layerConfigsRef.current = layerConfigs
+    layerItemsRef.current   = layerItems
+    const newPlan = buildLayerRenderPlan(layerItems, layerConfigs, mediaItems)
+    // Eagerly populate the media pool so the RAF loop never needs to create elements
+    const pool = mediaPoolRef.current
+    for (const { media } of newPlan) {
+      if (!pool.has(media.id)) {
+        if (media.type === 'image') {
+          const img = new Image()
+          img.src = media.url
+          pool.set(media.id, img)
+        } else {
+          const vid = document.createElement('video')
+          vid.src   = media.url
+          vid.muted = true
+          vid.playsInline = true
+          vid.loop  = true
+          if (isPlayingRef.current) vid.play().catch(() => {})
+          pool.set(media.id, vid)
+        }
+      }
+    }
+    layerRenderPlanRef.current = newPlan
+  }, [layerItems, layerConfigs, mediaItems])
 
   useEffect(() => {
     setTimelineClockStoreRef.current = useVisualStore.getState().setTimelineClock
@@ -628,16 +702,99 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       const W = canvas.width, H = canvas.height
       if (!W || !H) { animRef.current = requestAnimationFrame(frame); return }
 
-      // ── FPS measurement ────────────────────────────────────────────
+      // ── FPS measurement & stats ────────────────────────────────────
       const now = performance.now()
+      // Dropped-frame tracking: a frame is "dropped" when inter-frame time > 33ms
+      if (prevFrameNowRef.current > 0) {
+        if (now - prevFrameNowRef.current > 33) droppedFrameCountRef.current++
+      }
+      prevFrameNowRef.current = now
+
       fpsFrameCountRef.current += 1
       if (fpsWindowStartRef.current === 0) fpsWindowStartRef.current = now
       const elapsed = now - fpsWindowStartRef.current
       if (elapsed >= 1000) {
         fpsRef.current = Math.round((fpsFrameCountRef.current * 1000) / elapsed)
-        onFpsUpdateRef.current(fpsRef.current)
         fpsFrameCountRef.current  = 0
         fpsWindowStartRef.current = now
+
+        // Rolling 5-sample average
+        const samples = fpsSamplesRef.current
+        samples.push(fpsRef.current)
+        if (samples.length > 5) samples.shift()
+        const avgFps = Math.round(samples.reduce((a, b) => a + b, 0) / samples.length)
+
+        // Snapshot stats for UI — once per second, no frame-rate setState
+        const dropped = droppedFrameCountRef.current
+        droppedFrameCountRef.current = 0
+        const layerItemSnap = layerItemsRef.current
+        const mediaItemSnap = mediaItemsRef.current
+        const missingMediaCount = layerItemSnap.filter(
+          i => i.enabled && !mediaItemSnap.find(m => m.id === i.mediaId)
+        ).length
+        const el = mediaElRef.current
+        const activeMediaLoaded = el instanceof HTMLImageElement
+          ? el.complete && el.naturalWidth > 0
+          : el instanceof HTMLVideoElement
+          ? el.readyState >= 2
+          : false
+        const curDpr = Math.min(devicePixelRatio, QUALITY[qualityRef.current].dprCap)
+        const frameTimeMs = prevFrameNowRef.current > 0
+          ? Math.round(now - prevFrameNowRef.current)
+          : 0
+        let warningLevel: WarningLevel = 'ok'
+        if (avgFps < 40 || dropped >= 5) warningLevel = 'critical'
+        else if (avgFps < 55)            warningLevel = 'caution'
+        onStatsUpdateRef.current({
+          fps: fpsRef.current, averageFps: avgFps, droppedFrameCount: dropped,
+          frameTimeMs, canvasWidth: canvas.width, canvasHeight: canvas.height,
+          dpr: curDpr, quality: qualityRef.current,
+          activeMediaLoaded, missingMediaCount, warningLevel,
+        })
+
+        // ── Auto quality ────────────────────────────────────────────────
+        const aq = useVisualStore.getState()
+        if (aq.autoQualityEnabled) {
+          const fps     = fpsRef.current
+          const curIdx  = AUTO_QUALITY_ORDER.indexOf(qualityRef.current)
+          const minIdx  = AUTO_QUALITY_ORDER.indexOf(aq.autoQualityMin)
+          const maxIdx  = AUTO_QUALITY_ORDER.indexOf(aq.autoQualityMax)
+          if (fps < 45) {
+            if (lowFpsSinceRef.current === 0) lowFpsSinceRef.current = now
+            highFpsSinceRef.current = 0
+            if (
+              now - lowFpsSinceRef.current >= 2000 &&
+              curIdx > minIdx &&
+              now - lastAutoQualityChangeMsRef.current >= 2000
+            ) {
+              const newQ = AUTO_QUALITY_ORDER[curIdx - 1]
+              aq.setQuality(newQ)
+              aq.setAutoQualityReason(`↓ ${fps} fps < 45 → ${newQ}`)
+              lastAutoQualityChangeMsRef.current = now
+              lowFpsSinceRef.current = 0
+            }
+          } else if (fps >= 58) {
+            if (highFpsSinceRef.current === 0) highFpsSinceRef.current = now
+            lowFpsSinceRef.current = 0
+            if (
+              now - highFpsSinceRef.current >= 8000 &&
+              curIdx < maxIdx &&
+              now - lastAutoQualityChangeMsRef.current >= 2000
+            ) {
+              const newQ = AUTO_QUALITY_ORDER[curIdx + 1]
+              aq.setQuality(newQ)
+              aq.setAutoQualityReason(`↑ ${fps} fps ≥ 58 → ${newQ}`)
+              lastAutoQualityChangeMsRef.current = now
+              highFpsSinceRef.current = 0
+            }
+          } else {
+            lowFpsSinceRef.current  = 0
+            highFpsSinceRef.current = 0
+          }
+        } else {
+          lowFpsSinceRef.current  = 0
+          highFpsSinceRef.current = 0
+        }
       }
 
       const dpr  = Math.min(devicePixelRatio, QUALITY[qualityRef.current].dprCap)
@@ -673,7 +830,6 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       const mEff = applyModulatedEffects(eff, { ...rawBands, bass: smoothBass }, routesRef.current)
 
       const activeColorShift = fxSet.has('Color Shift') ? mEff.colorShift : 0
-      const activeStrobe     = fxSet.has('Strobe')      ? mEff.strobe     : 0
 
       const bassReact   = 1 + smoothBass * mEff.bassReactivity * 0.35 * mEff.masterIntensity
       const dispMod     = mEff.displacement
@@ -685,6 +841,10 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       const beatHit = onBeatBoundary || (!synced && bass > 0.65 && bass > prevBassRef.current + 0.07)
 
       const cx = W / 2, cy = H / 2
+
+      if (an && timeBufRef.current && fxSet.has('Oscilloscope')) {
+        an.getByteTimeDomainData(timeBufRef.current)
+      }
 
       const frameCtx: VzFrameContext = {
         W, H, dpr,
@@ -705,6 +865,9 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         },
         cx,
         cy,
+        freqData:       (an && buf) ? buf : null,
+        timeDomainData: timeBufRef.current,
+        effectParams:   effectParamsRef.current,
       }
 
       // ── Background / feedback ──────────────────────────────────────
@@ -732,7 +895,11 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           }
         }
         lastFrameTimeRef.current = nowMs
-        setTimelineClockStoreRef.current(timelineClockRef.current)
+        // Throttle: push to Zustand at ~15fps, not every frame
+        if (nowMs - clockPublishLastMsRef.current >= CLOCK_PUBLISH_MS) {
+          clockPublishLastMsRef.current = nowMs
+          setTimelineClockStoreRef.current(timelineClockRef.current)
+        }
 
         const clips = timelineClipsRef.current
         const { clip, localTimeSec } = getActiveTimelineClip(clips, timelineClockRef.current, timelineLoopRef.current)
@@ -897,20 +1064,25 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         }
       }
 
-      if (mediaEl && renderMedia) {
-        if (fxSet.has('Reactive Grid') && mEff.reactiveGrid > 0) {
-          drawReactiveGrid(ctx, W, H, dpr, t, mEff.reactiveGrid, bass, rawBands.lowMid)
-        }
+      for (const mod of getEffectsForPhase('preMedia')) {
+        if (!fxSet.has(mod.chainName)) continue
+        const intensity = (mEff as unknown as Record<string, number>)[mod.effectKey] ?? 0
+        if (intensity <= 0) continue
+        mod.draw(ctx, frameCtx, { ...mod.defaultParams, amount: intensity })
+      }
 
+      if (mediaEl && renderMedia) {
         if (fxSet.has('Tunnel') && eff.tunnelSpeed > 0) {
+          const tp = resolveTunnelParams(effectParamsRef.current)
           ctx.save()
           const tunnelT     = synced ? beatPhase * beatMs * eff.tunnelSpeed : t * eff.tunnelSpeed
-          const tunnelDepth = 1 + smoothBass * eff.bassReactivity * 0.45
-          for (let r = 0; r < q.tunnelRings; r++) {
+          const tunnelDepth = (1 + smoothBass * eff.bassReactivity * 0.45) * tp.depth
+          const ringCount   = Math.min(q.tunnelRings, tp.ringCount)
+          for (let r = 0; r < ringCount; r++) {
             const radius = ((tunnelT * 0.1 + r * 30 * tunnelDepth) % 300) + 10
             const alpha  = 0.07 * (1 - radius / 300)
             ctx.strokeStyle = `rgba(74,199,219,${alpha})`
-            ctx.lineWidth = 1.5 * dpr
+            ctx.lineWidth = tp.lineWidth * dpr
             ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.stroke()
           }
           ctx.restore()
@@ -997,17 +1169,24 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           ctx.restore()
         }
 
-        if (fxSet.has('Glitch Bars') && glitchMod > 0 && Math.random() < glitchMod * 0.25) {
-          const numGlitches = Math.min(Math.ceil(glitchMod * 5), q.glitchMax)
-          for (let g = 0; g < numGlitches; g++) {
-            const gy = Math.floor(Math.random() * H)
-            const gh = Math.floor(Math.random() * 10 + 2)
-            if (gy + gh > H) continue
-            const gShift = (Math.random() - 0.5) * eff.glitchAmount * 40
-            try {
-              const slice = ctx.getImageData(0, gy, W, gh)
-              ctx.putImageData(slice, gShift, gy)
-            } catch { /* cross-origin guard */ }
+        if (fxSet.has('Glitch Bars') && glitchMod > 0 && W > 1 && H > 1) {
+          const gp = resolveGlitchParams(effectParamsRef.current)
+          if (Math.random() < glitchMod * gp.probability) {
+            let scratch = glitchScratchRef.current
+            if (!scratch) { scratch = document.createElement('canvas'); glitchScratchRef.current = scratch }
+            if (scratch.width !== W || scratch.height !== H) { scratch.width = W; scratch.height = H }
+            const scratchCtx = scratch.getContext('2d')
+            if (scratchCtx) {
+              scratchCtx.drawImage(canvas, 0, 0)
+              const numGlitches = Math.min(Math.ceil(glitchMod * 5), q.glitchMax, gp.sliceCount)
+              for (let g = 0; g < numGlitches; g++) {
+                const gy = Math.floor(Math.random() * H)
+                const gh = Math.floor(Math.random() * 10 + 2)
+                if (gh < 1 || gy + gh > H) continue
+                const gShift = (Math.random() - 0.5) * glitchMod * gp.maxShift
+                ctx.drawImage(scratch, 0, gy, W, gh, gShift, gy, W, gh)
+              }
+            }
           }
         }
       } else if (isPlayingRef.current || rawBands.volume > 0.01) {
@@ -1030,92 +1209,45 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
 
       // ── Overlay layer compositor ──────────────────────────────────────────────
       {
-        const layerCfgs  = layerConfigsRef.current
-        const allItems   = layerItemsRef.current
-        const pool       = mediaPoolRef.current
-        const deckItems  = mediaItemsRef.current
-
-        for (const layerId of VZ_LAYER_RENDER_ORDER) {
-          const cfg = layerCfgs.find(c => c.id === layerId)
-          if (!cfg || !cfg.enabled) continue
-
-          const candidates = allItems
-            .filter(i => i.layerId === layerId && i.enabled)
-            .sort((a, b) => a.zIndex - b.zIndex)
-          if (!candidates.length) continue
-
-          const hasSolo  = candidates.some(i => i.solo)
-          const toRender = hasSolo ? candidates.filter(i => i.solo) : candidates
-
-          for (const item of toRender) {
-            const media = deckItems.find(m => m.id === item.mediaId)
-            if (!media) continue
-
-            if (!pool.has(item.mediaId)) {
-              if (media.type === 'image') {
-                const img = new Image()
-                img.src = media.url
-                pool.set(media.id, img)
-              } else {
-                const vid = document.createElement('video')
-                vid.src = media.url
-                vid.muted = true
-                vid.playsInline = true
-                vid.loop = true
-                if (isPlayingRef.current) vid.play().catch(() => {})
-                pool.set(media.id, vid)
-              }
+        const pool = mediaPoolRef.current
+        for (const { item, layerConfig, media } of layerRenderPlanRef.current) {
+          let el = pool.get(item.mediaId)
+          if (!el) {
+            // Defensive: populate pool if plan was built before pool entry existed
+            if (media.type === 'image') {
+              el = new Image(); (el as HTMLImageElement).src = media.url
+            } else {
+              const vid = document.createElement('video')
+              vid.src = media.url; vid.muted = true; vid.playsInline = true; vid.loop = true
+              if (isPlayingRef.current) vid.play().catch(() => {})
+              el = vid
             }
-
-            const el = pool.get(item.mediaId)
-            if (!el) continue
-
-            if (el instanceof HTMLVideoElement) {
-              if (isPlayingRef.current && el.paused)  el.play().catch(() => {})
-              if (!isPlayingRef.current && !el.paused) el.pause()
-            }
-
-            const { w, h } = computeLayerItemDrawSize(W, H, el, item.fitMode)
-            const { ox, oy } = getLayerItemAnchorOffset(item.anchor, w, h)
-            const audioScale = item.audioReactive ? bassReact * punchScale * eff.logoScale : 1
-            const totalScale = item.scale * audioScale
-
-            ctx.save()
-            ctx.globalAlpha = cfg.opacity * item.opacity
-            if (item.blendMode !== 'source-over') ctx.globalCompositeOperation = item.blendMode
-            if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
-            ctx.translate(item.x * W, item.y * H)
-            if (item.rotation !== 0) ctx.rotate(item.rotation * Math.PI / 180)
-            if (totalScale !== 1)    ctx.scale(totalScale, totalScale)
-            ctx.drawImage(el, ox, oy, w, h)
-            ctx.filter = 'none'
-            ctx.globalCompositeOperation = 'source-over'
-            ctx.globalAlpha = 1
-            ctx.restore()
+            pool.set(item.mediaId, el)
           }
+
+          if (el instanceof HTMLVideoElement) {
+            if (isPlayingRef.current && el.paused)   el.play().catch(() => {})
+            if (!isPlayingRef.current && !el.paused) el.pause()
+          }
+
+          const { w, h } = computeLayerItemDrawSize(W, H, el, item.fitMode)
+          const { ox, oy } = getLayerItemAnchorOffset(item.anchor, w, h)
+          const audioScale = item.audioReactive ? bassReact * punchScale * eff.logoScale : 1
+          const totalScale = item.scale * audioScale
+
+          ctx.save()
+          ctx.globalAlpha = layerConfig.opacity * item.opacity
+          if (item.blendMode !== 'source-over') ctx.globalCompositeOperation = item.blendMode
+          if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
+          ctx.translate(item.x * W, item.y * H)
+          if (item.rotation !== 0) ctx.rotate(item.rotation * Math.PI / 180)
+          if (totalScale !== 1)    ctx.scale(totalScale, totalScale)
+          ctx.drawImage(el, ox, oy, w, h)
+          ctx.filter = 'none'
+          ctx.globalCompositeOperation = 'source-over'
+          ctx.globalAlpha = 1
+          ctx.restore()
         }
-      }
-
-      if (fxSet.has('Spectrum Bars') && mEff.spectrumBars > 0 && an && buf) {
-        drawSpectrumBars(ctx, W, H, dpr, buf, mEff.spectrumBars, bass, mEff.masterIntensity)
-      }
-
-      if (fxSet.has('Circular Spectrum') && mEff.circularSpectrum > 0 && an && buf) {
-        drawCircularSpectrum(ctx, W, H, dpr, buf, mEff.circularSpectrum, bass)
-      }
-
-      if (fxSet.has('Oscilloscope') && mEff.oscilloscope > 0) {
-        const tBuf = timeBufRef.current
-        if (an && tBuf) an.getByteTimeDomainData(tBuf)
-        drawOscilloscope(ctx, W, H, dpr, timeBufRef.current, mEff.oscilloscope, rawBands.volume, rawBands.mid, high, t)
-      }
-
-      if (fxSet.has('Beat Ring') && mEff.beatRing > 0) {
-        updateAndDrawBeatRings(ctx, W, H, dpr, beatRingsRef.current, mEff.beatRing, bass, beatHit)
-      }
-
-      if (fxSet.has('Particle Burst') && mEff.particleBurst > 0) {
-        updateAndDrawParticles(ctx, W, H, dpr, particlesRef.current, mEff.particleBurst, bass, beatHit)
       }
 
       for (const mod of getEffectsForPhase('postMedia')) {
@@ -1132,17 +1264,6 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         const intensity = (mEff as unknown as Record<string, number>)[mod.effectKey] ?? 0
         if (intensity <= 0) continue
         mod.draw(ctx, frameCtx, { ...mod.defaultParams, amount: intensity })
-      }
-
-      const strobeOnBeat = synced && activeStrobe > 0 && beatPhase < 0.05
-      const strobeOnBass = !synced && activeStrobe > 0 &&
-        bass > 0.62 && bass > prevBassRef.current + 0.06
-      if (strobeOnBeat || strobeOnBass) {
-        const strobeAlpha = strobeOnBeat
-          ? activeStrobe * (1 - beatPhase / 0.05) * 0.9
-          : activeStrobe * bass * 0.85
-        ctx.fillStyle = `rgba(255,255,255,${strobeAlpha})`
-        ctx.fillRect(0, 0, W, H)
       }
 
       if (fxSet.has('Datamosh Smear') && mEff.datamoshSmear > 0) {

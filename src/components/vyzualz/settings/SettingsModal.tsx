@@ -27,10 +27,14 @@ function ShortcutPanel() {
   )
 }
 
+const QUALITY_LEVELS = ['Low', 'Medium', 'High'] as const
+
 function SystemSettingsPanel() {
   const {
     quality, setQuality, bpmSync, toggleBpmSync, bpm,
     resetEffects, resetModulationRoutes,
+    autoQualityEnabled, autoQualityMin, autoQualityMax, autoQualityReason,
+    setAutoQualityEnabled, setAutoQualityMin, setAutoQualityMax,
   } = useVisualStore()
   const { storageAvailable, authRequired } = useMediaStore()
 
@@ -39,7 +43,7 @@ function SystemSettingsPanel() {
       <div>
         <div className="az-popover-section-title">Canvas Quality</div>
         <div style={{ display: 'flex', gap: 6 }}>
-          {(['High', 'Medium', 'Low'] as const).map(q => (
+          {QUALITY_LEVELS.map(q => (
             <button
               key={q}
               className={`vz-settings-seg-btn${quality === q ? ' vz-settings-seg-btn--active' : ''}`}
@@ -47,6 +51,51 @@ function SystemSettingsPanel() {
             >{q}</button>
           ))}
         </div>
+      </div>
+
+      <div>
+        <div className="az-popover-section-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          Auto Quality
+          <button
+            className={`vz-settings-seg-btn${autoQualityEnabled ? ' vz-settings-seg-btn--active' : ''}`}
+            style={{ marginLeft: 'auto', fontSize: 10, padding: '2px 8px' }}
+            onClick={() => setAutoQualityEnabled(!autoQualityEnabled)}
+          >{autoQualityEnabled ? 'ON' : 'OFF'}</button>
+        </div>
+        {autoQualityEnabled && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 10, color: 'rgba(245,248,250,0.5)', width: 28 }}>Min</span>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {QUALITY_LEVELS.map(q => (
+                  <button key={q}
+                    className={`vz-settings-seg-btn${autoQualityMin === q ? ' vz-settings-seg-btn--active' : ''}`}
+                    style={{ fontSize: 10, padding: '2px 8px' }}
+                    onClick={() => setAutoQualityMin(q)}
+                  >{q}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 10, color: 'rgba(245,248,250,0.5)', width: 28 }}>Max</span>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {QUALITY_LEVELS.map(q => (
+                  <button key={q}
+                    className={`vz-settings-seg-btn${autoQualityMax === q ? ' vz-settings-seg-btn--active' : ''}`}
+                    style={{ fontSize: 10, padding: '2px 8px' }}
+                    onClick={() => setAutoQualityMax(q)}
+                  >{q}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{ fontSize: 10, color: 'rgba(245,248,250,0.45)', fontFamily: 'var(--az-font-data)', lineHeight: 1.5 }}>
+              Current: <span style={{ color: 'rgba(74,199,219,0.85)' }}>{quality}</span>
+              {autoQualityReason && (
+                <span style={{ marginLeft: 8, color: 'rgba(245,248,250,0.3)' }}>{autoQualityReason}</span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <div>

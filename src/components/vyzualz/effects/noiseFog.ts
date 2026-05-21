@@ -1,10 +1,5 @@
 import type { VzEffectModule, VzFrameContext } from './types'
-
-// ── Noise Fog ─────────────────────────────────────────────────────────────────
-// Scatter semi-transparent teal dots across the canvas for a hazy atmosphere.
-// Dot count is quality-aware; opacity scales with amount.
-//
-// Future deeper params: color (rgba), density multiplier, size jitter.
+import { resolveNoiseFogParams } from '../../../types/effectParams'
 
 interface NoiseFogParams extends Record<string, unknown> {
   amount: number
@@ -20,12 +15,18 @@ export const noiseFogModule: VzEffectModule<NoiseFogParams> = {
   defaultParams: { amount: 0.4 },
 
   draw(ctx: CanvasRenderingContext2D, frame: VzFrameContext, params: NoiseFogParams) {
-    const { W, H, quality } = frame
+    const { W, H, quality, effectParams } = frame
     const { amount } = params
     if (amount < 0.02) return
+
+    const np = resolveNoiseFogParams(effectParams)
+    const baseCount = np.particleCount > 0 ? np.particleCount : quality.fogParticles
+    const count = Math.max(0, Math.round(baseCount * np.qualityMultiplier))
+    if (count < 1) return
+
     ctx.save()
     ctx.globalAlpha = amount * 0.12
-    for (let i = 0; i < quality.fogParticles; i++) {
+    for (let i = 0; i < count; i++) {
       ctx.fillStyle = `rgba(74,199,219,${Math.random()})`
       ctx.fillRect(Math.random() * W, Math.random() * H, 1, 1)
     }

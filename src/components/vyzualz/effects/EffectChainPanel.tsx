@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Flowchart01Icon } from 'hugeicons-react'
 
 export const EFFECT_CHAIN_ITEMS = [
@@ -12,7 +13,7 @@ type EffectChainPanelProps = {
   onToggle: (name: string) => void
 }
 
-export function EffectChainPanel({ enabled, onToggle }: EffectChainPanelProps) {
+export const EffectChainPanel = memo(function EffectChainPanel({ enabled, onToggle }: EffectChainPanelProps) {
   return (
     <div className="vz-chain-panel">
       <div className="vz-panel-header" style={{ minHeight: 32 }}>
@@ -29,4 +30,4 @@ export function EffectChainPanel({ enabled, onToggle }: EffectChainPanelProps) {
       </div>
     </div>
   )
-}
+})

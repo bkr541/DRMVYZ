@@ -20,16 +20,17 @@ export type MediaRoleDb  =
 // Rich per-item metadata stored as JSONB in the media_items.metadata column.
 // width/height/duration also live in their own columns for backward compat.
 export interface MediaMetadata {
-  width?:         number
-  height?:        number
-  duration?:      number
-  fps?:           number
-  hasAlpha?:      boolean
-  loopable?:      boolean
-  bpm?:           number
-  key?:           string
-  energy?:        'low' | 'medium' | 'high' | 'peak'
+  width?:          number
+  height?:         number
+  duration?:       number
+  fps?:            number
+  hasAlpha?:       boolean
+  loopable?:       boolean
+  bpm?:            number
+  key?:            string
+  energy?:         'low' | 'medium' | 'high' | 'peak'
   dominantColors?: string[]
+  analyzedAt?:     number   // Date.now() of last client-side analysis pass
 }
 
 // ── Shared ────────────────────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useId, useMemo } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import {
   ChartHistogramIcon,
   Tv01Icon,
@@ -230,7 +231,23 @@ function VyzualzDock() {
     presets, activePresetId, bpm, setBpm, bpmSync, toggleBpmSync, setPlaying,
     cuePoint, setCuePoint, beatGridEnabled, setBeatGridEnabled,
     waveformZoom, setWaveformZoom, cueMarkers, addCueMarker,
-  } = useVisualStore()
+  } = useVisualStore(useShallow(s => ({
+    presets:            s.presets,
+    activePresetId:     s.activePresetId,
+    bpm:                s.bpm,
+    setBpm:             s.setBpm,
+    bpmSync:            s.bpmSync,
+    toggleBpmSync:      s.toggleBpmSync,
+    setPlaying:         s.setPlaying,
+    cuePoint:           s.cuePoint,
+    setCuePoint:        s.setCuePoint,
+    beatGridEnabled:    s.beatGridEnabled,
+    setBeatGridEnabled: s.setBeatGridEnabled,
+    waveformZoom:       s.waveformZoom,
+    setWaveformZoom:    s.setWaveformZoom,
+    cueMarkers:         s.cueMarkers,
+    addCueMarker:       s.addCueMarker,
+  })))
   const preset      = presets.find(p => p.id === activePresetId) ?? presets[0] ?? DEFAULT_PRESETS[0]
   const engine      = useSharedAudio()
   const fileInputId = useId()
@@ -506,7 +523,50 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     modulationRoutes, toggleModulationRoute, setModulationRouteAmount,
     timelineEnabled, timelineClips, timelineLoop, setTimelineEnabled, scrubTimeline,
     layerConfigs, layerItems,
-  } = useVisualStore()
+    effectParams, setEffectParam,
+  } = useVisualStore(useShallow(s => ({
+    effects:                   s.effects,
+    enabledFxArr:              s.enabledFxArr,
+    activeMediaId:             s.activeMediaId,
+    presets:                   s.presets,
+    activePresetId:            s.activePresetId,
+    bpm:                       s.bpm,
+    bpmSync:                   s.bpmSync,
+    isPlaying:                 s.isPlaying,
+    quality:                   s.quality,
+    setEffect:                 s.setEffect,
+    resetEffects:              s.resetEffects,
+    toggleFx:                  s.toggleFx,
+    selectPreset:              s.selectPreset,
+    savePreset:                s.savePreset,
+    deletePreset:              s.deletePreset,
+    setActiveMedia:            s.setActiveMedia,
+    setBpm:                    s.setBpm,
+    toggleBpmSync:             s.toggleBpmSync,
+    setPlaying:                s.setPlaying,
+    setQuality:                s.setQuality,
+    sessions:                  s.sessions,
+    sessionsLoading:           s.sessionsLoading,
+    sessionSyncError:          s.sessionSyncError,
+    saveSession:               s.saveSession,
+    loadSession:               s.loadSession,
+    renameSession:             s.renameSession,
+    deleteSession:             s.deleteSession,
+    syncSessionsFromCloud:     s.syncSessionsFromCloud,
+    clearSessionSyncError:     s.clearSessionSyncError,
+    modulationRoutes:          s.modulationRoutes,
+    toggleModulationRoute:     s.toggleModulationRoute,
+    setModulationRouteAmount:  s.setModulationRouteAmount,
+    timelineEnabled:           s.timelineEnabled,
+    timelineClips:             s.timelineClips,
+    timelineLoop:              s.timelineLoop,
+    setTimelineEnabled:        s.setTimelineEnabled,
+    scrubTimeline:             s.scrubTimeline,
+    layerConfigs:              s.layerConfigs,
+    layerItems:                s.layerItems,
+    effectParams:              s.effectParams,
+    setEffectParam:            s.setEffectParam,
+  })))
 
   const { items, loading, reorderItems } = useMediaStore()
 
@@ -545,30 +605,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   useEffect(() => { localStorage.setItem('drmvyz:vz:leftPanel',  JSON.stringify(activeLeftPanel))  }, [activeLeftPanel])
   useEffect(() => { localStorage.setItem('drmvyz:vz:rightPanel', JSON.stringify(activeRightPanel)) }, [activeRightPanel])
 
-  // Live bass for BeatCanvas
-  const [bassLive, setBassLive] = useState(0)
-  const analyserRef = useRef<AnalyserNode | null>(null)
-  const freqBufRef  = useRef<Uint8Array<ArrayBuffer> | null>(null)
-  const animRef     = useRef<number>(0)
-
-  useEffect(() => {
-    analyserRef.current = analyser
-    freqBufRef.current  = analyser ? new Uint8Array(analyser.frequencyBinCount) : null
-  }, [analyser])
-
-  useEffect(() => {
-    function frame() {
-      const an  = analyserRef.current
-      const buf = freqBufRef.current
-      if (an && buf) {
-        an.getByteFrequencyData(buf)
-        setBassLive(getBandAvg(buf, an.context.sampleRate, 20, 250))
-      }
-      animRef.current = requestAnimationFrame(frame)
-    }
-    animRef.current = requestAnimationFrame(frame)
-    return () => cancelAnimationFrame(animRef.current)
-  }, [])
+  // (bass is computed directly inside BeatCanvas via analyser ref — no React state needed here)
 
   const canvasWrapRef = useRef<HTMLDivElement>(null) as React.RefObject<HTMLDivElement>
 
@@ -696,7 +733,6 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
       topBar={
         <VyzualzTopBar
           analyser={analyser}
-          bassLive={bassLive}
           onSaveSession={handleSaveSession}
         />
       }
@@ -780,6 +816,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                   mediaItems={items}
                   layerConfigs={layerConfigs}
                   layerItems={layerItems}
+                  effectParams={effectParams}
                 />
               </VyzualzErrorBoundary>
             </OutputFrame>
@@ -815,6 +852,8 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                   enabledFx={enabledFxSet}
                   onChange={setEffect}
                   onReset={resetEffects}
+                  effectParams={effectParams}
+                  onParamChange={setEffectParam}
                 />
               </>
             )}

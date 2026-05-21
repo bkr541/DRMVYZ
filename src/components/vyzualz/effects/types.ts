@@ -1,4 +1,6 @@
 // Core types for the modular VYZUALZ effect system.
+import type { VzEffectParams } from '../../../types/effectParams'
+export type { VzEffectParams }
 // Effects are represented as VzEffectModule instances registered by ID,
 // categorized by render phase, and called from a single per-phase loop in the RAF.
 
@@ -63,6 +65,12 @@ export interface VzFrameContext {
   cx: number
   /** Canvas center Y (H/2). */
   cy: number
+  /** Raw frequency-domain byte buffer from AnalyserNode; null when no analyser. */
+  freqData:       Uint8Array<ArrayBuffer> | null
+  /** Raw time-domain byte buffer from AnalyserNode; null when no analyser. */
+  timeDomainData: Uint8Array<ArrayBuffer> | null
+  /** Per-effect performance/behaviour parameters from the store. */
+  effectParams:   VzEffectParams
 }
 
 // ── Effect module ─────────────────────────────────────────────────────────────

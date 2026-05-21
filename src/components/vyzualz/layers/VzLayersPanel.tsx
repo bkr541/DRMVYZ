@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Layers01Icon } from 'hugeicons-react'
 import { useVisualStore } from '../../../stores/visualStore'
+import { useShallow } from 'zustand/react/shallow'
 import { useMediaStore } from '../../../stores/mediaStore'
 import {
   VZ_LAYER_RENDER_ORDER,
@@ -14,7 +15,19 @@ export function VzLayersPanel() {
     layerItems, addLayerItem, removeLayerItem,
     updateLayerItem, reorderLayerItem, clearLayerItemsForLayer, setLayerItemSolo,
     activeMediaId,
-  } = useVisualStore()
+  } = useVisualStore(useShallow(s => ({
+    layerConfigs:             s.layerConfigs,
+    setLayerConfig:           s.setLayerConfig,
+    resetLayerConfigs:        s.resetLayerConfigs,
+    layerItems:               s.layerItems,
+    addLayerItem:             s.addLayerItem,
+    removeLayerItem:          s.removeLayerItem,
+    updateLayerItem:          s.updateLayerItem,
+    reorderLayerItem:         s.reorderLayerItem,
+    clearLayerItemsForLayer:  s.clearLayerItemsForLayer,
+    setLayerItemSolo:         s.setLayerItemSolo,
+    activeMediaId:            s.activeMediaId,
+  })))
   const { items } = useMediaStore()
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())

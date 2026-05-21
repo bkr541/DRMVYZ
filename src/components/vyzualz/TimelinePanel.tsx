@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { useVisualStore } from '../../stores/visualStore'
+import { useShallow } from 'zustand/react/shallow'
 import { useMediaStore } from '../../stores/mediaStore'
 import type { UploadedMedia } from '../../stores/mediaStore'
 import type { VzTimelineClip, VzTransitionConfig, VzTransitionType, VzTransitionEasing } from '../../types/timeline'
@@ -15,14 +16,24 @@ interface TimelinePanelProps {
 
 export function TimelinePanel({ onScrub }: TimelinePanelProps) {
   const {
-    timelineClips, timelineLoop,
+    timelineClips, timelineLoop, activeMediaId, timelineClock,
     setTimelineLoop, addTimelineClip, removeTimelineClip,
     duplicateTimelineClip, reorderTimelineClips, updateTimelineClip, clearTimeline,
-  } = useVisualStore()
+  } = useVisualStore(useShallow(s => ({
+    timelineClips:          s.timelineClips,
+    timelineLoop:           s.timelineLoop,
+    activeMediaId:          s.activeMediaId,
+    timelineClock:          s.timelineClock,
+    setTimelineLoop:        s.setTimelineLoop,
+    addTimelineClip:        s.addTimelineClip,
+    removeTimelineClip:     s.removeTimelineClip,
+    duplicateTimelineClip:  s.duplicateTimelineClip,
+    reorderTimelineClips:   s.reorderTimelineClips,
+    updateTimelineClip:     s.updateTimelineClip,
+    clearTimeline:          s.clearTimeline,
+  })))
 
-  const { items } = useMediaStore()
-  const activeMediaId  = useVisualStore(s => s.activeMediaId)
-  const timelineClock  = useVisualStore(s => s.timelineClock)
+  const { items } = useMediaStore(useShallow(s => ({ items: s.items })))
 
   const mediaMap = useMemo(() => new Map(items.map(m => [m.id, m])), [items])
 

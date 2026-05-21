@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { memo, useState, useMemo, useRef, useEffect } from 'react'
 import {
   Layers01Icon,
   FavouriteIcon,
@@ -46,7 +46,7 @@ type MediaDeckPanelProps = {
   onSelect: (id: string) => void
 }
 
-export function MediaDeckPanel({ activeMediaId, onSelect }: MediaDeckPanelProps) {
+export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSelect }: MediaDeckPanelProps) {
   const {
     items, addFiles, removeItem, toggleFavorite,
     loadFromSupabase, loading,
@@ -144,9 +144,9 @@ export function MediaDeckPanel({ activeMediaId, onSelect }: MediaDeckPanelProps)
                   }}
                 >
                   <div className="vz-media-thumb" style={{ background: '#050a12', overflow: 'hidden', position: 'relative' }}>
-                    {m.thumbnailUrl && (
+                    {(m.localThumbnailObjectUrl ?? m.thumbnailUrl) && (
                       <img
-                        src={m.thumbnailUrl}
+                        src={m.localThumbnailObjectUrl ?? m.thumbnailUrl!}
                         alt={m.name}
                         style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                       />
@@ -195,4 +195,4 @@ export function MediaDeckPanel({ activeMediaId, onSelect }: MediaDeckPanelProps)
       </div>
     </>
   )
-}
+})
