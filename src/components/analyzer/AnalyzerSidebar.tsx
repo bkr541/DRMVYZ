@@ -3,13 +3,15 @@ import { useState } from 'react'
 interface Props {
   activeView?: 'analyzer' | 'reference' | 'vyzualz'
   onNavigate?: (v: 'analyzer' | 'reference' | 'vyzualz') => void
+  compact?: boolean
 }
 
-export function AnalyzerSidebar({ activeView = 'analyzer', onNavigate }: Props) {
+export function AnalyzerSidebar({ activeView = 'analyzer', onNavigate, compact = false }: Props) {
   const [collapsed, setCollapsed] = useState(false)
+  const isCollapsed = compact || collapsed
 
   return (
-    <aside className={`az-sidebar${collapsed ? ' az-sidebar--collapsed' : ''}`}>
+    <aside className={`az-sidebar${isCollapsed ? ' az-sidebar--collapsed' : ''}`}>
       <div className="az-logo">
         <div className="az-logo-icon">
           <img src="/drmvyz_logo2.png" alt="DRMVYZ" />
@@ -37,19 +39,21 @@ export function AnalyzerSidebar({ activeView = 'analyzer', onNavigate }: Props) 
             <span className="az-status-dot" />
           </div>
         </div>
-        <button
-          className="az-sidebar-toggle"
-          onClick={() => setCollapsed(c => !c)}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          <svg viewBox="0 0 20 20" width="13" height="13" fill="currentColor">
-            <path d={collapsed
-              ? 'M8 4l6 6-6 6-1.4-1.4L11.2 10 6.6 5.4z'
-              : 'M12 4L6 10l6 6 1.4-1.4L8.8 10l4.6-4.6z'
-            }/>
-          </svg>
-          <span className="az-nav-label az-toggle-label">{collapsed ? 'Expand' : 'Collapse'}</span>
-        </button>
+        {!compact && (
+          <button
+            className="az-sidebar-toggle"
+            onClick={() => setCollapsed(c => !c)}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <svg viewBox="0 0 20 20" width="13" height="13" fill="currentColor">
+              <path d={collapsed
+                ? 'M8 4l6 6-6 6-1.4-1.4L11.2 10 6.6 5.4z'
+                : 'M12 4L6 10l6 6 1.4-1.4L8.8 10l4.6-4.6z'
+              }/>
+            </svg>
+            <span className="az-nav-label az-toggle-label">{collapsed ? 'Expand' : 'Collapse'}</span>
+          </button>
+        )}
       </div>
     </aside>
   )

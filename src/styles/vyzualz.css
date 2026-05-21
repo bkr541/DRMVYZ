@@ -143,19 +143,247 @@
   text-align: center;
 }
 
-/* ── Body: 3-column ──────────────────────────────────────────────────── */
+/* ── Body: 3-column grid with collapsible inspectors ────────────────── */
 .vz-content {
+  --vz-left-width: 322px;
+  --vz-right-width: 322px;
+  --vz-collapsed-inspector-width: 48px;
+
   flex: 1;
   min-height: 0;
-  display: flex;
+  min-width: 0;
+  display: grid;
+  grid-template-columns:
+    var(--vz-left-width)
+    minmax(0, 1fr)
+    var(--vz-right-width);
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
+  transition: grid-template-columns 180ms ease;
 }
 
-/* vz-left-center and vz-body are superseded by the flat left/center-col/right layout */
+.vz-content[data-left-collapsed='true'] {
+  --vz-left-width: var(--vz-collapsed-inspector-width);
+}
 
-.vz-left {
-  width: 322px;
+.vz-content[data-right-collapsed='true'] {
+  --vz-right-width: var(--vz-collapsed-inspector-width);
+}
+
+/* ── Inspector rails ─────────────────────────────────────────────────── */
+.vz-inspector {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: rgba(8, 12, 18, 0.96);
+}
+
+.vz-inspector--left {
+  border-right: 1px solid var(--az-border);
+}
+
+.vz-inspector--right {
+  border-left: 1px solid var(--az-border);
+}
+
+.vz-inspector-inner {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 140ms ease;
+}
+
+.vz-inspector--collapsed .vz-inspector-inner {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.vz-inspector-toggle {
+  position: absolute;
+  z-index: 5;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(12, 18, 26, 0.98);
+  color: rgba(255, 255, 255, 0.82);
+  cursor: pointer;
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+  transition: color 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.vz-inspector-toggle:hover,
+.vz-inspector-toggle:focus-visible {
+  color: #67f7ff;
+  border-color: rgba(103, 247, 255, 0.45);
+  box-shadow: 0 0 0 1px rgba(103, 247, 255, 0.15);
+  outline: none;
+}
+
+.vz-inspector-toggle--left {
+  right: -14px;
+}
+
+.vz-inspector-toggle--right {
+  left: -14px;
+}
+
+.vz-inspector--collapsed .vz-inspector-toggle--left,
+.vz-inspector--collapsed .vz-inspector-toggle--right {
+  left: 50%;
+  right: auto;
+  transform: translate(-50%, -50%);
+}
+
+/* ── Panel tabs (left / right inspector tab strips) ─────────────────── */
+.vz-panel-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 8px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
   flex-shrink: 0;
+}
+
+.vz-panel-tabs button {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-family: var(--az-font);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.14s, background 0.14s, border-color 0.14s;
+}
+
+.vz-panel-tabs button:hover {
+  color: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.vz-panel-tabs button.is-active,
+.vz-panel-tabs button[aria-selected='true'] {
+  color: #67f7ff;
+  border-color: rgba(103, 247, 255, 0.36);
+  background: rgba(103, 247, 255, 0.09);
+}
+
+/* ── Panel body (scrollable content area below tab strip) ────────────── */
+.vz-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.vz-panel-body::-webkit-scrollbar { width: 3px; }
+.vz-panel-body::-webkit-scrollbar-track { background: transparent; }
+.vz-panel-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+/* ── Effect accordions ───────────────────────────────────────────────── */
+.vz-effect-accordion {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.02);
+  flex-shrink: 0;
+}
+
+.vz-effect-accordion.is-open {
+  border-color: rgba(103, 247, 255, 0.16);
+  background: rgba(103, 247, 255, 0.03);
+}
+
+.vz-effect-accordion__header {
+  width: 100%;
+  min-height: 36px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.82);
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--az-font);
+  transition: background 0.14s;
+}
+
+.vz-effect-accordion__header:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.vz-effect-accordion__header:focus-visible {
+  outline: 1px solid rgba(103, 247, 255, 0.5);
+  outline-offset: -2px;
+}
+
+.vz-effect-accordion__chevron {
+  width: 14px;
+  color: rgba(103, 247, 255, 0.85);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.vz-effect-accordion__title {
+  min-width: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.vz-effect-accordion__count {
+  min-width: 22px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.vz-effect-accordion__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ── Legacy column classes — kept for backward compat, no longer in layout */
+.vz-left {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -163,13 +391,12 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  border-right: 1px solid var(--az-border);
 }
 
-/* Center column: canvas + bottom bar, sits between vz-left and vz-right */
+/* Center column: canvas + bottom bar */
 .vz-center-col {
-  flex: 1;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -187,13 +414,10 @@
 }
 
 .vz-right {
-  width: 322px;
-  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 6px;
-  border-left: 1px solid var(--az-border);
   min-height: 0;
   overflow-y: auto;
 }
@@ -721,15 +945,15 @@
 
 /* ── Audio Analyzer ──────────────────────────────────────────────────── */
 .vz-analyzer-panel {
-  width: 380px;
-  flex-shrink: 0;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   background: var(--az-panel);
-  border: none;
-  border-left: 1px solid var(--az-border);
-  border-right: 1px solid var(--az-border);
+  border: 1px solid var(--az-border);
+  border-radius: var(--az-radius);
   overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.28);
 }
 
 .vz-analyzer-body {
@@ -1048,13 +1272,9 @@ input[type='range'].vz-slider--color {
 }
 
 /* ── Bottom strip ────────────────────────────────────────────────────── */
+/* vz-bottom: presets/sessions/analyzer moved to side inspector tabs; rule kept for safe no-op */
 .vz-bottom {
-  display: flex;
-  height: 148px;
-  background: var(--az-panel);
-  border-top: 1px solid var(--az-border);
-  flex-shrink: 0;
-  overflow: hidden;
+  display: none;
 }
 
 /* ── Session panel ───────────────────────────────────────────────────── */
@@ -1567,15 +1787,18 @@ input[type='range'].vz-slider--color {
 }
 
 /* ── Responsive ──────────────────────────────────────────────────────── */
-@media (max-width: 1200px) {
-  .vz-left  { width: 298px; }
-  .vz-right { width: 298px; }
+@media (max-width: 1280px) {
+  .vz-content {
+    --vz-left-width: 280px;
+    --vz-right-width: 300px;
+  }
 }
-@media (max-width: 980px) {
-  .vz-left { display: none; }
-}
-@media (max-width: 780px) {
-  .vz-right { display: none; }
+
+@media (max-width: 1100px) {
+  .vz-content {
+    --vz-left-width: var(--vz-collapsed-inspector-width);
+    --vz-right-width: var(--vz-collapsed-inspector-width);
+  }
 }
 
 /* ── Modulation panel ────────────────────────────────────────────────── */
