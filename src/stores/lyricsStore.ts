@@ -15,6 +15,8 @@ import type {
   LyricStyle,
   LyricAnimation,
   LyricEffects,
+  LyricDocumentSourceType,
+  LyricDocumentSourceFormat,
   CreateLyricCueInput,
 } from '../types/lyrics'
 
@@ -36,6 +38,11 @@ interface LyricsState {
   draftDefaultEffects:   Partial<LyricEffects>
   globalOffsetMs:        number
 
+  draftSourceType:     LyricDocumentSourceType | null
+  draftSourceFormat:   LyricDocumentSourceFormat | null
+  draftRawSourceText:  string | null
+  draftMetadata:       Record<string, unknown> | null
+
   // Sync setters
   setLyricsEnabled(enabled: boolean): void
   setActiveDocument(document: LyricDocument | null, cues?: LyricCue[]): void
@@ -46,6 +53,12 @@ interface LyricsState {
   updateDraftDefaultEffects(patch: Partial<LyricEffects>): void
   setDraftTitle(title: string): void
   setDraftArtist(artist: string): void
+  setDraftSourceMeta(meta: {
+    sourceType?:    LyricDocumentSourceType | null
+    sourceFormat?:  LyricDocumentSourceFormat | null
+    rawSourceText?: string | null
+    metadata?:      Record<string, unknown> | null
+  }): void
   setError(error: string | null): void
   clearLyrics(): void
 
@@ -75,6 +88,11 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
   draftDefaultEffects:   {},
   globalOffsetMs:        0,
 
+  draftSourceType:     null,
+  draftSourceFormat:   null,
+  draftRawSourceText:  null,
+  draftMetadata:       null,
+
   // ── Sync setters ────────────────────────────────────────────────────────────
 
   setLyricsEnabled: (enabled) => set({ lyricsEnabled: enabled }),
@@ -90,6 +108,10 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       draftDefaultAnimation: document?.defaultAnimation ?? {},
       draftDefaultEffects:   document?.defaultEffects   ?? {},
       globalOffsetMs:        document?.globalOffsetMs   ?? 0,
+      draftSourceType:       null,
+      draftSourceFormat:     null,
+      draftRawSourceText:    null,
+      draftMetadata:         null,
       error:                 null,
     })
   },
@@ -98,6 +120,14 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
   setGlobalOffsetMs: (offsetMs)  => set({ globalOffsetMs: offsetMs }),
   setDraftTitle:     (title)     => set({ draftTitle: title }),
   setDraftArtist:    (artist)    => set({ draftArtist: artist }),
+
+  setDraftSourceMeta: (meta) => set({
+    draftSourceType:     meta.sourceType    !== undefined ? meta.sourceType    : null,
+    draftSourceFormat:   meta.sourceFormat  !== undefined ? meta.sourceFormat  : null,
+    draftRawSourceText:  meta.rawSourceText !== undefined ? meta.rawSourceText : null,
+    draftMetadata:       meta.metadata      !== undefined ? meta.metadata      : null,
+  }),
+
   setError:          (error)     => set({ error }),
 
   updateDraftDefaultStyle: (patch) =>
@@ -121,6 +151,10 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       draftDefaultAnimation: {},
       draftDefaultEffects:   {},
       globalOffsetMs:        0,
+      draftSourceType:       null,
+      draftSourceFormat:     null,
+      draftRawSourceText:    null,
+      draftMetadata:         null,
       error:                 null,
     }),
 
@@ -191,10 +225,27 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
 
       let doc: LyricDocument
       if (s.activeDocumentId) {
-        doc = await updateLyricDocument(s.activeDocumentId, patch)
+        // Include source metadata only when a new import has occurred since last save
+        doc = await updateLyricDocument(s.activeDocumentId, {
+          ...patch,
+          ...(s.draftSourceType !== null ? {
+            sourceType:    s.draftSourceType,
+            sourceFormat:  s.draftSourceFormat  ?? 'json',
+            rawSourceText: s.draftRawSourceText,
+            metadata:      s.draftMetadata      ?? {},
+          } : {}),
+        })
       } else {
-        doc = await createLyricDocument({ ...patch, sourceType: 'manual', sourceFormat: 'json' })
+        // Use import source metadata when available; fall back to manual defaults
+        doc = await createLyricDocument({
+          ...patch,
+          sourceType:    s.draftSourceType    ?? 'manual',
+          sourceFormat:  s.draftSourceFormat  ?? 'json',
+          rawSourceText: s.draftRawSourceText  ?? null,
+          metadata:      s.draftMetadata       ?? {},
+        })
       }
+      // setActiveDocument resets draftSource fields to null
       get().setActiveDocument(doc, s.cues)
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to save lyric document' })

@@ -97,8 +97,8 @@ export function VzLayersPanel() {
                           >S</button>
                           <button
                             className={`vz-li-lock-btn${item.locked ? ' vz-li-lock-btn--on' : ''}`}
-                            onClick={() => !item.locked && updateLayerItem(item.id, { locked: !item.locked })}
-                            title={item.locked ? 'Locked' : 'Lock'}
+                            onClick={() => updateLayerItem(item.id, { locked: !item.locked })}
+                            title={item.locked ? 'Unlock' : 'Lock'}
                           >{item.locked ? '🔒' : '🔓'}</button>
                           <span className="vz-li-name" title={isMissing ? `Missing: ${item.mediaId}` : (media?.title ?? media?.name)}>
                             {isMissing ? '⚠ missing' : (media?.title ?? media?.name ?? '—')}
@@ -110,15 +110,15 @@ export function VzLayersPanel() {
                           >{isExpanded ? '▴' : '▾'}</button>
                           <button
                             className="vz-li-up-btn"
-                            disabled={idx === 0}
+                            disabled={item.locked || idx === 0}
                             onClick={() => reorderLayerItem(item.id, 'up')}
-                            title="Move up"
+                            title={item.locked ? 'Unlock to reorder' : 'Move up'}
                           >↑</button>
                           <button
                             className="vz-li-down-btn"
-                            disabled={idx === lItems.length - 1}
+                            disabled={item.locked || idx === lItems.length - 1}
                             onClick={() => reorderLayerItem(item.id, 'down')}
-                            title="Move down"
+                            title={item.locked ? 'Unlock to reorder' : 'Move down'}
                           >↓</button>
                           <button
                             className="vz-li-remove-btn"
@@ -128,12 +128,13 @@ export function VzLayersPanel() {
                         </div>
 
                         {isExpanded && (
-                          <div className="vz-li-expanded">
+                          <div className={`vz-li-expanded${item.locked ? ' vz-li-expanded--locked' : ''}`}>
                             <div className="vz-li-row2">
                               <label className="vz-li-field-label">Opacity</label>
                               <input
                                 type="range" className="vz-li-slider"
                                 min={0} max={1} step={0.05} value={item.opacity}
+                                disabled={item.locked}
                                 onChange={e => updateLayerItem(item.id, { opacity: parseFloat(e.target.value) })}
                               />
                               <span className="vz-li-val">{item.opacity.toFixed(2)}</span>
@@ -178,16 +179,20 @@ export function VzLayersPanel() {
                             <div className="vz-li-transform-grid">
                               <label className="vz-li-field-label">X</label>
                               <input type="number" className="vz-li-num" min={0} max={1} step={0.01}
-                                value={item.x} onChange={e => updateLayerItem(item.id, { x: parseFloat(e.target.value) || 0 })} />
+                                value={item.x} disabled={item.locked}
+                                onChange={e => updateLayerItem(item.id, { x: parseFloat(e.target.value) || 0 })} />
                               <label className="vz-li-field-label">Y</label>
                               <input type="number" className="vz-li-num" min={0} max={1} step={0.01}
-                                value={item.y} onChange={e => updateLayerItem(item.id, { y: parseFloat(e.target.value) || 0 })} />
+                                value={item.y} disabled={item.locked}
+                                onChange={e => updateLayerItem(item.id, { y: parseFloat(e.target.value) || 0 })} />
                               <label className="vz-li-field-label">Scale</label>
                               <input type="number" className="vz-li-num" min={0.01} max={10} step={0.1}
-                                value={item.scale} onChange={e => updateLayerItem(item.id, { scale: parseFloat(e.target.value) || 1 })} />
+                                value={item.scale} disabled={item.locked}
+                                onChange={e => updateLayerItem(item.id, { scale: parseFloat(e.target.value) || 1 })} />
                               <label className="vz-li-field-label">Rot°</label>
                               <input type="number" className="vz-li-num" min={-360} max={360} step={1}
-                                value={item.rotation} onChange={e => updateLayerItem(item.id, { rotation: parseFloat(e.target.value) || 0 })} />
+                                value={item.rotation} disabled={item.locked}
+                                onChange={e => updateLayerItem(item.id, { rotation: parseFloat(e.target.value) || 0 })} />
                             </div>
                             <div className="vz-li-row2">
                               <label className="vz-li-field-label">Audio</label>
@@ -198,8 +203,9 @@ export function VzLayersPanel() {
                               >{item.audioReactive ? 'ON' : 'OFF'}</button>
                               <button
                                 className="vz-li-reset-btn"
+                                disabled={item.locked}
                                 onClick={() => updateLayerItem(item.id, { x: 0.5, y: 0.5, scale: 1, rotation: 0 })}
-                                title="Reset transform"
+                                title={item.locked ? 'Unlock to reset transform' : 'Reset transform'}
                               >↺ Reset</button>
                             </div>
                           </div>

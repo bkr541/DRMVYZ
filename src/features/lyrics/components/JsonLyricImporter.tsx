@@ -118,7 +118,16 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
         <button
           className="lmv-btn lmv-btn--primary"
           disabled={!canImport}
-          onClick={() => { if (result) onImportToDraft(result) }}
+          onClick={() => {
+            if (result) onImportToDraft({
+              ...result,
+              documentPatch: {
+                ...result.documentPatch,
+                // Preserve raw source JSON unless the parsed doc already specified one
+                rawSourceText: result.documentPatch.rawSourceText ?? jsonInput,
+              },
+            })
+          }}
         >
           Import to Draft
         </button>

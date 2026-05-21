@@ -3274,7 +3274,7 @@ input[type='range'].vz-slider--color {
   line-height: 1;
 }
 .vz-li-solo-btn--on { background: rgba(216,185,90,0.35); color: #d8b95a; border-color: #d8b95a; }
-.vz-li-lock-btn--on { color: rgba(245,248,250,0.85); }
+.vz-li-lock-btn--on { color: rgba(245,248,250,0.85); background: rgba(74,199,219,0.15); border-color: rgba(74,199,219,0.4); }
 .vz-li-name {
   flex: 1;
   font-family: var(--az-font, monospace);
@@ -3301,6 +3301,15 @@ input[type='range'].vz-slider--color {
 .vz-li-up-btn:disabled, .vz-li-down-btn:disabled { opacity: 0.25; cursor: default; }
 
 /* Expanded transform section */
+.vz-li-expanded--locked input:not([type='range']):disabled,
+.vz-li-expanded--locked input[type='range']:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.vz-li-expanded--locked button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
 .vz-li-expanded {
   padding: 5px 7px 5px 7px;
   border-top: 1px solid rgba(255,255,255,0.07);

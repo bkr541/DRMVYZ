@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase, supabaseConfigured } from '../../lib/supabase'
 import { useLyricsStore } from '../../stores/lyricsStore'
 import { getLyricDocumentsForUser } from '../../lib/lyricsDb'
+import { useSharedAudio } from '../../context/AudioEngineContext'
 import type { LyricCue, LyricDocument, CreateLyricCueInput } from '../../types/lyrics'
 import type { LyricDocumentImportResult } from './utils/lyricDocumentImport'
 import { LyricManagerHeader }    from './components/LyricManagerHeader'
@@ -39,8 +40,21 @@ export function LyricManagerView({ onBack }: Props) {
     setDraftTitle, setDraftArtist, setGlobalOffsetMs,
     updateDraftDefaultStyle, updateDraftDefaultAnimation, updateDraftDefaultEffects,
     saveActiveLyricDocument, replaceActiveCues,
-    setActiveDocument,
+    setActiveDocument, loadLyricDocument, setDraftSourceMeta,
   } = useLyricsStore()
+
+  // Throttle audio playback time at 5 Hz to avoid excessive re-renders
+  const engine    = useSharedAudio()
+  const engineRef = useRef(engine)
+  engineRef.current = engine
+  const [currentAudioTimeMs, setCurrentAudioTimeMs] = useState<number | undefined>(undefined)
+  useEffect(() => {
+    const id = setInterval(() => {
+      const e = engineRef.current
+      setCurrentAudioTimeMs(e.duration > 0 ? Math.round(e.currentTime * 1000) : undefined)
+    }, 200)
+    return () => clearInterval(id)
+  }, [])
 
   // Local draft cues (editable in this view, not yet saved)
   const [draftCues, setDraftCues] = useState<LyricCue[]>(() => storeCues)
@@ -78,9 +92,12 @@ export function LyricManagerView({ onBack }: Props) {
   // ── Document actions ───────────────────────────────────────────────────
 
   const handleSelectDocument = useCallback((doc: LyricDocument) => {
-    // In a full implementation this would also load cues from Supabase
-    setActiveDocument(doc, draftCues)
-  }, [draftCues, setActiveDocument])
+    if (supabaseConfigured) {
+      loadLyricDocument(doc.id)
+    } else {
+      setActiveDocument(doc, [])
+    }
+  }, [loadLyricDocument, setActiveDocument])
 
   const handleNewDocument = useCallback(() => {
     setActiveDocument(null, [])
@@ -180,12 +197,20 @@ export function LyricManagerView({ onBack }: Props) {
     if (patch.defaultAnimation) updateDraftDefaultAnimation(patch.defaultAnimation)
     if (patch.defaultEffects)   updateDraftDefaultEffects(patch.defaultEffects)
 
+    // Preserve import source metadata so save uses the correct sourceType/format
+    setDraftSourceMeta({
+      sourceType:    patch.sourceType    ?? null,
+      sourceFormat:  patch.sourceFormat  ?? null,
+      rawSourceText: patch.rawSourceText ?? null,
+      metadata:      patch.metadata      ?? null,
+    })
+
     showStatus(`Imported ${result.cues.length} cues as draft`)
     setActiveTab('manual')
   }, [
     setCues, setDraftTitle, setDraftArtist, setGlobalOffsetMs,
     updateDraftDefaultStyle, updateDraftDefaultAnimation, updateDraftDefaultEffects,
-    showStatus,
+    setDraftSourceMeta, showStatus,
   ])
 
   // ── Preview in visualizer ──────────────────────────────────────────────
@@ -256,6 +281,7 @@ export function LyricManagerView({ onBack }: Props) {
                 onUpdateCue={handleUpdateCue}
                 onDeleteCue={handleDeleteCue}
                 onDuplicateCue={handleDuplicateCue}
+                currentAudioTimeMs={currentAudioTimeMs}
               />
             )}
             {activeTab === 'json' && (
