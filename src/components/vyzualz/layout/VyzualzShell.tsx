@@ -26,7 +26,11 @@ export function VyzualzShell({
   isRightInspectorCollapsed = false,
 }: VyzualzShellProps) {
   return (
-    <div className={`az-root${className ? ` ${className}` : ''}`}>
+    <div
+      className={`az-root${className ? ` ${className}` : ''}`}
+      data-left-collapsed={isLeftInspectorCollapsed ? 'true' : 'false'}
+      data-right-collapsed={isRightInspectorCollapsed ? 'true' : 'false'}
+    >
       <div className="az-shell">
         {sidebar}
         <div className="vz-main">

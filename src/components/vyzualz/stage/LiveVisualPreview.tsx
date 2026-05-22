@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import type { VzEffects, Quality } from '../../../stores/visualStore'
 import type { UploadedMedia } from '../../../stores/mediaStore'
 import type { VzEffectParams } from '../../../types/effectParams'
@@ -9,6 +10,7 @@ import type { PerformanceStats } from '../../../types/performanceStats'
 import { DEFAULT_PERFORMANCE_STATS } from '../../../types/performanceStats'
 import { LiveVisualCanvas } from './LiveVisualCanvas'
 import { PreviewOverlay } from './PreviewOverlay'
+import { RenderSourceBadge } from './RenderSourceBadge'
 import { OutputHealthIndicator } from '../layout/OutputHealthIndicator'
 
 export function LiveVisualPreview({
@@ -18,7 +20,9 @@ export function LiveVisualPreview({
   quality, onQualityChange,
   canvasWrapRef, audioTime, modulationRoutes,
   timelineEnabled, onToggleTimeline, timelineClips, timelineLoop, mediaItems,
-  layerConfigs, layerItems, effectParams,
+  layerConfigs, layerItems, effectParams, audioReactivityEnabled,
+  lyricsEnabled, lyricsCount, onLyricsClick,
+  stageOverlays,
 }: {
   analyser: AnalyserNode | null
   activeMedia: UploadedMedia | null
@@ -38,6 +42,11 @@ export function LiveVisualPreview({
   layerConfigs: VzLayerConfig[]
   layerItems: VzLayerItem[]
   effectParams: VzEffectParams
+  audioReactivityEnabled: boolean
+  lyricsEnabled: boolean
+  lyricsCount: number
+  onLyricsClick: () => void
+  stageOverlays?: ReactNode
 }) {
   const [liveStats, setLiveStats] = useState<PerformanceStats>(DEFAULT_PERFORMANCE_STATS)
 
@@ -62,9 +71,18 @@ export function LiveVisualPreview({
           layerConfigs={layerConfigs}
           layerItems={layerItems}
           effectParams={effectParams}
+          audioReactivityEnabled={audioReactivityEnabled}
           onStatsUpdate={setLiveStats}
         />
         <PreviewOverlay quality={quality} fps={liveStats.fps} />
+        <RenderSourceBadge
+          timelineEnabled={timelineEnabled}
+          timelineClips={timelineClips}
+          timelineLoop={timelineLoop}
+          activeMedia={activeMedia}
+          mediaItems={mediaItems}
+        />
+        {stageOverlays}
       </div>
 
       <div className="vz-preview-transport">
@@ -107,6 +125,18 @@ export function LiveVisualPreview({
             </svg>
             <span className="vz-timeline-pill-label">Timeline</span>
             <span className={`vz-timeline-pill-dot${timelineEnabled ? ' vz-timeline-pill-dot--on' : ''}`} />
+          </button>
+          <button
+            className={`vz-lyrics-pill${lyricsEnabled && lyricsCount > 0 ? ' vz-lyrics-pill--on' : lyricsCount > 0 ? ' vz-lyrics-pill--loaded' : ''}`}
+            onClick={onLyricsClick}
+            title={`Lyrics ${lyricsEnabled ? 'ON' : 'OFF'} · ${lyricsCount} cue${lyricsCount !== 1 ? 's' : ''} · Click to open Lyric Manager`}
+          >
+            <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden="true">
+              <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/>
+            </svg>
+            <span className="vz-lyrics-pill-label">Lyrics</span>
+            {lyricsCount > 0 && <span className="vz-lyrics-pill-count">{lyricsCount}</span>}
+            <span className={`vz-lyrics-pill-dot${lyricsEnabled && lyricsCount > 0 ? ' vz-lyrics-pill-dot--on' : ''}`} />
           </button>
         </div>
 

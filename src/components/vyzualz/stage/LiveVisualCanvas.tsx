@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useLayoutEffect } from 'react'
 import { useVisualStore } from '../../../stores/visualStore'
 import type { VzEffects, Quality } from '../../../stores/visualStore'
 import type { UploadedMedia } from '../../../stores/mediaStore'
@@ -461,9 +461,10 @@ export interface CanvasProps {
   layerConfigs: VzLayerConfig[]
   layerItems: VzLayerItem[]
   effectParams: VzEffectParams
+  audioReactivityEnabled: boolean
 }
 
-export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, audioTime, modulationRoutes, timelineEnabled, timelineClips, timelineLoop, mediaItems, onStatsUpdate, layerConfigs, layerItems, effectParams }: CanvasProps) {
+export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, audioTime, modulationRoutes, timelineEnabled, timelineClips, timelineLoop, mediaItems, onStatsUpdate, layerConfigs, layerItems, effectParams, audioReactivityEnabled }: CanvasProps) {
   const canvasRef     = useRef<HTMLCanvasElement>(null)
   const animRef       = useRef<number>(0)
   const resizeFnRef   = useRef<() => void>(() => {})
@@ -471,6 +472,9 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   const analyserRef   = useRef<AnalyserNode | null>(null)
   const freqBufRef    = useRef<Uint8Array<ArrayBuffer> | null>(null)
   const mediaElRef    = useRef<HTMLImageElement | HTMLVideoElement | null>(null)
+  // Tracks the deck (non-timeline) media element independently so we can
+  // restore it into mediaElRef when timeline mode is turned off.
+  const deckMediaElRef = useRef<HTMLImageElement | HTMLVideoElement | null>(null)
   const effectsRef    = useRef<VzEffects>(effects)
   const enabledFxRef  = useRef<Set<string>>(enabledFx)
   const isPlayingRef  = useRef(isPlaying)
@@ -524,6 +528,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   const prevFrameNowRef        = useRef(0)              // perf.now() of previous frame
 
   const effectParamsRef = useRef<VzEffectParams>(effectParams)
+  const audioReactivityEnabledRef = useRef(audioReactivityEnabled)
 
   const lowFpsSinceRef          = useRef(0)   // perf.now() when low-FPS streak began, 0 = none
   const highFpsSinceRef         = useRef(0)   // perf.now() when high-FPS streak began, 0 = none
@@ -544,8 +549,11 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   useEffect(() => { qualityRef.current = quality; resizeFnRef.current() }, [quality])
   useEffect(() => { audioTimeRef.current = audioTime })
   useEffect(() => { routesRef.current = modulationRoutes }, [modulationRoutes])
-  useEffect(() => { timelineEnabledRef.current = timelineEnabled }, [timelineEnabled])
-  useEffect(() => { timelineClipsRef.current = timelineClips }, [timelineClips])
+  useEffect(() => { audioReactivityEnabledRef.current = audioReactivityEnabled }, [audioReactivityEnabled])
+  // Sync timeline refs with useLayoutEffect so RAF always sees current values
+  // before the next frame fires — prevents stale-media rendering after clip deletion.
+  useLayoutEffect(() => { timelineEnabledRef.current = timelineEnabled }, [timelineEnabled])
+  useLayoutEffect(() => { timelineClipsRef.current = timelineClips }, [timelineClips])
   useEffect(() => { timelineLoopRef.current = timelineLoop }, [timelineLoop])
   useEffect(() => { mediaItemsRef.current = mediaItems }, [mediaItems])
   useEffect(() => {
@@ -606,9 +614,12 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   }, [analyser])
 
   useEffect(() => {
-    const prev = mediaElRef.current
+    // Tear down previous deck element
+    const prev = deckMediaElRef.current
     if (prev instanceof HTMLVideoElement) { prev.pause(); prev.src = '' }
-    mediaElRef.current = null
+    deckMediaElRef.current = null
+    // Only clear mediaElRef when timeline is not managing it
+    if (!timelineEnabledRef.current) mediaElRef.current = null
     activeMediaRoleRef.current    = activeMedia?.mediaRole ?? null
     activeMediaFitModeRef.current = null
 
@@ -617,7 +628,10 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
     if (activeMedia.type === 'image') {
       const img = new Image()
       img.src = activeMedia.url
-      img.onload = () => { mediaElRef.current = img }
+      img.onload = () => {
+        deckMediaElRef.current = img
+        if (!timelineEnabledRef.current) mediaElRef.current = img
+      }
     } else {
       const video = document.createElement('video')
       video.src = activeMedia.url
@@ -625,12 +639,14 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       video.loop  = true
       video.playsInline = true
       if (isPlayingRef.current) video.play().catch(() => {})
-      mediaElRef.current = video
+      deckMediaElRef.current = video
+      if (!timelineEnabledRef.current) mediaElRef.current = video
     }
 
     return () => {
-      const el = mediaElRef.current
+      const el = deckMediaElRef.current
       if (el instanceof HTMLVideoElement) { el.pause(); el.src = '' }
+      deckMediaElRef.current = null
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMedia?.id])
@@ -645,7 +661,9 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
     }
   }, [isPlaying])
 
-  useEffect(() => {
+  // useLayoutEffect so pool/ref cleanup happens before the next RAF when the
+  // user toggles timeline mode, preventing stale pool elements from rendering.
+  useLayoutEffect(() => {
     if (timelineEnabled) {
       timelineClockRef.current = 0
       lastFrameTimeRef.current = null
@@ -656,20 +674,34 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       })
       mediaPoolRef.current.clear()
       activeClipIdRef.current = null
+      activeClipRef.current   = null
+      // Restore the deck element so the canvas immediately shows deck media
+      // (the activeMedia?.id effect won't re-fire since activeMedia didn't change).
+      mediaElRef.current = deckMediaElRef.current
     }
   }, [timelineEnabled])
 
-  useEffect(() => {
-    const tlIds = new Set(timelineClips.map(c => c.mediaId))
-    const layerIds = new Set(layerItems.map(i => i.mediaId))
-    const keepIds = new Set([...tlIds, ...layerIds])
+  // useLayoutEffect so media references are cleared synchronously before the
+  // next RAF fires — prevents any stale-media frames after clip deletion.
+  useLayoutEffect(() => {
+    const tlMediaIds = new Set(timelineClips.map(c => c.mediaId))
+    const tlClipIds  = new Set(timelineClips.map(c => c.id))
+    const layerIds   = new Set(layerItems.map(i => i.mediaId))
+    const keepIds    = new Set([...tlMediaIds, ...layerIds])
+
+    // Pause and evict pool entries whose media is no longer referenced
     mediaPoolRef.current.forEach((el, id) => {
       if (!keepIds.has(id)) {
         if (el instanceof HTMLVideoElement) { el.pause(); el.src = '' }
         mediaPoolRef.current.delete(id)
       }
     })
-    if (timelineClips.length === 0 || !tlIds.has(activeClipIdRef.current ?? '')) {
+
+    // If the currently active clip was deleted (or timeline is now empty),
+    // clear the render references immediately so no stale frame is drawn.
+    const activeClipGone = timelineClips.length === 0
+      || !tlClipIds.has(activeClipIdRef.current ?? '')
+    if (activeClipGone) {
       activeClipIdRef.current = null
       activeClipRef.current   = null
       if (timelineEnabledRef.current) mediaElRef.current = null
@@ -819,26 +851,36 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         an.getByteFrequencyData(buf)
         rawBands = extractBandValues(buf, an.context.sampleRate, beatPhase, synced)
       }
-      const bass = rawBands.bass
+      const audioOn = audioReactivityEnabledRef.current
+      // When audio reactivity is OFF, drive all derived values from silence so
+      // the canvas remains static regardless of what the analyser is reading.
+      const bass = audioOn ? rawBands.bass : 0
       const high = rawBands.high
 
       const smoothBass = prevBassRef.current * 0.65 + bass * 0.35
       const bassDelta  = bass - prevBassRef.current
       const impactMod  = Math.max(0, bassDelta * 2.8)
-      const punchScale = 1 + impactMod * eff.bassReactivity * 0.25
+      const punchScale = audioOn ? 1 + impactMod * eff.bassReactivity * 0.25 : 1
 
-      const mEff = applyModulatedEffects(eff, { ...rawBands, bass: smoothBass }, routesRef.current)
+      const mEff = audioOn
+        ? applyModulatedEffects(eff, { ...rawBands, bass: smoothBass }, routesRef.current)
+        : eff
 
       const activeColorShift = fxSet.has('Color Shift') ? mEff.colorShift : 0
 
-      const bassReact   = 1 + smoothBass * mEff.bassReactivity * 0.35 * mEff.masterIntensity
+      const bassReact = audioOn
+        ? 1 + smoothBass * mEff.bassReactivity * 0.35 * mEff.masterIntensity
+        : 1
       const dispMod     = mEff.displacement
       const feedbackMod = Math.min(0.97, mEff.feedbackTrails)
       const glitchMod   = mEff.glitchAmount
       const bloomMod    = Math.min(1, mEff.bloom)
 
       const onBeatBoundary = synced && beatPhase < 0.04
-      const beatHit = onBeatBoundary || (!synced && bass > 0.65 && bass > prevBassRef.current + 0.07)
+      // beatHit drives beat-reactive effects; suppress when audio reactivity is off
+      const beatHit = audioOn
+        ? (onBeatBoundary || (!synced && bass > 0.65 && bass > prevBassRef.current + 0.07))
+        : false
 
       const cx = W / 2, cy = H / 2
 
@@ -854,7 +896,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         beatPhase,
         onBeatBoundary,
         beatHit,
-        audio:           rawBands,
+        audio:           audioOn ? rawBands : { bass: 0, lowMid: 0, mid: 0, high: 0, volume: 0, beat: 0 },
         masterIntensity: mEff.masterIntensity,
         quality: {
           scanlineStep: q.scanlineStep,
@@ -1055,7 +1097,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         : { ox: 0, oy: 0, sw: W, sh: H }
 
       let shakeApplied = false
-      if (fxSet.has('Camera Shake') && mEff.cameraShake > 0) {
+      if (audioOn && fxSet.has('Camera Shake') && mEff.cameraShake > 0) {
         const { dx, dy } = getCameraShakeOffset(shakeAmountRef, smoothBass, beatHit, mEff.cameraShake)
         if (Math.abs(dx) + Math.abs(dy) > 0.1) {
           ctx.save()

@@ -44,6 +44,21 @@ export const MEDIA_ROLE_LABELS: Record<MediaRole, string> = {
   other:               'Other',
 }
 
+/** Compact human-readable labels for badge display on timeline clips and deck cards. */
+export const MEDIA_ROLE_BADGE_LABELS: Record<MediaRole, string> = {
+  background_image:    'BG Image',
+  background_video:    'BG Video',
+  logo:                'Logo',
+  transparent_element: 'Transparent',
+  overlay:             'Overlay',
+  character_art:       'Character',
+  texture:             'Texture',
+  loop:                'Loop',
+  transition:          'Transition',
+  reference:           'Reference',
+  other:               'Other',
+}
+
 // Used in role <select> option groups
 export const MEDIA_ROLE_ICONS: Record<MediaRole, string> = {
   background_image:    '⬛',

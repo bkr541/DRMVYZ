@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import type { LyricCue } from '../../../types/lyrics'
 import { parseLyricDocumentJson, type LyricDocumentImportResult } from '../utils/lyricDocumentImport'
 import { formatMs } from '../../../lib/lyricsImport'
@@ -32,13 +32,24 @@ const FORMAT_LABELS: Record<string, string> = {
 }
 
 export function JsonLyricImporter({ onImportToDraft }: Props) {
-  const [jsonInput, setJsonInput] = useState('')
-  const [result, setResult]       = useState<LyricDocumentImportResult | null>(null)
-  const [dragOver, setDragOver]   = useState(false)
+  const [jsonInput, setJsonInput]     = useState('')
+  const [result, setResult]           = useState<LyricDocumentImportResult | null>(null)
+  const [dragOver, setDragOver]       = useState(false)
+  const [fileName, setFileName]       = useState<string | null>(null)
+  const [parseSource, setParseSource] = useState<'file' | 'validate' | null>(null)
+  const resultRef = useRef<HTMLDivElement>(null)
 
-  const parse = useCallback((text: string) => {
-    setResult(parseLyricDocumentJson(text))
+  const scrollToResult = useCallback(() => {
+    setTimeout(() => {
+      resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }, 0)
   }, [])
+
+  const runParse = useCallback((text: string, source: 'file' | 'validate') => {
+    setResult(parseLyricDocumentJson(text))
+    setParseSource(source)
+    scrollToResult()
+  }, [scrollToResult])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -49,10 +60,11 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
     reader.onload = ev => {
       const text = ev.target?.result as string
       setJsonInput(text)
-      parse(text)
+      setFileName(file.name)
+      runParse(text, 'file')
     }
     reader.readAsText(file)
-  }, [parse])
+  }, [runParse])
 
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -61,15 +73,40 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
     reader.onload = ev => {
       const text = ev.target?.result as string
       setJsonInput(text)
-      parse(text)
+      setFileName(file.name)
+      runParse(text, 'file')
     }
     reader.readAsText(file)
-  }, [parse])
+  }, [runParse])
+
+  const handleValidate = useCallback(() => {
+    if (!jsonInput.trim()) {
+      setResult({
+        cues: [],
+        errors: ['Paste or upload lyric JSON before validating.'],
+        warnings: [],
+        detectedFormat: 'unknown',
+        documentPatch: {},
+      })
+      setParseSource('validate')
+      scrollToResult()
+      return
+    }
+    runParse(jsonInput, 'validate')
+  }, [jsonInput, runParse, scrollToResult])
 
   const hasErrors   = result && result.errors.length > 0
   const canImport   = result && result.errors.length === 0 && result.cues.length > 0
   const previewCues: LyricCue[] = result?.cues.slice(0, 6) ?? []
   const hiddenCount = (result?.cues.length ?? 0) - previewCues.length
+
+  const statusVariant = hasErrors ? 'error' : (result?.warnings.length ?? 0) > 0 ? 'warn' : 'ok'
+  const statusIcon    = hasErrors ? '✕' : (result?.warnings.length ?? 0) > 0 ? '⚠' : '✓'
+  const statusMsg = hasErrors
+    ? `Parse error — ${result!.errors.length} issue${result!.errors.length !== 1 ? 's' : ''}`
+    : (result?.warnings.length ?? 0) > 0
+      ? `Valid with warnings · ${result!.cues.length} cue${result!.cues.length !== 1 ? 's' : ''} detected`
+      : `Valid lyric JSON · ${result!.cues.length} cue${result!.cues.length !== 1 ? 's' : ''} detected`
 
   return (
     <div className="lmv-workflow-content">
@@ -77,18 +114,30 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
 
       {/* Drop zone */}
       <div
-        className={`lmv-drop-zone${dragOver ? ' lmv-drop-zone--over' : ''}`}
+        className={`lmv-drop-zone${dragOver ? ' lmv-drop-zone--over' : ''}${fileName ? ' lmv-drop-zone--has-file' : ''}`}
         onDragOver={e => { e.preventDefault(); setDragOver(true) }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
       >
-        <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" opacity={0.35}>
-          <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/>
-        </svg>
-        <span className="lmv-drop-zone-text">Drop .json file here</span>
-        <span className="lmv-drop-zone-or">or</span>
+        {fileName ? (
+          <>
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" style={{ color: 'rgba(74,199,219,0.7)', flexShrink: 0 }}>
+              <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/>
+            </svg>
+            <span className="lmv-drop-zone-text" style={{ color: 'rgba(74,199,219,0.85)' }}>{fileName}</span>
+            <span className="lmv-drop-zone-sub">Replace by dropping another file</span>
+          </>
+        ) : (
+          <>
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" opacity={0.35}>
+              <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/>
+            </svg>
+            <span className="lmv-drop-zone-text">Drop .json file here</span>
+            <span className="lmv-drop-zone-or">or</span>
+          </>
+        )}
         <label className="lmv-btn lmv-btn--ghost lmv-drop-browse">
-          Browse File
+          {fileName ? 'Replace File' : 'Browse File'}
           <input type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={handleFileInput} />
         </label>
       </div>
@@ -103,17 +152,16 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
         spellCheck={false}
         onChange={e => {
           setJsonInput(e.target.value)
-          if (!e.target.value.trim()) { setResult(null); return }
+          if (!e.target.value.trim()) { setResult(null); setFileName(null); return }
         }}
       />
 
       <div className="lmv-import-actions">
         <button
           className="lmv-btn lmv-btn--ghost"
-          disabled={!jsonInput.trim()}
-          onClick={() => parse(jsonInput)}
+          onClick={handleValidate}
         >
-          Validate
+          {result ? 'Re-validate' : 'Validate'}
         </button>
         <button
           className="lmv-btn lmv-btn--primary"
@@ -123,7 +171,6 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
               ...result,
               documentPatch: {
                 ...result.documentPatch,
-                // Preserve raw source JSON unless the parsed doc already specified one
                 rawSourceText: result.documentPatch.rawSourceText ?? jsonInput,
               },
             })
@@ -135,11 +182,36 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
 
       {/* Validation results */}
       {result && (
-        <div className="lmv-validation-box">
-          <div className="lmv-validation-row">
-            <span className="lmv-val-label">Format</span>
-            <span className="lmv-val-value">{FORMAT_LABELS[result.detectedFormat]}</span>
+        <div ref={resultRef} className="lmv-validation-box">
+
+          {/* Status banner — aria-live announces changes to screen readers */}
+          <div
+            className={`lmv-parse-status lmv-parse-status--${statusVariant}`}
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <span className="lmv-parse-status-icon" aria-hidden="true">{statusIcon}</span>
+            <span className="lmv-parse-status-msg">{statusMsg}</span>
+            {parseSource === 'file' && fileName && (
+              <span className="lmv-parse-source-tag" aria-label={`from file: ${fileName}`}>from file</span>
+            )}
           </div>
+
+          {/* Next-action hint when valid */}
+          {!hasErrors && result.cues.length > 0 && (
+            <div className="lmv-parse-next-hint">
+              Click <strong>Import to Draft</strong> to load these cues, then use{' '}
+              <strong>Preview in Visualizer</strong> to see them live.
+            </div>
+          )}
+
+          {result.detectedFormat !== 'unknown' && (
+            <div className="lmv-validation-row">
+              <span className="lmv-val-label">Format</span>
+              <span className="lmv-val-value">{FORMAT_LABELS[result.detectedFormat]}</span>
+            </div>
+          )}
           <div className="lmv-validation-row">
             <span className="lmv-val-label">Cues</span>
             <span className="lmv-val-value">{result.cues.length}</span>
@@ -156,6 +228,12 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
               <span className="lmv-val-value">{result.documentPatch.artist}</span>
             </div>
           )}
+          {result.documentPatch.globalOffsetMs !== undefined && (
+            <div className="lmv-validation-row">
+              <span className="lmv-val-label">Offset</span>
+              <span className="lmv-val-value">{result.documentPatch.globalOffsetMs}ms</span>
+            </div>
+          )}
           {result.documentPatch.defaultStyle && (
             <div className="lmv-validation-row">
               <span className="lmv-val-label">Default Style</span>
@@ -166,6 +244,14 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
             <div className="lmv-validation-row">
               <span className="lmv-val-label">Default Animation</span>
               <span className="lmv-val-value lmv-val-yes">✓ Included</span>
+            </div>
+          )}
+          {result.documentPatch.metadata && Object.keys(result.documentPatch.metadata).length > 0 && (
+            <div className="lmv-validation-row">
+              <span className="lmv-val-label">Metadata</span>
+              <span className="lmv-val-value">
+                {Object.keys(result.documentPatch.metadata).length} field{Object.keys(result.documentPatch.metadata).length !== 1 ? 's' : ''}
+              </span>
             </div>
           )}
 

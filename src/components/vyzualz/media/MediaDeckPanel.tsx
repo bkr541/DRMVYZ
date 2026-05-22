@@ -8,12 +8,7 @@ import { useMediaStore } from '../../../stores/mediaStore'
 import type { UploadedMedia } from '../../../stores/mediaStore'
 import { MediaUploadModal } from '../MediaUploadModal'
 import { MediaStatusBar } from './MediaStatusBar'
-
-const ROLE_BADGE: Record<string, string> = {
-  background_image: 'BG', background_video: 'BGV', logo: 'LOGO',
-  transparent_element: 'ALPHA', overlay: 'OVR', character_art: 'CHR',
-  texture: 'TEX', loop: 'LOOP', transition: 'TRNS', reference: 'REF',
-}
+import { MEDIA_ROLE_BADGE_LABELS, MEDIA_ROLE_LABELS } from '../../../lib/mediaRoles'
 
 type DeckFilter = 'all' | 'images' | 'videos' | 'favorites' | 'backgrounds' | 'logos' | 'transparent' | 'overlays'
 
@@ -155,8 +150,14 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
                       <span className="vz-media-type-badge" style={{ background: 'rgba(74,199,219,0.25)', color: '#4ac7db' }}>↑ SYNC</span>
                     ) : m.uploadError ? (
                       <span className="vz-media-type-badge" style={{ background: 'rgba(248,113,113,0.22)', color: '#f87171' }} title={m.uploadError}>⚠ LOCAL</span>
-                    ) : ROLE_BADGE[m.mediaRole] ? (
-                      <span className="vz-media-type-badge" style={{ background: 'rgba(10,20,32,0.75)' }}>{ROLE_BADGE[m.mediaRole]}</span>
+                    ) : m.mediaRole && m.mediaRole !== 'other' ? (
+                      <span
+                        className="vz-media-type-badge"
+                        style={{ background: 'rgba(10,20,32,0.75)' }}
+                        title={`Role: ${MEDIA_ROLE_LABELS[m.mediaRole]}`}
+                      >
+                        {MEDIA_ROLE_BADGE_LABELS[m.mediaRole]}
+                      </span>
                     ) : (
                       <span className="vz-media-type-badge">{m.type === 'video' ? 'VID' : 'IMG'}</span>
                     )}

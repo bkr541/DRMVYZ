@@ -102,6 +102,7 @@ export const EFFECT_LABELS: Partial<Record<keyof VzEffects, string>> = {
   bloom:           'Bloom',
   masterIntensity: 'Brightness',
   colorShift:      'Color Shift',
+  logoScale:       'Reactive Scale',
   // ── Newer effects ─────────────────────────────────────────────────────
   spectrumBars:    'Spectrum Bars',
   circularSpectrum: 'Circ Spectrum',

@@ -45,6 +45,7 @@ function StylePreviewBox({ cue, doc }: { cue: LyricCue; doc: LyricDocument | nul
 
 export function LyricPreviewPanel({ cues, document, selectedCue, onPreviewInVisualizer }: Props) {
   const validation = validateLyricCues(cues)
+  const hasTimedCues = cues.some(c => typeof c.endMs === 'number' && typeof c.startMs === 'number' && c.endMs > c.startMs)
 
   const fmtMs = (ms: number | null) =>
     ms !== null ? formatMsCompact(ms) : '—'
@@ -73,7 +74,10 @@ export function LyricPreviewPanel({ cues, document, selectedCue, onPreviewInVisu
         <button
           className="lmv-btn lmv-btn--ghost lmv-preview-viz-btn"
           onClick={onPreviewInVisualizer}
-          title="Push draft cues to visualizer for live preview"
+          disabled={!hasTimedCues}
+          title={hasTimedCues
+            ? 'Push draft cues to visualizer for live preview'
+            : 'No cues to preview. Import or create lyric cues first.'}
         >
           Preview in Visualizer
         </button>

@@ -216,9 +216,23 @@ export function LyricManagerView({ onBack }: Props) {
   // ── Preview in visualizer ──────────────────────────────────────────────
 
   const handlePreviewInVisualizer = useCallback(() => {
+    if (draftCues.length === 0) {
+      setStatusMsg('No cues to preview. Import or create lyric cues first.')
+      return
+    }
+    const timedCues = draftCues.filter(c =>
+      typeof c.startMs === 'number' &&
+      typeof c.endMs === 'number' &&
+      c.endMs > c.startMs
+    )
+    if (timedCues.length === 0) {
+      setStatusMsg('Timed cues required for visualizer playback. Add start and end times to your cues.')
+      return
+    }
     setCues(draftCues)
+    setLyricsEnabled(true)
     onBack()
-  }, [draftCues, setCues, onBack])
+  }, [draftCues, setCues, setLyricsEnabled, onBack])
 
   return (
     <div className="lmv-root">

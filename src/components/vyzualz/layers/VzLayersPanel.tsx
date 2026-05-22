@@ -8,13 +8,14 @@ import {
   DEFAULT_LAYER_CONFIGS, LAYER_LABELS, LAYER_BLEND_MODES,
 } from '../../../types/vzLayers'
 import type { VzLayerItem } from '../../../types/vzLayers'
+import { MEDIA_ROLE_BADGE_LABELS } from '../../../lib/mediaRoles'
 
 export function VzLayersPanel() {
   const {
     layerConfigs, setLayerConfig, resetLayerConfigs,
     layerItems, addLayerItem, removeLayerItem,
     updateLayerItem, reorderLayerItem, clearLayerItemsForLayer, setLayerItemSolo,
-    activeMediaId,
+    activeMediaId, audioReactivityEnabled,
   } = useVisualStore(useShallow(s => ({
     layerConfigs:             s.layerConfigs,
     setLayerConfig:           s.setLayerConfig,
@@ -27,6 +28,7 @@ export function VzLayersPanel() {
     clearLayerItemsForLayer:  s.clearLayerItemsForLayer,
     setLayerItemSolo:         s.setLayerItemSolo,
     activeMediaId:            s.activeMediaId,
+    audioReactivityEnabled:   s.audioReactivityEnabled,
   })))
   const { items } = useMediaStore()
 
@@ -38,13 +40,47 @@ export function VzLayersPanel() {
       return next
     })
 
+  // Compute per-layer render summary: first visible item name + overflow count
+  const renderStack = VZ_LAYER_RENDER_ORDER.map(layerId => {
+    const cfg = layerConfigs.find(c => c.id === layerId) ?? DEFAULT_LAYER_CONFIGS.find(c => c.id === layerId)!
+    const lItems = layerItems.filter(i => i.layerId === layerId).sort((a, b) => a.zIndex - b.zIndex)
+    const visibleItems = cfg.enabled ? lItems.filter(i => i.enabled) : []
+    const firstMedia = visibleItems.length > 0 ? items.find(m => m.id === visibleItems[0].mediaId) : null
+    return {
+      layerId,
+      label: LAYER_LABELS[layerId],
+      name: firstMedia ? (firstMedia.title ?? firstMedia.name ?? '?') : null,
+      extraCount: Math.max(0, visibleItems.length - 1),
+    }
+  })
+
   return (
     <div className="vz-layers-panel vz-panel">
       <div className="vz-panel-header">
         <Layers01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
         <span className="vz-panel-title">Layers</span>
-        <button className="vz-layers-reset-btn" onClick={resetLayerConfigs} title="Reset layer configs">↺</button>
+        <button className="vz-layers-reset-btn" onClick={resetLayerConfigs} title="Reset all layer configs to defaults">↺</button>
       </div>
+
+      {/* Render stack: shows what's currently on the canvas per layer */}
+      <div className="vz-layer-render-stack">
+        <span className="vz-layer-stack-label">Rendering</span>
+        {renderStack.map(({ layerId, label, name, extraCount }) => (
+          <span key={layerId} className={`vz-layer-stack-item${name ? ' vz-layer-stack-item--active' : ''}`}>
+            <span className="vz-layer-stack-id">{label}:</span>
+            <span className="vz-layer-stack-name" title={name ?? undefined}>{name ?? '—'}</span>
+            {extraCount > 0 && <span className="vz-layer-stack-more">+{extraCount}</span>}
+          </span>
+        ))}
+      </div>
+
+      {/* Global hint: shown once when no deck item is selected */}
+      {!activeMediaId && (
+        <div className="vz-layer-select-hint">
+          Select a media item in the Deck tab, then use "Add Selected Media" to assign it to a layer.
+        </div>
+      )}
+
       <div className="vz-layers-list">
         {VZ_LAYER_RENDER_ORDER.map(layerId => {
           const cfg  = layerConfigs.find(c => c.id === layerId) ?? DEFAULT_LAYER_CONFIGS.find(c => c.id === layerId)!
@@ -52,6 +88,7 @@ export function VzLayersPanel() {
           const lItems = layerItems
             .filter(i => i.layerId === layerId)
             .sort((a, b) => a.zIndex - b.zIndex)
+          const hasItems = lItems.length > 0
 
           return (
             <div key={layerId} className={`vz-layer-item${cfg.enabled ? '' : ' vz-layer-item--off'}`}>
@@ -62,12 +99,13 @@ export function VzLayersPanel() {
                   title={cfg.enabled ? 'Hide layer' : 'Show layer'}
                 />
                 <span className="vz-slider-label">{LAYER_LABELS[layerId]}</span>
+                {hasItems && <span className="vz-layer-count">{lItems.length}</span>}
                 <span className="vz-slider-val">{Math.round(cfg.opacity * 100)}%</span>
                 <select
                   className="az-select vz-layer-blend-select"
                   value={cfg.blendMode}
-                  disabled={!cfg.enabled}
-                  title="Layer blend mode"
+                  disabled={!cfg.enabled || !hasItems}
+                  title={hasItems ? 'Layer blend mode' : 'Add media to this layer to use blend modes'}
                   onChange={e => setLayerConfig(layerId, { blendMode: e.target.value as GlobalCompositeOperation })}
                 >
                   {LAYER_BLEND_MODES.map(bm => (
@@ -76,38 +114,45 @@ export function VzLayersPanel() {
                 </select>
               </div>
 
-              {lItems.length > 0 && (
+              {/* Assigned items list */}
+              {hasItems && (
                 <div className="vz-li-list">
                   {lItems.map((item, idx) => {
                     const media      = items.find(m => m.id === item.mediaId)
                     const isExpanded = expandedIds.has(item.id)
                     const isMissing  = !media
+                    const roleBadge  = media?.mediaRole ? MEDIA_ROLE_BADGE_LABELS[media.mediaRole] : null
                     return (
                       <div key={item.id} className={`vz-li-row${item.enabled ? '' : ' vz-li-row--off'}${isMissing ? ' vz-li-row--missing' : ''}`}>
                         <div className="vz-li-row-main">
                           <button
                             className={`vz-li-en-btn${item.enabled ? ' vz-li-en-btn--on' : ''}`}
                             onClick={() => updateLayerItem(item.id, { enabled: !item.enabled })}
-                            title={item.enabled ? 'Disable item' : 'Enable item'}
+                            title={item.enabled ? 'Hide item' : 'Show item'}
                           />
                           <button
                             className={`vz-li-solo-btn${item.solo ? ' vz-li-solo-btn--on' : ''}`}
                             onClick={() => setLayerItemSolo(item.id)}
-                            title="Solo"
+                            title="Solo this item (hides all others in this layer)"
                           >S</button>
                           <button
                             className={`vz-li-lock-btn${item.locked ? ' vz-li-lock-btn--on' : ''}`}
                             onClick={() => updateLayerItem(item.id, { locked: !item.locked })}
-                            title={item.locked ? 'Unlock' : 'Lock'}
+                            title={item.locked ? 'Unlock item' : 'Lock item (prevents edits)'}
                           >{item.locked ? '🔒' : '🔓'}</button>
                           <span className="vz-li-name" title={isMissing ? `Missing: ${item.mediaId}` : (media?.title ?? media?.name)}>
                             {isMissing ? '⚠ missing' : (media?.title ?? media?.name ?? '—')}
                           </span>
+                          {roleBadge && (
+                            <span className="vz-li-role-badge" title={`Role: ${media?.mediaRole ?? ''}`}>
+                              {roleBadge}
+                            </span>
+                          )}
                           <button
-                            className="vz-li-expand-btn"
+                            className={`vz-li-expand-btn${isExpanded ? ' vz-li-expand-btn--open' : ''}`}
                             onClick={() => toggleExpand(item.id)}
-                            title={isExpanded ? 'Collapse' : 'Expand controls'}
-                          >{isExpanded ? '▴' : '▾'}</button>
+                            title={isExpanded ? 'Close item controls' : 'Edit item controls (opacity, position, scale, blend)'}
+                          >{isExpanded ? 'Close' : 'Edit'}</button>
                           <button
                             className="vz-li-up-btn"
                             disabled={item.locked || idx === 0}
@@ -123,7 +168,7 @@ export function VzLayersPanel() {
                           <button
                             className="vz-li-remove-btn"
                             onClick={() => removeLayerItem(item.id)}
-                            title="Remove"
+                            title="Remove from layer"
                           >×</button>
                         </div>
 
@@ -195,19 +240,27 @@ export function VzLayersPanel() {
                                 onChange={e => updateLayerItem(item.id, { rotation: parseFloat(e.target.value) || 0 })} />
                             </div>
                             <div className="vz-li-row2">
-                              <label className="vz-li-field-label">Audio</label>
+                              <label
+                                className="vz-li-field-label vz-li-field-label--wide"
+                                title="When on, canvas audio reactivity (scale pulse) applies to this item"
+                              >Audio Reactive</label>
                               <button
                                 className={`vz-li-audio-btn${item.audioReactive ? ' vz-li-audio-btn--on' : ''}`}
                                 onClick={() => updateLayerItem(item.id, { audioReactive: !item.audioReactive })}
-                                title="Toggle audio reactivity"
-                              >{item.audioReactive ? 'ON' : 'OFF'}</button>
+                                title={item.audioReactive ? 'Disable audio reactivity for this item' : 'Enable audio reactivity for this item'}
+                              >{item.audioReactive ? 'On' : 'Off'}</button>
                               <button
                                 className="vz-li-reset-btn"
                                 disabled={item.locked}
                                 onClick={() => updateLayerItem(item.id, { x: 0.5, y: 0.5, scale: 1, rotation: 0 })}
-                                title={item.locked ? 'Unlock to reset transform' : 'Reset transform'}
+                                title={item.locked ? 'Unlock to reset transform' : 'Reset position, scale, and rotation'}
                               >↺ Reset</button>
                             </div>
+                            {item.audioReactive && !audioReactivityEnabled && (
+                              <div className="vz-li-audio-off-hint">
+                                Inactive — global Audio Reactivity is off
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -216,14 +269,22 @@ export function VzLayersPanel() {
                 </div>
               )}
 
+              {/* Empty state — shown when layer is on but nothing assigned */}
+              {!hasItems && cfg.enabled && (
+                <div className="vz-layer-empty">
+                  <span className="vz-layer-empty-msg">No media assigned.</span>
+                  <span className="vz-layer-empty-hint">Select a media item in the deck, then click "Add Selected Media" below.</span>
+                </div>
+              )}
+
               <div className="vz-layer-assign-row">
                 <button
                   className="vz-li-add-btn"
                   disabled={!activeMediaId}
-                  title={activeMediaId ? 'Add active media to this layer' : 'Select a media item first'}
+                  title={activeMediaId ? 'Add selected media item to this layer' : 'Select a media item in the deck first'}
                   onClick={() => activeMediaId && addLayerItem(activeMediaId, layerId)}
-                >+ Active</button>
-                {lItems.length > 0 && (
+                >Add Selected Media</button>
+                {hasItems && (
                   <button
                     className="vz-li-clear-btn"
                     onClick={() => clearLayerItemsForLayer(layerId)}
@@ -232,13 +293,15 @@ export function VzLayersPanel() {
                 )}
               </div>
 
+              {/* Layer opacity — disabled when nothing assigned (would have no effect) */}
               <input
                 type="range"
                 className="vz-slider vz-layer-opacity-slider"
                 style={{ '--pct': pct } as React.CSSProperties}
                 min={0} max={1} step={0.05}
                 value={cfg.opacity}
-                title={`Layer opacity: ${Math.round(cfg.opacity * 100)}%`}
+                disabled={!hasItems}
+                title={hasItems ? `Layer opacity: ${Math.round(cfg.opacity * 100)}%` : 'Add media to this layer to adjust opacity'}
                 onChange={e => setLayerConfig(layerId, { opacity: parseFloat(e.target.value) })}
               />
             </div>

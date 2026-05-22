@@ -432,6 +432,7 @@ export function MediaUploadModal({ onClose }: { onClose: () => void }) {
                   <path d="M0 0l5 6 5-6z"/>
                 </svg>
               </div>
+              <div className="mum-field-hint">Role affects placement and visual behavior. You can change it later in the Clip Inspector.</div>
             </div>
 
             {/* Title */}

@@ -46,10 +46,11 @@ type EffectControlsPanelProps = {
   onReset: () => void
   effectParams: VzEffectParams
   onParamChange: <K extends keyof VzEffectParams>(key: K, patch: Partial<NonNullable<VzEffectParams[K]>>) => void
+  audioReactivityEnabled?: boolean
 }
 
 export const EffectControlsPanel = memo(function EffectControlsPanel({
-  effects, enabledFx, onChange, onReset, effectParams, onParamChange,
+  effects, enabledFx, onChange, onReset, effectParams, onParamChange, audioReactivityEnabled,
 }: EffectControlsPanelProps) {
   const [openGroups, setOpenGroups] = useState<Record<EffectGroupId, boolean>>({
     global: true, motion: true, audioReactive: true, distortion: false, lighting: false,
@@ -57,13 +58,20 @@ export const EffectControlsPanel = memo(function EffectControlsPanel({
   const toggleGroup = (id: EffectGroupId) =>
     setOpenGroups(prev => ({ ...prev, [id]: !prev[id] }))
 
-  const s = (key: keyof VzEffects, label: string, opts?: { min?: number; max?: number; color?: boolean }) => {
+  const s = (
+    key: keyof VzEffects,
+    label: string,
+    opts?: { min?: number; max?: number; color?: boolean; tooltip?: string; offHint?: string; audioOff?: boolean },
+  ) => {
     const chainItem = EFFECT_CONTROL_CHAIN_MAP[key]
     const chainEnabled = chainItem === undefined ? undefined : enabledFx.has(chainItem)
+    const effectiveChainEnabled = opts?.audioOff ? false : chainEnabled
     return (
       <VzSlider key={key} label={label} value={effects[key]}
         min={opts?.min} max={opts?.max} colorTrack={opts?.color}
-        chainEnabled={chainEnabled}
+        chainEnabled={effectiveChainEnabled}
+        tooltip={opts?.tooltip}
+        offHint={opts?.offHint}
         onChange={v => onChange(key, v)}
       />
     )
@@ -124,7 +132,12 @@ export const EffectControlsPanel = memo(function EffectControlsPanel({
         <EffectGroup id="global" title="Global" count={4} isOpen={openGroups.global} onToggle={toggleGroup}>
           {s('masterIntensity', 'Master Intensity')}
           {s('bassReactivity',  'Bass Reactivity')}
-          {s('logoScale',       'Logo Scale', { min: 0, max: 2 })}
+          {s('logoScale', 'Reactive Scale', {
+            min: 0, max: 2,
+            tooltip: 'Controls scale pulsing for media with Audio Reactivity enabled.',
+            offHint: 'Audio Reactivity is off',
+            audioOff: audioReactivityEnabled === false,
+          })}
           {s('colorShift',      'Color Shift', { color: true })}
         </EffectGroup>
 

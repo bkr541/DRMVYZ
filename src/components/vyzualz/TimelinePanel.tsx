@@ -1,13 +1,22 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+
+const MIN_CLIP_DUR = 0.25
 import { useVisualStore } from '../../stores/visualStore'
 import { useShallow } from 'zustand/react/shallow'
 import { useMediaStore } from '../../stores/mediaStore'
 import type { UploadedMedia } from '../../stores/mediaStore'
 import type { VzTimelineClip, VzTransitionConfig, VzTransitionType, VzTransitionEasing } from '../../types/timeline'
-import { getTimelineDuration, TRANSITION_LABELS, TRANSITION_DEFAULTS } from '../../lib/timeline'
+import { getTimelineDuration, TRANSITION_LABELS, TRANSITION_DEFAULTS, DEFAULT_CLIP_DURATION_SEC } from '../../lib/timeline'
+import { MEDIA_ROLE_LABELS, MEDIA_ROLE_BADGE_LABELS, MEDIA_ROLES, type MediaRole } from '../../lib/mediaRoles'
 
 function fmtSec(sec: number): string {
   return `${sec.toFixed(1)}s`
+}
+
+function resolveMediaClipDuration(media: UploadedMedia | null | undefined): number {
+  const d = media?.metadata?.duration
+  if (typeof d === 'number' && Number.isFinite(d) && d > 0) return d
+  return DEFAULT_CLIP_DURATION_SEC
 }
 
 interface TimelinePanelProps {
@@ -33,12 +42,44 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
     clearTimeline:          s.clearTimeline,
   })))
 
-  const { items } = useMediaStore(useShallow(s => ({ items: s.items })))
+  const { items, setMediaRole } = useMediaStore(useShallow(s => ({ items: s.items, setMediaRole: s.setMediaRole })))
 
   const mediaMap = useMemo(() => new Map(items.map(m => [m.id, m])), [items])
 
   const totalDuration = getTimelineDuration(timelineClips)
   const activeMedia   = activeMediaId ? (mediaMap.get(activeMediaId) ?? null) : null
+
+  const [selectedClipId, setSelectedClipId] = useState<string | null>(null)
+
+  const selectedClip  = selectedClipId ? (timelineClips.find(c => c.id === selectedClipId) ?? null) : null
+  const selectedMedia = selectedClip   ? (mediaMap.get(selectedClip.mediaId) ?? null) : null
+
+  const handleRemoveClip = (clipId: string) => {
+    removeTimelineClip(clipId)
+    if (selectedClipId === clipId) setSelectedClipId(null)
+  }
+
+  const handleClearTimeline = () => {
+    if (timelineClips.length > 1 && !window.confirm(`Remove all ${timelineClips.length} clips from the timeline?`)) return
+    clearTimeline()
+    setSelectedClipId(null)
+  }
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return
+      const el = e.target as HTMLElement
+      const tag = el.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (el.isContentEditable) return
+      if (!selectedClipId) return
+      e.preventDefault()
+      removeTimelineClip(selectedClipId)
+      setSelectedClipId(null)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [selectedClipId, removeTimelineClip])
 
   const PX_PER_SEC = 80
   const rulerRef   = useRef<HTMLDivElement>(null)
@@ -56,7 +97,7 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
     e.preventDefault()
     setDragOver(false)
     const mediaId = e.dataTransfer.getData('vz/mediaId')
-    if (mediaId) addTimelineClip(mediaId)
+    if (mediaId) addTimelineClip(mediaId, resolveMediaClipDuration(mediaMap.get(mediaId)))
   }
 
   const handleScrubPointer = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -98,18 +139,18 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
           <button
             className="vz-tl-add-btn"
             disabled={!activeMedia}
-            onClick={() => activeMedia && addTimelineClip(activeMedia.id)}
+            onClick={() => activeMedia && addTimelineClip(activeMedia.id, resolveMediaClipDuration(activeMedia))}
             title={activeMedia ? `Add "${activeMedia.title ?? activeMedia.name}"` : 'No active media'}
           >
             + Add
           </button>
           <button
             className="vz-tl-clear-btn"
-            onClick={clearTimeline}
+            onClick={handleClearTimeline}
             disabled={timelineClips.length === 0}
-            title="Clear all clips"
+            title="Remove all clips from the timeline"
           >
-            Clear
+            Clear Timeline
           </button>
         </div>
       </div>
@@ -143,25 +184,18 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
               ))}
 
               {/* Clip blocks */}
-              {timelineClips.map(clip => {
-                const media = mediaMap.get(clip.mediaId)
-                return (
-                  <div
-                    key={clip.id}
-                    className="vz-tl-clip-block"
-                    style={{
-                      left:  clip.startSec    * PX_PER_SEC,
-                      width: clip.durationSec * PX_PER_SEC,
-                    }}
-                    title={`${media?.title ?? media?.name ?? '(missing)'} — ${clip.durationSec.toFixed(1)}s`}
-                  >
-                    <span className="vz-tl-clip-block-name">
-                      {media?.title ?? media?.name ?? '(missing)'}
-                    </span>
-                    <span className="vz-tl-clip-block-dur">{clip.durationSec.toFixed(1)}s</span>
-                  </div>
-                )
-              })}
+              {timelineClips.map(clip => (
+                <TimelineClipBlock
+                  key={clip.id}
+                  clip={clip}
+                  media={mediaMap.get(clip.mediaId)}
+                  pxPerSec={PX_PER_SEC}
+                  isSelected={selectedClipId === clip.id}
+                  onSelect={setSelectedClipId}
+                  onUpdate={updateTimelineClip}
+                  onRemove={handleRemoveClip}
+                />
+              ))}
 
               {/* Playhead */}
               <div
@@ -172,30 +206,136 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
           )}
         </div>
 
-        {/* Clip cards — per-clip property editing */}
-        <div className="vz-tl-track">
-          {timelineClips.map((clip, idx) => (
-            <TimelineClipCard
-              key={clip.id}
-              clip={clip}
-              media={mediaMap.get(clip.mediaId)}
-              idx={idx}
+        {/* Clip Inspector — property editing for the selected clip */}
+        <div className="vz-tl-inspector">
+          <div className="vz-tl-inspector-hd">
+            <span className="vz-tl-inspector-label">Clip Inspector</span>
+            {selectedMedia && (
+              <span className="vz-tl-inspector-clipname">
+                {selectedMedia.title ?? selectedMedia.name}
+              </span>
+            )}
+          </div>
+          {selectedClip ? (
+            <ClipInspector
+              clip={selectedClip}
+              media={mediaMap.get(selectedClip.mediaId)}
+              idx={timelineClips.findIndex(c => c.id === selectedClip.id)}
               total={timelineClips.length}
               onMove={moveClip}
-              onRemove={removeTimelineClip}
+              onRemove={handleRemoveClip}
               onDuplicate={duplicateTimelineClip}
               onUpdate={updateTimelineClip}
+              onSetMediaRole={setMediaRole}
             />
-          ))}
+          ) : (
+            <div className="vz-tl-inspector-empty">Select a clip to inspect</div>
+          )}
         </div>
       </div>
     </div>
   )
 }
 
-function TimelineClipCard({
+function TimelineClipBlock({
+  clip, media, pxPerSec, isSelected, onSelect, onUpdate, onRemove,
+}: {
+  clip: VzTimelineClip
+  media: UploadedMedia | undefined
+  pxPerSec: number
+  isSelected: boolean
+  onSelect: (id: string) => void
+  onUpdate: (id: string, patch: Partial<VzTimelineClip>) => void
+  onRemove: (id: string) => void
+}) {
+  const [resizeDur, setResizeDur] = useState<number | null>(null)
+  const dragRef = useRef<{ startX: number; startDur: number } | null>(null)
+
+  const handleResizeDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation()
+    e.preventDefault()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    dragRef.current = { startX: e.clientX, startDur: clip.durationSec }
+    setResizeDur(clip.durationSec)
+  }
+
+  const handleResizeMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return
+    const delta = (e.clientX - dragRef.current.startX) / pxPerSec
+    const raw = dragRef.current.startDur + delta
+    setResizeDur(Math.max(MIN_CLIP_DUR, Math.round(raw * 4) / 4))
+  }
+
+  const commitResize = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return
+    const delta = (e.clientX - dragRef.current.startX) / pxPerSec
+    const newDur = Math.max(MIN_CLIP_DUR, Math.round((dragRef.current.startDur + delta) * 4) / 4)
+    onUpdate(clip.id, { durationSec: newDur })
+    dragRef.current = null
+    setResizeDur(null)
+  }
+
+  const displayDur = resizeDur ?? clip.durationSec
+  const isResizing = resizeDur !== null
+
+  const roleBadgeLabel = media?.mediaRole ? MEDIA_ROLE_BADGE_LABELS[media.mediaRole] : 'Unassigned'
+  const roleBadgeTitle = media?.mediaRole
+    ? `Role: ${MEDIA_ROLE_LABELS[media.mediaRole]} — affects placement and visual behavior`
+    : 'Role: Unassigned — select clip and assign a role in the inspector'
+
+  const blockClasses = [
+    'vz-tl-clip-block',
+    isResizing  ? 'vz-tl-clip-block--resizing' : '',
+    isSelected  ? 'vz-tl-clip-block--selected'  : '',
+  ].filter(Boolean).join(' ')
+
+  return (
+    <div
+      className={blockClasses}
+      style={{
+        left:  clip.startSec * pxPerSec,
+        width: displayDur    * pxPerSec,
+      }}
+      title={`${media?.title ?? media?.name ?? '(missing)'} — ${clip.durationSec.toFixed(2)}s`}
+      onClick={() => onSelect(clip.id)}
+    >
+      <span className="vz-tl-clip-block-name">
+        {media?.title ?? media?.name ?? '(missing)'}
+      </span>
+      <span className="vz-tl-clip-block-dur">{displayDur.toFixed(2)}s</span>
+      <span
+        className={`vz-tl-clip-role-badge${!media?.mediaRole ? ' vz-tl-clip-role-badge--unset' : ''}`}
+        title={roleBadgeTitle}
+      >
+        {roleBadgeLabel}
+      </span>
+
+      <button
+        className="vz-tl-clip-del-btn"
+        onClick={e => { e.stopPropagation(); onRemove(clip.id) }}
+        onPointerDown={e => e.stopPropagation()}
+        title="Delete clip"
+        aria-label="Delete clip"
+      >✕</button>
+
+      <div
+        className="vz-tl-clip-resize-handle"
+        onPointerDown={handleResizeDown}
+        onPointerMove={handleResizeMove}
+        onPointerUp={commitResize}
+        onPointerCancel={commitResize}
+        title="Drag to resize"
+      />
+      {isResizing && (
+        <div className="vz-tl-clip-resize-tooltip">{displayDur.toFixed(2)}s</div>
+      )}
+    </div>
+  )
+}
+
+function ClipInspector({
   clip, media, idx, total,
-  onMove, onRemove, onDuplicate, onUpdate,
+  onMove, onRemove, onDuplicate, onUpdate, onSetMediaRole,
 }: {
   clip: VzTimelineClip
   media: UploadedMedia | undefined
@@ -205,37 +345,73 @@ function TimelineClipCard({
   onRemove: (id: string) => void
   onDuplicate: (id: string) => void
   onUpdate: (id: string, patch: Partial<VzTimelineClip>) => void
+  onSetMediaRole: (mediaId: string, role: MediaRole) => void
 }) {
   return (
-    <div className="vz-tl-card">
-      <div className="vz-tl-card-thumb">
-        {media?.thumbnailUrl
-          ? <img src={media.thumbnailUrl} alt={media.name} />
+    <div className="vz-tl-inspector-body">
+
+      {/* Thumbnail */}
+      <div className="vz-tl-inspector-thumb">
+        {(media?.thumbnailUrl || media?.localThumbnailObjectUrl)
+          ? <img src={media.thumbnailUrl ?? media.localThumbnailObjectUrl!} alt={media.name} />
           : <span className="vz-tl-thumb-placeholder">{media?.type === 'video' ? '▶' : '◻'}</span>
         }
       </div>
 
-      <span className="vz-tl-card-name" title={media?.title ?? media?.name ?? clip.mediaId}>
-        {media?.title ?? media?.name ?? '(missing)'}
-      </span>
+      {/* Meta: filename + role */}
+      <div className="vz-tl-insp-group vz-tl-insp-meta">
+        <span className="vz-tl-insp-field-label">File</span>
+        <span className="vz-tl-inspector-fname" title={media?.title ?? media?.name ?? clip.mediaId}>
+          {media?.title ?? media?.name ?? '(missing)'}
+        </span>
+        <span
+          className="vz-tl-insp-field-label"
+          title="Role affects how media is placed and which visual behaviors apply. Audio Reactive controls can override per-clip behavior."
+        >Role (?)</span>
+        <select
+          className="az-select vz-tl-insp-role-select"
+          value={media?.mediaRole ?? 'other'}
+          disabled={!media}
+          onChange={e => media && onSetMediaRole(media.id, e.target.value as MediaRole)}
+          title="Role affects placement and visual behavior. Changes apply to all uses of this file."
+        >
+          {!media && <option value="">Unassigned</option>}
+          {MEDIA_ROLES.map(r => (
+            <option key={r} value={r}>{MEDIA_ROLE_LABELS[r]}</option>
+          ))}
+        </select>
+        <span className="vz-tl-insp-role-hint">Applies to all uses of this file</span>
+      </div>
 
-      <input
-        type="number"
-        className="vz-tl-dur-input"
-        min={0.1}
-        max={3600}
-        step={0.5}
-        value={clip.durationSec}
-        onChange={e => {
-          const v = parseFloat(e.target.value)
-          if (!isNaN(v) && v > 0) onUpdate(clip.id, { durationSec: v })
-        }}
-        title="Clip duration (seconds)"
-      />
+      {/* Timing: start, duration, source */}
+      <div className="vz-tl-insp-group">
+        <span className="vz-tl-insp-field-label">Start</span>
+        <span className="vz-tl-insp-ro-val">{fmtSec(clip.startSec)}</span>
+        <span className="vz-tl-insp-field-label">Dur (s)</span>
+        <input
+          type="number"
+          className="vz-tl-dur-input"
+          min={MIN_CLIP_DUR}
+          max={3600}
+          step={0.25}
+          value={clip.durationSec}
+          onChange={e => {
+            const v = parseFloat(e.target.value)
+            if (!isNaN(v) && v >= MIN_CLIP_DUR) onUpdate(clip.id, { durationSec: v })
+          }}
+          title="Clip duration (seconds)"
+        />
+        {media?.type === 'video' && media.metadata?.duration != null && (
+          <>
+            <span className="vz-tl-insp-field-label">Src</span>
+            <span className="vz-tl-insp-ro-val">{media.metadata.duration.toFixed(1)}s</span>
+          </>
+        )}
+      </div>
 
-      {/* Source range: In / Out */}
-      <div className="vz-tl-inout-row">
-        <label className="vz-tl-inout-label">In</label>
+      {/* In / Out */}
+      <div className="vz-tl-insp-group">
+        <span className="vz-tl-insp-field-label">In</span>
         <input
           type="number"
           className="vz-tl-inout-input"
@@ -248,7 +424,7 @@ function TimelineClipCard({
           }}
           title="Media in-point (seconds)"
         />
-        <label className="vz-tl-inout-label">Out</label>
+        <span className="vz-tl-insp-field-label">Out</span>
         <input
           type="number"
           className="vz-tl-inout-input"
@@ -265,12 +441,13 @@ function TimelineClipCard({
               if (!isNaN(v) && v > 0) onUpdate(clip.id, { mediaOutSec: v })
             }
           }}
-          title="Media out-point (seconds, blank = end)"
+          title="Media out-point (blank = end)"
         />
       </div>
 
-      {/* Playback mode + Fit mode on same row */}
-      <div className="vz-tl-mode-row">
+      {/* Playback mode + Fit mode */}
+      <div className="vz-tl-insp-group">
+        <span className="vz-tl-insp-field-label">Mode</span>
         <select
           className="az-select vz-tl-mode-select"
           value={clip.playbackMode}
@@ -281,6 +458,7 @@ function TimelineClipCard({
           <option value="loop">Loop</option>
           <option value="freeze">Freeze</option>
         </select>
+        <span className="vz-tl-insp-field-label">Fit</span>
         <select
           className="az-select vz-tl-fit-select"
           value={clip.fitMode}
@@ -293,7 +471,8 @@ function TimelineClipCard({
       </div>
 
       {/* Transition controls */}
-      <div className="vz-tl-transition-row">
+      <div className="vz-tl-insp-group vz-tl-insp-transition">
+        <span className="vz-tl-insp-field-label">Transition</span>
         <select
           className="az-select vz-tl-tx-select"
           value={clip.transitionOut?.type ?? 'cut'}
@@ -306,7 +485,6 @@ function TimelineClipCard({
               onUpdate(clip.id, {
                 transitionOut: {
                   ...def,
-                  // Preserve existing duration if user already customised it
                   durationSec: clip.transitionOut?.durationSec ?? def.durationSec,
                 },
               })
@@ -318,7 +496,6 @@ function TimelineClipCard({
             <option key={type} value={type}>{TRANSITION_LABELS[type]}</option>
           ))}
         </select>
-
         {clip.transitionOut && clip.transitionOut.type !== 'cut' && (
           <>
             <input
@@ -375,7 +552,8 @@ function TimelineClipCard({
         )}
       </div>
 
-      <div className="vz-tl-card-actions">
+      {/* Actions */}
+      <div className="vz-tl-insp-group vz-tl-insp-actions">
         <button className="vz-tl-clip-btn" disabled={idx === 0}
           onClick={() => onMove(clip.id, -1)} title="Move left">‹</button>
         <button className="vz-tl-clip-btn" disabled={idx === total - 1}
@@ -383,8 +561,9 @@ function TimelineClipCard({
         <button className="vz-tl-clip-btn"
           onClick={() => onDuplicate(clip.id)} title="Duplicate">⧉</button>
         <button className="vz-tl-clip-btn vz-tl-clip-btn--remove"
-          onClick={() => onRemove(clip.id)} title="Remove">✕</button>
+          onClick={() => onRemove(clip.id)} title="Delete clip">✕</button>
       </div>
+
     </div>
   )
 }

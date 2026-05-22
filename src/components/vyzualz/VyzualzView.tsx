@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useId, useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
+import { useLyricsStore } from '../../stores/lyricsStore'
 import {
   ChartHistogramIcon,
   Tv01Icon,
@@ -289,176 +290,152 @@ function VyzualzDock() {
   return (
     <div className="az-dock vz-transport-dock">
 
-      {/* ── Album art + track info (preserved) ────────────────────────── */}
-      <div className="az-dock-track">
+      {/* ── LEFT: sidebar + left-inspector footprint ─────────────────── */}
+      <div className="vz-dock-left">
         <label
-          className="az-dock-thumb"
+          className="az-dock-thumb vz-dock-art"
           htmlFor={fileInputId}
-          title="Click to load audio"
+          title={hasTrack ? title : 'Click to load audio'}
           style={{ cursor: 'pointer', borderColor: preset.color + '40' }}
         >
           <span className="az-dock-thumb-letter" style={{ color: preset.color + 'cc' }}>
             {hasTrack ? initial : '♪'}
           </span>
         </label>
-        <div className="az-dock-info">
-          <span className="az-dock-title">{title}</span>
-          {hasTrack && (
-            <div className="az-dock-format">
-              <span className="az-dock-format-tag">{srLabel}</span>
-              <span className="az-dock-format-tag">Stereo</span>
+
+        <div className="vz-dock-left-body">
+          {/* Track identity row */}
+          <div className="vz-dock-track-row">
+            {hasTrack && (
+              <span className="vz-dock-track-title">{title}</span>
+            )}
+            <label className="az-dock-upload-btn" htmlFor={fileInputId} style={{ cursor: 'pointer', flexShrink: 0 }}>
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+                <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/>
+              </svg>
+              {hasTrack ? 'Replace' : 'Add Track'}
+            </label>
+          </div>
+
+          {/* Transport + volume row */}
+          <div className="vz-dock-controls-row">
+            <div className="az-dock-transport">
+              <button className="az-transport-btn" title="Previous" disabled={!hasTrack} onClick={engine.prev}>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+              </button>
+              <button
+                className="az-play-btn"
+                title={engine.isPlaying ? 'Pause' : 'Play'}
+                disabled={!hasTrack}
+                style={{ borderColor: preset.color, color: preset.color, boxShadow: `0 0 12px ${preset.color}30` }}
+                onClick={handleTogglePlayback}
+              >
+                {engine.isPlaying
+                  ? <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                  : <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                }
+              </button>
+              <button className="az-transport-btn" title="Next" disabled={!hasTrack} onClick={engine.next}>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+              </button>
             </div>
-          )}
-        </div>
-        <label className="az-dock-upload-btn" htmlFor={fileInputId} title="Upload audio file" style={{ cursor: 'pointer' }}>
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>
-          Add Track
-        </label>
-      </div>
-
-      <div className="vz-dock-sep" />
-
-      {/* ── Transport buttons ──────────────────────────────────────────── */}
-      <div className="az-dock-transport">
-        <button className="az-transport-btn" title="Previous" disabled={!hasTrack} onClick={engine.prev}>
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
-        </button>
-        <button
-          className="az-play-btn"
-          title={engine.isPlaying ? 'Pause' : 'Play'}
-          disabled={!hasTrack}
-          style={{ borderColor: preset.color, color: preset.color, boxShadow: `0 0 12px ${preset.color}30` }}
-          onClick={handleTogglePlayback}
-        >
-          {engine.isPlaying
-            ? <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-            : <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-          }
-        </button>
-        <button className="az-transport-btn" title="Next" disabled={!hasTrack} onClick={engine.next}>
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
-        </button>
-      </div>
-
-      {/* ── CUE ───────────────────────────────────────────────────────── */}
-      <button
-        className="vz-dock-cue-btn"
-        onClick={handleCue}
-        title={engine.isPlaying ? 'Set cue point here' : `Jump to cue (${fmtPlayTime(cuePoint)})`}
-        disabled={!hasTrack}
-      >
-        CUE
-      </button>
-
-      {/* ── SYNC / MASTER ─────────────────────────────────────────────── */}
-      <button
-        className={`vz-dock-sync-master-btn${bpmSync ? ' vz-dock-sync-master-btn--on' : ''}`}
-        onClick={toggleBpmSync}
-        title={bpmSync ? 'BPM Sync: ON — click to disable' : 'BPM Sync: OFF — click to enable'}
-      >
-        {bpmSync && <span className="vz-dock-sync-dot" />}
-        <span className="vz-dock-sync-master-label">SYNC</span>
-        <span className="vz-dock-sync-master-sub">MASTER</span>
-      </button>
-
-      <div className="vz-dock-sep" />
-
-      {/* ── BPM block ─────────────────────────────────────────────────── */}
-      <div className="vz-dock-bpm-block">
-        <span className="vz-dock-bpm-block-label">BPM</span>
-        <div className="vz-dock-bpm-block-row">
-          <span className="vz-dock-bpm-block-val">{bpm.toFixed(2)}</span>
-          <div className="vz-dock-bpm-chevrons">
-            <button className="vz-dock-bpm-chevron" onClick={() => setBpm(bpm + 1)} title="BPM +1">
-              <svg viewBox="0 0 24 24" width="8" height="8" fill="currentColor"><path d="M7 15l5-5 5 5z"/></svg>
-            </button>
-            <button className="vz-dock-bpm-chevron" onClick={() => setBpm(bpm - 1)} title="BPM −1">
-              <svg viewBox="0 0 24 24" width="8" height="8" fill="currentColor"><path d="M7 9l5 5 5-5z"/></svg>
-            </button>
+            <div className="az-dock-volume">
+              <span className="az-dock-vol-icon">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="rgba(245,248,250,0.4)">
+                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                </svg>
+              </span>
+              <span className="az-dock-vol-db" style={{ fontSize: 9 }}>
+                {vol < 0.001 ? '-∞ dB' : `${(20 * Math.log10(vol)).toFixed(1)} dB`}
+              </span>
+              <input type="range" className="az-dock-vol-slider"
+                min={0} max={1} step={0.005} value={vol}
+                onChange={e => engine.setVolume(parseFloat(e.target.value))}
+                style={{ '--pct': volPct } as React.CSSProperties}
+              />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* ── TAP ───────────────────────────────────────────────────────── */}
-      <button className="vz-dock-tap-btn" onClick={handleTap} title="Tap tempo">TAP</button>
-
-      {/* ── Beat-grid toggle ──────────────────────────────────────────── */}
-      <button
-        className={`vz-dock-beatgrid-btn${beatGridEnabled ? ' vz-dock-beatgrid-btn--on' : ''}`}
-        onClick={() => setBeatGridEnabled(!beatGridEnabled)}
-        title={beatGridEnabled ? 'Beat grid: ON' : 'Beat grid: OFF'}
-      >
-        <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
-          <path d="M3 5h2v14H3V5zm4 4h2v6H7V9zm4-3h2v12h-2V6zm4 4h2v4h-2v-4zm4-2h2v8h-2V8z"/>
-        </svg>
-      </button>
-
-      <div className="vz-dock-sep" />
-
-      {/* ── Time display ──────────────────────────────────────────────── */}
-      <div className="vz-dock-time-display">
-        <span className="vz-dock-time-current">{fmtPlayTime(engine.currentTime)}</span>
-        <span className="vz-dock-time-total">{fmtPlayTime(engine.duration)}</span>
+      {/* ── CENTER: time + waveform + zoom + cue strip ───────────────── */}
+      <div className="vz-dock-center">
+        <div className="vz-dock-center-top">
+          <div className="vz-dock-time-display">
+            <span className="vz-dock-time-current">{fmtPlayTime(engine.currentTime)}</span>
+            <span className="vz-dock-time-total">{fmtPlayTime(engine.duration)}</span>
+          </div>
+          <VzMiniWaveform
+            duration={engine.duration}
+            currentTime={engine.currentTime}
+            peaks={peaks}
+            markers={cueMarkers}
+            onSeek={hasTrack ? engine.seek : undefined}
+            zoom={waveformZoom}
+          />
+          <div className="vz-dock-zoom-btns">
+            <button className="vz-dock-zoom-btn" onClick={() => setWaveformZoom(waveformZoom * 2)} disabled={waveformZoom >= 16} title="Zoom in">+</button>
+            <button className="vz-dock-zoom-btn" onClick={() => setWaveformZoom(waveformZoom / 2)} disabled={waveformZoom <= 1} title="Zoom out">−</button>
+          </div>
+        </div>
+        <div className="vz-dock-center-bottom">
+          <VzCueMarkerStrip markers={cueMarkers} currentTime={engine.currentTime} onSeek={engine.seek} />
+          <button
+            className="vz-dock-add-marker-btn"
+            onClick={() => addCueMarker({ label: 'Cue', time: engine.currentTime, type: 'custom' })}
+            title="Add cue marker at current time"
+            disabled={!hasTrack}
+            style={{ height: 22, width: 22 }}
+          >
+            <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+          </button>
+        </div>
       </div>
 
-      {/* ── Mini waveform ─────────────────────────────────────────────── */}
-      <VzMiniWaveform
-        duration={engine.duration}
-        currentTime={engine.currentTime}
-        peaks={peaks}
-        markers={cueMarkers}
-        onSeek={hasTrack ? engine.seek : undefined}
-        zoom={waveformZoom}
-      />
+      {/* ── RIGHT: BPM + TAP / CUE / SYNC / BEATGRID ────────────────── */}
+      <div className="vz-dock-right">
+        <div className="vz-dock-bpm-block">
+          <span className="vz-dock-bpm-block-label">BPM</span>
+          <div className="vz-dock-bpm-block-row">
+            <span className="vz-dock-bpm-block-val">{bpm.toFixed(2)}</span>
+            <div className="vz-dock-bpm-chevrons">
+              <button className="vz-dock-bpm-chevron" onClick={() => setBpm(bpm + 1)} title="BPM +1">
+                <svg viewBox="0 0 24 24" width="8" height="8" fill="currentColor"><path d="M7 15l5-5 5 5z"/></svg>
+              </button>
+              <button className="vz-dock-bpm-chevron" onClick={() => setBpm(bpm - 1)} title="BPM −1">
+                <svg viewBox="0 0 24 24" width="8" height="8" fill="currentColor"><path d="M7 9l5 5 5-5z"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
 
-      {/* ── Zoom controls ─────────────────────────────────────────────── */}
-      <div className="vz-dock-zoom-btns">
-        <button
-          className="vz-dock-zoom-btn"
-          onClick={() => setWaveformZoom(waveformZoom * 2)}
-          disabled={waveformZoom >= 16}
-          title="Zoom in"
-        >+</button>
-        <button
-          className="vz-dock-zoom-btn"
-          onClick={() => setWaveformZoom(waveformZoom / 2)}
-          disabled={waveformZoom <= 1}
-          title="Zoom out"
-        >−</button>
-      </div>
-
-      {/* ── Cue marker strip ──────────────────────────────────────────── */}
-      <VzCueMarkerStrip
-        markers={cueMarkers}
-        currentTime={engine.currentTime}
-        onSeek={engine.seek}
-      />
-
-      {/* ── Add marker ────────────────────────────────────────────────── */}
-      <button
-        className="vz-dock-add-marker-btn"
-        onClick={() => addCueMarker({ label: 'Cue', time: engine.currentTime, type: 'custom' })}
-        title="Add cue marker at current time"
-        disabled={!hasTrack}
-      >
-        <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-      </button>
-
-      {/* ── Volume ────────────────────────────────────────────────────── */}
-      <div className="az-dock-volume">
-        <span className="az-dock-vol-icon">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="rgba(245,248,250,0.4)">
-            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-          </svg>
-        </span>
-        <span className="az-dock-vol-db" style={{ fontSize: 9 }}>
-          {vol < 0.001 ? '-∞ dB' : `${(20 * Math.log10(vol)).toFixed(1)} dB`}
-        </span>
-        <input type="range" className="az-dock-vol-slider"
-          min={0} max={1} step={0.005} value={vol}
-          onChange={e => engine.setVolume(parseFloat(e.target.value))}
-          style={{ '--pct': volPct } as React.CSSProperties}
-        />
+        <div className="vz-dock-right-btns">
+          <button className="vz-dock-tap-btn" onClick={handleTap} title="Tap tempo">TAP</button>
+          <button
+            className="vz-dock-cue-btn"
+            onClick={handleCue}
+            title={engine.isPlaying ? 'Set cue point here' : `Jump to cue (${fmtPlayTime(cuePoint)})`}
+            disabled={!hasTrack}
+          >CUE</button>
+          <button
+            className={`vz-dock-sync-master-btn${bpmSync ? ' vz-dock-sync-master-btn--on' : ''}`}
+            onClick={toggleBpmSync}
+            title={bpmSync ? 'BPM Sync: ON' : 'BPM Sync: OFF'}
+          >
+            {bpmSync && <span className="vz-dock-sync-dot" />}
+            <span className="vz-dock-sync-master-label">SYNC</span>
+            <span className="vz-dock-sync-master-sub">MASTER</span>
+          </button>
+          <button
+            className={`vz-dock-beatgrid-btn${beatGridEnabled ? ' vz-dock-beatgrid-btn--on' : ''}`}
+            onClick={() => setBeatGridEnabled(!beatGridEnabled)}
+            title={beatGridEnabled ? 'Beat grid: ON' : 'Beat grid: OFF'}
+          >
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+              <path d="M3 5h2v14H3V5zm4 4h2v6H7V9zm4-3h2v12h-2V6zm4 4h2v4h-2v-4zm4-2h2v8h-2V8z"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       <input
@@ -524,6 +501,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     timelineEnabled, timelineClips, timelineLoop, setTimelineEnabled, scrubTimeline,
     layerConfigs, layerItems,
     effectParams, setEffectParam,
+    audioReactivityEnabled, setAudioReactivityEnabled,
   } = useVisualStore(useShallow(s => ({
     effects:                   s.effects,
     enabledFxArr:              s.enabledFxArr,
@@ -566,6 +544,8 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     layerItems:                s.layerItems,
     effectParams:              s.effectParams,
     setEffectParam:            s.setEffectParam,
+    audioReactivityEnabled:    s.audioReactivityEnabled,
+    setAudioReactivityEnabled: s.setAudioReactivityEnabled,
   })))
 
   const { items, loading, reorderItems } = useMediaStore()
@@ -609,6 +589,38 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
 
   const canvasWrapRef = useRef<HTMLDivElement>(null) as React.RefObject<HTMLDivElement>
 
+  // ── Render-source toast ──────────────────────────────────────────────
+  // "Has useful media source" = timeline mode with clips, OR active deck media.
+  // When neither is true the canvas renders generative art — effects have no media target.
+  const hasMediaSource = (timelineEnabled && timelineClips.length > 0) || activeMedia !== null
+
+  const [sourceToast, setSourceToast] = useState<{ message: string; warn: boolean; id: number } | null>(null)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const showSourceToast = useCallback((message: string, warn = false) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    setSourceToast({ message, warn, id: Date.now() })
+    toastTimerRef.current = setTimeout(() => setSourceToast(null), 5000)
+  }, [])
+  useEffect(() => () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current) }, [])
+
+  // Lyric state — subscribe to just the two values we render (enabled + count)
+  const { lyricsEnabled, lyricsCueCount } = useLyricsStore(useShallow(s => ({
+    lyricsEnabled:  s.lyricsEnabled,
+    lyricsCueCount: s.cues.length,
+  })))
+
+  // Show confirmation toast when the user returns from the Lyric Manager via "Preview in Visualizer"
+  const prevAppViewRef = useRef<'visualizer' | 'lyrics'>(appView)
+  useEffect(() => {
+    if (prevAppViewRef.current === 'lyrics' && appView === 'visualizer') {
+      const { lyricsEnabled: enabled, cues } = useLyricsStore.getState()
+      if (enabled && cues.length > 0) {
+        showSourceToast(`Previewing ${cues.length} lyric cue${cues.length !== 1 ? 's' : ''} in Visualizer`)
+      }
+    }
+    prevAppViewRef.current = appView
+  }, [appView, showSourceToast])
+
   // Extracted hooks
   const { handleTap }              = useTapTempo()
   const { handlePrev, handleNext } = useMediaNavigation()
@@ -638,6 +650,19 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   // Sync cloud sessions exactly once on mount.
   useEffect(() => { syncSessionsRef.current() }, [])
 
+  // Wraps toggleFx — shows a one-time guidance toast when enabling an effect
+  // without a media source, so users understand what they're editing against.
+  const handleToggleFx = useCallback((name: string) => {
+    const isEnabling = !enabledFxArr.includes(name)
+    toggleFx(name)
+    if (isEnabling && !hasMediaSource) {
+      showSourceToast(
+        'No active media source — enable Timeline or select deck media to preview media-based effects',
+        true,
+      )
+    }
+  }, [toggleFx, enabledFxArr, hasMediaSource, showSourceToast])
+
   const handleSavePreset = useCallback((name: string, scope: PresetScope) => {
     savePreset(name, {
       scope,
@@ -655,7 +680,19 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     if (scene.mediaOrder?.length) {
       reorderItems(scene.mediaOrder)
     }
-  }, [selectPreset, engine, reorderItems])
+    const presetName = presets.find(p => p.id === id)?.name ?? 'Preset'
+    if (!hasMediaSource) {
+      showSourceToast(
+        `${presetName} applied · No media source — enable Timeline or select deck media to preview media effects`,
+        true,
+      )
+    } else {
+      const sourceLabel = timelineEnabled
+        ? 'Timeline'
+        : (activeMedia?.title ?? activeMedia?.name ?? 'Deck')
+      showSourceToast(`${presetName} applied · Source: ${sourceLabel}`)
+    }
+  }, [selectPreset, engine, reorderItems, presets, hasMediaSource, timelineEnabled, activeMedia, showSourceToast])
 
   const handleSaveSession = useCallback(() => {
     const name = prompt('Session name:')?.trim()
@@ -813,6 +850,21 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                   layerConfigs={layerConfigs}
                   layerItems={layerItems}
                   effectParams={effectParams}
+                  audioReactivityEnabled={audioReactivityEnabled}
+                  lyricsEnabled={lyricsEnabled}
+                  lyricsCount={lyricsCueCount}
+                  onLyricsClick={() => setAppView('lyrics')}
+                  stageOverlays={
+                    sourceToast ? (
+                      <div
+                        key={sourceToast.id}
+                        className={`vz-source-toast${sourceToast.warn ? ' vz-source-toast--warn' : ''}`}
+                        title={sourceToast.message}
+                      >
+                        {sourceToast.message}
+                      </div>
+                    ) : null
+                  }
                 />
               </VyzualzErrorBoundary>
             </OutputFrame>
@@ -842,7 +894,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
           <div className="vz-panel-body">
             {activeRightPanel === 'fx' && (
               <>
-                <EffectChainPanel enabled={enabledFxSet} onToggle={toggleFx} />
+                <EffectChainPanel enabled={enabledFxSet} onToggle={handleToggleFx} />
                 <EffectControlsPanel
                   effects={effects}
                   enabledFx={enabledFxSet}
@@ -850,6 +902,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                   onReset={resetEffects}
                   effectParams={effectParams}
                   onParamChange={setEffectParam}
+                  audioReactivityEnabled={audioReactivityEnabled}
                 />
               </>
             )}
@@ -858,6 +911,8 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                 routes={modulationRoutes}
                 onToggle={toggleModulationRoute}
                 onSetAmount={setModulationRouteAmount}
+                audioReactivityEnabled={audioReactivityEnabled}
+                onSetAudioReactivity={setAudioReactivityEnabled}
               />
             )}
             {activeRightPanel === 'audio' && (

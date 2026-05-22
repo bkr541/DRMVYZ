@@ -7,9 +7,11 @@ type ModulationPanelProps = {
   routes: ModulationRoute[]
   onToggle: (id: string) => void
   onSetAmount: (id: string, amount: number) => void
+  audioReactivityEnabled: boolean
+  onSetAudioReactivity: (v: boolean) => void
 }
 
-export function ModulationPanel({ routes, onToggle, onSetAmount }: ModulationPanelProps) {
+export function ModulationPanel({ routes, onToggle, onSetAmount, audioReactivityEnabled, onSetAudioReactivity }: ModulationPanelProps) {
   const [open, setOpen] = useState(true)
   const activeCount = routes.filter(r => r.enabled).length
 
@@ -24,8 +26,31 @@ export function ModulationPanel({ routes, onToggle, onSetAmount }: ModulationPan
         </svg>
       </button>
 
+      {/* ── Audio Reactivity master toggle — always visible ─────────────── */}
+      <div
+        className={`vz-mod-reactivity-row${audioReactivityEnabled ? ' vz-mod-reactivity-row--on' : ''}`}
+        onClick={() => onSetAudioReactivity(!audioReactivityEnabled)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onSetAudioReactivity(!audioReactivityEnabled) }}
+        title={audioReactivityEnabled
+          ? 'Visual parameters can respond to audio and modulation routes.'
+          : 'Beat-driven movement and modulation are disabled.'}
+      >
+        <span className="vz-mod-reactivity-label">Audio Reactivity</span>
+        <span className={`vz-mod-reactivity-track${audioReactivityEnabled ? ' vz-mod-reactivity-track--on' : ''}`}>
+          <span className="vz-mod-reactivity-thumb" />
+        </span>
+        <span className="vz-mod-reactivity-state">{audioReactivityEnabled ? 'ON' : 'OFF'}</span>
+      </div>
+      {!audioReactivityEnabled && (
+        <p className="vz-mod-reactivity-hint">
+          Beat-driven movement and modulation are disabled.
+        </p>
+      )}
+
       {open && (
-        <div className="vz-mod-list">
+        <div className={`vz-mod-list${!audioReactivityEnabled ? ' vz-mod-list--inactive' : ''}`}>
           {routes.map(route => (
             <div key={route.id} className={`vz-mod-route ${route.enabled ? 'vz-mod-route--on' : ''}`}>
               <div className="vz-mod-route-header">

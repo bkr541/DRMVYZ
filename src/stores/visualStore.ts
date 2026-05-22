@@ -360,6 +360,12 @@ interface VisualState {
   setAutoQualityMin(q: Quality): void
   setAutoQualityMax(q: Quality): void
   setAutoQualityReason(r: string): void
+
+  // ── Audio reactivity master toggle ────────────────────────────────────────
+  // Controls whether beat-driven modulation and scale pulsing affect rendering.
+  // Defaults to false so a clean project starts with a visually static canvas.
+  audioReactivityEnabled: boolean
+  setAudioReactivityEnabled(v: boolean): void
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -395,6 +401,7 @@ export const useVisualStore = create<VisualState>()(
       autoQualityMin:     'Low',
       autoQualityMax:     'High',
       autoQualityReason:  '',
+      audioReactivityEnabled: false,
 
       // ── Live state ──────────────────────────────────────────────────────────
 
@@ -808,6 +815,9 @@ export const useVisualStore = create<VisualState>()(
       setAutoQualityMin(q)     { set({ autoQualityMin: q }) },
       setAutoQualityMax(q)     { set({ autoQualityMax: q }) },
       setAutoQualityReason(r)  { set({ autoQualityReason: r }) },
+
+      // ── Audio reactivity ──────────────────────────────────────────────────
+      setAudioReactivityEnabled(v) { set({ audioReactivityEnabled: v }) },
     }),
     {
       name: 'drmvyz-visual-store',
@@ -832,6 +842,7 @@ export const useVisualStore = create<VisualState>()(
         autoQualityMin:     s.autoQualityMin,
         autoQualityMax:     s.autoQualityMax,
         // autoQualityReason is ephemeral — not persisted
+        audioReactivityEnabled: s.audioReactivityEnabled,
       }),
       // Re-inject default presets after rehydration so they are never missing
       merge: (persisted, current) => {
@@ -874,6 +885,8 @@ export const useVisualStore = create<VisualState>()(
           autoQualityMin:     (p as Partial<VisualState>).autoQualityMin     ?? 'Low',
           autoQualityMax:     (p as Partial<VisualState>).autoQualityMax     ?? 'High',
           autoQualityReason:  '',
+          // Older saves without this field default to false (static canvas until user opts in)
+          audioReactivityEnabled: (p as Partial<VisualState>).audioReactivityEnabled ?? false,
           // INTENTIONAL: always reset to blank canvas on launch regardless of what
           // older localStorage snapshots may contain. Do not restore these fields.
           activeMediaId: null,

@@ -134,10 +134,6 @@ export function VyzualzTopBar({ analyser, onSaveSession }: VyzualzTopBarProps) {
     return () => cancelAnimationFrame(animRef.current)
   }, [])
 
-  const sourceLabel = engine.source === 'microphone' ? 'Microphone'
-    : engine.source === 'demo' ? 'Demo Signal'
-    : 'File Input'
-
   const BAND_COLORS = ['#4ac7db', '#61d6aa', '#b84fc9', '#d8b95a', '#4ac7db']
   const BAND_LABELS = ['Bass', 'LMid', 'Mid', 'High', 'Vol']
 
@@ -158,7 +154,6 @@ export function VyzualzTopBar({ analyser, onSaveSession }: VyzualzTopBarProps) {
             <option value="microphone">Microphone</option>
             <option value="demo">Demo Signal</option>
           </select>
-          <span className="vz-active-pill">{sourceLabel.toUpperCase()}</span>
         </div>
 
         <div className="vz-header-sep" />

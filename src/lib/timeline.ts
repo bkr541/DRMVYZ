@@ -1,5 +1,8 @@
 import type { VzTimelineClip, VzTransitionConfig, VzTransitionEasing, VzTransitionType } from '../types/timeline'
 
+/** Default clip duration (seconds) for still images or media with no valid intrinsic duration. */
+export const DEFAULT_CLIP_DURATION_SEC = 5
+
 // ── Internal helper ───────────────────────────────────────────────────
 
 /** Returns the overlap seconds contributed by this clip's outgoing transition (0 for cut/none). */
