@@ -22,6 +22,7 @@ export function LiveVisualPreview({
   timelineEnabled, onToggleTimeline, timelineClips, timelineLoop, mediaItems,
   layerConfigs, layerItems, effectParams, audioReactivityEnabled,
   lyricsEnabled, lyricsCount, onLyricsClick,
+  videoBaselineMode, onToggleVideoBaseline,
   stageOverlays,
 }: {
   analyser: AnalyserNode | null
@@ -46,6 +47,8 @@ export function LiveVisualPreview({
   lyricsEnabled: boolean
   lyricsCount: number
   onLyricsClick: () => void
+  videoBaselineMode: boolean
+  onToggleVideoBaseline: () => void
   stageOverlays?: ReactNode
 }) {
   const [liveStats, setLiveStats] = useState<PerformanceStats>(DEFAULT_PERFORMANCE_STATS)
@@ -114,6 +117,20 @@ export function LiveVisualPreview({
 
         <div className="az-spacer" />
 
+        <button
+          className={`vz-baseline-pill${videoBaselineMode ? ' vz-baseline-pill--on' : ''}`}
+          onClick={onToggleVideoBaseline}
+          title={videoBaselineMode
+            ? 'Video Baseline ON — all effects bypassed. Click to restore your effects.'
+            : 'Video Baseline — bypass all effects to test raw video playback speed'}
+        >
+          <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden="true">
+            <path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/>
+          </svg>
+          <span className="vz-baseline-pill-label">Baseline</span>
+          <span className={`vz-baseline-pill-dot${videoBaselineMode ? ' vz-baseline-pill-dot--on' : ''}`} />
+        </button>
+
         <div className="vz-timeline-group">
           <button
             className={`vz-timeline-pill ${timelineEnabled ? 'vz-timeline-pill--on' : ''}`}
@@ -142,7 +159,7 @@ export function LiveVisualPreview({
 
         <div className="vz-header-sep" />
 
-        <OutputHealthIndicator stats={liveStats} />
+        <OutputHealthIndicator stats={liveStats} videoBaselineMode={videoBaselineMode} />
 
         <div className="vz-header-sep" />
 

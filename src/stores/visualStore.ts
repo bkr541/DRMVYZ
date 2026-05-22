@@ -179,6 +179,17 @@ export interface VzSession {
 
 export const DEFAULT_PRESETS: VzPreset[] = [
   {
+    id: 'clean-playback',
+    name: 'Clean Playback',
+    color: '#9aafb8',
+    gradient: 'linear-gradient(135deg,#0c1417 0%,#1a252a 60%,#2e4550 100%)',
+    // No effects enabled — renders video exactly once per frame with zero extra passes.
+    // This is the default startup state so users see smooth playback before enabling effects.
+    effects: { ...DEFAULT_EFFECTS, rgbSplit: 0, bloom: 0, feedbackTrails: 0, glitchAmount: 0, strobe: 0, datamoshSmear: 0, displacement: 0 },
+    enabledFx: [],
+    isDefault: true,
+  },
+  {
     id: 'dream-theft',
     name: 'Dream Theft',
     color: '#4ac7db',
@@ -366,6 +377,20 @@ interface VisualState {
   // Defaults to false so a clean project starts with a visually static canvas.
   audioReactivityEnabled: boolean
   setAudioReactivityEnabled(v: boolean): void
+
+  // ── Video Baseline Mode ───────────────────────────────────────────────────
+  // When true, the renderer receives an empty enabledFx Set regardless of the
+  // stored enabledFxArr. Renders exactly one video pass with no extra processing.
+  // Ephemeral — never persisted, always starts false on every launch.
+  videoBaselineMode: boolean
+  setVideoBaselineMode(v: boolean): void
+
+  // ── Renderer type ─────────────────────────────────────────────────────────
+  // Ephemeral — not persisted; always starts 'canvas2d' on launch.
+  // 'webgl2' enables GPU compositor (video + RGB Split + Bloom via shaders).
+  // Canvas 2D remains the fallback and handles all other effects and overlays.
+  rendererType: 'canvas2d' | 'webgl2'
+  setRendererType(t: 'canvas2d' | 'webgl2'): void
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -373,10 +398,10 @@ interface VisualState {
 export const useVisualStore = create<VisualState>()(
   persist(
     (set, get) => ({
-      effects:           DEFAULT_PRESETS[0].effects,
+      effects:           DEFAULT_PRESETS[0].effects,   // clean-playback — no expensive effects
       effectParams:      DEFAULT_EFFECT_PARAMS,
-      enabledFxArr:      DEFAULT_PRESETS[0].enabledFx,
-      activePresetId:    DEFAULT_PRESETS[0].id,
+      enabledFxArr:      DEFAULT_PRESETS[0].enabledFx, // [] — no effects enabled on cold start
+      activePresetId:    DEFAULT_PRESETS[0].id,         // 'clean-playback'
       activeMediaId:     null,
       bpm:               120,
       bpmSync:           false,
@@ -402,6 +427,8 @@ export const useVisualStore = create<VisualState>()(
       autoQualityMax:     'High',
       autoQualityReason:  '',
       audioReactivityEnabled: false,
+      videoBaselineMode:      false,   // ephemeral — never persisted
+      rendererType:           'canvas2d' as const,  // ephemeral — never persisted
 
       // ── Live state ──────────────────────────────────────────────────────────
 
@@ -818,6 +845,12 @@ export const useVisualStore = create<VisualState>()(
 
       // ── Audio reactivity ──────────────────────────────────────────────────
       setAudioReactivityEnabled(v) { set({ audioReactivityEnabled: v }) },
+
+      // ── Video Baseline Mode ───────────────────────────────────────────────
+      setVideoBaselineMode(v) { set({ videoBaselineMode: v }) },
+
+      // ── Renderer type ─────────────────────────────────────────────────────
+      setRendererType(t)      { set({ rendererType: t }) },
     }),
     {
       name: 'drmvyz-visual-store',
@@ -891,6 +924,9 @@ export const useVisualStore = create<VisualState>()(
           // older localStorage snapshots may contain. Do not restore these fields.
           activeMediaId: null,
           layerItems:    [],
+          // Renderer type always resets to canvas2d — let user choose GPU mode per session.
+          videoBaselineMode: false,
+          rendererType: 'canvas2d' as const,
         }
       },
     }

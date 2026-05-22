@@ -110,30 +110,40 @@ function getImageDimensions(url: string): Promise<{ w: number; h: number } | nul
 function getVideoDuration(url: string): Promise<number> {
   return new Promise(resolve => {
     const v = document.createElement('video')
-    v.src = url; v.preload = 'metadata'
-    v.onloadedmetadata = () => resolve(v.duration || 0)
-    v.onerror = () => resolve(0)
+    v.preload = 'metadata'
+    const cleanup = (result: number) => {
+      v.onloadedmetadata = null; v.onerror = null
+      v.src = ''; resolve(result)
+    }
+    v.onloadedmetadata = () => cleanup(v.duration || 0)
+    v.onerror          = () => cleanup(0)
+    v.src = url
   })
 }
 
 function grabVideoThumbnail(url: string): Promise<string | null> {
   return new Promise(resolve => {
     const v = document.createElement('video')
-    v.src = url; v.muted = true; v.playsInline = true
-    v.preload = 'metadata'; v.crossOrigin = 'anonymous'; v.currentTime = 0.5
+    v.muted = true; v.playsInline = true
+    v.preload = 'metadata'; v.crossOrigin = 'anonymous'
+    const cleanup = (result: string | null) => {
+      v.onseeked = null; v.onerror = null; v.onloadeddata = null
+      v.src = ''; resolve(result)
+    }
     const draw = () => {
       try {
         const c = document.createElement('canvas')
         c.width = 160; c.height = 90
         const ctx = c.getContext('2d')
-        if (!ctx) { resolve(null); return }
+        if (!ctx) { cleanup(null); return }
         ctx.drawImage(v, 0, 0, 160, 90)
-        resolve(c.toDataURL('image/jpeg', 0.7))
-      } catch { resolve(null) }
+        cleanup(c.toDataURL('image/jpeg', 0.7))
+      } catch { cleanup(null) }
     }
-    v.onseeked = draw
-    v.onerror  = () => resolve(null)
+    v.onseeked     = draw
+    v.onerror      = () => cleanup(null)
     v.onloadeddata = () => { if (v.readyState >= 2) draw() }
+    v.src = url; v.currentTime = 0.5
   })
 }
 

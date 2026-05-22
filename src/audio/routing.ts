@@ -62,19 +62,21 @@ export function buildMonitoringChain(ctx: AudioContext, mode: MonitoringMode): M
     }
 
     case 'side': {
-      const proc = make(ctx.createScriptProcessor(4096, 2, 2))
-      proc.onaudioprocess = (e) => {
-        const L = e.inputBuffer.getChannelData(0)
-        const R = e.inputBuffer.getChannelData(1)
-        const oL = e.outputBuffer.getChannelData(0)
-        const oR = e.outputBuffer.getChannelData(1)
-        for (let i = 0; i < L.length; i++) {
-          const s = (L[i] - R[i]) * 0.7071
-          oL[i] = s
-          oR[i] = s
-        }
-      }
-      return { input: proc, output: proc, nodes, cleanup: () => nodes.forEach(n => { try { n.disconnect() } catch { /**/ } }) }
+      // Compute (L − R) × 0.7071 on both output channels using native nodes only.
+      // ChannelSplitter feeds L→gainL(+0.7071) and R→gainR(−0.7071).
+      // Both gains connect to the same ChannelMerger input for each output
+      // channel so they sum: left_out = right_out = L×0.7071 + R×(−0.7071).
+      const splitIn = make(ctx.createChannelSplitter(2))
+      const gainL   = make(ctx.createGain()); gainL.gain.value =  0.7071
+      const gainR   = make(ctx.createGain()); gainR.gain.value = -0.7071
+      const merge   = make(ctx.createChannelMerger(2))
+      splitIn.connect(gainL, 0)
+      splitIn.connect(gainR, 1)
+      gainL.connect(merge, 0, 0)
+      gainR.connect(merge, 0, 0)
+      gainL.connect(merge, 0, 1)
+      gainR.connect(merge, 0, 1)
+      return { input: splitIn, output: merge, nodes, cleanup: () => nodes.forEach(n => { try { n.disconnect() } catch { /**/ } }) }
     }
 
     case 'lowpass': {

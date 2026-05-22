@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect } from 'react'
+import { useRef, useState, useCallback, useEffect, type MutableRefObject } from 'react'
 import { Track, AudioSource, FftSize } from '../types'
 import { generateId, getFilenameWithoutExtension } from '../utils/audioUtils'
 import { buildMonitoringChain, type MonitoringChain } from '../audio/routing'
@@ -106,6 +106,12 @@ export interface AudioEngine {
 
   // Meyda spectral features
   spectralFeatures: SpectralFeatures | null
+  // Ref for direct high-frequency reads without React re-renders
+  spectralFeaturesRef: MutableRefObject<SpectralFeatures | null>
+  // Meyda is idle by default — start/stop explicitly when a feature needs it
+  meydaActive: boolean
+  startSpectralAnalysis: () => void
+  stopSpectralAnalysis: () => void
   bpmDetecting: boolean
   detectBPM: () => Promise<void>
 }
@@ -128,6 +134,7 @@ export function useAudioEngine(): AudioEngine {
   const [refVolume, setRefVolumeState] = useState(1.0)
   const [autoLoudnessMatch, setAutoLoudnessMatch] = useState(true)
   const [spectralFeatures, setSpectralFeatures] = useState<SpectralFeatures | null>(null)
+  const [meydaActive, setMeydaActive] = useState(false)
   const [bpmDetecting, setBpmDetecting] = useState(false)
   const [demoSilent, setDemoSilentState] = useState(true)
 
@@ -159,13 +166,22 @@ export function useAudioEngine(): AudioEngine {
   const micStreamRef     = useRef<MediaStream | null>(null)
   const demoNodesRef     = useRef<AudioNode[]>([])
 
-  // Ring buffer
+  // Ring buffer — written by AudioWorklet message handler
   const ringBufRef       = useRef<RingBuffer | null>(null)
-  const scriptProcRef    = useRef<ScriptProcessorNode | null>(null)
+  const workletNodeRef   = useRef<AudioWorkletNode | null>(null)
+  // DEV: true once the worklet module is loaded and the node created
+  const workletActiveRef = useRef(false)
 
   const audioRef         = useRef<HTMLAudioElement | null>(null)
   const activeSourceNodeRef = useRef<AudioNode | null>(null)
   const meydaRef         = useRef<ReturnType<typeof Meyda.createMeydaAnalyzer> | null>(null)
+
+  // Spectral data hot path — never triggers React renders
+  const spectralFeaturesRef     = useRef<SpectralFeatures | null>(null)
+  const meydaRunningRef         = useRef(false)
+  // DEV instrumentation counters (unused in production)
+  const meydaCbCountRef         = useRef(0)
+  const spectralPublishCountRef = useRef(0)
 
   // ── Init main audio element ─────────────────────────────────────────────────
   useEffect(() => {
@@ -236,15 +252,34 @@ export function useAudioEngine(): AudioEngine {
     splitter.connect(aL, 0)
     splitter.connect(aR, 1)
 
-    // Ring buffer capture
-    const proc = ctx.createScriptProcessor(4096, 1, 1)
+    // Ring buffer — populated by AudioWorkletNode (audio thread → main thread transfer).
+    // Worklet loads asynchronously; a brief window at startup may miss samples.
+    // Falls back to empty ring buffer if AudioWorklet is unavailable (CSP / old browser).
     ringBufRef.current = new RingBuffer(ctx.sampleRate, 60)
-    proc.onaudioprocess = (e) => {
-      ringBufRef.current?.write(e.inputBuffer.getChannelData(0))
-    }
-    masterGain.connect(proc)
-    proc.connect(ctx.destination)
-    scriptProcRef.current = proc
+    ctx.audioWorklet.addModule('/worklets/ring-buffer-processor.js')
+      .then(() => {
+        if (ctxRef.current !== ctx) return   // context was replaced before worklet loaded
+        const worklet = new AudioWorkletNode(ctx, 'ring-buffer-processor', {
+          numberOfInputs:   1,
+          numberOfOutputs:  0,   // sink node — stays active via active input per spec
+          channelCount:     1,
+          channelCountMode: 'explicit',
+        })
+        worklet.port.onmessage = (e: MessageEvent<{ samples: Float32Array }>) => {
+          ringBufRef.current?.write(e.data.samples)
+        }
+        masterGain.connect(worklet)
+        workletNodeRef.current  = worklet
+        workletActiveRef.current = true
+        if (import.meta.env.DEV) {
+          console.log('[AudioEngine] ring-buffer AudioWorklet active — ScriptProcessorNode removed from main thread')
+        }
+      })
+      .catch((err: unknown) => {
+        if (import.meta.env.DEV) {
+          console.warn('[AudioEngine] ring-buffer AudioWorklet failed to load — ring buffer export unavailable:', err)
+        }
+      })
 
     // Reference analysers
     const refGain = ctx.createGain()
@@ -291,7 +326,9 @@ export function useAudioEngine(): AudioEngine {
     chain.output.connect(muteGain)
     muteGain.connect(ctx.destination)
 
-    // Meyda for spectral features
+    // Meyda — created but NOT started. Call startSpectralAnalysis() to activate.
+    // The callback writes to a ref only; it never touches React state directly,
+    // so it cannot cause re-renders regardless of how often Meyda fires (~86/s).
     try {
       const meyda = Meyda.createMeydaAnalyzer({
         audioContext: ctx,
@@ -299,16 +336,17 @@ export function useAudioEngine(): AudioEngine {
         bufferSize: 512,
         featureExtractors: ['rms', 'spectralCentroid', 'spectralSpread', 'spectralRolloff', 'spectralFlatness'],
         callback: (features: Record<string, number>) => {
-          setSpectralFeatures({
+          spectralFeaturesRef.current = {
             centroid: features.spectralCentroid ?? 0,
-            spread: features.spectralSpread ?? 0,
-            rolloff: features.spectralRolloff ?? 0,
+            spread:   features.spectralSpread   ?? 0,
+            rolloff:  features.spectralRolloff  ?? 0,
             flatness: features.spectralFlatness ?? 0,
-            bpm: null,
-          })
+            bpm:      spectralFeaturesRef.current?.bpm ?? null,
+          }
+          if (import.meta.env.DEV) meydaCbCountRef.current++
         },
       })
-      meyda.start()
+      // Not calling meyda.start() — zero CPU until explicitly requested
       meydaRef.current = meyda
     } catch { /**/ }
 
@@ -521,6 +559,67 @@ export function useAudioEngine(): AudioEngine {
     setBpmDetecting(false)
   }, [currentIndex, tracks, ensureContext])
 
+  const startSpectralAnalysis = useCallback(() => {
+    ensureContext()
+    const meyda = meydaRef.current
+    if (meyda && !meydaRunningRef.current) {
+      meyda.start()
+      meydaRunningRef.current = true
+      setMeydaActive(true)
+    }
+  }, [ensureContext])
+
+  const stopSpectralAnalysis = useCallback(() => {
+    const meyda = meydaRef.current
+    if (meyda && meydaRunningRef.current) {
+      meyda.stop()
+      meydaRunningRef.current = false
+      setMeydaActive(false)
+    }
+  }, [])
+
+  // Throttled React state publication: ~5 Hz, only while Meyda is running.
+  // Direct consumers that need sub-5Hz precision should read spectralFeaturesRef instead.
+  useEffect(() => {
+    if (!meydaActive) return
+    const id = setInterval(() => {
+      const f = spectralFeaturesRef.current
+      if (f) {
+        setSpectralFeatures({ ...f })
+        if (import.meta.env.DEV) spectralPublishCountRef.current++
+      }
+    }, 200) // 5 Hz
+    return () => clearInterval(id)
+  }, [meydaActive])
+
+  // DEV: log Meyda callback rate, worklet status, and ScriptProcessorNode inventory.
+  // Remaining deprecated path: Meyda v5.x uses ScriptProcessorNode internally.
+  // It is inactive until startSpectralAnalysis() is called.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    let windowStart = performance.now()
+    let prevCb = 0, prevPub = 0
+    const id = setInterval(() => {
+      const now     = performance.now()
+      const elapsed = (now - windowStart) / 1000
+      const cbHz    = (meydaCbCountRef.current         - prevCb)  / elapsed
+      const pubHz   = (spectralPublishCountRef.current - prevPub) / elapsed
+      const worklet = workletActiveRef.current ? 'active (off-main-thread)' : 'pending/unavailable'
+      const meyda   = meydaRunningRef.current
+        ? 'active — ScriptProcessorNode (Meyda v5 internal, cannot remove without replacing Meyda)'
+        : 'idle'
+      console.log(
+        `[AudioEngine] ring-buffer worklet: ${worklet}` +
+        ` | Meyda: ${cbHz.toFixed(1)} cb/s (${meyda})` +
+        ` | React spectral: ${pubHz.toFixed(1)} pub/s`
+      )
+      prevCb  = meydaCbCountRef.current
+      prevPub = spectralPublishCountRef.current
+      windowStart = now
+    }, 2000)
+    return () => clearInterval(id)
+  }, [])
+
   // ── Settings ─────────────────────────────────────────────────────────────────
   const setFftSize = useCallback((n: FftSize) => {
     setFftSizeState(n)
@@ -638,7 +737,9 @@ export function useAudioEngine(): AudioEngine {
     refAnalyserMaster: refAnalyserMRef.current,
     refAnalyserL: refALRef.current,
     refAnalyserR: refARRef.current,
-    spectralFeatures, bpmDetecting, detectBPM,
+    spectralFeatures, spectralFeaturesRef,
+    meydaActive, startSpectralAnalysis, stopSpectralAnalysis,
+    bpmDetecting, detectBPM,
     demoSilent, setDemoSilent,
   }
 }

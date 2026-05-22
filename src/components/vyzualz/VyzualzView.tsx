@@ -502,6 +502,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     layerConfigs, layerItems,
     effectParams, setEffectParam,
     audioReactivityEnabled, setAudioReactivityEnabled,
+    videoBaselineMode, setVideoBaselineMode,
   } = useVisualStore(useShallow(s => ({
     effects:                   s.effects,
     enabledFxArr:              s.enabledFxArr,
@@ -546,11 +547,17 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     setEffectParam:            s.setEffectParam,
     audioReactivityEnabled:    s.audioReactivityEnabled,
     setAudioReactivityEnabled: s.setAudioReactivityEnabled,
+    videoBaselineMode:         s.videoBaselineMode,
+    setVideoBaselineMode:      s.setVideoBaselineMode,
   })))
 
   const { items, loading, reorderItems } = useMediaStore()
 
   const enabledFxSet = useMemo(() => new Set(enabledFxArr), [enabledFxArr])
+  // Baseline mode overrides the enabled-effects set to empty without touching the store,
+  // so the user's effect configuration is fully preserved when baseline is toggled off.
+  const EMPTY_FX_SET = useMemo(() => new Set<string>(), [])
+  const effectiveEnabledFx = videoBaselineMode ? EMPTY_FX_SET : enabledFxSet
 
   // After Supabase load completes, restore or auto-select active media.
   // Only auto-select primary-renderable media (background, loop, other) so that
@@ -828,7 +835,9 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                   analyser={analyser}
                   activeMedia={activeMedia}
                   effects={effects}
-                  enabledFx={enabledFxSet}
+                  enabledFx={effectiveEnabledFx}
+                  videoBaselineMode={videoBaselineMode}
+                  onToggleVideoBaseline={() => setVideoBaselineMode(!videoBaselineMode)}
                   isPlaying={isPlaying}
                   onPlay={handleTogglePlayback}
                   onPause={handleTogglePlayback}
