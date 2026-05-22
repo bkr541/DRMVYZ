@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import type { VzEffects, Quality } from '../../../stores/visualStore'
 import type { UploadedMedia } from '../../../stores/mediaStore'
@@ -13,12 +13,20 @@ import { PreviewOverlay } from './PreviewOverlay'
 import { RenderSourceBadge } from './RenderSourceBadge'
 import { OutputHealthIndicator } from '../layout/OutputHealthIndicator'
 
+function fmtTime(secs: number): string {
+  if (!isFinite(secs) || secs < 0) return '--:--.--'
+  const m  = Math.floor(secs / 60)
+  const s  = Math.floor(secs % 60)
+  const cs = Math.floor((secs % 1) * 100)
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(cs).padStart(2, '0')}`
+}
+
 export function LiveVisualPreview({
   analyser, activeMedia, effects, enabledFx,
   isPlaying, onPlay, onPause, onPrev, onNext, onFullscreen,
   bpm, bpmSync,
   quality, onQualityChange,
-  canvasWrapRef, audioTime, modulationRoutes,
+  canvasWrapRef, audioTime, audioDuration, modulationRoutes,
   timelineEnabled, onToggleTimeline, timelineClips, timelineLoop, mediaItems,
   layerConfigs, layerItems, effectParams, audioReactivityEnabled,
   lyricsEnabled, lyricsCount, onLyricsClick,
@@ -36,6 +44,7 @@ export function LiveVisualPreview({
   quality: Quality; onQualityChange: (q: Quality) => void
   canvasWrapRef: React.RefObject<HTMLDivElement>
   audioTime: number
+  audioDuration: number
   modulationRoutes: ModulationRoute[]
   timelineEnabled: boolean; onToggleTimeline: () => void
   timelineClips: VzTimelineClip[]; timelineLoop: boolean
@@ -52,6 +61,21 @@ export function LiveVisualPreview({
   stageOverlays?: ReactNode
 }) {
   const [liveStats, setLiveStats] = useState<PerformanceStats>(DEFAULT_PERFORMANCE_STATS)
+  const [viewMenuOpen, setViewMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!viewMenuOpen) return
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setViewMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [viewMenuOpen])
+
+  const anyViewActive = timelineEnabled || (lyricsEnabled && lyricsCount > 0) || videoBaselineMode
 
   return (
     <div className="vz-preview-panel">
@@ -115,46 +139,68 @@ export function LiveVisualPreview({
           </svg>
         </button>
 
+        <div className="vz-transport-time">
+          <span className="vz-transport-time-current">{fmtTime(audioTime)}</span>
+          <span className="vz-transport-time-total">{fmtTime(audioDuration)}</span>
+        </div>
+
         <div className="az-spacer" />
 
-        <button
-          className={`vz-baseline-pill${videoBaselineMode ? ' vz-baseline-pill--on' : ''}`}
-          onClick={onToggleVideoBaseline}
-          title={videoBaselineMode
-            ? 'Video Baseline ON — all effects bypassed. Click to restore your effects.'
-            : 'Video Baseline — bypass all effects to test raw video playback speed'}
-        >
-          <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden="true">
-            <path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/>
-          </svg>
-          <span className="vz-baseline-pill-label">Baseline</span>
-          <span className={`vz-baseline-pill-dot${videoBaselineMode ? ' vz-baseline-pill-dot--on' : ''}`} />
-        </button>
-
-        <div className="vz-timeline-group">
+        <div className="vz-view-menu-wrap" ref={menuRef}>
           <button
-            className={`vz-timeline-pill ${timelineEnabled ? 'vz-timeline-pill--on' : ''}`}
-            onClick={onToggleTimeline}
-            title={timelineEnabled ? 'Timeline mode ON — click to disable' : 'Timeline mode OFF — click to enable'}
+            className={`vz-view-menu-btn${viewMenuOpen ? ' vz-view-menu-btn--open' : ''}${anyViewActive ? ' vz-view-menu-btn--active' : ''}`}
+            onClick={() => setViewMenuOpen(o => !o)}
+            title="View options"
           >
             <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden="true">
               <path d="M3 5h18v2H3V5zm0 4h12v2H3V9zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/>
             </svg>
-            <span className="vz-timeline-pill-label">Timeline</span>
-            <span className={`vz-timeline-pill-dot${timelineEnabled ? ' vz-timeline-pill-dot--on' : ''}`} />
-          </button>
-          <button
-            className={`vz-lyrics-pill${lyricsEnabled && lyricsCount > 0 ? ' vz-lyrics-pill--on' : lyricsCount > 0 ? ' vz-lyrics-pill--loaded' : ''}`}
-            onClick={onLyricsClick}
-            title={`Lyrics ${lyricsEnabled ? 'ON' : 'OFF'} · ${lyricsCount} cue${lyricsCount !== 1 ? 's' : ''} · Click to open Lyric Manager`}
-          >
-            <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden="true">
-              <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/>
+            <span>View</span>
+            {anyViewActive && <span className="vz-view-menu-active-dot" />}
+            <svg viewBox="0 0 24 24" width="8" height="8" fill="currentColor" aria-hidden="true"
+              style={{ transform: viewMenuOpen ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }}>
+              <path d="M7 9l5 5 5-5z"/>
             </svg>
-            <span className="vz-lyrics-pill-label">Lyrics</span>
-            {lyricsCount > 0 && <span className="vz-lyrics-pill-count">{lyricsCount}</span>}
-            <span className={`vz-lyrics-pill-dot${lyricsEnabled && lyricsCount > 0 ? ' vz-lyrics-pill-dot--on' : ''}`} />
           </button>
+
+          {viewMenuOpen && (
+            <div className="vz-view-menu-dropdown">
+              <button
+                className={`vz-view-menu-item${timelineEnabled ? ' vz-view-menu-item--on' : ''}`}
+                onClick={onToggleTimeline}
+              >
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true">
+                  <path d="M3 5h18v2H3V5zm0 4h12v2H3V9zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/>
+                </svg>
+                <span>Timeline</span>
+                <span className={`vz-view-menu-dot${timelineEnabled ? ' vz-view-menu-dot--on' : ''}`} />
+              </button>
+
+              <button
+                className={`vz-view-menu-item${lyricsEnabled && lyricsCount > 0 ? ' vz-view-menu-item--on' : lyricsCount > 0 ? ' vz-view-menu-item--loaded' : ''}`}
+                onClick={() => { onLyricsClick(); setViewMenuOpen(false) }}
+                title={`${lyricsCount} cue${lyricsCount !== 1 ? 's' : ''}`}
+              >
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true">
+                  <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/>
+                </svg>
+                <span>Lyrics</span>
+                {lyricsCount > 0 && <span className="vz-view-menu-count">{lyricsCount}</span>}
+                <span className={`vz-view-menu-dot${lyricsEnabled && lyricsCount > 0 ? ' vz-view-menu-dot--on' : ''}`} />
+              </button>
+
+              <button
+                className={`vz-view-menu-item${videoBaselineMode ? ' vz-view-menu-item--warn' : ''}`}
+                onClick={onToggleVideoBaseline}
+              >
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true">
+                  <path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/>
+                </svg>
+                <span>Baseline</span>
+                <span className={`vz-view-menu-dot${videoBaselineMode ? ' vz-view-menu-dot--warn' : ''}`} />
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="vz-header-sep" />

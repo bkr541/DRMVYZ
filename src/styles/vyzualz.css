@@ -963,6 +963,137 @@
   box-shadow: 0 0 6px rgba(245,158,11,0.85);
 }
 
+/* ── Transport time display (moved from dock center) ─────────────────── */
+.vz-transport-time {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  flex-shrink: 0;
+  padding: 0 2px 0 4px;
+}
+.vz-transport-time-current {
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--az-cyan);
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
+}
+.vz-transport-time-total {
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255,255,255,0.3);
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* ── View options dropdown ────────────────────────────────────────────── */
+.vz-view-menu-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.vz-view-menu-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.11);
+  border-radius: 13px;
+  color: rgba(245,248,250,0.38);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.18s, border-color 0.18s, color 0.18s;
+}
+.vz-view-menu-btn:hover,
+.vz-view-menu-btn--open {
+  background: rgba(74,199,219,0.08);
+  border-color: rgba(74,199,219,0.28);
+  color: rgba(245,248,250,0.65);
+}
+.vz-view-menu-btn--active {
+  border-color: rgba(74,199,219,0.4);
+  color: rgba(245,248,250,0.55);
+}
+.vz-view-menu-btn--active.vz-view-menu-btn--open,
+.vz-view-menu-btn--active:hover {
+  color: rgba(245,248,250,0.75);
+}
+.vz-view-menu-active-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--az-cyan);
+  box-shadow: 0 0 5px rgba(74,199,219,0.7);
+  flex-shrink: 0;
+}
+.vz-view-menu-dropdown {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  background: rgba(12,16,20,0.97);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 9px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 148px;
+  z-index: 300;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.55);
+  backdrop-filter: blur(8px);
+}
+.vz-view-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  color: rgba(245,248,250,0.45);
+  font-family: var(--az-font);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+  width: 100%;
+}
+.vz-view-menu-item:hover { background: rgba(255,255,255,0.07); color: rgba(245,248,250,0.75); }
+.vz-view-menu-item--on   { color: rgba(245,248,250,0.88); }
+.vz-view-menu-item--warn { color: #f59e0b; }
+.vz-view-menu-item--loaded { color: rgba(245,248,250,0.5); }
+.vz-view-menu-dot {
+  margin-left: auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.12);
+  flex-shrink: 0;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.vz-view-menu-dot--on   { background: var(--az-cyan); box-shadow: 0 0 5px rgba(74,199,219,0.65); }
+.vz-view-menu-dot--warn { background: #f59e0b; box-shadow: 0 0 5px rgba(245,158,11,0.65); }
+.vz-view-menu-count {
+  font-size: 8.5px;
+  background: rgba(74,199,219,0.18);
+  color: var(--az-cyan);
+  border-radius: 8px;
+  padding: 1px 5px;
+  line-height: 1.4;
+}
+
 .vz-preview-trans-btn {
   width: 27px; height: 27px;
   display: flex; align-items: center; justify-content: center;
@@ -2191,43 +2322,40 @@ input[type='range'].vz-slider--color {
   flex-shrink: 0;
 }
 
-/* CENTER: time display + waveform + zoom + cue strip */
+/* CENTER: flex row — waveform fills left, zoom buttons sit to its right */
 .vz-dock-center {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 8px 10px;
+  flex-direction: row;
+  align-items: center;
+  padding: 10px 14px;
+  gap: 8px;
   min-width: 0;
   overflow: hidden;
-  gap: 4px;
 }
 
-.vz-dock-center-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.vz-dock-center-bottom {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 24px;
-  overflow: hidden;
-}
-
-/* waveform fills the center-top row height */
-.vz-transport-dock .vz-mini-waveform {
+/* waveform wrapper fills remaining width and full content height */
+.vz-dock-waveform-wrap {
   flex: 1;
   min-width: 0;
   height: 100%;
+  position: relative;
+}
+
+/* waveform canvas fills its wrapper */
+.vz-transport-dock .vz-mini-waveform {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
   border-radius: 4px;
   border: 1px solid rgba(255,255,255,0.07);
-  display: block;
-  overflow: hidden;
+}
+
+/* zoom buttons — normal flex child, no absolute positioning */
+.vz-transport-dock .vz-dock-zoom-btns {
+  position: static;
+  transform: none;
+  flex-shrink: 0;
 }
 
 .vz-transport-dock .vz-dock-zoom-btn {
@@ -2235,6 +2363,18 @@ input[type='range'].vz-slider--color {
   height: 16px;
   font-size: 13px;
 }
+
+/* cue marker strip overlays the bottom of the waveform wrapper */
+.vz-dock-cue-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 18px;
+  z-index: 2;
+  pointer-events: none;
+}
+.vz-dock-cue-overlay > * { pointer-events: all; }
 
 /* RIGHT: BPM block + 2×2 button grid */
 .vz-dock-right {
@@ -2261,7 +2401,7 @@ input[type='range'].vz-slider--color {
   height: 100%;
   width: 100%;
   min-width: 0;
-  padding: 0;
+  padding: 4px 0;
 }
 
 /* CUE button */
@@ -2291,13 +2431,13 @@ input[type='range'].vz-slider--color {
 /* SYNC / MASTER button */
 .vz-dock-sync-master-btn {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 5px;
   padding: 0 11px;
   height: 36px;
-  min-width: 64px;
+  min-width: 52px;
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.14);
   border-radius: 4px;
@@ -2325,14 +2465,6 @@ input[type='range'].vz-slider--color {
   letter-spacing: 0.12em;
   line-height: 1;
 }
-.vz-dock-sync-master-sub {
-  font-size: 7px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  line-height: 1;
-  opacity: 0.6;
-}
-.vz-dock-sync-master-btn--on .vz-dock-sync-master-sub { opacity: 0.8; }
 
 /* BPM block */
 .vz-dock-bpm-block {
@@ -2375,8 +2507,8 @@ input[type='range'].vz-slider--color {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 13px;
+  width: 16px;
+  height: 16px;
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 3px;
@@ -2423,12 +2555,16 @@ input[type='range'].vz-slider--color {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  padding: 0 10px;
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 4px;
   color: rgba(255,255,255,0.5);
+  font-family: var(--az-font);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   cursor: pointer;
   flex-shrink: 0;
   transition: all 0.12s;

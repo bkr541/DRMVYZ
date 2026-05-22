@@ -3,15 +3,14 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 119 ms
+  VITE v5.4.21  ready in 124 ms
 
   ➜  Local:   http://127.0.0.1:5173/
-6:10:28 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
-6:10:35 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
-6:10:45 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
-6:11:17 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
-6:11:24 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
-6:11:31 PM [vite] hmr update /src/styles/vyzualz.css
-6:11:36 PM [vite] hmr update /src/styles/vyzualz.css
-6:11:45 PM [vite] hmr update /src/styles/vyzualz.css
-6:12:01 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
+6:25:52 PM [vite] hmr update /src/styles/vyzualz.css
+6:27:47 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
+6:28:01 PM [vite] hmr update /src/styles/vyzualz.css
+6:32:02 PM [vite] hmr update /src/styles/vyzualz.css
+6:32:08 PM [vite] hmr update /src/styles/vyzualz.css
+6:32:17 PM [vite] hmr update /src/styles/vyzualz.css
+6:32:28 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
+6:34:32 PM [vite] hmr update /src/styles/vyzualz.css

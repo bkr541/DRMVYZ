@@ -353,13 +353,9 @@ function VyzualzDock() {
         </div>
       </div>
 
-      {/* ── CENTER: time + waveform + zoom + cue strip ───────────────── */}
+      {/* ── CENTER: waveform + zoom buttons side by side ─────────────── */}
       <div className="vz-dock-center">
-        <div className="vz-dock-center-top">
-          <div className="vz-dock-time-display">
-            <span className="vz-dock-time-current">{fmtPlayTime(engine.currentTime)}</span>
-            <span className="vz-dock-time-total">{fmtPlayTime(engine.duration)}</span>
-          </div>
+        <div className="vz-dock-waveform-wrap">
           <VzMiniWaveform
             duration={engine.duration}
             currentTime={engine.currentTime}
@@ -368,13 +364,13 @@ function VyzualzDock() {
             onSeek={hasTrack ? engine.seek : undefined}
             zoom={waveformZoom}
           />
-          <div className="vz-dock-zoom-btns">
-            <button className="vz-dock-zoom-btn" onClick={() => setWaveformZoom(waveformZoom * 2)} disabled={waveformZoom >= 16} title="Zoom in">+</button>
-            <button className="vz-dock-zoom-btn" onClick={() => setWaveformZoom(waveformZoom / 2)} disabled={waveformZoom <= 1} title="Zoom out">−</button>
+          <div className="vz-dock-cue-overlay">
+            <VzCueMarkerStrip markers={cueMarkers} currentTime={engine.currentTime} onSeek={engine.seek} />
           </div>
         </div>
-        <div className="vz-dock-center-bottom">
-          <VzCueMarkerStrip markers={cueMarkers} currentTime={engine.currentTime} onSeek={engine.seek} />
+        <div className="vz-dock-zoom-btns">
+          <button className="vz-dock-zoom-btn" onClick={() => setWaveformZoom(waveformZoom * 2)} disabled={waveformZoom >= 16} title="Zoom in">+</button>
+          <button className="vz-dock-zoom-btn" onClick={() => setWaveformZoom(waveformZoom / 2)} disabled={waveformZoom <= 1} title="Zoom out">−</button>
         </div>
       </div>
 
@@ -410,16 +406,13 @@ function VyzualzDock() {
           >
             {bpmSync && <span className="vz-dock-sync-dot" />}
             <span className="vz-dock-sync-master-label">SYNC</span>
-            <span className="vz-dock-sync-master-sub">MASTER</span>
           </button>
           <button
             className={`vz-dock-beatgrid-btn${beatGridEnabled ? ' vz-dock-beatgrid-btn--on' : ''}`}
             onClick={() => setBeatGridEnabled(!beatGridEnabled)}
             title={beatGridEnabled ? 'Beat grid: ON' : 'Beat grid: OFF'}
           >
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
-              <path d="M3 5h2v14H3V5zm4 4h2v6H7V9zm4-3h2v12h-2V6zm4 4h2v4h-2v-4zm4-2h2v8h-2V8z"/>
-            </svg>
+            GRID
           </button>
         </div>
       </div>
@@ -836,6 +829,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                   onQualityChange={setQuality}
                   canvasWrapRef={canvasWrapRef}
                   audioTime={engine.currentTime}
+                  audioDuration={engine.duration}
                   modulationRoutes={modulationRoutes}
                   timelineEnabled={timelineEnabled}
                   onToggleTimeline={() => setTimelineEnabled(!timelineEnabled)}
