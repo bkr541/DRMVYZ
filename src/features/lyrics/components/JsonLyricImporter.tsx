@@ -102,11 +102,11 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
 
   const statusVariant = hasErrors ? 'error' : (result?.warnings.length ?? 0) > 0 ? 'warn' : 'ok'
   const statusIcon    = hasErrors ? '✕' : (result?.warnings.length ?? 0) > 0 ? '⚠' : '✓'
-  const statusMsg = hasErrors
-    ? `Parse error — ${result!.errors.length} issue${result!.errors.length !== 1 ? 's' : ''}`
-    : (result?.warnings.length ?? 0) > 0
-      ? `Valid with warnings · ${result!.cues.length} cue${result!.cues.length !== 1 ? 's' : ''} detected`
-      : `Valid lyric JSON · ${result!.cues.length} cue${result!.cues.length !== 1 ? 's' : ''} detected`
+  const statusMsg = !result ? '' : hasErrors
+    ? `Parse error — ${result.errors.length} issue${result.errors.length !== 1 ? 's' : ''}`
+    : result.warnings.length > 0
+      ? `Valid with warnings · ${result.cues.length} cue${result.cues.length !== 1 ? 's' : ''} detected`
+      : `Valid lyric JSON · ${result.cues.length} cue${result.cues.length !== 1 ? 's' : ''} detected`
 
   return (
     <div className="lmv-workflow-content">

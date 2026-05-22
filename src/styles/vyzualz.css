@@ -2390,9 +2390,8 @@ input[type='range'].vz-slider--color {
   justify-content: center;
   gap: 2px;
   flex-shrink: 0;
-  padding: 0 2px;
-  min-width: 88px;
-  width: 88px;
+  padding: 0 10px 0 2px;
+  min-width: 108px;
 }
 .vz-dock-time-current {
   font-size: 14px;
