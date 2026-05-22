@@ -2097,7 +2097,7 @@ input[type='range'].vz-slider--color {
     1fr
     var(--vz-right-width, 322px);
   align-items: stretch;
-  height: 100px;
+  height: 80px;
   padding: 0;
   gap: 0;
   overflow: hidden;
@@ -2178,12 +2178,17 @@ input[type='range'].vz-slider--color {
 }
 
 .vz-dock-controls-row .az-dock-volume {
-  flex: 1;
-  min-width: 80px;
+  flex: 0 0 auto;
+  min-width: unset;
 }
 .vz-dock-controls-row .az-dock-vol-slider {
-  flex: 1;
-  width: auto;
+  flex: 0 0 48px;
+  width: 48px;
+}
+
+.vz-dock-addtrack-btn {
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
 /* CENTER: time display + waveform + zoom + cue strip */
@@ -2223,6 +2228,12 @@ input[type='range'].vz-slider--color {
   border: 1px solid rgba(255,255,255,0.07);
   display: block;
   overflow: hidden;
+}
+
+.vz-transport-dock .vz-dock-zoom-btn {
+  width: 16px;
+  height: 16px;
+  font-size: 13px;
 }
 
 /* RIGHT: BPM block + 2×2 button grid */

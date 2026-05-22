@@ -231,7 +231,7 @@ function VyzualzDock() {
   const {
     presets, activePresetId, bpm, setBpm, bpmSync, toggleBpmSync, setPlaying,
     cuePoint, setCuePoint, beatGridEnabled, setBeatGridEnabled,
-    waveformZoom, setWaveformZoom, cueMarkers, addCueMarker,
+    waveformZoom, setWaveformZoom, cueMarkers,
   } = useVisualStore(useShallow(s => ({
     presets:            s.presets,
     activePresetId:     s.activePresetId,
@@ -247,7 +247,6 @@ function VyzualzDock() {
     waveformZoom:       s.waveformZoom,
     setWaveformZoom:    s.setWaveformZoom,
     cueMarkers:         s.cueMarkers,
-    addCueMarker:       s.addCueMarker,
   })))
   const preset      = presets.find(p => p.id === activePresetId) ?? presets[0] ?? DEFAULT_PRESETS[0]
   const engine      = useSharedAudio()
@@ -304,20 +303,7 @@ function VyzualzDock() {
         </label>
 
         <div className="vz-dock-left-body">
-          {/* Track identity row */}
-          <div className="vz-dock-track-row">
-            {hasTrack && (
-              <span className="vz-dock-track-title">{title}</span>
-            )}
-            <label className="az-dock-upload-btn" htmlFor={fileInputId} style={{ cursor: 'pointer', flexShrink: 0 }}>
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
-                <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/>
-              </svg>
-              {hasTrack ? 'Replace' : 'Add Track'}
-            </label>
-          </div>
-
-          {/* Transport + volume row */}
+          {/* Transport + add track + volume — single row */}
           <div className="vz-dock-controls-row">
             <div className="az-dock-transport">
               <button className="az-transport-btn" title="Previous" disabled={!hasTrack} onClick={engine.prev}>
@@ -339,6 +325,15 @@ function VyzualzDock() {
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
               </button>
             </div>
+            <label
+              className="az-transport-btn vz-dock-addtrack-btn"
+              htmlFor={fileInputId}
+              title={hasTrack ? `Replace: ${title}` : 'Add Track'}
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14.5 18V5.58888C14.5 4.73166 14.5 4.30306 14.6805 4.04492C14.8382 3.81952 15.0817 3.669 15.3538 3.6288C15.6655 3.58276 16.0488 3.77444 16.8155 4.1578L20.5 6.00003M14.5 18C14.5 19.6569 13.1569 21 11.5 21C9.84315 21 8.5 19.6569 8.5 18C8.5 16.3432 9.84315 15 11.5 15C13.1569 15 14.5 16.3432 14.5 18ZM6.5 10V4.00003M3.5 7.00003H9.5"/>
+              </svg>
+            </label>
             <div className="az-dock-volume">
               <span className="az-dock-vol-icon">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="rgba(245,248,250,0.4)">
@@ -380,15 +375,6 @@ function VyzualzDock() {
         </div>
         <div className="vz-dock-center-bottom">
           <VzCueMarkerStrip markers={cueMarkers} currentTime={engine.currentTime} onSeek={engine.seek} />
-          <button
-            className="vz-dock-add-marker-btn"
-            onClick={() => addCueMarker({ label: 'Cue', time: engine.currentTime, type: 'custom' })}
-            title="Add cue marker at current time"
-            disabled={!hasTrack}
-            style={{ height: 22, width: 22 }}
-          >
-            <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-          </button>
         </div>
       </div>
 
