@@ -147,13 +147,19 @@ export function getActiveTimelineClip(
     }
   }
 
-  // Edge: t === total (non-loop end) → return last clip at its end
-  const last = clips[clips.length - 1]
-  return {
-    clip: last,
-    localTimeSec: last.durationSec,
-    timelineTimeSec: total,
+  // In a gap between clips: no active clip — canvas shows empty/fallback state.
+  // Only hold the final clip at its end when the playhead has truly reached the
+  // end boundary in non-loop mode (loop wrapping keeps t < total always).
+  if (t >= total) {
+    const last = clips[clips.length - 1]
+    return {
+      clip: last,
+      localTimeSec: last.durationSec,
+      timelineTimeSec: total,
+    }
   }
+
+  return { clip: null, localTimeSec: 0, timelineTimeSec: t }
 }
 
 // ── Background lane helpers ───────────────────────────────────────────

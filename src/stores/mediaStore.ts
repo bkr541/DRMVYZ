@@ -895,6 +895,10 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       if (i.url.startsWith('blob:'))                         URL.revokeObjectURL(i.url)
       if (i.thumbnailUrl?.startsWith('blob:'))               URL.revokeObjectURL(i.thumbnailUrl)
       if (i.localThumbnailObjectUrl?.startsWith('blob:'))    URL.revokeObjectURL(i.localThumbnailObjectUrl)
+      if (i.type === 'video') {
+        clearFilmstripCache(i.url)
+        if (i.localThumbnailObjectUrl) clearFilmstripCache(i.localThumbnailObjectUrl)
+      }
     })
     get().uploadQueue.forEach(q => URL.revokeObjectURL(q.previewUrl))
     set({ items: [], uploadQueue: [] })

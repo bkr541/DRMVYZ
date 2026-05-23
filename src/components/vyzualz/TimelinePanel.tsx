@@ -679,12 +679,13 @@ function EffectInspector({
 }
 
 function LyricCueInspector({
-  cue, globalOffsetSec, onUpdateTiming, onSeek, isSaving, isDirty,
+  cue, globalOffsetSec, onUpdateTiming, onSeek, onSave, isSaving, isDirty,
 }: {
   cue: LyricCue
   globalOffsetSec: number
   onUpdateTiming: (id: string, patch: { startMs?: number; endMs?: number }) => void
   onSeek: (sec: number) => void
+  onSave: () => void
   isSaving: boolean
   isDirty: boolean
 }) {
@@ -744,11 +745,16 @@ function LyricCueInspector({
           onClick={() => onSeek(cue.startMs / 1000 + globalOffsetSec)}>
           ⏮ Seek
         </button>
+        <button
+          className="vz-tl-clip-btn"
+          disabled={!isDirty || isSaving}
+          title="Save lyric timing to database"
+          onClick={onSave}
+        >
+          {isSaving ? 'Saving…' : 'Save Timing'}
+        </button>
         {isDirty && !isSaving && (
           <span className="vz-ml-insp-hint" style={{ color: 'var(--az-accent)', margin: 0 }}>Unsaved</span>
-        )}
-        {isSaving && (
-          <span className="vz-ml-insp-hint" style={{ margin: 0 }}>Saving…</span>
         )}
       </div>
       {globalOffsetSec !== 0 && (
@@ -767,7 +773,7 @@ function TimelineInspector({
   selected, bgClips, overlayClips, effectRegions, lyricCues, mediaMap,
   onUpdateClip, onRemoveBg, onRemoveOverlay, onDuplicateBg, onDuplicateOverlay,
   onMoveClip, onUpdateEffect, onRemoveEffect, onSetMediaRole,
-  onUpdateLyricTiming, onSeekToLyric, lyricTimingDirty, lyricSaving, globalOffsetSec,
+  onUpdateLyricTiming, onSeekToLyric, onSaveLyricTiming, lyricTimingDirty, lyricSaving, globalOffsetSec,
 }: {
   selected: SelectedEntity
   bgClips: VzTimelineMediaClip[]
@@ -786,6 +792,7 @@ function TimelineInspector({
   onSetMediaRole: (mediaId: string, role: MediaRole) => void
   onUpdateLyricTiming: (id: string, patch: { startMs?: number; endMs?: number }) => void
   onSeekToLyric: (sec: number) => void
+  onSaveLyricTiming: () => void
   lyricTimingDirty: boolean
   lyricSaving: boolean
   globalOffsetSec: number
@@ -853,6 +860,7 @@ function TimelineInspector({
         globalOffsetSec={globalOffsetSec}
         onUpdateTiming={onUpdateLyricTiming}
         onSeek={onSeekToLyric}
+        onSave={onSaveLyricTiming}
         isSaving={lyricSaving}
         isDirty={lyricTimingDirty}
       />
@@ -1108,7 +1116,9 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
     setLiveLyricDrag(null)
     if (!drag || !live) return
     setCueBounds(drag.cueId, live.startMs, live.endMs)
-  }, [liveLyricDrag, setCueBounds])
+    // Auto-save after every completed drag so timing is never silently lost
+    saveTimingChanges()
+  }, [liveLyricDrag, setCueBounds, saveTimingChanges])
 
   // ── Scrub ──────────────────────────────────────────────────────────────
   const handleScrub = useCallback((t: number) => {
@@ -1410,6 +1420,7 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
         onSetMediaRole={setMediaRole}
         onUpdateLyricTiming={updateCueTiming}
         onSeekToLyric={handleScrub}
+        onSaveLyricTiming={saveTimingChanges}
         lyricTimingDirty={lyricTimingDirty}
         lyricSaving={lyricSaving}
         globalOffsetSec={globalOffsetSec}
