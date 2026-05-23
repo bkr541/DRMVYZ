@@ -590,6 +590,12 @@ export const useVisualStore = create<VisualState>()(
             ...p,
             activeMediaId: p.activeMediaId === prevId ? newId : p.activeMediaId,
             mediaOrder: p.mediaOrder?.map(id => (id === prevId ? newId : id)),
+            timelineClips: p.timelineClips?.map(c =>
+              c.mediaId === prevId ? { ...c, mediaId: newId } : c
+            ),
+            timelineOverlayClips: p.timelineOverlayClips?.map(c =>
+              c.mediaId === prevId ? { ...c, mediaId: newId } : c
+            ),
           })),
         }))
       },

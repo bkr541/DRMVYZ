@@ -1272,6 +1272,34 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         drawDatamoshSmear(ctx, W, H, offscreenRef.current, mEff.datamoshSmear, rawBands.volume)
       }
 
+      // ── Video sync helper — drift-aware position correction ──────────────
+      // Defined here so it is accessible to both background clips and overlay clips.
+      function syncVideoEl(vid: HTMLVideoElement, desired: number, playing: boolean) {
+        if (vid.seeking) return
+        const drift    = desired - vid.currentTime
+        const absDrift = Math.abs(drift)
+        if (playing) {
+          if (absDrift > DRIFT_HARD_SEEK_S) {
+            vid.playbackRate = 1
+            vid.currentTime  = desired
+            if (import.meta.env.DEV) { devSeekCountRef.current++; devCorrModeRef.current = 'seek' }
+          } else if (absDrift > DRIFT_RATE_UPPER_S) {
+            vid.playbackRate = drift < 0 ? RATE_SLOW : RATE_FAST
+            if (import.meta.env.DEV) devCorrModeRef.current = 'rate'
+          } else {
+            vid.playbackRate = 1
+            if (import.meta.env.DEV) devCorrModeRef.current = 'none'
+          }
+          if (import.meta.env.DEV) devLastDriftRef.current = absDrift
+        } else {
+          if (absDrift > DRIFT_PAUSED_S) {
+            vid.currentTime  = desired
+            vid.playbackRate = 1
+            if (import.meta.env.DEV) { devSeekCountRef.current++; devCorrModeRef.current = 'seek' }
+          }
+        }
+      }
+
       // ── Timeline clock & active clip ──────────────────────────────
       if (timelineEnabledRef.current && timelineClipsRef.current.length > 0) {
         const nowMs = performance.now()
@@ -1355,38 +1383,6 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           incomingMediaElRef.current = null
           incomingRoleRef.current    = null
           incomingFitModeRef.current = null
-        }
-
-        // ── Video sync: rate correction for small drift, hard seek only for large drift ──
-        function syncVideoEl(
-          vid: HTMLVideoElement,
-          desired: number,
-          playing: boolean,
-        ) {
-          if (vid.seeking) return  // never interrupt an in-progress seek
-          const drift = desired - vid.currentTime
-          const absDrift = Math.abs(drift)
-          if (playing) {
-            if (absDrift > DRIFT_HARD_SEEK_S) {
-              vid.playbackRate = 1
-              vid.currentTime  = desired
-              if (import.meta.env.DEV) { devSeekCountRef.current++; devCorrModeRef.current = 'seek' }
-            } else if (absDrift > DRIFT_RATE_UPPER_S) {
-              // gentle rate correction — video is muted so no audio pitch effect
-              vid.playbackRate = drift < 0 ? RATE_SLOW : RATE_FAST
-              if (import.meta.env.DEV) devCorrModeRef.current = 'rate'
-            } else {
-              vid.playbackRate = 1
-              if (import.meta.env.DEV) devCorrModeRef.current = 'none'
-            }
-            if (import.meta.env.DEV) devLastDriftRef.current = absDrift
-          } else {
-            if (absDrift > DRIFT_PAUSED_S) {
-              vid.currentTime  = desired
-              vid.playbackRate = 1
-              if (import.meta.env.DEV) { devSeekCountRef.current++; devCorrModeRef.current = 'seek' }
-            }
-          }
         }
 
         const activeVid = mediaElRef.current
@@ -1785,8 +1781,22 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           const el = getOrCreateMediaInstance(pool, ovKey, m)
 
           if (el instanceof HTMLVideoElement) {
-            if (isPlayingRef.current && el.paused)   el.play().catch(() => {})
-            if (!isPlayingRef.current && !el.paused) el.pause()
+            const ovLocalTime = timelineClockRef.current - oc.startSec
+            const ovDur       = isFinite(el.duration) ? el.duration : 0
+            el.loop = false
+            const frozen = shouldFreezeClipFrame(oc, ovLocalTime, ovDur)
+            if (frozen) {
+              if (!el.paused) el.pause()
+            } else {
+              const desired = getClipSourceTime(oc, ovLocalTime, ovDur)
+              if (isPlayingRef.current) {
+                if (el.paused) el.play().catch(() => {})
+                syncVideoEl(el, desired, true)
+              } else {
+                syncVideoEl(el, desired, false)
+                if (!el.paused) el.pause()
+              }
+            }
           }
 
           const cfg = oc.compositingConfig ?? DEFAULT_OVERLAY_COMPOSITING

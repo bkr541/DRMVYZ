@@ -273,6 +273,44 @@ describe('remapMediaId — preset snapshots', () => {
     expect(useVisualStore.getState().presets[0].mediaOrder).toContain(STABLE_ID)
     expect(useVisualStore.getState().presets[0].mediaOrder).not.toContain(LOCAL_ID)
   })
+
+  it('updates preset timelineClips', () => {
+    const presets = useVisualStore.getState().presets
+    const testPreset = { ...presets[0], timelineClips: [makeBgClip(LOCAL_ID)] }
+    useVisualStore.setState({ presets: [testPreset, ...presets.slice(1)] })
+    useVisualStore.getState().remapMediaId(LOCAL_ID, STABLE_ID)
+    expect(useVisualStore.getState().presets[0].timelineClips?.[0].mediaId).toBe(STABLE_ID)
+  })
+
+  it('updates preset timelineOverlayClips', () => {
+    const presets = useVisualStore.getState().presets
+    const testPreset = { ...presets[0], timelineOverlayClips: [makeOverlayClip(LOCAL_ID)] }
+    useVisualStore.setState({ presets: [testPreset, ...presets.slice(1)] })
+    useVisualStore.getState().remapMediaId(LOCAL_ID, STABLE_ID)
+    expect(useVisualStore.getState().presets[0].timelineOverlayClips?.[0].mediaId).toBe(STABLE_ID)
+  })
+
+  it('scene preset saved before upload completion is fully repaired on upload success', () => {
+    // Simulate: user saves a full scene preset while video is still uploading (local ID in all refs)
+    const presets = useVisualStore.getState().presets
+    const scenePre = {
+      ...presets[0],
+      activeMediaId:       LOCAL_ID,
+      mediaOrder:          [LOCAL_ID],
+      timelineClips:       [makeBgClip(LOCAL_ID)],
+      timelineOverlayClips: [makeOverlayClip(LOCAL_ID)],
+    }
+    useVisualStore.setState({ presets: [scenePre, ...presets.slice(1)] })
+
+    // Upload completes
+    useVisualStore.getState().remapMediaId(LOCAL_ID, STABLE_ID)
+
+    const p = useVisualStore.getState().presets[0]
+    expect(p.activeMediaId).toBe(STABLE_ID)
+    expect(p.mediaOrder?.[0]).toBe(STABLE_ID)
+    expect(p.timelineClips?.[0].mediaId).toBe(STABLE_ID)
+    expect(p.timelineOverlayClips?.[0].mediaId).toBe(STABLE_ID)
+  })
 })
 
 // ── Tests: upload simulation scenarios ────────────��──────────────────────────
