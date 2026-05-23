@@ -7,7 +7,7 @@ import { useSharedAudio } from '../../context/AudioEngineContext'
 import { useWaveformPeaks } from './hooks/useWaveformPeaks'
 import { generateVideoFilmstrip } from './media/generateThumbnail'
 import type { VzTimelineClip, VzTimelineMediaClip, VzTimelineEffectRegion, VzOverlayCompositingConfig } from '../../types/timeline'
-import type { VzLayerConfig, VzLayerItem } from '../../stores/visualStore'
+import type { VzLayerConfig, VzLayerItem, SelectedTimelineEntity } from '../../stores/visualStore'
 import { LAYER_LABELS } from '../../types/vzLayers'
 import type { VzTransitionConfig, VzTransitionType, VzTransitionEasing } from '../../types/timeline'
 import { DEFAULT_OVERLAY_COMPOSITING } from '../../types/timeline'
@@ -24,12 +24,7 @@ import {
 
 // ── Types ────────────────────────────────────────────────────────────────
 
-type SelectedEntity =
-  | { kind: 'bg';      id: string }
-  | { kind: 'overlay'; id: string }
-  | { kind: 'effect';  id: string }
-  | { kind: 'lyric';   id: string }
-  | null
+type SelectedEntity = SelectedTimelineEntity | null
 
 type DragKind = 'move' | 'resize-right' | 'resize-left'
 
@@ -981,6 +976,7 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
     timelineLoop, timelineClock, activeMediaId,
     layerConfigs, layerItems,
     selectedLayerItemId, selectedLayerId,
+    selectedTimelineEntity, setSelectedTimelineEntity,
     setTimelineLoop,
     // bg lane actions
     addTimelineClip, removeTimelineClip, updateTimelineClip,
@@ -999,9 +995,11 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
     activeMediaId:           s.activeMediaId,
     layerConfigs:            s.layerConfigs,
     layerItems:              s.layerItems,
-    selectedLayerItemId:     s.selectedLayerItemId,
-    selectedLayerId:         s.selectedLayerId,
-    setTimelineLoop:         s.setTimelineLoop,
+    selectedLayerItemId:          s.selectedLayerItemId,
+    selectedLayerId:              s.selectedLayerId,
+    selectedTimelineEntity:       s.selectedTimelineEntity,
+    setSelectedTimelineEntity:    s.setSelectedTimelineEntity,
+    setTimelineLoop:              s.setTimelineLoop,
     addTimelineClip:         s.addTimelineClip,
     removeTimelineClip:      s.removeTimelineClip,
     updateTimelineClip:      s.updateTimelineClip,
@@ -1066,7 +1064,8 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
   const contentWidth  = Math.max(600, timeToPx(totalDuration, pxPerSec) + 120)
 
   // ── Selection ──────────────────────────────────────────────────────────
-  const [selected, setSelected] = useState<SelectedEntity>(null)
+  const selected    = selectedTimelineEntity as SelectedEntity
+  const setSelected = setSelectedTimelineEntity
 
   // Clear stale selection when the item is deleted
   useEffect(() => {
@@ -1080,12 +1079,8 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
   // Sync Lyric Manager selection → Timeline selection
   useEffect(() => {
     if (!storeSelectedCueId) return
-    setSelected(prev =>
-      prev?.kind === 'lyric' && prev.id === storeSelectedCueId
-        ? prev
-        : { kind: 'lyric', id: storeSelectedCueId }
-    )
-  }, [storeSelectedCueId])
+    setSelectedTimelineEntity({ kind: 'lyric', id: storeSelectedCueId })
+  }, [storeSelectedCueId, setSelectedTimelineEntity])
 
   // ── Keyboard delete ────────────────────────────────────────────────────
   useEffect(() => {

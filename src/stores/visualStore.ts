@@ -34,6 +34,12 @@ export type { VzTimelineClip, VzTimelineMediaClip, VzTimelineMediaLaneId, VzTime
 export type { VzLayerConfig, VzLayerConfigId, VzLayerItem }
 export type { VzCueMarker }
 
+export type SelectedTimelineEntity =
+  | { kind: 'bg';      id: string }
+  | { kind: 'overlay'; id: string }
+  | { kind: 'effect';  id: string }
+  | { kind: 'lyric';   id: string }
+
 // Quality is owned here so sessions can snapshot it
 export type Quality = 'High' | 'Medium' | 'Low'
 
@@ -414,6 +420,10 @@ interface VisualState {
   selectedLayerItemId: string | null
   setSelectedLayerItem(layerId: string | null, itemId: string | null): void
 
+  // ── Timeline entity selection (ephemeral — not persisted) ─────────────
+  selectedTimelineEntity: SelectedTimelineEntity | null
+  setSelectedTimelineEntity(entity: SelectedTimelineEntity | null): void
+
   // ── Transport extras ──────────────────────────────────────────────────────
   cuePoint:        number          // ephemeral — not persisted
   beatGridEnabled: boolean
@@ -505,8 +515,9 @@ export const useVisualStore = create<VisualState>()(
       timelineClock:          0,
       layerConfigs:      [...DEFAULT_LAYER_CONFIGS],
       layerItems:        [],
-      selectedLayerId:      null,
-      selectedLayerItemId:  null,
+      selectedLayerId:          null,
+      selectedLayerItemId:      null,
+      selectedTimelineEntity:   null,
       cuePoint:          0,
       beatGridEnabled:   false,
       waveformZoom:      1,
@@ -1142,7 +1153,11 @@ export const useVisualStore = create<VisualState>()(
       },
 
       setSelectedLayerItem(layerId, itemId) {
-        set({ selectedLayerId: layerId, selectedLayerItemId: itemId })
+        set({ selectedLayerId: layerId, selectedLayerItemId: itemId, selectedTimelineEntity: null })
+      },
+
+      setSelectedTimelineEntity(entity) {
+        set({ selectedTimelineEntity: entity, selectedLayerId: null, selectedLayerItemId: null })
       },
 
       // ── Transport extras ──────────────────────────────────────────────────
@@ -1255,8 +1270,9 @@ export const useVisualStore = create<VisualState>()(
           // older localStorage snapshots may contain. Do not restore these fields.
           activeMediaId:       null,
           layerItems:          [],
-          selectedLayerId:     null,
-          selectedLayerItemId: null,
+          selectedLayerId:         null,
+          selectedLayerItemId:     null,
+          selectedTimelineEntity:  null,
           // Timeline state is always reset on launch — only restored when a session
           // is explicitly loaded. timelineEnabled/Clips/Loop are not in partialize.
           // The new Phase 1A fields default to empty to support cold starts.
