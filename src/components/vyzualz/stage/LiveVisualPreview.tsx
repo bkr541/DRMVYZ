@@ -32,6 +32,8 @@ export function LiveVisualPreview({
   lyricsEnabled, lyricsCount, onLyricsClick,
   videoBaselineMode, onToggleVideoBaseline,
   stageOverlays,
+  onCanvasReady,
+  onLiveFps,
 }: {
   analyser: AnalyserNode | null
   activeMedia: UploadedMedia | null
@@ -63,6 +65,8 @@ export function LiveVisualPreview({
   videoBaselineMode: boolean
   onToggleVideoBaseline: () => void
   stageOverlays?: ReactNode
+  onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
+  onLiveFps?: (fps: number) => void
 }) {
   const [liveStats, setLiveStats] = useState<PerformanceStats>(DEFAULT_PERFORMANCE_STATS)
   const [viewMenuOpen, setViewMenuOpen] = useState(false)
@@ -105,7 +109,8 @@ export function LiveVisualPreview({
           layerItems={layerItems}
           effectParams={effectParams}
           audioReactivityEnabled={audioReactivityEnabled}
-          onStatsUpdate={setLiveStats}
+          onStatsUpdate={(stats) => { setLiveStats(stats); onLiveFps?.(stats.fps) }}
+          onCanvasReady={onCanvasReady}
         />
         <PreviewOverlay quality={quality} fps={liveStats.fps} />
         <RenderSourceBadge

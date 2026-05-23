@@ -5371,3 +5371,218 @@ input[type='range'].vz-slider--color {
   font-weight: 600;
   color: rgba(216,185,90,0.88);
 }
+
+/* ── Recording panel ──────────────────────────────────────────────────── */
+.vz-rec-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.vz-rec-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px 14px;
+}
+
+/* Status row */
+.vz-rec-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 5px;
+  border: 1px solid rgba(255,255,255,0.07);
+}
+
+.vz-rec-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.25);
+  flex-shrink: 0;
+}
+.vz-rec-dot--live {
+  background: #e05555;
+  box-shadow: 0 0 6px rgba(224,85,85,0.7);
+  animation: vz-rec-blink 1.2s ease-in-out infinite;
+}
+@keyframes vz-rec-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+
+.vz-rec-status-text {
+  flex: 1;
+  font-size: 10px;
+  color: rgba(245,248,250,0.65);
+  letter-spacing: 0.02em;
+}
+
+.vz-rec-timer {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #e05555;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* FPS warning */
+.vz-rec-warning {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 8px;
+  background: rgba(216,185,90,0.1);
+  border: 1px solid rgba(216,185,90,0.3);
+  border-radius: 4px;
+  font-size: 10px;
+  color: rgba(216,185,90,0.9);
+}
+
+/* Start / Stop buttons */
+.vz-rec-controls {
+  display: flex;
+}
+
+.vz-rec-start-btn,
+.vz-rec-stop-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  border: none;
+  width: 100%;
+  justify-content: center;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.vz-rec-start-btn {
+  background: rgba(224,85,85,0.18);
+  color: rgba(245,248,250,0.9);
+  border: 1px solid rgba(224,85,85,0.4);
+}
+.vz-rec-start-btn:hover:not(:disabled) {
+  background: rgba(224,85,85,0.30);
+  box-shadow: 0 0 10px rgba(224,85,85,0.25);
+}
+.vz-rec-start-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.vz-rec-stop-btn {
+  background: rgba(224,85,85,0.55);
+  color: #fff;
+  border: 1px solid rgba(224,85,85,0.7);
+  box-shadow: 0 0 10px rgba(224,85,85,0.3);
+}
+.vz-rec-stop-btn:hover {
+  background: rgba(224,85,85,0.72);
+  box-shadow: 0 0 14px rgba(224,85,85,0.45);
+}
+
+/* Settings grid */
+.vz-rec-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.vz-rec-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.vz-rec-label {
+  font-size: 10px;
+  color: rgba(245,248,250,0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.vz-rec-value {
+  font-size: 10px;
+  color: rgba(74,199,219,0.85);
+}
+.vz-rec-value--warn {
+  color: rgba(216,185,90,0.8);
+}
+
+.vz-rec-fps-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.vz-rec-fps-btn {
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(255,255,255,0.05);
+  color: rgba(245,248,250,0.55);
+  border: 1px solid rgba(255,255,255,0.1);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.vz-rec-fps-btn:hover {
+  background: rgba(255,255,255,0.1);
+  color: rgba(245,248,250,0.8);
+}
+.vz-rec-fps-btn--active {
+  background: rgba(74,199,219,0.15);
+  color: rgba(74,199,219,0.9);
+  border-color: rgba(74,199,219,0.35);
+}
+
+/* Export section */
+.vz-rec-section-title {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(245,248,250,0.3);
+  padding-bottom: 2px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.vz-rec-export-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.vz-rec-export-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 10px;
+  background: rgba(255,255,255,0.05);
+  color: rgba(245,248,250,0.65);
+  border: 1px solid rgba(255,255,255,0.1);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.vz-rec-export-btn:hover:not(:disabled) {
+  background: rgba(255,255,255,0.1);
+  color: rgba(245,248,250,0.9);
+}
+.vz-rec-export-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Hint text */
+.vz-rec-hint {
+  font-size: 9px;
+  color: rgba(245,248,250,0.25);
+  line-height: 1.5;
+  margin-top: 2px;
+}

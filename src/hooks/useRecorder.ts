@@ -1,66 +1,139 @@
 import { useState, useRef, useCallback } from 'react'
 import { encodeWAV, downloadBlob } from '../utils/wavExport'
 
-export type RecorderState = 'idle' | 'recording' | 'stopped'
+export type RecorderState = 'idle' | 'recording'
+export type RecordingMode = 'video-audio' | 'video-only'
 
 export interface Recorder {
   recorderState: RecorderState
+  recordingMode: RecordingMode | null
   recordingTime: number
-  startRecording: (stream?: MediaStream) => void
+  fps: 30 | 60
+  setFps: (fps: 30 | 60) => void
+  startVideoRecording: (
+    canvas: HTMLCanvasElement,
+    audioStream: MediaStream | null,
+    opts?: { fps?: 30 | 60 },
+  ) => void
   stopRecording: () => void
-  exportRingBuffer: (ringBuffer: { read: (s: number) => Float32Array; sampleRate: number } | null, seconds: number) => void
-  exportPNG: (canvasSelector?: string) => void
+  exportRingBuffer: (
+    ringBuffer: { read: (s: number) => Float32Array; sampleRate: number } | null,
+    seconds: number,
+  ) => void
+  exportPNG: (canvas?: HTMLCanvasElement | null) => void
+}
+
+// Ordered by quality preference. Codec suffix must be lowercase for isTypeSupported.
+const MIME_CANDIDATES = [
+  'video/webm;codecs=vp9,opus',
+  'video/webm;codecs=vp8,opus',
+  'video/webm;codecs=vp9',
+  'video/webm;codecs=vp8',
+  'video/webm',
+]
+
+export function pickVideoMimeType(): string {
+  if (typeof MediaRecorder === 'undefined') return ''
+  return MIME_CANDIDATES.find(t => MediaRecorder.isTypeSupported(t)) ?? ''
+}
+
+export function buildCombinedStream(
+  canvas: HTMLCanvasElement,
+  audioStream: MediaStream | null,
+  fps: 30 | 60,
+): { stream: MediaStream; capturedTracks: MediaStreamTrack[]; mode: RecordingMode } {
+  const videoStream    = canvas.captureStream(fps)
+  const videoTracks    = videoStream.getVideoTracks()
+  const capturedTracks = [...videoTracks]
+
+  const audioTracks = audioStream?.getAudioTracks() ?? []
+  const mode: RecordingMode = audioTracks.length > 0 ? 'video-audio' : 'video-only'
+
+  const stream = new MediaStream([
+    ...videoTracks,
+    ...audioTracks,
+  ])
+
+  return { stream, capturedTracks, mode }
 }
 
 export function useRecorder(): Recorder {
   const [recorderState, setRecorderState] = useState<RecorderState>('idle')
+  const [recordingMode, setRecordingMode] = useState<RecordingMode | null>(null)
   const [recordingTime, setRecordingTime] = useState(0)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const chunksRef = useRef<Blob[]>([])
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [fps, setFpsState] = useState<30 | 60>(30)
 
-  const startRecording = useCallback((stream?: MediaStream) => {
-    let targetStream = stream
+  const mediaRecorderRef   = useRef<MediaRecorder | null>(null)
+  const chunksRef          = useRef<Blob[]>([])
+  const timerRef           = useRef<ReturnType<typeof setInterval> | null>(null)
+  const captureTracksRef   = useRef<MediaStreamTrack[]>([])
+  const fpsRef             = useRef<30 | 60>(fps)
 
-    // If no stream provided, attempt to capture tab audio via display media
-    if (!targetStream) {
-      // We can only record if we have a real audio stream
-      // Without one, we inform the user
-      alert('To record audio, please use the Microphone source or load a file.\nFor screen+audio capture, use OBS or your OS screen recorder.')
+  const setFps = useCallback((f: 30 | 60) => {
+    setFpsState(f)
+    fpsRef.current = f
+  }, [])
+
+  const startVideoRecording = useCallback((
+    canvas: HTMLCanvasElement,
+    audioStream: MediaStream | null,
+    opts?: { fps?: 30 | 60 },
+  ) => {
+    if (mediaRecorderRef.current) return
+
+    const targetFps = opts?.fps ?? fpsRef.current
+    const mimeType  = pickVideoMimeType()
+
+    if (!mimeType) {
+      alert('Your browser does not support video recording (WebM). Use Chrome or Edge.')
       return
     }
 
-    if (!MediaRecorder.isTypeSupported('audio/webm')) {
-      alert('Your browser does not support MediaRecorder with audio/webm.')
-      return
-    }
+    const { stream, capturedTracks, mode } = buildCombinedStream(canvas, audioStream, targetFps)
+    captureTracksRef.current = capturedTracks
 
     chunksRef.current = []
-    const mr = new MediaRecorder(targetStream, { mimeType: 'audio/webm' })
-    mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-    mr.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
-      downloadBlob(blob, `drmvyz-recording-${Date.now()}.webm`)
+    const mr = new MediaRecorder(stream, {
+      mimeType,
+      videoBitsPerSecond: 8_000_000,
+    })
+
+    mr.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksRef.current.push(e.data)
     }
-    mr.start(250)
+    mr.onstop = () => {
+      const blob = new Blob(chunksRef.current, { type: mimeType })
+      downloadBlob(blob, `drmvyz-performance-${Date.now()}.webm`)
+      chunksRef.current = []
+    }
+
+    mr.start(500)
     mediaRecorderRef.current = mr
 
+    setRecordingMode(mode)
     setRecorderState('recording')
     setRecordingTime(0)
     timerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000)
   }, [])
 
   const stopRecording = useCallback(() => {
-    mediaRecorderRef.current?.stop()
+    const mr = mediaRecorderRef.current
+    if (mr && mr.state !== 'inactive') mr.stop()
     mediaRecorderRef.current = null
+
+    // Stop only the video capture tracks we created — never stop the shared audio stream.
+    for (const track of captureTracksRef.current) track.stop()
+    captureTracksRef.current = []
+
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
     setRecorderState('idle')
+    setRecordingMode(null)
     setRecordingTime(0)
   }, [])
 
   const exportRingBuffer = useCallback((
     ringBuffer: { read: (s: number) => Float32Array; sampleRate: number } | null,
-    seconds: number
+    seconds: number,
   ) => {
     if (!ringBuffer) {
       alert('No audio captured yet. Play a track or use microphone input first.')
@@ -75,27 +148,27 @@ export function useRecorder(): Recorder {
     downloadBlob(wav, `drmvyz-capture-${seconds}s-${Date.now()}.wav`)
   }, [])
 
-  const exportPNG = useCallback((selector = 'canvas') => {
-    // Find the largest canvas on the page (the main visualizer area)
-    const canvases = Array.from(document.querySelectorAll<HTMLCanvasElement>(selector))
-    if (canvases.length === 0) { alert('No canvas found to export.'); return }
+  const exportPNG = useCallback((canvas?: HTMLCanvasElement | null) => {
+    const target = canvas ?? Array.from(
+      document.querySelectorAll<HTMLCanvasElement>('canvas'),
+    ).reduce<HTMLCanvasElement | null>((best, c) => {
+      if (!best) return c
+      return c.width * c.height > best.width * best.height ? c : best
+    }, null)
 
-    // Create a composite canvas from the app root
-    const appRoot = document.querySelector<HTMLElement>('.app-root')
-    if (!appRoot) return
+    if (!target) { alert('No canvas found to export.'); return }
 
-    // Use html2canvas equivalent: get app root bounding box and draw visible region
-    // Simple approach: export the largest canvas
-    const biggest = canvases.reduce((a, b) =>
-      a.width * a.height > b.width * b.height ? a : b
-    )
-
-    const url = biggest.toDataURL('image/png')
-    const a = document.createElement('a')
-    a.href = url
+    const url = target.toDataURL('image/png')
+    const a   = document.createElement('a')
+    a.href     = url
     a.download = `drmvyz-frame-${Date.now()}.png`
     a.click()
   }, [])
 
-  return { recorderState, recordingTime, startRecording, stopRecording, exportRingBuffer, exportPNG }
+  return {
+    recorderState, recordingMode, recordingTime,
+    fps, setFps,
+    startVideoRecording, stopRecording,
+    exportRingBuffer, exportPNG,
+  }
 }

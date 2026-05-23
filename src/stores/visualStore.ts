@@ -467,11 +467,23 @@ interface VisualState {
   setVideoBaselineMode(v: boolean): void
 
   // ── Renderer type ─────────────────────────────────────────────────────────
-  // Ephemeral — not persisted; always starts 'canvas2d' on launch.
+  // Ephemeral — not persisted; resolved from gpuPreference on every launch.
   // 'webgl2' enables GPU compositor (video + RGB Split + Bloom via shaders).
   // Canvas 2D remains the fallback and handles all other effects and overlays.
   rendererType: 'canvas2d' | 'webgl2'
   setRendererType(t: 'canvas2d' | 'webgl2'): void
+
+  // ── GPU preference ────────────────────────────────────────────────────────
+  // Persisted user preference used to auto-select rendererType on launch.
+  // 'auto'     → try WebGL2, silently fall back to Canvas 2D if unavailable
+  // 'webgl2'   → always try WebGL2; show reason if unavailable
+  // 'canvas2d' → always Canvas 2D; never attempts GPU init
+  gpuPreference: 'auto' | 'webgl2' | 'canvas2d'
+  setGpuPreference(p: 'auto' | 'webgl2' | 'canvas2d'): void
+
+  // Ephemeral diagnostic set when gpuPreference requested WebGL2 but init failed.
+  rendererFallbackReason: string | null
+  setRendererFallbackReason(reason: string | null): void
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
@@ -532,7 +544,9 @@ export const useVisualStore = create<VisualState>()(
       autoQualityReason:  '',
       audioReactivityEnabled: false,
       videoBaselineMode:      false,   // ephemeral — never persisted
-      rendererType:           'canvas2d' as const,  // ephemeral — never persisted
+      rendererType:           'canvas2d' as const,  // ephemeral — resolved from gpuPreference
+      gpuPreference:          'auto' as const,      // persisted
+      rendererFallbackReason: null,                 // ephemeral — set on GPU init failure
 
       // ── Live state ──────────────────────────────────────────────────────────
 
@@ -1242,7 +1256,9 @@ export const useVisualStore = create<VisualState>()(
       setVideoBaselineMode(v) { set({ videoBaselineMode: v }) },
 
       // ── Renderer type ─────────────────────────────────────────────────────
-      setRendererType(t)      { set({ rendererType: t }) },
+      setRendererType(t)              { set({ rendererType: t }) },
+      setGpuPreference(p)             { set({ gpuPreference: p }) },
+      setRendererFallbackReason(r)    { set({ rendererFallbackReason: r }) },
     }),
     {
       name: 'drmvyz-visual-store',
@@ -1268,6 +1284,7 @@ export const useVisualStore = create<VisualState>()(
         autoQualityMax:     s.autoQualityMax,
         // autoQualityReason is ephemeral — not persisted
         audioReactivityEnabled: s.audioReactivityEnabled,
+        gpuPreference:          s.gpuPreference,
       }),
       // Re-inject default presets after rehydration so they are never missing
       merge: (persisted, current) => {
@@ -1325,9 +1342,12 @@ export const useVisualStore = create<VisualState>()(
           timelineClips:         [] as VzTimelineMediaClip[],
           timelineOverlayClips:  [] as VzTimelineMediaClip[],
           timelineEffectRegions: [] as VzTimelineEffectRegion[],
-          // Renderer type always resets to canvas2d — let user choose GPU mode per session.
-          videoBaselineMode: false,
-          rendererType: 'canvas2d' as const,
+          // videoBaselineMode and rendererType are ephemeral — always start clean.
+          // rendererType is resolved from gpuPreference by LiveVisualCanvas on mount.
+          videoBaselineMode:      false,
+          rendererType:           'canvas2d' as const,
+          rendererFallbackReason: null,
+          gpuPreference: (p as Partial<VisualState>).gpuPreference ?? 'auto',
         }
       },
     }

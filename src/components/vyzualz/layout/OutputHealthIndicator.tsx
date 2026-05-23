@@ -25,10 +25,11 @@ export function OutputHealthIndicator({
     autoQualityEnabled, autoQualityReason,
     activeMediaLoaded, missingMediaCount, activeEffectCount,
     videoElementCount, videoPlayingCount,
-    rendererType, gpuEffects,
+    rendererType, gpuEffects, rendererFallbackReason, contextLost,
   } = stats
 
-  const setRendererType = useVisualStore(s => s.setRendererType)
+  const setGpuPreference = useVisualStore(s => s.setGpuPreference)
+  const gpuPreference    = useVisualStore(s => s.gpuPreference)
 
   const color = LEVEL_COLOR[warningLevel]
   const fpsLabel = fps > 0 ? `${fps}` : '--'
@@ -84,12 +85,19 @@ export function OutputHealthIndicator({
           <span>Renderer</span>
           <span style={{ color: isGpu ? '#4ac7db' : 'inherit' }}>
             {isGpu ? 'WebGL2' : 'Canvas 2D'}
+            {contextLost && <span style={{ marginLeft: 4, color: '#f87171', fontSize: '0.82em' }}>LOST</span>}
             {isGpu && gpuEffects.length > 0 && (
               <span style={{ marginLeft: 4, color: 'rgba(74,199,219,0.6)', fontSize: '0.82em' }}>
                 [{gpuEffects.join(', ')}]
               </span>
             )}
           </span>
+          {rendererFallbackReason && <>
+            <span style={{ color: 'rgba(255,255,255,0.4)' }}>Fallback</span>
+            <span style={{ color: '#d8b95a', fontSize: '0.82em' }}>{rendererFallbackReason}</span>
+          </>}
+          <span>GPU pref</span>
+          <span style={{ color: 'rgba(255,255,255,0.55)' }}>{gpuPreference}</span>
         </div>
         {warnings.map(w => (
           <div key={w} className="vz-health-warning" style={w.startsWith('Baseline') ? { color: '#f59e0b' } : undefined}>{w}</div>
@@ -99,7 +107,7 @@ export function OutputHealthIndicator({
         )}
         <button
           className={`vz-health-renderer-btn${isGpu ? ' vz-health-renderer-btn--gpu' : ''}`}
-          onClick={() => setRendererType(isGpu ? 'canvas2d' : 'webgl2')}
+          onClick={() => setGpuPreference(isGpu ? 'canvas2d' : 'webgl2')}
           title={isGpu ? 'Switch to Canvas 2D renderer' : 'Switch to WebGL2 GPU compositor (RGB Split + Bloom on GPU)'}
         >
           {isGpu ? 'Switch to Canvas 2D' : 'Switch to WebGL2 GPU'}

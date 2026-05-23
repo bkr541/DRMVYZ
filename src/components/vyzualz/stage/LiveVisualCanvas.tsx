@@ -30,6 +30,7 @@ import {
 import { getEffectsForPhase, getEffectModule } from '../effects/registry'
 import type { VzFrameContext } from '../effects/types'
 import { WebGL2Renderer } from '../../../renderers/WebGL2Renderer'
+import { resolveRendererType } from '../../../renderers/rendererSelection'
 import {
   getOrCreateMediaInstance, pauseInactiveMediaInstances, destroyMediaInstance,
 } from './mediaPool'
@@ -551,9 +552,10 @@ export interface CanvasProps {
   layerItems: VzLayerItem[]
   effectParams: VzEffectParams
   audioReactivityEnabled: boolean
+  onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
 }
 
-export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, getAudioTime, modulationRoutes, timelineEnabled, timelineClips, timelineOverlayClips = [], timelineEffectRegions = [], timelineLoop, mediaItems, onStatsUpdate, layerConfigs, layerItems, effectParams, audioReactivityEnabled }: CanvasProps) {
+export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, getAudioTime, modulationRoutes, timelineEnabled, timelineClips, timelineOverlayClips = [], timelineEffectRegions = [], timelineLoop, mediaItems, onStatsUpdate, layerConfigs, layerItems, effectParams, audioReactivityEnabled, onCanvasReady }: CanvasProps) {
   const canvasRef     = useRef<HTMLCanvasElement>(null)
   const animRef       = useRef<number>(0)
   const resizeFnRef   = useRef<() => void>(() => {})
@@ -655,9 +657,11 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   const audioReactivityEnabledRef = useRef(audioReactivityEnabled)
 
   // ── Renderer tracking (set by GPU integration useEffect) ──────────────
-  const rendererTypeRef = useRef<RendererType>('canvas2d')
-  const gpuEffectsRef   = useRef<string[]>([])
-  const gl2RendererRef  = useRef<WebGL2Renderer | null>(null)
+  const rendererTypeRef          = useRef<RendererType>('canvas2d')
+  const gpuEffectsRef            = useRef<string[]>([])
+  const gl2RendererRef           = useRef<WebGL2Renderer | null>(null)
+  const rendererFallbackReasonRef = useRef<string | null>(null)
+  const contextLostRef           = useRef(false)
 
   const lowFpsSinceRef          = useRef(0)   // perf.now() when low-FPS streak began, 0 = none
   const highFpsSinceRef         = useRef(0)   // perf.now() when high-FPS streak began, 0 = none
@@ -675,6 +679,15 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   const STATS_PUBLISH_MS = 500        // publish performance metrics ~2/sec
 
   useEffect(() => { onStatsUpdateRef.current = onStatsUpdate })
+
+  // Notify parent when the output canvas is available for captureStream recording.
+  const onCanvasReadyRef = useRef(onCanvasReady)
+  useEffect(() => { onCanvasReadyRef.current = onCanvasReady }, [onCanvasReady])
+  useEffect(() => {
+    onCanvasReadyRef.current?.(canvasRef.current)
+    return () => { onCanvasReadyRef.current?.(null) }
+  }, [])
+
   useEffect(() => { effectParamsRef.current = effectParams; requestRedrawRef.current() }, [effectParams])
   useEffect(() => { effectsRef.current  = effects; requestRedrawRef.current() })
   // enabledFx change may switch between VFC-driven and rAF-driven mode; wake rAF.
@@ -689,36 +702,67 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   useEffect(() => { audioReactivityEnabledRef.current = audioReactivityEnabled }, [audioReactivityEnabled])
 
   // ── WebGL2 renderer lifecycle ─────────────────────────────────────────
+  // Driven by gpuPreference (persisted), not rendererType (ephemeral).
+  // applyPreference resolves the preference → creates/destroys the renderer
+  // → writes rendererType back to the store so stats and UI stay in sync.
   useEffect(() => {
-    const handleType = (type: 'canvas2d' | 'webgl2') => {
-      if (type === rendererTypeRef.current) return
-      rendererTypeRef.current = type
-      if (type === 'webgl2') {
-        if (!gl2RendererRef.current) {
-          gl2RendererRef.current = WebGL2Renderer.create()
-          if (import.meta.env.DEV) {
-            console.log('[LiveVisualCanvas] WebGL2 renderer', gl2RendererRef.current ? 'created' : 'unavailable — falling back to canvas2d')
-          }
+    const applyPreference = (pref: 'auto' | 'webgl2' | 'canvas2d') => {
+      const { type, fallbackReason } = resolveRendererType(pref)
+
+      if (type === 'webgl2' && !gl2RendererRef.current) {
+        const renderer = WebGL2Renderer.create({
+          onContextLost: () => {
+            contextLostRef.current = true
+            useVisualStore.getState().setRendererFallbackReason('WebGL2 context lost — pausing GPU path')
+            if (import.meta.env.DEV) console.warn('[LiveVisualCanvas] WebGL2 context lost')
+          },
+          onContextRestored: () => {
+            contextLostRef.current = false
+            useVisualStore.getState().setRendererFallbackReason(null)
+            if (import.meta.env.DEV) console.log('[LiveVisualCanvas] WebGL2 context restored')
+          },
+        })
+        if (renderer) {
+          gl2RendererRef.current          = renderer
+          rendererTypeRef.current         = 'webgl2'
+          rendererFallbackReasonRef.current = null
+          useVisualStore.getState().setRendererType('webgl2')
+          useVisualStore.getState().setRendererFallbackReason(null)
+          if (import.meta.env.DEV) console.log('[LiveVisualCanvas] WebGL2 renderer created')
+        } else {
+          // create() returned null even though probe passed — runtime init error
+          const reason = fallbackReason ?? 'WebGL2 renderer init failed'
+          gl2RendererRef.current            = null
+          rendererTypeRef.current           = 'canvas2d'
+          rendererFallbackReasonRef.current = reason
+          useVisualStore.getState().setRendererType('canvas2d')
+          useVisualStore.getState().setRendererFallbackReason(reason)
+          if (import.meta.env.DEV) console.warn('[LiveVisualCanvas] WebGL2 create() failed:', reason)
         }
-      } else {
+      } else if (type === 'canvas2d') {
         gl2RendererRef.current?.dispose()
-        gl2RendererRef.current = null
-        gpuEffectsRef.current  = []
+        gl2RendererRef.current            = null
+        gpuEffectsRef.current             = []
+        rendererTypeRef.current           = 'canvas2d'
+        rendererFallbackReasonRef.current = fallbackReason
+        useVisualStore.getState().setRendererType('canvas2d')
+        useVisualStore.getState().setRendererFallbackReason(fallbackReason)
       }
       requestRedrawRef.current()
     }
 
-    // Initialize from current store state
-    const initial = useVisualStore.getState().rendererType
-    rendererTypeRef.current = initial
-    if (initial === 'webgl2') {
-      gl2RendererRef.current = WebGL2Renderer.create()
-      if (import.meta.env.DEV) {
-        console.log('[LiveVisualCanvas] WebGL2 renderer (initial)', gl2RendererRef.current ? 'created' : 'unavailable')
-      }
-    }
+    // Initialize from the persisted GPU preference on mount
+    applyPreference(useVisualStore.getState().gpuPreference)
 
-    const unsub = useVisualStore.subscribe(state => handleType(state.rendererType))
+    // Re-apply when the user changes their preference via the health indicator
+    let prevPref = useVisualStore.getState().gpuPreference
+    const unsub = useVisualStore.subscribe(state => {
+      if (state.gpuPreference !== prevPref) {
+        prevPref = state.gpuPreference
+        applyPreference(state.gpuPreference)
+      }
+    })
+
     return () => {
       unsub()
       gl2RendererRef.current?.dispose()
@@ -1061,6 +1105,8 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           videoElementCount, videoPlayingCount,
           rendererType: rendererTypeRef.current,
           gpuEffects:   gpuEffectsRef.current,
+          rendererFallbackReason: rendererFallbackReasonRef.current,
+          contextLost:            contextLostRef.current,
         })
 
         // Reset window counters
@@ -1626,6 +1672,10 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360 + 90}deg)`
           if (srcSnap) {
             ctx.drawImage(srcSnap, offX, offY)
+            if (import.meta.env.DEV) devEffPassRef.current++
+          } else if (isGpu && gl2) {
+            // Reuse the already-composited GPU output canvas — no second video draw
+            ctx.drawImage(gl2.outputCanvas, offX, offY)
             if (import.meta.env.DEV) devEffPassRef.current++
           } else {
             ctx.drawImage(mediaEl, ox + offX, oy + offY, sw, sh)

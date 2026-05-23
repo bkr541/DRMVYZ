@@ -40,6 +40,8 @@ import { OutputFrame }          from './stage/OutputFrame'
 import { useVyzualzKeyboard }   from './hooks/useVyzualzKeyboard'
 import { useTapTempo }          from './hooks/useTapTempo'
 import { useMediaNavigation }   from './hooks/useMediaNavigation'
+import { useRecorder }          from '../../hooks/useRecorder'
+import { RecordingPanel }       from './recording/RecordingPanel'
 
 // ── AudioWaveformCanvas (real analyser) ───────────────────────────────
 function AudioWaveformCanvas({ analyser }: { analyser: AnalyserNode | null }) {
@@ -431,7 +433,7 @@ function VyzualzDock() {
 
 // ── Rail tab definitions ──────────────────────────────────────────────
 type LeftPanel  = 'media' | 'layers' | 'presets' | 'sessions'
-type RightPanel = 'fx' | 'mod' | 'audio'
+type RightPanel = 'fx' | 'mod' | 'audio' | 'rec'
 
 const LEFT_TABS: RailTabOption<LeftPanel>[] = [
   { id: 'media',    label: 'Media'    },
@@ -444,6 +446,7 @@ const RIGHT_TABS: RailTabOption<RightPanel>[] = [
   { id: 'fx',    label: 'FX'    },
   { id: 'mod',   label: 'MOD'   },
   { id: 'audio', label: 'AUDIO' },
+  { id: 'rec',   label: 'REC'   },
 ]
 
 // ── localStorage helpers ──────────────────────────────────────────────
@@ -612,6 +615,11 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   // Extracted hooks
   const { handleTap }              = useTapTempo()
   const { handlePrev, handleNext } = useMediaNavigation()
+
+  // Recording
+  const recorder = useRecorder()
+  const [outputCanvas, setOutputCanvas] = useState<HTMLCanvasElement | null>(null)
+  const [liveFps, setLiveFps] = useState(0)
 
   const handleFullscreen = useCallback(() => {
     canvasWrapRef.current?.requestFullscreen?.().catch(() => {})
@@ -848,6 +856,8 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                   lyricsEnabled={lyricsEnabled}
                   lyricsCount={lyricsCueCount}
                   onLyricsClick={() => setAppView('lyrics')}
+                  onCanvasReady={setOutputCanvas}
+                  onLiveFps={setLiveFps}
                   stageOverlays={
                     sourceToast ? (
                       <div
@@ -911,6 +921,21 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
             )}
             {activeRightPanel === 'audio' && (
               <AudioAnalyzerPanel analyser={analyser} />
+            )}
+            {activeRightPanel === 'rec' && (
+              <RecordingPanel
+                canvas={outputCanvas}
+                recorderState={recorder.recorderState}
+                recordingMode={recorder.recordingMode}
+                recordingTime={recorder.recordingTime}
+                fps={recorder.fps}
+                liveFps={liveFps}
+                onFpsChange={recorder.setFps}
+                onStartRecording={recorder.startVideoRecording}
+                onStopRecording={recorder.stopRecording}
+                getAudioStream={engine.getRecordingStream}
+                onExportPng={recorder.exportPNG}
+              />
             )}
           </div>
         </WorkspaceRail>

@@ -105,6 +105,9 @@ export interface AudioEngine {
   refAnalyserL: AnalyserNode | null
   refAnalyserR: AnalyserNode | null
 
+  // Recording — tap the master gain signal for MediaRecorder capture
+  getRecordingStream: () => MediaStream | null
+
   // Demo mode
   demoSilent: boolean
   setDemoSilent: (v: boolean) => void
@@ -174,6 +177,7 @@ export function useAudioEngine(): AudioEngine {
   // Ring buffer — written by AudioWorklet message handler
   const ringBufRef       = useRef<RingBuffer | null>(null)
   const workletNodeRef   = useRef<AudioWorkletNode | null>(null)
+  const recordingDestRef = useRef<MediaStreamAudioDestinationNode | null>(null)
   // DEV: true once the worklet module is loaded and the node created
   const workletActiveRef = useRef(false)
 
@@ -574,6 +578,18 @@ export function useAudioEngine(): AudioEngine {
     setBpmDetecting(false)
   }, [currentIndex, tracks, ensureContext])
 
+  const getRecordingStream = useCallback((): MediaStream | null => {
+    const ctx = ensureContext()
+    const gain = masterGainRef.current
+    if (!gain) return null
+    if (!recordingDestRef.current) {
+      const dest = ctx.createMediaStreamDestination()
+      gain.connect(dest)
+      recordingDestRef.current = dest
+    }
+    return recordingDestRef.current.stream
+  }, [ensureContext])
+
   const startSpectralAnalysis = useCallback(() => {
     ensureContext()
     const meyda = meydaRef.current
@@ -762,5 +778,6 @@ export function useAudioEngine(): AudioEngine {
     meydaActive, startSpectralAnalysis, stopSpectralAnalysis,
     bpmDetecting, detectBPM,
     demoSilent, setDemoSilent,
+    getRecordingStream,
   }
 }

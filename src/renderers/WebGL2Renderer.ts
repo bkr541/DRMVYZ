@@ -194,10 +194,33 @@ export class WebGL2Renderer {
   // ── Factory ────────────────────────────────────────────────────────────────
 
   /**
+   * Returns true if WebGL2 can be obtained in this browser without creating
+   * a full renderer. Cheaper than create() — use for early capability checks.
+   */
+  static probeSupport(): boolean {
+    try {
+      const c = document.createElement('canvas')
+      const gl = c.getContext('webgl2')
+      if (!gl) return false
+      const ext = gl.getExtension('WEBGL_lose_context')
+      ext?.loseContext()
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /**
    * Attempt to create a WebGL2Renderer on an offscreen canvas.
    * Returns null if WebGL2 is unavailable or shader compilation fails.
+   *
+   * @param callbacks.onContextLost  — called when the WebGL context is lost
+   * @param callbacks.onContextRestored — called when it is restored
    */
-  static create(): WebGL2Renderer | null {
+  static create(callbacks?: {
+    onContextLost?: () => void
+    onContextRestored?: () => void
+  }): WebGL2Renderer | null {
     const canvas = document.createElement('canvas')
     const gl = canvas.getContext('webgl2', {
       alpha: false,
@@ -212,14 +235,18 @@ export class WebGL2Renderer {
       return null
     }
     try {
-      return new WebGL2Renderer(canvas, gl)
+      return new WebGL2Renderer(canvas, gl, callbacks)
     } catch (e) {
       if (import.meta.env.DEV) console.error('[WebGL2Renderer] init failed:', e)
       return null
     }
   }
 
-  private constructor(canvas: HTMLCanvasElement, gl: WebGL2RenderingContext) {
+  private constructor(
+    canvas: HTMLCanvasElement,
+    gl: WebGL2RenderingContext,
+    callbacks?: { onContextLost?: () => void; onContextRestored?: () => void },
+  ) {
     this._canvas = canvas
     this.gl = gl
 
@@ -307,10 +334,12 @@ export class WebGL2Renderer {
       e.preventDefault()
       this._contextLost = true
       if (import.meta.env.DEV) console.warn('[WebGL2Renderer] context lost')
+      callbacks?.onContextLost?.()
     })
     canvas.addEventListener('webglcontextrestored', () => {
       this._contextLost = false
       if (import.meta.env.DEV) console.log('[WebGL2Renderer] context restored')
+      callbacks?.onContextRestored?.()
     })
 
     if (import.meta.env.DEV) {

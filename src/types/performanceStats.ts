@@ -32,6 +32,8 @@ export interface PerformanceStats {
   // Renderer
   rendererType: RendererType
   gpuEffects:   string[]      // effects handled by GPU path (empty when canvas2d)
+  rendererFallbackReason: string | null  // set when WebGL2 was requested but unavailable
+  contextLost: boolean                   // true while WebGL2 context is lost
 }
 
 export const DEFAULT_PERFORMANCE_STATS: PerformanceStats = {
@@ -45,4 +47,5 @@ export const DEFAULT_PERFORMANCE_STATS: PerformanceStats = {
   warningLevel: 'ok',
   videoElementCount: 0, videoPlayingCount: 0,
   rendererType: 'canvas2d', gpuEffects: [],
+  rendererFallbackReason: null, contextLost: false,
 }
