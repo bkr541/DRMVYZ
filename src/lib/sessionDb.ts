@@ -3,13 +3,17 @@
 
 import { supabase, supabaseConfigured } from './supabase'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { VzSession, VzEffects, Quality, VzTimelineClip, VzLayerItem } from '../stores/visualStore'
+import type {
+  VzSession, VzEffects, Quality,
+  VzTimelineClip, VzTimelineMediaClip, VzTimelineEffectRegion,
+  VzLayerItem, VzCueMarker,
+} from '../stores/visualStore'
 
 const db = supabase as unknown as SupabaseClient
 
 // ── Internal row shape (what we select from the DB) ───────────────────────────
 
-interface SessionDbRow {
+export interface SessionDbRow {
   id: string
   name: string | null
   bpm: number
@@ -26,7 +30,8 @@ interface SessionDbRow {
 
 // ── Row <-> VzSession conversion ──────────────────────────────────────────────
 
-function rowToSession(row: SessionDbRow): VzSession {
+// Exported for unit testing only — not part of the public API surface.
+export function rowToSession(row: SessionDbRow): VzSession {
   // state is the authoritative source for all fields; top-level columns are
   // supplementary metadata for DB-side filtering.
   const s = row.state as Partial<VzSession>
@@ -42,18 +47,24 @@ function rowToSession(row: SessionDbRow): VzSession {
     activePresetId:s.activePresetId ?? 'dream-theft',
     effects:       (s.effects ?? {}) as VzEffects,
     enabledFx:     s.enabledFx ?? [],
+    effectParams:  s.effectParams,
     bpm:           row.bpm ?? s.bpm ?? 120,
     bpmSync:       row.bpm_sync ?? s.bpmSync ?? false,
     quality:       (row.quality as Quality) ?? s.quality ?? 'High',
     audioSource:   (row.audio_source as VzSession['audioSource']) ?? s.audioSource ?? 'file',
-    timelineEnabled: s.timelineEnabled ?? false,
-    timelineClips:   (s.timelineClips  ?? []) as VzTimelineClip[],
-    timelineLoop:    s.timelineLoop    ?? true,
-    layerItems:      (s.layerItems ?? []) as VzLayerItem[],
+    timelineEnabled:       s.timelineEnabled ?? false,
+    timelineClips:         (s.timelineClips         ?? []) as VzTimelineClip[],
+    timelineLoop:          s.timelineLoop            ?? true,
+    timelineOverlayClips:  (s.timelineOverlayClips  ?? []) as VzTimelineMediaClip[],
+    timelineEffectRegions: (s.timelineEffectRegions ?? []) as VzTimelineEffectRegion[],
+    layerItems:            (s.layerItems             ?? []) as VzLayerItem[],
+    beatGridEnabled:       s.beatGridEnabled         ?? false,
+    cueMarkers:            (s.cueMarkers             ?? []) as VzCueMarker[],
   }
 }
 
-function sessionToInsert(userId: string, session: VzSession) {
+// Exported for unit testing only — not part of the public API surface.
+export function sessionToInsert(userId: string, session: VzSession) {
   // Strip non-restorable fields from state blob
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { id, name, createdAt, updatedAt, source, dbId, ...restState } = session

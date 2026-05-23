@@ -30,6 +30,9 @@ import {
 import { getEffectsForPhase, getEffectModule } from '../effects/registry'
 import type { VzFrameContext } from '../effects/types'
 import { WebGL2Renderer } from '../../../renderers/WebGL2Renderer'
+import {
+  getOrCreateMediaInstance, pauseInactiveMediaInstances, destroyMediaInstance,
+} from './mediaPool'
 
 // ── Lyric rendering helpers ───────────────────────────────────────────────────
 
@@ -738,23 +741,11 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
     const newPlan = buildLayerRenderPlan(layerItems, layerConfigs, mediaItems)
     // Eagerly populate the media pool so the RAF loop never needs to create elements
     const pool = mediaPoolRef.current
-    for (const { media } of newPlan) {
-      if (!pool.has(media.id)) {
-        if (media.type === 'image') {
-          const img = new Image()
-          img.crossOrigin = 'anonymous'
-          img.src = media.url
-          pool.set(media.id, img)
-        } else {
-          const vid = document.createElement('video')
-          vid.src         = media.url
-          vid.muted       = true
-          vid.playsInline = true
-          vid.loop        = true
-          vid.crossOrigin = 'anonymous'
-          if (isPlayingRef.current) vid.play().catch(() => {})
-          pool.set(media.id, vid)
-        }
+    for (const { item, media } of newPlan) {
+      const key = `layer:${item.id}`
+      const el = getOrCreateMediaInstance(pool, key, media, { loop: true })
+      if (el instanceof HTMLVideoElement && isPlayingRef.current && el.paused) {
+        el.play().catch(() => {})
       }
     }
     layerRenderPlanRef.current = newPlan
@@ -869,30 +860,30 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   // useLayoutEffect so media references are cleared synchronously before the
   // next RAF fires — prevents any stale-media frames after clip deletion.
   useLayoutEffect(() => {
-    const tlMediaIds = new Set(timelineClips.map(c => c.mediaId))
-    const tlClipIds  = new Set(timelineClips.map(c => c.id))
-    const layerIds   = new Set(layerItems.map(i => i.mediaId))
-    const keepIds    = new Set([...tlMediaIds, ...layerIds])
+    const keepKeys = new Set<string>([
+      ...timelineClips.map(c => `background:${c.id}`),
+      ...timelineOverlayClips.map(oc => `overlay:${oc.id}`),
+      ...layerItems.map(i => `layer:${i.id}`),
+    ])
 
-    // Pause and evict pool entries whose media is no longer referenced
-    mediaPoolRef.current.forEach((el, id) => {
-      if (!keepIds.has(id)) {
-        if (el instanceof HTMLVideoElement) { el.pause(); el.src = '' }
-        mediaPoolRef.current.delete(id)
-      }
+    // Pause and evict pool entries whose instance is no longer referenced
+    const toEvict: string[] = []
+    mediaPoolRef.current.forEach((_el, key) => {
+      if (!keepKeys.has(key)) toEvict.push(key)
     })
+    for (const key of toEvict) destroyMediaInstance(mediaPoolRef.current, key)
 
     // If the currently active clip was deleted (or timeline is now empty),
     // clear the render references immediately so no stale frame is drawn.
     const activeClipGone = timelineClips.length === 0
-      || !tlClipIds.has(activeClipIdRef.current ?? '')
+      || !timelineClips.some(c => c.id === (activeClipIdRef.current ?? ''))
     if (activeClipGone) {
       activeClipIdRef.current = null
       activeClipRef.current   = null
       if (timelineEnabledRef.current) mediaElRef.current = null
     }
     requestRedrawRef.current()
-  }, [timelineClips, mediaItems, layerConfigs, layerItems])
+  }, [timelineClips, timelineOverlayClips, mediaItems, layerConfigs, layerItems])
 
   // Main RAF loop — runs once, reads from refs
   useEffect(() => {
@@ -1311,26 +1302,8 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             activeMediaRoleRef.current    = m?.mediaRole ?? null
             activeMediaFitModeRef.current = clip.fitMode
 
-            const pool = mediaPoolRef.current
-            if (!pool.has(clip.mediaId)) {
-              if (m) {
-                if (m.type === 'image') {
-                  const img = new Image()
-                  img.crossOrigin = 'anonymous'
-                  img.src = m.url
-                  pool.set(m.id, img)
-                } else {
-                  const vid = document.createElement('video')
-                  vid.src         = m.url
-                  vid.muted       = true
-                  vid.playsInline = true
-                  vid.crossOrigin = 'anonymous'
-                  vid.preload     = 'metadata'
-                  pool.set(m.id, vid)
-                }
-              }
-            }
-            const el = pool.get(clip.mediaId) ?? null
+            const bgKey = `background:${clip.id}`
+            const el = m ? getOrCreateMediaInstance(mediaPoolRef.current, bgKey, m) : null
             mediaElRef.current = el
             if (el instanceof HTMLVideoElement) {
               el.loop         = false
@@ -1349,24 +1322,9 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
 
         if (clip) {
           const nextClip = getNextTimelineClip(clips, clip.id, timelineLoopRef.current)
-          if (nextClip && !mediaPoolRef.current.has(nextClip.mediaId)) {
+          if (nextClip) {
             const nm = mediaItemsRef.current.find(x => x.id === nextClip.mediaId)
-            if (nm) {
-              if (nm.type === 'image') {
-                const img = new Image()
-                img.crossOrigin = 'anonymous'
-                img.src = nm.url
-                mediaPoolRef.current.set(nm.id, img)
-              } else {
-                const vid = document.createElement('video')
-                vid.src         = nm.url
-                vid.muted       = true
-                vid.playsInline = true
-                vid.crossOrigin = 'anonymous'
-                vid.preload     = 'metadata'  // preload only; play() called when it becomes active
-                mediaPoolRef.current.set(nm.id, vid)
-              }
-            }
+            if (nm) getOrCreateMediaInstance(mediaPoolRef.current, `background:${nextClip.id}`, nm)
           }
         }
 
@@ -1378,29 +1336,12 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         prevTransitionOnRef.current = txNowActive
 
         if (txState) {
-          const inClip  = txState.incomingClip
-          if (!mediaPoolRef.current.has(inClip.mediaId)) {
-            const inm = mediaItemsRef.current.find(x => x.id === inClip.mediaId)
-            if (inm) {
-              if (inm.type === 'image') {
-                const img = new Image()
-                img.crossOrigin = 'anonymous'
-                img.src = inm.url
-                mediaPoolRef.current.set(inm.id, img)
-              } else {
-                const vid = document.createElement('video')
-                vid.src         = inm.url
-                vid.muted       = true
-                vid.playsInline = true
-                vid.crossOrigin = 'anonymous'
-                vid.preload     = 'metadata'
-                mediaPoolRef.current.set(inm.id, vid)
-              }
-            }
-          }
-          const inEl = mediaPoolRef.current.get(inClip.mediaId) ?? null
+          const inClip = txState.incomingClip
+          const inm    = mediaItemsRef.current.find(x => x.id === inClip.mediaId)
+          const inEl   = inm
+            ? getOrCreateMediaInstance(mediaPoolRef.current, `background:${inClip.id}`, inm)
+            : null
           incomingMediaElRef.current  = inEl
-          const inm = mediaItemsRef.current.find(x => x.id === inClip.mediaId)
           incomingRoleRef.current     = inm?.mediaRole ?? null
           incomingFitModeRef.current  = inClip.fitMode
           if (txJustStarted && inEl instanceof HTMLVideoElement) {
@@ -1757,25 +1698,11 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       {
         const pool = mediaPoolRef.current
         for (const { item, layerConfig, media } of layerRenderPlanRef.current) {
-          let el = pool.get(item.mediaId)
+          const layerKey = `layer:${item.id}`
+          let el = pool.get(layerKey)
           if (!el) {
-            // Defensive: populate pool if plan was built before pool entry existed
-            if (media.type === 'image') {
-              const img = new Image()
-              img.crossOrigin = 'anonymous'
-              img.src = media.url
-              el = img
-            } else {
-              const vid = document.createElement('video')
-              vid.src         = media.url
-              vid.muted       = true
-              vid.playsInline = true
-              vid.loop        = true
-              vid.crossOrigin = 'anonymous'
-              if (isPlayingRef.current) vid.play().catch(() => {})
-              el = vid
-            }
-            pool.set(item.mediaId, el)
+            el = getOrCreateMediaInstance(pool, layerKey, media, { loop: true })
+            if (el instanceof HTMLVideoElement && isPlayingRef.current) el.play().catch(() => {})
           }
 
           if (el instanceof HTMLVideoElement) {
@@ -1854,24 +1781,8 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           const m = mediaItemsRef.current.find(x => x.id === oc.mediaId)
           if (!m) continue
 
-          let el = pool.get(oc.mediaId)
-          if (!el) {
-            if (m.type === 'image') {
-              const img = new Image()
-              img.crossOrigin = 'anonymous'
-              img.src = m.url
-              el = img
-            } else {
-              const vid = document.createElement('video')
-              vid.src         = m.url
-              vid.muted       = true
-              vid.playsInline = true
-              vid.crossOrigin = 'anonymous'
-              vid.preload     = 'metadata'
-              el = vid
-            }
-            pool.set(oc.mediaId, el)
-          }
+          const ovKey = `overlay:${oc.id}`
+          const el = getOrCreateMediaInstance(pool, ovKey, m)
 
           if (el instanceof HTMLVideoElement) {
             if (isPlayingRef.current && el.paused)   el.play().catch(() => {})
@@ -1932,6 +1843,22 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             ctx.restore()
           }
         }
+      }
+
+      // ── Pause non-active pool instances every frame ────────────────────────
+      {
+        const activeKeys = new Set<string>()
+        if (activeClipIdRef.current) activeKeys.add(`background:${activeClipIdRef.current}`)
+        if (transitionStateRef.current) {
+          activeKeys.add(`background:${transitionStateRef.current.incomingClip.id}`)
+        }
+        if (timelineEnabledRef.current) {
+          for (const oc of getActiveOverlayClips(timelineOverlayClipsRef.current, timelineClockRef.current)) {
+            activeKeys.add(`overlay:${oc.id}`)
+          }
+        }
+        for (const { item } of layerRenderPlanRef.current) activeKeys.add(`layer:${item.id}`)
+        pauseInactiveMediaInstances(mediaPoolRef.current, activeKeys)
       }
 
       for (const mod of getEffectsForPhase('postMedia')) {

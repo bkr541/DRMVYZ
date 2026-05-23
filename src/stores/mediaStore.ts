@@ -501,8 +501,10 @@ export const useMediaStore = create<MediaState>((set, get) => ({
           ),
         }))
 
-        const visual = useVisualStore.getState()
-        if (visual.activeMediaId === prevId) visual.setActiveMedia(stableId)
+        // Atomically remap every visual reference (activeMediaId, timeline
+        // clips, overlay clips, layer items, session and preset snapshots) so
+        // that anything placed while the upload was in-flight is not orphaned.
+        useVisualStore.getState().remapMediaId(prevId, stableId)
       })
     )
   },
@@ -557,8 +559,10 @@ export const useMediaStore = create<MediaState>((set, get) => ({
           ),
         }))
 
-        const visual = useVisualStore.getState()
-        if (visual.activeMediaId === prevId) visual.setActiveMedia(stableId)
+        // Atomically remap every visual reference (activeMediaId, timeline
+        // clips, overlay clips, layer items, session and preset snapshots) so
+        // that anything placed while the upload was in-flight is not orphaned.
+        useVisualStore.getState().remapMediaId(prevId, stableId)
       })
     )
   },

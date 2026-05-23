@@ -56,3 +56,6 @@
 7:40:27 AM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
 7:40:32 AM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
 7:40:38 AM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
+8:28:47 AM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx, /src/components/vyzualz/media/MediaDeckPanel.tsx, /src/components/vyzualz/TimelinePanel.tsx, /src/components/vyzualz/layers/VzLayersPanel.tsx, /src/components/vyzualz/media/MediaStatusBar.tsx, /src/components/vyzualz/MediaUploadModal.tsx, /src/components/vyzualz/settings/SettingsModal.tsx, /src/components/vyzualz/sessions/SavePresetDialog.tsx, /src/components/vyzualz/layout/OutputHealthIndicator.tsx, /src/components/vyzualz/stage/RenderSourceBadge.tsx, /src/components/vyzualz/stage/LiveVisualCanvas.tsx
+8:29:21 AM [vite] vite.config.ts changed, restarting server...
+8:29:21 AM [vite] server restarted.

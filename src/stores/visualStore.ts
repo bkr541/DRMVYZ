@@ -309,6 +309,10 @@ interface VisualState {
   resetEffects(): void
   toggleFx(name: string): void
   setActiveMedia(id: string | null): void
+  // Atomically replaces every reference to prevId with newId across all
+  // visual state. Called by mediaStore when an upload completes and the
+  // temporary local-* ID is superseded by a stable db-* ID.
+  remapMediaId(prevId: string, newId: string): void
   setBpm(v: number): void
   toggleBpmSync(): void
   setPlaying(v: boolean): void
@@ -554,6 +558,42 @@ export const useVisualStore = create<VisualState>()(
         }))
       },
       setActiveMedia(id) { set({ activeMediaId: id }) },
+
+      remapMediaId(prevId, newId) {
+        if (prevId === newId) return
+        set(s => ({
+          activeMediaId: s.activeMediaId === prevId ? newId : s.activeMediaId,
+          timelineClips: s.timelineClips.map(c =>
+            c.mediaId === prevId ? { ...c, mediaId: newId } : c
+          ),
+          timelineOverlayClips: s.timelineOverlayClips.map(c =>
+            c.mediaId === prevId ? { ...c, mediaId: newId } : c
+          ),
+          layerItems: s.layerItems.map(li =>
+            li.mediaId === prevId ? { ...li, mediaId: newId } : li
+          ),
+          sessions: s.sessions.map(sess => ({
+            ...sess,
+            activeMediaId: sess.activeMediaId === prevId ? newId : sess.activeMediaId,
+            mediaOrder: sess.mediaOrder?.map(id => (id === prevId ? newId : id)),
+            timelineClips: sess.timelineClips?.map(c =>
+              c.mediaId === prevId ? { ...c, mediaId: newId } : c
+            ),
+            timelineOverlayClips: sess.timelineOverlayClips?.map(c =>
+              c.mediaId === prevId ? { ...c, mediaId: newId } : c
+            ),
+            layerItems: sess.layerItems?.map(li =>
+              li.mediaId === prevId ? { ...li, mediaId: newId } : li
+            ),
+          })),
+          presets: s.presets.map(p => ({
+            ...p,
+            activeMediaId: p.activeMediaId === prevId ? newId : p.activeMediaId,
+            mediaOrder: p.mediaOrder?.map(id => (id === prevId ? newId : id)),
+          })),
+        }))
+      },
+
       setBpm(v)          { set({ bpm: Math.max(40, Math.min(300, v)) }) },
       toggleBpmSync()    { set(s => ({ bpmSync: !s.bpmSync })) },
       setPlaying(v)      { set({ isPlaying: v }) },
