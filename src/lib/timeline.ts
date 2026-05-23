@@ -506,11 +506,9 @@ export function getTransitionState(
     const config  = clip.transitionOut
     if (!config || config.type === 'cut' || config.durationSec <= 0) continue
 
-    const overlapSec  = Math.min(config.durationSec, clip.durationSec)
-    const clipEnd     = clip.startSec + clip.durationSec
-    const transStart  = clipEnd - overlapSec
-
-    if (t < transStart || t >= clipEnd) continue
+    const overlapSec      = Math.min(config.durationSec, clip.durationSec)
+    const clipEnd         = clip.startSec + clip.durationSec
+    const configuredStart = clipEnd - overlapSec
 
     const incomingClip: VzTimelineClip | null =
       i + 1 < clips.length ? clips[i + 1] : loop ? clips[0] : null
@@ -521,9 +519,20 @@ export function getTransitionState(
     // has intentionally left a gap — do not apply a fake transition.
     if (incomingClip.startSec >= clipEnd) continue
 
-    const rawProgress          = (t - transStart) / overlapSec
+    // For freely-positioned clips the incoming clip may start later than the
+    // configured transition window. Use the actual overlap interval.
+    const actualStart    = Math.max(configuredStart, incomingClip.startSec)
+    const actualDuration = clipEnd - actualStart  // always > 0 (gap check above)
+
+    if (t < actualStart || t >= clipEnd) continue
+
+    // Progress 0→1 over the real overlap window.
+    const rawProgress          = (t - actualStart) / actualDuration
     const outgoingLocalTimeSec = t - clip.startSec
-    const incomingLocalTimeSec = t - transStart  // = 0 at window start, = overlapSec at hard-cut
+    // Incoming local time is anchored to the incoming clip's own start, not
+    // the configured transition window start. This is correct whether the
+    // incoming clip starts before, at, or after configuredStart.
+    const incomingLocalTimeSec = t - incomingClip.startSec
 
     return {
       config,

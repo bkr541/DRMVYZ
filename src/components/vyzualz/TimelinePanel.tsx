@@ -229,9 +229,10 @@ function ClipBlock({
   useEffect(() => {
     if (!isVideo || !media?.url) { setFilmstrip([]); return }
     let alive = true
-    generateVideoFilmstrip(media.url, 6).then(frames => { if (alive) setFilmstrip(frames) })
+    generateVideoFilmstrip(media.url, 6, clip.mediaInSec, clip.mediaOutSec)
+      .then(frames => { if (alive) setFilmstrip(frames) })
     return () => { alive = false }
-  }, [isVideo, media?.url])
+  }, [isVideo, media?.url, clip.mediaInSec, clip.mediaOutSec])
 
   // Show as many frames as fit at ~32px each; at least 1 when filmstrip exists
   const frameCount = filmstrip.length > 0
@@ -679,7 +680,7 @@ function EffectInspector({
 }
 
 function LyricCueInspector({
-  cue, globalOffsetSec, onUpdateTiming, onSeek, onSave, isSaving, isDirty,
+  cue, globalOffsetSec, onUpdateTiming, onSeek, onSave, isSaving, isDirty, hasDocument,
 }: {
   cue: LyricCue
   globalOffsetSec: number
@@ -688,6 +689,7 @@ function LyricCueInspector({
   onSave: () => void
   isSaving: boolean
   isDirty: boolean
+  hasDocument: boolean
 }) {
   const [startVal, setStartVal] = useState(String(cue.startMs))
   const [endVal,   setEndVal]   = useState(String(cue.endMs))
@@ -747,8 +749,8 @@ function LyricCueInspector({
         </button>
         <button
           className="vz-tl-clip-btn"
-          disabled={!isDirty || isSaving}
-          title="Save lyric timing to database"
+          disabled={!isDirty || isSaving || !hasDocument}
+          title={!hasDocument ? 'Save the lyric document first to enable timing persistence' : 'Save lyric timing to database'}
           onClick={onSave}
         >
           {isSaving ? 'Saving…' : 'Save Timing'}
@@ -757,6 +759,11 @@ function LyricCueInspector({
           <span className="vz-ml-insp-hint" style={{ color: 'var(--az-accent)', margin: 0 }}>Unsaved</span>
         )}
       </div>
+      {!hasDocument && (
+        <div className="vz-ml-insp-hint">
+          Save the lyric document in Lyric Manager before timing changes can be persisted.
+        </div>
+      )}
       {globalOffsetSec !== 0 && (
         <div className="vz-ml-insp-hint">
           Global offset {globalOffsetSec > 0 ? '+' : ''}{fmtSec(globalOffsetSec)} applied to display.
@@ -773,7 +780,8 @@ function TimelineInspector({
   selected, bgClips, overlayClips, effectRegions, lyricCues, mediaMap,
   onUpdateClip, onRemoveBg, onRemoveOverlay, onDuplicateBg, onDuplicateOverlay,
   onMoveClip, onUpdateEffect, onRemoveEffect, onSetMediaRole,
-  onUpdateLyricTiming, onSeekToLyric, onSaveLyricTiming, lyricTimingDirty, lyricSaving, globalOffsetSec,
+  onUpdateLyricTiming, onSeekToLyric, onSaveLyricTiming,
+  lyricTimingDirty, lyricSaving, hasLyricDocument, globalOffsetSec,
 }: {
   selected: SelectedEntity
   bgClips: VzTimelineMediaClip[]
@@ -795,6 +803,7 @@ function TimelineInspector({
   onSaveLyricTiming: () => void
   lyricTimingDirty: boolean
   lyricSaving: boolean
+  hasLyricDocument: boolean
   globalOffsetSec: number
 }) {
   if (!selected) {
@@ -863,6 +872,7 @@ function TimelineInspector({
         onSave={onSaveLyricTiming}
         isSaving={lyricSaving}
         isDirty={lyricTimingDirty}
+        hasDocument={hasLyricDocument}
       />
     )
   }
@@ -926,13 +936,14 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
 
   const { items: mediaItems, setMediaRole } = useMediaStore(useShallow(s => ({ items: s.items, setMediaRole: s.setMediaRole })))
   const {
-    cues: lyricCues, globalOffsetMs,
+    cues: lyricCues, globalOffsetMs, activeDocumentId: lyricDocumentId,
     selectedCueId: storeSelectedCueId,
     selectCue, updateCueTiming, setCueBounds, saveTimingChanges,
     lyricTimingDirty, isSaving: lyricSaving,
   } = useLyricsStore(useShallow(s => ({
     cues:              s.cues,
     globalOffsetMs:    s.globalOffsetMs,
+    activeDocumentId:  s.activeDocumentId,
     selectedCueId:     s.selectedCueId,
     selectCue:         s.selectCue,
     updateCueTiming:   s.updateCueTiming,
@@ -1423,6 +1434,7 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
         onSaveLyricTiming={saveTimingChanges}
         lyricTimingDirty={lyricTimingDirty}
         lyricSaving={lyricSaving}
+        hasLyricDocument={!!lyricDocumentId}
         globalOffsetSec={globalOffsetSec}
       />
     </div>

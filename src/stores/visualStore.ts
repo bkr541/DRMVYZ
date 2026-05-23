@@ -571,9 +571,13 @@ export const useVisualStore = create<VisualState>()(
           patch.timelineEnabled = preset.timelineEnabled
           // Migrate legacy VzTimelineClip[] → VzTimelineMediaClip[] (video-background lane).
           // migrateLegacyClips is idempotent: clips already carrying `lane` pass through.
-          patch.timelineClips = recalculateTimelineStarts(
-            migrateLegacyClips(preset.timelineClips ?? [])
-          )
+          // Only recalculate sequential starts for true legacy clips (missing `lane`). Modern
+          // clips already store absolute startSec from the previous save and must not be repacked.
+          const rawPresetBg  = preset.timelineClips ?? []
+          const migratedPresetBg = migrateLegacyClips(rawPresetBg)
+          patch.timelineClips = rawPresetBg.some(c => !('lane' in (c as object)))
+            ? recalculateTimelineStarts(migratedPresetBg)
+            : sortBgClips(migratedPresetBg)
           patch.timelineLoop           = preset.timelineLoop ?? true
           patch.timelineOverlayClips   = migrateLegacyClips(preset.timelineOverlayClips ?? [], 'overlays')
           patch.timelineEffectRegions  = preset.timelineEffectRegions ?? []
@@ -694,9 +698,15 @@ export const useVisualStore = create<VisualState>()(
           // Migrate legacy VzTimelineClip[] → VzTimelineMediaClip[] (video-background lane).
           // migrateLegacyClips handles both the deprecated transition field and the
           // missing `lane` field in one idempotent pass.
-          timelineClips: recalculateTimelineStarts(
-            migrateLegacyClips(session.timelineClips ?? [])
-          ),
+          // Only recalculate sequential starts for true legacy clips (missing `lane`). Modern
+          // clips already store absolute startSec from the previous save and must not be repacked.
+          timelineClips: (() => {
+            const raw      = session.timelineClips ?? []
+            const migrated = migrateLegacyClips(raw)
+            return raw.some(c => !('lane' in (c as object)))
+              ? recalculateTimelineStarts(migrated)
+              : sortBgClips(migrated)
+          })(),
           timelineLoop:          session.timelineLoop ?? true,
           timelineOverlayClips:  migrateLegacyClips(session.timelineOverlayClips ?? [], 'overlays'),
           timelineEffectRegions: session.timelineEffectRegions ?? [],

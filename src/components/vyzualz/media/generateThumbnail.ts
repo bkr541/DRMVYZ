@@ -110,7 +110,9 @@ export const MAX_FILMSTRIP_FRAMES = 8
 const filmstripCache   = new Map<string, string[]>()
 const filmstripPending = new Map<string, Promise<string[]>>()
 
-function extractFilmstripFrames(url: string, count: number): Promise<string[]> {
+function extractFilmstripFrames(
+  url: string, count: number, inSec: number, outSec: number | undefined,
+): Promise<string[]> {
   return new Promise(resolve => {
     const v = document.createElement('video')
     v.muted = true
@@ -134,10 +136,14 @@ function extractFilmstripFrames(url: string, count: number): Promise<string[]> {
     v.onerror = () => finish([])
 
     v.onloadedmetadata = () => {
-      const dur = isFinite(v.duration) && v.duration > 0 ? v.duration : 1
-      const N   = Math.min(MAX_FILMSTRIP_FRAMES, Math.max(1, count))
-      const W   = v.videoWidth  || 160
-      const H   = v.videoHeight || 90
+      const fullDur = isFinite(v.duration) && v.duration > 0 ? v.duration : 1
+      // Clamp sampling range to [inSec, outSec] so frames reflect the trimmed region
+      const start = Math.max(0, inSec)
+      const end   = outSec !== undefined ? Math.min(outSec, fullDur) : fullDur
+      const dur   = Math.max(0.1, end - start)
+      const N     = Math.min(MAX_FILMSTRIP_FRAMES, Math.max(1, count))
+      const W     = v.videoWidth  || 160
+      const H     = v.videoHeight || 90
       const frames: string[] = []
 
       const seekNext = (i: number) => {
@@ -147,8 +153,8 @@ function extractFilmstripFrames(url: string, count: number): Promise<string[]> {
           if (dataUrl) frames.push(dataUrl)
           seekNext(i + 1)
         }
-        // Sample from the middle of each equal-length segment
-        v.currentTime = ((i + 0.5) / N) * dur
+        // Sample from the middle of each equal-length segment within the trim range
+        v.currentTime = start + ((i + 0.5) / N) * dur
       }
       seekNext(0)
     }
@@ -157,26 +163,41 @@ function extractFilmstripFrames(url: string, count: number): Promise<string[]> {
   })
 }
 
-/** Returns an array of frame data URLs for a video, cached by URL. */
-export function generateVideoFilmstrip(url: string, frameCount = 4): Promise<string[]> {
-  const cached = filmstripCache.get(url)
+// Cache key includes trim bounds so the same video trimmed differently gets separate entries.
+// Null character (U+0000) is used as separator — it cannot appear in any valid URL.
+function filmstripKey(url: string, inSec: number, outSec: number | undefined): string {
+  return (inSec > 0 || outSec !== undefined) ? `${url}\x00${inSec},${outSec ?? ''}` : url
+}
+
+/** Returns an array of frame data URLs for a video, cached by URL + trim range. */
+export function generateVideoFilmstrip(
+  url: string, frameCount = 4, inSec = 0, outSec?: number,
+): Promise<string[]> {
+  const key = filmstripKey(url, inSec, outSec)
+
+  const cached = filmstripCache.get(key)
   if (cached) return Promise.resolve(cached)
 
-  // Deduplicate concurrent calls for the same URL
-  const pending = filmstripPending.get(url)
+  // Deduplicate concurrent calls for the same key
+  const pending = filmstripPending.get(key)
   if (pending) return pending
 
-  const promise = extractFilmstripFrames(url, frameCount).then(frames => {
-    filmstripPending.delete(url)
-    filmstripCache.set(url, frames)
+  const promise = extractFilmstripFrames(url, frameCount, inSec, outSec).then(frames => {
+    filmstripPending.delete(key)
+    filmstripCache.set(key, frames)
     return frames
   })
-  filmstripPending.set(url, promise)
+  filmstripPending.set(key, promise)
   return promise
 }
 
-/** Remove cached filmstrip frames for a URL (call when media is deleted). */
+/** Remove all cached filmstrip entries for a URL (all trim variants). */
 export function clearFilmstripCache(url: string): void {
-  filmstripCache.delete(url)
-  filmstripPending.delete(url)
+  const prefix = url + '\x00'
+  for (const key of filmstripCache.keys()) {
+    if (key === url || key.startsWith(prefix)) filmstripCache.delete(key)
+  }
+  for (const key of filmstripPending.keys()) {
+    if (key === url || key.startsWith(prefix)) filmstripPending.delete(key)
+  }
 }
