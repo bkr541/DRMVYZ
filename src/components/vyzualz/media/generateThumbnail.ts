@@ -100,3 +100,83 @@ export function generateVideoThumbnail(url: string): Promise<ThumbnailResult> {
 export function generateThumbnail(url: string, type: 'image' | 'video'): Promise<ThumbnailResult> {
   return type === 'video' ? generateVideoThumbnail(url) : generateImageThumbnail(url)
 }
+
+// ── Video filmstrip ────────────────────────────────────────────────────────────
+// Extracts N evenly-spaced frames from a video and caches them by URL.
+// Frames are data URLs (no revocation needed). Cache persists for the session.
+
+export const MAX_FILMSTRIP_FRAMES = 8
+
+const filmstripCache   = new Map<string, string[]>()
+const filmstripPending = new Map<string, Promise<string[]>>()
+
+function extractFilmstripFrames(url: string, count: number): Promise<string[]> {
+  return new Promise(resolve => {
+    const v = document.createElement('video')
+    v.muted = true
+    v.playsInline = true
+    v.preload = 'metadata'
+    v.crossOrigin = 'anonymous'
+
+    let settled = false
+    const finish = (frames: string[]) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      v.onerror = null; v.onloadedmetadata = null; v.onseeked = null
+      v.src = ''; v.load()
+      resolve(frames)
+    }
+
+    // Hard timeout to prevent indefinite hang on problematic videos
+    const timer = setTimeout(() => finish([]), 12_000)
+
+    v.onerror = () => finish([])
+
+    v.onloadedmetadata = () => {
+      const dur = isFinite(v.duration) && v.duration > 0 ? v.duration : 1
+      const N   = Math.min(MAX_FILMSTRIP_FRAMES, Math.max(1, count))
+      const W   = v.videoWidth  || 160
+      const H   = v.videoHeight || 90
+      const frames: string[] = []
+
+      const seekNext = (i: number) => {
+        if (i >= N) { finish(frames); return }
+        v.onseeked = () => {
+          const dataUrl = drawToDataUrl(v, W, H)
+          if (dataUrl) frames.push(dataUrl)
+          seekNext(i + 1)
+        }
+        // Sample from the middle of each equal-length segment
+        v.currentTime = ((i + 0.5) / N) * dur
+      }
+      seekNext(0)
+    }
+
+    v.src = url
+  })
+}
+
+/** Returns an array of frame data URLs for a video, cached by URL. */
+export function generateVideoFilmstrip(url: string, frameCount = 4): Promise<string[]> {
+  const cached = filmstripCache.get(url)
+  if (cached) return Promise.resolve(cached)
+
+  // Deduplicate concurrent calls for the same URL
+  const pending = filmstripPending.get(url)
+  if (pending) return pending
+
+  const promise = extractFilmstripFrames(url, frameCount).then(frames => {
+    filmstripPending.delete(url)
+    filmstripCache.set(url, frames)
+    return frames
+  })
+  filmstripPending.set(url, promise)
+  return promise
+}
+
+/** Remove cached filmstrip frames for a URL (call when media is deleted). */
+export function clearFilmstripCache(url: string): void {
+  filmstripCache.delete(url)
+  filmstripPending.delete(url)
+}

@@ -1,4 +1,12 @@
-import type { VzTimelineClip, VzTransitionConfig, VzTransitionEasing, VzTransitionType } from '../types/timeline'
+import type {
+  VzTimelineClip,
+  VzTransitionConfig,
+  VzTransitionEasing,
+  VzTransitionType,
+  VzTimelineMediaClip,
+  VzTimelineMediaLaneId,
+  VzTimelineEffectRegion,
+} from '../types/timeline'
 
 /** Default clip duration (seconds) for still images or media with no valid intrinsic duration. */
 export const DEFAULT_CLIP_DURATION_SEC = 5
@@ -17,14 +25,51 @@ function getClipOverlapSec(clip: VzTimelineClip): number {
 /**
  * Converts a clip that has the deprecated `transition` field to use `transitionOut`.
  * Safe to call on already-migrated clips (no-op).
+ * Generic so the returned type preserves extra fields (e.g. `lane` on VzTimelineMediaClip).
  */
-export function migrateClip(clip: VzTimelineClip): VzTimelineClip {
+export function migrateClip<T extends VzTimelineClip>(clip: T): T {
   if (clip.transition && !clip.transitionOut) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { transition, ...rest } = clip
-    return { ...rest, transitionOut: { type: clip.transition.type, durationSec: clip.transition.durationSec } }
+    return {
+      ...rest,
+      transitionOut: { type: clip.transition.type, durationSec: clip.transition.durationSec },
+    } as T
   }
   return clip
+}
+
+/**
+ * Converts a legacy VzTimelineClip (or an already-migrated clip missing `lane`)
+ * into a VzTimelineMediaClip with an explicit lane assignment.
+ *
+ * Idempotent: clips that already carry a `lane` field pass through unchanged.
+ * Also runs migrateClip() so the deprecated `transition` field is handled in one pass.
+ */
+export function migrateToMediaClip(
+  clip: VzTimelineClip,
+  lane: VzTimelineMediaLaneId = 'video-background',
+): VzTimelineMediaClip {
+  const migrated = migrateClip(clip)
+  // Clips that were already migrated to VzTimelineMediaClip carry a lane field.
+  if ((migrated as VzTimelineMediaClip).lane !== undefined) {
+    return migrated as VzTimelineMediaClip
+  }
+  return { ...migrated, lane }
+}
+
+/**
+ * Bulk-migrates a legacy flat clip array to lane-aware media clips.
+ * Idempotent: clips that already have a `lane` field pass through unchanged.
+ *
+ * All clips default to `video-background` — every legacy timeline clip was a
+ * background clip, because that was the only lane that existed before Phase 1A.
+ */
+export function migrateLegacyClips(
+  clips: VzTimelineClip[],
+  lane: VzTimelineMediaLaneId = 'video-background',
+): VzTimelineMediaClip[] {
+  return clips.map(c => migrateToMediaClip(c, lane))
 }
 
 // ── Timeline geometry ─────────────────────────────────────────────────
@@ -37,11 +82,18 @@ export function migrateClip(clip: VzTimelineClip): VzTimelineClip {
  * The last clip's transition is excluded from cursor reduction because there
  * is no subsequent clip to overlap with (in non-loop mode) and total-duration
  * display stays clean.
+ *
+ * Generic so that VzTimelineMediaClip arrays preserve the `lane` field and
+ * any other future sub-type fields through the recalculation.
+ *
+ * NOTE: This is appropriate only for the video-background lane, where clips
+ * are arranged sequentially. Overlay clips use absolute startSec positions
+ * and must NOT be run through this function.
  */
-export function recalculateTimelineStarts(clips: VzTimelineClip[]): VzTimelineClip[] {
+export function recalculateTimelineStarts<T extends VzTimelineClip>(clips: T[]): T[] {
   let cursor = 0
   return clips.map((clip, i) => {
-    const updated = { ...clip, startSec: cursor }
+    const updated = { ...clip, startSec: cursor } as T
     const isLast  = i === clips.length - 1
     const overlap = isLast ? 0 : Math.min(getClipOverlapSec(clip), clip.durationSec)
     cursor += clip.durationSec - overlap
@@ -52,6 +104,7 @@ export function recalculateTimelineStarts(clips: VzTimelineClip[]): VzTimelineCl
 /**
  * Total playback duration accounting for clip overlaps.
  * Requires `recalculateTimelineStarts` to have been called first.
+ * Works with both VzTimelineClip[] and VzTimelineMediaClip[].
  */
 export function getTimelineDuration(clips: VzTimelineClip[]): number {
   if (!clips.length) return 0
@@ -102,6 +155,109 @@ export function getActiveTimelineClip(
     localTimeSec: last.durationSec,
     timelineTimeSec: total,
   }
+}
+
+// ── Background lane helpers ───────────────────────────────────────────
+
+/**
+ * Get the active background clip at a timeline position.
+ * Thin wrapper around getActiveTimelineClip scoped to the video-background lane.
+ *
+ * The renderer should always use background lane clips as the primary visual
+ * source when timeline mode is enabled.
+ */
+export function getActiveBgClip(
+  bgClips: VzTimelineMediaClip[],
+  timeSec: number,
+  loop: boolean,
+): ActiveClipResult {
+  return getActiveTimelineClip(bgClips, timeSec, loop)
+}
+
+/**
+ * Appends a new background clip to the end of the bg lane and recalculates
+ * sequential start positions, respecting existing transitions.
+ * Returns the updated array — does not mutate the input.
+ */
+export function appendBgClip(
+  bgClips: VzTimelineMediaClip[],
+  clipProps: Omit<VzTimelineMediaClip, 'startSec'>,
+): VzTimelineMediaClip[] {
+  const clip: VzTimelineMediaClip = { ...clipProps, startSec: 0 }
+  return recalculateTimelineStarts([...bgClips, clip])
+}
+
+// ── Overlay lane helpers ──────────────────────────────────────────────
+
+/**
+ * Returns all overlay clips that are active at the given timeline position.
+ *
+ * Overlay clips use absolute startSec positions, so multiple clips may be
+ * active simultaneously — unlike the background lane which is always sequential.
+ * This is intentional: overlays are composited ABOVE the background.
+ */
+export function getActiveOverlayClips(
+  overlayClips: VzTimelineMediaClip[],
+  timeSec: number,
+): VzTimelineMediaClip[] {
+  return overlayClips.filter(c =>
+    timeSec >= c.startSec && timeSec < c.startSec + c.durationSec
+  )
+}
+
+// ── Effect region helpers ─────────────────────────────────────────────
+
+/**
+ * Returns all effect regions that are active (enabled and covering) the given
+ * timeline position.
+ */
+export function getActiveEffectRegions(
+  regions: VzTimelineEffectRegion[],
+  timeSec: number,
+): VzTimelineEffectRegion[] {
+  return regions.filter(r =>
+    r.enabled && timeSec >= r.startSec && timeSec < r.startSec + r.durationSec
+  )
+}
+
+/**
+ * Returns effect regions whose time window overlaps [startSec, endSec).
+ * Useful for rendering range selection or conflict detection in Phase 1B+.
+ */
+export function findOverlappingEffectRegions(
+  regions: VzTimelineEffectRegion[],
+  startSec: number,
+  endSec: number,
+): VzTimelineEffectRegion[] {
+  return regions.filter(r =>
+    r.enabled && r.startSec < endSec && r.startSec + r.durationSec > startSec
+  )
+}
+
+// ── Project duration ──────────────────────────────────────────────────
+
+/**
+ * Total visible project duration in seconds, derived from all timed items
+ * across background clips, overlay clips, and effect regions.
+ *
+ * Audio duration (from the audio engine) is NOT included. Callers that need
+ * audio-aware total duration should take: max(getTimelineProjectDuration(...), engine.duration).
+ */
+export function getTimelineProjectDuration(params: {
+  bgClips: VzTimelineMediaClip[]
+  overlayClips: VzTimelineMediaClip[]
+  effectRegions: VzTimelineEffectRegion[]
+}): number {
+  const bgEnd = getTimelineDuration(params.bgClips)
+  const overlayEnd = params.overlayClips.reduce(
+    (max, c) => Math.max(max, c.startSec + c.durationSec),
+    0,
+  )
+  const fxEnd = params.effectRegions.reduce(
+    (max, r) => Math.max(max, r.startSec + r.durationSec),
+    0,
+  )
+  return Math.max(bgEnd, overlayEnd, fxEnd)
 }
 
 // ── Clip source helpers ───────────────────────────────────────────────
@@ -287,6 +443,10 @@ export function normalizeTransitionConfig(input: unknown): VzTransitionConfig {
  *
  * `outgoingLocalTimeSec` and `incomingLocalTimeSec` can be fed directly into
  * `getClipSourceTime` for per-frame video sync of each layer.
+ *
+ * Note: transitions are only supported on the video-background lane.
+ * Overlay clips carry `transitionOut` for structural parity but the renderer
+ * does not apply transitions to them until explicitly designed.
  */
 export interface TwoClipRenderState {
   config: VzTransitionConfig
@@ -307,6 +467,9 @@ export type TransitionState = TwoClipRenderState
  * Returns a `TwoClipRenderState` when `timeSec` falls inside the overlap
  * window of a non-cut transition. Returns null outside any transition window
  * or when the type is 'cut'.
+ *
+ * Only meaningful for video-background lane clips — overlay transitions are
+ * not supported in Phase 1A.
  */
 export function getTransitionState(
   clips: VzTimelineClip[],

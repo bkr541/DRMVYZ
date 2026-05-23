@@ -4631,3 +4631,738 @@ input[type='range'].vz-slider--color {
 .vz-health-renderer-btn--gpu:hover {
   background: rgba(74,199,219,0.08);
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   MULTI-LANE TIMELINE (.vz-ml-*)
+   Phase 1B — five aligned lanes sharing one ruler and playhead
+════════════════════════════════════════════════════════════════════════ */
+
+/* ── Panel shell ──────────────────────────────────────────────────────── */
+.vz-ml-tl {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  height: 310px;
+  background: var(--az-panel);
+  border: 1px solid var(--az-border);
+  border-radius: var(--az-radius);
+  overflow: hidden;
+  user-select: none;
+}
+
+/* ── Toolbar ──────────────────────────────────────────────────────────── */
+.vz-ml-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  height: 34px;
+  flex-shrink: 0;
+  background: rgba(0,0,0,0.18);
+  border-bottom: 1px solid var(--az-border);
+}
+
+.vz-ml-tl-title {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--az-text-faint);
+  flex-shrink: 0;
+}
+
+.vz-ml-tl-dur {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--az-cyan);
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.vz-ml-tl-sep {
+  width: 1px;
+  height: 16px;
+  background: rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+
+/* Add buttons */
+.vz-ml-add-btn {
+  padding: 4px 8px;
+  background: rgba(74,199,219,0.1);
+  border: 1px solid rgba(74,199,219,0.25);
+  border-radius: 4px;
+  color: var(--az-cyan);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.vz-ml-add-btn:hover:not(:disabled) { background: rgba(74,199,219,0.2); }
+.vz-ml-add-btn:disabled { opacity: 0.3; cursor: default; }
+
+.vz-ml-add-btn--overlay {
+  color: rgba(184,79,201,0.9);
+  background: rgba(184,79,201,0.08);
+  border-color: rgba(184,79,201,0.28);
+}
+.vz-ml-add-btn--overlay:hover:not(:disabled) { background: rgba(184,79,201,0.16); }
+
+.vz-ml-add-btn--effect {
+  color: rgba(248,113,113,0.85);
+  background: rgba(248,113,113,0.08);
+  border-color: rgba(248,113,113,0.25);
+}
+.vz-ml-add-btn--effect:hover:not(:disabled) { background: rgba(248,113,113,0.15); }
+
+/* Zoom controls */
+.vz-ml-zoom-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.vz-ml-zoom-btn {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 3px;
+  color: var(--az-text-faint);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.vz-ml-zoom-btn:hover { background: rgba(255,255,255,0.1); color: var(--az-text); }
+.vz-ml-zoom-label {
+  font-size: 9px;
+  color: var(--az-text-faint);
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  min-width: 30px;
+  text-align: center;
+}
+
+/* ── Editor (labels + scroll) ─────────────────────────────────────────── */
+.vz-ml-editor {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Fixed label column */
+.vz-ml-label-col {
+  width: 80px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--az-border);
+  background: rgba(0,0,0,0.15);
+}
+
+.vz-ml-ruler-corner {
+  height: 20px;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.vz-ml-lane-label {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(196,207,211,0.38);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  flex-shrink: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* Scrollable track area */
+.vz-ml-scroll-area {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  position: relative;
+}
+.vz-ml-scroll-area::-webkit-scrollbar { height: 5px; }
+.vz-ml-scroll-area::-webkit-scrollbar-track { background: transparent; }
+.vz-ml-scroll-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+
+/* Single inner track that holds ruler + all 5 lane rows */
+.vz-ml-track-inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+/* ── Ruler ────────────────────────────────────────────────────────────── */
+.vz-ml-ruler {
+  height: 20px;
+  flex-shrink: 0;
+  position: relative;
+  background: rgba(0,0,0,0.22);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  cursor: crosshair;
+  overflow: visible;
+}
+
+.vz-ml-ruler-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255,255,255,0.1);
+  pointer-events: none;
+}
+
+.vz-ml-ruler-label {
+  position: absolute;
+  top: 4px;
+  left: 3px;
+  font-size: 9px;
+  color: rgba(196,207,211,0.38);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Playhead ─────────────────────────────────────────────────────────── */
+.vz-ml-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--az-cyan);
+  transform: translateX(-1px);
+  pointer-events: none;
+  z-index: 20;
+  will-change: left;
+  box-shadow: 0 0 4px rgba(74,199,219,0.6);
+}
+/* Triangle head */
+.vz-ml-playhead::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -4px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid var(--az-cyan);
+}
+
+/* ── Lane rows ────────────────────────────────────────────────────────── */
+.vz-ml-lane {
+  position: relative;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  overflow: visible;
+}
+
+.vz-ml-lane-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 9px;
+  color: rgba(196,207,211,0.2);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.vz-ml-lane--audio  { background: rgba(97,214,170,0.03); }
+.vz-ml-lane--bg     { background: rgba(74,199,219,0.03); }
+.vz-ml-lane--overlay{ background: rgba(184,79,201,0.03); }
+.vz-ml-lane--lyrics { background: rgba(216,185,90,0.03); }
+.vz-ml-lane--effects{ background: rgba(248,113,113,0.03); }
+
+.vz-ml-lane--dragover {
+  outline: 1px dashed rgba(74,199,219,0.5);
+  outline-offset: -2px;
+  background: rgba(74,199,219,0.05) !important;
+}
+
+/* ── Audio region ─────────────────────────────────────────────────────── */
+.vz-ml-audio-region {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  background: rgba(97,214,170,0.12);
+  border: 1px solid rgba(97,214,170,0.3);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 6px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.vz-ml-audio-name {
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(97,214,170,0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vz-ml-audio-dur {
+  font-size: 9px;
+  color: rgba(97,214,170,0.5);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* ── Clip blocks ──────────────────────────────────────────────────────── */
+.vz-ml-clip {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  padding: 0 20px 0 8px;
+  overflow: hidden;
+  cursor: grab;
+  transition: box-shadow 0.1s, border-color 0.1s;
+}
+.vz-ml-clip:active { cursor: grabbing; }
+
+.vz-ml-clip--bg {
+  background: rgba(74,199,219,0.12);
+  border: 1px solid rgba(74,199,219,0.3);
+}
+.vz-ml-clip--overlay {
+  background: rgba(184,79,201,0.14);
+  border: 1px solid rgba(184,79,201,0.35);
+}
+
+.vz-ml-clip--sel.vz-ml-clip--bg {
+  background: rgba(74,199,219,0.22);
+  border-color: rgba(74,199,219,0.7);
+  box-shadow: 0 0 0 1px rgba(74,199,219,0.2) inset;
+}
+.vz-ml-clip--sel.vz-ml-clip--overlay {
+  background: rgba(184,79,201,0.25);
+  border-color: rgba(184,79,201,0.7);
+}
+.vz-ml-clip--drag {
+  opacity: 0.85;
+  z-index: 10;
+}
+
+.vz-ml-clip-name {
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(232,238,240,0.75);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+/* Resize handles */
+.vz-ml-clip-lhandle,
+.vz-ml-clip-rhandle {
+  position: absolute;
+  top: 0;
+  width: 7px;
+  height: 100%;
+  cursor: ew-resize;
+  z-index: 3;
+  background: transparent;
+  transition: background 0.1s;
+  flex-shrink: 0;
+}
+.vz-ml-clip-lhandle { left: 0; border-radius: 3px 0 0 3px; }
+.vz-ml-clip-rhandle { right: 0; border-radius: 0 3px 3px 0; }
+.vz-ml-clip-lhandle:hover,
+.vz-ml-clip-rhandle:hover { background: rgba(255,255,255,0.2); }
+
+/* Delete button */
+.vz-ml-clip-del {
+  position: absolute;
+  top: 2px;
+  right: 7px;
+  width: 13px;
+  height: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: rgba(248,113,113,0.12);
+  border: 1px solid rgba(248,113,113,0.28);
+  border-radius: 2px;
+  color: rgba(248,113,113,0.6);
+  font-size: 7px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s, background 0.1s;
+  z-index: 4;
+}
+.vz-ml-clip:hover .vz-ml-clip-del,
+.vz-ml-clip--sel .vz-ml-clip-del { opacity: 1; }
+.vz-ml-clip-del:hover {
+  background: rgba(248,113,113,0.3);
+  border-color: rgba(248,113,113,0.55);
+  color: #f87171;
+}
+
+/* ── Effect blocks ────────────────────────────────────────────────────── */
+.vz-ml-effect {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  background: rgba(248,113,113,0.12);
+  border: 1px solid rgba(248,113,113,0.3);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  padding: 0 20px 0 10px;
+  overflow: hidden;
+  cursor: grab;
+}
+.vz-ml-effect:active { cursor: grabbing; }
+.vz-ml-effect--sel {
+  background: rgba(248,113,113,0.22);
+  border-color: rgba(248,113,113,0.65);
+}
+.vz-ml-effect--off {
+  opacity: 0.35;
+}
+.vz-ml-effect--drag { opacity: 0.8; z-index: 10; }
+
+.vz-ml-effect-name {
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(248,113,113,0.85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+/* Effect block reuses clip handle + delete classes */
+
+/* ── Lyric blocks ─────────────────────────────────────────────────────── */
+.vz-ml-lyric {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  background: rgba(216,185,90,0.12);
+  border: 1px solid rgba(216,185,90,0.28);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  overflow: hidden;
+  cursor: pointer;
+}
+.vz-ml-lyric--sel {
+  background: rgba(216,185,90,0.22);
+  border-color: rgba(216,185,90,0.65);
+}
+
+.vz-ml-lyric-text {
+  font-size: 8px;
+  color: rgba(216,185,90,0.75);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+/* ── Inspector ────────────────────────────────────────────────────────── */
+.vz-ml-insp {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  border-top: 1px solid var(--az-border);
+  background: rgba(0,0,0,0.12);
+  max-height: 110px;
+  overflow: hidden;
+}
+
+.vz-ml-insp-hd {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  flex-shrink: 0;
+}
+
+.vz-ml-insp-title {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--az-text-faint);
+}
+
+.vz-ml-insp-lane-badge {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(74,199,219,0.12);
+  color: var(--az-cyan);
+  border: 1px solid rgba(74,199,219,0.2);
+}
+
+.vz-ml-insp-name {
+  font-size: 10px;
+  color: rgba(232,238,240,0.7);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vz-ml-insp-empty {
+  padding: 8px 10px;
+  font-size: 10px;
+  color: var(--az-text-faint);
+  opacity: 0.5;
+}
+
+.vz-ml-insp-body {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.vz-ml-insp-body::-webkit-scrollbar { height: 3px; }
+.vz-ml-insp-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+
+.vz-ml-insp-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.vz-ml-insp-lbl {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--az-text-faint);
+  flex-shrink: 0;
+}
+
+.vz-ml-insp-val {
+  font-size: 10px;
+  color: rgba(232,238,240,0.7);
+  flex-shrink: 0;
+}
+
+.vz-ml-insp-fname {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vz-ml-insp-sel {
+  height: 22px;
+  font-size: 10px;
+  padding: 2px 20px 2px 6px;
+}
+
+.vz-ml-insp-num {
+  height: 22px;
+  width: 54px;
+  padding: 2px 5px;
+  font-size: 10px;
+  font-family: var(--az-font);
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  color: var(--az-text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.vz-ml-insp-num:focus { outline: none; border-color: rgba(74,199,219,0.4); }
+
+.vz-ml-insp-check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: rgba(196,207,211,0.6);
+  cursor: pointer;
+}
+
+.vz-ml-insp-actions {
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+.vz-ml-insp-hint {
+  font-size: 9px;
+  color: rgba(196,207,211,0.28);
+  padding: 0 2px;
+  line-height: 1.3;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   PHASE 2 — Timeline visual previews
+════════════════════════════════════════════════════════════════════════ */
+
+/* ── Audio lane waveform canvas ───────────────────────────────────────── */
+.vz-ml-waveform-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* Audio name sits on top of the canvas */
+.vz-ml-audio-name {
+  position: relative;
+  z-index: 1;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+}
+
+/* ── Clip artwork — thumbnails and filmstrips ─────────────────────────── */
+
+/* Single-frame thumbnail for image clips */
+.vz-ml-clip-thumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  opacity: 0.45;
+  pointer-events: none;
+  border-radius: inherit;
+  user-select: none;
+  -webkit-user-drag: none;
+  z-index: 0;
+}
+
+/* Filmstrip container for video clips */
+.vz-ml-clip-filmstrip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 0;
+}
+
+/* Individual filmstrip frame — flex children fill available width */
+.vz-ml-clip-filmframe {
+  flex: 1;
+  min-width: 0;
+  object-fit: cover;
+  object-position: center;
+  opacity: 0.50;
+  display: block;
+  -webkit-user-drag: none;
+}
+
+/* Gradient overlay so clip name remains readable over artwork */
+.vz-ml-clip--bg::after,
+.vz-ml-clip--overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to right,
+    rgba(0,0,0,0.38) 0%,
+    rgba(0,0,0,0.08) 35%,
+    rgba(0,0,0,0.08) 65%,
+    rgba(0,0,0,0.38) 100%
+  );
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 0;
+}
+
+/* Ensure clip name and handles float above artwork and gradient */
+.vz-ml-clip-name {
+  position: relative;
+  z-index: 1;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.85), 0 0 6px rgba(0,0,0,0.5);
+}
+
+/* ── Effect PLAN badge ────────────────────────────────────────────────── */
+.vz-ml-effect-plan-badge {
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: rgba(248,113,113,0.5);
+  border: 1px solid rgba(248,113,113,0.22);
+  border-radius: 2px;
+  padding: 0 3px;
+  line-height: 1.4;
+  margin-left: 5px;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+/* Subtle category tint variants for effect blocks */
+.vz-ml-effect--cat-audioReactive {
+  border-color: rgba(216,185,90,0.3);
+  background: rgba(216,185,90,0.09);
+}
+.vz-ml-effect--cat-audioReactive .vz-ml-effect-name { color: rgba(216,185,90,0.85); }
+
+.vz-ml-effect--cat-color {
+  border-color: rgba(184,79,201,0.3);
+  background: rgba(184,79,201,0.09);
+}
+.vz-ml-effect--cat-color .vz-ml-effect-name { color: rgba(184,79,201,0.85); }
+
+.vz-ml-effect--cat-generative {
+  border-color: rgba(97,214,170,0.3);
+  background: rgba(97,214,170,0.08);
+}
+.vz-ml-effect--cat-generative .vz-ml-effect-name { color: rgba(97,214,170,0.85); }
+
+/* ── Lyric text legibility ────────────────────────────────────────────── */
+.vz-ml-lyric-text {
+  text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(216,185,90,0.88);
+}

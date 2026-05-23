@@ -8,10 +8,10 @@ import { extractBandValues, applyModulatedEffects } from '../../../lib/audioModu
 import type { ModulationRoute, AudioBandValues } from '../../../lib/audioModulation'
 import {
   getActiveTimelineClip, getNextTimelineClip, getTransitionState,
-  getClipSourceTime, shouldFreezeClipFrame,
+  getClipSourceTime, shouldFreezeClipFrame, getActiveOverlayClips,
 } from '../../../lib/timeline'
 import type { TwoClipRenderState } from '../../../lib/timeline'
-import type { VzTimelineClip } from '../../../types/timeline'
+import type { VzTimelineClip, VzTimelineMediaClip } from '../../../types/timeline'
 import { renderTimelineTransition } from '../../../lib/transitionRenderer'
 import type { MediaRole } from '../../../lib/mediaRoles'
 import { VZ_LAYER_RENDER_ORDER } from '../../../types/vzLayers'
@@ -502,7 +502,8 @@ export interface CanvasProps {
   audioTime: number
   modulationRoutes: ModulationRoute[]
   timelineEnabled: boolean
-  timelineClips: VzTimelineClip[]
+  timelineClips: VzTimelineMediaClip[]
+  timelineOverlayClips?: VzTimelineMediaClip[]
   timelineLoop: boolean
   mediaItems: UploadedMedia[]
   onStatsUpdate: (stats: PerformanceStats) => void
@@ -512,7 +513,7 @@ export interface CanvasProps {
   audioReactivityEnabled: boolean
 }
 
-export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, audioTime, modulationRoutes, timelineEnabled, timelineClips, timelineLoop, mediaItems, onStatsUpdate, layerConfigs, layerItems, effectParams, audioReactivityEnabled }: CanvasProps) {
+export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, audioTime, modulationRoutes, timelineEnabled, timelineClips, timelineOverlayClips = [], timelineLoop, mediaItems, onStatsUpdate, layerConfigs, layerItems, effectParams, audioReactivityEnabled }: CanvasProps) {
   const canvasRef     = useRef<HTMLCanvasElement>(null)
   const animRef       = useRef<number>(0)
   const resizeFnRef   = useRef<() => void>(() => {})
@@ -533,9 +534,10 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   const prevBassRef   = useRef(0)
   const routesRef     = useRef<ModulationRoute[]>(modulationRoutes)
 
-  const timelineEnabledRef = useRef(timelineEnabled)
-  const timelineClipsRef   = useRef<VzTimelineClip[]>(timelineClips)
-  const timelineLoopRef    = useRef(timelineLoop)
+  const timelineEnabledRef       = useRef(timelineEnabled)
+  const timelineClipsRef         = useRef<VzTimelineMediaClip[]>(timelineClips)
+  const timelineOverlayClipsRef  = useRef<VzTimelineMediaClip[]>(timelineOverlayClips)
+  const timelineLoopRef          = useRef(timelineLoop)
   const mediaItemsRef      = useRef<UploadedMedia[]>(mediaItems)
   const layerConfigsRef    = useRef<VzLayerConfig[]>(layerConfigs)
   const layerItemsRef      = useRef<VzLayerItem[]>(layerItems)
@@ -687,6 +689,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   // before the next frame fires — prevents stale-media rendering after clip deletion.
   useLayoutEffect(() => { timelineEnabledRef.current = timelineEnabled }, [timelineEnabled])
   useLayoutEffect(() => { timelineClipsRef.current = timelineClips }, [timelineClips])
+  useLayoutEffect(() => { timelineOverlayClipsRef.current = timelineOverlayClips }, [timelineOverlayClips])
   useEffect(() => { timelineLoopRef.current = timelineLoop }, [timelineLoop])
   useEffect(() => { mediaItemsRef.current = mediaItems }, [mediaItems])
   useEffect(() => {
@@ -1727,6 +1730,50 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           ctx.globalCompositeOperation = 'source-over'
           ctx.globalAlpha = 1
           ctx.restore()
+        }
+      }
+
+      // ── Timeline overlay clips (Phase 1B) ────────────────────────────────────
+      // Active overlay clips are composited above the background and layer items.
+      // Uses the same media pool as bg clips for zero-cost preload reuse.
+      if (timelineEnabledRef.current && timelineOverlayClipsRef.current.length > 0) {
+        const activeOverlays = getActiveOverlayClips(
+          timelineOverlayClipsRef.current,
+          timelineClockRef.current,
+        )
+        const pool = mediaPoolRef.current
+        for (const oc of activeOverlays) {
+          const m = mediaItemsRef.current.find(x => x.id === oc.mediaId)
+          if (!m) continue
+
+          let el = pool.get(oc.mediaId)
+          if (!el) {
+            if (m.type === 'image') {
+              const img = new Image()
+              img.crossOrigin = 'anonymous'
+              img.src = m.url
+              el = img
+            } else {
+              const vid = document.createElement('video')
+              vid.src         = m.url
+              vid.muted       = true
+              vid.playsInline = true
+              vid.crossOrigin = 'anonymous'
+              vid.preload     = 'metadata'
+              el = vid
+            }
+            pool.set(oc.mediaId, el)
+          }
+
+          if (el instanceof HTMLVideoElement) {
+            if (isPlayingRef.current && el.paused)   el.play().catch(() => {})
+            if (!isPlayingRef.current && !el.paused) el.pause()
+          }
+
+          const { ox, oy, sw, sh } = computeDrawRect(W, H, el, oc.fitMode, 1, m.mediaRole ?? null)
+          ctx.globalCompositeOperation = 'source-over'
+          ctx.drawImage(el, ox, oy, sw, sh)
+          ctx.globalCompositeOperation = 'source-over'
         }
       }
 

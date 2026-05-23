@@ -11,15 +11,25 @@ import {
   DEFAULT_MODULATION_ROUTES,
 } from '../lib/audioModulation'
 import type { ModulationRoute } from '../lib/audioModulation'
-import { recalculateTimelineStarts, migrateClip } from '../lib/timeline'
-import type { VzTimelineClip } from '../types/timeline'
+import {
+  recalculateTimelineStarts,
+  migrateClip,
+  migrateLegacyClips,
+  DEFAULT_CLIP_DURATION_SEC,
+} from '../lib/timeline'
+import type {
+  VzTimelineClip,
+  VzTimelineMediaClip,
+  VzTimelineMediaLaneId,
+  VzTimelineEffectRegion,
+} from '../types/timeline'
 import type { VzEffectParams } from '../types/effectParams'
 import { DEFAULT_EFFECT_PARAMS } from '../types/effectParams'
 import type { VzCueMarker } from '../types/cue'
 import { DEFAULT_LAYER_CONFIGS, createDefaultLayerItem } from '../types/vzLayers'
 import type { VzLayerConfig, VzLayerConfigId, VzLayerItem } from '../types/vzLayers'
 
-export type { VzTimelineClip }
+export type { VzTimelineClip, VzTimelineMediaClip, VzTimelineMediaLaneId, VzTimelineEffectRegion }
 export type { VzLayerConfig, VzLayerConfigId, VzLayerItem }
 export type { VzCueMarker }
 
@@ -141,8 +151,13 @@ export interface VzPreset {
   bpmSync?: boolean
   quality?: Quality
   timelineEnabled?: boolean
+  // Legacy field — kept for backwards-compat with presets saved before Phase 1A.
+  // On load these are migrated to VzTimelineMediaClip[] with lane='video-background'.
   timelineClips?: VzTimelineClip[]
   timelineLoop?: boolean
+  // Phase 1A additions — only present when scope.timeline is true
+  timelineOverlayClips?: VzTimelineMediaClip[]
+  timelineEffectRegions?: VzTimelineEffectRegion[]
 }
 
 // ── Session: full VJ workspace snapshot ───────────────────────────────────────
@@ -167,10 +182,15 @@ export interface VzSession {
   // Output
   quality: Quality
   audioSource: 'file' | 'microphone' | 'demo'
-  // Timeline
+  // Timeline — background lane
   timelineEnabled?: boolean
+  // Legacy field — kept for backwards-compat with sessions saved before Phase 1A.
+  // On load these are migrated to VzTimelineMediaClip[] with lane='video-background'.
   timelineClips?: VzTimelineClip[]
   timelineLoop?: boolean
+  // Phase 1A additions
+  timelineOverlayClips?: VzTimelineMediaClip[]
+  timelineEffectRegions?: VzTimelineEffectRegion[]
   layerItems?: VzLayerItem[]
   // Transport extras
   beatGridEnabled?: boolean
@@ -317,21 +337,63 @@ interface VisualState {
   resetModulationRoutes(): void
 
   // ── Timeline ──────────────────────────────────────────────────────────────
+  //
+  // Multi-lane timeline state (Phase 1A).
+  //
+  // External sources NOT stored here:
+  //   - Audio: owned by useSharedAudio() via AudioEngineContext.
+  //   - Lyrics: owned by useLyricsStore().cues.
+  //
+  // timelineClips is the video-background lane (primary visual source).
+  // It replaces the old flat clips array; VzTimelineMediaClip extends
+  // VzTimelineClip so all existing consumers continue to work unchanged.
+  //
   timelineEnabled: boolean
-  timelineClips:   VzTimelineClip[]
-  timelineLoop:    boolean
+  /** Background/video lane — primary sequential visual source. */
+  timelineClips:         VzTimelineMediaClip[]
+  timelineLoop:          boolean
+  /** Overlay lane — absolute-positioned timed clips above the background. */
+  timelineOverlayClips:  VzTimelineMediaClip[]
+  /** Effects lane — timed automation regions for future runtime control. */
+  timelineEffectRegions: VzTimelineEffectRegion[]
+
+  // ── Shared timeline controls ───────────────────────────────────────────────
   setTimelineEnabled(enabled: boolean): void
   setTimelineLoop(loop: boolean): void
+  // Ephemeral — not persisted. Updated by the RAF loop each frame.
+  timelineClock:    number
+  setTimelineClock: (t: number) => void
+  scrubTimeline:    (t: number) => void
+
+  // ── Compatibility wrappers (operate on the video-background lane) ──────────
+  // These preserve the existing API surface so callers do not need to change
+  // during Phase 1A. They all default to the video-background lane.
   addTimelineClip(mediaId: string, durationSec?: number): void
   removeTimelineClip(clipId: string): void
   duplicateTimelineClip(clipId: string): void
   reorderTimelineClips(clipIds: string[]): void
   updateTimelineClip(clipId: string, patch: Partial<VzTimelineClip>): void
+  /** Clears all lanes (background, overlays, effect regions). */
   clearTimeline(): void
-  // Ephemeral — not persisted. Set by the RAF loop each frame.
-  timelineClock:    number
-  setTimelineClock: (t: number) => void
-  scrubTimeline:    (t: number) => void
+
+  // ── Lane-aware media clip actions ─────────────────────────────────────────
+  // Use these for new features that need to specify a lane explicitly.
+  addMediaClip(lane: VzTimelineMediaLaneId, mediaId: string, durationSec?: number): void
+  updateMediaClip(clipId: string, patch: Partial<VzTimelineClip>): void
+  removeMediaClip(clipId: string): void
+  duplicateMediaClip(clipId: string): void
+  moveMediaClipToLane(clipId: string, targetLane: VzTimelineMediaLaneId): void
+  /** Sets the absolute start time. For bg clips this is overridden by sequential
+   *  repacking; meaningful primarily for overlay clips. */
+  setMediaClipStart(clipId: string, startSec: number): void
+  setMediaClipDuration(clipId: string, durationSec: number): void
+  clearMediaLane(lane: VzTimelineMediaLaneId): void
+
+  // ── Effect region actions ──────────────────────────────────────────────────
+  addEffectRegion(region: Omit<VzTimelineEffectRegion, 'id'>): void
+  updateEffectRegion(id: string, patch: Partial<Omit<VzTimelineEffectRegion, 'id'>>): void
+  removeEffectRegion(id: string): void
+  clearEffectRegions(): void
 
   // ── Layer compositor ──────────────────────────────────────────────────────
   layerConfigs: VzLayerConfig[]
@@ -393,6 +455,15 @@ interface VisualState {
   setRendererType(t: 'canvas2d' | 'webgl2'): void
 }
 
+// ── Internal helpers ──────────────────────────────────────────────────────────
+
+/** Generates a unique ID for clips and effect regions. */
+function _genId(prefix: string): string {
+  return (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+}
+
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 export const useVisualStore = create<VisualState>()(
@@ -411,11 +482,13 @@ export const useVisualStore = create<VisualState>()(
       sessions:          [],
       sessionsLoading:   false,
       sessionSyncError:  null,
-      modulationRoutes:  DEFAULT_MODULATION_ROUTES,
-      timelineEnabled:   false,
-      timelineClips:     [],
-      timelineLoop:      true,
-      timelineClock:     0,
+      modulationRoutes:       DEFAULT_MODULATION_ROUTES,
+      timelineEnabled:        false,
+      timelineClips:          [] as VzTimelineMediaClip[],
+      timelineLoop:           true,
+      timelineOverlayClips:   [] as VzTimelineMediaClip[],
+      timelineEffectRegions:  [] as VzTimelineEffectRegion[],
+      timelineClock:          0,
       layerConfigs:      [...DEFAULT_LAYER_CONFIGS],
       layerItems:        [],
       cuePoint:          0,
@@ -487,8 +560,14 @@ export const useVisualStore = create<VisualState>()(
         if (scope.quality && preset.quality) patch.quality = preset.quality
         if (scope.timeline && preset.timelineEnabled !== undefined) {
           patch.timelineEnabled = preset.timelineEnabled
-          patch.timelineClips   = preset.timelineClips ? [...preset.timelineClips] : []
-          patch.timelineLoop    = preset.timelineLoop ?? true
+          // Migrate legacy VzTimelineClip[] → VzTimelineMediaClip[] (video-background lane).
+          // migrateLegacyClips is idempotent: clips already carrying `lane` pass through.
+          patch.timelineClips = recalculateTimelineStarts(
+            migrateLegacyClips(preset.timelineClips ?? [])
+          )
+          patch.timelineLoop           = preset.timelineLoop ?? true
+          patch.timelineOverlayClips   = migrateLegacyClips(preset.timelineOverlayClips ?? [], 'overlays')
+          patch.timelineEffectRegions  = preset.timelineEffectRegions ?? []
         }
         set(patch)
         // Return scene fields the caller handles externally
@@ -524,10 +603,12 @@ export const useVisualStore = create<VisualState>()(
         if (scope.bpmSync) newPreset.bpmSync = bpmSync
         if (scope.quality) newPreset.quality = quality
         if (scope.timeline) {
-          const { timelineEnabled, timelineClips, timelineLoop } = get()
-          newPreset.timelineEnabled = timelineEnabled
-          newPreset.timelineClips   = [...timelineClips]
-          newPreset.timelineLoop    = timelineLoop
+          const { timelineEnabled, timelineClips, timelineLoop, timelineOverlayClips, timelineEffectRegions } = get()
+          newPreset.timelineEnabled       = timelineEnabled
+          newPreset.timelineClips         = [...timelineClips]
+          newPreset.timelineLoop          = timelineLoop
+          newPreset.timelineOverlayClips  = [...timelineOverlayClips]
+          newPreset.timelineEffectRegions = [...timelineEffectRegions]
         }
         set(s => ({ presets: [...s.presets, newPreset], activePresetId: id }))
       },
@@ -558,10 +639,12 @@ export const useVisualStore = create<VisualState>()(
           bpmSync:       s.bpmSync,
           quality:       s.quality,
           audioSource,
-          timelineEnabled: s.timelineEnabled,
-          timelineClips:   [...s.timelineClips],
-          timelineLoop:    s.timelineLoop,
-          layerItems:      [...s.layerItems],
+          timelineEnabled:       s.timelineEnabled,
+          timelineClips:         [...s.timelineClips],
+          timelineLoop:          s.timelineLoop,
+          timelineOverlayClips:  [...s.timelineOverlayClips],
+          timelineEffectRegions: [...s.timelineEffectRegions],
+          layerItems:            [...s.layerItems],
           beatGridEnabled: s.beatGridEnabled,
           cueMarkers:      [...s.cueMarkers],
         }
@@ -599,11 +682,16 @@ export const useVisualStore = create<VisualState>()(
           bpmSync:         session.bpmSync,
           quality:         session.quality,
           timelineEnabled: session.timelineEnabled ?? false,
-          timelineClips:   recalculateTimelineStarts(
-            (session.timelineClips ?? []).map(migrateClip)
+          // Migrate legacy VzTimelineClip[] → VzTimelineMediaClip[] (video-background lane).
+          // migrateLegacyClips handles both the deprecated transition field and the
+          // missing `lane` field in one idempotent pass.
+          timelineClips: recalculateTimelineStarts(
+            migrateLegacyClips(session.timelineClips ?? [])
           ),
-          timelineLoop:    session.timelineLoop     ?? true,
-          layerItems:      session.layerItems ?? [],
+          timelineLoop:          session.timelineLoop ?? true,
+          timelineOverlayClips:  migrateLegacyClips(session.timelineOverlayClips ?? [], 'overlays'),
+          timelineEffectRegions: session.timelineEffectRegions ?? [],
+          layerItems:            session.layerItems ?? [],
           beatGridEnabled: session.beatGridEnabled  ?? false,
           cueMarkers:      (session.cueMarkers ?? []) as VzCueMarker[],
           cuePoint:        0,
@@ -688,44 +776,50 @@ export const useVisualStore = create<VisualState>()(
       },
 
       // ── Timeline ────────────────────────────────────────────────────────────
+      //
+      // Internal helper: generate a unique clip/region ID.
+      // Defined inline below via a module-level function (_genId).
 
-      setTimelineEnabled(enabled) {
-        set({ timelineEnabled: enabled })
-      },
-      setTimelineLoop(loop) {
-        set({ timelineLoop: loop })
-      },
-      addTimelineClip(mediaId, durationSec = 5) {
-        const id = (typeof crypto !== 'undefined' && crypto.randomUUID)
-          ? crypto.randomUUID()
-          : `clip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-        const clip: VzTimelineClip = {
-          id,
+      setTimelineEnabled(enabled) { set({ timelineEnabled: enabled }) },
+      setTimelineLoop(loop)       { set({ timelineLoop: loop }) },
+
+      setTimelineClock(t) { set({ timelineClock: t }) },
+      scrubTimeline(t)    { set({ timelineClock: t }) },
+
+      // ── Compatibility wrappers — operate on the video-background lane ────────
+      // Existing callers (TimelinePanel, canvas, etc.) continue to use these
+      // without modification during Phase 1A.
+
+      addTimelineClip(mediaId, durationSec = DEFAULT_CLIP_DURATION_SEC) {
+        const clip: VzTimelineMediaClip = {
+          id:           _genId('clip'),
           mediaId,
-          startSec: 0,          // recalculated below
+          startSec:     0,
           durationSec,
-          mediaInSec: 0,
-          fitMode: 'cover',
+          mediaInSec:   0,
+          fitMode:      'cover',
           playbackMode: 'trim',
+          lane:         'video-background',
         }
         set(s => ({
           timelineClips: recalculateTimelineStarts([...s.timelineClips, clip]),
         }))
       },
+
       removeTimelineClip(clipId) {
         set(s => ({
-          timelineClips: recalculateTimelineStarts(s.timelineClips.filter(c => c.id !== clipId)),
+          timelineClips: recalculateTimelineStarts(
+            s.timelineClips.filter(c => c.id !== clipId)
+          ),
         }))
       },
+
       duplicateTimelineClip(clipId) {
         set(s => {
           const idx = s.timelineClips.findIndex(c => c.id === clipId)
           if (idx === -1) return {}
           const original = s.timelineClips[idx]
-          const newId = (typeof crypto !== 'undefined' && crypto.randomUUID)
-            ? crypto.randomUUID()
-            : `clip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-          const copy: VzTimelineClip = { ...original, id: newId, startSec: 0 }
+          const copy: VzTimelineMediaClip = { ...original, id: _genId('clip'), startSec: 0 }
           const next = [
             ...s.timelineClips.slice(0, idx + 1),
             copy,
@@ -734,13 +828,15 @@ export const useVisualStore = create<VisualState>()(
           return { timelineClips: recalculateTimelineStarts(next) }
         })
       },
+
       reorderTimelineClips(clipIds) {
         set(s => {
           const map = new Map(s.timelineClips.map(c => [c.id, c]))
-          const reordered = clipIds.map(id => map.get(id)).filter(Boolean) as VzTimelineClip[]
+          const reordered = clipIds.map(id => map.get(id)).filter(Boolean) as VzTimelineMediaClip[]
           return { timelineClips: recalculateTimelineStarts(reordered) }
         })
       },
+
       updateTimelineClip(clipId, patch) {
         set(s => ({
           timelineClips: recalculateTimelineStarts(
@@ -748,11 +844,219 @@ export const useVisualStore = create<VisualState>()(
           ),
         }))
       },
+
       clearTimeline() {
-        set({ timelineClips: [] })
+        // Clears all lanes — background, overlays, and effect regions.
+        set({ timelineClips: [], timelineOverlayClips: [], timelineEffectRegions: [] })
       },
-      setTimelineClock(t) { set({ timelineClock: t }) },
-      scrubTimeline(t)    { set({ timelineClock: t }) },
+
+      // ── Lane-aware media clip actions ────────────────────────────────────────
+
+      addMediaClip(lane, mediaId, durationSec = DEFAULT_CLIP_DURATION_SEC) {
+        const clip: VzTimelineMediaClip = {
+          id:           _genId('clip'),
+          mediaId,
+          startSec:     0,
+          durationSec,
+          mediaInSec:   0,
+          fitMode:      'cover',
+          playbackMode: 'trim',
+          lane,
+        }
+        if (lane === 'video-background') {
+          // Background clips are always sequentially packed.
+          set(s => ({
+            timelineClips: recalculateTimelineStarts([...s.timelineClips, clip]),
+          }))
+        } else {
+          // Overlay clips: place at the end of the background sequence by default,
+          // but keep their absolute position (no sequential repacking).
+          set(s => {
+            const defaultStart = s.timelineClips.length > 0
+              ? s.timelineClips[s.timelineClips.length - 1].startSec +
+                s.timelineClips[s.timelineClips.length - 1].durationSec
+              : 0
+            return {
+              timelineOverlayClips: [
+                ...s.timelineOverlayClips,
+                { ...clip, startSec: defaultStart },
+              ],
+            }
+          })
+        }
+      },
+
+      updateMediaClip(clipId, patch) {
+        set(s => {
+          // Search background lane first.
+          if (s.timelineClips.some(c => c.id === clipId)) {
+            return {
+              timelineClips: recalculateTimelineStarts(
+                s.timelineClips.map(c => c.id === clipId ? { ...c, ...patch } : c)
+              ),
+            }
+          }
+          // Search overlay lane.
+          if (s.timelineOverlayClips.some(c => c.id === clipId)) {
+            return {
+              timelineOverlayClips: s.timelineOverlayClips.map(c =>
+                c.id === clipId ? { ...c, ...patch } : c
+              ),
+            }
+          }
+          return {}
+        })
+      },
+
+      removeMediaClip(clipId) {
+        set(s => {
+          if (s.timelineClips.some(c => c.id === clipId)) {
+            return {
+              timelineClips: recalculateTimelineStarts(
+                s.timelineClips.filter(c => c.id !== clipId)
+              ),
+            }
+          }
+          if (s.timelineOverlayClips.some(c => c.id === clipId)) {
+            return {
+              timelineOverlayClips: s.timelineOverlayClips.filter(c => c.id !== clipId),
+            }
+          }
+          return {}
+        })
+      },
+
+      duplicateMediaClip(clipId) {
+        set(s => {
+          const bgIdx = s.timelineClips.findIndex(c => c.id === clipId)
+          if (bgIdx !== -1) {
+            const original = s.timelineClips[bgIdx]
+            const copy: VzTimelineMediaClip = { ...original, id: _genId('clip'), startSec: 0 }
+            const next = [
+              ...s.timelineClips.slice(0, bgIdx + 1),
+              copy,
+              ...s.timelineClips.slice(bgIdx + 1),
+            ]
+            return { timelineClips: recalculateTimelineStarts(next) }
+          }
+          const olIdx = s.timelineOverlayClips.findIndex(c => c.id === clipId)
+          if (olIdx !== -1) {
+            const original = s.timelineOverlayClips[olIdx]
+            const copy: VzTimelineMediaClip = { ...original, id: _genId('clip') }
+            return {
+              timelineOverlayClips: [
+                ...s.timelineOverlayClips.slice(0, olIdx + 1),
+                copy,
+                ...s.timelineOverlayClips.slice(olIdx + 1),
+              ],
+            }
+          }
+          return {}
+        })
+      },
+
+      moveMediaClipToLane(clipId, targetLane) {
+        set(s => {
+          const bgClip      = s.timelineClips.find(c => c.id === clipId)
+          const overlayClip = s.timelineOverlayClips.find(c => c.id === clipId)
+          const clip        = bgClip ?? overlayClip
+          if (!clip || clip.lane === targetLane) return {}
+
+          const moved = { ...clip, lane: targetLane }
+
+          if (targetLane === 'video-background') {
+            // Moving overlay → background: append to bg sequence.
+            return {
+              timelineClips: recalculateTimelineStarts([
+                ...s.timelineClips,
+                { ...moved, startSec: 0 },
+              ]),
+              timelineOverlayClips: s.timelineOverlayClips.filter(c => c.id !== clipId),
+            }
+          } else {
+            // Moving background → overlay: remove from bg sequence, add to overlays.
+            const bgEnd = s.timelineClips.length > 0
+              ? s.timelineClips[s.timelineClips.length - 1].startSec +
+                s.timelineClips[s.timelineClips.length - 1].durationSec
+              : 0
+            return {
+              timelineClips: recalculateTimelineStarts(
+                s.timelineClips.filter(c => c.id !== clipId)
+              ),
+              timelineOverlayClips: [
+                ...s.timelineOverlayClips,
+                { ...moved, startSec: bgEnd },
+              ],
+            }
+          }
+        })
+      },
+
+      setMediaClipStart(clipId, startSec) {
+        // Meaningful only for overlay clips. Background clips' startSec is
+        // always managed by sequential repacking.
+        set(s => {
+          if (!s.timelineOverlayClips.some(c => c.id === clipId)) return {}
+          return {
+            timelineOverlayClips: s.timelineOverlayClips.map(c =>
+              c.id === clipId ? { ...c, startSec: Math.max(0, startSec) } : c
+            ),
+          }
+        })
+      },
+
+      setMediaClipDuration(clipId, durationSec) {
+        const dur = Math.max(0.25, durationSec)
+        set(s => {
+          if (s.timelineClips.some(c => c.id === clipId)) {
+            return {
+              timelineClips: recalculateTimelineStarts(
+                s.timelineClips.map(c => c.id === clipId ? { ...c, durationSec: dur } : c)
+              ),
+            }
+          }
+          if (s.timelineOverlayClips.some(c => c.id === clipId)) {
+            return {
+              timelineOverlayClips: s.timelineOverlayClips.map(c =>
+                c.id === clipId ? { ...c, durationSec: dur } : c
+              ),
+            }
+          }
+          return {}
+        })
+      },
+
+      clearMediaLane(lane) {
+        if (lane === 'video-background') set({ timelineClips: [] })
+        else set({ timelineOverlayClips: [] })
+      },
+
+      // ── Effect region actions ────────────────────────────────────────────────
+
+      addEffectRegion(region) {
+        const id = _genId('fx')
+        set(s => ({
+          timelineEffectRegions: [...s.timelineEffectRegions, { ...region, id }],
+        }))
+      },
+
+      updateEffectRegion(id, patch) {
+        set(s => ({
+          timelineEffectRegions: s.timelineEffectRegions.map(r =>
+            r.id === id ? { ...r, ...patch } : r
+          ),
+        }))
+      },
+
+      removeEffectRegion(id) {
+        set(s => ({
+          timelineEffectRegions: s.timelineEffectRegions.filter(r => r.id !== id),
+        }))
+      },
+
+      clearEffectRegions() {
+        set({ timelineEffectRegions: [] })
+      },
 
       setLayerConfig(id, patch) {
         set(s => ({
@@ -924,6 +1228,12 @@ export const useVisualStore = create<VisualState>()(
           // older localStorage snapshots may contain. Do not restore these fields.
           activeMediaId: null,
           layerItems:    [],
+          // Timeline state is always reset on launch — only restored when a session
+          // is explicitly loaded. timelineEnabled/Clips/Loop are not in partialize.
+          // The new Phase 1A fields default to empty to support cold starts.
+          timelineClips:         [] as VzTimelineMediaClip[],
+          timelineOverlayClips:  [] as VzTimelineMediaClip[],
+          timelineEffectRegions: [] as VzTimelineEffectRegion[],
           // Renderer type always resets to canvas2d — let user choose GPU mode per session.
           videoBaselineMode: false,
           rendererType: 'canvas2d' as const,

@@ -1,13 +1,13 @@
 import { useMemo } from 'react'
 import { useVisualStore } from '../../../stores/visualStore'
 import type { UploadedMedia } from '../../../stores/mediaStore'
-import type { VzTimelineClip } from '../../../types/timeline'
+import type { VzTimelineMediaClip } from '../../../types/timeline'
 import { MEDIA_ROLE_BADGE_LABELS } from '../../../lib/mediaRoles'
 import { getActiveTimelineClip } from '../../../lib/timeline'
 
 type Props = {
   timelineEnabled: boolean
-  timelineClips: VzTimelineClip[]
+  timelineClips: VzTimelineMediaClip[]
   timelineLoop: boolean
   activeMedia: UploadedMedia | null
   mediaItems: UploadedMedia[]
