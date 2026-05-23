@@ -980,6 +980,7 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
     timelineClips, timelineOverlayClips, timelineEffectRegions,
     timelineLoop, timelineClock, activeMediaId,
     layerConfigs, layerItems,
+    selectedLayerItemId, selectedLayerId,
     setTimelineLoop,
     // bg lane actions
     addTimelineClip, removeTimelineClip, updateTimelineClip,
@@ -998,6 +999,8 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
     activeMediaId:           s.activeMediaId,
     layerConfigs:            s.layerConfigs,
     layerItems:              s.layerItems,
+    selectedLayerItemId:     s.selectedLayerItemId,
+    selectedLayerId:         s.selectedLayerId,
     setTimelineLoop:         s.setTimelineLoop,
     addTimelineClip:         s.addTimelineClip,
     removeTimelineClip:      s.removeTimelineClip,
@@ -1258,12 +1261,28 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
   const handleAddEffect = () => {
     const firstEffect = EFFECT_LIST[0]
     if (!firstEffect) return
-    let targetType: 'global' | 'clip' = 'global'
+
+    let targetType: VzTimelineEffectRegion['targetType'] = 'global'
     let targetIds: string[] = []
-    if (selected?.kind === 'bg' || selected?.kind === 'overlay') {
+
+    // Priority 1: selected layer item
+    if (selectedLayerItemId) {
+      targetType = 'layerItem'
+      targetIds  = [selectedLayerItemId]
+    // Priority 2: selected overlay clip
+    } else if (selected?.kind === 'overlay') {
       targetType = 'clip'
       targetIds  = [selected.id]
+    // Priority 3: selected bg clip
+    } else if (selected?.kind === 'bg') {
+      targetType = 'clip'
+      targetIds  = [selected.id]
+    // Priority 4: selected layer
+    } else if (selectedLayerId) {
+      targetType = 'layer'
+      targetIds  = [selectedLayerId]
     }
+
     addEffectRegion({
       effectId: firstEffect.id,
       startSec: timelineClock,

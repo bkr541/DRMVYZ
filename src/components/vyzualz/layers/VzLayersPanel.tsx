@@ -16,6 +16,7 @@ export function VzLayersPanel() {
     layerItems, addLayerItem, removeLayerItem,
     updateLayerItem, reorderLayerItem, clearLayerItemsForLayer, setLayerItemSolo,
     activeMediaId, audioReactivityEnabled,
+    selectedLayerId, selectedLayerItemId, setSelectedLayerItem,
   } = useVisualStore(useShallow(s => ({
     layerConfigs:             s.layerConfigs,
     setLayerConfig:           s.setLayerConfig,
@@ -29,6 +30,9 @@ export function VzLayersPanel() {
     setLayerItemSolo:         s.setLayerItemSolo,
     activeMediaId:            s.activeMediaId,
     audioReactivityEnabled:   s.audioReactivityEnabled,
+    selectedLayerId:          s.selectedLayerId,
+    selectedLayerItemId:      s.selectedLayerItemId,
+    setSelectedLayerItem:     s.setSelectedLayerItem,
   })))
   const { items } = useMediaStore()
 
@@ -92,7 +96,11 @@ export function VzLayersPanel() {
 
           return (
             <div key={layerId} className={`vz-layer-item${cfg.enabled ? '' : ' vz-layer-item--off'}`}>
-              <div className="vz-layer-item-header">
+              <div
+                className={`vz-layer-item-header${selectedLayerId === layerId && !selectedLayerItemId ? ' vz-layer-item-header--selected' : ''}`}
+                onClick={() => setSelectedLayerItem(layerId, null)}
+                title="Click to select this layer as effect target"
+              >
                 <button
                   className={`vz-layer-toggle${cfg.enabled ? ' vz-layer-toggle--on' : ''}`}
                   onClick={() => setLayerConfig(layerId, { enabled: !cfg.enabled })}
@@ -123,7 +131,11 @@ export function VzLayersPanel() {
                     const isMissing  = !media
                     const roleBadge  = media?.mediaRole ? MEDIA_ROLE_BADGE_LABELS[media.mediaRole] : null
                     return (
-                      <div key={item.id} className={`vz-li-row${item.enabled ? '' : ' vz-li-row--off'}${isMissing ? ' vz-li-row--missing' : ''}`}>
+                      <div
+                        key={item.id}
+                        className={`vz-li-row${item.enabled ? '' : ' vz-li-row--off'}${isMissing ? ' vz-li-row--missing' : ''}${selectedLayerItemId === item.id ? ' vz-li-row--selected' : ''}`}
+                        onClick={() => setSelectedLayerItem(item.layerId, item.id)}
+                      >
                         <div className="vz-li-row-main">
                           <button
                             className={`vz-li-en-btn${item.enabled ? ' vz-li-en-btn--on' : ''}`}

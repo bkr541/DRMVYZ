@@ -409,6 +409,11 @@ interface VisualState {
   clearLayerItemsForLayer(layerId: VzLayerConfigId): void
   setLayerItemSolo(id: string): void
 
+  // ── Layer selection (ephemeral — not persisted) ───────────────────────
+  selectedLayerId: string | null
+  selectedLayerItemId: string | null
+  setSelectedLayerItem(layerId: string | null, itemId: string | null): void
+
   // ── Transport extras ──────────────────────────────────────────────────────
   cuePoint:        number          // ephemeral — not persisted
   beatGridEnabled: boolean
@@ -500,6 +505,8 @@ export const useVisualStore = create<VisualState>()(
       timelineClock:          0,
       layerConfigs:      [...DEFAULT_LAYER_CONFIGS],
       layerItems:        [],
+      selectedLayerId:      null,
+      selectedLayerItemId:  null,
       cuePoint:          0,
       beatGridEnabled:   false,
       waveformZoom:      1,
@@ -1134,6 +1141,10 @@ export const useVisualStore = create<VisualState>()(
         }))
       },
 
+      setSelectedLayerItem(layerId, itemId) {
+        set({ selectedLayerId: layerId, selectedLayerItemId: itemId })
+      },
+
       // ── Transport extras ──────────────────────────────────────────────────
       setCuePoint(t)        { set({ cuePoint: Math.max(0, t) }) },
       setBeatGridEnabled(v) { set({ beatGridEnabled: v }) },
@@ -1242,8 +1253,10 @@ export const useVisualStore = create<VisualState>()(
           audioReactivityEnabled: (p as Partial<VisualState>).audioReactivityEnabled ?? false,
           // INTENTIONAL: always reset to blank canvas on launch regardless of what
           // older localStorage snapshots may contain. Do not restore these fields.
-          activeMediaId: null,
-          layerItems:    [],
+          activeMediaId:       null,
+          layerItems:          [],
+          selectedLayerId:     null,
+          selectedLayerItemId: null,
           // Timeline state is always reset on launch — only restored when a session
           // is explicitly loaded. timelineEnabled/Clips/Loop are not in partialize.
           // The new Phase 1A fields default to empty to support cold starts.
