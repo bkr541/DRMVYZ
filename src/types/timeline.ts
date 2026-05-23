@@ -117,15 +117,47 @@ export type VzTimelineMediaLaneId = 'video-background' | 'overlays'
  * during the Phase 1A migration. The `lane` field is the only addition.
  *
  * Semantics by lane:
- * - video-background: primary fullscreen visual. Supports sequential repacking
- *   and transitions. Migrated directly from the old flat VzTimelineClip array.
+ * - video-background: primary fullscreen visual. Uses absolute startSec
+ *   positions with transition overlap support. Sorted by startSec; gaps allowed.
  * - overlays: timed composited content drawn above the background. Absolute
- *   startSec positions. transitionOut is present for structural consistency but
- *   is not applied by the renderer until overlay transitions are designed.
+ *   startSec positions. compositingConfig controls position/scale/rotation.
  */
 export interface VzTimelineMediaClip extends VzTimelineClip {
   /** Which media lane this clip belongs to. */
   lane: VzTimelineMediaLaneId
+  /**
+   * Compositing configuration for overlay lane clips.
+   * Undefined = backward-compatible full-canvas cover render (legacy behavior).
+   * When set, the renderer uses position/scale/rotation/opacity/blendMode from
+   * this config instead of the default fullscreen fit.
+   */
+  compositingConfig?: VzOverlayCompositingConfig
+}
+
+/**
+ * Per-clip compositing properties for overlay lane clips.
+ * All positions are normalized 0–1 relative to canvas width/height.
+ */
+export interface VzOverlayCompositingConfig {
+  /** Horizontal anchor: 0=left edge, 0.5=center, 1=right edge */
+  posX: number
+  /** Vertical anchor: 0=top edge, 0.5=center, 1=bottom edge */
+  posY: number
+  /** Scale multiplier applied after natural contain sizing (1 = fit canvas) */
+  scale: number
+  /** Rotation in degrees */
+  rotation: number
+  /** Opacity: 0–1 */
+  opacity: number
+  /** Canvas globalCompositeOperation string */
+  blendMode: string
+  /** How the media fills its draw area before scale is applied */
+  fitMode: 'cover' | 'contain'
+}
+
+export const DEFAULT_OVERLAY_COMPOSITING: VzOverlayCompositingConfig = {
+  posX: 0.5, posY: 0.5, scale: 1, rotation: 0,
+  opacity: 1, blendMode: 'source-over', fitMode: 'contain',
 }
 
 /**

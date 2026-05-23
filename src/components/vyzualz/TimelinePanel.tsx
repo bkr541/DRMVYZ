@@ -6,8 +6,9 @@ import { useLyricsStore } from '../../stores/lyricsStore'
 import { useSharedAudio } from '../../context/AudioEngineContext'
 import { useWaveformPeaks } from './hooks/useWaveformPeaks'
 import { generateVideoFilmstrip } from './media/generateThumbnail'
-import type { VzTimelineClip, VzTimelineMediaClip, VzTimelineEffectRegion } from '../../types/timeline'
+import type { VzTimelineClip, VzTimelineMediaClip, VzTimelineEffectRegion, VzOverlayCompositingConfig } from '../../types/timeline'
 import type { VzTransitionConfig, VzTransitionType, VzTransitionEasing } from '../../types/timeline'
+import { DEFAULT_OVERLAY_COMPOSITING } from '../../types/timeline'
 import type { UploadedMedia } from '../../stores/mediaStore'
 import type { LyricCue } from '../../types/lyrics'
 import { getTimelineDuration, getTimelineProjectDuration, TRANSITION_LABELS, TRANSITION_DEFAULTS } from '../../lib/timeline'
@@ -45,6 +46,25 @@ interface LiveDrag {
   durationSec: number
 }
 
+// ── Lyric-specific drag types ─────────────────────────────────────────────
+interface LyricDragData {
+  kind: DragKind
+  cueId: string
+  startClientX: number
+  /** Raw cue startMs at drag start (NOT offset-adjusted) */
+  origStartMs: number
+  /** Raw cue endMs at drag start */
+  origEndMs: number
+}
+
+interface LiveLyricDrag {
+  id: string
+  /** Live raw startMs (NOT offset-adjusted) */
+  startMs: number
+  /** Live raw endMs */
+  endMs: number
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function resolveMediaDuration(m: UploadedMedia | null | undefined): number {
@@ -52,7 +72,8 @@ function resolveMediaDuration(m: UploadedMedia | null | undefined): number {
   return typeof d === 'number' && isFinite(d) && d > 0 ? d : 5
 }
 
-const EFFECT_LIST = Array.from(EFFECT_MODULES.entries()).map(([id, m]) => ({ id, label: m.label }))
+const EFFECT_LIST       = Array.from(EFFECT_MODULES.entries()).map(([id, m]) => ({ id, label: m.label }))
+const MIN_LYRIC_DUR_MS  = 100
 
 // ── TimelineRuler ────────────────────────────────────────────────────────
 
@@ -243,12 +264,10 @@ function ClipBlock({
       ) : null}
 
       {/* Handles and label */}
-      {lane === 'overlay' && (
-        <div
-          className="vz-ml-clip-lhandle"
-          onPointerDown={e => { e.stopPropagation(); onResizeLeft(e) }}
-        />
-      )}
+      <div
+        className="vz-ml-clip-lhandle"
+        onPointerDown={e => { e.stopPropagation(); onResizeLeft(e) }}
+      />
       <span className="vz-ml-clip-name">{clipLabel}</span>
       <div
         className="vz-ml-clip-rhandle"
@@ -325,26 +344,49 @@ function EffectBlock({
 // ── LyricBlock ───────────────────────────────────────────────────────────
 
 function LyricBlock({
-  cue, pxPerSec, isSelected, globalOffsetSec, onSelect,
+  cue, pxPerSec, isSelected, globalOffsetSec, liveLyricDrag,
+  onSelect, onDragStart, onResizeLeft, onResizeRight,
 }: {
   cue: LyricCue
   pxPerSec: number
   isSelected: boolean
   globalOffsetSec: number
+  liveLyricDrag: LiveLyricDrag | null
   onSelect: () => void
+  onDragStart: (e: React.PointerEvent) => void
+  onResizeLeft: (e: React.PointerEvent) => void
+  onResizeRight: (e: React.PointerEvent) => void
 }) {
-  const startSec = cue.startMs / 1000 + globalOffsetSec
-  const durSec   = Math.max(0.2, (cue.endMs - cue.startMs) / 1000)
-  const px       = Math.max(4, timeToPx(durSec, pxPerSec))
+  const live = liveLyricDrag?.id === cue.id ? liveLyricDrag : null
+  // Display positions use RAW cue times + global offset
+  // so visible position matches actual canvas render time
+  const rawStartMs = live?.startMs ?? cue.startMs
+  const rawEndMs   = live?.endMs   ?? cue.endMs
+  const startSec   = rawStartMs / 1000 + globalOffsetSec
+  const durSec     = Math.max(0.1, (rawEndMs - rawStartMs) / 1000)
+  const px         = Math.max(4, timeToPx(durSec, pxPerSec))
+  const isDragging = live !== null
 
   return (
     <div
-      className={['vz-ml-lyric', isSelected ? 'vz-ml-lyric--sel' : ''].filter(Boolean).join(' ')}
+      className={[
+        'vz-ml-lyric',
+        isSelected  ? 'vz-ml-lyric--sel'  : '',
+        isDragging  ? 'vz-ml-lyric--drag' : '',
+      ].filter(Boolean).join(' ')}
       style={{ left: timeToPx(Math.max(0, startSec), pxPerSec), width: px }}
       title={`${cue.text} (${fmtSec(startSec)} → ${fmtSec(startSec + durSec)})`}
-      onClick={onSelect}
+      onPointerDown={e => { onSelect(); onDragStart(e) }}
     >
+      <div
+        className="vz-ml-clip-lhandle"
+        onPointerDown={e => { e.stopPropagation(); onResizeLeft(e) }}
+      />
       <span className="vz-ml-lyric-text">{cue.text || '…'}</span>
+      <div
+        className="vz-ml-clip-rhandle"
+        onPointerDown={e => { e.stopPropagation(); onResizeRight(e) }}
+      />
     </div>
   )
 }
@@ -362,7 +404,7 @@ function BgClipInspector({
   onMove: (id: string, dir: -1 | 1) => void
   onRemove: (id: string) => void
   onDuplicate: (id: string) => void
-  onUpdate: (id: string, patch: Partial<VzTimelineClip>) => void
+  onUpdate: (id: string, patch: Partial<Omit<VzTimelineMediaClip, 'id' | 'lane'>>) => void
   onSetMediaRole: (mediaId: string, role: MediaRole) => void
 }) {
   return (
@@ -377,8 +419,11 @@ function BgClipInspector({
         </select>
       </div>
       <div className="vz-ml-insp-row">
-        <span className="vz-ml-insp-lbl">Start</span>
-        <span className="vz-ml-insp-val">{fmtSec(clip.startSec)}</span>
+        <span className="vz-ml-insp-lbl">Start (s)</span>
+        <input type="number" className="vz-ml-insp-num" min={0} step={0.1}
+          value={parseFloat(clip.startSec.toFixed(2))}
+          onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= 0) onUpdate(clip.id, { startSec: v }) }}
+        />
         <span className="vz-ml-insp-lbl">Dur (s)</span>
         <input type="number" className="vz-ml-insp-num" min={MIN_CLIP_DUR} max={3600} step={0.25}
           value={clip.durationSec}
@@ -458,16 +503,36 @@ function BgClipInspector({
   )
 }
 
+const BLEND_MODES: { value: string; label: string }[] = [
+  { value: 'source-over', label: 'Normal' },
+  { value: 'screen',      label: 'Screen' },
+  { value: 'multiply',    label: 'Multiply' },
+  { value: 'overlay',     label: 'Overlay' },
+  { value: 'add',         label: 'Add' },
+  { value: 'lighten',     label: 'Lighten' },
+  { value: 'darken',      label: 'Darken' },
+  { value: 'hard-light',  label: 'Hard Light' },
+  { value: 'soft-light',  label: 'Soft Light' },
+  { value: 'difference',  label: 'Difference' },
+  { value: 'exclusion',   label: 'Exclusion' },
+]
+
 function OverlayClipInspector({
   clip, media, onUpdate, onRemove, onDuplicate, onSetMediaRole,
 }: {
   clip: VzTimelineMediaClip
   media: UploadedMedia | undefined
-  onUpdate: (id: string, patch: Partial<VzTimelineClip>) => void
+  onUpdate: (id: string, patch: Partial<Omit<VzTimelineMediaClip, 'id' | 'lane'>>) => void
   onRemove: (id: string) => void
   onDuplicate: (id: string) => void
   onSetMediaRole: (mediaId: string, role: MediaRole) => void
 }) {
+  const cfg: VzOverlayCompositingConfig = clip.compositingConfig ?? { ...DEFAULT_OVERLAY_COMPOSITING }
+
+  const patchCfg = (patch: Partial<VzOverlayCompositingConfig>) => {
+    onUpdate(clip.id, { compositingConfig: { ...cfg, ...patch } })
+  }
+
   return (
     <div className="vz-ml-insp-body">
       <div className="vz-ml-insp-row">
@@ -480,7 +545,7 @@ function OverlayClipInspector({
         </select>
       </div>
       <div className="vz-ml-insp-row">
-        <span className="vz-ml-insp-lbl">Start</span>
+        <span className="vz-ml-insp-lbl">Start (s)</span>
         <input type="number" className="vz-ml-insp-num" min={0} step={0.1}
           value={parseFloat(clip.startSec.toFixed(2))}
           onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= 0) onUpdate(clip.id, { startSec: v }) }}
@@ -500,18 +565,61 @@ function OverlayClipInspector({
           <option value="freeze">Freeze</option>
         </select>
         <span className="vz-ml-insp-lbl">Fit</span>
-        <select className="az-select vz-ml-insp-sel" value={clip.fitMode}
-          onChange={e => onUpdate(clip.id, { fitMode: e.target.value as VzTimelineClip['fitMode'] })}>
-          <option value="cover">Cover</option>
+        <select className="az-select vz-ml-insp-sel" value={cfg.fitMode}
+          onChange={e => patchCfg({ fitMode: e.target.value as VzOverlayCompositingConfig['fitMode'] })}>
           <option value="contain">Contain</option>
+          <option value="cover">Cover</option>
         </select>
       </div>
+
+      {/* ── Compositing ── */}
+      <div className="vz-ml-insp-section-label">COMPOSITING</div>
+      <div className="vz-ml-insp-row">
+        <span className="vz-ml-insp-lbl">X</span>
+        <input type="number" className="vz-ml-insp-num" min={0} max={1} step={0.05}
+          value={parseFloat(cfg.posX.toFixed(3))}
+          onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v)) patchCfg({ posX: Math.max(0, Math.min(1, v)) }) }}
+          title="Horizontal position (0=left, 0.5=center, 1=right)"
+        />
+        <span className="vz-ml-insp-lbl">Y</span>
+        <input type="number" className="vz-ml-insp-num" min={0} max={1} step={0.05}
+          value={parseFloat(cfg.posY.toFixed(3))}
+          onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v)) patchCfg({ posY: Math.max(0, Math.min(1, v)) }) }}
+          title="Vertical position (0=top, 0.5=center, 1=bottom)"
+        />
+      </div>
+      <div className="vz-ml-insp-row">
+        <span className="vz-ml-insp-lbl">Scale</span>
+        <input type="number" className="vz-ml-insp-num" min={0.01} max={8} step={0.05}
+          value={parseFloat(cfg.scale.toFixed(3))}
+          onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v > 0) patchCfg({ scale: v }) }}
+        />
+        <span className="vz-ml-insp-lbl">Rot °</span>
+        <input type="number" className="vz-ml-insp-num" min={-360} max={360} step={1}
+          value={Math.round(cfg.rotation)}
+          onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v)) patchCfg({ rotation: v }) }}
+        />
+      </div>
+      <div className="vz-ml-insp-row">
+        <span className="vz-ml-insp-lbl">Opacity</span>
+        <input type="range" min={0} max={1} step={0.01}
+          value={cfg.opacity}
+          onChange={e => patchCfg({ opacity: parseFloat(e.target.value) })}
+          style={{ flex: 1 }}
+        />
+        <span className="vz-ml-insp-val" style={{ minWidth: 28, textAlign: 'right' }}>{Math.round(cfg.opacity * 100)}%</span>
+      </div>
+      <div className="vz-ml-insp-row">
+        <span className="vz-ml-insp-lbl">Blend</span>
+        <select className="az-select vz-ml-insp-sel" value={cfg.blendMode}
+          onChange={e => patchCfg({ blendMode: e.target.value })}>
+          {BLEND_MODES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+        </select>
+      </div>
+
       <div className="vz-ml-insp-row vz-ml-insp-actions">
         <button className="vz-tl-clip-btn" onClick={() => onDuplicate(clip.id)} title="Duplicate">⧉</button>
         <button className="vz-tl-clip-btn vz-tl-clip-btn--remove" onClick={() => onRemove(clip.id)} title="Delete">✕</button>
-      </div>
-      <div className="vz-ml-insp-hint">
-        Compositing properties (opacity, blend mode, position) are managed in the Layers panel.
       </div>
     </div>
   )
@@ -570,22 +678,85 @@ function EffectInspector({
   )
 }
 
-function LyricCueInspector({ cue }: { cue: LyricCue }) {
-  const startSec = cue.startMs / 1000
-  const endSec   = cue.endMs   / 1000
+function LyricCueInspector({
+  cue, globalOffsetSec, onUpdateTiming, onSeek, isSaving, isDirty,
+}: {
+  cue: LyricCue
+  globalOffsetSec: number
+  onUpdateTiming: (id: string, patch: { startMs?: number; endMs?: number }) => void
+  onSeek: (sec: number) => void
+  isSaving: boolean
+  isDirty: boolean
+}) {
+  const [startVal, setStartVal] = useState(String(cue.startMs))
+  const [endVal,   setEndVal]   = useState(String(cue.endMs))
+
+  // Keep inputs in sync when store updates (e.g. drag ends)
+  useEffect(() => { setStartVal(String(cue.startMs)) }, [cue.startMs])
+  useEffect(() => { setEndVal(String(cue.endMs)) },     [cue.endMs])
+
+  const applyStart = () => {
+    const v = parseFloat(startVal)
+    if (isFinite(v) && v >= 0) onUpdateTiming(cue.id, { startMs: Math.round(v) })
+    else setStartVal(String(cue.startMs))
+  }
+  const applyEnd = () => {
+    const v = parseFloat(endVal)
+    if (isFinite(v) && v > cue.startMs) onUpdateTiming(cue.id, { endMs: Math.round(v) })
+    else setEndVal(String(cue.endMs))
+  }
+
+  const durMs  = cue.endMs - cue.startMs
+  const dispStart = fmtSec(cue.startMs / 1000 + globalOffsetSec)
+  const dispEnd   = fmtSec(cue.endMs   / 1000 + globalOffsetSec)
+
   return (
     <div className="vz-ml-insp-body">
       <div className="vz-ml-insp-row">
         <span className="vz-ml-insp-lbl">Text</span>
-        <span className="vz-ml-insp-val">{cue.text}</span>
+        <span className="vz-ml-insp-val" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cue.text}</span>
       </div>
       <div className="vz-ml-insp-row">
-        <span className="vz-ml-insp-lbl">Start</span>
-        <span className="vz-ml-insp-val">{fmtSec(startSec)}</span>
-        <span className="vz-ml-insp-lbl">End</span>
-        <span className="vz-ml-insp-val">{fmtSec(endSec)}</span>
+        <span className="vz-ml-insp-lbl">Start ms</span>
+        <input type="number" className="vz-ml-insp-num" min={0} step={10}
+          value={startVal}
+          onChange={e => setStartVal(e.target.value)}
+          onBlur={applyStart}
+          onKeyDown={e => e.key === 'Enter' && applyStart()}
+        />
+        <span className="vz-ml-insp-lbl">End ms</span>
+        <input type="number" className="vz-ml-insp-num" min={0} step={10}
+          value={endVal}
+          onChange={e => setEndVal(e.target.value)}
+          onBlur={applyEnd}
+          onKeyDown={e => e.key === 'Enter' && applyEnd()}
+        />
       </div>
-      <div className="vz-ml-insp-hint">Lyric timing is read-only here. Edit cues in the Lyric Manager.</div>
+      <div className="vz-ml-insp-row">
+        <span className="vz-ml-insp-lbl">Timeline</span>
+        <span className="vz-ml-insp-val">{dispStart} → {dispEnd}</span>
+        <span className="vz-ml-insp-lbl">Dur</span>
+        <span className="vz-ml-insp-val">{fmtSec(durMs / 1000)}</span>
+      </div>
+      <div className="vz-ml-insp-row vz-ml-insp-actions">
+        <button className="vz-tl-clip-btn"
+          title="Seek to cue start"
+          onClick={() => onSeek(cue.startMs / 1000 + globalOffsetSec)}>
+          ⏮ Seek
+        </button>
+        {isDirty && !isSaving && (
+          <span className="vz-ml-insp-hint" style={{ color: 'var(--az-accent)', margin: 0 }}>Unsaved</span>
+        )}
+        {isSaving && (
+          <span className="vz-ml-insp-hint" style={{ margin: 0 }}>Saving…</span>
+        )}
+      </div>
+      {globalOffsetSec !== 0 && (
+        <div className="vz-ml-insp-hint">
+          Global offset {globalOffsetSec > 0 ? '+' : ''}{fmtSec(globalOffsetSec)} applied to display.
+          Raw cue: {fmtSec(cue.startMs / 1000)} → {fmtSec(cue.endMs / 1000)}
+        </div>
+      )}
     </div>
   )
 }
@@ -596,6 +767,7 @@ function TimelineInspector({
   selected, bgClips, overlayClips, effectRegions, lyricCues, mediaMap,
   onUpdateClip, onRemoveBg, onRemoveOverlay, onDuplicateBg, onDuplicateOverlay,
   onMoveClip, onUpdateEffect, onRemoveEffect, onSetMediaRole,
+  onUpdateLyricTiming, onSeekToLyric, lyricTimingDirty, lyricSaving, globalOffsetSec,
 }: {
   selected: SelectedEntity
   bgClips: VzTimelineMediaClip[]
@@ -603,7 +775,7 @@ function TimelineInspector({
   effectRegions: VzTimelineEffectRegion[]
   lyricCues: LyricCue[]
   mediaMap: Map<string, UploadedMedia>
-  onUpdateClip: (id: string, patch: Partial<VzTimelineClip>) => void
+  onUpdateClip: (id: string, patch: Partial<Omit<VzTimelineMediaClip, 'id' | 'lane'>>) => void
   onRemoveBg: (id: string) => void
   onRemoveOverlay: (id: string) => void
   onDuplicateBg: (id: string) => void
@@ -612,6 +784,11 @@ function TimelineInspector({
   onUpdateEffect: (id: string, patch: Partial<Omit<VzTimelineEffectRegion, 'id'>>) => void
   onRemoveEffect: (id: string) => void
   onSetMediaRole: (mediaId: string, role: MediaRole) => void
+  onUpdateLyricTiming: (id: string, patch: { startMs?: number; endMs?: number }) => void
+  onSeekToLyric: (sec: number) => void
+  lyricTimingDirty: boolean
+  lyricSaving: boolean
+  globalOffsetSec: number
 }) {
   if (!selected) {
     return (
@@ -670,7 +847,16 @@ function TimelineInspector({
     const cue = lyricCues.find(c => c.id === selected.id)
     headLabel = 'LYRIC'
     headName  = cue?.text ?? ''
-    if (cue) content = <LyricCueInspector cue={cue} />
+    if (cue) content = (
+      <LyricCueInspector
+        cue={cue}
+        globalOffsetSec={globalOffsetSec}
+        onUpdateTiming={onUpdateLyricTiming}
+        onSeek={onSeekToLyric}
+        isSaving={lyricSaving}
+        isDirty={lyricTimingDirty}
+      />
+    )
   }
 
   return (
@@ -731,7 +917,22 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
   })))
 
   const { items: mediaItems, setMediaRole } = useMediaStore(useShallow(s => ({ items: s.items, setMediaRole: s.setMediaRole })))
-  const { cues: lyricCues, globalOffsetMs } = useLyricsStore(useShallow(s => ({ cues: s.cues, globalOffsetMs: s.globalOffsetMs })))
+  const {
+    cues: lyricCues, globalOffsetMs,
+    selectedCueId: storeSelectedCueId,
+    selectCue, updateCueTiming, setCueBounds, saveTimingChanges,
+    lyricTimingDirty, isSaving: lyricSaving,
+  } = useLyricsStore(useShallow(s => ({
+    cues:              s.cues,
+    globalOffsetMs:    s.globalOffsetMs,
+    selectedCueId:     s.selectedCueId,
+    selectCue:         s.selectCue,
+    updateCueTiming:   s.updateCueTiming,
+    setCueBounds:      s.setCueBounds,
+    saveTimingChanges: s.saveTimingChanges,
+    lyricTimingDirty:  s.lyricTimingDirty,
+    isSaving:          s.isSaving,
+  })))
   const engine = useSharedAudio()
 
   // ── Waveform peaks (cached by URL) ─────────────────────────────────────
@@ -746,7 +947,7 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
   const [zoom, setZoom] = useState(1)
   const pxPerSec = BASE_PX_PER_SEC * zoom
 
-  // ── Duration (audio-driven, extended by visual content) ────────────────
+  // ── Duration (audio-driven, extended by visual content and lyrics) ───────
   const bgDuration   = getTimelineDuration(timelineClips)
   const visualDur    = getTimelineProjectDuration({
     bgClips: timelineClips,
@@ -754,7 +955,10 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
     effectRegions: timelineEffectRegions,
   })
   const audioDur     = engine.duration > 0 ? engine.duration : 0
-  const totalDuration = Math.max(audioDur, visualDur, 10)
+  const lyricEndSec  = lyricCues.length > 0
+    ? Math.max(...lyricCues.map(c => c.endMs / 1000 + globalOffsetSec))
+    : 0
+  const totalDuration = Math.max(audioDur, visualDur, lyricEndSec, 10)
   const contentWidth  = Math.max(600, timeToPx(totalDuration, pxPerSec) + 120)
 
   // ── Selection ──────────────────────────────────────────────────────────
@@ -768,6 +972,16 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
     if (selected.kind === 'effect'  && !timelineEffectRegions.find(r => r.id === selected.id)) setSelected(null)
     if (selected.kind === 'lyric'   && !lyricCues.find(c => c.id === selected.id)) setSelected(null)
   }, [selected, timelineClips, timelineOverlayClips, timelineEffectRegions, lyricCues])
+
+  // Sync Lyric Manager selection → Timeline selection
+  useEffect(() => {
+    if (!storeSelectedCueId) return
+    setSelected(prev =>
+      prev?.kind === 'lyric' && prev.id === storeSelectedCueId
+        ? prev
+        : { kind: 'lyric', id: storeSelectedCueId }
+    )
+  }, [storeSelectedCueId])
 
   // ── Keyboard delete ────────────────────────────────────────────────────
   useEffect(() => {
@@ -830,19 +1044,13 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
     if (!drag || !live) return
 
     if (drag.lane === 'bg') {
-      if (drag.kind === 'resize-right') {
+      if (drag.kind === 'move') {
+        setMediaClipStart(drag.clipId, live.startSec)
+      } else if (drag.kind === 'resize-right') {
         setMediaClipDuration(drag.clipId, live.durationSec)
-      } else if (drag.kind === 'move') {
-        // Reorder by where the dragged clip's new start falls relative to other clips
-        const others = timelineClips.filter(c => c.id !== drag.clipId)
-        let insertIdx = others.findIndex(c => c.startSec > live.startSec)
-        if (insertIdx === -1) insertIdx = others.length
-        const newOrder = [
-          ...others.slice(0, insertIdx).map(c => c.id),
-          drag.clipId,
-          ...others.slice(insertIdx).map(c => c.id),
-        ]
-        reorderTimelineClips(newOrder)
+      } else if (drag.kind === 'resize-left') {
+        setMediaClipStart(drag.clipId, live.startSec)
+        setMediaClipDuration(drag.clipId, live.durationSec)
       }
     } else if (drag.lane === 'overlay') {
       if (drag.kind === 'move') {
@@ -856,7 +1064,51 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
     } else if (drag.lane === 'effect') {
       updateEffectRegion(drag.clipId, { startSec: live.startSec, durationSec: live.durationSec })
     }
-  }, [liveDrag, timelineClips, setMediaClipStart, setMediaClipDuration, reorderTimelineClips, updateEffectRegion])
+  }, [liveDrag, setMediaClipStart, setMediaClipDuration, updateEffectRegion])
+
+  // ── Lyric drag ─────────────────────────────────────────────────────────
+  const lyricDragRef = useRef<LyricDragData | null>(null)
+  const [liveLyricDrag, setLiveLyricDrag] = useState<LiveLyricDrag | null>(null)
+
+  const startLyricDrag = useCallback((
+    e: React.PointerEvent,
+    kind: DragKind,
+    cueId: string,
+    origStartMs: number,
+    origEndMs: number,
+  ) => {
+    e.currentTarget.setPointerCapture(e.pointerId)
+    e.stopPropagation()
+    lyricDragRef.current = { kind, cueId, startClientX: e.clientX, origStartMs, origEndMs }
+    setLiveLyricDrag({ id: cueId, startMs: origStartMs, endMs: origEndMs })
+  }, [])
+
+  const handleLyricDragMove = useCallback((e: React.PointerEvent) => {
+    const drag = lyricDragRef.current
+    if (!drag || !(e.buttons & 1)) return
+    const deltaMs = ((e.clientX - drag.startClientX) / pxPerSec) * 1000
+
+    if (drag.kind === 'move') {
+      const dur = drag.origEndMs - drag.origStartMs
+      const newStart = Math.max(0, drag.origStartMs + deltaMs)
+      setLiveLyricDrag({ id: drag.cueId, startMs: newStart, endMs: newStart + dur })
+    } else if (drag.kind === 'resize-right') {
+      const newEnd = Math.max(drag.origStartMs + MIN_LYRIC_DUR_MS, drag.origEndMs + deltaMs)
+      setLiveLyricDrag({ id: drag.cueId, startMs: drag.origStartMs, endMs: newEnd })
+    } else if (drag.kind === 'resize-left') {
+      const newStart = Math.max(0, Math.min(drag.origEndMs - MIN_LYRIC_DUR_MS, drag.origStartMs + deltaMs))
+      setLiveLyricDrag({ id: drag.cueId, startMs: newStart, endMs: drag.origEndMs })
+    }
+  }, [pxPerSec])
+
+  const handleLyricDragUp = useCallback(() => {
+    const drag = lyricDragRef.current
+    const live = liveLyricDrag
+    lyricDragRef.current = null
+    setLiveLyricDrag(null)
+    if (!drag || !live) return
+    setCueBounds(drag.cueId, live.startMs, live.endMs)
+  }, [liveLyricDrag, setCueBounds])
 
   // ── Scrub ──────────────────────────────────────────────────────────────
   const handleScrub = useCallback((t: number) => {
@@ -925,9 +1177,9 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
   return (
     <div
       className="vz-ml-tl"
-      onPointerMove={handleDragMove}
-      onPointerUp={handleDragUp}
-      onPointerCancel={handleDragUp}
+      onPointerMove={e => { handleDragMove(e); handleLyricDragMove(e) }}
+      onPointerUp={() => { handleDragUp(); handleLyricDragUp() }}
+      onPointerCancel={() => { handleDragUp(); handleLyricDragUp() }}
     >
       {/* ── Toolbar ──────────────────────────────────────────────────── */}
       <div className="vz-ml-toolbar">
@@ -1048,7 +1300,7 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
                   liveDrag={liveDrag}
                   onSelect={() => setSelected({ kind: 'bg', id: clip.id })}
                   onDragStart={e => startDrag(e, 'move', clip.id, 'bg', clip.startSec, clip.durationSec)}
-                  onResizeLeft={() => {}} // bg clips don't support left resize (sequential)
+                  onResizeLeft={e => startDrag(e, 'resize-left', clip.id, 'bg', clip.startSec, clip.durationSec)}
                   onResizeRight={e => startDrag(e, 'resize-right', clip.id, 'bg', clip.startSec, clip.durationSec)}
                   onDelete={() => { removeTimelineClip(clip.id); if (selected?.id === clip.id) setSelected(null) }}
                 />
@@ -1101,7 +1353,11 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
                   pxPerSec={pxPerSec}
                   isSelected={selected?.kind === 'lyric' && selected.id === cue.id}
                   globalOffsetSec={globalOffsetSec}
-                  onSelect={() => setSelected({ kind: 'lyric', id: cue.id })}
+                  liveLyricDrag={liveLyricDrag}
+                  onSelect={() => { setSelected({ kind: 'lyric', id: cue.id }); selectCue(cue.id) }}
+                  onDragStart={e => startLyricDrag(e, 'move', cue.id, cue.startMs, cue.endMs)}
+                  onResizeLeft={e => startLyricDrag(e, 'resize-left', cue.id, cue.startMs, cue.endMs)}
+                  onResizeRight={e => startLyricDrag(e, 'resize-right', cue.id, cue.startMs, cue.endMs)}
                 />
               ))}
             </div>
@@ -1143,7 +1399,7 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
         effectRegions={timelineEffectRegions}
         lyricCues={lyricCues}
         mediaMap={mediaMap}
-        onUpdateClip={updateTimelineClip}
+        onUpdateClip={updateMediaClip}
         onRemoveBg={id => { removeTimelineClip(id); setSelected(null) }}
         onRemoveOverlay={id => { removeMediaClip(id); setSelected(null) }}
         onDuplicateBg={duplicateTimelineClip}
@@ -1152,6 +1408,11 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
         onUpdateEffect={updateEffectRegion}
         onRemoveEffect={id => { removeEffectRegion(id); setSelected(null) }}
         onSetMediaRole={setMediaRole}
+        onUpdateLyricTiming={updateCueTiming}
+        onSeekToLyric={handleScrub}
+        lyricTimingDirty={lyricTimingDirty}
+        lyricSaving={lyricSaving}
+        globalOffsetSec={globalOffsetSec}
       />
     </div>
   )

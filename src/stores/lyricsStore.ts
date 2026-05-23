@@ -9,6 +9,8 @@ import {
   updateLyricDocument,
   replaceLyricCuesForDocument,
 } from '../lib/lyricsDb'
+
+const MIN_CUE_DURATION_MS = 100
 import type {
   LyricDocument,
   LyricCue,
@@ -43,6 +45,11 @@ interface LyricsState {
   draftRawSourceText:  string | null
   draftMetadata:       Record<string, unknown> | null
 
+  /** ID of the cue currently selected in the Timeline (shared with Lyric Manager). */
+  selectedCueId:       string | null
+  /** True when cue timing has been edited locally but not yet persisted. */
+  lyricTimingDirty:    boolean
+
   // Sync setters
   setLyricsEnabled(enabled: boolean): void
   setActiveDocument(document: LyricDocument | null, cues?: LyricCue[]): void
@@ -62,12 +69,33 @@ interface LyricsState {
   setError(error: string | null): void
   clearLyrics(): void
 
+  // ── Timeline timing editing ──────────────────────────────────────────────
+  /** Select a cue by ID (shared selection between Timeline and Lyric Manager). */
+  selectCue(cueId: string | null): void
+  /**
+   * Update start and/or end time of a single cue.
+   * Enforces MIN_CUE_DURATION_MS. Marks lyricTimingDirty.
+   * Canvas preview updates immediately (cues array is the live source of truth).
+   */
+  updateCueTiming(cueId: string, patch: { startMs?: number; endMs?: number }): void
+  /**
+   * Shift the entire cue by deltaMs, preserving duration.
+   * Does not allow start to go below 0 after global offset.
+   */
+  moveCue(cueId: string, deltaMs: number): void
+  /**
+   * Set both bounds of a cue. Enforces minimum duration.
+   */
+  setCueBounds(cueId: string, startMs: number, endMs: number): void
+
   // Async actions
   loadLyricDocument(documentId: string): Promise<void>
   loadLyricsForAudioTrack(audioTrackId: string): Promise<void>
   loadLyricsForVisualSession(visualSessionId: string): Promise<void>
   saveActiveLyricDocument(): Promise<void>
   replaceActiveCues(inputs: CreateLyricCueInput[]): Promise<void>
+  /** Persist current cue timing to the active lyric document. No-op when no document. */
+  saveTimingChanges(): Promise<void>
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -93,6 +121,9 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
   draftRawSourceText:  null,
   draftMetadata:       null,
 
+  selectedCueId:       null,
+  lyricTimingDirty:    false,
+
   // ── Sync setters ────────────────────────────────────────────────────────────
 
   setLyricsEnabled: (enabled) => set({ lyricsEnabled: enabled }),
@@ -113,6 +144,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       draftRawSourceText:    null,
       draftMetadata:         null,
       error:                 null,
+      lyricTimingDirty:      false,
     })
   },
 
@@ -156,7 +188,52 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       draftRawSourceText:    null,
       draftMetadata:         null,
       error:                 null,
+      selectedCueId:         null,
+      lyricTimingDirty:      false,
     }),
+
+  // ── Timeline timing editing ────────────────────────────────────────────────
+
+  selectCue: (cueId) => set({ selectedCueId: cueId }),
+
+  updateCueTiming: (cueId, patch) => {
+    set(s => {
+      const idx = s.cues.findIndex(c => c.id === cueId)
+      if (idx === -1) return {}
+      const cue = s.cues[idx]
+      const newStart = patch.startMs !== undefined ? Math.max(0, patch.startMs) : cue.startMs
+      const newEnd   = patch.endMs   !== undefined ? patch.endMs : cue.endMs
+      const safeEnd  = Math.max(newStart + MIN_CUE_DURATION_MS, newEnd)
+      const next = [...s.cues]
+      next[idx] = { ...cue, startMs: newStart, endMs: safeEnd }
+      return { cues: next, lyricTimingDirty: true }
+    })
+  },
+
+  moveCue: (cueId, deltaMs) => {
+    set(s => {
+      const idx = s.cues.findIndex(c => c.id === cueId)
+      if (idx === -1) return {}
+      const cue = s.cues[idx]
+      const dur = cue.endMs - cue.startMs
+      const newStart = Math.max(0, cue.startMs + deltaMs)
+      const next = [...s.cues]
+      next[idx] = { ...cue, startMs: newStart, endMs: newStart + dur }
+      return { cues: next, lyricTimingDirty: true }
+    })
+  },
+
+  setCueBounds: (cueId, startMs, endMs) => {
+    const safeStart = Math.max(0, startMs)
+    const safeEnd   = Math.max(safeStart + MIN_CUE_DURATION_MS, endMs)
+    set(s => {
+      const idx = s.cues.findIndex(c => c.id === cueId)
+      if (idx === -1) return {}
+      const next = [...s.cues]
+      next[idx] = { ...s.cues[idx], startMs: safeStart, endMs: safeEnd }
+      return { cues: next, lyricTimingDirty: true }
+    })
+  },
 
   // ── Async actions ────────────────────────────────────────────────────────────
 
@@ -270,6 +347,37 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       set({ cues })
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to replace lyric cues' })
+    } finally {
+      set({ isSaving: false })
+    }
+  },
+
+  saveTimingChanges: async () => {
+    const s = get()
+    if (!s.activeDocumentId) {
+      // No document — timing changes are local-only for this session.
+      return
+    }
+    if (!supabaseConfigured) return
+    if (!s.lyricTimingDirty) return
+    set({ isSaving: true, error: null })
+    try {
+      const inputs: CreateLyricCueInput[] = s.cues.map((c, i) => ({
+        lyricDocumentId: s.activeDocumentId!,
+        startMs:   c.startMs,
+        endMs:     c.endMs,
+        text:      c.text,
+        style:     c.style,
+        animation: c.animation,
+        effects:   c.effects,
+        words:     c.words,
+        groups:    c.groups,
+        sortOrder: i,
+      }))
+      const saved = await replaceLyricCuesForDocument(s.activeDocumentId, inputs)
+      set({ cues: saved, lyricTimingDirty: false })
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Failed to save lyric timing' })
     } finally {
       set({ isSaving: false })
     }

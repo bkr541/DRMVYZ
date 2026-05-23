@@ -24,7 +24,7 @@ import type { MediaItemRow, MediaMetadata } from '../types/database'
 import { suggestMediaRole } from '../lib/mediaRoles'
 import type { MediaRole, MediaEnergy } from '../lib/mediaRoles'
 import { useVisualStore } from './visualStore'
-import { generateThumbnail } from '../components/vyzualz/media/generateThumbnail'
+import { generateThumbnail, clearFilmstripCache } from '../components/vyzualz/media/generateThumbnail'
 
 export type { MediaRole, MediaEnergy }
 export type { MediaMetadata }
@@ -687,6 +687,11 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     if (item.url.startsWith('blob:'))                         URL.revokeObjectURL(item.url)
     if (item.thumbnailUrl?.startsWith('blob:'))               URL.revokeObjectURL(item.thumbnailUrl)
     if (item.localThumbnailObjectUrl?.startsWith('blob:'))    URL.revokeObjectURL(item.localThumbnailObjectUrl)
+    // Release cached filmstrip frames so stale frames don't accumulate in memory
+    if (item.type === 'video') {
+      clearFilmstripCache(item.url)
+      if (item.localThumbnailObjectUrl) clearFilmstripCache(item.localThumbnailObjectUrl)
+    }
     const visual = useVisualStore.getState()
     if (visual.activeMediaId === id) visual.setActiveMedia(remaining[0]?.id ?? null)
 

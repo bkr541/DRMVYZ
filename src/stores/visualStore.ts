@@ -15,6 +15,7 @@ import {
   recalculateTimelineStarts,
   migrateClip,
   migrateLegacyClips,
+  appendBgClip,
   DEFAULT_CLIP_DURATION_SEC,
 } from '../lib/timeline'
 import type {
@@ -379,12 +380,11 @@ interface VisualState {
   // ── Lane-aware media clip actions ─────────────────────────────────────────
   // Use these for new features that need to specify a lane explicitly.
   addMediaClip(lane: VzTimelineMediaLaneId, mediaId: string, durationSec?: number): void
-  updateMediaClip(clipId: string, patch: Partial<VzTimelineClip>): void
+  updateMediaClip(clipId: string, patch: Partial<Omit<VzTimelineMediaClip, 'id' | 'lane'>>): void
   removeMediaClip(clipId: string): void
   duplicateMediaClip(clipId: string): void
   moveMediaClipToLane(clipId: string, targetLane: VzTimelineMediaLaneId): void
-  /** Sets the absolute start time. For bg clips this is overridden by sequential
-   *  repacking; meaningful primarily for overlay clips. */
+  /** Sets the absolute start time for a clip in any lane. Bg clips are re-sorted by startSec after update. */
   setMediaClipStart(clipId: string, startSec: number): void
   setMediaClipDuration(clipId: string, durationSec: number): void
   clearMediaLane(lane: VzTimelineMediaLaneId): void
@@ -462,6 +462,15 @@ function _genId(prefix: string): string {
   return (typeof crypto !== 'undefined' && crypto.randomUUID)
     ? crypto.randomUUID()
     : `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+}
+
+/**
+ * Sorts bg clips by startSec ascending.
+ * Used after any mutation that changes a clip's absolute start position.
+ * Does NOT recalculate starts — preserves all existing startSec values.
+ */
+function sortBgClips<T extends VzTimelineClip>(clips: T[]): T[] {
+  return [...clips].sort((a, b) => a.startSec - b.startSec)
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -791,55 +800,56 @@ export const useVisualStore = create<VisualState>()(
       // without modification during Phase 1A.
 
       addTimelineClip(mediaId, durationSec = DEFAULT_CLIP_DURATION_SEC) {
-        const clip: VzTimelineMediaClip = {
+        const clipProps: Omit<VzTimelineMediaClip, 'startSec'> = {
           id:           _genId('clip'),
           mediaId,
-          startSec:     0,
           durationSec,
           mediaInSec:   0,
           fitMode:      'cover',
           playbackMode: 'trim',
           lane:         'video-background',
         }
-        set(s => ({
-          timelineClips: recalculateTimelineStarts([...s.timelineClips, clip]),
-        }))
+        // appendBgClip places clip after the last existing clip (transition-aware).
+        // Does NOT recalculate any prior clip starts.
+        set(s => ({ timelineClips: appendBgClip(s.timelineClips, clipProps) }))
       },
 
       removeTimelineClip(clipId) {
+        // Absolute positions — no recalculation needed after removal.
         set(s => ({
-          timelineClips: recalculateTimelineStarts(
-            s.timelineClips.filter(c => c.id !== clipId)
-          ),
+          timelineClips: s.timelineClips.filter(c => c.id !== clipId),
         }))
       },
 
       duplicateTimelineClip(clipId) {
         set(s => {
-          const idx = s.timelineClips.findIndex(c => c.id === clipId)
-          if (idx === -1) return {}
-          const original = s.timelineClips[idx]
-          const copy: VzTimelineMediaClip = { ...original, id: _genId('clip'), startSec: 0 }
-          const next = [
-            ...s.timelineClips.slice(0, idx + 1),
-            copy,
-            ...s.timelineClips.slice(idx + 1),
-          ]
-          return { timelineClips: recalculateTimelineStarts(next) }
+          const original = s.timelineClips.find(c => c.id === clipId)
+          if (!original) return {}
+          // Place copy immediately after original
+          const copy: VzTimelineMediaClip = {
+            ...original,
+            id: _genId('clip'),
+            startSec: original.startSec + original.durationSec,
+          }
+          return { timelineClips: sortBgClips([...s.timelineClips, copy]) }
         })
       },
 
       reorderTimelineClips(clipIds) {
+        // Explicit reorder: honour the provided ID sequence, then sort by startSec.
+        // Kept for backward compatibility with any callers; no longer triggers
+        // recalculateTimelineStarts so existing absolute positions are preserved.
         set(s => {
           const map = new Map(s.timelineClips.map(c => [c.id, c]))
           const reordered = clipIds.map(id => map.get(id)).filter(Boolean) as VzTimelineMediaClip[]
-          return { timelineClips: recalculateTimelineStarts(reordered) }
+          return { timelineClips: sortBgClips(reordered) }
         })
       },
 
       updateTimelineClip(clipId, patch) {
+        // Absolute positioning — sort by startSec if start changed; no recalc.
         set(s => ({
-          timelineClips: recalculateTimelineStarts(
+          timelineClips: sortBgClips(
             s.timelineClips.map(c => c.id === clipId ? { ...c, ...patch } : c)
           ),
         }))
@@ -853,33 +863,31 @@ export const useVisualStore = create<VisualState>()(
       // ── Lane-aware media clip actions ────────────────────────────────────────
 
       addMediaClip(lane, mediaId, durationSec = DEFAULT_CLIP_DURATION_SEC) {
-        const clip: VzTimelineMediaClip = {
+        const clipProps: Omit<VzTimelineMediaClip, 'startSec'> = {
           id:           _genId('clip'),
           mediaId,
-          startSec:     0,
           durationSec,
           mediaInSec:   0,
-          fitMode:      'cover',
+          fitMode:      lane === 'overlays' ? 'contain' : 'cover',
           playbackMode: 'trim',
           lane,
         }
         if (lane === 'video-background') {
-          // Background clips are always sequentially packed.
-          set(s => ({
-            timelineClips: recalculateTimelineStarts([...s.timelineClips, clip]),
-          }))
+          // appendBgClip places after the last bg clip (transition-aware). No recalc.
+          set(s => ({ timelineClips: appendBgClip(s.timelineClips, clipProps) }))
         } else {
-          // Overlay clips: place at the end of the background sequence by default,
-          // but keep their absolute position (no sequential repacking).
+          // Overlay clips: default start = end of last bg clip; absolute position.
           set(s => {
-            const defaultStart = s.timelineClips.length > 0
-              ? s.timelineClips[s.timelineClips.length - 1].startSec +
-                s.timelineClips[s.timelineClips.length - 1].durationSec
-              : 0
+            const lastBg = s.timelineClips.length > 0
+              ? s.timelineClips.reduce((max, c) =>
+                  c.startSec + c.durationSec > max.startSec + max.durationSec ? c : max,
+                  s.timelineClips[0])
+              : null
+            const defaultStart = lastBg ? lastBg.startSec + lastBg.durationSec : 0
             return {
               timelineOverlayClips: [
                 ...s.timelineOverlayClips,
-                { ...clip, startSec: defaultStart },
+                { ...clipProps, startSec: defaultStart },
               ],
             }
           })
@@ -888,15 +896,15 @@ export const useVisualStore = create<VisualState>()(
 
       updateMediaClip(clipId, patch) {
         set(s => {
-          // Search background lane first.
+          // Background lane — sort by startSec after update; no recalc.
           if (s.timelineClips.some(c => c.id === clipId)) {
             return {
-              timelineClips: recalculateTimelineStarts(
+              timelineClips: sortBgClips(
                 s.timelineClips.map(c => c.id === clipId ? { ...c, ...patch } : c)
               ),
             }
           }
-          // Search overlay lane.
+          // Overlay lane — absolute; no sort needed (overlays are unordered).
           if (s.timelineOverlayClips.some(c => c.id === clipId)) {
             return {
               timelineOverlayClips: s.timelineOverlayClips.map(c =>
@@ -909,18 +917,13 @@ export const useVisualStore = create<VisualState>()(
       },
 
       removeMediaClip(clipId) {
+        // Absolute positions — no recalculation on removal.
         set(s => {
           if (s.timelineClips.some(c => c.id === clipId)) {
-            return {
-              timelineClips: recalculateTimelineStarts(
-                s.timelineClips.filter(c => c.id !== clipId)
-              ),
-            }
+            return { timelineClips: s.timelineClips.filter(c => c.id !== clipId) }
           }
           if (s.timelineOverlayClips.some(c => c.id === clipId)) {
-            return {
-              timelineOverlayClips: s.timelineOverlayClips.filter(c => c.id !== clipId),
-            }
+            return { timelineOverlayClips: s.timelineOverlayClips.filter(c => c.id !== clipId) }
           }
           return {}
         })
@@ -928,28 +931,23 @@ export const useVisualStore = create<VisualState>()(
 
       duplicateMediaClip(clipId) {
         set(s => {
-          const bgIdx = s.timelineClips.findIndex(c => c.id === clipId)
-          if (bgIdx !== -1) {
-            const original = s.timelineClips[bgIdx]
-            const copy: VzTimelineMediaClip = { ...original, id: _genId('clip'), startSec: 0 }
-            const next = [
-              ...s.timelineClips.slice(0, bgIdx + 1),
-              copy,
-              ...s.timelineClips.slice(bgIdx + 1),
-            ]
-            return { timelineClips: recalculateTimelineStarts(next) }
-          }
-          const olIdx = s.timelineOverlayClips.findIndex(c => c.id === clipId)
-          if (olIdx !== -1) {
-            const original = s.timelineOverlayClips[olIdx]
-            const copy: VzTimelineMediaClip = { ...original, id: _genId('clip') }
-            return {
-              timelineOverlayClips: [
-                ...s.timelineOverlayClips.slice(0, olIdx + 1),
-                copy,
-                ...s.timelineOverlayClips.slice(olIdx + 1),
-              ],
+          const bgClip = s.timelineClips.find(c => c.id === clipId)
+          if (bgClip) {
+            const copy: VzTimelineMediaClip = {
+              ...bgClip,
+              id: _genId('clip'),
+              startSec: bgClip.startSec + bgClip.durationSec,
             }
+            return { timelineClips: sortBgClips([...s.timelineClips, copy]) }
+          }
+          const olClip = s.timelineOverlayClips.find(c => c.id === clipId)
+          if (olClip) {
+            const copy: VzTimelineMediaClip = {
+              ...olClip,
+              id: _genId('clip'),
+              startSec: olClip.startSec + olClip.durationSec,
+            }
+            return { timelineOverlayClips: [...s.timelineOverlayClips, copy] }
           }
           return {}
         })
@@ -965,24 +963,21 @@ export const useVisualStore = create<VisualState>()(
           const moved = { ...clip, lane: targetLane }
 
           if (targetLane === 'video-background') {
-            // Moving overlay → background: append to bg sequence.
+            // Moving overlay → bg: use appendBgClip for correct placement.
             return {
-              timelineClips: recalculateTimelineStarts([
-                ...s.timelineClips,
-                { ...moved, startSec: 0 },
-              ]),
+              timelineClips: appendBgClip(
+                s.timelineClips,
+                { ...moved, startSec: undefined } as unknown as Omit<VzTimelineMediaClip, 'startSec'>,
+              ),
               timelineOverlayClips: s.timelineOverlayClips.filter(c => c.id !== clipId),
             }
           } else {
-            // Moving background → overlay: remove from bg sequence, add to overlays.
-            const bgEnd = s.timelineClips.length > 0
-              ? s.timelineClips[s.timelineClips.length - 1].startSec +
-                s.timelineClips[s.timelineClips.length - 1].durationSec
-              : 0
+            // Moving bg → overlay: remove from bg (no recalc), place at bg end.
+            const bgEnd = s.timelineClips.reduce(
+              (max, c) => Math.max(max, c.startSec + c.durationSec), 0
+            )
             return {
-              timelineClips: recalculateTimelineStarts(
-                s.timelineClips.filter(c => c.id !== clipId)
-              ),
+              timelineClips: s.timelineClips.filter(c => c.id !== clipId),
               timelineOverlayClips: [
                 ...s.timelineOverlayClips,
                 { ...moved, startSec: bgEnd },
@@ -993,25 +988,36 @@ export const useVisualStore = create<VisualState>()(
       },
 
       setMediaClipStart(clipId, startSec) {
-        // Meaningful only for overlay clips. Background clips' startSec is
-        // always managed by sequential repacking.
+        // Now works for BOTH bg and overlay clips.
+        // For bg clips, array is re-sorted by startSec after update.
+        const s_start = Math.max(0, startSec)
         set(s => {
-          if (!s.timelineOverlayClips.some(c => c.id === clipId)) return {}
-          return {
-            timelineOverlayClips: s.timelineOverlayClips.map(c =>
-              c.id === clipId ? { ...c, startSec: Math.max(0, startSec) } : c
-            ),
+          if (s.timelineClips.some(c => c.id === clipId)) {
+            return {
+              timelineClips: sortBgClips(
+                s.timelineClips.map(c => c.id === clipId ? { ...c, startSec: s_start } : c)
+              ),
+            }
           }
+          if (s.timelineOverlayClips.some(c => c.id === clipId)) {
+            return {
+              timelineOverlayClips: s.timelineOverlayClips.map(c =>
+                c.id === clipId ? { ...c, startSec: s_start } : c
+              ),
+            }
+          }
+          return {}
         })
       },
 
       setMediaClipDuration(clipId, durationSec) {
         const dur = Math.max(0.25, durationSec)
         set(s => {
+          // Background lane — update duration only; no recalculation.
           if (s.timelineClips.some(c => c.id === clipId)) {
             return {
-              timelineClips: recalculateTimelineStarts(
-                s.timelineClips.map(c => c.id === clipId ? { ...c, durationSec: dur } : c)
+              timelineClips: s.timelineClips.map(c =>
+                c.id === clipId ? { ...c, durationSec: dur } : c
               ),
             }
           }

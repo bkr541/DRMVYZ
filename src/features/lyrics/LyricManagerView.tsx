@@ -295,6 +295,7 @@ export function LyricManagerView({ onBack }: Props) {
                 onUpdateCue={handleUpdateCue}
                 onDeleteCue={handleDeleteCue}
                 onDuplicateCue={handleDuplicateCue}
+                onSelectCue={setSelectedCue}
                 currentAudioTimeMs={currentAudioTimeMs}
               />
             )}

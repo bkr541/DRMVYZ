@@ -22,6 +22,7 @@ interface Props {
   onUpdateCue: (index: number, cue: Omit<LyricCue, 'id'>) => void
   onDeleteCue: (index: number) => void
   onDuplicateCue: (index: number) => void
+  onSelectCue?: (cue: LyricCue | null) => void
   currentAudioTimeMs?: number
 }
 
@@ -34,7 +35,7 @@ export function ManualLyricEditor({
   draftTitle, draftArtist, globalOffsetMs, cues,
   onUpdateTitle, onUpdateArtist, onUpdateGlobalOffset,
   onAddCue, onUpdateCue, onDeleteCue, onDuplicateCue,
-  currentAudioTimeMs,
+  onSelectCue, currentAudioTimeMs,
 }: Props) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const [editForm, setEditForm]           = useState<CueFormState>(EMPTY_FORM)
@@ -52,7 +53,8 @@ export function ManualLyricEditor({
       endMs:   String(cue.endMs),
     })
     setIsAdding(false)
-  }, [cues])
+    onSelectCue?.(cue)
+  }, [cues, onSelectCue])
 
   const handleSaveEdit = useCallback(() => {
     if (selectedIndex === null) return

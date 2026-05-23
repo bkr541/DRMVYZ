@@ -12,6 +12,7 @@ import {
 } from '../../../lib/timeline'
 import type { TwoClipRenderState } from '../../../lib/timeline'
 import type { VzTimelineClip, VzTimelineMediaClip } from '../../../types/timeline'
+import { DEFAULT_OVERLAY_COMPOSITING } from '../../../types/timeline'
 import { renderTimelineTransition } from '../../../lib/transitionRenderer'
 import type { MediaRole } from '../../../lib/mediaRoles'
 import { VZ_LAYER_RENDER_ORDER } from '../../../types/vzLayers'
@@ -1770,10 +1771,21 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             if (!isPlayingRef.current && !el.paused) el.pause()
           }
 
-          const { ox, oy, sw, sh } = computeDrawRect(W, H, el, oc.fitMode, 1, m.mediaRole ?? null)
-          ctx.globalCompositeOperation = 'source-over'
-          ctx.drawImage(el, ox, oy, sw, sh)
-          ctx.globalCompositeOperation = 'source-over'
+          const cfg = oc.compositingConfig ?? DEFAULT_OVERLAY_COMPOSITING
+          const { ox, oy, sw, sh } = computeDrawRect(W, H, el, cfg.fitMode, cfg.scale, m.mediaRole ?? null)
+          ctx.save()
+          ctx.globalAlpha              = cfg.opacity
+          ctx.globalCompositeOperation = cfg.blendMode as GlobalCompositeOperation
+          if (cfg.rotation !== 0 || cfg.posX !== 0.5 || cfg.posY !== 0.5) {
+            const cx = cfg.posX * W
+            const cy = cfg.posY * H
+            ctx.translate(cx, cy)
+            if (cfg.rotation !== 0) ctx.rotate(cfg.rotation * Math.PI / 180)
+            ctx.drawImage(el, ox - W / 2, oy - H / 2, sw, sh)
+          } else {
+            ctx.drawImage(el, ox, oy, sw, sh)
+          }
+          ctx.restore()
         }
       }
 

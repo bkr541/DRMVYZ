@@ -102,14 +102,13 @@ export function recalculateTimelineStarts<T extends VzTimelineClip>(clips: T[]):
 }
 
 /**
- * Total playback duration accounting for clip overlaps.
- * Requires `recalculateTimelineStarts` to have been called first.
- * Works with both VzTimelineClip[] and VzTimelineMediaClip[].
+ * Total playback duration: end time of the last-ending clip.
+ * Works with both sequentially packed and absolute-positioned clip arrays.
+ * Does not assume clips are sorted by startSec.
  */
 export function getTimelineDuration(clips: VzTimelineClip[]): number {
   if (!clips.length) return 0
-  const last = clips[clips.length - 1]
-  return last.startSec + last.durationSec
+  return clips.reduce((max, c) => Math.max(max, c.startSec + c.durationSec), 0)
 }
 
 // ── Active clip lookup ────────────────────────────────────────────────
@@ -175,16 +174,25 @@ export function getActiveBgClip(
 }
 
 /**
- * Appends a new background clip to the end of the bg lane and recalculates
- * sequential start positions, respecting existing transitions.
+ * Appends a new background clip immediately after the last existing bg clip.
+ * Accounts for the last clip's outgoing transition overlap so the new clip
+ * starts at the correct time. Does NOT recalculate all previous startSec values.
  * Returns the updated array — does not mutate the input.
  */
 export function appendBgClip(
   bgClips: VzTimelineMediaClip[],
   clipProps: Omit<VzTimelineMediaClip, 'startSec'>,
 ): VzTimelineMediaClip[] {
-  const clip: VzTimelineMediaClip = { ...clipProps, startSec: 0 }
-  return recalculateTimelineStarts([...bgClips, clip])
+  let startSec = 0
+  if (bgClips.length > 0) {
+    const sorted = [...bgClips].sort((a, b) => a.startSec - b.startSec)
+    const last   = sorted[sorted.length - 1]
+    const overlapSec = getClipOverlapSec(last)
+    // Start right after last clip ends, backing up by overlap so transition plays
+    startSec = last.startSec + last.durationSec - overlapSec
+  }
+  const clip: VzTimelineMediaClip = { ...clipProps, startSec }
+  return [...bgClips, clip]
 }
 
 // ── Overlay lane helpers ──────────────────────────────────────────────
@@ -501,6 +509,11 @@ export function getTransitionState(
     const incomingClip: VzTimelineClip | null =
       i + 1 < clips.length ? clips[i + 1] : loop ? clips[0] : null
     if (!incomingClip) continue
+
+    // Spatial validity: only render transition when clips actually overlap.
+    // If the incoming clip starts at or after outgoing clip ends, the user
+    // has intentionally left a gap — do not apply a fake transition.
+    if (incomingClip.startSec >= clipEnd) continue
 
     const rawProgress          = (t - transStart) / overlapSec
     const outgoingLocalTimeSec = t - clip.startSec
