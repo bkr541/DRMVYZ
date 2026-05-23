@@ -4,7 +4,7 @@ import type { VzEffects, Quality } from '../../../stores/visualStore'
 import type { UploadedMedia } from '../../../stores/mediaStore'
 import type { VzEffectParams } from '../../../types/effectParams'
 import type { ModulationRoute } from '../../../lib/audioModulation'
-import type { VzTimelineMediaClip } from '../../../types/timeline'
+import type { VzTimelineMediaClip, VzTimelineEffectRegion } from '../../../types/timeline'
 import type { VzLayerConfig, VzLayerItem } from '../../../types/vzLayers'
 import type { PerformanceStats } from '../../../types/performanceStats'
 import { DEFAULT_PERFORMANCE_STATS } from '../../../types/performanceStats'
@@ -27,7 +27,7 @@ export function LiveVisualPreview({
   bpm, bpmSync,
   quality, onQualityChange,
   canvasWrapRef, audioTime, getAudioTime, audioDuration, modulationRoutes,
-  timelineEnabled, onToggleTimeline, timelineClips, timelineOverlayClips = [], timelineLoop, mediaItems,
+  timelineEnabled, onToggleTimeline, timelineClips, timelineOverlayClips = [], timelineEffectRegions = [], timelineLoop, mediaItems,
   layerConfigs, layerItems, effectParams, audioReactivityEnabled,
   lyricsEnabled, lyricsCount, onLyricsClick,
   videoBaselineMode, onToggleVideoBaseline,
@@ -50,6 +50,7 @@ export function LiveVisualPreview({
   timelineEnabled: boolean; onToggleTimeline: () => void
   timelineClips: VzTimelineMediaClip[]
   timelineOverlayClips?: VzTimelineMediaClip[]
+  timelineEffectRegions?: VzTimelineEffectRegion[]
   timelineLoop: boolean
   mediaItems: UploadedMedia[]
   layerConfigs: VzLayerConfig[]
@@ -97,6 +98,7 @@ export function LiveVisualPreview({
           timelineEnabled={timelineEnabled}
           timelineClips={timelineClips}
           timelineOverlayClips={timelineOverlayClips}
+          timelineEffectRegions={timelineEffectRegions}
           timelineLoop={timelineLoop}
           mediaItems={mediaItems}
           layerConfigs={layerConfigs}

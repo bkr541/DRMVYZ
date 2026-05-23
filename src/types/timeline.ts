@@ -184,6 +184,16 @@ export interface VzTimelineEffectRegion {
    * In Phase 2+, this will be superseded by a keyframe map in `meta`.
    */
   intensity?: number
+  /**
+   * Where the effect is applied:
+   * - 'global'    — full-canvas (default / legacy behavior when absent)
+   * - 'layer'     — only the named VzLayerConfigId entries in targetIds
+   * - 'layerItem' — only the VzLayerItem IDs listed in targetIds
+   * - 'clip'      — only the VzTimelineMediaClip IDs listed in targetIds
+   */
+  targetType?: 'global' | 'layer' | 'layerItem' | 'clip'
+  /** IDs of the targeted entities. Empty or absent = global. */
+  targetIds?: string[]
   /** Reserved for Phase 2+ automation and keyframe metadata. */
   meta?: Record<string, unknown>
 }

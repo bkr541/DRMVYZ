@@ -7,6 +7,8 @@ import { useSharedAudio } from '../../context/AudioEngineContext'
 import { useWaveformPeaks } from './hooks/useWaveformPeaks'
 import { generateVideoFilmstrip } from './media/generateThumbnail'
 import type { VzTimelineClip, VzTimelineMediaClip, VzTimelineEffectRegion, VzOverlayCompositingConfig } from '../../types/timeline'
+import type { VzLayerConfig, VzLayerItem } from '../../stores/visualStore'
+import { LAYER_LABELS } from '../../types/vzLayers'
 import type { VzTransitionConfig, VzTransitionType, VzTransitionEasing } from '../../types/timeline'
 import { DEFAULT_OVERLAY_COMPOSITING } from '../../types/timeline'
 import type { UploadedMedia } from '../../stores/mediaStore'
@@ -627,12 +629,19 @@ function OverlayClipInspector({
 }
 
 function EffectInspector({
-  region, onUpdate, onRemove,
+  region, onUpdate, onRemove, bgClips, overlayClips, layerItems, mediaMap,
 }: {
   region: VzTimelineEffectRegion
   onUpdate: (id: string, patch: Partial<Omit<VzTimelineEffectRegion, 'id'>>) => void
   onRemove: (id: string) => void
+  bgClips: VzTimelineMediaClip[]
+  overlayClips: VzTimelineMediaClip[]
+  layerItems: VzLayerItem[]
+  mediaMap: Map<string, UploadedMedia>
 }) {
+  const targetType = region.targetType ?? 'global'
+  const targetId   = region.targetIds?.[0] ?? ''
+
   return (
     <div className="vz-ml-insp-body">
       <div className="vz-ml-insp-row">
@@ -669,11 +678,75 @@ function EffectInspector({
           </>
         )}
       </div>
+
+      <div className="vz-ml-insp-row">
+        <span className="vz-ml-insp-lbl">Target</span>
+        <select className="az-select vz-ml-insp-sel" value={targetType}
+          onChange={e => onUpdate(region.id, {
+            targetType: e.target.value as VzTimelineEffectRegion['targetType'],
+            targetIds: [],
+          })}>
+          <option value="global">Global</option>
+          <option value="layer">Layer</option>
+          <option value="layerItem">Layer Item</option>
+          <option value="clip">Clip</option>
+        </select>
+      </div>
+
+      {targetType === 'layer' && (
+        <div className="vz-ml-insp-row">
+          <span className="vz-ml-insp-lbl">Layer</span>
+          <select className="az-select vz-ml-insp-sel" value={targetId}
+            onChange={e => onUpdate(region.id, { targetIds: [e.target.value] })}>
+            <option value="" disabled>Select layer…</option>
+            {(Object.keys(LAYER_LABELS) as Array<keyof typeof LAYER_LABELS>).map(id => (
+              <option key={id} value={id}>{LAYER_LABELS[id]}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {targetType === 'layerItem' && (
+        <div className="vz-ml-insp-row">
+          <span className="vz-ml-insp-lbl">Item</span>
+          <select className="az-select vz-ml-insp-sel" value={targetId}
+            onChange={e => onUpdate(region.id, { targetIds: [e.target.value] })}>
+            <option value="" disabled>Select item…</option>
+            {layerItems.map(item => (
+              <option key={item.id} value={item.id}>
+                {LAYER_LABELS[item.layerId]}: {mediaMap.get(item.mediaId)?.name ?? item.id.slice(0, 8)}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {targetType === 'clip' && (
+        <div className="vz-ml-insp-row">
+          <span className="vz-ml-insp-lbl">Clip</span>
+          <select className="az-select vz-ml-insp-sel" value={targetId}
+            onChange={e => onUpdate(region.id, { targetIds: [e.target.value] })}>
+            <option value="" disabled>Select clip…</option>
+            {bgClips.length > 0 && (
+              <optgroup label="Background">
+                {bgClips.map(c => (
+                  <option key={c.id} value={c.id}>{mediaMap.get(c.mediaId)?.name ?? c.id.slice(0, 8)}</option>
+                ))}
+              </optgroup>
+            )}
+            {overlayClips.length > 0 && (
+              <optgroup label="Overlays">
+                {overlayClips.map(c => (
+                  <option key={c.id} value={c.id}>{mediaMap.get(c.mediaId)?.name ?? c.id.slice(0, 8)}</option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        </div>
+      )}
+
       <div className="vz-ml-insp-row vz-ml-insp-actions">
         <button className="vz-tl-clip-btn vz-tl-clip-btn--remove" onClick={() => onRemove(region.id)} title="Delete">✕ Delete</button>
-      </div>
-      <div className="vz-ml-insp-hint">
-        Effect regions mark time ranges for automation. Runtime activation is prepared for Phase 2.
       </div>
     </div>
   )
@@ -778,6 +851,7 @@ function LyricCueInspector({
 
 function TimelineInspector({
   selected, bgClips, overlayClips, effectRegions, lyricCues, mediaMap,
+  layerItems,
   onUpdateClip, onRemoveBg, onRemoveOverlay, onDuplicateBg, onDuplicateOverlay,
   onMoveClip, onUpdateEffect, onRemoveEffect, onSetMediaRole,
   onUpdateLyricTiming, onSeekToLyric, onSaveLyricTiming,
@@ -789,6 +863,7 @@ function TimelineInspector({
   effectRegions: VzTimelineEffectRegion[]
   lyricCues: LyricCue[]
   mediaMap: Map<string, UploadedMedia>
+  layerItems: VzLayerItem[]
   onUpdateClip: (id: string, patch: Partial<Omit<VzTimelineMediaClip, 'id' | 'lane'>>) => void
   onRemoveBg: (id: string) => void
   onRemoveOverlay: (id: string) => void
@@ -856,7 +931,11 @@ function TimelineInspector({
     headName  = region ? (EFFECT_MODULES.get(region.effectId)?.label ?? region.effectId) : ''
     if (region) {
       content = (
-        <EffectInspector region={region} onUpdate={onUpdateEffect} onRemove={onRemoveEffect} />
+        <EffectInspector
+          region={region} onUpdate={onUpdateEffect} onRemove={onRemoveEffect}
+          bgClips={bgClips} overlayClips={overlayClips}
+          layerItems={layerItems} mediaMap={mediaMap}
+        />
       )
     }
   } else if (selected.kind === 'lyric') {
@@ -900,6 +979,7 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
   const {
     timelineClips, timelineOverlayClips, timelineEffectRegions,
     timelineLoop, timelineClock, activeMediaId,
+    layerConfigs, layerItems,
     setTimelineLoop,
     // bg lane actions
     addTimelineClip, removeTimelineClip, updateTimelineClip,
@@ -916,6 +996,8 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
     timelineLoop:            s.timelineLoop,
     timelineClock:           s.timelineClock,
     activeMediaId:           s.activeMediaId,
+    layerConfigs:            s.layerConfigs,
+    layerItems:              s.layerItems,
     setTimelineLoop:         s.setTimelineLoop,
     addTimelineClip:         s.addTimelineClip,
     removeTimelineClip:      s.removeTimelineClip,
@@ -1176,11 +1258,19 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
   const handleAddEffect = () => {
     const firstEffect = EFFECT_LIST[0]
     if (!firstEffect) return
+    let targetType: 'global' | 'clip' = 'global'
+    let targetIds: string[] = []
+    if (selected?.kind === 'bg' || selected?.kind === 'overlay') {
+      targetType = 'clip'
+      targetIds  = [selected.id]
+    }
     addEffectRegion({
       effectId: firstEffect.id,
       startSec: timelineClock,
       durationSec: 4,
       enabled: true,
+      targetType,
+      targetIds,
     })
   }
 
@@ -1420,6 +1510,7 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
         effectRegions={timelineEffectRegions}
         lyricCues={lyricCues}
         mediaMap={mediaMap}
+        layerItems={layerItems}
         onUpdateClip={updateMediaClip}
         onRemoveBg={id => { removeTimelineClip(id); setSelected(null) }}
         onRemoveOverlay={id => { removeMediaClip(id); setSelected(null) }}

@@ -11,7 +11,7 @@ import {
   getClipSourceTime, shouldFreezeClipFrame, getActiveOverlayClips,
 } from '../../../lib/timeline'
 import type { TwoClipRenderState } from '../../../lib/timeline'
-import type { VzTimelineClip, VzTimelineMediaClip } from '../../../types/timeline'
+import type { VzTimelineClip, VzTimelineMediaClip, VzTimelineEffectRegion } from '../../../types/timeline'
 import { DEFAULT_OVERLAY_COMPOSITING } from '../../../types/timeline'
 import { renderTimelineTransition } from '../../../lib/transitionRenderer'
 import type { MediaRole } from '../../../lib/mediaRoles'
@@ -27,7 +27,7 @@ import {
   getCameraShakeOffset,
   drawDatamoshSmear,
 } from '../visualEffects'
-import { getEffectsForPhase } from '../effects/registry'
+import { getEffectsForPhase, getEffectModule } from '../effects/registry'
 import type { VzFrameContext } from '../effects/types'
 import { WebGL2Renderer } from '../../../renderers/WebGL2Renderer'
 
@@ -490,6 +490,41 @@ function ensureHelperCanvas(
   return c
 }
 
+// ── Effect region targeting helpers ──────────────────────────────────
+
+/** Resolve the effective intensity for an effect module this frame.
+ *  Returns > 0 when the effect should run (either via enabledFx or a global region). */
+function resolveEffectIntensity(
+  mod: { id: string; chainName: string; effectKey: string },
+  fxSet: Set<string>,
+  mEff: VzEffects,
+  globalActiveRegions: VzTimelineEffectRegion[],
+): number {
+  if (fxSet.has(mod.chainName)) {
+    return (mEff as unknown as Record<string, number>)[mod.effectKey] ?? 0
+  }
+  const region = globalActiveRegions.find(r => r.effectId === mod.id)
+  if (!region) return 0
+  return region.intensity ?? (mEff as unknown as Record<string, number>)[mod.effectKey] ?? 0
+}
+
+/** Collect {mod, intensity} pairs for targeted effect regions matching a given id. */
+function collectTargetedEffects(
+  regions: VzTimelineEffectRegion[],
+  targetId: string,
+  mEff: VzEffects,
+): Array<{ mod: ReturnType<typeof getEffectModule>; intensity: number }> {
+  const results: Array<{ mod: ReturnType<typeof getEffectModule>; intensity: number }> = []
+  for (const r of regions) {
+    if (!r.targetIds?.includes(targetId)) continue
+    const mod = getEffectModule(r.effectId)
+    if (!mod) continue
+    const intensity = r.intensity ?? (mEff as unknown as Record<string, number>)[mod.effectKey] ?? 0
+    results.push({ mod, intensity })
+  }
+  return results
+}
+
 // ── LiveVisualCanvas ──────────────────────────────────────────────────
 export interface CanvasProps {
   analyser: AnalyserNode | null
@@ -505,6 +540,7 @@ export interface CanvasProps {
   timelineEnabled: boolean
   timelineClips: VzTimelineMediaClip[]
   timelineOverlayClips?: VzTimelineMediaClip[]
+  timelineEffectRegions?: VzTimelineEffectRegion[]
   timelineLoop: boolean
   mediaItems: UploadedMedia[]
   onStatsUpdate: (stats: PerformanceStats) => void
@@ -514,7 +550,7 @@ export interface CanvasProps {
   audioReactivityEnabled: boolean
 }
 
-export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, getAudioTime, modulationRoutes, timelineEnabled, timelineClips, timelineOverlayClips = [], timelineLoop, mediaItems, onStatsUpdate, layerConfigs, layerItems, effectParams, audioReactivityEnabled }: CanvasProps) {
+export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, getAudioTime, modulationRoutes, timelineEnabled, timelineClips, timelineOverlayClips = [], timelineEffectRegions = [], timelineLoop, mediaItems, onStatsUpdate, layerConfigs, layerItems, effectParams, audioReactivityEnabled }: CanvasProps) {
   const canvasRef     = useRef<HTMLCanvasElement>(null)
   const animRef       = useRef<number>(0)
   const resizeFnRef   = useRef<() => void>(() => {})
@@ -535,10 +571,12 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   const prevBassRef   = useRef(0)
   const routesRef     = useRef<ModulationRoute[]>(modulationRoutes)
 
-  const timelineEnabledRef       = useRef(timelineEnabled)
-  const timelineClipsRef         = useRef<VzTimelineMediaClip[]>(timelineClips)
-  const timelineOverlayClipsRef  = useRef<VzTimelineMediaClip[]>(timelineOverlayClips)
-  const timelineLoopRef          = useRef(timelineLoop)
+  const timelineEnabledRef          = useRef(timelineEnabled)
+  const timelineClipsRef            = useRef<VzTimelineMediaClip[]>(timelineClips)
+  const timelineOverlayClipsRef     = useRef<VzTimelineMediaClip[]>(timelineOverlayClips)
+  const timelineEffectRegionsRef    = useRef<VzTimelineEffectRegion[]>(timelineEffectRegions)
+  const targetEffectOffscreenRef    = useRef<Map<string, HTMLCanvasElement>>(new Map())
+  const timelineLoopRef             = useRef(timelineLoop)
   const mediaItemsRef      = useRef<UploadedMedia[]>(mediaItems)
   const layerConfigsRef    = useRef<VzLayerConfig[]>(layerConfigs)
   const layerItemsRef      = useRef<VzLayerItem[]>(layerItems)
@@ -691,6 +729,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   useLayoutEffect(() => { timelineEnabledRef.current = timelineEnabled }, [timelineEnabled])
   useLayoutEffect(() => { timelineClipsRef.current = timelineClips }, [timelineClips])
   useLayoutEffect(() => { timelineOverlayClipsRef.current = timelineOverlayClips }, [timelineOverlayClips])
+  useEffect(() => { timelineEffectRegionsRef.current = timelineEffectRegions; requestRedrawRef.current() }, [timelineEffectRegions])
   useEffect(() => { timelineLoopRef.current = timelineLoop }, [timelineLoop])
   useEffect(() => { mediaItemsRef.current = mediaItems }, [mediaItems])
   useEffect(() => {
@@ -1140,6 +1179,19 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       // Read audio time once per frame directly from HTMLAudioElement — never from React state
       const audioTimeNow = getAudioTimeRef.current()
 
+      // ── Active effect regions (computed once per frame) ────────────────
+      const activeRegions = timelineEnabledRef.current
+        ? timelineEffectRegionsRef.current.filter(r =>
+            r.enabled &&
+            audioTimeNow >= r.startSec &&
+            audioTimeNow < r.startSec + r.durationSec
+          )
+        : []
+      const globalActiveRegions    = activeRegions.filter(r => !r.targetType || r.targetType === 'global')
+      const layerActiveRegions     = activeRegions.filter(r => r.targetType === 'layer')
+      const layerItemActiveRegions = activeRegions.filter(r => r.targetType === 'layerItem')
+      const clipActiveRegions      = activeRegions.filter(r => r.targetType === 'clip')
+
       const beatMs    = 60000 / Math.max(1, bpmRef.current)
       const synced    = bpmSyncRef.current
       const audioMs   = audioTimeNow * 1000
@@ -1456,8 +1508,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       }
 
       for (const mod of getEffectsForPhase('preMedia')) {
-        if (!fxSet.has(mod.chainName)) continue
-        const intensity = (mEff as unknown as Record<string, number>)[mod.effectKey] ?? 0
+        const intensity = resolveEffectIntensity(mod, fxSet, mEff, globalActiveRegions)
         if (intensity <= 0) continue
         mod.draw(ctx, frameCtx, { ...mod.defaultParams, amount: intensity })
       }
@@ -1687,6 +1738,21 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         ctx.restore()
       }
 
+      // ── Bg clip targeted effects (full-canvas post-bg pass) ───────────────────
+      if (clipActiveRegions.length > 0 && activeClipIdRef.current) {
+        const bgClipId = activeClipIdRef.current
+        for (const region of clipActiveRegions) {
+          if (!region.targetIds?.includes(bgClipId)) continue
+          // Only apply if this is a bg clip (overlay clips use offscreen rendering below)
+          if (timelineOverlayClipsRef.current.some(oc => oc.id === bgClipId)) continue
+          const mod = getEffectModule(region.effectId)
+          if (!mod) continue
+          const intensity = region.intensity ?? (mEff as unknown as Record<string, number>)[mod.effectKey] ?? 0
+          if (intensity <= 0) continue
+          mod.draw(ctx, frameCtx, { ...mod.defaultParams, amount: intensity })
+        }
+      }
+
       // ── Overlay layer compositor ──────────────────────────────────────────────
       {
         const pool = mediaPoolRef.current
@@ -1722,18 +1788,56 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           const audioScale = item.audioReactive ? bassReact * punchScale * eff.logoScale : 1
           const totalScale = item.scale * audioScale
 
-          ctx.save()
-          ctx.globalAlpha = layerConfig.opacity * item.opacity
-          if (item.blendMode !== 'source-over') ctx.globalCompositeOperation = item.blendMode
-          if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
-          ctx.translate(item.x * W, item.y * H)
-          if (item.rotation !== 0) ctx.rotate(item.rotation * Math.PI / 180)
-          if (totalScale !== 1)    ctx.scale(totalScale, totalScale)
-          ctx.drawImage(el, ox, oy, w, h)
-          ctx.filter = 'none'
-          ctx.globalCompositeOperation = 'source-over'
-          ctx.globalAlpha = 1
-          ctx.restore()
+          // Collect targeted effects for this item (by layer or by item id)
+          const itemFxLayer = collectTargetedEffects(layerActiveRegions, item.layerId, mEff)
+          const itemFxItem  = collectTargetedEffects(layerItemActiveRegions, item.id, mEff)
+          const itemFx = [...itemFxLayer, ...itemFxItem].filter(x => x.intensity > 0)
+
+          if (itemFx.length > 0) {
+            // Offscreen path: render item to offscreen, apply effects, blit to main
+            const offKey = `li_${item.id}`
+            const tPool = targetEffectOffscreenRef.current
+            let off = tPool.get(offKey)
+            if (!off || off.width !== W || off.height !== H) {
+              off = document.createElement('canvas')
+              off.width  = W
+              off.height = H
+              tPool.set(offKey, off)
+            }
+            const offCtx = off.getContext('2d')!
+            offCtx.clearRect(0, 0, W, H)
+            offCtx.save()
+            offCtx.translate(item.x * W, item.y * H)
+            if (item.rotation !== 0) offCtx.rotate(item.rotation * Math.PI / 180)
+            if (totalScale !== 1)    offCtx.scale(totalScale, totalScale)
+            offCtx.drawImage(el, ox, oy, w, h)
+            offCtx.restore()
+            for (const { mod, intensity } of itemFx) {
+              mod!.draw(offCtx, frameCtx, { ...mod!.defaultParams, amount: intensity })
+            }
+            ctx.save()
+            ctx.globalAlpha = layerConfig.opacity * item.opacity
+            if (item.blendMode !== 'source-over') ctx.globalCompositeOperation = item.blendMode
+            if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
+            ctx.drawImage(off, 0, 0)
+            ctx.filter = 'none'
+            ctx.globalCompositeOperation = 'source-over'
+            ctx.globalAlpha = 1
+            ctx.restore()
+          } else {
+            ctx.save()
+            ctx.globalAlpha = layerConfig.opacity * item.opacity
+            if (item.blendMode !== 'source-over') ctx.globalCompositeOperation = item.blendMode
+            if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
+            ctx.translate(item.x * W, item.y * H)
+            if (item.rotation !== 0) ctx.rotate(item.rotation * Math.PI / 180)
+            if (totalScale !== 1)    ctx.scale(totalScale, totalScale)
+            ctx.drawImage(el, ox, oy, w, h)
+            ctx.filter = 'none'
+            ctx.globalCompositeOperation = 'source-over'
+            ctx.globalAlpha = 1
+            ctx.restore()
+          }
         }
       }
 
@@ -1776,25 +1880,62 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
 
           const cfg = oc.compositingConfig ?? DEFAULT_OVERLAY_COMPOSITING
           const { ox, oy, sw, sh } = computeDrawRect(W, H, el, cfg.fitMode, cfg.scale, m.mediaRole ?? null)
-          ctx.save()
-          ctx.globalAlpha              = cfg.opacity
-          ctx.globalCompositeOperation = cfg.blendMode as GlobalCompositeOperation
-          if (cfg.rotation !== 0 || cfg.posX !== 0.5 || cfg.posY !== 0.5) {
-            const cx = cfg.posX * W
-            const cy = cfg.posY * H
-            ctx.translate(cx, cy)
-            if (cfg.rotation !== 0) ctx.rotate(cfg.rotation * Math.PI / 180)
-            ctx.drawImage(el, ox - W / 2, oy - H / 2, sw, sh)
+
+          // Collect targeted effects for this overlay clip
+          const ocFx = collectTargetedEffects(clipActiveRegions, oc.id, mEff).filter(x => x.intensity > 0)
+
+          if (ocFx.length > 0) {
+            // Offscreen path: render overlay to offscreen, apply effects, blit with compositing config
+            const offKey = `oc_${oc.id}`
+            const tPool = targetEffectOffscreenRef.current
+            let off = tPool.get(offKey)
+            if (!off || off.width !== W || off.height !== H) {
+              off = document.createElement('canvas')
+              off.width  = W
+              off.height = H
+              tPool.set(offKey, off)
+            }
+            const offCtx = off.getContext('2d')!
+            offCtx.clearRect(0, 0, W, H)
+            offCtx.save()
+            if (cfg.rotation !== 0 || cfg.posX !== 0.5 || cfg.posY !== 0.5) {
+              const ocx = cfg.posX * W
+              const ocy = cfg.posY * H
+              offCtx.translate(ocx, ocy)
+              if (cfg.rotation !== 0) offCtx.rotate(cfg.rotation * Math.PI / 180)
+              offCtx.drawImage(el, ox - W / 2, oy - H / 2, sw, sh)
+            } else {
+              offCtx.drawImage(el, ox, oy, sw, sh)
+            }
+            offCtx.restore()
+            for (const { mod, intensity } of ocFx) {
+              mod!.draw(offCtx, frameCtx, { ...mod!.defaultParams, amount: intensity })
+            }
+            ctx.save()
+            ctx.globalAlpha              = cfg.opacity
+            ctx.globalCompositeOperation = cfg.blendMode as GlobalCompositeOperation
+            ctx.drawImage(off, 0, 0)
+            ctx.restore()
           } else {
-            ctx.drawImage(el, ox, oy, sw, sh)
+            ctx.save()
+            ctx.globalAlpha              = cfg.opacity
+            ctx.globalCompositeOperation = cfg.blendMode as GlobalCompositeOperation
+            if (cfg.rotation !== 0 || cfg.posX !== 0.5 || cfg.posY !== 0.5) {
+              const ocx = cfg.posX * W
+              const ocy = cfg.posY * H
+              ctx.translate(ocx, ocy)
+              if (cfg.rotation !== 0) ctx.rotate(cfg.rotation * Math.PI / 180)
+              ctx.drawImage(el, ox - W / 2, oy - H / 2, sw, sh)
+            } else {
+              ctx.drawImage(el, ox, oy, sw, sh)
+            }
+            ctx.restore()
           }
-          ctx.restore()
         }
       }
 
       for (const mod of getEffectsForPhase('postMedia')) {
-        if (!fxSet.has(mod.chainName)) continue
-        const intensity = (mEff as unknown as Record<string, number>)[mod.effectKey] ?? 0
+        const intensity = resolveEffectIntensity(mod, fxSet, mEff, globalActiveRegions)
         if (intensity <= 0) continue
         mod.draw(ctx, frameCtx, { ...mod.defaultParams, amount: intensity })
       }
@@ -1802,8 +1943,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       if (shakeApplied) ctx.restore()
 
       for (const mod of getEffectsForPhase('master')) {
-        if (!fxSet.has(mod.chainName)) continue
-        const intensity = (mEff as unknown as Record<string, number>)[mod.effectKey] ?? 0
+        const intensity = resolveEffectIntensity(mod, fxSet, mEff, globalActiveRegions)
         if (intensity <= 0) continue
         mod.draw(ctx, frameCtx, { ...mod.defaultParams, amount: intensity })
       }

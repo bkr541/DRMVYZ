@@ -477,7 +477,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     saveSession, loadSession, renameSession, deleteSession,
     syncSessionsFromCloud, clearSessionSyncError,
     modulationRoutes, toggleModulationRoute, setModulationRouteAmount,
-    timelineEnabled, timelineClips, timelineOverlayClips, timelineLoop, setTimelineEnabled, scrubTimeline,
+    timelineEnabled, timelineClips, timelineOverlayClips, timelineEffectRegions, timelineLoop, setTimelineEnabled, scrubTimeline,
     layerConfigs, layerItems,
     effectParams, setEffectParam,
     audioReactivityEnabled, setAudioReactivityEnabled,
@@ -518,6 +518,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     timelineEnabled:           s.timelineEnabled,
     timelineClips:             s.timelineClips,
     timelineOverlayClips:      s.timelineOverlayClips,
+    timelineEffectRegions:     s.timelineEffectRegions,
     timelineLoop:              s.timelineLoop,
     setTimelineEnabled:        s.setTimelineEnabled,
     scrubTimeline:             s.scrubTimeline,
@@ -837,6 +838,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                   onToggleTimeline={() => setTimelineEnabled(!timelineEnabled)}
                   timelineClips={timelineClips}
                   timelineOverlayClips={timelineOverlayClips}
+                  timelineEffectRegions={timelineEffectRegions}
                   timelineLoop={timelineLoop}
                   mediaItems={items}
                   layerConfigs={layerConfigs}
