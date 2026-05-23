@@ -52,6 +52,11 @@ export interface AudioEngine {
   currentIndex: number
   isPlaying: boolean
   currentTime: number
+  /**
+   * High-precision getter — reads HTMLAudioElement.currentTime at the moment of
+   * the call. For canvas/RAF sync only; never triggers React state updates.
+   */
+  getCurrentTime: () => number
   duration: number
   volume: number
   addTracks: (files: File[]) => void
@@ -183,15 +188,25 @@ export function useAudioEngine(): AudioEngine {
   const meydaCbCountRef         = useRef(0)
   const spectralPublishCountRef = useRef(0)
 
+  // Shadow ref so getCurrentTime can fall back without capturing state in its closure
+  const currentTimeRef = useRef(0)
+  useEffect(() => { currentTimeRef.current = currentTime }, [currentTime])
+
   // ── Init main audio element ─────────────────────────────────────────────────
   useEffect(() => {
     const el = new Audio()
     el.crossOrigin = 'anonymous'
     el.volume = volume
     audioRef.current = el
-    el.addEventListener('timeupdate', () => setCurrentTime(el.currentTime))
-    el.addEventListener('durationchange', () => setDuration(el.duration || 0))
-    return () => { el.pause(); el.src = '' }
+    const onTimeUpdate   = () => setCurrentTime(el.currentTime)
+    const onDurationChange = () => setDuration(el.duration || 0)
+    el.addEventListener('timeupdate',     onTimeUpdate)
+    el.addEventListener('durationchange', onDurationChange)
+    return () => {
+      el.removeEventListener('timeupdate',     onTimeUpdate)
+      el.removeEventListener('durationchange', onDurationChange)
+      el.pause(); el.src = ''
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -713,13 +728,19 @@ export function useAudioEngine(): AudioEngine {
     const el = audioRef.current; if (!el) return
     el.currentTime = t; setCurrentTime(t)
   }, [])
+
+  // Stable getter — reads audioRef directly so it is safe to call every RAF frame
+  // without touching React state. Falls back to currentTimeRef when no element exists.
+  const getCurrentTime = useCallback((): number => {
+    return audioRef.current?.currentTime ?? currentTimeRef.current
+  }, [])  // intentionally empty: only reads refs, never stale
   const setVolume = useCallback((v: number) => setVolumeState(v), [])
 
   const isActive = (source === 'file' && isPlaying) || source === 'microphone' || source === 'demo'
 
   return {
     source, setSource, micError, isActive,
-    tracks, currentIndex, isPlaying, currentTime, duration, volume,
+    tracks, currentIndex, isPlaying, currentTime, getCurrentTime, duration, volume,
     addTracks, replaceTracks, removeTrack, selectTrack, play, pause, stop, next, prev, seek, setVolume,
     analyserMaster: aMasterRef.current,
     analyserL: aLRef.current,

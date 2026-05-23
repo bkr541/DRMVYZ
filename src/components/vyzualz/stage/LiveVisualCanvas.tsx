@@ -500,7 +500,7 @@ export interface CanvasProps {
   bpm: number
   bpmSync: boolean
   quality: Quality
-  audioTime: number
+  getAudioTime: () => number
   modulationRoutes: ModulationRoute[]
   timelineEnabled: boolean
   timelineClips: VzTimelineMediaClip[]
@@ -514,7 +514,7 @@ export interface CanvasProps {
   audioReactivityEnabled: boolean
 }
 
-export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, audioTime, modulationRoutes, timelineEnabled, timelineClips, timelineOverlayClips = [], timelineLoop, mediaItems, onStatsUpdate, layerConfigs, layerItems, effectParams, audioReactivityEnabled }: CanvasProps) {
+export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, getAudioTime, modulationRoutes, timelineEnabled, timelineClips, timelineOverlayClips = [], timelineLoop, mediaItems, onStatsUpdate, layerConfigs, layerItems, effectParams, audioReactivityEnabled }: CanvasProps) {
   const canvasRef     = useRef<HTMLCanvasElement>(null)
   const animRef       = useRef<number>(0)
   const resizeFnRef   = useRef<() => void>(() => {})
@@ -531,7 +531,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   const bpmRef        = useRef(bpm)
   const bpmSyncRef    = useRef(bpmSync)
   const qualityRef    = useRef<Quality>(quality)
-  const audioTimeRef  = useRef(audioTime)
+  const getAudioTimeRef = useRef(getAudioTime)
   const prevBassRef   = useRef(0)
   const routesRef     = useRef<ModulationRoute[]>(modulationRoutes)
 
@@ -643,7 +643,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   useEffect(() => { bpmRef.current = bpm })
   useEffect(() => { bpmSyncRef.current = bpmSync })
   useEffect(() => { qualityRef.current = quality; resizeFnRef.current() }, [quality])
-  useEffect(() => { audioTimeRef.current = audioTime })
+  useEffect(() => { getAudioTimeRef.current = getAudioTime }, [getAudioTime])
   useEffect(() => { routesRef.current = modulationRoutes }, [modulationRoutes])
   useEffect(() => { audioReactivityEnabledRef.current = audioReactivityEnabled }, [audioReactivityEnabled])
 
@@ -1137,9 +1137,12 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       const fxSet = enabledFxRef.current
       const speed = isPlayingRef.current ? 1 : 0.25
 
+      // Read audio time once per frame directly from HTMLAudioElement — never from React state
+      const audioTimeNow = getAudioTimeRef.current()
+
       const beatMs    = 60000 / Math.max(1, bpmRef.current)
       const synced    = bpmSyncRef.current
-      const audioMs   = audioTimeRef.current * 1000
+      const audioMs   = audioTimeNow * 1000
       const beatPhase = synced && audioMs > 0
         ? (audioMs % beatMs) / beatMs
         : (t % beatMs) / beatMs
@@ -1192,7 +1195,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       const frameCtx: VzFrameContext = {
         W, H, dpr,
         time:            t,
-        audioTime:       audioTimeRef.current,
+        audioTime:       audioTimeNow,
         bpm:             bpmRef.current,
         beatPhase,
         onBeatBoundary,
@@ -1229,7 +1232,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       // ── Timeline clock & active clip ──────────────────────────────
       if (timelineEnabledRef.current && timelineClipsRef.current.length > 0) {
         const nowMs = performance.now()
-        const audioT = audioTimeRef.current
+        const audioT = audioTimeNow
         if (audioT > 0) {
           timelineClockRef.current = audioT
         } else if (isPlayingRef.current) {
@@ -1818,7 +1821,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
 
       // ── Lyrics ─────────────────────────────────────────────────────
       if (lyricsEnabledRef.current && lyricsCuesRef.current.length > 0) {
-        const adjustedMs = audioTimeRef.current * 1000 + lyricsOffsetMsRef.current
+        const adjustedMs = audioTimeNow * 1000 + lyricsOffsetMsRef.current
         const cues = lyricsCuesRef.current
         const activeCue = cues.find(c => c.startMs <= adjustedMs && adjustedMs < c.endMs) ?? null
         if (activeCue) {

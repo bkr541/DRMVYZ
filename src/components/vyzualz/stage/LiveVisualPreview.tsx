@@ -26,7 +26,7 @@ export function LiveVisualPreview({
   isPlaying, onPlay, onPause, onPrev, onNext, onFullscreen,
   bpm, bpmSync,
   quality, onQualityChange,
-  canvasWrapRef, audioTime, audioDuration, modulationRoutes,
+  canvasWrapRef, audioTime, getAudioTime, audioDuration, modulationRoutes,
   timelineEnabled, onToggleTimeline, timelineClips, timelineOverlayClips = [], timelineLoop, mediaItems,
   layerConfigs, layerItems, effectParams, audioReactivityEnabled,
   lyricsEnabled, lyricsCount, onLyricsClick,
@@ -44,6 +44,7 @@ export function LiveVisualPreview({
   quality: Quality; onQualityChange: (q: Quality) => void
   canvasWrapRef: React.RefObject<HTMLDivElement>
   audioTime: number
+  getAudioTime: () => number
   audioDuration: number
   modulationRoutes: ModulationRoute[]
   timelineEnabled: boolean; onToggleTimeline: () => void
@@ -91,7 +92,7 @@ export function LiveVisualPreview({
           bpm={bpm}
           bpmSync={bpmSync}
           quality={quality}
-          audioTime={audioTime}
+          getAudioTime={getAudioTime}
           modulationRoutes={modulationRoutes}
           timelineEnabled={timelineEnabled}
           timelineClips={timelineClips}

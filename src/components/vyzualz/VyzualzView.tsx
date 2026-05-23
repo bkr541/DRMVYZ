@@ -830,6 +830,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                   onQualityChange={setQuality}
                   canvasWrapRef={canvasWrapRef}
                   audioTime={engine.currentTime}
+                  getAudioTime={engine.getCurrentTime}
                   audioDuration={engine.duration}
                   modulationRoutes={modulationRoutes}
                   timelineEnabled={timelineEnabled}
