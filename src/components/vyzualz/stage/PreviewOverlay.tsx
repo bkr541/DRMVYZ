@@ -9,7 +9,7 @@ export function PreviewOverlay({ quality, fps }: PreviewOverlayProps) {
   return (
     <div className="vz-preview-pills">
       <span className="vz-preview-pill">{quality}</span>
-      <span className="vz-preview-pill">{fps > 0 ? `${fps} FPS` : '-- FPS'}</span>
+      <span className="vz-preview-pill vz-preview-pill--fps">{fps > 0 ? `${fps} FPS` : '-- FPS'}</span>
       <span className="vz-preview-pill">Canvas 2D</span>
     </div>
   )
