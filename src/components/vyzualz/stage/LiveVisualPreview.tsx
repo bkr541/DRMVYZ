@@ -29,8 +29,6 @@ export function LiveVisualPreview({
   canvasWrapRef, audioTime, getAudioTime, audioDuration, modulationRoutes,
   timelineEnabled, onToggleTimeline, timelineClips, timelineOverlayClips = [], timelineEffectRegions = [], timelineLoop, mediaItems,
   layerConfigs, layerItems, effectParams, audioReactivityEnabled,
-  lyricsEnabled, lyricsCount, onLyricsClick,
-  videoBaselineMode, onToggleVideoBaseline,
   onSelectVisualizer,
   stageOverlays,
   onCanvasReady,
@@ -60,11 +58,6 @@ export function LiveVisualPreview({
   layerItems: VzLayerItem[]
   effectParams: VzEffectParams
   audioReactivityEnabled: boolean
-  lyricsEnabled: boolean
-  lyricsCount: number
-  onLyricsClick: () => void
-  videoBaselineMode: boolean
-  onToggleVideoBaseline: () => void
   onSelectVisualizer: () => void
   stageOverlays?: ReactNode
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
@@ -93,7 +86,7 @@ export function LiveVisualPreview({
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
   }, [])
 
-  const anyViewActive = timelineEnabled || (lyricsEnabled && lyricsCount > 0) || videoBaselineMode
+  const anyViewActive = timelineEnabled
 
   return (
     <div className="vz-preview-panel">
@@ -193,14 +186,14 @@ export function LiveVisualPreview({
           {viewMenuOpen && (
             <div className="vz-view-menu-dropdown">
               <button
-                className={`vz-view-menu-item${!timelineEnabled && !videoBaselineMode ? ' vz-view-menu-item--on' : ''}`}
+                className={`vz-view-menu-item${!timelineEnabled ? ' vz-view-menu-item--on' : ''}`}
                 onClick={() => { onSelectVisualizer(); setViewMenuOpen(false) }}
               >
                 <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true">
                   <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/>
                 </svg>
                 <span>Visualizer</span>
-                <span className={`vz-view-menu-dot${!timelineEnabled && !videoBaselineMode ? ' vz-view-menu-dot--on' : ''}`} />
+                <span className={`vz-view-menu-dot${!timelineEnabled ? ' vz-view-menu-dot--on' : ''}`} />
               </button>
 
               <button
@@ -214,36 +207,13 @@ export function LiveVisualPreview({
                 <span className={`vz-view-menu-dot${timelineEnabled ? ' vz-view-menu-dot--on' : ''}`} />
               </button>
 
-              <button
-                className={`vz-view-menu-item${lyricsEnabled && lyricsCount > 0 ? ' vz-view-menu-item--on' : lyricsCount > 0 ? ' vz-view-menu-item--loaded' : ''}`}
-                onClick={() => { onLyricsClick(); setViewMenuOpen(false) }}
-                title={`${lyricsCount} cue${lyricsCount !== 1 ? 's' : ''}`}
-              >
-                <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true">
-                  <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/>
-                </svg>
-                <span>Lyrics</span>
-                {lyricsCount > 0 && <span className="vz-view-menu-count">{lyricsCount}</span>}
-                <span className={`vz-view-menu-dot${lyricsEnabled && lyricsCount > 0 ? ' vz-view-menu-dot--on' : ''}`} />
-              </button>
-
-              <button
-                className={`vz-view-menu-item${videoBaselineMode ? ' vz-view-menu-item--warn' : ''}`}
-                onClick={() => { onToggleVideoBaseline(); setViewMenuOpen(false) }}
-              >
-                <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true">
-                  <path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/>
-                </svg>
-                <span>Baseline</span>
-                <span className={`vz-view-menu-dot${videoBaselineMode ? ' vz-view-menu-dot--warn' : ''}`} />
-              </button>
             </div>
           )}
         </div>
 
         <div className="vz-header-sep" />
 
-        <OutputHealthIndicator stats={liveStats} videoBaselineMode={videoBaselineMode} />
+        <OutputHealthIndicator stats={liveStats} />
 
         <div className="vz-header-sep" />
 

@@ -8,6 +8,7 @@ import './styles/vyzualz.css'
 import './styles/mediaUploadModal.css'
 import './styles/lyricManagerModal.css'
 import './styles/lyricManager.css'
+import './styles/addCueModal.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

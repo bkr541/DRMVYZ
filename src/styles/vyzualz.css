@@ -583,12 +583,16 @@
 }
 
 .vz-md-search-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 5px 8px;
   border-bottom: 1px solid rgba(255,255,255,0.05);
   flex-shrink: 0;
 }
 
 .vz-md-search-wrap {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -634,6 +638,129 @@
   transition: color 0.12s;
 }
 .vz-md-search-clear:hover { color: #f87171; }
+
+.vz-md-view-toggles {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.vz-md-view-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: none;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 4px;
+  color: var(--az-text-faint);
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s, border-color 0.12s;
+}
+.vz-md-view-btn:hover {
+  color: rgba(196,207,211,0.8);
+  border-color: rgba(255,255,255,0.14);
+}
+.vz-md-view-btn--active {
+  background: rgba(74,199,219,0.12);
+  border-color: rgba(74,199,219,0.3);
+  color: var(--az-cyan);
+}
+
+/* ── List view ───────────────────────────────────────────────────────────── */
+.vz-media-list {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 6px;
+}
+
+.vz-media-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.vz-media-row:hover {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(74,199,219,0.15);
+}
+.vz-media-row--active {
+  background: rgba(74,199,219,0.07);
+  border-color: rgba(74,199,219,0.3);
+}
+
+.vz-media-row-thumb {
+  flex-shrink: 0;
+  width: 44px;
+  height: 28px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #050a12;
+  position: relative;
+}
+.vz-media-row-thumb .vz-media-type-badge {
+  font-size: 7px;
+  padding: 1px 3px;
+}
+
+.vz-media-row-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.vz-media-row-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(232,238,240,0.85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vz-media-row-meta {
+  font-size: 10px;
+  color: var(--az-text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vz-media-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.vz-media-row:hover .vz-media-row-actions,
+.vz-media-row--active .vz-media-row-actions { opacity: 1; }
+
+/* Collection folder row (list mode) */
+.vz-coll-folder-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  color: rgba(196,207,211,0.6);
+  transition: background 0.12s, border-color 0.12s;
+}
+.vz-coll-folder-row:hover {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(74,199,219,0.18);
+  color: rgba(232,238,240,0.85);
+}
 
 .vz-media-scroll {
   flex: 1;
@@ -4931,7 +5058,11 @@ input[type='range'].vz-slider--color {
   flex-shrink: 0;
   background: rgba(0,0,0,0.18);
   border-bottom: 1px solid var(--az-border);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
 }
+.vz-ml-toolbar::-webkit-scrollbar { display: none; }
 
 .vz-ml-tl-title {
   font-size: 9px;
@@ -4990,13 +5121,27 @@ input[type='range'].vz-slider--color {
 }
 .vz-ml-add-btn--effect:hover:not(:disabled) { background: rgba(248,113,113,0.15); }
 
+.vz-ml-add-btn--cue {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Right-side toolbar cluster (zoom + cue + clear) */
+.vz-ml-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: auto;  /* push right when space allows; collapses to 0 on overflow so cluster stays reachable */
+}
+
 /* Zoom controls */
 .vz-ml-zoom-row {
   display: flex;
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
-  margin-left: auto;
 }
 .vz-ml-zoom-btn {
   width: 20px;

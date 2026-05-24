@@ -1275,9 +1275,10 @@ export function TimelineInspector({
 
 interface TimelinePanelProps {
   onScrub?: (t: number) => void
+  onAddCue?: () => void
 }
 
-export function TimelinePanel({ onScrub }: TimelinePanelProps) {
+export function TimelinePanel({ onScrub, onAddCue }: TimelinePanelProps) {
   // ── Store subscriptions ────────────────────────────────────────────────
   const {
     timelineClips, timelineOverlayClips, timelineEffectRegions,
@@ -1652,15 +1653,24 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
           onClick={handleAddEffect}
           disabled={EFFECT_LIST.length === 0}
         >+ FX</button>
+        <button className="vz-ml-add-btn vz-ml-add-btn--cue" title="Add cue" onClick={onAddCue}>
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" style={{ transform: 'rotate(180deg)', flexShrink: 0 }}>
+            <path d="M18,9v2a6.5,6.5,0,0,0-5.48,10H7a1,1,0,0,1-1-1V9l6-6Z" fill="currentColor" fillOpacity={0.25} />
+            <path d="M18,15v6m3-3H15" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M12,21H7a1,1,0,0,1-1-1V9l6-6,6,6v2" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Add Cue
+        </button>
 
-        {/* Zoom */}
-        <div className="vz-ml-zoom-row">
-          <button className="vz-ml-zoom-btn" onClick={() => setZoom(z => Math.max(0.25, z / 1.5))} title="Zoom out">−</button>
-          <span className="vz-ml-zoom-label">{Math.round(zoom * 100)}%</span>
-          <button className="vz-ml-zoom-btn" onClick={() => setZoom(z => Math.min(8, z * 1.5))} title="Zoom in">+</button>
+        {/* Right cluster: zoom + clear */}
+        <div className="vz-ml-toolbar-right">
+          <div className="vz-ml-zoom-row">
+            <button className="vz-ml-zoom-btn" onClick={() => setZoom(z => Math.max(0.25, z / 1.5))} title="Zoom out">−</button>
+            <span className="vz-ml-zoom-label">{Math.round(zoom * 100)}%</span>
+            <button className="vz-ml-zoom-btn" onClick={() => setZoom(z => Math.min(8, z * 1.5))} title="Zoom in">+</button>
+          </div>
+          <button className="vz-tl-clear-btn" onClick={handleClear} title="Clear all lanes">Clear</button>
         </div>
-
-        <button className="vz-tl-clear-btn" onClick={handleClear} title="Clear all lanes">Clear</button>
       </div>
 
       {/* ── Editor (labels + scroll area) ─────────────────────────────── */}

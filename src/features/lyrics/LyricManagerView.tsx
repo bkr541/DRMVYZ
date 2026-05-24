@@ -270,15 +270,20 @@ export function LyricManagerView({ onBack }: Props) {
         {/* Center: workflow */}
         <div className="lmv-center">
           <div className="lmv-tab-bar">
-            {TAB_LABELS.map(t => (
-              <button
-                key={t.id}
-                className={`lmv-tab-btn${activeTab === t.id ? ' lmv-tab-btn--active' : ''}`}
-                onClick={() => setActiveTab(t.id)}
-              >
-                {t.label}
-              </button>
-            ))}
+            {TAB_LABELS.map(t => {
+              const isDisabled = t.id === 'ai'
+              return (
+                <button
+                  key={t.id}
+                  className={`lmv-tab-btn${activeTab === t.id ? ' lmv-tab-btn--active' : ''}${isDisabled ? ' lmv-tab-btn--disabled' : ''}`}
+                  onClick={() => { if (!isDisabled) setActiveTab(t.id) }}
+                  disabled={isDisabled}
+                  title={isDisabled ? 'Coming soon' : undefined}
+                >
+                  {t.label}
+                </button>
+              )
+            })}
           </div>
 
           <div className="lmv-tab-content">

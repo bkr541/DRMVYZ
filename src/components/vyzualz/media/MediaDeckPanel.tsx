@@ -6,6 +6,8 @@ import {
   PencilEdit01Icon,
   FolderLibraryIcon,
   ArrowLeft01Icon,
+  GridViewIcon,
+  ListViewIcon,
 } from 'hugeicons-react'
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { UploadedMedia, MediaCollection } from '../../../stores/mediaStore'
@@ -14,6 +16,7 @@ import { MediaStatusBar } from './MediaStatusBar'
 import { MEDIA_ROLE_BADGE_LABELS, MEDIA_ROLE_LABELS } from '../../../lib/mediaRoles'
 
 type DeckFilter = 'all' | 'collections' | 'images' | 'videos' | 'favorites' | 'backgrounds' | 'logos' | 'transparent' | 'overlays'
+type ViewMode  = 'grid' | 'list'
 
 const DECK_FILTERS: { key: DeckFilter; label: string }[] = [
   { key: 'all',         label: 'All'         },
@@ -43,14 +46,25 @@ function matchesDeckFilter(m: UploadedMedia, f: DeckFilter): boolean {
 // ── Collection folder card ─────────────────────────────────────────────────
 
 function CollectionFolder({
-  collection, items, onClick,
+  collection, items, viewMode, onClick,
 }: {
   collection: MediaCollection
   items: UploadedMedia[]
+  viewMode: ViewMode
   onClick: () => void
 }) {
   const thumbs = items.slice(0, 4)
   const count  = items.length
+
+  if (viewMode === 'list') {
+    return (
+      <div className="vz-coll-folder-row" onClick={onClick}>
+        <FolderLibraryIcon size={13} color="currentColor" style={{ flexShrink: 0 }} />
+        <span className="vz-coll-folder-name" style={{ flex: 1 }}>{collection.name}</span>
+        <span className="vz-coll-folder-count">{count} {count === 1 ? 'item' : 'items'}</span>
+      </div>
+    )
+  }
 
   return (
     <div className="vz-coll-folder" onClick={onClick}>
@@ -88,15 +102,83 @@ function CollectionFolder({
 // ── Media card (shared between all views) ─────────────────────────────────
 
 function MediaCard({
-  m, isActive, onSelect, onEdit, onRemove, onToggleFavorite,
+  m, isActive, viewMode, onSelect, onEdit, onRemove, onToggleFavorite,
 }: {
   m: UploadedMedia
   isActive: boolean
+  viewMode: ViewMode
   onSelect: () => void
   onEdit: () => void
   onRemove: () => void
   onToggleFavorite: () => void
 }) {
+  const isList = viewMode === 'list'
+  const displayName = (m.title ?? m.name).length > (isList ? 40 : 22)
+    ? (m.title ?? m.name).slice(0, isList ? 40 : 22) + '…'
+    : (m.title ?? m.name)
+
+  const badge = m.uploading ? (
+    <span className="vz-media-type-badge" style={{ background: 'rgba(74,199,219,0.25)', color: '#4ac7db' }}>↑ SYNC</span>
+  ) : m.uploadError ? (
+    <span className="vz-media-type-badge" style={{ background: 'rgba(248,113,113,0.22)', color: '#f87171' }} title={m.uploadError}>⚠ LOCAL</span>
+  ) : m.mediaRole && m.mediaRole !== 'other' ? (
+    <span className="vz-media-type-badge" style={{ background: 'rgba(10,20,32,0.75)' }} title={`Role: ${MEDIA_ROLE_LABELS[m.mediaRole]}`}>
+      {MEDIA_ROLE_BADGE_LABELS[m.mediaRole]}
+    </span>
+  ) : (
+    <span className="vz-media-type-badge">{m.type === 'video' ? 'VID' : 'IMG'}</span>
+  )
+
+  if (isList) {
+    return (
+      <div
+        className={`vz-media-row ${isActive ? 'vz-media-row--active' : ''}`}
+        onClick={() => !m.uploading && onSelect()}
+        style={m.uploading ? { opacity: 0.6, cursor: 'default' } : undefined}
+        draggable={!m.uploading}
+        onDragStart={e => { e.dataTransfer.setData('vz/mediaId', m.id); e.dataTransfer.effectAllowed = 'copy' }}
+      >
+        <div className="vz-media-row-thumb">
+          {(m.localThumbnailObjectUrl ?? m.thumbnailUrl) && (
+            <img src={m.localThumbnailObjectUrl ?? m.thumbnailUrl!} alt={m.name}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          )}
+          {badge}
+        </div>
+        <div className="vz-media-row-info">
+          <span className="vz-media-row-name">{displayName}</span>
+          {m.meta && <span className="vz-media-row-meta">{m.meta}</span>}
+        </div>
+        <div className="vz-media-row-actions">
+          <button
+            className={`vz-media-star ${m.favorite ? 'vz-media-star--active' : ''}`}
+            onClick={e => { e.stopPropagation(); onToggleFavorite() }}
+            title={m.favorite ? 'Unfavourite' : 'Favourite'}
+            style={{ position: 'static' }}
+          >
+            <FavouriteIcon size={14} color="currentColor" />
+          </button>
+          <button
+            className="vz-media-edit-btn"
+            onClick={e => { e.stopPropagation(); onEdit() }}
+            title="Edit media"
+            style={{ opacity: 1 }}
+          >
+            <PencilEdit01Icon size={11} color="currentColor" />
+          </button>
+          <button
+            className="vz-media-remove"
+            onClick={e => { e.stopPropagation(); onRemove() }}
+            title="Remove"
+            style={{ position: 'static' }}
+          >
+            <Delete02Icon size={13} color="currentColor" />
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div
       className={`vz-media-card ${isActive ? 'vz-media-card--active' : ''}`}
@@ -116,21 +198,7 @@ function MediaCard({
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
           />
         )}
-        {m.uploading ? (
-          <span className="vz-media-type-badge" style={{ background: 'rgba(74,199,219,0.25)', color: '#4ac7db' }}>↑ SYNC</span>
-        ) : m.uploadError ? (
-          <span className="vz-media-type-badge" style={{ background: 'rgba(248,113,113,0.22)', color: '#f87171' }} title={m.uploadError}>⚠ LOCAL</span>
-        ) : m.mediaRole && m.mediaRole !== 'other' ? (
-          <span
-            className="vz-media-type-badge"
-            style={{ background: 'rgba(10,20,32,0.75)' }}
-            title={`Role: ${MEDIA_ROLE_LABELS[m.mediaRole]}`}
-          >
-            {MEDIA_ROLE_BADGE_LABELS[m.mediaRole]}
-          </span>
-        ) : (
-          <span className="vz-media-type-badge">{m.type === 'video' ? 'VID' : 'IMG'}</span>
-        )}
+        {badge}
         <button
           className={`vz-media-star ${m.favorite ? 'vz-media-star--active' : ''}`}
           onClick={e => { e.stopPropagation(); onToggleFavorite() }}
@@ -148,7 +216,7 @@ function MediaCard({
       </div>
       <div className="vz-media-info">
         <div className="vz-media-name-row">
-          <div className="vz-media-name">{((m.title ?? m.name).length > 22 ? (m.title ?? m.name).slice(0, 22) + '…' : (m.title ?? m.name))}</div>
+          <div className="vz-media-name">{displayName}</div>
           <button
             className="vz-media-edit-btn"
             onClick={e => { e.stopPropagation(); onEdit() }}
@@ -188,6 +256,7 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
   const [deckFilter, setDeckFilter] = useState<DeckFilter>('all')
   const [openCollectionId, setOpenCollectionId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [dragOver, setDragOver] = useState(false)
   const [editItem, setEditItem] = useState<UploadedMedia | null>(null)
 
@@ -266,12 +335,13 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
   // ── Render ────────────────────────────────────────────────────────────────
 
   const renderGrid = (mediaList: UploadedMedia[]) => (
-    <div className="vz-media-grid">
+    <div className={viewMode === 'list' ? 'vz-media-list' : 'vz-media-grid'}>
       {mediaList.map(m => (
         <MediaCard
           key={m.id}
           m={m}
           isActive={activeMediaId === m.id}
+          viewMode={viewMode}
           onSelect={() => onSelect(m.id)}
           onEdit={() => setEditItem(m)}
           onRemove={() => removeItem(m.id)}
@@ -332,12 +402,13 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
     }
 
     return (
-      <div className="vz-coll-list">
+      <div className={viewMode === 'list' ? 'vz-media-list' : 'vz-coll-list'}>
         {filteredCollections.map(c => (
           <CollectionFolder
             key={c.id}
             collection={c}
             items={itemsByCollection.get(c.id) ?? []}
+            viewMode={viewMode}
             onClick={() => setOpenCollectionId(c.id)}
           />
         ))}
@@ -391,6 +462,22 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
             {searchQuery.length > 0 && (
               <button className="vz-md-search-clear" onClick={() => setSearchQuery('')} title="Clear search">✕</button>
             )}
+          </div>
+          <div className="vz-md-view-toggles">
+            <button
+              className={`vz-md-view-btn${viewMode === 'grid' ? ' vz-md-view-btn--active' : ''}`}
+              onClick={() => setViewMode('grid')}
+              title="Grid view"
+            >
+              <GridViewIcon size={13} color="currentColor" />
+            </button>
+            <button
+              className={`vz-md-view-btn${viewMode === 'list' ? ' vz-md-view-btn--active' : ''}`}
+              onClick={() => setViewMode('list')}
+              title="List view"
+            >
+              <ListViewIcon size={13} color="currentColor" />
+            </button>
           </div>
         </div>
 

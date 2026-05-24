@@ -90,6 +90,8 @@ interface LyricsState {
   deleteCue(cueId: string): void
   /** Remove all cues from the timeline. Marks lyricTimingDirty so the empty state can be persisted. */
   clearCues(): void
+  /** Append a single cue, sort by startMs, select it, and mark dirty. Returns the created cue. */
+  addCue(cue: Omit<LyricCue, 'id'>): LyricCue
 
   // Async actions
   loadLyricDocument(documentId: string): Promise<void>
@@ -247,6 +249,16 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
   },
 
   clearCues: () => set({ cues: [], selectedCueId: null, lyricTimingDirty: true }),
+
+  addCue: (cue) => {
+    const id = crypto.randomUUID()
+    const newCue: LyricCue = { ...cue, id }
+    set(s => {
+      const next = [...s.cues, newCue].sort((a, b) => a.startMs - b.startMs)
+      return { cues: next, selectedCueId: id, lyricTimingDirty: true }
+    })
+    return newCue
+  },
 
   // ── Async actions ────────────────────────────────────────────────────────────
 

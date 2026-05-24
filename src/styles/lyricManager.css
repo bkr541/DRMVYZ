@@ -340,7 +340,13 @@
   transition: all 0.15s;
   white-space: nowrap;
 }
-.lmv-tab-btn:hover { color: rgba(196,207,211,0.75); }
+.lmv-tab-btn:not(:disabled):hover { color: rgba(196,207,211,0.75); }
+.lmv-tab-btn--disabled,
+.lmv-tab-btn:disabled {
+  color: rgba(196,207,211,0.22) !important;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
 .lmv-tab-btn--active {
   color: var(--az-cyan, #4ac7db);
   border-bottom-color: var(--az-cyan, #4ac7db);

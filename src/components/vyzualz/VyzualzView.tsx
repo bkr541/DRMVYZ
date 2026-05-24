@@ -43,6 +43,7 @@ import { useMediaNavigation }   from './hooks/useMediaNavigation'
 import { useRecorder }          from '../../hooks/useRecorder'
 import { RecordingPanel }       from './recording/RecordingPanel'
 import { TimelineInspectorPanel } from './timeline/TimelineInspectorPanel'
+import { AddCueModal }            from './AddCueModal'
 
 // ── AudioWaveformCanvas (real analyser) ───────────────────────────────
 function AudioWaveformCanvas({ analyser }: { analyser: AnalyserNode | null }) {
@@ -487,7 +488,6 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     layerConfigs, layerItems,
     effectParams, setEffectParam,
     audioReactivityEnabled, setAudioReactivityEnabled,
-    videoBaselineMode, setVideoBaselineMode,
   } = useVisualStore(useShallow(s => ({
     effects:                   s.effects,
     enabledFxArr:              s.enabledFxArr,
@@ -535,8 +535,6 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     setEffectParam:            s.setEffectParam,
     audioReactivityEnabled:    s.audioReactivityEnabled,
     setAudioReactivityEnabled: s.setAudioReactivityEnabled,
-    videoBaselineMode:         s.videoBaselineMode,
-    setVideoBaselineMode:      s.setVideoBaselineMode,
   })))
 
   const { items, loading, reorderItems } = useMediaStore()
@@ -544,8 +542,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   const enabledFxSet = useMemo(() => new Set(enabledFxArr), [enabledFxArr])
   // Baseline mode overrides the enabled-effects set to empty without touching the store,
   // so the user's effect configuration is fully preserved when baseline is toggled off.
-  const EMPTY_FX_SET = useMemo(() => new Set<string>(), [])
-  const effectiveEnabledFx = videoBaselineMode ? EMPTY_FX_SET : enabledFxSet
+  const effectiveEnabledFx = enabledFxSet
 
   // After Supabase load completes, restore or auto-select active media.
   // Only auto-select primary-renderable media (background, loop, other) so that
@@ -565,6 +562,8 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   useEffect(() => {
     if (!engine.isPlaying && isPlaying) setPlaying(false)
   }, [engine.isPlaying, isPlaying, setPlaying])
+
+  const [isAddCueModalOpen, setIsAddCueModalOpen] = useState(false)
 
   // Inspector collapse state — persisted to localStorage
   const [isLeftInspectorCollapsed,  setIsLeftInspectorCollapsed]  = useState(() => readLS('drmvyz:vz:leftCollapsed',  false))
@@ -608,10 +607,6 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   useEffect(() => () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current) }, [])
 
   // Lyric state — subscribe to just the two values we render (enabled + count)
-  const { lyricsEnabled, lyricsCueCount } = useLyricsStore(useShallow(s => ({
-    lyricsEnabled:  s.lyricsEnabled,
-    lyricsCueCount: s.cues.length,
-  })))
 
   // Show confirmation toast when the user returns from the Lyric Manager via "Preview in Visualizer"
   const prevAppViewRef = useRef<'visualizer' | 'lyrics'>(appView)
@@ -771,6 +766,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   }
 
   return (
+    <>
     <VyzualzShell
       isLeftInspectorCollapsed={isLeftInspectorCollapsed}
       isRightInspectorCollapsed={isRightInspectorCollapsed}
@@ -847,9 +843,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                   activeMedia={activeMedia}
                   effects={effects}
                   enabledFx={effectiveEnabledFx}
-                  videoBaselineMode={videoBaselineMode}
-                  onToggleVideoBaseline={() => { setVideoBaselineMode(!videoBaselineMode); if (!videoBaselineMode) setTimelineEnabled(false) }}
-                  onSelectVisualizer={() => { setTimelineEnabled(false); setVideoBaselineMode(false) }}
+                  onSelectVisualizer={() => setTimelineEnabled(false)}
                   isPlaying={isPlaying}
                   onPlay={handleTogglePlayback}
                   onPause={handleTogglePlayback}
@@ -866,7 +860,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                   audioDuration={engine.duration}
                   modulationRoutes={modulationRoutes}
                   timelineEnabled={timelineEnabled}
-                  onToggleTimeline={() => { setTimelineEnabled(!timelineEnabled); if (!timelineEnabled) setVideoBaselineMode(false) }}
+                  onToggleTimeline={() => setTimelineEnabled(!timelineEnabled)}
                   timelineClips={timelineClips}
                   timelineOverlayClips={timelineOverlayClips}
                   timelineEffectRegions={timelineEffectRegions}
@@ -876,9 +870,6 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                   layerItems={layerItems}
                   effectParams={effectParams}
                   audioReactivityEnabled={audioReactivityEnabled}
-                  lyricsEnabled={lyricsEnabled}
-                  lyricsCount={lyricsCueCount}
-                  onLyricsClick={() => setAppView('lyrics')}
                   onCanvasReady={setOutputCanvas}
                   onLiveFps={setLiveFps}
                   stageOverlays={
@@ -899,7 +890,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
           overlay={
             timelineEnabled ? (
               <VyzualzErrorBoundary section="Timeline">
-                <TimelinePanel onScrub={handleTimelineScrub} />
+                <TimelinePanel onScrub={handleTimelineScrub} onAddCue={() => setIsAddCueModalOpen(true)} />
               </VyzualzErrorBoundary>
             ) : undefined
           }
@@ -970,5 +961,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
       bottomBar={<BottomPerformanceBar />}
       dock={<VyzualzDock />}
     />
+    <AddCueModal isOpen={isAddCueModalOpen} onClose={() => setIsAddCueModalOpen(false)} />
+    </>
   )
 }
