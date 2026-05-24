@@ -835,7 +835,8 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                   effects={effects}
                   enabledFx={effectiveEnabledFx}
                   videoBaselineMode={videoBaselineMode}
-                  onToggleVideoBaseline={() => setVideoBaselineMode(!videoBaselineMode)}
+                  onToggleVideoBaseline={() => { setVideoBaselineMode(!videoBaselineMode); if (!videoBaselineMode) setTimelineEnabled(false) }}
+                  onSelectVisualizer={() => { setTimelineEnabled(false); setVideoBaselineMode(false) }}
                   isPlaying={isPlaying}
                   onPlay={handleTogglePlayback}
                   onPause={handleTogglePlayback}
@@ -852,7 +853,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                   audioDuration={engine.duration}
                   modulationRoutes={modulationRoutes}
                   timelineEnabled={timelineEnabled}
-                  onToggleTimeline={() => setTimelineEnabled(!timelineEnabled)}
+                  onToggleTimeline={() => { setTimelineEnabled(!timelineEnabled); if (!timelineEnabled) setVideoBaselineMode(false) }}
                   timelineClips={timelineClips}
                   timelineOverlayClips={timelineOverlayClips}
                   timelineEffectRegions={timelineEffectRegions}

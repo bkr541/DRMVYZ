@@ -31,6 +31,7 @@ export function LiveVisualPreview({
   layerConfigs, layerItems, effectParams, audioReactivityEnabled,
   lyricsEnabled, lyricsCount, onLyricsClick,
   videoBaselineMode, onToggleVideoBaseline,
+  onSelectVisualizer,
   stageOverlays,
   onCanvasReady,
   onLiveFps,
@@ -64,6 +65,7 @@ export function LiveVisualPreview({
   onLyricsClick: () => void
   videoBaselineMode: boolean
   onToggleVideoBaseline: () => void
+  onSelectVisualizer: () => void
   stageOverlays?: ReactNode
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
   onLiveFps?: (fps: number) => void
@@ -191,8 +193,19 @@ export function LiveVisualPreview({
           {viewMenuOpen && (
             <div className="vz-view-menu-dropdown">
               <button
+                className={`vz-view-menu-item${!timelineEnabled && !videoBaselineMode ? ' vz-view-menu-item--on' : ''}`}
+                onClick={() => { onSelectVisualizer(); setViewMenuOpen(false) }}
+              >
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true">
+                  <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/>
+                </svg>
+                <span>Visualizer</span>
+                <span className={`vz-view-menu-dot${!timelineEnabled && !videoBaselineMode ? ' vz-view-menu-dot--on' : ''}`} />
+              </button>
+
+              <button
                 className={`vz-view-menu-item${timelineEnabled ? ' vz-view-menu-item--on' : ''}`}
-                onClick={onToggleTimeline}
+                onClick={() => { onToggleTimeline(); setViewMenuOpen(false) }}
               >
                 <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true">
                   <path d="M3 5h18v2H3V5zm0 4h12v2H3V9zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/>
@@ -216,7 +229,7 @@ export function LiveVisualPreview({
 
               <button
                 className={`vz-view-menu-item${videoBaselineMode ? ' vz-view-menu-item--warn' : ''}`}
-                onClick={onToggleVideoBaseline}
+                onClick={() => { onToggleVideoBaseline(); setViewMenuOpen(false) }}
               >
                 <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true">
                   <path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/>
