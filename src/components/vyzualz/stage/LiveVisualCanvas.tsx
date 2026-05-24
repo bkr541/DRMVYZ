@@ -1370,6 +1370,12 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       // Defined here so it is accessible to both background clips and overlay clips.
       function syncVideoEl(vid: HTMLVideoElement, desired: number, playing: boolean) {
         if (vid.seeking) return
+        // readyState < 2 means the browser has no decoded frame yet.  Issuing
+        // currentTime assignments here would interrupt the pending play() promise
+        // with an AbortError, keeping the video stuck in a seek/abort loop forever.
+        // Let the browser buffer and start playback on its own; sync kicks in once
+        // we have actual frame data.
+        if (vid.readyState < 2) return
         const drift    = desired - vid.currentTime
         const absDrift = Math.abs(drift)
         if (playing) {
