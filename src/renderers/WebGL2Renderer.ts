@@ -590,11 +590,47 @@ export class WebGL2Renderer {
     resizeFBOTexture(gl, this.bloom2Tex, this.bloomW, this.bloomH)
   }
 
-  // ── Video texture upload ─────────────────────────────────────────────────────
+  // ── DOM media texture upload ─────────────────────────────────────────────────
+
+  /**
+   * Upload an HTMLImageElement or HTMLVideoElement into a WebGL texture.
+   *
+   * DOM elements use top-left (y=0=top) pixel ordering.  WebGL textures use
+   * bottom-left (y=0=bottom) ordering.  Setting UNPACK_FLIP_Y_WEBGL before
+   * the upload makes the GPU flip the rows automatically, so the texture
+   * enters the pipeline in WebGL convention and the VIDEO_FRAG shader's
+   * `1.0 - ry` sample correctly maps texture y=1 (image top) to canvas top.
+   *
+   * This method must ONLY be called for DOM-backed sources.  FBO textures,
+   * sized-null allocations, and typed-array uploads must never go through here —
+   * those already obey the WebGL bottom-left convention and must not be flipped.
+   */
+  private uploadDomMediaTexture(
+    texture: WebGLTexture,
+    source: HTMLImageElement | HTMLVideoElement,
+    allocate: boolean,
+  ): boolean {
+    const gl = this.gl
+    gl.bindTexture(gl.TEXTURE_2D, texture)
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true)
+    try {
+      if (allocate) {
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source)
+      } else {
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, source)
+      }
+      return true
+    } catch {
+      // CORS or decode error — leave placeholder texture
+      return false
+    } finally {
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
+      gl.bindTexture(gl.TEXTURE_2D, null)
+    }
+  }
 
   private uploadVideoTexture(el: HTMLImageElement | HTMLVideoElement): boolean {
-    const gl = this.gl
-    // Guard: video must have renderable data
+    // Guard: element must have renderable data before upload
     if (el instanceof HTMLVideoElement) {
       if (el.readyState < 2 || el.videoWidth === 0 || el.videoHeight === 0) return false
     } else {
@@ -603,22 +639,14 @@ export class WebGL2Renderer {
 
     const elW = el instanceof HTMLVideoElement ? el.videoWidth  : el.naturalWidth
     const elH = el instanceof HTMLVideoElement ? el.videoHeight : el.naturalHeight
+    const allocate = this.videoTexW !== elW || this.videoTexH !== elH
 
-    gl.bindTexture(gl.TEXTURE_2D, this.videoTex)
-    try {
-      if (this.videoTexW !== elW || this.videoTexH !== elH) {
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, el)
-        this.videoTexW = elW; this.videoTexH = elH
-      } else {
-        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, el)
-      }
-    } catch {
-      // CORS or decode error — leave placeholder texture
-      gl.bindTexture(gl.TEXTURE_2D, null)
-      return false
+    const ok = this.uploadDomMediaTexture(this.videoTex, el, allocate)
+    if (ok && allocate) {
+      this.videoTexW = elW
+      this.videoTexH = elH
     }
-    gl.bindTexture(gl.TEXTURE_2D, null)
-    return true
+    return ok
   }
 
   // ── Draw fullscreen quad ─────────────────────────────────────────────────────

@@ -49,6 +49,7 @@ const GL = {
   TRIANGLES:           4,
   TEXTURE0:            33984,
   TEXTURE1:            33985,
+  UNPACK_FLIP_Y_WEBGL: 37440,
 }
 
 // ── Deletion counters returned by makeGLMock ─────────────────────────────────
@@ -182,6 +183,7 @@ function makeGLMock(opts: GlMockOpts = {}): { gl: object; deleted: DeleteCounts 
     flush:                  () => {},
     viewport:               () => {},
     activeTexture:          () => {},
+    pixelStorei:            () => {},
     getExtension:           () => null,
     getParameter:           () => null,
   }
@@ -742,5 +744,115 @@ describe('WebGL2Renderer — context-loss event wiring', () => {  // I.
     // the listener should already be removed.
     fire('webglcontextlost', { preventDefault: vi.fn() })
     expect(onContextLost).not.toHaveBeenCalled()
+  })
+})
+
+// ── J. DOM media texture upload — UNPACK_FLIP_Y_WEBGL regression ─────────────
+//
+// Verifies that the DOM-media upload boundary correctly sets UNPACK_FLIP_Y_WEBGL
+// before texImage2D / texSubImage2D and resets it after, so:
+//   - DOM elements (top-left origin) are flipped into WebGL bottom-left convention
+//   - FBO textures (null data) are never affected by the flip state
+//
+// These tests prevent the vertical-inversion regression (media appears upside-down
+// in WebGL2 mode) from returning undetected.
+
+describe('uploadVideoTexture — UNPACK_FLIP_Y_WEBGL orientation', () => {
+  // In the "node" Vitest environment HTMLVideoElement is not a global.
+  // Stub it so instanceof checks inside uploadVideoTexture don't throw.
+  beforeEach(() => { vi.stubGlobal('HTMLVideoElement', class HTMLVideoElement {}) })
+
+  it('sets UNPACK_FLIP_Y_WEBGL=true before texImage2D when uploading a new image source', () => {
+    const callSeq: string[] = []
+    const { gl } = makeGLMock()
+    const trackedGl = {
+      ...gl,
+      pixelStorei: (pname: number, param: unknown) => {
+        if (pname === GL.UNPACK_FLIP_Y_WEBGL) callSeq.push(`flipY=${param}`)
+      },
+      texImage2D: (..._: unknown[]) => { callSeq.push('texImage2D') },
+    }
+    stubCanvas(makeCanvas(trackedGl))
+    const result = WebGL2Renderer.create()
+    expect(result.renderer).not.toBeNull()
+
+    callSeq.length = 0  // discard init / resize calls
+
+    const fakeImg = { complete: true, naturalWidth: 200, naturalHeight: 100 }
+    result.renderer!.renderFrame({
+      ...NULL_FRAME,
+      mediaEl: fakeImg as unknown as HTMLImageElement,
+      canvasW: 100, canvasH: 100,
+    })
+
+    // UNPACK_FLIP_Y_WEBGL=true must appear before the texImage2D that uploads
+    // the DOM image, and must be reset to false afterwards.
+    const flipOnIdx  = callSeq.indexOf('flipY=true')
+    const texAfterFlip = callSeq.findIndex((c, i) => i > flipOnIdx && c === 'texImage2D')
+    const flipOffAfterTex = callSeq.findIndex((c, i) => i > texAfterFlip && c === 'flipY=false')
+
+    expect(flipOnIdx,       'UNPACK_FLIP_Y_WEBGL=true must be called').toBeGreaterThanOrEqual(0)
+    expect(texAfterFlip,    'texImage2D must follow UNPACK_FLIP_Y_WEBGL=true').toBeGreaterThan(flipOnIdx)
+    expect(flipOffAfterTex, 'UNPACK_FLIP_Y_WEBGL must be reset to false after upload').toBeGreaterThan(texAfterFlip)
+
+    result.renderer?.dispose()
+  })
+
+  it('sets UNPACK_FLIP_Y_WEBGL=true before texSubImage2D on same-size video frame update', () => {
+    const callSeq: string[] = []
+    const { gl } = makeGLMock()
+    const trackedGl = {
+      ...gl,
+      pixelStorei: (pname: number, param: unknown) => {
+        if (pname === GL.UNPACK_FLIP_Y_WEBGL) callSeq.push(`flipY=${param}`)
+      },
+      texImage2D:    (..._: unknown[]) => { callSeq.push('texImage2D') },
+      texSubImage2D: (..._: unknown[]) => { callSeq.push('texSubImage2D') },
+    }
+    stubCanvas(makeCanvas(trackedGl))
+
+    const FakeHTMLVideoElement = (globalThis as Record<string, unknown>)['HTMLVideoElement'] as new () => unknown
+    const result = WebGL2Renderer.create()
+    expect(result.renderer).not.toBeNull()
+
+    const fakeVid = Object.assign(Object.create(FakeHTMLVideoElement.prototype), {
+      readyState: 4, videoWidth: 200, videoHeight: 100,
+    })
+
+    // First frame: allocates the texture (texImage2D) — clear after
+    result.renderer!.renderFrame({ ...NULL_FRAME, mediaEl: fakeVid as unknown as HTMLVideoElement, canvasW: 100, canvasH: 100 })
+    callSeq.length = 0
+
+    // Second frame: same dimensions → uses texSubImage2D
+    result.renderer!.renderFrame({ ...NULL_FRAME, mediaEl: fakeVid as unknown as HTMLVideoElement, canvasW: 100, canvasH: 100 })
+
+    const flipOnIdx   = callSeq.indexOf('flipY=true')
+    const subAfterFlip = callSeq.findIndex((c, i) => i > flipOnIdx && c === 'texSubImage2D')
+    const flipOffAfterSub = callSeq.findIndex((c, i) => i > subAfterFlip && c === 'flipY=false')
+
+    expect(flipOnIdx,       'UNPACK_FLIP_Y_WEBGL=true must be called for video update').toBeGreaterThanOrEqual(0)
+    expect(subAfterFlip,    'texSubImage2D must follow UNPACK_FLIP_Y_WEBGL=true').toBeGreaterThan(flipOnIdx)
+    expect(flipOffAfterSub, 'UNPACK_FLIP_Y_WEBGL must be reset to false after video update').toBeGreaterThan(subAfterFlip)
+
+    result.renderer?.dispose()
+  })
+
+  it('UNPACK_FLIP_Y_WEBGL is never set to true during renderer init (FBO allocations unaffected)', () => {
+    const flipTrueCalls: number[] = []
+    const { gl } = makeGLMock()
+    const trackedGl = {
+      ...gl,
+      pixelStorei: (pname: number, param: unknown) => {
+        if (pname === GL.UNPACK_FLIP_Y_WEBGL && param) flipTrueCalls.push(1)
+      },
+    }
+    stubCanvas(makeCanvas(trackedGl))
+    const result = WebGL2Renderer.create()
+
+    // FBO sized-null allocations and the 1×1 placeholder upload must not set
+    // UNPACK_FLIP_Y_WEBGL=true — only DOM media uploads should use the flip.
+    expect(flipTrueCalls.length).toBe(0)
+
+    result.renderer?.dispose()
   })
 })

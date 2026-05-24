@@ -621,6 +621,15 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   const [outputCanvas, setOutputCanvas] = useState<HTMLCanvasElement | null>(null)
   const [liveFps, setLiveFps] = useState(0)
 
+  // Guard: only thread audio into the recording when a source is actively producing signal.
+  // engine.getRecordingStream() creates an AudioContext and a MediaStreamAudioDestinationNode
+  // as a side effect — calling it when no source is active would produce a recording labelled
+  // "Video + Audio" whose audio track is silence. Passing null instead signals video-only mode.
+  const handleStartRecording = useCallback((canvas: HTMLCanvasElement) => {
+    const audioStream = engine.isActive ? engine.getRecordingStream() : null
+    recorder.startVideoRecording(canvas, audioStream)
+  }, [engine.isActive, engine.getRecordingStream, recorder.startVideoRecording])
+
   const handleFullscreen = useCallback(() => {
     canvasWrapRef.current?.requestFullscreen?.().catch(() => {})
   }, [])
@@ -928,12 +937,13 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                 recorderState={recorder.recorderState}
                 recordingMode={recorder.recordingMode}
                 recordingTime={recorder.recordingTime}
+                recorderError={recorder.recorderError}
                 fps={recorder.fps}
                 liveFps={liveFps}
                 onFpsChange={recorder.setFps}
-                onStartRecording={recorder.startVideoRecording}
+                onStartRecording={handleStartRecording}
                 onStopRecording={recorder.stopRecording}
-                getAudioStream={engine.getRecordingStream}
+                hasActiveProgramAudio={engine.isActive}
                 onExportPng={recorder.exportPNG}
               />
             )}

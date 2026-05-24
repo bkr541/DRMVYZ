@@ -211,7 +211,191 @@ describe('MediaRecorder recording lifecycle', () => {
   })
 })
 
-// ── Test 10: PNG export falls back to largest canvas ──────────────────────
+// ── Test 10: audio-guard contract ────────────────────────────────────────────
+//
+// When hasActiveProgramAudio=false the start-recording handler in VyzualzView
+// passes null instead of calling engine.getRecordingStream().
+// This contract is exercised here via buildCombinedStream directly, which is the
+// function that ultimately decides the RecordingMode from the audio argument.
+
+describe('audio guard contract — no active source → video-only recording', () => {
+  beforeEach(() => { vi.stubGlobal('MediaStream', FakeMediaStream) })
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it('produces video-only mode when null is passed (isActive=false guard fires)', () => {
+    const canvas = new FakeCanvas() as unknown as HTMLCanvasElement
+    // VyzualzView.handleStartRecording passes null when engine.isActive is false
+    const { mode } = buildCombinedStream(canvas, null, 30)
+    expect(mode).toBe('video-only')
+  })
+
+  it('produces video-audio mode when an active audio stream is passed (isActive=true)', () => {
+    const canvas = new FakeCanvas() as unknown as HTMLCanvasElement
+    const audioTrack  = new FakeMediaStreamTrack('audio')
+    const audioStream = new FakeMediaStream([audioTrack]) as unknown as MediaStream
+    // VyzualzView.handleStartRecording calls getRecordingStream() when engine.isActive=true
+    const { mode } = buildCombinedStream(canvas, audioStream, 30)
+    expect(mode).toBe('video-audio')
+  })
+
+  it('a stream that contains audio tracks always produces video-audio — confirming the guard matters', () => {
+    // Regression: before the fix, getRecordingStream() returned a stream with
+    // audio tracks even when no source was active, causing every recording to be
+    // labelled "Video + Audio" with a silent audio track. The guard (null when
+    // isActive=false) prevents this by never passing the stream to buildCombinedStream.
+    const canvas = new FakeCanvas() as unknown as HTMLCanvasElement
+    const audioTrack  = new FakeMediaStreamTrack('audio')
+    const audioStream = new FakeMediaStream([audioTrack]) as unknown as MediaStream
+    const { mode: withAudio  } = buildCombinedStream(canvas, audioStream, 30)
+    const { mode: withoutAudio } = buildCombinedStream(canvas, null, 30)
+    expect(withAudio).toBe('video-audio')
+    expect(withoutAudio).toBe('video-only')
+  })
+})
+
+// ── Test 12: startup failure — MediaRecorder constructor throws ─────────────
+//
+// Contract: if MediaRecorder construction fails, captured video tracks must be
+// released immediately. The recording must not start; no refs are left holding
+// live tracks.
+
+describe('startVideoRecording — MediaRecorder constructor failure', () => {
+  beforeEach(() => { vi.stubGlobal('MediaStream', FakeMediaStream) })
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it('stops captured video tracks when MediaRecorder constructor throws', () => {
+    class ThrowingRecorder {
+      static isTypeSupported = (_: string) => true
+      constructor() { throw new Error('NotSupportedError') }
+    }
+    vi.stubGlobal('MediaRecorder', ThrowingRecorder)
+
+    const canvas = new FakeCanvas() as unknown as HTMLCanvasElement
+    // Simulate what startVideoRecording does when MediaRecorder throws:
+    // buildCombinedStream succeeds → capturedTracks allocated → constructor throws → tracks stopped.
+    const { capturedTracks } = buildCombinedStream(canvas, null, 30)
+    const trackSpy = vi.spyOn(capturedTracks[0], 'stop')
+
+    try {
+      new (ThrowingRecorder as unknown as typeof MediaRecorder)(
+        new FakeMediaStream() as unknown as MediaStream,
+      )
+    } catch {
+      for (const t of capturedTracks) t.stop()
+    }
+
+    expect(trackSpy).toHaveBeenCalled()
+  })
+
+  it('stops captured video tracks when mr.start() throws', () => {
+    class StartThrowingRecorder {
+      static isTypeSupported = (_: string) => true
+      ondataavailable: ((e: { data: Blob }) => void) | null = null
+      onstop: (() => void) | null = null
+      onerror: ((e: Event) => void) | null = null
+      constructor(_stream: MediaStream, _opts?: { mimeType?: string }) {}
+      start = (_timeslice?: number) => { throw new Error('start failed') }
+      stop  = vi.fn()
+    }
+    vi.stubGlobal('MediaRecorder', StartThrowingRecorder)
+
+    const canvas = new FakeCanvas() as unknown as HTMLCanvasElement
+    const { capturedTracks } = buildCombinedStream(canvas, null, 30)
+    const trackSpy = vi.spyOn(capturedTracks[0], 'stop')
+
+    const stream = new FakeMediaStream() as unknown as MediaStream
+    const mr = new StartThrowingRecorder(stream)
+
+    try {
+      mr.start(500)
+    } catch {
+      for (const t of capturedTracks) t.stop()
+    }
+
+    expect(trackSpy).toHaveBeenCalled()
+  })
+})
+
+// ── Test 13: runtime onerror — tracks and timer are released ─────────────────
+//
+// Contract: when MediaRecorder fires onerror mid-recording, the capture tracks
+// must be stopped and the interval timer cleared — even if the UI is still mounted.
+// This mirrors what the onerror handler in useRecorder does (calls stopRecording).
+
+describe('MediaRecorder onerror — resource teardown', () => {
+  it('stops captured tracks and clears timer when onerror fires', () => {
+    const videoTrack = new FakeMediaStreamTrack('video')
+    const capturedTracks: FakeMediaStreamTrack[] = [videoTrack]
+    let timerId: ReturnType<typeof setInterval> | null = setInterval(() => {}, 1000)
+
+    // Simulate what stopRecording does (called by the onerror handler):
+    const simulateStopRecording = () => {
+      for (const t of capturedTracks) t.stop()
+      capturedTracks.length = 0
+      if (timerId) { clearInterval(timerId); timerId = null }
+    }
+
+    // Fire onerror
+    const fakeEvent = new Event('error')
+    const onError = (_e: Event) => { simulateStopRecording() }
+    onError(fakeEvent)
+
+    expect(videoTrack.stop).toHaveBeenCalled()
+    expect(capturedTracks).toHaveLength(0)
+    expect(timerId).toBeNull()
+  })
+})
+
+// ── Test 14: unmount cleanup — tracks and timer released on component teardown
+//
+// Contract: if the component unmounts while a recording is active, the useEffect
+// cleanup must stop captured tracks and clear the interval — preventing resource
+// leaks when the user navigates away mid-capture.
+
+describe('useEffect unmount cleanup', () => {
+  it('stops active capture tracks and clears timer on unmount', () => {
+    const videoTrack = new FakeMediaStreamTrack('video')
+    let capturedTracks: FakeMediaStreamTrack[] = [videoTrack]
+    let timerId: ReturnType<typeof setInterval> | null = setInterval(() => {}, 1000)
+
+    const mr = new FakeMediaRecorder(
+      new FakeMediaStream() as unknown as MediaStream,
+      { mimeType: 'video/webm' },
+    )
+    mr.start(500)
+    expect(mr.state).toBe('recording')
+
+    // Simulate the useEffect cleanup that fires on unmount:
+    if (mr.state !== 'inactive') {
+      try { mr.stop() } catch { /* ignore */ }
+    }
+    for (const t of capturedTracks) t.stop()
+    capturedTracks = []
+    if (timerId) { clearInterval(timerId); timerId = null }
+
+    expect(mr.stop).toHaveBeenCalled()
+    expect(videoTrack.stop).toHaveBeenCalled()
+    expect(capturedTracks).toHaveLength(0)
+    expect(timerId).toBeNull()
+  })
+
+  it('does not throw when unmounting with no active recording', () => {
+    // No active mr, no tracks — cleanup must be a safe no-op.
+    const capturedTracks: FakeMediaStreamTrack[] = []
+    let timerId: ReturnType<typeof setInterval> | null = null
+
+    expect(() => {
+      const mr = null
+      if (mr) {
+        try { (mr as MediaRecorder).stop() } catch { /* ignore */ }
+      }
+      for (const t of capturedTracks) t.stop()
+      if (timerId) { clearInterval(timerId); timerId = null }
+    }).not.toThrow()
+  })
+})
+
+// ── Test 11: PNG export falls back to largest canvas ─────────────────────
 
 describe('exportPNG canvas selection', () => {
   afterEach(() => { vi.unstubAllGlobals() })

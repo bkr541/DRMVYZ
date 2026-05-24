@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { encodeWAV, downloadBlob } from '../utils/wavExport'
 
 export type RecorderState = 'idle' | 'recording'
@@ -8,6 +8,7 @@ export interface Recorder {
   recorderState: RecorderState
   recordingMode: RecordingMode | null
   recordingTime: number
+  recorderError: string | null
   fps: 30 | 60
   setFps: (fps: 30 | 60) => void
   startVideoRecording: (
@@ -61,6 +62,7 @@ export function useRecorder(): Recorder {
   const [recorderState, setRecorderState] = useState<RecorderState>('idle')
   const [recordingMode, setRecordingMode] = useState<RecordingMode | null>(null)
   const [recordingTime, setRecordingTime] = useState(0)
+  const [recorderError, setRecorderError] = useState<string | null>(null)
   const [fps, setFpsState] = useState<30 | 60>(30)
 
   const mediaRecorderRef   = useRef<MediaRecorder | null>(null)
@@ -74,48 +76,7 @@ export function useRecorder(): Recorder {
     fpsRef.current = f
   }, [])
 
-  const startVideoRecording = useCallback((
-    canvas: HTMLCanvasElement,
-    audioStream: MediaStream | null,
-    opts?: { fps?: 30 | 60 },
-  ) => {
-    if (mediaRecorderRef.current) return
-
-    const targetFps = opts?.fps ?? fpsRef.current
-    const mimeType  = pickVideoMimeType()
-
-    if (!mimeType) {
-      alert('Your browser does not support video recording (WebM). Use Chrome or Edge.')
-      return
-    }
-
-    const { stream, capturedTracks, mode } = buildCombinedStream(canvas, audioStream, targetFps)
-    captureTracksRef.current = capturedTracks
-
-    chunksRef.current = []
-    const mr = new MediaRecorder(stream, {
-      mimeType,
-      videoBitsPerSecond: 8_000_000,
-    })
-
-    mr.ondataavailable = (e) => {
-      if (e.data.size > 0) chunksRef.current.push(e.data)
-    }
-    mr.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: mimeType })
-      downloadBlob(blob, `drmvyz-performance-${Date.now()}.webm`)
-      chunksRef.current = []
-    }
-
-    mr.start(500)
-    mediaRecorderRef.current = mr
-
-    setRecordingMode(mode)
-    setRecorderState('recording')
-    setRecordingTime(0)
-    timerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000)
-  }, [])
-
+  // stopRecording defined before startVideoRecording so onerror can close over it.
   const stopRecording = useCallback(() => {
     const mr = mediaRecorderRef.current
     if (mr && mr.state !== 'inactive') mr.stop()
@@ -129,6 +90,90 @@ export function useRecorder(): Recorder {
     setRecorderState('idle')
     setRecordingMode(null)
     setRecordingTime(0)
+  }, [])
+
+  const startVideoRecording = useCallback((
+    canvas: HTMLCanvasElement,
+    audioStream: MediaStream | null,
+    opts?: { fps?: 30 | 60 },
+  ) => {
+    if (mediaRecorderRef.current) return
+
+    const targetFps = opts?.fps ?? fpsRef.current
+    const mimeType  = pickVideoMimeType()
+
+    if (!mimeType) {
+      setRecorderError('Your browser does not support video recording (WebM). Use Chrome or Edge.')
+      return
+    }
+
+    setRecorderError(null)
+
+    let stream: MediaStream, capturedTracks: MediaStreamTrack[], mode: RecordingMode
+    try {
+      ;({ stream, capturedTracks, mode } = buildCombinedStream(canvas, audioStream, targetFps))
+    } catch (err) {
+      setRecorderError(`Failed to capture canvas stream: ${err instanceof Error ? err.message : String(err)}`)
+      return
+    }
+
+    let mr: MediaRecorder
+    try {
+      chunksRef.current = []
+      mr = new MediaRecorder(stream, {
+        mimeType,
+        videoBitsPerSecond: 8_000_000,
+      })
+    } catch (err) {
+      for (const track of capturedTracks) track.stop()
+      setRecorderError(`Could not create recorder: ${err instanceof Error ? err.message : String(err)}`)
+      return
+    }
+
+    mr.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksRef.current.push(e.data)
+    }
+    mr.onstop = () => {
+      const blob = new Blob(chunksRef.current, { type: mimeType })
+      downloadBlob(blob, `drmvyz-performance-${Date.now()}.webm`)
+      chunksRef.current = []
+    }
+    mr.onerror = (e) => {
+      const msg = (e as Event & { error?: DOMException }).error?.message ?? 'unknown'
+      setRecorderError(`Recording error: ${msg}`)
+      stopRecording()
+    }
+
+    try {
+      mr.start(500)
+    } catch (err) {
+      for (const track of capturedTracks) track.stop()
+      setRecorderError(`Failed to start recording: ${err instanceof Error ? err.message : String(err)}`)
+      return
+    }
+
+    // Only assign to refs after all potentially-failing operations succeed.
+    captureTracksRef.current = capturedTracks
+    mediaRecorderRef.current = mr
+    setRecordingMode(mode)
+    setRecorderState('recording')
+    setRecordingTime(0)
+    timerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000)
+  }, [stopRecording])
+
+  // Best-effort cleanup when the component unmounts during an active recording.
+  // Does not call setState — the component is gone.
+  useEffect(() => {
+    return () => {
+      const mr = mediaRecorderRef.current
+      if (mr && mr.state !== 'inactive') {
+        try { mr.stop() } catch { /* ignore */ }
+      }
+      mediaRecorderRef.current = null
+      for (const track of captureTracksRef.current) track.stop()
+      captureTracksRef.current = []
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
+    }
   }, [])
 
   const exportRingBuffer = useCallback((
@@ -166,7 +211,7 @@ export function useRecorder(): Recorder {
   }, [])
 
   return {
-    recorderState, recordingMode, recordingTime,
+    recorderState, recordingMode, recordingTime, recorderError,
     fps, setFps,
     startVideoRecording, stopRecording,
     exportRingBuffer, exportPNG,

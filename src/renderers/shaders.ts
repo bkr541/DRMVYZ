@@ -52,7 +52,8 @@ void main() {
     fragColor = u_bg;
     return;
   }
-  // Video texture top = canvas top → flip ry for texture UV.
+  // DOM source uploaded with UNPACK_FLIP_Y_WEBGL: texture y=1=image top, y=0=image bottom.
+  // ry=0 at canvas top → sample 1.0-ry=1.0 (texture top = image top). ✓
   fragColor = texture(u_tex, vec2(rx, 1.0 - ry));
 }
 `
@@ -199,11 +200,13 @@ void main() { fragColor = texture(u_tex, v_uv); }
 //   filter = hue-rotate((colorShift × 360 + 90)°) when colorShift > 0
 //   drawImage(scene, offX, offY)
 //
-// UV convention note: in these FBO textures v_uv.y=0 is canvas bottom,
-// v_uv.y=1 is canvas top (VIDEO_FRAG flips y so the content is inverted).
+// UV convention: FBO textures follow standard WebGL bottom-left origin.
+//   v_uv.y=0 → canvas bottom   v_uv.y=1 → canvas top
+// Content is correctly oriented (image top at canvas top) because VIDEO_FRAG
+// already accounts for the UNPACK_FLIP_Y_WEBGL upload convention.
 // A canvas drawImage shift of (offX px right, offY px down) maps to UV:
-//   ghost.u = v_uv.x − offX/W     (right = positive u)
-//   ghost.v = v_uv.y + offY/H     (down in canvas = upward in UV)
+//   ghost.u = v_uv.x − offX/W     (right shift = sample further left in UV)
+//   ghost.v = v_uv.y + offY/H     (down in canvas = increasing UV y = upward in WebGL UV)
 //
 // Uniforms:
 //   u_tex        — scene texture (output of preceding GPU stage)

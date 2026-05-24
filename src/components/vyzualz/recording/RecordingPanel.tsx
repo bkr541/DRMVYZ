@@ -11,20 +11,31 @@ interface RecordingPanelProps {
   recorderState: RecorderState
   recordingMode: RecordingMode | null
   recordingTime: number
+  recorderError: string | null
   fps: 30 | 60
   liveFps: number
   onFpsChange: (fps: 30 | 60) => void
-  onStartRecording: (canvas: HTMLCanvasElement, audioStream: MediaStream | null) => void
+  /**
+   * Called when the user clicks "Start Recording".
+   * The caller is responsible for resolving whether to include an audio stream —
+   * the panel only knows the canvas; audio routing is an engine concern.
+   */
+  onStartRecording: (canvas: HTMLCanvasElement) => void
   onStopRecording: () => void
-  getAudioStream: () => MediaStream | null
+  /**
+   * True when a program audio source (file playing, microphone, demo) is actively
+   * connected and producing signal in the audio graph.
+   * Used only for the pre-recording status label — never used to create a stream.
+   */
+  hasActiveProgramAudio: boolean
   onExportPng: (canvas: HTMLCanvasElement | null) => void
 }
 
 export function RecordingPanel({
-  canvas, recorderState, recordingMode, recordingTime,
+  canvas, recorderState, recordingMode, recordingTime, recorderError,
   fps, liveFps, onFpsChange,
   onStartRecording, onStopRecording,
-  getAudioStream, onExportPng,
+  hasActiveProgramAudio, onExportPng,
 }: RecordingPanelProps) {
   const isRecording = recorderState === 'recording'
   // Warn if live FPS drops below 75% of selected target while recording
@@ -32,12 +43,8 @@ export function RecordingPanel({
 
   function handleStart() {
     if (!canvas) return
-    const audioStream = getAudioStream()
-    onStartRecording(canvas, audioStream)
+    onStartRecording(canvas)
   }
-
-  // Determine audio availability for the pre-recording status line
-  const audioAvailable = !!getAudioStream()
 
   return (
     <div className="vz-rec-panel">
@@ -70,6 +77,16 @@ export function RecordingPanel({
               <path d="M12 2L1 21h22L12 2zm0 3.5l8.5 14.5H3.5L12 5.5zm-1 5.5v4h2v-4h-2zm0 6v2h2v-2h-2z"/>
             </svg>
             FPS drop: {Math.round(liveFps)} fps — recording may be choppy
+          </div>
+        )}
+
+        {/* ── Recorder error ──────────────────────────────── */}
+        {recorderError && (
+          <div className="vz-rec-error" role="alert">
+            <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true">
+              <path d="M12 2L1 21h22L12 2zm0 3.5l8.5 14.5H3.5L12 5.5zm-1 5.5v4h2v-4h-2zm0 6v2h2v-2h-2z"/>
+            </svg>
+            {recorderError}
           </div>
         )}
 
@@ -118,8 +135,8 @@ export function RecordingPanel({
 
             <div className="vz-rec-setting-row">
               <span className="vz-rec-label">Audio</span>
-              <span className={`vz-rec-value${audioAvailable ? '' : ' vz-rec-value--warn'}`}>
-                {audioAvailable ? 'Available' : 'Play a track first'}
+              <span className={`vz-rec-value${hasActiveProgramAudio ? '' : ' vz-rec-value--warn'}`}>
+                {hasActiveProgramAudio ? 'Available' : 'Play a track first'}
               </span>
             </div>
           </div>
