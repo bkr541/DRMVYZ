@@ -6203,3 +6203,231 @@ input[type='range'].vz-slider--color {
   line-height: 1.5;
   margin-top: 2px;
 }
+
+/* ── Settings: Account panel (vsm-acct-) ────────────────────────────── */
+.vsm-acct {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.vsm-acct-offline {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12px;
+  font-family: var(--az-font);
+  color: rgba(245,248,250,0.35);
+  line-height: 1.5;
+}
+
+.vsm-acct-loading {
+  font-size: 12px;
+  font-family: var(--az-font);
+  color: rgba(245,248,250,0.3);
+}
+
+/* Avatar */
+.vsm-acct-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.vsm-acct-avatar-wrap {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+}
+
+.vsm-acct-avatar-img {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid rgba(74,199,219,0.25);
+  display: block;
+}
+
+.vsm-acct-avatar-initials {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(74,199,219,0.12);
+  border: 1.5px solid rgba(74,199,219,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 700;
+  font-family: var(--az-font);
+  color: var(--az-cyan);
+  letter-spacing: 0.04em;
+  user-select: none;
+}
+
+.vsm-acct-avatar-uploading {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(10,15,26,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.vsm-acct-avatar-uploading::after {
+  content: '';
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid rgba(74,199,219,0.3);
+  border-top-color: var(--az-cyan);
+  animation: vsm-spin 0.7s linear infinite;
+}
+@keyframes vsm-spin {
+  to { transform: rotate(360deg); }
+}
+
+.vsm-acct-avatar-upload-btn {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #0a0f1a;
+  border: 1.5px solid rgba(74,199,219,0.35);
+  color: var(--az-cyan);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  padding: 0;
+}
+.vsm-acct-avatar-upload-btn:hover:not(:disabled) {
+  background: rgba(74,199,219,0.12);
+  border-color: rgba(74,199,219,0.65);
+}
+.vsm-acct-avatar-upload-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.vsm-acct-avatar-hint {
+  font-size: 10px;
+  font-family: var(--az-font);
+  color: rgba(245,248,250,0.3);
+  line-height: 1.6;
+}
+
+/* Fields */
+.vsm-acct-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.vsm-acct-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vsm-acct-label {
+  font-size: 10px;
+  font-family: var(--az-font);
+  color: rgba(245,248,250,0.4);
+  letter-spacing: 0.05em;
+  user-select: none;
+}
+
+.vsm-acct-input {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 5px;
+  color: rgba(245,248,250,0.85);
+  font-size: 12px;
+  font-family: var(--az-font-data, var(--az-font));
+  padding: 7px 10px;
+  outline: none;
+  transition: border-color 0.12s;
+  width: 100%;
+  box-sizing: border-box;
+}
+.vsm-acct-input:focus {
+  border-color: rgba(74,199,219,0.45);
+}
+.vsm-acct-input--readonly {
+  color: rgba(245,248,250,0.35);
+  background: rgba(255,255,255,0.02);
+  cursor: default;
+}
+
+/* Footer */
+.vsm-acct-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.vsm-acct-save-msg {
+  font-size: 11px;
+  font-family: var(--az-font);
+}
+.vsm-acct-save-msg--ok  { color: #61d6aa; }
+.vsm-acct-save-msg--err { color: #f87171; }
+
+.vsm-acct-save-btn {
+  padding: 6px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  font-family: var(--az-font);
+  background: var(--az-cyan);
+  color: #0a0f1a;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+.vsm-acct-save-btn:hover:not(:disabled) { opacity: 0.85; }
+.vsm-acct-save-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ── Header profile avatar ───────────────────────────────────────────── */
+.vz-header-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(74,199,219,0.3);
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(74,199,219,0.1);
+}
+
+.vz-header-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.vz-header-avatar-initials {
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--az-font);
+  color: var(--az-cyan);
+  letter-spacing: 0.04em;
+  user-select: none;
+  line-height: 1;
+}

@@ -1,6 +1,210 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useVisualStore } from '../../../stores/visualStore'
 import { useMediaStore } from '../../../stores/mediaStore'
+import { supabase, supabaseConfigured } from '../../../lib/supabase'
+import { getProfile, updateProfile, uploadAvatar } from '../../../lib/profileDb'
+import type { Profile } from '../../../types/database'
+
+// ── AccountPanel ──────────────────────────────────────────────────────────────
+
+function AccountPanel() {
+  const [profile,      setProfile]      = useState<Profile | null>(null)
+  const [userId,       setUserId]       = useState<string | null>(null)
+  const [email,        setEmail]        = useState('')
+  const [displayName,  setDisplayName]  = useState('')
+  const [artistName,   setArtistName]   = useState('')
+  const [avatarUrl,    setAvatarUrl]    = useState<string | null>(null)
+  const [loading,      setLoading]      = useState(true)
+  const [saving,       setSaving]       = useState(false)
+  const [uploading,    setUploading]    = useState(false)
+  const [saveMsg,      setSaveMsg]      = useState<{ text: string; ok: boolean } | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const saveMsgTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const showMsg = useCallback((text: string, ok: boolean) => {
+    if (saveMsgTimer.current) clearTimeout(saveMsgTimer.current)
+    setSaveMsg({ text, ok })
+    saveMsgTimer.current = setTimeout(() => setSaveMsg(null), 3000)
+  }, [])
+
+  useEffect(() => {
+    return () => { if (saveMsgTimer.current) clearTimeout(saveMsgTimer.current) }
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+    async function load() {
+      setLoading(true)
+      if (!supabaseConfigured) { setLoading(false); return }
+      const { data } = await supabase.auth.getUser()
+      const user = data?.user
+      if (!user || !alive) { setLoading(false); return }
+      setUserId(user.id)
+      setEmail(user.email ?? '')
+      const { profile: p } = await getProfile(user.id)
+      if (!alive) return
+      if (p) {
+        setProfile(p)
+        setDisplayName(p.display_name ?? '')
+        setArtistName(p.artist_name ?? '')
+        setAvatarUrl(p.avatar_url ?? null)
+      }
+      setLoading(false)
+    }
+    load()
+    return () => { alive = false }
+  }, [])
+
+  async function handleSave() {
+    if (!userId) return
+    setSaving(true)
+    const { error } = await updateProfile(userId, {
+      display_name: displayName.trim() || null,
+      artist_name:  artistName.trim()  || null,
+    })
+    setSaving(false)
+    if (error) {
+      showMsg('Failed to save changes', false)
+    } else {
+      showMsg('Profile saved', true)
+    }
+  }
+
+  async function handleAvatarFile(file: File) {
+    if (!userId) return
+    setUploading(true)
+    const { avatarUrl: newUrl, error } = await uploadAvatar(userId, file)
+    setUploading(false)
+    if (error || !newUrl) {
+      showMsg('Avatar upload failed', false)
+    } else {
+      setAvatarUrl(newUrl)
+      showMsg('Avatar updated', true)
+    }
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    handleAvatarFile(file)
+  }
+
+  if (!supabaseConfigured) {
+    return (
+      <div className="vsm-acct-offline">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5"/>
+          <path d="M12 7v5M12 16v1" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        </svg>
+        Cloud sync is not configured. Profile settings require Supabase.
+      </div>
+    )
+  }
+
+  if (loading) {
+    return <div className="vsm-acct-loading">Loading profile…</div>
+  }
+
+  const initials = (displayName || email || '?').slice(0, 2).toUpperCase()
+
+  return (
+    <div className="vsm-acct">
+      {/* ── Avatar row ─────────────────────────────────── */}
+      <div className="vsm-acct-avatar-row">
+        <div className="vsm-acct-avatar-wrap">
+          {avatarUrl
+            ? <img src={avatarUrl} alt="Profile avatar" className="vsm-acct-avatar-img" />
+            : <div className="vsm-acct-avatar-initials">{initials}</div>
+          }
+          {uploading && <div className="vsm-acct-avatar-uploading" aria-label="Uploading" />}
+          <button
+            className="vsm-acct-avatar-upload-btn"
+            title="Upload new profile photo"
+            disabled={uploading}
+            onClick={() => fileInputRef.current?.click()}
+            aria-label="Upload profile photo"
+          >
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <polyline points="17 8 12 3 7 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <line x1="12" y1="3" x2="12" y2="15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            style={{ display: 'none' }}
+            onChange={handleFileChange}
+          />
+        </div>
+        <div className="vsm-acct-avatar-hint">
+          Click the upload icon to change your profile photo.<br />
+          JPG, PNG, WebP, GIF — max 5 MB.
+        </div>
+      </div>
+
+      {/* ── Fields ─────────────────────────────────────── */}
+      <div className="vsm-acct-fields">
+        <div className="vsm-acct-field">
+          <label className="vsm-acct-label">Email</label>
+          <input
+            className="vsm-acct-input vsm-acct-input--readonly"
+            type="email"
+            value={email}
+            readOnly
+            tabIndex={-1}
+          />
+        </div>
+
+        <div className="vsm-acct-field">
+          <label className="vsm-acct-label" htmlFor="vsm-display-name">Display Name</label>
+          <input
+            id="vsm-display-name"
+            className="vsm-acct-input"
+            type="text"
+            placeholder="Your name"
+            value={displayName}
+            maxLength={80}
+            onChange={e => setDisplayName(e.target.value)}
+          />
+        </div>
+
+        <div className="vsm-acct-field">
+          <label className="vsm-acct-label" htmlFor="vsm-artist-name">Artist Name</label>
+          <input
+            id="vsm-artist-name"
+            className="vsm-acct-input"
+            type="text"
+            placeholder="Stage name or alias"
+            value={artistName}
+            maxLength={80}
+            onChange={e => setArtistName(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* ── Footer ─────────────────────────────────────── */}
+      <div className="vsm-acct-footer">
+        {saveMsg && (
+          <span className={`vsm-acct-save-msg${saveMsg.ok ? ' vsm-acct-save-msg--ok' : ' vsm-acct-save-msg--err'}`}>
+            {saveMsg.text}
+          </span>
+        )}
+        <button
+          className="vsm-acct-save-btn"
+          disabled={saving || !userId}
+          onClick={handleSave}
+        >
+          {saving ? 'Saving…' : 'Save Changes'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Shortcuts ─────────────────────────────────────────────────────────────────
 
 const SHORTCUTS = [
   { key: '1–5', desc: 'Switch Preset' },
@@ -179,9 +383,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             >System Settings</div>
           </nav>
           <div className="vsm-content">
-            {tab === 'account' && (
-              <p className="vsm-account-placeholder">Account settings coming soon.</p>
-            )}
+            {tab === 'account' && <AccountPanel />}
             {tab === 'shortcuts' && <ShortcutPanel />}
             {tab === 'system' && <SystemSettingsPanel />}
           </div>

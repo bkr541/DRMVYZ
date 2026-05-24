@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { getBandAvg } from '../../../lib/audioModulation'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { SettingsModal } from '../settings/SettingsModal'
+import { supabase, supabaseConfigured } from '../../../lib/supabase'
+import { getProfile } from '../../../lib/profileDb'
 
 function BeatCanvas({ analyser }: { analyser: AnalyserNode | null }) {
   const canvasRef   = useRef<HTMLCanvasElement>(null)
@@ -103,6 +105,26 @@ export function VyzualzTopBar({ analyser, onSaveSession }: VyzualzTopBarProps) {
   const freqBufRef  = useRef<Uint8Array<ArrayBuffer> | null>(null)
   const animRef     = useRef<number>(0)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [avatarUrl,    setAvatarUrl]    = useState<string | null>(null)
+  const [initials,     setInitials]     = useState('')
+
+  // Load profile on mount; re-fetch whenever settings closes (avatar may have changed)
+  useEffect(() => {
+    if (!supabaseConfigured) return
+    let alive = true
+    async function loadAvatar() {
+      const { data } = await supabase.auth.getUser()
+      const user = data?.user
+      if (!user || !alive) return
+      const { profile } = await getProfile(user.id)
+      if (!alive) return
+      setAvatarUrl(profile?.avatar_url ?? null)
+      const name = profile?.display_name ?? user.email ?? ''
+      setInitials(name.slice(0, 2).toUpperCase())
+    }
+    loadAvatar()
+    return () => { alive = false }
+  }, [settingsOpen])   // re-run when settings modal closes
 
   useEffect(() => {
     analyserRef.current = analyser
@@ -196,7 +218,15 @@ export function VyzualzTopBar({ analyser, onSaveSession }: VyzualzTopBarProps) {
             <path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.04.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
           </svg>
         </button>
-        <button className="az-overflow-btn">···</button>
+
+        {supabaseConfigured && (
+          <div className="vz-header-avatar" title={initials || 'Profile'}>
+            {avatarUrl
+              ? <img src={avatarUrl} alt="Profile" className="vz-header-avatar-img" />
+              : <span className="vz-header-avatar-initials">{initials}</span>
+            }
+          </div>
+        )}
       </div>
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
     </>
