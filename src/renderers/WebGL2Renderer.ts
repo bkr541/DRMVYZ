@@ -112,10 +112,11 @@ function compileShader(
 }
 
 /**
- * Link a program from an already-compiled vertex + fragment shader pair.
- * Throws with the info log on failure.
+ * Create a program and attach shaders without linking.
+ * Attribute locations must be bound before linkChecked() is called.
+ * Throws only if createProgram() fails (GPU resource exhaustion).
  */
-function linkProgram(
+function makeProgram(
   gl: WebGL2RenderingContext,
   vert: WebGLShader,
   frag: WebGLShader,
@@ -125,14 +126,25 @@ function linkProgram(
   if (!p) throw new Error(`WebGL2 program creation failed for ${label}`)
   gl.attachShader(p, vert)
   gl.attachShader(p, frag)
-  gl.linkProgram(p)
-  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
-    const log = gl.getProgramInfoLog(p) ?? ''
+  return p
+}
+
+/**
+ * Link a program and validate the result.
+ * The program must already be tracked by InitResourceTracker — cleanup on
+ * failure is the tracker's responsibility, not this function's.
+ */
+function linkChecked(
+  gl: WebGL2RenderingContext,
+  prog: WebGLProgram,
+  label: string,
+): void {
+  gl.linkProgram(prog)
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    const log = gl.getProgramInfoLog(prog) ?? ''
     if (import.meta.env.DEV) console.error(`[WebGL2Renderer] program link (${label}):`, log)
-    gl.deleteProgram(p)
     throw new Error(`WebGL2 program link failed for ${label}: ${log}`)
   }
-  return p
 }
 
 /** Create an RGBA8 texture and set sensible defaults (clamp, linear).  Throws on allocation failure. */
@@ -287,9 +299,6 @@ export class WebGL2Renderer {
   private postProg!:   WebGLProgram
   private dispProg!:   WebGLProgram
 
-  // Shared vertex shader
-  private vertShader!: WebGLShader
-
   // Uniform locations
   private videoLocs!:  VideoLocs
   private rgbLocs!:    RgbLocs
@@ -416,22 +425,41 @@ export class WebGL2Renderer {
       const fragPass   = tracker.trackShader(compileShader(gl, gl.FRAGMENT_SHADER, PASS_FRAG,             'passthrough fragment shader'))
       const fragPost   = tracker.trackShader(compileShader(gl, gl.FRAGMENT_SHADER, POST_PROCESS_FRAG,     'post-process fragment shader'))
       const fragDisp   = tracker.trackShader(compileShader(gl, gl.FRAGMENT_SHADER, DISPLACEMENT_FRAG,     'displacement fragment shader'))
-      this.vertShader = vert
 
-      // ── Link programs ────────────────────────────────────────────────────
-      const vP  = tracker.trackProgram(linkProgram(gl, vert, fragVideo,  'video draw'))
-      const rP  = tracker.trackProgram(linkProgram(gl, vert, fragRgb,    'RGB split'))
-      const tP  = tracker.trackProgram(linkProgram(gl, vert, fragThresh, 'bloom threshold'))
-      const bP  = tracker.trackProgram(linkProgram(gl, vert, fragBlur,   'bloom blur'))
-      const cP  = tracker.trackProgram(linkProgram(gl, vert, fragBloom,  'bloom composite'))
-      const pP  = tracker.trackProgram(linkProgram(gl, vert, fragPass,   'passthrough'))
-      const ppP = tracker.trackProgram(linkProgram(gl, vert, fragPost,   'post-process'))
-      const dP  = tracker.trackProgram(linkProgram(gl, vert, fragDisp,   'displacement'))
+      // ── Create programs (no link yet — attribs bound before first link) ──
+      const vP  = tracker.trackProgram(makeProgram(gl, vert, fragVideo,  'video draw'))
+      const rP  = tracker.trackProgram(makeProgram(gl, vert, fragRgb,    'RGB split'))
+      const tP  = tracker.trackProgram(makeProgram(gl, vert, fragThresh, 'bloom threshold'))
+      const bP  = tracker.trackProgram(makeProgram(gl, vert, fragBlur,   'bloom blur'))
+      const cP  = tracker.trackProgram(makeProgram(gl, vert, fragBloom,  'bloom composite'))
+      const pP  = tracker.trackProgram(makeProgram(gl, vert, fragPass,   'passthrough'))
+      const ppP = tracker.trackProgram(makeProgram(gl, vert, fragPost,   'post-process'))
+      const dP  = tracker.trackProgram(makeProgram(gl, vert, fragDisp,   'displacement'))
 
       this.videoProg  = vP;  this.rgbProg   = rP
       this.threshProg = tP;  this.blurProg  = bP
       this.bloomProg  = cP;  this.passProg  = pP
       this.postProg   = ppP; this.dispProg  = dP
+
+      // Bind attribute locations BEFORE the single link pass so no relink is needed.
+      gl.bindAttribLocation(vP,  0, 'a_pos'); gl.bindAttribLocation(vP,  1, 'a_uv')
+      gl.bindAttribLocation(rP,  0, 'a_pos'); gl.bindAttribLocation(rP,  1, 'a_uv')
+      gl.bindAttribLocation(tP,  0, 'a_pos'); gl.bindAttribLocation(tP,  1, 'a_uv')
+      gl.bindAttribLocation(bP,  0, 'a_pos'); gl.bindAttribLocation(bP,  1, 'a_uv')
+      gl.bindAttribLocation(cP,  0, 'a_pos'); gl.bindAttribLocation(cP,  1, 'a_uv')
+      gl.bindAttribLocation(pP,  0, 'a_pos'); gl.bindAttribLocation(pP,  1, 'a_uv')
+      gl.bindAttribLocation(ppP, 0, 'a_pos'); gl.bindAttribLocation(ppP, 1, 'a_uv')
+      gl.bindAttribLocation(dP,  0, 'a_pos'); gl.bindAttribLocation(dP,  1, 'a_uv')
+
+      // ── Link programs (single validated pass) ────────────────────────────
+      linkChecked(gl, vP,  'video draw')
+      linkChecked(gl, rP,  'RGB split')
+      linkChecked(gl, tP,  'bloom threshold')
+      linkChecked(gl, bP,  'bloom blur')
+      linkChecked(gl, cP,  'bloom composite')
+      linkChecked(gl, pP,  'passthrough')
+      linkChecked(gl, ppP, 'post-process')
+      linkChecked(gl, dP,  'displacement')
 
       // ── Uniform locations ─────────────────────────────────────────────────
       this.videoLocs = getVideoLocs(gl, vP)
@@ -482,17 +510,12 @@ export class WebGL2Renderer {
       gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, stride, 0)
       gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 2, gl.FLOAT, false, stride, 8)
       gl.bindVertexArray(null)
-      // Bind attributes by index to match GLSL `in` declarations (location 0=a_pos, 1=a_uv)
-      gl.bindAttribLocation(vP,  0, 'a_pos'); gl.bindAttribLocation(vP,  1, 'a_uv')
-      gl.bindAttribLocation(rP,  0, 'a_pos'); gl.bindAttribLocation(rP,  1, 'a_uv')
-      gl.bindAttribLocation(tP,  0, 'a_pos'); gl.bindAttribLocation(tP,  1, 'a_uv')
-      gl.bindAttribLocation(bP,  0, 'a_pos'); gl.bindAttribLocation(bP,  1, 'a_uv')
-      gl.bindAttribLocation(cP,  0, 'a_pos'); gl.bindAttribLocation(cP,  1, 'a_uv')
-      gl.bindAttribLocation(pP,  0, 'a_pos'); gl.bindAttribLocation(pP,  1, 'a_uv')
-      gl.bindAttribLocation(ppP, 0, 'a_pos'); gl.bindAttribLocation(ppP, 1, 'a_uv')
-      gl.bindAttribLocation(dP,  0, 'a_pos'); gl.bindAttribLocation(dP,  1, 'a_uv')
-      // Relink after attrib binding
-      ;[vP, rP, tP, bP, cP, pP, ppP, dP].forEach(prog => { gl.linkProgram(prog) })
+
+      // Shaders are no longer needed once all programs are linked.
+      // Programs retain the compiled binary; releasing the shader handles now
+      // frees GPU memory without waiting for dispose().
+      ;[vert, fragVideo, fragRgb, fragThresh, fragBlur, fragBloom, fragPass, fragPost, fragDisp]
+        .forEach(s => gl.deleteShader(s))
 
       // ── Video texture (placeholder 1×1 black) ─────────────────────────────
       this.videoTex = tracker.trackTexture(makeTexture(gl, 'video source texture'))
@@ -610,7 +633,7 @@ export class WebGL2Renderer {
   // ── Main render ──────────────────────────────────────────────────────────────
 
   renderFrame(p: RenderFrameParams): void {
-    if (this._contextLost) return
+    if (this.disposed || this._contextLost) return
 
     const gl = this.gl
     const { canvasW: W, canvasH: H } = p
@@ -798,7 +821,6 @@ export class WebGL2Renderer {
     const gl = this.gl
     ;[this.videoProg, this.rgbProg, this.threshProg, this.blurProg, this.bloomProg, this.passProg, this.postProg, this.dispProg]
       .forEach(p => gl.deleteProgram(p))
-    gl.deleteShader(this.vertShader)
     gl.deleteBuffer(this.vbo)
     gl.deleteVertexArray(this.vao)
     ;[this.videoTex, this.sceneTex, this.rgbTex, this.bloom1Tex, this.bloom2Tex, this.postTex, this.dispTex]

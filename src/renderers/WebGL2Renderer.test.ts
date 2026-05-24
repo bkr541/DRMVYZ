@@ -21,7 +21,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { WebGL2Renderer } from './WebGL2Renderer'
-import type { WebGL2CreateResult } from './WebGL2Renderer'
+import type { WebGL2CreateResult, RenderFrameParams } from './WebGL2Renderer'
 
 // ── Minimal GL constants ──────────────────────────────────────────────────────
 
@@ -528,12 +528,25 @@ describe('WebGL2Renderer.create() — program link failure cleanup', () => {
     expect(deleted.shaders).toBeGreaterThanOrEqual(9)
   })
 
-  it('previously linked programs are cleaned up when a later link fails', () => {
+  it('previously created programs are cleaned up when a later link fails', () => {
     const { gl, deleted } = makeGLMock({ failProgramAt: 5 })
     stubCanvas(makeCanvas(gl))
     WebGL2Renderer.create()
-    // 4 programs linked before the 5th failed (which is also deleted by linkProgram itself)
-    expect(deleted.programs).toBeGreaterThanOrEqual(4)
+    // tracker.cleanup() deletes all 8 tracked programs on failure
+    expect(deleted.programs).toBeGreaterThanOrEqual(8)
+  })
+
+  it('link failure on the last program still triggers full cleanup', () => {
+    // Regression for the old unchecked relink path — all 8 programs were linked
+    // once (checked) then relinked unchecked.  Now there is a single validated
+    // link pass; a failure on program 8 must still trigger transactional cleanup.
+    const { gl, deleted } = makeGLMock({ failProgramAt: 8 })
+    stubCanvas(makeCanvas(gl))
+    const result = WebGL2Renderer.create()
+    expect(result.renderer).toBeNull()
+    expect(result.error).toMatch(/program.*link|link.*failed/i)
+    expect(deleted.shaders).toBeGreaterThanOrEqual(9)
+    expect(deleted.programs).toBeGreaterThanOrEqual(8)
   })
 })
 
@@ -557,12 +570,13 @@ describe('WebGL2Renderer.create() — successful init and dispose', () => {
     expect(deleted.programs).toBeGreaterThanOrEqual(8)
   })
 
-  it('dispose() deletes the vertex shader', () => {
+  it('all 9 shaders are deleted immediately after program linking (not deferred to dispose)', () => {
+    // Shaders are released as soon as programs are linked — programs retain the
+    // binary, the application does not need to hold the shader handles.
     const { gl, deleted } = makeGLMock()
     stubCanvas(makeCanvas(gl))
-    const result = WebGL2Renderer.create()
-    result.renderer?.dispose()
-    expect(deleted.shaders).toBeGreaterThanOrEqual(1)
+    WebGL2Renderer.create()  // dispose() is NOT called — shaders must be gone already
+    expect(deleted.shaders).toBeGreaterThanOrEqual(9)
   })
 
   it('dispose() deletes all textures (video + 6 render targets)', () => {
@@ -626,9 +640,44 @@ describe('WebGL2Renderer.dispose() — idempotency', () => {
   })
 })
 
-// ── H. Context-loss callback wiring ──────────────────────────────────────────
+// ── H. renderFrame() after dispose() ─────────────────────────────────────────
 
-describe('WebGL2Renderer — context-loss event wiring', () => {
+const NULL_FRAME: RenderFrameParams = {
+  mediaEl: null,
+  canvasW: 1, canvasH: 1,
+  ox: 0, oy: 0, sw: 1, sh: 1,
+  rgbShiftPx: 0, bloomBlurPx: 0, bloomAmount: 0,
+  bgR: 0, bgG: 0, bgB: 0,
+  grainAmount: 0, scanAlpha: 0, scanStep: 1,
+  dispOffXPx: 0, dispOffYPx: 0, dispAmount: 0, dispHueRad: 0,
+}
+
+describe('WebGL2Renderer.renderFrame() — disposed guard', () => {
+  it('renderFrame() after dispose() does not throw', () => {
+    const { gl } = makeGLMock()
+    stubCanvas(makeCanvas(gl))
+    const result = WebGL2Renderer.create()
+    expect(result.renderer).not.toBeNull()
+    result.renderer!.dispose()
+    expect(() => result.renderer!.renderFrame(NULL_FRAME)).not.toThrow()
+  })
+
+  it('renderFrame() after dispose() executes no GL draw operations', () => {
+    let drawCallCount = 0
+    const { gl } = makeGLMock()
+    const glWithSpy = { ...gl, drawArrays: () => { drawCallCount++ } }
+    stubCanvas(makeCanvas(glWithSpy))
+    const result = WebGL2Renderer.create()
+    result.renderer!.dispose()
+    drawCallCount = 0  // reset — any draws during init don't count
+    result.renderer!.renderFrame(NULL_FRAME)
+    expect(drawCallCount).toBe(0)
+  })
+})
+
+// ── I. Context-loss callback wiring ──────────────────────────────────────────
+
+describe('WebGL2Renderer — context-loss event wiring', () => {  // I.
   it('onContextLost callback is invoked with a reason string when the context is lost', () => {
     const { gl } = makeGLMock()
     const { canvas, fire } = makeEventedCanvas(gl)
