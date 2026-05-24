@@ -29,8 +29,9 @@ interface EntryDisplay {
 function grabVideoThumb(url: string): Promise<string | null> {
   return new Promise(resolve => {
     const v = document.createElement('video')
-    v.src = url; v.muted = true; v.playsInline = true
-    v.preload = 'metadata'; v.crossOrigin = 'anonymous'; v.currentTime = 0.5
+    v.muted = true; v.playsInline = true
+    v.preload = 'metadata'; v.crossOrigin = 'anonymous'
+    v.src = url; v.currentTime = 0.5
     const draw = () => {
       try {
         const c = document.createElement('canvas')
@@ -56,9 +57,10 @@ function getImgDims(url: string): Promise<{ w: number; h: number } | null> {
 function getVidDuration(url: string): Promise<number> {
   return new Promise(resolve => {
     const v = document.createElement('video')
-    v.src = url; v.preload = 'metadata'
+    v.preload = 'metadata'; v.crossOrigin = 'anonymous'
     v.onloadedmetadata = () => resolve(v.duration || 0)
     v.onerror = () => resolve(0)
+    v.src = url
   })
 }
 

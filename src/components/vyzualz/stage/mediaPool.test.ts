@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest'
 import type { MediaPool } from './mediaPool'
 import { getOrCreateMediaInstance, pauseInactiveMediaInstances, destroyMediaInstance } from './mediaPool'
 
@@ -11,9 +11,13 @@ class FakeVideo {
   playsInline = false
   crossOrigin = ''
   loop        = false
+  preload     = ''
   paused      = true
   pause = vi.fn(function(this: FakeVideo) { this.paused = true })
   play  = vi.fn(function(this: FakeVideo) { this.paused = false; return Promise.resolve() })
+  load  = vi.fn()
+  addEventListener    = vi.fn()
+  removeEventListener = vi.fn()
 }
 
 class FakeImage {
@@ -153,5 +157,110 @@ describe('destroyMediaInstance', () => {
   it('is a no-op for a key that does not exist in the pool', () => {
     const pool = makePool()
     expect(() => destroyMediaInstance(pool, 'background:nonexistent')).not.toThrow()
+  })
+})
+
+// ── Video element initialization ordering ─────────────────────────────────────
+//
+// Proves that crossOrigin is assigned before src so the browser issues a
+// CORS-mode request from the first fetch, making decoded frames usable for
+// Canvas drawImage() and WebGL texImage2D().
+//
+// Uses property-setter tracking so the ordering is verified at runtime
+// rather than inferred from static analysis.
+
+describe('video element initialization — crossOrigin-before-src contract', () => {
+  // A FakeVideo variant that records property assignment order via setters.
+  class TrackingVideo {
+    private _assignments: string[] = []
+    private _src         = ''
+    private _crossOrigin = ''
+    muted       = false
+    playsInline = false
+    loop        = false
+    preload     = ''
+    paused      = true
+    pause = vi.fn()
+    play  = vi.fn(() => Promise.resolve())
+    load  = vi.fn()
+    addEventListener    = vi.fn()
+    removeEventListener = vi.fn()
+
+    get src()          { return this._src }
+    set src(v: string) { this._src = v;          this._assignments.push('src') }
+    get crossOrigin()          { return this._crossOrigin }
+    set crossOrigin(v: string) { this._crossOrigin = v;   this._assignments.push('crossOrigin') }
+
+    get assignments() { return [...this._assignments] }
+  }
+
+  let lastCreated: TrackingVideo | null = null
+
+  beforeEach(() => {
+    lastCreated = null
+    vi.stubGlobal('document', {
+      createElement: (tag: string) => {
+        if (tag === 'video') { lastCreated = new TrackingVideo(); return lastCreated }
+        throw new Error(`unexpected createElement: '${tag}'`)
+      },
+    })
+  })
+
+  afterEach(() => {
+    // Restore the standard FakeVideo-backed document mock for subsequent suites.
+    vi.stubGlobal('document', {
+      createElement: (tag: string) => {
+        if (tag === 'video') return new FakeVideo()
+        throw new Error(`unexpected createElement: '${tag}'`)
+      },
+    })
+  })
+
+  it('assigns crossOrigin before src', () => {
+    const pool = makePool()
+    getOrCreateMediaInstance(pool, 'background:order-1', VIDEO_MEDIA)
+    const idx = lastCreated!.assignments
+    expect(idx.indexOf('crossOrigin')).toBeGreaterThanOrEqual(0)
+    expect(idx.indexOf('src')).toBeGreaterThan(idx.indexOf('crossOrigin'))
+  })
+
+  it('sets muted, playsInline, preload and calls load()', () => {
+    const pool = makePool()
+    getOrCreateMediaInstance(pool, 'background:config-1', VIDEO_MEDIA)
+    const vid = lastCreated!
+    expect(vid.muted).toBe(true)
+    expect(vid.playsInline).toBe(true)
+    expect(vid.preload).toBe('auto')
+    expect(vid.load).toHaveBeenCalledOnce()
+  })
+
+  it('crossOrigin-before-src holds for local blob: URLs', () => {
+    const pool = makePool()
+    const blobMedia = { type: 'video', url: 'blob:http://localhost/uuid-1234' }
+    getOrCreateMediaInstance(pool, 'background:blob-1', blobMedia)
+    const idx = lastCreated!.assignments
+    expect(idx.indexOf('crossOrigin')).toBeLessThan(idx.indexOf('src'))
+    expect(lastCreated!.src).toBe(blobMedia.url)
+  })
+
+  it('crossOrigin-before-src holds for remote/cloud URLs', () => {
+    const pool = makePool()
+    const cloudMedia = { type: 'video', url: 'https://storage.supabase.co/bucket/v.mp4?token=abc' }
+    getOrCreateMediaInstance(pool, 'background:cloud-1', cloudMedia)
+    const idx = lastCreated!.assignments
+    expect(idx.indexOf('crossOrigin')).toBeLessThan(idx.indexOf('src'))
+    expect(lastCreated!.crossOrigin).toBe('anonymous')
+  })
+
+  it('loop default is false when no opts supplied', () => {
+    const pool = makePool()
+    getOrCreateMediaInstance(pool, 'background:loop-default', VIDEO_MEDIA)
+    expect(lastCreated!.loop).toBe(false)
+  })
+
+  it('loop is true when opts.loop is true', () => {
+    const pool = makePool()
+    getOrCreateMediaInstance(pool, 'background:loop-on', VIDEO_MEDIA, { loop: true })
+    expect(lastCreated!.loop).toBe(true)
   })
 })

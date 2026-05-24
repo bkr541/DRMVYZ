@@ -895,11 +895,14 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       }
     } else {
       const video = document.createElement('video')
-      video.src         = activeMedia.url
-      video.muted       = true
-      video.loop        = true
-      video.playsInline = true
+      // crossOrigin MUST be set before src — see mediaPool.ts for rationale.
       video.crossOrigin = 'anonymous'
+      video.muted       = true
+      video.playsInline = true
+      video.preload     = 'auto'
+      video.loop        = true
+      video.src         = activeMedia.url
+      video.load()
       if (isPlayingRef.current) video.play().catch(() => {})
       deckMediaElRef.current = video
       if (!timelineEnabledRef.current) mediaElRef.current = video

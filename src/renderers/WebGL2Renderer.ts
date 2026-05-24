@@ -672,8 +672,17 @@ export class WebGL2Renderer {
         gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, source)
       }
       return true
-    } catch {
-      // CORS or decode error — leave placeholder texture
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error('[WebGL2Renderer] Failed to upload media texture', {
+          error,
+          mediaType:   source instanceof HTMLVideoElement ? 'video' : 'image',
+          src:         source instanceof HTMLVideoElement ? source.currentSrc || source.src : source.src,
+          readyState:  source instanceof HTMLVideoElement ? source.readyState  : undefined,
+          videoWidth:  source instanceof HTMLVideoElement ? source.videoWidth  : undefined,
+          videoHeight: source instanceof HTMLVideoElement ? source.videoHeight : undefined,
+        })
+      }
       return false
     } finally {
       gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)

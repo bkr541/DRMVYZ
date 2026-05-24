@@ -110,6 +110,7 @@ function getImageDimensions(url: string): Promise<{ w: number; h: number } | nul
 function getVideoDuration(url: string): Promise<number> {
   return new Promise(resolve => {
     const v = document.createElement('video')
+    v.crossOrigin = 'anonymous'
     v.preload = 'metadata'
     const cleanup = (result: number) => {
       v.onloadedmetadata = null; v.onerror = null

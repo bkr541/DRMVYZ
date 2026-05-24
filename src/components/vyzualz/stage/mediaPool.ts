@@ -25,11 +25,30 @@ export function getOrCreateMediaInstance(
   }
 
   const vid = document.createElement('video') as HTMLVideoElement
-  vid.src         = media.url
+  // crossOrigin MUST be set before src so the browser issues a CORS-mode
+  // request from the start.  Setting it after src is a no-op for in-flight
+  // or already-cached requests, making the decoded frames tainted and
+  // unusable for Canvas drawImage() or WebGL texImage2D().
+  vid.crossOrigin = 'anonymous'
   vid.muted       = true
   vid.playsInline = true
-  vid.crossOrigin = 'anonymous'
+  vid.preload     = 'auto'
   vid.loop        = opts.loop ?? false
+  vid.src         = media.url
+  vid.load()
+
+  if (import.meta.env.DEV) {
+    vid.addEventListener('error', () => {
+      console.error('[mediaPool] video load error', {
+        key,
+        src: vid.currentSrc || vid.src,
+        errorCode:    vid.error?.code,
+        readyState:   vid.readyState,
+        networkState: vid.networkState,
+      })
+    }, { once: true })
+  }
+
   pool.set(key, vid)
   return vid
 }
