@@ -13,3 +13,6 @@
 6:41:55 PM [vite] hmr update /src/styles/vyzualz.css
 6:53:22 PM [vite] hmr update /src/styles/vyzualz.css
 6:58:37 PM [vite] hmr update /src/styles/vyzualz.css
+7:25:39 PM [vite] hmr update /src/components/vyzualz/effects/EffectChainPanel.tsx
+7:25:39 PM [vite] hmr invalidate /src/components/vyzualz/effects/EffectChainPanel.tsx Could not Fast Refresh (export removed)
+7:25:39 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx

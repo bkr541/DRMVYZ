@@ -83,7 +83,9 @@ export interface VzEffectModule<
 > {
   /** Must match the corresponding VzEffects key used as an intensity source. */
   id:          string
-  /** User-facing label — must match the entry in EFFECT_CHAIN_ITEMS exactly. */
+  /** User-facing label — must exactly match the corresponding effect_chain_options.chain_name value.
+   *  This is required because enabledFx remains string-based for backward compatibility
+   *  with stored sessions and existing renderer checks (e.g. enabledFx.has('RGB Split')). */
   label:       string
   category:    VzEffectCategory
   renderPhase: VzRenderPhase

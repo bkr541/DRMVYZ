@@ -28,6 +28,8 @@ import { MediaDeckPanel }       from './media/MediaDeckPanel'
 import { VzLayersPanel }        from './layers/VzLayersPanel'
 import { EffectChainPanel }     from './effects/EffectChainPanel'
 import { EffectControlsPanel }  from './effects/EffectControlsPanel'
+import type { EffectChainOptionRow } from '../../types/database'
+import { dbListEffectChainOptions } from '../../lib/effectChainDb'
 import { ModulationPanel }      from './modulation/ModulationPanel'
 import { PresetStrip }          from './sessions/PresetStrip'
 import { SessionPanel }         from './sessions/SessionPanel'
@@ -473,6 +475,31 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   // App-level view: 'visualizer' (default) or 'lyrics'
   const [appView, setAppView] = useState<'visualizer' | 'lyrics'>('visualizer')
 
+  // Effect Chain catalog — loaded once from Supabase on mount
+  const [effectChainOptions, setEffectChainOptions] = useState<EffectChainOptionRow[]>([])
+  const [effectChainLoading, setEffectChainLoading] = useState(true)
+  const [effectChainError,   setEffectChainError]   = useState<string | null>(null)
+
+  const loadEffectChainOptions = useCallback(async () => {
+    setEffectChainLoading(true)
+    setEffectChainError(null)
+    try {
+      const result = await dbListEffectChainOptions()
+      if (result.error) {
+        setEffectChainOptions([])
+        setEffectChainError(result.error)
+      } else {
+        setEffectChainOptions(result.options)
+      }
+    } finally {
+      setEffectChainLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadEffectChainOptions()
+  }, [loadEffectChainOptions])
+
   const {
     effects, enabledFxArr,
     activeMediaId, presets, activePresetId,
@@ -912,9 +939,17 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
           <div className="vz-panel-body">
             {activeRightPanel === 'fx' && (
               <>
-                <EffectChainPanel enabled={enabledFxSet} onToggle={handleToggleFx} />
+                <EffectChainPanel
+                  options={effectChainOptions}
+                  loading={effectChainLoading}
+                  error={effectChainError}
+                  enabled={enabledFxSet}
+                  onToggle={handleToggleFx}
+                  onRetry={loadEffectChainOptions}
+                />
                 <EffectControlsPanel
                   effects={effects}
+                  effectOptions={effectChainOptions}
                   enabledFx={enabledFxSet}
                   onChange={setEffect}
                   onReset={resetEffects}

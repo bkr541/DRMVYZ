@@ -182,6 +182,36 @@ export interface ReferenceComparison {
   computed_at: string
 }
 
+// ── VYZUALZ catalog ───────────────────────────────────────────────────────────
+
+export type EffectChainCategory =
+  | 'color'
+  | 'distortion'
+  | 'audioReactive'
+  | 'generative'
+  | 'post'
+  | 'utility'
+
+export type EffectControlGroup =
+  | 'Global'
+  | 'Motion'
+  | 'Audio Reactive'
+  | 'Distortion'
+  | 'Lighting / Atmosphere'
+
+export interface EffectChainOptionRow {
+  id:            string
+  chain_name:    string
+  effect_key:    string
+  description:   string
+  category:      EffectChainCategory
+  control_group: EffectControlGroup
+  sort_order:    number
+  is_available:  boolean
+  created_at:    string
+  updated_at:    string
+}
+
 // ── VYZUALZ ───────────────────────────────────────────────────────────────────
 
 export interface MediaItemRow {
@@ -338,6 +368,7 @@ export interface Database {
       media_item_tags:          { Row: MediaItemTagRow;        Insert: Omit<MediaItemTagRow,'created_at'>;                                Update: never }
       media_collections:        { Row: MediaCollectionRow;     Insert: MediaCollectionInsert;                                             Update: Partial<Omit<MediaCollectionRow,'id'>> }
       media_collection_items:   { Row: MediaCollectionItemRow; Insert: Omit<MediaCollectionItemRow,'created_at'>;                        Update: Pick<MediaCollectionItemRow,'sort_order'> }
+      effect_chain_options:     { Row: EffectChainOptionRow;    Insert: Omit<EffectChainOptionRow,'created_at'|'updated_at'>;     Update: Partial<Omit<EffectChainOptionRow,'id'|'created_at'|'updated_at'>> }
       visual_presets:           { Row: VisualPresetRow;        Insert: Omit<VisualPresetRow,'id'|'created_at'|'updated_at'>;     Update: Partial<Omit<VisualPresetRow,'id'>> }
       visual_sessions:          { Row: VisualSessionRow;       Insert: Omit<VisualSessionRow,'id'|'created_at'|'updated_at'>;    Update: Partial<Omit<VisualSessionRow,'id'>> }
       canvas_exports:           { Row: CanvasExport;           Insert: Omit<CanvasExport,'id'|'exported_at'>;                    Update: Partial<Omit<CanvasExport,'id'>> }

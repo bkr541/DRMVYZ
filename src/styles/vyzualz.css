@@ -2061,6 +2061,35 @@ input[type='range'].vz-slider--color {
   box-shadow: 0 0 7px rgba(74,199,219,0.2), inset 0 0 6px rgba(74,199,219,0.05);
 }
 
+/* ── Effect Chain loading / error / empty states ─────────────────────── */
+.vz-chain-state-msg {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 10.5px;
+  color: rgba(245,248,250,0.35);
+  font-family: var(--az-font-data);
+}
+.vz-chain-state-msg--error { color: rgba(245,120,100,0.7); }
+
+.vz-chain-retry-btn {
+  padding: 2px 8px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  color: rgba(245,248,250,0.55);
+  font-family: var(--az-font);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.vz-chain-retry-btn:hover { color: var(--az-text-muted); background: rgba(255,255,255,0.09); }
+
 /* ── Output Mode Card ────────────────────────────────────────────────── */
 .vz-output-panel {
   height: 68px;
