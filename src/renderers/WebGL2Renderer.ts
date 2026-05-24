@@ -84,40 +84,58 @@ export interface WebGL2Diagnostics {
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
-function compileShader(gl: WebGL2RenderingContext, type: number, src: string): WebGLShader | null {
+/**
+ * Compile a single shader stage.  Throws with a human-readable message (including
+ * the info log) on creation failure or compilation failure so the caller's
+ * try/catch cleanup path always receives a typed error.
+ */
+function compileShader(
+  gl: WebGL2RenderingContext,
+  type: number,
+  src: string,
+  label: string,
+): WebGLShader {
   const s = gl.createShader(type)
-  if (!s) return null
+  if (!s) throw new Error(`WebGL2 shader creation failed for ${label}`)
   gl.shaderSource(s, src)
   gl.compileShader(s)
   if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-    if (import.meta.env.DEV) console.error('[WebGL2Renderer] shader compile:', gl.getShaderInfoLog(s))
+    const log = gl.getShaderInfoLog(s) ?? ''
+    if (import.meta.env.DEV) console.error(`[WebGL2Renderer] shader compile (${label}):`, log)
     gl.deleteShader(s)
-    return null
+    throw new Error(`WebGL2 shader compilation failed for ${label}: ${log}`)
   }
   return s
 }
 
+/**
+ * Link a program from an already-compiled vertex + fragment shader pair.
+ * Throws with the info log on failure.
+ */
 function linkProgram(
   gl: WebGL2RenderingContext,
   vert: WebGLShader,
   frag: WebGLShader,
-): WebGLProgram | null {
+  label: string,
+): WebGLProgram {
   const p = gl.createProgram()
-  if (!p) return null
+  if (!p) throw new Error(`WebGL2 program creation failed for ${label}`)
   gl.attachShader(p, vert)
   gl.attachShader(p, frag)
   gl.linkProgram(p)
   if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
-    if (import.meta.env.DEV) console.error('[WebGL2Renderer] program link:', gl.getProgramInfoLog(p))
+    const log = gl.getProgramInfoLog(p) ?? ''
+    if (import.meta.env.DEV) console.error(`[WebGL2Renderer] program link (${label}):`, log)
     gl.deleteProgram(p)
-    return null
+    throw new Error(`WebGL2 program link failed for ${label}: ${log}`)
   }
   return p
 }
 
-/** Create an RGBA8 texture and set sensible defaults (clamp, linear). */
-function makeTexture(gl: WebGL2RenderingContext): WebGLTexture {
-  const t = gl.createTexture()!
+/** Create an RGBA8 texture and set sensible defaults (clamp, linear).  Throws on allocation failure. */
+function makeTexture(gl: WebGL2RenderingContext, label: string): WebGLTexture {
+  const t = gl.createTexture()
+  if (!t) throw new Error(`WebGL2 texture allocation failed for ${label}`)
   gl.bindTexture(gl.TEXTURE_2D, t)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
@@ -127,20 +145,84 @@ function makeTexture(gl: WebGL2RenderingContext): WebGLTexture {
   return t
 }
 
-/** Create FBO backed by a RGBA8 texture. */
+/**
+ * Create a framebuffer backed by an existing RGBA8 texture.
+ * Throws on allocation failure or if the framebuffer is not complete after
+ * attachment — an incomplete framebuffer would silently produce black output.
+ * The caller is responsible for the texture lifetime; this function only
+ * deletes the framebuffer object itself on completeness failure.
+ */
 function makeFBO(
   gl: WebGL2RenderingContext,
   tex: WebGLTexture,
   w: number, h: number,
+  label: string,
 ): WebGLFramebuffer {
-  const fb = gl.createFramebuffer()!
+  const fb = gl.createFramebuffer()
+  if (!fb) throw new Error(`WebGL2 framebuffer allocation failed for ${label}`)
   gl.bindFramebuffer(gl.FRAMEBUFFER, fb)
   gl.bindTexture(gl.TEXTURE_2D, tex)
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0)
+  const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER)
   gl.bindFramebuffer(gl.FRAMEBUFFER, null)
   gl.bindTexture(gl.TEXTURE_2D, null)
+  if (status !== gl.FRAMEBUFFER_COMPLETE) {
+    gl.deleteFramebuffer(fb)
+    throw new Error(`WebGL2 framebuffer incomplete for ${label}: status 0x${status.toString(16)}`)
+  }
   return fb
+}
+
+/**
+ * Transactional initialization resource tracker.
+ *
+ * Every WebGL object created during renderer construction is registered here.
+ * If construction fails at any point:
+ *   1. The catch block calls tracker.cleanup() which deletes all tracked objects.
+ *   2. The error propagates to create() which returns a typed failure result.
+ *
+ * On successful construction, releaseOwnership() is called so the tracker's
+ * cleanup becomes a no-op — dispose() then owns the full resource lifetime.
+ */
+class InitResourceTracker {
+  private readonly gl: WebGL2RenderingContext
+  private readonly shaders:      WebGLShader[]             = []
+  private readonly programs:     WebGLProgram[]            = []
+  private readonly textures:     WebGLTexture[]            = []
+  private readonly framebuffers: WebGLFramebuffer[]        = []
+  private readonly buffers:      WebGLBuffer[]             = []
+  private readonly vertexArrays: WebGLVertexArrayObject[]  = []
+  private released = false
+
+  constructor(gl: WebGL2RenderingContext) { this.gl = gl }
+
+  trackShader(s: WebGLShader):             WebGLShader             { this.shaders.push(s);      return s }
+  trackProgram(p: WebGLProgram):           WebGLProgram            { this.programs.push(p);     return p }
+  trackTexture(t: WebGLTexture):           WebGLTexture            { this.textures.push(t);     return t }
+  trackFBO(f: WebGLFramebuffer):           WebGLFramebuffer        { this.framebuffers.push(f); return f }
+  trackBuffer(b: WebGLBuffer):             WebGLBuffer             { this.buffers.push(b);      return b }
+  trackVAO(v: WebGLVertexArrayObject):     WebGLVertexArrayObject  { this.vertexArrays.push(v); return v }
+
+  /** Transfer ownership to the renderer instance — cleanup becomes a no-op. */
+  releaseOwnership(): void { this.released = true }
+
+  /**
+   * Delete every tracked resource.  Safe to call on any partially-initialised
+   * tracker — already-released trackers are ignored (prevents double-delete
+   * if cleanup() is somehow called after releaseOwnership()).
+   */
+  cleanup(): void {
+    if (this.released) return
+    const gl = this.gl
+    this.shaders.forEach(s      => gl.deleteShader(s))
+    this.programs.forEach(p     => gl.deleteProgram(p))
+    this.textures.forEach(t     => gl.deleteTexture(t))
+    this.framebuffers.forEach(f => gl.deleteFramebuffer(f))
+    this.buffers.forEach(b      => gl.deleteBuffer(b))
+    this.vertexArrays.forEach(v => gl.deleteVertexArray(v))
+    this.released = true  // prevent accidental second call
+  }
 }
 
 /** Resize an existing FBO texture to new dimensions. */
@@ -193,44 +275,46 @@ export class WebGL2Renderer {
   private readonly gl: WebGL2RenderingContext
 
   // Programs
-  private videoProg:  WebGLProgram
-  private rgbProg:    WebGLProgram
-  private threshProg: WebGLProgram
-  private blurProg:   WebGLProgram
-  private bloomProg:  WebGLProgram
-  private passProg:   WebGLProgram
-  private postProg:   WebGLProgram
-  private dispProg:   WebGLProgram
+  private videoProg!:  WebGLProgram
+  private rgbProg!:    WebGLProgram
+  private threshProg!: WebGLProgram
+  private blurProg!:   WebGLProgram
+  private bloomProg!:  WebGLProgram
+  private passProg!:   WebGLProgram
+  private postProg!:   WebGLProgram
+  private dispProg!:   WebGLProgram
 
   // Shared vertex shader
-  private vertShader: WebGLShader
+  private vertShader!: WebGLShader
 
   // Uniform locations
-  private videoLocs:  VideoLocs
-  private rgbLocs:    RgbLocs
-  private threshLocs: ThreshLocs
-  private blurLocs:   BlurLocs
-  private bloomLocs:  BloomCompLocs
-  private passLocs:   PassLocs
-  private postLocs:   PostLocs
-  private dispLocs:   DispLocs
+  private videoLocs!:  VideoLocs
+  private rgbLocs!:    RgbLocs
+  private threshLocs!: ThreshLocs
+  private blurLocs!:   BlurLocs
+  private bloomLocs!:  BloomCompLocs
+  private passLocs!:   PassLocs
+  private postLocs!:   PostLocs
+  private dispLocs!:   DispLocs
 
   // Geometry
-  private vao: WebGLVertexArrayObject
-  private vbo: WebGLBuffer
+  private vao!: WebGLVertexArrayObject
+  private vbo!: WebGLBuffer
 
   // Textures and FBOs
-  private videoTex:  WebGLTexture   // per-frame upload from media element
+  private videoTex!: WebGLTexture   // per-frame upload from media element
   private videoTexW = 0; private videoTexH = 0
 
-  private sceneTex:  WebGLTexture;  private sceneFBO:  WebGLFramebuffer
-  private rgbTex:    WebGLTexture;  private rgbFBO:    WebGLFramebuffer
-  private bloom1Tex: WebGLTexture;  private bloom1FBO: WebGLFramebuffer
-  private bloom2Tex: WebGLTexture;  private bloom2FBO: WebGLFramebuffer
+  private sceneTex!:  WebGLTexture;  private sceneFBO!:  WebGLFramebuffer
+  private rgbTex!:    WebGLTexture;  private rgbFBO!:    WebGLFramebuffer
+  private bloom1Tex!: WebGLTexture;  private bloom1FBO!: WebGLFramebuffer
+  private bloom2Tex!: WebGLTexture;  private bloom2FBO!: WebGLFramebuffer
   // Post-process FBO: holds pre-final output when grain or scanlines are active
-  private postTex:   WebGLTexture;  private postFBO:   WebGLFramebuffer
+  private postTex!:   WebGLTexture;  private postFBO!:   WebGLFramebuffer
   // Displacement FBO: holds pre-displacement output when the displacement pass is active
-  private dispTex:   WebGLTexture;  private dispFBO:   WebGLFramebuffer
+  private dispTex!:   WebGLTexture;  private dispFBO!:   WebGLFramebuffer
+
+  private disposed = false
 
   // Tracked canvas dimensions
   private canvasW = 0; private canvasH = 0
@@ -313,129 +397,151 @@ export class WebGL2Renderer {
     this._canvas = canvas
     this.gl = gl
 
-    // ── Compile shaders ──────────────────────────────────────────────────
-    const vert = compileShader(gl, gl.VERTEX_SHADER, VERT_SRC)
-    if (!vert) throw new Error('vertex shader failed')
-    this.vertShader = vert
+    // All GPU resources are registered with the tracker as they are created.
+    // If any allocation throws, the catch block calls tracker.cleanup() which
+    // deletes every resource successfully created so far — no GPU memory leaks
+    // from a partially-constructed renderer.
+    const tracker = new InitResourceTracker(gl)
+    try {
+      // ── Compile shaders ──────────────────────────────────────────────────
+      const vert     = tracker.trackShader(compileShader(gl, gl.VERTEX_SHADER,   VERT_SRC,              'vertex shader'))
+      const fragVideo  = tracker.trackShader(compileShader(gl, gl.FRAGMENT_SHADER, VIDEO_FRAG,            'video fragment shader'))
+      const fragRgb    = tracker.trackShader(compileShader(gl, gl.FRAGMENT_SHADER, RGBSPLIT_FRAG,         'RGB split fragment shader'))
+      const fragThresh = tracker.trackShader(compileShader(gl, gl.FRAGMENT_SHADER, BLOOM_THRESHOLD_FRAG,  'bloom threshold fragment shader'))
+      const fragBlur   = tracker.trackShader(compileShader(gl, gl.FRAGMENT_SHADER, BLOOM_BLUR_FRAG,       'bloom blur fragment shader'))
+      const fragBloom  = tracker.trackShader(compileShader(gl, gl.FRAGMENT_SHADER, BLOOM_COMPOSITE_FRAG,  'bloom composite fragment shader'))
+      const fragPass   = tracker.trackShader(compileShader(gl, gl.FRAGMENT_SHADER, PASS_FRAG,             'passthrough fragment shader'))
+      const fragPost   = tracker.trackShader(compileShader(gl, gl.FRAGMENT_SHADER, POST_PROCESS_FRAG,     'post-process fragment shader'))
+      const fragDisp   = tracker.trackShader(compileShader(gl, gl.FRAGMENT_SHADER, DISPLACEMENT_FRAG,     'displacement fragment shader'))
+      this.vertShader = vert
 
-    const fragVideo  = compileShader(gl, gl.FRAGMENT_SHADER, VIDEO_FRAG)
-    const fragRgb    = compileShader(gl, gl.FRAGMENT_SHADER, RGBSPLIT_FRAG)
-    const fragThresh = compileShader(gl, gl.FRAGMENT_SHADER, BLOOM_THRESHOLD_FRAG)
-    const fragBlur   = compileShader(gl, gl.FRAGMENT_SHADER, BLOOM_BLUR_FRAG)
-    const fragBloom  = compileShader(gl, gl.FRAGMENT_SHADER, BLOOM_COMPOSITE_FRAG)
-    const fragPass   = compileShader(gl, gl.FRAGMENT_SHADER, PASS_FRAG)
-    const fragPost   = compileShader(gl, gl.FRAGMENT_SHADER, POST_PROCESS_FRAG)
-    const fragDisp   = compileShader(gl, gl.FRAGMENT_SHADER, DISPLACEMENT_FRAG)
+      // ── Link programs ────────────────────────────────────────────────────
+      const vP  = tracker.trackProgram(linkProgram(gl, vert, fragVideo,  'video draw'))
+      const rP  = tracker.trackProgram(linkProgram(gl, vert, fragRgb,    'RGB split'))
+      const tP  = tracker.trackProgram(linkProgram(gl, vert, fragThresh, 'bloom threshold'))
+      const bP  = tracker.trackProgram(linkProgram(gl, vert, fragBlur,   'bloom blur'))
+      const cP  = tracker.trackProgram(linkProgram(gl, vert, fragBloom,  'bloom composite'))
+      const pP  = tracker.trackProgram(linkProgram(gl, vert, fragPass,   'passthrough'))
+      const ppP = tracker.trackProgram(linkProgram(gl, vert, fragPost,   'post-process'))
+      const dP  = tracker.trackProgram(linkProgram(gl, vert, fragDisp,   'displacement'))
 
-    if (!fragVideo || !fragRgb || !fragThresh || !fragBlur || !fragBloom || !fragPass || !fragPost || !fragDisp) {
-      throw new Error('fragment shader compilation failed')
-    }
+      this.videoProg  = vP;  this.rgbProg   = rP
+      this.threshProg = tP;  this.blurProg  = bP
+      this.bloomProg  = cP;  this.passProg  = pP
+      this.postProg   = ppP; this.dispProg  = dP
 
-    const vP  = linkProgram(gl, vert, fragVideo)
-    const rP  = linkProgram(gl, vert, fragRgb)
-    const tP  = linkProgram(gl, vert, fragThresh)
-    const bP  = linkProgram(gl, vert, fragBlur)
-    const cP  = linkProgram(gl, vert, fragBloom)
-    const pP  = linkProgram(gl, vert, fragPass)
-    const ppP = linkProgram(gl, vert, fragPost)
-    const dP  = linkProgram(gl, vert, fragDisp)
+      // ── Uniform locations ─────────────────────────────────────────────────
+      this.videoLocs = getVideoLocs(gl, vP)
+      this.rgbLocs   = { u_tex: gl.getUniformLocation(rP, 'u_tex')!, u_shift: gl.getUniformLocation(rP, 'u_shift')! }
+      this.threshLocs = { u_tex: gl.getUniformLocation(tP, 'u_tex')! }
+      this.blurLocs  = { u_tex: gl.getUniformLocation(bP, 'u_tex')!, u_dir: gl.getUniformLocation(bP, 'u_dir')!, u_radius: gl.getUniformLocation(bP, 'u_radius')! }
+      this.bloomLocs = { u_scene: gl.getUniformLocation(cP, 'u_scene')!, u_bloom: gl.getUniformLocation(cP, 'u_bloom')!, u_amount: gl.getUniformLocation(cP, 'u_amount')! }
+      this.passLocs  = { u_tex: gl.getUniformLocation(pP, 'u_tex')! }
+      this.postLocs  = {
+        u_tex:         gl.getUniformLocation(ppP, 'u_tex')!,
+        u_time:        gl.getUniformLocation(ppP, 'u_time')!,
+        u_grainAmount: gl.getUniformLocation(ppP, 'u_grainAmount')!,
+        u_scanAlpha:   gl.getUniformLocation(ppP, 'u_scanAlpha')!,
+        u_scanStep:    gl.getUniformLocation(ppP, 'u_scanStep')!,
+        u_resolution:  gl.getUniformLocation(ppP, 'u_resolution')!,
+      }
+      this.dispLocs  = {
+        u_tex:         gl.getUniformLocation(dP, 'u_tex')!,
+        u_dispOffX:    gl.getUniformLocation(dP, 'u_dispOffX')!,
+        u_dispOffY:    gl.getUniformLocation(dP, 'u_dispOffY')!,
+        u_dispAmount:  gl.getUniformLocation(dP, 'u_dispAmount')!,
+        u_dispHueRad:  gl.getUniformLocation(dP, 'u_dispHueRad')!,
+      }
 
-    if (!vP || !rP || !tP || !bP || !cP || !pP || !ppP || !dP) throw new Error('program link failed')
+      // ── Fullscreen quad ───────────────────────────────────────────────────
+      // Interleaved [x, y, u, v], two triangles covering [-1,1]² NDC.
+      const verts = new Float32Array([
+        // pos        uv
+        -1, -1,      0, 0,
+         1, -1,      1, 0,
+        -1,  1,      0, 1,
+         1, -1,      1, 0,
+         1,  1,      1, 1,
+        -1,  1,      0, 1,
+      ])
+      const vao = gl.createVertexArray()
+      if (!vao) throw new Error('WebGL2 vertex array allocation failed during geometry setup')
+      this.vao = tracker.trackVAO(vao)
 
-    this.videoProg  = vP;  this.rgbProg   = rP
-    this.threshProg = tP;  this.blurProg  = bP
-    this.bloomProg  = cP;  this.passProg  = pP
-    this.postProg   = ppP; this.dispProg  = dP
+      const vbo = gl.createBuffer()
+      if (!vbo) throw new Error('WebGL2 buffer allocation failed during geometry setup')
+      this.vbo = tracker.trackBuffer(vbo)
 
-    // ── Uniform locations ─────────────────────────────────────────────────
-    this.videoLocs = getVideoLocs(gl, vP)
-    this.rgbLocs   = { u_tex: gl.getUniformLocation(rP, 'u_tex')!, u_shift: gl.getUniformLocation(rP, 'u_shift')! }
-    this.threshLocs = { u_tex: gl.getUniformLocation(tP, 'u_tex')! }
-    this.blurLocs  = { u_tex: gl.getUniformLocation(bP, 'u_tex')!, u_dir: gl.getUniformLocation(bP, 'u_dir')!, u_radius: gl.getUniformLocation(bP, 'u_radius')! }
-    this.bloomLocs = { u_scene: gl.getUniformLocation(cP, 'u_scene')!, u_bloom: gl.getUniformLocation(cP, 'u_bloom')!, u_amount: gl.getUniformLocation(cP, 'u_amount')! }
-    this.passLocs  = { u_tex: gl.getUniformLocation(pP, 'u_tex')! }
-    this.postLocs  = {
-      u_tex:         gl.getUniformLocation(ppP, 'u_tex')!,
-      u_time:        gl.getUniformLocation(ppP, 'u_time')!,
-      u_grainAmount: gl.getUniformLocation(ppP, 'u_grainAmount')!,
-      u_scanAlpha:   gl.getUniformLocation(ppP, 'u_scanAlpha')!,
-      u_scanStep:    gl.getUniformLocation(ppP, 'u_scanStep')!,
-      u_resolution:  gl.getUniformLocation(ppP, 'u_resolution')!,
-    }
-    this.dispLocs  = {
-      u_tex:         gl.getUniformLocation(dP, 'u_tex')!,
-      u_dispOffX:    gl.getUniformLocation(dP, 'u_dispOffX')!,
-      u_dispOffY:    gl.getUniformLocation(dP, 'u_dispOffY')!,
-      u_dispAmount:  gl.getUniformLocation(dP, 'u_dispAmount')!,
-      u_dispHueRad:  gl.getUniformLocation(dP, 'u_dispHueRad')!,
-    }
+      gl.bindVertexArray(this.vao)
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo)
+      gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW)
+      const stride = 4 * 4  // 4 floats × 4 bytes
+      gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, stride, 0)
+      gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 2, gl.FLOAT, false, stride, 8)
+      gl.bindVertexArray(null)
+      // Bind attributes by index to match GLSL `in` declarations (location 0=a_pos, 1=a_uv)
+      gl.bindAttribLocation(vP,  0, 'a_pos'); gl.bindAttribLocation(vP,  1, 'a_uv')
+      gl.bindAttribLocation(rP,  0, 'a_pos'); gl.bindAttribLocation(rP,  1, 'a_uv')
+      gl.bindAttribLocation(tP,  0, 'a_pos'); gl.bindAttribLocation(tP,  1, 'a_uv')
+      gl.bindAttribLocation(bP,  0, 'a_pos'); gl.bindAttribLocation(bP,  1, 'a_uv')
+      gl.bindAttribLocation(cP,  0, 'a_pos'); gl.bindAttribLocation(cP,  1, 'a_uv')
+      gl.bindAttribLocation(pP,  0, 'a_pos'); gl.bindAttribLocation(pP,  1, 'a_uv')
+      gl.bindAttribLocation(ppP, 0, 'a_pos'); gl.bindAttribLocation(ppP, 1, 'a_uv')
+      gl.bindAttribLocation(dP,  0, 'a_pos'); gl.bindAttribLocation(dP,  1, 'a_uv')
+      // Relink after attrib binding
+      ;[vP, rP, tP, bP, cP, pP, ppP, dP].forEach(prog => { gl.linkProgram(prog) })
 
-    // ── Fullscreen quad ───────────────────────────────────────────────────
-    // Interleaved [x, y, u, v], two triangles covering [-1,1]² NDC.
-    const verts = new Float32Array([
-      // pos        uv
-      -1, -1,      0, 0,
-       1, -1,      1, 0,
-      -1,  1,      0, 1,
-       1, -1,      1, 0,
-       1,  1,      1, 1,
-      -1,  1,      0, 1,
-    ])
-    this.vao = gl.createVertexArray()!
-    this.vbo = gl.createBuffer()!
-    gl.bindVertexArray(this.vao)
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo)
-    gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW)
-    const stride = 4 * 4  // 4 floats × 4 bytes
-    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, stride, 0)
-    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 2, gl.FLOAT, false, stride, 8)
-    gl.bindVertexArray(null)
-    // Bind attributes by index to match GLSL `in` declarations (location 0=a_pos, 1=a_uv)
-    gl.bindAttribLocation(vP,  0, 'a_pos'); gl.bindAttribLocation(vP,  1, 'a_uv')
-    gl.bindAttribLocation(rP,  0, 'a_pos'); gl.bindAttribLocation(rP,  1, 'a_uv')
-    gl.bindAttribLocation(tP,  0, 'a_pos'); gl.bindAttribLocation(tP,  1, 'a_uv')
-    gl.bindAttribLocation(bP,  0, 'a_pos'); gl.bindAttribLocation(bP,  1, 'a_uv')
-    gl.bindAttribLocation(cP,  0, 'a_pos'); gl.bindAttribLocation(cP,  1, 'a_uv')
-    gl.bindAttribLocation(pP,  0, 'a_pos'); gl.bindAttribLocation(pP,  1, 'a_uv')
-    gl.bindAttribLocation(ppP, 0, 'a_pos'); gl.bindAttribLocation(ppP, 1, 'a_uv')
-    gl.bindAttribLocation(dP,  0, 'a_pos'); gl.bindAttribLocation(dP,  1, 'a_uv')
-    // Relink after attrib binding
-    ;[vP, rP, tP, bP, cP, pP, ppP, dP].forEach(prog => { gl.linkProgram(prog) })
+      // ── Video texture (placeholder 1×1 black) ─────────────────────────────
+      this.videoTex = tracker.trackTexture(makeTexture(gl, 'video source texture'))
+      gl.bindTexture(gl.TEXTURE_2D, this.videoTex)
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0,0,0,255]))
+      gl.bindTexture(gl.TEXTURE_2D, null)
 
-    // ── Video texture (placeholder 1×1 black) ─────────────────────────────
-    this.videoTex = makeTexture(gl)
-    gl.bindTexture(gl.TEXTURE_2D, this.videoTex)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0,0,0,255]))
-    gl.bindTexture(gl.TEXTURE_2D, null)
+      // ── Scene + effect FBOs (placeholder 1×1) ────────────────────────────
+      this.sceneTex  = tracker.trackTexture(makeTexture(gl, 'scene render target'))
+      this.sceneFBO  = tracker.trackFBO(makeFBO(gl, this.sceneTex,  1, 1, 'scene render target'))
+      this.rgbTex    = tracker.trackTexture(makeTexture(gl, 'RGB split render target'))
+      this.rgbFBO    = tracker.trackFBO(makeFBO(gl, this.rgbTex,    1, 1, 'RGB split render target'))
+      this.bloom1Tex = tracker.trackTexture(makeTexture(gl, 'bloom pass 1 render target'))
+      this.bloom1FBO = tracker.trackFBO(makeFBO(gl, this.bloom1Tex, 1, 1, 'bloom pass 1 render target'))
+      this.bloom2Tex = tracker.trackTexture(makeTexture(gl, 'bloom pass 2 render target'))
+      this.bloom2FBO = tracker.trackFBO(makeFBO(gl, this.bloom2Tex, 1, 1, 'bloom pass 2 render target'))
+      this.postTex   = tracker.trackTexture(makeTexture(gl, 'post-process render target'))
+      this.postFBO   = tracker.trackFBO(makeFBO(gl, this.postTex,   1, 1, 'post-process render target'))
+      this.dispTex   = tracker.trackTexture(makeTexture(gl, 'displacement render target'))
+      this.dispFBO   = tracker.trackFBO(makeFBO(gl, this.dispTex,   1, 1, 'displacement render target'))
 
-    // ── Scene + effect FBOs (placeholder 1×1) ────────────────────────────
-    this.sceneTex  = makeTexture(gl); this.sceneFBO  = makeFBO(gl, this.sceneTex,  1, 1)
-    this.rgbTex    = makeTexture(gl); this.rgbFBO    = makeFBO(gl, this.rgbTex,    1, 1)
-    this.bloom1Tex = makeTexture(gl); this.bloom1FBO = makeFBO(gl, this.bloom1Tex, 1, 1)
-    this.bloom2Tex = makeTexture(gl); this.bloom2FBO = makeFBO(gl, this.bloom2Tex, 1, 1)
-    this.postTex   = makeTexture(gl); this.postFBO   = makeFBO(gl, this.postTex,   1, 1)
-    this.dispTex   = makeTexture(gl); this.dispFBO   = makeFBO(gl, this.dispTex,   1, 1)
+      // All resources created successfully — transfer ownership to this instance.
+      // dispose() is now responsible for cleanup; the tracker is done.
+      tracker.releaseOwnership()
 
-    // ── Context loss handling ─────────────────────────────────────────────
-    // Store handler references so dispose() can remove them before calling
-    // loseContext() — prevents the dispose path from re-triggering callbacks.
-    this._contextLostHandler = (e: Event) => {
-      e.preventDefault()
-      this._contextLost = true
-      if (import.meta.env.DEV) console.warn('[WebGL2Renderer] context lost')
-      callbacks?.onContextLost?.('WebGL2 context lost during playback')
-    }
-    this._contextRestoredHandler = () => {
-      this._contextLost = false
-      if (import.meta.env.DEV) console.log('[WebGL2Renderer] context restored')
-      callbacks?.onContextRestored?.()
-    }
-    canvas.addEventListener('webglcontextlost', this._contextLostHandler)
-    canvas.addEventListener('webglcontextrestored', this._contextRestoredHandler)
+      // ── Context loss handling ─────────────────────────────────────────────
+      // Store handler references so dispose() can remove them before calling
+      // loseContext() — prevents the dispose path from re-triggering callbacks.
+      this._contextLostHandler = (e: Event) => {
+        e.preventDefault()
+        this._contextLost = true
+        if (import.meta.env.DEV) console.warn('[WebGL2Renderer] context lost')
+        callbacks?.onContextLost?.('WebGL2 context lost during playback')
+      }
+      this._contextRestoredHandler = () => {
+        this._contextLost = false
+        if (import.meta.env.DEV) console.log('[WebGL2Renderer] context restored')
+        callbacks?.onContextRestored?.()
+      }
+      canvas.addEventListener('webglcontextlost', this._contextLostHandler)
+      canvas.addEventListener('webglcontextrestored', this._contextRestoredHandler)
 
-    if (import.meta.env.DEV) {
-      const dbg = gl.getExtension('WEBGL_debug_renderer_info')
-      if (dbg) console.log('[WebGL2Renderer] GPU:', gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL))
+      if (import.meta.env.DEV) {
+        const dbg = gl.getExtension('WEBGL_debug_renderer_info')
+        if (dbg) console.log('[WebGL2Renderer] GPU:', gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL))
+      }
+    } catch (e) {
+      // Partial-initialisation cleanup: delete every GPU resource created so far.
+      // This guarantees no leaked textures, FBOs, programs, or shaders when
+      // create() returns a typed failure result instead of a renderer instance.
+      tracker.cleanup()
+      throw e
     }
   }
 
@@ -676,6 +782,11 @@ export class WebGL2Renderer {
   // ── Dispose ──────────────────────────────────────────────────────────────────
 
   dispose(): void {
+    // Idempotency guard — safe to call multiple times (e.g. during context
+    // restoration when the stale renderer is disposed after re-init succeeds).
+    if (this.disposed) return
+    this.disposed = true
+
     // Remove event listeners FIRST so the loseContext() call below cannot
     // re-trigger the onContextLost callback on the caller.
     this._canvas.removeEventListener('webglcontextlost',    this._contextLostHandler)
