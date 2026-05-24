@@ -416,7 +416,7 @@ function BgClipInspector({
           {MEDIA_ROLES.map(r => <option key={r} value={r}>{MEDIA_ROLE_LABELS[r]}</option>)}
         </select>
       </div>
-      <div className="vz-ml-insp-row">
+      <div className="vz-ml-insp-row vz-ml-insp-row--grid4">
         <span className="vz-ml-insp-lbl">Start (s)</span>
         <input type="number" className="vz-ml-insp-num" min={0} step={0.1}
           value={parseFloat(clip.startSec.toFixed(2))}
@@ -844,7 +844,7 @@ function LyricCueInspector({
 
 // ── TimelineInspector ────────────────────────────────────────────────────
 
-function TimelineInspector({
+export function TimelineInspector({
   selected, bgClips, overlayClips, effectRegions, lyricCues, mediaMap,
   layerItems,
   onUpdateClip, onRemoveBg, onRemoveOverlay, onDuplicateBg, onDuplicateOverlay,
@@ -955,8 +955,6 @@ function TimelineInspector({
     <div className="vz-ml-insp">
       <div className="vz-ml-insp-hd">
         <span className="vz-ml-insp-title">Inspector</span>
-        <span className="vz-ml-insp-lane-badge">{headLabel}</span>
-        {headName && <span className="vz-ml-insp-name" title={headName}>{headName}</span>}
       </div>
       {content ?? <div className="vz-ml-insp-empty">Item not found</div>}
     </div>
@@ -1516,32 +1514,6 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
         </div>{/* end scroll-area */}
       </div>{/* end editor */}
 
-      {/* ── Inspector ────────────────────────────────────────────────── */}
-      <TimelineInspector
-        selected={selected}
-        bgClips={timelineClips}
-        overlayClips={timelineOverlayClips}
-        effectRegions={timelineEffectRegions}
-        lyricCues={lyricCues}
-        mediaMap={mediaMap}
-        layerItems={layerItems}
-        onUpdateClip={updateMediaClip}
-        onRemoveBg={id => { removeTimelineClip(id); setSelected(null) }}
-        onRemoveOverlay={id => { removeMediaClip(id); setSelected(null) }}
-        onDuplicateBg={duplicateTimelineClip}
-        onDuplicateOverlay={duplicateMediaClip}
-        onMoveClip={moveBgClip}
-        onUpdateEffect={updateEffectRegion}
-        onRemoveEffect={id => { removeEffectRegion(id); setSelected(null) }}
-        onSetMediaRole={setMediaRole}
-        onUpdateLyricTiming={updateCueTiming}
-        onSeekToLyric={handleScrub}
-        onSaveLyricTiming={saveTimingChanges}
-        lyricTimingDirty={lyricTimingDirty}
-        lyricSaving={lyricSaving}
-        hasLyricDocument={!!lyricDocumentId}
-        globalOffsetSec={globalOffsetSec}
-      />
     </div>
   )
 }

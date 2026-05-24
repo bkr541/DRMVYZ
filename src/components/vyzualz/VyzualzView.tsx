@@ -42,6 +42,7 @@ import { useTapTempo }          from './hooks/useTapTempo'
 import { useMediaNavigation }   from './hooks/useMediaNavigation'
 import { useRecorder }          from '../../hooks/useRecorder'
 import { RecordingPanel }       from './recording/RecordingPanel'
+import { TimelineInspectorPanel } from './timeline/TimelineInspectorPanel'
 
 // ── AudioWaveformCanvas (real analyser) ───────────────────────────────
 function AudioWaveformCanvas({ analyser }: { analyser: AnalyserNode | null }) {
@@ -433,7 +434,7 @@ function VyzualzDock() {
 
 // ── Rail tab definitions ──────────────────────────────────────────────
 type LeftPanel  = 'media' | 'layers' | 'presets' | 'sessions'
-type RightPanel = 'fx' | 'mod' | 'audio' | 'rec'
+type RightPanel = 'fx' | 'mod' | 'audio' | 'rec' | 'insp'
 
 const LEFT_TABS: RailTabOption<LeftPanel>[] = [
   { id: 'media',    label: 'Media'    },
@@ -442,11 +443,12 @@ const LEFT_TABS: RailTabOption<LeftPanel>[] = [
   { id: 'sessions', label: 'Sessions' },
 ]
 
-const RIGHT_TABS: RailTabOption<RightPanel>[] = [
+const BASE_RIGHT_TABS: Omit<RailTabOption<RightPanel>, 'disabled'>[] = [
   { id: 'fx',    label: 'FX'    },
   { id: 'mod',   label: 'MOD'   },
   { id: 'audio', label: 'AUDIO' },
   { id: 'rec',   label: 'REC'   },
+  { id: 'insp',  label: 'INSP'  },
 ]
 
 // ── localStorage helpers ──────────────────────────────────────────────
@@ -481,6 +483,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     syncSessionsFromCloud, clearSessionSyncError,
     modulationRoutes, toggleModulationRoute, setModulationRouteAmount,
     timelineEnabled, timelineClips, timelineOverlayClips, timelineEffectRegions, timelineLoop, setTimelineEnabled, scrubTimeline,
+    selectedTimelineEntity,
     layerConfigs, layerItems,
     effectParams, setEffectParam,
     audioReactivityEnabled, setAudioReactivityEnabled,
@@ -525,6 +528,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     timelineLoop:              s.timelineLoop,
     setTimelineEnabled:        s.setTimelineEnabled,
     scrubTimeline:             s.scrubTimeline,
+    selectedTimelineEntity:    s.selectedTimelineEntity,
     layerConfigs:              s.layerConfigs,
     layerItems:                s.layerItems,
     effectParams:              s.effectParams,
@@ -575,6 +579,15 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   const [activeRightPanel, setActiveRightPanel] = useState<RightPanel>(() => readLS<RightPanel>('drmvyz:vz:rightPanel', 'fx'))
   useEffect(() => { localStorage.setItem('drmvyz:vz:leftPanel',  JSON.stringify(activeLeftPanel))  }, [activeLeftPanel])
   useEffect(() => { localStorage.setItem('drmvyz:vz:rightPanel', JSON.stringify(activeRightPanel)) }, [activeRightPanel])
+
+  // Auto-switch to Inspector tab when a timeline element is selected
+  useEffect(() => {
+    if (selectedTimelineEntity) setActiveRightPanel('insp')
+  }, [selectedTimelineEntity])
+
+  const rightTabs = useMemo<RailTabOption<RightPanel>[]>(() =>
+    BASE_RIGHT_TABS.map(t => t.id === 'insp' ? { ...t, disabled: !selectedTimelineEntity } : t),
+  [selectedTimelineEntity])
 
   // (bass is computed directly inside BeatCanvas via analyser ref — no React state needed here)
 
@@ -900,7 +913,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
           onToggleCollapsed={toggleRightInspector}
         >
           <RailTabs
-            tabs={RIGHT_TABS}
+            tabs={rightTabs}
             activeTab={activeRightPanel}
             onChange={setActiveRightPanel}
             ariaLabel="VYZUALZ right workspace panels"
@@ -947,6 +960,9 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                 hasActiveProgramAudio={engine.isActive}
                 onExportPng={recorder.exportPNG}
               />
+            )}
+            {activeRightPanel === 'insp' && (
+              <TimelineInspectorPanel onSeekToLyric={handleTimelineScrub} />
             )}
           </div>
         </WorkspaceRail>
