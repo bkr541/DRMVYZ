@@ -3,7 +3,6 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 150 ms
+  VITE v5.4.21  ready in 151 ms
 
   ➜  Local:   http://127.0.0.1:5173/
-6:44:44 AM [vite] hmr update /src/components/vyzualz/stage/LiveVisualCanvas.tsx

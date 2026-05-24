@@ -1439,6 +1439,19 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
               const elDur     = isFinite(el.duration) ? el.duration : 0
               el.currentTime  = getClipSourceTime(clip, localTimeSec, elDur)
               if (isPlayingRef.current) el.play().catch(() => {})
+              // When vfcDriven=true and shouldDraw=false, the per-frame play() call
+              // is skipped by the early-return gate.  The video must present a frame
+              // to unblock that gate, but it can only do so once play() is called —
+              // a deadlock if play() hasn't been issued yet.
+              // Fix: once the video becomes playable, call play() if needed and force
+              // one draw cycle so the vfcDriven gate sees the signal.
+              if (el.readyState < 2) {
+                el.addEventListener('canplay', () => {
+                  if (isPlayingRef.current && el.paused) el.play().catch(() => {})
+                  videoFrameReadyRef.current = true
+                  requestRedrawRef.current()
+                }, { once: true })
+              }
             }
           } else {
             mediaElRef.current = null
@@ -1478,6 +1491,13 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             inEl.playbackRate   = 1
             inEl.currentTime    = getClipSourceTime(inClip, txState.incomingLocalTimeSec, inDur)
             if (isPlayingRef.current) inEl.play().catch(() => {})
+            if (inEl.readyState < 2) {
+              inEl.addEventListener('canplay', () => {
+                if (isPlayingRef.current && inEl.paused) inEl.play().catch(() => {})
+                videoFrameReadyRef.current = true
+                requestRedrawRef.current()
+              }, { once: true })
+            }
           }
         } else {
           incomingMediaElRef.current = null
