@@ -3,6 +3,10 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 136 ms
+  VITE v5.4.21  ready in 132 ms
 
   ➜  Local:   http://127.0.0.1:5173/
+11:29:13 AM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx, /src/components/vyzualz/timeline/TimelineInspectorPanel.tsx, /src/features/lyrics/LyricManagerView.tsx, /src/components/vyzualz/TimelinePanel.tsx, /src/components/vyzualz/stage/LiveVisualCanvas.tsx
+11:29:19 AM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx, /src/components/vyzualz/timeline/TimelineInspectorPanel.tsx, /src/features/lyrics/LyricManagerView.tsx, /src/components/vyzualz/TimelinePanel.tsx, /src/components/vyzualz/stage/LiveVisualCanvas.tsx
+11:29:28 AM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
+11:29:37 AM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx

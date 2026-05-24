@@ -347,7 +347,7 @@ function EffectBlock({
 
 function LyricBlock({
   cue, pxPerSec, isSelected, globalOffsetSec, liveLyricDrag,
-  onSelect, onDragStart, onResizeLeft, onResizeRight,
+  onSelect, onDragStart, onResizeLeft, onResizeRight, onDelete,
 }: {
   cue: LyricCue
   pxPerSec: number
@@ -358,6 +358,7 @@ function LyricBlock({
   onDragStart: (e: React.PointerEvent) => void
   onResizeLeft: (e: React.PointerEvent) => void
   onResizeRight: (e: React.PointerEvent) => void
+  onDelete: () => void
 }) {
   const live = liveLyricDrag?.id === cue.id ? liveLyricDrag : null
   // Display positions use RAW cue times + global offset
@@ -389,6 +390,12 @@ function LyricBlock({
         className="vz-ml-clip-rhandle"
         onPointerDown={e => { e.stopPropagation(); onResizeRight(e) }}
       />
+      <button
+        className="vz-ml-clip-del"
+        onPointerDown={e => e.stopPropagation()}
+        onClick={e => { e.stopPropagation(); onDelete() }}
+        title="Delete"
+      >✕</button>
     </div>
   )
 }
@@ -1322,7 +1329,7 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
   const {
     cues: lyricCues, globalOffsetMs, activeDocumentId: lyricDocumentId,
     selectedCueId: storeSelectedCueId,
-    selectCue, updateCueTiming, setCueBounds, saveTimingChanges,
+    selectCue, updateCueTiming, setCueBounds, saveTimingChanges, deleteCue, clearCues,
     lyricTimingDirty, isSaving: lyricSaving,
   } = useLyricsStore(useShallow(s => ({
     cues:              s.cues,
@@ -1333,6 +1340,8 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
     updateCueTiming:   s.updateCueTiming,
     setCueBounds:      s.setCueBounds,
     saveTimingChanges: s.saveTimingChanges,
+    deleteCue:         s.deleteCue,
+    clearCues:         s.clearCues,
     lyricTimingDirty:  s.lyricTimingDirty,
     isSaving:          s.isSaving,
   })))
@@ -1591,9 +1600,10 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
 
   // ── Clear ──────────────────────────────────────────────────────────────
   const handleClear = () => {
-    const total = timelineClips.length + timelineOverlayClips.length + timelineEffectRegions.length
+    const total = timelineClips.length + timelineOverlayClips.length + timelineEffectRegions.length + lyricCues.length
     if (total > 0 && !window.confirm(`Remove all ${total} items from the timeline?`)) return
     clearTimeline()
+    clearCues()
     setSelected(null)
   }
 
@@ -1697,6 +1707,12 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
                   <span className="vz-ml-audio-name">
                     {(engine.tracks[engine.currentIndex])?.displayName ?? 'Audio Track'}
                   </span>
+                  <button
+                    className="vz-ml-clip-del"
+                    onPointerDown={e => e.stopPropagation()}
+                    onClick={e => { e.stopPropagation(); engine.removeTrack(engine.tracks[engine.currentIndex].id) }}
+                    title="Remove audio track"
+                  >✕</button>
                 </div>
               ) : (
                 <div className="vz-ml-lane-empty">Add an audio track to build a synchronized show</div>
@@ -1784,6 +1800,7 @@ export function TimelinePanel({ onScrub }: TimelinePanelProps) {
                   onDragStart={e => startLyricDrag(e, 'move', cue.id, cue.startMs, cue.endMs)}
                   onResizeLeft={e => startLyricDrag(e, 'resize-left', cue.id, cue.startMs, cue.endMs)}
                   onResizeRight={e => startLyricDrag(e, 'resize-right', cue.id, cue.startMs, cue.endMs)}
+                  onDelete={() => { deleteCue(cue.id); if (selected?.id === cue.id) setSelected(null) }}
                 />
               ))}
             </div>

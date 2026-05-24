@@ -5106,7 +5106,12 @@ input[type='range'].vz-slider--color {
   z-index: 4;
 }
 .vz-ml-clip:hover .vz-ml-clip-del,
-.vz-ml-clip--sel .vz-ml-clip-del { opacity: 1; }
+.vz-ml-clip--sel .vz-ml-clip-del,
+.vz-ml-effect:hover .vz-ml-clip-del,
+.vz-ml-effect--sel .vz-ml-clip-del,
+.vz-ml-lyric:hover .vz-ml-clip-del,
+.vz-ml-lyric--sel .vz-ml-clip-del,
+.vz-ml-audio-region:hover .vz-ml-clip-del { opacity: 1; }
 .vz-ml-clip-del:hover {
   background: rgba(248,113,113,0.3);
   border-color: rgba(248,113,113,0.55);

@@ -87,6 +87,9 @@ interface LyricsState {
    * Set both bounds of a cue. Enforces minimum duration.
    */
   setCueBounds(cueId: string, startMs: number, endMs: number): void
+  deleteCue(cueId: string): void
+  /** Remove all cues from the timeline. Marks lyricTimingDirty so the empty state can be persisted. */
+  clearCues(): void
 
   // Async actions
   loadLyricDocument(documentId: string): Promise<void>
@@ -234,6 +237,16 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       return { cues: next, lyricTimingDirty: true }
     })
   },
+
+  deleteCue: (cueId) => {
+    set(s => {
+      const next = s.cues.filter(c => c.id !== cueId)
+      const clearSelected = s.selectedCueId === cueId ? { selectedCueId: null } : {}
+      return { cues: next, lyricTimingDirty: true, ...clearSelected }
+    })
+  },
+
+  clearCues: () => set({ cues: [], selectedCueId: null, lyricTimingDirty: true }),
 
   // ── Async actions ────────────────────────────────────────────────────────────
 
