@@ -247,6 +247,98 @@ void main() {
 }
 `
 
+// ── 10. GPU Transition composite ─────────────────────────────────────────────
+// Composites outgoing and incoming GPU-rendered sources using a GLSL transition.
+// Ten transition types are selected by the u_type integer uniform:
+//   0 crossfade   1 wipeLeft   2 wipeRight  3 wipeUp     4 wipeDown
+//   5 additiveBlend  6 lumaFade  7 radialWipe  8 zoomIn   9 zoomOut
+//
+// UV convention: v_uv.y=0=bottom, v_uv.y=1=top (standard WebGL).
+// Wipe directions name where the incoming clip enters from.
+//
+// Uniforms:
+//   u_out      — outgoing source (TEXTURE0)
+//   u_in       — incoming source (TEXTURE1)
+//   u_progress — eased 0..1 transition progress
+//   u_type     — integer 0-9 selecting the transition algorithm
+export const GPU_TRANSITION_FRAG = /* glsl */`#version 300 es
+precision highp float;
+in vec2 v_uv;
+uniform sampler2D u_out;
+uniform sampler2D u_in;
+uniform float u_progress;
+uniform int   u_type;
+out vec4 fragColor;
+
+const float TWO_PI = 6.28318530718;
+
+void main() {
+  float p = clamp(u_progress, 0.0, 1.0);
+  vec4 outC = texture(u_out, v_uv);
+  vec4 inC  = texture(u_in,  v_uv);
+
+  // 0 — crossfade
+  if (u_type == 0) { fragColor = mix(outC, inC, p); return; }
+
+  // 1 — wipeLeft: incoming enters from the right edge
+  if (u_type == 1) { fragColor = (v_uv.x >= 1.0 - p) ? inC : outC; return; }
+
+  // 2 — wipeRight: incoming enters from the left edge
+  if (u_type == 2) { fragColor = (v_uv.x <= p) ? inC : outC; return; }
+
+  // 3 — wipeUp: incoming enters from the bottom (WebGL y=0=bottom)
+  if (u_type == 3) { fragColor = (v_uv.y <= p) ? inC : outC; return; }
+
+  // 4 — wipeDown: incoming enters from the top (WebGL y=1=top)
+  if (u_type == 4) { fragColor = (v_uv.y >= 1.0 - p) ? inC : outC; return; }
+
+  // 5 — additiveBlend: additive layer builds up then incoming takes over at 0.4
+  if (u_type == 5) {
+    if (p <= 0.4) {
+      fragColor = clamp(outC + inC * (p / 0.4), 0.0, 1.0);
+    } else {
+      float s = (p - 0.4) / 0.6;
+      fragColor = mix(clamp(outC + inC, 0.0, 1.0), inC, s);
+    }
+    return;
+  }
+
+  // 6 — lumaFade: dip through black (outgoing fades out, incoming fades in)
+  if (u_type == 6) {
+    if (p < 0.5) {
+      fragColor = vec4(outC.rgb * (1.0 - p * 2.0), 1.0);
+    } else {
+      fragColor = vec4(inC.rgb  * ((p - 0.5) * 2.0), 1.0);
+    }
+    return;
+  }
+
+  // 7 — radialWipe: clockwise sweep from 12-o'clock position
+  if (u_type == 7) {
+    vec2  c    = v_uv * 2.0 - 1.0;
+    float ang  = atan(c.x, c.y);          // [0,π] above x-axis, [-π,0] below
+    if (ang < 0.0) ang += TWO_PI;         // normalise to [0, 2π]
+    fragColor = (ang / TWO_PI <= p) ? inC : outC;
+    return;
+  }
+
+  // 8 — zoomIn: outgoing zooms in (appears to enlarge) while incoming crossfades
+  if (u_type == 8) {
+    vec2 uv  = (v_uv - 0.5) / (1.0 + p * 0.12) + 0.5;
+    vec4 zOut = texture(u_out, clamp(uv, 0.0, 1.0));
+    fragColor = mix(zOut, inC, p);
+    return;
+  }
+
+  // 9 — zoomOut: incoming zooms out from centre to fill frame
+  {
+    vec2 uv  = (v_uv - 0.5) / max(0.001, 1.12 - p * 0.12) + 0.5;
+    vec4 zIn  = texture(u_in, clamp(uv, 0.0, 1.0));
+    fragColor = mix(outC, zIn, p);
+  }
+}
+`
+
 // ── 7. Post-process: grain + scanlines ───────────────────────────────────────
 // Combined final pass applying procedural grain (Noise Fog) and horizontal
 // scanlines before the GPU output is blit to Canvas 2D.

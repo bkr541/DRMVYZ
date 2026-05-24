@@ -70,6 +70,7 @@ export function LiveVisualPreview({
 }) {
   const [liveStats, setLiveStats] = useState<PerformanceStats>(DEFAULT_PERFORMANCE_STATS)
   const [viewMenuOpen, setViewMenuOpen] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -82,6 +83,13 @@ export function LiveVisualPreview({
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [viewMenuOpen])
+
+  // Track fullscreen state so diagnostic overlays are hidden during program output.
+  useEffect(() => {
+    function onFullscreenChange() { setIsFullscreen(!!document.fullscreenElement) }
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
+  }, [])
 
   const anyViewActive = timelineEnabled || (lyricsEnabled && lyricsCount > 0) || videoBaselineMode
 
@@ -112,15 +120,21 @@ export function LiveVisualPreview({
           onStatsUpdate={(stats) => { setLiveStats(stats); onLiveFps?.(stats.fps) }}
           onCanvasReady={onCanvasReady}
         />
-        <PreviewOverlay quality={quality} fps={liveStats.fps} />
-        <RenderSourceBadge
-          timelineEnabled={timelineEnabled}
-          timelineClips={timelineClips}
-          timelineLoop={timelineLoop}
-          activeMedia={activeMedia}
-          mediaItems={mediaItems}
-        />
-        {stageOverlays}
+        {/* Diagnostic overlays are editor-only — hidden during fullscreen program output */}
+        {!isFullscreen && (
+          <PreviewOverlay quality={quality} fps={liveStats.fps} rendererType={liveStats.rendererType} />
+        )}
+        {!isFullscreen && (
+          <RenderSourceBadge
+            timelineEnabled={timelineEnabled}
+            timelineClips={timelineClips}
+            timelineLoop={timelineLoop}
+            activeMedia={activeMedia}
+            mediaItems={mediaItems}
+          />
+        )}
+        {/* Editor toast notifications are suppressed during fullscreen output */}
+        {!isFullscreen && stageOverlays}
       </div>
 
       <div className="vz-preview-transport">

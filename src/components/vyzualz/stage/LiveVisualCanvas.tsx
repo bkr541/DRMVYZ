@@ -4,11 +4,12 @@ import type { VzEffects, Quality } from '../../../stores/visualStore'
 import type { UploadedMedia } from '../../../stores/mediaStore'
 import { useLyricsStore } from '../../../stores/lyricsStore'
 import type { LyricCue, LyricDocument, LyricStyle, LyricAnimation, LyricEasingName } from '../../../types/lyrics'
-import { extractBandValues, applyModulatedEffects } from '../../../lib/audioModulation'
+import { extractBandValues, applyModulatedEffects, gateAudioBands } from '../../../lib/audioModulation'
 import type { ModulationRoute, AudioBandValues } from '../../../lib/audioModulation'
 import {
   getActiveTimelineClip, getNextTimelineClip, getTransitionState,
   getClipSourceTime, shouldFreezeClipFrame, getActiveOverlayClips,
+  getEasedProgress,
 } from '../../../lib/timeline'
 import type { TwoClipRenderState } from '../../../lib/timeline'
 import type { VzTimelineClip, VzTimelineMediaClip, VzTimelineEffectRegion } from '../../../types/timeline'
@@ -30,6 +31,8 @@ import {
 import { getEffectsForPhase, getEffectModule } from '../effects/registry'
 import type { VzFrameContext } from '../effects/types'
 import { WebGL2Renderer } from '../../../renderers/WebGL2Renderer'
+import type { RenderTransitionParams } from '../../../renderers/WebGL2Renderer'
+import { GPU_TRANSITION_TYPES, getGpuTransitionIndex } from '../../../renderers/gpuTransitions'
 import { resolveRendererType } from '../../../renderers/rendererSelection'
 import { selectPostProcessSource } from '../../../renderers/postProcessSource'
 import { CanvasBufferPool } from '../../../renderers/CanvasBufferPool'
@@ -1285,11 +1288,12 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         an.getByteFrequencyData(buf)
         rawBands = extractBandValues(buf, an.context.sampleRate, beatPhase, synced)
       }
-      const audioOn = audioReactivityEnabledRef.current
-      // When audio reactivity is OFF, drive all derived values from silence so
-      // the canvas remains static regardless of what the analyser is reading.
-      const bass = audioOn ? rawBands.bass : 0
-      const high = rawBands.high
+      const audioOn    = audioReactivityEnabledRef.current
+      // Single gate: all downstream consumers read activeBands, never rawBands,
+      // so disabling audio reactivity makes every audio-driven path go silent.
+      const activeBands = gateAudioBands(rawBands, audioOn)
+      const bass = activeBands.bass
+      const high = activeBands.high
 
       const smoothBass = prevBassRef.current * 0.65 + bass * 0.35
       const bassDelta  = bass - prevBassRef.current
@@ -1330,7 +1334,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         beatPhase,
         onBeatBoundary,
         beatHit,
-        audio:           audioOn ? rawBands : { bass: 0, lowMid: 0, mid: 0, high: 0, volume: 0, beat: 0 },
+        audio:           activeBands,
         masterIntensity: mEff.masterIntensity,
         quality: {
           scanlineStep: q.scanlineStep,
@@ -1356,7 +1360,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       }
 
       if (fxSet.has('Datamosh Smear') && mEff.datamoshSmear > 0 && offscreenRef.current) {
-        drawDatamoshSmear(ctx, W, H, offscreenRef.current, mEff.datamoshSmear, rawBands.volume)
+        drawDatamoshSmear(ctx, W, H, offscreenRef.current, mEff.datamoshSmear, activeBands.volume)
       }
 
       // ── Video sync helper — drift-aware position correction ──────────────
@@ -1622,13 +1626,9 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
 
           if (txState && txState.config.type !== 'cut') {
             if (isGpu) {
-              // GPU-accelerated transition: render each source through WebGL2 into
-              // a persistent canvas, then forward those canvases to the transition
-              // compositor so GPU effects (RGB Split, Bloom, grain, scanlines,
-              // Displacement) are applied per-source without double-application.
               const ppParams   = derivePostProcessParams(fxSet, mEff, q)
               const dispParams = deriveDisplacementParams(fxSet, dispMod, synced, beatPhase, t, activeColorShift)
-              const gpuParams = {
+              const sharedGpu = {
                 canvasW: W, canvasH: H,
                 rgbShiftPx:  fxSet.has('RGB Split') ? mEff.rgbSplit * 14 : 0,
                 bloomBlurPx: (fxSet.has('Bloom') && bloomMod > 0) ? bloomMod * q.bloomBlur : 0,
@@ -1640,26 +1640,44 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
                 ...dispParams,
               }
 
-              // Outgoing source → txOutCanvasRef
-              const outGpu = ensureHelperCanvas(txOutCanvasRef, W, H)
-              gl2!.renderFrame({ mediaEl, ox, oy, sw, sh, ...gpuParams })
-              outGpu.getContext('2d')!.drawImage(gl2!.outputCanvas, 0, 0)
+              if (GPU_TRANSITION_TYPES.has(txState.config.type)) {
+                // Full GPU path: both sources rendered + composited entirely on GPU.
+                // No intermediate Canvas 2D copies — the transition shader runs
+                // from txOutFBO + txInFBO directly to the output canvas.
+                const easedProgress = getEasedProgress(txState.progress, txState.config.easing)
+                const txParams: RenderTransitionParams = {
+                  ...sharedGpu,
+                  outEl: mediaEl, outOx: ox, outOy: oy, outSw: sw, outSh: sh,
+                  inEl,
+                  inOx: inRect.ox, inOy: inRect.oy, inSw: inRect.sw, inSh: inRect.sh,
+                  transitionType: getGpuTransitionIndex(txState.config.type),
+                  progress: easedProgress,
+                }
+                gl2!.renderTransition(txParams)
+                ctx.drawImage(gl2!.outputCanvas, 0, 0)
+              } else {
+                // Canvas 2D fallback for transition types not yet in GPU_TRANSITION_TYPES.
+                // Each source is still rendered through the GPU pipeline to apply
+                // effects, then copied to a canvas for Canvas 2D compositing.
+                const outGpu = ensureHelperCanvas(txOutCanvasRef, W, H)
+                gl2!.renderFrame({ mediaEl, ox, oy, sw, sh, ...sharedGpu })
+                outGpu.getContext('2d')!.drawImage(gl2!.outputCanvas, 0, 0)
 
-              // Incoming source → txInCanvasRef (only when a clip is loaded)
-              let inGpu: HTMLCanvasElement | null = null
-              if (inEl) {
-                inGpu = ensureHelperCanvas(txInCanvasRef, W, H)
-                gl2!.renderFrame({ mediaEl: inEl, ox: inRect.ox, oy: inRect.oy, sw: inRect.sw, sh: inRect.sh, ...gpuParams })
-                inGpu.getContext('2d')!.drawImage(gl2!.outputCanvas, 0, 0)
+                let inGpu: HTMLCanvasElement | null = null
+                if (inEl) {
+                  inGpu = ensureHelperCanvas(txInCanvasRef, W, H)
+                  gl2!.renderFrame({ mediaEl: inEl, ox: inRect.ox, oy: inRect.oy, sw: inRect.sw, sh: inRect.sh, ...sharedGpu })
+                  inGpu.getContext('2d')!.drawImage(gl2!.outputCanvas, 0, 0)
+                }
+
+                renderTimelineTransition({
+                  ctx, W, H,
+                  outEl: outGpu, outRect: { ox: 0, oy: 0, sw: W, sh: H }, outCompositeOp: compositeOp,
+                  inEl: inGpu,   inRect:  { ox: 0, oy: 0, sw: W, sh: H }, inCompositeOp,
+                  config: txState.config, progress: txState.progress, time: t,
+                  colorShift: activeColorShift, bass: activeBands.bass, beat: activeBands.beat,
+                })
               }
-
-              renderTimelineTransition({
-                ctx, W, H,
-                outEl: outGpu, outRect: { ox: 0, oy: 0, sw: W, sh: H }, outCompositeOp: compositeOp,
-                inEl: inGpu,   inRect:  { ox: 0, oy: 0, sw: W, sh: H }, inCompositeOp,
-                config: txState.config, progress: txState.progress, time: t,
-                colorShift: activeColorShift, bass: rawBands.bass, beat: rawBands.beat,
-              })
 
               const gpuFx: string[] = []
               if (fxSet.has('RGB Split') && mEff.rgbSplit > 0) gpuFx.push('RGB Split')
@@ -1683,8 +1701,8 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
                 progress:       txState.progress,
                 time:           t,
                 colorShift:     activeColorShift,
-                bass:           rawBands.bass,
-                beat:           rawBands.beat,
+                bass:           activeBands.bass,
+                beat:           activeBands.beat,
               })
               if (import.meta.env.DEV) devSrcDrawsRef.current += 2  // out + in
             }
@@ -1811,7 +1829,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             }
           }
         }
-      } else if (isPlayingRef.current || rawBands.volume > 0.01) {
+      } else if (isPlayingRef.current || activeBands.volume > 0.01) {
         drawGenerativeArt(ctx, W, H, dpr, t, speed, bass, { ...mEff, colorShift: activeColorShift })
       } else {
         ctx.save()
@@ -2063,10 +2081,10 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           ctx.stroke()
         })
 
-      if (an && buf && rawBands.volume > 0.05) {
+      if (an && buf && activeBands.volume > 0.05) {
         const barW = 3 * dpr, gap = 1 * dpr
         const barColors = ['#4ac7db','#61d6aa','#b84fc9','#d8b95a']
-        const barVals   = [bass, rawBands.lowMid, high, rawBands.volume]
+        const barVals   = [bass, activeBands.lowMid, high, activeBands.volume]
         barVals.forEach((v, i) => {
           const bh = Math.max(2, v * 30 * dpr)
           const bx = W - margin - (barVals.length - i) * (barW + gap)

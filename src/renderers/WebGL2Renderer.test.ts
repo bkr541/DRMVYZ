@@ -21,7 +21,8 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { WebGL2Renderer } from './WebGL2Renderer'
-import type { WebGL2CreateResult, RenderFrameParams } from './WebGL2Renderer'
+import type { WebGL2CreateResult, RenderFrameParams, RenderTransitionParams } from './WebGL2Renderer'
+import { GPU_TRANSITION_TYPES, getGpuTransitionIndex } from './gpuTransitions'
 
 // ── Minimal GL constants ──────────────────────────────────────────────────────
 
@@ -854,5 +855,152 @@ describe('uploadVideoTexture — UNPACK_FLIP_Y_WEBGL orientation', () => {
     expect(flipTrueCalls.length).toBe(0)
 
     result.renderer?.dispose()
+  })
+})
+
+// ── K. renderTransition() ─────────────────────────────────────────────────────
+
+const NULL_TRANSITION: RenderTransitionParams = {
+  canvasW: 1, canvasH: 1,
+  outEl: null, outOx: 0, outOy: 0, outSw: 1, outSh: 1,
+  inEl:  null, inOx:  0, inOy:  0, inSw:  1, inSh:  1,
+  rgbShiftPx: 0, bloomBlurPx: 0, bloomAmount: 0,
+  bgR: 0, bgG: 0, bgB: 0,
+  grainAmount: 0, scanAlpha: 0, scanStep: 1,
+  dispOffXPx: 0, dispOffYPx: 0, dispAmount: 0, dispHueRad: 0,
+  transitionType: 0, progress: 0.5,
+}
+
+describe('WebGL2Renderer.renderTransition()', () => {
+  beforeEach(() => { vi.stubGlobal('HTMLVideoElement', class HTMLVideoElement {}) })
+
+  it('does not throw with a null-null transition (no media on either side)', () => {
+    const { gl } = makeGLMock()
+    stubCanvas(makeCanvas(gl))
+    const result = WebGL2Renderer.create()
+    expect(result.renderer).not.toBeNull()
+    expect(() => result.renderer!.renderTransition(NULL_TRANSITION)).not.toThrow()
+    result.renderer?.dispose()
+  })
+
+  it('does not throw after dispose()', () => {
+    const { gl } = makeGLMock()
+    stubCanvas(makeCanvas(gl))
+    const result = WebGL2Renderer.create()
+    result.renderer!.dispose()
+    expect(() => result.renderer!.renderTransition(NULL_TRANSITION)).not.toThrow()
+  })
+
+  it('calls drawArrays at least twice with both sources (out + in + composite)', () => {
+    // When inEl is non-null, _renderFrameToFbo runs twice plus a composite draw.
+    let drawCount = 0
+    const { gl } = makeGLMock()
+    const glSpy = { ...gl, drawArrays: () => { drawCount++ } }
+    stubCanvas(makeCanvas(glSpy))
+    const result = WebGL2Renderer.create()
+    expect(result.renderer).not.toBeNull()
+
+    const fakeImg = { complete: true, naturalWidth: 1, naturalHeight: 1 }
+    drawCount = 0
+    result.renderer!.renderTransition({
+      ...NULL_TRANSITION,
+      outEl: fakeImg as unknown as HTMLImageElement,
+      inEl:  fakeImg as unknown as HTMLImageElement,
+    })
+    // Each _renderFrameToFbo draws at minimum 1 pass-through quad,
+    // plus the final transition composite quad = at least 3 total.
+    expect(drawCount).toBeGreaterThanOrEqual(3)
+    result.renderer?.dispose()
+  })
+
+  it('with inEl=null, blit path runs — drawArrays called at least once', () => {
+    let drawCount = 0
+    const { gl } = makeGLMock()
+    const glSpy = { ...gl, drawArrays: () => { drawCount++ } }
+    stubCanvas(makeCanvas(glSpy))
+    const result = WebGL2Renderer.create()
+    expect(result.renderer).not.toBeNull()
+
+    drawCount = 0
+    result.renderer!.renderTransition({ ...NULL_TRANSITION, inEl: null })
+    expect(drawCount).toBeGreaterThanOrEqual(1)
+    result.renderer?.dispose()
+  })
+
+  it('calls gl.flush() exactly once per renderTransition call', () => {
+    let flushCount = 0
+    const { gl } = makeGLMock()
+    const glSpy = { ...gl, flush: () => { flushCount++ } }
+    stubCanvas(makeCanvas(glSpy))
+    const result = WebGL2Renderer.create()
+    expect(result.renderer).not.toBeNull()
+
+    flushCount = 0
+    result.renderer!.renderTransition(NULL_TRANSITION)
+    expect(flushCount).toBe(1)
+    result.renderer?.dispose()
+  })
+
+  it('dispose() still deletes 9 programs (including txProg)', () => {
+    const { gl, deleted } = makeGLMock()
+    stubCanvas(makeCanvas(gl))
+    const result = WebGL2Renderer.create()
+    result.renderer?.dispose()
+    expect(deleted.programs).toBeGreaterThanOrEqual(9)
+  })
+
+  it('dispose() deletes 9 textures (video + 8 render targets including tx out/in)', () => {
+    const { gl, deleted } = makeGLMock()
+    stubCanvas(makeCanvas(gl))
+    const result = WebGL2Renderer.create()
+    result.renderer?.dispose()
+    expect(deleted.textures).toBeGreaterThanOrEqual(9)
+  })
+
+  it('dispose() deletes 8 FBOs (6 existing + txOut + txIn)', () => {
+    const { gl, deleted } = makeGLMock()
+    stubCanvas(makeCanvas(gl))
+    const result = WebGL2Renderer.create()
+    result.renderer?.dispose()
+    expect(deleted.fbos).toBeGreaterThanOrEqual(8)
+  })
+})
+
+// ── L. gpuTransitions helpers ─────────────────────────────────────────────────
+
+describe('GPU_TRANSITION_TYPES membership', () => {
+  it('contains the 10 expected GPU-handled types', () => {
+    const expected = [
+      'crossfade', 'wipeLeft', 'wipeRight', 'wipeUp', 'wipeDown',
+      'additiveBlend', 'lumaFade', 'radialWipe', 'zoomIn', 'zoomOut',
+    ]
+    for (const t of expected) {
+      expect(GPU_TRANSITION_TYPES.has(t as Parameters<typeof GPU_TRANSITION_TYPES['has']>[0]))
+        .toBe(true)
+    }
+  })
+
+  it('does not include Canvas-only types such as flash, glitch, rgbTear', () => {
+    const canvasOnly = ['flash', 'glitch', 'rgbTear', 'datamoshCut', 'particleExplosion']
+    for (const t of canvasOnly) {
+      expect(GPU_TRANSITION_TYPES.has(t as Parameters<typeof GPU_TRANSITION_TYPES['has']>[0]))
+        .toBe(false)
+    }
+  })
+})
+
+describe('getGpuTransitionIndex()', () => {
+  it('crossfade → 0', () => { expect(getGpuTransitionIndex('crossfade')).toBe(0) })
+  it('wipeLeft → 1',  () => { expect(getGpuTransitionIndex('wipeLeft')).toBe(1) })
+  it('wipeRight → 2', () => { expect(getGpuTransitionIndex('wipeRight')).toBe(2) })
+  it('wipeUp → 3',    () => { expect(getGpuTransitionIndex('wipeUp')).toBe(3) })
+  it('wipeDown → 4',  () => { expect(getGpuTransitionIndex('wipeDown')).toBe(4) })
+  it('additiveBlend → 5', () => { expect(getGpuTransitionIndex('additiveBlend')).toBe(5) })
+  it('lumaFade → 6',  () => { expect(getGpuTransitionIndex('lumaFade')).toBe(6) })
+  it('radialWipe → 7', () => { expect(getGpuTransitionIndex('radialWipe')).toBe(7) })
+  it('zoomIn → 8',    () => { expect(getGpuTransitionIndex('zoomIn')).toBe(8) })
+  it('zoomOut → 9',   () => { expect(getGpuTransitionIndex('zoomOut')).toBe(9) })
+  it('unknown type → 0 (fallback)', () => {
+    expect(getGpuTransitionIndex('flash' as Parameters<typeof getGpuTransitionIndex>[0])).toBe(0)
   })
 })

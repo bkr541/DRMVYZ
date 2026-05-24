@@ -1,0 +1,1060 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Code coverage report for src/components/vyzualz/layers/VzLayersPanel.tsx</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../../../../prettify.css" />
+    <link rel="stylesheet" href="../../../../base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="../../../../favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../../../../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+    
+<body>
+<div class='wrapper'>
+    <div class='pad1'>
+        <h1><a href="../../../../index.html">All files</a> / <a href="index.html">src/components/vyzualz/layers</a> VzLayersPanel.tsx</h1>
+        <div class='clearfix'>
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Statements</span>
+                <span class='fraction'>0/278</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Branches</span>
+                <span class='fraction'>0/1</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Functions</span>
+                <span class='fraction'>0/1</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Lines</span>
+                <span class='fraction'>0/278</span>
+            </div>
+        
+            
+        </div>
+        <p class="quiet">
+            Press <em>n</em> or <em>j</em> to go to the next uncovered block, <em>b</em>, <em>p</em> or <em>k</em> for the previous block.
+        </p>
+        <template id="filterTemplate">
+            <div class="quiet">
+                Filter:
+                <input type="search" id="fileSearch">
+            </div>
+        </template>
+    </div>
+    <div class='status-line low'></div>
+    <pre><table class="coverage">
+<tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
+<a name='L2'></a><a href='#L2'>2</a>
+<a name='L3'></a><a href='#L3'>3</a>
+<a name='L4'></a><a href='#L4'>4</a>
+<a name='L5'></a><a href='#L5'>5</a>
+<a name='L6'></a><a href='#L6'>6</a>
+<a name='L7'></a><a href='#L7'>7</a>
+<a name='L8'></a><a href='#L8'>8</a>
+<a name='L9'></a><a href='#L9'>9</a>
+<a name='L10'></a><a href='#L10'>10</a>
+<a name='L11'></a><a href='#L11'>11</a>
+<a name='L12'></a><a href='#L12'>12</a>
+<a name='L13'></a><a href='#L13'>13</a>
+<a name='L14'></a><a href='#L14'>14</a>
+<a name='L15'></a><a href='#L15'>15</a>
+<a name='L16'></a><a href='#L16'>16</a>
+<a name='L17'></a><a href='#L17'>17</a>
+<a name='L18'></a><a href='#L18'>18</a>
+<a name='L19'></a><a href='#L19'>19</a>
+<a name='L20'></a><a href='#L20'>20</a>
+<a name='L21'></a><a href='#L21'>21</a>
+<a name='L22'></a><a href='#L22'>22</a>
+<a name='L23'></a><a href='#L23'>23</a>
+<a name='L24'></a><a href='#L24'>24</a>
+<a name='L25'></a><a href='#L25'>25</a>
+<a name='L26'></a><a href='#L26'>26</a>
+<a name='L27'></a><a href='#L27'>27</a>
+<a name='L28'></a><a href='#L28'>28</a>
+<a name='L29'></a><a href='#L29'>29</a>
+<a name='L30'></a><a href='#L30'>30</a>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a>
+<a name='L34'></a><a href='#L34'>34</a>
+<a name='L35'></a><a href='#L35'>35</a>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a>
+<a name='L39'></a><a href='#L39'>39</a>
+<a name='L40'></a><a href='#L40'>40</a>
+<a name='L41'></a><a href='#L41'>41</a>
+<a name='L42'></a><a href='#L42'>42</a>
+<a name='L43'></a><a href='#L43'>43</a>
+<a name='L44'></a><a href='#L44'>44</a>
+<a name='L45'></a><a href='#L45'>45</a>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a>
+<a name='L48'></a><a href='#L48'>48</a>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a>
+<a name='L58'></a><a href='#L58'>58</a>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a>
+<a name='L63'></a><a href='#L63'>63</a>
+<a name='L64'></a><a href='#L64'>64</a>
+<a name='L65'></a><a href='#L65'>65</a>
+<a name='L66'></a><a href='#L66'>66</a>
+<a name='L67'></a><a href='#L67'>67</a>
+<a name='L68'></a><a href='#L68'>68</a>
+<a name='L69'></a><a href='#L69'>69</a>
+<a name='L70'></a><a href='#L70'>70</a>
+<a name='L71'></a><a href='#L71'>71</a>
+<a name='L72'></a><a href='#L72'>72</a>
+<a name='L73'></a><a href='#L73'>73</a>
+<a name='L74'></a><a href='#L74'>74</a>
+<a name='L75'></a><a href='#L75'>75</a>
+<a name='L76'></a><a href='#L76'>76</a>
+<a name='L77'></a><a href='#L77'>77</a>
+<a name='L78'></a><a href='#L78'>78</a>
+<a name='L79'></a><a href='#L79'>79</a>
+<a name='L80'></a><a href='#L80'>80</a>
+<a name='L81'></a><a href='#L81'>81</a>
+<a name='L82'></a><a href='#L82'>82</a>
+<a name='L83'></a><a href='#L83'>83</a>
+<a name='L84'></a><a href='#L84'>84</a>
+<a name='L85'></a><a href='#L85'>85</a>
+<a name='L86'></a><a href='#L86'>86</a>
+<a name='L87'></a><a href='#L87'>87</a>
+<a name='L88'></a><a href='#L88'>88</a>
+<a name='L89'></a><a href='#L89'>89</a>
+<a name='L90'></a><a href='#L90'>90</a>
+<a name='L91'></a><a href='#L91'>91</a>
+<a name='L92'></a><a href='#L92'>92</a>
+<a name='L93'></a><a href='#L93'>93</a>
+<a name='L94'></a><a href='#L94'>94</a>
+<a name='L95'></a><a href='#L95'>95</a>
+<a name='L96'></a><a href='#L96'>96</a>
+<a name='L97'></a><a href='#L97'>97</a>
+<a name='L98'></a><a href='#L98'>98</a>
+<a name='L99'></a><a href='#L99'>99</a>
+<a name='L100'></a><a href='#L100'>100</a>
+<a name='L101'></a><a href='#L101'>101</a>
+<a name='L102'></a><a href='#L102'>102</a>
+<a name='L103'></a><a href='#L103'>103</a>
+<a name='L104'></a><a href='#L104'>104</a>
+<a name='L105'></a><a href='#L105'>105</a>
+<a name='L106'></a><a href='#L106'>106</a>
+<a name='L107'></a><a href='#L107'>107</a>
+<a name='L108'></a><a href='#L108'>108</a>
+<a name='L109'></a><a href='#L109'>109</a>
+<a name='L110'></a><a href='#L110'>110</a>
+<a name='L111'></a><a href='#L111'>111</a>
+<a name='L112'></a><a href='#L112'>112</a>
+<a name='L113'></a><a href='#L113'>113</a>
+<a name='L114'></a><a href='#L114'>114</a>
+<a name='L115'></a><a href='#L115'>115</a>
+<a name='L116'></a><a href='#L116'>116</a>
+<a name='L117'></a><a href='#L117'>117</a>
+<a name='L118'></a><a href='#L118'>118</a>
+<a name='L119'></a><a href='#L119'>119</a>
+<a name='L120'></a><a href='#L120'>120</a>
+<a name='L121'></a><a href='#L121'>121</a>
+<a name='L122'></a><a href='#L122'>122</a>
+<a name='L123'></a><a href='#L123'>123</a>
+<a name='L124'></a><a href='#L124'>124</a>
+<a name='L125'></a><a href='#L125'>125</a>
+<a name='L126'></a><a href='#L126'>126</a>
+<a name='L127'></a><a href='#L127'>127</a>
+<a name='L128'></a><a href='#L128'>128</a>
+<a name='L129'></a><a href='#L129'>129</a>
+<a name='L130'></a><a href='#L130'>130</a>
+<a name='L131'></a><a href='#L131'>131</a>
+<a name='L132'></a><a href='#L132'>132</a>
+<a name='L133'></a><a href='#L133'>133</a>
+<a name='L134'></a><a href='#L134'>134</a>
+<a name='L135'></a><a href='#L135'>135</a>
+<a name='L136'></a><a href='#L136'>136</a>
+<a name='L137'></a><a href='#L137'>137</a>
+<a name='L138'></a><a href='#L138'>138</a>
+<a name='L139'></a><a href='#L139'>139</a>
+<a name='L140'></a><a href='#L140'>140</a>
+<a name='L141'></a><a href='#L141'>141</a>
+<a name='L142'></a><a href='#L142'>142</a>
+<a name='L143'></a><a href='#L143'>143</a>
+<a name='L144'></a><a href='#L144'>144</a>
+<a name='L145'></a><a href='#L145'>145</a>
+<a name='L146'></a><a href='#L146'>146</a>
+<a name='L147'></a><a href='#L147'>147</a>
+<a name='L148'></a><a href='#L148'>148</a>
+<a name='L149'></a><a href='#L149'>149</a>
+<a name='L150'></a><a href='#L150'>150</a>
+<a name='L151'></a><a href='#L151'>151</a>
+<a name='L152'></a><a href='#L152'>152</a>
+<a name='L153'></a><a href='#L153'>153</a>
+<a name='L154'></a><a href='#L154'>154</a>
+<a name='L155'></a><a href='#L155'>155</a>
+<a name='L156'></a><a href='#L156'>156</a>
+<a name='L157'></a><a href='#L157'>157</a>
+<a name='L158'></a><a href='#L158'>158</a>
+<a name='L159'></a><a href='#L159'>159</a>
+<a name='L160'></a><a href='#L160'>160</a>
+<a name='L161'></a><a href='#L161'>161</a>
+<a name='L162'></a><a href='#L162'>162</a>
+<a name='L163'></a><a href='#L163'>163</a>
+<a name='L164'></a><a href='#L164'>164</a>
+<a name='L165'></a><a href='#L165'>165</a>
+<a name='L166'></a><a href='#L166'>166</a>
+<a name='L167'></a><a href='#L167'>167</a>
+<a name='L168'></a><a href='#L168'>168</a>
+<a name='L169'></a><a href='#L169'>169</a>
+<a name='L170'></a><a href='#L170'>170</a>
+<a name='L171'></a><a href='#L171'>171</a>
+<a name='L172'></a><a href='#L172'>172</a>
+<a name='L173'></a><a href='#L173'>173</a>
+<a name='L174'></a><a href='#L174'>174</a>
+<a name='L175'></a><a href='#L175'>175</a>
+<a name='L176'></a><a href='#L176'>176</a>
+<a name='L177'></a><a href='#L177'>177</a>
+<a name='L178'></a><a href='#L178'>178</a>
+<a name='L179'></a><a href='#L179'>179</a>
+<a name='L180'></a><a href='#L180'>180</a>
+<a name='L181'></a><a href='#L181'>181</a>
+<a name='L182'></a><a href='#L182'>182</a>
+<a name='L183'></a><a href='#L183'>183</a>
+<a name='L184'></a><a href='#L184'>184</a>
+<a name='L185'></a><a href='#L185'>185</a>
+<a name='L186'></a><a href='#L186'>186</a>
+<a name='L187'></a><a href='#L187'>187</a>
+<a name='L188'></a><a href='#L188'>188</a>
+<a name='L189'></a><a href='#L189'>189</a>
+<a name='L190'></a><a href='#L190'>190</a>
+<a name='L191'></a><a href='#L191'>191</a>
+<a name='L192'></a><a href='#L192'>192</a>
+<a name='L193'></a><a href='#L193'>193</a>
+<a name='L194'></a><a href='#L194'>194</a>
+<a name='L195'></a><a href='#L195'>195</a>
+<a name='L196'></a><a href='#L196'>196</a>
+<a name='L197'></a><a href='#L197'>197</a>
+<a name='L198'></a><a href='#L198'>198</a>
+<a name='L199'></a><a href='#L199'>199</a>
+<a name='L200'></a><a href='#L200'>200</a>
+<a name='L201'></a><a href='#L201'>201</a>
+<a name='L202'></a><a href='#L202'>202</a>
+<a name='L203'></a><a href='#L203'>203</a>
+<a name='L204'></a><a href='#L204'>204</a>
+<a name='L205'></a><a href='#L205'>205</a>
+<a name='L206'></a><a href='#L206'>206</a>
+<a name='L207'></a><a href='#L207'>207</a>
+<a name='L208'></a><a href='#L208'>208</a>
+<a name='L209'></a><a href='#L209'>209</a>
+<a name='L210'></a><a href='#L210'>210</a>
+<a name='L211'></a><a href='#L211'>211</a>
+<a name='L212'></a><a href='#L212'>212</a>
+<a name='L213'></a><a href='#L213'>213</a>
+<a name='L214'></a><a href='#L214'>214</a>
+<a name='L215'></a><a href='#L215'>215</a>
+<a name='L216'></a><a href='#L216'>216</a>
+<a name='L217'></a><a href='#L217'>217</a>
+<a name='L218'></a><a href='#L218'>218</a>
+<a name='L219'></a><a href='#L219'>219</a>
+<a name='L220'></a><a href='#L220'>220</a>
+<a name='L221'></a><a href='#L221'>221</a>
+<a name='L222'></a><a href='#L222'>222</a>
+<a name='L223'></a><a href='#L223'>223</a>
+<a name='L224'></a><a href='#L224'>224</a>
+<a name='L225'></a><a href='#L225'>225</a>
+<a name='L226'></a><a href='#L226'>226</a>
+<a name='L227'></a><a href='#L227'>227</a>
+<a name='L228'></a><a href='#L228'>228</a>
+<a name='L229'></a><a href='#L229'>229</a>
+<a name='L230'></a><a href='#L230'>230</a>
+<a name='L231'></a><a href='#L231'>231</a>
+<a name='L232'></a><a href='#L232'>232</a>
+<a name='L233'></a><a href='#L233'>233</a>
+<a name='L234'></a><a href='#L234'>234</a>
+<a name='L235'></a><a href='#L235'>235</a>
+<a name='L236'></a><a href='#L236'>236</a>
+<a name='L237'></a><a href='#L237'>237</a>
+<a name='L238'></a><a href='#L238'>238</a>
+<a name='L239'></a><a href='#L239'>239</a>
+<a name='L240'></a><a href='#L240'>240</a>
+<a name='L241'></a><a href='#L241'>241</a>
+<a name='L242'></a><a href='#L242'>242</a>
+<a name='L243'></a><a href='#L243'>243</a>
+<a name='L244'></a><a href='#L244'>244</a>
+<a name='L245'></a><a href='#L245'>245</a>
+<a name='L246'></a><a href='#L246'>246</a>
+<a name='L247'></a><a href='#L247'>247</a>
+<a name='L248'></a><a href='#L248'>248</a>
+<a name='L249'></a><a href='#L249'>249</a>
+<a name='L250'></a><a href='#L250'>250</a>
+<a name='L251'></a><a href='#L251'>251</a>
+<a name='L252'></a><a href='#L252'>252</a>
+<a name='L253'></a><a href='#L253'>253</a>
+<a name='L254'></a><a href='#L254'>254</a>
+<a name='L255'></a><a href='#L255'>255</a>
+<a name='L256'></a><a href='#L256'>256</a>
+<a name='L257'></a><a href='#L257'>257</a>
+<a name='L258'></a><a href='#L258'>258</a>
+<a name='L259'></a><a href='#L259'>259</a>
+<a name='L260'></a><a href='#L260'>260</a>
+<a name='L261'></a><a href='#L261'>261</a>
+<a name='L262'></a><a href='#L262'>262</a>
+<a name='L263'></a><a href='#L263'>263</a>
+<a name='L264'></a><a href='#L264'>264</a>
+<a name='L265'></a><a href='#L265'>265</a>
+<a name='L266'></a><a href='#L266'>266</a>
+<a name='L267'></a><a href='#L267'>267</a>
+<a name='L268'></a><a href='#L268'>268</a>
+<a name='L269'></a><a href='#L269'>269</a>
+<a name='L270'></a><a href='#L270'>270</a>
+<a name='L271'></a><a href='#L271'>271</a>
+<a name='L272'></a><a href='#L272'>272</a>
+<a name='L273'></a><a href='#L273'>273</a>
+<a name='L274'></a><a href='#L274'>274</a>
+<a name='L275'></a><a href='#L275'>275</a>
+<a name='L276'></a><a href='#L276'>276</a>
+<a name='L277'></a><a href='#L277'>277</a>
+<a name='L278'></a><a href='#L278'>278</a>
+<a name='L279'></a><a href='#L279'>279</a>
+<a name='L280'></a><a href='#L280'>280</a>
+<a name='L281'></a><a href='#L281'>281</a>
+<a name='L282'></a><a href='#L282'>282</a>
+<a name='L283'></a><a href='#L283'>283</a>
+<a name='L284'></a><a href='#L284'>284</a>
+<a name='L285'></a><a href='#L285'>285</a>
+<a name='L286'></a><a href='#L286'>286</a>
+<a name='L287'></a><a href='#L287'>287</a>
+<a name='L288'></a><a href='#L288'>288</a>
+<a name='L289'></a><a href='#L289'>289</a>
+<a name='L290'></a><a href='#L290'>290</a>
+<a name='L291'></a><a href='#L291'>291</a>
+<a name='L292'></a><a href='#L292'>292</a>
+<a name='L293'></a><a href='#L293'>293</a>
+<a name='L294'></a><a href='#L294'>294</a>
+<a name='L295'></a><a href='#L295'>295</a>
+<a name='L296'></a><a href='#L296'>296</a>
+<a name='L297'></a><a href='#L297'>297</a>
+<a name='L298'></a><a href='#L298'>298</a>
+<a name='L299'></a><a href='#L299'>299</a>
+<a name='L300'></a><a href='#L300'>300</a>
+<a name='L301'></a><a href='#L301'>301</a>
+<a name='L302'></a><a href='#L302'>302</a>
+<a name='L303'></a><a href='#L303'>303</a>
+<a name='L304'></a><a href='#L304'>304</a>
+<a name='L305'></a><a href='#L305'>305</a>
+<a name='L306'></a><a href='#L306'>306</a>
+<a name='L307'></a><a href='#L307'>307</a>
+<a name='L308'></a><a href='#L308'>308</a>
+<a name='L309'></a><a href='#L309'>309</a>
+<a name='L310'></a><a href='#L310'>310</a>
+<a name='L311'></a><a href='#L311'>311</a>
+<a name='L312'></a><a href='#L312'>312</a>
+<a name='L313'></a><a href='#L313'>313</a>
+<a name='L314'></a><a href='#L314'>314</a>
+<a name='L315'></a><a href='#L315'>315</a>
+<a name='L316'></a><a href='#L316'>316</a>
+<a name='L317'></a><a href='#L317'>317</a>
+<a name='L318'></a><a href='#L318'>318</a>
+<a name='L319'></a><a href='#L319'>319</a>
+<a name='L320'></a><a href='#L320'>320</a>
+<a name='L321'></a><a href='#L321'>321</a>
+<a name='L322'></a><a href='#L322'>322</a>
+<a name='L323'></a><a href='#L323'>323</a>
+<a name='L324'></a><a href='#L324'>324</a>
+<a name='L325'></a><a href='#L325'>325</a>
+<a name='L326'></a><a href='#L326'>326</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" ><span class="branch-0 cbranch-no" title="branch not covered" >import { useState } from 'react'</span></span></span>
+import { Layers01Icon } from 'hugeicons-react'
+import { useVisualStore } from '../../../stores/visualStore'
+import { useShallow } from 'zustand/react/shallow'
+import { useMediaStore } from '../../../stores/mediaStore'
+import {
+  VZ_LAYER_RENDER_ORDER,
+  DEFAULT_LAYER_CONFIGS, LAYER_LABELS, LAYER_BLEND_MODES,
+} from '../../../types/vzLayers'
+import type { VzLayerItem } from '../../../types/vzLayers'
+import { MEDIA_ROLE_BADGE_LABELS } from '../../../lib/mediaRoles'
+&nbsp;
+<span class="cstat-no" title="statement not covered" >export function VzLayersPanel() {</span>
+<span class="cstat-no" title="statement not covered" >  const {</span>
+<span class="cstat-no" title="statement not covered" >    layerConfigs, setLayerConfig, resetLayerConfigs,</span>
+<span class="cstat-no" title="statement not covered" >    layerItems, addLayerItem, removeLayerItem,</span>
+<span class="cstat-no" title="statement not covered" >    updateLayerItem, reorderLayerItem, clearLayerItemsForLayer, setLayerItemSolo,</span>
+<span class="cstat-no" title="statement not covered" >    activeMediaId, audioReactivityEnabled,</span>
+<span class="cstat-no" title="statement not covered" >    selectedLayerId, selectedLayerItemId, setSelectedLayerItem,</span>
+<span class="cstat-no" title="statement not covered" >  } = useVisualStore(useShallow(s =&gt; ({</span>
+<span class="cstat-no" title="statement not covered" >    layerConfigs:             s.layerConfigs,</span>
+<span class="cstat-no" title="statement not covered" >    setLayerConfig:           s.setLayerConfig,</span>
+<span class="cstat-no" title="statement not covered" >    resetLayerConfigs:        s.resetLayerConfigs,</span>
+<span class="cstat-no" title="statement not covered" >    layerItems:               s.layerItems,</span>
+<span class="cstat-no" title="statement not covered" >    addLayerItem:             s.addLayerItem,</span>
+<span class="cstat-no" title="statement not covered" >    removeLayerItem:          s.removeLayerItem,</span>
+<span class="cstat-no" title="statement not covered" >    updateLayerItem:          s.updateLayerItem,</span>
+<span class="cstat-no" title="statement not covered" >    reorderLayerItem:         s.reorderLayerItem,</span>
+<span class="cstat-no" title="statement not covered" >    clearLayerItemsForLayer:  s.clearLayerItemsForLayer,</span>
+<span class="cstat-no" title="statement not covered" >    setLayerItemSolo:         s.setLayerItemSolo,</span>
+<span class="cstat-no" title="statement not covered" >    activeMediaId:            s.activeMediaId,</span>
+<span class="cstat-no" title="statement not covered" >    audioReactivityEnabled:   s.audioReactivityEnabled,</span>
+<span class="cstat-no" title="statement not covered" >    selectedLayerId:          s.selectedLayerId,</span>
+<span class="cstat-no" title="statement not covered" >    selectedLayerItemId:      s.selectedLayerItemId,</span>
+<span class="cstat-no" title="statement not covered" >    setSelectedLayerItem:     s.setSelectedLayerItem,</span>
+<span class="cstat-no" title="statement not covered" >  })))</span>
+<span class="cstat-no" title="statement not covered" >  const { items } = useMediaStore()</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >  const [expandedIds, setExpandedIds] = useState&lt;Set&lt;string&gt;&gt;(new Set())</span>
+<span class="cstat-no" title="statement not covered" >  const toggleExpand = (id: string) =&gt;</span>
+<span class="cstat-no" title="statement not covered" >    setExpandedIds(prev =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >      const next = new Set(prev)</span>
+<span class="cstat-no" title="statement not covered" >      if (next.has(id)) next.delete(id); else next.add(id)</span>
+<span class="cstat-no" title="statement not covered" >      return next</span>
+<span class="cstat-no" title="statement not covered" >    })</span>
+&nbsp;
+  // Compute per-layer render summary: first visible item name + overflow count
+<span class="cstat-no" title="statement not covered" >  const renderStack = VZ_LAYER_RENDER_ORDER.map(layerId =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >    const cfg = layerConfigs.find(c =&gt; c.id === layerId) ?? DEFAULT_LAYER_CONFIGS.find(c =&gt; c.id === layerId)!</span>
+<span class="cstat-no" title="statement not covered" >    const lItems = layerItems.filter(i =&gt; i.layerId === layerId).sort((a, b) =&gt; a.zIndex - b.zIndex)</span>
+<span class="cstat-no" title="statement not covered" >    const visibleItems = cfg.enabled ? lItems.filter(i =&gt; i.enabled) : []</span>
+<span class="cstat-no" title="statement not covered" >    const firstMedia = visibleItems.length &gt; 0 ? items.find(m =&gt; m.id === visibleItems[0].mediaId) : null</span>
+<span class="cstat-no" title="statement not covered" >    return {</span>
+<span class="cstat-no" title="statement not covered" >      layerId,</span>
+<span class="cstat-no" title="statement not covered" >      label: LAYER_LABELS[layerId],</span>
+<span class="cstat-no" title="statement not covered" >      name: firstMedia ? (firstMedia.title ?? firstMedia.name ?? '?') : null,</span>
+<span class="cstat-no" title="statement not covered" >      extraCount: Math.max(0, visibleItems.length - 1),</span>
+<span class="cstat-no" title="statement not covered" >    }</span>
+<span class="cstat-no" title="statement not covered" >  })</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >  return (</span>
+<span class="cstat-no" title="statement not covered" >    &lt;div className="vz-layers-panel vz-panel"&gt;</span>
+<span class="cstat-no" title="statement not covered" >      &lt;div className="vz-panel-header"&gt;</span>
+<span class="cstat-no" title="statement not covered" >        &lt;Layers01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} /&gt;</span>
+<span class="cstat-no" title="statement not covered" >        &lt;span className="vz-panel-title"&gt;Layers&lt;/span&gt;</span>
+<span class="cstat-no" title="statement not covered" >        &lt;button className="vz-layers-reset-btn" onClick={resetLayerConfigs} title="Reset all layer configs to defaults"&gt;↺&lt;/button&gt;</span>
+<span class="cstat-no" title="statement not covered" >      &lt;/div&gt;</span>
+&nbsp;
+      {/* Render stack: shows what's currently on the canvas per layer */}
+<span class="cstat-no" title="statement not covered" >      &lt;div className="vz-layer-render-stack"&gt;</span>
+<span class="cstat-no" title="statement not covered" >        &lt;span className="vz-layer-stack-label"&gt;Rendering&lt;/span&gt;</span>
+<span class="cstat-no" title="statement not covered" >        {renderStack.map(({ layerId, label, name, extraCount }) =&gt; (</span>
+<span class="cstat-no" title="statement not covered" >          &lt;span key={layerId} className={`vz-layer-stack-item${name ? ' vz-layer-stack-item--active' : ''}`}&gt;</span>
+<span class="cstat-no" title="statement not covered" >            &lt;span className="vz-layer-stack-id"&gt;{label}:&lt;/span&gt;</span>
+<span class="cstat-no" title="statement not covered" >            &lt;span className="vz-layer-stack-name" title={name ?? undefined}&gt;{name ?? '—'}&lt;/span&gt;</span>
+<span class="cstat-no" title="statement not covered" >            {extraCount &gt; 0 &amp;&amp; &lt;span className="vz-layer-stack-more"&gt;+{extraCount}&lt;/span&gt;}</span>
+<span class="cstat-no" title="statement not covered" >          &lt;/span&gt;</span>
+<span class="cstat-no" title="statement not covered" >        ))}</span>
+<span class="cstat-no" title="statement not covered" >      &lt;/div&gt;</span>
+&nbsp;
+      {/* Global hint: shown once when no deck item is selected */}
+<span class="cstat-no" title="statement not covered" >      {!activeMediaId &amp;&amp; (</span>
+<span class="cstat-no" title="statement not covered" >        &lt;div className="vz-layer-select-hint"&gt;</span>
+          Select a media item in the Deck tab, then use "Add Selected Media" to assign it to a layer.
+<span class="cstat-no" title="statement not covered" >        &lt;/div&gt;</span>
+      )}
+&nbsp;
+<span class="cstat-no" title="statement not covered" >      &lt;div className="vz-layers-list"&gt;</span>
+<span class="cstat-no" title="statement not covered" >        {VZ_LAYER_RENDER_ORDER.map(layerId =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >          const cfg  = layerConfigs.find(c =&gt; c.id === layerId) ?? DEFAULT_LAYER_CONFIGS.find(c =&gt; c.id === layerId)!</span>
+<span class="cstat-no" title="statement not covered" >          const pct  = `${cfg.opacity * 100}%`</span>
+<span class="cstat-no" title="statement not covered" >          const lItems = layerItems</span>
+<span class="cstat-no" title="statement not covered" >            .filter(i =&gt; i.layerId === layerId)</span>
+<span class="cstat-no" title="statement not covered" >            .sort((a, b) =&gt; a.zIndex - b.zIndex)</span>
+<span class="cstat-no" title="statement not covered" >          const hasItems = lItems.length &gt; 0</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >          return (</span>
+<span class="cstat-no" title="statement not covered" >            &lt;div key={layerId} className={`vz-layer-item${cfg.enabled ? '' : ' vz-layer-item--off'}`}&gt;</span>
+<span class="cstat-no" title="statement not covered" >              &lt;div</span>
+<span class="cstat-no" title="statement not covered" >                className={`vz-layer-item-header${selectedLayerId === layerId &amp;&amp; !selectedLayerItemId ? ' vz-layer-item-header--selected' : ''}`}</span>
+<span class="cstat-no" title="statement not covered" >                onClick={() =&gt; setSelectedLayerItem(layerId, null)}</span>
+<span class="cstat-no" title="statement not covered" >                title="Click to select this layer as effect target"</span>
+              &gt;
+<span class="cstat-no" title="statement not covered" >                &lt;button</span>
+<span class="cstat-no" title="statement not covered" >                  className={`vz-layer-toggle${cfg.enabled ? ' vz-layer-toggle--on' : ''}`}</span>
+<span class="cstat-no" title="statement not covered" >                  onClick={() =&gt; setLayerConfig(layerId, { enabled: !cfg.enabled })}</span>
+<span class="cstat-no" title="statement not covered" >                  title={cfg.enabled ? 'Hide layer' : 'Show layer'}</span>
+<span class="cstat-no" title="statement not covered" >                /&gt;</span>
+<span class="cstat-no" title="statement not covered" >                &lt;span className="vz-slider-label"&gt;{LAYER_LABELS[layerId]}&lt;/span&gt;</span>
+<span class="cstat-no" title="statement not covered" >                {hasItems &amp;&amp; &lt;span className="vz-layer-count"&gt;{lItems.length}&lt;/span&gt;}</span>
+<span class="cstat-no" title="statement not covered" >                &lt;span className="vz-slider-val"&gt;{Math.round(cfg.opacity * 100)}%&lt;/span&gt;</span>
+<span class="cstat-no" title="statement not covered" >                &lt;select</span>
+<span class="cstat-no" title="statement not covered" >                  className="az-select vz-layer-blend-select"</span>
+<span class="cstat-no" title="statement not covered" >                  value={cfg.blendMode}</span>
+<span class="cstat-no" title="statement not covered" >                  disabled={!cfg.enabled || !hasItems}</span>
+<span class="cstat-no" title="statement not covered" >                  title={hasItems ? 'Layer blend mode' : 'Add media to this layer to use blend modes'}</span>
+<span class="cstat-no" title="statement not covered" >                  onChange={e =&gt; setLayerConfig(layerId, { blendMode: e.target.value as GlobalCompositeOperation })}</span>
+                &gt;
+<span class="cstat-no" title="statement not covered" >                  {LAYER_BLEND_MODES.map(bm =&gt; (</span>
+<span class="cstat-no" title="statement not covered" >                    &lt;option key={bm} value={bm}&gt;{bm}&lt;/option&gt;</span>
+<span class="cstat-no" title="statement not covered" >                  ))}</span>
+<span class="cstat-no" title="statement not covered" >                &lt;/select&gt;</span>
+<span class="cstat-no" title="statement not covered" >              &lt;/div&gt;</span>
+&nbsp;
+              {/* Assigned items list */}
+<span class="cstat-no" title="statement not covered" >              {hasItems &amp;&amp; (</span>
+<span class="cstat-no" title="statement not covered" >                &lt;div className="vz-li-list"&gt;</span>
+<span class="cstat-no" title="statement not covered" >                  {lItems.map((item, idx) =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >                    const media      = items.find(m =&gt; m.id === item.mediaId)</span>
+<span class="cstat-no" title="statement not covered" >                    const isExpanded = expandedIds.has(item.id)</span>
+<span class="cstat-no" title="statement not covered" >                    const isMissing  = !media</span>
+<span class="cstat-no" title="statement not covered" >                    const roleBadge  = media?.mediaRole ? MEDIA_ROLE_BADGE_LABELS[media.mediaRole] : null</span>
+<span class="cstat-no" title="statement not covered" >                    return (</span>
+<span class="cstat-no" title="statement not covered" >                      &lt;div</span>
+<span class="cstat-no" title="statement not covered" >                        key={item.id}</span>
+<span class="cstat-no" title="statement not covered" >                        className={`vz-li-row${item.enabled ? '' : ' vz-li-row--off'}${isMissing ? ' vz-li-row--missing' : ''}${selectedLayerItemId === item.id ? ' vz-li-row--selected' : ''}`}</span>
+<span class="cstat-no" title="statement not covered" >                        onClick={() =&gt; setSelectedLayerItem(item.layerId, item.id)}</span>
+                      &gt;
+<span class="cstat-no" title="statement not covered" >                        &lt;div className="vz-li-row-main"&gt;</span>
+<span class="cstat-no" title="statement not covered" >                          &lt;button</span>
+<span class="cstat-no" title="statement not covered" >                            className={`vz-li-en-btn${item.enabled ? ' vz-li-en-btn--on' : ''}`}</span>
+<span class="cstat-no" title="statement not covered" >                            onClick={() =&gt; updateLayerItem(item.id, { enabled: !item.enabled })}</span>
+<span class="cstat-no" title="statement not covered" >                            title={item.enabled ? 'Hide item' : 'Show item'}</span>
+<span class="cstat-no" title="statement not covered" >                          /&gt;</span>
+<span class="cstat-no" title="statement not covered" >                          &lt;button</span>
+<span class="cstat-no" title="statement not covered" >                            className={`vz-li-solo-btn${item.solo ? ' vz-li-solo-btn--on' : ''}`}</span>
+<span class="cstat-no" title="statement not covered" >                            onClick={() =&gt; setLayerItemSolo(item.id)}</span>
+<span class="cstat-no" title="statement not covered" >                            title="Solo this item (hides all others in this layer)"</span>
+<span class="cstat-no" title="statement not covered" >                          &gt;S&lt;/button&gt;</span>
+<span class="cstat-no" title="statement not covered" >                          &lt;button</span>
+<span class="cstat-no" title="statement not covered" >                            className={`vz-li-lock-btn${item.locked ? ' vz-li-lock-btn--on' : ''}`}</span>
+<span class="cstat-no" title="statement not covered" >                            onClick={() =&gt; updateLayerItem(item.id, { locked: !item.locked })}</span>
+<span class="cstat-no" title="statement not covered" >                            title={item.locked ? 'Unlock item' : 'Lock item (prevents edits)'}</span>
+<span class="cstat-no" title="statement not covered" >                          &gt;{item.locked ? '🔒' : '🔓'}&lt;/button&gt;</span>
+<span class="cstat-no" title="statement not covered" >                          &lt;span className="vz-li-name" title={isMissing ? `Missing: ${item.mediaId}` : (media?.title ?? media?.name)}&gt;</span>
+<span class="cstat-no" title="statement not covered" >                            {isMissing ? '⚠ missing' : (media?.title ?? media?.name ?? '—')}</span>
+<span class="cstat-no" title="statement not covered" >                          &lt;/span&gt;</span>
+<span class="cstat-no" title="statement not covered" >                          {roleBadge &amp;&amp; (</span>
+<span class="cstat-no" title="statement not covered" >                            &lt;span className="vz-li-role-badge" title={`Role: ${media?.mediaRole ?? ''}`}&gt;</span>
+<span class="cstat-no" title="statement not covered" >                              {roleBadge}</span>
+<span class="cstat-no" title="statement not covered" >                            &lt;/span&gt;</span>
+                          )}
+<span class="cstat-no" title="statement not covered" >                          &lt;button</span>
+<span class="cstat-no" title="statement not covered" >                            className={`vz-li-expand-btn${isExpanded ? ' vz-li-expand-btn--open' : ''}`}</span>
+<span class="cstat-no" title="statement not covered" >                            onClick={() =&gt; toggleExpand(item.id)}</span>
+<span class="cstat-no" title="statement not covered" >                            title={isExpanded ? 'Close item controls' : 'Edit item controls (opacity, position, scale, blend)'}</span>
+<span class="cstat-no" title="statement not covered" >                          &gt;{isExpanded ? 'Close' : 'Edit'}&lt;/button&gt;</span>
+<span class="cstat-no" title="statement not covered" >                          &lt;button</span>
+<span class="cstat-no" title="statement not covered" >                            className="vz-li-up-btn"</span>
+<span class="cstat-no" title="statement not covered" >                            disabled={item.locked || idx === 0}</span>
+<span class="cstat-no" title="statement not covered" >                            onClick={() =&gt; reorderLayerItem(item.id, 'up')}</span>
+<span class="cstat-no" title="statement not covered" >                            title={item.locked ? 'Unlock to reorder' : 'Move up'}</span>
+<span class="cstat-no" title="statement not covered" >                          &gt;↑&lt;/button&gt;</span>
+<span class="cstat-no" title="statement not covered" >                          &lt;button</span>
+<span class="cstat-no" title="statement not covered" >                            className="vz-li-down-btn"</span>
+<span class="cstat-no" title="statement not covered" >                            disabled={item.locked || idx === lItems.length - 1}</span>
+<span class="cstat-no" title="statement not covered" >                            onClick={() =&gt; reorderLayerItem(item.id, 'down')}</span>
+<span class="cstat-no" title="statement not covered" >                            title={item.locked ? 'Unlock to reorder' : 'Move down'}</span>
+<span class="cstat-no" title="statement not covered" >                          &gt;↓&lt;/button&gt;</span>
+<span class="cstat-no" title="statement not covered" >                          &lt;button</span>
+<span class="cstat-no" title="statement not covered" >                            className="vz-li-remove-btn"</span>
+<span class="cstat-no" title="statement not covered" >                            onClick={() =&gt; removeLayerItem(item.id)}</span>
+<span class="cstat-no" title="statement not covered" >                            title="Remove from layer"</span>
+<span class="cstat-no" title="statement not covered" >                          &gt;×&lt;/button&gt;</span>
+<span class="cstat-no" title="statement not covered" >                        &lt;/div&gt;</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >                        {isExpanded &amp;&amp; (</span>
+<span class="cstat-no" title="statement not covered" >                          &lt;div className={`vz-li-expanded${item.locked ? ' vz-li-expanded--locked' : ''}`}&gt;</span>
+<span class="cstat-no" title="statement not covered" >                            &lt;div className="vz-li-row2"&gt;</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;label className="vz-li-field-label"&gt;Opacity&lt;/label&gt;</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;input</span>
+<span class="cstat-no" title="statement not covered" >                                type="range" className="vz-li-slider"</span>
+<span class="cstat-no" title="statement not covered" >                                min={0} max={1} step={0.05} value={item.opacity}</span>
+<span class="cstat-no" title="statement not covered" >                                disabled={item.locked}</span>
+<span class="cstat-no" title="statement not covered" >                                onChange={e =&gt; updateLayerItem(item.id, { opacity: parseFloat(e.target.value) })}</span>
+<span class="cstat-no" title="statement not covered" >                              /&gt;</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;span className="vz-li-val"&gt;{item.opacity.toFixed(2)}&lt;/span&gt;</span>
+<span class="cstat-no" title="statement not covered" >                            &lt;/div&gt;</span>
+<span class="cstat-no" title="statement not covered" >                            &lt;div className="vz-li-row2"&gt;</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;label className="vz-li-field-label"&gt;Blend&lt;/label&gt;</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;select</span>
+<span class="cstat-no" title="statement not covered" >                                className="az-select vz-li-select"</span>
+<span class="cstat-no" title="statement not covered" >                                value={item.blendMode}</span>
+<span class="cstat-no" title="statement not covered" >                                onChange={e =&gt; updateLayerItem(item.id, { blendMode: e.target.value as GlobalCompositeOperation })}</span>
+                              &gt;
+<span class="cstat-no" title="statement not covered" >                                {LAYER_BLEND_MODES.map(bm =&gt; &lt;option key={bm} value={bm}&gt;{bm}&lt;/option&gt;)}</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;/select&gt;</span>
+<span class="cstat-no" title="statement not covered" >                            &lt;/div&gt;</span>
+<span class="cstat-no" title="statement not covered" >                            &lt;div className="vz-li-row2"&gt;</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;label className="vz-li-field-label"&gt;Fit&lt;/label&gt;</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;select</span>
+<span class="cstat-no" title="statement not covered" >                                className="az-select vz-li-select"</span>
+<span class="cstat-no" title="statement not covered" >                                value={item.fitMode}</span>
+<span class="cstat-no" title="statement not covered" >                                onChange={e =&gt; updateLayerItem(item.id, { fitMode: e.target.value as VzLayerItem['fitMode'] })}</span>
+                              &gt;
+<span class="cstat-no" title="statement not covered" >                                &lt;option value="contain"&gt;Contain&lt;/option&gt;</span>
+<span class="cstat-no" title="statement not covered" >                                &lt;option value="cover"&gt;Cover&lt;/option&gt;</span>
+<span class="cstat-no" title="statement not covered" >                                &lt;option value="stretch"&gt;Stretch&lt;/option&gt;</span>
+<span class="cstat-no" title="statement not covered" >                                &lt;option value="original"&gt;Original&lt;/option&gt;</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;/select&gt;</span>
+<span class="cstat-no" title="statement not covered" >                            &lt;/div&gt;</span>
+<span class="cstat-no" title="statement not covered" >                            &lt;div className="vz-li-row2"&gt;</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;label className="vz-li-field-label"&gt;Anchor&lt;/label&gt;</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;select</span>
+<span class="cstat-no" title="statement not covered" >                                className="az-select vz-li-select"</span>
+<span class="cstat-no" title="statement not covered" >                                value={item.anchor}</span>
+<span class="cstat-no" title="statement not covered" >                                onChange={e =&gt; updateLayerItem(item.id, { anchor: e.target.value as VzLayerItem['anchor'] })}</span>
+                              &gt;
+<span class="cstat-no" title="statement not covered" >                                &lt;option value="center"&gt;Center&lt;/option&gt;</span>
+<span class="cstat-no" title="statement not covered" >                                &lt;option value="topLeft"&gt;Top Left&lt;/option&gt;</span>
+<span class="cstat-no" title="statement not covered" >                                &lt;option value="topRight"&gt;Top Right&lt;/option&gt;</span>
+<span class="cstat-no" title="statement not covered" >                                &lt;option value="bottomLeft"&gt;Bot Left&lt;/option&gt;</span>
+<span class="cstat-no" title="statement not covered" >                                &lt;option value="bottomRight"&gt;Bot Right&lt;/option&gt;</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;/select&gt;</span>
+<span class="cstat-no" title="statement not covered" >                            &lt;/div&gt;</span>
+<span class="cstat-no" title="statement not covered" >                            &lt;div className="vz-li-transform-grid"&gt;</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;label className="vz-li-field-label"&gt;X&lt;/label&gt;</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;input type="number" className="vz-li-num" min={0} max={1} step={0.01}</span>
+<span class="cstat-no" title="statement not covered" >                                value={item.x} disabled={item.locked}</span>
+<span class="cstat-no" title="statement not covered" >                                onChange={e =&gt; updateLayerItem(item.id, { x: parseFloat(e.target.value) || 0 })} /&gt;</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;label className="vz-li-field-label"&gt;Y&lt;/label&gt;</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;input type="number" className="vz-li-num" min={0} max={1} step={0.01}</span>
+<span class="cstat-no" title="statement not covered" >                                value={item.y} disabled={item.locked}</span>
+<span class="cstat-no" title="statement not covered" >                                onChange={e =&gt; updateLayerItem(item.id, { y: parseFloat(e.target.value) || 0 })} /&gt;</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;label className="vz-li-field-label"&gt;Scale&lt;/label&gt;</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;input type="number" className="vz-li-num" min={0.01} max={10} step={0.1}</span>
+<span class="cstat-no" title="statement not covered" >                                value={item.scale} disabled={item.locked}</span>
+<span class="cstat-no" title="statement not covered" >                                onChange={e =&gt; updateLayerItem(item.id, { scale: parseFloat(e.target.value) || 1 })} /&gt;</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;label className="vz-li-field-label"&gt;Rot°&lt;/label&gt;</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;input type="number" className="vz-li-num" min={-360} max={360} step={1}</span>
+<span class="cstat-no" title="statement not covered" >                                value={item.rotation} disabled={item.locked}</span>
+<span class="cstat-no" title="statement not covered" >                                onChange={e =&gt; updateLayerItem(item.id, { rotation: parseFloat(e.target.value) || 0 })} /&gt;</span>
+<span class="cstat-no" title="statement not covered" >                            &lt;/div&gt;</span>
+<span class="cstat-no" title="statement not covered" >                            &lt;div className="vz-li-row2"&gt;</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;label</span>
+<span class="cstat-no" title="statement not covered" >                                className="vz-li-field-label vz-li-field-label--wide"</span>
+<span class="cstat-no" title="statement not covered" >                                title="When on, canvas audio reactivity (scale pulse) applies to this item"</span>
+<span class="cstat-no" title="statement not covered" >                              &gt;Audio Reactive&lt;/label&gt;</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;button</span>
+<span class="cstat-no" title="statement not covered" >                                className={`vz-li-audio-btn${item.audioReactive ? ' vz-li-audio-btn--on' : ''}`}</span>
+<span class="cstat-no" title="statement not covered" >                                onClick={() =&gt; updateLayerItem(item.id, { audioReactive: !item.audioReactive })}</span>
+<span class="cstat-no" title="statement not covered" >                                title={item.audioReactive ? 'Disable audio reactivity for this item' : 'Enable audio reactivity for this item'}</span>
+<span class="cstat-no" title="statement not covered" >                              &gt;{item.audioReactive ? 'On' : 'Off'}&lt;/button&gt;</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;button</span>
+<span class="cstat-no" title="statement not covered" >                                className="vz-li-reset-btn"</span>
+<span class="cstat-no" title="statement not covered" >                                disabled={item.locked}</span>
+<span class="cstat-no" title="statement not covered" >                                onClick={() =&gt; updateLayerItem(item.id, { x: 0.5, y: 0.5, scale: 1, rotation: 0 })}</span>
+<span class="cstat-no" title="statement not covered" >                                title={item.locked ? 'Unlock to reset transform' : 'Reset position, scale, and rotation'}</span>
+<span class="cstat-no" title="statement not covered" >                              &gt;↺ Reset&lt;/button&gt;</span>
+<span class="cstat-no" title="statement not covered" >                            &lt;/div&gt;</span>
+<span class="cstat-no" title="statement not covered" >                            {item.audioReactive &amp;&amp; !audioReactivityEnabled &amp;&amp; (</span>
+<span class="cstat-no" title="statement not covered" >                              &lt;div className="vz-li-audio-off-hint"&gt;</span>
+                                Inactive — global Audio Reactivity is off
+<span class="cstat-no" title="statement not covered" >                              &lt;/div&gt;</span>
+                            )}
+<span class="cstat-no" title="statement not covered" >                          &lt;/div&gt;</span>
+                        )}
+<span class="cstat-no" title="statement not covered" >                      &lt;/div&gt;</span>
+                    )
+<span class="cstat-no" title="statement not covered" >                  })}</span>
+<span class="cstat-no" title="statement not covered" >                &lt;/div&gt;</span>
+              )}
+&nbsp;
+              {/* Empty state — shown when layer is on but nothing assigned */}
+<span class="cstat-no" title="statement not covered" >              {!hasItems &amp;&amp; cfg.enabled &amp;&amp; (</span>
+<span class="cstat-no" title="statement not covered" >                &lt;div className="vz-layer-empty"&gt;</span>
+<span class="cstat-no" title="statement not covered" >                  &lt;span className="vz-layer-empty-msg"&gt;No media assigned.&lt;/span&gt;</span>
+<span class="cstat-no" title="statement not covered" >                  &lt;span className="vz-layer-empty-hint"&gt;Select a media item in the deck, then click "Add Selected Media" below.&lt;/span&gt;</span>
+<span class="cstat-no" title="statement not covered" >                &lt;/div&gt;</span>
+              )}
+&nbsp;
+<span class="cstat-no" title="statement not covered" >              &lt;div className="vz-layer-assign-row"&gt;</span>
+<span class="cstat-no" title="statement not covered" >                &lt;button</span>
+<span class="cstat-no" title="statement not covered" >                  className="vz-li-add-btn"</span>
+<span class="cstat-no" title="statement not covered" >                  disabled={!activeMediaId}</span>
+<span class="cstat-no" title="statement not covered" >                  title={activeMediaId ? 'Add selected media item to this layer' : 'Select a media item in the deck first'}</span>
+<span class="cstat-no" title="statement not covered" >                  onClick={() =&gt; activeMediaId &amp;&amp; addLayerItem(activeMediaId, layerId)}</span>
+<span class="cstat-no" title="statement not covered" >                &gt;Add Selected Media&lt;/button&gt;</span>
+<span class="cstat-no" title="statement not covered" >                {hasItems &amp;&amp; (</span>
+<span class="cstat-no" title="statement not covered" >                  &lt;button</span>
+<span class="cstat-no" title="statement not covered" >                    className="vz-li-clear-btn"</span>
+<span class="cstat-no" title="statement not covered" >                    onClick={() =&gt; clearLayerItemsForLayer(layerId)}</span>
+<span class="cstat-no" title="statement not covered" >                    title="Remove all items from this layer"</span>
+<span class="cstat-no" title="statement not covered" >                  &gt;Clear&lt;/button&gt;</span>
+                )}
+<span class="cstat-no" title="statement not covered" >              &lt;/div&gt;</span>
+&nbsp;
+              {/* Layer opacity — disabled when nothing assigned (would have no effect) */}
+<span class="cstat-no" title="statement not covered" >              &lt;input</span>
+<span class="cstat-no" title="statement not covered" >                type="range"</span>
+<span class="cstat-no" title="statement not covered" >                className="vz-slider vz-layer-opacity-slider"</span>
+<span class="cstat-no" title="statement not covered" >                style={{ '--pct': pct } as React.CSSProperties}</span>
+<span class="cstat-no" title="statement not covered" >                min={0} max={1} step={0.05}</span>
+<span class="cstat-no" title="statement not covered" >                value={cfg.opacity}</span>
+<span class="cstat-no" title="statement not covered" >                disabled={!hasItems}</span>
+<span class="cstat-no" title="statement not covered" >                title={hasItems ? `Layer opacity: ${Math.round(cfg.opacity * 100)}%` : 'Add media to this layer to adjust opacity'}</span>
+<span class="cstat-no" title="statement not covered" >                onChange={e =&gt; setLayerConfig(layerId, { opacity: parseFloat(e.target.value) })}</span>
+<span class="cstat-no" title="statement not covered" >              /&gt;</span>
+<span class="cstat-no" title="statement not covered" >            &lt;/div&gt;</span>
+          )
+<span class="cstat-no" title="statement not covered" >        })}</span>
+<span class="cstat-no" title="statement not covered" >      &lt;/div&gt;</span>
+<span class="cstat-no" title="statement not covered" >    &lt;/div&gt;</span>
+  )
+<span class="cstat-no" title="statement not covered" >}</span>
+&nbsp;</pre></td></tr></table></pre>
+
+                <div class='push'></div><!-- for sticky footer -->
+            </div><!-- /wrapper -->
+            <div class='footer quiet pad2 space-top1 center small'>
+                Code coverage generated by
+                <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
+                at 2026-05-24T06:46:13.978Z
+            </div>
+        <script src="../../../../prettify.js"></script>
+        <script>
+            window.onload = function () {
+                prettyPrint();
+            };
+        </script>
+        <script src="../../../../sorter.js"></script>
+        <script src="../../../../block-navigation.js"></script>
+    </body>
+</html>
+    

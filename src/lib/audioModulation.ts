@@ -171,6 +171,18 @@ function applyCurve(v: number, curve?: ModulationRoute['curve']): number {
   }
 }
 
+const SILENT_BANDS: AudioBandValues = { bass: 0, lowMid: 0, mid: 0, high: 0, volume: 0, beat: 0 }
+
+/**
+ * Returns rawBands unchanged when audio reactivity is on, or an all-zero
+ * AudioBandValues object when it is off.  Use this as the single gate so that
+ * every downstream consumer (transitions, datamosh, meters, generative art)
+ * automatically goes silent when the toggle is disabled.
+ */
+export function gateAudioBands(rawBands: AudioBandValues, audioOn: boolean): AudioBandValues {
+  return audioOn ? rawBands : SILENT_BANDS
+}
+
 /**
  * Returns a copy of `base` effects with each enabled route's band value
  * additively boosting the target effect parameter.
