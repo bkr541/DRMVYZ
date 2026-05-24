@@ -1,4 +1,5 @@
 import type { MediaRole } from '../lib/mediaRoles'
+import type { VzColorGrade } from './vzColorGrade'
 
 // ── Layer identity ────────────────────────────────────────────────────
 
@@ -126,6 +127,11 @@ export interface VzLayerItem {
   zIndex: number
   /** When true, the canvas bass-reactive scale pulse is applied to this item. */
   audioReactive: boolean
+  /**
+   * Per-item color grade applied BEFORE RGB Split / Bloom / Displacement.
+   * Undefined = no grade (renders the source unmodified).
+   */
+  colorGrade?: VzColorGrade
 }
 
 function genLayerItemId(): string {

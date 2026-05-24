@@ -13,9 +13,13 @@ import type { VzTransitionConfig, VzTransitionType, VzTransitionEasing } from '.
 import { DEFAULT_OVERLAY_COMPOSITING } from '../../types/timeline'
 import type { UploadedMedia } from '../../stores/mediaStore'
 import type { LyricCue } from '../../types/lyrics'
-import { getTimelineDuration, getTimelineProjectDuration, TRANSITION_LABELS, TRANSITION_DEFAULTS } from '../../lib/timeline'
+import { CursorInfo01Icon } from 'hugeicons-react'
+import { getTimelineDuration, getTimelineProjectDuration, TRANSITION_LABELS, TRANSITION_DEFAULTS, isClipSnapToBpmEnabled } from '../../lib/timeline'
 import { MEDIA_ROLE_LABELS, MEDIA_ROLE_BADGE_LABELS, MEDIA_ROLES } from '../../lib/mediaRoles'
 import type { MediaRole } from '../../lib/mediaRoles'
+import type { VzColorGrade } from '../../types/vzColorGrade'
+import { DEFAULT_COLOR_GRADE } from '../../types/vzColorGrade'
+import { COLOR_GRADE_PRESETS, applyColorGradePreset, matchColorGradePreset } from '../../lib/colorGradePresets'
 import { EFFECT_MODULES } from './effects/registry'
 import {
   MIN_CLIP_DUR, BASE_PX_PER_SEC,
@@ -389,113 +393,246 @@ function LyricBlock({
   )
 }
 
+// ── Color grade controls ────────────────────────────────────────────────
+
+/** A single labeled slider row for a color grade parameter. */
+function ColorGradeSlider({
+  label, value, min, max, onChange, badge,
+}: {
+  label: string
+  value: number
+  min: number
+  max: number
+  onChange: (v: number) => void
+  badge?: string
+}) {
+  return (
+    <div className="vz-cg-slider-row">
+      <span className="vz-cg-slider-lbl">
+        {label}
+        {badge && <span className="vz-cg-badge" title="GPU only — not applied in Canvas 2D mode">{badge}</span>}
+      </span>
+      <input
+        type="range"
+        className="vz-cg-slider"
+        min={min} max={max} step={1}
+        value={value}
+        onChange={e => onChange(parseInt(e.target.value, 10))}
+      />
+      <span className="vz-cg-slider-val">{value}</span>
+    </div>
+  )
+}
+
+/**
+ * Color grade editor used inside the Inspector Color group for video sources
+ * (background clips, overlay clips, layer items).
+ */
+function ColorGradeControls({
+  grade, onChange, onReset, isGpu,
+}: {
+  grade: VzColorGrade
+  onChange: (patch: Partial<VzColorGrade>) => void
+  onReset: () => void
+  isGpu: boolean
+}) {
+  const previewBypass = useVisualStore(s => s.colorGradePreviewBypass)
+  const setPreviewBypass = useVisualStore(s => s.setColorGradePreviewBypass)
+  const matchedPreset = matchColorGradePreset(grade)
+  const toneBadge = isGpu ? undefined : 'GPU'
+
+  return (
+    <div className="vz-cg">
+      <div className="vz-cg-toprow">
+        <label className="vz-ml-insp-check vz-cg-enable" title="Enable color grade for this source">
+          <input type="checkbox" checked={grade.enabled}
+            onChange={e => onChange({ enabled: e.target.checked })}
+          />
+          Enable
+        </label>
+        <button
+          className={`vz-cg-ba-btn${previewBypass ? ' vz-cg-ba-btn--active' : ''}`}
+          title="Hold to compare graded vs ungraded output"
+          onMouseDown={() => setPreviewBypass(true)}
+          onMouseUp={() => setPreviewBypass(false)}
+          onMouseLeave={() => previewBypass && setPreviewBypass(false)}
+          onClick={() => setPreviewBypass(!previewBypass)}
+        >
+          {previewBypass ? 'Before' : 'After'}
+        </button>
+        <button className="vz-cg-reset-btn" title="Reset all color grade values" onClick={onReset}>Reset</button>
+      </div>
+
+      <div className="vz-ml-insp-section-label">LOOKS</div>
+      <div className="vz-cg-looks-row">
+        <select className="az-select vz-ml-insp-sel" value={matchedPreset ?? ''}
+          onChange={e => {
+            const next = applyColorGradePreset(e.target.value, grade)
+            if (next) onChange(next)
+          }}>
+          {!matchedPreset && <option value="" disabled>Custom…</option>}
+          {COLOR_GRADE_PRESETS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      </div>
+
+      <div className="vz-ml-insp-section-label">BASIC</div>
+      <ColorGradeSlider label="Brightness" value={grade.brightness} min={-100} max={100} onChange={v => onChange({ brightness: v })} />
+      <ColorGradeSlider label="Contrast"   value={grade.contrast}   min={-100} max={100} onChange={v => onChange({ contrast: v })} />
+      <ColorGradeSlider label="Saturation" value={grade.saturation} min={-100} max={100} onChange={v => onChange({ saturation: v })} />
+      <ColorGradeSlider label="Hue"        value={grade.hueRotation} min={-180} max={180} onChange={v => onChange({ hueRotation: v })} />
+
+      <div className="vz-ml-insp-section-label">TONE</div>
+      <ColorGradeSlider label="Temperature" value={grade.temperature} min={-100} max={100} onChange={v => onChange({ temperature: v })} badge={toneBadge} />
+      <ColorGradeSlider label="Tint"        value={grade.tint}        min={-100} max={100} onChange={v => onChange({ tint: v })} badge={toneBadge} />
+
+      {!isGpu && (
+        <div className="vz-ml-insp-hint">Temperature &amp; Tint require the GPU renderer (WebGL2).</div>
+      )}
+    </div>
+  )
+}
+
 // ── Inspector sub-panels ────────────────────────────────────────────────
 
 function BgClipInspector({
-  clip, media, idx, total,
+  clip, media, idx, total, isGpu,
   onMove, onRemove, onDuplicate, onUpdate, onSetMediaRole,
 }: {
   clip: VzTimelineMediaClip
   media: UploadedMedia | undefined
   idx: number
   total: number
+  isGpu: boolean
   onMove: (id: string, dir: -1 | 1) => void
   onRemove: (id: string) => void
   onDuplicate: (id: string) => void
   onUpdate: (id: string, patch: Partial<Omit<VzTimelineMediaClip, 'id' | 'lane'>>) => void
   onSetMediaRole: (mediaId: string, role: MediaRole) => void
 }) {
+  const grade = clip.colorGrade ?? DEFAULT_COLOR_GRADE
   return (
     <div className="vz-ml-insp-body">
-      <div className="vz-ml-insp-row">
-        <span className="vz-ml-insp-lbl">File</span>
-        <span className="vz-ml-insp-val vz-ml-insp-fname" title={media?.name}>{media?.title ?? media?.name ?? '(missing)'}</span>
-        <span className="vz-ml-insp-lbl">Role</span>
-        <select className="az-select vz-ml-insp-sel" value={media?.mediaRole ?? 'other'} disabled={!media}
-          onChange={e => media && onSetMediaRole(media.id, e.target.value as MediaRole)}>
-          {MEDIA_ROLES.map(r => <option key={r} value={r}>{MEDIA_ROLE_LABELS[r]}</option>)}
-        </select>
-      </div>
-      <div className="vz-ml-insp-row vz-ml-insp-row--grid4">
-        <span className="vz-ml-insp-lbl">Start (s)</span>
-        <input type="number" className="vz-ml-insp-num" min={0} step={0.1}
-          value={parseFloat(clip.startSec.toFixed(2))}
-          onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= 0) onUpdate(clip.id, { startSec: v }) }}
-        />
-        <span className="vz-ml-insp-lbl">Dur (s)</span>
-        <input type="number" className="vz-ml-insp-num" min={MIN_CLIP_DUR} max={3600} step={0.25}
-          value={clip.durationSec}
-          onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= MIN_CLIP_DUR) onUpdate(clip.id, { durationSec: v }) }}
-        />
-        <span className="vz-ml-insp-lbl">In</span>
-        <input type="number" className="vz-ml-insp-num" min={0} step={0.1} value={clip.mediaInSec}
-          onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= 0) onUpdate(clip.id, { mediaInSec: v }) }}
-        />
-        <span className="vz-ml-insp-lbl">Out</span>
-        <input type="number" className="vz-ml-insp-num" min={0} step={0.1} value={clip.mediaOutSec ?? ''}
-          placeholder="end"
-          onChange={e => {
-            const raw = e.target.value.trim()
-            onUpdate(clip.id, { mediaOutSec: raw === '' ? undefined : parseFloat(raw) || undefined })
-          }}
-        />
-      </div>
-      <div className="vz-ml-insp-row">
-        <span className="vz-ml-insp-lbl">Mode</span>
-        <select className="az-select vz-ml-insp-sel" value={clip.playbackMode}
-          onChange={e => onUpdate(clip.id, { playbackMode: e.target.value as VzTimelineClip['playbackMode'] })}>
-          <option value="trim">Trim</option>
-          <option value="loop">Loop</option>
-          <option value="freeze">Freeze</option>
-        </select>
-        <span className="vz-ml-insp-lbl">Fit</span>
-        <select className="az-select vz-ml-insp-sel" value={clip.fitMode}
-          onChange={e => onUpdate(clip.id, { fitMode: e.target.value as VzTimelineClip['fitMode'] })}>
-          <option value="cover">Cover</option>
-          <option value="contain">Contain</option>
-        </select>
-      </div>
-      <div className="vz-ml-insp-row">
-        <span className="vz-ml-insp-lbl">Transition</span>
-        <select className="az-select vz-ml-insp-sel" value={clip.transitionOut?.type ?? 'cut'}
-          onChange={e => {
-            const type = e.target.value as VzTransitionType
-            if (type === 'cut') { onUpdate(clip.id, { transitionOut: undefined }); return }
-            const def = TRANSITION_DEFAULTS[type]
-            onUpdate(clip.id, { transitionOut: { ...def, durationSec: clip.transitionOut?.durationSec ?? def.durationSec } })
-          }}>
-          {(Object.keys(TRANSITION_LABELS) as VzTransitionType[]).map(t => (
-            <option key={t} value={t}>{TRANSITION_LABELS[t]}</option>
-          ))}
-        </select>
-        {clip.transitionOut && clip.transitionOut.type !== 'cut' && (
-          <>
-            <input type="number" className="vz-ml-insp-num" min={0.1} max={clip.durationSec} step={0.1}
-              value={clip.transitionOut.durationSec} title="Overlap duration (s)"
+      <div className="vz-ml-insp-group">
+        <div className="vz-ml-insp-group-hd">
+          <span className="vz-ml-insp-group-chevron">▸</span>
+          <span className="vz-ml-insp-group-title">Info</span>
+        </div>
+        <div className="vz-ml-insp-group-body">
+          <div className="vz-ml-insp-row">
+            <span className="vz-ml-insp-lbl">File</span>
+            <span className="vz-ml-insp-val vz-ml-insp-fname" title={media?.name}>{media?.title ?? media?.name ?? '(missing)'}</span>
+            <span className="vz-ml-insp-lbl">Role</span>
+            <select className="az-select vz-ml-insp-sel" value={media?.mediaRole ?? 'other'} disabled={!media}
+              onChange={e => media && onSetMediaRole(media.id, e.target.value as MediaRole)}>
+              {MEDIA_ROLES.map(r => <option key={r} value={r}>{MEDIA_ROLE_LABELS[r]}</option>)}
+            </select>
+          </div>
+          <div className="vz-ml-insp-row vz-ml-insp-row--grid4">
+            <span className="vz-ml-insp-lbl">Start (s)</span>
+            <input type="number" className="vz-ml-insp-num" min={0} step={0.1}
+              value={parseFloat(clip.startSec.toFixed(2))}
+              onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= 0) onUpdate(clip.id, { startSec: v }) }}
+            />
+            <span className="vz-ml-insp-lbl">Dur (s)</span>
+            <input type="number" className="vz-ml-insp-num" min={MIN_CLIP_DUR} max={3600} step={0.25}
+              value={clip.durationSec}
+              onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= MIN_CLIP_DUR) onUpdate(clip.id, { durationSec: v }) }}
+            />
+            <span className="vz-ml-insp-lbl">In</span>
+            <input type="number" className="vz-ml-insp-num" min={0} step={0.1} value={clip.mediaInSec}
+              onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= 0) onUpdate(clip.id, { mediaInSec: v }) }}
+            />
+            <span className="vz-ml-insp-lbl">Out</span>
+            <input type="number" className="vz-ml-insp-num" min={0} step={0.1} value={clip.mediaOutSec ?? ''}
+              placeholder="end"
               onChange={e => {
-                const v = parseFloat(e.target.value)
-                if (!isNaN(v) && v > 0 && clip.transitionOut)
-                  onUpdate(clip.id, { transitionOut: { ...clip.transitionOut, durationSec: v } })
+                const raw = e.target.value.trim()
+                onUpdate(clip.id, { mediaOutSec: raw === '' ? undefined : parseFloat(raw) || undefined })
               }}
             />
-            <select className="az-select vz-ml-insp-sel" value={clip.transitionOut.easing ?? 'linear'}
-              onChange={e => clip.transitionOut && onUpdate(clip.id, { transitionOut: { ...clip.transitionOut, easing: e.target.value as VzTransitionEasing } })}>
-              <option value="linear">Linear</option>
-              <option value="easeIn">Ease In</option>
-              <option value="easeOut">Ease Out</option>
-              <option value="easeInOut">Ease In/Out</option>
-              <option value="easeInCubic">Cubic In</option>
-              <option value="easeOutCubic">Cubic Out</option>
-              <option value="easeInOutCubic">Cubic In/Out</option>
+          </div>
+          <div className="vz-ml-insp-row">
+            <span className="vz-ml-insp-lbl">Mode</span>
+            <select className="az-select vz-ml-insp-sel" value={clip.playbackMode}
+              onChange={e => onUpdate(clip.id, { playbackMode: e.target.value as VzTimelineClip['playbackMode'] })}>
+              <option value="trim">Trim</option>
+              <option value="loop">Loop</option>
+              <option value="freeze">Freeze</option>
             </select>
-          </>
-        )}
+            <span className="vz-ml-insp-lbl">Fit</span>
+            <select className="az-select vz-ml-insp-sel" value={clip.fitMode}
+              onChange={e => onUpdate(clip.id, { fitMode: e.target.value as VzTimelineClip['fitMode'] })}>
+              <option value="cover">Cover</option>
+              <option value="contain">Contain</option>
+            </select>
+          </div>
+          {media?.type === 'video' && (
+            <div className="vz-ml-insp-row">
+              <label className="vz-ml-insp-check" title={isClipSnapToBpmEnabled(clip) ? 'Lock this video to timeline timing' : 'Play this video at native speed'}>
+                <input type="checkbox" checked={isClipSnapToBpmEnabled(clip)}
+                  onChange={e => onUpdate(clip.id, { snapToBpm: e.target.checked })}
+                />
+                Snap to BPM
+              </label>
+            </div>
+          )}
+          <div className="vz-ml-insp-row">
+            <span className="vz-ml-insp-lbl">Transition</span>
+            <select className="az-select vz-ml-insp-sel" value={clip.transitionOut?.type ?? 'cut'}
+              onChange={e => {
+                const type = e.target.value as VzTransitionType
+                if (type === 'cut') { onUpdate(clip.id, { transitionOut: undefined }); return }
+                const def = TRANSITION_DEFAULTS[type]
+                onUpdate(clip.id, { transitionOut: { ...def, durationSec: clip.transitionOut?.durationSec ?? def.durationSec } })
+              }}>
+              {(Object.keys(TRANSITION_LABELS) as VzTransitionType[]).map(t => (
+                <option key={t} value={t}>{TRANSITION_LABELS[t]}</option>
+              ))}
+            </select>
+            {clip.transitionOut && clip.transitionOut.type !== 'cut' && (
+              <>
+                <input type="number" className="vz-ml-insp-num" min={0.1} max={clip.durationSec} step={0.1}
+                  value={clip.transitionOut.durationSec} title="Overlap duration (s)"
+                  onChange={e => {
+                    const v = parseFloat(e.target.value)
+                    if (!isNaN(v) && v > 0 && clip.transitionOut)
+                      onUpdate(clip.id, { transitionOut: { ...clip.transitionOut, durationSec: v } })
+                  }}
+                />
+                <select className="az-select vz-ml-insp-sel" value={clip.transitionOut.easing ?? 'linear'}
+                  onChange={e => clip.transitionOut && onUpdate(clip.id, { transitionOut: { ...clip.transitionOut, easing: e.target.value as VzTransitionEasing } })}>
+                  <option value="linear">Linear</option>
+                  <option value="easeIn">Ease In</option>
+                  <option value="easeOut">Ease Out</option>
+                  <option value="easeInOut">Ease In/Out</option>
+                  <option value="easeInCubic">Cubic In</option>
+                  <option value="easeOutCubic">Cubic Out</option>
+                  <option value="easeInOutCubic">Cubic In/Out</option>
+                </select>
+              </>
+            )}
+          </div>
+          <div className="vz-ml-insp-row vz-ml-insp-actions">
+            <button className="vz-tl-clip-btn vz-tl-clip-btn--move" disabled={idx === 0} onClick={() => onMove(clip.id, -1)} title="Move earlier">‹</button>
+            <button className="vz-tl-clip-btn vz-tl-clip-btn--move" disabled={idx === total - 1} onClick={() => onMove(clip.id, 1)} title="Move later">›</button>
+            <button className="vz-tl-clip-btn vz-tl-clip-btn--duplicate" onClick={() => onDuplicate(clip.id)} title="Duplicate">⧉</button>
+            <button className="vz-tl-clip-btn vz-tl-clip-btn--remove" onClick={() => onRemove(clip.id)} title="Delete">✕</button>
+          </div>
+        </div>
       </div>
-      <div className="vz-ml-insp-row vz-ml-insp-actions">
-        <button className="vz-tl-clip-btn" disabled={idx === 0} onClick={() => onMove(clip.id, -1)} title="Move earlier">‹</button>
-        <button className="vz-tl-clip-btn" disabled={idx === total - 1} onClick={() => onMove(clip.id, 1)} title="Move later">›</button>
-        <button className="vz-tl-clip-btn" onClick={() => onDuplicate(clip.id)} title="Duplicate">⧉</button>
-        <button className="vz-tl-clip-btn vz-tl-clip-btn--remove" onClick={() => onRemove(clip.id)} title="Delete">✕</button>
+      <div className="vz-ml-insp-group">
+        <div className="vz-ml-insp-group-hd">
+          <span className="vz-ml-insp-group-chevron">▸</span>
+          <span className="vz-ml-insp-group-title">Color</span>
+        </div>
+        <div className="vz-ml-insp-group-body">
+          <ColorGradeControls
+            grade={grade}
+            isGpu={isGpu}
+            onChange={patch => onUpdate(clip.id, { colorGrade: { ...grade, ...patch } })}
+            onReset={() => onUpdate(clip.id, { colorGrade: { ...DEFAULT_COLOR_GRADE } })}
+          />
+        </div>
       </div>
     </div>
   )
@@ -516,16 +653,18 @@ const BLEND_MODES: { value: string; label: string }[] = [
 ]
 
 function OverlayClipInspector({
-  clip, media, onUpdate, onRemove, onDuplicate, onSetMediaRole,
+  clip, media, isGpu, onUpdate, onRemove, onDuplicate, onSetMediaRole,
 }: {
   clip: VzTimelineMediaClip
   media: UploadedMedia | undefined
+  isGpu: boolean
   onUpdate: (id: string, patch: Partial<Omit<VzTimelineMediaClip, 'id' | 'lane'>>) => void
   onRemove: (id: string) => void
   onDuplicate: (id: string) => void
   onSetMediaRole: (mediaId: string, role: MediaRole) => void
 }) {
   const cfg: VzOverlayCompositingConfig = clip.compositingConfig ?? { ...DEFAULT_OVERLAY_COMPOSITING }
+  const grade = clip.colorGrade ?? DEFAULT_COLOR_GRADE
 
   const patchCfg = (patch: Partial<VzOverlayCompositingConfig>) => {
     onUpdate(clip.id, { compositingConfig: { ...cfg, ...patch } })
@@ -533,91 +672,123 @@ function OverlayClipInspector({
 
   return (
     <div className="vz-ml-insp-body">
-      <div className="vz-ml-insp-row">
-        <span className="vz-ml-insp-lbl">File</span>
-        <span className="vz-ml-insp-val vz-ml-insp-fname" title={media?.name}>{media?.title ?? media?.name ?? '(missing)'}</span>
-        <span className="vz-ml-insp-lbl">Role</span>
-        <select className="az-select vz-ml-insp-sel" value={media?.mediaRole ?? 'other'} disabled={!media}
-          onChange={e => media && onSetMediaRole(media.id, e.target.value as MediaRole)}>
-          {MEDIA_ROLES.map(r => <option key={r} value={r}>{MEDIA_ROLE_LABELS[r]}</option>)}
-        </select>
-      </div>
-      <div className="vz-ml-insp-row">
-        <span className="vz-ml-insp-lbl">Start (s)</span>
-        <input type="number" className="vz-ml-insp-num" min={0} step={0.1}
-          value={parseFloat(clip.startSec.toFixed(2))}
-          onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= 0) onUpdate(clip.id, { startSec: v }) }}
-        />
-        <span className="vz-ml-insp-lbl">Dur (s)</span>
-        <input type="number" className="vz-ml-insp-num" min={MIN_CLIP_DUR} max={3600} step={0.25}
-          value={clip.durationSec}
-          onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= MIN_CLIP_DUR) onUpdate(clip.id, { durationSec: v }) }}
-        />
-      </div>
-      <div className="vz-ml-insp-row">
-        <span className="vz-ml-insp-lbl">Mode</span>
-        <select className="az-select vz-ml-insp-sel" value={clip.playbackMode}
-          onChange={e => onUpdate(clip.id, { playbackMode: e.target.value as VzTimelineClip['playbackMode'] })}>
-          <option value="trim">Trim</option>
-          <option value="loop">Loop</option>
-          <option value="freeze">Freeze</option>
-        </select>
-        <span className="vz-ml-insp-lbl">Fit</span>
-        <select className="az-select vz-ml-insp-sel" value={cfg.fitMode}
-          onChange={e => patchCfg({ fitMode: e.target.value as VzOverlayCompositingConfig['fitMode'] })}>
-          <option value="contain">Contain</option>
-          <option value="cover">Cover</option>
-        </select>
-      </div>
+      <div className="vz-ml-insp-group">
+        <div className="vz-ml-insp-group-hd">
+          <span className="vz-ml-insp-group-chevron">▸</span>
+          <span className="vz-ml-insp-group-title">Info</span>
+        </div>
+        <div className="vz-ml-insp-group-body">
+          <div className="vz-ml-insp-row">
+            <span className="vz-ml-insp-lbl">File</span>
+            <span className="vz-ml-insp-val vz-ml-insp-fname" title={media?.name}>{media?.title ?? media?.name ?? '(missing)'}</span>
+            <span className="vz-ml-insp-lbl">Role</span>
+            <select className="az-select vz-ml-insp-sel" value={media?.mediaRole ?? 'other'} disabled={!media}
+              onChange={e => media && onSetMediaRole(media.id, e.target.value as MediaRole)}>
+              {MEDIA_ROLES.map(r => <option key={r} value={r}>{MEDIA_ROLE_LABELS[r]}</option>)}
+            </select>
+          </div>
+          <div className="vz-ml-insp-row">
+            <span className="vz-ml-insp-lbl">Start (s)</span>
+            <input type="number" className="vz-ml-insp-num" min={0} step={0.1}
+              value={parseFloat(clip.startSec.toFixed(2))}
+              onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= 0) onUpdate(clip.id, { startSec: v }) }}
+            />
+            <span className="vz-ml-insp-lbl">Dur (s)</span>
+            <input type="number" className="vz-ml-insp-num" min={MIN_CLIP_DUR} max={3600} step={0.25}
+              value={clip.durationSec}
+              onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= MIN_CLIP_DUR) onUpdate(clip.id, { durationSec: v }) }}
+            />
+          </div>
+          <div className="vz-ml-insp-row">
+            <span className="vz-ml-insp-lbl">Mode</span>
+            <select className="az-select vz-ml-insp-sel" value={clip.playbackMode}
+              onChange={e => onUpdate(clip.id, { playbackMode: e.target.value as VzTimelineClip['playbackMode'] })}>
+              <option value="trim">Trim</option>
+              <option value="loop">Loop</option>
+              <option value="freeze">Freeze</option>
+            </select>
+            <span className="vz-ml-insp-lbl">Fit</span>
+            <select className="az-select vz-ml-insp-sel" value={cfg.fitMode}
+              onChange={e => patchCfg({ fitMode: e.target.value as VzOverlayCompositingConfig['fitMode'] })}>
+              <option value="contain">Contain</option>
+              <option value="cover">Cover</option>
+            </select>
+          </div>
+          {media?.type === 'video' && (
+            <div className="vz-ml-insp-row">
+              <label className="vz-ml-insp-check" title={isClipSnapToBpmEnabled(clip) ? 'Lock this video to timeline timing' : 'Play this video at native speed'}>
+                <input type="checkbox" checked={isClipSnapToBpmEnabled(clip)}
+                  onChange={e => onUpdate(clip.id, { snapToBpm: e.target.checked })}
+                />
+                Snap to BPM
+              </label>
+            </div>
+          )}
 
-      {/* ── Compositing ── */}
-      <div className="vz-ml-insp-section-label">COMPOSITING</div>
-      <div className="vz-ml-insp-row">
-        <span className="vz-ml-insp-lbl">X</span>
-        <input type="number" className="vz-ml-insp-num" min={0} max={1} step={0.05}
-          value={parseFloat(cfg.posX.toFixed(3))}
-          onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v)) patchCfg({ posX: Math.max(0, Math.min(1, v)) }) }}
-          title="Horizontal position (0=left, 0.5=center, 1=right)"
-        />
-        <span className="vz-ml-insp-lbl">Y</span>
-        <input type="number" className="vz-ml-insp-num" min={0} max={1} step={0.05}
-          value={parseFloat(cfg.posY.toFixed(3))}
-          onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v)) patchCfg({ posY: Math.max(0, Math.min(1, v)) }) }}
-          title="Vertical position (0=top, 0.5=center, 1=bottom)"
-        />
-      </div>
-      <div className="vz-ml-insp-row">
-        <span className="vz-ml-insp-lbl">Scale</span>
-        <input type="number" className="vz-ml-insp-num" min={0.01} max={8} step={0.05}
-          value={parseFloat(cfg.scale.toFixed(3))}
-          onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v > 0) patchCfg({ scale: v }) }}
-        />
-        <span className="vz-ml-insp-lbl">Rot °</span>
-        <input type="number" className="vz-ml-insp-num" min={-360} max={360} step={1}
-          value={Math.round(cfg.rotation)}
-          onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v)) patchCfg({ rotation: v }) }}
-        />
-      </div>
-      <div className="vz-ml-insp-row">
-        <span className="vz-ml-insp-lbl">Opacity</span>
-        <input type="range" min={0} max={1} step={0.01}
-          value={cfg.opacity}
-          onChange={e => patchCfg({ opacity: parseFloat(e.target.value) })}
-          style={{ flex: 1 }}
-        />
-        <span className="vz-ml-insp-val" style={{ minWidth: 28, textAlign: 'right' }}>{Math.round(cfg.opacity * 100)}%</span>
-      </div>
-      <div className="vz-ml-insp-row">
-        <span className="vz-ml-insp-lbl">Blend</span>
-        <select className="az-select vz-ml-insp-sel" value={cfg.blendMode}
-          onChange={e => patchCfg({ blendMode: e.target.value })}>
-          {BLEND_MODES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-        </select>
-      </div>
+          {/* ── Compositing ── */}
+          <div className="vz-ml-insp-section-label">COMPOSITING</div>
+          <div className="vz-ml-insp-row">
+            <span className="vz-ml-insp-lbl">X</span>
+            <input type="number" className="vz-ml-insp-num" min={0} max={1} step={0.05}
+              value={parseFloat(cfg.posX.toFixed(3))}
+              onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v)) patchCfg({ posX: Math.max(0, Math.min(1, v)) }) }}
+              title="Horizontal position (0=left, 0.5=center, 1=right)"
+            />
+            <span className="vz-ml-insp-lbl">Y</span>
+            <input type="number" className="vz-ml-insp-num" min={0} max={1} step={0.05}
+              value={parseFloat(cfg.posY.toFixed(3))}
+              onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v)) patchCfg({ posY: Math.max(0, Math.min(1, v)) }) }}
+              title="Vertical position (0=top, 0.5=center, 1=bottom)"
+            />
+          </div>
+          <div className="vz-ml-insp-row">
+            <span className="vz-ml-insp-lbl">Scale</span>
+            <input type="number" className="vz-ml-insp-num" min={0.01} max={8} step={0.05}
+              value={parseFloat(cfg.scale.toFixed(3))}
+              onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v > 0) patchCfg({ scale: v }) }}
+            />
+            <span className="vz-ml-insp-lbl">Rot °</span>
+            <input type="number" className="vz-ml-insp-num" min={-360} max={360} step={1}
+              value={Math.round(cfg.rotation)}
+              onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v)) patchCfg({ rotation: v }) }}
+            />
+          </div>
+          <div className="vz-ml-insp-row">
+            <span className="vz-ml-insp-lbl">Opacity</span>
+            <input type="range" min={0} max={1} step={0.01}
+              value={cfg.opacity}
+              onChange={e => patchCfg({ opacity: parseFloat(e.target.value) })}
+              style={{ flex: 1 }}
+            />
+            <span className="vz-ml-insp-val" style={{ minWidth: 28, textAlign: 'right' }}>{Math.round(cfg.opacity * 100)}%</span>
+          </div>
+          <div className="vz-ml-insp-row">
+            <span className="vz-ml-insp-lbl">Blend</span>
+            <select className="az-select vz-ml-insp-sel" value={cfg.blendMode}
+              onChange={e => patchCfg({ blendMode: e.target.value })}>
+              {BLEND_MODES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          </div>
 
-      <div className="vz-ml-insp-row vz-ml-insp-actions">
-        <button className="vz-tl-clip-btn" onClick={() => onDuplicate(clip.id)} title="Duplicate">⧉</button>
-        <button className="vz-tl-clip-btn vz-tl-clip-btn--remove" onClick={() => onRemove(clip.id)} title="Delete">✕</button>
+          <div className="vz-ml-insp-row vz-ml-insp-actions">
+            <button className="vz-tl-clip-btn vz-tl-clip-btn--duplicate" onClick={() => onDuplicate(clip.id)} title="Duplicate">⧉</button>
+            <button className="vz-tl-clip-btn vz-tl-clip-btn--remove" onClick={() => onRemove(clip.id)} title="Delete">✕</button>
+          </div>
+        </div>
+      </div>
+      <div className="vz-ml-insp-group">
+        <div className="vz-ml-insp-group-hd">
+          <span className="vz-ml-insp-group-chevron">▸</span>
+          <span className="vz-ml-insp-group-title">Color</span>
+        </div>
+        <div className="vz-ml-insp-group-body">
+          <ColorGradeControls
+            grade={grade}
+            isGpu={isGpu}
+            onChange={patch => onUpdate(clip.id, { colorGrade: { ...grade, ...patch } })}
+            onReset={() => onUpdate(clip.id, { colorGrade: { ...DEFAULT_COLOR_GRADE } })}
+          />
+        </div>
       </div>
     </div>
   )
@@ -639,109 +810,124 @@ function EffectInspector({
 
   return (
     <div className="vz-ml-insp-body">
-      <div className="vz-ml-insp-row">
-        <span className="vz-ml-insp-lbl">Effect</span>
-        <select className="az-select vz-ml-insp-sel" value={region.effectId}
-          onChange={e => onUpdate(region.id, { effectId: e.target.value })}>
-          {EFFECT_LIST.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
-        </select>
-        <label className="vz-ml-insp-check">
-          <input type="checkbox" checked={region.enabled}
-            onChange={e => onUpdate(region.id, { enabled: e.target.checked })}
-          />
-          Enabled
-        </label>
-      </div>
-      <div className="vz-ml-insp-row">
-        <span className="vz-ml-insp-lbl">Start</span>
-        <input type="number" className="vz-ml-insp-num" min={0} step={0.1}
-          value={parseFloat(region.startSec.toFixed(2))}
-          onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= 0) onUpdate(region.id, { startSec: v }) }}
-        />
-        <span className="vz-ml-insp-lbl">Dur (s)</span>
-        <input type="number" className="vz-ml-insp-num" min={MIN_CLIP_DUR} step={0.25}
-          value={region.durationSec}
-          onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= MIN_CLIP_DUR) onUpdate(region.id, { durationSec: v }) }}
-        />
-        {typeof region.intensity === 'number' && (
-          <>
-            <span className="vz-ml-insp-lbl">Intensity</span>
-            <input type="number" className="vz-ml-insp-num" min={0} max={1} step={0.05}
-              value={region.intensity}
-              onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v)) onUpdate(region.id, { intensity: Math.max(0, Math.min(1, v)) }) }}
+      <div className="vz-ml-insp-group">
+        <div className="vz-ml-insp-group-hd">
+          <span className="vz-ml-insp-group-chevron">▸</span>
+          <span className="vz-ml-insp-group-title">Info</span>
+        </div>
+        <div className="vz-ml-insp-group-body">
+          <div className="vz-ml-insp-row">
+            <span className="vz-ml-insp-lbl">Effect</span>
+            <select className="az-select vz-ml-insp-sel" value={region.effectId}
+              onChange={e => onUpdate(region.id, { effectId: e.target.value })}>
+              {EFFECT_LIST.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
+            </select>
+            <label className="vz-ml-insp-check">
+              <input type="checkbox" checked={region.enabled}
+                onChange={e => onUpdate(region.id, { enabled: e.target.checked })}
+              />
+              Enabled
+            </label>
+          </div>
+          <div className="vz-ml-insp-row">
+            <span className="vz-ml-insp-lbl">Start</span>
+            <input type="number" className="vz-ml-insp-num" min={0} step={0.1}
+              value={parseFloat(region.startSec.toFixed(2))}
+              onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= 0) onUpdate(region.id, { startSec: v }) }}
             />
-          </>
-        )}
-      </div>
-
-      <div className="vz-ml-insp-row">
-        <span className="vz-ml-insp-lbl">Target</span>
-        <select className="az-select vz-ml-insp-sel" value={targetType}
-          onChange={e => onUpdate(region.id, {
-            targetType: e.target.value as VzTimelineEffectRegion['targetType'],
-            targetIds: [],
-          })}>
-          <option value="global">Global</option>
-          <option value="layer">Layer</option>
-          <option value="layerItem">Layer Item</option>
-          <option value="clip">Clip</option>
-        </select>
-      </div>
-
-      {targetType === 'layer' && (
-        <div className="vz-ml-insp-row">
-          <span className="vz-ml-insp-lbl">Layer</span>
-          <select className="az-select vz-ml-insp-sel" value={targetId}
-            onChange={e => onUpdate(region.id, { targetIds: [e.target.value] })}>
-            <option value="" disabled>Select layer…</option>
-            {(Object.keys(LAYER_LABELS) as Array<keyof typeof LAYER_LABELS>).map(id => (
-              <option key={id} value={id}>{LAYER_LABELS[id]}</option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {targetType === 'layerItem' && (
-        <div className="vz-ml-insp-row">
-          <span className="vz-ml-insp-lbl">Item</span>
-          <select className="az-select vz-ml-insp-sel" value={targetId}
-            onChange={e => onUpdate(region.id, { targetIds: [e.target.value] })}>
-            <option value="" disabled>Select item…</option>
-            {layerItems.map(item => (
-              <option key={item.id} value={item.id}>
-                {LAYER_LABELS[item.layerId]}: {mediaMap.get(item.mediaId)?.name ?? item.id.slice(0, 8)}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {targetType === 'clip' && (
-        <div className="vz-ml-insp-row">
-          <span className="vz-ml-insp-lbl">Clip</span>
-          <select className="az-select vz-ml-insp-sel" value={targetId}
-            onChange={e => onUpdate(region.id, { targetIds: [e.target.value] })}>
-            <option value="" disabled>Select clip…</option>
-            {bgClips.length > 0 && (
-              <optgroup label="Background">
-                {bgClips.map(c => (
-                  <option key={c.id} value={c.id}>{mediaMap.get(c.mediaId)?.name ?? c.id.slice(0, 8)}</option>
-                ))}
-              </optgroup>
+            <span className="vz-ml-insp-lbl">Dur (s)</span>
+            <input type="number" className="vz-ml-insp-num" min={MIN_CLIP_DUR} step={0.25}
+              value={region.durationSec}
+              onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= MIN_CLIP_DUR) onUpdate(region.id, { durationSec: v }) }}
+            />
+            {typeof region.intensity === 'number' && (
+              <>
+                <span className="vz-ml-insp-lbl">Intensity</span>
+                <input type="number" className="vz-ml-insp-num" min={0} max={1} step={0.05}
+                  value={region.intensity}
+                  onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v)) onUpdate(region.id, { intensity: Math.max(0, Math.min(1, v)) }) }}
+                />
+              </>
             )}
-            {overlayClips.length > 0 && (
-              <optgroup label="Overlays">
-                {overlayClips.map(c => (
-                  <option key={c.id} value={c.id}>{mediaMap.get(c.mediaId)?.name ?? c.id.slice(0, 8)}</option>
-                ))}
-              </optgroup>
-            )}
-          </select>
-        </div>
-      )}
+          </div>
 
-      <div className="vz-ml-insp-row vz-ml-insp-actions">
-        <button className="vz-tl-clip-btn vz-tl-clip-btn--remove" onClick={() => onRemove(region.id)} title="Delete">✕ Delete</button>
+          <div className="vz-ml-insp-row">
+            <span className="vz-ml-insp-lbl">Target</span>
+            <select className="az-select vz-ml-insp-sel" value={targetType}
+              onChange={e => onUpdate(region.id, {
+                targetType: e.target.value as VzTimelineEffectRegion['targetType'],
+                targetIds: [],
+              })}>
+              <option value="global">Global</option>
+              <option value="layer">Layer</option>
+              <option value="layerItem">Layer Item</option>
+              <option value="clip">Clip</option>
+            </select>
+          </div>
+
+          {targetType === 'layer' && (
+            <div className="vz-ml-insp-row">
+              <span className="vz-ml-insp-lbl">Layer</span>
+              <select className="az-select vz-ml-insp-sel" value={targetId}
+                onChange={e => onUpdate(region.id, { targetIds: [e.target.value] })}>
+                <option value="" disabled>Select layer…</option>
+                {(Object.keys(LAYER_LABELS) as Array<keyof typeof LAYER_LABELS>).map(id => (
+                  <option key={id} value={id}>{LAYER_LABELS[id]}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {targetType === 'layerItem' && (
+            <div className="vz-ml-insp-row">
+              <span className="vz-ml-insp-lbl">Item</span>
+              <select className="az-select vz-ml-insp-sel" value={targetId}
+                onChange={e => onUpdate(region.id, { targetIds: [e.target.value] })}>
+                <option value="" disabled>Select item…</option>
+                {layerItems.map(item => (
+                  <option key={item.id} value={item.id}>
+                    {LAYER_LABELS[item.layerId]}: {mediaMap.get(item.mediaId)?.name ?? item.id.slice(0, 8)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {targetType === 'clip' && (
+            <div className="vz-ml-insp-row">
+              <span className="vz-ml-insp-lbl">Clip</span>
+              <select className="az-select vz-ml-insp-sel" value={targetId}
+                onChange={e => onUpdate(region.id, { targetIds: [e.target.value] })}>
+                <option value="" disabled>Select clip…</option>
+                {bgClips.length > 0 && (
+                  <optgroup label="Background">
+                    {bgClips.map(c => (
+                      <option key={c.id} value={c.id}>{mediaMap.get(c.mediaId)?.name ?? c.id.slice(0, 8)}</option>
+                    ))}
+                  </optgroup>
+                )}
+                {overlayClips.length > 0 && (
+                  <optgroup label="Overlays">
+                    {overlayClips.map(c => (
+                      <option key={c.id} value={c.id}>{mediaMap.get(c.mediaId)?.name ?? c.id.slice(0, 8)}</option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+            </div>
+          )}
+
+          <div className="vz-ml-insp-row vz-ml-insp-actions">
+            <button className="vz-tl-clip-btn vz-tl-clip-btn--remove" onClick={() => onRemove(region.id)} title="Delete">✕ Delete</button>
+          </div>
+        </div>
+      </div>
+      <div className="vz-ml-insp-group">
+        <div className="vz-ml-insp-group-hd">
+          <span className="vz-ml-insp-group-chevron">▸</span>
+          <span className="vz-ml-insp-group-title">Color</span>
+        </div>
+        <div className="vz-ml-insp-group-body" />
       </div>
     </div>
   )
@@ -783,61 +969,152 @@ function LyricCueInspector({
 
   return (
     <div className="vz-ml-insp-body">
-      <div className="vz-ml-insp-row">
-        <span className="vz-ml-insp-lbl">Text</span>
-        <span className="vz-ml-insp-val" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cue.text}</span>
-      </div>
-      <div className="vz-ml-insp-row">
-        <span className="vz-ml-insp-lbl">Start ms</span>
-        <input type="number" className="vz-ml-insp-num" min={0} step={10}
-          value={startVal}
-          onChange={e => setStartVal(e.target.value)}
-          onBlur={applyStart}
-          onKeyDown={e => e.key === 'Enter' && applyStart()}
-        />
-        <span className="vz-ml-insp-lbl">End ms</span>
-        <input type="number" className="vz-ml-insp-num" min={0} step={10}
-          value={endVal}
-          onChange={e => setEndVal(e.target.value)}
-          onBlur={applyEnd}
-          onKeyDown={e => e.key === 'Enter' && applyEnd()}
-        />
-      </div>
-      <div className="vz-ml-insp-row">
-        <span className="vz-ml-insp-lbl">Timeline</span>
-        <span className="vz-ml-insp-val">{dispStart} → {dispEnd}</span>
-        <span className="vz-ml-insp-lbl">Dur</span>
-        <span className="vz-ml-insp-val">{fmtSec(durMs / 1000)}</span>
-      </div>
-      <div className="vz-ml-insp-row vz-ml-insp-actions">
-        <button className="vz-tl-clip-btn"
-          title="Seek to cue start"
-          onClick={() => onSeek(cue.startMs / 1000 + globalOffsetSec)}>
-          ⏮ Seek
-        </button>
-        <button
-          className="vz-tl-clip-btn"
-          disabled={!isDirty || isSaving || !hasDocument}
-          title={!hasDocument ? 'Save the lyric document first to enable timing persistence' : 'Save lyric timing to database'}
-          onClick={onSave}
-        >
-          {isSaving ? 'Saving…' : 'Save Timing'}
-        </button>
-        {isDirty && !isSaving && (
-          <span className="vz-ml-insp-hint" style={{ color: 'var(--az-accent)', margin: 0 }}>Unsaved</span>
-        )}
-      </div>
-      {!hasDocument && (
-        <div className="vz-ml-insp-hint">
-          Save the lyric document in Lyric Manager before timing changes can be persisted.
+      <div className="vz-ml-insp-group">
+        <div className="vz-ml-insp-group-hd">
+          <span className="vz-ml-insp-group-chevron">▸</span>
+          <span className="vz-ml-insp-group-title">Info</span>
         </div>
-      )}
-      {globalOffsetSec !== 0 && (
-        <div className="vz-ml-insp-hint">
-          Global offset {globalOffsetSec > 0 ? '+' : ''}{fmtSec(globalOffsetSec)} applied to display.
-          Raw cue: {fmtSec(cue.startMs / 1000)} → {fmtSec(cue.endMs / 1000)}
+        <div className="vz-ml-insp-group-body">
+          <div className="vz-ml-insp-row">
+            <span className="vz-ml-insp-lbl">Text</span>
+            <span className="vz-ml-insp-val" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cue.text}</span>
+          </div>
+          <div className="vz-ml-insp-row">
+            <span className="vz-ml-insp-lbl">Start ms</span>
+            <input type="number" className="vz-ml-insp-num" min={0} step={10}
+              value={startVal}
+              onChange={e => setStartVal(e.target.value)}
+              onBlur={applyStart}
+              onKeyDown={e => e.key === 'Enter' && applyStart()}
+            />
+            <span className="vz-ml-insp-lbl">End ms</span>
+            <input type="number" className="vz-ml-insp-num" min={0} step={10}
+              value={endVal}
+              onChange={e => setEndVal(e.target.value)}
+              onBlur={applyEnd}
+              onKeyDown={e => e.key === 'Enter' && applyEnd()}
+            />
+          </div>
+          <div className="vz-ml-insp-row">
+            <span className="vz-ml-insp-lbl">Timeline</span>
+            <span className="vz-ml-insp-val">{dispStart} → {dispEnd}</span>
+            <span className="vz-ml-insp-lbl">Dur</span>
+            <span className="vz-ml-insp-val">{fmtSec(durMs / 1000)}</span>
+          </div>
+          <div className="vz-ml-insp-row vz-ml-insp-actions">
+            <button className="vz-tl-clip-btn"
+              title="Seek to cue start"
+              onClick={() => onSeek(cue.startMs / 1000 + globalOffsetSec)}>
+              ⏮ Seek
+            </button>
+            <button
+              className="vz-tl-clip-btn"
+              disabled={!isDirty || isSaving || !hasDocument}
+              title={!hasDocument ? 'Save the lyric document first to enable timing persistence' : 'Save lyric timing to database'}
+              onClick={onSave}
+            >
+              {isSaving ? 'Saving…' : 'Save Timing'}
+            </button>
+            {isDirty && !isSaving && (
+              <span className="vz-ml-insp-hint" style={{ color: 'var(--az-accent)', margin: 0 }}>Unsaved</span>
+            )}
+          </div>
+          {!hasDocument && (
+            <div className="vz-ml-insp-hint">
+              Save the lyric document in Lyric Manager before timing changes can be persisted.
+            </div>
+          )}
+          {globalOffsetSec !== 0 && (
+            <div className="vz-ml-insp-hint">
+              Global offset {globalOffsetSec > 0 ? '+' : ''}{fmtSec(globalOffsetSec)} applied to display.
+              Raw cue: {fmtSec(cue.startMs / 1000)} → {fmtSec(cue.endMs / 1000)}
+            </div>
+          )}
         </div>
-      )}
+      </div>
+      <div className="vz-ml-insp-group">
+        <div className="vz-ml-insp-group-hd">
+          <span className="vz-ml-insp-group-chevron">▸</span>
+          <span className="vz-ml-insp-group-title">Color</span>
+        </div>
+        <div className="vz-ml-insp-group-body" />
+      </div>
+    </div>
+  )
+}
+
+// ── Layer item color inspector ───────────────────────────────────────────
+
+function LayerItemColorInspector({
+  item, media, isGpu, onUpdate,
+}: {
+  item: VzLayerItem
+  media: UploadedMedia | undefined
+  isGpu: boolean
+  onUpdate: (id: string, patch: Partial<Omit<VzLayerItem, 'id'>>) => void
+}) {
+  const grade = item.colorGrade ?? DEFAULT_COLOR_GRADE
+  return (
+    <div className="vz-ml-insp-body">
+      <div className="vz-ml-insp-group">
+        <div className="vz-ml-insp-group-hd">
+          <span className="vz-ml-insp-group-chevron">▸</span>
+          <span className="vz-ml-insp-group-title">Info</span>
+        </div>
+        <div className="vz-ml-insp-group-body">
+          <div className="vz-ml-insp-row">
+            <span className="vz-ml-insp-lbl">Layer</span>
+            <span className="vz-ml-insp-val">{LAYER_LABELS[item.layerId]}</span>
+            <span className="vz-ml-insp-lbl">File</span>
+            <span className="vz-ml-insp-val vz-ml-insp-fname" title={media?.name}>{media?.title ?? media?.name ?? '(missing)'}</span>
+          </div>
+        </div>
+      </div>
+      <div className="vz-ml-insp-group">
+        <div className="vz-ml-insp-group-hd">
+          <span className="vz-ml-insp-group-chevron">▸</span>
+          <span className="vz-ml-insp-group-title">Color</span>
+        </div>
+        <div className="vz-ml-insp-group-body">
+          <ColorGradeControls
+            grade={grade}
+            isGpu={isGpu}
+            onChange={patch => onUpdate(item.id, { colorGrade: { ...grade, ...patch } })}
+            onReset={() => onUpdate(item.id, { colorGrade: { ...DEFAULT_COLOR_GRADE } })}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Master dimmer (empty inspector) ──────────────────────────────────────
+
+function MasterDimmerControls() {
+  const masterDimmer = useVisualStore(s => s.masterDimmer)
+  const setMasterDimmer = useVisualStore(s => s.setMasterDimmer)
+  const pct = Math.round(masterDimmer * 100)
+  return (
+    <div className="vz-ml-insp-body">
+      <div className="vz-ml-insp-group">
+        <div className="vz-ml-insp-group-hd">
+          <span className="vz-ml-insp-group-chevron">▸</span>
+          <span className="vz-ml-insp-group-title">Color</span>
+        </div>
+        <div className="vz-ml-insp-group-body">
+          <div className="vz-cg-slider-row">
+            <span className="vz-cg-slider-lbl">Master Dimmer</span>
+            <input
+              type="range"
+              className="vz-cg-slider"
+              min={0} max={100} step={1}
+              value={pct}
+              onChange={e => setMasterDimmer(parseInt(e.target.value, 10) / 100)}
+            />
+            <span className="vz-cg-slider-val">{pct}%</span>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -846,9 +1123,9 @@ function LyricCueInspector({
 
 export function TimelineInspector({
   selected, bgClips, overlayClips, effectRegions, lyricCues, mediaMap,
-  layerItems,
+  layerItems, selectedLayerItemId, isGpu,
   onUpdateClip, onRemoveBg, onRemoveOverlay, onDuplicateBg, onDuplicateOverlay,
-  onMoveClip, onUpdateEffect, onRemoveEffect, onSetMediaRole,
+  onMoveClip, onUpdateEffect, onRemoveEffect, onSetMediaRole, onUpdateLayerItem,
   onUpdateLyricTiming, onSeekToLyric, onSaveLyricTiming,
   lyricTimingDirty, lyricSaving, hasLyricDocument, globalOffsetSec,
 }: {
@@ -859,6 +1136,8 @@ export function TimelineInspector({
   lyricCues: LyricCue[]
   mediaMap: Map<string, UploadedMedia>
   layerItems: VzLayerItem[]
+  selectedLayerItemId: string | null
+  isGpu: boolean
   onUpdateClip: (id: string, patch: Partial<Omit<VzTimelineMediaClip, 'id' | 'lane'>>) => void
   onRemoveBg: (id: string) => void
   onRemoveOverlay: (id: string) => void
@@ -868,6 +1147,7 @@ export function TimelineInspector({
   onUpdateEffect: (id: string, patch: Partial<Omit<VzTimelineEffectRegion, 'id'>>) => void
   onRemoveEffect: (id: string) => void
   onSetMediaRole: (mediaId: string, role: MediaRole) => void
+  onUpdateLayerItem: (id: string, patch: Partial<Omit<VzLayerItem, 'id'>>) => void
   onUpdateLyricTiming: (id: string, patch: { startMs?: number; endMs?: number }) => void
   onSeekToLyric: (sec: number) => void
   onSaveLyricTiming: () => void
@@ -876,13 +1156,35 @@ export function TimelineInspector({
   hasLyricDocument: boolean
   globalOffsetSec: number
 }) {
+  // No timeline entity selected: if a layer item is selected show its color
+  // grade editor; otherwise show the global Master Dimmer.
   if (!selected) {
+    const layerItem = selectedLayerItemId
+      ? layerItems.find(i => i.id === selectedLayerItemId)
+      : undefined
+    if (layerItem) {
+      return (
+        <div className="vz-ml-insp">
+          <div className="vz-ml-insp-hd">
+            <CursorInfo01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
+            <span className="vz-ml-insp-title">Inspector</span>
+          </div>
+          <LayerItemColorInspector
+            item={layerItem}
+            media={mediaMap.get(layerItem.mediaId)}
+            isGpu={isGpu}
+            onUpdate={onUpdateLayerItem}
+          />
+        </div>
+      )
+    }
     return (
       <div className="vz-ml-insp">
         <div className="vz-ml-insp-hd">
+          <CursorInfo01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
           <span className="vz-ml-insp-title">Inspector</span>
         </div>
-        <div className="vz-ml-insp-empty">Select a clip, effect region, or lyric cue to inspect</div>
+        <MasterDimmerControls />
       </div>
     )
   }
@@ -900,7 +1202,7 @@ export function TimelineInspector({
     if (clip) {
       content = (
         <BgClipInspector
-          clip={clip} media={media} idx={idx} total={bgClips.length}
+          clip={clip} media={media} idx={idx} total={bgClips.length} isGpu={isGpu}
           onMove={onMoveClip} onRemove={onRemoveBg} onDuplicate={onDuplicateBg}
           onUpdate={onUpdateClip} onSetMediaRole={onSetMediaRole}
         />
@@ -914,7 +1216,7 @@ export function TimelineInspector({
     if (clip) {
       content = (
         <OverlayClipInspector
-          clip={clip} media={media}
+          clip={clip} media={media} isGpu={isGpu}
           onUpdate={onUpdateClip} onRemove={onRemoveOverlay}
           onDuplicate={onDuplicateOverlay} onSetMediaRole={onSetMediaRole}
         />
@@ -954,6 +1256,7 @@ export function TimelineInspector({
   return (
     <div className="vz-ml-insp">
       <div className="vz-ml-insp-hd">
+        <CursorInfo01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
         <span className="vz-ml-insp-title">Inspector</span>
       </div>
       {content ?? <div className="vz-ml-insp-empty">Item not found</div>}

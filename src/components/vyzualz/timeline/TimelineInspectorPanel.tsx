@@ -9,17 +9,19 @@ import type { SelectedTimelineEntity } from '../../../stores/visualStore'
 export function TimelineInspectorPanel({ onSeekToLyric }: { onSeekToLyric: (sec: number) => void }) {
   const {
     timelineClips, timelineOverlayClips, timelineEffectRegions,
-    layerItems,
+    layerItems, selectedLayerItemId, rendererType,
     selectedTimelineEntity, setSelectedTimelineEntity,
     removeTimelineClip, updateMediaClip, removeMediaClip,
     duplicateTimelineClip, duplicateMediaClip,
-    reorderTimelineClips,
+    reorderTimelineClips, updateLayerItem,
     updateEffectRegion, removeEffectRegion,
   } = useVisualStore(useShallow(s => ({
     timelineClips:            s.timelineClips,
     timelineOverlayClips:     s.timelineOverlayClips,
     timelineEffectRegions:    s.timelineEffectRegions,
     layerItems:               s.layerItems,
+    selectedLayerItemId:      s.selectedLayerItemId,
+    rendererType:             s.rendererType,
     selectedTimelineEntity:   s.selectedTimelineEntity,
     setSelectedTimelineEntity: s.setSelectedTimelineEntity,
     removeTimelineClip:       s.removeTimelineClip,
@@ -28,6 +30,7 @@ export function TimelineInspectorPanel({ onSeekToLyric }: { onSeekToLyric: (sec:
     duplicateTimelineClip:    s.duplicateTimelineClip,
     duplicateMediaClip:       s.duplicateMediaClip,
     reorderTimelineClips:     s.reorderTimelineClips,
+    updateLayerItem:          s.updateLayerItem,
     updateEffectRegion:       s.updateEffectRegion,
     removeEffectRegion:       s.removeEffectRegion,
   })))
@@ -78,7 +81,10 @@ export function TimelineInspectorPanel({ onSeekToLyric }: { onSeekToLyric: (sec:
       lyricCues={lyricCues}
       mediaMap={mediaMap}
       layerItems={layerItems}
+      selectedLayerItemId={selectedLayerItemId}
+      isGpu={rendererType === 'webgl2'}
       onUpdateClip={updateMediaClip}
+      onUpdateLayerItem={updateLayerItem}
       onRemoveBg={id => { removeTimelineClip(id); setSelectedTimelineEntity(null) }}
       onRemoveOverlay={id => { removeMediaClip(id); setSelectedTimelineEntity(null) }}
       onDuplicateBg={duplicateTimelineClip}

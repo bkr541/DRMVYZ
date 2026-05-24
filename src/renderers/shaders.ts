@@ -339,6 +339,76 @@ void main() {
 }
 `
 
+// ── 11. Color grade ───────────────────────────────────────────────────────────
+// Per-source color grade applied BEFORE RGB Split / Bloom / Displacement.
+// Order: brightness (additive) → contrast (centered on 0.5) → saturation →
+// hue rotation → temperature → tint → clamp.
+//
+// Uniforms:
+//   u_texture     — source texture (output of video pass)
+//   u_gradeEnabled — when false, identity passthrough
+//   u_brightness  — additive luminance offset, -1..+1
+//   u_contrast    — contrast multiplier centered on 0.5, 0..2
+//   u_saturation  — 0=grayscale, 1=original, 2=double
+//   u_hueRotation — hue rotation in radians
+//   u_temperature — -1..+1 (warm shifts R+, B-; cool shifts B+, R-)
+//   u_tint        — -1..+1 (positive=magenta R+,G-,B+; negative=green G+,R-,B-)
+export const COLOR_GRADE_FRAG = /* glsl */`#version 300 es
+precision highp float;
+in vec2 v_uv;
+uniform sampler2D u_texture;
+uniform bool  u_gradeEnabled;
+uniform float u_brightness;
+uniform float u_contrast;
+uniform float u_saturation;
+uniform float u_hueRotation;
+uniform float u_temperature;
+uniform float u_tint;
+out vec4 fragColor;
+
+// CSS hue-rotate matrix (SVG filter spec / WebKit convention).
+vec3 hueRotate(vec3 c, float rad) {
+  float cosA = cos(rad), sinA = sin(rad);
+  return mat3(
+    0.213 + cosA*0.787 - sinA*0.213,  0.213 - cosA*0.213 + sinA*0.143,  0.213 - cosA*0.213 - sinA*0.787,
+    0.715 - cosA*0.715 - sinA*0.715,  0.715 + cosA*0.285 + sinA*0.140,  0.715 - cosA*0.715 + sinA*0.715,
+    0.072 - cosA*0.072 + sinA*0.928,  0.072 - cosA*0.072 - sinA*0.283,  0.072 + cosA*0.928 + sinA*0.072
+  ) * c;
+}
+
+void main() {
+  vec4 src = texture(u_texture, v_uv);
+  if (!u_gradeEnabled) { fragColor = src; return; }
+
+  vec3 color = src.rgb;
+
+  // Brightness: additive
+  color += u_brightness;
+
+  // Contrast: centered on 0.5
+  color = (color - 0.5) * u_contrast + 0.5;
+
+  // Saturation
+  float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+  color = mix(vec3(luma), color, u_saturation);
+
+  // Hue rotation
+  if (u_hueRotation != 0.0) color = hueRotate(color, u_hueRotation);
+
+  // Temperature: warm shifts R+, B-; cool shifts B+, R-
+  color.r += u_temperature * 0.1;
+  color.b -= u_temperature * 0.1;
+
+  // Tint: positive=magenta (R+, G-, B+); negative=green (G+, R-, B-)
+  color.r += u_tint * 0.05;
+  color.g -= u_tint * 0.05;
+  color.b += u_tint * 0.05;
+
+  color = clamp(color, 0.0, 1.0);
+  fragColor = vec4(color, src.a);
+}
+`
+
 // ── 7. Post-process: grain + scanlines ───────────────────────────────────────
 // Combined final pass applying procedural grain (Noise Fog) and horizontal
 // scanlines before the GPU output is blit to Canvas 2D.

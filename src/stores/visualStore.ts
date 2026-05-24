@@ -202,6 +202,8 @@ export interface VzSession {
   // Transport extras
   beatGridEnabled?: boolean
   cueMarkers?: VzCueMarker[]
+  // Color grading — global output dimmer (per-source grades travel inside clips/layerItems)
+  masterDimmer?: number
 }
 
 export const DEFAULT_PRESETS: VzPreset[] = [
@@ -488,6 +490,17 @@ interface VisualState {
   // Ephemeral: true while the WebGL2 context is lost and Canvas 2D is active as fallback.
   contextLost: boolean
   setRendererContextLost(lost: boolean): void
+
+  // ── Color grading ──────────────────────────────────────────────────────────
+  // Master dimmer: a global black overlay applied at the output level after the
+  // final composite. 0 = full brightness, 1 = fully black. Persisted.
+  masterDimmer: number
+  setMasterDimmer(value: number): void
+  // Before/After preview: when true the renderer bypasses every per-source grade
+  // so the operator can compare graded vs ungraded output. Ephemeral — NEVER
+  // persisted; always resets to false on launch.
+  colorGradePreviewBypass: boolean
+  setColorGradePreviewBypass(value: boolean): void
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
@@ -552,6 +565,8 @@ export const useVisualStore = create<VisualState>()(
       gpuPreference:          'auto' as const,      // persisted
       rendererFallbackReason: null,                 // ephemeral — set on GPU init failure
       contextLost:            false,                // ephemeral — true while WebGL2 context is lost
+      masterDimmer:            0,                   // persisted — global output dimmer 0..1
+      colorGradePreviewBypass: false,              // ephemeral — never persisted
 
       // ── Live state ──────────────────────────────────────────────────────────
 
@@ -743,6 +758,7 @@ export const useVisualStore = create<VisualState>()(
           layerItems:            [...s.layerItems],
           beatGridEnabled: s.beatGridEnabled,
           cueMarkers:      [...s.cueMarkers],
+          masterDimmer:    s.masterDimmer,
         }
         // Optimistic local add — visible immediately
         set(st => ({ sessions: [...st.sessions, session] }))
@@ -797,6 +813,7 @@ export const useVisualStore = create<VisualState>()(
           beatGridEnabled: session.beatGridEnabled  ?? false,
           cueMarkers:      (session.cueMarkers ?? []) as VzCueMarker[],
           cuePoint:        0,
+          masterDimmer:    session.masterDimmer ?? 0,
         })
         return session
       },
@@ -901,6 +918,7 @@ export const useVisualStore = create<VisualState>()(
           fitMode:      'cover',
           playbackMode: 'trim',
           lane:         'video-background',
+          snapToBpm:    true,
         }
         // appendBgClip places clip after the last existing clip (transition-aware).
         // Does NOT recalculate any prior clip starts.
@@ -964,6 +982,7 @@ export const useVisualStore = create<VisualState>()(
           fitMode:      lane === 'overlays' ? 'contain' : 'cover',
           playbackMode: 'trim',
           lane,
+          snapToBpm:    true,
         }
         if (lane === 'video-background') {
           // appendBgClip places after the last bg clip (transition-aware). No recalc.
@@ -1265,6 +1284,10 @@ export const useVisualStore = create<VisualState>()(
       setGpuPreference(p)             { set({ gpuPreference: p }) },
       setRendererFallbackReason(r)    { set({ rendererFallbackReason: r }) },
       setRendererContextLost(lost)    { set({ contextLost: lost }) },
+
+      // ── Color grading ─────────────────────────────────────────────────────
+      setMasterDimmer(value)          { set({ masterDimmer: Math.max(0, Math.min(1, value)) }) },
+      setColorGradePreviewBypass(value) { set({ colorGradePreviewBypass: value }) },
     }),
     {
       name: 'drmvyz-visual-store',
@@ -1291,6 +1314,8 @@ export const useVisualStore = create<VisualState>()(
         // autoQualityReason is ephemeral — not persisted
         audioReactivityEnabled: s.audioReactivityEnabled,
         gpuPreference:          s.gpuPreference,
+        masterDimmer:           s.masterDimmer,
+        // colorGradePreviewBypass is INTENTIONALLY omitted — ephemeral preview state.
       }),
       // Re-inject default presets after rehydration so they are never missing
       merge: (persisted, current) => {
@@ -1355,6 +1380,10 @@ export const useVisualStore = create<VisualState>()(
           rendererFallbackReason: null,
           contextLost:            false,
           gpuPreference: (p as Partial<VisualState>).gpuPreference ?? 'auto',
+          // Persisted master dimmer; default 0 (full brightness) for older saves.
+          masterDimmer: (p as Partial<VisualState>).masterDimmer ?? 0,
+          // colorGradePreviewBypass is ephemeral — always reset on launch.
+          colorGradePreviewBypass: false,
         }
       },
     }

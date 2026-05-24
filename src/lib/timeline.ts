@@ -274,6 +274,16 @@ export function getTimelineProjectDuration(params: {
   return Math.max(bgEnd, overlayEnd, fxEnd)
 }
 
+// ── Snap to BPM ───────────────────────────────────────────────────────
+
+/**
+ * Returns true when a clip participates in timeline-clock video synchronisation.
+ * Missing / undefined means ON for backward-compat with all legacy saved data.
+ */
+export function isClipSnapToBpmEnabled(clip: Pick<VzTimelineClip, 'snapToBpm'>): boolean {
+  return clip.snapToBpm !== false
+}
+
 // ── Clip source helpers ───────────────────────────────────────────────
 
 export interface ClipSourceRange {

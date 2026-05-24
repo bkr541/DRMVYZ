@@ -8,11 +8,11 @@ import { extractBandValues, applyModulatedEffects, gateAudioBands } from '../../
 import type { ModulationRoute, AudioBandValues } from '../../../lib/audioModulation'
 import {
   getActiveTimelineClip, getNextTimelineClip, getTransitionState,
-  getClipSourceTime, shouldFreezeClipFrame, getActiveOverlayClips,
-  getEasedProgress,
+  getClipSourceTime, getClipSourceRange, shouldFreezeClipFrame, getActiveOverlayClips,
+  getEasedProgress, isClipSnapToBpmEnabled,
 } from '../../../lib/timeline'
 import type { TwoClipRenderState } from '../../../lib/timeline'
-import type { VzTimelineClip, VzTimelineMediaClip, VzTimelineEffectRegion } from '../../../types/timeline'
+import type { VzTimelineMediaClip, VzTimelineEffectRegion } from '../../../types/timeline'
 import { DEFAULT_OVERLAY_COMPOSITING } from '../../../types/timeline'
 import { renderTimelineTransition } from '../../../lib/transitionRenderer'
 import type { MediaRole } from '../../../lib/mediaRoles'
@@ -38,6 +38,7 @@ import { selectPostProcessSource } from '../../../renderers/postProcessSource'
 import { CanvasBufferPool } from '../../../renderers/CanvasBufferPool'
 import { derivePostProcessParams, isPostProcessActive, deriveDisplacementParams } from '../../../renderers/postProcessParams'
 import type { WebGL2CreateResult } from '../../../renderers/WebGL2Renderer'
+import { deriveColorGradeParams, buildCanvasColorGradeFilter } from '../../../renderers/colorGradeParams'
 import {
   getOrCreateMediaInstance, pauseInactiveMediaInstances, destroyMediaInstance,
 } from './mediaPool'
@@ -610,6 +611,10 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   // in-place by ensureHelperCanvas — never per-frame allocated.
   const txOutCanvasRef   = useRef<HTMLCanvasElement | null>(null)
   const txInCanvasRef    = useRef<HTMLCanvasElement | null>(null)
+  // Canvas 2D color-grade scratch buffers: hold a graded copy of each transition
+  // source so the grade is applied BEFORE the Canvas 2D transition compositor.
+  const cgOutCanvasRef   = useRef<HTMLCanvasElement | null>(null)
+  const cgInCanvasRef    = useRef<HTMLCanvasElement | null>(null)
 
   const devSrcDrawsRef   = useRef(0)   // DEV: direct HTMLVideoElement draws this frame
   const devEffPassRef    = useRef(0)   // DEV: canvas-to-canvas effect draws this frame
@@ -620,7 +625,14 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   const activeMediaRoleRef    = useRef<MediaRole | null>(null)
   const activeMediaFitModeRef = useRef<'cover' | 'contain' | null>(null)
 
-  const activeClipRef = useRef<VzTimelineClip | null>(null)
+  const activeClipRef = useRef<VzTimelineMediaClip | null>(null)
+
+  // ── Free-running sync state ───────────────────────────────────────────
+  // scrubGenRef increments each time the user performs a discontinuous seek.
+  // freeRunAnchorRef maps per-clip keys to the scrub generation at which that
+  // clip was last re-anchored so we only re-seek once per scrub event.
+  const scrubGenRef        = useRef(0)
+  const freeRunAnchorRef   = useRef<Map<string, number>>(new Map())
 
   const incomingMediaElRef   = useRef<HTMLImageElement | HTMLVideoElement | null>(null)
   const transitionStateRef   = useRef<TwoClipRenderState | null>(null)
@@ -674,6 +686,10 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   const gl2RendererRef           = useRef<WebGL2Renderer | null>(null)
   const rendererFallbackReasonRef = useRef<string | null>(null)
   const contextLostRef           = useRef(false)
+
+  // ── Color grade state (stable snapshots — never in animation-loop React state) ──
+  const masterDimmerRef            = useRef(0)
+  const colorGradePreviewBypassRef = useRef(false)
 
   const lowFpsSinceRef          = useRef(0)   // perf.now() when low-FPS streak began, 0 = none
   const highFpsSinceRef         = useRef(0)   // perf.now() when high-FPS streak began, 0 = none
@@ -843,12 +859,27 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
     setTimelineClockStoreRef.current = useVisualStore.getState().setTimelineClock
   }, [])
 
+  // ── Color grade snapshots — sync masterDimmer / preview bypass into refs ──────
+  // Read once on mount, then keep current via store subscription. The RAF loop
+  // reads these refs each frame; they are never put into React state so the loop
+  // identity stays stable.
+  useEffect(() => {
+    const sync = (s: ReturnType<typeof useVisualStore.getState>) => {
+      masterDimmerRef.current            = s.masterDimmer
+      colorGradePreviewBypassRef.current = s.colorGradePreviewBypass
+      requestRedrawRef.current()
+    }
+    sync(useVisualStore.getState())
+    return useVisualStore.subscribe(sync)
+  }, [])
+
   useEffect(() => {
     return useVisualStore.subscribe((state) => {
       const t = state.timelineClock
       if (Math.abs(timelineClockRef.current - t) > 0.05) {
         timelineClockRef.current = t
         lastFrameTimeRef.current = null
+        scrubGenRef.current++       // signal free-running clips to re-anchor once
         requestRedrawRef.current()  // external scrub — wake rAF if paused-idle
       }
     })
@@ -972,6 +1003,14 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       activeClipIdRef.current = null
       activeClipRef.current   = null
       if (timelineEnabledRef.current) mediaElRef.current = null
+    }
+    // Evict free-run anchor entries for removed clips (map uses bg:/overlay: prefix)
+    const freeRunMap = freeRunAnchorRef.current
+    for (const key of freeRunMap.keys()) {
+      const poolKey = key.startsWith('bg:')
+        ? `background:${key.slice(3)}`
+        : key  // overlay:xxx already matches keepKeys format
+      if (!keepKeys.has(poolKey)) freeRunMap.delete(key)
     }
     requestRedrawRef.current()
   }, [timelineClips, timelineOverlayClips, mediaItems, layerConfigs, layerItems])
@@ -1418,7 +1457,9 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
 
         if (clipId !== activeClipIdRef.current) {
           activeClipIdRef.current = clipId
-          activeClipRef.current   = clip ?? null
+          // `clips` is VzTimelineMediaClip[]; getActiveTimelineClip widens the
+          // element type to VzTimelineClip but the runtime object is the media clip.
+          activeClipRef.current   = (clip as VzTimelineMediaClip | null) ?? null
           if (clip) {
             const m = mediaItemsRef.current.find(x => x.id === clip.mediaId)
             activeMediaRoleRef.current    = m?.mediaRole ?? null
@@ -1434,12 +1475,20 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
               el.currentTime  = getClipSourceTime(clip, localTimeSec, elDur)
               if (isPlayingRef.current) el.play().catch(() => {})
             }
+            // Record that this clip was just anchored so the free-running path
+            // does not immediately re-seek on the first frame.
+            freeRunAnchorRef.current.set(`bg:${clip.id}`, scrubGenRef.current)
           } else {
             mediaElRef.current = null
             activeClipRef.current         = null
             activeMediaRoleRef.current    = null
             activeMediaFitModeRef.current = null
           }
+        } else if (clip) {
+          // Clip ID unchanged but the clip object may have new property values
+          // (e.g. colorGrade edited via Inspector). Keep the ref current so
+          // per-frame grade reads always see the latest stored values.
+          activeClipRef.current = clip as VzTimelineMediaClip
         }
 
         if (clip) {
@@ -1472,6 +1521,8 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             inEl.playbackRate   = 1
             inEl.currentTime    = getClipSourceTime(inClip, txState.incomingLocalTimeSec, inDur)
             if (isPlayingRef.current) inEl.play().catch(() => {})
+            // Record anchor for free-running path
+            freeRunAnchorRef.current.set(`bg:${inClip.id}`, scrubGenRef.current)
           }
         } else {
           incomingMediaElRef.current = null
@@ -1479,16 +1530,19 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           incomingFitModeRef.current = null
         }
 
+        // ── Active background video sync ──────────────────────────────────
+        // Use the FRESH clip from getActiveTimelineClip (not stale activeClipRef.current)
+        // so property changes like snapToBpm take effect immediately without a clip switch.
         const activeVid = mediaElRef.current
-        if (activeClipRef.current && activeVid instanceof HTMLVideoElement) {
-          const aClip  = activeClipRef.current
+        if (clip && activeVid instanceof HTMLVideoElement) {
           const dur    = isFinite(activeVid.duration) ? activeVid.duration : 0
-          const frozen = shouldFreezeClipFrame(aClip, localTimeSec, dur)
+          const frozen = shouldFreezeClipFrame(clip, localTimeSec, dur)
 
           if (frozen) {
             if (!activeVid.paused) activeVid.pause()
-          } else {
-            const desired = getClipSourceTime(aClip, localTimeSec, dur)
+          } else if (isClipSnapToBpmEnabled(clip)) {
+            // SYNCED PATH — existing timeline-clock correction behavior
+            const desired = getClipSourceTime(clip, localTimeSec, dur)
             if (isPlayingRef.current) {
               if (activeVid.paused) activeVid.play().catch(() => {})
               syncVideoEl(activeVid, desired, true)
@@ -1496,26 +1550,100 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
               syncVideoEl(activeVid, desired, false)
               if (!activeVid.paused) activeVid.pause()
             }
+          } else {
+            // FREE-RUNNING PATH — native speed, re-anchor only on scrub or activation
+            const bgKey    = `bg:${clip.id}`
+            const lastGen  = freeRunAnchorRef.current.get(bgKey) ?? -1
+            const scrubGen = scrubGenRef.current
+            if (scrubGen !== lastGen) {
+              // Re-anchor once after a discontinuous user seek
+              const desired = getClipSourceTime(clip, localTimeSec, dur)
+              activeVid.currentTime  = desired
+              activeVid.playbackRate = 1
+              freeRunAnchorRef.current.set(bgKey, scrubGen)
+            }
+            // Enforce playback mode boundaries using the video's own currentTime
+            const { inSec, outSec } = getClipSourceRange(clip, dur)
+            if (activeVid.currentTime < inSec) {
+              activeVid.currentTime = inSec
+            } else if (activeVid.currentTime >= outSec) {
+              if (clip.playbackMode === 'loop') {
+                activeVid.currentTime = inSec
+              } else {
+                // trim / freeze: hold at boundary
+                activeVid.currentTime = outSec - 0.001
+                if (!activeVid.paused) activeVid.pause()
+              }
+            }
+            // Play/pause based on transport — no rate nudges
+            if (isPlayingRef.current) {
+              activeVid.playbackRate = 1
+              if (activeVid.paused) activeVid.play().catch(() => {})
+            } else {
+              if (!activeVid.paused) activeVid.pause()
+            }
           }
         }
 
+        // ── Incoming transition video sync ────────────────────────────────
         const txCurrent = transitionStateRef.current
         const inVid     = incomingMediaElRef.current
         if (txCurrent && inVid instanceof HTMLVideoElement) {
           const inClipSync = txCurrent.incomingClip
           const inDurSync  = isFinite(inVid.duration) ? inVid.duration : 0
-          const desired    = getClipSourceTime(inClipSync, txCurrent.incomingLocalTimeSec, inDurSync)
-          if (isPlayingRef.current) {
-            if (inVid.paused) inVid.play().catch(() => {})
-            syncVideoEl(inVid, desired, true)
+
+          if (isClipSnapToBpmEnabled(inClipSync)) {
+            // SYNCED PATH for incoming clip
+            const desired = getClipSourceTime(inClipSync, txCurrent.incomingLocalTimeSec, inDurSync)
+            if (isPlayingRef.current) {
+              if (inVid.paused) inVid.play().catch(() => {})
+              syncVideoEl(inVid, desired, true)
+            } else {
+              syncVideoEl(inVid, desired, false)
+              if (!inVid.paused) inVid.pause()
+            }
           } else {
-            syncVideoEl(inVid, desired, false)
-            if (!inVid.paused) inVid.pause()
+            // FREE-RUNNING PATH for incoming clip
+            const inKey    = `bg:${inClipSync.id}`
+            const lastGen  = freeRunAnchorRef.current.get(inKey) ?? -1
+            const scrubGen = scrubGenRef.current
+            if (scrubGen !== lastGen) {
+              const desired = getClipSourceTime(inClipSync, txCurrent.incomingLocalTimeSec, inDurSync)
+              inVid.currentTime  = desired
+              inVid.playbackRate = 1
+              freeRunAnchorRef.current.set(inKey, scrubGen)
+            }
+            const { inSec: inIn, outSec: inOut } = getClipSourceRange(inClipSync, inDurSync)
+            if (inVid.currentTime < inIn) {
+              inVid.currentTime = inIn
+            } else if (inVid.currentTime >= inOut) {
+              if (inClipSync.playbackMode === 'loop') {
+                inVid.currentTime = inIn
+              } else {
+                inVid.currentTime = inOut - 0.001
+                if (!inVid.paused) inVid.pause()
+              }
+            }
+            if (isPlayingRef.current) {
+              inVid.playbackRate = 1
+              if (inVid.paused) inVid.play().catch(() => {})
+            } else {
+              if (!inVid.paused) inVid.pause()
+            }
           }
         }
       }
 
       const mediaEl = mediaElRef.current
+
+      // ── Color grade snapshots for this frame ──────────────────────────────
+      // The active background source uses its own clip grade (timeline mode).
+      // Deck media has no per-source grade in Phase 1 (undefined → neutral).
+      const cgBypass = colorGradePreviewBypassRef.current
+      const masterDimmer = masterDimmerRef.current
+      const activeClipGrade = timelineEnabledRef.current
+        ? activeClipRef.current?.colorGrade
+        : undefined
 
       const role        = activeMediaRoleRef.current
       const renderMedia = shouldRenderRoleByDefault(role)
@@ -1587,13 +1715,21 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             (fxSet.has('Bloom')        && bloomMod        > 0) ||
             (fxSet.has('Displacement') && dispMod         > 0)
           )
+        // Canvas 2D color grade filter for this source. Baked into the snapshot
+        // (so RGB Split / Bloom / Displacement build on the graded base) and
+        // applied to the direct-draw path. 'none' when neutral / bypassed / GPU.
+        const canvasGradeFilter = isGpu ? 'none' : buildCanvasColorGradeFilter(activeClipGrade, cgBypass)
+
         let srcSnap: HTMLCanvasElement | null = null
         if (needsSnap) {
           srcSnap = ensureHelperCanvas(srcSnapRef, W, H)
           const snapCtx = srcSnap.getContext('2d')
           if (snapCtx) {
             snapCtx.clearRect(0, 0, W, H)
+            snapCtx.save()
+            snapCtx.filter = canvasGradeFilter   // bake grade BEFORE downstream effects
             snapCtx.drawImage(mediaEl, ox, oy, sw, sh)   // sole video draw for this frame
+            snapCtx.restore()
           }
           if (import.meta.env.DEV) devSrcDrawsRef.current++
         }
@@ -1643,6 +1779,10 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
                 ...dispParams,
               }
 
+              // Per-source grades: outgoing = active clip's grade, incoming = its own.
+              const outGrade = deriveColorGradeParams(activeClipGrade, cgBypass)
+              const inGrade  = deriveColorGradeParams((txState.incomingClip as VzTimelineMediaClip).colorGrade, cgBypass)
+
               if (GPU_TRANSITION_TYPES.has(txState.config.type)) {
                 // Full GPU path: both sources rendered + composited entirely on GPU.
                 // No intermediate Canvas 2D copies — the transition shader runs
@@ -1655,6 +1795,9 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
                   inOx: inRect.ox, inOy: inRect.oy, inSw: inRect.sw, inSh: inRect.sh,
                   transitionType: getGpuTransitionIndex(txState.config.type),
                   progress: easedProgress,
+                  outGrade, inGrade,
+                  // Master dimmer is applied once at frame end on the Canvas 2D
+                  // output so it also covers overlays / lyrics / HUD.
                 }
                 gl2!.renderTransition(txParams)
                 ctx.drawImage(gl2!.outputCanvas, 0, 0)
@@ -1662,13 +1805,17 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
                 // Canvas 2D fallback for transition types not yet in GPU_TRANSITION_TYPES.
                 // Each source is still rendered through the GPU pipeline to apply
                 // effects, then copied to a canvas for Canvas 2D compositing.
+                // Master dimmer is applied to the final Canvas 2D composite below,
+                // not per-source, so it isn't passed to these intermediate renders.
                 const outGpu = ensureHelperCanvas(txOutCanvasRef, W, H)
+                gl2!.setColorGrade(outGrade)
                 gl2!.renderFrame({ mediaEl, ox, oy, sw, sh, ...sharedGpu })
                 outGpu.getContext('2d')!.drawImage(gl2!.outputCanvas, 0, 0)
 
                 let inGpu: HTMLCanvasElement | null = null
                 if (inEl) {
                   inGpu = ensureHelperCanvas(txInCanvasRef, W, H)
+                  gl2!.setColorGrade(inGrade)
                   gl2!.renderFrame({ mediaEl: inEl, ox: inRect.ox, oy: inRect.oy, sw: inRect.sw, sh: inRect.sh, ...sharedGpu })
                   inGpu.getContext('2d')!.drawImage(gl2!.outputCanvas, 0, 0)
                 }
@@ -1691,14 +1838,51 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
               gpuEffectsRef.current = gpuFx
               if (import.meta.env.DEV) devSrcDrawsRef.current += inEl ? 2 : 1
             } else {
-              // Canvas-only transition path
+              // Canvas-only transition path.
+              // Pre-grade each source into a full-canvas scratch buffer so the
+              // per-clip grade is applied BEFORE the transition compositor runs.
+              const outFilter = buildCanvasColorGradeFilter(activeClipGrade, cgBypass)
+              const inFilter  = buildCanvasColorGradeFilter((txState.incomingClip as VzTimelineMediaClip).colorGrade, cgBypass)
+
+              let outSrc: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement = mediaEl
+              let outDrawRect = { ox, oy, sw, sh }
+              if (outFilter !== 'none') {
+                const cg = ensureHelperCanvas(cgOutCanvasRef, W, H)
+                const cgCtx = cg.getContext('2d')
+                if (cgCtx) {
+                  cgCtx.clearRect(0, 0, W, H)
+                  cgCtx.save()
+                  cgCtx.filter = outFilter
+                  cgCtx.drawImage(mediaEl, ox, oy, sw, sh)
+                  cgCtx.restore()
+                  outSrc = cg
+                  outDrawRect = { ox: 0, oy: 0, sw: W, sh: H }
+                }
+              }
+
+              let inSrc = inEl
+              let inDrawRect = inRect
+              if (inEl && inFilter !== 'none') {
+                const cg = ensureHelperCanvas(cgInCanvasRef, W, H)
+                const cgCtx = cg.getContext('2d')
+                if (cgCtx) {
+                  cgCtx.clearRect(0, 0, W, H)
+                  cgCtx.save()
+                  cgCtx.filter = inFilter
+                  cgCtx.drawImage(inEl, inRect.ox, inRect.oy, inRect.sw, inRect.sh)
+                  cgCtx.restore()
+                  inSrc = cg as unknown as HTMLImageElement | HTMLVideoElement
+                  inDrawRect = { ox: 0, oy: 0, sw: W, sh: H }
+                }
+              }
+
               renderTimelineTransition({
                 ctx, W, H,
-                outEl:          mediaEl,
-                outRect:        { ox, oy, sw, sh },
+                outEl:          outSrc,
+                outRect:        outDrawRect,
                 outCompositeOp: compositeOp,
-                inEl,
-                inRect,
+                inEl:           inSrc,
+                inRect:         inDrawRect,
                 inCompositeOp,
                 config:         txState.config,
                 progress:       txState.progress,
@@ -1710,9 +1894,10 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
               if (import.meta.env.DEV) devSrcDrawsRef.current += 2  // out + in
             }
           } else if (isGpu) {
-            // GPU compositor: video draw + RGB Split + Bloom + grain/scanlines + Displacement
+            // GPU compositor: color grade + video draw + RGB Split + Bloom + grain/scanlines + Displacement
             const ppParams   = derivePostProcessParams(fxSet, mEff, q)
             const dispParams = deriveDisplacementParams(fxSet, dispMod, synced, beatPhase, t, activeColorShift)
+            gl2!.setColorGrade(deriveColorGradeParams(activeClipGrade, cgBypass))
             gl2!.renderFrame({
               mediaEl,
               canvasW: W, canvasH: H,
@@ -1737,12 +1922,17 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           } else {
             ctx.save()
             if (compositeOp !== 'source-over') ctx.globalCompositeOperation = compositeOp
-            if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
             if (srcSnap) {
-              // Reuse the GPU-resident snap: no second video texture upload
+              // Reuse the snap (grade already baked in). Apply colorShift only.
+              if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
               ctx.drawImage(srcSnap, 0, 0)
               if (import.meta.env.DEV) devEffPassRef.current++
             } else {
+              // Direct draw: combine the color grade filter with colorShift hue-rotate.
+              const shiftPart = activeColorShift > 0 ? `hue-rotate(${activeColorShift * 360}deg)` : ''
+              const gradePart = canvasGradeFilter !== 'none' ? canvasGradeFilter : ''
+              const combined  = [gradePart, shiftPart].filter(Boolean).join(' ')
+              if (combined) ctx.filter = combined
               ctx.drawImage(mediaEl, ox, oy, sw, sh)
               if (import.meta.env.DEV) devSrcDrawsRef.current++
             }
@@ -1891,6 +2081,10 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           const itemFxItem  = collectTargetedEffects(layerItemActiveRegions, item.id, mEff)
           const itemFx = [...itemFxLayer, ...itemFxItem].filter(x => x.intensity > 0)
 
+          // Per-item color grade (Canvas 2D filter — temperature/tint are GPU-only
+          // and intentionally not represented for layer items in Phase 1).
+          const itemGradeFilter = buildCanvasColorGradeFilter(item.colorGrade, cgBypass)
+
           if (itemFx.length > 0) {
             // Offscreen path: render item to offscreen, apply effects, blit to main
             const off = targetEffectOffscreenRef.current.acquire(`li_${item.id}`, W, H)
@@ -1900,6 +2094,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             offCtx.translate(item.x * W, item.y * H)
             if (item.rotation !== 0) offCtx.rotate(item.rotation * Math.PI / 180)
             if (totalScale !== 1)    offCtx.scale(totalScale, totalScale)
+            offCtx.filter = itemGradeFilter   // grade baked BEFORE targeted effects
             offCtx.drawImage(el, ox, oy, w, h)
             offCtx.restore()
             for (const { mod, intensity } of itemFx) {
@@ -1918,7 +2113,11 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             ctx.save()
             ctx.globalAlpha = layerConfig.opacity * item.opacity
             if (item.blendMode !== 'source-over') ctx.globalCompositeOperation = item.blendMode
-            if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
+            // Combine the item color grade with the global colorShift hue-rotate.
+            const shiftPart = activeColorShift > 0 ? `hue-rotate(${activeColorShift * 360}deg)` : ''
+            const gradePart = itemGradeFilter !== 'none' ? itemGradeFilter : ''
+            const combined  = [gradePart, shiftPart].filter(Boolean).join(' ')
+            if (combined) ctx.filter = combined
             ctx.translate(item.x * W, item.y * H)
             if (item.rotation !== 0) ctx.rotate(item.rotation * Math.PI / 180)
             if (totalScale !== 1)    ctx.scale(totalScale, totalScale)
@@ -1954,13 +2153,44 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             const frozen = shouldFreezeClipFrame(oc, ovLocalTime, ovDur)
             if (frozen) {
               if (!el.paused) el.pause()
-            } else {
+            } else if (isClipSnapToBpmEnabled(oc)) {
+              // SYNCED PATH — existing overlay sync behavior
               const desired = getClipSourceTime(oc, ovLocalTime, ovDur)
               if (isPlayingRef.current) {
                 if (el.paused) el.play().catch(() => {})
                 syncVideoEl(el, desired, true)
               } else {
                 syncVideoEl(el, desired, false)
+                if (!el.paused) el.pause()
+              }
+            } else {
+              // FREE-RUNNING PATH for overlay clips
+              const ovKey    = `overlay:${oc.id}`
+              const lastGen  = freeRunAnchorRef.current.get(ovKey) ?? -1
+              const scrubGen = scrubGenRef.current
+              // Re-anchor on first activation (key not in map) or after a scrub
+              if (lastGen === -1 || scrubGen !== lastGen) {
+                const desired = getClipSourceTime(oc, ovLocalTime, ovDur)
+                el.currentTime  = desired
+                el.playbackRate = 1
+                freeRunAnchorRef.current.set(ovKey, scrubGen)
+              }
+              // Enforce playback mode boundaries
+              const { inSec, outSec } = getClipSourceRange(oc, ovDur)
+              if (el.currentTime < inSec) {
+                el.currentTime = inSec
+              } else if (el.currentTime >= outSec) {
+                if (oc.playbackMode === 'loop') {
+                  el.currentTime = inSec
+                } else {
+                  el.currentTime = outSec - 0.001
+                  if (!el.paused) el.pause()
+                }
+              }
+              if (isPlayingRef.current) {
+                el.playbackRate = 1
+                if (el.paused) el.play().catch(() => {})
+              } else {
                 if (!el.paused) el.pause()
               }
             }
@@ -1972,12 +2202,16 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           // Collect targeted effects for this overlay clip
           const ocFx = collectTargetedEffects(clipActiveRegions, oc.id, mEff).filter(x => x.intensity > 0)
 
+          // Per-overlay color grade (Canvas 2D filter; temperature/tint GPU-only).
+          const ocGradeFilter = buildCanvasColorGradeFilter(oc.colorGrade, cgBypass)
+
           if (ocFx.length > 0) {
             // Offscreen path: render overlay to offscreen, apply effects, blit with compositing config
             const off = targetEffectOffscreenRef.current.acquire(`oc_${oc.id}`, W, H)
             const offCtx = off.getContext('2d')!
             offCtx.clearRect(0, 0, W, H)
             offCtx.save()
+            offCtx.filter = ocGradeFilter   // grade baked BEFORE targeted effects
             if (cfg.rotation !== 0 || cfg.posX !== 0.5 || cfg.posY !== 0.5) {
               const ocx = cfg.posX * W
               const ocy = cfg.posY * H
@@ -2000,6 +2234,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             ctx.save()
             ctx.globalAlpha              = cfg.opacity
             ctx.globalCompositeOperation = cfg.blendMode as GlobalCompositeOperation
+            if (ocGradeFilter !== 'none') ctx.filter = ocGradeFilter
             if (cfg.rotation !== 0 || cfg.posX !== 0.5 || cfg.posY !== 0.5) {
               const ocx = cfg.posX * W
               const ocy = cfg.posY * H
@@ -2009,6 +2244,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             } else {
               ctx.drawImage(el, ox, oy, sw, sh)
             }
+            ctx.filter = 'none'
             ctx.restore()
           }
         }
@@ -2094,6 +2330,19 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           ctx.fillStyle = barColors[i] + '88'
           ctx.fillRect(bx, H - margin - bh, barW, bh)
         })
+      }
+
+      // ── Master Dimmer ──────────────────────────────────────────────────
+      // Global output dimmer applied at the very end so it covers the full
+      // composite (background, layers, overlays, lyrics, HUD). Black overlay
+      // at alpha = masterDimmer. Skipped when 0.
+      if (masterDimmer > 0) {
+        ctx.save()
+        ctx.globalCompositeOperation = 'source-over'
+        ctx.globalAlpha = Math.min(1, masterDimmer)
+        ctx.fillStyle = '#000000'
+        ctx.fillRect(0, 0, W, H)
+        ctx.restore()
       }
 
       // ── Paused-idle: stop rAF when nothing will visibly change ──────────

@@ -34,7 +34,10 @@ import {
   POST_PROCESS_FRAG,
   DISPLACEMENT_FRAG,
   GPU_TRANSITION_FRAG,
+  COLOR_GRADE_FRAG,
 } from './shaders'
+import type { GpuColorGradeParams } from './colorGradeParams'
+import { NEUTRAL_GPU_COLOR_GRADE, isColorGradeActive } from './colorGradeParams'
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -76,6 +79,8 @@ export interface RenderFrameParams {
   dispAmount: number
   /** Hue rotation for displacement ghost in radians (0 = no rotation). */
   dispHueRad: number
+  /** Global output dimmer 0..1 (black overlay alpha). 0 = no dimming. Optional. */
+  masterDimmer?: number
 }
 
 /**
@@ -99,6 +104,12 @@ export interface RenderTransitionParams {
   transitionType: number
   /** Eased progress 0..1. */
   progress: number
+  /** Per-source color grade for the outgoing clip. Optional (neutral if absent). */
+  outGrade?: GpuColorGradeParams
+  /** Per-source color grade for the incoming clip. Optional (neutral if absent). */
+  inGrade?: GpuColorGradeParams
+  /** Global output dimmer 0..1 (black overlay alpha). 0 = no dimming. Optional. */
+  masterDimmer?: number
 }
 
 export interface WebGL2Diagnostics {
@@ -304,6 +315,16 @@ interface TxLocs {
   u_progress: WebGLUniformLocation
   u_type: WebGLUniformLocation
 }
+interface GradeLocs {
+  u_texture: WebGLUniformLocation
+  u_gradeEnabled: WebGLUniformLocation
+  u_brightness: WebGLUniformLocation
+  u_contrast: WebGLUniformLocation
+  u_saturation: WebGLUniformLocation
+  u_hueRotation: WebGLUniformLocation
+  u_temperature: WebGLUniformLocation
+  u_tint: WebGLUniformLocation
+}
 
 function getVideoLocs(gl: WebGL2RenderingContext, p: WebGLProgram): VideoLocs {
   return {
@@ -329,6 +350,7 @@ export class WebGL2Renderer {
   private postProg!:   WebGLProgram
   private dispProg!:   WebGLProgram
   private txProg!:     WebGLProgram
+  private gradeProg!:  WebGLProgram
 
   // Uniform locations
   private videoLocs!:  VideoLocs
@@ -340,6 +362,7 @@ export class WebGL2Renderer {
   private postLocs!:   PostLocs
   private dispLocs!:   DispLocs
   private txLocs!:     TxLocs
+  private gradeLocs!:  GradeLocs
 
   // Geometry
   private vao!: WebGLVertexArrayObject
@@ -360,6 +383,12 @@ export class WebGL2Renderer {
   // Transition FBOs: hold GPU-rendered out/in sources during clip transitions
   private txOutTex!:  WebGLTexture;  private txOutFBO!:  WebGLFramebuffer
   private txInTex!:   WebGLTexture;  private txInFBO!:   WebGLFramebuffer
+  // Color grade FBO: holds the post-scene, pre-RGB-Split graded source
+  private gradeTex!:  WebGLTexture;  private gradeFBO!:  WebGLFramebuffer
+
+  // Current per-source color grade — set by setColorGrade() before each render.
+  // Defaults to the neutral no-op set so the grade pass is skipped until assigned.
+  private colorGrade: GpuColorGradeParams = { ...NEUTRAL_GPU_COLOR_GRADE }
 
   private disposed = false
 
@@ -461,6 +490,7 @@ export class WebGL2Renderer {
       const fragPost   = tracker.trackShader(compileShader(gl, gl.FRAGMENT_SHADER, POST_PROCESS_FRAG,     'post-process fragment shader'))
       const fragDisp   = tracker.trackShader(compileShader(gl, gl.FRAGMENT_SHADER, DISPLACEMENT_FRAG,     'displacement fragment shader'))
       const fragTx     = tracker.trackShader(compileShader(gl, gl.FRAGMENT_SHADER, GPU_TRANSITION_FRAG,   'transition fragment shader'))
+      const fragGrade  = tracker.trackShader(compileShader(gl, gl.FRAGMENT_SHADER, COLOR_GRADE_FRAG,      'color grade fragment shader'))
 
       // ── Create programs (no link yet — attribs bound before first link) ──
       const vP  = tracker.trackProgram(makeProgram(gl, vert, fragVideo,  'video draw'))
@@ -472,12 +502,13 @@ export class WebGL2Renderer {
       const ppP = tracker.trackProgram(makeProgram(gl, vert, fragPost,   'post-process'))
       const dP  = tracker.trackProgram(makeProgram(gl, vert, fragDisp,   'displacement'))
       const txP = tracker.trackProgram(makeProgram(gl, vert, fragTx,     'transition composite'))
+      const gP  = tracker.trackProgram(makeProgram(gl, vert, fragGrade,  'color grade'))
 
       this.videoProg  = vP;  this.rgbProg   = rP
       this.threshProg = tP;  this.blurProg  = bP
       this.bloomProg  = cP;  this.passProg  = pP
       this.postProg   = ppP; this.dispProg  = dP
-      this.txProg     = txP
+      this.txProg     = txP; this.gradeProg = gP
 
       // Bind attribute locations BEFORE the single link pass so no relink is needed.
       gl.bindAttribLocation(vP,  0, 'a_pos'); gl.bindAttribLocation(vP,  1, 'a_uv')
@@ -489,6 +520,7 @@ export class WebGL2Renderer {
       gl.bindAttribLocation(ppP, 0, 'a_pos'); gl.bindAttribLocation(ppP, 1, 'a_uv')
       gl.bindAttribLocation(dP,  0, 'a_pos'); gl.bindAttribLocation(dP,  1, 'a_uv')
       gl.bindAttribLocation(txP, 0, 'a_pos'); gl.bindAttribLocation(txP, 1, 'a_uv')
+      gl.bindAttribLocation(gP,  0, 'a_pos'); gl.bindAttribLocation(gP,  1, 'a_uv')
 
       // ── Link programs (single validated pass) ────────────────────────────
       linkChecked(gl, vP,  'video draw')
@@ -500,6 +532,7 @@ export class WebGL2Renderer {
       linkChecked(gl, ppP, 'post-process')
       linkChecked(gl, dP,  'displacement')
       linkChecked(gl, txP, 'transition composite')
+      linkChecked(gl, gP,  'color grade')
 
       // ── Uniform locations ─────────────────────────────────────────────────
       this.videoLocs = getVideoLocs(gl, vP)
@@ -528,6 +561,16 @@ export class WebGL2Renderer {
         u_in:       gl.getUniformLocation(txP, 'u_in')!,
         u_progress: gl.getUniformLocation(txP, 'u_progress')!,
         u_type:     gl.getUniformLocation(txP, 'u_type')!,
+      }
+      this.gradeLocs = {
+        u_texture:     gl.getUniformLocation(gP, 'u_texture')!,
+        u_gradeEnabled: gl.getUniformLocation(gP, 'u_gradeEnabled')!,
+        u_brightness:  gl.getUniformLocation(gP, 'u_brightness')!,
+        u_contrast:    gl.getUniformLocation(gP, 'u_contrast')!,
+        u_saturation:  gl.getUniformLocation(gP, 'u_saturation')!,
+        u_hueRotation: gl.getUniformLocation(gP, 'u_hueRotation')!,
+        u_temperature: gl.getUniformLocation(gP, 'u_temperature')!,
+        u_tint:        gl.getUniformLocation(gP, 'u_tint')!,
       }
 
       // ── Fullscreen quad ───────────────────────────────────────────────────
@@ -560,7 +603,7 @@ export class WebGL2Renderer {
       // Shaders are no longer needed once all programs are linked.
       // Programs retain the compiled binary; releasing the shader handles now
       // frees GPU memory without waiting for dispose().
-      ;[vert, fragVideo, fragRgb, fragThresh, fragBlur, fragBloom, fragPass, fragPost, fragDisp, fragTx]
+      ;[vert, fragVideo, fragRgb, fragThresh, fragBlur, fragBloom, fragPass, fragPost, fragDisp, fragTx, fragGrade]
         .forEach(s => gl.deleteShader(s))
 
       // ── Video texture (placeholder 1×1 black) ─────────────────────────────
@@ -586,6 +629,8 @@ export class WebGL2Renderer {
       this.txOutFBO  = tracker.trackFBO(makeFBO(gl, this.txOutTex,  1, 1, 'transition out render target'))
       this.txInTex   = tracker.trackTexture(makeTexture(gl, 'transition in render target'))
       this.txInFBO   = tracker.trackFBO(makeFBO(gl, this.txInTex,   1, 1, 'transition in render target'))
+      this.gradeTex  = tracker.trackTexture(makeTexture(gl, 'color grade render target'))
+      this.gradeFBO  = tracker.trackFBO(makeFBO(gl, this.gradeTex,  1, 1, 'color grade render target'))
 
       // All resources created successfully — transfer ownership to this instance.
       // dispose() is now responsible for cleanup; the tracker is done.
@@ -635,6 +680,7 @@ export class WebGL2Renderer {
     resizeFBOTexture(gl, this.dispTex,  w, h)
     resizeFBOTexture(gl, this.txOutTex, w, h)
     resizeFBOTexture(gl, this.txInTex,  w, h)
+    resizeFBOTexture(gl, this.gradeTex, w, h)
 
     this.bloomW = Math.max(1, Math.ceil(w / 2))
     this.bloomH = Math.max(1, Math.ceil(h / 2))
@@ -719,6 +765,42 @@ export class WebGL2Renderer {
     gl.bindVertexArray(null)
   }
 
+  // ── Master dimmer ──────────────────────────────────────────────────────────
+  /**
+   * Composite a black rectangle with alpha=dimmer over the output canvas.
+   * Applied after the final composite to dim the entire output. Skipped when 0.
+   * Uses the video program with an empty draw rect (fills u_bg everywhere) and
+   * alpha blending so only the background colour (black at `dimmer` alpha) is laid down.
+   */
+  private applyMasterDimmer(dimmer: number, W: number, H: number): void {
+    if (dimmer <= 0) return
+    const gl = this.gl
+    const a = Math.min(1, dimmer)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    gl.viewport(0, 0, W, H)
+    gl.enable(gl.BLEND)
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+    gl.useProgram(this.videoProg)
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_2D, this.videoTex)
+    gl.uniform1i(this.videoLocs.u_tex, 0)
+    gl.uniform4f(this.videoLocs.u_rect, 0, 0, 0, 0)  // empty rect → fills u_bg everywhere
+    gl.uniform4f(this.videoLocs.u_bg, 0, 0, 0, a)    // black at dimmer alpha
+    this.drawQuad()
+    gl.disable(gl.BLEND)
+    gl.bindTexture(gl.TEXTURE_2D, null)
+  }
+
+  // ── Color grade ──────────────────────────────────────────────────────────────
+  /**
+   * Set the per-source color grade applied on the next render call.
+   * Must be called before renderFrame() for each source. For transitions use the
+   * outGrade/inGrade fields on RenderTransitionParams instead.
+   */
+  setColorGrade(grade: GpuColorGradeParams): void {
+    this.colorGrade = grade
+  }
+
   // ── Main render ──────────────────────────────────────────────────────────────
 
   /**
@@ -751,13 +833,35 @@ export class WebGL2Renderer {
 
     let curSceneTex = this.sceneTex
 
+    // ── Stage 1.5: Color grade (optional) ──────────────────────────────────
+    // Applied BEFORE RGB Split / Bloom / Displacement so the grade defines the
+    // base look that downstream effects build on. Skipped when neutral.
+    if (uploaded && isColorGradeActive(this.colorGrade)) {
+      const cg = this.colorGrade
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.gradeFBO)
+      gl.viewport(0, 0, W, H)
+      gl.useProgram(this.gradeProg)
+      gl.activeTexture(gl.TEXTURE0)
+      gl.bindTexture(gl.TEXTURE_2D, curSceneTex)
+      gl.uniform1i(this.gradeLocs.u_texture, 0)
+      gl.uniform1i(this.gradeLocs.u_gradeEnabled, 1)
+      gl.uniform1f(this.gradeLocs.u_brightness,  cg.brightness)
+      gl.uniform1f(this.gradeLocs.u_contrast,    cg.contrast)
+      gl.uniform1f(this.gradeLocs.u_saturation,  cg.saturation)
+      gl.uniform1f(this.gradeLocs.u_hueRotation, cg.hueRotation)
+      gl.uniform1f(this.gradeLocs.u_temperature, cg.temperature)
+      gl.uniform1f(this.gradeLocs.u_tint,        cg.tint)
+      this.drawQuad()
+      curSceneTex = this.gradeTex
+    }
+
     // ── Stage 2: RGB Split (optional) ──────────────────────────────────────
     if (p.rgbShiftPx > 0 && uploaded) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.rgbFBO)
       gl.viewport(0, 0, W, H)
       gl.useProgram(this.rgbProg)
       gl.activeTexture(gl.TEXTURE0)
-      gl.bindTexture(gl.TEXTURE_2D, this.sceneTex)
+      gl.bindTexture(gl.TEXTURE_2D, curSceneTex)
       gl.uniform1i(this.rgbLocs.u_tex, 0)
       gl.uniform1f(this.rgbLocs.u_shift, p.rgbShiftPx / W)
       this.drawQuad()
@@ -861,6 +965,7 @@ export class WebGL2Renderer {
     const { canvasW: W, canvasH: H } = p
     if (W !== this.canvasW || H !== this.canvasH) this.resize(W, H)
     this._renderFrameToFbo(p, null)
+    this.applyMasterDimmer(p.masterDimmer ?? 0, W, H)
     gl.flush()
   }
 
@@ -890,7 +995,12 @@ export class WebGL2Renderer {
       dispAmount: p.dispAmount, dispHueRad: p.dispHueRad,
     }
 
-    // Render outgoing source → txOutFBO
+    // Per-source grades — each source carries its own grade independently.
+    const outGrade = p.outGrade ?? NEUTRAL_GPU_COLOR_GRADE
+    const inGrade  = p.inGrade  ?? NEUTRAL_GPU_COLOR_GRADE
+
+    // Render outgoing source → txOutFBO (with the outgoing clip's own grade)
+    this.colorGrade = outGrade
     this._renderFrameToFbo(
       { ...shared, mediaEl: p.outEl, ox: p.outOx, oy: p.outOy, sw: p.outSw, sh: p.outSh },
       this.txOutFBO,
@@ -906,11 +1016,13 @@ export class WebGL2Renderer {
       gl.uniform1i(this.passLocs.u_tex, 0)
       this.drawQuad()
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, null)
+      this.applyMasterDimmer(p.masterDimmer ?? 0, W, H)
       gl.flush()
       return
     }
 
-    // Render incoming source → txInFBO
+    // Render incoming source → txInFBO (with the incoming clip's own grade)
+    this.colorGrade = inGrade
     this._renderFrameToFbo(
       { ...shared, mediaEl: p.inEl, ox: p.inOx, oy: p.inOy, sw: p.inSw, sh: p.inSh },
       this.txInFBO,
@@ -932,6 +1044,7 @@ export class WebGL2Renderer {
 
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, null)
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, null)
+    this.applyMasterDimmer(p.masterDimmer ?? 0, W, H)
     gl.flush()
   }
 
@@ -966,13 +1079,13 @@ export class WebGL2Renderer {
     this._canvas.removeEventListener('webglcontextrestored', this._contextRestoredHandler)
 
     const gl = this.gl
-    ;[this.videoProg, this.rgbProg, this.threshProg, this.blurProg, this.bloomProg, this.passProg, this.postProg, this.dispProg, this.txProg]
+    ;[this.videoProg, this.rgbProg, this.threshProg, this.blurProg, this.bloomProg, this.passProg, this.postProg, this.dispProg, this.txProg, this.gradeProg]
       .forEach(p => gl.deleteProgram(p))
     gl.deleteBuffer(this.vbo)
     gl.deleteVertexArray(this.vao)
-    ;[this.videoTex, this.sceneTex, this.rgbTex, this.bloom1Tex, this.bloom2Tex, this.postTex, this.dispTex, this.txOutTex, this.txInTex]
+    ;[this.videoTex, this.sceneTex, this.rgbTex, this.bloom1Tex, this.bloom2Tex, this.postTex, this.dispTex, this.txOutTex, this.txInTex, this.gradeTex]
       .forEach(t => gl.deleteTexture(t))
-    ;[this.sceneFBO, this.rgbFBO, this.bloom1FBO, this.bloom2FBO, this.postFBO, this.dispFBO, this.txOutFBO, this.txInFBO]
+    ;[this.sceneFBO, this.rgbFBO, this.bloom1FBO, this.bloom2FBO, this.postFBO, this.dispFBO, this.txOutFBO, this.txInFBO, this.gradeFBO]
       .forEach(f => gl.deleteFramebuffer(f))
     // Release GPU context via WEBGL_lose_context if available
     const ext = gl.getExtension('WEBGL_lose_context')

@@ -1,3 +1,5 @@
+import type { VzColorGrade } from './vzColorGrade'
+
 // ── Transition types ──────────────────────────────────────────────────
 
 export type VzTransitionType =
@@ -65,6 +67,12 @@ export interface VzTimelineClip {
   transitionOut?: VzTransitionConfig
   /** @deprecated — kept for backwards-compat JSON deserialization. Use transitionOut. */
   transition?: { type: VzTransitionType; durationSec: number }
+  /**
+   * When false, this video clip bypasses continuous timeline-clock sync and
+   * plays at native speed. Undefined / true = synced (default, legacy behavior).
+   * Only has visual effect for video media; image clips ignore this field.
+   */
+  snapToBpm?: boolean
 }
 
 export interface VzTimeline {
@@ -132,6 +140,11 @@ export interface VzTimelineMediaClip extends VzTimelineClip {
    * this config instead of the default fullscreen fit.
    */
   compositingConfig?: VzOverlayCompositingConfig
+  /**
+   * Per-clip color grade applied BEFORE RGB Split / Bloom / Displacement.
+   * Undefined = no grade (renders the source unmodified).
+   */
+  colorGrade?: VzColorGrade
 }
 
 /**
