@@ -484,6 +484,10 @@ interface VisualState {
   // Ephemeral diagnostic set when gpuPreference requested WebGL2 but init failed.
   rendererFallbackReason: string | null
   setRendererFallbackReason(reason: string | null): void
+
+  // Ephemeral: true while the WebGL2 context is lost and Canvas 2D is active as fallback.
+  contextLost: boolean
+  setRendererContextLost(lost: boolean): void
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
@@ -547,6 +551,7 @@ export const useVisualStore = create<VisualState>()(
       rendererType:           'canvas2d' as const,  // ephemeral — resolved from gpuPreference
       gpuPreference:          'auto' as const,      // persisted
       rendererFallbackReason: null,                 // ephemeral — set on GPU init failure
+      contextLost:            false,                // ephemeral — true while WebGL2 context is lost
 
       // ── Live state ──────────────────────────────────────────────────────────
 
@@ -1259,6 +1264,7 @@ export const useVisualStore = create<VisualState>()(
       setRendererType(t)              { set({ rendererType: t }) },
       setGpuPreference(p)             { set({ gpuPreference: p }) },
       setRendererFallbackReason(r)    { set({ rendererFallbackReason: r }) },
+      setRendererContextLost(lost)    { set({ contextLost: lost }) },
     }),
     {
       name: 'drmvyz-visual-store',
@@ -1347,6 +1353,7 @@ export const useVisualStore = create<VisualState>()(
           videoBaselineMode:      false,
           rendererType:           'canvas2d' as const,
           rendererFallbackReason: null,
+          contextLost:            false,
           gpuPreference: (p as Partial<VisualState>).gpuPreference ?? 'auto',
         }
       },

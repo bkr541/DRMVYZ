@@ -28,9 +28,18 @@ import {
   BLOOM_BLUR_FRAG,
   BLOOM_COMPOSITE_FRAG,
   PASS_FRAG,
+  POST_PROCESS_FRAG,
 } from './shaders'
 
 // ── Public types ──────────────────────────────────────────────────────────────
+
+/**
+ * Discriminated-union result from WebGL2Renderer.create().
+ * On failure, `error` is a human-readable description of why creation failed.
+ */
+export type WebGL2CreateResult =
+  | { renderer: WebGL2Renderer; error: null }
+  | { renderer: null; error: string }
 
 export interface RenderFrameParams {
   /** Active media element to render. Null = skip (caller draws background). */
@@ -48,6 +57,12 @@ export interface RenderFrameParams {
   bloomAmount: number
   /** Background colour — normalised linear RGB. Fragments outside draw rect use this. */
   bgR: number; bgG: number; bgB: number
+  /** Grain intensity 0..1 (Noise Fog GPU path). 0 = disabled — pass skipped. */
+  grainAmount: number
+  /** Scanline darkness 0..1 (Scanlines GPU path). 0 = disabled. */
+  scanAlpha: number
+  /** Pixel stride between darkened scanline rows (from quality.scanlineStep). */
+  scanStep: number
 }
 
 export interface WebGL2Diagnostics {
@@ -138,6 +153,14 @@ interface ThreshLocs { u_tex: WebGLUniformLocation }
 interface BlurLocs  { u_tex: WebGLUniformLocation; u_dir: WebGLUniformLocation; u_radius: WebGLUniformLocation }
 interface BloomCompLocs { u_scene: WebGLUniformLocation; u_bloom: WebGLUniformLocation; u_amount: WebGLUniformLocation }
 interface PassLocs  { u_tex: WebGLUniformLocation }
+interface PostLocs  {
+  u_tex: WebGLUniformLocation
+  u_time: WebGLUniformLocation
+  u_grainAmount: WebGLUniformLocation
+  u_scanAlpha: WebGLUniformLocation
+  u_scanStep: WebGLUniformLocation
+  u_resolution: WebGLUniformLocation
+}
 
 function getVideoLocs(gl: WebGL2RenderingContext, p: WebGLProgram): VideoLocs {
   return {
@@ -160,6 +183,7 @@ export class WebGL2Renderer {
   private blurProg:   WebGLProgram
   private bloomProg:  WebGLProgram
   private passProg:   WebGLProgram
+  private postProg:   WebGLProgram
 
   // Shared vertex shader
   private vertShader: WebGLShader
@@ -171,6 +195,7 @@ export class WebGL2Renderer {
   private blurLocs:   BlurLocs
   private bloomLocs:  BloomCompLocs
   private passLocs:   PassLocs
+  private postLocs:   PostLocs
 
   // Geometry
   private vao: WebGLVertexArrayObject
@@ -184,12 +209,18 @@ export class WebGL2Renderer {
   private rgbTex:    WebGLTexture;  private rgbFBO:    WebGLFramebuffer
   private bloom1Tex: WebGLTexture;  private bloom1FBO: WebGLFramebuffer
   private bloom2Tex: WebGLTexture;  private bloom2FBO: WebGLFramebuffer
+  // Post-process FBO: holds pre-final output when grain or scanlines are active
+  private postTex:   WebGLTexture;  private postFBO:   WebGLFramebuffer
 
   // Tracked canvas dimensions
   private canvasW = 0; private canvasH = 0
   private bloomW  = 0; private bloomH  = 0
 
   private _contextLost = false
+
+  // Stored so dispose() can remove them before calling loseContext()
+  private _contextLostHandler!:    (e: Event) => void
+  private _contextRestoredHandler!: () => void
 
   // ── Factory ────────────────────────────────────────────────────────────────
 
@@ -212,15 +243,26 @@ export class WebGL2Renderer {
 
   /**
    * Attempt to create a WebGL2Renderer on an offscreen canvas.
-   * Returns null if WebGL2 is unavailable or shader compilation fails.
    *
-   * @param callbacks.onContextLost  — called when the WebGL context is lost
-   * @param callbacks.onContextRestored — called when it is restored
+   * Returns a discriminated-union result so callers always receive a
+   * human-readable error string instead of an unexplained null:
+   *
+   *   { renderer: WebGL2Renderer; error: null }   — success
+   *   { renderer: null; error: string }            — failure with reason
+   *
+   * Failure reasons include at minimum:
+   *   'WebGL2 context unavailable'
+   *   'vertex shader compilation failed'
+   *   'fragment shader(s) compilation failed'
+   *   'program link failed'
+   *
+   * @param callbacks.onContextLost     — called with a reason string when the context is lost
+   * @param callbacks.onContextRestored — called when the context is restored (browser-driven)
    */
   static create(callbacks?: {
-    onContextLost?: () => void
+    onContextLost?: (reason: string) => void
     onContextRestored?: () => void
-  }): WebGL2Renderer | null {
+  }): WebGL2CreateResult {
     const canvas = document.createElement('canvas')
     const gl = canvas.getContext('webgl2', {
       alpha: false,
@@ -231,21 +273,22 @@ export class WebGL2Renderer {
       preserveDrawingBuffer: false,
     }) as WebGL2RenderingContext | null
     if (!gl) {
-      if (import.meta.env.DEV) console.warn('[WebGL2Renderer] WebGL2 not available')
-      return null
+      if (import.meta.env.DEV) console.warn('[WebGL2Renderer] WebGL2 context unavailable')
+      return { renderer: null, error: 'WebGL2 context unavailable' }
     }
     try {
-      return new WebGL2Renderer(canvas, gl, callbacks)
+      return { renderer: new WebGL2Renderer(canvas, gl, callbacks), error: null }
     } catch (e) {
-      if (import.meta.env.DEV) console.error('[WebGL2Renderer] init failed:', e)
-      return null
+      const msg = e instanceof Error ? e.message : 'WebGL2 initialisation failed'
+      if (import.meta.env.DEV) console.error('[WebGL2Renderer] init failed:', msg)
+      return { renderer: null, error: msg }
     }
   }
 
   private constructor(
     canvas: HTMLCanvasElement,
     gl: WebGL2RenderingContext,
-    callbacks?: { onContextLost?: () => void; onContextRestored?: () => void },
+    callbacks?: { onContextLost?: (reason: string) => void; onContextRestored?: () => void },
   ) {
     this._canvas = canvas
     this.gl = gl
@@ -261,8 +304,9 @@ export class WebGL2Renderer {
     const fragBlur   = compileShader(gl, gl.FRAGMENT_SHADER, BLOOM_BLUR_FRAG)
     const fragBloom  = compileShader(gl, gl.FRAGMENT_SHADER, BLOOM_COMPOSITE_FRAG)
     const fragPass   = compileShader(gl, gl.FRAGMENT_SHADER, PASS_FRAG)
+    const fragPost   = compileShader(gl, gl.FRAGMENT_SHADER, POST_PROCESS_FRAG)
 
-    if (!fragVideo || !fragRgb || !fragThresh || !fragBlur || !fragBloom || !fragPass) {
+    if (!fragVideo || !fragRgb || !fragThresh || !fragBlur || !fragBloom || !fragPass || !fragPost) {
       throw new Error('fragment shader compilation failed')
     }
 
@@ -272,12 +316,14 @@ export class WebGL2Renderer {
     const bP = linkProgram(gl, vert, fragBlur)
     const cP = linkProgram(gl, vert, fragBloom)
     const pP = linkProgram(gl, vert, fragPass)
+    const ppP = linkProgram(gl, vert, fragPost)
 
-    if (!vP || !rP || !tP || !bP || !cP || !pP) throw new Error('program link failed')
+    if (!vP || !rP || !tP || !bP || !cP || !pP || !ppP) throw new Error('program link failed')
 
     this.videoProg  = vP;  this.rgbProg   = rP
     this.threshProg = tP;  this.blurProg  = bP
     this.bloomProg  = cP;  this.passProg  = pP
+    this.postProg   = ppP
 
     // ── Uniform locations ─────────────────────────────────────────────────
     this.videoLocs = getVideoLocs(gl, vP)
@@ -286,6 +332,14 @@ export class WebGL2Renderer {
     this.blurLocs  = { u_tex: gl.getUniformLocation(bP, 'u_tex')!, u_dir: gl.getUniformLocation(bP, 'u_dir')!, u_radius: gl.getUniformLocation(bP, 'u_radius')! }
     this.bloomLocs = { u_scene: gl.getUniformLocation(cP, 'u_scene')!, u_bloom: gl.getUniformLocation(cP, 'u_bloom')!, u_amount: gl.getUniformLocation(cP, 'u_amount')! }
     this.passLocs  = { u_tex: gl.getUniformLocation(pP, 'u_tex')! }
+    this.postLocs  = {
+      u_tex:         gl.getUniformLocation(ppP, 'u_tex')!,
+      u_time:        gl.getUniformLocation(ppP, 'u_time')!,
+      u_grainAmount: gl.getUniformLocation(ppP, 'u_grainAmount')!,
+      u_scanAlpha:   gl.getUniformLocation(ppP, 'u_scanAlpha')!,
+      u_scanStep:    gl.getUniformLocation(ppP, 'u_scanStep')!,
+      u_resolution:  gl.getUniformLocation(ppP, 'u_resolution')!,
+    }
 
     // ── Fullscreen quad ───────────────────────────────────────────────────
     // Interleaved [x, y, u, v], two triangles covering [-1,1]² NDC.
@@ -308,14 +362,15 @@ export class WebGL2Renderer {
     gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 2, gl.FLOAT, false, stride, 8)
     gl.bindVertexArray(null)
     // Bind attributes by index to match GLSL `in` declarations (location 0=a_pos, 1=a_uv)
-    gl.bindAttribLocation(vP, 0, 'a_pos'); gl.bindAttribLocation(vP, 1, 'a_uv')
-    gl.bindAttribLocation(rP, 0, 'a_pos'); gl.bindAttribLocation(rP, 1, 'a_uv')
-    gl.bindAttribLocation(tP, 0, 'a_pos'); gl.bindAttribLocation(tP, 1, 'a_uv')
-    gl.bindAttribLocation(bP, 0, 'a_pos'); gl.bindAttribLocation(bP, 1, 'a_uv')
-    gl.bindAttribLocation(cP, 0, 'a_pos'); gl.bindAttribLocation(cP, 1, 'a_uv')
-    gl.bindAttribLocation(pP, 0, 'a_pos'); gl.bindAttribLocation(pP, 1, 'a_uv')
+    gl.bindAttribLocation(vP,  0, 'a_pos'); gl.bindAttribLocation(vP,  1, 'a_uv')
+    gl.bindAttribLocation(rP,  0, 'a_pos'); gl.bindAttribLocation(rP,  1, 'a_uv')
+    gl.bindAttribLocation(tP,  0, 'a_pos'); gl.bindAttribLocation(tP,  1, 'a_uv')
+    gl.bindAttribLocation(bP,  0, 'a_pos'); gl.bindAttribLocation(bP,  1, 'a_uv')
+    gl.bindAttribLocation(cP,  0, 'a_pos'); gl.bindAttribLocation(cP,  1, 'a_uv')
+    gl.bindAttribLocation(pP,  0, 'a_pos'); gl.bindAttribLocation(pP,  1, 'a_uv')
+    gl.bindAttribLocation(ppP, 0, 'a_pos'); gl.bindAttribLocation(ppP, 1, 'a_uv')
     // Relink after attrib binding
-    ;[vP, rP, tP, bP, cP, pP].forEach(prog => { gl.linkProgram(prog) })
+    ;[vP, rP, tP, bP, cP, pP, ppP].forEach(prog => { gl.linkProgram(prog) })
 
     // ── Video texture (placeholder 1×1 black) ─────────────────────────────
     this.videoTex = makeTexture(gl)
@@ -328,19 +383,24 @@ export class WebGL2Renderer {
     this.rgbTex    = makeTexture(gl); this.rgbFBO    = makeFBO(gl, this.rgbTex,    1, 1)
     this.bloom1Tex = makeTexture(gl); this.bloom1FBO = makeFBO(gl, this.bloom1Tex, 1, 1)
     this.bloom2Tex = makeTexture(gl); this.bloom2FBO = makeFBO(gl, this.bloom2Tex, 1, 1)
+    this.postTex   = makeTexture(gl); this.postFBO   = makeFBO(gl, this.postTex,   1, 1)
 
     // ── Context loss handling ─────────────────────────────────────────────
-    canvas.addEventListener('webglcontextlost', (e) => {
+    // Store handler references so dispose() can remove them before calling
+    // loseContext() — prevents the dispose path from re-triggering callbacks.
+    this._contextLostHandler = (e: Event) => {
       e.preventDefault()
       this._contextLost = true
       if (import.meta.env.DEV) console.warn('[WebGL2Renderer] context lost')
-      callbacks?.onContextLost?.()
-    })
-    canvas.addEventListener('webglcontextrestored', () => {
+      callbacks?.onContextLost?.('WebGL2 context lost during playback')
+    }
+    this._contextRestoredHandler = () => {
       this._contextLost = false
       if (import.meta.env.DEV) console.log('[WebGL2Renderer] context restored')
       callbacks?.onContextRestored?.()
-    })
+    }
+    canvas.addEventListener('webglcontextlost', this._contextLostHandler)
+    canvas.addEventListener('webglcontextrestored', this._contextRestoredHandler)
 
     if (import.meta.env.DEV) {
       const dbg = gl.getExtension('WEBGL_debug_renderer_info')
@@ -358,6 +418,7 @@ export class WebGL2Renderer {
 
     resizeFBOTexture(gl, this.sceneTex, w, h)
     resizeFBOTexture(gl, this.rgbTex,   w, h)
+    resizeFBOTexture(gl, this.postTex,  w, h)
 
     this.bloomW = Math.max(1, Math.ceil(w / 2))
     this.bloomH = Math.max(1, Math.ceil(h / 2))
@@ -452,6 +513,10 @@ export class WebGL2Renderer {
       curSceneTex = this.rgbTex
     }
 
+    // Whether a post-process pass (grain / scanlines) follows the main pipeline.
+    // When true, the bloom/pass step writes to postFBO instead of null (canvas).
+    const needsPost = p.grainAmount > 0 || p.scanAlpha > 0
+
     // ── Stage 3: Bloom (optional, three passes) ────────────────────────────
     if (p.bloomBlurPx > 0 && p.bloomAmount > 0 && uploaded) {
       const bW = this.bloomW, bH = this.bloomH
@@ -485,8 +550,8 @@ export class WebGL2Renderer {
       gl.uniform2f(this.blurLocs.u_dir, 0, 1.0 / bH)
       this.drawQuad()
 
-      // 3d. Composite: scene + bloom1 → canvas
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+      // 3d. Composite: scene + bloom1 → postFBO (if post pass follows) or canvas
+      gl.bindFramebuffer(gl.FRAMEBUFFER, needsPost ? this.postFBO : null)
       gl.viewport(0, 0, W, H)
       gl.useProgram(this.bloomProg)
       gl.activeTexture(gl.TEXTURE0)
@@ -498,13 +563,32 @@ export class WebGL2Renderer {
       gl.uniform1f(this.bloomLocs.u_amount, p.bloomAmount)
       this.drawQuad()
     } else {
-      // No bloom: passthrough to canvas
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+      // No bloom: passthrough to postFBO (if post pass follows) or canvas
+      gl.bindFramebuffer(gl.FRAMEBUFFER, needsPost ? this.postFBO : null)
       gl.viewport(0, 0, W, H)
       gl.useProgram(this.passProg)
       gl.activeTexture(gl.TEXTURE0)
       gl.bindTexture(gl.TEXTURE_2D, curSceneTex)
       gl.uniform1i(this.passLocs.u_tex, 0)
+      this.drawQuad()
+    }
+
+    // ── Stage 4: Post-process — grain + scanlines (optional) ──────────────
+    // Reads postTex (written in stage 3) and outputs to the canvas (null FBO).
+    // Skipped entirely when both grainAmount and scanAlpha are zero, preserving
+    // the existing two-pass minimum for the no-effects path.
+    if (needsPost) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+      gl.viewport(0, 0, W, H)
+      gl.useProgram(this.postProg)
+      gl.activeTexture(gl.TEXTURE0)
+      gl.bindTexture(gl.TEXTURE_2D, this.postTex)
+      gl.uniform1i(this.postLocs.u_tex, 0)
+      gl.uniform1f(this.postLocs.u_time,        performance.now())
+      gl.uniform1f(this.postLocs.u_grainAmount, p.grainAmount)
+      gl.uniform1f(this.postLocs.u_scanAlpha,   p.scanAlpha)
+      gl.uniform1f(this.postLocs.u_scanStep,    p.scanStep)
+      gl.uniform2f(this.postLocs.u_resolution,  W, H)
       this.drawQuad()
     }
 
@@ -535,15 +619,20 @@ export class WebGL2Renderer {
   // ── Dispose ──────────────────────────────────────────────────────────────────
 
   dispose(): void {
+    // Remove event listeners FIRST so the loseContext() call below cannot
+    // re-trigger the onContextLost callback on the caller.
+    this._canvas.removeEventListener('webglcontextlost',    this._contextLostHandler)
+    this._canvas.removeEventListener('webglcontextrestored', this._contextRestoredHandler)
+
     const gl = this.gl
-    ;[this.videoProg, this.rgbProg, this.threshProg, this.blurProg, this.bloomProg, this.passProg]
+    ;[this.videoProg, this.rgbProg, this.threshProg, this.blurProg, this.bloomProg, this.passProg, this.postProg]
       .forEach(p => gl.deleteProgram(p))
     gl.deleteShader(this.vertShader)
     gl.deleteBuffer(this.vbo)
     gl.deleteVertexArray(this.vao)
-    ;[this.videoTex, this.sceneTex, this.rgbTex, this.bloom1Tex, this.bloom2Tex]
+    ;[this.videoTex, this.sceneTex, this.rgbTex, this.bloom1Tex, this.bloom2Tex, this.postTex]
       .forEach(t => gl.deleteTexture(t))
-    ;[this.sceneFBO, this.rgbFBO, this.bloom1FBO, this.bloom2FBO]
+    ;[this.sceneFBO, this.rgbFBO, this.bloom1FBO, this.bloom2FBO, this.postFBO]
       .forEach(f => gl.deleteFramebuffer(f))
     // Release GPU context via WEBGL_lose_context if available
     const ext = gl.getExtension('WEBGL_lose_context')

@@ -190,3 +190,66 @@ uniform sampler2D u_tex;
 out vec4 fragColor;
 void main() { fragColor = texture(u_tex, v_uv); }
 `
+
+// ── 7. Post-process: grain + scanlines ────────────────────────────────────────
+// Combined final pass applying procedural grain (Noise Fog) and horizontal
+// scanlines before the GPU output is blit to Canvas 2D.
+//
+// Grain reproduces the noiseFog Canvas 2D path: per-pixel teal dots at
+// amount*0.12 average opacity in screen blend mode.
+// Scanlines darken every u_scanStep-th row by amount*0.17, matching the
+// Canvas 2D fillRect path at quality-controlled stride.
+//
+// Pass ordering note: this runs before Canvas 2D postMedia effects (kaleidoscope
+// etc.) because it is baked into the GPU output blit.  The visual difference is
+// imperceptible for grain and minor for scanlines — documented intentionally.
+//
+// Uniforms:
+//   u_tex         — input scene texture
+//   u_time        — ms elapsed (per-frame grain seed)
+//   u_grainAmount — 0..1 fog intensity (0 = disabled)
+//   u_scanAlpha   — 0..1 scanline darkness (0 = disabled)
+//   u_scanStep    — pixel stride between darkened scanline rows
+//   u_resolution  — canvas size in pixels (for scanline coord + grain texel)
+export const POST_PROCESS_FRAG = /* glsl */`#version 300 es
+precision highp float;
+in vec2 v_uv;
+uniform sampler2D u_tex;
+uniform float u_time;
+uniform float u_grainAmount;
+uniform float u_scanAlpha;
+uniform float u_scanStep;
+uniform vec2  u_resolution;
+out vec4 fragColor;
+
+// Value hash: maps (pixel coord, time seed) → 0..1
+float hash21(vec2 p) {
+  p = fract(p * vec2(234.34, 435.345));
+  p += dot(p, p + 34.23);
+  return fract(p.x * p.y);
+}
+
+vec3 screen(vec3 a, vec3 b) { return 1.0 - (1.0 - a) * (1.0 - b); }
+
+void main() {
+  vec3 c = texture(u_tex, v_uv).rgb;
+
+  // Grain — matches noiseFog: screen-blend teal dots at amount*0.12*random opacity
+  if (u_grainAmount > 0.0) {
+    vec2 px  = floor(v_uv * u_resolution);
+    float g  = hash21(px + fract(u_time * 0.037));
+    vec3 teal = vec3(74.0/255.0, 199.0/255.0, 219.0/255.0);
+    c = screen(c, teal * (u_grainAmount * 0.12 * g));
+  }
+
+  // Scanlines — matches scanlines: darken every u_scanStep-th row by amount*0.17
+  if (u_scanAlpha > 0.0 && u_scanStep > 0.5) {
+    float row = floor(v_uv.y * u_resolution.y);
+    if (mod(row, u_scanStep) < 1.0) {
+      c *= (1.0 - u_scanAlpha * 0.17);
+    }
+  }
+
+  fragColor = vec4(c, 1.0);
+}
+`

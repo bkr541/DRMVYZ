@@ -31,6 +31,10 @@ import { getEffectsForPhase, getEffectModule } from '../effects/registry'
 import type { VzFrameContext } from '../effects/types'
 import { WebGL2Renderer } from '../../../renderers/WebGL2Renderer'
 import { resolveRendererType } from '../../../renderers/rendererSelection'
+import { selectPostProcessSource } from '../../../renderers/postProcessSource'
+import { CanvasBufferPool } from '../../../renderers/CanvasBufferPool'
+import { derivePostProcessParams, isPostProcessActive } from '../../../renderers/postProcessParams'
+import type { WebGL2CreateResult } from '../../../renderers/WebGL2Renderer'
 import {
   getOrCreateMediaInstance, pauseInactiveMediaInstances, destroyMediaInstance,
 } from './mediaPool'
@@ -580,7 +584,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   const timelineClipsRef            = useRef<VzTimelineMediaClip[]>(timelineClips)
   const timelineOverlayClipsRef     = useRef<VzTimelineMediaClip[]>(timelineOverlayClips)
   const timelineEffectRegionsRef    = useRef<VzTimelineEffectRegion[]>(timelineEffectRegions)
-  const targetEffectOffscreenRef    = useRef<Map<string, HTMLCanvasElement>>(new Map())
+  const targetEffectOffscreenRef    = useRef(new CanvasBufferPool())
   const timelineLoopRef             = useRef(timelineLoop)
   const mediaItemsRef      = useRef<UploadedMedia[]>(mediaItems)
   const layerConfigsRef    = useRef<VzLayerConfig[]>(layerConfigs)
@@ -705,38 +709,64 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   // Driven by gpuPreference (persisted), not rendererType (ephemeral).
   // applyPreference resolves the preference → creates/destroys the renderer
   // → writes rendererType back to the store so stats and UI stay in sync.
+  //
+  // Context-loss safety:
+  //   onContextLost  — immediately switches render path to Canvas 2D; does not
+  //                    dispose the renderer (browser may restore the context).
+  //   onContextRestored — deferred via setTimeout so we exit the browser event
+  //                    handler before disposing and re-initialising; prevents
+  //                    recursive loseContext() calls inside the restore event.
   useEffect(() => {
     const applyPreference = (pref: 'auto' | 'webgl2' | 'canvas2d') => {
       const { type, fallbackReason } = resolveRendererType(pref)
 
       if (type === 'webgl2' && !gl2RendererRef.current) {
-        const renderer = WebGL2Renderer.create({
-          onContextLost: () => {
-            contextLostRef.current = true
-            useVisualStore.getState().setRendererFallbackReason('WebGL2 context lost — pausing GPU path')
-            if (import.meta.env.DEV) console.warn('[LiveVisualCanvas] WebGL2 context lost')
+        const result: WebGL2CreateResult = WebGL2Renderer.create({
+          onContextLost: (reason: string) => {
+            // Immediately fall back to Canvas 2D in the render loop
+            contextLostRef.current            = true
+            rendererTypeRef.current           = 'canvas2d'
+            rendererFallbackReasonRef.current = reason
+            const store = useVisualStore.getState()
+            store.setRendererContextLost(true)
+            store.setRendererType('canvas2d')
+            store.setRendererFallbackReason(reason)
+            if (import.meta.env.DEV) console.warn('[LiveVisualCanvas] WebGL2 context lost — switching to Canvas 2D')
           },
           onContextRestored: () => {
+            // Capture the stale renderer so we can dispose it after exiting
+            // the event handler (calling loseContext() from within the restore
+            // event can immediately re-lose the context in some browsers).
+            const staleRenderer = gl2RendererRef.current
+            gl2RendererRef.current = null   // stop render loop from using stale context
             contextLostRef.current = false
-            useVisualStore.getState().setRendererFallbackReason(null)
-            if (import.meta.env.DEV) console.log('[LiveVisualCanvas] WebGL2 context restored')
+            useVisualStore.getState().setRendererContextLost(false)
+            setTimeout(() => {
+              staleRenderer?.dispose()  // listeners already removed by dispose()
+              applyPreference(useVisualStore.getState().gpuPreference)
+              if (import.meta.env.DEV) console.log('[LiveVisualCanvas] WebGL2 context restored — reinitialising')
+            }, 0)
           },
         })
-        if (renderer) {
-          gl2RendererRef.current          = renderer
-          rendererTypeRef.current         = 'webgl2'
+
+        if (result.error === null) {
+          gl2RendererRef.current            = result.renderer
+          rendererTypeRef.current           = 'webgl2'
           rendererFallbackReasonRef.current = null
-          useVisualStore.getState().setRendererType('webgl2')
-          useVisualStore.getState().setRendererFallbackReason(null)
+          const store = useVisualStore.getState()
+          store.setRendererType('webgl2')
+          store.setRendererFallbackReason(null)
+          store.setRendererContextLost(false)
           if (import.meta.env.DEV) console.log('[LiveVisualCanvas] WebGL2 renderer created')
         } else {
-          // create() returned null even though probe passed — runtime init error
-          const reason = fallbackReason ?? 'WebGL2 renderer init failed'
+          // Typed failure — result.error is a human-readable reason
+          const reason = result.error
           gl2RendererRef.current            = null
           rendererTypeRef.current           = 'canvas2d'
           rendererFallbackReasonRef.current = reason
-          useVisualStore.getState().setRendererType('canvas2d')
-          useVisualStore.getState().setRendererFallbackReason(reason)
+          const store = useVisualStore.getState()
+          store.setRendererType('canvas2d')
+          store.setRendererFallbackReason(reason)
           if (import.meta.env.DEV) console.warn('[LiveVisualCanvas] WebGL2 create() failed:', reason)
         }
       } else if (type === 'canvas2d') {
@@ -744,9 +774,15 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         gl2RendererRef.current            = null
         gpuEffectsRef.current             = []
         rendererTypeRef.current           = 'canvas2d'
-        rendererFallbackReasonRef.current = fallbackReason
-        useVisualStore.getState().setRendererType('canvas2d')
-        useVisualStore.getState().setRendererFallbackReason(fallbackReason)
+        rendererFallbackReasonRef.current = fallbackReason  // null for intentional canvas2d
+        const store = useVisualStore.getState()
+        store.setRendererType('canvas2d')
+        store.setRendererFallbackReason(fallbackReason)
+        // Clear context-loss state when switching away from GPU intentionally
+        if (contextLostRef.current) {
+          contextLostRef.current = false
+          store.setRendererContextLost(false)
+        }
       }
       requestRedrawRef.current()
     }
@@ -1519,6 +1555,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         // Displacement and all post-media effects still run on the Canvas 2D ctx.
         const gl2   = gl2RendererRef.current
         const isGpu = rendererTypeRef.current === 'webgl2' && gl2 !== null
+                      && !contextLostRef.current
                       && transitionStateRef.current === null
         gpuEffectsRef.current = []  // repopulated by GPU path each frame
 
@@ -1597,7 +1634,8 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             })
             if (import.meta.env.DEV) devSrcDrawsRef.current += 2  // out + in
           } else if (isGpu) {
-            // GPU compositor: video draw + RGB Split + Bloom handled by WebGL2
+            // GPU compositor: video draw + RGB Split + Bloom + grain/scanlines post-process
+            const ppParams = derivePostProcessParams(fxSet, mEff, q)
             gl2!.renderFrame({
               mediaEl,
               canvasW: W, canvasH: H,
@@ -1606,11 +1644,16 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
               bloomBlurPx: (fxSet.has('Bloom') && bloomMod > 0) ? bloomMod * q.bloomBlur : 0,
               bloomAmount: bloomMod,
               bgR: 9 / 255, bgG: 13 / 255, bgB: 15 / 255,
+              grainAmount: ppParams.grainAmount,
+              scanAlpha:   ppParams.scanAlpha,
+              scanStep:    ppParams.scanStep,
             })
             ctx.drawImage(gl2!.outputCanvas, 0, 0)
             const gpuFx: string[] = []
             if (fxSet.has('RGB Split') && mEff.rgbSplit > 0) gpuFx.push('RGB Split')
             if (fxSet.has('Bloom')     && bloomMod       > 0) gpuFx.push('Bloom')
+            if (ppParams.grainAmount > 0) gpuFx.push('Noise Fog')
+            if (ppParams.scanAlpha   > 0) gpuFx.push('Scanlines')
             gpuEffectsRef.current = gpuFx
           } else {
             ctx.save()
@@ -1670,16 +1713,17 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           ctx.globalAlpha = 0.35 * dispMod
           ctx.globalCompositeOperation = 'screen'
           if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360 + 90}deg)`
-          if (srcSnap) {
-            ctx.drawImage(srcSnap, offX, offY)
-            if (import.meta.env.DEV) devEffPassRef.current++
-          } else if (isGpu && gl2) {
-            // Reuse the already-composited GPU output canvas — no second video draw
-            ctx.drawImage(gl2.outputCanvas, offX, offY)
-            if (import.meta.env.DEV) devEffPassRef.current++
-          } else {
-            ctx.drawImage(mediaEl, ox + offX, oy + offY, sw, sh)
-            if (import.meta.env.DEV) devSrcDrawsRef.current++
+          const { src: dispSrc, fullFrame: dispFull } = selectPostProcessSource(
+            srcSnap, isGpu, gl2?.outputCanvas ?? null, mediaEl,
+          )
+          if (dispSrc) {
+            if (dispFull) {
+              ctx.drawImage(dispSrc, offX, offY)
+              if (import.meta.env.DEV) devEffPassRef.current++
+            } else {
+              ctx.drawImage(dispSrc, ox + offX, oy + offY, sw, sh)
+              if (import.meta.env.DEV) devSrcDrawsRef.current++
+            }
           }
           ctx.filter = 'none'
           ctx.globalAlpha = 1
@@ -1768,15 +1812,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
 
           if (itemFx.length > 0) {
             // Offscreen path: render item to offscreen, apply effects, blit to main
-            const offKey = `li_${item.id}`
-            const tPool = targetEffectOffscreenRef.current
-            let off = tPool.get(offKey)
-            if (!off || off.width !== W || off.height !== H) {
-              off = document.createElement('canvas')
-              off.width  = W
-              off.height = H
-              tPool.set(offKey, off)
-            }
+            const off = targetEffectOffscreenRef.current.acquire(`li_${item.id}`, W, H)
             const offCtx = off.getContext('2d')!
             offCtx.clearRect(0, 0, W, H)
             offCtx.save()
@@ -1857,15 +1893,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
 
           if (ocFx.length > 0) {
             // Offscreen path: render overlay to offscreen, apply effects, blit with compositing config
-            const offKey = `oc_${oc.id}`
-            const tPool = targetEffectOffscreenRef.current
-            let off = tPool.get(offKey)
-            if (!off || off.width !== W || off.height !== H) {
-              off = document.createElement('canvas')
-              off.width  = W
-              off.height = H
-              tPool.set(offKey, off)
-            }
+            const off = targetEffectOffscreenRef.current.acquire(`oc_${oc.id}`, W, H)
             const offCtx = off.getContext('2d')!
             offCtx.clearRect(0, 0, W, H)
             offCtx.save()
@@ -1905,6 +1933,9 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         }
       }
 
+      // Evict targeted-effect canvases for items no longer active this frame.
+      targetEffectOffscreenRef.current.endFrame()
+
       // ── Pause non-active pool instances every frame ────────────────────────
       {
         const activeKeys = new Set<string>()
@@ -1929,9 +1960,13 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
 
       if (shakeApplied) ctx.restore()
 
+      // Skip master-phase modules that the GPU compositor already rendered this frame.
+      // gpuEffectsRef is populated by the GPU path above (or stays empty in Canvas 2D mode).
+      const gpuHandledFx = new Set(gpuEffectsRef.current)
       for (const mod of getEffectsForPhase('master')) {
         const intensity = resolveEffectIntensity(mod, fxSet, mEff, globalActiveRegions)
         if (intensity <= 0) continue
+        if (gpuHandledFx.has(mod.chainName)) continue
         mod.draw(ctx, frameCtx, { ...mod.defaultParams, amount: intensity })
       }
 
@@ -2000,6 +2035,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         vfcIdRef.current = 0
       }
       ro.disconnect()
+      targetEffectOffscreenRef.current.dispose()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -2035,6 +2071,11 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           )
           devSrcDrawsRef.current  = 0
           devEffPassRef.current   = 0
+        }
+        // Buffer pool diagnostics
+        const poolSize = targetEffectOffscreenRef.current.size
+        if (poolSize > 0) {
+          console.debug(`[LiveVisualCanvas] buffer pool — ${poolSize} targeted-effect canvas(es)`)
         }
         // Video seek diagnostics
         if (devSeekCountRef.current > 0 || devCorrModeRef.current !== 'none') {

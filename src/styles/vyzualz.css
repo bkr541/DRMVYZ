@@ -4637,6 +4637,46 @@ input[type='range'].vz-slider--color {
   background: rgba(74,199,219,0.08);
 }
 
+/* ── Three-way GPU preference toggle ───────────────── */
+.vz-health-pref-label {
+  margin-top: 8px;
+  font-size: 7.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--az-text-muted);
+  text-transform: uppercase;
+  font-family: var(--az-font-data);
+}
+.vz-health-pref-btns {
+  display: flex;
+  gap: 3px;
+  margin-top: 4px;
+}
+.vz-health-pref-btn {
+  flex: 1;
+  padding: 3px 0;
+  font-size: 8px;
+  font-weight: 600;
+  font-family: var(--az-font-data);
+  letter-spacing: 0.06em;
+  color: var(--az-text-muted);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 3px;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.vz-health-pref-btn:hover {
+  background: rgba(255,255,255,0.09);
+  color: var(--az-text);
+}
+.vz-health-pref-btn--active {
+  color: #4ac7db;
+  border-color: rgba(74,199,219,0.4);
+  background: rgba(74,199,219,0.08);
+}
+
 /* ════════════════════════════════════════════════════════════════════════
    MULTI-LANE TIMELINE (.vz-ml-*)
    Phase 1B — five aligned lanes sharing one ruler and playhead

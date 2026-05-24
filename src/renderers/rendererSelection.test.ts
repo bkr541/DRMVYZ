@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { probeWebGL2Support, resolveRendererType } from './rendererSelection'
+import {
+  probeWebGL2Support,
+  resolveRendererType,
+  resolvePreferredRenderer,
+  computeFallbackStatus,
+} from './rendererSelection'
+import type { GpuPreference } from './rendererSelection'
 
 afterEach(() => { vi.unstubAllGlobals() })
 
@@ -100,5 +106,82 @@ describe('resolveRendererType', () => {
     const r = resolveRendererType('webgl2')
     expect(r.type).toBe('canvas2d')
     expect(r.fallbackReason).toMatch(/WebGL2 not available/)
+  })
+})
+
+// ── resolvePreferredRenderer ──────────────────────────────────────────────────
+
+describe('resolvePreferredRenderer — pure 2-arg function', () => {
+  const cases: [GpuPreference, boolean, 'canvas2d' | 'webgl2'][] = [
+    ['canvas2d', true,  'canvas2d'],
+    ['canvas2d', false, 'canvas2d'],
+    ['auto',     true,  'webgl2'],
+    ['auto',     false, 'canvas2d'],
+    ['webgl2',   true,  'webgl2'],
+    ['webgl2',   false, 'canvas2d'],
+  ]
+  it.each(cases)(
+    'resolvePreferredRenderer(%s, %s) → %s',
+    (pref, available, expected) => {
+      expect(resolvePreferredRenderer(pref, available)).toBe(expected)
+    },
+  )
+})
+
+// ── computeFallbackStatus ─────────────────────────────────────────────────────
+
+describe('computeFallbackStatus', () => {
+  it('canvas2d preference: never shows warning regardless of state', () => {
+    for (const contextLost of [true, false]) {
+      for (const reason of [null, 'some error']) {
+        const r = computeFallbackStatus('canvas2d', 'canvas2d', contextLost, reason)
+        expect(r.showFallbackWarning).toBe(false)
+        expect(r.severity).toBe('none')
+      }
+    }
+  })
+
+  it('no warning when everything is working (auto + webgl2 active)', () => {
+    const r = computeFallbackStatus('auto', 'webgl2', false, null)
+    expect(r.showFallbackWarning).toBe(false)
+    expect(r.severity).toBe('none')
+  })
+
+  it('context lost with auto preference → warning severity', () => {
+    const r = computeFallbackStatus('auto', 'canvas2d', true, 'WebGL2 context lost during playback')
+    expect(r.showFallbackWarning).toBe(true)
+    expect(r.severity).toBe('warning')
+  })
+
+  it('context lost with explicit webgl2 preference → critical severity', () => {
+    const r = computeFallbackStatus('webgl2', 'canvas2d', true, 'WebGL2 context lost during playback')
+    expect(r.showFallbackWarning).toBe(true)
+    expect(r.severity).toBe('critical')
+  })
+
+  it('init failure with auto preference → info severity', () => {
+    const r = computeFallbackStatus('auto', 'canvas2d', false, 'WebGL2 context unavailable')
+    expect(r.showFallbackWarning).toBe(true)
+    expect(r.severity).toBe('info')
+  })
+
+  it('init failure with explicit webgl2 preference → warning severity', () => {
+    const r = computeFallbackStatus('webgl2', 'canvas2d', false, 'WebGL2 context unavailable')
+    expect(r.showFallbackWarning).toBe(true)
+    expect(r.severity).toBe('warning')
+  })
+
+  it('no warning when fallbackReason is set but active renderer is still webgl2', () => {
+    // Stale reason from a previous session — should not show while GPU is running
+    const r = computeFallbackStatus('auto', 'webgl2', false, 'stale reason')
+    expect(r.showFallbackWarning).toBe(false)
+  })
+
+  it('gpuPreference saved preference is not changed by a runtime failure scenario', () => {
+    // This is a contract test: computeFallbackStatus only reads preference, never writes it.
+    // Verify that calling the function with a failure state doesn't mutate the input.
+    const pref: GpuPreference = 'webgl2'
+    computeFallbackStatus(pref, 'canvas2d', true, 'context lost')
+    expect(pref).toBe('webgl2')  // unchanged — pure function
   })
 })
