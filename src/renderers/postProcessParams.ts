@@ -54,3 +54,48 @@ export function derivePostProcessParams(
 export function isPostProcessActive(p: PostProcessParams): boolean {
   return p.grainAmount > 0 || p.scanAlpha > 0
 }
+
+// ── GPU Displacement parameters ───────────────────────────────────────────────
+
+/** Uniform values consumed by the DISPLACEMENT_FRAG shader. */
+export interface DisplacementParams {
+  /** Horizontal ghost offset in canvas pixels (pre-computed; may be negative). 0 = no x-shift. */
+  dispOffXPx: number
+  /** Vertical ghost offset in canvas pixels (pre-computed; may be negative). 0 = no y-shift. */
+  dispOffYPx: number
+  /** Ghost intensity 0..1. Ghost alpha = 0.35 × amount. 0 = pass is identity. */
+  dispAmount: number
+  /** Hue rotation for ghost in radians. 0 = no rotation. */
+  dispHueRad: number
+}
+
+/**
+ * Derive GPU displacement shader uniforms from current render state.
+ *
+ * Matches the Canvas 2D displacement path in LiveVisualCanvas:
+ *   offX = sin(beatPhase × 2π  or  t × 0.002) × dispMod × 12
+ *   offY = cos(beatPhase × 2π  or  t × 0.0017) × dispMod × 8
+ *   hue  = (colorShift × 360 + 90)° when colorShift > 0, else 0
+ *
+ * Returns all-zero params (pass is identity) when the effect is inactive.
+ */
+export function deriveDisplacementParams(
+  fxSet:            ReadonlySet<string>,
+  dispMod:          number,
+  synced:           boolean,
+  beatPhase:        number,
+  t:                number,
+  activeColorShift: number,
+): DisplacementParams {
+  if (!fxSet.has('Displacement') || dispMod <= 0) {
+    return { dispOffXPx: 0, dispOffYPx: 0, dispAmount: 0, dispHueRad: 0 }
+  }
+  const angleX = synced ? beatPhase * Math.PI * 2 : t * 0.002
+  const angleY = synced ? beatPhase * Math.PI * 2 : t * 0.0017
+  return {
+    dispOffXPx: Math.sin(angleX) * dispMod * 12,
+    dispOffYPx: Math.cos(angleY) * dispMod * 8,
+    dispAmount: dispMod,
+    dispHueRad: activeColorShift > 0 ? (activeColorShift * 2 * Math.PI + Math.PI / 2) : 0,
+  }
+}

@@ -191,7 +191,60 @@ out vec4 fragColor;
 void main() { fragColor = texture(u_tex, v_uv); }
 `
 
-// ── 7. Post-process: grain + scanlines ────────────────────────────────────────
+// ── 8. Displacement ghost ────────────────────────────────────────────────────
+// Renders the current scene as-is, then screen-blends a shifted, hue-rotated
+// ghost copy of it on top — matching the Canvas 2D path:
+//   globalAlpha = 0.35 × dispAmount
+//   globalCompositeOperation = 'screen'
+//   filter = hue-rotate((colorShift × 360 + 90)°) when colorShift > 0
+//   drawImage(scene, offX, offY)
+//
+// UV convention note: in these FBO textures v_uv.y=0 is canvas bottom,
+// v_uv.y=1 is canvas top (VIDEO_FRAG flips y so the content is inverted).
+// A canvas drawImage shift of (offX px right, offY px down) maps to UV:
+//   ghost.u = v_uv.x − offX/W     (right = positive u)
+//   ghost.v = v_uv.y + offY/H     (down in canvas = upward in UV)
+//
+// Uniforms:
+//   u_tex        — scene texture (output of preceding GPU stage)
+//   u_dispOffX   — normalised ghost UV x-offset: offXPx / canvasW (may be negative)
+//   u_dispOffY   — normalised ghost UV y-offset: offYPx / canvasH (may be negative)
+//   u_dispAmount — 0..1 intensity (ghost alpha = 0.35 × amount; 0 = pass is identity)
+//   u_dispHueRad — hue rotation for ghost in radians (0 = no rotation)
+export const DISPLACEMENT_FRAG = /* glsl */`#version 300 es
+precision highp float;
+in vec2 v_uv;
+uniform sampler2D u_tex;
+uniform float u_dispOffX;
+uniform float u_dispOffY;
+uniform float u_dispAmount;
+uniform float u_dispHueRad;
+out vec4 fragColor;
+
+vec3 screen(vec3 a, vec3 b) { return 1.0 - (1.0 - a) * (1.0 - b); }
+
+// CSS hue-rotate matrix (SVG filter spec / WebKit convention).
+vec3 hueRotate(vec3 c, float rad) {
+  float cosA = cos(rad), sinA = sin(rad);
+  // mat3 is column-major in GLSL: mat3(col0, col1, col2)
+  return clamp(mat3(
+    0.213 + cosA*0.787 - sinA*0.213,  0.213 - cosA*0.213 + sinA*0.143,  0.213 - cosA*0.213 - sinA*0.787,
+    0.715 - cosA*0.715 - sinA*0.715,  0.715 + cosA*0.285 + sinA*0.140,  0.715 - cosA*0.715 + sinA*0.715,
+    0.072 - cosA*0.072 + sinA*0.928,  0.072 - cosA*0.072 - sinA*0.283,  0.072 + cosA*0.928 + sinA*0.072
+  ) * c, 0.0, 1.0);
+}
+
+void main() {
+  vec4 base = texture(u_tex, v_uv);
+  if (u_dispAmount <= 0.0) { fragColor = base; return; }
+
+  vec2 ghostUV = clamp(vec2(v_uv.x - u_dispOffX, v_uv.y + u_dispOffY), 0.0, 1.0);
+  vec3 ghost   = hueRotate(texture(u_tex, ghostUV).rgb, u_dispHueRad);
+  fragColor    = vec4(screen(base.rgb, ghost * (0.35 * u_dispAmount)), 1.0);
+}
+`
+
+// ── 7. Post-process: grain + scanlines ───────────────────────────────────────
 // Combined final pass applying procedural grain (Noise Fog) and horizontal
 // scanlines before the GPU output is blit to Canvas 2D.
 //

@@ -22,11 +22,11 @@ export interface TransitionRenderParams {
   ctx: CanvasRenderingContext2D
   W: number
   H: number
-  /** Outgoing clip media element (null = no media). */
-  outEl: HTMLImageElement | HTMLVideoElement | null
+  /** Outgoing clip source (media element or pre-rendered GPU canvas; null = no media). */
+  outEl: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement | null
   outRect: DrawRect
-  /** Incoming clip media element (null = no media / not yet loaded). */
-  inEl: HTMLImageElement | HTMLVideoElement | null
+  /** Incoming clip source (media element or pre-rendered GPU canvas; null = no media / not yet loaded). */
+  inEl: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement | null
   inRect: DrawRect
   config: VzTransitionConfig
   /** Raw linear 0→1 progress. Easing applied internally per transition. */
@@ -61,7 +61,7 @@ function withSave(ctx: CanvasRenderingContext2D, fn: () => void): void {
 
 function drawClip(
   ctx: CanvasRenderingContext2D,
-  el: HTMLImageElement | HTMLVideoElement,
+  el: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement,
   rect: DrawRect,
   alpha: number,
   compositeOp: GlobalCompositeOperation,

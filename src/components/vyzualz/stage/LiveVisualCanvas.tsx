@@ -33,7 +33,7 @@ import { WebGL2Renderer } from '../../../renderers/WebGL2Renderer'
 import { resolveRendererType } from '../../../renderers/rendererSelection'
 import { selectPostProcessSource } from '../../../renderers/postProcessSource'
 import { CanvasBufferPool } from '../../../renderers/CanvasBufferPool'
-import { derivePostProcessParams, isPostProcessActive } from '../../../renderers/postProcessParams'
+import { derivePostProcessParams, isPostProcessActive, deriveDisplacementParams } from '../../../renderers/postProcessParams'
 import type { WebGL2CreateResult } from '../../../renderers/WebGL2Renderer'
 import {
   getOrCreateMediaInstance, pauseInactiveMediaInstances, destroyMediaInstance,
@@ -602,6 +602,11 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   const srcSnapRef       = useRef<HTMLCanvasElement | null>(null)
   // Bloom buffer: half-resolution (W/2 × H/2) blur buffer.
   const bloomBufRef      = useRef<HTMLCanvasElement | null>(null)
+  // GPU transition targets: persistent W×H canvases that hold the GPU-composited
+  // outgoing and incoming sources during clip transitions. Allocated once, resized
+  // in-place by ensureHelperCanvas — never per-frame allocated.
+  const txOutCanvasRef   = useRef<HTMLCanvasElement | null>(null)
+  const txInCanvasRef    = useRef<HTMLCanvasElement | null>(null)
 
   const devSrcDrawsRef   = useRef(0)   // DEV: direct HTMLVideoElement draws this frame
   const devEffPassRef    = useRef(0)   // DEV: canvas-to-canvas effect draws this frame
@@ -1550,13 +1555,15 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         }
 
         // ── GPU compositor path ───────────────────────────────────────────
-        // When WebGL2 is active and no clip transition is in progress, video
-        // draw + RGB Split + Bloom are handed off to the GPU compositor.
+        // When WebGL2 is active, video draw + RGB Split + Bloom + grain/scanlines
+        // are handed off to the GPU compositor. During transitions each source is
+        // rendered through the GPU into persistent canvases (txOutCanvasRef /
+        // txInCanvasRef) before being forwarded to the Canvas 2D transition
+        // compositor — no per-frame allocation, no double-application of effects.
         // Displacement and all post-media effects still run on the Canvas 2D ctx.
         const gl2   = gl2RendererRef.current
         const isGpu = rendererTypeRef.current === 'webgl2' && gl2 !== null
                       && !contextLostRef.current
-                      && transitionStateRef.current === null
         gpuEffectsRef.current = []  // repopulated by GPU path each frame
 
         // ── Source snapshot: one video draw shared by all multi-pass effects ──
@@ -1614,28 +1621,77 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           const inCompositeOp = getCompositeOpForRole(inRole)
 
           if (txState && txState.config.type !== 'cut') {
-            // Transition renderers manage their own draws of outEl/inEl internally.
-            // Refactoring them to accept a pre-rendered snapshot is deferred — the
-            // transition duration is short and these are at most 2–3 video draws.
-            renderTimelineTransition({
-              ctx, W, H,
-              outEl:          mediaEl,
-              outRect:        { ox, oy, sw, sh },
-              outCompositeOp: compositeOp,
-              inEl,
-              inRect,
-              inCompositeOp,
-              config:         txState.config,
-              progress:       txState.progress,
-              time:           t,
-              colorShift:     activeColorShift,
-              bass:           rawBands.bass,
-              beat:           rawBands.beat,
-            })
-            if (import.meta.env.DEV) devSrcDrawsRef.current += 2  // out + in
+            if (isGpu) {
+              // GPU-accelerated transition: render each source through WebGL2 into
+              // a persistent canvas, then forward those canvases to the transition
+              // compositor so GPU effects (RGB Split, Bloom, grain, scanlines,
+              // Displacement) are applied per-source without double-application.
+              const ppParams   = derivePostProcessParams(fxSet, mEff, q)
+              const dispParams = deriveDisplacementParams(fxSet, dispMod, synced, beatPhase, t, activeColorShift)
+              const gpuParams = {
+                canvasW: W, canvasH: H,
+                rgbShiftPx:  fxSet.has('RGB Split') ? mEff.rgbSplit * 14 : 0,
+                bloomBlurPx: (fxSet.has('Bloom') && bloomMod > 0) ? bloomMod * q.bloomBlur : 0,
+                bloomAmount: bloomMod,
+                bgR: 9 / 255, bgG: 13 / 255, bgB: 15 / 255,
+                grainAmount: ppParams.grainAmount,
+                scanAlpha:   ppParams.scanAlpha,
+                scanStep:    ppParams.scanStep,
+                ...dispParams,
+              }
+
+              // Outgoing source → txOutCanvasRef
+              const outGpu = ensureHelperCanvas(txOutCanvasRef, W, H)
+              gl2!.renderFrame({ mediaEl, ox, oy, sw, sh, ...gpuParams })
+              outGpu.getContext('2d')!.drawImage(gl2!.outputCanvas, 0, 0)
+
+              // Incoming source → txInCanvasRef (only when a clip is loaded)
+              let inGpu: HTMLCanvasElement | null = null
+              if (inEl) {
+                inGpu = ensureHelperCanvas(txInCanvasRef, W, H)
+                gl2!.renderFrame({ mediaEl: inEl, ox: inRect.ox, oy: inRect.oy, sw: inRect.sw, sh: inRect.sh, ...gpuParams })
+                inGpu.getContext('2d')!.drawImage(gl2!.outputCanvas, 0, 0)
+              }
+
+              renderTimelineTransition({
+                ctx, W, H,
+                outEl: outGpu, outRect: { ox: 0, oy: 0, sw: W, sh: H }, outCompositeOp: compositeOp,
+                inEl: inGpu,   inRect:  { ox: 0, oy: 0, sw: W, sh: H }, inCompositeOp,
+                config: txState.config, progress: txState.progress, time: t,
+                colorShift: activeColorShift, bass: rawBands.bass, beat: rawBands.beat,
+              })
+
+              const gpuFx: string[] = []
+              if (fxSet.has('RGB Split') && mEff.rgbSplit > 0) gpuFx.push('RGB Split')
+              if (fxSet.has('Bloom')     && bloomMod       > 0) gpuFx.push('Bloom')
+              if (ppParams.grainAmount > 0) gpuFx.push('Noise Fog')
+              if (ppParams.scanAlpha   > 0) gpuFx.push('Scanlines')
+              if (dispParams.dispAmount > 0) gpuFx.push('Displacement')
+              gpuEffectsRef.current = gpuFx
+              if (import.meta.env.DEV) devSrcDrawsRef.current += inEl ? 2 : 1
+            } else {
+              // Canvas-only transition path
+              renderTimelineTransition({
+                ctx, W, H,
+                outEl:          mediaEl,
+                outRect:        { ox, oy, sw, sh },
+                outCompositeOp: compositeOp,
+                inEl,
+                inRect,
+                inCompositeOp,
+                config:         txState.config,
+                progress:       txState.progress,
+                time:           t,
+                colorShift:     activeColorShift,
+                bass:           rawBands.bass,
+                beat:           rawBands.beat,
+              })
+              if (import.meta.env.DEV) devSrcDrawsRef.current += 2  // out + in
+            }
           } else if (isGpu) {
-            // GPU compositor: video draw + RGB Split + Bloom + grain/scanlines post-process
-            const ppParams = derivePostProcessParams(fxSet, mEff, q)
+            // GPU compositor: video draw + RGB Split + Bloom + grain/scanlines + Displacement
+            const ppParams   = derivePostProcessParams(fxSet, mEff, q)
+            const dispParams = deriveDisplacementParams(fxSet, dispMod, synced, beatPhase, t, activeColorShift)
             gl2!.renderFrame({
               mediaEl,
               canvasW: W, canvasH: H,
@@ -1647,6 +1703,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
               grainAmount: ppParams.grainAmount,
               scanAlpha:   ppParams.scanAlpha,
               scanStep:    ppParams.scanStep,
+              ...dispParams,
             })
             ctx.drawImage(gl2!.outputCanvas, 0, 0)
             const gpuFx: string[] = []
@@ -1654,6 +1711,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             if (fxSet.has('Bloom')     && bloomMod       > 0) gpuFx.push('Bloom')
             if (ppParams.grainAmount > 0) gpuFx.push('Noise Fog')
             if (ppParams.scanAlpha   > 0) gpuFx.push('Scanlines')
+            if (dispParams.dispAmount > 0) gpuFx.push('Displacement')
             gpuEffectsRef.current = gpuFx
           } else {
             ctx.save()
@@ -1705,7 +1763,9 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           }
         }
 
-        if (fxSet.has('Displacement') && dispMod > 0) {
+        // GPU handles Displacement in Stage 5 of renderFrame when isGpu is true.
+        // Canvas path runs only in Canvas 2D mode (isGpu=false).
+        if (!isGpu && fxSet.has('Displacement') && dispMod > 0) {
           const dispAngle = synced ? beatPhase * Math.PI * 2 : t * 0.002
           const offX = Math.sin(dispAngle) * dispMod * 12
           const offY = Math.cos(synced ? beatPhase * Math.PI * 2 : t * 0.0017) * dispMod * 8
@@ -1714,7 +1774,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           ctx.globalCompositeOperation = 'screen'
           if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360 + 90}deg)`
           const { src: dispSrc, fullFrame: dispFull } = selectPostProcessSource(
-            srcSnap, isGpu, gl2?.outputCanvas ?? null, mediaEl,
+            srcSnap, false, null, mediaEl,
           )
           if (dispSrc) {
             if (dispFull) {

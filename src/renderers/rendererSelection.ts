@@ -36,9 +36,9 @@ export interface RendererResolution {
  * Resolves a user GPU preference into the renderer type that should actually
  * be used, probing hardware support when required.
  *
- * 'auto'    → WebGL2 if available, otherwise Canvas 2D (silent)
+ * 'auto'    → WebGL2 if available, otherwise Canvas 2D with an informational reason
  * 'webgl2'  → WebGL2 if available, otherwise Canvas 2D + reason
- * 'canvas2d'→ Canvas 2D unconditionally
+ * 'canvas2d'→ Canvas 2D unconditionally (no reason — intentional, not a fallback)
  */
 export function resolveRendererType(
   preference: GpuPreference,
@@ -51,7 +51,7 @@ export function resolveRendererType(
       type: 'canvas2d',
       fallbackReason: preference === 'webgl2'
         ? 'WebGL2 not available in this browser'
-        : null,
+        : 'WebGL2 unavailable in this browser or device',
     }
   }
   return { type: 'webgl2', fallbackReason: null }

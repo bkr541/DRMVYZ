@@ -29,6 +29,7 @@ import {
   BLOOM_COMPOSITE_FRAG,
   PASS_FRAG,
   POST_PROCESS_FRAG,
+  DISPLACEMENT_FRAG,
 } from './shaders'
 
 // ── Public types ──────────────────────────────────────────────────────────────
@@ -63,6 +64,14 @@ export interface RenderFrameParams {
   scanAlpha: number
   /** Pixel stride between darkened scanline rows (from quality.scanlineStep). */
   scanStep: number
+  /** Displacement ghost: horizontal pixel offset (may be negative). 0 = pass is identity. */
+  dispOffXPx: number
+  /** Displacement ghost: vertical pixel offset (may be negative). 0 = pass is identity. */
+  dispOffYPx: number
+  /** Displacement ghost intensity 0..1. Ghost alpha = 0.35 × amount. 0 = pass disabled. */
+  dispAmount: number
+  /** Hue rotation for displacement ghost in radians (0 = no rotation). */
+  dispHueRad: number
 }
 
 export interface WebGL2Diagnostics {
@@ -161,6 +170,13 @@ interface PostLocs  {
   u_scanStep: WebGLUniformLocation
   u_resolution: WebGLUniformLocation
 }
+interface DispLocs  {
+  u_tex: WebGLUniformLocation
+  u_dispOffX: WebGLUniformLocation
+  u_dispOffY: WebGLUniformLocation
+  u_dispAmount: WebGLUniformLocation
+  u_dispHueRad: WebGLUniformLocation
+}
 
 function getVideoLocs(gl: WebGL2RenderingContext, p: WebGLProgram): VideoLocs {
   return {
@@ -184,6 +200,7 @@ export class WebGL2Renderer {
   private bloomProg:  WebGLProgram
   private passProg:   WebGLProgram
   private postProg:   WebGLProgram
+  private dispProg:   WebGLProgram
 
   // Shared vertex shader
   private vertShader: WebGLShader
@@ -196,6 +213,7 @@ export class WebGL2Renderer {
   private bloomLocs:  BloomCompLocs
   private passLocs:   PassLocs
   private postLocs:   PostLocs
+  private dispLocs:   DispLocs
 
   // Geometry
   private vao: WebGLVertexArrayObject
@@ -211,6 +229,8 @@ export class WebGL2Renderer {
   private bloom2Tex: WebGLTexture;  private bloom2FBO: WebGLFramebuffer
   // Post-process FBO: holds pre-final output when grain or scanlines are active
   private postTex:   WebGLTexture;  private postFBO:   WebGLFramebuffer
+  // Displacement FBO: holds pre-displacement output when the displacement pass is active
+  private dispTex:   WebGLTexture;  private dispFBO:   WebGLFramebuffer
 
   // Tracked canvas dimensions
   private canvasW = 0; private canvasH = 0
@@ -305,25 +325,27 @@ export class WebGL2Renderer {
     const fragBloom  = compileShader(gl, gl.FRAGMENT_SHADER, BLOOM_COMPOSITE_FRAG)
     const fragPass   = compileShader(gl, gl.FRAGMENT_SHADER, PASS_FRAG)
     const fragPost   = compileShader(gl, gl.FRAGMENT_SHADER, POST_PROCESS_FRAG)
+    const fragDisp   = compileShader(gl, gl.FRAGMENT_SHADER, DISPLACEMENT_FRAG)
 
-    if (!fragVideo || !fragRgb || !fragThresh || !fragBlur || !fragBloom || !fragPass || !fragPost) {
+    if (!fragVideo || !fragRgb || !fragThresh || !fragBlur || !fragBloom || !fragPass || !fragPost || !fragDisp) {
       throw new Error('fragment shader compilation failed')
     }
 
-    const vP = linkProgram(gl, vert, fragVideo)
-    const rP = linkProgram(gl, vert, fragRgb)
-    const tP = linkProgram(gl, vert, fragThresh)
-    const bP = linkProgram(gl, vert, fragBlur)
-    const cP = linkProgram(gl, vert, fragBloom)
-    const pP = linkProgram(gl, vert, fragPass)
+    const vP  = linkProgram(gl, vert, fragVideo)
+    const rP  = linkProgram(gl, vert, fragRgb)
+    const tP  = linkProgram(gl, vert, fragThresh)
+    const bP  = linkProgram(gl, vert, fragBlur)
+    const cP  = linkProgram(gl, vert, fragBloom)
+    const pP  = linkProgram(gl, vert, fragPass)
     const ppP = linkProgram(gl, vert, fragPost)
+    const dP  = linkProgram(gl, vert, fragDisp)
 
-    if (!vP || !rP || !tP || !bP || !cP || !pP || !ppP) throw new Error('program link failed')
+    if (!vP || !rP || !tP || !bP || !cP || !pP || !ppP || !dP) throw new Error('program link failed')
 
     this.videoProg  = vP;  this.rgbProg   = rP
     this.threshProg = tP;  this.blurProg  = bP
     this.bloomProg  = cP;  this.passProg  = pP
-    this.postProg   = ppP
+    this.postProg   = ppP; this.dispProg  = dP
 
     // ── Uniform locations ─────────────────────────────────────────────────
     this.videoLocs = getVideoLocs(gl, vP)
@@ -339,6 +361,13 @@ export class WebGL2Renderer {
       u_scanAlpha:   gl.getUniformLocation(ppP, 'u_scanAlpha')!,
       u_scanStep:    gl.getUniformLocation(ppP, 'u_scanStep')!,
       u_resolution:  gl.getUniformLocation(ppP, 'u_resolution')!,
+    }
+    this.dispLocs  = {
+      u_tex:         gl.getUniformLocation(dP, 'u_tex')!,
+      u_dispOffX:    gl.getUniformLocation(dP, 'u_dispOffX')!,
+      u_dispOffY:    gl.getUniformLocation(dP, 'u_dispOffY')!,
+      u_dispAmount:  gl.getUniformLocation(dP, 'u_dispAmount')!,
+      u_dispHueRad:  gl.getUniformLocation(dP, 'u_dispHueRad')!,
     }
 
     // ── Fullscreen quad ───────────────────────────────────────────────────
@@ -369,8 +398,9 @@ export class WebGL2Renderer {
     gl.bindAttribLocation(cP,  0, 'a_pos'); gl.bindAttribLocation(cP,  1, 'a_uv')
     gl.bindAttribLocation(pP,  0, 'a_pos'); gl.bindAttribLocation(pP,  1, 'a_uv')
     gl.bindAttribLocation(ppP, 0, 'a_pos'); gl.bindAttribLocation(ppP, 1, 'a_uv')
+    gl.bindAttribLocation(dP,  0, 'a_pos'); gl.bindAttribLocation(dP,  1, 'a_uv')
     // Relink after attrib binding
-    ;[vP, rP, tP, bP, cP, pP, ppP].forEach(prog => { gl.linkProgram(prog) })
+    ;[vP, rP, tP, bP, cP, pP, ppP, dP].forEach(prog => { gl.linkProgram(prog) })
 
     // ── Video texture (placeholder 1×1 black) ─────────────────────────────
     this.videoTex = makeTexture(gl)
@@ -384,6 +414,7 @@ export class WebGL2Renderer {
     this.bloom1Tex = makeTexture(gl); this.bloom1FBO = makeFBO(gl, this.bloom1Tex, 1, 1)
     this.bloom2Tex = makeTexture(gl); this.bloom2FBO = makeFBO(gl, this.bloom2Tex, 1, 1)
     this.postTex   = makeTexture(gl); this.postFBO   = makeFBO(gl, this.postTex,   1, 1)
+    this.dispTex   = makeTexture(gl); this.dispFBO   = makeFBO(gl, this.dispTex,   1, 1)
 
     // ── Context loss handling ─────────────────────────────────────────────
     // Store handler references so dispose() can remove them before calling
@@ -419,6 +450,7 @@ export class WebGL2Renderer {
     resizeFBOTexture(gl, this.sceneTex, w, h)
     resizeFBOTexture(gl, this.rgbTex,   w, h)
     resizeFBOTexture(gl, this.postTex,  w, h)
+    resizeFBOTexture(gl, this.dispTex,  w, h)
 
     this.bloomW = Math.max(1, Math.ceil(w / 2))
     this.bloomH = Math.max(1, Math.ceil(h / 2))
@@ -514,10 +546,16 @@ export class WebGL2Renderer {
     }
 
     // Whether a post-process pass (grain / scanlines) follows the main pipeline.
-    // When true, the bloom/pass step writes to postFBO instead of null (canvas).
     const needsPost = p.grainAmount > 0 || p.scanAlpha > 0
+    // Whether a displacement pass follows.  When true the preceding stage writes
+    // to dispFBO instead of null (canvas) so the displacement shader can read it.
+    const needsDisp = p.dispAmount > 0
 
     // ── Stage 3: Bloom (optional, three passes) ────────────────────────────
+    // Final destination: postFBO if post runs next, dispFBO if only disp runs,
+    // otherwise null (direct to canvas).
+    const stage3Dest = needsPost ? this.postFBO : (needsDisp ? this.dispFBO : null)
+
     if (p.bloomBlurPx > 0 && p.bloomAmount > 0 && uploaded) {
       const bW = this.bloomW, bH = this.bloomH
 
@@ -550,8 +588,8 @@ export class WebGL2Renderer {
       gl.uniform2f(this.blurLocs.u_dir, 0, 1.0 / bH)
       this.drawQuad()
 
-      // 3d. Composite: scene + bloom1 → postFBO (if post pass follows) or canvas
-      gl.bindFramebuffer(gl.FRAMEBUFFER, needsPost ? this.postFBO : null)
+      // 3d. Composite: scene + bloom → stage3Dest
+      gl.bindFramebuffer(gl.FRAMEBUFFER, stage3Dest)
       gl.viewport(0, 0, W, H)
       gl.useProgram(this.bloomProg)
       gl.activeTexture(gl.TEXTURE0)
@@ -563,8 +601,8 @@ export class WebGL2Renderer {
       gl.uniform1f(this.bloomLocs.u_amount, p.bloomAmount)
       this.drawQuad()
     } else {
-      // No bloom: passthrough to postFBO (if post pass follows) or canvas
-      gl.bindFramebuffer(gl.FRAMEBUFFER, needsPost ? this.postFBO : null)
+      // No bloom: passthrough to stage3Dest
+      gl.bindFramebuffer(gl.FRAMEBUFFER, stage3Dest)
       gl.viewport(0, 0, W, H)
       gl.useProgram(this.passProg)
       gl.activeTexture(gl.TEXTURE0)
@@ -574,11 +612,11 @@ export class WebGL2Renderer {
     }
 
     // ── Stage 4: Post-process — grain + scanlines (optional) ──────────────
-    // Reads postTex (written in stage 3) and outputs to the canvas (null FBO).
-    // Skipped entirely when both grainAmount and scanAlpha are zero, preserving
-    // the existing two-pass minimum for the no-effects path.
+    // Reads postTex (written in stage 3) and outputs to dispFBO (if disp
+    // follows) or directly to the canvas (null FBO).
+    // Skipped entirely when both grainAmount and scanAlpha are zero.
     if (needsPost) {
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+      gl.bindFramebuffer(gl.FRAMEBUFFER, needsDisp ? this.dispFBO : null)
       gl.viewport(0, 0, W, H)
       gl.useProgram(this.postProg)
       gl.activeTexture(gl.TEXTURE0)
@@ -589,6 +627,25 @@ export class WebGL2Renderer {
       gl.uniform1f(this.postLocs.u_scanAlpha,   p.scanAlpha)
       gl.uniform1f(this.postLocs.u_scanStep,    p.scanStep)
       gl.uniform2f(this.postLocs.u_resolution,  W, H)
+      this.drawQuad()
+    }
+
+    // ── Stage 5: Displacement ghost (optional) ────────────────────────────
+    // Reads dispTex (the fully-composited scene from stages 3/4) and outputs
+    // to the canvas (null FBO).  dispTex holds the scene with all preceding
+    // GPU effects applied — matching the Canvas path where displacement reads
+    // gl2.outputCanvas (the full GPU output).
+    if (needsDisp) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+      gl.viewport(0, 0, W, H)
+      gl.useProgram(this.dispProg)
+      gl.activeTexture(gl.TEXTURE0)
+      gl.bindTexture(gl.TEXTURE_2D, this.dispTex)
+      gl.uniform1i(this.dispLocs.u_tex,        0)
+      gl.uniform1f(this.dispLocs.u_dispOffX,   p.dispOffXPx / W)
+      gl.uniform1f(this.dispLocs.u_dispOffY,   p.dispOffYPx / H)
+      gl.uniform1f(this.dispLocs.u_dispAmount, p.dispAmount)
+      gl.uniform1f(this.dispLocs.u_dispHueRad, p.dispHueRad)
       this.drawQuad()
     }
 
@@ -625,14 +682,14 @@ export class WebGL2Renderer {
     this._canvas.removeEventListener('webglcontextrestored', this._contextRestoredHandler)
 
     const gl = this.gl
-    ;[this.videoProg, this.rgbProg, this.threshProg, this.blurProg, this.bloomProg, this.passProg, this.postProg]
+    ;[this.videoProg, this.rgbProg, this.threshProg, this.blurProg, this.bloomProg, this.passProg, this.postProg, this.dispProg]
       .forEach(p => gl.deleteProgram(p))
     gl.deleteShader(this.vertShader)
     gl.deleteBuffer(this.vbo)
     gl.deleteVertexArray(this.vao)
-    ;[this.videoTex, this.sceneTex, this.rgbTex, this.bloom1Tex, this.bloom2Tex, this.postTex]
+    ;[this.videoTex, this.sceneTex, this.rgbTex, this.bloom1Tex, this.bloom2Tex, this.postTex, this.dispTex]
       .forEach(t => gl.deleteTexture(t))
-    ;[this.sceneFBO, this.rgbFBO, this.bloom1FBO, this.bloom2FBO, this.postFBO]
+    ;[this.sceneFBO, this.rgbFBO, this.bloom1FBO, this.bloom2FBO, this.postFBO, this.dispFBO]
       .forEach(f => gl.deleteFramebuffer(f))
     // Release GPU context via WEBGL_lose_context if available
     const ext = gl.getExtension('WEBGL_lose_context')

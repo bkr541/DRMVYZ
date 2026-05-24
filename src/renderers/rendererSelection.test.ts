@@ -87,11 +87,11 @@ describe('resolveRendererType', () => {
     expect(r.fallbackReason).toBeNull()
   })
 
-  it('auto preference silently falls back to canvas2d when unavailable', () => {
+  it('auto preference falls back to canvas2d with an informational reason when unavailable', () => {
     stubSupport(false)
     const r = resolveRendererType('auto')
     expect(r.type).toBe('canvas2d')
-    expect(r.fallbackReason).toBeNull()
+    expect(r.fallbackReason).toMatch(/WebGL2.*unavailable|unavailable.*WebGL2/i)
   })
 
   it('webgl2 preference returns webgl2 when hardware is available', () => {

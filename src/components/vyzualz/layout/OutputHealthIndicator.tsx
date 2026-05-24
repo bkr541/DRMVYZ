@@ -111,7 +111,11 @@ export function OutputHealthIndicator({
           {/* Active renderer — separate from preference */}
           <span>Active</span>
           <span style={{ color: isGpu && !contextLost ? '#4ac7db' : 'inherit' }}>
-            {isGpu && !contextLost ? 'WebGL2 GPU' : 'Canvas 2D'}
+            {isGpu && !contextLost
+              ? 'WebGL2 GPU'
+              : gpuPreference === 'canvas2d'
+                ? 'Canvas 2D (manual)'
+                : 'Canvas 2D'}
             {contextLost && <span style={{ marginLeft: 4, color: '#f87171', fontSize: '0.82em' }}>LOST</span>}
             {isGpu && !contextLost && gpuEffects.length > 0 && (
               <span style={{ marginLeft: 4, color: 'rgba(74,199,219,0.6)', fontSize: '0.82em' }}>
@@ -140,7 +144,7 @@ export function OutputHealthIndicator({
           <button
             className={`vz-health-pref-btn${gpuPreference === 'auto'    ? ' vz-health-pref-btn--active' : ''}`}
             onClick={() => setGpuPreference('auto')}
-            title="Auto: use WebGL2 when available, fall back to Canvas 2D silently"
+            title="Auto: use WebGL2 when available, fall back to Canvas 2D with an info notice if unavailable"
           >Auto</button>
           <button
             className={`vz-health-pref-btn${gpuPreference === 'webgl2'  ? ' vz-health-pref-btn--active' : ''}`}
