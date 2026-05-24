@@ -1,6 +1,9 @@
 /**
  * WebGL2Renderer — GPU compositor for DRMVYZ live visual output.
  *
+ * Initialization is transactional: all GPU resources are tracked during
+ * construction and cleaned up atomically on any failure (see InitResourceTracker).
+ *
  * Rendering architecture:
  *   1. Upload active media element as a TEXTURE_2D (video or image).
  *   2. Render video into scene FBO with background fill and aspect-ratio draw rect.
