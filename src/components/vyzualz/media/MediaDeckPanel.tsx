@@ -3,6 +3,7 @@ import {
   Layers01Icon,
   FavouriteIcon,
   Delete02Icon,
+  PencilEdit01Icon,
 } from 'hugeicons-react'
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { UploadedMedia } from '../../../stores/mediaStore'
@@ -49,6 +50,7 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
   } = useMediaStore()
   const [deckFilter, setDeckFilter] = useState<DeckFilter>('all')
   const [dragOver, setDragOver] = useState(false)
+  const [editItem, setEditItem] = useState<UploadedMedia | null>(null)
 
   const loadFromSupabaseRef = useRef(loadFromSupabase)
   useEffect(() => { loadFromSupabaseRef.current = loadFromSupabase }, [loadFromSupabase])
@@ -71,6 +73,7 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
   return (
     <>
       {importModalOpen && <MediaUploadModal onClose={closeImportMediaModal} />}
+      {editItem && <MediaUploadModal editItem={editItem} onClose={() => setEditItem(null)} />}
       <div
         className="vz-panel"
         style={{ flex: 1, minHeight: 0 }}
@@ -177,7 +180,16 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
                     </button>
                   </div>
                   <div className="vz-media-info">
-                    <div className="vz-media-name">{m.title ?? m.name}</div>
+                    <div className="vz-media-name-row">
+                      <div className="vz-media-name">{((m.title ?? m.name).length > 22 ? (m.title ?? m.name).slice(0, 22) + '…' : (m.title ?? m.name))}</div>
+                      <button
+                        className="vz-media-edit-btn"
+                        onClick={e => { e.stopPropagation(); setEditItem(m) }}
+                        title="Edit media"
+                      >
+                        <PencilEdit01Icon size={11} color="currentColor" />
+                      </button>
+                    </div>
                     <div className="vz-media-meta">{m.meta}</div>
                     {m.tags.length > 0 && (
                       <div className="vz-media-tags">

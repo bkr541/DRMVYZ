@@ -103,10 +103,11 @@
   background: rgba(74,199,219,0.05);
 }
 .mum-cloud-icon {
-  width: 56px;
-  height: 44px;
-  margin-bottom: 4px;
+  width: 80px;
+  height: 62px;
+  margin-bottom: 6px;
   opacity: 0.8;
+  overflow: visible;
 }
 .mum-drop-label {
   font-size: 14px;
@@ -422,7 +423,20 @@
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
+.mum-addinfo-grid--edit {
+  grid-template-columns: repeat(4, 1fr);
+}
+.mum-addinfo-item--span2 { grid-column: span 2; }
 .mum-addinfo-item { display: flex; flex-direction: column; gap: 4px; }
+
+.mum-fields-row {
+  display: flex;
+  gap: 12px;
+}
+.mum-fields-row .mum-field {
+  flex: 1;
+  min-width: 0;
+}
 .mum-addinfo-label {
   font-size: 9px;
   font-weight: 700;
@@ -486,6 +500,7 @@
   border-top: 1px solid rgba(255,255,255,0.06);
   flex-shrink: 0;
 }
+.mum-footer--edit { justify-content: flex-end; }
 .mum-cancel-btn {
   padding: 8px 18px;
   background: none;

@@ -360,6 +360,7 @@ interface MediaState {
   addMediaTag(mediaId: string, tag: string): void
   removeMediaTag(mediaId: string, tag: string): void
   bulkTagMedia(mediaIds: string[], tags: string[]): void
+  saveMediaEdits(id: string, patch: { role: MediaRole; title: string; description: string; tags: string[]; collectionIds: string[]; metadata: MediaMetadata }): Promise<void>
 
   // Collections
   loadCollections(): Promise<void>
@@ -788,6 +789,39 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       if (!item) continue
       const merged = Array.from(new Set([...item.tags, ...tags]))
       get().setMediaTags(id, merged)
+    }
+  },
+
+  async saveMediaEdits(id, patch) {
+    const item = get().items.find(i => i.id === id)
+    if (!item) return
+    set(s => ({
+      items: s.items.map(i => i.id === id ? {
+        ...i,
+        mediaRole:   patch.role,
+        title:       patch.title       || undefined,
+        description: patch.description || undefined,
+        tags:        patch.tags,
+        collectionIds: patch.collectionIds,
+        metadata:    { ...i.metadata, ...patch.metadata },
+      } : i),
+    }))
+    if (item.dbId && supabaseConfigured) {
+      const userId = await getCurrentUserId()
+      await Promise.all([
+        updateMediaItem(item.dbId, {
+          media_role:  patch.role,
+          title:       patch.title       || null,
+          description: patch.description || null,
+          metadata:    patch.metadata,
+        }),
+        userId
+          ? setMediaItemTags(item.dbId, userId, patch.tags)
+              .then(({ error }) => { if (error) console.error('[mediaStore] saveMediaEdits tags:', error) })
+          : Promise.resolve(),
+        setMediaItemCollections(item.dbId, patch.collectionIds)
+          .then(({ error }) => { if (error) console.error('[mediaStore] saveMediaEdits collections:', error) }),
+      ])
     }
   },
 

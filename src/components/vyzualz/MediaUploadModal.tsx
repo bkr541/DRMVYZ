@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useId } from 'react'
 import { useMediaStore } from '../../stores/mediaStore'
-import type { MediaCollection } from '../../stores/mediaStore'
+import type { MediaCollection, UploadedMedia } from '../../stores/mediaStore'
 import {
   MEDIA_ROLES,
   MEDIA_ROLE_LABELS,
@@ -122,7 +122,9 @@ function CollectionChips({ ids, collections, onRemove }: {
 
 // ── Main modal ────────────────────────────────────────────────────────────────
 
-export function MediaUploadModal({ onClose }: { onClose: () => void }) {
+export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; editItem?: UploadedMedia }) {
+  const isEdit = !!editItem
+
   const {
     uploadQueue,
     addFilesToUploadQueue,
@@ -137,6 +139,7 @@ export function MediaUploadModal({ onClose }: { onClose: () => void }) {
     setUploadDraftMetadata,
     resetUploadDraft,
     uploadQueuedMedia,
+    saveMediaEdits,
     collections,
     createCollection,
     loadCollections,
@@ -149,6 +152,7 @@ export function MediaUploadModal({ onClose }: { onClose: () => void }) {
   const [collInput, setCollInput] = useState('')
   const [dragOver,  setDragOver]  = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [saving,    setSaving]    = useState(false)
   const [uploadAnother, setUploadAnother] = useState(false)
 
   const fileInputId = useId()
@@ -156,14 +160,26 @@ export function MediaUploadModal({ onClose }: { onClose: () => void }) {
 
   useEffect(() => { loadCollections() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Close on Escape (unless uploading)
+  // Pre-fill draft from editItem when in edit mode
+  useEffect(() => {
+    if (!editItem) return
+    setUploadDraftRole(editItem.mediaRole)
+    setUploadDraftTitle(editItem.title ?? '')
+    setUploadDraftDescription(editItem.description ?? '')
+    setUploadDraftTags([...editItem.tags])
+    setUploadDraftCollections([...editItem.collectionIds])
+    setUploadDraftMetadata(editItem.metadata)
+    return () => { resetUploadDraft() }
+  }, [editItem?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Close on Escape (unless busy)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !uploading) onClose()
+      if (e.key === 'Escape' && !uploading && !saving) onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, uploading])
+  }, [onClose, uploading, saving])
 
   // Auto-suggest role when first file is added
   useEffect(() => {
@@ -311,6 +327,25 @@ export function MediaUploadModal({ onClose }: { onClose: () => void }) {
     }
   }
 
+  // Save edits (edit mode only)
+  const handleSave = async () => {
+    if (!editItem) return
+    setSaving(true)
+    try {
+      await saveMediaEdits(editItem.id, {
+        role:          uploadDraft.role,
+        title:         uploadDraft.title,
+        description:   uploadDraft.description,
+        tags:          uploadDraft.tags,
+        collectionIds: uploadDraft.collectionIds,
+        metadata:      uploadDraft.metadata,
+      })
+    } finally {
+      setSaving(false)
+    }
+    onClose()
+  }
+
   // Drag-drop
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault(); setDragOver(false)
@@ -323,29 +358,47 @@ export function MediaUploadModal({ onClose }: { onClose: () => void }) {
   const detectedRes    = firstMeta?.width && firstMeta?.height ? `${firstMeta.width} × ${firstMeta.height}` : undefined
   const detectedDur    = firstMeta?.duration !== undefined ? firstMeta.duration.toFixed(2) : undefined
 
-  const canUpload = uploadQueue.length > 0 && !uploading
+  const busy      = uploading || saving
+  const canUpload = uploadQueue.length > 0 && !busy
+  const canSave   = !busy
+
+  // ── Additional Info item renderer ──────────────────────────────────────
+  const adItem = (label: React.ReactNode, content: React.ReactNode, spanTwo = false) => (
+    <div className={spanTwo ? 'mum-addinfo-item mum-addinfo-item--span2' : 'mum-addinfo-item'}>
+      <div className="mum-addinfo-label">{label}</div>
+      {content}
+    </div>
+  )
+  const durContent    = <input className="mum-addinfo-input" type="number" min="0" step="0.01" placeholder="—" value={detectedDur ?? (uploadDraft.metadata.duration ?? '')} readOnly={detectedDur !== undefined} onChange={e => { if (detectedDur === undefined) setUploadDraftMetadata({ duration: parseFloat(e.target.value) || undefined }) }} />
+  const resContent    = <input className="mum-addinfo-input" placeholder="—" value={detectedRes ?? (uploadDraft.metadata.width && uploadDraft.metadata.height ? `${uploadDraft.metadata.width} × ${uploadDraft.metadata.height}` : '')} readOnly />
+  const fpsContent    = <input className="mum-addinfo-input" type="number" min="1" max="240" placeholder="e.g. 30" value={uploadDraft.metadata.fps ?? ''} onChange={e => setUploadDraftMetadata({ fps: parseFloat(e.target.value) || undefined })} />
+  const bpmContent    = <input className="mum-addinfo-input" type="number" min="20" max="300" placeholder="e.g. 128" value={uploadDraft.metadata.bpm ?? ''} onChange={e => setUploadDraftMetadata({ bpm: parseFloat(e.target.value) || undefined })} />
+  const loopContent   = <label className="mum-toggle"><input type="checkbox" checked={uploadDraft.metadata.loopable ?? false} onChange={e => setUploadDraftMetadata({ loopable: e.target.checked })} /><span className="mum-toggle-track"><span className="mum-toggle-thumb" /></span></label>
+  const alphaContent  = <label className="mum-toggle"><input type="checkbox" checked={uploadDraft.metadata.hasAlpha ?? false} onChange={e => setUploadDraftMetadata({ hasAlpha: e.target.checked })} /><span className="mum-toggle-track"><span className="mum-toggle-thumb" /></span></label>
+  const keyContent    = <div className="mum-select-wrap mum-select-wrap--sm"><select className="mum-select" value={uploadDraft.metadata.key ?? ''} onChange={e => setUploadDraftMetadata({ key: e.target.value || undefined })}><option value="">—</option>{MUSICAL_KEYS.map(k => <option key={k} value={k}>{k}</option>)}</select><svg className="mum-select-caret" viewBox="0 0 10 6" fill="currentColor"><path d="M0 0l5 6 5-6z"/></svg></div>
+  const energyContent = <div className="mum-select-wrap mum-select-wrap--sm"><select className="mum-select" value={uploadDraft.metadata.energy ?? ''} onChange={e => setUploadDraftMetadata({ energy: (e.target.value as MediaEnergy) || undefined })}><option value="">—</option>{(Object.keys(ENERGY_LABELS) as MediaEnergy[]).map(k => <option key={k} value={k}>{ENERGY_LABELS[k]}</option>)}</select><svg className="mum-select-caret" viewBox="0 0 10 6" fill="currentColor"><path d="M0 0l5 6 5-6z"/></svg></div>
 
   return (
     <div
       className="mum-backdrop"
-      onClick={e => { if (e.target === e.currentTarget && !uploading) onClose() }}
+      onClick={e => { if (e.target === e.currentTarget && !busy) onClose() }}
     >
       <div className="mum-modal" role="dialog" aria-modal="true" aria-label="Media Upload">
 
         {/* ── Header ─────────────────────────────────────────────────── */}
         <div className="mum-header">
           <div>
-            <div className="mum-title">MEDIA UPLOAD</div>
-            <div className="mum-subtitle">Upload media and organize with roles, tags, and collections.</div>
+            <div className="mum-title">{isEdit ? 'EDIT MEDIA' : 'MEDIA UPLOAD'}</div>
+            <div className="mum-subtitle">{isEdit ? 'Update metadata for this media item.' : 'Upload media and organize with roles, tags, and collections.'}</div>
           </div>
-          <button className="mum-close" onClick={() => { if (!uploading) onClose() }} aria-label="Close">×</button>
+          <button className="mum-close" onClick={() => { if (!busy) onClose() }} aria-label="Close">×</button>
         </div>
 
         {/* ── Body ───────────────────────────────────────────────────── */}
         <div className="mum-body">
 
-          {/* Left: drop zone + file list */}
-          <div className="mum-left">
+          {/* Left: drop zone + file list (hidden in edit mode) */}
+          {!isEdit && <div className="mum-left">
             <div
               ref={dropRef}
               className={`mum-dropzone${dragOver ? ' mum-dropzone--over' : ''}`}
@@ -353,7 +406,7 @@ export function MediaUploadModal({ onClose }: { onClose: () => void }) {
               onDragLeave={() => setDragOver(false)}
               onDrop={onDrop}
             >
-              <svg className="mum-cloud-icon" viewBox="0 0 64 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <svg className="mum-cloud-icon" viewBox="-4 -8 72 64" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M48 32a8 8 0 0 0-8-8h-1.28A18 18 0 1 0 14 32" stroke="#19bff2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 <path d="M32 38V20M26 26l6-6 6 6" stroke="#19bff2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
@@ -410,7 +463,7 @@ export function MediaUploadModal({ onClose }: { onClose: () => void }) {
                 </div>
               </div>
             )}
-          </div>
+          </div>}
 
           {/* Right: metadata form */}
           <div className="mum-right">
@@ -443,6 +496,7 @@ export function MediaUploadModal({ onClose }: { onClose: () => void }) {
               <input
                 className="mum-input"
                 placeholder="e.g. Portal Loop Alpha"
+                maxLength={22}
                 value={uploadDraft.title}
                 onChange={e => setUploadDraftTitle(e.target.value)}
               />
@@ -460,205 +514,134 @@ export function MediaUploadModal({ onClose }: { onClose: () => void }) {
               />
             </div>
 
-            {/* Tags */}
-            <div className="mum-field">
-              <label className="mum-field-label">TAGS</label>
-              <div className="mum-field-hint">Add or create tags to describe this media.</div>
-              <div className="mum-chip-input">
-                <TagChips tags={uploadDraft.tags} onRemove={removeTag} />
-                <input
-                  className="mum-chip-text"
-                  placeholder="Type to add tags…"
-                  value={tagInput}
-                  onChange={e => setTagInput(e.target.value)}
-                  onKeyDown={handleTagKey}
-                  onBlur={() => { if (tagInput.trim()) addTag(tagInput) }}
-                />
-                <svg className="mum-chip-caret" viewBox="0 0 10 6" fill="currentColor">
-                  <path d="M0 0l5 6 5-6z"/>
-                </svg>
+            {/* Tags + Collections (side-by-side in edit mode) */}
+            <div className={isEdit ? 'mum-fields-row' : undefined}>
+              <div className="mum-field">
+                <label className="mum-field-label">TAGS</label>
+                <div className="mum-field-hint">Add or create tags to describe this media.</div>
+                <div className="mum-chip-input">
+                  <TagChips tags={uploadDraft.tags} onRemove={removeTag} />
+                  <input
+                    className="mum-chip-text"
+                    placeholder="Type to add tags…"
+                    value={tagInput}
+                    onChange={e => setTagInput(e.target.value)}
+                    onKeyDown={handleTagKey}
+                    onBlur={() => { if (tagInput.trim()) addTag(tagInput) }}
+                  />
+                  <svg className="mum-chip-caret" viewBox="0 0 10 6" fill="currentColor">
+                    <path d="M0 0l5 6 5-6z"/>
+                  </svg>
+                </div>
               </div>
-            </div>
 
-            {/* Collections */}
-            <div className="mum-field">
-              <label className="mum-field-label">COLLECTIONS</label>
-              <div className="mum-field-hint">Add this media to one or more collections.</div>
-              <div className="mum-chip-input" style={{ position: 'relative' }}>
-                <CollectionChips
-                  ids={uploadDraft.collectionIds}
-                  collections={collections}
-                  onRemove={removeCollection}
-                />
-                <input
-                  className="mum-chip-text"
-                  placeholder="Type to search or create…"
-                  value={collInput}
-                  onChange={e => setCollInput(e.target.value)}
-                  onKeyDown={handleCollKey}
-                />
-                <svg className="mum-chip-caret" viewBox="0 0 10 6" fill="currentColor">
-                  <path d="M0 0l5 6 5-6z"/>
-                </svg>
-                {collInput && filteredColls.length > 0 && (
-                  <div className="mum-coll-dropdown">
-                    {filteredColls.map(c => (
-                      <button key={c.id} className="mum-coll-option" onClick={() => addCollection(c.id)}>
-                        {c.name}
+              <div className="mum-field">
+                <label className="mum-field-label">COLLECTIONS</label>
+                <div className="mum-field-hint">Add this media to one or more collections.</div>
+                <div className="mum-chip-input" style={{ position: 'relative' }}>
+                  <CollectionChips
+                    ids={uploadDraft.collectionIds}
+                    collections={collections}
+                    onRemove={removeCollection}
+                  />
+                  <input
+                    className="mum-chip-text"
+                    placeholder="Type to search or create…"
+                    value={collInput}
+                    onChange={e => setCollInput(e.target.value)}
+                    onKeyDown={handleCollKey}
+                  />
+                  <svg className="mum-chip-caret" viewBox="0 0 10 6" fill="currentColor">
+                    <path d="M0 0l5 6 5-6z"/>
+                  </svg>
+                  {collInput && filteredColls.length > 0 && (
+                    <div className="mum-coll-dropdown">
+                      {filteredColls.map(c => (
+                        <button key={c.id} className="mum-coll-option" onClick={() => addCollection(c.id)}>
+                          {c.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {collInput && filteredColls.length === 0 && (
+                    <div className="mum-coll-dropdown">
+                      <button
+                        className="mum-coll-option mum-coll-option--create"
+                        onMouseDown={async e => {
+                          e.preventDefault()
+                          const newId = await createCollection(collInput.trim())
+                          if (newId) { addCollection(newId); setCollInput('') }
+                        }}
+                      >
+                        + Create "{collInput.trim()}"
                       </button>
-                    ))}
-                  </div>
-                )}
-                {collInput && filteredColls.length === 0 && (
-                  <div className="mum-coll-dropdown">
-                    <button
-                      className="mum-coll-option mum-coll-option--create"
-                      onMouseDown={async e => {
-                        e.preventDefault()
-                        const newId = await createCollection(collInput.trim())
-                        if (newId) { addCollection(newId); setCollInput('') }
-                      }}
-                    >
-                      + Create "{collInput.trim()}"
-                    </button>
-                  </div>
-                )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Additional Info */}
             <div className="mum-field">
               <label className="mum-field-label">ADDITIONAL INFO</label>
-              <div className="mum-addinfo-grid">
-                <div className="mum-addinfo-item">
-                  <div className="mum-addinfo-label">DURATION (SEC)</div>
-                  <input
-                    className="mum-addinfo-input"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="—"
-                    value={detectedDur ?? (uploadDraft.metadata.duration ?? '')}
-                    readOnly={detectedDur !== undefined}
-                    onChange={e => {
-                      if (detectedDur === undefined)
-                        setUploadDraftMetadata({ duration: parseFloat(e.target.value) || undefined })
-                    }}
-                  />
+              {!isEdit ? (
+                <div className="mum-addinfo-grid">
+                  {adItem('DURATION (SEC)', durContent)}
+                  {adItem('RESOLUTION', resContent)}
+                  {adItem(<>FPS <span className="mum-opt">(OPTIONAL)</span></>, fpsContent)}
+                  {adItem('LOOPABLE', loopContent)}
+                  {adItem('HAS ALPHA', alphaContent)}
+                  {adItem(<>BPM <span className="mum-opt">(OPTIONAL)</span></>, bpmContent)}
+                  {adItem(<>KEY <span className="mum-opt">(OPTIONAL)</span></>, keyContent)}
+                  {adItem('ENERGY', energyContent)}
                 </div>
-                <div className="mum-addinfo-item">
-                  <div className="mum-addinfo-label">RESOLUTION</div>
-                  <input
-                    className="mum-addinfo-input"
-                    placeholder="—"
-                    value={detectedRes ?? (uploadDraft.metadata.width && uploadDraft.metadata.height ? `${uploadDraft.metadata.width} × ${uploadDraft.metadata.height}` : '')}
-                    readOnly
-                  />
+              ) : (
+                <div className="mum-addinfo-grid mum-addinfo-grid--edit">
+                  {adItem('DURATION (SEC)', durContent, true)}
+                  {adItem('RESOLUTION', resContent, true)}
+                  {adItem(<>FPS <span className="mum-opt">(OPTIONAL)</span></>, fpsContent, true)}
+                  {adItem(<>BPM <span className="mum-opt">(OPTIONAL)</span></>, bpmContent, true)}
+                  {adItem('HAS ALPHA', alphaContent)}
+                  {adItem(<>KEY <span className="mum-opt">(OPTIONAL)</span></>, keyContent)}
+                  {adItem('LOOPABLE', loopContent)}
+                  {adItem('ENERGY', energyContent)}
                 </div>
-                <div className="mum-addinfo-item">
-                  <div className="mum-addinfo-label">FPS <span className="mum-opt">(OPTIONAL)</span></div>
-                  <input
-                    className="mum-addinfo-input"
-                    type="number"
-                    min="1"
-                    max="240"
-                    placeholder="e.g. 30"
-                    value={uploadDraft.metadata.fps ?? ''}
-                    onChange={e => setUploadDraftMetadata({ fps: parseFloat(e.target.value) || undefined })}
-                  />
-                </div>
-                <div className="mum-addinfo-item">
-                  <div className="mum-addinfo-label">LOOPABLE</div>
-                  <label className="mum-toggle">
-                    <input
-                      type="checkbox"
-                      checked={uploadDraft.metadata.loopable ?? false}
-                      onChange={e => setUploadDraftMetadata({ loopable: e.target.checked })}
-                    />
-                    <span className="mum-toggle-track"><span className="mum-toggle-thumb" /></span>
-                  </label>
-                </div>
-                <div className="mum-addinfo-item">
-                  <div className="mum-addinfo-label">HAS ALPHA</div>
-                  <label className="mum-toggle">
-                    <input
-                      type="checkbox"
-                      checked={uploadDraft.metadata.hasAlpha ?? false}
-                      onChange={e => setUploadDraftMetadata({ hasAlpha: e.target.checked })}
-                    />
-                    <span className="mum-toggle-track"><span className="mum-toggle-thumb" /></span>
-                  </label>
-                </div>
-                <div className="mum-addinfo-item">
-                  <div className="mum-addinfo-label">BPM <span className="mum-opt">(OPTIONAL)</span></div>
-                  <input
-                    className="mum-addinfo-input"
-                    type="number"
-                    min="20"
-                    max="300"
-                    placeholder="e.g. 128"
-                    value={uploadDraft.metadata.bpm ?? ''}
-                    onChange={e => setUploadDraftMetadata({ bpm: parseFloat(e.target.value) || undefined })}
-                  />
-                </div>
-                <div className="mum-addinfo-item">
-                  <div className="mum-addinfo-label">KEY <span className="mum-opt">(OPTIONAL)</span></div>
-                  <div className="mum-select-wrap mum-select-wrap--sm">
-                    <select
-                      className="mum-select"
-                      value={uploadDraft.metadata.key ?? ''}
-                      onChange={e => setUploadDraftMetadata({ key: e.target.value || undefined })}
-                    >
-                      <option value="">—</option>
-                      {MUSICAL_KEYS.map(k => <option key={k} value={k}>{k}</option>)}
-                    </select>
-                    <svg className="mum-select-caret" viewBox="0 0 10 6" fill="currentColor">
-                      <path d="M0 0l5 6 5-6z"/>
-                    </svg>
-                  </div>
-                </div>
-                <div className="mum-addinfo-item">
-                  <div className="mum-addinfo-label">ENERGY</div>
-                  <div className="mum-select-wrap mum-select-wrap--sm">
-                    <select
-                      className="mum-select"
-                      value={uploadDraft.metadata.energy ?? ''}
-                      onChange={e => setUploadDraftMetadata({ energy: (e.target.value as MediaEnergy) || undefined })}
-                    >
-                      <option value="">—</option>
-                      {(Object.keys(ENERGY_LABELS) as MediaEnergy[]).map(k => (
-                        <option key={k} value={k}>{ENERGY_LABELS[k]}</option>
-                      ))}
-                    </select>
-                    <svg className="mum-select-caret" viewBox="0 0 10 6" fill="currentColor">
-                      <path d="M0 0l5 6 5-6z"/>
-                    </svg>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
 
           </div>{/* /mum-right */}
         </div>{/* /mum-body */}
 
         {/* ── Footer ─────────────────────────────────────────────────── */}
-        <div className="mum-footer">
-          <button className="mum-cancel-btn" onClick={() => { if (!uploading) onClose() }}>Cancel</button>
-          <label className="mum-upload-another">
-            <input
-              type="checkbox"
-              checked={uploadAnother}
-              onChange={e => setUploadAnother(e.target.checked)}
-            />
-            Upload another
-          </label>
-          <button
-            className="mum-upload-btn"
-            disabled={!canUpload}
-            onClick={handleUpload}
-          >
-            {uploading ? 'Uploading…' : `Upload ${uploadQueue.length > 0 ? uploadQueue.length + ' ' : ''}Media`}
-          </button>
+        <div className={`mum-footer${isEdit ? ' mum-footer--edit' : ''}`}>
+          <button className="mum-cancel-btn" onClick={() => { if (!busy) onClose() }}>Cancel</button>
+          {!isEdit && (
+            <label className="mum-upload-another">
+              <input
+                type="checkbox"
+                checked={uploadAnother}
+                onChange={e => setUploadAnother(e.target.checked)}
+              />
+              Upload another
+            </label>
+          )}
+          {isEdit ? (
+            <button
+              className="mum-upload-btn"
+              disabled={!canSave}
+              onClick={handleSave}
+            >
+              {saving ? 'Saving…' : 'Save Changes'}
+            </button>
+          ) : (
+            <button
+              className="mum-upload-btn"
+              disabled={!canUpload}
+              onClick={handleUpload}
+            >
+              {uploading ? 'Uploading…' : `Upload ${uploadQueue.length > 0 ? uploadQueue.length + ' ' : ''}Media`}
+            </button>
+          )}
         </div>
 
       </div>
