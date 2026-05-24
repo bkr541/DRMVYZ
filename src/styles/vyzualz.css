@@ -2396,6 +2396,21 @@ input[type='range'].vz-slider--color {
 .vz-dock-addtrack-btn {
   cursor: pointer;
   flex-shrink: 0;
+  border-color: rgba(74, 199, 219, 0.45) !important;
+  background: rgba(74, 199, 219, 0.08) !important;
+  color: rgba(74, 199, 219, 0.9) !important;
+  box-shadow: 0 0 8px rgba(74, 199, 219, 0.14);
+}
+
+.vz-dock-addtrack-btn:hover {
+  background: rgba(74, 199, 219, 0.16) !important;
+  border-color: rgba(74, 199, 219, 0.7) !important;
+  color: rgb(74, 199, 219) !important;
+  box-shadow: 0 0 14px rgba(74, 199, 219, 0.3);
+}
+
+.vz-dock-addtrack-btn:active {
+  background: rgba(74, 199, 219, 0.22) !important;
 }
 
 /* CENTER: flex row — waveform fills left, zoom buttons sit to its right */
