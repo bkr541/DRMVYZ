@@ -37,9 +37,12 @@ export const EffectChainPanel = memo(function EffectChainPanel({
               key={option.id}
               className={`vz-chain-btn${enabled.has(option.chain_name) ? ' vz-chain-btn--active' : ''}`}
               onClick={() => onToggle(option.chain_name)}
-              title={`${option.description} • Category: ${option.category}`}
             >
-              {option.chain_name}
+              <div className="vz-chain-btn-header">
+                <span className="vz-chain-btn-name">{option.chain_name}</span>
+                <span className="vz-chain-btn-category">{option.category}</span>
+              </div>
+              <span className="vz-chain-btn-desc">{option.description}</span>
             </button>
           ))}
         </div>
