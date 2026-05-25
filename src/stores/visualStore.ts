@@ -423,6 +423,7 @@ interface VisualState {
     }
   ): void
   deletePreset(id: string): void
+  clearActivePreset(): void
 
   // ── Session actions ────────────────────────────────────────────────────────
   saveSession(name: string, audioSource: VzSession['audioSource'], mediaOrder: string[]): void
@@ -817,6 +818,9 @@ export const useVisualStore = create<VisualState>()(
           presets: s.presets.filter(p => p.id !== id || p.isDefault),
           activePresetId: s.activePresetId === id ? DEFAULT_PRESETS[0].id : s.activePresetId,
         }))
+      },
+      clearActivePreset() {
+        set({ activePresetId: 'custom' })
       },
 
       // ── Sessions ─────────────────────────────────────────────────────────────

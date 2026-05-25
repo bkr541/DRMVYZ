@@ -504,7 +504,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     effects, enabledFxArr,
     activeMediaId, presets, activePresetId,
     bpm, bpmSync, isPlaying, quality,
-    setEffect, resetEffects, toggleFx, selectPreset, savePreset, deletePreset,
+    setEffect, resetEffects, toggleFx, selectPreset, savePreset, deletePreset, clearActivePreset,
     setActiveMedia, setBpm, toggleBpmSync, setPlaying, setQuality,
     sessions, sessionsLoading, sessionSyncError,
     saveSession, loadSession, renameSession, deleteSession,
@@ -531,6 +531,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
     selectPreset:              s.selectPreset,
     savePreset:                s.savePreset,
     deletePreset:              s.deletePreset,
+    clearActivePreset:         s.clearActivePreset,
     setActiveMedia:            s.setActiveMedia,
     setBpm:                    s.setBpm,
     toggleBpmSync:             s.toggleBpmSync,
@@ -938,6 +939,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                 onSelect={handleSelectPreset}
                 onSave={handleSavePreset}
                 onDelete={deletePreset}
+                onClear={clearActivePreset}
               />
             )}
             {activeRightPanel === 'fx' && (

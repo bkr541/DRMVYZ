@@ -40,7 +40,7 @@ export const EffectChainPanel = memo(function EffectChainPanel({
             >
               <div className="vz-chain-btn-header">
                 <span className="vz-chain-btn-name">{option.chain_name}</span>
-                <span className="vz-chain-btn-category">{option.category}</span>
+                <span className={`vz-chain-btn-category vz-chain-btn-category--${option.category}`}>{option.category}</span>
               </div>
               <span className="vz-chain-btn-desc">{option.description}</span>
             </button>

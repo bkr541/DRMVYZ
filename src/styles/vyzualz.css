@@ -2074,12 +2074,22 @@ input[type='range'].vz-slider--color {
 .vz-chain-btn-category {
   font-size: 9px;
   font-weight: 500;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  opacity: 0.5;
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
   flex-shrink: 0;
+  /* default — overridden by modifier */
+  background: rgba(245,248,250,0.06);
+  color: var(--az-text-faint);
 }
-.vz-chain-btn--active .vz-chain-btn-category { opacity: 0.65; }
+.vz-chain-btn-category--color        { background: rgba(180,100,220,0.12); color: rgba(190,120,235,0.8); }
+.vz-chain-btn-category--distortion   { background: rgba(240,120,60,0.12);  color: rgba(240,140,80,0.8);  }
+.vz-chain-btn-category--audioReactive{ background: rgba(74,199,219,0.1);   color: rgba(74,199,219,0.75); }
+.vz-chain-btn-category--generative   { background: rgba(80,210,130,0.11);  color: rgba(90,215,140,0.8);  }
+.vz-chain-btn-category--post         { background: rgba(220,185,60,0.11);  color: rgba(225,195,80,0.8);  }
+.vz-chain-btn-category--utility      { background: rgba(140,160,205,0.11); color: rgba(150,170,215,0.8); }
 .vz-chain-btn-desc {
   font-size: 9.5px;
   font-weight: 400;
@@ -2349,180 +2359,150 @@ input[type='range'].vz-slider--color {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--az-border);
   overflow: hidden;
 }
 
-.vz-presets-header {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 5px 10px;
-  flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.055);
-  min-height: 30px;
+/* Search row — reuses Media Deck search row classes; this modifier adjusts padding */
+.vz-presets-search-row {
+  padding: 5px 8px;
 }
 
-.vz-presets-label {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: var(--az-text-muted);
-  font-family: var(--az-font);
-  flex: 1;
+.vz-presets-cat-select {
+  font-size: 10px !important;
+  padding: 4px 18px 4px 7px !important;
+  flex-shrink: 0;
 }
 
 .vz-new-preset-btn {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 13px;
+  justify-content: center;
+  padding: 5px 8px;
   background: transparent;
-  border: 1px solid rgba(74,199,219,0.5);
-  border-radius: 6px;
+  border: 1px solid rgba(74,199,219,0.45);
+  border-radius: 5px;
   color: var(--az-cyan);
-  font-family: var(--az-font);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
   cursor: pointer;
   transition: all 0.14s;
-  white-space: nowrap;
   flex-shrink: 0;
 }
 .vz-new-preset-btn:hover {
   background: rgba(74,199,219,0.12);
   border-color: var(--az-cyan);
-  box-shadow: 0 0 10px rgba(74,199,219,0.18);
 }
 
-/* Preset search + filter */
-.vz-presets-search-wrap {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.09);
-  border-radius: 6px;
-  padding: 4px 9px;
-  min-width: 140px;
-  flex-shrink: 1;
-  transition: border-color 0.15s;
-}
-.vz-presets-search-wrap:focus-within {
-  border-color: rgba(74,199,219,0.4);
-}
-.vz-presets-search-icon { color: var(--az-text-faint); flex-shrink: 0; }
-.vz-presets-search {
-  background: none;
-  border: none;
-  outline: none;
-  color: var(--az-text);
-  font-family: var(--az-font-data);
-  font-size: 11px;
-  width: 100%;
-  min-width: 0;
-}
-.vz-presets-search::placeholder { color: var(--az-text-faint); opacity: 0.7; }
-.vz-presets-cat-select {
-  font-size: 10px !important;
-  padding: 4px 22px 4px 8px !important;
-  flex-shrink: 0;
-}
-
-/* Preset cards — chain-button style, 3-col × 2-row grid with horizontal scroll */
-.vz-preset-cards {
-  display: grid;
-  grid-template-rows: repeat(2, 1fr);
-  grid-auto-flow: column;
-  grid-auto-columns: calc((100% - 12px) / 3);
-  gap: 4px;
-  padding: 5px 8px;
+/* ── Preset list (vertical rows) ─────────────────────────────────────── */
+.vz-preset-list {
   flex: 1;
-  overflow-x: auto;
-  overflow-y: hidden;
   min-height: 0;
-}
-.vz-preset-cards::-webkit-scrollbar { height: 3px; }
-.vz-preset-cards::-webkit-scrollbar-track { background: transparent; }
-.vz-preset-cards::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
-
-.vz-preset-card {
-  border-radius: 5px;
-  border: 1px solid rgba(255,255,255,0.1);
-  overflow: hidden;
-  cursor: pointer;
-  transition: border-color 0.18s, box-shadow 0.18s;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  position: relative;
+  gap: 2px;
+  padding: 4px 8px 8px;
 }
-.vz-preset-card:hover {
-  border-color: rgba(74,199,219,0.45);
-  box-shadow: 0 0 8px rgba(74,199,219,0.15);
-}
-.vz-preset-card--active {
-  border-color: var(--az-cyan) !important;
-  box-shadow: 0 0 14px rgba(74,199,219,0.35), inset 0 0 10px rgba(74,199,219,0.06);
-}
+.vz-preset-list::-webkit-scrollbar { width: 3px; }
+.vz-preset-list::-webkit-scrollbar-track { background: transparent; }
+.vz-preset-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
 
-.vz-preset-card-header {
-  position: absolute;
-  top: 3px;
-  right: 4px;
+.vz-preset-row {
   display: flex;
-  justify-content: flex-end;
-  align-items: flex-start;
-  z-index: 2;
-}
-
-.vz-preset-card-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
   align-items: center;
-  padding: 4px 6px;
-  background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.22) 65%, transparent 100%);
+  gap: 8px;
+  padding: 6px 8px 6px 0;
+  border-radius: 5px;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.03);
+  cursor: pointer;
+  transition: border-color 0.14s, background 0.14s;
   position: relative;
-  z-index: 1;
+  overflow: hidden;
+}
+.vz-preset-row:hover {
+  border-color: rgba(74,199,219,0.35);
+  background: rgba(255,255,255,0.05);
+}
+.vz-preset-row--active {
+  border-color: rgba(74,199,219,0.6) !important;
+  background: rgba(74,199,219,0.07) !important;
+  box-shadow: 0 0 10px rgba(74,199,219,0.15);
 }
 
-/* Legacy thumb — kept so old code with thumb div doesn't crash */
-.vz-preset-thumb {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
+.vz-preset-row-swatch {
+  width: 5px;
+  align-self: stretch;
+  flex-shrink: 0;
+  border-radius: 4px 0 0 4px;
 }
 
-.vz-preset-name {
+.vz-preset-row-name {
+  flex: 1;
   font-size: 10px;
   font-weight: 600;
-  color: rgba(255,255,255,0.92);
-  word-break: break-word;
-  line-height: 1.3;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  text-align: center;
   font-family: var(--az-font);
+  color: rgba(245,248,250,0.75);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
-.vz-preset-card--active .vz-preset-name {
-  color: #fff;
-  text-shadow: 0 0 10px rgba(74,199,219,0.65);
+.vz-preset-row--active .vz-preset-row-name {
+  color: var(--az-cyan);
+  text-shadow: 0 0 8px rgba(74,199,219,0.4);
 }
 
-.vz-preset-del-btn {
-  background: rgba(0,0,0,0.55);
-  border: none;
-  color: rgba(245,248,250,0.5);
-  cursor: pointer;
-  font-size: 9px;
-  border-radius: 3px;
-  padding: 2px 5px;
-  line-height: 1.4;
-  transition: color 0.12s, background 0.12s;
+/* Action buttons — hidden by default, visible on row hover */
+.vz-preset-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   flex-shrink: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+.vz-preset-row:hover .vz-preset-row-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.vz-preset-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  cursor: pointer;
+  color: rgba(245,248,250,0.45);
+  transition: color 0.12s, background 0.12s, border-color 0.12s;
+}
+.vz-preset-action-btn--clear:hover {
+  color: rgba(74,199,219,0.9);
+  background: rgba(74,199,219,0.12);
+  border-color: rgba(74,199,219,0.4);
+}
+.vz-preset-action-btn--delete:hover {
+  color: #f87171;
+  background: rgba(225,29,72,0.15);
+  border-color: rgba(225,29,72,0.35);
+}
+
+/* Legacy — kept so any stale refs don't crash */
+.vz-preset-thumb { position: absolute; inset: 0; z-index: 0; }
+.vz-preset-name {
+  font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.92);
+  line-height: 1.3; letter-spacing: 0.05em; text-transform: uppercase;
+  font-family: var(--az-font);
+}
+.vz-preset-del-btn {
+  background: rgba(0,0,0,0.55); border: none; color: rgba(245,248,250,0.5);
+  cursor: pointer; font-size: 9px; border-radius: 3px; padding: 2px 5px;
+  line-height: 1.4; transition: color 0.12s, background 0.12s;
 }
 .vz-preset-del-btn:hover { color: #f87171; background: rgba(225,29,72,0.2); }
 
