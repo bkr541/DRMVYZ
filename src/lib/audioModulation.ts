@@ -82,6 +82,14 @@ export const DEFAULT_MODULATION_ROUTES: ModulationRoute[] = [
   { id: 'mid-mirrorSplit',        effectId: 'mirrorSplit',     source: 'mid',    amount: 0.15, enabled: true },
   // Beat → datamosh smear burst
   { id: 'beat-datamoshSmear',     effectId: 'datamoshSmear',   source: 'beat',   amount: 0.20, enabled: true },
+
+  // ── Distortion Pixels effects ─────────────────────────────────────────────────
+  // Beat → pixel corruption punch (short burst on beat boundary)
+  { id: 'beat-pixelDistortion',   effectId: 'pixelDistortion',   source: 'beat',   amount: 0.22, enabled: true },
+  // Bass → signal breakup pressure during heavy low end
+  { id: 'bass-pixelDistortion',   effectId: 'pixelDistortion',   source: 'bass',   amount: 0.15, enabled: true },
+  // Beat → rhythmic stutter pressure (restrained for live usability)
+  { id: 'beat-frameQuantization', effectId: 'frameQuantization', source: 'beat',   amount: 0.12, enabled: true },
 ]
 
 // ── Band display metadata (used by ModulationPanel) ──────────────────────────
@@ -120,8 +128,10 @@ export const EFFECT_LABELS: Partial<Record<keyof VzEffects, string>> = {
   colorCycle:      'Color Cycle',
   beatFlash:       'Beat Flash',
   edgeFlicker:     'Edge Flicker',
-  noiseFog:        'Noise Fog',
-  scanlines:       'Scanlines',
+  noiseFog:          'Noise Fog',
+  scanlines:         'Scanlines',
+  pixelDistortion:   'Pixel Distortion',
+  frameQuantization: 'Frame Quantize',
 }
 
 // ── Band extraction ───────────────────────────────────────────────────────────

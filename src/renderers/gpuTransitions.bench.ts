@@ -47,8 +47,10 @@ const ACTIVE_EFFECTS = {
   colorCycle:      0.45,
   beatFlash:       0.50,
   edgeFlicker:     0.50,
-  noiseFog:        0.40,
-  scanlines:       0.50,
+  noiseFog:          0.40,
+  scanlines:         0.50,
+  pixelDistortion:   0.00,
+  frameQuantization: 0.00,
 }
 
 const GPU_TYPES: VzTransitionType[] = [

@@ -72,8 +72,11 @@ export interface VzEffects {
   colorCycle:      number
   beatFlash:       number
   edgeFlicker:     number
-  noiseFog:        number
-  scanlines:       number
+  noiseFog:          number
+  scanlines:         number
+  // ── Distortion Pixels effects ──────────────────────────────────────────────
+  pixelDistortion:   number
+  frameQuantization: number
 }
 
 export const DEFAULT_EFFECTS: VzEffects = {
@@ -104,8 +107,10 @@ export const DEFAULT_EFFECTS: VzEffects = {
   colorCycle:      0.45,
   beatFlash:       0.50,
   edgeFlicker:     0.50,
-  noiseFog:        0.40,
-  scanlines:       0.50,
+  noiseFog:          0.40,
+  scanlines:         0.50,
+  pixelDistortion:   0.00,
+  frameQuantization: 0.00,
 }
 
 // ── PresetScope: controls which fields are saved/restored by a preset ─────────
@@ -280,6 +285,90 @@ export const DEFAULT_PRESETS: VzPreset[] = [
     effects: { ...DEFAULT_EFFECTS, glitchAmount: 0, rgbSplit: 0, strobe: 0, feedbackTrails: 0, bloom: 0.2 },
     enabledFx: ['Scanlines'],
     isDefault: true,
+  },
+  {
+    id: 'distortion-pixels',
+    name: 'Distortion Pixels',
+    color: '#67dff2',
+    gradient: 'linear-gradient(135deg,#05090d 0%,#102737 48%,#58dbe9 78%,#d88cff 100%)',
+    isDefault: true,
+    effects: {
+      ...DEFAULT_EFFECTS,
+      masterIntensity:   1.0,
+      bassReactivity:    0.82,
+      pixelDistortion:   0.86,
+      frameQuantization: 0.68,
+      bloom:             0.96,
+      rgbSplit:          0.52,
+      displacement:      0.58,
+      feedbackTrails:    0.66,
+      scanlines:         0.86,
+      vhsStatic:         0.52,
+      noiseFog:          0.42,
+      glitchAmount:      0.12,
+      datamoshSmear:     0.10,
+      colorShift:        0.04,
+      strobe:            0.00,
+    },
+    enabledFx: [
+      'Pixel Distortion',
+      'Frame Quantization',
+      'Bloom',
+      'RGB Split',
+      'Displacement',
+      'Feedback',
+      'Scanlines',
+      'VHS Static',
+      'Noise Fog',
+    ],
+    effectParams: {
+      pixelDistortion: {
+        pixelSize:        4,
+        posterizeLevels:  5,
+        ditherAmount:     0.68,
+        corruptionAmount: 0.40,
+        overexposure:     0.55,
+        energyTint:       0.78,
+        beatPunch:        0.28,
+      },
+      frameQuantization: {
+        targetFps:         12,
+        beatHoldFrames:    2,
+        beatStutterAmount: 0.32,
+      },
+      bloom: {
+        radius:              18,
+        threshold:           0.20,
+        intensityMultiplier: 1.35,
+        exposure:            0.30,
+        tintR:               0.72,
+        tintG:               0.95,
+        tintB:               1.00,
+      },
+      feedback: {
+        decay:         0.70,
+        smearX:        2.0,
+        smearY:        0.75,
+        zoom:          1.004,
+        audioResponse: 0.22,
+      },
+      displacement: {
+        noiseScale:       3.0,
+        noiseAmount:      0.32,
+        warpSpeed:        0.30,
+        horizontalBias:   1.35,
+        bassResponse:     0.42,
+        retainGhostLayer: true,
+      },
+      analogSignal: {
+        density:      0.90,
+        strength:     0.72,
+        jitterAmount: 0.20,
+        jitterSpeed:  0.28,
+        curvature:    0.06,
+        noiseAmount:  0.32,
+      },
+    },
   },
 ]
 

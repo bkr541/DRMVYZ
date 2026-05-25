@@ -3,16 +3,10 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 152 ms
+  VITE v5.4.21  ready in 114 ms
 
   ➜  Local:   http://127.0.0.1:5173/
-6:40:47 PM [vite] hmr update /src/components/vyzualz/layout/VyzualzTopBar.tsx
-6:41:24 PM [vite] hmr update /src/components/vyzualz/layout/VyzualzTopBar.tsx
-6:41:31 PM [vite] hmr update /src/components/vyzualz/layout/VyzualzTopBar.tsx
-6:41:45 PM [vite] hmr update /src/components/vyzualz/layout/VyzualzTopBar.tsx
-6:41:55 PM [vite] hmr update /src/styles/vyzualz.css
-6:53:22 PM [vite] hmr update /src/styles/vyzualz.css
-6:58:37 PM [vite] hmr update /src/styles/vyzualz.css
-7:25:39 PM [vite] hmr update /src/components/vyzualz/effects/EffectChainPanel.tsx
-7:25:39 PM [vite] hmr invalidate /src/components/vyzualz/effects/EffectChainPanel.tsx Could not Fast Refresh (export removed)
-7:25:39 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
+8:56:25 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
+8:56:32 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
+8:56:37 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
+8:56:42 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx

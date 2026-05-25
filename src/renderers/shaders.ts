@@ -103,23 +103,36 @@ void main() {
 `
 
 // ── 3. Bloom threshold ────────────────────────────────────────────────────────
-// Extracts bright areas (luminance > 0.35) for the bloom blur pass.
-// Renders at half canvas resolution to reduce blur cost (4× fewer texels).
+// Extracts bright areas above u_threshold for the bloom blur pass.
+// Applies optional exposure boost and tint. Renders at half canvas resolution.
 //
 // Uniforms:
-//   u_tex — current scene texture
+//   u_tex        — current scene texture
+//   u_threshold  — luminance extraction threshold (default 0.35)
+//   u_exposure   — highlight exposure boost added before threshold (0..1)
+//   u_tintR/G/B  — glow tint colour channels (1.0 = neutral white)
+//   u_intensityMul — intensity multiplier for the extracted region
 export const BLOOM_THRESHOLD_FRAG = /* glsl */`#version 300 es
 precision highp float;
 in vec2 v_uv;
 uniform sampler2D u_tex;
+uniform float u_threshold;
+uniform float u_exposure;
+uniform float u_tintR;
+uniform float u_tintG;
+uniform float u_tintB;
+uniform float u_intensityMul;
 out vec4 fragColor;
 
 void main() {
   vec4 c = texture(u_tex, v_uv);
-  float lum = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
-  float bright = clamp((lum - 0.35) / 0.65, 0.0, 1.0);
-  // Boost bright regions for more visible glow
-  fragColor = vec4(c.rgb * bright * 1.4, 1.0);
+  // Optional exposure boost before threshold extraction
+  vec3 boosted = c.rgb * (1.0 + u_exposure * 1.5);
+  float lum = dot(boosted, vec3(0.2126, 0.7152, 0.0722));
+  float knee = max(0.001, 1.0 - u_threshold);
+  float bright = clamp((lum - u_threshold) / knee, 0.0, 1.0);
+  vec3 tint = vec3(u_tintR, u_tintG, u_tintB);
+  fragColor = vec4(boosted * bright * 1.4 * u_intensityMul * tint, 1.0);
 }
 `
 
@@ -406,6 +419,253 @@ void main() {
 
   color = clamp(color, 0.0, 1.0);
   fragColor = vec4(color, src.a);
+}
+`
+
+// ── 12. Pixel Distortion ─────────────────────────────────────────────────────
+// Pixel grid snap, posterization, Bayer dithering, corruption blocks, energy
+// overexposure and cyan-white highlight tinting for the corrupted CRT look.
+// Pass is an identity when u_amount is zero.
+//
+// Uniforms:
+//   u_tex          — input scene texture
+//   u_resolution   — canvas size in pixels
+//   u_time         — elapsed ms (per-frame seed for corruption)
+//   u_amount       — master intensity 0..1 (0 = identity)
+//   u_pixelSize    — pixel cell size in output pixels (1 = no pixelation)
+//   u_posterize    — number of tonal posterization steps (≥2)
+//   u_dither       — Bayer dither strength 0..1
+//   u_corruption   — block corruption breakup amount 0..1
+//   u_overexposure — highlight clip / bleach-energy strength 0..1
+//   u_energyTint   — cyan-white tint on bright areas 0..1
+//   u_beatPunch    — per-beat additional corruption boost 0..1
+export const PIXEL_DISTORTION_FRAG = /* glsl */`#version 300 es
+precision highp float;
+in vec2 v_uv;
+uniform sampler2D u_tex;
+uniform vec2  u_resolution;
+uniform float u_time;
+uniform float u_amount;
+uniform float u_pixelSize;
+uniform float u_posterize;
+uniform float u_dither;
+uniform float u_corruption;
+uniform float u_overexposure;
+uniform float u_energyTint;
+uniform float u_beatPunch;
+out vec4 fragColor;
+
+// 2D value hash → [0,1)
+float hash21(vec2 p) {
+  p = fract(p * vec2(127.1, 311.7));
+  p += dot(p, p.yx + 19.19);
+  return fract(p.x * p.y);
+}
+float hash11(float p) {
+  return fract(sin(p * 127.1) * 43758.5453);
+}
+
+// 4×4 Bayer ordered dither matrix normalised to [0,1)
+float bayer4(vec2 px) {
+  int x = int(mod(px.x, 4.0));
+  int y = int(mod(px.y, 4.0));
+  int idx = y * 4 + x;
+  // Bayer4 threshold values (0-15) normalised
+  float vals[16];
+  vals[0]  =  0.0/16.0; vals[1]  =  8.0/16.0; vals[2]  =  2.0/16.0; vals[3]  = 10.0/16.0;
+  vals[4]  = 12.0/16.0; vals[5]  =  4.0/16.0; vals[6]  = 14.0/16.0; vals[7]  =  6.0/16.0;
+  vals[8]  =  3.0/16.0; vals[9]  = 11.0/16.0; vals[10] =  1.0/16.0; vals[11] =  9.0/16.0;
+  vals[12] = 15.0/16.0; vals[13] =  7.0/16.0; vals[14] = 13.0/16.0; vals[15] =  5.0/16.0;
+  return vals[idx];
+}
+
+void main() {
+  if (u_amount <= 0.0) { fragColor = texture(u_tex, v_uv); return; }
+
+  // ── 1. Pixel-grid snap ────────────────────────────────────────────────
+  float pxSz = max(1.0, u_pixelSize);
+  vec2 cell   = pxSz / u_resolution;
+  vec2 snapUv = floor(v_uv / cell) * cell + cell * 0.5;
+
+  // ── 2. Corruption displacement ────────────────────────────────────────
+  // Block-level instability driven by time and beat punch
+  float corr   = u_corruption * u_amount + u_beatPunch * u_amount;
+  float timeSeed = floor(u_time * 0.02);   // slow-changing seed
+  vec2  blockUv  = floor(snapUv * 16.0) / 16.0;
+  float blockN   = hash21(blockUv + timeSeed);
+  if (corr > 0.0 && blockN < corr * 0.25) {
+    // Corrupt a fraction of cells by shifting their UV horizontally
+    float shift = (hash11(blockN + timeSeed) - 0.5) * corr * 0.12;
+    snapUv.x = clamp(snapUv.x + shift, 0.0, 1.0);
+  }
+  snapUv = clamp(snapUv, 0.0, 1.0);
+  vec3 color = texture(u_tex, snapUv).rgb;
+
+  // ── 3. Posterization ─────────────────────────────────────────────────
+  float levels = max(2.0, u_posterize);
+  color = floor(color * levels + 0.5) / levels;
+
+  // ── 4. Bayer dither ───────────────────────────────────────────────────
+  if (u_dither > 0.0) {
+    vec2 px = floor(v_uv * u_resolution);
+    float dithThresh = bayer4(px);
+    // Push each channel toward the nearest posterize level via dither
+    float spread = (1.0 / levels) * u_dither * u_amount;
+    color += (dithThresh - 0.5) * spread;
+    color = clamp(color, 0.0, 1.0);
+  }
+
+  // ── 5. Energy overexposure — clip highlights to cyan-white ───────────
+  if (u_overexposure > 0.0) {
+    float lum = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    float oeStrength = u_overexposure * u_amount;
+    // Boost above a soft threshold
+    float bright = smoothstep(0.45, 0.75, lum);
+    color += color * bright * oeStrength * 1.8;
+    color = clamp(color, 0.0, 1.0);
+  }
+
+  // ── 6. Cyan-white energy tint on bright regions ───────────────────────
+  if (u_energyTint > 0.0) {
+    float lum2     = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    float tintMask = smoothstep(0.55, 0.90, lum2);
+    vec3  cyanWhite = vec3(0.78, 1.0, 1.0);  // icy cyan-white
+    float tintAmt   = u_energyTint * u_amount * tintMask;
+    color = mix(color, cyanWhite * lum2, tintAmt);
+  }
+
+  // ── 7. Blend with original based on amount ────────────────────────────
+  vec3 original = texture(u_tex, v_uv).rgb;
+  fragColor = vec4(mix(original, color, u_amount), 1.0);
+}
+`
+
+// ── 13. Temporal Feedback (ping-pong) ─────────────────────────────────────────
+// Blends the current scene with the previous rendered frame for luminous trails.
+// Called once after the full effect stack has been composited; the result is
+// written to the feedbackWrite FBO and also blitted to the final output.
+//
+// Uniforms:
+//   u_scene    — current fully-composited scene texture
+//   u_history  — previous feedback frame (feedbackRead)
+//   u_decay    — blend factor: history contribution 0..0.97
+//   u_smearX   — per-frame UV shift in pixels (horizontal smear)
+//   u_smearY   — per-frame UV shift in pixels (vertical smear)
+//   u_zoom     — subtle zoom factor per frame (1.0 = no zoom)
+//   u_resolution — canvas size for smear normalisation
+export const FEEDBACK_FRAG = /* glsl */`#version 300 es
+precision highp float;
+in vec2 v_uv;
+uniform sampler2D u_scene;
+uniform sampler2D u_history;
+uniform float u_decay;
+uniform float u_smearX;
+uniform float u_smearY;
+uniform float u_zoom;
+uniform vec2  u_resolution;
+out vec4 fragColor;
+
+void main() {
+  // Sample history with optional smear + zoom offset
+  vec2 histUv = v_uv;
+  if (u_zoom != 1.0) {
+    histUv = (histUv - 0.5) / u_zoom + 0.5;
+  }
+  histUv.x += u_smearX / u_resolution.x;
+  histUv.y += u_smearY / u_resolution.y;
+  histUv = clamp(histUv, 0.0, 1.0);
+
+  vec3 scene   = texture(u_scene,   v_uv).rgb;
+  vec3 history = texture(u_history, histUv).rgb;
+
+  // Blend: current scene + decayed history
+  vec3 result = mix(scene, max(scene, history * u_decay), u_decay);
+  fragColor = vec4(result, 1.0);
+}
+`
+
+// ── 14. Noise Warp Displacement ───────────────────────────────────────────────
+// Procedural value-noise UV warp plus optional shifted ghost layer.
+// Replaces or extends the basic ghost-copy displacement for the Distortion
+// Pixels look. Falls back to identity when u_noiseAmount == 0.
+//
+// Uniforms:
+//   u_tex        — input scene texture
+//   u_time       — elapsed ms (drives noise animation)
+//   u_resolution — canvas dimensions
+//   u_noiseScale — noise field UV scale
+//   u_noiseAmt   — warp UV offset strength 0..1
+//   u_warpSpeed  — noise field animation speed
+//   u_hBias      — horizontal warp bias multiplier
+//   u_ghostAmt   — shifted ghost layer alpha (0 = no ghost)
+//   u_ghostOffX  — ghost x offset in normalised UV
+//   u_ghostOffY  — ghost y offset in normalised UV
+//   u_ghostHue   — hue rotation for ghost in radians
+export const NOISE_WARP_FRAG = /* glsl */`#version 300 es
+precision highp float;
+in vec2 v_uv;
+uniform sampler2D u_tex;
+uniform float u_time;
+uniform vec2  u_resolution;
+uniform float u_noiseScale;
+uniform float u_noiseAmt;
+uniform float u_warpSpeed;
+uniform float u_hBias;
+uniform float u_ghostAmt;
+uniform float u_ghostOffX;
+uniform float u_ghostOffY;
+uniform float u_ghostHue;
+out vec4 fragColor;
+
+vec3 screen(vec3 a, vec3 b) { return 1.0 - (1.0 - a) * (1.0 - b); }
+
+// Simple value noise
+float hash21(vec2 p) {
+  p = fract(p * vec2(127.1, 311.7));
+  p += dot(p, p.yx + 19.19);
+  return fract(p.x * p.y);
+}
+float valueNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash21(i),            hash21(i + vec2(1,0)), f.x),
+    mix(hash21(i + vec2(0,1)), hash21(i + vec2(1,1)), f.x), f.y
+  );
+}
+
+vec3 hueRotate(vec3 c, float rad) {
+  float cosA = cos(rad), sinA = sin(rad);
+  return clamp(mat3(
+    0.213 + cosA*0.787 - sinA*0.213,  0.213 - cosA*0.213 + sinA*0.143,  0.213 - cosA*0.213 - sinA*0.787,
+    0.715 - cosA*0.715 - sinA*0.715,  0.715 + cosA*0.285 + sinA*0.140,  0.715 - cosA*0.715 + sinA*0.715,
+    0.072 - cosA*0.072 + sinA*0.928,  0.072 - cosA*0.072 - sinA*0.283,  0.072 + cosA*0.928 + sinA*0.072
+  ) * c, 0.0, 1.0);
+}
+
+void main() {
+  vec3 base = texture(u_tex, v_uv).rgb;
+
+  if (u_noiseAmt > 0.0) {
+    float t   = u_time * 0.001 * u_warpSpeed;
+    vec2  uv2 = v_uv * u_noiseScale;
+    float n   = valueNoise(uv2 + t) - 0.5;
+    vec2  warp;
+    warp.x = n * u_noiseAmt * u_hBias;
+    warp.y = n * u_noiseAmt * 0.4;
+    vec2 warpedUv = clamp(v_uv + warp, 0.0, 1.0);
+    base = texture(u_tex, warpedUv).rgb;
+  }
+
+  // Optional ghost layer (legacy shifted copy)
+  if (u_ghostAmt > 0.0) {
+    vec2 ghostUV = clamp(vec2(v_uv.x - u_ghostOffX, v_uv.y + u_ghostOffY), 0.0, 1.0);
+    vec3 ghost   = hueRotate(texture(u_tex, ghostUV).rgb, u_ghostHue);
+    base = screen(base, ghost * (0.35 * u_ghostAmt));
+  }
+
+  fragColor = vec4(base, 1.0);
 }
 `
 

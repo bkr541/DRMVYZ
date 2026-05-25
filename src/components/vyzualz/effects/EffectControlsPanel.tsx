@@ -6,6 +6,9 @@ import type { EffectChainOptionRow } from '../../../types/database'
 import {
   resolveGlitchParams, resolveSpectrumBarsParams, resolveTunnelParams,
   resolveStrobeParams, resolveNoiseFogParams, resolveParticleBurstParams,
+  resolvePixelDistortionParams, resolveFrameQuantizationParams,
+  resolveBloomEffectParams, resolveAnalogSignalParams,
+  resolveFeedbackEffectParams, resolveDisplacementEffectParams,
 } from '../../../types/effectParams'
 import { VzSlider } from './VzSlider'
 import { EffectGroup } from './EffectGroup'
@@ -106,6 +109,12 @@ export const EffectControlsPanel = memo(function EffectControlsPanel({
   const str = resolveStrobeParams(effectParams)
   const np  = resolveNoiseFogParams(effectParams)
   const pp  = resolveParticleBurstParams(effectParams)
+  const pdp = resolvePixelDistortionParams(effectParams)
+  const fqp = resolveFrameQuantizationParams(effectParams)
+  const blp = resolveBloomEffectParams(effectParams)
+  const asp = resolveAnalogSignalParams(effectParams)
+  const fbp = resolveFeedbackEffectParams(effectParams)
+  const dsp = resolveDisplacementEffectParams(effectParams)
 
   return (
     <div className="vz-effects-panel">
@@ -127,7 +136,7 @@ export const EffectControlsPanel = memo(function EffectControlsPanel({
           {s('colorShift',      'Color Shift', { color: true })}
         </EffectGroup>
 
-        <EffectGroup id="motion" title="Motion" count={6} isOpen={openGroups.motion} onToggle={toggleGroup}>
+        <EffectGroup id="motion" title="Motion" count={8} isOpen={openGroups.motion} onToggle={toggleGroup}>
           {s('tunnelSpeed',  'Tunnel Speed')}
           {isEffectEnabled('tunnelSpeed') && <div className="vz-param-group">
             {p('Rings',     tp.ringCount, v => onParamChange('tunnel', { ringCount: v }),  { min: 3, max: 20, isInt: true })}
@@ -135,6 +144,20 @@ export const EffectControlsPanel = memo(function EffectControlsPanel({
             {p('Depth',     tp.depth,     v => onParamChange('tunnel', { depth: v }),     { min: 0.1, max: 2, step: 0.1 })}
           </div>}
           {s('displacement', 'Displacement')}
+          {isEffectEnabled('displacement') && <div className="vz-param-group">
+            {p('Noise Scale',  dsp.noiseScale,  v => onParamChange('displacement', { noiseScale: v }),  { min: 0.5, max: 8, step: 0.5 })}
+            {p('Noise Amount', dsp.noiseAmount, v => onParamChange('displacement', { noiseAmount: v }), { min: 0, max: 1, step: 0.05 })}
+            {p('Warp Speed',   dsp.warpSpeed,   v => onParamChange('displacement', { warpSpeed: v }),   { min: 0, max: 2, step: 0.1 })}
+            {p('H Bias',       dsp.horizontalBias, v => onParamChange('displacement', { horizontalBias: v }), { min: 0, max: 2, step: 0.1 })}
+            {p('Bass Resp',    dsp.bassResponse, v => onParamChange('displacement', { bassResponse: v }), { min: 0, max: 1, step: 0.05 })}
+            {b('Ghost Layer',  dsp.retainGhostLayer, v => onParamChange('displacement', { retainGhostLayer: v }))}
+          </div>}
+          {s('frameQuantization', 'Frame Quantize')}
+          {isEffectEnabled('frameQuantization') && <div className="vz-param-group">
+            {p('Target FPS',    fqp.targetFps,        v => onParamChange('frameQuantization', { targetFps: v }),        { min: 1, max: 60, isInt: true })}
+            {p('Beat Hold',     fqp.beatHoldFrames,   v => onParamChange('frameQuantization', { beatHoldFrames: v }),   { min: 0, max: 10, isInt: true })}
+            {p('Beat Stutter',  fqp.beatStutterAmount, v => onParamChange('frameQuantization', { beatStutterAmount: v }), { min: 0, max: 1, step: 0.05 })}
+          </div>}
           {s('cameraShake',  'Camera Shake')}
           {s('radialBlur',   'Radial Blur')}
           {s('kaleidoscope', 'Kaleidoscope')}
@@ -158,7 +181,17 @@ export const EffectControlsPanel = memo(function EffectControlsPanel({
           {s('reactiveGrid', 'Reactive Grid')}
         </EffectGroup>
 
-        <EffectGroup id="distortion" title="Distortion" count={5} isOpen={openGroups.distortion} onToggle={toggleGroup}>
+        <EffectGroup id="distortion" title="Distortion" count={7} isOpen={openGroups.distortion} onToggle={toggleGroup}>
+          {s('pixelDistortion', 'Pixel Distortion')}
+          {isEffectEnabled('pixelDistortion') && <div className="vz-param-group">
+            {p('Pixel Size',   pdp.pixelSize,        v => onParamChange('pixelDistortion', { pixelSize: v }),        { min: 1, max: 16, isInt: true })}
+            {p('Posterize',    pdp.posterizeLevels,  v => onParamChange('pixelDistortion', { posterizeLevels: v }),  { min: 2, max: 16, isInt: true })}
+            {p('Dither',       pdp.ditherAmount,     v => onParamChange('pixelDistortion', { ditherAmount: v }),     { min: 0, max: 1, step: 0.05 })}
+            {p('Corruption',   pdp.corruptionAmount, v => onParamChange('pixelDistortion', { corruptionAmount: v }), { min: 0, max: 1, step: 0.05 })}
+            {p('Overexposure', pdp.overexposure,     v => onParamChange('pixelDistortion', { overexposure: v }),     { min: 0, max: 1, step: 0.05 })}
+            {p('Energy Tint',  pdp.energyTint,       v => onParamChange('pixelDistortion', { energyTint: v }),       { min: 0, max: 1, step: 0.05 })}
+            {p('Beat Punch',   pdp.beatPunch,        v => onParamChange('pixelDistortion', { beatPunch: v }),        { min: 0, max: 1, step: 0.05 })}
+          </div>}
           {s('glitchAmount', 'Glitch Amount')}
           {isEffectEnabled('glitchAmount') && <div className="vz-param-group">
             {p('Slices',      gp.sliceCount,  v => onParamChange('glitch', { sliceCount: v }),  { min: 2, max: 20, isInt: true })}
@@ -169,16 +202,38 @@ export const EffectControlsPanel = memo(function EffectControlsPanel({
           {s('vhsStatic',     'VHS Static')}
           {s('datamoshSmear', 'Datamosh Smear')}
           {s('scanlines',     'Scanlines')}
+          {isEffectEnabled('scanlines') && <div className="vz-param-group">
+            {p('Density',    asp.density,      v => onParamChange('analogSignal', { density: v }),      { min: 0, max: 1, step: 0.05 })}
+            {p('Strength',   asp.strength,     v => onParamChange('analogSignal', { strength: v }),     { min: 0, max: 1, step: 0.05 })}
+            {p('Jitter',     asp.jitterAmount, v => onParamChange('analogSignal', { jitterAmount: v }), { min: 0, max: 1, step: 0.05 })}
+            {p('Curvature',  asp.curvature,    v => onParamChange('analogSignal', { curvature: v }),    { min: 0, max: 1, step: 0.05 })}
+          </div>}
         </EffectGroup>
 
-        <EffectGroup id="lighting" title="Lighting / Atmosphere" count={8} isOpen={openGroups.lighting} onToggle={toggleGroup}>
+        <EffectGroup id="lighting" title="Lighting / Atmosphere" count={9} isOpen={openGroups.lighting} onToggle={toggleGroup}>
           {s('bloom', 'Bloom')}
+          {isEffectEnabled('bloom') && <div className="vz-param-group">
+            {p('Radius',      blp.radius,              v => onParamChange('bloom', { radius: v }),              { min: 1, max: 40, isInt: true })}
+            {p('Threshold',   blp.threshold,           v => onParamChange('bloom', { threshold: v }),           { min: 0, max: 1, step: 0.05 })}
+            {p('Intensity',   blp.intensityMultiplier, v => onParamChange('bloom', { intensityMultiplier: v }), { min: 0, max: 3, step: 0.1 })}
+            {p('Exposure',    blp.exposure,            v => onParamChange('bloom', { exposure: v }),            { min: -1, max: 2, step: 0.1 })}
+            {p('Tint R',      blp.tintR,               v => onParamChange('bloom', { tintR: v }),               { min: 0, max: 1, step: 0.05 })}
+            {p('Tint G',      blp.tintG,               v => onParamChange('bloom', { tintG: v }),               { min: 0, max: 1, step: 0.05 })}
+            {p('Tint B',      blp.tintB,               v => onParamChange('bloom', { tintB: v }),               { min: 0, max: 1, step: 0.05 })}
+          </div>}
           {s('strobe', 'Strobe')}
           {isEffectEnabled('strobe') && <div className="vz-param-group">
             {p('Beat Div',  str.beatDivision, v => onParamChange('strobe', { beatDivision: v }), { min: 0.25, max: 4, step: 0.25 })}
             {p('Safety Cap', str.safetyCap,   v => onParamChange('strobe', { safetyCap: v }),    { min: 0, max: 10, step: 1, isInt: true })}
           </div>}
           {s('feedbackTrails', 'Feedback Trails')}
+          {isEffectEnabled('feedbackTrails') && <div className="vz-param-group">
+            {p('Decay',    fbp.decay,         v => onParamChange('feedback', { decay: v }),         { min: 0, max: 0.97, step: 0.01 })}
+            {p('Smear X',  fbp.smearX,        v => onParamChange('feedback', { smearX: v }),        { min: -20, max: 20, step: 1 })}
+            {p('Smear Y',  fbp.smearY,        v => onParamChange('feedback', { smearY: v }),        { min: -20, max: 20, step: 1 })}
+            {p('Zoom',     fbp.zoom,          v => onParamChange('feedback', { zoom: v }),          { min: 0.9, max: 1.1, step: 0.005 })}
+            {p('Audio Resp', fbp.audioResponse, v => onParamChange('feedback', { audioResponse: v }), { min: 0, max: 1, step: 0.05 })}
+          </div>}
           {s('edgeGlow',       'Edge Glow')}
           {s('colorCycle',     'Color Cycle')}
           {s('beatFlash',      'Beat Flash')}

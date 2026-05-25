@@ -436,22 +436,22 @@ function VyzualzDock() {
 }
 
 // ── Rail tab definitions ──────────────────────────────────────────────
-type LeftPanel  = 'media' | 'layers' | 'presets' | 'sessions'
-type RightPanel = 'fx' | 'mod' | 'audio' | 'rec' | 'insp'
+type LeftPanel  = 'media' | 'layers' | 'sessions'
+type RightPanel = 'presets' | 'fx' | 'mod' | 'audio' | 'rec' | 'insp'
 
 const LEFT_TABS: RailTabOption<LeftPanel>[] = [
   { id: 'media',    label: 'Media'    },
   { id: 'layers',   label: 'Layers'   },
-  { id: 'presets',  label: 'Presets'  },
   { id: 'sessions', label: 'Sessions' },
 ]
 
 const BASE_RIGHT_TABS: Omit<RailTabOption<RightPanel>, 'disabled'>[] = [
-  { id: 'fx',    label: 'FX'    },
-  { id: 'mod',   label: 'MOD'   },
-  { id: 'audio', label: 'AUDIO' },
-  { id: 'rec',   label: 'REC'   },
-  { id: 'insp',  label: 'INSP'  },
+  { id: 'presets', label: 'PRESETS' },
+  { id: 'fx',      label: 'FX'      },
+  { id: 'mod',     label: 'MOD'     },
+  { id: 'audio',   label: 'AUDIO'   },
+  { id: 'rec',     label: 'REC'     },
+  { id: 'insp',    label: 'INSP'    },
 ]
 
 // ── localStorage helpers ──────────────────────────────────────────────
@@ -601,7 +601,10 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   useEffect(() => { localStorage.setItem('drmvyz:vz:rightCollapsed', JSON.stringify(isRightInspectorCollapsed)) }, [isRightInspectorCollapsed])
 
   // Left/right panel active tab — persisted to localStorage
-  const [activeLeftPanel,  setActiveLeftPanel]  = useState<LeftPanel>(() => readLS<LeftPanel>('drmvyz:vz:leftPanel',  'media'))
+  const [activeLeftPanel,  setActiveLeftPanel]  = useState<LeftPanel>(() => {
+    const v = readLS<string>('drmvyz:vz:leftPanel', 'media')
+    return (['media', 'layers', 'sessions'] as string[]).includes(v) ? (v as LeftPanel) : 'media'
+  })
   const [activeRightPanel, setActiveRightPanel] = useState<RightPanel>(() => readLS<RightPanel>('drmvyz:vz:rightPanel', 'fx'))
   useEffect(() => { localStorage.setItem('drmvyz:vz:leftPanel',  JSON.stringify(activeLeftPanel))  }, [activeLeftPanel])
   useEffect(() => { localStorage.setItem('drmvyz:vz:rightPanel', JSON.stringify(activeRightPanel)) }, [activeRightPanel])
@@ -834,15 +837,6 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
                 <VzLayersPanel />
               </VyzualzErrorBoundary>
             )}
-            {activeLeftPanel === 'presets' && (
-              <PresetStrip
-                activePresetId={activePresetId}
-                presets={presets}
-                onSelect={handleSelectPreset}
-                onSave={handleSavePreset}
-                onDelete={deletePreset}
-              />
-            )}
             {activeLeftPanel === 'sessions' && (
               <SessionPanel
                 sessions={sessions}
@@ -937,6 +931,15 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
             ariaLabel="VYZUALZ right workspace panels"
           />
           <div className="vz-panel-body">
+            {activeRightPanel === 'presets' && (
+              <PresetStrip
+                activePresetId={activePresetId}
+                presets={presets}
+                onSelect={handleSelectPreset}
+                onSave={handleSavePreset}
+                onDelete={deletePreset}
+              />
+            )}
             {activeRightPanel === 'fx' && (
               <>
                 <EffectChainPanel

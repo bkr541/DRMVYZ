@@ -1,11 +1,18 @@
 /**
- * Pure parameter-mapping utility for the GPU post-process pass (grain + scanlines).
+ * Pure parameter-mapping utility for GPU post-process passes.
  *
  * Converts live-render state (enabled effects, modulated intensities, quality config)
- * into the three uniform values that WebGL2Renderer.renderFrame() expects for its
- * combined grain/scanlines stage.  Isolated here so callers can be tested without
- * a DOM or WebGL context.
+ * into the uniform values that WebGL2Renderer.renderFrame() expects.
+ * Isolated here so callers can be tested without a DOM or WebGL context.
  */
+
+import type { VzEffectParams } from '../types/effectParams'
+import {
+  resolvePixelDistortionParams,
+  resolveBloomEffectParams,
+  resolveFeedbackEffectParams,
+  resolveDisplacementEffectParams,
+} from '../types/effectParams'
 
 /** Minimum subset of effect intensities needed for the post-process pass. */
 export interface PostProcessEffects {
@@ -97,5 +104,125 @@ export function deriveDisplacementParams(
     dispOffYPx: Math.cos(angleY) * dispMod * 8,
     dispAmount: dispMod,
     dispHueRad: activeColorShift > 0 ? (activeColorShift * 2 * Math.PI + Math.PI / 2) : 0,
+  }
+}
+
+// ── Pixel Distortion params ───────────────────────────────────────────────────
+
+export interface PixelDistortionParams {
+  pixelDistortAmount:      number
+  pixelDistortPixelSize:   number
+  pixelDistortPosterize:   number
+  pixelDistortDither:      number
+  pixelDistortCorruption:  number
+  pixelDistortOverexposure: number
+  pixelDistortEnergyTint:  number
+  pixelDistortBeatPunch:   number
+}
+
+/**
+ * Derive pixel distortion shader uniforms from current render state.
+ * beatPunch is the beat audio value (0–1 burst at beat boundary).
+ */
+export function derivePixelDistortionParams(
+  fxSet:        ReadonlySet<string>,
+  mEff:         { pixelDistortion: number },
+  effectParams: VzEffectParams,
+  beatPunch:    number,
+): PixelDistortionParams {
+  if (!fxSet.has('Pixel Distortion') || mEff.pixelDistortion <= 0) {
+    return { pixelDistortAmount: 0, pixelDistortPixelSize: 4, pixelDistortPosterize: 5, pixelDistortDither: 0.55, pixelDistortCorruption: 0.35, pixelDistortOverexposure: 0.45, pixelDistortEnergyTint: 0.65, pixelDistortBeatPunch: 0 }
+  }
+  const p = resolvePixelDistortionParams(effectParams)
+  return {
+    pixelDistortAmount:      Math.max(0, Math.min(1, mEff.pixelDistortion)),
+    pixelDistortPixelSize:   p.pixelSize,
+    pixelDistortPosterize:   p.posterizeLevels,
+    pixelDistortDither:      p.ditherAmount,
+    pixelDistortCorruption:  p.corruptionAmount,
+    pixelDistortOverexposure: p.overexposure,
+    pixelDistortEnergyTint:  p.energyTint,
+    pixelDistortBeatPunch:   p.beatPunch * beatPunch,
+  }
+}
+
+// ── Extended Bloom params ─────────────────────────────────────────────────────
+
+export interface BloomGpuParams {
+  bloomThreshold:    number
+  bloomExposure:     number
+  bloomTintR:        number
+  bloomTintG:        number
+  bloomTintB:        number
+  bloomIntensityMul: number
+}
+
+export function deriveBloomGpuParams(effectParams: VzEffectParams): BloomGpuParams {
+  const p = resolveBloomEffectParams(effectParams)
+  return {
+    bloomThreshold:    p.threshold,
+    bloomExposure:     p.exposure,
+    bloomTintR:        p.tintR,
+    bloomTintG:        p.tintG,
+    bloomTintB:        p.tintB,
+    bloomIntensityMul: p.intensityMultiplier,
+  }
+}
+
+// ── Feedback params ───────────────────────────────────────────────────────────
+
+export interface FeedbackGpuParams {
+  feedbackDecay:  number
+  feedbackSmearX: number
+  feedbackSmearY: number
+  feedbackZoom:   number
+}
+
+export function deriveFeedbackParams(
+  fxSet:        ReadonlySet<string>,
+  feedbackMod:  number,
+  effectParams: VzEffectParams,
+): FeedbackGpuParams {
+  if (!fxSet.has('Feedback') || feedbackMod <= 0) {
+    return { feedbackDecay: 0, feedbackSmearX: 0, feedbackSmearY: 0, feedbackZoom: 1 }
+  }
+  const p = resolveFeedbackEffectParams(effectParams)
+  return {
+    feedbackDecay:  p.decay,
+    feedbackSmearX: p.smearX,
+    feedbackSmearY: p.smearY,
+    feedbackZoom:   p.zoom,
+  }
+}
+
+// ── Noise warp displacement params ────────────────────────────────────────────
+
+export interface NoiseWarpGpuParams {
+  noiseWarpAmount:      number
+  noiseWarpScale:       number
+  noiseWarpSpeed:       number
+  noiseWarpHBias:       number
+  noiseWarpRetainGhost: boolean
+}
+
+export function deriveNoiseWarpParams(
+  fxSet:        ReadonlySet<string>,
+  dispMod:      number,
+  effectParams: VzEffectParams,
+): NoiseWarpGpuParams {
+  if (!fxSet.has('Displacement') || dispMod <= 0) {
+    return { noiseWarpAmount: 0, noiseWarpScale: 2, noiseWarpSpeed: 0.2, noiseWarpHBias: 1, noiseWarpRetainGhost: true }
+  }
+  const p = resolveDisplacementEffectParams(effectParams)
+  // Only route through noise warp when noiseAmount > 0; else fallback to legacy ghost-copy
+  if (p.noiseAmount <= 0) {
+    return { noiseWarpAmount: 0, noiseWarpScale: p.noiseScale, noiseWarpSpeed: p.warpSpeed, noiseWarpHBias: p.horizontalBias, noiseWarpRetainGhost: p.retainGhostLayer }
+  }
+  return {
+    noiseWarpAmount:      Math.min(dispMod, 1) * p.noiseAmount,
+    noiseWarpScale:       p.noiseScale,
+    noiseWarpSpeed:       p.warpSpeed,
+    noiseWarpHBias:       p.horizontalBias,
+    noiseWarpRetainGhost: p.retainGhostLayer,
   }
 }

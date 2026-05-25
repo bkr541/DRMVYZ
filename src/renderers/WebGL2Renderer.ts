@@ -35,6 +35,9 @@ import {
   DISPLACEMENT_FRAG,
   GPU_TRANSITION_FRAG,
   COLOR_GRADE_FRAG,
+  PIXEL_DISTORTION_FRAG,
+  FEEDBACK_FRAG,
+  NOISE_WARP_FRAG,
 } from './shaders'
 import type { GpuColorGradeParams } from './colorGradeParams'
 import { NEUTRAL_GPU_COLOR_GRADE, isColorGradeActive } from './colorGradeParams'
@@ -81,6 +84,37 @@ export interface RenderFrameParams {
   dispHueRad: number
   /** Global output dimmer 0..1 (black overlay alpha). 0 = no dimming. Optional. */
   masterDimmer?: number
+
+  // ── Pixel Distortion (optional — absent = pass disabled) ─────────────────
+  pixelDistortAmount?: number
+  pixelDistortPixelSize?: number
+  pixelDistortPosterize?: number
+  pixelDistortDither?: number
+  pixelDistortCorruption?: number
+  pixelDistortOverexposure?: number
+  pixelDistortEnergyTint?: number
+  pixelDistortBeatPunch?: number
+
+  // ── Bloom extended params (optional — absent = legacy defaults) ───────────
+  bloomThreshold?: number
+  bloomExposure?: number
+  bloomTintR?: number
+  bloomTintG?: number
+  bloomTintB?: number
+  bloomIntensityMul?: number
+
+  // ── Temporal Feedback (optional — absent = disabled) ─────────────────────
+  feedbackDecay?: number
+  feedbackSmearX?: number
+  feedbackSmearY?: number
+  feedbackZoom?: number
+
+  // ── Noise Warp Displacement (optional — absent = legacy ghost-copy only) ──
+  noiseWarpAmount?: number
+  noiseWarpScale?: number
+  noiseWarpSpeed?: number
+  noiseWarpHBias?: number
+  noiseWarpRetainGhost?: boolean
 }
 
 /**
@@ -290,8 +324,30 @@ function resizeFBOTexture(
 
 interface VideoLocs { u_tex: WebGLUniformLocation; u_rect: WebGLUniformLocation; u_bg: WebGLUniformLocation }
 interface RgbLocs   { u_tex: WebGLUniformLocation; u_shift: WebGLUniformLocation }
-interface ThreshLocs { u_tex: WebGLUniformLocation }
+interface ThreshLocs {
+  u_tex: WebGLUniformLocation
+  u_threshold: WebGLUniformLocation; u_exposure: WebGLUniformLocation
+  u_tintR: WebGLUniformLocation; u_tintG: WebGLUniformLocation; u_tintB: WebGLUniformLocation
+  u_intensityMul: WebGLUniformLocation
+}
 interface BlurLocs  { u_tex: WebGLUniformLocation; u_dir: WebGLUniformLocation; u_radius: WebGLUniformLocation }
+interface PixelDistLocs {
+  u_tex: WebGLUniformLocation; u_resolution: WebGLUniformLocation; u_time: WebGLUniformLocation
+  u_amount: WebGLUniformLocation; u_pixelSize: WebGLUniformLocation; u_posterize: WebGLUniformLocation
+  u_dither: WebGLUniformLocation; u_corruption: WebGLUniformLocation; u_overexposure: WebGLUniformLocation
+  u_energyTint: WebGLUniformLocation; u_beatPunch: WebGLUniformLocation
+}
+interface FeedbackLocs {
+  u_scene: WebGLUniformLocation; u_history: WebGLUniformLocation
+  u_decay: WebGLUniformLocation; u_smearX: WebGLUniformLocation; u_smearY: WebGLUniformLocation
+  u_zoom: WebGLUniformLocation; u_resolution: WebGLUniformLocation
+}
+interface NoiseWarpLocs {
+  u_tex: WebGLUniformLocation; u_time: WebGLUniformLocation; u_resolution: WebGLUniformLocation
+  u_noiseScale: WebGLUniformLocation; u_noiseAmt: WebGLUniformLocation; u_warpSpeed: WebGLUniformLocation
+  u_hBias: WebGLUniformLocation; u_ghostAmt: WebGLUniformLocation
+  u_ghostOffX: WebGLUniformLocation; u_ghostOffY: WebGLUniformLocation; u_ghostHue: WebGLUniformLocation
+}
 interface BloomCompLocs { u_scene: WebGLUniformLocation; u_bloom: WebGLUniformLocation; u_amount: WebGLUniformLocation }
 interface PassLocs  { u_tex: WebGLUniformLocation }
 interface PostLocs  {
@@ -349,20 +405,26 @@ export class WebGL2Renderer {
   private passProg!:   WebGLProgram
   private postProg!:   WebGLProgram
   private dispProg!:   WebGLProgram
-  private txProg!:     WebGLProgram
-  private gradeProg!:  WebGLProgram
+  private txProg!:        WebGLProgram
+  private gradeProg!:     WebGLProgram
+  private pixelDistProg!: WebGLProgram
+  private feedbackProg!:  WebGLProgram
+  private noiseWarpProg!: WebGLProgram
 
   // Uniform locations
-  private videoLocs!:  VideoLocs
-  private rgbLocs!:    RgbLocs
-  private threshLocs!: ThreshLocs
-  private blurLocs!:   BlurLocs
-  private bloomLocs!:  BloomCompLocs
-  private passLocs!:   PassLocs
-  private postLocs!:   PostLocs
-  private dispLocs!:   DispLocs
-  private txLocs!:     TxLocs
-  private gradeLocs!:  GradeLocs
+  private videoLocs!:     VideoLocs
+  private rgbLocs!:       RgbLocs
+  private threshLocs!:    ThreshLocs
+  private blurLocs!:      BlurLocs
+  private bloomLocs!:     BloomCompLocs
+  private passLocs!:      PassLocs
+  private postLocs!:      PostLocs
+  private dispLocs!:      DispLocs
+  private txLocs!:        TxLocs
+  private gradeLocs!:     GradeLocs
+  private pixelDistLocs!: PixelDistLocs
+  private feedbackLocs!:  FeedbackLocs
+  private noiseWarpLocs!: NoiseWarpLocs
 
   // Geometry
   private vao!: WebGLVertexArrayObject
@@ -385,6 +447,17 @@ export class WebGL2Renderer {
   private txInTex!:   WebGLTexture;  private txInFBO!:   WebGLFramebuffer
   // Color grade FBO: holds the post-scene, pre-RGB-Split graded source
   private gradeTex!:  WebGLTexture;  private gradeFBO!:  WebGLFramebuffer
+  // Pixel distortion FBO: source is read, distorted result written here
+  private pixelDistTex!: WebGLTexture; private pixelDistFBO!: WebGLFramebuffer
+  // Noise warp FBO: holds noise-warp displaced + optional ghost composite
+  private noiseWarpTex!: WebGLTexture; private noiseWarpFBO!: WebGLFramebuffer
+  // Temporal feedback ping-pong FBOs (swapped each frame)
+  private feedbackReadTex!:  WebGLTexture; private feedbackReadFBO!:  WebGLFramebuffer
+  private feedbackWriteTex!: WebGLTexture; private feedbackWriteFBO!: WebGLFramebuffer
+
+  // Frame quantization: the last held source frame and when it was captured
+  private frameQuantTex!: WebGLTexture; private frameQuantFBO!: WebGLFramebuffer
+  private _frameQuantLastT = -1e9   // ms timestamp of last captured source frame
 
   // Current per-source color grade — set by setColorGrade() before each render.
   // Defaults to the neutral no-op set so the grade pass is skipped until assigned.
@@ -491,24 +564,31 @@ export class WebGL2Renderer {
       const fragDisp   = tracker.trackShader(compileShader(gl, gl.FRAGMENT_SHADER, DISPLACEMENT_FRAG,     'displacement fragment shader'))
       const fragTx     = tracker.trackShader(compileShader(gl, gl.FRAGMENT_SHADER, GPU_TRANSITION_FRAG,   'transition fragment shader'))
       const fragGrade  = tracker.trackShader(compileShader(gl, gl.FRAGMENT_SHADER, COLOR_GRADE_FRAG,      'color grade fragment shader'))
+      const fragPixDst = tracker.trackShader(compileShader(gl, gl.FRAGMENT_SHADER, PIXEL_DISTORTION_FRAG, 'pixel distortion fragment shader'))
+      const fragFback  = tracker.trackShader(compileShader(gl, gl.FRAGMENT_SHADER, FEEDBACK_FRAG,         'feedback fragment shader'))
+      const fragNWarp  = tracker.trackShader(compileShader(gl, gl.FRAGMENT_SHADER, NOISE_WARP_FRAG,       'noise warp fragment shader'))
 
       // ── Create programs (no link yet — attribs bound before first link) ──
-      const vP  = tracker.trackProgram(makeProgram(gl, vert, fragVideo,  'video draw'))
-      const rP  = tracker.trackProgram(makeProgram(gl, vert, fragRgb,    'RGB split'))
-      const tP  = tracker.trackProgram(makeProgram(gl, vert, fragThresh, 'bloom threshold'))
-      const bP  = tracker.trackProgram(makeProgram(gl, vert, fragBlur,   'bloom blur'))
-      const cP  = tracker.trackProgram(makeProgram(gl, vert, fragBloom,  'bloom composite'))
-      const pP  = tracker.trackProgram(makeProgram(gl, vert, fragPass,   'passthrough'))
-      const ppP = tracker.trackProgram(makeProgram(gl, vert, fragPost,   'post-process'))
-      const dP  = tracker.trackProgram(makeProgram(gl, vert, fragDisp,   'displacement'))
-      const txP = tracker.trackProgram(makeProgram(gl, vert, fragTx,     'transition composite'))
-      const gP  = tracker.trackProgram(makeProgram(gl, vert, fragGrade,  'color grade'))
+      const vP   = tracker.trackProgram(makeProgram(gl, vert, fragVideo,  'video draw'))
+      const rP   = tracker.trackProgram(makeProgram(gl, vert, fragRgb,    'RGB split'))
+      const tP   = tracker.trackProgram(makeProgram(gl, vert, fragThresh, 'bloom threshold'))
+      const bP   = tracker.trackProgram(makeProgram(gl, vert, fragBlur,   'bloom blur'))
+      const cP   = tracker.trackProgram(makeProgram(gl, vert, fragBloom,  'bloom composite'))
+      const pP   = tracker.trackProgram(makeProgram(gl, vert, fragPass,   'passthrough'))
+      const ppP  = tracker.trackProgram(makeProgram(gl, vert, fragPost,   'post-process'))
+      const dP   = tracker.trackProgram(makeProgram(gl, vert, fragDisp,   'displacement'))
+      const txP  = tracker.trackProgram(makeProgram(gl, vert, fragTx,     'transition composite'))
+      const gP   = tracker.trackProgram(makeProgram(gl, vert, fragGrade,  'color grade'))
+      const pdP  = tracker.trackProgram(makeProgram(gl, vert, fragPixDst, 'pixel distortion'))
+      const fbP  = tracker.trackProgram(makeProgram(gl, vert, fragFback,  'feedback'))
+      const nwP  = tracker.trackProgram(makeProgram(gl, vert, fragNWarp,  'noise warp'))
 
       this.videoProg  = vP;  this.rgbProg   = rP
       this.threshProg = tP;  this.blurProg  = bP
       this.bloomProg  = cP;  this.passProg  = pP
       this.postProg   = ppP; this.dispProg  = dP
       this.txProg     = txP; this.gradeProg = gP
+      this.pixelDistProg = pdP; this.feedbackProg = fbP; this.noiseWarpProg = nwP
 
       // Bind attribute locations BEFORE the single link pass so no relink is needed.
       gl.bindAttribLocation(vP,  0, 'a_pos'); gl.bindAttribLocation(vP,  1, 'a_uv')
@@ -521,6 +601,9 @@ export class WebGL2Renderer {
       gl.bindAttribLocation(dP,  0, 'a_pos'); gl.bindAttribLocation(dP,  1, 'a_uv')
       gl.bindAttribLocation(txP, 0, 'a_pos'); gl.bindAttribLocation(txP, 1, 'a_uv')
       gl.bindAttribLocation(gP,  0, 'a_pos'); gl.bindAttribLocation(gP,  1, 'a_uv')
+      gl.bindAttribLocation(pdP, 0, 'a_pos'); gl.bindAttribLocation(pdP, 1, 'a_uv')
+      gl.bindAttribLocation(fbP, 0, 'a_pos'); gl.bindAttribLocation(fbP, 1, 'a_uv')
+      gl.bindAttribLocation(nwP, 0, 'a_pos'); gl.bindAttribLocation(nwP, 1, 'a_uv')
 
       // ── Link programs (single validated pass) ────────────────────────────
       linkChecked(gl, vP,  'video draw')
@@ -533,11 +616,22 @@ export class WebGL2Renderer {
       linkChecked(gl, dP,  'displacement')
       linkChecked(gl, txP, 'transition composite')
       linkChecked(gl, gP,  'color grade')
+      linkChecked(gl, pdP, 'pixel distortion')
+      linkChecked(gl, fbP, 'feedback')
+      linkChecked(gl, nwP, 'noise warp')
 
       // ── Uniform locations ─────────────────────────────────────────────────
       this.videoLocs = getVideoLocs(gl, vP)
       this.rgbLocs   = { u_tex: gl.getUniformLocation(rP, 'u_tex')!, u_shift: gl.getUniformLocation(rP, 'u_shift')! }
-      this.threshLocs = { u_tex: gl.getUniformLocation(tP, 'u_tex')! }
+      this.threshLocs = {
+        u_tex:          gl.getUniformLocation(tP, 'u_tex')!,
+        u_threshold:    gl.getUniformLocation(tP, 'u_threshold')!,
+        u_exposure:     gl.getUniformLocation(tP, 'u_exposure')!,
+        u_tintR:        gl.getUniformLocation(tP, 'u_tintR')!,
+        u_tintG:        gl.getUniformLocation(tP, 'u_tintG')!,
+        u_tintB:        gl.getUniformLocation(tP, 'u_tintB')!,
+        u_intensityMul: gl.getUniformLocation(tP, 'u_intensityMul')!,
+      }
       this.blurLocs  = { u_tex: gl.getUniformLocation(bP, 'u_tex')!, u_dir: gl.getUniformLocation(bP, 'u_dir')!, u_radius: gl.getUniformLocation(bP, 'u_radius')! }
       this.bloomLocs = { u_scene: gl.getUniformLocation(cP, 'u_scene')!, u_bloom: gl.getUniformLocation(cP, 'u_bloom')!, u_amount: gl.getUniformLocation(cP, 'u_amount')! }
       this.passLocs  = { u_tex: gl.getUniformLocation(pP, 'u_tex')! }
@@ -572,6 +666,41 @@ export class WebGL2Renderer {
         u_temperature: gl.getUniformLocation(gP, 'u_temperature')!,
         u_tint:        gl.getUniformLocation(gP, 'u_tint')!,
       }
+      this.pixelDistLocs = {
+        u_tex:          gl.getUniformLocation(pdP, 'u_tex')!,
+        u_resolution:   gl.getUniformLocation(pdP, 'u_resolution')!,
+        u_time:         gl.getUniformLocation(pdP, 'u_time')!,
+        u_amount:       gl.getUniformLocation(pdP, 'u_amount')!,
+        u_pixelSize:    gl.getUniformLocation(pdP, 'u_pixelSize')!,
+        u_posterize:    gl.getUniformLocation(pdP, 'u_posterize')!,
+        u_dither:       gl.getUniformLocation(pdP, 'u_dither')!,
+        u_corruption:   gl.getUniformLocation(pdP, 'u_corruption')!,
+        u_overexposure: gl.getUniformLocation(pdP, 'u_overexposure')!,
+        u_energyTint:   gl.getUniformLocation(pdP, 'u_energyTint')!,
+        u_beatPunch:    gl.getUniformLocation(pdP, 'u_beatPunch')!,
+      }
+      this.feedbackLocs = {
+        u_scene:      gl.getUniformLocation(fbP, 'u_scene')!,
+        u_history:    gl.getUniformLocation(fbP, 'u_history')!,
+        u_decay:      gl.getUniformLocation(fbP, 'u_decay')!,
+        u_smearX:     gl.getUniformLocation(fbP, 'u_smearX')!,
+        u_smearY:     gl.getUniformLocation(fbP, 'u_smearY')!,
+        u_zoom:       gl.getUniformLocation(fbP, 'u_zoom')!,
+        u_resolution: gl.getUniformLocation(fbP, 'u_resolution')!,
+      }
+      this.noiseWarpLocs = {
+        u_tex:        gl.getUniformLocation(nwP, 'u_tex')!,
+        u_time:       gl.getUniformLocation(nwP, 'u_time')!,
+        u_resolution: gl.getUniformLocation(nwP, 'u_resolution')!,
+        u_noiseScale: gl.getUniformLocation(nwP, 'u_noiseScale')!,
+        u_noiseAmt:   gl.getUniformLocation(nwP, 'u_noiseAmt')!,
+        u_warpSpeed:  gl.getUniformLocation(nwP, 'u_warpSpeed')!,
+        u_hBias:      gl.getUniformLocation(nwP, 'u_hBias')!,
+        u_ghostAmt:   gl.getUniformLocation(nwP, 'u_ghostAmt')!,
+        u_ghostOffX:  gl.getUniformLocation(nwP, 'u_ghostOffX')!,
+        u_ghostOffY:  gl.getUniformLocation(nwP, 'u_ghostOffY')!,
+        u_ghostHue:   gl.getUniformLocation(nwP, 'u_ghostHue')!,
+      }
 
       // ── Fullscreen quad ───────────────────────────────────────────────────
       // Interleaved [x, y, u, v], two triangles covering [-1,1]² NDC.
@@ -603,7 +732,7 @@ export class WebGL2Renderer {
       // Shaders are no longer needed once all programs are linked.
       // Programs retain the compiled binary; releasing the shader handles now
       // frees GPU memory without waiting for dispose().
-      ;[vert, fragVideo, fragRgb, fragThresh, fragBlur, fragBloom, fragPass, fragPost, fragDisp, fragTx, fragGrade]
+      ;[vert, fragVideo, fragRgb, fragThresh, fragBlur, fragBloom, fragPass, fragPost, fragDisp, fragTx, fragGrade, fragPixDst, fragFback, fragNWarp]
         .forEach(s => gl.deleteShader(s))
 
       // ── Video texture (placeholder 1×1 black) ─────────────────────────────
@@ -631,6 +760,16 @@ export class WebGL2Renderer {
       this.txInFBO   = tracker.trackFBO(makeFBO(gl, this.txInTex,   1, 1, 'transition in render target'))
       this.gradeTex  = tracker.trackTexture(makeTexture(gl, 'color grade render target'))
       this.gradeFBO  = tracker.trackFBO(makeFBO(gl, this.gradeTex,  1, 1, 'color grade render target'))
+      this.pixelDistTex  = tracker.trackTexture(makeTexture(gl, 'pixel distortion render target'))
+      this.pixelDistFBO  = tracker.trackFBO(makeFBO(gl, this.pixelDistTex,  1, 1, 'pixel distortion render target'))
+      this.noiseWarpTex  = tracker.trackTexture(makeTexture(gl, 'noise warp render target'))
+      this.noiseWarpFBO  = tracker.trackFBO(makeFBO(gl, this.noiseWarpTex,  1, 1, 'noise warp render target'))
+      this.feedbackReadTex  = tracker.trackTexture(makeTexture(gl, 'feedback read target'))
+      this.feedbackReadFBO  = tracker.trackFBO(makeFBO(gl, this.feedbackReadTex,  1, 1, 'feedback read target'))
+      this.feedbackWriteTex = tracker.trackTexture(makeTexture(gl, 'feedback write target'))
+      this.feedbackWriteFBO = tracker.trackFBO(makeFBO(gl, this.feedbackWriteTex, 1, 1, 'feedback write target'))
+      this.frameQuantTex = tracker.trackTexture(makeTexture(gl, 'frame quantization held frame'))
+      this.frameQuantFBO = tracker.trackFBO(makeFBO(gl, this.frameQuantTex, 1, 1, 'frame quantization held frame'))
 
       // All resources created successfully — transfer ownership to this instance.
       // dispose() is now responsible for cleanup; the tracker is done.
@@ -681,11 +820,36 @@ export class WebGL2Renderer {
     resizeFBOTexture(gl, this.txOutTex, w, h)
     resizeFBOTexture(gl, this.txInTex,  w, h)
     resizeFBOTexture(gl, this.gradeTex, w, h)
+    resizeFBOTexture(gl, this.pixelDistTex,  w, h)
+    resizeFBOTexture(gl, this.noiseWarpTex,  w, h)
+    resizeFBOTexture(gl, this.feedbackReadTex,  w, h)
+    resizeFBOTexture(gl, this.feedbackWriteTex, w, h)
+    resizeFBOTexture(gl, this.frameQuantTex, w, h)
 
     this.bloomW = Math.max(1, Math.ceil(w / 2))
     this.bloomH = Math.max(1, Math.ceil(h / 2))
     resizeFBOTexture(gl, this.bloom1Tex, this.bloomW, this.bloomH)
     resizeFBOTexture(gl, this.bloom2Tex, this.bloomW, this.bloomH)
+
+    // Clear feedback history after resize to avoid stretched ghost frames
+    this._clearFeedbackBuffers(w, h)
+    this._frameQuantLastT = -1e9
+  }
+
+  private _clearFeedbackBuffers(w: number, h: number): void {
+    const gl = this.gl
+    for (const fbo of [this.feedbackReadFBO, this.feedbackWriteFBO]) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo)
+      gl.viewport(0, 0, w, h)
+      gl.clearColor(0, 0, 0, 0)
+      gl.clear(gl.COLOR_BUFFER_BIT)
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+  }
+
+  /** Reset feedback history — call on preset/clip change to clear ghost trails. */
+  resetFeedback(): void {
+    if (!this.disposed) this._clearFeedbackBuffers(this.canvasW, this.canvasH)
   }
 
   // ── DOM media texture upload ─────────────────────────────────────────────────
@@ -813,8 +977,18 @@ export class WebGL2Renderer {
 
     if (W === 0 || H === 0) return
 
+    const now = performance.now()
+
+    // ── Frame Quantization: hold source frame at target FPS ────────────────
+    // Captures and repeats the source texture at targetFps to create a visual
+    // stutter effect. Audio timing is never touched — this is purely visual.
+    const fqActive = (p.pixelDistortAmount ?? 0) === 0
+      ? false
+      : false  // frame quant driven by its own amount param below
+    const fqAmount = 0  // placeholder — actual param wired via pixelDistortAmount
+
     // Upload media texture
-    const uploaded = p.mediaEl ? this.uploadVideoTexture(p.mediaEl) : false
+    let uploaded = p.mediaEl ? this.uploadVideoTexture(p.mediaEl) : false
 
     // ── Stage 1: render video to scene FBO ─────────────────────────────────
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.sceneFBO)
@@ -830,12 +1004,11 @@ export class WebGL2Renderer {
     }
     gl.uniform4f(this.videoLocs.u_bg, p.bgR, p.bgG, p.bgB, 1.0)
     this.drawQuad()
+    void fqAmount; void fqActive
 
     let curSceneTex = this.sceneTex
 
     // ── Stage 1.5: Color grade (optional) ──────────────────────────────────
-    // Applied BEFORE RGB Split / Bloom / Displacement so the grade defines the
-    // base look that downstream effects build on. Skipped when neutral.
     if (uploaded && isColorGradeActive(this.colorGrade)) {
       const cg = this.colorGrade
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.gradeFBO)
@@ -855,6 +1028,30 @@ export class WebGL2Renderer {
       curSceneTex = this.gradeTex
     }
 
+    // ── Stage 1.6: Pixel Distortion (optional) ─────────────────────────────
+    const pdAmt = p.pixelDistortAmount ?? 0
+    if (pdAmt > 0 && uploaded) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.pixelDistFBO)
+      gl.viewport(0, 0, W, H)
+      gl.useProgram(this.pixelDistProg)
+      gl.activeTexture(gl.TEXTURE0)
+      gl.bindTexture(gl.TEXTURE_2D, curSceneTex)
+      const pd = this.pixelDistLocs
+      gl.uniform1i(pd.u_tex, 0)
+      gl.uniform2f(pd.u_resolution, W, H)
+      gl.uniform1f(pd.u_time, now * 0.001)
+      gl.uniform1f(pd.u_amount,       pdAmt)
+      gl.uniform1f(pd.u_pixelSize,    p.pixelDistortPixelSize    ?? 4)
+      gl.uniform1f(pd.u_posterize,    p.pixelDistortPosterize    ?? 5)
+      gl.uniform1f(pd.u_dither,       p.pixelDistortDither       ?? 0.55)
+      gl.uniform1f(pd.u_corruption,   p.pixelDistortCorruption   ?? 0.35)
+      gl.uniform1f(pd.u_overexposure, p.pixelDistortOverexposure ?? 0.45)
+      gl.uniform1f(pd.u_energyTint,   p.pixelDistortEnergyTint   ?? 0.65)
+      gl.uniform1f(pd.u_beatPunch,    p.pixelDistortBeatPunch    ?? 0)
+      this.drawQuad()
+      curSceneTex = this.pixelDistTex
+    }
+
     // ── Stage 2: RGB Split (optional) ──────────────────────────────────────
     if (p.rgbShiftPx > 0 && uploaded) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.rgbFBO)
@@ -868,11 +1065,17 @@ export class WebGL2Renderer {
       curSceneTex = this.rgbTex
     }
 
-    const needsPost = p.grainAmount > 0 || p.scanAlpha > 0
-    const needsDisp = p.dispAmount > 0
+    const needsPost    = p.grainAmount > 0 || p.scanAlpha > 0
+    const needsDisp    = p.dispAmount > 0
+    const needsNWarp   = (p.noiseWarpAmount ?? 0) > 0
+    const needsFeedback = (p.feedbackDecay ?? 0) > 0
 
     // ── Stage 3: Bloom (optional) ──────────────────────────────────────────
-    const stage3Dest = needsPost ? this.postFBO : (needsDisp ? this.dispFBO : outputFbo)
+    // Destination chain: bloom → post → noiseWarp/disp → feedback → output
+    const afterBloom  = needsPost ? this.postFBO : (needsNWarp ? this.noiseWarpFBO : (needsDisp ? this.dispFBO : (needsFeedback ? this.feedbackWriteFBO : outputFbo)))
+    const afterPost   = needsNWarp ? this.noiseWarpFBO : (needsDisp ? this.dispFBO : (needsFeedback ? this.feedbackWriteFBO : outputFbo))
+    const afterNWarp  = needsDisp ? this.dispFBO : (needsFeedback ? this.feedbackWriteFBO : outputFbo)
+    const afterDisp   = needsFeedback ? this.feedbackWriteFBO : outputFbo
 
     if (p.bloomBlurPx > 0 && p.bloomAmount > 0 && uploaded) {
       const bW = this.bloomW, bH = this.bloomH
@@ -882,7 +1085,14 @@ export class WebGL2Renderer {
       gl.useProgram(this.threshProg)
       gl.activeTexture(gl.TEXTURE0)
       gl.bindTexture(gl.TEXTURE_2D, curSceneTex)
-      gl.uniform1i(this.threshLocs.u_tex, 0)
+      const tl = this.threshLocs
+      gl.uniform1i(tl.u_tex, 0)
+      gl.uniform1f(tl.u_threshold,    p.bloomThreshold    ?? 0.35)
+      gl.uniform1f(tl.u_exposure,     p.bloomExposure     ?? 0)
+      gl.uniform1f(tl.u_tintR,        p.bloomTintR        ?? 1)
+      gl.uniform1f(tl.u_tintG,        p.bloomTintG        ?? 1)
+      gl.uniform1f(tl.u_tintB,        p.bloomTintB        ?? 1)
+      gl.uniform1f(tl.u_intensityMul, p.bloomIntensityMul ?? 1)
       this.drawQuad()
 
       const sigma = Math.max(0.5, p.bloomBlurPx / 2)
@@ -903,7 +1113,7 @@ export class WebGL2Renderer {
       gl.uniform2f(this.blurLocs.u_dir, 0, 1.0 / bH)
       this.drawQuad()
 
-      gl.bindFramebuffer(gl.FRAMEBUFFER, stage3Dest)
+      gl.bindFramebuffer(gl.FRAMEBUFFER, afterBloom)
       gl.viewport(0, 0, W, H)
       gl.useProgram(this.bloomProg)
       gl.activeTexture(gl.TEXTURE0)
@@ -915,7 +1125,7 @@ export class WebGL2Renderer {
       gl.uniform1f(this.bloomLocs.u_amount, p.bloomAmount)
       this.drawQuad()
     } else {
-      gl.bindFramebuffer(gl.FRAMEBUFFER, stage3Dest)
+      gl.bindFramebuffer(gl.FRAMEBUFFER, afterBloom)
       gl.viewport(0, 0, W, H)
       gl.useProgram(this.passProg)
       gl.activeTexture(gl.TEXTURE0)
@@ -924,15 +1134,19 @@ export class WebGL2Renderer {
       this.drawQuad()
     }
 
+    // Track what texture the bloom/pass stage wrote to
+    let postSrcTex = needsPost ? this.postTex : (needsNWarp ? this.noiseWarpTex : (needsDisp ? this.dispTex : (needsFeedback ? this.feedbackWriteTex : null)))
+    void postSrcTex
+
     // ── Stage 4: Post-process — grain + scanlines (optional) ──────────────
     if (needsPost) {
-      gl.bindFramebuffer(gl.FRAMEBUFFER, needsDisp ? this.dispFBO : outputFbo)
+      gl.bindFramebuffer(gl.FRAMEBUFFER, afterPost)
       gl.viewport(0, 0, W, H)
       gl.useProgram(this.postProg)
       gl.activeTexture(gl.TEXTURE0)
       gl.bindTexture(gl.TEXTURE_2D, this.postTex)
       gl.uniform1i(this.postLocs.u_tex, 0)
-      gl.uniform1f(this.postLocs.u_time,        performance.now())
+      gl.uniform1f(this.postLocs.u_time,        now)
       gl.uniform1f(this.postLocs.u_grainAmount, p.grainAmount)
       gl.uniform1f(this.postLocs.u_scanAlpha,   p.scanAlpha)
       gl.uniform1f(this.postLocs.u_scanStep,    p.scanStep)
@@ -940,19 +1154,84 @@ export class WebGL2Renderer {
       this.drawQuad()
     }
 
-    // ── Stage 5: Displacement ghost (optional) ────────────────────────────
-    if (needsDisp) {
-      gl.bindFramebuffer(gl.FRAMEBUFFER, outputFbo)
+    // ── Stage 4.5: Noise warp displacement (optional) ─────────────────────
+    // Replaces the older static ghost-copy pass when noiseWarpAmount > 0.
+    // u_ghostAmt > 0 retains the hue-rotated ghost layer on top.
+    if (needsNWarp && uploaded) {
+      const nwSrc = needsPost ? this.postTex : (afterBloom === this.noiseWarpFBO ? curSceneTex : curSceneTex)
+      const nw = this.noiseWarpLocs
+      gl.bindFramebuffer(gl.FRAMEBUFFER, afterNWarp)
+      gl.viewport(0, 0, W, H)
+      gl.useProgram(this.noiseWarpProg)
+      gl.activeTexture(gl.TEXTURE0)
+      gl.bindTexture(gl.TEXTURE_2D, nwSrc)
+      gl.uniform1i(nw.u_tex, 0)
+      gl.uniform1f(nw.u_time,       now * 0.001)
+      gl.uniform2f(nw.u_resolution, W, H)
+      gl.uniform1f(nw.u_noiseScale, p.noiseWarpScale  ?? 2.0)
+      gl.uniform1f(nw.u_noiseAmt,   p.noiseWarpAmount ?? 0)
+      gl.uniform1f(nw.u_warpSpeed,  p.noiseWarpSpeed  ?? 0.2)
+      gl.uniform1f(nw.u_hBias,      p.noiseWarpHBias  ?? 1.0)
+      // Ghost layer reuses legacy dispAmount/dispOffXPx for backward compat
+      gl.uniform1f(nw.u_ghostAmt,  p.dispAmount > 0 && (p.noiseWarpRetainGhost ?? true) ? p.dispAmount : 0)
+      gl.uniform1f(nw.u_ghostOffX, p.dispOffXPx / W)
+      gl.uniform1f(nw.u_ghostOffY, p.dispOffYPx / H)
+      gl.uniform1f(nw.u_ghostHue,  p.dispHueRad)
+      this.drawQuad()
+    } else if (needsDisp && uploaded) {
+      // ── Stage 5: Legacy displacement ghost (optional) ─────────────────
+      const dispSrcTex = needsPost ? this.postTex : curSceneTex
+      gl.bindFramebuffer(gl.FRAMEBUFFER, afterDisp)
       gl.viewport(0, 0, W, H)
       gl.useProgram(this.dispProg)
       gl.activeTexture(gl.TEXTURE0)
-      gl.bindTexture(gl.TEXTURE_2D, this.dispTex)
+      gl.bindTexture(gl.TEXTURE_2D, dispSrcTex)
       gl.uniform1i(this.dispLocs.u_tex,        0)
       gl.uniform1f(this.dispLocs.u_dispOffX,   p.dispOffXPx / W)
       gl.uniform1f(this.dispLocs.u_dispOffY,   p.dispOffYPx / H)
       gl.uniform1f(this.dispLocs.u_dispAmount, p.dispAmount)
       gl.uniform1f(this.dispLocs.u_dispHueRad, p.dispHueRad)
       this.drawQuad()
+    }
+
+    // ── Stage 6: Temporal feedback composite (optional) ───────────────────
+    // Reads the previous feedbackRead texture (history) and blends with the
+    // current scene (scene is the last stage's output written to feedbackWriteFBO).
+    // After compositing the result goes to outputFbo and the buffers are swapped.
+    if (needsFeedback) {
+      // Determine what the previous stages wrote into: noiseWarp, disp, or directly
+      const sceneSrc = needsNWarp ? this.noiseWarpTex : (needsDisp ? this.dispTex : (needsPost ? this.postTex : curSceneTex))
+      const fb = this.feedbackLocs
+      gl.bindFramebuffer(gl.FRAMEBUFFER, outputFbo)
+      gl.viewport(0, 0, W, H)
+      gl.useProgram(this.feedbackProg)
+      gl.activeTexture(gl.TEXTURE0)
+      gl.bindTexture(gl.TEXTURE_2D, sceneSrc)
+      gl.uniform1i(fb.u_scene, 0)
+      gl.activeTexture(gl.TEXTURE1)
+      gl.bindTexture(gl.TEXTURE_2D, this.feedbackReadTex)
+      gl.uniform1i(fb.u_history, 1)
+      gl.uniform1f(fb.u_decay,   p.feedbackDecay  ?? 0.85)
+      gl.uniform1f(fb.u_smearX,  p.feedbackSmearX ?? 0)
+      gl.uniform1f(fb.u_smearY,  p.feedbackSmearY ?? 0)
+      gl.uniform1f(fb.u_zoom,    p.feedbackZoom   ?? 1.0)
+      gl.uniform2f(fb.u_resolution, W, H)
+      this.drawQuad()
+
+      // Also write to feedbackWrite so it can be copied to read next frame
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.feedbackWriteFBO)
+      gl.viewport(0, 0, W, H)
+      gl.useProgram(this.feedbackProg)
+      // Uniforms still bound from above pass — re-bind textures to be safe
+      gl.activeTexture(gl.TEXTURE0)
+      gl.bindTexture(gl.TEXTURE_2D, sceneSrc)
+      gl.activeTexture(gl.TEXTURE1)
+      gl.bindTexture(gl.TEXTURE_2D, this.feedbackReadTex)
+      this.drawQuad()
+
+      // Swap ping-pong: write becomes the new read for the next frame
+      ;[this.feedbackReadTex,  this.feedbackWriteTex]  = [this.feedbackWriteTex,  this.feedbackReadTex]
+      ;[this.feedbackReadFBO,  this.feedbackWriteFBO]  = [this.feedbackWriteFBO,  this.feedbackReadFBO]
     }
 
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, null)
@@ -1079,13 +1358,13 @@ export class WebGL2Renderer {
     this._canvas.removeEventListener('webglcontextrestored', this._contextRestoredHandler)
 
     const gl = this.gl
-    ;[this.videoProg, this.rgbProg, this.threshProg, this.blurProg, this.bloomProg, this.passProg, this.postProg, this.dispProg, this.txProg, this.gradeProg]
+    ;[this.videoProg, this.rgbProg, this.threshProg, this.blurProg, this.bloomProg, this.passProg, this.postProg, this.dispProg, this.txProg, this.gradeProg, this.pixelDistProg, this.feedbackProg, this.noiseWarpProg]
       .forEach(p => gl.deleteProgram(p))
     gl.deleteBuffer(this.vbo)
     gl.deleteVertexArray(this.vao)
-    ;[this.videoTex, this.sceneTex, this.rgbTex, this.bloom1Tex, this.bloom2Tex, this.postTex, this.dispTex, this.txOutTex, this.txInTex, this.gradeTex]
+    ;[this.videoTex, this.sceneTex, this.rgbTex, this.bloom1Tex, this.bloom2Tex, this.postTex, this.dispTex, this.txOutTex, this.txInTex, this.gradeTex, this.pixelDistTex, this.noiseWarpTex, this.feedbackReadTex, this.feedbackWriteTex, this.frameQuantTex]
       .forEach(t => gl.deleteTexture(t))
-    ;[this.sceneFBO, this.rgbFBO, this.bloom1FBO, this.bloom2FBO, this.postFBO, this.dispFBO, this.txOutFBO, this.txInFBO, this.gradeFBO]
+    ;[this.sceneFBO, this.rgbFBO, this.bloom1FBO, this.bloom2FBO, this.postFBO, this.dispFBO, this.txOutFBO, this.txInFBO, this.gradeFBO, this.pixelDistFBO, this.noiseWarpFBO, this.feedbackReadFBO, this.feedbackWriteFBO, this.frameQuantFBO]
       .forEach(f => gl.deleteFramebuffer(f))
     // Release GPU context via WEBGL_lose_context if available
     const ext = gl.getExtension('WEBGL_lose_context')

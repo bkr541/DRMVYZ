@@ -185,6 +185,11 @@ function makeGLMock(opts: GlMockOpts = {}): { gl: object; deleted: DeleteCounts 
     viewport:               () => {},
     activeTexture:          () => {},
     pixelStorei:            () => {},
+    clearColor:             () => {},
+    clear:                  () => {},
+    enable:                 () => {},
+    disable:                () => {},
+    blendFunc:              () => {},
     getExtension:           () => null,
     getParameter:           () => null,
   }

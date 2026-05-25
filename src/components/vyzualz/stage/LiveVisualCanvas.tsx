@@ -36,7 +36,10 @@ import { GPU_TRANSITION_TYPES, getGpuTransitionIndex } from '../../../renderers/
 import { resolveRendererType } from '../../../renderers/rendererSelection'
 import { selectPostProcessSource } from '../../../renderers/postProcessSource'
 import { CanvasBufferPool } from '../../../renderers/CanvasBufferPool'
-import { derivePostProcessParams, isPostProcessActive, deriveDisplacementParams } from '../../../renderers/postProcessParams'
+import {
+  derivePostProcessParams, isPostProcessActive, deriveDisplacementParams,
+  derivePixelDistortionParams, deriveBloomGpuParams, deriveFeedbackParams, deriveNoiseWarpParams,
+} from '../../../renderers/postProcessParams'
 import type { WebGL2CreateResult } from '../../../renderers/WebGL2Renderer'
 import { deriveColorGradeParams, buildCanvasColorGradeFilter } from '../../../renderers/colorGradeParams'
 import {
@@ -1765,8 +1768,13 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
 
           if (txState && txState.config.type !== 'cut') {
             if (isGpu) {
+              const ep         = effectParamsRef.current
               const ppParams   = derivePostProcessParams(fxSet, mEff, q)
               const dispParams = deriveDisplacementParams(fxSet, dispMod, synced, beatPhase, t, activeColorShift)
+              const pdParams   = derivePixelDistortionParams(fxSet, mEff, ep, activeBands.beat)
+              const bloomExtra = deriveBloomGpuParams(ep)
+              const fbParams   = deriveFeedbackParams(fxSet, feedbackMod, ep)
+              const nwParams   = deriveNoiseWarpParams(fxSet, dispMod, ep)
               const sharedGpu = {
                 canvasW: W, canvasH: H,
                 rgbShiftPx:  fxSet.has('RGB Split') ? mEff.rgbSplit * 14 : 0,
@@ -1777,6 +1785,10 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
                 scanAlpha:   ppParams.scanAlpha,
                 scanStep:    ppParams.scanStep,
                 ...dispParams,
+                ...pdParams,
+                ...bloomExtra,
+                ...fbParams,
+                ...nwParams,
               }
 
               // Per-source grades: outgoing = active clip's grade, incoming = its own.
@@ -1830,11 +1842,14 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
               }
 
               const gpuFx: string[] = []
-              if (fxSet.has('RGB Split') && mEff.rgbSplit > 0) gpuFx.push('RGB Split')
-              if (fxSet.has('Bloom')     && bloomMod       > 0) gpuFx.push('Bloom')
-              if (ppParams.grainAmount > 0) gpuFx.push('Noise Fog')
-              if (ppParams.scanAlpha   > 0) gpuFx.push('Scanlines')
-              if (dispParams.dispAmount > 0) gpuFx.push('Displacement')
+              if (fxSet.has('RGB Split')        && mEff.rgbSplit          > 0) gpuFx.push('RGB Split')
+              if (fxSet.has('Bloom')            && bloomMod               > 0) gpuFx.push('Bloom')
+              if (ppParams.grainAmount          > 0) gpuFx.push('Noise Fog')
+              if (ppParams.scanAlpha            > 0) gpuFx.push('Scanlines')
+              if (dispParams.dispAmount         > 0) gpuFx.push('Displacement')
+              if (pdParams.pixelDistortAmount   > 0) gpuFx.push('Pixel Distortion')
+              if (fbParams.feedbackDecay        > 0) gpuFx.push('Feedback')
+              if (nwParams.noiseWarpAmount      > 0) gpuFx.push('Noise Warp')
               gpuEffectsRef.current = gpuFx
               if (import.meta.env.DEV) devSrcDrawsRef.current += inEl ? 2 : 1
             } else {
@@ -1894,9 +1909,14 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
               if (import.meta.env.DEV) devSrcDrawsRef.current += 2  // out + in
             }
           } else if (isGpu) {
-            // GPU compositor: color grade + video draw + RGB Split + Bloom + grain/scanlines + Displacement
+            // GPU compositor: color grade + video draw + RGB Split + Bloom + grain/scanlines + Displacement + new effects
+            const ep         = effectParamsRef.current
             const ppParams   = derivePostProcessParams(fxSet, mEff, q)
             const dispParams = deriveDisplacementParams(fxSet, dispMod, synced, beatPhase, t, activeColorShift)
+            const pdParams   = derivePixelDistortionParams(fxSet, mEff, ep, activeBands.beat)
+            const bloomExtra = deriveBloomGpuParams(ep)
+            const fbParams   = deriveFeedbackParams(fxSet, feedbackMod, ep)
+            const nwParams   = deriveNoiseWarpParams(fxSet, dispMod, ep)
             gl2!.setColorGrade(deriveColorGradeParams(activeClipGrade, cgBypass))
             gl2!.renderFrame({
               mediaEl,
@@ -1910,14 +1930,21 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
               scanAlpha:   ppParams.scanAlpha,
               scanStep:    ppParams.scanStep,
               ...dispParams,
+              ...pdParams,
+              ...bloomExtra,
+              ...fbParams,
+              ...nwParams,
             })
             ctx.drawImage(gl2!.outputCanvas, 0, 0)
             const gpuFx: string[] = []
-            if (fxSet.has('RGB Split') && mEff.rgbSplit > 0) gpuFx.push('RGB Split')
-            if (fxSet.has('Bloom')     && bloomMod       > 0) gpuFx.push('Bloom')
-            if (ppParams.grainAmount > 0) gpuFx.push('Noise Fog')
-            if (ppParams.scanAlpha   > 0) gpuFx.push('Scanlines')
-            if (dispParams.dispAmount > 0) gpuFx.push('Displacement')
+            if (fxSet.has('RGB Split')        && mEff.rgbSplit          > 0) gpuFx.push('RGB Split')
+            if (fxSet.has('Bloom')            && bloomMod               > 0) gpuFx.push('Bloom')
+            if (ppParams.grainAmount          > 0) gpuFx.push('Noise Fog')
+            if (ppParams.scanAlpha            > 0) gpuFx.push('Scanlines')
+            if (dispParams.dispAmount         > 0) gpuFx.push('Displacement')
+            if (pdParams.pixelDistortAmount   > 0) gpuFx.push('Pixel Distortion')
+            if (fbParams.feedbackDecay        > 0) gpuFx.push('Feedback')
+            if (nwParams.noiseWarpAmount      > 0) gpuFx.push('Noise Warp')
             gpuEffectsRef.current = gpuFx
           } else {
             ctx.save()

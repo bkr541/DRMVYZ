@@ -80,6 +80,15 @@
 
 **Architecture note:** `effect_chain_options` is the single source of truth for _what effects exist_ and what they mean. It intentionally does not store session or preset state. `visual_sessions` and `visual_presets` continue to own all per-user enabled-effect values and slider state. Descriptions and categories are not duplicated into those tables.
 
+**Effect catalog — rows added by migration (cumulative):**
+
+| sort_order | id | chain_name | category | control_group |
+|---|---|---|---|---|
+| 27 | `pixelDistortion` | Pixel Distortion | distortion | Distortion |
+| 28 | `frameQuantization` | Frame Quantization | distortion | Motion |
+
+Rows 1–26 were seeded by `0008_effect_chain_options.sql`. Rows 27–28 added by `0009_distortion_pixels_effect_options.sql` for the **Distortion Pixels** built-in preset.
+
 ## Storage Buckets
 
 | Bucket | Max Size | Allowed Types |
