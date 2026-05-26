@@ -10,11 +10,12 @@ import {
   getActiveTimelineClip, getNextTimelineClip, getTransitionState,
   getClipSourceTime, getClipSourceRange, shouldFreezeClipFrame, getActiveOverlayClips,
   getEasedProgress, isClipSnapToBpmEnabled, getNativeVideoPlaybackDecision,
+  getClipTransitionInState, getClipTransitionOutState,
 } from '../../../lib/timeline'
-import type { TwoClipRenderState } from '../../../lib/timeline'
+import type { TwoClipRenderState, SingleClipTransitionState } from '../../../lib/timeline'
 import type { VzTimelineMediaClip, VzTimelineEffectRegion } from '../../../types/timeline'
 import { DEFAULT_OVERLAY_COMPOSITING, resolveClipGlobalFx } from '../../../types/timeline'
-import { renderTimelineTransition } from '../../../lib/transitionRenderer'
+import { renderTimelineTransition, renderSingleElementTransition } from '../../../lib/transitionRenderer'
 import type { MediaRole } from '../../../lib/mediaRoles'
 import { VZ_LAYER_RENDER_ORDER } from '../../../types/vzLayers'
 import type { VzLayerConfig, VzLayerItem } from '../../../types/vzLayers'
@@ -661,7 +662,9 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   const previousSnapStateRef = useRef<Map<string, boolean>>(new Map())
 
   const incomingMediaElRef   = useRef<HTMLImageElement | HTMLVideoElement | null>(null)
-  const transitionStateRef   = useRef<TwoClipRenderState | null>(null)
+  const transitionStateRef        = useRef<TwoClipRenderState | null>(null)
+  const clipTxInStateRef          = useRef<SingleClipTransitionState | null>(null)
+  const clipTxOutStateRef         = useRef<SingleClipTransitionState | null>(null)
   const incomingRoleRef      = useRef<MediaRole | null>(null)
   const incomingFitModeRef   = useRef<'cover' | 'contain' | null>(null)
   const prevTransitionOnRef  = useRef(false)
@@ -1565,6 +1568,15 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         const txState = getTransitionState(clips, timelineClockRef.current, timelineLoopRef.current)
         transitionStateRef.current = txState
 
+        // Per-clip single-element transitions — only active when no pairwise overlap
+        if (!txState && clip) {
+          clipTxInStateRef.current  = getClipTransitionInState(clip,  timelineClockRef.current)
+          clipTxOutStateRef.current = getClipTransitionOutState(clip, timelineClockRef.current)
+        } else {
+          clipTxInStateRef.current  = null
+          clipTxOutStateRef.current = null
+        }
+
         const txNowActive    = txState !== null
         const txJustStarted  = txNowActive && !prevTransitionOnRef.current
         prevTransitionOnRef.current = txNowActive
@@ -2031,7 +2043,25 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
               ...fbParams,
               ...nwParams,
             })
-            ctx.drawImage(gl2!.outputCanvas, 0, 0)
+            {
+              const seTxIn  = clipTxInStateRef.current
+              const seTxOut = clipTxOutStateRef.current
+              const seTx    = seTxIn ?? seTxOut
+              if (seTx) {
+                // GPU output baked to helper canvas so single-element renderer can read it
+                const gpuBuf = ensureHelperCanvas(txOutCanvasRef, W, H)
+                gpuBuf.getContext('2d')!.drawImage(gl2!.outputCanvas, 0, 0)
+                renderSingleElementTransition({
+                  ctx, W, H, el: gpuBuf,
+                  rect: { ox: 0, oy: 0, sw: W, sh: H },
+                  state: seTx, time: t, colorShift: 0,
+                  bass: activeBands.bass, beat: activeBands.beat,
+                  compositeOp, baseOpacity: 1,
+                })
+              } else {
+                ctx.drawImage(gl2!.outputCanvas, 0, 0)
+              }
+            }
             const gpuFx: string[] = []
             if (fxSet.has('RGB Split')        && mEff.rgbSplit          > 0) gpuFx.push('RGB Split')
             if (fxSet.has('Bloom')            && bloomMod               > 0) gpuFx.push('Bloom')
@@ -2043,25 +2073,55 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             if (nwParams.noiseWarpAmount      > 0) gpuFx.push('Noise Warp')
             gpuEffectsRef.current = gpuFx
           } else {
-            ctx.save()
-            if (compositeOp !== 'source-over') ctx.globalCompositeOperation = compositeOp
-            if (srcSnap) {
-              // Reuse the snap (grade already baked in). Apply colorShift only.
-              if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
-              ctx.drawImage(srcSnap, 0, 0)
-              if (import.meta.env.DEV) devEffPassRef.current++
-            } else {
-              // Direct draw: combine the color grade filter with colorShift hue-rotate.
+            const seTxIn  = clipTxInStateRef.current
+            const seTxOut = clipTxOutStateRef.current
+            const seTx    = seTxIn ?? seTxOut
+            if (seTx) {
+              // Pre-bake grade+colorShift to a helper canvas, then route through
+              // the single-element transition renderer.
+              const cgBuf    = ensureHelperCanvas(cgOutCanvasRef, W, H)
+              const cgBufCtx = cgBuf.getContext('2d')!
+              cgBufCtx.clearRect(0, 0, W, H)
+              cgBufCtx.save()
               const shiftPart = activeColorShift > 0 ? `hue-rotate(${activeColorShift * 360}deg)` : ''
               const gradePart = canvasGradeFilter !== 'none' ? canvasGradeFilter : ''
               const combined  = [gradePart, shiftPart].filter(Boolean).join(' ')
-              if (combined) ctx.filter = combined
-              ctx.drawImage(mediaEl, ox, oy, sw, sh)
-              if (import.meta.env.DEV) devSrcDrawsRef.current++
+              if (combined) cgBufCtx.filter = combined
+              if (srcSnap) {
+                cgBufCtx.drawImage(srcSnap, 0, 0)
+              } else {
+                cgBufCtx.drawImage(mediaEl, ox, oy, sw, sh)
+              }
+              cgBufCtx.filter = 'none'
+              cgBufCtx.restore()
+              renderSingleElementTransition({
+                ctx, W, H, el: cgBuf,
+                rect: { ox: 0, oy: 0, sw: W, sh: H },
+                state: seTx, time: t, colorShift: 0,
+                bass: activeBands.bass, beat: activeBands.beat,
+                compositeOp, baseOpacity: 1,
+              })
+            } else {
+              ctx.save()
+              if (compositeOp !== 'source-over') ctx.globalCompositeOperation = compositeOp
+              if (srcSnap) {
+                // Reuse the snap (grade already baked in). Apply colorShift only.
+                if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
+                ctx.drawImage(srcSnap, 0, 0)
+                if (import.meta.env.DEV) devEffPassRef.current++
+              } else {
+                // Direct draw: combine the color grade filter with colorShift hue-rotate.
+                const shiftPart = activeColorShift > 0 ? `hue-rotate(${activeColorShift * 360}deg)` : ''
+                const gradePart = canvasGradeFilter !== 'none' ? canvasGradeFilter : ''
+                const combined  = [gradePart, shiftPart].filter(Boolean).join(' ')
+                if (combined) ctx.filter = combined
+                ctx.drawImage(mediaEl, ox, oy, sw, sh)
+                if (import.meta.env.DEV) devSrcDrawsRef.current++
+              }
+              ctx.filter = 'none'
+              ctx.globalCompositeOperation = 'source-over'
+              ctx.restore()
             }
-            ctx.filter = 'none'
-            ctx.globalCompositeOperation = 'source-over'
-            ctx.restore()
           }
         }
 
@@ -2350,13 +2410,18 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           // Per-overlay color grade (Canvas 2D filter; temperature/tint GPU-only).
           const ocGradeFilter = buildCanvasColorGradeFilter(oc.colorGrade, cgBypass)
 
-          if (ocFx.length > 0) {
-            // Offscreen path: render overlay to offscreen, apply effects, blit with compositing config
+          // Per-clip single-element transitions for overlay clips
+          const ocTxIn  = getClipTransitionInState(oc,  timelineClockRef.current)
+          const ocTxOut = getClipTransitionOutState(oc, timelineClockRef.current)
+          const ocTx    = ocTxIn ?? ocTxOut
+
+          if (ocTx || ocFx.length > 0) {
+            // Offscreen path: render overlay to offscreen canvas, then composite
             const off = targetEffectOffscreenRef.current.acquire(`oc_${oc.id}`, W, H)
             const offCtx = off.getContext('2d')!
             offCtx.clearRect(0, 0, W, H)
             offCtx.save()
-            offCtx.filter = ocGradeFilter   // grade baked BEFORE targeted effects
+            offCtx.filter = ocGradeFilter   // grade baked BEFORE effects/transitions
             if (cfg.rotation !== 0 || cfg.posX !== 0.5 || cfg.posY !== 0.5) {
               const ocx = cfg.posX * W
               const ocy = cfg.posY * H
@@ -2370,11 +2435,22 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             for (const { mod, intensity } of ocFx) {
               mod!.draw(offCtx, frameCtx, { ...mod!.defaultParams, amount: intensity })
             }
-            ctx.save()
-            ctx.globalAlpha              = cfg.opacity
-            ctx.globalCompositeOperation = cfg.blendMode as GlobalCompositeOperation
-            ctx.drawImage(off, 0, 0)
-            ctx.restore()
+            if (ocTx) {
+              renderSingleElementTransition({
+                ctx, W, H, el: off,
+                rect: { ox: 0, oy: 0, sw: W, sh: H },
+                state: ocTx, time: t, colorShift: activeColorShift,
+                bass: activeBands.bass, beat: activeBands.beat,
+                compositeOp: cfg.blendMode as GlobalCompositeOperation,
+                baseOpacity: cfg.opacity,
+              })
+            } else {
+              ctx.save()
+              ctx.globalAlpha              = cfg.opacity
+              ctx.globalCompositeOperation = cfg.blendMode as GlobalCompositeOperation
+              ctx.drawImage(off, 0, 0)
+              ctx.restore()
+            }
           } else {
             ctx.save()
             ctx.globalAlpha              = cfg.opacity

@@ -248,6 +248,58 @@ export function findOverlappingEffectRegions(
   )
 }
 
+// ── Per-clip single-element transition state ──────────────────────────
+
+/**
+ * State for a single-clip entrance or exit transition.
+ * Unlike TwoClipRenderState this does NOT require physical clip overlap —
+ * it fires purely based on the clip's own start/end times.
+ */
+export interface SingleClipTransitionState {
+  kind: 'in' | 'out'
+  config: VzTransitionConfig
+  /** Raw linear 0→1 progress. Apply getEasedProgress() in the renderer. */
+  progress: number
+  clipId: string
+}
+
+/**
+ * Returns a SingleClipTransitionState for the clip's entrance (transitionIn)
+ * if the current time falls within [clip.startSec, clip.startSec + durationSec).
+ * Returns null when no in-transition is configured or the window has passed.
+ */
+export function getClipTransitionInState(
+  clip: VzTimelineClip,
+  timeSec: number,
+): SingleClipTransitionState | null {
+  const cfg = clip.transitionIn
+  if (!cfg || cfg.type === 'cut' || cfg.durationSec <= 0) return null
+  const dur = Math.min(cfg.durationSec, clip.durationSec)
+  const windowEnd = clip.startSec + dur
+  if (timeSec < clip.startSec || timeSec >= windowEnd) return null
+  const progress = (timeSec - clip.startSec) / dur
+  return { kind: 'in', config: cfg, progress: Math.max(0, Math.min(1, progress)), clipId: clip.id }
+}
+
+/**
+ * Returns a SingleClipTransitionState for the clip's exit (transitionOut)
+ * if the current time falls within [clipEnd - durationSec, clipEnd).
+ * Returns null when no out-transition is configured or the window has not started.
+ */
+export function getClipTransitionOutState(
+  clip: VzTimelineClip,
+  timeSec: number,
+): SingleClipTransitionState | null {
+  const cfg = clip.transitionOut
+  if (!cfg || cfg.type === 'cut' || cfg.durationSec <= 0) return null
+  const clipEnd = clip.startSec + clip.durationSec
+  const dur = Math.min(cfg.durationSec, clip.durationSec)
+  const windowStart = clipEnd - dur
+  if (timeSec < windowStart || timeSec >= clipEnd) return null
+  const progress = (timeSec - windowStart) / dur
+  return { kind: 'out', config: cfg, progress: Math.max(0, Math.min(1, progress)), clipId: clip.id }
+}
+
 // ── Project duration ──────────────────────────────────────────────────
 
 /**

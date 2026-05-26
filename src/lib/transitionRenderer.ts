@@ -8,6 +8,7 @@
 
 import type { VzTransitionConfig, VzTransitionType } from '../types/timeline'
 import { getEasedProgress } from './timeline'
+import type { SingleClipTransitionState } from './timeline'
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -771,5 +772,477 @@ export function renderTimelineTransition(params: TransitionRenderParams): void {
     default:
       // Runtime fallback for unknown saved values (old sessions)
       return renderCrossfade(params, p)
+  }
+}
+
+// ── Single-element transition renderer ───────────────────────────────────────
+//
+// Used for per-clip transitionIn / transitionOut.
+// Unlike renderTimelineTransition, only ONE element is rendered — the clip
+// whose entrance or exit animation is playing.  No second element exists.
+//
+// Semantics:
+//   kind === 'in'  → progress 0→1 means the clip is appearing
+//   kind === 'out' → progress 0→1 means the clip is disappearing
+
+export interface SingleElementTransitionParams {
+  ctx: CanvasRenderingContext2D
+  W: number
+  H: number
+  /** The clip element to animate. */
+  el: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement
+  /** Draw rect for el (already computed by the caller). */
+  rect: DrawRect
+  state: SingleClipTransitionState
+  /** Elapsed ms from canvas start (for animated effects). */
+  time: number
+  /** 0–1 hue rotation from active Color Shift effect. */
+  colorShift: number
+  /** 0–1 bass energy. */
+  bass: number
+  /** 0–1 beat pulse energy. */
+  beat: number
+  /** Canvas globalCompositeOperation for this clip. */
+  compositeOp: GlobalCompositeOperation
+  /** 0–1 opacity from compositingConfig (or 1 for bg clips). Multiplied into transition alpha. */
+  baseOpacity: number
+}
+
+// ── helpers shared by single-element renderers ────────────────────────────────
+
+function seDrawFull(
+  ctx: CanvasRenderingContext2D,
+  el: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement,
+  rect: DrawRect,
+  alpha: number,
+  compositeOp: GlobalCompositeOperation,
+  colorShift: number,
+  extraFilter?: string,
+): void {
+  if (alpha <= 0) return
+  withSave(ctx, () => {
+    ctx.globalAlpha = Math.max(0, Math.min(1, alpha))
+    if (compositeOp !== 'source-over') ctx.globalCompositeOperation = compositeOp
+    const parts: string[] = []
+    if (colorShift > 0) parts.push(`hue-rotate(${colorShift * 360}deg)`)
+    if (extraFilter) parts.push(extraFilter)
+    if (parts.length) ctx.filter = parts.join(' ')
+    ctx.drawImage(el, rect.ox, rect.oy, rect.sw, rect.sh)
+    ctx.filter = 'none'
+  })
+}
+
+/** Returns the canvas-clip rect for a wipe reveal at progress p. */
+function seWipeClipRect(
+  p: number,
+  W: number,
+  H: number,
+  dir: 'left' | 'right' | 'up' | 'down',
+  kind: 'in' | 'out',
+): { x: number; y: number; w: number; h: number } {
+  // For 'in': p=0 → nothing visible, p=1 → full frame
+  // For 'out': p=0 → full frame visible, p=1 → nothing visible
+  const reveal = kind === 'in' ? p : 1 - p
+  switch (dir) {
+    case 'right': return { x: 0,              y: 0, w: reveal * W, h: H }
+    case 'left':  return { x: (1 - reveal) * W, y: 0, w: reveal * W, h: H }
+    case 'down':  return { x: 0,              y: 0, w: W,           h: reveal * H }
+    case 'up':    return { x: 0, y: (1 - reveal) * H, w: W,         h: reveal * H }
+  }
+}
+
+function seGetWipeDir(type: VzTransitionType): 'left' | 'right' | 'up' | 'down' {
+  if (type === 'wipeLeft')  return 'left'
+  if (type === 'wipeUp')    return 'up'
+  if (type === 'wipeDown')  return 'down'
+  return 'right'
+}
+
+function seGetZoomScale(type: VzTransitionType, p: number, kind: 'in' | 'out'): number {
+  // zoomIn entrance: element zooms FROM large → normal (scale 1.12→1)
+  // zoomIn exit: element zooms TO large and fades (scale 1→1.12)
+  // zoomOut entrance: element comes FROM far → normal (scale 0.88→1)
+  // zoomOut exit: element recedes (scale 1→0.88)
+  if (type === 'zoomIn') {
+    return kind === 'in' ? 1.12 - p * 0.12 : 1 + p * 0.12
+  }
+  // zoomOut
+  return kind === 'in' ? 0.88 + p * 0.12 : 1 - p * 0.12
+}
+
+/**
+ * Renders a single-element entrance or exit transition onto `ctx`.
+ * The caller must already have drawn the "background" state for this frame
+ * (or rely on canvas compositing if bg is transparent).
+ *
+ * For 'in' transitions the element appears; for 'out' it disappears.
+ * `baseOpacity` is multiplied into all alpha values so compositing config
+ * (e.g. overlay opacity) is respected throughout the transition.
+ */
+export function renderSingleElementTransition(params: SingleElementTransitionParams): void {
+  const { ctx, W, H, el, rect, state, time, colorShift, bass, beat, compositeOp, baseOpacity } = params
+  const { kind, config } = state
+  const rawP = getEasedProgress(state.progress, config.easing)
+  const p    = Math.max(0, Math.min(1, rawP))
+  const str  = Math.max(0, Math.min(1, config.intensity ?? 1))
+  // For 'in': alpha 0→1. For 'out': alpha 1→0.
+  const alpha = (kind === 'in' ? p : 1 - p) * baseOpacity
+
+  void time; void bass; void beat  // used by specific effects only
+
+  switch (config.type as VzTransitionType) {
+    case 'cut':
+      // cut = instant — just draw at full opacity in 'in' direction
+      seDrawFull(ctx, el, rect, baseOpacity, compositeOp, colorShift)
+      return
+
+    case 'crossfade':
+    case 'blurCrossfade': {
+      const blurPx = config.type === 'blurCrossfade'
+        ? Math.sin(p * Math.PI) * 8 * str
+        : 0
+      seDrawFull(ctx, el, rect, alpha, compositeOp, colorShift,
+        blurPx > 0.5 ? `blur(${blurPx.toFixed(1)}px)` : undefined)
+      return
+    }
+
+    case 'flash': {
+      const clipAlpha = kind === 'in'
+        ? Math.min(1, Math.max(0, (p - 0.25) * 2)) * baseOpacity
+        : Math.max(0, 1 - p * 2) * baseOpacity
+      seDrawFull(ctx, el, rect, clipAlpha, compositeOp, colorShift)
+      fillWhite(ctx, Math.sin(p * Math.PI) * 0.88 * str, W, H)
+      return
+    }
+
+    case 'glitch': {
+      const chaos = Math.sin(p * Math.PI) * str
+      seDrawFull(ctx, el, rect, alpha * (1 - chaos * 0.3), compositeOp, colorShift)
+      // Horizontal slice jitter
+      const numSlices = Math.ceil(2 + chaos * 6)
+      for (let i = 0; i < numSlices; i++) {
+        const sliceY  = Math.floor(h(i * 17.3 + p * 100) * H)
+        const sliceHt = Math.max(1, Math.floor(h(i * 31.7 + p * 50) * 18 + 2))
+        const jitterX = (h(i * 11.9 + p * 200) - 0.5) * chaos * 40
+        withSave(ctx, () => {
+          ctx.beginPath()
+          ctx.rect(0, sliceY, W, Math.min(sliceHt, H - sliceY))
+          ctx.clip()
+          ctx.globalAlpha = alpha * (1 - chaos * 0.3)
+          ctx.drawImage(el, rect.ox + jitterX, rect.oy, rect.sw, rect.sh)
+        })
+      }
+      if (chaos > 0.6) fillWhite(ctx, (chaos - 0.6) * 2.5 * 0.35, W, H)
+      return
+    }
+
+    case 'wipeLeft':
+    case 'wipeRight':
+    case 'wipeUp':
+    case 'wipeDown': {
+      const dir = seGetWipeDir(config.type)
+      const cr  = seWipeClipRect(p, W, H, dir, kind)
+      withSave(ctx, () => {
+        ctx.beginPath()
+        ctx.rect(cr.x, cr.y, cr.w, cr.h)
+        ctx.clip()
+        seDrawFull(ctx, el, rect, baseOpacity, compositeOp, colorShift)
+      })
+      // Edge accent
+      if (p > 0.02 && p < 0.98) {
+        const edgePos = kind === 'in' ? p : 1 - p
+        withSave(ctx, () => {
+          ctx.strokeStyle = `rgba(74,199,219,${0.65 * str})`
+          ctx.lineWidth = 2
+          ctx.beginPath()
+          switch (dir) {
+            case 'right': ctx.moveTo(edgePos * W, 0); ctx.lineTo(edgePos * W, H); break
+            case 'left':  ctx.moveTo((1 - edgePos) * W, 0); ctx.lineTo((1 - edgePos) * W, H); break
+            case 'down':  ctx.moveTo(0, edgePos * H); ctx.lineTo(W, edgePos * H); break
+            case 'up':    ctx.moveTo(0, (1 - edgePos) * H); ctx.lineTo(W, (1 - edgePos) * H); break
+          }
+          ctx.stroke()
+        })
+      }
+      return
+    }
+
+    case 'zoomIn':
+    case 'zoomOut': {
+      const cx = W / 2, cy = H / 2
+      const scale = seGetZoomScale(config.type, p, kind)
+      const blurPx = config.type === 'zoomIn' ? Math.sin(p * Math.PI) * 3 : 0
+      withSave(ctx, () => {
+        ctx.globalAlpha = Math.max(0, Math.min(1, alpha))
+        if (compositeOp !== 'source-over') ctx.globalCompositeOperation = compositeOp
+        const parts: string[] = []
+        if (colorShift > 0) parts.push(`hue-rotate(${colorShift * 360}deg)`)
+        if (blurPx > 0.5)   parts.push(`blur(${blurPx.toFixed(1)}px)`)
+        if (parts.length)   ctx.filter = parts.join(' ')
+        ctx.translate(cx, cy); ctx.scale(scale, scale); ctx.translate(-cx, -cy)
+        ctx.drawImage(el, rect.ox, rect.oy, rect.sw, rect.sh)
+        ctx.filter = 'none'
+      })
+      return
+    }
+
+    case 'lumaFade': {
+      const brightness = kind === 'in'
+        ? 1 + (1 - p) * 0.35
+        : 1 - p * 0.55
+      seDrawFull(ctx, el, rect, alpha, compositeOp, colorShift,
+        `brightness(${brightness.toFixed(2)})`)
+      fillWhite(ctx, Math.sin(p * Math.PI) * 0.45 * str, W, H)
+      return
+    }
+
+    case 'additiveBlend': {
+      const blendOp = (config.blendMode ?? 'lighter') as GlobalCompositeOperation
+      withSave(ctx, () => {
+        ctx.globalCompositeOperation = blendOp
+        ctx.globalAlpha = alpha * str * 0.85
+        if (colorShift > 0) ctx.filter = `hue-rotate(${colorShift * 360}deg)`
+        ctx.drawImage(el, rect.ox, rect.oy, rect.sw, rect.sh)
+        ctx.filter = 'none'
+      })
+      if (p > 0.4) seDrawFull(ctx, el, rect, ((p > 0.4 ? (p - 0.4) / 0.6 : 0) * (kind === 'in' ? 1 : 1 - p)) * baseOpacity, compositeOp, colorShift)
+      return
+    }
+
+    case 'rgbTear': {
+      seDrawFull(ctx, el, rect, alpha, compositeOp, colorShift)
+      if (p < 0.8) {
+        const rgbShift = p * str * 14
+        withSave(ctx, () => {
+          ctx.globalCompositeOperation = 'screen'
+          ctx.globalAlpha = alpha * 0.4
+          ctx.filter = 'sepia(1) saturate(5) hue-rotate(-40deg)'
+          ctx.drawImage(el, rect.ox - rgbShift, rect.oy, rect.sw, rect.sh)
+          ctx.filter = 'sepia(1) saturate(5) hue-rotate(200deg)'
+          ctx.drawImage(el, rect.ox + rgbShift, rect.oy, rect.sw, rect.sh)
+          ctx.filter = 'none'
+        })
+      }
+      return
+    }
+
+    case 'datamoshCut': {
+      seDrawFull(ctx, el, rect, alpha, compositeOp, colorShift)
+      const ghostCount = 4
+      for (let i = 0; i < ghostCount; i++) {
+        const offX = Math.sin(i * 1.37 + p * 11) * p * str * 18
+        const offY = Math.cos(i * 0.91 + p * 7)  * p * str * 7
+        withSave(ctx, () => {
+          ctx.globalAlpha = (1 - p) * 0.18 * (1 - i / ghostCount) * baseOpacity
+          ctx.globalCompositeOperation = 'lighter'
+          if (colorShift > 0) ctx.filter = `hue-rotate(${colorShift * 360}deg)`
+          ctx.drawImage(el, rect.ox + offX, rect.oy + offY, rect.sw, rect.sh)
+          ctx.filter = 'none'
+        })
+      }
+      return
+    }
+
+    case 'scanlineWipe': {
+      const bandH   = 4
+      const numBands = Math.ceil(H / bandH)
+      const phases  = [0, 0.1, 0.2]
+      withSave(ctx, () => {
+        ctx.beginPath()
+        for (let i = 0; i < numBands; i++) {
+          const delay = phases[i % 3]
+          const scale = 1 - delay
+          const rawBandP = scale > 0 ? Math.min(1, Math.max(0, (p - delay) / scale)) : 1
+          const bandP = kind === 'in' ? rawBandP : 1 - rawBandP
+          if (bandP <= 0) continue
+          const ly = i * bandH
+          ctx.rect(0, ly, W, Math.min(bandH, H - ly))
+        }
+        ctx.clip()
+        seDrawFull(ctx, el, rect, baseOpacity, compositeOp, colorShift)
+      })
+      return
+    }
+
+    case 'pixelSort': {
+      const stripW   = 4
+      const numStrips = Math.ceil(W / stripW)
+      withSave(ctx, () => {
+        ctx.beginPath()
+        for (let i = 0; i < numStrips; i++) {
+          const phase  = h(i * 7.31) * 0.6
+          const rawLp  = Math.min(1, Math.max(0, p > phase ? (p - phase) / (1 - phase * 0.5) : 0))
+          const lp     = kind === 'in' ? rawLp : 1 - rawLp
+          if (lp <= 0) continue
+          const sx = i * stripW
+          const revealH = lp * H
+          if (h(i * 3.17) > 0.5) {
+            ctx.rect(sx, 0, stripW, revealH)
+          } else {
+            ctx.rect(sx, H - revealH, stripW, revealH)
+          }
+        }
+        ctx.clip()
+        seDrawFull(ctx, el, rect, baseOpacity, compositeOp, colorShift)
+      })
+      return
+    }
+
+    case 'radialWipe': {
+      const cx = W / 2, cy = H / 2
+      const maxR = Math.max(W, H)
+      const startAngle = -Math.PI / 2
+      const sweepP = kind === 'in' ? p : 1 - p
+      const endAngle = startAngle + sweepP * Math.PI * 2
+      withSave(ctx, () => {
+        ctx.beginPath()
+        ctx.moveTo(cx, cy)
+        ctx.arc(cx, cy, maxR, startAngle, endAngle)
+        ctx.closePath()
+        ctx.clip()
+        seDrawFull(ctx, el, rect, baseOpacity, compositeOp, colorShift)
+      })
+      if (p > 0.02 && p < 0.98) {
+        withSave(ctx, () => {
+          ctx.strokeStyle = `rgba(74,199,219,${0.65 * str})`
+          ctx.lineWidth = 2
+          ctx.beginPath()
+          ctx.moveTo(cx, cy)
+          ctx.lineTo(cx + Math.cos(endAngle) * maxR, cy + Math.sin(endAngle) * maxR)
+          ctx.stroke()
+        })
+      }
+      return
+    }
+
+    case 'circleIris': {
+      const cx = W / 2, cy = H / 2
+      const maxR = Math.hypot(W, H) / 2 * 1.05
+      const irisP = kind === 'in' ? p : 1 - p
+      const r = irisP * maxR
+      if (r <= 0) return
+      withSave(ctx, () => {
+        ctx.beginPath()
+        ctx.arc(cx, cy, r, 0, Math.PI * 2)
+        ctx.clip()
+        seDrawFull(ctx, el, rect, baseOpacity, compositeOp, colorShift)
+      })
+      if (r > 2 && irisP < 0.97) {
+        for (const [lw, a] of [[8, 0.15], [4, 0.45], [2, 0.85]] as [number, number][]) {
+          withSave(ctx, () => {
+            ctx.strokeStyle = `rgba(74,199,219,${a * str})`
+            ctx.lineWidth = lw
+            ctx.beginPath()
+            ctx.arc(cx, cy, r, 0, Math.PI * 2)
+            ctx.stroke()
+          })
+        }
+      }
+      return
+    }
+
+    case 'bassImpactZoom': {
+      const cx = W / 2, cy = H / 2
+      const energy = Math.max(bass, beat) > 0 ? Math.max(bass, beat) : str
+      if (kind === 'in') {
+        const punch = Math.max(0, 1 - p * 2) * energy * str
+        fillWhite(ctx, punch * 0.55, W, H)
+        const scale = p < 0.5 ? 1.08 - p * 0.08 : 1.04
+        withSave(ctx, () => {
+          ctx.globalAlpha = Math.min(1, p * 2) * baseOpacity
+          if (compositeOp !== 'source-over') ctx.globalCompositeOperation = compositeOp
+          if (colorShift > 0) ctx.filter = `hue-rotate(${colorShift * 360}deg)`
+          ctx.translate(cx, cy); ctx.scale(scale, scale); ctx.translate(-cx, -cy)
+          ctx.drawImage(el, rect.ox, rect.oy, rect.sw, rect.sh)
+          ctx.filter = 'none'
+        })
+      } else {
+        const punch = Math.max(0, 1 - (1 - p) * 2) * energy * str
+        fillWhite(ctx, punch * 0.55, W, H)
+        const scale = 1 + p * 0.1
+        withSave(ctx, () => {
+          ctx.globalAlpha = Math.max(0, 1 - p * 1.5) * baseOpacity
+          if (compositeOp !== 'source-over') ctx.globalCompositeOperation = compositeOp
+          if (colorShift > 0) ctx.filter = `hue-rotate(${colorShift * 360}deg)`
+          ctx.translate(cx, cy); ctx.scale(scale, scale); ctx.translate(-cx, -cy)
+          ctx.drawImage(el, rect.ox, rect.oy, rect.sw, rect.sh)
+          ctx.filter = 'none'
+        })
+      }
+      return
+    }
+
+    case 'shockwaveReveal': {
+      const cx = W / 2, cy = H / 2
+      const maxR  = Math.hypot(W, H) * 0.75
+      const revealP = kind === 'in' ? p : 1 - p
+      const waveR = revealP * maxR * 1.35
+      const waveBand = maxR * 0.22
+      const innerR = Math.max(0, waveR - waveBand)
+      if (innerR > 0) {
+        withSave(ctx, () => {
+          ctx.beginPath()
+          ctx.arc(cx, cy, innerR, 0, Math.PI * 2)
+          ctx.clip()
+          seDrawFull(ctx, el, rect, baseOpacity, compositeOp, colorShift)
+        })
+      }
+      const ringAlpha = Math.sin(p * Math.PI) * str
+      if (ringAlpha > 0.03 && waveR > 0) {
+        withSave(ctx, () => {
+          const grd = ctx.createRadialGradient(cx, cy, Math.max(0, waveR - waveBand), cx, cy, waveR)
+          grd.addColorStop(0,    `rgba(74,199,219,0)`)
+          grd.addColorStop(0.45, `rgba(74,199,219,${ringAlpha * 0.7})`)
+          grd.addColorStop(0.75, `rgba(255,255,255,${ringAlpha * 0.4})`)
+          grd.addColorStop(1,    `rgba(74,199,219,0)`)
+          ctx.fillStyle = grd
+          ctx.beginPath()
+          ctx.arc(cx, cy, waveR, 0, Math.PI * 2)
+          ctx.fill()
+        })
+      }
+      return
+    }
+
+    case 'particleExplosion': {
+      seDrawFull(ctx, el, rect, alpha, compositeOp, colorShift)
+      const particleLife = 0.75
+      const effectP = kind === 'in' ? state.progress : 1 - state.progress
+      if (effectP < particleLife) {
+        const cx = W / 2, cy = H / 2
+        const lp = effectP / particleLife
+        const baseSize = Math.max(2, Math.min(W, H) * 0.005)
+        const numParticles = 96
+        for (let i = 0; i < numParticles; i++) {
+          const angle  = h(i * 13.7) * Math.PI * 2
+          const speed  = 0.3 + h(i * 23.1 + 5.3) * 0.7
+          const size   = baseSize * (1 + h(i * 7.4 + 11.2) * 2.5)
+          const dist   = speed * lp * Math.min(W, H) * 0.38
+          const px     = cx + Math.cos(angle) * dist
+          const py     = cy + Math.sin(angle) * dist
+          const fade   = (1 - lp) * (0.5 + h(i * 5.9) * 0.5) * str
+          if (fade < 0.02) continue
+          const cs = h(i * 5.91)
+          const color = cs < 0.33 ? `rgba(74,199,219,${fade})`
+            : cs < 0.66          ? `rgba(200,74,219,${fade})`
+            :                      `rgba(255,255,255,${fade})`
+          withSave(ctx, () => {
+            ctx.fillStyle = color
+            ctx.beginPath()
+            ctx.arc(
+              Math.max(size, Math.min(W - size, px)),
+              Math.max(size, Math.min(H - size, py)),
+              size, 0, Math.PI * 2,
+            )
+            ctx.fill()
+          })
+        }
+      }
+      return
+    }
+
+    default:
+      // Unknown type: fall back to crossfade
+      seDrawFull(ctx, el, rect, alpha, compositeOp, colorShift)
   }
 }

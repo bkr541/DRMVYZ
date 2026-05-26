@@ -64,7 +64,9 @@ export interface VzTimelineClip {
   mediaOutSec?: number
   fitMode: 'cover' | 'contain'
   playbackMode: 'trim' | 'loop' | 'freeze'
-  /** Transition that overlaps this clip's tail with the next clip's head. */
+  /** Per-clip entrance animation at the start of this clip's own interval (no overlap required). */
+  transitionIn?: VzTransitionConfig
+  /** Per-clip exit animation at the end of this clip's own interval (no overlap required). Also used as the outgoing side of legacy pairwise transitions when clips physically overlap. */
   transitionOut?: VzTransitionConfig
   /** @deprecated — kept for backwards-compat JSON deserialization. Use transitionOut. */
   transition?: { type: VzTransitionType; durationSec: number }

@@ -612,7 +612,43 @@ function BgClipInspector({
             </button>
           </div>
           <div className="vz-ml-insp-row">
-            <span className="vz-ml-insp-lbl">Transition</span>
+            <span className="vz-ml-insp-lbl">Tx In</span>
+            <select className="az-select vz-ml-insp-sel" value={clip.transitionIn?.type ?? 'cut'}
+              onChange={e => {
+                const type = e.target.value as VzTransitionType
+                if (type === 'cut') { onUpdate(clip.id, { transitionIn: undefined }); return }
+                const def = TRANSITION_DEFAULTS[type]
+                onUpdate(clip.id, { transitionIn: { ...def, durationSec: clip.transitionIn?.durationSec ?? def.durationSec } })
+              }}>
+              {(Object.keys(TRANSITION_LABELS) as VzTransitionType[]).map(t => (
+                <option key={t} value={t}>{TRANSITION_LABELS[t]}</option>
+              ))}
+            </select>
+            {clip.transitionIn && clip.transitionIn.type !== 'cut' && (
+              <>
+                <input type="number" className="vz-ml-insp-num" min={0.1} max={clip.durationSec} step={0.1}
+                  value={clip.transitionIn.durationSec} title="Entrance duration (s)"
+                  onChange={e => {
+                    const v = parseFloat(e.target.value)
+                    if (!isNaN(v) && v > 0 && clip.transitionIn)
+                      onUpdate(clip.id, { transitionIn: { ...clip.transitionIn, durationSec: v } })
+                  }}
+                />
+                <select className="az-select vz-ml-insp-sel" value={clip.transitionIn.easing ?? 'linear'}
+                  onChange={e => clip.transitionIn && onUpdate(clip.id, { transitionIn: { ...clip.transitionIn, easing: e.target.value as VzTransitionEasing } })}>
+                  <option value="linear">Linear</option>
+                  <option value="easeIn">Ease In</option>
+                  <option value="easeOut">Ease Out</option>
+                  <option value="easeInOut">Ease In/Out</option>
+                  <option value="easeInCubic">Cubic In</option>
+                  <option value="easeOutCubic">Cubic Out</option>
+                  <option value="easeInOutCubic">Cubic In/Out</option>
+                </select>
+              </>
+            )}
+          </div>
+          <div className="vz-ml-insp-row">
+            <span className="vz-ml-insp-lbl">Tx Out</span>
             <select className="az-select vz-ml-insp-sel" value={clip.transitionOut?.type ?? 'cut'}
               onChange={e => {
                 const type = e.target.value as VzTransitionType
@@ -627,7 +663,7 @@ function BgClipInspector({
             {clip.transitionOut && clip.transitionOut.type !== 'cut' && (
               <>
                 <input type="number" className="vz-ml-insp-num" min={0.1} max={clip.durationSec} step={0.1}
-                  value={clip.transitionOut.durationSec} title="Overlap duration (s)"
+                  value={clip.transitionOut.durationSec} title="Exit duration (s)"
                   onChange={e => {
                     const v = parseFloat(e.target.value)
                     if (!isNaN(v) && v > 0 && clip.transitionOut)
@@ -825,6 +861,78 @@ function OverlayClipInspector({
             </select>
           </div>
 
+          <div className="vz-ml-insp-row">
+            <span className="vz-ml-insp-lbl">Tx In</span>
+            <select className="az-select vz-ml-insp-sel" value={clip.transitionIn?.type ?? 'cut'}
+              onChange={e => {
+                const type = e.target.value as VzTransitionType
+                if (type === 'cut') { onUpdate(clip.id, { transitionIn: undefined }); return }
+                const def = TRANSITION_DEFAULTS[type]
+                onUpdate(clip.id, { transitionIn: { ...def, durationSec: clip.transitionIn?.durationSec ?? def.durationSec } })
+              }}>
+              {(Object.keys(TRANSITION_LABELS) as VzTransitionType[]).map(t => (
+                <option key={t} value={t}>{TRANSITION_LABELS[t]}</option>
+              ))}
+            </select>
+            {clip.transitionIn && clip.transitionIn.type !== 'cut' && (
+              <>
+                <input type="number" className="vz-ml-insp-num" min={0.1} max={clip.durationSec} step={0.1}
+                  value={clip.transitionIn.durationSec} title="Entrance duration (s)"
+                  onChange={e => {
+                    const v = parseFloat(e.target.value)
+                    if (!isNaN(v) && v > 0 && clip.transitionIn)
+                      onUpdate(clip.id, { transitionIn: { ...clip.transitionIn, durationSec: v } })
+                  }}
+                />
+                <select className="az-select vz-ml-insp-sel" value={clip.transitionIn.easing ?? 'linear'}
+                  onChange={e => clip.transitionIn && onUpdate(clip.id, { transitionIn: { ...clip.transitionIn, easing: e.target.value as VzTransitionEasing } })}>
+                  <option value="linear">Linear</option>
+                  <option value="easeIn">Ease In</option>
+                  <option value="easeOut">Ease Out</option>
+                  <option value="easeInOut">Ease In/Out</option>
+                  <option value="easeInCubic">Cubic In</option>
+                  <option value="easeOutCubic">Cubic Out</option>
+                  <option value="easeInOutCubic">Cubic In/Out</option>
+                </select>
+              </>
+            )}
+          </div>
+          <div className="vz-ml-insp-row">
+            <span className="vz-ml-insp-lbl">Tx Out</span>
+            <select className="az-select vz-ml-insp-sel" value={clip.transitionOut?.type ?? 'cut'}
+              onChange={e => {
+                const type = e.target.value as VzTransitionType
+                if (type === 'cut') { onUpdate(clip.id, { transitionOut: undefined }); return }
+                const def = TRANSITION_DEFAULTS[type]
+                onUpdate(clip.id, { transitionOut: { ...def, durationSec: clip.transitionOut?.durationSec ?? def.durationSec } })
+              }}>
+              {(Object.keys(TRANSITION_LABELS) as VzTransitionType[]).map(t => (
+                <option key={t} value={t}>{TRANSITION_LABELS[t]}</option>
+              ))}
+            </select>
+            {clip.transitionOut && clip.transitionOut.type !== 'cut' && (
+              <>
+                <input type="number" className="vz-ml-insp-num" min={0.1} max={clip.durationSec} step={0.1}
+                  value={clip.transitionOut.durationSec} title="Exit duration (s)"
+                  onChange={e => {
+                    const v = parseFloat(e.target.value)
+                    if (!isNaN(v) && v > 0 && clip.transitionOut)
+                      onUpdate(clip.id, { transitionOut: { ...clip.transitionOut, durationSec: v } })
+                  }}
+                />
+                <select className="az-select vz-ml-insp-sel" value={clip.transitionOut.easing ?? 'linear'}
+                  onChange={e => clip.transitionOut && onUpdate(clip.id, { transitionOut: { ...clip.transitionOut, easing: e.target.value as VzTransitionEasing } })}>
+                  <option value="linear">Linear</option>
+                  <option value="easeIn">Ease In</option>
+                  <option value="easeOut">Ease Out</option>
+                  <option value="easeInOut">Ease In/Out</option>
+                  <option value="easeInCubic">Cubic In</option>
+                  <option value="easeOutCubic">Cubic Out</option>
+                  <option value="easeInOutCubic">Cubic In/Out</option>
+                </select>
+              </>
+            )}
+          </div>
           <div className="vz-ml-insp-row vz-ml-insp-actions">
             <button className="vz-tl-clip-btn vz-tl-clip-btn--duplicate" onClick={() => onDuplicate(clip.id)} title="Duplicate">⧉</button>
             <button className="vz-tl-clip-btn vz-tl-clip-btn--remove" onClick={() => onRemove(clip.id)} title="Delete">✕</button>
