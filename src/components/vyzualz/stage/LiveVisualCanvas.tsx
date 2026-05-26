@@ -2224,7 +2224,6 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             const ovDur         = isFinite(el.duration) ? el.duration : 0
             el.loop             = false
             const ovSnapEnabled = isClipSnapToBpmEnabled(oc)
-            const ovKey         = `overlay:${oc.id}`
 
             // Detect ON→OFF transition so native playback is immediately re-initialized.
             const prevOvSnap         = previousSnapStateRef.current.get(ovKey)
