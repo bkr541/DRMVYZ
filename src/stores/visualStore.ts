@@ -29,6 +29,7 @@ import { DEFAULT_EFFECT_PARAMS } from '../types/effectParams'
 import type { VzCueMarker } from '../types/cue'
 import { DEFAULT_LAYER_CONFIGS, createDefaultLayerItem } from '../types/vzLayers'
 import type { VzLayerConfig, VzLayerConfigId, VzLayerItem } from '../types/vzLayers'
+import { DEFAULT_COLOR_GRADE } from '../types/vzColorGrade'
 
 export type { VzTimelineClip, VzTimelineMediaClip, VzTimelineMediaLaneId, VzTimelineEffectRegion }
 export type { VzLayerConfig, VzLayerConfigId, VzLayerItem }
@@ -496,6 +497,16 @@ interface VisualState {
   updateEffectRegion(id: string, patch: Partial<Omit<VzTimelineEffectRegion, 'id'>>): void
   removeEffectRegion(id: string): void
   clearEffectRegions(): void
+  /**
+   * Resets all local visual-FX state for a single placed media element without
+   * touching any other element, global Effect Chain settings, timing, or transitions.
+   *
+   * For clips:     resets colorGrade, sets enableGlobalFx: false.
+   * For layerItems: resets colorGrade, sets audioReactive: false.
+   * For both:      removes/narrows effect regions that exclusively target this element.
+   *                Multi-target regions have only this element's ID removed.
+   */
+  clearMediaElementFx(elementId: string, kind: 'clip' | 'layerItem'): void
 
   // ── Layer compositor ──────────────────────────────────────────────────────
   layerConfigs: VzLayerConfig[]
@@ -1269,6 +1280,54 @@ export const useVisualStore = create<VisualState>()(
         set({ timelineEffectRegions: [] })
       },
 
+      clearMediaElementFx(elementId, kind) {
+        set(s => {
+          // Determine which targetType to match in effect regions.
+          const targetType = kind === 'clip' ? 'clip' : 'layerItem'
+
+          // Rebuild effect regions: remove regions that belong exclusively to this
+          // element, or strip this element's ID from multi-target regions.
+          // Global/layer/unrelated regions are never touched.
+          const newRegions = s.timelineEffectRegions
+            .map(r => {
+              if (r.targetType !== targetType) return r
+              const ids = r.targetIds ?? []
+              if (!ids.includes(elementId)) return r
+              const remaining = ids.filter(id => id !== elementId)
+              // Region had only this element → delete it (return null to filter out).
+              if (remaining.length === 0) return null
+              // Region targeted multiple elements → keep it, just remove this one.
+              return { ...r, targetIds: remaining }
+            })
+            .filter((r): r is VzTimelineEffectRegion => r !== null)
+
+          if (kind === 'clip') {
+            const fxPatch = {
+              colorGrade:    { ...DEFAULT_COLOR_GRADE },
+              enableGlobalFx: false as const,
+            }
+            return {
+              timelineClips:        s.timelineClips.map(c =>
+                c.id === elementId ? { ...c, ...fxPatch } : c,
+              ),
+              timelineOverlayClips: s.timelineOverlayClips.map(c =>
+                c.id === elementId ? { ...c, ...fxPatch } : c,
+              ),
+              timelineEffectRegions: newRegions,
+            }
+          } else {
+            return {
+              layerItems: s.layerItems.map(i =>
+                i.id === elementId
+                  ? { ...i, colorGrade: { ...DEFAULT_COLOR_GRADE }, audioReactive: false }
+                  : i,
+              ),
+              timelineEffectRegions: newRegions,
+            }
+          }
+        })
+      },
+
       setLayerConfig(id, patch) {
         set(s => ({
           layerConfigs: s.layerConfigs.map(c => c.id === id ? { ...c, ...patch } : c),
@@ -1426,6 +1485,17 @@ export const useVisualStore = create<VisualState>()(
           ...savedRoutes,
           ...DEFAULT_MODULATION_ROUTES.filter(r => !savedIds.has(r.id)),
         ]
+        // Migration 0010: Bass Reactivity / Reactive Scale / Master Intensity were
+        // added to effect_chain_options. Pre-migration sessions lack these names in
+        // enabledFxArr, which would silently disable them. Auto-add them so existing
+        // projects keep their current "always on" behaviour. Users can then toggle
+        // them off explicitly and that choice will persist on next save.
+        const GLOBAL_FX_DEFAULTS = ['Master Intensity', 'Bass Reactivity', 'Reactive Scale']
+        const savedFxArr = [...(p.enabledFxArr ?? [])]
+        const mergedFxArr = [
+          ...savedFxArr,
+          ...GLOBAL_FX_DEFAULTS.filter(name => !savedFxArr.includes(name)),
+        ]
         return {
           ...current,
           ...p,
@@ -1433,6 +1503,7 @@ export const useVisualStore = create<VisualState>()(
           // are never undefined when VzSlider reads them.
           effects:          { ...DEFAULT_EFFECTS, ...(p.effects ?? {}) },
           effectParams:     p.effectParams ?? DEFAULT_EFFECT_PARAMS,
+          enabledFxArr:     mergedFxArr,
           presets:          [...DEFAULT_PRESETS, ...(p.presets ?? [])],
           sessions,
           modulationRoutes: mergedRoutes,

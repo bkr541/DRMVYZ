@@ -8,10 +8,12 @@ import {
   ArrowLeft01Icon,
   GridViewIcon,
   ListViewIcon,
+  PropertyViewIcon,
 } from 'hugeicons-react'
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { UploadedMedia, MediaCollection } from '../../../stores/mediaStore'
 import { MediaUploadModal } from '../MediaUploadModal'
+import { MediaPreviewModal } from './MediaPreviewModal'
 import { MediaStatusBar } from './MediaStatusBar'
 import { MEDIA_ROLE_BADGE_LABELS, MEDIA_ROLE_LABELS } from '../../../lib/mediaRoles'
 
@@ -102,7 +104,7 @@ function CollectionFolder({
 // ── Media card (shared between all views) ─────────────────────────────────
 
 function MediaCard({
-  m, isActive, viewMode, onSelect, onEdit, onRemove, onToggleFavorite,
+  m, isActive, viewMode, onSelect, onEdit, onRemove, onToggleFavorite, onPreview,
 }: {
   m: UploadedMedia
   isActive: boolean
@@ -111,6 +113,7 @@ function MediaCard({
   onEdit: () => void
   onRemove: () => void
   onToggleFavorite: () => void
+  onPreview: () => void
 }) {
   const isList = viewMode === 'list'
   const displayName = (m.title ?? m.name).length > (isList ? 40 : 22)
@@ -167,6 +170,14 @@ function MediaCard({
             <PencilEdit01Icon size={11} color="currentColor" />
           </button>
           <button
+            className="vz-media-edit-btn"
+            onClick={e => { e.stopPropagation(); onPreview() }}
+            title="Preview media"
+            style={{ opacity: 1, color: 'rgba(74,199,219,0.7)' }}
+          >
+            <PropertyViewIcon size={11} color="currentColor" />
+          </button>
+          <button
             className="vz-media-remove"
             onClick={e => { e.stopPropagation(); onRemove() }}
             title="Remove"
@@ -213,6 +224,13 @@ function MediaCard({
         >
           <Delete02Icon size={15} color="currentColor" />
         </button>
+        <button
+          className="vz-media-preview-btn"
+          onClick={e => { e.stopPropagation(); onPreview() }}
+          title="Preview media"
+        >
+          <PropertyViewIcon size={13} color="currentColor" />
+        </button>
       </div>
       <div className="vz-media-info">
         <div className="vz-media-name-row">
@@ -257,8 +275,9 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
   const [openCollectionId, setOpenCollectionId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
-  const [dragOver, setDragOver] = useState(false)
-  const [editItem, setEditItem] = useState<UploadedMedia | null>(null)
+  const [dragOver, setDragOver]       = useState(false)
+  const [editItem, setEditItem]       = useState<UploadedMedia | null>(null)
+  const [previewItem, setPreviewItem] = useState<UploadedMedia | null>(null)
 
   const searchActive = searchQuery.length > 2
   const searchLower  = searchQuery.toLowerCase()
@@ -346,6 +365,7 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
           onEdit={() => setEditItem(m)}
           onRemove={() => removeItem(m.id)}
           onToggleFavorite={() => toggleFavorite(m.id)}
+          onPreview={() => setPreviewItem(m)}
         />
       ))}
     </div>
@@ -420,6 +440,7 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
     <>
       {importModalOpen && <MediaUploadModal onClose={closeImportMediaModal} />}
       {editItem && <MediaUploadModal editItem={editItem} onClose={() => setEditItem(null)} />}
+      {previewItem && <MediaPreviewModal media={previewItem} onClose={() => setPreviewItem(null)} />}
       <div
         className="vz-panel"
         style={{ flex: 1, minHeight: 0 }}

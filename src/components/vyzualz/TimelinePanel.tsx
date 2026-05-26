@@ -10,7 +10,7 @@ import type { VzTimelineClip, VzTimelineMediaClip, VzTimelineEffectRegion, VzOve
 import type { VzLayerConfig, VzLayerItem, SelectedTimelineEntity } from '../../stores/visualStore'
 import { LAYER_LABELS } from '../../types/vzLayers'
 import type { VzTransitionConfig, VzTransitionType, VzTransitionEasing } from '../../types/timeline'
-import { DEFAULT_OVERLAY_COMPOSITING } from '../../types/timeline'
+import { DEFAULT_OVERLAY_COMPOSITING, resolveClipGlobalFx } from '../../types/timeline'
 import type { UploadedMedia } from '../../stores/mediaStore'
 import type { LyricCue } from '../../types/lyrics'
 import { CursorInfo01Icon } from 'hugeicons-react'
@@ -503,7 +503,7 @@ function ColorGradeControls({
 
 function BgClipInspector({
   clip, media, idx, total, isGpu,
-  onMove, onRemove, onDuplicate, onUpdate, onSetMediaRole,
+  onMove, onRemove, onDuplicate, onUpdate, onSetMediaRole, onClearFx,
 }: {
   clip: VzTimelineMediaClip
   media: UploadedMedia | undefined
@@ -515,6 +515,7 @@ function BgClipInspector({
   onDuplicate: (id: string) => void
   onUpdate: (id: string, patch: Partial<Omit<VzTimelineMediaClip, 'id' | 'lane'>>) => void
   onSetMediaRole: (mediaId: string, role: MediaRole) => void
+  onClearFx: (id: string) => void
 }) {
   const grade = clip.colorGrade ?? DEFAULT_COLOR_GRADE
   return (
@@ -583,14 +584,33 @@ function BgClipInspector({
           </div>
           {media?.type === 'video' && (
             <div className="vz-ml-insp-row">
-              <label className="vz-ml-insp-check" title={isClipSnapToBpmEnabled(clip) ? 'Lock this video to timeline timing' : 'Play this video at native speed'}>
-                <input type="checkbox" checked={isClipSnapToBpmEnabled(clip)}
+              <label className="vz-ml-insp-toggle" title={isClipSnapToBpmEnabled(clip) ? 'Lock this video to timeline timing' : 'Play this video at native speed'}>
+                <input type="checkbox" className="vz-ml-insp-toggle-input" checked={isClipSnapToBpmEnabled(clip)}
                   onChange={e => onUpdate(clip.id, { snapToBpm: e.target.checked })}
                 />
+                <span className="vz-ml-insp-toggle-track" />
                 Snap to BPM
               </label>
             </div>
           )}
+          <div className="vz-ml-insp-row">
+            <label className="vz-ml-insp-toggle"
+              title="When ON, this clip participates in global audio-reactive modulation (Bass Reactivity, Reactive Scale, Master Intensity). Off by default for background videos.">
+              <input type="checkbox" className="vz-ml-insp-toggle-input"
+                checked={resolveClipGlobalFx(clip.enableGlobalFx, media?.mediaRole ?? null)}
+                onChange={e => onUpdate(clip.id, { enableGlobalFx: e.target.checked })}
+              />
+              <span className="vz-ml-insp-toggle-track" />
+              Enable Global FX
+            </label>
+            <button
+              className="vz-cg-reset-btn"
+              style={{ marginLeft: 'auto' }}
+              onClick={() => onClearFx(clip.id)}
+              title="Reset color grade, disable Global FX, and remove clip-targeted effect regions">
+              Clear FX
+            </button>
+          </div>
           <div className="vz-ml-insp-row">
             <span className="vz-ml-insp-lbl">Transition</span>
             <select className="az-select vz-ml-insp-sel" value={clip.transitionOut?.type ?? 'cut'}
@@ -668,7 +688,7 @@ const BLEND_MODES: { value: string; label: string }[] = [
 ]
 
 function OverlayClipInspector({
-  clip, media, isGpu, onUpdate, onRemove, onDuplicate, onSetMediaRole,
+  clip, media, isGpu, onUpdate, onRemove, onDuplicate, onSetMediaRole, onClearFx,
 }: {
   clip: VzTimelineMediaClip
   media: UploadedMedia | undefined
@@ -677,6 +697,7 @@ function OverlayClipInspector({
   onRemove: (id: string) => void
   onDuplicate: (id: string) => void
   onSetMediaRole: (mediaId: string, role: MediaRole) => void
+  onClearFx: (id: string) => void
 }) {
   const cfg: VzOverlayCompositingConfig = clip.compositingConfig ?? { ...DEFAULT_OVERLAY_COMPOSITING }
   const grade = clip.colorGrade ?? DEFAULT_COLOR_GRADE
@@ -731,14 +752,33 @@ function OverlayClipInspector({
           </div>
           {media?.type === 'video' && (
             <div className="vz-ml-insp-row">
-              <label className="vz-ml-insp-check" title={isClipSnapToBpmEnabled(clip) ? 'Lock this video to timeline timing' : 'Play this video at native speed'}>
-                <input type="checkbox" checked={isClipSnapToBpmEnabled(clip)}
+              <label className="vz-ml-insp-toggle" title={isClipSnapToBpmEnabled(clip) ? 'Lock this video to timeline timing' : 'Play this video at native speed'}>
+                <input type="checkbox" className="vz-ml-insp-toggle-input" checked={isClipSnapToBpmEnabled(clip)}
                   onChange={e => onUpdate(clip.id, { snapToBpm: e.target.checked })}
                 />
+                <span className="vz-ml-insp-toggle-track" />
                 Snap to BPM
               </label>
             </div>
           )}
+          <div className="vz-ml-insp-row">
+            <label className="vz-ml-insp-toggle"
+              title="When ON, this clip participates in global audio-reactive modulation (Bass Reactivity, Reactive Scale, Master Intensity). On by default for overlay clips.">
+              <input type="checkbox" className="vz-ml-insp-toggle-input"
+                checked={resolveClipGlobalFx(clip.enableGlobalFx, media?.mediaRole ?? null)}
+                onChange={e => onUpdate(clip.id, { enableGlobalFx: e.target.checked })}
+              />
+              <span className="vz-ml-insp-toggle-track" />
+              Enable Global FX
+            </label>
+            <button
+              className="vz-cg-reset-btn"
+              style={{ marginLeft: 'auto' }}
+              onClick={() => onClearFx(clip.id)}
+              title="Reset color grade, disable Global FX, and remove clip-targeted effect regions">
+              Clear FX
+            </button>
+          </div>
 
           {/* ── Compositing ── */}
           <div className="vz-ml-insp-section-label">COMPOSITING</div>
@@ -1061,12 +1101,13 @@ function LyricCueInspector({
 // ── Layer item color inspector ───────────────────────────────────────────
 
 function LayerItemColorInspector({
-  item, media, isGpu, onUpdate,
+  item, media, isGpu, onUpdate, onClearFx,
 }: {
   item: VzLayerItem
   media: UploadedMedia | undefined
   isGpu: boolean
   onUpdate: (id: string, patch: Partial<Omit<VzLayerItem, 'id'>>) => void
+  onClearFx: (id: string) => void
 }) {
   const grade = item.colorGrade ?? DEFAULT_COLOR_GRADE
   return (
@@ -1082,6 +1123,14 @@ function LayerItemColorInspector({
             <span className="vz-ml-insp-val">{LAYER_LABELS[item.layerId]}</span>
             <span className="vz-ml-insp-lbl">File</span>
             <span className="vz-ml-insp-val vz-ml-insp-fname" title={media?.name}>{media?.title ?? media?.name ?? '(missing)'}</span>
+          </div>
+          <div className="vz-ml-insp-row">
+            <button
+              className="vz-cg-reset-btn"
+              onClick={() => onClearFx(item.id)}
+              title="Reset color grade, disable audio reactivity, and remove layer-item-targeted effect regions">
+              Clear FX
+            </button>
           </div>
         </div>
       </div>
@@ -1143,6 +1192,7 @@ export function TimelineInspector({
   onMoveClip, onUpdateEffect, onRemoveEffect, onSetMediaRole, onUpdateLayerItem,
   onUpdateLyricTiming, onSeekToLyric, onSaveLyricTiming,
   lyricTimingDirty, lyricSaving, hasLyricDocument, globalOffsetSec,
+  onClearFx,
 }: {
   selected: SelectedEntity
   bgClips: VzTimelineMediaClip[]
@@ -1170,6 +1220,7 @@ export function TimelineInspector({
   lyricSaving: boolean
   hasLyricDocument: boolean
   globalOffsetSec: number
+  onClearFx: (elementId: string, kind: 'clip' | 'layerItem') => void
 }) {
   // No timeline entity selected: if a layer item is selected show its color
   // grade editor; otherwise show the global Master Dimmer.
@@ -1189,6 +1240,7 @@ export function TimelineInspector({
             media={mediaMap.get(layerItem.mediaId)}
             isGpu={isGpu}
             onUpdate={onUpdateLayerItem}
+            onClearFx={id => onClearFx(id, 'layerItem')}
           />
         </div>
       )
@@ -1220,6 +1272,7 @@ export function TimelineInspector({
           clip={clip} media={media} idx={idx} total={bgClips.length} isGpu={isGpu}
           onMove={onMoveClip} onRemove={onRemoveBg} onDuplicate={onDuplicateBg}
           onUpdate={onUpdateClip} onSetMediaRole={onSetMediaRole}
+          onClearFx={id => onClearFx(id, 'clip')}
         />
       )
     }
@@ -1234,6 +1287,7 @@ export function TimelineInspector({
           clip={clip} media={media} isGpu={isGpu}
           onUpdate={onUpdateClip} onRemove={onRemoveOverlay}
           onDuplicate={onDuplicateOverlay} onSetMediaRole={onSetMediaRole}
+          onClearFx={id => onClearFx(id, 'clip')}
         />
       )
     }

@@ -14,7 +14,7 @@ export function TimelineInspectorPanel({ onSeekToLyric }: { onSeekToLyric: (sec:
     removeTimelineClip, updateMediaClip, removeMediaClip,
     duplicateTimelineClip, duplicateMediaClip,
     reorderTimelineClips, updateLayerItem,
-    updateEffectRegion, removeEffectRegion,
+    updateEffectRegion, removeEffectRegion, clearMediaElementFx,
   } = useVisualStore(useShallow(s => ({
     timelineClips:            s.timelineClips,
     timelineOverlayClips:     s.timelineOverlayClips,
@@ -33,6 +33,7 @@ export function TimelineInspectorPanel({ onSeekToLyric }: { onSeekToLyric: (sec:
     updateLayerItem:          s.updateLayerItem,
     updateEffectRegion:       s.updateEffectRegion,
     removeEffectRegion:       s.removeEffectRegion,
+    clearMediaElementFx:      s.clearMediaElementFx,
   })))
 
   const { items: mediaItems, setMediaRole } = useMediaStore(useShallow(s => ({
@@ -100,6 +101,7 @@ export function TimelineInspectorPanel({ onSeekToLyric }: { onSeekToLyric: (sec:
       lyricSaving={lyricSaving}
       hasLyricDocument={!!lyricDocumentId}
       globalOffsetSec={globalOffsetSec}
+      onClearFx={clearMediaElementFx}
     />
   )
 }

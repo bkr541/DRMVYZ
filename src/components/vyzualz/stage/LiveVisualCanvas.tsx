@@ -13,7 +13,7 @@ import {
 } from '../../../lib/timeline'
 import type { TwoClipRenderState } from '../../../lib/timeline'
 import type { VzTimelineMediaClip, VzTimelineEffectRegion } from '../../../types/timeline'
-import { DEFAULT_OVERLAY_COMPOSITING } from '../../../types/timeline'
+import { DEFAULT_OVERLAY_COMPOSITING, resolveClipGlobalFx } from '../../../types/timeline'
 import { renderTimelineTransition } from '../../../lib/transitionRenderer'
 import type { MediaRole } from '../../../lib/mediaRoles'
 import { VZ_LAYER_RENDER_ORDER } from '../../../types/vzLayers'
@@ -370,9 +370,29 @@ function getCompositeOpForRole(role: MediaRole | null): GlobalCompositeOperation
   return role === 'overlay' ? 'screen' : 'source-over'
 }
 
-function shouldApplyScalePulse(role: MediaRole | null): boolean {
+/**
+ * Returns true when a placed media instance should receive global audio-reactive
+ * scale modulation (bassReact * punchScale * logoScale).
+ *
+ * Two independent gates must both pass:
+ *   1. enableGlobalFx resolved via resolveClipGlobalFx() — per-element permission.
+ *      OFF by default for background_video, ON for all other roles.
+ *   2. Role eligibility — the set of roles whose visual design benefits from pulsing.
+ *      background_video is included here because when Global FX is explicitly ON
+ *      for that instance it should pulse exactly like a logo would.
+ *
+ * Local color grade, compositing, transitions, and clip-targeted FX regions are
+ * NOT gated here — only the global audio-reactive scale path.
+ */
+function shouldApplyScalePulse(role: MediaRole | null, enableGlobalFx?: boolean): boolean {
+  if (!resolveClipGlobalFx(enableGlobalFx, role)) return false
   if (!role || role === 'other') return true
-  return role === 'logo' || role === 'transparent_element' || role === 'character_art'
+  return (
+    role === 'logo' ||
+    role === 'transparent_element' ||
+    role === 'character_art' ||
+    role === 'background_video'
+  )
 }
 
 function getMediaNaturalSize(el: HTMLImageElement | HTMLVideoElement): { w: number; h: number } {
@@ -639,7 +659,6 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   const scrubGenRef          = useRef(0)
   const freeRunAnchorRef     = useRef<Map<string, number>>(new Map())
   const previousSnapStateRef = useRef<Map<string, boolean>>(new Map())
-  const diagFrameRef         = useRef(0)  // diagnostic frame counter — remove after fix
 
   const incomingMediaElRef   = useRef<HTMLImageElement | HTMLVideoElement | null>(null)
   const transitionStateRef   = useRef<TwoClipRenderState | null>(null)
@@ -1304,21 +1323,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         !continuousAnim
       const shouldDraw = !vfcDriven || videoFrameReadyRef.current
       if (!shouldDraw) {
-        if (import.meta.env.DEV) {
-          skippedDrawRef.current++
-          const tick = ++diagFrameRef.current
-          if (tick % 30 === 0) {
-            const vid = mediaElRef.current
-            console.log('[DIAG skip]', {
-              tick, vfcDriven, videoFrameReady: videoFrameReadyRef.current,
-              continuousAnim,
-              timelineEnabled: timelineEnabledRef.current,
-              clipCount: timelineClipsRef.current.length,
-              mediaEl: vid ? (vid instanceof HTMLVideoElement ? `vid rs=${vid.readyState} paused=${vid.paused}` : 'img') : 'null',
-              isPlaying: isPlayingRef.current,
-            })
-          }
-        }
+        if (import.meta.env.DEV) skippedDrawRef.current++
         animRef.current = requestAnimationFrame(frame)
         return
       }
@@ -1373,7 +1378,20 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       const smoothBass = prevBassRef.current * 0.65 + bass * 0.35
       const bassDelta  = bass - prevBassRef.current
       const impactMod  = Math.max(0, bassDelta * 2.8)
-      const punchScale = audioOn ? 1 + impactMod * eff.bassReactivity * 0.25 : 1
+
+      // ── Effect Chain gates for the three global-modulation parameters ─────────
+      // These correspond to the entries seeded in migration 0010.  When a toggle
+      // is OFF the value is neutralised to its identity value (1.0 for multipliers)
+      // so individual effect sliders retain their saved values and resume on re-enable.
+      // Pre-migration sessions have these names auto-added to enabledFxArr in the
+      // store merge function, so "always on" legacy behaviour is preserved.
+      const bassReactEnabled   = fxSet.has('Bass Reactivity')
+      const logoScaleEnabled   = fxSet.has('Reactive Scale')
+      const masterIntEnabled   = fxSet.has('Master Intensity')
+
+      const punchScale = (audioOn && bassReactEnabled)
+        ? 1 + impactMod * eff.bassReactivity * 0.25
+        : 1
 
       const mEff = audioOn
         ? applyModulatedEffects(eff, { ...rawBands, bass: smoothBass }, routesRef.current)
@@ -1381,9 +1399,16 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
 
       const activeColorShift = fxSet.has('Color Shift') ? mEff.colorShift : 0
 
-      const bassReact = audioOn
-        ? 1 + smoothBass * mEff.bassReactivity * 0.35 * mEff.masterIntensity
+      // Effective master intensity: 1.0 (neutral) when the Effect Chain toggle is off,
+      // so individual effects keep their configured levels rather than going silent.
+      const effectiveMasterInt = masterIntEnabled ? mEff.masterIntensity : 1
+
+      const bassReact = (audioOn && bassReactEnabled)
+        ? 1 + smoothBass * mEff.bassReactivity * 0.35 * effectiveMasterInt
         : 1
+
+      // Reactive Scale contribution: 1.0 when toggled off so scale reverts to mediaScale.
+      const activeLogoScale = logoScaleEnabled ? eff.logoScale : 1
       const dispMod     = mEff.displacement
       const feedbackMod = Math.min(0.97, mEff.feedbackTrails)
       const glitchMod   = mEff.glitchAmount
@@ -1410,7 +1435,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         onBeatBoundary,
         beatHit,
         audio:           activeBands,
-        masterIntensity: mEff.masterIntensity,
+        masterIntensity: effectiveMasterInt,
         quality: {
           scanlineStep: q.scanlineStep,
           fogParticles: q.fogParticles,
@@ -1472,22 +1497,6 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       let txInExpired    = false
 
       // ── Timeline clock & active clip ──────────────────────────────
-      if (import.meta.env.DEV) {
-        const tick = ++diagFrameRef.current
-        if (tick % 30 === 0) {
-          console.log('[DIAG guard]', {
-            tick,
-            timelineEnabled: timelineEnabledRef.current,
-            clipCount: timelineClipsRef.current.length,
-            mediaEl: mediaElRef.current
-              ? (mediaElRef.current instanceof HTMLVideoElement
-                  ? `vid rs=${mediaElRef.current.readyState} paused=${mediaElRef.current.paused}`
-                  : 'img')
-              : 'null',
-            isPlaying: isPlayingRef.current,
-          })
-        }
-      }
       if (timelineEnabledRef.current && timelineClipsRef.current.length > 0) {
         const nowMs = performance.now()
         const audioT = audioTimeNow
@@ -1653,28 +1662,6 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           }
         }
 
-        // ── DEV DIAGNOSTIC — remove after fix ────────────────────────────
-        if (import.meta.env.DEV && diagFrameRef.current % 10 === 0) {
-          const vid = mediaElRef.current
-          console.log('[DIAG draw]', {
-            tick:          diagFrameRef.current,
-            hasClip:       !!clip,
-            clipId:        clip?.id?.slice(-6),
-            clipMode:      clip?.playbackMode,
-            snapEnabled:   clip ? isClipSnapToBpmEnabled(clip) : null,
-            isPlaying:     isPlayingRef.current,
-            isVid:         vid instanceof HTMLVideoElement,
-            paused:        vid instanceof HTMLVideoElement ? vid.paused : null,
-            currentTime:   vid instanceof HTMLVideoElement ? vid.currentTime.toFixed(3) : null,
-            duration:      vid instanceof HTMLVideoElement ? (isFinite(vid.duration) ? vid.duration.toFixed(2) : 'NaN') : null,
-            readyState:    vid instanceof HTMLVideoElement ? vid.readyState : null,
-            timelineClock: timelineClockRef.current.toFixed(3),
-            localTimeSec:  localTimeSec.toFixed(3),
-            scrubGen:      scrubGenRef.current,
-            mediaElNull:   vid === null,
-          })
-        }
-
         // ── Incoming transition video sync ────────────────────────────────
         const txCurrent = transitionStateRef.current
         const inVid     = incomingMediaElRef.current
@@ -1756,9 +1743,10 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       const renderMedia = shouldRenderRoleByDefault(role)
       const fitMode     = activeMediaFitModeRef.current ?? getDefaultFitModeForRole(role)
       const compositeOp = getCompositeOpForRole(role)
-      const clipMediaScale = activeClipRef.current?.mediaScale ?? 1
-      const scale = shouldApplyScalePulse(role)
-        ? clipMediaScale * bassReact * punchScale * eff.logoScale
+      const clipMediaScale    = activeClipRef.current?.mediaScale ?? 1
+      const clipEnableGlobalFx = activeClipRef.current?.enableGlobalFx
+      const scale = shouldApplyScalePulse(role, clipEnableGlobalFx)
+        ? clipMediaScale * bassReact * punchScale * activeLogoScale
         : clipMediaScale
       const { ox, oy, sw, sh } = mediaEl
         ? computeDrawRect(W, H, mediaEl, fitMode, scale, role)
@@ -1785,7 +1773,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           const tp = resolveTunnelParams(effectParamsRef.current)
           ctx.save()
           const tunnelT     = synced ? beatPhase * beatMs * eff.tunnelSpeed : t * eff.tunnelSpeed
-          const tunnelDepth = (1 + smoothBass * eff.bassReactivity * 0.45) * tp.depth
+          const tunnelDepth = (1 + smoothBass * (bassReactEnabled ? eff.bassReactivity : 0) * 0.45) * tp.depth
           const ringCount   = Math.min(q.tunnelRings, tp.ringCount)
           for (let r = 0; r < ringCount; r++) {
             const radius = ((tunnelT * 0.1 + r * 30 * tunnelDepth) % 300) + 10
@@ -1867,8 +1855,9 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
 
           const inRole        = incomingRoleRef.current
           const inFitMode     = incomingFitModeRef.current ?? getDefaultFitModeForRole(inRole)
-          const inClipMediaScale = txState ? ((txState.incomingClip as VzTimelineMediaClip).mediaScale ?? 1) : 1
-          const inScale       = shouldApplyScalePulse(inRole) ? inClipMediaScale * bassReact * punchScale * eff.logoScale : inClipMediaScale
+          const inClipMediaScale    = txState ? ((txState.incomingClip as VzTimelineMediaClip).mediaScale ?? 1) : 1
+          const inClipEnableGlobalFx = txState ? (txState.incomingClip as VzTimelineMediaClip).enableGlobalFx : undefined
+          const inScale       = shouldApplyScalePulse(inRole, inClipEnableGlobalFx) ? inClipMediaScale * bassReact * punchScale * activeLogoScale : inClipMediaScale
           const inRect        = inEl ? computeDrawRect(W, H, inEl, inFitMode, inScale, inRole)
                                      : { ox: 0, oy: 0, sw: W, sh: H }
           const inCompositeOp = getCompositeOpForRole(inRole)
@@ -2207,7 +2196,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
 
           const { w, h } = computeLayerItemDrawSize(W, H, el, item.fitMode)
           const { ox, oy } = getLayerItemAnchorOffset(item.anchor, w, h)
-          const audioScale = item.audioReactive ? bassReact * punchScale * eff.logoScale : 1
+          const audioScale = item.audioReactive ? bassReact * punchScale * activeLogoScale : 1
           const totalScale = item.scale * audioScale
 
           // Collect targeted effects for this item (by layer or by item id)

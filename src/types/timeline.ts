@@ -1,4 +1,5 @@
 import type { VzColorGrade } from './vzColorGrade'
+import type { MediaRole } from '../lib/mediaRoles'
 
 // ── Transition types ──────────────────────────────────────────────────
 
@@ -78,6 +79,16 @@ export interface VzTimelineClip {
    * according to fitMode). Undefined = 1.0. Range: 0.1–3.0.
    */
   mediaScale?: number
+  /**
+   * Per-placed-instance permission for global audio-reactive and master FX
+   * modulation (Bass Reactivity, Reactive Scale, Master Intensity).
+   *
+   * Resolved by resolveClipGlobalFx() — never read directly in render paths.
+   *
+   * undefined → default by role: OFF for background_video, ON for all others.
+   * true/false → explicit user override that persists across save/reload.
+   */
+  enableGlobalFx?: boolean
 }
 
 export interface VzTimeline {
@@ -249,4 +260,23 @@ export interface VzMultiLaneTimeline {
   overlayClips: VzTimelineMediaClip[]
   /** Effects automation lane — timed regions for future runtime automation. */
   effectRegions: VzTimelineEffectRegion[]
+}
+
+/**
+ * Resolves the effective enableGlobalFx value for a placed media element.
+ *
+ * Rules (in priority order):
+ *   1. Explicit stored value (true/false) → use it as-is.
+ *   2. Undefined + role === 'background_video' → false (opt-in required).
+ *   3. Undefined + any other role → true (preserves legacy on-by-default behaviour).
+ *
+ * Use this helper in every code path that needs to know whether a clip instance
+ * receives global audio-reactive modulation. Never inspect enableGlobalFx directly.
+ */
+export function resolveClipGlobalFx(
+  enableGlobalFx: boolean | undefined,
+  role: MediaRole | null,
+): boolean {
+  if (enableGlobalFx !== undefined) return enableGlobalFx
+  return role !== 'background_video'
 }
