@@ -4,7 +4,7 @@
  * Covers:
  * 1. isClipSnapToBpmEnabled pure helper
  * 2. shouldApplySyncFreeze — freeze only when snap is ON
- * 3. computeNativePlaybackBoundary — boundary decisions for native-speed clips
+ * 3. getNativeVideoPlaybackDecision — visibility/expiry for native-speed clips
  * 4. New clip defaults (store actions)
  * 5. Duplication and lane movement preserve snapToBpm
  * 6. Session save → load round-trip (ON and OFF)
@@ -35,7 +35,7 @@ vi.mock('../lib/sessionDb', () => ({
 import {
   isClipSnapToBpmEnabled,
   shouldApplySyncFreeze,
-  computeNativePlaybackBoundary,
+  getNativeVideoPlaybackDecision,
 } from '../lib/timeline'
 import { useVisualStore, DEFAULT_EFFECTS } from './visualStore'
 import type { VzSession } from './visualStore'
@@ -126,71 +126,134 @@ describe('shouldApplySyncFreeze', () => {
   })
 })
 
-// ── computeNativePlaybackBoundary ─────────────────────────────────────────────
+// ── getNativeVideoPlaybackDecision ────────────────────────────────────────────
 
-describe('computeNativePlaybackBoundary', () => {
-  it('returns null newTime and no holdAtEnd when currentTime is within range', () => {
-    const result = computeNativePlaybackBoundary(3, 'trim', 0, 5)
-    expect(result.newTime).toBeNull()
-    expect(result.holdAtEnd).toBe(false)
-  })
+describe('getNativeVideoPlaybackDecision', () => {
+  // Base clip: 5s source (mediaInSec=0, videoDuration=5), 10s timeline slot
+  const baseClip = {
+    id: 'test-clip',
+    mediaId: 'media-1',
+    mediaInSec: 0,
+    mediaOutSec: undefined as number | undefined,
+    durationSec: 10,
+    fitMode: 'cover' as const,
+    playbackMode: 'trim' as const,
+    snapToBpm: false,
+    startSec: 0,
+  }
+  const videoDuration = 5
 
-  it('seeks to inSec when currentTime < inSec', () => {
-    const result = computeNativePlaybackBoundary(-1, 'trim', 0, 5)
-    expect(result.newTime).toBe(0)
-    expect(result.holdAtEnd).toBe(false)
-  })
-
-  describe('trim mode at/past outSec', () => {
-    it('holds at end (newTime near outSec, holdAtEnd=true)', () => {
-      const result = computeNativePlaybackBoundary(5, 'trim', 0, 5)
-      expect(result.holdAtEnd).toBe(true)
-      expect(result.newTime).toBeCloseTo(4.999, 2)
+  describe('trim/freeze mode (non-loop) — Snap OFF + Loop OFF', () => {
+    it('is visible and has correct sourceTimeSec when within source length', () => {
+      const result = getNativeVideoPlaybackDecision(baseClip, 2, videoDuration)
+      expect(result.visible).toBe(true)
+      expect(result.expired).toBe(false)
+      expect(result.loopsNaturally).toBe(false)
+      expect(result.sourceTimeSec).toBeCloseTo(2, 3)
     })
 
-    it('does not return holdAtEnd=false (prevents immediate replay)', () => {
-      const result = computeNativePlaybackBoundary(10, 'trim', 0, 5)
-      expect(result.holdAtEnd).toBe(true)
+    it('is visible near the source boundary (just before expiry)', () => {
+      const result = getNativeVideoPlaybackDecision(baseClip, 4.9, videoDuration)
+      expect(result.visible).toBe(true)
+      expect(result.expired).toBe(false)
+      expect(result.sourceTimeSec).toBeLessThan(5)
+    })
+
+    it('expires exactly at localTimeSec === source length', () => {
+      const result = getNativeVideoPlaybackDecision(baseClip, 5, videoDuration)
+      expect(result.visible).toBe(false)
+      expect(result.expired).toBe(true)
+      expect(result.sourceTimeSec).toBeNull()
+    })
+
+    it('remains expired past source length', () => {
+      const result = getNativeVideoPlaybackDecision(baseClip, 7, videoDuration)
+      expect(result.visible).toBe(false)
+      expect(result.expired).toBe(true)
+      expect(result.sourceTimeSec).toBeNull()
+    })
+
+    it('respects non-zero mediaInSec in sourceTimeSec', () => {
+      const clip = { ...baseClip, mediaInSec: 2 }
+      // source range is [2, 5), length = 3s
+      const result = getNativeVideoPlaybackDecision(clip, 1, videoDuration)
+      expect(result.visible).toBe(true)
+      expect(result.sourceTimeSec).toBeCloseTo(3, 3) // inSec + localTimeSec
+    })
+
+    it('expires when localTimeSec reaches source length with non-zero mediaInSec', () => {
+      const clip = { ...baseClip, mediaInSec: 2 }
+      // source length = 3s, so expires at localTimeSec >= 3
+      const result = getNativeVideoPlaybackDecision(clip, 3, videoDuration)
+      expect(result.visible).toBe(false)
+      expect(result.expired).toBe(true)
     })
   })
 
-  describe('freeze mode at/past outSec', () => {
-    it('holds at end (newTime near outSec, holdAtEnd=true)', () => {
-      const result = computeNativePlaybackBoundary(5, 'freeze', 0, 5)
-      expect(result.holdAtEnd).toBe(true)
-      expect(result.newTime).toBeCloseTo(4.999, 2)
+  describe('loop mode — Snap OFF + Loop ON', () => {
+    const loopClip = { ...baseClip, playbackMode: 'loop' as const }
+
+    it('is always visible', () => {
+      expect(getNativeVideoPlaybackDecision(loopClip, 0, videoDuration).visible).toBe(true)
+      expect(getNativeVideoPlaybackDecision(loopClip, 5, videoDuration).visible).toBe(true)
+      expect(getNativeVideoPlaybackDecision(loopClip, 12, videoDuration).visible).toBe(true)
+    })
+
+    it('never expires', () => {
+      expect(getNativeVideoPlaybackDecision(loopClip, 100, videoDuration).expired).toBe(false)
+    })
+
+    it('reports loopsNaturally=true', () => {
+      expect(getNativeVideoPlaybackDecision(loopClip, 2, videoDuration).loopsNaturally).toBe(true)
+    })
+
+    it('wraps sourceTimeSec within source range at t=2s', () => {
+      const result = getNativeVideoPlaybackDecision(loopClip, 2, videoDuration)
+      expect(result.sourceTimeSec).toBeCloseTo(2, 3)
+    })
+
+    it('wraps sourceTimeSec correctly at t=7s (5s source → maps to 2s)', () => {
+      // 7 % 5 = 2, so sourceTimeSec = inSec + 2 = 2
+      const result = getNativeVideoPlaybackDecision(loopClip, 7, videoDuration)
+      expect(result.sourceTimeSec).toBeCloseTo(2, 3)
+    })
+
+    it('wraps sourceTimeSec at exactly t=5s back to start', () => {
+      // 5 % 5 = 0, so sourceTimeSec = 0
+      const result = getNativeVideoPlaybackDecision(loopClip, 5, videoDuration)
+      expect(result.sourceTimeSec).toBeCloseTo(0, 3)
+    })
+
+    it('wraps with non-zero mediaInSec', () => {
+      const clip = { ...loopClip, mediaInSec: 2 }
+      // source range [2,5), length=3. t=4 → 4%3=1 → sourceTimeSec = 2+1 = 3
+      const result = getNativeVideoPlaybackDecision(clip, 4, videoDuration)
+      expect(result.sourceTimeSec).toBeCloseTo(3, 3)
     })
   })
 
-  describe('loop mode at/past outSec', () => {
-    it('seeks back to inSec, holdAtEnd=false so playback continues', () => {
-      const result = computeNativePlaybackBoundary(5, 'loop', 0, 5)
-      expect(result.newTime).toBe(0)
-      expect(result.holdAtEnd).toBe(false)
+  describe('toggle from ON to OFF — visible clips get correct sourceTimeSec', () => {
+    it('gives visible decision with correct sourceTimeSec when toggling snap off before expiry', () => {
+      // Snap was ON, now OFF, localTimeSec=3 < source length=5
+      const result = getNativeVideoPlaybackDecision(baseClip, 3, videoDuration)
+      expect(result.visible).toBe(true)
+      expect(result.sourceTimeSec).toBeCloseTo(3, 3)
     })
 
-    it('seeks to inSec even far past outSec', () => {
-      const result = computeNativePlaybackBoundary(50, 'loop', 2, 7)
-      expect(result.newTime).toBe(2)
-      expect(result.holdAtEnd).toBe(false)
+    it('gives expired decision immediately when toggling snap off past source length', () => {
+      // Snap was ON, now OFF, localTimeSec=6 > source length=5
+      const result = getNativeVideoPlaybackDecision(baseClip, 6, videoDuration)
+      expect(result.visible).toBe(false)
+      expect(result.expired).toBe(true)
     })
-  })
 
-  it('respects non-zero inSec for boundary and clamp', () => {
-    // currentTime in range [inSec, outSec) → no action
-    const inside = computeNativePlaybackBoundary(3, 'trim', 2, 8)
-    expect(inside.newTime).toBeNull()
-    expect(inside.holdAtEnd).toBe(false)
-
-    // currentTime < inSec → seek to inSec
-    const below = computeNativePlaybackBoundary(1, 'trim', 2, 8)
-    expect(below.newTime).toBe(2)
-
-    // currentTime >= outSec → hold (trim)
-    const past = computeNativePlaybackBoundary(8, 'trim', 2, 8)
-    expect(past.holdAtEnd).toBe(true)
-    expect(past.newTime).toBeGreaterThanOrEqual(2)
-    expect(past.newTime!).toBeLessThan(8)
+    it('loop mode toggle gives wrapped sourceTimeSec at t=7s', () => {
+      const loopClip = { ...baseClip, playbackMode: 'loop' as const }
+      // 7 % 5 = 2
+      const result = getNativeVideoPlaybackDecision(loopClip, 7, videoDuration)
+      expect(result.visible).toBe(true)
+      expect(result.sourceTimeSec).toBeCloseTo(2, 3)
+    })
   })
 })
 

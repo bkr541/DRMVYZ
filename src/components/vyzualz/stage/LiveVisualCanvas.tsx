@@ -9,7 +9,7 @@ import type { ModulationRoute, AudioBandValues } from '../../../lib/audioModulat
 import {
   getActiveTimelineClip, getNextTimelineClip, getTransitionState,
   getClipSourceTime, getClipSourceRange, shouldFreezeClipFrame, getActiveOverlayClips,
-  getEasedProgress, isClipSnapToBpmEnabled,
+  getEasedProgress, isClipSnapToBpmEnabled, getNativeVideoPlaybackDecision,
 } from '../../../lib/timeline'
 import type { TwoClipRenderState } from '../../../lib/timeline'
 import type { VzTimelineMediaClip, VzTimelineEffectRegion } from '../../../types/timeline'
@@ -1447,6 +1447,11 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         }
       }
 
+      // Per-frame flags: true when a native non-loop clip has expired so that the
+      // corresponding drawImage call is skipped and no stale frame is rendered.
+      let bgVideoExpired = false
+      let txInExpired    = false
+
       // ── Timeline clock & active clip ──────────────────────────────
       if (timelineEnabledRef.current && timelineClipsRef.current.length > 0) {
         const nowMs = performance.now()
@@ -1574,38 +1579,40 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
               }
             }
           } else {
-            // FREE-RUNNING PATH — native speed, re-anchor on scrub, activation, or snap disable
-            const lastGen  = freeRunAnchorRef.current.get(bgKey) ?? -1
-            const scrubGen = scrubGenRef.current
-            if (justDisabledSnap || scrubGen !== lastGen) {
-              // Re-anchor: snap was just disabled or a discontinuous seek occurred
-              const desired = getClipSourceTime(clip, localTimeSec, dur)
-              activeVid.currentTime  = desired
-              activeVid.playbackRate = 1
-              freeRunAnchorRef.current.set(bgKey, scrubGen)
-            }
-            // Enforce playback mode boundaries using the video's own currentTime
-            const { inSec, outSec } = getClipSourceRange(clip, dur)
-            let holdAtEnd = false
-            if (activeVid.currentTime < inSec) {
-              activeVid.currentTime = inSec
-            } else if (activeVid.currentTime >= outSec) {
-              if (clip.playbackMode === 'loop') {
-                activeVid.currentTime = inSec
-              } else {
-                // trim / freeze: hold on final frame, do not replay
-                activeVid.currentTime = Math.max(inSec, outSec - 0.001)
-                if (!activeVid.paused) activeVid.pause()
-                holdAtEnd = true
-              }
-            }
-            // Play/pause based on transport — no rate nudges, no play() when held at end
-            if (!holdAtEnd) {
-              if (isPlayingRef.current) {
+            // FREE-RUNNING PATH — native speed, timeline-local visibility decision
+            const decision = getNativeVideoPlaybackDecision(clip, localTimeSec, dur)
+
+            if (!decision.visible) {
+              // Clip has naturally expired: pause and suppress canvas draw this frame
+              if (!activeVid.paused) activeVid.pause()
+              bgVideoExpired = true
+            } else {
+              // Clip is still active — re-anchor on initial use, snap-disable, or scrub
+              const { inSec, outSec } = getClipSourceRange(clip, dur)
+              const lastGen  = freeRunAnchorRef.current.get(bgKey) ?? -1
+              const scrubGen = scrubGenRef.current
+              if (justDisabledSnap || scrubGen !== lastGen) {
+                activeVid.currentTime  = decision.sourceTimeSec!
                 activeVid.playbackRate = 1
-                if (activeVid.paused) activeVid.play().catch(() => {})
-              } else {
-                if (!activeVid.paused) activeVid.pause()
+                freeRunAnchorRef.current.set(bgKey, scrubGen)
+              } else if (activeVid.currentTime < inSec) {
+                activeVid.currentTime = inSec
+              } else if (activeVid.currentTime >= outSec) {
+                if (decision.loopsNaturally) {
+                  activeVid.currentTime = inSec    // natural loop wrap
+                } else if (!activeVid.paused) {
+                  activeVid.pause()                // at source boundary: stop, keep drawing
+                }
+              }
+              // Drive transport — don't call play() if a non-loop clip has reached outSec
+              const atNonLoopBoundary = !decision.loopsNaturally && activeVid.currentTime >= outSec
+              if (!atNonLoopBoundary) {
+                if (isPlayingRef.current) {
+                  activeVid.playbackRate = 1
+                  if (activeVid.paused) activeVid.play().catch(() => {})
+                } else {
+                  if (!activeVid.paused) activeVid.pause()
+                }
               }
             }
           }
@@ -1630,42 +1637,48 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             }
           } else {
             // FREE-RUNNING PATH for incoming clip
-            const inKey    = `bg:${inClipSync.id}`
-            const lastGen  = freeRunAnchorRef.current.get(inKey) ?? -1
-            const scrubGen = scrubGenRef.current
-            if (scrubGen !== lastGen) {
-              const desired = getClipSourceTime(inClipSync, txCurrent.incomingLocalTimeSec, inDurSync)
-              inVid.currentTime  = desired
-              inVid.playbackRate = 1
-              freeRunAnchorRef.current.set(inKey, scrubGen)
-            }
-            const { inSec: inIn, outSec: inOut } = getClipSourceRange(inClipSync, inDurSync)
-            let inHoldAtEnd = false
-            if (inVid.currentTime < inIn) {
-              inVid.currentTime = inIn
-            } else if (inVid.currentTime >= inOut) {
-              if (inClipSync.playbackMode === 'loop') {
-                inVid.currentTime = inIn
-              } else {
-                // trim / freeze: hold on final frame, do not replay
-                inVid.currentTime = Math.max(inIn, inOut - 0.001)
-                if (!inVid.paused) inVid.pause()
-                inHoldAtEnd = true
-              }
-            }
-            if (!inHoldAtEnd) {
-              if (isPlayingRef.current) {
+            const inKey      = `bg:${inClipSync.id}`
+            const txDecision = getNativeVideoPlaybackDecision(
+              inClipSync, txCurrent.incomingLocalTimeSec, inDurSync,
+            )
+
+            if (!txDecision.visible) {
+              if (!inVid.paused) inVid.pause()
+              txInExpired = true
+            } else {
+              const { inSec: inIn, outSec: inOut } = getClipSourceRange(inClipSync, inDurSync)
+              const lastGen  = freeRunAnchorRef.current.get(inKey) ?? -1
+              const scrubGen = scrubGenRef.current
+              if (scrubGen !== lastGen) {
+                inVid.currentTime  = txDecision.sourceTimeSec!
                 inVid.playbackRate = 1
-                if (inVid.paused) inVid.play().catch(() => {})
-              } else {
-                if (!inVid.paused) inVid.pause()
+                freeRunAnchorRef.current.set(inKey, scrubGen)
+              } else if (inVid.currentTime < inIn) {
+                inVid.currentTime = inIn
+              } else if (inVid.currentTime >= inOut) {
+                if (txDecision.loopsNaturally) {
+                  inVid.currentTime = inIn
+                } else if (!inVid.paused) {
+                  inVid.pause()
+                }
+              }
+              const atNonLoopBoundary = !txDecision.loopsNaturally && inVid.currentTime >= inOut
+              if (!atNonLoopBoundary) {
+                if (isPlayingRef.current) {
+                  inVid.playbackRate = 1
+                  if (inVid.paused) inVid.play().catch(() => {})
+                } else {
+                  if (!inVid.paused) inVid.pause()
+                }
               }
             }
           }
         }
       }
 
-      const mediaEl = mediaElRef.current
+      // Null out mediaEl when the active native non-loop clip has expired so all
+      // downstream drawImage calls are skipped — no stale last frame is rendered.
+      const mediaEl = bgVideoExpired ? null : mediaElRef.current
 
       // ── Color grade snapshots for this frame ──────────────────────────────
       // The active background source uses its own clip grade (timeline mode).
@@ -1785,7 +1798,8 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
 
         {
           const txState = transitionStateRef.current
-          const inEl    = incomingMediaElRef.current
+          // Null out inEl when the incoming native non-loop clip has expired.
+          const inEl    = txInExpired ? null : incomingMediaElRef.current
 
           const inRole        = incomingRoleRef.current
           const inFitMode     = incomingFitModeRef.current ?? getDefaultFitModeForRole(inRole)
@@ -2201,6 +2215,10 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           const ovKey = `overlay:${oc.id}`
           const el = getOrCreateMediaInstance(pool, ovKey, m)
 
+          // Expired flag: set true when a native non-loop overlay clip has ended;
+          // causes the entire draw block below to be skipped via continue.
+          let ovExpired = false
+
           if (el instanceof HTMLVideoElement) {
             const ovLocalTime   = timelineClockRef.current - oc.startSec
             const ovDur         = isFinite(el.duration) ? el.duration : 0
@@ -2229,42 +2247,47 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
                 }
               }
             } else {
-              // FREE-RUNNING PATH for overlay clips
-              const lastGen  = freeRunAnchorRef.current.get(ovKey) ?? -1
-              const scrubGen = scrubGenRef.current
-              // Re-anchor on first activation, snap disable, or scrub
-              if (lastGen === -1 || justDisabledOvSnap || scrubGen !== lastGen) {
-                const desired = getClipSourceTime(oc, ovLocalTime, ovDur)
-                el.currentTime  = desired
-                el.playbackRate = 1
-                freeRunAnchorRef.current.set(ovKey, scrubGen)
-              }
-              // Enforce playback mode boundaries
-              const { inSec, outSec } = getClipSourceRange(oc, ovDur)
-              let ovHoldAtEnd = false
-              if (el.currentTime < inSec) {
-                el.currentTime = inSec
-              } else if (el.currentTime >= outSec) {
-                if (oc.playbackMode === 'loop') {
-                  el.currentTime = inSec
-                } else {
-                  // trim / freeze: hold on final frame, do not replay
-                  el.currentTime = Math.max(inSec, outSec - 0.001)
-                  if (!el.paused) el.pause()
-                  ovHoldAtEnd = true
-                }
-              }
-              // Play/pause based on transport — no rate nudges, no play() when held at end
-              if (!ovHoldAtEnd) {
-                if (isPlayingRef.current) {
+              // FREE-RUNNING PATH — native speed, timeline-local visibility decision
+              const ovDecision = getNativeVideoPlaybackDecision(oc, ovLocalTime, ovDur)
+
+              if (!ovDecision.visible) {
+                // Clip has naturally expired: pause and skip draw
+                if (!el.paused) el.pause()
+                ovExpired = true
+              } else {
+                const { inSec, outSec } = getClipSourceRange(oc, ovDur)
+                const lastGen  = freeRunAnchorRef.current.get(ovKey) ?? -1
+                const scrubGen = scrubGenRef.current
+                // Re-anchor on first activation, snap disable, or scrub
+                if (lastGen === -1 || justDisabledOvSnap || scrubGen !== lastGen) {
+                  el.currentTime  = ovDecision.sourceTimeSec!
                   el.playbackRate = 1
-                  if (el.paused) el.play().catch(() => {})
-                } else {
-                  if (!el.paused) el.pause()
+                  freeRunAnchorRef.current.set(ovKey, scrubGen)
+                } else if (el.currentTime < inSec) {
+                  el.currentTime = inSec
+                } else if (el.currentTime >= outSec) {
+                  if (ovDecision.loopsNaturally) {
+                    el.currentTime = inSec   // natural loop wrap
+                  } else if (!el.paused) {
+                    el.pause()               // at source boundary: stop, keep drawing
+                  }
+                }
+                // Drive transport — no play() once non-loop clip reaches outSec
+                const atNonLoopBoundary = !ovDecision.loopsNaturally && el.currentTime >= outSec
+                if (!atNonLoopBoundary) {
+                  if (isPlayingRef.current) {
+                    el.playbackRate = 1
+                    if (el.paused) el.play().catch(() => {})
+                  } else {
+                    if (!el.paused) el.pause()
+                  }
                 }
               }
             }
           }
+
+          // Skip all drawing for this overlay when it is natively expired.
+          if (ovExpired) continue
 
           const cfg = oc.compositingConfig ?? DEFAULT_OVERLAY_COMPOSITING
           const { ox, oy, sw, sh } = computeDrawRect(W, H, el, cfg.fitMode, cfg.scale, m.mediaRole ?? null)

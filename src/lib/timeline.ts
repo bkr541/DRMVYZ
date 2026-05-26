@@ -350,36 +350,63 @@ export function shouldApplySyncFreeze(
   return shouldFreezeClipFrame(clip as VzTimelineClip, localTimeSec, videoDuration)
 }
 
-export interface NativeBoundaryResult {
-  /** The position to seek the video to, or null if no seek is needed. */
-  newTime: number | null
-  /** True when a non-looping clip has reached its out point and must stay paused. */
-  holdAtEnd: boolean
+export interface NativeVideoPlaybackDecision {
+  /**
+   * Whether this video should be drawn this frame.
+   * False means skip drawImage — do not render any video frame, not even the last one.
+   */
+  visible: boolean
+  /** True when a non-looping clip's source duration has elapsed. */
+  expired: boolean
+  /**
+   * The source position (seconds) to seek to on initial activation, scrub, or
+   * Snap ON→OFF transition.  Null when the clip is expired.
+   */
+  sourceTimeSec: number | null
+  /**
+   * When true the video element should wrap from outSec back to inSec for
+   * natural looping rather than stopping at the source boundary.
+   */
+  loopsNaturally: boolean
 }
 
 /**
- * Computes boundary enforcement for a free-running (native-speed) video clip.
- * Returns the corrected seek target (or null if none needed) and whether the
- * clip should be held at its end frame.  The caller must NOT call play() when
- * holdAtEnd is true.
+ * Computes the complete native-speed playback decision for a clip when
+ * Snap to BPM is OFF.  Call once per frame; use the result to drive both
+ * HTMLVideoElement state and canvas drawing.
+ *
+ * Loop ON  → always visible, wraps at outSec, sourceTimeSec is modulo-wrapped.
+ * Loop OFF → visible while localTimeSec < lengthSec; expired and invisible once past.
+ *
+ * The caller must skip drawImage when visible === false so the canvas does not
+ * render a stale final video frame after the clip's natural duration ends.
  */
-export function computeNativePlaybackBoundary(
-  currentTime: number,
-  playbackMode: VzTimelineClip['playbackMode'],
-  inSec: number,
-  outSec: number,
-): NativeBoundaryResult {
-  if (currentTime < inSec) {
-    return { newTime: inSec, holdAtEnd: false }
+export function getNativeVideoPlaybackDecision(
+  clip: VzTimelineClip,
+  localTimeSec: number,
+  videoDuration: number,
+): NativeVideoPlaybackDecision {
+  const { inSec, outSec, lengthSec } = getClipSourceRange(clip, videoDuration)
+
+  if (clip.playbackMode === 'loop') {
+    // Loop: always visible; sourceTimeSec wraps modulo the source length.
+    const wrapped = lengthSec > 0
+      ? inSec + (((localTimeSec % lengthSec) + lengthSec) % lengthSec)
+      : inSec
+    return { visible: true, expired: false, sourceTimeSec: wrapped, loopsNaturally: true }
   }
-  if (currentTime >= outSec) {
-    if (playbackMode === 'loop') {
-      return { newTime: inSec, holdAtEnd: false }
-    }
-    // trim / freeze: hold on final frame
-    return { newTime: Math.max(inSec, outSec - 0.001), holdAtEnd: true }
+
+  // Non-loop: invisible once the source duration has been consumed.
+  if (localTimeSec >= lengthSec) {
+    return { visible: false, expired: true, sourceTimeSec: null, loopsNaturally: false }
   }
-  return { newTime: null, holdAtEnd: false }
+
+  return {
+    visible: true,
+    expired: false,
+    sourceTimeSec: Math.min(inSec + localTimeSec, outSec - 0.001),
+    loopsNaturally: false,
+  }
 }
 
 export function getNextTimelineClip(
