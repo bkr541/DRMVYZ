@@ -639,6 +639,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   const scrubGenRef          = useRef(0)
   const freeRunAnchorRef     = useRef<Map<string, number>>(new Map())
   const previousSnapStateRef = useRef<Map<string, boolean>>(new Map())
+  const diagFrameRef         = useRef(0)  // diagnostic frame counter — remove after fix
 
   const incomingMediaElRef   = useRef<HTMLImageElement | HTMLVideoElement | null>(null)
   const transitionStateRef   = useRef<TwoClipRenderState | null>(null)
@@ -1615,6 +1616,32 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
                 if (!activeVid.paused) activeVid.pause()
               }
             }
+          }
+        }
+
+        // ── DEV DIAGNOSTIC — remove after fix ────────────────────────────
+        if (import.meta.env.DEV) {
+          diagFrameRef.current++
+          if (diagFrameRef.current % 60 === 0) {
+            const vid = mediaElRef.current
+            console.log('[SnapBPM diag]', {
+              frame:         diagFrameRef.current,
+              hasClip:       !!clip,
+              clipId:        clip?.id?.slice(-6),
+              clipMode:      clip?.playbackMode,
+              snapEnabled:   clip ? isClipSnapToBpmEnabled(clip) : null,
+              isPlaying:     isPlayingRef.current,
+              isVid:         vid instanceof HTMLVideoElement,
+              paused:        vid instanceof HTMLVideoElement ? vid.paused : null,
+              currentTime:   vid instanceof HTMLVideoElement ? vid.currentTime.toFixed(3) : null,
+              duration:      vid instanceof HTMLVideoElement ? (isFinite(vid.duration) ? vid.duration.toFixed(2) : 'NaN') : null,
+              readyState:    vid instanceof HTMLVideoElement ? vid.readyState : null,
+              timelineClock: timelineClockRef.current.toFixed(3),
+              localTimeSec:  localTimeSec.toFixed(3),
+              scrubGen:      scrubGenRef.current,
+              mediaElNull:   vid === null,
+              activeClipId:  activeClipIdRef.current?.slice(-6),
+            })
           }
         }
 
