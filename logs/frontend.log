@@ -3,38 +3,9 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 112 ms
+  VITE v5.4.21  ready in 115 ms
 
   ➜  Local:   http://127.0.0.1:5173/
-2:04:50 PM [vite] hmr update /src/styles/vyzualz.css
-2:05:02 PM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
-2:05:15 PM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
-2:08:45 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx, /src/components/vyzualz/timeline/TimelineInspectorPanel.tsx, /src/components/vyzualz/layers/VzLayersPanel.tsx, /src/components/vyzualz/media/MediaDeckPanel.tsx, /src/components/vyzualz/TimelinePanel.tsx, /src/components/vyzualz/settings/SettingsModal.tsx, /src/components/vyzualz/media/MediaStatusBar.tsx, /src/components/vyzualz/MediaUploadModal.tsx, /src/components/vyzualz/stage/RenderSourceBadge.tsx, /src/components/vyzualz/layout/OutputHealthIndicator.tsx, /src/components/vyzualz/sessions/SavePresetDialog.tsx, /src/components/vyzualz/stage/LiveVisualCanvas.tsx
-2:08:53 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx, /src/components/vyzualz/timeline/TimelineInspectorPanel.tsx, /src/components/vyzualz/layers/VzLayersPanel.tsx, /src/components/vyzualz/media/MediaDeckPanel.tsx, /src/components/vyzualz/TimelinePanel.tsx, /src/components/vyzualz/settings/SettingsModal.tsx, /src/components/vyzualz/media/MediaStatusBar.tsx, /src/components/vyzualz/MediaUploadModal.tsx, /src/components/vyzualz/stage/RenderSourceBadge.tsx, /src/components/vyzualz/layout/OutputHealthIndicator.tsx, /src/components/vyzualz/sessions/SavePresetDialog.tsx, /src/components/vyzualz/stage/LiveVisualCanvas.tsx
-2:09:38 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx, /src/components/vyzualz/timeline/TimelineInspectorPanel.tsx, /src/components/vyzualz/layers/VzLayersPanel.tsx, /src/components/vyzualz/media/MediaDeckPanel.tsx, /src/components/vyzualz/TimelinePanel.tsx, /src/components/vyzualz/settings/SettingsModal.tsx, /src/components/vyzualz/media/MediaStatusBar.tsx, /src/components/vyzualz/MediaUploadModal.tsx, /src/components/vyzualz/stage/RenderSourceBadge.tsx, /src/components/vyzualz/layout/OutputHealthIndicator.tsx, /src/components/vyzualz/sessions/SavePresetDialog.tsx, /src/components/vyzualz/stage/LiveVisualCanvas.tsx
-2:09:56 PM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
-2:10:11 PM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
-2:10:29 PM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
-2:10:39 PM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
-2:11:01 PM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
-2:11:25 PM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
-2:11:30 PM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
-2:11:37 PM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
-2:11:42 PM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
-2:11:50 PM [vite] hmr update /src/components/vyzualz/timeline/TimelineInspectorPanel.tsx
-2:11:59 PM [vite] hmr update /src/components/vyzualz/timeline/TimelineInspectorPanel.tsx
-2:12:08 PM [vite] hmr update /src/components/vyzualz/timeline/TimelineInspectorPanel.tsx
-2:18:27 PM [vite] hmr update /src/styles/vyzualz.css
-3:00:41 PM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx, /src/components/vyzualz/stage/LiveVisualCanvas.tsx
-3:00:54 PM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx, /src/components/vyzualz/timeline/TimelineInspectorPanel.tsx, /src/components/vyzualz/layers/VzLayersPanel.tsx, /src/components/vyzualz/media/MediaDeckPanel.tsx, /src/components/vyzualz/TimelinePanel.tsx, /src/components/vyzualz/settings/SettingsModal.tsx, /src/components/vyzualz/media/MediaStatusBar.tsx, /src/components/vyzualz/MediaUploadModal.tsx, /src/components/vyzualz/stage/RenderSourceBadge.tsx, /src/components/vyzualz/layout/OutputHealthIndicator.tsx, /src/components/vyzualz/sessions/SavePresetDialog.tsx, /src/components/vyzualz/stage/LiveVisualCanvas.tsx
-3:00:59 PM [vite] hmr update /src/components/vyzualz/stage/LiveVisualCanvas.tsx
-3:02:30 PM [vite] hmr update /src/components/vyzualz/stage/LiveVisualCanvas.tsx
-3:02:39 PM [vite] hmr update /src/components/vyzualz/stage/LiveVisualCanvas.tsx
-3:02:43 PM [vite] hmr update /src/components/vyzualz/stage/LiveVisualCanvas.tsx
-3:02:56 PM [vite] hmr update /src/components/vyzualz/stage/LiveVisualCanvas.tsx
-3:03:08 PM [vite] hmr update /src/components/vyzualz/stage/LiveVisualCanvas.tsx
-3:03:27 PM [vite] hmr update /src/components/vyzualz/stage/LiveVisualCanvas.tsx
-3:03:45 PM [vite] hmr update /src/components/vyzualz/stage/LiveVisualCanvas.tsx
-3:04:16 PM [vite] hmr update /src/components/vyzualz/stage/LiveVisualCanvas.tsx
-3:04:40 PM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
-3:05:58 PM [vite] hmr update /src/components/vyzualz/TimelinePanel.tsx
+3:23:08 PM [vite] hmr update /src/components/vyzualz/media/MediaDeckPanel.tsx
+3:23:21 PM [vite] hmr update /src/components/vyzualz/media/MediaPreviewModal.tsx
+3:23:32 PM [vite] hmr update /src/components/vyzualz/media/MediaPreviewModal.tsx

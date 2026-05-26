@@ -21,10 +21,25 @@ export function MediaPreviewModal({
   const [currentTime, setCurrentTime] = useState(0)
   const [duration,    setDuration]    = useState(0)
   const [videoError,  setVideoError]  = useState(false)
+  const [imageError,  setImageError]  = useState(false)
 
   const isVideo  = media.type === 'video'
   const hasAlpha = media.metadata?.hasAlpha === true
   const src      = media.url || null
+
+  // Reset all playback and error state whenever the previewed media changes.
+  useEffect(() => {
+    const v = videoRef.current
+    if (v) {
+      v.pause()
+      try { v.currentTime = 0 } catch { /* not yet loaded */ }
+    }
+    setPlaying(false)
+    setCurrentTime(0)
+    setDuration(0)
+    setVideoError(false)
+    setImageError(false)
+  }, [media.id, src])
 
   // Set crossOrigin BEFORE src — matching mediaPool.ts pattern.
   // JSX attribute order is not guaranteed, so we do this imperatively.
@@ -81,6 +96,7 @@ export function MediaPreviewModal({
             <div className="mpm-error">Video could not be loaded</div>
           ) : isVideo ? (
             <video
+              key={src}
               ref={videoRef}
               className="mpm-video"
               onTimeUpdate={e  => setCurrentTime(e.currentTarget.currentTime)}
@@ -101,12 +117,15 @@ export function MediaPreviewModal({
               }}
               playsInline
             />
+          ) : imageError ? (
+            <div className="mpm-error">Image could not be loaded</div>
           ) : (
             <img
+              key={src}
               src={src}
               alt={media.title ?? media.name}
               className="mpm-image"
-              onError={e => { (e.currentTarget as HTMLImageElement).style.opacity = '0.3' }}
+              onError={() => setImageError(true)}
             />
           )}
         </div>

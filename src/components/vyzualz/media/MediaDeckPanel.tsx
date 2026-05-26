@@ -147,6 +147,14 @@ function MediaCard({
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           )}
           {badge}
+          <button
+            className="vz-media-preview-btn"
+            onPointerDown={e => e.stopPropagation()}
+            onClick={e => { e.stopPropagation(); onPreview() }}
+            title="Preview media"
+          >
+            <PropertyViewIcon size={11} color="currentColor" />
+          </button>
         </div>
         <div className="vz-media-row-info">
           <span className="vz-media-row-name">{displayName}</span>
@@ -168,14 +176,6 @@ function MediaCard({
             style={{ opacity: 1 }}
           >
             <PencilEdit01Icon size={11} color="currentColor" />
-          </button>
-          <button
-            className="vz-media-edit-btn"
-            onClick={e => { e.stopPropagation(); onPreview() }}
-            title="Preview media"
-            style={{ opacity: 1, color: 'rgba(74,199,219,0.7)' }}
-          >
-            <PropertyViewIcon size={11} color="currentColor" />
           </button>
           <button
             className="vz-media-remove"
