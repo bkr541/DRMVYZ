@@ -353,15 +353,15 @@ export function shouldApplySyncFreeze(
 export interface NativeVideoPlaybackDecision {
   /**
    * Whether this video should be drawn this frame.
-   * Always true for active native clips — use shouldHoldAtEnd to distinguish
-   * "actively playing" from "paused at final frame".
+   * Always true for active native clips.
    */
   visible: boolean
   /** Reserved. Always false in the current implementation. */
   expired: boolean
   /**
    * The source position (seconds) to seek to on initial activation, scrub, or
-   * Snap ON→OFF transition.  For shouldHoldAtEnd clips this is the final valid frame.
+   * Snap ON→OFF transition.  For trim/freeze past source end this is the final
+   * valid frame position (useful for scrub-to-end positioning).
    */
   sourceTimeSec: number | null
   /**
@@ -369,23 +369,18 @@ export interface NativeVideoPlaybackDecision {
    * natural looping rather than stopping at the source boundary.
    */
   loopsNaturally: boolean
-  /**
-   * When true, a trim or freeze clip has passed its source end while the
-   * timeline clip is still active.  The video should be paused and kept
-   * visible at the final valid source frame — never hidden, never replayed.
-   * Always false for loop mode.
-   */
-  shouldHoldAtEnd: boolean
 }
 
 /**
- * Computes the complete native-speed playback decision for a clip when
- * Snap to BPM is OFF.  Call once per frame; use the result to drive both
- * HTMLVideoElement state and canvas drawing.
+ * Computes the native-speed playback initialization decision for a clip when
+ * Snap to BPM is OFF.  Use `sourceTimeSec` to position the video on activation,
+ * scrub, or Snap ON→OFF transition.
  *
- * Loop         → always visible, wraps at outSec, sourceTimeSec is modulo-wrapped.
- * Trim/Freeze  → visible while within source; past source end, holds at final frame
- *               (shouldHoldAtEnd=true) rather than disappearing.
+ * For per-frame end-boundary detection use `getNativeBoundaryAction`, which
+ * reads the actual HTMLVideoElement.currentTime rather than timeline-local time.
+ *
+ * Loop         → always visible, sourceTimeSec is modulo-wrapped into source range.
+ * Trim/Freeze  → always visible, sourceTimeSec is the final valid frame when past end.
  */
 export function getNativeVideoPlaybackDecision(
   clip: VzTimelineClip,
@@ -399,17 +394,18 @@ export function getNativeVideoPlaybackDecision(
     const wrapped = lengthSec > 0
       ? inSec + (((localTimeSec % lengthSec) + lengthSec) % lengthSec)
       : inSec
-    return { visible: true, expired: false, sourceTimeSec: wrapped, loopsNaturally: true, shouldHoldAtEnd: false }
+    return { visible: true, expired: false, sourceTimeSec: wrapped, loopsNaturally: true }
   }
 
-  // Trim/freeze: past source end — remain visible, hold at the final valid frame.
+  // Trim/freeze: past source end — remain visible at the final valid frame.
+  // sourceTimeSec is the final frame position for scrub/initial-activation use.
+  // Runtime end-hold is detected via video.currentTime in the renderer, not here.
   if (localTimeSec >= lengthSec) {
     return {
       visible: true,
       expired: false,
       sourceTimeSec: Math.max(inSec, outSec - 0.001),
       loopsNaturally: false,
-      shouldHoldAtEnd: true,
     }
   }
 
@@ -418,8 +414,28 @@ export function getNativeVideoPlaybackDecision(
     expired: false,
     sourceTimeSec: Math.min(inSec + localTimeSec, outSec - 0.001),
     loopsNaturally: false,
-    shouldHoldAtEnd: false,
   }
+}
+
+export type NativeBoundaryAction = 'continue' | 'loop' | 'hold'
+
+/**
+ * Returns the end-boundary action for a native-speed video based on the
+ * element's actual current playback position.
+ *
+ * Use this per-frame AFTER native playback is running to decide whether to
+ * continue, wrap (loop), or hold at the final frame.  Do NOT use timeline-local
+ * time here — only the real video.currentTime drives this decision.
+ */
+export function getNativeBoundaryAction(
+  playbackMode: VzTimelineClip['playbackMode'],
+  videoCurrentTimeSec: number,
+  outSec: number,
+): NativeBoundaryAction {
+  if (videoCurrentTimeSec >= outSec) {
+    return playbackMode === 'loop' ? 'loop' : 'hold'
+  }
+  return 'continue'
 }
 
 export function getNextTimelineClip(

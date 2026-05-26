@@ -1579,45 +1579,40 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
               }
             }
           } else {
-            // FREE-RUNNING PATH — native speed, timeline-local visibility decision
+            // FREE-RUNNING PATH — native speed, boundary detected via video.currentTime
             const decision = getNativeVideoPlaybackDecision(clip, localTimeSec, dur)
             const { inSec, outSec } = getClipSourceRange(clip, dur)
             const lastGen  = freeRunAnchorRef.current.get(bgKey) ?? -1
             const scrubGen = scrubGenRef.current
 
-            if (decision.shouldHoldAtEnd) {
-              // Trim/freeze past source end — seek to final frame once, then stay paused and visible.
-              // bgVideoExpired stays false so the canvas continues drawing the held frame.
-              if (justDisabledSnap || scrubGen !== lastGen) {
-                activeVid.currentTime  = decision.sourceTimeSec!
-                activeVid.playbackRate = 1
-                freeRunAnchorRef.current.set(bgKey, scrubGen)
+            if (justDisabledSnap || scrubGen !== lastGen) {
+              // Re-anchor: first activation, scrub, or Snap ON→OFF transition.
+              // For ON→OFF on trim/freeze: if the video was held at the sync endpoint,
+              // restart from inSec so native playback has room to visibly progress.
+              let initPos = decision.sourceTimeSec!
+              if (justDisabledSnap && !decision.loopsNaturally && activeVid.currentTime >= outSec - 0.05) {
+                initPos = inSec
               }
-              if (!activeVid.paused) activeVid.pause()
-            } else {
-              // Clip is actively playing or looping
-              if (justDisabledSnap || scrubGen !== lastGen) {
-                activeVid.currentTime  = decision.sourceTimeSec!
-                activeVid.playbackRate = 1
-                freeRunAnchorRef.current.set(bgKey, scrubGen)
-              } else if (activeVid.currentTime < inSec) {
-                activeVid.currentTime = inSec
-              } else if (activeVid.currentTime >= outSec) {
-                if (decision.loopsNaturally) {
-                  activeVid.currentTime = inSec    // natural loop wrap
-                } else if (!activeVid.paused) {
-                  activeVid.pause()                // at source boundary: stop, keep drawing
-                }
+              activeVid.currentTime  = initPos
+              activeVid.playbackRate = 1
+              freeRunAnchorRef.current.set(bgKey, scrubGen)
+            } else if (activeVid.currentTime < inSec) {
+              activeVid.currentTime = inSec
+            } else if (activeVid.currentTime >= outSec) {
+              if (decision.loopsNaturally) {
+                activeVid.currentTime = inSec    // natural loop wrap
+              } else if (!activeVid.paused) {
+                activeVid.pause()                // at source boundary: hold, keep drawing
               }
-              // Drive transport — don't call play() if a non-loop clip has reached outSec
-              const atNonLoopBoundary = !decision.loopsNaturally && activeVid.currentTime >= outSec
-              if (!atNonLoopBoundary) {
-                if (isPlayingRef.current) {
-                  activeVid.playbackRate = 1
-                  if (activeVid.paused) activeVid.play().catch(() => {})
-                } else {
-                  if (!activeVid.paused) activeVid.pause()
-                }
+            }
+            // Drive transport — no play() once a non-loop clip has reached outSec
+            const atNonLoopBoundary = !decision.loopsNaturally && activeVid.currentTime >= outSec
+            if (!atNonLoopBoundary) {
+              if (isPlayingRef.current) {
+                activeVid.playbackRate = 1
+                if (activeVid.paused) activeVid.play().catch(() => {})
+              } else {
+                if (!activeVid.paused) activeVid.pause()
               }
             }
           }
@@ -1647,7 +1642,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
               if (!inVid.paused) inVid.pause()
             }
           } else {
-            // FREE-RUNNING PATH for incoming clip
+            // FREE-RUNNING PATH for incoming clip — boundary detected via video.currentTime
             const txDecision = getNativeVideoPlaybackDecision(
               inClipSync, txCurrent.incomingLocalTimeSec, inDurSync,
             )
@@ -1655,37 +1650,32 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             const lastGen  = freeRunAnchorRef.current.get(inKey) ?? -1
             const scrubGen = scrubGenRef.current
 
-            if (txDecision.shouldHoldAtEnd) {
-              // Trim/freeze past source end — hold final frame, keep visible, stay paused.
-              // txInExpired stays false so the canvas continues drawing the held frame.
-              if (justDisabledInSnap || scrubGen !== lastGen) {
-                inVid.currentTime  = txDecision.sourceTimeSec!
-                inVid.playbackRate = 1
-                freeRunAnchorRef.current.set(inKey, scrubGen)
+            if (justDisabledInSnap || scrubGen !== lastGen) {
+              // Re-anchor: snap disable or scrub.
+              // ON→OFF on trim/freeze: restart from inSec if held at sync endpoint.
+              let initPos = txDecision.sourceTimeSec!
+              if (justDisabledInSnap && !txDecision.loopsNaturally && inVid.currentTime >= inOut - 0.05) {
+                initPos = inIn
               }
-              if (!inVid.paused) inVid.pause()
-            } else {
-              if (justDisabledInSnap || scrubGen !== lastGen) {
-                inVid.currentTime  = txDecision.sourceTimeSec!
-                inVid.playbackRate = 1
-                freeRunAnchorRef.current.set(inKey, scrubGen)
-              } else if (inVid.currentTime < inIn) {
+              inVid.currentTime  = initPos
+              inVid.playbackRate = 1
+              freeRunAnchorRef.current.set(inKey, scrubGen)
+            } else if (inVid.currentTime < inIn) {
+              inVid.currentTime = inIn
+            } else if (inVid.currentTime >= inOut) {
+              if (txDecision.loopsNaturally) {
                 inVid.currentTime = inIn
-              } else if (inVid.currentTime >= inOut) {
-                if (txDecision.loopsNaturally) {
-                  inVid.currentTime = inIn
-                } else if (!inVid.paused) {
-                  inVid.pause()
-                }
+              } else if (!inVid.paused) {
+                inVid.pause()
               }
-              const atNonLoopBoundary = !txDecision.loopsNaturally && inVid.currentTime >= inOut
-              if (!atNonLoopBoundary) {
-                if (isPlayingRef.current) {
-                  inVid.playbackRate = 1
-                  if (inVid.paused) inVid.play().catch(() => {})
-                } else {
-                  if (!inVid.paused) inVid.pause()
-                }
+            }
+            const atNonLoopBoundary = !txDecision.loopsNaturally && inVid.currentTime >= inOut
+            if (!atNonLoopBoundary) {
+              if (isPlayingRef.current) {
+                inVid.playbackRate = 1
+                if (inVid.paused) inVid.play().catch(() => {})
+              } else {
+                if (!inVid.paused) inVid.pause()
               }
             }
           }
@@ -2262,45 +2252,39 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
                 }
               }
             } else {
-              // FREE-RUNNING PATH — native speed, timeline-local visibility decision
+              // FREE-RUNNING PATH — native speed, boundary detected via video.currentTime
               const ovDecision = getNativeVideoPlaybackDecision(oc, ovLocalTime, ovDur)
               const { inSec, outSec } = getClipSourceRange(oc, ovDur)
               const lastGen  = freeRunAnchorRef.current.get(ovKey) ?? -1
               const scrubGen = scrubGenRef.current
 
-              if (ovDecision.shouldHoldAtEnd) {
-                // Trim/freeze past source end — seek to final frame once, then stay paused and visible.
-                // ovExpired stays false so the canvas continues drawing the held frame.
-                if (lastGen === -1 || justDisabledOvSnap || scrubGen !== lastGen) {
-                  el.currentTime  = ovDecision.sourceTimeSec!
-                  el.playbackRate = 1
-                  freeRunAnchorRef.current.set(ovKey, scrubGen)
+              if (lastGen === -1 || justDisabledOvSnap || scrubGen !== lastGen) {
+                // Re-anchor: first activation, snap disable, or scrub.
+                // ON→OFF on trim/freeze: restart from inSec if held at sync endpoint.
+                let initPos = ovDecision.sourceTimeSec!
+                if (justDisabledOvSnap && !ovDecision.loopsNaturally && el.currentTime >= outSec - 0.05) {
+                  initPos = inSec
                 }
-                if (!el.paused) el.pause()
-              } else {
-                // Re-anchor on first activation, snap disable, or scrub
-                if (lastGen === -1 || justDisabledOvSnap || scrubGen !== lastGen) {
-                  el.currentTime  = ovDecision.sourceTimeSec!
-                  el.playbackRate = 1
-                  freeRunAnchorRef.current.set(ovKey, scrubGen)
-                } else if (el.currentTime < inSec) {
-                  el.currentTime = inSec
-                } else if (el.currentTime >= outSec) {
-                  if (ovDecision.loopsNaturally) {
-                    el.currentTime = inSec   // natural loop wrap
-                  } else if (!el.paused) {
-                    el.pause()               // at source boundary: stop, keep drawing
-                  }
+                el.currentTime  = initPos
+                el.playbackRate = 1
+                freeRunAnchorRef.current.set(ovKey, scrubGen)
+              } else if (el.currentTime < inSec) {
+                el.currentTime = inSec
+              } else if (el.currentTime >= outSec) {
+                if (ovDecision.loopsNaturally) {
+                  el.currentTime = inSec   // natural loop wrap
+                } else if (!el.paused) {
+                  el.pause()               // at source boundary: hold, keep drawing
                 }
-                // Drive transport — no play() once non-loop clip reaches outSec
-                const atNonLoopBoundary = !ovDecision.loopsNaturally && el.currentTime >= outSec
-                if (!atNonLoopBoundary) {
-                  if (isPlayingRef.current) {
-                    el.playbackRate = 1
-                    if (el.paused) el.play().catch(() => {})
-                  } else {
-                    if (!el.paused) el.pause()
-                  }
+              }
+              // Drive transport — no play() once non-loop clip reaches outSec
+              const atNonLoopBoundary = !ovDecision.loopsNaturally && el.currentTime >= outSec
+              if (!atNonLoopBoundary) {
+                if (isPlayingRef.current) {
+                  el.playbackRate = 1
+                  if (el.paused) el.play().catch(() => {})
+                } else {
+                  if (!el.paused) el.pause()
                 }
               }
             }
