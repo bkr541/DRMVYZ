@@ -73,6 +73,11 @@ export interface VzTimelineClip {
    * Only has visual effect for video media; image clips ignore this field.
    */
   snapToBpm?: boolean
+  /**
+   * Uniform scale multiplier for the rendered media. 1.0 = 100% (fill canvas
+   * according to fitMode). Undefined = 1.0. Range: 0.1–3.0.
+   */
+  mediaScale?: number
 }
 
 export interface VzTimeline {

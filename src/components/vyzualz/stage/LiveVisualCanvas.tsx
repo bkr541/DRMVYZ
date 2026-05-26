@@ -1756,9 +1756,10 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       const renderMedia = shouldRenderRoleByDefault(role)
       const fitMode     = activeMediaFitModeRef.current ?? getDefaultFitModeForRole(role)
       const compositeOp = getCompositeOpForRole(role)
+      const clipMediaScale = activeClipRef.current?.mediaScale ?? 1
       const scale = shouldApplyScalePulse(role)
-        ? bassReact * punchScale * eff.logoScale
-        : 1
+        ? clipMediaScale * bassReact * punchScale * eff.logoScale
+        : clipMediaScale
       const { ox, oy, sw, sh } = mediaEl
         ? computeDrawRect(W, H, mediaEl, fitMode, scale, role)
         : { ox: 0, oy: 0, sw: W, sh: H }
@@ -1866,7 +1867,8 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
 
           const inRole        = incomingRoleRef.current
           const inFitMode     = incomingFitModeRef.current ?? getDefaultFitModeForRole(inRole)
-          const inScale       = shouldApplyScalePulse(inRole) ? bassReact * punchScale * eff.logoScale : 1
+          const inClipMediaScale = txState ? ((txState.incomingClip as VzTimelineMediaClip).mediaScale ?? 1) : 1
+          const inScale       = shouldApplyScalePulse(inRole) ? inClipMediaScale * bassReact * punchScale * eff.logoScale : inClipMediaScale
           const inRect        = inEl ? computeDrawRect(W, H, inEl, inFitMode, inScale, inRole)
                                      : { ox: 0, oy: 0, sw: W, sh: H }
           const inCompositeOp = getCompositeOpForRole(inRole)

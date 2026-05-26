@@ -573,6 +573,14 @@ function BgClipInspector({
               <option value="contain">Contain</option>
             </select>
           </div>
+          <div className="vz-cg-slider-row">
+            <span className="vz-cg-slider-lbl">Size</span>
+            <input type="range" className="vz-cg-slider" min={10} max={300} step={1}
+              value={Math.round((clip.mediaScale ?? 1) * 100)}
+              onChange={e => onUpdate(clip.id, { mediaScale: parseInt(e.target.value, 10) / 100 })}
+            />
+            <span className="vz-cg-slider-val">{Math.round((clip.mediaScale ?? 1) * 100)}%</span>
+          </div>
           {media?.type === 'video' && (
             <div className="vz-ml-insp-row">
               <label className="vz-ml-insp-check" title={isClipSnapToBpmEnabled(clip) ? 'Lock this video to timeline timing' : 'Play this video at native speed'}>
