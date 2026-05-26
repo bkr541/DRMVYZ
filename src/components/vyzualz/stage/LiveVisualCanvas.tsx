@@ -634,8 +634,11 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   // scrubGenRef increments each time the user performs a discontinuous seek.
   // freeRunAnchorRef maps per-clip keys to the scrub generation at which that
   // clip was last re-anchored so we only re-seek once per scrub event.
-  const scrubGenRef        = useRef(0)
-  const freeRunAnchorRef   = useRef<Map<string, number>>(new Map())
+  // previousSnapStateRef tracks the snap-to-BPM state from the previous frame
+  // so the renderer can detect ON→OFF transitions and re-initialize native playback.
+  const scrubGenRef          = useRef(0)
+  const freeRunAnchorRef     = useRef<Map<string, number>>(new Map())
+  const previousSnapStateRef = useRef<Map<string, boolean>>(new Map())
 
   const incomingMediaElRef   = useRef<HTMLImageElement | HTMLVideoElement | null>(null)
   const transitionStateRef   = useRef<TwoClipRenderState | null>(null)
@@ -1014,6 +1017,14 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         ? `background:${key.slice(3)}`
         : key  // overlay:xxx already matches keepKeys format
       if (!keepKeys.has(poolKey)) freeRunMap.delete(key)
+    }
+    // Evict previousSnapState entries for removed clips (same key convention)
+    const prevSnapMap = previousSnapStateRef.current
+    for (const key of prevSnapMap.keys()) {
+      const poolKey = key.startsWith('bg:')
+        ? `background:${key.slice(3)}`
+        : key
+      if (!keepKeys.has(poolKey)) prevSnapMap.delete(key)
     }
     requestRedrawRef.current()
   }, [timelineClips, timelineOverlayClips, mediaItems, layerConfigs, layerItems])
@@ -1538,28 +1549,36 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         // so property changes like snapToBpm take effect immediately without a clip switch.
         const activeVid = mediaElRef.current
         if (clip && activeVid instanceof HTMLVideoElement) {
-          const dur    = isFinite(activeVid.duration) ? activeVid.duration : 0
-          const frozen = shouldFreezeClipFrame(clip, localTimeSec, dur)
+          const dur         = isFinite(activeVid.duration) ? activeVid.duration : 0
+          const snapEnabled = isClipSnapToBpmEnabled(clip)
+          const bgKey       = `bg:${clip.id}`
 
-          if (frozen) {
-            if (!activeVid.paused) activeVid.pause()
-          } else if (isClipSnapToBpmEnabled(clip)) {
-            // SYNCED PATH — existing timeline-clock correction behavior
-            const desired = getClipSourceTime(clip, localTimeSec, dur)
-            if (isPlayingRef.current) {
-              if (activeVid.paused) activeVid.play().catch(() => {})
-              syncVideoEl(activeVid, desired, true)
-            } else {
-              syncVideoEl(activeVid, desired, false)
+          // Detect ON→OFF transition so native playback is immediately re-initialized.
+          const prevSnap         = previousSnapStateRef.current.get(bgKey)
+          const justDisabledSnap = prevSnap === true && !snapEnabled
+          previousSnapStateRef.current.set(bgKey, snapEnabled)
+
+          if (snapEnabled) {
+            // SYNCED PATH — freeze logic only applies when synchronisation is active
+            const frozen = shouldFreezeClipFrame(clip, localTimeSec, dur)
+            if (frozen) {
               if (!activeVid.paused) activeVid.pause()
+            } else {
+              const desired = getClipSourceTime(clip, localTimeSec, dur)
+              if (isPlayingRef.current) {
+                if (activeVid.paused) activeVid.play().catch(() => {})
+                syncVideoEl(activeVid, desired, true)
+              } else {
+                syncVideoEl(activeVid, desired, false)
+                if (!activeVid.paused) activeVid.pause()
+              }
             }
           } else {
-            // FREE-RUNNING PATH — native speed, re-anchor only on scrub or activation
-            const bgKey    = `bg:${clip.id}`
+            // FREE-RUNNING PATH — native speed, re-anchor on scrub, activation, or snap disable
             const lastGen  = freeRunAnchorRef.current.get(bgKey) ?? -1
             const scrubGen = scrubGenRef.current
-            if (scrubGen !== lastGen) {
-              // Re-anchor once after a discontinuous user seek
+            if (justDisabledSnap || scrubGen !== lastGen) {
+              // Re-anchor: snap was just disabled or a discontinuous seek occurred
               const desired = getClipSourceTime(clip, localTimeSec, dur)
               activeVid.currentTime  = desired
               activeVid.playbackRate = 1
@@ -1567,23 +1586,27 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             }
             // Enforce playback mode boundaries using the video's own currentTime
             const { inSec, outSec } = getClipSourceRange(clip, dur)
+            let holdAtEnd = false
             if (activeVid.currentTime < inSec) {
               activeVid.currentTime = inSec
             } else if (activeVid.currentTime >= outSec) {
               if (clip.playbackMode === 'loop') {
                 activeVid.currentTime = inSec
               } else {
-                // trim / freeze: hold at boundary
-                activeVid.currentTime = outSec - 0.001
+                // trim / freeze: hold on final frame, do not replay
+                activeVid.currentTime = Math.max(inSec, outSec - 0.001)
                 if (!activeVid.paused) activeVid.pause()
+                holdAtEnd = true
               }
             }
-            // Play/pause based on transport — no rate nudges
-            if (isPlayingRef.current) {
-              activeVid.playbackRate = 1
-              if (activeVid.paused) activeVid.play().catch(() => {})
-            } else {
-              if (!activeVid.paused) activeVid.pause()
+            // Play/pause based on transport — no rate nudges, no play() when held at end
+            if (!holdAtEnd) {
+              if (isPlayingRef.current) {
+                activeVid.playbackRate = 1
+                if (activeVid.paused) activeVid.play().catch(() => {})
+              } else {
+                if (!activeVid.paused) activeVid.pause()
+              }
             }
           }
         }
@@ -1617,21 +1640,26 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
               freeRunAnchorRef.current.set(inKey, scrubGen)
             }
             const { inSec: inIn, outSec: inOut } = getClipSourceRange(inClipSync, inDurSync)
+            let inHoldAtEnd = false
             if (inVid.currentTime < inIn) {
               inVid.currentTime = inIn
             } else if (inVid.currentTime >= inOut) {
               if (inClipSync.playbackMode === 'loop') {
                 inVid.currentTime = inIn
               } else {
-                inVid.currentTime = inOut - 0.001
+                // trim / freeze: hold on final frame, do not replay
+                inVid.currentTime = Math.max(inIn, inOut - 0.001)
                 if (!inVid.paused) inVid.pause()
+                inHoldAtEnd = true
               }
             }
-            if (isPlayingRef.current) {
-              inVid.playbackRate = 1
-              if (inVid.paused) inVid.play().catch(() => {})
-            } else {
-              if (!inVid.paused) inVid.pause()
+            if (!inHoldAtEnd) {
+              if (isPlayingRef.current) {
+                inVid.playbackRate = 1
+                if (inVid.paused) inVid.play().catch(() => {})
+              } else {
+                if (!inVid.paused) inVid.pause()
+              }
             }
           }
         }
@@ -2174,29 +2202,38 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           const el = getOrCreateMediaInstance(pool, ovKey, m)
 
           if (el instanceof HTMLVideoElement) {
-            const ovLocalTime = timelineClockRef.current - oc.startSec
-            const ovDur       = isFinite(el.duration) ? el.duration : 0
-            el.loop = false
-            const frozen = shouldFreezeClipFrame(oc, ovLocalTime, ovDur)
-            if (frozen) {
-              if (!el.paused) el.pause()
-            } else if (isClipSnapToBpmEnabled(oc)) {
-              // SYNCED PATH — existing overlay sync behavior
-              const desired = getClipSourceTime(oc, ovLocalTime, ovDur)
-              if (isPlayingRef.current) {
-                if (el.paused) el.play().catch(() => {})
-                syncVideoEl(el, desired, true)
-              } else {
-                syncVideoEl(el, desired, false)
+            const ovLocalTime   = timelineClockRef.current - oc.startSec
+            const ovDur         = isFinite(el.duration) ? el.duration : 0
+            el.loop             = false
+            const ovSnapEnabled = isClipSnapToBpmEnabled(oc)
+            const ovKey         = `overlay:${oc.id}`
+
+            // Detect ON→OFF transition so native playback is immediately re-initialized.
+            const prevOvSnap         = previousSnapStateRef.current.get(ovKey)
+            const justDisabledOvSnap = prevOvSnap === true && !ovSnapEnabled
+            previousSnapStateRef.current.set(ovKey, ovSnapEnabled)
+
+            if (ovSnapEnabled) {
+              // SYNCED PATH — freeze logic only applies when synchronisation is active
+              const frozen = shouldFreezeClipFrame(oc, ovLocalTime, ovDur)
+              if (frozen) {
                 if (!el.paused) el.pause()
+              } else {
+                const desired = getClipSourceTime(oc, ovLocalTime, ovDur)
+                if (isPlayingRef.current) {
+                  if (el.paused) el.play().catch(() => {})
+                  syncVideoEl(el, desired, true)
+                } else {
+                  syncVideoEl(el, desired, false)
+                  if (!el.paused) el.pause()
+                }
               }
             } else {
               // FREE-RUNNING PATH for overlay clips
-              const ovKey    = `overlay:${oc.id}`
               const lastGen  = freeRunAnchorRef.current.get(ovKey) ?? -1
               const scrubGen = scrubGenRef.current
-              // Re-anchor on first activation (key not in map) or after a scrub
-              if (lastGen === -1 || scrubGen !== lastGen) {
+              // Re-anchor on first activation, snap disable, or scrub
+              if (lastGen === -1 || justDisabledOvSnap || scrubGen !== lastGen) {
                 const desired = getClipSourceTime(oc, ovLocalTime, ovDur)
                 el.currentTime  = desired
                 el.playbackRate = 1
@@ -2204,21 +2241,27 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
               }
               // Enforce playback mode boundaries
               const { inSec, outSec } = getClipSourceRange(oc, ovDur)
+              let ovHoldAtEnd = false
               if (el.currentTime < inSec) {
                 el.currentTime = inSec
               } else if (el.currentTime >= outSec) {
                 if (oc.playbackMode === 'loop') {
                   el.currentTime = inSec
                 } else {
-                  el.currentTime = outSec - 0.001
+                  // trim / freeze: hold on final frame, do not replay
+                  el.currentTime = Math.max(inSec, outSec - 0.001)
                   if (!el.paused) el.pause()
+                  ovHoldAtEnd = true
                 }
               }
-              if (isPlayingRef.current) {
-                el.playbackRate = 1
-                if (el.paused) el.play().catch(() => {})
-              } else {
-                if (!el.paused) el.pause()
+              // Play/pause based on transport — no rate nudges, no play() when held at end
+              if (!ovHoldAtEnd) {
+                if (isPlayingRef.current) {
+                  el.playbackRate = 1
+                  if (el.paused) el.play().catch(() => {})
+                } else {
+                  if (!el.paused) el.pause()
+                }
               }
             }
           }

@@ -336,6 +336,52 @@ export function shouldFreezeClipFrame(
   return localTimeSec >= lengthSec
 }
 
+/**
+ * Returns true when synchronized freeze-frame logic should be applied.
+ * Freeze is only valid when snap-to-BPM is ON; native-speed clips are never
+ * frozen based on timeline position — they hold at their source out point instead.
+ */
+export function shouldApplySyncFreeze(
+  clip: Pick<VzTimelineClip, 'snapToBpm' | 'playbackMode' | 'mediaInSec' | 'mediaOutSec' | 'durationSec'>,
+  localTimeSec: number,
+  videoDuration: number,
+): boolean {
+  if (!isClipSnapToBpmEnabled(clip)) return false
+  return shouldFreezeClipFrame(clip as VzTimelineClip, localTimeSec, videoDuration)
+}
+
+export interface NativeBoundaryResult {
+  /** The position to seek the video to, or null if no seek is needed. */
+  newTime: number | null
+  /** True when a non-looping clip has reached its out point and must stay paused. */
+  holdAtEnd: boolean
+}
+
+/**
+ * Computes boundary enforcement for a free-running (native-speed) video clip.
+ * Returns the corrected seek target (or null if none needed) and whether the
+ * clip should be held at its end frame.  The caller must NOT call play() when
+ * holdAtEnd is true.
+ */
+export function computeNativePlaybackBoundary(
+  currentTime: number,
+  playbackMode: VzTimelineClip['playbackMode'],
+  inSec: number,
+  outSec: number,
+): NativeBoundaryResult {
+  if (currentTime < inSec) {
+    return { newTime: inSec, holdAtEnd: false }
+  }
+  if (currentTime >= outSec) {
+    if (playbackMode === 'loop') {
+      return { newTime: inSec, holdAtEnd: false }
+    }
+    // trim / freeze: hold on final frame
+    return { newTime: Math.max(inSec, outSec - 0.001), holdAtEnd: true }
+  }
+  return { newTime: null, holdAtEnd: false }
+}
+
 export function getNextTimelineClip(
   clips: VzTimelineClip[],
   clipId: string,

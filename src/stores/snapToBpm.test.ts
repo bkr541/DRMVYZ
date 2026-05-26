@@ -3,11 +3,13 @@
  *
  * Covers:
  * 1. isClipSnapToBpmEnabled pure helper
- * 2. New clip defaults (store actions)
- * 3. Duplication and lane movement preserve snapToBpm
- * 4. Session save → load round-trip (ON and OFF)
- * 5. Preset save → load round-trip
- * 6. Legacy session compat (missing field → treated as ON)
+ * 2. shouldApplySyncFreeze — freeze only when snap is ON
+ * 3. computeNativePlaybackBoundary — boundary decisions for native-speed clips
+ * 4. New clip defaults (store actions)
+ * 5. Duplication and lane movement preserve snapToBpm
+ * 6. Session save → load round-trip (ON and OFF)
+ * 7. Preset save → load round-trip
+ * 8. Legacy session compat (missing field → treated as ON)
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
@@ -30,7 +32,11 @@ vi.mock('../lib/sessionDb', () => ({
   sessionToInsert:   vi.fn(),
 }))
 
-import { isClipSnapToBpmEnabled } from '../lib/timeline'
+import {
+  isClipSnapToBpmEnabled,
+  shouldApplySyncFreeze,
+  computeNativePlaybackBoundary,
+} from '../lib/timeline'
 import { useVisualStore, DEFAULT_EFFECTS } from './visualStore'
 import type { VzSession } from './visualStore'
 import type { VzTimelineMediaClip } from '../types/timeline'
@@ -48,6 +54,143 @@ describe('isClipSnapToBpmEnabled', () => {
 
   it('returns false when snapToBpm is false', () => {
     expect(isClipSnapToBpmEnabled({ snapToBpm: false })).toBe(false)
+  })
+})
+
+// ── shouldApplySyncFreeze ─────────────────────────────────────────────────────
+
+describe('shouldApplySyncFreeze', () => {
+  // Shared base clip shape for these tests
+  const baseClip = {
+    mediaInSec: 0,
+    mediaOutSec: undefined as number | undefined,
+    durationSec: 10,
+    playbackMode: 'trim' as const,
+  }
+
+  it('returns false when snapToBpm is OFF, regardless of position', () => {
+    // The clip is past its source length but snap is OFF — no freeze should apply
+    expect(shouldApplySyncFreeze(
+      { ...baseClip, snapToBpm: false },
+      15, // localTimeSec beyond source
+      5,  // videoDuration = 5s, source length = 5s
+    )).toBe(false)
+  })
+
+  it('returns false when snapToBpm is OFF even when localTimeSec >> videoDuration', () => {
+    expect(shouldApplySyncFreeze(
+      { ...baseClip, snapToBpm: false },
+      100,
+      3,
+    )).toBe(false)
+  })
+
+  it('returns true when snapToBpm is ON and localTimeSec exceeds source length (trim)', () => {
+    expect(shouldApplySyncFreeze(
+      { ...baseClip, snapToBpm: true },
+      8,  // localTimeSec > source length (5s)
+      5,
+    )).toBe(true)
+  })
+
+  it('returns false when snapToBpm is ON but localTimeSec is within source (trim)', () => {
+    expect(shouldApplySyncFreeze(
+      { ...baseClip, snapToBpm: true },
+      3,  // within the 5s source
+      5,
+    )).toBe(false)
+  })
+
+  it('never returns true for loop playbackMode even when snap is ON', () => {
+    expect(shouldApplySyncFreeze(
+      { ...baseClip, playbackMode: 'loop', snapToBpm: true },
+      50, // far past source length
+      5,
+    )).toBe(false)
+  })
+
+  it('returns false for undefined snapToBpm (legacy → treated as ON) within source', () => {
+    expect(shouldApplySyncFreeze(
+      { ...baseClip, snapToBpm: undefined },
+      2,
+      5,
+    )).toBe(false)
+  })
+
+  it('returns true for undefined snapToBpm (legacy → ON) past source length', () => {
+    expect(shouldApplySyncFreeze(
+      { ...baseClip, snapToBpm: undefined },
+      8,
+      5,
+    )).toBe(true)
+  })
+})
+
+// ── computeNativePlaybackBoundary ─────────────────────────────────────────────
+
+describe('computeNativePlaybackBoundary', () => {
+  it('returns null newTime and no holdAtEnd when currentTime is within range', () => {
+    const result = computeNativePlaybackBoundary(3, 'trim', 0, 5)
+    expect(result.newTime).toBeNull()
+    expect(result.holdAtEnd).toBe(false)
+  })
+
+  it('seeks to inSec when currentTime < inSec', () => {
+    const result = computeNativePlaybackBoundary(-1, 'trim', 0, 5)
+    expect(result.newTime).toBe(0)
+    expect(result.holdAtEnd).toBe(false)
+  })
+
+  describe('trim mode at/past outSec', () => {
+    it('holds at end (newTime near outSec, holdAtEnd=true)', () => {
+      const result = computeNativePlaybackBoundary(5, 'trim', 0, 5)
+      expect(result.holdAtEnd).toBe(true)
+      expect(result.newTime).toBeCloseTo(4.999, 2)
+    })
+
+    it('does not return holdAtEnd=false (prevents immediate replay)', () => {
+      const result = computeNativePlaybackBoundary(10, 'trim', 0, 5)
+      expect(result.holdAtEnd).toBe(true)
+    })
+  })
+
+  describe('freeze mode at/past outSec', () => {
+    it('holds at end (newTime near outSec, holdAtEnd=true)', () => {
+      const result = computeNativePlaybackBoundary(5, 'freeze', 0, 5)
+      expect(result.holdAtEnd).toBe(true)
+      expect(result.newTime).toBeCloseTo(4.999, 2)
+    })
+  })
+
+  describe('loop mode at/past outSec', () => {
+    it('seeks back to inSec, holdAtEnd=false so playback continues', () => {
+      const result = computeNativePlaybackBoundary(5, 'loop', 0, 5)
+      expect(result.newTime).toBe(0)
+      expect(result.holdAtEnd).toBe(false)
+    })
+
+    it('seeks to inSec even far past outSec', () => {
+      const result = computeNativePlaybackBoundary(50, 'loop', 2, 7)
+      expect(result.newTime).toBe(2)
+      expect(result.holdAtEnd).toBe(false)
+    })
+  })
+
+  it('respects non-zero inSec for boundary and clamp', () => {
+    // currentTime in range [inSec, outSec) → no action
+    const inside = computeNativePlaybackBoundary(3, 'trim', 2, 8)
+    expect(inside.newTime).toBeNull()
+    expect(inside.holdAtEnd).toBe(false)
+
+    // currentTime < inSec → seek to inSec
+    const below = computeNativePlaybackBoundary(1, 'trim', 2, 8)
+    expect(below.newTime).toBe(2)
+
+    // currentTime >= outSec → hold (trim)
+    const past = computeNativePlaybackBoundary(8, 'trim', 2, 8)
+    expect(past.holdAtEnd).toBe(true)
+    expect(past.newTime).toBeGreaterThanOrEqual(2)
+    expect(past.newTime!).toBeLessThan(8)
   })
 })
 
