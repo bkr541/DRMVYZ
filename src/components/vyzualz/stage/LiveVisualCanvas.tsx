@@ -1300,7 +1300,21 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         !continuousAnim
       const shouldDraw = !vfcDriven || videoFrameReadyRef.current
       if (!shouldDraw) {
-        if (import.meta.env.DEV) skippedDrawRef.current++
+        if (import.meta.env.DEV) {
+          skippedDrawRef.current++
+          const tick = ++diagFrameRef.current
+          if (tick % 30 === 0) {
+            const vid = mediaElRef.current
+            console.log('[DIAG skip]', {
+              tick, vfcDriven, videoFrameReady: videoFrameReadyRef.current,
+              continuousAnim,
+              timelineEnabled: timelineEnabledRef.current,
+              clipCount: timelineClipsRef.current.length,
+              mediaEl: vid ? (vid instanceof HTMLVideoElement ? `vid rs=${vid.readyState} paused=${vid.paused}` : 'img') : 'null',
+              isPlaying: isPlayingRef.current,
+            })
+          }
+        }
         animRef.current = requestAnimationFrame(frame)
         return
       }
@@ -1454,6 +1468,22 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       let txInExpired    = false
 
       // ── Timeline clock & active clip ──────────────────────────────
+      if (import.meta.env.DEV) {
+        const tick = ++diagFrameRef.current
+        if (tick % 30 === 0) {
+          console.log('[DIAG guard]', {
+            tick,
+            timelineEnabled: timelineEnabledRef.current,
+            clipCount: timelineClipsRef.current.length,
+            mediaEl: mediaElRef.current
+              ? (mediaElRef.current instanceof HTMLVideoElement
+                  ? `vid rs=${mediaElRef.current.readyState} paused=${mediaElRef.current.paused}`
+                  : 'img')
+              : 'null',
+            isPlaying: isPlayingRef.current,
+          })
+        }
+      }
       if (timelineEnabledRef.current && timelineClipsRef.current.length > 0) {
         const nowMs = performance.now()
         const audioT = audioTimeNow
@@ -1620,29 +1650,25 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         }
 
         // ── DEV DIAGNOSTIC — remove after fix ────────────────────────────
-        if (import.meta.env.DEV) {
-          diagFrameRef.current++
-          if (diagFrameRef.current % 60 === 0) {
-            const vid = mediaElRef.current
-            console.log('[SnapBPM diag]', {
-              frame:         diagFrameRef.current,
-              hasClip:       !!clip,
-              clipId:        clip?.id?.slice(-6),
-              clipMode:      clip?.playbackMode,
-              snapEnabled:   clip ? isClipSnapToBpmEnabled(clip) : null,
-              isPlaying:     isPlayingRef.current,
-              isVid:         vid instanceof HTMLVideoElement,
-              paused:        vid instanceof HTMLVideoElement ? vid.paused : null,
-              currentTime:   vid instanceof HTMLVideoElement ? vid.currentTime.toFixed(3) : null,
-              duration:      vid instanceof HTMLVideoElement ? (isFinite(vid.duration) ? vid.duration.toFixed(2) : 'NaN') : null,
-              readyState:    vid instanceof HTMLVideoElement ? vid.readyState : null,
-              timelineClock: timelineClockRef.current.toFixed(3),
-              localTimeSec:  localTimeSec.toFixed(3),
-              scrubGen:      scrubGenRef.current,
-              mediaElNull:   vid === null,
-              activeClipId:  activeClipIdRef.current?.slice(-6),
-            })
-          }
+        if (import.meta.env.DEV && diagFrameRef.current % 10 === 0) {
+          const vid = mediaElRef.current
+          console.log('[DIAG draw]', {
+            tick:          diagFrameRef.current,
+            hasClip:       !!clip,
+            clipId:        clip?.id?.slice(-6),
+            clipMode:      clip?.playbackMode,
+            snapEnabled:   clip ? isClipSnapToBpmEnabled(clip) : null,
+            isPlaying:     isPlayingRef.current,
+            isVid:         vid instanceof HTMLVideoElement,
+            paused:        vid instanceof HTMLVideoElement ? vid.paused : null,
+            currentTime:   vid instanceof HTMLVideoElement ? vid.currentTime.toFixed(3) : null,
+            duration:      vid instanceof HTMLVideoElement ? (isFinite(vid.duration) ? vid.duration.toFixed(2) : 'NaN') : null,
+            readyState:    vid instanceof HTMLVideoElement ? vid.readyState : null,
+            timelineClock: timelineClockRef.current.toFixed(3),
+            localTimeSec:  localTimeSec.toFixed(3),
+            scrubGen:      scrubGenRef.current,
+            mediaElNull:   vid === null,
+          })
         }
 
         // ── Incoming transition video sync ────────────────────────────────
