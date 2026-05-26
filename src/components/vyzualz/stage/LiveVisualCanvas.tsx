@@ -1581,16 +1581,21 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           } else {
             // FREE-RUNNING PATH — native speed, timeline-local visibility decision
             const decision = getNativeVideoPlaybackDecision(clip, localTimeSec, dur)
+            const { inSec, outSec } = getClipSourceRange(clip, dur)
+            const lastGen  = freeRunAnchorRef.current.get(bgKey) ?? -1
+            const scrubGen = scrubGenRef.current
 
-            if (!decision.visible) {
-              // Clip has naturally expired: pause and suppress canvas draw this frame
+            if (decision.shouldHoldAtEnd) {
+              // Trim/freeze past source end — seek to final frame once, then stay paused and visible.
+              // bgVideoExpired stays false so the canvas continues drawing the held frame.
+              if (justDisabledSnap || scrubGen !== lastGen) {
+                activeVid.currentTime  = decision.sourceTimeSec!
+                activeVid.playbackRate = 1
+                freeRunAnchorRef.current.set(bgKey, scrubGen)
+              }
               if (!activeVid.paused) activeVid.pause()
-              bgVideoExpired = true
             } else {
-              // Clip is still active — re-anchor on initial use, snap-disable, or scrub
-              const { inSec, outSec } = getClipSourceRange(clip, dur)
-              const lastGen  = freeRunAnchorRef.current.get(bgKey) ?? -1
-              const scrubGen = scrubGenRef.current
+              // Clip is actively playing or looping
               if (justDisabledSnap || scrubGen !== lastGen) {
                 activeVid.currentTime  = decision.sourceTimeSec!
                 activeVid.playbackRate = 1
@@ -1622,10 +1627,16 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         const txCurrent = transitionStateRef.current
         const inVid     = incomingMediaElRef.current
         if (txCurrent && inVid instanceof HTMLVideoElement) {
-          const inClipSync = txCurrent.incomingClip
-          const inDurSync  = isFinite(inVid.duration) ? inVid.duration : 0
+          const inClipSync    = txCurrent.incomingClip
+          const inDurSync     = isFinite(inVid.duration) ? inVid.duration : 0
+          // Track snap state for incoming clip so ON→OFF transitions are detected correctly.
+          const inKey         = `bg:${inClipSync.id}`
+          const inSnapEnabled = isClipSnapToBpmEnabled(inClipSync)
+          const prevInSnap    = previousSnapStateRef.current.get(inKey)
+          const justDisabledInSnap = prevInSnap === true && !inSnapEnabled
+          previousSnapStateRef.current.set(inKey, inSnapEnabled)
 
-          if (isClipSnapToBpmEnabled(inClipSync)) {
+          if (inSnapEnabled) {
             // SYNCED PATH for incoming clip
             const desired = getClipSourceTime(inClipSync, txCurrent.incomingLocalTimeSec, inDurSync)
             if (isPlayingRef.current) {
@@ -1637,19 +1648,24 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             }
           } else {
             // FREE-RUNNING PATH for incoming clip
-            const inKey      = `bg:${inClipSync.id}`
             const txDecision = getNativeVideoPlaybackDecision(
               inClipSync, txCurrent.incomingLocalTimeSec, inDurSync,
             )
+            const { inSec: inIn, outSec: inOut } = getClipSourceRange(inClipSync, inDurSync)
+            const lastGen  = freeRunAnchorRef.current.get(inKey) ?? -1
+            const scrubGen = scrubGenRef.current
 
-            if (!txDecision.visible) {
+            if (txDecision.shouldHoldAtEnd) {
+              // Trim/freeze past source end — hold final frame, keep visible, stay paused.
+              // txInExpired stays false so the canvas continues drawing the held frame.
+              if (justDisabledInSnap || scrubGen !== lastGen) {
+                inVid.currentTime  = txDecision.sourceTimeSec!
+                inVid.playbackRate = 1
+                freeRunAnchorRef.current.set(inKey, scrubGen)
+              }
               if (!inVid.paused) inVid.pause()
-              txInExpired = true
             } else {
-              const { inSec: inIn, outSec: inOut } = getClipSourceRange(inClipSync, inDurSync)
-              const lastGen  = freeRunAnchorRef.current.get(inKey) ?? -1
-              const scrubGen = scrubGenRef.current
-              if (scrubGen !== lastGen) {
+              if (justDisabledInSnap || scrubGen !== lastGen) {
                 inVid.currentTime  = txDecision.sourceTimeSec!
                 inVid.playbackRate = 1
                 freeRunAnchorRef.current.set(inKey, scrubGen)
@@ -2248,15 +2264,20 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             } else {
               // FREE-RUNNING PATH — native speed, timeline-local visibility decision
               const ovDecision = getNativeVideoPlaybackDecision(oc, ovLocalTime, ovDur)
+              const { inSec, outSec } = getClipSourceRange(oc, ovDur)
+              const lastGen  = freeRunAnchorRef.current.get(ovKey) ?? -1
+              const scrubGen = scrubGenRef.current
 
-              if (!ovDecision.visible) {
-                // Clip has naturally expired: pause and skip draw
+              if (ovDecision.shouldHoldAtEnd) {
+                // Trim/freeze past source end — seek to final frame once, then stay paused and visible.
+                // ovExpired stays false so the canvas continues drawing the held frame.
+                if (lastGen === -1 || justDisabledOvSnap || scrubGen !== lastGen) {
+                  el.currentTime  = ovDecision.sourceTimeSec!
+                  el.playbackRate = 1
+                  freeRunAnchorRef.current.set(ovKey, scrubGen)
+                }
                 if (!el.paused) el.pause()
-                ovExpired = true
               } else {
-                const { inSec, outSec } = getClipSourceRange(oc, ovDur)
-                const lastGen  = freeRunAnchorRef.current.get(ovKey) ?? -1
-                const scrubGen = scrubGenRef.current
                 // Re-anchor on first activation, snap disable, or scrub
                 if (lastGen === -1 || justDisabledOvSnap || scrubGen !== lastGen) {
                   el.currentTime  = ovDecision.sourceTimeSec!

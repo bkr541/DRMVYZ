@@ -159,18 +159,39 @@ describe('getNativeVideoPlaybackDecision', () => {
       expect(result.sourceTimeSec).toBeLessThan(5)
     })
 
-    it('expires exactly at localTimeSec === source length', () => {
+    it('holds at final frame at source boundary — remains visible (trim)', () => {
+      // localTimeSec=5 === source length=5 → must hold, not disappear
       const result = getNativeVideoPlaybackDecision(baseClip, 5, videoDuration)
-      expect(result.visible).toBe(false)
-      expect(result.expired).toBe(true)
-      expect(result.sourceTimeSec).toBeNull()
+      expect(result.visible).toBe(true)
+      expect(result.expired).toBe(false)
+      expect(result.shouldHoldAtEnd).toBe(true)
+      // outSec = videoDuration = 5, so final frame = 5 - 0.001 = 4.999
+      expect(result.sourceTimeSec).toBeCloseTo(4.999, 2)
+      expect(result.loopsNaturally).toBe(false)
     })
 
-    it('remains expired past source length', () => {
+    it('holds at final frame past source length — remains visible (trim)', () => {
+      // localTimeSec=7 > source length=5 → still visible, still holding
       const result = getNativeVideoPlaybackDecision(baseClip, 7, videoDuration)
-      expect(result.visible).toBe(false)
-      expect(result.expired).toBe(true)
-      expect(result.sourceTimeSec).toBeNull()
+      expect(result.visible).toBe(true)
+      expect(result.expired).toBe(false)
+      expect(result.shouldHoldAtEnd).toBe(true)
+      expect(result.sourceTimeSec).toBeCloseTo(4.999, 2)
+    })
+
+    it('returns shouldHoldAtEnd: false when within source range (trim)', () => {
+      const result = getNativeVideoPlaybackDecision(baseClip, 2, videoDuration)
+      expect(result.shouldHoldAtEnd).toBe(false)
+      expect(result.visible).toBe(true)
+    })
+
+    it('holds at final frame past source length — remains visible (freeze mode)', () => {
+      const freezeClip = { ...baseClip, playbackMode: 'freeze' as const }
+      const result = getNativeVideoPlaybackDecision(freezeClip, 7, videoDuration)
+      expect(result.visible).toBe(true)
+      expect(result.expired).toBe(false)
+      expect(result.shouldHoldAtEnd).toBe(true)
+      expect(result.sourceTimeSec).toBeCloseTo(4.999, 2)
     })
 
     it('respects non-zero mediaInSec in sourceTimeSec', () => {
@@ -181,12 +202,15 @@ describe('getNativeVideoPlaybackDecision', () => {
       expect(result.sourceTimeSec).toBeCloseTo(3, 3) // inSec + localTimeSec
     })
 
-    it('expires when localTimeSec reaches source length with non-zero mediaInSec', () => {
+    it('holds at final frame at source boundary with non-zero mediaInSec (trim)', () => {
       const clip = { ...baseClip, mediaInSec: 2 }
-      // source length = 3s, so expires at localTimeSec >= 3
+      // source range [2,5), length=3. At localTimeSec=3, must hold — not disappear.
+      // Final frame = outSec - 0.001 = 5 - 0.001 = 4.999
       const result = getNativeVideoPlaybackDecision(clip, 3, videoDuration)
-      expect(result.visible).toBe(false)
-      expect(result.expired).toBe(true)
+      expect(result.visible).toBe(true)
+      expect(result.expired).toBe(false)
+      expect(result.shouldHoldAtEnd).toBe(true)
+      expect(result.sourceTimeSec).toBeCloseTo(4.999, 2)
     })
   })
 
@@ -230,6 +254,10 @@ describe('getNativeVideoPlaybackDecision', () => {
       const result = getNativeVideoPlaybackDecision(clip, 4, videoDuration)
       expect(result.sourceTimeSec).toBeCloseTo(3, 3)
     })
+
+    it('returns shouldHoldAtEnd: false even far past source length (loop never holds)', () => {
+      expect(getNativeVideoPlaybackDecision(loopClip, 100, videoDuration).shouldHoldAtEnd).toBe(false)
+    })
   })
 
   describe('toggle from ON to OFF — visible clips get correct sourceTimeSec', () => {
@@ -240,11 +268,20 @@ describe('getNativeVideoPlaybackDecision', () => {
       expect(result.sourceTimeSec).toBeCloseTo(3, 3)
     })
 
-    it('gives expired decision immediately when toggling snap off past source length', () => {
-      // Snap was ON, now OFF, localTimeSec=6 > source length=5
+    it('holds final frame when toggling snap off past source length (trim)', () => {
+      // Snap was ON, now OFF, localTimeSec=6 > source length=5 — clip must stay visible.
       const result = getNativeVideoPlaybackDecision(baseClip, 6, videoDuration)
-      expect(result.visible).toBe(false)
-      expect(result.expired).toBe(true)
+      expect(result.visible).toBe(true)
+      expect(result.expired).toBe(false)
+      expect(result.shouldHoldAtEnd).toBe(true)
+      expect(result.sourceTimeSec).toBeCloseTo(4.999, 2)
+    })
+
+    it('loop mode toggle gives shouldHoldAtEnd: false at t=7s', () => {
+      const loopClip = { ...baseClip, playbackMode: 'loop' as const }
+      const result = getNativeVideoPlaybackDecision(loopClip, 7, videoDuration)
+      expect(result.shouldHoldAtEnd).toBe(false)
+      expect(result.visible).toBe(true)
     })
 
     it('loop mode toggle gives wrapped sourceTimeSec at t=7s', () => {

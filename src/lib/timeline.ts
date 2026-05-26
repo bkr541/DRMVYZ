@@ -353,14 +353,15 @@ export function shouldApplySyncFreeze(
 export interface NativeVideoPlaybackDecision {
   /**
    * Whether this video should be drawn this frame.
-   * False means skip drawImage — do not render any video frame, not even the last one.
+   * Always true for active native clips — use shouldHoldAtEnd to distinguish
+   * "actively playing" from "paused at final frame".
    */
   visible: boolean
-  /** True when a non-looping clip's source duration has elapsed. */
+  /** Reserved. Always false in the current implementation. */
   expired: boolean
   /**
    * The source position (seconds) to seek to on initial activation, scrub, or
-   * Snap ON→OFF transition.  Null when the clip is expired.
+   * Snap ON→OFF transition.  For shouldHoldAtEnd clips this is the final valid frame.
    */
   sourceTimeSec: number | null
   /**
@@ -368,6 +369,13 @@ export interface NativeVideoPlaybackDecision {
    * natural looping rather than stopping at the source boundary.
    */
   loopsNaturally: boolean
+  /**
+   * When true, a trim or freeze clip has passed its source end while the
+   * timeline clip is still active.  The video should be paused and kept
+   * visible at the final valid source frame — never hidden, never replayed.
+   * Always false for loop mode.
+   */
+  shouldHoldAtEnd: boolean
 }
 
 /**
@@ -375,11 +383,9 @@ export interface NativeVideoPlaybackDecision {
  * Snap to BPM is OFF.  Call once per frame; use the result to drive both
  * HTMLVideoElement state and canvas drawing.
  *
- * Loop ON  → always visible, wraps at outSec, sourceTimeSec is modulo-wrapped.
- * Loop OFF → visible while localTimeSec < lengthSec; expired and invisible once past.
- *
- * The caller must skip drawImage when visible === false so the canvas does not
- * render a stale final video frame after the clip's natural duration ends.
+ * Loop         → always visible, wraps at outSec, sourceTimeSec is modulo-wrapped.
+ * Trim/Freeze  → visible while within source; past source end, holds at final frame
+ *               (shouldHoldAtEnd=true) rather than disappearing.
  */
 export function getNativeVideoPlaybackDecision(
   clip: VzTimelineClip,
@@ -393,12 +399,18 @@ export function getNativeVideoPlaybackDecision(
     const wrapped = lengthSec > 0
       ? inSec + (((localTimeSec % lengthSec) + lengthSec) % lengthSec)
       : inSec
-    return { visible: true, expired: false, sourceTimeSec: wrapped, loopsNaturally: true }
+    return { visible: true, expired: false, sourceTimeSec: wrapped, loopsNaturally: true, shouldHoldAtEnd: false }
   }
 
-  // Non-loop: invisible once the source duration has been consumed.
+  // Trim/freeze: past source end — remain visible, hold at the final valid frame.
   if (localTimeSec >= lengthSec) {
-    return { visible: false, expired: true, sourceTimeSec: null, loopsNaturally: false }
+    return {
+      visible: true,
+      expired: false,
+      sourceTimeSec: Math.max(inSec, outSec - 0.001),
+      loopsNaturally: false,
+      shouldHoldAtEnd: true,
+    }
   }
 
   return {
@@ -406,6 +418,7 @@ export function getNativeVideoPlaybackDecision(
     expired: false,
     sourceTimeSec: Math.min(inSec + localTimeSec, outSec - 0.001),
     loopsNaturally: false,
+    shouldHoldAtEnd: false,
   }
 }
 
