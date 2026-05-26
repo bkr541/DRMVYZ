@@ -128,6 +128,12 @@ export interface VzLayerItem {
   /** When true, the canvas bass-reactive scale pulse is applied to this item. */
   audioReactive: boolean
   /**
+   * When set, determines whether global audio-reactive and live effects (scale pulse,
+   * Color Shift, etc.) apply to this item. Supersedes audioReactive when present.
+   * Undefined = fall back to audioReactive for backward compat.
+   */
+  enableGlobalFx?: boolean
+  /**
    * Per-item color grade applied BEFORE RGB Split / Bloom / Displacement.
    * Undefined = no grade (renders the source unmodified).
    */

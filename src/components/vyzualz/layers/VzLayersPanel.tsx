@@ -254,13 +254,16 @@ export function VzLayersPanel() {
                             <div className="vz-li-row2">
                               <label
                                 className="vz-li-field-label vz-li-field-label--wide"
-                                title="When on, canvas audio reactivity (scale pulse) applies to this item"
-                              >Audio Reactive</label>
+                                title="When on, global live effects (scale pulse, Color Shift) apply to this item"
+                              >Enable Global FX</label>
                               <button
-                                className={`vz-li-audio-btn${item.audioReactive ? ' vz-li-audio-btn--on' : ''}`}
-                                onClick={() => updateLayerItem(item.id, { audioReactive: !item.audioReactive })}
-                                title={item.audioReactive ? 'Disable audio reactivity for this item' : 'Enable audio reactivity for this item'}
-                              >{item.audioReactive ? 'On' : 'Off'}</button>
+                                className={`vz-li-audio-btn${(item.enableGlobalFx !== undefined ? item.enableGlobalFx : item.audioReactive) ? ' vz-li-audio-btn--on' : ''}`}
+                                onClick={() => {
+                                  const cur = item.enableGlobalFx !== undefined ? item.enableGlobalFx : item.audioReactive
+                                  updateLayerItem(item.id, { enableGlobalFx: !cur, audioReactive: !cur })
+                                }}
+                                title={(item.enableGlobalFx !== undefined ? item.enableGlobalFx : item.audioReactive) ? 'Disable global FX for this item' : 'Enable global FX for this item'}
+                              >{(item.enableGlobalFx !== undefined ? item.enableGlobalFx : item.audioReactive) ? 'On' : 'Off'}</button>
                               <button
                                 className="vz-li-reset-btn"
                                 disabled={item.locked}
@@ -268,7 +271,7 @@ export function VzLayersPanel() {
                                 title={item.locked ? 'Unlock to reset transform' : 'Reset position, scale, and rotation'}
                               >↺ Reset</button>
                             </div>
-                            {item.audioReactive && !audioReactivityEnabled && (
+                            {(item.enableGlobalFx !== undefined ? item.enableGlobalFx : item.audioReactive) && !audioReactivityEnabled && (
                               <div className="vz-li-audio-off-hint">
                                 Inactive — global Audio Reactivity is off
                               </div>

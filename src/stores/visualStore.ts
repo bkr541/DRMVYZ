@@ -380,6 +380,8 @@ interface VisualState {
   effects: VzEffects
   effectParams: VzEffectParams
   enabledFxArr: string[]
+  /** Incremented each time GLOBAL_FX_DEFAULTS have been injected. Prevents re-adding them on every reload. */
+  effectChainDefaultsVersion: number
   activePresetId: string
   activeMediaId: string | null
   bpm: number
@@ -629,8 +631,9 @@ export const useVisualStore = create<VisualState>()(
     (set, get) => ({
       effects:           DEFAULT_PRESETS[0].effects,   // clean-playback — no expensive effects
       effectParams:      DEFAULT_EFFECT_PARAMS,
-      enabledFxArr:      DEFAULT_PRESETS[0].enabledFx, // [] — no effects enabled on cold start
-      activePresetId:    DEFAULT_PRESETS[0].id,         // 'clean-playback'
+      enabledFxArr:            DEFAULT_PRESETS[0].enabledFx, // [] — no effects enabled on cold start
+      effectChainDefaultsVersion: 1,
+      activePresetId:          DEFAULT_PRESETS[0].id,         // 'clean-playback'
       activeMediaId:     null,
       bpm:               120,
       bpmSync:           false,
@@ -1319,7 +1322,7 @@ export const useVisualStore = create<VisualState>()(
             return {
               layerItems: s.layerItems.map(i =>
                 i.id === elementId
-                  ? { ...i, colorGrade: { ...DEFAULT_COLOR_GRADE }, audioReactive: false }
+                  ? { ...i, colorGrade: { ...DEFAULT_COLOR_GRADE }, audioReactive: false, enableGlobalFx: false }
                   : i,
               ),
               timelineEffectRegions: newRegions,
@@ -1444,10 +1447,11 @@ export const useVisualStore = create<VisualState>()(
     {
       name: 'drmvyz-visual-store',
       partialize: (s) => ({
-        effects:           s.effects,
-        effectParams:      s.effectParams,
-        enabledFxArr:      s.enabledFxArr,
-        activePresetId:    s.activePresetId,
+        effects:                    s.effects,
+        effectParams:               s.effectParams,
+        enabledFxArr:               s.enabledFxArr,
+        effectChainDefaultsVersion: s.effectChainDefaultsVersion,
+        activePresetId:             s.activePresetId,
         // INTENTIONAL: activeMediaId and layerItems are NOT persisted.
         // The canvas must start blank on every launch so users begin each session
         // with a clean slate. This is by design — do not restore these fields.
@@ -1487,15 +1491,16 @@ export const useVisualStore = create<VisualState>()(
         ]
         // Migration 0010: Bass Reactivity / Reactive Scale / Master Intensity were
         // added to effect_chain_options. Pre-migration sessions lack these names in
-        // enabledFxArr, which would silently disable them. Auto-add them so existing
-        // projects keep their current "always on" behaviour. Users can then toggle
-        // them off explicitly and that choice will persist on next save.
+        // enabledFxArr, which would silently disable them. Auto-add them once so
+        // existing projects keep their current "always on" behaviour. The version
+        // marker prevents re-adding them on every subsequent reload, so explicit
+        // user toggles-off are preserved.
         const GLOBAL_FX_DEFAULTS = ['Master Intensity', 'Bass Reactivity', 'Reactive Scale']
         const savedFxArr = [...(p.enabledFxArr ?? [])]
-        const mergedFxArr = [
-          ...savedFxArr,
-          ...GLOBAL_FX_DEFAULTS.filter(name => !savedFxArr.includes(name)),
-        ]
+        const alreadyMigrated = ((p as any).effectChainDefaultsVersion ?? 0) >= 1
+        const mergedFxArr = alreadyMigrated
+          ? savedFxArr
+          : [...savedFxArr, ...GLOBAL_FX_DEFAULTS.filter(name => !savedFxArr.includes(name))]
         return {
           ...current,
           ...p,
@@ -1504,6 +1509,7 @@ export const useVisualStore = create<VisualState>()(
           effects:          { ...DEFAULT_EFFECTS, ...(p.effects ?? {}) },
           effectParams:     p.effectParams ?? DEFAULT_EFFECT_PARAMS,
           enabledFxArr:     mergedFxArr,
+          effectChainDefaultsVersion: 1,
           presets:          [...DEFAULT_PRESETS, ...(p.presets ?? [])],
           sessions,
           modulationRoutes: mergedRoutes,

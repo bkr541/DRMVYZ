@@ -1757,6 +1757,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       const compositeOp = getCompositeOpForRole(role)
       const clipMediaScale    = activeClipRef.current?.mediaScale ?? 1
       const clipEnableGlobalFx = activeClipRef.current?.enableGlobalFx
+      const bgGlobalFxOn = resolveClipGlobalFx(clipEnableGlobalFx, role)
       const scale = shouldApplyScalePulse(role, clipEnableGlobalFx)
         ? clipMediaScale * bassReact * punchScale * activeLogoScale
         : clipMediaScale
@@ -1818,7 +1819,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         // to 1 whenever any of these effects are active simultaneously.
         // Skipped when GPU path is active — GPU compositor handles this internally.
         const needsSnap =
-          !isGpu && (
+          bgGlobalFxOn && !isGpu && (
             (fxSet.has('RGB Split')    && mEff.rgbSplit  > 0) ||
             (fxSet.has('Bloom')        && bloomMod        > 0) ||
             (fxSet.has('Displacement') && dispMod         > 0)
@@ -1842,7 +1843,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           if (import.meta.env.DEV) devSrcDrawsRef.current++
         }
 
-        if (!isGpu && fxSet.has('RGB Split') && mEff.rgbSplit > 0) {
+        if (bgGlobalFxOn && !isGpu && fxSet.has('RGB Split') && mEff.rgbSplit > 0) {
           const shift = mEff.rgbSplit * 14
           ctx.save()
           ctx.globalCompositeOperation = 'screen'
@@ -2030,14 +2031,14 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
               mediaEl,
               canvasW: W, canvasH: H,
               ox, oy, sw, sh,
-              rgbShiftPx:  fxSet.has('RGB Split') ? mEff.rgbSplit * 14 : 0,
-              bloomBlurPx: (fxSet.has('Bloom') && bloomMod > 0) ? bloomMod * q.bloomBlur : 0,
-              bloomAmount: bloomMod,
+              rgbShiftPx:  bgGlobalFxOn && fxSet.has('RGB Split') ? mEff.rgbSplit * 14 : 0,
+              bloomBlurPx: bgGlobalFxOn && fxSet.has('Bloom') && bloomMod > 0 ? bloomMod * q.bloomBlur : 0,
+              bloomAmount: bgGlobalFxOn ? bloomMod : 0,
               bgR: 9 / 255, bgG: 13 / 255, bgB: 15 / 255,
               grainAmount: ppParams.grainAmount,
               scanAlpha:   ppParams.scanAlpha,
               scanStep:    ppParams.scanStep,
-              ...dispParams,
+              ...(bgGlobalFxOn ? dispParams : { dispOffXPx: 0, dispOffYPx: 0, dispAmount: 0, dispHueRad: 0 }),
               ...pdParams,
               ...bloomExtra,
               ...fbParams,
@@ -2076,6 +2077,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             const seTxIn  = clipTxInStateRef.current
             const seTxOut = clipTxOutStateRef.current
             const seTx    = seTxIn ?? seTxOut
+            const bgColorShift = bgGlobalFxOn ? activeColorShift : 0
             if (seTx) {
               // Pre-bake grade+colorShift to a helper canvas, then route through
               // the single-element transition renderer.
@@ -2083,7 +2085,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
               const cgBufCtx = cgBuf.getContext('2d')!
               cgBufCtx.clearRect(0, 0, W, H)
               cgBufCtx.save()
-              const shiftPart = activeColorShift > 0 ? `hue-rotate(${activeColorShift * 360}deg)` : ''
+              const shiftPart = bgColorShift > 0 ? `hue-rotate(${bgColorShift * 360}deg)` : ''
               const gradePart = canvasGradeFilter !== 'none' ? canvasGradeFilter : ''
               const combined  = [gradePart, shiftPart].filter(Boolean).join(' ')
               if (combined) cgBufCtx.filter = combined
@@ -2106,12 +2108,12 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
               if (compositeOp !== 'source-over') ctx.globalCompositeOperation = compositeOp
               if (srcSnap) {
                 // Reuse the snap (grade already baked in). Apply colorShift only.
-                if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
+                if (bgColorShift > 0) ctx.filter = `hue-rotate(${bgColorShift * 360}deg)`
                 ctx.drawImage(srcSnap, 0, 0)
                 if (import.meta.env.DEV) devEffPassRef.current++
               } else {
                 // Direct draw: combine the color grade filter with colorShift hue-rotate.
-                const shiftPart = activeColorShift > 0 ? `hue-rotate(${activeColorShift * 360}deg)` : ''
+                const shiftPart = bgColorShift > 0 ? `hue-rotate(${bgColorShift * 360}deg)` : ''
                 const gradePart = canvasGradeFilter !== 'none' ? canvasGradeFilter : ''
                 const combined  = [gradePart, shiftPart].filter(Boolean).join(' ')
                 if (combined) ctx.filter = combined
@@ -2125,7 +2127,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           }
         }
 
-        if (!isGpu && fxSet.has('Bloom') && bloomMod > 0) {
+        if (bgGlobalFxOn && !isGpu && fxSet.has('Bloom') && bloomMod > 0) {
           const blurPx = Math.round(bloomMod * q.bloomBlur)
           if (blurPx > 0) {
             // Reduced-resolution bloom: downsample srcSnap to W/2 × H/2, blur there
@@ -2159,7 +2161,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
 
         // GPU handles Displacement in Stage 5 of renderFrame when isGpu is true.
         // Canvas path runs only in Canvas 2D mode (isGpu=false).
-        if (!isGpu && fxSet.has('Displacement') && dispMod > 0) {
+        if (bgGlobalFxOn && !isGpu && fxSet.has('Displacement') && dispMod > 0) {
           const dispAngle = synced ? beatPhase * Math.PI * 2 : t * 0.002
           const offX = Math.sin(dispAngle) * dispMod * 12
           const offY = Math.cos(synced ? beatPhase * Math.PI * 2 : t * 0.0017) * dispMod * 8
@@ -2256,7 +2258,8 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
 
           const { w, h } = computeLayerItemDrawSize(W, H, el, item.fitMode)
           const { ox, oy } = getLayerItemAnchorOffset(item.anchor, w, h)
-          const audioScale = item.audioReactive ? bassReact * punchScale * activeLogoScale : 1
+          const itemGlobalFx = item.enableGlobalFx !== undefined ? item.enableGlobalFx : item.audioReactive
+          const audioScale = itemGlobalFx ? bassReact * punchScale * activeLogoScale : 1
           const totalScale = item.scale * audioScale
 
           // Collect targeted effects for this item (by layer or by item id)
@@ -2283,21 +2286,23 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             for (const { mod, intensity } of itemFx) {
               mod!.draw(offCtx, frameCtx, { ...mod!.defaultParams, amount: intensity })
             }
+            const itemColorShift = itemGlobalFx ? activeColorShift : 0
             ctx.save()
             ctx.globalAlpha = layerConfig.opacity * item.opacity
             if (item.blendMode !== 'source-over') ctx.globalCompositeOperation = item.blendMode
-            if (activeColorShift > 0) ctx.filter = `hue-rotate(${activeColorShift * 360}deg)`
+            if (itemColorShift > 0) ctx.filter = `hue-rotate(${itemColorShift * 360}deg)`
             ctx.drawImage(off, 0, 0)
             ctx.filter = 'none'
             ctx.globalCompositeOperation = 'source-over'
             ctx.globalAlpha = 1
             ctx.restore()
           } else {
+            const itemColorShift = itemGlobalFx ? activeColorShift : 0
             ctx.save()
             ctx.globalAlpha = layerConfig.opacity * item.opacity
             if (item.blendMode !== 'source-over') ctx.globalCompositeOperation = item.blendMode
             // Combine the item color grade with the global colorShift hue-rotate.
-            const shiftPart = activeColorShift > 0 ? `hue-rotate(${activeColorShift * 360}deg)` : ''
+            const shiftPart = itemColorShift > 0 ? `hue-rotate(${itemColorShift * 360}deg)` : ''
             const gradePart = itemGradeFilter !== 'none' ? itemGradeFilter : ''
             const combined  = [gradePart, shiftPart].filter(Boolean).join(' ')
             if (combined) ctx.filter = combined
@@ -2409,6 +2414,8 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
 
           // Per-overlay color grade (Canvas 2D filter; temperature/tint GPU-only).
           const ocGradeFilter = buildCanvasColorGradeFilter(oc.colorGrade, cgBypass)
+          const ocGlobalFx    = resolveClipGlobalFx(oc.enableGlobalFx, m.mediaRole ?? null)
+          const ocColorShift  = ocGlobalFx ? activeColorShift : 0
 
           // Per-clip single-element transitions for overlay clips
           const ocTxIn  = getClipTransitionInState(oc,  timelineClockRef.current)
@@ -2439,7 +2446,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
               renderSingleElementTransition({
                 ctx, W, H, el: off,
                 rect: { ox: 0, oy: 0, sw: W, sh: H },
-                state: ocTx, time: t, colorShift: activeColorShift,
+                state: ocTx, time: t, colorShift: ocColorShift,
                 bass: activeBands.bass, beat: activeBands.beat,
                 compositeOp: cfg.blendMode as GlobalCompositeOperation,
                 baseOpacity: cfg.opacity,
@@ -2455,7 +2462,10 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             ctx.save()
             ctx.globalAlpha              = cfg.opacity
             ctx.globalCompositeOperation = cfg.blendMode as GlobalCompositeOperation
-            if (ocGradeFilter !== 'none') ctx.filter = ocGradeFilter
+            const ocFilter = ocGradeFilter !== 'none' || ocColorShift > 0
+              ? [ocGradeFilter !== 'none' ? ocGradeFilter : '', ocColorShift > 0 ? `hue-rotate(${ocColorShift * 360}deg)` : ''].filter(Boolean).join(' ')
+              : 'none'
+            if (ocFilter !== 'none') ctx.filter = ocFilter
             if (cfg.rotation !== 0 || cfg.posX !== 0.5 || cfg.posY !== 0.5) {
               const ocx = cfg.posX * W
               const ocy = cfg.posY * H
