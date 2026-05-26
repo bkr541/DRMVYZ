@@ -1065,7 +1065,11 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       if (enabledFxRef.current.size > 0) return true            // any effect = time/beat/audio driven
       if (audioReactivityEnabledRef.current && analyserRef.current) return true  // audio bands change every frame
       if (transitionStateRef.current !== null) return true      // transition progress animates
-      if (!mediaElRef.current) return true                      // generative art uses perf.now() time
+      const el = mediaElRef.current
+      if (!el) return true                                      // generative art uses perf.now() time
+      // Keep loop running until video has at least one decodable frame (readyState >= HAVE_CURRENT_DATA).
+      // rVFC never fires for readyState < 2, so vfcDriven mode would freeze the canvas permanently.
+      if (el instanceof HTMLVideoElement && el.readyState < 2) return true
       return false
     }
 
