@@ -21,8 +21,10 @@ import {
   reorderCollectionItems as dbReorderCollectionItems,
 } from '../lib/mediaDb'
 import type { MediaItemRow, MediaMetadata } from '../types/database'
-import { suggestMediaRole } from '../lib/mediaRoles'
+import { suggestMediaRole, isAudioFile } from '../lib/mediaRoles'
 import type { MediaRole, MediaEnergy } from '../lib/mediaRoles'
+import { useAudioStore } from './audioStore'
+import { analyzeAudioFile } from '../utils/analyzeAudioFile'
 import { useVisualStore } from './visualStore'
 import { generateThumbnail, clearFilmstripCache } from '../components/vyzualz/media/generateThumbnail'
 
@@ -58,6 +60,7 @@ export interface UploadQueueItem {
   file: File
   previewUrl: string        // object URL for preview in modal
   suggestedRole: MediaRole
+  isAudio: boolean
 }
 
 export interface UploadDraft {
@@ -67,6 +70,11 @@ export interface UploadDraft {
   tags: string[]
   collectionIds: string[]
   metadata: MediaMetadata
+  // Audio-specific fields (only used when queue contains audio files)
+  audioArtist: string
+  audioGenre: string
+  audioBpm: string       // kept as string to match text/number input value
+  audioMusicalKey: string
 }
 
 export type MediaFilter = 'all' | 'images' | 'videos' | 'favorites' | MediaRole
@@ -84,6 +92,10 @@ const DEFAULT_DRAFT: UploadDraft = {
   tags: [],
   collectionIds: [],
   metadata: {},
+  audioArtist: '',
+  audioGenre: '',
+  audioBpm: '',
+  audioMusicalKey: '',
 }
 
 // ── Local helpers ─────────────────────────────────────────────────────────────
@@ -341,6 +353,10 @@ interface MediaState {
   setUploadDraftTags(tags: string[]): void
   setUploadDraftCollections(ids: string[]): void
   setUploadDraftMetadata(patch: Partial<MediaMetadata>): void
+  setUploadDraftAudioArtist(v: string): void
+  setUploadDraftAudioGenre(v: string): void
+  setUploadDraftAudioBpm(v: string): void
+  setUploadDraftAudioMusicalKey(v: string): void
   resetUploadDraft(): void
 
   // Upload
@@ -409,15 +425,19 @@ export const useMediaStore = create<MediaState>((set, get) => ({
 
   addFilesToUploadQueue(files) {
     const mediaFiles = files.filter(f =>
-      f.type.startsWith('image/') || f.type.startsWith('video/') ||
-      /\.(png|jpe?g|gif|webp|mp4|mov|webm|mkv)$/i.test(f.name)
+      f.type.startsWith('image/') || f.type.startsWith('video/') || f.type.startsWith('audio/') ||
+      /\.(png|jpe?g|gif|webp|mp4|mov|webm|mkv|mp3|wav|aiff?|m4a|ogg|flac)$/i.test(f.name)
     )
-    const items: UploadQueueItem[] = mediaFiles.map(file => ({
-      tempId: generateId(),
-      file,
-      previewUrl: URL.createObjectURL(file),
-      suggestedRole: suggestMediaRole(file),
-    }))
+    const items: UploadQueueItem[] = mediaFiles.map(file => {
+      const audio = isAudioFile(file)
+      return {
+        tempId: generateId(),
+        file,
+        previewUrl: URL.createObjectURL(file),
+        suggestedRole: audio ? 'audio_track' : suggestMediaRole(file),
+        isAudio: audio,
+      }
+    })
     set(s => ({ uploadQueue: [...s.uploadQueue, ...items] }))
   },
 
@@ -442,7 +462,11 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   setUploadDraftTags(tags)               { set(s => ({ uploadDraft: { ...s.uploadDraft, tags } })) },
   setUploadDraftCollections(collectionIds) { set(s => ({ uploadDraft: { ...s.uploadDraft, collectionIds } })) },
   setUploadDraftMetadata(patch)          { set(s => ({ uploadDraft: { ...s.uploadDraft, metadata: { ...s.uploadDraft.metadata, ...patch } } })) },
-  resetUploadDraft()                     { set({ uploadDraft: { ...DEFAULT_DRAFT } }) },
+  setUploadDraftAudioArtist(v)     { set(s => ({ uploadDraft: { ...s.uploadDraft, audioArtist: v } })) },
+  setUploadDraftAudioGenre(v)      { set(s => ({ uploadDraft: { ...s.uploadDraft, audioGenre: v } })) },
+  setUploadDraftAudioBpm(v)        { set(s => ({ uploadDraft: { ...s.uploadDraft, audioBpm: v } })) },
+  setUploadDraftAudioMusicalKey(v) { set(s => ({ uploadDraft: { ...s.uploadDraft, audioMusicalKey: v } })) },
+  resetUploadDraft()               { set({ uploadDraft: { ...DEFAULT_DRAFT } }) },
 
   // ── Upload: queue-based (modal path) ─────────────────────────────────────
 
@@ -450,6 +474,30 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     const { uploadQueue, uploadDraft } = get()
     if (!uploadQueue.length) return
 
+    // ── Audio upload path ─────────────────────────────────────────────────
+    const isAudioQueue = uploadQueue.every(q => q.isAudio)
+    if (isAudioQueue) {
+      const userId = await getCurrentUserId()
+      if (!userId) { set({ authRequired: true }); return }
+
+      for (const q of uploadQueue) {
+        const analysis = await analyzeAudioFile(q.file).catch(() => null)
+        await useAudioStore.getState().uploadAndSaveTrack({
+          file:       q.file,
+          title:      uploadDraft.title,
+          artist:     uploadDraft.audioArtist,
+          genre:      uploadDraft.audioGenre,
+          bpmInput:   uploadDraft.audioBpm,
+          musicalKey: uploadDraft.audioMusicalKey,
+          userId,
+          analysis,
+        })
+      }
+      get().clearUploadQueue()
+      return
+    }
+
+    // ── Visual media upload path (existing) ───────────────────────────────
     const localItems = await Promise.all(
       uploadQueue.map(q =>
         buildLocalItem(q.file, {

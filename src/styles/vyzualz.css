@@ -1124,6 +1124,128 @@
   text-overflow: ellipsis;
 }
 
+/* ── Audio Track rows (Tracks tab) ───────────────────────────────────── */
+
+.vz-track-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 6px;
+}
+
+.vz-track-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: var(--az-panel2);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.vz-track-row:hover {
+  border-color: rgba(74,199,219,0.28);
+  box-shadow: 0 0 8px rgba(74,199,219,0.08);
+}
+
+.vz-track-row-icon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  background: rgba(74,199,219,0.1);
+  border: 1px solid rgba(74,199,219,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(74,199,219,0.7);
+}
+
+.vz-track-row-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vz-track-row-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(232,238,240,0.85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vz-track-row-meta {
+  font-size: 10px;
+  color: rgba(196,207,211,0.5);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vz-track-row-artist {
+  color: rgba(74,199,219,0.6);
+}
+
+.vz-track-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.vz-track-load-btn {
+  padding: 3px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--az-font);
+  letter-spacing: 0.04em;
+  color: var(--az-cyan);
+  background: rgba(74,199,219,0.12);
+  border: 1px solid rgba(74,199,219,0.22);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, opacity 0.12s;
+  white-space: nowrap;
+}
+.vz-track-load-btn:hover:not(:disabled) {
+  background: rgba(74,199,219,0.22);
+  border-color: rgba(74,199,219,0.4);
+}
+.vz-track-load-btn:disabled { opacity: 0.5; cursor: default; }
+
+.vz-track-remove-btn {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  color: rgba(196,207,211,0.35);
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+.vz-track-remove-btn:hover {
+  color: #f87171;
+  background: rgba(248,113,113,0.1);
+}
+
+.vz-track-empty {
+  padding: 14px 10px;
+  font-size: 11px;
+  color: var(--az-text-faint);
+  text-align: center;
+}
+
 /* ── Live Visual Preview ─────────────────────────────────────────────── */
 .vz-preview-panel {
   flex: 1;

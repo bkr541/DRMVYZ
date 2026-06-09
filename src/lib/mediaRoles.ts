@@ -13,6 +13,7 @@ export type MediaRole =
   | 'transition'
   | 'reference'
   | 'other'
+  | 'audio_track'
 
 export type MediaEnergy = 'low' | 'medium' | 'high' | 'peak'
 
@@ -28,7 +29,11 @@ export const MEDIA_ROLES: MediaRole[] = [
   'transition',
   'reference',
   'other',
+  'audio_track',
 ]
+
+/** Roles that represent visual media (images/video). audio_track is excluded. */
+export const VISUAL_MEDIA_ROLES: MediaRole[] = MEDIA_ROLES.filter(r => r !== 'audio_track')
 
 export const MEDIA_ROLE_LABELS: Record<MediaRole, string> = {
   background_image:    'Background Image',
@@ -42,6 +47,7 @@ export const MEDIA_ROLE_LABELS: Record<MediaRole, string> = {
   transition:          'Transition',
   reference:           'Reference',
   other:               'Other',
+  audio_track:         'Audio Track',
 }
 
 /** Compact human-readable labels for badge display on timeline clips and deck cards. */
@@ -57,6 +63,7 @@ export const MEDIA_ROLE_BADGE_LABELS: Record<MediaRole, string> = {
   transition:          'Transition',
   reference:           'Reference',
   other:               'Other',
+  audio_track:         'Audio',
 }
 
 // Used in role <select> option groups
@@ -72,6 +79,7 @@ export const MEDIA_ROLE_ICONS: Record<MediaRole, string> = {
   transition:          '⇌',
   reference:           '◯',
   other:               '●',
+  audio_track:         '♪',
 }
 
 // Filename keyword patterns → suggested role. Order is intentional (first match wins).
@@ -85,11 +93,17 @@ const ROLE_HINTS: [RegExp, MediaRole][] = [
   [/char|character/i,  'character_art'],
 ]
 
+/** Returns true when the file is an audio file by MIME type or extension. */
+export function isAudioFile(file: File): boolean {
+  return file.type.startsWith('audio/') || /\.(mp3|wav|aiff?|m4a|ogg|flac)$/i.test(file.name)
+}
+
 /**
  * Returns a suggested MediaRole based on filename and MIME type.
  * Used as the initial role when a file is added to the modal.
  */
 export function suggestMediaRole(file: File): MediaRole {
+  if (isAudioFile(file)) return 'audio_track'
   for (const [re, role] of ROLE_HINTS) {
     if (re.test(file.name)) return role
   }

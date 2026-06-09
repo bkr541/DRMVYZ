@@ -15,7 +15,7 @@ export type ExportFormat = 'png' | 'jpeg' | 'webm' | 'gif'
 export type MediaRoleDb  =
   | 'background_image' | 'background_video' | 'logo' | 'transparent_element'
   | 'overlay' | 'character_art' | 'texture' | 'loop' | 'transition'
-  | 'reference' | 'other'
+  | 'reference' | 'other' | 'audio_track'
 
 // Rich per-item metadata stored as JSONB in the media_items.metadata column.
 // width/height/duration also live in their own columns for backward compat.
@@ -85,9 +85,16 @@ export interface AudioTrack {
   file_size: number | null
   mime_type: string | null
   source_type: AudioSource | null
+  // Added in migration 0011
+  artist: string | null
+  genre: string | null
+  bpm: number | null
+  musical_key: string | null
   created_at: string
   updated_at: string
 }
+
+export type AudioTrackInsert = Omit<AudioTrack, 'id' | 'created_at' | 'updated_at'>
 
 export interface TrackAnalysisRow {
   id: string
@@ -355,7 +362,7 @@ export interface Database {
       sessions:               { Row: Session;              Insert: Omit<Session, 'id'>;                                    Update: Partial<Omit<Session, 'id'>> }
       user_settings:          { Row: UserSettings;         Insert: Pick<UserSettings,'user_id'> & Partial<UserSettings>;   Update: Partial<Omit<UserSettings,'user_id'>> }
       tags:                   { Row: Tag;                  Insert: Omit<Tag,'id'>;                                         Update: Partial<Omit<Tag,'id'>> }
-      audio_tracks:           { Row: AudioTrack;           Insert: Omit<AudioTrack,'id'|'created_at'|'updated_at'>;        Update: Partial<Omit<AudioTrack,'id'>> }
+      audio_tracks:           { Row: AudioTrack;           Insert: AudioTrackInsert;                                       Update: Partial<Omit<AudioTrack,'id'>> }
       track_analyses:         { Row: TrackAnalysisRow;     Insert: Omit<TrackAnalysisRow,'id'|'analyzed_at'>;              Update: Partial<Omit<TrackAnalysisRow,'id'>> }
       analyzer_sessions:      { Row: AnalyzerSessionRow;   Insert: Omit<AnalyzerSessionRow,'id'|'created_at'|'updated_at'>;Update: Partial<Omit<AnalyzerSessionRow,'id'>> }
       ring_buffer_exports:    { Row: RingBufferExport;     Insert: Omit<RingBufferExport,'id'|'exported_at'>;              Update: Partial<Omit<RingBufferExport,'id'>> }

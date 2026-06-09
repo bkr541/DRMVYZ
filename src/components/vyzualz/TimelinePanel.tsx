@@ -451,10 +451,11 @@ function ColorGradeControls({
   return (
     <div className="vz-cg">
       <div className="vz-cg-toprow">
-        <label className="vz-ml-insp-check vz-cg-enable" title="Enable color grade for this source">
-          <input type="checkbox" checked={grade.enabled}
+        <label className="vz-ml-insp-toggle vz-cg-enable" title="Enable color grade for this source">
+          <input type="checkbox" className="vz-ml-insp-toggle-input" checked={grade.enabled}
             onChange={e => onChange({ enabled: e.target.checked })}
           />
+          <span className="vz-ml-insp-toggle-track" />
           Enable
         </label>
         <button

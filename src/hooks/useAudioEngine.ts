@@ -61,6 +61,9 @@ export interface AudioEngine {
   volume: number
   addTracks: (files: File[]) => void
   replaceTracks: (files: File[]) => void
+  /** Load pre-built tracks by URL (e.g. signed Supabase URLs) without a File object. */
+  addTrackUrls: (tracks: { name: string; url: string }[]) => void
+  replaceTrackUrls: (tracks: { name: string; url: string }[]) => void
   removeTrack: (id: string) => void
   selectTrack: (i: number) => void
   play: () => void
@@ -698,6 +701,32 @@ export function useAudioEngine(): AudioEngine {
     })
   }, [])
 
+  const addTrackUrls = useCallback((tracks: { name: string; url: string }[]) => {
+    const newTracks: Track[] = tracks.map(t => ({
+      id: generateId(), name: t.name,
+      displayName: getFilenameWithoutExtension(t.name),
+      url: t.url, duration: 0,
+    }))
+    setTracks(prev => {
+      if (prev.length === 0) setCurrentIndex(0)
+      return [...prev, ...newTracks]
+    })
+  }, [])
+
+  const replaceTrackUrls = useCallback((tracks: { name: string; url: string }[]) => {
+    const newTracks: Track[] = tracks.map(t => ({
+      id: generateId(), name: t.name,
+      displayName: getFilenameWithoutExtension(t.name),
+      url: t.url, duration: 0,
+    }))
+    setTracks(prev => {
+      // Only revoke blob: URLs — signed Supabase URLs should not be revoked
+      prev.forEach(t => { if (t.url.startsWith('blob:')) URL.revokeObjectURL(t.url) })
+      setCurrentIndex(newTracks.length > 0 ? 0 : -1)
+      return newTracks
+    })
+  }, [])
+
   const removeTrack = useCallback((id: string) => {
     setTracks(prev => {
       const idx = prev.findIndex(t => t.id === id)
@@ -757,7 +786,7 @@ export function useAudioEngine(): AudioEngine {
   return {
     source, setSource, micError, isActive,
     tracks, currentIndex, isPlaying, currentTime, getCurrentTime, duration, volume,
-    addTracks, replaceTracks, removeTrack, selectTrack, play, pause, stop, next, prev, seek, setVolume,
+    addTracks, replaceTracks, addTrackUrls, replaceTrackUrls, removeTrack, selectTrack, play, pause, stop, next, prev, seek, setVolume,
     analyserMaster: aMasterRef.current,
     analyserL: aLRef.current,
     analyserR: aRRef.current,

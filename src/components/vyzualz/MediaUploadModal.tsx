@@ -2,15 +2,17 @@ import { useState, useRef, useEffect, useCallback, useId } from 'react'
 import { useMediaStore } from '../../stores/mediaStore'
 import type { MediaCollection, UploadedMedia } from '../../stores/mediaStore'
 import {
-  MEDIA_ROLES,
+  VISUAL_MEDIA_ROLES,
   MEDIA_ROLE_LABELS,
   MEDIA_ROLE_ICONS,
   ENERGY_LABELS,
   MUSICAL_KEYS,
   suggestMediaRole,
   roleImpliesAlpha,
+  isAudioFile,
 } from '../../lib/mediaRoles'
 import type { MediaRole, MediaEnergy } from '../../lib/mediaRoles'
+import { analyzeAudioFile } from '../../utils/analyzeAudioFile'
 
 // ── Local display metadata ────────────────────────────────────────────────────
 // Separate from store queue — purely for thumbnail/dims display in modal file list
@@ -20,6 +22,7 @@ interface EntryDisplay {
   width?: number
   height?: number
   duration?: number
+  isAudio?: boolean
   status: 'ready' | 'uploading' | 'done' | 'error'
   errorMsg?: string
 }
@@ -77,7 +80,19 @@ function fmtDur(s: number): string {
   return `${m}:${sec.toString().padStart(2, '0')}`
 }
 
-const ACCEPT = 'image/png,image/jpeg,image/gif,image/webp,image/svg+xml,video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm,.png,.jpg,.jpeg,.gif,.webp,.svg'
+function getFilenameWithoutExt(name: string): string {
+  return name.replace(/\.[^.]+$/, '')
+}
+
+const ACCEPT = [
+  'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml',
+  'video/mp4', 'video/quicktime', 'video/webm',
+  'audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/aiff', 'audio/x-aiff',
+  'audio/flac', 'audio/ogg', 'audio/mp4', 'audio/x-m4a',
+  '.mp4', '.mov', '.webm', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg',
+  '.mp3', '.wav', '.aif', '.aiff', '.m4a', '.ogg', '.flac',
+].join(',')
+
 const MAX_FILE_LABEL = '5 GB'
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -137,6 +152,10 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
     setUploadDraftTags,
     setUploadDraftCollections,
     setUploadDraftMetadata,
+    setUploadDraftAudioArtist,
+    setUploadDraftAudioGenre,
+    setUploadDraftAudioBpm,
+    setUploadDraftAudioMusicalKey,
     resetUploadDraft,
     uploadQueuedMedia,
     saveMediaEdits,
@@ -147,6 +166,8 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
 
   // Local display metadata keyed by tempId — only for thumbnail/dims in file list
   const [displayMeta, setDisplayMeta] = useState<Map<string, EntryDisplay>>(new Map())
+  // Detected BPM from background analysis (pre-fills the field when available)
+  const [analyzingAudio, setAnalyzingAudio] = useState(false)
 
   const [tagInput,  setTagInput]  = useState('')
   const [collInput, setCollInput] = useState('')
@@ -154,9 +175,13 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
   const [uploading, setUploading] = useState(false)
   const [saving,    setSaving]    = useState(false)
   const [uploadAnother, setUploadAnother] = useState(false)
+  const [bpmError,  setBpmError]  = useState('')
 
   const fileInputId = useId()
   const dropRef = useRef<HTMLDivElement>(null)
+
+  // Whether the current queue is all audio files
+  const isAudioQueue = uploadQueue.length > 0 && uploadQueue.every(q => q.isAudio)
 
   useEffect(() => { loadCollections() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -184,9 +209,26 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
   // Auto-suggest role when first file is added
   useEffect(() => {
     if (uploadQueue.length === 1) {
-      const role = uploadQueue[0].suggestedRole
-      setUploadDraftRole(role)
-      setUploadDraftMetadata({ hasAlpha: roleImpliesAlpha(role) })
+      const q = uploadQueue[0]
+      if (q.isAudio) {
+        setUploadDraftRole('audio_track')
+        // Default title to filename without extension
+        if (!uploadDraft.title) setUploadDraftTitle(getFilenameWithoutExt(q.file.name))
+        // Background BPM detection
+        setAnalyzingAudio(true)
+        analyzeAudioFile(q.file)
+          .then(result => {
+            if (result.bpm !== null && !uploadDraft.audioBpm) {
+              setUploadDraftAudioBpm(String(result.bpm))
+            }
+          })
+          .catch(() => { /* non-fatal */ })
+          .finally(() => setAnalyzingAudio(false))
+      } else {
+        const role = q.suggestedRole
+        setUploadDraftRole(role)
+        setUploadDraftMetadata({ hasAlpha: roleImpliesAlpha(role) })
+      }
     }
   }, [uploadQueue.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -197,8 +239,8 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
 
   const addFiles = useCallback(async (files: File[]) => {
     const valid = files.filter(f =>
-      f.type.startsWith('image/') || f.type.startsWith('video/') ||
-      /\.(png|jpe?g|gif|webp|svg|mp4|mov|webm)$/i.test(f.name)
+      f.type.startsWith('image/') || f.type.startsWith('video/') || f.type.startsWith('audio/') ||
+      /\.(png|jpe?g|gif|webp|svg|mp4|mov|webm|mp3|wav|aiff?|m4a|ogg|flac)$/i.test(f.name)
     )
     if (!valid.length) return
 
@@ -209,16 +251,24 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
     // Build display metadata async
     const newMeta = new Map<string, EntryDisplay>()
     await Promise.all(valid.map(async (file, i) => {
-      // Re-read queue after adding — tempId is generated in store
-      // We need to access the store directly here since state hasn't re-rendered
       const queue = useMediaStore.getState().uploadQueue
       const item = queue[prevLen + i]
       if (!item) return
 
       const objUrl  = item.previewUrl
       const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(file.name)
+      const isAudio = item.isAudio
 
-      if (isVideo) {
+      if (isAudio) {
+        // Audio: show a waveform placeholder, duration via Audio element
+        const audio = new Audio()
+        const dur = await new Promise<number>(res => {
+          audio.onloadedmetadata = () => res(audio.duration || 0)
+          audio.onerror = () => res(0)
+          audio.src = objUrl
+        })
+        newMeta.set(item.tempId, { thumbnailUrl: null, isAudio: true, duration: dur, status: 'ready' })
+      } else if (isVideo) {
         const [thumb, duration] = await Promise.all([grabVideoThumb(objUrl), getVidDuration(objUrl)])
         newMeta.set(item.tempId, { thumbnailUrl: thumb, duration, status: 'ready' })
       } else {
@@ -291,9 +341,20 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
     }
   }
 
+  // BPM validation
+  const handleBpmChange = (v: string) => {
+    setUploadDraftAudioBpm(v)
+    if (v && (isNaN(parseFloat(v)) || parseFloat(v) <= 0)) {
+      setBpmError('BPM must be a positive number')
+    } else {
+      setBpmError('')
+    }
+  }
+
   // Upload
   const handleUpload = async () => {
     if (!uploadQueue.length) return
+    if (bpmError) return
     setUploading(true)
     setDisplayMeta(prev => {
       const next = new Map(prev)
@@ -359,7 +420,7 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
   const detectedDur    = firstMeta?.duration !== undefined ? firstMeta.duration.toFixed(2) : undefined
 
   const busy      = uploading || saving
-  const canUpload = uploadQueue.length > 0 && !busy
+  const canUpload = uploadQueue.length > 0 && !busy && !bpmError
   const canSave   = !busy
 
   // ── Additional Info item renderer ──────────────────────────────────────
@@ -388,8 +449,16 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
         {/* ── Header ─────────────────────────────────────────────────── */}
         <div className="mum-header">
           <div>
-            <div className="mum-title">{isEdit ? 'EDIT MEDIA' : 'MEDIA UPLOAD'}</div>
-            <div className="mum-subtitle">{isEdit ? 'Update metadata for this media item.' : 'Upload media and organize with roles, tags, and collections.'}</div>
+            <div className="mum-title">
+              {isEdit ? 'EDIT MEDIA' : isAudioQueue ? 'AUDIO UPLOAD' : 'MEDIA UPLOAD'}
+            </div>
+            <div className="mum-subtitle">
+              {isEdit
+                ? 'Update metadata for this media item.'
+                : isAudioQueue
+                  ? 'Upload audio tracks to your library.'
+                  : 'Upload media and organize with roles, tags, and collections.'}
+            </div>
           </div>
           <button className="mum-close" onClick={() => { if (!busy) onClose() }} aria-label="Close">×</button>
         </div>
@@ -422,6 +491,7 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
                 onChange={e => { addFiles(Array.from(e.target.files ?? [])); e.target.value = '' }}
               />
               <div className="mum-drop-hint">Supports: MP4, MOV, WEBM, PNG, JPG, GIF, WEBP, SVG</div>
+              <div className="mum-drop-hint">Audio: MP3, WAV, AIFF, M4A, OGG, FLAC</div>
               <div className="mum-drop-hint">Max file size: {MAX_FILE_LABEL}</div>
             </div>
 
@@ -438,9 +508,13 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
                     return (
                       <div key={q.tempId} className="mum-file-row">
                         <div className="mum-file-thumb">
-                          {dm?.thumbnailUrl
-                            ? <img src={dm.thumbnailUrl} alt="" />
-                            : <div className="mum-file-thumb-placeholder" />}
+                          {dm?.isAudio ? (
+                            <div className="mum-file-thumb-audio">♪</div>
+                          ) : dm?.thumbnailUrl ? (
+                            <img src={dm.thumbnailUrl} alt="" />
+                          ) : (
+                            <div className="mum-file-thumb-placeholder" />
+                          )}
                         </div>
                         <div className="mum-file-info">
                           <div className="mum-file-name">{q.file.name}</div>
@@ -468,146 +542,233 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
           {/* Right: metadata form */}
           <div className="mum-right">
 
-            {/* Media Role */}
-            <div className="mum-field">
-              <label className="mum-field-label">MEDIA ROLE<span className="mum-req">*</span></label>
-              <div className="mum-select-wrap">
-                <select
-                  className="mum-select"
-                  value={uploadDraft.role}
-                  onChange={e => handleRoleChange(e.target.value as MediaRole)}
-                >
-                  {MEDIA_ROLES.map(r => (
-                    <option key={r} value={r}>
-                      {MEDIA_ROLE_ICONS[r]}  {MEDIA_ROLE_LABELS[r]}
-                    </option>
-                  ))}
-                </select>
-                <svg className="mum-select-caret" viewBox="0 0 10 6" fill="currentColor">
-                  <path d="M0 0l5 6 5-6z"/>
-                </svg>
-              </div>
-              <div className="mum-field-hint">Role affects placement and visual behavior. You can change it later in the Clip Inspector.</div>
-            </div>
-
-            {/* Title */}
-            <div className="mum-field">
-              <label className="mum-field-label">TITLE <span className="mum-opt">(OPTIONAL)</span></label>
-              <input
-                className="mum-input"
-                placeholder="e.g. Portal Loop Alpha"
-                maxLength={22}
-                value={uploadDraft.title}
-                onChange={e => setUploadDraftTitle(e.target.value)}
-              />
-            </div>
-
-            {/* Description */}
-            <div className="mum-field">
-              <label className="mum-field-label">DESCRIPTION <span className="mum-opt">(OPTIONAL)</span></label>
-              <textarea
-                className="mum-textarea"
-                rows={3}
-                placeholder="Describe this media…"
-                value={uploadDraft.description}
-                onChange={e => setUploadDraftDescription(e.target.value)}
-              />
-            </div>
-
-            {/* Tags + Collections (side-by-side in edit mode) */}
-            <div className={isEdit ? 'mum-fields-row' : undefined}>
-              <div className="mum-field">
-                <label className="mum-field-label">TAGS</label>
-                <div className="mum-field-hint">Add or create tags to describe this media.</div>
-                <div className="mum-chip-input">
-                  <TagChips tags={uploadDraft.tags} onRemove={removeTag} />
-                  <input
-                    className="mum-chip-text"
-                    placeholder="Type to add tags…"
-                    value={tagInput}
-                    onChange={e => setTagInput(e.target.value)}
-                    onKeyDown={handleTagKey}
-                    onBlur={() => { if (tagInput.trim()) addTag(tagInput) }}
-                  />
-                  <svg className="mum-chip-caret" viewBox="0 0 10 6" fill="currentColor">
-                    <path d="M0 0l5 6 5-6z"/>
-                  </svg>
+            {/* ── Audio queue: locked role badge + Track Details ─── */}
+            {isAudioQueue && !isEdit ? (
+              <>
+                {/* Locked role indicator */}
+                <div className="mum-field">
+                  <label className="mum-field-label">MEDIA ROLE</label>
+                  <div className="mum-audio-role-badge">♪ Audio Track</div>
                 </div>
-              </div>
 
-              <div className="mum-field">
-                <label className="mum-field-label">COLLECTIONS</label>
-                <div className="mum-field-hint">Add this media to one or more collections.</div>
-                <div className="mum-chip-input" style={{ position: 'relative' }}>
-                  <CollectionChips
-                    ids={uploadDraft.collectionIds}
-                    collections={collections}
-                    onRemove={removeCollection}
-                  />
+                {/* Track title */}
+                <div className="mum-field">
+                  <label className="mum-field-label">TRACK TITLE <span className="mum-opt">(OPTIONAL)</span></label>
                   <input
-                    className="mum-chip-text"
-                    placeholder="Type to search or create…"
-                    value={collInput}
-                    onChange={e => setCollInput(e.target.value)}
-                    onKeyDown={handleCollKey}
+                    className="mum-input"
+                    placeholder={uploadQueue[0] ? getFilenameWithoutExt(uploadQueue[0].file.name) : 'e.g. My Track'}
+                    maxLength={120}
+                    value={uploadDraft.title}
+                    onChange={e => setUploadDraftTitle(e.target.value)}
                   />
-                  <svg className="mum-chip-caret" viewBox="0 0 10 6" fill="currentColor">
-                    <path d="M0 0l5 6 5-6z"/>
-                  </svg>
-                  {collInput && filteredColls.length > 0 && (
-                    <div className="mum-coll-dropdown">
-                      {filteredColls.map(c => (
-                        <button key={c.id} className="mum-coll-option" onClick={() => addCollection(c.id)}>
-                          {c.name}
-                        </button>
+                </div>
+
+                {/* Track Details group */}
+                <div className="mum-field">
+                  <label className="mum-field-label">
+                    TRACK DETAILS
+                    {analyzingAudio && <span className="mum-analyzing"> — Analyzing…</span>}
+                  </label>
+                  <div className="mum-track-details">
+                    <div className="mum-track-detail-row">
+                      <label className="mum-track-detail-label">ARTIST <span className="mum-opt">(OPTIONAL)</span></label>
+                      <input
+                        className="mum-input mum-input--sm"
+                        placeholder="e.g. Artist Name"
+                        value={uploadDraft.audioArtist}
+                        onChange={e => setUploadDraftAudioArtist(e.target.value)}
+                      />
+                    </div>
+                    <div className="mum-track-detail-row">
+                      <label className="mum-track-detail-label">GENRE <span className="mum-opt">(OPTIONAL)</span></label>
+                      <input
+                        className="mum-input mum-input--sm"
+                        placeholder="e.g. Electronic"
+                        value={uploadDraft.audioGenre}
+                        onChange={e => setUploadDraftAudioGenre(e.target.value)}
+                      />
+                    </div>
+                    <div className="mum-track-detail-row">
+                      <label className="mum-track-detail-label">BPM <span className="mum-opt">(OPTIONAL)</span></label>
+                      <div style={{ flex: 1 }}>
+                        <input
+                          className={`mum-input mum-input--sm${bpmError ? ' mum-input--error' : ''}`}
+                          type="number"
+                          min="1"
+                          max="999"
+                          step="0.1"
+                          placeholder={analyzingAudio ? 'Detecting…' : 'e.g. 128'}
+                          value={uploadDraft.audioBpm}
+                          onChange={e => handleBpmChange(e.target.value)}
+                        />
+                        {bpmError && <div className="mum-field-error">{bpmError}</div>}
+                      </div>
+                    </div>
+                    <div className="mum-track-detail-row">
+                      <label className="mum-track-detail-label">KEY <span className="mum-opt">(OPTIONAL)</span></label>
+                      <div className="mum-select-wrap" style={{ flex: 1 }}>
+                        <select
+                          className="mum-select"
+                          value={uploadDraft.audioMusicalKey}
+                          onChange={e => setUploadDraftAudioMusicalKey(e.target.value)}
+                        >
+                          <option value="">—</option>
+                          {MUSICAL_KEYS.map(k => <option key={k} value={k}>{k}</option>)}
+                        </select>
+                        <svg className="mum-select-caret" viewBox="0 0 10 6" fill="currentColor">
+                          <path d="M0 0l5 6 5-6z"/>
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* ── Visual media fields (existing) ─────────────── */}
+
+                {/* Media Role */}
+                <div className="mum-field">
+                  <label className="mum-field-label">MEDIA ROLE<span className="mum-req">*</span></label>
+                  <div className="mum-select-wrap">
+                    <select
+                      className="mum-select"
+                      value={uploadDraft.role}
+                      onChange={e => handleRoleChange(e.target.value as MediaRole)}
+                    >
+                      {VISUAL_MEDIA_ROLES.map(r => (
+                        <option key={r} value={r}>
+                          {MEDIA_ROLE_ICONS[r]}  {MEDIA_ROLE_LABELS[r]}
+                        </option>
                       ))}
-                    </div>
-                  )}
-                  {collInput && filteredColls.length === 0 && (
-                    <div className="mum-coll-dropdown">
-                      <button
-                        className="mum-coll-option mum-coll-option--create"
-                        onMouseDown={async e => {
-                          e.preventDefault()
-                          const newId = await createCollection(collInput.trim())
-                          if (newId) { addCollection(newId); setCollInput('') }
-                        }}
-                      >
-                        + Create "{collInput.trim()}"
-                      </button>
-                    </div>
-                  )}
+                    </select>
+                    <svg className="mum-select-caret" viewBox="0 0 10 6" fill="currentColor">
+                      <path d="M0 0l5 6 5-6z"/>
+                    </svg>
+                  </div>
+                  <div className="mum-field-hint">Role affects placement and visual behavior. You can change it later in the Clip Inspector.</div>
                 </div>
-              </div>
-            </div>
 
-            {/* Additional Info */}
-            <div className="mum-field">
-              <label className="mum-field-label">ADDITIONAL INFO</label>
-              {!isEdit ? (
-                <div className="mum-addinfo-grid">
-                  {adItem('DURATION (SEC)', durContent)}
-                  {adItem('RESOLUTION', resContent)}
-                  {adItem(<>FPS <span className="mum-opt">(OPTIONAL)</span></>, fpsContent)}
-                  {adItem('LOOPABLE', loopContent)}
-                  {adItem('HAS ALPHA', alphaContent)}
-                  {adItem(<>BPM <span className="mum-opt">(OPTIONAL)</span></>, bpmContent)}
-                  {adItem(<>KEY <span className="mum-opt">(OPTIONAL)</span></>, keyContent)}
-                  {adItem('ENERGY', energyContent)}
+                {/* Title */}
+                <div className="mum-field">
+                  <label className="mum-field-label">TITLE <span className="mum-opt">(OPTIONAL)</span></label>
+                  <input
+                    className="mum-input"
+                    placeholder="e.g. Portal Loop Alpha"
+                    maxLength={22}
+                    value={uploadDraft.title}
+                    onChange={e => setUploadDraftTitle(e.target.value)}
+                  />
                 </div>
-              ) : (
-                <div className="mum-addinfo-grid mum-addinfo-grid--edit">
-                  {adItem('DURATION (SEC)', durContent, true)}
-                  {adItem('RESOLUTION', resContent, true)}
-                  {adItem(<>FPS <span className="mum-opt">(OPTIONAL)</span></>, fpsContent, true)}
-                  {adItem(<>BPM <span className="mum-opt">(OPTIONAL)</span></>, bpmContent, true)}
-                  {adItem('HAS ALPHA', alphaContent)}
-                  {adItem(<>KEY <span className="mum-opt">(OPTIONAL)</span></>, keyContent)}
-                  {adItem('LOOPABLE', loopContent)}
-                  {adItem('ENERGY', energyContent)}
+
+                {/* Description */}
+                <div className="mum-field">
+                  <label className="mum-field-label">DESCRIPTION <span className="mum-opt">(OPTIONAL)</span></label>
+                  <textarea
+                    className="mum-textarea"
+                    rows={3}
+                    placeholder="Describe this media…"
+                    value={uploadDraft.description}
+                    onChange={e => setUploadDraftDescription(e.target.value)}
+                  />
                 </div>
-              )}
-            </div>
+
+                {/* Tags + Collections (side-by-side in edit mode) */}
+                <div className={isEdit ? 'mum-fields-row' : 'mum-fields-col'}>
+                  <div className="mum-field">
+                    <label className="mum-field-label">TAGS</label>
+                    <div className="mum-field-hint">Add or create tags to describe this media.</div>
+                    <div className="mum-chip-input">
+                      <TagChips tags={uploadDraft.tags} onRemove={removeTag} />
+                      <input
+                        className="mum-chip-text"
+                        placeholder="Type to add tags…"
+                        value={tagInput}
+                        onChange={e => setTagInput(e.target.value)}
+                        onKeyDown={handleTagKey}
+                        onBlur={() => { if (tagInput.trim()) addTag(tagInput) }}
+                      />
+                      <svg className="mum-chip-caret" viewBox="0 0 10 6" fill="currentColor">
+                        <path d="M0 0l5 6 5-6z"/>
+                      </svg>
+                    </div>
+                  </div>
+
+                  <div className="mum-field">
+                    <label className="mum-field-label">COLLECTIONS</label>
+                    <div className="mum-field-hint">Add this media to one or more collections.</div>
+                    <div className="mum-chip-input" style={{ position: 'relative' }}>
+                      <CollectionChips
+                        ids={uploadDraft.collectionIds}
+                        collections={collections}
+                        onRemove={removeCollection}
+                      />
+                      <input
+                        className="mum-chip-text"
+                        placeholder="Type to search or create…"
+                        value={collInput}
+                        onChange={e => setCollInput(e.target.value)}
+                        onKeyDown={handleCollKey}
+                      />
+                      <svg className="mum-chip-caret" viewBox="0 0 10 6" fill="currentColor">
+                        <path d="M0 0l5 6 5-6z"/>
+                      </svg>
+                      {collInput && filteredColls.length > 0 && (
+                        <div className="mum-coll-dropdown">
+                          {filteredColls.map(c => (
+                            <button key={c.id} className="mum-coll-option" onClick={() => addCollection(c.id)}>
+                              {c.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {collInput && filteredColls.length === 0 && (
+                        <div className="mum-coll-dropdown">
+                          <button
+                            className="mum-coll-option mum-coll-option--create"
+                            onMouseDown={async e => {
+                              e.preventDefault()
+                              const newId = await createCollection(collInput.trim())
+                              if (newId) { addCollection(newId); setCollInput('') }
+                            }}
+                          >
+                            + Create "{collInput.trim()}"
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Additional Info */}
+                <div className="mum-field">
+                  <label className="mum-field-label">ADDITIONAL INFO</label>
+                  {!isEdit ? (
+                    <div className="mum-addinfo-grid">
+                      {adItem('DURATION (SEC)', durContent)}
+                      {adItem('RESOLUTION', resContent)}
+                      {adItem(<>FPS <span className="mum-opt">(OPTIONAL)</span></>, fpsContent)}
+                      {adItem('LOOPABLE', loopContent)}
+                      {adItem('HAS ALPHA', alphaContent)}
+                      {adItem(<>BPM <span className="mum-opt">(OPTIONAL)</span></>, bpmContent)}
+                      {adItem(<>KEY <span className="mum-opt">(OPTIONAL)</span></>, keyContent)}
+                      {adItem('ENERGY', energyContent)}
+                    </div>
+                  ) : (
+                    <div className="mum-addinfo-grid mum-addinfo-grid--edit">
+                      {adItem('DURATION (SEC)', durContent, true)}
+                      {adItem('RESOLUTION', resContent, true)}
+                      {adItem(<>FPS <span className="mum-opt">(OPTIONAL)</span></>, fpsContent, true)}
+                      {adItem(<>BPM <span className="mum-opt">(OPTIONAL)</span></>, bpmContent, true)}
+                      {adItem('HAS ALPHA', alphaContent)}
+                      {adItem(<>KEY <span className="mum-opt">(OPTIONAL)</span></>, keyContent)}
+                      {adItem('LOOPABLE', loopContent)}
+                      {adItem('ENERGY', energyContent)}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
 
           </div>{/* /mum-right */}
         </div>{/* /mum-body */}
@@ -639,7 +800,11 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
               disabled={!canUpload}
               onClick={handleUpload}
             >
-              {uploading ? 'Uploading…' : `Upload ${uploadQueue.length > 0 ? uploadQueue.length + ' ' : ''}Media`}
+              {uploading
+                ? 'Uploading…'
+                : isAudioQueue
+                  ? `Upload ${uploadQueue.length > 0 ? uploadQueue.length + ' ' : ''}Track${uploadQueue.length !== 1 ? 's' : ''}`
+                  : `Upload ${uploadQueue.length > 0 ? uploadQueue.length + ' ' : ''}Media`}
             </button>
           )}
         </div>

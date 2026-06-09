@@ -429,6 +429,11 @@
 .mum-addinfo-item--span2 { grid-column: span 2; }
 .mum-addinfo-item { display: flex; flex-direction: column; gap: 4px; }
 
+.mum-fields-col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
 .mum-fields-row {
   display: flex;
   gap: 12px;
@@ -554,3 +559,144 @@
 .mum-filelist-items::-webkit-scrollbar-track { background: transparent; }
 .mum-right::-webkit-scrollbar-thumb,
 .mum-filelist-items::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+/* ── Mobile layout ────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .mum-modal {
+    max-height: 95vh;
+  }
+
+  /* Stack: drop zone on top, form fields below */
+  .mum-body {
+    flex-direction: column;
+  }
+
+  /* Drop zone panel: full width, no side border */
+  .mum-left {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    border-right: none;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    flex-shrink: 0;
+  }
+
+  /* Compact drop zone: slim horizontal strip */
+  .mum-dropzone {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    margin: 10px 12px;
+    gap: 10px;
+  }
+
+  /* Hide decorative / verbose elements in compact mode */
+  .mum-cloud-icon,
+  .mum-drop-or,
+  .mum-drop-hint { display: none; }
+
+  .mum-drop-label {
+    flex: 1;
+    font-size: 11px;
+    text-align: left;
+  }
+
+  .mum-browse-btn {
+    flex-shrink: 0;
+    margin: 0;
+    padding: 5px 14px;
+    font-size: 11px;
+  }
+
+  /* File list: allow it to grow below the compact drop zone */
+  .mum-filelist {
+    margin: 0 12px 10px;
+  }
+
+  /* Form fields panel: full width, scrollable */
+  .mum-right {
+    width: 100%;
+    padding: 14px 16px;
+  }
+}
+
+/* ── Audio upload — role badge ────────────────────────────────────────── */
+.mum-audio-role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--az-font);
+  letter-spacing: 0.05em;
+  color: rgba(74,199,219,0.85);
+  background: rgba(74,199,219,0.1);
+  border: 1px solid rgba(74,199,219,0.2);
+  border-radius: 5px;
+}
+
+/* ── Audio upload — Track Details group ──────────────────────────────── */
+.mum-track-details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.mum-track-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mum-track-detail-label {
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--az-font);
+  letter-spacing: 0.07em;
+  color: rgba(196,207,211,0.5);
+  white-space: nowrap;
+  width: 72px;
+  flex-shrink: 0;
+}
+
+/* Smaller variant of mum-input for inline track detail rows */
+.mum-input--sm {
+  padding: 5px 8px;
+  font-size: 11px;
+  height: 28px;
+}
+
+.mum-input--error {
+  border-color: rgba(248,113,113,0.5) !important;
+}
+
+.mum-field-error {
+  font-size: 10px;
+  color: #f87171;
+  margin-top: 3px;
+  font-family: var(--az-font);
+}
+
+/* Analyzing indicator */
+.mum-analyzing {
+  font-size: 10px;
+  font-weight: 400;
+  color: rgba(74,199,219,0.6);
+  letter-spacing: 0;
+}
+
+/* Audio file thumb placeholder in file list */
+.mum-file-thumb-audio {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  background: rgba(74,199,219,0.08);
+  border-radius: 3px;
+  color: rgba(74,199,219,0.55);
+}

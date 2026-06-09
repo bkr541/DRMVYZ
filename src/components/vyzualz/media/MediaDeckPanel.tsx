@@ -9,19 +9,25 @@ import {
   GridViewIcon,
   ListViewIcon,
   PropertyViewIcon,
+  MusicNote01Icon,
 } from 'hugeicons-react'
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { UploadedMedia, MediaCollection } from '../../../stores/mediaStore'
+import { useAudioStore } from '../../../stores/audioStore'
+import type { SavedAudioTrack } from '../../../stores/audioStore'
+import { useSharedAudio } from '../../../context/AudioEngineContext'
+import { createSignedAudioUrl } from '../../../lib/audioDb'
 import { MediaUploadModal } from '../MediaUploadModal'
 import { MediaPreviewModal } from './MediaPreviewModal'
 import { MediaStatusBar } from './MediaStatusBar'
 import { MEDIA_ROLE_BADGE_LABELS, MEDIA_ROLE_LABELS } from '../../../lib/mediaRoles'
 
-type DeckFilter = 'all' | 'collections' | 'images' | 'videos' | 'favorites' | 'backgrounds' | 'logos' | 'transparent' | 'overlays'
+type DeckFilter = 'all' | 'tracks' | 'collections' | 'images' | 'videos' | 'favorites' | 'backgrounds' | 'logos' | 'transparent' | 'overlays'
 type ViewMode  = 'grid' | 'list'
 
 const DECK_FILTERS: { key: DeckFilter; label: string }[] = [
   { key: 'all',         label: 'All'         },
+  { key: 'tracks',      label: 'Tracks'      },
   { key: 'collections', label: 'Collections' },
   { key: 'images',      label: 'Images'      },
   { key: 'videos',      label: 'Videos'      },
@@ -43,6 +49,13 @@ function matchesDeckFilter(m: UploadedMedia, f: DeckFilter): boolean {
     case 'overlays':    return m.mediaRole === 'overlay'
     default:            return true
   }
+}
+
+function fmtDur(s: number | null): string {
+  if (!s) return ''
+  const m = Math.floor(s / 60)
+  const sec = Math.floor(s % 60)
+  return `${m}:${sec.toString().padStart(2, '0')}`
 }
 
 // ── Collection folder card ─────────────────────────────────────────────────
@@ -97,6 +110,57 @@ function CollectionFolder({
       ) : (
         <div className="vz-coll-empty-strip">No media in this collection</div>
       )}
+    </div>
+  )
+}
+
+// ── Audio track row ────────────────────────────────────────────────────────
+
+function AudioTrackRow({
+  track,
+  onLoad,
+  onRemove,
+  loading,
+}: {
+  track: SavedAudioTrack
+  onLoad: () => void
+  onRemove: () => void
+  loading: boolean
+}) {
+  const meta: string[] = []
+  if (track.durationSec) meta.push(fmtDur(track.durationSec))
+  if (track.bpm)         meta.push(`${track.bpm} BPM`)
+  if (track.musicalKey)  meta.push(track.musicalKey)
+
+  return (
+    <div className="vz-track-row">
+      <div className="vz-track-row-icon">
+        <MusicNote01Icon size={14} color="currentColor" />
+      </div>
+      <div className="vz-track-row-info">
+        <div className="vz-track-row-title">{track.title}</div>
+        <div className="vz-track-row-meta">
+          {track.artist && <span className="vz-track-row-artist">{track.artist}</span>}
+          {meta.length > 0 && <span>{meta.join(' · ')}</span>}
+        </div>
+      </div>
+      <div className="vz-track-row-actions">
+        <button
+          className="vz-track-load-btn"
+          onClick={onLoad}
+          disabled={loading}
+          title="Load this track into the player"
+        >
+          {loading ? '…' : 'Load Track'}
+        </button>
+        <button
+          className="vz-track-remove-btn"
+          onClick={onRemove}
+          title="Remove track"
+        >
+          <Delete02Icon size={12} color="currentColor" />
+        </button>
+      </div>
     </div>
   )
 }
@@ -271,6 +335,11 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
     collections, collectionsLoading, loadCollections,
     importModalOpen, openImportMediaModal, closeImportMediaModal,
   } = useMediaStore()
+
+  const { savedTracks, loading: tracksLoading, loadSavedTracks, removeSavedTrack, getSignedUrl } = useAudioStore()
+  const engine = useSharedAudio()
+  const [loadingTrackId, setLoadingTrackId] = useState<string | null>(null)
+
   const [deckFilter, setDeckFilter] = useState<DeckFilter>('all')
   const [openCollectionId, setOpenCollectionId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -288,14 +357,21 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
   const loadCollectionsRef = useRef(loadCollections)
   useEffect(() => { loadCollectionsRef.current = loadCollections }, [loadCollections])
 
+  const loadSavedTracksRef = useRef(loadSavedTracks)
+  useEffect(() => { loadSavedTracksRef.current = loadSavedTracks }, [loadSavedTracks])
+
   useEffect(() => { loadFromSupabaseRef.current() }, [])
 
-  // Load collections when switching to the Collections tab (lazy)
+  // Load collections when switching to collections tab (lazy)
   useEffect(() => {
     if (deckFilter === 'collections') loadCollectionsRef.current()
   }, [deckFilter])
 
-  // Reset drilled-in folder when switching away
+  // Load saved tracks when switching to tracks tab (lazy)
+  useEffect(() => {
+    if (deckFilter === 'tracks') loadSavedTracksRef.current()
+  }, [deckFilter])
+
   const handleSetFilter = useCallback((f: DeckFilter) => {
     setDeckFilter(f)
     if (f !== 'collections') setOpenCollectionId(null)
@@ -310,6 +386,15 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
       m.tags.some(t => t.toLowerCase().includes(searchLower))
     )
   }, [items, deckFilter, searchActive, searchLower])
+
+  const filteredTracks = useMemo(() => {
+    if (!searchActive) return savedTracks
+    return savedTracks.filter(t =>
+      t.title.toLowerCase().includes(searchLower) ||
+      (t.artist ?? '').toLowerCase().includes(searchLower) ||
+      (t.genre ?? '').toLowerCase().includes(searchLower)
+    )
+  }, [savedTracks, searchActive, searchLower])
 
   // Items per collection (keyed by collection id)
   const itemsByCollection = useMemo(() => {
@@ -351,6 +436,23 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
     if (media.length) addFiles(media)
   }
 
+  const handleLoadTrack = useCallback(async (track: SavedAudioTrack) => {
+    if (!track.storagePath) return
+    setLoadingTrackId(track.id)
+    try {
+      const url = await getSignedUrl(track.storagePath)
+      if (!url) return
+      const trackEntry = { name: track.title, url }
+      if (engine.tracks.length > 0) engine.replaceTrackUrls([trackEntry])
+      else engine.addTrackUrls([trackEntry])
+      if (engine.source !== 'file') engine.setSource('file')
+    } catch (e) {
+      console.error('[MediaDeckPanel] loadTrack:', e)
+    } finally {
+      setLoadingTrackId(null)
+    }
+  }, [engine, getSignedUrl])
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   const renderGrid = (mediaList: UploadedMedia[]) => (
@@ -370,6 +472,50 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
       ))}
     </div>
   )
+
+  const renderTracksView = () => {
+    if (tracksLoading && savedTracks.length === 0) {
+      return (
+        <div className="vz-track-list">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="vz-track-row" style={{ opacity: 0.4, pointerEvents: 'none' }}>
+              <div className="vz-track-row-icon" />
+              <div className="vz-track-row-info">
+                <div style={{ width: '60%', height: 9, background: '#0a1420', borderRadius: 3 }} />
+                <div style={{ width: '40%', height: 7, background: '#0a1420', borderRadius: 3, marginTop: 4 }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )
+    }
+
+    if (filteredTracks.length === 0) {
+      return (
+        <div className="vz-track-list">
+          <div className="vz-track-empty">
+            {searchActive
+              ? `No tracks match "${searchQuery}"`
+              : 'No audio tracks yet — upload one via Import'}
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div className="vz-track-list">
+        {filteredTracks.map(t => (
+          <AudioTrackRow
+            key={t.id}
+            track={t}
+            onLoad={() => handleLoadTrack(t)}
+            onRemove={() => removeSavedTrack(t.id)}
+            loading={loadingTrackId === t.id}
+          />
+        ))}
+      </div>
+    )
+  }
 
   const renderCollectionsView = () => {
     // Drilled into a specific collection
@@ -476,7 +622,7 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
             <input
               className="vz-md-search-input"
               type="text"
-              placeholder="Search media…"
+              placeholder={deckFilter === 'tracks' ? 'Search tracks…' : 'Search media…'}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
             />
@@ -484,28 +630,32 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
               <button className="vz-md-search-clear" onClick={() => setSearchQuery('')} title="Clear search">✕</button>
             )}
           </div>
-          <div className="vz-md-view-toggles">
-            <button
-              className={`vz-md-view-btn${viewMode === 'grid' ? ' vz-md-view-btn--active' : ''}`}
-              onClick={() => setViewMode('grid')}
-              title="Grid view"
-            >
-              <GridViewIcon size={13} color="currentColor" />
-            </button>
-            <button
-              className={`vz-md-view-btn${viewMode === 'list' ? ' vz-md-view-btn--active' : ''}`}
-              onClick={() => setViewMode('list')}
-              title="List view"
-            >
-              <ListViewIcon size={13} color="currentColor" />
-            </button>
-          </div>
+          {deckFilter !== 'tracks' && (
+            <div className="vz-md-view-toggles">
+              <button
+                className={`vz-md-view-btn${viewMode === 'grid' ? ' vz-md-view-btn--active' : ''}`}
+                onClick={() => setViewMode('grid')}
+                title="Grid view"
+              >
+                <GridViewIcon size={13} color="currentColor" />
+              </button>
+              <button
+                className={`vz-md-view-btn${viewMode === 'list' ? ' vz-md-view-btn--active' : ''}`}
+                onClick={() => setViewMode('list')}
+                title="List view"
+              >
+                <ListViewIcon size={13} color="currentColor" />
+              </button>
+            </div>
+          )}
         </div>
 
         <MediaStatusBar />
 
         <div className="vz-media-scroll">
-          {deckFilter === 'collections' ? (
+          {deckFilter === 'tracks' ? (
+            renderTracksView()
+          ) : deckFilter === 'collections' ? (
             renderCollectionsView()
           ) : loading && items.length === 0 ? (
             <div className="vz-media-grid" style={{ padding: '8px 4px' }}>
