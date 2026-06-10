@@ -46,6 +46,7 @@ import { useRecorder }          from '../../hooks/useRecorder'
 import { RecordingPanel }       from './recording/RecordingPanel'
 import { TimelineInspectorPanel } from './timeline/TimelineInspectorPanel'
 import { AddCueModal }            from './AddCueModal'
+import { ReactView }              from './react/ReactView'
 
 // ── AudioWaveformCanvas (real analyser) ───────────────────────────────
 function AudioWaveformCanvas({ analyser }: { analyser: AnalyserNode | null }) {
@@ -472,8 +473,8 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   const engine = useSharedAudio()
   const analyser = engine.analyserMaster
 
-  // App-level view: 'visualizer' (default) or 'lyrics'
-  const [appView, setAppView] = useState<'visualizer' | 'lyrics'>('visualizer')
+  // App-level view: 'visualizer' | 'lyrics' | 'react'
+  const [appView, setAppView] = useState<'visualizer' | 'lyrics' | 'react'>('visualizer')
 
   // Effect Chain catalog — loaded once from Supabase on mount
   const [effectChainOptions, setEffectChainOptions] = useState<EffectChainOptionRow[]>([])
@@ -640,7 +641,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   // Lyric state — subscribe to just the two values we render (enabled + count)
 
   // Show confirmation toast when the user returns from the Lyric Manager via "Preview in Visualizer"
-  const prevAppViewRef = useRef<'visualizer' | 'lyrics'>(appView)
+  const prevAppViewRef = useRef<'visualizer' | 'lyrics' | 'react'>(appView)
   useEffect(() => {
     if (prevAppViewRef.current === 'lyrics' && appView === 'visualizer') {
       const { lyricsEnabled: enabled, cues } = useLyricsStore.getState()
@@ -791,6 +792,26 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
             onAppViewChange={setAppView}
           />
           <LyricManagerView onBack={() => setAppView('visualizer')} />
+        </div>
+      </div>
+    )
+  }
+
+  // ── React performance mode view ──────────────────────────────────────
+  if (appView === 'react') {
+    return (
+      <div className="az-root">
+        <div className="az-shell">
+          <VyzualzSidebar
+            compact
+            appView={appView}
+            onAppViewChange={setAppView}
+          />
+          <div className="vz-main" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+              <ReactView />
+            </div>
+          </div>
         </div>
       </div>
     )

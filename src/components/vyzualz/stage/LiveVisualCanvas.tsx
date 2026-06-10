@@ -46,6 +46,7 @@ import { deriveColorGradeParams, buildCanvasColorGradeFilter } from '../../../re
 import {
   getOrCreateMediaInstance, pauseInactiveMediaInstances, destroyMediaInstance,
 } from './mediaPool'
+import { renderReactEngine, reactFrameFromVz, DEFAULT_REACT_RENDER_PARAMS } from '../react/renderers/ReactEngineRenderer'
 
 // ── Lyric rendering helpers ───────────────────────────────────────────────────
 
@@ -570,6 +571,8 @@ export interface CanvasProps {
   isPlaying: boolean
   bpm: number
   bpmSync: boolean
+  /** When true the React engine renderer replaces the generative art fallback. */
+  reactMode?: boolean
   quality: Quality
   getAudioTime: () => number
   modulationRoutes: ModulationRoute[]
@@ -585,9 +588,15 @@ export interface CanvasProps {
   effectParams: VzEffectParams
   audioReactivityEnabled: boolean
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
+  /** Active React preset — used when reactMode is true. */
+  reactPreset?: import('../react/ReactTypes').ReactPreset | null
+  /** Live render params from the React control panel — used when reactMode is true. */
+  reactParams?: import('../react/renderers/reactRenderUtils').ReactRenderParams
+  /** Manual track sections for section-aware React rendering. */
+  reactSections?: import('../react/ReactTypes').ReactTrackSection[]
 }
 
-export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, getAudioTime, modulationRoutes, timelineEnabled, timelineClips, timelineOverlayClips = [], timelineEffectRegions = [], timelineLoop, mediaItems, onStatsUpdate, layerConfigs, layerItems, effectParams, audioReactivityEnabled, onCanvasReady }: CanvasProps) {
+export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, isPlaying, bpm, bpmSync, quality, getAudioTime, modulationRoutes, timelineEnabled, timelineClips, timelineOverlayClips = [], timelineEffectRegions = [], timelineLoop, mediaItems, onStatsUpdate, layerConfigs, layerItems, effectParams, audioReactivityEnabled, onCanvasReady, reactMode = false, reactPreset = null, reactParams, reactSections = [] }: CanvasProps) {
   const canvasRef     = useRef<HTMLCanvasElement>(null)
   const animRef       = useRef<number>(0)
   const resizeFnRef   = useRef<() => void>(() => {})
@@ -607,6 +616,12 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   const getAudioTimeRef = useRef(getAudioTime)
   const prevBassRef   = useRef(0)
   const routesRef     = useRef<ModulationRoute[]>(modulationRoutes)
+
+  // React engine mode refs
+  const reactModeRef     = useRef(reactMode)
+  const reactPresetRef   = useRef(reactPreset)
+  const reactParamsRef   = useRef(reactParams)
+  const reactSectionsRef = useRef(reactSections)
 
   const timelineEnabledRef          = useRef(timelineEnabled)
   const timelineClipsRef            = useRef<VzTimelineMediaClip[]>(timelineClips)
@@ -757,6 +772,10 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   useEffect(() => { getAudioTimeRef.current = getAudioTime }, [getAudioTime])
   useEffect(() => { routesRef.current = modulationRoutes }, [modulationRoutes])
   useEffect(() => { audioReactivityEnabledRef.current = audioReactivityEnabled }, [audioReactivityEnabled])
+  useEffect(() => { reactModeRef.current    = reactMode                    }, [reactMode])
+  useEffect(() => { reactPresetRef.current  = reactPreset ?? null          }, [reactPreset])
+  useEffect(() => { reactParamsRef.current  = reactParams                  }, [reactParams])
+  useEffect(() => { reactSectionsRef.current = reactSections               }, [reactSections])
 
   // ── WebGL2 renderer lifecycle ─────────────────────────────────────────
   // Driven by gpuPreference (persisted), not rendererType (ephemeral).
@@ -2207,6 +2226,14 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
             }
           }
         }
+      } else if (reactModeRef.current && reactPresetRef.current) {
+        renderReactEngine(
+          ctx,
+          reactFrameFromVz(frameCtx),
+          reactPresetRef.current,
+          reactParamsRef.current ?? DEFAULT_REACT_RENDER_PARAMS,
+          reactSectionsRef.current,
+        )
       } else if (isPlayingRef.current || activeBands.volume > 0.01) {
         drawGenerativeArt(ctx, W, H, dpr, t, speed, bass, { ...mEff, colorShift: activeColorShift })
       } else {
