@@ -1,8 +1,9 @@
 import type { TrackAnalysis, TrackSection } from './types'
+import type { TrackIntelligenceAnalysis } from '../musicIntelligence/types'
 import type { ReactTrackSection } from '../../components/vyzualz/react/ReactTypes'
 
 /**
- * Converts a TrackAnalysis into the ReactTrackSection[] format
+ * Converts a TrackAnalysis (mock/legacy) into the ReactTrackSection[] format
  * expected by the React store and section automation resolver.
  */
 export function adaptTrackSections(analysis: TrackAnalysis): ReactTrackSection[] {
@@ -13,6 +14,24 @@ export function adaptTrackSections(analysis: TrackAnalysis): ReactTrackSection[]
     startSec:  sec.startMs / 1000,
     endSec:    sec.endMs   / 1000,
     intensity: sec.intensity,
+    source:    'mock',
+  }))
+}
+
+/**
+ * Converts a real TrackIntelligenceAnalysis (from offlineTrackAnalyzer) into
+ * ReactTrackSection[], tagged source: 'auto' for preservation logic.
+ */
+export function adaptMIAnalysis(analysis: TrackIntelligenceAnalysis): ReactTrackSection[] {
+  return analysis.sections.map(sec => ({
+    id:         sec.id,
+    label:      sec.label,
+    type:       sec.type,
+    startSec:   sec.startSec,
+    endSec:     sec.endSec,
+    intensity:  sec.intensity,
+    confidence: sec.confidence,
+    source:     'auto' as const,
   }))
 }
 

@@ -379,8 +379,14 @@ export function useAudioEngine(): AudioEngine {
           if (import.meta.env.DEV) meydaCbCountRef.current++
         },
       })
-      // Not calling meyda.start() — zero CPU until explicitly requested
       meydaRef.current = meyda
+      // Register getter so the MI engine reads Meyda features each frame via ref (no re-renders)
+      musicIntelligenceEngine.setMeydaFeaturesGetter(() => spectralFeaturesRef.current)
+      // Auto-start Meyda — writes to spectralFeaturesRef; MI engine benefits immediately.
+      // meydaActive React state stays false; call startSpectralAnalysis() to also
+      // enable the 5-Hz React-state publisher used by the spectral UI panel.
+      meyda.start()
+      meydaRunningRef.current = true
     } catch { /**/ }
 
     return ctx

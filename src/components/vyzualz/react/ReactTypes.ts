@@ -103,7 +103,7 @@ export interface ReactPerformancePad {
   transitionTimeMs: number
 }
 
-export type ReactSectionType = 'intro' | 'verse' | 'build' | 'drop' | 'breakdown' | 'outro'
+export type ReactSectionType = 'intro' | 'verse' | 'build' | 'preDrop' | 'drop' | 'breakdown' | 'bridge' | 'outro' | 'unknown'
 
 export interface ReactPalette {
   primary: string
@@ -139,6 +139,8 @@ export interface ReactTrackSection {
   endSec: number
   intensity: number
   engineId?: ReactEngineId
+  source?: 'manual' | 'auto' | 'mock'
+  confidence?: number
 }
 
 export interface ReactSectionMapping {

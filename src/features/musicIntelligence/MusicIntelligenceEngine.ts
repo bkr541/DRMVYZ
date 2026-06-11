@@ -1,14 +1,21 @@
 // Central music intelligence engine.
 // Receives raw audio data (FFT buffer + time-domain buffer) every animation frame,
-// computes a MusicIntelligenceFrame, and publishes it to AudioFeatureBus.
+// delegates to analysis modules, assembles a MusicIntelligenceFrame, and
+// publishes it to AudioFeatureBus.
 //
-// Designed to be called synchronously from an existing rAF loop (LiveVisualCanvas,
-// ReactPlaceholderCanvas) — it has no internal RAF or timer.
 // The module-level `musicIntelligenceEngine` singleton is the intended access point.
 
 import { AudioFeatureBus } from './AudioFeatureBus'
-import { EMAFilter, PeakFollower, RunningMax, FeatureRingBuffer } from './featureSmoothing'
 import { DEFAULT_MI_FRAME } from './constants'
+import { MultiBandAnalyzer } from './bandAnalysis'
+import { RhythmAnalyzer } from './rhythmAnalysis'
+import { BeatGrid } from './beatGrid'
+import { EnergyAnalyzer, type MeydaFeatureSnapshot } from './energyAnalysis'
+import { HarmonicAnalyzer } from './harmonicAnalysis'
+import { StemCurveInterpolator } from './stemAnalysis'
+import { SemanticAnalyzer } from './semanticAnalysis'
+import type { ActiveLyricState } from '../lyrics/services/lyricExtraction'
+import { ActiveLyricTracker } from '../lyrics/services/lyricExtraction'
 import type {
   MusicIntelligenceFrame,
   TrackIntelligenceAnalysis,
@@ -17,66 +24,7 @@ import type {
   ReactTrackSection,
 } from './types'
 
-// ── Band frequency ranges (Hz) ────────────────────────────────────────────────
-const BAND_SUB_LO    =     20
-const BAND_SUB_HI    =     60
-const BAND_BASS_LO   =     60
-const BAND_BASS_HI   =    250
-const BAND_LOWMID_LO =    250
-const BAND_LOWMID_HI =   1000
-const BAND_MID_LO    =   1000
-const BAND_MID_HI    =   4000
-const BAND_HIGH_LO   =   4000
-const BAND_HIGH_HI   =   8000
-const BAND_AIR_LO    =   8000
-const BAND_AIR_HI    =  20000
-
-// ── Smoothing alpha constants ─────────────────────────────────────────────────
-// Higher alpha = faster tracking. At 60 fps: 0.25→4 frames, 0.08→12, 0.002→500.
-const ALPHA_FAST  = 0.25
-const ALPHA_MED   = 0.08
-const ALPHA_VSLOW = 0.002
-
-// ── Onset detection thresholds ────────────────────────────────────────────────
-const BEAT_COOLDOWN_FRAMES = 8   // minimum frames between beat-hit registrations
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function getBandAvg(
-  buf: Uint8Array<ArrayBuffer>,
-  sampleRate: number,
-  loHz: number,
-  hiHz: number,
-): number {
-  const n   = buf.length
-  const nyq = sampleRate / 2
-  const lb  = Math.max(0, Math.floor((loHz / nyq) * n))
-  const hb  = Math.min(n - 1, Math.ceil((hiHz / nyq) * n))
-  if (hb <= lb) return 0
-  let sum = 0
-  for (let i = lb; i <= hb; i++) sum += buf[i]
-  return sum / ((hb - lb + 1) * 255)
-}
-
-function computeRms(timeBuf: Uint8Array<ArrayBuffer> | null): number {
-  if (!timeBuf || timeBuf.length === 0) return 0
-  let sum = 0
-  for (let i = 0; i < timeBuf.length; i++) {
-    const s = (timeBuf[i] / 128) - 1
-    sum += s * s
-  }
-  return Math.sqrt(sum / timeBuf.length)
-}
-
-function computePeak(timeBuf: Uint8Array<ArrayBuffer> | null): number {
-  if (!timeBuf || timeBuf.length === 0) return 0
-  let peak = 0
-  for (let i = 0; i < timeBuf.length; i++) {
-    const s = Math.abs((timeBuf[i] / 128) - 1)
-    if (s > peak) peak = s
-  }
-  return peak
-}
+// ── Section resolution helpers ────────────────────────────────────────────────
 
 function resolveManualSection(
   sections: ReactTrackSection[],
@@ -122,9 +70,9 @@ export interface AudioFrameInput {
 // ── Engine class ──────────────────────────────────────────────────────────────
 
 export class MusicIntelligenceEngine {
-  private sampleRate    = 44100
-  private bpm           = 120
-  private bpmConfidence = 0
+  private sampleRate     = 44100
+  private bpm            = 120
+  private bpmConfidence  = 0
   private beatGridOffset = 0
   private trackAnalysis: TrackIntelligenceAnalysis | null = null
   private manualSections: ReactTrackSection[] = []
@@ -132,64 +80,36 @@ export class MusicIntelligenceEngine {
   private trackId:  string | null = null
   private frameId   = 0
 
-  // Per-band fast smoothers (displayed values)
-  private readonly emaFast = {
-    sub:    new EMAFilter(),
-    bass:   new EMAFilter(),
-    lowMid: new EMAFilter(),
-    mid:    new EMAFilter(),
-    high:   new EMAFilter(),
-    air:    new EMAFilter(),
-  }
+  // Optional getter registered by useAudioEngine so Meyda features flow in
+  private meydaFeaturesGetter: (() => MeydaFeatureSnapshot | null) | null = null
 
-  // Per-band medium smoothers (onset detection baseline)
-  private readonly emaBaseline = {
-    sub:    new EMAFilter(),
-    bass:   new EMAFilter(),
-    lowMid: new EMAFilter(),
-    mid:    new EMAFilter(),
-    high:   new EMAFilter(),
-    air:    new EMAFilter(),
-  }
-
-  // Running max for normalization
-  private readonly runMax = {
-    sub:    new RunningMax(),
-    bass:   new RunningMax(),
-    lowMid: new RunningMax(),
-    mid:    new RunningMax(),
-    high:   new RunningMax(),
-    air:    new RunningMax(),
-  }
-
-  // Energy trackers
-  private readonly energyShort   = new EMAFilter()
-  private readonly energyLong    = new EMAFilter()
-  private readonly energyPeak    = new PeakFollower()
-  private readonly energyHistory = new FeatureRingBuffer(300)  // ~5 s at 60 fps
-
-  // Rhythm state
-  private prevBeatPhase    = 0
-  private beatIndex        = 0
-  private beatCooldown     = 0
-
-  // Spectral flux: previous normalized frequency magnitudes
-  private prevFreqNorm: Float32Array | null = null
+  // ── Layer modules ──────────────────────────────────────────────────────────
+  private readonly bandAnalyzer    = new MultiBandAnalyzer()
+  private readonly rhythmAnalyzer  = new RhythmAnalyzer()
+  private readonly beatGrid        = new BeatGrid()
+  private readonly energyAnalyzer  = new EnergyAnalyzer()
+  private readonly harmonicAnalyzer = new HarmonicAnalyzer()
+  private readonly stemInterpolator = new StemCurveInterpolator()
+  private readonly lyricTracker    = new ActiveLyricTracker()
+  private readonly semanticAnalyzer = new SemanticAnalyzer()
 
   // ── Public API ──────────────────────────────────────────────────────────────
 
   initialize(options: MusicIntelligenceEngineOptions = {}): void {
     this.sampleRate = options.sampleRate ?? 44100
+    this.beatGrid.setBpm(this.bpm, this.bpmConfidence, this.beatGridOffset)
     this.reset()
   }
 
   setBpm(bpm: number, confidence = 0.8): void {
     this.bpm           = Math.max(1, bpm)
     this.bpmConfidence = Math.max(0, Math.min(1, confidence))
+    this.beatGrid.setBpm(this.bpm, this.bpmConfidence)
   }
 
   setBeatGridOffset(offsetSec: number): void {
     this.beatGridOffset = offsetSec
+    this.beatGrid.setBpm(this.bpm, this.bpmConfidence, offsetSec)
   }
 
   setTrackAnalysis(analysis: TrackIntelligenceAnalysis | null): void {
@@ -197,6 +117,36 @@ export class MusicIntelligenceEngine {
     if (analysis && analysis.bpm > 0) {
       this.bpm           = analysis.bpm
       this.bpmConfidence = analysis.bpmConfidence
+    }
+    this.beatGrid.setBpm(this.bpm, this.bpmConfidence, this.beatGridOffset)
+    if (analysis) {
+      this.beatGrid.setMarkers(analysis.beatGrid, analysis.downbeats)
+      if (analysis.timeSignature) this.beatGrid.setTimeSignature(analysis.timeSignature)
+      // Wire stem curves
+      this.stemInterpolator.setData(analysis.stemCurves)
+      // Wire lyrics
+      if (analysis.lyrics) {
+        const lines = analysis.lyrics.lines.map(l => ({
+          text:       l.text,
+          startSec:   l.startMs / 1000,
+          endSec:     l.endMs   / 1000,
+          words:      l.words.map(w => ({
+            text:       w.text,
+            startSec:   w.startMs / 1000,
+            endSec:     w.endMs   / 1000,
+            confidence: w.confidence,
+          })),
+          confidence: l.confidence,
+          source:     'analysis',
+        }))
+        this.lyricTracker.setLines(lines)
+      } else {
+        this.lyricTracker.setLines([])
+      }
+    } else {
+      this.beatGrid.setMarkers([], [])
+      this.stemInterpolator.setData(null)
+      this.lyricTracker.setLines([])
     }
   }
 
@@ -209,6 +159,10 @@ export class MusicIntelligenceEngine {
     this.trackId  = trackId
   }
 
+  setMeydaFeaturesGetter(getter: () => MeydaFeatureSnapshot | null): void {
+    this.meydaFeaturesGetter = getter
+  }
+
   /** Feed a live AnalyserNode — allocates two typed arrays per call. */
   updateFromAnalyser(input: AnalyserInputFrame): void {
     const { analyser, sampleRate, audioTime, isPlaying } = input
@@ -219,161 +173,40 @@ export class MusicIntelligenceEngine {
     this.updateFromAudioFrame({ freqBuf, timeBuf, sampleRate, audioTime, isPlaying })
   }
 
-  /**
-   * Feed pre-read audio buffers (called by LiveVisualCanvas after it reads the
-   * analyser for its own use, avoiding a second getByteFrequencyData call).
-   */
   updateFromAudioFrame(input: AudioFrameInput): void {
     const { freqBuf, timeBuf, sampleRate, audioTime, isPlaying } = input
     this.sampleRate = sampleRate > 0 ? sampleRate : this.sampleRate
     this.frameId++
 
-    // ── 1. Raw band extraction ──────────────────────────────────────────────
-    const rSub    = getBandAvg(freqBuf, this.sampleRate, BAND_SUB_LO,    BAND_SUB_HI)
-    const rBass   = getBandAvg(freqBuf, this.sampleRate, BAND_BASS_LO,   BAND_BASS_HI)
-    const rLowMid = getBandAvg(freqBuf, this.sampleRate, BAND_LOWMID_LO, BAND_LOWMID_HI)
-    const rMid    = getBandAvg(freqBuf, this.sampleRate, BAND_MID_LO,    BAND_MID_HI)
-    const rHigh   = getBandAvg(freqBuf, this.sampleRate, BAND_HIGH_LO,   BAND_HIGH_HI)
-    const rAir    = getBandAvg(freqBuf, this.sampleRate, BAND_AIR_LO,    BAND_AIR_HI)
+    const fftSize = freqBuf.length * 2  // analyser frequencyBinCount = fftSize/2
 
-    // Smoothed display values
-    const sub    = this.emaFast.sub.update(rSub,    ALPHA_FAST)
-    const bass   = this.emaFast.bass.update(rBass,  ALPHA_FAST)
-    const lowMid = this.emaFast.lowMid.update(rLowMid, ALPHA_FAST)
-    const mid    = this.emaFast.mid.update(rMid,    ALPHA_FAST)
-    const high   = this.emaFast.high.update(rHigh,  ALPHA_FAST)
-    const air    = this.emaFast.air.update(rAir,    ALPHA_FAST)
+    // ── Layer 1: Band analysis ──────────────────────────────────────────────
+    const bandResult = this.bandAnalyzer.analyze(freqBuf, this.sampleRate)
 
-    const volume = Math.min(1, (
-      sub    * 1.3 +
-      bass   * 1.1 +
-      lowMid * 0.9 +
-      mid    * 0.7 +
-      high   * 0.5 +
-      air    * 0.3
-    ) / 2.0)
+    // ── Layer 2: Rhythm / onset detection ───────────────────────────────────
+    const rhythmResult = this.rhythmAnalyzer.analyze(freqBuf, bandResult, isPlaying)
 
-    // Update running maxima and compute normalized values
-    this.runMax.sub.update(sub);       const normalizedSub    = this.runMax.sub.normalize(sub)
-    this.runMax.bass.update(bass);     const normalizedBass   = this.runMax.bass.normalize(bass)
-    this.runMax.lowMid.update(lowMid); const normalizedLowMid = this.runMax.lowMid.normalize(lowMid)
-    this.runMax.mid.update(mid);       const normalizedMid    = this.runMax.mid.normalize(mid)
-    this.runMax.high.update(high);     const normalizedHigh   = this.runMax.high.normalize(high)
-    this.runMax.air.update(air);       const normalizedAir    = this.runMax.air.normalize(air)
+    // ── Layer 3: Beat grid / phrase tracking ────────────────────────────────
+    const beatState = this.beatGrid.update(audioTime, isPlaying)
 
-    // ── 2. Onset / beat detection ───────────────────────────────────────────
-    // Baseline EMAs track the slower-moving average each band
-    const bSub    = this.emaBaseline.sub.update(rSub,    ALPHA_MED)
-    const bBass   = this.emaBaseline.bass.update(rBass,  ALPHA_MED)
-    const bLowMid = this.emaBaseline.lowMid.update(rLowMid, ALPHA_MED)
-    const bMid    = this.emaBaseline.mid.update(rMid,    ALPHA_MED)
-    const bHigh   = this.emaBaseline.high.update(rHigh,  ALPHA_MED)
-    const bAir    = this.emaBaseline.air.update(rAir,    ALPHA_MED)
+    // ── Layer 4: Energy (+ optional Meyda spectral features) ────────────────
+    const meyda        = this.meydaFeaturesGetter ? this.meydaFeaturesGetter() : null
+    const energyResult = this.energyAnalyzer.analyze(
+      bandResult, timeBuf, rhythmResult.spectralFlux, meyda, this.sampleRate,
+    )
 
-    // Onset ratio: how much the raw value exceeds its own baseline
-    const onsetSub    = bSub    > 0.005 ? Math.max(0, rSub    - bSub)    / bSub    : 0
-    const onsetBass   = bBass   > 0.005 ? Math.max(0, rBass   - bBass)   / bBass   : 0
-    const onsetLowMid = bLowMid > 0.005 ? Math.max(0, rLowMid - bLowMid) / bLowMid : 0
-    const onsetMid    = bMid    > 0.005 ? Math.max(0, rMid    - bMid)    / bMid    : 0
-    const onsetHigh   = bHigh   > 0.005 ? Math.max(0, rHigh   - bHigh)   / bHigh   : 0
+    // ── Layer 6: Harmonic analysis ───────────────────────────────────────────
+    const harmonicResult = this.harmonicAnalyzer.analyze(
+      freqBuf, timeBuf, this.sampleRate, fftSize,
+    )
 
-    void bAir  // not used for onset but tracked for future use
+    // ── Layer 7: Stem interpolation ──────────────────────────────────────────
+    const stemValues = this.stemInterpolator.sampleAt(audioTime)
 
-    // Kick: strong sub + bass transient
-    const kickStrength  = Math.min(1, (onsetSub * 0.6 + onsetBass * 0.4))
-    const kickHit       = isPlaying && kickStrength > 0.5 && (rSub + rBass) > 0.06
+    // ── Lyric tracker ────────────────────────────────────────────────────────
+    const lyricState: ActiveLyricState = this.lyricTracker.update(audioTime)
 
-    // Snare: mid-range onset on rhythmically likely beats (2 and 4)
-    const snareStrength = Math.min(1, (onsetLowMid * 0.4 + onsetMid * 0.6))
-    const snareHit      = isPlaying && snareStrength > 0.55 && (rLowMid + rMid) > 0.05
-
-    // Hat: high-frequency transient
-    const hatStrength   = Math.min(1, (onsetHigh * 0.7 + onsetMid * 0.3))
-    const hatHit        = isPlaying && hatStrength > 0.5 && rHigh > 0.04
-
-    const transient            = Math.min(1, kickStrength * 0.5 + snareStrength * 0.3 + hatStrength * 0.2)
-    const transientConfidence  = this.bpmConfidence
-
-    // ── 3. Beat-phase rhythm ────────────────────────────────────────────────
-    const beatPeriodSec = 60 / Math.max(1, this.bpm)
-    const adjustedTime  = audioTime - this.beatGridOffset
-    const beatPhase     = adjustedTime > 0
-      ? (adjustedTime % beatPeriodSec) / beatPeriodSec
-      : 0
-
-    // Detect phase wrap (beat boundary crossed since last frame)
-    let beatHit = false
-    if (isPlaying && this.prevBeatPhase > 0.85 && beatPhase < 0.15) {
-      if (this.beatCooldown <= 0) {
-        beatHit = true
-        this.beatIndex++
-        this.beatCooldown = BEAT_COOLDOWN_FRAMES
-      }
-    }
-    if (this.beatCooldown > 0) this.beatCooldown--
-    this.prevBeatPhase = beatPhase
-
-    const beatInBar  = this.beatIndex % 4
-    const barIndex   = Math.floor(this.beatIndex / 4)
-    const downbeatHit = beatHit && beatInBar === 0
-
-    // Phrase progress and boundary hits
-    const bi4  = this.beatIndex % 4
-    const bi8  = this.beatIndex % 8
-    const bi16 = this.beatIndex % 16
-    const bi32 = this.beatIndex % 32
-
-    const phrase4Progress  = (bi4  + beatPhase) / 4
-    const phrase8Progress  = (bi8  + beatPhase) / 8
-    const phrase16Progress = (bi16 + beatPhase) / 16
-    const phrase32Progress = (bi32 + beatPhase) / 32
-
-    const phrase4Hit  = beatHit && bi4  === 0
-    const phrase8Hit  = beatHit && bi8  === 0
-    const phrase16Hit = beatHit && bi16 === 0
-    const phrase32Hit = beatHit && bi32 === 0
-
-    // ── 4. Spectral flux ────────────────────────────────────────────────────
-    let spectralFlux = 0
-    const n = freqBuf.length
-
-    if (this.prevFreqNorm && this.prevFreqNorm.length === n) {
-      for (let i = 0; i < n; i++) {
-        const delta = freqBuf[i] / 255 - this.prevFreqNorm[i]
-        if (delta > 0) spectralFlux += delta
-      }
-      spectralFlux /= n
-    }
-
-    if (!this.prevFreqNorm || this.prevFreqNorm.length !== n) {
-      this.prevFreqNorm = new Float32Array(n)
-    }
-    for (let i = 0; i < n; i++) this.prevFreqNorm[i] = freqBuf[i] / 255
-
-    // ── 5. Energy ───────────────────────────────────────────────────────────
-    const rms         = computeRms(timeBuf)
-    const peak        = computePeak(timeBuf)
-    const crestFactor = rms > 0.001 ? Math.min(20, peak / rms) : 1
-
-    const instant   = volume
-    const shortTerm = this.energyShort.update(instant, ALPHA_MED)
-    const longTerm  = this.energyLong.update(instant, ALPHA_VSLOW)
-    const energyPk  = this.energyPeak.update(instant, 0.995)
-    const delta     = instant - shortTerm
-
-    this.energyHistory.push(instant)
-    const percentile = this.energyHistory.percentile(instant)
-
-    const buildProgress = longTerm > 0.01
-      ? Math.max(0, Math.min(1, (instant - longTerm) / longTerm))
-      : 0
-    const dropImpact = longTerm > 0.01
-      ? Math.max(0, Math.min(1, (instant - longTerm * 0.5) / Math.max(0.01, longTerm)))
-      : 0
-    const tension    = Math.min(1, spectralFlux * 10 + Math.max(0, delta * 5))
-    const complexity = Math.min(1, spectralFlux * 15 + (high + air) * 0.5)
-
-    // ── 6. Section resolution ────────────────────────────────────────────────
+    // ── Section resolution ────────────────────────────────────────────────
     let sectionType:       ReactSectionType | null = null
     let sectionLabel       = ''
     let sectionStart       = 0
@@ -407,62 +240,62 @@ export class MusicIntelligenceEngine {
 
     if (sectionEnd > sectionStart) {
       sectionProgress = Math.max(0, Math.min(1,
-        (audioTime - sectionStart) / (sectionEnd - sectionStart)
+        (audioTime - sectionStart) / (sectionEnd - sectionStart),
       ))
     }
 
-    // ── 7. Assemble and publish ─────────────────────────────────────────────
-    const frame: MusicIntelligenceFrame = {
+    // ── Assemble partial frame for semantic analysis ──────────────────────────
+    const partialFrame: MusicIntelligenceFrame = {
       timeSec:    audioTime,
       frameId:    this.frameId,
       sampleRate: this.sampleRate,
       sourceId:   this.sourceId,
       trackId:    this.trackId,
-      bands: {
-        sub, bass, lowMid, mid, high, air, volume,
-        normalizedSub, normalizedBass, normalizedLowMid,
-        normalizedMid, normalizedHigh, normalizedAir,
-      },
+      bands: bandResult.bands,
       rhythm: {
-        bpm:              this.bpm,
-        bpmConfidence:    this.bpmConfidence,
-        beatPhase,
-        beatHit,
-        beatIndex:        this.beatIndex,
-        beatInBar,
-        barIndex,
-        downbeatHit,
-        phrase4Progress,
-        phrase8Progress,
-        phrase16Progress,
-        phrase32Progress,
-        phrase4Hit,
-        phrase8Hit,
-        phrase16Hit,
-        phrase32Hit,
-        kickHit,
-        kickStrength,
-        snareHit,
-        snareStrength,
-        hatHit,
-        hatStrength,
-        transient,
-        transientConfidence,
+        bpm:              beatState.bpm,
+        bpmConfidence:    beatState.bpmConfidence,
+        beatPhase:        beatState.beatPhase,
+        beatHit:          beatState.beatHit,
+        beatIndex:        beatState.beatIndex,
+        beatInBar:        beatState.beatInBar,
+        barIndex:         beatState.barIndex,
+        downbeatHit:      beatState.downbeatHit,
+        phrase4Progress:  beatState.phrase4Progress,
+        phrase8Progress:  beatState.phrase8Progress,
+        phrase16Progress: beatState.phrase16Progress,
+        phrase32Progress: beatState.phrase32Progress,
+        phrase4Hit:       beatState.phrase4Hit,
+        phrase8Hit:       beatState.phrase8Hit,
+        phrase16Hit:      beatState.phrase16Hit,
+        phrase32Hit:      beatState.phrase32Hit,
+        kickHit:          rhythmResult.kickHit,
+        kickStrength:     rhythmResult.kickStrength,
+        snareHit:         rhythmResult.snareHit,
+        snareStrength:    rhythmResult.snareStrength,
+        hatHit:           rhythmResult.hatHit,
+        hatStrength:      rhythmResult.hatStrength,
+        transient:        rhythmResult.transient,
+        transientConfidence: rhythmResult.transientConfidence,
       },
       energy: {
-        instant,
-        shortTerm,
-        longTerm,
-        peak:          energyPk,
-        rms,
-        crestFactor,
-        spectralFlux,
-        delta,
-        percentile,
-        buildProgress,
-        dropImpact,
-        tension,
-        complexity,
+        instant:      energyResult.instant,
+        shortTerm:    energyResult.shortTerm,
+        longTerm:     energyResult.longTerm,
+        peak:         energyResult.peak,
+        rms:          energyResult.rms,
+        crestFactor:  energyResult.crestFactor,
+        spectralFlux: energyResult.spectralFlux,
+        delta:        energyResult.delta,
+        percentile:   energyResult.percentile,
+        buildProgress: energyResult.buildProgress,
+        dropImpact:   energyResult.dropImpact,
+        tension:      energyResult.tension,
+        complexity:   energyResult.complexity,
+        spectralCentroid:  energyResult.spectralCentroid,
+        spectralSpread:    energyResult.spectralSpread,
+        spectralRolloff:   energyResult.spectralRolloff,
+        spectralFlatness:  energyResult.spectralFlatness,
       },
       section: {
         type:       sectionType,
@@ -474,9 +307,16 @@ export class MusicIntelligenceEngine {
         confidence: sectionConfidence,
         source:     sectionSource,
       },
-      harmonic:  { ...DEFAULT_MI_FRAME.harmonic },
-      stems:     { ...DEFAULT_MI_FRAME.stems },
-      lyrics:    { ...DEFAULT_MI_FRAME.lyrics },
+      harmonic: harmonicResult,
+      stems:    stemValues,
+      lyrics: {
+        activeLine:        lyricState.activeLine,
+        activeWord:        lyricState.activeWord,
+        vocalActivity:     lyricState.vocalActivity,
+        phraseConfidence:  lyricState.phraseConfidence,
+        lyricLineProgress: lyricState.lyricLineProgress,
+        wordHit:           lyricState.wordHit,
+      },
       semantics: { ...DEFAULT_MI_FRAME.semantics },
       raw: {
         freqData:       freqBuf,
@@ -484,44 +324,38 @@ export class MusicIntelligenceEngine {
       },
       confidence: {
         overall:  sectionConfidence > 0
-          ? (this.bpmConfidence + sectionConfidence) / 2
-          : this.bpmConfidence * 0.5,
-        rhythm:   this.bpmConfidence,
-        harmonic: 0,
+          ? (beatState.bpmConfidence + sectionConfidence) / 2
+          : beatState.bpmConfidence * 0.5,
+        rhythm:   beatState.bpmConfidence,
+        harmonic: harmonicResult.keyConfidence,
         section:  sectionConfidence,
       },
     }
 
+    // ── Layer 8: Semantic analysis (reads the assembled frame) ───────────────
+    const semanticsResult = this.semanticAnalyzer.analyze(partialFrame)
+
+    // Publish final frame with semantics filled in
+    const frame: MusicIntelligenceFrame = { ...partialFrame, semantics: semanticsResult }
     AudioFeatureBus.setFrame(frame)
   }
 
-  /** No-op: engine is frame-driven, not self-ticking. Provided for API symmetry. */
   start(): void { /**/ }
-
-  /** No-op: engine is frame-driven, not self-ticking. */
-  stop(): void { /**/ }
+  stop():  void { /**/ }
 
   reset(): void {
-    this.frameId         = 0
-    this.beatIndex       = 0
-    this.prevBeatPhase   = 0
-    this.beatCooldown    = 0
-    this.prevFreqNorm    = null
-
-    for (const f of Object.values(this.emaFast))     f.reset()
-    for (const f of Object.values(this.emaBaseline)) f.reset()
-    for (const f of Object.values(this.runMax))      f.reset()
-
-    this.energyShort.reset()
-    this.energyLong.reset()
-    this.energyPeak.reset()
-    this.energyHistory.reset()
-
+    this.frameId = 0
+    this.bandAnalyzer.reset()
+    this.rhythmAnalyzer.reset()
+    this.beatGrid.reset()
+    this.energyAnalyzer.reset()
+    this.harmonicAnalyzer.reset()
+    this.stemInterpolator.reset()
+    this.lyricTracker.reset()
+    this.semanticAnalyzer.reset()
     AudioFeatureBus.reset()
   }
 }
 
 // ── Module-level singleton ────────────────────────────────────────────────────
-// All consumers (LiveVisualCanvas, ReactPlaceholderCanvas, useAudioEngine) share
-// this one instance so the published frame is always consistent.
 export const musicIntelligenceEngine = new MusicIntelligenceEngine()

@@ -21,11 +21,13 @@ export type {
   FeatureCurve,
   FeatureCurvePoint,
   StemFeatureCurve,
+  StemTrackCurves,
   ChordMarker,
   LyricLineMI,
   LyricWordMI,
   SemanticMomentMarker,
   AnalysisStatus,
+  VisualAutomationSuggestion,
 } from './types'
 
 export { DEFAULT_MI_FRAME } from './constants'
@@ -37,7 +39,23 @@ export {
   PeakFollower,
   RunningMax,
   FeatureRingBuffer,
+  AttackReleaseFilter,
+  applyCurve,
 } from './featureSmoothing'
+
+export type { CurveType, CurveParams } from './featureSmoothing'
+
+export type { BandConfig, ExtendedBandStats, BandAnalysisResult } from './bandAnalysis'
+export { MultiBandAnalyzer, DEFAULT_BAND_CONFIGS, getBandAvg } from './bandAnalysis'
+
+export type { RhythmAnalysisResult } from './rhythmAnalysis'
+export { RhythmAnalyzer } from './rhythmAnalysis'
+
+export type { BeatGridState } from './beatGrid'
+export { BeatGrid } from './beatGrid'
+
+export type { MeydaFeatureSnapshot, EnergyAnalysisResult } from './energyAnalysis'
+export { EnergyAnalyzer } from './energyAnalysis'
 
 export {
   selectBands,
@@ -60,3 +78,25 @@ export {
   MusicIntelligenceEngine,
   musicIntelligenceEngine,
 } from './MusicIntelligenceEngine'
+
+export type { SectionDetectionOptions } from './sectionAnalysis'
+export { detectSections } from './sectionAnalysis'
+
+export type { TrackAnalysisOptions } from './offlineTrackAnalyzer'
+export { analyzeTrackBuffer } from './offlineTrackAnalyzer'
+
+export { useTrackAnalysisStore } from './trackAnalysisStorage'
+
+export type { HarmonicAnalysisResult } from './harmonicAnalysis'
+export { HarmonicAnalyzer } from './harmonicAnalysis'
+
+export type { StemAnalysisBackend } from './stemAnalysis'
+export {
+  StemCurveInterpolator,
+  nullStemBackend,
+  setStemAnalysisBackend,
+  getStemAnalysisBackend,
+  emptyStems,
+} from './stemAnalysis'
+
+export { SemanticAnalyzer, detectSemanticMoments, suggestVisualAutomation } from './semanticAnalysis'

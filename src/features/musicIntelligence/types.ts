@@ -62,6 +62,11 @@ export interface MIEnergy {
   dropImpact:   number  // 0–1, burst magnitude when energy drops below average
   tension:      number  // 0–1, combined spectral flux + energy delta
   complexity:   number  // 0–1, spectral spread measure
+  // Meyda spectral features (0–1 normalized; 0 when Meyda is not running)
+  spectralCentroid:  number
+  spectralSpread:    number
+  spectralRolloff:   number
+  spectralFlatness:  number
 }
 
 export type SectionSource = 'manual' | 'analysis' | 'inferred'
@@ -85,6 +90,7 @@ export interface MIHarmonic {
   keyConfidence:  number          // 0–1
   chord:          string | null   // e.g. 'Cmaj7', 'Am'
   chordConfidence: number         // 0–1
+  chordChanged:   boolean         // true on the frame when chord changes
   rootNote:       string | null   // e.g. 'C4'
   pitchHz:        number | null   // dominant pitch in Hz
   note:           string | null   // nearest note name, e.g. 'A4'
@@ -92,21 +98,38 @@ export interface MIHarmonic {
 }
 
 export interface MIStems {
-  vocals:      number  // 0–1 estimated energy
+  // Raw energy (from stem curves when available, else 0)
+  vocals:      number  // 0–1
   drums:       number
   bass:        number
   instruments: number
   other:       number
+  // Derived runtime values
+  vocalEnergy:      number  // alias for vocals, explicit naming
+  drumEnergy:       number
+  bassStemEnergy:   number
+  instrumentEnergy: number
+  otherStemEnergy:  number
+  vocalActivity:    number  // 0–1 sustained vocal presence indicator
+  drumTransient:    boolean // transient detected in drum stem
+  bassStemTransient: boolean
 }
 
 export interface MILyrics {
-  activeLine:       string | null
-  activeWord:       string | null
-  vocalActivity:    number  // 0–1
-  phraseConfidence: number  // 0–1
+  activeLine:        string | null
+  activeWord:        string | null
+  vocalActivity:     number  // 0–1
+  phraseConfidence:  number  // 0–1
+  lyricLineProgress: number  // 0–1 position within active line
+  wordHit:           boolean // true on the frame a new word starts
 }
 
-export type MoodLabel    = 'energetic' | 'dark' | 'euphoric' | 'melancholic' | 'tension' | 'release' | 'neutral'
+export type MoodLabel =
+  | 'energetic' | 'aggressive' | 'atmospheric' | 'emotional'
+  | 'bright'    | 'dark'       | 'chaotic'     | 'minimal'
+  | 'calm'      | 'euphoric'   | 'melancholic'  | 'tension'
+  | 'release'   | 'neutral'
+
 export type TextureLabel = 'sparse' | 'dense' | 'building' | 'falling' | 'sustained'
 
 export interface MISemantics {
@@ -116,6 +139,31 @@ export interface MISemantics {
   vocalHookConfidence:  number  // 0–1 confidence there is a vocal hook
   mood:                 MoodLabel | null
   texture:              TextureLabel | null
+}
+
+// ── Stem curves ───────────────────────────────────────────────────────────────
+
+export interface StemTrackCurves {
+  energy:    FeatureCurve
+  rms:       FeatureCurve
+  transient: FeatureCurve
+}
+
+// ── Visual automation suggestion ─────────────────────────────────────────────
+
+export interface VisualAutomationSuggestion {
+  sectionType:        ReactSectionType
+  suggestedPresetId?: string
+  paramHints: {
+    intensity?:      number
+    motion?:         number
+    glow?:           number
+    bassReactivity?: number
+    colorShift?:     number
+    complexity?:     number
+  }
+  rationale:  string
+  confidence: number
 }
 
 // ── Core runtime frame ────────────────────────────────────────────────────────
@@ -156,11 +204,11 @@ export interface FeatureCurvePoint {
 export type FeatureCurve = FeatureCurvePoint[]
 
 export interface StemFeatureCurve {
-  vocals:      FeatureCurve
-  drums:       FeatureCurve
-  bass:        FeatureCurve
-  instruments: FeatureCurve
-  other:       FeatureCurve
+  vocals:      StemTrackCurves
+  drums:       StemTrackCurves
+  bass:        StemTrackCurves
+  instruments: StemTrackCurves
+  other:       StemTrackCurves
 }
 
 export interface BeatMarkerMI {
@@ -208,10 +256,12 @@ export interface LyricLineMI {
 }
 
 export interface SemanticMomentMarker {
-  timeSec:    number
-  type:       'build_start' | 'drop' | 'fakeout' | 'vocal_hook' | 'breakdown' | 'release'
-  confidence: number
-  label?:     string
+  timeSec:     number
+  durationSec?: number
+  type:        'build_start' | 'drop' | 'fakeout' | 'vocal_hook' | 'breakdown' | 'release' | 'high_impact' | 'calm_moment'
+  confidence:  number
+  label?:      string
+  source?:     'heuristic' | 'model' | 'manual'
 }
 
 export interface TrackIntelligenceAnalysis {
@@ -243,6 +293,8 @@ export interface TrackIntelligenceAnalysis {
     chordProgression: ChordMarker[]
     dominantKey:     string | null
     dominantMode:    'major' | 'minor' | null
+    pitchCurve:      FeatureCurve
+    melodyContourCurve: FeatureCurve  // encoded: 0=descending, 0.5=flat, 1=ascending
   }
   lyrics: {
     lines:      LyricLineMI[]
@@ -254,4 +306,4 @@ export interface TrackIntelligenceAnalysis {
   errors:          string[]
 }
 
-export type AnalysisStatus = 'idle' | 'pending' | 'running' | 'complete' | 'error'
+export type AnalysisStatus = 'not_analyzed' | 'queued' | 'analyzing' | 'complete' | 'failed' | 'stale'

@@ -77,7 +77,7 @@ export function getModulationSourceValue(
     case 'phrase8':   return frame.rhythm.phrase8Progress
     case 'phrase16':  return frame.rhythm.phrase16Progress
     case 'phrase32':  return frame.rhythm.phrase32Progress
-    // Energy
+    // Energy (Layer 4)
     case 'energy':        return frame.energy.instant
     case 'energyShort':   return frame.energy.shortTerm
     case 'energyLong':    return frame.energy.longTerm
@@ -86,16 +86,43 @@ export function getModulationSourceValue(
     case 'complexity':    return frame.energy.complexity
     case 'buildProgress': return frame.energy.buildProgress
     case 'dropImpact':    return frame.energy.dropImpact
+    case 'rms':           return frame.energy.rms
+    case 'peak':          return frame.energy.peak
+    case 'crestFactor':   return Math.min(1, frame.energy.crestFactor / 20)  // 0–20 → 0–1
+    case 'percentile':    return frame.energy.percentile
+    case 'delta':         return Math.max(0, Math.min(1, frame.energy.delta + 0.5))  // center around 0.5
+    // Meyda spectral features (0–1 normalized)
+    case 'spectralCentroid':  return frame.energy.spectralCentroid
+    case 'spectralSpread':    return frame.energy.spectralSpread
+    case 'spectralRolloff':   return frame.energy.spectralRolloff
+    case 'spectralFlatness':  return frame.energy.spectralFlatness
     // Section
-    case 'sectionProgress': return frame.section.progress
-    case 'sectionIntensity': return frame.section.intensity
+    case 'sectionProgress':   return frame.section.progress
+    case 'sectionIntensity':  return frame.section.intensity
     // Harmonic
-    case 'pitchHz':      return frame.harmonic.pitchHz != null ? Math.min(1, frame.harmonic.pitchHz / 2000) : 0
+    case 'pitchHz':          return frame.harmonic.pitchHz != null ? Math.min(1, frame.harmonic.pitchHz / 2000) : 0
+    case 'melodyHeight':     return frame.harmonic.pitchHz != null ? Math.min(1, Math.max(0, (frame.harmonic.pitchHz - 50) / 1950)) : 0
+    case 'keyConfidence':    return frame.harmonic.keyConfidence
+    case 'chordConfidence':  return frame.harmonic.chordConfidence
     // Stems
-    case 'stemVocals':      return frame.stems.vocals
-    case 'stemDrums':       return frame.stems.drums
-    case 'stemBass':        return frame.stems.bass
-    case 'stemInstruments': return frame.stems.instruments
+    case 'stemVocals':       return frame.stems.vocals
+    case 'stemDrums':        return frame.stems.drums
+    case 'stemBass':         return frame.stems.bassStemEnergy
+    case 'stemInstruments':  return frame.stems.instrumentEnergy
+    case 'vocalEnergy':      return frame.stems.vocalEnergy
+    case 'drumEnergy':       return frame.stems.drumEnergy
+    case 'bassStemEnergy':   return frame.stems.bassStemEnergy
+    case 'instrumentEnergy': return frame.stems.instrumentEnergy
+    case 'vocalActivity':    return frame.stems.vocalActivity
+    // Lyrics
+    case 'lyricActivity':    return frame.lyrics.vocalActivity
+    case 'lyricLineProgress':return frame.lyrics.lyricLineProgress
+    case 'phraseConfidence': return frame.lyrics.phraseConfidence
+    // Semantics
+    case 'buildConfidence':     return frame.semantics.buildConfidence
+    case 'dropConfidence':      return frame.semantics.dropConfidence
+    case 'fakeoutConfidence':   return frame.semantics.fakeoutConfidence
+    case 'vocalHookConfidence': return frame.semantics.vocalHookConfidence
     default: return 0
   }
 }
@@ -107,16 +134,20 @@ export function getTriggerSourceValue(
   sourceKey: string,
 ): boolean {
   switch (sourceKey) {
-    case 'beat':      return frame.rhythm.beatHit
-    case 'kick':      return frame.rhythm.kickHit
-    case 'snare':     return frame.rhythm.snareHit
-    case 'hat':       return frame.rhythm.hatHit
-    case 'downbeat':  return frame.rhythm.downbeatHit
-    case 'phrase4':   return frame.rhythm.phrase4Hit
-    case 'phrase8':   return frame.rhythm.phrase8Hit
-    case 'phrase16':  return frame.rhythm.phrase16Hit
-    case 'phrase32':  return frame.rhythm.phrase32Hit
-    default:          return false
+    case 'beat':       return frame.rhythm.beatHit
+    case 'kick':       return frame.rhythm.kickHit
+    case 'snare':      return frame.rhythm.snareHit
+    case 'hat':        return frame.rhythm.hatHit
+    case 'downbeat':   return frame.rhythm.downbeatHit
+    case 'phrase4':    return frame.rhythm.phrase4Hit
+    case 'phrase8':    return frame.rhythm.phrase8Hit
+    case 'phrase16':   return frame.rhythm.phrase16Hit
+    case 'phrase32':   return frame.rhythm.phrase32Hit
+    case 'chordChange':return frame.harmonic.chordChanged
+    case 'wordHit':    return frame.lyrics.wordHit
+    case 'drumTrans':  return frame.stems.drumTransient
+    case 'bassTrans':  return frame.stems.bassStemTransient
+    default:           return false
   }
 }
 
@@ -134,8 +165,29 @@ export function getConditionSourceValue(
     case 'isIntro':     return frame.section.type === 'intro'
     case 'isOutro':     return frame.section.type === 'outro'
     case 'isBreakdown': return frame.section.type === 'breakdown'
+    case 'isPreDrop':    return frame.section.type === 'preDrop'
+    case 'isBridge':     return frame.section.type === 'bridge'
+    case 'isUnknown':    return frame.section.type === 'unknown'
     case 'isHighEnergy': return frame.energy.instant > 0.6
     case 'isBeat':       return frame.rhythm.beatHit
+    // Harmonic conditions
+    case 'isMajor':      return frame.harmonic.mode === 'major'
+    case 'isMinor':      return frame.harmonic.mode === 'minor'
+    case 'isChordChange':return frame.harmonic.chordChanged
+    // Lyric conditions
+    case 'hasActiveLine':return frame.lyrics.activeLine !== null
+    case 'hasActiveWord':return frame.lyrics.activeWord !== null
+    // Semantic conditions
+    case 'isBuildPhase': return frame.semantics.buildConfidence > 0.5
+    case 'isDropPhase':  return frame.semantics.dropConfidence > 0.5
+    case 'isFakeout':    return frame.semantics.fakeoutConfidence > 0.5
+    case 'isVocalHook':  return frame.semantics.vocalHookConfidence > 0.5
+    // Mood conditions
+    case 'isEnergetic':  return frame.semantics.mood === 'energetic'
+    case 'isAggressive': return frame.semantics.mood === 'aggressive'
+    case 'isAtmospheric':return frame.semantics.mood === 'atmospheric'
+    case 'isDark':       return frame.semantics.mood === 'dark'
+    case 'isCalm':       return frame.semantics.mood === 'calm'
     default:             return false
   }
 }
