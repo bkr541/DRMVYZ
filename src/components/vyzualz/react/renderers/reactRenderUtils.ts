@@ -1,5 +1,5 @@
 import type { VzFrameContext } from '../../effects/types'
-import type { ReactTrackSection, ReactSectionType, OscillatorSettings, OscillatorGlyphAsset } from '../ReactTypes'
+import type { ReactTrackSection, ReactSectionType, OscillatorSettings, OscillatorGlyphAsset, OscillatorGlyphPoint } from '../ReactTypes'
 import { DEFAULT_OSCILLATOR_SETTINGS } from '../ReactTypes'
 
 // ── React frame context ───────────────────────────────────────────────────────
@@ -38,6 +38,10 @@ export interface ReactRenderParams {
   particleDensity:       number  // 0–1 particle count scale
   oscillator:            OscillatorSettings
   oscillatorGlyphAssets: OscillatorGlyphAsset[]
+  /** Pre-parsed SVG glyph points keyed by "${assetId}:${resolution}". Populated at upload/select time; never by the renderer. */
+  oscillatorGlyphPointCache: Record<string, OscillatorGlyphPoint[]>
+  /** Pre-sampled OpenType text points keyed by "${fontId}:${text}:${fontSize}:${letterSpacing}:${resolution}". Populated at upload/select/settings-change time; never by the renderer. */
+  oscillatorTextPointCache: Record<string, OscillatorGlyphPoint[]>
 }
 
 export const DEFAULT_REACT_RENDER_PARAMS: ReactRenderParams = {
@@ -50,6 +54,8 @@ export const DEFAULT_REACT_RENDER_PARAMS: ReactRenderParams = {
   particleDensity:       0.5,
   oscillator:            DEFAULT_OSCILLATOR_SETTINGS,
   oscillatorGlyphAssets: [],
+  oscillatorGlyphPointCache: {},
+  oscillatorTextPointCache:  {},
 }
 
 // ── VzFrameContext → ReactFrameContext conversion ────────────────────────────

@@ -3,7 +3,9 @@ import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { hexToRgba, getOrCreateOffscreen, seededRandom } from './reactRenderUtils'
 import { generateBuiltinShapePoints, clamp } from './oscillatorPathUtils'
 import { textToGlyphPoints } from './textGlyphUtils'
-import { parseSvgToGlyphPoints } from './svgGlyphUtils'
+// parseSvgToGlyphPoints is intentionally NOT imported here.
+// SVG parsing happens at upload/select/resolution-change time in reactStore.ts.
+// This renderer only reads pre-prepared points from params.oscillatorGlyphPointCache.
 
 // ── Trail canvas pool (per ctx) ───────────────────────────────────────────────
 const trailMap = new WeakMap<CanvasRenderingContext2D, HTMLCanvasElement>()
@@ -81,8 +83,19 @@ function getOscillatorPathPoints(params: ReactRenderParams): OscillatorGlyphPoin
     }
     case 'text': {
       const trimmed = osc.text.trim()
+
+      // Prefer OpenType vector paths when a custom font is selected and points are prepared.
+      if (osc.textFontId && trimmed) {
+        const openTypeKey = `${osc.textFontId}:${trimmed}:${osc.textFontSize}:${osc.textLetterSpacing}:${res}`
+        const prepared = params.oscillatorTextPointCache[openTypeKey]
+        if (prepared) return prepared
+        if (import.meta.env.DEV) {
+          console.warn(`[SoundDrawingRenderer] OpenType points not ready for font "${osc.textFontId}" — using canvas fallback`)
+        }
+      }
+
+      // Canvas fallback (original behaviour)
       if (!trimmed) {
-        // Empty text — use the builtinShape fallback so the shape is still visible
         const key = `builtin:${osc.builtinShape}:${res}`
         const cached = pathCache.get(key)
         if (cached) return cached
@@ -90,7 +103,6 @@ function getOscillatorPathPoints(params: ReactRenderParams): OscillatorGlyphPoin
         cachePut(key, pts)
         return pts
       }
-      // Key uses trimmed text so leading/trailing whitespace edits don't bust the cache
       const key = `text:${trimmed}:${res}`
       const cached = pathCache.get(key)
       if (cached) return cached
@@ -99,19 +111,21 @@ function getOscillatorPathPoints(params: ReactRenderParams): OscillatorGlyphPoin
       return pts
     }
     case 'svgGlyph': {
-      const assets = params.oscillatorGlyphAssets
       const glyphId = osc.selectedGlyphId
-      const asset = glyphId ? assets.find(a => a.id === glyphId) : undefined
-      if (asset?.rawSvg) {
-        // asset.id is a content-hash (FNV-1a of rawSvg) — same SVG always hits the same key
-        const key = `svg:${asset.id}:${res}`
-        const cached = pathCache.get(key)
-        if (cached) return cached
-        const pts = parseSvgToGlyphPoints(asset.rawSvg, res)
-        cachePut(key, pts)
-        return pts
+      const asset = glyphId ? params.oscillatorGlyphAssets.find(a => a.id === glyphId) : undefined
+      if (asset) {
+        // Read from the pre-parsed cache populated by reactStore at upload/select/resolution-change time.
+        // Key format: "${assetId}:${resolution}" — matches the key written by reactStore.ts.
+        const cacheKey = `${asset.id}:${res}`
+        const prepared = params.oscillatorGlyphPointCache[cacheKey]
+        if (prepared) return prepared
+        // Points not yet prepared (e.g. first frame after page reload before any interaction).
+        // Fall back to circle silently; the store will populate the cache on next select.
+        if (import.meta.env.DEV) {
+          console.warn(`[SoundDrawingRenderer] No prepared points for glyph "${asset.id}" at res ${res} — falling back to circle`)
+        }
       }
-      // No asset selected or rawSvg missing — fall back to circle
+      // No asset selected or points not ready — circle sentinel
       const key = `builtin:circle:${res}`
       const cached = pathCache.get(key)
       if (cached) return cached
@@ -615,7 +629,20 @@ function drawPathScopeOnTrail(
 
   const tdLen = timeDomainData ? timeDomainData.length : resolution
 
-  let mainTracePts: [number, number][] | null = null
+  // Groups based on source pathIndex — each sub-path (letter, hole, logo piece)
+  // is drawn separately so there are no connector lines between unrelated paths.
+  // Built-in shapes all have pathIndex 0 so they render as a single group (unchanged).
+  const pathIndexGroups = new Map<number, number[]>()  // pathIndex → array of source point indices
+  for (let i = 0; i < resolution; i++) {
+    const pidx = basePoints[i].pathIndex ?? 0
+    if (!pathIndexGroups.has(pidx)) pathIndexGroups.set(pidx, [])
+    pathIndexGroups.get(pidx)!.push(i)
+  }
+  const sourceGroups = Array.from(pathIndexGroups.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([, indices]) => indices)
+
+  let mainTraceGroups: [number, number][][] | null = null
 
   for (let traceIdx = 0; traceIdx < numTraces; traceIdx++) {
     const isMain        = traceIdx === 0
@@ -632,6 +659,7 @@ function drawPathScopeOnTrail(
     const sinR           = Math.sin(totalRot)
     const traceScale     = baseScale * traceScaleMul
 
+    // Transform all source points to screen coordinates (global index preserved for audio sampling)
     const screenPts: [number, number][] = new Array(resolution)
     for (let i = 0; i < resolution; i++) {
       const p = basePoints[i]
@@ -700,7 +728,12 @@ function drawPathScopeOnTrail(
       screenPts[i] = [cx + sx * cosR - sy * sinR, cy + sx * sinR + sy * cosR]
     }
 
-    if (isMain) mainTracePts = screenPts
+    // Gather screen coords grouped by source pathIndex (preserving source order within each group)
+    const screenGroups: [number, number][][] = sourceGroups.map(
+      indices => indices.map(i => screenPts[i])
+    )
+
+    if (isMain) mainTraceGroups = screenGroups
 
     tctx.save()
     tctx.globalCompositeOperation = 'screen'
@@ -714,7 +747,7 @@ function drawPathScopeOnTrail(
         tctx.shadowColor = traceColor
         tctx.shadowBlur  = glowBase
         tctx.lineWidth   = (1.2 + bass * 1.5) * am.lineWidthBoost * dpr * params.intensity
-        drawConnectedPath(tctx, screenPts, close)
+        for (const group of screenGroups) drawConnectedPath(tctx, group, close)
         break
       }
       case 'multiTrace': {
@@ -724,14 +757,14 @@ function drawPathScopeOnTrail(
           tctx.shadowColor = preset.palette.accent
           tctx.shadowBlur  = glowBase * 0.8
           tctx.lineWidth   = (2.5 + bass * 2.5) * am.lineWidthBoost * dpr
-          drawConnectedPath(tctx, screenPts, close)
+          for (const group of screenGroups) drawConnectedPath(tctx, group, close)
         }
         tctx.globalAlpha = traceAlpha * intMul
         tctx.strokeStyle = traceColor
         tctx.shadowColor = traceColor
         tctx.shadowBlur  = glowBase
         tctx.lineWidth   = (1.0 + bass * 1.5) * am.lineWidthBoost * dpr * params.intensity
-        drawConnectedPath(tctx, screenPts, close)
+        for (const group of screenGroups) drawConnectedPath(tctx, group, close)
         break
       }
       case 'dots': {
@@ -740,22 +773,24 @@ function drawPathScopeOnTrail(
         tctx.fillStyle   = traceColor
         tctx.shadowColor = traceColor
         tctx.shadowBlur  = glowBase * 0.6
-        drawDotPoints(tctx, screenPts, dotR)
+        for (const group of screenGroups) drawDotPoints(tctx, group, dotR)
         break
       }
       case 'ribbon': {
+        // Underlay pass (wide, semi-transparent) — all groups first
         tctx.globalAlpha = 0.18 * intMul
         tctx.strokeStyle = preset.palette.accent
         tctx.shadowColor = preset.palette.accent
         tctx.shadowBlur  = glowBase * 1.2
         tctx.lineWidth   = (5 + bass * 5) * am.lineWidthBoost * dpr
-        drawConnectedPath(tctx, screenPts, close)
+        for (const group of screenGroups) drawConnectedPath(tctx, group, close)
+        // Inner trace pass (thin, full alpha) — all groups second
         tctx.globalAlpha = traceAlpha * intMul
         tctx.strokeStyle = traceColor
         tctx.shadowColor = traceColor
         tctx.shadowBlur  = glowBase
         tctx.lineWidth   = (1.5 + bass * 1.5) * am.lineWidthBoost * dpr * params.intensity
-        drawConnectedPath(tctx, screenPts, close)
+        for (const group of screenGroups) drawConnectedPath(tctx, group, close)
         break
       }
     }
@@ -763,8 +798,9 @@ function drawPathScopeOnTrail(
     tctx.restore()
   }
 
-  // Beat bloom flash — sustained by envelope, not a single-frame spike
-  if (am.beatPulse > 0.05 && mainTracePts) {
+  // Beat bloom flash — sustained by envelope, not a single-frame spike.
+  // Iterates over the same per-pathIndex groups so no cross-path connector lines appear here either.
+  if (am.beatPulse > 0.05 && mainTraceGroups) {
     tctx.save()
     tctx.globalCompositeOperation = 'screen'
     tctx.strokeStyle = preset.palette.accent
@@ -774,7 +810,7 @@ function drawPathScopeOnTrail(
     tctx.globalAlpha = 0.5 * am.beatPulse * effectiveOsc.beatBloom * intMul
     tctx.lineCap     = 'round'
     tctx.lineJoin    = 'round'
-    drawConnectedPath(tctx, mainTracePts, close)
+    for (const group of mainTraceGroups) drawConnectedPath(tctx, group, close)
     tctx.restore()
   }
 }

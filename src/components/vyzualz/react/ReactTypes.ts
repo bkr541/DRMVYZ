@@ -34,12 +34,25 @@ export interface OscillatorGlyphAsset {
   createdAt: string
 }
 
+export interface OscillatorFontAsset {
+  id: string
+  name: string
+  fileName: string
+  fontFamilyName?: string
+  rawFontDataBase64: string
+  createdAt: string
+  parseError?: string | null
+}
+
 export interface OscillatorSettings {
   sourceType: OscillatorSourceType
   classicMode: ClassicScopeMode
   builtinShape: BuiltinOscillatorShape
   selectedGlyphId: string | null
   text: string
+  textFontId: string | null
+  textFontSize: number
+  textLetterSpacing: number
   renderMode: OscillatorRenderMode
   pathResolution: number
   pathScale: number
@@ -62,6 +75,9 @@ export const DEFAULT_OSCILLATOR_SETTINGS: OscillatorSettings = {
   builtinShape:      'circle',
   selectedGlyphId:   null,
   text:              'DRMVYZ',
+  textFontId:        null,
+  textFontSize:      160,
+  textLetterSpacing: 0,
   renderMode:        'outline',
   pathResolution:    512,
   pathScale:         0.78,

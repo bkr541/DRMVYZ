@@ -8,9 +8,11 @@ import type {
   OscillatorRenderMode,
   OscillatorAudioDisplaceMode,
   OscillatorGlyphAsset,
+  OscillatorFontAsset,
   OscillatorSettings,
 } from './ReactTypes'
-import { makeSvgGlyphAsset } from './renderers/svgGlyphUtils'
+import { makeSvgGlyphAsset, isSvgContent } from './renderers/svgGlyphUtils'
+import { makeFontAssetFromFile } from './renderers/fontGlyphUtils'
 
 // ── Slider row (0–1 or custom range) ─────────────────────────────────────────
 
@@ -185,15 +187,19 @@ function StatusKV({ label, value }: { label: string; value: React.ReactNode }) {
 function OscillatorStatusCard({
   osc,
   glyphAssets,
+  fontAssets,
 }: {
   osc: OscillatorSettings
   glyphAssets: OscillatorGlyphAsset[]
+  fontAssets: OscillatorFontAsset[]
 }) {
   const isClassic = osc.sourceType === 'classic'
 
   const selectedGlyph = (osc.sourceType === 'svgGlyph' && osc.selectedGlyphId)
     ? glyphAssets.find(a => a.id === osc.selectedGlyphId)
     : undefined
+
+  const selectedFont = osc.textFontId ? fontAssets.find(f => f.id === osc.textFontId) : undefined
 
   let activeName: string | null = null
   if (osc.sourceType === 'builtinShape') {
@@ -249,11 +255,22 @@ function OscillatorStatusCard({
       )}
 
       {osc.sourceType === 'text' && (
-        osc.text.trim() ? (
-          <StatusKV label="Chars" value={osc.text.trim().length} />
-        ) : (
-          <div className="rv-osc-status-warn">Text is empty</div>
-        )
+        <>
+          {osc.text.trim() ? (
+            <StatusKV label="Chars" value={osc.text.trim().length} />
+          ) : (
+            <div className="rv-osc-status-warn">Text is empty</div>
+          )}
+          {selectedFont ? (
+            selectedFont.parseError ? (
+              <div className="rv-osc-status-warn">{selectedFont.parseError}</div>
+            ) : (
+              <StatusKV label="Font" value={<span className="rv-osc-status-val--highlight">{selectedFont.name}</span>} />
+            )
+          ) : (
+            <StatusKV label="Engine" value="Canvas fallback" />
+          )}
+        </>
       )}
     </div>
   )
@@ -263,6 +280,8 @@ function OscillatorStatusCard({
 
 export function ReactControlPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const fontInputRef = useRef<HTMLInputElement>(null)
+  const [fontUploadError, setFontUploadError] = useState<string | null>(null)
 
   const {
     reactIntensity,       setReactIntensity,
@@ -275,6 +294,7 @@ export function ReactControlPanel() {
     activeReactEngineId,
     oscillatorSettings,   setOscillatorSettings, resetOscillatorSettings,
     oscillatorGlyphAssets, addOscillatorGlyphAsset, removeOscillatorGlyphAsset, selectOscillatorGlyph,
+    oscillatorFontAssets,  addOscillatorFontAsset,  removeOscillatorFontAsset,  selectOscillatorFont,
     resetReactView,
   } = useReactStore(useShallow(s => ({
     reactIntensity:              s.reactIntensity,
@@ -299,6 +319,10 @@ export function ReactControlPanel() {
     addOscillatorGlyphAsset:     s.addOscillatorGlyphAsset,
     removeOscillatorGlyphAsset:  s.removeOscillatorGlyphAsset,
     selectOscillatorGlyph:       s.selectOscillatorGlyph,
+    oscillatorFontAssets:        s.oscillatorFontAssets,
+    addOscillatorFontAsset:      s.addOscillatorFontAsset,
+    removeOscillatorFontAsset:   s.removeOscillatorFontAsset,
+    selectOscillatorFont:        s.selectOscillatorFont,
     resetReactView:              s.resetReactView,
   })))
 
@@ -316,7 +340,7 @@ export function ReactControlPanel() {
       const reader = new FileReader()
       reader.onload = ev => {
         const rawSvg = ev.target?.result
-        if (typeof rawSvg !== 'string' || !rawSvg.includes('<svg')) return
+        if (typeof rawSvg !== 'string' || !isSvgContent(rawSvg)) return
         const name = file.name.replace(/\.svg$/i, '').trim() || 'glyph'
         const asset = makeSvgGlyphAsset(name, rawSvg, osc.pathResolution)
         addOscillatorGlyphAsset(asset)
@@ -327,6 +351,20 @@ export function ReactControlPanel() {
     // Reset so the same file can be re-uploaded
     e.target.value = ''
   }
+  async function handleFontUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setFontUploadError(null)
+    try {
+      const asset = await makeFontAssetFromFile(file)
+      addOscillatorFontAsset(asset)
+      selectOscillatorFont(asset.id)
+    } catch (err) {
+      setFontUploadError((err as Error).message)
+    }
+  }
+
   const isCinematic    = activeReactEngineId === 'cinematicPortal'
   const isShaderPads   = activeReactEngineId === 'shaderPads'
 
@@ -347,7 +385,7 @@ export function ReactControlPanel() {
         {isSoundDrawing && (
           <>
             <CtrlSection label="Sound Drawing" />
-            <OscillatorStatusCard osc={osc} glyphAssets={oscillatorGlyphAssets} />
+            <OscillatorStatusCard osc={osc} glyphAssets={oscillatorGlyphAssets} fontAssets={oscillatorFontAssets} />
             <SliderRow
               label="Trail Decay"
               value={reactTrailDecay}
@@ -411,13 +449,40 @@ export function ReactControlPanel() {
               )}
 
               {osc.sourceType === 'text' && (
-                <TextInputRow
-                  label="Text"
-                  value={osc.text}
-                  onChange={v => set({ text: v })}
-                  maxLength={32}
-                  placeholder="DRMVYZ"
-                />
+                <>
+                  <TextInputRow
+                    label="Text"
+                    value={osc.text}
+                    onChange={v => set({ text: v })}
+                    maxLength={32}
+                    placeholder="DRMVYZ"
+                  />
+                  {oscillatorFontAssets.length > 0 && (
+                    <SelectRow
+                      label="Font"
+                      value={osc.textFontId ?? ''}
+                      onChange={v => selectOscillatorFont(v || null)}
+                      options={[
+                        { value: '', label: '— canvas fallback —' },
+                        ...oscillatorFontAssets.map((f: OscillatorFontAsset) => ({ value: f.id, label: f.name })),
+                      ]}
+                    />
+                  )}
+                  <SliderRow
+                    label="Font Size"
+                    value={osc.textFontSize}
+                    onChange={v => set({ textFontSize: Math.round(v) })}
+                    min={48} max={320} step={8}
+                    color="#61d6aa"
+                  />
+                  <SliderRow
+                    label="Spacing"
+                    value={osc.textLetterSpacing}
+                    onChange={v => set({ textLetterSpacing: Math.round(v) })}
+                    min={-20} max={80} step={1}
+                    color="#d8b95a"
+                  />
+                </>
               )}
 
               {osc.sourceType === 'svgGlyph' && (
@@ -583,6 +648,59 @@ export function ReactControlPanel() {
                           className="rv-glyph-item-del"
                           title="Remove glyph"
                           onClick={e => { e.stopPropagation(); removeOscillatorGlyphAsset(asset.id) }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </Collapsible>
+
+            {/* ── Font Library ─────────────────────────────────────────── */}
+            <Collapsible label="Font Library" defaultOpen={false}>
+              <div className="rv-ctrl-info">
+                Upload .ttf or .otf files for OpenType vector text paths.
+              </div>
+              <input
+                ref={fontInputRef}
+                type="file"
+                accept=".ttf,.otf,font/ttf,font/otf"
+                style={{ display: 'none' }}
+                onChange={handleFontUpload}
+              />
+              <button
+                type="button"
+                className="rv-glyph-upload-btn"
+                onClick={() => { setFontUploadError(null); fontInputRef.current?.click() }}
+              >
+                + Upload Font
+              </button>
+              {fontUploadError && (
+                <div className="rv-osc-status-warn">{fontUploadError}</div>
+              )}
+              {oscillatorFontAssets.length > 0 && (
+                <div className="rv-glyph-list">
+                  {oscillatorFontAssets.map((asset: OscillatorFontAsset) => {
+                    const isActive = osc.textFontId === asset.id
+                    return (
+                      <div
+                        key={asset.id}
+                        className={`rv-glyph-item${isActive ? ' rv-glyph-item--active' : ''}`}
+                        onClick={() => selectOscillatorFont(asset.id)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') selectOscillatorFont(asset.id) }}
+                      >
+                        <span className="rv-glyph-item-name" title={asset.fileName}>
+                          {asset.name}
+                        </span>
+                        <button
+                          type="button"
+                          className="rv-glyph-item-del"
+                          title="Remove font"
+                          onClick={e => { e.stopPropagation(); removeOscillatorFontAsset(asset.id) }}
                         >
                           ×
                         </button>

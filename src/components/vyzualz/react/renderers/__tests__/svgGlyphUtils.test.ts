@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   hashString,
+  isSvgContent,
   extractSvgPathData,
   sampleSvgPathData,
   parseSvgToGlyphPoints,
@@ -30,6 +31,46 @@ const NO_PATH_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 10
 </svg>`
 
 const INVALID_SVG = 'not valid xml at all !@#$%'
+
+// ── isSvgContent ──────────────────────────────────────────────────────────────
+
+describe('isSvgContent', () => {
+  it('accepts a normal lowercase svg document', () => {
+    expect(isSvgContent('<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0" /></svg>')).toBe(true)
+  })
+
+  it('accepts an uppercase SVG tag', () => {
+    expect(isSvgContent('<SVG xmlns="http://www.w3.org/2000/svg"><PATH d="M0 0" /></SVG>')).toBe(true)
+  })
+
+  it('accepts mixed-case Svg tag', () => {
+    expect(isSvgContent('<Svg viewBox="0 0 100 100"></Svg>')).toBe(true)
+  })
+
+  it('accepts svg with leading whitespace', () => {
+    expect(isSvgContent('   \n<svg><path d="M0 0"/></svg>')).toBe(true)
+  })
+
+  it('rejects plain text', () => {
+    expect(isSvgContent('Hello, world!')).toBe(false)
+  })
+
+  it('rejects HTML that is not SVG', () => {
+    expect(isSvgContent('<html><body><p>not svg</p></body></html>')).toBe(false)
+  })
+
+  it('rejects XML that is not SVG', () => {
+    expect(isSvgContent('<?xml version="1.0"?><root><item/></root>')).toBe(false)
+  })
+
+  it('rejects an empty string', () => {
+    expect(isSvgContent('')).toBe(false)
+  })
+
+  it('rejects whitespace-only input', () => {
+    expect(isSvgContent('   \n\t  ')).toBe(false)
+  })
+})
 
 // ── hashString ────────────────────────────────────────────────────────────────
 

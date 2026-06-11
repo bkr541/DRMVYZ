@@ -13,7 +13,89 @@ import type {
   ReactPerformancePad,
   OscillatorSettings,
   OscillatorGlyphAsset,
+  OscillatorGlyphPoint,
+  OscillatorFontAsset,
 } from '../components/vyzualz/react/ReactTypes'
+import { parseSvgToGlyphPoints } from '../components/vyzualz/react/renderers/svgGlyphUtils'
+import {
+  parseOpenTypeFontFromAsset,
+  textToOpenTypeGlyphPoints,
+  evictFontFromCache,
+} from '../components/vyzualz/react/renderers/fontGlyphUtils'
+
+// ── Point cache helpers ───────────────────────────────────────────────────────
+// SVG cache key: "${assetId}:${resolution}"
+// Text cache key: "${fontId}:${text}:${fontSize}:${letterSpacing}:${resolution}"
+// Resolution is clamped to [64, 2048] matching the renderer's own clamp.
+
+function clampRes(v: number): number {
+  return Math.max(64, Math.min(2048, Math.round(v)))
+}
+
+function glyphCacheKey(assetId: string, res: number): string {
+  return `${assetId}:${res}`
+}
+
+function textCacheKey(fontId: string, text: string, fontSize: number, spacing: number, res: number): string {
+  return `${fontId}:${text.trim()}:${fontSize}:${spacing}:${res}`
+}
+
+function prepareSvgPoints(
+  asset: OscillatorGlyphAsset,
+  res: number,
+  cache: Record<string, OscillatorGlyphPoint[]>,
+): Record<string, OscillatorGlyphPoint[]> {
+  if (!asset.rawSvg) return cache
+  const key = glyphCacheKey(asset.id, res)
+  if (cache[key]) return cache  // already prepared
+  return { ...cache, [key]: parseSvgToGlyphPoints(asset.rawSvg, res) }
+}
+
+function prepareTextPoints(
+  assets: OscillatorFontAsset[],
+  settings: OscillatorSettings,
+  cache: Record<string, OscillatorGlyphPoint[]>,
+): Record<string, OscillatorGlyphPoint[]> {
+  const { textFontId, text, textFontSize, textLetterSpacing, pathResolution } = settings
+  if (!textFontId || !text.trim()) return cache
+  const asset = assets.find(a => a.id === textFontId)
+  if (!asset) return cache
+  const res = clampRes(pathResolution)
+  const key = textCacheKey(textFontId, text, textFontSize, textLetterSpacing, res)
+  if (cache[key]) return cache
+  try {
+    const font = parseOpenTypeFontFromAsset(asset)
+    const pts = textToOpenTypeGlyphPoints(font, text, res, {
+      fontSize: textFontSize,
+      letterSpacing: textLetterSpacing,
+    })
+    return { ...cache, [key]: pts }
+  } catch {
+    return cache
+  }
+}
+
+// ── Preset oscillator settings resolver ───────────────────────────────────────
+// Single source of truth for how oscillatorSettings are resolved when a preset
+// is selected (from the preset browser or via a performance pad).
+//
+// Oscilloscope presets always reset to DEFAULT_OSCILLATOR_SETTINGS and then
+// merge any preset-specific overrides on top.  This ensures legacy presets
+// that have no oscillatorSettings always land on classic mode rather than
+// inheriting whatever sourceType was active before.
+//
+// Non-oscilloscope presets (shaderPads, cinematicPortal) leave oscillatorSettings
+// untouched so engine-specific state is not inadvertently overwritten.
+export function resolvePresetOscillatorSettings(
+  preset: ReactPreset,
+  currentSettings: OscillatorSettings,
+): OscillatorSettings {
+  if (preset.engine !== 'oscilloscope') return currentSettings
+  return {
+    ...DEFAULT_OSCILLATOR_SETTINGS,
+    ...(preset.oscillatorSettings ?? {}),
+  }
+}
 
 interface ReactStoreState {
   activeReactPresetId: string | null
@@ -72,6 +154,20 @@ interface ReactStoreState {
   clearOscillatorGlyphAssets: () => void
   selectOscillatorGlyph: (id: string) => void
 
+  // Pre-parsed glyph points — non-persisted, keyed by "${assetId}:${resolution}"
+  oscillatorGlyphPointCache: Record<string, OscillatorGlyphPoint[]>
+
+  // Uploaded font assets (persisted as base64)
+  oscillatorFontAssets: OscillatorFontAsset[]
+  addOscillatorFontAsset: (asset: OscillatorFontAsset) => void
+  removeOscillatorFontAsset: (id: string) => void
+  clearOscillatorFontAssets: () => void
+  selectOscillatorFont: (id: string | null) => void
+
+  // Pre-sampled OpenType text points — non-persisted
+  // keyed by "${fontId}:${text}:${fontSize}:${letterSpacing}:${resolution}"
+  oscillatorTextPointCache: Record<string, OscillatorGlyphPoint[]>
+
   resetReactView: () => void
 }
 
@@ -90,6 +186,9 @@ export const useReactStore = create<ReactStoreState>()(
       activePadId: null,
       oscillatorSettings: DEFAULT_OSCILLATOR_SETTINGS,
       oscillatorGlyphAssets: [],
+      oscillatorGlyphPointCache: {},
+      oscillatorFontAssets: [],
+      oscillatorTextPointCache: {},
       reactIntensity:       0.7,
       reactMotion:          0.5,
       reactGlow:            0.65,
@@ -114,9 +213,7 @@ export const useReactStore = create<ReactStoreState>()(
             reactMotion:         preset.params.motion,
             reactGlow:           preset.params.glow,
             reactBassReactivity: preset.params.bassReactivity,
-            ...(preset.oscillatorSettings
-              ? { oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS, ...preset.oscillatorSettings } }
-              : {}),
+            oscillatorSettings:  resolvePresetOscillatorSettings(preset, s.oscillatorSettings),
           }
         }),
 
@@ -169,9 +266,7 @@ export const useReactStore = create<ReactStoreState>()(
             reactMotion:         preset.params.motion,
             reactGlow:           preset.params.glow,
             reactBassReactivity: preset.params.bassReactivity,
-            ...(preset.oscillatorSettings
-              ? { oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS, ...preset.oscillatorSettings } }
-              : {}),
+            oscillatorSettings:  resolvePresetOscillatorSettings(preset, s.oscillatorSettings),
           }
         }),
 
@@ -183,30 +278,67 @@ export const useReactStore = create<ReactStoreState>()(
         })),
 
       setOscillatorSettings: (patch) =>
-        set((s) => ({ oscillatorSettings: { ...s.oscillatorSettings, ...patch } })),
+        set((s) => {
+          const newSettings = { ...s.oscillatorSettings, ...patch }
+          let newGlyphCache = s.oscillatorGlyphPointCache
+          let newTextCache  = s.oscillatorTextPointCache
+
+          // Re-prepare SVG glyph points when pathResolution changes while a glyph is active.
+          if ('pathResolution' in patch && newSettings.sourceType === 'svgGlyph' && newSettings.selectedGlyphId) {
+            const asset = s.oscillatorGlyphAssets.find(a => a.id === newSettings.selectedGlyphId)
+            if (asset) newGlyphCache = prepareSvgPoints(asset, clampRes(newSettings.pathResolution), newGlyphCache)
+          }
+
+          // Re-prepare OpenType text points when any text-relevant field changes.
+          const textFields: (keyof OscillatorSettings)[] = ['text', 'textFontId', 'textFontSize', 'textLetterSpacing', 'pathResolution']
+          const needsText = textFields.some(f => f in patch) && newSettings.sourceType === 'text' && !!newSettings.textFontId
+          if (needsText) {
+            newTextCache = prepareTextPoints(s.oscillatorFontAssets, newSettings, newTextCache)
+          }
+
+          return {
+            oscillatorSettings:      newSettings,
+            oscillatorGlyphPointCache: newGlyphCache,
+            oscillatorTextPointCache:  newTextCache,
+          }
+        }),
 
       resetOscillatorSettings: () =>
         set({ oscillatorSettings: DEFAULT_OSCILLATOR_SETTINGS }),
 
       addOscillatorGlyphAsset: (asset) =>
-        set((s) => ({
-          oscillatorGlyphAssets: s.oscillatorGlyphAssets.some(a => a.id === asset.id)
-            ? s.oscillatorGlyphAssets
-            : [...s.oscillatorGlyphAssets, asset],
-        })),
+        set((s) => {
+          if (s.oscillatorGlyphAssets.some(a => a.id === asset.id)) return {}
+          // Parse immediately at upload time so the renderer never needs to.
+          const res = clampRes(s.oscillatorSettings.pathResolution)
+          const newCache = prepareSvgPoints(asset, res, s.oscillatorGlyphPointCache)
+          return {
+            oscillatorGlyphAssets: [...s.oscillatorGlyphAssets, asset],
+            oscillatorGlyphPointCache: newCache,
+          }
+        }),
 
       removeOscillatorGlyphAsset: (id) =>
-        set((s) => ({
-          oscillatorGlyphAssets: s.oscillatorGlyphAssets.filter(a => a.id !== id),
-          oscillatorSettings:
-            s.oscillatorSettings.selectedGlyphId === id
-              ? { ...s.oscillatorSettings, selectedGlyphId: null, sourceType: 'builtinShape' }
-              : s.oscillatorSettings,
-        })),
+        set((s) => {
+          // Evict all cache entries for this asset
+          const newCache = { ...s.oscillatorGlyphPointCache }
+          for (const key of Object.keys(newCache)) {
+            if (key.startsWith(`${id}:`)) delete newCache[key]
+          }
+          return {
+            oscillatorGlyphAssets: s.oscillatorGlyphAssets.filter(a => a.id !== id),
+            oscillatorGlyphPointCache: newCache,
+            oscillatorSettings:
+              s.oscillatorSettings.selectedGlyphId === id
+                ? { ...s.oscillatorSettings, selectedGlyphId: null, sourceType: 'builtinShape' }
+                : s.oscillatorSettings,
+          }
+        }),
 
       clearOscillatorGlyphAssets: () =>
         set((s) => ({
           oscillatorGlyphAssets: [],
+          oscillatorGlyphPointCache: {},
           oscillatorSettings:
             s.oscillatorSettings.sourceType === 'svgGlyph'
               ? { ...s.oscillatorSettings, selectedGlyphId: null, sourceType: 'builtinShape' }
@@ -214,23 +346,74 @@ export const useReactStore = create<ReactStoreState>()(
         })),
 
       selectOscillatorGlyph: (id) =>
+        set((s) => {
+          const asset = s.oscillatorGlyphAssets.find(a => a.id === id)
+          const res = clampRes(s.oscillatorSettings.pathResolution)
+          // Ensure points are prepared; handles the page-reload case where the
+          // persisted asset has rawSvg but the non-persisted cache is empty.
+          const newCache = asset ? prepareSvgPoints(asset, res, s.oscillatorGlyphPointCache) : s.oscillatorGlyphPointCache
+          return {
+            oscillatorSettings: { ...s.oscillatorSettings, sourceType: 'svgGlyph', selectedGlyphId: id },
+            oscillatorGlyphPointCache: newCache,
+          }
+        }),
+
+      // ── Font asset actions ──────────────────────────────────────────────────
+
+      addOscillatorFontAsset: (asset) =>
+        set((s) => {
+          if (s.oscillatorFontAssets.some(a => a.id === asset.id)) return {}
+          return { oscillatorFontAssets: [...s.oscillatorFontAssets, asset] }
+        }),
+
+      removeOscillatorFontAsset: (id) =>
+        set((s) => {
+          evictFontFromCache(id)
+          // Evict all text cache entries for this font
+          const newTextCache = { ...s.oscillatorTextPointCache }
+          for (const key of Object.keys(newTextCache)) {
+            if (key.startsWith(`${id}:`)) delete newTextCache[key]
+          }
+          return {
+            oscillatorFontAssets: s.oscillatorFontAssets.filter(a => a.id !== id),
+            oscillatorTextPointCache: newTextCache,
+            oscillatorSettings:
+              s.oscillatorSettings.textFontId === id
+                ? { ...s.oscillatorSettings, textFontId: null }
+                : s.oscillatorSettings,
+          }
+        }),
+
+      clearOscillatorFontAssets: () =>
         set((s) => ({
-          oscillatorSettings: {
-            ...s.oscillatorSettings,
-            sourceType: 'svgGlyph',
-            selectedGlyphId: id,
-          },
+          oscillatorFontAssets: [],
+          oscillatorTextPointCache: {},
+          oscillatorSettings:
+            s.oscillatorSettings.textFontId
+              ? { ...s.oscillatorSettings, textFontId: null }
+              : s.oscillatorSettings,
         })),
+
+      selectOscillatorFont: (id) =>
+        set((s) => {
+          const newSettings = { ...s.oscillatorSettings, textFontId: id }
+          const newTextCache = id
+            ? prepareTextPoints(s.oscillatorFontAssets, newSettings, s.oscillatorTextPointCache)
+            : s.oscillatorTextPointCache
+          return { oscillatorSettings: newSettings, oscillatorTextPointCache: newTextCache }
+        }),
 
       resetReactView: () =>
         set({
-          activeReactPresetId:  INITIAL_PRESET_ID,
-          activeReactEngineId:  INITIAL_ENGINE_ID,
-          manualTrackSections:  [],
-          selectedSectionId:    null,
-          performancePads:      DEFAULT_PERFORMANCE_PADS,
-          activePadId:          null,
-          oscillatorSettings:   DEFAULT_OSCILLATOR_SETTINGS,
+          activeReactPresetId:       INITIAL_PRESET_ID,
+          activeReactEngineId:       INITIAL_ENGINE_ID,
+          manualTrackSections:       [],
+          selectedSectionId:         null,
+          performancePads:           DEFAULT_PERFORMANCE_PADS,
+          activePadId:               null,
+          oscillatorSettings:        DEFAULT_OSCILLATOR_SETTINGS,
+          oscillatorGlyphPointCache: {},
+          oscillatorTextPointCache:  {},
           reactIntensity:       0.7,
           reactMotion:          0.5,
           reactGlow:            0.65,
@@ -249,6 +432,7 @@ export const useReactStore = create<ReactStoreState>()(
         manualTrackSections:    s.manualTrackSections,
         oscillatorSettings:     s.oscillatorSettings,
         oscillatorGlyphAssets:  s.oscillatorGlyphAssets,
+        oscillatorFontAssets:   s.oscillatorFontAssets,
         reactIntensity:       s.reactIntensity,
         reactMotion:          s.reactMotion,
         reactGlow:            s.reactGlow,

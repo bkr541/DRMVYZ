@@ -266,6 +266,33 @@ function linePoints(n: number): OscillatorGlyphPoint[] {
   })
 }
 
+// ── Path grouping ─────────────────────────────────────────────────────────────
+
+/**
+ * Splits a flat point array into sub-arrays by `pathIndex`.
+ *
+ * Points with the same pathIndex form one group.  Groups are returned in
+ * ascending pathIndex order, and insertion order within each group is
+ * preserved.  Points whose pathIndex is undefined default to 0.
+ *
+ * This allows the renderer to draw each SVG sub-path (letter, hole, logo
+ * piece, etc.) as a separate stroke, eliminating connector lines between
+ * unrelated sub-paths.
+ */
+export function groupPointsByPathIndex(
+  points: OscillatorGlyphPoint[],
+): OscillatorGlyphPoint[][] {
+  const groups = new Map<number, OscillatorGlyphPoint[]>()
+  for (const p of points) {
+    const idx = p.pathIndex ?? 0
+    if (!groups.has(idx)) groups.set(idx, [])
+    groups.get(idx)!.push(p)
+  }
+  return Array.from(groups.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([, pts]) => pts)
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**

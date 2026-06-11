@@ -17,6 +17,16 @@ export function hashString(input: string): string {
   return (h >>> 0).toString(16).padStart(8, '0')
 }
 
+// ── SVG content detection ─────────────────────────────────────────────────────
+
+/**
+ * Returns true when the string looks like an SVG document.
+ * Case-insensitive so <SVG …> files are accepted alongside lowercase <svg …>.
+ */
+export function isSvgContent(rawSvg: string): boolean {
+  return rawSvg.trim().toLowerCase().includes('<svg')
+}
+
 // ── SVG path extraction ───────────────────────────────────────────────────────
 
 /**

@@ -1,5 +1,5 @@
 import { useRef, useEffect } from 'react'
-import type { ReactPreset, ReactTrackSection, OscillatorSettings, OscillatorGlyphAsset } from './ReactTypes'
+import type { ReactPreset, ReactTrackSection, OscillatorSettings, OscillatorGlyphAsset, OscillatorGlyphPoint } from './ReactTypes'
 import { DEFAULT_OSCILLATOR_SETTINGS } from './ReactTypes'
 import type { ReactRenderParams } from './renderers/reactRenderUtils'
 import { DEFAULT_REACT_RENDER_PARAMS } from './renderers/ReactEngineRenderer'
@@ -16,10 +16,12 @@ interface Props {
   trailDecay?:        number
   fogDensity?:        number
   particleDensity?:   number
-  oscillatorSettings?:     OscillatorSettings
-  oscillatorGlyphAssets?:  OscillatorGlyphAsset[]
-  isPlaying:               boolean
-  manualSections?:         ReactTrackSection[]
+  oscillatorSettings?:          OscillatorSettings
+  oscillatorGlyphAssets?:       OscillatorGlyphAsset[]
+  oscillatorGlyphPointCache?:   Record<string, OscillatorGlyphPoint[]>
+  oscillatorTextPointCache?:    Record<string, OscillatorGlyphPoint[]>
+  isPlaying:                    boolean
+  manualSections?:              ReactTrackSection[]
 }
 
 export function ReactPlaceholderCanvas({
@@ -32,10 +34,12 @@ export function ReactPlaceholderCanvas({
   trailDecay         = 0.08,
   fogDensity         = 0.5,
   particleDensity    = 0.5,
-  oscillatorSettings     = DEFAULT_OSCILLATOR_SETTINGS,
-  oscillatorGlyphAssets  = [] as OscillatorGlyphAsset[],
+  oscillatorSettings         = DEFAULT_OSCILLATOR_SETTINGS,
+  oscillatorGlyphAssets      = [] as OscillatorGlyphAsset[],
+  oscillatorGlyphPointCache  = {} as Record<string, OscillatorGlyphPoint[]>,
+  oscillatorTextPointCache   = {} as Record<string, OscillatorGlyphPoint[]>,
   isPlaying,
-  manualSections         = [],
+  manualSections             = [],
 }: Props) {
   const canvasRef      = useRef<HTMLCanvasElement>(null)
   const animRef        = useRef<number>(0)
@@ -54,6 +58,8 @@ export function ReactPlaceholderCanvas({
   const particleDensityRef    = useRef(particleDensity)
   const oscillatorSettingsRef  = useRef(oscillatorSettings)
   const glyphAssetsRef         = useRef<OscillatorGlyphAsset[]>(oscillatorGlyphAssets)
+  const glyphPointCacheRef     = useRef<Record<string, OscillatorGlyphPoint[]>>(oscillatorGlyphPointCache)
+  const textPointCacheRef      = useRef<Record<string, OscillatorGlyphPoint[]>>(oscillatorTextPointCache)
   const isPlayingRef           = useRef(isPlaying)
   const presetRef             = useRef<ReactPreset | null>(activePreset)
   const sectionsRef           = useRef<ReactTrackSection[]>(manualSections)
@@ -69,6 +75,8 @@ export function ReactPlaceholderCanvas({
   particleDensityRef.current    = particleDensity
   oscillatorSettingsRef.current  = oscillatorSettings
   glyphAssetsRef.current         = oscillatorGlyphAssets
+  glyphPointCacheRef.current     = oscillatorGlyphPointCache
+  textPointCacheRef.current      = oscillatorTextPointCache
   isPlayingRef.current           = isPlaying
   presetRef.current             = activePreset
   sectionsRef.current           = manualSections
@@ -182,8 +190,10 @@ export function ReactPlaceholderCanvas({
         trailDecay:         trailDecayRef.current,
         fogDensity:         fogDensityRef.current,
         particleDensity:    particleDensityRef.current,
-        oscillator:            oscillatorSettingsRef.current,
-        oscillatorGlyphAssets: glyphAssetsRef.current,
+        oscillator:                oscillatorSettingsRef.current,
+        oscillatorGlyphAssets:     glyphAssetsRef.current,
+        oscillatorGlyphPointCache: glyphPointCacheRef.current,
+        oscillatorTextPointCache:  textPointCacheRef.current,
       }
 
       renderReactEngine(ctx, rfCtx, preset, renderParams, sectionsRef.current)
