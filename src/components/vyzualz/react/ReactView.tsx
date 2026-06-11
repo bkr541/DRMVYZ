@@ -22,20 +22,24 @@ export function ReactView() {
     reactTrailDecay,
     reactFogDensity,
     reactParticleDensity,
+    oscillatorSettings,
+    oscillatorGlyphAssets,
     manualTrackSections,
     selectReactPreset,
   } = useReactStore(useShallow(s => ({
-    reactPresets:          s.reactPresets,
-    activeReactPresetId:   s.activeReactPresetId,
-    reactIntensity:        s.reactIntensity,
-    reactMotion:           s.reactMotion,
-    reactGlow:             s.reactGlow,
-    reactBassReactivity:   s.reactBassReactivity,
-    reactTrailDecay:       s.reactTrailDecay,
-    reactFogDensity:       s.reactFogDensity,
-    reactParticleDensity:  s.reactParticleDensity,
-    manualTrackSections:   s.manualTrackSections,
-    selectReactPreset:     s.selectReactPreset,
+    reactPresets:           s.reactPresets,
+    activeReactPresetId:    s.activeReactPresetId,
+    reactIntensity:         s.reactIntensity,
+    reactMotion:            s.reactMotion,
+    reactGlow:              s.reactGlow,
+    reactBassReactivity:    s.reactBassReactivity,
+    reactTrailDecay:        s.reactTrailDecay,
+    reactFogDensity:        s.reactFogDensity,
+    reactParticleDensity:   s.reactParticleDensity,
+    oscillatorSettings:     s.oscillatorSettings,
+    oscillatorGlyphAssets:  s.oscillatorGlyphAssets,
+    manualTrackSections:    s.manualTrackSections,
+    selectReactPreset:      s.selectReactPreset,
   })))
 
   const activePreset = reactPresets.find(p => p.id === activeReactPresetId) ?? reactPresets[0] ?? null
@@ -67,6 +71,8 @@ export function ReactView() {
             trailDecay={reactTrailDecay}
             fogDensity={reactFogDensity}
             particleDensity={reactParticleDensity}
+            oscillatorSettings={oscillatorSettings}
+            oscillatorGlyphAssets={oscillatorGlyphAssets}
             isPlaying={engine.isPlaying}
             manualSections={manualTrackSections}
           />

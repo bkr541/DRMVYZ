@@ -3,9 +3,6 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 163 ms
+  VITE v5.4.21  ready in 200 ms
 
   ➜  Local:   http://127.0.0.1:5173/
-6:44:12 PM [vite] hmr update /src/components/vyzualz/MediaUploadModal.tsx
-6:44:17 PM [vite] hmr update /src/styles/mediaUploadModal.css
-6:50:27 PM [vite] hmr update /src/styles/mediaUploadModal.css

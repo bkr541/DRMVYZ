@@ -22,6 +22,7 @@
     "meyda": "^5.6.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "svg-path-properties": "^2.0.2",
     "wavesurfer.js": "^7.12.7",
     "web-audio-beat-detector": "^8.2.36",
     "zustand": "^5.0.13"

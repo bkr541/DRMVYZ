@@ -1,5 +1,83 @@
 export type ReactEngineId = 'shaderPads' | 'cinematicPortal' | 'oscilloscope'
 
+// ── Oscillator path/glyph types ───────────────────────────────────────────────
+
+export type OscillatorSourceType = 'classic' | 'builtinShape' | 'text' | 'svgGlyph'
+
+export type ClassicScopeMode = 'sectionAuto' | 'waveform' | 'lissajous' | 'radialScope' | 'spiralScope'
+
+export type BuiltinOscillatorShape =
+  | 'circle' | 'square' | 'triangle' | 'star'
+  | 'hexagon' | 'infinity' | 'spiral' | 'line'
+
+export type OscillatorRenderMode = 'outline' | 'multiTrace' | 'dots' | 'ribbon'
+
+export type OscillatorAudioDisplaceMode = 'normal' | 'radial' | 'tangent' | 'xy'
+
+export interface OscillatorGlyphPoint {
+  x: number
+  y: number
+  pathIndex: number
+  progress: number
+  normalX?: number
+  normalY?: number
+}
+
+export interface OscillatorGlyphAsset {
+  id: string
+  name: string
+  sourceType: 'builtinShape' | 'text' | 'svgGlyph'
+  rawSvg?: string
+  text?: string
+  shape?: BuiltinOscillatorShape
+  pointCount: number
+  createdAt: string
+}
+
+export interface OscillatorSettings {
+  sourceType: OscillatorSourceType
+  classicMode: ClassicScopeMode
+  builtinShape: BuiltinOscillatorShape
+  selectedGlyphId: string | null
+  text: string
+  renderMode: OscillatorRenderMode
+  pathResolution: number
+  pathScale: number
+  audioDisplacement: number
+  audioDisplaceMode: OscillatorAudioDisplaceMode
+  bassScale: number
+  midTwist: number
+  highJitter: number
+  beatBloom: number
+  rotationSpeed: number
+  duplicateTraces: number
+  mirrorX: boolean
+  mirrorY: boolean
+  autoSectionMode: boolean
+}
+
+export const DEFAULT_OSCILLATOR_SETTINGS: OscillatorSettings = {
+  sourceType:        'classic',
+  classicMode:       'sectionAuto',
+  builtinShape:      'circle',
+  selectedGlyphId:   null,
+  text:              'DRMVYZ',
+  renderMode:        'outline',
+  pathResolution:    512,
+  pathScale:         0.78,
+  audioDisplacement: 0.18,
+  audioDisplaceMode: 'normal',
+  bassScale:         0.25,
+  midTwist:          0.15,
+  highJitter:        0.08,
+  beatBloom:         0.35,
+  rotationSpeed:     0.08,
+  duplicateTraces:   1,
+  mirrorX:           false,
+  mirrorY:           false,
+  autoSectionMode:   true,
+}
+
 export interface ReactPerformancePad {
   id: string
   presetId: string | null
@@ -61,6 +139,8 @@ export interface ReactPreset {
   params: ReactPresetParams
   scenes: ReactScene[]
   sectionMappings: ReactSectionMapping[]
+  /** When present, selecting this preset merges these values onto DEFAULT_OSCILLATOR_SETTINGS. */
+  oscillatorSettings?: Partial<OscillatorSettings>
 }
 
 // ── DVYDRM palette constants ──────────────────────────────────────────────────
@@ -170,6 +250,33 @@ const PALETTE_NEON_TRACE: ReactPalette = {
   accent:     DVYDRM_GOLD,
   background: DVYDRM_BLACK,
   highlight:  '#e888ff',
+  text:       DVYDRM_WHITE,
+}
+
+const PALETTE_STAR_BURST: ReactPalette = {
+  primary:    DVYDRM_GOLD,
+  secondary:  DVYDRM_CRIMSON,
+  accent:     '#ff8c42',
+  background: DVYDRM_BLACK,
+  highlight:  '#ffe080',
+  text:       DVYDRM_WHITE,
+}
+
+const PALETTE_DEEP_PULSE: ReactPalette = {
+  primary:    DVYDRM_CYAN,
+  secondary:  DVYDRM_EMERALD,
+  accent:     DVYDRM_GOLD,
+  background: '#030c10',
+  highlight:  '#80dfc0',
+  text:       DVYDRM_WHITE,
+}
+
+const PALETTE_SVG_SLOT: ReactPalette = {
+  primary:    DVYDRM_WHITE,
+  secondary:  DVYDRM_CYAN,
+  accent:     '#b84fc9',
+  background: DVYDRM_BLACK,
+  highlight:  '#d0eeff',
   text:       DVYDRM_WHITE,
 }
 
@@ -390,6 +497,146 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     scenes: makeScenes('ntt', 'oscilloscope'),
     sectionMappings: makeMappings('ntt'),
   },
+
+  // ── Enhanced Oscillator presets (6) ─────────────────────────────────────
+  {
+    id: 'preset-glyph-circle-pulse',
+    name: 'Glyph Circle Pulse',
+    description: 'A clean circle that breathes with bass, twists on mids, and blooms on every beat.',
+    engine: 'oscilloscope',
+    palette: PALETTE_DEEP_PULSE,
+    params: { intensity: 0.72, motion: 0.55, glow: 0.8, bassReactivity: 0.85, colorShift: 0.35, complexity: 0.6 },
+    scenes: makeScenes('gcp', 'oscilloscope'),
+    sectionMappings: makeMappings('gcp'),
+    oscillatorSettings: {
+      sourceType:        'builtinShape',
+      builtinShape:      'circle',
+      renderMode:        'outline',
+      autoSectionMode:   true,
+      bassScale:         0.3,
+      beatBloom:         0.45,
+      rotationSpeed:     0.05,
+      duplicateTraces:   2,
+      audioDisplacement: 0.2,
+      midTwist:          0.12,
+      highJitter:        0.05,
+    },
+  },
+  {
+    id: 'preset-bass-triangle-reactor',
+    name: 'Bass Triangle Reactor',
+    description: 'Triple-trace triangle that explodes outward on bass hits — heavy and percussive.',
+    engine: 'oscilloscope',
+    palette: PALETTE_LAVA,
+    params: { intensity: 0.8, motion: 0.65, glow: 0.75, bassReactivity: 0.95, colorShift: 0.55, complexity: 0.65 },
+    scenes: makeScenes('btr', 'oscilloscope'),
+    sectionMappings: makeMappings('btr'),
+    oscillatorSettings: {
+      sourceType:        'builtinShape',
+      builtinShape:      'triangle',
+      renderMode:        'multiTrace',
+      autoSectionMode:   true,
+      bassScale:         0.5,
+      beatBloom:         0.55,
+      rotationSpeed:     0.12,
+      duplicateTraces:   3,
+      audioDisplacement: 0.22,
+      midTwist:          0.08,
+      highJitter:        0.06,
+    },
+  },
+  {
+    id: 'preset-infinity-signal',
+    name: 'Infinity Signal',
+    description: 'Ribbon-rendered infinity loop with mid-driven twist — meditative and hypnotic.',
+    engine: 'oscilloscope',
+    palette: PALETTE_EMERALD_FOG,
+    params: { intensity: 0.65, motion: 0.45, glow: 0.72, bassReactivity: 0.7, colorShift: 0.4, complexity: 0.55 },
+    scenes: makeScenes('inf', 'oscilloscope'),
+    sectionMappings: makeMappings('inf'),
+    oscillatorSettings: {
+      sourceType:        'builtinShape',
+      builtinShape:      'infinity',
+      renderMode:        'ribbon',
+      autoSectionMode:   true,
+      bassScale:         0.2,
+      beatBloom:         0.35,
+      rotationSpeed:     0.04,
+      duplicateTraces:   1,
+      audioDisplacement: 0.15,
+      midTwist:          0.28,
+      highJitter:        0.03,
+    },
+  },
+  {
+    id: 'preset-drmvyz-text-trace',
+    name: 'DRMVYZ Text Trace',
+    description: 'The DRMVYZ logotype traced as a glyph path — dual trace with high glow.',
+    engine: 'oscilloscope',
+    palette: PALETTE_NEON_TRACE,
+    params: { intensity: 0.75, motion: 0.42, glow: 0.88, bassReactivity: 0.75, colorShift: 0.6, complexity: 0.5 },
+    scenes: makeScenes('dtt', 'oscilloscope'),
+    sectionMappings: makeMappings('dtt'),
+    oscillatorSettings: {
+      sourceType:        'text',
+      text:              'DRMVYZ',
+      renderMode:        'multiTrace',
+      autoSectionMode:   true,
+      bassScale:         0.22,
+      beatBloom:         0.4,
+      rotationSpeed:     0.02,
+      duplicateTraces:   2,
+      audioDisplacement: 0.12,
+      midTwist:          0.1,
+      highJitter:        0.07,
+    },
+  },
+  {
+    id: 'preset-star-drop-burst',
+    name: 'Star Drop Burst',
+    description: 'Four-trace star that detonates on drop — high beatBloom and rotating ghost echoes.',
+    engine: 'oscilloscope',
+    palette: PALETTE_STAR_BURST,
+    params: { intensity: 0.88, motion: 0.75, glow: 0.85, bassReactivity: 0.95, colorShift: 0.6, complexity: 0.7 },
+    scenes: makeScenes('sdb', 'oscilloscope'),
+    sectionMappings: makeMappings('sdb'),
+    oscillatorSettings: {
+      sourceType:        'builtinShape',
+      builtinShape:      'star',
+      renderMode:        'multiTrace',
+      autoSectionMode:   true,
+      bassScale:         0.4,
+      beatBloom:         0.7,
+      rotationSpeed:     0.18,
+      duplicateTraces:   4,
+      audioDisplacement: 0.2,
+      midTwist:          0.15,
+      highJitter:        0.1,
+    },
+  },
+  {
+    id: 'preset-svg-glyph-slot',
+    name: 'SVG Glyph Slot',
+    description: 'Upload an SVG in the Glyph Library panel and it renders here as a reactive oscillator path.',
+    engine: 'oscilloscope',
+    palette: PALETTE_SVG_SLOT,
+    params: { intensity: 0.7, motion: 0.5, glow: 0.78, bassReactivity: 0.8, colorShift: 0.35, complexity: 0.55 },
+    scenes: makeScenes('sgs', 'oscilloscope'),
+    sectionMappings: makeMappings('sgs'),
+    oscillatorSettings: {
+      sourceType:        'svgGlyph',
+      selectedGlyphId:   null,
+      renderMode:        'outline',
+      autoSectionMode:   true,
+      bassScale:         0.3,
+      beatBloom:         0.4,
+      rotationSpeed:     0.06,
+      duplicateTraces:   2,
+      audioDisplacement: 0.18,
+      midTwist:          0.1,
+      highJitter:        0.05,
+    },
+  },
 ]
 
 // ── Default performance pads ──────────────────────────────────────────────────
@@ -410,9 +657,9 @@ export const DEFAULT_PERFORMANCE_PADS: ReactPerformancePad[] = [
   { id: 'pad-10', presetId: 'preset-lissajous-flower', label: 'Lissajous',color: DVYDRM_EMERALD, keyBinding: 's', transitionTimeMs: 400 },
   { id: 'pad-11', presetId: 'preset-spiral-signal',    label: 'Spiral',   color: DVYDRM_GOLD,    keyBinding: 'd', transitionTimeMs: 350 },
   { id: 'pad-12', presetId: 'preset-radial-voice',     label: 'Radial',   color: DVYDRM_WHITE,   keyBinding: 'f', transitionTimeMs: 450 },
-  // Row 4 — Festival / overload / quiet
-  { id: 'pad-13', presetId: 'preset-festival-burst',   label: 'Festival', color: DVYDRM_CRIMSON, keyBinding: 'z', transitionTimeMs: 200 },
-  { id: 'pad-14', presetId: 'preset-neon-text-trace',  label: 'Neon',     color: '#b84fc9',      keyBinding: 'x', transitionTimeMs: 400 },
-  { id: 'pad-15', presetId: 'preset-quiet-ruins',      label: 'Quiet',    color: '#7a9bac',      keyBinding: 'c', transitionTimeMs: 1000 },
-  { id: 'pad-16', presetId: null,                      label: '—',        color: '#2a3a40',      keyBinding: 'v', transitionTimeMs: 500 },
+  // Row 4 — Festival / enhanced oscillator
+  { id: 'pad-13', presetId: 'preset-festival-burst',       label: 'Festival', color: DVYDRM_CRIMSON, keyBinding: 'z', transitionTimeMs: 200 },
+  { id: 'pad-14', presetId: 'preset-drmvyz-text-trace',    label: 'DRMVYZ',   color: '#b84fc9',      keyBinding: 'x', transitionTimeMs: 400 },
+  { id: 'pad-15', presetId: 'preset-star-drop-burst',      label: 'StarBurst',color: DVYDRM_GOLD,    keyBinding: 'c', transitionTimeMs: 250 },
+  { id: 'pad-16', presetId: 'preset-glyph-circle-pulse',   label: 'Circle',   color: DVYDRM_CYAN,    keyBinding: 'v', transitionTimeMs: 400 },
 ]

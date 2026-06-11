@@ -1,22 +1,25 @@
 import { useRef, useEffect } from 'react'
-import type { ReactPreset, ReactTrackSection } from './ReactTypes'
+import type { ReactPreset, ReactTrackSection, OscillatorSettings, OscillatorGlyphAsset } from './ReactTypes'
+import { DEFAULT_OSCILLATOR_SETTINGS } from './ReactTypes'
 import type { ReactRenderParams } from './renderers/reactRenderUtils'
 import { DEFAULT_REACT_RENDER_PARAMS } from './renderers/ReactEngineRenderer'
 import { renderReactEngine } from './renderers/ReactEngineRenderer'
 import type { ReactFrameContext } from './renderers/reactRenderUtils'
 
 interface Props {
-  analyser:        AnalyserNode | null
-  activePreset:    ReactPreset | null
-  intensity:       number
-  motion:          number
-  glow:            number
-  bassReactivity:  number
-  trailDecay?:     number
-  fogDensity?:     number
-  particleDensity?: number
-  isPlaying:       boolean
-  manualSections?: ReactTrackSection[]
+  analyser:           AnalyserNode | null
+  activePreset:       ReactPreset | null
+  intensity:          number
+  motion:             number
+  glow:               number
+  bassReactivity:     number
+  trailDecay?:        number
+  fogDensity?:        number
+  particleDensity?:   number
+  oscillatorSettings?:     OscillatorSettings
+  oscillatorGlyphAssets?:  OscillatorGlyphAsset[]
+  isPlaying:               boolean
+  manualSections?:         ReactTrackSection[]
 }
 
 export function ReactPlaceholderCanvas({
@@ -26,11 +29,13 @@ export function ReactPlaceholderCanvas({
   motion,
   glow,
   bassReactivity,
-  trailDecay      = 0.08,
-  fogDensity      = 0.5,
-  particleDensity = 0.5,
+  trailDecay         = 0.08,
+  fogDensity         = 0.5,
+  particleDensity    = 0.5,
+  oscillatorSettings     = DEFAULT_OSCILLATOR_SETTINGS,
+  oscillatorGlyphAssets  = [] as OscillatorGlyphAsset[],
   isPlaying,
-  manualSections  = [],
+  manualSections         = [],
 }: Props) {
   const canvasRef      = useRef<HTMLCanvasElement>(null)
   const animRef        = useRef<number>(0)
@@ -40,29 +45,33 @@ export function ReactPlaceholderCanvas({
   const tRef           = useRef(0)
 
   // Mutable refs so the rAF loop reads current values without restarting
-  const intensityRef       = useRef(intensity)
-  const motionRef          = useRef(motion)
-  const glowRef            = useRef(glow)
-  const bassReactRef       = useRef(bassReactivity)
-  const trailDecayRef      = useRef(trailDecay)
-  const fogDensityRef      = useRef(fogDensity)
-  const particleDensityRef = useRef(particleDensity)
-  const isPlayingRef       = useRef(isPlaying)
-  const presetRef          = useRef<ReactPreset | null>(activePreset)
-  const sectionsRef        = useRef<ReactTrackSection[]>(manualSections)
-  const audioTimeRef       = useRef(0)
+  const intensityRef          = useRef(intensity)
+  const motionRef             = useRef(motion)
+  const glowRef               = useRef(glow)
+  const bassReactRef          = useRef(bassReactivity)
+  const trailDecayRef         = useRef(trailDecay)
+  const fogDensityRef         = useRef(fogDensity)
+  const particleDensityRef    = useRef(particleDensity)
+  const oscillatorSettingsRef  = useRef(oscillatorSettings)
+  const glyphAssetsRef         = useRef<OscillatorGlyphAsset[]>(oscillatorGlyphAssets)
+  const isPlayingRef           = useRef(isPlaying)
+  const presetRef             = useRef<ReactPreset | null>(activePreset)
+  const sectionsRef           = useRef<ReactTrackSection[]>(manualSections)
+  const audioTimeRef          = useRef(0)
 
   // Keep refs current every render
-  intensityRef.current       = intensity
-  motionRef.current          = motion
-  glowRef.current            = glow
-  bassReactRef.current       = bassReactivity
-  trailDecayRef.current      = trailDecay
-  fogDensityRef.current      = fogDensity
-  particleDensityRef.current = particleDensity
-  isPlayingRef.current       = isPlaying
-  presetRef.current          = activePreset
-  sectionsRef.current        = manualSections
+  intensityRef.current          = intensity
+  motionRef.current             = motion
+  glowRef.current               = glow
+  bassReactRef.current          = bassReactivity
+  trailDecayRef.current         = trailDecay
+  fogDensityRef.current         = fogDensity
+  particleDensityRef.current    = particleDensity
+  oscillatorSettingsRef.current  = oscillatorSettings
+  glyphAssetsRef.current         = oscillatorGlyphAssets
+  isPlayingRef.current           = isPlaying
+  presetRef.current             = activePreset
+  sectionsRef.current           = manualSections
 
   // Update analyser buffers when analyser changes
   useEffect(() => {
@@ -166,13 +175,15 @@ export function ReactPlaceholderCanvas({
 
       const renderParams: ReactRenderParams = {
         ...DEFAULT_REACT_RENDER_PARAMS,
-        intensity:       intensityRef.current,
-        motion:          motionRef.current,
-        glow:            glowRef.current,
-        bassReactivity:  bassReactRef.current,
-        trailDecay:      trailDecayRef.current,
-        fogDensity:      fogDensityRef.current,
-        particleDensity: particleDensityRef.current,
+        intensity:          intensityRef.current,
+        motion:             motionRef.current,
+        glow:               glowRef.current,
+        bassReactivity:     bassReactRef.current,
+        trailDecay:         trailDecayRef.current,
+        fogDensity:         fogDensityRef.current,
+        particleDensity:    particleDensityRef.current,
+        oscillator:            oscillatorSettingsRef.current,
+        oscillatorGlyphAssets: glyphAssetsRef.current,
       }
 
       renderReactEngine(ctx, rfCtx, preset, renderParams, sectionsRef.current)

@@ -1,5 +1,6 @@
 import type { VzFrameContext } from '../../effects/types'
-import type { ReactTrackSection, ReactSectionType } from '../ReactTypes'
+import type { ReactTrackSection, ReactSectionType, OscillatorSettings, OscillatorGlyphAsset } from '../ReactTypes'
+import { DEFAULT_OSCILLATOR_SETTINGS } from '../ReactTypes'
 
 // ── React frame context ───────────────────────────────────────────────────────
 // A lighter version of VzFrameContext used by all React engine renderers.
@@ -33,8 +34,10 @@ export interface ReactRenderParams {
   glow:            number  // 0–1 shadow/bloom amount
   bassReactivity:  number  // 0–1 how much bass drives visuals
   trailDecay:      number  // 0–1 trail fade speed (0=long, 1=instant)
-  fogDensity:      number  // 0–1 fog/particle density
-  particleDensity: number  // 0–1 particle count scale
+  fogDensity:            number  // 0–1 fog/particle density
+  particleDensity:       number  // 0–1 particle count scale
+  oscillator:            OscillatorSettings
+  oscillatorGlyphAssets: OscillatorGlyphAsset[]
 }
 
 export const DEFAULT_REACT_RENDER_PARAMS: ReactRenderParams = {
@@ -43,8 +46,10 @@ export const DEFAULT_REACT_RENDER_PARAMS: ReactRenderParams = {
   glow:            0.65,
   bassReactivity:  0.8,
   trailDecay:      0.08,
-  fogDensity:      0.5,
-  particleDensity: 0.5,
+  fogDensity:            0.5,
+  particleDensity:       0.5,
+  oscillator:            DEFAULT_OSCILLATOR_SETTINGS,
+  oscillatorGlyphAssets: [],
 }
 
 // ── VzFrameContext → ReactFrameContext conversion ────────────────────────────

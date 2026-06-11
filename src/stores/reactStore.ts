@@ -1,12 +1,18 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { DEFAULT_REACT_PRESETS, DEFAULT_PERFORMANCE_PADS } from '../components/vyzualz/react/ReactTypes'
+import {
+  DEFAULT_REACT_PRESETS,
+  DEFAULT_PERFORMANCE_PADS,
+  DEFAULT_OSCILLATOR_SETTINGS,
+} from '../components/vyzualz/react/ReactTypes'
 import type {
   ReactEngineId,
   ReactPreset,
   ReactPresetParams,
   ReactTrackSection,
   ReactPerformancePad,
+  OscillatorSettings,
+  OscillatorGlyphAsset,
 } from '../components/vyzualz/react/ReactTypes'
 
 interface ReactStoreState {
@@ -54,6 +60,18 @@ interface ReactStoreState {
   setActivePadId: (id: string | null) => void
   updatePerformancePad: (id: string, patch: Partial<ReactPerformancePad>) => void
 
+  // Oscillator settings
+  oscillatorSettings: OscillatorSettings
+  setOscillatorSettings: (patch: Partial<OscillatorSettings>) => void
+  resetOscillatorSettings: () => void
+
+  // Uploaded SVG glyph assets (persisted)
+  oscillatorGlyphAssets: OscillatorGlyphAsset[]
+  addOscillatorGlyphAsset: (asset: OscillatorGlyphAsset) => void
+  removeOscillatorGlyphAsset: (id: string) => void
+  clearOscillatorGlyphAssets: () => void
+  selectOscillatorGlyph: (id: string) => void
+
   resetReactView: () => void
 }
 
@@ -70,6 +88,8 @@ export const useReactStore = create<ReactStoreState>()(
       selectedSectionId: null,
       performancePads: DEFAULT_PERFORMANCE_PADS,
       activePadId: null,
+      oscillatorSettings: DEFAULT_OSCILLATOR_SETTINGS,
+      oscillatorGlyphAssets: [],
       reactIntensity:       0.7,
       reactMotion:          0.5,
       reactGlow:            0.65,
@@ -90,10 +110,13 @@ export const useReactStore = create<ReactStoreState>()(
           return {
             activeReactPresetId: id,
             activeReactEngineId: preset.engine,
-            reactIntensity: preset.params.intensity,
-            reactMotion: preset.params.motion,
-            reactGlow: preset.params.glow,
+            reactIntensity:      preset.params.intensity,
+            reactMotion:         preset.params.motion,
+            reactGlow:           preset.params.glow,
             reactBassReactivity: preset.params.bassReactivity,
+            ...(preset.oscillatorSettings
+              ? { oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS, ...preset.oscillatorSettings } }
+              : {}),
           }
         }),
 
@@ -139,13 +162,16 @@ export const useReactStore = create<ReactStoreState>()(
           const preset = s.reactPresets.find((p) => p.id === pad.presetId)
           if (!preset) return { activePadId: id }
           return {
-            activePadId: id,
+            activePadId:         id,
             activeReactPresetId: preset.id,
             activeReactEngineId: preset.engine,
-            reactIntensity: preset.params.intensity,
-            reactMotion: preset.params.motion,
-            reactGlow: preset.params.glow,
+            reactIntensity:      preset.params.intensity,
+            reactMotion:         preset.params.motion,
+            reactGlow:           preset.params.glow,
             reactBassReactivity: preset.params.bassReactivity,
+            ...(preset.oscillatorSettings
+              ? { oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS, ...preset.oscillatorSettings } }
+              : {}),
           }
         }),
 
@@ -156,6 +182,46 @@ export const useReactStore = create<ReactStoreState>()(
           ),
         })),
 
+      setOscillatorSettings: (patch) =>
+        set((s) => ({ oscillatorSettings: { ...s.oscillatorSettings, ...patch } })),
+
+      resetOscillatorSettings: () =>
+        set({ oscillatorSettings: DEFAULT_OSCILLATOR_SETTINGS }),
+
+      addOscillatorGlyphAsset: (asset) =>
+        set((s) => ({
+          oscillatorGlyphAssets: s.oscillatorGlyphAssets.some(a => a.id === asset.id)
+            ? s.oscillatorGlyphAssets
+            : [...s.oscillatorGlyphAssets, asset],
+        })),
+
+      removeOscillatorGlyphAsset: (id) =>
+        set((s) => ({
+          oscillatorGlyphAssets: s.oscillatorGlyphAssets.filter(a => a.id !== id),
+          oscillatorSettings:
+            s.oscillatorSettings.selectedGlyphId === id
+              ? { ...s.oscillatorSettings, selectedGlyphId: null, sourceType: 'builtinShape' }
+              : s.oscillatorSettings,
+        })),
+
+      clearOscillatorGlyphAssets: () =>
+        set((s) => ({
+          oscillatorGlyphAssets: [],
+          oscillatorSettings:
+            s.oscillatorSettings.sourceType === 'svgGlyph'
+              ? { ...s.oscillatorSettings, selectedGlyphId: null, sourceType: 'builtinShape' }
+              : s.oscillatorSettings,
+        })),
+
+      selectOscillatorGlyph: (id) =>
+        set((s) => ({
+          oscillatorSettings: {
+            ...s.oscillatorSettings,
+            sourceType: 'svgGlyph',
+            selectedGlyphId: id,
+          },
+        })),
+
       resetReactView: () =>
         set({
           activeReactPresetId:  INITIAL_PRESET_ID,
@@ -164,6 +230,7 @@ export const useReactStore = create<ReactStoreState>()(
           selectedSectionId:    null,
           performancePads:      DEFAULT_PERFORMANCE_PADS,
           activePadId:          null,
+          oscillatorSettings:   DEFAULT_OSCILLATOR_SETTINGS,
           reactIntensity:       0.7,
           reactMotion:          0.5,
           reactGlow:            0.65,
@@ -177,9 +244,11 @@ export const useReactStore = create<ReactStoreState>()(
     {
       name: 'drmvyz:react-store',
       partialize: (s) => ({
-        activeReactPresetId:  s.activeReactPresetId,
-        activeReactEngineId:  s.activeReactEngineId,
-        manualTrackSections:  s.manualTrackSections,
+        activeReactPresetId:    s.activeReactPresetId,
+        activeReactEngineId:    s.activeReactEngineId,
+        manualTrackSections:    s.manualTrackSections,
+        oscillatorSettings:     s.oscillatorSettings,
+        oscillatorGlyphAssets:  s.oscillatorGlyphAssets,
         reactIntensity:       s.reactIntensity,
         reactMotion:          s.reactMotion,
         reactGlow:            s.reactGlow,

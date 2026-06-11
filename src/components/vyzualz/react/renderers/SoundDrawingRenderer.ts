@@ -1,6 +1,9 @@
-import type { ReactPreset, ReactSectionType } from '../ReactTypes'
+import type { ReactPreset, ReactSectionType, OscillatorGlyphPoint, OscillatorSettings } from '../ReactTypes'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
-import { hexToRgba, getOrCreateOffscreen } from './reactRenderUtils'
+import { hexToRgba, getOrCreateOffscreen, seededRandom } from './reactRenderUtils'
+import { generateBuiltinShapePoints, clamp } from './oscillatorPathUtils'
+import { textToGlyphPoints } from './textGlyphUtils'
+import { parseSvgToGlyphPoints } from './svgGlyphUtils'
 
 // ── Trail canvas pool (per ctx) ───────────────────────────────────────────────
 const trailMap = new WeakMap<CanvasRenderingContext2D, HTMLCanvasElement>()
@@ -9,9 +12,21 @@ function getTrail(ctx: CanvasRenderingContext2D, W: number, H: number): HTMLCanv
   return getOrCreateOffscreen(trailMap, ctx, W, H)
 }
 
+// ── Beat envelope (per canvas context) ─────────────────────────────────────────
+
+const beatEnvelopeMap = new WeakMap<CanvasRenderingContext2D, number>()
+const BEAT_DECAY = 0.86
+
+function tickBeatEnvelope(ctx: CanvasRenderingContext2D, beatHit: boolean): number {
+  const prev = beatEnvelopeMap.get(ctx) ?? 0
+  const next = beatHit ? 1.0 : prev * BEAT_DECAY
+  beatEnvelopeMap.set(ctx, next)
+  return next
+}
+
 // ── Mode selector ─────────────────────────────────────────────────────────────
 
-type ScopeMode = 'waveform' | 'lissajous' | 'radialScope' | 'spiralScope'
+type ScopeMode = 'waveform' | 'lissajous' | 'radialScope' | 'spiralScope' | 'pathScope'
 
 function modeForSection(type: ReactSectionType | null): ScopeMode {
   switch (type) {
@@ -22,6 +37,250 @@ function modeForSection(type: ReactSectionType | null): ScopeMode {
     case 'breakdown': return 'spiralScope'
     case 'outro':     return 'waveform'
     default:          return 'waveform'
+  }
+}
+
+// ── Path point cache ──────────────────────────────────────────────────────────
+// Points are expensive to compute (SVG parsing, canvas text rasterisation, etc.)
+// so we cache them by a content-derived key.  The cache is module-level so it
+// survives across frames and across preset switches for the same source.
+//
+// Key structure:
+//   builtin:<shape>:<resolution>   — deterministic; changes only when shape or res changes
+//   text:<trimmedText>:<resolution> — trimmed so whitespace-only edits don't invalidate
+//   svg:<asset.id>:<resolution>    — asset.id is a content-hash so same SVG = same key
+//   builtin:circle:<resolution>    — sentinel for svgGlyph with no selection / bad SVG
+//
+// LRU eviction: when the cache reaches PATH_CACHE_MAX entries the oldest entry
+// (Map insertion order) is dropped.  Max 32 keeps memory bounded (each entry is
+// an array of ~512 plain objects ≈ 100–200 KB worst case).
+
+const PATH_CACHE_MAX = 32
+const pathCache = new Map<string, OscillatorGlyphPoint[]>()
+
+function cachePut(key: string, pts: OscillatorGlyphPoint[]): void {
+  if (pathCache.size >= PATH_CACHE_MAX) {
+    const first = pathCache.keys().next().value
+    if (first !== undefined) pathCache.delete(first)
+  }
+  pathCache.set(key, pts)
+}
+
+function getOscillatorPathPoints(params: ReactRenderParams): OscillatorGlyphPoint[] | null {
+  const osc = params.oscillator
+  const res = clamp(Math.round(osc.pathResolution), 64, 2048)
+
+  switch (osc.sourceType) {
+    case 'builtinShape': {
+      const key = `builtin:${osc.builtinShape}:${res}`
+      const cached = pathCache.get(key)
+      if (cached) return cached
+      const pts = generateBuiltinShapePoints(osc.builtinShape, res)
+      cachePut(key, pts)
+      return pts
+    }
+    case 'text': {
+      const trimmed = osc.text.trim()
+      if (!trimmed) {
+        // Empty text — use the builtinShape fallback so the shape is still visible
+        const key = `builtin:${osc.builtinShape}:${res}`
+        const cached = pathCache.get(key)
+        if (cached) return cached
+        const pts = generateBuiltinShapePoints(osc.builtinShape, res)
+        cachePut(key, pts)
+        return pts
+      }
+      // Key uses trimmed text so leading/trailing whitespace edits don't bust the cache
+      const key = `text:${trimmed}:${res}`
+      const cached = pathCache.get(key)
+      if (cached) return cached
+      const pts = textToGlyphPoints(trimmed, res)
+      cachePut(key, pts)
+      return pts
+    }
+    case 'svgGlyph': {
+      const assets = params.oscillatorGlyphAssets
+      const glyphId = osc.selectedGlyphId
+      const asset = glyphId ? assets.find(a => a.id === glyphId) : undefined
+      if (asset?.rawSvg) {
+        // asset.id is a content-hash (FNV-1a of rawSvg) — same SVG always hits the same key
+        const key = `svg:${asset.id}:${res}`
+        const cached = pathCache.get(key)
+        if (cached) return cached
+        const pts = parseSvgToGlyphPoints(asset.rawSvg, res)
+        cachePut(key, pts)
+        return pts
+      }
+      // No asset selected or rawSvg missing — fall back to circle
+      const key = `builtin:circle:${res}`
+      const cached = pathCache.get(key)
+      if (cached) return cached
+      const pts = generateBuiltinShapePoints('circle', res)
+      cachePut(key, pts)
+      return pts
+    }
+    case 'classic':
+      return null
+    default:
+      return null
+  }
+}
+
+// Shapes that naturally close back to their start point
+const CLOSED_SHAPES = new Set(['circle', 'square', 'triangle', 'star', 'hexagon', 'infinity'])
+
+function shouldClose(params: ReactRenderParams): boolean {
+  const osc = params.oscillator
+  return osc.sourceType === 'builtinShape' && CLOSED_SHAPES.has(osc.builtinShape)
+}
+
+// ── Section modifiers for oscillator ─────────────────────────────────────────
+
+export interface OscillatorSectionModifiers {
+  duplicateTraces:   number
+  rotationSpeed:     number
+  bassScale:         number
+  beatBloom:         number
+  pathScale:         number
+  midTwist:          number
+  audioDisplacement: number
+  highJitter:        number
+}
+
+/**
+ * Returns computed oscillator values adjusted for the active section type.
+ * Pure function — does not mutate the input settings.
+ * Only applied when `osc.autoSectionMode` is true.
+ */
+export function resolveOscillatorSectionModifiers(
+  sectionType: ReactSectionType | null,
+  settings: OscillatorSettings,
+): OscillatorSectionModifiers {
+  const base: OscillatorSectionModifiers = {
+    duplicateTraces:   settings.duplicateTraces,
+    rotationSpeed:     settings.rotationSpeed,
+    bassScale:         settings.bassScale,
+    beatBloom:         settings.beatBloom,
+    pathScale:         settings.pathScale,
+    midTwist:          settings.midTwist,
+    audioDisplacement: settings.audioDisplacement,
+    highJitter:        settings.highJitter,
+  }
+
+  switch (sectionType) {
+    case 'intro':
+      return {
+        ...base,
+        duplicateTraces:   1,
+        audioDisplacement: Math.min(base.audioDisplacement, 0.08),
+        rotationSpeed:     base.rotationSpeed * 0.4,
+        pathScale:         base.pathScale * 0.85,
+      }
+    case 'verse':
+      return {
+        ...base,
+        audioDisplacement: base.audioDisplacement * 0.7,
+        rotationSpeed:     base.rotationSpeed * 0.6,
+      }
+    case 'build':
+      return {
+        ...base,
+        rotationSpeed:   base.rotationSpeed * 1.5,
+        midTwist:        Math.min(1, base.midTwist + 0.1),
+        beatBloom:       Math.min(1, base.beatBloom + 0.15),
+        duplicateTraces: Math.min(6, base.duplicateTraces + 1),
+      }
+    case 'drop':
+      return {
+        ...base,
+        bassScale:       Math.min(1, base.bassScale + 0.15),
+        duplicateTraces: Math.min(6, base.duplicateTraces + 2),
+        beatBloom:       Math.min(1, base.beatBloom + 0.2),
+        rotationSpeed:   base.rotationSpeed * 1.8,
+      }
+    case 'breakdown':
+      return {
+        ...base,
+        highJitter:        Math.max(0, base.highJitter - 0.04),
+        rotationSpeed:     base.rotationSpeed * 0.5,
+        audioDisplacement: base.audioDisplacement * 0.8,
+        duplicateTraces:   Math.max(1, base.duplicateTraces - 1),
+      }
+    case 'outro':
+      return {
+        ...base,
+        pathScale:         base.pathScale * 0.8,
+        rotationSpeed:     base.rotationSpeed * 0.3,
+        audioDisplacement: base.audioDisplacement * 0.5,
+        duplicateTraces:   1,
+      }
+    default:
+      return base
+  }
+}
+
+// ── Real-time audio modifiers ─────────────────────────────────────────────────
+
+export interface OscillatorAudioModifiers {
+  /** Scale multiplier from bass energy: always ≥ 1. */
+  bassPulse:          number
+  /** Decaying beat envelope (0–1); 1 immediately after a beat hit. */
+  beatPulse:          number
+  /** Per-point mid-twist combined factor (mid × midTwist × beat bonus). */
+  midTwistAmount:     number
+  /** Deterministic high-freq jitter scale: clamped to [0, 0.25]. */
+  highJitterAmount:   number
+  /** Extra canvas shadow-blur pixels from volume + beat. */
+  glowBoost:          number
+  /** Line-width multiplier: ≥ 1, boosted by beat and bass. */
+  lineWidthBoost:     number
+  /** Per-point displacement scale in normalised path space, capped at 0.25. */
+  displacementAmount: number
+  /** Rotation speed multiplier: 1 + mid×0.3×beatPulse. */
+  rotationBoost:      number
+}
+
+/**
+ * Computes frame-level audio-reactive values for the oscilloscope renderer.
+ * Pure: all state comes from `frame`, `params`, and the caller-managed `beatEnvelope`.
+ * `params.oscillator` should already have section modifiers merged in when autoSectionMode
+ * is active, so both section and audio reactivity combine correctly.
+ */
+export function resolveOscillatorAudioModifiers(
+  frame:        ReactFrameContext,
+  params:       ReactRenderParams,
+  beatEnvelope: number,
+): OscillatorAudioModifiers {
+  const osc  = params.oscillator
+  const bass = frame.audio.bass * params.bassReactivity
+  const mid  = frame.audio.mid
+  const high = frame.audio.high
+  const vol  = frame.audio.volume
+
+  const bassPulse = 1 + clamp(bass * osc.bassScale, 0, 0.6)
+
+  const midTwistAmount = mid * osc.midTwist * (1 + beatEnvelope * 0.3)
+
+  const highJitterAmount = clamp(high * osc.highJitter, 0, 0.25)
+
+  const glowBoost = vol * 8 + beatEnvelope * 18 * osc.beatBloom
+
+  const lineWidthBoost = 1 + beatEnvelope * 0.8 * osc.beatBloom + bass * 0.4
+
+  // Cap displacement at 25% of shape scale so glyphs stay readable
+  const displacementAmount = clamp(osc.audioDisplacement * (1 + bass * 0.3), 0, 0.25)
+
+  const rotationBoost = 1 + mid * 0.3 * beatEnvelope
+
+  return {
+    bassPulse,
+    beatPulse:          beatEnvelope,
+    midTwistAmount,
+    highJitterAmount,
+    glowBoost,
+    lineWidthBoost,
+    displacementAmount,
+    rotationBoost,
   }
 }
 
@@ -54,13 +313,40 @@ function getSynthStereo(
       y: (timeDomainData[idxR] / 128) - 1,
     }
   }
-  // Fully synthetic fallback using harmonic offset
   const phase = (i / totalPts) * Math.PI * 2
   const bassEnergy = freqData ? freqData[4] / 255 : 0.3
   return {
     x: Math.sin(phase       + bassEnergy * 0.5),
     y: Math.sin(phase * 1.5 + bassEnergy * 0.8),
   }
+}
+
+// ── Canvas path helpers ───────────────────────────────────────────────────────
+
+function drawConnectedPath(
+  tctx: CanvasRenderingContext2D,
+  pts: [number, number][],
+  close: boolean,
+): void {
+  if (pts.length < 2) return
+  tctx.beginPath()
+  tctx.moveTo(pts[0][0], pts[0][1])
+  for (let i = 1; i < pts.length; i++) tctx.lineTo(pts[i][0], pts[i][1])
+  if (close) tctx.closePath()
+  tctx.stroke()
+}
+
+function drawDotPoints(
+  tctx: CanvasRenderingContext2D,
+  pts: [number, number][],
+  r: number,
+): void {
+  tctx.beginPath()
+  for (const [x, y] of pts) {
+    tctx.moveTo(x + r, y)
+    tctx.arc(x, y, r, 0, Math.PI * 2)
+  }
+  tctx.fill()
 }
 
 // ── Fade trail each frame ─────────────────────────────────────────────────────
@@ -94,7 +380,6 @@ function drawWaveformOnTrail(
   const lineColor = preset.palette.primary
   const glowPx    = params.glow * (12 + (beatHit ? 18 : 0)) + bass * 14
 
-  // Multi-layer with different heights for depth
   const layers = [
     { yOff: H * 0.25, scaleY: H * 0.18, color: preset.palette.secondary, alpha: 0.4 },
     { yOff: H * 0.5,  scaleY: H * 0.24, color: lineColor,                 alpha: 0.9 },
@@ -161,7 +446,6 @@ function drawLissajousOnTrail(
   }
   tctx.stroke()
 
-  // Second layer — accent colour at lower opacity
   tctx.strokeStyle = preset.palette.accent
   tctx.shadowColor = preset.palette.accent
   tctx.shadowBlur  = glowPx * 0.5
@@ -211,7 +495,6 @@ function drawRadialScopeOnTrail(
   tctx.closePath()
   tctx.stroke()
 
-  // Inner ring accent
   tctx.strokeStyle = preset.palette.accent
   tctx.shadowColor = preset.palette.accent
   tctx.lineWidth  *= 0.5
@@ -250,7 +533,7 @@ function drawSpiralScopeOnTrail(
   tctx.lineCap                  = 'round'
   tctx.beginPath()
 
-  const spiralR   = Math.min(W, H) * 0.35 * params.intensity
+  const spiralR     = Math.min(W, H) * 0.35 * params.intensity
   const spiralTurns = 3.5 + audio.mid * 1.5
 
   for (let i = 0; i <= pts; i++) {
@@ -267,6 +550,235 @@ function drawSpiralScopeOnTrail(
   tctx.restore()
 }
 
+// ── Path / glyph scope mode ───────────────────────────────────────────────────
+
+function drawPathScopeOnTrail(
+  tctx: CanvasRenderingContext2D,
+  W: number, H: number, dpr: number,
+  frame: ReactFrameContext,
+  preset: ReactPreset,
+  params: ReactRenderParams,
+  intMul: number,
+  sectionType: ReactSectionType | null,
+): void {
+  const osc = params.oscillator
+  const { audio, timeDomainData, beatHit, t } = frame
+
+  const basePoints = getOscillatorPathPoints(params)
+  if (!basePoints || basePoints.length === 0) return
+
+  const resolution = basePoints.length
+  const cx = W / 2
+  const cy = H / 2
+
+  const bass = audio.bass * params.bassReactivity
+
+  // Merge section modifiers into the effective osc settings so that
+  // resolveOscillatorAudioModifiers sees the correct per-section values.
+  let effectiveOsc = osc
+  if (osc.autoSectionMode) {
+    const sm = resolveOscillatorSectionModifiers(sectionType, osc)
+    effectiveOsc = {
+      ...osc,
+      duplicateTraces:   sm.duplicateTraces,
+      rotationSpeed:     sm.rotationSpeed,
+      bassScale:         sm.bassScale,
+      beatBloom:         sm.beatBloom,
+      pathScale:         sm.pathScale,
+      midTwist:          sm.midTwist,
+      audioDisplacement: sm.audioDisplacement,
+      highJitter:        sm.highJitter,
+    }
+  }
+
+  // Beat envelope persists across frames keyed to this canvas context
+  const beatEnvelope = tickBeatEnvelope(tctx, beatHit)
+
+  // All audio-reactive values in one pure call
+  const am = resolveOscillatorAudioModifiers(
+    frame,
+    { ...params, oscillator: effectiveOsc },
+    beatEnvelope,
+  )
+
+  const numTraces = clamp(effectiveOsc.duplicateTraces, 1, 6)
+  const close     = shouldClose(params)
+
+  // Rotation: section speed × audio boost
+  const rotRad = t * 0.002 * params.motion * effectiveOsc.rotationSpeed * am.rotationBoost
+
+  // Scale: section pathScale × bass pulse × sustained beat bloom
+  const bloomFactor = am.beatPulse * effectiveOsc.beatBloom
+  const baseScale   = Math.min(W, H) * 0.42 * effectiveOsc.pathScale * params.intensity
+                    * am.bassPulse * (1 + bloomFactor * 0.4)
+  const glowBase    = params.glow * (10 + am.glowBoost) + bass * 8
+
+  const tdLen = timeDomainData ? timeDomainData.length : resolution
+
+  let mainTracePts: [number, number][] | null = null
+
+  for (let traceIdx = 0; traceIdx < numTraces; traceIdx++) {
+    const isMain        = traceIdx === 0
+    const traceScaleMul = 1 - traceIdx * 0.04
+    // Beat pulse musically boosts trace alpha
+    const traceAlpha = isMain
+      ? Math.min(1, 0.92 + am.beatPulse * 0.08)
+      : Math.max(0.1, 0.38 - traceIdx * 0.06 + am.beatPulse * 0.1)
+    const traceColor = isMain ? preset.palette.primary : preset.palette.secondary
+    // Beat-phase offset keeps duplicate traces musically animated
+    const traceRotOffset = traceIdx * 0.08 + traceIdx * frame.beatPhase * 0.015 * am.beatPulse
+    const totalRot       = rotRad + traceRotOffset
+    const cosR           = Math.cos(totalRot)
+    const sinR           = Math.sin(totalRot)
+    const traceScale     = baseScale * traceScaleMul
+
+    const screenPts: [number, number][] = new Array(resolution)
+    for (let i = 0; i < resolution; i++) {
+      const p = basePoints[i]
+      let px = p.x
+      let py = p.y
+
+      // Mid twist: rotate each point proportional to path progress
+      if (am.midTwistAmount > 0) {
+        const twAngle = p.progress * Math.PI * 2 * am.midTwistAmount
+        const cosTw   = Math.cos(twAngle)
+        const sinTw   = Math.sin(twAngle)
+        const tx = px * cosTw - py * sinTw
+        const ty = px * sinTw + py * cosTw
+        px = tx
+        py = ty
+      }
+
+      // Per-point audio displacement in normalised space
+      const tdIdx   = Math.floor(i * tdLen / resolution)
+      const td      = getTimeDomainNorm(timeDomainData, tdIdx)
+      const dispAmt = td * am.displacementAmount
+      switch (osc.audioDisplaceMode) {
+        case 'normal': {
+          px += (p.normalX ?? 0) * dispAmt
+          py += (p.normalY ?? 0) * dispAmt
+          break
+        }
+        case 'radial': {
+          const rlen = Math.sqrt(p.x * p.x + p.y * p.y)
+          if (rlen > 0) {
+            px += (p.x / rlen) * dispAmt
+            py += (p.y / rlen) * dispAmt
+          }
+          break
+        }
+        case 'tangent': {
+          px += -(p.normalY ?? 0) * dispAmt
+          py +=  (p.normalX ?? 0) * dispAmt
+          break
+        }
+        case 'xy': {
+          const halfLen = Math.floor(tdLen / 2)
+          const tdX     = getTimeDomainNorm(timeDomainData, tdIdx)
+          const tdY     = getTimeDomainNorm(timeDomainData, tdIdx + halfLen)
+          px += tdX * am.displacementAmount
+          py += tdY * am.displacementAmount
+          break
+        }
+      }
+
+      // Deterministic high-freq jitter (no Math.random per frame)
+      if (am.highJitterAmount > 0) {
+        const jSeed = i * 17.37 + Math.floor(t / 4)
+        const jrand = (seededRandom(jSeed) - 0.5) * 2
+        const nx    = p.normalX ?? Math.cos(p.progress * Math.PI * 2)
+        const ny    = p.normalY ?? Math.sin(p.progress * Math.PI * 2)
+        px += nx * jrand * am.highJitterAmount
+        py += ny * jrand * am.highJitterAmount
+      }
+
+      if (osc.mirrorX) px = -px
+      if (osc.mirrorY) py = -py
+
+      const sx = px * traceScale
+      const sy = py * traceScale
+      screenPts[i] = [cx + sx * cosR - sy * sinR, cy + sx * sinR + sy * cosR]
+    }
+
+    if (isMain) mainTracePts = screenPts
+
+    tctx.save()
+    tctx.globalCompositeOperation = 'screen'
+    tctx.lineCap  = 'round'
+    tctx.lineJoin = 'round'
+
+    switch (osc.renderMode) {
+      case 'outline': {
+        tctx.globalAlpha = traceAlpha * intMul
+        tctx.strokeStyle = traceColor
+        tctx.shadowColor = traceColor
+        tctx.shadowBlur  = glowBase
+        tctx.lineWidth   = (1.2 + bass * 1.5) * am.lineWidthBoost * dpr * params.intensity
+        drawConnectedPath(tctx, screenPts, close)
+        break
+      }
+      case 'multiTrace': {
+        if (isMain) {
+          tctx.globalAlpha = 0.25 * intMul
+          tctx.strokeStyle = preset.palette.accent
+          tctx.shadowColor = preset.palette.accent
+          tctx.shadowBlur  = glowBase * 0.8
+          tctx.lineWidth   = (2.5 + bass * 2.5) * am.lineWidthBoost * dpr
+          drawConnectedPath(tctx, screenPts, close)
+        }
+        tctx.globalAlpha = traceAlpha * intMul
+        tctx.strokeStyle = traceColor
+        tctx.shadowColor = traceColor
+        tctx.shadowBlur  = glowBase
+        tctx.lineWidth   = (1.0 + bass * 1.5) * am.lineWidthBoost * dpr * params.intensity
+        drawConnectedPath(tctx, screenPts, close)
+        break
+      }
+      case 'dots': {
+        const dotR = Math.max(0.5, (0.8 + bass) * am.lineWidthBoost * dpr * params.intensity)
+        tctx.globalAlpha = traceAlpha * intMul
+        tctx.fillStyle   = traceColor
+        tctx.shadowColor = traceColor
+        tctx.shadowBlur  = glowBase * 0.6
+        drawDotPoints(tctx, screenPts, dotR)
+        break
+      }
+      case 'ribbon': {
+        tctx.globalAlpha = 0.18 * intMul
+        tctx.strokeStyle = preset.palette.accent
+        tctx.shadowColor = preset.palette.accent
+        tctx.shadowBlur  = glowBase * 1.2
+        tctx.lineWidth   = (5 + bass * 5) * am.lineWidthBoost * dpr
+        drawConnectedPath(tctx, screenPts, close)
+        tctx.globalAlpha = traceAlpha * intMul
+        tctx.strokeStyle = traceColor
+        tctx.shadowColor = traceColor
+        tctx.shadowBlur  = glowBase
+        tctx.lineWidth   = (1.5 + bass * 1.5) * am.lineWidthBoost * dpr * params.intensity
+        drawConnectedPath(tctx, screenPts, close)
+        break
+      }
+    }
+
+    tctx.restore()
+  }
+
+  // Beat bloom flash — sustained by envelope, not a single-frame spike
+  if (am.beatPulse > 0.05 && mainTracePts) {
+    tctx.save()
+    tctx.globalCompositeOperation = 'screen'
+    tctx.strokeStyle = preset.palette.accent
+    tctx.shadowColor = preset.palette.accent
+    tctx.shadowBlur  = glowBase * 2.5
+    tctx.lineWidth   = (2.5 + bass * 3) * dpr
+    tctx.globalAlpha = 0.5 * am.beatPulse * effectiveOsc.beatBloom * intMul
+    tctx.lineCap     = 'round'
+    tctx.lineJoin    = 'round'
+    drawConnectedPath(tctx, mainTracePts, close)
+    tctx.restore()
+  }
+}
+
 // ── Public export ─────────────────────────────────────────────────────────────
 
 export function renderSoundDrawing(
@@ -277,10 +789,23 @@ export function renderSoundDrawing(
   sectionType: ReactSectionType | null,
 ): void {
   const { W, H, dpr } = frame
-  const intMul    = params.intensity
-  const mode      = modeForSection(sectionType)
+  const intMul = params.intensity
+  const osc    = params.oscillator
+
+  // Route to pathScope for any non-classic source; otherwise honour classicMode
+  let mode: ScopeMode
+  if (osc.sourceType === 'classic') {
+    if (osc.autoSectionMode || osc.classicMode === 'sectionAuto') {
+      mode = modeForSection(sectionType)
+    } else {
+      mode = osc.classicMode as ScopeMode
+    }
+  } else {
+    mode = 'pathScope'
+  }
+
   const trailCanvas = getTrail(ctx, W, H)
-  const tctx      = trailCanvas.getContext('2d')
+  const tctx        = trailCanvas.getContext('2d')
   if (!tctx) return
 
   // Fade trail
@@ -297,6 +822,9 @@ export function renderSoundDrawing(
       break
     case 'spiralScope':
       drawSpiralScopeOnTrail(tctx, W, H, dpr, frame, preset, params, intMul)
+      break
+    case 'pathScope':
+      drawPathScopeOnTrail(tctx, W, H, dpr, frame, preset, params, intMul, sectionType)
       break
     default:
       drawWaveformOnTrail(tctx, W, H, dpr, frame, preset, params, intMul)

@@ -1,7 +1,7 @@
 import type { ReactPreset, ReactSectionType, ReactTrackSection } from '../ReactTypes'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { resolveSectionAtTime, sectionIntensityMultiplier, DEFAULT_REACT_RENDER_PARAMS } from './reactRenderUtils'
-import { renderShaderPads }     from './ShaderPadsRenderer'
+import { renderShaderPads }      from './ShaderPadsRenderer'
 import { renderCinematicPortal } from './CinematicPortalRenderer'
 import { renderSoundDrawing }    from './SoundDrawingRenderer'
 
@@ -10,6 +10,33 @@ export { DEFAULT_REACT_RENDER_PARAMS }
 
 // Re-export the VzFrameContext converter for consumers
 export { reactFrameFromVz } from './reactRenderUtils'
+
+// ── Section resolution ────────────────────────────────────────────────────────
+
+export interface SectionResolution {
+  /** Active section type, or null when no section matches. */
+  type:     ReactSectionType | null
+  /** Progress through the section, 0–1 (clamped). */
+  progress: number
+}
+
+/**
+ * Resolves the active section type and how far through it we are (0–1) at
+ * the given audio time.  Returns `{ type: null, progress: 0 }` when no
+ * manual section covers the time.
+ */
+export function resolveCurrentSection(
+  sections:  ReactTrackSection[],
+  audioTime: number,
+): SectionResolution {
+  const sec = resolveSectionAtTime(sections, audioTime)
+  if (!sec) return { type: null, progress: 0 }
+  const duration = sec.endSec - sec.startSec
+  const progress = duration > 0
+    ? Math.max(0, Math.min(1, (audioTime - sec.startSec) / duration))
+    : 0
+  return { type: sec.type, progress }
+}
 
 // ── Section automation resolver ───────────────────────────────────────────────
 
@@ -23,6 +50,8 @@ function lerp(a: number, b: number, t: number): number {
  * at the section start and out at the end.
  *
  * Returns base params unchanged when no matching scene is found.
+ *
+ * TODO: add scene-level OscillatorSettings blending here when needed.
  */
 export function resolveReactAutomation(
   preset:          ReactPreset,
@@ -55,20 +84,42 @@ export function resolveReactAutomation(
   }
 }
 
-/**
- * Resolves the effective section type at the current audio time, respecting any
- * manual track section overrides from the React store.
- */
-function resolveCurrentSectionType(
-  sections: ReactTrackSection[],
-  audioTime: number,
-): ReactSectionType | null {
-  const sec = resolveSectionAtTime(sections, audioTime)
-  return sec?.type ?? null
-}
+// ── Effective params resolver (exported for unit testing) ─────────────────────
 
 /**
- * Main React engine entry point.  Call once per animation frame.
+ * Computes the final ReactRenderParams for a frame by combining:
+ *  1. Section intensity multiplier (only when manual sections are defined)
+ *  2. Preset scene automation via resolveReactAutomation
+ *
+ * Exported so callers can verify blending without needing a canvas context.
+ */
+export function resolveEffectiveParams(
+  preset:    ReactPreset,
+  params:    ReactRenderParams,
+  sections:  ReactTrackSection[],
+  audioTime: number,
+): ReactRenderParams {
+  const { type: sectionType, progress: sectionProgress } =
+    resolveCurrentSection(sections, audioTime)
+
+  const secMul = sectionIntensityMultiplier(sectionType)
+  const effectiveIntensity = sections.length > 0
+    ? params.intensity * secMul
+    : params.intensity
+
+  const withIntensity: ReactRenderParams = {
+    ...params,
+    intensity: Math.max(0.05, effectiveIntensity),
+  }
+
+  // TODO: add scene-level oscillator automation when needed
+  return resolveReactAutomation(preset, sectionType, sectionProgress, withIntensity)
+}
+
+// ── Main React engine entry point ─────────────────────────────────────────────
+
+/**
+ * Call once per animation frame.
  *
  * @param ctx            2D rendering context
  * @param frame          ReactFrameContext built from analyser + animation tick
@@ -83,21 +134,8 @@ export function renderReactEngine(
   params:         ReactRenderParams,
   manualSections: ReactTrackSection[] = [],
 ): void {
-  const sectionType = resolveCurrentSectionType(manualSections, frame.audioTime)
-
-  // Merge section intensity multiplier into effective params
-  const secMul = sectionIntensityMultiplier(sectionType)
-
-  // When sections are defined, intensity is modulated by the section multiplier.
-  // When no sections are defined, use params.intensity directly (default 0.65 fallback).
-  const effectiveIntensity = manualSections.length > 0
-    ? params.intensity * secMul
-    : params.intensity
-
-  const effectiveParams: ReactRenderParams = {
-    ...params,
-    intensity: Math.max(0.05, effectiveIntensity),
-  }
+  const { type: sectionType } = resolveCurrentSection(manualSections, frame.audioTime)
+  const effectiveParams       = resolveEffectiveParams(preset, params, manualSections, frame.audioTime)
 
   switch (preset.engine) {
     case 'shaderPads':
