@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Route01Icon } from 'hugeicons-react'
-import { BAND_LABELS, EFFECT_LABELS } from '../../../lib/audioModulation'
+import { EFFECT_LABELS } from '../../../lib/audioModulation'
 import type { ModulationRoute } from '../../../lib/audioModulation'
+import { getMISourceLabel } from '../../../lib/miSourceRegistry'
 
 type ModulationPanelProps = {
   routes: ModulationRoute[]
@@ -62,7 +63,7 @@ export function ModulationPanel({ routes, onToggle, onSetAmount, audioReactivity
                   <span className={`vz-mod-dot ${route.enabled ? 'vz-mod-dot--on' : ''}`} />
                 </button>
                 <span className="vz-mod-target">{EFFECT_LABELS[route.effectId] ?? route.effectId}</span>
-                <span className="vz-mod-source">{BAND_LABELS[route.source]}</span>
+                <span className="vz-mod-source">{getMISourceLabel(route.source)}</span>
               </div>
               <div className="vz-mod-route-slider">
                 <input

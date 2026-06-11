@@ -48,6 +48,7 @@ import {
 } from './mediaPool'
 import { renderReactEngine, reactFrameFromVz, DEFAULT_REACT_RENDER_PARAMS } from '../react/renderers/ReactEngineRenderer'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
+import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 
 // ── Lyric rendering helpers ───────────────────────────────────────────────────
 
@@ -1425,7 +1426,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         : 1
 
       const mEff = audioOn
-        ? applyModulatedEffects(eff, { ...rawBands, bass: smoothBass }, routesRef.current)
+        ? applyModulatedEffects(eff, { ...rawBands, bass: smoothBass }, routesRef.current, AudioFeatureBus.getFrame())
         : eff
 
       const activeColorShift = fxSet.has('Color Shift') ? mEff.colorShift : 0

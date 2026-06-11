@@ -1947,6 +1947,190 @@
   flex-shrink: 0;
 }
 
+/* ── Music Intelligence Diagnostics Panel ───────────────────────────── */
+.vz-mi-panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 4px 0 8px;
+}
+.vz-mi-panel::-webkit-scrollbar { width: 3px; }
+.vz-mi-panel::-webkit-scrollbar-track { background: transparent; }
+.vz-mi-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+.vz-mi-section {
+  padding: 6px 10px 4px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.vz-mi-section:last-child { border-bottom: none; }
+
+.vz-mi-section-title {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.28);
+  margin-bottom: 5px;
+}
+
+/* Horizontal bar group (bands/stems) */
+.vz-mi-bar-group {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  height: 52px;
+}
+.vz-mi-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  height: 100%;
+}
+.vz-mi-bar-track {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.vz-mi-bar-fill {
+  width: 100%;
+  border-radius: 1px;
+  transition: height 0.06s linear;
+  min-height: 1px;
+}
+.vz-mi-bar-val {
+  font-size: 9px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255,255,255,0.5);
+}
+.vz-mi-bar-lbl {
+  font-size: 9px;
+  color: rgba(255,255,255,0.3);
+  text-align: center;
+}
+
+/* Horizontal progress row */
+.vz-mi-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 14px;
+  margin-bottom: 3px;
+}
+.vz-mi-row-label {
+  font-size: 9px;
+  color: rgba(255,255,255,0.35);
+  flex: 0 0 64px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vz-mi-row-track {
+  flex: 1;
+  height: 4px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.vz-mi-row-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: #4ac7db;
+  transition: width 0.06s linear;
+}
+.vz-mi-row-val {
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255,255,255,0.4);
+  flex: 0 0 28px;
+  text-align: right;
+}
+
+/* Key-value pairs */
+.vz-mi-kv-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-bottom: 4px;
+}
+.vz-mi-kv-label {
+  font-size: 9px;
+  color: rgba(255,255,255,0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.vz-mi-kv-val {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+  font-variant-numeric: tabular-nums;
+}
+.vz-mi-kv-val--tag {
+  background: rgba(255,255,255,0.07);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+}
+
+/* Boolean event dots */
+.vz-mi-dots-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 2px;
+}
+.vz-mi-dot-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.vz-mi-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  flex-shrink: 0;
+  transition: background 0.05s;
+}
+.vz-mi-dot--on {
+  background: #4ac7db;
+  box-shadow: 0 0 5px #4ac7db88;
+}
+.vz-mi-dot-label {
+  font-size: 9px;
+  color: rgba(255,255,255,0.3);
+}
+
+/* Lyric text rows */
+.vz-mi-lyric-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 3px;
+  min-height: 14px;
+}
+.vz-mi-lyric-text {
+  font-size: 10px;
+  color: rgba(255,255,255,0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
 /* ── Effect Controls ─────────────────────────────────────────────────── */
 .vz-effects-panel {
   flex: 1;

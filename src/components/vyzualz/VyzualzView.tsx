@@ -30,7 +30,8 @@ import { EffectChainPanel }     from './effects/EffectChainPanel'
 import { EffectControlsPanel }  from './effects/EffectControlsPanel'
 import type { EffectChainOptionRow } from '../../types/database'
 import { dbListEffectChainOptions } from '../../lib/effectChainDb'
-import { ModulationPanel }      from './modulation/ModulationPanel'
+import { ModulationPanel }                  from './modulation/ModulationPanel'
+import { MusicIntelligenceDiagnosticsPanel } from './modulation/MusicIntelligenceDiagnosticsPanel'
 import { PresetStrip }          from './sessions/PresetStrip'
 import { SessionPanel }         from './sessions/SessionPanel'
 import { BpmInput }             from './BpmInput'
@@ -995,7 +996,13 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
               />
             )}
             {activeRightPanel === 'audio' && (
-              <AudioAnalyzerPanel analyser={analyser} />
+              <div className="vz-analyzer-panel" style={{ display: 'flex', flexDirection: 'column' }}>
+                <div className="vz-panel-header" style={{ minHeight: 32 }}>
+                  <ChartHistogramIcon size={14} color="currentColor" style={{ flexShrink: 0 }} />
+                  <span className="vz-panel-title">Music Intelligence</span>
+                </div>
+                <MusicIntelligenceDiagnosticsPanel />
+              </div>
             )}
             {activeRightPanel === 'rec' && (
               <RecordingPanel

@@ -100,3 +100,16 @@ export {
 } from './stemAnalysis'
 
 export { SemanticAnalyzer, detectSemanticMoments, suggestVisualAutomation } from './semanticAnalysis'
+
+export type {
+  ModulationSourceKey,
+  MISourceCategory,
+  MISourceDef,
+} from '../../lib/miSourceRegistry'
+export {
+  MI_SOURCE_REGISTRY,
+  MI_SOURCES_BY_CATEGORY,
+  MI_SOURCE_CATEGORY_LABELS,
+  getMISourceLabel,
+  getMISourceDef,
+} from '../../lib/miSourceRegistry'
