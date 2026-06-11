@@ -3,6 +3,7 @@
 // applyModulatedEffects is a pure function — the renderer calls it every frame.
 
 import type { VzEffects } from '../stores/visualStore'
+import type { MusicIntelligenceFrame } from '../features/musicIntelligence/types'
 
 export type AudioBand = 'bass' | 'lowMid' | 'mid' | 'high' | 'volume' | 'beat'
 
@@ -191,6 +192,24 @@ const SILENT_BANDS: AudioBandValues = { bass: 0, lowMid: 0, mid: 0, high: 0, vol
  */
 export function gateAudioBands(rawBands: AudioBandValues, audioOn: boolean): AudioBandValues {
   return audioOn ? rawBands : SILENT_BANDS
+}
+
+/**
+ * Compatibility bridge: convert a MusicIntelligenceFrame into the AudioBandValues
+ * shape expected by existing modulation routes.  Lets new code read from the
+ * centralized bus without changing any call sites in the renderer.
+ */
+export function bandsFromFrame(frame: MusicIntelligenceFrame): AudioBandValues {
+  return {
+    bass:   frame.bands.bass,
+    lowMid: frame.bands.lowMid,
+    mid:    frame.bands.mid,
+    high:   frame.bands.high,
+    volume: frame.bands.volume,
+    beat:   frame.rhythm.beatHit
+      ? 1
+      : Math.max(0, frame.rhythm.transient * (1 - frame.rhythm.beatPhase)),
+  }
 }
 
 /**

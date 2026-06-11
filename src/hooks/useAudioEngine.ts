@@ -5,6 +5,10 @@ import { buildMonitoringChain, type MonitoringChain } from '../audio/routing'
 import type { MonitoringMode, ReferenceTrack, SpectralFeatures } from '../types/audio'
 import { analyze as analyzeBPM } from 'web-audio-beat-detector'
 import Meyda from 'meyda'
+import {
+  musicIntelligenceEngine,
+  type MusicIntelligenceEngine,
+} from '../features/musicIntelligence/MusicIntelligenceEngine'
 
 // 60-second ring buffer
 class RingBuffer {
@@ -125,6 +129,10 @@ export interface AudioEngine {
   stopSpectralAnalysis: () => void
   bpmDetecting: boolean
   detectBPM: () => Promise<void>
+
+  // Centralized music intelligence — shared singleton that LiveVisualCanvas
+  // feeds each frame via updateFromAudioFrame().
+  musicIntelligenceEngine: MusicIntelligenceEngine
 }
 
 export function useAudioEngine(): AudioEngine {
@@ -250,6 +258,9 @@ export function useAudioEngine(): AudioEngine {
 
     const ctx = new AudioContext()
     ctxRef.current = ctx
+
+    // Initialize the centralized music intelligence engine with this context's sample rate
+    musicIntelligenceEngine.initialize({ sampleRate: ctx.sampleRate })
 
     // Master gain + main analysers
     const masterGain = ctx.createGain()
@@ -574,6 +585,7 @@ export function useAudioEngine(): AudioEngine {
       const arrayBuffer = await response.arrayBuffer()
       const audioBuffer = await ctx.decodeAudioData(arrayBuffer)
       const bpm = await analyzeBPM(audioBuffer)
+      musicIntelligenceEngine.setBpm(bpm, 0.9)
       setSpectralFeatures(prev =>
         prev ? { ...prev, bpm } : { centroid: 0, spread: 0, rolloff: 0, flatness: 0, bpm }
       )
@@ -808,5 +820,6 @@ export function useAudioEngine(): AudioEngine {
     bpmDetecting, detectBPM,
     demoSilent, setDemoSilent,
     getRecordingStream,
+    musicIntelligenceEngine,
   }
 }

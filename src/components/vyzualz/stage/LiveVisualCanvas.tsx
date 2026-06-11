@@ -47,6 +47,7 @@ import {
   getOrCreateMediaInstance, pauseInactiveMediaInstances, destroyMediaInstance,
 } from './mediaPool'
 import { renderReactEngine, reactFrameFromVz, DEFAULT_REACT_RENDER_PARAMS } from '../react/renderers/ReactEngineRenderer'
+import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
 
 // ── Lyric rendering helpers ───────────────────────────────────────────────────
 
@@ -1389,6 +1390,14 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       if (an && buf) {
         an.getByteFrequencyData(buf)
         rawBands = extractBandValues(buf, an.context.sampleRate, beatPhase, synced)
+        // Feed Music Intelligence Engine — publishes to AudioFeatureBus for all consumers
+        musicIntelligenceEngine.updateFromAudioFrame({
+          freqBuf:    buf,
+          timeBuf:    null,   // time-domain only read when Oscilloscope is enabled
+          sampleRate: an.context.sampleRate,
+          audioTime:  audioTimeNow,
+          isPlaying:  isPlayingRef.current,
+        })
       }
       const audioOn    = audioReactivityEnabledRef.current
       // Single gate: all downstream consumers read activeBands, never rawBands,

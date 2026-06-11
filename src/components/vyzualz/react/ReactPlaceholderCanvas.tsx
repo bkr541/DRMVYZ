@@ -1,4 +1,5 @@
 import { useRef, useEffect } from 'react'
+import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 import type { ReactPreset, ReactTrackSection, OscillatorSettings, OscillatorGlyphAsset, OscillatorGlyphPoint } from './ReactTypes'
 import { DEFAULT_OSCILLATOR_SETTINGS } from './ReactTypes'
 import type { ReactRenderParams } from './renderers/reactRenderUtils'
@@ -114,10 +115,10 @@ export function ReactPlaceholderCanvas({
     ro.observe(canvas)
     resize()
 
-    // Beat detection state
+    // Fallback beat detection — only used when the MI bus hasn't been populated yet
     let prevBass = 0
     let beatPhase = 0
-    const beatPeriodMs = 60000 / 120  // default 120 BPM until we have better data
+    const beatPeriodMs = 60000 / 120
 
     function frame(now: number) {
       if (!canvas || !ctx) return
@@ -156,11 +157,24 @@ export function ReactPlaceholderCanvas({
 
       if (an && tBuf) an.getByteTimeDomainData(tBuf)
 
-      // Beat detection — transient + phase
-      const beatHit = bass > 0.55 && bass > prevBass + 0.08
-      prevBass = bass * 0.8
+      // Use Music Intelligence bus when available; fall back to simple transient detection
+      const miFrame  = AudioFeatureBus.getFrame()
+      const hasMI    = miFrame.frameId > 0
 
-      beatPhase = (beatPhase + 16 / beatPeriodMs) % 1
+      let beatHit: boolean
+      let activeBeatPhase: number
+      let activeBpm: number
+
+      if (hasMI) {
+        beatHit          = miFrame.rhythm.beatHit
+        activeBeatPhase  = miFrame.rhythm.beatPhase
+        activeBpm        = miFrame.rhythm.bpm
+      } else {
+        beatHit          = bass > 0.55 && bass > prevBass + 0.08
+        prevBass         = bass * 0.8
+        activeBeatPhase  = beatPhase = (beatPhase + 16 / beatPeriodMs) % 1
+        activeBpm        = 120
+      }
 
       if (isPlayingRef.current) {
         audioTimeRef.current += 1 / 60  // approximate; real audioTime from engine if available
@@ -173,8 +187,8 @@ export function ReactPlaceholderCanvas({
         W, H, dpr,
         t,
         audioTime: audioTimeRef.current,
-        bpm:       120,
-        beatPhase,
+        bpm:       activeBpm,
+        beatPhase: activeBeatPhase,
         beatHit,
         audio:     { bass, mid, high, volume: vol },
         freqData:       buf ?? null,
