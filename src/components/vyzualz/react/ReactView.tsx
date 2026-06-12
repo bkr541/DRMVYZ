@@ -3,7 +3,6 @@ import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useRecorder } from '../../../hooks/useRecorder'
 import { useReactStore } from '../../../stores/reactStore'
-import { ReactPresetBrowser } from './ReactPresetBrowser'
 import {
   ReactPresetsPanel,
   ReactEnginePanel,
@@ -25,7 +24,7 @@ import { MediaDeckPanel } from '../media/MediaDeckPanel'
 import { useSvgVisualRehydration } from './useSvgVisualRehydration'
 import '../../../styles/reactView.css'
 
-type ReactLeftTab  = 'media' | 'layers' | 'sessions' | 'engines'
+type ReactLeftTab  = 'media' | 'layers' | 'sessions'
 type ReactRightPanel = 'presets' | 'engine' | 'fx' | 'mod' | 'audio' | 'rec' | 'insp'
 
 // BASE_RIGHT_TABS omits 'disabled' — injected dynamically via useMemo (same pattern as Visualizer)
@@ -41,7 +40,6 @@ const REACT_RIGHT_BASE_TABS: Omit<RailTabOption<ReactRightPanel>, 'disabled'>[] 
 
 const REACT_LEFT_TABS: RailTabOption<ReactLeftTab>[] = [
   { id: 'media',    label: 'Media'    },
-  { id: 'engines',  label: 'Engines'  },
   { id: 'layers',   label: 'Layers'   },
   { id: 'sessions', label: 'Sessions' },
 ]
@@ -76,7 +74,6 @@ export function ReactView() {
     oscillatorGlyphPointCache,
     oscillatorTextPointCache,
     manualTrackSections,
-    selectReactPreset,
   } = useReactStore(useShallow(s => ({
     reactPresets:           s.reactPresets,
     activeReactPresetId:    s.activeReactPresetId,
@@ -92,7 +89,6 @@ export function ReactView() {
     oscillatorGlyphPointCache:   s.oscillatorGlyphPointCache,
     oscillatorTextPointCache:    s.oscillatorTextPointCache,
     manualTrackSections:         s.manualTrackSections,
-    selectReactPreset:           s.selectReactPreset,
   })))
 
   const [leftTab, setLeftTab]             = useState<ReactLeftTab>('media')
@@ -176,13 +172,6 @@ export function ReactView() {
                 mode="react"
                 activeMediaId={activeMediaId}
                 onSelect={setActiveMediaId}
-              />
-            )}
-            {leftTab === 'engines' && (
-              <ReactPresetBrowser
-                presets={reactPresets}
-                activePresetId={activeReactPresetId}
-                onSelect={selectReactPreset}
               />
             )}
             {leftTab === 'layers' && (
