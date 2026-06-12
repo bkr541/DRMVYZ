@@ -1,0 +1,7 @@
+export { ReactFxPanel }           from '../ReactFxPanel'
+export { ReactEnginePanel }       from '../ReactEnginePanel'
+export { ReactPresetsPanel }      from '../ReactPresetsPanel'
+export { ReactModulationPanel }   from '../ReactModulationPanel'
+export { ReactAudioPanel }        from '../ReactAudioPanel'
+export { ReactRecordingPanel }    from '../ReactRecordingPanel'
+export { ReactInspectorPanel }    from '../ReactInspectorPanel'

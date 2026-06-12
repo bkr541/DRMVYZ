@@ -24,6 +24,10 @@ interface Props {
   isPlaying:                    boolean
   manualSections?:              ReactTrackSection[]
   getAudioTime?:                () => number
+  /** Called once when the canvas element is ready for capture, and with null on unmount. */
+  onCanvasReady?:               (canvas: HTMLCanvasElement | null) => void
+  /** Called approximately once per second with the current render frame rate. */
+  onLiveFps?:                   (fps: number) => void
 }
 
 export function ReactPlaceholderCanvas({
@@ -43,6 +47,8 @@ export function ReactPlaceholderCanvas({
   isPlaying,
   manualSections             = [],
   getAudioTime,
+  onCanvasReady,
+  onLiveFps,
 }: Props) {
   const canvasRef      = useRef<HTMLCanvasElement>(null)
   const animRef        = useRef<number>(0)
@@ -68,6 +74,8 @@ export function ReactPlaceholderCanvas({
   const sectionsRef           = useRef<ReactTrackSection[]>(manualSections)
   const audioTimeRef          = useRef(0)
   const getAudioTimeRef        = useRef(getAudioTime)
+  const onCanvasReadyRef       = useRef(onCanvasReady)
+  const onLiveFpsRef           = useRef(onLiveFps)
 
   // Keep refs current every render
   intensityRef.current          = intensity
@@ -85,6 +93,8 @@ export function ReactPlaceholderCanvas({
   presetRef.current             = activePreset
   sectionsRef.current           = manualSections
   getAudioTimeRef.current        = getAudioTime
+  onCanvasReadyRef.current       = onCanvasReady
+  onLiveFpsRef.current           = onLiveFps
 
   // Update analyser buffers when analyser changes
   useEffect(() => {
@@ -118,6 +128,13 @@ export function ReactPlaceholderCanvas({
     const ro = new ResizeObserver(resize)
     ro.observe(canvas)
     resize()
+
+    // Notify the parent that this canvas is ready for capture (e.g. recording, PNG export).
+    onCanvasReadyRef.current?.(canvas)
+
+    // FPS tracking — sample once per second and report via onLiveFps
+    let fpsFrameCount = 0
+    let fpsLastMs = performance.now()
 
     // Fallback beat detection — only used when the MI bus hasn't been populated yet
     let prevBass = 0
@@ -222,6 +239,15 @@ export function ReactPlaceholderCanvas({
       if (isPlayingRef.current) tRef.current++
       else tRef.current += 0.15  // slow idle animation
 
+      fpsFrameCount++
+      const nowMs = performance.now()
+      if (nowMs - fpsLastMs >= 1000) {
+        const elapsed = (nowMs - fpsLastMs) / 1000
+        onLiveFpsRef.current?.(Math.round(fpsFrameCount / elapsed))
+        fpsFrameCount = 0
+        fpsLastMs = nowMs
+      }
+
       animRef.current = requestAnimationFrame(frame)
     }
 
@@ -229,6 +255,7 @@ export function ReactPlaceholderCanvas({
     return () => {
       cancelAnimationFrame(animRef.current)
       ro.disconnect()
+      onCanvasReadyRef.current?.(null)
     }
   }, [])  // stable — reads all state via refs
 
