@@ -14,6 +14,8 @@ export type OscillatorRenderMode = 'outline' | 'multiTrace' | 'dots' | 'ribbon'
 
 export type OscillatorAudioDisplaceMode = 'normal' | 'radial' | 'tangent' | 'xy'
 
+export type OscillatorTextWaveformMode = 'off' | 'normal' | 'radial' | 'tangent' | 'xy'
+
 export interface OscillatorGlyphPoint {
   x: number
   y: number
@@ -61,6 +63,10 @@ export interface OscillatorSettings {
   pathScale: number
   audioDisplacement: number
   audioDisplaceMode: OscillatorAudioDisplaceMode
+  textWaveformMode:   OscillatorTextWaveformMode
+  textWaveformAmount: number
+  textWaveformCycles: number
+  textWaveformScroll: number
   bassScale: number
   midTwist: number
   highJitter: number
@@ -87,7 +93,11 @@ export const DEFAULT_OSCILLATOR_SETTINGS: OscillatorSettings = {
   pathScale:         0.78,
   audioDisplacement: 0.18,
   audioDisplaceMode: 'normal',
-  bassScale:         0.25,
+  textWaveformMode:   'off',
+  textWaveformAmount: 0.10,
+  textWaveformCycles: 5,
+  textWaveformScroll: 0.20,
+  bassScale:          0.25,
   midTwist:          0.15,
   highJitter:        0.08,
   beatBloom:         0.35,

@@ -1,4 +1,4 @@
-import type { ReactPreset, ReactSectionType, OscillatorGlyphPoint, OscillatorSettings } from '../ReactTypes'
+import type { ReactPreset, ReactSectionType, OscillatorGlyphPoint, OscillatorSettings, OscillatorTextWaveformMode } from '../ReactTypes'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { hexToRgba, getOrCreateOffscreen, seededRandom } from './reactRenderUtils'
 import { generateBuiltinShapePoints, clamp } from './oscillatorPathUtils'
@@ -407,6 +407,119 @@ function getSynthStereo(
   }
 }
 
+// ── Text waveform helpers ─────────────────────────────────────────────────────
+
+function fract(v: number): number { return v - Math.floor(v) }
+
+function getPointBounds(points: OscillatorGlyphPoint[]): { minX: number; maxX: number; minY: number; maxY: number } {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+  for (const p of points) {
+    if (p.x < minX) minX = p.x
+    if (p.x > maxX) maxX = p.x
+    if (p.y < minY) minY = p.y
+    if (p.y > maxY) maxY = p.y
+  }
+  if (points.length === 0) return { minX: 0, maxX: 0, minY: 0, maxY: 0 }
+  return { minX, maxX, minY, maxY }
+}
+
+export interface TextWaveformMeta {
+  minX: number
+  maxX: number
+  minY: number
+  maxY: number
+  charCount: number
+  localProgressByPointIndex: number[]
+}
+
+/**
+ * Computes per-point local waveform progress for text sources.
+ * For multi-group (OpenType) text, each group uses j/(group.length-1) so every
+ * letter gets its own 0→1 cycle.  For single-group canvas-fallback text, an
+ * x-based char-cycling term dominates so the waveform repeats across each
+ * letter rather than stretching once across the whole word.
+ */
+export function buildTextWaveformMeta(
+  basePoints: OscillatorGlyphPoint[],
+  sourceGroups: number[][],
+  text: string,
+): TextWaveformMeta {
+  const { minX, maxX, minY, maxY } = getPointBounds(basePoints)
+  const xRange    = (maxX - minX) || 1
+  const charCount = Math.max(1, text.trim().length)
+  const isSingle  = sourceGroups.length === 1
+  const local     = new Array<number>(basePoints.length).fill(0)
+
+  for (const group of sourceGroups) {
+    for (let j = 0; j < group.length; j++) {
+      const srcIdx          = group[j]
+      const p               = basePoints[srcIdx]
+      const pathLocalProgress = group.length > 1 ? j / (group.length - 1) : 0
+
+      if (isSingle) {
+        // Canvas-fallback: all points share pathIndex 0.  Override monotonic
+        // 0→1 progress with a char-cycling x-based value so "GOONZ" gets
+        // waveform detail on every letter rather than a single long stretch.
+        const xProgress  = clamp((p.x - minX) / xRange, 0, 1)
+        const charProgress = fract(xProgress * charCount)
+        local[srcIdx] = pathLocalProgress * 0.25 + charProgress * 0.75
+      } else {
+        // OpenType: each group is already one letter/contour.
+        local[srcIdx] = pathLocalProgress
+      }
+    }
+  }
+
+  return { minX, maxX, minY, maxY, charCount, localProgressByPointIndex: local }
+}
+
+/**
+ * Applies text-specific waveform displacement to a single point.
+ * origX/origY are the pre-midTwist coordinates (for radial direction).
+ * px/py are the post-midTwist working coordinates that get displaced.
+ * Returns new { px, py }.
+ */
+export function applyTextWaveformDisplacement(
+  px: number, py: number,
+  origX: number, origY: number,
+  normalX: number, normalY: number,
+  pointIndex: number,
+  meta: TextWaveformMeta,
+  mode: OscillatorTextWaveformMode,
+  amount: number,
+  cycles: number,
+  scrollPhase: number,
+  timeDomainData: Uint8Array<ArrayBuffer> | null,
+  bass: number,
+): { px: number; py: number } {
+  const localProgress  = meta.localProgressByPointIndex[pointIndex] ?? 0
+  const tdLen          = timeDomainData ? timeDomainData.length : 256
+  const sampleProgress = fract(localProgress * cycles + scrollPhase)
+  const tdIdx          = Math.floor(sampleProgress * tdLen)
+  const wave           = getTimeDomainNorm(timeDomainData, tdIdx)
+  const effectiveAmt   = clamp(amount * (1 + bass * 0.35), 0, 0.30)
+  const dispAmt        = wave * effectiveAmt
+
+  switch (mode) {
+    case 'normal':
+      return { px: px + normalX * dispAmt, py: py + normalY * dispAmt }
+    case 'radial': {
+      const rlen = Math.sqrt(origX * origX + origY * origY)
+      if (rlen > 0) return { px: px + (origX / rlen) * dispAmt, py: py + (origY / rlen) * dispAmt }
+      return { px, py }
+    }
+    case 'tangent':
+      return { px: px - normalY * dispAmt, py: py + normalX * dispAmt }
+    case 'xy': {
+      const sp2   = fract(sampleProgress + 0.5)
+      const waveY = getTimeDomainNorm(timeDomainData, Math.floor(sp2 * tdLen))
+      return { px: px + wave * effectiveAmt, py: py + waveY * effectiveAmt }
+    }
+    default:
+      return { px, py }
+  }
+}
+
 // ── Canvas path helpers ───────────────────────────────────────────────────────
 
 function drawConnectedPath(
@@ -714,6 +827,16 @@ function drawPathScopeOnTrail(
     .sort((a, b) => a[0] - b[0])
     .map(([, indices]) => indices)
 
+  // Text-specific waveform: build per-point local progress metadata once,
+  // reuse across all trace passes.  null when mode is 'off' or source is not text.
+  const isTextWaveActive = effectiveOsc.sourceType === 'text' && effectiveOsc.textWaveformMode !== 'off'
+  const textWaveMeta     = isTextWaveActive
+    ? buildTextWaveformMeta(basePoints, sourceGroups, effectiveOsc.text)
+    : null
+  const textWaveScrollPhase = isTextWaveActive
+    ? fract(t * 0.001 * params.motion * effectiveOsc.textWaveformScroll)
+    : 0
+
   let mainTraceGroups: [number, number][][] | null = null
 
   for (let traceIdx = 0; traceIdx < numTraces; traceIdx++) {
@@ -749,36 +872,55 @@ function drawPathScopeOnTrail(
         py = ty
       }
 
-      // Per-point audio displacement in normalised space
-      const tdIdx   = Math.floor(i * tdLen / resolution)
-      const td      = getTimeDomainNorm(timeDomainData, tdIdx)
-      const dispAmt = td * am.displacementAmount
-      switch (osc.audioDisplaceMode) {
-        case 'normal': {
-          px += (p.normalX ?? 0) * dispAmt
-          py += (p.normalY ?? 0) * dispAmt
-          break
-        }
-        case 'radial': {
-          const rlen = Math.sqrt(p.x * p.x + p.y * p.y)
-          if (rlen > 0) {
-            px += (p.x / rlen) * dispAmt
-            py += (p.y / rlen) * dispAmt
+      // Per-point audio displacement in normalised space.
+      // Text with textWaveformMode !== 'off' uses the letter-local waveform path;
+      // all other sources (and text with mode 'off') use the generic path.
+      if (textWaveMeta !== null) {
+        const r = applyTextWaveformDisplacement(
+          px, py, p.x, p.y,
+          p.normalX ?? 0, p.normalY ?? 0,
+          i,
+          textWaveMeta,
+          effectiveOsc.textWaveformMode,
+          effectiveOsc.textWaveformAmount,
+          effectiveOsc.textWaveformCycles,
+          textWaveScrollPhase,
+          timeDomainData,
+          bass,
+        )
+        px = r.px
+        py = r.py
+      } else {
+        const tdIdx   = Math.floor(i * tdLen / resolution)
+        const td      = getTimeDomainNorm(timeDomainData, tdIdx)
+        const dispAmt = td * am.displacementAmount
+        switch (osc.audioDisplaceMode) {
+          case 'normal': {
+            px += (p.normalX ?? 0) * dispAmt
+            py += (p.normalY ?? 0) * dispAmt
+            break
           }
-          break
-        }
-        case 'tangent': {
-          px += -(p.normalY ?? 0) * dispAmt
-          py +=  (p.normalX ?? 0) * dispAmt
-          break
-        }
-        case 'xy': {
-          const halfLen = Math.floor(tdLen / 2)
-          const tdX     = getTimeDomainNorm(timeDomainData, tdIdx)
-          const tdY     = getTimeDomainNorm(timeDomainData, tdIdx + halfLen)
-          px += tdX * am.displacementAmount
-          py += tdY * am.displacementAmount
-          break
+          case 'radial': {
+            const rlen = Math.sqrt(p.x * p.x + p.y * p.y)
+            if (rlen > 0) {
+              px += (p.x / rlen) * dispAmt
+              py += (p.y / rlen) * dispAmt
+            }
+            break
+          }
+          case 'tangent': {
+            px += -(p.normalY ?? 0) * dispAmt
+            py +=  (p.normalX ?? 0) * dispAmt
+            break
+          }
+          case 'xy': {
+            const halfLen = Math.floor(tdLen / 2)
+            const tdX     = getTimeDomainNorm(timeDomainData, tdIdx)
+            const tdY     = getTimeDomainNorm(timeDomainData, tdIdx + halfLen)
+            px += tdX * am.displacementAmount
+            py += tdY * am.displacementAmount
+            break
+          }
         }
       }
 

@@ -244,6 +244,27 @@ export function ReactModulationPanel() {
       />
       <SliderRow label="Displacement" value={osc.audioDisplacement} onChange={v => set({ audioDisplacement: v })} color="#4ac7db" />
 
+      {osc.sourceType === 'text' && (
+        <>
+          <CtrlSection label="Text Waveform Distortion" />
+          <SelectRow
+            label="Text Wave"
+            value={osc.textWaveformMode}
+            onChange={v => set({ textWaveformMode: v as import('./ReactTypes').OscillatorTextWaveformMode })}
+            options={[
+              { value: 'off',     label: 'Off'     },
+              { value: 'normal',  label: 'Normal'  },
+              { value: 'radial',  label: 'Radial'  },
+              { value: 'tangent', label: 'Tangent' },
+              { value: 'xy',      label: 'XY'      },
+            ]}
+          />
+          <SliderRow label="Text Wave Amount" value={osc.textWaveformAmount} onChange={v => set({ textWaveformAmount: v })} min={0} max={0.30} step={0.005} color="#4ac7db" />
+          <SliderRow label="Text Wave Cycles" value={osc.textWaveformCycles} onChange={v => set({ textWaveformCycles: v })} min={1} max={16} step={1} color="#61d6aa" />
+          <SliderRow label="Text Wave Scroll" value={osc.textWaveformScroll} onChange={v => set({ textWaveformScroll: v })} min={0} max={2} step={0.01} color="#b84fc9" />
+        </>
+      )}
+
       <CtrlSection label="Frequency Response" />
       <SliderRow label="Bass → Scale"  value={osc.bassScale}  onChange={v => set({ bassScale:  v })} color="#d8b95a" />
       <SliderRow label="Mid → Twist"   value={osc.midTwist}   onChange={v => set({ midTwist:   v })} color="#61d6aa" />
