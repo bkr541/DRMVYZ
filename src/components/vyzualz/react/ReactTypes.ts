@@ -231,6 +231,8 @@ export interface LaserDmxFixtureFrame {
     intensity: number
     beamWidth: number
     strobeVisible: boolean
+    /** 0=soft/diffuse, 1=sharp/tight. Computed from fixture.beam.focus. Used to scale glow blur. */
+    focusFactor: number
   }
 }
 
@@ -881,6 +883,67 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     params: { intensity: 0.85, motion: 0.55, glow: 0.7, bassReactivity: 0.8, colorShift: 0.4, complexity: 0.6 },
     scenes: makeScenes('ldx', 'laserDmx'),
     sectionMappings: makeMappings('ldx'),
+    // Explicit settings so selecting this preset always produces a valid selectedFixtureId
+    // and the layout matches the documented "fan grid" look.
+    laserDmxSettings: {
+      selectedFixtureId: 'laser-fixture-left',
+      masterDimmer: 0.85,
+      hazeAmount: 0.55,
+      beamPersistence: 0.72,
+      glowAmount: 0.7,
+      globalBeamWidth: 1,
+      globalStrobeRate: 0,
+      safetyClamp: 0.85,
+      backgroundFade: 0.18,
+      blackout: false,
+      fixtures: [
+        {
+          id: 'laser-fixture-left',
+          name: 'Left Fan Laser',
+          enabled: true,
+          dmx: { universe: 1, startAddress: 1, profileId: 'genericRgbLaser', channelMode: 'basic' },
+          position: { originX: 0.12, originY: 0.88, originZ: 0, targetX: 0.5, targetY: 0.35, targetZ: 0, pan: 0, tilt: 0, rotation: -18, mirrorX: false, mirrorY: false },
+          color: { mode: 'fixed', red: 0, green: 255, blue: 220, white: 0, alpha: 1, paletteId: '', colorCycleSpeed: 0 },
+          beam: { dimmer: 1, shutterOpen: true, width: 1, zoom: 1, focus: 1, strobeRate: 0, flickerAmount: 0 },
+          path: { kind: 'fan', scale: 1, rotation: 0, offsetX: 0, offsetY: 0, scanSpeed: 0.45, phaseOffset: 0, pointCount: 18, spread: 0.75, radius: 0.45, complexity: 0.45, smoothing: 0, pathProgress: 0 },
+          modulationRoutes: [
+            { id: 'ldx-r1', enabled: true, source: 'kick',          target: 'fixtureDimmer', amount: 0.85, min: 0.35, max: 1,    curve: 'pulse',   mode: 'trigger', smoothing: 0.1, attack: 0.02, release: 0.25, invert: false },
+            { id: 'ldx-r2', enabled: true, source: 'snare',         target: 'strobeRate',    amount: 0.6,  min: 0,    max: 0.65, curve: 'pulse',   mode: 'trigger', smoothing: 0,   attack: 0,    release: 0.2,  invert: false },
+            { id: 'ldx-r3', enabled: true, source: 'beatPhase',     target: 'pathProgress',  amount: 1,    min: 0,    max: 1,    curve: 'linear',  mode: 'set',     smoothing: 0,   attack: 0,    release: 0,    invert: false },
+            { id: 'ldx-r4', enabled: true, source: 'buildProgress', target: 'pathSpread',    amount: 1,    min: 0.2,  max: 1,    curve: 'easeOut', mode: 'set',     smoothing: 0.3, attack: 0.1,  release: 0.5,  invert: false },
+            { id: 'ldx-r5', enabled: true, source: 'dropImpact',    target: 'masterDimmer',  amount: 1,    min: 0.65, max: 1,    curve: 'pulse',   mode: 'trigger', smoothing: 0,   attack: 0,    release: 0.3,  invert: false },
+          ],
+        },
+        {
+          id: 'laser-fixture-right',
+          name: 'Right Fan Laser',
+          enabled: true,
+          dmx: { universe: 1, startAddress: 17, profileId: 'genericRgbLaser', channelMode: 'basic' },
+          position: { originX: 0.88, originY: 0.88, originZ: 0, targetX: 0.5, targetY: 0.35, targetZ: 0, pan: 0, tilt: 0, rotation: 18, mirrorX: false, mirrorY: false },
+          color: { mode: 'fixed', red: 0, green: 255, blue: 120, white: 0, alpha: 1, paletteId: '', colorCycleSpeed: 0 },
+          beam: { dimmer: 1, shutterOpen: true, width: 1, zoom: 1, focus: 1, strobeRate: 0, flickerAmount: 0 },
+          path: { kind: 'fan', scale: 1, rotation: 0, offsetX: 0, offsetY: 0, scanSpeed: 0.45, phaseOffset: 0, pointCount: 18, spread: 0.75, radius: 0.45, complexity: 0.45, smoothing: 0, pathProgress: 0 },
+          modulationRoutes: [
+            { id: 'ldx-r6', enabled: true, source: 'kick',      target: 'fixtureDimmer', amount: 0.85, min: 0.35, max: 1, curve: 'pulse',  mode: 'trigger', smoothing: 0.1, attack: 0.02, release: 0.25, invert: false },
+            { id: 'ldx-r7', enabled: true, source: 'beatPhase', target: 'pathProgress',  amount: 1,    min: 0,    max: 1, curve: 'linear', mode: 'set',     smoothing: 0,   attack: 0,    release: 0,    invert: true  },
+          ],
+        },
+        {
+          id: 'laser-fixture-center',
+          name: 'Center Accent Laser',
+          enabled: true,
+          dmx: { universe: 1, startAddress: 33, profileId: 'genericRgbwLaser', channelMode: 'extended' },
+          position: { originX: 0.5, originY: 0.82, originZ: 0, targetX: 0.5, targetY: 0.5, targetZ: 0, pan: 0, tilt: 0, rotation: 0, mirrorX: false, mirrorY: false },
+          color: { mode: 'fixed', red: 80, green: 255, blue: 255, white: 80, alpha: 1, paletteId: '', colorCycleSpeed: 0 },
+          beam: { dimmer: 1, shutterOpen: true, width: 1, zoom: 1, focus: 1, strobeRate: 0, flickerAmount: 0 },
+          path: { kind: 'lissajous', scale: 0.65, rotation: 0, offsetX: 0, offsetY: 0, scanSpeed: 0.35, phaseOffset: 0, pointCount: 96, spread: 0.5, radius: 0.35, complexity: 0.6, smoothing: 0, pathProgress: 0 },
+          modulationRoutes: [
+            { id: 'ldx-r8', enabled: true, source: 'vocalActivity', target: 'alpha',         amount: 0.8, min: 0.3, max: 1,    curve: 'easeOut', mode: 'set', smoothing: 0.4, attack: 0.1, release: 0.6, invert: false },
+            { id: 'ldx-r9', enabled: true, source: 'energy',        target: 'pathComplexity', amount: 1,   min: 0.2, max: 0.95, curve: 'easeIn',  mode: 'set', smoothing: 0.2, attack: 0.1, release: 0.3, invert: false },
+          ],
+        },
+      ],
+    },
   },
 
   // ── LaserDMX (2) ─────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'react'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
+import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
 import type { ReactPreset, ReactTrackSection, OscillatorSettings, OscillatorGlyphAsset, OscillatorGlyphPoint } from './ReactTypes'
 import { DEFAULT_OSCILLATOR_SETTINGS } from './ReactTypes'
 import type { ReactRenderParams } from './renderers/reactRenderUtils'
@@ -163,6 +164,7 @@ export function ReactPlaceholderCanvas({
       let bass = 0.05, mid = 0.05, high = 0.05, vol = 0.05
       if (an && buf) {
         an.getByteFrequencyData(buf)
+        if (tBuf) an.getByteTimeDomainData(tBuf)
         const binCount  = buf.length
         const bassBins  = Math.floor(binCount * 0.08)
         const midBins   = Math.floor(binCount * 0.30)
@@ -174,9 +176,18 @@ export function ReactPlaceholderCanvas({
         mid  = mSum / (midBins - bassBins) / 255
         high = hSum / (binCount - midBins)  / 255
         vol  = vSum / binCount / 255
-      }
 
-      if (an && tBuf) an.getByteTimeDomainData(tBuf)
+        // Pump Music Intelligence Engine so LaserDMX and other React engines get
+        // full MI data (kick, snare, beatPhase, buildProgress, etc.), not just the
+        // simple bass/mid/high fallback that ReactPlaceholderCanvas computes above.
+        musicIntelligenceEngine.updateFromAudioFrame({
+          freqBuf:    buf,
+          timeBuf:    tBuf,
+          sampleRate: an.context.sampleRate,
+          audioTime:  audioTimeRef.current,
+          isPlaying:  isPlayingRef.current,
+        })
+      }
 
       // Use Music Intelligence bus when available; fall back to simple transient detection
       const miFrame  = AudioFeatureBus.getFrame()
@@ -206,10 +217,17 @@ export function ReactPlaceholderCanvas({
 
       const t = tRef.current
       const dpr = devicePixelRatio
+      // Seconds-based time for strobe, envelopes, and time-accurate effects.
+      // Prefer audioTime when valid; fall back to wall clock.
+      const nowSec = performance.now() / 1000
+      const timeSec = Number.isFinite(audioTimeRef.current) && audioTimeRef.current > 0
+        ? audioTimeRef.current
+        : nowSec
 
       const rfCtx: ReactFrameContext = {
         W, H, dpr,
         t,
+        timeSec,
         audioTime: audioTimeRef.current,
         bpm:       activeBpm,
         beatPhase: activeBeatPhase,

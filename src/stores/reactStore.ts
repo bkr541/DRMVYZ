@@ -188,6 +188,19 @@ export function buildPresetPatch(
   currentLaserSettings?: LaserDmxSettings,
 ) {
   const laserBase = currentLaserSettings ?? createDefaultLaserDmxSettings()
+
+  let laserPatch: LaserDmxSettings | undefined
+  if (preset.laserDmxSettings != null) {
+    const merged = { ...laserBase, ...preset.laserDmxSettings }
+    // Ensure selectedFixtureId always points to a fixture that exists after the merge.
+    const fixtures = merged.fixtures ?? []
+    const hasSelected = fixtures.some(f => f.id === merged.selectedFixtureId)
+    if (!hasSelected) {
+      merged.selectedFixtureId = fixtures[0]?.id ?? null
+    }
+    laserPatch = merged
+  }
+
   return {
     activeReactPresetId: preset.id,
     activeReactEngineId: preset.engine,
@@ -196,9 +209,7 @@ export function buildPresetPatch(
     reactGlow:           preset.params.glow,
     reactBassReactivity: preset.params.bassReactivity,
     oscillatorSettings:  resolvePresetOscillatorSettings(preset, currentOscSettings),
-    ...(preset.laserDmxSettings != null
-      ? { laserDmxSettings: { ...laserBase, ...preset.laserDmxSettings } }
-      : {}),
+    ...(laserPatch != null ? { laserDmxSettings: laserPatch } : {}),
   }
 }
 

@@ -12,6 +12,8 @@ export interface ReactFrameContext {
   dpr: number
   /** Animation tick; counts up each frame regardless of playback. */
   t: number
+  /** Wall-clock time in seconds (performance.now()/1000 or audioTime). Use for strobe, envelope, and time-accurate effects. Falls back to t/60 when absent. */
+  timeSec?: number
   audioTime: number
   bpm: number
   beatPhase: number
@@ -64,6 +66,7 @@ export function reactFrameFromVz(vz: VzFrameContext): ReactFrameContext {
   return {
     W: vz.W, H: vz.H, dpr: vz.dpr,
     t:         vz.time,
+    timeSec:   vz.audioTime,
     audioTime: vz.audioTime,
     bpm:       vz.bpm,
     beatPhase: vz.beatPhase,

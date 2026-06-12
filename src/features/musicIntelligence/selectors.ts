@@ -102,8 +102,10 @@ export function getModulationSourceValue(
     // Harmonic
     case 'pitchHz':          return frame.harmonic.pitchHz != null ? Math.min(1, frame.harmonic.pitchHz / 2000) : 0
     case 'melodyHeight':     return frame.harmonic.pitchHz != null ? Math.min(1, Math.max(0, (frame.harmonic.pitchHz - 50) / 1950)) : 0
-    case 'keyConfidence':    return frame.harmonic.keyConfidence
-    case 'chordConfidence':  return frame.harmonic.chordConfidence
+    case 'keyConfidence':       return frame.harmonic.keyConfidence
+    case 'chordConfidence':     return frame.harmonic.chordConfidence
+    // Backward-compat alias (older routes and LaserDMX mod matrix may use this key)
+    case 'harmonicConfidence':  return Math.max(frame.harmonic.keyConfidence, frame.harmonic.chordConfidence)
     // Stems
     case 'stemVocals':       return frame.stems.vocals
     case 'stemDrums':        return frame.stems.drums

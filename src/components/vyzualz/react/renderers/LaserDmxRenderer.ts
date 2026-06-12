@@ -1,7 +1,7 @@
 // LaserDMX virtual canvas renderer.
 // Reads LaserDmxSettings from the Zustand store singleton and MI from
 // AudioFeatureBus — no prop-threading needed, same pattern as the canvas loop.
-// Never writes to Zustand. Zero allocations outside of compileLaserDmxFrame.
+// Never writes to Zustand. Zero heap allocations outside of compileLaserDmxFrame.
 
 import type { ReactPreset, ReactSectionType } from '../ReactTypes'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
@@ -9,6 +9,7 @@ import { AudioFeatureBus } from '../../../../features/musicIntelligence/AudioFea
 import { useReactStore } from '../../../../stores/reactStore'
 import { compileLaserDmxFrame } from './LaserDmxCompiler'
 import type { LaserDmxFixtureFrame } from '../ReactTypes'
+import type { CompiledGlobal } from './LaserDmxCompiler'
 import { clamp, clamp01 } from './LaserDmxCompiler'
 
 // ── Drawing helpers ───────────────────────────────────────────────────────────
@@ -31,7 +32,6 @@ function drawBeam(
   ctx.strokeStyle = color
   ctx.lineWidth   = width * 6 * glow
   ctx.globalAlpha = alpha * 0.18 * glow
-  ctx.shadowBlur  = 0
   ctx.lineCap     = 'round'
   ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke()
   ctx.restore()
@@ -108,45 +108,42 @@ function drawConnectedPath(
 const CONNECTED_PATH_KINDS = new Set(['circle', 'spiral', 'lissajous', 'grid', 'constellation', 'tunnel', 'svgPath', 'textPath'])
 
 function renderFixtureFrame(
-  ctx:     CanvasRenderingContext2D,
-  frame:   LaserDmxFixtureFrame,
-  glowAmt: number,
-  beamWidthGlobal: number,
+  ctx:                CanvasRenderingContext2D,
+  frame:              LaserDmxFixtureFrame,
+  glowAmt:            number,
   showFixtureOrigins: boolean,
   showPathPoints:     boolean,
-  pathKind: string,
+  pathKind:           string,
 ): void {
   if (!frame.visual.strobeVisible) return
   if (frame.visual.points.length === 0) return
 
-  const { origin, points, color, rgba, intensity, beamWidth } = frame.visual
-  const bw   = beamWidth * beamWidthGlobal
-  const glow = clamp01(glowAmt)
+  const { origin, points, color, rgba, intensity, beamWidth, focusFactor } = frame.visual
+  // beamWidth already incorporates globalBeamWidth from the compiler — do NOT multiply again
+  const bw   = beamWidth
+  // focus: 1=sharp (reduced glow), 0=soft (full glow). Mix so focus=0.5 → glow×0.65.
+  const focusedGlow = clamp01(glowAmt * lerp(1.0, 0.15, clamp01(focusFactor)))
   const ox   = origin.x, oy = origin.y
 
   const isConnected = CONNECTED_PATH_KINDS.has(pathKind)
 
   if (isConnected) {
-    // Draw connected path around the target area
-    drawConnectedPath(ctx, points, color, bw * 1.5, glow, clamp01(intensity * rgba.a))
-    // Also draw one representative beam from origin to first point
+    drawConnectedPath(ctx, points, color, bw * 1.5, focusedGlow, clamp01(intensity * rgba.a))
     if (points.length > 0) {
-      drawBeam(ctx, ox, oy, points[0].x, points[0].y, color, bw * 0.8, glow, intensity * 0.5)
+      drawBeam(ctx, ox, oy, points[0].x, points[0].y, color, bw * 0.8, focusedGlow, intensity * 0.5)
     }
   } else {
-    // Fan / staticBeam / lineSweep / cone: draw from origin to every point
     for (const pt of points) {
-      drawBeam(ctx, ox, oy, pt.x, pt.y, color, bw, glow, intensity * rgba.a)
+      drawBeam(ctx, ox, oy, pt.x, pt.y, color, bw, focusedGlow, intensity * rgba.a)
     }
   }
 
   // Endpoint dots
   const dotR = Math.max(1, bw * 1.4)
   for (const pt of points) {
-    drawEndDot(ctx, pt.x, pt.y, color, dotR, intensity * rgba.a * 0.9, glow)
+    drawEndDot(ctx, pt.x, pt.y, color, dotR, intensity * rgba.a * 0.9, focusedGlow)
   }
 
-  // Debug: fixture origin marker
   if (showFixtureOrigins) {
     ctx.save()
     ctx.strokeStyle = '#ffffff'
@@ -161,10 +158,9 @@ function renderFixtureFrame(
     ctx.restore()
   }
 
-  // Debug: path point markers
   if (showPathPoints) {
     ctx.save()
-    ctx.fillStyle  = '#ffff00'
+    ctx.fillStyle   = '#ffff00'
     ctx.globalAlpha = 0.4
     for (const pt of points) {
       ctx.beginPath(); ctx.arc(pt.x, pt.y, 2, 0, Math.PI * 2); ctx.fill()
@@ -172,6 +168,8 @@ function renderFixtureFrame(
     ctx.restore()
   }
 }
+
+function lerp(a: number, b: number, t: number): number { return a + (b - a) * clamp01(t) }
 
 function drawHaze(
   ctx:        CanvasRenderingContext2D,
@@ -208,65 +206,72 @@ export function renderLaserDmx(
   const { W, H, t } = frame
   if (!W || !H) return
 
+  // Seconds-based time for strobe + envelope. Fall back to t/60 when timeSec is absent (e.g. test fixtures).
+  const timeSec = frame.timeSec ?? (t / 60)
+
   // Read settings and MI without props (singleton reads — safe in rAF context)
   const settings = useReactStore.getState().laserDmxSettings
   const mi       = AudioFeatureBus.getFrame()
-
-  // ── Background fade ────────────────────────────────────────────────────────
-  const bgFade = clamp01(1 - settings.beamPersistence * 0.92)
-  ctx.globalCompositeOperation = 'source-over'
-  ctx.globalAlpha = bgFade
-  ctx.fillStyle   = '#000000'
-  ctx.fillRect(0, 0, W, H)
-  ctx.globalAlpha = 1
-
-  if (settings.blackout) {
-    ctx.fillStyle = '#000000'
-    ctx.fillRect(0, 0, W, H)
-    return
-  }
 
   // ── Compile fixture frames ─────────────────────────────────────────────────
   const compiled = compileLaserDmxFrame({
     settings,
     mi,
-    time:        t,
+    time:    t,
+    timeSec,
     canvasWidth:  W,
     canvasHeight: H,
   })
 
-  if (compiled.length === 0) return
+  const g: CompiledGlobal = compiled.global
+
+  // ── Background fade ────────────────────────────────────────────────────────
+  // backgroundFade: 0=no fade (infinite trail), 1=immediate clear.
+  // beamPersistence reduces the effective fade for trail retention.
+  const fadeAlpha = clamp01(g.backgroundFade) * (0.3 + 0.7 * clamp01(1 - g.beamPersistence))
+  ctx.globalCompositeOperation = 'source-over'
+  ctx.globalAlpha = Math.max(0.01, fadeAlpha)  // always fade at least a tiny bit to avoid total burn-in
+  ctx.fillStyle   = '#000000'
+  ctx.fillRect(0, 0, W, H)
+  ctx.globalAlpha = 1
+
+  // ── Blackout ───────────────────────────────────────────────────────────────
+  if (g.blackout) {
+    ctx.fillStyle = '#000000'
+    ctx.fillRect(0, 0, W, H)
+    return
+  }
+
+  if (compiled.fixtures.length === 0) return
 
   // ── Haze atmosphere layer ──────────────────────────────────────────────────
-  drawHaze(ctx, W, H, settings.hazeAmount, compiled)
+  drawHaze(ctx, W, H, g.hazeAmount, compiled.fixtures)
 
   // ── Draw each fixture ──────────────────────────────────────────────────────
-  const glowAmt = clamp01(settings.glowAmount * params.glow)
-  const bwGlobal = clamp(settings.globalBeamWidth, 0.2, 6)
+  const glowAmt = clamp01(g.glowAmount * params.glow)
 
-  for (let i = 0; i < compiled.length; i++) {
-    const f = compiled[i]
+  for (let i = 0; i < compiled.fixtures.length; i++) {
+    const f = compiled.fixtures[i]
     const fixture = settings.fixtures.find(fx => fx.id === f.fixtureId)
     const pathKind = fixture?.path.kind ?? 'staticBeam'
     renderFixtureFrame(
       ctx, f,
       glowAmt,
-      bwGlobal,
       settings.showFixtureOrigins ?? false,
       settings.showPathPoints     ?? false,
       pathKind,
     )
   }
 
-  // ── Virtual DMX debug overlay (non-invasive: small top-left text) ──────────
-  if (settings.showDmxDebug && compiled.length > 0) {
+  // ── Virtual DMX debug overlay ──────────────────────────────────────────────
+  if (settings.showDmxDebug && compiled.fixtures.length > 0) {
     ctx.save()
     ctx.globalAlpha = 0.55
     ctx.fillStyle   = 'rgba(0,0,0,0.6)'
-    ctx.fillRect(4, 4, 200, compiled.length * 14 + 10)
+    ctx.fillRect(4, 4, 200, compiled.fixtures.length * 14 + 10)
     ctx.fillStyle   = '#00ffcc'
     ctx.font        = '10px monospace'
-    compiled.forEach((f, idx) => {
+    compiled.fixtures.forEach((f, idx) => {
       const ch = Object.values(f.channels).slice(0, 6).map(v => String(v).padStart(3)).join(' ')
       ctx.fillText(`U${f.universe} A${f.startAddress} | ${ch}`, 8, 16 + idx * 14)
     })
