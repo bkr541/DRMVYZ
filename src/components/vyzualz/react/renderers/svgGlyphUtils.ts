@@ -28,17 +28,30 @@ export interface SvgGlyphCompileOptions {
   minPathLength?: number
   /** Preferred minimum point count per retained path. Used to cap path count to fit budget. */
   minPointCountPerPath?: number
-  /** Hard cap on points per path after proportional allocation. */
+  /**
+   * Hard cap on points per path after proportional allocation.
+   * Defaults to Infinity — a dynamic cap is computed from the retained path count
+   * and requested resolution so a single-path SVG at high resolution uses the
+   * full resolution budget rather than being capped at a fixed 512.
+   * Pass an explicit number to override the dynamic cap (useful for tests).
+   */
   maxPointCountPerPath?: number
   /** When true, discard paths shorter than minPathLength * totalLength. */
   discardTinyPaths?: boolean
+  /**
+   * Squared-distance epsilon for removing sequential near-duplicate points
+   * (applied per path group, in normalized [-1,1] space).
+   * 0 = disabled. Default is 1e-6 — only removes floating-point coincident points.
+   */
+  duplicatePointEpsilon?: number
 }
 
 const COMPILE_DEFAULTS: Required<SvgGlyphCompileOptions> = {
-  minPathLength:        0.001,  // 0.1% of total arc length sum
-  minPointCountPerPath: 3,
-  maxPointCountPerPath: 512,
-  discardTinyPaths:     true,
+  minPathLength:          0.001,  // 0.1% of total arc length sum
+  minPointCountPerPath:   3,
+  maxPointCountPerPath:   Infinity,  // dynamic cap computed per compile — see parseSvgToGlyphPoints
+  discardTinyPaths:       true,
+  duplicatePointEpsilon:  1e-6,
 }
 
 // ── Hash ──────────────────────────────────────────────────────────────────────
@@ -260,28 +273,52 @@ function splitCompoundPath(d: string): string[] {
     cur = ''
   }
 
-  // Update cx/cy after any non-M command (simplified: uses last 2 args as endpoint).
-  // For H/V we only update one axis. For Z we reset to subpath start.
-  function trackCursor(cmd: string, args: number[]) {
+  // Update cx/cy after any non-M command.
+  // For absolute commands, the last (x,y) pair is the endpoint.
+  // For relative commands with multiple implicit repetitions, accumulate each
+  // endpoint delta so the final cursor position is correct (e.g. l20 0 0 20 -20 0
+  // ends at (cx, cy+20), not at (cx-20, cy) as a naive last-pair approach would give).
+  function trackCursor(cmd: string, args: number[]): void {
     const upper = cmd.toUpperCase()
     const rel   = cmd !== upper
+    const n     = args.length
     switch (upper) {
       case 'H':
-        if (args.length) cx = rel ? cx + args[args.length - 1] : args[args.length - 1]
+        if (n) { if (rel) cx += args[n - 1]; else cx = args[n - 1] }
         break
       case 'V':
-        if (args.length) cy = rel ? cy + args[args.length - 1] : args[args.length - 1]
+        if (n) { if (rel) cy += args[n - 1]; else cy = args[n - 1] }
         break
       case 'Z':
         cx = sx; cy = sy
         break
-      default: {
-        const n = args.length
+      // Stride-2: (x y)+ — each pair is an endpoint
+      case 'L':
+      case 'T':
+        if (rel) { for (let i = 0; i + 1 < n; i += 2) { cx += args[i]; cy += args[i + 1] } }
+        else if (n >= 2) { cx = args[n - 2]; cy = args[n - 1] }
+        break
+      // Stride-4: (x1 y1 x y)+ for Q; (x2 y2 x y)+ for S — endpoint at index 2,3 of each group
+      case 'Q':
+      case 'S':
+        if (rel) { for (let i = 2; i + 1 < n; i += 4) { cx += args[i]; cy += args[i + 1] } }
+        else if (n >= 2) { cx = args[n - 2]; cy = args[n - 1] }
+        break
+      // Stride-6: (x1 y1 x2 y2 x y)+ — endpoint at index 4,5 of each group
+      case 'C':
+        if (rel) { for (let i = 4; i + 1 < n; i += 6) { cx += args[i]; cy += args[i + 1] } }
+        else if (n >= 2) { cx = args[n - 2]; cy = args[n - 1] }
+        break
+      // Stride-7: (rx ry x-rot large sweep x y)+ — endpoint at index 5,6 of each group
+      case 'A':
+        if (rel) { for (let i = 5; i + 1 < n; i += 7) { cx += args[i]; cy += args[i + 1] } }
+        else if (n >= 2) { cx = args[n - 2]; cy = args[n - 1] }
+        break
+      default:
         if (n >= 2) {
-          const lx = args[n - 2], ly = args[n - 1]
-          if (rel) { cx += lx; cy += ly } else { cx = lx; cy = ly }
+          if (rel) { cx += args[n - 2]; cy += args[n - 1] }
+          else      { cx = args[n - 2]; cy = args[n - 1] }
         }
-      }
     }
   }
 
@@ -539,6 +576,74 @@ function allocateCounts(lengths: number[], total: number, maxPerPath: number): n
   return counts
 }
 
+// ── Near-duplicate point removal ─────────────────────────────────────────────
+
+/**
+ * Removes sequential near-duplicate points from an array.
+ * Operates in the coordinate space of the input (normalized or raw).
+ * epsilon = 0 disables deduplication (returns the input array unchanged).
+ */
+function removeNearDuplicatePoints(
+  points: OscillatorGlyphPoint[],
+  epsilon: number,
+): OscillatorGlyphPoint[] {
+  if (epsilon <= 0 || points.length <= 1) return points
+  const epSq = epsilon * epsilon
+  const out: OscillatorGlyphPoint[] = [points[0]]
+  for (let i = 1; i < points.length; i++) {
+    const prev = out[out.length - 1]
+    const dx   = points[i].x - prev.x
+    const dy   = points[i].y - prev.y
+    if (dx * dx + dy * dy > epSq) out.push(points[i])
+  }
+  return out
+}
+
+// ── Nearest-resolution cache lookup ──────────────────────────────────────────
+
+/**
+ * When the exact resolution cache key is missing (e.g. during a debounce window),
+ * returns the nearest already-compiled entry for the same asset/compiler/hash.
+ * The renderer uses this to keep the current glyph visible instead of flashing
+ * the circle fallback while the new resolution compiles.
+ *
+ * Returns null if no matching compiled entry exists at all.
+ */
+export function findNearestSvgGlyphCacheEntry(
+  cache: Record<string, OscillatorGlyphPoint[]>,
+  assetId: string,
+  requestedResolution: number,
+  contentHash?: string,
+): OscillatorGlyphPoint[] | null {
+  const prefix       = `${assetId}:`
+  const versionToken = `:v${SVG_GLYPH_COMPILER_VERSION}:`
+  const hashSuffix   = `:${contentHash ?? 'nohash'}`
+
+  let bestEntry: OscillatorGlyphPoint[] | null = null
+  let bestDiff = Infinity
+
+  for (const key of Object.keys(cache)) {
+    if (!key.startsWith(prefix))   continue
+    if (!key.includes(versionToken)) continue
+    if (!key.endsWith(hashSuffix))  continue
+
+    // Key format: "assetId:resolution:vN:hash"
+    const afterPrefix = key.slice(prefix.length)
+    const colonIdx    = afterPrefix.indexOf(':')
+    if (colonIdx < 0) continue
+    const res = parseInt(afterPrefix.slice(0, colonIdx), 10)
+    if (!Number.isFinite(res) || res <= 0) continue
+
+    const diff = Math.abs(res - requestedResolution)
+    if (diff < bestDiff) {
+      bestDiff  = diff
+      bestEntry = cache[key]
+    }
+  }
+
+  return bestEntry
+}
+
 // ── SVG path extraction (backward-compatible — paths only) ───────────────────
 
 /**
@@ -726,11 +831,20 @@ export function parseSvgToGlyphPoints(
       }
     }
 
-    // 5. Allocate points proportionally to arc length (total will equal n exactly)
+    // 5. Allocate points proportionally to arc length (total will equal n exactly).
+    //    Dynamic per-path cap: single/few-path SVGs may use the full resolution budget;
+    //    many-path SVGs are limited to 2× average to protect CPU.  An explicit
+    //    opts.maxPointCountPerPath overrides this when set to a finite value.
+    const dynamicMaxPerPath = retained.length <= 4
+      ? n
+      : Math.max(128, Math.ceil(n / retained.length) * 2)
+    const capPerPath = Number.isFinite(opts.maxPointCountPerPath)
+      ? Math.min(opts.maxPointCountPerPath, dynamicMaxPerPath)
+      : dynamicMaxPerPath
     const counts = allocateCounts(
       retained.map(p => p.length),
       n,
-      opts.maxPointCountPerPath,
+      capPerPath,
     )
 
     // 6. Sample each subpath and apply element CTM if non-identity
@@ -754,11 +868,30 @@ export function parseSvgToGlyphPoints(
     // 7. Global normalize (center + scale entire glyph as one unit)
     const normalized = normalizePointCloud(raw)
 
+    // 7.5 Remove near-duplicate sequential points per path (in normalized space).
+    //     Operates per-path to avoid removing the last point of one path when it
+    //     coincidentally overlaps the first point of the next path.
+    //     epsilon=0 / very small default means only floating-point coincident points removed.
+    const eps = opts.duplicatePointEpsilon
+    const deduped: OscillatorGlyphPoint[] = eps > 0 ? (() => {
+      const result: OscillatorGlyphPoint[] = []
+      // Group by pathIndex, dedup each group, flatten
+      const groups = new Map<number, OscillatorGlyphPoint[]>()
+      for (const p of normalized) {
+        const arr = groups.get(p.pathIndex)
+        if (arr) arr.push(p); else groups.set(p.pathIndex, [p])
+      }
+      for (const group of groups.values()) {
+        result.push(...removeNearDuplicatePoints(group, eps))
+      }
+      return result
+    })() : normalized
+
     // 8. Compute normals per pathIndex group — prevents cross-path tangent bleed.
     //    Audio displacement, jitter, and ribbon effects use these normals, so
     //    computing them across the full flat array would corrupt boundary points.
     const grouped = new Map<number, OscillatorGlyphPoint[]>()
-    for (const p of normalized) {
+    for (const p of deduped) {
       const arr = grouped.get(p.pathIndex)
       if (arr) {
         arr.push(p)

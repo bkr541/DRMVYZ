@@ -812,11 +812,17 @@ export const useMediaStore = create<MediaState>((set, get) => ({
           console.error('[mediaStore] delete failed:', err)
           set(s => ({ items: [item, ...s.items], deleteError: interpretError(err) }))
           if (visual.activeMediaId !== id) visual.setActiveMedia(id)
+          // TODO(SVG-rollback): SVG glyph asset and SVG visual selection were already
+          // cleaned up optimistically above.  Restoring the media item does not restore
+          // the oscillator selection.  To fix: snapshot oscillatorGlyphAssets /
+          // oscillatorSettings before cleanup and call addOscillatorGlyphAsset +
+          // selectOscillatorGlyph / selectSvgVisual inside this rollback branch.
         }
       }).catch(e => {
         const msg = e instanceof Error ? e.message : 'Delete failed'
         set(s => ({ items: [item, ...s.items], deleteError: interpretError(msg) }))
         if (visual.activeMediaId !== id) visual.setActiveMedia(id)
+        // TODO(SVG-rollback): same as above — SVG state not restored on catch rollback.
       })
     }
   },

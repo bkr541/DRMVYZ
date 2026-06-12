@@ -10,13 +10,19 @@
  */
 
 export interface SvgVisualCacheEntry {
-  id:        string
-  image:     HTMLImageElement | null
-  objectUrl: string | null
-  loaded:    boolean
-  error:     string | null
-  width:     number
-  height:    number
+  id:          string
+  /** True while an image fetch/decode is in progress. Prevents duplicate fetches. */
+  loading:     boolean
+  image:       HTMLImageElement | null
+  objectUrl:   string | null
+  loaded:      boolean
+  error:       string | null
+  width:       number
+  height:      number
+  /** Media identity fields — used to detect stale cache when media URL/content changes
+   *  under the same media ID (e.g. after a re-upload). Stored at load time. */
+  mediaUrl?:    string
+  storagePath?: string
 }
 
 const cache = new Map<string, SvgVisualCacheEntry>()

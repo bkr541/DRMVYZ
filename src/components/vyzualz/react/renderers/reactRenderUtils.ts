@@ -38,7 +38,7 @@ export interface ReactRenderParams {
   particleDensity:       number  // 0–1 particle count scale
   oscillator:            OscillatorSettings
   oscillatorGlyphAssets: OscillatorGlyphAsset[]
-  /** Pre-parsed SVG glyph points keyed by "${assetId}:${resolution}". Populated at upload/select time; never by the renderer. */
+  /** Pre-parsed SVG glyph points keyed by "${assetId}:${resolution}:v${compilerVersion}:${contentHash}". Populated at upload/select time; never by the renderer. */
   oscillatorGlyphPointCache: Record<string, OscillatorGlyphPoint[]>
   /** Pre-sampled OpenType text points keyed by "${fontId}:${text}:${fontSize}:${letterSpacing}:${resolution}". Populated at upload/select/settings-change time; never by the renderer. */
   oscillatorTextPointCache: Record<string, OscillatorGlyphPoint[]>

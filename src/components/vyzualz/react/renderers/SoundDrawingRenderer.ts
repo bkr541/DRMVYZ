@@ -4,7 +4,7 @@ import { hexToRgba, getOrCreateOffscreen, seededRandom } from './reactRenderUtil
 import { generateBuiltinShapePoints, clamp } from './oscillatorPathUtils'
 import { textToGlyphPoints } from './textGlyphUtils'
 import { getSvgVisualEntry } from './svgVisualCache'
-import { getSvgGlyphCacheKey } from './svgGlyphUtils'
+import { getSvgGlyphCacheKey, findNearestSvgGlyphCacheEntry } from './svgGlyphUtils'
 // parseSvgToGlyphPoints is intentionally NOT imported here.
 // SVG parsing happens at upload/select/resolution-change time in reactStore.ts.
 // This renderer only reads pre-prepared points from params.oscillatorGlyphPointCache.
@@ -50,10 +50,10 @@ function modeForSection(type: ReactSectionType | null): ScopeMode {
 // survives across frames and across preset switches for the same source.
 //
 // Key structure:
-//   builtin:<shape>:<resolution>   — deterministic; changes only when shape or res changes
-//   text:<trimmedText>:<resolution> — trimmed so whitespace-only edits don't invalidate
-//   svg:<asset.id>:<resolution>:v<compilerVersion>  — versioned; see getSvgGlyphCacheKey
-//   builtin:circle:<resolution>    — sentinel for svgGlyph with no selection / bad SVG
+//   builtin:<shape>:<resolution>                           — deterministic
+//   text:<trimmedText>:<fontSize>:<spacing>:<resolution>   — trimmed text + font params
+//   <assetId>:<resolution>:v<compilerVersion>:<hash>       — versioned; see getSvgGlyphCacheKey
+//   builtin:circle:<resolution>                            — sentinel for svgGlyph with no selection / bad SVG
 //
 // LRU eviction: when the cache reaches PATH_CACHE_MAX entries the oldest entry
 // (Map insertion order) is dropped.  Max 32 keeps memory bounded (each entry is
@@ -121,13 +121,21 @@ function getOscillatorPathPoints(params: ReactRenderParams): OscillatorGlyphPoin
         const cacheKey = getSvgGlyphCacheKey(asset.id, res, asset.contentHash)
         const prepared = params.oscillatorGlyphPointCache[cacheKey]
         if (prepared) return prepared
-        // Points not yet prepared (e.g. first frame after page reload before any interaction).
-        // Fall back to circle silently; the store will populate the cache on next select.
+        // Exact key not ready (debounce window or first frame after page reload).
+        // Use the nearest already-compiled resolution to keep the glyph visible
+        // instead of flashing a circle while the new resolution compiles.
+        const nearest = findNearestSvgGlyphCacheEntry(
+          params.oscillatorGlyphPointCache,
+          asset.id,
+          res,
+          asset.contentHash,
+        )
+        if (nearest) return nearest
         if (import.meta.env.DEV) {
-          console.warn(`[SoundDrawingRenderer] No prepared points for glyph "${asset.id}" at res ${res} — falling back to circle`)
+          console.warn(`[SoundDrawingRenderer] No compiled points for glyph "${asset.id}" at res ${res} — falling back to circle`)
         }
       }
-      // No asset selected or points not ready — circle sentinel
+      // No asset selected or no compiled entry at all — circle sentinel
       const key = `builtin:circle:${res}`
       const cached = pathCache.get(key)
       if (cached) return cached

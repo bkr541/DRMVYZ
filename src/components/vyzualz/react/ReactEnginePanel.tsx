@@ -148,7 +148,7 @@ function OscillatorStatusCard({
           {osc.selectedSvgVisualId && svgVisualEntry?.error && (
             <div className="rv-osc-status-warn">Load error: {svgVisualEntry.error}</div>
           )}
-          {osc.selectedSvgVisualId && !svgVisualEntry?.loaded && !svgVisualEntry?.error && (
+          {osc.selectedSvgVisualId && svgVisualEntry?.loading && (
             <div className="rv-ctrl-info">Loading…</div>
           )}
           {selectedVisualItem?.createdAt && (

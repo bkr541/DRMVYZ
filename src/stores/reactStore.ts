@@ -37,7 +37,7 @@ import {
 } from '../components/vyzualz/react/renderers/fontGlyphUtils'
 
 // ── Point cache helpers ───────────────────────────────────────────────────────
-// SVG cache key:  getSvgGlyphCacheKey(assetId, resolution) → "${assetId}:${resolution}:v${version}"
+// SVG cache key:  getSvgGlyphCacheKey(assetId, res, hash) → "${assetId}:${res}:v${version}:${hash}"
 // Text cache key: "${fontId}:${text}:${fontSize}:${letterSpacing}:${resolution}"
 // Resolution is clamped to [64, 2048] matching the renderer's own clamp.
 
@@ -565,19 +565,29 @@ export const useReactStore = create<ReactStoreState>()(
           },
         }))
 
-        // Already loaded — nothing to do
-        const existing = getSvgVisualEntry(mediaId)
-        if (existing?.loaded) return
-        // Clear a stale error entry so a fresh load can proceed (enables retry
-        // after network failure, expired signed URL, or temporary Supabase issues).
+        const existing  = getSvgVisualEntry(mediaId)
+        const mediaItem = useMediaStore.getState().items.find(i => i.id === mediaId)
+
+        // Already loading — don't start a duplicate fetch
+        if (existing?.loading) return
+
+        // Already loaded — check if media identity has changed (re-upload under same ID)
+        if (existing?.loaded) {
+          const urlChanged  = existing.mediaUrl   !== undefined && existing.mediaUrl   !== (mediaItem?.url          ?? undefined)
+          const pathChanged = existing.storagePath !== undefined && existing.storagePath !== (mediaItem?.storagePath ?? undefined)
+          if (!urlChanged && !pathChanged) return
+          // Identity changed — evict and reload
+          evictSvgVisual(mediaId)
+        }
+
+        // Clear a stale error entry so a fresh load can proceed
         if (existing?.error) evictSvgVisual(mediaId)
 
-        // Mark as loading so the renderer knows a fetch is in progress
-        setSvgVisualEntry({ id: mediaId, image: null, objectUrl: null, loaded: false, error: null, width: 0, height: 0 })
+        // Mark as loading so duplicate calls are blocked and the status card shows "Loading…"
+        setSvgVisualEntry({ id: mediaId, loading: true, image: null, objectUrl: null, loaded: false, error: null, width: 0, height: 0 })
 
-        const mediaItem = useMediaStore.getState().items.find(i => i.id === mediaId)
         if (!mediaItem) {
-          setSvgVisualEntry({ id: mediaId, image: null, objectUrl: null, loaded: false, error: 'Media item not found', width: 0, height: 0 })
+          setSvgVisualEntry({ id: mediaId, loading: false, image: null, objectUrl: null, loaded: false, error: 'Media item not found', width: 0, height: 0 })
           return
         }
 
@@ -597,7 +607,7 @@ export const useReactStore = create<ReactStoreState>()(
         }
 
         if (!rawSvg || !isSvgContent(rawSvg)) {
-          setSvgVisualEntry({ id: mediaId, image: null, objectUrl: null, loaded: false, error: 'Could not load SVG content', width: 0, height: 0 })
+          setSvgVisualEntry({ id: mediaId, loading: false, image: null, objectUrl: null, loaded: false, error: 'Could not load SVG content', width: 0, height: 0 })
           return
         }
 
@@ -607,18 +617,21 @@ export const useReactStore = create<ReactStoreState>()(
 
         img.onload = () => {
           setSvgVisualEntry({
-            id:        mediaId,
-            image:     img,
+            id:          mediaId,
+            loading:     false,
+            image:       img,
             objectUrl,
-            loaded:    true,
-            error:     null,
-            width:     img.naturalWidth  || 512,
-            height:    img.naturalHeight || 512,
+            loaded:      true,
+            error:       null,
+            width:       img.naturalWidth  || 512,
+            height:      img.naturalHeight || 512,
+            mediaUrl:    mediaItem.url          || undefined,
+            storagePath: mediaItem.storagePath  || undefined,
           })
         }
         img.onerror = () => {
           URL.revokeObjectURL(objectUrl)
-          setSvgVisualEntry({ id: mediaId, image: null, objectUrl: null, loaded: false, error: 'SVG image failed to render', width: 0, height: 0 })
+          setSvgVisualEntry({ id: mediaId, loading: false, image: null, objectUrl: null, loaded: false, error: 'SVG image failed to render', width: 0, height: 0 })
         }
         img.src = objectUrl
       },

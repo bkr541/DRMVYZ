@@ -10,8 +10,8 @@ import { getSvgVisualEntry } from './renderers/svgVisualCache'
  * Call this from ReactView — not from ReactEnginePanel — so rehydration fires
  * regardless of which right-panel tab is currently visible.
  *
- * Retry behavior: if a previous load attempt errored, calling selectSvgVisual
- * again will clear the error entry and retry. This hook triggers that path.
+ * Retry behavior: errored entries are evicted and retried by selectSvgVisual.
+ * In-progress fetches are deduplicated by the loading guard in selectSvgVisual.
  */
 export function useSvgVisualRehydration(): void {
   const sourceType          = useReactStore(s => s.oscillatorSettings.sourceType)
@@ -21,8 +21,10 @@ export function useSvgVisualRehydration(): void {
     if (sourceType !== 'svgVisual' || !selectedSvgVisualId) return
 
     const entry = getSvgVisualEntry(selectedSvgVisualId)
-    // Rehydrate when: no entry at all, or loading is not yet started and there's no error
-    if (!entry || (!entry.loaded && !entry.error)) {
+    // Call selectSvgVisual unless already loaded or actively loading.
+    // The store action handles: no-op if loaded, evict+retry if errored,
+    // skip if loading (duplicate-fetch guard).
+    if (!entry || !entry.loaded) {
       useReactStore.getState().selectSvgVisual(selectedSvgVisualId)
     }
   }, [sourceType, selectedSvgVisualId])
