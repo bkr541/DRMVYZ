@@ -20,11 +20,11 @@ export function hashString(input: string): string {
 // ── SVG content detection ─────────────────────────────────────────────────────
 
 /**
- * Returns true when the string looks like an SVG document.
- * Case-insensitive so <SVG …> files are accepted alongside lowercase <svg …>.
+ * Returns true when the value is a string that looks like an SVG document.
+ * Accepts null/undefined/non-string without throwing. Case-insensitive.
  */
-export function isSvgContent(rawSvg: string): boolean {
-  return rawSvg.trim().toLowerCase().includes('<svg')
+export function isSvgContent(rawSvg: unknown): rawSvg is string {
+  return typeof rawSvg === 'string' && rawSvg.trim().toLowerCase().includes('<svg')
 }
 
 // ── SVG path extraction ───────────────────────────────────────────────────────

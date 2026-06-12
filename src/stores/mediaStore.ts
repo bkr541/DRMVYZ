@@ -254,8 +254,8 @@ async function uploadToSupabase(
   try {
     const storagePath = `${userId}/${item.id}/${item.name}`
 
-    // Guarantee SVG content-type — some OS/browsers leave file.type empty for .svg files
-    const contentType = file.type || (isSvgFile(file) ? 'image/svg+xml' : '')
+    // SVG files must use image/svg+xml — file.type is unreliable (may be application/octet-stream etc.)
+    const contentType = isSvgFile(file) ? 'image/svg+xml' : (file.type || 'application/octet-stream')
     const { error: uploadErr } = await uploadMediaFile(storagePath, file, contentType)
     if (uploadErr) { console.error('[mediaStore] storage upload:', uploadErr); return null }
 
@@ -567,7 +567,8 @@ export const useMediaStore = create<MediaState>((set, get) => ({
               if (!isSvgContent(rawSvg)) { console.warn('[mediaStore] SVG pre-cache: not valid SVG:', item.name); return }
               const { useReactStore } = await import('./reactStore')
               const displayName = (item.title ?? item.name).replace(/\.svg$/i, '').trim() || 'SVG Glyph'
-              useReactStore.getState().addAndCacheMediaSvgGlyph(result.dbId, rawSvg, displayName)
+              // Use db-prefixed ID to match the media store item ID format used by the glyph dropdown
+              useReactStore.getState().addAndCacheMediaSvgGlyph(`db-${result.dbId}`, rawSvg, displayName)
             } catch (e) {
               console.warn('[mediaStore] SVG glyph pre-cache failed (non-fatal):', e)
             }
@@ -641,7 +642,8 @@ export const useMediaStore = create<MediaState>((set, get) => ({
               if (!isSvgContent(rawSvg)) { console.warn('[mediaStore] SVG pre-cache: not valid SVG:', item.name); return }
               const { useReactStore } = await import('./reactStore')
               const displayName = (item.title ?? item.name).replace(/\.svg$/i, '').trim() || 'SVG Glyph'
-              useReactStore.getState().addAndCacheMediaSvgGlyph(result.dbId, rawSvg, displayName)
+              // Use db-prefixed ID to match the media store item ID format used by the glyph dropdown
+              useReactStore.getState().addAndCacheMediaSvgGlyph(`db-${result.dbId}`, rawSvg, displayName)
             } catch (e) {
               console.warn('[mediaStore] SVG glyph pre-cache failed (non-fatal):', e)
             }

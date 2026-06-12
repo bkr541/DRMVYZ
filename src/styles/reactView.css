@@ -17,13 +17,19 @@
 
 /* Three-column content grid — takes all remaining space above the dock */
 .rv-layout {
+  --rv-left-width: 220px;
   display: grid;
-  grid-template-columns: 220px 1fr 200px;
+  grid-template-columns: var(--rv-left-width) 1fr 200px;
   grid-template-rows: 1fr;
   flex: 1;
   min-height: 0;
   overflow: hidden;
   gap: 0;
+  transition: grid-template-columns 180ms ease;
+}
+
+.rv-layout[data-left-collapsed='true'] {
+  --rv-left-width: 48px;
 }
 
 /* Dock sits below the grid; set column widths to align with rv-layout panels */
@@ -57,15 +63,7 @@
   color: rgba(232, 244, 248, 0.6);
 }
 
-/* ── Left panel — tabbed rail ─────────────────────────────────────────────────── */
-.rv-left-panel {
-  border-right: 1px solid rgba(74, 199, 219, 0.08);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: #07111a;
-}
-
+/* ── Left rail tab body ───────────────────────────────────────────────────────── */
 .rv-left-tab-body {
   flex: 1;
   min-height: 0;
@@ -992,7 +990,6 @@
   .rv-layout {
     grid-template-columns: 0 1fr 0;
   }
-  .rv-left-panel,
   .rv-right-panel {
     display: none;
   }

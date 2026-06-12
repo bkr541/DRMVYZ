@@ -51,6 +51,10 @@ const REACT_FILTERS: { key: DeckFilter; label: string }[] = [
 
 const REACT_ELIGIBLE_ROLES = new Set<MediaRole>(['svg', 'logo', 'transparent_element', 'overlay'])
 
+function isReactEligibleMedia(m: UploadedMedia): boolean {
+  return REACT_ELIGIBLE_ROLES.has(m.mediaRole) || isSvgFilename(m.name)
+}
+
 function matchesDeckFilter(m: UploadedMedia, f: DeckFilter): boolean {
   switch (f) {
     case 'svg':         return m.mediaRole === 'svg' || isSvgFilename(m.name)
@@ -396,9 +400,7 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
   }, [])
 
   const filtered = useMemo(() => {
-    const eligible = isReactMode
-      ? items.filter(m => REACT_ELIGIBLE_ROLES.has(m.mediaRole) || isSvgFilename(m.name))
-      : items
+    const eligible = isReactMode ? items.filter(isReactEligibleMedia) : items
     const base = eligible.filter(m => matchesDeckFilter(m, deckFilter))
     if (!searchActive) return base
     return base.filter(m =>
@@ -417,17 +419,18 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
     )
   }, [savedTracks, searchActive, searchLower])
 
-  // Items per collection (keyed by collection id)
+  // Items per collection (keyed by collection id); React mode counts only eligible media
   const itemsByCollection = useMemo(() => {
     const map = new Map<string, UploadedMedia[]>()
     for (const c of collections) map.set(c.id, [])
-    for (const m of items) {
+    const source = isReactMode ? items.filter(isReactEligibleMedia) : items
+    for (const m of source) {
       for (const cid of m.collectionIds) {
         if (map.has(cid)) map.get(cid)!.push(m)
       }
     }
     return map
-  }, [collections, items])
+  }, [collections, items, isReactMode])
 
   const openCollection = useMemo(
     () => collections.find(c => c.id === openCollectionId) ?? null,
@@ -436,9 +439,7 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
 
   const openCollectionItems = useMemo(() => {
     const raw = openCollectionId ? (itemsByCollection.get(openCollectionId) ?? []) : []
-    const base = isReactMode
-      ? raw.filter(m => REACT_ELIGIBLE_ROLES.has(m.mediaRole) || isSvgFilename(m.name))
-      : raw
+    const base = isReactMode ? raw.filter(isReactEligibleMedia) : raw
     if (!searchActive) return base
     return base.filter(m =>
       (m.title ?? m.name).toLowerCase().includes(searchLower) ||
@@ -448,9 +449,12 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
   }, [itemsByCollection, openCollectionId, searchActive, searchLower, isReactMode])
 
   const filteredCollections = useMemo(() => {
-    if (!searchActive) return collections
-    return collections.filter(c => c.name.toLowerCase().includes(searchLower))
-  }, [collections, searchActive, searchLower])
+    let list = collections
+    // In React mode, hide collections that contain no React-eligible media
+    if (isReactMode) list = list.filter(c => (itemsByCollection.get(c.id)?.length ?? 0) > 0)
+    if (!searchActive) return list
+    return list.filter(c => c.name.toLowerCase().includes(searchLower))
+  }, [collections, itemsByCollection, searchActive, searchLower, isReactMode])
 
   const handleQuickDrop = (files: File[]) => {
     const media = files.filter(f =>

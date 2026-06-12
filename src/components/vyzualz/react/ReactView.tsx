@@ -11,6 +11,7 @@ import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
 import { RailTabs } from '../layout/RailTabs'
 import type { RailTabOption } from '../layout/RailTabs'
+import { WorkspaceRail } from '../layout/WorkspaceRail'
 import { MediaDeckPanel } from '../media/MediaDeckPanel'
 import '../../../styles/reactView.css'
 
@@ -61,8 +62,9 @@ export function ReactView() {
     selectReactPreset:           s.selectReactPreset,
   })))
 
-  const [leftTab, setLeftTab]         = useState<ReactLeftTab>('engines')
+  const [leftTab, setLeftTab]             = useState<ReactLeftTab>('engines')
   const [activeMediaId, setActiveMediaId] = useState<string | null>(null)
+  const [leftCollapsed, setLeftCollapsed] = useState(false)
 
   const activePreset = reactPresets.find(p => p.id === activeReactPresetId) ?? reactPresets[0] ?? null
 
@@ -79,9 +81,14 @@ export function ReactView() {
         <span className="az-spacer" />
         <VyzualzHeaderActions />
       </div>
-      <div className="rv-layout">
+      <div className="rv-layout" data-left-collapsed={leftCollapsed ? 'true' : undefined}>
         {/* Left — tabbed rail */}
-        <aside className="rv-left-panel">
+        <WorkspaceRail
+          side="left"
+          label="React left rail"
+          collapsed={leftCollapsed}
+          onToggleCollapsed={() => setLeftCollapsed(v => !v)}
+        >
           <RailTabs
             tabs={REACT_LEFT_TABS}
             activeTab={leftTab}
@@ -114,7 +121,7 @@ export function ReactView() {
               </div>
             )}
           </div>
-        </aside>
+        </WorkspaceRail>
 
         {/* Center — canvas + pads + track map */}
         <div className="rv-center-col">

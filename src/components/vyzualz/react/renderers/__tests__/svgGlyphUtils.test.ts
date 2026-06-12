@@ -70,6 +70,22 @@ describe('isSvgContent', () => {
   it('rejects whitespace-only input', () => {
     expect(isSvgContent('   \n\t  ')).toBe(false)
   })
+
+  it('rejects null', () => {
+    expect(isSvgContent(null)).toBe(false)
+  })
+
+  it('rejects undefined', () => {
+    expect(isSvgContent(undefined)).toBe(false)
+  })
+
+  it('rejects a non-string object', () => {
+    expect(isSvgContent({})).toBe(false)
+  })
+
+  it('rejects a number', () => {
+    expect(isSvgContent(42)).toBe(false)
+  })
 })
 
 // ── hashString ────────────────────────────────────────────────────────────────
