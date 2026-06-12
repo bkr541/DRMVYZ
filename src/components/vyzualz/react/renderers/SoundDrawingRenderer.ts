@@ -520,6 +520,23 @@ export function applyTextWaveformDisplacement(
   }
 }
 
+// ── Path geometry formula (exported for unit tests) ──────────────────────────
+
+/**
+ * Pure formula for the Sound Drawing path geometry scale.
+ * params.intensity is intentionally NOT a parameter — it must not affect object size.
+ * Use pathScale to resize; use bassPulse for audio-driven pulse; use bloomFactor for beat bloom.
+ */
+export function computePathBaseScale(
+  W:           number,
+  H:           number,
+  pathScale:   number,
+  bassPulse:   number,
+  bloomFactor: number,
+): number {
+  return Math.min(W, H) * 0.42 * pathScale * bassPulse * (1 + bloomFactor * 0.4)
+}
+
 // ── Canvas path helpers ───────────────────────────────────────────────────────
 
 function drawConnectedPath(
@@ -806,11 +823,20 @@ function drawPathScopeOnTrail(
   // Rotation: section speed × audio boost
   const rotRad = t * 0.002 * params.motion * effectiveOsc.rotationSpeed * am.rotationBoost
 
-  // Scale: section pathScale × bass pulse × sustained beat bloom
+  // visualIntensity drives opacity / glow / line weight — NOT geometry size.
+  // intensityLineBoost is neutral at intensity=1 and subtle across the full range,
+  // so lines feel stronger/weaker without appearing to scale the object.
+  const visualIntensity    = clamp(params.intensity ?? 1, 0, 2)
+  const intensityLineBoost = 0.6 + visualIntensity * 0.4
+
+  // Scale: section pathScale × bass pulse × sustained beat bloom.
+  // params.intensity is intentionally absent — use pathScale for object size.
   const bloomFactor = am.beatPulse * effectiveOsc.beatBloom
-  const baseScale   = Math.min(W, H) * 0.42 * effectiveOsc.pathScale * params.intensity
+  const baseScale   = Math.min(W, H) * 0.42 * effectiveOsc.pathScale
                     * am.bassPulse * (1 + bloomFactor * 0.4)
-  const glowBase    = params.glow * (10 + am.glowBoost) + bass * 8
+
+  // Glow scales with intensity so the object looks dimmer/brighter as expected.
+  const glowBase    = (params.glow * (10 + am.glowBoost) + bass * 8) * visualIntensity
 
   const tdLen = timeDomainData ? timeDomainData.length : resolution
 
@@ -960,7 +986,7 @@ function drawPathScopeOnTrail(
         tctx.strokeStyle = traceColor
         tctx.shadowColor = traceColor
         tctx.shadowBlur  = glowBase
-        tctx.lineWidth   = (1.2 + bass * 1.5) * am.lineWidthBoost * dpr * params.intensity
+        tctx.lineWidth   = (1.2 + bass * 1.5) * am.lineWidthBoost * dpr * intensityLineBoost
         for (const group of screenGroups) drawConnectedPath(tctx, group, close)
         break
       }
@@ -977,12 +1003,12 @@ function drawPathScopeOnTrail(
         tctx.strokeStyle = traceColor
         tctx.shadowColor = traceColor
         tctx.shadowBlur  = glowBase
-        tctx.lineWidth   = (1.0 + bass * 1.5) * am.lineWidthBoost * dpr * params.intensity
+        tctx.lineWidth   = (1.0 + bass * 1.5) * am.lineWidthBoost * dpr * intensityLineBoost
         for (const group of screenGroups) drawConnectedPath(tctx, group, close)
         break
       }
       case 'dots': {
-        const dotR = Math.max(0.5, (0.8 + bass) * am.lineWidthBoost * dpr * params.intensity)
+        const dotR = Math.max(0.5, (0.8 + bass) * am.lineWidthBoost * dpr * intensityLineBoost)
         tctx.globalAlpha = traceAlpha * intMul
         tctx.fillStyle   = traceColor
         tctx.shadowColor = traceColor
@@ -1003,7 +1029,7 @@ function drawPathScopeOnTrail(
         tctx.strokeStyle = traceColor
         tctx.shadowColor = traceColor
         tctx.shadowBlur  = glowBase
-        tctx.lineWidth   = (1.5 + bass * 1.5) * am.lineWidthBoost * dpr * params.intensity
+        tctx.lineWidth   = (1.5 + bass * 1.5) * am.lineWidthBoost * dpr * intensityLineBoost
         for (const group of screenGroups) drawConnectedPath(tctx, group, close)
         break
       }
