@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useReactStore } from '../../../stores/reactStore'
@@ -8,7 +9,19 @@ import { ReactPlaceholderCanvas } from './ReactPlaceholderCanvas'
 import { ReactPerformancePads } from './ReactPerformancePads'
 import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
+import { RailTabs } from '../layout/RailTabs'
+import type { RailTabOption } from '../layout/RailTabs'
+import { MediaDeckPanel } from '../media/MediaDeckPanel'
 import '../../../styles/reactView.css'
+
+type ReactLeftTab = 'media' | 'layers' | 'sessions' | 'engines'
+
+const REACT_LEFT_TABS: RailTabOption<ReactLeftTab>[] = [
+  { id: 'media',    label: 'Media'    },
+  { id: 'layers',   label: 'Layers'   },
+  { id: 'sessions', label: 'Sessions' },
+  { id: 'engines',  label: 'Engines'  },
+]
 
 export function ReactView() {
   const engine   = useSharedAudio()
@@ -48,6 +61,9 @@ export function ReactView() {
     selectReactPreset:           s.selectReactPreset,
   })))
 
+  const [leftTab, setLeftTab]         = useState<ReactLeftTab>('engines')
+  const [activeMediaId, setActiveMediaId] = useState<string | null>(null)
+
   const activePreset = reactPresets.find(p => p.id === activeReactPresetId) ?? reactPresets[0] ?? null
 
   // Estimated track duration from the audio engine (fallback 180s)
@@ -64,13 +80,40 @@ export function ReactView() {
         <VyzualzHeaderActions />
       </div>
       <div className="rv-layout">
-        {/* Left — preset / engine browser */}
+        {/* Left — tabbed rail */}
         <aside className="rv-left-panel">
-          <ReactPresetBrowser
-            presets={reactPresets}
-            activePresetId={activeReactPresetId}
-            onSelect={selectReactPreset}
+          <RailTabs
+            tabs={REACT_LEFT_TABS}
+            activeTab={leftTab}
+            onChange={setLeftTab}
+            ariaLabel="React left panel tabs"
           />
+          <div className="rv-left-tab-body">
+            {leftTab === 'media' && (
+              <MediaDeckPanel
+                mode="react"
+                activeMediaId={activeMediaId}
+                onSelect={setActiveMediaId}
+              />
+            )}
+            {leftTab === 'engines' && (
+              <ReactPresetBrowser
+                presets={reactPresets}
+                activePresetId={activeReactPresetId}
+                onSelect={selectReactPreset}
+              />
+            )}
+            {leftTab === 'layers' && (
+              <div className="rv-placeholder-panel">
+                <span>React layers will appear here.</span>
+              </div>
+            )}
+            {leftTab === 'sessions' && (
+              <div className="rv-placeholder-panel">
+                <span>React sessions will appear here.</span>
+              </div>
+            )}
+          </div>
         </aside>
 
         {/* Center — canvas + pads + track map */}

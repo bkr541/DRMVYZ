@@ -77,6 +77,15 @@ export function extractSvgPathData(rawSvg: string): string[] {
   return extractSvgPathDataRegex(rawSvg)
 }
 
+/**
+ * Returns true when the SVG string contains at least one <path> element with a
+ * non-empty d attribute.  Use this before calling parseSvgToGlyphPoints when you
+ * want to surface a warning to the caller rather than silently falling back.
+ */
+export function hasSvgPathData(rawSvg: string): boolean {
+  return extractSvgPathData(rawSvg).length > 0
+}
+
 // ── Path sampling ─────────────────────────────────────────────────────────────
 
 /**
@@ -141,7 +150,10 @@ export function parseSvgToGlyphPoints(
   const n = Math.max(1, Math.round(resolution))
   try {
     const pathStrings = extractSvgPathData(rawSvg)
-    if (pathStrings.length === 0) return fallbackCircle(n)
+    if (pathStrings.length === 0) {
+      console.warn('[DRMVYZ] parseSvgToGlyphPoints: This SVG contains no supported path data (<path d="…"> elements). Falling back to circle. Convert shapes to paths in your SVG editor.')
+      return fallbackCircle(n)
+    }
 
     const numPaths = pathStrings.length
     const base     = Math.floor(n / numPaths)
@@ -185,10 +197,11 @@ export function makeSvgGlyphAsset(
   name: string,
   rawSvg: string,
   resolution: number,
+  idOverride?: string,
 ): OscillatorGlyphAsset {
   const points = parseSvgToGlyphPoints(rawSvg, resolution)
   return {
-    id:         `glyph-${hashString(rawSvg)}`,
+    id:         idOverride ?? `glyph-${hashString(rawSvg)}`,
     name,
     sourceType: 'svgGlyph',
     rawSvg,

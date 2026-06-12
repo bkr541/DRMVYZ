@@ -182,6 +182,8 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
 
   // Whether the current queue is all audio files
   const isAudioQueue = uploadQueue.length > 0 && uploadQueue.every(q => q.isAudio)
+  // Whether every queued file is an SVG (hides ADDITIONAL INFO which doesn't apply to vector glyphs)
+  const isSvgQueue   = !isEdit && uploadQueue.length > 0 && uploadQueue.every(q => q.suggestedRole === 'svg')
 
   useEffect(() => { loadCollections() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -740,33 +742,35 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
                   </div>
                 </div>
 
-                {/* Additional Info */}
-                <div className="mum-field">
-                  <label className="mum-field-label">ADDITIONAL INFO</label>
-                  {!isEdit ? (
-                    <div className="mum-addinfo-grid">
-                      {adItem('DURATION (SEC)', durContent)}
-                      {adItem('RESOLUTION', resContent)}
-                      {adItem(<>FPS <span className="mum-opt">(OPTIONAL)</span></>, fpsContent)}
-                      {adItem('LOOPABLE', loopContent)}
-                      {adItem('HAS ALPHA', alphaContent)}
-                      {adItem(<>BPM <span className="mum-opt">(OPTIONAL)</span></>, bpmContent)}
-                      {adItem(<>KEY <span className="mum-opt">(OPTIONAL)</span></>, keyContent)}
-                      {adItem('ENERGY', energyContent)}
-                    </div>
-                  ) : (
-                    <div className="mum-addinfo-grid mum-addinfo-grid--edit">
-                      {adItem('DURATION (SEC)', durContent, true)}
-                      {adItem('RESOLUTION', resContent, true)}
-                      {adItem(<>FPS <span className="mum-opt">(OPTIONAL)</span></>, fpsContent, true)}
-                      {adItem(<>BPM <span className="mum-opt">(OPTIONAL)</span></>, bpmContent, true)}
-                      {adItem('HAS ALPHA', alphaContent)}
-                      {adItem(<>KEY <span className="mum-opt">(OPTIONAL)</span></>, keyContent)}
-                      {adItem('LOOPABLE', loopContent)}
-                      {adItem('ENERGY', energyContent)}
-                    </div>
-                  )}
-                </div>
+                {/* Additional Info — hidden for SVG-only queues (duration/fps/energy don't apply to vector glyphs) */}
+                {!isSvgQueue && (
+                  <div className="mum-field">
+                    <label className="mum-field-label">ADDITIONAL INFO</label>
+                    {!isEdit ? (
+                      <div className="mum-addinfo-grid">
+                        {adItem('DURATION (SEC)', durContent)}
+                        {adItem('RESOLUTION', resContent)}
+                        {adItem(<>FPS <span className="mum-opt">(OPTIONAL)</span></>, fpsContent)}
+                        {adItem('LOOPABLE', loopContent)}
+                        {adItem('HAS ALPHA', alphaContent)}
+                        {adItem(<>BPM <span className="mum-opt">(OPTIONAL)</span></>, bpmContent)}
+                        {adItem(<>KEY <span className="mum-opt">(OPTIONAL)</span></>, keyContent)}
+                        {adItem('ENERGY', energyContent)}
+                      </div>
+                    ) : (
+                      <div className="mum-addinfo-grid mum-addinfo-grid--edit">
+                        {adItem('DURATION (SEC)', durContent, true)}
+                        {adItem('RESOLUTION', resContent, true)}
+                        {adItem(<>FPS <span className="mum-opt">(OPTIONAL)</span></>, fpsContent, true)}
+                        {adItem(<>BPM <span className="mum-opt">(OPTIONAL)</span></>, bpmContent, true)}
+                        {adItem('HAS ALPHA', alphaContent)}
+                        {adItem(<>KEY <span className="mum-opt">(OPTIONAL)</span></>, keyContent)}
+                        {adItem('LOOPABLE', loopContent)}
+                        {adItem('ENERGY', energyContent)}
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
 

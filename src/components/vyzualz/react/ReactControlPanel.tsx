@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
+import { useMediaStore } from '../../../stores/mediaStore'
 import type {
   OscillatorSourceType,
   ClassicScopeMode,
@@ -11,8 +12,8 @@ import type {
   OscillatorFontAsset,
   OscillatorSettings,
 } from './ReactTypes'
-import { makeSvgGlyphAsset, isSvgContent } from './renderers/svgGlyphUtils'
 import { makeFontAssetFromFile } from './renderers/fontGlyphUtils'
+import { isSvgFilename } from '../../../lib/mediaRoles'
 
 // ── Slider row (0–1 or custom range) ─────────────────────────────────────────
 
@@ -249,7 +250,7 @@ function OscillatorStatusCard({
           </>
         ) : (
           <div className="rv-osc-status-warn">
-            No SVG selected — upload or select a glyph below
+            No SVG selected — choose one from the Glyph dropdown below
           </div>
         )
       )}
@@ -279,7 +280,6 @@ function OscillatorStatusCard({
 // ── Main panel ────────────────────────────────────────────────────────────────
 
 export function ReactControlPanel() {
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const fontInputRef = useRef<HTMLInputElement>(null)
   const [fontUploadError, setFontUploadError] = useState<string | null>(null)
 
@@ -293,7 +293,8 @@ export function ReactControlPanel() {
     reactParticleDensity, setReactParticleDensity,
     activeReactEngineId,
     oscillatorSettings,   setOscillatorSettings, resetOscillatorSettings,
-    oscillatorGlyphAssets, addOscillatorGlyphAsset, removeOscillatorGlyphAsset, selectOscillatorGlyph,
+    oscillatorGlyphAssets,
+    selectSvgMediaGlyph,
     oscillatorFontAssets,  addOscillatorFontAsset,  removeOscillatorFontAsset,  selectOscillatorFont,
     resetReactView,
   } = useReactStore(useShallow(s => ({
@@ -316,9 +317,7 @@ export function ReactControlPanel() {
     setOscillatorSettings:       s.setOscillatorSettings,
     resetOscillatorSettings:     s.resetOscillatorSettings,
     oscillatorGlyphAssets:       s.oscillatorGlyphAssets,
-    addOscillatorGlyphAsset:     s.addOscillatorGlyphAsset,
-    removeOscillatorGlyphAsset:  s.removeOscillatorGlyphAsset,
-    selectOscillatorGlyph:       s.selectOscillatorGlyph,
+    selectSvgMediaGlyph:         s.selectSvgMediaGlyph,
     oscillatorFontAssets:        s.oscillatorFontAssets,
     addOscillatorFontAsset:      s.addOscillatorFontAsset,
     removeOscillatorFontAsset:   s.removeOscillatorFontAsset,
@@ -331,26 +330,15 @@ export function ReactControlPanel() {
 
   const isSoundDrawing = activeReactEngineId === 'oscilloscope'
 
-  function handleSvgUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? [])
-    for (const file of files) {
-      const nameLower = file.name.toLowerCase()
-      if (!nameLower.endsWith('.svg') && file.type !== 'image/svg+xml') continue
-      if (file.size > 512 * 1024) continue  // 512 KB safety limit
-      const reader = new FileReader()
-      reader.onload = ev => {
-        const rawSvg = ev.target?.result
-        if (typeof rawSvg !== 'string' || !isSvgContent(rawSvg)) return
-        const name = file.name.replace(/\.svg$/i, '').trim() || 'glyph'
-        const asset = makeSvgGlyphAsset(name, rawSvg, osc.pathResolution)
-        addOscillatorGlyphAsset(asset)
-        selectOscillatorGlyph(asset.id)
-      }
-      reader.readAsText(file)
-    }
-    // Reset so the same file can be re-uploaded
-    e.target.value = ''
-  }
+  // SVG media items — source for the glyph dropdown
+  const allMediaItems = useMediaStore(s => s.items)
+  const svgMediaItems = allMediaItems.filter(m => m.mediaRole === 'svg' || isSvgFilename(m.name))
+
+  // The media ID currently selected as a glyph (null if none / legacy local glyph)
+  const selectedSvgMediaId = osc.selectedGlyphId?.startsWith('glyph-media:')
+    ? osc.selectedGlyphId.slice('glyph-media:'.length)
+    : null
+
   async function handleFontUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ''
@@ -486,16 +474,16 @@ export function ReactControlPanel() {
               )}
 
               {osc.sourceType === 'svgGlyph' && (
-                oscillatorGlyphAssets.length === 0 ? (
-                  <div className="rv-ctrl-info">No glyphs yet — upload in Glyph Library below</div>
+                svgMediaItems.length === 0 ? (
+                  <div className="rv-ctrl-info">No SVG media yet — import SVG files from the Media tab.</div>
                 ) : (
                   <SelectRow
                     label="Glyph"
-                    value={osc.selectedGlyphId ?? ''}
-                    onChange={v => { if (v) selectOscillatorGlyph(v) }}
+                    value={selectedSvgMediaId ?? ''}
+                    onChange={v => { if (v) selectSvgMediaGlyph(v) }}
                     options={[
-                      ...(osc.selectedGlyphId ? [] : [{ value: '', label: '— select glyph —' }]),
-                      ...oscillatorGlyphAssets.map((a: OscillatorGlyphAsset) => ({ value: a.id, label: a.name })),
+                      ...(selectedSvgMediaId ? [] : [{ value: '', label: '— select glyph —' }]),
+                      ...svgMediaItems.map(m => ({ value: m.id, label: m.title ?? m.name })),
                     ]}
                   />
                 )
@@ -600,62 +588,6 @@ export function ReactControlPanel() {
                 onChange={v => set({ beatBloom: v })}
                 color="#c0314a"
               />
-            </Collapsible>
-
-            {/* ── Glyph Library ─────────────────────────────────────── */}
-            <Collapsible label="Glyph Library" defaultOpen={false}>
-              <div className="rv-ctrl-info">
-                Best results: simple outline SVGs with &lt;path&gt; elements.
-              </div>
-
-              {/* Hidden file input, triggered by the upload button */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".svg,image/svg+xml"
-                multiple
-                style={{ display: 'none' }}
-                onChange={handleSvgUpload}
-              />
-              <button
-                type="button"
-                className="rv-glyph-upload-btn"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                + Upload SVG
-              </button>
-
-              {oscillatorGlyphAssets.length > 0 && (
-                <div className="rv-glyph-list">
-                  {oscillatorGlyphAssets.map((asset: OscillatorGlyphAsset) => {
-                    const isActive =
-                      osc.sourceType === 'svgGlyph' &&
-                      osc.selectedGlyphId === asset.id
-                    return (
-                      <div
-                        key={asset.id}
-                        className={`rv-glyph-item${isActive ? ' rv-glyph-item--active' : ''}`}
-                        onClick={() => selectOscillatorGlyph(asset.id)}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') selectOscillatorGlyph(asset.id) }}
-                      >
-                        <span className="rv-glyph-item-name" title={asset.name}>
-                          {asset.name}
-                        </span>
-                        <button
-                          type="button"
-                          className="rv-glyph-item-del"
-                          title="Remove glyph"
-                          onClick={e => { e.stopPropagation(); removeOscillatorGlyphAsset(asset.id) }}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
             </Collapsible>
 
             {/* ── Font Library ─────────────────────────────────────────── */}

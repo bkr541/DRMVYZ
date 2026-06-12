@@ -16,7 +16,13 @@ import type {
   OscillatorGlyphPoint,
   OscillatorFontAsset,
 } from '../components/vyzualz/react/ReactTypes'
-import { parseSvgToGlyphPoints } from '../components/vyzualz/react/renderers/svgGlyphUtils'
+import {
+  parseSvgToGlyphPoints,
+  makeSvgGlyphAsset,
+  isSvgContent,
+} from '../components/vyzualz/react/renderers/svgGlyphUtils'
+import { useMediaStore } from './mediaStore'
+import { createSignedMediaUrl } from '../lib/mediaDb'
 import {
   parseOpenTypeFontFromAsset,
   textToOpenTypeGlyphPoints,
@@ -153,6 +159,11 @@ interface ReactStoreState {
   removeOscillatorGlyphAsset: (id: string) => void
   clearOscillatorGlyphAssets: () => void
   selectOscillatorGlyph: (id: string) => void
+  // Media-backed glyph selection: fetches SVG from a media item, caches as a glyph asset,
+  // and selects it.  ID is stable: "glyph-media:<mediaId>".
+  selectSvgMediaGlyph: (mediaId: string) => Promise<void>
+  // Pre-caches a media-backed SVG glyph asset without selecting it (called after upload).
+  addAndCacheMediaSvgGlyph: (mediaId: string, rawSvg: string, displayName?: string) => void
 
   // Pre-parsed glyph points — non-persisted, keyed by "${assetId}:${resolution}"
   oscillatorGlyphPointCache: Record<string, OscillatorGlyphPoint[]>
@@ -176,7 +187,7 @@ const INITIAL_ENGINE_ID: ReactEngineId = DEFAULT_REACT_PRESETS[0].engine
 
 export const useReactStore = create<ReactStoreState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       activeReactPresetId: INITIAL_PRESET_ID,
       activeReactEngineId: INITIAL_ENGINE_ID,
       reactPresets: DEFAULT_REACT_PRESETS,
@@ -354,6 +365,96 @@ export const useReactStore = create<ReactStoreState>()(
           const newCache = asset ? prepareSvgPoints(asset, res, s.oscillatorGlyphPointCache) : s.oscillatorGlyphPointCache
           return {
             oscillatorSettings: { ...s.oscillatorSettings, sourceType: 'svgGlyph', selectedGlyphId: id },
+            oscillatorGlyphPointCache: newCache,
+          }
+        }),
+
+      selectSvgMediaGlyph: async (mediaId) => {
+        const stableId = `glyph-media:${mediaId}`
+
+        // 1. Already cached as a glyph asset — just select it
+        const s0 = get()
+        const existing = s0.oscillatorGlyphAssets.find(a => a.id === stableId)
+        if (existing) {
+          const res = clampRes(s0.oscillatorSettings.pathResolution)
+          const newCache = prepareSvgPoints(existing, res, s0.oscillatorGlyphPointCache)
+          set({
+            oscillatorSettings:        { ...s0.oscillatorSettings, sourceType: 'svgGlyph', selectedGlyphId: stableId },
+            oscillatorGlyphPointCache: newCache,
+          })
+          return
+        }
+
+        // 2. Find the media item in mediaStore
+        const mediaItem = useMediaStore.getState().items.find(i => i.id === mediaId)
+        if (!mediaItem) {
+          console.warn(`[DRMVYZ] selectSvgMediaGlyph: media item "${mediaId}" not found in store`)
+          return
+        }
+
+        // 3. Fetch SVG text — try cached URL, fall back to a fresh signed URL
+        const tryFetch = async (url: string): Promise<string | null> => {
+          try {
+            const resp = await fetch(url, { cache: 'no-store' })
+            if (!resp.ok) return null
+            return await resp.text()
+          } catch {
+            return null
+          }
+        }
+
+        let rawSvg = mediaItem.url ? await tryFetch(mediaItem.url) : null
+
+        if (!rawSvg && mediaItem.storagePath) {
+          console.warn(`[DRMVYZ] selectSvgMediaGlyph: primary URL failed for "${mediaItem.name}", refreshing signed URL…`)
+          const { url: freshUrl } = await createSignedMediaUrl(mediaItem.storagePath)
+          if (freshUrl) rawSvg = await tryFetch(freshUrl)
+        }
+
+        if (!rawSvg) {
+          console.warn(`[DRMVYZ] selectSvgMediaGlyph: could not fetch SVG content for "${mediaItem.name}"`)
+          return
+        }
+
+        // 4. Validate
+        if (!isSvgContent(rawSvg)) {
+          console.warn(`[DRMVYZ] selectSvgMediaGlyph: "${mediaItem.name}" does not appear to be a valid SVG`)
+          return
+        }
+
+        // 5. Build asset with stable media-backed ID
+        const displayName = (mediaItem.title ?? mediaItem.name).replace(/\.svg$/i, '').trim() || 'SVG Glyph'
+        const res = clampRes(get().oscillatorSettings.pathResolution)
+        const asset = makeSvgGlyphAsset(displayName, rawSvg, res, stableId)
+
+        // 6. Atomically add + select (guard against races)
+        set(s => {
+          const assets = s.oscillatorGlyphAssets.some(a => a.id === stableId)
+            ? s.oscillatorGlyphAssets
+            : [...s.oscillatorGlyphAssets, asset]
+          const newCache = prepareSvgPoints(asset, clampRes(s.oscillatorSettings.pathResolution), s.oscillatorGlyphPointCache)
+          return {
+            oscillatorGlyphAssets:     assets,
+            oscillatorGlyphPointCache: newCache,
+            oscillatorSettings: {
+              ...s.oscillatorSettings,
+              sourceType:      'svgGlyph',
+              selectedGlyphId: stableId,
+            },
+          }
+        })
+      },
+
+      addAndCacheMediaSvgGlyph: (mediaId, rawSvg, displayName) =>
+        set(s => {
+          const stableId = `glyph-media:${mediaId}`
+          if (s.oscillatorGlyphAssets.some(a => a.id === stableId)) return {}
+          const res = clampRes(s.oscillatorSettings.pathResolution)
+          const name = displayName ?? 'SVG Glyph'
+          const asset = makeSvgGlyphAsset(name, rawSvg, res, stableId)
+          const newCache = prepareSvgPoints(asset, res, s.oscillatorGlyphPointCache)
+          return {
+            oscillatorGlyphAssets:     [...s.oscillatorGlyphAssets, asset],
             oscillatorGlyphPointCache: newCache,
           }
         }),

@@ -13,6 +13,7 @@ import {
 } from 'hugeicons-react'
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { UploadedMedia, MediaCollection } from '../../../stores/mediaStore'
+import type { MediaRole } from '../../../lib/mediaRoles'
 import { useAudioStore } from '../../../stores/audioStore'
 import type { SavedAudioTrack } from '../../../stores/audioStore'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
@@ -20,12 +21,12 @@ import { createSignedAudioUrl } from '../../../lib/audioDb'
 import { MediaUploadModal } from '../MediaUploadModal'
 import { MediaPreviewModal } from './MediaPreviewModal'
 import { MediaStatusBar } from './MediaStatusBar'
-import { MEDIA_ROLE_BADGE_LABELS, MEDIA_ROLE_LABELS } from '../../../lib/mediaRoles'
+import { MEDIA_ROLE_BADGE_LABELS, MEDIA_ROLE_LABELS, isSvgFilename } from '../../../lib/mediaRoles'
 
-type DeckFilter = 'all' | 'tracks' | 'collections' | 'images' | 'videos' | 'favorites' | 'backgrounds' | 'logos' | 'transparent' | 'overlays'
+type DeckFilter = 'all' | 'tracks' | 'collections' | 'images' | 'videos' | 'favorites' | 'backgrounds' | 'logos' | 'transparent' | 'overlays' | 'svg'
 type ViewMode  = 'grid' | 'list'
 
-const DECK_FILTERS: { key: DeckFilter; label: string }[] = [
+const VISUALIZER_FILTERS: { key: DeckFilter; label: string }[] = [
   { key: 'all',         label: 'All'         },
   { key: 'tracks',      label: 'Tracks'      },
   { key: 'collections', label: 'Collections' },
@@ -38,8 +39,21 @@ const DECK_FILTERS: { key: DeckFilter; label: string }[] = [
   { key: 'overlays',    label: 'Overlays'    },
 ]
 
+const REACT_FILTERS: { key: DeckFilter; label: string }[] = [
+  { key: 'all',         label: 'All'         },
+  { key: 'svg',         label: 'SVG'         },
+  { key: 'logos',       label: 'Logos'       },
+  { key: 'transparent', label: 'Transparent' },
+  { key: 'overlays',    label: 'Overlays'    },
+  { key: 'collections', label: 'Collections' },
+  { key: 'favorites',   label: 'Favorites'   },
+]
+
+const REACT_ELIGIBLE_ROLES = new Set<MediaRole>(['svg', 'logo', 'transparent_element', 'overlay'])
+
 function matchesDeckFilter(m: UploadedMedia, f: DeckFilter): boolean {
   switch (f) {
+    case 'svg':         return m.mediaRole === 'svg' || isSvgFilename(m.name)
     case 'images':      return m.type === 'image'
     case 'videos':      return m.type === 'video'
     case 'favorites':   return m.favorite
@@ -326,9 +340,10 @@ function MediaCard({
 type MediaDeckPanelProps = {
   activeMediaId: string | null
   onSelect: (id: string) => void
+  mode?: 'visualizer' | 'react'
 }
 
-export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSelect }: MediaDeckPanelProps) {
+export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSelect, mode = 'visualizer' }: MediaDeckPanelProps) {
   const {
     items, addFiles, removeItem, toggleFavorite,
     loadFromSupabase, loading,
@@ -350,6 +365,9 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
 
   const searchActive = searchQuery.length > 2
   const searchLower  = searchQuery.toLowerCase()
+
+  const isReactMode = mode === 'react'
+  const deckFilters = isReactMode ? REACT_FILTERS : VISUALIZER_FILTERS
 
   const loadFromSupabaseRef = useRef(loadFromSupabase)
   useEffect(() => { loadFromSupabaseRef.current = loadFromSupabase }, [loadFromSupabase])
@@ -378,14 +396,17 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
   }, [])
 
   const filtered = useMemo(() => {
-    const base = items.filter(m => matchesDeckFilter(m, deckFilter))
+    const eligible = isReactMode
+      ? items.filter(m => REACT_ELIGIBLE_ROLES.has(m.mediaRole) || isSvgFilename(m.name))
+      : items
+    const base = eligible.filter(m => matchesDeckFilter(m, deckFilter))
     if (!searchActive) return base
     return base.filter(m =>
       (m.title ?? m.name).toLowerCase().includes(searchLower) ||
       m.name.toLowerCase().includes(searchLower) ||
       m.tags.some(t => t.toLowerCase().includes(searchLower))
     )
-  }, [items, deckFilter, searchActive, searchLower])
+  }, [items, deckFilter, searchActive, searchLower, isReactMode])
 
   const filteredTracks = useMemo(() => {
     if (!searchActive) return savedTracks
@@ -414,14 +435,17 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
   )
 
   const openCollectionItems = useMemo(() => {
-    const base = openCollectionId ? (itemsByCollection.get(openCollectionId) ?? []) : []
+    const raw = openCollectionId ? (itemsByCollection.get(openCollectionId) ?? []) : []
+    const base = isReactMode
+      ? raw.filter(m => REACT_ELIGIBLE_ROLES.has(m.mediaRole) || isSvgFilename(m.name))
+      : raw
     if (!searchActive) return base
     return base.filter(m =>
       (m.title ?? m.name).toLowerCase().includes(searchLower) ||
       m.name.toLowerCase().includes(searchLower) ||
       m.tags.some(t => t.toLowerCase().includes(searchLower))
     )
-  }, [itemsByCollection, openCollectionId, searchActive, searchLower])
+  }, [itemsByCollection, openCollectionId, searchActive, searchLower, isReactMode])
 
   const filteredCollections = useMemo(() => {
     if (!searchActive) return collections
@@ -431,6 +455,7 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
   const handleQuickDrop = (files: File[]) => {
     const media = files.filter(f =>
       f.type.startsWith('image/') || f.type.startsWith('video/') ||
+      isSvgFilename(f.name) ||
       /\.(png|jpe?g|gif|webp|mp4|mov|webm|mkv)$/i.test(f.name)
     )
     if (media.length) addFiles(media)
@@ -606,7 +631,7 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
         </div>
 
         <div className="vz-filter-tabs">
-          {DECK_FILTERS.map(({ key, label }) => (
+          {deckFilters.map(({ key, label }) => (
             <button key={key}
               className={`vz-filter-tab ${deckFilter === key ? 'vz-filter-tab--active' : ''}`}
               onClick={() => handleSetFilter(key)}
@@ -678,7 +703,7 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
                 </svg>
               </div>
               <div className="ref-empty-title">Import Media</div>
-              <div className="ref-empty-sub" style={{ fontSize: 9 }}>{dragOver ? 'Drop here!' : 'Images & Video'}</div>
+              <div className="ref-empty-sub" style={{ fontSize: 9 }}>{dragOver ? 'Drop here!' : isReactMode ? 'SVGs, Logos & Overlays' : 'Images & Video'}</div>
             </div>
           ) : (
             renderGrid(filtered)

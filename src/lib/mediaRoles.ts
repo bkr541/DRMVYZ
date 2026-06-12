@@ -14,6 +14,7 @@ export type MediaRole =
   | 'reference'
   | 'other'
   | 'audio_track'
+  | 'svg'
 
 export type MediaEnergy = 'low' | 'medium' | 'high' | 'peak'
 
@@ -30,6 +31,7 @@ export const MEDIA_ROLES: MediaRole[] = [
   'reference',
   'other',
   'audio_track',
+  'svg',
 ]
 
 /** Roles that represent visual media (images/video). audio_track is excluded. */
@@ -48,6 +50,7 @@ export const MEDIA_ROLE_LABELS: Record<MediaRole, string> = {
   reference:           'Reference',
   other:               'Other',
   audio_track:         'Audio Track',
+  svg:                 'SVG',
 }
 
 /** Compact human-readable labels for badge display on timeline clips and deck cards. */
@@ -64,6 +67,7 @@ export const MEDIA_ROLE_BADGE_LABELS: Record<MediaRole, string> = {
   reference:           'Reference',
   other:               'Other',
   audio_track:         'Audio',
+  svg:                 'SVG',
 }
 
 // Used in role <select> option groups
@@ -80,6 +84,7 @@ export const MEDIA_ROLE_ICONS: Record<MediaRole, string> = {
   reference:           '◯',
   other:               '●',
   audio_track:         '♪',
+  svg:                 '◇',
 }
 
 // Filename keyword patterns → suggested role. Order is intentional (first match wins).
@@ -98,12 +103,24 @@ export function isAudioFile(file: File): boolean {
   return file.type.startsWith('audio/') || /\.(mp3|wav|aiff?|m4a|ogg|flac)$/i.test(file.name)
 }
 
+/** Returns true when the file is an SVG by MIME type or extension. */
+export function isSvgFile(file: File): boolean {
+  return file.type === 'image/svg+xml' || /\.svg$/i.test(file.name)
+}
+
+/** Returns true when the filename ends in .svg (case-insensitive). */
+export function isSvgFilename(name: string): boolean {
+  return /\.svg$/i.test(name)
+}
+
 /**
  * Returns a suggested MediaRole based on filename and MIME type.
  * Used as the initial role when a file is added to the modal.
  */
 export function suggestMediaRole(file: File): MediaRole {
   if (isAudioFile(file)) return 'audio_track'
+  // SVG check before filename hints so an SVG named "logo.svg" gets role "svg", not "logo".
+  if (isSvgFile(file)) return 'svg'
   for (const [re, role] of ROLE_HINTS) {
     if (re.test(file.name)) return role
   }
@@ -116,7 +133,7 @@ export function suggestMediaRole(file: File): MediaRole {
  * Used to pre-check the "Has Alpha" toggle.
  */
 export function roleImpliesAlpha(role: MediaRole): boolean {
-  return role === 'transparent_element' || role === 'overlay' || role === 'logo'
+  return role === 'transparent_element' || role === 'overlay' || role === 'logo' || role === 'svg'
 }
 
 /**

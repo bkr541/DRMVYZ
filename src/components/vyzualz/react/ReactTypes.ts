@@ -635,7 +635,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
   {
     id: 'preset-svg-glyph-slot',
     name: 'SVG Glyph Slot',
-    description: 'Upload an SVG in the Glyph Library panel and it renders here as a reactive oscillator path.',
+    description: 'Import an SVG from the Media tab and select it in SOURCE & MODE → SVG Glyph to render it as a reactive oscillator path.',
     engine: 'oscilloscope',
     palette: PALETTE_SVG_SLOT,
     params: { intensity: 0.7, motion: 0.5, glow: 0.78, bassReactivity: 0.8, colorShift: 0.35, complexity: 0.55 },

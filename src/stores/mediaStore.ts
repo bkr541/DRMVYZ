@@ -21,7 +21,7 @@ import {
   reorderCollectionItems as dbReorderCollectionItems,
 } from '../lib/mediaDb'
 import type { MediaItemRow, MediaMetadata } from '../types/database'
-import { suggestMediaRole, isAudioFile } from '../lib/mediaRoles'
+import { suggestMediaRole, isAudioFile, isSvgFile } from '../lib/mediaRoles'
 import type { MediaRole, MediaEnergy } from '../lib/mediaRoles'
 import { useAudioStore } from './audioStore'
 import { analyzeAudioFile } from '../utils/analyzeAudioFile'
@@ -254,7 +254,9 @@ async function uploadToSupabase(
   try {
     const storagePath = `${userId}/${item.id}/${item.name}`
 
-    const { error: uploadErr } = await uploadMediaFile(storagePath, file, file.type)
+    // Guarantee SVG content-type — some OS/browsers leave file.type empty for .svg files
+    const contentType = file.type || (isSvgFile(file) ? 'image/svg+xml' : '')
+    const { error: uploadErr } = await uploadMediaFile(storagePath, file, contentType)
     if (uploadErr) { console.error('[mediaStore] storage upload:', uploadErr); return null }
 
     let thumbnailStoragePath: string | null = null
@@ -275,7 +277,7 @@ async function uploadToSupabase(
       type:           item.type,
       storage_path:   storagePath,
       thumbnail_path: thumbnailStoragePath,
-      mime_type:      file.type || null,
+      mime_type:      contentType || null,
       file_size:      file.size,
       width:          item._width  ?? item.metadata.width  ?? null,
       height:         item._height ?? item.metadata.height ?? null,
@@ -426,7 +428,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   addFilesToUploadQueue(files) {
     const mediaFiles = files.filter(f =>
       f.type.startsWith('image/') || f.type.startsWith('video/') || f.type.startsWith('audio/') ||
-      /\.(png|jpe?g|gif|webp|mp4|mov|webm|mkv|mp3|wav|aiff?|m4a|ogg|flac)$/i.test(f.name)
+      /\.(png|jpe?g|gif|webp|svg|mp4|mov|webm|mkv|mp3|wav|aiff?|m4a|ogg|flac)$/i.test(f.name)
     )
     const items: UploadQueueItem[] = mediaFiles.map(file => {
       const audio = isAudioFile(file)
@@ -555,6 +557,22 @@ export const useMediaStore = create<MediaState>((set, get) => ({
         // clips, overlay clips, layer items, session and preset snapshots) so
         // that anything placed while the upload was in-flight is not orphaned.
         useVisualStore.getState().remapMediaId(prevId, stableId)
+
+        // SVG glyph pre-cache — fire-and-forget, non-blocking
+        if (isSvgFile(files[i])) {
+          ;(async () => {
+            try {
+              const rawSvg = await files[i].text()
+              const { isSvgContent } = await import('../components/vyzualz/react/renderers/svgGlyphUtils')
+              if (!isSvgContent(rawSvg)) { console.warn('[mediaStore] SVG pre-cache: not valid SVG:', item.name); return }
+              const { useReactStore } = await import('./reactStore')
+              const displayName = (item.title ?? item.name).replace(/\.svg$/i, '').trim() || 'SVG Glyph'
+              useReactStore.getState().addAndCacheMediaSvgGlyph(result.dbId, rawSvg, displayName)
+            } catch (e) {
+              console.warn('[mediaStore] SVG glyph pre-cache failed (non-fatal):', e)
+            }
+          })()
+        }
       })
     )
   },
@@ -564,7 +582,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   async addFiles(files) {
     const mediaFiles = files.filter(f =>
       f.type.startsWith('image/') || f.type.startsWith('video/') ||
-      /\.(png|jpe?g|gif|webp|mp4|mov|webm|mkv)$/i.test(f.name)
+      /\.(png|jpe?g|gif|webp|svg|mp4|mov|webm|mkv)$/i.test(f.name)
     )
     if (!mediaFiles.length) return
 
@@ -613,6 +631,22 @@ export const useMediaStore = create<MediaState>((set, get) => ({
         // clips, overlay clips, layer items, session and preset snapshots) so
         // that anything placed while the upload was in-flight is not orphaned.
         useVisualStore.getState().remapMediaId(prevId, stableId)
+
+        // SVG glyph pre-cache — fire-and-forget, non-blocking
+        if (isSvgFile(mediaFiles[i])) {
+          ;(async () => {
+            try {
+              const rawSvg = await mediaFiles[i].text()
+              const { isSvgContent } = await import('../components/vyzualz/react/renderers/svgGlyphUtils')
+              if (!isSvgContent(rawSvg)) { console.warn('[mediaStore] SVG pre-cache: not valid SVG:', item.name); return }
+              const { useReactStore } = await import('./reactStore')
+              const displayName = (item.title ?? item.name).replace(/\.svg$/i, '').trim() || 'SVG Glyph'
+              useReactStore.getState().addAndCacheMediaSvgGlyph(result.dbId, rawSvg, displayName)
+            } catch (e) {
+              console.warn('[mediaStore] SVG glyph pre-cache failed (non-fatal):', e)
+            }
+          })()
+        }
       })
     )
   },

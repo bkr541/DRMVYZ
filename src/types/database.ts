@@ -15,7 +15,7 @@ export type ExportFormat = 'png' | 'jpeg' | 'webm' | 'gif'
 export type MediaRoleDb  =
   | 'background_image' | 'background_video' | 'logo' | 'transparent_element'
   | 'overlay' | 'character_art' | 'texture' | 'loop' | 'transition'
-  | 'reference' | 'other' | 'audio_track'
+  | 'reference' | 'other' | 'audio_track' | 'svg'
 
 // Rich per-item metadata stored as JSONB in the media_items.metadata column.
 // width/height/duration also live in their own columns for backward compat.
