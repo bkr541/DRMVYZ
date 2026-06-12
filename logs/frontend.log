@@ -3,20 +3,7 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 150 ms
+  VITE v5.4.21  ready in 113 ms
 
   ➜  Local:   http://127.0.0.1:5173/
-3:10:23 AM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx, /src/components/vyzualz/TimelinePanel.tsx, /src/components/vyzualz/media/MediaDeckPanel.tsx, /src/components/vyzualz/layers/VzLayersPanel.tsx, /src/components/vyzualz/timeline/TimelineInspectorPanel.tsx, /src/components/vyzualz/settings/SettingsModal.tsx, /src/components/vyzualz/media/MediaStatusBar.tsx, /src/components/vyzualz/MediaUploadModal.tsx, /src/components/vyzualz/react/ReactView.tsx, /src/components/vyzualz/react/ReactPerformancePads.tsx, /src/components/vyzualz/react/ReactControlPanel.tsx, /src/components/vyzualz/react/ReactTrackMapStrip.tsx
-3:10:30 AM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx, /src/components/vyzualz/TimelinePanel.tsx, /src/components/vyzualz/media/MediaDeckPanel.tsx, /src/components/vyzualz/layers/VzLayersPanel.tsx, /src/components/vyzualz/timeline/TimelineInspectorPanel.tsx, /src/components/vyzualz/settings/SettingsModal.tsx, /src/components/vyzualz/media/MediaStatusBar.tsx, /src/components/vyzualz/MediaUploadModal.tsx, /src/components/vyzualz/react/ReactView.tsx, /src/components/vyzualz/react/ReactPerformancePads.tsx, /src/components/vyzualz/react/ReactControlPanel.tsx, /src/components/vyzualz/react/ReactTrackMapStrip.tsx
-3:10:37 AM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx, /src/components/vyzualz/TimelinePanel.tsx, /src/components/vyzualz/media/MediaDeckPanel.tsx, /src/components/vyzualz/layers/VzLayersPanel.tsx, /src/components/vyzualz/timeline/TimelineInspectorPanel.tsx, /src/components/vyzualz/settings/SettingsModal.tsx, /src/components/vyzualz/media/MediaStatusBar.tsx, /src/components/vyzualz/MediaUploadModal.tsx, /src/components/vyzualz/react/ReactView.tsx, /src/components/vyzualz/react/ReactPerformancePads.tsx, /src/components/vyzualz/react/ReactControlPanel.tsx, /src/components/vyzualz/react/ReactTrackMapStrip.tsx
-3:10:46 AM [vite] hmr update /src/components/vyzualz/media/MediaDeckPanel.tsx
-3:10:52 AM [vite] hmr update /src/components/vyzualz/media/MediaDeckPanel.tsx
-3:11:00 AM [vite] hmr update /src/components/vyzualz/media/MediaDeckPanel.tsx
-3:11:07 AM [vite] hmr update /src/components/vyzualz/media/MediaDeckPanel.tsx
-3:11:14 AM [vite] hmr update /src/components/vyzualz/media/MediaDeckPanel.tsx
-3:11:26 AM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
-3:11:31 AM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
-3:11:43 AM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
-3:11:51 AM [vite] hmr update /src/styles/reactView.css
-3:11:57 AM [vite] hmr update /src/styles/reactView.css
-3:12:01 AM [vite] hmr update /src/styles/reactView.css
+3:35:13 AM [vite] hmr update /src/styles/vyzualz.css
