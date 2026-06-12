@@ -103,6 +103,29 @@ export function resolvePresetOscillatorSettings(
   }
 }
 
+// ── buildPresetPatch ──────────────────────────────────────────────────────────
+// Pure helper — returns the state slice that must change whenever a preset is
+// applied.  Shared by selectReactPreset, setActivePadId, and selectReactEngine
+// so all three code paths produce identical side-effects.
+//
+// Invariant enforced by this function:
+//   activeReactEngineId === activeReactPresetId's preset.engine
+//
+export function buildPresetPatch(
+  preset: ReactPreset,
+  currentOscSettings: OscillatorSettings,
+) {
+  return {
+    activeReactPresetId: preset.id,
+    activeReactEngineId: preset.engine,
+    reactIntensity:      preset.params.intensity,
+    reactMotion:         preset.params.motion,
+    reactGlow:           preset.params.glow,
+    reactBassReactivity: preset.params.bassReactivity,
+    oscillatorSettings:  resolvePresetOscillatorSettings(preset, currentOscSettings),
+  }
+}
+
 interface ReactStoreState {
   activeReactPresetId: string | null
   activeReactEngineId: ReactEngineId
@@ -124,7 +147,19 @@ interface ReactStoreState {
 
   // Actions
   setActiveReactPresetId: (id: string | null) => void
+  /**
+   * Low-level setter — only updates activeReactEngineId without touching the active preset.
+   * UI code must call selectReactEngine instead, which also switches to a compatible preset
+   * so that activeReactEngineId and activeReactPresetId.engine stay in sync.
+   */
   setActiveReactEngineId: (id: ReactEngineId) => void
+  /**
+   * High-level engine selector for UI use.  Finds a compatible preset for the given engine,
+   * applies its params/oscillatorSettings, and keeps activeReactEngineId and
+   * activeReactPresetId in sync.  Use this wherever the ENGINE tab or any other UI switches
+   * the active engine family.
+   */
+  selectReactEngine: (id: ReactEngineId) => void
   selectReactPreset: (id: string) => void
   updateReactPresetParams: (id: string, patch: Partial<ReactPresetParams>) => void
 
@@ -213,19 +248,30 @@ export const useReactStore = create<ReactStoreState>()(
 
       setActiveReactEngineId: (id) => set({ activeReactEngineId: id }),
 
+      selectReactEngine: (engineId) =>
+        set((s) => {
+          // If the current preset already belongs to the selected engine, only ensure
+          // activeReactEngineId is correct (repairs any prior drift without a preset switch).
+          const current = s.activeReactPresetId
+            ? s.reactPresets.find(p => p.id === s.activeReactPresetId)
+            : null
+          if (current?.engine === engineId) {
+            return { activeReactEngineId: engineId }
+          }
+          // Switch to the first preset available for this engine.
+          const preset = s.reactPresets.find(p => p.engine === engineId)
+          if (!preset) {
+            // No presets registered for this engine — update ID only; panel shows empty state.
+            return { activeReactEngineId: engineId }
+          }
+          return buildPresetPatch(preset, s.oscillatorSettings)
+        }),
+
       selectReactPreset: (id) =>
         set((s) => {
           const preset = s.reactPresets.find((p) => p.id === id)
           if (!preset) return {}
-          return {
-            activeReactPresetId: id,
-            activeReactEngineId: preset.engine,
-            reactIntensity:      preset.params.intensity,
-            reactMotion:         preset.params.motion,
-            reactGlow:           preset.params.glow,
-            reactBassReactivity: preset.params.bassReactivity,
-            oscillatorSettings:  resolvePresetOscillatorSettings(preset, s.oscillatorSettings),
-          }
+          return buildPresetPatch(preset, s.oscillatorSettings)
         }),
 
       updateReactPresetParams: (id, patch) =>
@@ -269,16 +315,7 @@ export const useReactStore = create<ReactStoreState>()(
           if (!pad?.presetId) return { activePadId: id }
           const preset = s.reactPresets.find((p) => p.id === pad.presetId)
           if (!preset) return { activePadId: id }
-          return {
-            activePadId:         id,
-            activeReactPresetId: preset.id,
-            activeReactEngineId: preset.engine,
-            reactIntensity:      preset.params.intensity,
-            reactMotion:         preset.params.motion,
-            reactGlow:           preset.params.glow,
-            reactBassReactivity: preset.params.bassReactivity,
-            oscillatorSettings:  resolvePresetOscillatorSettings(preset, s.oscillatorSettings),
-          }
+          return { activePadId: id, ...buildPresetPatch(preset, s.oscillatorSettings) }
         }),
 
       updatePerformancePad: (id, patch) =>

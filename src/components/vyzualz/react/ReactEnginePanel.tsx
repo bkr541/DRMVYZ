@@ -151,7 +151,7 @@ export function ReactEnginePanel() {
   const [fontUploadError, setFontUploadError] = useState<string | null>(null)
 
   const {
-    activeReactEngineId, setActiveReactEngineId,
+    activeReactEngineId, selectReactEngine,
     oscillatorSettings,  setOscillatorSettings,
     oscillatorGlyphAssets,
     selectSvgMediaGlyph,
@@ -161,7 +161,7 @@ export function ReactEnginePanel() {
     selectOscillatorFont,
   } = useReactStore(useShallow(s => ({
     activeReactEngineId:       s.activeReactEngineId,
-    setActiveReactEngineId:    s.setActiveReactEngineId,
+    selectReactEngine:         s.selectReactEngine,
     oscillatorSettings:        s.oscillatorSettings,
     setOscillatorSettings:     s.setOscillatorSettings,
     oscillatorGlyphAssets:     s.oscillatorGlyphAssets,
@@ -205,7 +205,7 @@ export function ReactEnginePanel() {
             key={id}
             type="button"
             className={`vz-filter-tab${activeReactEngineId === id ? ' vz-filter-tab--active' : ''}`}
-            onClick={() => setActiveReactEngineId(id)}
+            onClick={() => selectReactEngine(id)}
             title={ENGINE_LABELS[id]}
           >
             <span style={{ marginRight: 4 }}>{ENGINE_ICONS[id]}</span>
