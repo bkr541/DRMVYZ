@@ -23,6 +23,7 @@ interface Props {
   oscillatorTextPointCache?:    Record<string, OscillatorGlyphPoint[]>
   isPlaying:                    boolean
   manualSections?:              ReactTrackSection[]
+  getAudioTime?:                () => number
 }
 
 export function ReactPlaceholderCanvas({
@@ -41,6 +42,7 @@ export function ReactPlaceholderCanvas({
   oscillatorTextPointCache   = {} as Record<string, OscillatorGlyphPoint[]>,
   isPlaying,
   manualSections             = [],
+  getAudioTime,
 }: Props) {
   const canvasRef      = useRef<HTMLCanvasElement>(null)
   const animRef        = useRef<number>(0)
@@ -65,6 +67,7 @@ export function ReactPlaceholderCanvas({
   const presetRef             = useRef<ReactPreset | null>(activePreset)
   const sectionsRef           = useRef<ReactTrackSection[]>(manualSections)
   const audioTimeRef          = useRef(0)
+  const getAudioTimeRef        = useRef(getAudioTime)
 
   // Keep refs current every render
   intensityRef.current          = intensity
@@ -81,6 +84,7 @@ export function ReactPlaceholderCanvas({
   isPlayingRef.current           = isPlaying
   presetRef.current             = activePreset
   sectionsRef.current           = manualSections
+  getAudioTimeRef.current        = getAudioTime
 
   // Update analyser buffers when analyser changes
   useEffect(() => {
@@ -176,8 +180,11 @@ export function ReactPlaceholderCanvas({
         activeBpm        = 120
       }
 
-      if (isPlayingRef.current) {
-        audioTimeRef.current += 1 / 60  // approximate; real audioTime from engine if available
+      const realTime = getAudioTimeRef.current?.()
+      if (realTime !== undefined) {
+        audioTimeRef.current = realTime
+      } else if (isPlayingRef.current) {
+        audioTimeRef.current += 1 / 60
       }
 
       const t = tRef.current

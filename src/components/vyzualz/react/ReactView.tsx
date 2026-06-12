@@ -6,6 +6,7 @@ import { ReactControlPanel } from './ReactControlPanel'
 import { ReactTrackMapStrip } from './ReactTrackMapStrip'
 import { ReactPlaceholderCanvas } from './ReactPlaceholderCanvas'
 import { ReactPerformancePads } from './ReactPerformancePads'
+import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import '../../../styles/reactView.css'
 
 export function ReactView() {
@@ -52,45 +53,57 @@ export function ReactView() {
   const audioDurationSec = (engine as { duration?: number }).duration ?? 180
 
   return (
-    <div className="rv-layout">
-      {/* Left — preset / engine browser */}
-      <aside className="rv-left-panel">
-        <ReactPresetBrowser
-          presets={reactPresets}
-          activePresetId={activeReactPresetId}
-          onSelect={selectReactPreset}
-        />
-      </aside>
-
-      {/* Center — canvas + pads + track map */}
-      <div className="rv-center-col">
-        <div className="rv-canvas-wrap">
-          <ReactPlaceholderCanvas
-            analyser={analyser}
-            activePreset={activePreset}
-            intensity={reactIntensity}
-            motion={reactMotion}
-            glow={reactGlow}
-            bassReactivity={reactBassReactivity}
-            trailDecay={reactTrailDecay}
-            fogDensity={reactFogDensity}
-            particleDensity={reactParticleDensity}
-            oscillatorSettings={oscillatorSettings}
-            oscillatorGlyphAssets={oscillatorGlyphAssets}
-            oscillatorGlyphPointCache={oscillatorGlyphPointCache}
-            oscillatorTextPointCache={oscillatorTextPointCache}
-            isPlaying={engine.isPlaying}
-            manualSections={manualTrackSections}
-          />
+    <div className="rv-shell">
+      <div className="vz-header">
+        <div className="vz-header-title-group">
+          <div className="vz-header-title">REACT</div>
+          <div className="vz-header-sub">Visual Performance Mode</div>
         </div>
-        <ReactPerformancePads />
-        <ReactTrackMapStrip audioDurationSec={audioDurationSec} />
+      </div>
+      <div className="rv-layout">
+        {/* Left — preset / engine browser */}
+        <aside className="rv-left-panel">
+          <ReactPresetBrowser
+            presets={reactPresets}
+            activePresetId={activeReactPresetId}
+            onSelect={selectReactPreset}
+          />
+        </aside>
+
+        {/* Center — canvas + pads + track map */}
+        <div className="rv-center-col">
+          <div className="rv-canvas-wrap">
+            <ReactPlaceholderCanvas
+              analyser={analyser}
+              activePreset={activePreset}
+              intensity={reactIntensity}
+              motion={reactMotion}
+              glow={reactGlow}
+              bassReactivity={reactBassReactivity}
+              trailDecay={reactTrailDecay}
+              fogDensity={reactFogDensity}
+              particleDensity={reactParticleDensity}
+              oscillatorSettings={oscillatorSettings}
+              oscillatorGlyphAssets={oscillatorGlyphAssets}
+              oscillatorGlyphPointCache={oscillatorGlyphPointCache}
+              oscillatorTextPointCache={oscillatorTextPointCache}
+              isPlaying={engine.isPlaying}
+              manualSections={manualTrackSections}
+              getAudioTime={() => engine.currentTime}
+            />
+          </div>
+          <ReactPerformancePads />
+          <ReactTrackMapStrip audioDurationSec={audioDurationSec} />
+        </div>
+
+        {/* Right — controls */}
+        <aside className="rv-right-panel">
+          <ReactControlPanel />
+        </aside>
       </div>
 
-      {/* Right — controls */}
-      <aside className="rv-right-panel">
-        <ReactControlPanel />
-      </aside>
+      {/* Bottom dock — outside the grid, full width */}
+      <VyzualzAudioDock />
     </div>
   )
 }

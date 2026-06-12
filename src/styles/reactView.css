@@ -5,15 +5,32 @@
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* ── Root layout ─────────────────────────────────────────────────────────────── */
-.rv-layout {
-  display: grid;
-  grid-template-columns: 220px 1fr 200px;
-  grid-template-rows: 1fr;
+/* Outer flex shell — matches the az-root / az-shell / dock pattern from VyzualzShell */
+.rv-shell {
+  display: flex;
+  flex-direction: column;
   height: 100%;
   width: 100%;
   overflow: hidden;
   background: #060d10;
+}
+
+/* Three-column content grid — takes all remaining space above the dock */
+.rv-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr 200px;
+  grid-template-rows: 1fr;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
   gap: 0;
+}
+
+/* Dock sits below the grid; set column widths to align with rv-layout panels */
+.rv-shell > .az-dock {
+  --vz-sidebar-width: 0px;
+  --vz-left-width: 220px;
+  --vz-right-width: 200px;
 }
 
 /* ── Shared panel header ─────────────────────────────────────────────────────── */
@@ -1021,6 +1038,10 @@
   .rv-right-panel {
     display: none;
   }
+  .rv-shell > .az-dock {
+    --vz-left-width: 180px;
+    --vz-right-width: 0px;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1030,5 +1051,9 @@
   .rv-left-panel,
   .rv-right-panel {
     display: none;
+  }
+  .rv-shell > .az-dock {
+    --vz-left-width: 0px;
+    --vz-right-width: 0px;
   }
 }
