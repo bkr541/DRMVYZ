@@ -20,7 +20,14 @@ import {
   parseSvgToGlyphPoints,
   makeSvgGlyphAsset,
   isSvgContent,
+  SVG_GLYPH_COMPILER_VERSION,
 } from '../components/vyzualz/react/renderers/svgGlyphUtils'
+import {
+  getSvgVisualEntry,
+  setSvgVisualEntry,
+  evictSvgVisual,
+  clearSvgVisualCache,
+} from '../components/vyzualz/react/renderers/svgVisualCache'
 import { useMediaStore } from './mediaStore'
 import { createSignedMediaUrl } from '../lib/mediaDb'
 import {
@@ -30,7 +37,7 @@ import {
 } from '../components/vyzualz/react/renderers/fontGlyphUtils'
 
 // ── Point cache helpers ───────────────────────────────────────────────────────
-// SVG cache key: "${assetId}:${resolution}"
+// SVG cache key: "${assetId}:${resolution}:v${SVG_GLYPH_COMPILER_VERSION}"
 // Text cache key: "${fontId}:${text}:${fontSize}:${letterSpacing}:${resolution}"
 // Resolution is clamped to [64, 2048] matching the renderer's own clamp.
 
@@ -39,7 +46,7 @@ function clampRes(v: number): number {
 }
 
 function glyphCacheKey(assetId: string, res: number): string {
-  return `${assetId}:${res}`
+  return `${assetId}:${res}:v${SVG_GLYPH_COMPILER_VERSION}`
 }
 
 function textCacheKey(fontId: string, text: string, fontSize: number, spacing: number, res: number): string {
@@ -207,6 +214,14 @@ interface ReactStoreState {
 
   // Pre-parsed glyph points — non-persisted, keyed by "${assetId}:${resolution}"
   oscillatorGlyphPointCache: Record<string, OscillatorGlyphPoint[]>
+
+  // SVG Visual mode — loads raw SVG from a media item, creates a Blob URL,
+  // and stores the decoded HTMLImageElement in the module-level svgVisualCache.
+  // Does not change sourceType if the asset is already selected and loaded.
+  selectSvgVisual: (mediaId: string) => Promise<void>
+  // Evicts the visual cache entry for mediaId and resets selectedSvgVisualId
+  // if it matches. Called from mediaStore.removeItem to keep state consistent.
+  clearSvgVisualForMedia: (mediaId: string) => void
 
   // Uploaded font assets (persisted as base64)
   oscillatorFontAssets: OscillatorFontAsset[]
@@ -513,6 +528,89 @@ export const useReactStore = create<ReactStoreState>()(
           }
         }),
 
+      // ── SVG Visual actions ─────────────────────────────────────────────────
+
+      selectSvgVisual: async (mediaId) => {
+        // Update settings immediately so the UI reflects the selection
+        set(s => ({
+          oscillatorSettings: {
+            ...s.oscillatorSettings,
+            sourceType:          'svgVisual',
+            selectedSvgVisualId: mediaId,
+          },
+        }))
+
+        // Already cached and loaded — nothing to do
+        const existing = getSvgVisualEntry(mediaId)
+        if (existing?.loaded || existing?.error) return
+
+        // Mark as loading so the renderer knows a fetch is in progress
+        setSvgVisualEntry({ id: mediaId, image: null, objectUrl: null, loaded: false, error: null, width: 0, height: 0 })
+
+        const mediaItem = useMediaStore.getState().items.find(i => i.id === mediaId)
+        if (!mediaItem) {
+          setSvgVisualEntry({ id: mediaId, image: null, objectUrl: null, loaded: false, error: 'Media item not found', width: 0, height: 0 })
+          return
+        }
+
+        const tryFetch = async (url: string): Promise<string | null> => {
+          try {
+            const resp = await fetch(url, { cache: 'no-store' })
+            if (!resp.ok) return null
+            return await resp.text()
+          } catch { return null }
+        }
+
+        let rawSvg = mediaItem.url ? await tryFetch(mediaItem.url) : null
+
+        if (!rawSvg && mediaItem.storagePath) {
+          const { url: freshUrl } = await createSignedMediaUrl(mediaItem.storagePath)
+          if (freshUrl) rawSvg = await tryFetch(freshUrl)
+        }
+
+        if (!rawSvg || !isSvgContent(rawSvg)) {
+          setSvgVisualEntry({ id: mediaId, image: null, objectUrl: null, loaded: false, error: 'Could not load SVG content', width: 0, height: 0 })
+          return
+        }
+
+        const blob      = new Blob([rawSvg], { type: 'image/svg+xml' })
+        const objectUrl = URL.createObjectURL(blob)
+        const img       = new Image()
+
+        img.onload = () => {
+          setSvgVisualEntry({
+            id:        mediaId,
+            image:     img,
+            objectUrl,
+            loaded:    true,
+            error:     null,
+            width:     img.naturalWidth  || 512,
+            height:    img.naturalHeight || 512,
+          })
+        }
+        img.onerror = () => {
+          URL.revokeObjectURL(objectUrl)
+          setSvgVisualEntry({ id: mediaId, image: null, objectUrl: null, loaded: false, error: 'SVG image failed to render', width: 0, height: 0 })
+        }
+        img.src = objectUrl
+      },
+
+      clearSvgVisualForMedia: (mediaId) => {
+        evictSvgVisual(mediaId)
+        set(s => {
+          if (s.oscillatorSettings.selectedSvgVisualId !== mediaId) return {}
+          return {
+            oscillatorSettings: {
+              ...s.oscillatorSettings,
+              selectedSvgVisualId: null,
+              sourceType: s.oscillatorSettings.sourceType === 'svgVisual'
+                ? 'builtinShape'
+                : s.oscillatorSettings.sourceType,
+            },
+          }
+        })
+      },
+
       // ── Font asset actions ──────────────────────────────────────────────────
 
       addOscillatorFontAsset: (asset) =>
@@ -558,7 +656,8 @@ export const useReactStore = create<ReactStoreState>()(
           return { oscillatorSettings: newSettings, oscillatorTextPointCache: newTextCache }
         }),
 
-      resetReactView: () =>
+      resetReactView: () => {
+        clearSvgVisualCache()
         set({
           activeReactPresetId:       INITIAL_PRESET_ID,
           activeReactEngineId:       INITIAL_ENGINE_ID,
@@ -578,7 +677,8 @@ export const useReactStore = create<ReactStoreState>()(
           reactTrailDecay:      0.08,
           reactFogDensity:      0.5,
           reactParticleDensity: 0.5,
-        }),
+        })
+      },
     }),
     {
       name: 'drmvyz:react-store',

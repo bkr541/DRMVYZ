@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore } from '../../../stores/mediaStore'
@@ -8,6 +8,8 @@ import {
   SliderRow, SelectRow, ToggleRow, TextInputRow,
   CtrlSection, Collapsible,
 } from './ReactControlRows'
+import { SVG_GLYPH_COMPILER_VERSION } from './renderers/svgGlyphUtils'
+import { getSvgVisualEntry } from './renderers/svgVisualCache'
 import type {
   ReactEngineId,
   OscillatorSourceType,
@@ -17,6 +19,7 @@ import type {
   OscillatorFontAsset,
   OscillatorSettings,
   OscillatorRenderMode,
+  OscillatorGlyphPoint,
 } from './ReactTypes'
 
 // ── Engine family display data ────────────────────────────────────────────────
@@ -42,6 +45,7 @@ const SOURCE_LABELS: Record<OscillatorSourceType, string> = {
   builtinShape: 'Shape',
   text:         'Text',
   svgGlyph:     'SVG Glyph',
+  svgVisual:    'SVG Visual',
 }
 
 const RENDER_LABELS: Record<OscillatorRenderMode, string> = {
@@ -64,16 +68,34 @@ function OscillatorStatusCard({
   osc,
   glyphAssets,
   fontAssets,
+  glyphCache,
+  allMediaItems,
 }: {
   osc: OscillatorSettings
   glyphAssets: OscillatorGlyphAsset[]
   fontAssets: OscillatorFontAsset[]
+  glyphCache: Record<string, OscillatorGlyphPoint[]>
+  allMediaItems: Array<{ id: string; title?: string | null; name: string; createdAt?: string | null }>
 }) {
-  const isClassic     = osc.sourceType === 'classic'
+  const isClassic    = osc.sourceType === 'classic'
+  const isSvgVisual  = osc.sourceType === 'svgVisual'
   const selectedGlyph = (osc.sourceType === 'svgGlyph' && osc.selectedGlyphId)
     ? glyphAssets.find(a => a.id === osc.selectedGlyphId)
     : undefined
-  const selectedFont  = osc.textFontId ? fontAssets.find(f => f.id === osc.textFontId) : undefined
+  const selectedFont = osc.textFontId ? fontAssets.find(f => f.id === osc.textFontId) : undefined
+  const selectedVisualItem = (isSvgVisual && osc.selectedSvgVisualId)
+    ? allMediaItems.find(m => m.id === osc.selectedSvgVisualId)
+    : undefined
+  const svgVisualEntry = isSvgVisual && osc.selectedSvgVisualId
+    ? getSvgVisualEntry(osc.selectedSvgVisualId)
+    : null
+
+  // Prefer the live compiled count from the point cache over the stored asset count,
+  // since the compiler version may have changed since the asset was last imported.
+  const compiledPointCount = selectedGlyph
+    ? (glyphCache[`${selectedGlyph.id}:${osc.pathResolution}:v${SVG_GLYPH_COMPILER_VERSION}`]?.length
+      ?? selectedGlyph.pointCount)
+    : 0
 
   let activeName: string | null = null
   if (osc.sourceType === 'builtinShape') {
@@ -82,11 +104,14 @@ function OscillatorStatusCard({
     activeName = osc.text.trim() || null
   } else if (osc.sourceType === 'svgGlyph') {
     activeName = selectedGlyph?.name ?? null
+  } else if (isSvgVisual) {
+    activeName = selectedVisualItem ? (selectedVisualItem.title ?? selectedVisualItem.name) : null
   }
 
   const activeLabel =
     osc.sourceType === 'text'     ? 'Text'  :
     osc.sourceType === 'svgGlyph' ? 'Glyph' :
+    isSvgVisual                   ? 'Asset'  :
     'Shape'
 
   return (
@@ -95,22 +120,51 @@ function OscillatorStatusCard({
         label="Source"
         value={<span className="rv-osc-status-val--source">{SOURCE_LABELS[osc.sourceType]}</span>}
       />
-      {!isClassic && activeName && (
+      {!isClassic && !isSvgVisual && activeName && (
         <StatusKV
           label={activeLabel}
           value={<span className="rv-osc-status-val--highlight">{activeName}</span>}
         />
       )}
-      {!isClassic && (
+      {isSvgVisual && activeName && (
+        <StatusKV
+          label={activeLabel}
+          value={<span className="rv-osc-status-val--highlight">{activeName}</span>}
+        />
+      )}
+      {!isClassic && !isSvgVisual && (
         <>
           <StatusKV label="Resolution" value={`${osc.pathResolution} pts`} />
           <StatusKV label="Render"     value={RENDER_LABELS[osc.renderMode]} />
         </>
       )}
+      {isSvgVisual && (
+        <>
+          <StatusKV label="Render" value="Native SVG" />
+          <StatusKV label="Mode"   value="Visual" />
+          {!osc.selectedSvgVisualId && (
+            <div className="rv-osc-status-warn">No SVG selected — choose one from the Visual dropdown below</div>
+          )}
+          {osc.selectedSvgVisualId && svgVisualEntry?.error && (
+            <div className="rv-osc-status-warn">Load error: {svgVisualEntry.error}</div>
+          )}
+          {osc.selectedSvgVisualId && !svgVisualEntry?.loaded && !svgVisualEntry?.error && (
+            <div className="rv-ctrl-info">Loading…</div>
+          )}
+          {selectedVisualItem?.createdAt && (
+            <StatusKV
+              label="Uploaded"
+              value={new Date(selectedVisualItem.createdAt).toLocaleDateString(undefined, {
+                year: 'numeric', month: 'short', day: 'numeric',
+              })}
+            />
+          )}
+        </>
+      )}
       {osc.sourceType === 'svgGlyph' && (
         selectedGlyph ? (
           <>
-            <StatusKV label="Points" value={selectedGlyph.pointCount.toLocaleString()} />
+            <StatusKV label="Points" value={compiledPointCount.toLocaleString()} />
             <StatusKV
               label="Uploaded"
               value={new Date(selectedGlyph.createdAt).toLocaleDateString(undefined, {
@@ -154,7 +208,9 @@ export function ReactEnginePanel() {
     activeReactEngineId, selectReactEngine,
     oscillatorSettings,  setOscillatorSettings,
     oscillatorGlyphAssets,
+    oscillatorGlyphPointCache,
     selectSvgMediaGlyph,
+    selectSvgVisual,
     oscillatorFontAssets,
     addOscillatorFontAsset,
     removeOscillatorFontAsset,
@@ -162,22 +218,36 @@ export function ReactEnginePanel() {
     glyphLostNotice,
     clearGlyphLostNotice,
   } = useReactStore(useShallow(s => ({
-    activeReactEngineId:       s.activeReactEngineId,
-    selectReactEngine:         s.selectReactEngine,
-    oscillatorSettings:        s.oscillatorSettings,
-    setOscillatorSettings:     s.setOscillatorSettings,
-    oscillatorGlyphAssets:     s.oscillatorGlyphAssets,
-    selectSvgMediaGlyph:       s.selectSvgMediaGlyph,
-    oscillatorFontAssets:      s.oscillatorFontAssets,
-    addOscillatorFontAsset:    s.addOscillatorFontAsset,
-    removeOscillatorFontAsset: s.removeOscillatorFontAsset,
-    selectOscillatorFont:      s.selectOscillatorFont,
-    glyphLostNotice:           s.glyphLostNotice,
-    clearGlyphLostNotice:      s.clearGlyphLostNotice,
+    activeReactEngineId:        s.activeReactEngineId,
+    selectReactEngine:          s.selectReactEngine,
+    oscillatorSettings:         s.oscillatorSettings,
+    setOscillatorSettings:      s.setOscillatorSettings,
+    oscillatorGlyphAssets:      s.oscillatorGlyphAssets,
+    oscillatorGlyphPointCache:  s.oscillatorGlyphPointCache,
+    selectSvgMediaGlyph:        s.selectSvgMediaGlyph,
+    selectSvgVisual:            s.selectSvgVisual,
+    oscillatorFontAssets:       s.oscillatorFontAssets,
+    addOscillatorFontAsset:     s.addOscillatorFontAsset,
+    removeOscillatorFontAsset:  s.removeOscillatorFontAsset,
+    selectOscillatorFont:       s.selectOscillatorFont,
+    glyphLostNotice:            s.glyphLostNotice,
+    clearGlyphLostNotice:       s.clearGlyphLostNotice,
   })))
 
   const osc = oscillatorSettings
   const set = setOscillatorSettings
+
+  // Re-hydrate the SVG visual image cache on mount in case the window was
+  // refreshed and the module-level cache was cleared.
+  useEffect(() => {
+    const { oscillatorSettings: s, selectSvgVisual: sel } = useReactStore.getState()
+    if (s.sourceType === 'svgVisual' && s.selectedSvgVisualId) {
+      const entry = getSvgVisualEntry(s.selectedSvgVisualId)
+      if (!entry || (!entry.loaded && !entry.error)) {
+        sel(s.selectedSvgVisualId)
+      }
+    }
+  }, [])
 
   const allMediaItems   = useMediaStore(s => s.items)
   const svgMediaItems   = allMediaItems.filter(m => m.mediaRole === 'svg' || isSvgFilename(m.name))
@@ -282,6 +352,8 @@ export function ReactEnginePanel() {
             osc={osc}
             glyphAssets={oscillatorGlyphAssets}
             fontAssets={oscillatorFontAssets}
+            glyphCache={oscillatorGlyphPointCache}
+            allMediaItems={allMediaItems}
           />
 
           <SelectRow
@@ -293,6 +365,7 @@ export function ReactEnginePanel() {
               { value: 'builtinShape', label: 'Built-in Shape' },
               { value: 'text',         label: 'Text' },
               { value: 'svgGlyph',     label: 'SVG Glyph' },
+              { value: 'svgVisual',    label: 'SVG Visual' },
             ]}
           />
 
@@ -399,8 +472,25 @@ export function ReactEnginePanel() {
             )
           )}
 
-          {/* ── Source: path resolution (non-classic only) ──────────────── */}
-          {osc.sourceType !== 'classic' && (
+          {/* SVG visual picker */}
+          {osc.sourceType === 'svgVisual' && (
+            svgMediaItems.length === 0 ? (
+              <div className="rv-ctrl-info">No SVG media yet — import SVG files from the Media tab.</div>
+            ) : (
+              <SelectRow
+                label="Visual"
+                value={osc.selectedSvgVisualId ?? ''}
+                onChange={v => { if (v) selectSvgVisual(v) }}
+                options={[
+                  ...(osc.selectedSvgVisualId ? [] : [{ value: '', label: '— select SVG —' }]),
+                  ...svgMediaItems.map(m => ({ value: m.id, label: m.title ?? m.name })),
+                ]}
+              />
+            )
+          )}
+
+          {/* ── Source: path resolution (non-classic, non-svgVisual only) ── */}
+          {osc.sourceType !== 'classic' && osc.sourceType !== 'svgVisual' && (
             <>
               <CtrlSection label="Source" />
               <SliderRow

@@ -3,6 +3,7 @@ import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { hexToRgba, getOrCreateOffscreen, seededRandom } from './reactRenderUtils'
 import { generateBuiltinShapePoints, clamp } from './oscillatorPathUtils'
 import { textToGlyphPoints } from './textGlyphUtils'
+import { getSvgVisualEntry } from './svgVisualCache'
 // parseSvgToGlyphPoints is intentionally NOT imported here.
 // SVG parsing happens at upload/select/resolution-change time in reactStore.ts.
 // This renderer only reads pre-prepared points from params.oscillatorGlyphPointCache.
@@ -134,11 +135,73 @@ function getOscillatorPathPoints(params: ReactRenderParams): OscillatorGlyphPoin
       cachePut(key, pts)
       return pts
     }
+    case 'svgVisual':
     case 'classic':
       return null
     default:
       return null
   }
+}
+
+// ── SVG Visual renderer ───────────────────────────────────────────────────────
+// Draws the cached SVG image directly onto the canvas.
+// No trail, no point conversion, no oscillator path drawing.
+
+function renderSvgVisual(
+  ctx: CanvasRenderingContext2D,
+  frame: ReactFrameContext,
+  preset: ReactPreset,
+  params: ReactRenderParams,
+): void {
+  const { W, H, t } = frame
+  const osc  = params.oscillator
+  const bass = frame.audio.bass * params.bassReactivity
+
+  ctx.fillStyle = preset.palette.background
+  ctx.fillRect(0, 0, W, H)
+
+  const entry = getSvgVisualEntry(osc.selectedSvgVisualId ?? '')
+  if (!entry?.loaded || !entry.image) return
+
+  const img  = entry.image
+  const imgW = entry.width  || img.naturalWidth  || 512
+  const imgH = entry.height || img.naturalHeight || 512
+
+  // Fit inside pathScale * min(W,H), preserving aspect ratio
+  const maxSide = Math.min(W, H) * Math.max(0.05, osc.pathScale)
+  const ratio   = Math.min(maxSide / imgW, maxSide / imgH)
+
+  // Subtle bass breathing — max ±4% scale, only when bass reactivity is meaningful
+  const bassPulse = 1 + clamp(bass * 0.04, 0, 0.08)
+  const drawW = imgW * ratio * bassPulse
+  const drawH = imgH * ratio * bassPulse
+
+  const cx  = W / 2
+  const cy  = H / 2
+  const rot = t * 0.002 * params.motion * osc.rotationSpeed
+
+  ctx.save()
+  ctx.translate(cx, cy)
+  if (rot !== 0) ctx.rotate(rot)
+
+  // Glow pass: blurred, screen-blended copy under the main image
+  if (params.glow > 0.15) {
+    const blurPx     = Math.max(1, Math.round(params.glow * 16 + bass * 10))
+    const glowAlpha  = Math.min(0.38, params.glow * 0.38 * params.intensity)
+    ctx.save()
+    ctx.globalCompositeOperation = 'screen'
+    ctx.globalAlpha              = glowAlpha
+    ctx.filter                   = `blur(${blurPx}px)`
+    ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH)
+    ctx.filter = 'none'
+    ctx.restore()
+  }
+
+  // Main image pass
+  ctx.globalAlpha = Math.min(1, params.intensity)
+  ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH)
+
+  ctx.restore()
 }
 
 // Shapes that naturally close back to their start point
@@ -828,6 +891,12 @@ export function renderSoundDrawing(
   const { W, H, dpr } = frame
   const intMul = params.intensity
   const osc    = params.oscillator
+
+  // SVG Visual: direct image render, bypasses trail canvas and path drawing entirely
+  if (osc.sourceType === 'svgVisual') {
+    renderSvgVisual(ctx, frame, preset, params)
+    return
+  }
 
   // Route to pathScope for any non-classic source; otherwise honour classicMode
   let mode: ScopeMode

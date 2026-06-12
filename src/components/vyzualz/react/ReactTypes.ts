@@ -2,7 +2,7 @@ export type ReactEngineId = 'shaderPads' | 'cinematicPortal' | 'oscilloscope'
 
 // ── Oscillator path/glyph types ───────────────────────────────────────────────
 
-export type OscillatorSourceType = 'classic' | 'builtinShape' | 'text' | 'svgGlyph'
+export type OscillatorSourceType = 'classic' | 'builtinShape' | 'text' | 'svgGlyph' | 'svgVisual'
 
 export type ClassicScopeMode = 'sectionAuto' | 'waveform' | 'lissajous' | 'radialScope' | 'spiralScope'
 
@@ -49,6 +49,7 @@ export interface OscillatorSettings {
   classicMode: ClassicScopeMode
   builtinShape: BuiltinOscillatorShape
   selectedGlyphId: string | null
+  selectedSvgVisualId: string | null
   text: string
   textFontId: string | null
   textFontSize: number
@@ -70,11 +71,12 @@ export interface OscillatorSettings {
 }
 
 export const DEFAULT_OSCILLATOR_SETTINGS: OscillatorSettings = {
-  sourceType:        'classic',
-  classicMode:       'sectionAuto',
-  builtinShape:      'circle',
-  selectedGlyphId:   null,
-  text:              'DRMVYZ',
+  sourceType:          'classic',
+  classicMode:         'sectionAuto',
+  builtinShape:        'circle',
+  selectedGlyphId:     null,
+  selectedSvgVisualId: null,
+  text:                'DRMVYZ',
   textFontId:        null,
   textFontSize:      160,
   textLetterSpacing: 0,

@@ -217,8 +217,11 @@ describe('parseSvgToGlyphPoints', () => {
     expect(parseSvgToGlyphPoints(TWO_PATH_SVG, RESOLUTION)).toHaveLength(RESOLUTION)
   })
 
-  it('falls back to a circle when no <path> elements exist', () => {
-    expect(parseSvgToGlyphPoints(NO_PATH_SVG, RESOLUTION)).toHaveLength(RESOLUTION)
+  it('compiles <rect> primitive — no <path> needed for non-zero output', () => {
+    // NO_PATH_SVG contains a <rect> which is now compiled directly
+    const pts = parseSvgToGlyphPoints(NO_PATH_SVG, RESOLUTION)
+    expect(pts).toHaveLength(RESOLUTION)
+    expect(pts.every(p => Number.isFinite(p.x) && Number.isFinite(p.y))).toBe(true)
   })
 
   it('falls back to a circle for completely invalid SVG', () => {
