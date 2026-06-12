@@ -4,6 +4,7 @@ import { hexToRgba, getOrCreateOffscreen, seededRandom } from './reactRenderUtil
 import { generateBuiltinShapePoints, clamp } from './oscillatorPathUtils'
 import { textToGlyphPoints } from './textGlyphUtils'
 import { getSvgVisualEntry } from './svgVisualCache'
+import { getSvgGlyphCacheKey } from './svgGlyphUtils'
 // parseSvgToGlyphPoints is intentionally NOT imported here.
 // SVG parsing happens at upload/select/resolution-change time in reactStore.ts.
 // This renderer only reads pre-prepared points from params.oscillatorGlyphPointCache.
@@ -51,7 +52,7 @@ function modeForSection(type: ReactSectionType | null): ScopeMode {
 // Key structure:
 //   builtin:<shape>:<resolution>   — deterministic; changes only when shape or res changes
 //   text:<trimmedText>:<resolution> — trimmed so whitespace-only edits don't invalidate
-//   svg:<asset.id>:<resolution>    — asset.id is a content-hash so same SVG = same key
+//   svg:<asset.id>:<resolution>:v<compilerVersion>  — versioned; see getSvgGlyphCacheKey
 //   builtin:circle:<resolution>    — sentinel for svgGlyph with no selection / bad SVG
 //
 // LRU eviction: when the cache reaches PATH_CACHE_MAX entries the oldest entry
@@ -117,8 +118,7 @@ function getOscillatorPathPoints(params: ReactRenderParams): OscillatorGlyphPoin
       const asset = glyphId ? params.oscillatorGlyphAssets.find(a => a.id === glyphId) : undefined
       if (asset) {
         // Read from the pre-parsed cache populated by reactStore at upload/select/resolution-change time.
-        // Key format: "${assetId}:${resolution}" — matches the key written by reactStore.ts.
-        const cacheKey = `${asset.id}:${res}`
+        const cacheKey = getSvgGlyphCacheKey(asset.id, res, asset.contentHash)
         const prepared = params.oscillatorGlyphPointCache[cacheKey]
         if (prepared) return prepared
         // Points not yet prepared (e.g. first frame after page reload before any interaction).

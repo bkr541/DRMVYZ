@@ -20,7 +20,7 @@ import {
   parseSvgToGlyphPoints,
   makeSvgGlyphAsset,
   isSvgContent,
-  SVG_GLYPH_COMPILER_VERSION,
+  getSvgGlyphCacheKey,
 } from '../components/vyzualz/react/renderers/svgGlyphUtils'
 import {
   getSvgVisualEntry,
@@ -37,16 +37,12 @@ import {
 } from '../components/vyzualz/react/renderers/fontGlyphUtils'
 
 // ── Point cache helpers ───────────────────────────────────────────────────────
-// SVG cache key: "${assetId}:${resolution}:v${SVG_GLYPH_COMPILER_VERSION}"
+// SVG cache key:  getSvgGlyphCacheKey(assetId, resolution) → "${assetId}:${resolution}:v${version}"
 // Text cache key: "${fontId}:${text}:${fontSize}:${letterSpacing}:${resolution}"
 // Resolution is clamped to [64, 2048] matching the renderer's own clamp.
 
 function clampRes(v: number): number {
   return Math.max(64, Math.min(2048, Math.round(v)))
-}
-
-function glyphCacheKey(assetId: string, res: number): string {
-  return `${assetId}:${res}:v${SVG_GLYPH_COMPILER_VERSION}`
 }
 
 function textCacheKey(fontId: string, text: string, fontSize: number, spacing: number, res: number): string {
@@ -59,9 +55,37 @@ function prepareSvgPoints(
   cache: Record<string, OscillatorGlyphPoint[]>,
 ): Record<string, OscillatorGlyphPoint[]> {
   if (!asset.rawSvg) return cache
-  const key = glyphCacheKey(asset.id, res)
+  const key = getSvgGlyphCacheKey(asset.id, res, asset.contentHash)
   if (cache[key]) return cache  // already prepared
   return { ...cache, [key]: parseSvgToGlyphPoints(asset.rawSvg, res) }
+}
+
+// ── Debounced SVG glyph recompile (resolution slider) ─────────────────────────
+// When the user drags the Resolution slider, setOscillatorSettings fires on every
+// tick. Compiling SVG points synchronously would stall the UI. Instead, the
+// settings update immediately (slider feels responsive) and the compile fires once
+// after the user stops dragging.
+
+let _glyphRecompileTimer: ReturnType<typeof setTimeout> | null = null
+const GLYPH_RECOMPILE_DEBOUNCE_MS = 220
+
+function scheduleGlyphRecompile(): void {
+  if (_glyphRecompileTimer !== null) clearTimeout(_glyphRecompileTimer)
+  _glyphRecompileTimer = setTimeout(() => {
+    _glyphRecompileTimer = null
+    const s = useReactStore.getState()
+    const { oscillatorSettings: osc } = s
+    if (osc.sourceType !== 'svgGlyph' || !osc.selectedGlyphId) return
+    const asset = s.oscillatorGlyphAssets.find(a => a.id === osc.selectedGlyphId)
+    if (!asset) return
+    const res = clampRes(osc.pathResolution)
+    const key = getSvgGlyphCacheKey(asset.id, res, asset.contentHash)
+    if (s.oscillatorGlyphPointCache[key]) return  // already compiled at this resolution
+    const newCache = prepareSvgPoints(asset, res, s.oscillatorGlyphPointCache)
+    if (newCache !== s.oscillatorGlyphPointCache) {
+      useReactStore.setState({ oscillatorGlyphPointCache: newCache })
+    }
+  }, GLYPH_RECOMPILE_DEBOUNCE_MS)
 }
 
 function prepareTextPoints(
@@ -352,10 +376,11 @@ export const useReactStore = create<ReactStoreState>()(
           let newGlyphCache = s.oscillatorGlyphPointCache
           let newTextCache  = s.oscillatorTextPointCache
 
-          // Re-prepare SVG glyph points when pathResolution changes while a glyph is active.
+          // When pathResolution changes while a glyph is active, debounce the recompile so
+          // slider dragging does not synchronously stall the UI on every tick.
+          // The renderer uses the previous compiled points until the debounce fires.
           if ('pathResolution' in patch && newSettings.sourceType === 'svgGlyph' && newSettings.selectedGlyphId) {
-            const asset = s.oscillatorGlyphAssets.find(a => a.id === newSettings.selectedGlyphId)
-            if (asset) newGlyphCache = prepareSvgPoints(asset, clampRes(newSettings.pathResolution), newGlyphCache)
+            scheduleGlyphRecompile()
           }
 
           // Re-prepare OpenType text points when any text-relevant field changes.
@@ -540,9 +565,12 @@ export const useReactStore = create<ReactStoreState>()(
           },
         }))
 
-        // Already cached and loaded — nothing to do
+        // Already loaded — nothing to do
         const existing = getSvgVisualEntry(mediaId)
-        if (existing?.loaded || existing?.error) return
+        if (existing?.loaded) return
+        // Clear a stale error entry so a fresh load can proceed (enables retry
+        // after network failure, expired signed URL, or temporary Supabase issues).
+        if (existing?.error) evictSvgVisual(mediaId)
 
         // Mark as loading so the renderer knows a fetch is in progress
         setSvgVisualEntry({ id: mediaId, image: null, objectUrl: null, loaded: false, error: null, width: 0, height: 0 })

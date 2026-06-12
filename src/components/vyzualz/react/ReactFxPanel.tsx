@@ -51,6 +51,9 @@ export function ReactFxPanel() {
   const isCinematic    = activeReactEngineId === 'cinematicPortal'
   const isShaderPads   = activeReactEngineId === 'shaderPads'
 
+  // SVG Visual is a pure image display mode — point-path controls have no effect on it.
+  const isSvgVisual = isSoundDrawing && osc.sourceType === 'svgVisual'
+
   return (
     <>
       <div className="rv-ctrl-group">
@@ -63,62 +66,85 @@ export function ReactFxPanel() {
 
         {/* ── Engine Appearance: Oscilloscope ─────────────────────────── */}
         {isSoundDrawing && (
-          <>
-            <CtrlSection label="Sound Drawing" />
-            <SliderRow
-              label="Trail Decay"
-              value={reactTrailDecay}
-              onChange={setReactTrailDecay}
-              color="#4ac7db"
-            />
-
-            <SelectRow
-              label="Render Mode"
-              value={osc.renderMode}
-              onChange={v => set({ renderMode: v as OscillatorRenderMode })}
-              options={[
-                { value: 'outline',    label: 'Outline' },
-                { value: 'multiTrace', label: 'Multi Trace' },
-                { value: 'dots',       label: 'Dots' },
-                { value: 'ribbon',     label: 'Ribbon' },
-              ]}
-            />
-            <SliderRow
-              label="Duplicate Traces"
-              value={osc.duplicateTraces}
-              onChange={v => set({ duplicateTraces: Math.round(v) })}
-              min={1} max={6} step={1}
-              color="#61d6aa"
-            />
-
-            <Collapsible label="Path">
+          isSvgVisual ? (
+            // SVG Visual: only scale and rotation affect rendering.
+            // Trail, render mode, duplicate traces, and mirror are point-path features
+            // that do nothing when displaying a native SVG image.
+            <>
+              <CtrlSection label="SVG Visual" />
+              <Collapsible label="Transform" defaultOpen>
+                <SliderRow
+                  label="Scale"
+                  value={osc.pathScale}
+                  onChange={v => set({ pathScale: v })}
+                  min={0.1} max={1.5} step={0.01}
+                  color="#61d6aa"
+                />
+                <SliderRow
+                  label="Rotation Speed"
+                  value={osc.rotationSpeed}
+                  onChange={v => set({ rotationSpeed: v })}
+                  min={-1} max={1} step={0.01}
+                  color="#d8b95a"
+                />
+              </Collapsible>
+            </>
+          ) : (
+            // Built-in Shape, Text, SVG Glyph: full point-path controls
+            <>
+              <CtrlSection label="Sound Drawing" />
               <SliderRow
-                label="Scale"
-                value={osc.pathScale}
-                onChange={v => set({ pathScale: v })}
-                min={0.1} max={1.5} step={0.01}
+                label="Trail Decay"
+                value={reactTrailDecay}
+                onChange={setReactTrailDecay}
+                color="#4ac7db"
+              />
+              <SelectRow
+                label="Render Mode"
+                value={osc.renderMode}
+                onChange={v => set({ renderMode: v as OscillatorRenderMode })}
+                options={[
+                  { value: 'outline',    label: 'Outline' },
+                  { value: 'multiTrace', label: 'Multi Trace' },
+                  { value: 'dots',       label: 'Dots' },
+                  { value: 'ribbon',     label: 'Ribbon' },
+                ]}
+              />
+              <SliderRow
+                label="Duplicate Traces"
+                value={osc.duplicateTraces}
+                onChange={v => set({ duplicateTraces: Math.round(v) })}
+                min={1} max={6} step={1}
                 color="#61d6aa"
               />
-              <SliderRow
-                label="Rotation Speed"
-                value={osc.rotationSpeed}
-                onChange={v => set({ rotationSpeed: v })}
-                min={-1} max={1} step={0.01}
-                color="#d8b95a"
-              />
-              <ToggleRow label="Mirror X" value={osc.mirrorX} onChange={v => set({ mirrorX: v })} />
-              <ToggleRow label="Mirror Y" value={osc.mirrorY} onChange={v => set({ mirrorY: v })} />
-            </Collapsible>
-
-            <button
-              type="button"
-              className="rv-osc-reset-btn"
-              onClick={resetOscillatorSettings}
-              title="Reset oscillator source settings to defaults"
-            >
-              Reset Source
-            </button>
-          </>
+              <Collapsible label="Path">
+                <SliderRow
+                  label="Scale"
+                  value={osc.pathScale}
+                  onChange={v => set({ pathScale: v })}
+                  min={0.1} max={1.5} step={0.01}
+                  color="#61d6aa"
+                />
+                <SliderRow
+                  label="Rotation Speed"
+                  value={osc.rotationSpeed}
+                  onChange={v => set({ rotationSpeed: v })}
+                  min={-1} max={1} step={0.01}
+                  color="#d8b95a"
+                />
+                <ToggleRow label="Mirror X" value={osc.mirrorX} onChange={v => set({ mirrorX: v })} />
+                <ToggleRow label="Mirror Y" value={osc.mirrorY} onChange={v => set({ mirrorY: v })} />
+              </Collapsible>
+              <button
+                type="button"
+                className="rv-osc-reset-btn"
+                onClick={resetOscillatorSettings}
+                title="Reset oscillator source settings to defaults"
+              >
+                Reset Source
+              </button>
+            </>
+          )
         )}
 
         {/* ── Engine Appearance: Cinematic Portal ─────────────────────── */}

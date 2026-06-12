@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore } from '../../../stores/mediaStore'
@@ -8,7 +8,7 @@ import {
   SliderRow, SelectRow, ToggleRow, TextInputRow,
   CtrlSection, Collapsible,
 } from './ReactControlRows'
-import { SVG_GLYPH_COMPILER_VERSION } from './renderers/svgGlyphUtils'
+import { getSvgGlyphCacheKey } from './renderers/svgGlyphUtils'
 import { getSvgVisualEntry } from './renderers/svgVisualCache'
 import type {
   ReactEngineId,
@@ -93,7 +93,7 @@ function OscillatorStatusCard({
   // Prefer the live compiled count from the point cache over the stored asset count,
   // since the compiler version may have changed since the asset was last imported.
   const compiledPointCount = selectedGlyph
-    ? (glyphCache[`${selectedGlyph.id}:${osc.pathResolution}:v${SVG_GLYPH_COMPILER_VERSION}`]?.length
+    ? (glyphCache[getSvgGlyphCacheKey(selectedGlyph.id, osc.pathResolution, selectedGlyph.contentHash)]?.length
       ?? selectedGlyph.pointCount)
     : 0
 
@@ -237,17 +237,8 @@ export function ReactEnginePanel() {
   const osc = oscillatorSettings
   const set = setOscillatorSettings
 
-  // Re-hydrate the SVG visual image cache on mount in case the window was
-  // refreshed and the module-level cache was cleared.
-  useEffect(() => {
-    const { oscillatorSettings: s, selectSvgVisual: sel } = useReactStore.getState()
-    if (s.sourceType === 'svgVisual' && s.selectedSvgVisualId) {
-      const entry = getSvgVisualEntry(s.selectedSvgVisualId)
-      if (!entry || (!entry.loaded && !entry.error)) {
-        sel(s.selectedSvgVisualId)
-      }
-    }
-  }, [])
+  // SVG Visual rehydration is handled by useSvgVisualRehydration in ReactView —
+  // that hook always runs regardless of which panel tab is active.
 
   const allMediaItems   = useMediaStore(s => s.items)
   const svgMediaItems   = allMediaItems.filter(m => m.mediaRole === 'svg' || isSvgFilename(m.name))

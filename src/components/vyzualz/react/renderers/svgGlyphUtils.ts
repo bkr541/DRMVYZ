@@ -11,6 +11,36 @@ import {
 /** Bump when the sampling algorithm changes to invalidate stale cache entries. */
 export const SVG_GLYPH_COMPILER_VERSION = '2'
 
+/** Canonical cache key for a compiled SVG glyph entry in oscillatorGlyphPointCache. */
+export function getSvgGlyphCacheKey(
+  assetId: string,
+  resolution: number,
+  contentHash?: string,
+): string {
+  const h = contentHash ?? 'nohash'
+  return `${assetId}:${resolution}:v${SVG_GLYPH_COMPILER_VERSION}:${h}`
+}
+
+// ── Compile options ───────────────────────────────────────────────────────────
+
+export interface SvgGlyphCompileOptions {
+  /** Minimum path arc length as a fraction of total arc length sum. Paths below this are discarded. */
+  minPathLength?: number
+  /** Preferred minimum point count per retained path. Used to cap path count to fit budget. */
+  minPointCountPerPath?: number
+  /** Hard cap on points per path after proportional allocation. */
+  maxPointCountPerPath?: number
+  /** When true, discard paths shorter than minPathLength * totalLength. */
+  discardTinyPaths?: boolean
+}
+
+const COMPILE_DEFAULTS: Required<SvgGlyphCompileOptions> = {
+  minPathLength:        0.001,  // 0.1% of total arc length sum
+  minPointCountPerPath: 3,
+  maxPointCountPerPath: 512,
+  discardTinyPaths:     true,
+}
+
 // ── Hash ──────────────────────────────────────────────────────────────────────
 
 /** FNV-1a 32-bit hash — deterministic, collision-resistant for short strings. */
@@ -20,6 +50,14 @@ export function hashString(input: string): string {
     h = Math.imul(h ^ input.charCodeAt(i), 0x01000193)
   }
   return (h >>> 0).toString(16).padStart(8, '0')
+}
+
+/**
+ * Returns a short deterministic hash of SVG text content.
+ * Used to detect when the same media-backed asset has changed content.
+ */
+export function getSvgContentHash(rawSvg: string): string {
+  return hashString(rawSvg)
 }
 
 // ── SVG content detection ─────────────────────────────────────────────────────
@@ -172,19 +210,118 @@ function pointsToPathData(pts: Array<[number, number]>, close: boolean): string 
 // ── Compound path splitting ───────────────────────────────────────────────────
 
 /**
- * Splits a compound path d-string (one with multiple M commands) into individual
- * subpath strings, each beginning with its own M command.
- * Single-subpath paths are returned as-is in a one-element array.
+ * Splits a compound SVG path d-string into individual subpaths.
+ *
+ * Improvements over the previous regex split:
+ * - Proper tokenizer that handles scientific notation (1e-5) without false splits.
+ * - Tracks cursor position so relative `m` subpath starts are resolved to
+ *   absolute `M` coordinates before being passed to svgPathProperties.
+ * - Handles multiple coordinate pairs after M/m (implicit lineto).
+ * - Does not throw on malformed input — returns whatever was parsed successfully.
  */
 function splitCompoundPath(d: string): string[] {
-  const segments = d.match(/[Mm][^Mm]*/g) ?? []
-  return segments.map(s => s.trim()).filter(s => s.length > 1)
+  if (!d || !d.trim()) return []
+
+  // Tokenize: find command letter positions, extract numeric args between them.
+  // Number pattern handles integers, decimals, and scientific notation (e.g. 1.5e-3).
+  const numPat = /[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/g
+  const cmdPat = /[MmLlHhVvCcSsQqTtAaZz]/g
+
+  const cmdMatches: Array<{ index: number; cmd: string }> = []
+  let cm: RegExpExecArray | null
+  cmdPat.lastIndex = 0
+  while ((cm = cmdPat.exec(d)) !== null) {
+    cmdMatches.push({ index: cm.index, cmd: cm[0] })
+  }
+  if (cmdMatches.length === 0) return []
+
+  const tokens: Array<{ cmd: string; args: number[] }> = cmdMatches.map(({ index, cmd }, i) => {
+    const end = i + 1 < cmdMatches.length ? cmdMatches[i + 1].index : d.length
+    const segment = d.slice(index + 1, end)
+    numPat.lastIndex = 0
+    const args: number[] = []
+    let nm: RegExpExecArray | null
+    while ((nm = numPat.exec(segment)) !== null) {
+      const v = parseFloat(nm[0])
+      if (Number.isFinite(v)) args.push(v)
+    }
+    return { cmd, args }
+  })
+
+  // Walk tokens, tracking cursor, split at each M/m into separate subpaths.
+  let cx = 0, cy = 0   // current point
+  let sx = 0, sy = 0   // current subpath start (for Z closepath)
+  const subpaths: string[] = []
+  let cur = ''
+
+  function flushCurrent() {
+    const t = cur.trim()
+    if (t.length > 1) subpaths.push(t)
+    cur = ''
+  }
+
+  // Update cx/cy after any non-M command (simplified: uses last 2 args as endpoint).
+  // For H/V we only update one axis. For Z we reset to subpath start.
+  function trackCursor(cmd: string, args: number[]) {
+    const upper = cmd.toUpperCase()
+    const rel   = cmd !== upper
+    switch (upper) {
+      case 'H':
+        if (args.length) cx = rel ? cx + args[args.length - 1] : args[args.length - 1]
+        break
+      case 'V':
+        if (args.length) cy = rel ? cy + args[args.length - 1] : args[args.length - 1]
+        break
+      case 'Z':
+        cx = sx; cy = sy
+        break
+      default: {
+        const n = args.length
+        if (n >= 2) {
+          const lx = args[n - 2], ly = args[n - 1]
+          if (rel) { cx += lx; cy += ly } else { cx = lx; cy = ly }
+        }
+      }
+    }
+  }
+
+  for (const { cmd, args } of tokens) {
+    const upper = cmd.toUpperCase()
+    const rel   = cmd !== upper
+
+    if (upper === 'M') {
+      flushCurrent()
+      // Process coordinate pairs: first pair = absolute start, rest = implicit L
+      for (let i = 0; i + 1 < args.length; i += 2) {
+        const ax = rel ? cx + args[i] : args[i]
+        const ay = rel ? cy + args[i + 1] : args[i + 1]
+        if (i === 0) {
+          // Always emit absolute M for the subpath start so svgPathProperties works correctly
+          cur = `M ${ax} ${ay}`
+          sx = ax; sy = ay
+        } else {
+          // Subsequent pairs are implicit lineto (absolute)
+          cur += ` L ${ax} ${ay}`
+        }
+        cx = ax; cy = ay
+      }
+    } else if (upper === 'Z') {
+      cur += ' Z'
+      cx = sx; cy = sy
+    } else {
+      // Append command and args as-is; track cursor for correct relative-m resolution
+      cur += args.length ? ` ${cmd} ${args.join(' ')}` : ` ${cmd}`
+      trackCursor(cmd, args)
+    }
+  }
+  flushCurrent()
+  return subpaths
 }
 
 // ── Internal raw-subpath extraction ──────────────────────────────────────────
 
 interface RawSubpath {
-  data: string  // single subpath d-string (starts with M)
+  data: string  // single subpath d-string (starts with absolute M)
   ctm: M2D      // composed transform from SVG root to this element
 }
 
@@ -351,26 +488,54 @@ function compileSubpathsRegex(rawSvg: string): RawSubpath[] {
   return result
 }
 
-// ── Point-count allocation (largest-remainder method) ────────────────────────
+// ── Point-count allocation ────────────────────────────────────────────────────
 
-function allocateCounts(lengths: number[], total: number): number[] {
+/**
+ * Distributes `total` points across paths proportionally to their arc lengths.
+ *
+ * Pre-condition: lengths.length <= total  (enforced by the caller).
+ * This guarantees every path can receive at least 1 point.
+ *
+ * Uses the largest-remainder method so the sum equals `total` exactly.
+ */
+function allocateCounts(lengths: number[], total: number, maxPerPath: number): number[] {
+  const n = lengths.length
+  if (n === 0 || total <= 0) return []
+  if (n === 1) return [Math.min(total, maxPerPath)]
+
   const sum = lengths.reduce((a, b) => a + b, 0)
-  if (sum === 0) {
-    const base = Math.max(1, Math.floor(total / lengths.length))
-    return lengths.map(() => base)
-  }
-  const floats = lengths.map(l => Math.max(1, (l / sum) * total))
-  const counts = floats.map(v => Math.floor(v))
-  let remainder = total - counts.reduce((a, b) => a + b, 0)
-  // Distribute remaining slots to paths with largest fractional parts
-  const order = floats
+
+  const floats = sum === 0
+    ? lengths.map(() => total / n)
+    : lengths.map(l => Math.min(maxPerPath, (l / sum) * total))
+
+  // Floor and enforce per-path minimum of 1
+  const counts = floats.map(v => Math.max(1, Math.floor(v)))
+
+  // Adjust to hit total exactly via largest-remainder
+  let diff = total - counts.reduce((a, b) => a + b, 0)
+
+  const byFrac = floats
     .map((v, i) => ({ i, frac: v - Math.floor(v) }))
     .sort((a, b) => b.frac - a.frac)
-  for (const { i } of order) {
-    if (remainder <= 0) break
-    counts[i]++
-    remainder--
+
+  for (const { i } of byFrac) {
+    if (diff === 0) break
+    if (diff > 0 && counts[i] < maxPerPath) {
+      counts[i]++; diff--
+    } else if (diff < 0 && counts[i] > 1) {
+      counts[i]--; diff++
+    }
   }
+
+  // Safety pass: if still off (edge cases with maxPerPath), brute-force balance
+  if (diff !== 0) {
+    for (let i = 0; i < n && diff !== 0; i++) {
+      if (diff > 0 && counts[i] < maxPerPath) { counts[i]++; diff-- }
+      else if (diff < 0 && counts[i] > 1)      { counts[i]--; diff++ }
+    }
+  }
+
   return counts
 }
 
@@ -471,16 +636,15 @@ function fallbackCircle(resolution: number): OscillatorGlyphPoint[] {
 /**
  * Parses a raw SVG string into a normalized, centered array of glyph points.
  *
- * Improvements over the previous implementation:
- * - Compound paths (multiple M commands in one <path>) are split into separate
- *   subpaths, each with its own pathIndex, preventing connector lines.
- * - Primitive elements (<rect>, <circle>, <ellipse>, <line>, <polyline>,
- *   <polygon>) are converted to path data and compiled alongside <path> elements.
- * - Points are distributed proportionally to each subpath's arc length instead
- *   of evenly by path count.
- * - SVG transform attributes are composed and applied in the browser path
- *   (DOMParser only; transforms are ignored in the Node/regex fallback).
- * - Global normalization: the entire glyph is centered and scaled as a unit.
+ * Pipeline:
+ * 1. Compile all subpaths (browser: DOMParser + CTM transforms; Node: regex)
+ * 2. Measure arc lengths; discard degenerate/zero-length subpaths
+ * 3. Filter tiny/noise paths (dust, speckles) relative to total arc length
+ * 4. Cap path count so total points stay near `resolution`
+ * 5. Allocate points proportionally to arc length (largest-remainder, exact total)
+ * 6. Sample each subpath and apply element CTM if non-identity
+ * 7. Global normalize (scale entire glyph to max radius = 1)
+ * 8. Compute normals independently per pathIndex group (no cross-path bleed)
  *
  * Falls back to a unit circle when no compilable shapes are found or parsing fails.
  * Run once during import/selection — never inside the draw loop.
@@ -488,11 +652,13 @@ function fallbackCircle(resolution: number): OscillatorGlyphPoint[] {
 export function parseSvgToGlyphPoints(
   rawSvg: string,
   resolution: number,
+  options?: SvgGlyphCompileOptions,
 ): OscillatorGlyphPoint[] {
-  const n = Math.max(1, Math.round(resolution))
+  const n    = Math.max(1, Math.round(resolution))
+  const opts: Required<SvgGlyphCompileOptions> = { ...COMPILE_DEFAULTS, ...options }
 
   try {
-    // 1. Compile all subpaths (browser uses DOMParser + transforms; Node uses regex)
+    // 1. Compile all subpaths
     let subpaths: RawSubpath[]
     if (typeof DOMParser !== 'undefined') {
       try {
@@ -506,12 +672,15 @@ export function parseSvgToGlyphPoints(
     }
 
     if (subpaths.length === 0) {
-      console.warn('[DRMVYZ] parseSvgToGlyphPoints: No compilable shapes found. Falling back to circle.')
+      if (import.meta.env.DEV) {
+        console.warn('[DRMVYZ] parseSvgToGlyphPoints: No compilable shapes found — falling back to circle.')
+      }
       return fallbackCircle(n)
     }
 
-    // 2. Measure arc lengths; discard zero-length or degenerate subpaths
-    const measured = subpaths.flatMap(sp => {
+    // 2. Measure arc lengths; discard degenerate/zero-length subpaths
+    type MeasuredSubpath = RawSubpath & { props: InstanceType<typeof svgPathProperties>; length: number }
+    const measured: MeasuredSubpath[] = subpaths.flatMap(sp => {
       try {
         const props = new svgPathProperties(sp.data)
         const length = props.getTotalLength()
@@ -524,14 +693,52 @@ export function parseSvgToGlyphPoints(
 
     if (measured.length === 0) return fallbackCircle(n)
 
-    // 3. Allocate points proportionally to arc length
-    const counts = allocateCounts(measured.map(sp => sp.length), n)
+    // 3. Filter tiny paths (dust, speckles, zero-area shapes)
+    let retained = measured
+    if (opts.discardTinyPaths && measured.length > 1) {
+      const totalLen = measured.reduce((s, p) => s + p.length, 0)
+      const threshold = opts.minPathLength * totalLen
+      const filtered = measured.filter(p => p.length >= threshold)
+      if (filtered.length > 0) {
+        if (import.meta.env.DEV && filtered.length < measured.length) {
+          console.info(
+            `[DRMVYZ] SVG compiler: discarded ${measured.length - filtered.length} tiny path(s)` +
+            ` (${filtered.length} retained, threshold = ${(opts.minPathLength * 100).toFixed(2)}% of total length)`,
+          )
+        }
+        retained = filtered
+      }
+    }
 
-    // 4. Sample each subpath and apply the element's CTM if non-trivial
+    // 4. Cap path count so allocation can guarantee ≥ 1 point per path.
+    //    Keep the longest paths (most visually important) when trimming.
+    const maxPaths = Math.max(1, Math.floor(n / opts.minPointCountPerPath))
+    if (retained.length > maxPaths) {
+      // Sort by length descending to identify paths to keep, then restore draw order
+      const sortedDesc = retained.slice().sort((a, b) => b.length - a.length)
+      const keepSet = new Set(sortedDesc.slice(0, maxPaths))
+      retained = retained.filter(p => keepSet.has(p))
+      if (import.meta.env.DEV) {
+        console.info(
+          `[DRMVYZ] SVG compiler: capped to ${retained.length} paths` +
+          ` (budget: ${n} pts / ${opts.minPointCountPerPath} min-per-path = ${maxPaths} max paths)`,
+        )
+      }
+    }
+
+    // 5. Allocate points proportionally to arc length (total will equal n exactly)
+    const counts = allocateCounts(
+      retained.map(p => p.length),
+      n,
+      opts.maxPointCountPerPath,
+    )
+
+    // 6. Sample each subpath and apply element CTM if non-identity
     const raw: OscillatorGlyphPoint[] = []
-    for (let j = 0; j < measured.length; j++) {
-      const { props, ctm, length } = measured[j]
+    for (let j = 0; j < retained.length; j++) {
+      const { props, ctm, length } = retained[j]
       const count = counts[j]
+      if (count <= 0) continue
       const hasCTM = !isIdentityM2D(ctm)
       for (let k = 0; k < count; k++) {
         const progress = count > 1 ? k / (count - 1) : 0
@@ -544,11 +751,32 @@ export function parseSvgToGlyphPoints(
 
     if (raw.length === 0) return fallbackCircle(n)
 
-    // 5. Global normalize (center + scale entire glyph as one unit)
+    // 7. Global normalize (center + scale entire glyph as one unit)
     const normalized = normalizePointCloud(raw)
 
-    // 6. Recompute normals via central differences
-    return computePathNormals(normalized, false)
+    // 8. Compute normals per pathIndex group — prevents cross-path tangent bleed.
+    //    Audio displacement, jitter, and ribbon effects use these normals, so
+    //    computing them across the full flat array would corrupt boundary points.
+    const grouped = new Map<number, OscillatorGlyphPoint[]>()
+    for (const p of normalized) {
+      const arr = grouped.get(p.pathIndex)
+      if (arr) {
+        arr.push(p)
+      } else {
+        grouped.set(p.pathIndex, [p])
+      }
+    }
+
+    const result: OscillatorGlyphPoint[] = []
+    const sortedKeys = Array.from(grouped.keys()).sort((a, b) => a - b)
+    for (const key of sortedKeys) {
+      const group = grouped.get(key)!
+      // Sort by progress within the group (should already be in order, but guard anyway)
+      group.sort((a, b) => a.progress - b.progress)
+      result.push(...computePathNormals(group, false))
+    }
+
+    return result
 
   } catch {
     return fallbackCircle(n)
@@ -560,6 +788,7 @@ export function parseSvgToGlyphPoints(
 /**
  * Creates an OscillatorGlyphAsset from a raw SVG string.
  * The id is derived from the SVG content hash and is stable across sessions.
+ * contentHash is stored separately for use in versioned cache key lookups.
  */
 export function makeSvgGlyphAsset(
   name: string,
@@ -567,13 +796,15 @@ export function makeSvgGlyphAsset(
   resolution: number,
   idOverride?: string,
 ): OscillatorGlyphAsset {
+  const contentHash = getSvgContentHash(rawSvg)
   const points = parseSvgToGlyphPoints(rawSvg, resolution)
   return {
-    id:         idOverride ?? `glyph-${hashString(rawSvg)}`,
+    id:          idOverride ?? `glyph-${contentHash}`,
     name,
-    sourceType: 'svgGlyph',
+    sourceType:  'svgGlyph',
     rawSvg,
-    pointCount: points.length,
-    createdAt:  new Date().toISOString(),
+    contentHash,
+    pointCount:  points.length,
+    createdAt:   new Date().toISOString(),
   }
 }

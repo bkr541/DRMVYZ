@@ -22,6 +22,7 @@ import { RailTabs } from '../layout/RailTabs'
 import type { RailTabOption } from '../layout/RailTabs'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
 import { MediaDeckPanel } from '../media/MediaDeckPanel'
+import { useSvgVisualRehydration } from './useSvgVisualRehydration'
 import '../../../styles/reactView.css'
 
 type ReactLeftTab  = 'media' | 'layers' | 'sessions' | 'engines'
@@ -55,6 +56,10 @@ function readLS<T>(key: string, fallback: T): T {
 export function ReactView() {
   const engine   = useSharedAudio()
   const analyser = engine.analyserMaster
+
+  // Rehydrate SVG Visual cache whenever the selected visual changes or the view mounts.
+  // Placed here so it runs regardless of which right-panel tab is open.
+  useSvgVisualRehydration()
 
   const {
     reactPresets,

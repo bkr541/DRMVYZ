@@ -28,6 +28,8 @@ export interface OscillatorGlyphAsset {
   name: string
   sourceType: 'builtinShape' | 'text' | 'svgGlyph'
   rawSvg?: string
+  /** FNV-1a hash of rawSvg. Present on all SVG glyph assets created after compiler v2. */
+  contentHash?: string
   text?: string
   shape?: BuiltinOscillatorShape
   pointCount: number
