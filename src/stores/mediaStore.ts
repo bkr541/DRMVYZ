@@ -785,6 +785,14 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     const visual = useVisualStore.getState()
     if (visual.activeMediaId === id) visual.setActiveMedia(remaining[0]?.id ?? null)
 
+    // Clean up any SVG glyph asset that was backed by this media item
+    ;(async () => {
+      try {
+        const { useReactStore } = await import('./reactStore')
+        useReactStore.getState().removeOscillatorGlyphAsset(`glyph-media:${id}`)
+      } catch { /* non-fatal */ }
+    })()
+
     if (item.dbId && supabaseConfigured) {
       const storagePaths = [
         item.storagePath,

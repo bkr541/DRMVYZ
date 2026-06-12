@@ -546,6 +546,33 @@
   padding-top: 1px;
 }
 
+/* ── Glyph lost notice ───────────────────────────────────────────────────────── */
+.rv-glyph-lost-notice {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  background: rgba(216, 185, 90, 0.08);
+  border: 1px solid rgba(216, 185, 90, 0.28);
+  border-radius: 4px;
+  font-size: 9.5px;
+  color: rgba(216, 185, 90, 0.9);
+  line-height: 1.4;
+}
+.rv-glyph-lost-dismiss {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: rgba(216, 185, 90, 0.6);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 2px;
+}
+.rv-glyph-lost-dismiss:hover { color: rgba(216, 185, 90, 1); }
+
 /* ── Oscillator reset button ─────────────────────────────────────────────────── */
 .rv-osc-reset-btn {
   width: 100%;

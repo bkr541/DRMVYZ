@@ -159,6 +159,8 @@ export function ReactEnginePanel() {
     addOscillatorFontAsset,
     removeOscillatorFontAsset,
     selectOscillatorFont,
+    glyphLostNotice,
+    clearGlyphLostNotice,
   } = useReactStore(useShallow(s => ({
     activeReactEngineId:       s.activeReactEngineId,
     selectReactEngine:         s.selectReactEngine,
@@ -170,6 +172,8 @@ export function ReactEnginePanel() {
     addOscillatorFontAsset:    s.addOscillatorFontAsset,
     removeOscillatorFontAsset: s.removeOscillatorFontAsset,
     selectOscillatorFont:      s.selectOscillatorFont,
+    glyphLostNotice:           s.glyphLostNotice,
+    clearGlyphLostNotice:      s.clearGlyphLostNotice,
   })))
 
   const osc = oscillatorSettings
@@ -256,6 +260,24 @@ export function ReactEnginePanel() {
       {activeReactEngineId === 'oscilloscope' && (
         <>
           <CtrlSection label="Engine Mode" />
+
+          {glyphLostNotice && (
+            <div className="rv-glyph-lost-notice">
+              <span>
+                <strong>"{glyphLostNotice}"</strong> was removed from your library.
+                Select a new source below.
+              </span>
+              <button
+                type="button"
+                className="rv-glyph-lost-dismiss"
+                onClick={clearGlyphLostNotice}
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
           <OscillatorStatusCard
             osc={osc}
             glyphAssets={oscillatorGlyphAssets}

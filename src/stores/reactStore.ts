@@ -188,6 +188,11 @@ interface ReactStoreState {
   setOscillatorSettings: (patch: Partial<OscillatorSettings>) => void
   resetOscillatorSettings: () => void
 
+  // Transient notice shown when the active SVG glyph's source media was deleted.
+  // Stores the deleted glyph's display name so the UI can show "X was removed".
+  glyphLostNotice: string | null
+  clearGlyphLostNotice: () => void
+
   // Uploaded SVG glyph assets (persisted)
   oscillatorGlyphAssets: OscillatorGlyphAsset[]
   addOscillatorGlyphAsset: (asset: OscillatorGlyphAsset) => void
@@ -235,6 +240,7 @@ export const useReactStore = create<ReactStoreState>()(
       oscillatorGlyphPointCache: {},
       oscillatorFontAssets: [],
       oscillatorTextPointCache: {},
+      glyphLostNotice: null,
       reactIntensity:       0.7,
       reactMotion:          0.5,
       reactGlow:            0.65,
@@ -345,14 +351,18 @@ export const useReactStore = create<ReactStoreState>()(
           }
 
           return {
-            oscillatorSettings:      newSettings,
+            oscillatorSettings:        newSettings,
             oscillatorGlyphPointCache: newGlyphCache,
             oscillatorTextPointCache:  newTextCache,
+            // Clear the notice whenever the user actively changes the source type
+            ...('sourceType' in patch ? { glyphLostNotice: null } : {}),
           }
         }),
 
       resetOscillatorSettings: () =>
         set({ oscillatorSettings: DEFAULT_OSCILLATOR_SETTINGS }),
+
+      clearGlyphLostNotice: () => set({ glyphLostNotice: null }),
 
       addOscillatorGlyphAsset: (asset) =>
         set((s) => {
@@ -373,13 +383,17 @@ export const useReactStore = create<ReactStoreState>()(
           for (const key of Object.keys(newCache)) {
             if (key.startsWith(`${id}:`)) delete newCache[key]
           }
+          const wasActive = s.oscillatorSettings.selectedGlyphId === id
+          const removedName = wasActive
+            ? (s.oscillatorGlyphAssets.find(a => a.id === id)?.name ?? null)
+            : null
           return {
             oscillatorGlyphAssets: s.oscillatorGlyphAssets.filter(a => a.id !== id),
             oscillatorGlyphPointCache: newCache,
-            oscillatorSettings:
-              s.oscillatorSettings.selectedGlyphId === id
-                ? { ...s.oscillatorSettings, selectedGlyphId: null, sourceType: 'builtinShape' }
-                : s.oscillatorSettings,
+            oscillatorSettings: wasActive
+              ? { ...s.oscillatorSettings, selectedGlyphId: null, sourceType: 'builtinShape' }
+              : s.oscillatorSettings,
+            glyphLostNotice: removedName,
           }
         }),
 
@@ -403,6 +417,7 @@ export const useReactStore = create<ReactStoreState>()(
           return {
             oscillatorSettings: { ...s.oscillatorSettings, sourceType: 'svgGlyph', selectedGlyphId: id },
             oscillatorGlyphPointCache: newCache,
+            glyphLostNotice: null,
           }
         }),
 
@@ -418,6 +433,7 @@ export const useReactStore = create<ReactStoreState>()(
           set({
             oscillatorSettings:        { ...s0.oscillatorSettings, sourceType: 'svgGlyph', selectedGlyphId: stableId },
             oscillatorGlyphPointCache: newCache,
+            glyphLostNotice:           null,
           })
           return
         }
@@ -478,6 +494,7 @@ export const useReactStore = create<ReactStoreState>()(
               sourceType:      'svgGlyph',
               selectedGlyphId: stableId,
             },
+            glyphLostNotice: null,
           }
         })
       },
@@ -552,6 +569,7 @@ export const useReactStore = create<ReactStoreState>()(
           oscillatorSettings:        DEFAULT_OSCILLATOR_SETTINGS,
           oscillatorGlyphPointCache: {},
           oscillatorTextPointCache:  {},
+          glyphLostNotice:           null,
           reactIntensity:       0.7,
           reactMotion:          0.5,
           reactGlow:            0.65,
