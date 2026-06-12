@@ -7,3 +7,6 @@
 
   ➜  Local:   http://127.0.0.1:5173/
 3:35:13 AM [vite] hmr update /src/styles/vyzualz.css
+3:40:36 AM [vite] hmr update /src/components/vyzualz/media/MediaDeckPanel.tsx
+3:42:51 AM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+3:42:55 AM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx

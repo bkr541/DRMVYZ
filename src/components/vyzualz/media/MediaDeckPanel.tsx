@@ -28,11 +28,11 @@ type ViewMode  = 'grid' | 'list'
 
 const VISUALIZER_FILTERS: { key: DeckFilter; label: string }[] = [
   { key: 'all',         label: 'All'         },
-  { key: 'tracks',      label: 'Tracks'      },
   { key: 'collections', label: 'Collections' },
+  { key: 'favorites',   label: 'Favorites'   },
+  { key: 'tracks',      label: 'Tracks'      },
   { key: 'images',      label: 'Images'      },
   { key: 'videos',      label: 'Videos'      },
-  { key: 'favorites',   label: 'Favorites'   },
   { key: 'backgrounds', label: 'Backgrounds' },
   { key: 'logos',       label: 'Logos'       },
   { key: 'transparent', label: 'Transparent' },
@@ -41,12 +41,12 @@ const VISUALIZER_FILTERS: { key: DeckFilter; label: string }[] = [
 
 const REACT_FILTERS: { key: DeckFilter; label: string }[] = [
   { key: 'all',         label: 'All'         },
+  { key: 'collections', label: 'Collections' },
+  { key: 'favorites',   label: 'Favorites'   },
   { key: 'svg',         label: 'SVG'         },
   { key: 'logos',       label: 'Logos'       },
   { key: 'transparent', label: 'Transparent' },
   { key: 'overlays',    label: 'Overlays'    },
-  { key: 'collections', label: 'Collections' },
-  { key: 'favorites',   label: 'Favorites'   },
 ]
 
 const REACT_ELIGIBLE_ROLES = new Set<MediaRole>(['svg', 'logo', 'transparent_element', 'overlay'])

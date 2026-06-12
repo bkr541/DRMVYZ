@@ -19,9 +19,9 @@ type ReactLeftTab = 'media' | 'layers' | 'sessions' | 'engines'
 
 const REACT_LEFT_TABS: RailTabOption<ReactLeftTab>[] = [
   { id: 'media',    label: 'Media'    },
+  { id: 'engines',  label: 'Engines'  },
   { id: 'layers',   label: 'Layers'   },
   { id: 'sessions', label: 'Sessions' },
-  { id: 'engines',  label: 'Engines'  },
 ]
 
 export function ReactView() {
@@ -62,7 +62,7 @@ export function ReactView() {
     selectReactPreset:           s.selectReactPreset,
   })))
 
-  const [leftTab, setLeftTab]             = useState<ReactLeftTab>('engines')
+  const [leftTab, setLeftTab]             = useState<ReactLeftTab>('media')
   const [activeMediaId, setActiveMediaId] = useState<string | null>(null)
   const [leftCollapsed,  setLeftCollapsed]  = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(false)
