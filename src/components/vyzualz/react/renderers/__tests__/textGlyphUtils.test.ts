@@ -89,6 +89,7 @@ function buildMockDocument() {
     textBaseline: '',
     fillStyle:    '',
     fillText:     vi.fn(),
+    measureText:  vi.fn().mockReturnValue({ width: 60 }),
     getImageData: vi.fn().mockImplementation(
       (_x: number, _y: number, w: number, h: number) => ({
         data:   fakeData,

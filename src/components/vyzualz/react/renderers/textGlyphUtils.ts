@@ -22,6 +22,12 @@ export interface TextGlyphOptions {
    * most detail).  2 = check every other pixel, etc.  Default: 1.
    */
   sampleStep?:   number
+  /**
+   * Extra pixels to insert between each character.  Negative values tighten
+   * the spacing.  Applied during canvas rasterisation so the generated points
+   * reflect the spacing directly.  Default: 0.
+   */
+  letterSpacing?: number
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
@@ -74,11 +80,12 @@ export function textToGlyphPoints(
   if (!text.trim()) return fallback(n)
 
   const {
-    fontFamily   = 'Arial, sans-serif',
-    fontWeight   = 'bold',
-    canvasWidth  = 512,
-    canvasHeight = 128,
-    sampleStep   = 1,
+    fontFamily    = 'Arial, sans-serif',
+    fontWeight    = 'bold',
+    canvasWidth   = 512,
+    canvasHeight  = 128,
+    sampleStep    = 1,
+    letterSpacing = 0,
   } = options ?? {}
 
   if (typeof document === 'undefined') return fallback(n)
@@ -93,12 +100,25 @@ export function textToGlyphPoints(
 
     // Draw white text on transparent canvas — background stays alpha=0 so that
     // simple alpha-based edge detection works correctly.
-    const fontSize     = Math.max(8, Math.floor(canvasHeight * 0.72))
-    ctx.font           = `${fontWeight} ${fontSize}px ${fontFamily}`
-    ctx.textAlign      = 'center'
-    ctx.textBaseline   = 'middle'
-    ctx.fillStyle      = '#ffffff'
-    ctx.fillText(text, canvasWidth / 2, canvasHeight / 2)
+    const fontSize = Math.max(8, Math.floor(canvasHeight * 0.72))
+    ctx.font        = `${fontWeight} ${fontSize}px ${fontFamily}`
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle   = '#ffffff'
+
+    // Draw character-by-character so letterSpacing is applied between glyphs.
+    // Using Array.from ensures multi-byte Unicode characters are treated as
+    // single units (emoji, accented chars, etc.).
+    const chars = Array.from(text)
+    ctx.textAlign = 'left'
+    const charWidths = chars.map(c => ctx.measureText(c).width)
+    const gap = letterSpacing  // already validated by the UI slider range (-20..80)
+    const totalWidth = charWidths.reduce((sum, w) => sum + w, 0) + gap * Math.max(0, chars.length - 1)
+    let x = canvasWidth / 2 - totalWidth / 2
+    const y = canvasHeight / 2
+    for (let i = 0; i < chars.length; i++) {
+      ctx.fillText(chars[i], x, y)
+      x += charWidths[i] + gap
+    }
 
     const imageData = ctx.getImageData(0, 0, canvasWidth, canvasHeight)
     const data      = imageData.data

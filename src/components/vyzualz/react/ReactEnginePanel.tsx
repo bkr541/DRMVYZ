@@ -360,13 +360,18 @@ export function ReactEnginePanel() {
                   ]}
                 />
               )}
-              <SliderRow
-                label="Font Size"
-                value={osc.textFontSize}
-                onChange={v => set({ textFontSize: Math.round(v) })}
-                min={48} max={320} step={8}
-                color="#61d6aa"
-              />
+              {/* Font Size only affects OpenType glyph generation; fallback canvas
+                  text is normalized to the canvas height and visual size is
+                  controlled by path scale, so it is hidden without a custom font. */}
+              {!!osc.textFontId && (
+                <SliderRow
+                  label="Font Size"
+                  value={osc.textFontSize}
+                  onChange={v => set({ textFontSize: Math.round(v) })}
+                  min={48} max={320} step={8}
+                  color="#61d6aa"
+                />
+              )}
               <SliderRow
                 label="Spacing"
                 value={osc.textLetterSpacing}

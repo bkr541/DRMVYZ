@@ -103,10 +103,11 @@ function getOscillatorPathPoints(params: ReactRenderParams): OscillatorGlyphPoin
         cachePut(key, pts)
         return pts
       }
-      const key = `text:${trimmed}:${res}`
+      const spacing = osc.textLetterSpacing ?? 0
+      const key = `text:${trimmed}:${res}:${spacing}`
       const cached = pathCache.get(key)
       if (cached) return cached
-      const pts = textToGlyphPoints(trimmed, res)
+      const pts = textToGlyphPoints(trimmed, res, { letterSpacing: spacing })
       cachePut(key, pts)
       return pts
     }
