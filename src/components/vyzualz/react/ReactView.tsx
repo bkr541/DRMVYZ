@@ -7,6 +7,7 @@ import { ReactTrackMapStrip } from './ReactTrackMapStrip'
 import { ReactPlaceholderCanvas } from './ReactPlaceholderCanvas'
 import { ReactPerformancePads } from './ReactPerformancePads'
 import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
+import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
 import '../../../styles/reactView.css'
 
 export function ReactView() {
@@ -59,6 +60,8 @@ export function ReactView() {
           <div className="vz-header-title">REACT</div>
           <div className="vz-header-sub">Visual Performance Mode</div>
         </div>
+        <span className="az-spacer" />
+        <VyzualzHeaderActions />
       </div>
       <div className="rv-layout">
         {/* Left — preset / engine browser */}

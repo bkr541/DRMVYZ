@@ -1,3 +1,5 @@
+import { VyzualzHeaderActions } from '../../../components/vyzualz/shared/VyzualzHeaderActions'
+
 interface Props {
   isSaving: boolean
   lyricsEnabled: boolean
@@ -62,6 +64,8 @@ export function LyricManagerHeader({
         >
           {isSaving ? 'Saving…' : 'Save + Enable'}
         </button>
+
+        <VyzualzHeaderActions />
       </div>
     </header>
   )
