@@ -14,6 +14,7 @@ const ENGINE_LABELS: Record<ReactEngineId, string> = {
   shaderPads:      'Shader Pads',
   cinematicPortal: 'Cinematic Portal',
   oscilloscope:    'Sound Drawing',
+  laserDmx:        'LaserDMX',
 }
 
 const SOURCE_LABELS: Record<string, string> = {

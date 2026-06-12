@@ -4,6 +4,7 @@ import { resolveSectionAtTime, sectionIntensityMultiplier, DEFAULT_REACT_RENDER_
 import { renderShaderPads }      from './ShaderPadsRenderer'
 import { renderCinematicPortal } from './CinematicPortalRenderer'
 import { renderSoundDrawing }    from './SoundDrawingRenderer'
+import { renderLaserDmx }        from './LaserDmxRenderer'
 
 export type { ReactFrameContext, ReactRenderParams }
 export { DEFAULT_REACT_RENDER_PARAMS }
@@ -146,6 +147,9 @@ export function renderReactEngine(
       break
     case 'oscilloscope':
       renderSoundDrawing(ctx, frame, preset, effectiveParams, sectionType)
+      break
+    case 'laserDmx':
+      renderLaserDmx(ctx, frame, preset, effectiveParams, sectionType)
       break
     default:
       // Unknown engine — draw a placeholder so the frame is never blank

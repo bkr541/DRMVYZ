@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore } from '../../../stores/mediaStore'
@@ -24,18 +25,20 @@ import type {
 
 // ── Engine family display data ────────────────────────────────────────────────
 
-const ENGINE_IDS: ReactEngineId[] = ['shaderPads', 'cinematicPortal', 'oscilloscope']
+const ENGINE_IDS: ReactEngineId[] = ['shaderPads', 'cinematicPortal', 'oscilloscope', 'laserDmx']
 
 const ENGINE_LABELS: Record<ReactEngineId, string> = {
   shaderPads:      'Shader Pads',
   cinematicPortal: 'Cinematic Portal',
   oscilloscope:    'Sound Drawing',
+  laserDmx:        'LaserDMX',
 }
 
 const ENGINE_ICONS: Record<ReactEngineId, string> = {
   shaderPads:      '◈',
   cinematicPortal: '◎',
   oscilloscope:    '〜',
+  laserDmx:        '✦',
 }
 
 // ── Oscillator status card ────────────────────────────────────────────────────
@@ -316,6 +319,9 @@ export function ReactEnginePanel() {
           </div>
         </>
       )}
+
+      {/* ── Engine Mode: LaserDMX ─────────────────────────────────────── */}
+      {activeReactEngineId === 'laserDmx' && <LaserDmxEnginePanel />}
 
       {/* ── Engine Mode: Oscilloscope ──────────────────────────────────── */}
       {activeReactEngineId === 'oscilloscope' && (

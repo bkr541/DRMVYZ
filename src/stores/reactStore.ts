@@ -4,6 +4,7 @@ import {
   DEFAULT_REACT_PRESETS,
   DEFAULT_PERFORMANCE_PADS,
   DEFAULT_OSCILLATOR_SETTINGS,
+  createDefaultLaserDmxSettings,
 } from '../components/vyzualz/react/ReactTypes'
 import type {
   ReactEngineId,
@@ -15,6 +16,9 @@ import type {
   OscillatorGlyphAsset,
   OscillatorGlyphPoint,
   OscillatorFontAsset,
+  LaserDmxSettings,
+  LaserDmxFixture,
+  LaserDmxModulationRoute,
 } from '../components/vyzualz/react/ReactTypes'
 import {
   parseSvgToGlyphPoints,
@@ -112,6 +116,42 @@ function prepareTextPoints(
   }
 }
 
+// ── LaserDMX local helpers ────────────────────────────────────────────────────
+
+function makeNewLaserFixture(existingFixtures: LaserDmxFixture[]): LaserDmxFixture {
+  const maxAddr = existingFixtures.reduce((m, f) => Math.max(m, f.dmx.startAddress), 0)
+  const nextAddr = Math.min(497, maxAddr + 16)  // keep within 512-channel universe
+  return {
+    id:      crypto.randomUUID(),
+    name:    `Laser ${existingFixtures.length + 1}`,
+    enabled: true,
+    dmx: { universe: 1, startAddress: nextAddr, profileId: 'genericRgbLaser', channelMode: 'basic' },
+    position: { originX: 0.5, originY: 0.85, originZ: 0, targetX: 0.5, targetY: 0.5, targetZ: 0, pan: 0, tilt: 0, rotation: 0, mirrorX: false, mirrorY: false },
+    color: { mode: 'fixed', red: 0, green: 255, blue: 220, white: 0, alpha: 1, paletteId: '', colorCycleSpeed: 0.5 },
+    beam: { dimmer: 1, shutterOpen: true, width: 1, zoom: 1, focus: 1, strobeRate: 0, flickerAmount: 0 },
+    path: { kind: 'fan', scale: 1, rotation: 0, offsetX: 0, offsetY: 0, scanSpeed: 0.45, phaseOffset: 0, pointCount: 18, spread: 0.6, radius: 0.4, complexity: 0.4, smoothing: 0, pathProgress: 0 },
+    modulationRoutes: [],
+  }
+}
+
+function makeNewModulationRoute(): LaserDmxModulationRoute {
+  return {
+    id:        crypto.randomUUID(),
+    enabled:   false,
+    source:    'bass',
+    target:    'masterDimmer',
+    amount:    0.5,
+    min:       0,
+    max:       1,
+    curve:     'linear',
+    mode:      'add',
+    smoothing: 0,
+    attack:    0,
+    release:   0,
+    invert:    false,
+  }
+}
+
 // ── Preset oscillator settings resolver ───────────────────────────────────────
 // Single source of truth for how oscillatorSettings are resolved when a preset
 // is selected (from the preset browser or via a performance pad).
@@ -145,7 +185,9 @@ export function resolvePresetOscillatorSettings(
 export function buildPresetPatch(
   preset: ReactPreset,
   currentOscSettings: OscillatorSettings,
+  currentLaserSettings?: LaserDmxSettings,
 ) {
+  const laserBase = currentLaserSettings ?? createDefaultLaserDmxSettings()
   return {
     activeReactPresetId: preset.id,
     activeReactEngineId: preset.engine,
@@ -154,6 +196,9 @@ export function buildPresetPatch(
     reactGlow:           preset.params.glow,
     reactBassReactivity: preset.params.bassReactivity,
     oscillatorSettings:  resolvePresetOscillatorSettings(preset, currentOscSettings),
+    ...(preset.laserDmxSettings != null
+      ? { laserDmxSettings: { ...laserBase, ...preset.laserDmxSettings } }
+      : {}),
   }
 }
 
@@ -259,6 +304,19 @@ interface ReactStoreState {
   oscillatorTextPointCache: Record<string, OscillatorGlyphPoint[]>
 
   resetReactView: () => void
+
+  // LaserDMX settings
+  laserDmxSettings: LaserDmxSettings
+  setLaserDmxSettings: (partial: Partial<LaserDmxSettings>) => void
+  resetLaserDmxSettings: () => void
+  selectLaserFixture: (fixtureId: string) => void
+  addLaserFixture: () => void
+  duplicateLaserFixture: (fixtureId: string) => void
+  removeLaserFixture: (fixtureId: string) => void
+  updateLaserFixture: (fixtureId: string, patch: Partial<LaserDmxFixture>) => void
+  addLaserModulationRoute: (fixtureId: string) => void
+  updateLaserModulationRoute: (fixtureId: string, routeId: string, patch: Partial<LaserDmxModulationRoute>) => void
+  removeLaserModulationRoute: (fixtureId: string, routeId: string) => void
 }
 
 const INITIAL_PRESET_ID = DEFAULT_REACT_PRESETS[0].id
@@ -280,6 +338,7 @@ export const useReactStore = create<ReactStoreState>()(
       oscillatorFontAssets: [],
       oscillatorTextPointCache: {},
       glyphLostNotice: null,
+      laserDmxSettings: createDefaultLaserDmxSettings(),
       reactIntensity:       0.7,
       reactMotion:          0.5,
       reactGlow:            0.65,
@@ -309,14 +368,14 @@ export const useReactStore = create<ReactStoreState>()(
             // No presets registered for this engine — update ID only; panel shows empty state.
             return { activeReactEngineId: engineId }
           }
-          return buildPresetPatch(preset, s.oscillatorSettings)
+          return buildPresetPatch(preset, s.oscillatorSettings, s.laserDmxSettings)
         }),
 
       selectReactPreset: (id) =>
         set((s) => {
           const preset = s.reactPresets.find((p) => p.id === id)
           if (!preset) return {}
-          return buildPresetPatch(preset, s.oscillatorSettings)
+          return buildPresetPatch(preset, s.oscillatorSettings, s.laserDmxSettings)
         }),
 
       updateReactPresetParams: (id, patch) =>
@@ -360,7 +419,7 @@ export const useReactStore = create<ReactStoreState>()(
           if (!pad?.presetId) return { activePadId: id }
           const preset = s.reactPresets.find((p) => p.id === pad.presetId)
           if (!preset) return { activePadId: id }
-          return { activePadId: id, ...buildPresetPatch(preset, s.oscillatorSettings) }
+          return { activePadId: id, ...buildPresetPatch(preset, s.oscillatorSettings, s.laserDmxSettings) }
         }),
 
       updatePerformancePad: (id, patch) =>
@@ -697,6 +756,117 @@ export const useReactStore = create<ReactStoreState>()(
           return { oscillatorSettings: newSettings, oscillatorTextPointCache: newTextCache }
         }),
 
+      // ── LaserDMX actions ────────────────────────────────────────────────────
+
+      setLaserDmxSettings: (partial) =>
+        set(s => ({ laserDmxSettings: { ...s.laserDmxSettings, ...partial } })),
+
+      resetLaserDmxSettings: () =>
+        set({ laserDmxSettings: createDefaultLaserDmxSettings() }),
+
+      selectLaserFixture: (fixtureId) =>
+        set(s => ({ laserDmxSettings: { ...s.laserDmxSettings, selectedFixtureId: fixtureId } })),
+
+      addLaserFixture: () =>
+        set(s => {
+          const fixture = makeNewLaserFixture(s.laserDmxSettings.fixtures)
+          return {
+            laserDmxSettings: {
+              ...s.laserDmxSettings,
+              fixtures:          [...s.laserDmxSettings.fixtures, fixture],
+              selectedFixtureId: fixture.id,
+            },
+          }
+        }),
+
+      duplicateLaserFixture: (fixtureId) =>
+        set(s => {
+          const src = s.laserDmxSettings.fixtures.find(f => f.id === fixtureId)
+          if (!src) return {}
+          const maxAddr = s.laserDmxSettings.fixtures.reduce((m, f) => Math.max(m, f.dmx.startAddress), 0)
+          const nextAddr = Math.min(497, maxAddr + 16)
+          const copy: LaserDmxFixture = {
+            ...src,
+            id:   crypto.randomUUID(),
+            name: `${src.name} Copy`,
+            dmx:  { ...src.dmx, startAddress: nextAddr },
+            modulationRoutes: src.modulationRoutes.map(r => ({ ...r, id: crypto.randomUUID() })),
+          }
+          return {
+            laserDmxSettings: {
+              ...s.laserDmxSettings,
+              fixtures:          [...s.laserDmxSettings.fixtures, copy],
+              selectedFixtureId: copy.id,
+            },
+          }
+        }),
+
+      removeLaserFixture: (fixtureId) =>
+        set(s => {
+          const remaining = s.laserDmxSettings.fixtures.filter(f => f.id !== fixtureId)
+          const wasSelected = s.laserDmxSettings.selectedFixtureId === fixtureId
+          const nextSelected = wasSelected
+            ? (remaining[0]?.id ?? null)
+            : s.laserDmxSettings.selectedFixtureId
+          return {
+            laserDmxSettings: {
+              ...s.laserDmxSettings,
+              fixtures:          remaining,
+              selectedFixtureId: nextSelected,
+            },
+          }
+        }),
+
+      updateLaserFixture: (fixtureId, patch) =>
+        set(s => ({
+          laserDmxSettings: {
+            ...s.laserDmxSettings,
+            fixtures: s.laserDmxSettings.fixtures.map(f =>
+              f.id === fixtureId ? { ...f, ...patch } : f
+            ),
+          },
+        })),
+
+      addLaserModulationRoute: (fixtureId) =>
+        set(s => ({
+          laserDmxSettings: {
+            ...s.laserDmxSettings,
+            fixtures: s.laserDmxSettings.fixtures.map(f =>
+              f.id === fixtureId
+                ? { ...f, modulationRoutes: [...f.modulationRoutes, makeNewModulationRoute()] }
+                : f
+            ),
+          },
+        })),
+
+      updateLaserModulationRoute: (fixtureId, routeId, patch) =>
+        set(s => ({
+          laserDmxSettings: {
+            ...s.laserDmxSettings,
+            fixtures: s.laserDmxSettings.fixtures.map(f =>
+              f.id !== fixtureId ? f : {
+                ...f,
+                modulationRoutes: f.modulationRoutes.map(r =>
+                  r.id === routeId ? { ...r, ...patch } : r
+                ),
+              }
+            ),
+          },
+        })),
+
+      removeLaserModulationRoute: (fixtureId, routeId) =>
+        set(s => ({
+          laserDmxSettings: {
+            ...s.laserDmxSettings,
+            fixtures: s.laserDmxSettings.fixtures.map(f =>
+              f.id !== fixtureId ? f : {
+                ...f,
+                modulationRoutes: f.modulationRoutes.filter(r => r.id !== routeId),
+              }
+            ),
+          },
+        })),
+
       resetReactView: () => {
         clearSvgVisualCache()
         set({
@@ -710,6 +880,7 @@ export const useReactStore = create<ReactStoreState>()(
           oscillatorGlyphPointCache: {},
           oscillatorTextPointCache:  {},
           glyphLostNotice:           null,
+          laserDmxSettings:          createDefaultLaserDmxSettings(),
           reactIntensity:       0.7,
           reactMotion:          0.5,
           reactGlow:            0.65,
@@ -730,6 +901,7 @@ export const useReactStore = create<ReactStoreState>()(
         oscillatorSettings:     s.oscillatorSettings,
         oscillatorGlyphAssets:  s.oscillatorGlyphAssets,
         oscillatorFontAssets:   s.oscillatorFontAssets,
+        laserDmxSettings:       s.laserDmxSettings,
         reactIntensity:       s.reactIntensity,
         reactMotion:          s.reactMotion,
         reactGlow:            s.reactGlow,

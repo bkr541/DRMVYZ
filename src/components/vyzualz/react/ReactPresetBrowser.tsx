@@ -4,12 +4,14 @@ const ENGINE_LABELS: Record<ReactEngineId, string> = {
   shaderPads:      'Shader Pads',
   cinematicPortal: 'Cinematic Portal',
   oscilloscope:    'Sound Drawing',
+  laserDmx:        'LaserDMX',
 }
 
 const ENGINE_ICONS: Record<ReactEngineId, string> = {
   shaderPads:      '◈',
   cinematicPortal: '◎',
   oscilloscope:    '〜',
+  laserDmx:        '✦',
 }
 
 interface Props {
