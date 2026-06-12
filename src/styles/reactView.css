@@ -17,9 +17,11 @@
 
 /* Three-column content grid — takes all remaining space above the dock */
 .rv-layout {
-  --rv-left-width: 220px;
+  --rv-left-width: 322px;
+  --rv-right-width: 322px;
+  --rv-collapsed-width: 48px;
   display: grid;
-  grid-template-columns: var(--rv-left-width) 1fr 200px;
+  grid-template-columns: var(--rv-left-width) 1fr var(--rv-right-width);
   grid-template-rows: 1fr;
   flex: 1;
   min-height: 0;
@@ -28,15 +30,14 @@
   transition: grid-template-columns 180ms ease;
 }
 
-.rv-layout[data-left-collapsed='true'] {
-  --rv-left-width: 48px;
-}
+.rv-layout[data-left-collapsed='true']  { --rv-left-width:  var(--rv-collapsed-width); }
+.rv-layout[data-right-collapsed='true'] { --rv-right-width: var(--rv-collapsed-width); }
 
 /* Dock sits below the grid; set column widths to align with rv-layout panels */
 .rv-shell > .az-dock {
   --vz-sidebar-width: 0px;
-  --vz-left-width: 220px;
-  --vz-right-width: 200px;
+  --vz-left-width: 322px;
+  --vz-right-width: 322px;
 }
 
 /* ── Shared panel header ─────────────────────────────────────────────────────── */
@@ -213,14 +214,6 @@
 }
 
 /* ── Right panel — controls ──────────────────────────────────────────────────── */
-.rv-right-panel {
-  border-left: 1px solid rgba(74, 199, 219, 0.08);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: #07111a;
-}
-
 .rv-control-panel {
   display: flex;
   flex-direction: column;
@@ -975,10 +968,8 @@
 /* ── Responsive: collapse rails below narrow viewport ────────────────────────── */
 @media (max-width: 900px) {
   .rv-layout {
-    grid-template-columns: 180px 1fr 0;
-  }
-  .rv-right-panel {
-    display: none;
+    --rv-left-width: 180px;
+    --rv-right-width: 0px;
   }
   .rv-shell > .az-dock {
     --vz-left-width: 180px;
@@ -988,10 +979,8 @@
 
 @media (max-width: 640px) {
   .rv-layout {
-    grid-template-columns: 0 1fr 0;
-  }
-  .rv-right-panel {
-    display: none;
+    --rv-left-width: 0px;
+    --rv-right-width: 0px;
   }
   .rv-shell > .az-dock {
     --vz-left-width: 0px;

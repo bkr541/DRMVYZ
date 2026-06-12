@@ -64,7 +64,8 @@ export function ReactView() {
 
   const [leftTab, setLeftTab]             = useState<ReactLeftTab>('engines')
   const [activeMediaId, setActiveMediaId] = useState<string | null>(null)
-  const [leftCollapsed, setLeftCollapsed] = useState(false)
+  const [leftCollapsed,  setLeftCollapsed]  = useState(false)
+  const [rightCollapsed, setRightCollapsed] = useState(false)
 
   const activePreset = reactPresets.find(p => p.id === activeReactPresetId) ?? reactPresets[0] ?? null
 
@@ -81,7 +82,11 @@ export function ReactView() {
         <span className="az-spacer" />
         <VyzualzHeaderActions />
       </div>
-      <div className="rv-layout" data-left-collapsed={leftCollapsed ? 'true' : undefined}>
+      <div
+        className="rv-layout"
+        data-left-collapsed={leftCollapsed ? 'true' : undefined}
+        data-right-collapsed={rightCollapsed ? 'true' : undefined}
+      >
         {/* Left — tabbed rail */}
         <WorkspaceRail
           side="left"
@@ -150,9 +155,14 @@ export function ReactView() {
         </div>
 
         {/* Right — controls */}
-        <aside className="rv-right-panel">
+        <WorkspaceRail
+          side="right"
+          label="React right rail"
+          collapsed={rightCollapsed}
+          onToggleCollapsed={() => setRightCollapsed(v => !v)}
+        >
           <ReactControlPanel />
-        </aside>
+        </WorkspaceRail>
       </div>
 
       {/* Bottom dock — outside the grid, full width */}
