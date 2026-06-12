@@ -635,6 +635,24 @@
   color: #4ac7db;
 }
 
+/* ── LaserDMX modulation route card ─────────────────────────────────────────── */
+.rv-ldx-route {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 10px 10px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(74, 199, 219, 0.08);
+  border-radius: 4px;
+}
+
+.rv-ldx-route-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 /* ── Glyph lost notice ───────────────────────────────────────────────────────── */
 .rv-glyph-lost-notice {
   display: flex;
