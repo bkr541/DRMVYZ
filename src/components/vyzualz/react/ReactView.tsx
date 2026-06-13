@@ -206,7 +206,7 @@ export function ReactView() {
               oscillatorTextPointCache={oscillatorTextPointCache}
               isPlaying={engine.isPlaying}
               manualSections={manualTrackSections}
-              getAudioTime={() => engine.currentTime}
+              getAudioTime={engine.getCurrentTime}
               onCanvasReady={setOutputCanvas}
               onLiveFps={setLiveFps}
             />

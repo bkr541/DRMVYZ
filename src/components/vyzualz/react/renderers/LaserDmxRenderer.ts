@@ -196,24 +196,25 @@ function drawHaze(
 
 // ── Playback gate ─────────────────────────────────────────────────────────────
 
-/** Returns true when the LaserDMX renderer should draw.
- *  Absent isPlaying (legacy test frames) defaults to true for backward compat. */
-export function shouldRenderLaserDmx(isPlaying: boolean | undefined): boolean {
-  return isPlaying !== false
+/** Returns true when the LaserDMX renderer should draw. */
+export function shouldRenderLaserDmx(isPlaying: boolean): boolean {
+  return isPlaying
 }
 
 /** Immediately wipes all LaserDMX canvas output and resets compiler dt state.
- *  Must be called whenever shouldRenderLaserDmx returns false so trail
- *  persistence does not bleed through after the transport stops. */
+ *  Uses clearRect (not fillRect) so no prior draw state affects the result.
+ *  setTransform resets any accidental transform before clearing. */
 export function clearLaserDmxVisualState(
   ctx: CanvasRenderingContext2D,
   W:   number,
   H:   number,
 ): void {
+  ctx.save()
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
   ctx.globalAlpha = 1
   ctx.globalCompositeOperation = 'source-over'
-  ctx.fillStyle = '#000000'
-  ctx.fillRect(0, 0, W, H)
+  ctx.clearRect(0, 0, W, H)
+  ctx.restore()
   resetLaserDmxCompilerState()
 }
 

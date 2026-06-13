@@ -255,8 +255,15 @@ export function ReactPlaceholderCanvas({
 
       renderReactEngine(ctx, rfCtx, preset, renderParams, sectionsRef.current)
 
-      if (isPlayingRef.current) tRef.current++
-      else tRef.current += 0.15  // slow idle animation
+      // LaserDMX animation clock is frozen while paused so scan/path generators
+      // don't accumulate ticks that cause a visible jump when playback resumes.
+      // Other engines keep their slow idle drift (0.15/frame) while paused.
+      const isLaserDmx = preset.engine === 'laserDmx'
+      if (isPlayingRef.current) {
+        tRef.current++
+      } else if (!isLaserDmx) {
+        tRef.current += 0.15
+      }
 
       fpsFrameCount++
       const nowMs = performance.now()

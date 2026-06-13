@@ -237,8 +237,13 @@ export function useAudioEngine(): AudioEngine {
   // ── Auto-advance ────────────────────────────────────────────────────────────
   const handleEnded = useCallback(() => {
     setCurrentIndex(prev => {
-      setIsPlaying(true)
-      return prev + 1 < tracks.length ? prev + 1 : prev
+      const nextIndex    = prev + 1
+      const hasNextTrack = nextIndex < tracks.length
+      // Only keep isPlaying=true when a next track exists.
+      // Without this check, the final track ending leaves isPlaying=true and
+      // LaserDMX keeps rendering after the audio has stopped.
+      setIsPlaying(hasNextTrack)
+      return hasNextTrack ? nextIndex : prev
     })
   }, [tracks.length])
 

@@ -27,6 +27,7 @@ function makeFrame(overrides: {
     bpm:       120,
     beatPhase: 0,
     beatHit:   overrides.beatHit ?? false,
+    isPlaying: true,
     audio: {
       bass:   overrides.bass   ?? 0,
       mid:    overrides.mid    ?? 0,

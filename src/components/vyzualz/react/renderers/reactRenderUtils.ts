@@ -18,8 +18,8 @@ export interface ReactFrameContext {
   bpm: number
   beatPhase: number
   beatHit: boolean
-  /** Whether the audio transport is currently playing. When false the LaserDMX renderer clears its output immediately. Absent = true (backward-compatible). */
-  isPlaying?: boolean
+  /** Whether the audio transport is currently playing. False gates all LaserDMX canvas output immediately. */
+  isPlaying: boolean
   audio: {
     bass:   number  // 0–1
     mid:    number  // 0–1
@@ -73,6 +73,7 @@ export function reactFrameFromVz(vz: VzFrameContext): ReactFrameContext {
     bpm:       vz.bpm,
     beatPhase: vz.beatPhase,
     beatHit:   vz.beatHit,
+    isPlaying: true,  // Vyzualz live canvas is always active
     audio: {
       bass:   vz.audio.bass,
       mid:    (vz.audio.lowMid + vz.audio.mid) * 0.5,
