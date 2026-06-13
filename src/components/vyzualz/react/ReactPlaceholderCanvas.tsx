@@ -232,6 +232,7 @@ export function ReactPlaceholderCanvas({
         bpm:       activeBpm,
         beatPhase: activeBeatPhase,
         beatHit,
+        isPlaying: isPlayingRef.current,
         audio:     { bass, mid, high, volume: vol },
         freqData:       buf ?? null,
         timeDomainData: tBuf ?? null,

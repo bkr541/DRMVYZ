@@ -87,6 +87,12 @@ function samplePalette(paletteId: string, pos: number): [number, number, number]
 const routeEnvelopes = new Map<string, number>()
 let prevCompileTimeSec = -1
 
+/** Resets the compiler's time reference so the next compiled frame gets dt=1/60
+ *  rather than a huge delta accumulated during a pause. Call when LaserDMX stops rendering. */
+export function resetLaserDmxCompilerState(): void {
+  prevCompileTimeSec = -1
+}
+
 // ── Ephemeral per-fixture render state (never persisted) ─────────────────────
 
 interface FixtureRenderState {

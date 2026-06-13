@@ -18,6 +18,8 @@ export interface ReactFrameContext {
   bpm: number
   beatPhase: number
   beatHit: boolean
+  /** Whether the audio transport is currently playing. When false the LaserDMX renderer clears its output immediately. Absent = true (backward-compatible). */
+  isPlaying?: boolean
   audio: {
     bass:   number  // 0–1
     mid:    number  // 0–1

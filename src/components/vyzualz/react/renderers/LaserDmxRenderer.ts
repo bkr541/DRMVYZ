@@ -10,7 +10,7 @@ import { useReactStore } from '../../../../stores/reactStore'
 import { compileLaserDmxFrame } from './LaserDmxCompiler'
 import type { LaserDmxFixtureFrame } from '../ReactTypes'
 import type { CompiledGlobal } from './LaserDmxCompiler'
-import { clamp, clamp01 } from './LaserDmxCompiler'
+import { clamp, clamp01, resetLaserDmxCompilerState } from './LaserDmxCompiler'
 
 // ── Drawing helpers ───────────────────────────────────────────────────────────
 
@@ -194,6 +194,29 @@ function drawHaze(
   ctx.restore()
 }
 
+// ── Playback gate ─────────────────────────────────────────────────────────────
+
+/** Returns true when the LaserDMX renderer should draw.
+ *  Absent isPlaying (legacy test frames) defaults to true for backward compat. */
+export function shouldRenderLaserDmx(isPlaying: boolean | undefined): boolean {
+  return isPlaying !== false
+}
+
+/** Immediately wipes all LaserDMX canvas output and resets compiler dt state.
+ *  Must be called whenever shouldRenderLaserDmx returns false so trail
+ *  persistence does not bleed through after the transport stops. */
+export function clearLaserDmxVisualState(
+  ctx: CanvasRenderingContext2D,
+  W:   number,
+  H:   number,
+): void {
+  ctx.globalAlpha = 1
+  ctx.globalCompositeOperation = 'source-over'
+  ctx.fillStyle = '#000000'
+  ctx.fillRect(0, 0, W, H)
+  resetLaserDmxCompilerState()
+}
+
 // ── Public entry point ────────────────────────────────────────────────────────
 
 export function renderLaserDmx(
@@ -205,6 +228,14 @@ export function renderLaserDmx(
 ): void {
   const { W, H, t } = frame
   if (!W || !H) return
+
+  // Defensive Level-2 gate: clear and bail if the transport is paused.
+  // ReactEngineRenderer's Level-1 gate prevents this call entirely, but this
+  // guard handles any direct callers and protects against future refactors.
+  if (!shouldRenderLaserDmx(frame.isPlaying)) {
+    clearLaserDmxVisualState(ctx, W, H)
+    return
+  }
 
   // Seconds-based time for strobe + envelope. Fall back to t/60 when timeSec is absent (e.g. test fixtures).
   const timeSec = frame.timeSec ?? (t / 60)
