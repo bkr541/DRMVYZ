@@ -5,6 +5,10 @@ import {
   DEFAULT_PERFORMANCE_PADS,
   DEFAULT_OSCILLATOR_SETTINGS,
   createDefaultLaserDmxSettings,
+  createDefaultLaserDmxBeamMatrixSettings,
+  LASER_DMX_MATRIX_COLUMNS,
+  LASER_DMX_MATRIX_ROWS,
+  LASER_DMX_MATRIX_MAX_BEAMS,
 } from '../components/vyzualz/react/ReactTypes'
 import type {
   ReactEngineId,
@@ -19,6 +23,11 @@ import type {
   LaserDmxSettings,
   LaserDmxFixture,
   LaserDmxModulationRoute,
+  LaserDmxWorkspaceMode,
+  LaserDmxBeamMatrixSettings,
+  LaserDmxBeamMatrixEditorSettings,
+  LaserDmxMatrixBeam,
+  LaserDmxReactionGroup,
 } from '../components/vyzualz/react/ReactTypes'
 import {
   parseSvgToGlyphPoints,
@@ -149,6 +158,68 @@ function makeNewModulationRoute(): LaserDmxModulationRoute {
     attack:    0,
     release:   0,
     invert:    false,
+  }
+}
+
+// ── Beam Matrix local helpers ─────────────────────────────────────────────────
+
+function clampCol(v: number): number { return Math.max(1, Math.min(LASER_DMX_MATRIX_COLUMNS, Math.round(v))) }
+function clampRow(v: number): number { return Math.max(1, Math.min(LASER_DMX_MATRIX_ROWS, Math.round(v))) }
+function clamp01bm(v: number): number { return Math.max(0, Math.min(1, v)) }
+function clampC255(v: number): number { return Math.max(0, Math.min(255, Math.round(v))) }
+
+function makeDefaultMatrixBeam(existing: LaserDmxMatrixBeam[]): LaserDmxMatrixBeam {
+  return {
+    id:      crypto.randomUUID(),
+    name:    `Beam ${existing.length + 1}`,
+    enabled: true,
+    origin:  { column: 8, row: 5, z: 0 },
+    target:  { kind: 'grid', column: 8, row: 1, z: 0 },
+    groupId:       null,
+    useGroupColor: false,
+    color:      { red: 0, green: 255, blue: 220, white: 0, alpha: 1 },
+    appearance: {
+      dimmer: 1, shutterOpen: true, width: 1, focus: 1,
+      strobeRate: 0, flickerAmount: 0, divergence: 0.15, glow: 0.65,
+      geometry: 'line',
+    },
+    modulationRoutes: [],
+  }
+}
+
+function clampMatrixBeam(beam: LaserDmxMatrixBeam): LaserDmxMatrixBeam {
+  const o = beam.origin
+  const t = beam.target
+  const clampedTarget = t.kind === 'grid'
+    ? { ...t, column: clampCol(t.column), row: clampRow(t.row), z: Math.max(-1, Math.min(1, t.z)) }
+    : {
+        ...t,
+        // Stage targets: NOT clamped to 0–1; range is −1 to 2
+        x: Math.max(-1, Math.min(2, t.x)),
+        y: Math.max(-1, Math.min(2, t.y)),
+        z: Math.max(-1, Math.min(2, t.z)),
+      }
+  return {
+    ...beam,
+    origin: { column: clampCol(o.column), row: clampRow(o.row), z: Math.max(-1, Math.min(1, o.z)) },
+    target: clampedTarget,
+    color: {
+      red:   clampC255(beam.color.red),
+      green: clampC255(beam.color.green),
+      blue:  clampC255(beam.color.blue),
+      white: clampC255(beam.color.white),
+      alpha: clamp01bm(beam.color.alpha),
+    },
+    appearance: {
+      ...beam.appearance,
+      dimmer:        clamp01bm(beam.appearance.dimmer),
+      width:         Math.max(0.1, Math.min(8, beam.appearance.width)),
+      focus:         clamp01bm(beam.appearance.focus),
+      strobeRate:    clamp01bm(beam.appearance.strobeRate),
+      flickerAmount: clamp01bm(beam.appearance.flickerAmount),
+      divergence:    clamp01bm(beam.appearance.divergence),
+      glow:          clamp01bm(beam.appearance.glow),
+    },
   }
 }
 
@@ -316,7 +387,7 @@ interface ReactStoreState {
 
   resetReactView: () => void
 
-  // LaserDMX settings
+  // LaserDMX Spatial Fixtures settings
   laserDmxSettings: LaserDmxSettings
   setLaserDmxSettings: (partial: Partial<LaserDmxSettings>) => void
   resetLaserDmxSettings: () => void
@@ -328,6 +399,55 @@ interface ReactStoreState {
   addLaserModulationRoute: (fixtureId: string) => void
   updateLaserModulationRoute: (fixtureId: string, routeId: string, patch: Partial<LaserDmxModulationRoute>) => void
   removeLaserModulationRoute: (fixtureId: string, routeId: string) => void
+
+  // LaserDMX workspace mode (persisted, never changed by preset application)
+  laserDmxWorkspaceMode: LaserDmxWorkspaceMode
+  setLaserDmxWorkspaceMode: (mode: LaserDmxWorkspaceMode) => void
+
+  // LaserDMX Beam Matrix (persisted, never changed by preset application)
+  laserDmxBeamMatrix: LaserDmxBeamMatrixSettings
+  setLaserDmxBeamMatrixSettings: (partial: Partial<LaserDmxBeamMatrixSettings>) => void
+  resetLaserDmxBeamMatrix: () => void
+
+  addLaserDmxMatrixBeam: (initial?: Partial<LaserDmxMatrixBeam>) => void
+  duplicateLaserDmxMatrixBeam: (beamId: string) => void
+  removeLaserDmxMatrixBeam: (beamId: string) => void
+  removeSelectedLaserDmxMatrixBeams: () => void
+  updateLaserDmxMatrixBeam: (beamId: string, patch: Partial<LaserDmxMatrixBeam>) => void
+  selectLaserDmxMatrixBeam: (beamId: string, additive?: boolean) => void
+  setSelectedLaserDmxMatrixBeams: (ids: string[]) => void
+  clearLaserDmxMatrixSelection: () => void
+
+  addLaserDmxReactionGroup: () => void
+  duplicateLaserDmxReactionGroup: (groupId: string) => void
+  removeLaserDmxReactionGroup: (groupId: string) => void
+  updateLaserDmxReactionGroup: (groupId: string, patch: Partial<LaserDmxReactionGroup>) => void
+  selectLaserDmxReactionGroup: (groupId: string | null) => void
+
+  addLaserDmxMatrixGlobalRoute: () => void
+  updateLaserDmxMatrixGlobalRoute: (routeId: string, patch: Partial<LaserDmxModulationRoute>) => void
+  removeLaserDmxMatrixGlobalRoute: (routeId: string) => void
+
+  addLaserDmxReactionGroupRoute: (groupId: string) => void
+  updateLaserDmxReactionGroupRoute: (groupId: string, routeId: string, patch: Partial<LaserDmxModulationRoute>) => void
+  removeLaserDmxReactionGroupRoute: (groupId: string, routeId: string) => void
+
+  addLaserDmxMatrixBeamRoute: (beamId: string) => void
+  updateLaserDmxMatrixBeamRoute: (beamId: string, routeId: string, patch: Partial<LaserDmxModulationRoute>) => void
+  removeLaserDmxMatrixBeamRoute: (beamId: string, routeId: string) => void
+
+  setLaserDmxReactionGroupMuted: (groupId: string, muted: boolean) => void
+  setLaserDmxReactionGroupSoloed: (groupId: string, soloed: boolean) => void
+  /** Duplicates beamIds with grid col/row offsets. Returns count actually created (may be < beamIds.length at 300-beam limit). */
+  duplicateLaserDmxMatrixBeamsWithOffset: (
+    beamIds: string[],
+    colOffset: number,
+    rowOffset: number,
+    opts?: { targetColOffset?: number; targetRowOffset?: number; preserveGroups?: boolean }
+  ) => number
+  /** Restores the 4 starter reaction groups without deleting user-created beams or custom groups. */
+  restoreStarterReactionGroups: () => void
+  setLaserDmxBeamMatrixEditorSettings: (patch: Partial<LaserDmxBeamMatrixEditorSettings>) => void
 }
 
 const INITIAL_PRESET_ID = DEFAULT_REACT_PRESETS[0].id
@@ -349,7 +469,9 @@ export const useReactStore = create<ReactStoreState>()(
       oscillatorFontAssets: [],
       oscillatorTextPointCache: {},
       glyphLostNotice: null,
-      laserDmxSettings: createDefaultLaserDmxSettings(),
+      laserDmxSettings:       createDefaultLaserDmxSettings(),
+      laserDmxWorkspaceMode:  'spatialFixtures',
+      laserDmxBeamMatrix:     createDefaultLaserDmxBeamMatrixSettings(),
       reactIntensity:       0.7,
       reactMotion:          0.5,
       reactGlow:            0.65,
@@ -878,6 +1000,382 @@ export const useReactStore = create<ReactStoreState>()(
           },
         })),
 
+      // ── LaserDMX workspace mode ─────────────────────────────────────────────
+
+      setLaserDmxWorkspaceMode: (mode) => set({ laserDmxWorkspaceMode: mode }),
+
+      // ── LaserDMX Beam Matrix ────────────────────────────────────────────────
+
+      setLaserDmxBeamMatrixSettings: (partial) =>
+        set(s => ({ laserDmxBeamMatrix: { ...s.laserDmxBeamMatrix, ...partial } })),
+
+      resetLaserDmxBeamMatrix: () =>
+        set({ laserDmxBeamMatrix: createDefaultLaserDmxBeamMatrixSettings() }),
+
+      addLaserDmxMatrixBeam: (initial) =>
+        set(s => {
+          if (s.laserDmxBeamMatrix.beams.length >= LASER_DMX_MATRIX_MAX_BEAMS) return {}
+          const base = makeDefaultMatrixBeam(s.laserDmxBeamMatrix.beams)
+          const beam = clampMatrixBeam(initial ? { ...base, ...initial, id: crypto.randomUUID() } : base)
+          return {
+            laserDmxBeamMatrix: {
+              ...s.laserDmxBeamMatrix,
+              beams: [...s.laserDmxBeamMatrix.beams, beam],
+              selectedBeamIds: [beam.id],
+            },
+          }
+        }),
+
+      duplicateLaserDmxMatrixBeam: (beamId) =>
+        set(s => {
+          if (s.laserDmxBeamMatrix.beams.length >= LASER_DMX_MATRIX_MAX_BEAMS) return {}
+          const src = s.laserDmxBeamMatrix.beams.find(b => b.id === beamId)
+          if (!src) return {}
+          const copy: LaserDmxMatrixBeam = {
+            ...src,
+            id:   crypto.randomUUID(),
+            name: `${src.name} Copy`,
+            modulationRoutes: src.modulationRoutes.map(r => ({ ...r, id: crypto.randomUUID() })),
+          }
+          return {
+            laserDmxBeamMatrix: {
+              ...s.laserDmxBeamMatrix,
+              beams: [...s.laserDmxBeamMatrix.beams, copy],
+              selectedBeamIds: [copy.id],
+            },
+          }
+        }),
+
+      removeLaserDmxMatrixBeam: (beamId) =>
+        set(s => {
+          const remaining = s.laserDmxBeamMatrix.beams.filter(b => b.id !== beamId)
+          return {
+            laserDmxBeamMatrix: {
+              ...s.laserDmxBeamMatrix,
+              beams:           remaining,
+              selectedBeamIds: s.laserDmxBeamMatrix.selectedBeamIds.filter(id => id !== beamId),
+            },
+          }
+        }),
+
+      removeSelectedLaserDmxMatrixBeams: () =>
+        set(s => {
+          const ids = new Set(s.laserDmxBeamMatrix.selectedBeamIds)
+          return {
+            laserDmxBeamMatrix: {
+              ...s.laserDmxBeamMatrix,
+              beams:           s.laserDmxBeamMatrix.beams.filter(b => !ids.has(b.id)),
+              selectedBeamIds: [],
+            },
+          }
+        }),
+
+      updateLaserDmxMatrixBeam: (beamId, patch) =>
+        set(s => ({
+          laserDmxBeamMatrix: {
+            ...s.laserDmxBeamMatrix,
+            beams: s.laserDmxBeamMatrix.beams.map(b =>
+              b.id === beamId ? clampMatrixBeam({ ...b, ...patch }) : b
+            ),
+          },
+        })),
+
+      selectLaserDmxMatrixBeam: (beamId, additive = false) =>
+        set(s => {
+          const exists = s.laserDmxBeamMatrix.beams.some(b => b.id === beamId)
+          if (!exists) return {}
+          const next = additive
+            ? (s.laserDmxBeamMatrix.selectedBeamIds.includes(beamId)
+                ? s.laserDmxBeamMatrix.selectedBeamIds.filter(id => id !== beamId)
+                : [...s.laserDmxBeamMatrix.selectedBeamIds, beamId])
+            : [beamId]
+          return { laserDmxBeamMatrix: { ...s.laserDmxBeamMatrix, selectedBeamIds: next } }
+        }),
+
+      setSelectedLaserDmxMatrixBeams: (ids) =>
+        set(s => {
+          const valid = new Set(s.laserDmxBeamMatrix.beams.map(b => b.id))
+          return {
+            laserDmxBeamMatrix: {
+              ...s.laserDmxBeamMatrix,
+              selectedBeamIds: ids.filter(id => valid.has(id)),
+            },
+          }
+        }),
+
+      clearLaserDmxMatrixSelection: () =>
+        set(s => ({ laserDmxBeamMatrix: { ...s.laserDmxBeamMatrix, selectedBeamIds: [] } })),
+
+      addLaserDmxReactionGroup: () =>
+        set(s => {
+          const grp: LaserDmxReactionGroup = {
+            id:      crypto.randomUUID(),
+            name:    `Group ${s.laserDmxBeamMatrix.groups.length + 1}`,
+            enabled: true,
+            muted:   false,
+            soloed:  false,
+            colorOverrideEnabled: false,
+            color:   { red: 255, green: 255, blue: 255, white: 0, alpha: 1 },
+            modulationRoutes: [],
+          }
+          return {
+            laserDmxBeamMatrix: {
+              ...s.laserDmxBeamMatrix,
+              groups:          [...s.laserDmxBeamMatrix.groups, grp],
+              selectedGroupId: grp.id,
+            },
+          }
+        }),
+
+      duplicateLaserDmxReactionGroup: (groupId) =>
+        set(s => {
+          const src = s.laserDmxBeamMatrix.groups.find(g => g.id === groupId)
+          if (!src) return {}
+          const copy: LaserDmxReactionGroup = {
+            ...src,
+            id:   crypto.randomUUID(),
+            name: `${src.name} Copy`,
+            modulationRoutes: src.modulationRoutes.map(r => ({ ...r, id: crypto.randomUUID() })),
+          }
+          return {
+            laserDmxBeamMatrix: {
+              ...s.laserDmxBeamMatrix,
+              groups:          [...s.laserDmxBeamMatrix.groups, copy],
+              selectedGroupId: copy.id,
+            },
+          }
+        }),
+
+      removeLaserDmxReactionGroup: (groupId) =>
+        set(s => {
+          const beams = s.laserDmxBeamMatrix.beams.map(b =>
+            b.groupId === groupId ? { ...b, groupId: null } : b
+          )
+          return {
+            laserDmxBeamMatrix: {
+              ...s.laserDmxBeamMatrix,
+              groups:          s.laserDmxBeamMatrix.groups.filter(g => g.id !== groupId),
+              beams,
+              selectedGroupId: s.laserDmxBeamMatrix.selectedGroupId === groupId
+                ? null
+                : s.laserDmxBeamMatrix.selectedGroupId,
+            },
+          }
+        }),
+
+      updateLaserDmxReactionGroup: (groupId, patch) =>
+        set(s => ({
+          laserDmxBeamMatrix: {
+            ...s.laserDmxBeamMatrix,
+            groups: s.laserDmxBeamMatrix.groups.map(g =>
+              g.id === groupId ? { ...g, ...patch } : g
+            ),
+          },
+        })),
+
+      selectLaserDmxReactionGroup: (groupId) =>
+        set(s => ({ laserDmxBeamMatrix: { ...s.laserDmxBeamMatrix, selectedGroupId: groupId } })),
+
+      addLaserDmxMatrixGlobalRoute: () =>
+        set(s => ({
+          laserDmxBeamMatrix: {
+            ...s.laserDmxBeamMatrix,
+            globalModulationRoutes: [...s.laserDmxBeamMatrix.globalModulationRoutes, makeNewModulationRoute()],
+          },
+        })),
+
+      updateLaserDmxMatrixGlobalRoute: (routeId, patch) =>
+        set(s => ({
+          laserDmxBeamMatrix: {
+            ...s.laserDmxBeamMatrix,
+            globalModulationRoutes: s.laserDmxBeamMatrix.globalModulationRoutes.map(r =>
+              r.id === routeId ? { ...r, ...patch } : r
+            ),
+          },
+        })),
+
+      removeLaserDmxMatrixGlobalRoute: (routeId) =>
+        set(s => ({
+          laserDmxBeamMatrix: {
+            ...s.laserDmxBeamMatrix,
+            globalModulationRoutes: s.laserDmxBeamMatrix.globalModulationRoutes.filter(r => r.id !== routeId),
+          },
+        })),
+
+      addLaserDmxReactionGroupRoute: (groupId) =>
+        set(s => ({
+          laserDmxBeamMatrix: {
+            ...s.laserDmxBeamMatrix,
+            groups: s.laserDmxBeamMatrix.groups.map(g =>
+              g.id === groupId
+                ? { ...g, modulationRoutes: [...g.modulationRoutes, makeNewModulationRoute()] }
+                : g
+            ),
+          },
+        })),
+
+      updateLaserDmxReactionGroupRoute: (groupId, routeId, patch) =>
+        set(s => ({
+          laserDmxBeamMatrix: {
+            ...s.laserDmxBeamMatrix,
+            groups: s.laserDmxBeamMatrix.groups.map(g =>
+              g.id !== groupId ? g : {
+                ...g,
+                modulationRoutes: g.modulationRoutes.map(r =>
+                  r.id === routeId ? { ...r, ...patch } : r
+                ),
+              }
+            ),
+          },
+        })),
+
+      removeLaserDmxReactionGroupRoute: (groupId, routeId) =>
+        set(s => ({
+          laserDmxBeamMatrix: {
+            ...s.laserDmxBeamMatrix,
+            groups: s.laserDmxBeamMatrix.groups.map(g =>
+              g.id !== groupId ? g : {
+                ...g,
+                modulationRoutes: g.modulationRoutes.filter(r => r.id !== routeId),
+              }
+            ),
+          },
+        })),
+
+      addLaserDmxMatrixBeamRoute: (beamId) =>
+        set(s => ({
+          laserDmxBeamMatrix: {
+            ...s.laserDmxBeamMatrix,
+            beams: s.laserDmxBeamMatrix.beams.map(b =>
+              b.id === beamId
+                ? { ...b, modulationRoutes: [...b.modulationRoutes, makeNewModulationRoute()] }
+                : b
+            ),
+          },
+        })),
+
+      updateLaserDmxMatrixBeamRoute: (beamId, routeId, patch) =>
+        set(s => ({
+          laserDmxBeamMatrix: {
+            ...s.laserDmxBeamMatrix,
+            beams: s.laserDmxBeamMatrix.beams.map(b =>
+              b.id !== beamId ? b : {
+                ...b,
+                modulationRoutes: b.modulationRoutes.map(r =>
+                  r.id === routeId ? { ...r, ...patch } : r
+                ),
+              }
+            ),
+          },
+        })),
+
+      removeLaserDmxMatrixBeamRoute: (beamId, routeId) =>
+        set(s => ({
+          laserDmxBeamMatrix: {
+            ...s.laserDmxBeamMatrix,
+            beams: s.laserDmxBeamMatrix.beams.map(b =>
+              b.id !== beamId ? b : {
+                ...b,
+                modulationRoutes: b.modulationRoutes.filter(r => r.id !== routeId),
+              }
+            ),
+          },
+        })),
+
+      setLaserDmxReactionGroupMuted: (groupId, muted) =>
+        set(s => ({
+          laserDmxBeamMatrix: {
+            ...s.laserDmxBeamMatrix,
+            groups: s.laserDmxBeamMatrix.groups.map(g =>
+              g.id === groupId ? { ...g, muted } : g
+            ),
+          },
+        })),
+
+      setLaserDmxReactionGroupSoloed: (groupId, soloed) =>
+        set(s => ({
+          laserDmxBeamMatrix: {
+            ...s.laserDmxBeamMatrix,
+            groups: s.laserDmxBeamMatrix.groups.map(g =>
+              g.id === groupId ? { ...g, soloed } : g
+            ),
+          },
+        })),
+
+      duplicateLaserDmxMatrixBeamsWithOffset: (beamIds, colOffset, rowOffset, opts = {}) => {
+        const { targetColOffset = 0, targetRowOffset = 0, preserveGroups = true } = opts
+        let created = 0
+        set(s => {
+          const available = LASER_DMX_MATRIX_MAX_BEAMS - s.laserDmxBeamMatrix.beams.length
+          const toCreate = beamIds.slice(0, available)
+          const newBeams: LaserDmxMatrixBeam[] = []
+          for (const id of toCreate) {
+            const src = s.laserDmxBeamMatrix.beams.find(b => b.id === id)
+            if (!src) continue
+            const newOrigin = {
+              ...src.origin,
+              column: clampCol(src.origin.column + colOffset),
+              row:    clampRow(src.origin.row    + rowOffset),
+            }
+            let newTarget = src.target
+            if (src.target.kind === 'grid') {
+              newTarget = {
+                ...src.target,
+                column: clampCol(src.target.column + (targetColOffset || colOffset)),
+                row:    clampRow(src.target.row    + (targetRowOffset || rowOffset)),
+              }
+            }
+            newBeams.push(clampMatrixBeam({
+              ...src,
+              id:   crypto.randomUUID(),
+              name: `${src.name} Copy`,
+              modulationRoutes: src.modulationRoutes.map(r => ({ ...r, id: crypto.randomUUID() })),
+              groupId: preserveGroups ? src.groupId : null,
+              origin: newOrigin,
+              target: newTarget,
+            }))
+          }
+          created = newBeams.length
+          if (newBeams.length === 0) return {}
+          return {
+            laserDmxBeamMatrix: {
+              ...s.laserDmxBeamMatrix,
+              beams:           [...s.laserDmxBeamMatrix.beams, ...newBeams],
+              selectedBeamIds: newBeams.map(b => b.id),
+            },
+          }
+        })
+        return created
+      },
+
+      restoreStarterReactionGroups: () =>
+        set(s => {
+          const STARTER_IDS = ['grp-bass', 'grp-snare', 'grp-beat', 'grp-custom']
+          const defaults = createDefaultLaserDmxBeamMatrixSettings()
+          const starterDefaults = defaults.groups // 4 default groups
+          const existing = s.laserDmxBeamMatrix.groups
+          const nonStarter = existing.filter(g => !STARTER_IDS.includes(g.id))
+          // For each starter group: restore if missing, keep if present (preserve user edits)
+          const restoredStarters = starterDefaults.map(def => {
+            const found = existing.find(g => g.id === def.id)
+            return found ?? def
+          })
+          return {
+            laserDmxBeamMatrix: {
+              ...s.laserDmxBeamMatrix,
+              groups: [...restoredStarters, ...nonStarter],
+            },
+          }
+        }),
+
+      setLaserDmxBeamMatrixEditorSettings: (patch) =>
+        set(s => ({
+          laserDmxBeamMatrix: {
+            ...s.laserDmxBeamMatrix,
+            editor: { ...s.laserDmxBeamMatrix.editor, ...patch },
+          },
+        })),
+
       resetReactView: () => {
         clearSvgVisualCache()
         set({
@@ -892,6 +1390,8 @@ export const useReactStore = create<ReactStoreState>()(
           oscillatorTextPointCache:  {},
           glyphLostNotice:           null,
           laserDmxSettings:          createDefaultLaserDmxSettings(),
+          laserDmxWorkspaceMode:     'spatialFixtures',
+          laserDmxBeamMatrix:        createDefaultLaserDmxBeamMatrixSettings(),
           reactIntensity:       0.7,
           reactMotion:          0.5,
           reactGlow:            0.65,
@@ -905,6 +1405,20 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
+      version: 1,
+      migrate: (persistedState: unknown, version: number) => {
+        const state = (persistedState ?? {}) as Record<string, unknown>
+        if (version < 1) {
+          // Users with no version (< 1): add Beam Matrix state while preserving
+          // all existing Spatial Fixtures settings.
+          return {
+            ...state,
+            laserDmxWorkspaceMode: 'spatialFixtures' as LaserDmxWorkspaceMode,
+            laserDmxBeamMatrix:    createDefaultLaserDmxBeamMatrixSettings(),
+          }
+        }
+        return state
+      },
       partialize: (s) => ({
         activeReactPresetId:    s.activeReactPresetId,
         activeReactEngineId:    s.activeReactEngineId,
@@ -913,6 +1427,8 @@ export const useReactStore = create<ReactStoreState>()(
         oscillatorGlyphAssets:  s.oscillatorGlyphAssets,
         oscillatorFontAssets:   s.oscillatorFontAssets,
         laserDmxSettings:       s.laserDmxSettings,
+        laserDmxWorkspaceMode:  s.laserDmxWorkspaceMode,
+        laserDmxBeamMatrix:     s.laserDmxBeamMatrix,
         reactIntensity:       s.reactIntensity,
         reactMotion:          s.reactMotion,
         reactGlow:            s.reactGlow,

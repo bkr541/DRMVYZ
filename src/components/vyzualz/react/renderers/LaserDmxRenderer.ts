@@ -1,7 +1,28 @@
-// LaserDMX virtual canvas renderer.
-// Reads LaserDmxSettings from the Zustand store singleton and MI from
-// AudioFeatureBus — no prop-threading needed, same pattern as the canvas loop.
-// Never writes to Zustand. Zero heap allocations outside of compileLaserDmxFrame.
+// LaserDMX virtual canvas renderer — mode-branching entry point.
+//
+// LaserDMX renders only the SELECTED workspace mode each frame:
+//
+//   if (workspaceMode === 'beamMatrix') {
+//     compile and render Beam Matrix only → return
+//   }
+//   compile and render Spatial Fixtures only
+//
+// The inactive mode is never compiled or rendered.  Both modes share the
+// existing two-level playback gate (shouldRenderLaserDmx /
+// clearLaserDmxVisualState); clearLaserDmxVisualState now also resets the
+// Beam Matrix compiler state and fog animation state.
+//
+// Reads from Zustand once per frame (singleton read — safe in rAF context).
+// Never writes to Zustand.
+//
+// Relationship to global React params (params.*):
+//   Spatial Fixtures: unchanged from previous behaviour.
+//   Beam Matrix:
+//     - params.intensity → scales master dimmer contribution (documented).
+//     - params.glow      → scales beam glow (documented).
+//     - params.motion    → NOT applied (beam coordinates are saved positions).
+//     - params.bassReactivity → NOT applied (Beam Matrix has its own group routes).
+//     - params.fogDensity    → NOT applied (Beam Matrix has dedicated fog settings).
 
 import type { ReactPreset, ReactSectionType } from '../ReactTypes'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
@@ -11,8 +32,11 @@ import { compileLaserDmxFrame } from './LaserDmxCompiler'
 import type { LaserDmxFixtureFrame } from '../ReactTypes'
 import type { CompiledGlobal } from './LaserDmxCompiler'
 import { clamp, clamp01, resetLaserDmxCompilerState } from './LaserDmxCompiler'
+import { compileLaserDmxBeamMatrix, resetBeamMatrixCompilerState } from './LaserDmxBeamMatrixCompiler'
+import { renderLaserDmxBeamMatrix } from './LaserDmxBeamMatrixRenderer'
+import { renderFog, resetFogState } from './LaserDmxFogRenderer'
 
-// ── Drawing helpers ───────────────────────────────────────────────────────────
+// ── Drawing helpers (Spatial Fixtures — unchanged) ────────────────────────────
 
 function drawBeam(
   ctx:       CanvasRenderingContext2D,
@@ -26,7 +50,6 @@ function drawBeam(
   if (intensity < 0.001) return
   const alpha = clamp01(intensity)
 
-  // Layer 1 — wide soft glow
   ctx.save()
   ctx.globalCompositeOperation = 'screen'
   ctx.strokeStyle = color
@@ -36,7 +59,6 @@ function drawBeam(
   ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke()
   ctx.restore()
 
-  // Layer 2 — medium colored stroke
   ctx.save()
   ctx.globalCompositeOperation = 'screen'
   ctx.strokeStyle = color
@@ -48,7 +70,6 @@ function drawBeam(
   ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke()
   ctx.restore()
 
-  // Layer 3 — thin bright core
   ctx.save()
   ctx.globalCompositeOperation = 'screen'
   ctx.strokeStyle = `rgba(255,255,255,${(alpha * 0.9).toFixed(3)})`
@@ -104,7 +125,6 @@ function drawConnectedPath(
   ctx.restore()
 }
 
-// Path kinds that render as connected curves rather than individual beams-to-origin
 const CONNECTED_PATH_KINDS = new Set(['circle', 'spiral', 'lissajous', 'grid', 'constellation', 'tunnel', 'svgPath', 'textPath'])
 
 function renderFixtureFrame(
@@ -119,11 +139,9 @@ function renderFixtureFrame(
   if (frame.visual.points.length === 0) return
 
   const { origin, points, color, rgba, intensity, beamWidth, focusFactor } = frame.visual
-  // beamWidth already incorporates globalBeamWidth from the compiler — do NOT multiply again
-  const bw   = beamWidth
-  // focus: 1=sharp (reduced glow), 0=soft (full glow). Mix so focus=0.5 → glow×0.65.
+  const bw  = beamWidth
   const focusedGlow = clamp01(glowAmt * lerp(1.0, 0.15, clamp01(focusFactor)))
-  const ox   = origin.x, oy = origin.y
+  const ox  = origin.x, oy = origin.y
 
   const isConnected = CONNECTED_PATH_KINDS.has(pathKind)
 
@@ -138,7 +156,6 @@ function renderFixtureFrame(
     }
   }
 
-  // Endpoint dots
   const dotR = Math.max(1, bw * 1.4)
   for (const pt of points) {
     drawEndDot(ctx, pt.x, pt.y, color, dotR, intensity * rgba.a * 0.9, focusedGlow)
@@ -201,9 +218,11 @@ export function shouldRenderLaserDmx(isPlaying: boolean): boolean {
   return isPlaying
 }
 
-/** Immediately wipes all LaserDMX canvas output and resets compiler dt state.
- *  Uses clearRect (not fillRect) so no prior draw state affects the result.
- *  setTransform resets any accidental transform before clearing. */
+/**
+ * Wipes all LaserDMX canvas output and resets all compiler / fog state.
+ * Covers both workspace modes: resets Spatial Fixtures compiler dt,
+ * Beam Matrix compiler dt + trigger envelopes, and fog animation state.
+ */
 export function clearLaserDmxVisualState(
   ctx: CanvasRenderingContext2D,
   W:   number,
@@ -215,7 +234,11 @@ export function clearLaserDmxVisualState(
   ctx.globalCompositeOperation = 'source-over'
   ctx.clearRect(0, 0, W, H)
   ctx.restore()
+  // Reset both mode compilers
   resetLaserDmxCompilerState()
+  resetBeamMatrixCompilerState()
+  // Reset fog animation so stale fog is not visible on resume
+  resetFogState()
 }
 
 // ── Public entry point ────────────────────────────────────────────────────────
@@ -230,22 +253,77 @@ export function renderLaserDmx(
   const { W, H, t } = frame
   if (!W || !H) return
 
-  // Defensive Level-2 gate: clear and bail if the transport is paused.
-  // ReactEngineRenderer's Level-1 gate prevents this call entirely, but this
-  // guard handles any direct callers and protects against future refactors.
+  // Level-2 playback gate (Level-1 is in ReactEngineRenderer)
   if (!shouldRenderLaserDmx(frame.isPlaying)) {
     clearLaserDmxVisualState(ctx, W, H)
     return
   }
 
-  // Seconds-based time for strobe + envelope. Fall back to t/60 when timeSec is absent (e.g. test fixtures).
   const timeSec = frame.timeSec ?? (t / 60)
 
-  // Read settings and MI without props (singleton reads — safe in rAF context)
-  const settings = useReactStore.getState().laserDmxSettings
+  // Read workspace mode from store (singleton read — safe in rAF context)
+  const state = useReactStore.getState()
+  const workspaceMode = state.laserDmxWorkspaceMode
+
+  // ── BEAM MATRIX mode ──────────────────────────────────────────────────────
+  if (workspaceMode === 'beamMatrix') {
+    const bmSettings = state.laserDmxBeamMatrix
+    const mi         = AudioFeatureBus.getFrame()
+
+    const compiled = compileLaserDmxBeamMatrix({
+      settings:     bmSettings,
+      mi,
+      time:         t,
+      timeSec,
+      canvasWidth:  W,
+      canvasHeight: H,
+    })
+
+    const out = compiled.output
+
+    // Background fade (persistence)
+    const fadeAlpha = clamp01(out.backgroundFade) *
+      (0.3 + 0.7 * clamp01(1 - out.beamPersistence))
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.globalAlpha = Math.max(0.01, fadeAlpha)
+    ctx.fillStyle   = '#000000'
+    ctx.fillRect(0, 0, W, H)
+    ctx.globalAlpha = 1
+
+    // Blackout
+    if (out.blackout) {
+      ctx.fillStyle = '#000000'
+      ctx.fillRect(0, 0, W, H)
+      return
+    }
+
+    // dt for fog animation (clamp to avoid spikes after pause)
+    const dt = Math.min(0.1, 1 / 60)
+
+    // Fog (behind beams)
+    renderFog(ctx, W, H, compiled.fog, compiled.beams, dt)
+
+    // Beams
+    // params.intensity → scales master dimmer intentionally.
+    // params.glow      → scales beam glow intentionally.
+    // Other params.*   → not applied to Beam Matrix (see module docblock).
+    renderLaserDmxBeamMatrix(
+      ctx, W, H,
+      out,
+      compiled.beams,
+      clamp01(params.intensity),
+      clamp01(params.glow),
+      false, // showDebug: TODO wire to a dedicated debug toggle when needed
+    )
+
+    // Return — do NOT fall through to Spatial Fixtures rendering
+    return
+  }
+
+  // ── SPATIAL FIXTURES mode (existing behaviour — unchanged) ────────────────
+  const settings = state.laserDmxSettings
   const mi       = AudioFeatureBus.getFrame()
 
-  // ── Compile fixture frames ─────────────────────────────────────────────────
   const compiled = compileLaserDmxFrame({
     settings,
     mi,
@@ -257,17 +335,13 @@ export function renderLaserDmx(
 
   const g: CompiledGlobal = compiled.global
 
-  // ── Background fade ────────────────────────────────────────────────────────
-  // backgroundFade: 0=no fade (infinite trail), 1=immediate clear.
-  // beamPersistence reduces the effective fade for trail retention.
   const fadeAlpha = clamp01(g.backgroundFade) * (0.3 + 0.7 * clamp01(1 - g.beamPersistence))
   ctx.globalCompositeOperation = 'source-over'
-  ctx.globalAlpha = Math.max(0.01, fadeAlpha)  // always fade at least a tiny bit to avoid total burn-in
+  ctx.globalAlpha = Math.max(0.01, fadeAlpha)
   ctx.fillStyle   = '#000000'
   ctx.fillRect(0, 0, W, H)
   ctx.globalAlpha = 1
 
-  // ── Blackout ───────────────────────────────────────────────────────────────
   if (g.blackout) {
     ctx.fillStyle = '#000000'
     ctx.fillRect(0, 0, W, H)
@@ -276,14 +350,12 @@ export function renderLaserDmx(
 
   if (compiled.fixtures.length === 0) return
 
-  // ── Haze atmosphere layer ──────────────────────────────────────────────────
   drawHaze(ctx, W, H, g.hazeAmount, compiled.fixtures)
 
-  // ── Draw each fixture ──────────────────────────────────────────────────────
   const glowAmt = clamp01(g.glowAmount * params.glow)
 
   for (let i = 0; i < compiled.fixtures.length; i++) {
-    const f = compiled.fixtures[i]
+    const f       = compiled.fixtures[i]
     const fixture = settings.fixtures.find(fx => fx.id === f.fixtureId)
     const pathKind = fixture?.path.kind ?? 'staticBeam'
     renderFixtureFrame(
@@ -295,7 +367,6 @@ export function renderLaserDmx(
     )
   }
 
-  // ── Virtual DMX debug overlay ──────────────────────────────────────────────
   if (settings.showDmxDebug && compiled.fixtures.length > 0) {
     ctx.save()
     ctx.globalAlpha = 0.55

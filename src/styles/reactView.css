@@ -1202,6 +1202,350 @@
   white-space: nowrap;
 }
 
+/* ── Beam Matrix Editor Overlay ─────────────────────────────────────────────── */
+
+.rv-bm-editor-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+}
+
+.rv-bm-editor-toolbar {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: rgba(10, 12, 18, 0.75);
+  border-bottom: 1px solid rgba(74, 199, 219, 0.2);
+  flex-shrink: 0;
+}
+
+.rv-bm-editor-svg {
+  flex: 1 1 0;
+  width: 100%;
+  pointer-events: auto;
+  display: block;
+  overflow: visible;
+}
+
+.rv-bm-editor-btn {
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 500;
+  background: rgba(255,255,255,0.07);
+  color: rgba(232,244,248,0.85);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  line-height: 1.5;
+}
+.rv-bm-editor-btn:hover {
+  background: rgba(74,199,219,0.18);
+  border-color: rgba(74,199,219,0.5);
+}
+.rv-bm-editor-btn--active,
+.rv-bm-editor-btn:active {
+  background: rgba(74,199,219,0.28);
+  border-color: rgba(74,199,219,0.7);
+  color: #4ac7db;
+}
+.rv-bm-editor-btn--cancel {
+  border-color: rgba(192,49,74,0.5);
+  color: rgba(232,100,100,0.9);
+}
+.rv-bm-editor-btn--cancel:hover {
+  background: rgba(192,49,74,0.2);
+  border-color: rgba(192,49,74,0.8);
+}
+.rv-bm-editor-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.rv-bm-editor-instruction {
+  font-size: 11px;
+  color: rgba(74,199,219,0.85);
+  margin-left: 4px;
+  font-style: italic;
+}
+
+.rv-bm-editor-count {
+  font-size: 11px;
+  color: rgba(232,244,248,0.45);
+  margin-left: auto;
+}
+
+/* ── Beam Matrix Program Stats + Toolbar ─────────────────────────────────────── */
+
+.rv-bm-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: rgba(232,244,248,0.5);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.rv-bm-sel-badge {
+  margin-left: auto;
+  background: rgba(74,199,219,0.2);
+  color: #4ac7db;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 10px;
+}
+
+.rv-bm-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.rv-bm-confirm {
+  font-size: 11px;
+  color: rgba(232,100,100,0.9);
+  padding: 0 4px;
+}
+
+/* ── Beam Matrix Reaction Group List ─────────────────────────────────────────── */
+
+.rv-bm-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.rv-bm-group-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 3px;
+  background: transparent;
+  transition: background 0.1s;
+}
+.rv-bm-group-row:hover {
+  background: rgba(255,255,255,0.04);
+}
+.rv-bm-group-row--active {
+  background: rgba(74,199,219,0.1);
+  border-left: 2px solid rgba(74,199,219,0.7);
+}
+.rv-bm-group-row--muted {
+  opacity: 0.5;
+}
+
+.rv-bm-group-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.rv-bm-group-name {
+  flex: 1 1 0;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rv-bm-group-count {
+  font-size: 10px;
+  color: rgba(232,244,248,0.4);
+  min-width: 16px;
+  text-align: right;
+}
+
+.rv-bm-group-btn {
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 600;
+  background: transparent;
+  color: rgba(232,244,248,0.5);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 2px;
+  cursor: pointer;
+  line-height: 1.5;
+  transition: background 0.1s, color 0.1s;
+}
+.rv-bm-group-btn:hover {
+  background: rgba(255,255,255,0.08);
+  color: rgba(232,244,248,0.9);
+}
+.rv-bm-group-btn--active {
+  background: rgba(74,199,219,0.25);
+  color: #4ac7db;
+  border-color: rgba(74,199,219,0.5);
+}
+
+/* ── Beam Matrix Layers Panel ────────────────────────────────────────────────── */
+
+.rv-bm-layers {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  font-size: 12px;
+  color: rgba(232,244,248,0.85);
+}
+
+.rv-bm-layers-header {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+
+.rv-bm-layers-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: rgba(232,244,248,0.4);
+  margin-right: auto;
+}
+
+.rv-bm-layers-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+
+.rv-bm-layers-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: rgba(232,244,248,0.35);
+  padding: 6px 8px 3px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.rv-bm-layer-list {
+  flex: 1 1 0;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.rv-bm-layer-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.rv-bm-layer-row:hover {
+  background: rgba(255,255,255,0.04);
+}
+.rv-bm-layer-row--active {
+  background: rgba(74,199,219,0.1);
+}
+.rv-bm-layer-row--disabled {
+  opacity: 0.45;
+}
+
+.rv-bm-layer-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.rv-bm-layer-dot--lg {
+  width: 10px;
+  height: 10px;
+}
+
+.rv-bm-layer-name {
+  flex: 1 1 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.rv-bm-layer-origin,
+.rv-bm-layer-target {
+  font-size: 10px;
+  color: rgba(232,244,248,0.4);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.rv-bm-layer-group {
+  font-size: 10px;
+  color: rgba(74,199,219,0.6);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60px;
+}
+
+.rv-bm-grp-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  cursor: pointer;
+  background: rgba(255,255,255,0.03);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  transition: background 0.1s;
+}
+.rv-bm-grp-header:hover {
+  background: rgba(255,255,255,0.06);
+}
+.rv-bm-grp-header--active {
+  background: rgba(74,199,219,0.1);
+  border-left: 2px solid rgba(74,199,219,0.7);
+}
+.rv-bm-grp-header--muted {
+  opacity: 0.5;
+}
+
+.rv-bm-layer-count {
+  font-size: 10px;
+  color: rgba(232,244,248,0.4);
+  min-width: 18px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.rv-bm-layer-enabled {
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.rv-bm-layer-disabled-badge {
+  color: rgba(232,100,100,0.7);
+  background: rgba(192,49,74,0.12);
+  border-radius: 2px;
+  padding: 0 3px;
+}
+
+/* ── Danger variant for glyph upload button ──────────────────────────────────── */
+.rv-glyph-upload-btn--danger {
+  border-color: rgba(192,49,74,0.5);
+  color: rgba(232,100,100,0.85);
+}
+.rv-glyph-upload-btn--danger:hover {
+  background: rgba(192,49,74,0.18);
+  border-color: rgba(192,49,74,0.8);
+}
+
 /* ── Responsive: collapse rails below narrow viewport ────────────────────────── */
 @media (max-width: 900px) {
   .rv-layout {

@@ -1,52 +1,32 @@
-// Virtual LaserDMX frame compiler.
+// Virtual LaserDMX frame compiler (Spatial Fixtures mode).
 // Produces CompiledLaserDmxResult from settings + MI data each animation tick.
 // Never writes to Zustand. Never produces NaN/Infinity in output channels.
 
 import type { MusicIntelligenceFrame } from '../../../../features/musicIntelligence/types'
-import {
-  getModulationSourceValue,
-  getTriggerSourceValue,
-} from '../../../../features/musicIntelligence/selectors'
 import type {
   LaserDmxSettings,
   LaserDmxFixture,
   LaserDmxModulationRoute,
   LaserDmxFixtureFrame,
 } from '../ReactTypes'
+import {
+  safeNumber,
+  clamp,
+  clamp01,
+  clamp255,
+  lerp,
+  applyCurve,
+  resolveStrobeVisible,
+  applyModulationRoute,
+  modeApply,
+  pruneEnvelopes,
+  resetAllEnvelopes,
+} from './LaserDmxModulationEngine'
 import { generateLaserPath, sliceByProgress } from './LaserDmxPathUtils'
 import type { LaserPoint } from './LaserDmxPathUtils'
 
-// ── Safety helpers ────────────────────────────────────────────────────────────
-
-export function safeNumber(v: unknown, fallback = 0): number {
-  const n = Number(v)
-  return Number.isFinite(n) ? n : fallback
-}
-export function clamp(v: number, lo: number, hi: number): number {
-  return v < lo ? lo : v > hi ? hi : v
-}
-export function clamp01(v: number): number { return clamp(safeNumber(v), 0, 1) }
-export function clamp255(v: number): number { return Math.round(clamp(safeNumber(v), 0, 255)) }
-export function lerp(a: number, b: number, t: number): number { return a + (b - a) * clamp01(t) }
-
-export function applyCurve(v: number, curve: string): number {
-  const x = clamp01(v)
-  switch (curve) {
-    case 'easeIn':    return x * x
-    case 'easeOut':   return 1 - (1 - x) * (1 - x)
-    case 'easeInOut': { const t2 = x < 0.5 ? 2 * x * x : 1 - 2 * (1 - x) * (1 - x); return t2 }
-    case 'pulse':     return Math.pow(Math.sin(x * Math.PI), 2)
-    case 'exponential': return Math.pow(x, 3)
-    default:          return x  // linear
-  }
-}
-
-// Strobe visibility — uses real seconds so timing is frame-rate independent.
-export function resolveStrobeVisible(rate: number, timeSec: number): boolean {
-  if (rate <= 0) return true
-  const freq = lerp(1, 30, clamp01(rate))
-  return (timeSec * freq % 1) < 0.5
-}
+// ── Re-export safety helpers for existing callers (LaserDmxRenderer.ts etc.) ──
+export { safeNumber, clamp, clamp01, clamp255, lerp, applyCurve, resolveStrobeVisible }
 
 // ── Color helpers ─────────────────────────────────────────────────────────────
 
@@ -81,16 +61,15 @@ function samplePalette(paletteId: string, pos: number): [number, number, number]
   ]
 }
 
-// ── Module-level ephemeral state (never persisted to Zustand) ─────────────────
+// ── Module-level ephemeral state ──────────────────────────────────────────────
 
-// Route envelope state: key = `${fixtureId}:${routeId}`, value = current smoothed output (0–1)
-const routeEnvelopes = new Map<string, number>()
 let prevCompileTimeSec = -1
 
 /** Resets the compiler's time reference so the next compiled frame gets dt=1/60
  *  rather than a huge delta accumulated during a pause. Call when LaserDMX stops rendering. */
 export function resetLaserDmxCompilerState(): void {
   prevCompileTimeSec = -1
+  resetAllEnvelopes()
 }
 
 // ── Ephemeral per-fixture render state (never persisted) ─────────────────────
@@ -179,32 +158,6 @@ function fixtureStateFromFixture(f: LaserDmxFixture): FixtureRenderState {
   }
 }
 
-// ── Route envelope (attack / release / smoothing) ────────────────────────────
-
-function applyEnvelope(
-  rawV:      number,  // 0–1 value after curve/invert
-  envKey:    string,
-  dt:        number,  // seconds per frame
-  attack:    number,  // 0–1  (0=instant, 1=slowest)
-  release:   number,  // 0–1
-  smoothing: number,  // 0=pass raw, 1=fully use enveloped
-): number {
-  const prev = routeEnvelopes.get(envKey) ?? rawV  // seed with rawV on first call
-
-  const isRising = rawV >= prev
-  // Rate: lerp from fast (200) to slow (0.5); attack/release=0 → fast, =1 → slow
-  const rate = isRising
-    ? lerp(200, 0.5, clamp01(attack))
-    : lerp(200, 0.5, clamp01(release))
-
-  const enveloped = prev + (rawV - prev) * clamp01(dt * rate)
-
-  // smoothing=0 → output is raw (ignores envelope), smoothing=1 → fully enveloped
-  const finalV = lerp(rawV, enveloped, clamp01(smoothing))
-  routeEnvelopes.set(envKey, finalV)
-  return clamp01(finalV)
-}
-
 // ── Modulation application ────────────────────────────────────────────────────
 
 function applyRoute(
@@ -212,57 +165,20 @@ function applyRoute(
   state:     FixtureRenderState,
   global:    GlobalRenderState,
   mi:        MusicIntelligenceFrame,
-  timeSec:   number,
   fixtureId: string,
   dt:        number,
 ): void {
-  if (!route.enabled) return
+  // Spatial-Fixtures scope prefix: 'sf'
+  const envKey = `sf:${fixtureId}:${route.id}`
+  const result = applyModulationRoute(route, mi, envKey, dt)
+  if (!result) return
 
-  // Source value (0–1)
-  let rawValue = getModulationSourceValue(mi, route.source)
-  // harmonicConfidence backward-compat alias
-  if (route.source === 'harmonicConfidence') {
-    rawValue = Math.max(
-      safeNumber(mi.harmonic?.keyConfidence,   0),
-      safeNumber(mi.harmonic?.chordConfidence, 0),
-    )
-  }
-  // Trigger sources: use getTriggerSourceValue to get 0/1
-  if (rawValue === 0 && route.mode === 'trigger') {
-    rawValue = getTriggerSourceValue(mi, route.source) ? 1 : 0
-  }
+  const v = result.value
 
-  let v = clamp01(rawValue)
-  if (route.invert) v = 1 - v
-  v = applyCurve(v, route.curve)
+  const applyF = (cur: number): number => modeApply(cur, v, route.mode)
+  const applyG = applyF
 
-  // Map through min/max
-  const lo = safeNumber(route.min, 0)
-  const hi = safeNumber(route.max, 1)
-  v = lerp(lo, hi, v)
-
-  const amount = clamp(safeNumber(route.amount, 1), -1, 2)
-  v = clamp(v * amount, -2, 2)
-
-  // Apply attack / release / smoothing envelope
-  const envKey = `${fixtureId}:${route.id}`
-  v = applyEnvelope(clamp01(v), envKey, dt, route.attack ?? 0, route.release ?? 0, route.smoothing ?? 0)
-
-  // Apply to target
   const target = route.target
-  const applyF = (cur: number): number => {
-    switch (route.mode) {
-      case 'set':      return v
-      case 'add':      return clamp01(cur + v)
-      case 'multiply': return clamp01(cur * v)
-      case 'trigger':  return getTriggerSourceValue(mi, route.source) ? v : cur
-      default:         return v
-    }
-  }
-  const applyG = applyF  // same logic for global targets
-
-  void timeSec  // available for future time-dependent targets
-
   switch (target) {
     case 'masterDimmer':    global.masterDimmer    = clamp01(applyG(global.masterDimmer));   break
     case 'hazeAmount':      global.hazeAmount      = clamp01(applyG(global.hazeAmount));     break
@@ -375,8 +291,7 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
   }
 
   if (settings.blackout) {
-    // Clean up stale envelope entries on blackout to prevent state leak
-    routeEnvelopes.clear()
+    resetAllEnvelopes()
     return {
       global: { ...globalState, blackout: true },
       fixtures: [],
@@ -398,9 +313,9 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
 
     // Apply modulation routes
     for (const route of fixture.modulationRoutes) {
-      const envKey = `${fixture.id}:${route.id}`
+      const envKey = `sf:${fixture.id}:${route.id}`
       activeEnvKeys.add(envKey)
-      applyRoute(route, fState, gState, mi, timeSec, fixture.id, dt)
+      applyRoute(route, fState, gState, mi, fixture.id, dt)
     }
 
     // Safety clamp caps effective intensity
@@ -530,9 +445,7 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
   }
 
   // Prune stale envelope entries (routes that no longer exist)
-  for (const key of routeEnvelopes.keys()) {
-    if (!activeEnvKeys.has(key)) routeEnvelopes.delete(key)
-  }
+  pruneEnvelopes(activeEnvKeys)
 
   return {
     global: { ...globalState, blackout: false },

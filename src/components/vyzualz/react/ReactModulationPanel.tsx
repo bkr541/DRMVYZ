@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { SliderRow, SelectRow, ToggleRow, CtrlSection } from './ReactControlRows'
@@ -6,30 +7,49 @@ import type { OscillatorAudioDisplaceMode, LaserDmxModulationRoute } from './Rea
 // ── Source / target option lists ──────────────────────────────────────────────
 
 const MOD_SOURCES = [
-  { value: 'bass',               label: 'Bass'              },
-  { value: 'mid',                label: 'Mid'               },
-  { value: 'high',               label: 'High'              },
-  { value: 'energy',             label: 'Energy'            },
-  { value: 'transient',          label: 'Transient'         },
-  { value: 'kick',               label: 'Kick'              },
-  { value: 'snare',              label: 'Snare'             },
-  { value: 'hat',                label: 'Hat'               },
-  { value: 'beat',               label: 'Beat'              },
-  { value: 'downbeat',           label: 'Downbeat'          },
-  { value: 'beatPhase',          label: 'Beat Phase'        },
-  { value: 'phrase4',            label: 'Phrase 4'          },
-  { value: 'phrase16',           label: 'Phrase 16'         },
-  { value: 'phrase32',           label: 'Phrase 32'         },
-  { value: 'buildProgress',      label: 'Build Progress'    },
-  { value: 'dropImpact',         label: 'Drop Impact'       },
-  { value: 'vocalActivity',      label: 'Vocal Activity'    },
-  { value: 'wordHit',            label: 'Word Hit'          },
-  { value: 'keyConfidence',      label: 'Key Confidence'    },
-  { value: 'chordConfidence',    label: 'Chord Confidence'  },
-  { value: 'tension',            label: 'Tension'           },
-  { value: 'complexity',         label: 'Complexity'        },
-  { value: 'sectionProgress',    label: 'Section Progress'  },
-  { value: 'spectralFlux',       label: 'Spectral Flux'     },
+  // Band energies
+  { value: 'bass',               label: 'Bass Energy'        },
+  { value: 'nBass',              label: 'Normalized Bass'    },
+  { value: 'mid',                label: 'Mid'                },
+  { value: 'high',               label: 'High'               },
+  { value: 'energy',             label: 'Energy'             },
+  { value: 'energyShort',        label: 'Short-Term Energy'  },
+  { value: 'spectralFlux',       label: 'Spectral Flux'      },
+  // Percussive — continuous strength
+  { value: 'transient',          label: 'Transient'          },
+  { value: 'kick',               label: 'Kick Strength'      },
+  { value: 'snare',              label: 'Snare Strength'     },
+  { value: 'hat',                label: 'Hat Strength'       },
+  // Percussive — one-shot hits
+  { value: 'kickHit',            label: 'Kick Hit'           },
+  { value: 'snareHit',           label: 'Snare Hit'          },
+  { value: 'hatHit',             label: 'Hat Hit'            },
+  { value: 'beat',               label: 'Beat Hit'           },
+  { value: 'downbeat',           label: 'Downbeat Hit'       },
+  // Rhythm / timing
+  { value: 'beatPhase',          label: 'Beat Phase'         },
+  { value: 'phrase4',            label: 'Phrase 4 Progress'  },
+  { value: 'phrase4Hit',         label: 'Phrase 4 Hit'       },
+  { value: 'phrase8',            label: 'Phrase 8 Progress'  },
+  { value: 'phrase8Hit',         label: 'Phrase 8 Hit'       },
+  { value: 'phrase16',           label: 'Phrase 16 Progress' },
+  { value: 'phrase16Hit',        label: 'Phrase 16 Hit'      },
+  { value: 'phrase32',           label: 'Phrase 32 Progress' },
+  { value: 'phrase32Hit',        label: 'Phrase 32 Hit'      },
+  // Section / structure
+  { value: 'buildProgress',      label: 'Build Progress'     },
+  { value: 'dropImpact',         label: 'Drop Impact'        },
+  { value: 'sectionProgress',    label: 'Section Progress'   },
+  { value: 'tension',            label: 'Tension'            },
+  // Vocal / lyric
+  { value: 'vocalActivity',      label: 'Vocal Activity'     },
+  { value: 'wordHit',            label: 'Word Hit'           },
+  // Harmonic
+  { value: 'keyConfidence',      label: 'Key Confidence'     },
+  { value: 'chordConfidence',    label: 'Chord Confidence'   },
+  { value: 'harmonicConfidence', label: 'Harmonic Confidence'},
+  // Other
+  { value: 'complexity',         label: 'Complexity'         },
 ]
 
 const MOD_TARGETS = [
@@ -93,10 +113,14 @@ function RouteRow({
   route,
   onChange,
   onDelete,
+  sources = MOD_SOURCES,
+  targets = MOD_TARGETS,
 }: {
   route:    LaserDmxModulationRoute
   onChange: (patch: Partial<LaserDmxModulationRoute>) => void
   onDelete: () => void
+  sources?: { value: string; label: string }[]
+  targets?: { value: string; label: string }[]
 }) {
   const r = (key: keyof LaserDmxModulationRoute) => (route[key] as number)
   return (
@@ -105,8 +129,8 @@ function RouteRow({
         <ToggleRow label="On" value={route.enabled} onChange={v => onChange({ enabled: v })} />
         <button type="button" className="rv-glyph-item-del" title="Delete route" onClick={onDelete}>×</button>
       </div>
-      <SelectRow label="Source" value={route.source} onChange={v => onChange({ source: v })} options={MOD_SOURCES} />
-      <SelectRow label="Target" value={route.target} onChange={v => onChange({ target: v as LaserDmxModulationRoute['target'] })} options={MOD_TARGETS} />
+      <SelectRow label="Source" value={route.source} onChange={v => onChange({ source: v })} options={sources} />
+      <SelectRow label="Target" value={route.target} onChange={v => onChange({ target: v as LaserDmxModulationRoute['target'] })} options={targets} />
       <SelectRow label="Curve"  value={route.curve}  onChange={v => onChange({ curve:  v as LaserDmxModulationRoute['curve']  })} options={CURVE_OPTIONS} />
       <SelectRow label="Mode"   value={route.mode}   onChange={v => onChange({ mode:   v as LaserDmxModulationRoute['mode']   })} options={MODE_OPTIONS} />
       <SliderRow label="Amount"    value={r('amount')}    onChange={v => onChange({ amount:    v })} min={0} max={1} step={0.01} color="#4ac7db" />
@@ -187,14 +211,176 @@ function LaserDmxModPanel() {
   )
 }
 
+// ── Beam Matrix target option lists ──────────────────────────────────────────
+
+const BM_MOD_TARGETS = [
+  { value: 'dimmer',          label: 'Dimmer'             },
+  { value: 'alpha',           label: 'Alpha'              },
+  { value: 'red',             label: 'Red'                },
+  { value: 'green',           label: 'Green'              },
+  { value: 'blue',            label: 'Blue'               },
+  { value: 'white',           label: 'White'              },
+  { value: 'beamDivergence',  label: 'Beam Divergence'    },
+  { value: 'beamGlow',        label: 'Beam Glow'          },
+  { value: 'beamWidth',       label: 'Beam Width'         },
+  { value: 'flickerAmount',   label: 'Flicker'            },
+  { value: 'strobeRate',      label: 'Strobe Rate'        },
+  { value: 'originOffsetX',   label: 'Origin Offset X'   },
+  { value: 'originOffsetY',   label: 'Origin Offset Y'   },
+  { value: 'targetOffsetX',   label: 'Target Offset X'   },
+  { value: 'targetOffsetY',   label: 'Target Offset Y'   },
+  { value: 'targetDepth',     label: 'Target Depth'      },
+  { value: 'fogDensity',      label: 'Fog Density'       },
+  { value: 'fogOpacity',      label: 'Fog Opacity'       },
+  { value: 'fogDriftSpeed',   label: 'Fog Drift Speed'   },
+  { value: 'masterDimmer',    label: 'Master Dimmer'     },
+  { value: 'shutter',         label: 'Shutter'           },
+]
+
+// ── Beam Matrix MOD panel ─────────────────────────────────────────────────────
+
+type BmModScope = 'global' | 'group' | 'beam'
+
+function LaserDmxBeamMatrixModPanel() {
+  const [scope, setScope] = useState<BmModScope>('global')
+
+  const {
+    laserDmxBeamMatrix,
+    addLaserDmxMatrixGlobalRoute,
+    updateLaserDmxMatrixGlobalRoute,
+    removeLaserDmxMatrixGlobalRoute,
+    addLaserDmxReactionGroupRoute,
+    updateLaserDmxReactionGroupRoute,
+    removeLaserDmxReactionGroupRoute,
+    addLaserDmxMatrixBeamRoute,
+    updateLaserDmxMatrixBeamRoute,
+    removeLaserDmxMatrixBeamRoute,
+  } = useReactStore(useShallow(s => ({
+    laserDmxBeamMatrix:                 s.laserDmxBeamMatrix,
+    addLaserDmxMatrixGlobalRoute:        s.addLaserDmxMatrixGlobalRoute,
+    updateLaserDmxMatrixGlobalRoute:     s.updateLaserDmxMatrixGlobalRoute,
+    removeLaserDmxMatrixGlobalRoute:     s.removeLaserDmxMatrixGlobalRoute,
+    addLaserDmxReactionGroupRoute:       s.addLaserDmxReactionGroupRoute,
+    updateLaserDmxReactionGroupRoute:    s.updateLaserDmxReactionGroupRoute,
+    removeLaserDmxReactionGroupRoute:    s.removeLaserDmxReactionGroupRoute,
+    addLaserDmxMatrixBeamRoute:          s.addLaserDmxMatrixBeamRoute,
+    updateLaserDmxMatrixBeamRoute:       s.updateLaserDmxMatrixBeamRoute,
+    removeLaserDmxMatrixBeamRoute:       s.removeLaserDmxMatrixBeamRoute,
+  })))
+
+  const { beams, groups, selectedBeamIds, selectedGroupId, globalModulationRoutes } = laserDmxBeamMatrix
+
+  const primaryBeam  = selectedBeamIds.length === 1 ? beams.find(b => b.id === selectedBeamIds[0]) ?? null : null
+  const selectedGroup = selectedGroupId ? groups.find(g => g.id === selectedGroupId) ?? null : null
+
+  const scopeOptions = [
+    { value: 'global', label: 'Global Matrix'  },
+    { value: 'group',  label: `Group${selectedGroup ? ': ' + selectedGroup.name : ''}` },
+    { value: 'beam',   label: `Beam${primaryBeam ? ': ' + primaryBeam.name : ''}` },
+  ]
+
+  return (
+    <>
+      <CtrlSection label="Scope" />
+      <SelectRow
+        label="Routes for"
+        value={scope}
+        onChange={v => setScope(v as BmModScope)}
+        options={scopeOptions}
+      />
+
+      {scope === 'global' && (
+        <>
+          <CtrlSection label="Global Matrix Routes" />
+          {globalModulationRoutes.length === 0 && (
+            <div className="rv-ctrl-info">No global routes. Global routes apply to all beams.</div>
+          )}
+          {globalModulationRoutes.map(route => (
+            <RouteRow
+              key={route.id}
+              route={route}
+              sources={MOD_SOURCES}
+              targets={BM_MOD_TARGETS}
+              onChange={patch => updateLaserDmxMatrixGlobalRoute(route.id, patch)}
+              onDelete={() => removeLaserDmxMatrixGlobalRoute(route.id)}
+            />
+          ))}
+          <button type="button" className="rv-glyph-upload-btn" style={{ marginTop: 6 }} onClick={addLaserDmxMatrixGlobalRoute}>
+            + Add Global Route
+          </button>
+        </>
+      )}
+
+      {scope === 'group' && (
+        <>
+          {!selectedGroup ? (
+            <>
+              <CtrlSection label="Group Routes" />
+              <div className="rv-ctrl-info">Select a group in the ENGINE tab or Layers panel.</div>
+            </>
+          ) : (
+            <>
+              <CtrlSection label={`Routes — ${selectedGroup.name}`} />
+              {selectedGroup.modulationRoutes.map(route => (
+                <RouteRow
+                  key={route.id}
+                  route={route}
+                  sources={MOD_SOURCES}
+                  targets={BM_MOD_TARGETS}
+                  onChange={patch => updateLaserDmxReactionGroupRoute(selectedGroup.id, route.id, patch)}
+                  onDelete={() => removeLaserDmxReactionGroupRoute(selectedGroup.id, route.id)}
+                />
+              ))}
+              <button type="button" className="rv-glyph-upload-btn" style={{ marginTop: 6 }} onClick={() => addLaserDmxReactionGroupRoute(selectedGroup.id)}>
+                + Add Group Route
+              </button>
+            </>
+          )}
+        </>
+      )}
+
+      {scope === 'beam' && (
+        <>
+          {selectedBeamIds.length > 1 && (
+            <div className="rv-ctrl-info">Multiple beams selected. Select a single beam for detailed route editing.</div>
+          )}
+          {selectedBeamIds.length === 0 && (
+            <div className="rv-ctrl-info">Select a beam in the editor or Layers panel.</div>
+          )}
+          {primaryBeam && (
+            <>
+              <CtrlSection label={`Routes — ${primaryBeam.name}`} />
+              {primaryBeam.modulationRoutes.map(route => (
+                <RouteRow
+                  key={route.id}
+                  route={route}
+                  sources={MOD_SOURCES}
+                  targets={BM_MOD_TARGETS}
+                  onChange={patch => updateLaserDmxMatrixBeamRoute(primaryBeam.id, route.id, patch)}
+                  onDelete={() => removeLaserDmxMatrixBeamRoute(primaryBeam.id, route.id)}
+                />
+              ))}
+              <button type="button" className="rv-glyph-upload-btn" style={{ marginTop: 6 }} onClick={() => addLaserDmxMatrixBeamRoute(primaryBeam.id)}>
+                + Add Beam Route
+              </button>
+            </>
+          )}
+        </>
+      )}
+    </>
+  )
+}
+
 // ── MOD panel ─────────────────────────────────────────────────────────────────
 
 export function ReactModulationPanel() {
   const {
     activeReactEngineId,
+    laserDmxWorkspaceMode,
     oscillatorSettings, setOscillatorSettings,
   } = useReactStore(useShallow(s => ({
     activeReactEngineId:   s.activeReactEngineId,
+    laserDmxWorkspaceMode: s.laserDmxWorkspaceMode,
     oscillatorSettings:    s.oscillatorSettings,
     setOscillatorSettings: s.setOscillatorSettings,
   })))
@@ -205,11 +391,14 @@ export function ReactModulationPanel() {
   const isSoundDrawing = activeReactEngineId === 'oscilloscope'
   const isLaserDmx     = activeReactEngineId === 'laserDmx'
 
-  // ── LaserDMX: per-fixture modulation matrix ───────────────────────────────
+  // ── LaserDMX: branch by workspace mode ───────────────────────────────────
   if (isLaserDmx) {
     return (
       <div className="rv-ctrl-group">
-        <LaserDmxModPanel />
+        {laserDmxWorkspaceMode === 'beamMatrix'
+          ? <LaserDmxBeamMatrixModPanel />
+          : <LaserDmxModPanel />
+        }
       </div>
     )
   }

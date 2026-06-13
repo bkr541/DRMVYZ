@@ -136,6 +136,7 @@ export function getTriggerSourceValue(
   sourceKey: string,
 ): boolean {
   switch (sourceKey) {
+    // Primary names
     case 'beat':       return frame.rhythm.beatHit
     case 'kick':       return frame.rhythm.kickHit
     case 'snare':      return frame.rhythm.snareHit
@@ -149,7 +150,17 @@ export function getTriggerSourceValue(
     case 'wordHit':    return frame.lyrics.wordHit
     case 'drumTrans':  return frame.stems.drumTransient
     case 'bassTrans':  return frame.stems.bassStemTransient
-    default:           return false
+    // Explicit Hit aliases (Beam Matrix reaction groups use these)
+    case 'beatHit':      return frame.rhythm.beatHit
+    case 'kickHit':      return frame.rhythm.kickHit
+    case 'snareHit':     return frame.rhythm.snareHit
+    case 'hatHit':       return frame.rhythm.hatHit
+    case 'downbeatHit':  return frame.rhythm.downbeatHit
+    case 'phrase4Hit':   return frame.rhythm.phrase4Hit
+    case 'phrase8Hit':   return frame.rhythm.phrase8Hit
+    case 'phrase16Hit':  return frame.rhythm.phrase16Hit
+    case 'phrase32Hit':  return frame.rhythm.phrase32Hit
+    default:             return false
   }
 }
 

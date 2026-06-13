@@ -15,6 +15,8 @@ import {
 import { ReactTrackMapStrip } from './ReactTrackMapStrip'
 import { ReactPlaceholderCanvas } from './ReactPlaceholderCanvas'
 import { ReactPerformancePads } from './ReactPerformancePads'
+import { LaserDmxBeamMatrixEditorOverlay } from './LaserDmxBeamMatrixEditorOverlay'
+import { LaserDmxLayersPanel } from './LaserDmxLayersPanel'
 import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
 import { RailTabs } from '../layout/RailTabs'
@@ -62,6 +64,8 @@ export function ReactView() {
   const {
     reactPresets,
     activeReactPresetId,
+    activeReactEngineId,
+    laserDmxWorkspaceMode,
     reactIntensity,
     reactMotion,
     reactGlow,
@@ -77,6 +81,8 @@ export function ReactView() {
   } = useReactStore(useShallow(s => ({
     reactPresets:           s.reactPresets,
     activeReactPresetId:    s.activeReactPresetId,
+    activeReactEngineId:    s.activeReactEngineId,
+    laserDmxWorkspaceMode:  s.laserDmxWorkspaceMode,
     reactIntensity:         s.reactIntensity,
     reactMotion:            s.reactMotion,
     reactGlow:              s.reactGlow,
@@ -175,9 +181,13 @@ export function ReactView() {
               />
             )}
             {leftTab === 'layers' && (
-              <div className="rv-placeholder-panel">
-                <span>React layers will appear here.</span>
-              </div>
+              activeReactEngineId === 'laserDmx' && laserDmxWorkspaceMode === 'beamMatrix'
+                ? <LaserDmxLayersPanel />
+                : (
+                  <div className="rv-placeholder-panel">
+                    <span>React layers will appear here.</span>
+                  </div>
+                )
             )}
             {leftTab === 'sessions' && (
               <div className="rv-placeholder-panel">
@@ -210,6 +220,9 @@ export function ReactView() {
               onCanvasReady={setOutputCanvas}
               onLiveFps={setLiveFps}
             />
+            {activeReactEngineId === 'laserDmx' && laserDmxWorkspaceMode === 'beamMatrix' && (
+              <LaserDmxBeamMatrixEditorOverlay />
+            )}
           </div>
           <ReactPerformancePads />
           <ReactTrackMapStrip audioDurationSec={audioDurationSec} />

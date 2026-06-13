@@ -117,6 +117,7 @@ export type LaserDmxProfileId =
   | 'multiPatternLaser'
 
 export type LaserDmxModulationTarget =
+  // Spatial Fixtures targets
   | 'masterDimmer'
   | 'fixtureDimmer'
   | 'red' | 'green' | 'blue' | 'white' | 'alpha'
@@ -124,6 +125,15 @@ export type LaserDmxModulationTarget =
   | 'zoom' | 'beamWidth' | 'strobeRate'
   | 'scanSpeed' | 'pathProgress' | 'pathScale' | 'pathRotation' | 'pathSpread' | 'pathRadius' | 'pathComplexity'
   | 'hazeAmount' | 'glowAmount' | 'shutter'
+  // Beam Matrix targets
+  | 'dimmer'
+  | 'beamDivergence'
+  | 'beamGlow'
+  | 'flickerAmount'
+  | 'originOffsetX' | 'originOffsetY'
+  | 'targetOffsetX' | 'targetOffsetY' | 'targetDepth'
+  | 'fogDensity' | 'fogOpacity' | 'fogDriftSpeed' | 'fogDriftDirection'
+  | 'fogTurbulence' | 'fogDiffusion' | 'fogDissipation' | 'fogBeamScatter'
 
 export interface LaserDmxModulationRoute {
   id: string
@@ -307,6 +317,200 @@ export function createDefaultLaserDmxSettings(): LaserDmxSettings {
     showPathPoints:     false,
     showDmxDebug:       false,
     fixtures: [leftFan, rightFan, centerAccent],
+  }
+}
+
+// ── Beam Matrix workspace ─────────────────────────────────────────────────────
+
+export type LaserDmxWorkspaceMode = 'spatialFixtures' | 'beamMatrix'
+
+export const LASER_DMX_MATRIX_COLUMNS = 15
+export const LASER_DMX_MATRIX_ROWS    = 10
+export const LASER_DMX_MATRIX_MAX_BEAMS = 300
+
+export interface LaserDmxMatrixGridAnchor {
+  column: number  // 1–15
+  row:    number  // 1–10
+  z:      number  // −1–1
+}
+
+export interface LaserDmxMatrixGridTarget {
+  kind:   'grid'
+  column: number  // 1–15
+  row:    number  // 1–10
+  z:      number  // −1–1
+}
+
+export interface LaserDmxMatrixStageTarget {
+  kind: 'stage'
+  x:    number   // −1–2 (outside 0–1 = offscreen)
+  y:    number   // −1–2
+  z:    number   // −1–2
+}
+
+export type LaserDmxMatrixTarget = LaserDmxMatrixGridTarget | LaserDmxMatrixStageTarget
+
+export type LaserDmxMatrixBeamGeometry = 'line' | 'volumetricCone'
+
+export interface LaserDmxMatrixBeamColor {
+  red:   number  // 0–255
+  green: number
+  blue:  number
+  white: number
+  alpha: number  // 0–1
+}
+
+export interface LaserDmxMatrixBeamAppearance {
+  dimmer:        number  // 0–1
+  shutterOpen:   boolean
+  width:         number  // 0.1–8
+  focus:         number  // 0–1
+  strobeRate:    number  // 0–1
+  flickerAmount: number  // 0–1
+  divergence:    number  // 0–1
+  glow:          number  // 0–1
+  geometry:      LaserDmxMatrixBeamGeometry
+}
+
+export interface LaserDmxMatrixBeam {
+  id:      string
+  name:    string
+  enabled: boolean
+
+  origin: LaserDmxMatrixGridAnchor
+  target: LaserDmxMatrixTarget
+
+  groupId:       string | null
+  useGroupColor: boolean
+
+  color:      LaserDmxMatrixBeamColor
+  appearance: LaserDmxMatrixBeamAppearance
+
+  modulationRoutes: LaserDmxModulationRoute[]
+}
+
+export interface LaserDmxReactionGroup {
+  id:      string
+  name:    string
+  enabled: boolean
+  muted:   boolean
+  soloed:  boolean
+
+  colorOverrideEnabled: boolean
+  color:                LaserDmxMatrixBeamColor
+
+  modulationRoutes: LaserDmxModulationRoute[]
+}
+
+export interface LaserDmxBeamMatrixOutputSettings {
+  masterDimmer:     number  // 0–1
+  blackout:         boolean
+  safetyClamp:      number  // 0–1
+  backgroundFade:   number  // 0–1
+  beamPersistence:  number  // 0–1
+  globalBeamWidth:  number  // 0.1–6
+  globalGlow:       number  // 0–1
+  globalStrobeRate: number  // 0–1
+}
+
+export interface LaserDmxFogSettings {
+  enabled:        boolean
+  density:        number  // 0–1
+  opacity:        number  // 0–1
+  noiseScale:     number  // 0.1–4
+  driftSpeed:     number  // 0–1
+  driftDirection: number  // 0–1 (maps to 0–360°)
+  turbulence:     number  // 0–1
+  diffusion:      number  // 0–1
+  dissipation:    number  // 0–1
+  beamScatter:    number  // 0–1
+  colorAbsorption:number  // 0–1
+  quality:        'low' | 'medium' | 'high'
+}
+
+export interface LaserDmxBeamMatrixEditorSettings {
+  guidesVisible:  boolean
+  snapEnabled:    boolean
+  overscanAmount: number  // 0–1
+}
+
+export interface LaserDmxBeamMatrixSettings {
+  selectedBeamIds:  string[]
+  selectedGroupId:  string | null
+
+  beams:  LaserDmxMatrixBeam[]
+  groups: LaserDmxReactionGroup[]
+
+  globalModulationRoutes: LaserDmxModulationRoute[]
+  output: LaserDmxBeamMatrixOutputSettings
+  fog:    LaserDmxFogSettings
+  editor: LaserDmxBeamMatrixEditorSettings
+}
+
+function makeReactionGroup(
+  id: string, name: string,
+  colorR: number, colorG: number, colorB: number,
+  routes: LaserDmxModulationRoute[],
+): LaserDmxReactionGroup {
+  return {
+    id, name, enabled: true, muted: false, soloed: false,
+    colorOverrideEnabled: true,
+    color: { red: colorR, green: colorG, blue: colorB, white: 0, alpha: 1 },
+    modulationRoutes: routes,
+  }
+}
+
+export function createDefaultLaserDmxBeamMatrixSettings(): LaserDmxBeamMatrixSettings {
+  const bassReact  = makeReactionGroup('grp-bass',   'Bass React',   255, 30,  30,  [
+    { id: 'bm-r1', enabled: true,  source: 'nBass', target: 'dimmer',     amount: 1,   min: 0.15, max: 1,   curve: 'easeOut', mode: 'set',  smoothing: 0.35, attack: 0.01, release: 0.18, invert: false },
+    { id: 'bm-r2', enabled: true,  source: 'nBass', target: 'beamWidth',  amount: 0.7, min: 0.5,  max: 2.5, curve: 'easeOut', mode: 'set',  smoothing: 0.3,  attack: 0.01, release: 0.2,  invert: false },
+  ])
+  const snareReact = makeReactionGroup('grp-snare',  'Snare React',  30,  80,  255, [
+    { id: 'bm-r3', enabled: true,  source: 'snare', target: 'dimmer',     amount: 1,   min: 0,    max: 1,   curve: 'pulse',   mode: 'trigger', smoothing: 0, attack: 0.005, release: 0.22, invert: false },
+  ])
+  const beatReact  = makeReactionGroup('grp-beat',   'Beat React',   30,  220, 60,  [
+    { id: 'bm-r4', enabled: true,  source: 'beat',      target: 'dimmer',      amount: 1,   min: 0,    max: 1,   curve: 'pulse',  mode: 'trigger', smoothing: 0,   attack: 0.005, release: 0.3,  invert: false },
+    { id: 'bm-r5', enabled: true,  source: 'beatPhase', target: 'beamDivergence', amount: 0.3, min: 0.05, max: 0.4, curve: 'linear', mode: 'set',     smoothing: 0.2, attack: 0,     release: 0,    invert: false },
+  ])
+  const customReact = makeReactionGroup('grp-custom', 'Custom React', 160, 30,  220, [
+    { id: 'bm-r6', enabled: false, source: 'bass', target: 'dimmer', amount: 1, min: 0, max: 1, curve: 'linear', mode: 'set', smoothing: 0, attack: 0, release: 0, invert: false },
+  ])
+
+  return {
+    selectedBeamIds: [],
+    selectedGroupId: null,
+    beams:  [],
+    groups: [bassReact, snareReact, beatReact, customReact],
+    globalModulationRoutes: [],
+    output: {
+      masterDimmer:     0.85,
+      blackout:         false,
+      safetyClamp:      0.9,
+      backgroundFade:   0.18,
+      beamPersistence:  0.6,
+      globalBeamWidth:  1,
+      globalGlow:       0.65,
+      globalStrobeRate: 0,
+    },
+    fog: {
+      enabled:         false,
+      density:         0.4,
+      opacity:         0.5,
+      noiseScale:      1,
+      driftSpeed:      0.15,
+      driftDirection:  0.25,
+      turbulence:      0.2,
+      diffusion:       0.3,
+      dissipation:     0.4,
+      beamScatter:     0.2,
+      colorAbsorption: 0.1,
+      quality:         'medium',
+    },
+    editor: {
+      guidesVisible:  true,
+      snapEnabled:    true,
+      overscanAmount: 0,
+    },
   }
 }
 

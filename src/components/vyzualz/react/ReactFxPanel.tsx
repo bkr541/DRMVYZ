@@ -4,7 +4,7 @@ import {
   SliderRow, SelectRow, ToggleRow,
   CtrlSection, Collapsible,
 } from './ReactControlRows'
-import type { OscillatorRenderMode } from './ReactTypes'
+import type { OscillatorRenderMode, LaserDmxFogSettings } from './ReactTypes'
 
 // ── FX panel ──────────────────────────────────────────────────────────────────
 // Styles the currently active visual engine.
@@ -20,8 +20,10 @@ export function ReactFxPanel() {
     reactFogDensity,      setReactFogDensity,
     reactParticleDensity, setReactParticleDensity,
     activeReactEngineId,
+    laserDmxWorkspaceMode,
     oscillatorSettings,   setOscillatorSettings, resetOscillatorSettings,
     laserDmxSettings,     setLaserDmxSettings,
+    laserDmxBeamMatrix,   setLaserDmxBeamMatrixSettings, setLaserDmxBeamMatrixEditorSettings,
     resetReactView,
   } = useReactStore(useShallow(s => ({
     reactIntensity:              s.reactIntensity,
@@ -39,21 +41,39 @@ export function ReactFxPanel() {
     reactParticleDensity:        s.reactParticleDensity,
     setReactParticleDensity:     s.setReactParticleDensity,
     activeReactEngineId:         s.activeReactEngineId,
+    laserDmxWorkspaceMode:       s.laserDmxWorkspaceMode,
     oscillatorSettings:          s.oscillatorSettings,
     setOscillatorSettings:       s.setOscillatorSettings,
     resetOscillatorSettings:     s.resetOscillatorSettings,
     laserDmxSettings:            s.laserDmxSettings,
     setLaserDmxSettings:         s.setLaserDmxSettings,
+    laserDmxBeamMatrix:                  s.laserDmxBeamMatrix,
+    setLaserDmxBeamMatrixSettings:       s.setLaserDmxBeamMatrixSettings,
+    setLaserDmxBeamMatrixEditorSettings: s.setLaserDmxBeamMatrixEditorSettings,
     resetReactView:              s.resetReactView,
   })))
 
   const osc = oscillatorSettings
   const set = setOscillatorSettings
 
-  const isSoundDrawing = activeReactEngineId === 'oscilloscope'
-  const isCinematic    = activeReactEngineId === 'cinematicPortal'
-  const isShaderPads   = activeReactEngineId === 'shaderPads'
-  const isLaserDmx     = activeReactEngineId === 'laserDmx'
+  const isSoundDrawing  = activeReactEngineId === 'oscilloscope'
+  const isCinematic     = activeReactEngineId === 'cinematicPortal'
+  const isShaderPads    = activeReactEngineId === 'shaderPads'
+  const isLaserDmx      = activeReactEngineId === 'laserDmx'
+  const isBeamMatrix    = isLaserDmx && laserDmxWorkspaceMode === 'beamMatrix'
+  const isSpatialFixtures = isLaserDmx && laserDmxWorkspaceMode === 'spatialFixtures'
+
+  const bm     = laserDmxBeamMatrix
+  const bmOut  = bm.output
+  const bmFog  = bm.fog
+  const bmEd   = bm.editor
+
+  function setOutput(patch: Partial<typeof bmOut>) {
+    setLaserDmxBeamMatrixSettings({ output: { ...bmOut, ...patch } })
+  }
+  function setFog(patch: Partial<LaserDmxFogSettings>) {
+    setLaserDmxBeamMatrixSettings({ fog: { ...bmFog, ...patch } })
+  }
 
   // SVG Visual is a pure image display mode — point-path controls have no effect on it.
   const isSvgVisual = isSoundDrawing && osc.sourceType === 'svgVisual'
@@ -168,8 +188,8 @@ export function ReactFxPanel() {
           </>
         )}
 
-        {/* ── Engine Appearance: LaserDMX ──────────────────────────────── */}
-        {isLaserDmx && (
+        {/* ── Engine Appearance: LaserDMX Spatial Fixtures ─────────────── */}
+        {isSpatialFixtures && (
           <>
             <CtrlSection label="Global Output" />
             <SliderRow label="Master Dimmer" value={laserDmxSettings.masterDimmer} onChange={v => setLaserDmxSettings({ masterDimmer: v })} color="#4ac7db" />
@@ -177,19 +197,66 @@ export function ReactFxPanel() {
             <SliderRow label="Safety Clamp"  value={laserDmxSettings.safetyClamp}  onChange={v => setLaserDmxSettings({ safetyClamp: v })} color="#c0314a" />
 
             <CtrlSection label="Atmosphere" />
-            <SliderRow label="Haze"         value={laserDmxSettings.hazeAmount}     onChange={v => setLaserDmxSettings({ hazeAmount: v })}     color="#61d6aa" />
-            <SliderRow label="Glow"         value={laserDmxSettings.glowAmount}     onChange={v => setLaserDmxSettings({ glowAmount: v })}     color="#b84fc9" />
-            <SliderRow label="Persistence"  value={laserDmxSettings.beamPersistence}onChange={v => setLaserDmxSettings({ beamPersistence: v })} color="#4ac7db" />
-            <SliderRow label="Bg Fade"      value={laserDmxSettings.backgroundFade} onChange={v => setLaserDmxSettings({ backgroundFade: v })} color="#d8b95a" />
+            <SliderRow label="Haze"         value={laserDmxSettings.hazeAmount}      onChange={v => setLaserDmxSettings({ hazeAmount: v })}      color="#61d6aa" />
+            <SliderRow label="Glow"         value={laserDmxSettings.glowAmount}      onChange={v => setLaserDmxSettings({ glowAmount: v })}      color="#b84fc9" />
+            <SliderRow label="Persistence"  value={laserDmxSettings.beamPersistence} onChange={v => setLaserDmxSettings({ beamPersistence: v })} color="#4ac7db" />
+            <SliderRow label="Bg Fade"      value={laserDmxSettings.backgroundFade}  onChange={v => setLaserDmxSettings({ backgroundFade: v })}  color="#d8b95a" />
 
             <CtrlSection label="Beam Global" />
-            <SliderRow label="Beam Width"   value={laserDmxSettings.globalBeamWidth}  onChange={v => setLaserDmxSettings({ globalBeamWidth: v })}  min={0.2} max={6} step={0.05} color="#61d6aa" />
-            <SliderRow label="Strobe Rate"  value={laserDmxSettings.globalStrobeRate} onChange={v => setLaserDmxSettings({ globalStrobeRate: v })} color="#c0314a" />
+            <SliderRow label="Beam Width"  value={laserDmxSettings.globalBeamWidth}  onChange={v => setLaserDmxSettings({ globalBeamWidth: v })}  min={0.2} max={6} step={0.05} color="#61d6aa" />
+            <SliderRow label="Strobe Rate" value={laserDmxSettings.globalStrobeRate} onChange={v => setLaserDmxSettings({ globalStrobeRate: v })} color="#c0314a" />
 
             <Collapsible label="Preview / Debug" defaultOpen={false}>
-              <ToggleRow label="Show Origins"   value={laserDmxSettings.showFixtureOrigins ?? false} onChange={v => setLaserDmxSettings({ showFixtureOrigins: v })} />
-              <ToggleRow label="Show Points"    value={laserDmxSettings.showPathPoints     ?? false} onChange={v => setLaserDmxSettings({ showPathPoints: v })} />
-              <ToggleRow label="DMX Debug"      value={laserDmxSettings.showDmxDebug       ?? false} onChange={v => setLaserDmxSettings({ showDmxDebug: v })} />
+              <ToggleRow label="Show Origins" value={laserDmxSettings.showFixtureOrigins ?? false} onChange={v => setLaserDmxSettings({ showFixtureOrigins: v })} />
+              <ToggleRow label="Show Points"  value={laserDmxSettings.showPathPoints     ?? false} onChange={v => setLaserDmxSettings({ showPathPoints: v })} />
+              <ToggleRow label="DMX Debug"    value={laserDmxSettings.showDmxDebug       ?? false} onChange={v => setLaserDmxSettings({ showDmxDebug: v })} />
+            </Collapsible>
+          </>
+        )}
+
+        {/* ── Engine Appearance: LaserDMX Beam Matrix ──────────────────── */}
+        {isBeamMatrix && (
+          <>
+            <CtrlSection label="Global Output" />
+            <SliderRow label="Master Dimmer"  value={bmOut.masterDimmer}    onChange={v => setOutput({ masterDimmer: v })}    color="#4ac7db" />
+            <ToggleRow  label="Blackout"      value={bmOut.blackout}        onChange={v => setOutput({ blackout: v })} />
+            <SliderRow label="Safety Clamp"   value={bmOut.safetyClamp}     onChange={v => setOutput({ safetyClamp: v })}     color="#c0314a" />
+            <SliderRow label="Bg Fade"        value={bmOut.backgroundFade}  onChange={v => setOutput({ backgroundFade: v })}  color="#d8b95a" />
+            <SliderRow label="Persistence"    value={bmOut.beamPersistence} onChange={v => setOutput({ beamPersistence: v })} color="#4ac7db" />
+
+            <CtrlSection label="Global Beam" />
+            <SliderRow label="Beam Width"   value={bmOut.globalBeamWidth}  onChange={v => setOutput({ globalBeamWidth: v })}  min={0.1} max={6} step={0.05} color="#61d6aa" />
+            <SliderRow label="Global Glow"  value={bmOut.globalGlow}       onChange={v => setOutput({ globalGlow: v })}       color="#b84fc9" />
+            <SliderRow label="Strobe Rate"  value={bmOut.globalStrobeRate} onChange={v => setOutput({ globalStrobeRate: v })} color="#c0314a" />
+
+            <Collapsible label="Fog" defaultOpen={false}>
+              <ToggleRow label="Enabled"          value={bmFog.enabled}        onChange={v => setFog({ enabled: v })} />
+              <SliderRow label="Density"          value={bmFog.density}        onChange={v => setFog({ density: v })}        color="#61d6aa" />
+              <SliderRow label="Opacity"          value={bmFog.opacity}        onChange={v => setFog({ opacity: v })}        color="#4ac7db" />
+              <SliderRow label="Noise Scale"      value={bmFog.noiseScale}     onChange={v => setFog({ noiseScale: v })}     min={0.1} max={4} step={0.05} color="#d8b95a" />
+              <SliderRow label="Drift Speed"      value={bmFog.driftSpeed}     onChange={v => setFog({ driftSpeed: v })}     color="#61d6aa" />
+              <SliderRow label="Drift Direction"  value={bmFog.driftDirection} onChange={v => setFog({ driftDirection: v })} color="#d8b95a" />
+              <SliderRow label="Turbulence"       value={bmFog.turbulence}     onChange={v => setFog({ turbulence: v })}     color="#b84fc9" />
+              <SliderRow label="Diffusion"        value={bmFog.diffusion}      onChange={v => setFog({ diffusion: v })}      color="#4ac7db" />
+              <SliderRow label="Dissipation"      value={bmFog.dissipation}    onChange={v => setFog({ dissipation: v })}    color="#61d6aa" />
+              <SliderRow label="Beam Scatter"     value={bmFog.beamScatter}    onChange={v => setFog({ beamScatter: v })}    color="#4ac7db" />
+              <SliderRow label="Color Absorption" value={bmFog.colorAbsorption}onChange={v => setFog({ colorAbsorption: v })}color="#d8b95a" />
+              <SelectRow
+                label="Quality"
+                value={bmFog.quality}
+                onChange={v => setFog({ quality: v as LaserDmxFogSettings['quality'] })}
+                options={[
+                  { value: 'low',    label: 'Low'    },
+                  { value: 'medium', label: 'Medium' },
+                  { value: 'high',   label: 'High'   },
+                ]}
+              />
+            </Collapsible>
+
+            <Collapsible label="Editor" defaultOpen={false}>
+              <ToggleRow label="Show Guides" value={bmEd.guidesVisible}  onChange={v => setLaserDmxBeamMatrixEditorSettings({ guidesVisible: v })} />
+              <ToggleRow label="Snap to Grid" value={bmEd.snapEnabled}   onChange={v => setLaserDmxBeamMatrixEditorSettings({ snapEnabled: v })} />
+              <SliderRow label="Overscan"     value={bmEd.overscanAmount} onChange={v => setLaserDmxBeamMatrixEditorSettings({ overscanAmount: v })} min={0} max={0.5} step={0.01} color="#d8b95a" />
             </Collapsible>
           </>
         )}
