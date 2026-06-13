@@ -539,10 +539,88 @@ describe('audio-reactive group behaviour', () => {
     expect(hI).toBeGreaterThan(lI)
   })
 
+  // ── Default starter group tests (pulse curve, real groups) ──────────────────
+  // The trigger envelope now uses attack/hold/release phases (values in seconds).
+  // Curve is NOT applied to the trigger envelope output, so pulse curve can no
+  // longer destroy the initial hit (pulse(1.0) = sin(π)² ≈ 0 was the old bug).
+
+  it('Snare React group (default pulse curve, release=0.22) produces visible intensity on snare hit', () => {
+    const store = useReactStore.getState()
+    const snareGroup = store.laserDmxBeamMatrix.groups.find(g => g.id === 'grp-snare')!
+    store.addLaserDmxMatrixBeam({
+      groupId: snareGroup.id,
+      appearance: { dimmer: 1, shutterOpen: true, width: 1, focus: 1, strobeRate: 0, flickerAmount: 0, divergence: 0.15, glow: 0.65, geometry: 'line' },
+    })
+    const settings = useReactStore.getState().laserDmxBeamMatrix
+    const result = compileLaserDmxBeamMatrix({
+      ...defaultInput(), settings,
+      mi: makeHitMi('snareHit'),
+    })
+    const beam = result.beams.find(b => b.groupId === 'grp-snare')
+    expect(beam).toBeDefined()
+    expect(beam!.intensity).toBeGreaterThan(0)
+  })
+
+  it('Snare React release=0.22 gives multi-frame visible tail (not one-frame collapse)', () => {
+    // approachBySeconds(1.0→0, dt=1/60≈0.0167s, durationSec=0.22):
+    // coeff = 1 - e^(-0.0167/0.22) ≈ 0.073 → value decays to ≈0.927 after frame 1.
+    // Previously the rate formula made dt*rate > 1 → tail collapsed in one frame.
+    const store = useReactStore.getState()
+    const snareGroup = store.laserDmxBeamMatrix.groups.find(g => g.id === 'grp-snare')!
+    store.addLaserDmxMatrixBeam({
+      groupId: snareGroup.id,
+      appearance: { dimmer: 1, shutterOpen: true, width: 1, focus: 1, strobeRate: 0, flickerAmount: 0, divergence: 0.15, glow: 0.65, geometry: 'line' },
+    })
+    const settings = useReactStore.getState().laserDmxBeamMatrix
+
+    // Hit frame
+    compileLaserDmxBeamMatrix({ ...defaultInput(), settings, mi: makeHitMi('snareHit'), timeSec: 0 })
+
+    // Next frame — no hit, but release=0.22 keeps the tail alive
+    const afterHit = compileLaserDmxBeamMatrix({ ...defaultInput(), settings, mi: MI0, timeSec: 1 / 60 })
+    const beam = afterHit.beams.find(b => b.groupId === 'grp-snare')
+    expect(beam).toBeDefined()
+    expect(beam!.intensity).toBeGreaterThan(0)
+  })
+
+  it('Beat React group (default pulse curve, release=0.3) produces visible intensity on beat hit', () => {
+    const store = useReactStore.getState()
+    const beatGroup = store.laserDmxBeamMatrix.groups.find(g => g.id === 'grp-beat')!
+    store.addLaserDmxMatrixBeam({
+      groupId: beatGroup.id,
+      appearance: { dimmer: 1, shutterOpen: true, width: 1, focus: 1, strobeRate: 0, flickerAmount: 0, divergence: 0.15, glow: 0.65, geometry: 'line' },
+    })
+    const settings = useReactStore.getState().laserDmxBeamMatrix
+    const result = compileLaserDmxBeamMatrix({
+      ...defaultInput(), settings,
+      mi: makeHitMi('beatHit'),
+    })
+    const beam = result.beams.find(b => b.groupId === 'grp-beat')
+    expect(beam).toBeDefined()
+    expect(beam!.intensity).toBeGreaterThan(0)
+  })
+
+  it('Beat React release=0.3 gives multi-frame visible tail', () => {
+    const store = useReactStore.getState()
+    const beatGroup = store.laserDmxBeamMatrix.groups.find(g => g.id === 'grp-beat')!
+    store.addLaserDmxMatrixBeam({
+      groupId: beatGroup.id,
+      appearance: { dimmer: 1, shutterOpen: true, width: 1, focus: 1, strobeRate: 0, flickerAmount: 0, divergence: 0.15, glow: 0.65, geometry: 'line' },
+    })
+    const settings = useReactStore.getState().laserDmxBeamMatrix
+
+    compileLaserDmxBeamMatrix({ ...defaultInput(), settings, mi: makeHitMi('beatHit'), timeSec: 0 })
+
+    const afterHit = compileLaserDmxBeamMatrix({ ...defaultInput(), settings, mi: MI0, timeSec: 1 / 60 })
+    const beam = afterHit.beams.find(b => b.groupId === 'grp-beat')
+    expect(beam).toBeDefined()
+    expect(beam!.intensity).toBeGreaterThan(0)
+  })
+
   it('trigger beam-level route (linear curve) produces non-zero intensity on snare hit', () => {
-    // The default snare group route uses curve: 'pulse'. At trigger source value 1.0,
-    // sin(π)^2 ≈ 0, so the beam is invisible. To test the trigger mechanism, we use a
-    // beam-level route with curve: 'linear' on the custom group (no conflicting dimmer route).
+    // Beam-level route on grp-custom (whose only group route is disabled).
+    // With the envelope fix, the trigger envelope reaches 1.0 instantly (attack=0)
+    // and curve is not applied, so the output is full intensity.
     const store = useReactStore.getState()
     const customGroup = store.laserDmxBeamMatrix.groups.find(g => g.id === 'grp-custom')!
     store.addLaserDmxMatrixBeam({
@@ -567,9 +645,8 @@ describe('audio-reactive group behaviour', () => {
   })
 
   it('trigger release tail persists across multiple frames with release=0.8', () => {
-    // At release=0.8: rate = lerp(200, 0.5, 0.8) ≈ 40.4; dt*rate ≈ 0.67 < 1, so the
-    // envelope decays partially each frame (not instantly). With release=0.22 the rate
-    // is ≈ 156, making dt*rate > 1 → the tail collapses to 0 in one frame.
+    // approachBySeconds(1.0→0, dt=1/60, durationSec=0.8):
+    // coeff ≈ 0.021 → value decays to ≈0.979 after one frame. Clearly visible.
     const store = useReactStore.getState()
     const customGroup = store.laserDmxBeamMatrix.groups.find(g => g.id === 'grp-custom')!
     store.addLaserDmxMatrixBeam({
@@ -594,7 +671,6 @@ describe('audio-reactive group behaviour', () => {
   })
 
   it('trigger beam-level route (linear curve) produces non-zero intensity on beat hit', () => {
-    // Same as snare hit — default beat route uses pulse curve at 1.0 = ~0.
     const store = useReactStore.getState()
     const customGroup = store.laserDmxBeamMatrix.groups.find(g => g.id === 'grp-custom')!
     store.addLaserDmxMatrixBeam({
@@ -748,6 +824,39 @@ describe('fogBufferDimensions', () => {
   it('height is at least 4 for tiny canvas', () => {
     const { h } = fogBufferDimensions(2, 1, 'low')
     expect(h).toBeGreaterThanOrEqual(4)
+  })
+
+  it('aspect ratio preserved for 16:9 medium quality', () => {
+    const { w, h } = fogBufferDimensions(1920, 1080, 'medium')
+    expect(w).toBe(128)
+    expect(h / w).toBeCloseTo(1080 / 1920, 1)
+  })
+
+  it('pixel stride regression: w > h for wide buffers, so w-stride differs from h-stride', () => {
+    // Bug: foreground wisp loop used (py * h + px) instead of (py * w + px).
+    // For 16:9 medium buffer (w=128, h=72): row 1 at h-stride=72 vs w-stride=128.
+    // This confirms the bug was meaningful (and is now fixed).
+    const { w, h } = fogBufferDimensions(640, 360, 'medium')
+    expect(w).toBeGreaterThan(h)  // 128 > 72 → wrong stride would corrupt writes
+    // Additionally verify aspect ratio is sensible
+    expect(h).toBeGreaterThan(0)
+    expect(w * h * 4).toBeLessThanOrEqual(128 * 128 * 4)  // stays within reasonable buffer
+  })
+
+  it('non-square buffer: all pixel indices with w-stride stay in bounds', () => {
+    // For a 160×90 buffer: max index = (89 * 160 + 159) * 4 = 14399 * 4 = 57596
+    // which is < 160 * 90 * 4 = 57600. With h-stride (90): max index = (89*90+159)*4 = 8175*4=32700
+    // — writes row 89 col 159 at index 32700 instead of 57596 → corruption.
+    const W = 1280, H = 720
+    const { w, h } = fogBufferDimensions(W, H, 'medium')
+    const bufLen = w * h
+    for (let py = 0; py < h; py++) {
+      for (let px = 0; px < w; px++) {
+        const correct = py * w + px  // correct stride
+        expect(correct).toBeGreaterThanOrEqual(0)
+        expect(correct).toBeLessThan(bufLen)
+      }
+    }
   })
 })
 

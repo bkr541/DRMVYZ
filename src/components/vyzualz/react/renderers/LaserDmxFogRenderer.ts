@@ -364,7 +364,7 @@ export function renderFog(
         const n = fbmNoise(ux, uy, 2, scale * 1.5, wispTime, turbulence * 0.4)
         const wispDensity = Math.max(0, n * density * 0.6 - 0.1)
         const a = Math.round(wispDensity * 100 * fog.diffusion)
-        const ii = (py * h + px) * 4
+        const ii = (py * w + px) * 4
         wi[ii] = wi[ii + 1] = wi[ii + 2] = 220
         wi[ii + 3] = Math.min(255, a)
       }

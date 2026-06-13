@@ -218,6 +218,9 @@ export function shouldRenderLaserDmx(isPlaying: boolean): boolean {
   return isPlaying
 }
 
+// Module-level fog dt tracking — gives real frame delta instead of a constant.
+let prevFogTimeSec = -1
+
 /**
  * Wipes all LaserDMX canvas output and resets all compiler / fog state.
  * Covers both workspace modes: resets Spatial Fixtures compiler dt,
@@ -239,6 +242,7 @@ export function clearLaserDmxVisualState(
   resetBeamMatrixCompilerState()
   // Reset fog animation so stale fog is not visible on resume
   resetFogState()
+  prevFogTimeSec = -1
 }
 
 // ── Public entry point ────────────────────────────────────────────────────────
@@ -297,11 +301,14 @@ export function renderLaserDmx(
       return
     }
 
-    // dt for fog animation (clamp to avoid spikes after pause)
-    const dt = Math.min(0.1, 1 / 60)
+    // Real frame delta for fog animation (clamped to avoid spikes after pause/tab-switch).
+    const fogDt = prevFogTimeSec >= 0
+      ? Math.min(0.1, timeSec - prevFogTimeSec)
+      : 1 / 60
+    prevFogTimeSec = timeSec
 
     // Fog (behind beams)
-    renderFog(ctx, W, H, compiled.fog, compiled.beams, dt)
+    renderFog(ctx, W, H, compiled.fog, compiled.beams, fogDt)
 
     // Beams
     // params.intensity → scales master dimmer intentionally.

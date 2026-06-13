@@ -1,7 +1,13 @@
 // Shared modulation engine for LaserDMX Spatial Fixtures and Beam Matrix.
-// Pure functions plus a single mutable envelope Map that is module-level ephemeral
-// state (never persisted). Both compilers share this instance so envelope keys
-// must be globally unique (scoped by workspace, entity ID, and route ID).
+// Pure functions plus module-level ephemeral envelope state (never persisted).
+// Both compilers share this instance; envelope keys must be globally unique
+// (scoped by workspace, entity ID, and route ID).
+//
+// Trigger vs continuous distinction:
+//   mode='trigger' → event-driven envelope (attack/hold/release phases, seconds).
+//     Curve is NOT applied to the envelope output — preserves visible peak even
+//     with pulse curve (pulse(1.0)=0 would otherwise destroy the initial hit).
+//   mode='set'|'add'|'multiply' → continuous smoothed source, curve applied normally.
 
 import type { MusicIntelligenceFrame } from '../../../../features/musicIntelligence/types'
 import {
@@ -32,12 +38,12 @@ export function lerp(a: number, b: number, t: number): number {
 export function applyCurve(v: number, curve: string): number {
   const x = clamp01(v)
   switch (curve) {
-    case 'easeIn':    return x * x
-    case 'easeOut':   return 1 - (1 - x) * (1 - x)
-    case 'easeInOut': { const t2 = x < 0.5 ? 2 * x * x : 1 - 2 * (1 - x) * (1 - x); return t2 }
-    case 'pulse':     return Math.pow(Math.sin(x * Math.PI), 2)
+    case 'easeIn':      return x * x
+    case 'easeOut':     return 1 - (1 - x) * (1 - x)
+    case 'easeInOut':   { const t2 = x < 0.5 ? 2 * x * x : 1 - 2 * (1 - x) * (1 - x); return t2 }
+    case 'pulse':       return Math.pow(Math.sin(x * Math.PI), 2)
     case 'exponential': return Math.pow(x, 3)
-    default:          return x  // linear
+    default:            return x  // linear
   }
 }
 
@@ -49,9 +55,21 @@ export function resolveStrobeVisible(rate: number, timeSec: number): boolean {
 
 // ── Shared envelope state ─────────────────────────────────────────────────────
 // Key pattern: `${scope}:${entityId}:${routeId}`
-// scope = 'sf' for Spatial Fixtures, 'bm' for Beam Matrix, 'bmg' for group, 'bmgl' for global
+//   'sf'   → Spatial Fixtures beam route
+//   'bm'   → Beam Matrix beam route
+//   'bmg'  → Beam Matrix group route
+//   'bmgl' → Beam Matrix global route
 
-const envelopes = new Map<string, number>()
+interface EnvelopeState {
+  /** Current 0–1 envelope value. */
+  value: number
+  /** Phase for trigger envelopes; 'idle' for continuous envelopes. */
+  phase: 'idle' | 'attack' | 'hold' | 'release'
+  /** Accumulated hold time (seconds). */
+  holdTimer: number
+}
+
+const envelopes = new Map<string, EnvelopeState>()
 
 export function resetAllEnvelopes(): void {
   envelopes.clear()
@@ -63,30 +81,110 @@ export function pruneEnvelopes(activeKeys: Set<string>): void {
   }
 }
 
-// ── Route envelope (attack / release / smoothing) ────────────────────────────
+// ── Time-based exponential approach ──────────────────────────────────────────
 
-function applyEnvelope(
-  rawV:      number,
-  envKey:    string,
-  dt:        number,
-  attack:    number,
-  release:   number,
-  smoothing: number,
+/**
+ * Exponential approach from prev toward target over durationSec seconds.
+ * One time-constant (durationSec) reaches ≈63% of the way.
+ * durationSec ≤ 0 snaps immediately to target.
+ */
+function approachBySeconds(
+  prev:        number,
+  target:      number,
+  dtSec:       number,
+  durationSec: number,
 ): number {
-  const prev = envelopes.get(envKey) ?? rawV
+  if (durationSec <= 0) return target
+  const coeff = 1 - Math.exp(-Math.max(0, dtSec) / Math.max(0.0001, durationSec))
+  return prev + (target - prev) * coeff
+}
 
+// ── Trigger envelope (attack → hold → release phases) ────────────────────────
+
+/**
+ * Drive an event-triggered envelope.  Returns the current envelope value [0,1].
+ *
+ * Curve is intentionally NOT applied here so that trigger routes always produce
+ * a visible peak.  Applying pulse(1.0) = sin(π)² ≈ 0 would destroy the hit.
+ *
+ * attack, hold, release are all in seconds:
+ *   attack=0     → instant rise to 1.0
+ *   hold=0.035   → stay at 1.0 for 35 ms
+ *   release=0.22 → visible exponential decay over ≈220 ms
+ */
+function applyTriggerEnvelope(
+  envKey:     string,
+  triggered:  boolean,
+  dtSec:      number,
+  attackSec:  number,
+  holdSec:    number,
+  releaseSec: number,
+): number {
+  const state: EnvelopeState = envelopes.get(envKey) ??
+    { value: 0, phase: 'idle', holdTimer: 0 }
+
+  if (triggered) {
+    // Restart from current value so retriggering mid-release blends smoothly.
+    state.phase     = 'attack'
+    state.holdTimer = 0
+  }
+
+  let { value, phase, holdTimer } = state
+
+  switch (phase) {
+    case 'idle':
+      value = 0
+      break
+
+    case 'attack':
+      value = approachBySeconds(value, 1.0, dtSec, attackSec)
+      if (value >= 0.999 || attackSec <= 0) {
+        value     = 1.0
+        phase     = holdSec > 0 ? 'hold' : 'release'
+        holdTimer = 0
+      }
+      break
+
+    case 'hold':
+      value      = 1.0
+      holdTimer += dtSec
+      if (holdTimer >= holdSec) phase = 'release'
+      break
+
+    case 'release':
+      value = approachBySeconds(value, 0, dtSec, releaseSec)
+      if (value < 0.001 || releaseSec <= 0) {
+        value = 0
+        phase = 'idle'
+      }
+      break
+  }
+
+  envelopes.set(envKey, { value, phase, holdTimer })
+  return clamp01(value)
+}
+
+// ── Continuous envelope (smoothed slew-rate limiter) ─────────────────────────
+
+function applyContinuousEnvelope(
+  rawV:       number,
+  envKey:     string,
+  dtSec:      number,
+  attackSec:  number,
+  releaseSec: number,
+  smoothing:  number,
+): number {
+  // Initialise to rawV on the first call so there is no jump on the first frame.
+  const prev     = envelopes.get(envKey)?.value ?? rawV
   const isRising = rawV >= prev
-  const rate = isRising
-    ? lerp(200, 0.5, clamp01(attack))
-    : lerp(200, 0.5, clamp01(release))
-
-  const enveloped = prev + (rawV - prev) * clamp01(dt * rate)
-  const finalV = lerp(rawV, enveloped, clamp01(smoothing))
-  envelopes.set(envKey, finalV)
+  const durSec   = isRising ? attackSec : releaseSec
+  const enveloped = approachBySeconds(prev, rawV, dtSec, durSec)
+  const finalV   = smoothing > 0 ? lerp(rawV, enveloped, clamp01(smoothing)) : enveloped
+  envelopes.set(envKey, { value: finalV, phase: 'idle', holdTimer: 0 })
   return clamp01(finalV)
 }
 
-// ── Source value resolution ───────────────────────────────────────────────────
+// ── Legacy source resolver (kept for callers outside applyModulationRoute) ────
 
 export function resolveSourceValue(
   mi:     MusicIntelligenceFrame,
@@ -94,39 +192,33 @@ export function resolveSourceValue(
   mode:   string,
 ): number {
   if (mode === 'trigger') {
-    // For trigger routes: 1.0 on the hit frame, 0.0 otherwise.
-    // Event aliases are checked first, then fall through to continuous sources.
     return getTriggerSourceValue(mi, source) ? 1.0 : 0.0
   }
-  // Continuous sources
-  let v = getModulationSourceValue(mi, source)
-  // harmonicConfidence backward-compat alias
-  if (source === 'harmonicConfidence') {
-    v = Math.max(
-      safeNumber(mi.harmonic?.keyConfidence,   0),
-      safeNumber(mi.harmonic?.chordConfidence, 0),
-    )
-  }
-  return v
+  return getModulationSourceValue(mi, source)
 }
 
 // ── Public route application ──────────────────────────────────────────────────
 
 export interface RouteApplicationResult {
-  /** 0–1 final modulation output after envelope. */
+  /** 0–1 final modulation output. */
   value: number
-  /** The envelope key used, for the caller to track active keys. */
+  /** The envelope key used, for active-key pruning. */
   envKey: string
 }
 
 /**
- * Apply a single modulation route and return the fully-processed output value
- * plus the envelope key.
+ * Apply a single modulation route and return the processed output value.
  *
- * Trigger-envelope fix: for mode='trigger', the raw input is 1.0 on the event
- * frame and 0.0 afterward.  Smoothing is forced to 1.0 so the configured
- * release always runs.  The caller must use the returned `value` directly —
- * it must NOT re-check getTriggerSourceValue at apply-time.
+ * TRIGGER routes (mode='trigger'):
+ *   1. Detect the event via getTriggerSourceValue (boolean per frame).
+ *   2. Drive a time-based attack/hold/release envelope (values in seconds).
+ *   3. Map the envelope output through min/max and amount.
+ *   4. Do NOT apply the curve — preserves visible peak for any curve selection.
+ *
+ * CONTINUOUS routes (mode='set'|'add'|'multiply'):
+ *   1. Read the 0–1 source value.
+ *   2. Apply invert → curve → min/max → amount.
+ *   3. Apply smoothed continuous envelope (attack/release as time constants).
  */
 export function applyModulationRoute(
   route:  LaserDmxModulationRoute,
@@ -136,29 +228,36 @@ export function applyModulationRoute(
 ): RouteApplicationResult | null {
   if (!route.enabled) return null
 
-  const rawValue = resolveSourceValue(mi, route.source, route.mode)
+  const attackSec  = Math.max(0, safeNumber(route.attack,  0))
+  // 'hold' is an optional extension field not yet in the base type.
+  const holdSec    = Math.max(0, safeNumber(route.hold ?? 0, 0))
+  const releaseSec = Math.max(0, safeNumber(route.release, 0))
+  const lo     = safeNumber(route.min,    0)
+  const hi     = safeNumber(route.max,    1)
+  const amount = clamp(safeNumber(route.amount, 1), -1, 2)
 
-  let v = clamp01(rawValue)
+  if (route.mode === 'trigger') {
+    const triggerHit = getTriggerSourceValue(mi, route.source)
+    const triggered  = route.invert ? !triggerHit : triggerHit
+    const envValue   = applyTriggerEnvelope(envKey, triggered, dt, attackSec, holdSec, releaseSec)
+    // Map through min/max and amount; curve NOT applied (see module header).
+    const mapped = clamp(lerp(lo, hi, envValue) * amount, -2, 2)
+    return { value: clamp01(mapped), envKey }
+  }
+
+  // Continuous path
+  const rawValue = getModulationSourceValue(mi, route.source)
+  let v = clamp01(safeNumber(rawValue, 0))
   if (route.invert) v = 1 - v
   v = applyCurve(v, route.curve)
-
-  const lo = safeNumber(route.min, 0)
-  const hi = safeNumber(route.max, 1)
   v = lerp(lo, hi, v)
-
-  const amount = clamp(safeNumber(route.amount, 1), -1, 2)
   v = clamp(v * amount, -2, 2)
-
-  // Trigger routes force smoothing=1.0 so release is always honored.
-  const effectiveSmoothing = route.mode === 'trigger' ? 1.0 : clamp01(route.smoothing ?? 0)
-  v = applyEnvelope(clamp01(v), envKey, dt, route.attack ?? 0, route.release ?? 0, effectiveSmoothing)
-
+  const smoothing = clamp01(route.smoothing ?? 0)
+  v = applyContinuousEnvelope(clamp01(v), envKey, dt, attackSec, releaseSec, smoothing)
   return { value: v, envKey }
 }
 
-// ── Apply helper: mode-specific target update ─────────────────────────────────
-// Caller reads `result.value` and applies it using the correct mode without
-// re-checking the trigger source.
+// ── Mode-specific target update ───────────────────────────────────────────────
 
 export function modeApply(
   cur:   number,
@@ -169,8 +268,7 @@ export function modeApply(
     case 'set':      return value
     case 'add':      return clamp01(cur + value)
     case 'multiply': return clamp01(cur * value)
-    // For trigger mode: apply the enveloped value directly (no re-check).
-    case 'trigger':  return value
+    case 'trigger':  return value  // envelope value applied directly
     default:         return value
   }
 }

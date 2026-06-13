@@ -277,7 +277,7 @@ function applyBeamRoute(
     case 'beamWidth':      bs.beamWidth      = clamp(modeApply(bs.beamWidth,      v, mode), 0.1, 8); break
     case 'beamDivergence': bs.beamDivergence = clamp01(modeApply(bs.beamDivergence, v, mode)); break
     case 'focus':          bs.focus          = clamp01(modeApply(bs.focus,          v, mode)); break
-    case 'glow':           bs.glow           = clamp01(modeApply(bs.glow,           v, mode)); break
+    case 'beamGlow':       bs.glow           = clamp01(modeApply(bs.glow,           v, mode)); break
     case 'strobeRate':     bs.strobeRate     = clamp01(modeApply(bs.strobeRate,     v, mode)); break
     case 'flickerAmount':  bs.flickerAmount  = clamp01(modeApply(bs.flickerAmount,  v, mode)); break
     case 'alpha':          bs.a              = clamp01(modeApply(bs.a,              v, mode)); break

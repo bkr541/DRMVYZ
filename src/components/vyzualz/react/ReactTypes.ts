@@ -147,6 +147,8 @@ export interface LaserDmxModulationRoute {
   mode: 'set' | 'add' | 'multiply' | 'trigger'
   smoothing: number
   attack: number
+  /** Optional hold duration in seconds (default 0). Applied between attack and release. */
+  hold?: number
   release: number
   invert: boolean
 }

@@ -151,6 +151,22 @@ export function ReactView() {
           <div className="vz-header-title">REACT</div>
           <div className="vz-header-sub">Visual Performance Mode</div>
         </div>
+
+        <div className="vz-header-sep" />
+
+        <div className="vz-input-group">
+          <span className="vz-input-label">Audio In</span>
+          <select
+            className="az-select"
+            value={engine.source}
+            onChange={e => engine.setSource(e.target.value as typeof engine.source)}
+          >
+            <option value="file">File Input</option>
+            <option value="microphone">Microphone</option>
+            <option value="demo">Demo Signal</option>
+          </select>
+        </div>
+
         <span className="az-spacer" />
         <VyzualzHeaderActions />
       </div>
