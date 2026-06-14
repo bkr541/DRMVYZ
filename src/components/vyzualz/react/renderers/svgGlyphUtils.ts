@@ -738,6 +738,164 @@ function fallbackCircle(resolution: number): OscillatorGlyphPoint[] {
   return generateBuiltinShapePoints('circle', resolution)
 }
 
+// ── Structured compilation result ──────────────────────────────────────────────
+
+export type SvgCompilationStatus = 'success' | 'unsupported' | 'error'
+
+export interface SvgGlyphCompilationResult {
+  status:      SvgCompilationStatus
+  points:      OscillatorGlyphPoint[]
+  reason?:     string
+  usedFallback: boolean
+}
+
+/**
+ * Compiles a raw SVG into glyph points with a structured result.
+ * Unlike parseSvgToGlyphPoints, this function NEVER returns a fallback circle
+ * for user-provided content. Returns { status: 'unsupported' } when no compilable
+ * geometry is found and { status: 'error' } on parse failure.
+ *
+ * Use this for user-uploaded SVG assets. Use parseSvgToGlyphPoints only for
+ * built-in shapes, legacy code paths, or when a fallback is explicitly desired.
+ */
+export function compileSvgToGlyphResult(
+  rawSvg: string,
+  resolution: number,
+  options?: SvgGlyphCompileOptions,
+): SvgGlyphCompilationResult {
+  const n    = Math.max(1, Math.round(resolution))
+  const opts: Required<SvgGlyphCompileOptions> = { ...COMPILE_DEFAULTS, ...options }
+
+  try {
+    // 1. Compile subpaths
+    let subpaths: RawSubpath[]
+    if (typeof DOMParser !== 'undefined') {
+      try {
+        subpaths = compileSubpathsBrowser(rawSvg)
+      } catch {
+        subpaths = compileSubpathsRegex(rawSvg)
+      }
+      if (subpaths.length === 0) subpaths = compileSubpathsRegex(rawSvg)
+    } else {
+      subpaths = compileSubpathsRegex(rawSvg)
+    }
+
+    if (subpaths.length === 0) {
+      return { status: 'unsupported', points: [], usedFallback: false, reason: 'No compilable vector shapes found in this SVG.' }
+    }
+
+    // 2. Measure arc lengths; discard degenerate/zero-length subpaths
+    type MeasuredSubpath = RawSubpath & { props: InstanceType<typeof svgPathProperties>; length: number }
+    const measured: MeasuredSubpath[] = subpaths.flatMap(sp => {
+      try {
+        const props = new svgPathProperties(sp.data)
+        const length = props.getTotalLength()
+        if (!Number.isFinite(length) || length <= 0) return []
+        return [{ ...sp, props, length }]
+      } catch {
+        return []
+      }
+    })
+
+    if (measured.length === 0) {
+      return { status: 'unsupported', points: [], usedFallback: false, reason: 'All detected paths have zero arc length.' }
+    }
+
+    // 3. Filter tiny paths
+    let retained = measured
+    if (opts.discardTinyPaths && measured.length > 1) {
+      const totalLen = measured.reduce((s, p) => s + p.length, 0)
+      const threshold = opts.minPathLength * totalLen
+      const filtered = measured.filter(p => p.length >= threshold)
+      if (filtered.length > 0) retained = filtered
+    }
+
+    // 4. Cap path count
+    const maxPaths = Math.max(1, Math.floor(n / opts.minPointCountPerPath))
+    if (retained.length > maxPaths) {
+      const sortedDesc = retained.slice().sort((a, b) => b.length - a.length)
+      const keepSet = new Set(sortedDesc.slice(0, maxPaths))
+      retained = retained.filter(p => keepSet.has(p))
+    }
+
+    // 5. Allocate points proportionally
+    const dynamicMaxPerPath = retained.length <= 4
+      ? n
+      : Math.max(128, Math.ceil(n / retained.length) * 2)
+    const capPerPath = Number.isFinite(opts.maxPointCountPerPath)
+      ? Math.min(opts.maxPointCountPerPath, dynamicMaxPerPath)
+      : dynamicMaxPerPath
+    const counts = allocateCounts(
+      retained.map(p => p.length),
+      n,
+      capPerPath,
+    )
+
+    // 6. Sample each subpath
+    const raw: OscillatorGlyphPoint[] = []
+    for (let j = 0; j < retained.length; j++) {
+      const { props, ctm, length } = retained[j]
+      const count = counts[j]
+      if (count <= 0) continue
+      const hasCTM = !isIdentityM2D(ctm)
+      for (let k = 0; k < count; k++) {
+        const progress = count > 1 ? k / (count - 1) : 0
+        const pt = props.getPropertiesAtLength(progress * length)
+        let x = pt.x, y = pt.y
+        if (hasCTM) { const [tx, ty] = applyM2D(ctm, x, y); x = tx; y = ty }
+        raw.push({ x, y, pathIndex: j, progress })
+      }
+    }
+
+    if (raw.length === 0) {
+      return { status: 'unsupported', points: [], usedFallback: false, reason: 'Point sampling produced no output.' }
+    }
+
+    // 7. Normalize
+    const normalized = normalizePointCloud(raw)
+
+    // 7.5 Deduplicate
+    const eps = opts.duplicatePointEpsilon
+    const deduped: OscillatorGlyphPoint[] = eps > 0 ? (() => {
+      const result: OscillatorGlyphPoint[] = []
+      const groups = new Map<number, OscillatorGlyphPoint[]>()
+      for (const p of normalized) {
+        const arr = groups.get(p.pathIndex)
+        if (arr) arr.push(p); else groups.set(p.pathIndex, [p])
+      }
+      for (const group of groups.values()) {
+        result.push(...removeNearDuplicatePoints(group, eps))
+      }
+      return result
+    })() : normalized
+
+    // 8. Compute normals
+    const grouped = new Map<number, OscillatorGlyphPoint[]>()
+    for (const p of deduped) {
+      const arr = grouped.get(p.pathIndex)
+      if (arr) arr.push(p); else grouped.set(p.pathIndex, [p])
+    }
+
+    const result: OscillatorGlyphPoint[] = []
+    const sortedKeys = Array.from(grouped.keys()).sort((a, b) => a - b)
+    for (const key of sortedKeys) {
+      const group = grouped.get(key)!
+      group.sort((a, b) => a.progress - b.progress)
+      result.push(...computePathNormals(group, false))
+    }
+
+    return { status: 'success', points: result, usedFallback: false }
+
+  } catch (err) {
+    return {
+      status: 'error',
+      points: [],
+      usedFallback: false,
+      reason: err instanceof Error ? err.message : 'SVG compilation error',
+    }
+  }
+}
+
 /**
  * Parses a raw SVG string into a normalized, centered array of glyph points.
  *

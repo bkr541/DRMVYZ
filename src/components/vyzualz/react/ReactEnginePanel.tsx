@@ -14,6 +14,7 @@ import { getSvgVisualEntry } from './renderers/svgVisualCache'
 import type {
   ReactEngineId,
   OscillatorSourceType,
+  SvgRenderMode,
   ClassicScopeMode,
   BuiltinOscillatorShape,
   OscillatorGlyphAsset,
@@ -54,8 +55,9 @@ const SOURCE_LABELS: Record<OscillatorSourceType, string> = {
   classic:      'Classic Scope',
   builtinShape: 'Shape',
   text:         'Text',
-  svgGlyph:     'SVG Glyph',
-  svgVisual:    'SVG Visual',
+  svg:          'SVG',
+  svgGlyph:     'SVG Glyph',   // legacy — kept for backward-compat display
+  svgVisual:    'SVG Visual',  // legacy — kept for backward-compat display
 }
 
 const RENDER_LABELS: Record<OscillatorRenderMode, string> = {
@@ -219,6 +221,7 @@ export function ReactEnginePanel() {
     oscillatorSettings,  setOscillatorSettings,
     oscillatorGlyphAssets,
     oscillatorGlyphPointCache,
+    selectSvgAsset,
     selectSvgMediaGlyph,
     selectSvgVisual,
     oscillatorFontAssets,
@@ -234,6 +237,7 @@ export function ReactEnginePanel() {
     setOscillatorSettings:      s.setOscillatorSettings,
     oscillatorGlyphAssets:      s.oscillatorGlyphAssets,
     oscillatorGlyphPointCache:  s.oscillatorGlyphPointCache,
+    selectSvgAsset:             s.selectSvgAsset,
     selectSvgMediaGlyph:        s.selectSvgMediaGlyph,
     selectSvgVisual:            s.selectSvgVisual,
     oscillatorFontAssets:       s.oscillatorFontAssets,
@@ -251,10 +255,14 @@ export function ReactEnginePanel() {
   // that hook always runs regardless of which panel tab is active.
 
   const allMediaItems   = useMediaStore(s => s.items)
+  // Only include SVG-role items (not raster images with .svg filenames)
   const svgMediaItems   = allMediaItems.filter(m => m.mediaRole === 'svg' || isSvgFilename(m.name))
-  const selectedSvgMediaId = osc.selectedGlyphId?.startsWith('glyph-media:')
-    ? osc.selectedGlyphId.slice('glyph-media:'.length)
-    : null
+  // Unified: selectedSvgId for 'svg' source; fall back to legacy glyph-media: prefix for svgGlyph
+  const selectedSvgMediaId =
+    osc.selectedSvgId ??
+    (osc.selectedGlyphId?.startsWith('glyph-media:')
+      ? osc.selectedGlyphId.slice('glyph-media:'.length)
+      : null)
 
   async function handleFontUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -371,14 +379,13 @@ export function ReactEnginePanel() {
 
           <SelectRow
             label="Source"
-            value={osc.sourceType}
+            value={osc.sourceType === 'svgGlyph' || osc.sourceType === 'svgVisual' ? 'svg' : osc.sourceType}
             onChange={v => set({ sourceType: v as OscillatorSourceType })}
             options={[
               { value: 'classic',      label: 'Classic Scope' },
               { value: 'builtinShape', label: 'Built-in Shape' },
               { value: 'text',         label: 'Text' },
-              { value: 'svgGlyph',     label: 'SVG Glyph' },
-              { value: 'svgVisual',    label: 'SVG Visual' },
+              { value: 'svg',          label: 'SVG' },
             ]}
           />
 
@@ -435,6 +442,11 @@ export function ReactEnginePanel() {
                 maxLength={32}
                 placeholder="DRMVYZ"
               />
+              <ToggleRow
+                label="Auto Rotate"
+                value={osc.autoRotate === true}
+                onChange={v => set({ autoRotate: v })}
+              />
               {oscillatorFontAssets.length > 0 && (
                 <SelectRow
                   label="Font"
@@ -468,42 +480,53 @@ export function ReactEnginePanel() {
             </>
           )}
 
-          {/* SVG glyph picker */}
-          {osc.sourceType === 'svgGlyph' && (
+          {/* Unified SVG picker (source type 'svg', or legacy svgGlyph/svgVisual) */}
+          {(osc.sourceType === 'svg' || osc.sourceType === 'svgGlyph' || osc.sourceType === 'svgVisual') && (
             svgMediaItems.length === 0 ? (
-              <div className="rv-ctrl-info">No SVG media yet — import SVG files from the Media tab.</div>
+              <div className="rv-ctrl-info">No SVG files yet — import from the Media tab.</div>
             ) : (
-              <SelectRow
-                label="Glyph"
-                value={selectedSvgMediaId ?? ''}
-                onChange={v => { if (v) selectSvgMediaGlyph(v) }}
-                options={[
-                  ...(selectedSvgMediaId ? [] : [{ value: '', label: '— select glyph —' }]),
-                  ...svgMediaItems.map(m => ({ value: m.id, label: m.title ?? m.name })),
-                ]}
-              />
+              <>
+                <SelectRow
+                  label="SVG File"
+                  value={selectedSvgMediaId ?? ''}
+                  onChange={v => { if (v) selectSvgAsset(v) }}
+                  options={[
+                    ...(selectedSvgMediaId ? [] : [{ value: '', label: '— select SVG —' }]),
+                    ...svgMediaItems.map(m => ({ value: m.id, label: m.title ?? m.name })),
+                  ]}
+                />
+                <SelectRow
+                  label="Render As"
+                  value={osc.svgRenderMode ?? 'auto'}
+                  onChange={v => set({ svgRenderMode: v as SvgRenderMode })}
+                  options={[
+                    { value: 'auto',            label: 'Auto (Recommended)' },
+                    { value: 'reactivePath',    label: 'Reactive Path' },
+                    { value: 'originalArtwork', label: 'Original Artwork' },
+                  ]}
+                />
+                <ToggleRow
+                  label="React Palette"
+                  value={osc.svgUseReactPalette !== false}
+                  onChange={v => set({ svgUseReactPalette: v })}
+                />
+                <ToggleRow
+                  label="Auto Rotate"
+                  value={osc.autoRotate !== false}
+                  onChange={v => set({ autoRotate: v })}
+                />
+                {(osc.svgRenderMode === 'auto' || osc.svgRenderMode === 'reactivePath') && (
+                  <div className="rv-ctrl-info" style={{ marginTop: 2 }}>
+                    Reactive Path deforms the SVG outline with audio. Original Artwork renders it at full fidelity with whole-object reactions.
+                  </div>
+                )}
+              </>
             )
           )}
 
-          {/* SVG visual picker */}
-          {osc.sourceType === 'svgVisual' && (
-            svgMediaItems.length === 0 ? (
-              <div className="rv-ctrl-info">No SVG media yet — import SVG files from the Media tab.</div>
-            ) : (
-              <SelectRow
-                label="Visual"
-                value={osc.selectedSvgVisualId ?? ''}
-                onChange={v => { if (v) selectSvgVisual(v) }}
-                options={[
-                  ...(osc.selectedSvgVisualId ? [] : [{ value: '', label: '— select SVG —' }]),
-                  ...svgMediaItems.map(m => ({ value: m.id, label: m.title ?? m.name })),
-                ]}
-              />
-            )
-          )}
-
-          {/* ── Source: path resolution (non-classic, non-svgVisual only) ── */}
-          {osc.sourceType !== 'classic' && osc.sourceType !== 'svgVisual' && (
+          {/* ── Source: path resolution (non-classic; hide for pure originalArtwork modes) ── */}
+          {osc.sourceType !== 'classic' && osc.sourceType !== 'svgVisual' &&
+           !(osc.sourceType === 'svg' && osc.svgRenderMode === 'originalArtwork') && (
             <>
               <CtrlSection label="Source" />
               <SliderRow

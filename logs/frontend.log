@@ -3,22 +3,6 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 171 ms
+  VITE v5.4.21  ready in 155 ms
 
   ➜  Local:   http://127.0.0.1:5173/
-3:09:39 AM [vite] hmr update /src/components/vyzualz/VyzualzView.tsx
-3:10:14 AM [vite] hmr update /src/components/vyzualz/VyzualzSidebar.tsx
-3:45:42 AM [vite] hmr update /src/components/vyzualz/react/LaserDmxBeamMatrixPresetBrowser.tsx
-3:48:15 AM [vite] hmr update /src/components/vyzualz/react/ReactEnginePanel.tsx
-4:00:50 AM [vite] hmr update /src/components/vyzualz/react/ReactControlRows.tsx
-4:01:00 AM [vite] hmr update /src/components/vyzualz/react/ReactControlRows.tsx
-4:01:16 AM [vite] hmr update /src/styles/reactView.css
-4:01:27 AM [vite] hmr update /src/styles/reactView.css
-4:01:35 AM [vite] hmr update /src/styles/reactView.css
-4:01:40 AM [vite] hmr update /src/styles/reactView.css
-4:01:55 AM [vite] hmr update /src/styles/reactView.css
-4:08:29 AM [vite] hmr update /src/components/vyzualz/react/ReactEnginePanel.tsx
-4:08:36 AM [vite] hmr update /src/components/vyzualz/react/ReactEnginePanel.tsx
-4:13:55 AM [vite] hmr update /src/components/vyzualz/react/ReactEnginePanel.tsx
-4:14:07 AM [vite] hmr update /src/components/vyzualz/react/ReactEnginePanel.tsx
-4:31:08 AM [vite] hmr update /src/components/vyzualz/MediaUploadModal.tsx

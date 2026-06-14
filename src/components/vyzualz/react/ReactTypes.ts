@@ -2,7 +2,9 @@ export type ReactEngineId = 'shaderPads' | 'cinematicPortal' | 'oscilloscope' | 
 
 // ── Oscillator path/glyph types ───────────────────────────────────────────────
 
-export type OscillatorSourceType = 'classic' | 'builtinShape' | 'text' | 'svgGlyph' | 'svgVisual'
+export type OscillatorSourceType = 'classic' | 'builtinShape' | 'text' | 'svg' | 'svgGlyph' | 'svgVisual'
+
+export type SvgRenderMode = 'auto' | 'reactivePath' | 'originalArtwork'
 
 export type ClassicScopeMode = 'sectionAuto' | 'waveform' | 'lissajous' | 'radialScope' | 'spiralScope'
 
@@ -54,6 +56,14 @@ export interface OscillatorSettings {
   builtinShape: BuiltinOscillatorShape
   selectedGlyphId: string | null
   selectedSvgVisualId: string | null
+  /** Unified SVG asset selection (media ID). Used when sourceType === 'svg'. */
+  selectedSvgId: string | null
+  /** How to render the selected SVG. 'auto' resolves based on SVG capability analysis. */
+  svgRenderMode: SvgRenderMode
+  /** When true, composites the SVG through the active palette colors. */
+  svgUseReactPalette: boolean
+  /** Whether the shape continuously auto-rotates. When false, shape is stationary. */
+  autoRotate: boolean
   text: string
   textFontId: string | null
   textFontSize: number
@@ -84,6 +94,10 @@ export const DEFAULT_OSCILLATOR_SETTINGS: OscillatorSettings = {
   builtinShape:        'circle',
   selectedGlyphId:     null,
   selectedSvgVisualId: null,
+  selectedSvgId:       null,
+  svgRenderMode:       'auto',
+  svgUseReactPalette:  true,
+  autoRotate:          false,
   text:                'DRMVYZ',
   textFontId:        null,
   textFontSize:      160,
@@ -1068,6 +1082,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
       text:              'DRMVYZ',
       renderMode:        'multiTrace',
       autoSectionMode:   true,
+      autoRotate:        false,
       bassScale:         0.22,
       beatBloom:         0.4,
       rotationSpeed:     0.02,
@@ -1102,25 +1117,28 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
   },
   {
     id: 'preset-svg-glyph-slot',
-    name: 'SVG Glyph Slot',
-    description: 'Import an SVG from the Media tab and select it in SOURCE & MODE → SVG Glyph to render it as a reactive oscillator path.',
+    name: 'SVG Slot',
+    description: 'Import an SVG from the Media tab and select it here — Reactive Path deforms it with audio, Original Artwork renders it at full fidelity.',
     engine: 'oscilloscope',
     palette: PALETTE_SVG_SLOT,
     params: { intensity: 0.7, motion: 0.5, glow: 0.78, bassReactivity: 0.8, colorShift: 0.35, complexity: 0.55 },
     scenes: makeScenes('sgs', 'oscilloscope'),
     sectionMappings: makeMappings('sgs'),
     oscillatorSettings: {
-      sourceType:        'svgGlyph',
-      selectedGlyphId:   null,
-      renderMode:        'outline',
-      autoSectionMode:   true,
-      bassScale:         0.3,
-      beatBloom:         0.4,
-      rotationSpeed:     0.06,
-      duplicateTraces:   2,
-      audioDisplacement: 0.18,
-      midTwist:          0.1,
-      highJitter:        0.05,
+      sourceType:         'svg',
+      selectedSvgId:      null,
+      svgRenderMode:      'auto',
+      svgUseReactPalette: true,
+      autoRotate:         false,
+      renderMode:         'outline',
+      autoSectionMode:    true,
+      bassScale:          0.3,
+      beatBloom:          0.4,
+      rotationSpeed:      0.06,
+      duplicateTraces:    2,
+      audioDisplacement:  0.18,
+      midTwist:           0.1,
+      highJitter:         0.05,
     },
   },
 

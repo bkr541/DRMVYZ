@@ -10,9 +10,11 @@ import {
   suggestMediaRole,
   roleImpliesAlpha,
   isAudioFile,
+  isSvgFilename,
 } from '../../lib/mediaRoles'
 import type { MediaRole, MediaEnergy } from '../../lib/mediaRoles'
 import { analyzeAudioFile } from '../../utils/analyzeAudioFile'
+import { analyzeSvgCapabilities } from './react/renderers/svgCapabilityAnalysis'
 
 // ── Local display metadata ────────────────────────────────────────────────────
 // Separate from store queue — purely for thumbnail/dims display in modal file list
@@ -176,6 +178,7 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
   const [saving,    setSaving]    = useState(false)
   const [uploadAnother, setUploadAnother] = useState(false)
   const [bpmError,  setBpmError]  = useState('')
+  const [rasterSvgWarning, setRasterSvgWarning] = useState<{ file: File } | null>(null)
 
   const fileInputId = useId()
   const dropRef = useRef<HTMLDivElement>(null)
@@ -254,13 +257,55 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
     )
     if (!valid.length) return
 
+    // Screen SVG files for raster-only content before queuing
+    const safeFiles: File[] = []
+    for (const f of valid) {
+      const isSvg = f.type === 'image/svg+xml' || isSvgFilename(f.name)
+      if (isSvg) {
+        try {
+          const rawSvg = await f.text()
+          const analysis = analyzeSvgCapabilities(rawSvg)
+          if (analysis.isValidSvg && !analysis.hasVectorGeometry &&
+              (analysis.hasEmbeddedRaster || analysis.hasExternalRaster)) {
+            // Raster-only SVG: pause and show warning for this file
+            setRasterSvgWarning({ file: f })
+            // Queue the files already cleared as safe
+            if (safeFiles.length > 0) {
+              const prevLen2 = uploadQueue.length
+              addFilesToUploadQueue(safeFiles)
+              const newMeta2 = new Map<string, EntryDisplay>()
+              await Promise.all(safeFiles.map(async (sf, i) => {
+                const q = useMediaStore.getState().uploadQueue
+                const item = q[prevLen2 + i]
+                if (!item) return
+                const dims = await getImgDims(item.previewUrl)
+                newMeta2.set(item.tempId, { thumbnailUrl: item.previewUrl, width: dims?.w, height: dims?.h, status: 'ready' })
+              }))
+              setDisplayMeta(prev => {
+                const next = new Map(prev)
+                newMeta2.forEach((v, k) => next.set(k, v))
+                return next
+              })
+            }
+            return
+          }
+        } catch {
+          // Can't read file — proceed with upload as-is
+        }
+      }
+      safeFiles.push(f)
+    }
+
+    // No raster SVGs found — proceed with all valid files (safeFiles === valid at this point)
+    const filesToQueue = safeFiles
+
     // Add to store queue first to get tempIds
     const prevLen = uploadQueue.length
-    addFilesToUploadQueue(valid)
+    addFilesToUploadQueue(filesToQueue)
 
     // Build display metadata async
     const newMeta = new Map<string, EntryDisplay>()
-    await Promise.all(valid.map(async (file, i) => {
+    await Promise.all(filesToQueue.map(async (file, i) => {
       const queue = useMediaStore.getState().uploadQueue
       const item = queue[prevLen + i]
       if (!item) return
@@ -449,7 +494,57 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
   const keyContent    = <div className="mum-select-wrap mum-select-wrap--sm"><select className="mum-select" value={uploadDraft.metadata.key ?? ''} onChange={e => setUploadDraftMetadata({ key: e.target.value || undefined })}><option value="">—</option>{MUSICAL_KEYS.map(k => <option key={k} value={k}>{k}</option>)}</select><svg className="mum-select-caret" viewBox="0 0 10 6" fill="currentColor"><path d="M0 0l5 6 5-6z"/></svg></div>
   const energyContent = <div className="mum-select-wrap mum-select-wrap--sm"><select className="mum-select" value={uploadDraft.metadata.energy ?? ''} onChange={e => setUploadDraftMetadata({ energy: (e.target.value as MediaEnergy) || undefined })}><option value="">—</option>{(Object.keys(ENERGY_LABELS) as MediaEnergy[]).map(k => <option key={k} value={k}>{ENERGY_LABELS[k]}</option>)}</select><svg className="mum-select-caret" viewBox="0 0 10 6" fill="currentColor"><path d="M0 0l5 6 5-6z"/></svg></div>
 
+  // ── Raster SVG warning handler ──────────────────────────────────────────────
+  const handleRasterSvgContinue = useCallback(async () => {
+    if (!rasterSvgWarning) return
+    const { file } = rasterSvgWarning
+    setRasterSvgWarning(null)
+    const prevLen = uploadQueue.length
+    addFilesToUploadQueue([file])
+    const queue = useMediaStore.getState().uploadQueue
+    const item  = queue[prevLen]
+    if (item) {
+      const dims = await getImgDims(item.previewUrl)
+      setDisplayMeta(prev => new Map(prev).set(item.tempId, {
+        thumbnailUrl: item.previewUrl,
+        width: dims?.w, height: dims?.h,
+        status: 'ready',
+      }))
+    }
+  }, [rasterSvgWarning, uploadQueue.length, addFilesToUploadQueue])
+
   return (
+    <>
+    {/* ── Raster SVG warning dialog ─────────────────────────────────── */}
+    {rasterSvgWarning && (
+      <div className="mum-backdrop" style={{ zIndex: 1100 }} onClick={e => e.stopPropagation()}>
+        <div className="mum-modal" role="alertdialog" aria-modal="true" style={{ maxWidth: 420, padding: '24px 28px' }}>
+          <div className="mum-title" style={{ marginBottom: 8 }}>SVG Contains Only a Raster Image</div>
+          <p style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 16, opacity: 0.85 }}>
+            <strong>{rasterSvgWarning.file.name}</strong> wraps an embedded raster image rather than
+            vector paths. It can still be uploaded and rendered as Original Artwork, but cannot
+            be used as a Reactive Path glyph.
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              className="mum-upload-btn"
+              onClick={handleRasterSvgContinue}
+            >
+              Continue Upload
+            </button>
+            <button
+              type="button"
+              className="mum-upload-btn mum-upload-btn--secondary"
+              onClick={() => setRasterSvgWarning(null)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
     <div
       className="mum-backdrop"
       onClick={e => { if (e.target === e.currentTarget && !busy) onClose() }}
@@ -823,5 +918,6 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
 
       </div>
     </div>
+    </>
   )
 }

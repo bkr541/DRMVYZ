@@ -93,8 +93,15 @@ function scheduleGlyphRecompile(): void {
     _glyphRecompileTimer = null
     const s = useReactStore.getState()
     const { oscillatorSettings: osc } = s
-    if (osc.sourceType !== 'svgGlyph' || !osc.selectedGlyphId) return
-    const asset = s.oscillatorGlyphAssets.find(a => a.id === osc.selectedGlyphId)
+    // Determine the active glyph asset ID from the source type
+    let activeGlyphId: string | null = null
+    if (osc.sourceType === 'svgGlyph') {
+      activeGlyphId = osc.selectedGlyphId ?? null
+    } else if (osc.sourceType === 'svg' && osc.selectedSvgId) {
+      activeGlyphId = `glyph-media:${osc.selectedSvgId}`
+    }
+    if (!activeGlyphId) return
+    const asset = s.oscillatorGlyphAssets.find(a => a.id === activeGlyphId)
     if (!asset) return
     const res = clampRes(osc.pathResolution)
     const key = getSvgGlyphCacheKey(asset.id, res, asset.contentHash)
@@ -379,6 +386,11 @@ interface ReactStoreState {
   // if it matches. Called from mediaStore.removeItem to keep state consistent.
   clearSvgVisualForMedia: (mediaId: string) => void
 
+  // Unified SVG asset selection (sourceType: 'svg').
+  // Caches both glyph points (for reactivePath) and SVG image (for originalArtwork)
+  // in parallel, then sets selectedSvgId + sourceType: 'svg'.
+  selectSvgAsset: (mediaId: string) => Promise<void>
+
   // Uploaded font assets (persisted as base64)
   oscillatorFontAssets: OscillatorFontAsset[]
   addOscillatorFontAsset: (asset: OscillatorFontAsset) => void
@@ -585,7 +597,10 @@ export const useReactStore = create<ReactStoreState>()(
           // When pathResolution changes while a glyph is active, debounce the recompile so
           // slider dragging does not synchronously stall the UI on every tick.
           // The renderer uses the previous compiled points until the debounce fires.
-          if ('pathResolution' in patch && newSettings.sourceType === 'svgGlyph' && newSettings.selectedGlyphId) {
+          const hasActiveGlyph =
+            (newSettings.sourceType === 'svgGlyph' && !!newSettings.selectedGlyphId) ||
+            (newSettings.sourceType === 'svg'       && !!newSettings.selectedSvgId)
+          if ('pathResolution' in patch && hasActiveGlyph) {
             scheduleGlyphRecompile()
           }
 
@@ -856,6 +871,38 @@ export const useReactStore = create<ReactStoreState>()(
             },
           }
         })
+      },
+
+      // ── Unified SVG asset selection ─────────────────────────────────────────
+
+      selectSvgAsset: async (mediaId) => {
+        // Set selectedSvgId immediately so the UI reflects the pending selection
+        set(s => ({
+          oscillatorSettings: {
+            ...s.oscillatorSettings,
+            sourceType:    'svg',
+            selectedSvgId: mediaId,
+          },
+          glyphLostNotice: null,
+        }))
+
+        // Kick off both caching paths in parallel:
+        // 1. Glyph points (for reactivePath mode)
+        // 2. SVG image (for originalArtwork mode)
+        await Promise.all([
+          get().selectSvgMediaGlyph(mediaId),
+          get().selectSvgVisual(mediaId),
+        ])
+
+        // After both complete, restore the sourceType to 'svg'
+        // (selectSvgMediaGlyph/selectSvgVisual change it to their legacy types)
+        set(s => ({
+          oscillatorSettings: {
+            ...s.oscillatorSettings,
+            sourceType:    'svg',
+            selectedSvgId: mediaId,
+          },
+        }))
       },
 
       // ── Font asset actions ──────────────────────────────────────────────────
@@ -1474,16 +1521,61 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 1,
+      version: 2,
       migrate: (persistedState: unknown, version: number) => {
-        const state = (persistedState ?? {}) as Record<string, unknown>
+        let state = (persistedState ?? {}) as Record<string, unknown>
         if (version < 1) {
           // Users with no version (< 1): add Beam Matrix state while preserving
           // all existing Spatial Fixtures settings.
-          return {
+          state = {
             ...state,
             laserDmxWorkspaceMode: 'spatialFixtures' as LaserDmxWorkspaceMode,
             laserDmxBeamMatrix:    createDefaultLaserDmxBeamMatrixSettings(),
+          }
+        }
+        if (version < 2) {
+          // Unify svgGlyph + svgVisual → unified 'svg' sourceType.
+          // svgGlyph → sourceType: 'svg', svgRenderMode: 'reactivePath', selectedSvgId from glyph-media: prefix
+          // svgVisual → sourceType: 'svg', svgRenderMode: 'originalArtwork', selectedSvgId from selectedSvgVisualId
+          // Text sources get autoRotate: false (stationary by default).
+          // All other sources that were auto-rotating get autoRotate: true to preserve behavior.
+          const osc = state.oscillatorSettings as Record<string, unknown> | undefined
+          if (osc) {
+            let migratedOsc = { ...osc }
+            if (osc.sourceType === 'svgGlyph') {
+              const glyphId = osc.selectedGlyphId as string | null
+              const svgId = typeof glyphId === 'string' && glyphId.startsWith('glyph-media:')
+                ? glyphId.slice('glyph-media:'.length)
+                : glyphId
+              migratedOsc = {
+                ...migratedOsc,
+                sourceType:         'svg',
+                selectedSvgId:      svgId ?? null,
+                svgRenderMode:      'reactivePath',
+                svgUseReactPalette: true,
+                autoRotate:         true,
+              }
+            } else if (osc.sourceType === 'svgVisual') {
+              migratedOsc = {
+                ...migratedOsc,
+                sourceType:         'svg',
+                selectedSvgId:      (osc.selectedSvgVisualId as string | null) ?? null,
+                svgRenderMode:      'originalArtwork',
+                svgUseReactPalette: true,
+                autoRotate:         true,
+              }
+            } else if (osc.sourceType === 'text') {
+              migratedOsc = { ...migratedOsc, autoRotate: false }
+            } else {
+              // classic, builtinShape — preserve rotation by defaulting to true
+              migratedOsc = { ...migratedOsc, autoRotate: true }
+            }
+            // Add missing new fields if not already set
+            if (!('selectedSvgId' in migratedOsc))       migratedOsc.selectedSvgId       = null
+            if (!('svgRenderMode' in migratedOsc))        migratedOsc.svgRenderMode        = 'auto'
+            if (!('svgUseReactPalette' in migratedOsc))   migratedOsc.svgUseReactPalette   = true
+            if (!('autoRotate' in migratedOsc))           migratedOsc.autoRotate           = osc.sourceType !== 'text'
+            state = { ...state, oscillatorSettings: migratedOsc }
           }
         }
         return state

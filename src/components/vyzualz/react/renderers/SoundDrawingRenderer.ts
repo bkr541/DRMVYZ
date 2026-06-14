@@ -21,6 +21,33 @@ function getTrail(ctx: CanvasRenderingContext2D, W: number, H: number): HTMLCanv
 const beatEnvelopeMap = new WeakMap<CanvasRenderingContext2D, number>()
 const BEAT_DECAY = 0.86
 
+// ── Rotation phase accumulator (per canvas context) ───────────────────────────
+// Replaces global-time rotation so that changing speed doesn't snap the angle,
+// and so that text/svg sources can be stationary when autoRotate is false.
+
+interface RotState { phase: number; prevT: number; prevSourceKey: string }
+const rotPhaseMap = new WeakMap<CanvasRenderingContext2D, RotState>()
+
+function tickRotPhase(
+  ctx: CanvasRenderingContext2D,
+  t: number,
+  sourceKey: string,
+  shouldRotate: boolean,
+  angularVelocity: number,
+): number {
+  const prev = rotPhaseMap.get(ctx) ?? { phase: 0, prevT: t, prevSourceKey: '' }
+  const sourceChanged = sourceKey !== prev.prevSourceKey
+  const deltaT_s = sourceChanged ? 0 : Math.min((t - prev.prevT) / 1000, 0.1)
+  const newPhase = sourceChanged || !shouldRotate
+    ? 0
+    : prev.phase + deltaT_s * angularVelocity
+  rotPhaseMap.set(ctx, { phase: newPhase, prevT: t, prevSourceKey: sourceKey })
+  return newPhase
+}
+
+// ── Original Artwork offscreen palette canvas (per ctx) ───────────────────────
+const artworkPaletteMap = new WeakMap<CanvasRenderingContext2D, HTMLCanvasElement>()
+
 function tickBeatEnvelope(ctx: CanvasRenderingContext2D, beatHit: boolean): number {
   const prev = beatEnvelopeMap.get(ctx) ?? 0
   const next = beatHit ? 1.0 : prev * BEAT_DECAY
@@ -143,6 +170,29 @@ function getOscillatorPathPoints(params: ReactRenderParams): OscillatorGlyphPoin
       cachePut(key, pts)
       return pts
     }
+    case 'svg': {
+      // Unified SVG source. When svgRenderMode is originalArtwork this branch is
+      // unreachable (renderSoundDrawing routes away before calling getOscillatorPathPoints).
+      // For reactivePath (or auto where glyph points are available), look up by glyph-media: prefix.
+      const glyphId = osc.selectedSvgId ? `glyph-media:${osc.selectedSvgId}` : null
+      const asset   = glyphId ? params.oscillatorGlyphAssets.find(a => a.id === glyphId) : undefined
+      if (asset) {
+        const cacheKey = getSvgGlyphCacheKey(asset.id, res, asset.contentHash)
+        const prepared = params.oscillatorGlyphPointCache[cacheKey]
+        if (prepared) return prepared
+        const nearest = findNearestSvgGlyphCacheEntry(
+          params.oscillatorGlyphPointCache, asset.id, res, asset.contentHash,
+        )
+        if (nearest) return nearest
+      }
+      // No glyph points ready — circle sentinel keeps something visible while compiling
+      const key    = `builtin:circle:${res}`
+      const cached = pathCache.get(key)
+      if (cached) return cached
+      const pts = generateBuiltinShapePoints('circle', res)
+      cachePut(key, pts)
+      return pts
+    }
     case 'svgVisual':
     case 'classic':
       return null
@@ -151,65 +201,165 @@ function getOscillatorPathPoints(params: ReactRenderParams): OscillatorGlyphPoin
   }
 }
 
-// ── SVG Visual renderer ───────────────────────────────────────────────────────
-// Draws the cached SVG image directly onto the canvas.
-// No trail, no point conversion, no oscillator path drawing.
+// ── Original Artwork renderer ─────────────────────────────────────────────────
+// Renders the cached SVG image with full audio-reactive whole-object effects:
+// bass scale, beat bloom, mid twist, high jitter, audio displacement, duplicate
+// traces, trail decay, intensity-driven glow, and optional React Palette tinting.
 
-function renderSvgVisual(
+function renderOriginalArtwork(
   ctx: CanvasRenderingContext2D,
   frame: ReactFrameContext,
   preset: ReactPreset,
   params: ReactRenderParams,
 ): void {
-  const { W, H, t } = frame
+  const { W, H, t, dpr } = frame
   const osc  = params.oscillator
   const bass = frame.audio.bass * params.bassReactivity
+  const mid  = frame.audio.mid
+  const high = frame.audio.high
+  const vol  = frame.audio.volume
 
-  ctx.fillStyle = preset.palette.background
-  ctx.fillRect(0, 0, W, H)
+  // Look up image — unified 'svg' uses selectedSvgId; legacy 'svgVisual' uses selectedSvgVisualId
+  const mediaId = osc.sourceType === 'svg'
+    ? (osc.selectedSvgId ?? '')
+    : (osc.selectedSvgVisualId ?? '')
+  const entry = getSvgVisualEntry(mediaId)
 
-  const entry = getSvgVisualEntry(osc.selectedSvgVisualId ?? '')
-  if (!entry?.loaded || !entry.image) return
+  // Trail canvas for decay / ghost-echo effect
+  const trailCanvas = getTrail(ctx, W, H)
+  const tctx = trailCanvas.getContext('2d')
+  if (!tctx) return
+
+  const beatEnvelope = tickBeatEnvelope(tctx, frame.beatHit)
+
+  // Fade trail
+  const decayRate = params.trailDecay * 0.25 + 0.01
+  fadeTrail(trailCanvas, preset.palette.background, decayRate)
+
+  // Composite trail to main canvas even if image is missing, so background shows
+  if (!entry?.loaded || !entry.image) {
+    ctx.fillStyle = preset.palette.background
+    ctx.fillRect(0, 0, W, H)
+    ctx.drawImage(trailCanvas, 0, 0)
+    return
+  }
 
   const img  = entry.image
   const imgW = entry.width  || img.naturalWidth  || 512
   const imgH = entry.height || img.naturalHeight || 512
 
-  // Fit inside pathScale * min(W,H), preserving aspect ratio
-  const maxSide = Math.min(W, H) * Math.max(0.05, osc.pathScale)
-  const ratio   = Math.min(maxSide / imgW, maxSide / imgH)
+  // ── Audio-reactive values ─────────────────────────────────────────────────
 
-  // Subtle bass breathing — max ±4% scale, only when bass reactivity is meaningful
-  const bassPulse = 1 + clamp(bass * 0.04, 0, 0.08)
-  const drawW = imgW * ratio * bassPulse
-  const drawH = imgH * ratio * bassPulse
+  // Scale: bass scale + beat bloom (much stronger than legacy 4% cap)
+  const bassPulse   = 1 + clamp(bass * osc.bassScale, 0, 0.6)
+  const bloomFactor = beatEnvelope * osc.beatBloom
+  const maxSide     = Math.min(W, H) * Math.max(0.05, osc.pathScale)
+  const ratio       = Math.min(maxSide / imgW, maxSide / imgH)
+  const drawScale   = ratio * bassPulse * (1 + bloomFactor * 0.4)
+  const drawW       = imgW * drawScale
+  const drawH       = imgH * drawScale
 
-  const cx  = W / 2
-  const cy  = H / 2
-  const rot = t * 0.002 * params.motion * osc.rotationSpeed
+  // Rotation phase (delta-time, respects autoRotate)
+  const sourceKey    = `svg:${mediaId}`
+  const shouldRotate = osc.autoRotate !== false
+  const angularVel   = 2 * params.motion * osc.rotationSpeed * (1 + mid * 0.3 * beatEnvelope)
+  const rotRad       = tickRotPhase(tctx, t, sourceKey, shouldRotate, angularVel)
 
-  ctx.save()
-  ctx.translate(cx, cy)
-  if (rot !== 0) ctx.rotate(rot)
+  // Mid twist: additional rotation perturbation from mid-range energy
+  const midTwistAngle = mid * osc.midTwist * 0.4 * Math.PI
 
-  // Glow pass: blurred, screen-blended copy under the main image
-  if (params.glow > 0.15) {
-    const blurPx     = Math.max(1, Math.round(params.glow * 16 + bass * 10))
-    const glowAlpha  = Math.min(0.38, params.glow * 0.38 * params.intensity)
-    ctx.save()
-    ctx.globalCompositeOperation = 'screen'
-    ctx.globalAlpha              = glowAlpha
-    ctx.filter                   = `blur(${blurPx}px)`
-    ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH)
-    ctx.filter = 'none'
-    ctx.restore()
+  // High jitter: deterministic XY noise driven by high-freq energy
+  const jitterAmt = clamp(high * osc.highJitter, 0, 0.25)
+  const jx = (seededRandom(Math.floor(t / 3) * 17 + 37) - 0.5) * 2 * jitterAmt * Math.min(W, H) * 0.15
+  const jy = (seededRandom(Math.floor(t / 3) * 29 + 83) - 0.5) * 2 * jitterAmt * Math.min(W, H) * 0.15
+
+  // Audio displacement: XY position offset from time-domain waveform
+  const dispAmt = clamp(osc.audioDisplacement * (1 + bass * 0.3), 0, 0.25)
+  const tdLen   = frame.timeDomainData ? frame.timeDomainData.length : 256
+  const tdX     = getTimeDomainNorm(frame.timeDomainData, Math.floor(tdLen * 0.1)) * dispAmt * Math.min(W, H) * 0.3
+  const tdY     = getTimeDomainNorm(frame.timeDomainData, Math.floor(tdLen * 0.6)) * dispAmt * Math.min(W, H) * 0.3
+
+  const cx = W / 2 + tdX + jx
+  const cy = H / 2 + tdY + jy
+
+  const numTraces       = clamp(osc.duplicateTraces, 1, 6)
+  const visualIntensity = clamp(params.intensity ?? 1, 0, 2)
+  const glowBoost       = vol * 8 + beatEnvelope * 18 * osc.beatBloom
+  const glowBase        = (params.glow * (10 + glowBoost) + bass * 8) * visualIntensity
+  const totalRot        = rotRad + midTwistAngle
+
+  // ── Draw each trace onto the trail canvas ─────────────────────────────────
+
+  for (let traceIdx = 0; traceIdx < numTraces; traceIdx++) {
+    const isMain       = traceIdx === 0
+    const traceScale   = 1 - traceIdx * 0.04
+    const traceAlpha   = isMain
+      ? Math.min(1, (0.92 + beatEnvelope * 0.08) * visualIntensity)
+      : Math.max(0.1, (0.38 - traceIdx * 0.06 + beatEnvelope * 0.1) * visualIntensity)
+    const traceRotOff  = traceIdx * 0.08 + traceIdx * frame.beatPhase * 0.015 * beatEnvelope
+    const tRot         = totalRot + traceRotOff
+    const tDrawW       = drawW * traceScale
+    const tDrawH       = drawH * traceScale
+
+    // Glow pass: blurred, screen-blended copy on main trace only
+    if (isMain && params.glow > 0.15) {
+      const blurPx    = Math.max(1, Math.round(params.glow * 16 + bass * 10 + beatEnvelope * 12))
+      const glowAlpha = Math.min(0.45, glowBase * 0.035)
+      tctx.save()
+      tctx.translate(cx, cy)
+      tctx.rotate(tRot)
+      tctx.globalAlpha              = glowAlpha
+      tctx.globalCompositeOperation = 'screen'
+      tctx.filter                   = `blur(${blurPx}px)`
+      tctx.drawImage(img, -tDrawW / 2, -tDrawH / 2, tDrawW, tDrawH)
+      tctx.filter = 'none'
+      tctx.restore()
+    }
+
+    if (osc.svgUseReactPalette) {
+      // Offscreen canvas for palette tinting via source-in compositing
+      const offscreen = getOrCreateOffscreen(artworkPaletteMap, ctx, W, H)
+      const octx = offscreen.getContext('2d')
+      if (octx) {
+        octx.clearRect(0, 0, W, H)
+        octx.save()
+        octx.translate(cx, cy)
+        octx.rotate(tRot)
+        octx.globalAlpha = 1
+        octx.drawImage(img, -tDrawW / 2, -tDrawH / 2, tDrawW, tDrawH)
+        octx.restore()
+
+        // Tint image with palette gradient
+        octx.save()
+        octx.globalCompositeOperation = 'source-in'
+        const grad = octx.createLinearGradient(cx - tDrawW / 2, cy - tDrawH / 2, cx + tDrawW / 2, cy + tDrawH / 2)
+        grad.addColorStop(0, preset.palette.primary)
+        grad.addColorStop(1, preset.palette.secondary)
+        octx.fillStyle = grad
+        octx.fillRect(0, 0, W, H)
+        octx.restore()
+
+        tctx.save()
+        tctx.globalAlpha              = traceAlpha
+        tctx.globalCompositeOperation = 'screen'
+        tctx.drawImage(offscreen, 0, 0)
+        tctx.restore()
+      }
+    } else {
+      tctx.save()
+      tctx.translate(cx, cy)
+      tctx.rotate(tRot)
+      tctx.globalAlpha              = traceAlpha
+      tctx.globalCompositeOperation = 'screen'
+      tctx.drawImage(img, -tDrawW / 2, -tDrawH / 2, tDrawW, tDrawH)
+      tctx.restore()
+    }
   }
 
-  // Main image pass
-  ctx.globalAlpha = Math.min(1, params.intensity)
-  ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH)
-
-  ctx.restore()
+  // ── Composite trail to main canvas ────────────────────────────────────────
+  ctx.fillStyle = preset.palette.background
+  ctx.fillRect(0, 0, W, H)
+  ctx.drawImage(trailCanvas, 0, 0)
 }
 
 // Shapes that naturally close back to their start point
@@ -820,8 +970,16 @@ function drawPathScopeOnTrail(
   const numTraces = clamp(effectiveOsc.duplicateTraces, 1, 6)
   const close     = shouldClose(params)
 
-  // Rotation: section speed × audio boost
-  const rotRad = t * 0.002 * params.motion * effectiveOsc.rotationSpeed * am.rotationBoost
+  // Rotation: delta-time phase accumulator — changing speed doesn't snap angle.
+  // For text sources: rotate only when autoRotate is explicitly true (default: stationary).
+  // For all other sources: rotate unless autoRotate is explicitly false (backward compat).
+  const isTextSource = effectiveOsc.sourceType === 'text'
+  const rotate       = isTextSource
+    ? effectiveOsc.autoRotate === true
+    : effectiveOsc.autoRotate !== false
+  const sourceKey    = `${effectiveOsc.sourceType}:${effectiveOsc.selectedGlyphId ?? effectiveOsc.selectedSvgId ?? effectiveOsc.text ?? effectiveOsc.builtinShape}`
+  const angularVel   = 2 * params.motion * effectiveOsc.rotationSpeed * am.rotationBoost
+  const rotRad       = tickRotPhase(tctx, t, sourceKey, rotate, angularVel)
 
   // visualIntensity drives opacity / glow / line weight — NOT geometry size.
   // intensityLineBoost is neutral at intensity=1 and subtle across the full range,
@@ -1055,6 +1213,18 @@ function drawPathScopeOnTrail(
   }
 }
 
+// ── SVG auto-mode helper ──────────────────────────────────────────────────────
+
+function hasSvgGlyphPoints(osc: OscillatorSettings, params: ReactRenderParams): boolean {
+  const res     = clamp(Math.round(osc.pathResolution), 64, 2048)
+  const glyphId = osc.selectedSvgId ? `glyph-media:${osc.selectedSvgId}` : null
+  const asset   = glyphId ? params.oscillatorGlyphAssets.find(a => a.id === glyphId) : undefined
+  if (!asset) return false
+  const key = getSvgGlyphCacheKey(asset.id, res, asset.contentHash)
+  if (params.oscillatorGlyphPointCache[key]) return true
+  return findNearestSvgGlyphCacheEntry(params.oscillatorGlyphPointCache, asset.id, res, asset.contentHash) !== null
+}
+
 // ── Public export ─────────────────────────────────────────────────────────────
 
 export function renderSoundDrawing(
@@ -1068,10 +1238,19 @@ export function renderSoundDrawing(
   const intMul = params.intensity
   const osc    = params.oscillator
 
-  // SVG Visual: direct image render, bypasses trail canvas and path drawing entirely
+  // Original Artwork path: svgVisual (legacy) or svg with originalArtwork mode.
+  // For 'auto' mode with no compiled glyph points, also falls back to originalArtwork.
   if (osc.sourceType === 'svgVisual') {
-    renderSvgVisual(ctx, frame, preset, params)
+    renderOriginalArtwork(ctx, frame, preset, params)
     return
+  }
+  if (osc.sourceType === 'svg') {
+    const wantsOriginal = osc.svgRenderMode === 'originalArtwork' ||
+      (osc.svgRenderMode === 'auto' && !hasSvgGlyphPoints(osc, params))
+    if (wantsOriginal) {
+      renderOriginalArtwork(ctx, frame, preset, params)
+      return
+    }
   }
 
   // Route to pathScope for any non-classic source; otherwise honour classicMode

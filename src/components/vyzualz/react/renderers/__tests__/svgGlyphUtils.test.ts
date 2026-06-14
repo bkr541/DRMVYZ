@@ -6,6 +6,7 @@ import {
   sampleSvgPathData,
   parseSvgToGlyphPoints,
   makeSvgGlyphAsset,
+  compileSvgToGlyphResult,
 } from '../svgGlyphUtils'
 
 // ── SVG fixtures ──────────────────────────────────────────────────────────────
@@ -312,5 +313,77 @@ describe('makeSvgGlyphAsset', () => {
   it('createdAt is a parseable ISO date string', () => {
     const asset = makeSvgGlyphAsset('G', SQUARE_SVG, 32)
     expect(Number.isNaN(new Date(asset.createdAt).getTime())).toBe(false)
+  })
+})
+
+// ── compileSvgToGlyphResult ───────────────────────────────────────────────────
+
+describe('compileSvgToGlyphResult', () => {
+  const RESOLUTION = 64
+
+  it('returns status "success" for a valid path SVG', () => {
+    const result = compileSvgToGlyphResult(SQUARE_SVG, RESOLUTION)
+    expect(result.status).toBe('success')
+    expect(result.points.length).toBeGreaterThan(0)
+    expect(result.usedFallback).toBe(false)
+  })
+
+  it('produces the same number of points as parseSvgToGlyphPoints for valid SVG', () => {
+    const result = compileSvgToGlyphResult(SQUARE_SVG, RESOLUTION)
+    expect(result.points).toHaveLength(RESOLUTION)
+  })
+
+  it('returns status "unsupported" for completely invalid SVG — no fallback circle', () => {
+    const result = compileSvgToGlyphResult(INVALID_SVG, RESOLUTION)
+    expect(result.status).toBe('unsupported')
+    expect(result.points).toHaveLength(0)
+    expect(result.usedFallback).toBe(false)
+  })
+
+  it('returns status "unsupported" for empty SVG with no geometry', () => {
+    const emptySvg = '<svg xmlns="http://www.w3.org/2000/svg"></svg>'
+    const result = compileSvgToGlyphResult(emptySvg, RESOLUTION)
+    expect(result.status).toBe('unsupported')
+    expect(result.points).toHaveLength(0)
+  })
+
+  it('returns a reason string for unsupported SVG', () => {
+    const result = compileSvgToGlyphResult(INVALID_SVG, RESOLUTION)
+    expect(typeof result.reason).toBe('string')
+    expect(result.reason!.length).toBeGreaterThan(0)
+  })
+
+  it('succeeds for a two-path SVG', () => {
+    const result = compileSvgToGlyphResult(TWO_PATH_SVG, RESOLUTION)
+    expect(result.status).toBe('success')
+    const indices = new Set(result.points.map(p => p.pathIndex))
+    expect(indices.size).toBeGreaterThan(1)
+  })
+
+  it('succeeds for a rect primitive', () => {
+    const result = compileSvgToGlyphResult(NO_PATH_SVG, RESOLUTION)
+    // NO_PATH_SVG has a rect — the compiler handles primitives
+    expect(result.status).toBe('success')
+    expect(result.points.length).toBeGreaterThan(0)
+  })
+
+  it('all success points have finite x and y', () => {
+    const result = compileSvgToGlyphResult(SQUARE_SVG, RESOLUTION)
+    expect(result.status).toBe('success')
+    for (const p of result.points) {
+      expect(Number.isFinite(p.x)).toBe(true)
+      expect(Number.isFinite(p.y)).toBe(true)
+    }
+  })
+
+  it('normalized success points are within [-1.2, 1.2]', () => {
+    const result = compileSvgToGlyphResult(TRIANGLE_SVG, RESOLUTION)
+    expect(result.status).toBe('success')
+    for (const p of result.points) {
+      expect(p.x).toBeGreaterThanOrEqual(-1.2)
+      expect(p.x).toBeLessThanOrEqual(1.2)
+      expect(p.y).toBeGreaterThanOrEqual(-1.2)
+      expect(p.y).toBeLessThanOrEqual(1.2)
+    }
   })
 })
