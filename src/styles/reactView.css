@@ -241,11 +241,15 @@
 
 .rv-ctrl-group {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 7px 11px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
+  isolation: isolate;
+}
+
+.rv-ctrl-group > * + * {
+  margin-top: 9px;
 }
 
 .rv-ctrl-group::-webkit-scrollbar { width: 3px; }
@@ -317,8 +321,14 @@
   text-transform: uppercase;
   color: var(--az-text-muted, rgba(196, 207, 211, 0.58));
   padding-top: 8px;
+  padding-bottom: 5px;
   border-top: 1px solid rgba(255, 255, 255, 0.055);
-  margin-top: 2px;
+  /* Sticky group header */
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #060d10;
+  box-shadow: 0 6px 10px #060d10;
 }
 
 .rv-ctrl-val {
