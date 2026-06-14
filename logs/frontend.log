@@ -3,6 +3,83 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 155 ms
+  VITE v5.4.21  ready in 180 ms
 
   ➜  Local:   http://127.0.0.1:5173/
+8:01:03 AM [vite] hmr update /src/components/vyzualz/react/ReactPerformancePads.tsx
+8:01:07 AM [vite] hmr update /src/components/vyzualz/react/ReactPerformancePads.tsx
+8:01:14 AM [vite] hmr update /src/components/vyzualz/react/ReactPerformancePads.tsx
+8:01:14 AM [vite] Internal server error: /Users/kodyrobinson/Development/DRMVYZ/src/components/vyzualz/react/ReactPerformancePads.tsx: Adjacent JSX elements must be wrapped in an enclosing tag. Did you want a JSX fragment <>...</>? (79:4)
+
+  77 |         })}
+  78 |       </div>
+> 79 |     </div>
+     |     ^
+  80 |   )
+  81 | }
+  82 |
+  Plugin: vite:react-babel
+  File: /Users/kodyrobinson/Development/DRMVYZ/src/components/vyzualz/react/ReactPerformancePads.tsx:79:4
+  77 |          })}
+  78 |        </div>
+  79 |      </div>
+     |      ^
+  80 |    )
+  81 |  }
+      at constructor (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:365:19)
+      at TypeScriptParserMixin.raise (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:6616:19)
+      at TypeScriptParserMixin.jsxParseElementAt (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:4754:18)
+      at TypeScriptParserMixin.jsxParseElement (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:4761:17)
+      at TypeScriptParserMixin.parseExprAtom (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:4771:19)
+      at TypeScriptParserMixin.parseExprSubscripts (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11098:23)
+      at TypeScriptParserMixin.parseUpdate (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11083:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11063:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9854:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10916:61)
+      at TypeScriptParserMixin.parseExprOpBaseRightExpr (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11003:34)
+      at TypeScriptParserMixin.parseExprOpRightExpr (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10998:21)
+      at TypeScriptParserMixin.parseExprOp (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10964:27)
+      at TypeScriptParserMixin.parseExprOp (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9323:18)
+      at TypeScriptParserMixin.parseExprOps (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10925:17)
+      at TypeScriptParserMixin.parseMaybeConditional (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10898:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10848:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9803:20)
+      at TypeScriptParserMixin.parseExpressionBase (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10801:23)
+      at /Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10797:39
+      at TypeScriptParserMixin.allowInAnd (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12443:12)
+      at TypeScriptParserMixin.parseExpression (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10797:17)
+      at TypeScriptParserMixin.jsxParseExpressionContainer (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:4644:31)
+      at TypeScriptParserMixin.jsxParseElementAt (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:4723:36)
+      at TypeScriptParserMixin.jsxParseElement (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:4761:17)
+      at TypeScriptParserMixin.parseExprAtom (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:4771:19)
+      at TypeScriptParserMixin.parseExprSubscripts (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11098:23)
+      at TypeScriptParserMixin.parseUpdate (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11083:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11063:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9854:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10916:61)
+      at TypeScriptParserMixin.parseExprOps (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10921:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10898:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10848:21)
+      at /Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9792:39
+      at TypeScriptParserMixin.tryParse (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:6924:20)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9792:18)
+      at /Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10817:39
+      at TypeScriptParserMixin.allowInAnd (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12443:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10817:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:12510:17)
+      at TypeScriptParserMixin.parseParenAndDistinguishExpression (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11692:28)
+      at TypeScriptParserMixin.parseExprAtom (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11348:23)
+      at TypeScriptParserMixin.parseExprAtom (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:4776:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11098:23)
+      at TypeScriptParserMixin.parseUpdate (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11083:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:11063:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:9854:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10916:61)
+      at TypeScriptParserMixin.parseExprOps (/Users/kodyrobinson/Development/DRMVYZ/node_modules/@babel/parser/lib/index.js:10921:23)
+8:01:24 AM [vite] hmr update /src/components/vyzualz/react/ReactPerformancePads.tsx
+8:01:31 AM [vite] hmr update /src/components/vyzualz/react/ReactTrackMapStrip.tsx
+8:01:55 AM [vite] hmr update /src/components/vyzualz/react/ReactTrackMapStrip.tsx
+8:02:05 AM [vite] hmr update /src/styles/reactView.css
+8:02:13 AM [vite] hmr update /src/styles/reactView.css
+8:02:22 AM [vite] hmr update /src/styles/reactView.css
+8:05:30 AM [vite] hmr update /src/styles/reactView.css

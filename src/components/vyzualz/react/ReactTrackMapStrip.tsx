@@ -245,6 +245,7 @@ export function ReactTrackMapStrip({
 
   const [isAdding,    setIsAdding]    = useState(false)
   const [analysisErr, setAnalysisErr] = useState<string | null>(null)
+  const [collapsed,   setCollapsed]   = useState(false)
 
   const storageKey    = trackId ?? '__default__'
   const analysisStatus = getAnalysisStatus(storageKey)
@@ -297,99 +298,113 @@ export function ReactTrackMapStrip({
 
   return (
     <div className="rv-track-map-strip">
-      <div className="rv-strip-header">
+      <div
+        className="rv-strip-header rv-strip-header--toggle"
+        role="button"
+        tabIndex={0}
+        aria-expanded={!collapsed}
+        onClick={() => setCollapsed(v => !v)}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCollapsed(v => !v) } }}
+      >
         <span className="rv-strip-title">Track Map</span>
-
-        {/* Status badge (shown when a trackId is set or analysis has run) */}
-        {analysisStatus !== 'not_analyzed' && (
-          <span
-            className="rv-analysis-status-badge"
-            style={{ color: STATUS_COLORS[analysisStatus] }}
-            title={STATUS_LABELS[analysisStatus]}
-          >
-            {analysisStatus === 'analyzing' ? '◌ Analyzing…' : STATUS_LABELS[analysisStatus]}
-          </span>
-        )}
-
-        <div className="rv-strip-type-legend">
-          {SECTION_ORDER.filter(t => t !== 'unknown').map(t => (
-            <span key={t} className="rv-legend-item" style={{ color: SECTION_COLORS[t] }}>
-              {t}
-            </span>
-          ))}
-        </div>
-
-        <div className="rv-strip-actions">
-          {/* Analyze Track button — real audio analysis */}
-          {canAnalyze && (
-            <button
-              className="rv-analyze-btn"
-              onClick={handleAnalyze}
-              title="Analyze audio and generate sections from real features"
-            >
-              Analyze Track
-            </button>
-          )}
-          {isAnalyzing && (
-            <span className="rv-analyzing-indicator">Analyzing…</span>
-          )}
-
-          {/* Generate mock — always available as fallback */}
-          {manualTrackSections.filter(s => !isAutoSection(s)).length === 0 && !isAnalyzing && (
-            <button
-              className="rv-generate-btn"
-              onClick={handleGenerateMock}
-              title={`Generate mock sections for ${Math.round(audioDurationSec / 60)}:${String(Math.round(audioDurationSec % 60)).padStart(2, '0')} track`}
-            >
-              ⚡ Generate
-            </button>
-          )}
-
-          <button
-            className="rv-add-section-btn"
-            onClick={() => setIsAdding(v => !v)}
-            title="Add section"
-          >
-            {isAdding ? '✕ Cancel' : '+ Add'}
-          </button>
-        </div>
+        <span className="rv-collapse-arrow">{collapsed ? '▶' : '▼'}</span>
       </div>
 
-      {/* Analysis error / warning */}
-      {analysisErr && (
-        <div
-          className="rv-analysis-warning"
-          style={{ color: analysisStatus === 'failed' ? STATUS_COLORS.failed : STATUS_COLORS.stale }}
-        >
-          {analysisErr}
-        </div>
-      )}
+      {!collapsed && (
+        <>
+          <div className="rv-strip-subheader">
+            {/* Status badge (shown when a trackId is set or analysis has run) */}
+            {analysisStatus !== 'not_analyzed' && (
+              <span
+                className="rv-analysis-status-badge"
+                style={{ color: STATUS_COLORS[analysisStatus] }}
+                title={STATUS_LABELS[analysisStatus]}
+              >
+                {analysisStatus === 'analyzing' ? '◌ Analyzing…' : STATUS_LABELS[analysisStatus]}
+              </span>
+            )}
 
-      {isAdding && (
-        <AddSectionForm
-          onAdd={handleAdd}
-          onCancel={() => setIsAdding(false)}
-        />
-      )}
+            <div className="rv-strip-type-legend">
+              {SECTION_ORDER.filter(t => t !== 'unknown').map(t => (
+                <span key={t} className="rv-legend-item" style={{ color: SECTION_COLORS[t] }}>
+                  {t}
+                </span>
+              ))}
+            </div>
 
-      {manualTrackSections.length === 0 && !isAdding ? (
-        <div className="rv-strip-empty">
-          No sections defined —
-          {audioBuffer ? ' hit <strong>Analyze Track</strong> for real analysis, or' : ''}
-          {' '}hit <strong>⚡ Generate</strong> for an auto track map, or <strong>+ Add</strong> to add manually.
-        </div>
-      ) : (
-        <div className="rv-section-list">
-          {manualTrackSections.map(section => (
-            <SectionChip
-              key={section.id}
-              section={section}
-              isSelected={selectedSectionId === section.id}
-              onSelect={setSelectedSectionId}
-              onRemove={removeManualSection}
+            <div className="rv-strip-actions">
+              {/* Analyze Track button — real audio analysis */}
+              {canAnalyze && (
+                <button
+                  className="rv-analyze-btn"
+                  onClick={handleAnalyze}
+                  title="Analyze audio and generate sections from real features"
+                >
+                  Analyze Track
+                </button>
+              )}
+              {isAnalyzing && (
+                <span className="rv-analyzing-indicator">Analyzing…</span>
+              )}
+
+              {/* Generate mock — always available as fallback */}
+              {manualTrackSections.filter(s => !isAutoSection(s)).length === 0 && !isAnalyzing && (
+                <button
+                  className="rv-generate-btn"
+                  onClick={handleGenerateMock}
+                  title={`Generate mock sections for ${Math.round(audioDurationSec / 60)}:${String(Math.round(audioDurationSec % 60)).padStart(2, '0')} track`}
+                >
+                  ⚡ Generate
+                </button>
+              )}
+
+              <button
+                className="rv-add-section-btn"
+                onClick={() => setIsAdding(v => !v)}
+                title="Add section"
+              >
+                {isAdding ? '✕ Cancel' : '+ Add'}
+              </button>
+            </div>
+          </div>
+
+          {/* Analysis error / warning */}
+          {analysisErr && (
+            <div
+              className="rv-analysis-warning"
+              style={{ color: analysisStatus === 'failed' ? STATUS_COLORS.failed : STATUS_COLORS.stale }}
+            >
+              {analysisErr}
+            </div>
+          )}
+
+          {isAdding && (
+            <AddSectionForm
+              onAdd={handleAdd}
+              onCancel={() => setIsAdding(false)}
             />
-          ))}
-        </div>
+          )}
+
+          {manualTrackSections.length === 0 && !isAdding ? (
+            <div className="rv-strip-empty">
+              No sections defined —
+              {audioBuffer ? ' hit <strong>Analyze Track</strong> for real analysis, or' : ''}
+              {' '}hit <strong>⚡ Generate</strong> for an auto track map, or <strong>+ Add</strong> to add manually.
+            </div>
+          ) : (
+            <div className="rv-section-list">
+              {manualTrackSections.map(section => (
+                <SectionChip
+                  key={section.id}
+                  section={section}
+                  isSelected={selectedSectionId === section.id}
+                  onSelect={setSelectedSectionId}
+                  onRemove={removeManualSection}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   )

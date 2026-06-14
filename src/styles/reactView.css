@@ -50,6 +50,21 @@
   flex-shrink: 0;
 }
 
+.rv-panel-header--toggle {
+  cursor: pointer;
+  user-select: none;
+}
+
+.rv-panel-header--toggle:hover {
+  background: rgba(74, 199, 219, 0.04);
+}
+
+.rv-collapse-arrow {
+  font-size: 7px;
+  color: rgba(232, 244, 248, 0.3);
+  flex-shrink: 0;
+}
+
 .rv-panel-icon {
   color: #4ac7db;
   font-size: 13px;
@@ -322,7 +337,7 @@
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 4px;
-  padding: 2px 22px 2px 5px;
+  padding: 5px 22px 5px 5px;
   font-size: 10.5px;
   font-family: var(--az-font);
   font-variant-numeric: tabular-nums;
@@ -739,13 +754,32 @@
   flex-shrink: 0;
 }
 
+.rv-strip-header--toggle {
+  cursor: pointer;
+  user-select: none;
+}
+
+.rv-strip-header--toggle:hover {
+  background: rgba(74, 199, 219, 0.04);
+}
+
+.rv-strip-subheader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 12px;
+  border-bottom: 1px solid rgba(74, 199, 219, 0.07);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
 .rv-strip-title {
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: rgba(232, 244, 248, 0.5);
-  flex-shrink: 0;
+  flex: 1;
 }
 
 .rv-strip-type-legend {
