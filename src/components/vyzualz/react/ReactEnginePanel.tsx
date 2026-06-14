@@ -41,6 +41,13 @@ const ENGINE_ICONS: Record<ReactEngineId, string> = {
   laserDmx:        '✦',
 }
 
+const ENGINE_DESCS: Record<ReactEngineId, string> = {
+  shaderPads:      'Reactive shader fields driven by audio bands and beat timing.',
+  cinematicPortal: 'Immersive depth tunnels and cinematic light portals.',
+  oscilloscope:    'Live audio waveform drawing with glyph and text rendering.',
+  laserDmx:        'DMX beam matrix and spatial fixture control with fog simulation.',
+}
+
 // ── Oscillator status card ────────────────────────────────────────────────────
 
 const SOURCE_LABELS: Record<OscillatorSourceType, string> = {
@@ -267,19 +274,28 @@ export function ReactEnginePanel() {
     <div className="rv-ctrl-group">
       {/* ── Engine Family ──────────────────────────────────────────────── */}
       <CtrlSection label="Engine Family" />
-      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-        {ENGINE_IDS.map(id => (
-          <button
-            key={id}
-            type="button"
-            className={`vz-filter-tab${activeReactEngineId === id ? ' vz-filter-tab--active' : ''}`}
-            onClick={() => selectReactEngine(id)}
-            title={ENGINE_LABELS[id]}
-          >
-            <span style={{ marginRight: 4 }}>{ENGINE_ICONS[id]}</span>
-            {ENGINE_LABELS[id]}
-          </button>
-        ))}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {ENGINE_IDS.map(id => {
+          const isActive = activeReactEngineId === id
+          return (
+            <button
+              key={id}
+              type="button"
+              className={`rv-preset-card${isActive ? ' rv-preset-card--active' : ''}`}
+              onClick={() => selectReactEngine(id)}
+              style={{ padding: '7px 10px' }}
+            >
+              <div className="rv-preset-card-header">
+                <span className="rv-preset-name">
+                  <span style={{ marginRight: 5, opacity: 0.75 }}>{ENGINE_ICONS[id]}</span>
+                  {ENGINE_LABELS[id]}
+                </span>
+                {isActive && <span className="rv-preset-active-dot" />}
+              </div>
+              <p className="rv-preset-desc" style={{ marginTop: 3, marginBottom: 0 }}>{ENGINE_DESCS[id]}</p>
+            </button>
+          )
+        })}
       </div>
 
       {/* ── Engine Mode: Shader Pads ───────────────────────────────────── */}

@@ -24,18 +24,18 @@ export function SliderRow({
     :                           value.toFixed(2)
   return (
     <div className="rv-ctrl-row">
-      <span className="rv-ctrl-label">{label}</span>
-      <div className="rv-ctrl-slider-wrap">
-        <input
-          type="range"
-          className="rv-ctrl-slider"
-          min={min} max={max} step={step}
-          value={value}
-          onChange={e => onChange(parseFloat(e.target.value))}
-          style={{ '--accent': color, '--pct': pct } as React.CSSProperties}
-        />
+      <div className="rv-ctrl-slider-hdr">
+        <span className="rv-ctrl-label">{label}</span>
         <span className="rv-ctrl-val">{display}</span>
       </div>
+      <input
+        type="range"
+        className="rv-ctrl-slider"
+        min={min} max={max} step={step}
+        value={value}
+        onChange={e => onChange(parseFloat(e.target.value))}
+        style={{ '--accent': color, '--pct': pct } as React.CSSProperties}
+      />
     </div>
   )
 }
@@ -86,7 +86,7 @@ export function ToggleRow({ label, value, onChange }: ToggleRowProps) {
         onClick={() => onChange(!value)}
         aria-pressed={value}
       >
-        <span className="rv-ctrl-toggle-thumb" />
+        {value ? 'On' : 'Off'}
       </button>
     </div>
   )

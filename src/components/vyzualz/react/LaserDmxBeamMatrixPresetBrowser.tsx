@@ -194,14 +194,21 @@ export function LaserDmxBeamMatrixPresetBrowser() {
       )}
 
       {/* ── Search ── */}
-      <input
-        type="search"
-        className="rv-preset-search"
-        placeholder="Search presets…"
-        value={searchQuery}
-        onChange={e => setSearchQuery(e.target.value)}
-        style={{ width: '100%', marginBottom: 6 }}
-      />
+      <div className="vz-md-search-wrap" style={{ marginBottom: 6 }}>
+        <svg className="vz-md-search-icon" viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+          <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+        </svg>
+        <input
+          className="vz-md-search-input"
+          type="text"
+          placeholder="Search presets…"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+        />
+        {searchQuery.length > 0 && (
+          <button className="vz-md-search-clear" onClick={() => setSearchQuery('')} title="Clear search">✕</button>
+        )}
+      </div>
 
       {/* ── Category filter ── */}
       <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginBottom: 5 }}>

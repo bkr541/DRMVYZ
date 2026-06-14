@@ -187,6 +187,14 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
 
   useEffect(() => { loadCollections() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Reset queue and draft on every fresh open so prior upload values don't persist
+  useEffect(() => {
+    if (!isEdit) {
+      clearUploadQueue()
+      resetUploadDraft()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Pre-fill draft from editItem when in edit mode
   useEffect(() => {
     if (!editItem) return

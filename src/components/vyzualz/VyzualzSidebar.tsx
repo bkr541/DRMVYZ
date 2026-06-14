@@ -25,9 +25,35 @@ export function VyzualzSidebar({
       </div>
 
       <nav className="az-nav">
+        {/* React performance mode icon — default/top view */}
+        <div
+          className={`az-nav-item${appView === 'react' || !appView ? ' az-nav-item--active' : ''}`}
+          onClick={() => onAppViewChange?.('react')}
+          title="React"
+          role="button"
+          tabIndex={0}
+          aria-label="React"
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onAppViewChange?.('react') }}
+        >
+          <svg viewBox="0 0 28 28" width="28" height="28" fill="none">
+            {/* Atom-style orbit rings */}
+            <ellipse cx="14" cy="14" rx="11" ry="4.5"
+              stroke="currentColor" strokeWidth="1.1" strokeOpacity="0.5" fill="none"/>
+            <ellipse cx="14" cy="14" rx="11" ry="4.5"
+              stroke="currentColor" strokeWidth="1.1" strokeOpacity="0.5" fill="none"
+              transform="rotate(60 14 14)"/>
+            <ellipse cx="14" cy="14" rx="11" ry="4.5"
+              stroke="currentColor" strokeWidth="1.1" strokeOpacity="0.5" fill="none"
+              transform="rotate(120 14 14)"/>
+            {/* Center nucleus */}
+            <circle cx="14" cy="14" r="2.2" fill="currentColor" fillOpacity="0.85"/>
+          </svg>
+          <span className="az-nav-label">React</span>
+        </div>
+
         {/* Visualizer icon */}
         <div
-          className={`az-nav-item${appView === 'visualizer' || !appView ? ' az-nav-item--active' : ''}`}
+          className={`az-nav-item${appView === 'visualizer' ? ' az-nav-item--active' : ''}`}
           onClick={() => onAppViewChange?.('visualizer')}
           title="Visualizer"
           role="button"
@@ -74,32 +100,6 @@ export function VyzualzSidebar({
             <line x1="21.2" y1="19.6" x2="23" y2="20.4" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
           </svg>
           <span className="az-nav-label">Lyrics</span>
-        </div>
-
-        {/* React performance mode icon */}
-        <div
-          className={`az-nav-item${appView === 'react' ? ' az-nav-item--active' : ''}`}
-          onClick={() => onAppViewChange?.('react')}
-          title="React"
-          role="button"
-          tabIndex={0}
-          aria-label="React"
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onAppViewChange?.('react') }}
-        >
-          <svg viewBox="0 0 28 28" width="28" height="28" fill="none">
-            {/* Atom-style orbit rings */}
-            <ellipse cx="14" cy="14" rx="11" ry="4.5"
-              stroke="currentColor" strokeWidth="1.1" strokeOpacity="0.5" fill="none"/>
-            <ellipse cx="14" cy="14" rx="11" ry="4.5"
-              stroke="currentColor" strokeWidth="1.1" strokeOpacity="0.5" fill="none"
-              transform="rotate(60 14 14)"/>
-            <ellipse cx="14" cy="14" rx="11" ry="4.5"
-              stroke="currentColor" strokeWidth="1.1" strokeOpacity="0.5" fill="none"
-              transform="rotate(120 14 14)"/>
-            {/* Center nucleus */}
-            <circle cx="14" cy="14" r="2.2" fill="currentColor" fillOpacity="0.85"/>
-          </svg>
-          <span className="az-nav-label">React</span>
         </div>
       </nav>
 

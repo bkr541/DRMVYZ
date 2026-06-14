@@ -260,7 +260,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   const analyser = engine.analyserMaster
 
   // App-level view: 'visualizer' | 'lyrics' | 'react'
-  const [appView, setAppView] = useState<'visualizer' | 'lyrics' | 'react'>('visualizer')
+  const [appView, setAppView] = useState<'visualizer' | 'lyrics' | 'react'>('react')
 
   // Effect Chain catalog — loaded once from Supabase on mount
   const [effectChainOptions, setEffectChainOptions] = useState<EffectChainOptionRow[]>([])

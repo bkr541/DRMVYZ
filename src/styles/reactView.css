@@ -227,10 +227,10 @@
 .rv-ctrl-group {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 14px;
+  padding: 7px 11px 10px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 9px;
 }
 
 .rv-ctrl-group::-webkit-scrollbar { width: 3px; }
@@ -240,25 +240,25 @@
 .rv-ctrl-row {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 3px;
+}
+
+.rv-ctrl-slider-hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .rv-ctrl-label {
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(232, 244, 248, 0.45);
-}
-
-.rv-ctrl-slider-wrap {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  color: rgba(245, 248, 250, 0.7);
 }
 
 .rv-ctrl-slider {
-  flex: 1;
+  width: 100%;
   -webkit-appearance: none;
   appearance: none;
   height: 3px;
@@ -267,8 +267,8 @@
     to right,
     var(--accent, #4ac7db) 0%,
     var(--accent, #4ac7db) var(--pct, 50%),
-    rgba(255,255,255,0.08) var(--pct, 50%),
-    rgba(255,255,255,0.08) 100%
+    rgba(255,255,255,0.1) var(--pct, 50%),
+    rgba(255,255,255,0.1) 100%
   );
   outline: none;
   cursor: pointer;
@@ -276,40 +276,42 @@
 
 .rv-ctrl-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 12px;
-  height: 12px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
-  background: var(--accent, #4ac7db);
-  box-shadow: 0 0 6px var(--accent, #4ac7db);
+  background: #e8f4fb;
+  border: 1.5px solid var(--accent, #4ac7db);
+  box-shadow: 0 0 5px rgba(74, 199, 219, 0.5);
   cursor: pointer;
 }
 
 .rv-ctrl-slider::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
-  background: var(--accent, #4ac7db);
-  box-shadow: 0 0 6px var(--accent, #4ac7db);
+  background: #e8f4fb;
+  border: 1.5px solid var(--accent, #4ac7db);
+  box-shadow: 0 0 5px rgba(74, 199, 219, 0.5);
   cursor: pointer;
-  border: none;
 }
 
 .rv-ctrl-section-label {
-  font-size: 8.5px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: rgba(74, 199, 219, 0.5);
-  padding-top: 6px;
-  border-top: 1px solid rgba(74, 199, 219, 0.08);
+  color: var(--az-text-muted, rgba(196, 207, 211, 0.58));
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.055);
   margin-top: 2px;
 }
 
 .rv-ctrl-val {
-  font-size: 9px;
+  font-size: 11.5px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: rgba(232, 244, 248, 0.4);
-  min-width: 28px;
+  color: var(--az-text-muted, rgba(196, 207, 211, 0.58));
+  min-width: 30px;
   text-align: right;
 }
 
@@ -317,13 +319,14 @@
 .rv-ctrl-select {
   width: 100%;
   box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(74, 199, 219, 0.18);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 4px;
-  padding: 4px 22px 4px 7px;
-  font-size: 10px;
-  font-weight: 500;
-  color: #e8f4f8;
+  padding: 2px 22px 2px 5px;
+  font-size: 10.5px;
+  font-family: var(--az-font);
+  font-variant-numeric: tabular-nums;
+  color: var(--az-text-muted, rgba(196, 207, 211, 0.58));
   outline: none;
   cursor: pointer;
   -webkit-appearance: none;
@@ -336,7 +339,7 @@
 
 .rv-ctrl-select:hover,
 .rv-ctrl-select:focus {
-  border-color: rgba(74, 199, 219, 0.45);
+  border-color: rgba(74, 199, 219, 0.5);
 }
 
 .rv-ctrl-select option {
@@ -348,12 +351,13 @@
 .rv-ctrl-text-input {
   width: 100%;
   box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(74, 199, 219, 0.18);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 4px;
-  padding: 4px 7px;
-  font-size: 10px;
-  color: #e8f4f8;
+  padding: 2px 5px;
+  font-size: 10.5px;
+  font-family: var(--az-font);
+  color: var(--az-text-muted, rgba(196, 207, 211, 0.58));
   outline: none;
   transition: border-color 0.12s;
 }
@@ -375,39 +379,24 @@
 }
 
 .rv-ctrl-toggle {
-  position: relative;
-  width: 30px;
-  height: 16px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 9px;
+  background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: rgba(245, 248, 250, 0.38);
+  font-family: var(--az-font);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   cursor: pointer;
-  padding: 0;
   flex-shrink: 0;
-  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 
 .rv-ctrl-toggle--on {
-  background: #4ac7db;
-  border-color: #4ac7db;
-  box-shadow: 0 0 6px rgba(74, 199, 219, 0.35);
-}
-
-.rv-ctrl-toggle-thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: rgba(232, 244, 248, 0.55);
-  display: block;
-  transition: transform 0.15s, background 0.15s;
-}
-
-.rv-ctrl-toggle--on .rv-ctrl-toggle-thumb {
-  transform: translateX(14px);
-  background: #060d10;
+  background: rgba(74, 199, 219, 0.18);
+  border-color: rgba(74, 199, 219, 0.4);
+  color: #4ac7db;
 }
 
 /* ── Collapsible sub-section ─────────────────────────────────────────────────── */
@@ -419,17 +408,17 @@
 .rv-ctrl-collapsible-hdr {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   width: 100%;
   background: none;
   border: none;
-  border-top: 1px solid rgba(74, 199, 219, 0.08);
-  padding: 5px 0 3px;
-  font-size: 8.5px;
+  border-top: 1px solid rgba(255, 255, 255, 0.055);
+  padding: 7px 0 4px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: rgba(74, 199, 219, 0.45);
+  color: var(--az-text-muted, rgba(196, 207, 211, 0.58));
   cursor: pointer;
   text-align: left;
   transition: color 0.12s;
@@ -437,7 +426,7 @@
 }
 
 .rv-ctrl-collapsible-hdr:hover {
-  color: rgba(74, 199, 219, 0.75);
+  color: rgba(245, 248, 250, 0.85);
 }
 
 .rv-ctrl-collapsible-arrow {
