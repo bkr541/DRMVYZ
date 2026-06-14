@@ -151,6 +151,21 @@ export interface LaserDmxModulationRoute {
   hold?: number
   release: number
   invert: boolean
+  /**
+   * Optional activation threshold [0,1] for continuous (non-trigger) routes.
+   * When source value ≤ threshold the output is clamped to 0.
+   * Above threshold the value is rescaled: (source − threshold) / (1 − threshold).
+   */
+  threshold?: number
+}
+
+export interface LaserDmxBeamMatrixPresetSummary {
+  beamCount:     number
+  groupCount:    number
+  lineBeamCount: number
+  coneBeamCount: number
+  usesFog:       boolean
+  musicSources:  string[]
 }
 
 export interface LaserDmxFixture {
@@ -447,6 +462,26 @@ export interface LaserDmxBeamMatrixSettings {
   output: LaserDmxBeamMatrixOutputSettings
   fog:    LaserDmxFogSettings
   editor: LaserDmxBeamMatrixEditorSettings
+}
+
+// ── Beam Matrix preset types ──────────────────────────────────────────────────
+
+export type LaserDmxBeamMatrixPresetCategory =
+  | 'minimal'
+  | 'rhythmic'
+  | 'multiReactive'
+  | 'build'
+  | 'drop'
+  | 'atmospheric'
+
+export interface LaserDmxBeamMatrixPreset {
+  id:          string
+  name:        string
+  description: string
+  category:    LaserDmxBeamMatrixPresetCategory
+  tags:        string[]
+  /** Returns a fully isolated settings object — no shared mutable state. */
+  createSettings: () => LaserDmxBeamMatrixSettings
 }
 
 function makeReactionGroup(

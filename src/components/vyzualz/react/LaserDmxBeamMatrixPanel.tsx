@@ -4,6 +4,7 @@ import { useReactStore } from '../../../stores/reactStore'
 import { CtrlSection, Collapsible } from './ReactControlRows'
 import { LaserDmxBeamInspector } from './LaserDmxBeamInspector'
 import { LaserDmxReactionGroupInspector } from './LaserDmxReactionGroupInspector'
+import { LaserDmxBeamMatrixPresetBrowser } from './LaserDmxBeamMatrixPresetBrowser'
 import { LASER_DMX_MATRIX_MAX_BEAMS } from './ReactTypes'
 
 export function LaserDmxBeamMatrixPanel() {
@@ -45,6 +46,11 @@ export function LaserDmxBeamMatrixPanel() {
 
   return (
     <>
+      {/* ── Preset browser ──────────────────────────────────────────────── */}
+      <Collapsible label="Presets" defaultOpen>
+        <LaserDmxBeamMatrixPresetBrowser />
+      </Collapsible>
+
       {/* ── Program overview ────────────────────────────────────────────── */}
       <CtrlSection label="Program" />
       <div className="rv-bm-stats">

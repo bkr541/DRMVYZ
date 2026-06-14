@@ -3,7 +3,6 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 112 ms
+  VITE v5.4.21  ready in 111 ms
 
   ➜  Local:   http://127.0.0.1:5173/
-4:17:19 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx

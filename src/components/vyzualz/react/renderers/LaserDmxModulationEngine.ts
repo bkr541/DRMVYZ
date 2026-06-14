@@ -249,6 +249,11 @@ export function applyModulationRoute(
   const rawValue = getModulationSourceValue(mi, route.source)
   let v = clamp01(safeNumber(rawValue, 0))
   if (route.invert) v = 1 - v
+  // Apply optional threshold gate before curve evaluation.
+  const thresh = route.threshold ?? 0
+  if (thresh > 0 && thresh < 1) {
+    v = v <= thresh ? 0 : (v - thresh) / (1 - thresh)
+  }
   v = applyCurve(v, route.curve)
   v = lerp(lo, hi, v)
   v = clamp(v * amount, -2, 2)

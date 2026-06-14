@@ -36,6 +36,11 @@ import {
   getSvgGlyphCacheKey,
 } from '../components/vyzualz/react/renderers/svgGlyphUtils'
 import {
+  getLaserDmxBeamMatrixPreset,
+} from '../components/vyzualz/react/laserDmxBeamMatrixPresets'
+import { resetBeamMatrixCompilerState } from '../components/vyzualz/react/renderers/LaserDmxBeamMatrixCompiler'
+import { resetFogState } from '../components/vyzualz/react/renderers/LaserDmxFogRenderer'
+import {
   getSvgVisualEntry,
   setSvgVisualEntry,
   evictSvgVisual,
@@ -409,6 +414,13 @@ interface ReactStoreState {
   setLaserDmxBeamMatrixSettings: (partial: Partial<LaserDmxBeamMatrixSettings>) => void
   resetLaserDmxBeamMatrix: () => void
 
+  // Beam Matrix preset tracking
+  activeLaserDmxBeamMatrixPresetId: string | null
+  /** True when the matrix has been structurally edited since the last preset load. */
+  laserDmxBeamMatrixPresetDirty: boolean
+  applyLaserDmxBeamMatrixPreset: (presetId: string) => void
+  clearActiveLaserDmxBeamMatrixPreset: () => void
+
   addLaserDmxMatrixBeam: (initial?: Partial<LaserDmxMatrixBeam>) => void
   duplicateLaserDmxMatrixBeam: (beamId: string) => void
   removeLaserDmxMatrixBeam: (beamId: string) => void
@@ -472,6 +484,8 @@ export const useReactStore = create<ReactStoreState>()(
       laserDmxSettings:       createDefaultLaserDmxSettings(),
       laserDmxWorkspaceMode:  'spatialFixtures',
       laserDmxBeamMatrix:     createDefaultLaserDmxBeamMatrixSettings(),
+      activeLaserDmxBeamMatrixPresetId: null,
+      laserDmxBeamMatrixPresetDirty:    false,
       reactIntensity:       0.7,
       reactMotion:          0.5,
       reactGlow:            0.65,
@@ -1018,6 +1032,7 @@ export const useReactStore = create<ReactStoreState>()(
           const base = makeDefaultMatrixBeam(s.laserDmxBeamMatrix.beams)
           const beam = clampMatrixBeam(initial ? { ...base, ...initial, id: crypto.randomUUID() } : base)
           return {
+            laserDmxBeamMatrixPresetDirty: true,
             laserDmxBeamMatrix: {
               ...s.laserDmxBeamMatrix,
               beams: [...s.laserDmxBeamMatrix.beams, beam],
@@ -1038,6 +1053,7 @@ export const useReactStore = create<ReactStoreState>()(
             modulationRoutes: src.modulationRoutes.map(r => ({ ...r, id: crypto.randomUUID() })),
           }
           return {
+            laserDmxBeamMatrixPresetDirty: true,
             laserDmxBeamMatrix: {
               ...s.laserDmxBeamMatrix,
               beams: [...s.laserDmxBeamMatrix.beams, copy],
@@ -1050,6 +1066,7 @@ export const useReactStore = create<ReactStoreState>()(
         set(s => {
           const remaining = s.laserDmxBeamMatrix.beams.filter(b => b.id !== beamId)
           return {
+            laserDmxBeamMatrixPresetDirty: true,
             laserDmxBeamMatrix: {
               ...s.laserDmxBeamMatrix,
               beams:           remaining,
@@ -1062,6 +1079,7 @@ export const useReactStore = create<ReactStoreState>()(
         set(s => {
           const ids = new Set(s.laserDmxBeamMatrix.selectedBeamIds)
           return {
+            laserDmxBeamMatrixPresetDirty: true,
             laserDmxBeamMatrix: {
               ...s.laserDmxBeamMatrix,
               beams:           s.laserDmxBeamMatrix.beams.filter(b => !ids.has(b.id)),
@@ -1072,6 +1090,7 @@ export const useReactStore = create<ReactStoreState>()(
 
       updateLaserDmxMatrixBeam: (beamId, patch) =>
         set(s => ({
+          laserDmxBeamMatrixPresetDirty: true,
           laserDmxBeamMatrix: {
             ...s.laserDmxBeamMatrix,
             beams: s.laserDmxBeamMatrix.beams.map(b =>
@@ -1119,6 +1138,7 @@ export const useReactStore = create<ReactStoreState>()(
             modulationRoutes: [],
           }
           return {
+            laserDmxBeamMatrixPresetDirty: true,
             laserDmxBeamMatrix: {
               ...s.laserDmxBeamMatrix,
               groups:          [...s.laserDmxBeamMatrix.groups, grp],
@@ -1138,6 +1158,7 @@ export const useReactStore = create<ReactStoreState>()(
             modulationRoutes: src.modulationRoutes.map(r => ({ ...r, id: crypto.randomUUID() })),
           }
           return {
+            laserDmxBeamMatrixPresetDirty: true,
             laserDmxBeamMatrix: {
               ...s.laserDmxBeamMatrix,
               groups:          [...s.laserDmxBeamMatrix.groups, copy],
@@ -1152,6 +1173,7 @@ export const useReactStore = create<ReactStoreState>()(
             b.groupId === groupId ? { ...b, groupId: null } : b
           )
           return {
+            laserDmxBeamMatrixPresetDirty: true,
             laserDmxBeamMatrix: {
               ...s.laserDmxBeamMatrix,
               groups:          s.laserDmxBeamMatrix.groups.filter(g => g.id !== groupId),
@@ -1165,6 +1187,7 @@ export const useReactStore = create<ReactStoreState>()(
 
       updateLaserDmxReactionGroup: (groupId, patch) =>
         set(s => ({
+          laserDmxBeamMatrixPresetDirty: true,
           laserDmxBeamMatrix: {
             ...s.laserDmxBeamMatrix,
             groups: s.laserDmxBeamMatrix.groups.map(g =>
@@ -1178,6 +1201,7 @@ export const useReactStore = create<ReactStoreState>()(
 
       addLaserDmxMatrixGlobalRoute: () =>
         set(s => ({
+          laserDmxBeamMatrixPresetDirty: true,
           laserDmxBeamMatrix: {
             ...s.laserDmxBeamMatrix,
             globalModulationRoutes: [...s.laserDmxBeamMatrix.globalModulationRoutes, makeNewModulationRoute()],
@@ -1186,6 +1210,7 @@ export const useReactStore = create<ReactStoreState>()(
 
       updateLaserDmxMatrixGlobalRoute: (routeId, patch) =>
         set(s => ({
+          laserDmxBeamMatrixPresetDirty: true,
           laserDmxBeamMatrix: {
             ...s.laserDmxBeamMatrix,
             globalModulationRoutes: s.laserDmxBeamMatrix.globalModulationRoutes.map(r =>
@@ -1196,6 +1221,7 @@ export const useReactStore = create<ReactStoreState>()(
 
       removeLaserDmxMatrixGlobalRoute: (routeId) =>
         set(s => ({
+          laserDmxBeamMatrixPresetDirty: true,
           laserDmxBeamMatrix: {
             ...s.laserDmxBeamMatrix,
             globalModulationRoutes: s.laserDmxBeamMatrix.globalModulationRoutes.filter(r => r.id !== routeId),
@@ -1204,6 +1230,7 @@ export const useReactStore = create<ReactStoreState>()(
 
       addLaserDmxReactionGroupRoute: (groupId) =>
         set(s => ({
+          laserDmxBeamMatrixPresetDirty: true,
           laserDmxBeamMatrix: {
             ...s.laserDmxBeamMatrix,
             groups: s.laserDmxBeamMatrix.groups.map(g =>
@@ -1216,6 +1243,7 @@ export const useReactStore = create<ReactStoreState>()(
 
       updateLaserDmxReactionGroupRoute: (groupId, routeId, patch) =>
         set(s => ({
+          laserDmxBeamMatrixPresetDirty: true,
           laserDmxBeamMatrix: {
             ...s.laserDmxBeamMatrix,
             groups: s.laserDmxBeamMatrix.groups.map(g =>
@@ -1231,6 +1259,7 @@ export const useReactStore = create<ReactStoreState>()(
 
       removeLaserDmxReactionGroupRoute: (groupId, routeId) =>
         set(s => ({
+          laserDmxBeamMatrixPresetDirty: true,
           laserDmxBeamMatrix: {
             ...s.laserDmxBeamMatrix,
             groups: s.laserDmxBeamMatrix.groups.map(g =>
@@ -1244,6 +1273,7 @@ export const useReactStore = create<ReactStoreState>()(
 
       addLaserDmxMatrixBeamRoute: (beamId) =>
         set(s => ({
+          laserDmxBeamMatrixPresetDirty: true,
           laserDmxBeamMatrix: {
             ...s.laserDmxBeamMatrix,
             beams: s.laserDmxBeamMatrix.beams.map(b =>
@@ -1256,6 +1286,7 @@ export const useReactStore = create<ReactStoreState>()(
 
       updateLaserDmxMatrixBeamRoute: (beamId, routeId, patch) =>
         set(s => ({
+          laserDmxBeamMatrixPresetDirty: true,
           laserDmxBeamMatrix: {
             ...s.laserDmxBeamMatrix,
             beams: s.laserDmxBeamMatrix.beams.map(b =>
@@ -1271,6 +1302,7 @@ export const useReactStore = create<ReactStoreState>()(
 
       removeLaserDmxMatrixBeamRoute: (beamId, routeId) =>
         set(s => ({
+          laserDmxBeamMatrixPresetDirty: true,
           laserDmxBeamMatrix: {
             ...s.laserDmxBeamMatrix,
             beams: s.laserDmxBeamMatrix.beams.map(b =>
@@ -1338,6 +1370,7 @@ export const useReactStore = create<ReactStoreState>()(
           created = newBeams.length
           if (newBeams.length === 0) return {}
           return {
+            laserDmxBeamMatrixPresetDirty: true,
             laserDmxBeamMatrix: {
               ...s.laserDmxBeamMatrix,
               beams:           [...s.laserDmxBeamMatrix.beams, ...newBeams],
@@ -1376,6 +1409,40 @@ export const useReactStore = create<ReactStoreState>()(
           },
         })),
 
+      // ── Beam Matrix preset actions ───────────────────────────────────────────
+
+      applyLaserDmxBeamMatrixPreset: (presetId) => {
+        const preset = getLaserDmxBeamMatrixPreset(presetId)
+        if (!preset) return
+        const fresh = preset.createSettings()
+        const clampedBeams = fresh.beams
+          .slice(0, LASER_DMX_MATRIX_MAX_BEAMS)
+          .map(clampMatrixBeam)
+        // Reset ephemeral renderer state so old trigger tails don't bleed in.
+        resetBeamMatrixCompilerState()
+        resetFogState()
+        set(s => ({
+          laserDmxWorkspaceMode:              'beamMatrix' as const,
+          activeReactEngineId:                'laserDmx' as const,
+          activeLaserDmxBeamMatrixPresetId:   presetId,
+          laserDmxBeamMatrixPresetDirty:      false,
+          laserDmxBeamMatrix: {
+            ...s.laserDmxBeamMatrix,
+            beams:                  clampedBeams,
+            groups:                 fresh.groups,
+            globalModulationRoutes: fresh.globalModulationRoutes,
+            output:                 fresh.output,
+            fog:                    fresh.fog,
+            selectedBeamIds:        [],
+            selectedGroupId:        null,
+            // editor settings survive preset changes
+          },
+        }))
+      },
+
+      clearActiveLaserDmxBeamMatrixPreset: () =>
+        set({ activeLaserDmxBeamMatrixPresetId: null }),
+
       resetReactView: () => {
         clearSvgVisualCache()
         set({
@@ -1389,9 +1456,11 @@ export const useReactStore = create<ReactStoreState>()(
           oscillatorGlyphPointCache: {},
           oscillatorTextPointCache:  {},
           glyphLostNotice:           null,
-          laserDmxSettings:          createDefaultLaserDmxSettings(),
-          laserDmxWorkspaceMode:     'spatialFixtures',
-          laserDmxBeamMatrix:        createDefaultLaserDmxBeamMatrixSettings(),
+          laserDmxSettings:                 createDefaultLaserDmxSettings(),
+          laserDmxWorkspaceMode:            'spatialFixtures',
+          laserDmxBeamMatrix:               createDefaultLaserDmxBeamMatrixSettings(),
+          activeLaserDmxBeamMatrixPresetId: null,
+          laserDmxBeamMatrixPresetDirty:    false,
           reactIntensity:       0.7,
           reactMotion:          0.5,
           reactGlow:            0.65,
@@ -1420,15 +1489,16 @@ export const useReactStore = create<ReactStoreState>()(
         return state
       },
       partialize: (s) => ({
-        activeReactPresetId:    s.activeReactPresetId,
-        activeReactEngineId:    s.activeReactEngineId,
-        manualTrackSections:    s.manualTrackSections,
-        oscillatorSettings:     s.oscillatorSettings,
-        oscillatorGlyphAssets:  s.oscillatorGlyphAssets,
-        oscillatorFontAssets:   s.oscillatorFontAssets,
-        laserDmxSettings:       s.laserDmxSettings,
-        laserDmxWorkspaceMode:  s.laserDmxWorkspaceMode,
-        laserDmxBeamMatrix:     s.laserDmxBeamMatrix,
+        activeReactPresetId:                s.activeReactPresetId,
+        activeReactEngineId:                s.activeReactEngineId,
+        manualTrackSections:                s.manualTrackSections,
+        oscillatorSettings:                 s.oscillatorSettings,
+        oscillatorGlyphAssets:              s.oscillatorGlyphAssets,
+        oscillatorFontAssets:               s.oscillatorFontAssets,
+        laserDmxSettings:                   s.laserDmxSettings,
+        laserDmxWorkspaceMode:              s.laserDmxWorkspaceMode,
+        laserDmxBeamMatrix:                 s.laserDmxBeamMatrix,
+        activeLaserDmxBeamMatrixPresetId:   s.activeLaserDmxBeamMatrixPresetId,
         reactIntensity:       s.reactIntensity,
         reactMotion:          s.reactMotion,
         reactGlow:            s.reactGlow,
