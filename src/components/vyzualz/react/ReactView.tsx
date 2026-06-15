@@ -79,6 +79,7 @@ export function ReactView() {
     oscillatorGlyphPointCache,
     oscillatorTextPointCache,
     manualTrackSectionsByTrackId,
+    beamEditorVisible,
   } = useReactStore(useShallow(s => ({
     reactPresets:           s.reactPresets,
     activeReactPresetId:    s.activeReactPresetId,
@@ -96,6 +97,7 @@ export function ReactView() {
     oscillatorGlyphPointCache:      s.oscillatorGlyphPointCache,
     oscillatorTextPointCache:       s.oscillatorTextPointCache,
     manualTrackSectionsByTrackId:   s.manualTrackSectionsByTrackId,
+    beamEditorVisible:              s.laserDmxBeamMatrix.editor.beamEditorVisible,
   })))
 
   const [leftTab, setLeftTab]             = useState<ReactLeftTab>('media')
@@ -249,7 +251,7 @@ export function ReactView() {
               onCanvasReady={setOutputCanvas}
               onLiveFps={setLiveFps}
             />
-            {activeReactEngineId === 'laserDmx' && laserDmxWorkspaceMode === 'beamMatrix' && (
+            {activeReactEngineId === 'laserDmx' && laserDmxWorkspaceMode === 'beamMatrix' && beamEditorVisible && (
               <LaserDmxBeamMatrixEditorOverlay />
             )}
           </div>

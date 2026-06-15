@@ -14,7 +14,7 @@ import {
   getModulationSourceValue,
   getTriggerSourceValue,
 } from '../../../../features/musicIntelligence/selectors'
-import type { LaserDmxModulationRoute } from '../ReactTypes'
+import type { LaserDmxModulationRoute, LaserDmxTriggerTimingFilter } from '../ReactTypes'
 
 // ── Safety helpers (re-exported so compilers need not re-import) ──────────────
 
@@ -184,6 +184,93 @@ function applyContinuousEnvelope(
   return finalV
 }
 
+// ── Bar / beat numbering utilities ────────────────────────────────────────────
+// Internal representation: 0-based (barIndex=0 is the first bar).
+// UI representation:       1-based (Bar 1 is the first bar).
+
+/** Convert a 1-based UI bar number to the 0-based internal barIndex. */
+export function uiBarToInternalIndex(uiBar: number): number {
+  return uiBar - 1
+}
+
+/** Convert a 0-based internal barIndex to the 1-based UI bar number. */
+export function internalIndexToUiBar(barIndex: number): number {
+  return barIndex + 1
+}
+
+/** Convert a 1-based UI beat number to the 0-based internal beatInBar. */
+export function uiBeatToInternalIndex(uiBeat: number): number {
+  return uiBeat - 1
+}
+
+// ── Trigger timing filter ─────────────────────────────────────────────────────
+
+/** Sources that produce single-frame boolean hit events and support bar/beat filtering. */
+export const TRIGGER_TIMING_EVENT_SOURCES = new Set([
+  'beat', 'beatHit',
+  'downbeat', 'downbeatHit',
+  'kickHit', 'snareHit', 'hatHit',
+  'phrase4Hit', 'phrase8Hit', 'phrase16Hit', 'phrase32Hit',
+  'chordChange', 'wordHit', 'drumTrans', 'bassTrans',
+])
+
+/** Sources that always fire on beat 1 of a bar (beatInBar === 0). */
+const DOWNBEAT_ONLY_SOURCES = new Set(['downbeat', 'downbeatHit'])
+
+/**
+ * Check whether the current musical position satisfies a trigger timing filter.
+ * Returns true if the event is permitted to fire; false if it should be suppressed.
+ *
+ * Falls back to true (allow) when:
+ *  - filter is absent or mode is 'everyOccurrence'
+ *  - BPM is 0 or unavailable (no reliable bar analysis)
+ */
+export function checkTriggerTimingFilter(
+  filter:  LaserDmxTriggerTimingFilter | undefined,
+  mi:      MusicIntelligenceFrame,
+  source?: string,
+): boolean {
+  if (!filter || filter.mode === 'everyOccurrence') return true
+
+  // Without reliable BPM/bar analysis, fall through to allow.
+  if (safeNumber(mi.rhythm.bpm, 0) <= 0) return true
+
+  const barIndex  = safeNumber(mi.rhythm.barIndex,  0)  // 0-based
+  const beatInBar = safeNumber(mi.rhythm.beatInBar, 0)  // 0-based
+  const uiBar  = internalIndexToUiBar(barIndex)          // 1-based
+  const uiBeat = beatInBar + 1                           // 1-based
+
+  switch (filter.mode) {
+    case 'specificPosition': {
+      if ((filter.bar ?? 1) !== uiBar) return false
+      // For downbeat-only sources, beat is always 1 — skip the beat check.
+      const skipBeatCheck = source != null && DOWNBEAT_ONLY_SOURCES.has(source)
+      if (!skipBeatCheck) {
+        const targetBeat = filter.beat
+        if (targetBeat !== 'any' && targetBeat != null && targetBeat !== uiBeat) return false
+      }
+      return true
+    }
+    case 'specificBars': {
+      const bars = filter.bars ?? []
+      return bars.includes(uiBar)
+    }
+    case 'barRange': {
+      const start = filter.startBar ?? 1
+      const end   = filter.endBar   ?? Infinity
+      return uiBar >= start && uiBar <= end
+    }
+    case 'barInterval': {
+      const interval = filter.intervalBars      ?? 1
+      const anchor   = filter.intervalAnchorBar ?? 1
+      if (interval <= 0 || uiBar < anchor) return false
+      return (uiBar - anchor) % interval === 0
+    }
+    default:
+      return true
+  }
+}
+
 // ── Legacy source resolver (kept for callers outside applyModulationRoute) ────
 
 export function resolveSourceValue(
@@ -237,8 +324,9 @@ export function applyModulationRoute(
   const amount = clamp(safeNumber(route.amount, 1), -1, 2)
 
   if (route.mode === 'trigger') {
-    const triggerHit = getTriggerSourceValue(mi, route.source)
-    const triggered  = route.invert ? !triggerHit : triggerHit
+    const timingOk   = checkTriggerTimingFilter(route.timingFilter, mi, route.source)
+    const rawHit     = getTriggerSourceValue(mi, route.source) && timingOk
+    const triggered  = route.invert ? !rawHit : rawHit
     const envValue   = applyTriggerEnvelope(envKey, triggered, dt, attackSec, holdSec, releaseSec)
     // Map through min/max and amount; curve NOT applied (see module header).
     const mapped = clamp(lerp(lo, hi, envValue) * amount, -2, 2)

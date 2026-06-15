@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { SliderRow, SelectRow, ToggleRow, CtrlSection } from './ReactControlRows'
-import type { OscillatorAudioDisplaceMode, LaserDmxModulationRoute } from './ReactTypes'
+import type { OscillatorAudioDisplaceMode, LaserDmxModulationRoute, LaserDmxTriggerTimingFilter, LaserDmxTriggerTimingFilterMode } from './ReactTypes'
+import { BEATS_PER_BAR } from './ReactTypes'
+import { TRIGGER_TIMING_EVENT_SOURCES } from './renderers/LaserDmxModulationEngine'
 
 // ── Source / target option lists ──────────────────────────────────────────────
 
@@ -94,6 +96,174 @@ const MODE_OPTIONS = [
   { value: 'trigger',  label: 'Trigger'  },
 ]
 
+// ── Trigger timing filter UI ──────────────────────────────────────────────────
+
+const TIMING_FILTER_MODE_OPTIONS: { value: LaserDmxTriggerTimingFilterMode; label: string }[] = [
+  { value: 'everyOccurrence',  label: 'Every Occurrence'  },
+  { value: 'specificPosition', label: 'Specific Bar'       },
+  { value: 'specificBars',     label: 'Multiple Bars'      },
+  { value: 'barRange',         label: 'Bar Range'          },
+  { value: 'barInterval',      label: 'Every N Bars'       },
+]
+
+const DOWNBEAT_ONLY_SOURCES_UI = new Set(['downbeat', 'downbeatHit'])
+
+const BEAT_SELECT_OPTIONS: { value: string; label: string }[] = [
+  { value: 'any', label: 'Any Beat' },
+  ...Array.from({ length: BEATS_PER_BAR }, (_, i) => ({
+    value: String(i + 1),
+    label: `Beat ${i + 1}`,
+  })),
+]
+
+function TriggerTimingSection({
+  filter,
+  source,
+  onChange,
+}: {
+  filter?:  LaserDmxTriggerTimingFilter
+  source:   string
+  onChange: (f: LaserDmxTriggerTimingFilter) => void
+}) {
+  const mode           = filter?.mode ?? 'everyOccurrence'
+  const isDownbeatOnly = DOWNBEAT_ONLY_SOURCES_UI.has(source)
+
+  const upd = (patch: Partial<LaserDmxTriggerTimingFilter>) =>
+    onChange({ mode: 'everyOccurrence', ...filter, ...patch } as LaserDmxTriggerTimingFilter)
+
+  return (
+    <>
+      <CtrlSection label="Trigger Timing" />
+      <SelectRow
+        label="Timing"
+        value={mode}
+        onChange={v => upd({ mode: v as LaserDmxTriggerTimingFilterMode })}
+        options={TIMING_FILTER_MODE_OPTIONS}
+      />
+
+      {mode !== 'everyOccurrence' && (
+        <p className="rv-ctrl-info">
+          Bar numbers are counted from the analyzed beginning of the track. Requires BPM analysis.
+        </p>
+      )}
+
+      {mode === 'specificPosition' && (
+        <>
+          <div className="rv-ctrl-row">
+            <span className="rv-ctrl-label">Bar</span>
+            <input
+              type="number"
+              className="rv-timing-num-input"
+              value={filter?.bar ?? 1}
+              min={1}
+              step={1}
+              onChange={e => upd({ bar: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+            />
+          </div>
+          {isDownbeatOnly ? (
+            <p className="rv-ctrl-info">Downbeat always fires on Beat 1.</p>
+          ) : (
+            <SelectRow
+              label="Beat"
+              value={filter?.beat != null ? String(filter.beat) : 'any'}
+              onChange={v => upd({ beat: v === 'any' ? 'any' : (parseInt(v, 10) as number) })}
+              options={BEAT_SELECT_OPTIONS}
+            />
+          )}
+        </>
+      )}
+
+      {mode === 'specificBars' && (
+        <>
+          <div className="rv-ctrl-row">
+            <span className="rv-ctrl-label">Bars</span>
+            <input
+              type="text"
+              className="rv-timing-bars-input"
+              defaultValue={(filter?.bars ?? []).join(', ')}
+              placeholder="e.g. 17, 21, 25"
+              onBlur={e => {
+                const parsed = e.target.value
+                  .split(',')
+                  .map(s => parseInt(s.trim(), 10))
+                  .filter(n => !isNaN(n) && n >= 1)
+                const sorted = [...new Set(parsed)].sort((a, b) => a - b)
+                upd({ bars: sorted })
+                e.target.value = sorted.join(', ')
+              }}
+            />
+          </div>
+          {(filter?.bars ?? []).length === 0 && (
+            <p className="rv-ctrl-info">Enter comma-separated bar numbers.</p>
+          )}
+        </>
+      )}
+
+      {mode === 'barRange' && (
+        <>
+          <div className="rv-ctrl-row">
+            <span className="rv-ctrl-label">Start Bar</span>
+            <input
+              type="number"
+              className="rv-timing-num-input"
+              value={filter?.startBar ?? 1}
+              min={1}
+              step={1}
+              onChange={e => upd({ startBar: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+            />
+          </div>
+          <div className="rv-ctrl-row">
+            <span className="rv-ctrl-label">End Bar</span>
+            <input
+              type="number"
+              className="rv-timing-num-input"
+              value={filter?.endBar ?? ''}
+              min={1}
+              step={1}
+              placeholder="∞"
+              onChange={e => {
+                const v = parseInt(e.target.value, 10)
+                upd({ endBar: isNaN(v) ? undefined : Math.max(1, v) })
+              }}
+            />
+          </div>
+          <p className="rv-ctrl-info">Start and end are inclusive.</p>
+        </>
+      )}
+
+      {mode === 'barInterval' && (
+        <>
+          <div className="rv-ctrl-row">
+            <span className="rv-ctrl-label">Every N bars</span>
+            <input
+              type="number"
+              className="rv-timing-num-input"
+              value={filter?.intervalBars ?? 4}
+              min={1}
+              step={1}
+              onChange={e => upd({ intervalBars: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+            />
+          </div>
+          <div className="rv-ctrl-row">
+            <span className="rv-ctrl-label">Anchor bar</span>
+            <input
+              type="number"
+              className="rv-timing-num-input"
+              value={filter?.intervalAnchorBar ?? 1}
+              min={1}
+              step={1}
+              onChange={e => upd({ intervalAnchorBar: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+            />
+          </div>
+          <p className="rv-ctrl-info">
+            Fires at: anchor, anchor+N, anchor+2N, …
+          </p>
+        </>
+      )}
+    </>
+  )
+}
+
 // ── Starter routes factory ────────────────────────────────────────────────────
 
 function starterRoutes(): LaserDmxModulationRoute[] {
@@ -123,6 +293,8 @@ function RouteRow({
   targets?: { value: string; label: string }[]
 }) {
   const r = (key: keyof LaserDmxModulationRoute) => (route[key] as number)
+  const isOffsetTarget = (route.target === 'originOffsetX' || route.target === 'originOffsetY' ||
+    route.target === 'targetOffsetX' || route.target === 'targetOffsetY')
   return (
     <div className="rv-ldx-route">
       <div className="rv-ldx-route-header">
@@ -134,12 +306,22 @@ function RouteRow({
       <SelectRow label="Curve"  value={route.curve}  onChange={v => onChange({ curve:  v as LaserDmxModulationRoute['curve']  })} options={CURVE_OPTIONS} />
       <SelectRow label="Mode"   value={route.mode}   onChange={v => onChange({ mode:   v as LaserDmxModulationRoute['mode']   })} options={MODE_OPTIONS} />
       <SliderRow label="Amount"    value={r('amount')}    onChange={v => onChange({ amount:    v })} min={0} max={1} step={0.01} color="#4ac7db" />
-      <SliderRow label="Min"       value={r('min')}       onChange={v => onChange({ min:       v })} min={0} max={1} step={0.01} color="#61d6aa" />
-      <SliderRow label="Max"       value={r('max')}       onChange={v => onChange({ max:       v })} min={0} max={1} step={0.01} color="#d8b95a" />
+      <SliderRow label="Min"       value={r('min')}       onChange={v => onChange({ min:       v })} min={isOffsetTarget ? -1 : 0} max={1} step={0.01} color="#61d6aa" />
+      <SliderRow label="Max"       value={r('max')}       onChange={v => onChange({ max:       v })} min={isOffsetTarget ? -1 : 0} max={1} step={0.01} color="#d8b95a" />
+      {isOffsetTarget && (
+        <p className="rv-ctrl-info">Offsets are relative to the rendered canvas. 0.10 moves the beam by 10% of the canvas dimension.</p>
+      )}
       <SliderRow label="Smoothing" value={r('smoothing')} onChange={v => onChange({ smoothing: v })} min={0} max={1} step={0.01} color="#b84fc9" />
       <SliderRow label="Attack"    value={r('attack')}    onChange={v => onChange({ attack:    v })} min={0} max={1} step={0.01} color="#61d6aa" />
       <SliderRow label="Release"   value={r('release')}   onChange={v => onChange({ release:   v })} min={0} max={1} step={0.01} color="#c0314a" />
       <ToggleRow label="Invert"    value={route.invert}   onChange={v => onChange({ invert:    v })} />
+      {route.mode === 'trigger' && TRIGGER_TIMING_EVENT_SOURCES.has(route.source) && (
+        <TriggerTimingSection
+          filter={route.timingFilter}
+          source={route.source}
+          onChange={f => onChange({ timingFilter: f })}
+        />
+      )}
     </div>
   )
 }

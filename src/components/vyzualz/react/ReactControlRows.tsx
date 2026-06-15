@@ -74,17 +74,21 @@ export interface ToggleRowProps {
   label: string
   value: boolean
   onChange: (v: boolean) => void
+  disabled?: boolean
+  title?: string
 }
 
-export function ToggleRow({ label, value, onChange }: ToggleRowProps) {
+export function ToggleRow({ label, value, onChange, disabled, title }: ToggleRowProps) {
   return (
-    <div className="rv-ctrl-toggle-row">
+    <div className={`rv-ctrl-toggle-row${disabled ? ' rv-ctrl-toggle-row--disabled' : ''}`}>
       <span className="rv-ctrl-label">{label}</span>
       <button
         type="button"
-        className={`rv-ctrl-toggle${value ? ' rv-ctrl-toggle--on' : ''}`}
+        className={`rv-ctrl-toggle${value && !disabled ? ' rv-ctrl-toggle--on' : ''}`}
         onClick={() => onChange(!value)}
         aria-pressed={value}
+        disabled={disabled}
+        title={title}
       >
         {value ? 'On' : 'Off'}
       </button>

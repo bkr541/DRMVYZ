@@ -403,6 +403,11 @@
   gap: 8px;
 }
 
+.rv-ctrl-toggle-row--disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
 .rv-ctrl-toggle {
   padding: 2px 9px;
   background: rgba(255, 255, 255, 0.05);
@@ -1627,6 +1632,192 @@
 .rv-glyph-upload-btn--danger:hover {
   background: rgba(192,49,74,0.18);
   border-color: rgba(192,49,74,0.8);
+}
+
+/* ── Beam Matrix Cue List ────────────────────────────────────────────────────── */
+
+.rv-cue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0;
+}
+
+.rv-cue-list-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px 6px;
+}
+
+.rv-cue-stats {
+  font-size: 10px;
+  color: rgba(232,244,248,0.4);
+}
+
+.rv-cue-row {
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 4px;
+  margin: 0 6px;
+  background: rgba(255,255,255,0.02);
+  overflow: hidden;
+}
+
+.rv-cue-row--disabled {
+  opacity: 0.45;
+}
+
+.rv-cue-row--invalid {
+  border-color: rgba(192,49,74,0.4);
+}
+
+.rv-cue-row-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 5px;
+}
+
+.rv-cue-name-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  color: rgba(232,244,248,0.9);
+  font-size: 11px;
+  padding: 1px 3px;
+  outline: none;
+}
+.rv-cue-name-input:focus {
+  border-bottom-color: rgba(74,199,219,0.6);
+}
+
+.rv-cue-badge {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 2px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.rv-cue-badge--action {
+  background: rgba(97,214,170,0.12);
+  color: rgba(97,214,170,0.9);
+}
+.rv-cue-badge--timing {
+  background: rgba(184,79,201,0.12);
+  color: rgba(184,79,201,0.9);
+}
+
+.rv-cue-error-icon {
+  font-size: 11px;
+  color: rgba(232,100,100,0.9);
+  cursor: default;
+}
+
+.rv-cue-body {
+  padding: 4px 8px 8px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.rv-cue-validation-error {
+  font-size: 10px;
+  color: rgba(232,100,100,0.9);
+  margin: 0 0 4px;
+  padding: 3px 6px;
+  background: rgba(192,49,74,0.1);
+  border-radius: 3px;
+}
+
+.rv-cue-field-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rv-cue-time-fields {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rv-cue-time-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: rgba(232,244,248,0.55);
+}
+
+.rv-cue-num-input {
+  width: 52px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 3px;
+  color: rgba(232,244,248,0.9);
+  font-size: 11px;
+  padding: 2px 4px;
+  text-align: center;
+  outline: none;
+}
+.rv-cue-num-input:focus {
+  border-color: rgba(74,199,219,0.5);
+}
+.rv-cue-num-input:disabled {
+  opacity: 0.35;
+}
+
+.rv-cue-ms-input {
+  flex: 1;
+  min-width: 80px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 3px;
+  color: rgba(232,244,248,0.9);
+  font-size: 11px;
+  padding: 2px 6px;
+  outline: none;
+  font-family: monospace;
+}
+.rv-cue-ms-input:focus {
+  border-color: rgba(74,199,219,0.5);
+}
+
+/* ── Trigger timing filter inputs ────────────────────────────────────────────── */
+
+.rv-timing-num-input {
+  width: 64px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 3px;
+  color: rgba(232,244,248,0.9);
+  font-size: 11px;
+  padding: 2px 6px;
+  text-align: center;
+  outline: none;
+}
+.rv-timing-num-input:focus {
+  border-color: rgba(74,199,219,0.5);
+}
+
+.rv-timing-bars-input {
+  flex: 1;
+  min-width: 100px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 3px;
+  color: rgba(232,244,248,0.9);
+  font-size: 11px;
+  padding: 2px 6px;
+  outline: none;
+  font-family: monospace;
+}
+.rv-timing-bars-input:focus {
+  border-color: rgba(74,199,219,0.5);
 }
 
 /* ── Responsive: collapse rails below narrow viewport ────────────────────────── */

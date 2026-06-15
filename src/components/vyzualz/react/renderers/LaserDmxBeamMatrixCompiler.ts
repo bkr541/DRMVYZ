@@ -31,8 +31,10 @@
  *   added to RGB.  Supports set/add/multiply/trigger modes.
  *
  * Coordinate offsets (originOffsetX/Y, targetOffsetX/Y):
- *   Route values are in PIXELS.  min/max in the route definition should be set
- *   in pixel units (e.g. min:-200 max:200).  Do not scale by 200.
+ *   Route values are NORMALIZED (viewport-relative).  1.0 = one full canvas
+ *   width (X) or height (Y).  Use ranges like min:-0.1 max:0.1 for a ±10%
+ *   sweep.  The compiler multiplies by canvasWidth/Height before applying to
+ *   canvas pixel coordinates, so movement stays proportional on any canvas size.
  *
  * Direction:
  *   'forward'  = travel from saved origin toward saved target.
@@ -68,8 +70,9 @@ import type {
   LaserDmxFogSettings,
   LaserDmxBeamTravelMode,
   LaserDmxLaunchSettings,
+  LaserDmxBeamMatrixCue,
 } from '../ReactTypes'
-import { DEFAULT_BEAM_MOTION, DEFAULT_BEAM_SEQUENCE, DEFAULT_LAUNCH_SETTINGS } from '../ReactTypes'
+import { DEFAULT_BEAM_MOTION, DEFAULT_BEAM_SEQUENCE, DEFAULT_LAUNCH_SETTINGS, BEATS_PER_BAR } from '../ReactTypes'
 import {
   safeNumber,
   clamp,
@@ -191,13 +194,186 @@ const groupLastLaunchBeat = new Map<string, number>()
 
 const MAX_QUEUE_DEPTH = 4
 
+// ── Cue evaluation state ──────────────────────────────────────────────────────
+
+/** Beat position (barIndex × BEATS_PER_BAR + beatInBar + beatPhase) from the
+ *  previous compiled frame.  Used for trigger boundary-crossing detection. */
+let prevBeatPos = -1
+/** Absolute time (ms) from the previous compiled frame. */
+let prevMs      = -1
+
+/** Decay duration (seconds) for trigger-cue intensity envelopes after firing. */
+const CUE_TRIGGER_DECAY_SEC = 0.5
+
+/** Seek detection threshold (seconds). Frame deltas > this are treated as seeks. */
+const CUE_SEEK_THRESHOLD_SEC = 0.1
+
+interface CueTriggerState {
+  /** True once the trigger has fired; prevents re-fire until playhead rewinds. */
+  fired:       boolean
+  /** timeSec when the trigger envelope started. -1 if envelope not active. */
+  envStartSec: number
+}
+const cueTriggerState = new Map<string, CueTriggerState>()
+
+/** Pre-computed per-frame summary of cue gate/trigger state, built once before
+ *  the per-beam loop to avoid O(beams × cues) iteration. */
+export interface CueSummary {
+  /** Beam/group IDs that have at least one enabled gate cue. */
+  beamHasGates:  Set<string>
+  groupHasGates: Set<string>
+  /** Beam/group IDs with a currently-active gate cue range. */
+  beamGateActive:  Set<string>
+  groupGateActive: Set<string>
+  /** Trigger-envelope contribution (0–1) per beam/group.  Present only while
+   *  the 0.5 s decay envelope is running. */
+  beamTriggerGate:  Map<string, number>
+  groupTriggerGate: Map<string, number>
+}
+
+/** Converts 1-based (bar, beat) UI values to a 0-based beat-from-start index.
+ *  Exported for use in validation and tests. */
+export function musicalCueToBeatPos(bar: number, beat: number): number {
+  return (bar - 1) * BEATS_PER_BAR + (beat - 1)
+}
+
+/** Build the per-frame CueSummary.  Called once per compileLaserDmxBeamMatrix call.
+ *  Exported for unit testing. */
+export function evaluateCueSummary(
+  cues: LaserDmxBeamMatrixCue[],
+  currentBeatPos: number,
+  currentMs: number,
+  isSeek: boolean,
+): CueSummary {
+  const beamHasGates    = new Set<string>()
+  const groupHasGates   = new Set<string>()
+  const beamGateActive  = new Set<string>()
+  const groupGateActive = new Set<string>()
+  const beamTriggerGate  = new Map<string, number>()
+  const groupTriggerGate = new Map<string, number>()
+
+  for (const cue of cues) {
+    if (!cue.enabled) continue
+
+    const isBeam   = cue.targetType === 'beam'
+    const targetId = cue.targetId
+
+    if (cue.action === 'gate') {
+      if (isBeam) beamHasGates.add(targetId)
+      else        groupHasGates.add(targetId)
+
+      let active: boolean
+      if (cue.timingMode === 'musical') {
+        const start = musicalCueToBeatPos(cue.startBar ?? 1, cue.startBeat ?? 1)
+        const end   = cue.endBar != null
+          ? musicalCueToBeatPos(cue.endBar, cue.endBeat ?? 1)
+          : Infinity
+        active = currentBeatPos >= start && currentBeatPos < end
+      } else {
+        const start = cue.startMs ?? 0
+        const end   = cue.endMs != null ? cue.endMs : Infinity
+        active = currentMs >= start && currentMs < end
+      }
+
+      if (active) {
+        if (isBeam) beamGateActive.add(targetId)
+        else        groupGateActive.add(targetId)
+      }
+
+    } else if (cue.action === 'trigger') {
+      const startBeatPos = cue.timingMode === 'musical'
+        ? musicalCueToBeatPos(cue.startBar ?? 1, cue.startBeat ?? 1)
+        : -Infinity
+      const startMs = cue.timingMode === 'absolute' ? (cue.startMs ?? 0) : -Infinity
+
+      const isBefore = cue.timingMode === 'musical'
+        ? currentBeatPos < startBeatPos
+        : currentMs < startMs
+
+      let state = cueTriggerState.get(cue.id)
+      if (!state) {
+        state = { fired: false, envStartSec: -1 }
+        cueTriggerState.set(cue.id, state)
+      }
+
+      if (isBefore) {
+        // Playhead moved before start → rearm
+        state.fired = false
+      } else if (!isSeek && !state.fired) {
+        // Check for boundary crossing (prevBeatPos < start AND current >= start)
+        const prevBefore = cue.timingMode === 'musical'
+          ? (prevBeatPos >= 0 && prevBeatPos < startBeatPos)
+          : (prevMs >= 0 && prevMs < startMs)
+
+        if (prevBefore) {
+          state.fired       = true
+          state.envStartSec = currentMs / 1000
+        }
+      }
+
+      // Contribute envelope value while decaying
+      if (state.envStartSec >= 0) {
+        const elapsed  = currentMs / 1000 - state.envStartSec
+        const envValue = Math.max(0, 1 - elapsed / CUE_TRIGGER_DECAY_SEC)
+        if (envValue > 0) {
+          const trigMap = isBeam ? beamTriggerGate : groupTriggerGate
+          const cur     = trigMap.get(targetId) ?? 0
+          trigMap.set(targetId, Math.max(cur, envValue))
+        } else {
+          state.envStartSec = -1  // envelope finished
+        }
+      }
+    }
+  }
+
+  prevBeatPos = currentBeatPos
+  prevMs      = currentMs
+
+  return { beamHasGates, groupHasGates, beamGateActive, groupGateActive, beamTriggerGate, groupTriggerGate }
+}
+
+/** Resolve the cue gate factor (0–1) for a single beam given the CueSummary.
+ *  Exported for unit testing.
+ *
+ *  Rules:
+ *  - No enabled gate cues AND no active trigger envelope → 1 (backward-compatible).
+ *  - At least one enabled gate cue targeting this beam/group:
+ *      cueGate = 1 if any gate cue is active, 0 otherwise.
+ *  - Active trigger envelope contributes via max: can light up a beam that has
+ *    no active gate cue, but cannot exceed 1.
+ */
+export function resolveCueGateFactor(
+  beamId: string,
+  groupId: string | null,
+  summary: CueSummary,
+): number {
+  const hasBeamGates  = summary.beamHasGates.has(beamId)
+  const hasGroupGates = groupId != null && summary.groupHasGates.has(groupId)
+
+  const beamTrig  = summary.beamTriggerGate.get(beamId) ?? 0
+  const groupTrig = groupId != null ? (summary.groupTriggerGate.get(groupId) ?? 0) : 0
+  const trigGate  = Math.max(beamTrig, groupTrig)
+
+  if (!hasBeamGates && !hasGroupGates && trigGate === 0) return 1  // no cues → passthrough
+
+  const beamGateVal  = hasBeamGates  ? (summary.beamGateActive.has(beamId) ? 1 : 0) : 0
+  const groupGateVal = (hasGroupGates && groupId != null)
+    ? (summary.groupGateActive.has(groupId) ? 1 : 0) : 0
+  const gateVal = Math.max(beamGateVal, groupGateVal)
+
+  return Math.max(gateVal, trigGate)
+}
+
 /** Reset compiler time reference, all trigger envelopes, and sequence state.
  *  Call when the Beam Matrix stops rendering (playback gate fires). */
 export function resetBeamMatrixCompilerState(): void {
   prevTimeSec  = -1
+  prevBeatPos  = -1
+  prevMs       = -1
   prevSourceId = ''
   launchEnvelopes.clear()
   groupLastLaunchBeat.clear()
+  cueTriggerState.clear()
   resetAllEnvelopes()
 }
 
@@ -302,7 +478,8 @@ interface BeamState {
   flickerAmount:  number
   r: number; g: number; b: number; a: number
   white: number  // 0–255 white channel, additive; blended into RGB at output
-  // Compiled-only coordinate deltas (pixels) — never written to the saved beam.
+  // Compiled-only coordinate deltas (NORMALIZED, -2..2) — never written to the saved beam.
+  // Multiplied by canvasWidth/Height to produce pixel offsets at application time.
   originDX: number; originDY: number
   targetDX: number; targetDY: number
 }
@@ -331,11 +508,12 @@ function applyBeamRoute(
       bs.white = clamp255(clamp01(modeApply(wPrev, clamp01(v), mode)) * 255)
       break
     }
-    // Coordinate offsets: route min/max are in PIXELS (no additional scale factor).
-    case 'originOffsetX':  bs.originDX = clamp(modeApply(bs.originDX, v, mode), -400, 400); break
-    case 'originOffsetY':  bs.originDY = clamp(modeApply(bs.originDY, v, mode), -400, 400); break
-    case 'targetOffsetX':  bs.targetDX = clamp(modeApply(bs.targetDX, v, mode), -400, 400); break
-    case 'targetOffsetY':  bs.targetDY = clamp(modeApply(bs.targetDY, v, mode), -400, 400); break
+    // Coordinate offsets: route min/max are NORMALIZED (viewport-relative).
+    // Accumulated here; multiplied by canvasWidth/Height at coordinate application.
+    case 'originOffsetX':  bs.originDX = clamp(modeApply(bs.originDX, v, mode), -2, 2); break
+    case 'originOffsetY':  bs.originDY = clamp(modeApply(bs.originDY, v, mode), -2, 2); break
+    case 'targetOffsetX':  bs.targetDX = clamp(modeApply(bs.targetDX, v, mode), -2, 2); break
+    case 'targetOffsetY':  bs.targetDY = clamp(modeApply(bs.targetDY, v, mode), -2, 2); break
     default: break
   }
 }
@@ -390,6 +568,22 @@ export function compileLaserDmxBeamMatrix(
     launchEnvelopes.clear()
     groupLastLaunchBeat.clear()
   }
+
+  // ── Cue evaluation (must run BEFORE prevTimeSec/prevBeatPos/prevMs update) ─
+  const currentBeatPos = safeNumber(mi.rhythm.barIndex, 0) * BEATS_PER_BAR
+    + safeNumber(mi.rhythm.beatInBar, 0)
+    + safeNumber(mi.rhythm.beatPhase, 0)
+  const currentMs = timeSec * 1000
+  const isSeek    = prevTimeSec < 0
+    ? false
+    : Math.abs(timeSec - prevTimeSec) > CUE_SEEK_THRESHOLD_SEC || timeSec < prevTimeSec
+  const cueSummary = evaluateCueSummary(
+    settings.cues ?? [],
+    currentBeatPos,
+    currentMs,
+    isSeek,
+  )
+
   prevTimeSec = timeSec
 
   // Track source changes (new track / seek restart)
@@ -397,6 +591,7 @@ export function compileLaserDmxBeamMatrix(
   if (sourceId !== prevSourceId) {
     launchEnvelopes.clear()
     groupLastLaunchBeat.clear()
+    cueTriggerState.clear()
     prevSourceId = sourceId
   }
 
@@ -633,10 +828,11 @@ export function compileLaserDmxBeamMatrix(
     )
     const targetBase = targetToCanvas(beam.target, W, H)
 
-    const originX = originBase.x + bs.originDX
-    const originY = originBase.y + bs.originDY
-    const targetX = targetBase.x + bs.targetDX
-    const targetY = targetBase.y + bs.targetDY
+    // Normalized offsets → pixels: 1.0 = full canvas width (X) or height (Y).
+    const originX = originBase.x + bs.originDX * W
+    const originY = originBase.y + bs.originDY * H
+    const targetX = targetBase.x + bs.targetDX * W
+    const targetY = targetBase.y + bs.targetDY * H
 
     // ── Z-depth factors ───────────────────────────────────────────────────
     const { widthScale: oWS, intensityScale: oIS } = zDepthFactors(originBase.z)
@@ -672,27 +868,31 @@ export function compileLaserDmxBeamMatrix(
     let sequenceGate    = 1
     let beamOrderIndex  = 0  // visual sequence position (for direction alternate)
 
-    if (motionMode !== 'static') {
-      const seqState = seqStateMap.get(beam.id)
-      if (seqState) {
-        // ── Sequenced beam ──────────────────────────────────────────────
-        // Gate controls activation; beatsPerTravel drives travel duration
-        // independently of the step gate window.
-        const seq              = group?.sequence ?? DEFAULT_BEAM_SEQUENCE
-        const stepDurationBeats = 1 / Math.max(0.001, seq.stepsPerBeat)
-        const elapsedBeats     = seqState.stepPhase * stepDurationBeats
-        travelProgress  = clamp01(elapsedBeats / Math.max(0.001, motion.beatsPerTravel))
-        sequenceGate    = seqState.gate
-        beamOrderIndex  = seqState.beamOrderIndex
+    // Sequence gate applies to ALL motion modes including static.
+    // Static beams keep travelProgress=0 (full geometry) but their visibility
+    // is controlled by sequenceGate exactly like non-static beams.
+    const seqState = seqStateMap.get(beam.id)
+    if (seqState) {
+      sequenceGate   = seqState.gate
+      beamOrderIndex = seqState.beamOrderIndex
+    }
 
-        // Apply audio-launch trigger over the sequence gate for 'projectile' style
-        // launches: if the group fires a trigger this frame, start an envelope.
+    if (motionMode !== 'static') {
+      if (seqState) {
+        // ── Sequenced non-static beam ───────────────────────────────────
+        // travelProgress drives travel geometry; gate was already set above.
+        const seq               = group?.sequence ?? DEFAULT_BEAM_SEQUENCE
+        const stepDurationBeats = 1 / Math.max(0.001, seq.stepsPerBeat)
+        const elapsedBeats      = seqState.stepPhase * stepDurationBeats
+        travelProgress = clamp01(elapsedBeats / Math.max(0.001, motion.beatsPerTravel))
+
+        // Apply audio-launch trigger for 'projectile' style launches.
         if (group && groupTriggerFired.get(group.id) === true) {
           const env = launchEnvelopes.get(beam.id)
           applyRetrigger(beam.id, absoluteBeat, motion.retrigger, env)
         }
       } else {
-        // ── Free-running (no sequence) ──────────────────────────────────
+        // ── Free-running non-static (no sequence) ───────────────────────
         // Audio-triggered launch: check if group has a trigger
         if (group) {
           const triggered = groupTriggerFired.get(group.id) === true
@@ -726,6 +926,7 @@ export function compileLaserDmxBeamMatrix(
         }
       }
     }
+    // Static + no seqState: sequenceGate stays 1 (beam always visible)
 
     // ── Direction: resolve forward/reverse/alternate ───────────────────────
     // beamOrderIndex drives 'alternate': even=forward, odd=reverse.
@@ -773,7 +974,8 @@ export function compileLaserDmxBeamMatrix(
       })).reverse()
     }
 
-    const finalIntensity = clamp01(baseDepthIntensity * sequenceGate)
+    const cueGate = resolveCueGateFactor(beam.id, beam.groupId, cueSummary)
+    const finalIntensity = clamp01(baseDepthIntensity * sequenceGate * cueGate)
 
     // ── Final finite validation ────────────────────────────────────────────
     const safeF = (v: number, fb: number) => Number.isFinite(v) ? v : fb

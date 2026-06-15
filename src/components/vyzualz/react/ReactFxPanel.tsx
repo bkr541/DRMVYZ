@@ -254,7 +254,25 @@ export function ReactFxPanel() {
             </Collapsible>
 
             <Collapsible label="Editor" defaultOpen={false}>
-              <ToggleRow label="Show Guides" value={bmEd.guidesVisible}  onChange={v => setLaserDmxBeamMatrixEditorSettings({ guidesVisible: v })} />
+              <ToggleRow
+                label="Show Beam Editor"
+                value={bmEd.beamEditorVisible}
+                onChange={v => setLaserDmxBeamMatrixEditorSettings({ beamEditorVisible: v })}
+                title="Show editing handles and Beam Matrix guides without affecting laser output."
+              />
+              <ToggleRow
+                label="Show Beam Paths"
+                value={bmEd.beamPathsVisible}
+                onChange={v => setLaserDmxBeamMatrixEditorSettings({ beamPathsVisible: v })}
+                disabled={!bmEd.beamEditorVisible}
+                title="Show origin-to-target path lines in the editor."
+              />
+              <ToggleRow
+                label="Show Guides"
+                value={bmEd.guidesVisible}
+                onChange={v => setLaserDmxBeamMatrixEditorSettings({ guidesVisible: v })}
+                disabled={!bmEd.beamEditorVisible}
+              />
               <ToggleRow label="Snap to Grid" value={bmEd.snapEnabled}   onChange={v => setLaserDmxBeamMatrixEditorSettings({ snapEnabled: v })} />
               <SliderRow label="Overscan"     value={bmEd.overscanAmount} onChange={v => setLaserDmxBeamMatrixEditorSettings({ overscanAmount: v })} min={0} max={0.5} step={0.01} color="#d8b95a" />
             </Collapsible>

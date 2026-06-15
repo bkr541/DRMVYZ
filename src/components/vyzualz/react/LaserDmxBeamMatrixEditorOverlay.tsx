@@ -67,7 +67,7 @@ export function LaserDmxBeamMatrixEditorOverlay() {
   })))
 
   const { beams, groups, selectedBeamIds, editor } = laserDmxBeamMatrix
-  const { guidesVisible, snapEnabled, overscanAmount } = editor
+  const { guidesVisible, snapEnabled, overscanAmount, beamPathsVisible } = editor
 
   const svgRef = useRef<SVGSVGElement>(null)
   const [size, setSize]           = useState({ w: 0, h: 0 })
@@ -407,7 +407,7 @@ export function LaserDmxBeamMatrixEditorOverlay() {
         {/* Beams */}
         {beamPositions.map(({ b, ox, oy, tx, ty, selected, color }) => (
           <g key={b.id}>
-            {/* Beam line (wider hit area) */}
+            {/* Beam line (wider hit area — always present for click-to-select) */}
             <line
               x1={ox} y1={oy} x2={tx} y2={ty}
               stroke="transparent"
@@ -415,13 +415,17 @@ export function LaserDmxBeamMatrixEditorOverlay() {
               onClick={e => onBeamClick(e, b.id)}
               style={{ cursor: editorMode === 'select' ? 'pointer' : 'inherit' }}
             />
-            <line
-              x1={ox} y1={oy} x2={tx} y2={ty}
-              stroke={selected ? '#ffffff' : color}
-              strokeWidth={selected ? BEAM_STROKE + 1 : BEAM_STROKE}
-              opacity={b.enabled ? 1 : 0.3}
-              pointerEvents="none"
-            />
+            {/* Visible path line — hidden for unselected beams when beamPathsVisible is off;
+                selected beam retains a dimmed line so the user can see which handles connect */}
+            {(beamPathsVisible || selected) && (
+              <line
+                x1={ox} y1={oy} x2={tx} y2={ty}
+                stroke={selected ? '#ffffff' : color}
+                strokeWidth={selected ? BEAM_STROKE + 1 : BEAM_STROKE}
+                opacity={b.enabled ? (beamPathsVisible ? 1 : 0.35) : 0.3}
+                pointerEvents="none"
+              />
+            )}
 
             {/* Origin handle */}
             <circle

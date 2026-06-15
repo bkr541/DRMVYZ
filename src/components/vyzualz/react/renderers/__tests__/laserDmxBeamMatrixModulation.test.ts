@@ -79,7 +79,7 @@ function makeSettings(
     globalModulationRoutes: globalRoutes,
     output: makeOutput(outputOverrides),
     fog: { enabled: false, density: 0.4, opacity: 0.5, noiseScale: 1, driftSpeed: 0.15, driftDirection: 0.25, turbulence: 0.2, diffusion: 0.3, dissipation: 0.4, beamScatter: 0.2, colorAbsorption: 0.1, quality: 'medium' },
-    editor: { guidesVisible: true, snapEnabled: true, overscanAmount: 0 },
+    editor: { guidesVisible: true, snapEnabled: true, overscanAmount: 0, beamEditorVisible: true, beamPathsVisible: true },
   }
 }
 
@@ -432,5 +432,254 @@ describe('13 — every visible target has a compiler implementation', () => {
     ])
     const missing = BM_BEAM_TARGETS.filter(t => !KNOWN_BEAM.has(t.value))
     expect(missing).toHaveLength(0)
+  })
+})
+
+// 14 ── Normalized coordinate offsets (viewport-relative) ─────────────────────
+//
+// Grid column=8, row=9 on an 800×600 canvas resolves to:
+//   targetBase.x = (8 - 0.5) / 15 * 800 = 400
+//   targetBase.y = (9 - 0.5) / 10 * 600 = 510
+// Origin column=8, row=5:
+//   originBase.x = (8 - 0.5) / 15 * 800 = 400
+//   originBase.y = (5 - 0.5) / 10 * 600 = 270
+//
+// Offset 0.10 → +80 px X on 800px canvas, +60 px Y on 600px canvas.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { migrateReactStore } from '../../../../../stores/reactStore'
+
+function compileFull(
+  settings: LaserDmxBeamMatrixSettings,
+  W: number,
+  H: number,
+  mi = makeMI(),
+) {
+  return compileLaserDmxBeamMatrix({ settings, mi, time: 0, timeSec: 1, canvasWidth: W, canvasHeight: H })
+}
+
+describe('14 — normalized coordinate offsets produce correct pixel movement', () => {
+  const W = 800, H = 600
+  // Baseline target pixel coordinates for the default makeBeam() target (col=8, row=9)
+  const BASE_TX = (8 - 0.5) / 15 * W  // 400
+  const BASE_TY = (9 - 0.5) / 10 * H  // 510
+  // Baseline origin pixel coordinates for the default makeBeam() origin (col=8, row=5)
+  const BASE_OX = (8 - 0.5) / 15 * W  // 400
+  const BASE_OY = (5 - 0.5) / 10 * H  // 270
+
+  it('targetOffsetX 0.10 shifts target by exactly 10% of canvas width', () => {
+    const beam = makeBeam({
+      modulationRoutes: [mkRoute({ target: 'targetOffsetX', source: 'bass', min: 0.10, max: 0.10, mode: 'set' })],
+    })
+    const result = compileFull(makeSettings([beam]), W, H, makeMI({ bass: 1 }))
+    expect(result.beams[0].target.x).toBeCloseTo(BASE_TX + 0.10 * W, 1)
+  })
+
+  it('targetOffsetX -0.10 shifts target by -10% of canvas width', () => {
+    const beam = makeBeam({
+      modulationRoutes: [mkRoute({ target: 'targetOffsetX', source: 'bass', min: -0.10, max: -0.10, mode: 'set' })],
+    })
+    const result = compileFull(makeSettings([beam]), W, H, makeMI({ bass: 1 }))
+    expect(result.beams[0].target.x).toBeCloseTo(BASE_TX - 0.10 * W, 1)
+  })
+
+  it('targetOffsetY 0.10 shifts target by exactly 10% of canvas height', () => {
+    const beam = makeBeam({
+      modulationRoutes: [mkRoute({ target: 'targetOffsetY', source: 'bass', min: 0.10, max: 0.10, mode: 'set' })],
+    })
+    const result = compileFull(makeSettings([beam]), W, H, makeMI({ bass: 1 }))
+    expect(result.beams[0].target.y).toBeCloseTo(BASE_TY + 0.10 * H, 1)
+  })
+
+  it('canvas resize proportionality: same 0.10 offset produces 2× pixel movement on 2× canvas', () => {
+    const beam = makeBeam({
+      modulationRoutes: [mkRoute({ target: 'targetOffsetX', source: 'bass', min: 0.10, max: 0.10, mode: 'set' })],
+    })
+    const r800  = compileFull(makeSettings([beam]), 800,  600,  makeMI({ bass: 1 }))
+    resetBeamMatrixCompilerState()
+    const r1600 = compileFull(makeSettings([beam]), 1600, 1200, makeMI({ bass: 1 }))
+    const base800  = (8 - 0.5) / 15 * 800
+    const base1600 = (8 - 0.5) / 15 * 1600
+    const delta800  = r800.beams[0].target.x  - base800
+    const delta1600 = r1600.beams[0].target.x - base1600
+    expect(delta1600 / delta800).toBeCloseTo(2, 2)
+  })
+
+  it('modulation offset does not mutate the saved beam.target', () => {
+    const beam = makeBeam({
+      modulationRoutes: [mkRoute({ target: 'targetOffsetX', source: 'bass', min: 0.50, max: 0.50, mode: 'set' })],
+    })
+    const originalColumn = beam.target.kind === 'grid' ? beam.target.column : null
+    compileFull(makeSettings([beam]), W, H, makeMI({ bass: 1 }))
+    expect(beam.target.kind === 'grid' ? (beam.target as { column: number }).column : null)
+      .toBe(originalColumn)
+  })
+
+  it('originOffsetX 0.10 shifts origin by 10% of canvas width', () => {
+    const beam = makeBeam({
+      modulationRoutes: [mkRoute({ target: 'originOffsetX', source: 'bass', min: 0.10, max: 0.10, mode: 'set' })],
+    })
+    const result = compileFull(makeSettings([beam]), W, H, makeMI({ bass: 1 }))
+    expect(result.beams[0].origin.x).toBeCloseTo(BASE_OX + 0.10 * W, 1)
+  })
+
+  it('originOffsetY 0.10 shifts origin by 10% of canvas height', () => {
+    const beam = makeBeam({
+      modulationRoutes: [mkRoute({ target: 'originOffsetY', source: 'bass', min: 0.10, max: 0.10, mode: 'set' })],
+    })
+    const result = compileFull(makeSettings([beam]), W, H, makeMI({ bass: 1 }))
+    expect(result.beams[0].origin.y).toBeCloseTo(BASE_OY + 0.10 * H, 1)
+  })
+
+  it('stage target supports dynamic offsets the same way as grid target', () => {
+    const beam = makeBeam({
+      target: { kind: 'stage', x: 0.5, y: 0.5, z: 0 },
+      modulationRoutes: [mkRoute({ target: 'targetOffsetX', source: 'bass', min: 0.10, max: 0.10, mode: 'set' })],
+    })
+    const result = compileFull(makeSettings([beam]), W, H, makeMI({ bass: 1 }))
+    // stage base x = 0.5 * 800 = 400; offset 0.10 * 800 = 80 → 480
+    expect(result.beams[0].target.x).toBeCloseTo(0.5 * W + 0.10 * W, 1)
+  })
+
+  it('negative route range moves target in the negative direction', () => {
+    const beam = makeBeam({
+      modulationRoutes: [mkRoute({ target: 'targetOffsetX', source: 'bass', min: -0.30, max: -0.10, mode: 'set' })],
+    })
+    const result = compileFull(makeSettings([beam]), W, H, makeMI({ bass: 1 }))
+    // max = -0.10, bass=1 → lerp(-0.30, -0.10, 1) = -0.10 → 400 - 80 = 320
+    expect(result.beams[0].target.x).toBeCloseTo(BASE_TX - 0.10 * W, 1)
+    expect(result.beams[0].target.x).toBeLessThan(BASE_TX)
+  })
+
+  it('dimmer route still clamps to 0–1 (non-offset targets retain existing limits)', () => {
+    const beam = makeBeam({
+      modulationRoutes: [mkRoute({ target: 'dimmer', source: 'bass', min: 2.0, max: 5.0, mode: 'set' })],
+    })
+    const result = compileFull(makeSettings([beam], { masterDimmer: 1, safetyClamp: 1 }), W, H, makeMI({ bass: 1 }))
+    expect(result.beams[0].intensity).toBeLessThanOrEqual(1.0)
+  })
+
+  it('preset min/max values of ±0.12 produce ~10% canvas movement', () => {
+    const beam = makeBeam({
+      modulationRoutes: [mkRoute({ target: 'targetOffsetX', source: 'bass', min: -0.12, max: 0.12, mode: 'set' })],
+    })
+    const resultMax = compileFull(makeSettings([beam]), W, H, makeMI({ bass: 1 }))
+    const pixelDelta = Math.abs(resultMax.beams[0].target.x - BASE_TX)
+    // 0.12 * 800 = 96px ≈ 12% of canvas width — should be clearly visible (> 5%)
+    expect(pixelDelta).toBeGreaterThan(W * 0.05)
+    expect(pixelDelta).toBeCloseTo(0.12 * W, 0)
+  })
+})
+
+// 15 ── v6→v7 migration: legacy pixel values converted to normalized ────────────
+
+describe('15 — v6→v7 migration converts legacy pixel-range offset values to normalized', () => {
+  it('offset route with |min| > 2 is divided by 200', () => {
+    const state = {
+      laserDmxBeamMatrix: {
+        beams: [{
+          id: 'b1', name: 'B',
+          modulationRoutes: [
+            { id: 'r1', enabled: true, source: 'bass', target: 'targetOffsetX',
+              amount: 1, min: -24, max: 24, curve: 'linear', mode: 'set',
+              smoothing: 0, attack: 0, release: 0, invert: false },
+          ],
+        }],
+        groups: [],
+      },
+    }
+    const migrated = migrateReactStore(state, 6)
+    const bm = migrated.laserDmxBeamMatrix as Record<string, unknown>
+    const beams = bm.beams as Array<Record<string, unknown>>
+    const routes = beams[0].modulationRoutes as Array<Record<string, unknown>>
+    expect(routes[0].min).toBeCloseTo(-0.12, 4)
+    expect(routes[0].max).toBeCloseTo( 0.12, 4)
+  })
+
+  it('offset route with |max| > 2 is divided by 200', () => {
+    const state = {
+      laserDmxBeamMatrix: {
+        beams: [{
+          id: 'b1', name: 'B',
+          modulationRoutes: [
+            { id: 'r1', enabled: true, source: 'bass', target: 'originOffsetY',
+              amount: 1, min: 0, max: 200, curve: 'linear', mode: 'set',
+              smoothing: 0, attack: 0, release: 0, invert: false },
+          ],
+        }],
+        groups: [],
+      },
+    }
+    const migrated = migrateReactStore(state, 6)
+    const bm = migrated.laserDmxBeamMatrix as Record<string, unknown>
+    const beams = bm.beams as Array<Record<string, unknown>>
+    const routes = beams[0].modulationRoutes as Array<Record<string, unknown>>
+    expect(routes[0].max).toBeCloseTo(1.0, 4)
+  })
+
+  it('offset route already in normalized range (|val| ≤ 2) is left unchanged', () => {
+    const state = {
+      laserDmxBeamMatrix: {
+        beams: [{
+          id: 'b1', name: 'B',
+          modulationRoutes: [
+            { id: 'r1', enabled: true, source: 'bass', target: 'targetOffsetX',
+              amount: 1, min: -0.12, max: 0.12, curve: 'linear', mode: 'set',
+              smoothing: 0, attack: 0, release: 0, invert: false },
+          ],
+        }],
+        groups: [],
+      },
+    }
+    const migrated = migrateReactStore(state, 6)
+    const bm = migrated.laserDmxBeamMatrix as Record<string, unknown>
+    const beams = bm.beams as Array<Record<string, unknown>>
+    const routes = beams[0].modulationRoutes as Array<Record<string, unknown>>
+    expect(routes[0].min).toBeCloseTo(-0.12, 4)
+    expect(routes[0].max).toBeCloseTo( 0.12, 4)
+  })
+
+  it('non-offset routes are not touched by v7 migration', () => {
+    const state = {
+      laserDmxBeamMatrix: {
+        beams: [{
+          id: 'b1', name: 'B',
+          modulationRoutes: [
+            { id: 'r1', enabled: true, source: 'bass', target: 'dimmer',
+              amount: 1, min: 0, max: 100, curve: 'linear', mode: 'set',
+              smoothing: 0, attack: 0, release: 0, invert: false },
+          ],
+        }],
+        groups: [],
+      },
+    }
+    const migrated = migrateReactStore(state, 6)
+    const bm = migrated.laserDmxBeamMatrix as Record<string, unknown>
+    const beams = bm.beams as Array<Record<string, unknown>>
+    const routes = beams[0].modulationRoutes as Array<Record<string, unknown>>
+    // dimmer route with large max should be untouched
+    expect(routes[0].max).toBe(100)
+  })
+
+  it('v7 migration handles group routes too', () => {
+    const state = {
+      laserDmxBeamMatrix: {
+        beams: [],
+        groups: [{
+          id: 'g1', name: 'G',
+          modulationRoutes: [
+            { id: 'r1', enabled: true, source: 'bass', target: 'targetOffsetY',
+              amount: 1, min: -30, max: 30, curve: 'linear', mode: 'set',
+              smoothing: 0, attack: 0, release: 0, invert: false },
+          ],
+        }],
+      },
+    }
+    const migrated = migrateReactStore(state, 6)
+    const bm = migrated.laserDmxBeamMatrix as Record<string, unknown>
+    const groups = bm.groups as Array<Record<string, unknown>>
+    const routes = groups[0].modulationRoutes as Array<Record<string, unknown>>
+    expect(routes[0].min).toBeCloseTo(-0.15, 4)
+    expect(routes[0].max).toBeCloseTo( 0.15, 4)
   })
 })

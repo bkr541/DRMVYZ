@@ -126,7 +126,7 @@ function mkFog(f: LaserDmxFogSettings): LaserDmxFogSettings {
 }
 
 function mkEditor(): LaserDmxBeamMatrixEditorSettings {
-  return { guidesVisible: true, snapEnabled: true, overscanAmount: 0 }
+  return { guidesVisible: true, snapEnabled: true, overscanAmount: 0, beamEditorVisible: true, beamPathsVisible: true }
 }
 
 function mkStageBeam(

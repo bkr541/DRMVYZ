@@ -29,6 +29,7 @@ import type {
   LaserDmxWorkspaceMode,
   LaserDmxBeamMatrixSettings,
   LaserDmxBeamMatrixEditorSettings,
+  LaserDmxBeamMatrixCue,
   LaserDmxMatrixBeam,
   LaserDmxReactionGroup,
 } from '../components/vyzualz/react/ReactTypes'
@@ -490,6 +491,12 @@ interface ReactStoreState {
   /** Restores the 4 starter reaction groups without deleting user-created beams or custom groups. */
   restoreStarterReactionGroups: () => void
   setLaserDmxBeamMatrixEditorSettings: (patch: Partial<LaserDmxBeamMatrixEditorSettings>) => void
+
+  // Beam Matrix cue list
+  addLaserDmxBeamMatrixCue: () => void
+  duplicateLaserDmxBeamMatrixCue: (cueId: string) => void
+  removeLaserDmxBeamMatrixCue: (cueId: string) => void
+  updateLaserDmxBeamMatrixCue: (cueId: string, patch: Partial<LaserDmxBeamMatrixCue>) => void
 }
 
 const INITIAL_PRESET_ID = DEFAULT_REACT_PRESETS[0].id
@@ -587,6 +594,69 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     const { manualTrackSections: _mts, ...rest } = state as Record<string, unknown>
     void _mts
     state = rest
+  }
+  if (version < 6) {
+    const bm = state.laserDmxBeamMatrix as Record<string, unknown> | undefined
+    if (bm) {
+      const editor = (bm.editor as Record<string, unknown> | undefined) ?? {}
+      state = {
+        ...state,
+        laserDmxBeamMatrix: {
+          ...bm,
+          editor: {
+            ...editor,
+            beamEditorVisible: editor.beamEditorVisible ?? true,
+            beamPathsVisible:  editor.beamPathsVisible  ?? true,
+          },
+        },
+      }
+    }
+  }
+  if (version < 7) {
+    // The v4 migration converted normalized offset values (|val| ≤ 2) to pixels
+    // by multiplying by 200 (e.g. -0.12 → -24). The compiler now uses normalized
+    // values and multiplies by canvas size itself, so any stored pixel-range values
+    // must be divided back by 200. Values already in normalized range (|val| ≤ 2)
+    // are left unchanged.
+    const bm = state.laserDmxBeamMatrix as Record<string, unknown> | undefined
+    if (bm) {
+      const coordTargets = new Set(['originOffsetX', 'originOffsetY', 'targetOffsetX', 'targetOffsetY'])
+      const normalizeRoutes = (routes: unknown[]): unknown[] =>
+        routes.map((r) => {
+          const route = r as Record<string, unknown>
+          if (!coordTargets.has(route.target as string)) return route
+          const min = typeof route.min === 'number' ? route.min : 0
+          const max = typeof route.max === 'number' ? route.max : 0
+          if (Math.abs(min) > 2 || Math.abs(max) > 2) {
+            return { ...route, min: min / 200, max: max / 200 }
+          }
+          return route
+        })
+      const groups = (bm.groups as unknown[] | undefined) ?? []
+      const beams  = (bm.beams  as unknown[] | undefined) ?? []
+      state = {
+        ...state,
+        laserDmxBeamMatrix: {
+          ...bm,
+          groups: groups.map((g) => {
+            const group = g as Record<string, unknown>
+            const existingRoutes = (group.modulationRoutes as unknown[] | undefined) ?? []
+            return { ...group, modulationRoutes: normalizeRoutes(existingRoutes) }
+          }),
+          beams: beams.map((b) => {
+            const beam = b as Record<string, unknown>
+            const existingRoutes = (beam.modulationRoutes as unknown[] | undefined) ?? []
+            return { ...beam, modulationRoutes: normalizeRoutes(existingRoutes) }
+          }),
+        },
+      }
+    }
+  }
+  if (version < 8) {
+    const bm = state.laserDmxBeamMatrix as Record<string, unknown> | undefined
+    if (bm && !('cues' in bm)) {
+      state = { ...state, laserDmxBeamMatrix: { ...bm, cues: [] } }
+    }
   }
   return state
 }
@@ -1600,6 +1670,63 @@ export const useReactStore = create<ReactStoreState>()(
           },
         })),
 
+      // ── Beam Matrix cue list ─────────────────────────────────────────────────
+
+      addLaserDmxBeamMatrixCue: () =>
+        set(s => {
+          const firstBeam = s.laserDmxBeamMatrix.beams[0]
+          const newCue: LaserDmxBeamMatrixCue = {
+            id:         crypto.randomUUID(),
+            name:       'New Cue',
+            enabled:    true,
+            targetType: firstBeam ? 'beam' : 'group',
+            targetId:   firstBeam?.id ?? (s.laserDmxBeamMatrix.groups[0]?.id ?? ''),
+            timingMode: 'musical',
+            action:     'gate',
+            startBar:   1,
+            startBeat:  1,
+          }
+          return {
+            laserDmxBeamMatrixPresetDirty: true,
+            laserDmxBeamMatrix: {
+              ...s.laserDmxBeamMatrix,
+              cues: [...(s.laserDmxBeamMatrix.cues ?? []), newCue],
+            },
+          }
+        }),
+
+      duplicateLaserDmxBeamMatrixCue: (cueId) =>
+        set(s => {
+          const src = (s.laserDmxBeamMatrix.cues ?? []).find(c => c.id === cueId)
+          if (!src) return {}
+          const copy: LaserDmxBeamMatrixCue = { ...src, id: crypto.randomUUID(), name: `${src.name} Copy` }
+          return {
+            laserDmxBeamMatrixPresetDirty: true,
+            laserDmxBeamMatrix: {
+              ...s.laserDmxBeamMatrix,
+              cues: [...(s.laserDmxBeamMatrix.cues ?? []), copy],
+            },
+          }
+        }),
+
+      removeLaserDmxBeamMatrixCue: (cueId) =>
+        set(s => ({
+          laserDmxBeamMatrixPresetDirty: true,
+          laserDmxBeamMatrix: {
+            ...s.laserDmxBeamMatrix,
+            cues: (s.laserDmxBeamMatrix.cues ?? []).filter(c => c.id !== cueId),
+          },
+        })),
+
+      updateLaserDmxBeamMatrixCue: (cueId, patch) =>
+        set(s => ({
+          laserDmxBeamMatrixPresetDirty: true,
+          laserDmxBeamMatrix: {
+            ...s.laserDmxBeamMatrix,
+            cues: (s.laserDmxBeamMatrix.cues ?? []).map(c => c.id === cueId ? { ...c, ...patch } : c),
+          },
+        })),
+
       // ── Beam Matrix preset actions ───────────────────────────────────────────
 
       applyLaserDmxBeamMatrixPreset: (presetId) => {
@@ -1624,6 +1751,7 @@ export const useReactStore = create<ReactStoreState>()(
             globalModulationRoutes: fresh.globalModulationRoutes,
             output:                 fresh.output,
             fog:                    fresh.fog,
+            cues:                   fresh.cues ?? [],
             selectedBeamIds:        [],
             selectedGroupId:        null,
             // editor settings survive preset changes
@@ -1665,7 +1793,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 5,
+      version: 8,
       migrate: (persistedState: unknown, version: number) => {
         let state = (persistedState ?? {}) as Record<string, unknown>
         if (version < 1) {
@@ -1820,6 +1948,64 @@ export const useReactStore = create<ReactStoreState>()(
           const { manualTrackSections: _mtsRemoved, ...rest } = state as Record<string, unknown>
           void _mtsRemoved
           state = rest
+        }
+        if (version < 6) {
+          const bm = state.laserDmxBeamMatrix as Record<string, unknown> | undefined
+          if (bm) {
+            const editor = (bm.editor as Record<string, unknown> | undefined) ?? {}
+            state = {
+              ...state,
+              laserDmxBeamMatrix: {
+                ...bm,
+                editor: {
+                  ...editor,
+                  beamEditorVisible: editor.beamEditorVisible ?? true,
+                  beamPathsVisible:  editor.beamPathsVisible  ?? true,
+                },
+              },
+            }
+          }
+        }
+        if (version < 7) {
+          const bm = state.laserDmxBeamMatrix as Record<string, unknown> | undefined
+          if (bm) {
+            const coordTargets = new Set(['originOffsetX', 'originOffsetY', 'targetOffsetX', 'targetOffsetY'])
+            const normalizeRoutes = (routes: unknown[]): unknown[] =>
+              routes.map((r) => {
+                const route = r as Record<string, unknown>
+                if (!coordTargets.has(route.target as string)) return route
+                const min = typeof route.min === 'number' ? route.min : 0
+                const max = typeof route.max === 'number' ? route.max : 0
+                if (Math.abs(min) > 2 || Math.abs(max) > 2) {
+                  return { ...route, min: min / 200, max: max / 200 }
+                }
+                return route
+              })
+            const groups = (bm.groups as unknown[] | undefined) ?? []
+            const beams  = (bm.beams  as unknown[] | undefined) ?? []
+            state = {
+              ...state,
+              laserDmxBeamMatrix: {
+                ...bm,
+                groups: groups.map((g) => {
+                  const group = g as Record<string, unknown>
+                  const existingRoutes = (group.modulationRoutes as unknown[] | undefined) ?? []
+                  return { ...group, modulationRoutes: normalizeRoutes(existingRoutes) }
+                }),
+                beams: beams.map((b) => {
+                  const beam = b as Record<string, unknown>
+                  const existingRoutes = (beam.modulationRoutes as unknown[] | undefined) ?? []
+                  return { ...beam, modulationRoutes: normalizeRoutes(existingRoutes) }
+                }),
+              },
+            }
+          }
+        }
+        if (version < 8) {
+          const bm = state.laserDmxBeamMatrix as Record<string, unknown> | undefined
+          if (bm && !('cues' in bm)) {
+            state = { ...state, laserDmxBeamMatrix: { ...bm, cues: [] } }
+          }
         }
         return state
       },

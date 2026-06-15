@@ -154,6 +154,32 @@ export type LaserDmxModulationTarget =
   // Beam Matrix beam-route targets
   | 'focus'
 
+// ── Trigger route timing filter ───────────────────────────────────────────────
+// Controls which musical positions are allowed to fire a trigger-mode route.
+// All bar/beat numbers in this interface are 1-based (matching the UI).
+
+export type LaserDmxTriggerTimingFilterMode =
+  | 'everyOccurrence'  // default — no position filtering
+  | 'specificPosition' // exact bar (+ optional beat)
+  | 'specificBars'     // explicit list of bars
+  | 'barRange'         // inclusive start..end
+  | 'barInterval'      // every N bars from an anchor
+
+export interface LaserDmxTriggerTimingFilter {
+  mode: LaserDmxTriggerTimingFilterMode
+  // specificPosition
+  bar?:  number           // 1-based bar number
+  beat?: number | 'any'  // 1-based beat number, or 'any' to match all beats
+  // specificBars
+  bars?: number[]         // 1-based bar numbers (stored sorted + deduped)
+  // barRange
+  startBar?: number       // 1-based, inclusive
+  endBar?:   number       // 1-based, inclusive (omit = open-ended)
+  // barInterval
+  intervalBars?:       number  // fire every N bars
+  intervalAnchorBar?:  number  // 1-based anchor (default 1); valid bars = anchor, anchor+N, ...
+}
+
 export interface LaserDmxModulationRoute {
   id: string
   enabled: boolean
@@ -176,6 +202,12 @@ export interface LaserDmxModulationRoute {
    * Above threshold the value is rescaled: (source − threshold) / (1 − threshold).
    */
   threshold?: number
+  /**
+   * Optional musical-position filter for trigger-mode routes.
+   * When absent or mode='everyOccurrence', the route fires on every event occurrence.
+   * Only evaluated when route.mode === 'trigger'.
+   */
+  timingFilter?: LaserDmxTriggerTimingFilter
 }
 
 export interface LaserDmxBeamMatrixPresetSummary {
@@ -569,9 +601,67 @@ export interface LaserDmxFogSettings {
 }
 
 export interface LaserDmxBeamMatrixEditorSettings {
-  guidesVisible:  boolean
-  snapEnabled:    boolean
-  overscanAmount: number  // 0–1
+  guidesVisible:     boolean
+  snapEnabled:       boolean
+  overscanAmount:    number  // 0–1
+  beamEditorVisible: boolean
+  beamPathsVisible:  boolean
+}
+
+// ── Beam Matrix cue scheduling ────────────────────────────────────────────────
+
+/** 4/4 is the only currently supported meter.
+ *  Centralized so musical-timing conversions have a single change point. */
+export const BEATS_PER_BAR = 4
+
+export type LaserDmxBeamCueTimingMode = 'musical' | 'absolute'
+export type LaserDmxBeamCueAction     = 'gate'    | 'trigger'
+
+/**
+ * A persistent cue that gates or triggers a beam or reaction group at a
+ * precise musical or absolute position within a track.
+ *
+ * Musical timing: 1-based bar/beat (bar 1 beat 1 = track start).
+ *   Internally converted by BEATS_PER_BAR.  Beat 1 = first beat in bar.
+ * Absolute timing: milliseconds from track start.
+ *
+ * Gate cue:
+ *   target active while playhead is inside [start, end).
+ *   Seeking into the range activates immediately; seeking out deactivates.
+ *   No end = open-ended (active until track end or preset change).
+ *   With ≥1 enabled gate cue: cueGate = 0 outside all active ranges.
+ *   With no enabled gate cues: cueGate = 1 (backward-compatible default).
+ *
+ * Trigger cue:
+ *   One-shot when playhead crosses start in forward playback.
+ *   Does NOT fire on seek-forward.  Rearms when playhead moves back before start.
+ *   Contributes a 0.5 s decay envelope to cueGate; OR'd with gate cues.
+ *
+ * Evaluation order (per compiled beam):
+ *   beam.enabled → group active → group routes → beam routes →
+ *   safety → strobe → flicker → cueGate × sequenceGate → finalIntensity.
+ *   Blackout precedes beam iteration and always wins.
+ */
+export interface LaserDmxBeamMatrixCue {
+  id:         string
+  name:       string
+  enabled:    boolean
+
+  targetType: 'beam' | 'group'
+  targetId:   string
+
+  timingMode: LaserDmxBeamCueTimingMode
+  action:     LaserDmxBeamCueAction
+
+  // Musical timing — 1-based (bar 1 = first bar, beat 1 = first beat in bar)
+  startBar?:  number
+  startBeat?: number  // defaults to 1
+  endBar?:    number  // gate only; undefined = open-ended
+  endBeat?:   number  // defaults to 1
+
+  // Absolute timing — milliseconds from track start
+  startMs?:   number
+  endMs?:     number  // gate only; undefined = open-ended
 }
 
 export interface LaserDmxBeamMatrixSettings {
@@ -585,6 +675,9 @@ export interface LaserDmxBeamMatrixSettings {
   output: LaserDmxBeamMatrixOutputSettings
   fog:    LaserDmxFogSettings
   editor: LaserDmxBeamMatrixEditorSettings
+
+  /** Scheduled cues. Empty array = no cue restrictions (backward-compatible). */
+  cues?: LaserDmxBeamMatrixCue[]
 }
 
 // ── Beam Matrix preset types ──────────────────────────────────────────────────
@@ -670,10 +763,13 @@ export function createDefaultLaserDmxBeamMatrixSettings(): LaserDmxBeamMatrixSet
       quality:         'medium',
     },
     editor: {
-      guidesVisible:  true,
-      snapEnabled:    true,
-      overscanAmount: 0,
+      guidesVisible:     true,
+      snapEnabled:       true,
+      overscanAmount:    0,
+      beamEditorVisible: true,
+      beamPathsVisible:  true,
     },
+    cues: [],
   }
 }
 
