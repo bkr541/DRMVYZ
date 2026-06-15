@@ -1,14 +1,16 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
+import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useReactStore } from '../../../stores/reactStore'
-import { useTrackAnalysisStore } from '../../../features/musicIntelligence/trackAnalysisStorage'
 import type { ReactSectionType, ReactTrackSection } from './ReactTypes'
-import { generateMockTrackAnalysis } from '../../../features/trackIntelligence/mockTrackAnalysis'
-import { adaptTrackSections, adaptMIAnalysis } from '../../../features/trackIntelligence/trackMapAdapter'
-import { analyzeTrackBuffer } from '../../../features/musicIntelligence/offlineTrackAnalyzer'
-import type { AnalysisStatus } from '../../../features/musicIntelligence/types'
+import { adaptMIAnalysis } from '../../../features/trackIntelligence/trackMapAdapter'
+import type {
+  TrackIntelligenceAnalysis,
+  FeatureCurve,
+  TrackAnalysisStatus,
+} from '../../../features/musicIntelligence/types'
 
-// ── Section type display metadata ─────────────────────────────────────────────
+// ── Section display metadata ───────────────────────────────────────────────────
 
 const SECTION_COLORS: Record<ReactSectionType, string> = {
   intro:     '#61d6aa',
@@ -26,39 +28,150 @@ const SECTION_ORDER: ReactSectionType[] = [
   'intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'bridge', 'outro', 'unknown',
 ]
 
-// ── Status badge config ────────────────────────────────────────────────────────
-
-const STATUS_LABELS: Record<AnalysisStatus, string> = {
+const STATUS_LABELS: Record<TrackAnalysisStatus, string> = {
   not_analyzed: 'Not analyzed',
   queued:       'Queued',
+  decoding:     'Decoding…',
   analyzing:    'Analyzing…',
-  complete:     'Analysis complete',
-  failed:       'Analysis failed',
-  stale:        'Stale',
+  complete:     'Complete',
+  failed:       'Failed',
 }
 
-const STATUS_COLORS: Record<AnalysisStatus, string> = {
+const STATUS_COLORS: Record<TrackAnalysisStatus, string> = {
   not_analyzed: '#6a7a8a',
   queued:       '#d8b95a',
+  decoding:     '#4ac7db',
   analyzing:    '#4ac7db',
   complete:     '#61d6aa',
   failed:       '#c0314a',
-  stale:        '#f0a060',
 }
+
+// ── Energy curve options ──────────────────────────────────────────────────────
+
+export type EnergyCurveKey = 'shortTerm' | 'instant' | 'bass' | 'mid' | 'high'
+
+export const ENERGY_CURVE_OPTIONS: { key: EnergyCurveKey; label: string; color: string }[] = [
+  { key: 'shortTerm', label: 'Energy',  color: '#4ac7db' },
+  { key: 'instant',   label: 'Instant', color: '#61d6aa' },
+  { key: 'bass',      label: 'Bass',    color: '#c0314a' },
+  { key: 'mid',       label: 'Mid',     color: '#d8b95a' },
+  { key: 'high',      label: 'High',    color: '#b84fc9' },
+]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function formatTime(secs: number): string {
+export function formatTime(secs: number): string {
   const m = Math.floor(secs / 60)
   const s = Math.floor(secs % 60)
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
-function isAutoSection(s: ReactTrackSection): boolean {
-  return s.source === 'auto' || s.source === 'mock'
+export function isActivelyWorking(status: TrackAnalysisStatus): boolean {
+  return status === 'queued' || status === 'decoding' || status === 'analyzing'
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+export function buildKeyLabel(key: { tonic: string; mode: string; confidence?: number }): string {
+  const conf = key.confidence != null ? ` (${Math.round(key.confidence * 100)}%)` : ''
+  return `${key.tonic} ${key.mode}${conf}`
+}
+
+// ── Canvas drawing ─────────────────────────────────────────────────────────────
+
+function setupCanvas(canvas: HTMLCanvasElement): CanvasRenderingContext2D | null {
+  const dpr = window.devicePixelRatio || 1
+  const w   = canvas.offsetWidth
+  const h   = canvas.offsetHeight
+  if (w === 0 || h === 0) return null
+  canvas.width  = Math.round(w * dpr)
+  canvas.height = Math.round(h * dpr)
+  const ctx = canvas.getContext('2d')
+  if (ctx) ctx.scale(dpr, dpr)
+  return ctx
+}
+
+export function drawBeatCanvas(
+  canvas: HTMLCanvasElement,
+  analysis: TrackIntelligenceAnalysis,
+): void {
+  const ctx = setupCanvas(canvas)
+  if (!ctx) return
+  const w = canvas.offsetWidth
+  const h = canvas.offsetHeight
+  const durationSec = analysis.durationMs / 1000
+  if (durationSec <= 0) return
+  ctx.clearRect(0, 0, w, h)
+
+  // Beat ticks — lower half, thin
+  ctx.beginPath()
+  for (const beat of analysis.beatGrid) {
+    if (beat.isDownbeat) continue
+    const x = Math.round((beat.timeSec / durationSec) * w)
+    ctx.moveTo(x, h * 0.5)
+    ctx.lineTo(x, h)
+  }
+  ctx.strokeStyle = 'rgba(74,199,219,0.35)'
+  ctx.lineWidth = 1
+  ctx.stroke()
+
+  // Downbeats — full height, brighter
+  ctx.beginPath()
+  for (const beat of analysis.downbeats) {
+    const x = Math.round((beat.timeSec / durationSec) * w)
+    ctx.moveTo(x, 0)
+    ctx.lineTo(x, h)
+  }
+  ctx.strokeStyle = 'rgba(97,214,170,0.65)'
+  ctx.lineWidth = 1
+  ctx.stroke()
+
+  // Section boundaries — gold accent
+  ctx.beginPath()
+  for (const sec of analysis.sections) {
+    const x = Math.round((sec.startSec / durationSec) * w)
+    ctx.moveTo(x, 0)
+    ctx.lineTo(x, h)
+  }
+  ctx.strokeStyle = 'rgba(216,185,90,0.55)'
+  ctx.lineWidth = 2
+  ctx.stroke()
+}
+
+export function drawEnergyCanvas(
+  canvas: HTMLCanvasElement,
+  curve: FeatureCurve,
+  durationSec: number,
+  color: string,
+): void {
+  const ctx = setupCanvas(canvas)
+  if (!ctx || curve.length < 2 || durationSec <= 0) return
+  const w = canvas.offsetWidth
+  const h = canvas.offsetHeight
+  ctx.clearRect(0, 0, w, h)
+
+  ctx.beginPath()
+  ctx.moveTo(0, h)
+  for (const pt of curve) {
+    ctx.lineTo((pt.timeSec / durationSec) * w, h - pt.value * (h - 1))
+  }
+  ctx.lineTo(w, h)
+  ctx.closePath()
+  ctx.fillStyle = color + '28'
+  ctx.fill()
+
+  ctx.beginPath()
+  let first = true
+  for (const pt of curve) {
+    const x = (pt.timeSec / durationSec) * w
+    const y = h - pt.value * (h - 1)
+    if (first) { ctx.moveTo(x, y); first = false }
+    else        ctx.lineTo(x, y)
+  }
+  ctx.strokeStyle = color
+  ctx.lineWidth = 1.5
+  ctx.stroke()
+}
+
+// ── AddSectionForm ────────────────────────────────────────────────────────────
 
 interface AddSectionFormProps {
   onAdd:    (section: ReactTrackSection) => void
@@ -80,7 +193,7 @@ function AddSectionForm({ onAdd, onCancel }: AddSectionFormProps) {
       startSec,
       endSec,
       intensity,
-      source:    'manual',
+      source:    'user-created',
     })
   }
 
@@ -156,21 +269,24 @@ function AddSectionForm({ onAdd, onCancel }: AddSectionFormProps) {
   )
 }
 
+// ── SectionChip ───────────────────────────────────────────────────────────────
+
 interface SectionChipProps {
   section:    ReactTrackSection
   isSelected: boolean
   onSelect:   (id: string) => void
-  onRemove:   (id: string) => void
+  onRemove?:  (id: string) => void
 }
 
 function SectionChip({ section, isSelected, onSelect, onRemove }: SectionChipProps) {
   const color      = SECTION_COLORS[section.type] ?? '#6a7a8a'
-  const isManual   = section.source === 'manual' || section.source == null
+  const src        = section.source
+  const isUserSect = src === 'manual' || src === 'user-created' || src === 'user-edited-auto' || src == null
   const confidence = section.confidence
 
   return (
     <div
-      className={`rv-section-chip${isSelected ? ' rv-section-chip--selected' : ''}${isManual ? ' rv-section-chip--manual' : ''}`}
+      className={`rv-section-chip${isSelected ? ' rv-section-chip--selected' : ''}${isUserSect ? ' rv-section-chip--manual' : ''}`}
       style={{ '--section-color': color } as React.CSSProperties}
       onClick={() => onSelect(section.id)}
       role="button"
@@ -193,108 +309,114 @@ function SectionChip({ section, isSelected, onSelect, onRemove }: SectionChipPro
             {Math.round(confidence * 100)}%
           </span>
         )}
-        {isManual && (
+        {src === 'user-edited-auto' && (
+          <span className="rv-chip-source-badge rv-chip-source-badge--edited">edited</span>
+        )}
+        {(src === 'manual' || src === 'user-created') && (
           <span className="rv-chip-source-badge rv-chip-source-badge--manual">manual</span>
         )}
       </div>
-      <button
-        className="rv-chip-remove"
-        onClick={e => { e.stopPropagation(); onRemove(section.id) }}
-        title="Remove section"
-      >×</button>
+      {onRemove && (
+        <button
+          className="rv-chip-remove"
+          onClick={e => { e.stopPropagation(); onRemove(section.id) }}
+          title="Remove section"
+        >×</button>
+      )}
     </div>
   )
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+// ── ReactTrackMapStrip ────────────────────────────────────────────────────────
 
 interface ReactTrackMapStripProps {
+  /** Fallback duration when no analysis is available yet. */
   audioDurationSec?: number
-  audioBuffer?:      AudioBuffer   // required for offline analysis
-  trackId?:          string        // key for analysis storage
 }
 
-export function ReactTrackMapStrip({
-  audioDurationSec = 180,
-  audioBuffer,
-  trackId,
-}: ReactTrackMapStripProps) {
+export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStripProps) {
+  const engine = useSharedAudio()
+  const {
+    currentTrack,
+    currentAnalysis,
+    currentAnalysisStatus,
+    currentAnalysisError,
+    currentKey,
+    retryAnalysis,
+  } = engine
+
   const {
     manualTrackSections,
     selectedSectionId,
     setSelectedSectionId,
     addManualSection,
     removeManualSection,
-    updateManualSection,
   } = useReactStore(useShallow(s => ({
     manualTrackSections:  s.manualTrackSections,
     selectedSectionId:    s.selectedSectionId,
     setSelectedSectionId: s.setSelectedSectionId,
     addManualSection:     s.addManualSection,
     removeManualSection:  s.removeManualSection,
-    updateManualSection:  s.updateManualSection,
   })))
 
-  const { getAnalysisStatus, setAnalysisStatus, saveTrackAnalysis } = useTrackAnalysisStore(
-    useShallow(s => ({
-      getAnalysisStatus: s.getAnalysisStatus,
-      setAnalysisStatus: s.setAnalysisStatus,
-      saveTrackAnalysis: s.saveTrackAnalysis,
-    })),
-  )
+  const [collapsed,      setCollapsed]      = useState(false)
+  const [isAdding,       setIsAdding]       = useState(false)
+  const [energyCurveKey, setEnergyCurveKey] = useState<EnergyCurveKey>('shortTerm')
+  const [drawTick,       setDrawTick]       = useState(0)
 
-  const [isAdding,    setIsAdding]    = useState(false)
-  const [analysisErr, setAnalysisErr] = useState<string | null>(null)
-  const [collapsed,   setCollapsed]   = useState(false)
+  const beatCanvasRef   = useRef<HTMLCanvasElement>(null)
+  const energyCanvasRef = useRef<HTMLCanvasElement>(null)
 
-  const storageKey    = trackId ?? '__default__'
-  const analysisStatus = getAnalysisStatus(storageKey)
+  // Derived
+  const hasTrack   = currentTrack != null
+  const isWorking  = isActivelyWorking(currentAnalysisStatus)
+  const isComplete = currentAnalysisStatus === 'complete' && currentAnalysis != null
+  const durationSec = currentAnalysis ? currentAnalysis.durationMs / 1000 : audioDurationSec
 
-  // ── Generate mock ──────────────────────────────────────────────────────────
-  const handleGenerateMock = useCallback(() => {
-    const analysis = generateMockTrackAnalysis(audioDurationSec * 1000)
-    const sections = adaptTrackSections(analysis)
-    // Replace any existing non-manual sections
-    const kept = manualTrackSections.filter(s => !isAutoSection(s))
-    kept.forEach(s => removeManualSection(s.id))
-    sections.forEach(addManualSection)
-  }, [audioDurationSec, manualTrackSections, addManualSection, removeManualSection])
+  const autoSections: ReactTrackSection[] = isComplete
+    ? adaptMIAnalysis(currentAnalysis!)
+    : []
 
-  // ── Real analysis ─────────────────────────────────────────────────────────
-  const handleAnalyze = useCallback(async () => {
-    if (!audioBuffer) return
-    setAnalysisErr(null)
-    setAnalysisStatus(storageKey, 'analyzing')
-    try {
-      const analysis = await analyzeTrackBuffer(audioBuffer)
-      saveTrackAnalysis(storageKey, analysis)
-      const newSections = adaptMIAnalysis(analysis)
-      // Preserve manual sections, replace everything else
-      const kept = manualTrackSections.filter(s => !isAutoSection(s))
-      manualTrackSections.filter(isAutoSection).forEach(s => removeManualSection(s.id))
-      // Force-update kept sections (ids stay the same, store deduplicates)
-      kept.forEach(s => updateManualSection(s.id, s))
-      newSections.forEach(addManualSection)
-      if (analysis.warnings.length > 0) {
-        setAnalysisErr(`Warnings: ${analysis.warnings.join('; ')}`)
-      }
-    } catch (err) {
-      setAnalysisStatus(storageKey, 'failed')
-      setAnalysisErr(err instanceof Error ? err.message : 'Analysis failed')
+  const keyLabel = currentKey ? buildKeyLabel(currentKey) : null
+
+  // Redraw canvases on window resize
+  useEffect(() => {
+    const handler = () => setDrawTick(t => t + 1)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+
+  // Beat canvas — redraws when analysis or status changes
+  useEffect(() => {
+    const canvas = beatCanvasRef.current
+    if (!canvas) return
+    if (!isComplete || !currentAnalysis) {
+      canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height)
+      return
     }
-  }, [
-    audioBuffer, storageKey, manualTrackSections,
-    setAnalysisStatus, saveTrackAnalysis, addManualSection,
-    removeManualSection, updateManualSection,
-  ])
+    drawBeatCanvas(canvas, currentAnalysis)
+  }, [isComplete, currentAnalysis, drawTick])
+
+  // Energy canvas — redraws when analysis, curve selection, or status changes
+  useEffect(() => {
+    const canvas = energyCanvasRef.current
+    if (!canvas) return
+    if (!isComplete || !currentAnalysis) {
+      canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height)
+      return
+    }
+    const opt = ENERGY_CURVE_OPTIONS.find(o => o.key === energyCurveKey)!
+    drawEnergyCanvas(canvas, currentAnalysis.energyCurves[energyCurveKey], durationSec, opt.color)
+  }, [isComplete, currentAnalysis, energyCurveKey, durationSec, drawTick])
+
+  const handleRetry = useCallback(() => {
+    if (currentTrack) retryAnalysis(currentTrack.id)
+  }, [currentTrack, retryAnalysis])
 
   const handleAdd = (section: ReactTrackSection) => {
     addManualSection(section)
     setIsAdding(false)
   }
-
-  const canAnalyze = !!audioBuffer && analysisStatus !== 'analyzing'
-  const isAnalyzing = analysisStatus === 'analyzing'
 
   return (
     <div className="rv-track-map-strip">
@@ -304,106 +426,147 @@ export function ReactTrackMapStrip({
         tabIndex={0}
         aria-expanded={!collapsed}
         onClick={() => setCollapsed(v => !v)}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCollapsed(v => !v) } }}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCollapsed(v => !v) }
+        }}
       >
         <span className="rv-strip-title">Track Map</span>
+        {hasTrack && currentAnalysisStatus !== 'not_analyzed' && (
+          <span
+            className="rv-strip-status-dot"
+            style={{ color: STATUS_COLORS[currentAnalysisStatus] }}
+            title={STATUS_LABELS[currentAnalysisStatus]}
+          >
+            {isWorking ? '◌' : currentAnalysisStatus === 'failed' ? '✕' : '●'}
+          </span>
+        )}
         <span className="rv-collapse-arrow">{collapsed ? '▶' : '▼'}</span>
       </div>
 
       {!collapsed && (
         <>
-          <div className="rv-strip-subheader">
-            {/* Status badge (shown when a trackId is set or analysis has run) */}
-            {analysisStatus !== 'not_analyzed' && (
-              <span
-                className="rv-analysis-status-badge"
-                style={{ color: STATUS_COLORS[analysisStatus] }}
-                title={STATUS_LABELS[analysisStatus]}
-              >
-                {analysisStatus === 'analyzing' ? '◌ Analyzing…' : STATUS_LABELS[analysisStatus]}
-              </span>
-            )}
-
-            <div className="rv-strip-type-legend">
-              {SECTION_ORDER.filter(t => t !== 'unknown').map(t => (
-                <span key={t} className="rv-legend-item" style={{ color: SECTION_COLORS[t] }}>
-                  {t}
-                </span>
-              ))}
+          {/* Metadata: BPM, key, legend */}
+          {isComplete && currentAnalysis && (
+            <div className="rv-strip-meta-row">
+              <span className="rv-meta-bpm">{currentAnalysis.bpm.toFixed(1)} BPM</span>
+              {keyLabel && <span className="rv-meta-key">{keyLabel}</span>}
+              <div className="rv-strip-type-legend">
+                {SECTION_ORDER.filter(t => t !== 'unknown').map(t => (
+                  <span key={t} className="rv-legend-item" style={{ color: SECTION_COLORS[t] }}>
+                    {t}
+                  </span>
+                ))}
+              </div>
             </div>
+          )}
 
-            <div className="rv-strip-actions">
-              {/* Analyze Track button — real audio analysis */}
-              {canAnalyze && (
+          {/* Beat grid canvas */}
+          {isComplete && (
+            <div className="rv-beat-canvas-wrap">
+              <canvas ref={beatCanvasRef} className="rv-beat-canvas" aria-hidden="true" />
+            </div>
+          )}
+
+          {/* Energy curve + selector */}
+          {isComplete && (
+            <div className="rv-energy-row">
+              <canvas ref={energyCanvasRef} className="rv-energy-canvas" aria-hidden="true" />
+              <select
+                className="rv-energy-select"
+                value={energyCurveKey}
+                onChange={e => setEnergyCurveKey(e.target.value as EnergyCurveKey)}
+                title="Energy curve"
+              >
+                {ENERGY_CURVE_OPTIONS.map(o => (
+                  <option key={o.key} value={o.key}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* States: no track, analyzing, failed */}
+          {!hasTrack && (
+            <div className="rv-strip-empty">No track loaded.</div>
+          )}
+          {hasTrack && isWorking && (
+            <div className="rv-strip-analyzing">
+              <span className="rv-analyzing-spinner">◌</span>
+              <span>{STATUS_LABELS[currentAnalysisStatus]}</span>
+            </div>
+          )}
+          {hasTrack && currentAnalysisStatus === 'failed' && (
+            <div className="rv-strip-failed">
+              <span className="rv-failed-icon">✕</span>
+              <span className="rv-failed-message">
+                {currentAnalysisError ?? 'Analysis failed'}
+              </span>
+              <button className="rv-retry-btn" onClick={handleRetry} title="Retry analysis">
+                ↺ Retry
+              </button>
+            </div>
+          )}
+
+          {/* Auto sections — read-only, sourced from coordinator analysis */}
+          {autoSections.length > 0 && (
+            <div className="rv-section-group">
+              <div className="rv-section-group-header">
+                <span className="rv-section-group-label">Analyzed</span>
                 <button
-                  className="rv-analyze-btn"
-                  onClick={handleAnalyze}
-                  title="Analyze audio and generate sections from real features"
+                  className="rv-reanalyze-btn"
+                  onClick={handleRetry}
+                  title="Re-run analysis on this track"
                 >
-                  Analyze Track
+                  ↺ Reanalyze
                 </button>
-              )}
-              {isAnalyzing && (
-                <span className="rv-analyzing-indicator">Analyzing…</span>
-              )}
+              </div>
+              <div className="rv-section-list">
+                {autoSections.map(section => (
+                  <SectionChip
+                    key={section.id}
+                    section={section}
+                    isSelected={selectedSectionId === section.id}
+                    onSelect={setSelectedSectionId}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
-              {/* Generate mock — always available as fallback */}
-              {manualTrackSections.filter(s => !isAutoSection(s)).length === 0 && !isAnalyzing && (
-                <button
-                  className="rv-generate-btn"
-                  onClick={handleGenerateMock}
-                  title={`Generate mock sections for ${Math.round(audioDurationSec / 60)}:${String(Math.round(audioDurationSec % 60)).padStart(2, '0')} track`}
-                >
-                  ⚡ Generate
-                </button>
-              )}
-
+          {/* Manual sections — user-authored */}
+          <div className="rv-section-group">
+            <div className="rv-section-group-header">
+              <span className="rv-section-group-label">My Sections</span>
               <button
                 className="rv-add-section-btn"
                 onClick={() => setIsAdding(v => !v)}
-                title="Add section"
+                title="Add a manual section"
               >
                 {isAdding ? '✕ Cancel' : '+ Add'}
               </button>
             </div>
+
+            {isAdding && (
+              <AddSectionForm onAdd={handleAdd} onCancel={() => setIsAdding(false)} />
+            )}
+
+            {manualTrackSections.length === 0 && !isAdding ? (
+              <div className="rv-section-group-empty">
+                No user sections — hit <strong>+ Add</strong> to create one.
+              </div>
+            ) : (
+              <div className="rv-section-list">
+                {manualTrackSections.map(section => (
+                  <SectionChip
+                    key={section.id}
+                    section={section}
+                    isSelected={selectedSectionId === section.id}
+                    onSelect={setSelectedSectionId}
+                    onRemove={removeManualSection}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-
-          {/* Analysis error / warning */}
-          {analysisErr && (
-            <div
-              className="rv-analysis-warning"
-              style={{ color: analysisStatus === 'failed' ? STATUS_COLORS.failed : STATUS_COLORS.stale }}
-            >
-              {analysisErr}
-            </div>
-          )}
-
-          {isAdding && (
-            <AddSectionForm
-              onAdd={handleAdd}
-              onCancel={() => setIsAdding(false)}
-            />
-          )}
-
-          {manualTrackSections.length === 0 && !isAdding ? (
-            <div className="rv-strip-empty">
-              No sections defined —
-              {audioBuffer ? ' hit <strong>Analyze Track</strong> for real analysis, or' : ''}
-              {' '}hit <strong>⚡ Generate</strong> for an auto track map, or <strong>+ Add</strong> to add manually.
-            </div>
-          ) : (
-            <div className="rv-section-list">
-              {manualTrackSections.map(section => (
-                <SectionChip
-                  key={section.id}
-                  section={section}
-                  isSelected={selectedSectionId === section.id}
-                  onSelect={setSelectedSectionId}
-                  onRemove={removeManualSection}
-                />
-              ))}
-            </div>
-          )}
         </>
       )}
     </div>

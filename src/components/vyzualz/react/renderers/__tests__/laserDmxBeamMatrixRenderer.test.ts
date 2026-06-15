@@ -36,6 +36,7 @@ import {
   LASER_DMX_MATRIX_COLUMNS,
   LASER_DMX_MATRIX_ROWS,
   LASER_DMX_MATRIX_MAX_BEAMS,
+  DEFAULT_BEAM_MOTION,
 } from '../../ReactTypes'
 
 import { useReactStore } from '../../../../../stores/reactStore'
@@ -912,6 +913,7 @@ describe('capacity', () => {
     const settings = createDefaultLaserDmxBeamMatrixSettings()
     const beams = Array.from({ length: LASER_DMX_MATRIX_MAX_BEAMS }, (_, i) => ({
       id: `b-${i}`, name: `B${i}`, enabled: true,
+      sequenceIndex: i, motion: DEFAULT_BEAM_MOTION,
       origin: { column: (i % 15) + 1, row: Math.floor(i / 15) % 10 + 1, z: 0 },
       target: { kind: 'grid' as const, column: (14 - i % 15) + 1, row: Math.floor(i / 15) % 10 + 1, z: 0 },
       groupId: null, useGroupColor: false,
@@ -934,6 +936,7 @@ describe('capacity', () => {
     const groups = settings.groups
     const beams = Array.from({ length: LASER_DMX_MATRIX_MAX_BEAMS }, (_, i) => ({
       id: `bg-${i}`, name: `G${i}`, enabled: true,
+      sequenceIndex: i, motion: DEFAULT_BEAM_MOTION,
       origin: { column: (i % 15) + 1, row: Math.floor(i / 15) % 10 + 1, z: 0 },
       target: { kind: 'grid' as const, column: (14 - i % 15) + 1, row: Math.floor(i / 15) % 10 + 1, z: 0 },
       groupId: groups[i % 4].id,
@@ -954,6 +957,7 @@ describe('capacity', () => {
     const bassGroup = settings.groups.find(g => g.id === 'grp-bass')!
     const beams = Array.from({ length: LASER_DMX_MATRIX_MAX_BEAMS }, (_, i) => ({
       id: `bgr-${i}`, name: `R${i}`, enabled: true,
+      sequenceIndex: i, motion: DEFAULT_BEAM_MOTION,
       origin: { column: (i % 15) + 1, row: Math.floor(i / 15) % 10 + 1, z: 0 },
       target: { kind: 'grid' as const, column: (14 - i % 15) + 1, row: Math.floor(i / 15) % 10 + 1, z: 0 },
       groupId: bassGroup.id,
@@ -977,6 +981,7 @@ describe('capacity', () => {
     settings.beams = [
       {
         id: 'os1', name: 'Offscreen L', enabled: true,
+        sequenceIndex: 0, motion: DEFAULT_BEAM_MOTION,
         origin: { column: 1, row: 5, z: 0 },
         target: { kind: 'stage', x: -0.5, y: 0.5, z: 0 },
         groupId: null, useGroupColor: false,
@@ -986,6 +991,7 @@ describe('capacity', () => {
       },
       {
         id: 'os2', name: 'Offscreen R', enabled: true,
+        sequenceIndex: 1, motion: DEFAULT_BEAM_MOTION,
         origin: { column: 15, row: 5, z: 0 },
         target: { kind: 'stage', x: 1.5, y: 1.5, z: 0 },
         groupId: null, useGroupColor: false,
@@ -1009,6 +1015,7 @@ describe('capacity', () => {
     settings.beams = [
       {
         id: 'lne1', name: 'Line', enabled: true,
+        sequenceIndex: 0, motion: DEFAULT_BEAM_MOTION,
         origin: { column: 3, row: 5, z: 0 },
         target: { kind: 'grid', column: 12, row: 2, z: 0 },
         groupId: null, useGroupColor: false,
@@ -1018,6 +1025,7 @@ describe('capacity', () => {
       },
       {
         id: 'vcn1', name: 'Cone', enabled: true,
+        sequenceIndex: 1, motion: DEFAULT_BEAM_MOTION,
         origin: { column: 7, row: 9, z: 0.3 },
         target: { kind: 'grid', column: 7, row: 2, z: -0.3 },
         groupId: null, useGroupColor: false,
@@ -1047,6 +1055,7 @@ describe('blackout', () => {
     settings.beams = [
       {
         id: 'b1', name: 'Test', enabled: true,
+        sequenceIndex: 0, motion: DEFAULT_BEAM_MOTION,
         origin: { column: 1, row: 1, z: 0 },
         target: { kind: 'grid' as const, column: 15, row: 10, z: 0 },
         groupId: null, useGroupColor: false,

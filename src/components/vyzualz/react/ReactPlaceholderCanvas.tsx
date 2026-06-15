@@ -25,6 +25,13 @@ interface Props {
   isPlaying:                    boolean
   manualSections?:              ReactTrackSection[]
   getAudioTime?:                () => number
+  /**
+   * Canonical effective BPM from the audio engine.  When provided and > 0 this
+   * becomes the authoritative BPM for the ReactFrameContext.  When null or 0
+   * (no track / still analyzing), BPM-driven timing freezes rather than
+   * falling back to a hardcoded 120 that misrepresents the track.
+   */
+  effectiveBpm?:                number | null
   /** Called once when the canvas element is ready for capture, and with null on unmount. */
   onCanvasReady?:               (canvas: HTMLCanvasElement | null) => void
   /** Called approximately once per second with the current render frame rate. */
@@ -48,6 +55,7 @@ export function ReactPlaceholderCanvas({
   isPlaying,
   manualSections             = [],
   getAudioTime,
+  effectiveBpm               = null,
   onCanvasReady,
   onLiveFps,
 }: Props) {
@@ -75,6 +83,7 @@ export function ReactPlaceholderCanvas({
   const sectionsRef           = useRef<ReactTrackSection[]>(manualSections)
   const audioTimeRef          = useRef(0)
   const getAudioTimeRef        = useRef(getAudioTime)
+  const effectiveBpmRef        = useRef<number | null>(effectiveBpm)
   const onCanvasReadyRef       = useRef(onCanvasReady)
   const onLiveFpsRef           = useRef(onLiveFps)
 
@@ -94,6 +103,7 @@ export function ReactPlaceholderCanvas({
   presetRef.current             = activePreset
   sectionsRef.current           = manualSections
   getAudioTimeRef.current        = getAudioTime
+  effectiveBpmRef.current        = effectiveBpm
   onCanvasReadyRef.current       = onCanvasReady
   onLiveFpsRef.current           = onLiveFps
 
@@ -137,10 +147,13 @@ export function ReactPlaceholderCanvas({
     let fpsFrameCount = 0
     let fpsLastMs = performance.now()
 
-    // Fallback beat detection — only used when the MI bus hasn't been populated yet
+    // Simple transient-based beat detection used when MI bus has no valid BPM yet.
+    // beatPeriodMs is a LOCAL rendering fallback only — it drives visual beat phase
+    // advancement in the fallback path and must never be shown as track metadata.
     let prevBass = 0
     let beatPhase = 0
-    const beatPeriodMs = 60000 / 120
+    const FALLBACK_BPM_LOCAL = 120           // internal visual fallback only
+    const beatPeriodMs = 60000 / FALLBACK_BPM_LOCAL
 
     function frame(now: number) {
       if (!canvas || !ctx) return
@@ -189,23 +202,36 @@ export function ReactPlaceholderCanvas({
         })
       }
 
-      // Use Music Intelligence bus when available; fall back to simple transient detection
+      // Use Music Intelligence bus when available; fall back to simple transient detection.
+      // MI BPM is considered valid when the engine has published at least one frame AND
+      // its BPM is non-zero (zero means setTrackAnalysis(null) cleared the engine).
       const miFrame  = AudioFeatureBus.getFrame()
-      const hasMI    = miFrame.frameId > 0
+      const hasMI    = miFrame.frameId > 0 && miFrame.rhythm.bpm > 0
 
       let beatHit: boolean
       let activeBeatPhase: number
+      // activeBpm: 0 means "no canonical BPM available yet" — renderers must not treat
+      // this as 120 BPM.  It is local to this frame context and not track metadata.
       let activeBpm: number
 
       if (hasMI) {
         beatHit          = miFrame.rhythm.beatHit
         activeBeatPhase  = miFrame.rhythm.beatPhase
-        activeBpm        = miFrame.rhythm.bpm
+        // Prefer the engine-canonical effective BPM when available (overrides sync).
+        // Fall back to the MI frame value which is authoritative from the beat grid.
+        activeBpm        = effectiveBpmRef.current ?? miFrame.rhythm.bpm
       } else {
         beatHit          = bass > 0.55 && bass > prevBass + 0.08
         prevBass         = bass * 0.8
-        activeBeatPhase  = beatPhase = (beatPhase + 16 / beatPeriodMs) % 1
-        activeBpm        = 120
+        // Advance beat phase using effectiveBpm when known, local fallback otherwise.
+        // The local fallback rate keeps the visual beat phase animating smoothly but
+        // is never surfaced as a track BPM value.
+        const phaseBpm   = (effectiveBpmRef.current ?? 0) > 0
+          ? effectiveBpmRef.current!
+          : FALLBACK_BPM_LOCAL
+        activeBeatPhase  = beatPhase = (beatPhase + 16 / (60000 / phaseBpm)) % 1
+        // Pass effectiveBpm when available, otherwise 0 to signal "unknown BPM".
+        activeBpm        = (effectiveBpmRef.current ?? 0) > 0 ? effectiveBpmRef.current! : 0
       }
 
       const realTime = getAudioTimeRef.current?.()

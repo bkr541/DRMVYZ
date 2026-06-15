@@ -1,14 +1,26 @@
 import { useRef, useState, useCallback, useEffect, type MutableRefObject } from 'react'
-import { Track, AudioSource, FftSize } from '../types'
+import {
+  Track, AudioSource, FftSize,
+  TrackAnalysisRuntime, DEFAULT_TRACK_ANALYSIS_RUNTIME,
+  BpmSource,
+} from '../types'
+import type { TrackAnalysisStatus } from '../features/musicIntelligence/types'
+import type { TrackIntelligenceAnalysis } from '../features/musicIntelligence/types'
 import { generateId, getFilenameWithoutExtension } from '../utils/audioUtils'
 import { buildMonitoringChain, type MonitoringChain } from '../audio/routing'
 import type { MonitoringMode, ReferenceTrack, SpectralFeatures } from '../types/audio'
-import { analyze as analyzeBPM } from 'web-audio-beat-detector'
 import Meyda from 'meyda'
 import {
   musicIntelligenceEngine,
   type MusicIntelligenceEngine,
 } from '../features/musicIntelligence/MusicIntelligenceEngine'
+import {
+  TrackAnalysisCoordinator,
+  computeAnalysisKey,
+  CURRENT_ANALYSIS_VERSION,
+} from '../features/trackIntelligence/TrackAnalysisCoordinator'
+import { analyzeTrackBuffer } from '../features/musicIntelligence/offlineTrackAnalyzer'
+import { useTrackAnalysisStore } from '../features/musicIntelligence/trackAnalysisStorage'
 
 // 60-second ring buffer
 class RingBuffer {
@@ -127,12 +139,38 @@ export interface AudioEngine {
   meydaActive: boolean
   startSpectralAnalysis: () => void
   stopSpectralAnalysis: () => void
-  bpmDetecting: boolean
-  detectBPM: () => Promise<void>
-
   // Centralized music intelligence — shared singleton that LiveVisualCanvas
   // feeds each frame via updateFromAudioFrame().
   musicIntelligenceEngine: MusicIntelligenceEngine
+
+  // Return cached decoded AudioBuffer for a track if available in memory (coordinator buffer cache).
+  getDecodedBuffer: (trackId: string) => AudioBuffer | undefined
+
+  // ── Canonical active-track intelligence ───────────────────────────────────
+  // The audio engine is the source of truth for track analysis state.
+  // React consumers should read these rather than reaching into separate stores.
+
+  currentTrackId:         string | null
+  currentTrack:           Track | null
+  currentAnalysis:        TrackIntelligenceAnalysis | null
+  currentAnalysisStatus:  TrackAnalysisStatus
+  currentAnalysisError:   string | null
+
+  // BPM provenance — effective BPM respects overrides, original analyzed BPM is always available
+  currentAnalyzedBpm:    number | null
+  currentEffectiveBpm:   number | null
+  currentBpmConfidence:  number | null
+  // null when no source or BPM is unavailable; microphone BPM comes from AudioFeatureBus
+  currentBpmSource:      BpmSource | null
+
+  currentKey: { tonic: string; mode: string; confidence?: number } | null
+
+  // Update a track's analysis runtime in-place (called by UI after offline analysis)
+  updateTrackRuntime: (trackId: string, patch: Partial<TrackAnalysisRuntime>) => void
+  // Set or clear a per-track manual BPM override
+  setBpmOverride: (trackId: string, bpm: number | null) => void
+  // Re-queue a failed or unanalyzed track for analysis
+  retryAnalysis: (trackId: string) => void
 }
 
 export function useAudioEngine(): AudioEngine {
@@ -154,7 +192,6 @@ export function useAudioEngine(): AudioEngine {
   const [autoLoudnessMatch, setAutoLoudnessMatch] = useState(true)
   const [spectralFeatures, setSpectralFeatures] = useState<SpectralFeatures | null>(null)
   const [meydaActive, setMeydaActive] = useState(false)
-  const [bpmDetecting, setBpmDetecting] = useState(false)
   const [demoSilent, setDemoSilentState] = useState(true)
 
   // Core graph refs
@@ -206,6 +243,20 @@ export function useAudioEngine(): AudioEngine {
   // Shadow ref so getCurrentTime can fall back without capturing state in its closure
   const currentTimeRef = useRef(0)
   useEffect(() => { currentTimeRef.current = currentTime }, [currentTime])
+
+  // ── Track analysis coordinator refs ──────────────────────────────────────────
+  // Stable mutable callbacks so the coordinator never holds stale React closure refs.
+  const coordinatorRef = useRef<TrackAnalysisCoordinator | null>(null)
+  const tracksRef      = useRef<Track[]>(tracks)
+  const currentIndexRef = useRef<number>(currentIndex)
+  const ensureContextRef = useRef<() => AudioContext>(() => { throw new Error('not ready') })
+  // Dispatch table: properties reassigned each render so coordinator callbacks always call current logic.
+  const dispatchRef = useRef({
+    runtime:  (_id: string, _patch: Partial<TrackAnalysisRuntime>) => {},
+    duration: (_id: string, _dur: number) => {},
+    engine:   (_analysis: TrackIntelligenceAnalysis, _trackId: string) => {},
+    isActive: (_trackId: string): boolean => false,
+  })
 
   // ── Init main audio element ─────────────────────────────────────────────────
   useEffect(() => {
@@ -586,23 +637,48 @@ export function useAudioEngine(): AudioEngine {
     if (audioRef.current) audioRef.current.volume = volume
   }, [volume])
 
-  // ── BPM detection ────────────────────────────────────────────────────────────
-  const detectBPM = useCallback(async () => {
-    if (currentIndex < 0 || currentIndex >= tracks.length) return
-    setBpmDetecting(true)
-    try {
-      const ctx = ensureContext()
-      const response = await fetch(tracks[currentIndex].url)
-      const arrayBuffer = await response.arrayBuffer()
-      const audioBuffer = await ctx.decodeAudioData(arrayBuffer)
-      const bpm = await analyzeBPM(audioBuffer)
-      musicIntelligenceEngine.setBpm(bpm, 0.9)
-      setSpectralFeatures(prev =>
-        prev ? { ...prev, bpm } : { centroid: 0, spread: 0, rolloff: 0, flatness: 0, bpm }
-      )
-    } catch { /**/ }
-    setBpmDetecting(false)
-  }, [currentIndex, tracks, ensureContext])
+  // ── Per-track analysis runtime update ────────────────────────────────────────
+  const updateTrackRuntime = useCallback((trackId: string, patch: Partial<TrackAnalysisRuntime>) => {
+    setTracks(prev => prev.map(t =>
+      t.id === trackId
+        ? { ...t, analysisRuntime: { ...t.analysisRuntime, ...patch } }
+        : t,
+    ))
+  }, [])
+
+  const setBpmOverride = useCallback((trackId: string, bpm: number | null) => {
+    updateTrackRuntime(trackId, {
+      bpmOverride:       bpm,
+      bpmOverrideSource: bpm !== null ? 'manual_override' : null,
+    })
+  }, [updateTrackRuntime])
+
+  const retryAnalysis = useCallback((trackId: string) => {
+    const track = tracksRef.current.find(t => t.id === trackId)
+    if (!track) return
+    updateTrackRuntime(trackId, { status: 'queued', error: null })
+    coordinatorRef.current?.enqueue(track, 'high')
+  }, [updateTrackRuntime])
+
+  // ── Track-change: apply/clear MI engine and prioritize coordinator ────────────
+  // Runs whenever the selected track changes.  Uses tracksRef so the effect body
+  // always reads the latest playlist without taking tracks as a dep (which would
+  // fire on every per-track analysis update, not just on track selection changes).
+  useEffect(() => {
+    const track = tracksRef.current[currentIndex]
+    if (!track) {
+      musicIntelligenceEngine.setTrackAnalysis(null)
+      return
+    }
+    coordinatorRef.current?.prioritize(track.id)
+    if (track.analysisRuntime.status === 'complete' && track.analysisRuntime.analysis) {
+      musicIntelligenceEngine.setSourceId(track.id, track.id)
+      musicIntelligenceEngine.setTrackAnalysis(track.analysisRuntime.analysis)
+    } else {
+      musicIntelligenceEngine.setTrackAnalysis(null)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex])
 
   const getRecordingStream = useCallback((): MediaStream | null => {
     const ctx = ensureContext()
@@ -698,59 +774,150 @@ export function useAudioEngine(): AudioEngine {
     }
   }, [])
 
+  // ── Update coordinator dispatch table each render ─────────────────────────────
+  // Must happen before any playlist callback that references these.
+  tracksRef.current       = tracks
+  currentIndexRef.current = currentIndex
+  ensureContextRef.current = ensureContext
+  dispatchRef.current.runtime  = (trackId, patch) => {
+    setTracks(prev => prev.map(t =>
+      t.id === trackId ? { ...t, analysisRuntime: { ...t.analysisRuntime, ...patch } } : t
+    ))
+  }
+  dispatchRef.current.duration = (trackId, dur) => {
+    setTracks(prev => prev.map(t => t.id === trackId ? { ...t, duration: dur } : t))
+  }
+  dispatchRef.current.engine   = (analysis, trackId) => {
+    musicIntelligenceEngine.setSourceId(trackId, trackId)
+    musicIntelligenceEngine.setTrackAnalysis(analysis)
+  }
+  dispatchRef.current.isActive = (trackId) =>
+    tracksRef.current[currentIndexRef.current]?.id === trackId
+
+  // ── Init coordinator once ────────────────────────────────────────────────────
+  if (!coordinatorRef.current) {
+    coordinatorRef.current = new TrackAnalysisCoordinator(
+      {
+        decodeBuffer: async ({ url, sourceFile }) => {
+          const ctx = ensureContextRef.current()
+          if (sourceFile) {
+            const ab = await sourceFile.arrayBuffer()
+            return ctx.decodeAudioData(ab)
+          }
+          const resp = await fetch(url)
+          const ab   = await resp.arrayBuffer()
+          return ctx.decodeAudioData(ab)
+        },
+        analyze: (buffer) => analyzeTrackBuffer(buffer),
+        getCachedAnalysis:  (key) => useTrackAnalysisStore.getState().getTrackAnalysis(key),
+        saveCachedAnalysis: (key, analysis) =>
+          useTrackAnalysisStore.getState().saveTrackAnalysis(key, analysis),
+      },
+      {
+        onRuntimeUpdate:  (trackId, patch)       => dispatchRef.current.runtime(trackId, patch),
+        onDurationUpdate: (trackId, dur)         => dispatchRef.current.duration(trackId, dur),
+        onApplyToEngine:  (analysis, trackId)    => dispatchRef.current.engine(analysis, trackId),
+        isActiveTrack:    (trackId)              => dispatchRef.current.isActive(trackId),
+      },
+    )
+  }
+
   // ── Playlist ─────────────────────────────────────────────────────────────────
   const addTracks = useCallback((files: File[]) => {
-    const newTracks: Track[] = files.map(f => ({
-      id: generateId(), name: f.name,
-      displayName: getFilenameWithoutExtension(f.name),
-      url: URL.createObjectURL(f), duration: 0,
-    }))
+    const newTracks: Track[] = files.map(f => {
+      const url         = URL.createObjectURL(f)
+      const analysisKey = computeAnalysisKey({ sourceKind: 'file', url, sourceFile: f })
+      return {
+        id: generateId(), name: f.name,
+        displayName:     getFilenameWithoutExtension(f.name),
+        url, duration:   0,
+        sourceKind:      'file' as const,
+        sourceFile:      f,
+        analysisRuntime: {
+          ...DEFAULT_TRACK_ANALYSIS_RUNTIME,
+          analysisKey, analysisVersion: CURRENT_ANALYSIS_VERSION, status: 'queued' as const,
+        },
+      }
+    })
     setTracks(prev => {
       if (prev.length === 0) setCurrentIndex(0)
       return [...prev, ...newTracks]
     })
+    newTracks.forEach(t => coordinatorRef.current?.enqueue(t, 'normal'))
   }, [])
 
   const replaceTracks = useCallback((files: File[]) => {
-    const newTracks: Track[] = files.map(f => ({
-      id: generateId(), name: f.name,
-      displayName: getFilenameWithoutExtension(f.name),
-      url: URL.createObjectURL(f), duration: 0,
-    }))
+    coordinatorRef.current?.invalidate()
+    const newTracks: Track[] = files.map(f => {
+      const url         = URL.createObjectURL(f)
+      const analysisKey = computeAnalysisKey({ sourceKind: 'file', url, sourceFile: f })
+      return {
+        id: generateId(), name: f.name,
+        displayName:     getFilenameWithoutExtension(f.name),
+        url, duration:   0,
+        sourceKind:      'file' as const,
+        sourceFile:      f,
+        analysisRuntime: {
+          ...DEFAULT_TRACK_ANALYSIS_RUNTIME,
+          analysisKey, analysisVersion: CURRENT_ANALYSIS_VERSION, status: 'queued' as const,
+        },
+      }
+    })
     setTracks(prev => {
       prev.forEach(t => URL.revokeObjectURL(t.url))
       setCurrentIndex(newTracks.length > 0 ? 0 : -1)
       return newTracks
     })
+    newTracks.forEach(t => coordinatorRef.current?.enqueue(t, 'normal'))
   }, [])
 
   const addTrackUrls = useCallback((tracks: { name: string; url: string }[]) => {
-    const newTracks: Track[] = tracks.map(t => ({
-      id: generateId(), name: t.name,
-      displayName: getFilenameWithoutExtension(t.name),
-      url: t.url, duration: 0,
-    }))
+    const newTracks: Track[] = tracks.map(t => {
+      const analysisKey = computeAnalysisKey({ sourceKind: 'remote', url: t.url })
+      return {
+        id: generateId(), name: t.name,
+        displayName:     getFilenameWithoutExtension(t.name),
+        url:             t.url, duration: 0,
+        sourceKind:      'remote' as const,
+        analysisRuntime: {
+          ...DEFAULT_TRACK_ANALYSIS_RUNTIME,
+          analysisKey, analysisVersion: CURRENT_ANALYSIS_VERSION, status: 'queued' as const,
+        },
+      }
+    })
     setTracks(prev => {
       if (prev.length === 0) setCurrentIndex(0)
       return [...prev, ...newTracks]
     })
+    newTracks.forEach(t => coordinatorRef.current?.enqueue(t, 'normal'))
   }, [])
 
   const replaceTrackUrls = useCallback((tracks: { name: string; url: string }[]) => {
-    const newTracks: Track[] = tracks.map(t => ({
-      id: generateId(), name: t.name,
-      displayName: getFilenameWithoutExtension(t.name),
-      url: t.url, duration: 0,
-    }))
+    coordinatorRef.current?.invalidate()
+    const newTracks: Track[] = tracks.map(t => {
+      const analysisKey = computeAnalysisKey({ sourceKind: 'remote', url: t.url })
+      return {
+        id: generateId(), name: t.name,
+        displayName:     getFilenameWithoutExtension(t.name),
+        url:             t.url, duration: 0,
+        sourceKind:      'remote' as const,
+        analysisRuntime: {
+          ...DEFAULT_TRACK_ANALYSIS_RUNTIME,
+          analysisKey, analysisVersion: CURRENT_ANALYSIS_VERSION, status: 'queued' as const,
+        },
+      }
+    })
     setTracks(prev => {
       // Only revoke blob: URLs — signed Supabase URLs should not be revoked
       prev.forEach(t => { if (t.url.startsWith('blob:')) URL.revokeObjectURL(t.url) })
       setCurrentIndex(newTracks.length > 0 ? 0 : -1)
       return newTracks
     })
+    newTracks.forEach(t => coordinatorRef.current?.enqueue(t, 'normal'))
   }, [])
 
   const removeTrack = useCallback((id: string) => {
+    coordinatorRef.current?.cancelTrack(id)
     setTracks(prev => {
       const idx = prev.findIndex(t => t.id === id)
       if (idx >= 0) URL.revokeObjectURL(prev[idx].url)
@@ -806,6 +973,56 @@ export function useAudioEngine(): AudioEngine {
 
   const isActive = (source === 'file' && isPlaying) || source === 'microphone' || source === 'demo'
 
+  // ── Canonical active-track intelligence ────────────────────────────────────
+  const currentTrack   = currentIndex >= 0 && currentIndex < tracks.length ? tracks[currentIndex] ?? null : null
+  const currentTrackId = currentTrack?.id ?? null
+  const currentAnalysis        = currentTrack?.analysisRuntime.analysis ?? null
+  const currentAnalysisStatus  = currentTrack?.analysisRuntime.status ?? ('not_analyzed' as TrackAnalysisStatus)
+  const currentAnalysisError   = currentTrack?.analysisRuntime.error ?? null
+  const currentAnalyzedBpm     = currentAnalysis?.bpm ?? null
+
+  let currentEffectiveBpm:  number | null = null
+  let currentBpmSource:     BpmSource | null = null
+  let currentBpmConfidence: number | null = null
+
+  if (source === 'demo') {
+    currentEffectiveBpm = 120
+    currentBpmSource    = 'live_analysis'
+  } else if (source === 'file' && currentTrack) {
+    const { bpmOverride, bpmOverrideSource, analysis } = currentTrack.analysisRuntime
+    if (bpmOverride !== null && bpmOverrideSource !== null) {
+      currentEffectiveBpm  = bpmOverride
+      currentBpmSource     = bpmOverrideSource
+      currentBpmConfidence = analysis?.bpmConfidence ?? null
+    } else if (analysis !== null) {
+      currentEffectiveBpm  = analysis.bpm
+      currentBpmSource     = 'offline_analysis'
+      currentBpmConfidence = analysis.bpmConfidence
+    }
+    // No analysis and no override → null; never expose 120 as a track-derived value
+  }
+  // microphone: live BPM is published through AudioFeatureBus each frame, not React state
+
+  // ── Sync MI engine BPM from the canonical effective BPM ──────────────────────
+  // Placed after the computed canonical fields so it reads currentEffectiveBpm
+  // and currentBpmConfidence without hoisting issues.  Fires whenever effective BPM
+  // changes (analysis loaded, override set/cleared, track switch) — keeps
+  // AudioFeatureBus beat-phase cycling at the correct rate so all React renderers
+  // and LaserDMX timing match what the dock displays.
+  useEffect(() => {
+    if (currentEffectiveBpm !== null && currentEffectiveBpm > 0) {
+      musicIntelligenceEngine.setBpm(currentEffectiveBpm, currentBpmConfidence ?? 0.8)
+    }
+  }, [currentEffectiveBpm, currentBpmConfidence])
+
+  const currentKey = currentAnalysis?.harmonic.dominantKey
+    ? {
+        tonic:      currentAnalysis.harmonic.dominantKey,
+        mode:       currentAnalysis.harmonic.dominantMode ?? 'major',
+        confidence: currentAnalysis.harmonic.keyConfidence ?? 0,
+      }
+    : null
+
   return {
     source, setSource, micError, isActive,
     tracks, currentIndex, isPlaying, currentTime, getCurrentTime, duration, volume,
@@ -828,9 +1045,14 @@ export function useAudioEngine(): AudioEngine {
     refAnalyserR: refARRef.current,
     spectralFeatures, spectralFeaturesRef,
     meydaActive, startSpectralAnalysis, stopSpectralAnalysis,
-    bpmDetecting, detectBPM,
     demoSilent, setDemoSilent,
     getRecordingStream,
     musicIntelligenceEngine,
+    getDecodedBuffer: (trackId: string) => coordinatorRef.current?.getDecodedBuffer(trackId),
+    currentTrackId, currentTrack, currentAnalysis,
+    currentAnalysisStatus, currentAnalysisError,
+    currentAnalyzedBpm, currentEffectiveBpm, currentBpmConfidence, currentBpmSource,
+    currentKey,
+    updateTrackRuntime, setBpmOverride, retryAnalysis,
   }
 }

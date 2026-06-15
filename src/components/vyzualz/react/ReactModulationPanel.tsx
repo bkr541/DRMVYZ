@@ -211,31 +211,55 @@ function LaserDmxModPanel() {
   )
 }
 
-// ── Beam Matrix target option lists ──────────────────────────────────────────
+// ── Scope-specific Beam Matrix target lists ───────────────────────────────────
+// Exported so tests and route validators can reference the canonical lists.
 
-const BM_MOD_TARGETS = [
-  { value: 'dimmer',          label: 'Dimmer'             },
-  { value: 'alpha',           label: 'Alpha'              },
-  { value: 'red',             label: 'Red'                },
-  { value: 'green',           label: 'Green'              },
-  { value: 'blue',            label: 'Blue'               },
-  { value: 'white',           label: 'White'              },
-  { value: 'beamDivergence',  label: 'Beam Divergence'    },
-  { value: 'beamGlow',        label: 'Beam Glow'          },
-  { value: 'beamWidth',       label: 'Beam Width'         },
-  { value: 'flickerAmount',   label: 'Flicker'            },
-  { value: 'strobeRate',      label: 'Strobe Rate'        },
-  { value: 'originOffsetX',   label: 'Origin Offset X'   },
-  { value: 'originOffsetY',   label: 'Origin Offset Y'   },
-  { value: 'targetOffsetX',   label: 'Target Offset X'   },
-  { value: 'targetOffsetY',   label: 'Target Offset Y'   },
-  { value: 'targetDepth',     label: 'Target Depth'      },
-  { value: 'fogDensity',      label: 'Fog Density'       },
-  { value: 'fogOpacity',      label: 'Fog Opacity'       },
-  { value: 'fogDriftSpeed',   label: 'Fog Drift Speed'   },
-  { value: 'masterDimmer',    label: 'Master Dimmer'     },
-  { value: 'shutter',         label: 'Shutter'           },
+export const BM_GLOBAL_TARGETS = [
+  { value: 'masterDimmer',     label: 'Master Dimmer'      },
+  { value: 'backgroundFade',   label: 'Background Fade'    },
+  { value: 'beamPersistence',  label: 'Beam Persistence'   },
+  { value: 'globalBeamWidth',  label: 'Global Beam Width'  },
+  { value: 'globalGlow',       label: 'Global Glow'        },
+  { value: 'globalStrobeRate', label: 'Global Strobe Rate' },
+  { value: 'fogDensity',       label: 'Fog Density'        },
+  { value: 'fogOpacity',       label: 'Fog Opacity'        },
+  { value: 'fogBeamScatter',   label: 'Fog Beam Scatter'   },
+  { value: 'fogTurbulence',    label: 'Fog Turbulence'     },
 ]
+
+export const BM_GROUP_TARGETS = [
+  { value: 'dimmer',          label: 'Dimmer'          },
+  { value: 'beamWidth',       label: 'Beam Width'      },
+  { value: 'beamDivergence',  label: 'Beam Divergence' },
+  { value: 'beamGlow',        label: 'Beam Glow'       },
+  { value: 'strobeRate',      label: 'Strobe Rate'     },
+]
+
+export const BM_BEAM_TARGETS = [
+  { value: 'dimmer',          label: 'Dimmer'          },
+  { value: 'beamWidth',       label: 'Beam Width'      },
+  { value: 'beamDivergence',  label: 'Beam Divergence' },
+  { value: 'focus',           label: 'Focus'           },
+  { value: 'beamGlow',        label: 'Beam Glow'       },
+  { value: 'strobeRate',      label: 'Strobe Rate'     },
+  { value: 'flickerAmount',   label: 'Flicker'         },
+  { value: 'alpha',           label: 'Alpha'           },
+  { value: 'red',             label: 'Red'             },
+  { value: 'green',           label: 'Green'           },
+  { value: 'blue',            label: 'Blue'            },
+  { value: 'white',           label: 'White'           },
+  { value: 'originOffsetX',   label: 'Origin Offset X' },
+  { value: 'originOffsetY',   label: 'Origin Offset Y' },
+  { value: 'targetOffsetX',   label: 'Target Offset X' },
+  { value: 'targetOffsetY',   label: 'Target Offset Y' },
+]
+
+export function validateRouteTarget(target: string, scope: 'global' | 'group' | 'beam'): boolean {
+  const list = scope === 'global' ? BM_GLOBAL_TARGETS
+    : scope === 'group' ? BM_GROUP_TARGETS
+    : BM_BEAM_TARGETS
+  return list.some(t => t.value === target)
+}
 
 // ── Beam Matrix MOD panel ─────────────────────────────────────────────────────
 
@@ -300,7 +324,7 @@ function LaserDmxBeamMatrixModPanel() {
               key={route.id}
               route={route}
               sources={MOD_SOURCES}
-              targets={BM_MOD_TARGETS}
+              targets={BM_GLOBAL_TARGETS}
               onChange={patch => updateLaserDmxMatrixGlobalRoute(route.id, patch)}
               onDelete={() => removeLaserDmxMatrixGlobalRoute(route.id)}
             />
@@ -326,7 +350,7 @@ function LaserDmxBeamMatrixModPanel() {
                   key={route.id}
                   route={route}
                   sources={MOD_SOURCES}
-                  targets={BM_MOD_TARGETS}
+                  targets={BM_GROUP_TARGETS}
                   onChange={patch => updateLaserDmxReactionGroupRoute(selectedGroup.id, route.id, patch)}
                   onDelete={() => removeLaserDmxReactionGroupRoute(selectedGroup.id, route.id)}
                 />
@@ -355,7 +379,7 @@ function LaserDmxBeamMatrixModPanel() {
                   key={route.id}
                   route={route}
                   sources={MOD_SOURCES}
-                  targets={BM_MOD_TARGETS}
+                  targets={BM_BEAM_TARGETS}
                   onChange={patch => updateLaserDmxMatrixBeamRoute(primaryBeam.id, route.id, patch)}
                   onDelete={() => removeLaserDmxMatrixBeamRoute(primaryBeam.id, route.id)}
                 />

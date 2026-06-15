@@ -265,16 +265,17 @@ export interface SemanticMomentMarker {
 }
 
 export interface TrackIntelligenceAnalysis {
-  analysisVersion: string
-  createdAt:       string  // ISO 8601
-  durationMs:      number
-  bpm:             number
-  bpmConfidence:   number
-  timeSignature:   number  // beats per bar, typically 4
-  beatGrid:        BeatMarkerMI[]
-  downbeats:       BeatMarkerMI[]
-  phrases:         PhraseMarker[]
-  sections:        TrackSectionMI[]
+  analysisVersion:  string
+  createdAt:        string  // ISO 8601
+  durationMs:       number
+  bpm:              number
+  bpmConfidence:    number
+  beatGridOffsetSec: number  // time of first beat within the track
+  timeSignature:    number  // beats per bar, typically 4
+  beatGrid:         BeatMarkerMI[]
+  downbeats:        BeatMarkerMI[]
+  phrases:          PhraseMarker[]
+  sections:         TrackSectionMI[]
   energyCurves: {
     instant:   FeatureCurve
     shortTerm: FeatureCurve
@@ -293,6 +294,7 @@ export interface TrackIntelligenceAnalysis {
     chordProgression: ChordMarker[]
     dominantKey:     string | null
     dominantMode:    'major' | 'minor' | null
+    keyConfidence:   number  // 0–1, overall key detection confidence
     pitchCurve:      FeatureCurve
     melodyContourCurve: FeatureCurve  // encoded: 0=descending, 0.5=flat, 1=ascending
   }
@@ -306,4 +308,14 @@ export interface TrackIntelligenceAnalysis {
   errors:          string[]
 }
 
+// Status for persistent analysis storage (can be stale)
 export type AnalysisStatus = 'not_analyzed' | 'queued' | 'analyzing' | 'complete' | 'failed' | 'stale'
+
+// Status for in-memory track runtime (has 'decoding' step, no 'stale')
+export type TrackAnalysisStatus =
+  | 'not_analyzed'
+  | 'queued'
+  | 'decoding'
+  | 'analyzing'
+  | 'complete'
+  | 'failed'

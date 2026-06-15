@@ -1,6 +1,8 @@
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
-import { SliderRow, ToggleRow, TextInputRow, CtrlSection } from './ReactControlRows'
+import { SliderRow, ToggleRow, TextInputRow, CtrlSection, Collapsible } from './ReactControlRows'
+import { LaserDmxGroupSequencerControls } from './LaserDmxGroupSequencerControls'
+import { LaserDmxTimingStatus } from './LaserDmxTimingStatus'
 
 function groupColorCss(r: number, g: number, b: number, a: number) {
   return `rgba(${r},${g},${b},${a})`
@@ -150,6 +152,14 @@ export function LaserDmxReactionGroupInspector() {
           <div className="rv-ctrl-info">
             {assignedCount} beam{assignedCount !== 1 ? 's' : ''} assigned
           </div>
+
+          <Collapsible label="Sequencer" defaultOpen={group.sequence.enabled}>
+            <LaserDmxGroupSequencerControls
+              sequence={group.sequence}
+              onChange={seq => updateLaserDmxReactionGroup(group.id, { sequence: seq })}
+            />
+            <LaserDmxTimingStatus sequencingActive={group.sequence.enabled} />
+          </Collapsible>
         </>
       )}
     </>

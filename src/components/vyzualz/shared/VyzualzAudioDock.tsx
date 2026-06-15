@@ -15,16 +15,56 @@ function fmtPlayTime(secs: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(cs).padStart(2, '0')}`
 }
 
+// ── BPM display helpers ───────────────────────────────────────────────────────
+
+type BpmState =
+  | { kind: 'none' }
+  | { kind: 'analyzing' }
+  | { kind: 'value'; bpm: number; analyzed: number | null; source: string | null }
+  | { kind: 'failed'; error: string | null }
+
+function deriveBpmState(
+  source:   'file' | 'microphone' | 'demo',
+  hasTrack: boolean,
+  status:   string,
+  effectiveBpm: number | null,
+  analyzedBpm:  number | null,
+  bpmSource:    string | null,
+  error:        string | null,
+): BpmState {
+  if (source === 'demo') {
+    return { kind: 'value', bpm: 120, analyzed: null, source: 'demo' }
+  }
+  if (source === 'microphone' || !hasTrack) {
+    return { kind: 'none' }
+  }
+  // file source with a track
+  if (status === 'queued' || status === 'decoding' || status === 'analyzing') {
+    return { kind: 'analyzing' }
+  }
+  if (status === 'complete' && effectiveBpm !== null) {
+    const overrideActive = bpmSource === 'manual_override' || bpmSource === 'live_analysis'
+    return {
+      kind:     'value',
+      bpm:      effectiveBpm,
+      analyzed: overrideActive ? analyzedBpm : null,
+      source:   bpmSource,
+    }
+  }
+  if (status === 'failed') {
+    return { kind: 'failed', error }
+  }
+  return { kind: 'none' }
+}
+
 export function VyzualzAudioDock() {
   const {
-    presets, activePresetId, bpm, setBpm, bpmSync, toggleBpmSync, setPlaying,
+    presets, activePresetId, bpmSync, toggleBpmSync, setPlaying,
     cuePoint, setCuePoint, beatGridEnabled, setBeatGridEnabled,
     waveformZoom, setWaveformZoom, cueMarkers,
   } = useVisualStore(useShallow(s => ({
     presets:            s.presets,
     activePresetId:     s.activePresetId,
-    bpm:                s.bpm,
-    setBpm:             s.setBpm,
     bpmSync:            s.bpmSync,
     toggleBpmSync:      s.toggleBpmSync,
     setPlaying:         s.setPlaying,
@@ -36,16 +76,49 @@ export function VyzualzAudioDock() {
     setWaveformZoom:    s.setWaveformZoom,
     cueMarkers:         s.cueMarkers,
   })))
+
   const preset      = presets.find(p => p.id === activePresetId) ?? presets[0] ?? DEFAULT_PRESETS[0]
   const engine      = useSharedAudio()
   const fileInputId = useId()
   const { handleTap } = useTapTempo()
 
-  const track    = engine.tracks[engine.currentIndex] ?? null
+  const track    = engine.currentTrack
   const hasTrack = engine.tracks.length > 0
 
   const { peaks } = useWaveformPeaks(track?.url ?? null)
 
+  // ── BPM state derivation ──────────────────────────────────────────────────
+  const bpmState = deriveBpmState(
+    engine.source,
+    hasTrack,
+    engine.currentAnalysisStatus,
+    engine.currentEffectiveBpm,
+    engine.currentAnalyzedBpm,
+    engine.currentBpmSource,
+    engine.currentAnalysisError,
+  )
+
+  const canEditBpm  = bpmState.kind === 'value' && engine.source === 'file' && !!track
+  const hasOverride = bpmState.kind === 'value' && (bpmState.source === 'manual_override' || bpmState.source === 'live_analysis')
+
+  const handleBpmStep = (delta: number) => {
+    if (!canEditBpm || !track) return
+    const base = engine.currentEffectiveBpm ?? 120
+    engine.setBpmOverride(track.id, Math.max(40, Math.min(300, Math.round(base) + delta))
+    )
+  }
+
+  const handleClearOverride = () => {
+    if (!track) return
+    engine.setBpmOverride(track.id, null)
+  }
+
+  const handleRetry = () => {
+    if (!track) return
+    engine.retryAnalysis(track.id)
+  }
+
+  // ── File input ────────────────────────────────────────────────────────────
   const handleFiles = (files: FileList | null) => {
     if (!files) return
     const audio = Array.from(files).filter(f =>
@@ -164,22 +237,81 @@ export function VyzualzAudioDock() {
       {/* ── RIGHT: BPM + TAP / CUE / SYNC / BEATGRID ────────────────── */}
       <div className="vz-dock-right">
         <div className="vz-dock-bpm-block">
-          <span className="vz-dock-bpm-block-label">BPM</span>
+          <div className="vz-dock-bpm-block-top">
+            <span className="vz-dock-bpm-block-label">BPM</span>
+            {hasOverride && (
+              <button
+                className="vz-dock-bpm-reset-btn"
+                onClick={handleClearOverride}
+                title={`Reset to analyzed BPM${bpmState.kind === 'value' && bpmState.analyzed !== null ? ` (${bpmState.analyzed.toFixed(2)})` : ''}`}
+              >
+                ↺
+              </button>
+            )}
+          </div>
           <div className="vz-dock-bpm-block-row">
-            <span className="vz-dock-bpm-block-val">{bpm.toFixed(2)}</span>
+            {/* BPM value — three mutually exclusive states */}
+            {bpmState.kind === 'value' && (
+              <span className="vz-dock-bpm-block-val" title={
+                bpmState.analyzed !== null
+                  ? `Override active — analyzed: ${bpmState.analyzed.toFixed(2)} BPM`
+                  : undefined
+              }>
+                {bpmState.bpm.toFixed(2)}
+              </span>
+            )}
+            {bpmState.kind === 'analyzing' && (
+              <span className="vz-dock-bpm-block-val vz-dock-bpm-analyzing">Analyzing…</span>
+            )}
+            {bpmState.kind === 'failed' && (
+              <button
+                className="vz-dock-bpm-block-val vz-dock-bpm-failed"
+                onClick={handleRetry}
+                title={bpmState.error ?? 'Analysis failed — click to retry'}
+              >
+                unavailable
+              </button>
+            )}
+            {bpmState.kind === 'none' && (
+              <span className="vz-dock-bpm-block-val vz-dock-bpm-none">--</span>
+            )}
+
             <div className="vz-dock-bpm-chevrons">
-              <button className="vz-dock-bpm-chevron" onClick={() => setBpm(bpm + 1)} title="BPM +1">
+              <button
+                className="vz-dock-bpm-chevron"
+                onClick={() => handleBpmStep(+1)}
+                disabled={!canEditBpm}
+                title="BPM +1"
+              >
                 <svg viewBox="0 0 24 24" width="8" height="8" fill="currentColor"><path d="M7 15l5-5 5 5z"/></svg>
               </button>
-              <button className="vz-dock-bpm-chevron" onClick={() => setBpm(bpm - 1)} title="BPM −1">
+              <button
+                className="vz-dock-bpm-chevron"
+                onClick={() => handleBpmStep(-1)}
+                disabled={!canEditBpm}
+                title="BPM −1"
+              >
                 <svg viewBox="0 0 24 24" width="8" height="8" fill="currentColor"><path d="M7 9l5 5 5-5z"/></svg>
               </button>
             </div>
           </div>
+          {/* Secondary line: analyzed BPM when override is active */}
+          {bpmState.kind === 'value' && bpmState.analyzed !== null && (
+            <span className="vz-dock-bpm-analyzed-label">
+              analyzed {bpmState.analyzed.toFixed(2)}
+            </span>
+          )}
         </div>
 
         <div className="vz-dock-right-btns">
-          <button className="vz-dock-tap-btn" onClick={handleTap} title="Tap tempo">TAP</button>
+          <button
+            className="vz-dock-tap-btn"
+            onClick={handleTap}
+            disabled={engine.source !== 'file' || !track}
+            title={engine.source === 'file' && track ? 'Tap tempo' : 'Tap tempo (requires a file track)'}
+          >
+            TAP
+          </button>
           <button
             className="vz-dock-cue-btn"
             onClick={handleCue}
@@ -215,4 +347,3 @@ export function VyzualzAudioDock() {
     </div>
   )
 }
-

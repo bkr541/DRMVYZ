@@ -7,6 +7,7 @@ import type {
   LaserDmxMatrixBeamGeometry, LaserDmxMatrixTarget,
 } from './ReactTypes'
 import { LASER_DMX_MATRIX_COLUMNS, LASER_DMX_MATRIX_ROWS, LASER_DMX_MATRIX_MAX_BEAMS } from './ReactTypes'
+import { LaserDmxBeamMotionControls } from './LaserDmxBeamMotionControls'
 
 const GEOMETRY_OPTIONS = [
   { value: 'line',          label: 'Line'           },
@@ -97,6 +98,22 @@ function SingleBeamInspector({ beam, groups }: SingleBeamProps) {
           <SliderRow label="Target Z" value={beam.target.z} onChange={v => setTarget({ z: v })} min={-1} max={2} step={0.01} color="#d8b95a" />
         </>
       )}
+
+      <CtrlSection label="Sequence" />
+      <SliderRow
+        label="Sequence Index"
+        value={beam.sequenceIndex}
+        onChange={v => upd({ sequenceIndex: Math.round(v) })}
+        min={0} max={299} step={1}
+        color="#4ac7db"
+      />
+
+      <Collapsible label="Motion" defaultOpen={false}>
+        <LaserDmxBeamMotionControls
+          motion={beam.motion}
+          onChange={motion => upd({ motion })}
+        />
+      </Collapsible>
 
       <Collapsible label="Appearance" defaultOpen>
         <SelectRow label="Geometry" value={beam.appearance.geometry} onChange={v => upd({ appearance: { ...beam.appearance, geometry: v as LaserDmxMatrixBeamGeometry } })} options={GEOMETRY_OPTIONS} />

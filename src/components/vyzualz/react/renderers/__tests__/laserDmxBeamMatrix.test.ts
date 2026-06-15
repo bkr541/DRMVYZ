@@ -12,6 +12,7 @@ import {
   LASER_DMX_MATRIX_COLUMNS,
   LASER_DMX_MATRIX_ROWS,
   LASER_DMX_MATRIX_MAX_BEAMS,
+  DEFAULT_BEAM_MOTION,
 } from '../../ReactTypes'
 
 // ── Snapshot the store factory for isolated per-test state ────────────────────
@@ -144,6 +145,7 @@ describe('beam count limit', () => {
     // Use setLaserDmxBeamMatrixSettings to fill to max without looping 300 times
     const fakeBeams = Array.from({ length: LASER_DMX_MATRIX_MAX_BEAMS }, (_, i) => ({
       id: `beam-${i}`, name: `B${i}`, enabled: true,
+      sequenceIndex: i, motion: DEFAULT_BEAM_MOTION,
       origin: { column: 1, row: 1, z: 0 },
       target: { kind: 'grid' as const, column: 1, row: 1, z: 0 },
       groupId: null, useGroupColor: false,

@@ -26,8 +26,8 @@ const VALID_GEOMETRY = new Set(['line', 'volumetricCone'])
 // ── Registry integrity ────────────────────────────────────────────────────────
 
 describe('LASER_DMX_BEAM_MATRIX_PRESETS registry', () => {
-  it('contains exactly 12 presets', () => {
-    expect(LASER_DMX_BEAM_MATRIX_PRESETS).toHaveLength(12)
+  it('contains exactly 20 presets', () => {
+    expect(LASER_DMX_BEAM_MATRIX_PRESETS).toHaveLength(20)
   })
 
   it('all presets have non-empty id, name, description, category', () => {
@@ -335,18 +335,26 @@ describe('route amount/min/max are finite', () => {
 // ── Group count ───────────────────────────────────────────────────────────────
 
 const EXPECTED_GROUP_COUNTS: Record<string, number> = {
-  'minimal-crossfire':    2,
-  'redline-bass-tunnel':  2,
-  'blue-snare-crossfire': 2,
-  'green-beat-pyramid':   2,
-  'kick-snare-duel':      2,
-  'rgb-reaction-split':   4,
-  'ceiling-scanner':      4,
-  'laser-cage':           4,
-  'build-ladder':         1,
-  'drop-starburst':       2,
-  'vocal-halo':           2,
-  'fog-cathedral':        2,
+  'minimal-crossfire':      2,
+  'redline-bass-tunnel':    2,
+  'blue-snare-crossfire':   2,
+  'green-beat-pyramid':     2,
+  'kick-snare-duel':        2,
+  'rgb-reaction-split':     4,
+  'ceiling-scanner':        4,
+  'laser-cage':             4,
+  'build-ladder':           1,
+  'drop-starburst':         2,
+  'vocal-halo':             2,
+  'fog-cathedral':          2,
+  'bass-fan':               2,
+  'snare-crossfire-seq':    2,
+  'center-out-chase':       1,
+  'drop-burst-seq':         1,
+  'phrase-scanner':         2,
+  'outside-in-collapse':    1,
+  'alternating-fan':        1,
+  'ping-pong-pulse':        1,
 }
 
 describe('preset group counts', () => {
@@ -983,7 +991,7 @@ describe('summarizePreset', () => {
     expect(sum.musicSources).toContain('phrase8')
   })
 
-  it('all 12 presets produce a valid summary', () => {
+  it('all 20 presets produce a valid summary', () => {
     for (const p of LASER_DMX_BEAM_MATRIX_PRESETS) {
       const sum = summarizePreset(p)
       expect(sum.beamCount).toBeGreaterThan(0)
@@ -996,7 +1004,7 @@ describe('summarizePreset', () => {
 
 // ── Performance: 600-frame simulation ────────────────────────────────────────
 
-describe('performance: 600-frame simulation across all 12 presets', () => {
+describe('performance: 600-frame simulation across all 20 presets', () => {
   it('compiles all presets for 600 frames without throwing', async () => {
     const { compileLaserDmxBeamMatrix, resetBeamMatrixCompilerState } = await import('../LaserDmxBeamMatrixCompiler')
     const dt = 1 / 60
@@ -1016,4 +1024,243 @@ describe('performance: 600-frame simulation across all 12 presets', () => {
       }
     }
   }, 30_000)
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// Presets 13–20 specific tests (sequencing presets)
+// ════════════════════════════════════════════════════════════════════════════
+
+describe('presets 13–20 appear in correct categories', () => {
+  it('bass-fan is rhythmic',           () => expect(getLaserDmxBeamMatrixPreset('bass-fan')?.category).toBe('rhythmic'))
+  it('snare-crossfire-seq is rhythmic',() => expect(getLaserDmxBeamMatrixPreset('snare-crossfire-seq')?.category).toBe('rhythmic'))
+  it('center-out-chase is rhythmic',   () => expect(getLaserDmxBeamMatrixPreset('center-out-chase')?.category).toBe('rhythmic'))
+  it('drop-burst-seq is drop',         () => expect(getLaserDmxBeamMatrixPreset('drop-burst-seq')?.category).toBe('drop'))
+  it('phrase-scanner is rhythmic',     () => expect(getLaserDmxBeamMatrixPreset('phrase-scanner')?.category).toBe('rhythmic'))
+  it('outside-in-collapse is rhythmic',() => expect(getLaserDmxBeamMatrixPreset('outside-in-collapse')?.category).toBe('rhythmic'))
+  it('alternating-fan is rhythmic',    () => expect(getLaserDmxBeamMatrixPreset('alternating-fan')?.category).toBe('rhythmic'))
+  it('ping-pong-pulse is rhythmic',    () => expect(getLaserDmxBeamMatrixPreset('ping-pong-pulse')?.category).toBe('rhythmic'))
+})
+
+describe('Bass Fan — structure', () => {
+  it('has 5 beams', () => {
+    expect(createLaserDmxBeamMatrixPresetSettings('bass-fan')!.beams).toHaveLength(5)
+  })
+  it('has 2 groups', () => {
+    expect(createLaserDmxBeamMatrixPresetSettings('bass-fan')!.groups).toHaveLength(2)
+  })
+  it('all beams use volumetricCone geometry', () => {
+    const s = createLaserDmxBeamMatrixPresetSettings('bass-fan')!
+    for (const b of s.beams) expect(b.appearance.geometry).toBe('volumetricCone')
+  })
+  it('bass-fan group has sequence enabled with mode=all', () => {
+    const s = createLaserDmxBeamMatrixPresetSettings('bass-fan')!
+    const grp = s.groups.find(g => g.name === 'Bass Fan')!
+    expect(grp.sequence.enabled).toBe(true)
+    expect(grp.sequence.mode).toBe('all')
+  })
+})
+
+describe('Snare Crossfire Seq — structure', () => {
+  it('has 8 beams', () => {
+    expect(createLaserDmxBeamMatrixPresetSettings('snare-crossfire-seq')!.beams).toHaveLength(8)
+  })
+  it('has 2 groups', () => {
+    expect(createLaserDmxBeamMatrixPresetSettings('snare-crossfire-seq')!.groups).toHaveLength(2)
+  })
+  it('both groups have sequence mode=alternate', () => {
+    const s = createLaserDmxBeamMatrixPresetSettings('snare-crossfire-seq')!
+    for (const g of s.groups) {
+      expect(g.sequence.enabled).toBe(true)
+      expect(g.sequence.mode).toBe('alternate')
+    }
+  })
+  it('right group has phaseSpread > 0', () => {
+    const s = createLaserDmxBeamMatrixPresetSettings('snare-crossfire-seq')!
+    const right = s.groups.find(g => g.name.toLowerCase().includes('right'))!
+    expect(right.sequence.phaseSpread).toBeGreaterThan(0)
+  })
+})
+
+describe('Center-Out Chase — structure', () => {
+  it('has 8 beams', () => {
+    expect(createLaserDmxBeamMatrixPresetSettings('center-out-chase')!.beams).toHaveLength(8)
+  })
+  it('has 1 group', () => {
+    expect(createLaserDmxBeamMatrixPresetSettings('center-out-chase')!.groups).toHaveLength(1)
+  })
+  it('group has sequence mode=centerOut and resetOnDownbeat=true', () => {
+    const s = createLaserDmxBeamMatrixPresetSettings('center-out-chase')!
+    expect(s.groups[0].sequence.mode).toBe('centerOut')
+    expect(s.groups[0].sequence.resetOnDownbeat).toBe(true)
+  })
+})
+
+describe('Drop Burst Seq — structure', () => {
+  it('has 8 beams', () => {
+    expect(createLaserDmxBeamMatrixPresetSettings('drop-burst-seq')!.beams).toHaveLength(8)
+  })
+  it('has 1 group', () => {
+    expect(createLaserDmxBeamMatrixPresetSettings('drop-burst-seq')!.groups).toHaveLength(1)
+  })
+  it('all beams use volumetricCone', () => {
+    const s = createLaserDmxBeamMatrixPresetSettings('drop-burst-seq')!
+    for (const b of s.beams) expect(b.appearance.geometry).toBe('volumetricCone')
+  })
+  it('group has sequence mode=forward', () => {
+    const s = createLaserDmxBeamMatrixPresetSettings('drop-burst-seq')!
+    expect(s.groups[0].sequence.mode).toBe('forward')
+  })
+})
+
+describe('Phrase Scanner — structure', () => {
+  it('has 8 beams', () => {
+    expect(createLaserDmxBeamMatrixPresetSettings('phrase-scanner')!.beams).toHaveLength(8)
+  })
+  it('has 2 groups (fwd and rev)', () => {
+    expect(createLaserDmxBeamMatrixPresetSettings('phrase-scanner')!.groups).toHaveLength(2)
+  })
+  it('all beams use line geometry', () => {
+    const s = createLaserDmxBeamMatrixPresetSettings('phrase-scanner')!
+    for (const b of s.beams) expect(b.appearance.geometry).toBe('line')
+  })
+})
+
+describe('Outside-In Collapse — structure', () => {
+  it('has 8 beams', () => {
+    expect(createLaserDmxBeamMatrixPresetSettings('outside-in-collapse')!.beams).toHaveLength(8)
+  })
+  it('has 1 group', () => {
+    expect(createLaserDmxBeamMatrixPresetSettings('outside-in-collapse')!.groups).toHaveLength(1)
+  })
+  it('group has sequence mode=outsideIn', () => {
+    const s = createLaserDmxBeamMatrixPresetSettings('outside-in-collapse')!
+    expect(s.groups[0].sequence.mode).toBe('outsideIn')
+  })
+})
+
+describe('Alternating Fan — structure', () => {
+  it('has 8 beams', () => {
+    expect(createLaserDmxBeamMatrixPresetSettings('alternating-fan')!.beams).toHaveLength(8)
+  })
+  it('has 1 group', () => {
+    expect(createLaserDmxBeamMatrixPresetSettings('alternating-fan')!.groups).toHaveLength(1)
+  })
+  it('all beams use volumetricCone geometry', () => {
+    const s = createLaserDmxBeamMatrixPresetSettings('alternating-fan')!
+    for (const b of s.beams) expect(b.appearance.geometry).toBe('volumetricCone')
+  })
+  it('group has sequence mode=alternate', () => {
+    const s = createLaserDmxBeamMatrixPresetSettings('alternating-fan')!
+    expect(s.groups[0].sequence.mode).toBe('alternate')
+  })
+})
+
+describe('Ping Pong Pulse — structure', () => {
+  it('has 6 beams', () => {
+    expect(createLaserDmxBeamMatrixPresetSettings('ping-pong-pulse')!.beams).toHaveLength(6)
+  })
+  it('has 1 group', () => {
+    expect(createLaserDmxBeamMatrixPresetSettings('ping-pong-pulse')!.groups).toHaveLength(1)
+  })
+  it('all beams use line geometry', () => {
+    const s = createLaserDmxBeamMatrixPresetSettings('ping-pong-pulse')!
+    for (const b of s.beams) expect(b.appearance.geometry).toBe('line')
+  })
+  it('group has sequence mode=forward with stepsPerBeat=2', () => {
+    const s = createLaserDmxBeamMatrixPresetSettings('ping-pong-pulse')!
+    expect(s.groups[0].sequence.mode).toBe('forward')
+    expect(s.groups[0].sequence.stepsPerBeat).toBe(2)
+  })
+})
+
+// ── Sequencing preset — all groups have enabled sequence ──────────────────────
+
+describe('presets 13–20: all groups have sequence field enabled', () => {
+  const seqPresets = [
+    'bass-fan', 'snare-crossfire-seq', 'center-out-chase', 'drop-burst-seq',
+    'phrase-scanner', 'outside-in-collapse', 'alternating-fan', 'ping-pong-pulse',
+  ]
+  for (const id of seqPresets) {
+    it(`${id}: all groups have sequence.enabled=true`, () => {
+      const s = createLaserDmxBeamMatrixPresetSettings(id)!
+      for (const g of s.groups) {
+        expect(g.sequence.enabled).toBe(true)
+      }
+    })
+  }
+})
+
+// ── Sequencing preset — route scope validation ────────────────────────────────
+
+describe('presets 13–20 route scope validation', () => {
+  const seqPresets = [
+    'bass-fan', 'snare-crossfire-seq', 'center-out-chase', 'drop-burst-seq',
+    'phrase-scanner', 'outside-in-collapse', 'alternating-fan', 'ping-pong-pulse',
+  ]
+  for (const id of seqPresets) {
+    it(`${id}: group routes use supported targets`, () => {
+      const s = createLaserDmxBeamMatrixPresetSettings(id)!
+      for (const g of s.groups) {
+        for (const r of g.modulationRoutes) {
+          expect(GROUP_ROUTE_TARGETS.has(r.target)).toBe(true)
+        }
+      }
+    })
+    it(`${id}: global routes use supported targets`, () => {
+      const s = createLaserDmxBeamMatrixPresetSettings(id)!
+      for (const r of s.globalModulationRoutes) {
+        expect(GLOBAL_ROUTE_TARGETS.has(r.target)).toBe(true)
+      }
+    })
+    it(`${id}: beam routes use supported targets`, () => {
+      const s = createLaserDmxBeamMatrixPresetSettings(id)!
+      for (const b of s.beams) {
+        for (const r of b.modulationRoutes) {
+          expect(BEAM_ROUTE_TARGETS.has(r.target)).toBe(true)
+        }
+      }
+    })
+  }
+})
+
+// ── Sequencing preset — compile safety ───────────────────────────────────────
+
+describe('presets 13–20 compile safely under a representative MI frame', () => {
+  const seqPresets = [
+    'bass-fan', 'snare-crossfire-seq', 'center-out-chase', 'drop-burst-seq',
+    'phrase-scanner', 'outside-in-collapse', 'alternating-fan', 'ping-pong-pulse',
+  ]
+  for (const id of seqPresets) {
+    it(`${id}: compileLaserDmxBeamMatrix produces no NaN or Infinity`, async () => {
+      const { compileLaserDmxBeamMatrix, resetBeamMatrixCompilerState } = await import('../LaserDmxBeamMatrixCompiler')
+      resetBeamMatrixCompilerState()
+      const settings = createLaserDmxBeamMatrixPresetSettings(id)!
+      const result = compileLaserDmxBeamMatrix({
+        settings, mi: makeBaseMiFrame(), time: 0, timeSec: 0.016,
+        canvasWidth: 1280, canvasHeight: 720,
+      })
+      for (const b of result.beams) {
+        const nums = [b.intensity, b.beamWidth, b.glow, b.rgba.r, b.rgba.g, b.rgba.b, b.rgba.a]
+        for (const v of nums) expect(Number.isFinite(v)).toBe(true)
+      }
+      const fogNums = [result.fog.density, result.fog.opacity, result.fog.beamScatter, result.fog.turbulence]
+      for (const v of fogNums) expect(Number.isFinite(v)).toBe(true)
+    })
+  }
+})
+
+// ── Sequencing preset — unique beam sequence indices per preset ───────────────
+
+describe('presets 13–20: beam sequenceIndex values are unique within each preset', () => {
+  const seqPresets = [
+    'bass-fan', 'snare-crossfire-seq', 'center-out-chase', 'drop-burst-seq',
+    'phrase-scanner', 'outside-in-collapse', 'alternating-fan', 'ping-pong-pulse',
+  ]
+  for (const id of seqPresets) {
+    it(`${id}: no duplicate sequenceIndex`, () => {
+      const s = createLaserDmxBeamMatrixPresetSettings(id)!
+      const indices = s.beams.map(b => b.sequenceIndex)
+      expect(new Set(indices).size).toBe(indices.length)
+    })
+  }
 })

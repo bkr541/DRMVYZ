@@ -20,7 +20,7 @@ import {
   targetToViewPx,
   originToViewPx,
 } from '../laserDmxBeamMatrixCoordinates'
-import { LASER_DMX_MATRIX_COLUMNS, LASER_DMX_MATRIX_MAX_BEAMS } from '../ReactTypes'
+import { LASER_DMX_MATRIX_COLUMNS, LASER_DMX_MATRIX_MAX_BEAMS, DEFAULT_BEAM_MOTION } from '../ReactTypes'
 import { useReactStore } from '../../../../stores/reactStore'
 
 const COLS = 15
@@ -388,6 +388,7 @@ describe('duplicateLaserDmxMatrixBeamsWithOffset', () => {
     const store = useReactStore.getState()
     const fakeBeams = Array.from({ length: LASER_DMX_MATRIX_MAX_BEAMS }, (_, i) => ({
       id: `beam-limit-${i}`, name: `B${i}`, enabled: true,
+      sequenceIndex: i, motion: DEFAULT_BEAM_MOTION,
       origin: { column: 1, row: 1, z: 0 },
       target: { kind: 'grid' as const, column: 1, row: 1, z: 0 },
       groupId: null, useGroupColor: false,
@@ -406,6 +407,7 @@ describe('duplicateLaserDmxMatrixBeamsWithOffset', () => {
     const slots = 2
     const fakeBeams = Array.from({ length: LASER_DMX_MATRIX_MAX_BEAMS - slots }, (_, i) => ({
       id: `beam-fill-${i}`, name: `B${i}`, enabled: true,
+      sequenceIndex: i, motion: DEFAULT_BEAM_MOTION,
       origin: { column: 1, row: 1, z: 0 },
       target: { kind: 'grid' as const, column: 1, row: 1, z: 0 },
       groupId: null, useGroupColor: false,

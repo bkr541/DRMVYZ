@@ -21,7 +21,13 @@ export function AudioEngineProvider({ children }: { children: React.ReactNode })
     engine.monitoringMode, engine.referenceTracks, engine.activeRefSlot,
     engine.isABMode, engine.refVolume, engine.autoLoudnessMatch,
     engine.refAnalyserMaster, engine.refAnalyserL, engine.refAnalyserR,
-    engine.demoSilent, engine.spectralFeatures, engine.bpmDetecting, engine.meydaActive,
+    engine.demoSilent, engine.spectralFeatures, engine.meydaActive,
+    // Track analysis fields — re-render when analysis state changes
+    engine.currentTrackId, engine.currentTrack,
+    engine.currentAnalysis, engine.currentAnalyzedBpm,
+    engine.currentAnalysisStatus, engine.currentAnalysisError,
+    engine.currentEffectiveBpm, engine.currentBpmConfidence, engine.currentBpmSource,
+    engine.currentKey,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ])
 

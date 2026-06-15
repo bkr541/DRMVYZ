@@ -233,6 +233,7 @@ export function ReactView() {
               isPlaying={engine.isPlaying}
               manualSections={manualTrackSections}
               getAudioTime={engine.getCurrentTime}
+              effectiveBpm={engine.currentEffectiveBpm}
               onCanvasReady={setOutputCanvas}
               onLiveFps={setLiveFps}
             />

@@ -353,7 +353,7 @@ export async function analyzeTrackBuffer(
   )
 
   // ── Offline key detection (from accumulated chroma) ───────────────────────
-  const { dominantKey, dominantMode, keyChanges } = detectOfflineKey(chromaAcc)
+  const { dominantKey, dominantMode, keyChanges, keyConfidence } = detectOfflineKey(chromaAcc)
   const chordProgression: ChordMarker[] = []
 
   // ── Beat grid ──────────────────────────────────────────────────────────────
@@ -364,15 +364,16 @@ export async function analyzeTrackBuffer(
   const ds = (c: FeatureCurvePoint[]) => downsampleCurve(c, maxCurvePoints)
 
   const partialAnalysis: TrackIntelligenceAnalysis = {
-    analysisVersion: 'auto-1.0',
-    createdAt:       new Date().toISOString(),
+    analysisVersion:   'auto-1.0',
+    createdAt:         new Date().toISOString(),
     durationMs,
     bpm,
     bpmConfidence,
-    timeSignature:   4,
-    beatGrid:        beatMarkers,
+    beatGridOffsetSec: beatOffsetSec,
+    timeSignature:     4,
+    beatGrid:          beatMarkers,
     downbeats,
-    phrases:         [],
+    phrases:           [],
     sections,
     energyCurves: {
       instant:   ds(normInstant),
@@ -392,6 +393,7 @@ export async function analyzeTrackBuffer(
       chordProgression,
       dominantKey,
       dominantMode,
+      keyConfidence,
       pitchCurve:         ds(normalizeCurve(pitchPoints)),
       melodyContourCurve: ds(melodyContourCurve),
     },

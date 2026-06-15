@@ -33,13 +33,14 @@ import type {
   LaserDmxReactionGroup,
   LaserDmxMatrixBeamGeometry,
   LaserDmxFogSettings,
+  LaserDmxBeamTravelMode,
 } from '../ReactTypes'
+import { DEFAULT_BEAM_MOTION, DEFAULT_BEAM_SEQUENCE } from '../ReactTypes'
 import {
   safeNumber,
   clamp,
   clamp01,
   clamp255,
-  lerp,
   resolveStrobeVisible,
   applyModulationRoute,
   modeApply,
@@ -51,6 +52,8 @@ import {
   targetToCanvas,
   zDepthFactors,
 } from './LaserDmxBeamGeometry'
+import { computeSequenceOrder, computeBeamSequenceState, type BeamSequenceState } from './LaserDmxBeamSequencer'
+import { computeKinematics, lerpPt } from './LaserDmxBeamKinematics'
 
 // ── Public result types ───────────────────────────────────────────────────────
 
@@ -62,11 +65,16 @@ export interface CompiledLaserDmxMatrixBeam {
   origin: { x: number; y: number; z: number }
   target: { x: number; y: number; z: number; offscreen: boolean }
 
+  /** Visible segment endpoints after travel mode is applied.
+   *  Equal to origin/target in static mode.  Renderer uses these, NOT origin/target. */
+  visibleOrigin: { x: number; y: number; z: number }
+  visibleTarget: { x: number; y: number; z: number }
+
   rgba: { r: number; g: number; b: number; a: number }
   /** Pre-built CSS rgba string for reuse in fills. */
   colorCss: string
 
-  /** Final 0–1 intensity (dimmer × masterDimmer × safety, after modulation). */
+  /** Final 0–1 intensity (dimmer × masterDimmer × safety × sequenceGate, after modulation). */
   intensity: number
   /** Effective pixel width (includes globalBeamWidth). */
   beamWidth: number
@@ -81,6 +89,18 @@ export interface CompiledLaserDmxMatrixBeam {
   /** ≈1.0 ± deterministic noise from flickerAmount. */
   flickerMultiplier: number
   geometry: LaserDmxMatrixBeamGeometry
+
+  // ── Motion / sequencer state ───────────────────────────────────────────────
+  /** Active travel mode (defaults to 'static' for legacy beams). */
+  motionMode:     LaserDmxBeamTravelMode
+  /** 0–1 travel progress along the current activation. */
+  travelProgress: number
+  /** 0 = silenced by sequence; 1 = active.  Already baked into intensity. */
+  sequenceGate:   number
+  /** 0–1 extra head-flare brightness for non-static modes. */
+  headIntensity:  number
+  /** Present only for pulseTrain: additional segment geometry. */
+  pulseSegments?: { startFrac: number; endFrac: number }[]
 }
 
 export interface CompiledLaserDmxBeamMatrixOutput {
@@ -115,12 +135,22 @@ export interface CompileLaserDmxBeamMatrixInput {
 
 // ── Module-level ephemeral state ──────────────────────────────────────────────
 
-let prevTimeSec = -1
+let prevTimeSec  = -1
+let prevSourceId = ''
 
-/** Reset compiler time reference and all trigger envelopes.
+// Launch envelopes: keyed by beamId.  Tracks free-running trigger launches.
+interface BeamLaunchEnvelope {
+  startBeat: number   // absoluteBeat when this launch began
+  active:    boolean
+}
+const launchEnvelopes = new Map<string, BeamLaunchEnvelope>()
+
+/** Reset compiler time reference, all trigger envelopes, and sequence state.
  *  Call when the Beam Matrix stops rendering (playback gate fires). */
 export function resetBeamMatrixCompilerState(): void {
-  prevTimeSec = -1
+  prevTimeSec  = -1
+  prevSourceId = ''
+  launchEnvelopes.clear()
   resetAllEnvelopes()
 }
 
@@ -188,35 +218,31 @@ function compileGroupRoutes(
     activeKeys.add(envKey)
     const result = applyModulationRoute(route, mi, envKey, dt)
     if (!result) continue
-    const v = clamp01(result.value)
+    const v = result.value  // unbounded; each case clamps to its valid range
 
     switch (route.target) {
       case 'dimmer':
         dimmer = dimmer === null
-          ? v
+          ? clamp01(v)
           : clamp01(modeApply(dimmer, v, route.mode))
         break
       case 'beamWidth':
-        // Map [0,1] to [0.2, 6] via min/max stored in route
-        beamWidth = lerp(
-          clamp(safeNumber(route.min, 0.2), 0.2, 6),
-          clamp(safeNumber(route.max, 3),   0.2, 6),
-          v,
-        )
+        // result.value is already mapped to [min,max] px by applyModulationRoute
+        beamWidth = clamp(v, 0.2, 6)
         break
       case 'beamDivergence':
         beamDivergence = beamDivergence === null
-          ? v
+          ? clamp01(v)
           : clamp01(modeApply(beamDivergence, v, route.mode))
         break
       case 'beamGlow':
         beamGlow = beamGlow === null
-          ? v
+          ? clamp01(v)
           : clamp01(modeApply(beamGlow, v, route.mode))
         break
       case 'strobeRate':
         strobeRate = strobeRate === null
-          ? v
+          ? clamp01(v)
           : clamp01(modeApply(strobeRate ?? 0, v, route.mode))
         break
       default: break
@@ -320,7 +346,19 @@ export function compileLaserDmxBeamMatrix(
   const dt = prevTimeSec >= 0
     ? clamp(timeSec - prevTimeSec, 0.001, 0.1)
     : 1 / 60
+
+  // Backward seek detection: clear ephemeral launch state so travel resets
+  if (prevTimeSec >= 0 && timeSec < prevTimeSec - 0.5) {
+    launchEnvelopes.clear()
+  }
   prevTimeSec = timeSec
+
+  // Track source changes (new track / seek restart)
+  const sourceId = (mi as unknown as Record<string, unknown>).sourceId as string | undefined ?? ''
+  if (sourceId !== prevSourceId) {
+    launchEnvelopes.clear()
+    prevSourceId = sourceId
+  }
 
   // ── 1. Global output base state ──────────────────────────────────────────
   const o = settings.output
@@ -357,7 +395,7 @@ export function compileLaserDmxBeamMatrix(
     activeKeys.add(envKey)
     const result = applyModulationRoute(route, mi, envKey, dt)
     if (!result) continue
-    applyGlobalRoute(route.target, clamp01(result.value), route.mode, gs)
+    applyGlobalRoute(route.target, result.value, route.mode, gs)
   }
 
   // ── 3. Solo detection ────────────────────────────────────────────────────
@@ -391,6 +429,41 @@ export function compileLaserDmxBeamMatrix(
   const groupMap = new Map<string, LaserDmxReactionGroup>(
     settings.groups.map(g => [g.id, g])
   )
+
+  // ── 5b. BPM sequence states (one pass per group with sequencing enabled) ──
+  const absoluteBeat = mi.rhythm.beatIndex + mi.rhythm.beatPhase
+  const seqStateMap  = new Map<string, BeamSequenceState>()
+
+  for (const group of settings.groups) {
+    const seq = group.sequence ?? DEFAULT_BEAM_SEQUENCE
+    if (!seq.enabled) continue
+
+    const groupBeams = settings.beams.filter(b => b.groupId === group.id && b.enabled)
+    if (groupBeams.length === 0) continue
+
+    const sorted = [...groupBeams].sort(
+      (a, b) => (a.sequenceIndex ?? 0) - (b.sequenceIndex ?? 0)
+    )
+    const sortedIds = sorted.map(b => b.id)
+    const n = sortedIds.length
+
+    const beatForSeq = seq.resetOnDownbeat
+      ? mi.rhythm.beatInBar + mi.rhythm.beatPhase
+      : absoluteBeat
+
+    const rotationOffset = seq.rotateEveryBars > 0
+      ? Math.floor(mi.rhythm.barIndex / seq.rotateEveryBars) % n
+      : 0
+
+    const orderedIds = computeSequenceOrder(sortedIds, seq.mode, seq.seed)
+
+    for (let i = 0; i < orderedIds.length; i++) {
+      // rotationOffset shifts which step index this beam "claims"
+      const adjustedIdx = (i - rotationOffset + n) % n
+      const state = computeBeamSequenceState(adjustedIdx, n, beatForSeq, seq)
+      seqStateMap.set(orderedIds[i], state)
+    }
+  }
 
   // ── 6. Compile beams ──────────────────────────────────────────────────────
   const compiled: CompiledLaserDmxMatrixBeam[] = []
@@ -454,7 +527,7 @@ export function compileLaserDmxBeamMatrix(
       activeKeys.add(envKey)
       const result = applyModulationRoute(route, mi, envKey, dt)
       if (!result) continue
-      applyBeamRoute(route.target, clamp01(result.value), route.mode, bs)
+      applyBeamRoute(route.target, result.value, route.mode, bs)
     }
 
     // ── Safety clamp ──────────────────────────────────────────────────────
@@ -494,7 +567,7 @@ export function compileLaserDmxBeamMatrix(
     const { widthScale: oWS, intensityScale: oIS } = zDepthFactors(originBase.z)
     const { widthScale: tWS }                       = zDepthFactors(targetBase.z)
     const avgWidthScale = (oWS + tWS) / 2
-    const finalIntensity = clamp01(intensity * oIS)
+    const baseDepthIntensity = clamp01(intensity * oIS)
 
     // ── Effective beam width ──────────────────────────────────────────────
     const effectiveWidth = clamp(
@@ -510,12 +583,53 @@ export function compileLaserDmxBeamMatrix(
       r: clamp255(bs.r),
       g: clamp255(bs.g),
       b: clamp255(bs.b),
-      a: clamp01(bs.a * finalIntensity),
+      a: clamp01(bs.a),  // source color alpha only; intensity is kept in beam.intensity
     }
     const colorCss = `rgba(${rgba.r},${rgba.g},${rgba.b},${rgba.a.toFixed(3)})`
 
     // ── Offscreen detection for (possibly-offset) target ──────────────────
     const targetOffscreen = targetX < 0 || targetX > W || targetY < 0 || targetY > H
+
+    // ── Motion / sequencer ────────────────────────────────────────────────
+    const motion = beam.motion ?? DEFAULT_BEAM_MOTION
+    const motionMode = motion.mode ?? 'static'
+
+    let travelProgress = 0
+    let sequenceGate   = 1
+
+    if (motionMode !== 'static') {
+      const seqState = seqStateMap.get(beam.id)
+      if (seqState) {
+        travelProgress = seqState.progress
+        sequenceGate   = seqState.gate
+      } else {
+        // Free-running: check launch envelope first, then fall back to beat phase
+        const env = launchEnvelopes.get(beam.id)
+        if (env?.active) {
+          const elapsed = Math.max(0, absoluteBeat - env.startBeat)
+          travelProgress = Math.min(1, elapsed / Math.max(0.01, motion.beatsPerTravel))
+          if (travelProgress >= 1) {
+            env.active = false
+            travelProgress = 1
+          }
+          sequenceGate = 1
+        } else {
+          // Continuous free-running (repeats every beatsPerTravel beats)
+          travelProgress = ((absoluteBeat + motion.phaseOffset) / Math.max(0.01, motion.beatsPerTravel)) % 1
+          sequenceGate   = 1
+        }
+      }
+    }
+
+    // Compute kinematics → visible segment fractions
+    const kin = computeKinematics(motionMode, travelProgress, motion.tailLength, motion.headGlow, motion.easing)
+
+    // Convert fractions to canvas coordinates
+    const visOriginPt = lerpPt(originX, originY, originBase.z, targetX, targetY, targetBase.z, kin.visibleOriginFrac)
+    const visTargetPt = lerpPt(originX, originY, originBase.z, targetX, targetY, targetBase.z, kin.visibleTargetFrac)
+
+    // Bake sequence gate into final intensity
+    const finalIntensity = clamp01(baseDepthIntensity * sequenceGate)
 
     // ── Final finite validation ────────────────────────────────────────────
     const safeF = (v: number, fb: number) => Number.isFinite(v) ? v : fb
@@ -532,6 +646,13 @@ export function compileLaserDmxBeamMatrix(
         z: safeF(targetBase.z, 0), offscreen: targetOffscreen,
       },
 
+      visibleOrigin: {
+        x: safeF(visOriginPt.x, originX), y: safeF(visOriginPt.y, originY), z: safeF(visOriginPt.z, originBase.z),
+      },
+      visibleTarget: {
+        x: safeF(visTargetPt.x, targetX), y: safeF(visTargetPt.y, targetY), z: safeF(visTargetPt.z, targetBase.z),
+      },
+
       rgba,
       colorCss,
 
@@ -543,6 +664,12 @@ export function compileLaserDmxBeamMatrix(
       strobeVisible,
       flickerMultiplier: safeF(flickerMultiplier, 1),
       geometry:          app.geometry ?? 'line',
+
+      motionMode,
+      travelProgress:   safeF(travelProgress, 0),
+      sequenceGate:     safeF(sequenceGate, 1),
+      headIntensity:    safeF(kin.headIntensity, 0),
+      pulseSegments:    kin.pulseSegments,
     })
   }
 

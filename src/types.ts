@@ -61,12 +61,41 @@ export type AudioSource = 'file' | 'microphone' | 'demo'
 
 export type FftSize = 512 | 1024 | 2048 | 4096 | 8192
 
+// Re-exported so callers import from one place
+export type { TrackAnalysisStatus } from './features/musicIntelligence/types'
+import type { TrackIntelligenceAnalysis, TrackAnalysisStatus } from './features/musicIntelligence/types'
+
+export type BpmSource = 'offline_analysis' | 'live_analysis' | 'manual_override'
+
+export interface TrackAnalysisRuntime {
+  status:            TrackAnalysisStatus
+  analysis:          TrackIntelligenceAnalysis | null
+  error:             string | null
+  analysisKey:       string
+  analysisVersion:   string
+  bpmOverride:       number | null
+  bpmOverrideSource: 'live_analysis' | 'manual_override' | null
+}
+
+export const DEFAULT_TRACK_ANALYSIS_RUNTIME: TrackAnalysisRuntime = {
+  status:            'not_analyzed',
+  analysis:          null,
+  error:             null,
+  analysisKey:       '',
+  analysisVersion:   '',
+  bpmOverride:       null,
+  bpmOverrideSource: null,
+}
+
 export interface Track {
   id: string
   name: string
   displayName: string
   url: string
   duration: number
+  sourceKind:      'file' | 'remote'
+  sourceFile?:     File
+  analysisRuntime: TrackAnalysisRuntime
 }
 
 // ─── Layout & Themes ─────────────────────────────────────────────────────────

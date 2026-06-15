@@ -181,7 +181,7 @@ function applyContinuousEnvelope(
   const enveloped = approachBySeconds(prev, rawV, dtSec, durSec)
   const finalV   = smoothing > 0 ? lerp(rawV, enveloped, clamp01(smoothing)) : enveloped
   envelopes.set(envKey, { value: finalV, phase: 'idle', holdTimer: 0 })
-  return clamp01(finalV)
+  return finalV
 }
 
 // ── Legacy source resolver (kept for callers outside applyModulationRoute) ────
@@ -200,7 +200,7 @@ export function resolveSourceValue(
 // ── Public route application ──────────────────────────────────────────────────
 
 export interface RouteApplicationResult {
-  /** 0–1 final modulation output. */
+  /** Final modulation output. May be outside [0,1] for bipolar offset targets. */
   value: number
   /** The envelope key used, for active-key pruning. */
   envKey: string
@@ -242,7 +242,7 @@ export function applyModulationRoute(
     const envValue   = applyTriggerEnvelope(envKey, triggered, dt, attackSec, holdSec, releaseSec)
     // Map through min/max and amount; curve NOT applied (see module header).
     const mapped = clamp(lerp(lo, hi, envValue) * amount, -2, 2)
-    return { value: clamp01(mapped), envKey }
+    return { value: mapped, envKey }
   }
 
   // Continuous path
@@ -258,7 +258,7 @@ export function applyModulationRoute(
   v = lerp(lo, hi, v)
   v = clamp(v * amount, -2, 2)
   const smoothing = clamp01(route.smoothing ?? 0)
-  v = applyContinuousEnvelope(clamp01(v), envKey, dt, attackSec, releaseSec, smoothing)
+  v = applyContinuousEnvelope(v, envKey, dt, attackSec, releaseSec, smoothing)
   return { value: v, envKey }
 }
 

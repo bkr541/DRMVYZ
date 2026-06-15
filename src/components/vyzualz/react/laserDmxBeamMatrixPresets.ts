@@ -22,7 +22,10 @@ import type {
   LaserDmxBeamMatrixOutputSettings,
   LaserDmxFogSettings,
   LaserDmxBeamMatrixEditorSettings,
+  LaserDmxBeamMotion,
+  LaserDmxBeamSequence,
 } from './ReactTypes'
+import { DEFAULT_BEAM_MOTION, DEFAULT_BEAM_SEQUENCE } from './ReactTypes'
 
 // ── Low-level factory helpers ─────────────────────────────────────────────────
 
@@ -78,8 +81,14 @@ function mkGroup(
     soloed:  false,
     colorOverrideEnabled: true,
     color,
+    sequence: DEFAULT_BEAM_SEQUENCE,
     modulationRoutes: routes,
   }
+}
+
+/** Assign sequenceIndex = array position to each beam. */
+function withSequenceIndices(beams: LaserDmxMatrixBeam[]): LaserDmxMatrixBeam[] {
+  return beams.map((b, i) => ({ ...b, sequenceIndex: i }))
 }
 
 function mkGridBeam(
@@ -94,12 +103,14 @@ function mkGridBeam(
     id,
     name,
     enabled:       true,
+    sequenceIndex: 0,
     origin:        { column: origCol, row: origRow, z: 0 },
     target:        { kind: 'grid', column: targCol, row: targRow, z: 0 },
     groupId,
     useGroupColor: true,
     color:         mkColor(255, 255, 255),
     appearance,
+    motion:        DEFAULT_BEAM_MOTION,
     modulationRoutes: [],
   }
 }
@@ -127,13 +138,15 @@ function mkStageBeam(
   return {
     id,
     name,
-    enabled:      true,
-    origin:       { column: origCol, row: origRow, z: 0 },
-    target:       { kind: 'stage', x: stageX, y: stageY, z: stageZ },
+    enabled:       true,
+    sequenceIndex: 0,
+    origin:        { column: origCol, row: origRow, z: 0 },
+    target:        { kind: 'stage', x: stageX, y: stageY, z: stageZ },
     groupId,
     useGroupColor: true,
     color:         mkColor(255, 255, 255),
     appearance,
+    motion:        DEFAULT_BEAM_MOTION,
     modulationRoutes: [],
   }
 }
@@ -176,12 +189,12 @@ function createMinimalCrossfireSettings(): LaserDmxBeamMatrixSettings {
   return {
     selectedBeamIds: [],
     selectedGroupId: null,
-    beams: [
+    beams: withSequenceIndices([
       mkGridBeam(`${P}:beam:c1r10-c8r1`,   'Beam 1', cyanBass.id,   1, 10, 8,  1, app),
       mkGridBeam(`${P}:beam:c15r10-c8r1`,  'Beam 2', blueSnare.id, 15, 10, 8,  1, app),
       mkGridBeam(`${P}:beam:c1r1-c8r10`,   'Beam 3', cyanBass.id,   1,  1, 8, 10, app),
       mkGridBeam(`${P}:beam:c15r1-c8r10`,  'Beam 4', blueSnare.id, 15,  1, 8, 10, app),
-    ],
+    ]),
     groups: [cyanBass, blueSnare],
     globalModulationRoutes: [
       mkRoute(`${P}:global:downbeat-scatter`, 'downbeat', 'fogBeamScatter', 'trigger',
@@ -268,7 +281,7 @@ function createRedlineBassTunnelSettings(): LaserDmxBeamMatrixSettings {
   return {
     selectedBeamIds: [],
     selectedGroupId: null,
-    beams,
+    beams: withSequenceIndices(beams),
     groups: [bassTunnel, kickAccent],
     globalModulationRoutes: [
       mkRoute(`${P}:global:bass-scatter`, 'nBass', 'fogBeamScatter', 'set',
@@ -356,7 +369,7 @@ function createBlueSnareSettings(): LaserDmxBeamMatrixSettings {
   return {
     selectedBeamIds: [],
     selectedGroupId: null,
-    beams,
+    beams: withSequenceIndices(beams),
     groups: [snareReact, hatDetail],
     globalModulationRoutes: [
       mkRoute(`${P}:global:downbeat-scatter`, 'downbeat', 'fogBeamScatter', 'trigger',
@@ -438,7 +451,7 @@ function createGreenBeatPyramidSettings(): LaserDmxBeamMatrixSettings {
   return {
     selectedBeamIds: [],
     selectedGroupId: null,
-    beams,
+    beams: withSequenceIndices(beams),
     groups: [beatPyramid, downbeatAccent],
     globalModulationRoutes: [
       mkRoute(`${P}:global:beat-turbulence`, 'beat', 'fogTurbulence', 'trigger',
@@ -537,7 +550,7 @@ function createKickSnareDuelSettings(): LaserDmxBeamMatrixSettings {
   return {
     selectedBeamIds: [],
     selectedGroupId: null,
-    beams,
+    beams: withSequenceIndices(beams),
     groups: [redKick, blueSnare],
     globalModulationRoutes: [
       mkRoute(`${P}:global:downbeat-scatter`, 'downbeat', 'fogBeamScatter', 'trigger',
@@ -667,7 +680,7 @@ function createRgbReactionSplitSettings(): LaserDmxBeamMatrixSettings {
   return {
     selectedBeamIds: [],
     selectedGroupId: null,
-    beams,
+    beams: withSequenceIndices(beams),
     groups: [redBass, blueSnare, greenBeat, purpleCustom],
     globalModulationRoutes: [
       mkRoute(`${P}:global:energy-fog`, 'energy', 'fogDensity', 'set',
@@ -793,7 +806,7 @@ function createCeilingScannerSettings(): LaserDmxBeamMatrixSettings {
   return {
     selectedBeamIds: [],
     selectedGroupId: null,
-    beams,
+    beams: withSequenceIndices(beams),
     groups: [sweepA, sweepB, phraseMotion, hatDetail],
     globalModulationRoutes: [
       mkRoute(`${P}:global:downbeat-dimmer`, 'downbeat', 'masterDimmer', 'trigger',
@@ -901,7 +914,7 @@ function createLaserCageSettings(): LaserDmxBeamMatrixSettings {
   return {
     selectedBeamIds: [],
     selectedGroupId: null,
-    beams,
+    beams: withSequenceIndices(beams),
     groups: [horizGrid, vertGrid, diagBraces, dropImpactGroup],
     globalModulationRoutes: [
       mkRoute(`${P}:global:energy-dimmer`, 'energy', 'masterDimmer', 'set',
@@ -1007,7 +1020,7 @@ function createBuildLadderSettings(): LaserDmxBeamMatrixSettings {
   return {
     selectedBeamIds: [],
     selectedGroupId: null,
-    beams,
+    beams: withSequenceIndices(beams),
     groups: [progression],
     globalModulationRoutes: [
       mkRoute(`${P}:global:build-fog`, 'buildProgress', 'fogDensity', 'set',
@@ -1107,7 +1120,7 @@ function createDropStarburstSettings(): LaserDmxBeamMatrixSettings {
   return {
     selectedBeamIds: [],
     selectedGroupId: null,
-    beams,
+    beams: withSequenceIndices(beams),
     groups: [dropBurst, downbeatBurst],
     globalModulationRoutes: [
       mkRoute(`${P}:global:drop-master`, 'dropImpact', 'masterDimmer', 'trigger',
@@ -1213,7 +1226,7 @@ function createVocalHaloSettings(): LaserDmxBeamMatrixSettings {
   return {
     selectedBeamIds: [],
     selectedGroupId: null,
-    beams: [...inwardLines, ...outwardCones],
+    beams: withSequenceIndices([...inwardLines, ...outwardCones]),
     groups: [vocalCore, haloCones],
     globalModulationRoutes: [
       mkRoute(`${P}:global:vocal-master`, 'vocalActivity', 'masterDimmer', 'set',
@@ -1320,7 +1333,7 @@ function createFogCathedralSettings(): LaserDmxBeamMatrixSettings {
   return {
     selectedBeamIds: [],
     selectedGroupId: null,
-    beams: [...cathedralBeams, ...accentBeams],
+    beams: withSequenceIndices([...cathedralBeams, ...accentBeams]),
     groups: [cathedralCones, crossingAccents],
     globalModulationRoutes: [
       mkRoute(`${P}:global:energy-fog-density`, 'energy', 'fogDensity', 'set',
@@ -1348,6 +1361,519 @@ function createFogCathedralSettings(): LaserDmxBeamMatrixSettings {
       turbulence: 0.2, diffusion: 0.5, dissipation: 0.45,
       beamScatter: 0.65, colorAbsorption: 0.25, quality: 'high',
     }),
+    editor: mkEditor(),
+  }
+}
+
+// ── Sequencing helpers ────────────────────────────────────────────────────────
+
+function mkSeqGroup(
+  id: string,
+  name: string,
+  color: LaserDmxMatrixBeamColor,
+  routes: LaserDmxModulationRoute[],
+  seq: Partial<LaserDmxBeamSequence>,
+): LaserDmxReactionGroup {
+  return {
+    id,
+    name,
+    enabled: true,
+    muted:   false,
+    soloed:  false,
+    colorOverrideEnabled: true,
+    color,
+    sequence: { ...DEFAULT_BEAM_SEQUENCE, ...seq },
+    modulationRoutes: routes,
+  }
+}
+
+function mkMotionBeam(
+  id: string,
+  name: string,
+  groupId: string,
+  origCol: number, origRow: number,
+  targCol: number, targRow: number,
+  appearance: LaserDmxMatrixBeamAppearance,
+  motion: Partial<LaserDmxBeamMotion>,
+): LaserDmxMatrixBeam {
+  return {
+    id,
+    name,
+    enabled:       true,
+    sequenceIndex: 0,
+    origin:        { column: origCol, row: origRow, z: 0 },
+    target:        { kind: 'grid', column: targCol, row: targRow, z: 0 },
+    groupId,
+    useGroupColor: true,
+    color:         mkColor(255, 255, 255),
+    appearance,
+    motion:        { ...DEFAULT_BEAM_MOTION, ...motion },
+    modulationRoutes: [],
+  }
+}
+
+// ── Preset 13: Bass Fan ───────────────────────────────────────────────────────
+
+function createBassFanSettings(): LaserDmxBeamMatrixSettings {
+  const P = 'bass-fan'
+
+  // All beams fire together, grow motion driven by beat + bass
+  const bassFan = mkSeqGroup(
+    `${P}:group:bass-fan`,
+    'Bass Fan',
+    mkColor(0, 210, 255, 30, 1),
+    [
+      mkRoute(`${P}:route:beat-dimmer`, 'beatHit', 'dimmer', 'trigger',
+        1, 0.18, 1, 'easeOut', 0, 0.22),
+      mkRoute(`${P}:route:bass-width`, 'nBass', 'beamWidth', 'set',
+        0.65, 0.8, 1.6, 'easeOut', 0.03, 0.2, { smoothing: 0.25 }),
+      mkRoute(`${P}:route:bass-glow`, 'nBass', 'beamGlow', 'set',
+        0.5, 0.2, 0.7, 'easeOut', 0.03, 0.2, { smoothing: 0.2 }),
+    ],
+    { enabled: true, mode: 'all', stepsPerBeat: 1, stepGate: 0.8 },
+  )
+
+  // Downbeat accent group — wider fan on the one
+  const downbeatAccent = mkSeqGroup(
+    `${P}:group:downbeat-accent`,
+    'Downbeat Accent',
+    mkColor(0, 240, 200, 60, 1),
+    [
+      mkRoute(`${P}:route:downbeat-dimmer`, 'downbeat', 'dimmer', 'trigger',
+        1, 0.15, 1, 'easeOut', 0, 0.3),
+      mkRoute(`${P}:route:downbeat-width`, 'downbeat', 'beamWidth', 'trigger',
+        0.8, 0.9, 2.2, 'easeOut', 0, 0.28),
+      mkRoute(`${P}:route:downbeat-glow`, 'downbeat', 'beamGlow', 'trigger',
+        0.9, 0, 0.9, 'easeOut', 0, 0.25),
+    ],
+    { enabled: true, mode: 'all', stepsPerBeat: 0.25, stepGate: 0.9 },
+  )
+
+  const app: LaserDmxMatrixBeamAppearance = {
+    dimmer: 0.7, shutterOpen: true, width: 1.1, focus: 0.72,
+    strobeRate: 0, flickerAmount: 0, divergence: 0.18, glow: 0.62,
+    geometry: 'volumetricCone',
+  }
+  const growMotion: Partial<LaserDmxBeamMotion> = { mode: 'grow', beatsPerTravel: 0.5, easing: 'easeOut', headGlow: 0.6 }
+
+  const beams = withSequenceIndices([
+    mkMotionBeam(`${P}:beam:c1r10-c8r1`,  'Fan L1', bassFan.id,       1, 10, 8,  1, app, growMotion),
+    mkMotionBeam(`${P}:beam:c4r10-c8r1`,  'Fan L2', bassFan.id,       4, 10, 8,  1, app, growMotion),
+    mkMotionBeam(`${P}:beam:c8r10-c8r1`,  'Fan C',  downbeatAccent.id,8, 10, 8,  1, app, growMotion),
+    mkMotionBeam(`${P}:beam:c12r10-c8r1`, 'Fan R2', bassFan.id,      12, 10, 8,  1, app, growMotion),
+    mkMotionBeam(`${P}:beam:c15r10-c8r1`, 'Fan R1', bassFan.id,      15, 10, 8,  1, app, growMotion),
+  ])
+
+  return {
+    selectedBeamIds: [], selectedGroupId: null,
+    beams,
+    groups: [bassFan, downbeatAccent],
+    globalModulationRoutes: [
+      mkRoute(`${P}:global:bass-fog`, 'nBass', 'fogDensity', 'set',
+        0.55, 0.1, 0.5, 'easeOut', 0.05, 0.3, { smoothing: 0.3 }),
+      mkRoute(`${P}:global:downbeat-scatter`, 'downbeat', 'fogBeamScatter', 'trigger',
+        0.6, 0, 0.5, 'easeOut', 0, 0.25),
+    ],
+    output: mkOutput({ masterDimmer: 0.88, blackout: false, safetyClamp: 0.9, backgroundFade: 0.2, beamPersistence: 0.38, globalBeamWidth: 1, globalGlow: 0.6, globalStrobeRate: 0 }),
+    fog: mkFog({ enabled: true, density: 0.22, opacity: 0.32, noiseScale: 1.1, driftSpeed: 0.1, driftDirection: 0.1, turbulence: 0.15, diffusion: 0.28, dissipation: 0.6, beamScatter: 0.3, colorAbsorption: 0.18, quality: 'medium' }),
+    editor: mkEditor(),
+  }
+}
+
+// ── Preset 14: Snare Crossfire Seq ────────────────────────────────────────────
+
+function createSnareCrossFireSeqSettings(): LaserDmxBeamMatrixSettings {
+  const P = 'snare-crossfire-seq'
+
+  // Left group: alternate (even steps) — projectile motion
+  const leftGroup = mkSeqGroup(
+    `${P}:group:left`,
+    'Left Crossfire',
+    mkColor(0, 100, 255, 40, 1),
+    [
+      mkRoute(`${P}:route:snare-dimmer`, 'snareHit', 'dimmer', 'trigger',
+        1, 0.06, 1, 'easeOut', 0, 0.22),
+      mkRoute(`${P}:route:snare-glow`, 'snareHit', 'beamGlow', 'trigger',
+        0.7, 0, 0.6, 'easeOut', 0, 0.14),
+    ],
+    { enabled: true, mode: 'alternate', stepsPerBeat: 1, stepGate: 0.6 },
+  )
+
+  // Right group: alternate (odd steps via phaseSpread offset) — projectile motion
+  const rightGroup = mkSeqGroup(
+    `${P}:group:right`,
+    'Right Crossfire',
+    mkColor(255, 30, 80, 40, 1),
+    [
+      mkRoute(`${P}:route:kick-dimmer`, 'kickHit', 'dimmer', 'trigger',
+        1, 0.08, 1, 'easeOut', 0, 0.18),
+      mkRoute(`${P}:route:kick-glow`, 'kickHit', 'beamGlow', 'trigger',
+        0.55, 0, 0.5, 'easeOut', 0, 0.14),
+    ],
+    { enabled: true, mode: 'alternate', stepsPerBeat: 1, stepGate: 0.6, phaseSpread: 0.5 },
+  )
+
+  const app: LaserDmxMatrixBeamAppearance = {
+    dimmer: 0.22, shutterOpen: true, width: 0.9, focus: 0.94,
+    strobeRate: 0, flickerAmount: 0, divergence: 0.04, glow: 0.55,
+    geometry: 'line',
+  }
+  const projMotion: Partial<LaserDmxBeamMotion> = { mode: 'projectile', beatsPerTravel: 0.5, tailLength: 0.38, easing: 'easeOut', headGlow: 0.5, retrigger: 'restart' }
+
+  const beams = withSequenceIndices([
+    mkMotionBeam(`${P}:beam:l1`,  'L1', leftGroup.id,   1, 10, 15,  1, app, projMotion),
+    mkMotionBeam(`${P}:beam:l2`,  'L2', leftGroup.id,   1,  7, 15,  4, app, projMotion),
+    mkMotionBeam(`${P}:beam:l3`,  'L3', leftGroup.id,   1,  4, 15,  7, app, projMotion),
+    mkMotionBeam(`${P}:beam:l4`,  'L4', leftGroup.id,   1,  1, 15, 10, app, projMotion),
+    mkMotionBeam(`${P}:beam:r1`,  'R1', rightGroup.id, 15, 10,  1,  1, app, projMotion),
+    mkMotionBeam(`${P}:beam:r2`,  'R2', rightGroup.id, 15,  7,  1,  4, app, projMotion),
+    mkMotionBeam(`${P}:beam:r3`,  'R3', rightGroup.id, 15,  4,  1,  7, app, projMotion),
+    mkMotionBeam(`${P}:beam:r4`,  'R4', rightGroup.id, 15,  1,  1, 10, app, projMotion),
+  ])
+
+  return {
+    selectedBeamIds: [], selectedGroupId: null,
+    beams,
+    groups: [leftGroup, rightGroup],
+    globalModulationRoutes: [
+      mkRoute(`${P}:global:downbeat-scatter`, 'downbeat', 'fogBeamScatter', 'trigger',
+        0.5, 0, 0.4, 'easeOut', 0, 0.22),
+    ],
+    output: mkOutput({ masterDimmer: 0.9, blackout: false, safetyClamp: 0.92, backgroundFade: 0.18, beamPersistence: 0.35, globalBeamWidth: 1, globalGlow: 0.58, globalStrobeRate: 0 }),
+    fog: mkFog({ enabled: true, density: 0.15, opacity: 0.24, noiseScale: 1.2, driftSpeed: 0.1, driftDirection: 0.3, turbulence: 0.14, diffusion: 0.2, dissipation: 0.68, beamScatter: 0.28, colorAbsorption: 0.15, quality: 'medium' }),
+    editor: mkEditor(),
+  }
+}
+
+// ── Preset 15: Center-Out Chase ───────────────────────────────────────────────
+
+function createCenterOutChaseSettings(): LaserDmxBeamMatrixSettings {
+  const P = 'center-out-chase'
+
+  const chaseGroup = mkSeqGroup(
+    `${P}:group:chase`,
+    'Center-Out Chase',
+    mkColor(80, 255, 160, 20, 1),
+    [
+      mkRoute(`${P}:route:energy-dimmer`, 'energy', 'dimmer', 'set',
+        0.85, 0.1, 0.9, 'easeOut', 0.04, 0.25, { smoothing: 0.3 }),
+      mkRoute(`${P}:route:energy-width`, 'energy', 'beamWidth', 'set',
+        0.5, 0.75, 1.4, 'easeOut', 0.04, 0.22, { smoothing: 0.28 }),
+    ],
+    // centerOut, 1/8-note steps, resets on each downbeat
+    { enabled: true, mode: 'centerOut', stepsPerBeat: 2, stepGate: 0.65, resetOnDownbeat: true },
+  )
+
+  const app: LaserDmxMatrixBeamAppearance = {
+    dimmer: 0.6, shutterOpen: true, width: 1.0, focus: 0.88,
+    strobeRate: 0, flickerAmount: 0, divergence: 0.06, glow: 0.58,
+    geometry: 'line',
+  }
+  const growMotion: Partial<LaserDmxBeamMotion> = { mode: 'grow', beatsPerTravel: 0.5, easing: 'easeOut', headGlow: 0.55 }
+
+  // 8 beams arranged symmetrically from center outward
+  const beams = withSequenceIndices([
+    mkMotionBeam(`${P}:beam:c8r1-c8r10`,  'Vert C',  chaseGroup.id,  8,  1,  8, 10, app, growMotion),
+    mkMotionBeam(`${P}:beam:c1r5-c15r5`,  'Horiz C', chaseGroup.id,  1,  5, 15,  5, app, growMotion),
+    mkMotionBeam(`${P}:beam:c5r1-c5r10`,  'Vert L',  chaseGroup.id,  5,  1,  5, 10, app, growMotion),
+    mkMotionBeam(`${P}:beam:c11r1-c11r10`, 'Vert R', chaseGroup.id, 11,  1, 11, 10, app, growMotion),
+    mkMotionBeam(`${P}:beam:c3r10-c13r1`, 'Diag 1',  chaseGroup.id,  3, 10, 13,  1, app, growMotion),
+    mkMotionBeam(`${P}:beam:c13r10-c3r1`, 'Diag 2',  chaseGroup.id, 13, 10,  3,  1, app, growMotion),
+    mkMotionBeam(`${P}:beam:c1r1-c15r10`, 'Diag 3',  chaseGroup.id,  1,  1, 15, 10, app, growMotion),
+    mkMotionBeam(`${P}:beam:c15r1-c1r10`, 'Diag 4',  chaseGroup.id, 15,  1,  1, 10, app, growMotion),
+  ])
+
+  return {
+    selectedBeamIds: [], selectedGroupId: null,
+    beams,
+    groups: [chaseGroup],
+    globalModulationRoutes: [
+      mkRoute(`${P}:global:energy-fog`, 'energy', 'fogDensity', 'set',
+        0.45, 0.1, 0.4, 'easeOut', 0.08, 0.4, { smoothing: 0.4 }),
+      mkRoute(`${P}:global:downbeat-scatter`, 'downbeat', 'fogBeamScatter', 'trigger',
+        0.5, 0, 0.45, 'easeOut', 0, 0.22),
+    ],
+    output: mkOutput({ masterDimmer: 0.86, blackout: false, safetyClamp: 0.9, backgroundFade: 0.22, beamPersistence: 0.42, globalBeamWidth: 1, globalGlow: 0.62, globalStrobeRate: 0 }),
+    fog: mkFog({ enabled: true, density: 0.2, opacity: 0.3, noiseScale: 1.1, driftSpeed: 0.09, driftDirection: 0.2, turbulence: 0.14, diffusion: 0.26, dissipation: 0.62, beamScatter: 0.32, colorAbsorption: 0.16, quality: 'medium' }),
+    editor: mkEditor(),
+  }
+}
+
+// ── Preset 16: Drop Burst Seq ─────────────────────────────────────────────────
+
+function createDropBurstSeqSettings(): LaserDmxBeamMatrixSettings {
+  const P = 'drop-burst-seq'
+
+  const burstGroup = mkSeqGroup(
+    `${P}:group:burst`,
+    'Drop Burst',
+    mkColor(255, 120, 0, 50, 1),
+    [
+      mkRoute(`${P}:route:drop-dimmer`, 'dropImpact', 'dimmer', 'trigger',
+        1, 0.08, 1, 'easeOut', 0, 0.4),
+      mkRoute(`${P}:route:energy-glow`, 'energy', 'beamGlow', 'set',
+        0.65, 0.15, 0.75, 'easeOut', 0.04, 0.3, { smoothing: 0.35 }),
+      mkRoute(`${P}:route:bass-diverge`, 'nBass', 'beamDivergence', 'set',
+        0.6, 0.1, 0.55, 'easeOut', 0.03, 0.22, { smoothing: 0.25 }),
+    ],
+    // All at once, every quarter note — full-matrix on drop
+    { enabled: true, mode: 'forward', stepsPerBeat: 1, stepGate: 0.75 },
+  )
+
+  const coneApp: LaserDmxMatrixBeamAppearance = {
+    dimmer: 0.1, shutterOpen: true, width: 1.3, focus: 0.42,
+    strobeRate: 0, flickerAmount: 0, divergence: 0.38, glow: 0.6,
+    geometry: 'volumetricCone',
+  }
+  const projMotion: Partial<LaserDmxBeamMotion> = { mode: 'projectile', beatsPerTravel: 0.25, tailLength: 0.4, headGlow: 0.8, easing: 'easeOut' }
+
+  const beams = withSequenceIndices([
+    mkMotionBeam(`${P}:beam:c1r1-c15r10`,  'TL', burstGroup.id,  1,  1, 15, 10, coneApp, projMotion),
+    mkMotionBeam(`${P}:beam:c8r1-c8r10`,   'TC', burstGroup.id,  8,  1,  8, 10, coneApp, projMotion),
+    mkMotionBeam(`${P}:beam:c15r1-c1r10`,  'TR', burstGroup.id, 15,  1,  1, 10, coneApp, projMotion),
+    mkMotionBeam(`${P}:beam:c1r10-c15r1`,  'BL', burstGroup.id,  1, 10, 15,  1, coneApp, projMotion),
+    mkMotionBeam(`${P}:beam:c8r10-c8r1`,   'BC', burstGroup.id,  8, 10,  8,  1, coneApp, projMotion),
+    mkMotionBeam(`${P}:beam:c15r10-c1r1`,  'BR', burstGroup.id, 15, 10,  1,  1, coneApp, projMotion),
+    mkMotionBeam(`${P}:beam:c1r5-c15r6`,   'HL', burstGroup.id,  1,  5, 15,  6, coneApp, projMotion),
+    mkMotionBeam(`${P}:beam:c15r5-c1r6`,   'HR', burstGroup.id, 15,  5,  1,  6, coneApp, projMotion),
+  ])
+
+  return {
+    selectedBeamIds: [], selectedGroupId: null,
+    beams,
+    groups: [burstGroup],
+    globalModulationRoutes: [
+      mkRoute(`${P}:global:drop-master`, 'dropImpact', 'masterDimmer', 'trigger',
+        1, 0.45, 1, 'easeOut', 0, 0.45),
+      mkRoute(`${P}:global:drop-scatter`, 'dropImpact', 'fogBeamScatter', 'trigger',
+        0.8, 0, 0.75, 'easeOut', 0, 0.5),
+      mkRoute(`${P}:global:energy-fog`, 'energy', 'fogOpacity', 'set',
+        0.55, 0.15, 0.6, 'easeOut', 0.08, 0.4, { smoothing: 0.4 }),
+    ],
+    output: mkOutput({ masterDimmer: 0.88, blackout: false, safetyClamp: 0.95, backgroundFade: 0.14, beamPersistence: 0.35, globalBeamWidth: 1.1, globalGlow: 0.65, globalStrobeRate: 0 }),
+    fog: mkFog({ enabled: true, density: 0.28, opacity: 0.45, noiseScale: 1.15, driftSpeed: 0.12, driftDirection: 0.1, turbulence: 0.28, diffusion: 0.35, dissipation: 0.52, beamScatter: 0.5, colorAbsorption: 0.18, quality: 'medium' }),
+    editor: mkEditor(),
+  }
+}
+
+// ── Preset 17: Phrase Scanner ─────────────────────────────────────────────────
+
+function createPhraseScannerSettings(): LaserDmxBeamMatrixSettings {
+  const P = 'phrase-scanner'
+
+  // Forward scanners, all active together
+  const scanFwd = mkSeqGroup(
+    `${P}:group:fwd`,
+    'Scan Forward',
+    mkColor(0, 220, 255, 25, 1),
+    [
+      mkRoute(`${P}:route:beat-glow`, 'beat', 'beamGlow', 'trigger',
+        0.3, 0, 0.3, 'easeOut', 0, 0.18),
+    ],
+    { enabled: true, mode: 'all', stepsPerBeat: 1, stepGate: 0.85 },
+  )
+
+  // Reverse scanners — alternate phrase pattern via trigger routing
+  const scanRev = mkSeqGroup(
+    `${P}:group:rev`,
+    'Scan Reverse',
+    mkColor(255, 160, 0, 25, 1),
+    [
+      mkRoute(`${P}:route:downbeat-glow`, 'downbeat', 'beamGlow', 'trigger',
+        0.45, 0, 0.45, 'easeOut', 0, 0.22),
+    ],
+    { enabled: true, mode: 'all', stepsPerBeat: 1, stepGate: 0.85 },
+  )
+
+  const app: LaserDmxMatrixBeamAppearance = {
+    dimmer: 0.72, shutterOpen: true, width: 0.85, focus: 0.95,
+    strobeRate: 0, flickerAmount: 0, divergence: 0.03, glow: 0.5,
+    geometry: 'line',
+  }
+  const fwdMotion: Partial<LaserDmxBeamMotion> = { mode: 'scanner', beatsPerTravel: 1, tailLength: 0.2, direction: 'forward', easing: 'easeInOut' }
+  const revMotion: Partial<LaserDmxBeamMotion> = { mode: 'scanner', beatsPerTravel: 1, tailLength: 0.2, direction: 'reverse', easing: 'easeInOut' }
+
+  const beams = withSequenceIndices([
+    mkMotionBeam(`${P}:beam:f1`, 'Fwd 1', scanFwd.id,  1,  2, 15,  2, app, fwdMotion),
+    mkMotionBeam(`${P}:beam:f2`, 'Fwd 2', scanFwd.id,  1,  4, 15,  4, app, fwdMotion),
+    mkMotionBeam(`${P}:beam:f3`, 'Fwd 3', scanFwd.id,  1,  6, 15,  6, app, fwdMotion),
+    mkMotionBeam(`${P}:beam:f4`, 'Fwd 4', scanFwd.id,  1,  8, 15,  8, app, fwdMotion),
+    mkMotionBeam(`${P}:beam:r1`, 'Rev 1', scanRev.id, 15,  3,  1,  3, app, revMotion),
+    mkMotionBeam(`${P}:beam:r2`, 'Rev 2', scanRev.id, 15,  5,  1,  5, app, revMotion),
+    mkMotionBeam(`${P}:beam:r3`, 'Rev 3', scanRev.id, 15,  7,  1,  7, app, revMotion),
+    mkMotionBeam(`${P}:beam:r4`, 'Rev 4', scanRev.id, 15,  9,  1,  9, app, revMotion),
+  ])
+
+  return {
+    selectedBeamIds: [], selectedGroupId: null,
+    beams,
+    groups: [scanFwd, scanRev],
+    globalModulationRoutes: [
+      mkRoute(`${P}:global:phrase8-master`, 'phrase8Hit', 'masterDimmer', 'trigger',
+        0.3, 0.65, 1, 'easeOut', 0, 0.3),
+      mkRoute(`${P}:global:energy-fog`, 'energy', 'fogDensity', 'set',
+        0.4, 0.12, 0.4, 'easeOut', 0.08, 0.4, { smoothing: 0.4 }),
+    ],
+    output: mkOutput({ masterDimmer: 0.86, blackout: false, safetyClamp: 0.9, backgroundFade: 0.18, beamPersistence: 0.5, globalBeamWidth: 0.92, globalGlow: 0.6, globalStrobeRate: 0 }),
+    fog: mkFog({ enabled: true, density: 0.18, opacity: 0.28, noiseScale: 1.25, driftSpeed: 0.11, driftDirection: 0.55, turbulence: 0.16, diffusion: 0.22, dissipation: 0.66, beamScatter: 0.3, colorAbsorption: 0.15, quality: 'medium' }),
+    editor: mkEditor(),
+  }
+}
+
+// ── Preset 18: Outside-In Collapse ────────────────────────────────────────────
+
+function createOutsideInCollapseSettings(): LaserDmxBeamMatrixSettings {
+  const P = 'outside-in-collapse'
+
+  const collapseGroup = mkSeqGroup(
+    `${P}:group:collapse`,
+    'Outside-In',
+    mkColor(255, 40, 120, 35, 1),
+    [
+      mkRoute(`${P}:route:snare-dimmer`, 'snareHit', 'dimmer', 'trigger',
+        1, 0.06, 1, 'easeOut', 0, 0.2),
+      mkRoute(`${P}:route:energy-glow`, 'energy', 'beamGlow', 'set',
+        0.55, 0.12, 0.65, 'easeOut', 0.04, 0.25, { smoothing: 0.3 }),
+    ],
+    { enabled: true, mode: 'outsideIn', stepsPerBeat: 1, stepGate: 0.55 },
+  )
+
+  const app: LaserDmxMatrixBeamAppearance = {
+    dimmer: 0.35, shutterOpen: true, width: 1, focus: 0.9,
+    strobeRate: 0, flickerAmount: 0, divergence: 0.05, glow: 0.55,
+    geometry: 'line',
+  }
+  const projMotion: Partial<LaserDmxBeamMotion> = { mode: 'projectile', beatsPerTravel: 0.5, tailLength: 0.35, easing: 'easeIn', headGlow: 0.45, retrigger: 'restart' }
+
+  const beams = withSequenceIndices([
+    mkMotionBeam(`${P}:beam:c1r10-c15r1`,  'OI-1', collapseGroup.id,  1, 10, 15,  1, app, projMotion),
+    mkMotionBeam(`${P}:beam:c15r10-c1r1`,  'OI-2', collapseGroup.id, 15, 10,  1,  1, app, projMotion),
+    mkMotionBeam(`${P}:beam:c3r10-c13r2`,  'OI-3', collapseGroup.id,  3, 10, 13,  2, app, projMotion),
+    mkMotionBeam(`${P}:beam:c13r10-c3r2`,  'OI-4', collapseGroup.id, 13, 10,  3,  2, app, projMotion),
+    mkMotionBeam(`${P}:beam:c5r10-c11r3`,  'OI-5', collapseGroup.id,  5, 10, 11,  3, app, projMotion),
+    mkMotionBeam(`${P}:beam:c11r10-c5r3`,  'OI-6', collapseGroup.id, 11, 10,  5,  3, app, projMotion),
+    mkMotionBeam(`${P}:beam:c7r10-c9r4`,   'OI-7', collapseGroup.id,  7, 10,  9,  4, app, projMotion),
+    mkMotionBeam(`${P}:beam:c9r10-c7r4`,   'OI-8', collapseGroup.id,  9, 10,  7,  4, app, projMotion),
+  ])
+
+  return {
+    selectedBeamIds: [], selectedGroupId: null,
+    beams,
+    groups: [collapseGroup],
+    globalModulationRoutes: [
+      mkRoute(`${P}:global:downbeat-scatter`, 'downbeat', 'fogBeamScatter', 'trigger',
+        0.55, 0, 0.45, 'easeOut', 0, 0.22),
+      mkRoute(`${P}:global:energy-fog`, 'energy', 'fogOpacity', 'set',
+        0.45, 0.1, 0.4, 'easeOut', 0.08, 0.4, { smoothing: 0.4 }),
+    ],
+    output: mkOutput({ masterDimmer: 0.88, blackout: false, safetyClamp: 0.92, backgroundFade: 0.2, beamPersistence: 0.4, globalBeamWidth: 1, globalGlow: 0.6, globalStrobeRate: 0 }),
+    fog: mkFog({ enabled: true, density: 0.2, opacity: 0.32, noiseScale: 1.1, driftSpeed: 0.1, driftDirection: 0.15, turbulence: 0.18, diffusion: 0.24, dissipation: 0.6, beamScatter: 0.35, colorAbsorption: 0.16, quality: 'medium' }),
+    editor: mkEditor(),
+  }
+}
+
+// ── Preset 19: Alternating Fan ────────────────────────────────────────────────
+
+function createAlternatingFanSettings(): LaserDmxBeamMatrixSettings {
+  const P = 'alternating-fan'
+
+  const altFan = mkSeqGroup(
+    `${P}:group:alt-fan`,
+    'Alternating Fan',
+    mkColor(180, 80, 255, 30, 1),
+    [
+      mkRoute(`${P}:route:bass-width`, 'nBass', 'beamWidth', 'set',
+        0.65, 0.85, 1.7, 'easeOut', 0.03, 0.22, { smoothing: 0.25 }),
+      mkRoute(`${P}:route:downbeat-glow`, 'downbeat', 'beamGlow', 'trigger',
+        0.8, 0, 0.75, 'easeOut', 0, 0.28),
+      mkRoute(`${P}:route:beat-dimmer`, 'beatHit', 'dimmer', 'trigger',
+        0.75, 0.15, 1, 'easeOut', 0, 0.2),
+    ],
+    // Alternate: odd/even beams per beat
+    { enabled: true, mode: 'alternate', stepsPerBeat: 1, stepGate: 0.55 },
+  )
+
+  const app: LaserDmxMatrixBeamAppearance = {
+    dimmer: 0.55, shutterOpen: true, width: 1.1, focus: 0.75,
+    strobeRate: 0, flickerAmount: 0, divergence: 0.2, glow: 0.62,
+    geometry: 'volumetricCone',
+  }
+  const growMotion: Partial<LaserDmxBeamMotion> = { mode: 'grow', beatsPerTravel: 0.5, direction: 'alternate', easing: 'easeInOut', headGlow: 0.55 }
+
+  const beams = withSequenceIndices([
+    mkMotionBeam(`${P}:beam:c1r10-c8r1`,   'Fan L1',  altFan.id,  1, 10, 8,  1, app, growMotion),
+    mkMotionBeam(`${P}:beam:c4r10-c8r1`,   'Fan L2',  altFan.id,  4, 10, 8,  1, app, growMotion),
+    mkMotionBeam(`${P}:beam:c7r10-c8r1`,   'Fan LC',  altFan.id,  7, 10, 8,  1, app, growMotion),
+    mkMotionBeam(`${P}:beam:c9r10-c8r1`,   'Fan RC',  altFan.id,  9, 10, 8,  1, app, growMotion),
+    mkMotionBeam(`${P}:beam:c12r10-c8r1`,  'Fan R2',  altFan.id, 12, 10, 8,  1, app, growMotion),
+    mkMotionBeam(`${P}:beam:c15r10-c8r1`,  'Fan R1',  altFan.id, 15, 10, 8,  1, app, growMotion),
+    mkMotionBeam(`${P}:beam:c1r1-c8r10`,   'Fan BL1', altFan.id,  1,  1, 8, 10, app, growMotion),
+    mkMotionBeam(`${P}:beam:c15r1-c8r10`,  'Fan BR1', altFan.id, 15,  1, 8, 10, app, growMotion),
+  ])
+
+  return {
+    selectedBeamIds: [], selectedGroupId: null,
+    beams,
+    groups: [altFan],
+    globalModulationRoutes: [
+      mkRoute(`${P}:global:bass-fog`, 'nBass', 'fogDensity', 'set',
+        0.5, 0.1, 0.45, 'easeOut', 0.06, 0.3, { smoothing: 0.35 }),
+      mkRoute(`${P}:global:downbeat-scatter`, 'downbeat', 'fogBeamScatter', 'trigger',
+        0.6, 0, 0.5, 'easeOut', 0, 0.25),
+    ],
+    output: mkOutput({ masterDimmer: 0.87, blackout: false, safetyClamp: 0.9, backgroundFade: 0.2, beamPersistence: 0.4, globalBeamWidth: 1, globalGlow: 0.65, globalStrobeRate: 0 }),
+    fog: mkFog({ enabled: true, density: 0.2, opacity: 0.3, noiseScale: 1.1, driftSpeed: 0.1, driftDirection: 0.12, turbulence: 0.15, diffusion: 0.26, dissipation: 0.62, beamScatter: 0.32, colorAbsorption: 0.16, quality: 'medium' }),
+    editor: mkEditor(),
+  }
+}
+
+// ── Preset 20: Ping Pong Pulse ────────────────────────────────────────────────
+
+function createPingPongPulseSettings(): LaserDmxBeamMatrixSettings {
+  const P = 'ping-pong-pulse'
+
+  const pingGroup = mkSeqGroup(
+    `${P}:group:ping`,
+    'Ping Pong Pulse',
+    mkColor(0, 255, 130, 20, 1),
+    [
+      mkRoute(`${P}:route:energy-dimmer`, 'energy', 'dimmer', 'set',
+        0.9, 0.12, 0.95, 'easeOut', 0.04, 0.28, { smoothing: 0.3 }),
+      mkRoute(`${P}:route:spectral-glow`, 'spectralFlux', 'beamGlow', 'set',
+        0.5, 0.1, 0.6, 'easeOut', 0.03, 0.2, { smoothing: 0.25 }),
+    ],
+    { enabled: true, mode: 'forward', stepsPerBeat: 2, stepGate: 0.7 },
+  )
+
+  const app: LaserDmxMatrixBeamAppearance = {
+    dimmer: 0.65, shutterOpen: true, width: 1, focus: 0.88,
+    strobeRate: 0, flickerAmount: 0, divergence: 0.04, glow: 0.58,
+    geometry: 'line',
+  }
+  const pingMotion: Partial<LaserDmxBeamMotion> = { mode: 'pingPong', beatsPerTravel: 1, easing: 'easeInOut', headGlow: 0.5 }
+
+  // 6 beams across the stage forming a ping-pong grid
+  const beams = withSequenceIndices([
+    mkMotionBeam(`${P}:beam:c1r1-c15r1`,   'H1', pingGroup.id,  1,  1, 15,  1, app, pingMotion),
+    mkMotionBeam(`${P}:beam:c1r3-c15r3`,   'H2', pingGroup.id,  1,  3, 15,  3, app, pingMotion),
+    mkMotionBeam(`${P}:beam:c1r5-c15r5`,   'H3', pingGroup.id,  1,  5, 15,  5, app, pingMotion),
+    mkMotionBeam(`${P}:beam:c1r7-c15r7`,   'H4', pingGroup.id,  1,  7, 15,  7, app, pingMotion),
+    mkMotionBeam(`${P}:beam:c1r9-c15r9`,   'H5', pingGroup.id,  1,  9, 15,  9, app, pingMotion),
+    mkMotionBeam(`${P}:beam:c1r10-c15r10`, 'H6', pingGroup.id,  1, 10, 15, 10, app, pingMotion),
+  ])
+
+  return {
+    selectedBeamIds: [], selectedGroupId: null,
+    beams,
+    groups: [pingGroup],
+    globalModulationRoutes: [
+      mkRoute(`${P}:global:energy-fog`, 'energy', 'fogDensity', 'set',
+        0.45, 0.1, 0.42, 'easeOut', 0.08, 0.4, { smoothing: 0.4 }),
+      mkRoute(`${P}:global:downbeat-scatter`, 'downbeat', 'fogBeamScatter', 'trigger',
+        0.45, 0, 0.4, 'easeOut', 0, 0.2),
+    ],
+    output: mkOutput({ masterDimmer: 0.86, blackout: false, safetyClamp: 0.9, backgroundFade: 0.18, beamPersistence: 0.5, globalBeamWidth: 0.95, globalGlow: 0.62, globalStrobeRate: 0 }),
+    fog: mkFog({ enabled: true, density: 0.18, opacity: 0.28, noiseScale: 1.2, driftSpeed: 0.1, driftDirection: 0.4, turbulence: 0.14, diffusion: 0.22, dissipation: 0.65, beamScatter: 0.28, colorAbsorption: 0.15, quality: 'medium' }),
     editor: mkEditor(),
   }
 }
@@ -1450,6 +1976,72 @@ export const LASER_DMX_BEAM_MATRIX_PRESETS: LaserDmxBeamMatrixPreset[] = [
     category:    'atmospheric',
     tags:        ['fog', 'cathedral', 'cone', 'cyan', 'emerald', 'cinematic', 'atmospheric'],
     createSettings: createFogCathedralSettings,
+  },
+
+  // ── Sequencing presets (13–20) ────────────────────────────────────────────
+  {
+    id:          'bass-fan',
+    name:        'Bass Fan',
+    description: 'All beams grow in unison on every beat. Bass controls fan width; downbeats create a wider accent sweep.',
+    category:    'rhythmic',
+    tags:        ['bass', 'fan', 'beat', 'grow', 'sequence', 'cyan', 'house'],
+    createSettings: createBassFanSettings,
+  },
+  {
+    id:          'snare-crossfire-seq',
+    name:        'Snare Crossfire',
+    description: 'Left and right projectile groups alternate on snare hits, creating a tightly choreographed crossfire chase.',
+    category:    'rhythmic',
+    tags:        ['snare', 'crossfire', 'projectile', 'alternate', 'sequence', 'blue', 'red'],
+    createSettings: createSnareCrossFireSeqSettings,
+  },
+  {
+    id:          'center-out-chase',
+    name:        'Center-Out Chase',
+    description: 'Beams radiate outward from center on eighth-note steps, resetting cleanly on every downbeat.',
+    category:    'rhythmic',
+    tags:        ['centerOut', 'chase', 'grow', 'sequence', 'green', 'techno'],
+    createSettings: createCenterOutChaseSettings,
+  },
+  {
+    id:          'drop-burst-seq',
+    name:        'Drop Burst',
+    description: 'Sequential forward projectiles launch on drop impact — bass drives cone divergence and energy raises glow.',
+    category:    'drop',
+    tags:        ['drop', 'burst', 'projectile', 'sequence', 'orange', 'impact'],
+    createSettings: createDropBurstSeqSettings,
+  },
+  {
+    id:          'phrase-scanner',
+    name:        'Phrase Scanner',
+    description: 'Forward and reverse scanner groups sweep across horizontal rows, crossing on phrase boundaries.',
+    category:    'rhythmic',
+    tags:        ['scanner', 'phrase', 'forward', 'reverse', 'sequence', 'cyan', 'amber'],
+    createSettings: createPhraseScannerSettings,
+  },
+  {
+    id:          'outside-in-collapse',
+    name:        'Outside-In Collapse',
+    description: 'Projectile beams collapse from the outermost pair inward on snare hits, producing a tightening effect.',
+    category:    'rhythmic',
+    tags:        ['outsideIn', 'collapse', 'projectile', 'sequence', 'pink', 'snare'],
+    createSettings: createOutsideInCollapseSettings,
+  },
+  {
+    id:          'alternating-fan',
+    name:        'Alternating Fan',
+    description: 'Odd and even cone beams alternate each beat, with bass widening the fan and downbeats adding full-matrix glow.',
+    category:    'rhythmic',
+    tags:        ['alternate', 'fan', 'grow', 'sequence', 'purple', 'bass'],
+    createSettings: createAlternatingFanSettings,
+  },
+  {
+    id:          'ping-pong-pulse',
+    name:        'Ping Pong Pulse',
+    description: 'Six horizontal beams ping-pong back and forth on eighth-note steps, driven by energy and spectral flux.',
+    category:    'rhythmic',
+    tags:        ['pingPong', 'pulse', 'sequence', 'green', 'horizontal', 'energy'],
+    createSettings: createPingPongPulseSettings,
   },
 ]
 

@@ -148,6 +148,11 @@ export type LaserDmxModulationTarget =
   | 'targetOffsetX' | 'targetOffsetY' | 'targetDepth'
   | 'fogDensity' | 'fogOpacity' | 'fogDriftSpeed' | 'fogDriftDirection'
   | 'fogTurbulence' | 'fogDiffusion' | 'fogDissipation' | 'fogBeamScatter'
+  // Beam Matrix global-route targets (output-level controls)
+  | 'backgroundFade' | 'beamPersistence'
+  | 'globalBeamWidth' | 'globalGlow' | 'globalStrobeRate'
+  // Beam Matrix beam-route targets
+  | 'focus'
 
 export interface LaserDmxModulationRoute {
   id: string
@@ -383,6 +388,70 @@ export type LaserDmxMatrixTarget = LaserDmxMatrixGridTarget | LaserDmxMatrixStag
 
 export type LaserDmxMatrixBeamGeometry = 'line' | 'volumetricCone'
 
+// ── Beam travel / sequencer types ─────────────────────────────────────────────
+
+export type LaserDmxBeamTravelMode =
+  | 'static'      // Full beam always visible — no travel animation
+  | 'grow'        // Beam tip extends from origin toward target
+  | 'projectile'  // Segment travels along path; tail trails behind
+  | 'scanner'     // Short bright segment sweeps along path
+  | 'pulseTrain'  // Multiple pulse segments traveling in unison
+  | 'pingPong'    // Beam tip bounces back and forth (triangle wave)
+
+export interface LaserDmxBeamMotion {
+  mode:           LaserDmxBeamTravelMode
+  beatsPerTravel: number   // 0.25–16 beats for a full path traversal
+  phaseOffset:    number   // 0–1 phase shift (delays beat alignment per beam)
+  direction:      'forward' | 'reverse' | 'alternate'
+  tailLength:     number   // 0–1 fraction of path used as tail / pulse width
+  headGlow:       number   // 0–1 extra brightness at beam head
+  easing:         'linear' | 'easeIn' | 'easeOut' | 'easeInOut'
+  retrigger:      'restart' | 'continue' | 'queue'
+}
+
+export type LaserDmxSequenceMode =
+  | 'all'          // All beams in group active simultaneously
+  | 'forward'      // Step through beams in sequenceIndex order
+  | 'reverse'      // Step through beams in reverse sequenceIndex order
+  | 'alternate'    // Alternate between even/odd half-groups per step
+  | 'centerOut'    // Step outward from center beam
+  | 'outsideIn'    // Step inward from outer beams
+  | 'randomSeeded' // Deterministic shuffle using seed
+  | 'custom'       // Respects user-set sequenceIndex exactly
+
+export interface LaserDmxBeamSequence {
+  enabled:          boolean
+  mode:             LaserDmxSequenceMode
+  stepsPerBeat:     number   // 0.25–4 steps per beat
+  stepGate:         number   // 0–1 fraction of step duration the beam is "on"
+  phaseSpread:      number   // 0–1 (reserved for future stagger use)
+  rotateEveryBars:  number   // 0 = no rotation; 1–32 bars between rotations
+  resetOnDownbeat:  boolean  // If true, sequence resets to bar boundary each bar
+  seed:             number   // Seed for randomSeeded mode
+}
+
+export const DEFAULT_BEAM_MOTION: LaserDmxBeamMotion = {
+  mode:           'static',
+  beatsPerTravel: 1,
+  phaseOffset:    0,
+  direction:      'forward',
+  tailLength:     0.3,
+  headGlow:       0.5,
+  easing:         'linear',
+  retrigger:      'restart',
+}
+
+export const DEFAULT_BEAM_SEQUENCE: LaserDmxBeamSequence = {
+  enabled:         false,
+  mode:            'forward',
+  stepsPerBeat:    1,
+  stepGate:        0.5,
+  phaseSpread:     0,
+  rotateEveryBars: 0,
+  resetOnDownbeat: false,
+  seed:            42,
+}
+
 export interface LaserDmxMatrixBeamColor {
   red:   number  // 0–255
   green: number
@@ -407,6 +476,7 @@ export interface LaserDmxMatrixBeam {
   id:      string
   name:    string
   enabled: boolean
+  sequenceIndex: number  // stable 0-based ordering used by the BPM sequencer
 
   origin: LaserDmxMatrixGridAnchor
   target: LaserDmxMatrixTarget
@@ -416,6 +486,7 @@ export interface LaserDmxMatrixBeam {
 
   color:      LaserDmxMatrixBeamColor
   appearance: LaserDmxMatrixBeamAppearance
+  motion:     LaserDmxBeamMotion
 
   modulationRoutes: LaserDmxModulationRoute[]
 }
@@ -429,6 +500,8 @@ export interface LaserDmxReactionGroup {
 
   colorOverrideEnabled: boolean
   color:                LaserDmxMatrixBeamColor
+
+  sequence: LaserDmxBeamSequence
 
   modulationRoutes: LaserDmxModulationRoute[]
 }
@@ -507,6 +580,7 @@ function makeReactionGroup(
     id, name, enabled: true, muted: false, soloed: false,
     colorOverrideEnabled: true,
     color: { red: colorR, green: colorG, blue: colorB, white: 0, alpha: 1 },
+    sequence: DEFAULT_BEAM_SEQUENCE,
     modulationRoutes: routes,
   }
 }
@@ -610,7 +684,7 @@ export interface ReactTrackSection {
   endSec: number
   intensity: number
   engineId?: ReactEngineId
-  source?: 'manual' | 'auto' | 'mock'
+  source?: 'manual' | 'auto' | 'mock' | 'user-edited-auto' | 'user-created'
   confidence?: number
 }
 

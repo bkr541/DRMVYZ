@@ -59,6 +59,7 @@ function BeamRow({ beam, group, selected, onSelect }: BeamRowProps) {
         aria-hidden="true"
       />
       <span className="rv-bm-layer-name" title={beam.name}>{beam.name}</span>
+      <span className="rv-bm-layer-seq-idx" title={`Sequence index ${beam.sequenceIndex}`}>#{beam.sequenceIndex}</span>
       <span className="rv-bm-layer-origin">{beam.origin.column},{beam.origin.row}</span>
       <span className="rv-bm-layer-target">{targetLabel(beam)}</span>
       {group && (

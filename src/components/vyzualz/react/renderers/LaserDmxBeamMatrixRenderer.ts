@@ -56,8 +56,8 @@ function drawLineGlow(
   intensity: number,
 ): void {
   const { x1, y1, x2, y2 } = computeLineGeometry(
-    beam.origin.x, beam.origin.y,
-    beam.target.x, beam.target.y,
+    beam.visibleOrigin.x, beam.visibleOrigin.y,
+    beam.visibleTarget.x, beam.visibleTarget.y,
   )
   const alpha  = clamp01(intensity * beam.rgba.a)
   const gAlpha = alpha * 0.18 * beam.glow
@@ -79,8 +79,8 @@ function drawLineBody(
   intensity: number,
 ): void {
   const { x1, y1, x2, y2 } = computeLineGeometry(
-    beam.origin.x, beam.origin.y,
-    beam.target.x, beam.target.y,
+    beam.visibleOrigin.x, beam.visibleOrigin.y,
+    beam.visibleTarget.x, beam.visibleTarget.y,
   )
   const alpha = clamp01(intensity * beam.rgba.a)
   if (alpha < 0.005) return
@@ -104,8 +104,8 @@ function drawLineCore(
   intensity: number,
 ): void {
   const { x1, y1, x2, y2 } = computeLineGeometry(
-    beam.origin.x, beam.origin.y,
-    beam.target.x, beam.target.y,
+    beam.visibleOrigin.x, beam.visibleOrigin.y,
+    beam.visibleTarget.x, beam.visibleTarget.y,
   )
   const alpha = clamp01(intensity * beam.rgba.a)
   if (alpha < 0.005) return
@@ -126,9 +126,11 @@ function drawVolumetricCone(
   beam: CompiledLaserDmxMatrixBeam,
   intensity: number,
 ): void {
+  const vo = beam.visibleOrigin
+  const vt = beam.visibleTarget
   const geom = computeConeGeometry(
-    beam.origin.x, beam.origin.y, beam.origin.z,
-    beam.target.x, beam.target.y, beam.target.z,
+    vo.x, vo.y, vo.z,
+    vt.x, vt.y, vt.z,
     beam.beamWidth,
     beam.divergence,
   )
@@ -140,12 +142,9 @@ function drawVolumetricCone(
   if (len < 0.5) return
 
   // Gradient along beam axis: dark at origin, saturated midpoint, dim at target
-  const grad = ctx.createLinearGradient(
-    beam.origin.x, beam.origin.y,
-    beam.target.x, beam.target.y,
-  )
+  const grad = ctx.createLinearGradient(vo.x, vo.y, vt.x, vt.y)
   const { r, g, b } = beam.rgba
-  grad.addColorStop(0,    `rgba(${r},${g},${b},0)`)          // origin: transparent (narrow)
+  grad.addColorStop(0,    `rgba(${r},${g},${b},0)`)
   grad.addColorStop(0.15, `rgba(${r},${g},${b},${(alpha * 0.6).toFixed(3)})`)
   grad.addColorStop(0.5,  `rgba(${r},${g},${b},${(alpha * 0.4).toFixed(3)})`)
   grad.addColorStop(1,    `rgba(${r},${g},${b},${(alpha * 0.15).toFixed(3)})`)
@@ -163,13 +162,10 @@ function drawVolumetricCone(
   ctx.fill()
 
   // Brighter centre strip (60% width)
-  const halfW = geom.originHalfWidth * 0.6
+  const halfW  = geom.originHalfWidth * 0.6
   const tHalfW = geom.targetHalfWidth * 0.6
   const { nx, ny } = geom
-  const centreGrad = ctx.createLinearGradient(
-    beam.origin.x, beam.origin.y,
-    beam.target.x, beam.target.y,
-  )
+  const centreGrad = ctx.createLinearGradient(vo.x, vo.y, vt.x, vt.y)
   centreGrad.addColorStop(0,   `rgba(${r},${g},${b},0)`)
   centreGrad.addColorStop(0.1, `rgba(${r},${g},${b},${(alpha * 0.9).toFixed(3)})`)
   centreGrad.addColorStop(0.5, `rgba(${r},${g},${b},${(alpha * 0.5).toFixed(3)})`)
@@ -177,29 +173,26 @@ function drawVolumetricCone(
 
   ctx.fillStyle = centreGrad
   ctx.beginPath()
-  ctx.moveTo(beam.origin.x - nx * halfW,  beam.origin.y - ny * halfW)
-  ctx.lineTo(beam.origin.x + nx * halfW,  beam.origin.y + ny * halfW)
-  ctx.lineTo(beam.target.x + nx * tHalfW, beam.target.y + ny * tHalfW)
-  ctx.lineTo(beam.target.x - nx * tHalfW, beam.target.y - ny * tHalfW)
+  ctx.moveTo(vo.x - nx * halfW,  vo.y - ny * halfW)
+  ctx.lineTo(vo.x + nx * halfW,  vo.y + ny * halfW)
+  ctx.lineTo(vt.x + nx * tHalfW, vt.y + ny * tHalfW)
+  ctx.lineTo(vt.x - nx * tHalfW, vt.y - ny * tHalfW)
   ctx.closePath()
   ctx.fill()
 
   // Glow halo around the cone (soft extra fill)
   if (beam.glow > 0.05) {
-    const haloGrad = ctx.createLinearGradient(
-      beam.origin.x, beam.origin.y,
-      beam.target.x, beam.target.y,
-    )
+    const haloGrad = ctx.createLinearGradient(vo.x, vo.y, vt.x, vt.y)
     haloGrad.addColorStop(0,   `rgba(${r},${g},${b},0)`)
     haloGrad.addColorStop(0.2, `rgba(${r},${g},${b},${(alpha * beam.glow * 0.12).toFixed(3)})`)
     haloGrad.addColorStop(1,   `rgba(${r},${g},${b},0)`)
     const hW = geom.targetHalfWidth * 1.8
     ctx.fillStyle = haloGrad
     ctx.beginPath()
-    ctx.moveTo(beam.origin.x - nx * geom.originHalfWidth * 1.5, beam.origin.y - ny * geom.originHalfWidth * 1.5)
-    ctx.lineTo(beam.origin.x + nx * geom.originHalfWidth * 1.5, beam.origin.y + ny * geom.originHalfWidth * 1.5)
-    ctx.lineTo(beam.target.x + nx * hW, beam.target.y + ny * hW)
-    ctx.lineTo(beam.target.x - nx * hW, beam.target.y - ny * hW)
+    ctx.moveTo(vo.x - nx * geom.originHalfWidth * 1.5, vo.y - ny * geom.originHalfWidth * 1.5)
+    ctx.lineTo(vo.x + nx * geom.originHalfWidth * 1.5, vo.y + ny * geom.originHalfWidth * 1.5)
+    ctx.lineTo(vt.x + nx * hW, vt.y + ny * hW)
+    ctx.lineTo(vt.x - nx * hW, vt.y - ny * hW)
     ctx.closePath()
     ctx.fill()
   }
@@ -264,8 +257,6 @@ export function renderLaserDmxBeamMatrix(
     else lineBeams.push(beam)
   }
 
-  const masterScale = clamp01(output.masterDimmer * intensityScale)
-
   // ── Volumetric cones (rendered first, behind sharp line cores) ────────────
   if (coneBeams.length > 0) {
     ctx.save()
@@ -276,7 +267,7 @@ export function renderLaserDmxBeamMatrix(
       const beamWithGlow  = effectiveGlow !== beam.glow
         ? { ...beam, glow: effectiveGlow }
         : beam
-      drawVolumetricCone(ctx, beamWithGlow, masterScale)
+      drawVolumetricCone(ctx, beamWithGlow, clamp01(beam.intensity * intensityScale))
     }
     ctx.restore()
   }
@@ -289,7 +280,7 @@ export function renderLaserDmxBeamMatrix(
     ctx.lineCap = 'round'
     for (const beam of lineBeams) {
       const eg = clamp01(beam.glow * glowScale)
-      drawLineGlow(ctx, eg !== beam.glow ? { ...beam, glow: eg } : beam, masterScale)
+      drawLineGlow(ctx, eg !== beam.glow ? { ...beam, glow: eg } : beam, clamp01(beam.intensity * intensityScale))
     }
     ctx.restore()
 
@@ -299,7 +290,7 @@ export function renderLaserDmxBeamMatrix(
     ctx.lineCap = 'round'
     for (const beam of lineBeams) {
       const eg = clamp01(beam.glow * glowScale)
-      drawLineBody(ctx, eg !== beam.glow ? { ...beam, glow: eg } : beam, masterScale)
+      drawLineBody(ctx, eg !== beam.glow ? { ...beam, glow: eg } : beam, clamp01(beam.intensity * intensityScale))
     }
     ctx.restore()
 
@@ -308,7 +299,7 @@ export function renderLaserDmxBeamMatrix(
     ctx.globalCompositeOperation = 'screen'
     ctx.lineCap = 'round'
     for (const beam of lineBeams) {
-      drawLineCore(ctx, beam, masterScale)
+      drawLineCore(ctx, beam, clamp01(beam.intensity * intensityScale))
     }
     ctx.restore()
   }

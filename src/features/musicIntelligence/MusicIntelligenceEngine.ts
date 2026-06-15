@@ -104,7 +104,8 @@ export class MusicIntelligenceEngine {
   setBpm(bpm: number, confidence = 0.8): void {
     this.bpm           = Math.max(1, bpm)
     this.bpmConfidence = Math.max(0, Math.min(1, confidence))
-    this.beatGrid.setBpm(this.bpm, this.bpmConfidence)
+    // Always pass the stored beatGridOffset so manual overrides preserve the original grid phase.
+    this.beatGrid.setBpm(this.bpm, this.bpmConfidence, this.beatGridOffset)
   }
 
   setBeatGridOffset(offsetSec: number): void {
@@ -115,8 +116,10 @@ export class MusicIntelligenceEngine {
   setTrackAnalysis(analysis: TrackIntelligenceAnalysis | null): void {
     this.trackAnalysis = analysis
     if (analysis && analysis.bpm > 0) {
-      this.bpm           = analysis.bpm
-      this.bpmConfidence = analysis.bpmConfidence
+      this.bpm            = analysis.bpm
+      this.bpmConfidence  = analysis.bpmConfidence
+      // beatGridOffsetSec is required in new analyses; fall back to 0 for old persisted data
+      this.beatGridOffset = analysis.beatGridOffsetSec ?? 0
     }
     this.beatGrid.setBpm(this.bpm, this.bpmConfidence, this.beatGridOffset)
     if (analysis) {
@@ -144,6 +147,12 @@ export class MusicIntelligenceEngine {
         this.lyricTracker.setLines([])
       }
     } else {
+      // No analysis — reset BPM state so the previous track's values do not leak
+      // into the next track's rendering before its own analysis arrives.
+      this.bpm = 0
+      this.bpmConfidence = 0
+      this.beatGridOffset = 0
+      this.beatGrid.setBpm(0, 0, 0)
       this.beatGrid.setMarkers([], [])
       this.stemInterpolator.setData(null)
       this.lyricTracker.setLines([])

@@ -4,6 +4,8 @@ import {
   DEFAULT_REACT_PRESETS,
   DEFAULT_PERFORMANCE_PADS,
   DEFAULT_OSCILLATOR_SETTINGS,
+  DEFAULT_BEAM_MOTION,
+  DEFAULT_BEAM_SEQUENCE,
   createDefaultLaserDmxSettings,
   createDefaultLaserDmxBeamMatrixSettings,
   LASER_DMX_MATRIX_COLUMNS,
@@ -173,6 +175,14 @@ function makeNewModulationRoute(): LaserDmxModulationRoute {
   }
 }
 
+function makeNewGroupRoute(): LaserDmxModulationRoute {
+  return { ...makeNewModulationRoute(), target: 'dimmer' }
+}
+
+function makeNewBeamRoute(): LaserDmxModulationRoute {
+  return { ...makeNewModulationRoute(), target: 'dimmer' }
+}
+
 // ── Beam Matrix local helpers ─────────────────────────────────────────────────
 
 function clampCol(v: number): number { return Math.max(1, Math.min(LASER_DMX_MATRIX_COLUMNS, Math.round(v))) }
@@ -182,9 +192,10 @@ function clampC255(v: number): number { return Math.max(0, Math.min(255, Math.ro
 
 function makeDefaultMatrixBeam(existing: LaserDmxMatrixBeam[]): LaserDmxMatrixBeam {
   return {
-    id:      crypto.randomUUID(),
-    name:    `Beam ${existing.length + 1}`,
-    enabled: true,
+    id:            crypto.randomUUID(),
+    name:          `Beam ${existing.length + 1}`,
+    enabled:       true,
+    sequenceIndex: existing.length,
     origin:  { column: 8, row: 5, z: 0 },
     target:  { kind: 'grid', column: 8, row: 1, z: 0 },
     groupId:       null,
@@ -195,6 +206,7 @@ function makeDefaultMatrixBeam(existing: LaserDmxMatrixBeam[]): LaserDmxMatrixBe
       strobeRate: 0, flickerAmount: 0, divergence: 0.15, glow: 0.65,
       geometry: 'line',
     },
+    motion:           DEFAULT_BEAM_MOTION,
     modulationRoutes: [],
   }
 }
@@ -1095,8 +1107,9 @@ export const useReactStore = create<ReactStoreState>()(
           if (!src) return {}
           const copy: LaserDmxMatrixBeam = {
             ...src,
-            id:   crypto.randomUUID(),
-            name: `${src.name} Copy`,
+            id:            crypto.randomUUID(),
+            name:          `${src.name} Copy`,
+            sequenceIndex: s.laserDmxBeamMatrix.beams.length,
             modulationRoutes: src.modulationRoutes.map(r => ({ ...r, id: crypto.randomUUID() })),
           }
           return {
@@ -1181,7 +1194,8 @@ export const useReactStore = create<ReactStoreState>()(
             muted:   false,
             soloed:  false,
             colorOverrideEnabled: false,
-            color:   { red: 255, green: 255, blue: 255, white: 0, alpha: 1 },
+            color:    { red: 255, green: 255, blue: 255, white: 0, alpha: 1 },
+            sequence: DEFAULT_BEAM_SEQUENCE,
             modulationRoutes: [],
           }
           return {
@@ -1282,7 +1296,7 @@ export const useReactStore = create<ReactStoreState>()(
             ...s.laserDmxBeamMatrix,
             groups: s.laserDmxBeamMatrix.groups.map(g =>
               g.id === groupId
-                ? { ...g, modulationRoutes: [...g.modulationRoutes, makeNewModulationRoute()] }
+                ? { ...g, modulationRoutes: [...g.modulationRoutes, makeNewGroupRoute()] }
                 : g
             ),
           },
@@ -1325,7 +1339,7 @@ export const useReactStore = create<ReactStoreState>()(
             ...s.laserDmxBeamMatrix,
             beams: s.laserDmxBeamMatrix.beams.map(b =>
               b.id === beamId
-                ? { ...b, modulationRoutes: [...b.modulationRoutes, makeNewModulationRoute()] }
+                ? { ...b, modulationRoutes: [...b.modulationRoutes, makeNewBeamRoute()] }
                 : b
             ),
           },
@@ -1388,6 +1402,7 @@ export const useReactStore = create<ReactStoreState>()(
           const available = LASER_DMX_MATRIX_MAX_BEAMS - s.laserDmxBeamMatrix.beams.length
           const toCreate = beamIds.slice(0, available)
           const newBeams: LaserDmxMatrixBeam[] = []
+          const baseSeqIndex = s.laserDmxBeamMatrix.beams.length
           for (const id of toCreate) {
             const src = s.laserDmxBeamMatrix.beams.find(b => b.id === id)
             if (!src) continue
@@ -1406,8 +1421,9 @@ export const useReactStore = create<ReactStoreState>()(
             }
             newBeams.push(clampMatrixBeam({
               ...src,
-              id:   crypto.randomUUID(),
-              name: `${src.name} Copy`,
+              id:            crypto.randomUUID(),
+              name:          `${src.name} Copy`,
+              sequenceIndex: baseSeqIndex + newBeams.length,
               modulationRoutes: src.modulationRoutes.map(r => ({ ...r, id: crypto.randomUUID() })),
               groupId: preserveGroups ? src.groupId : null,
               origin: newOrigin,
@@ -1521,7 +1537,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 2,
+      version: 3,
       migrate: (persistedState: unknown, version: number) => {
         let state = (persistedState ?? {}) as Record<string, unknown>
         if (version < 1) {
@@ -1576,6 +1592,35 @@ export const useReactStore = create<ReactStoreState>()(
             if (!('svgUseReactPalette' in migratedOsc))   migratedOsc.svgUseReactPalette   = true
             if (!('autoRotate' in migratedOsc))           migratedOsc.autoRotate           = osc.sourceType !== 'text'
             state = { ...state, oscillatorSettings: migratedOsc }
+          }
+        }
+        if (version < 3) {
+          // Add sequenceIndex + motion to existing beams; add sequence to groups.
+          const bm = state.laserDmxBeamMatrix as Record<string, unknown> | undefined
+          if (bm) {
+            const beams  = (bm.beams  as unknown[] | undefined) ?? []
+            const groups = (bm.groups as unknown[] | undefined) ?? []
+            state = {
+              ...state,
+              laserDmxBeamMatrix: {
+                ...bm,
+                beams: beams.map((b, i) => {
+                  const beam = b as Record<string, unknown>
+                  return {
+                    ...beam,
+                    sequenceIndex: beam.sequenceIndex ?? i,
+                    motion:        beam.motion        ?? DEFAULT_BEAM_MOTION,
+                  }
+                }),
+                groups: groups.map((g) => {
+                  const group = g as Record<string, unknown>
+                  return {
+                    ...group,
+                    sequence: group.sequence ?? DEFAULT_BEAM_SEQUENCE,
+                  }
+                }),
+              },
+            }
           }
         }
         return state
