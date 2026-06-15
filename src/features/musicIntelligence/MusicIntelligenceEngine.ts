@@ -7,6 +7,7 @@
 
 import { AudioFeatureBus } from './AudioFeatureBus'
 import { DEFAULT_MI_FRAME } from './constants'
+import { buildBeatMarkers } from './offlineTrackAnalyzer'
 import { MultiBandAnalyzer } from './bandAnalysis'
 import { RhythmAnalyzer } from './rhythmAnalysis'
 import { BeatGrid } from './beatGrid'
@@ -71,7 +72,7 @@ export interface AudioFrameInput {
 
 export class MusicIntelligenceEngine {
   private sampleRate     = 44100
-  private bpm            = 120
+  private bpm            = 0
   private bpmConfidence  = 0
   private beatGridOffset = 0
   private trackAnalysis: TrackIntelligenceAnalysis | null = null
@@ -102,7 +103,8 @@ export class MusicIntelligenceEngine {
   }
 
   setBpm(bpm: number, confidence = 0.8): void {
-    this.bpm           = Math.max(1, bpm)
+    // 0 is the sentinel for "unavailable" — do NOT clamp to 1.
+    this.bpm           = bpm > 0 ? bpm : 0
     this.bpmConfidence = Math.max(0, Math.min(1, confidence))
     // Always pass the stored beatGridOffset so manual overrides preserve the original grid phase.
     this.beatGrid.setBpm(this.bpm, this.bpmConfidence, this.beatGridOffset)
@@ -113,16 +115,52 @@ export class MusicIntelligenceEngine {
     this.beatGrid.setBpm(this.bpm, this.bpmConfidence, offsetSec)
   }
 
+  /**
+   * Apply an effective BPM (e.g. from a manual override) and regenerate beat
+   * markers from it so beat-phase, downbeats, and sequencer timing all reflect
+   * the override rather than the stale analyzed grid.
+   *
+   * When bpm <= 0, clears the beat grid (timing unavailable).
+   */
+  setEffectiveBpm(bpm: number, confidence: number, offsetSec: number, durationSec: number): void {
+    if (bpm <= 0) {
+      this.bpm            = 0
+      this.bpmConfidence  = 0
+      this.beatGridOffset = offsetSec
+      this.beatGrid.setBpm(0, 0, offsetSec)
+      this.beatGrid.setMarkers([], [])
+      return
+    }
+    this.bpm            = bpm
+    this.bpmConfidence  = Math.max(0, Math.min(1, confidence))
+    this.beatGridOffset = offsetSec
+    this.beatGrid.setBpm(bpm, this.bpmConfidence, offsetSec)
+    const markers = buildBeatMarkers(bpm, offsetSec, durationSec)
+    this.beatGrid.setMarkers(markers, markers.filter(m => m.isDownbeat))
+  }
+
+  /**
+   * Restore the beat markers from the stored track analysis (used when a BPM
+   * override is cleared — returns to the original analyzed grid).
+   */
+  restoreAnalysisMarkers(): void {
+    if (this.trackAnalysis) {
+      this.beatGrid.setMarkers(this.trackAnalysis.beatGrid, this.trackAnalysis.downbeats)
+    } else {
+      this.beatGrid.setMarkers([], [])
+    }
+  }
+
   setTrackAnalysis(analysis: TrackIntelligenceAnalysis | null): void {
     this.trackAnalysis = analysis
-    if (analysis && analysis.bpm > 0) {
-      this.bpm            = analysis.bpm
-      this.bpmConfidence  = analysis.bpmConfidence
-      // beatGridOffsetSec is required in new analyses; fall back to 0 for old persisted data
-      this.beatGridOffset = analysis.beatGridOffsetSec ?? 0
-    }
-    this.beatGrid.setBpm(this.bpm, this.bpmConfidence, this.beatGridOffset)
     if (analysis) {
+      // BPM may be null when detection failed — use 0 to signal unavailability.
+      const analyzedBpm = analysis.bpm !== null && analysis.bpm > 0 ? analysis.bpm : 0
+      this.bpm            = analyzedBpm
+      this.bpmConfidence  = analysis.bpmConfidence ?? 0
+      // beatGridOffsetSec is null when bpm detection failed; fall back to 0.
+      this.beatGridOffset = analysis.beatGridOffsetSec ?? 0
+      this.beatGrid.setBpm(this.bpm, this.bpmConfidence, this.beatGridOffset)
       this.beatGrid.setMarkers(analysis.beatGrid, analysis.downbeats)
       if (analysis.timeSignature) this.beatGrid.setTimeSignature(analysis.timeSignature)
       // Wire stem curves

@@ -268,9 +268,12 @@ export interface TrackIntelligenceAnalysis {
   analysisVersion:  string
   createdAt:        string  // ISO 8601
   durationMs:       number
-  bpm:              number
-  bpmConfidence:    number
-  beatGridOffsetSec: number  // time of first beat within the track
+  /** null when BPM detection failed; other analysis fields remain valid. */
+  bpm:              number | null
+  /** null when BPM detection failed. */
+  bpmConfidence:    number | null
+  /** null when BPM detection failed (offset cannot be determined without BPM). */
+  beatGridOffsetSec: number | null
   timeSignature:    number  // beats per bar, typically 4
   beatGrid:         BeatMarkerMI[]
   downbeats:        BeatMarkerMI[]

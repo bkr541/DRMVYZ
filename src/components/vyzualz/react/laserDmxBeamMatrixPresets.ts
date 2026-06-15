@@ -25,7 +25,7 @@ import type {
   LaserDmxBeamMotion,
   LaserDmxBeamSequence,
 } from './ReactTypes'
-import { DEFAULT_BEAM_MOTION, DEFAULT_BEAM_SEQUENCE } from './ReactTypes'
+import { DEFAULT_BEAM_MOTION, DEFAULT_BEAM_SEQUENCE, DEFAULT_LAUNCH_SETTINGS } from './ReactTypes'
 
 // ── Low-level factory helpers ─────────────────────────────────────────────────
 
@@ -81,7 +81,9 @@ function mkGroup(
     soloed:  false,
     colorOverrideEnabled: true,
     color,
-    sequence: DEFAULT_BEAM_SEQUENCE,
+    sequence:       DEFAULT_BEAM_SEQUENCE,
+    launch:         DEFAULT_LAUNCH_SETTINGS,
+    maxActiveBeams: 0,
     modulationRoutes: routes,
   }
 }
@@ -1382,7 +1384,9 @@ function mkSeqGroup(
     soloed:  false,
     colorOverrideEnabled: true,
     color,
-    sequence: { ...DEFAULT_BEAM_SEQUENCE, ...seq },
+    sequence:       { ...DEFAULT_BEAM_SEQUENCE, ...seq },
+    launch:         DEFAULT_LAUNCH_SETTINGS,
+    maxActiveBeams: 0,
     modulationRoutes: routes,
   }
 }

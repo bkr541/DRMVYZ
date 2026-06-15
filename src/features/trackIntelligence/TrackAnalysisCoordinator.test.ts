@@ -91,17 +91,36 @@ function makeCoordinator(overrides: Partial<CoordinatorDeps> = {}, cbOverrides: 
 // ── computeAnalysisKey ────────────────────────────────────────────────────────
 
 describe('computeAnalysisKey', () => {
-  it('returns url-keyed string for remote tracks', () => {
+  it('strips signing token from remote url, no other params', () => {
     const track = makeTrack({ sourceKind: 'remote', url: 'https://cdn.example.com/song.mp3?token=xyz' })
     const key = computeAnalysisKey(track)
     expect(key).toBe(`u:https://cdn.example.com/song.mp3:${CURRENT_ANALYSIS_VERSION}`)
-    expect(key).not.toContain('?token')
+    expect(key).not.toContain('token')
   })
 
-  it('strips signed query params from remote url', () => {
+  it('strips AWS signing params from remote url', () => {
+    const url = 'https://s3.amazonaws.com/bucket/track.wav?X-Amz-Algorithm=AWS4&X-Amz-Signature=abc123&version=2'
+    const track = makeTrack({ sourceKind: 'remote', url })
+    const key = computeAnalysisKey(track)
+    expect(key).not.toContain('X-Amz-Algorithm')
+    expect(key).not.toContain('X-Amz-Signature')
+    // Meaningful param is preserved
+    expect(key).toContain('version=2')
+  })
+
+  it('strips Expires signing param', () => {
     const track = makeTrack({ sourceKind: 'remote', url: 'https://cdn.example.com/track.wav?Expires=999' })
     const key = computeAnalysisKey(track)
     expect(key).not.toContain('Expires')
+  })
+
+  it('preserves non-signing query params that carry content identity', () => {
+    const url = 'https://cdn.example.com/song.mp3?version=3&quality=hq&X-Amz-Signature=xxx'
+    const track = makeTrack({ sourceKind: 'remote', url })
+    const key = computeAnalysisKey(track)
+    expect(key).toContain('version=3')
+    expect(key).toContain('quality=hq')
+    expect(key).not.toContain('X-Amz-Signature')
   })
 
   it('returns file-keyed string for file tracks', () => {
@@ -298,5 +317,177 @@ describe('TrackAnalysisCoordinator — buffer cache', () => {
 
     // Second run should hit the buffer cache, so decodeBuffer called only once
     expect(deps.decodeBuffer).toHaveBeenCalledTimes(1)
+  })
+})
+
+// ── reanalyze — bypasses both caches ─────────────────────────────────────────
+
+describe('TrackAnalysisCoordinator — reanalyze', () => {
+  it('bypasses persistent analysis cache and runs the analyzer again', async () => {
+    const cached = makeAnalysis(140)
+    const { coordinator, deps, cbs } = makeCoordinator({
+      getCachedAnalysis: vi.fn().mockReturnValue(cached),
+    })
+    const track = makeTrack()
+    coordinator.reanalyze(track)
+    await new Promise(r => setTimeout(r, 50))
+
+    // getCachedAnalysis must NOT have been consulted (bypass flag active)
+    expect(deps.getCachedAnalysis).not.toHaveBeenCalled()
+    // Analyzer must have run
+    expect(deps.analyze).toHaveBeenCalledTimes(1)
+    // Result status must be complete
+    const completeCalls = (cbs.onRuntimeUpdate as ReturnType<typeof vi.fn>).mock.calls.filter(
+      c => c[1].status === 'complete',
+    )
+    expect(completeCalls).toHaveLength(1)
+  })
+
+  it('bypasses memory buffer cache and re-decodes the audio', async () => {
+    const { coordinator, deps } = makeCoordinator()
+    const track = makeTrack()
+
+    // First pass — populates buffer cache
+    coordinator.enqueue(track, 'normal')
+    await new Promise(r => setTimeout(r, 50))
+    expect(deps.decodeBuffer).toHaveBeenCalledTimes(1)
+
+    // Reanalyze — must decode again, ignoring the buffer cache
+    coordinator.reanalyze(track)
+    await new Promise(r => setTimeout(r, 50))
+    expect(deps.decodeBuffer).toHaveBeenCalledTimes(2)
+  })
+
+  it('saves fresh result to persistent cache', async () => {
+    const { coordinator, deps } = makeCoordinator()
+    coordinator.reanalyze(makeTrack())
+    await new Promise(r => setTimeout(r, 50))
+    expect(deps.saveCachedAnalysis).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserves manual section overrides (does not touch store sections)', async () => {
+    // reanalyze only replaces the analysis runtime — it has no knowledge of
+    // manual sections.  Verify the coordinator callbacks do not clear sections.
+    const { coordinator, cbs } = makeCoordinator()
+    coordinator.reanalyze(makeTrack())
+    await new Promise(r => setTimeout(r, 50))
+    // None of the runtime updates should contain a sections field
+    const calls = (cbs.onRuntimeUpdate as ReturnType<typeof vi.fn>).mock.calls
+    for (const [, patch] of calls) {
+      expect(patch).not.toHaveProperty('manualSections')
+    }
+  })
+})
+
+// ── AbortController / fetch cancellation ─────────────────────────────────────
+
+describe('TrackAnalysisCoordinator — fetch abort', () => {
+  it('passes an AbortSignal to decodeBuffer', async () => {
+    const { coordinator, deps } = makeCoordinator()
+    coordinator.enqueue(makeTrack(), 'normal')
+    await new Promise(r => setTimeout(r, 50))
+
+    const callArg = (deps.decodeBuffer as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(callArg).toHaveProperty('signal')
+  })
+
+  it('aborts in-flight fetch when cancelTrack is called', async () => {
+    let capturedSignal: AbortSignal | undefined
+    const decodeBuffer = vi.fn().mockImplementation(
+      ({ signal }: { signal?: AbortSignal }) => {
+        capturedSignal = signal
+        // Simulate a long-running fetch that eventually resolves
+        return new Promise<AudioBuffer>((resolve) => {
+          setTimeout(() => resolve(makeFakeBuffer()), 200)
+        })
+      },
+    )
+    const { coordinator, cbs } = makeCoordinator({ decodeBuffer })
+
+    const track = makeTrack()
+    coordinator.enqueue(track, 'normal')
+
+    // Cancel before decode resolves
+    await new Promise(r => setTimeout(r, 10))
+    coordinator.cancelTrack(track.id)
+
+    await new Promise(r => setTimeout(r, 250))
+
+    // Signal should have been aborted
+    expect(capturedSignal?.aborted).toBe(true)
+
+    // No 'complete' result should have been committed
+    const completeCalls = (cbs.onRuntimeUpdate as ReturnType<typeof vi.fn>).mock.calls.filter(
+      c => c[1].status === 'complete',
+    )
+    expect(completeCalls).toHaveLength(0)
+  })
+
+  it('aborts all in-flight fetches on invalidate()', async () => {
+    const signals: AbortSignal[] = []
+    const decodeBuffer = vi.fn().mockImplementation(
+      ({ signal }: { signal?: AbortSignal }) => {
+        if (signal) signals.push(signal)
+        return new Promise<AudioBuffer>(r => setTimeout(() => r(makeFakeBuffer()), 300))
+      },
+    )
+    const { coordinator } = makeCoordinator({ decodeBuffer, maxConcurrent: 2 })
+
+    coordinator.enqueue(makeTrack({ id: 'a' }), 'normal')
+    coordinator.enqueue(makeTrack({ id: 'b' }), 'normal')
+
+    await new Promise(r => setTimeout(r, 20))
+    coordinator.invalidate()
+
+    await new Promise(r => setTimeout(r, 350))
+
+    expect(signals.every(s => s.aborted)).toBe(true)
+  })
+})
+
+// ── Cache failure logging ─────────────────────────────────────────────────────
+
+describe('TrackAnalysisCoordinator — cache failure logging', () => {
+  it('logs a warning when saveCachedAnalysis throws but still commits the result', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { coordinator, cbs } = makeCoordinator({
+      saveCachedAnalysis: vi.fn().mockImplementation(() => { throw new Error('disk full') }),
+    })
+
+    coordinator.enqueue(makeTrack(), 'normal')
+    await new Promise(r => setTimeout(r, 50))
+
+    // Warning logged
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('cache save failed'),
+      expect.any(Error),
+    )
+
+    // Analysis still committed
+    const completeCalls = (cbs.onRuntimeUpdate as ReturnType<typeof vi.fn>).mock.calls.filter(
+      c => c[1].status === 'complete',
+    )
+    expect(completeCalls).toHaveLength(1)
+
+    warnSpy.mockRestore()
+  })
+
+  it('logs a warning when getCachedAnalysis throws but continues to decode', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { coordinator, deps } = makeCoordinator({
+      getCachedAnalysis: vi.fn().mockImplementation(() => { throw new Error('cache read error') }),
+    })
+
+    coordinator.enqueue(makeTrack(), 'normal')
+    await new Promise(r => setTimeout(r, 50))
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('cache load failed'),
+      expect.any(Error),
+    )
+    // Fell through to decode + analyze
+    expect(deps.decodeBuffer).toHaveBeenCalledTimes(1)
+
+    warnSpy.mockRestore()
   })
 })

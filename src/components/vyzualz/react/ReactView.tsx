@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
+import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useRecorder } from '../../../hooks/useRecorder'
@@ -77,7 +78,7 @@ export function ReactView() {
     oscillatorGlyphAssets,
     oscillatorGlyphPointCache,
     oscillatorTextPointCache,
-    manualTrackSections,
+    manualTrackSectionsByTrackId,
   } = useReactStore(useShallow(s => ({
     reactPresets:           s.reactPresets,
     activeReactPresetId:    s.activeReactPresetId,
@@ -90,11 +91,11 @@ export function ReactView() {
     reactTrailDecay:        s.reactTrailDecay,
     reactFogDensity:        s.reactFogDensity,
     reactParticleDensity:   s.reactParticleDensity,
-    oscillatorSettings:          s.oscillatorSettings,
-    oscillatorGlyphAssets:       s.oscillatorGlyphAssets,
-    oscillatorGlyphPointCache:   s.oscillatorGlyphPointCache,
-    oscillatorTextPointCache:    s.oscillatorTextPointCache,
-    manualTrackSections:         s.manualTrackSections,
+    oscillatorSettings:             s.oscillatorSettings,
+    oscillatorGlyphAssets:          s.oscillatorGlyphAssets,
+    oscillatorGlyphPointCache:      s.oscillatorGlyphPointCache,
+    oscillatorTextPointCache:       s.oscillatorTextPointCache,
+    manualTrackSectionsByTrackId:   s.manualTrackSectionsByTrackId,
   })))
 
   const [leftTab, setLeftTab]             = useState<ReactLeftTab>('media')
@@ -143,6 +144,17 @@ export function ReactView() {
 
   // Estimated track duration from the audio engine (fallback 180s)
   const audioDurationSec = (engine as { duration?: number }).duration ?? 180
+
+  // Resolved sections for the current track: auto + manual merged.
+  // This is the single section timeline consumed by Track Map, the renderer,
+  // and any preset automation.  Manual overrides always take precedence.
+  const resolvedSections = useMemo(() => {
+    const trackId = engine.currentTrackId
+    const analysis = engine.currentAnalysis
+    const analyzedSections = analysis ? adaptMIAnalysis(analysis) : []
+    const manualSections = trackId ? (manualTrackSectionsByTrackId[trackId] ?? []) : []
+    return resolveTrackSections({ analyzedSections, manualSections, durationSec: audioDurationSec })
+  }, [engine.currentTrackId, engine.currentAnalysis, manualTrackSectionsByTrackId, audioDurationSec])
 
   return (
     <div className="rv-shell">
@@ -231,7 +243,7 @@ export function ReactView() {
               oscillatorGlyphPointCache={oscillatorGlyphPointCache}
               oscillatorTextPointCache={oscillatorTextPointCache}
               isPlaying={engine.isPlaying}
-              manualSections={manualTrackSections}
+              manualSections={resolvedSections}
               getAudioTime={engine.getCurrentTime}
               effectiveBpm={engine.currentEffectiveBpm}
               onCanvasReady={setOutputCanvas}

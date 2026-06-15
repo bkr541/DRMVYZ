@@ -22,6 +22,8 @@ type BpmState =
   | { kind: 'analyzing' }
   | { kind: 'value'; bpm: number; analyzed: number | null; source: string | null }
   | { kind: 'failed'; error: string | null }
+  /** Analysis completed but BPM detection specifically failed (rest of analysis is valid). */
+  | { kind: 'unavailable' }
 
 function deriveBpmState(
   source:   'file' | 'microphone' | 'demo',
@@ -42,14 +44,18 @@ function deriveBpmState(
   if (status === 'queued' || status === 'decoding' || status === 'analyzing') {
     return { kind: 'analyzing' }
   }
-  if (status === 'complete' && effectiveBpm !== null) {
-    const overrideActive = bpmSource === 'manual_override' || bpmSource === 'live_analysis'
-    return {
-      kind:     'value',
-      bpm:      effectiveBpm,
-      analyzed: overrideActive ? analyzedBpm : null,
-      source:   bpmSource,
+  if (status === 'complete') {
+    if (effectiveBpm !== null) {
+      const overrideActive = bpmSource === 'manual_override' || bpmSource === 'live_analysis'
+      return {
+        kind:     'value',
+        bpm:      effectiveBpm,
+        analyzed: overrideActive ? analyzedBpm : null,
+        source:   bpmSource,
+      }
     }
+    // Analysis completed but BPM detection failed within it.
+    return { kind: 'unavailable' }
   }
   if (status === 'failed') {
     return { kind: 'failed', error }
@@ -271,6 +277,14 @@ export function VyzualzAudioDock() {
               >
                 unavailable
               </button>
+            )}
+            {bpmState.kind === 'unavailable' && (
+              <span
+                className="vz-dock-bpm-block-val vz-dock-bpm-none"
+                title="BPM detection failed for this track. You can set it manually with the arrows or tap tempo."
+              >
+                BPM unavailable
+              </span>
             )}
             {bpmState.kind === 'none' && (
               <span className="vz-dock-bpm-block-val vz-dock-bpm-none">--</span>

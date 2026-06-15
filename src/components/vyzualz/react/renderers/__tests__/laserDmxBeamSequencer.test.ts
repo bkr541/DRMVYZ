@@ -150,21 +150,21 @@ describe('applyEasing', () => {
 describe('forward sequence', () => {
   it('at beat 0, step 0: beam b0 (index 0) is active', () => {
     const seq = makeSeq({ mode: 'forward', stepsPerBeat: 1, stepGate: 1 })
-    const state = computeBeamSequenceState(0, 5, 0.0, seq)
+    const state = computeBeamSequenceState(0, 0, 5, 0.0, seq)
     expect(state.gate).toBe(1)
   })
 
   it('at beat 1: beam b1 (index 1) is active, b0 is not', () => {
     const seq = makeSeq({ mode: 'forward', stepsPerBeat: 1, stepGate: 1 })
-    const s0 = computeBeamSequenceState(0, 5, 1.0, seq)
-    const s1 = computeBeamSequenceState(1, 5, 1.0, seq)
+    const s0 = computeBeamSequenceState(0, 0, 5, 1.0, seq)
+    const s1 = computeBeamSequenceState(1, 1, 5, 1.0, seq)
     expect(s0.gate).toBe(0)
     expect(s1.gate).toBe(1)
   })
 
   it('sequence wraps around: at step N, beam 0 is active again', () => {
     const seq = makeSeq({ mode: 'forward', stepsPerBeat: 1, stepGate: 1 })
-    const state = computeBeamSequenceState(0, 5, 5.0, seq)  // 5 beams, beat=5
+    const state = computeBeamSequenceState(0, 0, 5, 5.0, seq)  // 5 beams, beat=5
     expect(state.gate).toBe(1)
   })
 })
@@ -184,9 +184,9 @@ describe('alternate sequence', () => {
   it('at even step: even-position beams are active', () => {
     const seq = makeSeq({ mode: 'alternate', stepsPerBeat: 1, stepGate: 1 })
     // beat=0 → step=0 → even group (positions 0, 2, 4)
-    const s0 = computeBeamSequenceState(0, 5, 0.0, seq)
-    const s1 = computeBeamSequenceState(1, 5, 0.0, seq)
-    const s2 = computeBeamSequenceState(2, 5, 0.0, seq)
+    const s0 = computeBeamSequenceState(0, 0, 5, 0.0, seq)
+    const s1 = computeBeamSequenceState(1, 1, 5, 0.0, seq)
+    const s2 = computeBeamSequenceState(2, 2, 5, 0.0, seq)
     expect(s0.gate).toBe(1)  // position 0 (even)
     expect(s1.gate).toBe(0)  // position 1 (odd)
     expect(s2.gate).toBe(1)  // position 2 (even)
@@ -195,35 +195,131 @@ describe('alternate sequence', () => {
   it('at odd step: odd-position beams are active', () => {
     const seq = makeSeq({ mode: 'alternate', stepsPerBeat: 1, stepGate: 1 })
     // beat=1 → step=1 → odd group (positions 1, 3)
-    const s0 = computeBeamSequenceState(0, 4, 1.0, seq)
-    const s1 = computeBeamSequenceState(1, 4, 1.0, seq)
+    const s0 = computeBeamSequenceState(0, 0, 4, 1.0, seq)
+    const s1 = computeBeamSequenceState(1, 1, 4, 1.0, seq)
     expect(s0.gate).toBe(0)  // position 0 (even)
     expect(s1.gate).toBe(1)  // position 1 (odd)
   })
 })
 
-// ── 11. CenterOut sequence order ──────────────────────────────────────────────
+// ── 11. CenterOut sequence order — exhaustive edge-case coverage ──────────────
+//
+// Root cause of previous infinite loop:
+//   With even n, the guard `if (i > 0 && right < n)` skipped right side at i=0
+//   (even though the right pair existed).  Subsequent iterations incremented `i`
+//   but produced out-of-bounds right indices, so result.length never reached n.
+//
+// New algorithm is bounded O(n/2); these tests verify correctness for all sizes.
 
-describe('computeSequenceOrder — centerOut', () => {
-  it('5 beams: starts at center (b2), expands outward', () => {
-    const order = computeSequenceOrder(['b0', 'b1', 'b2', 'b3', 'b4'], 'centerOut', 42)
-    expect(order[0]).toBe('b2')   // center
-    expect(order).toHaveLength(5)
-    // Both outer extremes should appear in the order
-    expect(order).toContain('b0')
-    expect(order).toContain('b4')
+function assertCenterOut(ids: string[], expected: string[]): void {
+  const order = computeSequenceOrder(ids, 'centerOut', 42)
+  // Length
+  expect(order).toHaveLength(ids.length)
+  // No duplicates
+  expect(new Set(order).size).toBe(ids.length)
+  // All IDs present
+  for (const id of ids) expect(order).toContain(id)
+  // Exact order
+  expect(order).toEqual(expected)
+}
+
+describe('computeSequenceOrder — centerOut (edge cases)', () => {
+  it('0 beams → empty', () => {
+    expect(computeSequenceOrder([], 'centerOut', 42)).toEqual([])
+  })
+
+  it('1 beam → just that beam', () => {
+    assertCenterOut(['b0'], ['b0'])
+  })
+
+  it('2 beams (even) → [b0, b1] center pair', () => {
+    // even n=2: mid=1, d=0 → push ids[0], ids[1]
+    assertCenterOut(['b0', 'b1'], ['b0', 'b1'])
+  })
+
+  it('3 beams (odd) → center first, then outward', () => {
+    // odd n=3: mid=1 → [b1, b0, b2]
+    assertCenterOut(['b0', 'b1', 'b2'], ['b1', 'b0', 'b2'])
+  })
+
+  it('4 beams (even) — was the infinite-loop case', () => {
+    // even n=4: mid=2, d=0→[b1,b2], d=1→[b0,b3]
+    assertCenterOut(['b0', 'b1', 'b2', 'b3'], ['b1', 'b2', 'b0', 'b3'])
+  })
+
+  it('5 beams (odd)', () => {
+    // odd n=5: mid=2 → [b2, b1, b3, b0, b4]
+    assertCenterOut(
+      ['b0', 'b1', 'b2', 'b3', 'b4'],
+      ['b2', 'b1', 'b3', 'b0', 'b4'],
+    )
+  })
+
+  it('7 beams (odd)', () => {
+    // mid=3 → [b3, b2, b4, b1, b5, b0, b6]
+    assertCenterOut(
+      ['b0', 'b1', 'b2', 'b3', 'b4', 'b5', 'b6'],
+      ['b3', 'b2', 'b4', 'b1', 'b5', 'b0', 'b6'],
+    )
+  })
+
+  it('8 beams (even) — even count like the center-out-chase preset', () => {
+    // mid=4 → [b3,b4, b2,b5, b1,b6, b0,b7]
+    assertCenterOut(
+      ['b0', 'b1', 'b2', 'b3', 'b4', 'b5', 'b6', 'b7'],
+      ['b3', 'b4', 'b2', 'b5', 'b1', 'b6', 'b0', 'b7'],
+    )
   })
 })
 
 // ── 12. OutsideIn sequence order ──────────────────────────────────────────────
 
-describe('computeSequenceOrder — outsideIn', () => {
+function assertOutsideIn(ids: string[], expected: string[]): void {
+  const order = computeSequenceOrder(ids, 'outsideIn', 42)
+  expect(order).toHaveLength(ids.length)
+  expect(new Set(order).size).toBe(ids.length)
+  for (const id of ids) expect(order).toContain(id)
+  expect(order).toEqual(expected)
+}
+
+describe('computeSequenceOrder — outsideIn (edge cases)', () => {
+  it('0 beams → empty', () => {
+    expect(computeSequenceOrder([], 'outsideIn', 42)).toEqual([])
+  })
+
+  it('1 beam', () => {
+    assertOutsideIn(['b0'], ['b0'])
+  })
+
+  it('2 beams', () => {
+    assertOutsideIn(['b0', 'b1'], ['b0', 'b1'])
+  })
+
+  it('3 beams', () => {
+    assertOutsideIn(['b0', 'b1', 'b2'], ['b0', 'b2', 'b1'])
+  })
+
   it('4 beams: starts at both ends, moves inward', () => {
     const order = computeSequenceOrder(['b0', 'b1', 'b2', 'b3'], 'outsideIn', 42)
     expect(order[0]).toBe('b0')   // left outer
     expect(order[1]).toBe('b3')   // right outer
     expect(order[2]).toBe('b1')   // next inner-left
     expect(order[3]).toBe('b2')   // next inner-right
+    assertOutsideIn(['b0', 'b1', 'b2', 'b3'], ['b0', 'b3', 'b1', 'b2'])
+  })
+
+  it('7 beams', () => {
+    assertOutsideIn(
+      ['b0', 'b1', 'b2', 'b3', 'b4', 'b5', 'b6'],
+      ['b0', 'b6', 'b1', 'b5', 'b2', 'b4', 'b3'],
+    )
+  })
+
+  it('8 beams', () => {
+    assertOutsideIn(
+      ['b0', 'b1', 'b2', 'b3', 'b4', 'b5', 'b6', 'b7'],
+      ['b0', 'b7', 'b1', 'b6', 'b2', 'b5', 'b3', 'b4'],
+    )
   })
 })
 
@@ -248,15 +344,15 @@ describe('computeSequenceOrder — randomSeeded', () => {
 describe('deterministic seeking', () => {
   it('same absoluteBeat always gives same gate/progress regardless of order', () => {
     const seq = makeSeq({ mode: 'forward', stepsPerBeat: 2, stepGate: 0.8 })
-    const a = computeBeamSequenceState(1, 4, 3.25, seq)
-    const b = computeBeamSequenceState(1, 4, 3.25, seq)
+    const a = computeBeamSequenceState(1, 1, 4, 3.25, seq)
+    const b = computeBeamSequenceState(1, 1, 4, 3.25, seq)
     expect(a).toEqual(b)
   })
 
   it('progress advances as beatPhase increases within a step', () => {
     const seq = makeSeq({ mode: 'forward', stepsPerBeat: 1, stepGate: 1 })
-    const s0 = computeBeamSequenceState(0, 3, 0.1, seq)
-    const s1 = computeBeamSequenceState(0, 3, 0.4, seq)
+    const s0 = computeBeamSequenceState(0, 0, 3, 0.1, seq)
+    const s1 = computeBeamSequenceState(0, 0, 3, 0.4, seq)
     expect(s1.progress).toBeGreaterThan(s0.progress)
   })
 })
@@ -267,13 +363,13 @@ describe('stepGate', () => {
   it('gate=0 when stepPhase exceeds stepGate', () => {
     // stepGate=0.5, beat=0.6 → stepPhase=0.6 > 0.5 → gate=0
     const seq = makeSeq({ mode: 'forward', stepsPerBeat: 1, stepGate: 0.5 })
-    const state = computeBeamSequenceState(0, 3, 0.6, seq)
+    const state = computeBeamSequenceState(0, 0, 3, 0.6, seq)
     expect(state.gate).toBe(0)
   })
 
   it('gate=1 when stepPhase is within stepGate', () => {
     const seq = makeSeq({ mode: 'forward', stepsPerBeat: 1, stepGate: 0.5 })
-    const state = computeBeamSequenceState(0, 3, 0.25, seq)
+    const state = computeBeamSequenceState(0, 0, 3, 0.25, seq)
     expect(state.gate).toBe(1)
   })
 })
@@ -284,8 +380,8 @@ describe('stepsPerBeat', () => {
   it('stepsPerBeat=2: two full steps per beat', () => {
     const seq = makeSeq({ mode: 'forward', stepsPerBeat: 2, stepGate: 1 })
     // beat=0.5 → seqPos=1 → step 1 → beam at index 1 active
-    const s0 = computeBeamSequenceState(0, 4, 0.5, seq)
-    const s1 = computeBeamSequenceState(1, 4, 0.5, seq)
+    const s0 = computeBeamSequenceState(0, 0, 4, 0.5, seq)
+    const s1 = computeBeamSequenceState(1, 1, 4, 0.5, seq)
     expect(s0.gate).toBe(0)
     expect(s1.gate).toBe(1)
   })
@@ -297,7 +393,7 @@ describe('all mode', () => {
   it('all beams have gate=1', () => {
     const seq = makeSeq({ mode: 'all', stepsPerBeat: 1 })
     for (let i = 0; i < 5; i++) {
-      const state = computeBeamSequenceState(i, 5, 1.3, seq)
+      const state = computeBeamSequenceState(i, i, 5, 1.3, seq)
       expect(state.gate).toBe(1)
     }
   })
@@ -305,7 +401,7 @@ describe('all mode', () => {
   it('progress equals step fractional part (beat phase within step)', () => {
     const seq = makeSeq({ mode: 'all', stepsPerBeat: 1 })
     // beat=2.7 → seqPos=2.7 → stepPhase=0.7
-    const state = computeBeamSequenceState(0, 3, 2.7, seq)
+    const state = computeBeamSequenceState(0, 0, 3, 2.7, seq)
     expect(state.progress).toBeCloseTo(0.7)
   })
 })
@@ -352,7 +448,7 @@ describe('backward compatibility', () => {
     // This test verifies that the sequencer logic, when given orderedCount=0,
     // returns gate=0 (the compiler only calls it when enabled).
     const seq = makeSeq({ mode: 'forward', stepsPerBeat: 1, stepGate: 0.5 })
-    const state = computeBeamSequenceState(0, 0, 1.0, seq)
+    const state = computeBeamSequenceState(0, 0, 0, 1.0, seq)
     expect(state.gate).toBe(0)  // empty group → no beam to activate
   })
 })
@@ -365,16 +461,16 @@ describe('rotateEveryBars', () => {
     const n = 3
 
     // Without rotation (barIndex=0, rotationOffset=0): beam 0 is active at beat 0
-    const noRot = computeBeamSequenceState(0, n, 0.0, seq)
+    const noRot = computeBeamSequenceState(0, 0, n, 0.0, seq)
     expect(noRot.gate).toBe(1)
 
     // With rotation offset 1 applied by caller: beam 0 now acts as beam 1
     // (caller shifts adjustedIdx = (0 - 1 + 3) % 3 = 2)
-    const rotated = computeBeamSequenceState(2, n, 0.0, seq)
+    const rotated = computeBeamSequenceState(2, 2, n, 0.0, seq)
     expect(rotated.gate).toBe(0)  // step 0 does NOT match index 2
-    const rotatedIdx1 = computeBeamSequenceState(0, n, 1.0, seq)
+    const rotatedIdx1 = computeBeamSequenceState(0, 0, n, 1.0, seq)
     expect(rotatedIdx1.gate).toBe(0)  // beat=1 activates index 1, not 0
-    const rotatedActiveAtBeat1 = computeBeamSequenceState(1, n, 1.0, seq)
+    const rotatedActiveAtBeat1 = computeBeamSequenceState(1, 1, n, 1.0, seq)
     expect(rotatedActiveAtBeat1.gate).toBe(1)  // index 1 is active at beat 1
   })
 })

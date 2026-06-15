@@ -264,6 +264,12 @@ export function applyModulationRoute(
 
 // ── Mode-specific target update ───────────────────────────────────────────────
 
+/**
+ * Combine a current value with a modulation value according to route mode.
+ * Does NOT clamp — each target adapter must clamp to its own valid domain.
+ * Clamping here would break add/multiply routes on non-normalized targets
+ * (pixel offsets, beam widths, etc.).
+ */
 export function modeApply(
   cur:   number,
   value: number,
@@ -271,9 +277,9 @@ export function modeApply(
 ): number {
   switch (mode) {
     case 'set':      return value
-    case 'add':      return clamp01(cur + value)
-    case 'multiply': return clamp01(cur * value)
-    case 'trigger':  return value  // envelope value applied directly
+    case 'add':      return cur + value
+    case 'multiply': return cur * value
+    case 'trigger':  return value
     default:         return value
   }
 }

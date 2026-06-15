@@ -20,7 +20,7 @@ import type {
   LaserDmxModulationRoute,
   LaserDmxReactionGroup,
 } from '../../ReactTypes'
-import { DEFAULT_BEAM_MOTION, DEFAULT_BEAM_SEQUENCE } from '../../ReactTypes'
+import { DEFAULT_BEAM_MOTION, DEFAULT_BEAM_SEQUENCE, DEFAULT_LAUNCH_SETTINGS } from '../../ReactTypes'
 
 vi.stubGlobal('crypto', { randomUUID: (() => { let n = 0; return () => `uuid-${++n}` })() })
 
@@ -132,6 +132,8 @@ describe('2 — group dimmer applied exactly once', () => {
       colorOverrideEnabled: false,
       color: { red: 255, green: 255, blue: 255, white: 0, alpha: 1 },
       sequence: DEFAULT_BEAM_SEQUENCE,
+      launch: DEFAULT_LAUNCH_SETTINGS,
+      maxActiveBeams: 0,
       modulationRoutes: [
         mkRoute({ source: 'nBass', target: 'dimmer', min: 0, max: 0.5 }),
       ],
@@ -304,6 +306,8 @@ describe('10 — min/max mapping applied once (group beamWidth)', () => {
       colorOverrideEnabled: false,
       color: { red: 255, green: 255, blue: 255, white: 0, alpha: 1 },
       sequence: DEFAULT_BEAM_SEQUENCE,
+      launch: DEFAULT_LAUNCH_SETTINGS,
+      maxActiveBeams: 0,
       modulationRoutes: [
         mkRoute({ source: 'nBass', target: 'beamWidth', min: 0.5, max: 3.5, mode: 'set' }),
       ],

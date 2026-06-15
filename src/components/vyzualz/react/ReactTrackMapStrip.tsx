@@ -337,26 +337,33 @@ interface ReactTrackMapStripProps {
 export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStripProps) {
   const engine = useSharedAudio()
   const {
+    source,
     currentTrack,
     currentAnalysis,
     currentAnalysisStatus,
     currentAnalysisError,
     currentKey,
+    currentEffectiveBpm,
+    currentAnalyzedBpm,
+    currentBpmSource,
+    currentBpmConfidence,
     retryAnalysis,
+    reanalyzeTrack,
+    getCurrentTime,
   } = engine
 
   const {
-    manualTrackSections,
+    manualTrackSectionsByTrackId,
     selectedSectionId,
     setSelectedSectionId,
     addManualSection,
     removeManualSection,
   } = useReactStore(useShallow(s => ({
-    manualTrackSections:  s.manualTrackSections,
-    selectedSectionId:    s.selectedSectionId,
-    setSelectedSectionId: s.setSelectedSectionId,
-    addManualSection:     s.addManualSection,
-    removeManualSection:  s.removeManualSection,
+    manualTrackSectionsByTrackId: s.manualTrackSectionsByTrackId,
+    selectedSectionId:            s.selectedSectionId,
+    setSelectedSectionId:         s.setSelectedSectionId,
+    addManualSection:             s.addManualSection,
+    removeManualSection:          s.removeManualSection,
   })))
 
   const [collapsed,      setCollapsed]      = useState(false)
@@ -366,6 +373,16 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
 
   const beatCanvasRef   = useRef<HTMLCanvasElement>(null)
   const energyCanvasRef = useRef<HTMLCanvasElement>(null)
+  const playheadRef     = useRef<HTMLDivElement>(null)
+  const rafRef          = useRef<number | null>(null)
+
+  // Active track ID — used as the per-track sections key
+  const activeTrackId = currentTrack?.id ?? null
+
+  // Per-track manual sections for the active track only
+  const manualTrackSections = activeTrackId
+    ? (manualTrackSectionsByTrackId[activeTrackId] ?? [])
+    : []
 
   // Derived
   const hasTrack   = currentTrack != null
@@ -409,13 +426,71 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     drawEnergyCanvas(canvas, currentAnalysis.energyCurves[energyCurveKey], durationSec, opt.color)
   }, [isComplete, currentAnalysis, energyCurveKey, durationSec, drawTick])
 
+  // ── Playhead RAF loop ──────────────────────────────────────────────────────
+  // Updates an absolutely-positioned div to track the current audio position.
+  // Reads getCurrentTime() directly (no React state) so it never causes re-renders.
+  useEffect(() => {
+    const playhead = playheadRef.current
+    if (!playhead || !isComplete || durationSec <= 0) {
+      if (playhead) playhead.style.display = 'none'
+      return
+    }
+    playhead.style.display = 'block'
+
+    const tick = () => {
+      const t = getCurrentTime()
+      const pct = Math.max(0, Math.min(1, t / durationSec))
+      playhead.style.left = `${pct * 100}%`
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    rafRef.current = requestAnimationFrame(tick)
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+    }
+  }, [isComplete, durationSec, getCurrentTime])
+
   const handleRetry = useCallback(() => {
     if (currentTrack) retryAnalysis(currentTrack.id)
   }, [currentTrack, retryAnalysis])
 
+  const handleReanalyze = useCallback(() => {
+    if (currentTrack && reanalyzeTrack) reanalyzeTrack(currentTrack.id)
+  }, [currentTrack, reanalyzeTrack])
+
   const handleAdd = (section: ReactTrackSection) => {
-    addManualSection(section)
+    if (activeTrackId) addManualSection(activeTrackId, section)
     setIsAdding(false)
+  }
+
+  const handleRemove = (id: string) => {
+    if (activeTrackId) removeManualSection(activeTrackId, id)
+  }
+
+  // ── BPM display logic ──────────────────────────────────────────────────────
+  const isMicSource = source === 'microphone'
+  const hasOverride = currentBpmSource === 'manual_override'
+
+  let bpmDisplay: React.ReactNode = null
+  if (isMicSource) {
+    bpmDisplay = <span className="rv-meta-bpm rv-meta-bpm--unavailable">Live BPM unavailable</span>
+  } else if (currentEffectiveBpm != null) {
+    bpmDisplay = (
+      <span className="rv-meta-bpm">
+        {currentEffectiveBpm.toFixed(1)} BPM
+        {currentBpmConfidence != null && (
+          <span className="rv-meta-bpm-conf" title="BPM confidence">
+            {' '}({Math.round(currentBpmConfidence * 100)}%)
+          </span>
+        )}
+        {hasOverride && currentAnalyzedBpm != null && (
+          <span className="rv-meta-bpm-analyzed" title="Original analyzed BPM">
+            {' · '}analyzed: {currentAnalyzedBpm.toFixed(1)}
+          </span>
+        )}
+      </span>
+    )
+  } else if (isComplete) {
+    bpmDisplay = <span className="rv-meta-bpm rv-meta-bpm--unavailable">BPM N/A</span>
   }
 
   return (
@@ -446,24 +521,42 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
       {!collapsed && (
         <>
           {/* Metadata: BPM, key, legend */}
-          {isComplete && currentAnalysis && (
+          {(isComplete || isMicSource) && (
             <div className="rv-strip-meta-row">
-              <span className="rv-meta-bpm">{currentAnalysis.bpm.toFixed(1)} BPM</span>
+              {bpmDisplay}
               {keyLabel && <span className="rv-meta-key">{keyLabel}</span>}
-              <div className="rv-strip-type-legend">
-                {SECTION_ORDER.filter(t => t !== 'unknown').map(t => (
-                  <span key={t} className="rv-legend-item" style={{ color: SECTION_COLORS[t] }}>
-                    {t}
-                  </span>
-                ))}
-              </div>
+              {isComplete && (
+                <div className="rv-strip-type-legend">
+                  {SECTION_ORDER.filter(t => t !== 'unknown').map(t => (
+                    <span key={t} className="rv-legend-item" style={{ color: SECTION_COLORS[t] }}>
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
-          {/* Beat grid canvas */}
+          {/* Beat grid canvas + playhead */}
           {isComplete && (
-            <div className="rv-beat-canvas-wrap">
+            <div className="rv-beat-canvas-wrap" style={{ position: 'relative' }}>
               <canvas ref={beatCanvasRef} className="rv-beat-canvas" aria-hidden="true" />
+              {/* Playhead — moved by RAF, not React state */}
+              <div
+                ref={playheadRef}
+                className="rv-playhead"
+                aria-hidden="true"
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: '0%',
+                  width: 2,
+                  height: '100%',
+                  background: 'rgba(255,255,255,0.85)',
+                  pointerEvents: 'none',
+                  display: 'none',
+                }}
+              />
             </div>
           )}
 
@@ -511,10 +604,11 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
             <div className="rv-section-group">
               <div className="rv-section-group-header">
                 <span className="rv-section-group-label">Analyzed</span>
+                {/* Reanalyze bypasses cache; Retry only re-queues and may use cache */}
                 <button
                   className="rv-reanalyze-btn"
-                  onClick={handleRetry}
-                  title="Re-run analysis on this track"
+                  onClick={handleReanalyze}
+                  title="Force fresh analysis, bypassing cache"
                 >
                   ↺ Reanalyze
                 </button>
@@ -532,7 +626,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
             </div>
           )}
 
-          {/* Manual sections — user-authored */}
+          {/* Manual sections — user-authored, scoped to the active track */}
           <div className="rv-section-group">
             <div className="rv-section-group-header">
               <span className="rv-section-group-label">My Sections</span>
@@ -540,6 +634,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
                 className="rv-add-section-btn"
                 onClick={() => setIsAdding(v => !v)}
                 title="Add a manual section"
+                disabled={!activeTrackId}
               >
                 {isAdding ? '✕ Cancel' : '+ Add'}
               </button>
@@ -551,7 +646,9 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
 
             {manualTrackSections.length === 0 && !isAdding ? (
               <div className="rv-section-group-empty">
-                No user sections — hit <strong>+ Add</strong> to create one.
+                {activeTrackId
+                  ? <>No user sections — hit <strong>+ Add</strong> to create one.</>
+                  : 'Load a track to add sections.'}
               </div>
             ) : (
               <div className="rv-section-list">
@@ -561,7 +658,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
                     section={section}
                     isSelected={selectedSectionId === section.id}
                     onSelect={setSelectedSectionId}
-                    onRemove={removeManualSection}
+                    onRemove={handleRemove}
                   />
                 ))}
               </div>

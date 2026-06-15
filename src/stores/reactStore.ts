@@ -6,6 +6,7 @@ import {
   DEFAULT_OSCILLATOR_SETTINGS,
   DEFAULT_BEAM_MOTION,
   DEFAULT_BEAM_SEQUENCE,
+  DEFAULT_LAUNCH_SETTINGS,
   createDefaultLaserDmxSettings,
   createDefaultLaserDmxBeamMatrixSettings,
   LASER_DMX_MATRIX_COLUMNS,
@@ -313,8 +314,10 @@ interface ReactStoreState {
   activeReactEngineId: ReactEngineId
   reactPresets: ReactPreset[]
 
-  // Manual track sections
-  manualTrackSections: ReactTrackSection[]
+  // Manual track sections — stored per stable track ID so edits on Track A
+  // never affect Track B.  Key '_legacy' holds sections migrated from the
+  // old flat global array whose original track is unknown.
+  manualTrackSectionsByTrackId: Record<string, ReactTrackSection[]>
   selectedSectionId: string | null
 
   // Global performance controls
@@ -355,9 +358,12 @@ interface ReactStoreState {
   setReactParticleDensity: (v: number) => void
 
   setSelectedSectionId: (id: string | null) => void
-  addManualSection: (section: ReactTrackSection) => void
-  updateManualSection: (id: string, patch: Partial<ReactTrackSection>) => void
-  removeManualSection: (id: string) => void
+  /** Returns the manual sections for a specific track (empty array if none). */
+  getManualSectionsForTrack: (trackId: string) => ReactTrackSection[]
+  addManualSection: (trackId: string, section: ReactTrackSection) => void
+  updateManualSection: (trackId: string, id: string, patch: Partial<ReactTrackSection>) => void
+  removeManualSection: (trackId: string, id: string) => void
+  clearManualSectionsForTrack: (trackId: string) => void
 
   // Performance pads
   performancePads: ReactPerformancePad[]
@@ -489,13 +495,109 @@ interface ReactStoreState {
 const INITIAL_PRESET_ID = DEFAULT_REACT_PRESETS[0].id
 const INITIAL_ENGINE_ID: ReactEngineId = DEFAULT_REACT_PRESETS[0].engine
 
+// ── Exported migration function (for testing) ─────────────────────────────────
+export function migrateReactStore(persistedState: unknown, version: number): Record<string, unknown> {
+  let state = (persistedState ?? {}) as Record<string, unknown>
+  if (version < 1) {
+    state = {
+      ...state,
+      laserDmxWorkspaceMode: 'spatialFixtures' as LaserDmxWorkspaceMode,
+      laserDmxBeamMatrix:    createDefaultLaserDmxBeamMatrixSettings(),
+    }
+  }
+  if (version < 2) {
+    const osc = state.oscillatorSettings as Record<string, unknown> | undefined
+    if (osc) {
+      let migratedOsc = { ...osc }
+      if (osc.sourceType === 'svgGlyph') {
+        const glyphId = osc.selectedGlyphId as string | null
+        const svgId = typeof glyphId === 'string' && glyphId.startsWith('glyph-media:')
+          ? glyphId.slice('glyph-media:'.length)
+          : glyphId
+        migratedOsc = { ...migratedOsc, sourceType: 'svg', selectedSvgId: svgId ?? null, svgRenderMode: 'reactivePath', svgUseReactPalette: true, autoRotate: true }
+      } else if (osc.sourceType === 'svgVisual') {
+        migratedOsc = { ...migratedOsc, sourceType: 'svg', selectedSvgId: (osc.selectedSvgVisualId as string | null) ?? null, svgRenderMode: 'originalArtwork', svgUseReactPalette: true, autoRotate: true }
+      } else if (osc.sourceType === 'text') {
+        migratedOsc = { ...migratedOsc, autoRotate: false }
+      } else {
+        migratedOsc = { ...migratedOsc, autoRotate: true }
+      }
+      if (!('selectedSvgId' in migratedOsc))     migratedOsc.selectedSvgId     = null
+      if (!('svgRenderMode' in migratedOsc))      migratedOsc.svgRenderMode      = 'auto'
+      if (!('svgUseReactPalette' in migratedOsc)) migratedOsc.svgUseReactPalette = true
+      if (!('autoRotate' in migratedOsc))         migratedOsc.autoRotate         = osc.sourceType !== 'text'
+      state = { ...state, oscillatorSettings: migratedOsc }
+    }
+  }
+  if (version < 3) {
+    const bm = state.laserDmxBeamMatrix as Record<string, unknown> | undefined
+    if (bm) {
+      const beams  = (bm.beams  as unknown[] | undefined) ?? []
+      const groups = (bm.groups as unknown[] | undefined) ?? []
+      state = {
+        ...state,
+        laserDmxBeamMatrix: {
+          ...bm,
+          beams:  beams.map((b, i) => { const beam = b as Record<string, unknown>; return { ...beam, sequenceIndex: beam.sequenceIndex ?? i, motion: beam.motion ?? DEFAULT_BEAM_MOTION } }),
+          groups: groups.map((g) => { const group = g as Record<string, unknown>; return { ...group, sequence: group.sequence ?? DEFAULT_BEAM_SEQUENCE } }),
+        },
+      }
+    }
+  }
+  if (version < 4) {
+    const bm = state.laserDmxBeamMatrix as Record<string, unknown> | undefined
+    if (bm) {
+      const groups = (bm.groups as unknown[] | undefined) ?? []
+      const beams  = (bm.beams  as unknown[] | undefined) ?? []
+      const coordTargets = new Set(['originOffsetX', 'originOffsetY', 'targetOffsetX', 'targetOffsetY'])
+      const migrateRoutes = (routes: unknown[]): unknown[] =>
+        routes.map((r) => {
+          const route = r as Record<string, unknown>
+          if (!coordTargets.has(route.target as string)) return route
+          const oldMin = typeof route.min === 'number' ? route.min : 0
+          const oldMax = typeof route.max === 'number' ? route.max : 0
+          if (Math.abs(oldMin) <= 2 && Math.abs(oldMax) <= 2) return { ...route, min: oldMin * 200, max: oldMax * 200 }
+          return route
+        })
+      state = {
+        ...state,
+        laserDmxBeamMatrix: {
+          ...bm,
+          groups: groups.map((g) => {
+            const group = g as Record<string, unknown>
+            const existingRoutes = (group.modulationRoutes as unknown[] | undefined) ?? []
+            return { ...group, launch: group.launch ?? DEFAULT_LAUNCH_SETTINGS, maxActiveBeams: group.maxActiveBeams ?? 0, modulationRoutes: migrateRoutes(existingRoutes) }
+          }),
+          beams: beams.map((b) => {
+            const beam = b as Record<string, unknown>
+            const existingRoutes = (beam.modulationRoutes as unknown[] | undefined) ?? []
+            return { ...beam, modulationRoutes: migrateRoutes(existingRoutes) }
+          }),
+        },
+      }
+    }
+  }
+  if (version < 5) {
+    const legacy = (state as Record<string, unknown>).manualTrackSections as ReactTrackSection[] | undefined
+    if (Array.isArray(legacy) && legacy.length > 0) {
+      state = { ...state, manualTrackSectionsByTrackId: { _legacy: legacy } }
+    } else {
+      state = { ...state, manualTrackSectionsByTrackId: (state as Record<string, unknown>).manualTrackSectionsByTrackId ?? {} }
+    }
+    const { manualTrackSections: _mts, ...rest } = state as Record<string, unknown>
+    void _mts
+    state = rest
+  }
+  return state
+}
+
 export const useReactStore = create<ReactStoreState>()(
   persist(
     (set, get) => ({
       activeReactPresetId: INITIAL_PRESET_ID,
       activeReactEngineId: INITIAL_ENGINE_ID,
       reactPresets: DEFAULT_REACT_PRESETS,
-      manualTrackSections: [],
+      manualTrackSectionsByTrackId: {},
       selectedSectionId: null,
       performancePads: DEFAULT_PERFORMANCE_PADS,
       activePadId: null,
@@ -567,21 +669,45 @@ export const useReactStore = create<ReactStoreState>()(
 
       setSelectedSectionId: (id) => set({ selectedSectionId: id }),
 
-      addManualSection: (section) =>
-        set((s) => ({ manualTrackSections: [...s.manualTrackSections, section] })),
+      getManualSectionsForTrack: (trackId) =>
+        get().manualTrackSectionsByTrackId[trackId] ?? [],
 
-      updateManualSection: (id, patch) =>
+      addManualSection: (trackId, section) =>
         set((s) => ({
-          manualTrackSections: s.manualTrackSections.map((sec) =>
-            sec.id === id ? { ...sec, ...patch } : sec,
-          ),
+          manualTrackSectionsByTrackId: {
+            ...s.manualTrackSectionsByTrackId,
+            [trackId]: [...(s.manualTrackSectionsByTrackId[trackId] ?? []), section],
+          },
         })),
 
-      removeManualSection: (id) =>
-        set((s) => ({
-          manualTrackSections: s.manualTrackSections.filter((sec) => sec.id !== id),
-          selectedSectionId: s.selectedSectionId === id ? null : s.selectedSectionId,
-        })),
+      updateManualSection: (trackId, id, patch) =>
+        set((s) => {
+          const existing = s.manualTrackSectionsByTrackId[trackId] ?? []
+          return {
+            manualTrackSectionsByTrackId: {
+              ...s.manualTrackSectionsByTrackId,
+              [trackId]: existing.map((sec) => sec.id === id ? { ...sec, ...patch } : sec),
+            },
+          }
+        }),
+
+      removeManualSection: (trackId, id) =>
+        set((s) => {
+          const existing = s.manualTrackSectionsByTrackId[trackId] ?? []
+          return {
+            manualTrackSectionsByTrackId: {
+              ...s.manualTrackSectionsByTrackId,
+              [trackId]: existing.filter((sec) => sec.id !== id),
+            },
+            selectedSectionId: s.selectedSectionId === id ? null : s.selectedSectionId,
+          }
+        }),
+
+      clearManualSectionsForTrack: (trackId) =>
+        set((s) => {
+          const { [trackId]: _removed, ...rest } = s.manualTrackSectionsByTrackId
+          return { manualTrackSectionsByTrackId: rest }
+        }),
 
       setActivePadId: (id) =>
         set((s) => {
@@ -1195,7 +1321,9 @@ export const useReactStore = create<ReactStoreState>()(
             soloed:  false,
             colorOverrideEnabled: false,
             color:    { red: 255, green: 255, blue: 255, white: 0, alpha: 1 },
-            sequence: DEFAULT_BEAM_SEQUENCE,
+            sequence:       DEFAULT_BEAM_SEQUENCE,
+            launch:         DEFAULT_LAUNCH_SETTINGS,
+            maxActiveBeams: 0,
             modulationRoutes: [],
           }
           return {
@@ -1509,10 +1637,10 @@ export const useReactStore = create<ReactStoreState>()(
       resetReactView: () => {
         clearSvgVisualCache()
         set({
-          activeReactPresetId:       INITIAL_PRESET_ID,
-          activeReactEngineId:       INITIAL_ENGINE_ID,
-          manualTrackSections:       [],
-          selectedSectionId:         null,
+          activeReactPresetId:          INITIAL_PRESET_ID,
+          activeReactEngineId:          INITIAL_ENGINE_ID,
+          manualTrackSectionsByTrackId: {},
+          selectedSectionId:            null,
           performancePads:           DEFAULT_PERFORMANCE_PADS,
           activePadId:               null,
           oscillatorSettings:        DEFAULT_OSCILLATOR_SETTINGS,
@@ -1537,7 +1665,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 3,
+      version: 5,
       migrate: (persistedState: unknown, version: number) => {
         let state = (persistedState ?? {}) as Record<string, unknown>
         if (version < 1) {
@@ -1623,12 +1751,82 @@ export const useReactStore = create<ReactStoreState>()(
             }
           }
         }
+        if (version < 4) {
+          // Add launch/maxActiveBeams to groups; scale old coord offset route min/max (pixels now).
+          // Old routes had normalized min/max (e.g. -1..1), new coord routes are in pixels (e.g. -200..200).
+          // Since coord offset routes pre-version-3 were scaled by *200 in the compiler, we
+          // multiply existing min/max by 200 to preserve the same visual behavior.
+          const bm = state.laserDmxBeamMatrix as Record<string, unknown> | undefined
+          if (bm) {
+            const groups = (bm.groups as unknown[] | undefined) ?? []
+            const beams  = (bm.beams  as unknown[] | undefined) ?? []
+            const coordTargets = new Set(['originOffsetX', 'originOffsetY', 'targetOffsetX', 'targetOffsetY'])
+            const migrateRoutes = (routes: unknown[]): unknown[] =>
+              routes.map((r) => {
+                const route = r as Record<string, unknown>
+                if (!coordTargets.has(route.target as string)) return route
+                const oldMin = typeof route.min === 'number' ? route.min : 0
+                const oldMax = typeof route.max === 'number' ? route.max : 0
+                // Only scale if values look normalized (|value| <= 2); skip if already in pixel range
+                if (Math.abs(oldMin) <= 2 && Math.abs(oldMax) <= 2) {
+                  return { ...route, min: oldMin * 200, max: oldMax * 200 }
+                }
+                return route
+              })
+            state = {
+              ...state,
+              laserDmxBeamMatrix: {
+                ...bm,
+                groups: groups.map((g) => {
+                  const group = g as Record<string, unknown>
+                  const existingRoutes = (group.modulationRoutes as unknown[] | undefined) ?? []
+                  return {
+                    ...group,
+                    launch:           group.launch         ?? DEFAULT_LAUNCH_SETTINGS,
+                    maxActiveBeams:   group.maxActiveBeams ?? 0,
+                    modulationRoutes: migrateRoutes(existingRoutes),
+                  }
+                }),
+                beams: beams.map((b) => {
+                  const beam = b as Record<string, unknown>
+                  const existingRoutes = (beam.modulationRoutes as unknown[] | undefined) ?? []
+                  return {
+                    ...beam,
+                    modulationRoutes: migrateRoutes(existingRoutes),
+                  }
+                }),
+              },
+            }
+          }
+        }
+        if (version < 5) {
+          // Migrate flat global manualTrackSections → per-track map.
+          // The original track identity is unknown, so legacy sections go into
+          // a special '_legacy' bucket where they remain visible but do not
+          // bleed into any specific track.
+          const legacy = (state as Record<string, unknown>).manualTrackSections as ReactTrackSection[] | undefined
+          if (Array.isArray(legacy) && legacy.length > 0) {
+            state = {
+              ...state,
+              manualTrackSectionsByTrackId: { _legacy: legacy },
+            }
+          } else {
+            state = {
+              ...state,
+              manualTrackSectionsByTrackId: (state as Record<string, unknown>).manualTrackSectionsByTrackId ?? {},
+            }
+          }
+          // Remove the old flat key so it doesn't pollute the hydrated state
+          const { manualTrackSections: _mtsRemoved, ...rest } = state as Record<string, unknown>
+          void _mtsRemoved
+          state = rest
+        }
         return state
       },
       partialize: (s) => ({
         activeReactPresetId:                s.activeReactPresetId,
         activeReactEngineId:                s.activeReactEngineId,
-        manualTrackSections:                s.manualTrackSections,
+        manualTrackSectionsByTrackId:       s.manualTrackSectionsByTrackId,
         oscillatorSettings:                 s.oscillatorSettings,
         oscillatorGlyphAssets:              s.oscillatorGlyphAssets,
         oscillatorFontAssets:               s.oscillatorFontAssets,

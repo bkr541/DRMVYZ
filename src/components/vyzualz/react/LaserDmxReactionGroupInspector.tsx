@@ -3,6 +3,7 @@ import { useReactStore } from '../../../stores/reactStore'
 import { SliderRow, ToggleRow, TextInputRow, CtrlSection, Collapsible } from './ReactControlRows'
 import { LaserDmxGroupSequencerControls } from './LaserDmxGroupSequencerControls'
 import { LaserDmxTimingStatus } from './LaserDmxTimingStatus'
+import { LaserDmxLaunchControls } from './LaserDmxLaunchControls'
 
 function groupColorCss(r: number, g: number, b: number, a: number) {
   return `rgba(${r},${g},${b},${a})`
@@ -152,6 +153,15 @@ export function LaserDmxReactionGroupInspector() {
           <div className="rv-ctrl-info">
             {assignedCount} beam{assignedCount !== 1 ? 's' : ''} assigned
           </div>
+
+          <Collapsible label="Audio Launch" defaultOpen={group.launch.trigger !== 'none'}>
+            <LaserDmxLaunchControls
+              launch={group.launch}
+              onChange={patch => updateLaserDmxReactionGroup(group.id, { launch: { ...group.launch, ...patch } })}
+              maxActiveBeams={group.maxActiveBeams}
+              onMaxActiveChange={v => updateLaserDmxReactionGroup(group.id, { maxActiveBeams: v })}
+            />
+          </Collapsible>
 
           <Collapsible label="Sequencer" defaultOpen={group.sequence.enabled}>
             <LaserDmxGroupSequencerControls

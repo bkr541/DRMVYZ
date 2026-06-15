@@ -36,8 +36,53 @@ export function adaptMIAnalysis(analysis: TrackIntelligenceAnalysis): ReactTrack
 }
 
 /**
- * Returns the BPM from a TrackAnalysis, or 120 if not available.
+ * Returns the BPM from a TrackAnalysis, or null if unavailable.
+ * Never returns 120 as a synthetic fallback.
  */
-export function extractBpm(analysis: TrackAnalysis): number {
-  return analysis.bpm > 0 ? analysis.bpm : 120
+export function extractBpm(analysis: TrackAnalysis): number | null {
+  return analysis.bpm > 0 ? analysis.bpm : null
+}
+
+/**
+ * Merges analyzed sections with per-track manual sections into a single
+ * resolved timeline.
+ *
+ * Precedence:
+ *  1. `user-edited-auto` manual sections replace the analyzed section with the same ID.
+ *  2. `user-created` / `manual` sections are appended after any analyzed sections.
+ *  3. Unchanged analyzed sections remain as-is.
+ *  4. All sections are sorted by startSec and clipped to durationSec.
+ *
+ * The original analysis is never mutated.
+ */
+export function resolveTrackSections({
+  analyzedSections,
+  manualSections,
+  durationSec,
+}: {
+  analyzedSections: ReactTrackSection[]
+  manualSections:   ReactTrackSection[]
+  durationSec:      number
+}): ReactTrackSection[] {
+  // Build a lookup of user-edited-auto overrides by the original auto section ID
+  const editedById = new Map<string, ReactTrackSection>()
+  for (const s of manualSections) {
+    if (s.source === 'user-edited-auto') editedById.set(s.id, s)
+  }
+
+  // Apply overrides to analyzed sections
+  const resolved: ReactTrackSection[] = [
+    ...analyzedSections.map(s => editedById.get(s.id) ?? s),
+    // Append user-created/manual sections (not overrides of existing auto sections)
+    ...manualSections.filter(s => s.source !== 'user-edited-auto'),
+  ]
+
+  resolved.sort((a, b) => a.startSec - b.startSec)
+
+  if (durationSec > 0) {
+    return resolved
+      .filter(s => s.startSec < durationSec)
+      .map(s => s.endSec > durationSec ? { ...s, endSec: durationSec } : s)
+  }
+  return resolved
 }

@@ -26,7 +26,7 @@ export interface BeatGridState {
 }
 
 const ZERO_STATE: BeatGridState = {
-  bpm:              120,
+  bpm:              0,
   bpmConfidence:    0,
   beatPhase:        0,
   beatHit:          false,
@@ -47,7 +47,7 @@ const ZERO_STATE: BeatGridState = {
 // ── BeatGrid ──────────────────────────────────────────────────────────────────
 
 export class BeatGrid {
-  private bpm           = 120
+  private bpm           = 0
   private bpmConfidence = 0
   private timeSignature = 4
   private offsetSec     = 0
@@ -58,7 +58,8 @@ export class BeatGrid {
   // ── Configuration ──────────────────────────────────────────────────────────
 
   setBpm(bpm: number, confidence = 0, offsetSec?: number): void {
-    this.bpm           = Math.max(1, bpm)
+    // 0 means "unavailable" — preserve as-is; do NOT clamp to 1.
+    this.bpm           = bpm > 0 ? bpm : 0
     this.bpmConfidence = Math.max(0, Math.min(1, confidence))
     if (offsetSec !== undefined) this.offsetSec = offsetSec
     this.prevBeatIndex = -1
@@ -79,6 +80,11 @@ export class BeatGrid {
   update(audioTime: number, isPlaying: boolean): BeatGridState {
     if (audioTime <= 0 && !isPlaying) {
       return { ...ZERO_STATE, bpm: this.bpm, bpmConfidence: this.bpmConfidence }
+    }
+    // bpm=0 means timing is unavailable — publish a static zero state so
+    // consumers know not to use beat-phase values.
+    if (this.bpm === 0) {
+      return { ...ZERO_STATE, bpm: 0, bpmConfidence: 0 }
     }
     return this.beatMarkers.length >= 4
       ? this.updateFromMarkers(audioTime, isPlaying)

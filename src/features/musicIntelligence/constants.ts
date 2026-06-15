@@ -22,7 +22,7 @@ export const DEFAULT_MI_FRAME: MusicIntelligenceFrame = {
     normalizedAir:    0,
   },
   rhythm: {
-    bpm:              120,
+    bpm:              0,
     bpmConfidence:    0,
     beatPhase:        0,
     beatHit:          false,

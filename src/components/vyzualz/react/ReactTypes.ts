@@ -409,6 +409,34 @@ export interface LaserDmxBeamMotion {
   retrigger:      'restart' | 'continue' | 'queue'
 }
 
+// ── Audio Launch settings ─────────────────────────────────────────────────────
+
+/** MI event that causes a beam to launch. */
+export type LaserDmxLaunchTrigger =
+  | 'none'        // Sequencer or free-running only; no audio-triggered launch
+  | 'beat'        // Any beat boundary
+  | 'downbeat'    // Bar-1 boundary only
+  | 'kick'        // Kick transient (sub-band onset)
+  | 'snare'       // Snare transient (mid-band onset)
+  | 'dropImpact'  // Drop energy burst (mi.energy.dropImpact)
+
+export interface LaserDmxLaunchSettings {
+  trigger:       LaserDmxLaunchTrigger
+  /** 0–1 minimum trigger strength (kickStrength / snareStrength / dropImpact magnitude) */
+  threshold:     number
+  /** Minimum beats between successive launches (0 = no cooldown) */
+  cooldownBeats: number
+  /** 0–1 minimum mi.energy.instant value before a launch fires */
+  minimumEnergy: number
+}
+
+export const DEFAULT_LAUNCH_SETTINGS: LaserDmxLaunchSettings = {
+  trigger:       'none',
+  threshold:     0.4,
+  cooldownBeats: 0,
+  minimumEnergy: 0,
+}
+
 export type LaserDmxSequenceMode =
   | 'all'          // All beams in group active simultaneously
   | 'forward'      // Step through beams in sequenceIndex order
@@ -424,7 +452,10 @@ export interface LaserDmxBeamSequence {
   mode:             LaserDmxSequenceMode
   stepsPerBeat:     number   // 0.25–4 steps per beat
   stepGate:         number   // 0–1 fraction of step duration the beam is "on"
-  phaseSpread:      number   // 0–1 (reserved for future stagger use)
+  /** Stagger offset per sequence position in BEATS.
+   *  Beam at position i has its sequence clock shifted back by i * phaseSpread beats.
+   *  0 = all beams in sync. 1 = each beam is 1 beat behind the previous. */
+  phaseSpread:      number
   rotateEveryBars:  number   // 0 = no rotation; 1–32 bars between rotations
   resetOnDownbeat:  boolean  // If true, sequence resets to bar boundary each bar
   seed:             number   // Seed for randomSeeded mode
@@ -502,6 +533,11 @@ export interface LaserDmxReactionGroup {
   color:                LaserDmxMatrixBeamColor
 
   sequence: LaserDmxBeamSequence
+
+  /** Audio-triggered launch settings.  trigger='none' = no audio launch. */
+  launch: LaserDmxLaunchSettings
+  /** 0 = unlimited; >0 limits the number of simultaneously active beams in this group. */
+  maxActiveBeams: number
 
   modulationRoutes: LaserDmxModulationRoute[]
 }
@@ -581,6 +617,8 @@ function makeReactionGroup(
     colorOverrideEnabled: true,
     color: { red: colorR, green: colorG, blue: colorB, white: 0, alpha: 1 },
     sequence: DEFAULT_BEAM_SEQUENCE,
+    launch:   DEFAULT_LAUNCH_SETTINGS,
+    maxActiveBeams: 0,
     modulationRoutes: routes,
   }
 }

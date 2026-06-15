@@ -198,6 +198,56 @@ function drawVolumetricCone(
   }
 }
 
+// ── Head glow rendering ───────────────────────────────────────────────────────
+
+/**
+ * Draw a radial head flare at the beam's leading edge.
+ * Position: visibleTarget normally, visibleOrigin when headAtOriginFrac=true.
+ */
+function drawHeadGlow(
+  ctx:       CanvasRenderingContext2D,
+  beam:      CompiledLaserDmxMatrixBeam,
+  intensity: number,
+): void {
+  if (beam.headIntensity <= 0.01) return
+  const alpha = clamp01(intensity * beam.rgba.a * beam.headIntensity)
+  if (alpha < 0.01) return
+
+  const pt = beam.headAtOriginFrac ? beam.visibleOrigin : beam.visibleTarget
+  const { r, g, b } = beam.rgba
+  const radius = beam.beamWidth * 3
+
+  const grad = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, radius)
+  grad.addColorStop(0,   `rgba(255,255,255,${(alpha * 0.9).toFixed(3)})`)
+  grad.addColorStop(0.3, `rgba(${r},${g},${b},${(alpha * 0.8).toFixed(3)})`)
+  grad.addColorStop(1,   `rgba(${r},${g},${b},0)`)
+
+  ctx.beginPath()
+  ctx.arc(pt.x, pt.y, radius, 0, Math.PI * 2)
+  ctx.fillStyle = grad
+  ctx.fill()
+}
+
+// ── Pulse train segment helpers ───────────────────────────────────────────────
+
+/**
+ * Create a temporary beam-like object with segment endpoints derived from fracs.
+ * The frac endpoints are interpolated between the beam's full origin→target path.
+ */
+function segmentBeam(
+  beam:       CompiledLaserDmxMatrixBeam,
+  startFrac:  number,
+  endFrac:    number,
+): CompiledLaserDmxMatrixBeam {
+  const ox = beam.origin.x, oy = beam.origin.y
+  const tx = beam.target.x, ty = beam.target.y
+  return {
+    ...beam,
+    visibleOrigin: { x: ox + (tx - ox) * startFrac, y: oy + (ty - oy) * startFrac, z: 0 },
+    visibleTarget: { x: ox + (tx - ox) * endFrac,   y: oy + (ty - oy) * endFrac,   z: 0 },
+  }
+}
+
 // ── Debug overlay ─────────────────────────────────────────────────────────────
 
 function drawDebugOverlay(
@@ -248,13 +298,23 @@ export function renderLaserDmxBeamMatrix(
 ): void {
   if (beams.length === 0) return
 
-  // Partition beams by geometry type
-  const lineBeams: CompiledLaserDmxMatrixBeam[] = []
-  const coneBeams: CompiledLaserDmxMatrixBeam[] = []
+  // Partition beams by geometry type. Expand pulse train beams into segments.
+  const lineBeams:    CompiledLaserDmxMatrixBeam[] = []
+  const coneBeams:    CompiledLaserDmxMatrixBeam[] = []
+  const headGlowBeams: CompiledLaserDmxMatrixBeam[] = []
   for (const beam of beams) {
     if (!beam.strobeVisible) continue
-    if (beam.geometry === 'volumetricCone') coneBeams.push(beam)
-    else lineBeams.push(beam)
+    if (beam.geometry === 'volumetricCone') {
+      coneBeams.push(beam)
+    } else if (beam.pulseSegments && beam.pulseSegments.length > 0) {
+      // Expand each pulse segment into a virtual beam
+      for (const seg of beam.pulseSegments) {
+        lineBeams.push(segmentBeam(beam, seg.startFrac, seg.endFrac))
+      }
+    } else {
+      lineBeams.push(beam)
+    }
+    if (beam.headIntensity > 0.01) headGlowBeams.push(beam)
   }
 
   // ── Volumetric cones (rendered first, behind sharp line cores) ────────────
@@ -300,6 +360,17 @@ export function renderLaserDmxBeamMatrix(
     ctx.lineCap = 'round'
     for (const beam of lineBeams) {
       drawLineCore(ctx, beam, clamp01(beam.intensity * intensityScale))
+    }
+    ctx.restore()
+  }
+
+  // ── Pass D: head glow at beam leading edge ────────────────────────────────
+  if (headGlowBeams.length > 0) {
+    ctx.save()
+    ctx.globalCompositeOperation = 'screen'
+    for (const beam of headGlowBeams) {
+      if (!beam.strobeVisible) continue
+      drawHeadGlow(ctx, beam, clamp01(beam.intensity * intensityScale))
     }
     ctx.restore()
   }

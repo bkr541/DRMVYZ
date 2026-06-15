@@ -169,8 +169,10 @@ export interface AudioEngine {
   updateTrackRuntime: (trackId: string, patch: Partial<TrackAnalysisRuntime>) => void
   // Set or clear a per-track manual BPM override
   setBpmOverride: (trackId: string, bpm: number | null) => void
-  // Re-queue a failed or unanalyzed track for analysis
+  // Re-queue a failed or unanalyzed track for analysis (may reuse cached analysis)
   retryAnalysis: (trackId: string) => void
+  // Force fresh analysis, bypassing both memory and persistent analysis caches
+  reanalyzeTrack: (trackId: string) => void
 }
 
 export function useAudioEngine(): AudioEngine {
@@ -608,16 +610,41 @@ export function useAudioEngine(): AudioEngine {
   const setSource = useCallback(async (s: AudioSource) => {
     disconnectSource()
     if (masterGainRef.current) masterGainRef.current.gain.value = 1
-    if (s === 'file') { if (currentIndex >= 0) connectFileSource() }
-    else if (s === 'microphone') { await connectMicSource() }
-    else {
+    if (s === 'file') {
+      if (currentIndex >= 0) connectFileSource()
+      // Re-apply the active track's analysis when switching back to file.
+      // This handles the case where mic/demo was active and we return to the
+      // same file track (currentIndex unchanged, so the track-change effect
+      // does not refire, but MI state was cleared on mic/demo entry).
+      const track = tracksRef.current[currentIndex]
+      if (track) {
+        musicIntelligenceEngine.setSourceId(track.id, track.id)
+        if (track.analysisRuntime.status === 'complete' && track.analysisRuntime.analysis) {
+          musicIntelligenceEngine.setTrackAnalysis(track.analysisRuntime.analysis)
+        } else {
+          musicIntelligenceEngine.setTrackAnalysis(null)
+        }
+      } else {
+        musicIntelligenceEngine.setSourceId(null, null)
+        musicIntelligenceEngine.setTrackAnalysis(null)
+      }
+    } else if (s === 'microphone') {
+      // Clear offline analysis — live BPM comes from AudioFeatureBus each frame.
+      musicIntelligenceEngine.setSourceId('microphone', null)
+      musicIntelligenceEngine.setTrackAnalysis(null)
+      await connectMicSource()
+    } else {
+      // Demo: clear file analysis, set demo source, demo BPM is handled by
+      // the currentEffectiveBpm effect which reads source === 'demo'.
+      musicIntelligenceEngine.setSourceId('demo', null)
+      musicIntelligenceEngine.setTrackAnalysis(null)
       connectDemoSource()
       // Apply current demoSilent state to mute node
       if (muteGainRef.current) muteGainRef.current.gain.value = demoSilent ? 0 : 1
     }
     setSourceState(s)
     setIsPlaying(s === 'demo')
-  }, [disconnectSource, connectFileSource, connectMicSource, connectDemoSource, currentIndex, demoSilent])
+  }, [disconnectSource, connectFileSource, connectMicSource, connectDemoSource, currentIndex, demoSilent])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Track load ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -660,25 +687,44 @@ export function useAudioEngine(): AudioEngine {
     coordinatorRef.current?.enqueue(track, 'high')
   }, [updateTrackRuntime])
 
+  const reanalyzeTrack = useCallback((trackId: string) => {
+    const track = tracksRef.current.find(t => t.id === trackId)
+    if (!track) return
+    updateTrackRuntime(trackId, { status: 'queued', error: null })
+    coordinatorRef.current?.reanalyze(track)
+  }, [updateTrackRuntime])
+
+  // ── Canonical active-track intelligence ────────────────────────────────────
+  const currentTrack   = currentIndex >= 0 && currentIndex < tracks.length ? tracks[currentIndex] ?? null : null
+  const currentTrackId = currentTrack?.id ?? null
+  const currentAnalysis        = currentTrack?.analysisRuntime.analysis ?? null
+  const currentAnalysisStatus  = currentTrack?.analysisRuntime.status ?? ('not_analyzed' as TrackAnalysisStatus)
+  const currentAnalysisError   = currentTrack?.analysisRuntime.error ?? null
+  const currentAnalyzedBpm     = currentAnalysis?.bpm ?? null
+
   // ── Track-change: apply/clear MI engine and prioritize coordinator ────────────
-  // Runs whenever the selected track changes.  Uses tracksRef so the effect body
-  // always reads the latest playlist without taking tracks as a dep (which would
-  // fire on every per-track analysis update, not just on track selection changes).
+  // Depends on both `currentIndex` AND `currentTrackId` so the effect re-runs
+  // when the same playlist position is replaced by a different track (e.g. after
+  // replaceTracks() — the index stays at 0 but the ID changes).
+  // Also depends on `currentAnalysisStatus` so we re-apply analysis when it
+  // transitions to 'complete' without the coordinator path running first.
   useEffect(() => {
     const track = tracksRef.current[currentIndex]
     if (!track) {
+      musicIntelligenceEngine.setSourceId(null, null)
       musicIntelligenceEngine.setTrackAnalysis(null)
       return
     }
+    // Immediately clear previous track state before the new one loads.
+    musicIntelligenceEngine.setSourceId(track.id, track.id)
     coordinatorRef.current?.prioritize(track.id)
     if (track.analysisRuntime.status === 'complete' && track.analysisRuntime.analysis) {
-      musicIntelligenceEngine.setSourceId(track.id, track.id)
       musicIntelligenceEngine.setTrackAnalysis(track.analysisRuntime.analysis)
     } else {
       musicIntelligenceEngine.setTrackAnalysis(null)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentIndex])
+  }, [currentIndex, currentTrackId, currentAnalysisStatus])
 
   const getRecordingStream = useCallback((): MediaStream | null => {
     const ctx = ensureContext()
@@ -798,14 +844,17 @@ export function useAudioEngine(): AudioEngine {
   if (!coordinatorRef.current) {
     coordinatorRef.current = new TrackAnalysisCoordinator(
       {
-        decodeBuffer: async ({ url, sourceFile }) => {
+        decodeBuffer: async ({ url, sourceFile, signal }) => {
           const ctx = ensureContextRef.current()
           if (sourceFile) {
             const ab = await sourceFile.arrayBuffer()
             return ctx.decodeAudioData(ab)
           }
-          const resp = await fetch(url)
-          const ab   = await resp.arrayBuffer()
+          const resp = await fetch(url, { signal })
+          if (!resp.ok) {
+            throw new Error(`Audio fetch failed: ${resp.status} ${resp.statusText}`)
+          }
+          const ab = await resp.arrayBuffer()
           return ctx.decodeAudioData(ab)
         },
         analyze: (buffer) => analyzeTrackBuffer(buffer),
@@ -848,6 +897,10 @@ export function useAudioEngine(): AudioEngine {
 
   const replaceTracks = useCallback((files: File[]) => {
     coordinatorRef.current?.invalidate()
+    // Synchronously clear stale MI state before the new tracks arrive so the
+    // old track's BPM/markers never bleed into the new track's analysis window.
+    musicIntelligenceEngine.setSourceId(null, null)
+    musicIntelligenceEngine.setTrackAnalysis(null)
     const newTracks: Track[] = files.map(f => {
       const url         = URL.createObjectURL(f)
       const analysisKey = computeAnalysisKey({ sourceKind: 'file', url, sourceFile: f })
@@ -894,6 +947,8 @@ export function useAudioEngine(): AudioEngine {
 
   const replaceTrackUrls = useCallback((tracks: { name: string; url: string }[]) => {
     coordinatorRef.current?.invalidate()
+    musicIntelligenceEngine.setSourceId(null, null)
+    musicIntelligenceEngine.setTrackAnalysis(null)
     const newTracks: Track[] = tracks.map(t => {
       const analysisKey = computeAnalysisKey({ sourceKind: 'remote', url: t.url })
       return {
@@ -918,6 +973,11 @@ export function useAudioEngine(): AudioEngine {
 
   const removeTrack = useCallback((id: string) => {
     coordinatorRef.current?.cancelTrack(id)
+    // If the active track is being removed, clear MI state immediately.
+    if (tracksRef.current[currentIndexRef.current]?.id === id) {
+      musicIntelligenceEngine.setSourceId(null, null)
+      musicIntelligenceEngine.setTrackAnalysis(null)
+    }
     setTracks(prev => {
       const idx = prev.findIndex(t => t.id === id)
       if (idx >= 0) URL.revokeObjectURL(prev[idx].url)
@@ -929,7 +989,7 @@ export function useAudioEngine(): AudioEngine {
       })
       return next
     })
-  }, [])
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectTrack = useCallback((i: number) => {
     setCurrentIndex(i); setIsPlaying(true)
@@ -973,14 +1033,6 @@ export function useAudioEngine(): AudioEngine {
 
   const isActive = (source === 'file' && isPlaying) || source === 'microphone' || source === 'demo'
 
-  // ── Canonical active-track intelligence ────────────────────────────────────
-  const currentTrack   = currentIndex >= 0 && currentIndex < tracks.length ? tracks[currentIndex] ?? null : null
-  const currentTrackId = currentTrack?.id ?? null
-  const currentAnalysis        = currentTrack?.analysisRuntime.analysis ?? null
-  const currentAnalysisStatus  = currentTrack?.analysisRuntime.status ?? ('not_analyzed' as TrackAnalysisStatus)
-  const currentAnalysisError   = currentTrack?.analysisRuntime.error ?? null
-  const currentAnalyzedBpm     = currentAnalysis?.bpm ?? null
-
   let currentEffectiveBpm:  number | null = null
   let currentBpmSource:     BpmSource | null = null
   let currentBpmConfidence: number | null = null
@@ -1003,17 +1055,44 @@ export function useAudioEngine(): AudioEngine {
   }
   // microphone: live BPM is published through AudioFeatureBus each frame, not React state
 
-  // ── Sync MI engine BPM from the canonical effective BPM ──────────────────────
-  // Placed after the computed canonical fields so it reads currentEffectiveBpm
-  // and currentBpmConfidence without hoisting issues.  Fires whenever effective BPM
-  // changes (analysis loaded, override set/cleared, track switch) — keeps
-  // AudioFeatureBus beat-phase cycling at the correct rate so all React renderers
-  // and LaserDMX timing match what the dock displays.
+  // ── Sync MI engine BPM and beat grid from the canonical effective BPM ────────
+  // Fires whenever effective BPM, confidence, override state, or track identity
+  // changes.  On file source with a manual override: regenerates beat markers
+  // from override BPM + original offset so beat phase, downbeats, and LaserDMX
+  // timing reflect the override rather than the stale analyzed grid.
+  // On override clear: restores the original analyzed markers.
+  // When BPM is unavailable (null): signals 0 to MI engine / BeatGrid.
   useEffect(() => {
-    if (currentEffectiveBpm !== null && currentEffectiveBpm > 0) {
+    if (source !== 'file' || !currentTrack) return
+
+    const runtime  = currentTrack.analysisRuntime
+    const analysis = runtime.analysis
+
+    if (currentEffectiveBpm === null || currentEffectiveBpm <= 0) {
+      musicIntelligenceEngine.setBpm(0, 0)
+      return
+    }
+
+    const hasOverride = runtime.bpmOverride !== null
+
+    if (hasOverride && analysis) {
+      // Regenerate the runtime beat grid from the override BPM + original offset.
+      const offsetSec   = analysis.beatGridOffsetSec ?? 0
+      const durationSec = currentTrack.duration
+      musicIntelligenceEngine.setEffectiveBpm(
+        currentEffectiveBpm, currentBpmConfidence ?? 0.8, offsetSec, durationSec,
+      )
+    } else if (!hasOverride && analysis) {
+      // Override was cleared — restore original analyzed markers, update BPM.
+      musicIntelligenceEngine.restoreAnalysisMarkers()
+      musicIntelligenceEngine.setBpm(currentEffectiveBpm, currentBpmConfidence ?? 0.8)
+    } else {
+      // No analysis yet (still analyzing) — just set the BPM without markers.
       musicIntelligenceEngine.setBpm(currentEffectiveBpm, currentBpmConfidence ?? 0.8)
     }
-  }, [currentEffectiveBpm, currentBpmConfidence])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source, currentEffectiveBpm, currentBpmConfidence, currentTrackId,
+      currentTrack?.analysisRuntime.bpmOverride, currentTrack?.duration])
 
   const currentKey = currentAnalysis?.harmonic.dominantKey
     ? {
@@ -1053,6 +1132,6 @@ export function useAudioEngine(): AudioEngine {
     currentAnalysisStatus, currentAnalysisError,
     currentAnalyzedBpm, currentEffectiveBpm, currentBpmConfidence, currentBpmSource,
     currentKey,
-    updateTrackRuntime, setBpmOverride, retryAnalysis,
+    updateTrackRuntime, setBpmOverride, retryAnalysis, reanalyzeTrack,
   }
 }

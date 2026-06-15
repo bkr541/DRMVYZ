@@ -11,6 +11,44 @@ import type { TrackIntelligenceAnalysis } from '../musicIntelligence/types'
 // It is embedded in the analysis key so old cached results are never reused.
 export const CURRENT_ANALYSIS_VERSION = 'auto-1.0'
 
+// ── URL normalisation ─────────────────────────────────────────────────────────
+
+// Known short-lived signing parameters from AWS, GCS, Azure, and Supabase.
+// These are stripped from remote URLs so the cache key stays stable across
+// token refreshes.  All other query params are retained — some carry meaningful
+// content identity (e.g. version=2, quality=hq).
+const SIGNING_PARAMS = new Set([
+  // AWS S3 pre-signed URLs
+  'X-Amz-Algorithm', 'X-Amz-Credential', 'X-Amz-Date', 'X-Amz-Expires',
+  'X-Amz-Security-Token', 'X-Amz-Signature', 'X-Amz-SignedHeaders',
+  // Generic signing tokens
+  'token', 'Expires', 'Signature',
+  // Azure SAS / Supabase Storage tokens
+  'sv', 'se', 'sp', 'sr', 'sig',
+  // GCS signed URLs
+  'X-Goog-Algorithm', 'X-Goog-Credential', 'X-Goog-Date',
+  'X-Goog-Expires', 'X-Goog-Signature', 'X-Goog-SignedHeaders',
+])
+
+/**
+ * Normalize a remote audio URL for use as a cache key.
+ * Strips known short-lived signing parameters; preserves all other query params.
+ * Falls back to stripping the entire query string if URL parsing fails.
+ */
+function normalizeRemoteUrl(url: string): string {
+  try {
+    const parsed = new URL(url)
+    const meaningful: string[] = []
+    for (const [k, v] of parsed.searchParams.entries()) {
+      if (!SIGNING_PARAMS.has(k)) meaningful.push(`${k}=${encodeURIComponent(v)}`)
+    }
+    const query = meaningful.length > 0 ? `?${meaningful.join('&')}` : ''
+    return `${parsed.protocol}//${parsed.host}${parsed.pathname}${query}`
+  } catch {
+    return url.split('?')[0] ?? url
+  }
+}
+
 // ── Analysis key ──────────────────────────────────────────────────────────────
 
 type KeyableTrack = Pick<Track, 'sourceKind' | 'url'> & { sourceFile?: File }
@@ -18,16 +56,16 @@ type KeyableTrack = Pick<Track, 'sourceKind' | 'url'> & { sourceFile?: File }
 /**
  * Compute a stable, version-sensitive cache key for a track.
  * File tracks: keyed by name + size + lastModified (collision-free, offline).
- * Remote tracks: keyed by URL without signed-token query params.
+ * Remote tracks: keyed by normalized URL (signing params stripped, meaningful
+ * params retained) so the same audio resource always maps to the same key
+ * even after token refresh.
  */
 export function computeAnalysisKey(track: KeyableTrack): string {
   if (track.sourceKind === 'file' && track.sourceFile) {
     const f = track.sourceFile
     return `f:${f.name}:${f.size}:${f.lastModified}:${CURRENT_ANALYSIS_VERSION}`
   }
-  // Strip signed-URL query params so the key stays stable across token refreshes
-  const base = track.url.split('?')[0] ?? track.url
-  return `u:${base}:${CURRENT_ANALYSIS_VERSION}`
+  return `u:${normalizeRemoteUrl(track.url)}:${CURRENT_ANALYSIS_VERSION}`
 }
 
 // ── Minimal LRU cache ─────────────────────────────────────────────────────────
@@ -59,19 +97,21 @@ class LRUCache<K, V> {
 // ── Job type ──────────────────────────────────────────────────────────────────
 
 interface AnalysisJob {
-  trackId:     string
-  analysisKey: string
-  url:         string
-  sourceFile?: File
-  generation:  number
-  priority:    'high' | 'normal'
+  trackId:               string
+  analysisKey:           string
+  url:                   string
+  sourceFile?:           File
+  generation:            number
+  priority:              'high' | 'normal'
+  bypassMemoryCache?:    boolean
+  bypassPersistentCache?: boolean
 }
 
 // ── Dependency / callback interfaces ─────────────────────────────────────────
 
 export interface CoordinatorDeps {
-  /** Fetch and decode a track into an AudioBuffer. */
-  decodeBuffer: (track: { url: string; sourceFile?: File }) => Promise<AudioBuffer>
+  /** Fetch and decode a track into an AudioBuffer.  May receive an AbortSignal. */
+  decodeBuffer: (track: { url: string; sourceFile?: File; signal?: AbortSignal }) => Promise<AudioBuffer>
   /** Run the full offline analysis on a decoded buffer. */
   analyze: (buffer: AudioBuffer) => Promise<TrackIntelligenceAnalysis>
   /** Look up a completed analysis in the persistent cache. Returns null on miss. */
@@ -98,18 +138,19 @@ export interface CoordinatorCallbacks {
 // ── Coordinator ───────────────────────────────────────────────────────────────
 
 export class TrackAnalysisCoordinator {
-  private queue:        AnalysisJob[] = []
-  private running       = 0
-  private generation    = 0
-  private cancelledIds  = new Set<string>()
-  private bufferCache:  LRUCache<string, AudioBuffer>
-  private maxConcurrent: number
+  private queue:           AnalysisJob[] = []
+  private running          = 0
+  private generation       = 0
+  private cancelledIds     = new Set<string>()
+  private bufferCache:     LRUCache<string, AudioBuffer>
+  private maxConcurrent:   number
+  private abortControllers = new Map<string, AbortController>()
 
   constructor(
     private readonly deps:      CoordinatorDeps,
     private readonly callbacks: CoordinatorCallbacks,
   ) {
-    this.bufferCache  = new LRUCache(deps.maxBufferCacheSize ?? 10)
+    this.bufferCache   = new LRUCache(deps.maxBufferCacheSize ?? 10)
     this.maxConcurrent = deps.maxConcurrent ?? 1
   }
 
@@ -118,7 +159,6 @@ export class TrackAnalysisCoordinator {
    * moved to the correct position.  Already-cancelled tracks are un-cancelled.
    */
   enqueue(track: Track, priority: 'high' | 'normal'): void {
-    // Remove existing job for this track (de-duplicate / re-prioritize)
     this.queue = this.queue.filter(j => j.trackId !== track.id)
     this.cancelledIds.delete(track.id)
 
@@ -141,25 +181,55 @@ export class TrackAnalysisCoordinator {
   }
 
   /**
+   * Force a fresh analysis, bypassing both the in-memory buffer cache and the
+   * persistent analysis cache.  Preserves the original analyzed beat grid and
+   * sections in storage — only the re-run result replaces them.
+   *
+   * Use this when the user explicitly requests fresh analysis (Reanalyze button),
+   * as opposed to `enqueue` which reuses a valid cached analysis when available.
+   */
+  reanalyze(track: Track): void {
+    this.queue = this.queue.filter(j => j.trackId !== track.id)
+    this.cancelledIds.delete(track.id)
+
+    const job: AnalysisJob = {
+      trackId:              track.id,
+      analysisKey:          track.analysisRuntime.analysisKey,
+      url:                  track.url,
+      sourceFile:           track.sourceFile,
+      generation:           this.generation,
+      priority:             'high',
+      bypassMemoryCache:    true,
+      bypassPersistentCache: true,
+    }
+
+    this.queue.unshift(job)
+    this.pump()
+  }
+
+  /**
    * Increment the generation counter.  All queued and in-flight jobs from the
    * previous generation will be silently discarded when they complete.
+   * Aborts any in-flight network fetches.
    * Call this before replacing the entire playlist.
    */
   invalidate(): void {
     this.generation++
     this.queue = []
-    // cancelledIds from prior generation are irrelevant after invalidation; clear them.
     this.cancelledIds.clear()
+    for (const ac of this.abortControllers.values()) ac.abort()
+    this.abortControllers.clear()
   }
 
   /**
    * Prevent a specific track's result from being committed.
-   * The job is removed from the queue; if already running, the result check at
-   * completion will see the cancellation flag and discard it.
+   * Aborts any in-flight network fetch for this track.
    */
   cancelTrack(trackId: string): void {
     this.queue = this.queue.filter(j => j.trackId !== trackId)
     this.cancelledIds.add(trackId)
+    this.abortControllers.get(trackId)?.abort()
+    this.abortControllers.delete(trackId)
   }
 
   /**
@@ -198,20 +268,27 @@ export class TrackAnalysisCoordinator {
 
     if (this.isStale(trackId, generation)) return
 
-    // ── 1. Check persistent analysis cache ──────────────────────────────────
-    const cached = this.deps.getCachedAnalysis(analysisKey)
-    if (cached) {
-      if (this.isStale(trackId, generation)) return
-      this.callbacks.onRuntimeUpdate(trackId, {
-        status:          'complete',
-        analysis:        cached,
-        analysisVersion: cached.analysisVersion,
-        error:           null,
-      })
-      if (this.callbacks.isActiveTrack(trackId)) {
-        this.callbacks.onApplyToEngine(cached, trackId)
+    // ── 1. Check persistent analysis cache (skipped when reanalyzing) ────────
+    if (!job.bypassPersistentCache) {
+      let cached: TrackIntelligenceAnalysis | null = null
+      try {
+        cached = this.deps.getCachedAnalysis(analysisKey)
+      } catch (err) {
+        console.warn(`[TrackAnalysis] cache load failed — key=${analysisKey} trackId=${trackId}:`, err)
       }
-      return
+      if (cached) {
+        if (this.isStale(trackId, generation)) return
+        this.callbacks.onRuntimeUpdate(trackId, {
+          status:          'complete',
+          analysis:        cached,
+          analysisVersion: cached.analysisVersion,
+          error:           null,
+        })
+        if (this.callbacks.isActiveTrack(trackId)) {
+          this.callbacks.onApplyToEngine(cached, trackId)
+        }
+        return
+      }
     }
 
     // ── 2. Decode ────────────────────────────────────────────────────────────
@@ -219,15 +296,27 @@ export class TrackAnalysisCoordinator {
 
     let buffer: AudioBuffer
     try {
-      const inCache = this.bufferCache.get(trackId)
+      const inCache = !job.bypassMemoryCache && this.bufferCache.get(trackId)
       if (inCache) {
         buffer = inCache
       } else {
-        buffer = await this.deps.decodeBuffer({ url: job.url, sourceFile: job.sourceFile })
+        const ac = new AbortController()
+        this.abortControllers.set(trackId, ac)
+        try {
+          buffer = await this.deps.decodeBuffer({
+            url:        job.url,
+            sourceFile: job.sourceFile,
+            signal:     ac.signal,
+          })
+        } finally {
+          this.abortControllers.delete(trackId)
+        }
         this.bufferCache.set(trackId, buffer)
       }
     } catch (err) {
       if (this.isStale(trackId, generation)) return
+      // AbortError means the job was cancelled — do not report as failure
+      if (err instanceof Error && err.name === 'AbortError') return
       const msg = err instanceof Error ? err.message : String(err)
       console.warn(`[TrackAnalysis] ${trackId}: decode failed — ${msg}`)
       this.callbacks.onRuntimeUpdate(trackId, {
@@ -239,7 +328,6 @@ export class TrackAnalysisCoordinator {
 
     if (this.isStale(trackId, generation)) return
 
-    // Update track duration from the decoded buffer
     this.callbacks.onDurationUpdate(trackId, buffer.duration)
 
     // ── 3. Analyze ───────────────────────────────────────────────────────────
@@ -264,7 +352,9 @@ export class TrackAnalysisCoordinator {
 
     try {
       this.deps.saveCachedAnalysis(analysisKey, analysis)
-    } catch { /* non-fatal — cache miss on next load is acceptable */ }
+    } catch (err) {
+      console.warn(`[TrackAnalysis] cache save failed — key=${analysisKey} trackId=${trackId}:`, err)
+    }
 
     this.callbacks.onRuntimeUpdate(trackId, {
       status:          'complete',

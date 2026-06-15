@@ -235,8 +235,8 @@ function accumulateBeamScatter(
 
     for (let s = 0; s <= numSamples; s++) {
       const t = s / numSamples
-      const wx = (beam.origin.x + (beam.target.x - beam.origin.x) * t) * scaleX
-      const wy = (beam.origin.y + (beam.target.y - beam.origin.y) * t) * scaleY
+      const wx = (beam.visibleOrigin.x + (beam.visibleTarget.x - beam.visibleOrigin.x) * t) * scaleX
+      const wy = (beam.visibleOrigin.y + (beam.visibleTarget.y - beam.visibleOrigin.y) * t) * scaleY
 
       const bx0 = Math.max(0, Math.floor(wx - radius))
       const bx1 = Math.min(buf.w - 1, Math.ceil(wx + radius))

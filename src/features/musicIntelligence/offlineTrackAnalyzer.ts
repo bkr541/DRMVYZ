@@ -132,7 +132,7 @@ function normalizeCurve(curve: FeatureCurve): FeatureCurve {
 
 // ── Build beat markers from BPM + offset ─────────────────────────────────────
 
-function buildBeatMarkers(
+export function buildBeatMarkers(
   bpm: number,
   offsetSec: number,
   durationSec: number,
@@ -237,16 +237,23 @@ export async function analyzeTrackBuffer(
   if (chCount > 1) for (let i = 0; i < monoData.length; i++) monoData[i] /= chCount
 
   // ── BPM detection ──────────────────────────────────────────────────────────
-  let bpm = 120, bpmConfidence = 0, beatOffsetSec = 0
+  // bpm is null when detection fails — beat markers will not be generated.
+  // bpmConfidence is null because web-audio-beat-detector does not expose
+  // a meaningful confidence value (distance from 120 is not a valid heuristic).
+  let bpm: number | null = null
+  let bpmConfidence: number | null = null
+  let beatOffsetSec = 0
+  const bpmWarnings: string[] = []
   try {
     const result = await guess(audioBuffer)
     bpm           = result.bpm
     beatOffsetSec = result.offset
-    // confidence heuristic: further from 120 BPM = less "default" = more specific
-    bpmConfidence = Math.min(0.95, 0.5 + Math.abs(result.bpm - 120) / 200)
-  } catch {
-    bpm           = 120
-    bpmConfidence = 0.1
+    // web-audio-beat-detector does not expose a confidence score; leave null.
+    bpmConfidence = null
+  } catch (err) {
+    bpmWarnings.push(
+      `BPM detection failed: ${err instanceof Error ? err.message : String(err)}`,
+    )
   }
 
   // ── Feature extraction (frame-by-frame FFT) ────────────────────────────────
@@ -357,7 +364,9 @@ export async function analyzeTrackBuffer(
   const chordProgression: ChordMarker[] = []
 
   // ── Beat grid ──────────────────────────────────────────────────────────────
-  const beatMarkers = buildBeatMarkers(bpm, beatOffsetSec, durationSec)
+  // Only generate markers when BPM is known; an empty grid triggers the BPM-
+  // grid fallback path in BeatGrid.update(), which is unavailable when bpm=null.
+  const beatMarkers = bpm !== null ? buildBeatMarkers(bpm, beatOffsetSec, durationSec) : []
   const downbeats   = beatMarkers.filter(b => b.isDownbeat)
 
   // ── Downsample curves for storage ─────────────────────────────────────────
@@ -399,7 +408,7 @@ export async function analyzeTrackBuffer(
     },
     lyrics:          null,
     semanticMoments: [],
-    warnings:        [],
+    warnings:        bpmWarnings,
     errors:          [],
   }
 

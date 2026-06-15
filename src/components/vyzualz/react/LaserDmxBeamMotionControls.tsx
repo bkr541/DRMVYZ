@@ -52,9 +52,9 @@ export function LaserDmxBeamMotionControls({ motion, onChange }: LaserDmxBeamMot
   // Conditional visibility by mode
   const isAnimated  = m !== 'static'
   const showTail    = m === 'projectile' || m === 'scanner' || m === 'pulseTrain'
-  const showHeadGlow = m === 'grow' || m === 'projectile' || m === 'pingPong'
-  const showEasing  = m !== 'static' && m !== 'pulseTrain'
-  const showRetrigger = m === 'projectile'
+  const showHeadGlow  = m !== 'static'
+  const showEasing    = m !== 'static' && m !== 'pulseTrain'
+  const showRetrigger = m !== 'static'
 
   // Find closest beats option or fall back to first
   const beatsValue = BEATS_PER_TRAVEL_OPTIONS.some(o => o.value === String(motion.beatsPerTravel))
