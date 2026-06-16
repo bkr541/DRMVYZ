@@ -4,7 +4,9 @@ import { useVisualStore, DEFAULT_PRESETS } from '../../../stores/visualStore'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useTapTempo } from '../hooks/useTapTempo'
 import { useWaveformPeaks } from '../hooks/useWaveformPeaks'
-import { VzMiniWaveform } from '../transport/VzMiniWaveform'
+import { useRgbWaveformAnalysis } from '../hooks/useRgbWaveformAnalysis'
+import { useRgbWaveformStore } from '../../../features/waveform/rgbWaveformStorage'
+import { RgbWaveformCanvas } from '../transport/RgbWaveformCanvas'
 import { VzCueMarkerStrip } from '../transport/VzCueMarkerStrip'
 
 function fmtPlayTime(secs: number): string {
@@ -92,6 +94,13 @@ export function VyzualzAudioDock() {
   const hasTrack = engine.tracks.length > 0
 
   const { peaks } = useWaveformPeaks(track?.url ?? null)
+
+  // Trigger RGB waveform analysis whenever a track's main analysis completes
+  useRgbWaveformAnalysis(engine)
+
+  // Read the current track's RGB waveform from the store (null while analyzing)
+  const currentKey = track?.analysisRuntime.analysisKey ?? ''
+  const rgbAnalysis = useRgbWaveformStore(s => s.waveforms[currentKey]?.analysis ?? null)
 
   // ── BPM state derivation ──────────────────────────────────────────────────
   const bpmState = deriveBpmState(
@@ -222,10 +231,11 @@ export function VyzualzAudioDock() {
       {/* ── CENTER: waveform + zoom buttons side by side ─────────────── */}
       <div className="vz-dock-center">
         <div className="vz-dock-waveform-wrap">
-          <VzMiniWaveform
+          <RgbWaveformCanvas
+            analysis={rgbAnalysis}
+            fallbackPeaks={peaks}
             duration={engine.duration}
             currentTime={engine.currentTime}
-            peaks={peaks}
             markers={cueMarkers}
             onSeek={hasTrack ? engine.seek : undefined}
             zoom={waveformZoom}

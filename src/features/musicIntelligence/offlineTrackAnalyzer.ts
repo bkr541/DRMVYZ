@@ -29,7 +29,7 @@ export interface TrackAnalysisOptions {
 // ── Custom radix-2 DIT FFT (real input) ───────────────────────────────────────
 // Returns magnitudes for bins 0 .. N/2 (inclusive).
 
-function fftMagnitudes(samples: Float32Array, N: number, start: number): Float32Array<ArrayBuffer> {
+export function fftMagnitudes(samples: Float32Array, N: number, start: number): Float32Array<ArrayBuffer> {
   const log2N = Math.round(Math.log2(N))
   const re = new Float32Array(N)
   const im = new Float32Array(N)
