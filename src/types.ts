@@ -63,7 +63,7 @@ export type FftSize = 512 | 1024 | 2048 | 4096 | 8192
 
 // Re-exported so callers import from one place
 export type { TrackAnalysisStatus } from './features/musicIntelligence/types'
-import type { TrackIntelligenceAnalysis, TrackAnalysisStatus } from './features/musicIntelligence/types'
+import type { TrackIntelligenceAnalysis, TrackAnalysisStatus, BeatMarkerMI } from './features/musicIntelligence/types'
 
 export type BpmSource = 'offline_analysis' | 'live_analysis' | 'manual_override'
 
@@ -75,6 +75,13 @@ export interface TrackAnalysisRuntime {
   analysisVersion:   string
   bpmOverride:       number | null
   bpmOverrideSource: 'live_analysis' | 'manual_override' | null
+  /**
+   * Regenerated beat grid produced when a manual BPM override is active.
+   * null when no override is in effect — consumers must fall back to
+   * analysis.beatGrid / analysis.downbeats in that case.
+   * Stored per-track so switching tracks never bleeds one override onto another.
+   */
+  effectiveBeatGrid: BeatMarkerMI[] | null
 }
 
 export const DEFAULT_TRACK_ANALYSIS_RUNTIME: TrackAnalysisRuntime = {
@@ -85,6 +92,7 @@ export const DEFAULT_TRACK_ANALYSIS_RUNTIME: TrackAnalysisRuntime = {
   analysisVersion:   '',
   bpmOverride:       null,
   bpmOverrideSource: null,
+  effectiveBeatGrid: null,
 }
 
 export interface Track {

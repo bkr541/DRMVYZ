@@ -4,8 +4,7 @@ import {
   TrackAnalysisRuntime, DEFAULT_TRACK_ANALYSIS_RUNTIME,
   BpmSource,
 } from '../types'
-import type { TrackAnalysisStatus } from '../features/musicIntelligence/types'
-import type { TrackIntelligenceAnalysis } from '../features/musicIntelligence/types'
+import type { TrackAnalysisStatus, TrackIntelligenceAnalysis, BeatMarkerMI } from '../features/musicIntelligence/types'
 import { generateId, getFilenameWithoutExtension } from '../utils/audioUtils'
 import { buildMonitoringChain, type MonitoringChain } from '../audio/routing'
 import type { MonitoringMode, ReferenceTrack, SpectralFeatures } from '../types/audio'
@@ -14,6 +13,7 @@ import {
   musicIntelligenceEngine,
   type MusicIntelligenceEngine,
 } from '../features/musicIntelligence/MusicIntelligenceEngine'
+import { buildEffectiveBeatGrid } from '../features/trackIntelligence/beatGridUtils'
 import {
   TrackAnalysisCoordinator,
   computeAnalysisKey,
@@ -162,6 +162,12 @@ export interface AudioEngine {
   currentBpmConfidence:  number | null
   // null when no source or BPM is unavailable; microphone BPM comes from AudioFeatureBus
   currentBpmSource:      BpmSource | null
+  /**
+   * Regenerated beat grid for the active track when a manual BPM override is in
+   * effect.  null when no override is active; consumers should fall back to
+   * currentAnalysis.beatGrid / currentAnalysis.downbeats in that case.
+   */
+  currentEffectiveBeatGrid: BeatMarkerMI[] | null
 
   currentKey: { tonic: string; mode: string; confidence?: number } | null
 
@@ -1056,43 +1062,73 @@ export function useAudioEngine(): AudioEngine {
   // microphone: live BPM is published through AudioFeatureBus each frame, not React state
 
   // ── Sync MI engine BPM and beat grid from the canonical effective BPM ────────
-  // Fires whenever effective BPM, confidence, override state, or track identity
-  // changes.  On file source with a manual override: regenerates beat markers
-  // from override BPM + original offset so beat phase, downbeats, and LaserDMX
-  // timing reflect the override rather than the stale analyzed grid.
-  // On override clear: restores the original analyzed markers.
-  // When BPM is unavailable (null): signals 0 to MI engine / BeatGrid.
+  // Fires whenever effective BPM, confidence, override state, track identity,
+  // or analysis status changes.
+  //
+  // When a manual override is active:
+  //   - MI engine receives the regenerated beat markers (setEffectiveBpm).
+  //   - The per-track effectiveBeatGrid runtime field is populated so the Track
+  //     Map can draw beat lines at the override BPM instead of the stale
+  //     analyzed grid.
+  // When override is cleared:
+  //   - MI engine markers are restored from the original analysis.
+  //   - effectiveBeatGrid is set to null so the Track Map falls back to
+  //     analysis.beatGrid / analysis.downbeats.
+  // Analysis-complete re-fires (via currentAnalysisStatus dep) so an override
+  // set before analysis finishes picks up the real beatGridOffsetSec once
+  // analysis lands, correcting the phase anchor.
   useEffect(() => {
     if (source !== 'file' || !currentTrack) return
 
-    const runtime  = currentTrack.analysisRuntime
-    const analysis = runtime.analysis
+    const runtime    = currentTrack.analysisRuntime
+    const analysis   = runtime.analysis
+    const trackId    = currentTrack.id
+    const hasOverride = runtime.bpmOverride !== null
 
     if (currentEffectiveBpm === null || currentEffectiveBpm <= 0) {
       musicIntelligenceEngine.setBpm(0, 0)
+      if (runtime.effectiveBeatGrid !== null) {
+        updateTrackRuntime(trackId, { effectiveBeatGrid: null })
+      }
       return
     }
 
-    const hasOverride = runtime.bpmOverride !== null
-
-    if (hasOverride && analysis) {
-      // Regenerate the runtime beat grid from the override BPM + original offset.
-      const offsetSec   = analysis.beatGridOffsetSec ?? 0
+    if (hasOverride) {
+      // Use the real analyzed offset when available; fall back to 0 until
+      // analysis completes (effect re-runs on status change).
+      const offsetSec   = analysis?.beatGridOffsetSec ?? 0
       const durationSec = currentTrack.duration
-      musicIntelligenceEngine.setEffectiveBpm(
-        currentEffectiveBpm, currentBpmConfidence ?? 0.8, offsetSec, durationSec,
-      )
-    } else if (!hasOverride && analysis) {
-      // Override was cleared — restore original analyzed markers, update BPM.
+
+      if (analysis) {
+        musicIntelligenceEngine.setEffectiveBpm(
+          currentEffectiveBpm, currentBpmConfidence ?? 0.8, offsetSec, durationSec,
+        )
+      } else {
+        // No analysis yet — set BPM only; markers will be (re-)applied when
+        // analysis completes and this effect fires again.
+        musicIntelligenceEngine.setBpm(currentEffectiveBpm, currentBpmConfidence ?? 0.8)
+      }
+
+      // Regenerate the Track Map beat grid from the same BPM + offset so both
+      // the visual engine and the canvas always draw identical timing.
+      const effectiveBeatGrid = buildEffectiveBeatGrid(currentEffectiveBpm, durationSec, offsetSec)
+      updateTrackRuntime(trackId, { effectiveBeatGrid })
+    } else if (analysis) {
+      // Override cleared — restore original analyzed markers and wipe the
+      // override grid so the Track Map reverts to analysis.beatGrid.
       musicIntelligenceEngine.restoreAnalysisMarkers()
       musicIntelligenceEngine.setBpm(currentEffectiveBpm, currentBpmConfidence ?? 0.8)
+      if (runtime.effectiveBeatGrid !== null) {
+        updateTrackRuntime(trackId, { effectiveBeatGrid: null })
+      }
     } else {
-      // No analysis yet (still analyzing) — just set the BPM without markers.
+      // No override, no analysis — just signal the BPM.
       musicIntelligenceEngine.setBpm(currentEffectiveBpm, currentBpmConfidence ?? 0.8)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source, currentEffectiveBpm, currentBpmConfidence, currentTrackId,
-      currentTrack?.analysisRuntime.bpmOverride, currentTrack?.duration])
+      currentTrack?.analysisRuntime.bpmOverride, currentTrack?.duration,
+      currentAnalysisStatus])
 
   const currentKey = currentAnalysis?.harmonic.dominantKey
     ? {
@@ -1131,6 +1167,7 @@ export function useAudioEngine(): AudioEngine {
     currentTrackId, currentTrack, currentAnalysis,
     currentAnalysisStatus, currentAnalysisError,
     currentAnalyzedBpm, currentEffectiveBpm, currentBpmConfidence, currentBpmSource,
+    currentEffectiveBeatGrid: currentTrack?.analysisRuntime.effectiveBeatGrid ?? null,
     currentKey,
     updateTrackRuntime, setBpmOverride, retryAnalysis, reanalyzeTrack,
   }

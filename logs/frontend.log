@@ -20,3 +20,71 @@
 10:54:14 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
 10:54:25 PM [vite] hmr update /src/styles/reactView.css
 11:07:26 PM [vite] hmr update /src/styles/reactView.css
+11:37:04 PM [vite] hmr update /src/context/AudioEngineContext.tsx
+11:37:04 PM [vite] hmr invalidate /src/context/AudioEngineContext.tsx Could not Fast Refresh ("useSharedAudio" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+11:37:04 PM [vite] hmr update /src/App.tsx, /src/components/vyzualz/VyzualzView.tsx, /src/components/vyzualz/AddCueModal.tsx, /src/components/vyzualz/layout/VyzualzTopBar.tsx, /src/components/vyzualz/shared/VyzualzAudioDock.tsx, /src/components/vyzualz/media/MediaDeckPanel.tsx, /src/features/lyrics/LyricManagerView.tsx, /src/components/vyzualz/react/ReactView.tsx, /src/components/vyzualz/TimelinePanel.tsx, /src/components/vyzualz/react/ReactTrackMapStrip.tsx, /src/components/vyzualz/react/LaserDmxTimingStatus.tsx
+11:37:05 PM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh ("ENERGY_CURVE_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+11:37:05 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+11:37:20 PM [vite] hmr update /src/context/AudioEngineContext.tsx
+11:37:20 PM [vite] hmr invalidate /src/context/AudioEngineContext.tsx Could not Fast Refresh ("useSharedAudio" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+11:37:20 PM [vite] hmr update /src/App.tsx, /src/components/vyzualz/VyzualzView.tsx, /src/components/vyzualz/AddCueModal.tsx, /src/components/vyzualz/layout/VyzualzTopBar.tsx, /src/components/vyzualz/shared/VyzualzAudioDock.tsx, /src/components/vyzualz/media/MediaDeckPanel.tsx, /src/features/lyrics/LyricManagerView.tsx, /src/components/vyzualz/react/ReactView.tsx, /src/components/vyzualz/TimelinePanel.tsx, /src/components/vyzualz/react/ReactTrackMapStrip.tsx, /src/components/vyzualz/react/LaserDmxTimingStatus.tsx
+11:37:20 PM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh ("ENERGY_CURVE_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+11:37:20 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+11:37:47 PM [vite] hmr update /src/context/AudioEngineContext.tsx
+11:37:47 PM [vite] hmr invalidate /src/context/AudioEngineContext.tsx Could not Fast Refresh ("useSharedAudio" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+11:37:47 PM [vite] hmr update /src/App.tsx, /src/components/vyzualz/VyzualzView.tsx, /src/components/vyzualz/AddCueModal.tsx, /src/components/vyzualz/layout/VyzualzTopBar.tsx, /src/components/vyzualz/shared/VyzualzAudioDock.tsx, /src/components/vyzualz/media/MediaDeckPanel.tsx, /src/features/lyrics/LyricManagerView.tsx, /src/components/vyzualz/react/ReactView.tsx, /src/components/vyzualz/TimelinePanel.tsx, /src/components/vyzualz/react/ReactTrackMapStrip.tsx, /src/components/vyzualz/react/LaserDmxTimingStatus.tsx
+11:37:47 PM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh ("ENERGY_CURVE_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+11:37:47 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+11:37:53 PM [vite] hmr update /src/context/AudioEngineContext.tsx
+11:37:54 PM [vite] hmr invalidate /src/context/AudioEngineContext.tsx Could not Fast Refresh ("useSharedAudio" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+11:37:54 PM [vite] hmr update /src/App.tsx, /src/components/vyzualz/VyzualzView.tsx, /src/components/vyzualz/AddCueModal.tsx, /src/components/vyzualz/layout/VyzualzTopBar.tsx, /src/components/vyzualz/shared/VyzualzAudioDock.tsx, /src/components/vyzualz/media/MediaDeckPanel.tsx, /src/features/lyrics/LyricManagerView.tsx, /src/components/vyzualz/react/ReactView.tsx, /src/components/vyzualz/TimelinePanel.tsx, /src/components/vyzualz/react/ReactTrackMapStrip.tsx, /src/components/vyzualz/react/LaserDmxTimingStatus.tsx
+11:37:54 PM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh ("ENERGY_CURVE_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+11:37:54 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+11:38:07 PM [vite] hmr update /src/components/vyzualz/react/ReactTrackMapStrip.tsx
+11:38:07 PM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh ("ENERGY_CURVE_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+11:38:07 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+11:38:22 PM [vite] hmr update /src/components/vyzualz/react/ReactTrackMapStrip.tsx
+11:38:22 PM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh ("ENERGY_CURVE_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+11:38:22 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+11:38:28 PM [vite] hmr update /src/components/vyzualz/react/ReactTrackMapStrip.tsx
+11:38:28 PM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh ("ENERGY_CURVE_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+11:38:28 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+11:38:36 PM [vite] hmr update /src/components/vyzualz/react/ReactTrackMapStrip.tsx
+11:38:36 PM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh ("ENERGY_CURVE_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+11:38:36 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+11:40:45 PM [vite] hmr update /src/context/AudioEngineContext.tsx
+11:40:45 PM [vite] hmr invalidate /src/context/AudioEngineContext.tsx Could not Fast Refresh ("useSharedAudio" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+11:40:45 PM [vite] hmr update /src/App.tsx, /src/components/vyzualz/VyzualzView.tsx, /src/components/vyzualz/AddCueModal.tsx, /src/components/vyzualz/layout/VyzualzTopBar.tsx, /src/components/vyzualz/shared/VyzualzAudioDock.tsx, /src/components/vyzualz/media/MediaDeckPanel.tsx, /src/features/lyrics/LyricManagerView.tsx, /src/components/vyzualz/react/ReactView.tsx, /src/components/vyzualz/TimelinePanel.tsx, /src/components/vyzualz/react/ReactTrackMapStrip.tsx, /src/components/vyzualz/react/LaserDmxTimingStatus.tsx
+11:40:45 PM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh ("ENERGY_CURVE_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+11:40:45 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+11:40:51 PM [vite] hmr update /src/context/AudioEngineContext.tsx
+11:40:51 PM [vite] hmr invalidate /src/context/AudioEngineContext.tsx Could not Fast Refresh ("useSharedAudio" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+11:40:51 PM [vite] hmr update /src/App.tsx, /src/components/vyzualz/VyzualzView.tsx, /src/components/vyzualz/AddCueModal.tsx, /src/components/vyzualz/layout/VyzualzTopBar.tsx, /src/components/vyzualz/shared/VyzualzAudioDock.tsx, /src/components/vyzualz/media/MediaDeckPanel.tsx, /src/features/lyrics/LyricManagerView.tsx, /src/components/vyzualz/react/ReactView.tsx, /src/components/vyzualz/TimelinePanel.tsx, /src/components/vyzualz/react/ReactTrackMapStrip.tsx, /src/components/vyzualz/react/LaserDmxTimingStatus.tsx
+11:40:51 PM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh ("ENERGY_CURVE_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+11:40:51 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+11:40:55 PM [vite] hmr update /src/context/AudioEngineContext.tsx
+11:40:55 PM [vite] hmr invalidate /src/context/AudioEngineContext.tsx Could not Fast Refresh ("useSharedAudio" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+11:40:55 PM [vite] hmr update /src/App.tsx, /src/components/vyzualz/VyzualzView.tsx, /src/components/vyzualz/AddCueModal.tsx, /src/components/vyzualz/layout/VyzualzTopBar.tsx, /src/components/vyzualz/shared/VyzualzAudioDock.tsx, /src/components/vyzualz/media/MediaDeckPanel.tsx, /src/features/lyrics/LyricManagerView.tsx, /src/components/vyzualz/react/ReactView.tsx, /src/components/vyzualz/TimelinePanel.tsx, /src/components/vyzualz/react/ReactTrackMapStrip.tsx, /src/components/vyzualz/react/LaserDmxTimingStatus.tsx
+11:40:55 PM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh ("ENERGY_CURVE_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+11:40:55 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+11:41:00 PM [vite] hmr update /src/components/vyzualz/react/ReactTrackMapStrip.tsx
+11:41:00 PM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh ("ENERGY_CURVE_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+11:41:00 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+11:51:14 PM [vite] hmr update /src/components/vyzualz/react/ReactTrackMapStrip.tsx
+11:51:14 PM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh ("ENERGY_CURVE_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+11:51:14 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+11:59:59 PM [vite] hmr update /src/components/vyzualz/react/ReactTrackMapStrip.tsx
+11:59:59 PM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh (new export)
+11:59:59 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+12:00:23 AM [vite] hmr update /src/components/vyzualz/react/ReactTrackMapStrip.tsx
+12:00:23 AM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh ("ENERGY_CURVE_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+12:00:23 AM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+12:00:28 AM [vite] hmr update /src/components/vyzualz/react/ReactTrackMapStrip.tsx
+12:00:28 AM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh ("ENERGY_CURVE_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+12:00:28 AM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+12:04:07 AM [vite] hmr update /src/components/vyzualz/react/ReactTrackMapStrip.tsx
+12:04:07 AM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh ("ENERGY_CURVE_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+12:04:07 AM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+12:04:15 AM [vite] hmr update /src/components/vyzualz/react/ReactTrackMapStrip.tsx
+12:04:15 AM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh ("ENERGY_CURVE_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+12:04:15 AM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx

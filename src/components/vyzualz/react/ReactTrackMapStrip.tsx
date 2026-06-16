@@ -3,9 +3,10 @@ import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useReactStore } from '../../../stores/reactStore'
 import type { ReactSectionType, ReactTrackSection } from './ReactTypes'
-import { adaptMIAnalysis } from '../../../features/trackIntelligence/trackMapAdapter'
+import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import type {
   TrackIntelligenceAnalysis,
+  BeatMarkerMI,
   FeatureCurve,
   TrackAnalysisStatus,
 } from '../../../features/musicIntelligence/types'
@@ -75,7 +76,36 @@ export function buildKeyLabel(key: { tonic: string; mode: string; confidence?: n
   return `${key.tonic} ${key.mode}${conf}`
 }
 
+/**
+ * Returns a 1-based bar range string ("1–8") for a section, derived from
+ * downbeat markers in the beat grid. Returns null when the grid has no
+ * downbeats or the section falls outside them.
+ */
+export function buildBarRange(
+  section: { startSec: number; endSec: number },
+  beatGrid: BeatMarkerMI[],
+): string | null {
+  const downbeats = beatGrid.filter(b => b.isDownbeat)
+  if (downbeats.length === 0) return null
+  const startIdx = downbeats.findIndex(d => d.timeSec >= section.startSec - 0.05)
+  if (startIdx < 0) return null
+  let endIdx = -1
+  for (let i = downbeats.length - 1; i >= startIdx; i--) {
+    if (downbeats[i].timeSec < section.endSec) { endIdx = i; break }
+  }
+  if (endIdx < 0) return null
+  return `${startIdx + 1}–${endIdx + 1}`
+}
+
 // ── Canvas drawing ─────────────────────────────────────────────────────────────
+
+// Centralized beat/downbeat mark constants so tests and the draw function agree.
+export const TRACK_MAP_BEAT_COLOR            = 'rgba(74,199,219,0.45)'
+export const TRACK_MAP_DOWNBEAT_COLOR        = 'rgba(97,214,170,0.85)'
+export const TRACK_MAP_BEAT_TICK_HEIGHT      = 5    // CSS px
+export const TRACK_MAP_DOWNBEAT_TICK_HEIGHT  = 13   // CSS px
+export const TRACK_MAP_BEAT_LINE_WIDTH       = 1    // px
+export const TRACK_MAP_DOWNBEAT_LINE_WIDTH   = 2    // px
 
 function setupCanvas(canvas: HTMLCanvasElement): CanvasRenderingContext2D | null {
   const dpr = window.devicePixelRatio || 1
@@ -89,9 +119,27 @@ function setupCanvas(canvas: HTMLCanvasElement): CanvasRenderingContext2D | null
   return ctx
 }
 
+/**
+ * Draws beat ticks and downbeat ticks onto the beat canvas.
+ *
+ * Every beat in the grid has exactly one tick. `isDownbeat` on each
+ * BeatMarkerMI determines the style: regular beats get a short cyan tick;
+ * downbeats get a taller, thicker, brighter tick from the same bottom anchor.
+ *
+ * When `effective` is supplied (manual BPM override active), `effective.beatGrid`
+ * replaces `analysis.beatGrid` for all tick rendering so that regular beats and
+ * downbeats originate from the same grid. `effective.downbeats` is ignored —
+ * downbeat status is read from `beat.isDownbeat` directly.
+ *
+ * Section data (`analysis.sections`) is intentionally not rendered here.
+ * Proportional section regions (backgrounds, labels, and boundaries) will be
+ * drawn by a dedicated section-region overlay layer added in a future task.
+ * Passing `effective` never mutates `analysis`.
+ */
 export function drawBeatCanvas(
-  canvas: HTMLCanvasElement,
+  canvas:   HTMLCanvasElement,
   analysis: TrackIntelligenceAnalysis,
+  effective?: { beatGrid: BeatMarkerMI[]; downbeats?: BeatMarkerMI[] },
 ): void {
   const ctx = setupCanvas(canvas)
   if (!ctx) return
@@ -101,38 +149,34 @@ export function drawBeatCanvas(
   if (durationSec <= 0) return
   ctx.clearRect(0, 0, w, h)
 
-  // Beat ticks — lower half, thin
+  // isDownbeat is set on every BeatMarkerMI; the separate downbeats array is unused.
+  const beatGrid = effective?.beatGrid ?? analysis.beatGrid
+
+  // Regular beats — bottom-anchored ruler marks.
+  // Half-pixel x offset (+0.5) keeps 1 px strokes crisp on all DPR values.
   ctx.beginPath()
-  for (const beat of analysis.beatGrid) {
+  for (const beat of beatGrid) {
     if (beat.isDownbeat) continue
-    const x = Math.round((beat.timeSec / durationSec) * w)
-    ctx.moveTo(x, h * 0.5)
-    ctx.lineTo(x, h)
+    const x = Math.floor((beat.timeSec / durationSec) * w) + 0.5
+    ctx.moveTo(x, h)
+    ctx.lineTo(x, h - TRACK_MAP_BEAT_TICK_HEIGHT)
   }
-  ctx.strokeStyle = 'rgba(74,199,219,0.35)'
-  ctx.lineWidth = 1
+  ctx.strokeStyle = TRACK_MAP_BEAT_COLOR
+  ctx.lineWidth   = TRACK_MAP_BEAT_LINE_WIDTH
   ctx.stroke()
 
-  // Downbeats — full height, brighter
+  // Downbeat ticks — same bottom anchor, taller + thicker + brighter.
+  // Drawn in a separate pass so lineWidth/strokeStyle differ per category
+  // without any duplicate stroke at the same x-position.
   ctx.beginPath()
-  for (const beat of analysis.downbeats) {
-    const x = Math.round((beat.timeSec / durationSec) * w)
-    ctx.moveTo(x, 0)
-    ctx.lineTo(x, h)
+  for (const beat of beatGrid) {
+    if (!beat.isDownbeat) continue
+    const x = Math.floor((beat.timeSec / durationSec) * w) + 0.5
+    ctx.moveTo(x, h)
+    ctx.lineTo(x, h - TRACK_MAP_DOWNBEAT_TICK_HEIGHT)
   }
-  ctx.strokeStyle = 'rgba(97,214,170,0.65)'
-  ctx.lineWidth = 1
-  ctx.stroke()
-
-  // Section boundaries — gold accent
-  ctx.beginPath()
-  for (const sec of analysis.sections) {
-    const x = Math.round((sec.startSec / durationSec) * w)
-    ctx.moveTo(x, 0)
-    ctx.lineTo(x, h)
-  }
-  ctx.strokeStyle = 'rgba(216,185,90,0.55)'
-  ctx.lineWidth = 2
+  ctx.strokeStyle = TRACK_MAP_DOWNBEAT_COLOR
+  ctx.lineWidth   = TRACK_MAP_DOWNBEAT_LINE_WIDTH
   ctx.stroke()
 }
 
@@ -269,60 +313,84 @@ function AddSectionForm({ onAdd, onCancel }: AddSectionFormProps) {
   )
 }
 
-// ── SectionChip ───────────────────────────────────────────────────────────────
+// ── SectionTimeline ───────────────────────────────────────────────────────────
 
-interface SectionChipProps {
-  section:    ReactTrackSection
-  isSelected: boolean
-  onSelect:   (id: string) => void
-  onRemove?:  (id: string) => void
+interface SectionTimelineProps {
+  sections:    ReactTrackSection[]
+  durationSec: number
+  beatGrid?:   BeatMarkerMI[]
+  selectedId:  string | null
+  onSelect:    (id: string) => void
+  onRemove?:   (id: string) => void
 }
 
-function SectionChip({ section, isSelected, onSelect, onRemove }: SectionChipProps) {
-  const color      = SECTION_COLORS[section.type] ?? '#6a7a8a'
-  const src        = section.source
-  const isUserSect = src === 'manual' || src === 'user-created' || src === 'user-edited-auto' || src == null
-  const confidence = section.confidence
+function SectionTimeline({
+  sections, durationSec, beatGrid, selectedId, onSelect, onRemove,
+}: SectionTimelineProps) {
+  if (durationSec <= 0) return null
+
+  const valid = sections
+    .filter(s => s.endSec > s.startSec && s.startSec < durationSec && s.endSec > 0)
+    .map(s => ({ ...s, startSec: Math.max(0, s.startSec), endSec: Math.min(durationSec, s.endSec) }))
+    .sort((a, b) => a.startSec - b.startSec)
+
+  if (valid.length === 0) return null
 
   return (
-    <div
-      className={`rv-section-chip${isSelected ? ' rv-section-chip--selected' : ''}${isUserSect ? ' rv-section-chip--manual' : ''}`}
-      style={{ '--section-color': color } as React.CSSProperties}
-      onClick={() => onSelect(section.id)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={e => { if (e.key === 'Enter') onSelect(section.id) }}
-    >
-      <div className="rv-chip-stripe" style={{ background: color }} />
-      <div className="rv-chip-body">
-        <span className="rv-chip-label">{section.label}</span>
-        <span className="rv-chip-type" style={{ color }}>{section.type}</span>
-        <span className="rv-chip-time">
-          {formatTime(section.startSec)} – {formatTime(section.endSec)}
-        </span>
-        <div
-          className="rv-chip-intensity-bar"
-          style={{ width: `${section.intensity * 100}%`, background: color + '80' }}
-        />
-        {confidence != null && confidence < 1 && (
-          <span className="rv-chip-confidence" title="Analysis confidence">
-            {Math.round(confidence * 100)}%
-          </span>
-        )}
-        {src === 'user-edited-auto' && (
-          <span className="rv-chip-source-badge rv-chip-source-badge--edited">edited</span>
-        )}
-        {(src === 'manual' || src === 'user-created') && (
-          <span className="rv-chip-source-badge rv-chip-source-badge--manual">manual</span>
-        )}
-      </div>
-      {onRemove && (
-        <button
-          className="rv-chip-remove"
-          onClick={e => { e.stopPropagation(); onRemove(section.id) }}
-          title="Remove section"
-        >×</button>
-      )}
+    <div className="rv-section-timeline" aria-label="Section timeline">
+      {valid.map((section, i) => {
+        const leftPct    = (section.startSec / durationSec) * 100
+        const widthPct   = ((section.endSec - section.startSec) / durationSec) * 100
+        const color      = SECTION_COLORS[section.type] ?? '#6a7a8a'
+        const barRange   = beatGrid ? buildBarRange(section, beatGrid) : null
+        const isSelected = selectedId === section.id
+        const src        = section.source
+        const isUser     = src === 'manual' || src === 'user-created' || src === 'user-edited-auto' || src == null
+
+        return (
+          <div
+            key={section.id}
+            className={`rv-section-region${isSelected ? ' rv-section-region--selected' : ''}`}
+            style={{ left: `${leftPct}%`, width: `${widthPct}%`, '--section-color': color } as React.CSSProperties}
+            role="button"
+            tabIndex={0}
+            aria-label={`Section ${section.label}, ${formatTime(section.startSec)} to ${formatTime(section.endSec)}`}
+            aria-pressed={isSelected}
+            onClick={() => onSelect(section.id)}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(section.id) } }}
+          >
+            <div className="rv-section-body-tint" style={{ background: color }} />
+            <div className="rv-section-header" style={{ background: color }}>
+              <span className="rv-section-label">{section.label.toUpperCase()}</span>
+              {barRange && <span className="rv-section-barrange">{barRange}</span>}
+            </div>
+            {onRemove && isUser && (
+              <button
+                className="rv-section-region-remove"
+                onClick={e => { e.stopPropagation(); onRemove(section.id) }}
+                title="Remove section"
+                aria-label={`Remove section ${section.label}`}
+              >×</button>
+            )}
+          </div>
+        )
+      })}
+
+      {/* Diamond boundary markers between adjacent sections */}
+      {valid.map((section, i) => {
+        if (i === 0) return null
+        const pct = (section.startSec / durationSec) * 100
+        return (
+          <div
+            key={`bd-${section.id}`}
+            className="rv-section-boundary"
+            style={{ left: `${pct}%` }}
+            aria-hidden="true"
+          >
+            <div className="rv-section-boundary-diamond" />
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -347,6 +415,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     currentAnalyzedBpm,
     currentBpmSource,
     currentBpmConfidence,
+    currentEffectiveBeatGrid,
     retryAnalysis,
     reanalyzeTrack,
     getCurrentTime,
@@ -394,6 +463,12 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     ? adaptMIAnalysis(currentAnalysis!)
     : []
 
+  const resolvedSections = resolveTrackSections({
+    analyzedSections: autoSections,
+    manualSections:   manualTrackSections,
+    durationSec,
+  })
+
   const keyLabel = currentKey ? buildKeyLabel(currentKey) : null
 
   // Redraw canvases on window resize
@@ -403,7 +478,10 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     return () => window.removeEventListener('resize', handler)
   }, [])
 
-  // Beat canvas — redraws when analysis or status changes
+  // Beat canvas — redraws when analysis, effective override, or collapse state changes.
+  // When a manual BPM override is active, currentEffectiveBeatGrid contains the
+  // regenerated markers; we pass them as `effective` so the canvas reflects the
+  // override BPM without mutating or replacing the original analysis object.
   useEffect(() => {
     const canvas = beatCanvasRef.current
     if (!canvas) return
@@ -411,8 +489,11 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
       canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height)
       return
     }
-    drawBeatCanvas(canvas, currentAnalysis)
-  }, [isComplete, currentAnalysis, drawTick, collapsed])
+    const effective = currentEffectiveBeatGrid
+      ? { beatGrid: currentEffectiveBeatGrid }
+      : undefined
+    drawBeatCanvas(canvas, currentAnalysis, effective)
+  }, [isComplete, currentAnalysis, currentEffectiveBeatGrid, drawTick, collapsed])
 
   // Energy canvas — redraws when analysis, curve selection, or status changes
   useEffect(() => {
@@ -604,68 +685,50 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
             </div>
           )}
 
-          {/* Auto sections — read-only, sourced from coordinator analysis */}
-          {autoSections.length > 0 && (
-            <div className="rv-section-group">
-              <div className="rv-section-group-header">
-                <span className="rv-section-group-label">Analyzed</span>
-                {/* Reanalyze bypasses cache; Retry only re-queues and may use cache */}
-                <button
-                  className="rv-reanalyze-btn"
-                  onClick={handleReanalyze}
-                  title="Force fresh analysis, bypassing cache"
-                >
-                  ↺ Reanalyze
-                </button>
-              </div>
-              <div className="rv-section-list">
-                {autoSections.map(section => (
-                  <SectionChip
-                    key={section.id}
-                    section={section}
-                    isSelected={selectedSectionId === section.id}
-                    onSelect={setSelectedSectionId}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Manual sections — user-authored, scoped to the active track */}
+          {/* Unified proportional section timeline */}
           <div className="rv-section-group">
             <div className="rv-section-group-header">
-              <span className="rv-section-group-label">My Sections</span>
-              <button
-                className="rv-add-section-btn"
-                onClick={() => setIsAdding(v => !v)}
-                title="Add a manual section"
-                disabled={!activeTrackId}
-              >
-                {isAdding ? '✕ Cancel' : '+ Add'}
-              </button>
+              <span className="rv-section-group-label">Sections</span>
+              <div className="rv-section-group-actions">
+                {/* Reanalyze bypasses cache; Retry only re-queues and may use cache */}
+                {isComplete && (
+                  <button
+                    className="rv-reanalyze-btn"
+                    onClick={handleReanalyze}
+                    title="Force fresh analysis, bypassing cache"
+                  >
+                    ↺ Reanalyze
+                  </button>
+                )}
+                <button
+                  className="rv-add-section-btn"
+                  onClick={() => setIsAdding(v => !v)}
+                  title="Add a manual section"
+                  disabled={!activeTrackId}
+                >
+                  {isAdding ? '✕ Cancel' : '+ Add'}
+                </button>
+              </div>
             </div>
 
             {isAdding && (
               <AddSectionForm onAdd={handleAdd} onCancel={() => setIsAdding(false)} />
             )}
 
-            {manualTrackSections.length === 0 && !isAdding ? (
+            {resolvedSections.length > 0 ? (
+              <SectionTimeline
+                sections={resolvedSections}
+                durationSec={durationSec}
+                beatGrid={currentEffectiveBeatGrid ?? currentAnalysis?.beatGrid ?? undefined}
+                selectedId={selectedSectionId}
+                onSelect={setSelectedSectionId}
+                onRemove={activeTrackId ? handleRemove : undefined}
+              />
+            ) : (
               <div className="rv-section-group-empty">
                 {activeTrackId
-                  ? <>No user sections — hit <strong>+ Add</strong> to create one.</>
+                  ? <>No sections yet — hit <strong>+ Add</strong> to create one.</>
                   : 'Load a track to add sections.'}
-              </div>
-            ) : (
-              <div className="rv-section-list">
-                {manualTrackSections.map(section => (
-                  <SectionChip
-                    key={section.id}
-                    section={section}
-                    isSelected={selectedSectionId === section.id}
-                    onSelect={setSelectedSectionId}
-                    onRemove={handleRemove}
-                  />
-                ))}
               </div>
             )}
           </div>
