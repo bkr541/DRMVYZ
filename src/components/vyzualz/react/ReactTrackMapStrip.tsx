@@ -366,7 +366,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     removeManualSection:          s.removeManualSection,
   })))
 
-  const [collapsed,      setCollapsed]      = useState(false)
+  const [collapsed,      setCollapsed]      = useState(true)
   const [isAdding,       setIsAdding]       = useState(false)
   const [energyCurveKey, setEnergyCurveKey] = useState<EnergyCurveKey>('shortTerm')
   const [drawTick,       setDrawTick]       = useState(0)
@@ -412,7 +412,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
       return
     }
     drawBeatCanvas(canvas, currentAnalysis)
-  }, [isComplete, currentAnalysis, drawTick])
+  }, [isComplete, currentAnalysis, drawTick, collapsed])
 
   // Energy canvas — redraws when analysis, curve selection, or status changes
   useEffect(() => {
@@ -424,7 +424,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     }
     const opt = ENERGY_CURVE_OPTIONS.find(o => o.key === energyCurveKey)!
     drawEnergyCanvas(canvas, currentAnalysis.energyCurves[energyCurveKey], durationSec, opt.color)
-  }, [isComplete, currentAnalysis, energyCurveKey, durationSec, drawTick])
+  }, [isComplete, currentAnalysis, energyCurveKey, durationSec, drawTick, collapsed])
 
   // ── Playhead RAF loop ──────────────────────────────────────────────────────
   // Updates an absolutely-positioned div to track the current audio position.
@@ -505,6 +505,9 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
           if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCollapsed(v => !v) }
         }}
       >
+        <svg width="14" height="14" viewBox="0 0 512 512" fill="#38bdf8" style={{ flexShrink: 0 }}>
+          <path d="M29.002,0v368.238L256.002,512l226.996-143.762V0H29.002z M379.593,247.561H287.92v91.659h-63.836v-91.659h-91.673v-63.843h91.673v-91.68h63.836v91.68h91.673V247.561z"/>
+        </svg>
         <span className="rv-strip-title">Track Map</span>
         {hasTrack && currentAnalysisStatus !== 'not_analyzed' && (
           <span
@@ -515,25 +518,27 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
             {isWorking ? '◌' : currentAnalysisStatus === 'failed' ? '✕' : '●'}
           </span>
         )}
+        {(isComplete || isMicSource) && (
+          <span className="rv-strip-header-meta">
+            {bpmDisplay}
+            {keyLabel && <span className="rv-meta-key">{keyLabel}</span>}
+          </span>
+        )}
         <span className="rv-collapse-arrow">{collapsed ? '▶' : '▼'}</span>
       </div>
 
       {!collapsed && (
         <>
-          {/* Metadata: BPM, key, legend */}
-          {(isComplete || isMicSource) && (
+          {/* Section type legend */}
+          {isComplete && (
             <div className="rv-strip-meta-row">
-              {bpmDisplay}
-              {keyLabel && <span className="rv-meta-key">{keyLabel}</span>}
-              {isComplete && (
-                <div className="rv-strip-type-legend">
-                  {SECTION_ORDER.filter(t => t !== 'unknown').map(t => (
-                    <span key={t} className="rv-legend-item" style={{ color: SECTION_COLORS[t] }}>
-                      {t}
-                    </span>
-                  ))}
-                </div>
-              )}
+              <div className="rv-strip-type-legend">
+                {SECTION_ORDER.filter(t => t !== 'unknown').map(t => (
+                  <span key={t} className="rv-legend-item" style={{ color: SECTION_COLORS[t] }}>
+                    {t}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
 

@@ -46,6 +46,7 @@
   align-items: center;
   gap: 7px;
   padding: 10px 14px 8px;
+  min-height: 45px;
   border-bottom: 1px solid rgba(74, 199, 219, 0.1);
   flex-shrink: 0;
 }
@@ -765,6 +766,7 @@
   align-items: center;
   gap: 10px;
   padding: 7px 12px;
+  min-height: 45px;
   border-bottom: 1px solid rgba(74, 199, 219, 0.07);
   flex-shrink: 0;
 }
@@ -776,6 +778,40 @@
 
 .rv-strip-header--toggle:hover {
   background: rgba(74, 199, 219, 0.04);
+}
+
+.rv-strip-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.rv-meta-bpm {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(232, 244, 248, 0.75);
+}
+
+.rv-meta-bpm--unavailable {
+  color: rgba(232, 244, 248, 0.35);
+}
+
+.rv-meta-bpm-conf {
+  color: rgba(232, 244, 248, 0.45);
+}
+
+.rv-meta-bpm-analyzed {
+  font-size: 9px;
+  color: rgba(232, 244, 248, 0.35);
+}
+
+.rv-meta-key {
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(232, 244, 248, 0.5);
 }
 
 .rv-strip-subheader {
@@ -797,6 +833,10 @@
   flex: 1;
 }
 
+.rv-strip-meta-row {
+  padding: 6px 12px;
+}
+
 .rv-strip-type-legend {
   display: flex;
   gap: 8px;
@@ -805,7 +845,7 @@
 }
 
 .rv-legend-item {
-  font-size: 8.5px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;

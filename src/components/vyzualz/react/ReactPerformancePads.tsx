@@ -10,7 +10,7 @@ const KEY_MAP: Record<string, string> = {
 }
 
 export function ReactPerformancePads() {
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(true)
 
   const { performancePads, activePadId, setActivePadId } = useReactStore(
     useShallow((s) => ({
@@ -51,7 +51,12 @@ export function ReactPerformancePads() {
         onClick={() => setCollapsed(v => !v)}
         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCollapsed(v => !v) } }}
       >
-        <span className="rv-panel-icon">▦</span>
+        <svg width="14" height="14" viewBox="0 0 512 512" fill="#a78bfa" style={{ flexShrink: 0 }}>
+          <path d="M217.043,0.001H16.696C7.515,0.001,0,7.479,0,16.697v200.348c0,9.214,7.482,16.693,16.696,16.693h200.348c9.214,0,16.696-7.481,16.696-16.693V16.697C233.739,7.479,226.224,0.001,217.043,0.001z"/>
+          <path d="M495.304,0.001H294.957c-9.18,0-16.696,7.477-16.696,16.696v200.348c0,9.214,7.482,16.693,16.696,16.693h200.348c9.214,0,16.696-7.481,16.696-16.693V16.697C512,7.479,504.485,0.001,495.304,0.001z"/>
+          <path d="M217.043,278.262H16.696C7.515,278.262,0,285.739,0,294.958v200.348c0,9.214,7.482,16.693,16.696,16.693h200.348c9.214,0,16.696-7.481,16.696-16.693V294.958C233.739,285.739,226.224,278.262,217.043,278.262z"/>
+          <path d="M495.304,278.262H294.957c-9.18,0-16.696,7.477-16.696,16.696v200.348c0,9.214,7.482,16.693,16.696,16.693h200.348c9.214,0,16.696-7.481,16.696-16.693V294.958C512,285.739,504.485,278.262,495.304,278.262z"/>
+        </svg>
         <span className="rv-panel-title">Performance Pads</span>
         <span className="rv-pads-hint">1–4 · Q–R · A–F · Z–V</span>
         <span className="rv-collapse-arrow">{collapsed ? '▶' : '▼'}</span>

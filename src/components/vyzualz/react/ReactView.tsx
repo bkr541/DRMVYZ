@@ -27,13 +27,12 @@ import { MediaDeckPanel } from '../media/MediaDeckPanel'
 import { useSvgVisualRehydration } from './useSvgVisualRehydration'
 import '../../../styles/reactView.css'
 
-type ReactLeftTab  = 'media' | 'layers' | 'sessions'
-type ReactRightPanel = 'presets' | 'engine' | 'fx' | 'mod' | 'audio' | 'rec' | 'insp'
+type ReactLeftTab  = 'engine' | 'media' | 'layers' | 'sessions'
+type ReactRightPanel = 'presets' | 'fx' | 'mod' | 'audio' | 'rec' | 'insp'
 
 // BASE_RIGHT_TABS omits 'disabled' — injected dynamically via useMemo (same pattern as Visualizer)
 const REACT_RIGHT_BASE_TABS: Omit<RailTabOption<ReactRightPanel>, 'disabled'>[] = [
   { id: 'presets', label: 'PRESETS' },
-  { id: 'engine',  label: 'ENGINE'  },
   { id: 'fx',      label: 'FX'      },
   { id: 'mod',     label: 'MOD'     },
   { id: 'audio',   label: 'AUDIO'   },
@@ -42,6 +41,7 @@ const REACT_RIGHT_BASE_TABS: Omit<RailTabOption<ReactRightPanel>, 'disabled'>[] 
 ]
 
 const REACT_LEFT_TABS: RailTabOption<ReactLeftTab>[] = [
+  { id: 'engine',   label: 'ENGINES'  },
   { id: 'media',    label: 'Media'    },
   { id: 'layers',   label: 'Layers'   },
   { id: 'sessions', label: 'Sessions' },
@@ -100,7 +100,7 @@ export function ReactView() {
     beamEditorVisible:              s.laserDmxBeamMatrix.editor.beamEditorVisible,
   })))
 
-  const [leftTab, setLeftTab]             = useState<ReactLeftTab>('media')
+  const [leftTab, setLeftTab]             = useState<ReactLeftTab>('engine')
   const [activeMediaId, setActiveMediaId] = useState<string | null>(null)
   const [leftCollapsed,  setLeftCollapsed]  = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(false)
@@ -119,7 +119,7 @@ export function ReactView() {
   // Defaulting to 'engine': ENGINE tab contains the source/mode controls that were
   // previously the entire right rail, making it the most immediately useful landing tab.
   const [activeRightPanel, setActiveRightPanel] = useState<ReactRightPanel>(
-    () => readLS<ReactRightPanel>('drmvyz:react:rightPanel', 'engine')
+    () => readLS<ReactRightPanel>('drmvyz:react:rightPanel', 'presets')
   )
   useEffect(() => {
     localStorage.setItem('drmvyz:react:rightPanel', JSON.stringify(activeRightPanel))
@@ -203,6 +203,7 @@ export function ReactView() {
             ariaLabel="React left panel tabs"
           />
           <div className="rv-left-tab-body">
+            {leftTab === 'engine' && <ReactEnginePanel />}
             {leftTab === 'media' && (
               <MediaDeckPanel
                 mode="react"
@@ -274,7 +275,6 @@ export function ReactView() {
           />
           <div className="vz-panel-body">
             {activeRightPanel === 'presets' && <ReactPresetsPanel />}
-            {activeRightPanel === 'engine'  && <ReactEnginePanel />}
             {activeRightPanel === 'fx'      && <ReactFxPanel />}
             {activeRightPanel === 'mod'     && <ReactModulationPanel />}
             {activeRightPanel === 'audio'   && <ReactAudioPanel />}

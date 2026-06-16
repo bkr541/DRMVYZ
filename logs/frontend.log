@@ -3,6 +3,20 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 145 ms
+  VITE v5.4.21  ready in 165 ms
 
   ➜  Local:   http://127.0.0.1:5173/
+10:37:13 PM [vite] hmr update /src/components/vyzualz/react/ReactPerformancePads.tsx
+10:37:17 PM [vite] hmr update /src/components/vyzualz/react/ReactTrackMapStrip.tsx
+10:37:17 PM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh ("ENERGY_CURVE_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+10:37:17 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+10:44:24 PM [vite] hmr update /src/components/vyzualz/react/ReactTrackMapStrip.tsx
+10:44:24 PM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh ("ENERGY_CURVE_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+10:44:24 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+10:46:09 PM [vite] hmr update /src/styles/reactView.css
+10:46:13 PM [vite] hmr update /src/styles/reactView.css
+10:54:14 PM [vite] hmr update /src/components/vyzualz/react/ReactTrackMapStrip.tsx
+10:54:14 PM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh ("ENERGY_CURVE_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+10:54:14 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+10:54:25 PM [vite] hmr update /src/styles/reactView.css
+11:07:26 PM [vite] hmr update /src/styles/reactView.css
