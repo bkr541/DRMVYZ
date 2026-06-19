@@ -6,6 +6,7 @@ import {
   buildBarRange,
   drawBeatCanvas,
   drawEnergyCanvas,
+  computeBeatStride,
   ENERGY_CURVE_OPTIONS,
   TRACK_MAP_DOWNBEAT_COLOR,
   TRACK_MAP_BEAT_TICK_HEIGHT,
@@ -668,5 +669,125 @@ describe('buildBarRange', () => {
       { timeSec: 4.0, confidence: 1, isDownbeat: true  },
     ]
     expect(buildBarRange({ startSec: 0, endSec: 4 }, mixed)).toBe('1–2')
+  })
+})
+
+// 15 ── computeBeatStride
+describe('computeBeatStride', () => {
+  it('returns 1 when beats are sparse enough (≥3px apart)', () => {
+    // 4 beats on 400px canvas → ~133px/beat → stride = 1
+    expect(computeBeatStride(4, 400)).toBe(1)
+  })
+
+  it('returns 1 for 0 beats', () => {
+    expect(computeBeatStride(0, 400)).toBe(1)
+  })
+
+  it('returns 1 for 0 canvas width', () => {
+    expect(computeBeatStride(100, 0)).toBe(1)
+  })
+
+  it('returns stride > 1 when beats are very dense', () => {
+    // 400 beats on 400px canvas → 1px/beat → stride = ceil(3/1) = 3
+    expect(computeBeatStride(400, 400)).toBe(3)
+  })
+
+  it('stride reduces drawn beat count when beats are too dense', () => {
+    // 200 beats on 200px → 1px/beat → stride ≥ 2 so fewer than 200 are drawn
+    const stride = computeBeatStride(200, 200)
+    expect(stride).toBeGreaterThanOrEqual(2)
+    const drawnCount = Math.ceil(200 / stride)
+    expect(drawnCount).toBeLessThan(200)
+  })
+
+  it('respects custom minGapPx', () => {
+    // 100 beats on 100px → 1px/beat; minGap=5 → stride = ceil(5/1) = 5
+    expect(computeBeatStride(100, 100, 5)).toBe(5)
+  })
+})
+
+// 16 ── drawBeatCanvas with non-finite beat times
+describe('drawBeatCanvas — non-finite beat time guard', () => {
+  function badGrid(): TrackIntelligenceAnalysis {
+    return makeAnalysis({
+      beatGrid: [
+        { timeSec: 0,        confidence: 1, isDownbeat: true  },
+        { timeSec: NaN,      confidence: 1, isDownbeat: false },
+        { timeSec: Infinity, confidence: 1, isDownbeat: false },
+        { timeSec: 0.5,      confidence: 1, isDownbeat: false },
+      ],
+    })
+  }
+
+  it('does not throw for non-finite beat times', () => {
+    const { canvas } = makeTrackingCanvas(400, 24)
+    expect(() => drawBeatCanvas(canvas, badGrid())).not.toThrow()
+  })
+
+  it('skips non-finite beats and draws only finite ones', () => {
+    const { canvas, groups } = makeTrackingCanvas(400, 24)
+    drawBeatCanvas(canvas, badGrid())
+    // Regular pass (groups[0]) should have 1 moveTo (timeSec=0.5 is the only finite regular beat)
+    const regularMoves = groups[0]?.cmds.filter(c => c.cmd === 'moveTo').length ?? 0
+    // Downbeat pass (groups[1]) should have 1 moveTo (timeSec=0)
+    const downbeatMoves = groups[1]?.cmds.filter(c => c.cmd === 'moveTo').length ?? 0
+    expect(regularMoves).toBe(1)
+    expect(downbeatMoves).toBe(1)
+  })
+})
+
+// 17 ── drawEnergyCanvas with null/undefined curve
+describe('drawEnergyCanvas — null/undefined curve guard', () => {
+  it('does not throw for null curve', () => {
+    const canvas = makeCanvas()
+    expect(() => drawEnergyCanvas(canvas, null, 120, '#4ac7db')).not.toThrow()
+  })
+
+  it('does not throw for undefined curve', () => {
+    const canvas = makeCanvas()
+    expect(() => drawEnergyCanvas(canvas, undefined, 120, '#4ac7db')).not.toThrow()
+  })
+
+  it('does not throw for a curve with non-finite values', () => {
+    const badCurve: FeatureCurve = [
+      { timeSec: 0,        value: 0.5 },
+      { timeSec: NaN,      value: NaN },
+      { timeSec: Infinity, value: 1   },
+      { timeSec: 1,        value: 0.8 },
+    ]
+    const canvas = makeCanvas()
+    expect(() => drawEnergyCanvas(canvas, badCurve, 120, '#4ac7db')).not.toThrow()
+  })
+})
+
+// 18 ── density reduction with many beats reduces drawcalls
+describe('drawBeatCanvas — density reduction integration', () => {
+  it('fewer moveTo calls when beat density is high vs low', () => {
+    const durationMs = 60_000  // 60 s
+
+    // Low density: 4 beats across 60s on 400px canvas — all drawn
+    const sparseBeatGrid: BeatMarkerMI[] = [
+      { timeSec: 0,  confidence: 1, isDownbeat: true  },
+      { timeSec: 15, confidence: 1, isDownbeat: false },
+      { timeSec: 30, confidence: 1, isDownbeat: false },
+      { timeSec: 45, confidence: 1, isDownbeat: false },
+    ]
+    const { canvas: c1, groups: g1 } = makeTrackingCanvas(400, 24)
+    drawBeatCanvas(c1, makeAnalysis({ durationMs, beatGrid: sparseBeatGrid }))
+    const sparseMoves = g1[0]?.cmds.filter(c => c.cmd === 'moveTo').length ?? 0
+
+    // High density: 300 beats across 60s on 400px canvas — some skipped
+    const denseBeatGrid: BeatMarkerMI[] = Array.from({ length: 300 }, (_, i) => ({
+      timeSec:    (i / 300) * 60,
+      confidence: 1,
+      isDownbeat: i === 0,
+    }))
+    const { canvas: c2, groups: g2 } = makeTrackingCanvas(400, 24)
+    drawBeatCanvas(c2, makeAnalysis({ durationMs, beatGrid: denseBeatGrid }))
+    const denseMoves = g2[0]?.cmds.filter(c => c.cmd === 'moveTo').length ?? 0
+
+    // Sparse: all 3 regular beats drawn; dense: fewer than 299 regular beats
+    expect(sparseMoves).toBe(3)
+    expect(denseMoves).toBeLessThan(299)
   })
 })

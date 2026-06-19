@@ -120,6 +120,16 @@ function setupCanvas(canvas: HTMLCanvasElement): CanvasRenderingContext2D | null
 }
 
 /**
+ * Returns the minimum stride to draw so adjacent regular beat ticks stay at
+ * least `minGapPx` pixels apart. Always ≥ 1.
+ */
+export function computeBeatStride(regularBeatCount: number, canvasWidth: number, minGapPx = 3): number {
+  if (regularBeatCount <= 0 || canvasWidth <= 0) return 1
+  const pxPerBeat = canvasWidth / regularBeatCount
+  return pxPerBeat < minGapPx ? Math.max(1, Math.ceil(minGapPx / pxPerBeat)) : 1
+}
+
+/**
  * Draws beat ticks and downbeat ticks onto the beat canvas.
  *
  * Every beat in the grid has exactly one tick. `isDownbeat` on each
@@ -150,16 +160,28 @@ export function drawBeatCanvas(
   ctx.clearRect(0, 0, w, h)
 
   // isDownbeat is set on every BeatMarkerMI; the separate downbeats array is unused.
-  const beatGrid = effective?.beatGrid ?? analysis.beatGrid
+  // Filter out any beats with non-finite timestamps so bad data can't crash layout.
+  const rawGrid  = effective?.beatGrid ?? analysis.beatGrid
+  const beatGrid = rawGrid.filter(b => isFinite(b.timeSec) && b.timeSec >= 0)
+
+  // Density reduction: when beats are so close together they would overlap,
+  // skip intermediate regular beats so ticks stay at least ~3 px apart.
+  // Downbeats are always drawn regardless.
+  const regularBeats = beatGrid.filter(b => !b.isDownbeat)
+  const stride = computeBeatStride(regularBeats.length, w)
 
   // Regular beats — bottom-anchored ruler marks.
   // Half-pixel x offset (+0.5) keeps 1 px strokes crisp on all DPR values.
   ctx.beginPath()
+  let beatIdx = 0
   for (const beat of beatGrid) {
     if (beat.isDownbeat) continue
-    const x = Math.floor((beat.timeSec / durationSec) * w) + 0.5
-    ctx.moveTo(x, h)
-    ctx.lineTo(x, h - TRACK_MAP_BEAT_TICK_HEIGHT)
+    if (beatIdx % stride === 0) {
+      const x = Math.floor((beat.timeSec / durationSec) * w) + 0.5
+      ctx.moveTo(x, h)
+      ctx.lineTo(x, h - TRACK_MAP_BEAT_TICK_HEIGHT)
+    }
+    beatIdx++
   }
   ctx.strokeStyle = TRACK_MAP_BEAT_COLOR
   ctx.lineWidth   = TRACK_MAP_BEAT_LINE_WIDTH
@@ -182,19 +204,23 @@ export function drawBeatCanvas(
 
 export function drawEnergyCanvas(
   canvas: HTMLCanvasElement,
-  curve: FeatureCurve,
+  curve: FeatureCurve | null | undefined,
   durationSec: number,
   color: string,
 ): void {
   const ctx = setupCanvas(canvas)
-  if (!ctx || curve.length < 2 || durationSec <= 0) return
+  if (!ctx || !curve || durationSec <= 0) return
   const w = canvas.offsetWidth
   const h = canvas.offsetHeight
   ctx.clearRect(0, 0, w, h)
 
+  // Filter out any non-finite samples so bad persisted data can't corrupt rendering.
+  const valid = curve.filter(pt => isFinite(pt.timeSec) && isFinite(pt.value))
+  if (valid.length < 2) return
+
   ctx.beginPath()
   ctx.moveTo(0, h)
-  for (const pt of curve) {
+  for (const pt of valid) {
     ctx.lineTo((pt.timeSec / durationSec) * w, h - pt.value * (h - 1))
   }
   ctx.lineTo(w, h)
@@ -204,7 +230,7 @@ export function drawEnergyCanvas(
 
   ctx.beginPath()
   let first = true
-  for (const pt of curve) {
+  for (const pt of valid) {
     const x = (pt.timeSec / durationSec) * w
     const y = h - pt.value * (h - 1)
     if (first) { ctx.moveTo(x, y); first = false }
@@ -440,6 +466,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
   const [energyCurveKey, setEnergyCurveKey] = useState<EnergyCurveKey>('shortTerm')
   const [drawTick,       setDrawTick]       = useState(0)
 
+  const stripRef        = useRef<HTMLDivElement>(null)
   const beatCanvasRef   = useRef<HTMLCanvasElement>(null)
   const energyCanvasRef = useRef<HTMLCanvasElement>(null)
   const playheadRef     = useRef<HTMLDivElement>(null)
@@ -454,10 +481,16 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     : []
 
   // Derived
-  const hasTrack   = currentTrack != null
-  const isWorking  = isActivelyWorking(currentAnalysisStatus)
-  const isComplete = currentAnalysisStatus === 'complete' && currentAnalysis != null
+  const hasTrack    = currentTrack != null
+  const isWorking   = isActivelyWorking(currentAnalysisStatus)
+  const isComplete  = currentAnalysisStatus === 'complete' && currentAnalysis != null
   const durationSec = currentAnalysis ? currentAnalysis.durationMs / 1000 : audioDurationSec
+
+  // A complete analysis is only "valid" if it returned usable data.
+  const hasValidData = isComplete && currentAnalysis != null && (
+    (currentAnalysis.beatGrid?.length ?? 0) > 0 ||
+    (currentAnalysis.sections?.length ?? 0) > 0
+  )
 
   const autoSections: ReactTrackSection[] = isComplete
     ? adaptMIAnalysis(currentAnalysis!)
@@ -471,11 +504,21 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
 
   const keyLabel = currentKey ? buildKeyLabel(currentKey) : null
 
-  // Redraw canvases on window resize
+  // Auto-expand the strip whenever a new track is loaded so status/results are
+  // visible without the user having to manually click the header.
   useEffect(() => {
-    const handler = () => setDrawTick(t => t + 1)
-    window.addEventListener('resize', handler)
-    return () => window.removeEventListener('resize', handler)
+    if (activeTrackId) setCollapsed(false)
+  }, [activeTrackId])
+
+  // ResizeObserver: redraws canvases when the strip width changes (e.g. when the
+  // left/right panels open or close). Supersedes the window 'resize' listener
+  // since panel changes do not generate a browser resize event.
+  useEffect(() => {
+    const el = stripRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setDrawTick(t => t + 1))
+    ro.observe(el)
+    return () => ro.disconnect()
   }, [])
 
   // Beat canvas — redraws when analysis, effective override, or collapse state changes.
@@ -495,7 +538,8 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     drawBeatCanvas(canvas, currentAnalysis, effective)
   }, [isComplete, currentAnalysis, currentEffectiveBeatGrid, drawTick, collapsed])
 
-  // Energy canvas — redraws when analysis, curve selection, or status changes
+  // Energy canvas — redraws when analysis, curve selection, or status changes.
+  // Guard against missing/malformed curve data from old or partial cached analyses.
   useEffect(() => {
     const canvas = energyCanvasRef.current
     if (!canvas) return
@@ -503,8 +547,9 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
       canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height)
       return
     }
-    const opt = ENERGY_CURVE_OPTIONS.find(o => o.key === energyCurveKey)!
-    drawEnergyCanvas(canvas, currentAnalysis.energyCurves[energyCurveKey], durationSec, opt.color)
+    const curve = currentAnalysis.energyCurves?.[energyCurveKey] ?? null
+    const opt   = ENERGY_CURVE_OPTIONS.find(o => o.key === energyCurveKey)!
+    drawEnergyCanvas(canvas, curve, durationSec, opt.color)
   }, [isComplete, currentAnalysis, energyCurveKey, durationSec, drawTick, collapsed])
 
   // ── Playhead RAF loop ──────────────────────────────────────────────────────
@@ -575,7 +620,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
   }
 
   return (
-    <div className="rv-track-map-strip">
+    <div className="rv-track-map-strip" ref={stripRef}>
       <div
         className="rv-strip-header rv-strip-header--toggle"
         role="button"
@@ -603,6 +648,12 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
           <span className="rv-strip-header-meta">
             {bpmDisplay}
             {keyLabel && <span className="rv-meta-key">{keyLabel}</span>}
+            {isComplete && currentAnalysis && (
+              <span className="rv-meta-counts">
+                {currentAnalysis.beatGrid.length} beats
+                {currentAnalysis.sections.length > 0 && ` · ${currentAnalysis.sections.length} sections`}
+              </span>
+            )}
           </span>
         )}
         <span className="rv-collapse-arrow">{collapsed ? '▶' : '▼'}</span>
@@ -663,14 +714,19 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
             </div>
           )}
 
-          {/* States: no track, analyzing, failed */}
+          {/* States: no track / not yet analyzed / analyzing / failed / complete+empty */}
           {!hasTrack && (
-            <div className="rv-strip-empty">No track loaded.</div>
+            <div className="rv-strip-empty">
+              Load a track to generate its beat grid, energy map, and sections.
+            </div>
+          )}
+          {hasTrack && currentAnalysisStatus === 'not_analyzed' && (
+            <div className="rv-strip-empty">Track loaded — analysis will begin shortly.</div>
           )}
           {hasTrack && isWorking && (
             <div className="rv-strip-analyzing">
               <span className="rv-analyzing-spinner">◌</span>
-              <span>{STATUS_LABELS[currentAnalysisStatus]}</span>
+              <span className="rv-analyzing-label">{STATUS_LABELS[currentAnalysisStatus]}</span>
             </div>
           )}
           {hasTrack && currentAnalysisStatus === 'failed' && (
@@ -681,6 +737,17 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
               </span>
               <button className="rv-retry-btn" onClick={handleRetry} title="Retry analysis">
                 ↺ Retry
+              </button>
+            </div>
+          )}
+          {isComplete && !hasValidData && (
+            <div className="rv-strip-failed">
+              <span className="rv-failed-icon">⚠</span>
+              <span className="rv-failed-message">
+                Analysis completed but returned no beat or section data.
+              </span>
+              <button className="rv-retry-btn" onClick={handleReanalyze} title="Run fresh analysis">
+                ↺ Reanalyze
               </button>
             </div>
           )}

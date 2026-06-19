@@ -755,8 +755,11 @@
   border-top: 1px solid rgba(74, 199, 219, 0.1);
   background: #070f16;
   flex-shrink: 0;
-  max-height: 220px;
-  overflow: hidden;
+  /* Enough room for header + legend + beat canvas + energy canvas + sections.
+     overflow-y: auto lets it scroll rather than silently clipping content. */
+  max-height: 360px;
+  overflow-x: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
 }
@@ -968,6 +971,160 @@
 .rv-form-add-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* ── Status dot in header ────────────────────────────────────────────────────── */
+.rv-strip-status-dot {
+  font-size: 11px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+/* ── Metadata counts (beat count, section count) ─────────────────────────────── */
+.rv-meta-counts {
+  font-size: 9px;
+  color: rgba(232, 244, 248, 0.32);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+/* ── Beat grid canvas ────────────────────────────────────────────────────────── */
+.rv-beat-canvas-wrap {
+  position: relative;
+  width: 100%;
+  height: 28px;
+  flex: 0 0 28px;
+  border-top: 1px solid rgba(74, 199, 219, 0.06);
+}
+
+.rv-beat-canvas {
+  display: block;
+  width: 100%;
+  height: 28px;
+}
+
+/* ── Energy curve row ────────────────────────────────────────────────────────── */
+.rv-energy-row {
+  position: relative;
+  width: 100%;
+  height: 56px;
+  flex: 0 0 56px;
+  border-top: 1px solid rgba(74, 199, 219, 0.06);
+}
+
+.rv-energy-canvas {
+  display: block;
+  width: 100%;
+  height: 56px;
+}
+
+.rv-energy-select {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  z-index: 1;
+  background: rgba(6, 13, 16, 0.82);
+  border: 1px solid rgba(74, 199, 219, 0.18);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(232, 244, 248, 0.55);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+
+.rv-energy-select:hover,
+.rv-energy-select:focus {
+  border-color: rgba(74, 199, 219, 0.45);
+  color: rgba(232, 244, 248, 0.85);
+}
+
+/* ── Analyzing state ─────────────────────────────────────────────────────────── */
+.rv-strip-analyzing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  color: #4ac7db;
+}
+
+.rv-analyzing-spinner {
+  font-size: 14px;
+  animation: rv-spin 1.2s linear infinite;
+  display: inline-block;
+  line-height: 1;
+}
+
+@keyframes rv-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.rv-analyzing-label {
+  font-size: 11px;
+  color: rgba(74, 199, 219, 0.8);
+}
+
+/* ── Failed / warning state ──────────────────────────────────────────────────── */
+.rv-strip-failed {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  padding: 10px 14px;
+  background: rgba(192, 49, 74, 0.06);
+  border-top: 1px solid rgba(192, 49, 74, 0.12);
+}
+
+.rv-failed-icon {
+  font-size: 13px;
+  color: #c0314a;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.rv-failed-message {
+  font-size: 10.5px;
+  color: rgba(232, 244, 248, 0.55);
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.rv-retry-btn {
+  background: rgba(192, 49, 74, 0.12);
+  border: 1px solid rgba(192, 49, 74, 0.35);
+  border-radius: 4px;
+  padding: 3px 9px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: #e88;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.rv-retry-btn:hover {
+  background: rgba(192, 49, 74, 0.22);
+  border-color: #c0314a;
+  color: #ffaaaa;
+}
+
+/* ── Playhead (also positioned via inline style for left %) ──────────────────── */
+.rv-playhead {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.85);
+  pointer-events: none;
+  display: none;
+  z-index: 2;
 }
 
 /* Section list */
