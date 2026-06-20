@@ -372,138 +372,114 @@ function EditSectionForm({
   }
 
   return (
-    <div className="rv-section-editor">
-      <div className="rv-section-editor-header">
-        <span className="rv-section-editor-title">Edit Section</span>
-        <span className="rv-section-source-badge">{sourceBadgeText}</span>
+    <div className="rv-add-section-form">
+      <div className="rv-form-row">
+        <label className="rv-form-label">Type</label>
+        <select
+          className="rv-form-select"
+          value={type}
+          onChange={e => setType(e.target.value as ReactSectionType)}
+        >
+          {SECTION_ORDER.map(t => (
+            <option key={t} value={t} style={{ color: SECTION_COLORS[t] }}>
+              {t.charAt(0).toUpperCase() + t.slice(1)}
+            </option>
+          ))}
+        </select>
       </div>
 
-      {isAuto && (
-        <p className="rv-section-editor-notice">
-          Saving creates an override — the original analysis is preserved.
-        </p>
-      )}
+      <div className="rv-form-row">
+        <label className="rv-form-label">Label</label>
+        <input
+          className="rv-form-input"
+          type="text"
+          placeholder={type}
+          value={label}
+          onChange={e => setLabel(e.target.value)}
+          maxLength={32}
+        />
+      </div>
 
-      <div className="rv-add-section-form" style={{ flexDirection: 'column', gap: 6 }}>
-        <div className="rv-form-row">
-          <label className="rv-form-label">Type</label>
-          <select
-            className="rv-form-select"
-            value={type}
-            onChange={e => setType(e.target.value as ReactSectionType)}
-          >
-            {SECTION_ORDER.map(t => (
-              <option key={t} value={t} style={{ color: SECTION_COLORS[t] }}>
-                {t.charAt(0).toUpperCase() + t.slice(1)}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="rv-form-row">
-          <label className="rv-form-label">Label</label>
+      <div className="rv-form-row">
+        <label className="rv-form-label">Start (s)</label>
+        <div className="rv-form-time-row">
           <input
-            className="rv-form-input"
-            type="text"
-            placeholder={type}
-            value={label}
-            onChange={e => setLabel(e.target.value)}
-            maxLength={32}
+            className="rv-form-input rv-form-input--num"
+            type="number"
+            min={0}
+            max={durationSec}
+            step={0.01}
+            value={startSec.toFixed(3)}
+            onChange={e => setStartSec(Math.max(0, parseFloat(e.target.value) || 0))}
           />
-        </div>
-
-        <div className="rv-form-row">
-          <label className="rv-form-label">Start (s)</label>
-          <div className="rv-form-time-row">
-            <input
-              className="rv-form-input rv-form-input--num"
-              type="number"
-              min={0}
-              max={durationSec}
-              step={0.01}
-              value={startSec.toFixed(3)}
-              onChange={e => setStartSec(Math.max(0, parseFloat(e.target.value) || 0))}
-            />
-            <span className="rv-form-time">{formatTimePrecise(startSec)}</span>
-          </div>
-        </div>
-
-        <div className="rv-form-row">
-          <label className="rv-form-label">End (s)</label>
-          <div className="rv-form-time-row">
-            <input
-              className="rv-form-input rv-form-input--num"
-              type="number"
-              min={0}
-              max={durationSec}
-              step={0.01}
-              value={endSec.toFixed(3)}
-              onChange={e => setEndSec(Math.max(0, parseFloat(e.target.value) || 0))}
-            />
-            <span className="rv-form-time">{formatTimePrecise(endSec)}</span>
-          </div>
-        </div>
-
-        <div className="rv-form-row">
-          <label className="rv-form-label">Intensity</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <input
-              className="rv-form-range"
-              type="range"
-              min={0} max={1} step={0.01}
-              value={intensity}
-              onChange={e => setIntensity(parseFloat(e.target.value))}
-            />
-            <span className="rv-form-val">{Math.round(intensity * 100)}%</span>
-          </div>
-        </div>
-
-        {errors.length > 0 && (
-          <div className="rv-validation-errors">
-            {errors.map((err, i) => <p key={i} className="rv-validation-error">{err}</p>)}
-          </div>
-        )}
-
-        <div className="rv-form-actions">
-          <button className="rv-form-cancel-btn" onClick={onCancel}>Cancel</button>
-          <button
-            className="rv-form-add-btn"
-            onClick={handleSave}
-            disabled={!isValid}
-          >
-            Save Changes
-          </button>
+          <span className="rv-form-time">{formatTimePrecise(startSec)}</span>
         </div>
       </div>
 
-      {/* Secondary actions — restore / delete / suppress */}
-      {isEdited && onRestore && (
-        <div className="rv-editor-secondary-actions">
-          <button className="rv-restore-btn" onClick={onRestore}>
-            ↺ Restore Analyzed Values
-          </button>
+      <div className="rv-form-row">
+        <label className="rv-form-label">End (s)</label>
+        <div className="rv-form-time-row">
+          <input
+            className="rv-form-input rv-form-input--num"
+            type="number"
+            min={0}
+            max={durationSec}
+            step={0.01}
+            value={endSec.toFixed(3)}
+            onChange={e => setEndSec(Math.max(0, parseFloat(e.target.value) || 0))}
+          />
+          <span className="rv-form-time">{formatTimePrecise(endSec)}</span>
         </div>
-      )}
-      {isUser && onDelete && (
-        <div className="rv-editor-secondary-actions">
-          {confirmDelete ? (
-            <div className="rv-confirm-delete">
-              <span className="rv-confirm-delete-label">Remove "{section.label}"?</span>
-              <button className="rv-confirm-delete-btn" onClick={onDelete}>Delete</button>
+      </div>
+
+      <div className="rv-form-row">
+        <label className="rv-form-label">Intensity</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <input
+            className="rv-form-range"
+            type="range"
+            min={0} max={1} step={0.01}
+            value={intensity}
+            onChange={e => setIntensity(parseFloat(e.target.value))}
+          />
+          <span className="rv-form-val">{Math.round(intensity * 100)}%</span>
+        </div>
+      </div>
+
+      <div className="rv-form-actions">
+        <span className="rv-section-source-badge">{sourceBadgeText}</span>
+        <button className="rv-form-cancel-btn" onClick={onCancel}>Cancel</button>
+        <button className="rv-form-add-btn" onClick={handleSave} disabled={!isValid}>
+          Save Changes
+        </button>
+        {isEdited && onRestore && (
+          <button className="rv-restore-btn" onClick={onRestore} title="Restore original analyzed values">
+            ↺ Restore
+          </button>
+        )}
+        {isAuto && onSuppress && (
+          <button className="rv-delete-btn" onClick={onSuppress}>
+            Hide
+          </button>
+        )}
+        {isUser && onDelete && (
+          confirmDelete ? (
+            <>
+              <span className="rv-confirm-delete-label">Remove?</span>
+              <button className="rv-confirm-delete-btn" onClick={onDelete}>Yes</button>
               <button className="rv-form-cancel-btn" onClick={() => setConfirmDelete(false)}>No</button>
-            </div>
+            </>
           ) : (
             <button className="rv-delete-btn" onClick={() => setConfirmDelete(true)}>
-              Delete Section
+              Delete
             </button>
-          )}
-        </div>
-      )}
-      {isAuto && onSuppress && (
-        <div className="rv-editor-secondary-actions">
-          <button className="rv-delete-btn" onClick={onSuppress}>
-            Hide Section
-          </button>
+          )
+        )}
+      </div>
+
+      {errors.length > 0 && (
+        <div className="rv-validation-errors" style={{ width: '100%' }}>
+          {errors.map((err, i) => <p key={i} className="rv-validation-error">{err}</p>)}
         </div>
       )}
     </div>
@@ -1285,6 +1261,20 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     setEditorMode('none')
   }, [activeTrackId, selectedSectionId, removeManualSection])
 
+  // Clears all sections: removes manual ones and suppresses all auto ones.
+  const handleDeleteAllSections = useCallback(() => {
+    if (!activeTrackId) return
+    for (const section of manualTrackSections) {
+      removeManualSection(activeTrackId, section.id)
+    }
+    for (const section of autoSections) {
+      if (!suppressedIds.includes(section.id)) {
+        suppressAutoSection(activeTrackId, section.id)
+      }
+    }
+    setEditorMode('none')
+  }, [activeTrackId, manualTrackSections, autoSections, suppressedIds, removeManualSection, suppressAutoSection])
+
   // ── BPM display logic ──────────────────────────────────────────────────────
   const isMicSource = source === 'microphone'
   const hasOverride = currentBpmSource === 'manual_override'
@@ -1354,7 +1344,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
 
       {!collapsed && (
         <>
-          {/* Section type legend */}
+          {/* Section type legend + energy curve selector */}
           {isComplete && (
             <div className="rv-strip-meta-row">
               <div className="rv-strip-type-legend">
@@ -1364,6 +1354,16 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
                   </span>
                 ))}
               </div>
+              <select
+                className="rv-energy-select rv-energy-select--inline"
+                value={energyCurveKey}
+                onChange={e => setEnergyCurveKey(e.target.value as EnergyCurveKey)}
+                title="Energy curve"
+              >
+                {ENERGY_CURVE_OPTIONS.map(o => (
+                  <option key={o.key} value={o.key}>{o.label}</option>
+                ))}
+              </select>
             </div>
           )}
 
@@ -1390,20 +1390,10 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
             </div>
           )}
 
-          {/* Energy curve + selector */}
+          {/* Energy curve canvas */}
           {isComplete && (
             <div className="rv-energy-row">
               <canvas ref={energyCanvasRef} className="rv-energy-canvas" aria-hidden="true" />
-              <select
-                className="rv-energy-select"
-                value={energyCurveKey}
-                onChange={e => setEnergyCurveKey(e.target.value as EnergyCurveKey)}
-                title="Energy curve"
-              >
-                {ENERGY_CURVE_OPTIONS.map(o => (
-                  <option key={o.key} value={o.key}>{o.label}</option>
-                ))}
-              </select>
             </div>
           )}
 
@@ -1467,6 +1457,15 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
                         title="Force fresh analysis, bypassing cache"
                       >
                         ↺ Reanalyze
+                      </button>
+                    )}
+                    {resolvedSections.length > 0 && (
+                      <button
+                        className="rv-delete-all-btn"
+                        onClick={handleDeleteAllSections}
+                        title="Clear all sections so you can add your own"
+                      >
+                        ✕ Delete All
                       </button>
                     )}
                     <button

@@ -837,6 +837,9 @@
 }
 
 .rv-strip-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 6px 12px;
 }
 
@@ -1171,6 +1174,12 @@
   transition: border-color 0.12s, color 0.12s;
 }
 
+.rv-energy-select--inline {
+  position: static;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 .rv-energy-select:hover,
 .rv-energy-select:focus {
   border-color: rgba(74, 199, 219, 0.45);
@@ -1316,6 +1325,25 @@
   background: rgba(74, 199, 219, 0.08);
   border-color: rgba(74, 199, 219, 0.4);
   color: #4ac7db;
+}
+
+.rv-delete-all-btn {
+  background: transparent;
+  border: 1px solid rgba(192, 49, 74, 0.3);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: rgba(192, 49, 74, 0.6);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.rv-delete-all-btn:hover {
+  background: rgba(192, 49, 74, 0.1);
+  border-color: rgba(192, 49, 74, 0.55);
+  color: #c0314a;
 }
 
 /* Proportional section timeline */

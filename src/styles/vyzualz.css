@@ -2987,7 +2987,7 @@ input[type='range'].vz-slider--color {
     1fr
     var(--vz-right-width, 322px);
   align-items: stretch;
-  height: 80px;
+  height: 104px;
   padding: 0;
   gap: 0;
   overflow: hidden;
