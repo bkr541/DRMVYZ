@@ -1,6 +1,6 @@
 import type { ReactPreset, ReactSectionType, ReactTrackSection } from '../ReactTypes'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
-import { resolveSectionAtTime, sectionIntensityMultiplier, DEFAULT_REACT_RENDER_PARAMS } from './reactRenderUtils'
+import { resolveSectionAtTime, effectiveSectionIntensity, DEFAULT_REACT_RENDER_PARAMS } from './reactRenderUtils'
 import { renderShaderPads }      from './ShaderPadsRenderer'
 import { renderCinematicPortal } from './CinematicPortalRenderer'
 import { renderSoundDrawing }    from './SoundDrawingRenderer'
@@ -103,7 +103,8 @@ export function resolveEffectiveParams(
   const { type: sectionType, progress: sectionProgress } =
     resolveCurrentSection(sections, audioTime)
 
-  const secMul = sectionIntensityMultiplier(sectionType)
+  const activeSection = resolveSectionAtTime(sections, audioTime)
+  const secMul = effectiveSectionIntensity(activeSection)
   const effectiveIntensity = sections.length > 0
     ? params.intensity * secMul
     : params.intensity

@@ -51,7 +51,8 @@ export function extractBpm(analysis: TrackAnalysis): number | null {
  *  1. `user-edited-auto` manual sections replace the analyzed section with the same ID.
  *  2. `user-created` / `manual` sections are appended after any analyzed sections.
  *  3. Unchanged analyzed sections remain as-is.
- *  4. All sections are sorted by startSec and clipped to durationSec.
+ *  4. Sections whose IDs appear in `suppressedIds` are omitted entirely.
+ *  5. All sections are sorted by startSec and clipped to durationSec.
  *
  * The original analysis is never mutated.
  */
@@ -59,10 +60,13 @@ export function resolveTrackSections({
   analyzedSections,
   manualSections,
   durationSec,
+  suppressedIds = [],
 }: {
   analyzedSections: ReactTrackSection[]
   manualSections:   ReactTrackSection[]
   durationSec:      number
+  /** Auto section IDs that have been suppressed/hidden by the user. */
+  suppressedIds?:   string[]
 }): ReactTrackSection[] {
   // Build a lookup of user-edited-auto overrides by the original auto section ID
   const editedById = new Map<string, ReactTrackSection>()
@@ -70,9 +74,13 @@ export function resolveTrackSections({
     if (s.source === 'user-edited-auto') editedById.set(s.id, s)
   }
 
-  // Apply overrides to analyzed sections
+  const suppressedSet = new Set(suppressedIds)
+
+  // Apply overrides to analyzed sections, skipping suppressed IDs
   const resolved: ReactTrackSection[] = [
-    ...analyzedSections.map(s => editedById.get(s.id) ?? s),
+    ...analyzedSections
+      .filter(s => !suppressedSet.has(s.id))
+      .map(s => editedById.get(s.id) ?? s),
     // Append user-created/manual sections (not overrides of existing auto sections)
     ...manualSections.filter(s => s.source !== 'user-edited-auto'),
   ]

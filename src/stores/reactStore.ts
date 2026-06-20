@@ -319,7 +319,12 @@ interface ReactStoreState {
   // never affect Track B.  Key '_legacy' holds sections migrated from the
   // old flat global array whose original track is unknown.
   manualTrackSectionsByTrackId: Record<string, ReactTrackSection[]>
+  /** @deprecated Use selectedSectionByTrackId for per-track scoping. */
   selectedSectionId: string | null
+  /** Per-track section selection. Key = trackId, value = selected section ID or null. */
+  selectedSectionByTrackId: Record<string, string | null>
+  /** Per-track suppressed auto section IDs. Suppressed sections are hidden from the timeline. */
+  suppressedAutoSectionsByTrackId: Record<string, string[]>
 
   // Global performance controls
   reactIntensity:       number
@@ -359,12 +364,38 @@ interface ReactStoreState {
   setReactParticleDensity: (v: number) => void
 
   setSelectedSectionId: (id: string | null) => void
+  /** Sets the selected section for a specific track. Pass null sectionId to deselect. */
+  setSelectedSectionIdForTrack: (trackId: string | null, sectionId: string | null) => void
+  /**
+   * Adds the given auto section ID to the per-track suppression list so it is
+   * filtered from the resolved timeline.  Also clears selection if the suppressed
+   * section was the currently-selected one for this track.
+   */
+  suppressAutoSection: (trackId: string, sectionId: string) => void
+  /**
+   * Removes a user-edited-auto override AND any suppression for the given section,
+   * restoring it to its original analyzed state in the resolved timeline.
+   */
+  restoreAutoSection: (trackId: string, sectionId: string) => void
   /** Returns the manual sections for a specific track (empty array if none). */
   getManualSectionsForTrack: (trackId: string) => ReactTrackSection[]
   addManualSection: (trackId: string, section: ReactTrackSection) => void
   updateManualSection: (trackId: string, id: string, patch: Partial<ReactTrackSection>) => void
   removeManualSection: (trackId: string, id: string) => void
   clearManualSectionsForTrack: (trackId: string) => void
+  /**
+   * Commits a boundary drag edit for an automatically analyzed section.
+   * If a `user-edited-auto` override for this section already exists in the
+   * manual store, updates it in place.  Otherwise creates a new override
+   * entry that `resolveTrackSections` will use to replace the original auto
+   * section.  All existing metadata (label, type, intensity, confidence, etc.)
+   * is preserved — only the fields in `patch` change.
+   */
+  commitAutomaticSectionOverride: (
+    trackId:         string,
+    originalSection: ReactTrackSection,
+    patch:           Partial<ReactTrackSection>,
+  ) => void
 
   // Performance pads
   performancePads: ReactPerformancePad[]
@@ -658,6 +689,13 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       state = { ...state, laserDmxBeamMatrix: { ...bm, cues: [] } }
     }
   }
+  if (version < 9) {
+    state = {
+      ...state,
+      selectedSectionByTrackId:     {},
+      suppressedAutoSectionsByTrackId: {},
+    }
+  }
   return state
 }
 
@@ -669,6 +707,8 @@ export const useReactStore = create<ReactStoreState>()(
       reactPresets: DEFAULT_REACT_PRESETS,
       manualTrackSectionsByTrackId: {},
       selectedSectionId: null,
+      selectedSectionByTrackId: {},
+      suppressedAutoSectionsByTrackId: {},
       performancePads: DEFAULT_PERFORMANCE_PADS,
       activePadId: null,
       oscillatorSettings: DEFAULT_OSCILLATOR_SETTINGS,
@@ -739,6 +779,48 @@ export const useReactStore = create<ReactStoreState>()(
 
       setSelectedSectionId: (id) => set({ selectedSectionId: id }),
 
+      setSelectedSectionIdForTrack: (trackId, sectionId) =>
+        set((s) => {
+          if (trackId == null) return {}
+          return { selectedSectionByTrackId: { ...s.selectedSectionByTrackId, [trackId]: sectionId } }
+        }),
+
+      suppressAutoSection: (trackId, sectionId) =>
+        set((s) => {
+          const existing = s.suppressedAutoSectionsByTrackId[trackId] ?? []
+          if (existing.includes(sectionId)) return {}
+          const isSelectedForTrack = s.selectedSectionByTrackId[trackId] === sectionId
+          return {
+            suppressedAutoSectionsByTrackId: {
+              ...s.suppressedAutoSectionsByTrackId,
+              [trackId]: [...existing, sectionId],
+            },
+            ...(isSelectedForTrack && {
+              selectedSectionByTrackId: { ...s.selectedSectionByTrackId, [trackId]: null },
+            }),
+          }
+        }),
+
+      restoreAutoSection: (trackId, sectionId) =>
+        set((s) => {
+          const existing = s.manualTrackSectionsByTrackId[trackId] ?? []
+          const withoutOverride = existing.filter(
+            sec => !(sec.id === sectionId && sec.source === 'user-edited-auto'),
+          )
+          const suppressed = s.suppressedAutoSectionsByTrackId[trackId] ?? []
+          const withoutSuppressed = suppressed.filter(id => id !== sectionId)
+          return {
+            manualTrackSectionsByTrackId: {
+              ...s.manualTrackSectionsByTrackId,
+              [trackId]: withoutOverride,
+            },
+            suppressedAutoSectionsByTrackId: {
+              ...s.suppressedAutoSectionsByTrackId,
+              [trackId]: withoutSuppressed,
+            },
+          }
+        }),
+
       getManualSectionsForTrack: (trackId) =>
         get().manualTrackSectionsByTrackId[trackId] ?? [],
 
@@ -764,12 +846,16 @@ export const useReactStore = create<ReactStoreState>()(
       removeManualSection: (trackId, id) =>
         set((s) => {
           const existing = s.manualTrackSectionsByTrackId[trackId] ?? []
+          const isSelectedForTrack = s.selectedSectionByTrackId[trackId] === id
           return {
             manualTrackSectionsByTrackId: {
               ...s.manualTrackSectionsByTrackId,
               [trackId]: existing.filter((sec) => sec.id !== id),
             },
             selectedSectionId: s.selectedSectionId === id ? null : s.selectedSectionId,
+            ...(isSelectedForTrack && {
+              selectedSectionByTrackId: { ...s.selectedSectionByTrackId, [trackId]: null },
+            }),
           }
         }),
 
@@ -777,6 +863,33 @@ export const useReactStore = create<ReactStoreState>()(
         set((s) => {
           const { [trackId]: _removed, ...rest } = s.manualTrackSectionsByTrackId
           return { manualTrackSectionsByTrackId: rest }
+        }),
+
+      commitAutomaticSectionOverride: (trackId, originalSection, patch) =>
+        set((s) => {
+          const existing = s.manualTrackSectionsByTrackId[trackId] ?? []
+          const overrideIdx = existing.findIndex(m => m.id === originalSection.id)
+          let newSections: ReactTrackSection[]
+          if (overrideIdx >= 0) {
+            // Update the existing user-edited-auto entry in place.
+            newSections = existing.map((sec, i) =>
+              i === overrideIdx ? { ...sec, ...patch, source: 'user-edited-auto' as const } : sec,
+            )
+          } else {
+            // Create a fresh override that inherits all original metadata.
+            const override: ReactTrackSection = {
+              ...originalSection,
+              ...patch,
+              source: 'user-edited-auto',
+            }
+            newSections = [...existing, override]
+          }
+          return {
+            manualTrackSectionsByTrackId: {
+              ...s.manualTrackSectionsByTrackId,
+              [trackId]: newSections,
+            },
+          }
         }),
 
       setActivePadId: (id) =>
@@ -1769,6 +1882,8 @@ export const useReactStore = create<ReactStoreState>()(
           activeReactEngineId:          INITIAL_ENGINE_ID,
           manualTrackSectionsByTrackId: {},
           selectedSectionId:            null,
+          selectedSectionByTrackId:     {},
+          suppressedAutoSectionsByTrackId: {},
           performancePads:           DEFAULT_PERFORMANCE_PADS,
           activePadId:               null,
           oscillatorSettings:        DEFAULT_OSCILLATOR_SETTINGS,
@@ -1793,7 +1908,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 8,
+      version: 9,
       migrate: (persistedState: unknown, version: number) => {
         let state = (persistedState ?? {}) as Record<string, unknown>
         if (version < 1) {
@@ -2007,12 +2122,20 @@ export const useReactStore = create<ReactStoreState>()(
             state = { ...state, laserDmxBeamMatrix: { ...bm, cues: [] } }
           }
         }
+        if (version < 9) {
+          state = {
+            ...state,
+            selectedSectionByTrackId:     {},
+            suppressedAutoSectionsByTrackId: {},
+          }
+        }
         return state
       },
       partialize: (s) => ({
         activeReactPresetId:                s.activeReactPresetId,
         activeReactEngineId:                s.activeReactEngineId,
         manualTrackSectionsByTrackId:       s.manualTrackSectionsByTrackId,
+        suppressedAutoSectionsByTrackId:    s.suppressedAutoSectionsByTrackId,
         oscillatorSettings:                 s.oscillatorSettings,
         oscillatorGlyphAssets:              s.oscillatorGlyphAssets,
         oscillatorFontAssets:               s.oscillatorFontAssets,

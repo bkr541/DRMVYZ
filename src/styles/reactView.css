@@ -973,6 +973,140 @@
   cursor: not-allowed;
 }
 
+/* ── Section editor panel ────────────────────────────────────────────────────── */
+.rv-section-editor {
+  border-bottom: 1px solid rgba(74, 199, 219, 0.07);
+  padding: 10px 14px 6px;
+}
+
+.rv-section-editor-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.rv-section-editor-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(232, 244, 248, 0.6);
+}
+
+.rv-section-source-badge {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(74, 199, 219, 0.1);
+  border: 1px solid rgba(74, 199, 219, 0.25);
+  color: #4ac7db;
+}
+
+.rv-section-editor-notice {
+  font-size: 9px;
+  color: rgba(232, 244, 248, 0.35);
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+
+.rv-form-time-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rv-form-time {
+  font-size: 9px;
+  font-family: monospace;
+  color: rgba(232, 244, 248, 0.35);
+  white-space: nowrap;
+}
+
+.rv-validation-errors {
+  padding: 4px 0;
+}
+
+.rv-validation-error {
+  font-size: 9px;
+  color: #c0314a;
+  margin: 0;
+  padding: 2px 0;
+  line-height: 1.3;
+}
+
+.rv-editor-secondary-actions {
+  padding: 6px 0 2px;
+  border-top: 1px solid rgba(74, 199, 219, 0.06);
+  margin-top: 6px;
+}
+
+.rv-restore-btn {
+  background: transparent;
+  border: 1px solid rgba(216, 185, 90, 0.35);
+  color: rgba(216, 185, 90, 0.75);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.rv-restore-btn:hover {
+  background: rgba(216, 185, 90, 0.1);
+  border-color: rgba(216, 185, 90, 0.6);
+  color: #d8b95a;
+}
+
+.rv-delete-btn {
+  background: transparent;
+  border: 1px solid rgba(192, 49, 74, 0.35);
+  color: rgba(192, 49, 74, 0.75);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.rv-delete-btn:hover {
+  background: rgba(192, 49, 74, 0.1);
+  border-color: rgba(192, 49, 74, 0.6);
+  color: #c0314a;
+}
+
+.rv-confirm-delete {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rv-confirm-delete-label {
+  font-size: 10px;
+  color: rgba(232, 244, 248, 0.55);
+}
+
+.rv-confirm-delete-btn {
+  background: rgba(192, 49, 74, 0.2);
+  border: 1px solid rgba(192, 49, 74, 0.5);
+  color: #c0314a;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.rv-confirm-delete-btn:hover {
+  background: rgba(192, 49, 74, 0.35);
+}
+
 /* ── Status dot in header ────────────────────────────────────────────────────── */
 .rv-strip-status-dot {
   font-size: 11px;
@@ -1199,9 +1333,9 @@
   box-sizing: border-box;
   border: 1px solid var(--section-color, #4ac7db);
   border-radius: 3px;
-  cursor: pointer;
   outline: none;
-  overflow: hidden;
+  /* overflow: visible so drag handles can straddle boundaries and tooltip can protrude */
+  overflow: visible;
   min-width: 2px;
   transition: box-shadow 0.12s;
 }
@@ -1305,6 +1439,123 @@
 .rv-section-region-remove:hover {
   color: #c0314a;
   background: rgba(192, 49, 74, 0.2);
+}
+
+/* ── Section body (takes full section area, delegated click target) ──────────── */
+.rv-section-body {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  outline: none;
+  overflow: hidden;
+  border-radius: 2px;
+}
+
+.rv-section-body:focus-visible {
+  box-shadow: 0 0 0 2px rgba(74, 199, 219, 0.6);
+}
+
+/* ── Section dragging state ──────────────────────────────────────────────────── */
+.rv-section-region--dragging {
+  z-index: 4;
+  box-shadow: 0 0 0 1.5px var(--section-color, #4ac7db),
+              0 0 14px color-mix(in srgb, var(--section-color, #4ac7db) 55%, transparent);
+}
+
+/* Prevent text selection and clicks on the timeline while any handle is active */
+.rv-section-timeline--dragging {
+  user-select: none;
+  /* Prevent the body's pointer-down from re-selecting anything */
+  -webkit-user-select: none;
+}
+.rv-section-timeline--dragging .rv-section-body {
+  pointer-events: none;
+}
+
+/* ── Resize handles ──────────────────────────────────────────────────────────── */
+/* Handles straddle the section boundary using negative offsets so they don't
+   consume space from the section body.  The visible stripe is a ::before
+   pseudo-element; the full 14 px width is the hit area. */
+.rv-section-handle {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: 14px;
+  cursor: ew-resize;
+  z-index: 3;
+  outline: none;
+  /* Keep handles inside the section's z-stacking context */
+}
+
+.rv-section-handle--start {
+  left: -7px;
+}
+
+.rv-section-handle--end {
+  right: -7px;
+}
+
+/* Visible stripe (3 px wide, centered in the 14 px hit area) */
+.rv-section-handle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  transition: background 0.1s, width 0.1s;
+}
+
+.rv-section-handle:hover::before,
+.rv-section-handle:focus-visible::before {
+  background: rgba(255, 255, 255, 0.6);
+  width: 3px;
+}
+
+.rv-section-handle--active::before,
+.rv-section-handle--active:hover::before {
+  background: rgba(255, 255, 255, 0.95);
+  width: 3px;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.5);
+}
+
+.rv-section-handle:focus-visible {
+  outline: 2px solid rgba(74, 199, 219, 0.75);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
+/* ── Drag time tooltip ───────────────────────────────────────────────────────── */
+.rv-drag-tooltip {
+  position: absolute;
+  top: -22px;
+  background: rgba(6, 13, 20, 0.92);
+  border: 1px solid rgba(74, 199, 219, 0.5);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 9.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: #e8f4f8;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* Left-handle tooltip extends to the right so it doesn't clip the left edge */
+.rv-drag-tooltip--left {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Right-handle tooltip extends to the left */
+.rv-drag-tooltip--right {
+  right: 50%;
+  transform: translateX(50%);
 }
 
 /* ── Performance pads ────────────────────────────────────────────────────────── */

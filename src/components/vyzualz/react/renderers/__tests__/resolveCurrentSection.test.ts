@@ -3,7 +3,7 @@ import {
   resolveCurrentSection,
   resolveEffectiveParams,
 } from '../ReactEngineRenderer'
-import { DEFAULT_REACT_RENDER_PARAMS } from '../reactRenderUtils'
+import { DEFAULT_REACT_RENDER_PARAMS, effectiveSectionIntensity, sectionIntensityMultiplier } from '../reactRenderUtils'
 import type { ReactTrackSection, ReactPreset } from '../../ReactTypes'
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -127,5 +127,43 @@ describe('resolveEffectiveParams', () => {
     const lowIntensity = { ...base, intensity: 0.01 }
     const result = resolveEffectiveParams(basePreset, lowIntensity, [dropSection], 15)
     expect(result.intensity).toBeGreaterThanOrEqual(0.05)
+  })
+})
+
+// ── effectiveSectionIntensity ──────────────────────────────────────────────────
+
+describe('effectiveSectionIntensity', () => {
+  function makeSection(
+    type: ReactTrackSection['type'],
+    intensity: number,
+  ): ReactTrackSection {
+    return { id: 'test', label: type, type, startSec: 0, endSec: 10, intensity }
+  }
+
+  it('returns 1.0 when section is null', () => {
+    expect(effectiveSectionIntensity(null)).toBe(1.0)
+  })
+
+  it('returns section.intensity when it is a valid number in [0, 1]', () => {
+    expect(effectiveSectionIntensity(makeSection('drop', 0.8))).toBeCloseTo(0.8)
+  })
+
+  it('falls back to sectionIntensityMultiplier when intensity is NaN (non-finite)', () => {
+    const sec = { ...makeSection('verse', 0), intensity: NaN }
+    expect(effectiveSectionIntensity(sec)).toBeCloseTo(sectionIntensityMultiplier('verse'))
+  })
+
+  it('falls back to sectionIntensityMultiplier when intensity is null (runtime coercion)', () => {
+    const sec = { ...makeSection('intro', 0), intensity: null as unknown as number }
+    expect(effectiveSectionIntensity(sec)).toBeCloseTo(sectionIntensityMultiplier('intro'))
+  })
+
+  it('clamps intensity above 1.0 to exactly 1.0', () => {
+    const sec = { ...makeSection('drop', 0), intensity: 1.5 }
+    expect(effectiveSectionIntensity(sec)).toBe(1.0)
+  })
+
+  it('returns 0 for intensity = 0 (explicit silence is valid)', () => {
+    expect(effectiveSectionIntensity(makeSection('breakdown', 0))).toBe(0)
   })
 })

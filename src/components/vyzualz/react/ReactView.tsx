@@ -79,6 +79,7 @@ export function ReactView() {
     oscillatorGlyphPointCache,
     oscillatorTextPointCache,
     manualTrackSectionsByTrackId,
+    suppressedAutoSectionsByTrackId,
     beamEditorVisible,
   } = useReactStore(useShallow(s => ({
     reactPresets:           s.reactPresets,
@@ -97,6 +98,7 @@ export function ReactView() {
     oscillatorGlyphPointCache:      s.oscillatorGlyphPointCache,
     oscillatorTextPointCache:       s.oscillatorTextPointCache,
     manualTrackSectionsByTrackId:   s.manualTrackSectionsByTrackId,
+    suppressedAutoSectionsByTrackId: s.suppressedAutoSectionsByTrackId,
     beamEditorVisible:              s.laserDmxBeamMatrix.editor.beamEditorVisible,
   })))
 
@@ -155,8 +157,9 @@ export function ReactView() {
     const analysis = engine.currentAnalysis
     const analyzedSections = analysis ? adaptMIAnalysis(analysis) : []
     const manualSections = trackId ? (manualTrackSectionsByTrackId[trackId] ?? []) : []
-    return resolveTrackSections({ analyzedSections, manualSections, durationSec: audioDurationSec })
-  }, [engine.currentTrackId, engine.currentAnalysis, manualTrackSectionsByTrackId, audioDurationSec])
+    const suppressedIds  = trackId ? (suppressedAutoSectionsByTrackId[trackId]  ?? []) : []
+    return resolveTrackSections({ analyzedSections, manualSections, durationSec: audioDurationSec, suppressedIds })
+  }, [engine.currentTrackId, engine.currentAnalysis, manualTrackSectionsByTrackId, suppressedAutoSectionsByTrackId, audioDurationSec])
 
   return (
     <div className="rv-shell">

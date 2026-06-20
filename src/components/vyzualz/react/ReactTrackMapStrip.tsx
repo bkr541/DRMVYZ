@@ -2,8 +2,24 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useReactStore } from '../../../stores/reactStore'
+import { useVisualStore } from '../../../stores/visualStore'
 import type { ReactSectionType, ReactTrackSection } from './ReactTypes'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
+import {
+  computeMinDuration,
+  computeKeyStep,
+  pointerXToTime,
+  snapToNearestBeat,
+  findSharedBoundaryNeighbor,
+  clampEdge,
+  type SectionEdge,
+  type SectionBoundaryDragState,
+} from '../../../features/trackIntelligence/sectionBoundaryDrag'
+import {
+  computeWaveformViewport,
+  timeToViewportRatio,
+  type TimelineViewport,
+} from '../../../features/timeline/timelineViewport'
 import type {
   TrackIntelligenceAnalysis,
   BeatMarkerMI,
@@ -65,6 +81,14 @@ export function formatTime(secs: number): string {
   const m = Math.floor(secs / 60)
   const s = Math.floor(secs % 60)
   return `${m}:${String(s).padStart(2, '0')}`
+}
+
+/** Full-precision time string for drag tooltips, e.g. "01:23.450". */
+export function formatTimePrecise(secs: number): string {
+  const m  = Math.floor(secs / 60)
+  const s  = Math.floor(secs % 60)
+  const ms = Math.round((secs % 1) * 1000)
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(ms).padStart(3, '0')}`
 }
 
 export function isActivelyWorking(status: TrackAnalysisStatus): boolean {
@@ -147,9 +171,10 @@ export function computeBeatStride(regularBeatCount: number, canvasWidth: number,
  * Passing `effective` never mutates `analysis`.
  */
 export function drawBeatCanvas(
-  canvas:   HTMLCanvasElement,
-  analysis: TrackIntelligenceAnalysis,
+  canvas:    HTMLCanvasElement,
+  analysis:  TrackIntelligenceAnalysis,
   effective?: { beatGrid: BeatMarkerMI[]; downbeats?: BeatMarkerMI[] },
+  viewport?:  TimelineViewport,
 ): void {
   const ctx = setupCanvas(canvas)
   if (!ctx) return
@@ -159,16 +184,25 @@ export function drawBeatCanvas(
   if (durationSec <= 0) return
   ctx.clearRect(0, 0, w, h)
 
+  const vpStart = viewport?.startSec ?? 0
+  const vpEnd   = viewport?.endSec   ?? durationSec
+  const vpDur   = vpEnd - vpStart
+
   // isDownbeat is set on every BeatMarkerMI; the separate downbeats array is unused.
   // Filter out any beats with non-finite timestamps so bad data can't crash layout.
   const rawGrid  = effective?.beatGrid ?? analysis.beatGrid
-  const beatGrid = rawGrid.filter(b => isFinite(b.timeSec) && b.timeSec >= 0)
+  const allBeats = rawGrid.filter(b => isFinite(b.timeSec) && b.timeSec >= 0)
+
+  // Only draw beats within the visible viewport (plus one tolerance beat on each side).
+  const beatGrid = allBeats.filter(b => b.timeSec >= vpStart - 0.01 && b.timeSec <= vpEnd + 0.01)
 
   // Density reduction: when beats are so close together they would overlap,
   // skip intermediate regular beats so ticks stay at least ~3 px apart.
   // Downbeats are always drawn regardless.
   const regularBeats = beatGrid.filter(b => !b.isDownbeat)
   const stride = computeBeatStride(regularBeats.length, w)
+
+  const timeToX = (t: number) => Math.floor(((t - vpStart) / vpDur) * w) + 0.5
 
   // Regular beats — bottom-anchored ruler marks.
   // Half-pixel x offset (+0.5) keeps 1 px strokes crisp on all DPR values.
@@ -177,7 +211,7 @@ export function drawBeatCanvas(
   for (const beat of beatGrid) {
     if (beat.isDownbeat) continue
     if (beatIdx % stride === 0) {
-      const x = Math.floor((beat.timeSec / durationSec) * w) + 0.5
+      const x = timeToX(beat.timeSec)
       ctx.moveTo(x, h)
       ctx.lineTo(x, h - TRACK_MAP_BEAT_TICK_HEIGHT)
     }
@@ -193,7 +227,7 @@ export function drawBeatCanvas(
   ctx.beginPath()
   for (const beat of beatGrid) {
     if (!beat.isDownbeat) continue
-    const x = Math.floor((beat.timeSec / durationSec) * w) + 0.5
+    const x = timeToX(beat.timeSec)
     ctx.moveTo(x, h)
     ctx.lineTo(x, h - TRACK_MAP_DOWNBEAT_TICK_HEIGHT)
   }
@@ -203,10 +237,11 @@ export function drawBeatCanvas(
 }
 
 export function drawEnergyCanvas(
-  canvas: HTMLCanvasElement,
-  curve: FeatureCurve | null | undefined,
+  canvas:      HTMLCanvasElement,
+  curve:       FeatureCurve | null | undefined,
   durationSec: number,
-  color: string,
+  color:       string,
+  viewport?:   TimelineViewport,
 ): void {
   const ctx = setupCanvas(canvas)
   if (!ctx || !curve || durationSec <= 0) return
@@ -214,14 +249,20 @@ export function drawEnergyCanvas(
   const h = canvas.offsetHeight
   ctx.clearRect(0, 0, w, h)
 
+  const vpStart = viewport?.startSec ?? 0
+  const vpEnd   = viewport?.endSec   ?? durationSec
+  const vpDur   = vpEnd > vpStart ? vpEnd - vpStart : durationSec
+
   // Filter out any non-finite samples so bad persisted data can't corrupt rendering.
   const valid = curve.filter(pt => isFinite(pt.timeSec) && isFinite(pt.value))
   if (valid.length < 2) return
 
+  const timeToX = (t: number) => ((t - vpStart) / vpDur) * w
+
   ctx.beginPath()
   ctx.moveTo(0, h)
   for (const pt of valid) {
-    ctx.lineTo((pt.timeSec / durationSec) * w, h - pt.value * (h - 1))
+    ctx.lineTo(timeToX(pt.timeSec), h - pt.value * (h - 1))
   }
   ctx.lineTo(w, h)
   ctx.closePath()
@@ -231,7 +272,7 @@ export function drawEnergyCanvas(
   ctx.beginPath()
   let first = true
   for (const pt of valid) {
-    const x = (pt.timeSec / durationSec) * w
+    const x = timeToX(pt.timeSec)
     const y = h - pt.value * (h - 1)
     if (first) { ctx.moveTo(x, y); first = false }
     else        ctx.lineTo(x, y)
@@ -239,6 +280,234 @@ export function drawEnergyCanvas(
   ctx.strokeStyle = color
   ctx.lineWidth = 1.5
   ctx.stroke()
+}
+
+// ── Section editor mode ───────────────────────────────────────────────────────
+
+export type SectionEditorMode = 'none' | 'create' | 'edit'
+
+// ── EditSectionForm ───────────────────────────────────────────────────────────
+
+interface EditSectionFormProps {
+  section:      ReactTrackSection
+  durationSec:  number
+  effectiveBpm?: number | null
+  /** Live start/end preview while a boundary handle is being dragged. */
+  dragPreview?: { start: number; end: number } | null
+  onSave:       (patch: Partial<ReactTrackSection>) => void
+  onCancel:     () => void
+  /** Called when deleting a user-created/manual section. */
+  onDelete?:    () => void
+  /** Called when restoring a user-edited-auto section to its original analyzed values. */
+  onRestore?:   () => void
+  /** Called when suppressing (hiding) a pure auto section from the timeline. */
+  onSuppress?:  () => void
+}
+
+function EditSectionForm({
+  section,
+  durationSec,
+  effectiveBpm,
+  dragPreview,
+  onSave,
+  onCancel,
+  onDelete,
+  onRestore,
+  onSuppress,
+}: EditSectionFormProps) {
+  const [type,           setType]           = useState<ReactSectionType>(section.type)
+  const [label,          setLabel]          = useState(section.label)
+  const [startSec,       setStartSec]       = useState(section.startSec)
+  const [endSec,         setEndSec]         = useState(section.endSec)
+  const [intensity,      setIntensity]      = useState(section.intensity ?? 0.7)
+  const [confirmDelete,  setConfirmDelete]  = useState(false)
+
+  // Reset draft when switching to a different section
+  useEffect(() => {
+    setType(section.type)
+    setLabel(section.label)
+    setStartSec(section.startSec)
+    setEndSec(section.endSec)
+    setIntensity(section.intensity ?? 0.7)
+    setConfirmDelete(false)
+  }, [section.id])  // keyed on identity, not value fields
+
+  // Sync start/end with live boundary drag preview
+  useEffect(() => {
+    if (dragPreview) {
+      setStartSec(dragPreview.start)
+      setEndSec(dragPreview.end)
+    } else {
+      // Drag ended — snap to committed section values
+      setStartSec(section.startSec)
+      setEndSec(section.endSec)
+    }
+  }, [dragPreview, section.startSec, section.endSec])
+
+  const minDur = computeMinDuration(effectiveBpm)
+  const errors: string[] = []
+  if (startSec < 0)                          errors.push('Start must be ≥ 0.')
+  if (endSec > durationSec + 0.001)          errors.push(`End must be ≤ track duration.`)
+  if (endSec - startSec < minDur - 0.001)    errors.push(`Section must be at least ${minDur.toFixed(2)} s long.`)
+  const isValid = errors.length === 0
+
+  const src       = section.source
+  const isAuto    = src === 'auto'
+  const isEdited  = src === 'user-edited-auto'
+  const isUser    = !isAuto && !isEdited
+  const sourceBadgeText = isAuto   ? 'Analyzed'
+                        : isEdited ? 'Analyzed · Modified'
+                        : 'User Created'
+
+  const handleSave = () => {
+    if (!isValid) return
+    const trimmed = label.trim()
+    onSave({
+      type,
+      label:     trimmed || type.charAt(0).toUpperCase() + type.slice(1),
+      startSec,
+      endSec,
+      intensity: Math.max(0, Math.min(1, intensity)),
+    })
+  }
+
+  return (
+    <div className="rv-section-editor">
+      <div className="rv-section-editor-header">
+        <span className="rv-section-editor-title">Edit Section</span>
+        <span className="rv-section-source-badge">{sourceBadgeText}</span>
+      </div>
+
+      {isAuto && (
+        <p className="rv-section-editor-notice">
+          Saving creates an override — the original analysis is preserved.
+        </p>
+      )}
+
+      <div className="rv-add-section-form" style={{ flexDirection: 'column', gap: 6 }}>
+        <div className="rv-form-row">
+          <label className="rv-form-label">Type</label>
+          <select
+            className="rv-form-select"
+            value={type}
+            onChange={e => setType(e.target.value as ReactSectionType)}
+          >
+            {SECTION_ORDER.map(t => (
+              <option key={t} value={t} style={{ color: SECTION_COLORS[t] }}>
+                {t.charAt(0).toUpperCase() + t.slice(1)}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="rv-form-row">
+          <label className="rv-form-label">Label</label>
+          <input
+            className="rv-form-input"
+            type="text"
+            placeholder={type}
+            value={label}
+            onChange={e => setLabel(e.target.value)}
+            maxLength={32}
+          />
+        </div>
+
+        <div className="rv-form-row">
+          <label className="rv-form-label">Start (s)</label>
+          <div className="rv-form-time-row">
+            <input
+              className="rv-form-input rv-form-input--num"
+              type="number"
+              min={0}
+              max={durationSec}
+              step={0.01}
+              value={startSec.toFixed(3)}
+              onChange={e => setStartSec(Math.max(0, parseFloat(e.target.value) || 0))}
+            />
+            <span className="rv-form-time">{formatTimePrecise(startSec)}</span>
+          </div>
+        </div>
+
+        <div className="rv-form-row">
+          <label className="rv-form-label">End (s)</label>
+          <div className="rv-form-time-row">
+            <input
+              className="rv-form-input rv-form-input--num"
+              type="number"
+              min={0}
+              max={durationSec}
+              step={0.01}
+              value={endSec.toFixed(3)}
+              onChange={e => setEndSec(Math.max(0, parseFloat(e.target.value) || 0))}
+            />
+            <span className="rv-form-time">{formatTimePrecise(endSec)}</span>
+          </div>
+        </div>
+
+        <div className="rv-form-row">
+          <label className="rv-form-label">Intensity</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <input
+              className="rv-form-range"
+              type="range"
+              min={0} max={1} step={0.01}
+              value={intensity}
+              onChange={e => setIntensity(parseFloat(e.target.value))}
+            />
+            <span className="rv-form-val">{Math.round(intensity * 100)}%</span>
+          </div>
+        </div>
+
+        {errors.length > 0 && (
+          <div className="rv-validation-errors">
+            {errors.map((err, i) => <p key={i} className="rv-validation-error">{err}</p>)}
+          </div>
+        )}
+
+        <div className="rv-form-actions">
+          <button className="rv-form-cancel-btn" onClick={onCancel}>Cancel</button>
+          <button
+            className="rv-form-add-btn"
+            onClick={handleSave}
+            disabled={!isValid}
+          >
+            Save Changes
+          </button>
+        </div>
+      </div>
+
+      {/* Secondary actions — restore / delete / suppress */}
+      {isEdited && onRestore && (
+        <div className="rv-editor-secondary-actions">
+          <button className="rv-restore-btn" onClick={onRestore}>
+            ↺ Restore Analyzed Values
+          </button>
+        </div>
+      )}
+      {isUser && onDelete && (
+        <div className="rv-editor-secondary-actions">
+          {confirmDelete ? (
+            <div className="rv-confirm-delete">
+              <span className="rv-confirm-delete-label">Remove "{section.label}"?</span>
+              <button className="rv-confirm-delete-btn" onClick={onDelete}>Delete</button>
+              <button className="rv-form-cancel-btn" onClick={() => setConfirmDelete(false)}>No</button>
+            </div>
+          ) : (
+            <button className="rv-delete-btn" onClick={() => setConfirmDelete(true)}>
+              Delete Section
+            </button>
+          )}
+        </div>
+      )}
+      {isAuto && onSuppress && (
+        <div className="rv-editor-secondary-actions">
+          <button className="rv-delete-btn" onClick={onSuppress}>
+            Hide Section
+          </button>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── AddSectionForm ────────────────────────────────────────────────────────────
@@ -342,73 +611,292 @@ function AddSectionForm({ onAdd, onCancel }: AddSectionFormProps) {
 // ── SectionTimeline ───────────────────────────────────────────────────────────
 
 interface SectionTimelineProps {
-  sections:    ReactTrackSection[]
-  durationSec: number
-  beatGrid?:   BeatMarkerMI[]
-  selectedId:  string | null
-  onSelect:    (id: string) => void
-  onRemove?:   (id: string) => void
+  sections:      ReactTrackSection[]
+  durationSec:   number
+  /** Visible start time. Defaults to 0 (full track). Future zoom support. */
+  viewportStart?: number
+  /** Visible end time. Defaults to durationSec (full track). Future zoom support. */
+  viewportEnd?:   number
+  beatGrid?:      BeatMarkerMI[]
+  effectiveBpm?:  number | null
+  selectedId:     string | null
+  onSelect:       (id: string) => void
+  onRemove?:      (id: string) => void
+  onCommitBoundary: (
+    sectionId:       string,
+    edge:            SectionEdge,
+    newTime:         number,
+    /** ID of adjacent section whose shared boundary also moved, or null. */
+    sharedNeighborId:   string | null,
+    /** New boundary time for the neighbor, or null. */
+    newNeighborTime:    number | null,
+  ) => void
+  /** Called on every pointer-move with the live boundary preview (for editor sync). */
+  onDragPreview?: (sectionId: string, previewStart: number, previewEnd: number) => void
 }
 
 function SectionTimeline({
-  sections, durationSec, beatGrid, selectedId, onSelect, onRemove,
+  sections,
+  durationSec,
+  viewportStart = 0,
+  viewportEnd,
+  beatGrid,
+  effectiveBpm,
+  selectedId,
+  onSelect,
+  onRemove,
+  onCommitBoundary,
+  onDragPreview,
 }: SectionTimelineProps) {
-  if (durationSec <= 0) return null
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [drag, setDrag] = useState<SectionBoundaryDragState | null>(null)
+  // Ref so pointer-move handlers always read the latest drag state without
+  // creating stale closures — handlers are recreated on each render but
+  // dragRef is always current.
+  const dragRef = useRef<SectionBoundaryDragState | null>(null)
+  dragRef.current = drag
 
-  const valid = sections
-    .filter(s => s.endSec > s.startSec && s.startSec < durationSec && s.endSec > 0)
+  const vpEnd = viewportEnd ?? durationSec
+  const vpDur = vpEnd - viewportStart
+
+  if (durationSec <= 0 || vpDur <= 0) return null
+
+  const sorted = sections
+    .filter(s =>
+      s.endSec > s.startSec && s.startSec < durationSec && s.endSec > 0 &&
+      s.endSec > viewportStart && s.startSec < vpEnd
+    )
     .map(s => ({ ...s, startSec: Math.max(0, s.startSec), endSec: Math.min(durationSec, s.endSec) }))
     .sort((a, b) => a.startSec - b.startSec)
 
-  if (valid.length === 0) return null
+  if (sorted.length === 0) return null
+
+  // Apply drag preview on top of sorted sections for visual rendering.
+  // The `sorted` array (original values) is used for all logic and event handlers.
+  const display = sorted.map(s => {
+    if (drag?.sectionId === s.id) {
+      return { ...s, startSec: drag.previewStart, endSec: drag.previewEnd }
+    }
+    if (drag?.sharedNeighborId === s.id) {
+      return {
+        ...s,
+        startSec: drag.previewNeighborStart ?? s.startSec,
+        endSec:   drag.previewNeighborEnd   ?? s.endSec,
+      }
+    }
+    return s
+  })
+
+  // ── Drag event factory ─────────────────────────────────────────────────────
+  // Handlers are created per section+edge at render time (they close over
+  // the correct `orig` section). dragRef avoids stale closure on drag state.
+
+  const makePointerDown = (orig: ReactTrackSection, edge: SectionEdge) =>
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.button !== 0) return
+      e.preventDefault()
+      e.stopPropagation()
+      e.currentTarget.setPointerCapture(e.pointerId)
+
+      const neighbor = findSharedBoundaryNeighbor(sorted, orig.id, edge)
+      setDrag({
+        sectionId:     orig.id,
+        edge,
+        originalStart: orig.startSec,
+        originalEnd:   orig.endSec,
+        previewStart:  orig.startSec,
+        previewEnd:    orig.endSec,
+        sharedNeighborId:      neighbor?.id ?? null,
+        originalNeighborStart: neighbor?.startSec ?? null,
+        originalNeighborEnd:   neighbor?.endSec ?? null,
+        previewNeighborStart:  neighbor?.startSec ?? null,
+        previewNeighborEnd:    neighbor?.endSec ?? null,
+      })
+    }
+
+  const makePointerMove = (orig: ReactTrackSection, edge: SectionEdge) =>
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const d = dragRef.current
+      if (!d || d.sectionId !== orig.id || d.edge !== edge) return
+
+      const container = containerRef.current
+      if (!container) return
+      const rect = container.getBoundingClientRect()
+
+      const rawTime  = pointerXToTime(e.clientX, rect.left, rect.width, viewportStart, vpEnd)
+      const grid     = beatGrid ?? []
+      const snapped  = snapToNearestBeat(rawTime, grid, e.altKey)
+      const minDur   = computeMinDuration(effectiveBpm)
+      const clamped  = clampEdge(
+        edge,
+        snapped,
+        { startSec: d.originalStart, endSec: d.originalEnd },
+        minDur,
+        durationSec,
+      )
+
+      const d2     = dragRef.current
+      if (!d2) return
+      const ps     = edge === 'start' ? clamped : d2.previewStart
+      const pe     = edge === 'end'   ? clamped : d2.previewEnd
+      const nStart = d2.sharedNeighborId && edge === 'end'   ? clamped : d2.previewNeighborStart
+      const nEnd   = d2.sharedNeighborId && edge === 'start' ? clamped : d2.previewNeighborEnd
+
+      // Notify parent with live preview so the editor form can sync start/end fields.
+      onDragPreview?.(orig.id, ps, pe)
+
+      setDrag(prev => {
+        if (!prev) return null
+        return { ...prev, previewStart: ps, previewEnd: pe, previewNeighborStart: nStart, previewNeighborEnd: nEnd }
+      })
+    }
+
+  const makePointerUp = (orig: ReactTrackSection, edge: SectionEdge) =>
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const d = dragRef.current
+      if (!d || d.sectionId !== orig.id || d.edge !== edge) return
+
+      const finalTime    = edge === 'start' ? d.previewStart  : d.previewEnd
+      // Neighbor's moved boundary is the opposite edge
+      const neighborTime = edge === 'end'   ? d.previewNeighborStart : d.previewNeighborEnd
+
+      onCommitBoundary(d.sectionId, d.edge, finalTime, d.sharedNeighborId, neighborTime ?? null)
+      setDrag(null)
+    }
+
+  const makeKeyDown = (orig: ReactTrackSection, edge: SectionEdge) =>
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return
+      e.preventDefault()
+      const step    = computeKeyStep(effectiveBpm, e.shiftKey)
+      const curTime = edge === 'start' ? orig.startSec : orig.endSec
+      const delta   = e.key === 'ArrowRight' ? step : -step
+      const minDur  = computeMinDuration(effectiveBpm)
+      const clamped = clampEdge(edge, curTime + delta, orig, minDur, durationSec)
+      onCommitBoundary(orig.id, edge, clamped, null, null)
+    }
 
   return (
-    <div className="rv-section-timeline" aria-label="Section timeline">
-      {valid.map((section, i) => {
-        const leftPct    = (section.startSec / durationSec) * 100
-        const widthPct   = ((section.endSec - section.startSec) / durationSec) * 100
+    <div
+      className={`rv-section-timeline${drag ? ' rv-section-timeline--dragging' : ''}`}
+      ref={containerRef}
+      aria-label="Section timeline"
+    >
+      {display.map((section, i) => {
+        const orig       = sorted[i]
+        // Clip section to the visible viewport for rendering
+        const clipStart  = Math.max(section.startSec, viewportStart)
+        const clipEnd    = Math.min(section.endSec,   vpEnd)
+        const leftPct    = ((clipStart - viewportStart) / vpDur) * 100
+        const widthPct   = ((clipEnd - clipStart)       / vpDur) * 100
         const color      = SECTION_COLORS[section.type] ?? '#6a7a8a'
         const barRange   = beatGrid ? buildBarRange(section, beatGrid) : null
         const isSelected = selectedId === section.id
         const src        = section.source
         const isUser     = src === 'manual' || src === 'user-created' || src === 'user-edited-auto' || src == null
+        const isDragging = drag?.sectionId === orig.id
+        const activeEdge = isDragging ? drag.edge : null
+        const previewStart = isDragging ? drag.previewStart : section.startSec
+        const previewEnd   = isDragging ? drag.previewEnd   : section.endSec
+        // Only show boundary handles when the true edge is within the visible viewport
+        const startHandleVisible = orig.startSec >= viewportStart - 0.01
+        const endHandleVisible   = orig.endSec   <= vpEnd          + 0.01
 
         return (
           <div
-            key={section.id}
-            className={`rv-section-region${isSelected ? ' rv-section-region--selected' : ''}`}
+            key={orig.id}
+            className={[
+              'rv-section-region',
+              isSelected  ? 'rv-section-region--selected'  : '',
+              isDragging  ? 'rv-section-region--dragging'  : '',
+            ].filter(Boolean).join(' ')}
             style={{ left: `${leftPct}%`, width: `${widthPct}%`, '--section-color': color } as React.CSSProperties}
-            role="button"
-            tabIndex={0}
-            aria-label={`Section ${section.label}, ${formatTime(section.startSec)} to ${formatTime(section.endSec)}`}
-            aria-pressed={isSelected}
-            onClick={() => onSelect(section.id)}
-            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(section.id) } }}
           >
-            <div className="rv-section-body-tint" style={{ background: color }} />
-            <div className="rv-section-header" style={{ background: color }}>
-              <span className="rv-section-label">{section.label.toUpperCase()}</span>
-              {barRange && <span className="rv-section-barrange">{barRange}</span>}
+            {/* ── Left (start) resize handle — hidden when start is off-screen ── */}
+            {startHandleVisible && <div
+              className={`rv-section-handle rv-section-handle--start${activeEdge === 'start' ? ' rv-section-handle--active' : ''}`}
+              role="slider"
+              tabIndex={0}
+              aria-label={`Adjust ${orig.label} start`}
+              aria-valuenow={Math.round(previewStart * 1000)}
+              aria-valuemin={0}
+              aria-valuemax={Math.round(durationSec * 1000)}
+              aria-valuetext={formatTimePrecise(previewStart)}
+              onPointerDown={makePointerDown(orig, 'start')}
+              onPointerMove={makePointerMove(orig, 'start')}
+              onPointerUp={makePointerUp(orig, 'start')}
+              onPointerCancel={makePointerUp(orig, 'start')}
+              onKeyDown={makeKeyDown(orig, 'start')}
+            >
+              {activeEdge === 'start' && (
+                <div className="rv-drag-tooltip rv-drag-tooltip--left">
+                  {formatTimePrecise(previewStart)}
+                </div>
+              )}
+            </div>}
+
+            {/* ── Section body (click to select) ────────────────────── */}
+            <div
+              className="rv-section-body"
+              role="button"
+              tabIndex={0}
+              aria-label={`Section ${orig.label}, ${formatTime(orig.startSec)} to ${formatTime(orig.endSec)}`}
+              aria-pressed={isSelected}
+              onClick={() => onSelect(orig.id)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(orig.id) }
+              }}
+            >
+              <div className="rv-section-body-tint" style={{ background: color }} />
+              <div className="rv-section-header" style={{ background: color }}>
+                <span className="rv-section-label">{section.label.toUpperCase()}</span>
+                {barRange && <span className="rv-section-barrange">{barRange}</span>}
+              </div>
+              {onRemove && isUser && (
+                <button
+                  className="rv-section-region-remove"
+                  onClick={e => { e.stopPropagation(); onRemove(orig.id) }}
+                  title="Remove section"
+                  aria-label={`Remove section ${orig.label}`}
+                >×</button>
+              )}
             </div>
-            {onRemove && isUser && (
-              <button
-                className="rv-section-region-remove"
-                onClick={e => { e.stopPropagation(); onRemove(section.id) }}
-                title="Remove section"
-                aria-label={`Remove section ${section.label}`}
-              >×</button>
-            )}
+
+            {/* ── Right (end) resize handle — hidden when end is off-screen ── */}
+            {endHandleVisible && <div
+              className={`rv-section-handle rv-section-handle--end${activeEdge === 'end' ? ' rv-section-handle--active' : ''}`}
+              role="slider"
+              tabIndex={0}
+              aria-label={`Adjust ${orig.label} end`}
+              aria-valuenow={Math.round(previewEnd * 1000)}
+              aria-valuemin={0}
+              aria-valuemax={Math.round(durationSec * 1000)}
+              aria-valuetext={formatTimePrecise(previewEnd)}
+              onPointerDown={makePointerDown(orig, 'end')}
+              onPointerMove={makePointerMove(orig, 'end')}
+              onPointerUp={makePointerUp(orig, 'end')}
+              onPointerCancel={makePointerUp(orig, 'end')}
+              onKeyDown={makeKeyDown(orig, 'end')}
+            >
+              {activeEdge === 'end' && (
+                <div className="rv-drag-tooltip rv-drag-tooltip--right">
+                  {formatTimePrecise(previewEnd)}
+                </div>
+              )}
+            </div>}
           </div>
         )
       })}
 
-      {/* Diamond boundary markers between adjacent sections */}
-      {valid.map((section, i) => {
+      {/* Diamond boundary markers — positions follow drag preview, clipped to viewport */}
+      {display.map((section, i) => {
         if (i === 0) return null
-        const pct = (section.startSec / durationSec) * 100
+        const boundary = section.startSec
+        if (boundary < viewportStart - 0.01 || boundary > vpEnd + 0.01) return null
+        const pct = ((boundary - viewportStart) / vpDur) * 100
         return (
           <div
-            key={`bd-${section.id}`}
+            key={`bd-${sorted[i].id}`}
             className="rv-section-boundary"
             style={{ left: `${pct}%` }}
             aria-hidden="true"
@@ -449,31 +937,68 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
 
   const {
     manualTrackSectionsByTrackId,
-    selectedSectionId,
-    setSelectedSectionId,
+    suppressedAutoSectionsByTrackId,
+    selectedSectionByTrackId,
+    setSelectedSectionIdForTrack,
     addManualSection,
+    updateManualSection,
     removeManualSection,
+    commitAutomaticSectionOverride,
+    suppressAutoSection,
+    restoreAutoSection,
   } = useReactStore(useShallow(s => ({
-    manualTrackSectionsByTrackId: s.manualTrackSectionsByTrackId,
-    selectedSectionId:            s.selectedSectionId,
-    setSelectedSectionId:         s.setSelectedSectionId,
-    addManualSection:             s.addManualSection,
-    removeManualSection:          s.removeManualSection,
+    manualTrackSectionsByTrackId:    s.manualTrackSectionsByTrackId,
+    suppressedAutoSectionsByTrackId: s.suppressedAutoSectionsByTrackId,
+    selectedSectionByTrackId:        s.selectedSectionByTrackId,
+    setSelectedSectionIdForTrack:    s.setSelectedSectionIdForTrack,
+    addManualSection:                s.addManualSection,
+    updateManualSection:             s.updateManualSection,
+    removeManualSection:             s.removeManualSection,
+    commitAutomaticSectionOverride:  s.commitAutomaticSectionOverride,
+    suppressAutoSection:             s.suppressAutoSection,
+    restoreAutoSection:              s.restoreAutoSection,
   })))
 
+  const { waveformZoom, beatGridEnabled } = useVisualStore(
+    useShallow(s => ({ waveformZoom: s.waveformZoom, beatGridEnabled: s.beatGridEnabled }))
+  )
+
   const [collapsed,      setCollapsed]      = useState(true)
-  const [isAdding,       setIsAdding]       = useState(false)
+  const [editorMode,     setEditorMode]     = useState<SectionEditorMode>('none')
+  const [dragPreview,    setDragPreview]    = useState<{ sectionId: string; start: number; end: number } | null>(null)
   const [energyCurveKey, setEnergyCurveKey] = useState<EnergyCurveKey>('shortTerm')
   const [drawTick,       setDrawTick]       = useState(0)
+  // Viewport state for section positioning — updated by RAF loop and zoom changes
+  const [vpStart, setVpStart] = useState(0)
+  const [vpEnd,   setVpEnd]   = useState(audioDurationSec)
 
   const stripRef        = useRef<HTMLDivElement>(null)
   const beatCanvasRef   = useRef<HTMLCanvasElement>(null)
   const energyCanvasRef = useRef<HTMLCanvasElement>(null)
   const playheadRef     = useRef<HTMLDivElement>(null)
   const rafRef          = useRef<number | null>(null)
+  // Stable ref to the latest viewport — read by canvas effects and RAF loop
+  const viewportRef = useRef<TimelineViewport>({ startSec: 0, endSec: audioDurationSec })
+  // Refs to avoid stale closures in RAF tick
+  const waveformZoomRef             = useRef(waveformZoom)
+  const durationSecForRafRef        = useRef(audioDurationSec)
+  const isCompleteRef               = useRef(false)
+  const collapsedRef                = useRef(true)
+  const currentAnalysisRef          = useRef(currentAnalysis)
+  const energyCurveKeyRef           = useRef(energyCurveKey)
+  const currentEffectiveBeatGridRef = useRef(currentEffectiveBeatGrid)
+  const beatGridEnabledRef          = useRef(beatGridEnabled)
 
   // Active track ID — used as the per-track sections key
   const activeTrackId = currentTrack?.id ?? null
+
+  // Per-track selection and suppression for the active track only
+  const selectedSectionId = activeTrackId
+    ? (selectedSectionByTrackId[activeTrackId] ?? null)
+    : null
+  const suppressedIds = activeTrackId
+    ? (suppressedAutoSectionsByTrackId[activeTrackId] ?? [])
+    : []
 
   // Per-track manual sections for the active track only
   const manualTrackSections = activeTrackId
@@ -485,6 +1010,16 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
   const isWorking   = isActivelyWorking(currentAnalysisStatus)
   const isComplete  = currentAnalysisStatus === 'complete' && currentAnalysis != null
   const durationSec = currentAnalysis ? currentAnalysis.durationMs / 1000 : audioDurationSec
+
+  // Keep RAF refs in sync with the latest render values (avoids stale closures)
+  waveformZoomRef.current             = waveformZoom
+  durationSecForRafRef.current        = durationSec
+  isCompleteRef.current               = isComplete
+  collapsedRef.current                = collapsed
+  currentAnalysisRef.current          = currentAnalysis
+  energyCurveKeyRef.current           = energyCurveKey
+  currentEffectiveBeatGridRef.current = currentEffectiveBeatGrid
+  beatGridEnabledRef.current          = beatGridEnabled
 
   // A complete analysis is only "valid" if it returned usable data.
   const hasValidData = isComplete && currentAnalysis != null && (
@@ -500,14 +1035,25 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     analyzedSections: autoSections,
     manualSections:   manualTrackSections,
     durationSec,
+    suppressedIds,
   })
 
   const keyLabel = currentKey ? buildKeyLabel(currentKey) : null
 
   // Auto-expand the strip whenever a new track is loaded so status/results are
   // visible without the user having to manually click the header.
+  // Also reset the editor mode and viewport so stale state from a previous track is cleared.
   useEffect(() => {
-    if (activeTrackId) setCollapsed(false)
+    if (activeTrackId) {
+      setCollapsed(false)
+      setEditorMode('none')
+      setDragPreview(null)
+      // Reset viewport to full track; the viewport sync effect will refine it
+      const vp = { startSec: 0, endSec: durationSec }
+      viewportRef.current = vp
+      setVpStart(0)
+      setVpEnd(durationSec)
+    }
   }, [activeTrackId])
 
   // ResizeObserver: redraws canvases when the strip width changes (e.g. when the
@@ -521,24 +1067,36 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     return () => ro.disconnect()
   }, [])
 
-  // Beat canvas — redraws when analysis, effective override, or collapse state changes.
+  // Viewport sync — recomputes the canonical viewport whenever zoom or duration changes.
+  // Must run before the canvas effects (React runs effects in declaration order) so
+  // that viewportRef.current is up-to-date when those effects fire.
+  useEffect(() => {
+    if (durationSec <= 0) return
+    const t  = getCurrentTime()
+    const vp = computeWaveformViewport(durationSec, t, waveformZoom)
+    viewportRef.current = vp
+    setVpStart(vp.startSec)
+    setVpEnd(vp.endSec)
+  }, [waveformZoom, durationSec, getCurrentTime])
+
+  // Beat canvas — redraws when analysis, zoom, effective override, or collapse changes.
   // When a manual BPM override is active, currentEffectiveBeatGrid contains the
   // regenerated markers; we pass them as `effective` so the canvas reflects the
   // override BPM without mutating or replacing the original analysis object.
   useEffect(() => {
     const canvas = beatCanvasRef.current
     if (!canvas) return
-    if (!isComplete || !currentAnalysis) {
+    if (!isComplete || !currentAnalysis || !beatGridEnabled) {
       canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height)
       return
     }
     const effective = currentEffectiveBeatGrid
       ? { beatGrid: currentEffectiveBeatGrid }
       : undefined
-    drawBeatCanvas(canvas, currentAnalysis, effective)
-  }, [isComplete, currentAnalysis, currentEffectiveBeatGrid, drawTick, collapsed])
+    drawBeatCanvas(canvas, currentAnalysis, effective, viewportRef.current)
+  }, [isComplete, currentAnalysis, currentEffectiveBeatGrid, drawTick, collapsed, beatGridEnabled, waveformZoom])
 
-  // Energy canvas — redraws when analysis, curve selection, or status changes.
+  // Energy canvas — redraws when analysis, zoom, curve selection, or status changes.
   // Guard against missing/malformed curve data from old or partial cached analyses.
   useEffect(() => {
     const canvas = energyCanvasRef.current
@@ -549,12 +1107,13 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     }
     const curve = currentAnalysis.energyCurves?.[energyCurveKey] ?? null
     const opt   = ENERGY_CURVE_OPTIONS.find(o => o.key === energyCurveKey)!
-    drawEnergyCanvas(canvas, curve, durationSec, opt.color)
-  }, [isComplete, currentAnalysis, energyCurveKey, durationSec, drawTick, collapsed])
+    drawEnergyCanvas(canvas, curve, durationSec, opt.color, viewportRef.current)
+  }, [isComplete, currentAnalysis, energyCurveKey, durationSec, drawTick, collapsed, waveformZoom])
 
   // ── Playhead RAF loop ──────────────────────────────────────────────────────
-  // Updates an absolutely-positioned div to track the current audio position.
-  // Reads getCurrentTime() directly (no React state) so it never causes re-renders.
+  // Runs every frame; updates the playhead position and redraws canvases when the
+  // viewport shifts (i.e., when the play head moves while zoomed in).
+  // Reads refs exclusively so state changes in the loop never trigger re-renders.
   useEffect(() => {
     const playhead = playheadRef.current
     if (!playhead || !isComplete || durationSec <= 0) {
@@ -564,9 +1123,52 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     playhead.style.display = 'block'
 
     const tick = () => {
-      const t = getCurrentTime()
-      const pct = Math.max(0, Math.min(1, t / durationSec))
-      playhead.style.left = `${pct * 100}%`
+      const t    = getCurrentTime()
+      const dur  = durationSecForRafRef.current
+      const zoom = waveformZoomRef.current
+      const vp   = computeWaveformViewport(dur, t, zoom)
+
+      // Update playhead — viewport-relative position
+      const ratio = timeToViewportRatio(t, vp)
+      if (ratio >= 0 && ratio <= 1) {
+        playhead.style.left    = `${ratio * 100}%`
+        playhead.style.display = 'block'
+      } else {
+        playhead.style.display = 'none'
+      }
+
+      // Redraw canvases and update section positions when the viewport shifts
+      const prev     = viewportRef.current
+      const vpChanged = prev.startSec !== vp.startSec || prev.endSec !== vp.endSec
+      if (vpChanged && !collapsedRef.current && isCompleteRef.current) {
+        viewportRef.current = vp
+
+        const analysis = currentAnalysisRef.current
+        if (analysis) {
+          const beatCanvas = beatCanvasRef.current
+          if (beatCanvas && beatGridEnabledRef.current) {
+            const eff = currentEffectiveBeatGridRef.current
+              ? { beatGrid: currentEffectiveBeatGridRef.current }
+              : undefined
+            drawBeatCanvas(beatCanvas, analysis, eff, vp)
+          } else if (beatCanvas) {
+            beatCanvas.getContext('2d')?.clearRect(0, 0, beatCanvas.width, beatCanvas.height)
+          }
+
+          const energyCanvas = energyCanvasRef.current
+          if (energyCanvas) {
+            const curveKey = energyCurveKeyRef.current
+            const curve    = analysis.energyCurves?.[curveKey] ?? null
+            const opt      = ENERGY_CURVE_OPTIONS.find(o => o.key === curveKey)!
+            drawEnergyCanvas(energyCanvas, curve, dur, opt.color, vp)
+          }
+        }
+
+        // Update React state for section positioning (batched by React 18)
+        setVpStart(vp.startSec)
+        setVpEnd(vp.endSec)
+      }
+
       rafRef.current = requestAnimationFrame(tick)
     }
     rafRef.current = requestAnimationFrame(tick)
@@ -574,6 +1176,50 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
     }
   }, [isComplete, durationSec, getCurrentTime])
+
+  // ── Boundary drag commit ──────────────────────────────────────────────────
+  // Called once on pointer-up (or keyboard nudge) — one atomic store update
+  // per drag regardless of how many pixels the pointer moved.
+  const handleCommitBoundary = useCallback((
+    sectionId:       string,
+    edge:            SectionEdge,
+    newTime:         number,
+    sharedNeighborId:   string | null,
+    newNeighborTime:    number | null,
+  ) => {
+    if (!activeTrackId) return
+
+    const applyEdit = (id: string, section: ReactTrackSection, patch: Partial<ReactTrackSection>) => {
+      if (section.source === 'auto') {
+        commitAutomaticSectionOverride(activeTrackId, section, patch)
+      } else {
+        updateManualSection(activeTrackId, id, patch)
+      }
+    }
+
+    const primary = resolvedSections.find(s => s.id === sectionId)
+    if (primary) {
+      const patch = edge === 'start' ? { startSec: newTime } : { endSec: newTime }
+      applyEdit(sectionId, primary, patch)
+    }
+
+    // Commit the shared neighbor's boundary in a separate but synchronous call.
+    // Both commits happen in the same React event-handler tick so React 18 batches them.
+    if (sharedNeighborId && newNeighborTime != null) {
+      const neighbor = resolvedSections.find(s => s.id === sharedNeighborId)
+      if (neighbor) {
+        // If we moved section.end, the neighbor's start moved; if section.start, neighbor.end moved.
+        const neighborPatch = edge === 'end'
+          ? { startSec: newNeighborTime }
+          : { endSec:   newNeighborTime }
+        applyEdit(sharedNeighborId, neighbor, neighborPatch)
+      }
+    }
+
+    // Clear the editor's drag-preview now that the commit has been issued.
+    // The EditSectionForm effect will snap to the newly-committed section values.
+    setDragPreview(null)
+  }, [activeTrackId, resolvedSections, commitAutomaticSectionOverride, updateManualSection])
 
   const handleRetry = useCallback(() => {
     if (currentTrack) retryAnalysis(currentTrack.id)
@@ -583,14 +1229,61 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     if (currentTrack && reanalyzeTrack) reanalyzeTrack(currentTrack.id)
   }, [currentTrack, reanalyzeTrack])
 
-  const handleAdd = (section: ReactTrackSection) => {
+  const handleAdd = useCallback((section: ReactTrackSection) => {
     if (activeTrackId) addManualSection(activeTrackId, section)
-    setIsAdding(false)
-  }
+    setEditorMode('none')
+  }, [activeTrackId, addManualSection])
 
-  const handleRemove = (id: string) => {
+  const handleRemove = useCallback((id: string) => {
     if (activeTrackId) removeManualSection(activeTrackId, id)
-  }
+  }, [activeTrackId, removeManualSection])
+
+  // Opens the edit panel for the clicked section.
+  const handleSelectSection = useCallback((id: string) => {
+    if (!activeTrackId) return
+    setSelectedSectionIdForTrack(activeTrackId, id)
+    setEditorMode('edit')
+  }, [activeTrackId, setSelectedSectionIdForTrack])
+
+  // Live boundary drag preview — relayed from SectionTimeline to EditSectionForm.
+  const handleDragPreview = useCallback((sectionId: string, start: number, end: number) => {
+    setDragPreview({ sectionId, start, end })
+  }, [])
+
+  // Saves a section edit (creates override for auto, updates store for manual).
+  const handleSaveSection = useCallback((patch: Partial<ReactTrackSection>) => {
+    if (!activeTrackId || !selectedSectionId) return
+    const section = resolvedSections.find(s => s.id === selectedSectionId)
+    if (!section) return
+    if (section.source === 'auto') {
+      commitAutomaticSectionOverride(activeTrackId, section, patch)
+    } else {
+      updateManualSection(activeTrackId, selectedSectionId, patch)
+    }
+    setEditorMode('none')
+    setSelectedSectionIdForTrack(activeTrackId, null)
+  }, [activeTrackId, selectedSectionId, resolvedSections, commitAutomaticSectionOverride, updateManualSection, setSelectedSectionIdForTrack])
+
+  // Removes the user-edited-auto override AND any suppression, restoring the original.
+  const handleRestoreSection = useCallback(() => {
+    if (!activeTrackId || !selectedSectionId) return
+    restoreAutoSection(activeTrackId, selectedSectionId)
+    // Keep the section selected — it now shows as 'auto' source in the editor.
+  }, [activeTrackId, selectedSectionId, restoreAutoSection])
+
+  // Suppresses a pure auto section (hides it from the timeline).
+  const handleSuppressSection = useCallback(() => {
+    if (!activeTrackId || !selectedSectionId) return
+    suppressAutoSection(activeTrackId, selectedSectionId)
+    setEditorMode('none')
+  }, [activeTrackId, selectedSectionId, suppressAutoSection])
+
+  // Permanently removes a user-created/manual section.
+  const handleDeleteSection = useCallback(() => {
+    if (!activeTrackId || !selectedSectionId) return
+    removeManualSection(activeTrackId, selectedSectionId)
+    setEditorMode('none')
+  }, [activeTrackId, selectedSectionId, removeManualSection])
 
   // ── BPM display logic ──────────────────────────────────────────────────────
   const isMicSource = source === 'microphone'
@@ -674,7 +1367,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
             </div>
           )}
 
-          {/* Beat grid canvas + playhead */}
+          {/* Beat grid canvas + playhead — canvas cleared when GRID is toggled off */}
           {isComplete && (
             <div className="rv-beat-canvas-wrap" style={{ position: 'relative' }}>
               <canvas ref={beatCanvasRef} className="rv-beat-canvas" aria-hidden="true" />
@@ -752,53 +1445,99 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
             </div>
           )}
 
-          {/* Unified proportional section timeline */}
-          <div className="rv-section-group">
-            <div className="rv-section-group-header">
-              <span className="rv-section-group-label">Sections</span>
-              <div className="rv-section-group-actions">
-                {/* Reanalyze bypasses cache; Retry only re-queues and may use cache */}
-                {isComplete && (
-                  <button
-                    className="rv-reanalyze-btn"
-                    onClick={handleReanalyze}
-                    title="Force fresh analysis, bypassing cache"
-                  >
-                    ↺ Reanalyze
-                  </button>
+          {/* Unified proportional section timeline + contextual inspector */}
+          {(() => {
+            const selectedSection = editorMode === 'edit' && selectedSectionId
+              ? resolvedSections.find(s => s.id === selectedSectionId) ?? null
+              : null
+            const editorDragPreview = dragPreview?.sectionId === selectedSectionId
+              ? { start: dragPreview.start, end: dragPreview.end }
+              : null
+
+            return (
+              <div className="rv-section-group">
+                <div className="rv-section-group-header">
+                  <span className="rv-section-group-label">Sections</span>
+                  <div className="rv-section-group-actions">
+                    {/* Reanalyze bypasses cache; Retry only re-queues and may use cache */}
+                    {isComplete && (
+                      <button
+                        className="rv-reanalyze-btn"
+                        onClick={handleReanalyze}
+                        title="Force fresh analysis, bypassing cache"
+                      >
+                        ↺ Reanalyze
+                      </button>
+                    )}
+                    <button
+                      className="rv-add-section-btn"
+                      onClick={() => {
+                        if (editorMode === 'create') {
+                          setEditorMode('none')
+                        } else {
+                          if (activeTrackId) setSelectedSectionIdForTrack(activeTrackId, null)
+                          setEditorMode('create')
+                        }
+                      }}
+                      title="Add a manual section"
+                      disabled={!activeTrackId}
+                    >
+                      {editorMode === 'create' ? '✕ Cancel' : '+ Add'}
+                    </button>
+                  </div>
+                </div>
+
+                {editorMode === 'create' && (
+                  <AddSectionForm onAdd={handleAdd} onCancel={() => setEditorMode('none')} />
                 )}
-                <button
-                  className="rv-add-section-btn"
-                  onClick={() => setIsAdding(v => !v)}
-                  title="Add a manual section"
-                  disabled={!activeTrackId}
-                >
-                  {isAdding ? '✕ Cancel' : '+ Add'}
-                </button>
-              </div>
-            </div>
 
-            {isAdding && (
-              <AddSectionForm onAdd={handleAdd} onCancel={() => setIsAdding(false)} />
-            )}
+                {editorMode === 'edit' && selectedSection && (() => {
+                  const src      = selectedSection.source
+                  const isAuto   = src === 'auto'
+                  const isEdited = src === 'user-edited-auto'
+                  const isUser   = !isAuto && !isEdited
+                  return (
+                    <EditSectionForm
+                      section={selectedSection}
+                      durationSec={durationSec}
+                      effectiveBpm={currentEffectiveBpm}
+                      dragPreview={editorDragPreview}
+                      onSave={handleSaveSection}
+                      onCancel={() => {
+                        setEditorMode('none')
+                        if (activeTrackId) setSelectedSectionIdForTrack(activeTrackId, null)
+                      }}
+                      onDelete={isUser ? handleDeleteSection : undefined}
+                      onRestore={isEdited ? handleRestoreSection : undefined}
+                      onSuppress={isAuto ? handleSuppressSection : undefined}
+                    />
+                  )
+                })()}
 
-            {resolvedSections.length > 0 ? (
-              <SectionTimeline
-                sections={resolvedSections}
-                durationSec={durationSec}
-                beatGrid={currentEffectiveBeatGrid ?? currentAnalysis?.beatGrid ?? undefined}
-                selectedId={selectedSectionId}
-                onSelect={setSelectedSectionId}
-                onRemove={activeTrackId ? handleRemove : undefined}
-              />
-            ) : (
-              <div className="rv-section-group-empty">
-                {activeTrackId
-                  ? <>No sections yet — hit <strong>+ Add</strong> to create one.</>
-                  : 'Load a track to add sections.'}
+                {resolvedSections.length > 0 ? (
+                  <SectionTimeline
+                    sections={resolvedSections}
+                    durationSec={durationSec}
+                    viewportStart={vpStart}
+                    viewportEnd={vpEnd}
+                    beatGrid={currentEffectiveBeatGrid ?? currentAnalysis?.beatGrid ?? undefined}
+                    effectiveBpm={currentEffectiveBpm}
+                    selectedId={selectedSectionId}
+                    onSelect={handleSelectSection}
+                    onRemove={activeTrackId ? handleRemove : undefined}
+                    onCommitBoundary={handleCommitBoundary}
+                    onDragPreview={handleDragPreview}
+                  />
+                ) : (
+                  <div className="rv-section-group-empty">
+                    {activeTrackId
+                      ? <>No sections yet — hit <strong>+ Add</strong> to create one.</>
+                      : 'Load a track to add sections.'}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            )
+          })()}
         </>
       )}
     </div>

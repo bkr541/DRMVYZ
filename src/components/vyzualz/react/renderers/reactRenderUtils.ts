@@ -139,6 +139,19 @@ export function sectionIntensityMultiplier(type: ReactSectionType | null): numbe
   }
 }
 
+/**
+ * Returns the effective intensity multiplier for the given section.
+ * Uses `section.intensity` when explicitly set; falls back to `sectionIntensityMultiplier`
+ * so that auto-analyzed sections with a detected intensity value drive visuals directly
+ * while purely type-based defaults still work for unset intensities.
+ */
+export function effectiveSectionIntensity(section: ReactTrackSection | null): number {
+  if (section == null) return 1.0
+  const v = section.intensity
+  if (v != null && isFinite(v) && v >= 0) return Math.min(1, v)
+  return sectionIntensityMultiplier(section.type)
+}
+
 export function getAudioEnergy(audio: ReactFrameContext['audio']): number {
   return clamp01(audio.bass * 0.5 + audio.mid * 0.3 + audio.high * 0.2)
 }
