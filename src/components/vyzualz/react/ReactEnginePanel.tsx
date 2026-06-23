@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect } from 'react'
+import { useRef, useEffect } from 'react'
 import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore } from '../../../stores/mediaStore'
 import { isSvgFilename } from '../../../lib/mediaRoles'
-import { makeFontAssetFromFile } from './renderers/fontGlyphUtils'
+import { getBufferFromCache } from './renderers/fontGlyphUtils'
 import {
   SliderRow, SelectRow, ToggleRow, TextInputRow,
   CtrlSection, Collapsible,
@@ -214,7 +214,6 @@ function OscillatorStatusCard({
 
 export function ReactEnginePanel() {
   const fontInputRef = useRef<HTMLInputElement>(null)
-  const [fontUploadError, setFontUploadError] = useState<string | null>(null)
   const registeredFontsRef = useRef<Map<string, FontFace>>(new Map())
 
   const {
@@ -226,9 +225,17 @@ export function ReactEnginePanel() {
     selectSvgMediaGlyph,
     selectSvgVisual,
     oscillatorFontAssets,
-    addOscillatorFontAsset,
+    uploadOscillatorFont,
+    fontUploadPending,
+    fontUploadError,
+    fontsLoadState,
+    fontLoadError,
     removeOscillatorFontAsset,
+    fontRemovePending,
+    fontRemoveError,
     selectOscillatorFont,
+    fontSelectPending,
+    fontSelectError,
     glyphLostNotice,
     clearGlyphLostNotice,
   } = useReactStore(useShallow(s => ({
@@ -242,9 +249,17 @@ export function ReactEnginePanel() {
     selectSvgMediaGlyph:        s.selectSvgMediaGlyph,
     selectSvgVisual:            s.selectSvgVisual,
     oscillatorFontAssets:       s.oscillatorFontAssets,
-    addOscillatorFontAsset:     s.addOscillatorFontAsset,
+    uploadOscillatorFont:       s.uploadOscillatorFont,
+    fontUploadPending:          s.fontUploadPending,
+    fontUploadError:            s.fontUploadError,
+    fontsLoadState:             s.fontsLoadState,
+    fontLoadError:              s.fontLoadError,
     removeOscillatorFontAsset:  s.removeOscillatorFontAsset,
+    fontRemovePending:          s.fontRemovePending,
+    fontRemoveError:            s.fontRemoveError,
     selectOscillatorFont:       s.selectOscillatorFont,
+    fontSelectPending:          s.fontSelectPending,
+    fontSelectError:            s.fontSelectError,
     glyphLostNotice:            s.glyphLostNotice,
     clearGlyphLostNotice:       s.clearGlyphLostNotice,
   })))
@@ -252,7 +267,8 @@ export function ReactEnginePanel() {
   const osc = oscillatorSettings
   const set = setOscillatorSettings
 
-  // Register each font asset as a CSS FontFace so the name can be rendered in its own typeface.
+  // Register a preview FontFace for each font whose ArrayBuffer is in the runtime cache.
+  // Unloaded fonts (not yet downloaded) use the default UI font until the user selects them.
   useEffect(() => {
     const registered = registeredFontsRef.current
     const currentIds = new Set(oscillatorFontAssets.map(a => a.id))
@@ -265,15 +281,16 @@ export function ReactEnginePanel() {
     }
 
     for (const asset of oscillatorFontAssets) {
-      if (!registered.has(asset.id)) {
-        const family = `drmvyz-preview-${asset.id}`
-        const face = new FontFace(family, `url("data:font/truetype;base64,${asset.rawFontDataBase64}")`)
-        document.fonts.add(face)
-        face.load().catch(() => { /* preview is cosmetic — ignore parse/load failures */ })
-        registered.set(asset.id, face)
-      }
+      if (registered.has(asset.id)) continue
+      const buffer = getBufferFromCache(asset.id)
+      if (!buffer) continue  // not yet downloaded — registered when selection completes
+      const family = `drmvyz-preview-${asset.id}`
+      const face = new FontFace(family, buffer)
+      document.fonts.add(face)
+      face.load().catch(() => { /* preview is cosmetic — ignore load failures */ })
+      registered.set(asset.id, face)
     }
-  }, [oscillatorFontAssets])
+  }, [oscillatorFontAssets, fontSelectPending])
 
   // SVG Visual rehydration is handled by useSvgVisualRehydration in ReactView —
   // that hook always runs regardless of which panel tab is active.
@@ -292,14 +309,7 @@ export function ReactEnginePanel() {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
-    setFontUploadError(null)
-    try {
-      const asset = await makeFontAssetFromFile(file)
-      addOscillatorFontAsset(asset)
-      selectOscillatorFont(asset.id)
-    } catch (err) {
-      setFontUploadError((err as Error).message)
-    }
+    await uploadOscillatorFont(file)
   }
 
   return (
@@ -576,46 +586,63 @@ export function ReactEnginePanel() {
               <button
                 type="button"
                 className="rv-glyph-upload-btn"
-                onClick={() => { setFontUploadError(null); fontInputRef.current?.click() }}
+                disabled={fontUploadPending || fontsLoadState === 'loading'}
+                onClick={() => fontInputRef.current?.click()}
               >
-                + Upload Font
+                {fontUploadPending ? 'Uploading…' : '+ Upload Font'}
               </button>
-              {fontUploadError && (
-                <div className="rv-osc-status-warn">{fontUploadError}</div>
+              {(() => {
+                const errs = [fontLoadError, fontUploadError, fontSelectError, fontRemoveError].filter(Boolean)
+                return errs.length > 0 ? (
+                  <div className="rv-osc-status-warn">
+                    {errs.map((e, i) => <div key={i}>{e}</div>)}
+                  </div>
+                ) : null
+              })()}
+              {fontsLoadState === 'loading' && (
+                <div className="rv-ctrl-info">Loading font library…</div>
               )}
-              {oscillatorFontAssets.length > 0 && (
-                <div className="rv-glyph-list">
-                  {oscillatorFontAssets.map((asset: OscillatorFontAsset) => {
-                    const isActive = osc.textFontId === asset.id
-                    return (
-                      <div
-                        key={asset.id}
-                        className={`rv-glyph-item${isActive ? ' rv-glyph-item--active' : ''}`}
-                        onClick={() => selectOscillatorFont(asset.id)}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') selectOscillatorFont(asset.id) }}
-                      >
-                        <span
-                          className="rv-glyph-item-name"
-                          title={asset.fileName}
-                          style={{ fontFamily: `"drmvyz-preview-${asset.id}", sans-serif` }}
+              {oscillatorFontAssets.length > 0 && (() => {
+                const anyBusy = fontUploadPending || !!fontSelectPending || !!fontRemovePending
+                return (
+                  <div className="rv-glyph-list">
+                    {oscillatorFontAssets.map((asset: OscillatorFontAsset) => {
+                      const isActive    = osc.textFontId === asset.id
+                      const isSelecting = fontSelectPending === asset.id
+                      const isDeleting  = fontRemovePending === asset.id
+                      return (
+                        <div
+                          key={asset.id}
+                          className={`rv-glyph-item${isActive ? ' rv-glyph-item--active' : ''}`}
+                          onClick={() => { if (!anyBusy) selectOscillatorFont(asset.id) }}
+                          role="button"
+                          tabIndex={0}
+                          aria-disabled={anyBusy}
+                          style={{ opacity: isDeleting ? 0.5 : undefined, cursor: anyBusy ? 'default' : undefined }}
+                          onKeyDown={e => { if (!anyBusy && (e.key === 'Enter' || e.key === ' ')) selectOscillatorFont(asset.id) }}
                         >
-                          {asset.name}
-                        </span>
-                        <button
-                          type="button"
-                          className="rv-glyph-item-del"
-                          title="Remove font"
-                          onClick={e => { e.stopPropagation(); removeOscillatorFontAsset(asset.id) }}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
+                          <span
+                            className="rv-glyph-item-name"
+                            title={asset.fileName}
+                            style={{ fontFamily: `"drmvyz-preview-${asset.id}", sans-serif` }}
+                          >
+                            {isSelecting ? 'Loading…' : isDeleting ? 'Removing…' : asset.name}
+                          </span>
+                          <button
+                            type="button"
+                            className="rv-glyph-item-del"
+                            title="Remove font"
+                            disabled={anyBusy}
+                            onClick={e => { e.stopPropagation(); removeOscillatorFontAsset(asset.id) }}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
             </Collapsible>
           )}
         </>

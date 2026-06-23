@@ -10,11 +10,14 @@ vi.mock('opentype.js', () => ({
 
 import * as opentypeModule from 'opentype.js'
 import {
-  arrayBufferToBase64,
-  base64ToArrayBuffer,
+  inspectFontFile,
   parseOpenTypeFontFromAsset,
-  textToOpenTypeGlyphPoints,
+  storeFontRuntime,
+  hasFontRuntime,
+  getFontFromCache,
+  getBufferFromCache,
   evictFontFromCache,
+  textToOpenTypeGlyphPoints,
 } from '../fontGlyphUtils'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -48,77 +51,182 @@ function makeMockFont(pathCommands: MockPathCommand[] = [
   }
 }
 
-function makeFontAsset(id = 'font-abc', b64 = btoa('fake')): OscillatorFontAsset {
+function makeFontAsset(id = 'font-abc'): OscillatorFontAsset {
   return {
     id,
-    name: 'Test Font',
-    fileName: 'test.ttf',
-    rawFontDataBase64: b64,
-    createdAt: new Date().toISOString(),
-    parseError: null,
+    name:        'Test Font',
+    fileName:    'test.ttf',
+    storagePath: `font-assets/user-1/${id}.ttf`,
+    mimeType:    'font/ttf',
+    fileSize:    1024,
+    createdAt:   new Date().toISOString(),
+    parseError:  null,
   }
 }
 
-// ── arrayBufferToBase64 / base64ToArrayBuffer roundtrip ───────────────────────
+function makeMockFile(name: string, bytes: number[], size?: number): File {
+  const buffer = makeBuffer(bytes)
+  return {
+    name,
+    size:        size ?? bytes.length,
+    arrayBuffer: vi.fn().mockResolvedValue(buffer),
+  } as unknown as File
+}
 
-describe('base64 roundtrip', () => {
-  it('encodes and decodes back to the original bytes', () => {
-    const original = [72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]
-    const buffer = makeBuffer(original)
-    const b64 = arrayBufferToBase64(buffer)
-    expect(typeof b64).toBe('string')
-    expect(b64.length).toBeGreaterThan(0)
-    const recovered = base64ToArrayBuffer(b64)
-    expect(Array.from(new Uint8Array(recovered))).toEqual(original)
+// ── inspectFontFile ───────────────────────────────────────────────────────────
+
+describe('inspectFontFile', () => {
+  beforeEach(() => {
+    vi.mocked(opentypeModule.parse).mockClear()
   })
 
-  it('roundtrips an empty buffer', () => {
-    const buf = makeBuffer([])
-    const b64 = arrayBufferToBase64(buf)
-    const back = base64ToArrayBuffer(b64)
-    expect(new Uint8Array(back)).toHaveLength(0)
+  it('throws for non-ttf/otf files', async () => {
+    const file = makeMockFile('track.mp3', [1, 2, 3])
+    await expect(inspectFontFile(file)).rejects.toThrow('Only .ttf and .otf fonts are supported')
   })
 
-  it('roundtrips a single byte', () => {
-    const buf = makeBuffer([0xff])
-    const b64 = arrayBufferToBase64(buf)
-    const back = base64ToArrayBuffer(b64)
-    expect(Array.from(new Uint8Array(back))).toEqual([0xff])
+  it('throws for files over 2 MB', async () => {
+    const file = makeMockFile('big.ttf', [1, 2, 3], 2 * 1024 * 1024 + 1)
+    await expect(inspectFontFile(file)).rejects.toThrow('Font file too large')
+  })
+
+  it('throws when opentype.parse fails', async () => {
+    vi.mocked(opentypeModule.parse).mockImplementationOnce(() => { throw new Error('bad data') })
+    const file = makeMockFile('broken.ttf', [0, 1, 2, 3])
+    await expect(inspectFontFile(file)).rejects.toThrow('Failed to parse font: bad data')
+  })
+
+  it('returns metadata extracted from the font tables', async () => {
+    const mockFont = makeMockFont()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(opentypeModule.parse).mockReturnValueOnce(mockFont as any)
+    const file = makeMockFile('MyFont.ttf', [1, 2, 3, 4])
+    const result = await inspectFontFile(file)
+    expect(result.name).toBe('Test Font Full')
+    expect(result.fontFamilyName).toBe('Test Family')
+    expect(result.fileName).toBe('MyFont.ttf')
+    expect(result.mimeType).toBe('font/ttf')
+    expect(result.fileSize).toBe(4)
+  })
+
+  it('sets mimeType to font/otf for .otf files', async () => {
+    const mockFont = makeMockFont()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(opentypeModule.parse).mockReturnValueOnce(mockFont as any)
+    const file = makeMockFile('MyFont.otf', [1, 2, 3, 4])
+    const result = await inspectFontFile(file)
+    expect(result.mimeType).toBe('font/otf')
+  })
+
+  it('returns the raw ArrayBuffer and parsed font', async () => {
+    const mockFont = makeMockFont()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(opentypeModule.parse).mockReturnValueOnce(mockFont as any)
+    const file = makeMockFile('MyFont.ttf', [10, 20, 30])
+    const result = await inspectFontFile(file)
+    expect(result.buffer).toBeInstanceOf(ArrayBuffer)
+    expect(result.font).toBe(mockFont)
+  })
+
+  it('populates the runtime cache so parseOpenTypeFontFromAsset works immediately', async () => {
+    const mockFont = makeMockFont()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(opentypeModule.parse).mockReturnValueOnce(mockFont as any)
+    const file = makeMockFile('CacheFont.ttf', [5, 6, 7, 8])
+    const result = await inspectFontFile(file)
+
+    const asset = makeFontAsset(result.id)
+    expect(() => parseOpenTypeFontFromAsset(asset)).not.toThrow()
+    expect(parseOpenTypeFontFromAsset(asset)).toBe(mockFont)
+  })
+})
+
+// ── font runtime cache helpers ────────────────────────────────────────────────
+
+describe('font runtime cache', () => {
+  const ID = 'cache-test-id'
+
+  beforeEach(() => {
+    evictFontFromCache(ID)
+  })
+
+  it('hasFontRuntime returns false before storing', () => {
+    expect(hasFontRuntime(ID)).toBe(false)
+  })
+
+  it('hasFontRuntime returns true after storeFontRuntime', () => {
+    const font = makeMockFont()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    storeFontRuntime(ID, font as any)
+    expect(hasFontRuntime(ID)).toBe(true)
+  })
+
+  it('getFontFromCache returns undefined before storing', () => {
+    expect(getFontFromCache(ID)).toBeUndefined()
+  })
+
+  it('getFontFromCache returns the stored font', () => {
+    const font = makeMockFont()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    storeFontRuntime(ID, font as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(getFontFromCache(ID)).toBe(font as any)
+  })
+
+  it('getBufferFromCache returns undefined when no buffer was stored', () => {
+    const font = makeMockFont()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    storeFontRuntime(ID, font as any)  // no buffer argument
+    expect(getBufferFromCache(ID)).toBeUndefined()
+  })
+
+  it('getBufferFromCache returns the stored buffer', () => {
+    const font = makeMockFont()
+    const buf = makeBuffer([1, 2, 3])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    storeFontRuntime(ID, font as any, buf)
+    expect(getBufferFromCache(ID)).toBe(buf)
+  })
+
+  it('evictFontFromCache removes font and buffer', () => {
+    const font = makeMockFont()
+    const buf = makeBuffer([9, 8, 7])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    storeFontRuntime(ID, font as any, buf)
+    evictFontFromCache(ID)
+    expect(hasFontRuntime(ID)).toBe(false)
+    expect(getFontFromCache(ID)).toBeUndefined()
+    expect(getBufferFromCache(ID)).toBeUndefined()
   })
 })
 
 // ── parseOpenTypeFontFromAsset ────────────────────────────────────────────────
 
 describe('parseOpenTypeFontFromAsset', () => {
-  beforeEach(() => {
+  it('throws a descriptive error when font is not in the runtime cache', () => {
+    const asset = makeFontAsset('font-not-loaded')
+    evictFontFromCache('font-not-loaded')
+    expect(() => parseOpenTypeFontFromAsset(asset)).toThrow('font data is not loaded')
+  })
+
+  it('returns the cached font without calling opentype.parse', () => {
+    const mockFont = makeMockFont()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    storeFontRuntime('font-preloaded', mockFont as any)
+    const asset = makeFontAsset('font-preloaded')
     vi.mocked(opentypeModule.parse).mockClear()
+
+    const result = parseOpenTypeFontFromAsset(asset)
+    expect(result).toBe(mockFont)
+    expect(vi.mocked(opentypeModule.parse)).not.toHaveBeenCalled()
   })
 
-  it('calls opentype.parse and returns the result', () => {
+  it('returns the same reference on repeated calls', () => {
     const mockFont = makeMockFont()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    vi.mocked(opentypeModule.parse).mockReturnValueOnce(mockFont as any)
-
-    const asset = makeFontAsset('font-parse-test')
-    evictFontFromCache('font-parse-test')
-
-    const font = parseOpenTypeFontFromAsset(asset)
-    expect(font).toBe(mockFont)
-    expect(vi.mocked(opentypeModule.parse)).toHaveBeenCalledTimes(1)
-  })
-
-  it('returns cached result on second call without re-parsing', () => {
-    const mockFont = makeMockFont()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    vi.mocked(opentypeModule.parse).mockReturnValueOnce(mockFont as any)
-
-    const asset = makeFontAsset('font-cache-test', btoa('unique-data'))
-    evictFontFromCache('font-cache-test')
-
-    const first  = parseOpenTypeFontFromAsset(asset)
-    const second = parseOpenTypeFontFromAsset(asset)
-    expect(first).toBe(second)
-    expect(vi.mocked(opentypeModule.parse)).toHaveBeenCalledTimes(1)
+    storeFontRuntime('font-repeat', mockFont as any)
+    const asset = makeFontAsset('font-repeat')
+    expect(parseOpenTypeFontFromAsset(asset)).toBe(parseOpenTypeFontFromAsset(asset))
   })
 })
 

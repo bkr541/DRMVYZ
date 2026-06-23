@@ -349,6 +349,30 @@ export interface CanvasExport {
   exported_at: string
 }
 
+// ── Font assets (migration 0013) ──────────────────────────────────────────────
+
+export interface FontAssetRow {
+  id:               string
+  user_id:          string
+  name:             string
+  file_name:        string
+  font_family_name: string | null
+  storage_path:     string
+  mime_type:        string
+  file_size:        number
+  created_at:       string
+}
+
+export interface FontAssetInsert {
+  user_id:           string
+  name:              string
+  file_name:         string
+  font_family_name?: string | null
+  storage_path:      string
+  mime_type:         string
+  file_size:         number
+}
+
 // ── Database type map (for createClient<Database>) ────────────────────────────
 
 export interface Database {
@@ -382,6 +406,7 @@ export interface Database {
       audio_track_tags:         { Row: { track_id: string; tag_id: string }; Insert: { track_id: string; tag_id: string }; Update: never }
       lyric_documents:          { Row: LyricDocumentRow; Insert: LyricDocumentInsert; Update: LyricDocumentUpdate }
       lyric_cues:               { Row: LyricCueRow;      Insert: LyricCueInsert;      Update: LyricCueUpdate      }
+      font_assets:              { Row: FontAssetRow;     Insert: FontAssetInsert;     Update: Partial<Omit<FontAssetRow, 'id' | 'created_at'>> }
     }
   }
 }

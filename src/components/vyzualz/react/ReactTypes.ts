@@ -41,13 +41,15 @@ export interface OscillatorGlyphAsset {
 }
 
 export interface OscillatorFontAsset {
-  id: string
-  name: string
-  fileName: string
+  id:              string
+  name:            string
+  fileName:        string
   fontFamilyName?: string
-  rawFontDataBase64: string
-  createdAt: string
-  parseError?: string | null
+  storagePath:     string
+  mimeType:        string
+  fileSize:        number
+  createdAt:       string
+  parseError?:     string | null
 }
 
 export interface OscillatorSettings {

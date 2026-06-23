@@ -6,27 +6,7 @@ import {
   generateBuiltinShapePoints,
 } from './oscillatorPathUtils'
 
-// ── Binary / Base64 conversion ────────────────────────────────────────────────
-
-export function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer)
-  let binary = ''
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i])
-  }
-  return btoa(binary)
-}
-
-export function base64ToArrayBuffer(base64: string): ArrayBuffer {
-  const binary = atob(base64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i)
-  }
-  return bytes.buffer as ArrayBuffer
-}
-
-// ── Font asset creation ───────────────────────────────────────────────────────
+// ── Internal helpers ──────────────────────────────────────────────────────────
 
 function firstValue(obj: opentype.LocalizedName | undefined): string | undefined {
   if (!obj) return undefined
@@ -44,7 +24,35 @@ function hashBuffer(bytes: Uint8Array): string {
   return h.toString(16).padStart(8, '0')
 }
 
-export async function makeFontAssetFromFile(file: File): Promise<OscillatorFontAsset> {
+// ── Font inspection ───────────────────────────────────────────────────────────
+
+/** Result returned by inspectFontFile before any cloud upload occurs. */
+export interface FontInspectionResult {
+  /** Deterministic ID derived from the font binary (FNV-1a of first 256 bytes). */
+  id:              string
+  /** Display name extracted from the font's fullName / fontFamily tables. */
+  name:            string
+  fileName:        string
+  fontFamilyName?: string
+  /** 'font/ttf' or 'font/otf' based on file extension. */
+  mimeType:        string
+  fileSize:        number
+  /** Raw binary — pass to the storage upload helper, then discard. */
+  buffer:          ArrayBuffer
+  /** Parsed opentype.Font — already stored in the runtime cache. */
+  font:            opentype.Font
+}
+
+/**
+ * Validates a font file (extension + size), parses it with opentype.js, and
+ * returns the extracted metadata together with the raw ArrayBuffer and parsed
+ * font object.  Populates the runtime cache immediately so subsequent calls to
+ * parseOpenTypeFontFromAsset() succeed without re-parsing.
+ *
+ * Does NOT produce an OscillatorFontAsset — the caller must upload to storage
+ * first to obtain a storagePath, then construct the asset record.
+ */
+export async function inspectFontFile(file: File): Promise<FontInspectionResult> {
   const nameLower = file.name.toLowerCase()
   if (!nameLower.endsWith('.ttf') && !nameLower.endsWith('.otf')) {
     throw new Error('Only .ttf and .otf fonts are supported')
@@ -57,48 +65,88 @@ export async function makeFontAssetFromFile(file: File): Promise<OscillatorFontA
   const bytes = new Uint8Array(buffer)
   const id = `font-${hashBuffer(bytes)}`
 
+  let font: opentype.Font
   let fontFamilyName: string | undefined
   let displayName: string
   try {
-    const font = opentype.parse(buffer)
+    font = opentype.parse(buffer)
     fontFamilyName = firstValue(font.names.fontFamily)
     const fullName = firstValue(font.names.fullName)
     displayName = fullName ?? fontFamilyName ?? file.name.replace(/\.(ttf|otf)$/i, '').trim()
-    // Pre-populate the parsed font cache so the first prepare call is free
-    parsedFontCache.set(id, font)
   } catch (e) {
     throw new Error(`Failed to parse font: ${(e as Error).message}`)
   }
 
-  const rawFontDataBase64 = arrayBufferToBase64(buffer)
+  const mimeType = nameLower.endsWith('.otf') ? 'font/otf' : 'font/ttf'
+
+  // Pre-populate runtime caches so callers can use parseOpenTypeFontFromAsset immediately.
+  storeFontRuntime(id, font, buffer)
 
   return {
     id,
-    name: displayName,
-    fileName: file.name,
+    name:       displayName,
+    fileName:   file.name,
     fontFamilyName,
-    rawFontDataBase64,
-    createdAt: new Date().toISOString(),
-    parseError: null,
+    mimeType,
+    fileSize:   file.size,
+    buffer,
+    font,
   }
 }
 
-// ── Parsed font cache (module-level, not persisted) ───────────────────────────
-// Avoids re-parsing base64 → ArrayBuffer → opentype.Font on every settings change.
+// ── Runtime font caches (module-level, never persisted) ───────────────────────
+// Font binary and parsed data live here only while the tab is open.
+// Cloud storage is the source of truth; these caches are populated on upload
+// or download and evicted on asset deletion.
 
 const parsedFontCache = new Map<string, opentype.Font>()
+const fontBufferCache = new Map<string, ArrayBuffer>()
 
-export function parseOpenTypeFontFromAsset(asset: OscillatorFontAsset): opentype.Font {
-  const cached = parsedFontCache.get(asset.id)
-  if (cached) return cached
-  const buffer = base64ToArrayBuffer(asset.rawFontDataBase64)
-  const font = opentype.parse(buffer)
-  parsedFontCache.set(asset.id, font)
-  return font
+/** Insert (or replace) runtime font data keyed by asset ID. */
+export function storeFontRuntime(id: string, font: opentype.Font, buffer?: ArrayBuffer): void {
+  parsedFontCache.set(id, font)
+  if (buffer !== undefined) fontBufferCache.set(id, buffer)
 }
 
+/** Returns true when the parsed font for this ID is in the runtime cache. */
+export function hasFontRuntime(id: string): boolean {
+  return parsedFontCache.has(id)
+}
+
+/** Returns the cached parsed font, or undefined if not yet loaded. */
+export function getFontFromCache(id: string): opentype.Font | undefined {
+  return parsedFontCache.get(id)
+}
+
+/** Returns the cached raw ArrayBuffer, or undefined if not available. */
+export function getBufferFromCache(id: string): ArrayBuffer | undefined {
+  return fontBufferCache.get(id)
+}
+
+/**
+ * Removes all runtime data for the given asset ID from both caches.
+ * Call this when an asset is deleted from the store or the cloud record is removed.
+ */
 export function evictFontFromCache(id: string): void {
   parsedFontCache.delete(id)
+  fontBufferCache.delete(id)
+}
+
+// ── Font parsing from asset (cache-only) ─────────────────────────────────────
+
+/**
+ * Returns the opentype.Font for the given asset from the runtime cache.
+ * Throws if the font has not been loaded — callers must ensure the font is
+ * downloaded and stored via storeFontRuntime() before calling this.
+ */
+export function parseOpenTypeFontFromAsset(asset: OscillatorFontAsset): opentype.Font {
+  const cached = parsedFontCache.get(asset.id)
+  if (!cached) {
+    throw new Error(
+      `[fontGlyphUtils] font data is not loaded for "${asset.name}" (id: ${asset.id}) — call storeFontRuntime() after downloading the font binary`,
+    )
+  }
+  return cached
 }
 
 // ── Vector text path sampling ─────────────────────────────────────────────────
