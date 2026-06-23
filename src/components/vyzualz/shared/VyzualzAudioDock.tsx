@@ -6,8 +6,7 @@ import { useTapTempo } from '../hooks/useTapTempo'
 import { useWaveformPeaks } from '../hooks/useWaveformPeaks'
 import { useRgbWaveformAnalysis } from '../hooks/useRgbWaveformAnalysis'
 import { useRgbWaveformStore } from '../../../features/waveform/rgbWaveformStorage'
-import { RgbWaveformCanvas } from '../transport/RgbWaveformCanvas'
-import { VzCueMarkerStrip } from '../transport/VzCueMarkerStrip'
+import { PeaksWaveformView } from '../transport/PeaksWaveformView'
 
 function fmtPlayTime(secs: number): string {
   if (!isFinite(secs) || secs < 0) return '--:--.--'
@@ -231,18 +230,13 @@ export function VyzualzAudioDock() {
       {/* ── CENTER: waveform + zoom buttons side by side ─────────────── */}
       <div className="vz-dock-center">
         <div className="vz-dock-waveform-wrap">
-          <RgbWaveformCanvas
-            analysis={rgbAnalysis}
+          <PeaksWaveformView
+            engine={engine}
+            cueMarkers={cueMarkers}
+            waveformZoom={waveformZoom}
+            rgbAnalysis={rgbAnalysis}
             fallbackPeaks={peaks}
-            duration={engine.duration}
-            currentTime={engine.currentTime}
-            markers={cueMarkers}
-            onSeek={hasTrack ? engine.seek : undefined}
-            zoom={waveformZoom}
           />
-          <div className="vz-dock-cue-overlay">
-            <VzCueMarkerStrip markers={cueMarkers} currentTime={engine.currentTime} onSeek={engine.seek} />
-          </div>
         </div>
         <div className="vz-dock-zoom-btns">
           <button className="vz-dock-zoom-btn" onClick={() => setWaveformZoom(waveformZoom * 2)} disabled={waveformZoom >= 16} title="Zoom in">+</button>
