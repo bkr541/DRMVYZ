@@ -25,6 +25,7 @@ import type { RailTabOption } from '../layout/RailTabs'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
 import { MediaDeckPanel } from '../media/MediaDeckPanel'
 import { useSvgVisualRehydration } from './useSvgVisualRehydration'
+import { useReactPresetAutomation } from './useReactPresetAutomation'
 import '../../../styles/reactView.css'
 
 type ReactLeftTab  = 'engine' | 'media' | 'layers' | 'sessions'
@@ -61,6 +62,7 @@ export function ReactView() {
   // Rehydrate SVG Visual cache whenever the selected visual changes or the view mounts.
   // Placed here so it runs regardless of which right-panel tab is open.
   useSvgVisualRehydration()
+  useReactPresetAutomation()
 
   const {
     reactPresets,

@@ -19,6 +19,7 @@ import type {
   ReactPresetParams,
   ReactTrackSection,
   ReactPerformancePad,
+  ReactPresetAutomationCue,
   OscillatorSettings,
   OscillatorGlyphAsset,
   OscillatorGlyphPoint,
@@ -67,8 +68,8 @@ function clampRes(v: number): number {
   return Math.max(64, Math.min(2048, Math.round(v)))
 }
 
-function textCacheKey(fontId: string, text: string, fontSize: number, spacing: number, res: number): string {
-  return `${fontId}:${text.trim()}:${fontSize}:${spacing}:${res}`
+function textCacheKey(fontId: string, text: string, spacing: number, res: number): string {
+  return `${fontId}:${text.trim()}:${spacing}:${res}`
 }
 
 function prepareSvgPoints(
@@ -122,17 +123,16 @@ function prepareTextPoints(
   settings: OscillatorSettings,
   cache: Record<string, OscillatorGlyphPoint[]>,
 ): Record<string, OscillatorGlyphPoint[]> {
-  const { textFontId, text, textFontSize, textLetterSpacing, pathResolution } = settings
+  const { textFontId, text, textLetterSpacing, pathResolution } = settings
   if (!textFontId || !text.trim()) return cache
   const asset = assets.find(a => a.id === textFontId)
   if (!asset) return cache
   const res = clampRes(pathResolution)
-  const key = textCacheKey(textFontId, text, textFontSize, textLetterSpacing, res)
+  const key = textCacheKey(textFontId, text, textLetterSpacing, res)
   if (cache[key]) return cache
   try {
     const font = parseOpenTypeFontFromAsset(asset)
     const pts = textToOpenTypeGlyphPoints(font, text, res, {
-      fontSize: textFontSize,
       letterSpacing: textLetterSpacing,
     })
     return { ...cache, [key]: pts }
@@ -326,6 +326,10 @@ interface ReactStoreState {
   /** Per-track suppressed auto section IDs. Suppressed sections are hidden from the timeline. */
   suppressedAutoSectionsByTrackId: Record<string, string[]>
 
+  // React preset automation cues — stored per stable track ID.
+  // `presetId` is the authoritative assignment; no Engine ID is stored here.
+  presetAutomationCuesByTrackId: Record<string, ReactPresetAutomationCue[]>
+
   // Global performance controls
   reactIntensity:       number
   reactMotion:          number
@@ -383,6 +387,18 @@ interface ReactStoreState {
   updateManualSection: (trackId: string, id: string, patch: Partial<ReactTrackSection>) => void
   removeManualSection: (trackId: string, id: string) => void
   clearManualSectionsForTrack: (trackId: string) => void
+
+  /** Returns cues for a track sorted ascending by timeSec. Empty array if none. */
+  getPresetAutomationCuesForTrack: (trackId: string) => ReactPresetAutomationCue[]
+  /** Adds a cue. No-op if a cue with the same id already exists. Clamps negative timeSec to 0. */
+  addPresetAutomationCue: (trackId: string, cue: ReactPresetAutomationCue) => void
+  /** Applies a partial patch to a cue. Clamps timeSec to 0 if the patched value is negative. */
+  updatePresetAutomationCue: (trackId: string, id: string, patch: Partial<ReactPresetAutomationCue>) => void
+  /** Removes a single cue by id. */
+  removePresetAutomationCue: (trackId: string, id: string) => void
+  /** Removes all cues for the given track. */
+  clearPresetAutomationCuesForTrack: (trackId: string) => void
+
   /**
    * Commits a boundary drag edit for an automatically analyzed section.
    * If a `user-edited-auto` override for this section already exists in the
@@ -696,6 +712,11 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       suppressedAutoSectionsByTrackId: {},
     }
   }
+  if (version < 10) {
+    if (!('presetAutomationCuesByTrackId' in state)) {
+      state = { ...state, presetAutomationCuesByTrackId: {} }
+    }
+  }
   return state
 }
 
@@ -709,6 +730,7 @@ export const useReactStore = create<ReactStoreState>()(
       selectedSectionId: null,
       selectedSectionByTrackId: {},
       suppressedAutoSectionsByTrackId: {},
+      presetAutomationCuesByTrackId: {},
       performancePads: DEFAULT_PERFORMANCE_PADS,
       activePadId: null,
       oscillatorSettings: DEFAULT_OSCILLATOR_SETTINGS,
@@ -1840,6 +1862,56 @@ export const useReactStore = create<ReactStoreState>()(
           },
         })),
 
+      // ── React preset automation cues ────────────────────────────────────────
+
+      getPresetAutomationCuesForTrack: (trackId) =>
+        [...(get().presetAutomationCuesByTrackId[trackId] ?? [])].sort((a, b) => a.timeSec - b.timeSec),
+
+      addPresetAutomationCue: (trackId, cue) =>
+        set((s) => {
+          const existing = s.presetAutomationCuesByTrackId[trackId] ?? []
+          if (existing.some(c => c.id === cue.id)) return {}
+          const safe: ReactPresetAutomationCue = { ...cue, timeSec: Math.max(0, cue.timeSec) }
+          return {
+            presetAutomationCuesByTrackId: {
+              ...s.presetAutomationCuesByTrackId,
+              [trackId]: [...existing, safe],
+            },
+          }
+        }),
+
+      updatePresetAutomationCue: (trackId, id, patch) =>
+        set((s) => {
+          const existing = s.presetAutomationCuesByTrackId[trackId] ?? []
+          return {
+            presetAutomationCuesByTrackId: {
+              ...s.presetAutomationCuesByTrackId,
+              [trackId]: existing.map((c) => {
+                if (c.id !== id) return c
+                const merged = { ...c, ...patch }
+                return { ...merged, timeSec: Math.max(0, merged.timeSec) }
+              }),
+            },
+          }
+        }),
+
+      removePresetAutomationCue: (trackId, id) =>
+        set((s) => {
+          const existing = s.presetAutomationCuesByTrackId[trackId] ?? []
+          return {
+            presetAutomationCuesByTrackId: {
+              ...s.presetAutomationCuesByTrackId,
+              [trackId]: existing.filter((c) => c.id !== id),
+            },
+          }
+        }),
+
+      clearPresetAutomationCuesForTrack: (trackId) =>
+        set((s) => {
+          const { [trackId]: _removed, ...rest } = s.presetAutomationCuesByTrackId
+          return { presetAutomationCuesByTrackId: rest }
+        }),
+
       // ── Beam Matrix preset actions ───────────────────────────────────────────
 
       applyLaserDmxBeamMatrixPreset: (presetId) => {
@@ -1884,6 +1956,7 @@ export const useReactStore = create<ReactStoreState>()(
           selectedSectionId:            null,
           selectedSectionByTrackId:     {},
           suppressedAutoSectionsByTrackId: {},
+          presetAutomationCuesByTrackId: {},
           performancePads:           DEFAULT_PERFORMANCE_PADS,
           activePadId:               null,
           oscillatorSettings:        DEFAULT_OSCILLATOR_SETTINGS,
@@ -1908,7 +1981,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 9,
+      version: 10,
       migrate: (persistedState: unknown, version: number) => {
         let state = (persistedState ?? {}) as Record<string, unknown>
         if (version < 1) {
@@ -2129,6 +2202,12 @@ export const useReactStore = create<ReactStoreState>()(
             suppressedAutoSectionsByTrackId: {},
           }
         }
+        if (version < 10) {
+          state = {
+            ...state,
+            presetAutomationCuesByTrackId: {},
+          }
+        }
         return state
       },
       partialize: (s) => ({
@@ -2136,6 +2215,7 @@ export const useReactStore = create<ReactStoreState>()(
         activeReactEngineId:                s.activeReactEngineId,
         manualTrackSectionsByTrackId:       s.manualTrackSectionsByTrackId,
         suppressedAutoSectionsByTrackId:    s.suppressedAutoSectionsByTrackId,
+        presetAutomationCuesByTrackId:      s.presetAutomationCuesByTrackId,
         oscillatorSettings:                 s.oscillatorSettings,
         oscillatorGlyphAssets:              s.oscillatorGlyphAssets,
         oscillatorFontAssets:               s.oscillatorFontAssets,

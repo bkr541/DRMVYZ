@@ -78,7 +78,7 @@ function modeForSection(type: ReactSectionType | null): ScopeMode {
 //
 // Key structure:
 //   builtin:<shape>:<resolution>                           — deterministic
-//   text:<trimmedText>:<fontSize>:<spacing>:<resolution>   — trimmed text + font params
+//   text:<trimmedText>:<spacing>:<resolution>              — trimmed text + font params
 //   <assetId>:<resolution>:v<compilerVersion>:<hash>       — versioned; see getSvgGlyphCacheKey
 //   builtin:circle:<resolution>                            — sentinel for svgGlyph with no selection / bad SVG
 //
@@ -88,6 +88,10 @@ function modeForSection(type: ReactSectionType | null): ScopeMode {
 
 const PATH_CACHE_MAX = 32
 const pathCache = new Map<string, OscillatorGlyphPoint[]>()
+
+/** Neutral textFontSize — matches the default value in OscillatorSettings.
+ *  At this value the font-size multiplier is 1.0 so existing presets are unaffected. */
+export const DEFAULT_TEXT_FONT_SIZE = 160
 
 function cachePut(key: string, pts: OscillatorGlyphPoint[]): void {
   if (pathCache.size >= PATH_CACHE_MAX) {
@@ -115,7 +119,7 @@ function getOscillatorPathPoints(params: ReactRenderParams): OscillatorGlyphPoin
 
       // Prefer OpenType vector paths when a custom font is selected and points are prepared.
       if (osc.textFontId && trimmed) {
-        const openTypeKey = `${osc.textFontId}:${trimmed}:${osc.textFontSize}:${osc.textLetterSpacing}:${res}`
+        const openTypeKey = `${osc.textFontId}:${trimmed}:${osc.textLetterSpacing}:${res}`
         const prepared = params.oscillatorTextPointCache[openTypeKey]
         if (prepared) return prepared
         if (import.meta.env.DEV) {
@@ -987,11 +991,13 @@ function drawPathScopeOnTrail(
   const visualIntensity    = clamp(params.intensity ?? 1, 0, 2)
   const intensityLineBoost = 0.6 + visualIntensity * 0.4
 
-  // Scale: section pathScale × bass pulse × sustained beat bloom.
+  // Scale: section pathScale × font-size (text only) × bass pulse × sustained beat bloom.
   // params.intensity is intentionally absent — use pathScale for object size.
-  const bloomFactor = am.beatPulse * effectiveOsc.beatBloom
-  const baseScale   = Math.min(W, H) * 0.42 * effectiveOsc.pathScale
-                    * am.bassPulse * (1 + bloomFactor * 0.4)
+  // fontSizeMul is neutral at DEFAULT_TEXT_FONT_SIZE so existing presets are unaffected.
+  const bloomFactor  = am.beatPulse * effectiveOsc.beatBloom
+  const fontSizeMul  = isTextSource ? effectiveOsc.textFontSize / DEFAULT_TEXT_FONT_SIZE : 1
+  const baseScale    = Math.min(W, H) * 0.42 * effectiveOsc.pathScale * fontSizeMul
+                     * am.bassPulse * (1 + bloomFactor * 0.4)
 
   // Glow scales with intensity so the object looks dimmer/brighter as expected.
   const glowBase    = (params.glow * (10 + am.glowBoost) + bass * 8) * visualIntensity

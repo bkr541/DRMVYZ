@@ -842,6 +842,23 @@ export interface ReactPreset {
   laserDmxSettings?: Partial<LaserDmxSettings>
 }
 
+// ── React preset automation cues ─────────────────────────────────────────────
+
+/**
+ * A cue that assigns a React preset at a specific track position.
+ * `presetId` is the source of truth for which preset (and therefore which
+ * Engine) becomes active.  No Engine ID is stored separately.
+ */
+export interface ReactPresetAutomationCue {
+  id:           string
+  timeSec:      number
+  presetId:     string
+  label:        string
+  enabled:      boolean
+  transitionMs: number
+  sectionId?:   string
+}
+
 // ── DVYDRM palette constants ──────────────────────────────────────────────────
 
 export const DVYDRM_CYAN   = '#4ac7db'

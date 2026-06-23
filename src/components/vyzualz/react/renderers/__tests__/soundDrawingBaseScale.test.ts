@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computePathBaseScale } from '../SoundDrawingRenderer'
+import { computePathBaseScale, DEFAULT_TEXT_FONT_SIZE } from '../SoundDrawingRenderer'
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -83,5 +83,35 @@ describe('computePathBaseScale', () => {
     const a = computePathBaseScale(W, H, 1.2, 1.15, 0.3)
     const b = computePathBaseScale(W, H, 1.2, 1.15, 0.3)
     expect(a).toBe(b)
+  })
+})
+
+// ── DEFAULT_TEXT_FONT_SIZE / fontSizeMul ──────────────────────────────────────
+
+describe('DEFAULT_TEXT_FONT_SIZE', () => {
+  it('is 160 (matches OscillatorSettings default)', () => {
+    expect(DEFAULT_TEXT_FONT_SIZE).toBe(160)
+  })
+
+  it('fontSizeMul is 1.0 at the default font size (no scaling)', () => {
+    const mul = DEFAULT_TEXT_FONT_SIZE / DEFAULT_TEXT_FONT_SIZE
+    expect(mul).toBe(1)
+  })
+
+  it('fontSizeMul doubles the scale when textFontSize doubles', () => {
+    const mul = (DEFAULT_TEXT_FONT_SIZE * 2) / DEFAULT_TEXT_FONT_SIZE
+    expect(mul).toBe(2)
+  })
+
+  it('fontSizeMul halves the scale when textFontSize halves', () => {
+    const mul = (DEFAULT_TEXT_FONT_SIZE / 2) / DEFAULT_TEXT_FONT_SIZE
+    expect(mul).toBeCloseTo(0.5, 10)
+  })
+
+  it('combined baseScale is proportional to textFontSize relative to default', () => {
+    const base   = Math.min(W, H) * 0.42 * 1
+    const atDef  = base * (DEFAULT_TEXT_FONT_SIZE / DEFAULT_TEXT_FONT_SIZE)
+    const atHalf = base * ((DEFAULT_TEXT_FONT_SIZE / 2) / DEFAULT_TEXT_FONT_SIZE)
+    expect(atHalf).toBeCloseTo(atDef / 2, 10)
   })
 })

@@ -458,10 +458,7 @@ export function ReactEnginePanel() {
                   ]}
                 />
               )}
-              {/* Font Size only affects OpenType glyph generation; fallback canvas
-                  text is normalized to the canvas height and visual size is
-                  controlled by path scale, so it is hidden without a custom font. */}
-              {!!osc.textFontId && (
+              {osc.sourceType === 'text' && (
                 <SliderRow
                   label="Font Size"
                   value={osc.textFontSize}

@@ -194,7 +194,84 @@ describe('analyzeRgbWaveform — temporal smoothing', () => {
   })
 })
 
-// ── 7: AbortSignal ────────────────────────────────────────────────────────────
+// ── 7: Signed peaks ───────────────────────────────────────────────────────────
+
+describe('analyzeRgbWaveform — signed peaks', () => {
+  it('half-wave rectified signal has positive peaks significantly greater than negative peaks', async () => {
+    // Half-wave: positive half-cycles pass through, negative half-cycles are clamped to 0.
+    const buf = makeSynthBuffer({
+      durationSec: 3,
+      fillFn: (_ch, i) => Math.max(0, Math.sin(2 * Math.PI * 440 * i / 44100)),
+    })
+    const result = await analyzeRgbWaveform(buf)
+    const posAvg = result.positivePeaks.reduce((s, v) => s + v, 0) / result.positivePeaks.length
+    const negAvg = result.negativePeaks.reduce((s, v) => s + v, 0) / result.negativePeaks.length
+    // Positive side carries the full amplitude; negative side is near-zero.
+    expect(posAvg).toBeGreaterThan(negAvg * 4)
+  })
+
+  it('all-positive (full-wave rectified) signal has near-zero negative peaks', async () => {
+    const buf = makeSynthBuffer({
+      durationSec: 3,
+      fillFn: (_ch, i) => Math.abs(Math.sin(2 * Math.PI * 440 * i / 44100)) * 0.8,
+    })
+    const result = await analyzeRgbWaveform(buf)
+    const negMax = Math.max(...Array.from(result.negativePeaks))
+    expect(negMax).toBeLessThan(0.05)
+  })
+
+  it('symmetric sine wave has matched positive and negative peaks', async () => {
+    const buf = makeSynthBuffer({
+      durationSec: 3,
+      fillFn: (_ch, i) => Math.sin(2 * Math.PI * 440 * i / 44100) * 0.8,
+    })
+    const result = await analyzeRgbWaveform(buf)
+    const posAvg = result.positivePeaks.reduce((s, v) => s + v, 0) / result.positivePeaks.length
+    const negAvg = result.negativePeaks.reduce((s, v) => s + v, 0) / result.negativePeaks.length
+    // Both sides should be within 10% of each other for a symmetric signal.
+    expect(Math.abs(posAvg - negAvg)).toBeLessThan(0.10)
+  })
+})
+
+// ── 8: Peak and RMS smoothing ─────────────────────────────────────────────────
+
+describe('analyzeRgbWaveform — peak and RMS smoothing', () => {
+  it('smoothed peaks stay within [0, 1] after smoothing', async () => {
+    const buf = makeSynthBuffer({
+      durationSec: 3,
+      fillFn: (_ch, i) => Math.sin(2 * Math.PI * 440 * i / 44100),
+    })
+    const result = await analyzeRgbWaveform(buf)
+    for (let i = 0; i < result.positivePeaks.length; i++) {
+      expect(result.positivePeaks[i]).toBeGreaterThanOrEqual(0)
+      expect(result.positivePeaks[i]).toBeLessThanOrEqual(1.001)
+      expect(result.negativePeaks[i]).toBeGreaterThanOrEqual(0)
+      expect(result.negativePeaks[i]).toBeLessThanOrEqual(1.001)
+    }
+  })
+
+  it('smoothed RMS has no isolated single-bin spikes above its neighbors', async () => {
+    // Impulse signal: a single loud sample per bin, otherwise silent.
+    // After smoothing, no bin should be drastically higher than its neighbors.
+    const buf = makeSynthBuffer({
+      durationSec: 3,
+      fillFn: (_ch, i) => i % 441 === 0 ? 1.0 : 0.0,
+    })
+    const result = await analyzeRgbWaveform(buf)
+    let maxRatio = 0
+    for (let i = 1; i < result.rms.length - 1; i++) {
+      const neighbors = Math.max(result.rms[i - 1], result.rms[i + 1])
+      if (neighbors > 0.001) {
+        const ratio = result.rms[i] / neighbors
+        if (ratio > maxRatio) maxRatio = ratio
+      }
+    }
+    // After smoothing, no bin should be more than 3× its neighbors.
+    expect(maxRatio).toBeLessThan(3.0)
+  })
+})
+
+// ── 10: AbortSignal ───────────────────────────────────────────────────────────
 
 describe('analyzeRgbWaveform — AbortSignal', () => {
   it('throws DOMException with name AbortError when pre-aborted signal is passed', async () => {

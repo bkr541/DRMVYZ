@@ -1,7 +1,6 @@
 import * as opentype from 'opentype.js'
 import type { OscillatorGlyphPoint, OscillatorFontAsset } from '../ReactTypes'
 import {
-  normalizePointCloud,
   computePathNormals,
   resamplePoints,
   generateBuiltinShapePoints,
@@ -183,7 +182,6 @@ function sampleGlyphPaths(glyphPaths: opentype.Path[]): RawContour[] {
 }
 
 export interface TextGlyphOptions {
-  fontSize?: number
   letterSpacing?: number
 }
 
@@ -193,7 +191,7 @@ export function textToOpenTypeGlyphPoints(
   resolution: number,
   options: TextGlyphOptions = {},
 ): OscillatorGlyphPoint[] {
-  const fontSize      = options.fontSize      ?? 160
+  const fontSize      = 160  // fixed internal scale; textFontSize is applied at render time only
   const letterSpacing = options.letterSpacing ?? 0
   const n = Math.max(2, Math.round(resolution))
   const trimmed = text.trim()
@@ -239,8 +237,12 @@ export function textToOpenTypeGlyphPoints(
     const cy2 = (minY + maxY) / 2
     const centered = allPoints.map(p => ({ ...p, x: p.x - cx2, y: p.y - cy2 }))
 
-    // Normalize to max-radius 1
-    const normalized = normalizePointCloud(centered)
+    // Height-based normalization: scale so y-extent ≈ [-1, 1].
+    // Preserves natural letter aspect ratio (wide text stays wide).
+    // textFontSize is applied as a render-time multiplier in SoundDrawingRenderer.
+    const heightRange = maxY - minY
+    const normScale   = heightRange > 0 ? 2 / heightRange : 1
+    const normalized  = centered.map(p => ({ ...p, x: p.x * normScale, y: p.y * normScale }))
 
     // Compute normals per contour and re-flatten
     const result: OscillatorGlyphPoint[] = []

@@ -1,6 +1,5 @@
 import type { OscillatorGlyphPoint, OscillatorGlyphAsset } from '../ReactTypes'
 import {
-  normalizePointCloud,
   computePathNormals,
   generateBuiltinShapePoints,
   resamplePoints,
@@ -91,8 +90,26 @@ export function textToGlyphPoints(
   if (typeof document === 'undefined') return fallback(n)
 
   try {
+    // Probe canvas: measure character widths before creating the final canvas so
+    // we can size it to fit the text without clipping at large letter spacings.
+    const probeCanvas = document.createElement('canvas')
+    probeCanvas.width  = 1
+    probeCanvas.height = 1
+    const probeCtx = probeCanvas.getContext('2d')
+    if (!probeCtx) return fallback(n)
+    const fontSize = Math.max(8, Math.floor(canvasHeight * 0.72))
+    probeCtx.font = `${fontWeight} ${fontSize}px ${fontFamily}`
+    const chars = Array.from(text)
+    const charWidths = chars.map(c => probeCtx.measureText(c).width)
+    const gap = letterSpacing  // already validated by the UI slider range (-20..80)
+    const totalWidth = charWidths.reduce((sum, w) => sum + w, 0) + gap * Math.max(0, chars.length - 1)
+
+    // Size the canvas to the actual text width plus padding; never smaller than canvasWidth.
+    const SIDE_PAD   = 16
+    const actualWidth = Math.max(canvasWidth, Math.ceil(totalWidth) + 2 * SIDE_PAD)
+
     const canvas = document.createElement('canvas')
-    canvas.width  = canvasWidth
+    canvas.width  = actualWidth
     canvas.height = canvasHeight
 
     const ctx = canvas.getContext('2d')
@@ -100,27 +117,23 @@ export function textToGlyphPoints(
 
     // Draw white text on transparent canvas — background stays alpha=0 so that
     // simple alpha-based edge detection works correctly.
-    const fontSize = Math.max(8, Math.floor(canvasHeight * 0.72))
-    ctx.font        = `${fontWeight} ${fontSize}px ${fontFamily}`
+    // Re-apply font after canvas creation (resize resets context state).
+    ctx.font         = `${fontWeight} ${fontSize}px ${fontFamily}`
     ctx.textBaseline = 'middle'
-    ctx.fillStyle   = '#ffffff'
+    ctx.fillStyle    = '#ffffff'
 
     // Draw character-by-character so letterSpacing is applied between glyphs.
     // Using Array.from ensures multi-byte Unicode characters are treated as
     // single units (emoji, accented chars, etc.).
-    const chars = Array.from(text)
     ctx.textAlign = 'left'
-    const charWidths = chars.map(c => ctx.measureText(c).width)
-    const gap = letterSpacing  // already validated by the UI slider range (-20..80)
-    const totalWidth = charWidths.reduce((sum, w) => sum + w, 0) + gap * Math.max(0, chars.length - 1)
-    let x = canvasWidth / 2 - totalWidth / 2
+    let x = actualWidth / 2 - totalWidth / 2
     const y = canvasHeight / 2
     for (let i = 0; i < chars.length; i++) {
       ctx.fillText(chars[i], x, y)
       x += charWidths[i] + gap
     }
 
-    const imageData = ctx.getImageData(0, 0, canvasWidth, canvasHeight)
+    const imageData = ctx.getImageData(0, 0, actualWidth, canvasHeight)
     const data      = imageData.data
 
     // ── Edge detection ────────────────────────────────────────────────────────
@@ -128,17 +141,17 @@ export function textToGlyphPoints(
     // transparent 4-connected neighbour.  Alpha threshold 50 captures
     // anti-aliased sub-pixel fringe without including invisible specks.
     const step   = Math.max(1, Math.round(sampleStep))
-    const stride = canvasWidth
+    const stride = actualWidth
     const edgePixels: [number, number][] = []
 
     for (let y = 0; y < canvasHeight; y += step) {
-      for (let x = 0; x < canvasWidth; x += step) {
+      for (let x = 0; x < actualWidth; x += step) {
         if (data[(y * stride + x) * 4 + 3] < 50) continue
 
         const hasTransparentNeighbour =
-          (x > 0               && data[(y * stride + (x - 1)) * 4 + 3] < 50) ||
-          (x < canvasWidth  - 1 && data[(y * stride + (x + 1)) * 4 + 3] < 50) ||
-          (y > 0               && data[((y - 1) * stride + x) * 4 + 3] < 50) ||
+          (x > 0                && data[(y * stride + (x - 1)) * 4 + 3] < 50) ||
+          (x < actualWidth  - 1 && data[(y * stride + (x + 1)) * 4 + 3] < 50) ||
+          (y > 0                && data[((y - 1) * stride + x) * 4 + 3] < 50) ||
           (y < canvasHeight - 1 && data[((y + 1) * stride + x) * 4 + 3] < 50)
 
         if (hasTransparentNeighbour) edgePixels.push([x, y])
@@ -160,7 +173,7 @@ export function textToGlyphPoints(
     })
 
     // ── Convert to glyph points ───────────────────────────────────────────────
-    const cx  = canvasWidth  / 2
+    const cx  = actualWidth  / 2
     const cy  = canvasHeight / 2
     const len = edgePixels.length
     const raw: OscillatorGlyphPoint[] = edgePixels.map(([px, py], i) => ({
@@ -170,8 +183,20 @@ export function textToGlyphPoints(
       progress:  len > 1 ? i / (len - 1) : 0,
     }))
 
-    const resampled  = resamplePoints(raw, n)
-    const normalized = normalizePointCloud(resampled)
+    const resampled = resamplePoints(raw, n)
+
+    // Height-based normalization: scale so y-extent ≈ [-1, 1].
+    // Preserves natural letter aspect ratio (wide text stays wide).
+    // textFontSize is applied as a render-time multiplier in SoundDrawingRenderer.
+    let minYr = Infinity, maxYr = -Infinity
+    for (const p of resampled) {
+      if (p.y < minYr) minYr = p.y
+      if (p.y > maxYr) maxYr = p.y
+    }
+    const heightRange = maxYr - minYr
+    const normScale   = heightRange > 0 ? 2 / heightRange : 2 / canvasHeight
+    const normalized  = resampled.map(p => ({ ...p, x: p.x * normScale, y: p.y * normScale }))
+
     return computePathNormals(normalized, false)
 
   } catch {

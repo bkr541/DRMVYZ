@@ -137,13 +137,26 @@ describe('textToGlyphPoints — with mocked canvas', () => {
     }
   })
 
-  it('normalised x/y values are within [-1.2, 1.2]', () => {
+  it('y-values are height-normalised to approximately [-1, 1]', () => {
+    // Height-based normalization: y-extent ≈ [-1,1], x can be wider for wide text.
     for (const p of textToGlyphPoints('DRMVYZ', 512)) {
-      expect(p.x).toBeGreaterThanOrEqual(-1.2)
-      expect(p.x).toBeLessThanOrEqual(1.2)
-      expect(p.y).toBeGreaterThanOrEqual(-1.2)
-      expect(p.y).toBeLessThanOrEqual(1.2)
+      expect(p.y).toBeGreaterThanOrEqual(-1.5)
+      expect(p.y).toBeLessThanOrEqual(1.5)
     }
+  })
+
+  it('x-range exceeds y-range for wide text (aspect ratio preserved)', () => {
+    // The mock rectangle (412px wide × 88px tall) should produce wider x-span
+    // than y-span after height-based normalisation.
+    const pts = textToGlyphPoints('DRMVYZ', 512)
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+    for (const p of pts) {
+      if (p.x < minX) minX = p.x
+      if (p.x > maxX) maxX = p.x
+      if (p.y < minY) minY = p.y
+      if (p.y > maxY) maxY = p.y
+    }
+    expect(maxX - minX).toBeGreaterThan(maxY - minY)
   })
 
   it('progress of first point is 0 and last is 1', () => {

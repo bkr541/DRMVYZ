@@ -218,6 +218,48 @@ describe('textToOpenTypeGlyphPoints', () => {
   })
 })
 
+// ── Height normalization preserves aspect ratio ───────────────────────────────
+
+describe('textToOpenTypeGlyphPoints — height-normalised aspect ratio', () => {
+  it('wide glyph has larger x-range than y-range after normalisation', () => {
+    const wideRectFont = makeMockFont([
+      { type: 'M', x: 0,   y: 0   },
+      { type: 'L', x: 400, y: 0   },
+      { type: 'L', x: 400, y: 100 },
+      { type: 'L', x: 0,   y: 100 },
+      { type: 'Z' },
+    ])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pts = textToOpenTypeGlyphPoints(wideRectFont as any, 'W', 128)
+
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+    for (const p of pts) {
+      if (p.x < minX) minX = p.x
+      if (p.x > maxX) maxX = p.x
+      if (p.y < minY) minY = p.y
+      if (p.y > maxY) maxY = p.y
+    }
+    expect(maxX - minX).toBeGreaterThan(maxY - minY)
+  })
+
+  it('height is normalised to approximately [-1, 1] for a wide rectangle', () => {
+    const wideRectFont = makeMockFont([
+      { type: 'M', x: 0,   y: 0   },
+      { type: 'L', x: 400, y: 0   },
+      { type: 'L', x: 400, y: 100 },
+      { type: 'L', x: 0,   y: 100 },
+      { type: 'Z' },
+    ])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pts = textToOpenTypeGlyphPoints(wideRectFont as any, 'W', 128)
+
+    for (const p of pts) {
+      expect(p.y).toBeGreaterThanOrEqual(-1 - 1e-9)
+      expect(p.y).toBeLessThanOrEqual(1 + 1e-9)
+    }
+  })
+})
+
 // ── SoundDrawingRenderer does not import fontGlyphUtils ───────────────────────
 
 describe('SoundDrawingRenderer import guard', () => {

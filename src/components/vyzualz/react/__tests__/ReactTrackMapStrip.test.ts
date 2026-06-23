@@ -10,9 +10,13 @@ import {
   ENERGY_CURVE_OPTIONS,
   TRACK_MAP_DOWNBEAT_COLOR,
   TRACK_MAP_BEAT_TICK_HEIGHT,
+  buildPresetCueId,
+  buildPresetCueLabel,
 } from '../ReactTrackMapStrip'
 import { adaptMIAnalysis } from '../../../../features/trackIntelligence/trackMapAdapter'
 import type { TrackIntelligenceAnalysis, FeatureCurve, TrackAnalysisStatus, BeatMarkerMI } from '../../../../features/musicIntelligence/types'
+import { useReactStore } from '../../../../stores/reactStore'
+import type { ReactTrackSection } from '../ReactTypes'
 
 // ── Canvas mock (avoids DOM / jsdom requirement) ──────────────────────────────
 
@@ -789,5 +793,217 @@ describe('drawBeatCanvas — density reduction integration', () => {
     // Sparse: all 3 regular beats drawn; dense: fewer than 299 regular beats
     expect(sparseMoves).toBe(3)
     expect(denseMoves).toBeLessThan(299)
+  })
+})
+
+// ── 19: buildPresetCueId ──────────────────────────────────────────────────────
+
+describe('buildPresetCueId', () => {
+  it('returns a stable, deterministic string from a section ID', () => {
+    expect(buildPresetCueId('sec-intro')).toBe('section-preset:sec-intro')
+  })
+
+  it('returns different IDs for different section IDs', () => {
+    expect(buildPresetCueId('a')).not.toBe(buildPresetCueId('b'))
+  })
+
+  it('produces the same ID on repeated calls with the same input', () => {
+    const id = 'my-section-123'
+    expect(buildPresetCueId(id)).toBe(buildPresetCueId(id))
+  })
+})
+
+// ── 20: buildPresetCueLabel ───────────────────────────────────────────────────
+
+describe('buildPresetCueLabel', () => {
+  it('formats "SectionLabel → PresetName"', () => {
+    expect(buildPresetCueLabel('Drop', 'Neon Energy Cloud')).toBe('Drop → Neon Energy Cloud')
+  })
+
+  it('handles empty strings without throwing', () => {
+    expect(() => buildPresetCueLabel('', '')).not.toThrow()
+  })
+})
+
+// ── 21: section preset assignment workflow (store integration) ────────────────
+//
+// These tests call the store directly (no React rendering) to verify the
+// data contract: assign, change, clear, move, and delete a section's cue.
+
+const TRACK_ID = 'test-track-section-assign'
+
+function makeSection(overrides: Partial<ReactTrackSection> = {}): ReactTrackSection {
+  return {
+    id:       'sec-drop-1',
+    label:    'Drop',
+    type:     'drop',
+    startSec: 30,
+    endSec:   90,
+    intensity: 1.0,
+    source:   'user-created',
+    ...overrides,
+  }
+}
+
+function resetStore() {
+  useReactStore.setState({ presetAutomationCuesByTrackId: {} })
+}
+
+/** Simulates the handleAssignPreset action from ReactTrackMapStrip. */
+function assignPreset(
+  section: ReactTrackSection,
+  presetId: string | null,
+  presetName: string = 'Test Preset',
+): void {
+  const store  = useReactStore.getState()
+  const cueId  = buildPresetCueId(section.id)
+  if (!presetId) {
+    store.removePresetAutomationCue(TRACK_ID, cueId)
+    return
+  }
+  const label    = buildPresetCueLabel(section.label, presetName)
+  const trackCues = store.presetAutomationCuesByTrackId[TRACK_ID] ?? []
+  const existing  = trackCues.find(c => c.id === cueId)
+  if (existing) {
+    store.updatePresetAutomationCue(TRACK_ID, cueId, { presetId, label, timeSec: section.startSec })
+  } else {
+    store.addPresetAutomationCue(TRACK_ID, {
+      id:           cueId,
+      timeSec:      section.startSec,
+      presetId,
+      label,
+      enabled:      true,
+      transitionMs: 0,
+      sectionId:    section.id,
+    })
+  }
+}
+
+describe('section preset assignment — assigning', () => {
+  beforeEach(resetStore)
+
+  it('creates a cue with the correct shape when a preset is assigned', () => {
+    const section = makeSection()
+    assignPreset(section, 'preset-neon-energy', 'Neon Energy')
+    const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
+    expect(cues).toHaveLength(1)
+    const cue = cues[0]
+    expect(cue.id).toBe(buildPresetCueId(section.id))
+    expect(cue.timeSec).toBe(section.startSec)
+    expect(cue.presetId).toBe('preset-neon-energy')
+    expect(cue.sectionId).toBe(section.id)
+    expect(cue.enabled).toBe(true)
+    expect(cue.label).toBe('Drop → Neon Energy')
+  })
+
+  it('cue timeSec matches the section startSec', () => {
+    const section = makeSection({ startSec: 45 })
+    assignPreset(section, 'p-1')
+    const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
+    expect(cues[0].timeSec).toBe(45)
+  })
+
+  it('assigning a second time to the same section does not create a duplicate', () => {
+    const section = makeSection()
+    assignPreset(section, 'p-1')
+    assignPreset(section, 'p-1')
+    const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
+    expect(cues).toHaveLength(1)
+  })
+})
+
+describe('section preset assignment — changing', () => {
+  beforeEach(resetStore)
+
+  it('updating the assigned preset changes presetId but preserves the cue ID', () => {
+    const section = makeSection()
+    assignPreset(section, 'p-first', 'First Preset')
+    assignPreset(section, 'p-second', 'Second Preset')
+    const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
+    expect(cues).toHaveLength(1)
+    expect(cues[0].presetId).toBe('p-second')
+    expect(cues[0].id).toBe(buildPresetCueId(section.id))
+  })
+
+  it('updating the preset updates the label', () => {
+    const section = makeSection()
+    assignPreset(section, 'p-1', 'Alpha')
+    assignPreset(section, 'p-2', 'Beta')
+    const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
+    expect(cues[0].label).toBe(buildPresetCueLabel('Drop', 'Beta'))
+  })
+})
+
+describe('section preset assignment — clearing', () => {
+  beforeEach(resetStore)
+
+  it('clearing the assignment removes the cue', () => {
+    const section = makeSection()
+    assignPreset(section, 'p-1')
+    assignPreset(section, null)    // clear
+    const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
+    expect(cues).toHaveLength(0)
+  })
+
+  it('clearing when no cue exists is a no-op', () => {
+    const section = makeSection()
+    expect(() => assignPreset(section, null)).not.toThrow()
+    const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
+    expect(cues).toHaveLength(0)
+  })
+})
+
+describe('section preset assignment — moving (startSec change)', () => {
+  beforeEach(resetStore)
+
+  it('updating the section startSec syncs the cue timeSec', () => {
+    const section = makeSection({ startSec: 30 })
+    assignPreset(section, 'p-1')
+
+    // Simulate handleSaveSection or handleCommitBoundary syncing the cue
+    const cueId = buildPresetCueId(section.id)
+    useReactStore.getState().updatePresetAutomationCue(TRACK_ID, cueId, { timeSec: 60 })
+
+    // Re-read state after mutation
+    const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
+    expect(cues[0].timeSec).toBe(60)
+  })
+
+  it('the cue presetId is unchanged after a timeSec update', () => {
+    const section = makeSection({ startSec: 30 })
+    assignPreset(section, 'my-preset')
+    useReactStore.getState().updatePresetAutomationCue(TRACK_ID, buildPresetCueId(section.id), { timeSec: 55 })
+    const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
+    expect(cues[0].presetId).toBe('my-preset')
+    expect(cues[0].timeSec).toBe(55)
+  })
+})
+
+describe('section preset assignment — deleting the section', () => {
+  beforeEach(resetStore)
+
+  it('removing the linked cue when a section is deleted', () => {
+    const section = makeSection()
+    assignPreset(section, 'p-1')
+
+    // Simulate handleDeleteSection: removeManualSection + removePresetAutomationCue
+    useReactStore.getState().removePresetAutomationCue(TRACK_ID, buildPresetCueId(section.id))
+
+    const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
+    expect(cues).toHaveLength(0)
+  })
+
+  it('deleting one section does not affect cues for other sections', () => {
+    const sectionA = makeSection({ id: 'sec-A', label: 'Intro', startSec: 0 })
+    const sectionB = makeSection({ id: 'sec-B', label: 'Drop',  startSec: 30 })
+    assignPreset(sectionA, 'p-a')
+    assignPreset(sectionB, 'p-b')
+
+    // Delete section A
+    useReactStore.getState().removePresetAutomationCue(TRACK_ID, buildPresetCueId(sectionA.id))
+
+    const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
+    expect(cues).toHaveLength(1)
+    expect(cues[0].sectionId).toBe(sectionB.id)
   })
 })

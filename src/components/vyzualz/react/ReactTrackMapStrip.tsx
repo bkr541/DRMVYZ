@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useReactStore } from '../../../stores/reactStore'
 import { useVisualStore } from '../../../stores/visualStore'
-import type { ReactSectionType, ReactTrackSection } from './ReactTypes'
+import type { ReactEngineId, ReactPreset, ReactSectionType, ReactTrackSection } from './ReactTypes'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import {
   computeMinDuration,
@@ -26,6 +26,27 @@ import type {
   FeatureCurve,
   TrackAnalysisStatus,
 } from '../../../features/musicIntelligence/types'
+
+// ── Engine display labels ─────────────────────────────────────────────────────
+
+const ENGINE_LABELS: Record<ReactEngineId, string> = {
+  shaderPads:      'Shader Pads',
+  cinematicPortal: 'Cinematic Portal',
+  oscilloscope:    'Sound Drawing',
+  laserDmx:        'LaserDMX',
+}
+
+// ── Preset-cue helpers (exported for tests) ───────────────────────────────────
+
+/** Returns the stable cue ID for a section's preset assignment (one cue per section). */
+export function buildPresetCueId(sectionId: string): string {
+  return `section-preset:${sectionId}`
+}
+
+/** Returns a human-readable cue label, e.g. "Drop → Neon Energy Cloud". */
+export function buildPresetCueLabel(sectionLabel: string, presetName: string): string {
+  return `${sectionLabel} → ${presetName}`
+}
 
 // ── Section display metadata ───────────────────────────────────────────────────
 
@@ -302,6 +323,12 @@ interface EditSectionFormProps {
   onRestore?:   () => void
   /** Called when suppressing (hiding) a pure auto section from the timeline. */
   onSuppress?:  () => void
+  /** Available presets for the Visual Assignment dropdown. */
+  reactPresets?:     ReactPreset[]
+  /** Currently assigned preset ID for this section (null = no assignment). */
+  assignedPresetId?: string | null
+  /** Called when the user picks a preset or clears the assignment. */
+  onAssignPreset?:   (presetId: string | null) => void
 }
 
 function EditSectionForm({
@@ -314,6 +341,9 @@ function EditSectionForm({
   onDelete,
   onRestore,
   onSuppress,
+  reactPresets,
+  assignedPresetId,
+  onAssignPreset,
 }: EditSectionFormProps) {
   const [type,           setType]           = useState<ReactSectionType>(section.type)
   const [label,          setLabel]          = useState(section.label)
@@ -445,6 +475,36 @@ function EditSectionForm({
           <span className="rv-form-val">{Math.round(intensity * 100)}%</span>
         </div>
       </div>
+
+      {reactPresets && onAssignPreset && (
+        <div className="rv-form-group-sep">
+          <div className="rv-form-group-label">Visual Assignment</div>
+          <div className="rv-form-row">
+            <label className="rv-form-label">Preset</label>
+            <select
+              className="rv-form-select"
+              value={assignedPresetId ?? ''}
+              onChange={e => onAssignPreset(e.target.value || null)}
+            >
+              <option value="">No preset assignment</option>
+              {reactPresets.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+          {assignedPresetId && (() => {
+            const preset = reactPresets.find(p => p.id === assignedPresetId)
+            return preset ? (
+              <div className="rv-form-row">
+                <label className="rv-form-label">Engine</label>
+                <span className="rv-form-val rv-form-val--readonly">
+                  {ENGINE_LABELS[preset.engine] ?? preset.engine}
+                </span>
+              </div>
+            ) : null
+          })()}
+        </div>
+      )}
 
       <div className="rv-form-actions">
         <span className="rv-section-source-badge">{sourceBadgeText}</span>
@@ -609,6 +669,8 @@ interface SectionTimelineProps {
   ) => void
   /** Called on every pointer-move with the live boundary preview (for editor sync). */
   onDragPreview?: (sectionId: string, previewStart: number, previewEnd: number) => void
+  /** Section IDs that have a preset assignment (drives compact badge display). */
+  presetAssignedSectionIds?: Set<string>
 }
 
 function SectionTimeline({
@@ -623,6 +685,7 @@ function SectionTimeline({
   onRemove,
   onCommitBoundary,
   onDragPreview,
+  presetAssignedSectionIds,
 }: SectionTimelineProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [drag, setDrag] = useState<SectionBoundaryDragState | null>(null)
@@ -827,6 +890,9 @@ function SectionTimeline({
               <div className="rv-section-header" style={{ background: color }}>
                 <span className="rv-section-label">{section.label.toUpperCase()}</span>
                 {barRange && <span className="rv-section-barrange">{barRange}</span>}
+                {presetAssignedSectionIds?.has(orig.id) && (
+                  <span className="rv-section-preset-dot" title="Preset assigned">●</span>
+                )}
               </div>
               {onRemove && isUser && (
                 <button
@@ -922,6 +988,11 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     commitAutomaticSectionOverride,
     suppressAutoSection,
     restoreAutoSection,
+    reactPresets,
+    presetAutomationCuesByTrackId,
+    addPresetAutomationCue,
+    updatePresetAutomationCue,
+    removePresetAutomationCue,
   } = useReactStore(useShallow(s => ({
     manualTrackSectionsByTrackId:    s.manualTrackSectionsByTrackId,
     suppressedAutoSectionsByTrackId: s.suppressedAutoSectionsByTrackId,
@@ -933,6 +1004,11 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     commitAutomaticSectionOverride:  s.commitAutomaticSectionOverride,
     suppressAutoSection:             s.suppressAutoSection,
     restoreAutoSection:              s.restoreAutoSection,
+    reactPresets:                    s.reactPresets,
+    presetAutomationCuesByTrackId:   s.presetAutomationCuesByTrackId,
+    addPresetAutomationCue:          s.addPresetAutomationCue,
+    updatePresetAutomationCue:       s.updatePresetAutomationCue,
+    removePresetAutomationCue:       s.removePresetAutomationCue,
   })))
 
   const { waveformZoom, beatGridEnabled } = useVisualStore(
@@ -980,6 +1056,12 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
   const manualTrackSections = activeTrackId
     ? (manualTrackSectionsByTrackId[activeTrackId] ?? [])
     : []
+
+  // Per-track preset automation cues and the set of section IDs that have one
+  const trackCues = activeTrackId ? (presetAutomationCuesByTrackId[activeTrackId] ?? []) : []
+  const assignedSectionIds = new Set(
+    trackCues.filter(c => c.sectionId != null).map(c => c.sectionId!)
+  )
 
   // Derived
   const hasTrack    = currentTrack != null
@@ -1179,6 +1261,14 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
       applyEdit(sectionId, primary, patch)
     }
 
+    // Sync the linked preset cue's timeSec when the section's start edge moves.
+    if (edge === 'start') {
+      const cueId = buildPresetCueId(sectionId)
+      if (trackCues.some(c => c.id === cueId)) {
+        updatePresetAutomationCue(activeTrackId, cueId, { timeSec: newTime })
+      }
+    }
+
     // Commit the shared neighbor's boundary in a separate but synchronous call.
     // Both commits happen in the same React event-handler tick so React 18 batches them.
     if (sharedNeighborId && newNeighborTime != null) {
@@ -1189,13 +1279,20 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
           ? { startSec: newNeighborTime }
           : { endSec:   newNeighborTime }
         applyEdit(sharedNeighborId, neighbor, neighborPatch)
+        // When dragging our end, the neighbor's start moves — sync that cue too.
+        if (edge === 'end') {
+          const neighborCueId = buildPresetCueId(sharedNeighborId)
+          if (trackCues.some(c => c.id === neighborCueId)) {
+            updatePresetAutomationCue(activeTrackId, neighborCueId, { timeSec: newNeighborTime })
+          }
+        }
       }
     }
 
     // Clear the editor's drag-preview now that the commit has been issued.
     // The EditSectionForm effect will snap to the newly-committed section values.
     setDragPreview(null)
-  }, [activeTrackId, resolvedSections, commitAutomaticSectionOverride, updateManualSection])
+  }, [activeTrackId, resolvedSections, commitAutomaticSectionOverride, updateManualSection, trackCues, updatePresetAutomationCue])
 
   const handleRetry = useCallback(() => {
     if (currentTrack) retryAnalysis(currentTrack.id)
@@ -1236,9 +1333,16 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     } else {
       updateManualSection(activeTrackId, selectedSectionId, patch)
     }
+    // Sync the linked preset cue's timeSec when the section's start changes.
+    if (patch.startSec != null) {
+      const cueId = buildPresetCueId(selectedSectionId)
+      if (trackCues.some(c => c.id === cueId)) {
+        updatePresetAutomationCue(activeTrackId, cueId, { timeSec: patch.startSec })
+      }
+    }
     setEditorMode('none')
     setSelectedSectionIdForTrack(activeTrackId, null)
-  }, [activeTrackId, selectedSectionId, resolvedSections, commitAutomaticSectionOverride, updateManualSection, setSelectedSectionIdForTrack])
+  }, [activeTrackId, selectedSectionId, resolvedSections, commitAutomaticSectionOverride, updateManualSection, trackCues, updatePresetAutomationCue, setSelectedSectionIdForTrack])
 
   // Removes the user-edited-auto override AND any suppression, restoring the original.
   const handleRestoreSection = useCallback(() => {
@@ -1258,8 +1362,41 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
   const handleDeleteSection = useCallback(() => {
     if (!activeTrackId || !selectedSectionId) return
     removeManualSection(activeTrackId, selectedSectionId)
+    // Remove the linked preset automation cue if one exists.
+    const cueId = buildPresetCueId(selectedSectionId)
+    if (trackCues.some(c => c.id === cueId)) {
+      removePresetAutomationCue(activeTrackId, cueId)
+    }
     setEditorMode('none')
-  }, [activeTrackId, selectedSectionId, removeManualSection])
+  }, [activeTrackId, selectedSectionId, removeManualSection, trackCues, removePresetAutomationCue])
+
+  // Creates, updates, or removes a preset automation cue linked to the selected section.
+  const handleAssignPreset = useCallback((presetId: string | null) => {
+    if (!activeTrackId || !selectedSectionId) return
+    const section = resolvedSections.find(s => s.id === selectedSectionId)
+    if (!section) return
+    const cueId = buildPresetCueId(section.id)
+    if (!presetId) {
+      removePresetAutomationCue(activeTrackId, cueId)
+      return
+    }
+    const preset = reactPresets.find(p => p.id === presetId)
+    const label = buildPresetCueLabel(section.label, preset?.name ?? presetId)
+    const existing = trackCues.find(c => c.id === cueId)
+    if (existing) {
+      updatePresetAutomationCue(activeTrackId, cueId, { presetId, label, timeSec: section.startSec })
+    } else {
+      addPresetAutomationCue(activeTrackId, {
+        id:           cueId,
+        timeSec:      section.startSec,
+        presetId,
+        label,
+        enabled:      true,
+        transitionMs: 0,
+        sectionId:    section.id,
+      })
+    }
+  }, [activeTrackId, selectedSectionId, resolvedSections, reactPresets, trackCues, addPresetAutomationCue, updatePresetAutomationCue, removePresetAutomationCue])
 
   // Clears all sections: removes manual ones and suppresses all auto ones.
   const handleDeleteAllSections = useCallback(() => {
@@ -1509,6 +1646,11 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
                       onDelete={isUser ? handleDeleteSection : undefined}
                       onRestore={isEdited ? handleRestoreSection : undefined}
                       onSuppress={isAuto ? handleSuppressSection : undefined}
+                      reactPresets={reactPresets}
+                      assignedPresetId={
+                        trackCues.find(c => c.id === buildPresetCueId(selectedSection.id))?.presetId ?? null
+                      }
+                      onAssignPreset={handleAssignPreset}
                     />
                   )
                 })()}
@@ -1526,6 +1668,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
                     onRemove={activeTrackId ? handleRemove : undefined}
                     onCommitBoundary={handleCommitBoundary}
                     onDragPreview={handleDragPreview}
+                    presetAssignedSectionIds={assignedSectionIds}
                   />
                 ) : (
                   <div className="rv-section-group-empty">

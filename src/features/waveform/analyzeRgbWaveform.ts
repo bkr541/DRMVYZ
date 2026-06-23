@@ -89,21 +89,21 @@ export async function analyzeRgbWaveform(
     for (let bin = binStart; bin < binEnd; bin++) {
       const sStart = Math.floor( bin      * totalSamples / BIN_COUNT)
       const sEnd   = Math.floor((bin + 1) * totalSamples / BIN_COUNT)
-      let posMax = 0, sumSq = 0, count = 0
+      let posMax = 0, negMax = 0, sumSq = 0, count = 0
 
       for (let ch = 0; ch < nch; ch++) {
         const chData = channels[ch]
         for (let i = sStart; i < sEnd; i++) {
           const s = chData[i]
-          const a = s < 0 ? -s : s
-          if (a > posMax) posMax = a
+          if (s  > posMax) posMax =  s
+          if (-s > negMax) negMax = -s
           sumSq += s * s
           count++
         }
       }
 
       positivePeaksRaw[bin] = posMax
-      negativePeaksRaw[bin] = posMax  // symmetric — same peak used for both halves
+      negativePeaksRaw[bin] = negMax
       rmsRaw[bin] = count > 0 ? Math.sqrt(sumSq / count) : 0
     }
 
@@ -163,7 +163,9 @@ export async function analyzeRgbWaveform(
 
   // ── Normalization ─────────────────────────────────────────────────────────────
 
-  const peakRef = sortedPercentile(positivePeaksRaw, 0.98)
+  // Use 0.995 percentile for peaks so mastered tracks don't clamp large portions to full height.
+  // A shared reference for both positive and negative sides preserves true waveform asymmetry.
+  const peakRef = sortedPercentile(positivePeaksRaw, 0.995)
   const rmsRef  = sortedPercentile(rmsRaw,           0.95)
   const lowRef  = sortedPercentile(lowAccum,          0.95)
   const midRef  = sortedPercentile(midAccum,          0.95)
@@ -178,17 +180,17 @@ export async function analyzeRgbWaveform(
 
   const EPS = 1e-10
 
-  const positivePeaks = new Float32Array(BIN_COUNT)
-  const negativePeaks = new Float32Array(BIN_COUNT)
-  const rms           = new Float32Array(BIN_COUNT)
-  const lowRaw        = new Float32Array(BIN_COUNT)
-  const midRaw        = new Float32Array(BIN_COUNT)
-  const highRaw       = new Float32Array(BIN_COUNT)
+  const positivePeaksBuf = new Float32Array(BIN_COUNT)
+  const negativePeaksBuf = new Float32Array(BIN_COUNT)
+  const rmsBuf           = new Float32Array(BIN_COUNT)
+  const lowRaw           = new Float32Array(BIN_COUNT)
+  const midRaw           = new Float32Array(BIN_COUNT)
+  const highRaw          = new Float32Array(BIN_COUNT)
 
   for (let bin = 0; bin < BIN_COUNT; bin++) {
-    positivePeaks[bin] = Math.min(1, positivePeaksRaw[bin] / (peakRef + EPS))
-    negativePeaks[bin] = Math.min(1, negativePeaksRaw[bin] / (peakRef + EPS))
-    rms[bin]           = Math.min(1, rmsRaw[bin]           / (rmsRef  + EPS))
+    positivePeaksBuf[bin] = Math.min(1, positivePeaksRaw[bin] / (peakRef + EPS))
+    negativePeaksBuf[bin] = Math.min(1, negativePeaksRaw[bin] / (peakRef + EPS))
+    rmsBuf[bin]           = Math.min(1, rmsRaw[bin]           / (rmsRef  + EPS))
 
     // Blended normalization: relative preserves timbral detail, absolute keeps spectral balance
     const lRel = lowAccum[bin]  / (lowRef  + EPS)
@@ -204,11 +206,14 @@ export async function analyzeRgbWaveform(
     highRaw[bin] = Math.min(1, hRel * BLEND_RELATIVE + hAbs * BLEND_ABSOLUTE)
   }
 
-  // ── Temporal smoothing on band energies only ──────────────────────────────────
+  // ── Temporal smoothing on all amplitude and band-energy arrays ────────────────
 
-  const lowEnergy  = applySmoothing(lowRaw,  SMOOTHING_KERNEL)
-  const midEnergy  = applySmoothing(midRaw,  SMOOTHING_KERNEL)
-  const highEnergy = applySmoothing(highRaw, SMOOTHING_KERNEL)
+  const positivePeaks = applySmoothing(positivePeaksBuf, SMOOTHING_KERNEL)
+  const negativePeaks = applySmoothing(negativePeaksBuf, SMOOTHING_KERNEL)
+  const rms           = applySmoothing(rmsBuf,           SMOOTHING_KERNEL)
+  const lowEnergy     = applySmoothing(lowRaw,           SMOOTHING_KERNEL)
+  const midEnergy     = applySmoothing(midRaw,           SMOOTHING_KERNEL)
+  const highEnergy    = applySmoothing(highRaw,          SMOOTHING_KERNEL)
 
   return {
     version:  RGB_WAVEFORM_VERSION,
