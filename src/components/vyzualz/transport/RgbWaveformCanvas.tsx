@@ -14,6 +14,7 @@ interface RgbWaveformCanvasProps {
 }
 
 const PLAYHEAD_COLOR = '#4ac7db'
+const PAD            = 12
 
 function getWindow(duration: number, currentTime: number, zoom: number) {
   const safe = duration > 0 ? duration : 1
@@ -34,7 +35,7 @@ function buildStaticImageData(
 ): ImageData {
   const { binCount, positivePeaks, negativePeaks, rms, lowEnergy, midEnergy, highEnergy } = analysis
   const data = new Uint8ClampedArray(W * H * 4)
-  const drawableHalf = Math.max(1, (H - 4) / 2)
+  const drawableHalf = Math.max(1, (H - PAD * 2) / 2)
   const centerY      = H / 2
 
   for (let x = 0; x < W; x++) {
@@ -163,7 +164,7 @@ export function RgbWaveformCanvas({
 
         const imageData = ctx.createImageData(W, H)
         const data      = imageData.data
-        const drawableHalf = Math.max(1, (H - 4) / 2)
+        const drawableHalf = Math.max(1, (H - PAD * 2) / 2)
         const centerY      = H / 2
 
         for (let x = 0; x < W; x++) {
@@ -219,10 +220,11 @@ export function RgbWaveformCanvas({
       const vis = pk.slice(si, ei)
       const bw  = vis.length > 0 ? W / vis.length : 1
 
+      const availH = H - PAD * 2
       for (let i = 0; i < vis.length; i++) {
         const peakT = winStart + ((si + i) / pk.length) * safe
-        const barH  = Math.max(1, vis[i] * (H - 4))
-        const y     = (H - barH) / 2
+        const barH  = Math.max(1, vis[i] * availH)
+        const y     = PAD + (availH - barH) / 2
         ctx.fillStyle = peakT < ct ? 'rgba(74,199,219,0.75)' : 'rgba(255,255,255,0.16)'
         ctx.fillRect(i * bw, y, Math.max(1, bw - 0.5), barH)
       }
@@ -237,10 +239,11 @@ export function RgbWaveformCanvas({
 
     } else {
       // ── Placeholder ───────────────────────────────────────────────────────
-      const bars = 80
+      const bars   = 80
+      const availH = H - PAD * 2
       for (let i = 0; i < bars; i++) {
-        const h = (Math.sin(i * 0.38) * 0.26 + 0.13) * H
-        const y = (H - h) / 2
+        const h = (Math.sin(i * 0.38) * 0.26 + 0.13) * availH
+        const y = PAD + (availH - h) / 2
         ctx.fillStyle = 'rgba(255,255,255,0.05)'
         ctx.fillRect((i / bars) * W + 0.5, y, W / bars - 1, h)
       }
