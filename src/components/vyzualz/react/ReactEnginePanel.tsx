@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
@@ -215,6 +215,7 @@ function OscillatorStatusCard({
 export function ReactEnginePanel() {
   const fontInputRef = useRef<HTMLInputElement>(null)
   const [fontUploadError, setFontUploadError] = useState<string | null>(null)
+  const registeredFontsRef = useRef<Map<string, FontFace>>(new Map())
 
   const {
     activeReactEngineId, selectReactEngine,
@@ -250,6 +251,29 @@ export function ReactEnginePanel() {
 
   const osc = oscillatorSettings
   const set = setOscillatorSettings
+
+  // Register each font asset as a CSS FontFace so the name can be rendered in its own typeface.
+  useEffect(() => {
+    const registered = registeredFontsRef.current
+    const currentIds = new Set(oscillatorFontAssets.map(a => a.id))
+
+    for (const [id, face] of registered) {
+      if (!currentIds.has(id)) {
+        document.fonts.delete(face)
+        registered.delete(id)
+      }
+    }
+
+    for (const asset of oscillatorFontAssets) {
+      if (!registered.has(asset.id)) {
+        const family = `drmvyz-preview-${asset.id}`
+        const face = new FontFace(family, `url("data:font/truetype;base64,${asset.rawFontDataBase64}")`)
+        document.fonts.add(face)
+        face.load().catch(() => { /* preview is cosmetic — ignore parse/load failures */ })
+        registered.set(asset.id, face)
+      }
+    }
+  }, [oscillatorFontAssets])
 
   // SVG Visual rehydration is handled by useSvgVisualRehydration in ReactView —
   // that hook always runs regardless of which panel tab is active.
@@ -572,7 +596,11 @@ export function ReactEnginePanel() {
                         tabIndex={0}
                         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') selectOscillatorFont(asset.id) }}
                       >
-                        <span className="rv-glyph-item-name" title={asset.fileName}>
+                        <span
+                          className="rv-glyph-item-name"
+                          title={asset.fileName}
+                          style={{ fontFamily: `"drmvyz-preview-${asset.id}", sans-serif` }}
+                        >
                           {asset.name}
                         </span>
                         <button
