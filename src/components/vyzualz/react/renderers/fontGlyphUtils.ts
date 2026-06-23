@@ -198,7 +198,11 @@ export function textToOpenTypeGlyphPoints(
   if (!trimmed) return generateBuiltinShapePoints('circle', n)
 
   try {
-    const glyphPaths = font.getPaths(trimmed, 0, 0, fontSize, { letterSpacing })
+    // opentype.js letterSpacing is in em units (multiplied by fontSize internally).
+    // The UI value is in pixel-equivalent units (same convention as the canvas fallback),
+    // so divide by fontSize to convert to em before passing to getPaths.
+    const letterSpacingEm = letterSpacing / fontSize
+    const glyphPaths = font.getPaths(trimmed, 0, 0, fontSize, { letterSpacing: letterSpacingEm })
     const contours = sampleGlyphPaths(glyphPaths)
 
     if (contours.length === 0) return generateBuiltinShapePoints('circle', n)

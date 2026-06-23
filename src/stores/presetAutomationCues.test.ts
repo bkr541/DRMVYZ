@@ -231,6 +231,103 @@ describe('presetAutomationCues — migration v9→v10', () => {
   })
 })
 
+// ── Migration consolidation: persist() delegates to migrateReactStore() ───────
+//
+// These tests directly exercise the four required scenarios to confirm the
+// exported helper (now the single implementation) handles every case correctly.
+
+describe('presetAutomationCues — migration: old state with no cue map', () => {
+  it('initializes an empty map when field is entirely absent (v < 10)', () => {
+    const state   = { someKey: 'value' }
+    const result  = migrateReactStore(state, 9)
+    expect(result.presetAutomationCuesByTrackId).toEqual({})
+  })
+
+  it('initializes an empty map when field is absent even at v0 (full chain)', () => {
+    const result = migrateReactStore({}, 0)
+    expect(result.presetAutomationCuesByTrackId).toEqual({})
+  })
+})
+
+describe('presetAutomationCues — migration: old state with existing valid cue map', () => {
+  it('does NOT overwrite an existing cue map during v9→v10 migration', () => {
+    const cueA  = makeCue({ id: 'cue-a', timeSec: 10 })
+    const cueB  = makeCue({ id: 'cue-b', timeSec: 20 })
+    const state = {
+      presetAutomationCuesByTrackId: {
+        'track-1': [cueA],
+        'track-2': [cueB],
+      },
+    }
+    const result  = migrateReactStore(state, 9)
+    const byTrack = result.presetAutomationCuesByTrackId as Record<string, ReactPresetAutomationCue[]>
+    expect(byTrack['track-1']).toHaveLength(1)
+    expect(byTrack['track-1'][0].id).toBe('cue-a')
+    expect(byTrack['track-2']).toHaveLength(1)
+    expect(byTrack['track-2'][0].id).toBe('cue-b')
+  })
+
+  it('does NOT overwrite cues when persisted state is already at version 10', () => {
+    const cue   = makeCue({ id: 'cue-v10', timeSec: 30 })
+    const state = { presetAutomationCuesByTrackId: { 'trk': [cue] } }
+    // version=10 means no migration steps run; cues must survive unchanged
+    const result  = migrateReactStore(state, 10)
+    const byTrack = result.presetAutomationCuesByTrackId as Record<string, ReactPresetAutomationCue[]>
+    expect(byTrack['trk']).toHaveLength(1)
+    expect(byTrack['trk'][0].id).toBe('cue-v10')
+  })
+})
+
+describe('presetAutomationCues — migration: invalid cue-map data', () => {
+  it('replaces null with an empty map', () => {
+    const state  = { presetAutomationCuesByTrackId: null }
+    const result = migrateReactStore(state, 9)
+    expect(result.presetAutomationCuesByTrackId).toEqual({})
+  })
+
+  it('replaces a non-object scalar with an empty map', () => {
+    const state  = { presetAutomationCuesByTrackId: 'corrupted' }
+    const result = migrateReactStore(state, 9)
+    expect(result.presetAutomationCuesByTrackId).toEqual({})
+  })
+
+  it('replaces an array (wrong type) with an empty map', () => {
+    const state  = { presetAutomationCuesByTrackId: [] }
+    const result = migrateReactStore(state, 9)
+    expect(result.presetAutomationCuesByTrackId).toEqual({})
+  })
+
+  it('does not corrupt other state keys when fixing an invalid cue map', () => {
+    const state  = { someKey: 42, presetAutomationCuesByTrackId: null }
+    const result = migrateReactStore(state, 9)
+    expect(result.someKey).toBe(42)
+    expect(result.presetAutomationCuesByTrackId).toEqual({})
+  })
+})
+
+describe('presetAutomationCues — migration: current-version state (v10)', () => {
+  it('returns state unchanged when version is already 10', () => {
+    const cue   = makeCue({ id: 'already-current', timeSec: 5 })
+    const state = {
+      activeReactEngineId:           'oscilloscope',
+      presetAutomationCuesByTrackId: { 'trk': [cue] },
+    }
+    const result  = migrateReactStore(state, 10)
+    const byTrack = result.presetAutomationCuesByTrackId as Record<string, ReactPresetAutomationCue[]>
+    expect(result.activeReactEngineId).toBe('oscilloscope')
+    expect(byTrack['trk'][0].id).toBe('already-current')
+  })
+
+  it('is idempotent: running migration twice produces the same result', () => {
+    const cue     = makeCue({ id: 'idem-cue', timeSec: 0 })
+    const state   = { presetAutomationCuesByTrackId: { 't': [cue] } }
+    const first   = migrateReactStore(state, 9)
+    const second  = migrateReactStore(first, 10)
+    const byTrack = second.presetAutomationCuesByTrackId as Record<string, ReactPresetAutomationCue[]>
+    expect(byTrack['t'][0].id).toBe('idem-cue')
+  })
+})
+
 // ── resetReactView ────────────────────────────────────────────────────────────
 
 describe('presetAutomationCues — resetReactView', () => {

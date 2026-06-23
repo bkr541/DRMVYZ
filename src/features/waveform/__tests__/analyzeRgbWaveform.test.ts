@@ -271,6 +271,160 @@ describe('analyzeRgbWaveform — peak and RMS smoothing', () => {
   })
 })
 
+// ── 9: Peak normalization with asymmetric / one-sided signals ─────────────────
+//
+// These tests verify that the peakRef is derived from BOTH positive and negative
+// magnitude distributions so that neither side is over-clipped when the other
+// side dominates.
+
+describe('analyzeRgbWaveform — peak normalization with negative-dominant audio', () => {
+  it('negative-dominant: negativePeaks >> positivePeaks (asymmetry preserved)', async () => {
+    // Asymmetric sine: positive half attenuated 9×, negative half at full amplitude.
+    // This is the canonical case the old code mishandled.
+    const buf = makeSynthBuffer({
+      durationSec: 3,
+      fillFn: (_ch, i) => {
+        const s = Math.sin(2 * Math.PI * 440 * i / 44100)
+        return s > 0 ? s * 0.1 : s * 0.9
+      },
+    })
+    const result = await analyzeRgbWaveform(buf)
+    const posAvg = result.positivePeaks.reduce((s, v) => s + v, 0) / result.positivePeaks.length
+    const negAvg = result.negativePeaks.reduce((s, v) => s + v, 0) / result.negativePeaks.length
+    // Negative side carries 9× the amplitude of positive side.
+    expect(negAvg).toBeGreaterThan(posAvg * 3)
+  })
+
+  it('negative-dominant: positivePeaks are NOT uniformly clipped to 1 when negative peaks dominate', async () => {
+    // With the old (broken) code, peakRef ≈ 0.1, so negativePeaks would all be 9/0.1=90 → clamped to 1.
+    // With the fix, peakRef = max(0.1, 0.9) = 0.9, so positivePeaks ≈ 0.1/0.9 ≈ 0.11.
+    const buf = makeSynthBuffer({
+      durationSec: 3,
+      fillFn: (_ch, i) => {
+        const s = Math.sin(2 * Math.PI * 440 * i / 44100)
+        return s > 0 ? s * 0.1 : s * 0.9
+      },
+    })
+    const result = await analyzeRgbWaveform(buf)
+    const posMax = Math.max(...Array.from(result.positivePeaks))
+    // positivePeaks must be well below 1 — old code produced posMax ≈ 1.0 (wrong)
+    expect(posMax).toBeLessThan(0.5)
+  })
+
+  it('negative-dominant: all peak values remain in [0, 1]', async () => {
+    const buf = makeSynthBuffer({
+      durationSec: 3,
+      fillFn: (_ch, i) => {
+        const s = Math.sin(2 * Math.PI * 440 * i / 44100)
+        return s > 0 ? s * 0.1 : s * 0.9
+      },
+    })
+    const result = await analyzeRgbWaveform(buf)
+    for (let i = 0; i < result.positivePeaks.length; i++) {
+      expect(result.positivePeaks[i]).toBeGreaterThanOrEqual(0)
+      expect(result.positivePeaks[i]).toBeLessThanOrEqual(1.001)
+      expect(result.negativePeaks[i]).toBeGreaterThanOrEqual(0)
+      expect(result.negativePeaks[i]).toBeLessThanOrEqual(1.001)
+    }
+  })
+})
+
+describe('analyzeRgbWaveform — peak normalization with positive-dominant audio', () => {
+  it('positive-dominant: positivePeaks >> negativePeaks', async () => {
+    // Mirror image: negative half attenuated 9×, positive at full amplitude.
+    const buf = makeSynthBuffer({
+      durationSec: 3,
+      fillFn: (_ch, i) => {
+        const s = Math.sin(2 * Math.PI * 440 * i / 44100)
+        return s > 0 ? s * 0.9 : s * 0.1
+      },
+    })
+    const result = await analyzeRgbWaveform(buf)
+    const posAvg = result.positivePeaks.reduce((s, v) => s + v, 0) / result.positivePeaks.length
+    const negAvg = result.negativePeaks.reduce((s, v) => s + v, 0) / result.negativePeaks.length
+    expect(posAvg).toBeGreaterThan(negAvg * 3)
+  })
+
+  it('positive-dominant: negativePeaks are not clipped when positive peaks dominate', async () => {
+    // peakRef = max(0.9_pos, 0.1_neg) = 0.9 → negativePeaks ≈ 0.1/0.9 ≈ 0.11
+    const buf = makeSynthBuffer({
+      durationSec: 3,
+      fillFn: (_ch, i) => {
+        const s = Math.sin(2 * Math.PI * 440 * i / 44100)
+        return s > 0 ? s * 0.9 : s * 0.1
+      },
+    })
+    const result = await analyzeRgbWaveform(buf)
+    const negMax = Math.max(...Array.from(result.negativePeaks))
+    expect(negMax).toBeLessThan(0.5)
+  })
+})
+
+describe('analyzeRgbWaveform — peak normalization with mixed asymmetric audio', () => {
+  it('DC-biased sine preserves asymmetry: larger side has higher normalised peaks', async () => {
+    // DC offset of -0.3: signal swings from -1.0 to 0.4.
+    // Negative peak magnitude ≈ 1.0, positive peak magnitude ≈ 0.4.
+    const buf = makeSynthBuffer({
+      durationSec: 3,
+      fillFn: (_ch, i) => -0.3 + Math.sin(2 * Math.PI * 440 * i / 44100) * 0.7,
+    })
+    const result = await analyzeRgbWaveform(buf)
+    const posAvg = result.positivePeaks.reduce((s, v) => s + v, 0) / result.positivePeaks.length
+    const negAvg = result.negativePeaks.reduce((s, v) => s + v, 0) / result.negativePeaks.length
+    // Negative peaks are larger in this biased signal.
+    expect(negAvg).toBeGreaterThan(posAvg)
+  })
+
+  it('mixed asymmetric: both sides produce meaningful (non-zero) normalised peaks', async () => {
+    const buf = makeSynthBuffer({
+      durationSec: 3,
+      fillFn: (_ch, i) => -0.3 + Math.sin(2 * Math.PI * 440 * i / 44100) * 0.7,
+    })
+    const result = await analyzeRgbWaveform(buf)
+    const posMax = Math.max(...Array.from(result.positivePeaks))
+    const negMax = Math.max(...Array.from(result.negativePeaks))
+    // Both sides must produce visible peaks.
+    expect(posMax).toBeGreaterThan(0.05)
+    expect(negMax).toBeGreaterThan(0.05)
+  })
+
+  it('mixed asymmetric: all peak values remain in [0, 1]', async () => {
+    const buf = makeSynthBuffer({
+      durationSec: 3,
+      fillFn: (_ch, i) => -0.3 + Math.sin(2 * Math.PI * 440 * i / 44100) * 0.7,
+    })
+    const result = await analyzeRgbWaveform(buf)
+    for (let i = 0; i < result.positivePeaks.length; i++) {
+      expect(result.positivePeaks[i]).toBeGreaterThanOrEqual(0)
+      expect(result.positivePeaks[i]).toBeLessThanOrEqual(1.001)
+      expect(result.negativePeaks[i]).toBeGreaterThanOrEqual(0)
+      expect(result.negativePeaks[i]).toBeLessThanOrEqual(1.001)
+    }
+  })
+})
+
+describe('analyzeRgbWaveform — peak normalization with silence', () => {
+  it('silence: both positivePeaks and negativePeaks are zero', async () => {
+    const buf    = makeSynthBuffer({ durationSec: 2 })  // default fillFn → zeros
+    const result = await analyzeRgbWaveform(buf)
+    const posMax = Math.max(...Array.from(result.positivePeaks))
+    const negMax = Math.max(...Array.from(result.negativePeaks))
+    expect(posMax).toBe(0)
+    expect(negMax).toBe(0)
+  })
+
+  it('silence: normalization reference falls back to 1 (no division by zero)', async () => {
+    // If sortedPercentile returns 1 for all-zero input and we take max(1, 1),
+    // the result is still 1 — no NaN or Infinity in output.
+    const buf    = makeSynthBuffer({ durationSec: 2 })
+    const result = await analyzeRgbWaveform(buf)
+    for (let i = 0; i < result.positivePeaks.length; i++) {
+      expect(isFinite(result.positivePeaks[i])).toBe(true)
+      expect(isFinite(result.negativePeaks[i])).toBe(true)
+    }
+  })
+})
+
 // ── 10: AbortSignal ───────────────────────────────────────────────────────────
 
 describe('analyzeRgbWaveform — AbortSignal', () => {

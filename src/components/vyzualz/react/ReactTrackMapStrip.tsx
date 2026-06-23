@@ -1307,9 +1307,18 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     setEditorMode('none')
   }, [activeTrackId, addManualSection])
 
+  // Shared helper: removes the section-linked preset cue (no-op when none exists).
+  // removePresetAutomationCue is already a safe no-op when the ID is absent.
+  const removeCueForSection = useCallback((sectionId: string) => {
+    if (!activeTrackId) return
+    removePresetAutomationCue(activeTrackId, buildPresetCueId(sectionId))
+  }, [activeTrackId, removePresetAutomationCue])
+
   const handleRemove = useCallback((id: string) => {
-    if (activeTrackId) removeManualSection(activeTrackId, id)
-  }, [activeTrackId, removeManualSection])
+    if (!activeTrackId) return
+    removeManualSection(activeTrackId, id)
+    removeCueForSection(id)
+  }, [activeTrackId, removeManualSection, removeCueForSection])
 
   // Opens the edit panel for the clicked section.
   const handleSelectSection = useCallback((id: string) => {
@@ -1333,16 +1342,23 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     } else {
       updateManualSection(activeTrackId, selectedSectionId, patch)
     }
-    // Sync the linked preset cue's timeSec when the section's start changes.
-    if (patch.startSec != null) {
-      const cueId = buildPresetCueId(selectedSectionId)
-      if (trackCues.some(c => c.id === cueId)) {
-        updatePresetAutomationCue(activeTrackId, cueId, { timeSec: patch.startSec })
+    // Sync the linked preset cue when the section's start or label changes.
+    const cueId = buildPresetCueId(selectedSectionId)
+    const linkedCue = trackCues.find(c => c.id === cueId)
+    if (linkedCue) {
+      const cueUpdate: Partial<ReactTrackSection> & { timeSec?: number; label?: string } = {}
+      if (patch.startSec != null) cueUpdate.timeSec = patch.startSec
+      if (patch.label != null) {
+        const preset = reactPresets.find(p => p.id === linkedCue.presetId)
+        cueUpdate.label = buildPresetCueLabel(patch.label, preset?.name ?? linkedCue.presetId)
+      }
+      if (cueUpdate.timeSec != null || cueUpdate.label != null) {
+        updatePresetAutomationCue(activeTrackId, cueId, cueUpdate)
       }
     }
     setEditorMode('none')
     setSelectedSectionIdForTrack(activeTrackId, null)
-  }, [activeTrackId, selectedSectionId, resolvedSections, commitAutomaticSectionOverride, updateManualSection, trackCues, updatePresetAutomationCue, setSelectedSectionIdForTrack])
+  }, [activeTrackId, selectedSectionId, resolvedSections, commitAutomaticSectionOverride, updateManualSection, trackCues, reactPresets, updatePresetAutomationCue, setSelectedSectionIdForTrack])
 
   // Removes the user-edited-auto override AND any suppression, restoring the original.
   const handleRestoreSection = useCallback(() => {
@@ -1351,24 +1367,21 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     // Keep the section selected — it now shows as 'auto' source in the editor.
   }, [activeTrackId, selectedSectionId, restoreAutoSection])
 
-  // Suppresses a pure auto section (hides it from the timeline).
+  // Suppresses a pure auto section (hides it from the timeline) and removes its linked cue.
   const handleSuppressSection = useCallback(() => {
     if (!activeTrackId || !selectedSectionId) return
     suppressAutoSection(activeTrackId, selectedSectionId)
+    removeCueForSection(selectedSectionId)
     setEditorMode('none')
-  }, [activeTrackId, selectedSectionId, suppressAutoSection])
+  }, [activeTrackId, selectedSectionId, suppressAutoSection, removeCueForSection])
 
-  // Permanently removes a user-created/manual section.
+  // Permanently removes a user-created/manual section and its linked cue.
   const handleDeleteSection = useCallback(() => {
     if (!activeTrackId || !selectedSectionId) return
     removeManualSection(activeTrackId, selectedSectionId)
-    // Remove the linked preset automation cue if one exists.
-    const cueId = buildPresetCueId(selectedSectionId)
-    if (trackCues.some(c => c.id === cueId)) {
-      removePresetAutomationCue(activeTrackId, cueId)
-    }
+    removeCueForSection(selectedSectionId)
     setEditorMode('none')
-  }, [activeTrackId, selectedSectionId, removeManualSection, trackCues, removePresetAutomationCue])
+  }, [activeTrackId, selectedSectionId, removeManualSection, removeCueForSection])
 
   // Creates, updates, or removes a preset automation cue linked to the selected section.
   const handleAssignPreset = useCallback((presetId: string | null) => {
@@ -1399,18 +1412,21 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
   }, [activeTrackId, selectedSectionId, resolvedSections, reactPresets, trackCues, addPresetAutomationCue, updatePresetAutomationCue, removePresetAutomationCue])
 
   // Clears all sections: removes manual ones and suppresses all auto ones.
+  // Also removes any linked preset automation cues for every section cleared.
   const handleDeleteAllSections = useCallback(() => {
     if (!activeTrackId) return
     for (const section of manualTrackSections) {
       removeManualSection(activeTrackId, section.id)
+      removeCueForSection(section.id)
     }
     for (const section of autoSections) {
       if (!suppressedIds.includes(section.id)) {
         suppressAutoSection(activeTrackId, section.id)
+        removeCueForSection(section.id)
       }
     }
     setEditorMode('none')
-  }, [activeTrackId, manualTrackSections, autoSections, suppressedIds, removeManualSection, suppressAutoSection])
+  }, [activeTrackId, manualTrackSections, autoSections, suppressedIds, removeManualSection, suppressAutoSection, removeCueForSection])
 
   // ── BPM display logic ──────────────────────────────────────────────────────
   const isMicSource = source === 'microphone'

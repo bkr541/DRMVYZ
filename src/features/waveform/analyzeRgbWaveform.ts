@@ -165,7 +165,12 @@ export async function analyzeRgbWaveform(
 
   // Use 0.995 percentile for peaks so mastered tracks don't clamp large portions to full height.
   // A shared reference for both positive and negative sides preserves true waveform asymmetry.
-  const peakRef = sortedPercentile(positivePeaksRaw, 0.995)
+  // Taking the max of the two percentiles ensures negative-dominant audio isn't over-clipped:
+  // if only the positive-side percentile is used and positive peaks are small, dividing large
+  // negative peaks by that small reference produces values >> 1 that the clamp silently destroys.
+  const posRef  = sortedPercentile(positivePeaksRaw, 0.995)
+  const negRef  = sortedPercentile(negativePeaksRaw, 0.995)
+  const peakRef = Math.max(posRef, negRef)
   const rmsRef  = sortedPercentile(rmsRaw,           0.95)
   const lowRef  = sortedPercentile(lowAccum,          0.95)
   const midRef  = sortedPercentile(midAccum,          0.95)

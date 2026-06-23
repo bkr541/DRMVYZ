@@ -260,6 +260,165 @@ describe('textToOpenTypeGlyphPoints — height-normalised aspect ratio', () => {
   })
 })
 
+// ── Letter-spacing unit conversion ───────────────────────────────────────────
+//
+// opentype.js font.getPaths() expects letterSpacing in **em units** — it
+// multiplies the value by fontSize internally.  The UI slider and the canvas
+// fallback use pixel-equivalent units (same absolute-pixel convention as the
+// CSS letter-spacing pixel value).  The fix converts by dividing by fontSize.
+//
+// These tests use a spacing-aware mock: getPaths() returns two rectangles whose
+// horizontal gap matches the pixel gap that opentype would produce
+// (letterSpacingEm × fontSize).  This lets us verify both the argument passed
+// to getPaths AND the resulting normalised x-range.
+
+/** Internal font size fixed in fontGlyphUtils (must stay in sync with source). */
+const OPENTYPE_FONT_SIZE = 160
+
+function makeSpacingAwareMockFont() {
+  return {
+    names: {
+      fullName:   { en: 'Spacing Font' },
+      fontFamily: { en: 'Spacing Family' },
+    },
+    unitsPerEm: 1000,
+    // getPaths is called with letterSpacingEm (already converted).
+    // We simulate two 100×100 rectangles with a pixel gap = letterSpacingEm × fontSize.
+    getPaths: vi.fn(
+      (
+        _text: string,
+        _x: number, _y: number,
+        fontSize: number,
+        options: { letterSpacing?: number },
+      ) => {
+        const gap = (options?.letterSpacing ?? 0) * fontSize
+        return [
+          {
+            commands: [
+              { type: 'M', x: 0,           y: 0   },
+              { type: 'L', x: 100,          y: 0   },
+              { type: 'L', x: 100,          y: 100 },
+              { type: 'L', x: 0,            y: 100 },
+              { type: 'Z' },
+              { type: 'M', x: 100 + gap,    y: 0   },
+              { type: 'L', x: 200 + gap,    y: 0   },
+              { type: 'L', x: 200 + gap,    y: 100 },
+              { type: 'L', x: 100 + gap,    y: 100 },
+              { type: 'Z' },
+            ],
+          },
+        ]
+      },
+    ),
+  }
+}
+
+function xRange(pts: ReturnType<typeof textToOpenTypeGlyphPoints>): number {
+  let minX = Infinity, maxX = -Infinity
+  for (const p of pts) {
+    if (p.x < minX) minX = p.x
+    if (p.x > maxX) maxX = p.x
+  }
+  return maxX - minX
+}
+
+function yRange(pts: ReturnType<typeof textToOpenTypeGlyphPoints>): number {
+  let minY = Infinity, maxY = -Infinity
+  for (const p of pts) {
+    if (p.y < minY) minY = p.y
+    if (p.y > maxY) maxY = p.y
+  }
+  return maxY - minY
+}
+
+describe('textToOpenTypeGlyphPoints — letter-spacing unit conversion', () => {
+  it('passes letterSpacing divided by fontSize to font.getPaths', () => {
+    const font = makeSpacingAwareMockFont()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    textToOpenTypeGlyphPoints(font as any, 'AB', 64, { letterSpacing: OPENTYPE_FONT_SIZE })
+
+    expect(font.getPaths).toHaveBeenCalledWith(
+      'AB', 0, 0,
+      OPENTYPE_FONT_SIZE,
+      expect.objectContaining({ letterSpacing: 1.0 }),  // 160 / 160
+    )
+  })
+
+  it('zero spacing calls getPaths with letterSpacing 0', () => {
+    const font = makeSpacingAwareMockFont()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    textToOpenTypeGlyphPoints(font as any, 'AB', 64, { letterSpacing: 0 })
+
+    expect(font.getPaths).toHaveBeenCalledWith(
+      'AB', 0, 0, OPENTYPE_FONT_SIZE,
+      expect.objectContaining({ letterSpacing: 0 }),
+    )
+  })
+
+  it('zero spacing produces narrower x-range than moderate spacing', () => {
+    const font = makeSpacingAwareMockFont()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ptsZero     = textToOpenTypeGlyphPoints(font as any, 'AB', 128, { letterSpacing: 0 })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ptsModerate = textToOpenTypeGlyphPoints(font as any, 'AB', 128, { letterSpacing: 80 })
+
+    expect(xRange(ptsModerate)).toBeGreaterThan(xRange(ptsZero))
+  })
+
+  it('higher spacing produces wider x-range than moderate spacing', () => {
+    const font = makeSpacingAwareMockFont()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ptsModerate = textToOpenTypeGlyphPoints(font as any, 'AB', 128, { letterSpacing: 80  })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ptsHigh     = textToOpenTypeGlyphPoints(font as any, 'AB', 128, { letterSpacing: 240 })
+
+    expect(xRange(ptsHigh)).toBeGreaterThan(xRange(ptsModerate))
+  })
+
+  it('spacing increases x-range proportionally without changing y-range', () => {
+    const font = makeSpacingAwareMockFont()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ptsZero = textToOpenTypeGlyphPoints(font as any, 'AB', 128, { letterSpacing: 0   })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ptsHigh = textToOpenTypeGlyphPoints(font as any, 'AB', 128, { letterSpacing: 160 })
+
+    // y-range is height-normalised to [-1,1] and must not change with spacing
+    expect(yRange(ptsHigh)).toBeCloseTo(yRange(ptsZero), 6)
+
+    // x-range must increase (two rects move further apart)
+    expect(xRange(ptsHigh)).toBeGreaterThan(xRange(ptsZero))
+  })
+
+  it('x-range increases monotonically across zero → moderate → high spacing', () => {
+    const font = makeSpacingAwareMockFont()
+    const run = (spacing: number) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      xRange(textToOpenTypeGlyphPoints(font as any, 'AB', 128, { letterSpacing: spacing }))
+
+    const w0   = run(0)
+    const w80  = run(80)
+    const w240 = run(240)
+
+    expect(w80).toBeGreaterThan(w0)
+    expect(w240).toBeGreaterThan(w80)
+  })
+
+  it('no extreme x-range jump between zero and moderate spacing', () => {
+    // Without the fix, letterSpacing=80 would be passed as 80 em → 80×160=12800px gap,
+    // producing x-range >> 100× the zero-spacing case.
+    // With the fix, 80/160=0.5 em → 80px gap, so x-range grows by a modest fraction.
+    const font = makeSpacingAwareMockFont()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w0  = xRange(textToOpenTypeGlyphPoints(font as any, 'AB', 128, { letterSpacing: 0  }))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w80 = xRange(textToOpenTypeGlyphPoints(font as any, 'AB', 128, { letterSpacing: 80 }))
+
+    // Ratio should be modest (< 5×), never the 80×+ that the unfixed code produced.
+    expect(w80 / w0).toBeLessThan(5)
+    expect(w80 / w0).toBeGreaterThan(1)
+  })
+})
+
 // ── SoundDrawingRenderer does not import fontGlyphUtils ───────────────────────
 
 describe('SoundDrawingRenderer import guard', () => {

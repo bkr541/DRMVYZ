@@ -691,6 +691,33 @@ export function computePathBaseScale(
   return Math.min(W, H) * 0.42 * pathScale * bassPulse * (1 + bloomFactor * 0.4)
 }
 
+/**
+ * Text-specific fit scale.  After height-based normalisation the y-extent is
+ * always ≈ [-1, 1], but multi-character text can have a much wider x-extent.
+ * This function returns the scale that makes the text at *default spacing*
+ * (maxAbsX / maxAbsY of the zero-spacing points) fill the canvas with a 5 %
+ * margin on each edge.  pathScale and fontSizeMul are then applied as
+ * multipliers so both controls still have their full visual effect.
+ *
+ * The audio-reactive terms (bassPulse, bloomFactor) are identical to
+ * computePathBaseScale so waveform distortion behaviour is preserved.
+ */
+export function computeTextFitScale(
+  W:           number,
+  H:           number,
+  maxAbsX:     number,
+  maxAbsY:     number,
+  pathScale:   number,
+  fontSizeMul: number,
+  bassPulse:   number,
+  bloomFactor: number,
+): number {
+  const MARGIN   = 0.05
+  const fitScaleX = (W / 2) * (1 - MARGIN) / maxAbsX
+  const fitScaleY = (H / 2) * (1 - MARGIN) / maxAbsY
+  return Math.min(fitScaleX, fitScaleY) * pathScale * fontSizeMul * bassPulse * (1 + bloomFactor * 0.4)
+}
+
 // ── Canvas path helpers ───────────────────────────────────────────────────────
 
 function drawConnectedPath(
@@ -994,10 +1021,49 @@ function drawPathScopeOnTrail(
   // Scale: section pathScale × font-size (text only) × bass pulse × sustained beat bloom.
   // params.intensity is intentionally absent — use pathScale for object size.
   // fontSizeMul is neutral at DEFAULT_TEXT_FONT_SIZE so existing presets are unaffected.
-  const bloomFactor  = am.beatPulse * effectiveOsc.beatBloom
-  const fontSizeMul  = isTextSource ? effectiveOsc.textFontSize / DEFAULT_TEXT_FONT_SIZE : 1
-  const baseScale    = Math.min(W, H) * 0.42 * effectiveOsc.pathScale * fontSizeMul
-                     * am.bassPulse * (1 + bloomFactor * 0.4)
+  const bloomFactor = am.beatPulse * effectiveOsc.beatBloom
+  const fontSizeMul = isTextSource ? effectiveOsc.textFontSize / DEFAULT_TEXT_FONT_SIZE : 1
+
+  let baseScale: number
+  if (isTextSource) {
+    // Text fit: compute the scale using zero-spacing bounds so default settings
+    // keep the whole word on screen, while higher letter-spacing intentionally
+    // widens the text (the fit baseline doesn't contract as spacing grows).
+    const trimmed = effectiveOsc.text.trim()
+    const res     = clamp(Math.round(effectiveOsc.pathResolution), 64, 2048)
+
+    // Retrieve (or generate) the zero-spacing point set for this text.
+    // Zero-spacing bounds are the canonical baseline; current-spacing points
+    // are used only as a cold-start fallback (first frame before cache is warm).
+    let fitPoints: OscillatorGlyphPoint[] | null = null
+    if (trimmed) {
+      if (effectiveOsc.textFontId) {
+        // OpenType: look for the pre-computed zero-spacing entry in the params cache.
+        const zeroOTKey = `${effectiveOsc.textFontId}:${trimmed}:0:${res}`
+        fitPoints = params.oscillatorTextPointCache[zeroOTKey] ?? null
+      }
+      if (!fitPoints) {
+        // Canvas fallback: look in the local path cache, generating on demand if absent.
+        const zeroCanvasKey = `text:${trimmed}:${res}:0`
+        if (!pathCache.has(zeroCanvasKey)) {
+          const pts = textToGlyphPoints(trimmed, res, { letterSpacing: 0 })
+          cachePut(zeroCanvasKey, pts)
+        }
+        fitPoints = pathCache.get(zeroCanvasKey) ?? null
+      }
+    }
+    // Cold-start fallback: zero-spacing OpenType cache not yet populated.
+    if (!fitPoints) fitPoints = basePoints
+
+    let maxAbsX = 1e-6, maxAbsY = 1e-6
+    for (const p of fitPoints) {
+      const ax = Math.abs(p.x); if (ax > maxAbsX) maxAbsX = ax
+      const ay = Math.abs(p.y); if (ay > maxAbsY) maxAbsY = ay
+    }
+    baseScale = computeTextFitScale(W, H, maxAbsX, maxAbsY, effectiveOsc.pathScale, fontSizeMul, am.bassPulse, bloomFactor)
+  } else {
+    baseScale = computePathBaseScale(W, H, effectiveOsc.pathScale, am.bassPulse, bloomFactor)
+  }
 
   // Glow scales with intensity so the object looks dimmer/brighter as expected.
   const glowBase    = (params.glow * (10 + am.glowBoost) + bass * 8) * visualIntensity

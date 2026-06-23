@@ -1007,3 +1007,221 @@ describe('section preset assignment — deleting the section', () => {
     expect(cues[0].sectionId).toBe(sectionB.id)
   })
 })
+
+// ── 22: orphaned cue cleanup — quick-remove, Delete All, suppress, rename ──────
+//
+// These tests simulate the updated handler logic directly against the store.
+// Each describe block mirrors one UI removal/rename path.
+
+/** Simulates removeCueForSection (the shared component helper). */
+function removeCueForSection(sectionId: string): void {
+  useReactStore.getState().removePresetAutomationCue(TRACK_ID, buildPresetCueId(sectionId))
+}
+
+/** Simulates handleSaveSection label-update path. */
+function saveSectionLabel(
+  section: ReactTrackSection,
+  newLabel: string,
+  presetName: string,
+): void {
+  const store   = useReactStore.getState()
+  const cueId   = buildPresetCueId(section.id)
+  const cue     = (store.presetAutomationCuesByTrackId[TRACK_ID] ?? []).find(c => c.id === cueId)
+  if (!cue) return
+  store.updatePresetAutomationCue(TRACK_ID, cueId, {
+    label: buildPresetCueLabel(newLabel, presetName),
+  })
+}
+
+describe('orphaned cue cleanup — quick-remove (handleRemove)', () => {
+  beforeEach(resetStore)
+
+  it('removes the linked cue when a section is quick-removed', () => {
+    const section = makeSection({ id: 'sec-qr', startSec: 20 })
+    assignPreset(section, 'p-1', 'Preset One')
+
+    // Simulate handleRemove: removeManualSection + removeCueForSection
+    removeCueForSection(section.id)
+
+    const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
+    expect(cues).toHaveLength(0)
+  })
+
+  it('quick-removing section A leaves section B cue intact', () => {
+    const sA = makeSection({ id: 'sec-qr-A', label: 'Intro', startSec: 0  })
+    const sB = makeSection({ id: 'sec-qr-B', label: 'Drop',  startSec: 60 })
+    assignPreset(sA, 'p-a', 'Preset A')
+    assignPreset(sB, 'p-b', 'Preset B')
+
+    removeCueForSection(sA.id)
+
+    const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
+    expect(cues).toHaveLength(1)
+    expect(cues[0].sectionId).toBe(sB.id)
+    expect(cues[0].presetId).toBe('p-b')
+  })
+
+  it('quick-removing a section with no preset assignment is a no-op', () => {
+    const sA = makeSection({ id: 'sec-unassigned', startSec: 10 })
+    const sB = makeSection({ id: 'sec-has-cue',    startSec: 50 })
+    assignPreset(sB, 'p-b', 'Preset B')
+
+    // Remove sA which has no cue
+    removeCueForSection(sA.id)
+
+    const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
+    expect(cues).toHaveLength(1)
+    expect(cues[0].sectionId).toBe(sB.id)
+  })
+})
+
+describe('orphaned cue cleanup — Delete All (handleDeleteAllSections)', () => {
+  beforeEach(resetStore)
+
+  it('removing all sections also removes all linked cues', () => {
+    const sA = makeSection({ id: 'sec-da-A', label: 'Intro', startSec: 0  })
+    const sB = makeSection({ id: 'sec-da-B', label: 'Drop',  startSec: 60 })
+    assignPreset(sA, 'p-a', 'Alpha')
+    assignPreset(sB, 'p-b', 'Beta')
+
+    // Simulate handleDeleteAllSections: removeCueForSection for each section
+    removeCueForSection(sA.id)
+    removeCueForSection(sB.id)
+
+    const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
+    expect(cues).toHaveLength(0)
+  })
+
+  it('Delete All with a mix of assigned and unassigned sections removes only assigned cues', () => {
+    const sAssigned   = makeSection({ id: 'sec-da-assigned',   startSec: 0  })
+    const sUnassigned = makeSection({ id: 'sec-da-unassigned', startSec: 60 })
+    assignPreset(sAssigned, 'p-x', 'Xray')
+    // sUnassigned has no cue
+
+    removeCueForSection(sAssigned.id)
+    removeCueForSection(sUnassigned.id)   // no-op
+
+    const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
+    expect(cues).toHaveLength(0)
+  })
+
+  it('cues for a different track are unaffected by Delete All on this track', () => {
+    const otherTrack = 'other-track-da'
+    const sThis  = makeSection({ id: 'sec-this',  startSec: 0 })
+    const sOther = makeSection({ id: 'sec-other', startSec: 0 })
+    assignPreset(sThis, 'p-this', 'This Preset')
+    // Add a cue for the other track manually
+    useReactStore.getState().addPresetAutomationCue(otherTrack, {
+      id:           buildPresetCueId(sOther.id),
+      timeSec:      0,
+      presetId:     'p-other',
+      label:        'Other Preset',
+      enabled:      true,
+      transitionMs: 0,
+      sectionId:    sOther.id,
+    })
+
+    // Delete All on TRACK_ID only
+    removeCueForSection(sThis.id)
+
+    const thisCues  = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID]  ?? []
+    const otherCues = useReactStore.getState().presetAutomationCuesByTrackId[otherTrack] ?? []
+    expect(thisCues).toHaveLength(0)
+    expect(otherCues).toHaveLength(1)
+    expect(otherCues[0].presetId).toBe('p-other')
+  })
+})
+
+describe('orphaned cue cleanup — suppress (handleSuppressSection)', () => {
+  beforeEach(resetStore)
+
+  it('suppressing an auto section removes its linked cue', () => {
+    const section = makeSection({ id: 'sec-sup-1', source: 'auto', startSec: 45 })
+    assignPreset(section, 'p-suppressed', 'Gone Preset')
+
+    // Simulate handleSuppressSection: suppressAutoSection + removeCueForSection
+    removeCueForSection(section.id)
+
+    const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
+    expect(cues).toHaveLength(0)
+  })
+
+  it('suppressing one auto section leaves cues for other sections intact', () => {
+    const sAuto   = makeSection({ id: 'sec-sup-auto',  source: 'auto',         startSec: 0  })
+    const sManual = makeSection({ id: 'sec-sup-manual', source: 'user-created', startSec: 60 })
+    assignPreset(sAuto,   'p-auto',   'Auto Preset')
+    assignPreset(sManual, 'p-manual', 'Manual Preset')
+
+    // Suppress only the auto section
+    removeCueForSection(sAuto.id)
+
+    const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
+    expect(cues).toHaveLength(1)
+    expect(cues[0].sectionId).toBe(sManual.id)
+    expect(cues[0].presetId).toBe('p-manual')
+  })
+
+  it('suppressing a section with no preset assignment is a no-op', () => {
+    const sKeep = makeSection({ id: 'sec-keep-on-suppress', startSec: 30 })
+    assignPreset(sKeep, 'p-keep', 'Keep Preset')
+
+    const sSuppress = makeSection({ id: 'sec-sup-no-cue', source: 'auto', startSec: 90 })
+    // sSuppress has no cue
+    removeCueForSection(sSuppress.id)
+
+    const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
+    expect(cues).toHaveLength(1)
+    expect(cues[0].sectionId).toBe(sKeep.id)
+  })
+})
+
+describe('orphaned cue cleanup — rename (handleSaveSection label change)', () => {
+  beforeEach(resetStore)
+
+  it('renaming a section updates the linked cue label', () => {
+    const section = makeSection({ id: 'sec-rename', label: 'Drop', startSec: 30 })
+    assignPreset(section, 'p-neon', 'Neon Cloud')
+
+    saveSectionLabel(section, 'Big Drop', 'Neon Cloud')
+
+    const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
+    expect(cues[0].label).toBe(buildPresetCueLabel('Big Drop', 'Neon Cloud'))
+  })
+
+  it('renaming preserves presetId and timeSec', () => {
+    const section = makeSection({ id: 'sec-rename-preserve', label: 'Verse', startSec: 20 })
+    assignPreset(section, 'p-vibes', 'Vibes')
+
+    saveSectionLabel(section, 'Verse II', 'Vibes')
+
+    const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
+    expect(cues[0].presetId).toBe('p-vibes')
+    expect(cues[0].timeSec).toBe(20)
+  })
+
+  it('renaming a section with no cue is a no-op', () => {
+    const sNoCue = makeSection({ id: 'sec-rename-no-cue', label: 'Intro', startSec: 0 })
+    const sKeep  = makeSection({ id: 'sec-rename-keep',   label: 'Drop',  startSec: 60 })
+    assignPreset(sKeep, 'p-keep', 'Keep Preset')
+
+    // saveSectionLabel on sNoCue should not throw or alter other cues
+    saveSectionLabel(sNoCue, 'New Intro', 'Whatever')
+
+    const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
+    expect(cues).toHaveLength(1)
+    expect(cues[0].sectionId).toBe(sKeep.id)
+  })
+
+  it('rename does not affect cues belonging to other sections', () => {
+    const sA = makeSection({ id: 'sec-ren-A', label: 'A', startSec: 0  })
+    const sB = makeSection({ id: 'sec-ren-B', label: 'B', startSec: 60 })
+    assignPreset(sA, 'p-a', 'Alpha')
+    assignPreset(sB, 'p-b', 'Beta')
+
+    saveSectionLabel(sA, 'A Renamed', 'Alpha')
+
+    const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
+    const cueB = cues.find(c => c.sectionId === sB.id)!
+    expect(cueB.label).toBe(buildPresetCueLabel('B', 'Beta'))
+  })
+})
