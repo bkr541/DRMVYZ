@@ -247,6 +247,103 @@ function sampleGlyphPaths(glyphPaths: opentype.Path[]): RawContour[] {
 
 export interface TextGlyphOptions {
   letterSpacing?: number
+  /** Line-height multiplier applied to font cap-height for multiline spacing. Default 1.2. */
+  lineHeight?:    number
+  /** Horizontal alignment of lines relative to the widest line. Default 'center'. */
+  alignment?:     'left' | 'center' | 'right'
+}
+
+// ── Per-line contour sampling helper ─────────────────────────────────────────
+
+interface LineContourResult {
+  contours:   RawContourMeta[]
+  lineWidth:  number   // cursor position at end of line (advance width in pixels)
+  charCount:  number   // character count including spaces
+  nextPathIdx: number
+}
+
+function sampleLineContours(
+  font:          opentype.Font,
+  lineText:      string,
+  fontSize:      number,
+  scale:         number,
+  letterSpacing: number,
+  charIdxOffset: number,
+  pathIdxStart:  number,
+): LineContourResult {
+  const chars = Array.from(lineText)
+  let cursorX       = 0
+  let nextPathIndex = pathIdxStart
+  const contours: RawContourMeta[] = []
+
+  for (let ci = 0; ci < chars.length; ci++) {
+    const charIdx = charIdxOffset + ci
+    const glyph   = font.charToGlyph(chars[ci])
+    const path    = glyph.getPath(cursorX, 0, fontSize)
+    const raw     = sampleGlyphPaths([path])
+
+    for (const contour of raw) {
+      contours.push({
+        pts:            contour.pts,
+        characterIndex: charIdx,
+        glyphFontIndex: glyph.index,
+        pathIndex:      nextPathIndex++,
+      })
+    }
+
+    const nextChar  = ci + 1 < chars.length ? chars[ci + 1] : null
+    const nextGlyph = nextChar ? font.charToGlyph(nextChar) : null
+    const kern      = nextGlyph ? font.getKerningValue(glyph, nextGlyph) * scale : 0
+    cursorX += (glyph.advanceWidth ?? 0) * scale + kern + letterSpacing
+  }
+
+  return { contours, lineWidth: cursorX, charCount: chars.length, nextPathIdx: nextPathIndex }
+}
+
+// ── Shared point assembly (centering + normalization + normals) ───────────────
+
+function finalizePoints(
+  allPoints:     OscillatorGlyphPoint[],
+  charToLine:    Map<number, number>,
+  resolution:    number,
+  totalContours: RawContourMeta[],
+): OscillatorGlyphPoint[] {
+  if (allPoints.length === 0) return []
+
+  // Whole-block centering
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+  for (const p of allPoints) {
+    if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x
+    if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y
+  }
+  const midX = (minX + maxX) / 2
+  const midY = (minY + maxY) / 2
+  const centered = allPoints.map(p => ({ ...p, x: p.x - midX, y: p.y - midY }))
+
+  // Height-based normalization: y-extent → [-1, 1]; aspect ratio preserved
+  const heightRange = maxY - minY
+  const normScale   = heightRange > 0 ? 2 / heightRange : 1
+  const normalized  = centered.map(p => ({
+    ...p,
+    x:         p.x * normScale,
+    y:         p.y * normScale,
+    lineIndex: p.characterIndex != null ? (charToLine.get(p.characterIndex) ?? 0) : 0,
+  }))
+
+  // Normals per contour, re-flattened in insertion order
+  const seenPaths = new Set<number>()
+  const pathOrder: number[] = []
+  for (const p of normalized) {
+    if (!seenPaths.has(p.pathIndex)) { seenPaths.add(p.pathIndex); pathOrder.push(p.pathIndex) }
+  }
+  const result: OscillatorGlyphPoint[] = []
+  for (const pi of pathOrder) {
+    const cpts = normalized.filter(p => p.pathIndex === pi)
+    for (const p of computePathNormals(cpts, false)) result.push(p)
+  }
+  void resolution    // resolution is already applied during resampling
+  void totalContours // kept for future use
+  return result
 }
 
 export function textToOpenTypeGlyphPoints(
@@ -257,52 +354,74 @@ export function textToOpenTypeGlyphPoints(
 ): OscillatorGlyphPoint[] {
   const fontSize      = 160  // fixed internal scale; textFontSize is applied at render time only
   const letterSpacing = options.letterSpacing ?? 0
+  const lineHeight    = options.lineHeight    ?? 1.2
+  const alignment     = options.alignment     ?? 'center'
   const n = Math.max(2, Math.round(resolution))
-  const trimmed = text.trim()
-  if (!trimmed) return generateBuiltinShapePoints('circle', n)
+
+  // Split into non-empty lines; single element = original single-line behavior
+  const rawLines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0)
+  if (rawLines.length === 0) return generateBuiltinShapePoints('circle', n)
 
   try {
-    // Scale factor: converts font design units → pixels at fontSize.
     const scale = fontSize / (font.unitsPerEm || 1000)
-    const chars = Array.from(trimmed)
 
-    // ── Per-character glyph sampling ──────────────────────────────────────────
-    // Build contours one character at a time so each contour carries true letter
-    // identity (characterIndex, glyphFontIndex) independent of pathIndex.
-    // Spaces and other zero-contour glyphs still advance the cursor.
-    const allRawContours: RawContourMeta[] = []
-    let cursorX      = 0
-    let nextPathIndex = 0
+    // ── Per-line contour sampling ─────────────────────────────────────────────
+    let charIdxOffset = 0
+    let pathIdxOffset = 0
+    const lineResults: LineContourResult[] = []
 
-    for (let charIdx = 0; charIdx < chars.length; charIdx++) {
-      const glyph    = font.charToGlyph(chars[charIdx])
-      const path     = glyph.getPath(cursorX, 0, fontSize)
-      const contours = sampleGlyphPaths([path])
-
-      for (const contour of contours) {
-        allRawContours.push({
-          pts:            contour.pts,
-          characterIndex: charIdx,
-          glyphFontIndex: glyph.index,
-          pathIndex:      nextPathIndex++,
-        })
-      }
-
-      // Advance cursor: advance width in font units → pixels, plus kerning, plus extra letter spacing.
-      const nextChar  = charIdx + 1 < chars.length ? chars[charIdx + 1] : null
-      const nextGlyph = nextChar ? font.charToGlyph(nextChar) : null
-      const kern      = nextGlyph ? font.getKerningValue(glyph, nextGlyph) * scale : 0
-      cursorX += (glyph.advanceWidth ?? 0) * scale + kern + letterSpacing
+    for (const lineText of rawLines) {
+      const lr = sampleLineContours(font, lineText, fontSize, scale, letterSpacing, charIdxOffset, pathIdxOffset)
+      lineResults.push(lr)
+      charIdxOffset += lr.charCount
+      pathIdxOffset  = lr.nextPathIdx
     }
 
-    if (allRawContours.length === 0) return generateBuiltinShapePoints('circle', n)
+    const hasContours = lineResults.some(lr => lr.contours.length > 0)
+    if (!hasContours) return generateBuiltinShapePoints('circle', n)
 
-    // ── Proportional resolution allocation ───────────────────────────────────
-    const totalRaw = allRawContours.reduce((s, c) => s + c.pts.length, 0)
+    // ── Alignment X offset per line ───────────────────────────────────────────
+    const maxLineWidth = Math.max(...lineResults.map(lr => lr.lineWidth))
+    const lineXOffsets = lineResults.map(lr => {
+      switch (alignment) {
+        case 'left':   return 0
+        case 'right':  return maxLineWidth - lr.lineWidth
+        default:       return (maxLineWidth - lr.lineWidth) / 2  // center
+      }
+    })
 
+    // ── Vertical offset per line (using ascender as cap-height proxy) ─────────
+    // Guard: real fonts always have ascender, but test stubs may not.
+    const fontAscender = (typeof (font as unknown as { ascender?: unknown }).ascender === 'number')
+      ? (font as unknown as { ascender: number }).ascender
+      : (font.unitsPerEm ?? 1000)
+    const lineStep = (fontAscender / (font.unitsPerEm || 1000)) * fontSize * lineHeight
+
+    // ── Merge all contours with position offsets applied ──────────────────────
+    const charToLine = new Map<number, number>()
+    const allContours: (RawContourMeta & { li: number })[] = []
+
+    for (let li = 0; li < lineResults.length; li++) {
+      const xOff = lineXOffsets[li]
+      const yOff = li * lineStep
+      for (const rc of lineResults[li].contours) {
+        // Track characterIndex → lineIndex for assignment after resample
+        charToLine.set(rc.characterIndex, li)
+        allContours.push({
+          ...rc,
+          pts: rc.pts.map(p => ({ x: p.x + xOff, y: p.y + yOff })),
+          li,
+        })
+      }
+    }
+
+    if (allContours.length === 0) return generateBuiltinShapePoints('circle', n)
+
+    // ── Proportional resolution allocation ────────────────────────────────────
+    const totalRaw  = allContours.reduce((s, c) => s + c.pts.length, 0)
     const allPoints: OscillatorGlyphPoint[] = []
 
-    for (const rc of allRawContours) {
+    for (const rc of allContours) {
       const allocated = Math.max(2, Math.round(n * rc.pts.length / totalRaw))
       const rawPts: OscillatorGlyphPoint[] = rc.pts.map((p, i) => ({
         x:              p.x,
@@ -313,46 +432,12 @@ export function textToOpenTypeGlyphPoints(
         glyphIndex:     rc.glyphFontIndex,
       }))
       const resampled = resamplePoints(rawPts, allocated)
-      // resamplePoints preserves characterIndex/glyphIndex and sets localProgress.
       for (const p of resampled) allPoints.push(p)
     }
 
     if (allPoints.length === 0) return generateBuiltinShapePoints('circle', n)
 
-    // ── Whole-string centering ────────────────────────────────────────────────
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
-    for (const p of allPoints) {
-      if (p.x < minX) minX = p.x
-      if (p.x > maxX) maxX = p.x
-      if (p.y < minY) minY = p.y
-      if (p.y > maxY) maxY = p.y
-    }
-    const midX = (minX + maxX) / 2
-    const midY = (minY + maxY) / 2
-    const centered = allPoints.map(p => ({ ...p, x: p.x - midX, y: p.y - midY }))
-
-    // ── Height-based normalization ────────────────────────────────────────────
-    // y-extent → [-1, 1]; aspect ratio (wide text stays wide) is preserved.
-    // textFontSize is applied as a render-time multiplier in SoundDrawingRenderer.
-    const heightRange = maxY - minY
-    const normScale   = heightRange > 0 ? 2 / heightRange : 1
-    const normalized  = centered.map(p => ({ ...p, x: p.x * normScale, y: p.y * normScale }))
-
-    // ── Normals per contour, re-flattened in insertion order ─────────────────
-    const seenPaths = new Set<number>()
-    const pathOrder: number[] = []
-    for (const p of normalized) {
-      if (!seenPaths.has(p.pathIndex)) { seenPaths.add(p.pathIndex); pathOrder.push(p.pathIndex) }
-    }
-
-    const result: OscillatorGlyphPoint[] = []
-    for (const pi of pathOrder) {
-      const cpts = normalized.filter(p => p.pathIndex === pi)
-      const withNormals = computePathNormals(cpts, false)
-      for (const p of withNormals) result.push(p)
-    }
-
-    return result
+    return finalizePoints(allPoints, charToLine, n, allContours)
   } catch {
     return generateBuiltinShapePoints('circle', n)
   }

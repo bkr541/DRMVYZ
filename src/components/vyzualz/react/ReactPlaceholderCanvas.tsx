@@ -1,12 +1,13 @@
 import { useRef, useEffect } from 'react'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
-import type { ReactPreset, ReactTrackSection, OscillatorSettings, OscillatorGlyphAsset, OscillatorGlyphPoint } from './ReactTypes'
+import type { ReactPreset, ReactTrackSection, OscillatorSettings, OscillatorGlyphAsset, OscillatorGlyphPoint, SoundDrawingLayer, SoundDrawingClip } from './ReactTypes'
 import { DEFAULT_OSCILLATOR_SETTINGS } from './ReactTypes'
 import type { ReactRenderParams } from './renderers/reactRenderUtils'
 import { DEFAULT_REACT_RENDER_PARAMS } from './renderers/ReactEngineRenderer'
 import { renderReactEngine } from './renderers/ReactEngineRenderer'
 import type { ReactFrameContext } from './renderers/reactRenderUtils'
+import { setSoundDrawingClipsForFrame } from './renderers/SoundDrawingRenderer'
 
 interface Props {
   analyser:           AnalyserNode | null
@@ -36,6 +37,8 @@ interface Props {
   onCanvasReady?:               (canvas: HTMLCanvasElement | null) => void
   /** Called approximately once per second with the current render frame rate. */
   onLiveFps?:                   (fps: number) => void
+  soundDrawingLayers?:          SoundDrawingLayer[]
+  soundDrawingClips?:           SoundDrawingClip[]
 }
 
 export function ReactPlaceholderCanvas({
@@ -58,6 +61,8 @@ export function ReactPlaceholderCanvas({
   effectiveBpm               = null,
   onCanvasReady,
   onLiveFps,
+  soundDrawingLayers         = [] as SoundDrawingLayer[],
+  soundDrawingClips          = [] as SoundDrawingClip[],
 }: Props) {
   const canvasRef      = useRef<HTMLCanvasElement>(null)
   const animRef        = useRef<number>(0)
@@ -86,6 +91,8 @@ export function ReactPlaceholderCanvas({
   const effectiveBpmRef        = useRef<number | null>(effectiveBpm)
   const onCanvasReadyRef       = useRef(onCanvasReady)
   const onLiveFpsRef           = useRef(onLiveFps)
+  const sdLayersRef            = useRef<SoundDrawingLayer[]>(soundDrawingLayers)
+  const sdClipsRef             = useRef<SoundDrawingClip[]>(soundDrawingClips)
 
   // Keep refs current every render
   intensityRef.current          = intensity
@@ -106,6 +113,8 @@ export function ReactPlaceholderCanvas({
   effectiveBpmRef.current        = effectiveBpm
   onCanvasReadyRef.current       = onCanvasReady
   onLiveFpsRef.current           = onLiveFps
+  sdLayersRef.current            = soundDrawingLayers
+  sdClipsRef.current             = soundDrawingClips
 
   // Update analyser buffers when analyser changes
   useEffect(() => {
@@ -279,6 +288,7 @@ export function ReactPlaceholderCanvas({
         oscillatorTextPointCache:  textPointCacheRef.current,
       }
 
+      setSoundDrawingClipsForFrame(sdLayersRef.current, sdClipsRef.current)
       renderReactEngine(ctx, rfCtx, preset, renderParams, sectionsRef.current)
 
       // LaserDMX animation clock is frozen while paused so scan/path generators

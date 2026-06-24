@@ -1,4 +1,4 @@
-import type { ReactPreset, ReactSectionType, OscillatorGlyphPoint, OscillatorSettings, OscillatorTextWaveformMode, OscillatorTextLetterReactionMode, LetterReactionAssignment } from '../ReactTypes'
+import type { ReactPreset, ReactSectionType, OscillatorGlyphPoint, OscillatorSettings, OscillatorTextWaveformMode, OscillatorTextLetterReactionMode, LetterReactionAssignment, SoundDrawingLayer, SoundDrawingClip } from '../ReactTypes'
 import { getCharReactionWeights } from './letterReactionUtils'
 import { evalCustomSignal, applyCustomTargetDelta } from './letterReactionCustom'
 import type { CustomTargetDelta } from './letterReactionCustom'
@@ -128,6 +128,20 @@ function modeForSection(type: ReactSectionType | null): ScopeMode {
 const PATH_CACHE_MAX = 32
 const pathCache = new Map<string, OscillatorGlyphPoint[]>()
 
+// ── Per-frame clip state ──────────────────────────────────────────────────────
+// Set by ReactPlaceholderCanvas before each renderReactEngine call so that
+// clip data reaches SoundDrawingRenderer without touching ReactRenderParams.
+let _sdLayers: SoundDrawingLayer[] = []
+let _sdClips:  SoundDrawingClip[]  = []
+
+export function setSoundDrawingClipsForFrame(
+  layers: SoundDrawingLayer[],
+  clips:  SoundDrawingClip[],
+): void {
+  _sdLayers = layers
+  _sdClips  = clips
+}
+
 /** Neutral textFontSize — matches the default value in OscillatorSettings.
  *  At this value the font-size multiplier is 1.0 so existing presets are unaffected. */
 export const DEFAULT_TEXT_FONT_SIZE = 160
@@ -158,7 +172,9 @@ function getOscillatorPathPoints(params: ReactRenderParams): OscillatorGlyphPoin
 
       // Prefer OpenType vector paths when a custom font is selected and points are prepared.
       if (osc.textFontId && trimmed) {
-        const openTypeKey = `${osc.textFontId}:${trimmed}:${osc.textLetterSpacing}:${res}`
+        const lh  = osc.textLineHeight ?? 1.2
+        const ali = osc.textAlignment  ?? 'center'
+        const openTypeKey = `${osc.textFontId}:${trimmed}:${osc.textLetterSpacing}:${lh}:${ali}:${res}`
         const prepared = params.oscillatorTextPointCache[openTypeKey]
         if (prepared) return prepared
         if (import.meta.env.DEV) {
@@ -176,10 +192,12 @@ function getOscillatorPathPoints(params: ReactRenderParams): OscillatorGlyphPoin
         return pts
       }
       const spacing = osc.textLetterSpacing ?? 0
-      const key = `text:${trimmed}:${res}:${spacing}`
+      const lh      = osc.textLineHeight    ?? 1.2
+      const ali     = osc.textAlignment     ?? 'center'
+      const key = `text:${trimmed}:${res}:${spacing}:${lh}:${ali}`
       const cached = pathCache.get(key)
       if (cached) return cached
-      const pts = textToGlyphPoints(trimmed, res, { letterSpacing: spacing })
+      const pts = textToGlyphPoints(trimmed, res, { letterSpacing: spacing, lineHeight: lh, alignment: ali })
       cachePut(key, pts)
       return pts
     }
@@ -1110,14 +1128,18 @@ function drawPathScopeOnTrail(
     if (trimmed) {
       if (effectiveOsc.textFontId) {
         // OpenType: look for the pre-computed zero-spacing entry in the params cache.
-        const zeroOTKey = `${effectiveOsc.textFontId}:${trimmed}:0:${res}`
+        const lh  = effectiveOsc.textLineHeight ?? 1.2
+        const ali = effectiveOsc.textAlignment  ?? 'center'
+        const zeroOTKey = `${effectiveOsc.textFontId}:${trimmed}:0:${lh}:${ali}:${res}`
         fitPoints = params.oscillatorTextPointCache[zeroOTKey] ?? null
       }
       if (!fitPoints) {
         // Canvas fallback: look in the local path cache, generating on demand if absent.
-        const zeroCanvasKey = `text:${trimmed}:${res}:0`
+        const lh  = effectiveOsc.textLineHeight ?? 1.2
+        const ali = effectiveOsc.textAlignment  ?? 'center'
+        const zeroCanvasKey = `text:${trimmed}:${res}:0:${lh}:${ali}`
         if (!pathCache.has(zeroCanvasKey)) {
-          const pts = textToGlyphPoints(trimmed, res, { letterSpacing: 0 })
+          const pts = textToGlyphPoints(trimmed, res, { letterSpacing: 0, lineHeight: lh, alignment: ali })
           cachePut(zeroCanvasKey, pts)
         }
         fitPoints = pathCache.get(zeroCanvasKey) ?? null
@@ -1466,6 +1488,104 @@ function hasSvgGlyphPoints(osc: OscillatorSettings, params: ReactRenderParams): 
 
 // ── Public export ─────────────────────────────────────────────────────────────
 
+// ── Clip rendering helpers ────────────────────────────────────────────────────
+
+function computeClipFade(timeSec: number, clip: SoundDrawingClip): number {
+  const { startSec, endSec, fadeInMs, fadeOutMs } = clip
+  const dur       = endSec - startSec
+  const elapsed   = timeSec - startSec
+  const remaining = endSec - timeSec
+
+  const fadeInSec  = (fadeInMs  ?? 0) / 1000
+  const fadeOutSec = (fadeOutMs ?? 0) / 1000
+
+  let alpha = 1
+  if (fadeInSec  > 0 && elapsed   < fadeInSec)  alpha = Math.min(1, elapsed / fadeInSec)
+  if (fadeOutSec > 0 && remaining < fadeOutSec)  alpha = Math.min(alpha, remaining / fadeOutSec)
+  void dur
+  return Math.max(0, Math.min(1, alpha))
+}
+
+function buildEffectiveOscForLayer(
+  globalOsc: OscillatorSettings,
+  layer:     SoundDrawingLayer,
+): OscillatorSettings {
+  const overrides: Partial<OscillatorSettings> = {
+    // geometry / source fields always come from the layer
+    ...(layer.sourceType === 'text'         && { sourceType: 'text'         }),
+    ...(layer.sourceType === 'builtinShape' && { sourceType: 'builtinShape', builtinShape: layer.shape }),
+    ...(layer.sourceType === 'svg'          && { sourceType: 'svg'          }),
+    ...(layer.fontId        !== null         && { textFontId:       layer.fontId }),
+    ...(layer.text                           && { text:             layer.text }),
+    ...(layer.letterSpacing !== undefined    && { textLetterSpacing: layer.letterSpacing }),
+    ...(layer.lineHeight    !== undefined    && { textLineHeight:   layer.lineHeight }),
+    ...(layer.alignment     !== undefined    && { textAlignment:    layer.alignment }),
+    ...(layer.svgId         !== null         && { svgId:            layer.svgId }),
+    // oscillator overrides from the layer (partial)
+    ...layer.oscillatorOverride,
+  }
+  return { ...globalOsc, ...overrides }
+}
+
+function renderSoundDrawingClips(
+  ctx:         CanvasRenderingContext2D,
+  frame:       ReactFrameContext,
+  preset:      ReactPreset,
+  params:      ReactRenderParams,
+  sectionType: ReactSectionType | null,
+  layers:      SoundDrawingLayer[],
+  clips:       SoundDrawingClip[],
+): void {
+  const { W, H, dpr } = frame
+  const timeSec = frame.timeSec ?? 0
+  const layerMap = new Map(layers.map(l => [l.id, l]))
+
+  // Filter to active, enabled clips in z-order
+  const activeClips = clips
+    .filter(c => c.enabled && timeSec >= c.startSec && timeSec < c.endSec)
+    .sort((a, b) => a.zIndex - b.zIndex)
+
+  if (activeClips.length === 0) return
+
+  const trailCanvas = getTrail(ctx, W, H)
+  const tctx        = trailCanvas.getContext('2d')
+  if (!tctx) return
+
+  const decayRate = params.trailDecay * 0.25 + 0.01
+  fadeTrail(trailCanvas, preset.palette.background, decayRate)
+
+  for (const clip of activeClips) {
+    const layer = layerMap.get(clip.layerId)
+    if (!layer || !layer.enabled) continue
+
+    const fade       = computeClipFade(timeSec, clip)
+    const clipAlpha  = fade * params.intensity
+
+    const effectiveOsc = buildEffectiveOscForLayer(params.oscillator, layer)
+    const effectiveParams: ReactRenderParams = { ...params, oscillator: effectiveOsc }
+
+    // Apply layer position, scale, and rotation as a canvas transform
+    const cx      = layer.x * W + W / 2
+    const cy      = layer.y * H + H / 2
+    const s       = layer.scale ?? 1
+    const rotRad  = ((layer.rotation ?? 0) * Math.PI) / 180
+
+    tctx.save()
+    tctx.translate(cx, cy)
+    tctx.rotate(rotRad)
+    tctx.scale(s, s)
+    tctx.translate(-W / 2, -H / 2)
+
+    drawPathScopeOnTrail(tctx, W, H, dpr, frame, preset, effectiveParams, clipAlpha, sectionType)
+
+    tctx.restore()
+  }
+
+  ctx.fillStyle = preset.palette.background
+  ctx.fillRect(0, 0, W, H)
+  ctx.drawImage(trailCanvas, 0, 0)
+}
+
 export function renderSoundDrawing(
   ctx: CanvasRenderingContext2D,
   frame: ReactFrameContext,
@@ -1476,6 +1596,12 @@ export function renderSoundDrawing(
   const { W, H, dpr } = frame
   const intMul = params.intensity
   const osc    = params.oscillator
+
+  // If clips are active for this frame, render through clip pipeline instead
+  if (_sdClips.length > 0) {
+    renderSoundDrawingClips(ctx, frame, preset, params, sectionType, _sdLayers, _sdClips)
+    return
+  }
 
   // Original Artwork path: svgVisual (legacy) or svg with originalArtwork mode.
   // For 'auto' mode with no compiled glyph points, also falls back to originalArtwork.

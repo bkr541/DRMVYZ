@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
+import { Delete02Icon } from 'hugeicons-react'
 import { useReactStore } from '../../../stores/reactStore'
 import { useFontPreviewPreload } from './useFontPreviewPreload'
 import type { OscillatorFontAsset } from './ReactTypes'
@@ -46,7 +47,8 @@ export function FontLibraryPanel() {
     await uploadOscillatorFont(file)
   }
 
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery,   setSearchQuery]   = useState('')
+  const [previewText,   setPreviewText]   = useState('')
 
   const anyBusy       = fontUploadPending || !!fontSelectPending || !!fontRemovePending
   const errs          = [fontLoadError, fontUploadError, fontSelectError, fontRemoveError].filter(Boolean)
@@ -101,8 +103,14 @@ export function FontLibraryPanel() {
       </div>
 
       <div className="rv-font-library-body">
-        <div className="rv-ctrl-info" style={{ margin: '8px 10px 4px' }}>
-          Upload .ttf or .otf files for OpenType vector text paths.
+        <div className="rv-font-preview-input-wrap">
+          <input
+            className="rv-font-preview-input"
+            type="text"
+            placeholder="Preview text…"
+            value={previewText}
+            onChange={e => setPreviewText(e.target.value)}
+          />
         </div>
 
         {errs.length > 0 && (
@@ -155,7 +163,7 @@ export function FontLibraryPanel() {
                     title={asset.fileName}
                     style={previewReady ? { fontFamily: `"drmvyz-preview-${asset.id}", sans-serif` } : undefined}
                   >
-                    {isSelecting ? 'Loading…' : isDeleting ? 'Removing…' : asset.name}
+                    {isSelecting ? 'Loading…' : isDeleting ? 'Removing…' : (previewText.trim() || asset.name)}
                   </span>
                   <button
                     type="button"
@@ -164,7 +172,7 @@ export function FontLibraryPanel() {
                     disabled={anyBusy}
                     onClick={async e => { e.stopPropagation(); await removeOscillatorFontAsset(asset.id) }}
                   >
-                    ×
+                    <Delete02Icon size={12} color="currentColor" />
                   </button>
                 </div>
               )

@@ -14,6 +14,7 @@ import {
   ReactInspectorPanel,
 } from './panels/ReactRightPanels'
 import { ReactTrackMapStrip } from './ReactTrackMapStrip'
+import { SoundDrawingTimelineLane } from './SoundDrawingTimelineLane'
 import { ReactPlaceholderCanvas } from './ReactPlaceholderCanvas'
 import { ReactPerformancePads } from './ReactPerformancePads'
 import { LaserDmxBeamMatrixEditorOverlay } from './LaserDmxBeamMatrixEditorOverlay'
@@ -87,6 +88,8 @@ export function ReactView() {
     manualTrackSectionsByTrackId,
     suppressedAutoSectionsByTrackId,
     beamEditorVisible,
+    soundDrawingLayersByTrackId,
+    soundDrawingClipsByTrackId,
   } = useReactStore(useShallow(s => ({
     reactPresets:           s.reactPresets,
     activeReactPresetId:    s.activeReactPresetId,
@@ -106,6 +109,8 @@ export function ReactView() {
     manualTrackSectionsByTrackId:   s.manualTrackSectionsByTrackId,
     suppressedAutoSectionsByTrackId: s.suppressedAutoSectionsByTrackId,
     beamEditorVisible:              s.laserDmxBeamMatrix.editor.beamEditorVisible,
+    soundDrawingLayersByTrackId:    s.soundDrawingLayersByTrackId,
+    soundDrawingClipsByTrackId:     s.soundDrawingClipsByTrackId,
   })))
 
   const [leftTab, setLeftTab]             = useState<ReactLeftTab>('engine')
@@ -166,6 +171,11 @@ export function ReactView() {
     const suppressedIds  = trackId ? (suppressedAutoSectionsByTrackId[trackId]  ?? []) : []
     return resolveTrackSections({ analyzedSections, manualSections, durationSec: audioDurationSec, suppressedIds })
   }, [engine.currentTrackId, engine.currentAnalysis, manualTrackSectionsByTrackId, suppressedAutoSectionsByTrackId, audioDurationSec])
+
+  // Sound Drawing layers and clips for the active track — forwarded to canvas for per-frame rendering
+  const activeTrackId        = engine.currentTrack?.id ?? null
+  const activeSdLayers       = activeTrackId ? (soundDrawingLayersByTrackId[activeTrackId] ?? []) : []
+  const activeSdClips        = activeTrackId ? (soundDrawingClipsByTrackId[activeTrackId]   ?? []) : []
 
   return (
     <div className="rv-shell">
@@ -261,12 +271,18 @@ export function ReactView() {
               effectiveBpm={engine.currentEffectiveBpm}
               onCanvasReady={setOutputCanvas}
               onLiveFps={setLiveFps}
+              soundDrawingLayers={activeSdLayers}
+              soundDrawingClips={activeSdClips}
             />
             {activeReactEngineId === 'laserDmx' && laserDmxWorkspaceMode === 'beamMatrix' && beamEditorVisible && (
               <LaserDmxBeamMatrixEditorOverlay />
             )}
           </div>
           <ReactPerformancePads />
+          <SoundDrawingTimelineLane
+            audioDurationSec={audioDurationSec}
+            resolvedSections={resolvedSections}
+          />
           <ReactTrackMapStrip audioDurationSec={audioDurationSec} />
         </div>
 

@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, useState, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useVisualStore, DEFAULT_PRESETS } from '../../../stores/visualStore'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
@@ -119,6 +119,24 @@ export function VyzualzAudioDock() {
 
   const canEditBpm  = bpmState.kind === 'value' && engine.source === 'file' && !!track
   const hasOverride = bpmState.kind === 'value' && (bpmState.source === 'manual_override' || bpmState.source === 'live_analysis')
+
+  const [bpmEditing, setBpmEditing] = useState(false)
+  const [bpmDraft,   setBpmDraft]   = useState('')
+  const bpmInputRef = useRef<HTMLInputElement>(null)
+
+  const startBpmEdit = () => {
+    if (!canEditBpm) return
+    const current = engine.currentEffectiveBpm ?? 120
+    setBpmDraft(String(Math.round(current)))
+    setBpmEditing(true)
+    setTimeout(() => { bpmInputRef.current?.select() }, 0)
+  }
+
+  const commitBpmEdit = () => {
+    const v = parseInt(bpmDraft, 10)
+    if (!isNaN(v) && track) engine.setBpmOverride(track.id, Math.max(40, Math.min(300, v)))
+    setBpmEditing(false)
+  }
 
   const handleBpmStep = (delta: number) => {
     if (!canEditBpm || !track) return
@@ -267,13 +285,34 @@ export function VyzualzAudioDock() {
           <div className="vz-dock-bpm-block-row">
             {/* BPM value — three mutually exclusive states */}
             {bpmState.kind === 'value' && (
-              <span className="vz-dock-bpm-block-val" title={
-                bpmState.analyzed !== null
-                  ? `Override active — analyzed: ${bpmState.analyzed.toFixed(2)} BPM`
-                  : undefined
-              }>
-                {bpmState.bpm.toFixed(2)}
-              </span>
+              bpmEditing ? (
+                <input
+                  ref={bpmInputRef}
+                  className="vz-dock-bpm-block-val vz-dock-bpm-edit-input"
+                  type="number"
+                  min={40} max={300} step={1}
+                  value={bpmDraft}
+                  onChange={e => setBpmDraft(e.target.value)}
+                  onBlur={commitBpmEdit}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { e.preventDefault(); commitBpmEdit() }
+                    if (e.key === 'Escape') { setBpmEditing(false) }
+                  }}
+                />
+              ) : (
+                <span
+                  className="vz-dock-bpm-block-val"
+                  title={
+                    bpmState.analyzed !== null
+                      ? `Override active — analyzed: ${bpmState.analyzed.toFixed(2)} BPM`
+                      : canEditBpm ? 'Double-click to edit BPM' : undefined
+                  }
+                  onDoubleClick={startBpmEdit}
+                  style={canEditBpm ? { cursor: 'text' } : undefined}
+                >
+                  {bpmState.bpm.toFixed(2)}
+                </span>
+              )
             )}
             {bpmState.kind === 'analyzing' && (
               <span className="vz-dock-bpm-block-val vz-dock-bpm-analyzing">Analyzing…</span>

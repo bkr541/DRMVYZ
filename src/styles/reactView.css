@@ -571,6 +571,30 @@
 }
 
 /* ── Glyph / Fixture selection list ─────────────────────────────────────────── */
+.rv-font-preview-input-wrap {
+  padding: 4px 10px 8px;
+}
+
+.rv-font-preview-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(232, 244, 248, 0.12);
+  border-radius: 4px;
+  color: rgba(232, 244, 248, 0.75);
+  font-size: 11px;
+  padding: 5px 8px;
+  outline: none;
+}
+
+.rv-font-preview-input::placeholder {
+  color: rgba(232, 244, 248, 0.3);
+}
+
+.rv-font-preview-input:focus {
+  border-color: rgba(97, 214, 170, 0.4);
+}
+
 .rv-glyph-list {
   display: flex;
   flex-direction: column;
@@ -608,7 +632,7 @@
 
 .rv-glyph-item-name {
   flex: 1;
-  font-size: 13px;
+  font-size: 24px;
   color: rgba(232, 244, 248, 0.65);
   white-space: nowrap;
   overflow: hidden;
@@ -632,7 +656,13 @@
   line-height: 1;
   padding: 2px 5px;
   border-radius: 3px;
-  transition: color 0.12s, background 0.12s;
+  transition: color 0.12s, background 0.12s, opacity 0.12s;
+  opacity: 0;
+}
+
+.rv-glyph-item:hover .rv-glyph-item-del,
+.rv-glyph-item--active .rv-glyph-item-del {
+  opacity: 1;
 }
 
 .rv-glyph-item-del:hover {
@@ -1593,6 +1623,7 @@
 /* ── Performance pads ────────────────────────────────────────────────────────── */
 .rv-pads-section {
   flex-shrink: 0;
+  border-top: 1px solid rgba(97, 214, 170, 0.15);
   border-bottom: 1px solid rgba(74, 199, 219, 0.08);
 }
 
@@ -2437,6 +2468,375 @@
 }
 .rv-timing-bars-input:focus {
   border-color: rgba(74,199,219,0.5);
+}
+
+/* ── Sound Drawing Timeline Lane ──────────────────────────────────────────────── */
+
+.rv-sd-lane {
+  border-top: 1px solid rgba(97, 214, 170, 0.15);
+  background: #070c12;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.rv-sd-lane-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  min-height: 40px;
+  flex-shrink: 0;
+  user-select: none;
+  cursor: pointer;
+}
+
+.rv-sd-lane-header:hover {
+  background: rgba(97, 214, 170, 0.04);
+}
+
+
+.rv-sd-lane-icon {
+  width: 14px;
+  height: 14px;
+  fill: rgba(97, 214, 170, 0.85);
+  flex-shrink: 0;
+}
+
+.rv-sd-lane-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: rgba(232, 244, 248, 0.5);
+  text-transform: uppercase;
+}
+
+.rv-sd-clip-count {
+  font-size: 9px;
+  color: rgba(232, 244, 248, 0.38);
+  letter-spacing: 0.04em;
+  flex: 1;
+}
+
+.rv-sd-lane-controls {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.rv-sd-lane-body {
+  display: flex;
+  flex-direction: column;
+  max-height: 280px;
+  overflow: hidden;
+}
+
+/* ── Timeline area ─────────────────────────────────────────────── */
+
+.rv-sd-timeline {
+  position: relative;
+  overflow: hidden;
+  background: #06101a;
+  border-top: 1px solid rgba(97, 214, 170, 0.06);
+  flex-shrink: 0;
+}
+
+.rv-sd-clip-row {
+  position: relative;
+  height: 28px;
+  border-bottom: 1px solid rgba(97, 214, 170, 0.04);
+}
+
+.rv-sd-clip-row:last-child {
+  border-bottom: none;
+}
+
+.rv-sd-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1.5px;
+  background: rgba(232, 244, 248, 0.55);
+  pointer-events: none;
+  z-index: 20;
+  transform: translateX(-50%);
+}
+
+.rv-sd-timeline-empty {
+  padding: 8px 12px;
+  font-size: 10px;
+  color: rgba(232, 244, 248, 0.3);
+  font-style: italic;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+/* ── Clip blocks ───────────────────────────────────────────────── */
+
+.rv-sd-clip-block {
+  position: absolute;
+  top: 2px;
+  height: 24px;
+  background: rgba(97, 214, 170, 0.22);
+  border: 1px solid rgba(97, 214, 170, 0.45);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  cursor: grab;
+  z-index: 5;
+  min-width: 4px;
+  box-sizing: border-box;
+  touch-action: none;
+}
+
+.rv-sd-clip-block:hover {
+  background: rgba(97, 214, 170, 0.3);
+  border-color: rgba(97, 214, 170, 0.7);
+}
+
+.rv-sd-clip-block--selected {
+  background: rgba(97, 214, 170, 0.38);
+  border-color: rgba(97, 214, 170, 0.9);
+  z-index: 10;
+}
+
+.rv-sd-clip-block--disabled {
+  opacity: 0.4;
+}
+
+.rv-sd-clip-block--dragging {
+  cursor: grabbing;
+  opacity: 0.85;
+  z-index: 15;
+}
+
+.rv-sd-clip-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: rgba(97, 214, 170, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 4px;
+  pointer-events: none;
+}
+
+/* ── Resize handles ───────────────────────────────────────────── */
+
+.rv-sd-clip-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  background: transparent;
+  z-index: 16;
+  touch-action: none;
+  flex-shrink: 0;
+}
+
+.rv-sd-clip-resize--left {
+  left: 0;
+  cursor: col-resize;
+  border-right: 2px solid rgba(97, 214, 170, 0.3);
+}
+
+.rv-sd-clip-resize--right {
+  right: 0;
+  cursor: col-resize;
+  border-left: 2px solid rgba(97, 214, 170, 0.3);
+}
+
+.rv-sd-clip-resize:hover {
+  background: rgba(97, 214, 170, 0.15);
+}
+
+/* ── Add form ──────────────────────────────────────────────────── */
+
+.rv-sd-add-form {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  background: rgba(97, 214, 170, 0.05);
+  border-bottom: 1px solid rgba(97, 214, 170, 0.1);
+  flex-wrap: wrap;
+}
+
+.rv-sd-add-title {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: rgba(97, 214, 170, 0.8);
+  flex-shrink: 0;
+}
+
+.rv-sd-add-btn {
+  padding: 3px 9px;
+  border-radius: 3px;
+  border: 1px solid rgba(97, 214, 170, 0.4);
+  background: rgba(97, 214, 170, 0.1);
+  color: rgba(97, 214, 170, 0.9);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.rv-sd-add-btn:hover {
+  background: rgba(97, 214, 170, 0.2);
+}
+
+.rv-sd-add-btn:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.rv-sd-add-btn--confirm {
+  background: rgba(97, 214, 170, 0.18);
+  border-color: rgba(97, 214, 170, 0.6);
+}
+
+.rv-sd-add-btn--cancel {
+  border-color: rgba(192, 49, 74, 0.4);
+  background: rgba(192, 49, 74, 0.07);
+  color: rgba(192, 49, 74, 0.9);
+}
+
+.rv-sd-add-btn--cancel:hover {
+  background: rgba(192, 49, 74, 0.18);
+}
+
+.rv-ctrl-select--sm {
+  font-size: 10px;
+  padding: 2px 5px;
+  height: 24px;
+}
+
+.rv-ctrl-text-input--sm {
+  font-size: 10px;
+  padding: 2px 6px;
+  height: 24px;
+  width: 150px;
+}
+
+.rv-ctrl-text-input--time {
+  width: 80px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Layer editor ─────────────────────────────────────────────── */
+
+.rv-sd-layer-editor {
+  border-top: 1px solid rgba(97, 214, 170, 0.1);
+  background: #070f16;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  max-height: 200px;
+}
+
+.rv-sd-layer-editor-header {
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  background: rgba(97, 214, 170, 0.04);
+  border-bottom: 1px solid rgba(97, 214, 170, 0.07);
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.rv-sd-layer-editor-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(97, 214, 170, 0.85);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rv-sd-layer-editor-actions {
+  display: flex;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.rv-sd-action-btn {
+  background: transparent;
+  border: 1px solid rgba(232, 244, 248, 0.15);
+  color: rgba(232, 244, 248, 0.65);
+  font-size: 12px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.rv-sd-action-btn:hover {
+  border-color: rgba(232, 244, 248, 0.35);
+  color: rgba(232, 244, 248, 0.9);
+  background: rgba(232, 244, 248, 0.05);
+}
+
+.rv-sd-action-btn--danger {
+  border-color: rgba(192, 49, 74, 0.35);
+  color: rgba(192, 49, 74, 0.75);
+}
+
+.rv-sd-action-btn--danger:hover {
+  background: rgba(192, 49, 74, 0.15);
+  border-color: rgba(192, 49, 74, 0.6);
+  color: rgba(192, 49, 74, 1);
+}
+
+.rv-sd-layer-editor-body {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rv-ctrl-row--col {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+/* Multiline text area */
+.rv-sd-textarea {
+  width: 100%;
+  background: rgba(6, 15, 22, 0.85);
+  border: 1px solid rgba(74, 199, 219, 0.2);
+  color: #e8f4f8;
+  font-size: 11px;
+  font-family: ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+  border-radius: 3px;
+  padding: 5px 7px;
+  resize: vertical;
+  box-sizing: border-box;
+  outline: none;
+  letter-spacing: 0.01em;
+}
+
+.rv-sd-textarea:focus {
+  border-color: rgba(74, 199, 219, 0.5);
 }
 
 /* ── Responsive: collapse rails below narrow viewport ────────────────────────── */

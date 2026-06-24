@@ -50,6 +50,8 @@ export interface OscillatorGlyphPoint {
   glyphIndex?: number
   /** Progress 0→1 within the resampled contour — distinct from the global `progress`. */
   localProgress?: number
+  /** 0-based line index for multiline text; absent (treated as 0) for single-line text. */
+  lineIndex?: number
 }
 
 export interface OscillatorGlyphAsset {
@@ -104,6 +106,10 @@ export interface OscillatorSettings {
   textWaveformAmount:       number
   textWaveformCycles:       number
   textWaveformScroll:       number
+  /** Line-height multiplier for multiline text (newline-separated). Default 1.2. */
+  textLineHeight:  number
+  /** Horizontal alignment for multiline text. Default 'center'. */
+  textAlignment:   'left' | 'center' | 'right'
   textLetterReactionMode:   OscillatorTextLetterReactionMode
   textLetterAssignments:    LetterReactionAssignment[]
   bassScale: number
@@ -141,6 +147,8 @@ export const DEFAULT_OSCILLATOR_SETTINGS: OscillatorSettings = {
   textWaveformAmount:       0.10,
   textWaveformCycles:       5,
   textWaveformScroll:       0.20,
+  textLineHeight:  1.2,
+  textAlignment:   'center',
   textLetterReactionMode:   'uniform',
   textLetterAssignments:    [],
   bassScale:          0.25,
@@ -153,6 +161,55 @@ export const DEFAULT_OSCILLATOR_SETTINGS: OscillatorSettings = {
   mirrorX:           false,
   mirrorY:           false,
   autoSectionMode:   true,
+}
+
+// ── Sound Drawing Layer / Clip types ─────────────────────────────────────────
+//
+// Layers are reusable content descriptors (what to draw).
+// Clips place a layer onto a track timeline (when to draw it).
+// Both are stored per track ID so Track A's data never affects Track B.
+
+export type SoundDrawingLayerSourceType = 'text' | 'svg' | 'builtinShape'
+export type SoundDrawingLayerAlignment  = 'left' | 'center' | 'right'
+
+export interface SoundDrawingLayer {
+  id:         string
+  name:       string
+  enabled:    boolean
+  sourceType: SoundDrawingLayerSourceType
+
+  // Text content
+  text:          string
+  fontId:        string | null
+  letterSpacing: number
+  lineHeight:    number
+  alignment:     SoundDrawingLayerAlignment
+
+  // SVG / shape
+  svgId: string | null
+  shape: BuiltinOscillatorShape
+
+  // Position and transform (normalized glyph space)
+  x:        number          // −1 to 1
+  y:        number          // −1 to 1
+  scale:    number          // multiplier, 1 = no change
+  rotation: number          // degrees
+  width?:   number          // optional horizontal extent override
+
+  // Layer-specific reactive behavior merged on top of global OscillatorSettings at render time
+  oscillatorOverride: Partial<OscillatorSettings>
+}
+
+export interface SoundDrawingClip {
+  id:       string
+  trackId:  string
+  layerId:  string
+  startSec: number
+  endSec:   number   // always > startSec
+  enabled:  boolean
+  zIndex:   number
+  fadeInMs: number
+  fadeOutMs: number
 }
 
 // ── LaserDMX types ────────────────────────────────────────────────────────────

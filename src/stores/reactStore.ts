@@ -24,6 +24,8 @@ import type {
   OscillatorGlyphAsset,
   OscillatorGlyphPoint,
   OscillatorFontAsset,
+  SoundDrawingLayer,
+  SoundDrawingClip,
   LaserDmxSettings,
   LaserDmxFixture,
   LaserDmxModulationRoute,
@@ -82,8 +84,8 @@ function clampRes(v: number): number {
   return Math.max(64, Math.min(2048, Math.round(v)))
 }
 
-function textCacheKey(fontId: string, text: string, spacing: number, res: number): string {
-  return `${fontId}:${text.trim()}:${spacing}:${res}`
+function textCacheKey(fontId: string, text: string, spacing: number, lineHeight: number, alignment: string, res: number): string {
+  return `${fontId}:${text.trim()}:${spacing}:${lineHeight}:${alignment}:${res}`
 }
 
 function prepareSvgPoints(
@@ -137,17 +139,49 @@ function prepareTextPoints(
   settings: OscillatorSettings,
   cache: Record<string, OscillatorGlyphPoint[]>,
 ): Record<string, OscillatorGlyphPoint[]> {
-  const { textFontId, text, textLetterSpacing, pathResolution } = settings
+  const { textFontId, text, textLetterSpacing, textLineHeight, textAlignment, pathResolution } = settings
   if (!textFontId || !text.trim()) return cache
   const asset = assets.find(a => a.id === textFontId)
   if (!asset) return cache
   const res = clampRes(pathResolution)
-  const key = textCacheKey(textFontId, text, textLetterSpacing, res)
+  const lh    = textLineHeight ?? 1.2
+  const align = textAlignment  ?? 'center'
+  const key = textCacheKey(textFontId, text, textLetterSpacing, lh, align, res)
   if (cache[key]) return cache
   try {
     const font = parseOpenTypeFontFromAsset(asset)
     const pts = textToOpenTypeGlyphPoints(font, text, res, {
       letterSpacing: textLetterSpacing,
+      lineHeight:    lh,
+      alignment:     align,
+    })
+    return { ...cache, [key]: pts }
+  } catch {
+    return cache
+  }
+}
+
+function prepareLayerTextPoints(
+  assets:     OscillatorFontAsset[],
+  fontId:     string,
+  text:       string,
+  spacing:    number,
+  lineHeight: number,
+  alignment:  string,
+  res:        number,
+  cache:      Record<string, OscillatorGlyphPoint[]>,
+): Record<string, OscillatorGlyphPoint[]> {
+  if (!text.trim()) return cache
+  const asset = assets.find(a => a.id === fontId)
+  if (!asset) return cache
+  const key = textCacheKey(fontId, text, spacing, lineHeight, alignment, res)
+  if (cache[key]) return cache
+  try {
+    const font = parseOpenTypeFontFromAsset(asset)
+    const pts  = textToOpenTypeGlyphPoints(font, text, res, {
+      letterSpacing: spacing,
+      lineHeight,
+      alignment: alignment as 'left' | 'center' | 'right',
     })
     return { ...cache, [key]: pts }
   } catch {
@@ -568,6 +602,31 @@ interface ReactStoreState {
   duplicateLaserDmxBeamMatrixCue: (cueId: string) => void
   removeLaserDmxBeamMatrixCue: (cueId: string) => void
   updateLaserDmxBeamMatrixCue: (cueId: string, patch: Partial<LaserDmxBeamMatrixCue>) => void
+
+  // Sound Drawing layers — stored per track ID.
+  // A layer is reusable content (what to draw); clips place it on a timeline.
+  soundDrawingLayersByTrackId: Record<string, SoundDrawingLayer[]>
+  /** Returns layers for one track. Empty array when the track has none. */
+  getSoundDrawingLayersForTrack: (trackId: string) => SoundDrawingLayer[]
+  /** Creates a layer and returns its generated ID. */
+  addSoundDrawingLayer: (trackId: string, layer: Omit<SoundDrawingLayer, 'id'>) => string
+  updateSoundDrawingLayer: (trackId: string, layerId: string, patch: Partial<SoundDrawingLayer>) => void
+  /** Clones an existing layer. The copy gets a new ID and name suffixed with " Copy". */
+  duplicateSoundDrawingLayer: (trackId: string, layerId: string) => void
+  /** Removes the layer and all clips in this track that reference it. */
+  removeSoundDrawingLayer: (trackId: string, layerId: string) => void
+
+  // Sound Drawing clips — stored per track ID.
+  // endSec is always normalized to be > startSec.
+  soundDrawingClipsByTrackId: Record<string, SoundDrawingClip[]>
+  /** Returns clips for one track sorted by startSec ascending, then zIndex ascending. */
+  getSoundDrawingClipsForTrack: (trackId: string) => SoundDrawingClip[]
+  /** Creates a clip and returns its generated ID. */
+  addSoundDrawingClip: (trackId: string, clip: Omit<SoundDrawingClip, 'id'>) => string
+  updateSoundDrawingClip: (trackId: string, clipId: string, patch: Partial<SoundDrawingClip>) => void
+  /** Clones an existing clip with a new ID. */
+  duplicateSoundDrawingClip: (trackId: string, clipId: string) => void
+  removeSoundDrawingClip: (trackId: string, clipId: string) => void
 }
 
 const INITIAL_PRESET_ID = DEFAULT_REACT_PRESETS[0].id
@@ -779,10 +838,37 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       }
     }
   }
+  if (version < 14) {
+    // Initialize Sound Drawing layer and clip collections.
+    // Existing projects load with empty maps; no behavioral change.
+    if (!('soundDrawingLayersByTrackId' in state)) {
+      state = { ...state, soundDrawingLayersByTrackId: {} }
+    }
+    if (!('soundDrawingClipsByTrackId' in state)) {
+      state = { ...state, soundDrawingClipsByTrackId: {} }
+    }
+  }
+  if (version < 15) {
+    // Add textLineHeight and textAlignment to persisted oscillatorSettings.
+    // Defaults match DEFAULT_OSCILLATOR_SETTINGS.
+    const osc = state.oscillatorSettings as Record<string, unknown> | undefined
+    if (osc) {
+      const newOsc = { ...osc }
+      if (!('textLineHeight' in newOsc)) newOsc.textLineHeight = 1.2
+      if (!('textAlignment' in newOsc))  newOsc.textAlignment  = 'center'
+      state = { ...state, oscillatorSettings: newOsc }
+    }
+  }
   return state
 }
 
 // Exported for persistence regression tests only.
+/** Ensures a clip's endSec is always > startSec by at least 0.1 s. */
+function normalizeClipRange<T extends { startSec: number; endSec: number }>(clip: T): T {
+  const endSec = Math.max(clip.startSec + 0.1, clip.endSec)
+  return endSec === clip.endSec ? clip : { ...clip, endSec }
+}
+
 export function reactStorePartialize(s: ReactStoreState) {
   return {
     activeReactPresetId:                s.activeReactPresetId,
@@ -796,6 +882,8 @@ export function reactStorePartialize(s: ReactStoreState) {
     laserDmxWorkspaceMode:              s.laserDmxWorkspaceMode,
     laserDmxBeamMatrix:                 s.laserDmxBeamMatrix,
     activeLaserDmxBeamMatrixPresetId:   s.activeLaserDmxBeamMatrixPresetId,
+    soundDrawingLayersByTrackId:        s.soundDrawingLayersByTrackId,
+    soundDrawingClipsByTrackId:         s.soundDrawingClipsByTrackId,
     reactIntensity:       s.reactIntensity,
     reactMotion:          s.reactMotion,
     reactGlow:            s.reactGlow,
@@ -818,6 +906,8 @@ export const useReactStore = create<ReactStoreState>()(
       selectedSectionByTrackId: {},
       suppressedAutoSectionsByTrackId: {},
       presetAutomationCuesByTrackId: {},
+      soundDrawingLayersByTrackId: {},
+      soundDrawingClipsByTrackId:  {},
       performancePads: DEFAULT_PERFORMANCE_PADS,
       activePadId: null,
       oscillatorSettings: DEFAULT_OSCILLATOR_SETTINGS,
@@ -1043,7 +1133,7 @@ export const useReactStore = create<ReactStoreState>()(
           }
 
           // Re-prepare OpenType text points when any text-relevant field changes.
-          const textFields: (keyof OscillatorSettings)[] = ['text', 'textFontId', 'textFontSize', 'textLetterSpacing', 'pathResolution']
+          const textFields: (keyof OscillatorSettings)[] = ['text', 'textFontId', 'textFontSize', 'textLetterSpacing', 'textLineHeight', 'textAlignment', 'pathResolution']
           const needsText = textFields.some(f => f in patch) && newSettings.sourceType === 'text' && !!newSettings.textFontId
           if (needsText) {
             newTextCache = prepareTextPoints(s.oscillatorFontAssets, newSettings, newTextCache)
@@ -2287,6 +2377,135 @@ export const useReactStore = create<ReactStoreState>()(
           return { presetAutomationCuesByTrackId: rest }
         }),
 
+      // ── Sound Drawing layers ─────────────────────────────────────────────────
+
+      getSoundDrawingLayersForTrack: (trackId) =>
+        get().soundDrawingLayersByTrackId[trackId] ?? [],
+
+      addSoundDrawingLayer: (trackId, layer) => {
+        const id = crypto.randomUUID()
+        set((s) => {
+          let newTextCache = s.oscillatorTextPointCache
+          if (layer.sourceType === 'text' && layer.fontId) {
+            newTextCache = prepareLayerTextPoints(
+              s.oscillatorFontAssets, layer.fontId, layer.text,
+              layer.letterSpacing, layer.lineHeight, layer.alignment,
+              clampRes(s.oscillatorSettings.pathResolution), newTextCache,
+            )
+          }
+          return {
+            soundDrawingLayersByTrackId: {
+              ...s.soundDrawingLayersByTrackId,
+              [trackId]: [...(s.soundDrawingLayersByTrackId[trackId] ?? []), { ...layer, id }],
+            },
+            oscillatorTextPointCache: newTextCache,
+          }
+        })
+        return id
+      },
+
+      updateSoundDrawingLayer: (trackId, layerId, patch) =>
+        set((s) => {
+          const layers = s.soundDrawingLayersByTrackId[trackId] ?? []
+          const merged = layers.map((l) => l.id === layerId ? { ...l, ...patch } : l)
+          const updated = merged.find(l => l.id === layerId)
+          let newTextCache = s.oscillatorTextPointCache
+          if (updated?.sourceType === 'text' && updated.fontId && ('text' in patch || 'fontId' in patch || 'letterSpacing' in patch || 'lineHeight' in patch || 'alignment' in patch)) {
+            newTextCache = prepareLayerTextPoints(
+              s.oscillatorFontAssets, updated.fontId, updated.text,
+              updated.letterSpacing, updated.lineHeight, updated.alignment,
+              clampRes(s.oscillatorSettings.pathResolution), newTextCache,
+            )
+          }
+          return {
+            soundDrawingLayersByTrackId: {
+              ...s.soundDrawingLayersByTrackId,
+              [trackId]: merged,
+            },
+            oscillatorTextPointCache: newTextCache,
+          }
+        }),
+
+      duplicateSoundDrawingLayer: (trackId, layerId) =>
+        set((s) => {
+          const layers = s.soundDrawingLayersByTrackId[trackId] ?? []
+          const src = layers.find((l) => l.id === layerId)
+          if (!src) return {}
+          const copy: SoundDrawingLayer = { ...src, id: crypto.randomUUID(), name: `${src.name} Copy` }
+          return {
+            soundDrawingLayersByTrackId: {
+              ...s.soundDrawingLayersByTrackId,
+              [trackId]: [...layers, copy],
+            },
+          }
+        }),
+
+      removeSoundDrawingLayer: (trackId, layerId) =>
+        set((s) => ({
+          soundDrawingLayersByTrackId: {
+            ...s.soundDrawingLayersByTrackId,
+            [trackId]: (s.soundDrawingLayersByTrackId[trackId] ?? []).filter((l) => l.id !== layerId),
+          },
+          soundDrawingClipsByTrackId: {
+            ...s.soundDrawingClipsByTrackId,
+            [trackId]: (s.soundDrawingClipsByTrackId[trackId] ?? []).filter((c) => c.layerId !== layerId),
+          },
+        })),
+
+      // ── Sound Drawing clips ──────────────────────────────────────────────────
+
+      getSoundDrawingClipsForTrack: (trackId) =>
+        [...(get().soundDrawingClipsByTrackId[trackId] ?? [])].sort(
+          (a, b) => a.startSec !== b.startSec ? a.startSec - b.startSec : a.zIndex - b.zIndex,
+        ),
+
+      addSoundDrawingClip: (trackId, clip) => {
+        const id   = crypto.randomUUID()
+        const safe = normalizeClipRange({ ...clip, id })
+        set((s) => ({
+          soundDrawingClipsByTrackId: {
+            ...s.soundDrawingClipsByTrackId,
+            [trackId]: [...(s.soundDrawingClipsByTrackId[trackId] ?? []), safe],
+          },
+        }))
+        return id
+      },
+
+      updateSoundDrawingClip: (trackId, clipId, patch) =>
+        set((s) => {
+          const clips = s.soundDrawingClipsByTrackId[trackId] ?? []
+          return {
+            soundDrawingClipsByTrackId: {
+              ...s.soundDrawingClipsByTrackId,
+              [trackId]: clips.map((c) =>
+                c.id === clipId ? normalizeClipRange({ ...c, ...patch }) : c,
+              ),
+            },
+          }
+        }),
+
+      duplicateSoundDrawingClip: (trackId, clipId) =>
+        set((s) => {
+          const clips = s.soundDrawingClipsByTrackId[trackId] ?? []
+          const src = clips.find((c) => c.id === clipId)
+          if (!src) return {}
+          const copy: SoundDrawingClip = { ...src, id: crypto.randomUUID() }
+          return {
+            soundDrawingClipsByTrackId: {
+              ...s.soundDrawingClipsByTrackId,
+              [trackId]: [...clips, copy],
+            },
+          }
+        }),
+
+      removeSoundDrawingClip: (trackId, clipId) =>
+        set((s) => ({
+          soundDrawingClipsByTrackId: {
+            ...s.soundDrawingClipsByTrackId,
+            [trackId]: (s.soundDrawingClipsByTrackId[trackId] ?? []).filter((c) => c.id !== clipId),
+          },
+        })),
+
       // ── Beam Matrix preset actions ───────────────────────────────────────────
 
       applyLaserDmxBeamMatrixPreset: (presetId) => {
@@ -2332,6 +2551,8 @@ export const useReactStore = create<ReactStoreState>()(
           selectedSectionByTrackId:     {},
           suppressedAutoSectionsByTrackId: {},
           presetAutomationCuesByTrackId: {},
+          soundDrawingLayersByTrackId:  {},
+          soundDrawingClipsByTrackId:   {},
           performancePads:           DEFAULT_PERFORMANCE_PADS,
           activePadId:               null,
           oscillatorSettings:        DEFAULT_OSCILLATOR_SETTINGS,
@@ -2356,7 +2577,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 13,
+      version: 15,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,
     },
