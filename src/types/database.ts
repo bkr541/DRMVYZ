@@ -375,6 +375,13 @@ export interface FontAssetInsert {
 
 // ── Database type map (for createClient<Database>) ────────────────────────────
 
+// TypeScript interface types don't satisfy Record<string, unknown> in conditional
+// type checks (they lack an explicit index signature). Wrapping with this intersection
+// makes each table entry satisfy postgrest-js's GenericTable constraint, which lets
+// supabase-js resolve Schema = Database['public'] instead of never. Export so callers
+// can use it when widening insert/update arguments to the indexed form.
+export type DBRec<T> = T & { [k: string]: unknown }
+
 export interface Database {
   public: {
     Views:          Record<string, never>
@@ -382,31 +389,31 @@ export interface Database {
     Enums:          Record<string, never>
     CompositeTypes: Record<string, never>
     Tables: {
-      profiles:               { Row: Profile;              Insert: Omit<Profile, 'created_at'|'updated_at'>;              Update: Partial<Omit<Profile, 'id'>> }
-      sessions:               { Row: Session;              Insert: Omit<Session, 'id'>;                                    Update: Partial<Omit<Session, 'id'>> }
-      user_settings:          { Row: UserSettings;         Insert: Pick<UserSettings,'user_id'> & Partial<UserSettings>;   Update: Partial<Omit<UserSettings,'user_id'>> }
-      tags:                   { Row: Tag;                  Insert: Omit<Tag,'id'>;                                         Update: Partial<Omit<Tag,'id'>> }
-      audio_tracks:           { Row: AudioTrack;           Insert: AudioTrackInsert;                                       Update: Partial<Omit<AudioTrack,'id'>> }
-      track_analyses:         { Row: TrackAnalysisRow;     Insert: Omit<TrackAnalysisRow,'id'|'analyzed_at'>;              Update: Partial<Omit<TrackAnalysisRow,'id'>> }
-      analyzer_sessions:      { Row: AnalyzerSessionRow;   Insert: Omit<AnalyzerSessionRow,'id'|'created_at'|'updated_at'>;Update: Partial<Omit<AnalyzerSessionRow,'id'>> }
-      ring_buffer_exports:    { Row: RingBufferExport;     Insert: Omit<RingBufferExport,'id'|'exported_at'>;              Update: Partial<Omit<RingBufferExport,'id'>> }
-      bpm_detections:         { Row: BpmDetection;         Insert: Omit<BpmDetection,'id'|'detected_at'>;                 Update: Partial<Omit<BpmDetection,'id'>> }
-      reference_sessions:     { Row: ReferenceSessionRow;  Insert: Omit<ReferenceSessionRow,'id'|'created_at'|'updated_at'>; Update: Partial<Omit<ReferenceSessionRow,'id'>> }
-      reference_slots:        { Row: ReferenceSlot;        Insert: Omit<ReferenceSlot,'id'|'created_at'>;                 Update: Partial<Omit<ReferenceSlot,'id'>> }
-      reference_comparisons:  { Row: ReferenceComparison;  Insert: Omit<ReferenceComparison,'id'|'computed_at'>;           Update: Partial<Omit<ReferenceComparison,'id'>> }
-      media_items:              { Row: MediaItemRow;           Insert: MediaItemInsert;                                                   Update: Partial<Omit<MediaItemRow,'id'>> }
-      media_tags:               { Row: MediaTagRow;            Insert: MediaTagInsert;                                                    Update: Partial<Omit<MediaTagRow,'id'>> }
-      media_item_tags:          { Row: MediaItemTagRow;        Insert: Omit<MediaItemTagRow,'created_at'>;                                Update: never }
-      media_collections:        { Row: MediaCollectionRow;     Insert: MediaCollectionInsert;                                             Update: Partial<Omit<MediaCollectionRow,'id'>> }
-      media_collection_items:   { Row: MediaCollectionItemRow; Insert: Omit<MediaCollectionItemRow,'created_at'>;                        Update: Pick<MediaCollectionItemRow,'sort_order'> }
-      effect_chain_options:     { Row: EffectChainOptionRow;    Insert: Omit<EffectChainOptionRow,'created_at'|'updated_at'>;     Update: Partial<Omit<EffectChainOptionRow,'id'|'created_at'|'updated_at'>> }
-      visual_presets:           { Row: VisualPresetRow;        Insert: Omit<VisualPresetRow,'id'|'created_at'|'updated_at'>;     Update: Partial<Omit<VisualPresetRow,'id'>> }
-      visual_sessions:          { Row: VisualSessionRow;       Insert: Omit<VisualSessionRow,'id'|'created_at'|'updated_at'>;    Update: Partial<Omit<VisualSessionRow,'id'>> }
-      canvas_exports:           { Row: CanvasExport;           Insert: Omit<CanvasExport,'id'|'exported_at'>;                    Update: Partial<Omit<CanvasExport,'id'>> }
-      audio_track_tags:         { Row: { track_id: string; tag_id: string }; Insert: { track_id: string; tag_id: string }; Update: never }
-      lyric_documents:          { Row: LyricDocumentRow; Insert: LyricDocumentInsert; Update: LyricDocumentUpdate }
-      lyric_cues:               { Row: LyricCueRow;      Insert: LyricCueInsert;      Update: LyricCueUpdate      }
-      font_assets:              { Row: FontAssetRow;     Insert: FontAssetInsert;     Update: Partial<Omit<FontAssetRow, 'id' | 'created_at'>> }
+      profiles:               { Row: DBRec<Profile>;              Insert: DBRec<Omit<Profile, 'created_at'|'updated_at'>>;              Update: DBRec<Partial<Omit<Profile, 'id'>>>; Relationships: [] }
+      sessions:               { Row: DBRec<Session>;              Insert: DBRec<Omit<Session, 'id'>>;                                    Update: DBRec<Partial<Omit<Session, 'id'>>>; Relationships: [] }
+      user_settings:          { Row: DBRec<UserSettings>;         Insert: DBRec<Pick<UserSettings,'user_id'> & Partial<UserSettings>>;   Update: DBRec<Partial<Omit<UserSettings,'user_id'>>>; Relationships: [] }
+      tags:                   { Row: DBRec<Tag>;                  Insert: DBRec<Omit<Tag,'id'>>;                                         Update: DBRec<Partial<Omit<Tag,'id'>>>; Relationships: [] }
+      audio_tracks:           { Row: DBRec<AudioTrack>;           Insert: DBRec<AudioTrackInsert>;                                       Update: DBRec<Partial<Omit<AudioTrack,'id'>>>; Relationships: [] }
+      track_analyses:         { Row: DBRec<TrackAnalysisRow>;     Insert: DBRec<Omit<TrackAnalysisRow,'id'|'analyzed_at'>>;              Update: DBRec<Partial<Omit<TrackAnalysisRow,'id'>>>; Relationships: [] }
+      analyzer_sessions:      { Row: DBRec<AnalyzerSessionRow>;   Insert: DBRec<Omit<AnalyzerSessionRow,'id'|'created_at'|'updated_at'>>;Update: DBRec<Partial<Omit<AnalyzerSessionRow,'id'>>>; Relationships: [] }
+      ring_buffer_exports:    { Row: DBRec<RingBufferExport>;     Insert: DBRec<Omit<RingBufferExport,'id'|'exported_at'>>;              Update: DBRec<Partial<Omit<RingBufferExport,'id'>>>; Relationships: [] }
+      bpm_detections:         { Row: DBRec<BpmDetection>;         Insert: DBRec<Omit<BpmDetection,'id'|'detected_at'>>;                 Update: DBRec<Partial<Omit<BpmDetection,'id'>>>; Relationships: [] }
+      reference_sessions:     { Row: DBRec<ReferenceSessionRow>;  Insert: DBRec<Omit<ReferenceSessionRow,'id'|'created_at'|'updated_at'>>; Update: DBRec<Partial<Omit<ReferenceSessionRow,'id'>>>; Relationships: [] }
+      reference_slots:        { Row: DBRec<ReferenceSlot>;        Insert: DBRec<Omit<ReferenceSlot,'id'|'created_at'>>;                 Update: DBRec<Partial<Omit<ReferenceSlot,'id'>>>; Relationships: [] }
+      reference_comparisons:  { Row: DBRec<ReferenceComparison>;  Insert: DBRec<Omit<ReferenceComparison,'id'|'computed_at'>>;           Update: DBRec<Partial<Omit<ReferenceComparison,'id'>>>; Relationships: [] }
+      media_items:              { Row: DBRec<MediaItemRow>;           Insert: DBRec<MediaItemInsert>;                                                   Update: DBRec<Partial<Omit<MediaItemRow,'id'>>>; Relationships: [] }
+      media_tags:               { Row: DBRec<MediaTagRow>;            Insert: DBRec<MediaTagInsert>;                                                    Update: DBRec<Partial<Omit<MediaTagRow,'id'>>>; Relationships: [] }
+      media_item_tags:          { Row: DBRec<MediaItemTagRow>;        Insert: DBRec<Omit<MediaItemTagRow,'created_at'>>;                                Update: never; Relationships: [] }
+      media_collections:        { Row: DBRec<MediaCollectionRow>;     Insert: DBRec<MediaCollectionInsert>;                                             Update: DBRec<Partial<Omit<MediaCollectionRow,'id'>>>; Relationships: [] }
+      media_collection_items:   { Row: DBRec<MediaCollectionItemRow>; Insert: DBRec<Omit<MediaCollectionItemRow,'created_at'>>;                        Update: DBRec<Pick<MediaCollectionItemRow,'sort_order'>>; Relationships: [] }
+      effect_chain_options:     { Row: DBRec<EffectChainOptionRow>;    Insert: DBRec<Omit<EffectChainOptionRow,'created_at'|'updated_at'>>;     Update: DBRec<Partial<Omit<EffectChainOptionRow,'id'|'created_at'|'updated_at'>>>; Relationships: [] }
+      visual_presets:           { Row: DBRec<VisualPresetRow>;        Insert: DBRec<Omit<VisualPresetRow,'id'|'created_at'|'updated_at'>>;     Update: DBRec<Partial<Omit<VisualPresetRow,'id'>>>; Relationships: [] }
+      visual_sessions:          { Row: DBRec<VisualSessionRow>;       Insert: DBRec<Omit<VisualSessionRow,'id'|'created_at'|'updated_at'>>;    Update: DBRec<Partial<Omit<VisualSessionRow,'id'>>>; Relationships: [] }
+      canvas_exports:           { Row: DBRec<CanvasExport>;           Insert: DBRec<Omit<CanvasExport,'id'|'exported_at'>>;                    Update: DBRec<Partial<Omit<CanvasExport,'id'>>>; Relationships: [] }
+      audio_track_tags:         { Row: DBRec<{ track_id: string; tag_id: string }>; Insert: DBRec<{ track_id: string; tag_id: string }>; Update: never; Relationships: [] }
+      lyric_documents:          { Row: DBRec<LyricDocumentRow>; Insert: DBRec<LyricDocumentInsert>; Update: DBRec<LyricDocumentUpdate>; Relationships: [] }
+      lyric_cues:               { Row: DBRec<LyricCueRow>;      Insert: DBRec<LyricCueInsert>;      Update: DBRec<LyricCueUpdate>;      Relationships: [] }
+      font_assets:              { Row: DBRec<FontAssetRow>;     Insert: DBRec<FontAssetInsert>;     Update: DBRec<Partial<Omit<FontAssetRow, 'id' | 'created_at'>>>; Relationships: [] }
     }
   }
 }

@@ -2,20 +2,8 @@
 > drmvyz@1.0.0 dev
 > vite --host 127.0.0.1 --port 5173
 
+Re-optimizing dependencies because lockfile has changed
 
-  VITE v5.4.21  ready in 140 ms
+  VITE v5.4.21  ready in 154 ms
 
   ➜  Local:   http://127.0.0.1:5173/
-2:56:35 PM [vite] hmr update /src/components/vyzualz/react/ReactEnginePanel.tsx
-2:56:42 PM [vite] hmr update /src/components/vyzualz/react/ReactEnginePanel.tsx
-2:56:52 PM [vite] hmr update /src/components/vyzualz/react/ReactEnginePanel.tsx
-2:56:59 PM [vite] hmr update /src/components/vyzualz/react/ReactEnginePanel.tsx
-2:57:16 PM [vite] hmr update /src/styles/reactView.css
-3:19:40 PM [vite] hmr update /src/components/vyzualz/shared/VyzualzAudioDock.tsx
-3:19:46 PM [vite] hmr update /src/components/vyzualz/shared/VyzualzAudioDock.tsx
-3:19:47 PM [vite] ✨ new dependencies optimized: peaks.js
-3:19:47 PM [vite] ✨ optimized dependencies changed. reloading
-3:19:58 PM [vite] hmr update /src/styles/vyzualz.css
-3:22:15 PM [vite] hmr update /src/components/vyzualz/transport/PeaksWaveformView.tsx
-3:22:15 PM [vite] hmr invalidate /src/components/vyzualz/transport/PeaksWaveformView.tsx Could not Fast Refresh (new export)
-3:22:15 PM [vite] hmr update /src/components/vyzualz/shared/VyzualzAudioDock.tsx

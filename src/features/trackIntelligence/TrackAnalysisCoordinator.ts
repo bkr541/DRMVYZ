@@ -278,6 +278,35 @@ export class TrackAnalysisCoordinator {
       }
       if (cached) {
         if (this.isStale(trackId, generation)) return
+
+        // Decode and cache the buffer so AudioEngine/Peaks can initialize.
+        // Full analysis is skipped — the cached result is used as-is.
+        this.callbacks.onRuntimeUpdate(trackId, { status: 'decoding', error: null })
+        try {
+          let buffer: AudioBuffer | undefined = this.bufferCache.get(trackId)
+          if (!buffer) {
+            const ac = new AbortController()
+            this.abortControllers.set(trackId, ac)
+            try {
+              buffer = await this.deps.decodeBuffer({ url: job.url, sourceFile: job.sourceFile, signal: ac.signal })
+            } finally {
+              this.abortControllers.delete(trackId)
+            }
+            this.bufferCache.set(trackId, buffer)
+          }
+          if (!this.isStale(trackId, generation)) {
+            this.callbacks.onDurationUpdate(trackId, buffer.duration)
+          }
+        } catch (err) {
+          if (this.isStale(trackId, generation)) return
+          if (err instanceof Error && err.name === 'AbortError') return
+          // Non-fatal: cached analysis is still valid even if buffer decode fails.
+          console.warn(
+            `[TrackAnalysis] ${trackId}: buffer decode failed (analysis cached) — ${err instanceof Error ? err.message : String(err)}`,
+          )
+        }
+
+        if (this.isStale(trackId, generation)) return
         this.callbacks.onRuntimeUpdate(trackId, {
           status:          'complete',
           analysis:        cached,

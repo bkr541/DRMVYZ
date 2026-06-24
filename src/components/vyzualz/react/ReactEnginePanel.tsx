@@ -486,6 +486,7 @@ export function ReactEnginePanel() {
                   label="Font"
                   value={osc.textFontId ?? ''}
                   onChange={v => selectOscillatorFont(v || null)}
+                  disabled={fontUploadPending || !!fontSelectPending || !!fontRemovePending}
                   options={[
                     { value: '', label: '— canvas fallback —' },
                     ...oscillatorFontAssets.map((f: OscillatorFontAsset) => ({ value: f.id, label: f.name })),
@@ -586,7 +587,7 @@ export function ReactEnginePanel() {
               <button
                 type="button"
                 className="rv-glyph-upload-btn"
-                disabled={fontUploadPending || fontsLoadState === 'loading'}
+                disabled={fontUploadPending || fontsLoadState === 'loading' || !!fontSelectPending || !!fontRemovePending}
                 onClick={() => fontInputRef.current?.click()}
               >
                 {fontUploadPending ? 'Uploading…' : '+ Upload Font'}
@@ -614,12 +615,12 @@ export function ReactEnginePanel() {
                         <div
                           key={asset.id}
                           className={`rv-glyph-item${isActive ? ' rv-glyph-item--active' : ''}`}
-                          onClick={() => { if (!anyBusy) selectOscillatorFont(asset.id) }}
+                          onClick={async () => { if (!anyBusy) await selectOscillatorFont(asset.id) }}
                           role="button"
                           tabIndex={0}
                           aria-disabled={anyBusy}
                           style={{ opacity: isDeleting ? 0.5 : undefined, cursor: anyBusy ? 'default' : undefined }}
-                          onKeyDown={e => { if (!anyBusy && (e.key === 'Enter' || e.key === ' ')) selectOscillatorFont(asset.id) }}
+                          onKeyDown={async e => { if (!anyBusy && (e.key === 'Enter' || e.key === ' ')) await selectOscillatorFont(asset.id) }}
                         >
                           <span
                             className="rv-glyph-item-name"
@@ -633,7 +634,7 @@ export function ReactEnginePanel() {
                             className="rv-glyph-item-del"
                             title="Remove font"
                             disabled={anyBusy}
-                            onClick={e => { e.stopPropagation(); removeOscillatorFontAsset(asset.id) }}
+                            onClick={async e => { e.stopPropagation(); await removeOscillatorFontAsset(asset.id) }}
                           >
                             ×
                           </button>

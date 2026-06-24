@@ -196,18 +196,82 @@ describe('TrackAnalysisCoordinator — happy path', () => {
 // ── Persistent cache hit ───────────────────────────────────────────────────────
 
 describe('TrackAnalysisCoordinator — cache hit', () => {
-  it('skips decode when a cached analysis exists', async () => {
+  it('decodes buffer but skips analysis on persistent cache hit', async () => {
     const cached = makeAnalysis(140)
     const { coordinator, deps, cbs } = makeCoordinator({ getCachedAnalysis: vi.fn().mockReturnValue(cached) })
     coordinator.enqueue(makeTrack(), 'normal')
     await new Promise(r => setTimeout(r, 50))
 
-    expect(deps.decodeBuffer).not.toHaveBeenCalled()
+    // Buffer IS decoded so Peaks / playback can initialize
+    expect(deps.decodeBuffer).toHaveBeenCalledTimes(1)
+    // Full analysis is NOT re-run
     expect(deps.analyze).not.toHaveBeenCalled()
 
     const update = (cbs.onRuntimeUpdate as ReturnType<typeof vi.fn>).mock.calls.find(c => c[1].status === 'complete')
     expect(update).toBeDefined()
     expect(update![1].analysis.bpm).toBe(140)
+  })
+
+  it('populates the buffer cache on persistent cache hit', async () => {
+    const cached    = makeAnalysis(140)
+    const fakeBuffer = makeFakeBuffer()
+    const { coordinator } = makeCoordinator({
+      getCachedAnalysis: vi.fn().mockReturnValue(cached),
+      decodeBuffer:      vi.fn().mockResolvedValue(fakeBuffer),
+    })
+    const track = makeTrack()
+    coordinator.enqueue(track, 'normal')
+    await new Promise(r => setTimeout(r, 50))
+
+    expect(coordinator.getDecodedBuffer(track.id)).toBe(fakeBuffer)
+  })
+
+  it('transitions through decoding → complete (not analyzing) on persistent cache hit', async () => {
+    const cached = makeAnalysis(140)
+    const { coordinator, cbs } = makeCoordinator({ getCachedAnalysis: vi.fn().mockReturnValue(cached) })
+    coordinator.enqueue(makeTrack(), 'normal')
+    await new Promise(r => setTimeout(r, 50))
+
+    const statuses = (cbs.onRuntimeUpdate as ReturnType<typeof vi.fn>).mock.calls
+      .map(c => c[1].status)
+      .filter(Boolean)
+    expect(statuses).toContain('decoding')
+    expect(statuses).toContain('complete')
+    expect(statuses).not.toContain('analyzing')
+  })
+
+  it('still marks complete when buffer decode fails during cache hit', async () => {
+    const cached   = makeAnalysis(140)
+    const warnSpy  = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { coordinator, cbs } = makeCoordinator({
+      getCachedAnalysis: vi.fn().mockReturnValue(cached),
+      decodeBuffer:      vi.fn().mockRejectedValue(new Error('network error')),
+    })
+    coordinator.enqueue(makeTrack(), 'normal')
+    await new Promise(r => setTimeout(r, 50))
+
+    const completeCalls = (cbs.onRuntimeUpdate as ReturnType<typeof vi.fn>).mock.calls.filter(
+      c => c[1].status === 'complete',
+    )
+    expect(completeCalls).toHaveLength(1)
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('buffer decode failed'))
+    warnSpy.mockRestore()
+  })
+
+  it('reuses in-memory buffer without a network fetch when already cached', async () => {
+    const cached = makeAnalysis(140)
+    const { coordinator, deps } = makeCoordinator({ getCachedAnalysis: vi.fn().mockReturnValue(cached) })
+    const track = makeTrack()
+
+    // First enqueue — decodes and caches buffer
+    coordinator.enqueue(track, 'normal')
+    await new Promise(r => setTimeout(r, 50))
+    expect(deps.decodeBuffer).toHaveBeenCalledTimes(1)
+
+    // Second enqueue with same persistent cache hit — buffer already in LRU
+    coordinator.enqueue(track, 'normal')
+    await new Promise(r => setTimeout(r, 50))
+    expect(deps.decodeBuffer).toHaveBeenCalledTimes(1)  // not called again
   })
 })
 

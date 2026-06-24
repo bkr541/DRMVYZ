@@ -49,9 +49,10 @@ export interface SelectRowProps {
   value: string
   onChange: (v: string) => void
   options: SelectOption[]
+  disabled?: boolean
 }
 
-export function SelectRow({ label, value, onChange, options }: SelectRowProps) {
+export function SelectRow({ label, value, onChange, options, disabled }: SelectRowProps) {
   return (
     <div className="rv-ctrl-row">
       <span className="rv-ctrl-label">{label}</span>
@@ -59,6 +60,7 @@ export function SelectRow({ label, value, onChange, options }: SelectRowProps) {
         className="rv-ctrl-select"
         value={value}
         onChange={e => onChange(e.target.value)}
+        disabled={disabled}
       >
         {options.map(o => (
           <option key={o.value} value={o.value}>{o.label}</option>

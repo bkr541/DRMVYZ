@@ -92,7 +92,12 @@ export function VyzualzAudioDock() {
   const track    = engine.currentTrack
   const hasTrack = engine.tracks.length > 0
 
-  const { peaks } = useWaveformPeaks(track?.url ?? null)
+  const trackId = track?.id ?? null
+  const { peaks } = useWaveformPeaks(
+    trackId,
+    trackId ? engine.getDecodedBuffer(trackId) : undefined,
+    track?.url ?? null,
+  )
 
   // Trigger RGB waveform analysis whenever a track's main analysis completes
   useRgbWaveformAnalysis(engine)

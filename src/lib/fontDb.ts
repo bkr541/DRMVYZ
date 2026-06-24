@@ -1,37 +1,35 @@
 // Narrow typed helpers for font_assets DB and storage operations.
-// Avoids the `supabase as any` pattern by isolating the controlled cast here.
+// supabase is created with createClient<Database> so all table queries are
+// statically typed — no cast to an untyped SupabaseClient is needed here.
 
 import { supabase, supabaseConfigured } from './supabase'
-import type { FontAssetRow, FontAssetInsert } from '../types/database'
-import type { SupabaseClient } from '@supabase/supabase-js'
+import type { FontAssetRow, FontAssetInsert, DBRec } from '../types/database'
 import type { DbListResult, DbCreateResult, DbMutateResult } from './mediaDb'
-
-const db = supabase as unknown as SupabaseClient
 
 export interface BlobResult { data: Blob | null; error: string | null }
 
 // ── font_assets table ─────────────────────────────────────────────────────────
 
 export async function listFontAssets(userId: string): Promise<DbListResult<FontAssetRow>> {
-  const { data, error } = await db
+  const { data, error } = await supabase
     .from('font_assets')
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
-  return { rows: (data as FontAssetRow[] | null) ?? [], error: error?.message ?? null }
+  return { rows: data ?? [], error: error?.message ?? null }
 }
 
 export async function createFontAsset(insert: FontAssetInsert): Promise<DbCreateResult> {
-  const { data, error } = await db
+  const { data, error } = await supabase
     .from('font_assets')
-    .insert(insert)
+    .insert(insert as DBRec<FontAssetInsert>)
     .select('id')
     .single()
-  return { id: (data as { id: string } | null)?.id ?? null, error: error?.message ?? null }
+  return { id: data?.id ?? null, error: error?.message ?? null }
 }
 
 export async function deleteFontAsset(id: string): Promise<DbMutateResult> {
-  const { error } = await db.from('font_assets').delete().eq('id', id)
+  const { error } = await supabase.from('font_assets').delete().eq('id', id)
   return { error: error?.message ?? null }
 }
 

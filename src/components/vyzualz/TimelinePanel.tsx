@@ -1519,9 +1519,15 @@ export function TimelinePanel({ onScrub, onAddCue }: TimelinePanelProps) {
   })))
   const engine = useSharedAudio()
 
-  // ── Waveform peaks (cached by URL) ─────────────────────────────────────
-  const trackUrl = engine.currentIndex >= 0 ? (engine.tracks[engine.currentIndex]?.url ?? null) : null
-  const { peaks: waveformPeaks, loading: waveformLoading } = useWaveformPeaks(trackUrl)
+  // ── Waveform peaks (prefer engine buffer; fall back to URL fetch) ──────
+  const currentTrack = engine.currentIndex >= 0 ? (engine.tracks[engine.currentIndex] ?? null) : null
+  const trackUrl     = currentTrack?.url ?? null
+  const trackIdTl    = currentTrack?.id ?? null
+  const { peaks: waveformPeaks, loading: waveformLoading } = useWaveformPeaks(
+    trackIdTl,
+    trackIdTl ? engine.getDecodedBuffer(trackIdTl) : undefined,
+    trackUrl,
+  )
   const globalOffsetSec = globalOffsetMs / 1000
 
   const mediaMap = useMemo(() => new Map(mediaItems.map(m => [m.id, m])), [mediaItems])

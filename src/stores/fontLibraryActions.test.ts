@@ -323,6 +323,8 @@ describe('loadOscillatorFonts', () => {
       oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS, textFontId: ASSET_ID },
     })
     h.mockListFontAssets.mockResolvedValue({ rows: [makeRow(ASSET_ID)], error: null })
+    // Font already in runtime cache — lazy rehydration is a no-op (no download needed)
+    h.mockHasFontRuntime.mockReturnValue(true)
     await useReactStore.getState().loadOscillatorFonts()
     expect(useReactStore.getState().oscillatorSettings.textFontId).toBe(ASSET_ID)
   })
@@ -510,5 +512,197 @@ describe('removeOscillatorFontAsset', () => {
     await useReactStore.getState().removeOscillatorFontAsset('does-not-exist')
     expect(h.mockDeleteFontAsset).not.toHaveBeenCalled()
     expect(useReactStore.getState().oscillatorFontAssets).toHaveLength(1)
+  })
+})
+
+// ── loadOscillatorFonts — lazy rehydration ─────────────────────────────────────
+
+describe('loadOscillatorFonts — lazy rehydration', () => {
+  it('downloads the persisted textFontId after loading fonts when not yet cached', async () => {
+    useReactStore.setState({
+      oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS, textFontId: ASSET_ID },
+    })
+    const blob = { arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)) }
+    h.mockListFontAssets.mockResolvedValue({ rows: [makeRow(ASSET_ID)], error: null })
+    h.mockHasFontRuntime.mockReturnValue(false)
+    h.mockDownloadFontFile.mockResolvedValue({ data: blob, error: null })
+    h.mockParse.mockReturnValue({})
+
+    await useReactStore.getState().loadOscillatorFonts()
+
+    expect(h.mockDownloadFontFile).toHaveBeenCalledWith(makeRow(ASSET_ID).storage_path)
+    expect(useReactStore.getState().oscillatorSettings.textFontId).toBe(ASSET_ID)
+  })
+
+  it('skips download for persisted textFontId when already in runtime cache', async () => {
+    useReactStore.setState({
+      oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS, textFontId: ASSET_ID },
+    })
+    h.mockListFontAssets.mockResolvedValue({ rows: [makeRow(ASSET_ID)], error: null })
+    h.mockHasFontRuntime.mockReturnValue(true)
+
+    await useReactStore.getState().loadOscillatorFonts()
+
+    expect(h.mockDownloadFontFile).not.toHaveBeenCalled()
+    expect(useReactStore.getState().oscillatorSettings.textFontId).toBe(ASSET_ID)
+  })
+
+  it('does not download any font when textFontId is null after load', async () => {
+    h.mockListFontAssets.mockResolvedValue({ rows: [makeRow(ASSET_ID)], error: null })
+    // textFontId is null (default)
+
+    await useReactStore.getState().loadOscillatorFonts()
+
+    expect(h.mockDownloadFontFile).not.toHaveBeenCalled()
+  })
+})
+
+// ── selectOscillatorFont — stale result protection ─────────────────────────────
+
+describe('selectOscillatorFont — stale result protection', () => {
+  it('discards result of font A when font B (cache hit) is selected while A is downloading', async () => {
+    useReactStore.setState({ oscillatorFontAssets: [makeAsset(), makeAsset(ASSET_ID2)] })
+
+    let resolveA!: (v: { data: Blob; error: null }) => void
+    const downloadA = new Promise<{ data: Blob; error: null }>(res => { resolveA = res })
+
+    // A is not cached, B is cached
+    h.mockHasFontRuntime.mockImplementation((id: string) => id === ASSET_ID2)
+    h.mockDownloadFontFile.mockReturnValueOnce(downloadA)
+    h.mockParse.mockReturnValue({})
+
+    // Start selecting A (won't complete until resolveA fires)
+    const selectA = useReactStore.getState().selectOscillatorFont(ASSET_ID)
+    expect(useReactStore.getState().fontSelectPending).toBe(ASSET_ID)
+
+    // Select B (cache hit) — supersedes A by clearing fontSelectPending
+    await useReactStore.getState().selectOscillatorFont(ASSET_ID2)
+    expect(useReactStore.getState().oscillatorSettings.textFontId).toBe(ASSET_ID2)
+    expect(useReactStore.getState().fontSelectPending).toBeNull()
+
+    // Now let A's download complete
+    resolveA({ data: { arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)) } as unknown as Blob, error: null })
+    await selectA
+
+    // A's result is discarded — B's selection is unchanged
+    expect(useReactStore.getState().oscillatorSettings.textFontId).toBe(ASSET_ID2)
+    expect(useReactStore.getState().fontSelectPending).toBeNull()
+    expect(useReactStore.getState().fontSelectError).toBeNull()
+  })
+
+  it('discards A error and preserves current selection when null is selected while A loads', async () => {
+    useReactStore.setState({
+      oscillatorFontAssets: [makeAsset()],
+      oscillatorSettings:   { ...DEFAULT_OSCILLATOR_SETTINGS, textFontId: ASSET_ID2 },
+    })
+
+    let resolveA!: (v: { data: null; error: string }) => void
+    const downloadA = new Promise<{ data: null; error: string }>(res => { resolveA = res })
+    h.mockHasFontRuntime.mockReturnValue(false)
+    h.mockDownloadFontFile.mockReturnValueOnce(downloadA)
+
+    // Start selecting A
+    const selectA = useReactStore.getState().selectOscillatorFont(ASSET_ID)
+
+    // Select null — clears fontSelectPending, cancels in-flight work
+    await useReactStore.getState().selectOscillatorFont(null)
+    expect(useReactStore.getState().oscillatorSettings.textFontId).toBeNull()
+    expect(useReactStore.getState().fontSelectPending).toBeNull()
+
+    // Resolve A with an error — should be silently discarded
+    resolveA({ data: null, error: 'network error' })
+    await selectA
+
+    // Error from stale A must not pollute the current state
+    expect(useReactStore.getState().fontSelectError).toBeNull()
+    expect(useReactStore.getState().oscillatorSettings.textFontId).toBeNull()
+  })
+})
+
+// ── uploadOscillatorFont — storage path safety ─────────────────────────────────
+
+describe('uploadOscillatorFont — storage path safety', () => {
+  function setupUpload(originalFileName: string, mimeType: 'font/ttf' | 'font/otf') {
+    h.mockInspectFontFile.mockResolvedValue({ ...makeInspection(), fileName: originalFileName, mimeType })
+    h.mockUploadFontFile.mockResolvedValue({ error: null })
+    h.mockCreateFontAsset.mockResolvedValue({ id: ASSET_ID, error: null })
+  }
+
+  it('uses font.ttf (not the original filename) in the storage path for .ttf uploads', async () => {
+    setupUpload('My Font Regular.ttf', 'font/ttf')
+    await useReactStore.getState().uploadOscillatorFont(makeFile('My Font Regular.ttf'))
+    const [[storagePath]] = h.mockUploadFontFile.mock.calls
+    expect(storagePath).toMatch(/\/font\.ttf$/)
+    expect(storagePath).not.toContain('My Font Regular')
+  })
+
+  it('uses font.otf (not the original filename) in the storage path for .otf uploads', async () => {
+    setupUpload('Weird-Name.otf', 'font/otf')
+    await useReactStore.getState().uploadOscillatorFont(makeFile('Weird-Name.otf'))
+    const [[storagePath]] = h.mockUploadFontFile.mock.calls
+    expect(storagePath).toMatch(/\/font\.otf$/)
+    expect(storagePath).not.toContain('Weird-Name')
+  })
+
+  it('excludes path-traversal chars from storage path when filename contains slashes', async () => {
+    setupUpload('path/../traversal.ttf', 'font/ttf')
+    await useReactStore.getState().uploadOscillatorFont(makeFile('path/../traversal.ttf'))
+    const [[storagePath]] = h.mockUploadFontFile.mock.calls
+    expect(storagePath).not.toContain('../')
+    expect(storagePath).not.toContain('traversal')
+    expect(storagePath).toMatch(/\/font\.ttf$/)
+  })
+
+  it('excludes backslashes from storage path when filename contains backslashes', async () => {
+    setupUpload('dir\\subdir\\font.ttf', 'font/ttf')
+    await useReactStore.getState().uploadOscillatorFont(makeFile('dir\\subdir\\font.ttf'))
+    const [[storagePath]] = h.mockUploadFontFile.mock.calls
+    expect(storagePath).not.toContain('\\')
+    expect(storagePath).toMatch(/\/font\.ttf$/)
+  })
+
+  it('excludes spaces and special chars from storage path for unusual filenames', async () => {
+    setupUpload('My & Unique "Font"!.ttf', 'font/ttf')
+    await useReactStore.getState().uploadOscillatorFont(makeFile('My & Unique "Font"!.ttf'))
+    const [[storagePath]] = h.mockUploadFontFile.mock.calls
+    expect(storagePath).toMatch(/^[^"&!]+$/)
+    expect(storagePath).toMatch(/\/font\.ttf$/)
+  })
+
+  it('preserves the original filename verbatim in the DB file_name column', async () => {
+    const originalName = 'path/../../etc/passwd.ttf'
+    setupUpload(originalName, 'font/ttf')
+    await useReactStore.getState().uploadOscillatorFont(makeFile(originalName))
+    const [insertArg] = h.mockCreateFontAsset.mock.calls[0]
+    expect(insertArg.file_name).toBe(originalName)
+  })
+
+  it('does not place the original filename in the storage_path column of the DB insert', async () => {
+    const originalName = 'Dangerous  File Name.ttf'
+    setupUpload(originalName, 'font/ttf')
+    await useReactStore.getState().uploadOscillatorFont(makeFile(originalName))
+    const [insertArg] = h.mockCreateFontAsset.mock.calls[0]
+    expect(insertArg.storage_path).not.toContain('Dangerous')
+    expect(insertArg.storage_path).toMatch(/\/font\.ttf$/)
+  })
+
+  it('storage path has exactly three segments: userId / UUID / font.ttf', async () => {
+    setupUpload('test.ttf', 'font/ttf')
+    await useReactStore.getState().uploadOscillatorFont(makeFile('test.ttf'))
+    const [[storagePath]] = h.mockUploadFontFile.mock.calls
+    const parts = storagePath.split('/')
+    expect(parts).toHaveLength(3)
+    expect(parts[0]).toBe(USER_ID)
+    expect(parts[1]).toMatch(/^[0-9a-f-]{36}$/)
+    expect(parts[2]).toBe('font.ttf')
+  })
+
+  it('rolls back the safe normalized path (not the original filename) on insert failure', async () => {
+    setupUpload('My Font.ttf', 'font/ttf')
+    h.mockCreateFontAsset.mockResolvedValue({ id: null, error: 'DB error' })
+    await useReactStore.getState().uploadOscillatorFont(makeFile('My Font.ttf'))
+    const [[rollbackPath]] = h.mockRemoveFontFile.mock.calls
+    expect(rollbackPath).toMatch(/\/font\.ttf$/)
+    expect(rollbackPath).not.toContain('My Font.ttf')
   })
 })

@@ -216,6 +216,123 @@ describe('PeaksWaveformView', () => {
       })
       expect(mockDestroy).toHaveBeenCalled()
     })
+
+    it('destroys the previous instance immediately when the new track has no buffer yet', async () => {
+      // Mount and complete Peaks init for track-1
+      const eng1 = makeEngine()
+      await mount(eng1)
+      await act(async () => { capturedCb?.(null, mockInstance as PeaksInstance) })
+      vi.clearAllMocks()
+      capturedCb = null
+
+      // Switch to track-2: buffer unavailable, analysis still queued
+      const eng2 = makeEngine({
+        currentTrack:          { id: 'track-2', displayName: 'T2' } as unknown as AudioEngine['currentTrack'],
+        currentAnalysisStatus: 'queued',
+        getDecodedBuffer:      vi.fn(() => undefined),
+      })
+      await act(async () => {
+        root.render(<PeaksWaveformView engine={eng2} cueMarkers={[]} waveformZoom={1} />)
+      })
+
+      // Previous Peaks must be destroyed right away — no waiting for buffer
+      expect(mockDestroy).toHaveBeenCalled()
+      // No new Peaks init started — buffer not available
+      expect(Peaks.init).not.toHaveBeenCalled()
+    })
+
+    it('shows fallback canvas immediately after track change when buffer is unavailable', async () => {
+      // Track-1 fully initialized
+      const eng1 = makeEngine()
+      await mount(eng1)
+      await act(async () => { capturedCb?.(null, mockInstance as PeaksInstance) })
+      // Fallback is hidden while Peaks is ready
+      expect(container.querySelector('.vz-peaks-fallback')).toBeNull()
+
+      // Switch to track-2: no buffer, queued status
+      const eng2 = makeEngine({
+        currentTrack:          { id: 'track-2', displayName: 'T2' } as unknown as AudioEngine['currentTrack'],
+        currentAnalysisStatus: 'queued',
+        getDecodedBuffer:      vi.fn(() => undefined),
+      })
+      await act(async () => {
+        root.render(<PeaksWaveformView engine={eng2} cueMarkers={[]} waveformZoom={1} />)
+      })
+
+      // Fallback canvas must be visible while new Peaks is not yet ready
+      expect(container.querySelector('.vz-peaks-fallback')).not.toBeNull()
+    })
+  })
+
+  describe('buffer readiness', () => {
+    it('does not call Peaks.init when status is queued (buffer not yet decoded)', async () => {
+      await mount(makeEngine({ currentAnalysisStatus: 'queued', getDecodedBuffer: vi.fn(() => undefined) }))
+      expect(Peaks.init).not.toHaveBeenCalled()
+      expect(container.querySelector('.vz-peaks-fallback')).not.toBeNull()
+    })
+
+    it('initializes Peaks when buffer becomes available as status progresses', async () => {
+      // First render: track-2, queued, no buffer
+      const eng2queued = makeEngine({
+        currentTrack:          { id: 'track-2', displayName: 'T2' } as unknown as AudioEngine['currentTrack'],
+        currentAnalysisStatus: 'queued',
+        getDecodedBuffer:      vi.fn(() => undefined),
+      })
+      await mount(eng2queued)
+      expect(Peaks.init).not.toHaveBeenCalled()
+
+      // Buffer arrives as coordinator completes (status: complete, buffer cached)
+      const eng2ready = makeEngine({
+        currentTrack:          { id: 'track-2', displayName: 'T2' } as unknown as AudioEngine['currentTrack'],
+        currentAnalysisStatus: 'complete',
+        getDecodedBuffer:      vi.fn(() => makeBuffer()),
+      })
+      await act(async () => {
+        root.render(<PeaksWaveformView engine={eng2ready} cueMarkers={[]} waveformZoom={1} />)
+      })
+      expect(Peaks.init).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not reinitialize Peaks when status changes after init is active', async () => {
+      // Mount with 'analyzing' status — buffer available, Peaks inits
+      await mount(makeEngine({ currentAnalysisStatus: 'analyzing' }))
+      expect(Peaks.init).toHaveBeenCalledTimes(1)
+
+      // Fire the callback so peaksRef is set
+      await act(async () => { capturedCb?.(null, mockInstance as PeaksInstance) })
+      vi.clearAllMocks()
+
+      // Status ticks to 'complete' — should not trigger a second Peaks.init
+      await act(async () => {
+        root.render(<PeaksWaveformView engine={makeEngine({ currentAnalysisStatus: 'complete' })} cueMarkers={[]} waveformZoom={1} />)
+      })
+      expect(Peaks.init).not.toHaveBeenCalled()
+    })
+
+    it('cached-analysis path: shows fallback during decoding then hides after init', async () => {
+      // Simulate the coordinator's cache-hit flow: status starts 'decoding' (buffer not ready yet)
+      const engDecoding = makeEngine({
+        currentAnalysisStatus: 'decoding',
+        getDecodedBuffer:      vi.fn(() => undefined),
+      })
+      await mount(engDecoding)
+      expect(container.querySelector('.vz-peaks-fallback')).not.toBeNull()
+      expect(Peaks.init).not.toHaveBeenCalled()
+
+      // Buffer arrives and status becomes 'complete'
+      const engComplete = makeEngine({
+        currentAnalysisStatus: 'complete',
+        getDecodedBuffer:      vi.fn(() => makeBuffer()),
+      })
+      await act(async () => {
+        root.render(<PeaksWaveformView engine={engComplete} cueMarkers={[]} waveformZoom={1} />)
+      })
+      expect(Peaks.init).toHaveBeenCalledTimes(1)
+
+      // After successful init callback, fallback disappears
+      await act(async () => { capturedCb?.(null, mockInstance as PeaksInstance) })
+      expect(container.querySelector('.vz-peaks-fallback')).toBeNull()
+    })
   })
 
   describe('cue marker re-sync', () => {

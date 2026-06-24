@@ -9,10 +9,11 @@
  *  - oscillatorSettings.textFontId survives (cloud list validates it at runtime)
  *  - Unrelated state keys are untouched
  *  - Full migration chain from v0 reaches the same result
+ *  - partialize output excludes runtime/binary data and non-persisted assets
  */
 
-import { describe, it, expect } from 'vitest'
-import { migrateReactStore } from './reactStore'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { migrateReactStore, reactStorePartialize, useReactStore } from './reactStore'
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -126,5 +127,50 @@ describe('fontAssetMigration — full chain from v0', () => {
 
   it('runs all migrations without throwing when starting from empty state', () => {
     expect(() => migrateReactStore({}, 0)).not.toThrow()
+  })
+})
+
+// ── Persistence partialization — binary and runtime data excluded ──────────────
+
+describe('reactStorePartialize — runtime and binary data excluded from persistence', () => {
+  beforeEach(() => {
+    useReactStore.setState({
+      oscillatorFontAssets: [makeCloudFont()],
+      oscillatorSettings:   { textFontId: 'uuid-1234-5678', text: 'DRMVYZ' } as ReturnType<typeof useReactStore.getState>['oscillatorSettings'],
+    })
+  })
+
+  it('persists oscillatorSettings.textFontId', () => {
+    const persisted = reactStorePartialize(useReactStore.getState())
+    expect(persisted.oscillatorSettings.textFontId).toBe('uuid-1234-5678')
+  })
+
+  it('does not include oscillatorFontAssets in persisted output', () => {
+    const persisted = reactStorePartialize(useReactStore.getState())
+    expect(persisted).not.toHaveProperty('oscillatorFontAssets')
+  })
+
+  it('does not include rawFontDataBase64 in persisted output', () => {
+    const persisted = reactStorePartialize(useReactStore.getState())
+    const json = JSON.stringify(persisted)
+    expect(json).not.toContain('rawFontDataBase64')
+  })
+
+  it('does not include oscillatorTextPointCache in persisted output', () => {
+    const persisted = reactStorePartialize(useReactStore.getState())
+    expect(persisted).not.toHaveProperty('oscillatorTextPointCache')
+  })
+
+  it('does not include fontSelectPending or fontRemovePending in persisted output', () => {
+    const persisted = reactStorePartialize(useReactStore.getState())
+    expect(persisted).not.toHaveProperty('fontSelectPending')
+    expect(persisted).not.toHaveProperty('fontRemovePending')
+    expect(persisted).not.toHaveProperty('fontUploadPending')
+  })
+
+  it('round-trips through JSON without losing textFontId', () => {
+    const persisted = reactStorePartialize(useReactStore.getState())
+    const roundTripped = JSON.parse(JSON.stringify(persisted))
+    expect(roundTripped.oscillatorSettings.textFontId).toBe('uuid-1234-5678')
   })
 })

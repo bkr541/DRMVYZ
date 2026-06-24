@@ -65,6 +65,13 @@ import {
 import { supabase, supabaseConfigured } from '../lib/supabase'
 import { uploadFontFile, createFontAsset, removeFontFile, listFontAssets, downloadFontFile, deleteFontAsset } from '../lib/fontDb'
 
+// Maps validated MIME type to a fixed, path-safe Storage object filename.
+// file.name is kept only in font_assets.file_name (DB metadata), never in the path.
+const SAFE_FONT_FILENAME: Record<string, string> = {
+  'font/ttf': 'font.ttf',
+  'font/otf': 'font.otf',
+}
+
 // ── Point cache helpers ───────────────────────────────────────────────────────
 // SVG cache key:  getSvgGlyphCacheKey(assetId, res, hash) → "${assetId}:${res}:v${version}:${hash}"
 // Text cache key: "${fontId}:${text}:${fontSize}:${letterSpacing}:${resolution}"
@@ -752,6 +759,31 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
   return state
 }
 
+// Exported for persistence regression tests only.
+export function reactStorePartialize(s: ReactStoreState) {
+  return {
+    activeReactPresetId:                s.activeReactPresetId,
+    activeReactEngineId:                s.activeReactEngineId,
+    manualTrackSectionsByTrackId:       s.manualTrackSectionsByTrackId,
+    suppressedAutoSectionsByTrackId:    s.suppressedAutoSectionsByTrackId,
+    presetAutomationCuesByTrackId:      s.presetAutomationCuesByTrackId,
+    oscillatorSettings:                 s.oscillatorSettings,
+    oscillatorGlyphAssets:              s.oscillatorGlyphAssets,
+    laserDmxSettings:                   s.laserDmxSettings,
+    laserDmxWorkspaceMode:              s.laserDmxWorkspaceMode,
+    laserDmxBeamMatrix:                 s.laserDmxBeamMatrix,
+    activeLaserDmxBeamMatrixPresetId:   s.activeLaserDmxBeamMatrixPresetId,
+    reactIntensity:       s.reactIntensity,
+    reactMotion:          s.reactMotion,
+    reactGlow:            s.reactGlow,
+    reactBassReactivity:  s.reactBassReactivity,
+    reactColorPalette:    s.reactColorPalette,
+    reactTrailDecay:      s.reactTrailDecay,
+    reactFogDensity:      s.reactFogDensity,
+    reactParticleDensity: s.reactParticleDensity,
+  }
+}
+
 export const useReactStore = create<ReactStoreState>()(
   persist(
     (set, get) => ({
@@ -1368,11 +1400,13 @@ export const useReactStore = create<ReactStoreState>()(
         // Deduplicate concurrent calls for the same id
         if (useReactStore.getState().fontSelectPending === id) return
 
-        // Cache hit — commit selection and warm text cache immediately
+        // Cache hit — commit selection and warm text cache immediately.
+        // Also clears fontSelectPending to supersede any concurrent in-flight download.
         if (hasFontRuntime(id)) {
           set((s) => {
             const newSettings = { ...s.oscillatorSettings, textFontId: id }
             return {
+              fontSelectPending:        null,
               fontSelectError:          null,
               oscillatorSettings:       newSettings,
               oscillatorTextPointCache: prepareTextPoints(s.oscillatorFontAssets, newSettings, s.oscillatorTextPointCache),
@@ -1386,7 +1420,10 @@ export const useReactStore = create<ReactStoreState>()(
         // Download binary from cloud storage
         const { data: blob, error: downloadErr } = await downloadFontFile(asset.storagePath)
         if (downloadErr || !blob) {
-          set({ fontSelectPending: null, fontSelectError: `Could not download font: ${downloadErr ?? 'no data'}` })
+          set(s => {
+            if (s.fontSelectPending !== id) return {}
+            return { fontSelectPending: null, fontSelectError: `Could not download font: ${downloadErr ?? 'no data'}` }
+          })
           return
         }
 
@@ -1398,15 +1435,19 @@ export const useReactStore = create<ReactStoreState>()(
         try {
           font = opentype.parse(buffer)
         } catch (e) {
-          set({ fontSelectPending: null, fontSelectError: `Could not parse font: ${(e as Error).message}` })
+          set(s => {
+            if (s.fontSelectPending !== id) return {}
+            return { fontSelectPending: null, fontSelectError: `Could not parse font: ${(e as Error).message}` }
+          })
           return
         }
 
         // Populate runtime cache
         storeFontRuntime(id, font, buffer)
 
-        // Commit selection and warm text cache
+        // Commit selection — discard if a newer selection superseded this one
         set((s) => {
+          if (s.fontSelectPending !== id) return {}
           const newSettings = { ...s.oscillatorSettings, textFontId: id }
           return {
             fontSelectPending:        null,
@@ -1442,8 +1483,15 @@ export const useReactStore = create<ReactStoreState>()(
           return
         }
 
-        // 3. Stable, UUID-namespaced storage path — no collisions across users or re-uploads
-        const storagePath = `${userId}/${crypto.randomUUID()}/${file.name}`
+        // 3. Build a safe storage path: userId/UUID/<normalized>.  file.name is
+        //    preserved in the DB file_name column but never placed in the path.
+        const storageFileName = SAFE_FONT_FILENAME[inspected.mimeType]
+        if (!storageFileName) {
+          evictFontFromCache(inspected.id)
+          set({ fontUploadPending: false, fontUploadError: 'Unsupported font format' })
+          return
+        }
+        const storagePath = `${userId}/${crypto.randomUUID()}/${storageFileName}`
 
         // 4. Upload binary to font-assets bucket
         const { error: uploadErr } = await uploadFontFile(storagePath, file, inspected.mimeType)
@@ -1558,6 +1606,13 @@ export const useReactStore = create<ReactStoreState>()(
                 : s.oscillatorSettings,
           }
         })
+
+        // Lazily rehydrate the persisted font: download and cache it if not already warm.
+        // selectOscillatorFont is a no-op when the runtime cache is already populated.
+        const persistedId = useReactStore.getState().oscillatorSettings.textFontId
+        if (persistedId && !hasFontRuntime(persistedId)) {
+          await useReactStore.getState().selectOscillatorFont(persistedId)
+        }
       },
 
       // ── LaserDMX actions ────────────────────────────────────────────────────
@@ -2250,27 +2305,7 @@ export const useReactStore = create<ReactStoreState>()(
       name: 'drmvyz:react-store',
       version: 11,
       migrate: migrateReactStore,
-      partialize: (s) => ({
-        activeReactPresetId:                s.activeReactPresetId,
-        activeReactEngineId:                s.activeReactEngineId,
-        manualTrackSectionsByTrackId:       s.manualTrackSectionsByTrackId,
-        suppressedAutoSectionsByTrackId:    s.suppressedAutoSectionsByTrackId,
-        presetAutomationCuesByTrackId:      s.presetAutomationCuesByTrackId,
-        oscillatorSettings:                 s.oscillatorSettings,
-        oscillatorGlyphAssets:              s.oscillatorGlyphAssets,
-        laserDmxSettings:                   s.laserDmxSettings,
-        laserDmxWorkspaceMode:              s.laserDmxWorkspaceMode,
-        laserDmxBeamMatrix:                 s.laserDmxBeamMatrix,
-        activeLaserDmxBeamMatrixPresetId:   s.activeLaserDmxBeamMatrixPresetId,
-        reactIntensity:       s.reactIntensity,
-        reactMotion:          s.reactMotion,
-        reactGlow:            s.reactGlow,
-        reactBassReactivity:  s.reactBassReactivity,
-        reactColorPalette:    s.reactColorPalette,
-        reactTrailDecay:      s.reactTrailDecay,
-        reactFogDensity:      s.reactFogDensity,
-        reactParticleDensity: s.reactParticleDensity,
-      }),
+      partialize: reactStorePartialize,
     },
   ),
 )

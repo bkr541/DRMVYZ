@@ -75,6 +75,11 @@ export function PeaksWaveformView({
     const buffer = eng.getDecodedBuffer(track.id)
     if (!buffer) return
 
+    // Don't reinitialize an already-active instance for this track.
+    // The cleanup effect guarantees peaksRef is null before the first init attempt
+    // after a track change, so this only fires on spurious status-change re-runs.
+    if (peaksRef.current) return
+
     destroyPeaks()
     const gen = initGenRef.current
 
@@ -122,6 +127,7 @@ export function PeaksWaveformView({
         }
         if (err) {
           console.error('[PeaksWaveformView] Peaks.init failed:', err)
+          instance?.destroy()
           adapterRef.current?.destroy()
           adapterRef.current = null
           setPeaksReady(false)
@@ -155,20 +161,26 @@ export function PeaksWaveformView({
     )
   }, [destroyPeaks])
 
+  // ── Tear down immediately on track change to prevent the previous waveform ──
+  // from remaining visible while the next buffer is being decoded.
+  // Runs before the init effect on the same render, so initPeaks always starts
+  // from a clean state and the fallback canvas shows as soon as track changes.
+  useEffect(() => {
+    destroyPeaks()
+    setPeaksReady(false)
+    setPeaksError(false)
+  }, [engine.currentTrack?.id, destroyPeaks])
+
   // ── Init / reinit when the active track or analysis status changes ─────────
   useEffect(() => {
     const trackId = engine.currentTrack?.id
     const status  = engine.currentAnalysisStatus
-    // Attempt init once the file has been decoded (status moves past 'queued')
+    // Attempt init once the file has been decoded (status moves past 'queued').
+    // initPeaks() returns early if buffer is missing or Peaks is already active.
     if (trackId && status !== 'queued') {
       initPeaks()
     }
-    if (!trackId) {
-      destroyPeaks()
-      setPeaksReady(false)
-      setPeaksError(false)
-    }
-  }, [engine.currentTrack?.id, engine.currentAnalysisStatus, initPeaks, destroyPeaks])
+  }, [engine.currentTrack?.id, engine.currentAnalysisStatus, initPeaks])
 
   // ── Keep Peaks informed of engine play-state changes ──────────────────────
   useEffect(() => {
