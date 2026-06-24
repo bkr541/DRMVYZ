@@ -663,6 +663,7 @@ export function ReactModulationPanel() {
       <CtrlSection label="Frequency Response" />
       <SliderRow label="Bass → Scale"  value={osc.bassScale}  onChange={v => set({ bassScale:  v })} color="#d8b95a" />
       <SliderRow label="Mid → Twist"   value={osc.midTwist}   onChange={v => set({ midTwist:   v })} color="#61d6aa" />
+      <ToggleRow  label="Alternate"    value={osc.altTwist}   onChange={v => set({ altTwist:   v })} title="Randomly alternate twist direction on each beat" />
       <SliderRow label="High → Jitter" value={osc.highJitter} onChange={v => set({ highJitter: v })} color="#b84fc9" />
       <SliderRow label="Beat → Bloom"  value={osc.beatBloom}  onChange={v => set({ beatBloom:  v })} color="#c0314a" />
     </div>

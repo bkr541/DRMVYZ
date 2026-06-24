@@ -81,6 +81,7 @@ export interface OscillatorSettings {
   textWaveformScroll: number
   bassScale: number
   midTwist: number
+  altTwist: boolean
   highJitter: number
   beatBloom: number
   rotationSpeed: number
@@ -115,6 +116,7 @@ export const DEFAULT_OSCILLATOR_SETTINGS: OscillatorSettings = {
   textWaveformScroll: 0.20,
   bassScale:          0.25,
   midTwist:          0.15,
+  altTwist:          false,
   highJitter:        0.08,
   beatBloom:         0.35,
   rotationSpeed:     0.08,

@@ -21,6 +21,42 @@ function getTrail(ctx: CanvasRenderingContext2D, W: number, H: number): HTMLCanv
 const beatEnvelopeMap = new WeakMap<CanvasRenderingContext2D, number>()
 const BEAT_DECAY = 0.86
 
+// ── Twist sign (per canvas context) ──────────────────────────────────────────
+// When altTwist is enabled the sign flips on every beat, producing true
+// left-right-left-right alternation.  Beat edges are detected two ways:
+//   1. beatHit flag (fires exactly once per advancing beat index from the
+//      music-intelligence engine, or from the bass-transient fallback).
+//   2. beatPhase wrap-around (prevPhase > 0.8 → currPhase < 0.2) as a
+//      secondary trigger so alternation works even when beatHit is sparse.
+// Using both ensures the sign always flips regardless of audio state.
+const twistSignMap     = new WeakMap<CanvasRenderingContext2D, 1 | -1>()
+const twistPhasePrevMap = new WeakMap<CanvasRenderingContext2D, number>()
+
+function tickTwistSign(
+  ctx:       CanvasRenderingContext2D,
+  beatHit:   boolean,
+  beatPhase: number,
+  altTwist:  boolean,
+): 1 | -1 {
+  if (!altTwist) {
+    twistSignMap.delete(ctx)
+    twistPhasePrevMap.delete(ctx)
+    return 1
+  }
+
+  const prevPhase  = twistPhasePrevMap.get(ctx) ?? beatPhase
+  const phaseWrapped = prevPhase > 0.8 && beatPhase < 0.2
+  twistPhasePrevMap.set(ctx, beatPhase)
+
+  const prev = twistSignMap.get(ctx) ?? 1
+  if (beatHit || phaseWrapped) {
+    const next: 1 | -1 = (prev * -1) as 1 | -1
+    twistSignMap.set(ctx, next)
+    return next
+  }
+  return prev
+}
+
 // ── Rotation phase accumulator (per canvas context) ───────────────────────────
 // Replaces global-time rotation so that changing speed doesn't snap the angle,
 // and so that text/svg sources can be stationary when autoRotate is false.
@@ -269,8 +305,10 @@ function renderOriginalArtwork(
   const angularVel   = 2 * params.motion * osc.rotationSpeed * (1 + mid * 0.3 * beatEnvelope)
   const rotRad       = tickRotPhase(tctx, t, sourceKey, shouldRotate, angularVel)
 
-  // Mid twist: additional rotation perturbation from mid-range energy
-  const midTwistAngle = mid * osc.midTwist * 0.4 * Math.PI
+  // Mid twist: additional rotation perturbation from mid-range energy.
+  // altTwist randomly picks a new direction on each beat; sign is held until the next beat.
+  const twistSignArtwork = tickTwistSign(tctx, frame.beatHit, frame.beatPhase, osc.altTwist)
+  const midTwistAngle = twistSignArtwork * mid * osc.midTwist * 0.4 * Math.PI
 
   // High jitter: deterministic XY noise driven by high-freq energy
   const jitterAmt = clamp(high * osc.highJitter, 0, 0.25)
@@ -991,12 +1029,18 @@ function drawPathScopeOnTrail(
   // Beat envelope persists across frames keyed to this canvas context
   const beatEnvelope = tickBeatEnvelope(tctx, beatHit)
 
+  // Twist sign: held constant between beats; randomly resampled on each beat hit
+  const twistSign = tickTwistSign(tctx, beatHit, frame.beatPhase, effectiveOsc.altTwist)
+
   // All audio-reactive values in one pure call
-  const am = resolveOscillatorAudioModifiers(
+  const amRaw = resolveOscillatorAudioModifiers(
     frame,
     { ...params, oscillator: effectiveOsc },
     beatEnvelope,
   )
+  const am = twistSign === -1
+    ? { ...amRaw, midTwistAmount: -amRaw.midTwistAmount }
+    : amRaw
 
   const numTraces = clamp(effectiveOsc.duplicateTraces, 1, 6)
   const close     = shouldClose(params)
@@ -1118,7 +1162,7 @@ function drawPathScopeOnTrail(
       let py = p.y
 
       // Mid twist: rotate each point proportional to path progress
-      if (am.midTwistAmount > 0) {
+      if (am.midTwistAmount !== 0) {
         const twAngle = p.progress * Math.PI * 2 * am.midTwistAmount
         const cosTw   = Math.cos(twAngle)
         const sinTw   = Math.sin(twAngle)
