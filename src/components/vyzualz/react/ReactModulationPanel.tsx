@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { SliderRow, SelectRow, ToggleRow, CtrlSection } from './ReactControlRows'
-import type { OscillatorAudioDisplaceMode, LaserDmxModulationRoute, LaserDmxTriggerTimingFilter, LaserDmxTriggerTimingFilterMode } from './ReactTypes'
+import type { OscillatorAudioDisplaceMode, OscillatorTextLetterReactionMode, LetterReactionAssignment, LetterReactionSource, LetterReactionTarget, LaserDmxModulationRoute, LaserDmxTriggerTimingFilter, LaserDmxTriggerTimingFilterMode } from './ReactTypes'
 import { BEATS_PER_BAR } from './ReactTypes'
 import { TRIGGER_TIMING_EVENT_SOURCES } from './renderers/LaserDmxModulationEngine'
 
@@ -577,6 +577,173 @@ function LaserDmxBeamMatrixModPanel() {
   )
 }
 
+// ── Custom letter assignment editor ──────────────────────────────────────────
+
+const LETTER_SOURCE_OPTIONS: { value: LetterReactionSource; label: string }[] = [
+  { value: 'bass', label: 'Bass'  },
+  { value: 'mid',  label: 'Mid'   },
+  { value: 'high', label: 'High'  },
+  { value: 'beat', label: 'Beat'  },
+]
+
+const LETTER_TARGET_OPTIONS: { value: LetterReactionTarget; label: string }[] = [
+  { value: 'scale',    label: 'Scale'    },
+  { value: 'rotation', label: 'Rotation' },
+  { value: 'offsetX',  label: 'Offset X' },
+  { value: 'offsetY',  label: 'Offset Y' },
+  { value: 'jitter',   label: 'Jitter'   },
+]
+
+const DEFAULT_ASSIGNMENT: Omit<LetterReactionAssignment, 'characterIndex'> = {
+  source: 'bass', target: 'scale', amount: 0.5, invert: false, phaseOffset: 0,
+}
+
+function LetterAssignmentEditor({
+  text,
+  assignments,
+  onChange,
+}: {
+  text:        string
+  assignments: LetterReactionAssignment[]
+  onChange:    (next: LetterReactionAssignment[]) => void
+}) {
+  const [selIdx, setSelIdx] = useState<number | null>(null)
+
+  const chars = Array.from(text)
+
+  // Count how many times each character has appeared before position ci
+  function repeatNum(ci: number): number | null {
+    const ch = chars[ci]
+    const prev = chars.slice(0, ci).filter(c => c === ch).length
+    const total = chars.filter(c => c === ch).length
+    return total > 1 ? prev + 1 : null
+  }
+
+  function getAssignment(ci: number): LetterReactionAssignment | undefined {
+    return assignments.find(a => a.characterIndex === ci)
+  }
+
+  function setAssignment(patch: Partial<LetterReactionAssignment> & { characterIndex: number }) {
+    const next = assignments.filter(a => a.characterIndex !== patch.characterIndex)
+    next.push({ ...DEFAULT_ASSIGNMENT, ...getAssignment(patch.characterIndex), ...patch })
+    onChange(next)
+  }
+
+  function clearAssignment(ci: number) {
+    onChange(assignments.filter(a => a.characterIndex !== ci))
+  }
+
+  function copyToAll(ci: number) {
+    const src = getAssignment(ci)
+    if (!src) return
+    const nonWs = chars.reduce<number[]>((acc, ch, i) => {
+      if (ch.trim() !== '') acc.push(i)
+      return acc
+    }, [])
+    const rest = assignments.filter(a => !nonWs.includes(a.characterIndex))
+    onChange([
+      ...rest,
+      ...nonWs.map(i => ({ ...src, characterIndex: i })),
+    ])
+  }
+
+  const sel = selIdx != null ? selIdx : null
+  const selAsgn = sel != null ? getAssignment(sel) : undefined
+
+  return (
+    <>
+      <div className="rv-letter-row">
+        {chars.map((ch, ci) => {
+          if (ch.trim() === '') return null
+          const isSel = selIdx === ci
+          const hasCfg = !!getAssignment(ci)
+          const rn = repeatNum(ci)
+          return (
+            <button
+              key={ci}
+              type="button"
+              className={[
+                'rv-letter-btn',
+                isSel  ? 'rv-letter-btn--sel' : '',
+                hasCfg ? 'rv-letter-btn--cfg' : '',
+              ].join(' ').trim()}
+              onClick={() => setSelIdx(isSel ? null : ci)}
+              title={`Character ${ci}: ${ch}`}
+            >
+              {ch}{rn != null && <sup>{rn}</sup>}
+            </button>
+          )
+        })}
+      </div>
+
+      {sel != null && (
+        <>
+          <SelectRow
+            label="Source"
+            value={selAsgn?.source ?? DEFAULT_ASSIGNMENT.source}
+            onChange={v => setAssignment({ characterIndex: sel, source: v as LetterReactionSource })}
+            options={LETTER_SOURCE_OPTIONS}
+          />
+          <SelectRow
+            label="Target"
+            value={selAsgn?.target ?? DEFAULT_ASSIGNMENT.target}
+            onChange={v => setAssignment({ characterIndex: sel, target: v as LetterReactionTarget })}
+            options={LETTER_TARGET_OPTIONS}
+          />
+          <SliderRow
+            label="Amount"
+            value={selAsgn?.amount ?? DEFAULT_ASSIGNMENT.amount}
+            onChange={v => setAssignment({ characterIndex: sel, amount: v })}
+            min={0} max={2} step={0.01}
+            color="#4ac7db"
+          />
+          <ToggleRow
+            label="Invert"
+            value={selAsgn?.invert ?? DEFAULT_ASSIGNMENT.invert}
+            onChange={v => setAssignment({ characterIndex: sel, invert: v })}
+          />
+          <SliderRow
+            label="Phase"
+            value={selAsgn?.phaseOffset ?? DEFAULT_ASSIGNMENT.phaseOffset}
+            onChange={v => setAssignment({ characterIndex: sel, phaseOffset: v })}
+            min={-0.5} max={0.5} step={0.01}
+            color="#b84fc9"
+          />
+          <div className="rv-letter-actions">
+            <button
+              type="button"
+              className="rv-glyph-upload-btn"
+              onClick={() => copyToAll(sel)}
+              disabled={!selAsgn}
+            >
+              Copy to All
+            </button>
+            <button
+              type="button"
+              className="rv-glyph-upload-btn"
+              onClick={() => { clearAssignment(sel); setSelIdx(null) }}
+              disabled={!selAsgn}
+            >
+              Clear Letter
+            </button>
+          </div>
+        </>
+      )}
+
+      <div className="rv-letter-actions">
+        <button
+          type="button"
+          className="rv-glyph-upload-btn rv-glyph-upload-btn--danger"
+          onClick={() => { onChange([]); setSelIdx(null) }}
+          disabled={assignments.length === 0}
+        >
+          Reset All
+        </button>
+      </div>
+    </>
+  )
+}
+
 // ── MOD panel ─────────────────────────────────────────────────────────────────
 
 export function ReactModulationPanel() {
@@ -641,6 +808,26 @@ export function ReactModulationPanel() {
 
       {osc.sourceType === 'text' && (
         <>
+          <CtrlSection label="Text Letter Motion" />
+          <SelectRow
+            label="Letter Reaction"
+            value={osc.textLetterReactionMode}
+            onChange={v => set({ textLetterReactionMode: v as OscillatorTextLetterReactionMode })}
+            options={[
+              { value: 'uniform',        label: 'Uniform'         },
+              { value: 'alternating',    label: 'Alternating'     },
+              { value: 'frequencySplit', label: 'Frequency Split' },
+              { value: 'ripple',         label: 'Ripple'          },
+              { value: 'custom',         label: 'Custom'          },
+            ]}
+          />
+          {osc.textLetterReactionMode === 'custom' && (
+            <LetterAssignmentEditor
+              text={osc.text}
+              assignments={osc.textLetterAssignments}
+              onChange={next => set({ textLetterAssignments: next })}
+            />
+          )}
           <CtrlSection label="Text Waveform Distortion" />
           <SelectRow
             label="Text Wave"

@@ -61,7 +61,8 @@ export function resamplePoints(
   if (points.length === 1 || targetCount === 1) {
     return Array.from({ length: targetCount }, (_, i) => ({
       ...points[0],
-      progress: targetCount > 1 ? i / (targetCount - 1) : 0,
+      progress:      targetCount > 1 ? i / (targetCount - 1) : 0,
+      localProgress: targetCount > 1 ? i / (targetCount - 1) : 0,
     }))
   }
 
@@ -77,7 +78,8 @@ export function resamplePoints(
   if (totalLen === 0) {
     return Array.from({ length: targetCount }, (_, i) => ({
       ...points[0],
-      progress: i / (targetCount - 1),
+      progress:      i / (targetCount - 1),
+      localProgress: i / (targetCount - 1),
     }))
   }
 
@@ -93,16 +95,19 @@ export function resamplePoints(
     const segLen = segEnd - cumLen[srcIdx]
     const t = segLen > 0 ? clamp((targetDist - cumLen[srcIdx]) / segLen, 0, 1) : 0
     result.push({
-      x:         a.x + (b.x - a.x) * t,
-      y:         a.y + (b.y - a.y) * t,
-      pathIndex: a.pathIndex,
-      progress:  i / (targetCount - 1),
-      normalX:   a.normalX != null && b.normalX != null
+      x:              a.x + (b.x - a.x) * t,
+      y:              a.y + (b.y - a.y) * t,
+      pathIndex:      a.pathIndex,
+      progress:       i / (targetCount - 1),
+      localProgress:  i / (targetCount - 1),
+      normalX:        a.normalX != null && b.normalX != null
         ? a.normalX + (b.normalX - a.normalX) * t
         : undefined,
-      normalY:   a.normalY != null && b.normalY != null
+      normalY:        a.normalY != null && b.normalY != null
         ? a.normalY + (b.normalY - a.normalY) * t
         : undefined,
+      characterIndex: a.characterIndex,
+      glyphIndex:     a.glyphIndex,
     })
   }
   return result

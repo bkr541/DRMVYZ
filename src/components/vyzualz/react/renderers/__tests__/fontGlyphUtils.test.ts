@@ -47,7 +47,27 @@ function makeMockFont(pathCommands: MockPathCommand[] = [
       fontFamily: { en: 'Test Family' },
     },
     unitsPerEm: 1000,
-    getPaths: vi.fn(() => [{ commands: pathCommands }]),
+    charToGlyph: vi.fn((char: string) => ({
+      index:        char.codePointAt(0) ?? 0,
+      advanceWidth: 600,
+      getPath:      vi.fn((gx: number, gy: number, fontSize: number) => {
+        const s = fontSize / 1000
+        return {
+          commands: pathCommands.map(cmd => {
+            if (cmd.type === 'Z') return { type: 'Z' as const }
+            const c: Record<string, unknown> = { type: cmd.type }
+            if ('x'  in cmd) c.x  = (cmd as { x:  number }).x  * s + gx
+            if ('y'  in cmd) c.y  = (cmd as { y:  number }).y  * s + gy
+            if ('x1' in cmd) c.x1 = (cmd as { x1: number }).x1 * s + gx
+            if ('y1' in cmd) c.y1 = (cmd as { y1: number }).y1 * s + gy
+            if ('x2' in cmd) c.x2 = (cmd as { x2: number }).x2 * s + gx
+            if ('y2' in cmd) c.y2 = (cmd as { y2: number }).y2 * s + gy
+            return c
+          }),
+        }
+      }),
+    })),
+    getKerningValue: vi.fn(() => 0),
   }
 }
 
@@ -266,8 +286,8 @@ describe('textToOpenTypeGlyphPoints', () => {
     expect(indices.has(0)).toBe(true)
   })
 
-  it('returns circle fallback when font.getPaths throws', () => {
-    const brokenFont = { ...makeMockFont(), getPaths: vi.fn(() => { throw new Error('parse error') }) }
+  it('returns circle fallback when font throws during path generation', () => {
+    const brokenFont = { ...makeMockFont(), charToGlyph: vi.fn(() => { throw new Error('parse error') }) }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pts = textToOpenTypeGlyphPoints(brokenFont as any, 'X', 64)
     expect(pts.length).toBeGreaterThan(0)
@@ -370,18 +390,9 @@ describe('textToOpenTypeGlyphPoints — height-normalised aspect ratio', () => {
 
 // ── Letter-spacing unit conversion ───────────────────────────────────────────
 //
-// opentype.js font.getPaths() expects letterSpacing in **em units** — it
-// multiplies the value by fontSize internally.  The UI slider and the canvas
-// fallback use pixel-equivalent units (same absolute-pixel convention as the
-// CSS letter-spacing pixel value).  The fix converts by dividing by fontSize.
-//
-// These tests use a spacing-aware mock: getPaths() returns two rectangles whose
-// horizontal gap matches the pixel gap that opentype would produce
-// (letterSpacingEm × fontSize).  This lets us verify both the argument passed
-// to getPaths AND the resulting normalised x-range.
-
-/** Internal font size fixed in fontGlyphUtils (must stay in sync with source). */
-const OPENTYPE_FONT_SIZE = 160
+// letterSpacing (pixels) is added directly to cursorX between characters.
+// Tests verify that increasing letterSpacing widens the x-range while keeping
+// the y-range fixed (height-normalised).
 
 function makeSpacingAwareMockFont() {
   return {
@@ -390,34 +401,23 @@ function makeSpacingAwareMockFont() {
       fontFamily: { en: 'Spacing Family' },
     },
     unitsPerEm: 1000,
-    // getPaths is called with letterSpacingEm (already converted).
-    // We simulate two 100×100 rectangles with a pixel gap = letterSpacingEm × fontSize.
-    getPaths: vi.fn(
-      (
-        _text: string,
-        _x: number, _y: number,
-        fontSize: number,
-        options: { letterSpacing?: number },
-      ) => {
-        const gap = (options?.letterSpacing ?? 0) * fontSize
-        return [
-          {
-            commands: [
-              { type: 'M', x: 0,           y: 0   },
-              { type: 'L', x: 100,          y: 0   },
-              { type: 'L', x: 100,          y: 100 },
-              { type: 'L', x: 0,            y: 100 },
-              { type: 'Z' },
-              { type: 'M', x: 100 + gap,    y: 0   },
-              { type: 'L', x: 200 + gap,    y: 0   },
-              { type: 'L', x: 200 + gap,    y: 100 },
-              { type: 'L', x: 100 + gap,    y: 100 },
-              { type: 'Z' },
-            ],
-          },
-        ]
+    charToGlyph: vi.fn((char: string) => ({
+      index:        char.codePointAt(0) ?? 0,
+      advanceWidth: 600,
+      getPath: (gx: number, gy: number, fontSize: number) => {
+        const s = fontSize / 1000
+        return {
+          commands: [
+            { type: 'M', x: gx,           y: gy           },
+            { type: 'L', x: gx + 100 * s, y: gy           },
+            { type: 'L', x: gx + 100 * s, y: gy + 100 * s },
+            { type: 'L', x: gx,           y: gy + 100 * s },
+            { type: 'Z' },
+          ],
+        }
       },
-    ),
+    })),
+    getKerningValue: vi.fn(() => 0),
   }
 }
 
@@ -440,29 +440,6 @@ function yRange(pts: ReturnType<typeof textToOpenTypeGlyphPoints>): number {
 }
 
 describe('textToOpenTypeGlyphPoints — letter-spacing unit conversion', () => {
-  it('passes letterSpacing divided by fontSize to font.getPaths', () => {
-    const font = makeSpacingAwareMockFont()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    textToOpenTypeGlyphPoints(font as any, 'AB', 64, { letterSpacing: OPENTYPE_FONT_SIZE })
-
-    expect(font.getPaths).toHaveBeenCalledWith(
-      'AB', 0, 0,
-      OPENTYPE_FONT_SIZE,
-      expect.objectContaining({ letterSpacing: 1.0 }),  // 160 / 160
-    )
-  })
-
-  it('zero spacing calls getPaths with letterSpacing 0', () => {
-    const font = makeSpacingAwareMockFont()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    textToOpenTypeGlyphPoints(font as any, 'AB', 64, { letterSpacing: 0 })
-
-    expect(font.getPaths).toHaveBeenCalledWith(
-      'AB', 0, 0, OPENTYPE_FONT_SIZE,
-      expect.objectContaining({ letterSpacing: 0 }),
-    )
-  })
-
   it('zero spacing produces narrower x-range than moderate spacing', () => {
     const font = makeSpacingAwareMockFont()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

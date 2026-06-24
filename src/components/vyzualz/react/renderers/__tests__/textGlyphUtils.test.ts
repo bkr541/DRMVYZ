@@ -69,19 +69,6 @@ describe('makeTextGlyphAsset — no canvas available', () => {
 // that should survive the full pipeline.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const FAKE_W = 512
-const FAKE_H = 128
-
-// Pre-build the pixel buffer once (262 144 bytes — well within memory budget).
-// Rectangle at x=[50,461], y=[20,107]: 412 wide × 88 tall.
-// Edge pixels: ~412 top + ~412 bottom + ~86 left + ~86 right ≈ 996 total.
-const fakeData = new Uint8ClampedArray(FAKE_W * FAKE_H * 4)
-for (let y = 20; y < 108; y++) {
-  for (let x = 50; x < 462; x++) {
-    fakeData[(y * FAKE_W + x) * 4 + 3] = 255  // alpha = opaque; RGB stays 0
-  }
-}
-
 function buildMockDocument() {
   const mockCtx = {
     font:         '',
@@ -91,11 +78,19 @@ function buildMockDocument() {
     fillText:     vi.fn(),
     measureText:  vi.fn().mockReturnValue({ width: 60 }),
     getImageData: vi.fn().mockImplementation(
-      (_x: number, _y: number, w: number, h: number) => ({
-        data:   fakeData,
-        width:  w,
-        height: h,
-      }),
+      (_x: number, _y: number, w: number, h: number) => {
+        // Rectangle at [10%..90%] × [15%..85%] — gives opaque pixels in the
+        // correct coordinate space for whatever canvas size was requested.
+        const data = new Uint8ClampedArray(w * h * 4)
+        const x0 = Math.floor(w * 0.1), x1 = Math.floor(w * 0.9)
+        const y0 = Math.floor(h * 0.15), y1 = Math.floor(h * 0.85)
+        for (let y = y0; y <= y1; y++) {
+          for (let x = x0; x <= x1; x++) {
+            data[(y * w + x) * 4 + 3] = 255
+          }
+        }
+        return { data, width: w, height: h }
+      },
     ),
   }
 
@@ -165,10 +160,11 @@ describe('textToGlyphPoints — with mocked canvas', () => {
     expect(pts[pts.length - 1].progress).toBeCloseTo(1, 8)
   })
 
-  it('all pathIndex values are 0', () => {
-    for (const p of textToGlyphPoints('DRMVYZ', 64)) {
-      expect(p.pathIndex).toBe(0)
-    }
+  it('each character has a unique pathIndex', () => {
+    const pts = textToGlyphPoints('DRMVYZ', 64)
+    const pathIndices = new Set(pts.map(p => p.pathIndex))
+    // 6 characters → 6 distinct pathIndex values
+    expect(pathIndices.size).toBe(6)
   })
 
   it('empty text still returns circle fallback (resolution honoured)', () => {

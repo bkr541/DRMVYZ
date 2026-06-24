@@ -1,4 +1,7 @@
-import type { ReactPreset, ReactSectionType, OscillatorGlyphPoint, OscillatorSettings, OscillatorTextWaveformMode } from '../ReactTypes'
+import type { ReactPreset, ReactSectionType, OscillatorGlyphPoint, OscillatorSettings, OscillatorTextWaveformMode, OscillatorTextLetterReactionMode, LetterReactionAssignment } from '../ReactTypes'
+import { getCharReactionWeights } from './letterReactionUtils'
+import { evalCustomSignal, applyCustomTargetDelta } from './letterReactionCustom'
+import type { CustomTargetDelta } from './letterReactionCustom'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { hexToRgba, getOrCreateOffscreen, seededRandom } from './reactRenderUtils'
 import { generateBuiltinShapePoints, clamp } from './oscillatorPathUtils'
@@ -737,8 +740,8 @@ export function computePathBaseScale(
  * margin on each edge.  pathScale and fontSizeMul are then applied as
  * multipliers so both controls still have their full visual effect.
  *
- * The audio-reactive terms (bassPulse, bloomFactor) are identical to
- * computePathBaseScale so waveform distortion behaviour is preserved.
+ * Audio-reactive terms (bassPulse, bloomFactor) are applied locally per
+ * character inside the draw loop so each letter reacts around its own center.
  */
 export function computeTextFitScale(
   W:           number,
@@ -747,13 +750,35 @@ export function computeTextFitScale(
   maxAbsY:     number,
   pathScale:   number,
   fontSizeMul: number,
-  bassPulse:   number,
-  bloomFactor: number,
 ): number {
-  const MARGIN   = 0.05
+  const MARGIN    = 0.05
   const fitScaleX = (W / 2) * (1 - MARGIN) / maxAbsX
   const fitScaleY = (H / 2) * (1 - MARGIN) / maxAbsY
-  return Math.min(fitScaleX, fitScaleY) * pathScale * fontSizeMul * bassPulse * (1 + bloomFactor * 0.4)
+  return Math.min(fitScaleX, fitScaleY) * pathScale * fontSizeMul
+}
+
+/**
+ * Computes the centroid (mean x, mean y) of each character's points in
+ * normalized glyph space.  Keyed by `characterIndex`.
+ *
+ * Using the centroid (not bbox center) guarantees that scaling or rotating
+ * local offsets around it leaves the centroid unchanged — the expected layout
+ * position stays anchored while audio-reactive motion expands outward.
+ */
+export function computeCharCenters(
+  points: OscillatorGlyphPoint[],
+): Map<number, { cx: number; cy: number }> {
+  const sums = new Map<number, { sx: number; sy: number; n: number }>()
+  for (const p of points) {
+    const ci = p.characterIndex
+    if (ci == null) continue
+    const s = sums.get(ci)
+    if (s) { s.sx += p.x; s.sy += p.y; s.n++ }
+    else sums.set(ci, { sx: p.x, sy: p.y, n: 1 })
+  }
+  const centers = new Map<number, { cx: number; cy: number }>()
+  for (const [ci, s] of sums) centers.set(ci, { cx: s.sx / s.n, cy: s.sy / s.n })
+  return centers
 }
 
 // ── Canvas path helpers ───────────────────────────────────────────────────────
@@ -1007,6 +1032,8 @@ function drawPathScopeOnTrail(
   const cy = H / 2
 
   const bass = audio.bass * params.bassReactivity
+  const mid  = audio.mid
+  const high = audio.high
 
   // Merge section modifiers into the effective osc settings so that
   // resolveOscillatorAudioModifiers sees the correct per-section values.
@@ -1104,7 +1131,7 @@ function drawPathScopeOnTrail(
       const ax = Math.abs(p.x); if (ax > maxAbsX) maxAbsX = ax
       const ay = Math.abs(p.y); if (ay > maxAbsY) maxAbsY = ay
     }
-    baseScale = computeTextFitScale(W, H, maxAbsX, maxAbsY, effectiveOsc.pathScale, fontSizeMul, am.bassPulse, bloomFactor)
+    baseScale = computeTextFitScale(W, H, maxAbsX, maxAbsY, effectiveOsc.pathScale, fontSizeMul)
   } else {
     baseScale = computePathBaseScale(W, H, effectiveOsc.pathScale, am.bassPulse, bloomFactor)
   }
@@ -1126,6 +1153,41 @@ function drawPathScopeOnTrail(
   const sourceGroups = Array.from(pathIndexGroups.entries())
     .sort((a, b) => a[0] - b[0])
     .map(([, indices]) => indices)
+
+  // Per-character audio transform setup.
+  // charCenters is non-null only when text points carry characterIndex metadata.
+  // Legacy cached text (no characterIndex) falls back to the old global behavior.
+  const hasCharGroups = isTextSource && basePoints.some(p => p.characterIndex != null)
+  const charCenters   = hasCharGroups ? computeCharCenters(basePoints) : null
+
+  // Precompute per-character reaction weights for this frame (constant across traces).
+  // Each entry scales bassPulse-delta, midTwistAmount, and bloomFactor independently
+  // so different letter-reaction modes animate each letter differently.
+  const letterReactionMode: OscillatorTextLetterReactionMode =
+    effectiveOsc.textLetterReactionMode ?? 'uniform'
+  const charWeightsMap = new Map<number, ReturnType<typeof getCharReactionWeights>>()
+  if (charCenters !== null && letterReactionMode !== 'custom') {
+    // numChars uses the max visible characterIndex + 1 (not charCenters.size) so that
+    // ripple mode normalizes correctly when spaces create gaps in the index sequence.
+    // Example: "HI Y" has visible chars at ci=0,1,3 → numChars=4, ripple norm = ci/3.
+    const numChars = charCenters.size > 0 ? Math.max(...charCenters.keys()) + 1 : 1
+    for (const ci of charCenters.keys()) {
+      charWeightsMap.set(ci, getCharReactionWeights(letterReactionMode, ci, numChars, t))
+    }
+  }
+
+  // In custom mode, build a lookup from characterIndex → its assignments.
+  // Stale entries (ci not present in charCenters) are silently ignored — this
+  // correctly handles both text-shortening and spaces in the middle of text.
+  const assignmentsByChar = new Map<number, LetterReactionAssignment[]>()
+  if (letterReactionMode === 'custom' && charCenters !== null) {
+    for (const asgn of effectiveOsc.textLetterAssignments ?? []) {
+      if (!charCenters.has(asgn.characterIndex)) continue
+      const list = assignmentsByChar.get(asgn.characterIndex)
+      if (list) list.push(asgn)
+      else assignmentsByChar.set(asgn.characterIndex, [asgn])
+    }
+  }
 
   // Text-specific waveform: build per-point local progress metadata once,
   // reuse across all trace passes.  null when mode is 'off' or source is not text.
@@ -1161,15 +1223,76 @@ function drawPathScopeOnTrail(
       let px = p.x
       let py = p.y
 
-      // Mid twist: rotate each point proportional to path progress
-      if (am.midTwistAmount !== 0) {
-        const twAngle = p.progress * Math.PI * 2 * am.midTwistAmount
-        const cosTw   = Math.cos(twAngle)
-        const sinTw   = Math.sin(twAngle)
-        const tx = px * cosTw - py * sinTw
-        const ty = px * sinTw + py * cosTw
-        px = tx
-        py = ty
+      // Per-character local transforms (text with characterIndex metadata).
+      if (charCenters !== null && p.characterIndex != null) {
+        const cc = charCenters.get(p.characterIndex)
+        if (cc) {
+          if (letterReactionMode === 'custom') {
+            // Custom mode: apply explicit LetterReactionAssignment entries.
+            // Letters without an assignment remain static at their layout position.
+            const assignments = assignmentsByChar.get(p.characterIndex)
+            if (assignments && assignments.length > 0) {
+              const acc: CustomTargetDelta = {
+                ldx: px - cc.cx, ldy: py - cc.cy,
+                dOffX: 0, dOffY: 0, jitter: 0,
+              }
+              for (const asgn of assignments) {
+                const sig = evalCustomSignal(
+                  asgn.source, bass, mid, high, am.beatPulse,
+                  asgn.phaseOffset, asgn.invert,
+                )
+                applyCustomTargetDelta(asgn.target, sig, asgn.amount, acc)
+              }
+              px = cc.cx + acc.dOffX + acc.ldx
+              py = cc.cy + acc.dOffY + acc.ldy
+              if (acc.jitter > 0) {
+                const jSeed = i * 31.71 + Math.floor(t / 4) + p.characterIndex * 999
+                const jrand = (seededRandom(jSeed) - 0.5) * 2
+                const nx = p.normalX ?? Math.cos(p.progress * Math.PI * 2)
+                const ny = p.normalY ?? Math.sin(p.progress * Math.PI * 2)
+                px += nx * jrand * acc.jitter
+                py += ny * jrand * acc.jitter
+              }
+            }
+          } else {
+            // Automatic modes (uniform / alternating / frequencySplit / ripple):
+            // Bass/bloom and mid-twist scaled by the per-mode weight for this char.
+            const w             = charWeightsMap.get(p.characterIndex) ?? { bassScale: 1, midScale: 1, bloomScale: 1 }
+            const charBassScale = 1 + (am.bassPulse - 1) * w.bassScale
+            const charBloom     = bloomFactor * w.bloomScale
+            const charScale     = charBassScale * (1 + charBloom * 0.4)
+            const charMidTwist  = am.midTwistAmount * w.midScale
+
+            let ldx = px - cc.cx
+            let ldy = py - cc.cy
+
+            if (charMidTwist !== 0) {
+              const twAngle = (p.localProgress ?? p.progress) * Math.PI * 2 * charMidTwist
+              const cosTw   = Math.cos(twAngle)
+              const sinTw   = Math.sin(twAngle)
+              const tx = ldx * cosTw - ldy * sinTw
+              const ty = ldx * sinTw + ldy * cosTw
+              ldx = tx
+              ldy = ty
+            }
+
+            ldx *= charScale
+            ldy *= charScale
+            px = cc.cx + ldx
+            py = cc.cy + ldy
+          }
+        }
+      } else {
+        // Non-text or legacy text (no characterIndex): global mid-twist around word origin
+        if (am.midTwistAmount !== 0) {
+          const twAngle = p.progress * Math.PI * 2 * am.midTwistAmount
+          const cosTw   = Math.cos(twAngle)
+          const sinTw   = Math.sin(twAngle)
+          const tx = px * cosTw - py * sinTw
+          const ty = px * sinTw + py * cosTw
+          px = tx
+          py = ty
+        }
       }
 
       // Per-point audio displacement in normalised space.

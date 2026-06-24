@@ -757,6 +757,28 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       }
     }
   }
+  if (version < 12) {
+    // Add textLetterReactionMode to persisted oscillatorSettings.
+    // Defaults to 'uniform' so existing presets behave exactly as before.
+    const osc = state.oscillatorSettings as Record<string, unknown> | undefined
+    if (osc && !('textLetterReactionMode' in osc)) {
+      state = {
+        ...state,
+        oscillatorSettings: { ...osc, textLetterReactionMode: 'uniform' },
+      }
+    }
+  }
+  if (version < 13) {
+    // Add textLetterAssignments to persisted oscillatorSettings.
+    // Empty array preserves existing behavior for all presets.
+    const osc = state.oscillatorSettings as Record<string, unknown> | undefined
+    if (osc && !('textLetterAssignments' in osc)) {
+      state = {
+        ...state,
+        oscillatorSettings: { ...osc, textLetterAssignments: [] },
+      }
+    }
+  }
   return state
 }
 
@@ -2334,7 +2356,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 11,
+      version: 13,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,
     },

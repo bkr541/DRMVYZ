@@ -190,6 +190,12 @@ interface RawContour {
   pts: Array<{ x: number; y: number }>
 }
 
+interface RawContourMeta extends RawContour {
+  characterIndex: number
+  glyphFontIndex: number  // glyph.index in the font table — same for all contours of one char
+  pathIndex:      number  // globally unique contour ID across all characters
+}
+
 function sampleGlyphPaths(glyphPaths: opentype.Path[]): RawContour[] {
   const contours: RawContour[] = []
 
@@ -256,38 +262,64 @@ export function textToOpenTypeGlyphPoints(
   if (!trimmed) return generateBuiltinShapePoints('circle', n)
 
   try {
-    // opentype.js letterSpacing is in em units (multiplied by fontSize internally).
-    // The UI value is in pixel-equivalent units (same convention as the canvas fallback),
-    // so divide by fontSize to convert to em before passing to getPaths.
-    const letterSpacingEm = letterSpacing / fontSize
-    const glyphPaths = font.getPaths(trimmed, 0, 0, fontSize, { letterSpacing: letterSpacingEm })
-    const contours = sampleGlyphPaths(glyphPaths)
+    // Scale factor: converts font design units → pixels at fontSize.
+    const scale = fontSize / (font.unitsPerEm || 1000)
+    const chars = Array.from(trimmed)
 
-    if (contours.length === 0) return generateBuiltinShapePoints('circle', n)
+    // ── Per-character glyph sampling ──────────────────────────────────────────
+    // Build contours one character at a time so each contour carries true letter
+    // identity (characterIndex, glyphFontIndex) independent of pathIndex.
+    // Spaces and other zero-contour glyphs still advance the cursor.
+    const allRawContours: RawContourMeta[] = []
+    let cursorX      = 0
+    let nextPathIndex = 0
 
-    // Distribute resolution proportionally by raw point count
-    const totalRaw = contours.reduce((s, c) => s + c.pts.length, 0)
+    for (let charIdx = 0; charIdx < chars.length; charIdx++) {
+      const glyph    = font.charToGlyph(chars[charIdx])
+      const path     = glyph.getPath(cursorX, 0, fontSize)
+      const contours = sampleGlyphPaths([path])
 
-    // Convert all raw XY points to OscillatorGlyphPoint (with pathIndex), resample per contour
+      for (const contour of contours) {
+        allRawContours.push({
+          pts:            contour.pts,
+          characterIndex: charIdx,
+          glyphFontIndex: glyph.index,
+          pathIndex:      nextPathIndex++,
+        })
+      }
+
+      // Advance cursor: advance width in font units → pixels, plus kerning, plus extra letter spacing.
+      const nextChar  = charIdx + 1 < chars.length ? chars[charIdx + 1] : null
+      const nextGlyph = nextChar ? font.charToGlyph(nextChar) : null
+      const kern      = nextGlyph ? font.getKerningValue(glyph, nextGlyph) * scale : 0
+      cursorX += (glyph.advanceWidth ?? 0) * scale + kern + letterSpacing
+    }
+
+    if (allRawContours.length === 0) return generateBuiltinShapePoints('circle', n)
+
+    // ── Proportional resolution allocation ───────────────────────────────────
+    const totalRaw = allRawContours.reduce((s, c) => s + c.pts.length, 0)
+
     const allPoints: OscillatorGlyphPoint[] = []
 
-    for (let ci = 0; ci < contours.length; ci++) {
-      const raw = contours[ci].pts
-      const allocated = Math.max(2, Math.round(n * raw.length / totalRaw))
-
-      const rawGlyphPts: OscillatorGlyphPoint[] = raw.map((p, i) => ({
-        x: p.x, y: p.y,
-        pathIndex: ci,
-        progress: raw.length > 1 ? i / (raw.length - 1) : 0,
+    for (const rc of allRawContours) {
+      const allocated = Math.max(2, Math.round(n * rc.pts.length / totalRaw))
+      const rawPts: OscillatorGlyphPoint[] = rc.pts.map((p, i) => ({
+        x:              p.x,
+        y:              p.y,
+        pathIndex:      rc.pathIndex,
+        progress:       rc.pts.length > 1 ? i / (rc.pts.length - 1) : 0,
+        characterIndex: rc.characterIndex,
+        glyphIndex:     rc.glyphFontIndex,
       }))
-
-      const resampled = resamplePoints(rawGlyphPts, allocated)
-      for (const p of resampled) allPoints.push({ ...p, pathIndex: ci })
+      const resampled = resamplePoints(rawPts, allocated)
+      // resamplePoints preserves characterIndex/glyphIndex and sets localProgress.
+      for (const p of resampled) allPoints.push(p)
     }
 
     if (allPoints.length === 0) return generateBuiltinShapePoints('circle', n)
 
-    // Center on bounding box midpoint
+    // ── Whole-string centering ────────────────────────────────────────────────
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
     for (const p of allPoints) {
       if (p.x < minX) minX = p.x
@@ -295,22 +327,28 @@ export function textToOpenTypeGlyphPoints(
       if (p.y < minY) minY = p.y
       if (p.y > maxY) maxY = p.y
     }
-    const cx2 = (minX + maxX) / 2
-    const cy2 = (minY + maxY) / 2
-    const centered = allPoints.map(p => ({ ...p, x: p.x - cx2, y: p.y - cy2 }))
+    const midX = (minX + maxX) / 2
+    const midY = (minY + maxY) / 2
+    const centered = allPoints.map(p => ({ ...p, x: p.x - midX, y: p.y - midY }))
 
-    // Height-based normalization: scale so y-extent ≈ [-1, 1].
-    // Preserves natural letter aspect ratio (wide text stays wide).
+    // ── Height-based normalization ────────────────────────────────────────────
+    // y-extent → [-1, 1]; aspect ratio (wide text stays wide) is preserved.
     // textFontSize is applied as a render-time multiplier in SoundDrawingRenderer.
     const heightRange = maxY - minY
     const normScale   = heightRange > 0 ? 2 / heightRange : 1
     const normalized  = centered.map(p => ({ ...p, x: p.x * normScale, y: p.y * normScale }))
 
-    // Compute normals per contour and re-flatten
+    // ── Normals per contour, re-flattened in insertion order ─────────────────
+    const seenPaths = new Set<number>()
+    const pathOrder: number[] = []
+    for (const p of normalized) {
+      if (!seenPaths.has(p.pathIndex)) { seenPaths.add(p.pathIndex); pathOrder.push(p.pathIndex) }
+    }
+
     const result: OscillatorGlyphPoint[] = []
-    for (let ci = 0; ci < contours.length; ci++) {
-      const contourPts = normalized.filter(p => p.pathIndex === ci)
-      const withNormals = computePathNormals(contourPts, false)
+    for (const pi of pathOrder) {
+      const cpts = normalized.filter(p => p.pathIndex === pi)
+      const withNormals = computePathNormals(cpts, false)
       for (const p of withNormals) result.push(p)
     }
 

@@ -18,6 +18,25 @@ export type OscillatorAudioDisplaceMode = 'normal' | 'radial' | 'tangent' | 'xy'
 
 export type OscillatorTextWaveformMode = 'off' | 'normal' | 'radial' | 'tangent' | 'xy'
 
+export type OscillatorTextLetterReactionMode =
+  | 'uniform'
+  | 'alternating'
+  | 'frequencySplit'
+  | 'ripple'
+  | 'custom'
+
+export type LetterReactionSource = 'bass' | 'mid' | 'high' | 'beat'
+export type LetterReactionTarget = 'scale' | 'rotation' | 'offsetX' | 'offsetY' | 'jitter'
+
+export interface LetterReactionAssignment {
+  characterIndex: number
+  source:         LetterReactionSource
+  target:         LetterReactionTarget
+  amount:         number
+  invert:         boolean
+  phaseOffset:    number
+}
+
 export interface OscillatorGlyphPoint {
   x: number
   y: number
@@ -25,6 +44,12 @@ export interface OscillatorGlyphPoint {
   progress: number
   normalX?: number
   normalY?: number
+  /** 0-based index of the source character within the rendered string. */
+  characterIndex?: number
+  /** Glyph table index in the font file for the character that produced this point. */
+  glyphIndex?: number
+  /** Progress 0→1 within the resampled contour — distinct from the global `progress`. */
+  localProgress?: number
 }
 
 export interface OscillatorGlyphAsset {
@@ -75,10 +100,12 @@ export interface OscillatorSettings {
   pathScale: number
   audioDisplacement: number
   audioDisplaceMode: OscillatorAudioDisplaceMode
-  textWaveformMode:   OscillatorTextWaveformMode
-  textWaveformAmount: number
-  textWaveformCycles: number
-  textWaveformScroll: number
+  textWaveformMode:         OscillatorTextWaveformMode
+  textWaveformAmount:       number
+  textWaveformCycles:       number
+  textWaveformScroll:       number
+  textLetterReactionMode:   OscillatorTextLetterReactionMode
+  textLetterAssignments:    LetterReactionAssignment[]
   bassScale: number
   midTwist: number
   altTwist: boolean
@@ -110,10 +137,12 @@ export const DEFAULT_OSCILLATOR_SETTINGS: OscillatorSettings = {
   pathScale:         0.78,
   audioDisplacement: 0.18,
   audioDisplaceMode: 'normal',
-  textWaveformMode:   'off',
-  textWaveformAmount: 0.10,
-  textWaveformCycles: 5,
-  textWaveformScroll: 0.20,
+  textWaveformMode:         'off',
+  textWaveformAmount:       0.10,
+  textWaveformCycles:       5,
+  textWaveformScroll:       0.20,
+  textLetterReactionMode:   'uniform',
+  textLetterAssignments:    [],
   bassScale:          0.25,
   midTwist:          0.15,
   altTwist:          false,
