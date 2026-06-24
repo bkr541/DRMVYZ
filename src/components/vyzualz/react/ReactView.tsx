@@ -24,12 +24,13 @@ import { RailTabs } from '../layout/RailTabs'
 import type { RailTabOption } from '../layout/RailTabs'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
 import { MediaDeckPanel } from '../media/MediaDeckPanel'
+import { FontLibraryPanel } from './FontLibraryPanel'
 import { useSvgVisualRehydration } from './useSvgVisualRehydration'
 import { useFontLibraryHydration } from './useFontLibraryHydration'
 import { useReactPresetAutomation } from './useReactPresetAutomation'
 import '../../../styles/reactView.css'
 
-type ReactLeftTab  = 'engine' | 'media' | 'layers' | 'sessions'
+type ReactLeftTab  = 'engine' | 'media' | 'layers' | 'sessions' | 'fonts'
 type ReactRightPanel = 'presets' | 'fx' | 'mod' | 'audio' | 'rec' | 'insp'
 
 // BASE_RIGHT_TABS omits 'disabled' — injected dynamically via useMemo (same pattern as Visualizer)
@@ -47,6 +48,7 @@ const REACT_LEFT_TABS: RailTabOption<ReactLeftTab>[] = [
   { id: 'media',    label: 'Media'    },
   { id: 'layers',   label: 'Layers'   },
   { id: 'sessions', label: 'Sessions' },
+  { id: 'fonts',    label: 'Fonts'    },
 ]
 
 function readLS<T>(key: string, fallback: T): T {
@@ -232,6 +234,7 @@ export function ReactView() {
                 <span>React sessions will appear here.</span>
               </div>
             )}
+            {leftTab === 'fonts' && <FontLibraryPanel />}
           </div>
         </WorkspaceRail>
 

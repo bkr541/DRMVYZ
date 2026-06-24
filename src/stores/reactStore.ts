@@ -61,6 +61,7 @@ import {
   inspectFontFile,
   storeFontRuntime,
   hasFontRuntime,
+  getBufferFromCache,
 } from '../components/vyzualz/react/renderers/fontGlyphUtils'
 import { supabase, supabaseConfigured } from '../lib/supabase'
 import { uploadFontFile, createFontAsset, removeFontFile, listFontAssets, downloadFontFile, deleteFontAsset } from '../lib/fontDb'
@@ -1422,18 +1423,19 @@ export const useReactStore = create<ReactStoreState>()(
         set({ fontSelectPending: id, fontSelectError: null })
 
         try {
-          // Download binary from cloud storage
-          const { data: blob, error: downloadErr } = await downloadFontFile(asset.storagePath)
-          if (downloadErr || !blob) {
-            set(s => {
-              if (s.fontSelectPending !== id) return {}
-              return { fontSelectPending: null, fontSelectError: `Could not download font: ${downloadErr ?? 'no data'}` }
-            })
-            return
+          // Reuse buffer if preview preload already downloaded it; otherwise fetch from cloud.
+          let buffer = getBufferFromCache(id)
+          if (!buffer) {
+            const { data: blob, error: downloadErr } = await downloadFontFile(asset.storagePath)
+            if (downloadErr || !blob) {
+              set(s => {
+                if (s.fontSelectPending !== id) return {}
+                return { fontSelectPending: null, fontSelectError: `Could not download font: ${downloadErr ?? 'no data'}` }
+              })
+              return
+            }
+            buffer = await blob.arrayBuffer()
           }
-
-          // Convert to ArrayBuffer — may throw on malformed blobs
-          const buffer = await blob.arrayBuffer()
 
           // Parse with opentype.js
           let font: opentype.Font

@@ -1,10 +1,9 @@
-import { useRef, useEffect } from 'react'
+import React from 'react'
 import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore } from '../../../stores/mediaStore'
 import { isSvgFilename } from '../../../lib/mediaRoles'
-import { getBufferFromCache } from './renderers/fontGlyphUtils'
 import {
   SliderRow, SelectRow, ToggleRow, TextInputRow,
   CtrlSection, Collapsible,
@@ -213,9 +212,6 @@ function OscillatorStatusCard({
 // ── ENGINE panel ──────────────────────────────────────────────────────────────
 
 export function ReactEnginePanel() {
-  const fontInputRef = useRef<HTMLInputElement>(null)
-  const registeredFontsRef = useRef<Map<string, FontFace>>(new Map())
-
   const {
     activeReactEngineId, selectReactEngine,
     oscillatorSettings,  setOscillatorSettings,
@@ -225,17 +221,10 @@ export function ReactEnginePanel() {
     selectSvgMediaGlyph,
     selectSvgVisual,
     oscillatorFontAssets,
-    uploadOscillatorFont,
     fontUploadPending,
-    fontUploadError,
-    fontsLoadState,
-    fontLoadError,
-    removeOscillatorFontAsset,
     fontRemovePending,
-    fontRemoveError,
     selectOscillatorFont,
     fontSelectPending,
-    fontSelectError,
     glyphLostNotice,
     clearGlyphLostNotice,
   } = useReactStore(useShallow(s => ({
@@ -249,48 +238,16 @@ export function ReactEnginePanel() {
     selectSvgMediaGlyph:        s.selectSvgMediaGlyph,
     selectSvgVisual:            s.selectSvgVisual,
     oscillatorFontAssets:       s.oscillatorFontAssets,
-    uploadOscillatorFont:       s.uploadOscillatorFont,
     fontUploadPending:          s.fontUploadPending,
-    fontUploadError:            s.fontUploadError,
-    fontsLoadState:             s.fontsLoadState,
-    fontLoadError:              s.fontLoadError,
-    removeOscillatorFontAsset:  s.removeOscillatorFontAsset,
     fontRemovePending:          s.fontRemovePending,
-    fontRemoveError:            s.fontRemoveError,
     selectOscillatorFont:       s.selectOscillatorFont,
     fontSelectPending:          s.fontSelectPending,
-    fontSelectError:            s.fontSelectError,
     glyphLostNotice:            s.glyphLostNotice,
     clearGlyphLostNotice:       s.clearGlyphLostNotice,
   })))
 
   const osc = oscillatorSettings
   const set = setOscillatorSettings
-
-  // Register a preview FontFace for each font whose ArrayBuffer is in the runtime cache.
-  // Unloaded fonts (not yet downloaded) use the default UI font until the user selects them.
-  useEffect(() => {
-    const registered = registeredFontsRef.current
-    const currentIds = new Set(oscillatorFontAssets.map(a => a.id))
-
-    for (const [id, face] of registered) {
-      if (!currentIds.has(id)) {
-        document.fonts.delete(face)
-        registered.delete(id)
-      }
-    }
-
-    for (const asset of oscillatorFontAssets) {
-      if (registered.has(asset.id)) continue
-      const buffer = getBufferFromCache(asset.id)
-      if (!buffer) continue  // not yet downloaded — registered when selection completes
-      const family = `drmvyz-preview-${asset.id}`
-      const face = new FontFace(family, buffer)
-      document.fonts.add(face)
-      face.load().catch(() => { /* preview is cosmetic — ignore load failures */ })
-      registered.set(asset.id, face)
-    }
-  }, [oscillatorFontAssets, fontSelectPending])
 
   // SVG Visual rehydration is handled by useSvgVisualRehydration in ReactView —
   // that hook always runs regardless of which panel tab is active.
@@ -304,13 +261,6 @@ export function ReactEnginePanel() {
     (osc.selectedGlyphId?.startsWith('glyph-media:')
       ? osc.selectedGlyphId.slice('glyph-media:'.length)
       : null)
-
-  async function handleFontUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
-    await uploadOscillatorFont(file)
-  }
 
   return (
     <div className="rv-ctrl-group">
@@ -571,81 +521,6 @@ export function ReactEnginePanel() {
             </>
           )}
 
-          {/* ── Font Library (text source only) ─────────────────────────── */}
-          {osc.sourceType === 'text' && (
-            <Collapsible label="Font Library" defaultOpen={false}>
-              <div className="rv-ctrl-info">
-                Upload .ttf or .otf files for OpenType vector text paths.
-              </div>
-              <input
-                ref={fontInputRef}
-                type="file"
-                accept=".ttf,.otf,font/ttf,font/otf"
-                style={{ display: 'none' }}
-                onChange={handleFontUpload}
-              />
-              <button
-                type="button"
-                className="rv-glyph-upload-btn"
-                disabled={fontUploadPending || fontsLoadState === 'loading' || !!fontSelectPending || !!fontRemovePending}
-                onClick={() => fontInputRef.current?.click()}
-              >
-                {fontUploadPending ? 'Uploading…' : '+ Upload Font'}
-              </button>
-              {(() => {
-                const errs = [fontLoadError, fontUploadError, fontSelectError, fontRemoveError].filter(Boolean)
-                return errs.length > 0 ? (
-                  <div className="rv-osc-status-warn">
-                    {errs.map((e, i) => <div key={i}>{e}</div>)}
-                  </div>
-                ) : null
-              })()}
-              {fontsLoadState === 'loading' && (
-                <div className="rv-ctrl-info">Loading font library…</div>
-              )}
-              {oscillatorFontAssets.length > 0 && (() => {
-                const anyBusy = fontUploadPending || !!fontSelectPending || !!fontRemovePending
-                return (
-                  <div className="rv-glyph-list">
-                    {oscillatorFontAssets.map((asset: OscillatorFontAsset) => {
-                      const isActive    = osc.textFontId === asset.id
-                      const isSelecting = fontSelectPending === asset.id
-                      const isDeleting  = fontRemovePending === asset.id
-                      return (
-                        <div
-                          key={asset.id}
-                          className={`rv-glyph-item${isActive ? ' rv-glyph-item--active' : ''}`}
-                          onClick={async () => { if (!anyBusy) await selectOscillatorFont(asset.id) }}
-                          role="button"
-                          tabIndex={0}
-                          aria-disabled={anyBusy}
-                          style={{ opacity: isDeleting ? 0.5 : undefined, cursor: anyBusy ? 'default' : undefined }}
-                          onKeyDown={async e => { if (!anyBusy && (e.key === 'Enter' || e.key === ' ')) await selectOscillatorFont(asset.id) }}
-                        >
-                          <span
-                            className="rv-glyph-item-name"
-                            title={asset.fileName}
-                            style={{ fontFamily: `"drmvyz-preview-${asset.id}", sans-serif` }}
-                          >
-                            {isSelecting ? 'Loading…' : isDeleting ? 'Removing…' : asset.name}
-                          </span>
-                          <button
-                            type="button"
-                            className="rv-glyph-item-del"
-                            title="Remove font"
-                            disabled={anyBusy}
-                            onClick={async e => { e.stopPropagation(); await removeOscillatorFontAsset(asset.id) }}
-                          >
-                            ×
-                          </button>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )
-              })()}
-            </Collapsible>
-          )}
         </>
       )}
     </div>

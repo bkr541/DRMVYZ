@@ -108,6 +108,16 @@ export function storeFontRuntime(id: string, font: opentype.Font, buffer?: Array
   if (buffer !== undefined) fontBufferCache.set(id, buffer)
 }
 
+/**
+ * Store only the raw ArrayBuffer for preview purposes without parsing the font.
+ * This allows FontFace CSS registration without the OpenType parse cost.
+ * When the font is later selected for rendering, selectOscillatorFont will reuse
+ * this buffer and only then parse with opentype.js.
+ */
+export function storePreviewBuffer(id: string, buffer: ArrayBuffer): void {
+  fontBufferCache.set(id, buffer)
+}
+
 /** Returns true when the parsed font for this ID is in the runtime cache. */
 export function hasFontRuntime(id: string): boolean {
   return parsedFontCache.has(id)
