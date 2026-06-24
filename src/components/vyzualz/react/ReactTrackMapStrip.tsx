@@ -975,7 +975,10 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     retryAnalysis,
     reanalyzeTrack,
     getCurrentTime,
+    currentBpmReanalysisStatus,
   } = engine
+
+  const gridStale = currentTrack?.analysisRuntime.gridStale ?? false
 
   const {
     manualTrackSectionsByTrackId,
@@ -1479,6 +1482,16 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
           >
             {isWorking ? '◌' : currentAnalysisStatus === 'failed' ? '✕' : '●'}
           </span>
+        )}
+        {/* Compact analysis-state badge — stale, reanalyzing, or failed */}
+        {isComplete && (
+          currentBpmReanalysisStatus === 'reanalyzing' ? (
+            <span className="rv-strip-analysis-badge rv-strip-analysis-badge--progress">◌ Reanalyzing…</span>
+          ) : gridStale && currentBpmReanalysisStatus === 'failed' ? (
+            <span className="rv-strip-analysis-badge rv-strip-analysis-badge--err" title="Reanalysis failed — adjust BPM and try again from the dock">✕ Failed</span>
+          ) : gridStale ? (
+            <span className="rv-strip-analysis-badge rv-strip-analysis-badge--stale" title="Beat grid is out of sync with the current BPM">⚠ Grid stale</span>
+          ) : null
         )}
         {(isComplete || isMicSource) && (
           <span className="rv-strip-header-meta">

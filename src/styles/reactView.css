@@ -845,6 +845,33 @@
   color: rgba(232, 244, 248, 0.35);
 }
 
+/* Analysis-stale / reanalysis-status badge in the Track Map header */
+.rv-strip-analysis-badge {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  border-radius: 2px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.rv-strip-analysis-badge--stale {
+  color: rgba(255, 176, 0, 0.75);
+  background: rgba(255, 176, 0, 0.08);
+  border-color: rgba(255, 176, 0, 0.2);
+}
+.rv-strip-analysis-badge--progress {
+  color: rgba(74, 199, 219, 0.85);
+  background: rgba(74, 199, 219, 0.08);
+  border-color: rgba(74, 199, 219, 0.2);
+}
+.rv-strip-analysis-badge--err {
+  color: rgba(240, 80, 80, 0.8);
+  background: rgba(240, 80, 80, 0.07);
+  border-color: rgba(240, 80, 80, 0.18);
+}
+
 .rv-meta-key {
   font-size: 10px;
   font-weight: 500;

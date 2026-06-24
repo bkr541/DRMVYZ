@@ -3313,6 +3313,80 @@ input[type='range'].vz-slider--color {
   border-color: rgba(74,199,219,0.3);
 }
 
+/* BPM column wrapper (contains bpm-block + stale banner) */
+.vz-dock-bpm-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Stale-analysis banner */
+.vz-dock-bpm-stale {
+  padding: 4px 6px;
+  background: rgba(255, 176, 0, 0.06);
+  border: 1px solid rgba(255, 176, 0, 0.18);
+  border-radius: 3px;
+  font-size: 10px;
+  min-width: 0;
+}
+.vz-dock-bpm-stale-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: rgba(255, 176, 0, 0.7);
+  margin-bottom: 4px;
+  white-space: nowrap;
+}
+.vz-dock-bpm-stale-arrow {
+  color: rgba(255, 176, 0, 0.4);
+}
+.vz-dock-bpm-stale-actions {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.vz-dock-bpm-stale-btn {
+  padding: 1px 5px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 2px;
+  color: rgba(232,244,248,0.6);
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.6;
+  white-space: nowrap;
+  transition: background 0.1s, color 0.1s;
+}
+.vz-dock-bpm-stale-btn:hover {
+  background: rgba(255,255,255,0.1);
+  color: rgba(232,244,248,0.9);
+}
+.vz-dock-bpm-stale-btn--pri {
+  background: rgba(74,199,219,0.12);
+  border-color: rgba(74,199,219,0.25);
+  color: var(--az-cyan);
+}
+.vz-dock-bpm-stale-btn--pri:hover {
+  background: rgba(74,199,219,0.22);
+}
+.vz-dock-bpm-stale-status {
+  font-size: 9px;
+  color: rgba(232,244,248,0.45);
+  letter-spacing: 0.04em;
+}
+.vz-dock-bpm-stale-status--err {
+  color: rgba(240,80,80,0.75);
+}
+.vz-dock-bpm-stale-confirm {
+  font-size: 9px;
+  color: rgba(255,176,0,0.7);
+  line-height: 1.4;
+}
+
 /* TAP button */
 .vz-dock-tap-btn {
   padding: 0 10px;

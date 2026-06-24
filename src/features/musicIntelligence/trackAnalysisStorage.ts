@@ -4,7 +4,18 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { TrackIntelligenceAnalysis, AnalysisStatus } from './types'
+import type { TrackIntelligenceAnalysis, AnalysisStatus, BeatMarkerMI, PhraseMarker } from './types'
+
+/** The subset of TrackIntelligenceAnalysis fields that a grid rebuild may replace. */
+export interface AnalysisGridPatch {
+  beatGrid:           BeatMarkerMI[]
+  downbeats:          BeatMarkerMI[]
+  phrases:            PhraseMarker[]
+  bpmUsedForGrid:     number
+  lastGridRebuiltAt:  string
+  lastReanalysisMode: 'grid_only'
+  gridStale:          false
+}
 
 // ── Downsampled feature curve (keeps storage size bounded) ───────────────────
 // Full-resolution curves are downsampled to ≤300 points in offlineTrackAnalyzer
@@ -23,6 +34,14 @@ interface TrackAnalysisStorageState {
   getAnalysisStatus: (trackId: string) => AnalysisStatus
   setAnalysisStatus: (trackId: string, status: AnalysisStatus) => void
   clearAll:          () => void
+  /**
+   * Patches only the BPM-dependent fields of an existing analysis record.
+   * Never overwrites energyCurves, spectralCurves, stemCurves, harmonic,
+   * lyrics, durationMs, bpm (detected), bpmConfidence, semanticMoments,
+   * or sections that are manual/locked.
+   * No-op when the track has no stored analysis.
+   */
+  patchAnalysisGrid: (trackId: string, patch: AnalysisGridPatch) => void
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -72,6 +91,33 @@ export const useTrackAnalysisStore = create<TrackAnalysisStorageState>()(
 
       clearAll() {
         set({ analyses: {}, statuses: {} })
+      },
+
+      patchAnalysisGrid(trackId, patch) {
+        set(s => {
+          const existing = s.analyses[trackId]
+          if (!existing) return s
+          // Preserve manual and locked sections; only replace analyzer-created ones.
+          const preservedSections = existing.sections.filter(
+            sec => sec.source === 'manual' || sec.locked === true,
+          )
+          const updatedAnalysis: TrackIntelligenceAnalysis = {
+            ...existing,
+            ...patch,
+            // Re-merge preserved sections so manual/locked entries are not lost.
+            sections: preservedSections.length > 0
+              ? [
+                  ...patch.beatGrid.length > 0
+                    ? existing.sections.filter(
+                        sec => sec.source !== 'manual' && !sec.locked,
+                      )
+                    : [],
+                  ...preservedSections,
+                ].sort((a, b) => a.startSec - b.startSec)
+              : existing.sections,
+          }
+          return { analyses: { ...s.analyses, [trackId]: updatedAnalysis } }
+        })
       },
     }),
     {

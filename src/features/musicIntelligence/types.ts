@@ -231,6 +231,10 @@ export interface TrackSectionMI {
   endSec:     number
   intensity:  number
   confidence: number
+  /** Origin of this section. Optional for backward compat; absent implies 'analysis'. */
+  source?: 'analysis' | 'manual' | 'inferred'
+  /** When true this section must not be overwritten by grid rebuilds or auto-reanalysis. */
+  locked?: boolean
 }
 
 export interface ChordMarker {
@@ -309,6 +313,30 @@ export interface TrackIntelligenceAnalysis {
   semanticMoments: SemanticMomentMarker[]
   warnings:        string[]
   errors:          string[]
+
+  // ── BPM tracking metadata (optional; absent in analyses created before this field) ──
+
+  /**
+   * The BPM as originally detected by the offline analyzer.
+   * Equal to `bpm` at analysis time and preserved unchanged when the grid is
+   * rebuilt with a manual override BPM.
+   */
+  detectedBpm?: number | null
+  /**
+   * Which BPM was used to compute the current beatGrid / downbeats / phrases.
+   * Absent on analyses created before this field; treat absence as equal to `bpm`.
+   */
+  bpmUsedForGrid?: number | null
+  /**
+   * True when bpmUsedForGrid differs from the currently active effective BPM,
+   * meaning beat-indexed data (sections, phrases, energy summaries) may not
+   * align with the live grid. Cleared to false after a successful grid rebuild.
+   */
+  gridStale?: boolean
+  /** ISO 8601 timestamp of the last grid-only rebuild. Null on original analyses. */
+  lastGridRebuiltAt?: string | null
+  /** Distinguishes a full analysis pass from a BPM-triggered grid-only rebuild. */
+  lastReanalysisMode?: 'full' | 'grid_only' | null
 }
 
 // Status for persistent analysis storage (can be stale)
@@ -322,3 +350,9 @@ export type TrackAnalysisStatus =
   | 'analyzing'
   | 'complete'
   | 'failed'
+
+// Mode for a BPM-override reanalysis request
+export type BpmReanalysisMode = 'resnap' | 'reanalyze'
+
+// In-flight / last-result status for a BPM-override reanalysis
+export type BpmReanalysisStatus = 'idle' | 'reanalyzing' | 'complete' | 'failed' | 'cancelled'

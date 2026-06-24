@@ -1,4 +1,4 @@
-import { useId, useState, useRef } from 'react'
+import { useId, useState, useRef, useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useVisualStore, DEFAULT_PRESETS } from '../../../stores/visualStore'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
@@ -124,6 +124,34 @@ export function VyzualzAudioDock() {
   const [bpmDraft,   setBpmDraft]   = useState('')
   const bpmInputRef = useRef<HTMLInputElement>(null)
 
+  // ── Stale-analysis banner state ───────────────────────────────────────────
+  const [dismissedBpmForTrack, setDismissedBpmForTrack] = useState<{ trackId: string; bpm: number } | null>(null)
+  const [showReanalyzeConfirm, setShowReanalyzeConfirm] = useState(false)
+
+  const gridStale            = track?.analysisRuntime.gridStale ?? false
+  const bpmReanalysisStatus  = engine.currentBpmReanalysisStatus
+  const isReanalyzing        = bpmReanalysisStatus === 'reanalyzing'
+  // The BPM the current grid was built from (falls back to detected bpm)
+  const analysisBpm          = engine.currentAnalysis?.bpmUsedForGrid ?? engine.currentAnalysis?.bpm ?? null
+  const effectiveBpm         = engine.currentEffectiveBpm
+  const isComplete           = engine.currentAnalysisStatus === 'complete' && engine.currentAnalysis != null
+
+  const autoSectionCount = (engine.currentAnalysis?.sections ?? [])
+    .filter(s => s.source !== 'manual' && !s.locked).length
+
+  const showStaleBanner = (
+    isComplete &&
+    gridStale &&
+    hasOverride &&
+    analysisBpm !== null &&
+    effectiveBpm !== null &&
+    !(dismissedBpmForTrack?.trackId === track?.id && dismissedBpmForTrack?.bpm === effectiveBpm)
+  )
+
+  // Reset confirm state whenever BPM or track changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setShowReanalyzeConfirm(false) }, [effectiveBpm, track?.id])
+
   const startBpmEdit = () => {
     if (!canEditBpm) return
     const current = engine.currentEffectiveBpm ?? 120
@@ -153,6 +181,34 @@ export function VyzualzAudioDock() {
   const handleRetry = () => {
     if (!track) return
     engine.retryAnalysis(track.id)
+  }
+
+  // ── Stale-banner handlers ─────────────────────────────────────────────────
+  const handleKeepExisting = () => {
+    if (!track || effectiveBpm === null) return
+    setDismissedBpmForTrack({ trackId: track.id, bpm: effectiveBpm })
+    setShowReanalyzeConfirm(false)
+  }
+
+  const handleResnap = () => {
+    if (!track || effectiveBpm === null) return
+    setShowReanalyzeConfirm(false)
+    engine.reanalyzeWithBpmOverride(track.id, { bpm: effectiveBpm, mode: 'resnap' })
+  }
+
+  const handleReanalyzeClick = () => {
+    if (!track || effectiveBpm === null) return
+    if (autoSectionCount > 0) {
+      setShowReanalyzeConfirm(true)
+    } else {
+      engine.reanalyzeWithBpmOverride(track.id, { bpm: effectiveBpm, mode: 'reanalyze' })
+    }
+  }
+
+  const handleReanalyzeConfirm = () => {
+    if (!track || effectiveBpm === null) return
+    setShowReanalyzeConfirm(false)
+    engine.reanalyzeWithBpmOverride(track.id, { bpm: effectiveBpm, mode: 'reanalyze' })
   }
 
   // ── File input ────────────────────────────────────────────────────────────
@@ -269,6 +325,8 @@ export function VyzualzAudioDock() {
 
       {/* ── RIGHT: BPM + TAP / CUE / SYNC / BEATGRID ────────────────── */}
       <div className="vz-dock-right">
+        {/* Column wrapper so the stale banner sits below the BPM block */}
+        <div className="vz-dock-bpm-wrap">
         <div className="vz-dock-bpm-block">
           <div className="vz-dock-bpm-block-top">
             <span className="vz-dock-bpm-block-label">BPM</span>
@@ -364,6 +422,45 @@ export function VyzualzAudioDock() {
             </span>
           )}
         </div>
+
+        {/* ── Stale-analysis banner ─────────────────────────────────── */}
+        {showStaleBanner && analysisBpm !== null && effectiveBpm !== null && (
+          <div className="vz-dock-bpm-stale">
+            <div className="vz-dock-bpm-stale-info">
+              <span>Grid: {analysisBpm.toFixed(0)}&thinsp;BPM</span>
+              <span className="vz-dock-bpm-stale-arrow">→</span>
+              <span>{effectiveBpm.toFixed(0)}&thinsp;BPM</span>
+            </div>
+            {isReanalyzing ? (
+              <div className="vz-dock-bpm-stale-actions">
+                <span className="vz-dock-bpm-stale-status">◌ Reanalyzing…</span>
+              </div>
+            ) : bpmReanalysisStatus === 'failed' ? (
+              <div className="vz-dock-bpm-stale-actions">
+                <span className="vz-dock-bpm-stale-status vz-dock-bpm-stale-status--err">Failed</span>
+                <button className="vz-dock-bpm-stale-btn" onClick={handleKeepExisting}>Dismiss</button>
+                <button className="vz-dock-bpm-stale-btn vz-dock-bpm-stale-btn--pri" onClick={handleResnap}>Re-snap</button>
+              </div>
+            ) : showReanalyzeConfirm ? (
+              <div className="vz-dock-bpm-stale-actions">
+                <span className="vz-dock-bpm-stale-confirm">
+                  {autoSectionCount} auto section{autoSectionCount !== 1 ? 's' : ''} will be replaced. Manual sections kept.
+                </span>
+                <button className="vz-dock-bpm-stale-btn" onClick={() => setShowReanalyzeConfirm(false)}>Cancel</button>
+                <button className="vz-dock-bpm-stale-btn vz-dock-bpm-stale-btn--pri" onClick={handleReanalyzeConfirm}>Confirm</button>
+              </div>
+            ) : (
+              <div className="vz-dock-bpm-stale-actions">
+                <button className="vz-dock-bpm-stale-btn" onClick={handleKeepExisting}>Keep</button>
+                <button className="vz-dock-bpm-stale-btn" onClick={handleResnap}>Re-snap</button>
+                <button className="vz-dock-bpm-stale-btn vz-dock-bpm-stale-btn--pri" onClick={handleReanalyzeClick}>
+                  Reanalyze {effectiveBpm.toFixed(0)}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+        </div>{/* end vz-dock-bpm-wrap */}
 
         <div className="vz-dock-right-btns">
           <button

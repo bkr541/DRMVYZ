@@ -33,3 +33,9 @@
 6:18:46 PM [vite] hmr update /src/components/vyzualz/shared/VyzualzAudioDock.tsx
 6:18:54 PM [vite] hmr update /src/components/vyzualz/shared/VyzualzAudioDock.tsx
 6:19:04 PM [vite] hmr update /src/styles/vyzualz.css
+6:36:07 PM [vite] hmr update /src/context/AudioEngineContext.tsx
+6:36:07 PM [vite] hmr invalidate /src/context/AudioEngineContext.tsx Could not Fast Refresh ("useSharedAudio" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+6:36:07 PM [vite] hmr update /src/App.tsx, /src/components/vyzualz/VyzualzView.tsx, /src/components/vyzualz/AddCueModal.tsx, /src/components/vyzualz/layout/VyzualzTopBar.tsx, /src/components/vyzualz/shared/VyzualzAudioDock.tsx, /src/components/vyzualz/react/ReactView.tsx, /src/features/lyrics/LyricManagerView.tsx, /src/components/vyzualz/media/MediaDeckPanel.tsx, /src/components/vyzualz/TimelinePanel.tsx, /src/components/vyzualz/react/SoundDrawingTimelineLane.tsx, /src/components/vyzualz/react/ReactTrackMapStrip.tsx, /src/components/vyzualz/react/LaserDmxTimingStatus.tsx
+6:36:07 PM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh ("ENERGY_CURVE_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+6:36:07 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+6:36:13 PM [vite] hmr update /src/context/AudioEngineContext.tsx

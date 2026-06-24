@@ -62,8 +62,8 @@ export type AudioSource = 'file' | 'microphone' | 'demo'
 export type FftSize = 512 | 1024 | 2048 | 4096 | 8192
 
 // Re-exported so callers import from one place
-export type { TrackAnalysisStatus } from './features/musicIntelligence/types'
-import type { TrackIntelligenceAnalysis, TrackAnalysisStatus, BeatMarkerMI } from './features/musicIntelligence/types'
+export type { TrackAnalysisStatus, BpmReanalysisStatus } from './features/musicIntelligence/types'
+import type { TrackIntelligenceAnalysis, TrackAnalysisStatus, BeatMarkerMI, BpmReanalysisStatus } from './features/musicIntelligence/types'
 
 export type BpmSource = 'offline_analysis' | 'live_analysis' | 'manual_override'
 
@@ -82,6 +82,24 @@ export interface TrackAnalysisRuntime {
    * Stored per-track so switching tracks never bleeds one override onto another.
    */
   effectiveBeatGrid: BeatMarkerMI[] | null
+  /**
+   * The BPM as originally detected by offline analysis, captured the first time
+   * a manual override is applied so it can be restored or displayed alongside
+   * the override. Null until a BPM override has been set at least once.
+   */
+  detectedBpm: number | null
+  /**
+   * True when the effective BPM has changed since the analysis grid was last
+   * built, meaning sections, phrases, and energy summaries may not align with
+   * the current beat grid. Set on every BpmOverride change; cleared when a
+   * grid rebuild is applied via patchAnalysisGrid.
+   */
+  gridStale: boolean
+  /**
+   * Status of the most recent BPM-override reanalysis for this track.
+   * 'idle' until the first reanalysis is requested.
+   */
+  bpmReanalysisStatus: BpmReanalysisStatus
 }
 
 export const DEFAULT_TRACK_ANALYSIS_RUNTIME: TrackAnalysisRuntime = {
@@ -93,6 +111,9 @@ export const DEFAULT_TRACK_ANALYSIS_RUNTIME: TrackAnalysisRuntime = {
   bpmOverride:       null,
   bpmOverrideSource: null,
   effectiveBeatGrid: null,
+  detectedBpm:          null,
+  gridStale:            false,
+  bpmReanalysisStatus:  'idle',
 }
 
 export interface Track {

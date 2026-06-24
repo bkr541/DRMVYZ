@@ -14,6 +14,8 @@ import {
   type MusicIntelligenceEngine,
 } from '../features/musicIntelligence/MusicIntelligenceEngine'
 import { buildEffectiveBeatGrid } from '../features/trackIntelligence/beatGridUtils'
+import { applyResnap, applyReanalyze } from '../features/musicIntelligence/bpmReanalysis'
+import type { BpmReanalysisMode, BpmReanalysisStatus } from '../features/musicIntelligence/types'
 import {
   TrackAnalysisCoordinator,
   computeAnalysisKey,
@@ -179,6 +181,16 @@ export interface AudioEngine {
   retryAnalysis: (trackId: string) => void
   // Force fresh analysis, bypassing both memory and persistent analysis caches
   reanalyzeTrack: (trackId: string) => void
+  /**
+   * Rebuild BPM-dependent analysis using the current manual override BPM.
+   * 'resnap': re-snaps section boundaries to the new grid, preserves detection.
+   * 'reanalyze': re-runs section detection from stored curves, then snaps to grid.
+   * Neither mode re-runs FFT, waveform, key, lyric, or chroma analysis.
+   * A new call for the same track cancels any in-flight request.
+   */
+  reanalyzeWithBpmOverride: (trackId: string, opts: { bpm: number; mode: BpmReanalysisMode }) => Promise<void>
+  /** Reanalysis status for the current active track. */
+  currentBpmReanalysisStatus: BpmReanalysisStatus
 }
 
 export function useAudioEngine(): AudioEngine {
@@ -680,10 +692,27 @@ export function useAudioEngine(): AudioEngine {
   }, [])
 
   const setBpmOverride = useCallback((trackId: string, bpm: number | null) => {
-    updateTrackRuntime(trackId, {
-      bpmOverride:       bpm,
-      bpmOverrideSource: bpm !== null ? 'manual_override' : null,
-    })
+    if (bpm !== null) {
+      // Capture the originally-detected BPM once so it survives further overrides.
+      const track        = tracksRef.current.find(t => t.id === trackId)
+      const detectedBpm  = track?.analysisRuntime.detectedBpm
+                        ?? track?.analysisRuntime.analysis?.bpm
+                        ?? null
+      updateTrackRuntime(trackId, {
+        bpmOverride:       bpm,
+        bpmOverrideSource: 'manual_override',
+        detectedBpm,
+        gridStale:         true,
+      })
+    } else {
+      // Override cleared — restore grid from original analysis; mark not stale.
+      updateTrackRuntime(trackId, {
+        bpmOverride:       null,
+        bpmOverrideSource: null,
+        detectedBpm:       null,
+        gridStale:         false,
+      })
+    }
   }, [updateTrackRuntime])
 
   const retryAnalysis = useCallback((trackId: string) => {
@@ -698,6 +727,85 @@ export function useAudioEngine(): AudioEngine {
     if (!track) return
     updateTrackRuntime(trackId, { status: 'queued', error: null })
     coordinatorRef.current?.reanalyze(track)
+  }, [updateTrackRuntime])
+
+  // ── BPM-override reanalysis ───────────────────────────────────────────────────
+  // Per-track cancellation tokens. When a new request arrives for the same track,
+  // the previous token is marked cancelled so its commit is a no-op.
+  const bpmReanalysisTokens = useRef(new Map<string, { cancelled: boolean }>())
+
+  const reanalyzeWithBpmOverride = useCallback(async (
+    trackId: string,
+    { bpm, mode }: { bpm: number; mode: BpmReanalysisMode },
+  ): Promise<void> => {
+    // Prevent triggering on every BPM arrow click — callers must debounce.
+    // Cancel any already in-flight request for this track.
+    const prev = bpmReanalysisTokens.current.get(trackId)
+    if (prev) prev.cancelled = true
+    const token = { cancelled: false }
+    bpmReanalysisTokens.current.set(trackId, token)
+
+    updateTrackRuntime(trackId, { bpmReanalysisStatus: 'reanalyzing' })
+
+    try {
+      // Yield so the 'reanalyzing' status renders before we block the thread.
+      await new Promise<void>(r => setTimeout(r, 0))
+
+      if (token.cancelled) {
+        updateTrackRuntime(trackId, { bpmReanalysisStatus: 'cancelled' })
+        return
+      }
+
+      const analysis = tracksRef.current.find(t => t.id === trackId)?.analysisRuntime.analysis
+      if (!analysis) throw new Error('no analysis available for reanalysis')
+
+      const result = mode === 'resnap'
+        ? applyResnap(analysis, bpm)
+        : applyReanalyze(analysis, bpm)
+
+      if (token.cancelled) {
+        updateTrackRuntime(trackId, { bpmReanalysisStatus: 'cancelled' })
+        return
+      }
+
+      // Save to persistent cache under the same key so it survives reload.
+      const analysisKey = tracksRef.current.find(t => t.id === trackId)?.analysisRuntime.analysisKey ?? ''
+      if (analysisKey) {
+        try {
+          useTrackAnalysisStore.getState().saveTrackAnalysis(analysisKey, result)
+        } catch (err) {
+          console.warn(`[BpmReanalysis] cache save failed for ${trackId}:`, err)
+        }
+      }
+
+      if (token.cancelled) {
+        // A newer request arrived while we were saving. Don't apply stale results.
+        updateTrackRuntime(trackId, { bpmReanalysisStatus: 'cancelled' })
+        return
+      }
+
+      // Commit to runtime and clear stale flag.
+      updateTrackRuntime(trackId, {
+        analysis:            result,
+        gridStale:           false,
+        bpmReanalysisStatus: 'complete',
+      })
+
+      // Refresh the live MI engine if this is the active track.
+      if (dispatchRef.current.isActive(trackId)) {
+        dispatchRef.current.engine(result, trackId)
+      }
+    } catch (err) {
+      if (!token.cancelled) {
+        console.warn(`[BpmReanalysis] ${trackId} failed:`, err)
+        updateTrackRuntime(trackId, { bpmReanalysisStatus: 'failed' })
+        // Leave the previous analysis and gridStale flag unchanged.
+      }
+    } finally {
+      if (bpmReanalysisTokens.current.get(trackId) === token) {
+        bpmReanalysisTokens.current.delete(trackId)
+      }
+    }
   }, [updateTrackRuntime])
 
   // ── Canonical active-track intelligence ────────────────────────────────────
@@ -1170,5 +1278,7 @@ export function useAudioEngine(): AudioEngine {
     currentEffectiveBeatGrid: currentTrack?.analysisRuntime.effectiveBeatGrid ?? null,
     currentKey,
     updateTrackRuntime, setBpmOverride, retryAnalysis, reanalyzeTrack,
+    reanalyzeWithBpmOverride,
+    currentBpmReanalysisStatus: (currentTrack?.analysisRuntime.bpmReanalysisStatus ?? 'idle') as BpmReanalysisStatus,
   }
 }
