@@ -426,8 +426,9 @@ describe('PeaksAudioEngineAdapter', () => {
   // ── notifyCanPlay ─────────────────────────────────────────────────────────
 
   describe('notifyCanPlay', () => {
-    it('emits player.canplay', async () => {
-      const engineRef = makeEngine()
+    it('emits player.canplay when init() did not (duration was 0 at init time)', async () => {
+      // duration=0 means init() skips canplay — notifyCanPlay() is the first to emit it
+      const engineRef = makeEngine({ duration: 0 })
       const adapter   = new PeaksAudioEngineAdapter(engineRef)
       const emitter   = makeEmitter()
       await adapter.init(emitter)
@@ -435,6 +436,64 @@ describe('PeaksAudioEngineAdapter', () => {
 
       adapter.notifyCanPlay()
       expect(emitter.emit).toHaveBeenCalledWith('player.canplay')
+    })
+
+    it('is idempotent — no-op after init() already emitted player.canplay', async () => {
+      // duration>0 means init() emits canplay; a subsequent notifyCanPlay() must be silent
+      const engineRef = makeEngine({ duration: 120 })
+      const adapter   = new PeaksAudioEngineAdapter(engineRef)
+      const emitter   = makeEmitter()
+      await adapter.init(emitter)   // emits canplay
+      vi.mocked(emitter.emit).mockClear()
+
+      adapter.notifyCanPlay()
+      expect(emitter.emit).not.toHaveBeenCalledWith('player.canplay')
+    })
+
+    it('emits player.canplay exactly once even when called multiple times', async () => {
+      const engineRef = makeEngine({ duration: 0 })
+      const adapter   = new PeaksAudioEngineAdapter(engineRef)
+      const emitter   = makeEmitter()
+      await adapter.init(emitter)
+
+      adapter.notifyCanPlay()
+      adapter.notifyCanPlay()
+      adapter.notifyCanPlay()
+      const canplayCalls = vi.mocked(emitter.emit).mock.calls.filter(c => c[0] === 'player.canplay')
+      expect(canplayCalls).toHaveLength(1)
+    })
+  })
+
+  // ── Remount while already playing ────────────────────────────────────────
+
+  describe('remount while already playing', () => {
+    it('emits player.playing on first notifyPlayState(true) even when engine was already playing before init', async () => {
+      // Simulates the component unmounting and remounting while the engine is playing.
+      // A freshly created adapter has _prevPlaying=null, so the first notifyPlayState(true)
+      // must emit player.playing (it is never a duplicate from the adapter's perspective).
+      const engineRef = makeEngine({ isPlaying: true, getCurrentTime: vi.fn(() => 45), duration: 120 })
+      const adapter   = new PeaksAudioEngineAdapter(engineRef)
+      const emitter   = makeEmitter()
+      await adapter.init(emitter)
+      vi.mocked(emitter.emit).mockClear()
+
+      adapter.notifyPlayState(true)
+      const playingCalls = vi.mocked(emitter.emit).mock.calls.filter(c => c[0] === 'player.playing')
+      expect(playingCalls).toHaveLength(1)
+      expect(playingCalls[0]).toEqual(['player.playing', 45])
+    })
+
+    it('does not emit a second player.playing when notifyPlayState(true) is called again after remount', async () => {
+      const engineRef = makeEngine({ isPlaying: true, getCurrentTime: vi.fn(() => 45), duration: 120 })
+      const adapter   = new PeaksAudioEngineAdapter(engineRef)
+      const emitter   = makeEmitter()
+      await adapter.init(emitter)
+
+      adapter.notifyPlayState(true)   // first — emits playing
+      vi.mocked(emitter.emit).mockClear()
+
+      adapter.notifyPlayState(true)   // second — must be no-op
+      expect(emitter.emit).not.toHaveBeenCalledWith('player.playing', expect.anything())
     })
   })
 

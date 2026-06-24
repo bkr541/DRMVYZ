@@ -117,7 +117,7 @@ export function PeaksWaveformView({
         player:        adapter,
         keyboard:      false,
         waveformCache: true,
-        zoomLevels:    [2048, 1024, 512, 256, 128],
+        zoomLevels:    [128, 256, 512, 1024, 2048],
       },
       // Peaks.js calls (null, instance) on success despite the type saying Error
       (err, instance) => {
@@ -161,6 +161,12 @@ export function PeaksWaveformView({
     )
   }, [destroyPeaks])
 
+  // Derived flag: becomes true when the engine buffer for the current track is
+  // available.  Used as an effect dep so Peaks retries if the buffer arrives
+  // while currentAnalysisStatus hasn't changed (e.g. stays 'decoding').
+  const currentTrackId = engine.currentTrack?.id ?? null
+  const hasBuffer      = currentTrackId ? !!engine.getDecodedBuffer(currentTrackId) : false
+
   // ── Tear down immediately on track change to prevent the previous waveform ──
   // from remaining visible while the next buffer is being decoded.
   // Runs before the init effect on the same render, so initPeaks always starts
@@ -169,18 +175,17 @@ export function PeaksWaveformView({
     destroyPeaks()
     setPeaksReady(false)
     setPeaksError(false)
-  }, [engine.currentTrack?.id, destroyPeaks])
+  }, [currentTrackId, destroyPeaks])
 
-  // ── Init / reinit when the active track or analysis status changes ─────────
+  // ── Init / reinit when the active track, status, or buffer availability changes ─
   useEffect(() => {
-    const trackId = engine.currentTrack?.id
-    const status  = engine.currentAnalysisStatus
-    // Attempt init once the file has been decoded (status moves past 'queued').
-    // initPeaks() returns early if buffer is missing or Peaks is already active.
-    if (trackId && status !== 'queued') {
+    const status = engine.currentAnalysisStatus
+    // Require status past 'queued' AND the buffer in the engine cache.
+    // initPeaks() still guards internally against a missing buffer or duplicate init.
+    if (currentTrackId && status !== 'queued' && hasBuffer) {
       initPeaks()
     }
-  }, [engine.currentTrack?.id, engine.currentAnalysisStatus, initPeaks])
+  }, [currentTrackId, engine.currentAnalysisStatus, hasBuffer, initPeaks])
 
   // ── Keep Peaks informed of engine play-state changes ──────────────────────
   useEffect(() => {

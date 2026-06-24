@@ -2,8 +2,7 @@
 > drmvyz@1.0.0 dev
 > vite --host 127.0.0.1 --port 5173
 
-Re-optimizing dependencies because lockfile has changed
 
-  VITE v5.4.21  ready in 154 ms
+  VITE v5.4.21  ready in 160 ms
 
   ➜  Local:   http://127.0.0.1:5173/

@@ -1336,41 +1336,45 @@ export const useReactStore = create<ReactStoreState>()(
 
         set({ fontRemovePending: id, fontRemoveError: null })
 
-        // Delete DB row first — keep everything intact if this fails
-        const { error: dbErr } = await deleteFontAsset(id)
-        if (dbErr) {
-          set({ fontRemovePending: null, fontRemoveError: `Could not delete font record: ${dbErr}` })
-          return
+        try {
+          // Delete DB row first — keep everything intact if this fails
+          const { error: dbErr } = await deleteFontAsset(id)
+          if (dbErr) {
+            set({ fontRemovePending: null, fontRemoveError: `Could not delete font record: ${dbErr}` })
+            return
+          }
+
+          // Remove Storage object — best-effort, row is already gone
+          const { error: storageErr } = await removeFontFile(asset.storagePath)
+
+          // Evict parsed font, ArrayBuffer, and CSS preview (document.fonts is updated
+          // reactively by the UI effect when oscillatorFontAssets changes below)
+          evictFontFromCache(id)
+
+          set((s) => {
+            const newTextCache = { ...s.oscillatorTextPointCache }
+            for (const key of Object.keys(newTextCache)) {
+              if (key.startsWith(`${id}:`)) delete newTextCache[key]
+            }
+            return {
+              fontRemovePending: null,
+              fontRemoveError: storageErr
+                ? `Font deleted; storage cleanup failed: ${storageErr}`
+                : null,
+              oscillatorFontAssets:     s.oscillatorFontAssets.filter(a => a.id !== id),
+              oscillatorTextPointCache: newTextCache,
+              oscillatorSettings:
+                s.oscillatorSettings.textFontId === id
+                  ? { ...s.oscillatorSettings, textFontId: null }
+                  : s.oscillatorSettings,
+              // Clear any in-flight select for this font — the download is now pointless
+              fontSelectPending: s.fontSelectPending === id ? null : s.fontSelectPending,
+              fontSelectError:   s.fontSelectPending === id ? null : s.fontSelectError,
+            }
+          })
+        } catch (e) {
+          set({ fontRemovePending: null, fontRemoveError: `Unexpected error: ${(e as Error).message}` })
         }
-
-        // Remove Storage object — best-effort, row is already gone
-        const { error: storageErr } = await removeFontFile(asset.storagePath)
-
-        // Evict parsed font, ArrayBuffer, and CSS preview (document.fonts is updated
-        // reactively by the UI effect when oscillatorFontAssets changes below)
-        evictFontFromCache(id)
-
-        set((s) => {
-          const newTextCache = { ...s.oscillatorTextPointCache }
-          for (const key of Object.keys(newTextCache)) {
-            if (key.startsWith(`${id}:`)) delete newTextCache[key]
-          }
-          return {
-            fontRemovePending: null,
-            fontRemoveError: storageErr
-              ? `Font deleted; storage cleanup failed: ${storageErr}`
-              : null,
-            oscillatorFontAssets:     s.oscillatorFontAssets.filter(a => a.id !== id),
-            oscillatorTextPointCache: newTextCache,
-            oscillatorSettings:
-              s.oscillatorSettings.textFontId === id
-                ? { ...s.oscillatorSettings, textFontId: null }
-                : s.oscillatorSettings,
-            // Clear any in-flight select for this font — the download is now pointless
-            fontSelectPending: s.fontSelectPending === id ? null : s.fontSelectPending,
-            fontSelectError:   s.fontSelectPending === id ? null : s.fontSelectError,
-          }
-        })
       },
 
       clearOscillatorFontAssets: () =>
@@ -1417,45 +1421,59 @@ export const useReactStore = create<ReactStoreState>()(
 
         set({ fontSelectPending: id, fontSelectError: null })
 
-        // Download binary from cloud storage
-        const { data: blob, error: downloadErr } = await downloadFontFile(asset.storagePath)
-        if (downloadErr || !blob) {
-          set(s => {
-            if (s.fontSelectPending !== id) return {}
-            return { fontSelectPending: null, fontSelectError: `Could not download font: ${downloadErr ?? 'no data'}` }
-          })
-          return
-        }
-
-        // Convert to ArrayBuffer
-        const buffer = await blob.arrayBuffer()
-
-        // Parse with opentype.js
-        let font: opentype.Font
         try {
-          font = opentype.parse(buffer)
+          // Download binary from cloud storage
+          const { data: blob, error: downloadErr } = await downloadFontFile(asset.storagePath)
+          if (downloadErr || !blob) {
+            set(s => {
+              if (s.fontSelectPending !== id) return {}
+              return { fontSelectPending: null, fontSelectError: `Could not download font: ${downloadErr ?? 'no data'}` }
+            })
+            return
+          }
+
+          // Convert to ArrayBuffer — may throw on malformed blobs
+          const buffer = await blob.arrayBuffer()
+
+          // Parse with opentype.js
+          let font: opentype.Font
+          try {
+            font = opentype.parse(buffer)
+          } catch (e) {
+            set(s => {
+              if (s.fontSelectPending !== id) return {}
+              return { fontSelectPending: null, fontSelectError: `Could not parse font: ${(e as Error).message}` }
+            })
+            return
+          }
+
+          // Check freshness before committing to the runtime cache.
+          // A cache-hit selection of another font clears fontSelectPending, so if it
+          // no longer matches we discard the parsed data rather than polluting the cache.
+          if (useReactStore.getState().fontSelectPending !== id) return
+
+          storeFontRuntime(id, font, buffer)
+
+          // Commit selection — discard if a newer selection raced in between getState and set
+          set((s) => {
+            if (s.fontSelectPending !== id) {
+              evictFontFromCache(id)
+              return {}
+            }
+            const newSettings = { ...s.oscillatorSettings, textFontId: id }
+            return {
+              fontSelectPending:        null,
+              fontSelectError:          null,
+              oscillatorSettings:       newSettings,
+              oscillatorTextPointCache: prepareTextPoints(s.oscillatorFontAssets, newSettings, s.oscillatorTextPointCache),
+            }
+          })
         } catch (e) {
           set(s => {
             if (s.fontSelectPending !== id) return {}
-            return { fontSelectPending: null, fontSelectError: `Could not parse font: ${(e as Error).message}` }
+            return { fontSelectPending: null, fontSelectError: `Unexpected error: ${(e as Error).message}` }
           })
-          return
         }
-
-        // Populate runtime cache
-        storeFontRuntime(id, font, buffer)
-
-        // Commit selection — discard if a newer selection superseded this one
-        set((s) => {
-          if (s.fontSelectPending !== id) return {}
-          const newSettings = { ...s.oscillatorSettings, textFontId: id }
-          return {
-            fontSelectPending:        null,
-            fontSelectError:          null,
-            oscillatorSettings:       newSettings,
-            oscillatorTextPointCache: prepareTextPoints(s.oscillatorFontAssets, newSettings, s.oscillatorTextPointCache),
-          }
-        })
       },
 
       uploadOscillatorFont: async (file) => {
@@ -1466,95 +1484,102 @@ export const useReactStore = create<ReactStoreState>()(
 
         set({ fontUploadPending: true, fontUploadError: null })
 
-        // 1. Require an authenticated user
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
-          set({ fontUploadPending: false, fontUploadError: 'Sign in to upload fonts' })
-          return
-        }
-        const userId = user.id
-
-        // 2. Validate, size-check, and parse with opentype.js; pre-populates runtime cache under FNV id
-        let inspected: Awaited<ReturnType<typeof inspectFontFile>>
+        let inspectedId: string | undefined
         try {
-          inspected = await inspectFontFile(file)
-        } catch (e) {
-          set({ fontUploadPending: false, fontUploadError: (e as Error).message })
-          return
-        }
+          // 1. Require an authenticated user
+          const { data: { user } } = await supabase.auth.getUser()
+          if (!user) {
+            set({ fontUploadPending: false, fontUploadError: 'Sign in to upload fonts' })
+            return
+          }
+          const userId = user.id
 
-        // 3. Build a safe storage path: userId/UUID/<normalized>.  file.name is
-        //    preserved in the DB file_name column but never placed in the path.
-        const storageFileName = SAFE_FONT_FILENAME[inspected.mimeType]
-        if (!storageFileName) {
-          evictFontFromCache(inspected.id)
-          set({ fontUploadPending: false, fontUploadError: 'Unsupported font format' })
-          return
-        }
-        const storagePath = `${userId}/${crypto.randomUUID()}/${storageFileName}`
+          // 2. Validate, size-check, and parse with opentype.js; pre-populates runtime cache under FNV id
+          let inspected: Awaited<ReturnType<typeof inspectFontFile>>
+          try {
+            inspected = await inspectFontFile(file)
+          } catch (e) {
+            set({ fontUploadPending: false, fontUploadError: (e as Error).message })
+            return
+          }
+          inspectedId = inspected.id
 
-        // 4. Upload binary to font-assets bucket
-        const { error: uploadErr } = await uploadFontFile(storagePath, file, inspected.mimeType)
-        if (uploadErr) {
-          evictFontFromCache(inspected.id)
-          set({ fontUploadPending: false, fontUploadError: `Upload failed: ${uploadErr}` })
-          return
-        }
+          // 3. Build a safe storage path: userId/UUID/<normalized>.  file.name is
+          //    preserved in the DB file_name column but never placed in the path.
+          const storageFileName = SAFE_FONT_FILENAME[inspected.mimeType]
+          if (!storageFileName) {
+            evictFontFromCache(inspected.id)
+            set({ fontUploadPending: false, fontUploadError: 'Unsupported font format' })
+            return
+          }
+          const storagePath = `${userId}/${crypto.randomUUID()}/${storageFileName}`
 
-        // 5. Insert metadata row into font_assets
-        const { id: dbId, error: insertErr } = await createFontAsset({
-          user_id:           userId,
-          name:              inspected.name,
-          file_name:         inspected.fileName,
-          font_family_name:  inspected.fontFamilyName ?? null,
-          storage_path:      storagePath,
-          mime_type:         inspected.mimeType,
-          file_size:         inspected.fileSize,
-        })
+          // 4. Upload binary to font-assets bucket
+          const { error: uploadErr } = await uploadFontFile(storagePath, file, inspected.mimeType)
+          if (uploadErr) {
+            evictFontFromCache(inspected.id)
+            set({ fontUploadPending: false, fontUploadError: `Upload failed: ${uploadErr}` })
+            return
+          }
 
-        // 6. Roll back storage object on insert failure
-        if (insertErr || !dbId) {
-          await removeFontFile(storagePath)
-          evictFontFromCache(inspected.id)
-          set({
-            fontUploadPending: false,
-            fontUploadError:   `Database insert failed: ${insertErr ?? 'unknown error'}`,
+          // 5. Insert metadata row into font_assets
+          const { id: dbId, error: insertErr } = await createFontAsset({
+            user_id:           userId,
+            name:              inspected.name,
+            file_name:         inspected.fileName,
+            font_family_name:  inspected.fontFamilyName ?? null,
+            storage_path:      storagePath,
+            mime_type:         inspected.mimeType,
+            file_size:         inspected.fileSize,
           })
-          return
-        }
 
-        // 7. Build the cloud metadata asset record using the database UUID as id
-        const asset: OscillatorFontAsset = {
-          id:             dbId,
-          name:           inspected.name,
-          fileName:       inspected.fileName,
-          fontFamilyName: inspected.fontFamilyName,
-          storagePath,
-          mimeType:       inspected.mimeType,
-          fileSize:       inspected.fileSize,
-          createdAt:      new Date().toISOString(),
-        }
-
-        // 8. Move runtime cache from the temporary FNV id to the canonical DB UUID
-        storeFontRuntime(dbId, inspected.font, inspected.buffer)
-        evictFontFromCache(inspected.id)
-
-        // 9 + 10. Add to store and select the new font
-        set((s) => {
-          if (s.oscillatorFontAssets.some(a => a.id === dbId)) {
-            return { fontUploadPending: false }
+          // 6. Roll back storage object on insert failure
+          if (insertErr || !dbId) {
+            await removeFontFile(storagePath)
+            evictFontFromCache(inspected.id)
+            set({
+              fontUploadPending: false,
+              fontUploadError:   `Database insert failed: ${insertErr ?? 'unknown error'}`,
+            })
+            return
           }
-          const newAssets   = [...s.oscillatorFontAssets, asset]
-          const newSettings = { ...s.oscillatorSettings, textFontId: dbId }
-          const newTextCache = prepareTextPoints(newAssets, newSettings, s.oscillatorTextPointCache)
-          return {
-            fontUploadPending:    false,
-            fontUploadError:      null,
-            oscillatorFontAssets: newAssets,
-            oscillatorSettings:   newSettings,
-            oscillatorTextPointCache: newTextCache,
+
+          // 7. Build the cloud metadata asset record using the database UUID as id
+          const asset: OscillatorFontAsset = {
+            id:             dbId,
+            name:           inspected.name,
+            fileName:       inspected.fileName,
+            fontFamilyName: inspected.fontFamilyName,
+            storagePath,
+            mimeType:       inspected.mimeType,
+            fileSize:       inspected.fileSize,
+            createdAt:      new Date().toISOString(),
           }
-        })
+
+          // 8. Move runtime cache from the temporary FNV id to the canonical DB UUID
+          storeFontRuntime(dbId, inspected.font, inspected.buffer)
+          evictFontFromCache(inspected.id)
+
+          // 9 + 10. Add to store and select the new font
+          set((s) => {
+            if (s.oscillatorFontAssets.some(a => a.id === dbId)) {
+              return { fontUploadPending: false }
+            }
+            const newAssets    = [...s.oscillatorFontAssets, asset]
+            const newSettings  = { ...s.oscillatorSettings, textFontId: dbId }
+            const newTextCache = prepareTextPoints(newAssets, newSettings, s.oscillatorTextPointCache)
+            return {
+              fontUploadPending:    false,
+              fontUploadError:      null,
+              oscillatorFontAssets: newAssets,
+              oscillatorSettings:   newSettings,
+              oscillatorTextPointCache: newTextCache,
+            }
+          })
+        } catch (e) {
+          if (inspectedId) evictFontFromCache(inspectedId)
+          set({ fontUploadPending: false, fontUploadError: `Unexpected error: ${(e as Error).message}` })
+        }
       },
 
       loadOscillatorFonts: async () => {
@@ -1569,49 +1594,53 @@ export const useReactStore = create<ReactStoreState>()(
 
         set({ fontsLoadState: 'loading', fontLoadError: null })
 
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
-          set({ fontsLoadState: 'error', fontLoadError: 'Sign in to load fonts' })
-          return
-        }
-
-        const { rows, error } = await listFontAssets(user.id)
-        if (error) {
-          set({ fontsLoadState: 'error', fontLoadError: error })
-          return
-        }
-
-        const assets: OscillatorFontAsset[] = rows.map(row => ({
-          id:             row.id,
-          name:           row.name,
-          fileName:       row.file_name,
-          fontFamilyName: row.font_family_name ?? undefined,
-          storagePath:    row.storage_path,
-          mimeType:       row.mime_type,
-          fileSize:       row.file_size,
-          createdAt:      row.created_at,
-        }))
-
-        const loadedIds = new Set(assets.map(a => a.id))
-
-        set((s) => {
-          const currentFontId = s.oscillatorSettings.textFontId
-          return {
-            fontsLoadState:    'loaded',
-            fontLoadError:     null,
-            oscillatorFontAssets: assets,
-            oscillatorSettings:
-              currentFontId && !loadedIds.has(currentFontId)
-                ? { ...s.oscillatorSettings, textFontId: null }
-                : s.oscillatorSettings,
+        try {
+          const { data: { user } } = await supabase.auth.getUser()
+          if (!user) {
+            set({ fontsLoadState: 'error', fontLoadError: 'Sign in to load fonts' })
+            return
           }
-        })
 
-        // Lazily rehydrate the persisted font: download and cache it if not already warm.
-        // selectOscillatorFont is a no-op when the runtime cache is already populated.
-        const persistedId = useReactStore.getState().oscillatorSettings.textFontId
-        if (persistedId && !hasFontRuntime(persistedId)) {
-          await useReactStore.getState().selectOscillatorFont(persistedId)
+          const { rows, error } = await listFontAssets(user.id)
+          if (error) {
+            set({ fontsLoadState: 'error', fontLoadError: error })
+            return
+          }
+
+          const assets: OscillatorFontAsset[] = rows.map(row => ({
+            id:             row.id,
+            name:           row.name,
+            fileName:       row.file_name,
+            fontFamilyName: row.font_family_name ?? undefined,
+            storagePath:    row.storage_path,
+            mimeType:       row.mime_type,
+            fileSize:       row.file_size,
+            createdAt:      row.created_at,
+          }))
+
+          const loadedIds = new Set(assets.map(a => a.id))
+
+          set((s) => {
+            const currentFontId = s.oscillatorSettings.textFontId
+            return {
+              fontsLoadState:    'loaded',
+              fontLoadError:     null,
+              oscillatorFontAssets: assets,
+              oscillatorSettings:
+                currentFontId && !loadedIds.has(currentFontId)
+                  ? { ...s.oscillatorSettings, textFontId: null }
+                  : s.oscillatorSettings,
+            }
+          })
+
+          // Lazily rehydrate the persisted font: download and cache it if not already warm.
+          // selectOscillatorFont is a no-op when the runtime cache is already populated.
+          const persistedId = useReactStore.getState().oscillatorSettings.textFontId
+          if (persistedId && !hasFontRuntime(persistedId)) {
+            await useReactStore.getState().selectOscillatorFont(persistedId)
+          }
+        } catch (e) {
+          set({ fontsLoadState: 'error', fontLoadError: `Unexpected error: ${(e as Error).message}` })
         }
       },
 

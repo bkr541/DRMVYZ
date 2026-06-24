@@ -164,6 +164,15 @@ describe('PeaksWaveformView', () => {
       expect(Peaks.init).not.toHaveBeenCalled()
     })
 
+    it('passes zoomLevels in strictly ascending order', async () => {
+      await mount(makeEngine())
+      const opts   = vi.mocked(Peaks.init).mock.calls[0][0] as Record<string, unknown>
+      const levels = opts.zoomLevels as number[]
+      const sorted = [...levels].sort((a, b) => a - b)
+      expect(levels).toEqual(sorted)
+      expect(levels.length).toBeGreaterThan(0)
+    })
+
     it('shows fallback canvas before Peaks.init callback fires', async () => {
       await mount(makeEngine())
       expect(container.querySelector('.vz-peaks-fallback')).not.toBeNull()
@@ -195,6 +204,13 @@ describe('PeaksWaveformView', () => {
       await mount(makeEngine())
       await act(async () => { capturedCb?.(new Error('oops')) })
       expect(container.querySelector('.vz-peaks-fallback')).not.toBeNull()
+    })
+
+    it('destroys the partial instance when callback returns both an error and an instance', async () => {
+      await mount(makeEngine())
+      // Peaks.js 3.x can return a partial instance alongside an error
+      await act(async () => { capturedCb?.(new Error('init-err'), mockInstance as PeaksInstance) })
+      expect(mockDestroy).toHaveBeenCalled()
     })
   })
 
@@ -289,6 +305,28 @@ describe('PeaksWaveformView', () => {
       })
       await act(async () => {
         root.render(<PeaksWaveformView engine={eng2ready} cueMarkers={[]} waveformZoom={1} />)
+      })
+      expect(Peaks.init).toHaveBeenCalledTimes(1)
+    })
+
+    it('initializes Peaks when buffer arrives while status stays the same', async () => {
+      // Represents the decode step: status='decoding', buffer not yet in cache
+      const engDecoding = makeEngine({
+        currentTrack:          { id: 'track-buf', displayName: 'BufTrack' } as unknown as AudioEngine['currentTrack'],
+        currentAnalysisStatus: 'decoding',
+        getDecodedBuffer:      vi.fn(() => undefined),
+      })
+      await mount(engDecoding)
+      expect(Peaks.init).not.toHaveBeenCalled()
+
+      // Buffer populates the engine cache; status is STILL 'decoding' (no status change event)
+      const engBuffered = makeEngine({
+        currentTrack:          { id: 'track-buf', displayName: 'BufTrack' } as unknown as AudioEngine['currentTrack'],
+        currentAnalysisStatus: 'decoding',
+        getDecodedBuffer:      vi.fn(() => makeBuffer()),
+      })
+      await act(async () => {
+        root.render(<PeaksWaveformView engine={engBuffered} cueMarkers={[]} waveformZoom={1} />)
       })
       expect(Peaks.init).toHaveBeenCalledTimes(1)
     })

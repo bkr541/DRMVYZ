@@ -25,7 +25,9 @@ export class PeaksAudioEngineAdapter implements PlayerAdapter {
   private _seekPending  = false
   /** Tracks the last confirmed play-state to prevent duplicate events. */
   private _prevPlaying: boolean | null = null   // null = no state seen yet
-  private _endedEmitted = false
+  private _endedEmitted  = false
+  /** True once player.canplay has been emitted — prevents double-emission. */
+  private _canPlayEmitted = false
 
   /** One animation frame at 60 fps — tolerance for end-of-track detection. */
   private static readonly FRAME_TOLERANCE = 1 / 60  // ~16.7 ms
@@ -35,6 +37,7 @@ export class PeaksAudioEngineAdapter implements PlayerAdapter {
   async init(emitter: EventEmitterForPlayerEvents): Promise<void> {
     this.emitter = emitter
     if ((this.engineRef.current?.duration ?? 0) > 0) {
+      this._canPlayEmitted = true
       emitter.emit('player.canplay')
     }
   }
@@ -84,9 +87,14 @@ export class PeaksAudioEngineAdapter implements PlayerAdapter {
 
   // ── External notifications from the React component ───────────────────────
 
-  /** Emit player.canplay when a new track/buffer is confirmed ready. */
+  /**
+   * Emit player.canplay when a new track/buffer is confirmed ready.
+   * No-op if init() already emitted it (prevents duplicate canplay events).
+   */
   notifyCanPlay(): void {
-    if (!this._destroyed) this.emitter?.emit('player.canplay')
+    if (this._destroyed || this._canPlayEmitted) return
+    this._canPlayEmitted = true
+    this.emitter?.emit('player.canplay')
   }
 
   /**
