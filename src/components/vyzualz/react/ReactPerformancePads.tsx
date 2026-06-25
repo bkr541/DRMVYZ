@@ -6,10 +6,10 @@ import type { NeonLatticeTriggerType } from './ReactTypes'
 // ── Key→pad mapping (unchanged) ──────────────────────────────────────────────
 
 const KEY_MAP: Record<string, string> = {
-  '1': 'pad-1',  '2': 'pad-2',  '3': 'pad-3',  '4': 'pad-4',
-  'q': 'pad-5',  'w': 'pad-6',  'e': 'pad-7',  'r': 'pad-8',
-  'a': 'pad-9',  's': 'pad-10', 'd': 'pad-11', 'f': 'pad-12',
-  'z': 'pad-13', 'x': 'pad-14', 'c': 'pad-15', 'v': 'pad-16',
+  '1': 'pad-1',  '2': 'pad-2',  '3': 'pad-3',  '4': 'pad-4',  '5': 'pad-17',
+  'q': 'pad-5',  'w': 'pad-6',  'e': 'pad-7',  'r': 'pad-8',  't': 'pad-18',
+  'a': 'pad-9',  's': 'pad-10', 'd': 'pad-11', 'f': 'pad-12', 'g': 'pad-19',
+  'z': 'pad-13', 'x': 'pad-14', 'c': 'pad-15', 'v': 'pad-16', 'b': 'pad-20',
 }
 
 // ── Neon Lattice contextual pads (first 8 slots when engine is neonLattice) ──
@@ -112,7 +112,7 @@ export function ReactPerformancePads() {
         </svg>
         <span className="rv-panel-title">Performance Pads</span>
         <span className="rv-pads-hint">
-          {isNeonLattice ? '1–4 · Q–R = NL Triggers · A–F · Z–V' : '1–4 · Q–R · A–F · Z–V'}
+          {isNeonLattice ? '1–4 · Q–R = NL Triggers · 5·T·A–G·Z–B' : '1–5 · Q–R·T · A–F·G · Z–V·B'}
         </span>
         <span className="rv-collapse-arrow">{collapsed ? '▶' : '▼'}</span>
       </div>

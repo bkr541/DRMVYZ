@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import type { ReactPreset, ReactEngineId } from './ReactTypes'
@@ -116,23 +116,35 @@ function EngineSection({
   activePresetId: string | null
   onSelect: (id: string) => void
 }) {
+  const [collapsed, setCollapsed] = useState(
+    () => !presets.some(p => p.id === activePresetId)
+  )
+
   return (
-    <div className="rv-preset-group">
-      <div className="rv-preset-group-hdr">
+    <div className={`rv-preset-group${collapsed ? ' rv-preset-group--collapsed' : ''}`}>
+      <button
+        type="button"
+        className="rv-preset-group-hdr"
+        onClick={() => setCollapsed(c => !c)}
+        aria-expanded={!collapsed}
+      >
         <span className="rv-preset-group-hdr-icon">{ENGINE_ICONS[engineId]}</span>
         <span className="rv-preset-group-hdr-label">{ENGINE_LABELS[engineId]}</span>
         <span className="rv-preset-group-hdr-count">{presets.length}</span>
-      </div>
-      <div className="rv-preset-group-cards">
-        {presets.map(preset => (
-          <PresetCard
-            key={preset.id}
-            preset={preset}
-            isActive={preset.id === activePresetId}
-            onSelect={onSelect}
-          />
-        ))}
-      </div>
+        <span className="rv-preset-group-hdr-chevron" aria-hidden="true">▾</span>
+      </button>
+      {!collapsed && (
+        <div className="rv-preset-group-cards">
+          {presets.map(preset => (
+            <PresetCard
+              key={preset.id}
+              preset={preset}
+              isActive={preset.id === activePresetId}
+              onSelect={onSelect}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -1664,7 +1664,7 @@
 
 .rv-pads-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 4px;
   padding: 8px 10px 10px;
 }
@@ -1813,8 +1813,26 @@
   align-items: center;
   gap: 6px;
   padding: 4px 2px 6px;
+  border: none;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   margin-bottom: 6px;
+  background: none;
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+
+.rv-preset-group--collapsed .rv-preset-group-hdr {
+  margin-bottom: 0;
+}
+
+.rv-preset-group-hdr:hover {
+  border-bottom-color: rgba(255, 255, 255, 0.14);
+}
+
+.rv-preset-group-hdr:hover .rv-preset-group-hdr-label {
+  color: rgba(232, 244, 248, 0.72);
 }
 
 .rv-preset-group-hdr-icon {
@@ -1830,12 +1848,25 @@
   text-transform: uppercase;
   color: rgba(232, 244, 248, 0.5);
   flex: 1;
+  transition: color 0.12s;
 }
 
 .rv-preset-group-hdr-count {
   font-size: 9px;
   color: rgba(232, 244, 248, 0.22);
   font-variant-numeric: tabular-nums;
+}
+
+.rv-preset-group-hdr-chevron {
+  font-size: 11px;
+  opacity: 0.38;
+  flex-shrink: 0;
+  transition: transform 0.15s;
+  transform: rotate(0deg);
+}
+
+.rv-preset-group--collapsed .rv-preset-group-hdr-chevron {
+  transform: rotate(-90deg);
 }
 
 .rv-preset-group-cards {

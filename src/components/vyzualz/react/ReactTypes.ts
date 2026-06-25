@@ -2105,24 +2105,28 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
 // ── Default performance pads ──────────────────────────────────────────────────
 
 export const DEFAULT_PERFORMANCE_PADS: ReactPerformancePad[] = [
-  // Row 1 — Shader Pads variants
-  { id: 'pad-1', presetId: 'preset-neon-energy-cloud', label: 'Energy',   color: DVYDRM_CYAN,    keyBinding: '1', transitionTimeMs: 500 },
-  { id: 'pad-2', presetId: 'preset-lava-tunnel',       label: 'Lava',     color: DVYDRM_GOLD,    keyBinding: '2', transitionTimeMs: 400 },
-  { id: 'pad-3', presetId: 'preset-synth-sun',         label: 'Sun',      color: DVYDRM_GOLD,    keyBinding: '3', transitionTimeMs: 600 },
-  { id: 'pad-4', presetId: 'preset-dot-warp',          label: 'Warp',     color: '#aaeeff',      keyBinding: '4', transitionTimeMs: 300 },
-  // Row 2 — Cinematic variants
-  { id: 'pad-5', presetId: 'preset-dream-gate',        label: 'Dream',    color: '#5b8def',      keyBinding: 'q', transitionTimeMs: 800 },
-  { id: 'pad-6', presetId: 'preset-crimson-rift',      label: 'Rift',     color: DVYDRM_CRIMSON, keyBinding: 'w', transitionTimeMs: 400 },
-  { id: 'pad-7', presetId: 'preset-emerald-fog',       label: 'Fog',      color: DVYDRM_EMERALD, keyBinding: 'e', transitionTimeMs: 700 },
-  { id: 'pad-8', presetId: 'preset-portal-overload',   label: 'Overload', color: '#b84fc9',      keyBinding: 'r', transitionTimeMs: 200 },
-  // Row 3 — Sound Drawing variants
-  { id: 'pad-9',  presetId: 'preset-xy-cyan-scope',    label: 'XY Scope', color: DVYDRM_CYAN,    keyBinding: 'a', transitionTimeMs: 300 },
-  { id: 'pad-10', presetId: 'preset-lissajous-flower', label: 'Lissajous',color: DVYDRM_EMERALD, keyBinding: 's', transitionTimeMs: 400 },
-  { id: 'pad-11', presetId: 'preset-spiral-signal',    label: 'Spiral',   color: DVYDRM_GOLD,    keyBinding: 'd', transitionTimeMs: 350 },
-  { id: 'pad-12', presetId: 'preset-radial-voice',     label: 'Radial',   color: DVYDRM_WHITE,   keyBinding: 'f', transitionTimeMs: 450 },
-  // Row 4 — Festival / enhanced oscillator
-  { id: 'pad-13', presetId: 'preset-festival-burst',       label: 'Festival', color: DVYDRM_CRIMSON, keyBinding: 'z', transitionTimeMs: 200 },
-  { id: 'pad-14', presetId: 'preset-drmvyz-text-trace',    label: 'DRMVYZ',   color: '#b84fc9',      keyBinding: 'x', transitionTimeMs: 400 },
-  { id: 'pad-15', presetId: 'preset-star-drop-burst',      label: 'StarBurst',color: DVYDRM_GOLD,    keyBinding: 'c', transitionTimeMs: 250 },
-  { id: 'pad-16', presetId: 'preset-glyph-circle-pulse',   label: 'Circle',   color: DVYDRM_CYAN,    keyBinding: 'v', transitionTimeMs: 400 },
+  // Row 1 — Shader Pads / Cinematic
+  { id: 'pad-1',  presetId: 'preset-neon-energy-cloud',      label: 'Energy',   color: DVYDRM_CYAN,    keyBinding: '1', transitionTimeMs: 500 },
+  { id: 'pad-2',  presetId: 'preset-lava-tunnel',            label: 'Lava',     color: DVYDRM_GOLD,    keyBinding: '2', transitionTimeMs: 400 },
+  { id: 'pad-3',  presetId: 'preset-synth-sun',              label: 'Sun',      color: DVYDRM_GOLD,    keyBinding: '3', transitionTimeMs: 600 },
+  { id: 'pad-4',  presetId: 'preset-dot-warp',               label: 'Warp',     color: '#aaeeff',      keyBinding: '4', transitionTimeMs: 300 },
+  { id: 'pad-17', presetId: 'preset-quiet-ruins',            label: 'Ruins',    color: '#7a9bac',      keyBinding: '5', transitionTimeMs: 600 },
+  // Row 2 — Cinematic / Neon Lattice
+  { id: 'pad-5',  presetId: 'preset-dream-gate',             label: 'Dream',    color: '#5b8def',      keyBinding: 'q', transitionTimeMs: 800 },
+  { id: 'pad-6',  presetId: 'preset-crimson-rift',           label: 'Rift',     color: DVYDRM_CRIMSON, keyBinding: 'w', transitionTimeMs: 400 },
+  { id: 'pad-7',  presetId: 'preset-emerald-fog',            label: 'Fog',      color: DVYDRM_EMERALD, keyBinding: 'e', transitionTimeMs: 700 },
+  { id: 'pad-8',  presetId: 'preset-portal-overload',        label: 'Overload', color: '#b84fc9',      keyBinding: 'r', transitionTimeMs: 200 },
+  { id: 'pad-18', presetId: 'preset-nl-acid-magenta',        label: 'Acid NL',  color: '#e040fb',      keyBinding: 't', transitionTimeMs: 300 },
+  // Row 3 — Sound Drawing
+  { id: 'pad-9',  presetId: 'preset-xy-cyan-scope',          label: 'XY Scope', color: DVYDRM_CYAN,    keyBinding: 'a', transitionTimeMs: 300 },
+  { id: 'pad-10', presetId: 'preset-lissajous-flower',       label: 'Lissajous',color: DVYDRM_EMERALD, keyBinding: 's', transitionTimeMs: 400 },
+  { id: 'pad-11', presetId: 'preset-spiral-signal',          label: 'Spiral',   color: DVYDRM_GOLD,    keyBinding: 'd', transitionTimeMs: 350 },
+  { id: 'pad-12', presetId: 'preset-radial-voice',           label: 'Radial',   color: DVYDRM_WHITE,   keyBinding: 'f', transitionTimeMs: 450 },
+  { id: 'pad-19', presetId: 'preset-bass-triangle-reactor',  label: 'Triangle', color: DVYDRM_CRIMSON, keyBinding: 'g', transitionTimeMs: 250 },
+  // Row 4 — Festival / Laser DMX
+  { id: 'pad-13', presetId: 'preset-festival-burst',         label: 'Festival', color: DVYDRM_CRIMSON, keyBinding: 'z', transitionTimeMs: 200 },
+  { id: 'pad-14', presetId: 'preset-drmvyz-text-trace',      label: 'DRMVYZ',   color: '#b84fc9',      keyBinding: 'x', transitionTimeMs: 400 },
+  { id: 'pad-15', presetId: 'preset-star-drop-burst',        label: 'StarBurst',color: DVYDRM_GOLD,    keyBinding: 'c', transitionTimeMs: 250 },
+  { id: 'pad-16', presetId: 'preset-glyph-circle-pulse',     label: 'Circle',   color: DVYDRM_CYAN,    keyBinding: 'v', transitionTimeMs: 400 },
+  { id: 'pad-20', presetId: 'preset-laser-dmx-default',      label: 'Laser Fan',color: '#00ffdc',      keyBinding: 'b', transitionTimeMs: 300 },
 ]
