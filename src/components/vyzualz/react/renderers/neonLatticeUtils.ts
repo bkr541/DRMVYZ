@@ -55,12 +55,55 @@ export function prngNext(seed: number): [number, number] {
   return [s / 0xffffffff, s]
 }
 
+// ── Palette RGB bundle ────────────────────────────────────────────────────────
+
+/** Four palette roles as pre-converted 'r,g,b' strings. */
+export interface NeonPaletteRgb {
+  primary:   string
+  secondary: string
+  accent:    string
+  highlight: string
+}
+
 // ── Lane selection ────────────────────────────────────────────────────────────
 
 const MAX_VERT  = 12
 const MAX_HORIZ = 10
 
 export { MAX_VERT, MAX_HORIZ }
+
+// ── Behavior resolvers ────────────────────────────────────────────────────────
+
+/**
+ * Returns per-orientation rail count targets driven by railDensity and verticalBias.
+ * At zero density both targets are zero (automatic spawning suppressed).
+ */
+export function resolveRailTargets(
+  railDensity:  number,
+  verticalBias: number,
+): { targetVert: number; targetHoriz: number } {
+  const d = Math.max(0, Math.min(1, railDensity))
+  const v = Math.max(0, Math.min(1, verticalBias))
+  return {
+    targetVert:  Math.round(d * v * MAX_VERT),
+    targetHoriz: Math.round(d * (1 - v) * MAX_HORIZ),
+  }
+}
+
+/**
+ * Returns the musical subdivision slot index for the given audio time.
+ * Two times in the same slot must not fire the same automatic event twice.
+ * Returns 0 when bpm or snapDivision are zero.
+ */
+export function resolveSnapSlot(
+  audioTime:    number,
+  bpm:          number,
+  snapDivision: number,
+): number {
+  if (bpm <= 0 || snapDivision <= 0) return 0
+  const subBeatSec = (60 / bpm) / snapDivision
+  return Math.floor(audioTime / subBeatSec)
+}
 
 /**
  * Chooses a lane index for a new vertical rail such that lanes are spread
@@ -117,7 +160,7 @@ export function makeVerticalRail(
   settings: NeonLatticeSettings,
   audioTime: number,
   existing: NeonRail[],
-  paletteRgb: { primary: string; accent: string },
+  paletteRgb: NeonPaletteRgb,
   strength: number,
 ): NeonRail {
   const lane     = selectVerticalLane(seed, existing)
@@ -128,11 +171,11 @@ export function makeVerticalRail(
   norm           = norm * (1 - cb) + 0.5 * cb   // blend toward centre
 
   let [r, s] = prngNext(seed + 1)
-  const isCyan   = r < settings.cyanAccentChance
-  ;[r, s]        = prngNext(s)
-  const isMagenta = !isCyan && r < 0.4
+  const isHighlight = r < settings.cyanAccentChance
+  ;[r, s]           = prngNext(s)
+  const isSecondary = !isHighlight && r < 0.4
 
-  const colorRgb = isCyan ? '74,199,219' : isMagenta ? '220,60,190' : paletteRgb.primary
+  const colorRgb = isHighlight ? paletteRgb.highlight : isSecondary ? paletteRgb.secondary : paletteRgb.primary
 
   ;[r, s]        = prngNext(s)
   const spanY0   = r * 0.15
@@ -167,7 +210,7 @@ export function makeHorizontalRail(
   settings: NeonLatticeSettings,
   audioTime: number,
   existing: NeonRail[],
-  paletteRgb: { primary: string; accent: string },
+  paletteRgb: NeonPaletteRgb,
   strength: number,
 ): NeonRail {
   const lane  = selectHorizontalLane(seed, existing)
@@ -177,11 +220,11 @@ export function makeHorizontalRail(
   norm        = norm * (1 - cb) + 0.5 * cb
 
   let [r, s]  = prngNext(seed + 7)
-  const isCyan = r < 0.55   // horizontal rails skew toward white/cyan
+  const isHighlight = r < settings.cyanAccentChance
   ;[r, s]     = prngNext(s)
 
-  // Horizontal rails: white, cyan, or primary — never magenta
-  const colorRgb = isCyan ? '74,199,219' : r < 0.4 ? '230,230,240' : paletteRgb.primary
+  // Horizontal rails: highlight, secondary, or primary
+  const colorRgb = isHighlight ? paletteRgb.highlight : r < 0.4 ? paletteRgb.secondary : paletteRgb.primary
 
   ;[r, s]     = prngNext(s)
   // Shorter spans — snare hits produce tighter dashes
@@ -294,6 +337,8 @@ export interface NeonFlare {
   /** Typical range: 0.18–0.33 seconds. */
   lifetime:   number
   brightness: number
+  /** Visual size multiplier (1.0 = normal). Driven by flareAmount. */
+  scale:      number
   paletteRgb: string
   depth:      number
 }
@@ -379,20 +424,22 @@ export function makePulseOnRail(
   direction:   1 | -1,
   settings:    NeonLatticeSettings,
   audioTime:   number,
-  paletteRgb:  { primary: string; accent: string },
+  paletteRgb:  NeonPaletteRgb,
   strength:    number,
   seed:        number,
   motionScale: number,
 ): NeonPulse {
-  const speed       = settings.pulseSpeed * (0.20 + strength * 0.40) * Math.max(0.1, motionScale)
+  // Clamp minimum speed so zero pulseSpeed never creates permanent stationary pulses
+  const rawSpeed    = settings.pulseSpeed * (0.20 + strength * 0.40) * Math.max(0.1, motionScale)
+  const speed       = Math.max(0.06, rawSpeed)
   const railLength  = Math.max(0.05, rail.spanEnd - rail.spanStart)
-  const lifetime    = railLength / Math.max(0.01, speed) * (0.8 + strength * 0.2)
+  const lifetime    = Math.min(4.0, railLength / speed * (0.8 + strength * 0.2))
   const startProg   = direction === 1 ? rail.spanStart : rail.spanEnd
 
   let [r, s] = prngNext(seed + 3)
-  const isCyan = r < settings.cyanAccentChance
+  const isHighlight = r < settings.cyanAccentChance
   ;[r, s] = prngNext(s)
-  const colorRgb = isCyan ? '74,199,219' : r < 0.30 ? '255,255,255' : paletteRgb.primary
+  const colorRgb = isHighlight ? paletteRgb.highlight : r < 0.30 ? paletteRgb.secondary : paletteRgb.primary
   ;[r]    = prngNext(s)
   const radius = 0.007 + r * 0.011
 
@@ -421,12 +468,14 @@ export function makeFlare(
   strength:   number,
   paletteRgb: string,
   depth:      number,
+  scale       = 1.0,
 ): NeonFlare {
   return {
     x, y,
     birthSec:   audioTime,
     lifetime:   0.18 + strength * 0.15,
     brightness: 0.5 + strength * 0.5,
+    scale,
     paletteRgb,
     depth,
   }
@@ -608,4 +657,125 @@ export function isBlockExpired(block: NeonBlock, audioTime: number): boolean {
 
 export function isShockwaveExpired(sw: NeonShockwave, audioTime: number): boolean {
   return audioTime - sw.birthSec >= sw.lifetime
+}
+
+// ── Depth / parallax helpers ───────────────────────────────────────────────────
+
+/**
+ * Compute per-rail visual modifiers from the depth setting and the rail's own
+ * depth value.
+ *
+ * `railDepth` is 0–1: 0 = near/foreground (bright, wide), 1 = far/background (dim, narrow).
+ * `depth` setting 0 = flat (no differentiation), 1 = maximum differentiation.
+ */
+export function resolveDepthModifiers(
+  depth:     number,   // settings.depth 0–1
+  railDepth: number,   // rail.depth 0–1
+): { alphaMul: number; intensityMul: number; widthMul: number } {
+  const far = Math.max(0, Math.min(1, railDepth))
+  const d   = Math.max(0, Math.min(1, depth))
+  return {
+    alphaMul:     1.0 - far * d * 0.60,
+    intensityMul: 1.0 - far * d * 0.35,
+    widthMul:     1.0 - far * d * 0.50,
+  }
+}
+
+/**
+ * Compute the normalized x-axis parallax shift for a rail at a given depth.
+ * Returns a value in [-1, 1] that should be multiplied by W before applying.
+ *
+ * Near rails (depth=0) shift in the opposite direction to far rails (depth=1).
+ * When `cameraDriftX` is 0 or `parallax` is 0, returns 0.
+ */
+export function resolveCameraParallaxShift(
+  railDepth:    number,  // 0=near, 1=far
+  cameraDriftX: number,  // normalized camera offset (-1 to 1)
+  parallax:     number,  // settings.parallax 0–1
+): number {
+  return cameraDriftX * (0.5 - railDepth) * parallax * 2.0
+}
+
+// ── Section / MI helpers ───────────────────────────────────────────────────────
+
+import type { ReactSectionType } from '../ReactTypes'
+
+/**
+ * Resolve the effective NL section type using manual-section priority.
+ * Order: manualSectionType → MI section → null.
+ */
+export function resolveEffectiveSection(
+  manualSectionType: ReactSectionType | null,
+  miSectionType:     ReactSectionType | null,
+): ReactSectionType | null {
+  return manualSectionType ?? miSectionType ?? null
+}
+
+/**
+ * Compute a spawn probability multiplier for event-based rail / pulse spawning.
+ * Returns > 1 for high-energy sections (drop) and < 1 for sparse sections (intro).
+ *
+ * Values are supplemental — they scale the density target, not replace it.
+ */
+export function resolveSectionSpawnMul(
+  sectionType:     ReactSectionType | null,
+  buildProgress:   number,  // 0–1
+  dropImpact:      number,  // 0–1
+  tension:         number,  // 0–1
+  sectionProgress: number,  // 0–1
+): number {
+  switch (sectionType) {
+    case 'intro':     return 0.25
+    case 'verse':     return 0.60
+    case 'build':     return 0.60 + Math.max(0, Math.min(1, buildProgress)) * 0.45
+    case 'preDrop':   return 0.30 + Math.max(0, Math.min(1, tension)) * 0.20
+    case 'drop':      return 1.00 + Math.max(0, Math.min(1, dropImpact)) * 0.25
+    case 'breakdown': return 0.30
+    case 'bridge':    return 0.65
+    case 'outro':     return 0.25 + (1.0 - Math.max(0, Math.min(1, sectionProgress))) * 0.30
+    default:          return 1.0
+  }
+}
+
+// ── Trigger-behavior constants (shared between renderer and tests) ─────────────
+
+/** Whiteout overlay fade duration in seconds. */
+export const WHITEOUT_DURATION  = 0.35
+/** Blackout (manual pad) overlay fade duration in seconds. */
+export const BLACKOUT_DURATION  = 0.85
+/** Freeze Trails freeze hold duration in seconds. */
+export const FREEZE_DURATION    = 1.2
+/** Fraction of remaining rail lifetime kept after a reseed morph. */
+export const RESEED_LIFE_SCALE  = 0.28
+
+/**
+ * Compute the current alpha of a fading overlay.
+ * Starts at 1.0 immediately after the trigger and reaches 0 after `duration` seconds.
+ * `age` = audioTime − startSec.
+ */
+export function resolveOverlayAlpha(age: number, duration: number): number {
+  const progress = Math.min(1, age / Math.max(0.001, duration))
+  return 1 - progress
+}
+
+/**
+ * Compute the cyanStrike color-override duration for the given BPM.
+ * Falls back to a 0.5 s beat when BPM is zero.
+ */
+export function resolveCyanStrikeDuration(bpm: number): number {
+  const beatSec = bpm > 0 ? 60 / bpm : 0.5
+  return Math.max(0.40, beatSec * 1.5)
+}
+
+/**
+ * Number of vertical and horizontal rails that a Rail Burst trigger emits,
+ * scaled by the verticalBias setting.
+ */
+export function resolveRailBurstCounts(
+  verticalBias: number,
+): { vertCount: number; horizCount: number } {
+  return {
+    vertCount:  Math.round(2 + verticalBias * 2),
+    horizCount: Math.round(1 + (1 - verticalBias) * 2),
+  }
 }

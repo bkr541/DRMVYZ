@@ -142,17 +142,21 @@ export function renderReactEngine(
 
   switch (preset.engine) {
     case 'shaderPads':
+      clearNeonLatticeVisualState(ctx, frame.W, frame.H)
       renderShaderPads(ctx, frame, preset, effectiveParams, sectionType)
       break
     case 'cinematicPortal':
+      clearNeonLatticeVisualState(ctx, frame.W, frame.H)
       renderCinematicPortal(ctx, frame, preset, effectiveParams, sectionType)
       break
     case 'oscilloscope':
+      clearNeonLatticeVisualState(ctx, frame.W, frame.H)
       renderSoundDrawing(ctx, frame, preset, effectiveParams, sectionType)
       break
     case 'laserDmx':
       // Level-1 gate: skip compilation entirely when not playing.
       // clearLaserDmxVisualState wipes trail persistence and resets compiler dt.
+      clearNeonLatticeVisualState(ctx, frame.W, frame.H)
       if (frame.isPlaying === false) {
         clearLaserDmxVisualState(ctx, frame.W, frame.H)
       } else {
@@ -161,15 +165,16 @@ export function renderReactEngine(
       break
     case 'neonLattice':
       if (frame.isPlaying === false) {
-        clearNeonLatticeVisualState()
+        clearNeonLatticeVisualState(ctx, frame.W, frame.H)
         ctx.fillStyle = preset.palette.background
         ctx.fillRect(0, 0, frame.W, frame.H)
       } else {
-        renderNeonLattice(ctx, frame, effectiveParams, preset)
+        renderNeonLattice(ctx, frame, effectiveParams, preset, sectionType)
       }
       break
     default:
       // Unknown engine — draw a placeholder so the frame is never blank
+      clearNeonLatticeVisualState(ctx, frame.W, frame.H)
       ctx.fillStyle = preset.palette.background
       ctx.fillRect(0, 0, frame.W, frame.H)
   }

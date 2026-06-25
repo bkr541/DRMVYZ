@@ -11,6 +11,14 @@ import {
   hexToRgbStr,
   MAX_VERT,
   MAX_HORIZ,
+  resolveRailTargets,
+  resolveRailBurstCounts,
+  resolveOverlayAlpha,
+  resolveCyanStrikeDuration,
+  WHITEOUT_DURATION,
+  BLACKOUT_DURATION,
+  FREEZE_DURATION,
+  RESEED_LIFE_SCALE,
 } from '../neonLatticeUtils'
 import type { NeonRail } from '../neonLatticeUtils'
 import { DEFAULT_NEON_LATTICE_SETTINGS } from '../../ReactTypes'
@@ -18,7 +26,7 @@ import { DEFAULT_NEON_LATTICE_SETTINGS } from '../../ReactTypes'
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
 const settings = { ...DEFAULT_NEON_LATTICE_SETTINGS }
-const palette  = { primary: '74,199,219', accent: '220,60,190' }
+const palette  = { primary: '74,199,219', secondary: '220,60,190', accent: '220,60,190', highlight: '74,199,219' }
 
 // ── xorshift32 ────────────────────────────────────────────────────────────────
 
@@ -219,21 +227,144 @@ describe('isRailExpired', () => {
   })
 })
 
-// ── Object caps (integration) ─────────────────────────────────────────────────
+// ── Object caps ───────────────────────────────────────────────────────────────
 
 describe('spawn caps', () => {
   it('MAX_VERT is 12', () => expect(MAX_VERT).toBe(12))
   it('MAX_HORIZ is 10', () => expect(MAX_HORIZ).toBe(10))
 
-  it('caps: cannot have more vertical rails than MAX_VERT by repeatedly spawning', () => {
-    // Simulate the spawn logic: only spawn when count < MAX_VERT
-    const rails: NeonRail[] = []
-    for (let i = 0; i < MAX_VERT + 5; i++) {
-      if (rails.filter(r => r.vertical).length < MAX_VERT) {
-        rails.push(makeVerticalRail(i + 1, settings, i * 0.2, rails, palette, 0.7))
+  it('resolveRailTargets never exceeds MAX_VERT for any railDensity/verticalBias', () => {
+    for (const d of [0, 0.3, 0.5, 0.7, 0.9, 1]) {
+      for (const v of [0, 0.25, 0.5, 0.75, 1]) {
+        const { targetVert } = resolveRailTargets(d, v)
+        expect(targetVert).toBeLessThanOrEqual(MAX_VERT)
+        expect(targetVert).toBeGreaterThanOrEqual(0)
       }
     }
-    expect(rails.filter(r => r.vertical).length).toBeLessThanOrEqual(MAX_VERT)
+  })
+
+  it('resolveRailTargets never exceeds MAX_HORIZ for any railDensity/verticalBias', () => {
+    for (const d of [0, 0.3, 0.5, 0.7, 0.9, 1]) {
+      for (const v of [0, 0.25, 0.5, 0.75, 1]) {
+        const { targetHoriz } = resolveRailTargets(d, v)
+        expect(targetHoriz).toBeLessThanOrEqual(MAX_HORIZ)
+        expect(targetHoriz).toBeGreaterThanOrEqual(0)
+      }
+    }
+  })
+
+  it('makeVerticalRail returns exactly one rail object (no arrays per call)', () => {
+    const result = makeVerticalRail(1, settings, 0, [], palette, 0.7)
+    expect(typeof result).toBe('object')
+    expect(Array.isArray(result)).toBe(false)
+  })
+
+  it('makeHorizontalRail returns exactly one rail object (no arrays per call)', () => {
+    const result = makeHorizontalRail(1, settings, 0, [], palette, 0.7)
+    expect(typeof result).toBe('object')
+    expect(Array.isArray(result)).toBe(false)
+  })
+})
+
+// ── Trigger helpers ───────────────────────────────────────────────────────────
+
+describe('resolveRailBurstCounts', () => {
+  it('verticalBias=0.6 gives 3 vert + 2 horiz', () => {
+    const { vertCount, horizCount } = resolveRailBurstCounts(0.6)
+    expect(vertCount).toBe(3)
+    expect(horizCount).toBe(2)
+  })
+
+  it('verticalBias=1 gives 4 vert + 1 horiz', () => {
+    const { vertCount, horizCount } = resolveRailBurstCounts(1)
+    expect(vertCount).toBe(4)
+    expect(horizCount).toBe(1)
+  })
+
+  it('verticalBias=0 gives 2 vert + 3 horiz', () => {
+    const { vertCount, horizCount } = resolveRailBurstCounts(0)
+    expect(vertCount).toBe(2)
+    expect(horizCount).toBe(3)
+  })
+
+  it('counts are bounded at any bias', () => {
+    for (const bias of [0, 0.25, 0.5, 0.75, 1]) {
+      const { vertCount, horizCount } = resolveRailBurstCounts(bias)
+      expect(vertCount).toBeGreaterThanOrEqual(2)
+      expect(vertCount).toBeLessThanOrEqual(4)
+      expect(horizCount).toBeGreaterThanOrEqual(1)
+      expect(horizCount).toBeLessThanOrEqual(3)
+    }
+  })
+})
+
+describe('resolveOverlayAlpha', () => {
+  it('returns 1 at age=0', () => {
+    expect(resolveOverlayAlpha(0, 1)).toBeCloseTo(1, 5)
+  })
+
+  it('returns 0.5 at midpoint', () => {
+    expect(resolveOverlayAlpha(0.5, 1)).toBeCloseTo(0.5, 5)
+  })
+
+  it('returns 0 at or past duration', () => {
+    expect(resolveOverlayAlpha(1, 1)).toBeCloseTo(0, 5)
+    expect(resolveOverlayAlpha(2, 1)).toBeCloseTo(0, 5)
+  })
+
+  it('whiteout is fully faded at WHITEOUT_DURATION seconds', () => {
+    expect(resolveOverlayAlpha(WHITEOUT_DURATION, WHITEOUT_DURATION)).toBeCloseTo(0, 5)
+  })
+
+  it('blackout is fully faded at BLACKOUT_DURATION seconds', () => {
+    expect(resolveOverlayAlpha(BLACKOUT_DURATION, BLACKOUT_DURATION)).toBeCloseTo(0, 5)
+  })
+
+  it('WHITEOUT_DURATION is a short flash (<= 0.5 s)', () => {
+    expect(WHITEOUT_DURATION).toBeLessThanOrEqual(0.5)
+    expect(WHITEOUT_DURATION).toBeGreaterThan(0)
+  })
+
+  it('BLACKOUT_DURATION auto-recovers quickly (<= 1.2 s)', () => {
+    expect(BLACKOUT_DURATION).toBeLessThanOrEqual(1.2)
+    expect(BLACKOUT_DURATION).toBeGreaterThan(0)
+  })
+})
+
+describe('resolveCyanStrikeDuration', () => {
+  it('always at least 0.4 s regardless of BPM', () => {
+    for (const bpm of [0, 60, 120, 180, 200]) {
+      expect(resolveCyanStrikeDuration(bpm)).toBeGreaterThanOrEqual(0.40)
+    }
+  })
+
+  it('120 BPM → 0.75 s (1.5 beats)', () => {
+    expect(resolveCyanStrikeDuration(120)).toBeCloseTo(0.75, 5)
+  })
+
+  it('0 BPM falls back to 0.5 s beat → 0.75 s', () => {
+    expect(resolveCyanStrikeDuration(0)).toBeCloseTo(0.75, 5)
+  })
+
+  it('60 BPM → 1.5 s (1.5 beats)', () => {
+    expect(resolveCyanStrikeDuration(60)).toBeCloseTo(1.5, 5)
+  })
+})
+
+describe('trigger constants', () => {
+  it('FREEZE_DURATION is 1.2 s', () => {
+    expect(FREEZE_DURATION).toBeCloseTo(1.2, 5)
+  })
+
+  it('RESEED_LIFE_SCALE is a shrink factor < 1', () => {
+    expect(RESEED_LIFE_SCALE).toBeGreaterThan(0)
+    expect(RESEED_LIFE_SCALE).toBeLessThan(1)
+  })
+
+  it('RESEED_LIFE_SCALE preserves positive lifetime for any positive remaining', () => {
+    for (const remaining of [0.1, 1.0, 5.0, 10.0]) {
+      expect(remaining * RESEED_LIFE_SCALE).toBeGreaterThan(0)
+    }
   })
 })
 

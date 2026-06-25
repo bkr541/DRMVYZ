@@ -1202,9 +1202,9 @@ export const PALETTE_NEON_LATTICE: ReactPalette = {
 const PALETTE_ACID_MAGENTA: ReactPalette = {
   primary:    '#e040fb',
   secondary:  DVYDRM_WHITE,
-  accent:     DVYDRM_CYAN,
+  accent:     DVYDRM_GOLD,
   background: '#08010d',
-  highlight:  '#ff80ff',
+  highlight:  DVYDRM_CYAN,
   text:       DVYDRM_WHITE,
 }
 
@@ -2035,8 +2035,9 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
       railDensity: 0.55, verticalBias: 0.55, centerBias: 0.25, railLifetime: 3.5,
       pulseSpeed: 0.70, flareAmount: 0.75, snapDivision: 4,
       blockDensity: 0.30, blockHold: 0.60, cyanAccentChance: 0.45,
-      bloom: 0.90, depth: 0.35, shockwaves: true,
-      reseedInterval: 16, decayStyle: 'exponential', blackoutMode: 'none', trigger: 'kick',
+      bloom: 0.90, depth: 0.35, parallax: 0.30, cameraMotion: 0.15,
+      shockwaves: true, reseedInterval: 16,
+      decayStyle: 'exponential', blackoutMode: 'none', trigger: 'kick',
     },
   },
 
@@ -2054,8 +2055,9 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
       railDensity: 0.45, verticalBias: 0.60, centerBias: 0.30, railLifetime: 4.5,
       pulseSpeed: 0.55, flareAmount: 0.55, snapDivision: 4,
       blockDensity: 0.25, blockHold: 0.55, cyanAccentChance: 0.50,
-      bloom: 0.70, depth: 0.28, shockwaves: true,
-      reseedInterval: 16, decayStyle: 'exponential', blackoutMode: 'none', trigger: 'beat',
+      bloom: 0.70, depth: 0.28, parallax: 0.15, cameraMotion: 0.08,
+      shockwaves: true, reseedInterval: 16,
+      decayStyle: 'exponential', blackoutMode: 'none', trigger: 'beat',
     },
   },
 
@@ -2073,8 +2075,9 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
       railDensity: 0.20, verticalBias: 0.65, centerBias: 0.20, railLifetime: 7.0,
       pulseSpeed: 0.40, flareAmount: 0.85, snapDivision: 2,
       blockDensity: 0.05, blockHold: 0.80, cyanAccentChance: 0.60,
-      bloom: 0.55, depth: 0.20, shockwaves: false,
-      reseedInterval: 32, decayStyle: 'exponential', blackoutMode: 'none', trigger: 'beat',
+      bloom: 0.55, depth: 0.20, parallax: 0.10, cameraMotion: 0.05,
+      shockwaves: false, reseedInterval: 32,
+      decayStyle: 'exponential', blackoutMode: 'none', trigger: 'beat',
     },
   },
 
@@ -2092,21 +2095,10 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
       railDensity: 0.75, verticalBias: 0.50, centerBias: 0.40, railLifetime: 2.0,
       pulseSpeed: 0.90, flareAmount: 0.65, snapDivision: 8,
       blockDensity: 0.45, blockHold: 0.35, cyanAccentChance: 0.30,
-      bloom: 1.00, depth: 0.55, shockwaves: true,
-      reseedInterval: 8, decayStyle: 'exponential', blackoutMode: 'none', trigger: 'kick',
+      bloom: 1.00, depth: 0.55, parallax: 0.40, cameraMotion: 0.25,
+      shockwaves: true, reseedInterval: 8,
+      decayStyle: 'exponential', blackoutMode: 'none', trigger: 'kick',
     },
-  },
-
-  // ── Neon Lattice (5) – Default ───────────────────────────────────────────
-  {
-    id:          'preset-neon-lattice-default',
-    name:        'Neon Lattice',
-    description: 'Pulsing neon rail grid with beat-reactive blocks and shockwaves.',
-    engine:      'neonLattice',
-    palette:     PALETTE_NEON_LATTICE,
-    params:      { intensity: 0.75, motion: 0.60, glow: 0.80, bassReactivity: 0.85, colorShift: 0.40, complexity: 0.55 },
-    scenes:      makeScenes('nl', 'neonLattice'),
-    sectionMappings: makeMappings('nl'),
   },
 ]
 

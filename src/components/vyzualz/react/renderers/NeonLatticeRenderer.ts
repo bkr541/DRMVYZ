@@ -1,5 +1,5 @@
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
-import type { ReactPreset, NeonLatticeTriggerType, NeonLatticeSettings } from '../ReactTypes'
+import type { ReactPreset, NeonLatticeTriggerType, NeonLatticeSettings, NeonLatticeDecayStyle, NeonLatticeTrigger, ReactSectionType } from '../ReactTypes'
 import { DEFAULT_NEON_LATTICE_SETTINGS } from '../ReactTypes'
 import {
   type NeonRail,
@@ -7,6 +7,7 @@ import {
   type NeonFlare,
   type NeonBlock,
   type NeonShockwave,
+  type NeonPaletteRgb,
   type PulseRoute,
   makeVerticalRail,
   makeHorizontalRail,
@@ -35,6 +36,19 @@ import {
   GRID_COLS,
   GRID_ROWS,
   prngNext,
+  resolveRailTargets,
+  resolveSnapSlot,
+  resolveDepthModifiers,
+  resolveCameraParallaxShift,
+  resolveEffectiveSection,
+  resolveSectionSpawnMul,
+  resolveRailBurstCounts,
+  resolveCyanStrikeDuration,
+  resolveOverlayAlpha,
+  WHITEOUT_DURATION,
+  BLACKOUT_DURATION,
+  FREEZE_DURATION,
+  RESEED_LIFE_SCALE,
 } from './neonLatticeUtils'
 
 // ── Ctx2D union ───────────────────────────────────────────────────────────────
@@ -74,6 +88,9 @@ interface NeonLatticeState {
   lastDownbeatSec: number
   // fallback downbeat counter
   beatHitCount:    number
+  // snap-slot deduplication (one pulse/block event per musical subdivision)
+  lastPulseSnapSlot:  number
+  lastBlockSnapSlot:  number
   // trigger / overlay state (non-persisted visual effects)
   lastConsumedSeq:    number      // renderer only consumes each seq once
   overlayAlpha:       number      // 0 = inactive, >0 = drawing overlay
@@ -83,6 +100,19 @@ interface NeonLatticeState {
   frozenUntilSec:     number      // trail freeze; 0 = not frozen
   burstAfterFreeze:   boolean     // emit railBurst when freeze ends
   cyanStrikeUntilSec: number      // force cyan color on rails; 0 = off
+  // Camera motion state
+  cameraDriftX:       number      // normalized x offset; 0 = center
+  cameraDriftVX:      number      // velocity per second (normalized)
+  cameraZoom:         number      // 1.0 = neutral
+  cameraRotation:     number      // radians; 0 = neutral
+  // Bar-based reseed
+  lastReseedBarIndex: number      // barIndex at last auto-reseed; -1 = never
+  // Auto-blackout
+  autoBlackoutEnd:    number      // audioTime when current auto-blackout ends; 0 = idle
+  strobeNextFlipSec:  number
+  strobeState:        boolean
+  // Section tracking
+  prevSectionType:    ReactSectionType | null
 }
 
 const stateMap = new WeakMap<CanvasRenderingContext2D, NeonLatticeState>()
@@ -141,6 +171,8 @@ function makeState(W: number, H: number): NeonLatticeState {
     lastComplexSec:  -10,
     lastDownbeatSec: -10,
     beatHitCount:    0,
+    lastPulseSnapSlot:  -1,
+    lastBlockSnapSlot:  -1,
     lastConsumedSeq:    0,
     overlayAlpha:       0,
     overlayColor:       '#ffffff',
@@ -149,6 +181,15 @@ function makeState(W: number, H: number): NeonLatticeState {
     frozenUntilSec:     0,
     burstAfterFreeze:   false,
     cyanStrikeUntilSec: 0,
+    cameraDriftX:       0,
+    cameraDriftVX:      0,
+    cameraZoom:         1.0,
+    cameraRotation:     0,
+    lastReseedBarIndex: -1,
+    autoBlackoutEnd:    0,
+    strobeNextFlipSec:  0,
+    strobeState:        false,
+    prevSectionType:    null,
   }
 }
 
@@ -172,8 +213,20 @@ function resizeState(st: NeonLatticeState, W: number, H: number): void {
 
 // ── Public clear hook ─────────────────────────────────────────────────────────
 
-export function clearNeonLatticeVisualState(): void {
-  // Playback-stop guard in renderNeonLattice handles cleanup on next frame.
+export function clearNeonLatticeVisualState(
+  ctx:    CanvasRenderingContext2D,
+  width:  number,
+  height: number,
+): void {
+  const st = stateMap.get(ctx)
+  stateMap.delete(ctx)
+  if (!st) return
+
+  // Clear trail and bloom canvases
+  st.trailCanvas.getContext('2d')?.clearRect(0, 0, width, height)
+  st.bloomCanvas.getContext('2d')?.clearRect(0, 0, st.bloomCanvas.width, st.bloomCanvas.height)
+  // rails, pulses, blocks, flares, shockwaves, overlays, freeze state, and consumed
+  // trigger state (lastConsumedSeq) are all discarded with the state object
 }
 
 // ── Trigger effect dispatcher ─────────────────────────────────────────────────
@@ -182,7 +235,7 @@ function dispatchTrigger(
   st:         NeonLatticeState,
   type:       NeonLatticeTriggerType,
   audioTime:  number,
-  paletteRgb: { primary: string; accent: string },
+  paletteRgb: NeonPaletteRgb,
   settings:   NeonLatticeSettings,
   bpm:        number,
   W:          number,
@@ -190,15 +243,16 @@ function dispatchTrigger(
 ): void {
   switch (type) {
     case 'railBurst': {
-      // Spawn 3 vertical + 2 horizontal rails immediately, ignoring debounce
-      const strength = 0.85
-      for (let i = 0; i < 3; i++) {
+      // Bounded mix driven by verticalBias — does NOT permanently alter automatic density
+      const strength   = 0.82
+      const { vertCount, horizCount } = resolveRailBurstCounts(settings.verticalBias)
+      for (let i = 0; i < vertCount; i++) {
         if (st.rails.filter(r => r.vertical).length < MAX_VERT) {
           st.seedCounter++
           st.rails.push(makeVerticalRail(st.seedCounter, settings, audioTime, st.rails, paletteRgb, strength))
         }
       }
-      for (let i = 0; i < 2; i++) {
+      for (let i = 0; i < horizCount; i++) {
         if (st.rails.filter(r => !r.vertical).length < MAX_HORIZ) {
           st.seedCounter++
           st.rails.push(makeHorizontalRail(st.seedCounter, settings, audioTime, st.rails, paletteRgb, strength))
@@ -208,73 +262,91 @@ function dispatchTrigger(
     }
 
     case 'blockCascade': {
+      // One deterministic pattern per trigger (seeded, not all patterns at once)
       const patterns: Array<'verticalRain' | 'diagonalStair' | 'centerOutward' | 'checker' | 'horizontalScan'> =
         ['verticalRain', 'diagonalStair', 'centerOutward', 'checker', 'horizontalScan']
-      for (const pattern of patterns) {
+      st.seedCounter++
+      const [pv] = prngNext(st.seedCounter)
+      const pattern = patterns[Math.floor(pv * patterns.length)]
+      const cells = spawnBlockPattern(pattern, st.seedCounter, 0.80)
+      for (const { col, row } of cells) {
         if (st.blocks.length >= MAX_BLOCKS) break
-        st.seedCounter++
-        const cells = spawnBlockPattern(pattern, st.seedCounter, 0.75)
-        for (const { col, row } of cells) {
-          if (st.blocks.length >= MAX_BLOCKS) break
-          st.blocks.push(makeBlock(col, row, audioTime, settings.blockHold, paletteRgb.accent, 0.75))
-        }
+        st.blocks.push(makeBlock(col, row, audioTime, settings.blockHold * 1.5, paletteRgb.accent, 0.80))
       }
       break
     }
 
     case 'crossFlare': {
-      const vrails = st.rails.filter(r =>  r.vertical)
-      const hrails = st.rails.filter(r => !r.vertical)
-      for (const vr of vrails) {
+      // Scale from flareAmount so it remains usable manually even at low settings
+      const scale  = Math.max(0.30, settings.flareAmount)
+      const bright = 0.60 + scale * 0.35
+      let vrails = st.rails.filter(r =>  r.vertical)
+      let hrails = st.rails.filter(r => !r.vertical)
+      // Create a minimal temporary cross when no intersections exist
+      if (vrails.length === 0) {
+        st.seedCounter++
+        const r = makeVerticalRail(st.seedCounter, { ...settings, railLifetime: 0.8 }, audioTime, st.rails, paletteRgb, 0.55)
+        st.rails.push(r)
+        vrails = [r]
+      }
+      if (hrails.length === 0) {
+        st.seedCounter++
+        const r = makeHorizontalRail(st.seedCounter, { ...settings, railLifetime: 0.8 }, audioTime, st.rails, paletteRgb, 0.55)
+        st.rails.push(r)
+        hrails = [r]
+      }
+      const maxFlares = Math.min(MAX_FLARES, Math.max(4, Math.round(scale * MAX_FLARES * 0.5)))
+      outer: for (const vr of vrails) {
         for (const hr of hrails) {
-          if (st.flares.length >= MAX_FLARES) break
-          st.flares.push(makeFlare(vr.pos, hr.pos, audioTime, 0.8, paletteRgb.primary, (vr.depth + hr.depth) / 2))
+          if (st.flares.length >= maxFlares) break outer
+          st.flares.push(makeFlare(vr.pos, hr.pos, audioTime, bright, paletteRgb.primary, (vr.depth + hr.depth) / 2, scale))
         }
-        if (st.flares.length >= MAX_FLARES) break
       }
       break
     }
 
     case 'whiteout': {
+      // Fast attack flash — very short, no lingering white overlay
       st.overlayColor    = '#ffffff'
       st.overlayAlpha    = 1
       st.overlayStartSec = audioTime
-      st.overlayDuration = 1.5
+      st.overlayDuration = WHITEOUT_DURATION
       break
     }
 
     case 'blackout': {
+      // Short controlled envelope — auto-recovers; independent of blackoutMode setting
       st.overlayColor    = '#000000'
       st.overlayAlpha    = 1
       st.overlayStartSec = audioTime
-      st.overlayDuration = 2.0
+      st.overlayDuration = BLACKOUT_DURATION
       break
     }
 
     case 'reseed': {
-      // Expire everything immediately and reset seed
-      st.rails      = []
-      st.pulses     = []
-      st.flares     = []
-      st.blocks     = []
-      st.shockwaves = []
-      st.seedCounter = 1
-      // Clear trail canvas
-      const tCtx = st.trailCanvas.getContext('2d')
-      if (tCtx) { tCtx.clearRect(0, 0, W, H) }
+      // Morph: bump seed epoch and accelerate turnover of existing rails.
+      // No canvas clear — trails persist, but existing rails fade out quickly.
+      st.seedCounter += 1000 + ((audioTime * 1000 | 0) % 997)
+      st.lastReseedBarIndex = -1
+      // Shorten remaining lifetimes so new-seed rails visibly replace old ones
+      for (const rail of st.rails) {
+        const elapsed   = audioTime - rail.birthSec
+        const remaining = Math.max(0, rail.lifetime - elapsed)
+        rail.lifetime   = elapsed + remaining * RESEED_LIFE_SCALE
+      }
       break
     }
 
     case 'freezeTrails': {
-      // Freeze for 1.2s then burst
-      st.frozenUntilSec   = audioTime + 1.2
+      // Pause trail decay, pulse movement, spawning, and camera drift for FREEZE_DURATION seconds
+      st.frozenUntilSec   = audioTime + FREEZE_DURATION
       st.burstAfterFreeze = true
       break
     }
 
     case 'cyanStrike': {
-      const beatSec = bpm > 0 ? 60 / bpm : 0.5
-      st.cyanStrikeUntilSec = audioTime + Math.max(0.5, beatSec * 2)
+      // Temporarily override rail draw colors to cyan; palette restores automatically on expiry
+      st.cyanStrikeUntilSec = audioTime + resolveCyanStrikeDuration(bpm)
       break
     }
   }
@@ -282,10 +354,39 @@ function dispatchTrigger(
 
 // ── Draw helpers (trail canvas) ───────────────────────────────────────────────
 
-function applyTrailDecay(tCtx: Ctx2D, W: number, H: number, trailDecay: number): void {
-  const keepFraction = 1 - Math.max(0.02, Math.min(0.98, trailDecay))
+function applyTrailDecay(
+  tCtx:       Ctx2D,
+  W:          number,
+  H:          number,
+  trailDecay: number,
+  style:      NeonLatticeDecayStyle,
+  dt:         number,
+  audioTime:  number,
+): void {
+  let alpha: number
+  const rate = Math.max(0.005, Math.min(0.98, trailDecay))
+  switch (style) {
+    case 'exponential':
+      // Frame-multiplicative: each frame paints `rate` opacity of background
+      alpha = rate
+      break
+    case 'linear':
+      // Time-consistent: dt-scaled so decay speed is independent of frame rate
+      alpha = Math.min(0.98, rate * dt * 15)
+      break
+    case 'hold':
+      // Very slow fade — trails persist much longer than exponential
+      alpha = Math.min(0.40, rate * dt * 3)
+      break
+    case 'pulse':
+      // Sinusoidal oscillation: trail rhythmically brightens and dims
+      alpha = Math.max(0.004, rate * (0.25 + 0.75 * Math.abs(Math.sin(audioTime * Math.PI * 1.6))))
+      break
+    default:
+      alpha = rate
+  }
   tCtx.globalCompositeOperation = 'source-over'
-  tCtx.fillStyle = `rgba(3,7,13,${(1 - keepFraction).toFixed(3)})`
+  tCtx.fillStyle = `rgba(3,7,13,${alpha.toFixed(3)})`
   tCtx.fillRect(0, 0, W, H)
 }
 
@@ -407,7 +508,7 @@ function drawFlare(
 
   const x    = flare.x * W
   const y    = flare.y * H
-  const size = (0.035 + bloom * 0.035) * Math.min(W, H)
+  const size = (0.035 + bloom * 0.035) * Math.min(W, H) * Math.max(0.3, flare.scale)
 
   ctx.save()
 
@@ -481,11 +582,13 @@ function applyBloom(
  * pulses to append after the loop.
  */
 function updatePulses(
-  st:          NeonLatticeState,
-  dt:          number,
-  audioTime:   number,
-  paletteRgb:  string,
-  settings:    { pulseSpeed: number; cyanAccentChance: number },
+  st:           NeonLatticeState,
+  dt:           number,
+  audioTime:    number,
+  paletteRgb:   string,
+  settings:     { pulseSpeed: number; cyanAccentChance: number },
+  flareAmount:  number,
+  flareTarget:  number,
 ): { newFlares: NeonFlare[]; newPulses: NeonPulse[] } {
   const newFlares: NeonFlare[] = []
   const newPulses: NeonPulse[] = []
@@ -520,9 +623,12 @@ function updatePulses(
     const ix = pulse.vertical ? pulse.railPos : intersectAt
     const iy = pulse.vertical ? intersectAt   : pulse.railPos
 
-    // Spawn a flare on meaningful interactions (not just continue)
-    if (route !== 'continue' && newFlares.length < MAX_FLARES - st.flares.length) {
-      newFlares.push(makeFlare(ix, iy, audioTime, pulse.brightness, paletteRgb, pulse.depth))
+    // Automatic flare: gated by flareAmount probability and concurrent target
+    if (route !== 'continue' && flareTarget > 0 && st.flares.length + newFlares.length < flareTarget) {
+      const [fv] = prngNext(routeSeed + 19)
+      if (fv < flareAmount) {
+        newFlares.push(makeFlare(ix, iy, audioTime, pulse.brightness * flareAmount, paletteRgb, pulse.depth, flareAmount))
+      }
     }
 
     if (route === 'expire') {
@@ -588,10 +694,11 @@ const COMPLEX_DEBOUNCE   = 0.50
 const DOWNBEAT_DEBOUNCE  = 0.80
 
 export function renderNeonLattice(
-  ctx:    CanvasRenderingContext2D,
-  frame:  ReactFrameContext,
-  params: ReactRenderParams,
-  preset: ReactPreset,
+  ctx:         CanvasRenderingContext2D,
+  frame:       ReactFrameContext,
+  params:      ReactRenderParams,
+  preset:      ReactPreset,
+  manualSectionType: ReactSectionType | null = null,
 ): void {
   const { W, H } = frame
   const settings  = { ...DEFAULT_NEON_LATTICE_SETTINGS, ...params.neonLatticeSettings }
@@ -615,15 +722,104 @@ export function renderNeonLattice(
   const dt          = Math.min(0.1, Math.max(0, audioTime - (st.lastFrameSec < 0 ? audioTime : st.lastFrameSec)))
   st.lastFrameSec   = audioTime
   st.wasPlaying     = frame.isPlaying
+  // Freeze guard — declared early so blackout/camera sections can test it
+  const isFrozen    = audioTime < st.frozenUntilSec
 
   // ── Palette ────────────────────────────────────────────────────────────────
-  const paletteRgb = {
-    primary: hexToRgbStr(preset.palette.primary),
-    accent:  hexToRgbStr(preset.palette.accent),
+  const paletteRgb: NeonPaletteRgb = {
+    primary:   hexToRgbStr(preset.palette.primary),
+    secondary: hexToRgbStr(preset.palette.secondary),
+    accent:    hexToRgbStr(preset.palette.accent),
+    highlight: hexToRgbStr(preset.palette.highlight),
   }
   const bgColor  = preset.palette.background ?? '#03070d'
-  const accentRgb = hexToRgbStr(preset.palette.accent)
-  const cyanRgb   = '74,199,219'
+  const accentRgb = paletteRgb.accent
+  const cyanRgb   = '74,199,219'  // explicit cyan for cyanStrike override only
+
+  // ── Bass Reactivity ────────────────────────────────────────────────────────
+  // Never makes engine invisible: floor at 1.0 (no reaction), rises above 1.0
+  // only when both bassReactivity and current bass are non-zero.
+  const bassEnergy = Math.max(0, Math.min(1, frame.audio.bass))
+  const bassBoost  = 1.0 + params.bassReactivity * bassEnergy * 0.65
+
+  // ── Effective section (manual > MI section > null) ─────────────────────────
+  const mi = frame.musicIntelligence
+  const miSectionType = mi?.section.type ?? null
+  const effectiveSectionType = resolveEffectiveSection(manualSectionType, miSectionType)
+
+  // ── Section spawn multiplier ───────────────────────────────────────────────
+  const sectionSpawnMul = resolveSectionSpawnMul(
+    effectiveSectionType,
+    mi?.energy.buildProgress ?? 0,
+    mi?.energy.dropImpact    ?? 0,
+    mi?.energy.tension       ?? 0,
+    mi?.section.progress     ?? 0,
+  )
+
+  // ── Camera motion update (paused during freeze) ───────────────────────────
+  const cm = settings.cameraMotion
+  if (cm > 0 && dt > 0 && !isFrozen) {
+    const driftSeed = ((st.seedCounter + 7777) * 1009 + (audioTime * 10 | 0)) >>> 0
+    const [dv] = prngNext(driftSeed)
+    st.cameraDriftVX += (dv - 0.5) * cm * 0.0015 * dt
+    st.cameraDriftVX *= Math.pow(0.88, dt * 60)
+    st.cameraDriftX  += st.cameraDriftVX * dt
+    const driftLimit  = 0.055 * cm
+    st.cameraDriftX   = Math.max(-driftLimit, Math.min(driftLimit, st.cameraDriftX))
+    const zoomTarget  = 1.0 + bassEnergy * cm * 0.030
+    st.cameraZoom    += (zoomTarget - st.cameraZoom) * Math.min(1, dt * 7)
+    st.cameraRotation *= Math.pow(0.80, dt * 60)
+    st.cameraRotation  = Math.max(-0.010 * cm, Math.min(0.010 * cm, st.cameraRotation))
+  } else {
+    st.cameraDriftX   = 0
+    st.cameraDriftVX  = 0
+    st.cameraZoom     = 1.0
+    st.cameraRotation = 0
+  }
+
+  // ── Bar-based auto-reseed ──────────────────────────────────────────────────
+  if (mi && settings.reseedInterval > 0 && mi.rhythm.barIndex >= 0) {
+    const barsSince = mi.rhythm.barIndex - st.lastReseedBarIndex
+    if (
+      (st.lastReseedBarIndex < 0 && mi.rhythm.barIndex >= settings.reseedInterval) ||
+      (st.lastReseedBarIndex >= 0 && barsSince >= settings.reseedInterval && mi.rhythm.downbeatHit)
+    ) {
+      st.seedCounter += 1000 + (mi.rhythm.barIndex * 37)
+      st.lastReseedBarIndex = mi.rhythm.barIndex
+    }
+  }
+
+  // ── Automatic blackout ─────────────────────────────────────────────────────
+  const blackoutMode = settings.blackoutMode
+  if (blackoutMode !== 'none' && !isFrozen && st.autoBlackoutEnd <= audioTime) {
+    const isPreDrop   = effectiveSectionType === 'preDrop'
+    const isFakeout   = mi ? mi.semantics.fakeoutConfidence > 0.72 : false
+    const isMajorDrop = mi ? (mi.energy.dropImpact > 0.82 && mi.rhythm.downbeatHit) : false
+    if (isPreDrop || isFakeout || isMajorDrop) {
+      const barsInSec = frame.bpm > 0 ? 60 / frame.bpm * 4 : 2.0
+      switch (blackoutMode) {
+        case 'instant':
+          st.overlayColor    = '#000000'
+          st.overlayAlpha    = 1
+          st.overlayStartSec = audioTime
+          st.overlayDuration = Math.min(barsInSec * 0.5, 1.2)
+          st.autoBlackoutEnd = audioTime + barsInSec
+          break
+        case 'fadeOut':
+          st.overlayColor    = '#000000'
+          st.overlayAlpha    = 1
+          st.overlayStartSec = audioTime
+          st.overlayDuration = Math.min(barsInSec * 2, 3.5)
+          st.autoBlackoutEnd = audioTime + st.overlayDuration
+          break
+        case 'strobe':
+          st.strobeNextFlipSec = audioTime
+          st.strobeState       = false
+          st.autoBlackoutEnd   = audioTime + Math.min(barsInSec, 2.0)
+          break
+      }
+    }
+  }
 
   // ── Trigger consumption (one-shot per seq) ─────────────────────────────────
   const trig = params.neonLatticeTrigger
@@ -632,21 +828,26 @@ export function renderNeonLattice(
     dispatchTrigger(st, trig.type, audioTime, paletteRgb, settings, frame.bpm, W, H)
   }
 
-  // ── Post-freeze burst ──────────────────────────────────────────────────────
+  // ── Post-freeze burst (restrained — fires once on release) ────────────────
   if (st.burstAfterFreeze && audioTime > st.frozenUntilSec) {
     st.burstAfterFreeze = false
-    dispatchTrigger(st, 'railBurst', audioTime, paletteRgb, settings, frame.bpm, W, H)
+    const strength = 0.58
+    for (let i = 0; i < 2; i++) {
+      if (st.rails.filter(r => r.vertical).length < MAX_VERT) {
+        st.seedCounter++
+        st.rails.push(makeVerticalRail(st.seedCounter, settings, audioTime, st.rails, paletteRgb, strength))
+      }
+    }
+    if (st.rails.filter(r => !r.vertical).length < MAX_HORIZ) {
+      st.seedCounter++
+      st.rails.push(makeHorizontalRail(st.seedCounter, settings, audioTime, st.rails, paletteRgb, strength))
+    }
   }
-
-  // ── Freeze guard (skip motion during freeze) ───────────────────────────────
-  const isFrozen = audioTime < st.frozenUntilSec
 
   // ── CyanStrike color override ──────────────────────────────────────────────
   const isCyanStrike = audioTime < st.cyanStrikeUntilSec
 
   // ── Event detection ────────────────────────────────────────────────────────
-  const mi = frame.musicIntelligence
-
   let spawnKick      = false; let kickStrength      = 0.5
   let spawnSnare     = false; let snareStrength     = 0.5
   let spawnBeat      = false; let beatStrength      = 0.5
@@ -686,105 +887,157 @@ export function renderNeonLattice(
   }
 
   if (!isFrozen) {
-  // ── Rail spawning ──────────────────────────────────────────────────────────
+  // ── Rail spawning (railDensity + verticalBias → continuous orientation targets) ──
   const vertRails  = st.rails.filter(r => r.vertical)
   const horizRails = st.rails.filter(r => !r.vertical)
-  const density    = settings.railDensity * params.intensity
+  const { targetVert: rawTargetVert, targetHoriz: rawTargetHoriz } = resolveRailTargets(settings.railDensity, settings.verticalBias)
+  // Section spawn multiplier scales the effective targets — drop boosts density, intro reduces it
+  const targetVert  = Math.round(rawTargetVert  * Math.max(0.1, sectionSpawnMul))
+  const targetHoriz = Math.round(rawTargetHoriz * Math.max(0.1, sectionSpawnMul))
 
-  if (spawnKick && density > 0.05) {
-    const vCount  = vertRails.length
-    const toSpawn = vCount < MAX_VERT ? (vCount < MAX_VERT * 0.5 ? 2 : 1) : 0
+  if (spawnKick && targetVert > 0) {
+    const toSpawn = Math.min(targetVert - vertRails.length, 2)
     for (let i = 0; i < toSpawn; i++) {
       st.seedCounter++
-      st.rails.push(makeVerticalRail(st.seedCounter, settings, audioTime, st.rails, paletteRgb, kickStrength))
+      st.rails.push(makeVerticalRail(st.seedCounter, settings, audioTime, st.rails, paletteRgb, kickStrength * bassBoost))
     }
     st.lastKickSec = audioTime
   }
 
-  if (spawnSnare && density > 0.05) {
-    const hCount  = horizRails.length
-    const toSpawn = hCount < MAX_HORIZ ? (hCount < MAX_HORIZ * 0.5 ? 2 : 1) : 0
+  if (spawnSnare && targetHoriz > 0) {
+    const toSpawn = Math.min(targetHoriz - horizRails.length, 2)
     for (let i = 0; i < toSpawn; i++) {
       st.seedCounter++
-      st.rails.push(makeHorizontalRail(st.seedCounter, settings, audioTime, st.rails, paletteRgb, snareStrength))
+      st.rails.push(makeHorizontalRail(st.seedCounter, settings, audioTime, st.rails, paletteRgb, snareStrength * bassBoost))
     }
     st.lastSnareSec = audioTime
   }
 
-  if (spawnBeat && density > 0.05) {
+  if (spawnBeat && (targetVert > 0 || targetHoriz > 0)) {
+    // Seeded orientation choice (not modulo — deterministic per event)
     st.seedCounter++
-    const isVert = (st.seedCounter % 100) / 100 < settings.verticalBias
-    if (isVert && vertRails.length < MAX_VERT) {
+    const [bv] = prngNext(st.seedCounter)
+    const preferVert = bv < settings.verticalBias
+    if (preferVert && vertRails.length < targetVert) {
       st.rails.push(makeVerticalRail(st.seedCounter, settings, audioTime, st.rails, paletteRgb, beatStrength * 0.7))
-    } else if (!isVert && horizRails.length < MAX_HORIZ) {
+    } else if (!preferVert && horizRails.length < targetHoriz) {
       st.rails.push(makeHorizontalRail(st.seedCounter, settings, audioTime, st.rails, paletteRgb, beatStrength * 0.7))
     }
     st.lastBeatSec = audioTime
   }
 
-  // ── Pulse spawning (kicks → vertical, snares → horizontal) ────────────────
-  if (spawnKick && st.pulses.length < MAX_PULSES) {
-    // Pick a recently-spawned vertical rail to host the pulse
+  // ── Trigger gate helpers (pulse and block sources driven by settings.trigger) ──
+  const trg = settings.trigger
+  function allowPulse(event: 'kick' | 'snare' | 'downbeat'): boolean {
+    if (trg === 'none')      return false
+    if (trg === 'beat')      return event === 'kick' || event === 'snare'
+    if (trg === 'kick')      return event === 'kick'
+    if (trg === 'snare')     return event === 'snare'
+    if (trg === 'downbeat')  return event === 'downbeat'
+    if (trg === 'drop')      return event === 'downbeat'
+    return false
+  }
+  function allowBlock(event: 'hat' | 'flux' | 'complex'): boolean {
+    if (trg === 'none')     return false
+    if (trg === 'beat')     return true
+    if (trg === 'kick')     return event === 'hat'
+    if (trg === 'snare')    return event === 'flux'
+    if (trg === 'downbeat') return event === 'complex'
+    if (trg === 'drop')     return event === 'flux' || event === 'complex'
+    return false
+  }
+
+  // ── Snap-slot deduplication (one pulse / one block event per subdivision) ──
+  const pulseSlot = resolveSnapSlot(audioTime, frame.bpm, settings.snapDivision)
+  const blockSlot = pulseSlot  // same musical grid for both
+
+  // ── Pulse spawning ─────────────────────────────────────────────────────────
+  if (spawnKick && allowPulse('kick') && pulseSlot !== st.lastPulseSnapSlot) {
     const vrails = st.rails.filter(r => r.vertical)
-    if (vrails.length > 0) {
+    if (vrails.length > 0 && st.pulses.length < MAX_PULSES) {
       st.seedCounter++
       const rail = vrails[st.seedCounter % vrails.length]
       const dir: 1 | -1 = kickStrength > 0.5 ? 1 : -1
-      st.pulses.push(makePulseOnRail(rail, dir, settings, audioTime, paletteRgb, kickStrength, st.seedCounter, params.motion))
+      st.pulses.push(makePulseOnRail(rail, dir, settings, audioTime, paletteRgb, Math.min(1, kickStrength * bassBoost), st.seedCounter, params.motion))
+      st.lastPulseSnapSlot = pulseSlot
     }
   }
 
-  if (spawnSnare && st.pulses.length < MAX_PULSES) {
+  if (spawnSnare && allowPulse('snare') && pulseSlot !== st.lastPulseSnapSlot) {
     const hrails = st.rails.filter(r => !r.vertical)
-    if (hrails.length > 0) {
-      // Center-outward: launch one pulse in each direction
+    if (hrails.length > 0 && st.pulses.length < MAX_PULSES - 1) {
       st.seedCounter++
       const rail = hrails[st.seedCounter % hrails.length]
-      if (st.pulses.length < MAX_PULSES - 1) {
-        st.pulses.push(makePulseOnRail(rail, 1,  settings, audioTime, paletteRgb, snareStrength, st.seedCounter,     params.motion))
-        st.pulses.push(makePulseOnRail(rail, -1, settings, audioTime, paletteRgb, snareStrength, st.seedCounter + 1, params.motion))
-      }
+      st.pulses.push(makePulseOnRail(rail, 1,  settings, audioTime, paletteRgb, Math.min(1, snareStrength * bassBoost), st.seedCounter,     params.motion))
+      st.pulses.push(makePulseOnRail(rail, -1, settings, audioTime, paletteRgb, Math.min(1, snareStrength * bassBoost), st.seedCounter + 1, params.motion))
+      st.lastPulseSnapSlot = pulseSlot
     }
   }
 
-  // ── Block spawning ─────────────────────────────────────────────────────────
+  if (spawnDownbeat && allowPulse('downbeat') && pulseSlot !== st.lastPulseSnapSlot) {
+    const allRails = st.rails
+    if (allRails.length > 0 && st.pulses.length < MAX_PULSES) {
+      st.seedCounter++
+      const rail = allRails[st.seedCounter % allRails.length]
+      st.pulses.push(makePulseOnRail(rail, 1, settings, audioTime, paletteRgb, Math.min(1, downbeatStrength * bassBoost), st.seedCounter, params.motion))
+      st.lastPulseSnapSlot = pulseSlot
+    }
+  }
+
+  // ── Block spawning (blockDensity: probability, cells, and concurrent target) ──
+  const blockConcurrentTarget = Math.round(settings.blockDensity * MAX_BLOCKS)
+
   function spawnBlocks(pattern: 'verticalRain' | 'diagonalStair' | 'centerOutward' | 'checker' | 'horizontalScan', strength: number): void {
-    if (st!.blocks.length >= MAX_BLOCKS) return
-    st!.seedCounter++
-    const cells = spawnBlockPattern(pattern, st!.seedCounter, strength)
+    if (!st || st.blocks.length >= blockConcurrentTarget) return
+    st.seedCounter++
+    // Probability gate: seeded check proportional to blockDensity
+    const [pv] = prngNext(st.seedCounter + 31)
+    if (pv > settings.blockDensity) return
+    // Cell count scales with density
+    const cellStrength = Math.min(1, strength * Math.max(0.15, settings.blockDensity))
+    const cells = spawnBlockPattern(pattern, st.seedCounter, cellStrength)
     for (const { col, row } of cells) {
-      if (st!.blocks.length >= MAX_BLOCKS) break
-      st!.blocks.push(makeBlock(col, row, audioTime, settings.blockHold, accentRgb, strength))
+      if (st.blocks.length >= Math.min(MAX_BLOCKS, blockConcurrentTarget)) break
+      st.blocks.push(makeBlock(col, row, audioTime, settings.blockHold, accentRgb, Math.min(1, strength * bassBoost)))
     }
   }
 
-  if (spawnHat && settings.blockDensity > 0.05) {
+  if (spawnHat && allowBlock('hat') && blockSlot !== st.lastBlockSnapSlot) {
     spawnBlocks((st.seedCounter % 2 === 0) ? 'verticalRain' : 'horizontalScan', hatStrength)
     st.lastHatSec = audioTime
+    st.lastBlockSnapSlot = blockSlot
   }
 
-  if (spawnFlux && settings.blockDensity > 0.05) {
+  if (spawnFlux && allowBlock('flux') && blockSlot !== st.lastBlockSnapSlot) {
     spawnBlocks((st.seedCounter % 2 === 0) ? 'diagonalStair' : 'checker', fluxStrength)
     st.lastFluxSec = audioTime
+    st.lastBlockSnapSlot = blockSlot
   }
 
-  if (spawnComplex && settings.blockDensity > 0.05) {
+  if (spawnComplex && allowBlock('complex') && blockSlot !== st.lastBlockSnapSlot) {
     spawnBlocks((st.seedCounter % 2 === 0) ? 'centerOutward' : 'checker', 0.6)
     st.lastComplexSec = audioTime
+    st.lastBlockSnapSlot = blockSlot
   }
 
   // ── Shockwave spawning (downbeats) ─────────────────────────────────────────
   if (spawnDownbeat && settings.shockwaves && st.shockwaves.length < MAX_SHOCKWAVES) {
-    st.shockwaves.push(makeShockwave(0.5, 0.5, audioTime, downbeatStrength, settings.pulseSpeed, paletteRgb.primary))
+    st.shockwaves.push(makeShockwave(0.5, 0.5, audioTime, Math.min(1, downbeatStrength * bassBoost), settings.pulseSpeed, paletteRgb.primary))
     st.lastDownbeatSec = audioTime
+    // Downbeat zoom punch on camera (small, bounded, clamped above in update)
+    if (cm > 0) {
+      st.cameraRotation += downbeatStrength * cm * 0.008
+    }
   }
   } // end !isFrozen spawn block
 
   // ── Advance pulses + handle intersections (skipped during freeze) ─────────
   if (!isFrozen) {
-    const { newFlares, newPulses } = updatePulses(st, dt, audioTime, paletteRgb.primary, settings)
+    const flareAmount  = settings.flareAmount
+    const flareTarget  = Math.max(0, Math.round(flareAmount * MAX_FLARES))
+    const { newFlares, newPulses } = updatePulses(st, dt, audioTime, paletteRgb.primary, settings, flareAmount, flareTarget)
     for (const f of newFlares) {
-      if (st.flares.length < MAX_FLARES) st.flares.push(f)
+      if (st.flares.length < flareTarget) st.flares.push(f)
     }
     for (const p of newPulses) {
       if (st.pulses.length < MAX_PULSES) st.pulses.push(p)
@@ -802,8 +1055,10 @@ export function renderNeonLattice(
   const tCtx = st.trailCanvas.getContext('2d')
   if (!tCtx) return
 
+  const drawIntensity = Math.min(1.5, params.intensity * bassBoost)
+
   if (!isFrozen) {
-    applyTrailDecay(tCtx, W, H, params.trailDecay ?? 0.08)
+    applyTrailDecay(tCtx, W, H, params.trailDecay ?? 0.08, settings.decayStyle, dt, audioTime)
   }
 
   tCtx.lineCap  = 'round'
@@ -811,51 +1066,84 @@ export function renderNeonLattice(
 
   // Blocks (behind rails)
   for (const block of st.blocks) {
-    drawBlock(tCtx, block, W, H, audioTime - block.birthSec, params.intensity)
+    drawBlock(tCtx, block, W, H, audioTime - block.birthSec, drawIntensity)
   }
 
   // Pulses (accumulate on trail canvas for persistence)
   if (!isFrozen) {
     for (const pulse of st.pulses) {
-      drawPulse(tCtx, pulse, W, H, audioTime - pulse.birthSec, params.intensity)
+      drawPulse(tCtx, pulse, W, H, audioTime - pulse.birthSec, drawIntensity)
     }
   }
 
-  // Rails (depth-sorted, near rails on top; cyan override during cyanStrike)
+  // Rails — depth-sorted (far first), with per-rail depth dimming and parallax
   const sortedRails = st.rails.slice().sort((a, b) => a.depth - b.depth)
   for (const rail of sortedRails) {
-    const age = audioTime - rail.birthSec
-    const la  = railLifetimeAlpha(age, rail.lifetime)
-    drawRail(tCtx, rail, W, H, la, params.intensity, isCyanStrike ? cyanRgb : undefined)
+    const age  = audioTime - rail.birthSec
+    const la   = railLifetimeAlpha(age, rail.lifetime)
+    const dm   = resolveDepthModifiers(settings.depth, rail.depth)
+    const pxOff = resolveCameraParallaxShift(rail.depth, st.cameraDriftX, settings.parallax)
+    const needsShift = Math.abs(pxOff) > 0.0005
+    if (needsShift) tCtx.save()
+    if (needsShift) tCtx.translate(pxOff * W, 0)
+    drawRail(tCtx, rail, W, H, la * dm.alphaMul, drawIntensity * dm.intensityMul, isCyanStrike ? cyanRgb : undefined)
+    if (needsShift) tCtx.restore()
   }
 
-  // ── Main output: background → trail → flares → shockwaves → bloom → overlay ─
+  // ── Main output: background → trail (camera-transformed) → flares → shockwaves → bloom → overlay ─
   ctx.globalAlpha              = 1
   ctx.globalCompositeOperation = 'source-over'
   ctx.fillStyle = bgColor
   ctx.fillRect(0, 0, W, H)
 
-  ctx.drawImage(st.trailCanvas, 0, 0)
+  // Camera transform applied when blitting trail so trails accumulate flat
+  const hasCamera = Math.abs(st.cameraDriftX) > 0.0005 || Math.abs(st.cameraZoom - 1) > 0.0005 || Math.abs(st.cameraRotation) > 0.0001
+  if (hasCamera) {
+    ctx.save()
+    ctx.translate(W * 0.5, H * 0.5)
+    ctx.rotate(st.cameraRotation)
+    ctx.scale(st.cameraZoom, st.cameraZoom)
+    ctx.translate(-W * 0.5 + st.cameraDriftX * W, -H * 0.5)
+    ctx.drawImage(st.trailCanvas, 0, 0)
+    ctx.restore()
+  } else {
+    ctx.drawImage(st.trailCanvas, 0, 0)
+  }
 
   // Flares (on main canvas, screen blend so they brighten rails beneath)
   const sprite = getFlareSprite()
   for (const flare of st.flares) {
-    drawFlare(ctx, flare, W, H, sprite, audioTime - flare.birthSec, params.intensity, settings.bloom * params.glow)
+    drawFlare(ctx, flare, W, H, sprite, audioTime - flare.birthSec, drawIntensity, settings.bloom * params.glow)
   }
 
   // Shockwaves
   for (const sw of st.shockwaves) {
-    drawShockwave(ctx, sw, W, H, audioTime - sw.birthSec, params.intensity)
+    drawShockwave(ctx, sw, W, H, audioTime - sw.birthSec, drawIntensity)
   }
 
-  // Bloom (screen-blend downscaled trail)
-  applyBloom(ctx, st.trailCanvas, st.bloomCanvas, settings.bloom * params.glow, W, H)
+  // Bloom (screen-blend downscaled trail); bass reactivity amplifies glow response
+  applyBloom(ctx, st.trailCanvas, st.bloomCanvas, settings.bloom * params.glow * Math.min(1.5, bassBoost), W, H)
+
+  // ── Strobe (auto-blackout mode 'strobe') ──────────────────────────────────
+  if (blackoutMode === 'strobe' && st.autoBlackoutEnd > audioTime) {
+    if (audioTime >= st.strobeNextFlipSec) {
+      st.strobeState       = !st.strobeState
+      st.strobeNextFlipSec = audioTime + 0.065  // ~15 Hz
+    }
+    if (st.strobeState) {
+      ctx.save()
+      ctx.globalAlpha              = 0.88
+      ctx.globalCompositeOperation = 'source-over'
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, W, H)
+      ctx.restore()
+    }
+  }
 
   // ── Whiteout / blackout overlay (fades out automatically) ─────────────────
   if (st.overlayAlpha > 0) {
-    const age      = audioTime - st.overlayStartSec
-    const progress = Math.min(1, age / Math.max(0.001, st.overlayDuration))
-    const alpha    = st.overlayAlpha * (1 - progress)
+    const age   = audioTime - st.overlayStartSec
+    const alpha = st.overlayAlpha * resolveOverlayAlpha(age, st.overlayDuration)
     if (alpha > 0.002) {
       ctx.save()
       ctx.globalAlpha              = alpha

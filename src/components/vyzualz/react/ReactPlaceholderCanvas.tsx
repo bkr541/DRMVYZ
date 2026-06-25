@@ -207,6 +207,15 @@ export function ReactPlaceholderCanvas({
         high = hSum / (binCount - midBins)  / 255
         vol  = vSum / binCount / 255
 
+        // Resolve the current audio time before pumping the MI engine so it
+        // receives an accurate timestamp — not the value from the previous frame.
+        const freshTime = getAudioTimeRef.current?.()
+        if (freshTime !== undefined) {
+          audioTimeRef.current = freshTime
+        } else if (isPlayingRef.current) {
+          audioTimeRef.current += 1 / 60
+        }
+
         // Pump Music Intelligence Engine so LaserDMX and other React engines get
         // full MI data (kick, snare, beatPhase, buildProgress, etc.), not just the
         // simple bass/mid/high fallback that ReactPlaceholderCanvas computes above.
@@ -219,11 +228,11 @@ export function ReactPlaceholderCanvas({
         })
       }
 
-      // Use Music Intelligence bus when available; fall back to simple transient detection.
-      // MI BPM is considered valid when the engine has published at least one frame AND
-      // its BPM is non-zero (zero means setTrackAnalysis(null) cleared the engine).
+      // Expose the MI frame whenever any data has been published (frameId > 0),
+      // even when BPM is still unknown (bpm === 0). Energy, section, and semantic
+      // data are useful without a known BPM. BPM is resolved separately below.
       const miFrame  = AudioFeatureBus.getFrame()
-      const hasMI    = miFrame.frameId > 0 && miFrame.rhythm.bpm > 0
+      const hasMI    = miFrame.frameId > 0
 
       let beatHit: boolean
       let activeBeatPhase: number
@@ -234,9 +243,13 @@ export function ReactPlaceholderCanvas({
       if (hasMI) {
         beatHit          = miFrame.rhythm.beatHit
         activeBeatPhase  = miFrame.rhythm.beatPhase
-        // Prefer the engine-canonical effective BPM when available (overrides sync).
-        // Fall back to the MI frame value which is authoritative from the beat grid.
-        activeBpm        = effectiveBpmRef.current ?? miFrame.rhythm.bpm
+        // BPM: prefer engine-canonical effective BPM when available.
+        // When MI BPM is zero (track analysis not yet available), use effectiveBpm
+        // or 0 to signal "BPM unknown" — never substitute a hardcoded fallback.
+        const miBpm = miFrame.rhythm.bpm
+        activeBpm   = (effectiveBpmRef.current ?? 0) > 0
+          ? effectiveBpmRef.current!
+          : miBpm > 0 ? miBpm : 0
       } else {
         beatHit          = bass > 0.55 && bass > prevBass + 0.08
         prevBass         = bass * 0.8
@@ -251,11 +264,15 @@ export function ReactPlaceholderCanvas({
         activeBpm        = (effectiveBpmRef.current ?? 0) > 0 ? effectiveBpmRef.current! : 0
       }
 
-      const realTime = getAudioTimeRef.current?.()
-      if (realTime !== undefined) {
-        audioTimeRef.current = realTime
-      } else if (isPlayingRef.current) {
-        audioTimeRef.current += 1 / 60
+      // Audio time is already resolved above (before the MI pump) when the
+      // analyser is present. Advance the clock here only when there is no analyser.
+      if (!analyserRef.current) {
+        const realTime = getAudioTimeRef.current?.()
+        if (realTime !== undefined) {
+          audioTimeRef.current = realTime
+        } else if (isPlayingRef.current) {
+          audioTimeRef.current += 1 / 60
+        }
       }
 
       const t = tRef.current

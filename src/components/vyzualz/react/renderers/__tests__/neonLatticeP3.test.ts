@@ -24,7 +24,7 @@ import type { NeonRail } from '../neonLatticeUtils'
 import { DEFAULT_NEON_LATTICE_SETTINGS } from '../../ReactTypes'
 
 const settings  = { ...DEFAULT_NEON_LATTICE_SETTINGS }
-const palette   = { primary: '74,199,219', accent: '220,60,190' }
+const palette   = { primary: '74,199,219', secondary: '220,60,190', accent: '220,60,190', highlight: '74,199,219' }
 
 // ── Fixture rail ──────────────────────────────────────────────────────────────
 
@@ -302,24 +302,32 @@ describe('object caps', () => {
     expect(GRID_COLS * GRID_ROWS).toBe(99)
   })
 
-  it('pulse cap simulation: count never exceeds MAX_PULSES', () => {
-    const pulses = []
-    for (let i = 0; i < MAX_PULSES + 10; i++) {
-      if (pulses.length < MAX_PULSES) {
-        pulses.push(makePulseOnRail(vertRail, 1, settings, i * 0.1, palette, 0.7, i, 0.5))
-      }
-    }
-    expect(pulses.length).toBeLessThanOrEqual(MAX_PULSES)
+  it('makePulseOnRail returns exactly one pulse object per call', () => {
+    const p = makePulseOnRail(vertRail, 1, settings, 0, palette, 0.7, 1, 0.5)
+    expect(typeof p).toBe('object')
+    expect(Array.isArray(p)).toBe(false)
+    expect(p.lifetime).toBeGreaterThan(0)
   })
 
-  it('block cap simulation: count never exceeds MAX_BLOCKS', () => {
-    const blocks = []
-    for (let i = 0; i < MAX_BLOCKS + 20; i++) {
-      if (blocks.length < MAX_BLOCKS) {
-        blocks.push(makeBlock(i % GRID_COLS, i % GRID_ROWS, i * 0.05, 1.0, '74,199,219', 0.5))
-      }
-    }
-    expect(blocks.length).toBeLessThanOrEqual(MAX_BLOCKS)
+  it('makeBlock returns exactly one block object per call', () => {
+    const b = makeBlock(0, 0, 0, 1.0, '74,199,219', 0.5)
+    expect(typeof b).toBe('object')
+    expect(Array.isArray(b)).toBe(false)
+    expect(b.lifetime).toBeGreaterThan(0)
+  })
+
+  it('makeFlare returns exactly one flare object per call', () => {
+    const f = makeFlare(0.5, 0.5, 0, 0.8, palette.primary, 0.5)
+    expect(typeof f).toBe('object')
+    expect(Array.isArray(f)).toBe(false)
+    expect(f.lifetime).toBeGreaterThan(0)
+  })
+
+  it('makeShockwave returns exactly one shockwave object per call', () => {
+    const sw = makeShockwave(0.5, 0.5, 0, 0.8, 0.6, palette.primary)
+    expect(typeof sw).toBe('object')
+    expect(Array.isArray(sw)).toBe(false)
+    expect(sw.lifetime).toBeGreaterThan(0)
   })
 })
 

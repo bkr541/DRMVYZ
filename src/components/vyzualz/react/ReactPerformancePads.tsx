@@ -32,8 +32,11 @@ export const NL_TRIGGER_PADS: Array<{
 
 const NL_TRIGGER_PAD_IDS = new Set(NL_TRIGGER_PADS.map(p => p.padId))
 
+const PRESSED_DURATION_MS = 150
+
 export function ReactPerformancePads() {
   const [collapsed, setCollapsed] = useState(true)
+  const [pressedNlPadId, setPressedNlPadId] = useState<string | null>(null)
 
   const {
     performancePads,
@@ -53,6 +56,16 @@ export function ReactPerformancePads() {
 
   const isNeonLattice = activeReactEngineId === 'neonLattice'
 
+  // Fire trigger + brief visual flash; does not persist state beyond the timeout
+  const fireNlTrigger = useCallback(
+    (padId: string, trigger: NeonLatticeTriggerType) => {
+      triggerNeonLattice(trigger)
+      setPressedNlPadId(padId)
+      setTimeout(() => setPressedNlPadId(p => p === padId ? null : p), PRESSED_DURATION_MS)
+    },
+    [triggerNeonLattice],
+  )
+
   const handleKey = useCallback(
     (e: KeyboardEvent) => {
       if (
@@ -67,13 +80,13 @@ export function ReactPerformancePads() {
       // Contextual NL trigger pads (pads 1-8 when neonLattice is active)
       if (isNeonLattice && NL_TRIGGER_PAD_IDS.has(padId)) {
         const nlPad = NL_TRIGGER_PADS.find(p => p.padId === padId)
-        if (nlPad) triggerNeonLattice(nlPad.trigger)
+        if (nlPad) fireNlTrigger(nlPad.padId, nlPad.trigger)
         return
       }
 
       setActivePadId(padId)
     },
-    [setActivePadId, triggerNeonLattice, isNeonLattice],
+    [setActivePadId, fireNlTrigger, isNeonLattice],
   )
 
   useEffect(() => {
@@ -112,11 +125,12 @@ export function ReactPerformancePads() {
             if (isNeonLattice) {
               const nlPad = NL_TRIGGER_PADS.find(p => p.padId === pad.id)
               if (nlPad) {
+                const isPressed = pressedNlPadId === nlPad.padId
                 return (
                   <button
                     key={pad.id}
-                    className="rv-pad rv-pad--nl-trigger"
-                    onClick={() => triggerNeonLattice(nlPad.trigger)}
+                    className={`rv-pad rv-pad--nl-trigger${isPressed ? ' rv-pad--pressed' : ''}`}
+                    onClick={() => fireNlTrigger(nlPad.padId, nlPad.trigger)}
                     title={`${nlPad.label} [${pad.keyBinding.toUpperCase()}]`}
                     style={{ '--pad-color': nlPad.color } as React.CSSProperties}
                   >
