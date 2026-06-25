@@ -21,7 +21,7 @@ export function NeonLatticeEnginePanel() {
     setNeonLatticeSettings(partial)
 
   return (
-    <div className="rv-engine-panel rv-engine-panel--neonlattice">
+    <>
 
       {/* ── Structure ──────────────────────────────────────────────────────── */}
       <CtrlSection label="Structure" />
@@ -184,6 +184,6 @@ export function NeonLatticeEnginePanel() {
           Reset Engine Settings
         </button>
       </div>
-    </div>
+    </>
   )
 }
