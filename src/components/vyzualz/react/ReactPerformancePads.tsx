@@ -1,6 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
+import type { NeonLatticeTriggerType } from './ReactTypes'
+
+// ── Key→pad mapping (unchanged) ──────────────────────────────────────────────
 
 const KEY_MAP: Record<string, string> = {
   '1': 'pad-1',  '2': 'pad-2',  '3': 'pad-3',  '4': 'pad-4',
@@ -9,20 +12,49 @@ const KEY_MAP: Record<string, string> = {
   'z': 'pad-13', 'x': 'pad-14', 'c': 'pad-15', 'v': 'pad-16',
 }
 
+// ── Neon Lattice contextual pads (first 8 slots when engine is neonLattice) ──
+
+export const NL_TRIGGER_PADS: Array<{
+  padId:   string
+  trigger: NeonLatticeTriggerType
+  label:   string
+  color:   string
+}> = [
+  { padId: 'pad-1', trigger: 'railBurst',    label: 'Rail Burst',  color: '#4ac7db' },
+  { padId: 'pad-2', trigger: 'blockCascade', label: 'Cascade',     color: '#61d6aa' },
+  { padId: 'pad-3', trigger: 'crossFlare',   label: 'Cross Flare', color: '#e8f4f8' },
+  { padId: 'pad-4', trigger: 'whiteout',     label: 'Whiteout',    color: '#ffffff' },
+  { padId: 'pad-5', trigger: 'blackout',     label: 'Blackout',    color: '#1a0a2e' },
+  { padId: 'pad-6', trigger: 'reseed',       label: 'Reseed',      color: '#b84fc9' },
+  { padId: 'pad-7', trigger: 'freezeTrails', label: 'Freeze',      color: '#80c8ff' },
+  { padId: 'pad-8', trigger: 'cyanStrike',   label: 'Cyan Strike', color: '#00ffee' },
+]
+
+const NL_TRIGGER_PAD_IDS = new Set(NL_TRIGGER_PADS.map(p => p.padId))
+
 export function ReactPerformancePads() {
   const [collapsed, setCollapsed] = useState(true)
 
-  const { performancePads, activePadId, setActivePadId } = useReactStore(
+  const {
+    performancePads,
+    activePadId,
+    setActivePadId,
+    activeReactEngineId,
+    triggerNeonLattice,
+  } = useReactStore(
     useShallow((s) => ({
-      performancePads: s.performancePads,
-      activePadId:     s.activePadId,
-      setActivePadId:  s.setActivePadId,
+      performancePads:      s.performancePads,
+      activePadId:          s.activePadId,
+      setActivePadId:       s.setActivePadId,
+      activeReactEngineId:  s.activeReactEngineId,
+      triggerNeonLattice:   s.triggerNeonLattice,
     })),
   )
 
+  const isNeonLattice = activeReactEngineId === 'neonLattice'
+
   const handleKey = useCallback(
     (e: KeyboardEvent) => {
-      // Ignore when typing in an input or textarea
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement
@@ -31,9 +63,17 @@ export function ReactPerformancePads() {
       const padId = KEY_MAP[e.key.toLowerCase()]
       if (!padId) return
       e.preventDefault()
+
+      // Contextual NL trigger pads (pads 1-8 when neonLattice is active)
+      if (isNeonLattice && NL_TRIGGER_PAD_IDS.has(padId)) {
+        const nlPad = NL_TRIGGER_PADS.find(p => p.padId === padId)
+        if (nlPad) triggerNeonLattice(nlPad.trigger)
+        return
+      }
+
       setActivePadId(padId)
     },
-    [setActivePadId],
+    [setActivePadId, triggerNeonLattice, isNeonLattice],
   )
 
   useEffect(() => {
@@ -58,13 +98,36 @@ export function ReactPerformancePads() {
           <path d="M495.304,278.262H294.957c-9.18,0-16.696,7.477-16.696,16.696v200.348c0,9.214,7.482,16.693,16.696,16.693h200.348c9.214,0,16.696-7.481,16.696-16.693V294.958C512,285.739,504.485,278.262,495.304,278.262z"/>
         </svg>
         <span className="rv-panel-title">Performance Pads</span>
-        <span className="rv-pads-hint">1–4 · Q–R · A–F · Z–V</span>
+        <span className="rv-pads-hint">
+          {isNeonLattice ? '1–4 · Q–R = NL Triggers · A–F · Z–V' : '1–4 · Q–R · A–F · Z–V'}
+        </span>
         <span className="rv-collapse-arrow">{collapsed ? '▶' : '▼'}</span>
       </div>
       {!collapsed && (
         <div className="rv-pads-grid">
           {performancePads.map((pad) => {
             const isActive = pad.id === activePadId
+
+            // Contextual NL trigger pads override the first 8 slots
+            if (isNeonLattice) {
+              const nlPad = NL_TRIGGER_PADS.find(p => p.padId === pad.id)
+              if (nlPad) {
+                return (
+                  <button
+                    key={pad.id}
+                    className="rv-pad rv-pad--nl-trigger"
+                    onClick={() => triggerNeonLattice(nlPad.trigger)}
+                    title={`${nlPad.label} [${pad.keyBinding.toUpperCase()}]`}
+                    style={{ '--pad-color': nlPad.color } as React.CSSProperties}
+                  >
+                    <span className="rv-pad-label">{nlPad.label}</span>
+                    <span className="rv-pad-key">{pad.keyBinding.toUpperCase()}</span>
+                  </button>
+                )
+              }
+            }
+
+            // Default preset pad behavior for remaining slots
             return (
               <button
                 key={pad.id}
@@ -72,9 +135,7 @@ export function ReactPerformancePads() {
                 onClick={() => pad.presetId && setActivePadId(pad.id)}
                 disabled={!pad.presetId}
                 title={pad.presetId ? `${pad.label} [${pad.keyBinding.toUpperCase()}]` : 'Empty pad'}
-                style={{
-                  '--pad-color': pad.color,
-                } as React.CSSProperties}
+                style={{ '--pad-color': pad.color } as React.CSSProperties}
               >
                 <span className="rv-pad-label">{pad.label}</span>
                 <span className="rv-pad-key">{pad.keyBinding.toUpperCase()}</span>

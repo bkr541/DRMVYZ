@@ -1,5 +1,6 @@
 import React from 'react'
 import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
+import { NeonLatticeEnginePanel } from './NeonLatticeEnginePanel'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore } from '../../../stores/mediaStore'
@@ -25,13 +26,14 @@ import type {
 
 // ── Engine family display data ────────────────────────────────────────────────
 
-const ENGINE_IDS: ReactEngineId[] = ['shaderPads', 'cinematicPortal', 'oscilloscope', 'laserDmx']
+const ENGINE_IDS: ReactEngineId[] = ['shaderPads', 'cinematicPortal', 'oscilloscope', 'laserDmx', 'neonLattice']
 
 const ENGINE_LABELS: Record<ReactEngineId, string> = {
   shaderPads:      'Shader Pads',
   cinematicPortal: 'Cinematic Portal',
   oscilloscope:    'Sound Drawing',
   laserDmx:        'LaserDMX',
+  neonLattice:     'Neon Lattice',
 }
 
 const ENGINE_ICONS: Record<ReactEngineId, string> = {
@@ -39,6 +41,7 @@ const ENGINE_ICONS: Record<ReactEngineId, string> = {
   cinematicPortal: '◎',
   oscilloscope:    '〜',
   laserDmx:        '✦',
+  neonLattice:     '⬡',
 }
 
 const ENGINE_DESCS: Record<ReactEngineId, string> = {
@@ -46,6 +49,7 @@ const ENGINE_DESCS: Record<ReactEngineId, string> = {
   cinematicPortal: 'Immersive depth tunnels and cinematic light portals.',
   oscilloscope:    'Live audio waveform drawing with glyph and text rendering.',
   laserDmx:        'DMX beam matrix and spatial fixture control with fog simulation.',
+  neonLattice:     'Beat-reactive neon rail grid with pulsing blocks and shockwaves.',
 }
 
 // ── Oscillator status card ────────────────────────────────────────────────────
@@ -329,7 +333,8 @@ export function ReactEnginePanel() {
       )}
 
       {/* ── Engine Mode: LaserDMX ─────────────────────────────────────── */}
-      {activeReactEngineId === 'laserDmx' && <LaserDmxEnginePanel />}
+      {activeReactEngineId === 'laserDmx'     && <LaserDmxEnginePanel />}
+      {activeReactEngineId === 'neonLattice'  && <NeonLatticeEnginePanel />}
 
       {/* ── Engine Mode: Oscilloscope ──────────────────────────────────── */}
       {activeReactEngineId === 'oscilloscope' && (

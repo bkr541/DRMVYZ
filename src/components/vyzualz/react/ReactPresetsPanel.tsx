@@ -5,13 +5,14 @@ import type { ReactPreset, ReactEngineId } from './ReactTypes'
 
 // ── Display data ──────────────────────────────────────────────────────────────
 
-const ENGINE_ORDER: ReactEngineId[] = ['shaderPads', 'cinematicPortal', 'oscilloscope', 'laserDmx']
+const ENGINE_ORDER: ReactEngineId[] = ['shaderPads', 'cinematicPortal', 'oscilloscope', 'laserDmx', 'neonLattice']
 
 const ENGINE_LABELS: Record<ReactEngineId, string> = {
   shaderPads:      'Shader Pads',
   cinematicPortal: 'Cinematic Portal',
   oscilloscope:    'Sound Drawing',
   laserDmx:        'LaserDMX',
+  neonLattice:     'Neon Lattice',
 }
 
 const ENGINE_ICONS: Record<ReactEngineId, string> = {
@@ -19,6 +20,7 @@ const ENGINE_ICONS: Record<ReactEngineId, string> = {
   cinematicPortal: '◎',
   oscilloscope:    '〜',
   laserDmx:        '✦',
+  neonLattice:     '⬡',
 }
 
 // ── Mode/source hint derivation ───────────────────────────────────────────────

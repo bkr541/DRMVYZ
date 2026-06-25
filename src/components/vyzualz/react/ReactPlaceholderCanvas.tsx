@@ -1,8 +1,8 @@
 import { useRef, useEffect } from 'react'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
-import type { ReactPreset, ReactTrackSection, OscillatorSettings, OscillatorGlyphAsset, OscillatorGlyphPoint, SoundDrawingLayer, SoundDrawingClip } from './ReactTypes'
-import { DEFAULT_OSCILLATOR_SETTINGS } from './ReactTypes'
+import type { ReactPreset, ReactTrackSection, OscillatorSettings, OscillatorGlyphAsset, OscillatorGlyphPoint, SoundDrawingLayer, SoundDrawingClip, NeonLatticeSettings, NeonLatticeTriggerEvent } from './ReactTypes'
+import { DEFAULT_OSCILLATOR_SETTINGS, DEFAULT_NEON_LATTICE_SETTINGS } from './ReactTypes'
 import type { ReactRenderParams } from './renderers/reactRenderUtils'
 import { DEFAULT_REACT_RENDER_PARAMS } from './renderers/ReactEngineRenderer'
 import { renderReactEngine } from './renderers/ReactEngineRenderer'
@@ -23,6 +23,8 @@ interface Props {
   oscillatorGlyphAssets?:       OscillatorGlyphAsset[]
   oscillatorGlyphPointCache?:   Record<string, OscillatorGlyphPoint[]>
   oscillatorTextPointCache?:    Record<string, OscillatorGlyphPoint[]>
+  neonLatticeSettings?:         NeonLatticeSettings
+  neonLatticeTrigger?:          NeonLatticeTriggerEvent | null
   isPlaying:                    boolean
   manualSections?:              ReactTrackSection[]
   getAudioTime?:                () => number
@@ -55,6 +57,8 @@ export function ReactPlaceholderCanvas({
   oscillatorGlyphAssets      = [] as OscillatorGlyphAsset[],
   oscillatorGlyphPointCache  = {} as Record<string, OscillatorGlyphPoint[]>,
   oscillatorTextPointCache   = {} as Record<string, OscillatorGlyphPoint[]>,
+  neonLatticeSettings        = DEFAULT_NEON_LATTICE_SETTINGS,
+  neonLatticeTrigger         = null,
   isPlaying,
   manualSections             = [],
   getAudioTime,
@@ -83,6 +87,8 @@ export function ReactPlaceholderCanvas({
   const glyphAssetsRef         = useRef<OscillatorGlyphAsset[]>(oscillatorGlyphAssets)
   const glyphPointCacheRef     = useRef<Record<string, OscillatorGlyphPoint[]>>(oscillatorGlyphPointCache)
   const textPointCacheRef      = useRef<Record<string, OscillatorGlyphPoint[]>>(oscillatorTextPointCache)
+  const neonLatticeSettingsRef = useRef<NeonLatticeSettings>(neonLatticeSettings)
+  const neonLatticeTriggerRef  = useRef<NeonLatticeTriggerEvent | null>(neonLatticeTrigger)
   const isPlayingRef           = useRef(isPlaying)
   const presetRef             = useRef<ReactPreset | null>(activePreset)
   const sectionsRef           = useRef<ReactTrackSection[]>(manualSections)
@@ -106,6 +112,8 @@ export function ReactPlaceholderCanvas({
   glyphAssetsRef.current         = oscillatorGlyphAssets
   glyphPointCacheRef.current     = oscillatorGlyphPointCache
   textPointCacheRef.current      = oscillatorTextPointCache
+  neonLatticeSettingsRef.current = neonLatticeSettings
+  neonLatticeTriggerRef.current  = neonLatticeTrigger
   isPlayingRef.current           = isPlaying
   presetRef.current             = activePreset
   sectionsRef.current           = manualSections
@@ -271,6 +279,7 @@ export function ReactPlaceholderCanvas({
         audio:     { bass, mid, high, volume: vol },
         freqData:       buf ?? null,
         timeDomainData: tBuf ?? null,
+        musicIntelligence: hasMI ? miFrame : null,
       }
 
       const renderParams: ReactRenderParams = {
@@ -286,6 +295,8 @@ export function ReactPlaceholderCanvas({
         oscillatorGlyphAssets:     glyphAssetsRef.current,
         oscillatorGlyphPointCache: glyphPointCacheRef.current,
         oscillatorTextPointCache:  textPointCacheRef.current,
+        neonLatticeSettings:       neonLatticeSettingsRef.current,
+        neonLatticeTrigger:        neonLatticeTriggerRef.current,
       }
 
       setSoundDrawingClipsForFrame(sdLayersRef.current, sdClipsRef.current)

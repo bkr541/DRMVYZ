@@ -1,4 +1,97 @@
-export type ReactEngineId = 'shaderPads' | 'cinematicPortal' | 'oscilloscope' | 'laserDmx'
+export type ReactEngineId = 'shaderPads' | 'cinematicPortal' | 'oscilloscope' | 'laserDmx' | 'neonLattice'
+
+// ── Neon Lattice performance trigger types ────────────────────────────────────
+
+export type NeonLatticeTriggerType =
+  | 'railBurst'
+  | 'blockCascade'
+  | 'crossFlare'
+  | 'whiteout'
+  | 'blackout'
+  | 'reseed'
+  | 'freezeTrails'
+  | 'cyanStrike'
+
+/** Non-persisted trigger event dispatched from the performance pads or UI. */
+export interface NeonLatticeTriggerEvent {
+  type: NeonLatticeTriggerType
+  /** Monotonic counter; renderer consumes each seq at most once. */
+  seq:  number
+}
+
+// ── Neon Lattice types ────────────────────────────────────────────────────────
+
+/** Beat subdivision to which pulses are snapped. */
+export type NeonLatticeSnapDivision = 1 | 2 | 4 | 8 | 16
+
+/** How the engine reacts to a drop/kick during blackout-driven moments. */
+export type NeonLatticeBlackoutMode = 'none' | 'instant' | 'fadeOut' | 'strobe'
+
+/** How rail trail brightness decays between frames. */
+export type NeonLatticeDecayStyle = 'linear' | 'exponential' | 'hold' | 'pulse'
+
+/** Audio event that triggers pulse emission and block spawning. */
+export type NeonLatticeTrigger = 'none' | 'beat' | 'downbeat' | 'kick' | 'snare' | 'drop'
+
+export interface NeonLatticeSettings {
+  /** 0–1 — how many rails are active across the canvas. */
+  railDensity:      number
+  /** 0–1 — 0 = all horizontal rails, 1 = all vertical, 0.5 = balanced. */
+  verticalBias:     number
+  /** 0–1 — how strongly rails cluster toward the canvas center. */
+  centerBias:       number
+  /** Seconds a rail persists before fading out. */
+  railLifetime:     number
+  /** 0–1 — speed of energy pulses travelling along rails. */
+  pulseSpeed:       number
+  /** 0–1 — brightness burst magnitude when the trigger fires. */
+  flareAmount:      number
+  /** Musical subdivision that pulse emission snaps to. */
+  snapDivision:     NeonLatticeSnapDivision
+  /** 0–1 — how many neon block rectangles overlay the lattice. */
+  blockDensity:     number
+  /** Seconds each block lingers before fading. */
+  blockHold:        number
+  /** 0–1 — probability that a rail is drawn in the cyan accent color. */
+  cyanAccentChance: number
+  /** 0–1 — bloom / glow intensity around hot rails. */
+  bloom:            number
+  /** 0–1 — z-plane depth separation between near and far rails. */
+  depth:            number
+  /** 0–1 — camera parallax offset magnitude. */
+  parallax:         number
+  /** 0–1 — speed of autonomous camera drift between bars. */
+  cameraMotion:     number
+  /** When true, a radial shockwave expands outward on drop/kick triggers. */
+  shockwaves:       boolean
+  /** Bars between full lattice regeneration; 0 = never reseed. */
+  reseedInterval:   number
+  blackoutMode:     NeonLatticeBlackoutMode
+  decayStyle:       NeonLatticeDecayStyle
+  trigger:          NeonLatticeTrigger
+}
+
+export const DEFAULT_NEON_LATTICE_SETTINGS: NeonLatticeSettings = {
+  railDensity:      0.45,
+  verticalBias:     0.60,
+  centerBias:       0.30,
+  railLifetime:     4.0,
+  pulseSpeed:       0.60,
+  flareAmount:      0.55,
+  snapDivision:     4,
+  blockDensity:     0.20,
+  blockHold:        0.50,
+  cyanAccentChance: 0.35,
+  bloom:            0.65,
+  depth:            0.30,
+  parallax:         0.15,
+  cameraMotion:     0.10,
+  shockwaves:       true,
+  reseedInterval:   16,
+  blackoutMode:     'none',
+  decayStyle:       'exponential',
+  trigger:          'beat',
+}
 
 // ── Oscillator path/glyph types ───────────────────────────────────────────────
 
@@ -930,6 +1023,8 @@ export interface ReactPreset {
   oscillatorSettings?: Partial<OscillatorSettings>
   /** When present, selecting this preset merges these values onto createDefaultLaserDmxSettings(). */
   laserDmxSettings?: Partial<LaserDmxSettings>
+  /** When present, selecting this preset merges these values onto DEFAULT_NEON_LATTICE_SETTINGS. */
+  neonLatticeSettings?: Partial<NeonLatticeSettings>
 }
 
 // ── React preset automation cues ─────────────────────────────────────────────
@@ -1092,6 +1187,51 @@ export const PALETTE_LASER_DMX: ReactPalette = {
   accent:     '#50ffff',
   background: DVYDRM_BLACK,
   highlight:  '#80ffe8',
+  text:       DVYDRM_WHITE,
+}
+
+export const PALETTE_NEON_LATTICE: ReactPalette = {
+  primary:    DVYDRM_CYAN,
+  secondary:  '#b84fc9',
+  accent:     DVYDRM_EMERALD,
+  background: '#03070d',
+  highlight:  '#80ffef',
+  text:       DVYDRM_WHITE,
+}
+
+const PALETTE_ACID_MAGENTA: ReactPalette = {
+  primary:    '#e040fb',
+  secondary:  DVYDRM_WHITE,
+  accent:     DVYDRM_CYAN,
+  background: '#08010d',
+  highlight:  '#ff80ff',
+  text:       DVYDRM_WHITE,
+}
+
+const PALETTE_DRMVYZ_LATTICE: ReactPalette = {
+  primary:    DVYDRM_CYAN,
+  secondary:  DVYDRM_EMERALD,
+  accent:     DVYDRM_GOLD,
+  background: '#010812',
+  highlight:  DVYDRM_WHITE,
+  text:       DVYDRM_WHITE,
+}
+
+const PALETTE_SPARSE_STARLINES: ReactPalette = {
+  primary:    '#c8e8ff',
+  secondary:  DVYDRM_WHITE,
+  accent:     DVYDRM_CYAN,
+  background: '#010308',
+  highlight:  '#ffffff',
+  text:       DVYDRM_WHITE,
+}
+
+const PALETTE_OVERLOAD_MATRIX: ReactPalette = {
+  primary:    '#ff3c6e',
+  secondary:  DVYDRM_CYAN,
+  accent:     DVYDRM_GOLD,
+  background: '#050008',
+  highlight:  '#ff80a0',
   text:       DVYDRM_WHITE,
 }
 
@@ -1879,6 +2019,94 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
         },
       ],
     },
+  },
+
+  // ── Neon Lattice (1) – Acid Magenta ──────────────────────────────────────
+  {
+    id:          'preset-nl-acid-magenta',
+    name:        'Acid Magenta',
+    description: 'Magenta rails with cyan accents, white intersections, and heavy bloom.',
+    engine:      'neonLattice',
+    palette:     PALETTE_ACID_MAGENTA,
+    params:      { intensity: 0.80, motion: 0.65, glow: 0.90, bassReactivity: 0.90, colorShift: 0.50, complexity: 0.60 },
+    scenes:      makeScenes('nlam', 'neonLattice'),
+    sectionMappings: makeMappings('nlam'),
+    neonLatticeSettings: {
+      railDensity: 0.55, verticalBias: 0.55, centerBias: 0.25, railLifetime: 3.5,
+      pulseSpeed: 0.70, flareAmount: 0.75, snapDivision: 4,
+      blockDensity: 0.30, blockHold: 0.60, cyanAccentChance: 0.45,
+      bloom: 0.90, depth: 0.35, shockwaves: true,
+      reseedInterval: 16, decayStyle: 'exponential', blackoutMode: 'none', trigger: 'kick',
+    },
+  },
+
+  // ── Neon Lattice (2) – DVYDRM Lattice ────────────────────────────────────
+  {
+    id:          'preset-nl-drmvyz-lattice',
+    name:        'DVYDRM Lattice',
+    description: 'Cyan and emerald rails, gold blocks, dark background with clean bloom.',
+    engine:      'neonLattice',
+    palette:     PALETTE_DRMVYZ_LATTICE,
+    params:      { intensity: 0.75, motion: 0.55, glow: 0.75, bassReactivity: 0.85, colorShift: 0.30, complexity: 0.50 },
+    scenes:      makeScenes('nldl', 'neonLattice'),
+    sectionMappings: makeMappings('nldl'),
+    neonLatticeSettings: {
+      railDensity: 0.45, verticalBias: 0.60, centerBias: 0.30, railLifetime: 4.5,
+      pulseSpeed: 0.55, flareAmount: 0.55, snapDivision: 4,
+      blockDensity: 0.25, blockHold: 0.55, cyanAccentChance: 0.50,
+      bloom: 0.70, depth: 0.28, shockwaves: true,
+      reseedInterval: 16, decayStyle: 'exponential', blackoutMode: 'none', trigger: 'beat',
+    },
+  },
+
+  // ── Neon Lattice (3) – Sparse Starlines ──────────────────────────────────
+  {
+    id:          'preset-nl-sparse-starlines',
+    name:        'Sparse Starlines',
+    description: 'Low density, large isolated flares, long persistence, minimal blocks.',
+    engine:      'neonLattice',
+    palette:     PALETTE_SPARSE_STARLINES,
+    params:      { intensity: 0.60, motion: 0.35, glow: 0.60, bassReactivity: 0.70, colorShift: 0.20, complexity: 0.30 },
+    scenes:      makeScenes('nlss', 'neonLattice'),
+    sectionMappings: makeMappings('nlss'),
+    neonLatticeSettings: {
+      railDensity: 0.20, verticalBias: 0.65, centerBias: 0.20, railLifetime: 7.0,
+      pulseSpeed: 0.40, flareAmount: 0.85, snapDivision: 2,
+      blockDensity: 0.05, blockHold: 0.80, cyanAccentChance: 0.60,
+      bloom: 0.55, depth: 0.20, shockwaves: false,
+      reseedInterval: 32, decayStyle: 'exponential', blackoutMode: 'none', trigger: 'beat',
+    },
+  },
+
+  // ── Neon Lattice (4) – Overload Matrix ───────────────────────────────────
+  {
+    id:          'preset-nl-overload-matrix',
+    name:        'Overload Matrix',
+    description: 'High density, short lifetimes, aggressive cascades and impact bloom.',
+    engine:      'neonLattice',
+    palette:     PALETTE_OVERLOAD_MATRIX,
+    params:      { intensity: 0.90, motion: 0.85, glow: 1.00, bassReactivity: 0.95, colorShift: 0.60, complexity: 0.80 },
+    scenes:      makeScenes('nlom', 'neonLattice'),
+    sectionMappings: makeMappings('nlom'),
+    neonLatticeSettings: {
+      railDensity: 0.75, verticalBias: 0.50, centerBias: 0.40, railLifetime: 2.0,
+      pulseSpeed: 0.90, flareAmount: 0.65, snapDivision: 8,
+      blockDensity: 0.45, blockHold: 0.35, cyanAccentChance: 0.30,
+      bloom: 1.00, depth: 0.55, shockwaves: true,
+      reseedInterval: 8, decayStyle: 'exponential', blackoutMode: 'none', trigger: 'kick',
+    },
+  },
+
+  // ── Neon Lattice (5) – Default ───────────────────────────────────────────
+  {
+    id:          'preset-neon-lattice-default',
+    name:        'Neon Lattice',
+    description: 'Pulsing neon rail grid with beat-reactive blocks and shockwaves.',
+    engine:      'neonLattice',
+    palette:     PALETTE_NEON_LATTICE,
+    params:      { intensity: 0.75, motion: 0.60, glow: 0.80, bassReactivity: 0.85, colorShift: 0.40, complexity: 0.55 },
+    scenes:      makeScenes('nl', 'neonLattice'),
+    sectionMappings: makeMappings('nl'),
   },
 ]
 

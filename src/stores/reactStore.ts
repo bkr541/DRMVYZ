@@ -7,6 +7,7 @@ import {
   DEFAULT_BEAM_MOTION,
   DEFAULT_BEAM_SEQUENCE,
   DEFAULT_LAUNCH_SETTINGS,
+  DEFAULT_NEON_LATTICE_SETTINGS,
   createDefaultLaserDmxSettings,
   createDefaultLaserDmxBeamMatrixSettings,
   LASER_DMX_MATRIX_COLUMNS,
@@ -35,6 +36,9 @@ import type {
   LaserDmxBeamMatrixCue,
   LaserDmxMatrixBeam,
   LaserDmxReactionGroup,
+  NeonLatticeSettings,
+  NeonLatticeTriggerType,
+  NeonLatticeTriggerEvent,
 } from '../components/vyzualz/react/ReactTypes'
 import {
   parseSvgToGlyphPoints,
@@ -331,6 +335,7 @@ export function buildPresetPatch(
   preset: ReactPreset,
   currentOscSettings: OscillatorSettings,
   currentLaserSettings?: LaserDmxSettings,
+  currentNeonLatticeSettings?: NeonLatticeSettings,
 ) {
   const laserBase = currentLaserSettings ?? createDefaultLaserDmxSettings()
 
@@ -346,6 +351,11 @@ export function buildPresetPatch(
     laserPatch = merged
   }
 
+  let neonLatticePatch: NeonLatticeSettings | undefined
+  if (preset.neonLatticeSettings != null) {
+    neonLatticePatch = { ...(currentNeonLatticeSettings ?? DEFAULT_NEON_LATTICE_SETTINGS), ...preset.neonLatticeSettings }
+  }
+
   return {
     activeReactPresetId: preset.id,
     activeReactEngineId: preset.engine,
@@ -354,7 +364,8 @@ export function buildPresetPatch(
     reactGlow:           preset.params.glow,
     reactBassReactivity: preset.params.bassReactivity,
     oscillatorSettings:  resolvePresetOscillatorSettings(preset, currentOscSettings),
-    ...(laserPatch != null ? { laserDmxSettings: laserPatch } : {}),
+    ...(laserPatch        != null ? { laserDmxSettings:   laserPatch        } : {}),
+    ...(neonLatticePatch  != null ? { neonLatticeSettings: neonLatticePatch } : {}),
   }
 }
 
@@ -527,6 +538,15 @@ interface ReactStoreState {
   oscillatorTextPointCache: Record<string, OscillatorGlyphPoint[]>
 
   resetReactView: () => void
+
+  // Neon Lattice settings
+  neonLatticeSettings: NeonLatticeSettings
+  setNeonLatticeSettings: (partial: Partial<NeonLatticeSettings>) => void
+  resetNeonLatticeSettings: () => void
+
+  // Neon Lattice one-shot performance triggers (non-persisted)
+  neonLatticeTrigger: NeonLatticeTriggerEvent | null
+  triggerNeonLattice: (type: NeonLatticeTriggerType) => void
 
   // LaserDMX Spatial Fixtures settings
   laserDmxSettings: LaserDmxSettings
@@ -859,6 +879,12 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       state = { ...state, oscillatorSettings: newOsc }
     }
   }
+  if (version < 16) {
+    // Add neonLatticeSettings for users that do not yet have it persisted.
+    if (!('neonLatticeSettings' in state)) {
+      state = { ...state, neonLatticeSettings: DEFAULT_NEON_LATTICE_SETTINGS }
+    }
+  }
   return state
 }
 
@@ -878,6 +904,7 @@ export function reactStorePartialize(s: ReactStoreState) {
     presetAutomationCuesByTrackId:      s.presetAutomationCuesByTrackId,
     oscillatorSettings:                 s.oscillatorSettings,
     oscillatorGlyphAssets:              s.oscillatorGlyphAssets,
+    neonLatticeSettings:                s.neonLatticeSettings,
     laserDmxSettings:                   s.laserDmxSettings,
     laserDmxWorkspaceMode:              s.laserDmxWorkspaceMode,
     laserDmxBeamMatrix:                 s.laserDmxBeamMatrix,
@@ -924,6 +951,8 @@ export const useReactStore = create<ReactStoreState>()(
       fontsLoadState:    'idle',
       fontLoadError:     null,
       glyphLostNotice: null,
+      neonLatticeSettings:    DEFAULT_NEON_LATTICE_SETTINGS,
+      neonLatticeTrigger:     null,
       laserDmxSettings:       createDefaultLaserDmxSettings(),
       laserDmxWorkspaceMode:  'spatialFixtures',
       laserDmxBeamMatrix:     createDefaultLaserDmxBeamMatrixSettings(),
@@ -958,14 +987,14 @@ export const useReactStore = create<ReactStoreState>()(
             // No presets registered for this engine — update ID only; panel shows empty state.
             return { activeReactEngineId: engineId }
           }
-          return buildPresetPatch(preset, s.oscillatorSettings, s.laserDmxSettings)
+          return buildPresetPatch(preset, s.oscillatorSettings, s.laserDmxSettings, s.neonLatticeSettings)
         }),
 
       selectReactPreset: (id) =>
         set((s) => {
           const preset = s.reactPresets.find((p) => p.id === id)
           if (!preset) return {}
-          return buildPresetPatch(preset, s.oscillatorSettings, s.laserDmxSettings)
+          return buildPresetPatch(preset, s.oscillatorSettings, s.laserDmxSettings, s.neonLatticeSettings)
         }),
 
       updateReactPresetParams: (id, patch) =>
@@ -1106,7 +1135,7 @@ export const useReactStore = create<ReactStoreState>()(
           if (!pad?.presetId) return { activePadId: id }
           const preset = s.reactPresets.find((p) => p.id === pad.presetId)
           if (!preset) return { activePadId: id }
-          return { activePadId: id, ...buildPresetPatch(preset, s.oscillatorSettings, s.laserDmxSettings) }
+          return { activePadId: id, ...buildPresetPatch(preset, s.oscillatorSettings, s.laserDmxSettings, s.neonLatticeSettings) }
         }),
 
       updatePerformancePad: (id, patch) =>
@@ -1757,6 +1786,17 @@ export const useReactStore = create<ReactStoreState>()(
           set({ fontsLoadState: 'error', fontLoadError: `Unexpected error: ${(e as Error).message}` })
         }
       },
+
+      // ── Neon Lattice actions ────────────────────────────────────────────────
+
+      setNeonLatticeSettings: (partial) =>
+        set(s => ({ neonLatticeSettings: { ...s.neonLatticeSettings, ...partial } })),
+
+      resetNeonLatticeSettings: () =>
+        set({ neonLatticeSettings: DEFAULT_NEON_LATTICE_SETTINGS }),
+
+      triggerNeonLattice: (type) =>
+        set(s => ({ neonLatticeTrigger: { type, seq: (s.neonLatticeTrigger?.seq ?? 0) + 1 } })),
 
       // ── LaserDMX actions ────────────────────────────────────────────────────
 
@@ -2559,6 +2599,7 @@ export const useReactStore = create<ReactStoreState>()(
           oscillatorGlyphPointCache: {},
           oscillatorTextPointCache:  {},
           glyphLostNotice:           null,
+          neonLatticeSettings:              DEFAULT_NEON_LATTICE_SETTINGS,
           laserDmxSettings:                 createDefaultLaserDmxSettings(),
           laserDmxWorkspaceMode:            'spatialFixtures',
           laserDmxBeamMatrix:               createDefaultLaserDmxBeamMatrixSettings(),
@@ -2577,7 +2618,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 15,
+      version: 16,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,
     },

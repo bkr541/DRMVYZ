@@ -85,6 +85,8 @@ export function ReactView() {
     oscillatorGlyphAssets,
     oscillatorGlyphPointCache,
     oscillatorTextPointCache,
+    neonLatticeSettings,
+    neonLatticeTrigger,
     manualTrackSectionsByTrackId,
     suppressedAutoSectionsByTrackId,
     beamEditorVisible,
@@ -106,6 +108,8 @@ export function ReactView() {
     oscillatorGlyphAssets:          s.oscillatorGlyphAssets,
     oscillatorGlyphPointCache:      s.oscillatorGlyphPointCache,
     oscillatorTextPointCache:       s.oscillatorTextPointCache,
+    neonLatticeSettings:            s.neonLatticeSettings,
+    neonLatticeTrigger:             s.neonLatticeTrigger,
     manualTrackSectionsByTrackId:   s.manualTrackSectionsByTrackId,
     suppressedAutoSectionsByTrackId: s.suppressedAutoSectionsByTrackId,
     beamEditorVisible:              s.laserDmxBeamMatrix.editor.beamEditorVisible,
@@ -265,6 +269,8 @@ export function ReactView() {
               oscillatorGlyphAssets={oscillatorGlyphAssets}
               oscillatorGlyphPointCache={oscillatorGlyphPointCache}
               oscillatorTextPointCache={oscillatorTextPointCache}
+              neonLatticeSettings={neonLatticeSettings}
+              neonLatticeTrigger={neonLatticeTrigger}
               isPlaying={engine.isPlaying}
               manualSections={resolvedSections}
               getAudioTime={engine.getCurrentTime}

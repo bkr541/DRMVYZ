@@ -1,6 +1,7 @@
 import type { VzFrameContext } from '../../effects/types'
-import type { ReactTrackSection, ReactSectionType, OscillatorSettings, OscillatorGlyphAsset, OscillatorGlyphPoint } from '../ReactTypes'
+import type { ReactTrackSection, ReactSectionType, OscillatorSettings, OscillatorGlyphAsset, OscillatorGlyphPoint, NeonLatticeSettings, NeonLatticeTriggerEvent } from '../ReactTypes'
 import { DEFAULT_OSCILLATOR_SETTINGS } from '../ReactTypes'
+import type { MusicIntelligenceFrame } from '../../../../features/musicIntelligence/types'
 
 // ── React frame context ───────────────────────────────────────────────────────
 // A lighter version of VzFrameContext used by all React engine renderers.
@@ -28,6 +29,8 @@ export interface ReactFrameContext {
   }
   freqData:       Uint8Array<ArrayBuffer> | null
   timeDomainData: Uint8Array<ArrayBuffer> | null
+  /** Current music intelligence frame; null when MI engine has not produced data yet. */
+  musicIntelligence: MusicIntelligenceFrame | null
 }
 
 // ── Per-engine render params ──────────────────────────────────────────────────
@@ -46,6 +49,9 @@ export interface ReactRenderParams {
   oscillatorGlyphPointCache: Record<string, OscillatorGlyphPoint[]>
   /** Pre-sampled OpenType text points keyed by "${fontId}:${text}:${fontSize}:${letterSpacing}:${resolution}". Populated at upload/select/settings-change time; never by the renderer. */
   oscillatorTextPointCache: Record<string, OscillatorGlyphPoint[]>
+  neonLatticeSettings?: NeonLatticeSettings
+  /** One-shot performance trigger; renderer must consume each seq at most once. */
+  neonLatticeTrigger?: NeonLatticeTriggerEvent | null
 }
 
 export const DEFAULT_REACT_RENDER_PARAMS: ReactRenderParams = {
@@ -80,8 +86,9 @@ export function reactFrameFromVz(vz: VzFrameContext): ReactFrameContext {
       high:   vz.audio.high,
       volume: vz.audio.volume,
     },
-    freqData:       vz.freqData,
-    timeDomainData: vz.timeDomainData,
+    freqData:          vz.freqData,
+    timeDomainData:    vz.timeDomainData,
+    musicIntelligence: null,
   }
 }
 

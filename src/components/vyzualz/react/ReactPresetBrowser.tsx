@@ -5,6 +5,7 @@ const ENGINE_LABELS: Record<ReactEngineId, string> = {
   cinematicPortal: 'Cinematic Portal',
   oscilloscope:    'Sound Drawing',
   laserDmx:        'LaserDMX',
+  neonLattice:     'Neon Lattice',
 }
 
 const ENGINE_ICONS: Record<ReactEngineId, string> = {
@@ -12,6 +13,7 @@ const ENGINE_ICONS: Record<ReactEngineId, string> = {
   cinematicPortal: '◎',
   oscilloscope:    '〜',
   laserDmx:        '✦',
+  neonLattice:     '⬡',
 }
 
 interface Props {

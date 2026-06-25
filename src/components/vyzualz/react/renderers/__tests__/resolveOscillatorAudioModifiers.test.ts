@@ -34,8 +34,9 @@ function makeFrame(overrides: {
       high:   overrides.high   ?? 0,
       volume: overrides.volume ?? 0,
     },
-    freqData:       null,
-    timeDomainData: null,
+    freqData:          null,
+    timeDomainData:    null,
+    musicIntelligence: null,
   }
 }
 

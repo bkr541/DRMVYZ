@@ -5,6 +5,7 @@ import { renderShaderPads }      from './ShaderPadsRenderer'
 import { renderCinematicPortal } from './CinematicPortalRenderer'
 import { renderSoundDrawing }    from './SoundDrawingRenderer'
 import { renderLaserDmx, clearLaserDmxVisualState } from './LaserDmxRenderer'
+import { renderNeonLattice, clearNeonLatticeVisualState } from './NeonLatticeRenderer'
 
 export type { ReactFrameContext, ReactRenderParams }
 export { DEFAULT_REACT_RENDER_PARAMS }
@@ -156,6 +157,15 @@ export function renderReactEngine(
         clearLaserDmxVisualState(ctx, frame.W, frame.H)
       } else {
         renderLaserDmx(ctx, frame, preset, effectiveParams, sectionType)
+      }
+      break
+    case 'neonLattice':
+      if (frame.isPlaying === false) {
+        clearNeonLatticeVisualState()
+        ctx.fillStyle = preset.palette.background
+        ctx.fillRect(0, 0, frame.W, frame.H)
+      } else {
+        renderNeonLattice(ctx, frame, effectiveParams, preset)
       }
       break
     default:

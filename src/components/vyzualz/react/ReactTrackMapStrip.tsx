@@ -34,6 +34,7 @@ const ENGINE_LABELS: Record<ReactEngineId, string> = {
   cinematicPortal: 'Cinematic Portal',
   oscilloscope:    'Sound Drawing',
   laserDmx:        'LaserDMX',
+  neonLattice:     'Neon Lattice',
 }
 
 // ── Preset-cue helpers (exported for tests) ───────────────────────────────────
