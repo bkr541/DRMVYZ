@@ -28,16 +28,25 @@ const palette   = { primary: '74,199,219', secondary: '220,60,190', accent: '220
 
 // ── Fixture rail ──────────────────────────────────────────────────────────────
 
+const IDLE_MORPH = {
+  morphProgress: 1, morphDuration: 1,
+  morphStartPos: 0, morphTargetPos: 0,
+  morphStartSpanStart: 0, morphTargetSpanStart: 0,
+  morphStartSpanEnd: 1, morphTargetSpanEnd: 1,
+} as const
+
 const vertRail: NeonRail = {
   vertical: true, pos: 0.4, spanStart: 0.05, spanEnd: 0.95,
   width: 2, alpha: 0.8, glow: 0.5, depth: 0.7,
   birthSec: 0, lifetime: 4, colorRgb: '74,199,219',
+  ...IDLE_MORPH,
 }
 
 const horizRail: NeonRail = {
   vertical: false, pos: 0.5, spanStart: 0.1, spanEnd: 0.9,
   width: 1.5, alpha: 0.6, glow: 0.4, depth: 0.5,
   birthSec: 0, lifetime: 3, colorRgb: '230,230,240',
+  ...IDLE_MORPH,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

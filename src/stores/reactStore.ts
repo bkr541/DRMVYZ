@@ -896,6 +896,22 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       neonLatticeSettings: { ...DEFAULT_NEON_LATTICE_SETTINGS, ...(existing as object ?? {}) },
     }
   }
+  if (version < 18) {
+    // Migrate shockwaves: boolean → shockwaveAmount: number.
+    // Persisted data written before this version may have a boolean `shockwaves` field.
+    const s = (state as Record<string, unknown>).neonLatticeSettings as Record<string, unknown> | undefined
+    if (s != null && 'shockwaves' in s) {
+      const { shockwaves, ...rest } = s
+      state = {
+        ...state,
+        neonLatticeSettings: {
+          ...DEFAULT_NEON_LATTICE_SETTINGS,
+          ...rest,
+          shockwaveAmount: shockwaves === false ? 0 : DEFAULT_NEON_LATTICE_SETTINGS.shockwaveAmount,
+        },
+      }
+    }
+  }
   return state
 }
 
@@ -2637,7 +2653,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 17,
+      version: 18,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,
     },

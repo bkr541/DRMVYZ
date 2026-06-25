@@ -6,15 +6,23 @@ import {
   selectHorizontalLane,
   makeVerticalRail,
   makeHorizontalRail,
+  makeBlock,
   railLifetimeAlpha,
   isRailExpired,
   hexToRgbStr,
   MAX_VERT,
   MAX_HORIZ,
   resolveRailTargets,
+  resolveSnapSlot,
   resolveRailBurstCounts,
   resolveOverlayAlpha,
   resolveCyanStrikeDuration,
+  resolveTriggerFires,
+  isSnapActive,
+  resolveDepthPlane,
+  DEPTH_BG,
+  DEPTH_MG,
+  DEPTH_FG,
   WHITEOUT_DURATION,
   BLACKOUT_DURATION,
   FREEZE_DURATION,
@@ -91,6 +99,10 @@ describe('selectVerticalLane', () => {
       spanStart: 0, spanEnd: 1,
       width: 1, alpha: 1, glow: 0, depth: 1,
       birthSec: 0, lifetime: 4, colorRgb: '74,199,219',
+      morphProgress: 1, morphDuration: 1,
+      morphStartPos: 0, morphTargetPos: 0,
+      morphStartSpanStart: 0, morphTargetSpanStart: 0,
+      morphStartSpanEnd: 1, morphTargetSpanEnd: 1,
     }))
     // Over many seeds, at least one should pick lane 6
     const chosen = new Set<number>()
@@ -212,6 +224,10 @@ describe('isRailExpired', () => {
     vertical: true, pos: 0.5, spanStart: 0, spanEnd: 1,
     width: 1, alpha: 1, glow: 0, depth: 1,
     birthSec: 10, lifetime: 4, colorRgb: '74,199,219',
+    morphProgress: 1, morphDuration: 1,
+    morphStartPos: 0, morphTargetPos: 0,
+    morphStartSpanStart: 0, morphTargetSpanStart: 0,
+    morphStartSpanEnd: 1, morphTargetSpanEnd: 1,
   }
 
   it('not expired before lifetime elapses', () => {
@@ -384,5 +400,187 @@ describe('hexToRgbStr', () => {
   it('falls back to cyan for unknown format', () => {
     expect(hexToRgbStr('not-a-color')).toBe('74,199,219')
     expect(hexToRgbStr('')).toBe('74,199,219')
+  })
+})
+
+// ── resolveTriggerFires ───────────────────────────────────────────────────────
+
+describe('resolveTriggerFires: 1:1 trigger-to-event mapping', () => {
+  it('none never fires for any event', () => {
+    for (const ev of ['kick', 'snare', 'beat', 'downbeat', 'drop'] as const) {
+      expect(resolveTriggerFires('none', ev)).toBe(false)
+    }
+  })
+
+  it('beat fires only on beat, not kick or snare', () => {
+    expect(resolveTriggerFires('beat', 'beat')).toBe(true)
+    expect(resolveTriggerFires('beat', 'kick')).toBe(false)
+    expect(resolveTriggerFires('beat', 'snare')).toBe(false)
+    expect(resolveTriggerFires('beat', 'downbeat')).toBe(false)
+    expect(resolveTriggerFires('beat', 'drop')).toBe(false)
+  })
+
+  it('kick fires only on kick', () => {
+    expect(resolveTriggerFires('kick', 'kick')).toBe(true)
+    expect(resolveTriggerFires('kick', 'snare')).toBe(false)
+    expect(resolveTriggerFires('kick', 'beat')).toBe(false)
+    expect(resolveTriggerFires('kick', 'downbeat')).toBe(false)
+    expect(resolveTriggerFires('kick', 'drop')).toBe(false)
+  })
+
+  it('snare fires only on snare', () => {
+    expect(resolveTriggerFires('snare', 'snare')).toBe(true)
+    expect(resolveTriggerFires('snare', 'kick')).toBe(false)
+    expect(resolveTriggerFires('snare', 'beat')).toBe(false)
+    expect(resolveTriggerFires('snare', 'downbeat')).toBe(false)
+    expect(resolveTriggerFires('snare', 'drop')).toBe(false)
+  })
+
+  it('downbeat fires only on downbeat, not on drop', () => {
+    expect(resolveTriggerFires('downbeat', 'downbeat')).toBe(true)
+    expect(resolveTriggerFires('downbeat', 'drop')).toBe(false)
+    expect(resolveTriggerFires('downbeat', 'kick')).toBe(false)
+    expect(resolveTriggerFires('downbeat', 'beat')).toBe(false)
+    expect(resolveTriggerFires('downbeat', 'snare')).toBe(false)
+  })
+
+  it('drop fires only on drop, not on downbeat', () => {
+    expect(resolveTriggerFires('drop', 'drop')).toBe(true)
+    expect(resolveTriggerFires('drop', 'downbeat')).toBe(false)
+    expect(resolveTriggerFires('drop', 'kick')).toBe(false)
+    expect(resolveTriggerFires('drop', 'beat')).toBe(false)
+    expect(resolveTriggerFires('drop', 'snare')).toBe(false)
+  })
+
+  it('each trigger fires for exactly one event', () => {
+    const triggers = ['beat', 'kick', 'snare', 'downbeat', 'drop'] as const
+    const events   = ['kick', 'snare', 'beat', 'downbeat', 'drop'] as const
+    for (const trigger of triggers) {
+      const matches = events.filter(ev => resolveTriggerFires(trigger, ev))
+      expect(matches).toHaveLength(1)
+      expect(matches[0]).toBe(trigger)
+    }
+  })
+})
+
+// ── isSnapActive ──────────────────────────────────────────────────────────────
+
+describe('isSnapActive: BPM-zero and snapDivision-zero fallback', () => {
+  it('true when BPM > 0 and snapDivision > 0', () => {
+    expect(isSnapActive(120, 4)).toBe(true)
+    expect(isSnapActive(60,  1)).toBe(true)
+    expect(isSnapActive(200, 16)).toBe(true)
+  })
+
+  it('false when BPM = 0 (events not gated by slot)', () => {
+    expect(isSnapActive(0, 4)).toBe(false)
+    expect(isSnapActive(0, 1)).toBe(false)
+  })
+
+  it('false when snapDivision = 0 (disabled)', () => {
+    expect(isSnapActive(120, 0)).toBe(false)
+  })
+})
+
+// ── resolveSnapSlot: all 5 subdivisions ──────────────────────────────────────
+
+describe('resolveSnapSlot: monotonic progression for each subdivision', () => {
+  const BPM = 120  // beatSec = 0.5 s
+
+  it('div=1 (bar): slot advances every 0.5 s', () => {
+    const s0 = resolveSnapSlot(0.0, BPM, 1)
+    const s1 = resolveSnapSlot(0.5, BPM, 1)
+    expect(s1).toBeGreaterThan(s0)
+  })
+
+  it('div=2 (half): slot advances every 0.25 s', () => {
+    const s0 = resolveSnapSlot(0.0,  BPM, 2)
+    const s1 = resolveSnapSlot(0.25, BPM, 2)
+    expect(s1).toBeGreaterThan(s0)
+  })
+
+  it('div=4 (quarter): slot advances every 0.125 s', () => {
+    const s0 = resolveSnapSlot(0.0,   BPM, 4)
+    const s1 = resolveSnapSlot(0.125, BPM, 4)
+    expect(s1).toBe(s0 + 1)
+  })
+
+  it('div=8 (eighth): slot advances every 0.0625 s', () => {
+    const s0 = resolveSnapSlot(0.0,    BPM, 8)
+    const s1 = resolveSnapSlot(0.0625, BPM, 8)
+    expect(s1).toBeGreaterThan(s0)
+  })
+
+  it('div=16 (sixteenth): slot advances every 0.03125 s', () => {
+    const s0 = resolveSnapSlot(0.0,     BPM, 16)
+    const s1 = resolveSnapSlot(0.03125, BPM, 16)
+    expect(s1).toBeGreaterThan(s0)
+  })
+
+  it('finer divisions produce larger slot numbers at the same audio time', () => {
+    const t = 2.0
+    const s4  = resolveSnapSlot(t, BPM, 4)
+    const s8  = resolveSnapSlot(t, BPM, 8)
+    const s16 = resolveSnapSlot(t, BPM, 16)
+    expect(s8).toBeGreaterThan(s4)
+    expect(s16).toBeGreaterThan(s8)
+  })
+
+  it('two calls within the same window return the same slot', () => {
+    // div=4 at 120 BPM → window = 0.125 s
+    expect(resolveSnapSlot(0.0,   BPM, 4)).toBe(resolveSnapSlot(0.124, BPM, 4))
+  })
+})
+
+// ── resolveDepthPlane and depth constants ─────────────────────────────────────
+
+describe('resolveDepthPlane: 0=far/background, 1=near/foreground', () => {
+  it('DEPTH_BG classifies as background', () => {
+    expect(resolveDepthPlane(DEPTH_BG)).toBe('background')
+  })
+
+  it('DEPTH_MG classifies as midground', () => {
+    expect(resolveDepthPlane(DEPTH_MG)).toBe('midground')
+  })
+
+  it('DEPTH_FG classifies as foreground', () => {
+    expect(resolveDepthPlane(DEPTH_FG)).toBe('foreground')
+  })
+
+  it('0 is background', () => {
+    expect(resolveDepthPlane(0)).toBe('background')
+  })
+
+  it('1 is foreground', () => {
+    expect(resolveDepthPlane(1)).toBe('foreground')
+  })
+
+  it('constants are ordered correctly', () => {
+    expect(DEPTH_BG).toBeLessThan(DEPTH_MG)
+    expect(DEPTH_MG).toBeLessThan(DEPTH_FG)
+    expect(DEPTH_BG).toBeGreaterThanOrEqual(0)
+    expect(DEPTH_FG).toBeLessThanOrEqual(1)
+  })
+})
+
+// ── makeBlock: depth field ─────────────────────────────────────────────────────
+
+describe('makeBlock: depth field stored correctly', () => {
+  it('defaults to midground (0.5) when depth not supplied', () => {
+    const b = makeBlock(0, 0, 0, 1, '74,199,219', 0.5)
+    expect(b.depth).toBeCloseTo(0.5, 5)
+  })
+
+  it('explicit depth is stored on the block', () => {
+    const b = makeBlock(0, 0, 0, 1, '74,199,219', 0.5, DEPTH_FG)
+    expect(b.depth).toBeCloseTo(DEPTH_FG, 5)
+  })
+
+  it('depth is in [0, 1] for all canonical planes', () => {
+    for (const d of [DEPTH_BG, DEPTH_MG, DEPTH_FG]) {
+      const b = makeBlock(2, 3, 0, 1, '74,199,219', 0.7, d)
+      expect(b.depth).toBeGreaterThanOrEqual(0)
+      expect(b.depth).toBeLessThanOrEqual(1)
+    }
   })
 })

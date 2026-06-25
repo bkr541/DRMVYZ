@@ -1,7 +1,7 @@
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
-import { SliderRow, SelectRow, ToggleRow, CtrlSection } from './ReactControlRows'
-import type { NeonLatticeTrigger, NeonLatticeSnapDivision, NeonLatticeDecayStyle, NeonLatticeBlackoutMode } from './ReactTypes'
+import { SliderRow, SelectRow, CtrlSection } from './ReactControlRows'
+import type { NeonLatticeTrigger, NeonLatticeSnapDivision, NeonLatticeDecayStyle, NeonLatticeBlackoutMode, NeonLatticeSettings } from './ReactTypes'
 import { clamp01 } from './renderers/reactRenderUtils'
 
 function clampPosNum(v: number, min = 0, max = Infinity): number {
@@ -68,10 +68,11 @@ export function NeonLatticeEnginePanel() {
         min={0} max={1} step={0.01}
         onChange={v => set({ cyanAccentChance: clamp01(v) })}
       />
-      <ToggleRow
-        label="Shockwaves"
-        value={settings.shockwaves}
-        onChange={v => set({ shockwaves: v })}
+      <SliderRow
+        label="Shockwave Amount"
+        value={settings.shockwaveAmount}
+        min={0} max={1} step={0.01}
+        onChange={v => set({ shockwaveAmount: clamp01(v) } as Partial<NeonLatticeSettings>)}
       />
       <SelectRow
         label="Decay Style"

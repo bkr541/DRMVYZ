@@ -62,8 +62,8 @@ export interface NeonLatticeSettings {
   parallax:         number
   /** 0–1 — speed of autonomous camera drift between bars. */
   cameraMotion:     number
-  /** When true, a radial shockwave expands outward on drop/kick triggers. */
-  shockwaves:       boolean
+  /** 0 = disabled, 1 = maximum. Controls probability, strength, scale, and opacity of shockwaves. */
+  shockwaveAmount:  number
   /** Bars between full lattice regeneration; 0 = never reseed. */
   reseedInterval:   number
   blackoutMode:     NeonLatticeBlackoutMode
@@ -86,7 +86,7 @@ export const DEFAULT_NEON_LATTICE_SETTINGS: NeonLatticeSettings = {
   depth:            0.30,
   parallax:         0.15,
   cameraMotion:     0.10,
-  shockwaves:       true,
+  shockwaveAmount:  0.65,
   reseedInterval:   16,
   blackoutMode:     'none',
   decayStyle:       'exponential',
@@ -2036,7 +2036,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
       pulseSpeed: 0.70, flareAmount: 0.75, snapDivision: 4,
       blockDensity: 0.30, blockHold: 0.60, cyanAccentChance: 0.45,
       bloom: 0.90, depth: 0.35, parallax: 0.30, cameraMotion: 0.15,
-      shockwaves: true, reseedInterval: 16,
+      shockwaveAmount: 0.75, reseedInterval: 16,
       decayStyle: 'exponential', blackoutMode: 'none', trigger: 'kick',
     },
   },
@@ -2056,7 +2056,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
       pulseSpeed: 0.55, flareAmount: 0.55, snapDivision: 4,
       blockDensity: 0.25, blockHold: 0.55, cyanAccentChance: 0.50,
       bloom: 0.70, depth: 0.28, parallax: 0.15, cameraMotion: 0.08,
-      shockwaves: true, reseedInterval: 16,
+      shockwaveAmount: 0.55, reseedInterval: 16,
       decayStyle: 'exponential', blackoutMode: 'none', trigger: 'beat',
     },
   },
@@ -2076,7 +2076,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
       pulseSpeed: 0.40, flareAmount: 0.85, snapDivision: 2,
       blockDensity: 0.05, blockHold: 0.80, cyanAccentChance: 0.60,
       bloom: 0.55, depth: 0.20, parallax: 0.10, cameraMotion: 0.05,
-      shockwaves: false, reseedInterval: 32,
+      shockwaveAmount: 0, reseedInterval: 32,
       decayStyle: 'exponential', blackoutMode: 'none', trigger: 'beat',
     },
   },
@@ -2096,7 +2096,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
       pulseSpeed: 0.90, flareAmount: 0.65, snapDivision: 8,
       blockDensity: 0.45, blockHold: 0.35, cyanAccentChance: 0.30,
       bloom: 1.00, depth: 0.55, parallax: 0.40, cameraMotion: 0.25,
-      shockwaves: true, reseedInterval: 8,
+      shockwaveAmount: 0.90, reseedInterval: 8,
       decayStyle: 'exponential', blackoutMode: 'none', trigger: 'kick',
     },
   },

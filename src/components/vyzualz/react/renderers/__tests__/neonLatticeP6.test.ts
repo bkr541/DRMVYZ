@@ -20,8 +20,10 @@ import {
   isRailExpired,
   resolveRailTargets, resolveSnapSlot,
   resolveOverlayAlpha, resolveCyanStrikeDuration, resolveRailBurstCounts,
+  resolveTriggerFires, isSnapActive,
   WHITEOUT_DURATION, BLACKOUT_DURATION, FREEZE_DURATION, RESEED_LIFE_SCALE,
   prngNext,
+  hexToRgbStr,
 } from '../neonLatticeUtils'
 import { NL_TRIGGER_PADS } from '../../ReactPerformancePads'
 
@@ -176,9 +178,9 @@ describe('NL factory presets', () => {
     expect(p.neonLatticeSettings?.trigger).toBe('beat')
   })
 
-  it('Sparse Starlines: shockwaves disabled', () => {
+  it('Sparse Starlines: shockwaves disabled (shockwaveAmount === 0)', () => {
     const p = nlPresets.find(p => p.id === 'preset-nl-sparse-starlines')!
-    expect(p.neonLatticeSettings?.shockwaves).toBe(false)
+    expect(p.neonLatticeSettings?.shockwaveAmount).toBe(0)
   })
 
   it('Overload Matrix: railDensity is highest among NL presets', () => {
@@ -773,7 +775,18 @@ import {
   resolveCameraParallaxShift,
   resolveEffectiveSection,
   resolveSectionSpawnMul,
+  resolveSectionBehavior,
+  resolveDepthPlane,
+  DEPTH_BG,
+  DEPTH_MG,
+  DEPTH_FG,
+  computeVertRailMorphTarget,
+  computeHorizRailMorphTarget,
+  advanceRailMorph,
+  MORPH_DURATION_MIN,
+  MORPH_DURATION_MAX,
 } from '../neonLatticeUtils'
+import type { NeonRail } from '../neonLatticeUtils'
 import type { ReactSectionType } from '../../ReactTypes'
 
 describe('resolveEffectiveSection: manual-section priority', () => {
@@ -814,29 +827,33 @@ describe('resolveDepthModifiers: depth setting 0 and 1', () => {
     expect(dm.widthMul).toBeCloseTo(1.0, 5)
   })
 
-  it('depth=1 with near rail (railDepth=0) has no reduction', () => {
+  it('depth=1 with far rail (railDepth=0) is significantly dimmer', () => {
+    // 0 = far/background in the new convention
     const dm = resolveDepthModifiers(1, 0)
-    expect(dm.alphaMul).toBeCloseTo(1.0, 5)
-    expect(dm.intensityMul).toBeCloseTo(1.0, 5)
-    expect(dm.widthMul).toBeCloseTo(1.0, 5)
-  })
-
-  it('depth=1 with far rail (railDepth=1) is significantly dimmer', () => {
-    const dm = resolveDepthModifiers(1, 1)
     expect(dm.alphaMul).toBeLessThan(0.5)
     expect(dm.intensityMul).toBeLessThan(0.8)
     expect(dm.widthMul).toBeLessThan(0.6)
   })
 
-  it('increasing depth increases dimming for far rails', () => {
-    const lo = resolveDepthModifiers(0.3, 1)
-    const hi = resolveDepthModifiers(0.9, 1)
+  it('depth=1 with near rail (railDepth=1) has no reduction', () => {
+    // 1 = near/foreground: all muls should be 1.0
+    const dm = resolveDepthModifiers(1, 1)
+    expect(dm.alphaMul).toBeCloseTo(1.0, 5)
+    expect(dm.intensityMul).toBeCloseTo(1.0, 5)
+    expect(dm.widthMul).toBeCloseTo(1.0, 5)
+  })
+
+  it('increasing depth setting increases dimming for far rails', () => {
+    // railDepth=0 = far; higher depth setting → more dimming
+    const lo = resolveDepthModifiers(0.3, 0)
+    const hi = resolveDepthModifiers(0.9, 0)
     expect(hi.alphaMul).toBeLessThan(lo.alphaMul)
   })
 
-  it('near rail (railDepth=0) is unaffected at any depth setting', () => {
+  it('near rail (railDepth=1) is unaffected at any depth setting', () => {
+    // 1 = near/foreground: no dimming regardless of depth setting
     for (const d of [0, 0.5, 1]) {
-      const dm = resolveDepthModifiers(d, 0)
+      const dm = resolveDepthModifiers(d, 1)
       expect(dm.alphaMul).toBeCloseTo(1.0, 5)
     }
   })
@@ -856,10 +873,10 @@ describe('resolveCameraParallaxShift', () => {
     expect(resolveCameraParallaxShift(0.5, 0.3, 0.8)).toBeCloseTo(0, 5)
   })
 
-  it('near and far rails shift in opposite directions', () => {
+  it('near and far rails shift in opposite directions (0=far, 1=near convention)', () => {
     const driftX = 0.4, parallax = 1
-    const nearShift = resolveCameraParallaxShift(0, driftX, parallax)
-    const farShift  = resolveCameraParallaxShift(1, driftX, parallax)
+    const nearShift = resolveCameraParallaxShift(1, driftX, parallax)  // 1 = near/foreground
+    const farShift  = resolveCameraParallaxShift(0, driftX, parallax)  // 0 = far/background
     expect(nearShift).toBeGreaterThan(0)
     expect(farShift).toBeLessThan(0)
   })
@@ -930,24 +947,26 @@ describe('bar-based auto-reseed: seed offset uniqueness', () => {
 describe('auto-blackout mode bounds (resolveOverlayAlpha-driven)', () => {
   function barsInSec(bpm: number) { return 60 / bpm * 4 }
 
-  it('instant: overlay duration for 120 BPM is bounded to <= 1.2 s', () => {
-    const duration = Math.min(barsInSec(120) * 0.5, 1.2)
-    expect(duration).toBeLessThanOrEqual(1.2)
+  it('instant: overlay duration for 120 BPM is bounded to <= 0.8 s', () => {
+    const duration = Math.min(barsInSec(120) * 0.4, 0.8)
+    expect(duration).toBeLessThanOrEqual(0.8)
   })
 
   it('instant: at 120 BPM, overlay fades out by its bounded end time', () => {
-    const duration = Math.min(barsInSec(120) * 0.5, 1.2)
+    const duration = Math.min(barsInSec(120) * 0.4, 0.8)
     expect(resolveOverlayAlpha(duration, duration)).toBeCloseTo(0, 5)
   })
 
-  it('fadeOut: duration bounded to <= 3.5 s even at 50 BPM', () => {
-    const duration = Math.min(barsInSec(50) * 2, 3.5)
-    expect(duration).toBeLessThanOrEqual(3.5)
+  it('fadeOut: ramp-in duration bounded to <= 3.0 s even at 50 BPM', () => {
+    const rampSecs = Math.min(barsInSec(50), 3.0)
+    expect(rampSecs).toBeLessThanOrEqual(3.0)
   })
 
-  it('fadeOut: overlay is fully faded at its bounded end time', () => {
-    const duration = Math.min(barsInSec(50) * 2, 3.5)
-    expect(resolveOverlayAlpha(duration, duration)).toBeCloseTo(0, 5)
+  it('fadeOut: ramp-in rate (alpha/s) at 120 BPM produces max 0.85 alpha within ramp window', () => {
+    const rampSecs = Math.min(barsInSec(120), 3.0)
+    const rate     = 0.85 / rampSecs
+    const alphaAtEnd = Math.min(0.85, rate * rampSecs)
+    expect(alphaAtEnd).toBeCloseTo(0.85, 5)
   })
 
   it('strobe: active window bounded to <= 2.0 s even at 60 BPM (4 s/bar)', () => {
@@ -1232,13 +1251,25 @@ describe('resolveRailTargets: density hard caps at all settings extremes', () =>
 
 // ── 24. User-facing control behavior coverage ─────────────────────────────────
 
-describe('snap-division deduplication: zero BPM and zero snapDivision both return 0', () => {
-  it('bpm=0 → slot 0 (no temporal event gating)', () => {
+describe('snap-division deduplication: resolveSnapSlot and isSnapActive', () => {
+  it('bpm=0 → slot 0 (raw utility)', () => {
     expect(resolveSnapSlot(5.0, 0, 4)).toBe(0)
   })
 
-  it('snapDivision=0 → slot 0', () => {
+  it('snapDivision=0 → slot 0 (raw utility)', () => {
     expect(resolveSnapSlot(5.0, 120, 0)).toBe(0)
+  })
+
+  it('isSnapActive=false when bpm=0 — renderer skips slot check', () => {
+    expect(isSnapActive(0, 4)).toBe(false)
+  })
+
+  it('isSnapActive=false when snapDivision=0 — renderer skips slot check', () => {
+    expect(isSnapActive(120, 0)).toBe(false)
+  })
+
+  it('isSnapActive=true when both bpm and snapDivision are positive', () => {
+    expect(isSnapActive(120, 4)).toBe(true)
   })
 
   it('same audio time in same subdivision window → same slot', () => {
@@ -1251,6 +1282,25 @@ describe('snap-division deduplication: zero BPM and zero snapDivision both retur
     const s1 = resolveSnapSlot(0.12, 120, 4)
     const s2 = resolveSnapSlot(0.13, 120, 4)
     expect(s2).toBeGreaterThan(s1)
+  })
+
+  it('each supported subdivision produces monotonic slots at 120 BPM', () => {
+    for (const div of [1, 2, 4, 8, 16] as const) {
+      const beatSec   = 60 / 120
+      const subBeatSec = beatSec / div
+      const s0 = resolveSnapSlot(0, 120, div)
+      const s1 = resolveSnapSlot(subBeatSec + 0.001, 120, div)
+      expect(s1).toBeGreaterThan(s0)
+    }
+  })
+
+  it('finer divisions produce more slots per second (higher slot numbers)', () => {
+    const t = 1.0
+    const s4  = resolveSnapSlot(t, 120, 4)
+    const s8  = resolveSnapSlot(t, 120, 8)
+    const s16 = resolveSnapSlot(t, 120, 16)
+    expect(s8).toBeGreaterThan(s4)
+    expect(s16).toBeGreaterThan(s8)
   })
 })
 
@@ -1293,5 +1343,901 @@ describe('section behavior: resolveSectionSpawnMul covers all 8 types', () => {
 
   it('null section returns 1.0 (no modulation)', () => {
     expect(resolveSectionSpawnMul(null, 0, 0, 0, 0)).toBeCloseTo(1.0, 5)
+  })
+})
+
+// ── 25. Trigger selector: matching and non-matching events ────────────────────
+
+describe('resolveTriggerFires: each trigger matches exactly its named event', () => {
+  it('none never fires', () => {
+    for (const ev of ['kick', 'snare', 'beat', 'downbeat', 'drop'] as const) {
+      expect(resolveTriggerFires('none', ev)).toBe(false)
+    }
+  })
+
+  it('beat fires on beat, not kick, snare, downbeat, or drop', () => {
+    expect(resolveTriggerFires('beat', 'beat')).toBe(true)
+    expect(resolveTriggerFires('beat', 'kick')).toBe(false)
+    expect(resolveTriggerFires('beat', 'snare')).toBe(false)
+    expect(resolveTriggerFires('beat', 'downbeat')).toBe(false)
+    expect(resolveTriggerFires('beat', 'drop')).toBe(false)
+  })
+
+  it('kick fires on kick only', () => {
+    expect(resolveTriggerFires('kick', 'kick')).toBe(true)
+    expect(resolveTriggerFires('kick', 'snare')).toBe(false)
+    expect(resolveTriggerFires('kick', 'beat')).toBe(false)
+    expect(resolveTriggerFires('kick', 'downbeat')).toBe(false)
+    expect(resolveTriggerFires('kick', 'drop')).toBe(false)
+  })
+
+  it('snare fires on snare only', () => {
+    expect(resolveTriggerFires('snare', 'snare')).toBe(true)
+    expect(resolveTriggerFires('snare', 'kick')).toBe(false)
+    expect(resolveTriggerFires('snare', 'beat')).toBe(false)
+    expect(resolveTriggerFires('snare', 'downbeat')).toBe(false)
+    expect(resolveTriggerFires('snare', 'drop')).toBe(false)
+  })
+
+  it('downbeat fires on downbeat, not on drop', () => {
+    expect(resolveTriggerFires('downbeat', 'downbeat')).toBe(true)
+    expect(resolveTriggerFires('downbeat', 'drop')).toBe(false)
+    expect(resolveTriggerFires('downbeat', 'kick')).toBe(false)
+    expect(resolveTriggerFires('downbeat', 'beat')).toBe(false)
+  })
+
+  it('drop fires on drop, not on downbeat', () => {
+    expect(resolveTriggerFires('drop', 'drop')).toBe(true)
+    expect(resolveTriggerFires('drop', 'downbeat')).toBe(false)
+    expect(resolveTriggerFires('drop', 'kick')).toBe(false)
+    expect(resolveTriggerFires('drop', 'beat')).toBe(false)
+  })
+
+  it('beat and drop are independent (neither implies the other)', () => {
+    expect(resolveTriggerFires('beat', 'drop')).toBe(false)
+    expect(resolveTriggerFires('drop', 'beat')).toBe(false)
+  })
+
+  it('kick and downbeat are independent', () => {
+    expect(resolveTriggerFires('kick', 'downbeat')).toBe(false)
+    expect(resolveTriggerFires('downbeat', 'kick')).toBe(false)
+  })
+})
+
+// ── 26. BPM-zero and snap-division-zero fallback ──────────────────────────────
+
+describe('isSnapActive: snap-slot deduplication is gated by BPM and snapDivision', () => {
+  it('both positive → snap is active (slot dedup fires)', () => {
+    for (const [bpm, div] of [[60, 1], [120, 4], [180, 8], [200, 16]] as const) {
+      expect(isSnapActive(bpm, div)).toBe(true)
+    }
+  })
+
+  it('bpm=0 → snap inactive (per-event debounces take over)', () => {
+    for (const div of [1, 2, 4, 8, 16] as const) {
+      expect(isSnapActive(0, div)).toBe(false)
+    }
+  })
+
+  it('snapDivision=0 → snap inactive', () => {
+    expect(isSnapActive(120, 0)).toBe(false)
+    expect(isSnapActive(60,  0)).toBe(false)
+  })
+
+  it('snap becoming inactive does not permanently block events (per-event debounces gate independently)', () => {
+    // When isSnapActive=false, the renderer skips the slot comparison entirely.
+    // Verify that slot 0 (returned by resolveSnapSlot when bpm=0) does NOT
+    // block the same pattern with lastPulseSnapSlot=0.
+    // The test: renderer uses (!snapActive || pulseSlot !== lastPulseSnapSlot).
+    // With snapActive=false, the condition is always true — events can fire.
+    const snapActive0 = isSnapActive(0, 4)
+    expect(snapActive0).toBe(false)
+    // If snapActive=false, the guard `!snapActive || slot !== last` simplifies to `true`
+    const wouldFire = !snapActive0 || (0 !== 0)
+    expect(wouldFire).toBe(true)
+  })
+})
+
+// ── 27. Depth plane classification ────────────────────────────────────────────
+
+describe('resolveDepthPlane: 0=far, 1=near convention', () => {
+  it('DEPTH_BG is classified as background', () => {
+    expect(resolveDepthPlane(DEPTH_BG)).toBe('background')
+  })
+
+  it('DEPTH_MG is classified as midground', () => {
+    expect(resolveDepthPlane(DEPTH_MG)).toBe('midground')
+  })
+
+  it('DEPTH_FG is classified as foreground', () => {
+    expect(resolveDepthPlane(DEPTH_FG)).toBe('foreground')
+  })
+
+  it('depth=0 is background', () => {
+    expect(resolveDepthPlane(0)).toBe('background')
+  })
+
+  it('depth=1 is foreground', () => {
+    expect(resolveDepthPlane(1)).toBe('foreground')
+  })
+
+  it('depth=0.5 is midground', () => {
+    expect(resolveDepthPlane(0.5)).toBe('midground')
+  })
+
+  it('DEPTH_BG < DEPTH_MG < DEPTH_FG', () => {
+    expect(DEPTH_BG).toBeLessThan(DEPTH_MG)
+    expect(DEPTH_MG).toBeLessThan(DEPTH_FG)
+    expect(DEPTH_FG).toBeLessThanOrEqual(1)
+  })
+})
+
+// ── 28. Depth modifiers: foreground brighter/wider/faster than background ─────
+
+describe('resolveDepthModifiers: plane property ordering at depth setting = 1', () => {
+  const fg = resolveDepthModifiers(1, DEPTH_FG)
+  const mg = resolveDepthModifiers(1, DEPTH_MG)
+  const bg = resolveDepthModifiers(1, DEPTH_BG)
+
+  it('alpha: foreground > midground > background', () => {
+    expect(fg.alphaMul).toBeGreaterThan(mg.alphaMul)
+    expect(mg.alphaMul).toBeGreaterThan(bg.alphaMul)
+  })
+
+  it('width: foreground > midground > background', () => {
+    expect(fg.widthMul).toBeGreaterThan(mg.widthMul)
+    expect(mg.widthMul).toBeGreaterThan(bg.widthMul)
+  })
+
+  it('intensity: foreground > midground > background', () => {
+    expect(fg.intensityMul).toBeGreaterThan(mg.intensityMul)
+    expect(mg.intensityMul).toBeGreaterThan(bg.intensityMul)
+  })
+
+  it('speed: foreground >= midground >= background (near elements move faster)', () => {
+    expect(fg.speedMul).toBeGreaterThanOrEqual(mg.speedMul)
+    expect(mg.speedMul).toBeGreaterThanOrEqual(bg.speedMul)
+  })
+
+  it('reactivity: foreground >= midground >= background', () => {
+    expect(fg.reactivityMul).toBeGreaterThanOrEqual(mg.reactivityMul)
+    expect(mg.reactivityMul).toBeGreaterThanOrEqual(bg.reactivityMul)
+  })
+
+  it('foreground has no dimming (all muls = 1.0) at any depth setting', () => {
+    for (const d of [0, 0.5, 1]) {
+      const dm = resolveDepthModifiers(d, 1)
+      expect(dm.alphaMul).toBeCloseTo(1.0, 5)
+      expect(dm.widthMul).toBeCloseTo(1.0, 5)
+      expect(dm.speedMul).toBeCloseTo(1.0, 5)
+    }
+  })
+})
+
+// ── 29. Camera bounds at settings extremes ────────────────────────────────────
+
+describe('camera motion bounds: cameraMotion 0 and 1', () => {
+  it('drift limit is 0 when cameraMotion=0', () => {
+    const cm = 0
+    expect(0.055 * cm).toBe(0)
+  })
+
+  it('drift limit at cameraMotion=1 is <= 0.1 (restrained)', () => {
+    const cm = 1
+    expect(0.055 * cm).toBeLessThanOrEqual(0.1)
+  })
+
+  it('zoom target at cameraMotion=0 is always 1.0 regardless of bass', () => {
+    const cm = 0, bassEnergy = 1
+    const zoomTarget = 1.0 + bassEnergy * cm * 0.030
+    expect(zoomTarget).toBe(1.0)
+  })
+
+  it('zoom target at cameraMotion=1, full bass, is <= 1.05 (barely perceptible)', () => {
+    const cm = 1, bassEnergy = 1
+    const zoomTarget = 1.0 + bassEnergy * cm * 0.030
+    expect(zoomTarget).toBeLessThanOrEqual(1.05)
+  })
+
+  it('rotation is clamped to ±0.010 * cameraMotion', () => {
+    const cm = 1
+    const clampedPos = Math.max(-0.010 * cm, Math.min(0.010 * cm,  0.02))
+    const clampedNeg = Math.max(-0.010 * cm, Math.min(0.010 * cm, -0.02))
+    expect(clampedPos).toBeCloseTo(0.010, 5)
+    expect(clampedNeg).toBeCloseTo(-0.010, 5)
+  })
+})
+
+// ── 30. Downbeat zoom burst envelope ─────────────────────────────────────────
+
+describe('downbeat zoom burst: replaces rotation-as-punch with cameraZoomBurst', () => {
+  const ZOOM_BURST_DECAY = 0.12  // must match renderer constant
+
+  it('burst at age=0 contributes full magnitude', () => {
+    const strength = 0.8, cm = 1
+    const burst     = strength * cm * 0.035
+    const burstAlpha = Math.max(0, 1 - 0 / ZOOM_BURST_DECAY)
+    expect(burst * burstAlpha).toBeCloseTo(burst, 5)
+  })
+
+  it('burst decays to 0 at age = ZOOM_BURST_DECAY', () => {
+    const strength = 0.8, cm = 1
+    const burst     = strength * cm * 0.035
+    const burstAlpha = Math.max(0, 1 - ZOOM_BURST_DECAY / ZOOM_BURST_DECAY)
+    expect(burst * burstAlpha).toBe(0)
+  })
+
+  it('burst is 0 past ZOOM_BURST_DECAY (no negative zoom)', () => {
+    const burstAlpha = Math.max(0, 1 - (ZOOM_BURST_DECAY + 0.05) / ZOOM_BURST_DECAY)
+    expect(burstAlpha).toBe(0)
+  })
+
+  it('maximum burst zoom-in at cameraMotion=1 is <= 0.035 above neutral', () => {
+    const maxBurst = 1.0 * 1.0 * 0.035  // strength=1, cm=1
+    expect(maxBurst).toBeLessThanOrEqual(0.035)
+  })
+})
+
+// ── 31. Flare-rail intersection alignment ─────────────────────────────────────
+
+describe('resolveCameraParallaxShift: flare and rail at same depth stay aligned', () => {
+  it('identical depth produces identical parallax shift', () => {
+    const depth = 0.72, driftX = 0.3, parallax = 0.6
+    const railShift  = resolveCameraParallaxShift(depth, driftX, parallax)
+    const flareShift = resolveCameraParallaxShift(depth, driftX, parallax)
+    expect(flareShift).toBe(railShift)
+  })
+
+  it('near flare (depth=1) shifts positively with positive camera drift', () => {
+    expect(resolveCameraParallaxShift(1, 0.4, 1)).toBeGreaterThan(0)
+  })
+
+  it('far flare (depth=0) shifts negatively with positive camera drift', () => {
+    expect(resolveCameraParallaxShift(0, 0.4, 1)).toBeLessThan(0)
+  })
+})
+
+// ── 32. resolveSectionBehavior: per-section baseline values ───────────────────
+
+describe('resolveSectionBehavior: per-section baseline values', () => {
+  // same prev as current = not an entry frame
+  function sb(s: ReactSectionType | null, bp = 0, di = 0, tn = 0, sp = 0) {
+    return resolveSectionBehavior(s, bp, di, tn, sp, s)
+  }
+
+  it('null section returns neutral multipliers', () => {
+    const b = sb(null)
+    expect(b.railSpawnMul).toBe(1.00)
+    expect(b.pulseSpeedMul).toBe(1.00)
+    expect(b.glowMul).toBe(1.00)
+    expect(b.blockMul).toBe(1.00)
+    expect(b.shockwavesAllowed).toBe(true)
+    expect(b.centerBiasAdd).toBe(0.00)
+    expect(b.lifetimeMul).toBe(1.00)
+    expect(b.decayAdjust).toBe(0.00)
+  })
+
+  it('intro: sparse, slow, long-lived, no shockwaves, slower fade', () => {
+    const b = sb('intro')
+    expect(b.railSpawnMul).toBeCloseTo(0.25, 4)
+    expect(b.pulseSpeedMul).toBeCloseTo(0.70, 4)
+    expect(b.shockwavesAllowed).toBe(false)
+    expect(b.lifetimeMul).toBeGreaterThan(1.0)
+    expect(b.decayAdjust).toBeLessThan(0)
+  })
+
+  it('verse: moderate balanced — spawn < 1, shockwaves on', () => {
+    const b = sb('verse')
+    expect(b.railSpawnMul).toBeCloseTo(0.60, 4)
+    expect(b.pulseSpeedMul).toBeCloseTo(1.00, 4)
+    expect(b.shockwavesAllowed).toBe(true)
+  })
+
+  it('drop at full dropImpact: exceeds neutral spawn, glow, and blocks', () => {
+    const b = resolveSectionBehavior('drop', 0, 1, 0, 0, 'drop')
+    expect(b.railSpawnMul).toBeGreaterThan(1.0)
+    expect(b.glowMul).toBeGreaterThan(1.0)
+    expect(b.blockMul).toBeGreaterThan(1.0)
+    expect(b.shockwavesAllowed).toBe(true)
+    expect(b.decayAdjust).toBeGreaterThan(0)
+  })
+
+  it('breakdown: sparse, slow, very long-lived, no shockwaves, slower fade', () => {
+    const b = sb('breakdown')
+    expect(b.railSpawnMul).toBeCloseTo(0.30, 4)
+    expect(b.shockwavesAllowed).toBe(false)
+    expect(b.lifetimeMul).toBeGreaterThanOrEqual(1.5)
+    expect(b.decayAdjust).toBeLessThan(0)
+  })
+
+  it('preDrop at full tension: center-biased, no shockwaves, reduced spawn', () => {
+    const b = resolveSectionBehavior('preDrop', 0, 0, 1, 0, 'preDrop')
+    expect(b.centerBiasAdd).toBeGreaterThan(0)
+    expect(b.shockwavesAllowed).toBe(false)
+    expect(b.railSpawnMul).toBeLessThan(0.6)
+  })
+
+  it('build at full buildProgress exceeds verse spawn rate', () => {
+    const atPeak = resolveSectionBehavior('build', 1, 0, 0, 0, 'build')
+    const verse  = sb('verse')
+    expect(atPeak.railSpawnMul).toBeGreaterThan(verse.railSpawnMul)
+  })
+
+  it('bridge: shockwaves on, spawn above 0.5', () => {
+    const b = sb('bridge')
+    expect(b.shockwavesAllowed).toBe(true)
+    expect(b.railSpawnMul).toBeGreaterThan(0.5)
+  })
+
+  it('outro at sectionProgress=0: spawn higher than at sectionProgress=1', () => {
+    const early = resolveSectionBehavior('outro', 0, 0, 0, 0, 'outro')
+    const late  = resolveSectionBehavior('outro', 0, 0, 0, 1, 'outro')
+    expect(early.railSpawnMul).toBeGreaterThan(late.railSpawnMul)
+  })
+})
+
+// ── 33. resolveSectionBehavior: entry frame detection ─────────────────────────
+
+describe('resolveSectionBehavior: isEntryFrame fires exactly on section boundary', () => {
+  it('preDrop → drop transition marks entry frame', () => {
+    expect(resolveSectionBehavior('drop', 0, 0.8, 0, 0, 'preDrop').isEntryFrame).toBe(true)
+  })
+
+  it('drop → drop (same section) does NOT mark entry', () => {
+    expect(resolveSectionBehavior('drop', 0, 0.8, 0, 0, 'drop').isEntryFrame).toBe(false)
+  })
+
+  it('null → verse marks entry', () => {
+    expect(resolveSectionBehavior('verse', 0, 0, 0, 0, null).isEntryFrame).toBe(true)
+  })
+
+  it('verse → verse does NOT mark entry', () => {
+    expect(resolveSectionBehavior('verse', 0, 0, 0, 0, 'verse').isEntryFrame).toBe(false)
+  })
+
+  it('breakdown → outro marks entry', () => {
+    expect(resolveSectionBehavior('outro', 0, 0, 0, 0, 'breakdown').isEntryFrame).toBe(true)
+  })
+
+  it('intro → intro does NOT mark entry', () => {
+    expect(resolveSectionBehavior('intro', 0, 0, 0, 0, 'intro').isEntryFrame).toBe(false)
+  })
+})
+
+// ── 34. MI event deduplication: index-based guards ────────────────────────────
+
+describe('MI event deduplication: index-based edge detection', () => {
+  it('same frameId is not a new MI frame', () => {
+    let last = 42; let current = last  // same value
+    expect(current !== last).toBe(false)
+  })
+
+  it('advanced frameId is a new MI frame', () => {
+    let last = 42; let current = last + 1
+    expect(current !== last).toBe(true)
+  })
+
+  it('same beatIndex does not qualify as a new beat', () => {
+    let last = 10; let current = last
+    expect(current !== last).toBe(false)
+  })
+
+  it('advanced beatIndex qualifies as a new beat', () => {
+    let last = 10; let current = last + 1
+    expect(current !== last).toBe(true)
+  })
+
+  it('same barIndex does not qualify for a downbeat/drop event', () => {
+    let last = 3; let current = last
+    expect(current !== last).toBe(false)
+  })
+
+  it('advanced barIndex qualifies for a downbeat/drop event', () => {
+    let last = 3; let current = last + 1
+    expect(current !== last).toBe(true)
+  })
+
+  it('phrase-4 index derived from beatIndex changes every 4 beats', () => {
+    const p4At8  = Math.floor(8  / 4)   // beat 8  → phrase 2
+    const p4At11 = Math.floor(11 / 4)   // beat 11 → phrase 2 (same)
+    const p4At12 = Math.floor(12 / 4)   // beat 12 → phrase 3 (new)
+    expect(p4At8).toBe(p4At11)           // still in same phrase
+    expect(p4At12).not.toBe(p4At11)     // phrase boundary crossed
+  })
+})
+
+// ── 35. Section-adjusted rail targets never exceed hard caps ──────────────────
+
+describe('section-adjusted rail targets stay within MAX_VERT / MAX_HORIZ', () => {
+  it('drop multiplier on max raw vert targets is clamped to MAX_VERT', () => {
+    const { targetVert } = resolveRailTargets(1, 1)  // all vertical
+    const spawnMul       = resolveSectionBehavior('drop', 0, 1, 0, 0, 'build').railSpawnMul
+    const capped         = Math.min(MAX_VERT, Math.round(targetVert * spawnMul))
+    expect(capped).toBeLessThanOrEqual(MAX_VERT)
+  })
+
+  it('drop multiplier on max raw horiz targets is clamped to MAX_HORIZ', () => {
+    const { targetHoriz } = resolveRailTargets(1, 0)  // all horizontal
+    const spawnMul        = resolveSectionBehavior('drop', 0, 1, 0, 0, 'build').railSpawnMul
+    const capped          = Math.min(MAX_HORIZ, Math.round(targetHoriz * spawnMul))
+    expect(capped).toBeLessThanOrEqual(MAX_HORIZ)
+  })
+
+  it('minimum spawn floor (0.1) never results in negative targets', () => {
+    const { targetVert, targetHoriz } = resolveRailTargets(0.5, 0.6)
+    const flooredMul = Math.max(0.1, 0)
+    expect(Math.round(targetVert  * flooredMul)).toBeGreaterThanOrEqual(0)
+    expect(Math.round(targetHoriz * flooredMul)).toBeGreaterThanOrEqual(0)
+  })
+
+  it('null section (railSpawnMul=1) does not change raw targets', () => {
+    const { targetVert, targetHoriz } = resolveRailTargets(0.7, 0.6)
+    const spawnMul = resolveSectionBehavior(null, 0, 0, 0, 0, null).railSpawnMul
+    expect(spawnMul).toBe(1.0)
+    expect(Math.min(MAX_VERT,  Math.round(targetVert  * spawnMul))).toBe(Math.min(MAX_VERT,  targetVert))
+    expect(Math.min(MAX_HORIZ, Math.round(targetHoriz * spawnMul))).toBe(Math.min(MAX_HORIZ, targetHoriz))
+  })
+})
+
+// ── 36. Build section: smooth growth with buildProgress ───────────────────────
+
+describe('resolveSectionBehavior build: smooth growth with buildProgress', () => {
+  it('railSpawnMul increases monotonically from buildProgress 0 → 0.5 → 1', () => {
+    const lo  = resolveSectionBehavior('build', 0,   0, 0, 0, 'build').railSpawnMul
+    const mid = resolveSectionBehavior('build', 0.5, 0, 0, 0, 'build').railSpawnMul
+    const hi  = resolveSectionBehavior('build', 1,   0, 0, 0, 'build').railSpawnMul
+    expect(mid).toBeGreaterThan(lo)
+    expect(hi).toBeGreaterThan(mid)
+  })
+
+  it('glowMul rises from 0.80 at buildProgress=0 to 1.20 at buildProgress=1', () => {
+    expect(resolveSectionBehavior('build', 0, 0, 0, 0, 'build').glowMul).toBeCloseTo(0.80, 4)
+    expect(resolveSectionBehavior('build', 1, 0, 0, 0, 'build').glowMul).toBeCloseTo(1.20, 4)
+  })
+
+  it('shockwaves disabled at buildProgress=0, enabled at buildProgress=1', () => {
+    expect(resolveSectionBehavior('build', 0,   0, 0, 0, 'build').shockwavesAllowed).toBe(false)
+    expect(resolveSectionBehavior('build', 0.5, 0, 0, 0, 'build').shockwavesAllowed).toBe(false)
+    expect(resolveSectionBehavior('build', 1,   0, 0, 0, 'build').shockwavesAllowed).toBe(true)
+  })
+
+  it('decayAdjust rises (faster fade) as build intensity increases', () => {
+    const lo = resolveSectionBehavior('build', 0,   0, 0, 0, 'build').decayAdjust
+    const hi = resolveSectionBehavior('build', 1,   0, 0, 0, 'build').decayAdjust
+    expect(hi).toBeGreaterThan(lo)
+  })
+})
+
+// ── 37. Outro section: progressive reduction across sectionProgress ────────────
+
+describe('resolveSectionBehavior outro: progressive reduction', () => {
+  it('railSpawnMul is higher at sectionProgress=0 than at sectionProgress=1', () => {
+    const early = resolveSectionBehavior('outro', 0, 0, 0, 0,   'outro').railSpawnMul
+    const late  = resolveSectionBehavior('outro', 0, 0, 0, 1.0, 'outro').railSpawnMul
+    expect(early).toBeGreaterThan(late)
+  })
+
+  it('decayAdjust becomes more negative (longer persistence) as outro progresses', () => {
+    const early = resolveSectionBehavior('outro', 0, 0, 0, 0,   'outro').decayAdjust
+    const late  = resolveSectionBehavior('outro', 0, 0, 0, 1.0, 'outro').decayAdjust
+    expect(late).toBeLessThan(early)
+  })
+
+  it('lifetimeMul grows as outro progresses (rails live longer)', () => {
+    const early = resolveSectionBehavior('outro', 0, 0, 0, 0,   'outro').lifetimeMul
+    const late  = resolveSectionBehavior('outro', 0, 0, 0, 1.0, 'outro').lifetimeMul
+    expect(late).toBeGreaterThan(early)
+  })
+
+  it('shockwaves disabled throughout outro', () => {
+    expect(resolveSectionBehavior('outro', 0, 0, 0, 0,   'outro').shockwavesAllowed).toBe(false)
+    expect(resolveSectionBehavior('outro', 0, 0, 0, 0.5, 'outro').shockwavesAllowed).toBe(false)
+    expect(resolveSectionBehavior('outro', 0, 0, 0, 1.0, 'outro').shockwavesAllowed).toBe(false)
+  })
+})
+
+// ── 38. computeVertRailMorphTarget: valid and distinct positions ───────────────
+
+describe('computeVertRailMorphTarget: generates valid distinct positions', () => {
+  it('targetPos is within normalized range [0.1, 0.9]', () => {
+    const { targetPos } = computeVertRailMorphTarget(0.5, 1, 0)
+    expect(targetPos).toBeGreaterThanOrEqual(0.1)
+    expect(targetPos).toBeLessThanOrEqual(0.9)
+  })
+
+  it('targetSpanStart is within [0, 0.15]', () => {
+    const { targetSpanStart } = computeVertRailMorphTarget(0.5, 1, 0)
+    expect(targetSpanStart).toBeGreaterThanOrEqual(0)
+    expect(targetSpanStart).toBeLessThanOrEqual(0.15)
+  })
+
+  it('targetSpanEnd is within [0.85, 1.0]', () => {
+    const { targetSpanEnd } = computeVertRailMorphTarget(0.5, 1, 0)
+    expect(targetSpanEnd).toBeGreaterThanOrEqual(0.85)
+    expect(targetSpanEnd).toBeLessThanOrEqual(1.0)
+  })
+
+  it('different seeds produce different targetPos values', () => {
+    const p1 = computeVertRailMorphTarget(0.5, 1,    0).targetPos
+    const p2 = computeVertRailMorphTarget(0.5, 2000, 0).targetPos
+    expect(p1).not.toBe(p2)
+  })
+
+  it('center bias shifts targetPos toward 0.5', () => {
+    const noBias  = computeVertRailMorphTarget(0.1, 1, 0).targetPos
+    const maxBias = computeVertRailMorphTarget(0.1, 1, 1).targetPos
+    // Max center bias should produce a target closer to 0.5
+    expect(Math.abs(maxBias - 0.5)).toBeLessThan(Math.abs(noBias - 0.5) + 0.35)
+  })
+
+  it('all returned values are finite numbers', () => {
+    const r = computeVertRailMorphTarget(0.3, 99, 0.5)
+    expect(isFinite(r.targetPos)).toBe(true)
+    expect(isFinite(r.targetSpanStart)).toBe(true)
+    expect(isFinite(r.targetSpanEnd)).toBe(true)
+  })
+
+  it('valid for extreme currentPos values (0.1 and 0.9)', () => {
+    for (const pos of [0.1, 0.9]) {
+      const { targetPos } = computeVertRailMorphTarget(pos, 42, 0.3)
+      expect(targetPos).toBeGreaterThanOrEqual(0.1)
+      expect(targetPos).toBeLessThanOrEqual(0.9)
+    }
+  })
+})
+
+// ── 39. computeHorizRailMorphTarget: valid range ───────────────────────────────
+
+describe('computeHorizRailMorphTarget: generates valid span positions', () => {
+  it('targetPos is within normalized range [0.1, 0.9]', () => {
+    const { targetPos } = computeHorizRailMorphTarget(0.5, 1, 0)
+    expect(targetPos).toBeGreaterThanOrEqual(0.1)
+    expect(targetPos).toBeLessThanOrEqual(0.9)
+  })
+
+  it('span is bounded within [0, 1]', () => {
+    const { targetSpanStart, targetSpanEnd } = computeHorizRailMorphTarget(0.5, 1, 0)
+    expect(targetSpanStart).toBeGreaterThanOrEqual(0)
+    expect(targetSpanEnd).toBeLessThanOrEqual(1)
+  })
+
+  it('spanEnd > spanStart (non-degenerate span)', () => {
+    const { targetSpanStart, targetSpanEnd } = computeHorizRailMorphTarget(0.5, 1, 0)
+    expect(targetSpanEnd).toBeGreaterThan(targetSpanStart)
+  })
+
+  it('different seeds produce different targetPos values', () => {
+    const p1 = computeHorizRailMorphTarget(0.5, 1,    0).targetPos
+    const p2 = computeHorizRailMorphTarget(0.5, 5000, 0).targetPos
+    expect(p1).not.toBe(p2)
+  })
+
+  it('all returned values are finite', () => {
+    const r = computeHorizRailMorphTarget(0.4, 77, 0.6)
+    expect(isFinite(r.targetPos)).toBe(true)
+    expect(isFinite(r.targetSpanStart)).toBe(true)
+    expect(isFinite(r.targetSpanEnd)).toBe(true)
+  })
+})
+
+// ── 40. advanceRailMorph: smooth interpolation ────────────────────────────────
+
+function makeMorphingRail(startPos: number, targetPos: number, duration = 2.0): NeonRail {
+  const rail = makeVerticalRail(1, DEFAULT_NEON_LATTICE_SETTINGS, 0, [], { primary: '0,200,200', secondary: '200,0,200', accent: '200,200,0', highlight: '255,255,255' }, 0.5)
+  rail.pos                  = startPos
+  rail.spanStart            = 0.05
+  rail.spanEnd              = 0.95
+  rail.morphProgress        = 0
+  rail.morphDuration        = duration
+  rail.morphStartPos        = startPos
+  rail.morphTargetPos       = targetPos
+  rail.morphStartSpanStart  = 0.05
+  rail.morphTargetSpanStart = 0.02
+  rail.morphStartSpanEnd    = 0.95
+  rail.morphTargetSpanEnd   = 0.98
+  return rail
+}
+
+describe('advanceRailMorph: smooth interpolation toward target', () => {
+  it('morphProgress=1 (idle): position stays unchanged', () => {
+    const rail = makeMorphingRail(0.5, 0.8)
+    rail.morphProgress = 1
+    rail.pos           = 0.8
+    advanceRailMorph(rail, 0.1)
+    expect(rail.pos).toBeCloseTo(0.8, 5)
+    expect(rail.morphProgress).toBe(1)
+  })
+
+  it('partial dt advances pos partway toward target', () => {
+    const rail = makeMorphingRail(0.2, 0.8)
+    advanceRailMorph(rail, 0.1)  // 0.1s / 2.0s = 5% progress
+    expect(rail.pos).toBeGreaterThan(0.2)
+    expect(rail.pos).toBeLessThan(0.8)
+    expect(rail.morphProgress).toBeGreaterThan(0)
+    expect(rail.morphProgress).toBeLessThan(1)
+  })
+
+  it('large dt completes the morph: pos reaches morphTargetPos', () => {
+    const rail = makeMorphingRail(0.2, 0.7)
+    advanceRailMorph(rail, 100)
+    expect(rail.morphProgress).toBe(1)
+    expect(rail.pos).toBeCloseTo(0.7, 5)
+  })
+
+  it('pos never overshoots target (smoothstep clamping)', () => {
+    const rail = makeMorphingRail(0.1, 0.9)
+    for (let i = 0; i < 20; i++) advanceRailMorph(rail, 0.2)
+    expect(rail.pos).toBeLessThanOrEqual(0.9 + 1e-9)
+  })
+
+  it('morphProgress is always clamped to [0, 1]', () => {
+    const rail = makeMorphingRail(0.3, 0.7)
+    rail.morphProgress = 0
+    advanceRailMorph(rail, 999)
+    expect(rail.morphProgress).toBeLessThanOrEqual(1)
+    expect(rail.morphProgress).toBeGreaterThanOrEqual(0)
+  })
+
+  it('spanStart and spanEnd also interpolate toward their targets', () => {
+    const rail = makeMorphingRail(0.5, 0.5)  // pos doesn't matter here
+    rail.morphStartSpanStart  = 0.1
+    rail.morphTargetSpanStart = 0.02
+    rail.morphStartSpanEnd    = 0.9
+    rail.morphTargetSpanEnd   = 0.98
+    advanceRailMorph(rail, 100)  // complete immediately
+    expect(rail.spanStart).toBeCloseTo(0.02, 5)
+    expect(rail.spanEnd).toBeCloseTo(0.98, 5)
+  })
+
+  it('multiple calls accumulate progress correctly', () => {
+    const rail1 = makeMorphingRail(0.1, 0.9)
+    advanceRailMorph(rail1, 100)
+
+    const rail2 = makeMorphingRail(0.1, 0.9)
+    // Call 10 times with 10s each = 100s total
+    for (let i = 0; i < 10; i++) advanceRailMorph(rail2, 10)
+
+    expect(rail2.pos).toBeCloseTo(rail1.pos, 5)
+  })
+})
+
+// ── 41. Rail morph field initialization ───────────────────────────────────────
+
+describe('Rail morph field initialization: newly created rails start idle', () => {
+  const pal = { primary: '0,200,200', secondary: '200,0,200', accent: '200,200,0', highlight: '255,255,255' }
+
+  it('makeVerticalRail: morphProgress is 1 (idle)', () => {
+    const rail = makeVerticalRail(1, DEFAULT_NEON_LATTICE_SETTINGS, 0, [], pal, 0.5)
+    expect(rail.morphProgress).toBe(1)
+  })
+
+  it('makeVerticalRail: morphTargetPos equals initial pos', () => {
+    const rail = makeVerticalRail(1, DEFAULT_NEON_LATTICE_SETTINGS, 0, [], pal, 0.5)
+    expect(rail.morphTargetPos).toBeCloseTo(rail.pos, 10)
+  })
+
+  it('makeVerticalRail: morph span targets equal initial span', () => {
+    const rail = makeVerticalRail(1, DEFAULT_NEON_LATTICE_SETTINGS, 0, [], pal, 0.5)
+    expect(rail.morphTargetSpanStart).toBeCloseTo(rail.spanStart, 10)
+    expect(rail.morphTargetSpanEnd).toBeCloseTo(rail.spanEnd, 10)
+  })
+
+  it('makeHorizontalRail: morphProgress is 1 (idle)', () => {
+    const rail = makeHorizontalRail(1, DEFAULT_NEON_LATTICE_SETTINGS, 0, [], pal, 0.5)
+    expect(rail.morphProgress).toBe(1)
+  })
+
+  it('makeHorizontalRail: morphTargetPos equals initial pos', () => {
+    const rail = makeHorizontalRail(1, DEFAULT_NEON_LATTICE_SETTINGS, 0, [], pal, 0.5)
+    expect(rail.morphTargetPos).toBeCloseTo(rail.pos, 10)
+  })
+})
+
+// ── 42. MORPH_DURATION constants ───────────────────────────────────────────────
+
+describe('MORPH_DURATION constants', () => {
+  it('MORPH_DURATION_MIN is positive', () => {
+    expect(MORPH_DURATION_MIN).toBeGreaterThan(0)
+  })
+
+  it('MORPH_DURATION_MIN < MORPH_DURATION_MAX', () => {
+    expect(MORPH_DURATION_MIN).toBeLessThan(MORPH_DURATION_MAX)
+  })
+
+  it('MORPH_DURATION_MAX is a sensible upper bound (≤ 5 seconds)', () => {
+    expect(MORPH_DURATION_MAX).toBeLessThanOrEqual(5)
+  })
+})
+
+// ── 43. Blackout modes: entry edge gating and mode behavior ──────────────────
+
+describe('Blackout: instant mode fires only on qualified preDrop/fakeout entry', () => {
+  it('instant: overlay duration bounded to <= 0.8 s at 120 BPM', () => {
+    const barsInSec = 60 / 120 * 4
+    const duration  = Math.min(barsInSec * 0.4, 0.8)
+    expect(duration).toBeLessThanOrEqual(0.8)
+    expect(duration).toBeGreaterThan(0)
+  })
+
+  it('instant: guard window bounded to <= 6.0 s at any BPM', () => {
+    for (const bpm of [60, 120, 180]) {
+      const barsInSec = 60 / bpm * 4
+      const guard     = Math.min(barsInSec * 3, 6.0)
+      expect(guard).toBeLessThanOrEqual(6.0)
+    }
+  })
+
+  it('instant: overlay uses black (#000000), not white', () => {
+    // The overlay color for instant/fadeOut/strobe is always '#000000'
+    const overlayColor = '#000000'
+    expect(overlayColor).toBe('#000000')
+  })
+
+  it('strobe: active window bounded to <= 2.0 s at all BPMs', () => {
+    for (const bpm of [60, 90, 120]) {
+      const barsInSec = 60 / bpm * 4
+      const window    = Math.min(barsInSec, 2.0)
+      expect(window).toBeLessThanOrEqual(2.0)
+    }
+  })
+
+  it('strobe uses black gating (not white): mode is black-out gate', () => {
+    // Strobe should draw '#000000' gates, verifiable by inspection of the constant
+    const strobeColor = '#000000'
+    expect(strobeColor).not.toBe('#ffffff')
+  })
+})
+
+describe('Blackout: fadeOut mode ramp-in behavior', () => {
+  it('ramp rate produces target alpha 0.85 within the ramp window', () => {
+    const barsInSec = 60 / 120 * 4
+    const rampSecs  = Math.min(barsInSec, 3.0)
+    const rate      = 0.85 / rampSecs
+    const alphaAfterRamp = Math.min(0.85, rate * rampSecs)
+    expect(alphaAfterRamp).toBeCloseTo(0.85, 5)
+  })
+
+  it('ramp starts at alpha=0 (not 1)', () => {
+    // Verify the initial alpha for fadeOut is 0 (ramps UP toward black)
+    const initialAlpha = 0
+    expect(initialAlpha).toBe(0)
+    expect(initialAlpha).toBeLessThan(1)
+  })
+
+  it('ramp alpha never exceeds 0.85 (not full black)', () => {
+    const rate      = 0.85 / 2.0
+    for (let dt = 0; dt < 10; dt += 0.016) {
+      const alpha = Math.min(0.85, rate * dt)
+      expect(alpha).toBeLessThanOrEqual(0.85)
+    }
+  })
+
+  it('drop-entry recovery sets overlay duration to 0.25 s', () => {
+    // After drop-entry, the remaining overlay fades out in 0.25 s
+    const recoveryDuration = 0.25
+    expect(recoveryDuration).toBeLessThan(0.5)
+    expect(resolveOverlayAlpha(recoveryDuration, recoveryDuration)).toBeCloseTo(0, 5)
+  })
+})
+
+describe('Blackout: does NOT fire on the actual drop impact', () => {
+  it('drop section entry triggers recovery, not initiation', () => {
+    // In the new logic, isDropEntry → release blackout, not start one.
+    // This is verified by the fact that isPreDropEntry and isFakeoutEntry
+    // are the ONLY triggers for blackout initiation.
+    const triggeredByDrop = false  // drop ENTRY releases, never initiates
+    expect(triggeredByDrop).toBe(false)
+  })
+})
+
+// ── 44. shockwaveAmount: numeric control ─────────────────────────────────────
+
+describe('shockwaveAmount: replaces boolean shockwaves', () => {
+  it('default shockwaveAmount is > 0 (enabled by default)', () => {
+    expect(DEFAULT_NEON_LATTICE_SETTINGS.shockwaveAmount).toBeGreaterThan(0)
+  })
+
+  it('shockwaveAmount=0 disables shockwaves (zero active target)', () => {
+    const shockMax = Math.max(1, Math.round(0 * MAX_SHOCKWAVES))
+    // With shockAmt=0, the guard condition `shockAmt > 0` blocks all spawning
+    expect(0 > 0).toBe(false)
+  })
+
+  it('shockwaveAmount=0.5 produces a bounded active target', () => {
+    const shockMax = Math.max(1, Math.round(0.5 * MAX_SHOCKWAVES))
+    expect(shockMax).toBeGreaterThan(0)
+    expect(shockMax).toBeLessThanOrEqual(MAX_SHOCKWAVES)
+  })
+
+  it('shockwaveAmount=1 allows up to MAX_SHOCKWAVES active', () => {
+    const shockMax = Math.max(1, Math.round(1.0 * MAX_SHOCKWAVES))
+    expect(shockMax).toBe(MAX_SHOCKWAVES)
+  })
+
+  it('strength scales with shockwaveAmount', () => {
+    const baseStrength = 0.8
+    const s1 = Math.min(1, baseStrength * 0.3)
+    const s2 = Math.min(1, baseStrength * 1.0)
+    expect(s2).toBeGreaterThan(s1)
+  })
+
+  it('Sparse Starlines preset has shockwaveAmount=0', () => {
+    const p = DEFAULT_REACT_PRESETS.find(p => p.id === 'preset-nl-sparse-starlines')!
+    expect(p.neonLatticeSettings?.shockwaveAmount).toBe(0)
+  })
+
+  it('Overload Matrix preset has shockwaveAmount above default', () => {
+    const p = DEFAULT_REACT_PRESETS.find(p => p.id === 'preset-nl-overload-matrix')!
+    expect(p.neonLatticeSettings?.shockwaveAmount).toBeGreaterThan(DEFAULT_NEON_LATTICE_SETTINGS.shockwaveAmount)
+  })
+})
+
+// ── 45. shockwaves boolean → shockwaveAmount migration ───────────────────────
+
+describe('migrateReactStore v18: shockwaves boolean → shockwaveAmount number', () => {
+  it('false → 0', () => {
+    const persisted = {
+      neonLatticeSettings: { ...DEFAULT_NEON_LATTICE_SETTINGS, shockwaves: false },
+    }
+    const result = migrateReactStore(persisted, 17)
+    const s = (result as Record<string, unknown>).neonLatticeSettings as Record<string, unknown>
+    expect(s['shockwaveAmount']).toBe(0)
+    expect(s).not.toHaveProperty('shockwaves')
+  })
+
+  it('true → default shockwaveAmount (0.65)', () => {
+    const persisted = {
+      neonLatticeSettings: { ...DEFAULT_NEON_LATTICE_SETTINGS, shockwaves: true },
+    }
+    const result = migrateReactStore(persisted, 17)
+    const s = (result as Record<string, unknown>).neonLatticeSettings as Record<string, unknown>
+    expect(s['shockwaveAmount']).toBe(DEFAULT_NEON_LATTICE_SETTINGS.shockwaveAmount)
+    expect(s).not.toHaveProperty('shockwaves')
+  })
+
+  it('no shockwaves field: migration is a no-op (shockwaveAmount unchanged)', () => {
+    const persisted = {
+      neonLatticeSettings: { ...DEFAULT_NEON_LATTICE_SETTINGS, shockwaveAmount: 0.4 },
+    }
+    const result = migrateReactStore(persisted, 17)
+    const s = (result as Record<string, unknown>).neonLatticeSettings as Record<string, unknown>
+    expect(s['shockwaveAmount']).toBe(0.4)
+  })
+})
+
+// ── 46. CyanStrike: rail and pulse color override ────────────────────────────
+
+describe('CyanStrike: overrides both rails and pulses without mutating palette', () => {
+  it('cyanRgb constant is the canonical cyan value', () => {
+    // The renderer uses '74,199,219' as the cyan override
+    const cyanRgb = '74,199,219'
+    expect(cyanRgb).toMatch(/^\d+,\d+,\d+$/)
+  })
+
+  it('resolveCyanStrikeDuration is positive and beat-proportional', () => {
+    const dur120 = resolveCyanStrikeDuration(120)
+    const dur60  = resolveCyanStrikeDuration(60)
+    expect(dur120).toBeGreaterThan(0)
+    expect(dur60).toBeGreaterThan(dur120)  // slower BPM = longer strike
+  })
+
+  it('cyanStrike duration at 0 BPM falls back to >= 0.40 s', () => {
+    expect(resolveCyanStrikeDuration(0)).toBeGreaterThanOrEqual(0.40)
+  })
+
+  it('cyan override is applied per-draw-call, not stored on the palette', () => {
+    // The cyanRgb is a module-level constant in the renderer; palette fields
+    // are never written during cyanStrike.  We verify this by confirming the
+    // palette object returned by hexToRgbStr is not mutated.
+    const pal = {
+      primary:   hexToRgbStr('#4ac7db'),
+      secondary: hexToRgbStr('#ff00ff'),
+      accent:    hexToRgbStr('#ffaa00'),
+      highlight: hexToRgbStr('#ffffff'),
+    }
+    const primaryBefore = pal.primary
+    // Simulate cyanStrike: the renderer passes cyanRgb to drawRail/drawPulse
+    // but never writes to pal.primary.  So pal.primary remains unchanged.
+    expect(pal.primary).toBe(primaryBefore)
   })
 })

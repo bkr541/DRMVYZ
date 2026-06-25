@@ -1,7 +1,7 @@
 // ── Neon Lattice utility types and helpers ────────────────────────────────────
 // These are pure functions with no side effects; safe to import from tests.
 
-import type { NeonLatticeSettings } from '../ReactTypes'
+import type { NeonLatticeSettings, NeonLatticeTrigger } from '../ReactTypes'
 
 // ── Rail model ────────────────────────────────────────────────────────────────
 
@@ -29,6 +29,26 @@ export interface NeonRail {
   lifetime:   number
   /** Packed RGB string, e.g. '74,199,219'. */
   colorRgb:   string
+  // ── Morph fields ────────────────────────────────────────────────────────────
+  // morphProgress = 1 means "at target / not morphing".
+  // beginLayoutReseed sets it to 0 and supplies new targets; advanceRailMorph
+  // interpolates pos/spanStart/spanEnd toward the targets each frame.
+  /** 0 = morph just started, 1 = complete/idle. */
+  morphProgress:        number
+  /** Duration in seconds for this rail's morph to complete. */
+  morphDuration:        number
+  /** pos value when the morph started. */
+  morphStartPos:        number
+  /** pos target (normalized 0–1). */
+  morphTargetPos:       number
+  /** spanStart value when the morph started. */
+  morphStartSpanStart:  number
+  /** spanStart target (normalized 0–1). */
+  morphTargetSpanStart: number
+  /** spanEnd value when the morph started. */
+  morphStartSpanEnd:    number
+  /** spanEnd target (normalized 0–1). */
+  morphTargetSpanEnd:   number
 }
 
 // ── Seeded PRNG (xorshift32) ──────────────────────────────────────────────────
@@ -183,7 +203,7 @@ export function makeVerticalRail(
   const spanY1   = 0.85 + r * 0.15
 
   ;[r]           = prngNext(s)
-  const depth    = 0.3 + r * 0.7
+  const depth    = 0.25 + r * 0.75
 
   const rawLifetime = settings.railLifetime * (0.7 + strength * 0.5)
 
@@ -199,6 +219,15 @@ export function makeVerticalRail(
     birthSec:  audioTime,
     lifetime:  rawLifetime,
     colorRgb,
+    // Morph fields: idle (already at target, no animation in progress)
+    morphProgress:        1,
+    morphDuration:        1,
+    morphStartPos:        norm,
+    morphTargetPos:       norm,
+    morphStartSpanStart:  spanY0,
+    morphTargetSpanStart: spanY0,
+    morphStartSpanEnd:    spanY1,
+    morphTargetSpanEnd:   spanY1,
   }
 }
 
@@ -235,7 +264,7 @@ export function makeHorizontalRail(
   const x1    = Math.min(1, cx + halfSpan)
 
   ;[r]        = prngNext(s)
-  const depth = 0.2 + r * 0.6
+  const depth = 0.15 + r * 0.65
 
   const rawLifetime = settings.railLifetime * 0.6 * (0.6 + strength * 0.4)
 
@@ -251,6 +280,15 @@ export function makeHorizontalRail(
     birthSec:  audioTime,
     lifetime:  rawLifetime,
     colorRgb,
+    // Morph fields: idle
+    morphProgress:        1,
+    morphDuration:        1,
+    morphStartPos:        norm,
+    morphTargetPos:       norm,
+    morphStartSpanStart:  x0,
+    morphTargetSpanStart: x0,
+    morphStartSpanEnd:    x1,
+    morphTargetSpanEnd:   x1,
   }
 }
 
@@ -363,6 +401,8 @@ export interface NeonBlock {
   lifetime: number
   alpha:    number
   colorRgb: string
+  /** Depth layer (0 = far/background, 1 = near/foreground). */
+  depth:    number
 }
 
 // ── Shockwave model ────────────────────────────────────────────────────────────
@@ -584,6 +624,7 @@ export function makeBlock(
   holdSec:  number,
   colorRgb: string,
   strength: number,
+  depth:    number = 0.5,   // 0=far, 1=near; default = midground
 ): NeonBlock {
   return {
     col, row,
@@ -591,6 +632,7 @@ export function makeBlock(
     lifetime: holdSec * (0.6 + strength * 0.6),
     alpha:    0.09 + strength * 0.09,
     colorRgb,
+    depth,
   }
 }
 
@@ -659,41 +701,172 @@ export function isShockwaveExpired(sw: NeonShockwave, audioTime: number): boolea
   return audioTime - sw.birthSec >= sw.lifetime
 }
 
+// ── Depth plane constants and helpers ─────────────────────────────────────────
+
+/** Canonical depth value for the background plane (far, dim, narrow). */
+export const DEPTH_BG = 0.15
+/** Canonical depth value for the midground plane. */
+export const DEPTH_MG = 0.50
+/** Canonical depth value for the foreground plane (near, bright, wide). */
+export const DEPTH_FG = 0.85
+
+export type DepthPlane = 'background' | 'midground' | 'foreground'
+
+/**
+ * Classify a continuous depth value (0=far, 1=near) into a named plane.
+ * Boundaries: background [0, 1/3), midground [1/3, 2/3), foreground [2/3, 1].
+ */
+export function resolveDepthPlane(depth: number): DepthPlane {
+  if (depth < 1 / 3) return 'background'
+  if (depth < 2 / 3) return 'midground'
+  return 'foreground'
+}
+
 // ── Depth / parallax helpers ───────────────────────────────────────────────────
 
 /**
  * Compute per-rail visual modifiers from the depth setting and the rail's own
  * depth value.
  *
- * `railDepth` is 0–1: 0 = near/foreground (bright, wide), 1 = far/background (dim, narrow).
+ * `railDepth` is 0–1: **0 = far/background** (dim, narrow, slow),
+ * **1 = near/foreground** (bright, wide, fast). This matches the convention in
+ * `NeonRail.depth`.
  * `depth` setting 0 = flat (no differentiation), 1 = maximum differentiation.
  */
 export function resolveDepthModifiers(
   depth:     number,   // settings.depth 0–1
-  railDepth: number,   // rail.depth 0–1
-): { alphaMul: number; intensityMul: number; widthMul: number } {
-  const far = Math.max(0, Math.min(1, railDepth))
-  const d   = Math.max(0, Math.min(1, depth))
+  railDepth: number,   // rail/object depth: 0=far, 1=near
+): { alphaMul: number; intensityMul: number; widthMul: number; speedMul: number; reactivityMul: number } {
+  const near = Math.max(0, Math.min(1, railDepth))
+  const far  = 1 - near                             // 1 when railDepth=0 (background)
+  const d    = Math.max(0, Math.min(1, depth))
   return {
-    alphaMul:     1.0 - far * d * 0.60,
-    intensityMul: 1.0 - far * d * 0.35,
-    widthMul:     1.0 - far * d * 0.50,
+    alphaMul:      1.0 - far * d * 0.60,  // background elements dimmer
+    intensityMul:  1.0 - far * d * 0.35,  // background elements less intense
+    widthMul:      1.0 - far * d * 0.50,  // background elements narrower
+    speedMul:      1.0 - far * d * 0.25,  // background pulses move slower
+    reactivityMul: 1.0 - far * d * 0.40,  // background elements less bass-reactive
   }
 }
 
 /**
- * Compute the normalized x-axis parallax shift for a rail at a given depth.
- * Returns a value in [-1, 1] that should be multiplied by W before applying.
+ * Compute the normalized x-axis parallax shift for an object at a given depth.
+ * Returns a value in [-parallax, +parallax] to multiply by W before applying.
  *
- * Near rails (depth=0) shift in the opposite direction to far rails (depth=1).
- * When `cameraDriftX` is 0 or `parallax` is 0, returns 0.
+ * With convention **0 = far, 1 = near**:
+ * - Near objects (depth=1) shift positively with positive cameraDriftX.
+ * - Far objects (depth=0) shift negatively (opposite direction).
+ * - Midground (depth=0.5) has zero shift.
+ * Returns 0 when `cameraDriftX` is 0 or `parallax` is 0.
  */
 export function resolveCameraParallaxShift(
-  railDepth:    number,  // 0=near, 1=far
+  railDepth:    number,  // 0=far, 1=near
   cameraDriftX: number,  // normalized camera offset (-1 to 1)
   parallax:     number,  // settings.parallax 0–1
 ): number {
-  return cameraDriftX * (0.5 - railDepth) * parallax * 2.0
+  return cameraDriftX * (railDepth - 0.5) * parallax * 2.0
+}
+
+// ── Rail morph helpers ────────────────────────────────────────────────────────
+
+/** Minimum morph animation duration in seconds. */
+export const MORPH_DURATION_MIN = 1.5
+/** Maximum morph animation duration in seconds. */
+export const MORPH_DURATION_MAX = 2.5
+
+/** Smoothstep easing (S-curve, clamped to [0,1]). */
+function smoothstep(t: number): number {
+  const tc = Math.max(0, Math.min(1, t))
+  return tc * tc * (3 - 2 * tc)
+}
+
+/**
+ * Compute a new morph target position and span for a vertical rail.
+ * Biases toward positions that differ from `currentPos` by at least a small
+ * distance so reseeds are visually distinct.
+ *
+ * All returned values are in normalized canvas space [0, 1].
+ */
+export function computeVertRailMorphTarget(
+  currentPos: number,
+  seed:       number,
+  centerBias: number,
+): { targetPos: number; targetSpanStart: number; targetSpanEnd: number } {
+  const cb = Math.max(0, Math.min(1, centerBias)) * 0.3
+  let [r, s] = prngNext(seed)
+  // Try several candidates; keep the one with the greatest distance from currentPos
+  let bestLane = Math.round(r * (MAX_VERT - 1))
+  let bestDist = 0
+  for (let i = 0; i < 10; i++) {
+    ;[r, s]         = prngNext(s)
+    const candidate = Math.round(r * (MAX_VERT - 1))
+    let   norm      = candidate / (MAX_VERT - 1)
+    norm            = 0.1 + norm * 0.8
+    norm            = norm * (1 - cb) + 0.5 * cb
+    const dist      = Math.abs(norm - currentPos)
+    if (dist > bestDist) { bestDist = dist; bestLane = candidate }
+    if (dist >= 0.12) break  // sufficient separation found
+  }
+  let targetPos = bestLane / (MAX_VERT - 1)
+  targetPos     = 0.1 + targetPos * 0.8
+  targetPos     = targetPos * (1 - cb) + 0.5 * cb
+
+  ;[r, s]                  = prngNext(s)
+  const targetSpanStart    = r * 0.15
+  ;[r]                     = prngNext(s)
+  const targetSpanEnd      = 0.85 + r * 0.15
+
+  return { targetPos, targetSpanStart, targetSpanEnd }
+}
+
+/**
+ * Compute a new morph target position and span for a horizontal rail.
+ */
+export function computeHorizRailMorphTarget(
+  currentPos: number,
+  seed:       number,
+  centerBias: number,
+): { targetPos: number; targetSpanStart: number; targetSpanEnd: number } {
+  const cb = Math.max(0, Math.min(1, centerBias)) * 0.25
+  let [r, s] = prngNext(seed)
+  let bestLane = Math.round(r * (MAX_HORIZ - 1))
+  let bestDist = 0
+  for (let i = 0; i < 10; i++) {
+    ;[r, s]         = prngNext(s)
+    const candidate = Math.round(r * (MAX_HORIZ - 1))
+    let   norm      = candidate / Math.max(1, MAX_HORIZ - 1)
+    norm            = 0.1 + norm * 0.8
+    norm            = norm * (1 - cb) + 0.5 * cb
+    const dist      = Math.abs(norm - currentPos)
+    if (dist > bestDist) { bestDist = dist; bestLane = candidate }
+    if (dist >= 0.12) break
+  }
+  let targetPos = bestLane / Math.max(1, MAX_HORIZ - 1)
+  targetPos     = 0.1 + targetPos * 0.8
+  targetPos     = targetPos * (1 - cb) + 0.5 * cb
+
+  ;[r, s]               = prngNext(s)
+  const halfSpan        = 0.15 + r * 0.35
+  ;[r, s]               = prngNext(s)
+  const cx              = 0.2 + r * 0.6
+  const targetSpanStart = Math.max(0, cx - halfSpan)
+  const targetSpanEnd   = Math.min(1, cx + halfSpan)
+
+  return { targetPos, targetSpanStart, targetSpanEnd }
+}
+
+/**
+ * Advance a rail's morph animation by `dt` seconds in place.
+ * Interpolates `pos`, `spanStart`, and `spanEnd` toward their morph targets
+ * using smoothstep easing.  Does nothing when `morphProgress >= 1`.
+ */
+export function advanceRailMorph(rail: NeonRail, dt: number): void {
+  if (rail.morphProgress >= 1) return
+  rail.morphProgress = Math.min(1, rail.morphProgress + dt / Math.max(0.01, rail.morphDuration))
+  const t = smoothstep(rail.morphProgress)
+  rail.pos       = rail.morphStartPos       + (rail.morphTargetPos       - rail.morphStartPos)       * t
+  rail.spanStart = rail.morphStartSpanStart + (rail.morphTargetSpanStart - rail.morphStartSpanStart) * t
+  rail.spanEnd   = rail.morphStartSpanEnd   + (rail.morphTargetSpanEnd   - rail.morphStartSpanEnd)   * t
 }
 
 // ── Section / MI helpers ───────────────────────────────────────────────────────
@@ -734,6 +907,159 @@ export function resolveSectionSpawnMul(
     case 'bridge':    return 0.65
     case 'outro':     return 0.25 + (1.0 - Math.max(0, Math.min(1, sectionProgress))) * 0.30
     default:          return 1.0
+  }
+}
+
+// ── Per-section visual behavior ────────────────────────────────────────────────
+
+/**
+ * Visual modifiers the Neon Lattice renderer applies for a given musical section.
+ * All multipliers scale on top of the user-facing settings so section behavior
+ * adjusts relative to the preset rather than replacing it.
+ */
+export interface NLSectionBehavior {
+  /** Multiplier for automatic rail spawn targets. */
+  railSpawnMul:      number
+  /** Multiplier applied to settings.pulseSpeed. */
+  pulseSpeedMul:     number
+  /** Additive shift on params.trailDecay (positive = faster fade). */
+  decayAdjust:       number
+  /** Multiplier applied to settings.bloom. */
+  glowMul:           number
+  /** Multiplier applied to settings.blockDensity. */
+  blockMul:          number
+  /** When false, shockwaves are suppressed regardless of settings.shockwaveAmount. */
+  shockwavesAllowed: boolean
+  /** Additive shift on settings.centerBias (positive = more centered). */
+  centerBiasAdd:     number
+  /** Multiplier applied to settings.railLifetime. */
+  lifetimeMul:       number
+  /** True only on the first renderer frame after entering a new section. */
+  isEntryFrame:      boolean
+}
+
+/**
+ * Compute section-specific visual behavior modifiers.
+ * Pure function; safe to call from tests and in every render frame.
+ *
+ * Smooth MI signals (buildProgress, dropImpact, tension, sectionProgress)
+ * drive continuous interpolation within each section.  `prevSectionType`
+ * drives one-shot entry detection via `isEntryFrame`.
+ */
+export function resolveSectionBehavior(
+  sectionType:     ReactSectionType | null,
+  buildProgress:   number,  // 0–1
+  dropImpact:      number,  // 0–1
+  tension:         number,  // 0–1
+  sectionProgress: number,  // 0–1 through the section
+  prevSectionType: ReactSectionType | null,
+): NLSectionBehavior {
+  const isEntryFrame = sectionType !== prevSectionType
+  const bp  = Math.max(0, Math.min(1, buildProgress))
+  const di  = Math.max(0, Math.min(1, dropImpact))
+  const tn  = Math.max(0, Math.min(1, tension))
+  const sp  = Math.max(0, Math.min(1, sectionProgress))
+
+  switch (sectionType) {
+    case 'intro': return {
+      railSpawnMul:      0.25,
+      pulseSpeedMul:     0.70,
+      decayAdjust:      -0.010,
+      glowMul:           0.60,
+      blockMul:          0.30,
+      shockwavesAllowed: false,
+      centerBiasAdd:     0.10,
+      lifetimeMul:       1.40,
+      isEntryFrame,
+    }
+    case 'verse': return {
+      railSpawnMul:      0.60,
+      pulseSpeedMul:     1.00,
+      decayAdjust:       0.000,
+      glowMul:           0.85,
+      blockMul:          0.60,
+      shockwavesAllowed: true,
+      centerBiasAdd:     0.00,
+      lifetimeMul:       1.00,
+      isEntryFrame,
+    }
+    case 'build': return {
+      railSpawnMul:      0.60 + bp * 0.45,
+      pulseSpeedMul:     1.00 + bp * 0.35,
+      decayAdjust:       bp * 0.015,
+      glowMul:           0.80 + bp * 0.40,
+      blockMul:          0.50 + bp * 0.50,
+      shockwavesAllowed: bp > 0.50,
+      centerBiasAdd:     bp * 0.15,
+      lifetimeMul:       1.00 - bp * 0.20,
+      isEntryFrame,
+    }
+    case 'preDrop': return {
+      railSpawnMul:      0.30 + tn * 0.20,
+      pulseSpeedMul:     0.80,
+      decayAdjust:      -0.010,
+      glowMul:           0.40 + tn * 0.60,
+      blockMul:          0.20,
+      shockwavesAllowed: false,
+      centerBiasAdd:     0.20 + tn * 0.15,
+      lifetimeMul:       1.30,
+      isEntryFrame,
+    }
+    case 'drop': return {
+      railSpawnMul:      1.00 + di * 0.25,
+      pulseSpeedMul:     1.00 + di * 0.30,
+      decayAdjust:       0.020,
+      glowMul:           1.00 + di * 0.50,
+      blockMul:          1.00 + di * 0.50,
+      shockwavesAllowed: true,
+      centerBiasAdd:    -0.10,
+      lifetimeMul:       0.80,
+      isEntryFrame,
+    }
+    case 'breakdown': return {
+      railSpawnMul:      0.30,
+      pulseSpeedMul:     0.65,
+      decayAdjust:      -0.015,
+      glowMul:           0.50,
+      blockMul:          0.25,
+      shockwavesAllowed: false,
+      centerBiasAdd:     0.00,
+      lifetimeMul:       1.60,
+      isEntryFrame,
+    }
+    case 'bridge': return {
+      railSpawnMul:      0.65,
+      pulseSpeedMul:     1.00,
+      decayAdjust:       0.000,
+      glowMul:           0.90,
+      blockMul:          0.60,
+      shockwavesAllowed: true,
+      centerBiasAdd:     0.00,
+      lifetimeMul:       1.00,
+      isEntryFrame,
+    }
+    case 'outro': return {
+      railSpawnMul:      0.25 + (1 - sp) * 0.30,
+      pulseSpeedMul:     0.50 + (1 - sp) * 0.40,
+      decayAdjust:       sp * -0.020,
+      glowMul:           0.40 + (1 - sp) * 0.30,
+      blockMul:          0.30,
+      shockwavesAllowed: false,
+      centerBiasAdd:     sp * 0.20,
+      lifetimeMul:       1.00 + sp * 0.50,
+      isEntryFrame,
+    }
+    default: return {
+      railSpawnMul:      1.00,
+      pulseSpeedMul:     1.00,
+      decayAdjust:       0.000,
+      glowMul:           1.00,
+      blockMul:          1.00,
+      shockwavesAllowed: true,
+      centerBiasAdd:     0.00,
+      lifetimeMul:       1.00,
+      isEntryFrame,
+    }
   }
 }
 
@@ -778,4 +1104,26 @@ export function resolveRailBurstCounts(
     vertCount:  Math.round(2 + verticalBias * 2),
     horizCount: Math.round(1 + (1 - verticalBias) * 2),
   }
+}
+
+/**
+ * Returns true when the given audio event should fire pulses and blocks
+ * for the configured trigger setting. One-to-one mapping:
+ * 'beat' matches only the generic beat event (not kick or snare).
+ * 'drop' matches only a qualified drop event (not bare downbeat).
+ */
+export function resolveTriggerFires(
+  trigger: NeonLatticeTrigger,
+  event:   'kick' | 'snare' | 'beat' | 'downbeat' | 'drop',
+): boolean {
+  if (trigger === 'none') return false
+  return trigger === event
+}
+
+/**
+ * Returns true when BPM-based snap-slot deduplication should gate events.
+ * When false, per-event debounce timestamps handle rate-limiting instead.
+ */
+export function isSnapActive(bpm: number, snapDivision: number): boolean {
+  return bpm > 0 && snapDivision > 0
 }
