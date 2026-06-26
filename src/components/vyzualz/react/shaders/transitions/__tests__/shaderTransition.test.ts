@@ -500,14 +500,24 @@ describe('J. ShaderSectionChoreography', () => {
     expect(result).toBeNull()
   })
 
-  it('clearFeedback flag included in action when rule has it', () => {
+  it('clearFeedback policy preserved in action when rule has it', () => {
     choreo.enabled = true
     choreo.setRules([
       { sectionType: 'drop', toSceneId: 'scene-drop', transition: DEFAULT_TRANSITION, clearFeedback: 'at-start' },
     ])
     choreo.onFrame(makeFrame({ section: { type: 'verse' } }))
     const result = choreo.onFrame(makeFrame({ section: { type: 'drop' } }))
-    expect(result?.clearFeedback).toBe(true)
+    expect(result?.clearFeedback).toBe('at-start')
+  })
+
+  it('clearFeedback defaults to preserve when rule omits it', () => {
+    choreo.enabled = true
+    choreo.setRules([
+      { sectionType: 'drop', toSceneId: 'scene-drop', transition: DEFAULT_TRANSITION },
+    ])
+    choreo.onFrame(makeFrame({ section: { type: 'verse' } }))
+    const result = choreo.onFrame(makeFrame({ section: { type: 'drop' } }))
+    expect(result?.clearFeedback).toBe('preserve')
   })
 
   it('paramOverrides passed through to action', () => {

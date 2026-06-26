@@ -393,9 +393,12 @@ describe('F — section-type encoding', () => {
     expect(SECTION_TYPE_CODES['intro']).toBe(1)
     expect(SECTION_TYPE_CODES['verse']).toBe(2)
     expect(SECTION_TYPE_CODES['build']).toBe(3)
-    expect(SECTION_TYPE_CODES['drop']).toBe(4)
-    expect(SECTION_TYPE_CODES['breakdown']).toBe(5)
-    expect(SECTION_TYPE_CODES['outro']).toBe(6)
+    expect(SECTION_TYPE_CODES['preDrop']).toBe(4)
+    expect(SECTION_TYPE_CODES['drop']).toBe(5)
+    expect(SECTION_TYPE_CODES['breakdown']).toBe(6)
+    expect(SECTION_TYPE_CODES['bridge']).toBe(7)
+    expect(SECTION_TYPE_CODES['outro']).toBe(8)
+    expect(SECTION_TYPE_CODES['unknown']).toBe(9)
   })
 
   it('produces 0 for null section type', () => {
@@ -405,11 +408,11 @@ describe('F — section-type encoding', () => {
     expect(bridge.timingFrame.sectionType).toBe(0)
   })
 
-  it('produces 4 for drop section', () => {
+  it('produces 5 for drop section', () => {
     const bridge = new ShaderAudioBridge()
     const mi = makeMI({ section: { type: 'drop', startSec: 0 } })
     bridge.update(makeFrame({ musicIntelligence: mi }), 0, 0.016)
-    expect(bridge.timingFrame.sectionType).toBe(4)
+    expect(bridge.timingFrame.sectionType).toBe(5)
   })
 
   it('produces 3 for build section', () => {

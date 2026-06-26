@@ -50,6 +50,7 @@ export class ShaderAudioBridge {
   private _lastTrackId: string | null        = null
   private _lastSectionStartSec: number       = -1
   private _lastSectionType: string | null    = null
+  private _durationSec: number               = 0
 
   // ── Public frame accessors ────────────────────────────────────────────────
 
@@ -67,12 +68,15 @@ export class ShaderAudioBridge {
    * @param frame           The current ReactFrameContext produced by the React engine.
    * @param runtimeTimeSec  Seconds since the ShaderWebGLRuntime was created (FrameState.time).
    * @param runtimeDeltaSec Seconds since the last frame (FrameState.deltaTime).
+   * @param durationSec     Track duration in seconds for playbackProgress (0 = unknown).
    */
   update(
     frame: ReactFrameContext,
     runtimeTimeSec:  number,
     runtimeDeltaSec: number,
+    durationSec?:    number,
   ): void {
+    this._durationSec = durationSec ?? 0
     const dt = Math.max(0, runtimeDeltaSec)
     const mi = frame.musicIntelligence
 
@@ -302,11 +306,15 @@ export class ShaderAudioBridge {
       // Formula: (beatInBar + beatPhase) / 4  — gives continuous 0→1 over 4 beats.
       const barPhase = safePhase((r.beatInBar + r.beatPhase) / 4)
 
+      const progress = this._durationSec > 0
+        ? Math.max(0, Math.min(1, frame.audioTime / this._durationSec))
+        : 0
+
       return {
         time,
         deltaTime,
         playbackTime:     safePos(frame.audioTime),
-        playbackProgress: 0,  // track duration is not available in ReactFrameContext
+        playbackProgress: progress,
 
         beatPhase:    safePhase(r.beatPhase),
         barPhase,
@@ -323,11 +331,14 @@ export class ShaderAudioBridge {
     }
 
     // Fallback: use the basic BPM and beat info from the frame
+    const fallbackProgress = this._durationSec > 0
+      ? Math.max(0, Math.min(1, frame.audioTime / this._durationSec))
+      : 0
     return {
       time,
       deltaTime,
       playbackTime:     safePos(frame.audioTime),
-      playbackProgress: 0,
+      playbackProgress: fallbackProgress,
 
       beatPhase:    safePhase(frame.beatPhase),
       barPhase:     safePhase(frame.beatPhase),  // no bar info; use beat phase as approximation

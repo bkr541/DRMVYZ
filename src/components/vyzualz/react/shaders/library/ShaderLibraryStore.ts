@@ -172,6 +172,8 @@ export const useShaderLibraryStore = create<ShaderLibraryState>()(
             [def.id]: { definition: def, createdAt: now, updatedAt: now },
           },
         }))
+        // Register in the runtime registry so the renderer can compile it
+        shaderRegistry.register(def)
         return { ok: true }
       },
 
@@ -186,6 +188,9 @@ export const useShaderLibraryStore = create<ShaderLibraryState>()(
         if (!validation.valid) {
           return { ok: false, error: validation.errors.map(e => e.message).join('; ') }
         }
+        // Unregister old, register updated
+        shaderRegistry.unregister(id)
+        shaderRegistry.register(def)
         set(s => ({
           userScenes: {
             ...s.userScenes,
@@ -196,6 +201,7 @@ export const useShaderLibraryStore = create<ShaderLibraryState>()(
       },
 
       deleteUserScene(id) {
+        shaderRegistry.unregister(id)
         set(s => {
           const { [id]: _removed, ...rest } = s.userScenes
           return {
@@ -362,6 +368,16 @@ export const useShaderLibraryStore = create<ShaderLibraryState>()(
         editorPreferences: s.editorPreferences,
         thumbnailCache:    s.thumbnailCache,
       }),
+      // After hydration: register all persisted user scenes in the runtime registry,
+      // skipping any IDs that already exist (bundled scenes must not be overwritten).
+      onRehydrateStorage: () => (state) => {
+        if (!state) return
+        for (const entry of Object.values(state.userScenes)) {
+          if (!shaderRegistry.has(entry.definition.id)) {
+            shaderRegistry.register(entry.definition)
+          }
+        }
+      },
     },
   ),
 )

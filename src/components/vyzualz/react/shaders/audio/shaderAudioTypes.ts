@@ -67,7 +67,8 @@ export interface ShaderTimingUniformFrame {
   barIndex:  number  // MIRhythm.barIndex  (monotonically increasing)
 
   // ── Section metadata ─────────────────────────────────────────────────────
-  // Stable integer code: 0=none, 1=intro, 2=verse, 3=build, 4=drop, 5=breakdown, 6=outro
+  // Stable integer code: 0=none, 1=intro, 2=verse, 3=build, 4=preDrop, 5=drop,
+  // 6=breakdown, 7=bridge, 8=outro, 9=unknown.
   sectionType:        number
   // 1.0 on the first frame of a section, else 0.0.
   sectionStartPulse:  number
@@ -81,14 +82,28 @@ export interface ShaderTimingUniformFrame {
 // This mapping is stable across builds. Do not reorder or reassign values —
 // any GLSL shader that encodes section behavior (e.g. `if (uSectionType == 4.0)`)
 // depends on these codes remaining constant.
+//
+//   0 = none / unknown
+//   1 = intro
+//   2 = verse
+//   3 = build
+//   4 = preDrop
+//   5 = drop
+//   6 = breakdown
+//   7 = bridge
+//   8 = outro
+//   9 = unknown (explicit unknown tag)
 
 export const SECTION_TYPE_CODES: Readonly<Record<string, number>> = Object.freeze({
   intro:     1,
   verse:     2,
   build:     3,
-  drop:      4,
-  breakdown: 5,
-  outro:     6,
+  preDrop:   4,
+  drop:      5,
+  breakdown: 6,
+  bridge:    7,
+  outro:     8,
+  unknown:   9,
 })
 
 export function encodeSectionType(type: ReactSectionType | null): number {

@@ -158,8 +158,11 @@ export class ShaderDefinitionValidator {
       }
 
       for (const input of pass.inputs) {
-        const isFromTexInput = textureInputNames.has(input)
-        const isFromPassOutput = passOutputs.has(input) && input !== pass.output
+        const isFromTexInput    = textureInputNames.has(input)
+        // Ping-pong passes may read their own output name (the READ side of the buffer);
+        // all other passes must read from a different pass's output.
+        const isSelfPingPong    = pass.pingPong === true && input === pass.output
+        const isFromPassOutput  = passOutputs.has(input) && (input !== pass.output || isSelfPingPong)
         if (!isFromTexInput && !isFromPassOutput) {
           e(`passes.${pass.id}.inputs`,
             `input "${input}" is not declared in textureInputs or produced by any pass output`)

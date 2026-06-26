@@ -80,3 +80,9 @@ const DEV_SOLID_COLOR: ShaderDefinition = {
 }
 
 shaderRegistry.register(DEV_SOLID_COLOR)
+
+// ── Production scenes ─────────────────────────────────────────────────────────
+import { PRODUCTION_SCENES } from '../scenes'
+for (const scene of PRODUCTION_SCENES) {
+  shaderRegistry.register(scene)
+}

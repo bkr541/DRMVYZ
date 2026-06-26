@@ -52,6 +52,8 @@ export class ShaderTransitionRenderer {
   private readonly _programs  = new Map<TransitionType, ShaderProgram>()
   private _compileErrors      = new Map<TransitionType, string>()
   private _disposed = false
+  // Resolved direction for the current transition (random is resolved once at begin).
+  private _resolvedDirection: 'forward' | 'backward' = 'forward'
 
   constructor(private readonly _gl: WebGL2RenderingContext) {
     this._compiler = new ShaderCompiler(_gl)
@@ -71,6 +73,20 @@ export class ShaderTransitionRenderer {
   get outTexture(): WebGLTexture | null { return this._outFbo.texture }
   /** Texture containing the captured incoming scene. */
   get inTexture():  WebGLTexture | null { return this._inFbo.texture }
+
+  // ── Direction resolution ──────────────────────────────────────────────────
+
+  /**
+   * Call once when a transition begins to resolve a 'random' direction to a
+   * stable forward or backward choice for the entire transition duration.
+   */
+  beginTransition(direction: TransitionDirection): void {
+    if (direction === 'random') {
+      this._resolvedDirection = Math.random() < 0.5 ? 'forward' : 'backward'
+    } else {
+      this._resolvedDirection = direction
+    }
+  }
 
   // ── Resize ────────────────────────────────────────────────────────────────
 
@@ -108,11 +124,14 @@ export class ShaderTransitionRenderer {
 
     const clampedProgress = Math.max(0, Math.min(1, progress))
 
+    // Use the stable resolved direction for this transition.
+    const resolvedDir = direction === 'random' ? this._resolvedDirection : direction
+
     prog.activate()
     prog.setFloat('uTransitionProgress', clampedProgress)
     prog.setFloat('u_intensity', Math.max(0, Math.min(1, intensity)))
     prog.setFloat('u_seed', seed)
-    prog.setInt('u_direction', direction === 'backward' ? 1 : 0)
+    prog.setInt('u_direction', resolvedDir === 'backward' ? 1 : 0)
 
     this._fsPass.run(prog, null, w, h, [
       { unit: 0, texture: texA, uniformName: 'u_texA' },

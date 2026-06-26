@@ -2937,3 +2937,180 @@
     --vz-right-width: 0px;
   }
 }
+
+/* ── Shader engine styles ──────────────────────────────────────────────────── */
+
+/* Modulation panel */
+.shader-mod-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0;
+}
+.shader-mod-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.6;
+  padding: 4px 0;
+}
+.shader-mod-route {
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.shader-mod-route-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.8rem;
+}
+.shader-mod-route-summary:hover {
+  background: rgba(255,255,255,0.04);
+}
+.shader-mod-route-editor {
+  padding: 8px 10px;
+  border-top: 1px solid rgba(255,255,255,0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.shader-mod-summary-bar {
+  flex: 1;
+  height: 3px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.shader-mod-summary-bar-fill {
+  height: 100%;
+  background: var(--vz-accent, #0fe0c8);
+  transition: width 60ms linear;
+}
+
+/* Library panel */
+.rv-shader-library-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0;
+}
+.rv-shader-scene-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 5px;
+  border: 1px solid rgba(255,255,255,0.09);
+  cursor: pointer;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  width: 100%;
+  transition: background 120ms;
+}
+.rv-shader-scene-card:hover {
+  background: rgba(255,255,255,0.05);
+}
+.rv-shader-scene-card--active {
+  border-color: var(--vz-accent, #0fe0c8);
+  background: rgba(15,224,200,0.06);
+}
+.rv-shader-scene-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.rv-shader-scene-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-left: auto;
+}
+
+/* Code editor */
+.rv-shader-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+.rv-shader-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.55;
+}
+.rv-shader-editor-source {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  padding: 8px;
+  color: #c8d8e8;
+  resize: vertical;
+  min-height: 120px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.rv-shader-editor-errors {
+  font-size: 0.75rem;
+  color: #ff6b6b;
+  background: rgba(255,50,50,0.08);
+  border-radius: 4px;
+  padding: 6px 8px;
+}
+
+/* Compile panel */
+.rv-shader-compile-panel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  font-size: 0.78rem;
+}
+
+/* Pass inspector */
+.rv-shader-pass-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rv-shader-pass-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+/* Gradient control */
+.rv-shader-gradient {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 4px 0;
+}
+
+/* Texture input row */
+.rv-ctrl-row--texture {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 0.8rem;
+}
+

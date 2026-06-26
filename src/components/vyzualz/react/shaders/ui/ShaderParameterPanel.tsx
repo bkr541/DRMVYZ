@@ -20,14 +20,15 @@ export function ShaderParameterPanel() {
     modulatedValues,
     compileError,
     setParamValue,
+    triggerParam,
     resetParams,
+    textureValidation,
   } = useShaderPanelStore()
 
   const def = activeShaderId ? shaderRegistry.get(activeShaderId) : null
 
   function handleTrigger(id: string) {
-    setParamValue(id, true)
-    setTimeout(() => setParamValue(id, false), 16)
+    triggerParam(id)
   }
 
   if (!def) {
@@ -81,7 +82,7 @@ export function ShaderParameterPanel() {
           <ShaderTextureInputControl
             definition={def}
             selections={{}}
-            validation={[]}
+            validation={textureValidation}
             onSelectionChange={() => { /* managed by ShaderTextureInputManager at runtime */ }}
           />
         </>

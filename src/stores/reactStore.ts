@@ -1055,6 +1055,10 @@ export const useReactStore = create<ReactStoreState>()(
 
       selectReactEngine: (engineId) =>
         set((s) => {
+          // Shader Pads has no React presets — switch directly without a preset lookup.
+          if (engineId === 'shaderPads') {
+            return { activeReactEngineId: 'shaderPads', activeReactPresetId: null, neonLatticeTrigger: null as NeonLatticeTriggerEvent | null }
+          }
           // If the current preset already belongs to the selected engine, only ensure
           // activeReactEngineId is correct (repairs any prior drift without a preset switch).
           const current = s.activeReactPresetId

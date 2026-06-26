@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
+import { ConnectedShaderModulationPanel } from './shaders/ui/ConnectedShaderModulationPanel'
 import { SliderRow, SelectRow, ToggleRow, CtrlSection } from './ReactControlRows'
 import type { OscillatorAudioDisplaceMode, OscillatorTextLetterReactionMode, LetterReactionAssignment, LetterReactionSource, LetterReactionTarget, LaserDmxModulationRoute, LaserDmxTriggerTimingFilter, LaserDmxTriggerTimingFilterMode } from './ReactTypes'
 import { BEATS_PER_BAR } from './ReactTypes'
@@ -763,6 +764,11 @@ export function ReactModulationPanel() {
 
   const isSoundDrawing = activeReactEngineId === 'oscilloscope'
   const isLaserDmx     = activeReactEngineId === 'laserDmx'
+
+  // ── Shader: delegate to ConnectedShaderModulationPanel ───────────────────
+  if (activeReactEngineId === 'shaderPads') {
+    return <ConnectedShaderModulationPanel />
+  }
 
   // ── LaserDMX: branch by workspace mode ───────────────────────────────────
   if (isLaserDmx) {

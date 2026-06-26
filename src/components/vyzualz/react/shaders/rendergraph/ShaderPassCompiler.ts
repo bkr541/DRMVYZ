@@ -129,7 +129,7 @@ export class ShaderPassCompiler {
     const node: CompiledPassNode = {
       passId:            '__single__',
       program:           result.program,
-      inputs:            [],
+      inputs:            (def.textureInputs ?? []).map(ti => ti.name),
       outputName:        null,  // → default framebuffer (screen)
       resolutionScale:   1.0,
       clearBeforeRender: true,

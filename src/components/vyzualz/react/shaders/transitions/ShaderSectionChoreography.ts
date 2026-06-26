@@ -1,14 +1,14 @@
 import type { ReactSectionType } from '../../ReactTypes'
 import type { MusicIntelligenceFrame } from '../../../../../features/musicIntelligence/types'
-import type { ShaderSectionRule, TransitionDefinition } from './shaderTransitionTypes'
+import type { ShaderSectionRule, TransitionDefinition, FeedbackClearTiming } from './shaderTransitionTypes'
 import { DEFAULT_TRANSITION } from './shaderTransitionTypes'
 
 // ── ShaderSectionAction ───────────────────────────────────────────────────────
 
 export interface ShaderSectionAction {
-  toSceneId:     string
-  transition:    TransitionDefinition
-  clearFeedback: boolean
+  toSceneId:      string
+  transition:     TransitionDefinition
+  clearFeedback:  FeedbackClearTiming
   paramOverrides: Record<string, unknown>
 }
 
@@ -124,9 +124,9 @@ export class ShaderSectionChoreography {
       if (rule.toSceneId === this._currentSceneId) return null
 
       return {
-        toSceneId:     rule.toSceneId,
-        transition:    rule.transition ?? DEFAULT_TRANSITION,
-        clearFeedback: rule.clearFeedback != null,
+        toSceneId:      rule.toSceneId,
+        transition:     rule.transition ?? DEFAULT_TRANSITION,
+        clearFeedback:  rule.clearFeedback ?? 'preserve',
         paramOverrides: rule.paramOverrides ?? {},
       }
     }

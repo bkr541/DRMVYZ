@@ -16,6 +16,7 @@ import {
 import { ReactTrackMapStrip } from './ReactTrackMapStrip'
 import { SoundDrawingTimelineLane } from './SoundDrawingTimelineLane'
 import { ReactPlaceholderCanvas } from './ReactPlaceholderCanvas'
+import { ReactShaderCanvas }       from './ReactShaderCanvas'
 import { ReactPerformancePads } from './ReactPerformancePads'
 import { LaserDmxBeamMatrixEditorOverlay } from './LaserDmxBeamMatrixEditorOverlay'
 import { LaserDmxLayersPanel } from './LaserDmxLayersPanel'
@@ -152,14 +153,18 @@ export function ReactView() {
 
   const rightTabs = useMemo<RailTabOption<ReactRightPanel>[]>(
     () => REACT_RIGHT_BASE_TABS.map(t =>
-      t.id === 'insp' ? { ...t, disabled: selectedReactEntity === null } : t
+      t.id === 'insp'
+        ? { ...t, disabled: activeReactEngineId !== 'shaderPads' && selectedReactEntity === null }
+        : t
     ),
-    [selectedReactEntity]
+    [selectedReactEntity, activeReactEngineId]
   )
 
   // selectedReactEntity is the same preset lookup; fall back to the first preset when nothing is
   // explicitly selected so the canvas always has something to render.
-  const activePreset = selectedReactEntity ?? reactPresets[0] ?? null
+  const activePreset = activeReactEngineId === 'shaderPads'
+    ? null
+    : (selectedReactEntity ?? reactPresets[0] ?? null)
 
   // Estimated track duration from the audio engine (fallback 180s)
   const audioDurationSec = (engine as { duration?: number }).duration ?? 180
@@ -255,31 +260,50 @@ export function ReactView() {
         {/* Center — canvas + pads + track map */}
         <div className="rv-center-col">
           <div className="rv-canvas-wrap">
-            <ReactPlaceholderCanvas
-              analyser={analyser}
-              activePreset={activePreset}
-              intensity={reactIntensity}
-              motion={reactMotion}
-              glow={reactGlow}
-              bassReactivity={reactBassReactivity}
-              trailDecay={reactTrailDecay}
-              fogDensity={reactFogDensity}
-              particleDensity={reactParticleDensity}
-              oscillatorSettings={oscillatorSettings}
-              oscillatorGlyphAssets={oscillatorGlyphAssets}
-              oscillatorGlyphPointCache={oscillatorGlyphPointCache}
-              oscillatorTextPointCache={oscillatorTextPointCache}
-              neonLatticeSettings={neonLatticeSettings}
-              neonLatticeTrigger={neonLatticeTrigger}
-              isPlaying={engine.isPlaying}
-              manualSections={resolvedSections}
-              getAudioTime={engine.getCurrentTime}
-              effectiveBpm={engine.currentEffectiveBpm}
-              onCanvasReady={setOutputCanvas}
-              onLiveFps={setLiveFps}
-              soundDrawingLayers={activeSdLayers}
-              soundDrawingClips={activeSdClips}
-            />
+            {activeReactEngineId === 'shaderPads' ? (
+              <ReactShaderCanvas
+                analyser={analyser}
+                intensity={reactIntensity}
+                motion={reactMotion}
+                glow={reactGlow}
+                bassReactivity={reactBassReactivity}
+                trailDecay={reactTrailDecay}
+                fogDensity={reactFogDensity}
+                particleDensity={reactParticleDensity}
+                isPlaying={engine.isPlaying}
+                getAudioTime={engine.getCurrentTime}
+                effectiveBpm={engine.currentEffectiveBpm}
+                durationSec={audioDurationSec}
+                onCanvasReady={setOutputCanvas}
+                onLiveFps={setLiveFps}
+              />
+            ) : (
+              <ReactPlaceholderCanvas
+                analyser={analyser}
+                activePreset={activePreset}
+                intensity={reactIntensity}
+                motion={reactMotion}
+                glow={reactGlow}
+                bassReactivity={reactBassReactivity}
+                trailDecay={reactTrailDecay}
+                fogDensity={reactFogDensity}
+                particleDensity={reactParticleDensity}
+                oscillatorSettings={oscillatorSettings}
+                oscillatorGlyphAssets={oscillatorGlyphAssets}
+                oscillatorGlyphPointCache={oscillatorGlyphPointCache}
+                oscillatorTextPointCache={oscillatorTextPointCache}
+                neonLatticeSettings={neonLatticeSettings}
+                neonLatticeTrigger={neonLatticeTrigger}
+                isPlaying={engine.isPlaying}
+                manualSections={resolvedSections}
+                getAudioTime={engine.getCurrentTime}
+                effectiveBpm={engine.currentEffectiveBpm}
+                onCanvasReady={setOutputCanvas}
+                onLiveFps={setLiveFps}
+                soundDrawingLayers={activeSdLayers}
+                soundDrawingClips={activeSdClips}
+              />
+            )}
             {activeReactEngineId === 'laserDmx' && laserDmxWorkspaceMode === 'beamMatrix' && beamEditorVisible && (
               <LaserDmxBeamMatrixEditorOverlay />
             )}

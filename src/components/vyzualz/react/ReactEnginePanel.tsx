@@ -9,9 +9,9 @@ import {
   SliderRow, SelectRow, ToggleRow, TextInputRow,
   CtrlSection, Collapsible,
 } from './ReactControlRows'
-import { useShaderPanelStore } from './shaders/ui/shaderPanelStore'
-import { shaderRegistry } from './shaders/registry'
-import { getUserFacingScenes } from './shaders/ui/shaderParameterUiTypes'
+import { useShaderPanelStore }  from './shaders/ui/shaderPanelStore'
+import { ShaderLibraryPanel }   from './shaders/ui/ShaderLibraryPanel'
+import { DEFAULT_SHADER_SCENE_ID } from './shaders/scenes'
 import { getSvgGlyphCacheKey } from './renderers/svgGlyphUtils'
 import { getSvgVisualEntry } from './renderers/svgVisualCache'
 import type {
@@ -218,57 +218,15 @@ function OscillatorStatusCard({
 
 // ── Shader scene selector ─────────────────────────────────────────────────────
 
-const SHADER_CATEGORY_LABELS: Record<string, string> = {
-  generator:  'Generator',
-  effect:     'Effect',
-  simulation: 'Simulation',
-  particle:   'Particle',
-  raymarch:   'Raymarch',
-  fractal:    'Fractal',
-  feedback:   'Feedback',
-  utility:    'Utility',
-}
-
 function ShaderEngineSection() {
   const { activeShaderId, setActiveShaderId } = useShaderPanelStore()
-  const scenes = getUserFacingScenes(shaderRegistry.getAll())
 
-  return (
-    <>
-      <CtrlSection label="Shader Scene" />
-      {scenes.length === 0 ? (
-        <div className="rv-ctrl-info">No shader scenes registered.</div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {scenes.map(def => {
-            const isActive = activeShaderId === def.id
-            return (
-              <button
-                key={def.id}
-                type="button"
-                className={`rv-preset-card${isActive ? ' rv-preset-card--active' : ''}`}
-                onClick={() => setActiveShaderId(isActive ? null : def.id)}
-                style={{ padding: '6px 10px' }}
-              >
-                <div className="rv-preset-card-header">
-                  <span className="rv-preset-name">{def.name}</span>
-                  {isActive && <span className="rv-preset-active-dot" />}
-                </div>
-                {def.description && (
-                  <p className="rv-preset-desc" style={{ marginTop: 2, marginBottom: 0 }}>
-                    {def.description}
-                  </p>
-                )}
-                <span className="rv-ctrl-info" style={{ fontSize: 10, opacity: 0.6 }}>
-                  {SHADER_CATEGORY_LABELS[def.category] ?? def.category}
-                </span>
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </>
-  )
+  // Ensure a scene is always selected when the Shader engine is active
+  if (!activeShaderId) {
+    setActiveShaderId(DEFAULT_SHADER_SCENE_ID)
+  }
+
+  return <ShaderLibraryPanel />
 }
 
 // ── ENGINE panel ──────────────────────────────────────────────────────────────

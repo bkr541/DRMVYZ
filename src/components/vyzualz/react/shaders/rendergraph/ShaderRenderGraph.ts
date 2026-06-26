@@ -46,6 +46,7 @@ export class ShaderRenderGraph {
   private readonly _pingPongBuffers = new Map<string, ShaderPingPongBuffer>()
 
   private _lastExecMs:     number | null = null
+  private _lastPassDims:  Map<string, { w: number; h: number }> = new Map()
   // When set, the final screen pass renders to this FBO instead of the canvas.
   // Used exclusively by ShaderTransitionRenderer to capture scene output during transitions.
   private _outputFboOverride: WebGLFramebuffer | null | undefined = undefined
@@ -98,6 +99,8 @@ export class ShaderRenderGraph {
       externalTextures as ReadonlyMap<string, WebGLTexture>,
     )
     const frameAllocated: ShaderFramebuffer[] = []
+    // Track pass pixel dimensions for debug info
+    const passDims = new Map<string, { w: number; h: number }>()
 
     for (const rp of this._passes) {
       const node     = rp.node
@@ -105,8 +108,12 @@ export class ShaderRenderGraph {
       const passH    = Math.max(1, Math.round(dims.H * node.resolutionScale))
       const isScreen = node.outputName === null
 
+      // Track this pass's actual pixel dimensions
+      passDims.set(node.passId, { w: passW, h: passH })
+
       let targetFbo: WebGLFramebuffer | null = null
       let pingPong:  ShaderPingPongBuffer | null = null
+      let currentOutputTexture: WebGLTexture | null = null
 
       // When a capture FBO is set, redirect the final screen pass to it.
       if (isScreen && this._outputFboOverride !== undefined) {
@@ -128,11 +135,13 @@ export class ShaderRenderGraph {
           // ── Persistent single-FBO path ───────────────────────────────────
           const pfbo = this._getPersistentFbo(node.outputName!, passW, passH, node)
           targetFbo  = pfbo.framebuffer
+          currentOutputTexture = pfbo.texture
         } else {
           // ── Temporary pool path ──────────────────────────────────────────
           const tfbo = this._pool.acquire(passW, passH, 'rgba8', node.filter, node.wrap)
           frameAllocated.push(tfbo)
           targetFbo = tfbo.framebuffer
+          currentOutputTexture = tfbo.texture
         }
       }
 
@@ -156,20 +165,21 @@ export class ShaderRenderGraph {
           // Swap write→read.  texMap gets the newly written frame.
           pingPong.swap()
           const newRead = pingPong.readTexture
-          if (newRead) texMap.set(node.outputName!, newRead)
-        } else {
-          // For persistent and temporary FBOs, look up the texture via WebGL.
-          // FullscreenPass.run() binds and then unbinds the FBO; the texture
-          // object is still valid — re-query from the pool entry we kept.
-          const outFbo = frameAllocated[frameAllocated.length - 1]
-                      ?? this._persistentFbos.get(node.outputName!)
-          if (outFbo?.texture) texMap.set(node.outputName!, outFbo.texture)
+          if (newRead) {
+            texMap.set(node.outputName!, newRead)
+            currentOutputTexture = newRead
+          }
+        } else if (currentOutputTexture) {
+          // For persistent and temporary FBOs, use the texture reference
+          // captured when the FBO was allocated — not a global last-frame lookup.
+          texMap.set(node.outputName!, currentOutputTexture)
         }
       }
     }
 
     // Release temporary FBOs back to pool.
     for (const fbo of frameAllocated) this._pool.release(fbo)
+    this._lastPassDims = passDims
 
     this._lastExecMs = performance.now() - t0
   }
@@ -182,7 +192,10 @@ export class ShaderRenderGraph {
     return {
       shaderId:   this._activeGraph.shaderId,
       passCount:  this._passes.length,
-      passes:     this._passes.map(rp => rp.info({ w: rp.node.resolutionScale, h: rp.node.resolutionScale })),
+      passes:     this._passes.map(rp => {
+        const d = this._lastPassDims.get(rp.node.passId) ?? { w: 0, h: 0 }
+        return rp.info(d)
+      }),
       pooledResourceCount: this._pool.totalCount + this._persistentFbos.size + this._pingPongBuffers.size * 2,
       lastExecutionMs: this._lastExecMs,
     }
