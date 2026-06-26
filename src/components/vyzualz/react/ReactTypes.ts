@@ -2105,11 +2105,11 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
 // ── Default performance pads ──────────────────────────────────────────────────
 
 export const DEFAULT_PERFORMANCE_PADS: ReactPerformancePad[] = [
-  // Row 1 — Shader Pads / Cinematic
-  { id: 'pad-1',  presetId: 'preset-neon-energy-cloud',      label: 'Energy',   color: DVYDRM_CYAN,    keyBinding: '1', transitionTimeMs: 500 },
-  { id: 'pad-2',  presetId: 'preset-lava-tunnel',            label: 'Lava',     color: DVYDRM_GOLD,    keyBinding: '2', transitionTimeMs: 400 },
-  { id: 'pad-3',  presetId: 'preset-synth-sun',              label: 'Sun',      color: DVYDRM_GOLD,    keyBinding: '3', transitionTimeMs: 600 },
-  { id: 'pad-4',  presetId: 'preset-dot-warp',               label: 'Warp',     color: '#aaeeff',      keyBinding: '4', transitionTimeMs: 300 },
+  // Row 1 — Mixed live-performance presets
+  { id: 'pad-1',  presetId: 'preset-bass-triangle-reactor',  label: 'Reactor',   color: DVYDRM_GOLD,    keyBinding: '1', transitionTimeMs: 500 },
+  { id: 'pad-2',  presetId: 'preset-laser-dmx-drop-cage',    label: 'Drop Cage', color: DVYDRM_CYAN,    keyBinding: '2', transitionTimeMs: 400 },
+  { id: 'pad-3',  presetId: 'preset-infinity-signal',        label: 'Infinity',  color: DVYDRM_EMERALD, keyBinding: '3', transitionTimeMs: 600 },
+  { id: 'pad-4',  presetId: 'preset-laser-dmx-build-tunnel', label: 'Tunnel',    color: '#ff8c42',      keyBinding: '4', transitionTimeMs: 300 },
   { id: 'pad-17', presetId: 'preset-quiet-ruins',            label: 'Ruins',    color: '#7a9bac',      keyBinding: '5', transitionTimeMs: 600 },
   // Row 2 — Cinematic / Neon Lattice
   { id: 'pad-5',  presetId: 'preset-dream-gate',             label: 'Dream',    color: '#5b8def',      keyBinding: 'q', transitionTimeMs: 800 },
@@ -2123,8 +2123,8 @@ export const DEFAULT_PERFORMANCE_PADS: ReactPerformancePad[] = [
   { id: 'pad-11', presetId: 'preset-spiral-signal',          label: 'Spiral',   color: DVYDRM_GOLD,    keyBinding: 'd', transitionTimeMs: 350 },
   { id: 'pad-12', presetId: 'preset-radial-voice',           label: 'Radial',   color: DVYDRM_WHITE,   keyBinding: 'f', transitionTimeMs: 450 },
   { id: 'pad-19', presetId: 'preset-bass-triangle-reactor',  label: 'Triangle', color: DVYDRM_CRIMSON, keyBinding: 'g', transitionTimeMs: 250 },
-  // Row 4 — Festival / Laser DMX
-  { id: 'pad-13', presetId: 'preset-festival-burst',         label: 'Festival', color: DVYDRM_CRIMSON, keyBinding: 'z', transitionTimeMs: 200 },
+  // Row 4 — Peak / enhanced visuals
+  { id: 'pad-13', presetId: 'preset-nl-overload-matrix',     label: 'Matrix',   color: '#ff3c6e',      keyBinding: 'z', transitionTimeMs: 200 },
   { id: 'pad-14', presetId: 'preset-drmvyz-text-trace',      label: 'DRMVYZ',   color: '#b84fc9',      keyBinding: 'x', transitionTimeMs: 400 },
   { id: 'pad-15', presetId: 'preset-star-drop-burst',        label: 'StarBurst',color: DVYDRM_GOLD,    keyBinding: 'c', transitionTimeMs: 250 },
   { id: 'pad-16', presetId: 'preset-glyph-circle-pulse',     label: 'Circle',   color: DVYDRM_CYAN,    keyBinding: 'v', transitionTimeMs: 400 },

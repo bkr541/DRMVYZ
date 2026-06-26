@@ -16,6 +16,7 @@ import {
   DEFAULT_REACT_PRESETS,
   DEFAULT_OSCILLATOR_SETTINGS,
   DEFAULT_NEON_LATTICE_SETTINGS,
+  DEFAULT_PERFORMANCE_PADS,
 } from '../components/vyzualz/react/ReactTypes'
 import type { ReactPreset, NeonLatticeSettings } from '../components/vyzualz/react/ReactTypes'
 
@@ -217,7 +218,7 @@ describe('setActivePadId', () => {
     const pads = useReactStore.getState().performancePads.filter(p => p.presetId != null)
     const { reactPresets } = useReactStore.getState()
 
-    for (const pad of pads.slice(0, 4)) {  // sample first 4 to keep test fast
+    for (const pad of pads) {
       useReactStore.getState().setActivePadId(pad.id)
       const { activeReactEngineId, activeReactPresetId } = useReactStore.getState()
       const preset = activePreset(reactPresets, activeReactPresetId)
@@ -323,5 +324,53 @@ describe('NL preset order independence', () => {
     const preset = reactPresets.find(p => p.id === activeReactPresetId)
     expect(activeReactEngineId).toBe('neonLattice')
     expect(preset?.engine).toBe('neonLattice')
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DEFAULT_PERFORMANCE_PADS — remapped pad assignments
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('DEFAULT_PERFORMANCE_PADS remapped assignments', () => {
+  it('five pads carry their exact replacement presetIds', () => {
+    expect(DEFAULT_PERFORMANCE_PADS.find(p => p.id === 'pad-1')?.presetId)
+      .toBe('preset-bass-triangle-reactor')
+
+    expect(DEFAULT_PERFORMANCE_PADS.find(p => p.id === 'pad-2')?.presetId)
+      .toBe('preset-laser-dmx-drop-cage')
+
+    expect(DEFAULT_PERFORMANCE_PADS.find(p => p.id === 'pad-3')?.presetId)
+      .toBe('preset-infinity-signal')
+
+    expect(DEFAULT_PERFORMANCE_PADS.find(p => p.id === 'pad-4')?.presetId)
+      .toBe('preset-laser-dmx-build-tunnel')
+
+    expect(DEFAULT_PERFORMANCE_PADS.find(p => p.id === 'pad-13')?.presetId)
+      .toBe('preset-nl-overload-matrix')
+  })
+
+  it('no pad references a legacy shaderPads preset', () => {
+    const LEGACY_SHADER_PAD_PRESET_IDS = new Set([
+      'preset-neon-energy-cloud',
+      'preset-lava-tunnel',
+      'preset-synth-sun',
+      'preset-dot-warp',
+      'preset-festival-burst',
+    ])
+
+    for (const pad of DEFAULT_PERFORMANCE_PADS) {
+      if (pad.presetId != null) {
+        expect(LEGACY_SHADER_PAD_PRESET_IDS.has(pad.presetId)).toBe(false)
+      }
+    }
+  })
+
+  it('every non-null presetId resolves to an existing non-shaderPads preset', () => {
+    for (const pad of DEFAULT_PERFORMANCE_PADS) {
+      if (pad.presetId == null) continue
+      const preset = DEFAULT_REACT_PRESETS.find(p => p.id === pad.presetId)
+      expect(preset, `pad ${pad.id} presetId '${pad.presetId}' not found in DEFAULT_REACT_PRESETS`).toBeDefined()
+      expect(preset?.engine, `pad ${pad.id} maps to shaderPads preset '${pad.presetId}'`).not.toBe('shaderPads')
+    }
   })
 })
