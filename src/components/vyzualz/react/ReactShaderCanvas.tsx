@@ -37,9 +37,13 @@ interface Props {
  * Owns the rAF loop, audio sampling, Music Intelligence pump, ReactFrameContext
  * construction, and ShaderEngineRenderer lifecycle.
  *
- * Must NOT call renderReactEngine or setSoundDrawingClipsForFrame.
- * The WebGL runtime owns drawing-buffer resolution; this component must not
- * overwrite canvas.width/canvas.height directly.
+ * Critical ownership rules:
+ * - All frame callbacks read from `rendererRef.current` (never a closed-over
+ *   constant) so context-restoration can swap in a fresh renderer seamlessly.
+ * - Context restoration calls `disposeAfterContextLoss()` instead of `dispose()`
+ *   to avoid re-losing the freshly restored context via WEBGL_lose_context.
+ * - The WebGL runtime owns drawing-buffer resolution; this component must not
+ *   overwrite canvas.width/canvas.height directly.
  */
 export function ReactShaderCanvas({
   analyser,
@@ -134,12 +138,12 @@ export function ReactShaderCanvas({
       const { runtime, error } = ShaderWebGLRuntime.create(canvas!, {
         onContextLost: () => {
           pausedRef.current = true
-          // renderer.render() will no-op due to runtime.contextLost, but cancel the rAF
           cancelAnimationFrame(animRef.current)
         },
         onContextRestored: () => {
-          // Dispose the old renderer — its GL handles are invalid
-          rendererRef.current?.dispose()
+          // The old renderer's GL handles are all invalid.  Use disposeAfterContextLoss()
+          // instead of dispose() to avoid re-losing the freshly restored context via loseContext().
+          rendererRef.current?.disposeAfterContextLoss()
 
           const newRenderer = createRenderer()
           if (!newRenderer) return
@@ -171,18 +175,18 @@ export function ReactShaderCanvas({
       return new ShaderEngineRenderer(runtime)
     }
 
-    const renderer = createRenderer()
-    if (!renderer) return
+    const initialRenderer = createRenderer()
+    if (!initialRenderer) return
 
-    rendererRef.current = renderer
+    rendererRef.current = initialRenderer
     onCanvasReadyRef.current?.(canvas)
 
-    // ResizeObserver — only the runtime owns canvas.width/height
+    // ResizeObserver — reads from rendererRef.current so it stays valid across restores
     function resize() {
       const r = canvas!.getBoundingClientRect()
       lastCssW = r.width
       lastCssH = r.height
-      renderer!.resize(r.width, r.height, devicePixelRatio)
+      rendererRef.current?.resize(r.width, r.height, devicePixelRatio)
       // Do NOT set canvas.width/canvas.height here — the runtime handles it
     }
     const ro = new ResizeObserver(resize)
@@ -201,7 +205,7 @@ export function ReactShaderCanvas({
 
     let lastFrameMs = performance.now()
 
-    // Track last MI section to detect changes
+    // Track last resolved section to detect changes (for pulse signal)
     let lastSectionType: string | null = null
     let lastSectionStart = -1
 
@@ -266,15 +270,14 @@ export function ReactShaderCanvas({
       const miFrame = AudioFeatureBus.getFrame()
       const hasMI   = miFrame.frameId > 0
 
-      // Resolve section: prefer manual section covering current audio time
+      // Resolve section: manual sections from the track map take precedence over MI
       const audioTimeSec = audioTimeRef.current
       const sections = manualSectionsRef.current
       const manualSection = sections.find(
         s => s.startSec <= audioTimeSec && audioTimeSec < s.endSec,
       ) ?? null
 
-      // Detect section changes for pulse signal
-      const resolvedSectionType = manualSection?.type ?? miFrame.section?.type ?? null
+      const resolvedSectionType  = manualSection?.type ?? miFrame.section?.type ?? null
       const resolvedSectionStart = manualSection?.startSec ?? miFrame.section?.startSec ?? -1
       const sectionChanged = resolvedSectionType !== lastSectionType ||
         resolvedSectionStart !== lastSectionStart
@@ -322,6 +325,11 @@ export function ReactShaderCanvas({
         freqData,
         timeDomainData,
         musicIntelligence: hasMI ? miFrame : null,
+        // Pass manual-section-override-aware section to the renderer
+        resolvedSection: resolvedSectionType !== null
+          ? { type: resolvedSectionType, startSec: resolvedSectionStart }
+          : null,
+        sectionChanged,
       }
 
       const master: ShaderMasterParams = {
@@ -334,7 +342,9 @@ export function ReactShaderCanvas({
         particleDensity: particleDensityRef.current,
       }
 
-      renderer!.render(rfCtx, durationSecRef.current, master)
+      // Read from rendererRef.current — NEVER from the closed-over `initialRenderer`
+      // so context-restoration can swap in a new renderer transparently.
+      rendererRef.current?.render(rfCtx, durationSecRef.current, master)
 
       animRef.current = requestAnimationFrame(frame)
     }
@@ -344,7 +354,9 @@ export function ReactShaderCanvas({
     return () => {
       cancelAnimationFrame(animRef.current)
       ro.disconnect()
-      renderer.dispose()
+      // Dispose whatever renderer is currently live (may differ from initialRenderer
+      // if context restoration replaced it)
+      rendererRef.current?.dispose()
       rendererRef.current = null
       onCanvasReadyRef.current?.(null)
     }

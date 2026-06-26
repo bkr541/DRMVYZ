@@ -38,10 +38,14 @@ function parseGlslErrors(log: string): CompileError[] {
 export interface ShaderCodeEditorProps {
   /** The definition being edited. Must be a user scene or undefined for scratch. */
   definition:  ShaderDefinition | null
-  /** Called when the user saves the edited source as a user scene. */
+  /** True when `definition` is an editable user scene (not a bundled built-in). */
+  isUserScene?: boolean
+  /** Called when the user saves the edited source. */
   onSave?:     (def: ShaderDefinition) => void
   /** Called when user requests live compile-and-preview. */
   onCompile?:  (fragSrc: string, vertSrc?: string) => void
+  /** Called when the user discards unsaved changes and resets to the saved source. */
+  onResetPreview?: () => void
   /** Compile error from the live runtime, if any. */
   runtimeError?: string | null
   /** Last successful compile timestamp. */
@@ -50,8 +54,10 @@ export interface ShaderCodeEditorProps {
 
 export function ShaderCodeEditor({
   definition,
+  isUserScene = false,
   onSave,
   onCompile,
+  onResetPreview,
   runtimeError,
   lastSuccessAt,
 }: ShaderCodeEditorProps) {
@@ -66,7 +72,10 @@ export function ShaderCodeEditor({
   const [errors,   setErrors]   = useState<CompileError[]>([])
 
   const autoCompileTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isBundled        = definition ? shaderRegistry.has(definition.id) : false
+  // A scene is bundled (read-only) when it's in the registry but NOT a user scene.
+  const isBundled = definition
+    ? (shaderRegistry.has(definition.id) && !isUserScene)
+    : false
 
   // Sync state when definition changes
   useEffect(() => {
@@ -117,11 +126,16 @@ export function ShaderCodeEditor({
     onCompile?.(fragSrc, showVert && vertSrc ? vertSrc : undefined)
   }
 
-  function handleSaveAsNew() {
+  function handleSave() {
     if (!onSave) return
+    // For user scenes, preserve the existing ID so updateUserScene() can find it.
+    // For new scenes (no definition or bundled-only), generate a fresh ID.
+    const saveId = (isUserScene && definition?.id)
+      ? definition.id
+      : `user-shader-${Date.now().toString(36)}`
     const newDef: ShaderDefinition = {
       ...(definition ?? {}),
-      id:       `user-shader-${Date.now().toString(36)}`,
+      id:       saveId,
       name:     editName.trim() || 'Untitled Shader',
       fragSrc,
       vertSrc:  showVert && vertSrc ? vertSrc : 'shared',
@@ -154,6 +168,8 @@ export function ShaderCodeEditor({
     setVertSrc(typeof definition.vertSrc === 'string' && definition.vertSrc !== 'shared' ? definition.vertSrc : '')
     setIsDirty(false)
     setErrors([])
+    // Also reset the live preview graph so the canvas shows the saved source
+    onResetPreview?.()
   }
 
   // Cleanup on unmount
@@ -258,9 +274,9 @@ export function ShaderCodeEditor({
             <button
               type="button"
               className="rv-shader-editor-btn"
-              onClick={handleSaveAsNew}
+              onClick={handleSave}
               disabled={!isDirty}
-              title="Save changes as a new user scene"
+              title={isUserScene ? 'Save changes to this user scene' : 'Save as a new user scene'}
             >
               Save
             </button>

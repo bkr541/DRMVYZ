@@ -42,12 +42,16 @@ export class ShaderTransitionController {
 
   // ── Current scene access ──────────────────────────────────────────────────
 
-  get currentSceneId():   string | null    { return this._currentSceneId }
-  get incomingSceneId():  string | null    { return this._state.phase !== 'idle' ? this._state.toSceneId : null }
-  get phase():            TransitionPhase  { return this._state.phase }
-  get progress():         number           { return this._state.progressEased }
-  get isTransitioning():  boolean          { return this._state.phase === 'active' || this._state.phase === 'waiting' }
-  get compileError():     string | null    { return this._compileError }
+  get currentSceneId():    string | null           { return this._currentSceneId }
+  get incomingSceneId():   string | null           { return this._state.phase !== 'idle' ? this._state.toSceneId : null }
+  get phase():             TransitionPhase         { return this._state.phase }
+  get progress():          number                  { return this._state.progressEased }
+  get isTransitioning():   boolean                 { return this._state.phase === 'active' || this._state.phase === 'waiting' }
+  get compileError():      string | null           { return this._compileError }
+  /** The transition definition currently driving an active/waiting transition. Null when idle. */
+  get activeDefinition():  TransitionDefinition | null {
+    return this._state.phase !== 'idle' ? this._state.definition : null
+  }
 
   // ── Scene activation (without transition) ─────────────────────────────────
 

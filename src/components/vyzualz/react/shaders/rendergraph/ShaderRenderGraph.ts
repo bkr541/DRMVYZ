@@ -201,6 +201,32 @@ export class ShaderRenderGraph {
     }
   }
 
+  /**
+   * Clear (zero out) all ping-pong and persistent framebuffers without
+   * disposing them.  Call when `TransitionTickResult.feedbackClearNow` fires.
+   */
+  /**
+   * Clear (zero out) all ping-pong and persistent framebuffers without
+   * disposing them.  Call when `TransitionTickResult.feedbackClearNow` fires.
+   */
+  clearFeedbackBuffers(): void {
+    const gl = this._gl
+    for (const pp of this._pingPongBuffers.values()) {
+      for (const fbo of [pp.writeFbo, pp.readFbo]) {
+        if (!fbo) continue
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo)
+        gl.clearColor(0, 0, 0, 0)
+        gl.clear(gl.COLOR_BUFFER_BIT)
+      }
+    }
+    for (const pfbo of this._persistentFbos.values()) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, pfbo.framebuffer)
+      gl.clearColor(0, 0, 0, 0)
+      gl.clear(gl.COLOR_BUFFER_BIT)
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+  }
+
   dispose(): void {
     this._pool.disposeAll()
     this._fsPass.dispose()

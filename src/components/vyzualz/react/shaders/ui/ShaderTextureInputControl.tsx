@@ -111,14 +111,8 @@ function TextureInputRow({ input, selection, valid, onSelectionChange }: RowProp
           <option value="fft">FFT Spectrum</option>
           <option value="waveform">Waveform</option>
         </optgroup>
-        <optgroup label="Media">
-          <option value="uploaded-image">Uploaded Image</option>
-          <option value="uploaded-video">Uploaded Video</option>
-          <option value="media-output">Media Output</option>
-          <option value="album-artwork">Album Artwork</option>
-          <option value="logo">Logo</option>
-          <option value="svg">SVG</option>
-        </optgroup>
+        {/* Media sources are hidden until an asset resolver is connected.
+            Selecting these without a mediaElement produces no texture. */}
       </select>
 
       {warning && (

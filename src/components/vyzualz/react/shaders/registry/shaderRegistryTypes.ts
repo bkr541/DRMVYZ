@@ -129,6 +129,8 @@ export interface EnumParamDef extends ShaderParamBase {
   type: 'enum'
   values: EnumOption[]
   default: string
+  /** Upload as `int` uniform (uniform1i). Defaults to `float` (uniform1f). */
+  uniformType?: 'float' | 'int'
 }
 
 export interface Vec2ParamDef extends ShaderParamBase {

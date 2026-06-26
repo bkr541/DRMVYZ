@@ -4,6 +4,7 @@ import { useShaderLibraryStore }    from '../library/ShaderLibraryStore'
 import { shaderRegistry }           from '../registry'
 import { ShaderCompilePanel }       from '../editor/ShaderCompilePanel'
 import { ShaderPassInspector }      from '../editor/ShaderPassInspector'
+import type { PassInspectorData }   from '../editor/ShaderPassInspector'
 import { ShaderCodeEditor }         from '../editor/ShaderCodeEditor'
 import type { ShaderDefinition }    from '../registry/shaderRegistryTypes'
 
@@ -24,7 +25,9 @@ export function ShaderInspectorPanel() {
     compileError,
     performanceMetrics,
     effectiveQualityTier,
+    passInfo,
     requestPreviewCompile,
+    requestPreviewReset,
   } = useShaderPanelStore()
 
   const libStore = useShaderLibraryStore()
@@ -38,13 +41,33 @@ export function ShaderInspectorPanel() {
     requestPreviewCompile(fragSrc, vertSrc)
   }, [requestPreviewCompile])
 
+  const handleResetPreview = useCallback(() => {
+    requestPreviewReset()
+  }, [requestPreviewReset])
+
   const handleSave = useCallback((updated: ShaderDefinition) => {
     if (userSceneEntry) {
-      libStore.updateUserScene(updated.id, updated)
+      const result = libStore.updateUserScene(updated.id, updated)
+      if (result?.ok === false) {
+        if (import.meta.env.DEV) console.warn('[ShaderInspectorPanel] updateUserScene failed:', result.error)
+      } else {
+        // Force recompile after a successful update so the renderer picks up the change
+        useShaderPanelStore.getState().requestRecompile(updated.id)
+      }
     } else {
       libStore.addUserScene(updated)
     }
   }, [userSceneEntry, libStore])
+
+  // Map live RenderPassInfo to PassInspectorData for the pass inspector
+  const livePassData: PassInspectorData[] | undefined = passInfo
+    ? passInfo.map(p => ({
+        passId:       p.passId,
+        compileState: 'ok' as const,
+        textureW:     p.dimensions.w,
+        textureH:     p.dimensions.h,
+      }))
+    : undefined
 
   if (!def) {
     return (
@@ -74,10 +97,11 @@ export function ShaderInspectorPanel() {
       {/* Compile status */}
       <ShaderCompilePanel status={compileStatus} definition={def} />
 
-      {/* Pass inspector */}
+      {/* Pass inspector — fed with live dimensions from the active render graph */}
       <ShaderPassInspector
         definition={def}
         metrics={performanceMetrics}
+        passData={livePassData}
       />
 
       {/* Performance summary */}
@@ -92,12 +116,14 @@ export function ShaderInspectorPanel() {
         </div>
       )}
 
-      {/* Code editor — only for user scenes or single-pass bundled scenes with fragSrc */}
+      {/* Code editor — user scenes are editable; bundled scenes show source read-only */}
       {(userSceneEntry || def.fragSrc) && (
         <ShaderCodeEditor
           definition={def}
+          isUserScene={!!userSceneEntry}
           onCompile={handleCompile}
           onSave={handleSave}
+          onResetPreview={handleResetPreview}
           runtimeError={compileError}
           lastSuccessAt={compileStatus.state === 'ok' ? compileStatus.lastOkAt : null}
         />

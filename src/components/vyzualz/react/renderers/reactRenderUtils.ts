@@ -31,6 +31,16 @@ export interface ReactFrameContext {
   timeDomainData: Uint8Array<ArrayBuffer> | null
   /** Current music intelligence frame; null when MI engine has not produced data yet. */
   musicIntelligence: MusicIntelligenceFrame | null
+  /**
+   * Manual-section-override-aware section for the current audio time.
+   * Prefers a manually placed section over the MI-detected one.
+   * null when no section is active.  Used by ShaderEngineRenderer for
+   * section-based uniforms and choreography; the canvas sets this each frame.
+   * Optional so non-shader canvases don't need to supply it.
+   */
+  resolvedSection?: { type: string; startSec: number } | null
+  /** True on the first frame of each new section (manual or MI). Optional for non-shader canvases. */
+  sectionChanged?: boolean
 }
 
 // ── Per-engine render params ──────────────────────────────────────────────────

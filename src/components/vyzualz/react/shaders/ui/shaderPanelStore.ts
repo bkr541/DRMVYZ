@@ -11,6 +11,7 @@ import { shaderRegistry } from '../registry'
 import type { ShaderCompileStatus } from '../editor/ShaderCompilePanel'
 import type { PerformanceMetrics, QualityTierWithAuto } from '../performance/shaderPerformanceTypes'
 import type { QualityTier } from '../registry/shaderRegistryTypes'
+import type { RenderPassInfo } from '../rendergraph/shaderRenderGraphTypes'
 
 // ── ShaderPanelStore ──────────────────────────────────────────────────────────
 
@@ -77,6 +78,20 @@ interface ShaderPanelState {
   _previewCompileCallback: ((fragSrc: string, vertSrc?: string) => void) | null
   setPreviewCompileCallback: (cb: ((fragSrc: string, vertSrc?: string) => void) | null) => void
   requestPreviewCompile: (fragSrc: string, vertSrc?: string) => void
+
+  // Preview reset (renderer hooks in a callback at runtime)
+  _previewResetCallback: (() => void) | null
+  setPreviewResetCallback: (cb: (() => void) | null) => void
+  requestPreviewReset: () => void
+
+  // Forced recompile of the active scene (e.g. after user-scene update)
+  pendingRecompileSceneId: string | null
+  requestRecompile: (sceneId: string) => void
+  consumePendingRecompile: () => string | null
+
+  // Live pass info from the active render graph (for ShaderPassInspector)
+  passInfo: RenderPassInfo[] | null
+  setPassInfo: (info: RenderPassInfo[] | null) => void
 }
 
 const IDLE_COMPILE_STATUS: ShaderCompileStatus = { state: 'idle' }
@@ -97,6 +112,9 @@ export const useShaderPanelStore = create<ShaderPanelState>((set, get) => ({
   performanceMetrics:          null,
   effectiveQualityTier:        null,
   _previewCompileCallback:     null,
+  _previewResetCallback:       null,
+  pendingRecompileSceneId:     null,
+  passInfo:                    null,
 
   setActiveShaderId: (id) => {
     const def = id ? shaderRegistry.get(id) : null
@@ -247,6 +265,22 @@ export const useShaderPanelStore = create<ShaderPanelState>((set, get) => ({
   requestPreviewCompile: (fragSrc, vertSrc) => {
     get()._previewCompileCallback?.(fragSrc, vertSrc)
   },
+
+  setPreviewResetCallback: (cb) => set({ _previewResetCallback: cb }),
+
+  requestPreviewReset: () => {
+    get()._previewResetCallback?.()
+  },
+
+  requestRecompile: (sceneId) => set({ pendingRecompileSceneId: sceneId }),
+
+  consumePendingRecompile: () => {
+    const id = get().pendingRecompileSceneId
+    if (id !== null) set({ pendingRecompileSceneId: null })
+    return id
+  },
+
+  setPassInfo: (info) => set({ passInfo: info }),
 }))
 
 // ── Convenience selector ──────────────────────────────────────────────────────

@@ -192,6 +192,19 @@ export class ShaderWebGLRuntime {
     const ext = this._gl.getExtension('WEBGL_lose_context')
     ext?.loseContext()
   }
+
+  /**
+   * Remove event listeners and mark disposed WITHOUT calling loseContext().
+   * Use this inside an onContextRestored handler when the old runtime's GL
+   * handles are already invalid — calling loseContext() would re-lose the
+   * newly restored context.
+   */
+  disposeHandlers(): void {
+    if (this._disposed) return
+    this._disposed = true
+    this._canvas.removeEventListener('webglcontextlost',     this._onContextLostHandler)
+    this._canvas.removeEventListener('webglcontextrestored', this._onContextRestoredHandler)
+  }
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
