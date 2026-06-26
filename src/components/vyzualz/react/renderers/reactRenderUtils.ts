@@ -35,11 +35,18 @@ export interface ReactFrameContext {
    * Manual-section-override-aware section for the current audio time.
    * Prefers a manually placed section over the MI-detected one.
    * null when no section is active.  Used by ShaderEngineRenderer for
-   * section-based uniforms and choreography; the canvas sets this each frame.
+   * section-based uniforms, choreography, and transition timing.
    * Optional so non-shader canvases don't need to supply it.
    */
-  resolvedSection?: { type: string; startSec: number } | null
-  /** True on the first frame of each new section (manual or MI). Optional for non-shader canvases. */
+  resolvedSection?: {
+    type:     string
+    startSec: number
+    /** End time in seconds.  Infinity when no manual end was placed. */
+    endSec:   number
+    /** 0–1 normalised position within the section. -1 when unknown. */
+    progress: number
+  } | null
+  /** True on the first frame of each new resolved section. Optional for non-shader canvases. */
   sectionChanged?: boolean
 }
 

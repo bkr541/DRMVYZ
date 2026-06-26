@@ -1,26 +1,29 @@
-import { ShaderWebGLRuntime }       from './runtime/ShaderWebGLRuntime'
-import { ShaderPassCompiler }        from './rendergraph/ShaderPassCompiler'
-import { ShaderRenderGraph }         from './rendergraph/ShaderRenderGraph'
-import { ShaderAudioBridge }         from './audio/ShaderAudioBridge'
-import { ShaderSpectrumTexture }     from './audio/ShaderSpectrumTexture'
-import { ShaderWaveformTexture }     from './audio/ShaderWaveformTexture'
-import { ShaderTextureInputManager } from './textures/ShaderTextureInputManager'
-import { ShaderModulationEvaluator } from './modulation/ShaderModulationEvaluator'
-import { ShaderModulationMatrix }    from './modulation/ShaderModulationMatrix'
-import { ShaderTransitionController }from './transitions/ShaderTransitionController'
-import { ShaderTransitionRenderer }  from './transitions/ShaderTransitionRenderer'
-import { ShaderPerformanceMonitor }  from './performance/ShaderPerformanceMonitor'
-import { ShaderQualityController }   from './performance/ShaderQualityController'
-import { shaderRegistry }            from './registry'
-import { useShaderPanelStore }       from './ui/shaderPanelStore'
-import { useShaderLibraryStore }     from './library/ShaderLibraryStore'
-import { DEFAULT_SHADER_SCENE_ID }   from './scenes'
-import type { ReactFrameContext }    from '../renderers/reactRenderUtils'
-import type { ShaderDefinition, ShaderParamValue, RGBA, Vec2, EnumParamDef } from './registry/shaderRegistryTypes'
-import type { CompiledGraph }        from './rendergraph/shaderRenderGraphTypes'
-import type { ShaderProgram }        from './runtime/ShaderProgram'
-import type { ShaderTexSourceSelection } from './textures/shaderTextureInputTypes'
-import { DEFAULT_TRANSITION }        from './transitions/shaderTransitionTypes'
+import { ShaderWebGLRuntime }         from './runtime/ShaderWebGLRuntime'
+import { ShaderPassCompiler }          from './rendergraph/ShaderPassCompiler'
+import { ShaderRenderGraph }           from './rendergraph/ShaderRenderGraph'
+import { ShaderAudioBridge }           from './audio/ShaderAudioBridge'
+import { ShaderSpectrumTexture }       from './audio/ShaderSpectrumTexture'
+import { ShaderWaveformTexture }       from './audio/ShaderWaveformTexture'
+import { ShaderTextureInputManager }   from './textures/ShaderTextureInputManager'
+import { ShaderGradientTextureCache }  from './textures/ShaderGradientTextureCache'
+import { ShaderModulationEvaluator }   from './modulation/ShaderModulationEvaluator'
+import { ShaderModulationMatrix }      from './modulation/ShaderModulationMatrix'
+import { ShaderTransitionController }  from './transitions/ShaderTransitionController'
+import { ShaderTransitionRenderer }    from './transitions/ShaderTransitionRenderer'
+import { ShaderPerformanceMonitor }    from './performance/ShaderPerformanceMonitor'
+import { ShaderQualityController }     from './performance/ShaderQualityController'
+import { shaderRegistry }              from './registry'
+import { useShaderPanelStore }         from './ui/shaderPanelStore'
+import { useShaderLibraryStore }       from './library/ShaderLibraryStore'
+import { DEFAULT_SHADER_SCENE_ID }     from './scenes'
+import type { ReactFrameContext }      from '../renderers/reactRenderUtils'
+import type {
+  ShaderDefinition, ShaderParamValue, RGBA, Vec2, EnumParamDef, GradientStop,
+} from './registry/shaderRegistryTypes'
+import type { CompiledGraph }          from './rendergraph/shaderRenderGraphTypes'
+import type { ShaderProgram }          from './runtime/ShaderProgram'
+import type { ShaderTexSourceSelection, ShaderTextureMeta } from './textures/shaderTextureInputTypes'
+import { DEFAULT_TRANSITION }          from './transitions/shaderTransitionTypes'
 
 // ── MasterParams ──────────────────────────────────────────────────────────────
 
@@ -62,19 +65,20 @@ export interface ShaderMasterParams {
  *     the single live executor.
  */
 export class ShaderEngineRenderer {
-  private readonly _gl:          WebGL2RenderingContext
-  private readonly _compiler:    ShaderPassCompiler
-  private _graph:                ShaderRenderGraph       // always the incoming / active executor
-  private readonly _audioBridge: ShaderAudioBridge
-  private readonly _specTex:     ShaderSpectrumTexture
-  private readonly _waveTex:     ShaderWaveformTexture
-  private readonly _texManager:  ShaderTextureInputManager
-  private readonly _modEval:     ShaderModulationEvaluator
-  private readonly _matrix:      ShaderModulationMatrix
-  private readonly _transCtrl:   ShaderTransitionController
-  private readonly _transRend:   ShaderTransitionRenderer
-  private readonly _perfMon:     ShaderPerformanceMonitor
-  private readonly _qualCtrl:    ShaderQualityController
+  private readonly _gl:             WebGL2RenderingContext
+  private readonly _compiler:       ShaderPassCompiler
+  private _graph:                   ShaderRenderGraph       // always the incoming / active executor
+  private readonly _audioBridge:    ShaderAudioBridge
+  private readonly _specTex:        ShaderSpectrumTexture
+  private readonly _waveTex:        ShaderWaveformTexture
+  private readonly _texManager:     ShaderTextureInputManager
+  private readonly _gradientCache:  ShaderGradientTextureCache
+  private readonly _modEval:        ShaderModulationEvaluator
+  private readonly _matrix:         ShaderModulationMatrix
+  private readonly _transCtrl:      ShaderTransitionController
+  private readonly _transRend:      ShaderTransitionRenderer
+  private readonly _perfMon:        ShaderPerformanceMonitor
+  private readonly _qualCtrl:       ShaderQualityController
 
   // Current active scene
   private _activeSceneId:   string | null = null
@@ -101,18 +105,25 @@ export class ShaderEngineRenderer {
   // Per-frame texture selection diff (avoids stale textures when user removes a selection)
   private _lastAppliedSelections: Map<string, ShaderTexSourceSelection> = new Map()
 
+  // Throttle timestamps for diagnostic store updates (~10Hz for perf/pass, ~5Hz for validation)
+  private _lastDiagPublishMs: number = 0
+  private _lastValidationPublishMs: number = 0
+  private static readonly _DIAG_INTERVAL_MS       = 100  // 10 Hz
+  private static readonly _VALIDATION_INTERVAL_MS = 200  //  5 Hz
+
   private _disposed = false
 
   constructor(private readonly _runtime: ShaderWebGLRuntime) {
     const gl = _runtime.gl
     this._gl          = gl
-    this._compiler    = new ShaderPassCompiler(gl)
-    this._graph       = new ShaderRenderGraph(gl)
-    this._audioBridge = new ShaderAudioBridge()
-    this._specTex     = new ShaderSpectrumTexture(gl)
-    this._waveTex     = new ShaderWaveformTexture(gl)
-    this._texManager  = new ShaderTextureInputManager(gl)
-    this._modEval     = new ShaderModulationEvaluator()
+    this._compiler       = new ShaderPassCompiler(gl)
+    this._graph          = new ShaderRenderGraph(gl)
+    this._audioBridge    = new ShaderAudioBridge()
+    this._specTex        = new ShaderSpectrumTexture(gl)
+    this._waveTex        = new ShaderWaveformTexture(gl)
+    this._texManager     = new ShaderTextureInputManager(gl)
+    this._gradientCache  = new ShaderGradientTextureCache(gl)
+    this._modEval        = new ShaderModulationEvaluator()
     this._matrix      = new ShaderModulationMatrix()
     this._transCtrl   = new ShaderTransitionController()
     this._transRend   = new ShaderTransitionRenderer(gl)
@@ -154,14 +165,15 @@ export class ShaderEngineRenderer {
     const store    = useShaderPanelStore.getState()
     const libStore = useShaderLibraryStore.getState()
 
-    // ── Scene activation check ─────────────────────────────────────────────
+    // ── Scene activation / recompile check ────────────────────────────────
     const requestedId = store.activeShaderId ?? DEFAULT_SHADER_SCENE_ID
 
-    // Check for forced recompile (e.g. after user-scene update with same ID)
+    // Forced same-ID recompile (e.g. after the user saves an edited user scene).
+    // Must NOT null out _activeSceneId (that loses the old compiled graph pointer
+    // and creates a GPU leak).  Instead, recompile in-place.
     const pendingRecompile = store.consumePendingRecompile()
-    if (pendingRecompile === requestedId) {
-      // Force reactivation even though the ID hasn't changed
-      this._activeSceneId = null
+    if (pendingRecompile === requestedId && this._activeSceneId === requestedId) {
+      this._recompileActiveScene(store)
     }
 
     if (requestedId !== this._activeSceneId) {
@@ -228,10 +240,14 @@ export class ShaderEngineRenderer {
 
     // ── Texture update ─────────────────────────────────────────────────────
     this._texManager.updateDynamic()
-    const texMap     = this._texManager.getTextureMap()
-    const validation = this._texManager.validate()
-    if (this._activeSceneId) {
-      store.setTextureValidation(this._activeSceneId, validation)
+    const texMap = this._texManager.getTextureMap()
+
+    // Throttle validation publication to ~5 Hz (it doesn't change every frame)
+    const nowMs = performance.now()
+    if (this._activeSceneId &&
+        nowMs - this._lastValidationPublishMs >= ShaderEngineRenderer._VALIDATION_INTERVAL_MS) {
+      store.setTextureValidation(this._activeSceneId, this._texManager.validate())
+      this._lastValidationPublishMs = nowMs
     }
 
     // ── Modulation ─────────────────────────────────────────────────────────
@@ -260,8 +276,14 @@ export class ShaderEngineRenderer {
     const consumed = store.consumeTriggeredParams()
 
     // ── Uniform callback ────────────────────────────────────────────────────
-    const dims = this._runtime.dims
-    const def  = this._activeDef
+    const dims    = this._runtime.dims
+    const def     = this._activeDef
+    // Build texture metadata snapshot once per frame (not per program)
+    const texMeta = this._texManager.getAllMetadata()
+    // Gradient params need texture units; use 8–13 (above scene inputs, below audio)
+    const gradientUnits = this._gradientCache.buildUnitMap(
+      def, store.paramValues, this._gl, 8,
+    )
 
     const applyUniforms = (program: ShaderProgram) => {
       this._audioBridge.applyToProgram(program, this._gl, this._specTex, this._waveTex)
@@ -277,7 +299,8 @@ export class ShaderEngineRenderer {
       program.setFloat('uMasterFogDensity',      master.fogDensity)
       program.setFloat('uMasterParticleDensity', master.particleDensity)
 
-      _applyParamUniforms(program, this._gl as WebGL2RenderingContext, def, store.paramValues, modulatedValues, consumed)
+      _applyParamUniforms(program, this._gl as WebGL2RenderingContext, def, store.paramValues, modulatedValues, consumed, gradientUnits)
+      _applyTextureMetaUniforms(program, def, texMeta)
     }
 
     // ── Transition tick ────────────────────────────────────────────────────
@@ -350,14 +373,17 @@ export class ShaderEngineRenderer {
     const totalMs = performance.now() - t0
 
     const graphInfo = this._graph.info
-    store.setPassInfo(graphInfo.passes)
+
+    const estimatedMb = _estimateTextureMbFromPasses(graphInfo.passes)
+      + (this._gradientCache.textureCount * 256 * 4) / (1024 * 1024)
+      + (this._texManager.ownedTextureCount * 1024) / (1024 * 1024) // rough overhead
 
     this._perfMon.recordFrame({
       cpuPrepMs:         cpuMs,
       totalMs,
       passCount:         graphInfo.passCount,
-      renderTargetCount: graphInfo.pooledResourceCount,
-      textureMb:         _estimateTextureMb(graphInfo.pooledResourceCount, dims.W, dims.H),
+      renderTargetCount: graphInfo.pooledResourceCount + this._texManager.ownedTextureCount,
+      textureMb:         estimatedMb,
       internalW:         dims.W,
       internalH:         dims.H,
       gl:                this._gl,
@@ -374,12 +400,17 @@ export class ShaderEngineRenderer {
         const newDims = this._runtime.dims
         this._transRend.resize(newDims.W, newDims.H)
       }
-      store.setEffectiveQualityTier(this._qualCtrl.effectiveTier)
-    } else {
-      store.setEffectiveQualityTier(this._qualCtrl.effectiveTier)
     }
 
-    store.setPerformanceMetrics(this._perfMon.lastMetrics)
+    // Throttle diagnostic publications to ~10 Hz to prevent 60fps UI rerenders
+    const nowDiagMs = performance.now()
+    if (nowDiagMs - this._lastDiagPublishMs >= ShaderEngineRenderer._DIAG_INTERVAL_MS) {
+      store.setPassInfo(graphInfo.passes)
+      store.setPerformanceMetrics(this._perfMon.lastMetrics)
+      store.setEffectiveQualityTier(this._qualCtrl.effectiveTier)
+      this._lastDiagPublishMs = nowDiagMs
+    }
+
     this._runtime.endFrame()
   }
 
@@ -491,8 +522,61 @@ export class ShaderEngineRenderer {
     this._specTex.dispose?.()
     this._waveTex.dispose?.()
     this._texManager.dispose?.()
+    this._gradientCache.dispose()
     this._transRend.dispose()
     this._perfMon.dispose(this._gl)
+  }
+
+  /**
+   * Recompile the currently active scene in place after its source changed.
+   *
+   * On success:  replaces `_activeGraph` and reloads `_graph` executor.
+   *              Disposes the previous compiled graph exactly once.
+   *              Disposes any stale preview graph.
+   *              Does NOT start a scene transition.
+   *
+   * On failure:  leaves the current valid graph in place and continues rendering.
+   *              Publishes the compile error.
+   */
+  private _recompileActiveScene(
+    store: ReturnType<typeof useShaderPanelStore.getState>,
+  ): void {
+    const id  = this._activeSceneId!
+    const def = shaderRegistry.get(id)
+    if (!def) return
+
+    store.setCompileStatus({ state: 'compiling' })
+
+    const result = this._compiler.compile(def)
+
+    if (result.error || !result.graph) {
+      const msg = result.error?.programError?.log ?? result.error?.message ?? 'compile failed'
+      store.setCompileError(msg)
+      store.setCompileStatus({ state: 'error', errorLog: msg, compiledDefId: id })
+      return
+    }
+
+    // Dispose stale preview graph
+    if (this._previewGraph) {
+      ShaderPassCompiler.disposeGraph(this._previewGraph)
+      this._previewGraph  = null
+      this._previewActive = false
+    }
+
+    // Swap compiled graph — dispose old one exactly once
+    const oldGraph = this._activeGraph
+    this._activeGraph = result.graph
+    this._activeDef   = def
+    this._graphLoaded = false  // loadGraph() called on next render frame
+
+    if (oldGraph) ShaderPassCompiler.disposeGraph(oldGraph)
+
+    store.setCompileError(null)
+    store.setCompileStatus({
+      state:        'ok',
+      lastOkAt:     new Date().toISOString(),
+      compiledDefId: id,
+    })
   }
 
   private _activateScene(
@@ -544,8 +628,13 @@ export class ShaderEngineRenderer {
     this._activeDef     = def
     this._graphLoaded   = false  // loadGraph() deferred to first render frame
 
-    // Reset texture diff state on scene change
+    // Clear previous scene's runtime texture bindings before applying the new
+    // scene's selections.  Without this, two scenes sharing the same input name
+    // could inherit each other's GPU textures.
+    this._texManager.clearAllSelections()
     this._lastAppliedSelections.clear()
+    // Gradient textures are scene-specific — clear cache on scene change.
+    this._gradientCache.clearAll()
 
     this._texManager.setDefinition(def)
     this._matrix.setDefinition(def)
@@ -587,11 +676,12 @@ function _applyMasterUniforms(program: ShaderProgram, master: ShaderMasterParams
 
 function _applyParamUniforms(
   program:         ShaderProgram,
-  _gl:             WebGL2RenderingContext,
+  gl:              WebGL2RenderingContext,
   def:             ShaderDefinition,
   paramValues:     Record<string, ShaderParamValue>,
   modulatedValues: Record<string, number>,
   consumed:        string[],
+  gradientUnits:   ReadonlyMap<string, number>,
 ): void {
   for (const param of def.params) {
     const base   = paramValues[param.id] ?? def.defaults[param.id]
@@ -626,19 +716,28 @@ function _applyParamUniforms(
       case 'enum': {
         const enumDef = param as EnumParamDef
         const selected = typeof effective === 'string' ? effective : enumDef.default
-        const idx = enumDef.values.findIndex(v => v.value === selected)
-        // Upload as int when the def requests it; default to float for GLSL float uniforms
-        const numericValue = Math.max(0, idx)
+        let idx = enumDef.values.findIndex(v => v.value === selected)
+        if (idx < 0) {
+          // Invalid stored value — fall back to the declared default, not index 0
+          idx = enumDef.values.findIndex(v => v.value === enumDef.default)
+          if (idx < 0) idx = 0
+        }
         if (enumDef.uniformType === 'int') {
-          program.setInt?.(param.uniformName, numericValue)
+          program.setInt(param.uniformName, idx)
         } else {
-          program.setFloat(param.uniformName, numericValue)
+          program.setFloat(param.uniformName, idx)
         }
         break
       }
-      case 'gradient':
-        // Gradient textures require a separate texture encoding pass; not yet wired.
+      case 'gradient': {
+        const unit = gradientUnits.get(param.id)
+        if (unit !== undefined) {
+          program.setSampler(param.uniformName, unit)
+          program.setFloat(param.uniformName + 'StopCount',
+            (effective as GradientStop[] | undefined)?.length ?? 0)
+        }
         break
+      }
       case 'texture':
         // Bound via texture manager
         break
@@ -646,9 +745,32 @@ function _applyParamUniforms(
   }
 }
 
+function _applyTextureMetaUniforms(
+  program:  ShaderProgram,
+  def:      ShaderDefinition,
+  metaMap:  ReadonlyMap<string, ShaderTextureMeta>,
+): void {
+  for (const input of (def.textureInputs ?? [])) {
+    const meta = metaMap.get(input.name)
+    if (!meta) continue
+    const base = input.name
+    // Optional uniforms — ShaderProgram.setFloat silently skips missing locations
+    program.setVec2(base + 'Resolution', meta.w, meta.h)
+    program.setFloat(base + 'Aspect', meta.h > 0 ? meta.w / meta.h : 1)
+    program.setFloat(base + 'Available', meta.available ? 1.0 : 0.0)
+    program.setVec2(base + 'UvScale', meta.uvScaleX, meta.uvScaleY)
+    program.setVec2(base + 'UvOffset', meta.uvOffsetX, meta.uvOffsetY)
+  }
+}
 
-function _estimateTextureMb(fboCount: number, w: number, h: number): number {
-  const bytesPerFbo = w * h * 4
-  const totalBytes  = fboCount * bytesPerFbo
-  return totalBytes / (1024 * 1024)
+function _estimateTextureMbFromPasses(passes: { dimensions: { w: number; h: number }; pingPong: boolean; persistent: boolean }[]): number {
+  // Use actual per-pass dimensions for the estimate.
+  // Ping-pong passes own 2 FBOs.
+  let bytes = 0
+  for (const p of passes) {
+    const { w, h } = p.dimensions
+    const fboCount = p.pingPong ? 2 : 1
+    bytes += w * h * 4 * fboCount
+  }
+  return bytes / (1024 * 1024)
 }

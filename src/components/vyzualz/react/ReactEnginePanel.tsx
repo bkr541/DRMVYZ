@@ -219,7 +219,9 @@ function OscillatorStatusCard({
 // ── Shader scene selector ─────────────────────────────────────────────────────
 
 function ShaderEngineSection() {
-  const { activeShaderId, setActiveShaderId } = useShaderPanelStore()
+  // Narrow selector: only activeShaderId (setActiveShaderId is a stable action)
+  const activeShaderId    = useShaderPanelStore(s => s.activeShaderId)
+  const setActiveShaderId = useShaderPanelStore(s => s.setActiveShaderId)
 
   // Ensure a scene is always selected when the Shader engine is active
   if (!activeShaderId) {

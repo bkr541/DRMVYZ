@@ -59,6 +59,7 @@ export class ShaderTextureSourceResolver {
   }
 
   get fallback(): ResolvedShaderTexture { return this._fallbackResult }
+  get entryCount(): number { return this._entries.size }
 
   /**
    * Resolve a media-backed selection for a given input.

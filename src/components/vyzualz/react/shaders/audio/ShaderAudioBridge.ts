@@ -92,16 +92,18 @@ export class ShaderAudioBridge {
     }
 
     // ── Section-change detection ──────────────────────────────────────────────
-    const sectionStartSec = mi?.section.startSec ?? -1
+    // Prefer the canvas-resolved section (manual override > MI) when present.
+    const resolved        = frame.resolvedSection ?? null
+    const sectionStartSec = resolved?.startSec ?? mi?.section.startSec ?? -1
     const sectionChanged  = sectionStartSec !== this._lastSectionStartSec
     if (sectionChanged) {
       this._lastSectionStartSec = sectionStartSec
-      this._lastSectionType     = mi?.section.type ?? null
+      this._lastSectionType     = resolved?.type ?? mi?.section.type ?? null
     }
 
     this._audioFrame  = this._buildAudioFrame(frame, dt, mi)
     this._timingFrame = this._buildTimingFrame(
-      frame, runtimeTimeSec, runtimeDeltaSec, sectionChanged,
+      frame, runtimeTimeSec, runtimeDeltaSec, sectionChanged, resolved,
     )
   }
 
@@ -292,15 +294,23 @@ export class ShaderAudioBridge {
     runtimeTimeSec:  number,
     runtimeDeltaSec: number,
     sectionChanged:  boolean,
+    resolved:        ReactFrameContext['resolvedSection'],
   ): ShaderTimingUniformFrame {
     const mi = frame.musicIntelligence
 
     const time      = safePos(runtimeTimeSec)
     const deltaTime = safePos(runtimeDeltaSec)
 
+    // Use the resolved section (manual override > MI) for all section uniforms.
+    // When a manual section is active, we have an accurate progress value.
+    // When only MI is available, fall through to mi.section.
+    const resolvedSectionType     = resolved?.type ?? mi?.section.type ?? null
+    const resolvedSectionProgress = resolved != null && resolved.progress >= 0
+      ? resolved.progress
+      : (mi?.section.progress ?? 0)
+
     if (mi !== null) {
       const r = mi.rhythm
-      const sec = mi.section
 
       // Smooth 0–1 bar phase: combines beat-in-bar index and beat sub-phase.
       // Formula: (beatInBar + beatPhase) / 4  — gives continuous 0→1 over 4 beats.
@@ -319,12 +329,12 @@ export class ShaderAudioBridge {
         beatPhase:    safePhase(r.beatPhase),
         barPhase,
         phrasePhase:  safePhase(r.phrase8Progress),
-        sectionPhase: safePhase(sec.progress),
+        sectionPhase: safePhase(resolvedSectionProgress),
 
         beatIndex: safeInt(r.beatIndex),
         barIndex:  safeInt(r.barIndex),
 
-        sectionType:        encodeSectionType(sec.type),
+        sectionType:        encodeSectionType(resolvedSectionType as Parameters<typeof encodeSectionType>[0]),
         sectionStartPulse:  sectionChanged ? 1.0 : 0.0,
         sectionChangePulse: sectionChanged ? 1.0 : 0.0,
       }
@@ -343,14 +353,14 @@ export class ShaderAudioBridge {
       beatPhase:    safePhase(frame.beatPhase),
       barPhase:     safePhase(frame.beatPhase),  // no bar info; use beat phase as approximation
       phrasePhase:  0,
-      sectionPhase: 0,
+      sectionPhase: safePhase(resolvedSectionProgress),
 
       beatIndex: 0,
       barIndex:  0,
 
-      sectionType:        0,
-      sectionStartPulse:  0,
-      sectionChangePulse: 0,
+      sectionType:        encodeSectionType(resolvedSectionType as Parameters<typeof encodeSectionType>[0]),
+      sectionStartPulse:  sectionChanged ? 1.0 : 0.0,
+      sectionChangePulse: sectionChanged ? 1.0 : 0.0,
     }
   }
 }

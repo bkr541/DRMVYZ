@@ -77,10 +77,21 @@ export interface RenderPassInfo {
   lastDurationMs: number | null
 }
 
+export interface RenderGraphResourceStats {
+  /** Temporary FBOs currently checked out from the pool. */
+  tempFboCount:        number
+  /** Persistent single FBOs owned by the graph. */
+  persistentFboCount:  number
+  /** Ping-pong buffer PAIRS (each pair = 2 FBOs). */
+  pingPongPairCount:   number
+}
+
 export interface RenderGraphInfo {
   shaderId: string
   passCount: number
   passes: RenderPassInfo[]
+  /** Total live render target count (temp + persistent + ping-pong×2). */
   pooledResourceCount: number
+  resourceStats: RenderGraphResourceStats
   lastExecutionMs: number | null
 }

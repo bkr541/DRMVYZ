@@ -149,8 +149,10 @@ function SceneCard({
 // ── ShaderLibraryPanel ────────────────────────────────────────────────────────
 
 export function ShaderLibraryPanel() {
-  const store           = useShaderLibraryStore()
-  const panelStore      = useShaderPanelStore()
+  const store          = useShaderLibraryStore()
+  // Narrow selector: only activeShaderId and its setter (stable actions never change)
+  const activeShaderId  = useShaderPanelStore(s => s.activeShaderId)
+  const setActiveShaderId = useShaderPanelStore(s => s.setActiveShaderId)
   const [tab,     setTab]     = useState<LibraryTab>('scenes')
   const [query,   setQuery]   = useState('')
   const [catFilter, setCatFilter] = useState<ShaderCategory | ''>('')
@@ -190,7 +192,7 @@ export function ShaderLibraryPanel() {
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   function handleActivate(id: string) {
-    panelStore.setActiveShaderId(id)
+    setActiveShaderId(id)
     store.markUsed(id)
   }
 
@@ -207,8 +209,8 @@ export function ShaderLibraryPanel() {
 
   function handleDelete(id: string) {
     store.deleteUserScene(id)
-    if (panelStore.activeShaderId === id) {
-      panelStore.setActiveShaderId(null)
+    if (activeShaderId === id) {
+      setActiveShaderId(null)
     }
   }
 
@@ -326,7 +328,7 @@ export function ShaderLibraryPanel() {
             <SceneCard
               key={entry.definition.id}
               entry={entry}
-              isActive={panelStore.activeShaderId === entry.definition.id}
+              isActive={activeShaderId === entry.definition.id}
               onActivate={handleActivate}
               onFavorite={handleFavorite}
               onDuplicate={handleDuplicate}

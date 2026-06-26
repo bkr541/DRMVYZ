@@ -1,45 +1,45 @@
 import React from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useShaderPanelStore } from './shaderPanelStore'
 import { shaderRegistry } from '../registry'
 import { ShaderParameterGroup } from './ShaderParameterGroup'
 import { ShaderTextureInputControl } from './ShaderTextureInputControl'
 import { CtrlSection } from '../../ReactControlRows'
 import { groupParams } from './shaderParameterUiTypes'
-import type { ShaderParamValue } from '../registry/shaderRegistryTypes'
 
 // ── ShaderParameterPanel ──────────────────────────────────────────────────────
 //
 // FX-tab panel for the GLSL Shader engine.
-// Renders only the controls declared by the active ShaderDefinition — no
-// generic controls that are not consumed by the active shader.
+// Uses narrow selectors so it does not rerender on every audio frame or
+// performance-metric update.
 
 export function ShaderParameterPanel() {
-  const {
-    activeShaderId,
-    paramValues,
-    modulatedValues,
-    compileError,
-    setParamValue,
-    triggerParam,
-    resetParams,
-    textureSelectionsByShaderId,
-    textureValidationByShaderId,
-    setTextureSelection,
-    clearTextureSelection,
-  } = useShaderPanelStore()
+  // Stable fields — scene ID and definition-driving state
+  const activeShaderId = useShaderPanelStore(s => s.activeShaderId)
+  const paramValues    = useShaderPanelStore(s => s.paramValues)
+  const modulatedValues = useShaderPanelStore(s => s.modulatedValues)
+  const compileError   = useShaderPanelStore(s => s.compileError)
 
-  const textureSelections = activeShaderId
-    ? (textureSelectionsByShaderId[activeShaderId] ?? {})
-    : {}
-  const textureValidation = activeShaderId
-    ? (textureValidationByShaderId[activeShaderId] ?? [])
-    : []
+  // Actions (stable references from the store — never change after creation)
+  const { setParamValue, triggerParam, resetParams,
+          setTextureSelection, clearTextureSelection } =
+    useShaderPanelStore(useShallow(s => ({
+      setParamValue:       s.setParamValue,
+      triggerParam:        s.triggerParam,
+      resetParams:         s.resetParams,
+      setTextureSelection: s.setTextureSelection,
+      clearTextureSelection: s.clearTextureSelection,
+    })))
+
+  // Per-scene texture state — only rerenders when this scene's entry changes
+  const textureSelections = useShaderPanelStore(
+    s => activeShaderId ? (s.textureSelectionsByShaderId[activeShaderId] ?? {}) : {},
+  )
+  const textureValidation = useShaderPanelStore(
+    s => activeShaderId ? (s.textureValidationByShaderId[activeShaderId] ?? []) : [],
+  )
 
   const def = activeShaderId ? shaderRegistry.get(activeShaderId) : null
-
-  function handleTrigger(id: string) {
-    triggerParam(id)
-  }
 
   if (!def) {
     return (
@@ -82,7 +82,7 @@ export function ShaderParameterPanel() {
           values={paramValues}
           modulatedValues={modulatedValues}
           onChange={(id, v) => setParamValue(id, v)}
-          onTrigger={handleTrigger}
+          onTrigger={id => triggerParam(id)}
         />
       ))}
 

@@ -70,6 +70,20 @@ export class ShaderTextureInputManager {
     this._resolver.release(inputName)
   }
 
+  /**
+   * Clear ALL runtime selections — called when a new scene is activated to
+   * prevent a scene from inheriting another scene's texture bindings.
+   *
+   * Does not clear injected audio textures (spectrum/waveform) because those
+   * are bridge-owned and set via setAudioTextures(), not selections.
+   */
+  clearAllSelections(): void {
+    for (const name of [...this._selections.keys()]) {
+      this._resolver.release(name)
+    }
+    this._selections.clear()
+  }
+
   // ── Audio texture injection ───────────────────────────────────────────────
 
   /**
@@ -129,6 +143,24 @@ export class ShaderTextureInputManager {
     const sel = this._selections.get(inputName)
     if (!sel || sel.sourceType === 'unset') return null
     return this._resolveMetadata(inputName, sel)
+  }
+
+  /**
+   * Return metadata for all texture inputs declared by the current definition.
+   * Inputs without a selection return `{ available: false }` (FALLBACK_TEX_META).
+   */
+  getAllMetadata(): ReadonlyMap<string, ShaderTextureMeta> {
+    const result = new Map<string, ShaderTextureMeta>()
+    for (const input of (this._def?.textureInputs ?? [])) {
+      const meta = this.getMetadata(input.name)
+      result.set(input.name, meta ?? { ...FALLBACK_TEX_META, sourceType: 'solid-color' })
+    }
+    return result
+  }
+
+  /** Total number of distinct textures managed (for resource accounting). */
+  get ownedTextureCount(): number {
+    return this._resolver.entryCount + this._maskCache.size + this._solidCache.size
   }
 
   // ── Validation ────────────────────────────────────────────────────────────

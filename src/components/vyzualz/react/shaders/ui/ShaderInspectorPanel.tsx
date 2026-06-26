@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react'
+import { useShallow }            from 'zustand/react/shallow'
 import { useShaderPanelStore }      from './shaderPanelStore'
 import { useShaderLibraryStore }    from '../library/ShaderLibraryStore'
 import { shaderRegistry }           from '../registry'
@@ -19,6 +20,9 @@ import type { ShaderDefinition }    from '../registry/shaderRegistryTypes'
  * the renderer is never stored in Zustand.
  */
 export function ShaderInspectorPanel() {
+  // Narrow shallow selector: only the fields this panel actually renders.
+  // performanceMetrics and passInfo are throttled to ~10Hz in the renderer
+  // so they don't drive 60fps rerenders even with this subscription.
   const {
     activeShaderId,
     compileStatus,
@@ -28,7 +32,16 @@ export function ShaderInspectorPanel() {
     passInfo,
     requestPreviewCompile,
     requestPreviewReset,
-  } = useShaderPanelStore()
+  } = useShaderPanelStore(useShallow(s => ({
+    activeShaderId:       s.activeShaderId,
+    compileStatus:        s.compileStatus,
+    compileError:         s.compileError,
+    performanceMetrics:   s.performanceMetrics,
+    effectiveQualityTier: s.effectiveQualityTier,
+    passInfo:             s.passInfo,
+    requestPreviewCompile: s.requestPreviewCompile,
+    requestPreviewReset:  s.requestPreviewReset,
+  })))
 
   const libStore = useShaderLibraryStore()
 

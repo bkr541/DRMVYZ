@@ -279,6 +279,15 @@ export function ReactShaderCanvas({
 
       const resolvedSectionType  = manualSection?.type ?? miFrame.section?.type ?? null
       const resolvedSectionStart = manualSection?.startSec ?? miFrame.section?.startSec ?? -1
+      const resolvedSectionEnd   = manualSection
+        ? manualSection.endSec
+        : (miFrame.section?.endSec ?? Infinity)
+      const resolvedProgress = manualSection
+        ? (resolvedSectionEnd > resolvedSectionStart
+            ? Math.max(0, Math.min(1, (audioTimeSec - resolvedSectionStart) / (resolvedSectionEnd - resolvedSectionStart)))
+            : 0)
+        : (miFrame.section?.progress ?? -1)
+
       const sectionChanged = resolvedSectionType !== lastSectionType ||
         resolvedSectionStart !== lastSectionStart
       if (sectionChanged) {
@@ -325,9 +334,14 @@ export function ReactShaderCanvas({
         freqData,
         timeDomainData,
         musicIntelligence: hasMI ? miFrame : null,
-        // Pass manual-section-override-aware section to the renderer
+        // Pass manual-section-override-aware section (with progress) to the renderer.
         resolvedSection: resolvedSectionType !== null
-          ? { type: resolvedSectionType, startSec: resolvedSectionStart }
+          ? {
+              type:     resolvedSectionType,
+              startSec: resolvedSectionStart,
+              endSec:   resolvedSectionEnd,
+              progress: resolvedProgress,
+            }
           : null,
         sectionChanged,
       }

@@ -186,8 +186,18 @@ export class ShaderRenderGraph {
 
   /** Debug snapshot of the active graph's resource state. */
   get info(): RenderGraphInfo {
+    const tempFboCount       = this._pool.totalCount
+    const persistentFboCount = this._persistentFbos.size
+    const pingPongPairCount  = this._pingPongBuffers.size
+    const pooledResourceCount = tempFboCount + persistentFboCount + pingPongPairCount * 2
+
     if (!this._activeGraph) {
-      return { shaderId: '', passCount: 0, passes: [], pooledResourceCount: 0, lastExecutionMs: null }
+      return {
+        shaderId: '', passCount: 0, passes: [],
+        pooledResourceCount: 0,
+        resourceStats: { tempFboCount: 0, persistentFboCount: 0, pingPongPairCount: 0 },
+        lastExecutionMs: null,
+      }
     }
     return {
       shaderId:   this._activeGraph.shaderId,
@@ -196,7 +206,8 @@ export class ShaderRenderGraph {
         const d = this._lastPassDims.get(rp.node.passId) ?? { w: 0, h: 0 }
         return rp.info(d)
       }),
-      pooledResourceCount: this._pool.totalCount + this._persistentFbos.size + this._pingPongBuffers.size * 2,
+      pooledResourceCount,
+      resourceStats: { tempFboCount, persistentFboCount, pingPongPairCount },
       lastExecutionMs: this._lastExecMs,
     }
   }
