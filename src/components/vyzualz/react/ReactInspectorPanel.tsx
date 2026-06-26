@@ -7,6 +7,8 @@ import type {
   OscillatorGlyphAsset,
   OscillatorFontAsset,
 } from './ReactTypes'
+import { useShaderPanelStore } from './shaders/ui/shaderPanelStore'
+import { shaderRegistry } from './shaders/registry'
 
 // ── Display maps ──────────────────────────────────────────────────────────────
 
@@ -130,6 +132,35 @@ export function ReactInspectorPanel() {
     resetOscillatorSettings: s.resetOscillatorSettings,
     resetReactView:          s.resetReactView,
   })))
+
+  const { activeShaderId } = useShaderPanelStore()
+
+  // ── Shader engine info ───────────────────────────────────────────────────────
+  if (activeReactEngineId === 'shaderPads') {
+    const def = activeShaderId ? shaderRegistry.get(activeShaderId) : null
+    return (
+      <div className="rv-ctrl-group">
+        <CtrlSection label="Shader Scene" />
+        {def ? (
+          <>
+            <KvRow label="Name"     value={def.name} />
+            <KvRow label="Category" value={def.category} />
+            {def.description && (
+              <div className="rv-ctrl-info" style={{ marginTop: 4 }}>{def.description}</div>
+            )}
+            <KvRow label="Params" value={String(def.params.length)} />
+            {def.textureInputs && def.textureInputs.length > 0 && (
+              <KvRow label="Inputs" value={String(def.textureInputs.length)} />
+            )}
+          </>
+        ) : (
+          <div className="rv-ctrl-info">
+            Select a Shader scene from the ENGINE tab to inspect it.
+          </div>
+        )}
+      </div>
+    )
+  }
 
   const preset = activeReactPresetId
     ? reactPresets.find(p => p.id === activeReactPresetId) ?? null

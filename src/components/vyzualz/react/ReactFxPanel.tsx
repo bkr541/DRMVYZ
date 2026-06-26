@@ -5,6 +5,7 @@ import {
   CtrlSection, Collapsible,
 } from './ReactControlRows'
 import type { OscillatorRenderMode, LaserDmxFogSettings } from './ReactTypes'
+import { ShaderParameterPanel } from './shaders/ui/ShaderParameterPanel'
 
 // ── FX panel ──────────────────────────────────────────────────────────────────
 // Styles the currently active visual engine.
@@ -56,6 +57,7 @@ export function ReactFxPanel() {
   const osc = oscillatorSettings
   const set = setOscillatorSettings
 
+  const isShader        = activeReactEngineId === 'shaderPads'
   const isSoundDrawing  = activeReactEngineId === 'oscilloscope'
   const isCinematic     = activeReactEngineId === 'cinematicPortal'
   const isLaserDmx      = activeReactEngineId === 'laserDmx'
@@ -76,6 +78,11 @@ export function ReactFxPanel() {
 
   // SVG Visual is a pure image display mode — point-path controls have no effect on it.
   const isSvgVisual = isSoundDrawing && osc.sourceType === 'svgVisual'
+
+  // ── Shader engine: render only its own parameter panel ───────────────────────
+  if (isShader) {
+    return <ShaderParameterPanel />
+  }
 
   return (
     <>
