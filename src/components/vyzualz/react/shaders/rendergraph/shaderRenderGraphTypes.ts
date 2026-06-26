@@ -23,14 +23,22 @@ export interface RenderGraphError {
 
 // ── Compiled graph ────────────────────────────────────────────────────────────
 
+/** Explicit binding from a texture source to a GLSL sampler uniform. */
+export interface CompiledPassInputBinding {
+  /** Key in the texMap (logical output name or textureInput name). */
+  source: string
+  /** Exact GLSL sampler2D uniform name in the pass program. */
+  uniformName: string
+}
+
 export interface CompiledPassNode {
   passId: string
   program: ShaderProgram
   /**
-   * Logical input names from ShaderPassDef.inputs, in declaration order.
-   * Each maps to a GLSL sampler uniform of the same name (hyphens → underscores).
+   * Explicit input bindings for this pass.
+   * Each binding maps a texture source (texMap key) to a GLSL sampler uniform.
    */
-  inputs: string[]
+  inputs: CompiledPassInputBinding[]
   /**
    * Logical output name for intermediate passes.
    * null on the last pass — it renders directly to the default framebuffer.
@@ -61,8 +69,11 @@ export type GraphCompileResult =
 export interface RenderPassInfo {
   passId: string
   dimensions: { w: number; h: number }
+  /** Human-readable "source → uniformName" strings, one per input binding. */
   inputs: string[]
   outputTarget: 'screen' | 'framebuffer'
+  persistent: boolean
+  pingPong: boolean
   lastDurationMs: number | null
 }
 

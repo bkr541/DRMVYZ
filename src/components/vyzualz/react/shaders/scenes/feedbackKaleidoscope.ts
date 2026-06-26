@@ -94,9 +94,11 @@ out vec4 fragColor;
 void main() {
   vec2 uv = v_uv;
 
-  float decay  = uFeedbackDecay * uMasterTrailDecay;
-  float zoom   = uFeedbackZoom;
-  float speed  = uRotationSpeed * uMasterMotion;
+  // retention: high feedbackDecay + low trailDecay → long trails.
+  // Clamped below 1.0 to prevent unbounded accumulation.
+  float retention = clamp(uFeedbackDecay * (1.0 - uMasterTrailDecay), 0.0, 0.995);
+  float zoom      = uFeedbackZoom;
+  float speed     = uRotationSpeed * uMasterMotion;
 
   // Center the UV for zoom / rotation
   vec2 centered = uv - 0.5;
@@ -112,7 +114,7 @@ void main() {
 
   // Sample previous frame (with wrap-clamp)
   fbUv = clamp(fbUv, 0.001, 0.999);
-  vec4 prev = texture(uPreviousFrame, fbUv) * decay;
+  vec4 prev = texture(uPreviousFrame, fbUv) * retention;
 
   // Sample current generator
   vec4 gen  = texture(uGenerator, uv);
@@ -121,7 +123,7 @@ void main() {
   float kick = uKickHit * 0.5;
   vec2 distUv = uv + vec2(sin(uv.y * 20.0 + uTime) * kick * 0.03,
                            cos(uv.x * 20.0 + uTime) * kick * 0.03);
-  vec4 distPrev = texture(uPreviousFrame, clamp(distUv, 0.001, 0.999)) * decay;
+  vec4 distPrev = texture(uPreviousFrame, clamp(distUv, 0.001, 0.999)) * retention;
 
   vec4 combined = max(prev * (1.0 - kick) + distPrev * kick, gen);
   fragColor = vec4(combined.rgb, 1.0);
@@ -189,7 +191,11 @@ export const FEEDBACK_KALEIDOSCOPE: ShaderDefinition = {
     {
       id: 'feedback',
       fragSrc: FEEDBACK_FRAG,
-      inputs: ['feedback', 'generator'],
+      // Explicit bindings: previous ping-pong frame → uPreviousFrame, generator → uGenerator
+      inputs: [
+        { source: 'feedback',  uniformName: 'uPreviousFrame' },
+        { source: 'generator', uniformName: 'uGenerator' },
+      ],
       output: 'feedback',
       resolutionScale: 1.0,
       clearBeforeRender: false,
@@ -199,7 +205,11 @@ export const FEEDBACK_KALEIDOSCOPE: ShaderDefinition = {
     {
       id: 'composite',
       fragSrc: COMPOSITE_FRAG,
-      inputs: ['feedback', 'generator'],
+      // Explicit bindings: feedback ping-pong read → uFeedback, generator → uGenerator
+      inputs: [
+        { source: 'feedback',  uniformName: 'uFeedback' },
+        { source: 'generator', uniformName: 'uGenerator' },
+      ],
       output: 'composite',
       resolutionScale: 1.0,
       clearBeforeRender: true,

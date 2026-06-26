@@ -157,15 +157,29 @@ export class ShaderDefinitionValidator {
         }
       }
 
-      for (const input of pass.inputs) {
-        const isFromTexInput    = textureInputNames.has(input)
-        // Ping-pong passes may read their own output name (the READ side of the buffer);
-        // all other passes must read from a different pass's output.
-        const isSelfPingPong    = pass.pingPong === true && input === pass.output
-        const isFromPassOutput  = passOutputs.has(input) && (input !== pass.output || isSelfPingPong)
+      const passUniformNames = new Set<string>()
+      for (const raw of pass.inputs) {
+        const src         = typeof raw === 'string' ? raw : raw.source
+        const uniformName = typeof raw === 'string' ? src.replace(/-/g, '_') : raw.uniformName
+
+        // Validate source
+        const isFromTexInput    = textureInputNames.has(src)
+        const isSelfPingPong    = pass.pingPong === true && src === pass.output
+        const isFromPassOutput  = passOutputs.has(src) && (src !== pass.output || isSelfPingPong)
         if (!isFromTexInput && !isFromPassOutput) {
           e(`passes.${pass.id}.inputs`,
-            `input "${input}" is not declared in textureInputs or produced by any pass output`)
+            `input source "${src}" is not declared in textureInputs or produced by any pass output`)
+        }
+
+        // Validate uniform name
+        if (!uniformName || uniformName.trim().length === 0) {
+          e(`passes.${pass.id}.inputs`,
+            `input for source "${src}" has an empty uniformName`)
+        } else if (passUniformNames.has(uniformName)) {
+          e(`passes.${pass.id}.inputs`,
+            `duplicate sampler uniform name "${uniformName}" in pass "${pass.id}"`)
+        } else {
+          passUniformNames.add(uniformName)
         }
       }
     }

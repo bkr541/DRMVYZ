@@ -3,7 +3,10 @@ import type { ShaderParamValue, ShaderParamValues } from '../registry/shaderRegi
 import type { ShaderModulationRoute } from '../modulation/shaderModulationTypes'
 import type { ModulationEvaluationFrame } from '../modulation/shaderModulationTypes'
 import type { ShaderAudioUniformFrame } from '../audio/shaderAudioTypes'
-import type { TextureInputValidation } from '../textures/shaderTextureInputTypes'
+import type {
+  ShaderTexSourceSelection,
+  TextureInputValidation,
+} from '../textures/shaderTextureInputTypes'
 import { shaderRegistry } from '../registry'
 import type { ShaderCompileStatus } from '../editor/ShaderCompilePanel'
 import type { PerformanceMetrics, QualityTierWithAuto } from '../performance/shaderPerformanceTypes'
@@ -32,7 +35,8 @@ interface ShaderPanelState {
   evaluationFrame:    ModulationEvaluationFrame | null
 
   // ── Texture selections (per-scene) ────────────────────────────────────────
-  textureValidation:  TextureInputValidation[]
+  textureSelectionsByShaderId:  Record<string, Record<string, ShaderTexSourceSelection>>
+  textureValidationByShaderId:  Record<string, TextureInputValidation[]>
   triggeredParamIds:  string[]
 
   // ── Performance ───────────────────────────────────────────────────────────
@@ -59,7 +63,11 @@ interface ShaderPanelState {
   setPerformanceMetrics: (metrics: PerformanceMetrics) => void
   setEffectiveQualityTier: (tier: QualityTier) => void
   setModulatedValues:    (values: Record<string, number>) => void
-  setTextureValidation:  (v: TextureInputValidation[]) => void
+
+  // Per-scene texture selections
+  setTextureSelection:   (shaderId: string, inputName: string, sel: ShaderTexSourceSelection) => void
+  clearTextureSelection: (shaderId: string, inputName: string) => void
+  setTextureValidation:  (shaderId: string, results: TextureInputValidation[]) => void
 
   // Triggers
   triggerParam:         (paramId: string) => void
@@ -74,20 +82,21 @@ interface ShaderPanelState {
 const IDLE_COMPILE_STATUS: ShaderCompileStatus = { state: 'idle' }
 
 export const useShaderPanelStore = create<ShaderPanelState>((set, get) => ({
-  activeShaderId:        null,
-  paramValuesByShaderId: {},
-  paramValues:           {},
-  modulatedValues:       {},
-  compileError:          null,
-  compileStatus:         IDLE_COMPILE_STATUS,
-  routesByShaderId:      {},
-  audioFrame:            null,
-  evaluationFrame:       null,
-  textureValidation:     [],
-  triggeredParamIds:     [],
-  performanceMetrics:    null,
-  effectiveQualityTier:  null,
-  _previewCompileCallback: null,
+  activeShaderId:              null,
+  paramValuesByShaderId:       {},
+  paramValues:                 {},
+  modulatedValues:             {},
+  compileError:                null,
+  compileStatus:               IDLE_COMPILE_STATUS,
+  routesByShaderId:            {},
+  audioFrame:                  null,
+  evaluationFrame:             null,
+  textureSelectionsByShaderId: {},
+  textureValidationByShaderId: {},
+  triggeredParamIds:           [],
+  performanceMetrics:          null,
+  effectiveQualityTier:        null,
+  _previewCompileCallback:     null,
 
   setActiveShaderId: (id) => {
     const def = id ? shaderRegistry.get(id) : null
@@ -180,7 +189,37 @@ export const useShaderPanelStore = create<ShaderPanelState>((set, get) => ({
   setCompileStatus:        (status)  => set({ compileStatus: status }),
   setPerformanceMetrics:   (metrics) => set({ performanceMetrics: metrics }),
   setEffectiveQualityTier: (tier)    => set({ effectiveQualityTier: tier }),
-  setTextureValidation:    (v)       => set({ textureValidation: v }),
+
+  setTextureSelection: (shaderId, inputName, sel) =>
+    set(s => ({
+      textureSelectionsByShaderId: {
+        ...s.textureSelectionsByShaderId,
+        [shaderId]: {
+          ...(s.textureSelectionsByShaderId[shaderId] ?? {}),
+          [inputName]: sel,
+        },
+      },
+    })),
+
+  clearTextureSelection: (shaderId, inputName) =>
+    set(s => {
+      const current = { ...(s.textureSelectionsByShaderId[shaderId] ?? {}) }
+      delete current[inputName]
+      return {
+        textureSelectionsByShaderId: {
+          ...s.textureSelectionsByShaderId,
+          [shaderId]: current,
+        },
+      }
+    }),
+
+  setTextureValidation: (shaderId, results) =>
+    set(s => ({
+      textureValidationByShaderId: {
+        ...s.textureValidationByShaderId,
+        [shaderId]: results,
+      },
+    })),
 
   triggerParam: (paramId) =>
     set(s => ({

@@ -145,12 +145,12 @@ export class ShaderRenderGraph {
         }
       }
 
-      // Build input bindings from texMap.
+      // Build input bindings from texMap using explicit source→uniformName pairs.
       const inputs = node.inputs
-        .map((name, unit) => {
-          const tex = texMap.get(name)
+        .map((binding, unit) => {
+          const tex = texMap.get(binding.source)
           if (!tex) return null
-          return { unit, texture: tex, uniformName: sanitizeUniform(name) }
+          return { unit, texture: tex, uniformName: binding.uniformName }
         })
         .filter((b): b is NonNullable<typeof b> => b !== null)
 
@@ -259,8 +259,3 @@ export class ShaderRenderGraph {
   }
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function sanitizeUniform(name: string): string {
-  return name.replace(/-/g, '_')
-}

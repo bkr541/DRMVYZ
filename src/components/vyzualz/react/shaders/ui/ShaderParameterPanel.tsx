@@ -22,8 +22,18 @@ export function ShaderParameterPanel() {
     setParamValue,
     triggerParam,
     resetParams,
-    textureValidation,
+    textureSelectionsByShaderId,
+    textureValidationByShaderId,
+    setTextureSelection,
+    clearTextureSelection,
   } = useShaderPanelStore()
+
+  const textureSelections = activeShaderId
+    ? (textureSelectionsByShaderId[activeShaderId] ?? {})
+    : {}
+  const textureValidation = activeShaderId
+    ? (textureValidationByShaderId[activeShaderId] ?? [])
+    : []
 
   const def = activeShaderId ? shaderRegistry.get(activeShaderId) : null
 
@@ -81,9 +91,16 @@ export function ShaderParameterPanel() {
           <CtrlSection label="Texture Inputs" />
           <ShaderTextureInputControl
             definition={def}
-            selections={{}}
+            selections={textureSelections}
             validation={textureValidation}
-            onSelectionChange={() => { /* managed by ShaderTextureInputManager at runtime */ }}
+            onSelectionChange={(inputName, sel) => {
+              if (!activeShaderId) return
+              if (sel === null) {
+                clearTextureSelection(activeShaderId, inputName)
+              } else {
+                setTextureSelection(activeShaderId, inputName, sel)
+              }
+            }}
           />
         </>
       )}

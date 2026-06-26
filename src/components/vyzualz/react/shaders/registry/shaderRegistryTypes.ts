@@ -165,6 +165,19 @@ export type ShaderParamDef =
   | TriggerParamDef
   | TextureParamDef
 
+// ── Pass input binding ────────────────────────────────────────────────────────
+
+/**
+ * Explicit binding from a texture source to a GLSL sampler uniform.
+ * Used when the sampler name in GLSL differs from the logical texture name.
+ */
+export interface ShaderPassInputBinding {
+  /** Logical source name: a textureInputs key or another pass's output name. */
+  source: string
+  /** Exact GLSL sampler2D uniform name as it appears in the shader source. */
+  uniformName: string
+}
+
 // ── Render-pass definition ────────────────────────────────────────────────────
 
 /**
@@ -183,11 +196,13 @@ export interface ShaderPassDef {
    */
   vertSrc?: string
   /**
-   * Named inputs consumed by this pass.  Each name must be either:
-   *   - A key in the parent definition's `textureInputs`, or
-   *   - The `output` name of another pass in the same definition.
+   * Inputs consumed by this pass.  Each entry is either:
+   *   - A plain string (source name = GLSL sampler name after hyphens→underscores), or
+   *   - An explicit `{ source, uniformName }` binding when the GLSL name differs.
+   * The source must be a key in the parent definition's `textureInputs` or the
+   * `output` name of another pass in the same definition.
    */
-  inputs: string[]
+  inputs: (string | ShaderPassInputBinding)[]
   /** Name by which later passes (or the final composite) refer to this output. */
   output: string
   /** 0.05..4.0, default 1.0. */

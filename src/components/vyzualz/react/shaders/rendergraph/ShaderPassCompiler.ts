@@ -1,9 +1,10 @@
-import type { ShaderDefinition, ShaderPassDef } from '../registry/shaderRegistryTypes'
+import type { ShaderDefinition, ShaderPassDef, ShaderPassInputBinding } from '../registry/shaderRegistryTypes'
 import { ShaderCompiler } from '../runtime/ShaderCompiler'
 import { ShaderProgram } from '../runtime/ShaderProgram'
 import { FULLSCREEN_VERT_SRC } from '../runtime/FullscreenPass'
 import type {
   CompiledGraph,
+  CompiledPassInputBinding,
   CompiledPassNode,
   GraphCompileResult,
 } from './shaderRenderGraphTypes'
@@ -129,7 +130,7 @@ export class ShaderPassCompiler {
     const node: CompiledPassNode = {
       passId:            '__single__',
       program:           result.program,
-      inputs:            (def.textureInputs ?? []).map(ti => ti.name),
+      inputs:            (def.textureInputs ?? []).map(ti => normalizeInput(ti.name)),
       outputName:        null,  // → default framebuffer (screen)
       resolutionScale:   1.0,
       clearBeforeRender: true,
@@ -174,15 +175,16 @@ export class ShaderPassCompiler {
     const textureInputNames = new Set((def.textureInputs ?? []).map(ti => ti.name))
     const passOutputNames   = new Set(passes.map(p => p.output))
     for (const pass of passes) {
-      for (const input of pass.inputs) {
-        if (!textureInputNames.has(input) && !passOutputNames.has(input)) {
+      for (const raw of pass.inputs) {
+        const src = typeof raw === 'string' ? raw : raw.source
+        if (!textureInputNames.has(src) && !passOutputNames.has(src)) {
           return {
             graph: null,
             error: {
               shaderId,
               passId: pass.id,
               code: 'INVALID_INPUT',
-              message: `Input "${input}" in pass "${pass.id}" of shader "${shaderId}" is not declared in textureInputs or produced by any pass.`,
+              message: `Input "${src}" in pass "${pass.id}" of shader "${shaderId}" is not declared in textureInputs or produced by any pass.`,
             },
           }
         }
@@ -193,7 +195,7 @@ export class ShaderPassCompiler {
     // if pass B reads input X and pass A produces output X, B implicitly depends on A.
     const augmented = passes.map(pass => {
       const implicit = pass.inputs
-        .map(name => outputOwner.get(name))
+        .map(raw => outputOwner.get(typeof raw === 'string' ? raw : raw.source))
         .filter((id): id is string => id !== undefined && id !== pass.id)
       if (implicit.length === 0) return pass
       const merged = [...new Set([...(pass.dependsOn ?? []), ...implicit])]
@@ -245,7 +247,7 @@ export class ShaderPassCompiler {
       compiled.push({
         passId:            pass.id,
         program:           result.program,
-        inputs:            [...pass.inputs],
+        inputs:            pass.inputs.map(normalizeInput),
         outputName:        isLast ? null : pass.output,
         resolutionScale:   clampScale(pass.resolutionScale ?? 1.0),
         clearBeforeRender: pass.clearBeforeRender ?? true,
@@ -272,4 +274,17 @@ export class ShaderPassCompiler {
 
 function resolveVertSrc(vertSrc?: string | 'shared'): string {
   return (!vertSrc || vertSrc === 'shared') ? FULLSCREEN_VERT_SRC : vertSrc
+}
+
+/** Convert hyphens to underscores so logical names become valid GLSL identifiers. */
+function sanitizeUniform(name: string): string {
+  return name.replace(/-/g, '_')
+}
+
+/** Normalize a raw pass input (string or explicit binding) to a CompiledPassInputBinding. */
+function normalizeInput(raw: string | ShaderPassInputBinding): CompiledPassInputBinding {
+  if (typeof raw === 'string') {
+    return { source: raw, uniformName: sanitizeUniform(raw) }
+  }
+  return { source: raw.source, uniformName: raw.uniformName }
 }

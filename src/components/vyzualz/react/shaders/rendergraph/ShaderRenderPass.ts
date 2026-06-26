@@ -115,8 +115,10 @@ export class ShaderRenderPass {
     return {
       passId:        this.node.passId,
       dimensions:    { ...dims },
-      inputs:        [...this.node.inputs],
+      inputs:        this.node.inputs.map(b => `${b.source} → ${b.uniformName}`),
       outputTarget:  this.node.outputName === null ? 'screen' : 'framebuffer',
+      persistent:    this.node.persistent,
+      pingPong:      this.node.pingPong,
       lastDurationMs: this._lastDurationMs,
     }
   }

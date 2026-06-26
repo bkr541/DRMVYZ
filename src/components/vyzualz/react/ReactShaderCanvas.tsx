@@ -2,6 +2,7 @@ import { useRef, useEffect } from 'react'
 import { AudioFeatureBus }        from '../../../features/musicIntelligence/AudioFeatureBus'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
 import type { ReactFrameContext }  from './renderers/reactRenderUtils'
+import type { ReactTrackSection }  from './ReactTypes'
 import { ShaderWebGLRuntime }      from './shaders/runtime/ShaderWebGLRuntime'
 import { ShaderEngineRenderer }    from './shaders/ShaderEngineRenderer'
 import type { ShaderMasterParams } from './shaders/ShaderEngineRenderer'
@@ -23,6 +24,7 @@ interface Props {
   getAudioTime?:     () => number
   effectiveBpm?:     number | null
   durationSec?:      number
+  manualSections?:   ReactTrackSection[]
   onCanvasReady?:    (canvas: HTMLCanvasElement | null) => void
   onLiveFps?:        (fps: number) => void
 }
@@ -36,6 +38,8 @@ interface Props {
  * construction, and ShaderEngineRenderer lifecycle.
  *
  * Must NOT call renderReactEngine or setSoundDrawingClipsForFrame.
+ * The WebGL runtime owns drawing-buffer resolution; this component must not
+ * overwrite canvas.width/canvas.height directly.
  */
 export function ReactShaderCanvas({
   analyser,
@@ -50,12 +54,15 @@ export function ReactShaderCanvas({
   getAudioTime,
   effectiveBpm    = null,
   durationSec     = 0,
+  manualSections  = [],
   onCanvasReady,
   onLiveFps,
 }: Props) {
   const canvasRef   = useRef<HTMLCanvasElement>(null)
   const animRef     = useRef<number>(0)
   const rendererRef = useRef<ShaderEngineRenderer | null>(null)
+  // Whether rAF is paused due to context loss
+  const pausedRef   = useRef(false)
 
   // Audio analyser buffers
   const analyserRef  = useRef<AnalyserNode | null>(null)
@@ -65,21 +72,22 @@ export function ReactShaderCanvas({
   const tRef         = useRef(0)
 
   // Mutable refs — rAF loop reads these so we don't need to restart on prop change
-  const intensityRef       = useRef(intensity)
-  const motionRef          = useRef(motion)
-  const glowRef            = useRef(glow)
-  const bassReactRef       = useRef(bassReactivity)
-  const trailDecayRef      = useRef(trailDecay)
-  const fogDensityRef      = useRef(fogDensity)
-  const particleDensityRef = useRef(particleDensity)
-  const isPlayingRef       = useRef(isPlaying)
-  const effectiveBpmRef    = useRef<number | null>(effectiveBpm)
-  const durationSecRef     = useRef(durationSec)
-  const getAudioTimeRef    = useRef(getAudioTime)
-  const onCanvasReadyRef   = useRef(onCanvasReady)
-  const onLiveFpsRef       = useRef(onLiveFps)
+  const intensityRef        = useRef(intensity)
+  const motionRef           = useRef(motion)
+  const glowRef             = useRef(glow)
+  const bassReactRef        = useRef(bassReactivity)
+  const trailDecayRef       = useRef(trailDecay)
+  const fogDensityRef       = useRef(fogDensity)
+  const particleDensityRef  = useRef(particleDensity)
+  const isPlayingRef        = useRef(isPlaying)
+  const effectiveBpmRef     = useRef<number | null>(effectiveBpm)
+  const durationSecRef      = useRef(durationSec)
+  const manualSectionsRef   = useRef(manualSections)
+  const getAudioTimeRef     = useRef(getAudioTime)
+  const onCanvasReadyRef    = useRef(onCanvasReady)
+  const onLiveFpsRef        = useRef(onLiveFps)
 
-  // Keep refs current every render (does not restart any effect)
+  // Keep refs current every render
   intensityRef.current       = intensity
   motionRef.current          = motion
   glowRef.current            = glow
@@ -90,6 +98,7 @@ export function ReactShaderCanvas({
   isPlayingRef.current       = isPlaying
   effectiveBpmRef.current    = effectiveBpm
   durationSecRef.current     = durationSec
+  manualSectionsRef.current  = manualSections
   getAudioTimeRef.current    = getAudioTime
   onCanvasReadyRef.current   = onCanvasReady
   onLiveFpsRef.current       = onLiveFps
@@ -106,7 +115,7 @@ export function ReactShaderCanvas({
     }
   }, [analyser])
 
-  // Main effect: create WebGL runtime + renderer, rAF loop
+  // Main effect: create WebGL2 runtime + renderer, rAF loop
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -117,33 +126,64 @@ export function ReactShaderCanvas({
       store.setActiveShaderId(DEFAULT_SHADER_SCENE_ID)
     }
 
-    // Create WebGL2 runtime
-    const { runtime, error } = ShaderWebGLRuntime.create(canvas, {
-      onContextLost:     () => { /* renderer handles internally */ },
-      onContextRestored: () => { /* runtime cleared internally */ },
-    })
+    // Cached layout dimensions (CSS pixels) for resize + context restore
+    let lastCssW = 0
+    let lastCssH = 0
 
-    if (!runtime) {
-      if (import.meta.env.DEV) console.warn('[ReactShaderCanvas] WebGL2 unavailable:', error)
-      return
+    function createRenderer(): ShaderEngineRenderer | null {
+      const { runtime, error } = ShaderWebGLRuntime.create(canvas!, {
+        onContextLost: () => {
+          pausedRef.current = true
+          // renderer.render() will no-op due to runtime.contextLost, but cancel the rAF
+          cancelAnimationFrame(animRef.current)
+        },
+        onContextRestored: () => {
+          // Dispose the old renderer — its GL handles are invalid
+          rendererRef.current?.dispose()
+
+          const newRenderer = createRenderer()
+          if (!newRenderer) return
+
+          rendererRef.current  = newRenderer
+          pausedRef.current    = false
+
+          // Restore active scene
+          const s = useShaderPanelStore.getState()
+          const sceneId = s.activeShaderId ?? DEFAULT_SHADER_SCENE_ID
+          s.setActiveShaderId(null)
+          s.setActiveShaderId(sceneId)
+
+          // Resize with last known CSS dimensions
+          if (lastCssW > 0 && lastCssH > 0) {
+            newRenderer.resize(lastCssW, lastCssH, devicePixelRatio)
+          }
+
+          // Resume rAF
+          animRef.current = requestAnimationFrame(frame)
+        },
+      })
+
+      if (!runtime) {
+        if (import.meta.env.DEV) console.warn('[ReactShaderCanvas] WebGL2 unavailable:', error)
+        return null
+      }
+
+      return new ShaderEngineRenderer(runtime)
     }
 
-    const renderer = new ShaderEngineRenderer(runtime)
-    rendererRef.current = renderer
+    const renderer = createRenderer()
+    if (!renderer) return
 
-    // Notify parent
+    rendererRef.current = renderer
     onCanvasReadyRef.current?.(canvas)
 
-    // Resize handling
+    // ResizeObserver — only the runtime owns canvas.width/height
     function resize() {
       const r = canvas!.getBoundingClientRect()
-      const w = Math.max(1, Math.round(r.width  * devicePixelRatio))
-      const h = Math.max(1, Math.round(r.height * devicePixelRatio))
-      renderer.resize(r.width, r.height, devicePixelRatio)
-      if (canvas!.width !== w || canvas!.height !== h) {
-        canvas!.width  = w
-        canvas!.height = h
-      }
+      lastCssW = r.width
+      lastCssH = r.height
+      renderer!.resize(r.width, r.height, devicePixelRatio)
+      // Do NOT set canvas.width/canvas.height here — the runtime handles it
     }
     const ro = new ResizeObserver(resize)
     ro.observe(canvas)
@@ -161,7 +201,13 @@ export function ReactShaderCanvas({
 
     let lastFrameMs = performance.now()
 
+    // Track last MI section to detect changes
+    let lastSectionType: string | null = null
+    let lastSectionStart = -1
+
     function frame(now: number) {
+      if (pausedRef.current) return
+
       const deltaMs = now - lastFrameMs
       lastFrameMs = now
 
@@ -208,7 +254,6 @@ export function ReactShaderCanvas({
           audioTimeRef.current += deltaMs / 1000
         }
 
-        // Pump Music Intelligence Engine
         musicIntelligenceEngine.updateFromAudioFrame({
           freqBuf:    buf,
           timeBuf:    tBuf,
@@ -221,8 +266,25 @@ export function ReactShaderCanvas({
       const miFrame = AudioFeatureBus.getFrame()
       const hasMI   = miFrame.frameId > 0
 
+      // Resolve section: prefer manual section covering current audio time
+      const audioTimeSec = audioTimeRef.current
+      const sections = manualSectionsRef.current
+      const manualSection = sections.find(
+        s => s.startSec <= audioTimeSec && audioTimeSec < s.endSec,
+      ) ?? null
+
+      // Detect section changes for pulse signal
+      const resolvedSectionType = manualSection?.type ?? miFrame.section?.type ?? null
+      const resolvedSectionStart = manualSection?.startSec ?? miFrame.section?.startSec ?? -1
+      const sectionChanged = resolvedSectionType !== lastSectionType ||
+        resolvedSectionStart !== lastSectionStart
+      if (sectionChanged) {
+        lastSectionType  = resolvedSectionType
+        lastSectionStart = resolvedSectionStart
+      }
+
       // Resolve BPM and beat phase
-      const bpmSrc = effectiveBpmRef.current
+      const bpmSrc    = effectiveBpmRef.current
       const activeBpm = (bpmSrc != null && bpmSrc > 0) ? bpmSrc
                       : (hasMI && miFrame.rhythm.bpm > 0) ? miFrame.rhythm.bpm
                       : 0
@@ -234,7 +296,6 @@ export function ReactShaderCanvas({
         activeBeatPhase = miFrame.rhythm.beatPhase
         beatHit         = miFrame.rhythm.beatHit ?? false
       } else {
-        // Fallback beat phase from bass transient
         const bassDelta = bass - prevBass
         if (bassDelta > 0.15 && bass > 0.4) { beatPhase = 0; beatHit = true }
         prevBass    = bass
@@ -264,16 +325,16 @@ export function ReactShaderCanvas({
       }
 
       const master: ShaderMasterParams = {
-        intensity:      intensityRef.current,
-        motion:         motionRef.current,
-        glow:           glowRef.current,
-        bassReactivity: bassReactRef.current,
-        trailDecay:     trailDecayRef.current,
-        fogDensity:     fogDensityRef.current,
+        intensity:       intensityRef.current,
+        motion:          motionRef.current,
+        glow:            glowRef.current,
+        bassReactivity:  bassReactRef.current,
+        trailDecay:      trailDecayRef.current,
+        fogDensity:      fogDensityRef.current,
         particleDensity: particleDensityRef.current,
       }
 
-      renderer.render(rfCtx, durationSecRef.current, master)
+      renderer!.render(rfCtx, durationSecRef.current, master)
 
       animRef.current = requestAnimationFrame(frame)
     }
