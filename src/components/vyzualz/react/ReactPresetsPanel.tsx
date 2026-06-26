@@ -5,7 +5,7 @@ import type { ReactPreset, ReactEngineId } from './ReactTypes'
 
 // ── Display data ──────────────────────────────────────────────────────────────
 
-const ENGINE_ORDER: ReactEngineId[] = ['shaderPads', 'cinematicPortal', 'oscilloscope', 'laserDmx', 'neonLattice']
+const ENGINE_ORDER: ReactEngineId[] = ['cinematicPortal', 'oscilloscope', 'laserDmx', 'neonLattice']
 
 const ENGINE_LABELS: Record<ReactEngineId, string> = {
   shaderPads:      'Shader Pads',

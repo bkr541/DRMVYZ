@@ -26,7 +26,7 @@ import type {
 
 // ── Engine family display data ────────────────────────────────────────────────
 
-const ENGINE_IDS: ReactEngineId[] = ['shaderPads', 'cinematicPortal', 'oscilloscope', 'laserDmx', 'neonLattice']
+const ENGINE_IDS: ReactEngineId[] = ['cinematicPortal', 'oscilloscope', 'laserDmx', 'neonLattice']
 
 const ENGINE_LABELS: Record<ReactEngineId, string> = {
   shaderPads:      'Shader Pads',
@@ -293,25 +293,6 @@ export function ReactEnginePanel() {
           )
         })}
       </div>
-
-      {/* ── Engine Mode: Shader Pads ───────────────────────────────────── */}
-      {activeReactEngineId === 'shaderPads' && (
-        <>
-          <CtrlSection label="Engine Mode" />
-          {/*
-           * TODO: ShaderPads currently uses one parent renderer with look
-           * variations driven by palette and ReactPresetParams values.
-           * There is no explicit shaderMode property on ReactPreset or the store.
-           * Add a shaderMode field (e.g. 'tunnel' | 'radial' | 'particleCloud')
-           * when the renderer supports distinct visual algorithms that should be
-           * independently selectable from the ENGINE tab.
-           */}
-          <div className="rv-ctrl-info">
-            Shader Pads visual style is driven by the active preset palette and
-            parameters. Select a preset from the PRESETS tab to change looks.
-          </div>
-        </>
-      )}
 
       {/* ── Engine Mode: Cinematic Portal ─────────────────────────────── */}
       {activeReactEngineId === 'cinematicPortal' && (

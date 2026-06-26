@@ -22,7 +22,6 @@ import type { ReactPreset, NeonLatticeSettings } from '../components/vyzualz/rea
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
-const shaderPreset    = DEFAULT_REACT_PRESETS.find(p => p.engine === 'shaderPads')!
 const cinPreset       = DEFAULT_REACT_PRESETS.find(p => p.engine === 'cinematicPortal')!
 const oscPreset       = DEFAULT_REACT_PRESETS.find(p => p.engine === 'oscilloscope')!
 const enhancedOscPreset = DEFAULT_REACT_PRESETS.find(
@@ -48,9 +47,9 @@ beforeEach(() => {
 
 describe('buildPresetPatch', () => {
   it('returns matching activeReactPresetId and activeReactEngineId', () => {
-    const patch = buildPresetPatch(shaderPreset, DEFAULT_OSCILLATOR_SETTINGS)
-    expect(patch.activeReactPresetId).toBe(shaderPreset.id)
-    expect(patch.activeReactEngineId).toBe('shaderPads')
+    const patch = buildPresetPatch(cinPreset, DEFAULT_OSCILLATOR_SETTINGS)
+    expect(patch.activeReactPresetId).toBe(cinPreset.id)
+    expect(patch.activeReactEngineId).toBe('cinematicPortal')
   })
 
   it('copies intensity/motion/glow/bassReactivity from preset params', () => {
@@ -62,7 +61,7 @@ describe('buildPresetPatch', () => {
   })
 
   it('leaves oscillatorSettings unchanged for non-oscilloscope presets', () => {
-    const patch = buildPresetPatch(shaderPreset, DEFAULT_OSCILLATOR_SETTINGS)
+    const patch = buildPresetPatch(cinPreset, DEFAULT_OSCILLATOR_SETTINGS)
     expect(patch.oscillatorSettings).toBe(DEFAULT_OSCILLATOR_SETTINGS) // same reference
   })
 
@@ -90,18 +89,6 @@ describe('buildPresetPatch', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('selectReactEngine', () => {
-  it('selecting shaderPads: sets activeReactEngineId to shaderPads', () => {
-    useReactStore.getState().selectReactEngine('shaderPads')
-    expect(useReactStore.getState().activeReactEngineId).toBe('shaderPads')
-  })
-
-  it('selecting shaderPads: active preset belongs to shaderPads', () => {
-    useReactStore.getState().selectReactEngine('shaderPads')
-    const { activeReactPresetId, reactPresets } = useReactStore.getState()
-    const preset = activePreset(reactPresets, activeReactPresetId)
-    expect(preset?.engine).toBe('shaderPads')
-  })
-
   it('selecting cinematicPortal: sets activeReactEngineId to cinematicPortal', () => {
     useReactStore.getState().selectReactEngine('cinematicPortal')
     expect(useReactStore.getState().activeReactEngineId).toBe('cinematicPortal')
@@ -140,15 +127,16 @@ describe('selectReactEngine', () => {
   })
 
   it('re-selecting the current engine does not change the active preset', () => {
-    // Start from a known shader-pads state
-    useReactStore.getState().selectReactEngine('shaderPads')
+    useReactStore.getState().selectReactEngine('cinematicPortal')
     const presetIdBefore = useReactStore.getState().activeReactPresetId
 
-    useReactStore.getState().selectReactEngine('shaderPads')
+    useReactStore.getState().selectReactEngine('cinematicPortal')
     expect(useReactStore.getState().activeReactPresetId).toBe(presetIdBefore)
   })
 
   it("applying params: intensity from the selected engine's first preset", () => {
+    // Prime a different engine first so selectReactEngine('cinematicPortal') is a real switch.
+    useReactStore.getState().selectReactEngine('neonLattice')
     useReactStore.getState().selectReactEngine('cinematicPortal')
     const { reactIntensity, activeReactPresetId, reactPresets } = useReactStore.getState()
     const preset = activePreset(reactPresets, activeReactPresetId)
@@ -156,7 +144,7 @@ describe('selectReactEngine', () => {
   })
 
   // Invariant: engine ID and preset's engine always agree after selectReactEngine
-  it.each(['shaderPads', 'cinematicPortal', 'oscilloscope'] as const)(
+  it.each(['cinematicPortal', 'oscilloscope'] as const)(
     'invariant: activeReactEngineId === activePreset.engine after selecting %s',
     (engineId) => {
       useReactStore.getState().selectReactEngine(engineId)
@@ -180,7 +168,7 @@ describe('selectReactPreset', () => {
   })
 
   it('invariant: activePreset.engine === activeReactEngineId after any preset selection', () => {
-    for (const preset of [shaderPreset, cinPreset, oscPreset]) {
+    for (const preset of [cinPreset, oscPreset]) {
       useReactStore.getState().selectReactPreset(preset.id)
       const { activeReactEngineId, activeReactPresetId, reactPresets } = useReactStore.getState()
       const active = activePreset(reactPresets, activeReactPresetId)

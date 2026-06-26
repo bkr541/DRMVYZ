@@ -1,7 +1,6 @@
 import type { ReactPreset, ReactSectionType, ReactTrackSection } from '../ReactTypes'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { resolveSectionAtTime, effectiveSectionIntensity, DEFAULT_REACT_RENDER_PARAMS } from './reactRenderUtils'
-import { renderShaderPads }      from './ShaderPadsRenderer'
 import { renderCinematicPortal } from './CinematicPortalRenderer'
 import { renderSoundDrawing }    from './SoundDrawingRenderer'
 import { renderLaserDmx, clearLaserDmxVisualState } from './LaserDmxRenderer'
@@ -142,8 +141,11 @@ export function renderReactEngine(
 
   switch (preset.engine) {
     case 'shaderPads':
+      // Compatibility-only branch for legacy persisted state.
+      // The former Canvas 2D Shader Pads renderer has been removed.
       clearNeonLatticeVisualState(ctx, frame.W, frame.H)
-      renderShaderPads(ctx, frame, preset, effectiveParams, sectionType)
+      ctx.fillStyle = preset.palette.background
+      ctx.fillRect(0, 0, frame.W, frame.H)
       break
     case 'cinematicPortal':
       clearNeonLatticeVisualState(ctx, frame.W, frame.H)

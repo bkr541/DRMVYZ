@@ -296,8 +296,8 @@ describe('neonLatticeTriggerSeq — monotonic counter and trigger clearing', () 
     s.triggerNeonLattice('whiteout')
     expect(useReactStore.getState().neonLatticeTrigger).not.toBeNull()
 
-    const shaderPreset = DEFAULT_REACT_PRESETS.find(p => p.engine === 'shaderPads')!
-    s.selectReactPreset(shaderPreset.id)
+    const nonNlPreset = DEFAULT_REACT_PRESETS.find(p => p.engine === 'cinematicPortal')!
+    s.selectReactPreset(nonNlPreset.id)
     expect(useReactStore.getState().neonLatticeTrigger).toBeNull()
   })
 

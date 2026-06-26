@@ -1053,14 +1053,6 @@ export const DVYDRM_WHITE  = '#e8f4f8'
 export const DVYDRM_GOLD   = '#d8b95a'
 export const DVYDRM_CRIMSON = '#c0314a'
 
-export const PALETTE_SHADER_PADS: ReactPalette = {
-  primary:    DVYDRM_CYAN,
-  secondary:  DVYDRM_EMERALD,
-  accent:     DVYDRM_GOLD,
-  background: DVYDRM_BLACK,
-  highlight:  '#80dfc0',
-  text:       DVYDRM_WHITE,
-}
 
 export const PALETTE_CINEMATIC: ReactPalette = {
   primary:    '#b84fc9',
@@ -1262,79 +1254,6 @@ function makeMappings(prefix: string): ReactSectionMapping[] {
 // ── Default presets ───────────────────────────────────────────────────────────
 
 export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
-  // ── Shader Pads (5) ──────────────────────────────────────────────────────
-  {
-    id: 'preset-neon-energy-cloud',
-    name: 'Neon Energy Cloud',
-    description: 'Reactive particle cloud driven by frequency bands — ambient and expansive.',
-    engine: 'shaderPads',
-    palette: PALETTE_SHADER_PADS,
-    params: { intensity: 0.75, motion: 0.55, glow: 0.85, bassReactivity: 0.85, colorShift: 0.5, complexity: 0.7 },
-    scenes: makeScenes('nec', 'shaderPads'),
-    sectionMappings: makeMappings('nec'),
-  },
-  {
-    id: 'preset-lava-tunnel',
-    name: 'Lava Tunnel',
-    description: 'Warm dot tunnel pulsing in gold and crimson, beat-burst at every drop.',
-    engine: 'shaderPads',
-    palette: PALETTE_LAVA,
-    params: { intensity: 0.8, motion: 0.7, glow: 0.75, bassReactivity: 0.95, colorShift: 0.65, complexity: 0.6 },
-    scenes: makeScenes('lt', 'shaderPads'),
-    sectionMappings: makeMappings('lt'),
-  },
-  {
-    id: 'preset-synth-sun',
-    name: 'Synth Sun',
-    description: 'Golden radial rays emanating from a central sun, driven by frequency bands.',
-    engine: 'shaderPads',
-    palette: {
-      primary:    DVYDRM_GOLD,
-      secondary:  DVYDRM_WHITE,
-      accent:     DVYDRM_CYAN,
-      background: DVYDRM_BLACK,
-      highlight:  '#fff0a0',
-      text:       DVYDRM_WHITE,
-    },
-    params: { intensity: 0.7, motion: 0.45, glow: 0.9, bassReactivity: 0.8, colorShift: 0.35, complexity: 0.55 },
-    scenes: makeScenes('ss', 'shaderPads'),
-    sectionMappings: makeMappings('ss'),
-  },
-  {
-    id: 'preset-dot-warp',
-    name: 'Dot Warp',
-    description: 'High-speed perspective dot tunnel with cyan motion trails.',
-    engine: 'shaderPads',
-    palette: {
-      primary:    DVYDRM_CYAN,
-      secondary:  DVYDRM_WHITE,
-      accent:     DVYDRM_EMERALD,
-      background: '#040810',
-      highlight:  '#aaeeff',
-      text:       DVYDRM_WHITE,
-    },
-    params: { intensity: 0.65, motion: 0.85, glow: 0.6, bassReactivity: 0.9, colorShift: 0.3, complexity: 0.8 },
-    scenes: makeScenes('dw', 'shaderPads'),
-    sectionMappings: makeMappings('dw'),
-  },
-  {
-    id: 'preset-festival-burst',
-    name: 'Festival Burst',
-    description: 'Maximum energy multicolor explosion — full chromatic chaos at peak intensity.',
-    engine: 'shaderPads',
-    palette: {
-      primary:    DVYDRM_CRIMSON,
-      secondary:  DVYDRM_GOLD,
-      accent:     DVYDRM_CYAN,
-      background: DVYDRM_BLACK,
-      highlight:  '#b84fc9',
-      text:       DVYDRM_WHITE,
-    },
-    params: { intensity: 0.95, motion: 0.9, glow: 0.95, bassReactivity: 1.0, colorShift: 0.85, complexity: 0.9 },
-    scenes: makeScenes('fb', 'shaderPads'),
-    sectionMappings: makeMappings('fb'),
-  },
-
   // ── Cinematic Portal (5) ─────────────────────────────────────────────────
   {
     id: 'preset-dream-gate',

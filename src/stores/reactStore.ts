@@ -651,8 +651,34 @@ interface ReactStoreState {
   removeSoundDrawingClip: (trackId: string, clipId: string) => void
 }
 
-const INITIAL_PRESET_ID = DEFAULT_REACT_PRESETS[0].id
-const INITIAL_ENGINE_ID: ReactEngineId = DEFAULT_REACT_PRESETS[0].engine
+const INITIAL_PRESET_ID = 'preset-dream-gate'
+const INITIAL_ENGINE_ID: ReactEngineId = 'cinematicPortal'
+
+// Module-level invariant: verify the explicit startup preset exists and is consistent.
+// Catches future preset reorders or deletions that would silently break startup.
+;(() => {
+  const _startupPreset = DEFAULT_REACT_PRESETS.find(p => p.id === INITIAL_PRESET_ID)
+  if (!_startupPreset) {
+    throw new Error(
+      `[DRMVYZ] reactStore: startup preset "${INITIAL_PRESET_ID}" not found in DEFAULT_REACT_PRESETS. ` +
+      'Update INITIAL_PRESET_ID and INITIAL_ENGINE_ID to point at an existing preset.'
+    )
+  }
+  if (_startupPreset.engine !== INITIAL_ENGINE_ID) {
+    throw new Error(
+      `[DRMVYZ] reactStore: startup preset "${INITIAL_PRESET_ID}" has engine "${_startupPreset.engine}" ` +
+      `but INITIAL_ENGINE_ID is "${INITIAL_ENGINE_ID}". They must match.`
+    )
+  }
+})()
+
+const LEGACY_SHADER_PRESET_IDS = new Set([
+  'preset-neon-energy-cloud',
+  'preset-lava-tunnel',
+  'preset-synth-sun',
+  'preset-dot-warp',
+  'preset-festival-burst',
+])
 
 // ── Exported migration function (for testing) ─────────────────────────────────
 export function migrateReactStore(persistedState: unknown, version: number): Record<string, unknown> {
@@ -910,6 +936,34 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
           shockwaveAmount: shockwaves === false ? 0 : DEFAULT_NEON_LATTICE_SETTINGS.shockwaveAmount,
         },
       }
+    }
+  }
+  if (version < 19) {
+    // Legacy Shader Pads active-selection migration.
+    // The five Shader Pads presets have been removed from DEFAULT_REACT_PRESETS and
+    // the shaderPads engine is no longer selectable in the UI.
+    const persistedPresetId = state.activeReactPresetId as string | null | undefined
+    const persistedEngineId = state.activeReactEngineId as string | undefined
+
+    if (persistedPresetId != null && LEGACY_SHADER_PRESET_IDS.has(persistedPresetId)) {
+      // Case A: active preset ID is one of the five removed legacy presets.
+      state = { ...state, activeReactPresetId: INITIAL_PRESET_ID, activeReactEngineId: INITIAL_ENGINE_ID }
+    } else {
+      const validPreset = persistedPresetId != null
+        ? DEFAULT_REACT_PRESETS.find(p => p.id === persistedPresetId)
+        : undefined
+
+      if (!validPreset) {
+        if (persistedEngineId === 'shaderPads') {
+          // Case B: engine is shaderPads and there is no valid active preset.
+          state = { ...state, activeReactPresetId: INITIAL_PRESET_ID, activeReactEngineId: INITIAL_ENGINE_ID }
+        }
+        // Case D (non-shader engine, no preset): leave untouched.
+      } else if (validPreset.engine !== 'shaderPads' && persistedEngineId === 'shaderPads') {
+        // Case C: valid non-Shader preset but stale shaderPads engine ID — repair engine only.
+        state = { ...state, activeReactEngineId: validPreset.engine }
+      }
+      // Case D: valid state for a non-Shader engine — no changes.
     }
   }
   return state
@@ -2653,7 +2707,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 18,
+      version: 19,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,
     },

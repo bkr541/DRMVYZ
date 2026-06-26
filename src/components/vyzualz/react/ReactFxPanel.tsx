@@ -58,7 +58,6 @@ export function ReactFxPanel() {
 
   const isSoundDrawing  = activeReactEngineId === 'oscilloscope'
   const isCinematic     = activeReactEngineId === 'cinematicPortal'
-  const isShaderPads    = activeReactEngineId === 'shaderPads'
   const isLaserDmx      = activeReactEngineId === 'laserDmx'
   const isBeamMatrix    = isLaserDmx && laserDmxWorkspaceMode === 'beamMatrix'
   const isSpatialFixtures = isLaserDmx && laserDmxWorkspaceMode === 'spatialFixtures'
@@ -177,14 +176,6 @@ export function ReactFxPanel() {
             <CtrlSection label="Cinematic" />
             <SliderRow label="Fog Density" value={reactFogDensity}      onChange={setReactFogDensity}      color="#61d6aa" />
             <SliderRow label="Particles"   value={reactParticleDensity} onChange={setReactParticleDensity} color="#4ac7db" />
-          </>
-        )}
-
-        {/* ── Engine Appearance: Shader Pads ──────────────────────────── */}
-        {isShaderPads && (
-          <>
-            <CtrlSection label="Shader Pads" />
-            <SliderRow label="Particles" value={reactParticleDensity} onChange={setReactParticleDensity} color="#61d6aa" />
           </>
         )}
 
