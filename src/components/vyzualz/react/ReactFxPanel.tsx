@@ -10,6 +10,7 @@ import type {
 } from './ReactTypes'
 import { ShaderParameterPanel } from './shaders/ui/ShaderParameterPanel'
 import { getReactFxMasterControls } from './reactFxMasterControls'
+import { ReactResetActions } from './ReactResetActions'
 
 // ── FX panel ──────────────────────────────────────────────────────────────────
 // Styles the currently active visual engine.
@@ -29,7 +30,6 @@ export function ReactFxPanel() {
     oscillatorSettings,   setOscillatorSettings, resetOscillatorSettings,
     laserDmxSettings,     setLaserDmxSettings,
     laserDmxBeamMatrix,   setLaserDmxBeamMatrixSettings, setLaserDmxBeamMatrixEditorSettings,
-    resetReactView,
   } = useReactStore(useShallow(s => ({
     reactIntensity:              s.reactIntensity,
     setReactIntensity:           s.setReactIntensity,
@@ -55,7 +55,6 @@ export function ReactFxPanel() {
     laserDmxBeamMatrix:                  s.laserDmxBeamMatrix,
     setLaserDmxBeamMatrixSettings:       s.setLaserDmxBeamMatrixSettings,
     setLaserDmxBeamMatrixEditorSettings: s.setLaserDmxBeamMatrixEditorSettings,
-    resetReactView:              s.resetReactView,
   })))
 
   const osc = oscillatorSettings
@@ -326,11 +325,9 @@ export function ReactFxPanel() {
         )}
       </div>
 
-      {/* ── Reset ───────────────────────────────────────────────────────── */}
+      {/* ── Scoped reset actions ─────────────────────────────────────────── */}
       <div className="rv-ctrl-footer">
-        <button className="rv-reset-btn" onClick={resetReactView} title="Reset all controls">
-          Reset
-        </button>
+        <ReactResetActions />
       </div>
     </>
   )

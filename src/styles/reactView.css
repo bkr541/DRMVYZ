@@ -784,6 +784,27 @@
   color: #c0314a;
 }
 
+.rv-reset-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rv-reset-btn--danger {
+  border-color: rgba(192, 49, 74, 0.28);
+  color: rgba(232, 100, 100, 0.75);
+}
+
+.rv-reset-actions .rv-bm-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(192, 49, 74, 0.28);
+  border-radius: 5px;
+  background: rgba(192, 49, 74, 0.08);
+}
+
 /* ── Track map strip ──────────────────────────────────────────────────────────── */
 .rv-track-map-strip {
   border-top: 1px solid rgba(74, 199, 219, 0.1);

@@ -31,6 +31,8 @@ import { FontLibraryPanel } from './FontLibraryPanel'
 import { useSvgVisualRehydration } from './useSvgVisualRehydration'
 import { useFontLibraryHydration } from './useFontLibraryHydration'
 import { useReactPresetAutomation } from './useReactPresetAutomation'
+import { useShaderPanelStore } from './shaders/ui/shaderPanelStore'
+import { resolveReactInspectorSelection } from './reactInspectorSelection'
 import {
   readReactRightPanel,
   writeReactRightPanel,
@@ -92,6 +94,8 @@ export function ReactView() {
     beamEditorVisible,
     soundDrawingLayersByTrackId,
     soundDrawingClipsByTrackId,
+    laserDmxSettings,
+    laserDmxBeamMatrix,
   } = useReactStore(useShallow(s => ({
     reactPresets:           s.reactPresets,
     activeReactPresetId:    s.activeReactPresetId,
@@ -116,7 +120,10 @@ export function ReactView() {
     beamEditorVisible:              s.laserDmxBeamMatrix.editor.beamEditorVisible,
     soundDrawingLayersByTrackId:    s.soundDrawingLayersByTrackId,
     soundDrawingClipsByTrackId:     s.soundDrawingClipsByTrackId,
+    laserDmxSettings:               s.laserDmxSettings,
+    laserDmxBeamMatrix:             s.laserDmxBeamMatrix,
   })))
+  const activeShaderId = useShaderPanelStore(s => s.activeShaderId)
 
   const [leftTab, setLeftTab]             = useState<ReactLeftTab>('engine')
   const [activeMediaId, setActiveMediaId] = useState<string | null>(null)
@@ -142,31 +149,55 @@ export function ReactView() {
     writeReactRightPanel(activeRightPanel)
   }, [activeRightPanel])
 
-  // selectedReactEntity: the currently "inspectable" preset, but only when it
-  // belongs to the active engine. This is a defensive guard for stale external
-  // state while persistence migration repairs the stored pair.
-  // TODO: expand to a full object/layer selection model (selectedReactObjectId in store).
-  const selectedReactEntity = useMemo(
+  // Presets describe an engine-wide look, but they are not object selections.
+  // Keep preset resolution separate from Inspector enablement so INSP only opens
+  // for a concrete source, scene, fixture, beam, group, or future selected object.
+  const selectedPresetForEngine = useMemo(
     () => reactPresets.find(
       p => p.id === activeReactPresetId && p.engine === activeReactEngineId,
     ) ?? null,
     [activeReactEngineId, activeReactPresetId, reactPresets],
   )
 
+  const inspectableSelection = useMemo(
+    () => resolveReactInspectorSelection({
+      activeReactEngineId,
+      activeShaderId,
+      oscillatorSettings,
+      laserDmxSettings,
+      laserDmxWorkspaceMode,
+      laserDmxBeamMatrix,
+    }),
+    [
+      activeReactEngineId,
+      activeShaderId,
+      oscillatorSettings,
+      laserDmxSettings,
+      laserDmxWorkspaceMode,
+      laserDmxBeamMatrix,
+    ],
+  )
+
   const rightTabs = useMemo<RailTabOption<ReactRightPanel>[]>(
     () => REACT_RIGHT_BASE_TABS.map(t =>
       t.id === 'insp'
-        ? { ...t, disabled: activeReactEngineId !== 'shaderPads' && selectedReactEntity === null }
+        ? { ...t, disabled: inspectableSelection === null }
         : t
     ),
-    [selectedReactEntity, activeReactEngineId]
+    [inspectableSelection],
   )
+
+  useEffect(() => {
+    if (activeRightPanel === 'insp' && inspectableSelection === null) {
+      setActiveRightPanel('presets')
+    }
+  }, [activeRightPanel, inspectableSelection])
 
   // Fall back only within the active engine family. Never render a preset from
   // another engine merely because it appears first in the global collection.
   const activePreset = activeReactEngineId === 'shaderPads'
     ? null
-    : (selectedReactEntity ?? reactPresets.find(p => p.engine === activeReactEngineId) ?? null)
+    : (selectedPresetForEngine ?? reactPresets.find(p => p.engine === activeReactEngineId) ?? null)
 
   // Estimated track duration from the audio engine (fallback 180s)
   const audioDurationSec = (engine as { duration?: number }).duration ?? 180

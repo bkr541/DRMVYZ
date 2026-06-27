@@ -10,6 +10,11 @@ import type {
   OscillatorFontAsset,
 } from './ReactTypes'
 import { ShaderInspectorPanel } from './shaders/ui/ShaderInspectorPanel'
+import { useShaderPanelStore } from './shaders/ui/shaderPanelStore'
+import { LaserDmxBeamInspector } from './LaserDmxBeamInspector'
+import { LaserDmxReactionGroupInspector } from './LaserDmxReactionGroupInspector'
+import { ReactResetActions } from './ReactResetActions'
+import { resolveReactInspectorSelection } from './reactInspectorSelection'
 import {
   getSvgVisualCacheVersion,
   getSvgVisualEntry,
@@ -158,25 +163,80 @@ export function ReactInspectorPanel() {
     oscillatorGlyphAssets,
     oscillatorGlyphPointCache,
     oscillatorFontAssets,
+    laserDmxSettings,
+    laserDmxWorkspaceMode,
+    laserDmxBeamMatrix,
     resetOscillatorSettings,
-    resetReactView,
   } = useReactStore(useShallow(s => ({
-    activeReactPresetId:     s.activeReactPresetId,
-    activeReactEngineId:     s.activeReactEngineId,
-    reactPresets:            s.reactPresets,
-    oscillatorSettings:      s.oscillatorSettings,
-    oscillatorGlyphAssets:   s.oscillatorGlyphAssets,
+    activeReactPresetId:       s.activeReactPresetId,
+    activeReactEngineId:       s.activeReactEngineId,
+    reactPresets:              s.reactPresets,
+    oscillatorSettings:        s.oscillatorSettings,
+    oscillatorGlyphAssets:     s.oscillatorGlyphAssets,
     oscillatorGlyphPointCache: s.oscillatorGlyphPointCache,
-    oscillatorFontAssets:    s.oscillatorFontAssets,
-    resetOscillatorSettings: s.resetOscillatorSettings,
-    resetReactView:          s.resetReactView,
+    oscillatorFontAssets:      s.oscillatorFontAssets,
+    laserDmxSettings:          s.laserDmxSettings,
+    laserDmxWorkspaceMode:     s.laserDmxWorkspaceMode,
+    laserDmxBeamMatrix:        s.laserDmxBeamMatrix,
+    resetOscillatorSettings:   s.resetOscillatorSettings,
   })))
+  const activeShaderId = useShaderPanelStore(s => s.activeShaderId)
   const allMediaItems = useMediaStore(state => state.items)
   useSyncExternalStore(
     subscribeSvgVisualCache,
     getSvgVisualCacheVersion,
     getSvgVisualCacheVersion,
   )
+
+  const preset = activeReactPresetId
+    ? reactPresets.find(p => p.id === activeReactPresetId && p.engine === activeReactEngineId) ?? null
+    : null
+  const inspectableSelection = resolveReactInspectorSelection({
+    activeReactEngineId,
+    activeShaderId,
+    oscillatorSettings,
+    laserDmxSettings,
+    laserDmxWorkspaceMode,
+    laserDmxBeamMatrix,
+  })
+
+  const engineSummary = (
+    <div className="rv-ctrl-group">
+      <CtrlSection label="Engine Summary" />
+      <KvRow label="Engine" value={ENGINE_LABELS[activeReactEngineId] ?? activeReactEngineId} />
+      <KvRow label="Active Preset" value={preset?.name ?? 'None'} />
+    </div>
+  )
+
+  if (activeReactEngineId === 'shaderPads') {
+    return (
+      <>
+        {engineSummary}
+        {inspectableSelection?.kind === 'shaderScene' ? (
+          <ShaderInspectorPanel />
+        ) : (
+          <div className="rv-ctrl-group">
+            <div className="rv-ctrl-info">Select a Shader scene from the ENGINE tab to inspect it.</div>
+          </div>
+        )}
+        <div className="rv-ctrl-footer"><ReactResetActions /></div>
+      </>
+    )
+  }
+
+  if (!inspectableSelection) {
+    return (
+      <>
+        {engineSummary}
+        <div className="rv-ctrl-group">
+          <div className="rv-ctrl-info">
+            Select a Sound Drawing source, LaserDMX fixture, beam, or reaction group to inspect it.
+            Active presets are shown above as engine context and do not count as object selections.
+          </div>
+        </div>
+      </>
+    )
+  }
 
   const activeSvgSource = resolveUnifiedSvgSource(oscillatorSettings)
   const activeSvgEntry = activeSvgSource?.mediaId
@@ -190,37 +250,10 @@ export function ReactInspectorPanel() {
     activeSvgEntry,
   )
 
-  // ── Shader engine info ───────────────────────────────────────────────────────
-  if (activeReactEngineId === 'shaderPads') {
-    return <ShaderInspectorPanel />
-  }
-
-  const preset = activeReactPresetId
-    ? reactPresets.find(p => p.id === activeReactPresetId) ?? null
-    : null
-
-  // ── Empty state ─────────────────────────────────────────────────────────────
-  if (!preset) {
-    return (
-      <div className="rv-ctrl-group">
-        <div className="rv-ctrl-info">
-          Select a React engine, preset, glyph, or source to inspect it.
-          {/*
-           * TODO: When a full object/layer selection model is added to the
-           * React store (e.g. selectedReactObjectId, selectedLayerId), wire
-           * it here so INSP shows the selected object's transform and properties.
-           */}
-        </div>
-      </div>
-    )
-  }
-
-  const isSoundDrawing = activeReactEngineId === 'oscilloscope'
+  const isSoundDrawingSource = inspectableSelection.kind === 'soundDrawingSource'
   const osc = oscillatorSettings
-
-  // Concise source label for the Info row
   let sourceModeLabel = ''
-  if (isSoundDrawing) {
+  if (isSoundDrawingSource) {
     const src = svgStatus ? 'SVG' : (SOURCE_LABELS[osc.sourceType] ?? osc.sourceType)
     let detail = ''
     if (svgStatus)                         detail = SVG_RENDER_MODE_LABELS[svgStatus.renderMode]
@@ -229,23 +262,26 @@ export function ReactInspectorPanel() {
     sourceModeLabel = detail ? `${src} · ${detail}` : src
   }
 
+  const selectedFixture = inspectableSelection.kind === 'laserFixture'
+    ? laserDmxSettings.fixtures.find(fixture => fixture.id === inspectableSelection.id) ?? null
+    : null
+  const selectedBeam = inspectableSelection.kind === 'laserBeam'
+    ? laserDmxBeamMatrix.beams.find(beam => beam.id === inspectableSelection.id) ?? null
+    : null
+  const selectedGroup = inspectableSelection.kind === 'laserGroup'
+    ? laserDmxBeamMatrix.groups.find(group => group.id === inspectableSelection.id) ?? null
+    : null
+
   return (
     <>
+      {engineSummary}
       <div className="rv-ctrl-group">
+        <CtrlSection label="Selected Object" />
 
-        {/* ── Info ──────────────────────────────────────────────────── */}
-        <CtrlSection label="Info" />
-        <KvRow label="Name"   value={preset.name} />
-        <KvRow label="Type"   value="Preset" />
-        <KvRow label="Engine" value={ENGINE_LABELS[activeReactEngineId] ?? activeReactEngineId} />
-        {isSoundDrawing && sourceModeLabel && (
-          <KvRow label="Source" value={sourceModeLabel} />
-        )}
-
-        {/* ── Source (Sound Drawing only) ───────────────────────────── */}
-        {isSoundDrawing && (
+        {isSoundDrawingSource && (
           <>
-            <CtrlSection label="Source" />
+            <KvRow label="Type" value="Sound Drawing Source" />
+            {sourceModeLabel && <KvRow label="Source" value={sourceModeLabel} />}
             <OscSourceDetails
               osc={osc}
               glyphAssets={oscillatorGlyphAssets}
@@ -260,44 +296,54 @@ export function ReactInspectorPanel() {
             ) : !svgStatus ? (
               <KvRow label="Render" value={RENDER_MODE_LABELS[osc.renderMode] ?? osc.renderMode} />
             ) : null}
-            {osc.duplicateTraces > 1 && (
-              <KvRow label="Traces" value={String(osc.duplicateTraces)} />
-            )}
+            {osc.duplicateTraces > 1 && <KvRow label="Traces" value={String(osc.duplicateTraces)} />}
           </>
         )}
 
-        {/*
-         * TODO: Transform group — add X/Y/Scale/Rotation/Opacity controls here
-         * once per-object transforms are supported (future layers/elements model).
-         * rotationSpeed and pathScale are in FX → Path until then.
-         */}
+        {selectedFixture && (
+          <>
+            <KvRow label="Type" value="LaserDMX Fixture" />
+            <KvRow label="Name" value={selectedFixture.name} />
+            <KvRow label="Profile" value={selectedFixture.dmx.profileId} />
+            <KvRow label="DMX" value={`Universe ${selectedFixture.dmx.universe}, address ${selectedFixture.dmx.startAddress}`} />
+            <KvRow label="Enabled" value={selectedFixture.enabled ? 'Yes' : 'No'} />
+          </>
+        )}
 
+        {selectedBeam && (
+          <>
+            <KvRow label="Type" value="Beam Matrix Beam" />
+            <KvRow label="Name" value={selectedBeam.name} />
+            <KvRow label="Group" value={selectedBeam.groupId ?? 'None'} />
+            <KvRow label="Enabled" value={selectedBeam.enabled ? 'Yes' : 'No'} />
+          </>
+        )}
+
+        {selectedGroup && (
+          <>
+            <KvRow label="Type" value="Beam Matrix Reaction Group" />
+            <KvRow label="Name" value={selectedGroup.name} />
+            <KvRow label="Beams" value={String(laserDmxBeamMatrix.beams.filter(beam => beam.groupId === selectedGroup.id).length)} />
+            <KvRow label="Enabled" value={selectedGroup.enabled ? 'Yes' : 'No'} />
+          </>
+        )}
       </div>
 
-      {/* ── Actions ─────────────────────────────────────────────────── */}
+      {selectedBeam && <div className="rv-ctrl-group"><LaserDmxBeamInspector /></div>}
+      {selectedGroup && <div className="rv-ctrl-group"><LaserDmxReactionGroupInspector /></div>}
+
       <div className="rv-ctrl-footer">
-        {isSoundDrawing && (
+        {isSoundDrawingSource && (
           <button
             type="button"
             className="rv-osc-reset-btn"
             onClick={resetOscillatorSettings}
-            title="Reset oscillator source settings to defaults"
+            title="Reset all Sound Drawing source selection, rendering, path, text, and modulation settings to defaults."
           >
-            Reset Source
+            Reset Sound Drawing Settings
           </button>
         )}
-        <button
-          type="button"
-          className="rv-reset-btn"
-          onClick={resetReactView}
-          title="Reset all visual controls to defaults"
-        >
-          Reset All
-        </button>
-        {/*
-         * TODO: Add "Clear Selection" and "Remove" when the object/layer
-         * selection model exists.
-         */}
+        <ReactResetActions />
       </div>
     </>
   )

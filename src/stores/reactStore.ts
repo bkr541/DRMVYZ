@@ -58,9 +58,9 @@ import { resetBeamMatrixCompilerState } from '../components/vyzualz/react/render
 import { resetFogState } from '../components/vyzualz/react/renderers/LaserDmxFogRenderer'
 import {
   getSvgVisualEntry,
+  clearSvgVisualCache,
   setSvgVisualEntry,
   evictSvgVisual,
-  clearSvgVisualCache,
   isCurrentSvgVisualGeneration,
 } from '../components/vyzualz/react/renderers/svgVisualCache'
 import {
@@ -817,6 +817,13 @@ interface ReactStoreState {
   // keyed by "${fontId}:${text}:${fontSize}:${letterSpacing}:${resolution}"
   oscillatorTextPointCache: Record<string, OscillatorGlyphPoint[]>
 
+  /** Resets only the active engine's live render settings. Authored project content is preserved. */
+  resetCurrentEngineSettings: () => void
+  /** Resets React-view navigation/editor preferences without deleting authored project content. */
+  resetReactViewPreferences: () => void
+  /** Clears authored React project content. UI callers must require explicit confirmation. */
+  clearReactProjectContent: () => void
+  /** @deprecated Compatibility shim for tests and older callers. Not exposed in the React UI. */
   resetReactView: () => void
 
   // Neon Lattice settings
@@ -3147,6 +3154,150 @@ export const useReactStore = create<ReactStoreState>()(
       clearActiveLaserDmxBeamMatrixPreset: () =>
         set({ activeLaserDmxBeamMatrixPresetId: null }),
 
+      resetCurrentEngineSettings: () =>
+        set((s) => {
+          const sharedDefaults = {
+            reactIntensity:       0.7,
+            reactMotion:          0.5,
+            reactGlow:            0.65,
+            reactBassReactivity:  0.8,
+            reactTrailDecay:      0.08,
+            reactFogDensity:      0.5,
+            reactParticleDensity: 0.5,
+            performancePadTransition: null,
+          }
+
+          if (s.activeReactEngineId === 'oscilloscope') {
+            return {
+              ...sharedDefaults,
+              oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS },
+              glyphLostNotice: null,
+            }
+          }
+
+          if (s.activeReactEngineId === 'neonLattice') {
+            return {
+              ...sharedDefaults,
+              neonLatticeSettings: { ...DEFAULT_NEON_LATTICE_SETTINGS },
+              neonLatticeTrigger: null,
+            }
+          }
+
+          if (s.activeReactEngineId === 'laserDmx') {
+            if (s.laserDmxWorkspaceMode === 'beamMatrix') {
+              const defaults = createDefaultLaserDmxBeamMatrixSettings()
+              const laserDmxBeamMatrix = {
+                ...s.laserDmxBeamMatrix,
+                output: defaults.output,
+                fog: defaults.fog,
+              }
+              return {
+                ...sharedDefaults,
+                laserDmxBeamMatrix,
+                laserDmxBeamMatrixPresetDirty: isLaserDmxBeamMatrixPresetDirty(
+                  laserDmxBeamMatrix,
+                  s.activeLaserDmxBeamMatrixPresetId,
+                ),
+              }
+            }
+
+            const defaults = createDefaultLaserDmxSettings()
+            return {
+              ...sharedDefaults,
+              laserDmxSettings: {
+                ...s.laserDmxSettings,
+                masterDimmer:       defaults.masterDimmer,
+                blackout:           defaults.blackout,
+                hazeAmount:         defaults.hazeAmount,
+                beamPersistence:    defaults.beamPersistence,
+                glowAmount:         defaults.glowAmount,
+                globalBeamWidth:    defaults.globalBeamWidth,
+                globalStrobeRate:   defaults.globalStrobeRate,
+                safetyClamp:        defaults.safetyClamp,
+                backgroundFade:     defaults.backgroundFade,
+                showFixtureOrigins: defaults.showFixtureOrigins,
+                showPathPoints:     defaults.showPathPoints,
+                showDmxDebug:       defaults.showDmxDebug,
+              },
+            }
+          }
+
+          return sharedDefaults
+        }),
+
+      resetReactViewPreferences: () =>
+        set((s) => {
+          const defaultMatrix = createDefaultLaserDmxBeamMatrixSettings()
+          const selectedFixtureId = s.laserDmxSettings.fixtures.some(
+            fixture => fixture.id === s.laserDmxSettings.selectedFixtureId,
+          )
+            ? s.laserDmxSettings.selectedFixtureId
+            : (s.laserDmxSettings.fixtures[0]?.id ?? null)
+          const startupPreset = DEFAULT_REACT_PRESETS.find(preset => preset.id === INITIAL_PRESET_ID)
+          const startupPatch = startupPreset
+            ? buildPresetPatch(
+                startupPreset,
+                s.oscillatorSettings,
+                s.laserDmxSettings,
+                s.neonLatticeSettings,
+              )
+            : {
+                activeReactPresetId: INITIAL_PRESET_ID,
+                activeReactEngineId: INITIAL_ENGINE_ID,
+              }
+
+          return {
+            ...startupPatch,
+            laserDmxWorkspaceMode: 'spatialFixtures' as const,
+            selectedSectionId: null,
+            selectedSectionByTrackId: {},
+            activePadId: null,
+            glyphLostNotice: null,
+            performancePadTransition: null,
+            activeLaserDmxBeamMatrixPresetId: null,
+            laserDmxSettings: {
+              ...s.laserDmxSettings,
+              selectedFixtureId,
+            },
+            laserDmxBeamMatrix: {
+              ...s.laserDmxBeamMatrix,
+              selectedBeamIds: [],
+              selectedGroupId: null,
+              editor: defaultMatrix.editor,
+            },
+          }
+        }),
+
+      clearReactProjectContent: () =>
+        set((s) => {
+          const repairedSelection = repairReactEnginePresetSelection(
+            s.activeReactPresetId,
+            s.activeReactEngineId,
+            DEFAULT_REACT_PRESETS,
+          )
+          resetBeamMatrixCompilerState()
+          resetFogState()
+          return {
+            ...repairedSelection,
+            reactPresets: DEFAULT_REACT_PRESETS,
+            manualTrackSectionsByTrackId: {},
+            selectedSectionId: null,
+            selectedSectionByTrackId: {},
+            suppressedAutoSectionsByTrackId: {},
+            presetAutomationCuesByTrackId: {},
+            soundDrawingLayersByTrackId: {},
+            soundDrawingClipsByTrackId: {},
+            performancePads: DEFAULT_PERFORMANCE_PADS,
+            activePadId: null,
+            laserDmxSettings: createDefaultLaserDmxSettings(),
+            laserDmxBeamMatrix: createDefaultLaserDmxBeamMatrixSettings(),
+            activeLaserDmxBeamMatrixPresetId: null,
+            laserDmxBeamMatrixPresetDirty: false,
+            performancePadTransition: null,
+          }
+        }),
+
+      // Legacy compatibility only. The React UI uses the three scoped actions above.
       resetReactView: () => {
         clearSvgVisualCache()
         set({

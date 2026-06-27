@@ -317,13 +317,13 @@ describe('neonLatticeTriggerSeq — monotonic counter and trigger clearing', () 
     expect(useReactStore.getState().neonLatticeTrigger).toBeNull()
   })
 
-  it('neonLatticeTrigger is null after resetReactView', () => {
+  it('neonLatticeTrigger is null after resetting current Neon Lattice settings', () => {
     const s = useReactStore.getState()
     s.selectReactEngine('neonLattice')
     s.triggerNeonLattice('blackout')
     expect(useReactStore.getState().neonLatticeTrigger).not.toBeNull()
 
-    s.resetReactView()
+    s.resetCurrentEngineSettings()
     expect(useReactStore.getState().neonLatticeTrigger).toBeNull()
   })
 
