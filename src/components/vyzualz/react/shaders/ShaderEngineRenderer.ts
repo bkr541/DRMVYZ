@@ -313,6 +313,19 @@ export class ShaderEngineRenderer {
       this._outgoingExecutor?.clearFeedbackBuffers()
     }
 
+    // Ensure transition capture FBOs are allocated before the dual-render path.
+    // If allocation fails (context lost, FRAMEBUFFER_UNSUPPORTED, etc.) fall
+    // back to an immediate hard cut: promote the incoming scene and continue
+    // rendering normally.  This keeps Neon Tunnel / Liquid Metaballs rendering
+    // even when optional transition targets cannot be created.
+    if (transResult.shouldRenderDual && this._outgoingExecutor) {
+      if (!this._transRend.ensureCaptureTargets()) {
+        const allocErr = this._transRend.allocationError
+        if (allocErr) store.setCompileError(`Transition FBO: ${allocErr}`)
+        this._cleanupOutgoing()  // nulls _outgoingExecutor, aborts transition
+      }
+    }
+
     if (transResult.shouldRenderDual && this._outgoingExecutor) {
       // ── Dual render: outgoing (stashed executor with FB history) ──────────
       this._outgoingExecutor.setOutputFbo(this._transRend.outCaptureFbo)
@@ -488,17 +501,18 @@ export class ShaderEngineRenderer {
   }
 
   /**
-   * Dispose all renderer resources WITHOUT calling `_runtime.dispose()`.
-   * Use inside an `onContextRestored` handler where the old runtime's GL
-   * handles are already invalid — calling `loseContext()` would re-lose the
-   * freshly restored context.
+   * Dispose all renderer resources after a real WebGL context loss.
+   *
+   * The runtime's GL handles are already invalid at this point.
+   * `disposeHandlers()` / `dispose()` no longer calls `loseContext()`,
+   * so either method is safe here — but `disposeHandlers()` is kept for
+   * clarity of intent.
    */
   disposeAfterContextLoss(): void {
     if (this._disposed) return
     this._disposed = true
     this._cleanupCallbacks()
     this._disposeResources()
-    // Deregister the runtime's event listeners without calling loseContext()
     this._runtime.disposeHandlers()
   }
 

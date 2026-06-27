@@ -72,14 +72,20 @@ function makeMockGL() {
     createTexture():     WebGLTexture    { track('createTexture', []); return { _id: texId++ } as unknown as WebGLTexture },
     bindTexture(t: number, o: unknown)   { track('bindTexture', [t, o]) },
     texImage2D(...a: unknown[])          { track('texImage2D', a) },
+    texStorage2D(...a: unknown[])        { track('texStorage2D', a) },
     texParameteri(...a: unknown[])       { track('texParameteri', a) },
     deleteTexture(o: unknown)            { track('deleteTexture', [o]) },
 
     createFramebuffer(): WebGLFramebuffer { track('createFramebuffer', []); return { _id: fboId++ } as unknown as WebGLFramebuffer },
     bindFramebuffer(t: number, o: unknown) { track('bindFramebuffer', [t, o]) },
     framebufferTexture2D(...a: unknown[]) { track('framebufferTexture2D', a) },
+    drawBuffers(...a: unknown[])           { track('drawBuffers', a) },
+    readBuffer(...a: unknown[])            { track('readBuffer', a) },
     checkFramebufferStatus() { return 0x8CD5 /* FRAMEBUFFER_COMPLETE */ },
     deleteFramebuffer(o: unknown) { track('deleteFramebuffer', [o]) },
+    isContextLost() { return false },
+    getError()      { return 0 },
+    getParameter(p: number) { return p === 0x0D33 || p === 0x84E8 ? 16384 : null },
 
     // Shader / program (success path)
     createShader():     WebGLShader    { return { _s: 1 } as unknown as WebGLShader },

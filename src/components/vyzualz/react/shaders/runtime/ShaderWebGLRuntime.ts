@@ -179,18 +179,25 @@ export class ShaderWebGLRuntime {
 
   /**
    * Release the runtime.  Idempotent — safe to call multiple times.
-   * Removes context-loss listeners before calling loseContext() so the
-   * onContextLost callback is not re-triggered during shutdown.
+   *
+   * Removes context-loss listeners and marks the runtime disposed.
+   * Does NOT call WEBGL_lose_context.loseContext() — the renderer explicitly
+   * deletes its own programs, textures, framebuffers, buffers, and vertex
+   * arrays, so forced context loss is unnecessary and harmful (it prevents
+   * re-use of the same canvas element, which React.StrictMode relies on).
    */
   dispose(): void {
     if (this._disposed) return
     this._disposed = true
 
-    this._canvas.removeEventListener('webglcontextlost',     this._onContextLostHandler)
-    this._canvas.removeEventListener('webglcontextrestored', this._onContextRestoredHandler)
-
-    const ext = this._gl.getExtension('WEBGL_lose_context')
-    ext?.loseContext()
+    this._canvas.removeEventListener(
+      'webglcontextlost',
+      this._onContextLostHandler,
+    )
+    this._canvas.removeEventListener(
+      'webglcontextrestored',
+      this._onContextRestoredHandler,
+    )
   }
 
   /**
@@ -198,12 +205,23 @@ export class ShaderWebGLRuntime {
    * Use this inside an onContextRestored handler when the old runtime's GL
    * handles are already invalid — calling loseContext() would re-lose the
    * newly restored context.
+   *
+   * Delegates to dispose() since dispose() no longer calls loseContext().
    */
   disposeHandlers(): void {
-    if (this._disposed) return
-    this._disposed = true
-    this._canvas.removeEventListener('webglcontextlost',     this._onContextLostHandler)
-    this._canvas.removeEventListener('webglcontextrestored', this._onContextRestoredHandler)
+    this.dispose()
+  }
+
+  /**
+   * Deliberately lose the WebGL context via WEBGL_lose_context.
+   *
+   * ONLY for use in automated tests that need to simulate context loss.
+   * NEVER call from React component cleanup, scene switching, engine
+   * switching, normal application shutdown, or context restoration.
+   */
+  forceLoseContextForTesting(): void {
+    const ext = this._gl.getExtension('WEBGL_lose_context')
+    ext?.loseContext()
   }
 }
 

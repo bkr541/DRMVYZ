@@ -49,6 +49,10 @@ const GL = {
   LINK_STATUS:          35714,
   FRAMEBUFFER:          36160,
   FRAMEBUFFER_COMPLETE: 36053,
+  FRAMEBUFFER_INCOMPLETE_ATTACHMENT:         0x8CD6,
+  FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT: 0x8CD7,
+  FRAMEBUFFER_INCOMPLETE_DIMENSIONS:         0x8CD9,
+  FRAMEBUFFER_UNSUPPORTED:                   0x8CDD,
   COLOR_ATTACHMENT0:    36064,
   TEXTURE_2D:           3553,
   TEXTURE_WRAP_S:       10242,
@@ -72,6 +76,9 @@ const GL = {
   TRIANGLES:            4,
   COLOR_BUFFER_BIT:     16384,
   TEXTURE0:             33984,
+  MAX_TEXTURE_SIZE:     0x0D33,
+  MAX_RENDERBUFFER_SIZE: 0x84E8,
+  NO_ERROR:             0,
 }
 
 // ── GL mock ───────────────────────────────────────────────────────────────────
@@ -143,6 +150,7 @@ function makeGL(opts: MockOpts = {}): { gl: WebGL2RenderingContext; deleted: Del
     },
     bindTexture:    () => {},
     texImage2D:     () => {},
+    texStorage2D:   () => {},
     texParameteri:  () => {},
     pixelStorei:    () => {},
     activeTexture:  () => {},
@@ -155,8 +163,17 @@ function makeGL(opts: MockOpts = {}): { gl: WebGL2RenderingContext; deleted: Del
     },
     bindFramebuffer:       () => {},
     framebufferTexture2D:  () => {},
+    drawBuffers:           () => {},
+    readBuffer:            () => {},
     checkFramebufferStatus: () => opts.framebufferStatus ?? GL.FRAMEBUFFER_COMPLETE,
     deleteFramebuffer:     () => { deleted.framebuffers++ },
+    isContextLost:         () => false,
+    getError:              () => 0,
+    getParameter:          (pname: number) => {
+      if (pname === GL.MAX_TEXTURE_SIZE)      return 16384
+      if (pname === GL.MAX_RENDERBUFFER_SIZE) return 16384
+      return null
+    },
 
     createBuffer:   () => ({}),
     deleteBuffer:   () => { deleted.buffers++ },
@@ -544,9 +561,212 @@ describe('O — ShaderFramebuffer incomplete FBO throws and cleans up', () => {
   it('throws with a descriptive message when the FBO is not FRAMEBUFFER_COMPLETE', () => {
     const { gl, deleted } = makeGL({ framebufferStatus: 0x8CD6 /* INCOMPLETE_ATTACHMENT */ })
     const fb = new ShaderFramebuffer(gl)
-    expect(() => fb.resize(64, 64)).toThrow('[ShaderFramebuffer] incomplete')
+    expect(() => fb.resize(64, 64)).toThrow('[ShaderFramebuffer]')
     // Both the texture and FBO must have been freed before the throw.
     expect(deleted.textures).toBe(1)
     expect(deleted.framebuffers).toBe(1)
+  })
+
+  it('error message includes hex status code and size', () => {
+    const { gl } = makeGL({ framebufferStatus: 0x8CDD /* FRAMEBUFFER_UNSUPPORTED */ })
+    const fb = new ShaderFramebuffer(gl)
+    let msg = ''
+    try { fb.resize(64, 64) } catch (e) { msg = (e as Error).message }
+    expect(msg).toContain('0x8cdd')
+    expect(msg).toContain('64')
+  })
+})
+
+// ── P. StrictMode lifecycle ────────────────────────────────────────────────────
+
+describe('P — Strict Mode lifecycle: setup → cleanup → setup on same canvas', () => {
+  it('P1: normal dispose() does NOT call WEBGL_lose_context.loseContext()', () => {
+    const { gl } = makeGL()
+    let loseContextCalled = false
+    const mockExt = { loseContext: () => { loseContextCalled = true } }
+    const glWithExt = {
+      ...gl,
+      getExtension: (name: string) => name === 'WEBGL_lose_context' ? mockExt : null,
+    } as unknown as WebGL2RenderingContext
+    const { canvas } = makeCanvas(glWithExt)
+    const runtime = ok(ShaderWebGLRuntime.create(canvas))
+    runtime.dispose()
+    expect(loseContextCalled).toBe(false)
+  })
+
+  it('P2: second runtime created on the same canvas can allocate an RGBA8 FBO', () => {
+    const { gl } = makeGL()
+    const { canvas } = makeCanvas(gl)
+
+    // First setup + cleanup (simulates React.StrictMode mount 1 → unmount)
+    const r1 = ok(ShaderWebGLRuntime.create(canvas))
+    r1.dispose()
+    expect(r1.disposed).toBe(true)
+
+    // Second setup on the SAME canvas (simulates StrictMode remount)
+    const r2 = ok(ShaderWebGLRuntime.create(canvas))
+    const fb = new ShaderFramebuffer(r2.gl)
+    expect(() => fb.resize(64, 64)).not.toThrow()
+    expect(fb.framebuffer).not.toBeNull()
+    expect(fb.texture).not.toBeNull()
+    fb.dispose()
+    r2.dispose()
+  })
+
+  it('P3: dispose() twice is safe (idempotent)', () => {
+    const { gl } = makeGL()
+    const { canvas } = makeCanvas(gl)
+    const runtime = ok(ShaderWebGLRuntime.create(canvas))
+    runtime.dispose()
+    expect(() => runtime.dispose()).not.toThrow()
+    expect(runtime.disposed).toBe(true)
+  })
+
+  it('P4: onContextLost callback is never fired by normal dispose()', () => {
+    const { gl } = makeGL()
+    const { canvas } = makeCanvas(gl)
+    let fired = false
+    const runtime = ok(ShaderWebGLRuntime.create(canvas, {
+      onContextLost: () => { fired = true },
+    }))
+    runtime.dispose()
+    expect(fired).toBe(false)
+  })
+})
+
+// ── Q. ShaderFramebuffer — transactional allocation and guards ────────────────
+
+describe('Q — ShaderFramebuffer transactional allocation', () => {
+  it('Q1: RGBA8 allocation produces a non-null framebuffer and texture', () => {
+    const { gl } = makeGL()
+    const fb = new ShaderFramebuffer(gl)
+    expect(() => fb.resize(128, 128)).not.toThrow()
+    expect(fb.framebuffer).not.toBeNull()
+    expect(fb.texture).not.toBeNull()
+    fb.dispose()
+  })
+
+  it('Q2: drawBuffers([COLOR_ATTACHMENT0]) is called on successful allocation', () => {
+    const { gl } = makeGL()
+    const drawCalls: number[][] = []
+    const glSpy = {
+      ...gl,
+      drawBuffers: (bufs: number[]) => { drawCalls.push([...bufs]) },
+    } as unknown as WebGL2RenderingContext
+    const fb = new ShaderFramebuffer(glSpy)
+    fb.resize(64, 64)
+    expect(drawCalls.length).toBeGreaterThan(0)
+    expect(drawCalls[0]).toContain(GL.COLOR_ATTACHMENT0)
+    fb.dispose()
+  })
+
+  it('Q3: readBuffer(COLOR_ATTACHMENT0) is called on successful allocation', () => {
+    const { gl } = makeGL()
+    const readCalls: number[] = []
+    const glSpy = {
+      ...gl,
+      readBuffer: (src: number) => { readCalls.push(src) },
+    } as unknown as WebGL2RenderingContext
+    const fb = new ShaderFramebuffer(glSpy)
+    fb.resize(64, 64)
+    expect(readCalls).toContain(GL.COLOR_ATTACHMENT0)
+    fb.dispose()
+  })
+
+  it('Q4: failed replacement preserves the previous valid texture and framebuffer', () => {
+    const { gl } = makeGL()
+    let fboStatusOverride = GL.FRAMEBUFFER_COMPLETE
+    const glDynamic = {
+      ...gl,
+      checkFramebufferStatus: () => fboStatusOverride,
+    } as unknown as WebGL2RenderingContext
+
+    const fb = new ShaderFramebuffer(glDynamic)
+    fb.resize(64, 64)
+    const origTex = fb.texture
+    const origFbo = fb.framebuffer
+
+    // Force next allocation to fail
+    fboStatusOverride = 0x8CDD
+    expect(() => fb.resize(128, 128)).toThrow('[ShaderFramebuffer]')
+
+    // Original resources must be preserved intact
+    expect(fb.texture).toBe(origTex)
+    expect(fb.framebuffer).toBe(origFbo)
+    expect(fb.width).toBe(64)
+    expect(fb.height).toBe(64)
+
+    fb.dispose()
+  })
+
+  it('Q5: context-lost resize exits without throwing and allocates nothing', () => {
+    const { gl } = makeGL()
+    let contextLost = true
+    const glLost = {
+      ...gl,
+      isContextLost: () => contextLost,
+      createTexture: () => { throw new Error('must not be called on lost context') },
+    } as unknown as WebGL2RenderingContext
+
+    const fb = new ShaderFramebuffer(glLost)
+    expect(() => fb.resize(64, 64)).not.toThrow()
+    expect(fb.framebuffer).toBeNull()
+  })
+
+  it('Q6: non-finite width is silently ignored', () => {
+    const { gl } = makeGL()
+    const fb = new ShaderFramebuffer(gl)
+    expect(() => fb.resize(Infinity, 64)).not.toThrow()
+    expect(() => fb.resize(NaN, 64)).not.toThrow()
+    expect(fb.framebuffer).toBeNull()
+  })
+
+  it('Q7: zero dimensions normalise to 1×1 (not skipped)', () => {
+    const { gl } = makeGL()
+    const fb = new ShaderFramebuffer(gl)
+    fb.resize(0, 0)
+    expect(fb.framebuffer).not.toBeNull()
+    expect(fb.width).toBe(1)
+    expect(fb.height).toBe(1)
+    fb.dispose()
+  })
+
+  it('Q8: failure diagnostics include status hex and size', () => {
+    const { gl } = makeGL({ framebufferStatus: 0x8CDD })
+    const fb = new ShaderFramebuffer(gl)
+    let msg = ''
+    try { fb.resize(684, 1026) } catch (e) { msg = (e as Error).message }
+    expect(msg).toContain('0x8cdd')
+    expect(msg).toContain('684')
+    expect(msg).toContain('1026')
+  })
+
+  it('Q9: texStorage2D is used when available', () => {
+    const { gl } = makeGL()
+    let storageCalls = 0
+    const glWithStorage = {
+      ...gl,
+      texStorage2D: () => { storageCalls++ },
+    } as unknown as WebGL2RenderingContext
+    const fb = new ShaderFramebuffer(glWithStorage)
+    fb.resize(64, 64)
+    expect(storageCalls).toBeGreaterThan(0)
+    fb.dispose()
+  })
+
+  it('Q10: falls back to texImage2D when texStorage2D is absent', () => {
+    const { gl } = makeGL()
+    let imageCalls = 0
+    // Build a GL object WITHOUT texStorage2D to simulate the fallback path
+    const glBase = { ...gl } as Record<string, unknown>
+    delete glBase['texStorage2D']
+    const glNoStorage = {
+      ...glBase,
+      texImage2D: () => { imageCalls++ },
+    } as unknown as WebGL2RenderingContext
+    const fb = new ShaderFramebuffer(glNoStorage)
+    fb.resize(64, 64)
+    expect(imageCalls).toBeGreaterThan(0)
+    fb.dispose()
   })
 })

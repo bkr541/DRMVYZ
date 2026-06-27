@@ -36,13 +36,22 @@ const FRAG_SOURCES: Record<TransitionType, string> = {
  * Owns two capture FBOs (one for the outgoing scene, one for the incoming)
  * and a lazily-compiled set of transition shader programs.
  *
+ * Capture FBOs are allocated LAZILY — `resize()` only records the desired
+ * dimensions.  Call `ensureCaptureTargets()` before the first dual-render
+ * frame; if it returns false (allocation failed or context lost), the caller
+ * should fall back to an immediate hard cut.
+ *
+ * This separation prevents a framebuffer allocation failure during a routine
+ * resize from crashing the entire Shader engine.
+ *
  * Usage per transition frame:
- *   1. outGraph.setOutputFbo(renderer.outCaptureFbo) — redirect outgoing scene
- *   2. Render outgoing scene via its ShaderRenderGraph
- *   3. inGraph.setOutputFbo(renderer.inCaptureFbo)   — redirect incoming scene
- *   4. Render incoming scene via its ShaderRenderGraph
- *   5. outGraph.setOutputFbo(undefined); inGraph.setOutputFbo(undefined)
- *   6. renderer.renderComposite(type, progress, intensity, direction, seed, w, h)
+ *   1. ensureCaptureTargets()                           — allocate if needed
+ *   2. outGraph.setOutputFbo(renderer.outCaptureFbo)    — redirect outgoing
+ *   3. Render outgoing scene via its ShaderRenderGraph
+ *   4. inGraph.setOutputFbo(renderer.inCaptureFbo)      — redirect incoming
+ *   5. Render incoming scene via its ShaderRenderGraph
+ *   6. outGraph.setOutputFbo(undefined); inGraph.setOutputFbo(undefined)
+ *   7. renderer.renderComposite(type, progress, intensity, direction, seed, w, h)
  */
 export class ShaderTransitionRenderer {
   private readonly _compiler: ShaderCompiler
@@ -54,6 +63,12 @@ export class ShaderTransitionRenderer {
   private _disposed = false
   // Resolved direction for the current transition (random is resolved once at begin).
   private _resolvedDirection: 'forward' | 'backward' = 'forward'
+
+  // Lazy capture target state
+  private _pendingW               = 0
+  private _pendingH               = 0
+  private _captureTargetsAllocated = false
+  private _allocationError: string | null = null
 
   constructor(private readonly _gl: WebGL2RenderingContext) {
     this._compiler = new ShaderCompiler(_gl)
@@ -74,6 +89,13 @@ export class ShaderTransitionRenderer {
   /** Texture containing the captured incoming scene. */
   get inTexture():  WebGLTexture | null { return this._inFbo.texture }
 
+  /**
+   * Last allocation error from `ensureCaptureTargets()`, or null if the
+   * targets are healthy.  Cleared automatically on the next successful
+   * allocation.
+   */
+  get allocationError(): string | null { return this._allocationError }
+
   // ── Direction resolution ──────────────────────────────────────────────────
 
   /**
@@ -90,10 +112,53 @@ export class ShaderTransitionRenderer {
 
   // ── Resize ────────────────────────────────────────────────────────────────
 
+  /**
+   * Record the new required dimensions for capture FBOs.
+   *
+   * Does NOT allocate GPU resources immediately.  Call `ensureCaptureTargets()`
+   * before the first dual-render frame to perform the actual allocation.
+   */
   resize(w: number, h: number): void {
     if (this._disposed) return
-    this._outFbo.resize(w, h)
-    this._inFbo.resize(w, h)
+    if (w !== this._pendingW || h !== this._pendingH) {
+      this._pendingW = w
+      this._pendingH = h
+      // Mark capture targets as needing reallocation at new dimensions.
+      this._captureTargetsAllocated = false
+    }
+  }
+
+  /**
+   * Ensure both capture FBOs are allocated at the current pending dimensions.
+   *
+   * Returns true when both FBOs are ready.
+   * Returns false (without throwing) when:
+   *   - The context is lost  →  let context-restoration handle it
+   *   - Allocation fails     →  caller should fall back to a hard cut
+   *
+   * The last failure reason is available via `allocationError`.
+   */
+  ensureCaptureTargets(): boolean {
+    if (this._disposed) return false
+    if (this._captureTargetsAllocated) return true
+    if (this._gl.isContextLost()) return false
+
+    try {
+      this._outFbo.resize(this._pendingW, this._pendingH)
+      this._inFbo.resize(this._pendingW, this._pendingH)
+      this._captureTargetsAllocated = true
+      this._allocationError = null
+      return true
+    } catch (err) {
+      this._allocationError = err instanceof Error ? err.message : String(err)
+      if (import.meta.env.DEV) {
+        console.warn(
+          '[ShaderTransitionRenderer] capture FBO allocation failed:',
+          this._allocationError,
+        )
+      }
+      return false
+    }
   }
 
   // ── Composite render ──────────────────────────────────────────────────────

@@ -183,15 +183,36 @@ export function ReactShaderCanvas({
 
     // ResizeObserver — reads from rendererRef.current so it stays valid across restores
     function resize() {
+      if (pausedRef.current) return
+      const renderer = rendererRef.current
+      if (!renderer) return
       const r = canvas!.getBoundingClientRect()
+      if (!Number.isFinite(r.width) || !Number.isFinite(r.height)) return
+      if (r.width <= 0 || r.height <= 0) return
       lastCssW = r.width
       lastCssH = r.height
-      rendererRef.current?.resize(r.width, r.height, devicePixelRatio)
+      renderer.resize(r.width, r.height, window.devicePixelRatio || 1)
       // Do NOT set canvas.width/canvas.height here — the runtime handles it
     }
-    const ro = new ResizeObserver(resize)
-    ro.observe(canvas)
-    resize()
+
+    // Transactional setup: create observer, perform guarded first resize, then
+    // start rAF — if any step fails the cleanup function is still returned so
+    // the observer is always disconnected.
+    let ro: ResizeObserver | null = null
+    try {
+      ro = new ResizeObserver(resize)
+      ro.observe(canvas)
+      resize()
+    } catch (err) {
+      ro?.disconnect()
+      rendererRef.current?.dispose()
+      rendererRef.current = null
+      if (import.meta.env.DEV) {
+        console.error('[ReactShaderCanvas] setup failed:', err)
+      }
+      useShaderPanelStore.getState().setCompileError(String(err))
+      return
+    }
 
     // FPS tracking
     let fpsCount  = 0
@@ -367,7 +388,7 @@ export function ReactShaderCanvas({
 
     return () => {
       cancelAnimationFrame(animRef.current)
-      ro.disconnect()
+      ro!.disconnect()
       // Dispose whatever renderer is currently live (may differ from initialRenderer
       // if context restoration replaced it)
       rendererRef.current?.dispose()
