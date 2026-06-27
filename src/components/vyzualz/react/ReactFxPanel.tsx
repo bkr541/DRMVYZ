@@ -4,8 +4,12 @@ import {
   SliderRow, SelectRow, ToggleRow,
   CtrlSection, Collapsible,
 } from './ReactControlRows'
-import type { OscillatorRenderMode, LaserDmxFogSettings } from './ReactTypes'
+import type {
+  LaserDmxFogSettings,
+  OscillatorRenderMode,
+} from './ReactTypes'
 import { ShaderParameterPanel } from './shaders/ui/ShaderParameterPanel'
+import { getReactFxMasterControls } from './reactFxMasterControls'
 
 // ── FX panel ──────────────────────────────────────────────────────────────────
 // Styles the currently active visual engine.
@@ -64,6 +68,44 @@ export function ReactFxPanel() {
   const isBeamMatrix    = isLaserDmx && laserDmxWorkspaceMode === 'beamMatrix'
   const isSpatialFixtures = isLaserDmx && laserDmxWorkspaceMode === 'spatialFixtures'
 
+  const masterControls = getReactFxMasterControls(activeReactEngineId, laserDmxWorkspaceMode)
+  const showMasterIntensity = masterControls.includes('intensity')
+  const showMasterMotion = masterControls.includes('motion')
+  const showMasterGlow = masterControls.includes('glow')
+  const showMasterBassReactivity = masterControls.includes('bassReactivity')
+
+  const masterControlRows = (
+    <>
+      {showMasterIntensity && (
+        <SliderRow
+          label={isLaserDmx ? 'Master Intensity' : 'Intensity'}
+          value={reactIntensity}
+          onChange={setReactIntensity}
+          color="#4ac7db"
+        />
+      )}
+      {showMasterMotion && (
+        <SliderRow label="Motion" value={reactMotion} onChange={setReactMotion} color="#61d6aa" />
+      )}
+      {showMasterGlow && (
+        <SliderRow
+          label={isLaserDmx ? 'Master Glow' : 'Glow'}
+          value={reactGlow}
+          onChange={setReactGlow}
+          color="#b84fc9"
+        />
+      )}
+      {showMasterBassReactivity && (
+        <SliderRow
+          label="Bass React"
+          value={reactBassReactivity}
+          onChange={setReactBassReactivity}
+          color="#d8b95a"
+        />
+      )}
+    </>
+  )
+
   const bm     = laserDmxBeamMatrix
   const bmOut  = bm.output
   const bmFog  = bm.fog
@@ -79,20 +121,26 @@ export function ReactFxPanel() {
   // SVG Visual is a pure image display mode — point-path controls have no effect on it.
   const isSvgVisual = isSoundDrawing && osc.sourceType === 'svgVisual'
 
-  // ── Shader engine: render only its own parameter panel ───────────────────────
+  // Shader scenes consume the same React-wide master values passed into the
+  // renderer, so keep them visible above the scene-specific parameter controls.
   if (isShader) {
-    return <ShaderParameterPanel />
+    return (
+      <>
+        <div className="rv-ctrl-group">
+          <CtrlSection label="Shader Master" />
+          {masterControlRows}
+        </div>
+        <ShaderParameterPanel />
+      </>
+    )
   }
 
   return (
     <>
       <div className="rv-ctrl-group">
         {/* ── Master ──────────────────────────────────────────────────── */}
-        <CtrlSection label="Master" />
-        <SliderRow label="Intensity"  value={reactIntensity}      onChange={setReactIntensity}      color="#4ac7db" />
-        <SliderRow label="Motion"     value={reactMotion}         onChange={setReactMotion}         color="#61d6aa" />
-        <SliderRow label="Glow"       value={reactGlow}           onChange={setReactGlow}           color="#b84fc9" />
-        <SliderRow label="Bass React" value={reactBassReactivity} onChange={setReactBassReactivity} color="#d8b95a" />
+        <CtrlSection label={isLaserDmx ? 'React Master' : 'Master'} />
+        {masterControlRows}
 
         {/* ── Engine Appearance: Oscilloscope ─────────────────────────── */}
         {isSoundDrawing && (
