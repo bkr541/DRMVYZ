@@ -32,15 +32,21 @@ import { useSvgVisualRehydration } from './useSvgVisualRehydration'
 import { useFontLibraryHydration } from './useFontLibraryHydration'
 import { useReactPresetAutomation } from './useReactPresetAutomation'
 import { useShaderPanelStore } from './shaders/ui/shaderPanelStore'
+import { ShaderLibraryPanel } from './shaders/ui/ShaderLibraryPanel'
 import { resolveReactInspectorSelection } from './reactInspectorSelection'
 import {
   readReactRightPanel,
   writeReactRightPanel,
   type ReactRightPanel,
 } from './reactRightPanelPersistence'
+import {
+  getReactLeftTabs,
+  getReactPresetTabLabel,
+  isReactLeftTabAvailable,
+  resolveReactWorkspaceComposition,
+  type ReactLeftTab,
+} from './reactWorkspaceComposition'
 import '../../../styles/reactView.css'
-
-type ReactLeftTab  = 'engine' | 'media' | 'layers' | 'sessions' | 'fonts'
 
 // BASE_RIGHT_TABS omits 'disabled' — injected dynamically via useMemo (same pattern as Visualizer)
 const REACT_RIGHT_BASE_TABS: Omit<RailTabOption<ReactRightPanel>, 'disabled'>[] = [
@@ -52,13 +58,12 @@ const REACT_RIGHT_BASE_TABS: Omit<RailTabOption<ReactRightPanel>, 'disabled'>[] 
   { id: 'insp',    label: 'INSP'    },
 ]
 
-const REACT_LEFT_TABS: RailTabOption<ReactLeftTab>[] = [
-  { id: 'engine',   label: 'ENGINES'  },
-  { id: 'media',    label: 'Media'    },
-  { id: 'layers',   label: 'Layers'   },
-  { id: 'sessions', label: 'Sessions' },
-  { id: 'fonts',    label: 'Fonts'    },
-]
+const REACT_LEFT_TAB_LABELS: Record<ReactLeftTab, string> = {
+  engine: 'ENGINES',
+  media: 'Media',
+  layers: 'Layers',
+  fonts: 'Fonts',
+}
 
 export function ReactView() {
   const engine   = useSharedAudio()
@@ -125,6 +130,22 @@ export function ReactView() {
   })))
   const activeShaderId = useShaderPanelStore(s => s.activeShaderId)
 
+  const workspaceComposition = useMemo(
+    () => resolveReactWorkspaceComposition(
+      activeReactEngineId,
+      laserDmxWorkspaceMode,
+      beamEditorVisible,
+    ),
+    [activeReactEngineId, laserDmxWorkspaceMode, beamEditorVisible],
+  )
+  const leftTabs = useMemo<RailTabOption<ReactLeftTab>[]>(
+    () => getReactLeftTabs(workspaceComposition).map(id => ({
+      id,
+      label: REACT_LEFT_TAB_LABELS[id],
+    })),
+    [workspaceComposition],
+  )
+
   const [leftTab, setLeftTab]             = useState<ReactLeftTab>('engine')
   const [activeMediaId, setActiveMediaId] = useState<string | null>(null)
   const [leftCollapsed,  setLeftCollapsed]  = useState(false)
@@ -179,12 +200,19 @@ export function ReactView() {
   )
 
   const rightTabs = useMemo<RailTabOption<ReactRightPanel>[]>(
-    () => REACT_RIGHT_BASE_TABS.map(t =>
-      t.id === 'insp'
-        ? { ...t, disabled: inspectableSelection === null }
-        : t
-    ),
-    [inspectableSelection],
+    () => REACT_RIGHT_BASE_TABS.map(t => {
+      if (t.id === 'presets') {
+        return {
+          ...t,
+          label: getReactPresetTabLabel(workspaceComposition),
+        }
+      }
+      if (t.id === 'insp') {
+        return { ...t, disabled: inspectableSelection === null }
+      }
+      return t
+    }),
+    [inspectableSelection, workspaceComposition.presetSurface],
   )
 
   useEffect(() => {
@@ -192,6 +220,12 @@ export function ReactView() {
       setActiveRightPanel('presets')
     }
   }, [activeRightPanel, inspectableSelection])
+
+  useEffect(() => {
+    if (!isReactLeftTabAvailable(leftTab, workspaceComposition)) {
+      setLeftTab('engine')
+    }
+  }, [leftTab, workspaceComposition])
 
   // Fall back only within the active engine family. Never render a preset from
   // another engine merely because it appears first in the global collection.
@@ -263,7 +297,7 @@ export function ReactView() {
           onToggleCollapsed={() => setLeftCollapsed(v => !v)}
         >
           <RailTabs
-            tabs={REACT_LEFT_TABS}
+            tabs={leftTabs}
             activeTab={leftTab}
             onChange={setLeftTab}
             ariaLabel="React left panel tabs"
@@ -277,19 +311,8 @@ export function ReactView() {
                 onSelect={setActiveMediaId}
               />
             )}
-            {leftTab === 'layers' && (
-              activeReactEngineId === 'laserDmx' && laserDmxWorkspaceMode === 'beamMatrix'
-                ? <LaserDmxLayersPanel />
-                : (
-                  <div className="rv-placeholder-panel">
-                    <span>React layers will appear here.</span>
-                  </div>
-                )
-            )}
-            {leftTab === 'sessions' && (
-              <div className="rv-placeholder-panel">
-                <span>React sessions will appear here.</span>
-              </div>
+            {leftTab === 'layers' && workspaceComposition.showLaserLayersTab && (
+              <LaserDmxLayersPanel />
             )}
             {leftTab === 'fonts' && <FontLibraryPanel />}
           </div>
@@ -347,16 +370,20 @@ export function ReactView() {
                 soundDrawingClips={activeSdClips}
               />
             )}
-            {activeReactEngineId === 'laserDmx' && laserDmxWorkspaceMode === 'beamMatrix' && beamEditorVisible && (
+            {workspaceComposition.showLaserBeamEditor && (
               <LaserDmxBeamMatrixEditorOverlay />
             )}
           </div>
-          <ReactPerformancePads />
-          <SoundDrawingTimelineLane
-            audioDurationSec={audioDurationSec}
-            resolvedSections={resolvedSections}
-          />
-          <ReactTrackMapStrip audioDurationSec={audioDurationSec} />
+          {workspaceComposition.showPerformancePads && <ReactPerformancePads />}
+          {workspaceComposition.showSoundDrawingTimeline && (
+            <SoundDrawingTimelineLane
+              audioDurationSec={audioDurationSec}
+              resolvedSections={resolvedSections}
+            />
+          )}
+          {workspaceComposition.showTrackMap && (
+            <ReactTrackMapStrip audioDurationSec={audioDurationSec} />
+          )}
         </div>
 
         {/* Right — tabbed control rail */}
@@ -373,7 +400,11 @@ export function ReactView() {
             ariaLabel="React right workspace panels"
           />
           <div className="vz-panel-body">
-            {activeRightPanel === 'presets' && <ReactPresetsPanel />}
+            {activeRightPanel === 'presets' && (
+              workspaceComposition.presetSurface === 'shaderScenes'
+                ? <ShaderLibraryPanel />
+                : <ReactPresetsPanel />
+            )}
             {activeRightPanel === 'fx'      && <ReactFxPanel />}
             {activeRightPanel === 'mod'     && <ReactModulationPanel />}
             {activeRightPanel === 'audio'   && <ReactAudioPanel />}

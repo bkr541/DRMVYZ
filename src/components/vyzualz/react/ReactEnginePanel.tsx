@@ -1,4 +1,4 @@
-import React, { useEffect, useSyncExternalStore } from 'react'
+import React, { useSyncExternalStore } from 'react'
 import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
 import { NeonLatticeEnginePanel } from './NeonLatticeEnginePanel'
 import { useShallow } from 'zustand/react/shallow'
@@ -9,9 +9,6 @@ import {
   SliderRow, SelectRow, ToggleRow, TextInputRow,
   CtrlSection, Collapsible,
 } from './ReactControlRows'
-import { useShaderPanelStore }  from './shaders/ui/shaderPanelStore'
-import { ShaderLibraryPanel }   from './shaders/ui/ShaderLibraryPanel'
-import { DEFAULT_SHADER_SCENE_ID } from './shaders/scenes'
 import {
   getSvgVisualCacheVersion,
   getSvgVisualEntry,
@@ -213,25 +210,6 @@ function OscillatorStatusCard({
   )
 }
 
-// ── Shader scene selector ─────────────────────────────────────────────────────
-
-function ShaderEngineSection() {
-  // Narrow selector: only activeShaderId (setActiveShaderId is a stable action)
-  const activeShaderId    = useShaderPanelStore(s => s.activeShaderId)
-  const setActiveShaderId = useShaderPanelStore(s => s.setActiveShaderId)
-
-  // Never write to an external store during render. ReactShaderCanvas also
-  // initializes the default scene, but this effect keeps the engine panel safe
-  // when it mounts before the canvas or while the canvas is being recreated.
-  useEffect(() => {
-    if (!activeShaderId) {
-      setActiveShaderId(DEFAULT_SHADER_SCENE_ID)
-    }
-  }, [activeShaderId, setActiveShaderId])
-
-  return <ShaderLibraryPanel />
-}
-
 // ── ENGINE panel ──────────────────────────────────────────────────────────────
 
 export function ReactEnginePanel() {
@@ -324,7 +302,15 @@ export function ReactEnginePanel() {
       )}
 
       {/* ── Engine Mode: GLSL Shader ──────────────────────────────────── */}
-      {activeReactEngineId === 'shaderPads' && <ShaderEngineSection />}
+      {activeReactEngineId === 'shaderPads' && (
+        <>
+          <CtrlSection label="Shader Scenes" />
+          <div className="rv-ctrl-info">
+            Shader uses Scenes rather than React presets. Choose and manage the
+            active scene from the SCENES tab in the right rail.
+          </div>
+        </>
+      )}
 
       {/* ── Engine Mode: LaserDMX ─────────────────────────────────────── */}
       {activeReactEngineId === 'laserDmx'     && <LaserDmxEnginePanel />}
