@@ -1,11 +1,16 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
+  isLaserDmxBeamMatrixPresetDirty,
+  mergeReactStoreState,
   migrateReactStore,
+  REACT_PROJECT_STATE_KEYS,
   reactStorePartialize,
   repairReactEnginePresetSelection,
   useReactStore,
 } from './reactStore'
-import { DEFAULT_REACT_PRESETS } from '../components/vyzualz/react/ReactTypes'
+import { DEFAULT_PERFORMANCE_PADS, DEFAULT_REACT_PRESETS } from '../components/vyzualz/react/ReactTypes'
+import { LASER_DMX_BEAM_MATRIX_PRESETS } from '../components/vyzualz/react/laserDmxBeamMatrixPresets'
+import { splitStorageValue } from '../lib/splitPersistStorage'
 
 const firstFor = (engine: (typeof DEFAULT_REACT_PRESETS)[number]['engine']) =>
   DEFAULT_REACT_PRESETS.find(p => p.engine === engine)!
@@ -102,5 +107,77 @@ describe('React selection persistence invariant', () => {
     const state = useReactStore.getState()
     expect(state.activeReactPresetId).toBe(preset.id)
     expect(state.activeReactEngineId).toBe('oscilloscope')
+  })
+})
+
+describe('React authored-state persistence', () => {
+  beforeEach(() => {
+    useReactStore.getState().resetReactView()
+  })
+
+  it('includes editable preset definitions, performance pads, and Beam Matrix dirty state', () => {
+    const preset = DEFAULT_REACT_PRESETS[0]
+    const pad = DEFAULT_PERFORMANCE_PADS[0]
+    useReactStore.getState().updateReactPresetParams(preset.id, { glow: 0.123 })
+    useReactStore.getState().updatePerformancePad(pad.id, { label: 'Edited Pad' })
+    useReactStore.setState({ laserDmxBeamMatrixPresetDirty: true })
+
+    const persisted = reactStorePartialize(useReactStore.getState())
+    expect(persisted.reactPresets.find(p => p.id === preset.id)?.params.glow).toBe(0.123)
+    expect(persisted.performancePads.find(p => p.id === pad.id)?.label).toBe('Edited Pad')
+    expect(persisted.laserDmxBeamMatrixPresetDirty).toBe(true)
+  })
+
+  it('routes project-sized fields away from the localStorage envelope', () => {
+    const persisted = reactStorePartialize(useReactStore.getState())
+    const split = splitStorageValue({ state: persisted, version: 21 }, REACT_PROJECT_STATE_KEYS)
+
+    expect(split.local.state.performancePads).toBeDefined()
+    expect(split.local.state.laserDmxBeamMatrixPresetDirty).toBeDefined()
+    expect(split.local.state.oscillatorGlyphAssets).toBeUndefined()
+    expect(split.local.state.soundDrawingLayersByTrackId).toBeUndefined()
+    expect(split.local.state.laserDmxBeamMatrix).toBeUndefined()
+
+    expect(split.project.state.reactPresets).toBeDefined()
+    expect(split.project.state.oscillatorGlyphAssets).toBeDefined()
+    expect(split.project.state.soundDrawingLayersByTrackId).toBeDefined()
+    expect(split.project.state.laserDmxBeamMatrix).toBeDefined()
+  })
+
+  it('derives Beam Matrix dirty state by comparing authored content with the named preset', () => {
+    const preset = LASER_DMX_BEAM_MATRIX_PRESETS[0]
+    const clean = preset.createSettings()
+    expect(isLaserDmxBeamMatrixPresetDirty(clean, preset.id)).toBe(false)
+
+    const dirty = {
+      ...clean,
+      output: { ...clean.output, masterDimmer: clean.output.masterDimmer * 0.5 },
+    }
+    expect(isLaserDmxBeamMatrixPresetDirty(dirty, preset.id)).toBe(true)
+  })
+
+  it('merges persisted edits with current built-ins and repairs legacy clean flags', () => {
+    const current = useReactStore.getState()
+    const editedPreset = {
+      ...current.reactPresets[0],
+      params: { ...current.reactPresets[0].params, motion: 0.111 },
+    }
+    const beamPreset = LASER_DMX_BEAM_MATRIX_PRESETS[0]
+    const changedMatrix = beamPreset.createSettings()
+    changedMatrix.output = { ...changedMatrix.output, masterDimmer: 0.25 }
+
+    const merged = mergeReactStoreState({
+      reactPresets: [editedPreset],
+      performancePads: [{ ...current.performancePads[0], label: 'Persisted' }],
+      activeLaserDmxBeamMatrixPresetId: beamPreset.id,
+      laserDmxBeamMatrix: changedMatrix,
+      laserDmxBeamMatrixPresetDirty: false,
+    }, current)
+
+    expect(merged.reactPresets.find(p => p.id === editedPreset.id)?.params.motion).toBe(0.111)
+    expect(merged.reactPresets.length).toBe(current.reactPresets.length)
+    expect(merged.performancePads[0].label).toBe('Persisted')
+    expect(merged.performancePads.length).toBe(current.performancePads.length)
+    expect(merged.laserDmxBeamMatrixPresetDirty).toBe(true)
   })
 })

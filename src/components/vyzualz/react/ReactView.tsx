@@ -31,10 +31,14 @@ import { FontLibraryPanel } from './FontLibraryPanel'
 import { useSvgVisualRehydration } from './useSvgVisualRehydration'
 import { useFontLibraryHydration } from './useFontLibraryHydration'
 import { useReactPresetAutomation } from './useReactPresetAutomation'
+import {
+  readReactRightPanel,
+  writeReactRightPanel,
+  type ReactRightPanel,
+} from './reactRightPanelPersistence'
 import '../../../styles/reactView.css'
 
 type ReactLeftTab  = 'engine' | 'media' | 'layers' | 'sessions' | 'fonts'
-type ReactRightPanel = 'presets' | 'fx' | 'mod' | 'audio' | 'rec' | 'insp'
 
 // BASE_RIGHT_TABS omits 'disabled' — injected dynamically via useMemo (same pattern as Visualizer)
 const REACT_RIGHT_BASE_TABS: Omit<RailTabOption<ReactRightPanel>, 'disabled'>[] = [
@@ -53,13 +57,6 @@ const REACT_LEFT_TABS: RailTabOption<ReactLeftTab>[] = [
   { id: 'sessions', label: 'Sessions' },
   { id: 'fonts',    label: 'Fonts'    },
 ]
-
-function readLS<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key)
-    return raw !== null ? (JSON.parse(raw) as T) : fallback
-  } catch { return fallback }
-}
 
 export function ReactView() {
   const engine   = useSharedAudio()
@@ -134,14 +131,13 @@ export function ReactView() {
     recorder.startVideoRecording(canvas, audioStream)
   }, [engine.isActive, engine.getRecordingStream, recorder.startVideoRecording])
 
-  // Right tab — persisted to localStorage.
-  // Defaulting to 'engine': ENGINE tab contains the source/mode controls that were
-  // previously the entire right rail, making it the most immediately useful landing tab.
+  // Right tab — persisted to localStorage after runtime validation.
+  // PRESETS is the default and is always a valid right-rail destination.
   const [activeRightPanel, setActiveRightPanel] = useState<ReactRightPanel>(
-    () => readLS<ReactRightPanel>('drmvyz:react:rightPanel', 'presets')
+    readReactRightPanel,
   )
   useEffect(() => {
-    localStorage.setItem('drmvyz:react:rightPanel', JSON.stringify(activeRightPanel))
+    writeReactRightPanel(activeRightPanel)
   }, [activeRightPanel])
 
   // selectedReactEntity: the currently "inspectable" preset, but only when it

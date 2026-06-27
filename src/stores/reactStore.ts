@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { createSplitPersistStorage } from '../lib/splitPersistStorage'
 import {
   DEFAULT_REACT_PRESETS,
   DEFAULT_PERFORMANCE_PADS,
@@ -750,6 +751,59 @@ export function repairReactEnginePresetSelection(
   }
 }
 
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalize)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.keys(value as Record<string, unknown>)
+        .sort()
+        .map(key => [key, canonicalize((value as Record<string, unknown>)[key])]),
+    )
+  }
+  return value
+}
+
+function normalizeBeamMatrixForPresetComparison(settings: LaserDmxBeamMatrixSettings): unknown {
+  return {
+    beams: settings.beams,
+    groups: settings.groups.map(({ muted: _muted, soloed: _soloed, ...group }) => group),
+    globalModulationRoutes: settings.globalModulationRoutes,
+    output: settings.output,
+    fog: settings.fog,
+    cues: settings.cues ?? [],
+  }
+}
+
+/**
+ * Recomputes Beam Matrix dirty state from authored content. Selection, editor
+ * chrome, and temporary mute/solo performance state intentionally do not count.
+ */
+export function isLaserDmxBeamMatrixPresetDirty(
+  settings: LaserDmxBeamMatrixSettings,
+  activePresetId: string | null,
+): boolean {
+  if (!activePresetId) return false
+  const preset = getLaserDmxBeamMatrixPreset(activePresetId)
+  if (!preset) return true
+  const current = canonicalize(normalizeBeamMatrixForPresetComparison(settings))
+  const expected = canonicalize(normalizeBeamMatrixForPresetComparison(preset.createSettings()))
+  return JSON.stringify(current) !== JSON.stringify(expected)
+}
+
+function mergeCollectionsById<T extends { id: string }>(
+  current: T[],
+  persisted: T[] | undefined,
+): T[] {
+  if (!Array.isArray(persisted)) return current
+  const persistedById = new Map(persisted.map(item => [item.id, item]))
+  const merged = current.map(item => persistedById.get(item.id) ?? item)
+  const currentIds = new Set(current.map(item => item.id))
+  for (const item of persisted) {
+    if (!currentIds.has(item.id)) merged.push(item)
+  }
+  return merged
+}
+
 // ── Exported migration function (for testing) ─────────────────────────────────
 export function migrateReactStore(persistedState: unknown, version: number): Record<string, unknown> {
   let state = (persistedState ?? {}) as Record<string, unknown>
@@ -1044,6 +1098,27 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     )
     state = { ...state, ...repaired }
   }
+  if (version < 21) {
+    const persistedPresets = Array.isArray(state.reactPresets)
+      ? state.reactPresets as ReactPreset[]
+      : DEFAULT_REACT_PRESETS
+    const persistedPads = Array.isArray(state.performancePads)
+      ? state.performancePads as ReactPerformancePad[]
+      : DEFAULT_PERFORMANCE_PADS
+    const beamMatrix = state.laserDmxBeamMatrix as LaserDmxBeamMatrixSettings | undefined
+    const activeBeamPresetId = typeof state.activeLaserDmxBeamMatrixPresetId === 'string'
+      ? state.activeLaserDmxBeamMatrixPresetId
+      : null
+
+    state = {
+      ...state,
+      reactPresets: persistedPresets,
+      performancePads: persistedPads,
+      laserDmxBeamMatrixPresetDirty: beamMatrix
+        ? isLaserDmxBeamMatrixPresetDirty(beamMatrix, activeBeamPresetId)
+        : Boolean(state.laserDmxBeamMatrixPresetDirty),
+    }
+  }
   return state
 }
 
@@ -1063,6 +1138,8 @@ export function reactStorePartialize(s: ReactStoreState) {
   return {
     activeReactPresetId:                repairedSelection.activeReactPresetId,
     activeReactEngineId:                repairedSelection.activeReactEngineId,
+    reactPresets:                       s.reactPresets,
+    performancePads:                    s.performancePads,
     manualTrackSectionsByTrackId:       s.manualTrackSectionsByTrackId,
     suppressedAutoSectionsByTrackId:    s.suppressedAutoSectionsByTrackId,
     presetAutomationCuesByTrackId:      s.presetAutomationCuesByTrackId,
@@ -1073,6 +1150,7 @@ export function reactStorePartialize(s: ReactStoreState) {
     laserDmxWorkspaceMode:              s.laserDmxWorkspaceMode,
     laserDmxBeamMatrix:                 s.laserDmxBeamMatrix,
     activeLaserDmxBeamMatrixPresetId:   s.activeLaserDmxBeamMatrixPresetId,
+    laserDmxBeamMatrixPresetDirty:      s.laserDmxBeamMatrixPresetDirty,
     soundDrawingLayersByTrackId:        s.soundDrawingLayersByTrackId,
     soundDrawingClipsByTrackId:         s.soundDrawingClipsByTrackId,
     reactIntensity:       s.reactIntensity,
@@ -1085,6 +1163,60 @@ export function reactStorePartialize(s: ReactStoreState) {
     reactParticleDensity: s.reactParticleDensity,
   }
 }
+
+export type ReactPersistedState = ReturnType<typeof reactStorePartialize>
+
+/**
+ * Authored/project data is intentionally kept out of synchronous localStorage.
+ * These fields are structured-cloned into IndexedDB by reactPersistStorage.
+ */
+export const REACT_PROJECT_STATE_KEYS = [
+  'reactPresets',
+  'manualTrackSectionsByTrackId',
+  'suppressedAutoSectionsByTrackId',
+  'presetAutomationCuesByTrackId',
+  'oscillatorGlyphAssets',
+  'laserDmxSettings',
+  'laserDmxBeamMatrix',
+  'soundDrawingLayersByTrackId',
+  'soundDrawingClipsByTrackId',
+] as const satisfies readonly (keyof ReactPersistedState)[]
+
+export function mergeReactStoreState(
+  persistedState: unknown,
+  currentState: ReactStoreState,
+): ReactStoreState {
+  const persisted = (persistedState ?? {}) as Partial<ReactPersistedState>
+  const reactPresets = mergeCollectionsById(currentState.reactPresets, persisted.reactPresets)
+  const performancePads = mergeCollectionsById(currentState.performancePads, persisted.performancePads)
+  const merged = {
+    ...currentState,
+    ...persisted,
+    reactPresets,
+    performancePads,
+  } as ReactStoreState
+  const repairedSelection = repairReactEnginePresetSelection(
+    merged.activeReactPresetId,
+    merged.activeReactEngineId,
+    reactPresets,
+  )
+  const dirty = merged.activeLaserDmxBeamMatrixPresetId
+    ? isLaserDmxBeamMatrixPresetDirty(
+        merged.laserDmxBeamMatrix,
+        merged.activeLaserDmxBeamMatrixPresetId,
+      )
+    : merged.laserDmxBeamMatrixPresetDirty
+
+  return {
+    ...merged,
+    ...repairedSelection,
+    laserDmxBeamMatrixPresetDirty: dirty,
+  }
+}
+
+export const reactPersistStorage = createSplitPersistStorage<Record<string, unknown>>({
+  projectKeys: REACT_PROJECT_STATE_KEYS,
+})
 
 export const useReactStore = create<ReactStoreState>()(
   persist(
@@ -2781,6 +2913,7 @@ export const useReactStore = create<ReactStoreState>()(
         set({
           activeReactPresetId:          INITIAL_PRESET_ID,
           activeReactEngineId:          INITIAL_ENGINE_ID,
+          reactPresets:                 DEFAULT_REACT_PRESETS,
           manualTrackSectionsByTrackId: {},
           selectedSectionId:            null,
           selectedSectionByTrackId:     {},
@@ -2814,9 +2947,11 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 20,
+      version: 21,
+      storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,
+      merge: mergeReactStoreState,
     },
   ),
 )

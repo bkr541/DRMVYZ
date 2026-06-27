@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { createJSONStorage, persist } from 'zustand/middleware'
 import type { ShaderParamValue, ShaderParamValues } from '../registry/shaderRegistryTypes'
 import type { ShaderModulationRoute } from '../modulation/shaderModulationTypes'
 import type { ModulationEvaluationFrame } from '../modulation/shaderModulationTypes'
@@ -9,13 +10,13 @@ import type {
 } from '../textures/shaderTextureInputTypes'
 import { shaderRegistry } from '../registry'
 import type { ShaderCompileStatus } from '../editor/ShaderCompilePanel'
-import type { PerformanceMetrics, QualityTierWithAuto } from '../performance/shaderPerformanceTypes'
+import type { PerformanceMetrics } from '../performance/shaderPerformanceTypes'
 import type { QualityTier } from '../registry/shaderRegistryTypes'
 import type { RenderPassInfo } from '../rendergraph/shaderRenderGraphTypes'
 
 // ── ShaderPanelStore ──────────────────────────────────────────────────────────
 
-interface ShaderPanelState {
+export interface ShaderPanelState {
   // ── Active scene ──────────────────────────────────────────────────────────
   activeShaderId:  string | null
 
@@ -96,7 +97,66 @@ interface ShaderPanelState {
 
 const IDLE_COMPILE_STATUS: ShaderCompileStatus = { state: 'idle' }
 
-export const useShaderPanelStore = create<ShaderPanelState>((set, get) => ({
+export interface ShaderPanelPersistedState {
+  activeShaderId: string | null
+  paramValuesByShaderId: Record<string, ShaderParamValues>
+  routesByShaderId: Record<string, ShaderModulationRoute[]>
+  textureSelectionsByShaderId: Record<string, Record<string, ShaderTexSourceSelection>>
+}
+
+function serializableTextureSelections(
+  selections: ShaderPanelState['textureSelectionsByShaderId'],
+): ShaderPanelPersistedState['textureSelectionsByShaderId'] {
+  return Object.fromEntries(
+    Object.entries(selections).map(([shaderId, inputs]) => [
+      shaderId,
+      Object.fromEntries(
+        Object.entries(inputs).map(([inputName, selection]) => {
+          // DOM media elements are runtime handles. Persist only the stable POJO
+          // selection descriptor so the texture manager can re-resolve it later.
+          const { mediaElement: _runtimeElement, ...serializable } = selection
+          return [inputName, serializable]
+        }),
+      ),
+    ]),
+  )
+}
+
+export function shaderPanelPartialize(state: ShaderPanelState): ShaderPanelPersistedState {
+  return {
+    activeShaderId:              state.activeShaderId,
+    paramValuesByShaderId:       state.paramValuesByShaderId,
+    routesByShaderId:            state.routesByShaderId,
+    textureSelectionsByShaderId: serializableTextureSelections(state.textureSelectionsByShaderId),
+  }
+}
+
+export function mergeShaderPanelState(
+  persistedState: unknown,
+  currentState: ShaderPanelState,
+): ShaderPanelState {
+  const persisted = (persistedState ?? {}) as Partial<ShaderPanelPersistedState>
+  const activeShaderId = typeof persisted.activeShaderId === 'string'
+    ? persisted.activeShaderId
+    : null
+  const paramValuesByShaderId = persisted.paramValuesByShaderId ?? {}
+  const def = activeShaderId ? shaderRegistry.get(activeShaderId) : null
+  const paramValues = activeShaderId
+    ? (paramValuesByShaderId[activeShaderId] ?? (def ? { ...def.defaults } : {}))
+    : {}
+
+  return {
+    ...currentState,
+    activeShaderId,
+    paramValuesByShaderId,
+    paramValues,
+    routesByShaderId:            persisted.routesByShaderId ?? {},
+    textureSelectionsByShaderId: persisted.textureSelectionsByShaderId ?? {},
+  }
+}
+
+export const useShaderPanelStore = create<ShaderPanelState>()(
+  persist((set, get) => ({
   activeShaderId:              null,
   paramValuesByShaderId:       {},
   paramValues:                 {},
@@ -281,7 +341,16 @@ export const useShaderPanelStore = create<ShaderPanelState>((set, get) => ({
   },
 
   setPassInfo: (info) => set({ passInfo: info }),
-}))
+  }), {
+    name: 'drmvyz:shader-panel',
+    version: 1,
+    storage: createJSONStorage(() => localStorage),
+    partialize: shaderPanelPartialize,
+    merge: mergeShaderPanelState,
+    // Quality preference is already persisted by ShaderLibraryStore. Keeping a
+    // single owner avoids two stores racing to restore different quality tiers.
+  }),
+)
 
 // ── Convenience selector ──────────────────────────────────────────────────────
 
