@@ -16,7 +16,7 @@ export interface ShaderModulationPanelProps {
   /** The currently active shader scene definition. */
   definition: ShaderDefinition
   /** All modulation routes for this scene. */
-  routes: ShaderModulationRoute[]
+  routes: readonly ShaderModulationRoute[]
   /** Live audio frame for source value readouts. */
   audioFrame: ShaderAudioUniformFrame
   /** Latest evaluation result — used for effective-value readouts. */

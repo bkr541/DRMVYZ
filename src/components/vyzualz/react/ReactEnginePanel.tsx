@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
 import { NeonLatticeEnginePanel } from './NeonLatticeEnginePanel'
 import { useShallow } from 'zustand/react/shallow'
@@ -223,10 +223,14 @@ function ShaderEngineSection() {
   const activeShaderId    = useShaderPanelStore(s => s.activeShaderId)
   const setActiveShaderId = useShaderPanelStore(s => s.setActiveShaderId)
 
-  // Ensure a scene is always selected when the Shader engine is active
-  if (!activeShaderId) {
-    setActiveShaderId(DEFAULT_SHADER_SCENE_ID)
-  }
+  // Never write to an external store during render. ReactShaderCanvas also
+  // initializes the default scene, but this effect keeps the engine panel safe
+  // when it mounts before the canvas or while the canvas is being recreated.
+  useEffect(() => {
+    if (!activeShaderId) {
+      setActiveShaderId(DEFAULT_SHADER_SCENE_ID)
+    }
+  }, [activeShaderId, setActiveShaderId])
 
   return <ShaderLibraryPanel />
 }

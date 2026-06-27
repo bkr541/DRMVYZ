@@ -25,7 +25,7 @@ export function ShaderParameterControl({
   switch (param.type) {
     case 'float': {
       const v    = clampFloat(toNumberValue(value, param.default), param.min, param.max)
-      const hasEff = effectiveValue !== undefined
+      const hasEff = effectiveValue !== undefined && Math.abs(effectiveValue - v) > 1e-4
       const label = param.unit ? `${param.label} (${param.unit})` : param.label
       return (
         <div className="rv-shader-param">
