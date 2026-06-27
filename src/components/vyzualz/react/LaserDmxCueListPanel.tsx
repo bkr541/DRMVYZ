@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import type { LaserDmxBeamMatrixCue } from './ReactTypes'
@@ -77,6 +77,7 @@ function CueRow({
   beams:  { id: string; name: string }[]
   groups: { id: string; name: string }[]
 }) {
+  const idPrefix = useId()
   const {
     updateLaserDmxBeamMatrixCue,
     removeLaserDmxBeamMatrixCue,
@@ -112,6 +113,7 @@ function CueRow({
           className={`rv-ctrl-toggle${cue.enabled ? ' rv-ctrl-toggle--on' : ''}`}
           onClick={() => upd({ enabled: !cue.enabled })}
           aria-pressed={cue.enabled}
+          aria-label={`${cue.enabled ? 'Disable' : 'Enable'} cue ${cue.name}`}
           title="Enable / disable cue"
         >
           {cue.enabled ? 'On' : 'Off'}
@@ -132,6 +134,7 @@ function CueRow({
           title="Expand / collapse cue editor"
           onClick={() => setExpanded(v => !v)}
           aria-expanded={expanded}
+          aria-label={`${expanded ? 'Collapse' : 'Expand'} cue ${cue.name}`}
         >
           {expanded ? '▲' : '▼'}
         </button>
@@ -139,12 +142,14 @@ function CueRow({
           type="button"
           className="rv-glyph-upload-btn"
           title="Duplicate cue"
+          aria-label={`Duplicate cue ${cue.name}`}
           onClick={() => duplicateLaserDmxBeamMatrixCue(cue.id)}
         >⧉</button>
         <button
           type="button"
           className="rv-glyph-upload-btn rv-glyph-upload-btn--danger"
           title="Delete cue"
+          aria-label={`Delete cue ${cue.name}`}
           onClick={() => {
             if (window.confirm(`Delete cue "${cue.name}"?`)) removeLaserDmxBeamMatrixCue(cue.id)
           }}
@@ -160,8 +165,9 @@ function CueRow({
 
           {/* Target type */}
           <div className="rv-ctrl-row rv-cue-field-row">
-            <span className="rv-ctrl-label">Target type</span>
+            <label className="rv-ctrl-label" htmlFor={`${idPrefix}-target-type`}>Target type</label>
             <select
+              id={`${idPrefix}-target-type`}
               className="rv-ctrl-select"
               value={cue.targetType}
               onChange={e => upd({ targetType: e.target.value as 'beam' | 'group', targetId: '' })}
@@ -173,8 +179,9 @@ function CueRow({
 
           {/* Target */}
           <div className="rv-ctrl-row rv-cue-field-row">
-            <span className="rv-ctrl-label">Target</span>
+            <label className="rv-ctrl-label" htmlFor={`${idPrefix}-target`}>Target</label>
             <select
+              id={`${idPrefix}-target`}
               className="rv-ctrl-select"
               value={cue.targetId}
               onChange={e => upd({ targetId: e.target.value })}
@@ -190,8 +197,9 @@ function CueRow({
 
           {/* Action */}
           <div className="rv-ctrl-row rv-cue-field-row">
-            <span className="rv-ctrl-label">Action</span>
+            <label className="rv-ctrl-label" htmlFor={`${idPrefix}-action`}>Action</label>
             <select
+              id={`${idPrefix}-action`}
               className="rv-ctrl-select"
               value={cue.action}
               onChange={e => upd({ action: e.target.value as 'gate' | 'trigger' })}
@@ -203,8 +211,9 @@ function CueRow({
 
           {/* Timing mode */}
           <div className="rv-ctrl-row rv-cue-field-row">
-            <span className="rv-ctrl-label">Timing</span>
+            <label className="rv-ctrl-label" htmlFor={`${idPrefix}-timing`}>Timing</label>
             <select
+              id={`${idPrefix}-timing`}
               className="rv-ctrl-select"
               value={cue.timingMode}
               onChange={e => upd({ timingMode: e.target.value as 'musical' | 'absolute' })}
@@ -290,8 +299,9 @@ function CueRow({
           {cue.timingMode === 'absolute' && (
             <>
               <div className="rv-ctrl-row rv-cue-field-row">
-                <span className="rv-ctrl-label">Start (m:ss.mmm)</span>
+                <label className="rv-ctrl-label" htmlFor={`${idPrefix}-start-ms`}>Start (m:ss.mmm)</label>
                 <input
+                  id={`${idPrefix}-start-ms`}
                   type="text"
                   className="rv-cue-ms-input"
                   defaultValue={startMsStr}
@@ -305,8 +315,9 @@ function CueRow({
               </div>
               {cue.action === 'gate' && (
                 <div className="rv-ctrl-row rv-cue-field-row">
-                  <span className="rv-ctrl-label">End (m:ss.mmm)</span>
+                  <label className="rv-ctrl-label" htmlFor={`${idPrefix}-end-ms`}>End (m:ss.mmm)</label>
                   <input
+                    id={`${idPrefix}-end-ms`}
                     type="text"
                     className="rv-cue-ms-input"
                     defaultValue={endMsStr}

@@ -118,6 +118,7 @@ export function ShaderModulationPanel({
                 <input
                   type="checkbox"
                   checked={route.enabled}
+                  aria-label={`${route.enabled ? 'Disable' : 'Enable'} modulation route from ${sourceMeta?.label ?? route.source}`}
                   onChange={e => {
                     e.stopPropagation()
                     onUpdateRoute(route.id, { enabled: e.target.checked })

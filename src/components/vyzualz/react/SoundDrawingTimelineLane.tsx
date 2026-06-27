@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useId } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useReactStore } from '../../../stores/reactStore'
@@ -120,6 +120,7 @@ function LayerEditor({
   onUpdateLayer, onUpdateClip,
   onDuplicate, onDelete, onClose,
 }: LayerEditorProps) {
+  const idPrefix = useId()
   const pl = (patch: Partial<SoundDrawingLayer>) => onUpdateLayer(trackId, layer.id, patch)
   const pc = (patch: Partial<SoundDrawingClip>)  => onUpdateClip(trackId, clip.id, patch)
 
@@ -153,13 +154,13 @@ function LayerEditor({
       <div className="rv-sd-layer-editor-header">
         <span className="rv-sd-layer-editor-title">{layer.name}</span>
         <div className="rv-sd-layer-editor-actions">
-          <button type="button" className="rv-sd-action-btn" onClick={onDuplicate} title="Duplicate clip">
+          <button type="button" className="rv-sd-action-btn" onClick={onDuplicate} title="Duplicate clip" aria-label={`Duplicate clip ${layer.name}`}>
             ⧉
           </button>
-          <button type="button" className="rv-sd-action-btn rv-sd-action-btn--danger" onClick={onDelete} title="Delete clip">
+          <button type="button" className="rv-sd-action-btn rv-sd-action-btn--danger" onClick={onDelete} title="Delete clip" aria-label={`Delete clip ${layer.name}`}>
             ✕
           </button>
-          <button type="button" className="rv-sd-action-btn" onClick={onClose} title="Close editor">
+          <button type="button" className="rv-sd-action-btn" onClick={onClose} title="Close editor" aria-label="Close clip editor">
             ↓
           </button>
         </div>
@@ -170,19 +171,22 @@ function LayerEditor({
         <CtrlSection label="Clip" />
 
         <div className="rv-ctrl-row">
-          <span className="rv-ctrl-label">Enabled</span>
+          <span className="rv-ctrl-label" id={`${idPrefix}-enabled-label`}>Enabled</span>
           <button
             type="button"
             className={`rv-ctrl-toggle${clip.enabled ? ' rv-ctrl-toggle--on' : ''}`}
             onClick={() => pc({ enabled: !clip.enabled })}
+            aria-pressed={clip.enabled}
+            aria-labelledby={`${idPrefix}-enabled-label`}
           >
             {clip.enabled ? 'On' : 'Off'}
           </button>
         </div>
 
         <div className="rv-ctrl-row">
-          <span className="rv-ctrl-label">Start</span>
+          <label className="rv-ctrl-label" htmlFor={`${idPrefix}-start`}>Start</label>
           <input
+            id={`${idPrefix}-start`}
             className="rv-ctrl-text-input rv-ctrl-text-input--time"
             value={startStr}
             onChange={e => setStartStr(e.target.value)}
@@ -192,8 +196,9 @@ function LayerEditor({
         </div>
 
         <div className="rv-ctrl-row">
-          <span className="rv-ctrl-label">End</span>
+          <label className="rv-ctrl-label" htmlFor={`${idPrefix}-end`}>End</label>
           <input
+            id={`${idPrefix}-end`}
             className="rv-ctrl-text-input rv-ctrl-text-input--time"
             value={endStr}
             onChange={e => setEndStr(e.target.value)}
@@ -255,8 +260,9 @@ function LayerEditor({
         {layer.sourceType === 'text' && (
           <>
             <div className="rv-ctrl-row rv-ctrl-row--col">
-              <span className="rv-ctrl-label">Text</span>
+              <label className="rv-ctrl-label" htmlFor={`${idPrefix}-text`}>Text</label>
               <textarea
+                id={`${idPrefix}-text`}
                 className="rv-sd-textarea"
                 value={layer.text}
                 onChange={e => pl({ text: e.target.value })}
@@ -382,6 +388,7 @@ interface AddClipFormProps {
 }
 
 function AddClipForm({ onAdd, onCancel }: AddClipFormProps) {
+  const idPrefix = useId()
   const [sourceType, setSourceType] = useState<SoundDrawingLayerSourceType>('text')
   const [name, setName]             = useState('')
 
@@ -389,7 +396,9 @@ function AddClipForm({ onAdd, onCancel }: AddClipFormProps) {
     <div className="rv-sd-add-form">
       <span className="rv-sd-add-title">New Clip</span>
       <select
+        id={`${idPrefix}-source`}
         className="rv-ctrl-select rv-ctrl-select--sm"
+        aria-label="Clip source type"
         value={sourceType}
         onChange={e => setSourceType(e.target.value as SoundDrawingLayerSourceType)}
       >
@@ -398,7 +407,9 @@ function AddClipForm({ onAdd, onCancel }: AddClipFormProps) {
         <option value="svg">SVG</option>
       </select>
       <input
+        id={`${idPrefix}-name`}
         className="rv-ctrl-text-input rv-ctrl-text-input--sm"
+        aria-label="Layer name"
         placeholder="Layer name (optional)"
         value={name}
         onChange={e => setName(e.target.value)}
@@ -451,6 +462,7 @@ export function SoundDrawingTimelineLane({
   audioDurationSec,
   trackSections,
 }: SoundDrawingTimelineLaneProps) {
+  const snapLabelId = useId()
   const engine       = useSharedAudio()
   const allMediaItems = useMediaStore(s => s.items)
 
@@ -739,9 +751,10 @@ export function SoundDrawingTimelineLane({
 
         {!collapsed && (
           <div className="rv-sd-lane-controls" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
-            <span className="rv-ctrl-label" style={{ marginRight: 4, opacity: 0.65 }}>Snap</span>
+            <span id={snapLabelId} className="rv-ctrl-label" style={{ marginRight: 4, opacity: 0.65 }}>Snap</span>
             <select
               className="rv-ctrl-select rv-ctrl-select--sm"
+              aria-labelledby={snapLabelId}
               value={snapMode}
               onChange={e => setSnapMode(e.target.value as SnapMode)}
             >

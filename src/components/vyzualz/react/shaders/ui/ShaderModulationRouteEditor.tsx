@@ -89,6 +89,7 @@ export function ShaderModulationRouteEditor({
             className="shader-mod-route-remove"
             onClick={onRemove}
             title="Remove route"
+            aria-label="Remove modulation route"
           >
             ×
           </button>

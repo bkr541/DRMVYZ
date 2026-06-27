@@ -186,6 +186,7 @@ export function ShaderCodeEditor({
           className="rv-ctrl-text-input rv-shader-editor-name"
           value={editName}
           onChange={e => setEditName(e.target.value)}
+          aria-label="Scene name"
           placeholder="Scene name"
           readOnly={isBundled}
           title={isBundled ? 'Bundled scenes cannot be renamed. Duplicate to edit.' : 'Scene name'}

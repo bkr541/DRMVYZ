@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import type { ShaderDefinition, TextureInputDef } from '../registry/shaderRegistryTypes'
 import type {
   ShaderTexSourceSelection,
@@ -58,6 +59,7 @@ interface RowProps {
 }
 
 function TextureInputRow({ input, selection, valid, onSelectionChange }: RowProps) {
+  const labelId = useId()
   const currentType = selection?.sourceType ?? 'unset'
   const warning     = valid?.warningMessage ?? null
   const isRequired  = input.required ?? false
@@ -73,7 +75,7 @@ function TextureInputRow({ input, selection, valid, onSelectionChange }: RowProp
   return (
     <div className="rv-ctrl-row rv-ctrl-row--texture">
       <div className="rv-ctrl-texture-hdr">
-        <span className="rv-ctrl-label">
+        <span className="rv-ctrl-label" id={labelId}>
           {input.label}
           {isRequired && (
             <span className="rv-ctrl-badge rv-ctrl-badge--required" title="Required">req</span>
@@ -88,6 +90,7 @@ function TextureInputRow({ input, selection, valid, onSelectionChange }: RowProp
             className="rv-ctrl-clear"
             onClick={() => onSelectionChange(input.name, null)}
             title="Clear"
+            aria-label={`Clear ${input.label} texture selection`}
           >
             ×
           </button>
@@ -96,6 +99,7 @@ function TextureInputRow({ input, selection, valid, onSelectionChange }: RowProp
 
       <select
         className="rv-ctrl-select"
+        aria-labelledby={labelId}
         value={currentType}
         onChange={e => handleTypeChange(e.target.value as ShaderTexSourceType)}
       >

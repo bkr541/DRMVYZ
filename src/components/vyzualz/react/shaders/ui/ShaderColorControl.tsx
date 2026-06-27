@@ -15,7 +15,7 @@ export function ShaderColorControl({ label, value, onChange }: ShaderColorContro
 
   return (
     <div className="rv-ctrl-row rv-shader-color-row">
-      <span className="rv-ctrl-label">{label}</span>
+      <label className="rv-ctrl-label" htmlFor={id}>{label}</label>
       <div className="rv-shader-color-wrap">
         <input
           type="color"
@@ -35,6 +35,7 @@ export function ShaderColorControl({ label, value, onChange }: ShaderColorContro
             onChange([value[0], value[1], value[2], a])
           }}
           title={`Alpha: ${Math.round(alpha * 100)}%`}
+          aria-label={`${label} alpha`}
         />
       </div>
     </div>

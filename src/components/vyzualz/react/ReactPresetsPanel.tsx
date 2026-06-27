@@ -75,12 +75,18 @@ function PresetCard({
       type="button"
       className={`rv-preset-card${isActive ? ' rv-preset-card--active' : ''}`}
       onClick={() => onSelect(preset.id)}
+      aria-pressed={isActive}
       title={preset.description}
       style={isActive ? { '--accent': preset.palette.primary } as React.CSSProperties : undefined}
     >
       <div className="rv-preset-card-header">
         <span className="rv-preset-name">{preset.name}</span>
-        {isActive && <span className="rv-preset-active-dot" />}
+        {isActive && (
+          <span className="rv-preset-selected-label">
+            <span className="rv-preset-active-dot" aria-hidden="true" />
+            Selected
+          </span>
+        )}
       </div>
 
       {modeHint && (

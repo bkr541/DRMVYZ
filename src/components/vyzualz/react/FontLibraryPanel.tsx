@@ -92,12 +92,13 @@ export function FontLibraryPanel() {
           <input
             className="vz-md-search-input"
             type="text"
+            aria-label="Search fonts"
             placeholder="Search fonts…"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
           />
           {searchQuery.length > 0 && (
-            <button className="vz-md-search-clear" onClick={() => setSearchQuery('')} title="Clear search">✕</button>
+            <button className="vz-md-search-clear" onClick={() => setSearchQuery('')} title="Clear search" aria-label="Clear font search">✕</button>
           )}
         </div>
       </div>
@@ -107,6 +108,7 @@ export function FontLibraryPanel() {
           <input
             className="rv-font-preview-input"
             type="text"
+            aria-label="Font preview text"
             placeholder="Preview text…"
             value={previewText}
             onChange={e => setPreviewText(e.target.value)}

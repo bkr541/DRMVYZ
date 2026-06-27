@@ -9,6 +9,7 @@ import { ShaderEngineRenderer }    from './shaders/ShaderEngineRenderer'
 import type { ShaderMasterParams } from './shaders/ShaderEngineRenderer'
 import { useShaderPanelStore }     from './shaders/ui/shaderPanelStore'
 import { DEFAULT_SHADER_SCENE_ID } from './shaders/scenes'
+import { shaderRegistry }          from './shaders/registry'
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -68,6 +69,10 @@ export function ReactShaderCanvas({
   onCanvasReady,
   onLiveFps,
 }: Props) {
+  const activeShaderId = useShaderPanelStore(s => s.activeShaderId)
+  const activeShaderName = shaderRegistry.get(activeShaderId ?? DEFAULT_SHADER_SCENE_ID)?.name
+    ?? 'Shader scene'
+  const canvasLabel = `Shader Engine visualization: ${activeShaderName}`
   const canvasRef   = useRef<HTMLCanvasElement>(null)
   const animRef     = useRef<number>(0)
   const rendererRef = useRef<ShaderEngineRenderer | null>(null)
@@ -425,12 +430,16 @@ export function ReactShaderCanvas({
   return (
     <canvas
       ref={canvasRef}
+      role="img"
+      aria-label={canvasLabel}
       style={{
         display: 'block',
         width:   '100%',
         height:  '100%',
         background: '#000',
       }}
-    />
+    >
+      {canvasLabel}. Animated visual output is not described frame by frame.
+    </canvas>
   )
 }

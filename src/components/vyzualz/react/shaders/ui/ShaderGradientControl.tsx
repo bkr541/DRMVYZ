@@ -41,12 +41,14 @@ export function ShaderGradientControl({ label, value, onChange }: ShaderGradient
               value={stop.position}
               onChange={e => updateStop(i, { position: parseFloat(e.target.value) })}
               title={`Position: ${Math.round(stop.position * 100)}%`}
+              aria-label={`${label} stop ${i + 1} position`}
             />
             <input
               type="color"
               className="rv-shader-stop-color"
               value={rgbaToHex(stop.color)}
               onChange={e => updateStop(i, { color: hexToRgba(e.target.value, stop.color[3]) })}
+              aria-label={`${label} stop ${i + 1} color`}
             />
             <input
               type="range"
@@ -59,6 +61,7 @@ export function ShaderGradientControl({ label, value, onChange }: ShaderGradient
                 updateStop(i, { color: rgba })
               }}
               title={`Alpha: ${Math.round(stop.color[3] * 100)}%`}
+              aria-label={`${label} stop ${i + 1} alpha`}
             />
             <button
               type="button"
@@ -66,6 +69,7 @@ export function ShaderGradientControl({ label, value, onChange }: ShaderGradient
               onClick={() => removeStop(i)}
               disabled={sorted.length <= 2}
               title="Remove stop"
+              aria-label={`Remove ${label} stop ${i + 1}`}
             >
               ×
             </button>

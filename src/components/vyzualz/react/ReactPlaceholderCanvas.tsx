@@ -12,6 +12,14 @@ import { resolvePerformancePadTransition } from './renderers/reactPresetTransiti
 import { createLiveFpsReporter } from './fpsDiagnostics'
 import { applyCanvasResolution, resolveCanvasResolution, type CanvasResolution } from './rendering/canvasResolution'
 
+const ENGINE_ACCESSIBLE_LABELS: Record<ReactPreset['engine'], string> = {
+  shaderPads:      'Shader',
+  cinematicPortal: 'Cinematic Portal',
+  oscilloscope:    'Sound Drawing',
+  laserDmx:        'LaserDMX',
+  neonLattice:     'Neon Lattice',
+}
+
 interface Props {
   analyser:           AnalyserNode | null
   activePreset:       ReactPreset | null
@@ -76,6 +84,9 @@ export function ReactPlaceholderCanvas({
   soundDrawingLayers         = [] as SoundDrawingLayer[],
   soundDrawingClips          = [] as SoundDrawingClip[],
 }: Props) {
+  const canvasLabel = activePreset
+    ? `${ENGINE_ACCESSIBLE_LABELS[activePreset.engine]} visualization: ${activePreset.name}`
+    : 'React visualization preview'
   const canvasRef      = useRef<HTMLCanvasElement>(null)
   const animRef        = useRef<number>(0)
   const analyserRef    = useRef<AnalyserNode | null>(null)
@@ -394,7 +405,11 @@ export function ReactPlaceholderCanvas({
     <canvas
       ref={canvasRef}
       className="rv-preview-canvas"
+      role="img"
+      aria-label={canvasLabel}
       style={{ width: '100%', height: '100%', display: 'block' }}
-    />
+    >
+      {canvasLabel}. Animated visual output is not described frame by frame.
+    </canvas>
   )
 }

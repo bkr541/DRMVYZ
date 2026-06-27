@@ -1,4 +1,4 @@
-import { forwardRef, useState, useCallback, useRef, useEffect, useImperativeHandle, type MutableRefObject } from 'react'
+import { forwardRef, useState, useCallback, useRef, useEffect, useId, useImperativeHandle, type MutableRefObject } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useReactStore } from '../../../stores/reactStore'
@@ -356,6 +356,7 @@ function EditSectionForm({
   assignedPresetId,
   onAssignPreset,
 }: EditSectionFormProps) {
+  const idPrefix = useId()
   const [type,           setType]           = useState<ReactSectionType>(section.type)
   const [label,          setLabel]          = useState(section.label)
   const [startSec,       setStartSec]       = useState(section.startSec)
@@ -415,8 +416,9 @@ function EditSectionForm({
   return (
     <div className="rv-add-section-form">
       <div className="rv-form-row">
-        <label className="rv-form-label">Type</label>
+        <label className="rv-form-label" htmlFor={`${idPrefix}-type`}>Type</label>
         <select
+          id={`${idPrefix}-type`}
           className="rv-form-select"
           value={type}
           onChange={e => setType(e.target.value as ReactSectionType)}
@@ -430,8 +432,9 @@ function EditSectionForm({
       </div>
 
       <div className="rv-form-row">
-        <label className="rv-form-label">Label</label>
+        <label className="rv-form-label" htmlFor={`${idPrefix}-label`}>Label</label>
         <input
+          id={`${idPrefix}-label`}
           className="rv-form-input"
           type="text"
           placeholder={type}
@@ -442,9 +445,10 @@ function EditSectionForm({
       </div>
 
       <div className="rv-form-row">
-        <label className="rv-form-label">Start (s)</label>
+        <label className="rv-form-label" htmlFor={`${idPrefix}-start`}>Start (s)</label>
         <div className="rv-form-time-row">
           <input
+            id={`${idPrefix}-start`}
             className="rv-form-input rv-form-input--num"
             type="number"
             min={0}
@@ -458,9 +462,10 @@ function EditSectionForm({
       </div>
 
       <div className="rv-form-row">
-        <label className="rv-form-label">End (s)</label>
+        <label className="rv-form-label" htmlFor={`${idPrefix}-end`}>End (s)</label>
         <div className="rv-form-time-row">
           <input
+            id={`${idPrefix}-end`}
             className="rv-form-input rv-form-input--num"
             type="number"
             min={0}
@@ -474,9 +479,10 @@ function EditSectionForm({
       </div>
 
       <div className="rv-form-row">
-        <label className="rv-form-label">Intensity</label>
+        <label className="rv-form-label" htmlFor={`${idPrefix}-intensity`}>Intensity</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <input
+            id={`${idPrefix}-intensity`}
             className="rv-form-range"
             type="range"
             min={0} max={1} step={0.01}
@@ -491,8 +497,9 @@ function EditSectionForm({
         <div className="rv-form-group-sep">
           <div className="rv-form-group-label">Visual Assignment</div>
           <div className="rv-form-row">
-            <label className="rv-form-label">Preset</label>
+            <label className="rv-form-label" htmlFor={`${idPrefix}-preset`}>Preset</label>
             <select
+              id={`${idPrefix}-preset`}
               className="rv-form-select"
               value={assignedPresetId ?? ''}
               onChange={e => onAssignPreset(e.target.value || null)}
@@ -565,6 +572,7 @@ interface AddSectionFormProps {
 }
 
 function AddSectionForm({ onAdd, onCancel }: AddSectionFormProps) {
+  const idPrefix = useId()
   const [type,      setType]      = useState<ReactSectionType>('intro')
   const [label,     setLabel]     = useState('')
   const [startSec,  setStartSec]  = useState(0)
@@ -586,8 +594,9 @@ function AddSectionForm({ onAdd, onCancel }: AddSectionFormProps) {
   return (
     <div className="rv-add-section-form">
       <div className="rv-form-row">
-        <label className="rv-form-label">Type</label>
+        <label className="rv-form-label" htmlFor={`${idPrefix}-type`}>Type</label>
         <select
+          id={`${idPrefix}-type`}
           className="rv-form-select"
           value={type}
           onChange={e => setType(e.target.value as ReactSectionType)}
@@ -600,8 +609,9 @@ function AddSectionForm({ onAdd, onCancel }: AddSectionFormProps) {
         </select>
       </div>
       <div className="rv-form-row">
-        <label className="rv-form-label">Label</label>
+        <label className="rv-form-label" htmlFor={`${idPrefix}-label`}>Label</label>
         <input
+          id={`${idPrefix}-label`}
           className="rv-form-input"
           type="text"
           placeholder="Section name…"
@@ -611,8 +621,9 @@ function AddSectionForm({ onAdd, onCancel }: AddSectionFormProps) {
         />
       </div>
       <div className="rv-form-row">
-        <label className="rv-form-label">Start (s)</label>
+        <label className="rv-form-label" htmlFor={`${idPrefix}-start`}>Start (s)</label>
         <input
+          id={`${idPrefix}-start`}
           className="rv-form-input rv-form-input--num"
           type="number"
           min={0} step={1}
@@ -621,8 +632,9 @@ function AddSectionForm({ onAdd, onCancel }: AddSectionFormProps) {
         />
       </div>
       <div className="rv-form-row">
-        <label className="rv-form-label">End (s)</label>
+        <label className="rv-form-label" htmlFor={`${idPrefix}-end`}>End (s)</label>
         <input
+          id={`${idPrefix}-end`}
           className="rv-form-input rv-form-input--num"
           type="number"
           min={0} step={1}
@@ -631,8 +643,9 @@ function AddSectionForm({ onAdd, onCancel }: AddSectionFormProps) {
         />
       </div>
       <div className="rv-form-row">
-        <label className="rv-form-label">Intensity</label>
+        <label className="rv-form-label" htmlFor={`${idPrefix}-intensity`}>Intensity</label>
         <input
+          id={`${idPrefix}-intensity`}
           className="rv-form-range"
           type="range"
           min={0} max={1} step={0.05}
@@ -1594,6 +1607,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
                 value={energyCurveKey}
                 onChange={e => setEnergyCurveKey(e.target.value as EnergyCurveKey)}
                 title="Energy curve"
+                aria-label="Energy curve"
               >
                 {ENERGY_CURVE_OPTIONS.map(o => (
                   <option key={o.key} value={o.key}>{o.label}</option>

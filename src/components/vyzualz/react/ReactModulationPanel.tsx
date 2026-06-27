@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { ConnectedShaderModulationPanel } from './shaders/ui/ConnectedShaderModulationPanel'
@@ -126,6 +126,7 @@ function TriggerTimingSection({
   source:   string
   onChange: (f: LaserDmxTriggerTimingFilter) => void
 }) {
+  const idPrefix      = useId()
   const mode           = filter?.mode ?? 'everyOccurrence'
   const isDownbeatOnly = DOWNBEAT_ONLY_SOURCES_UI.has(source)
 
@@ -151,8 +152,9 @@ function TriggerTimingSection({
       {mode === 'specificPosition' && (
         <>
           <div className="rv-ctrl-row">
-            <span className="rv-ctrl-label">Bar</span>
+            <label className="rv-ctrl-label" htmlFor={`${idPrefix}-bar`}>Bar</label>
             <input
+              id={`${idPrefix}-bar`}
               type="number"
               className="rv-timing-num-input"
               value={filter?.bar ?? 1}
@@ -177,8 +179,9 @@ function TriggerTimingSection({
       {mode === 'specificBars' && (
         <>
           <div className="rv-ctrl-row">
-            <span className="rv-ctrl-label">Bars</span>
+            <label className="rv-ctrl-label" htmlFor={`${idPrefix}-bars`}>Bars</label>
             <input
+              id={`${idPrefix}-bars`}
               type="text"
               className="rv-timing-bars-input"
               defaultValue={(filter?.bars ?? []).join(', ')}
@@ -203,8 +206,9 @@ function TriggerTimingSection({
       {mode === 'barRange' && (
         <>
           <div className="rv-ctrl-row">
-            <span className="rv-ctrl-label">Start Bar</span>
+            <label className="rv-ctrl-label" htmlFor={`${idPrefix}-start-bar`}>Start Bar</label>
             <input
+              id={`${idPrefix}-start-bar`}
               type="number"
               className="rv-timing-num-input"
               value={filter?.startBar ?? 1}
@@ -214,8 +218,9 @@ function TriggerTimingSection({
             />
           </div>
           <div className="rv-ctrl-row">
-            <span className="rv-ctrl-label">End Bar</span>
+            <label className="rv-ctrl-label" htmlFor={`${idPrefix}-end-bar`}>End Bar</label>
             <input
+              id={`${idPrefix}-end-bar`}
               type="number"
               className="rv-timing-num-input"
               value={filter?.endBar ?? ''}
@@ -235,8 +240,9 @@ function TriggerTimingSection({
       {mode === 'barInterval' && (
         <>
           <div className="rv-ctrl-row">
-            <span className="rv-ctrl-label">Every N bars</span>
+            <label className="rv-ctrl-label" htmlFor={`${idPrefix}-interval`}>Every N bars</label>
             <input
+              id={`${idPrefix}-interval`}
               type="number"
               className="rv-timing-num-input"
               value={filter?.intervalBars ?? 4}
@@ -246,8 +252,9 @@ function TriggerTimingSection({
             />
           </div>
           <div className="rv-ctrl-row">
-            <span className="rv-ctrl-label">Anchor bar</span>
+            <label className="rv-ctrl-label" htmlFor={`${idPrefix}-anchor`}>Anchor bar</label>
             <input
+              id={`${idPrefix}-anchor`}
               type="number"
               className="rv-timing-num-input"
               value={filter?.intervalAnchorBar ?? 1}
@@ -300,7 +307,7 @@ function RouteRow({
     <div className="rv-ldx-route">
       <div className="rv-ldx-route-header">
         <ToggleRow label="On" value={route.enabled} onChange={v => onChange({ enabled: v })} />
-        <button type="button" className="rv-glyph-item-del" title="Delete route" onClick={onDelete}>×</button>
+        <button type="button" className="rv-glyph-item-del" title="Delete route" aria-label="Delete modulation route" onClick={onDelete}>×</button>
       </div>
       <SelectRow label="Source" value={route.source} onChange={v => onChange({ source: v })} options={sources} />
       <SelectRow label="Target" value={route.target} onChange={v => onChange({ target: v as LaserDmxModulationRoute['target'] })} options={targets} />

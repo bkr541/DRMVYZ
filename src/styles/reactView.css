@@ -181,6 +181,18 @@
   flex-shrink: 0;
 }
 
+.rv-preset-selected-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(232, 244, 248, 0.72);
+}
+
 .rv-preset-engine-label {
   font-size: 9px;
   font-weight: 500;

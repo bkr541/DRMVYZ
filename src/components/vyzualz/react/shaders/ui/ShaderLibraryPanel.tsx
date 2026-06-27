@@ -74,6 +74,7 @@ function SceneCard({
             type="text"
             className="rv-ctrl-text-input rv-shader-scene-rename"
             value={nameInput}
+            aria-label="Scene name"
             autoFocus
             onChange={e => setNameInput(e.target.value)}
             onBlur={submitRename}
@@ -275,6 +276,7 @@ export function ShaderLibraryPanel() {
         <input
           type="search"
           className="rv-ctrl-text-input rv-shader-library-search-input"
+          aria-label="Search shader scenes"
           placeholder="Search scenes…"
           value={query}
           onChange={e => setQuery(e.target.value)}

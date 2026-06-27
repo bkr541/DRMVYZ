@@ -111,6 +111,7 @@ export function LaserDmxSpatialFixturesPanel() {
                 type="button"
                 className="rv-glyph-item-del"
                 title={f.enabled ? 'Disable' : 'Enable'}
+                aria-label={`${f.enabled ? 'Disable' : 'Enable'} fixture ${f.name}`}
                 onClick={e => { e.stopPropagation(); updateLaserFixture(f.id, { enabled: !f.enabled }) }}
               >
                 {f.enabled ? '⏸' : '▶'}
@@ -119,6 +120,7 @@ export function LaserDmxSpatialFixturesPanel() {
                 type="button"
                 className="rv-glyph-item-del"
                 title="Remove fixture"
+                aria-label={`Remove fixture ${f.name}`}
                 onClick={e => { e.stopPropagation(); removeLaserFixture(f.id) }}
               >
                 ×

@@ -201,12 +201,13 @@ export function LaserDmxBeamMatrixPresetBrowser() {
         <input
           className="vz-md-search-input"
           type="text"
+          aria-label="Search Beam Matrix presets"
           placeholder="Search presets…"
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
         />
         {searchQuery.length > 0 && (
-          <button className="vz-md-search-clear" onClick={() => setSearchQuery('')} title="Clear search">✕</button>
+          <button className="vz-md-search-clear" onClick={() => setSearchQuery('')} title="Clear search" aria-label="Clear preset search">✕</button>
         )}
       </div>
 

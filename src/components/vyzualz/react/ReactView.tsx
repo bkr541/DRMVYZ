@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, useId } from 'react'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
@@ -67,6 +67,7 @@ const REACT_LEFT_TAB_LABELS: Record<ReactLeftTab, string> = {
 }
 
 export function ReactView() {
+  const audioSourceId = useId()
   const engine   = useSharedAudio()
   const analyser = engine.analyserMaster
 
@@ -275,8 +276,9 @@ export function ReactView() {
         <div className="vz-header-sep" />
 
         <div className="vz-input-group">
-          <span className="vz-input-label">Audio In</span>
+          <label className="vz-input-label" htmlFor={audioSourceId}>Audio In</label>
           <select
+            id={audioSourceId}
             className="az-select"
             value={engine.source}
             onChange={e => engine.setSource(e.target.value as typeof engine.source)}
