@@ -12,8 +12,9 @@ function makeSection(
   type: ReactTrackSection['type'],
   startSec: number,
   endSec: number,
+  intensity = 1,
 ): ReactTrackSection {
-  return { id: `${type}-${startSec}`, label: type, type, startSec, endSec, intensity: 1 }
+  return { id: `${type}-${startSec}`, label: type, type, startSec, endSec, intensity }
 }
 
 const dropSection  = makeSection('drop',  10, 20)
@@ -28,7 +29,7 @@ const basePreset: ReactPreset = {
     primary: '#4ac7db', secondary: '#61d6aa', accent: '#d8b95a',
     background: '#060d10', highlight: '#80dfc0', text: '#e8f4f8',
   },
-  params: { intensity: 0.7, motion: 0.5, glow: 0.65, bassReactivity: 0.8, colorShift: 0.4, complexity: 0.5 },
+  params: { intensity: 0.7, motion: 0.5, glow: 0.65, bassReactivity: 0.8 },
   scenes: [
     { id: 'drop-scene', sectionType: 'drop', engineId: 'shaderPads', params: { intensity: 1.0, motion: 0.9 } },
   ],
@@ -110,8 +111,8 @@ describe('resolveEffectiveParams', () => {
     // sectionIntensityMultiplier for 'verse' is < 1.0 (quiet section)
     const verse = makeSection('verse', 0, 10)
     const result = resolveEffectiveParams(basePreset, base, [verse], 5)
-    // Intensity should be multiplied (reduced for verse) and clamped to ≥0.05
-    expect(result.intensity).toBeGreaterThanOrEqual(0.05)
+    // Intensity should be multiplied (reduced for verse) without a hidden floor.
+    expect(result.intensity).toBeGreaterThanOrEqual(0)
     expect(result.intensity).toBeLessThan(base.intensity + 0.001)
   })
 
@@ -123,10 +124,10 @@ describe('resolveEffectiveParams', () => {
     expect(result.intensity).toBeGreaterThan(base.intensity)
   })
 
-  it('never returns intensity below 0.05', () => {
-    const lowIntensity = { ...base, intensity: 0.01 }
-    const result = resolveEffectiveParams(basePreset, lowIntensity, [dropSection], 15)
-    expect(result.intensity).toBeGreaterThanOrEqual(0.05)
+  it('permits a true blackout when section intensity is zero', () => {
+    const blackoutSection = makeSection('verse', 0, 10, 0)
+    const result = resolveEffectiveParams(basePreset, base, [blackoutSection], 5)
+    expect(result.intensity).toBe(0)
   })
 })
 

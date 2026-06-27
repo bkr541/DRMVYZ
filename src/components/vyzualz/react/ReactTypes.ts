@@ -981,8 +981,24 @@ export interface ReactPresetParams {
   motion: number
   glow: number
   bassReactivity: number
-  colorShift: number
-  complexity: number
+}
+
+/** Global renderer controls that are part of a preset's reproducible look. */
+export interface ReactPresetRenderSettings {
+  trailDecay: number
+  fogDensity: number
+  particleDensity: number
+}
+
+/** Numeric controls that can be interpolated by a performance-pad transition. */
+export interface ReactPresetControlValues extends ReactPresetParams, ReactPresetRenderSettings {}
+
+/** Transient visual tween created when a performance pad activates a preset. */
+export interface ReactPerformancePadTransition {
+  startedAtMs: number
+  durationMs: number
+  from: ReactPresetControlValues
+  to: ReactPresetControlValues
 }
 
 export interface ReactScene {
@@ -990,7 +1006,6 @@ export interface ReactScene {
   sectionType: ReactSectionType
   engineId: ReactEngineId
   params: Partial<ReactPresetParams>
-  palette?: Partial<ReactPalette>
 }
 
 export interface ReactTrackSection {
@@ -1017,6 +1032,8 @@ export interface ReactPreset {
   engine: ReactEngineId
   palette: ReactPalette
   params: ReactPresetParams
+  /** Omitted values resolve from DEFAULT_REACT_PRESET_RENDER_SETTINGS. */
+  renderSettings?: Partial<ReactPresetRenderSettings>
   scenes: ReactScene[]
   sectionMappings: ReactSectionMapping[]
   /** When present, selecting this preset merges these values onto DEFAULT_OSCILLATOR_SETTINGS. */
@@ -1052,6 +1069,17 @@ export const DVYDRM_BLACK  = '#060d10'
 export const DVYDRM_WHITE  = '#e8f4f8'
 export const DVYDRM_GOLD   = '#d8b95a'
 export const DVYDRM_CRIMSON = '#c0314a'
+
+/**
+ * Deterministic defaults for global controls that were historically left live
+ * across preset changes. Every preset now resolves a complete render-settings
+ * snapshot from these values plus any preset-specific overrides.
+ */
+export const DEFAULT_REACT_PRESET_RENDER_SETTINGS: ReactPresetRenderSettings = {
+  trailDecay:      0.08,
+  fogDensity:      0.5,
+  particleDensity: 0.5,
+}
 
 
 export const PALETTE_CINEMATIC: ReactPalette = {
@@ -1261,7 +1289,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'Soft blue-violet portal with gossamer fog and slow ember drift.',
     engine: 'cinematicPortal',
     palette: PALETTE_DREAM,
-    params: { intensity: 0.6, motion: 0.5, glow: 0.75, bassReactivity: 0.7, colorShift: 0.55, complexity: 0.65 },
+    params: { intensity: 0.6, motion: 0.5, glow: 0.75, bassReactivity: 0.7 },
     scenes: makeScenes('dg', 'cinematicPortal'),
     sectionMappings: makeMappings('dg'),
   },
@@ -1278,7 +1306,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
       highlight:  '#ff4466',
       text:       DVYDRM_WHITE,
     },
-    params: { intensity: 0.85, motion: 0.75, glow: 0.9, bassReactivity: 0.95, colorShift: 0.7, complexity: 0.75 },
+    params: { intensity: 0.85, motion: 0.75, glow: 0.9, bassReactivity: 0.95 },
     scenes: makeScenes('cr', 'cinematicPortal'),
     sectionMappings: makeMappings('cr'),
   },
@@ -1288,7 +1316,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'Dense green-teal mist with a slow-breathing portal monolith at center.',
     engine: 'cinematicPortal',
     palette: PALETTE_EMERALD_FOG,
-    params: { intensity: 0.55, motion: 0.4, glow: 0.7, bassReactivity: 0.65, colorShift: 0.4, complexity: 0.5 },
+    params: { intensity: 0.55, motion: 0.4, glow: 0.7, bassReactivity: 0.65 },
     scenes: makeScenes('ef', 'cinematicPortal'),
     sectionMappings: makeMappings('ef'),
   },
@@ -1298,7 +1326,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'Every parameter maxed — rings multiply rapidly and fog fills the frame.',
     engine: 'cinematicPortal',
     palette: PALETTE_OVERLOAD,
-    params: { intensity: 1.0, motion: 1.0, glow: 1.0, bassReactivity: 1.0, colorShift: 0.9, complexity: 0.95 },
+    params: { intensity: 1.0, motion: 1.0, glow: 1.0, bassReactivity: 1.0 },
     scenes: makeScenes('po', 'cinematicPortal'),
     sectionMappings: makeMappings('po'),
   },
@@ -1308,7 +1336,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'Muted, ambient atmosphere — barely visible fog and distant ember glow.',
     engine: 'cinematicPortal',
     palette: PALETTE_RUINS,
-    params: { intensity: 0.3, motion: 0.25, glow: 0.4, bassReactivity: 0.45, colorShift: 0.2, complexity: 0.3 },
+    params: { intensity: 0.3, motion: 0.25, glow: 0.4, bassReactivity: 0.45 },
     scenes: makeScenes('qr', 'cinematicPortal'),
     sectionMappings: makeMappings('qr'),
   },
@@ -1320,7 +1348,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'Classic cyan lissajous figures that morph with frequency content.',
     engine: 'oscilloscope',
     palette: PALETTE_OSCILLOSCOPE,
-    params: { intensity: 0.65, motion: 0.7, glow: 0.7, bassReactivity: 0.6, colorShift: 0.3, complexity: 0.65 },
+    params: { intensity: 0.65, motion: 0.7, glow: 0.7, bassReactivity: 0.6 },
     scenes: makeScenes('xyc', 'oscilloscope'),
     sectionMappings: makeMappings('xyc'),
   },
@@ -1337,7 +1365,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
       highlight:  '#80dfc0',
       text:       DVYDRM_WHITE,
     },
-    params: { intensity: 0.7, motion: 0.65, glow: 0.6, bassReactivity: 0.55, colorShift: 0.45, complexity: 0.7 },
+    params: { intensity: 0.7, motion: 0.65, glow: 0.6, bassReactivity: 0.55 },
     scenes: makeScenes('lf', 'oscilloscope'),
     sectionMappings: makeMappings('lf'),
   },
@@ -1347,7 +1375,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'Golden frequency-mapped spiral that expands and contracts with audio energy.',
     engine: 'oscilloscope',
     palette: PALETTE_SPIRAL,
-    params: { intensity: 0.6, motion: 0.75, glow: 0.65, bassReactivity: 0.7, colorShift: 0.5, complexity: 0.75 },
+    params: { intensity: 0.6, motion: 0.75, glow: 0.65, bassReactivity: 0.7 },
     scenes: makeScenes('spi', 'oscilloscope'),
     sectionMappings: makeMappings('spi'),
   },
@@ -1357,7 +1385,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'Pure white radial oscilloscope that rings like a sound membrane.',
     engine: 'oscilloscope',
     palette: PALETTE_RADIAL,
-    params: { intensity: 0.7, motion: 0.6, glow: 0.8, bassReactivity: 0.65, colorShift: 0.25, complexity: 0.6 },
+    params: { intensity: 0.7, motion: 0.6, glow: 0.8, bassReactivity: 0.65 },
     scenes: makeScenes('rv', 'oscilloscope'),
     sectionMappings: makeMappings('rv'),
   },
@@ -1367,7 +1395,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'Purple-cyan waveform trace with high glow — text-style oscilloscope aesthetics.',
     engine: 'oscilloscope',
     palette: PALETTE_NEON_TRACE,
-    params: { intensity: 0.75, motion: 0.5, glow: 0.9, bassReactivity: 0.7, colorShift: 0.6, complexity: 0.55 },
+    params: { intensity: 0.75, motion: 0.5, glow: 0.9, bassReactivity: 0.7 },
     scenes: makeScenes('ntt', 'oscilloscope'),
     sectionMappings: makeMappings('ntt'),
   },
@@ -1379,7 +1407,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'A clean circle that breathes with bass, twists on mids, and blooms on every beat.',
     engine: 'oscilloscope',
     palette: PALETTE_DEEP_PULSE,
-    params: { intensity: 0.72, motion: 0.55, glow: 0.8, bassReactivity: 0.85, colorShift: 0.35, complexity: 0.6 },
+    params: { intensity: 0.72, motion: 0.55, glow: 0.8, bassReactivity: 0.85 },
     scenes: makeScenes('gcp', 'oscilloscope'),
     sectionMappings: makeMappings('gcp'),
     oscillatorSettings: {
@@ -1402,7 +1430,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'Triple-trace triangle that explodes outward on bass hits — heavy and percussive.',
     engine: 'oscilloscope',
     palette: PALETTE_LAVA,
-    params: { intensity: 0.8, motion: 0.65, glow: 0.75, bassReactivity: 0.95, colorShift: 0.55, complexity: 0.65 },
+    params: { intensity: 0.8, motion: 0.65, glow: 0.75, bassReactivity: 0.95 },
     scenes: makeScenes('btr', 'oscilloscope'),
     sectionMappings: makeMappings('btr'),
     oscillatorSettings: {
@@ -1425,7 +1453,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'Ribbon-rendered infinity loop with mid-driven twist — meditative and hypnotic.',
     engine: 'oscilloscope',
     palette: PALETTE_EMERALD_FOG,
-    params: { intensity: 0.65, motion: 0.45, glow: 0.72, bassReactivity: 0.7, colorShift: 0.4, complexity: 0.55 },
+    params: { intensity: 0.65, motion: 0.45, glow: 0.72, bassReactivity: 0.7 },
     scenes: makeScenes('inf', 'oscilloscope'),
     sectionMappings: makeMappings('inf'),
     oscillatorSettings: {
@@ -1448,7 +1476,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'The DRMVYZ logotype traced as a glyph path — dual trace with high glow.',
     engine: 'oscilloscope',
     palette: PALETTE_NEON_TRACE,
-    params: { intensity: 0.75, motion: 0.42, glow: 0.88, bassReactivity: 0.75, colorShift: 0.6, complexity: 0.5 },
+    params: { intensity: 0.75, motion: 0.42, glow: 0.88, bassReactivity: 0.75 },
     scenes: makeScenes('dtt', 'oscilloscope'),
     sectionMappings: makeMappings('dtt'),
     oscillatorSettings: {
@@ -1472,7 +1500,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'Four-trace star that detonates on drop — high beatBloom and rotating ghost echoes.',
     engine: 'oscilloscope',
     palette: PALETTE_STAR_BURST,
-    params: { intensity: 0.88, motion: 0.75, glow: 0.85, bassReactivity: 0.95, colorShift: 0.6, complexity: 0.7 },
+    params: { intensity: 0.88, motion: 0.75, glow: 0.85, bassReactivity: 0.95 },
     scenes: makeScenes('sdb', 'oscilloscope'),
     sectionMappings: makeMappings('sdb'),
     oscillatorSettings: {
@@ -1495,7 +1523,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'Import an SVG from the Media tab and select it here — Reactive Path deforms it with audio, Original Artwork renders it at full fidelity.',
     engine: 'oscilloscope',
     palette: PALETTE_SVG_SLOT,
-    params: { intensity: 0.7, motion: 0.5, glow: 0.78, bassReactivity: 0.8, colorShift: 0.35, complexity: 0.55 },
+    params: { intensity: 0.7, motion: 0.5, glow: 0.78, bassReactivity: 0.8 },
     scenes: makeScenes('sgs', 'oscilloscope'),
     sectionMappings: makeMappings('sgs'),
     oscillatorSettings: {
@@ -1523,7 +1551,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'Virtual laser show: fan beams from left and right with a lissajous accent at center.',
     engine: 'laserDmx',
     palette: PALETTE_LASER_DMX,
-    params: { intensity: 0.85, motion: 0.55, glow: 0.7, bassReactivity: 0.8, colorShift: 0.4, complexity: 0.6 },
+    params: { intensity: 0.85, motion: 0.55, glow: 0.7, bassReactivity: 0.8 },
     scenes: makeScenes('ldx', 'laserDmx'),
     sectionMappings: makeMappings('ldx'),
     // Explicit settings so selecting this preset always produces a valid selectedFixtureId
@@ -1596,7 +1624,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'Wide synchronized fan beams from both sides sweep in time with the beat.',
     engine: 'laserDmx',
     palette: PALETTE_LASER_DMX,
-    params: { intensity: 0.95, motion: 0.75, glow: 0.8, bassReactivity: 0.95, colorShift: 0.3, complexity: 0.5 },
+    params: { intensity: 0.95, motion: 0.75, glow: 0.8, bassReactivity: 0.95 },
     scenes: makeScenes('cfs', 'laserDmx'),
     sectionMappings: makeMappings('cfs'),
     laserDmxSettings: {
@@ -1665,7 +1693,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'Hard grid and tunnel beams that explode on drops and lock into phrase-driven rotation.',
     engine: 'laserDmx',
     palette: PALETTE_LASER_DMX,
-    params: { intensity: 0.9, motion: 0.6, glow: 0.5, bassReactivity: 1.0, colorShift: 0.2, complexity: 0.8 },
+    params: { intensity: 0.9, motion: 0.6, glow: 0.5, bassReactivity: 1.0 },
     scenes: makeScenes('dc', 'laserDmx'),
     sectionMappings: makeMappings('dc'),
     laserDmxSettings: {
@@ -1735,7 +1763,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'Ambient star-field laser scatter with vocal activity driving color and glow.',
     engine: 'laserDmx',
     palette: PALETTE_LASER_DMX,
-    params: { intensity: 0.5, motion: 0.3, glow: 0.9, bassReactivity: 0.4, colorShift: 0.7, complexity: 0.4 },
+    params: { intensity: 0.5, motion: 0.3, glow: 0.9, bassReactivity: 0.4 },
     scenes: makeScenes('bkc', 'laserDmx'),
     sectionMappings: makeMappings('bkc'),
     laserDmxSettings: {
@@ -1803,7 +1831,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'Tunnel beams expand and accelerate through buildups before dropping hard.',
     engine: 'laserDmx',
     palette: PALETTE_LASER_DMX,
-    params: { intensity: 0.8, motion: 0.85, glow: 0.6, bassReactivity: 0.85, colorShift: 0.5, complexity: 0.65 },
+    params: { intensity: 0.8, motion: 0.85, glow: 0.6, bassReactivity: 0.85 },
     scenes: makeScenes('bt', 'laserDmx'),
     sectionMappings: makeMappings('bt'),
     laserDmxSettings: {
@@ -1875,7 +1903,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'Lissajous and spiral beams trace shapes in the air driven by vocal energy and beat phase.',
     engine: 'laserDmx',
     palette: PALETTE_LASER_DMX,
-    params: { intensity: 0.7, motion: 0.5, glow: 0.85, bassReactivity: 0.6, colorShift: 0.6, complexity: 0.75 },
+    params: { intensity: 0.7, motion: 0.5, glow: 0.85, bassReactivity: 0.6 },
     scenes: makeScenes('vs', 'laserDmx'),
     sectionMappings: makeMappings('vs'),
     laserDmxSettings: {
@@ -1947,7 +1975,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'Magenta rails with cyan accents, white intersections, and heavy bloom.',
     engine:      'neonLattice',
     palette:     PALETTE_ACID_MAGENTA,
-    params:      { intensity: 0.80, motion: 0.65, glow: 0.90, bassReactivity: 0.90, colorShift: 0.50, complexity: 0.60 },
+    params:      { intensity: 0.80, motion: 0.65, glow: 0.90, bassReactivity: 0.90 },
     scenes:      makeScenes('nlam', 'neonLattice'),
     sectionMappings: makeMappings('nlam'),
     neonLatticeSettings: {
@@ -1967,7 +1995,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'Cyan and emerald rails, gold blocks, dark background with clean bloom.',
     engine:      'neonLattice',
     palette:     PALETTE_DRMVYZ_LATTICE,
-    params:      { intensity: 0.75, motion: 0.55, glow: 0.75, bassReactivity: 0.85, colorShift: 0.30, complexity: 0.50 },
+    params:      { intensity: 0.75, motion: 0.55, glow: 0.75, bassReactivity: 0.85 },
     scenes:      makeScenes('nldl', 'neonLattice'),
     sectionMappings: makeMappings('nldl'),
     neonLatticeSettings: {
@@ -1987,7 +2015,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'Low density, large isolated flares, long persistence, minimal blocks.',
     engine:      'neonLattice',
     palette:     PALETTE_SPARSE_STARLINES,
-    params:      { intensity: 0.60, motion: 0.35, glow: 0.60, bassReactivity: 0.70, colorShift: 0.20, complexity: 0.30 },
+    params:      { intensity: 0.60, motion: 0.35, glow: 0.60, bassReactivity: 0.70 },
     scenes:      makeScenes('nlss', 'neonLattice'),
     sectionMappings: makeMappings('nlss'),
     neonLatticeSettings: {
@@ -2007,7 +2035,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     description: 'High density, short lifetimes, aggressive cascades and impact bloom.',
     engine:      'neonLattice',
     palette:     PALETTE_OVERLOAD_MATRIX,
-    params:      { intensity: 0.90, motion: 0.85, glow: 1.00, bassReactivity: 0.95, colorShift: 0.60, complexity: 0.80 },
+    params:      { intensity: 0.90, motion: 0.85, glow: 1.00, bassReactivity: 0.95 },
     scenes:      makeScenes('nlom', 'neonLattice'),
     sectionMappings: makeMappings('nlom'),
     neonLatticeSettings: {

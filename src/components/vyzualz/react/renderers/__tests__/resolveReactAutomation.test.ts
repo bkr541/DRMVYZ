@@ -12,7 +12,7 @@ const basePreset: ReactPreset = {
     primary: '#4ac7db', secondary: '#61d6aa', accent: '#d8b95a',
     background: '#060d10', highlight: '#80dfc0', text: '#e8f4f8',
   },
-  params: { intensity: 0.7, motion: 0.5, glow: 0.65, bassReactivity: 0.8, colorShift: 0.4, complexity: 0.5 },
+  params: { intensity: 0.7, motion: 0.5, glow: 0.65, bassReactivity: 0.8 },
   scenes: [
     { id: 'drop-scene',  sectionType: 'drop',  engineId: 'shaderPads', params: { intensity: 1.0, motion: 0.9 } },
     { id: 'intro-scene', sectionType: 'intro', engineId: 'shaderPads', params: { intensity: 0.3, motion: 0.3 } },

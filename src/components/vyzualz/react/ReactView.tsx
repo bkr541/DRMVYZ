@@ -80,6 +80,7 @@ export function ReactView() {
     reactTrailDecay,
     reactFogDensity,
     reactParticleDensity,
+    performancePadTransition,
     oscillatorSettings,
     oscillatorGlyphAssets,
     oscillatorGlyphPointCache,
@@ -103,6 +104,7 @@ export function ReactView() {
     reactTrailDecay:        s.reactTrailDecay,
     reactFogDensity:        s.reactFogDensity,
     reactParticleDensity:   s.reactParticleDensity,
+    performancePadTransition: s.performancePadTransition,
     oscillatorSettings:             s.oscillatorSettings,
     oscillatorGlyphAssets:          s.oscillatorGlyphAssets,
     oscillatorGlyphPointCache:      s.oscillatorGlyphPointCache,
@@ -275,6 +277,7 @@ export function ReactView() {
                 trailDecay={reactTrailDecay}
                 fogDensity={reactFogDensity}
                 particleDensity={reactParticleDensity}
+                performancePadTransition={performancePadTransition}
                 isPlaying={engine.isPlaying}
                 isPaused={transportPaused}
                 getAudioTime={engine.getCurrentTime}
@@ -295,6 +298,7 @@ export function ReactView() {
                 trailDecay={reactTrailDecay}
                 fogDensity={reactFogDensity}
                 particleDensity={reactParticleDensity}
+                performancePadTransition={performancePadTransition}
                 oscillatorSettings={oscillatorSettings}
                 oscillatorGlyphAssets={oscillatorGlyphAssets}
                 oscillatorGlyphPointCache={oscillatorGlyphPointCache}

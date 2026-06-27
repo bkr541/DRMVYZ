@@ -217,9 +217,9 @@ export function ReactFxPanel() {
                 type="button"
                 className="rv-osc-reset-btn"
                 onClick={resetOscillatorSettings}
-                title="Reset oscillator source settings to defaults"
+                title="Reset all Sound Drawing source, rendering, modulation, text, and path settings"
               >
-                Reset Source
+                Reset Sound Drawing Settings
               </button>
             </>
           )

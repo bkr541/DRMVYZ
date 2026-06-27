@@ -1,13 +1,14 @@
 import { useRef, useEffect } from 'react'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
-import type { ReactPreset, ReactTrackSection, OscillatorSettings, OscillatorGlyphAsset, OscillatorGlyphPoint, SoundDrawingLayer, SoundDrawingClip, NeonLatticeSettings, NeonLatticeTriggerEvent } from './ReactTypes'
+import type { ReactPreset, ReactTrackSection, OscillatorSettings, OscillatorGlyphAsset, OscillatorGlyphPoint, SoundDrawingLayer, SoundDrawingClip, NeonLatticeSettings, NeonLatticeTriggerEvent, ReactPerformancePadTransition } from './ReactTypes'
 import { DEFAULT_OSCILLATOR_SETTINGS, DEFAULT_NEON_LATTICE_SETTINGS } from './ReactTypes'
 import type { ReactRenderParams } from './renderers/reactRenderUtils'
 import { DEFAULT_REACT_RENDER_PARAMS } from './renderers/ReactEngineRenderer'
 import { renderReactEngine } from './renderers/ReactEngineRenderer'
 import type { ReactFrameContext } from './renderers/reactRenderUtils'
 import { setSoundDrawingClipsForFrame } from './renderers/SoundDrawingRenderer'
+import { resolvePerformancePadTransition } from './renderers/reactPresetTransition'
 
 interface Props {
   analyser:           AnalyserNode | null
@@ -19,6 +20,7 @@ interface Props {
   trailDecay?:        number
   fogDensity?:        number
   particleDensity?:   number
+  performancePadTransition?: ReactPerformancePadTransition | null
   oscillatorSettings?:          OscillatorSettings
   oscillatorGlyphAssets?:       OscillatorGlyphAsset[]
   oscillatorGlyphPointCache?:   Record<string, OscillatorGlyphPoint[]>
@@ -55,6 +57,7 @@ export function ReactPlaceholderCanvas({
   trailDecay         = 0.08,
   fogDensity         = 0.5,
   particleDensity    = 0.5,
+  performancePadTransition = null,
   oscillatorSettings         = DEFAULT_OSCILLATOR_SETTINGS,
   oscillatorGlyphAssets      = [] as OscillatorGlyphAsset[],
   oscillatorGlyphPointCache  = {} as Record<string, OscillatorGlyphPoint[]>,
@@ -86,6 +89,7 @@ export function ReactPlaceholderCanvas({
   const trailDecayRef         = useRef(trailDecay)
   const fogDensityRef         = useRef(fogDensity)
   const particleDensityRef    = useRef(particleDensity)
+  const performancePadTransitionRef = useRef<ReactPerformancePadTransition | null>(performancePadTransition)
   const oscillatorSettingsRef  = useRef(oscillatorSettings)
   const glyphAssetsRef         = useRef<OscillatorGlyphAsset[]>(oscillatorGlyphAssets)
   const glyphPointCacheRef     = useRef<Record<string, OscillatorGlyphPoint[]>>(oscillatorGlyphPointCache)
@@ -112,6 +116,7 @@ export function ReactPlaceholderCanvas({
   trailDecayRef.current         = trailDecay
   fogDensityRef.current         = fogDensity
   particleDensityRef.current    = particleDensity
+  performancePadTransitionRef.current = performancePadTransition
   oscillatorSettingsRef.current  = oscillatorSettings
   glyphAssetsRef.current         = oscillatorGlyphAssets
   glyphPointCacheRef.current     = oscillatorGlyphPointCache
@@ -315,15 +320,19 @@ export function ReactPlaceholderCanvas({
         musicIntelligence: hasMI ? miFrame : null,
       }
 
+      const transitionedControls = resolvePerformancePadTransition({
+        intensity:       intensityRef.current,
+        motion:          motionRef.current,
+        glow:            glowRef.current,
+        bassReactivity:  bassReactRef.current,
+        trailDecay:      trailDecayRef.current,
+        fogDensity:      fogDensityRef.current,
+        particleDensity: particleDensityRef.current,
+      }, performancePadTransitionRef.current, now)
+
       const renderParams: ReactRenderParams = {
         ...DEFAULT_REACT_RENDER_PARAMS,
-        intensity:          intensityRef.current,
-        motion:             motionRef.current,
-        glow:               glowRef.current,
-        bassReactivity:     bassReactRef.current,
-        trailDecay:         trailDecayRef.current,
-        fogDensity:         fogDensityRef.current,
-        particleDensity:    particleDensityRef.current,
+        ...transitionedControls,
         oscillator:                oscillatorSettingsRef.current,
         oscillatorGlyphAssets:     glyphAssetsRef.current,
         oscillatorGlyphPointCache: glyphPointCacheRef.current,

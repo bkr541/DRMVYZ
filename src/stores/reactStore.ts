@@ -9,6 +9,7 @@ import {
   DEFAULT_BEAM_SEQUENCE,
   DEFAULT_LAUNCH_SETTINGS,
   DEFAULT_NEON_LATTICE_SETTINGS,
+  DEFAULT_REACT_PRESET_RENDER_SETTINGS,
   createDefaultLaserDmxSettings,
   createDefaultLaserDmxBeamMatrixSettings,
   LASER_DMX_MATRIX_COLUMNS,
@@ -21,6 +22,8 @@ import type {
   ReactPresetParams,
   ReactTrackSection,
   ReactPerformancePad,
+  ReactPerformancePadTransition,
+  ReactPresetControlValues,
   ReactPresetAutomationCue,
   OscillatorSettings,
   OscillatorGlyphAsset,
@@ -41,6 +44,7 @@ import type {
   NeonLatticeTriggerType,
   NeonLatticeTriggerEvent,
 } from '../components/vyzualz/react/ReactTypes'
+import { resolvePerformancePadTransition } from '../components/vyzualz/react/renderers/reactPresetTransition'
 import {
   parseSvgToGlyphPoints,
   makeSvgGlyphAsset,
@@ -335,14 +339,13 @@ export function resolvePresetOscillatorSettings(
 export function buildPresetPatch(
   preset: ReactPreset,
   currentOscSettings: OscillatorSettings,
-  currentLaserSettings?: LaserDmxSettings,
+  _currentLaserSettings?: LaserDmxSettings,
   currentNeonLatticeSettings?: NeonLatticeSettings,
 ) {
-  const laserBase = currentLaserSettings ?? createDefaultLaserDmxSettings()
-
   let laserPatch: LaserDmxSettings | undefined
   if (preset.laserDmxSettings != null) {
-    const merged = { ...laserBase, ...preset.laserDmxSettings }
+    // Presets are complete looks, not deltas against live authored state.
+    const merged = { ...createDefaultLaserDmxSettings(), ...preset.laserDmxSettings }
     // Ensure selectedFixtureId always points to a fixture that exists after the merge.
     const fixtures = merged.fixtures ?? []
     const hasSelected = fixtures.some(f => f.id === merged.selectedFixtureId)
@@ -357,6 +360,11 @@ export function buildPresetPatch(
     neonLatticePatch = { ...DEFAULT_NEON_LATTICE_SETTINGS, ...preset.neonLatticeSettings }
   }
 
+  const renderSettings = {
+    ...DEFAULT_REACT_PRESET_RENDER_SETTINGS,
+    ...(preset.renderSettings ?? {}),
+  }
+
   return {
     activeReactPresetId: preset.id,
     activeReactEngineId: preset.engine,
@@ -364,10 +372,47 @@ export function buildPresetPatch(
     reactMotion:         preset.params.motion,
     reactGlow:           preset.params.glow,
     reactBassReactivity: preset.params.bassReactivity,
+    reactTrailDecay:      renderSettings.trailDecay,
+    reactFogDensity:      renderSettings.fogDensity,
+    reactParticleDensity: renderSettings.particleDensity,
     oscillatorSettings:  resolvePresetOscillatorSettings(preset, currentOscSettings),
     ...(laserPatch        != null ? { laserDmxSettings:   laserPatch        } : {}),
     ...(neonLatticePatch  != null ? { neonLatticeSettings: neonLatticePatch } : {}),
     ...(preset.engine !== 'neonLattice' ? { neonLatticeTrigger: null as NeonLatticeTriggerEvent | null } : {}),
+  }
+}
+
+function getReactPresetControlValues(state: Pick<ReactStoreState,
+  | 'reactIntensity'
+  | 'reactMotion'
+  | 'reactGlow'
+  | 'reactBassReactivity'
+  | 'reactTrailDecay'
+  | 'reactFogDensity'
+  | 'reactParticleDensity'
+>): ReactPresetControlValues {
+  return {
+    intensity:       state.reactIntensity,
+    motion:          state.reactMotion,
+    glow:            state.reactGlow,
+    bassReactivity:  state.reactBassReactivity,
+    trailDecay:      state.reactTrailDecay,
+    fogDensity:      state.reactFogDensity,
+    particleDensity: state.reactParticleDensity,
+  }
+}
+
+function getPresetPatchControlValues(
+  patch: ReturnType<typeof buildPresetPatch>,
+): ReactPresetControlValues {
+  return {
+    intensity:       patch.reactIntensity,
+    motion:          patch.reactMotion,
+    glow:            patch.reactGlow,
+    bassReactivity:  patch.reactBassReactivity,
+    trailDecay:      patch.reactTrailDecay,
+    fogDensity:      patch.reactFogDensity,
+    particleDensity: patch.reactParticleDensity,
   }
 }
 
@@ -396,10 +441,11 @@ interface ReactStoreState {
   reactMotion:          number
   reactGlow:            number
   reactBassReactivity:  number
-  reactColorPalette:    string
   reactTrailDecay:      number
   reactFogDensity:      number
   reactParticleDensity: number
+  /** Transient and intentionally excluded from persisted state. */
+  performancePadTransition: ReactPerformancePadTransition | null
 
   // Actions
   /**
@@ -428,7 +474,6 @@ interface ReactStoreState {
   setReactMotion:          (v: number) => void
   setReactGlow:            (v: number) => void
   setReactBassReactivity:  (v: number) => void
-  setReactColorPalette:    (palette: string) => void
   setReactTrailDecay:      (v: number) => void
   setReactFogDensity:      (v: number) => void
   setReactParticleDensity: (v: number) => void
@@ -1119,6 +1164,48 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
         : Boolean(state.laserDmxBeamMatrixPresetDirty),
     }
   }
+  if (version < 22) {
+    // Remove legacy global palette state and decorative preset fields that no
+    // renderer consumed. Old snapshots remain otherwise compatible.
+    const { reactColorPalette: _legacyPalette, ...withoutLegacyPalette } = state
+    void _legacyPalette
+    const presets = Array.isArray(withoutLegacyPalette.reactPresets)
+      ? (withoutLegacyPalette.reactPresets as ReactPreset[]).map((preset) => {
+          const params = preset.params as ReactPresetParams & {
+            colorShift?: number
+            complexity?: number
+          }
+          const {
+            colorShift: _colorShift,
+            complexity: _complexity,
+            ...functionalParams
+          } = params
+          void _colorShift
+          void _complexity
+          const scenes = Array.isArray(preset.scenes)
+            ? preset.scenes.map((scene) => {
+                const legacyScene = scene as typeof scene & { palette?: unknown }
+                const { palette: _scenePalette, ...sceneWithoutPalette } = legacyScene
+                void _scenePalette
+                const sceneParams = scene.params as Partial<ReactPresetParams> & {
+                  colorShift?: number
+                  complexity?: number
+                }
+                const {
+                  colorShift: _sceneColorShift,
+                  complexity: _sceneComplexity,
+                  ...functionalSceneParams
+                } = sceneParams
+                void _sceneColorShift
+                void _sceneComplexity
+                return { ...sceneWithoutPalette, params: functionalSceneParams }
+              })
+            : preset.scenes
+          return { ...preset, params: functionalParams, scenes }
+        })
+      : withoutLegacyPalette.reactPresets
+    state = { ...withoutLegacyPalette, reactPresets: presets }
+  }
   return state
 }
 
@@ -1157,7 +1244,6 @@ export function reactStorePartialize(s: ReactStoreState) {
     reactMotion:          s.reactMotion,
     reactGlow:            s.reactGlow,
     reactBassReactivity:  s.reactBassReactivity,
-    reactColorPalette:    s.reactColorPalette,
     reactTrailDecay:      s.reactTrailDecay,
     reactFogDensity:      s.reactFogDensity,
     reactParticleDensity: s.reactParticleDensity,
@@ -1259,30 +1345,31 @@ export const useReactStore = create<ReactStoreState>()(
       reactMotion:          0.5,
       reactGlow:            0.65,
       reactBassReactivity:  0.8,
-      reactColorPalette:    'dvydrm',
       reactTrailDecay:      0.08,
       reactFogDensity:      0.5,
       reactParticleDensity: 0.5,
+      performancePadTransition: null,
 
       setActiveReactPresetId: (id) =>
         set((s) => {
           if (id != null) {
             const preset = s.reactPresets.find(p => p.id === id)
             return preset
-              ? buildPresetPatch(preset, s.oscillatorSettings, s.laserDmxSettings, s.neonLatticeSettings)
+              ? { ...buildPresetPatch(preset, s.oscillatorSettings, s.laserDmxSettings, s.neonLatticeSettings), performancePadTransition: null }
               : {}
           }
 
           if (s.activeReactEngineId === 'shaderPads') {
-            return { activeReactPresetId: null }
+            return { activeReactPresetId: null, performancePadTransition: null }
           }
 
           const fallback = s.reactPresets.find(p => p.engine === s.activeReactEngineId)
           return fallback
-            ? buildPresetPatch(fallback, s.oscillatorSettings, s.laserDmxSettings, s.neonLatticeSettings)
+            ? { ...buildPresetPatch(fallback, s.oscillatorSettings, s.laserDmxSettings, s.neonLatticeSettings), performancePadTransition: null }
             : {
                 activeReactPresetId: INITIAL_PRESET_ID,
                 activeReactEngineId: INITIAL_ENGINE_ID,
+                performancePadTransition: null,
               }
         }),
 
@@ -1292,7 +1379,7 @@ export const useReactStore = create<ReactStoreState>()(
         set((s) => {
           // Shader Pads has no React presets — switch directly without a preset lookup.
           if (engineId === 'shaderPads') {
-            return { activeReactEngineId: 'shaderPads', activeReactPresetId: null, neonLatticeTrigger: null as NeonLatticeTriggerEvent | null }
+            return { activeReactEngineId: 'shaderPads', activeReactPresetId: null, neonLatticeTrigger: null as NeonLatticeTriggerEvent | null, performancePadTransition: null }
           }
           // If the current preset already belongs to the selected engine, only ensure
           // activeReactEngineId is correct (repairs any prior drift without a preset switch).
@@ -1300,7 +1387,7 @@ export const useReactStore = create<ReactStoreState>()(
             ? s.reactPresets.find(p => p.id === s.activeReactPresetId)
             : null
           if (current?.engine === engineId) {
-            return { activeReactEngineId: engineId }
+            return { activeReactEngineId: engineId, performancePadTransition: null }
           }
           // Switch to the first preset available for this engine.
           const preset = s.reactPresets.find(p => p.engine === engineId)
@@ -1308,17 +1395,18 @@ export const useReactStore = create<ReactStoreState>()(
             // No presets registered for this engine — update ID only; panel shows empty state.
             return {
               activeReactEngineId: engineId,
+              performancePadTransition: null,
               ...(engineId !== 'neonLattice' ? { neonLatticeTrigger: null as NeonLatticeTriggerEvent | null } : {}),
             }
           }
-          return buildPresetPatch(preset, s.oscillatorSettings, s.laserDmxSettings, s.neonLatticeSettings)
+          return { ...buildPresetPatch(preset, s.oscillatorSettings, s.laserDmxSettings, s.neonLatticeSettings), performancePadTransition: null }
         }),
 
       selectReactPreset: (id) =>
         set((s) => {
           const preset = s.reactPresets.find((p) => p.id === id)
           if (!preset) return {}
-          return buildPresetPatch(preset, s.oscillatorSettings, s.laserDmxSettings, s.neonLatticeSettings)
+          return { ...buildPresetPatch(preset, s.oscillatorSettings, s.laserDmxSettings, s.neonLatticeSettings), performancePadTransition: null }
         }),
 
       updateReactPresetParams: (id, patch) =>
@@ -1328,14 +1416,13 @@ export const useReactStore = create<ReactStoreState>()(
           ),
         })),
 
-      setReactIntensity:       (v) => set({ reactIntensity: v }),
-      setReactMotion:          (v) => set({ reactMotion: v }),
-      setReactGlow:            (v) => set({ reactGlow: v }),
-      setReactBassReactivity:  (v) => set({ reactBassReactivity: v }),
-      setReactColorPalette:    (palette) => set({ reactColorPalette: palette }),
-      setReactTrailDecay:      (v) => set({ reactTrailDecay: v }),
-      setReactFogDensity:      (v) => set({ reactFogDensity: v }),
-      setReactParticleDensity: (v) => set({ reactParticleDensity: v }),
+      setReactIntensity:       (v) => set({ reactIntensity: v, performancePadTransition: null }),
+      setReactMotion:          (v) => set({ reactMotion: v, performancePadTransition: null }),
+      setReactGlow:            (v) => set({ reactGlow: v, performancePadTransition: null }),
+      setReactBassReactivity:  (v) => set({ reactBassReactivity: v, performancePadTransition: null }),
+      setReactTrailDecay:      (v) => set({ reactTrailDecay: v, performancePadTransition: null }),
+      setReactFogDensity:      (v) => set({ reactFogDensity: v, performancePadTransition: null }),
+      setReactParticleDensity: (v) => set({ reactParticleDensity: v, performancePadTransition: null }),
 
       setSelectedSectionId: (id) => set({ selectedSectionId: id }),
 
@@ -1454,12 +1541,34 @@ export const useReactStore = create<ReactStoreState>()(
 
       setActivePadId: (id) =>
         set((s) => {
-          if (!id) return { activePadId: null }
+          if (!id) return { activePadId: null, performancePadTransition: null }
           const pad = s.performancePads.find((p) => p.id === id)
           if (!pad?.presetId) return { activePadId: id }
           const preset = s.reactPresets.find((p) => p.id === pad.presetId)
           if (!preset) return { activePadId: id }
-          return { activePadId: id, ...buildPresetPatch(preset, s.oscillatorSettings, s.laserDmxSettings, s.neonLatticeSettings) }
+          const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now()
+          const currentTarget = getReactPresetControlValues(s)
+          const from = resolvePerformancePadTransition(
+            currentTarget,
+            s.performancePadTransition,
+            nowMs,
+          )
+          const presetPatch = buildPresetPatch(
+            preset,
+            s.oscillatorSettings,
+            s.laserDmxSettings,
+            s.neonLatticeSettings,
+          )
+          const to = getPresetPatchControlValues(presetPatch)
+          const durationMs = Math.max(0, pad.transitionTimeMs)
+
+          return {
+            activePadId: id,
+            ...presetPatch,
+            performancePadTransition: durationMs > 0
+              ? { startedAtMs: nowMs, durationMs, from, to }
+              : null,
+          }
         }),
 
       updatePerformancePad: (id, patch) =>
@@ -2938,16 +3047,16 @@ export const useReactStore = create<ReactStoreState>()(
           reactMotion:          0.5,
           reactGlow:            0.65,
           reactBassReactivity:  0.8,
-          reactColorPalette:    'dvydrm',
           reactTrailDecay:      0.08,
           reactFogDensity:      0.5,
           reactParticleDensity: 0.5,
+          performancePadTransition: null,
         })
       },
     }),
     {
       name: 'drmvyz:react-store',
-      version: 21,
+      version: 22,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

@@ -2,7 +2,8 @@ import { useRef, useEffect } from 'react'
 import { AudioFeatureBus }        from '../../../features/musicIntelligence/AudioFeatureBus'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
 import type { ReactFrameContext }  from './renderers/reactRenderUtils'
-import type { ReactTrackSection }  from './ReactTypes'
+import type { ReactTrackSection, ReactPerformancePadTransition } from './ReactTypes'
+import { resolvePerformancePadTransition } from './renderers/reactPresetTransition'
 import { ShaderWebGLRuntime }      from './shaders/runtime/ShaderWebGLRuntime'
 import { ShaderEngineRenderer }    from './shaders/ShaderEngineRenderer'
 import type { ShaderMasterParams } from './shaders/ShaderEngineRenderer'
@@ -20,6 +21,7 @@ interface Props {
   trailDecay?:       number
   fogDensity?:       number
   particleDensity?:  number
+  performancePadTransition?: ReactPerformancePadTransition | null
   isPlaying:         boolean
   /** True when playback is paused at a non-terminal playhead position. */
   isPaused?:         boolean
@@ -56,6 +58,7 @@ export function ReactShaderCanvas({
   trailDecay      = 0.08,
   fogDensity      = 0.5,
   particleDensity = 0.5,
+  performancePadTransition = null,
   isPlaying,
   isPaused         = false,
   getAudioTime,
@@ -86,6 +89,7 @@ export function ReactShaderCanvas({
   const trailDecayRef       = useRef(trailDecay)
   const fogDensityRef       = useRef(fogDensity)
   const particleDensityRef  = useRef(particleDensity)
+  const performancePadTransitionRef = useRef<ReactPerformancePadTransition | null>(performancePadTransition)
   const isPlayingRef        = useRef(isPlaying)
   const isPausedRef         = useRef(isPaused)
   const effectiveBpmRef     = useRef<number | null>(effectiveBpm)
@@ -103,6 +107,7 @@ export function ReactShaderCanvas({
   trailDecayRef.current      = trailDecay
   fogDensityRef.current      = fogDensity
   particleDensityRef.current = particleDensity
+  performancePadTransitionRef.current = performancePadTransition
   isPlayingRef.current       = isPlaying
   isPausedRef.current         = isPaused
   effectiveBpmRef.current    = effectiveBpm
@@ -384,7 +389,7 @@ export function ReactShaderCanvas({
         sectionChanged,
       }
 
-      const master: ShaderMasterParams = {
+      const master: ShaderMasterParams = resolvePerformancePadTransition({
         intensity:       intensityRef.current,
         motion:          motionRef.current,
         glow:            glowRef.current,
@@ -392,7 +397,7 @@ export function ReactShaderCanvas({
         trailDecay:      trailDecayRef.current,
         fogDensity:      fogDensityRef.current,
         particleDensity: particleDensityRef.current,
-      }
+      }, performancePadTransitionRef.current, now)
 
       // Read from rendererRef.current — NEVER from the closed-over `initialRenderer`
       // so context-restoration can swap in a new renderer transparently.

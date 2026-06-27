@@ -111,7 +111,8 @@ export function resolveEffectiveParams(
 
   const withIntensity: ReactRenderParams = {
     ...params,
-    intensity: Math.max(0.05, effectiveIntensity),
+    // Zero is an intentional blackout. Do not silently re-introduce output.
+    intensity: Math.max(0, effectiveIntensity),
   }
 
   // TODO: add scene-level oscillator automation when needed
