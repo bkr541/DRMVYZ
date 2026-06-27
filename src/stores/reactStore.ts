@@ -401,11 +401,16 @@ interface ReactStoreState {
   reactParticleDensity: number
 
   // Actions
+  /**
+   * Compatibility setter. Selecting a real preset applies it through the same
+   * invariant-preserving path as selectReactPreset. Null is valid only for the
+   * standalone Shader engine; preset-backed engines fall back to a compatible
+   * preset instead of entering an invalid state.
+   */
   setActiveReactPresetId: (id: string | null) => void
   /**
-   * Low-level setter — only updates activeReactEngineId without touching the active preset.
-   * UI code must call selectReactEngine instead, which also switches to a compatible preset
-   * so that activeReactEngineId and activeReactPresetId.engine stay in sync.
+   * Compatibility setter. Delegates to selectReactEngine so engine and preset
+   * selection cannot drift apart in memory or in the persisted snapshot.
    */
   setActiveReactEngineId: (id: ReactEngineId) => void
   /**
@@ -679,6 +684,71 @@ const LEGACY_SHADER_PRESET_IDS = new Set([
   'preset-dot-warp',
   'preset-festival-burst',
 ])
+
+const VALID_REACT_ENGINE_IDS = new Set<ReactEngineId>([
+  'shaderPads',
+  'cinematicPortal',
+  'oscilloscope',
+  'laserDmx',
+  'neonLattice',
+])
+
+export interface RepairedReactSelection {
+  activeReactPresetId: string | null
+  activeReactEngineId: ReactEngineId
+}
+
+/**
+ * Repairs an engine/preset pair without mutating any unrelated state.
+ *
+ * The engine is authoritative when it is valid because the ENGINE tab is the
+ * user's top-level selection. Preset-backed engines receive a preset from the
+ * same family. The standalone Shader engine intentionally carries no React
+ * preset. When the engine itself is invalid, a valid preset may recover it;
+ * otherwise the explicit startup pair is used.
+ */
+export function repairReactEnginePresetSelection(
+  activeReactPresetId: unknown,
+  activeReactEngineId: unknown,
+  presets: ReactPreset[] = DEFAULT_REACT_PRESETS,
+): RepairedReactSelection {
+  const presetId = typeof activeReactPresetId === 'string' ? activeReactPresetId : null
+  const selectedPreset = presetId ? presets.find(p => p.id === presetId) ?? null : null
+  const engineIsValid = typeof activeReactEngineId === 'string' &&
+    VALID_REACT_ENGINE_IDS.has(activeReactEngineId as ReactEngineId)
+
+  if (!engineIsValid) {
+    if (selectedPreset) {
+      return {
+        activeReactPresetId: selectedPreset.id,
+        activeReactEngineId: selectedPreset.engine,
+      }
+    }
+    return {
+      activeReactPresetId: INITIAL_PRESET_ID,
+      activeReactEngineId: INITIAL_ENGINE_ID,
+    }
+  }
+
+  const engineId = activeReactEngineId as ReactEngineId
+  if (engineId === 'shaderPads') {
+    return { activeReactPresetId: null, activeReactEngineId: engineId }
+  }
+
+  if (selectedPreset?.engine === engineId) {
+    return { activeReactPresetId: selectedPreset.id, activeReactEngineId: engineId }
+  }
+
+  const compatiblePreset = presets.find(p => p.engine === engineId)
+  if (compatiblePreset) {
+    return { activeReactPresetId: compatiblePreset.id, activeReactEngineId: engineId }
+  }
+
+  return {
+    activeReactPresetId: INITIAL_PRESET_ID,
+    activeReactEngineId: INITIAL_ENGINE_ID,
+  }
+}
 
 // ── Exported migration function (for testing) ─────────────────────────────────
 export function migrateReactStore(persistedState: unknown, version: number): Record<string, unknown> {
@@ -966,6 +1036,14 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       // Case D: valid state for a non-Shader engine — no changes.
     }
   }
+  if (version < 20) {
+    const repaired = repairReactEnginePresetSelection(
+      state.activeReactPresetId,
+      state.activeReactEngineId,
+      DEFAULT_REACT_PRESETS,
+    )
+    state = { ...state, ...repaired }
+  }
   return state
 }
 
@@ -977,9 +1055,14 @@ function normalizeClipRange<T extends { startSec: number; endSec: number }>(clip
 }
 
 export function reactStorePartialize(s: ReactStoreState) {
+  const repairedSelection = repairReactEnginePresetSelection(
+    s.activeReactPresetId,
+    s.activeReactEngineId,
+    s.reactPresets,
+  )
   return {
-    activeReactPresetId:                s.activeReactPresetId,
-    activeReactEngineId:                s.activeReactEngineId,
+    activeReactPresetId:                repairedSelection.activeReactPresetId,
+    activeReactEngineId:                repairedSelection.activeReactEngineId,
     manualTrackSectionsByTrackId:       s.manualTrackSectionsByTrackId,
     suppressedAutoSectionsByTrackId:    s.suppressedAutoSectionsByTrackId,
     presetAutomationCuesByTrackId:      s.presetAutomationCuesByTrackId,
@@ -1049,9 +1132,29 @@ export const useReactStore = create<ReactStoreState>()(
       reactFogDensity:      0.5,
       reactParticleDensity: 0.5,
 
-      setActiveReactPresetId: (id) => set({ activeReactPresetId: id }),
+      setActiveReactPresetId: (id) =>
+        set((s) => {
+          if (id != null) {
+            const preset = s.reactPresets.find(p => p.id === id)
+            return preset
+              ? buildPresetPatch(preset, s.oscillatorSettings, s.laserDmxSettings, s.neonLatticeSettings)
+              : {}
+          }
 
-      setActiveReactEngineId: (id) => set({ activeReactEngineId: id }),
+          if (s.activeReactEngineId === 'shaderPads') {
+            return { activeReactPresetId: null }
+          }
+
+          const fallback = s.reactPresets.find(p => p.engine === s.activeReactEngineId)
+          return fallback
+            ? buildPresetPatch(fallback, s.oscillatorSettings, s.laserDmxSettings, s.neonLatticeSettings)
+            : {
+                activeReactPresetId: INITIAL_PRESET_ID,
+                activeReactEngineId: INITIAL_ENGINE_ID,
+              }
+        }),
+
+      setActiveReactEngineId: (id) => get().selectReactEngine(id),
 
       selectReactEngine: (engineId) =>
         set((s) => {
@@ -2711,7 +2814,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 19,
+      version: 20,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,
     },

@@ -26,6 +26,8 @@ interface Props {
   neonLatticeSettings?:         NeonLatticeSettings
   neonLatticeTrigger?:          NeonLatticeTriggerEvent | null
   isPlaying:                    boolean
+  /** True when playback is paused at a non-terminal playhead position. */
+  isPaused?:                    boolean
   manualSections?:              ReactTrackSection[]
   getAudioTime?:                () => number
   /**
@@ -60,6 +62,7 @@ export function ReactPlaceholderCanvas({
   neonLatticeSettings        = DEFAULT_NEON_LATTICE_SETTINGS,
   neonLatticeTrigger         = null,
   isPlaying,
+  isPaused                    = false,
   manualSections             = [],
   getAudioTime,
   effectiveBpm               = null,
@@ -90,6 +93,7 @@ export function ReactPlaceholderCanvas({
   const neonLatticeSettingsRef = useRef<NeonLatticeSettings>(neonLatticeSettings)
   const neonLatticeTriggerRef  = useRef<NeonLatticeTriggerEvent | null>(neonLatticeTrigger)
   const isPlayingRef           = useRef(isPlaying)
+  const isPausedRef            = useRef(isPaused)
   const presetRef             = useRef<ReactPreset | null>(activePreset)
   const sectionsRef           = useRef<ReactTrackSection[]>(manualSections)
   const audioTimeRef          = useRef(0)
@@ -115,6 +119,7 @@ export function ReactPlaceholderCanvas({
   neonLatticeSettingsRef.current = neonLatticeSettings
   neonLatticeTriggerRef.current  = neonLatticeTrigger
   isPlayingRef.current           = isPlaying
+  isPausedRef.current            = isPaused
   presetRef.current             = activePreset
   sectionsRef.current           = manualSections
   getAudioTimeRef.current        = getAudioTime
@@ -176,6 +181,16 @@ export function ReactPlaceholderCanvas({
       if (!canvas || !ctx) return
       const W = canvas.width, H = canvas.height
       if (!W || !H) { animRef.current = requestAnimationFrame(frame); return }
+
+      // Preserve the exact completed frame during a user pause. This prevents
+      // Cinematic/Sound Drawing idle drift and stops LaserDMX/Neon Lattice from
+      // clearing themselves merely because the transport was paused.
+      if (isPausedRef.current) {
+        fpsFrameCount = 0
+        fpsLastMs = now
+        animRef.current = requestAnimationFrame(frame)
+        return
+      }
 
       const preset = presetRef.current
       if (!preset) {
@@ -293,6 +308,7 @@ export function ReactPlaceholderCanvas({
         beatPhase: activeBeatPhase,
         beatHit,
         isPlaying: isPlayingRef.current,
+        isPaused:  isPausedRef.current,
         audio:     { bass, mid, high, volume: vol },
         freqData:       buf ?? null,
         timeDomainData: tBuf ?? null,

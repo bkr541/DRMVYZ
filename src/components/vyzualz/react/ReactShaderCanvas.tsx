@@ -21,6 +21,8 @@ interface Props {
   fogDensity?:       number
   particleDensity?:  number
   isPlaying:         boolean
+  /** True when playback is paused at a non-terminal playhead position. */
+  isPaused?:         boolean
   getAudioTime?:     () => number
   effectiveBpm?:     number | null
   durationSec?:      number
@@ -55,6 +57,7 @@ export function ReactShaderCanvas({
   fogDensity      = 0.5,
   particleDensity = 0.5,
   isPlaying,
+  isPaused         = false,
   getAudioTime,
   effectiveBpm    = null,
   durationSec     = 0,
@@ -84,6 +87,7 @@ export function ReactShaderCanvas({
   const fogDensityRef       = useRef(fogDensity)
   const particleDensityRef  = useRef(particleDensity)
   const isPlayingRef        = useRef(isPlaying)
+  const isPausedRef         = useRef(isPaused)
   const effectiveBpmRef     = useRef<number | null>(effectiveBpm)
   const durationSecRef      = useRef(durationSec)
   const manualSectionsRef   = useRef(manualSections)
@@ -100,6 +104,7 @@ export function ReactShaderCanvas({
   fogDensityRef.current      = fogDensity
   particleDensityRef.current = particleDensity
   isPlayingRef.current       = isPlaying
+  isPausedRef.current         = isPaused
   effectiveBpmRef.current    = effectiveBpm
   durationSecRef.current     = durationSec
   manualSectionsRef.current  = manualSections
@@ -233,6 +238,17 @@ export function ReactShaderCanvas({
     function frame(now: number) {
       if (pausedRef.current) return
 
+      // Freeze the WebGL drawing buffer and all transport-driven shader state
+      // while paused. Keeping the rAF heartbeat alive avoids a large resume
+      // delta and lets context-loss handling continue to work normally.
+      if (isPausedRef.current) {
+        lastFrameMs = now
+        fpsCount = 0
+        fpsLastMs = now
+        animRef.current = requestAnimationFrame(frame)
+        return
+      }
+
       const deltaMs = now - lastFrameMs
       lastFrameMs = now
 
@@ -351,6 +367,7 @@ export function ReactShaderCanvas({
         beatPhase: activeBeatPhase,
         beatHit,
         isPlaying: isPlayingRef.current,
+        isPaused:  isPausedRef.current,
         audio: { bass, mid, high, volume: vol },
         freqData,
         timeDomainData,

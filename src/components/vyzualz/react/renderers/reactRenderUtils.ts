@@ -11,7 +11,7 @@ export interface ReactFrameContext {
   W: number
   H: number
   dpr: number
-  /** Animation tick; counts up each frame regardless of playback. */
+  /** Animation tick; advances only while playback is active. */
   t: number
   /** Wall-clock time in seconds (performance.now()/1000 or audioTime). Use for strobe, envelope, and time-accurate effects. Falls back to t/60 when absent. */
   timeSec?: number
@@ -19,8 +19,13 @@ export interface ReactFrameContext {
   bpm: number
   beatPhase: number
   beatHit: boolean
-  /** Whether the audio transport is currently playing. False gates all LaserDMX canvas output immediately. */
+  /** Whether the audio transport is currently playing. */
   isPlaying: boolean
+  /**
+   * True only for a user pause. Renderers must preserve the last completed
+   * frame rather than clearing, idling, or advancing transport-driven state.
+   */
+  isPaused?: boolean
   audio: {
     bass:   number  // 0–1
     mid:    number  // 0–1

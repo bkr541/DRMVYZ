@@ -17,6 +17,7 @@ import { ReactTrackMapStrip } from './ReactTrackMapStrip'
 import { SoundDrawingTimelineLane } from './SoundDrawingTimelineLane'
 import { ReactPlaceholderCanvas } from './ReactPlaceholderCanvas'
 import { ReactShaderCanvas }       from './ReactShaderCanvas'
+import { isReactTransportPaused }  from './reactTransportState'
 import { ReactPerformancePads } from './ReactPerformancePads'
 import { LaserDmxBeamMatrixEditorOverlay } from './LaserDmxBeamMatrixEditorOverlay'
 import { LaserDmxLayersPanel } from './LaserDmxLayersPanel'
@@ -143,12 +144,15 @@ export function ReactView() {
     localStorage.setItem('drmvyz:react:rightPanel', JSON.stringify(activeRightPanel))
   }, [activeRightPanel])
 
-  // selectedReactEntity: the currently "inspectable" thing.
-  // Right now that's the active preset — always non-null when a preset is loaded.
+  // selectedReactEntity: the currently "inspectable" preset, but only when it
+  // belongs to the active engine. This is a defensive guard for stale external
+  // state while persistence migration repairs the stored pair.
   // TODO: expand to a full object/layer selection model (selectedReactObjectId in store).
   const selectedReactEntity = useMemo(
-    () => reactPresets.find(p => p.id === activeReactPresetId) ?? null,
-    [activeReactPresetId, reactPresets],
+    () => reactPresets.find(
+      p => p.id === activeReactPresetId && p.engine === activeReactEngineId,
+    ) ?? null,
+    [activeReactEngineId, activeReactPresetId, reactPresets],
   )
 
   const rightTabs = useMemo<RailTabOption<ReactRightPanel>[]>(
@@ -160,14 +164,19 @@ export function ReactView() {
     [selectedReactEntity, activeReactEngineId]
   )
 
-  // selectedReactEntity is the same preset lookup; fall back to the first preset when nothing is
-  // explicitly selected so the canvas always has something to render.
+  // Fall back only within the active engine family. Never render a preset from
+  // another engine merely because it appears first in the global collection.
   const activePreset = activeReactEngineId === 'shaderPads'
     ? null
-    : (selectedReactEntity ?? reactPresets[0] ?? null)
+    : (selectedReactEntity ?? reactPresets.find(p => p.engine === activeReactEngineId) ?? null)
 
   // Estimated track duration from the audio engine (fallback 180s)
   const audioDurationSec = (engine as { duration?: number }).duration ?? 180
+  const transportPaused = isReactTransportPaused({
+    isPlaying:     engine.isPlaying,
+    currentTimeSec: engine.currentTime,
+    durationSec:    audioDurationSec,
+  })
 
   // Resolved sections for the current track: auto + manual merged.
   // This is the single section timeline consumed by Track Map, the renderer,
@@ -271,6 +280,7 @@ export function ReactView() {
                 fogDensity={reactFogDensity}
                 particleDensity={reactParticleDensity}
                 isPlaying={engine.isPlaying}
+                isPaused={transportPaused}
                 getAudioTime={engine.getCurrentTime}
                 effectiveBpm={engine.currentEffectiveBpm}
                 durationSec={audioDurationSec}
@@ -296,6 +306,7 @@ export function ReactView() {
                 neonLatticeSettings={neonLatticeSettings}
                 neonLatticeTrigger={neonLatticeTrigger}
                 isPlaying={engine.isPlaying}
+                isPaused={transportPaused}
                 manualSections={resolvedSections}
                 getAudioTime={engine.getCurrentTime}
                 effectiveBpm={engine.currentEffectiveBpm}

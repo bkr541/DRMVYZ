@@ -216,18 +216,17 @@ describe('unrelated state fields survive migration unchanged', () => {
   })
 })
 
-// ── Version 19 idempotence ────────────────────────────────────────────────────
+// ── Version 20 follow-up normalization ───────────────────────────────────────
 
-describe('version 19 idempotence', () => {
-  it('calling migrateReactStore with version=19 does not apply the v19 migration', () => {
-    // At version 19 the migration has already run — re-running must not change state.
+describe('version 20 selection normalization', () => {
+  it('version-19 state skips the legacy v19 block but is normalized by v20', () => {
     const state = {
       activeReactPresetId: 'preset-neon-energy-cloud',
       activeReactEngineId: 'shaderPads',
     }
     const result = migrate19(state)
-    // Version 19 block should be skipped, so IDs remain as-is
-    expect(result.activeReactPresetId).toBe('preset-neon-energy-cloud')
+    // Shader is a standalone engine and must not carry a React preset.
+    expect(result.activeReactPresetId).toBeNull()
     expect(result.activeReactEngineId).toBe('shaderPads')
   })
 })

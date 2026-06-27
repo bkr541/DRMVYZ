@@ -136,6 +136,10 @@ export function renderReactEngine(
   params:         ReactRenderParams,
   manualSections: ReactTrackSection[] = [],
 ): void {
+  // A user pause is a true frame hold across every React engine. Do not clear
+  // gated engines and do not let idle/random animation mutate the last frame.
+  if (frame.isPaused === true) return
+
   const { type: sectionType } = resolveCurrentSection(manualSections, frame.audioTime)
   const effectiveParams       = resolveEffectiveParams(preset, params, manualSections, frame.audioTime)
 
