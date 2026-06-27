@@ -429,6 +429,85 @@ function prepareLayerTextPoints(
   }
 }
 
+const TEXT_GEOMETRY_SETTING_KEYS = new Set<keyof OscillatorSettings>([
+  'text',
+  'textFontId',
+  'textLetterSpacing',
+  'textLineHeight',
+  'textAlignment',
+  'pathResolution',
+])
+
+function patchChangesTextGeometry(patch: Partial<OscillatorSettings>): boolean {
+  return Object.keys(patch).some(key => TEXT_GEOMETRY_SETTING_KEYS.has(key as keyof OscillatorSettings))
+}
+
+function resolveSoundDrawingLayerTextSettings(
+  globalSettings: OscillatorSettings,
+  layer: SoundDrawingLayer,
+): OscillatorSettings {
+  return {
+    ...globalSettings,
+    sourceType: 'text',
+    ...(layer.fontId !== null && { textFontId: layer.fontId }),
+    ...(layer.text && { text: layer.text }),
+    textLetterSpacing: layer.letterSpacing,
+    textLineHeight: layer.lineHeight,
+    textAlignment: layer.alignment,
+    ...layer.oscillatorOverride,
+  }
+}
+
+function prepareSoundDrawingLayerTextPoints(
+  assets: OscillatorFontAsset[],
+  globalSettings: OscillatorSettings,
+  layer: SoundDrawingLayer,
+  cache: Record<string, OscillatorGlyphPoint[]>,
+): Record<string, OscillatorGlyphPoint[]> {
+  if (layer.sourceType !== 'text') return cache
+  const effective = resolveSoundDrawingLayerTextSettings(globalSettings, layer)
+  if (!effective.textFontId || !effective.text.trim()) return cache
+  return prepareLayerTextPoints(
+    assets,
+    effective.textFontId,
+    effective.text,
+    effective.textLetterSpacing,
+    effective.textLineHeight,
+    effective.textAlignment,
+    clampRes(effective.pathResolution),
+    cache,
+  )
+}
+
+/**
+ * Warms every OpenType text cache entry affected by the supplied global
+ * oscillator settings. This runs only from semantic store actions, never from
+ * the animation loop.
+ */
+export function prepareAllSoundDrawingTextPoints(
+  assets: OscillatorFontAsset[],
+  globalSettings: OscillatorSettings,
+  layersByTrackId: Record<string, SoundDrawingLayer[]>,
+  cache: Record<string, OscillatorGlyphPoint[]>,
+): Record<string, OscillatorGlyphPoint[]> {
+  let nextCache = globalSettings.sourceType === 'text'
+    ? prepareTextPoints(assets, globalSettings, cache)
+    : cache
+
+  for (const layers of Object.values(layersByTrackId)) {
+    for (const layer of layers) {
+      nextCache = prepareSoundDrawingLayerTextPoints(
+        assets,
+        globalSettings,
+        layer,
+        nextCache,
+      )
+    }
+  }
+
+  return nextCache
+}
+
 // ── LaserDMX local helpers ────────────────────────────────────────────────────
 
 function makeNewLaserFixture(existingFixtures: LaserDmxFixture[]): LaserDmxFixture {
@@ -610,6 +689,31 @@ export function buildPresetPatch(
     ...(laserPatch        != null ? { laserDmxSettings:   laserPatch        } : {}),
     ...(neonLatticePatch  != null ? { neonLatticeSettings: neonLatticePatch } : {}),
     ...(preset.engine !== 'neonLattice' ? { neonLatticeTrigger: null as NeonLatticeTriggerEvent | null } : {}),
+  }
+}
+
+function buildPresetPatchForState(
+  preset: ReactPreset,
+  state: ReactStoreState,
+) {
+  const patch = buildPresetPatch(
+    preset,
+    state.oscillatorSettings,
+    state.laserDmxSettings,
+    state.neonLatticeSettings,
+  )
+  const geometryChanged = [...TEXT_GEOMETRY_SETTING_KEYS].some(
+    key => patch.oscillatorSettings[key] !== state.oscillatorSettings[key],
+  )
+  if (!geometryChanged) return patch
+  return {
+    ...patch,
+    oscillatorTextPointCache: prepareAllSoundDrawingTextPoints(
+      state.oscillatorFontAssets,
+      patch.oscillatorSettings,
+      state.soundDrawingLayersByTrackId,
+      state.oscillatorTextPointCache,
+    ),
   }
 }
 
@@ -814,7 +918,7 @@ interface ReactStoreState {
   fontLoadError: string | null
 
   // Pre-sampled OpenType text points — non-persisted
-  // keyed by "${fontId}:${text}:${fontSize}:${letterSpacing}:${resolution}"
+  // keyed by "${fontId}:${text}:${letterSpacing}:${lineHeight}:${alignment}:${resolution}"
   oscillatorTextPointCache: Record<string, OscillatorGlyphPoint[]>
 
   /** Resets only the active engine's live render settings. Authored project content is preserved. */
@@ -925,13 +1029,14 @@ interface ReactStoreState {
   removeSoundDrawingLayer: (trackId: string, layerId: string) => void
 
   // Sound Drawing clips — stored per track ID.
-  // endSec is always normalized to be > startSec.
+  // Each clip is owned by its parent map key; timing is finite, nonnegative,
+  // ordered, and bounded to the track when a duration is supplied.
   soundDrawingClipsByTrackId: Record<string, SoundDrawingClip[]>
   /** Returns clips for one track sorted by startSec ascending, then zIndex ascending. */
   getSoundDrawingClipsForTrack: (trackId: string) => SoundDrawingClip[]
   /** Creates a clip and returns its generated ID. */
-  addSoundDrawingClip: (trackId: string, clip: Omit<SoundDrawingClip, 'id'>) => string
-  updateSoundDrawingClip: (trackId: string, clipId: string, patch: Partial<SoundDrawingClip>) => void
+  addSoundDrawingClip: (trackId: string, clip: Omit<SoundDrawingClip, 'id'>, trackDurationSec?: number) => string
+  updateSoundDrawingClip: (trackId: string, clipId: string, patch: Partial<SoundDrawingClip>, trackDurationSec?: number) => void
   /** Clones an existing clip with a new ID. */
   duplicateSoundDrawingClip: (trackId: string, clipId: string) => void
   removeSoundDrawingClip: (trackId: string, clipId: string) => void
@@ -1448,6 +1553,14 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       : withoutLegacyPalette.reactPresets
     state = { ...withoutLegacyPalette, reactPresets: presets }
   }
+  if (version < 23) {
+    state = {
+      ...state,
+      soundDrawingClipsByTrackId: normalizeSoundDrawingClipsByTrackId(
+        state.soundDrawingClipsByTrackId,
+      ),
+    }
+  }
   const oscillatorSettings = state.oscillatorSettings as OscillatorSettings | undefined
   if (oscillatorSettings) {
     state = { ...state, oscillatorSettings: normalizeUnifiedSvgSettings(oscillatorSettings) }
@@ -1455,11 +1568,95 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
   return state
 }
 
-// Exported for persistence regression tests only.
-/** Ensures a clip's endSec is always > startSec by at least 0.1 s. */
-function normalizeClipRange<T extends { startSec: number; endSec: number }>(clip: T): T {
-  const endSec = Math.max(clip.startSec + 0.1, clip.endSec)
-  return endSec === clip.endSec ? clip : { ...clip, endSec }
+export const MIN_SOUND_DRAWING_CLIP_DURATION_SEC = 0.1
+
+function finiteNumber(value: unknown, fallback: number): number {
+  const candidate = typeof value === 'number'
+    ? value
+    : (typeof value === 'string' && value.trim() ? Number(value) : Number.NaN)
+  return Number.isFinite(candidate) ? candidate : fallback
+}
+
+/**
+ * Enforces clip ownership and finite timeline geometry. When a finite positive
+ * track duration is known, the entire range is kept inside that duration.
+ */
+export function normalizeSoundDrawingClip(
+  clip: SoundDrawingClip,
+  parentTrackId: string,
+  trackDurationSec?: number | null,
+): SoundDrawingClip {
+  const boundedDuration = Number.isFinite(trackDurationSec) && (trackDurationSec ?? 0) > 0
+    ? trackDurationSec as number
+    : null
+  const minimumDuration = boundedDuration === null
+    ? MIN_SOUND_DRAWING_CLIP_DURATION_SEC
+    : Math.min(MIN_SOUND_DRAWING_CLIP_DURATION_SEC, boundedDuration)
+
+  let startSec = Math.max(0, finiteNumber(clip.startSec, 0))
+  if (boundedDuration !== null) {
+    startSec = Math.min(startSec, Math.max(0, boundedDuration - minimumDuration))
+  }
+
+  let endSec = Math.max(
+    startSec + minimumDuration,
+    finiteNumber(clip.endSec, startSec + minimumDuration),
+  )
+  if (boundedDuration !== null) endSec = Math.min(endSec, boundedDuration)
+
+  return {
+    ...clip,
+    trackId:  parentTrackId,
+    startSec,
+    endSec,
+    zIndex:   finiteNumber(clip.zIndex, 0),
+    fadeInMs: Math.max(0, finiteNumber(clip.fadeInMs, 0)),
+    fadeOutMs: Math.max(0, finiteNumber(clip.fadeOutMs, 0)),
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** Repairs persisted/imported clip buckets without dropping recoverable objects. */
+export function normalizeSoundDrawingClipsByTrackId(
+  value: unknown,
+  trackDurationsById: Record<string, number | undefined> = {},
+): Record<string, SoundDrawingClip[]> {
+  if (!isRecord(value)) return {}
+
+  const normalized: Record<string, SoundDrawingClip[]> = {}
+  for (const [parentTrackId, bucket] of Object.entries(value)) {
+    if (!Array.isArray(bucket)) {
+      normalized[parentTrackId] = []
+      continue
+    }
+
+    normalized[parentTrackId] = bucket.flatMap((raw, index) => {
+      if (!isRecord(raw)) return []
+      const recovered: SoundDrawingClip = {
+        ...raw,
+        id: typeof raw.id === 'string' && raw.id
+          ? raw.id
+          : `${parentTrackId}:recovered-clip:${index}`,
+        trackId: parentTrackId,
+        layerId: typeof raw.layerId === 'string' ? raw.layerId : '',
+        startSec: finiteNumber(raw.startSec, 0),
+        endSec: finiteNumber(raw.endSec, MIN_SOUND_DRAWING_CLIP_DURATION_SEC),
+        enabled: typeof raw.enabled === 'boolean' ? raw.enabled : true,
+        zIndex: finiteNumber(raw.zIndex, 0),
+        fadeInMs: finiteNumber(raw.fadeInMs, 0),
+        fadeOutMs: finiteNumber(raw.fadeOutMs, 0),
+      }
+      return [normalizeSoundDrawingClip(
+        recovered,
+        parentTrackId,
+        trackDurationsById[parentTrackId],
+      )]
+    })
+  }
+  return normalized
 }
 
 export function reactStorePartialize(s: ReactStoreState) {
@@ -1526,6 +1723,9 @@ export function mergeReactStoreState(
     ...persisted,
     reactPresets,
     performancePads,
+    soundDrawingClipsByTrackId: normalizeSoundDrawingClipsByTrackId(
+      persisted.soundDrawingClipsByTrackId ?? currentState.soundDrawingClipsByTrackId,
+    ),
   } as ReactStoreState
   const repairedSelection = repairReactEnginePresetSelection(
     merged.activeReactPresetId,
@@ -1602,7 +1802,7 @@ export const useReactStore = create<ReactStoreState>()(
           if (id != null) {
             const preset = s.reactPresets.find(p => p.id === id)
             return preset
-              ? { ...buildPresetPatch(preset, s.oscillatorSettings, s.laserDmxSettings, s.neonLatticeSettings), performancePadTransition: null }
+              ? { ...buildPresetPatchForState(preset, s), performancePadTransition: null }
               : {}
           }
 
@@ -1612,7 +1812,7 @@ export const useReactStore = create<ReactStoreState>()(
 
           const fallback = s.reactPresets.find(p => p.engine === s.activeReactEngineId)
           return fallback
-            ? { ...buildPresetPatch(fallback, s.oscillatorSettings, s.laserDmxSettings, s.neonLatticeSettings), performancePadTransition: null }
+            ? { ...buildPresetPatchForState(fallback, s), performancePadTransition: null }
             : {
                 activeReactPresetId: INITIAL_PRESET_ID,
                 activeReactEngineId: INITIAL_ENGINE_ID,
@@ -1646,14 +1846,14 @@ export const useReactStore = create<ReactStoreState>()(
               ...(engineId !== 'neonLattice' ? { neonLatticeTrigger: null as NeonLatticeTriggerEvent | null } : {}),
             }
           }
-          return { ...buildPresetPatch(preset, s.oscillatorSettings, s.laserDmxSettings, s.neonLatticeSettings), performancePadTransition: null }
+          return { ...buildPresetPatchForState(preset, s), performancePadTransition: null }
         }),
 
       selectReactPreset: (id) =>
         set((s) => {
           const preset = s.reactPresets.find((p) => p.id === id)
           if (!preset) return {}
-          return { ...buildPresetPatch(preset, s.oscillatorSettings, s.laserDmxSettings, s.neonLatticeSettings), performancePadTransition: null }
+          return { ...buildPresetPatchForState(preset, s), performancePadTransition: null }
         }),
 
       updateReactPresetParams: (id, patch) =>
@@ -1800,12 +2000,7 @@ export const useReactStore = create<ReactStoreState>()(
             s.performancePadTransition,
             nowMs,
           )
-          const presetPatch = buildPresetPatch(
-            preset,
-            s.oscillatorSettings,
-            s.laserDmxSettings,
-            s.neonLatticeSettings,
-          )
+          const presetPatch = buildPresetPatchForState(preset, s)
           const to = getPresetPatchControlValues(presetPatch)
           const durationMs = Math.max(0, pad.transitionTimeMs)
 
@@ -1841,11 +2036,16 @@ export const useReactStore = create<ReactStoreState>()(
             scheduleGlyphRecompile()
           }
 
-          // Re-prepare OpenType text points when any text-relevant field changes.
-          const textFields: (keyof OscillatorSettings)[] = ['text', 'textFontId', 'textFontSize', 'textLetterSpacing', 'textLineHeight', 'textAlignment', 'pathResolution']
-          const needsText = textFields.some(f => f in patch) && newSettings.sourceType === 'text' && !!newSettings.textFontId
-          if (needsText) {
-            newTextCache = prepareTextPoints(s.oscillatorFontAssets, newSettings, newTextCache)
+          // Re-prepare global and saved-layer OpenType geometry when a setting
+          // that contributes to text point generation changes. Layer-specific
+          // transforms and styling remain untouched.
+          if (patchChangesTextGeometry(patch)) {
+            newTextCache = prepareAllSoundDrawingTextPoints(
+              s.oscillatorFontAssets,
+              newSettings,
+              s.soundDrawingLayersByTrackId,
+              newTextCache,
+            )
           }
 
           return {
@@ -1858,7 +2058,15 @@ export const useReactStore = create<ReactStoreState>()(
         }),
 
       resetOscillatorSettings: () =>
-        set({ oscillatorSettings: DEFAULT_OSCILLATOR_SETTINGS }),
+        set((s) => ({
+          oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS },
+          oscillatorTextPointCache: prepareAllSoundDrawingTextPoints(
+            s.oscillatorFontAssets,
+            DEFAULT_OSCILLATOR_SETTINGS,
+            s.soundDrawingLayersByTrackId,
+            s.oscillatorTextPointCache,
+          ),
+        })),
 
       clearGlyphLostNotice: () => set({ glyphLostNotice: null }),
 
@@ -2125,7 +2333,12 @@ export const useReactStore = create<ReactStoreState>()(
               fontSelectPending:        null,
               fontSelectError:          null,
               oscillatorSettings:       newSettings,
-              oscillatorTextPointCache: prepareTextPoints(s.oscillatorFontAssets, newSettings, s.oscillatorTextPointCache),
+              oscillatorTextPointCache: prepareAllSoundDrawingTextPoints(
+                s.oscillatorFontAssets,
+                newSettings,
+                s.soundDrawingLayersByTrackId,
+                s.oscillatorTextPointCache,
+              ),
             }
           })
           return
@@ -2178,7 +2391,12 @@ export const useReactStore = create<ReactStoreState>()(
               fontSelectPending:        null,
               fontSelectError:          null,
               oscillatorSettings:       newSettings,
-              oscillatorTextPointCache: prepareTextPoints(s.oscillatorFontAssets, newSettings, s.oscillatorTextPointCache),
+              oscillatorTextPointCache: prepareAllSoundDrawingTextPoints(
+                s.oscillatorFontAssets,
+                newSettings,
+                s.soundDrawingLayersByTrackId,
+                s.oscillatorTextPointCache,
+              ),
             }
           })
         } catch (e) {
@@ -2280,7 +2498,12 @@ export const useReactStore = create<ReactStoreState>()(
             }
             const newAssets    = [...s.oscillatorFontAssets, asset]
             const newSettings  = { ...s.oscillatorSettings, textFontId: dbId }
-            const newTextCache = prepareTextPoints(newAssets, newSettings, s.oscillatorTextPointCache)
+            const newTextCache = prepareAllSoundDrawingTextPoints(
+              newAssets,
+              newSettings,
+              s.soundDrawingLayersByTrackId,
+              s.oscillatorTextPointCache,
+            )
             return {
               fontUploadPending:    false,
               fontUploadError:      null,
@@ -2998,18 +3221,17 @@ export const useReactStore = create<ReactStoreState>()(
       addSoundDrawingLayer: (trackId, layer) => {
         const id = crypto.randomUUID()
         set((s) => {
-          let newTextCache = s.oscillatorTextPointCache
-          if (layer.sourceType === 'text' && layer.fontId) {
-            newTextCache = prepareLayerTextPoints(
-              s.oscillatorFontAssets, layer.fontId, layer.text,
-              layer.letterSpacing, layer.lineHeight, layer.alignment,
-              clampRes(s.oscillatorSettings.pathResolution), newTextCache,
-            )
-          }
+          const storedLayer: SoundDrawingLayer = { ...layer, id }
+          const newTextCache = prepareSoundDrawingLayerTextPoints(
+            s.oscillatorFontAssets,
+            s.oscillatorSettings,
+            storedLayer,
+            s.oscillatorTextPointCache,
+          )
           return {
             soundDrawingLayersByTrackId: {
               ...s.soundDrawingLayersByTrackId,
-              [trackId]: [...(s.soundDrawingLayersByTrackId[trackId] ?? []), { ...layer, id }],
+              [trackId]: [...(s.soundDrawingLayersByTrackId[trackId] ?? []), storedLayer],
             },
             oscillatorTextPointCache: newTextCache,
           }
@@ -3022,14 +3244,14 @@ export const useReactStore = create<ReactStoreState>()(
           const layers = s.soundDrawingLayersByTrackId[trackId] ?? []
           const merged = layers.map((l) => l.id === layerId ? { ...l, ...patch } : l)
           const updated = merged.find(l => l.id === layerId)
-          let newTextCache = s.oscillatorTextPointCache
-          if (updated?.sourceType === 'text' && updated.fontId && ('text' in patch || 'fontId' in patch || 'letterSpacing' in patch || 'lineHeight' in patch || 'alignment' in patch)) {
-            newTextCache = prepareLayerTextPoints(
-              s.oscillatorFontAssets, updated.fontId, updated.text,
-              updated.letterSpacing, updated.lineHeight, updated.alignment,
-              clampRes(s.oscillatorSettings.pathResolution), newTextCache,
-            )
-          }
+          const newTextCache = updated
+            ? prepareSoundDrawingLayerTextPoints(
+                s.oscillatorFontAssets,
+                s.oscillatorSettings,
+                updated,
+                s.oscillatorTextPointCache,
+              )
+            : s.oscillatorTextPointCache
           return {
             soundDrawingLayersByTrackId: {
               ...s.soundDrawingLayersByTrackId,
@@ -3045,11 +3267,18 @@ export const useReactStore = create<ReactStoreState>()(
           const src = layers.find((l) => l.id === layerId)
           if (!src) return {}
           const copy: SoundDrawingLayer = { ...src, id: crypto.randomUUID(), name: `${src.name} Copy` }
+          const newTextCache = prepareSoundDrawingLayerTextPoints(
+            s.oscillatorFontAssets,
+            s.oscillatorSettings,
+            copy,
+            s.oscillatorTextPointCache,
+          )
           return {
             soundDrawingLayersByTrackId: {
               ...s.soundDrawingLayersByTrackId,
               [trackId]: [...layers, copy],
             },
+            oscillatorTextPointCache: newTextCache,
           }
         }),
 
@@ -3072,9 +3301,13 @@ export const useReactStore = create<ReactStoreState>()(
           (a, b) => a.startSec !== b.startSec ? a.startSec - b.startSec : a.zIndex - b.zIndex,
         ),
 
-      addSoundDrawingClip: (trackId, clip) => {
+      addSoundDrawingClip: (trackId, clip, trackDurationSec) => {
         const id   = crypto.randomUUID()
-        const safe = normalizeClipRange({ ...clip, id })
+        const safe = normalizeSoundDrawingClip(
+          { ...clip, id, trackId },
+          trackId,
+          trackDurationSec,
+        )
         set((s) => ({
           soundDrawingClipsByTrackId: {
             ...s.soundDrawingClipsByTrackId,
@@ -3084,14 +3317,16 @@ export const useReactStore = create<ReactStoreState>()(
         return id
       },
 
-      updateSoundDrawingClip: (trackId, clipId, patch) =>
+      updateSoundDrawingClip: (trackId, clipId, patch, trackDurationSec) =>
         set((s) => {
           const clips = s.soundDrawingClipsByTrackId[trackId] ?? []
           return {
             soundDrawingClipsByTrackId: {
               ...s.soundDrawingClipsByTrackId,
               [trackId]: clips.map((c) =>
-                c.id === clipId ? normalizeClipRange({ ...c, ...patch }) : c,
+                c.id === clipId
+                  ? normalizeSoundDrawingClip({ ...c, ...patch, trackId }, trackId, trackDurationSec)
+                  : c,
               ),
             },
           }
@@ -3102,7 +3337,10 @@ export const useReactStore = create<ReactStoreState>()(
           const clips = s.soundDrawingClipsByTrackId[trackId] ?? []
           const src = clips.find((c) => c.id === clipId)
           if (!src) return {}
-          const copy: SoundDrawingClip = { ...src, id: crypto.randomUUID() }
+          const copy = normalizeSoundDrawingClip(
+            { ...src, id: crypto.randomUUID(), trackId },
+            trackId,
+          )
           return {
             soundDrawingClipsByTrackId: {
               ...s.soundDrawingClipsByTrackId,
@@ -3171,6 +3409,12 @@ export const useReactStore = create<ReactStoreState>()(
             return {
               ...sharedDefaults,
               oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS },
+              oscillatorTextPointCache: prepareAllSoundDrawingTextPoints(
+                s.oscillatorFontAssets,
+                DEFAULT_OSCILLATOR_SETTINGS,
+                s.soundDrawingLayersByTrackId,
+                s.oscillatorTextPointCache,
+              ),
               glyphLostNotice: null,
             }
           }
@@ -3235,12 +3479,7 @@ export const useReactStore = create<ReactStoreState>()(
             : (s.laserDmxSettings.fixtures[0]?.id ?? null)
           const startupPreset = DEFAULT_REACT_PRESETS.find(preset => preset.id === INITIAL_PRESET_ID)
           const startupPatch = startupPreset
-            ? buildPresetPatch(
-                startupPreset,
-                s.oscillatorSettings,
-                s.laserDmxSettings,
-                s.neonLatticeSettings,
-              )
+            ? buildPresetPatchForState(startupPreset, s)
             : {
                 activeReactPresetId: INITIAL_PRESET_ID,
                 activeReactEngineId: INITIAL_ENGINE_ID,
@@ -3337,7 +3576,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 22,
+      version: 23,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

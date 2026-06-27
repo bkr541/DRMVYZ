@@ -28,7 +28,7 @@ interface Props {
   getAudioTime?:     () => number
   effectiveBpm?:     number | null
   durationSec?:      number
-  manualSections?:   ReactTrackSection[]
+  trackSections?:    ReactTrackSection[]
   onCanvasReady?:    (canvas: HTMLCanvasElement | null) => void
   onLiveFps?:        (fps: number) => void
 }
@@ -64,7 +64,7 @@ export function ReactShaderCanvas({
   getAudioTime,
   effectiveBpm    = null,
   durationSec     = 0,
-  manualSections  = [],
+  trackSections   = [],
   onCanvasReady,
   onLiveFps,
 }: Props) {
@@ -94,7 +94,7 @@ export function ReactShaderCanvas({
   const isPausedRef         = useRef(isPaused)
   const effectiveBpmRef     = useRef<number | null>(effectiveBpm)
   const durationSecRef      = useRef(durationSec)
-  const manualSectionsRef   = useRef(manualSections)
+  const trackSectionsRef    = useRef(trackSections)
   const getAudioTimeRef     = useRef(getAudioTime)
   const onCanvasReadyRef    = useRef(onCanvasReady)
   const onLiveFpsRef        = useRef(onLiveFps)
@@ -112,7 +112,7 @@ export function ReactShaderCanvas({
   isPausedRef.current         = isPaused
   effectiveBpmRef.current    = effectiveBpm
   durationSecRef.current     = durationSec
-  manualSectionsRef.current  = manualSections
+  trackSectionsRef.current   = trackSections
   getAudioTimeRef.current    = getAudioTime
   onCanvasReadyRef.current   = onCanvasReady
   onLiveFpsRef.current       = onLiveFps
@@ -314,19 +314,19 @@ export function ReactShaderCanvas({
       const miFrame = AudioFeatureBus.getFrame()
       const hasMI   = miFrame.frameId > 0
 
-      // Resolve section: manual sections from the track map take precedence over MI
+      // Resolve the current section from the merged track timeline; MI is a fallback only.
       const audioTimeSec = audioTimeRef.current
-      const sections = manualSectionsRef.current
-      const manualSection = sections.find(
+      const sections = trackSectionsRef.current
+      const trackSection = sections.find(
         s => s.startSec <= audioTimeSec && audioTimeSec < s.endSec,
       ) ?? null
 
-      const resolvedSectionType  = manualSection?.type ?? miFrame.section?.type ?? null
-      const resolvedSectionStart = manualSection?.startSec ?? miFrame.section?.startSec ?? -1
-      const resolvedSectionEnd   = manualSection
-        ? manualSection.endSec
+      const resolvedSectionType  = trackSection?.type ?? miFrame.section?.type ?? null
+      const resolvedSectionStart = trackSection?.startSec ?? miFrame.section?.startSec ?? -1
+      const resolvedSectionEnd   = trackSection
+        ? trackSection.endSec
         : (miFrame.section?.endSec ?? Infinity)
-      const resolvedProgress = manualSection
+      const resolvedProgress = trackSection
         ? (resolvedSectionEnd > resolvedSectionStart
             ? Math.max(0, Math.min(1, (audioTimeSec - resolvedSectionStart) / (resolvedSectionEnd - resolvedSectionStart)))
             : 0)

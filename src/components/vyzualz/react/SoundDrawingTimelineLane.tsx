@@ -444,12 +444,12 @@ function applySoundDrawingViewport(
 
 interface SoundDrawingTimelineLaneProps {
   audioDurationSec: number
-  resolvedSections: ReactTrackSection[]
+  trackSections: ReactTrackSection[]
 }
 
 export function SoundDrawingTimelineLane({
   audioDurationSec,
-  resolvedSections,
+  trackSections,
 }: SoundDrawingTimelineLaneProps) {
   const engine       = useSharedAudio()
   const allMediaItems = useMediaStore(s => s.items)
@@ -624,22 +624,22 @@ export function SoundDrawingTimelineLane({
     if (drag.type === 'move') {
       const rawS  = drag.origStart + delta
       const rawE  = drag.origEnd   + delta
-      const snappedS = snapTime(rawS, snapMode, beatGrid, resolvedSections, dur)
+      const snappedS = snapTime(rawS, snapMode, beatGrid, trackSections, dur)
       const clipDur  = drag.origEnd - drag.origStart
       s  = Math.max(0, Math.min(dur - clipDur, snappedS))
       en = s + clipDur
     } else if (drag.type === 'left') {
       const raw = drag.origStart + delta
-      s  = Math.min(drag.origEnd - CLIP_MIN_DUR, Math.max(0, snapTime(raw, snapMode, beatGrid, resolvedSections, dur)))
+      s  = Math.min(drag.origEnd - CLIP_MIN_DUR, Math.max(0, snapTime(raw, snapMode, beatGrid, trackSections, dur)))
       en = drag.origEnd
     } else {
       const raw = drag.origEnd + delta
-      en = Math.max(drag.origStart + CLIP_MIN_DUR, Math.min(dur, snapTime(raw, snapMode, beatGrid, resolvedSections, dur)))
+      en = Math.max(drag.origStart + CLIP_MIN_DUR, Math.min(dur, snapTime(raw, snapMode, beatGrid, trackSections, dur)))
       s  = drag.origStart
     }
 
     setLocalDrag({ id: drag.clipId, startSec: s, endSec: en })
-  }, [snapMode, beatGrid, resolvedSections])
+  }, [snapMode, beatGrid, trackSections])
 
   const handlePointerUp = useCallback(() => {
     const drag = dragRef.current
@@ -648,9 +648,9 @@ export function SoundDrawingTimelineLane({
     updateSoundDrawingClip(activeTrackId, drag.clipId, {
       startSec: localDrag.startSec,
       endSec:   localDrag.endSec,
-    })
+    }, safeDurationSec)
     setLocalDrag(null)
-  }, [localDrag, activeTrackId, updateSoundDrawingClip])
+  }, [localDrag, activeTrackId, safeDurationSec, updateSoundDrawingClip])
 
   // ── Add clip ─────────────────────────────────────────────────────────────────
 
@@ -680,10 +680,10 @@ export function SoundDrawingTimelineLane({
       zIndex:   0,
       fadeInMs:  0,
       fadeOutMs: 0,
-    })
+    }, safeDurationSec)
     setAddOpen(false)
     setSelectedClipId(clipId)
-  }, [activeTrackId, engine.getCurrentTime, addSoundDrawingLayer, addSoundDrawingClip])
+  }, [activeTrackId, engine.getCurrentTime, safeDurationSec, addSoundDrawingLayer, addSoundDrawingClip])
 
   const handleDuplicateClip = useCallback(() => {
     if (!selectedClipId || !activeTrackId) return

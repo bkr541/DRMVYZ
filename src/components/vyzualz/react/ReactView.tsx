@@ -250,7 +250,7 @@ export function ReactView() {
   // Resolved sections for the current track: auto + manual merged.
   // This is the single section timeline consumed by Track Map, the renderer,
   // and any preset automation.  Manual overrides always take precedence.
-  const resolvedSections = useMemo(() => {
+  const resolvedTrackSections = useMemo(() => {
     const trackId = engine.currentTrackId
     const analysis = engine.currentAnalysis
     const analyzedSections = analysis ? adaptMIAnalysis(analysis) : []
@@ -343,7 +343,7 @@ export function ReactView() {
                 getAudioTime={engine.getCurrentTime}
                 effectiveBpm={engine.currentEffectiveBpm}
                 durationSec={audioDurationSec}
-                manualSections={resolvedSections}
+                trackSections={resolvedTrackSections}
                 onCanvasReady={setOutputCanvas}
                 onLiveFps={setLiveFps}
               />
@@ -367,7 +367,7 @@ export function ReactView() {
                 neonLatticeTrigger={neonLatticeTrigger}
                 isPlaying={engine.isPlaying}
                 isPaused={transportPaused}
-                manualSections={resolvedSections}
+                trackSections={resolvedTrackSections}
                 getAudioTime={engine.getCurrentTime}
                 effectiveBpm={engine.currentEffectiveBpm}
                 onCanvasReady={setOutputCanvas}
@@ -384,7 +384,7 @@ export function ReactView() {
           {workspaceComposition.showSoundDrawingTimeline && (
             <SoundDrawingTimelineLane
               audioDurationSec={audioDurationSec}
-              resolvedSections={resolvedSections}
+              trackSections={resolvedTrackSections}
             />
           )}
           {workspaceComposition.showTrackMap && (

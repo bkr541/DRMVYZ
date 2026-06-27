@@ -32,7 +32,7 @@ interface Props {
   isPlaying:                    boolean
   /** True when playback is paused at a non-terminal playhead position. */
   isPaused?:                    boolean
-  manualSections?:              ReactTrackSection[]
+  trackSections?:               ReactTrackSection[]
   getAudioTime?:                () => number
   /**
    * Canonical effective BPM from the audio engine.  When provided and > 0 this
@@ -68,7 +68,7 @@ export function ReactPlaceholderCanvas({
   neonLatticeTrigger         = null,
   isPlaying,
   isPaused                    = false,
-  manualSections             = [],
+  trackSections              = [],
   getAudioTime,
   effectiveBpm               = null,
   onCanvasReady,
@@ -101,7 +101,7 @@ export function ReactPlaceholderCanvas({
   const isPlayingRef           = useRef(isPlaying)
   const isPausedRef            = useRef(isPaused)
   const presetRef             = useRef<ReactPreset | null>(activePreset)
-  const sectionsRef           = useRef<ReactTrackSection[]>(manualSections)
+  const trackSectionsRef      = useRef<ReactTrackSection[]>(trackSections)
   const audioTimeRef          = useRef(0)
   const getAudioTimeRef        = useRef(getAudioTime)
   const effectiveBpmRef        = useRef<number | null>(effectiveBpm)
@@ -128,7 +128,7 @@ export function ReactPlaceholderCanvas({
   isPlayingRef.current           = isPlaying
   isPausedRef.current            = isPaused
   presetRef.current             = activePreset
-  sectionsRef.current           = manualSections
+  trackSectionsRef.current      = trackSections
   getAudioTimeRef.current        = getAudioTime
   effectiveBpmRef.current        = effectiveBpm
   onCanvasReadyRef.current       = onCanvasReady
@@ -357,7 +357,7 @@ export function ReactPlaceholderCanvas({
       }
 
       setSoundDrawingClipsForFrame(sdLayersRef.current, sdClipsRef.current)
-      renderReactEngine(ctx, rfCtx, preset, renderParams, sectionsRef.current)
+      renderReactEngine(ctx, rfCtx, preset, renderParams, trackSectionsRef.current)
 
       // LaserDMX animation clock is frozen while paused so scan/path generators
       // don't accumulate ticks that cause a visible jump when playback resumes.
