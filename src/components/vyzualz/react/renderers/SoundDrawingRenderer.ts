@@ -8,6 +8,7 @@ import { generateBuiltinShapePoints, clamp } from './oscillatorPathUtils'
 import { textToGlyphPoints } from './textGlyphUtils'
 import { getSvgVisualEntry } from './svgVisualCache'
 import { getSvgGlyphCacheKey, findNearestSvgGlyphCacheEntry } from './svgGlyphUtils'
+import { getSvgGlyphAssetId, resolveUnifiedSvgSource } from '../svgSourceLifecycle'
 // parseSvgToGlyphPoints is intentionally NOT imported here.
 // SVG parsing happens at upload/select/resolution-change time in reactStore.ts.
 // This renderer only reads pre-prepared points from params.oscillatorGlyphPointCache.
@@ -201,17 +202,17 @@ function getOscillatorPathPoints(params: ReactRenderParams): OscillatorGlyphPoin
       cachePut(key, pts)
       return pts
     }
-    case 'svgGlyph': {
-      const glyphId = osc.selectedGlyphId
-      const asset = glyphId ? params.oscillatorGlyphAssets.find(a => a.id === glyphId) : undefined
+    case 'svgGlyph':
+    case 'svg': {
+      const unified = resolveUnifiedSvgSource(osc)
+      const glyphId = unified?.mediaId
+        ? getSvgGlyphAssetId(unified.mediaId)
+        : (osc.sourceType === 'svgGlyph' ? osc.selectedGlyphId : null)
+      const asset = glyphId ? params.oscillatorGlyphAssets.find(candidate => candidate.id === glyphId) : undefined
       if (asset) {
-        // Read from the pre-parsed cache populated by reactStore at upload/select/resolution-change time.
         const cacheKey = getSvgGlyphCacheKey(asset.id, res, asset.contentHash)
         const prepared = params.oscillatorGlyphPointCache[cacheKey]
         if (prepared) return prepared
-        // Exact key not ready (debounce window or first frame after page reload).
-        // Use the nearest already-compiled resolution to keep the glyph visible
-        // instead of flashing a circle while the new resolution compiles.
         const nearest = findNearestSvgGlyphCacheEntry(
           params.oscillatorGlyphPointCache,
           asset.id,
@@ -220,39 +221,15 @@ function getOscillatorPathPoints(params: ReactRenderParams): OscillatorGlyphPoin
         )
         if (nearest) return nearest
         if (import.meta.env.DEV) {
-          console.warn(`[SoundDrawingRenderer] No compiled points for glyph "${asset.id}" at res ${res} — falling back to circle`)
+          console.warn(`[SoundDrawingRenderer] No compiled points for SVG "${asset.id}" at res ${res} — falling back to circle`)
         }
       }
-      // No asset selected or no compiled entry at all — circle sentinel
       const key = `builtin:circle:${res}`
       const cached = pathCache.get(key)
       if (cached) return cached
-      const pts = generateBuiltinShapePoints('circle', res)
-      cachePut(key, pts)
-      return pts
-    }
-    case 'svg': {
-      // Unified SVG source. When svgRenderMode is originalArtwork this branch is
-      // unreachable (renderSoundDrawing routes away before calling getOscillatorPathPoints).
-      // For reactivePath (or auto where glyph points are available), look up by glyph-media: prefix.
-      const glyphId = osc.selectedSvgId ? `glyph-media:${osc.selectedSvgId}` : null
-      const asset   = glyphId ? params.oscillatorGlyphAssets.find(a => a.id === glyphId) : undefined
-      if (asset) {
-        const cacheKey = getSvgGlyphCacheKey(asset.id, res, asset.contentHash)
-        const prepared = params.oscillatorGlyphPointCache[cacheKey]
-        if (prepared) return prepared
-        const nearest = findNearestSvgGlyphCacheEntry(
-          params.oscillatorGlyphPointCache, asset.id, res, asset.contentHash,
-        )
-        if (nearest) return nearest
-      }
-      // No glyph points ready — circle sentinel keeps something visible while compiling
-      const key    = `builtin:circle:${res}`
-      const cached = pathCache.get(key)
-      if (cached) return cached
-      const pts = generateBuiltinShapePoints('circle', res)
-      cachePut(key, pts)
-      return pts
+      const points = generateBuiltinShapePoints('circle', res)
+      cachePut(key, points)
+      return points
     }
     case 'svgVisual':
     case 'classic':
@@ -272,6 +249,7 @@ function renderOriginalArtwork(
   frame: ReactFrameContext,
   preset: ReactPreset,
   params: ReactRenderParams,
+  mediaId: string,
 ): void {
   const { W, H, t, dpr } = frame
   const osc  = params.oscillator
@@ -280,10 +258,6 @@ function renderOriginalArtwork(
   const high = frame.audio.high
   const vol  = frame.audio.volume
 
-  // Look up image — unified 'svg' uses selectedSvgId; legacy 'svgVisual' uses selectedSvgVisualId
-  const mediaId = osc.sourceType === 'svg'
-    ? (osc.selectedSvgId ?? '')
-    : (osc.selectedSvgVisualId ?? '')
   const entry = getSvgVisualEntry(mediaId)
 
   // Trail canvas for decay / ghost-echo effect
@@ -1477,9 +1451,10 @@ function drawPathScopeOnTrail(
 // ── SVG auto-mode helper ──────────────────────────────────────────────────────
 
 function hasSvgGlyphPoints(osc: OscillatorSettings, params: ReactRenderParams): boolean {
-  const res     = clamp(Math.round(osc.pathResolution), 64, 2048)
-  const glyphId = osc.selectedSvgId ? `glyph-media:${osc.selectedSvgId}` : null
-  const asset   = glyphId ? params.oscillatorGlyphAssets.find(a => a.id === glyphId) : undefined
+  const res = clamp(Math.round(osc.pathResolution), 64, 2048)
+  const mediaId = resolveUnifiedSvgSource(osc)?.mediaId
+  const glyphId = mediaId ? getSvgGlyphAssetId(mediaId) : null
+  const asset = glyphId ? params.oscillatorGlyphAssets.find(candidate => candidate.id === glyphId) : undefined
   if (!asset) return false
   const key = getSvgGlyphCacheKey(asset.id, res, asset.contentHash)
   if (params.oscillatorGlyphPointCache[key]) return true
@@ -1520,7 +1495,7 @@ function buildEffectiveOscForLayer(
     ...(layer.letterSpacing !== undefined    && { textLetterSpacing: layer.letterSpacing }),
     ...(layer.lineHeight    !== undefined    && { textLineHeight:   layer.lineHeight }),
     ...(layer.alignment     !== undefined    && { textAlignment:    layer.alignment }),
-    ...(layer.svgId         !== null         && { svgId:            layer.svgId }),
+    ...(layer.svgId         !== null         && { selectedSvgId:    layer.svgId }),
     // oscillator overrides from the layer (partial)
     ...layer.oscillatorOverride,
   }
@@ -1603,17 +1578,14 @@ export function renderSoundDrawing(
     return
   }
 
-  // Original Artwork path: svgVisual (legacy) or svg with originalArtwork mode.
-  // For 'auto' mode with no compiled glyph points, also falls back to originalArtwork.
-  if (osc.sourceType === 'svgVisual') {
-    renderOriginalArtwork(ctx, frame, preset, params)
-    return
-  }
-  if (osc.sourceType === 'svg') {
-    const wantsOriginal = osc.svgRenderMode === 'originalArtwork' ||
-      (osc.svgRenderMode === 'auto' && !hasSvgGlyphPoints(osc, params))
+  // Unified SVG runtime path. Legacy media-backed settings are resolved at the
+  // compatibility boundary and follow the same selectedSvgId/render-mode lifecycle.
+  const svgSource = resolveUnifiedSvgSource(osc)
+  if (svgSource?.mediaId) {
+    const wantsOriginal = svgSource.renderMode === 'originalArtwork' ||
+      (svgSource.renderMode === 'auto' && !hasSvgGlyphPoints(osc, params))
     if (wantsOriginal) {
-      renderOriginalArtwork(ctx, frame, preset, params)
+      renderOriginalArtwork(ctx, frame, preset, params, svgSource.mediaId)
       return
     }
   }

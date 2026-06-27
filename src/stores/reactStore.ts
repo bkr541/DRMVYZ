@@ -61,7 +61,13 @@ import {
   setSvgVisualEntry,
   evictSvgVisual,
   clearSvgVisualCache,
+  isCurrentSvgVisualGeneration,
 } from '../components/vyzualz/react/renderers/svgVisualCache'
+import {
+  getMediaIdFromSvgGlyphId,
+  getSvgGlyphAssetId,
+  normalizeUnifiedSvgSettings,
+} from '../components/vyzualz/react/svgSourceLifecycle'
 import { useMediaStore } from './mediaStore'
 import { createSignedMediaUrl } from '../lib/mediaDb'
 import * as opentype from 'opentype.js'
@@ -108,6 +114,231 @@ function prepareSvgPoints(
   return { ...cache, [key]: parseSvgToGlyphPoints(asset.rawSvg, res) }
 }
 
+// ── Unified SVG cache lifecycle ──────────────────────────────────────────────
+// Selection lives only in oscillatorSettings.sourceType === 'svg' + selectedSvgId.
+// These helpers rebuild serializable glyph data and non-serializable artwork
+// caches without changing the active source, selected asset, or render mode.
+
+type SvgMediaItem = ReturnType<typeof useMediaStore.getState>['items'][number]
+
+interface LoadedSvgMedia {
+  item: SvgMediaItem
+  rawSvg: string
+}
+
+let _svgSelectionGeneration = 0
+let _svgCacheGeneration = 0
+const _svgCacheGenerationByMedia = new Map<string, number>()
+const _svgCacheLoads = new Map<string, Promise<void>>()
+
+function svgMediaIdentity(item: SvgMediaItem): string {
+  return `${item.id}::${item.url ?? ''}::${item.storagePath ?? ''}`
+}
+
+async function fetchSvgText(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url, { cache: 'no-store' })
+    if (!response.ok) return null
+    return await response.text()
+  } catch {
+    return null
+  }
+}
+
+async function loadSvgMedia(mediaId: string): Promise<LoadedSvgMedia | null> {
+  const item = useMediaStore.getState().items.find(candidate => candidate.id === mediaId)
+  if (!item) return null
+
+  let rawSvg = item.url ? await fetchSvgText(item.url) : null
+  if (!rawSvg && item.storagePath) {
+    const { url: freshUrl } = await createSignedMediaUrl(item.storagePath)
+    if (freshUrl) rawSvg = await fetchSvgText(freshUrl)
+  }
+
+  if (!rawSvg || !isSvgContent(rawSvg)) return null
+  return { item, rawSvg }
+}
+
+function visualIdentityMatches(entry: ReturnType<typeof getSvgVisualEntry>, item: SvgMediaItem): boolean {
+  if (!entry?.loaded) return false
+  const urlChanged = entry.mediaUrl !== undefined && entry.mediaUrl !== (item.url || undefined)
+  const pathChanged = entry.storagePath !== undefined && entry.storagePath !== (item.storagePath || undefined)
+  return !urlChanged && !pathChanged
+}
+
+function cacheUnifiedSvgGlyph(loaded: LoadedSvgMedia, generation: number): void {
+  if (_svgCacheGenerationByMedia.get(loaded.item.id) !== generation) return
+
+  const stableId = getSvgGlyphAssetId(loaded.item.id)
+  const displayName = (loaded.item.title ?? loaded.item.name).replace(/\.svg$/i, '').trim() || 'SVG'
+  const res = clampRes(useReactStore.getState().oscillatorSettings.pathResolution)
+  const nextAsset = makeSvgGlyphAsset(displayName, loaded.rawSvg, res, stableId)
+
+  useReactStore.setState(state => {
+    if (_svgCacheGenerationByMedia.get(loaded.item.id) !== generation) return {}
+    const existingIndex = state.oscillatorGlyphAssets.findIndex(asset => asset.id === stableId)
+    const existing = existingIndex >= 0 ? state.oscillatorGlyphAssets[existingIndex] : undefined
+    const asset: OscillatorGlyphAsset = existing && existing.contentHash === nextAsset.contentHash
+      ? existing
+      : nextAsset
+    const assets = existingIndex < 0
+      ? [...state.oscillatorGlyphAssets, asset]
+      : state.oscillatorGlyphAssets.map(candidate => candidate.id === stableId ? asset : candidate)
+    const pointCache = prepareSvgPoints(asset, clampRes(state.oscillatorSettings.pathResolution), state.oscillatorGlyphPointCache)
+    return {
+      oscillatorGlyphAssets: assets,
+      oscillatorGlyphPointCache: pointCache,
+    }
+  })
+}
+
+function decodeUnifiedSvgVisual(loaded: LoadedSvgMedia, generation: number): Promise<void> {
+  const { item, rawSvg } = loaded
+  const objectUrl = URL.createObjectURL(new Blob([rawSvg], { type: 'image/svg+xml' }))
+  const image = new Image()
+
+  return new Promise(resolve => {
+    image.onload = () => {
+      if (!isCurrentSvgVisualGeneration(item.id, generation)) {
+        URL.revokeObjectURL(objectUrl)
+        resolve()
+        return
+      }
+      setSvgVisualEntry({
+        id: item.id,
+        loading: false,
+        image,
+        objectUrl,
+        loaded: true,
+        error: null,
+        width: image.naturalWidth || 512,
+        height: image.naturalHeight || 512,
+        mediaUrl: item.url || undefined,
+        storagePath: item.storagePath || undefined,
+        generation,
+      })
+      resolve()
+    }
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      if (isCurrentSvgVisualGeneration(item.id, generation)) {
+        setSvgVisualEntry({
+          id: item.id,
+          loading: false,
+          image: null,
+          objectUrl: null,
+          loaded: false,
+          error: 'SVG image failed to render',
+          width: 0,
+          height: 0,
+          generation,
+        })
+      }
+      resolve()
+    }
+    image.src = objectUrl
+  })
+}
+
+async function ensureUnifiedSvgCaches(mediaId: string): Promise<void> {
+  // Persisted glyph assets are available before the asynchronous media library
+  // finishes restoring. Rebuild their transient point cache immediately.
+  const initialState = useReactStore.getState()
+  const stableId = getSvgGlyphAssetId(mediaId)
+  const persistedGlyph = initialState.oscillatorGlyphAssets.find(asset => asset.id === stableId)
+  if (persistedGlyph) {
+    const pointCache = prepareSvgPoints(
+      persistedGlyph,
+      clampRes(initialState.oscillatorSettings.pathResolution),
+      initialState.oscillatorGlyphPointCache,
+    )
+    if (pointCache !== initialState.oscillatorGlyphPointCache) {
+      useReactStore.setState({ oscillatorGlyphPointCache: pointCache })
+    }
+  }
+
+  const item = useMediaStore.getState().items.find(candidate => candidate.id === mediaId)
+  if (!item) {
+    const generation = ++_svgCacheGeneration
+    _svgCacheGenerationByMedia.set(mediaId, generation)
+    setSvgVisualEntry({
+      id: mediaId,
+      loading: false,
+      image: null,
+      objectUrl: null,
+      loaded: false,
+      error: 'Media item not found',
+      width: 0,
+      height: 0,
+      generation,
+    })
+    return
+  }
+
+  const identity = svgMediaIdentity(item)
+  const inFlightKey = `${mediaId}::${identity}`
+  const existingLoad = _svgCacheLoads.get(inFlightKey)
+  if (existingLoad) return existingLoad
+
+  const load = (async () => {
+    const existingGlyph = useReactStore.getState().oscillatorGlyphAssets.find(asset => asset.id === stableId)
+    const existingVisual = getSvgVisualEntry(mediaId)
+    const visualReady = visualIdentityMatches(existingVisual, item)
+    if (existingGlyph && visualReady) return
+
+    const generation = ++_svgCacheGeneration
+    _svgCacheGenerationByMedia.set(mediaId, generation)
+
+    if (!visualReady) {
+      if (existingVisual) evictSvgVisual(mediaId)
+      setSvgVisualEntry({
+        id: mediaId,
+        loading: true,
+        image: null,
+        objectUrl: null,
+        loaded: false,
+        error: null,
+        width: 0,
+        height: 0,
+        mediaUrl: item.url || undefined,
+        storagePath: item.storagePath || undefined,
+        generation,
+      })
+    }
+
+    const loaded = await loadSvgMedia(mediaId)
+    if (_svgCacheGenerationByMedia.get(mediaId) !== generation) return
+    if (!loaded) {
+      // A failed glyph refresh must not discard artwork that is already
+      // decoded and usable for Original Artwork mode.
+      if (!visualReady) {
+        setSvgVisualEntry({
+          id: mediaId,
+          loading: false,
+          image: null,
+          objectUrl: null,
+          loaded: false,
+          error: 'Could not load SVG content',
+          width: 0,
+          height: 0,
+          generation,
+        })
+      }
+      return
+    }
+
+    cacheUnifiedSvgGlyph(loaded, generation)
+    if (!visualReady) await decodeUnifiedSvgVisual(loaded, generation)
+  })()
+
+  _svgCacheLoads.set(inFlightKey, load)
+  try {
+    await load
+  } finally {
+    if (_svgCacheLoads.get(inFlightKey) === load) _svgCacheLoads.delete(inFlightKey)
+  }
+}
+
 // ── Debounced SVG glyph recompile (resolution slider) ─────────────────────────
 // When the user drags the Resolution slider, setOscillatorSettings fires on every
 // tick. Compiling SVG points synchronously would stall the UI. Instead, the
@@ -128,7 +359,7 @@ function scheduleGlyphRecompile(): void {
     if (osc.sourceType === 'svgGlyph') {
       activeGlyphId = osc.selectedGlyphId ?? null
     } else if (osc.sourceType === 'svg' && osc.selectedSvgId) {
-      activeGlyphId = `glyph-media:${osc.selectedSvgId}`
+      activeGlyphId = getSvgGlyphAssetId(osc.selectedSvgId)
     }
     if (!activeGlyphId) return
     const asset = s.oscillatorGlyphAssets.find(a => a.id === activeGlyphId)
@@ -322,10 +553,10 @@ export function resolvePresetOscillatorSettings(
   currentSettings: OscillatorSettings,
 ): OscillatorSettings {
   if (preset.engine !== 'oscilloscope') return currentSettings
-  return {
+  return normalizeUnifiedSvgSettings({
     ...DEFAULT_OSCILLATOR_SETTINGS,
     ...(preset.oscillatorSettings ?? {}),
-  }
+  })
 }
 
 // ── buildPresetPatch ──────────────────────────────────────────────────────────
@@ -555,17 +786,14 @@ interface ReactStoreState {
   // Pre-parsed glyph points — non-persisted, keyed by "${assetId}:${resolution}"
   oscillatorGlyphPointCache: Record<string, OscillatorGlyphPoint[]>
 
-  // SVG Visual mode — loads raw SVG from a media item, creates a Blob URL,
-  // and stores the decoded HTMLImageElement in the module-level svgVisualCache.
-  // Does not change sourceType if the asset is already selected and loaded.
+  // Legacy compatibility selectors. They convert directly to the unified
+  // source model instead of activating svgGlyph/svgVisual runtime states.
   selectSvgVisual: (mediaId: string) => Promise<void>
-  // Evicts the visual cache entry for mediaId and resets selectedSvgVisualId
-  // if it matches. Called from mediaStore.removeItem to keep state consistent.
   clearSvgVisualForMedia: (mediaId: string) => void
 
-  // Unified SVG asset selection (sourceType: 'svg').
-  // Caches both glyph points (for reactivePath) and SVG image (for originalArtwork)
-  // in parallel, then sets selectedSvgId + sourceType: 'svg'.
+  // Unified SVG lifecycle. Rehydration only prepares caches and never changes
+  // sourceType, selectedSvgId, or svgRenderMode.
+  rehydrateSvgAsset: (mediaId: string) => Promise<void>
   selectSvgAsset: (mediaId: string) => Promise<void>
 
   // Uploaded font assets (persisted — metadata only, binary lives in cloud storage)
@@ -865,10 +1093,17 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       let migratedOsc = { ...osc }
       if (osc.sourceType === 'svgGlyph') {
         const glyphId = osc.selectedGlyphId as string | null
-        const svgId = typeof glyphId === 'string' && glyphId.startsWith('glyph-media:')
-          ? glyphId.slice('glyph-media:'.length)
-          : glyphId
-        migratedOsc = { ...migratedOsc, sourceType: 'svg', selectedSvgId: svgId ?? null, svgRenderMode: 'reactivePath', svgUseReactPalette: true, autoRotate: true }
+        const svgId = typeof glyphId === 'string'
+          ? getMediaIdFromSvgGlyphId(glyphId)
+          : null
+        // Only media-backed legacy glyph selections belong to the unified SVG
+        // lifecycle. Preserve standalone imported glyph-library entries as
+        // legacy glyphs so old libraries remain usable after migration.
+        if (svgId) {
+          migratedOsc = { ...migratedOsc, sourceType: 'svg', selectedSvgId: svgId, svgRenderMode: 'reactivePath', svgUseReactPalette: true, autoRotate: true }
+        } else {
+          migratedOsc = { ...migratedOsc, autoRotate: true }
+        }
       } else if (osc.sourceType === 'svgVisual') {
         migratedOsc = { ...migratedOsc, sourceType: 'svg', selectedSvgId: (osc.selectedSvgVisualId as string | null) ?? null, svgRenderMode: 'originalArtwork', svgUseReactPalette: true, autoRotate: true }
       } else if (osc.sourceType === 'text') {
@@ -1206,6 +1441,10 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       : withoutLegacyPalette.reactPresets
     state = { ...withoutLegacyPalette, reactPresets: presets }
   }
+  const oscillatorSettings = state.oscillatorSettings as OscillatorSettings | undefined
+  if (oscillatorSettings) {
+    state = { ...state, oscillatorSettings: normalizeUnifiedSvgSettings(oscillatorSettings) }
+  }
   return state
 }
 
@@ -1296,6 +1535,7 @@ export function mergeReactStoreState(
   return {
     ...merged,
     ...repairedSelection,
+    oscillatorSettings: normalizeUnifiedSvgSettings(merged.oscillatorSettings),
     laserDmxBeamMatrixPresetDirty: dirty,
   }
 }
@@ -1580,7 +1820,7 @@ export const useReactStore = create<ReactStoreState>()(
 
       setOscillatorSettings: (patch) =>
         set((s) => {
-          const newSettings = { ...s.oscillatorSettings, ...patch }
+          const newSettings = normalizeUnifiedSvgSettings({ ...s.oscillatorSettings, ...patch })
           let newGlyphCache = s.oscillatorGlyphPointCache
           let newTextCache  = s.oscillatorTextPointCache
 
@@ -1634,7 +1874,12 @@ export const useReactStore = create<ReactStoreState>()(
           for (const key of Object.keys(newCache)) {
             if (key.startsWith(`${id}:`)) delete newCache[key]
           }
-          const wasActive = s.oscillatorSettings.selectedGlyphId === id
+          const mediaId = getMediaIdFromSvgGlyphId(id)
+          const wasLegacyActive = s.oscillatorSettings.sourceType === 'svgGlyph' &&
+            s.oscillatorSettings.selectedGlyphId === id
+          const wasUnifiedActive = !!mediaId && s.oscillatorSettings.sourceType === 'svg' &&
+            s.oscillatorSettings.selectedSvgId === mediaId
+          const wasActive = wasLegacyActive || wasUnifiedActive
           const removedName = wasActive
             ? (s.oscillatorGlyphAssets.find(a => a.id === id)?.name ?? null)
             : null
@@ -1642,7 +1887,12 @@ export const useReactStore = create<ReactStoreState>()(
             oscillatorGlyphAssets: s.oscillatorGlyphAssets.filter(a => a.id !== id),
             oscillatorGlyphPointCache: newCache,
             oscillatorSettings: wasActive
-              ? { ...s.oscillatorSettings, selectedGlyphId: null, sourceType: 'builtinShape' }
+              ? {
+                  ...s.oscillatorSettings,
+                  selectedGlyphId: wasLegacyActive ? null : s.oscillatorSettings.selectedGlyphId,
+                  selectedSvgId: wasUnifiedActive ? null : s.oscillatorSettings.selectedSvgId,
+                  sourceType: 'builtinShape',
+                }
               : s.oscillatorSettings,
             glyphLostNotice: removedName,
           }
@@ -1665,234 +1915,114 @@ export const useReactStore = create<ReactStoreState>()(
           // Ensure points are prepared; handles the page-reload case where the
           // persisted asset has rawSvg but the non-persisted cache is empty.
           const newCache = asset ? prepareSvgPoints(asset, res, s.oscillatorGlyphPointCache) : s.oscillatorGlyphPointCache
+          const mediaId = getMediaIdFromSvgGlyphId(id)
           return {
-            oscillatorSettings: { ...s.oscillatorSettings, sourceType: 'svgGlyph', selectedGlyphId: id },
+            oscillatorSettings: mediaId
+              ? {
+                  ...s.oscillatorSettings,
+                  sourceType: 'svg',
+                  selectedSvgId: mediaId,
+                  svgRenderMode: 'reactivePath',
+                }
+              : { ...s.oscillatorSettings, sourceType: 'svgGlyph', selectedGlyphId: id },
             oscillatorGlyphPointCache: newCache,
             glyphLostNotice: null,
           }
         }),
 
       selectSvgMediaGlyph: async (mediaId) => {
-        const stableId = `glyph-media:${mediaId}`
-
-        // 1. Already cached as a glyph asset — just select it
-        const s0 = get()
-        const existing = s0.oscillatorGlyphAssets.find(a => a.id === stableId)
-        if (existing) {
-          const res = clampRes(s0.oscillatorSettings.pathResolution)
-          const newCache = prepareSvgPoints(existing, res, s0.oscillatorGlyphPointCache)
-          set({
-            oscillatorSettings:        { ...s0.oscillatorSettings, sourceType: 'svgGlyph', selectedGlyphId: stableId },
-            oscillatorGlyphPointCache: newCache,
-            glyphLostNotice:           null,
-          })
-          return
-        }
-
-        // 2. Find the media item in mediaStore
-        const mediaItem = useMediaStore.getState().items.find(i => i.id === mediaId)
-        if (!mediaItem) {
-          console.warn(`[DRMVYZ] selectSvgMediaGlyph: media item "${mediaId}" not found in store`)
-          return
-        }
-
-        // 3. Fetch SVG text — try cached URL, fall back to a fresh signed URL
-        const tryFetch = async (url: string): Promise<string | null> => {
-          try {
-            const resp = await fetch(url, { cache: 'no-store' })
-            if (!resp.ok) return null
-            return await resp.text()
-          } catch {
-            return null
-          }
-        }
-
-        let rawSvg = mediaItem.url ? await tryFetch(mediaItem.url) : null
-
-        if (!rawSvg && mediaItem.storagePath) {
-          console.warn(`[DRMVYZ] selectSvgMediaGlyph: primary URL failed for "${mediaItem.name}", refreshing signed URL…`)
-          const { url: freshUrl } = await createSignedMediaUrl(mediaItem.storagePath)
-          if (freshUrl) rawSvg = await tryFetch(freshUrl)
-        }
-
-        if (!rawSvg) {
-          console.warn(`[DRMVYZ] selectSvgMediaGlyph: could not fetch SVG content for "${mediaItem.name}"`)
-          return
-        }
-
-        // 4. Validate
-        if (!isSvgContent(rawSvg)) {
-          console.warn(`[DRMVYZ] selectSvgMediaGlyph: "${mediaItem.name}" does not appear to be a valid SVG`)
-          return
-        }
-
-        // 5. Build asset with stable media-backed ID
-        const displayName = (mediaItem.title ?? mediaItem.name).replace(/\.svg$/i, '').trim() || 'SVG Glyph'
-        const res = clampRes(get().oscillatorSettings.pathResolution)
-        const asset = makeSvgGlyphAsset(displayName, rawSvg, res, stableId)
-
-        // 6. Atomically add + select (guard against races)
-        set(s => {
-          const assets = s.oscillatorGlyphAssets.some(a => a.id === stableId)
-            ? s.oscillatorGlyphAssets
-            : [...s.oscillatorGlyphAssets, asset]
-          const newCache = prepareSvgPoints(asset, clampRes(s.oscillatorSettings.pathResolution), s.oscillatorGlyphPointCache)
-          return {
-            oscillatorGlyphAssets:     assets,
-            oscillatorGlyphPointCache: newCache,
-            oscillatorSettings: {
-              ...s.oscillatorSettings,
-              sourceType:      'svgGlyph',
-              selectedGlyphId: stableId,
-            },
-            glyphLostNotice: null,
-          }
-        })
+        const requestGeneration = ++_svgSelectionGeneration
+        set(state => ({
+          oscillatorSettings: {
+            ...state.oscillatorSettings,
+            sourceType: 'svg',
+            selectedSvgId: mediaId,
+            svgRenderMode: 'reactivePath',
+          },
+          glyphLostNotice: null,
+        }))
+        await ensureUnifiedSvgCaches(mediaId)
+        if (requestGeneration !== _svgSelectionGeneration) return
+        const active = get().oscillatorSettings
+        if (active.sourceType !== 'svg' || active.selectedSvgId !== mediaId) return
       },
 
       addAndCacheMediaSvgGlyph: (mediaId, rawSvg, displayName) =>
-        set(s => {
-          const stableId = `glyph-media:${mediaId}`
-          if (s.oscillatorGlyphAssets.some(a => a.id === stableId)) return {}
-          const res = clampRes(s.oscillatorSettings.pathResolution)
-          const name = displayName ?? 'SVG Glyph'
-          const asset = makeSvgGlyphAsset(name, rawSvg, res, stableId)
-          const newCache = prepareSvgPoints(asset, res, s.oscillatorGlyphPointCache)
+        set(state => {
+          if (!isSvgContent(rawSvg)) return {}
+          const stableId = getSvgGlyphAssetId(mediaId)
+          const res = clampRes(state.oscillatorSettings.pathResolution)
+          const asset = makeSvgGlyphAsset(displayName ?? 'SVG', rawSvg, res, stableId)
+          const existingIndex = state.oscillatorGlyphAssets.findIndex(candidate => candidate.id === stableId)
+          const assets = existingIndex < 0
+            ? [...state.oscillatorGlyphAssets, asset]
+            : state.oscillatorGlyphAssets.map(candidate => candidate.id === stableId ? asset : candidate)
           return {
-            oscillatorGlyphAssets:     [...s.oscillatorGlyphAssets, asset],
-            oscillatorGlyphPointCache: newCache,
+            oscillatorGlyphAssets: assets,
+            oscillatorGlyphPointCache: prepareSvgPoints(asset, res, state.oscillatorGlyphPointCache),
           }
         }),
 
-      // ── SVG Visual actions ─────────────────────────────────────────────────
+      // ── SVG artwork compatibility and unified lifecycle ────────────────────
 
       selectSvgVisual: async (mediaId) => {
-        // Update settings immediately so the UI reflects the selection
-        set(s => ({
+        const requestGeneration = ++_svgSelectionGeneration
+        set(state => ({
           oscillatorSettings: {
-            ...s.oscillatorSettings,
-            sourceType:          'svgVisual',
-            selectedSvgVisualId: mediaId,
+            ...state.oscillatorSettings,
+            sourceType: 'svg',
+            selectedSvgId: mediaId,
+            svgRenderMode: 'originalArtwork',
           },
+          glyphLostNotice: null,
         }))
-
-        const existing  = getSvgVisualEntry(mediaId)
-        const mediaItem = useMediaStore.getState().items.find(i => i.id === mediaId)
-
-        // Already loading — don't start a duplicate fetch
-        if (existing?.loading) return
-
-        // Already loaded — check if media identity has changed (re-upload under same ID)
-        if (existing?.loaded) {
-          const urlChanged  = existing.mediaUrl   !== undefined && existing.mediaUrl   !== (mediaItem?.url          ?? undefined)
-          const pathChanged = existing.storagePath !== undefined && existing.storagePath !== (mediaItem?.storagePath ?? undefined)
-          if (!urlChanged && !pathChanged) return
-          // Identity changed — evict and reload
-          evictSvgVisual(mediaId)
-        }
-
-        // Clear a stale error entry so a fresh load can proceed
-        if (existing?.error) evictSvgVisual(mediaId)
-
-        // Mark as loading so duplicate calls are blocked and the status card shows "Loading…"
-        setSvgVisualEntry({ id: mediaId, loading: true, image: null, objectUrl: null, loaded: false, error: null, width: 0, height: 0 })
-
-        if (!mediaItem) {
-          setSvgVisualEntry({ id: mediaId, loading: false, image: null, objectUrl: null, loaded: false, error: 'Media item not found', width: 0, height: 0 })
-          return
-        }
-
-        const tryFetch = async (url: string): Promise<string | null> => {
-          try {
-            const resp = await fetch(url, { cache: 'no-store' })
-            if (!resp.ok) return null
-            return await resp.text()
-          } catch { return null }
-        }
-
-        let rawSvg = mediaItem.url ? await tryFetch(mediaItem.url) : null
-
-        if (!rawSvg && mediaItem.storagePath) {
-          const { url: freshUrl } = await createSignedMediaUrl(mediaItem.storagePath)
-          if (freshUrl) rawSvg = await tryFetch(freshUrl)
-        }
-
-        if (!rawSvg || !isSvgContent(rawSvg)) {
-          setSvgVisualEntry({ id: mediaId, loading: false, image: null, objectUrl: null, loaded: false, error: 'Could not load SVG content', width: 0, height: 0 })
-          return
-        }
-
-        const blob      = new Blob([rawSvg], { type: 'image/svg+xml' })
-        const objectUrl = URL.createObjectURL(blob)
-        const img       = new Image()
-
-        img.onload = () => {
-          setSvgVisualEntry({
-            id:          mediaId,
-            loading:     false,
-            image:       img,
-            objectUrl,
-            loaded:      true,
-            error:       null,
-            width:       img.naturalWidth  || 512,
-            height:      img.naturalHeight || 512,
-            mediaUrl:    mediaItem.url          || undefined,
-            storagePath: mediaItem.storagePath  || undefined,
-          })
-        }
-        img.onerror = () => {
-          URL.revokeObjectURL(objectUrl)
-          setSvgVisualEntry({ id: mediaId, loading: false, image: null, objectUrl: null, loaded: false, error: 'SVG image failed to render', width: 0, height: 0 })
-        }
-        img.src = objectUrl
+        await ensureUnifiedSvgCaches(mediaId)
+        if (requestGeneration !== _svgSelectionGeneration) return
+        const active = get().oscillatorSettings
+        if (active.sourceType !== 'svg' || active.selectedSvgId !== mediaId) return
       },
 
       clearSvgVisualForMedia: (mediaId) => {
         evictSvgVisual(mediaId)
-        set(s => {
-          if (s.oscillatorSettings.selectedSvgVisualId !== mediaId) return {}
+        set(state => {
+          const activeUnified = state.oscillatorSettings.sourceType === 'svg' &&
+            state.oscillatorSettings.selectedSvgId === mediaId
+          const activeLegacy = state.oscillatorSettings.sourceType === 'svgVisual' &&
+            state.oscillatorSettings.selectedSvgVisualId === mediaId
+          if (!activeUnified && !activeLegacy) return {}
           return {
             oscillatorSettings: {
-              ...s.oscillatorSettings,
-              selectedSvgVisualId: null,
-              sourceType: s.oscillatorSettings.sourceType === 'svgVisual'
-                ? 'builtinShape'
-                : s.oscillatorSettings.sourceType,
+              ...state.oscillatorSettings,
+              sourceType: 'builtinShape',
+              selectedSvgId: activeUnified ? null : state.oscillatorSettings.selectedSvgId,
+              selectedSvgVisualId: activeLegacy ? null : state.oscillatorSettings.selectedSvgVisualId,
             },
           }
         })
       },
 
-      // ── Unified SVG asset selection ─────────────────────────────────────────
+      rehydrateSvgAsset: async (mediaId) => {
+        await ensureUnifiedSvgCaches(mediaId)
+      },
 
       selectSvgAsset: async (mediaId) => {
-        // Set selectedSvgId immediately so the UI reflects the pending selection
-        set(s => ({
+        const requestGeneration = ++_svgSelectionGeneration
+        set(state => ({
           oscillatorSettings: {
-            ...s.oscillatorSettings,
-            sourceType:    'svg',
+            ...state.oscillatorSettings,
+            sourceType: 'svg',
             selectedSvgId: mediaId,
           },
           glyphLostNotice: null,
         }))
 
-        // Kick off both caching paths in parallel:
-        // 1. Glyph points (for reactivePath mode)
-        // 2. SVG image (for originalArtwork mode)
-        await Promise.all([
-          get().selectSvgMediaGlyph(mediaId),
-          get().selectSvgVisual(mediaId),
-        ])
+        await ensureUnifiedSvgCaches(mediaId)
 
-        // After both complete, restore the sourceType to 'svg'
-        // (selectSvgMediaGlyph/selectSvgVisual change it to their legacy types)
-        set(s => ({
-          oscillatorSettings: {
-            ...s.oscillatorSettings,
-            sourceType:    'svg',
-            selectedSvgId: mediaId,
-          },
-        }))
+        // Async cache completion is intentionally not allowed to select anything.
+        // The token + selected-ID guard documents and enforces last-selection-wins.
+        if (requestGeneration !== _svgSelectionGeneration) return
+        const active = get().oscillatorSettings
+        if (active.sourceType !== 'svg' || active.selectedSvgId !== mediaId) return
       },
 
       // ── Font asset actions ──────────────────────────────────────────────────

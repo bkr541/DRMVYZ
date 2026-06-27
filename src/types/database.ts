@@ -19,6 +19,14 @@ export type MediaRoleDb  =
 
 // Rich per-item metadata stored as JSONB in the media_items.metadata column.
 // width/height/duration also live in their own columns for backward compat.
+export interface SvgMediaValidationMetadata {
+  isValidSvg:             boolean
+  hasVectorGeometry:      boolean
+  hasEmbeddedRaster:      boolean
+  hasExternalRaster:      boolean
+  reactivePathCompatible: boolean
+}
+
 export interface MediaMetadata {
   width?:          number
   height?:         number
@@ -31,6 +39,8 @@ export interface MediaMetadata {
   energy?:         'low' | 'medium' | 'high' | 'peak'
   dominantColors?: string[]
   analyzedAt?:     number   // Date.now() of last client-side analysis pass
+  /** Content-inspected SVG classification. Filename alone is never authoritative. */
+  svgValidation?:  SvgMediaValidationMetadata
 }
 
 // ── Shared ────────────────────────────────────────────────────────────────────

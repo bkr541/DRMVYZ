@@ -1,12 +1,9 @@
 /**
- * Module-level cache for SVG Visual mode images.
+ * Module-level cache for decoded SVG artwork images.
  *
- * Written by reactStore actions (selectSvgVisual, clearSvgVisualForMedia).
- * Read by SoundDrawingRenderer on every frame.
- *
- * HTMLImageElement objects live here, not in Zustand, because they are
- * non-serializable browser objects. The cache key is the media item ID
- * (e.g. "db-xxx") stored in oscillatorSettings.selectedSvgVisualId.
+ * The active selection remains in Zustand as sourceType === 'svg' + selectedSvgId.
+ * This cache contains only non-serializable browser objects and is rebuilt after
+ * hydration by the unified SVG lifecycle.
  */
 
 export interface SvgVisualCacheEntry {
@@ -23,9 +20,27 @@ export interface SvgVisualCacheEntry {
    *  under the same media ID (e.g. after a re-upload). Stored at load time. */
   mediaUrl?:    string
   storagePath?: string
+  /** Per-media decode generation. Late image events from an evicted/replaced request are ignored. */
+  generation?: number
 }
 
 const cache = new Map<string, SvgVisualCacheEntry>()
+const listeners = new Set<() => void>()
+let cacheVersion = 0
+
+function emitChange(): void {
+  cacheVersion++
+  for (const listener of listeners) listener()
+}
+
+export function subscribeSvgVisualCache(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
+}
+
+export function getSvgVisualCacheVersion(): number {
+  return cacheVersion
+}
 
 export function getSvgVisualEntry(id: string): SvgVisualCacheEntry | null {
   return cache.get(id) ?? null
@@ -37,17 +52,25 @@ export function setSvgVisualEntry(entry: SvgVisualCacheEntry): void {
     URL.revokeObjectURL(prev.objectUrl)
   }
   cache.set(entry.id, entry)
+  emitChange()
+}
+
+export function isCurrentSvgVisualGeneration(id: string, generation: number): boolean {
+  return cache.get(id)?.generation === generation
 }
 
 export function evictSvgVisual(id: string): void {
   const entry = cache.get(id)
   if (entry?.objectUrl) URL.revokeObjectURL(entry.objectUrl)
-  cache.delete(id)
+  if (cache.delete(id)) emitChange()
 }
 
 export function clearSvgVisualCache(): void {
   for (const entry of cache.values()) {
     if (entry.objectUrl) URL.revokeObjectURL(entry.objectUrl)
   }
-  cache.clear()
+  if (cache.size > 0) {
+    cache.clear()
+    emitChange()
+  }
 }

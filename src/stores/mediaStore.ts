@@ -27,6 +27,7 @@ import { useAudioStore } from './audioStore'
 import { analyzeAudioFile } from '../utils/analyzeAudioFile'
 import { useVisualStore } from './visualStore'
 import { generateThumbnail, clearFilmstripCache } from '../components/vyzualz/media/generateThumbnail'
+import { analyzeSvgCapabilities } from '../components/vyzualz/react/renderers/svgCapabilityAnalysis'
 
 export type { MediaRole, MediaEnergy }
 export type { MediaMetadata }
@@ -53,6 +54,8 @@ export interface UploadedMedia {
   uploadError?: string
   storagePath?: string
   dbId?: string
+  /** Stored upload MIME type. Used with mediaRole/content inspection for SVG filtering. */
+  mimeType?: string | null
 }
 
 export interface UploadQueueItem {
@@ -193,6 +196,32 @@ async function buildLocalItem(file: File, opts?: BuildItemOptions): Promise<Loca
   const ext     = (file.name.split('.').pop() ?? '').toUpperCase()
   const role    = opts?.role ?? suggestMediaRole(file)
   const baseMeta: MediaMetadata = opts?.metadata ?? {}
+  let svgValidation = baseMeta.svgValidation
+
+  if (!svgValidation && isSvgFile(file)) {
+    try {
+      const capabilities = analyzeSvgCapabilities(await file.text())
+      svgValidation = {
+        isValidSvg:             capabilities.isValidSvg,
+        hasVectorGeometry:      capabilities.hasVectorGeometry,
+        hasEmbeddedRaster:      capabilities.hasEmbeddedRaster,
+        hasExternalRaster:      capabilities.hasExternalRaster,
+        reactivePathCompatible: capabilities.reactivePathCompatible,
+      }
+    } catch {
+      svgValidation = {
+        isValidSvg: false,
+        hasVectorGeometry: false,
+        hasEmbeddedRaster: false,
+        hasExternalRaster: false,
+        reactivePathCompatible: false,
+      }
+    }
+  }
+
+  const mimeType = svgValidation?.isValidSvg
+    ? 'image/svg+xml'
+    : (file.type || null)
 
   if (isVideo) {
     const [thumbDataUrl, duration] = await Promise.all([
@@ -209,7 +238,8 @@ async function buildLocalItem(file: File, opts?: BuildItemOptions): Promise<Loca
       collectionIds: opts?.collectionIds ?? [],
       title: opts?.title,
       description: opts?.description,
-      metadata: { ...baseMeta, duration },
+      metadata: { ...baseMeta, ...(svgValidation ? { svgValidation } : {}), duration },
+      mimeType,
       _duration: duration,
       _thumbDataUrl: thumbDataUrl ?? undefined,
     }
@@ -226,7 +256,8 @@ async function buildLocalItem(file: File, opts?: BuildItemOptions): Promise<Loca
     collectionIds: opts?.collectionIds ?? [],
     title: opts?.title,
     description: opts?.description,
-    metadata: { ...baseMeta, width: dims?.w, height: dims?.h },
+    metadata: { ...baseMeta, ...(svgValidation ? { svgValidation } : {}), width: dims?.w, height: dims?.h },
+    mimeType,
     _width: dims?.w,
     _height: dims?.h,
   }
@@ -254,8 +285,11 @@ async function uploadToSupabase(
   try {
     const storagePath = `${userId}/${item.id}/${item.name}`
 
-    // SVG files must use image/svg+xml — file.type is unreliable (may be application/octet-stream etc.)
-    const contentType = isSvgFile(file) ? 'image/svg+xml' : (file.type || 'application/octet-stream')
+    // Only content-inspected SVG documents are uploaded as image/svg+xml.
+    // A misleading .svg filename must not override the actual content type.
+    const contentType = item.metadata.svgValidation?.isValidSvg
+      ? 'image/svg+xml'
+      : (item.mimeType || file.type || 'application/octet-stream')
     const { error: uploadErr } = await uploadMediaFile(storagePath, file, contentType)
     if (uploadErr) { console.error('[mediaStore] storage upload:', uploadErr); return null }
 
@@ -729,6 +763,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
             id:           `db-${row.id}`,
             dbId:         row.id,
             storagePath:  row.storage_path,
+            mimeType:      row.mime_type,
             name:         row.name,
             title:        row.title ?? undefined,
             description:  row.description ?? undefined,

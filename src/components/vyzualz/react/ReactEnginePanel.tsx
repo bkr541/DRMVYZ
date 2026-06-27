@@ -1,10 +1,10 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useSyncExternalStore } from 'react'
 import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
 import { NeonLatticeEnginePanel } from './NeonLatticeEnginePanel'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore } from '../../../stores/mediaStore'
-import { isSvgFilename } from '../../../lib/mediaRoles'
+import type { UploadedMedia } from '../../../stores/mediaStore'
 import {
   SliderRow, SelectRow, ToggleRow, TextInputRow,
   CtrlSection, Collapsible,
@@ -12,8 +12,16 @@ import {
 import { useShaderPanelStore }  from './shaders/ui/shaderPanelStore'
 import { ShaderLibraryPanel }   from './shaders/ui/ShaderLibraryPanel'
 import { DEFAULT_SHADER_SCENE_ID } from './shaders/scenes'
-import { getSvgGlyphCacheKey } from './renderers/svgGlyphUtils'
-import { getSvgVisualEntry } from './renderers/svgVisualCache'
+import {
+  getSvgVisualCacheVersion,
+  getSvgVisualEntry,
+  subscribeSvgVisualCache,
+} from './renderers/svgVisualCache'
+import {
+  buildUnifiedSvgStatus,
+  isUnifiedSvgMediaItem,
+  resolveUnifiedSvgSource,
+} from './svgSourceLifecycle'
 import type {
   ReactEngineId,
   OscillatorSourceType,
@@ -93,107 +101,96 @@ function OscillatorStatusCard({
   glyphAssets: OscillatorGlyphAsset[]
   fontAssets: OscillatorFontAsset[]
   glyphCache: Record<string, OscillatorGlyphPoint[]>
-  allMediaItems: Array<{ id: string; title?: string | null; name: string; createdAt?: string | null }>
+  allMediaItems: UploadedMedia[]
 }) {
-  const isClassic    = osc.sourceType === 'classic'
-  const isSvgVisual  = osc.sourceType === 'svgVisual'
-  const selectedGlyph = (osc.sourceType === 'svgGlyph' && osc.selectedGlyphId)
-    ? glyphAssets.find(a => a.id === osc.selectedGlyphId)
-    : undefined
-  const selectedFont = osc.textFontId ? fontAssets.find(f => f.id === osc.textFontId) : undefined
-  const selectedVisualItem = (isSvgVisual && osc.selectedSvgVisualId)
-    ? allMediaItems.find(m => m.id === osc.selectedSvgVisualId)
-    : undefined
-  const svgVisualEntry = isSvgVisual && osc.selectedSvgVisualId
-    ? getSvgVisualEntry(osc.selectedSvgVisualId)
-    : null
+  useSyncExternalStore(
+    subscribeSvgVisualCache,
+    getSvgVisualCacheVersion,
+    getSvgVisualCacheVersion,
+  )
 
-  // Prefer the live compiled count from the point cache over the stored asset count,
-  // since the compiler version may have changed since the asset was last imported.
-  const compiledPointCount = selectedGlyph
-    ? (glyphCache[getSvgGlyphCacheKey(selectedGlyph.id, osc.pathResolution, selectedGlyph.contentHash)]?.length
-      ?? selectedGlyph.pointCount)
-    : 0
+  const isClassic = osc.sourceType === 'classic'
+  const svgSource = resolveUnifiedSvgSource(osc)
+  const svgEntry = svgSource?.mediaId ? getSvgVisualEntry(svgSource.mediaId) : null
+  const svgStatus = buildUnifiedSvgStatus(osc, glyphAssets, glyphCache, allMediaItems, svgEntry)
+  const selectedGlyph = (osc.sourceType === 'svgGlyph' && !svgStatus && osc.selectedGlyphId)
+    ? glyphAssets.find(asset => asset.id === osc.selectedGlyphId)
+    : undefined
+  const selectedFont = osc.textFontId ? fontAssets.find(font => font.id === osc.textFontId) : undefined
 
   let activeName: string | null = null
   if (osc.sourceType === 'builtinShape') {
     activeName = osc.builtinShape.charAt(0).toUpperCase() + osc.builtinShape.slice(1)
   } else if (osc.sourceType === 'text') {
     activeName = osc.text.trim() || null
-  } else if (osc.sourceType === 'svgGlyph') {
-    activeName = selectedGlyph?.name ?? null
-  } else if (isSvgVisual) {
-    activeName = selectedVisualItem ? (selectedVisualItem.title ?? selectedVisualItem.name) : null
+  } else if (svgStatus) {
+    activeName = svgStatus.assetName
+  } else if (selectedGlyph) {
+    activeName = selectedGlyph.name
   }
 
-  const activeLabel =
-    osc.sourceType === 'text'     ? 'Text'  :
-    osc.sourceType === 'svgGlyph' ? 'Glyph' :
-    isSvgVisual                   ? 'Asset'  :
-    'Shape'
+  const sourceLabel = svgStatus ? 'SVG' : SOURCE_LABELS[osc.sourceType]
+  const activeLabel = osc.sourceType === 'text' ? 'Text' : svgStatus ? 'Asset' : selectedGlyph ? 'Glyph' : 'Shape'
 
   return (
     <div className="rv-osc-status-card">
       <StatusKV
         label="Source"
-        value={<span className="rv-osc-status-val--source">{SOURCE_LABELS[osc.sourceType]}</span>}
+        value={<span className="rv-osc-status-val--source">{sourceLabel}</span>}
       />
-      {!isClassic && !isSvgVisual && activeName && (
+      {!isClassic && activeName && (
         <StatusKV
           label={activeLabel}
           value={<span className="rv-osc-status-val--highlight">{activeName}</span>}
         />
       )}
-      {isSvgVisual && activeName && (
-        <StatusKV
-          label={activeLabel}
-          value={<span className="rv-osc-status-val--highlight">{activeName}</span>}
-        />
-      )}
-      {!isClassic && !isSvgVisual && (
+
+      {svgStatus ? (
+        <>
+          <StatusKV
+            label="Render As"
+            value={svgStatus.renderMode === 'auto' && svgStatus.resolvedMode
+              ? `${svgStatus.renderModeLabel} · ${svgStatus.resolvedMode === 'reactivePath' ? 'Reactive Path' : 'Original Artwork'}`
+              : svgStatus.renderModeLabel}
+          />
+          {svgStatus.resolvedMode === 'reactivePath' && (
+            <>
+              <StatusKV label="Resolution" value={`${osc.pathResolution} pts`} />
+              <StatusKV label="Points" value={svgStatus.pointCount.toLocaleString()} />
+              <StatusKV label="Path Style" value={RENDER_LABELS[osc.renderMode]} />
+            </>
+          )}
+          {svgStatus.resolvedMode === 'originalArtwork' && (
+            <StatusKV label="Artwork" value={svgStatus.loaded ? 'Ready' : svgStatus.loading ? 'Loading…' : 'Not cached'} />
+          )}
+          <StatusKV label="React Palette" value={osc.svgUseReactPalette ? 'On' : 'Original colors'} />
+          {svgStatus.loading && <div className="rv-ctrl-info">Loading SVG caches…</div>}
+          {!svgStatus.mediaId && (
+            <div className="rv-osc-status-warn">No SVG selected — choose one below</div>
+          )}
+          {svgStatus.error && (
+            <div className="rv-osc-status-warn">Load error: {svgStatus.error}</div>
+          )}
+          {svgStatus.uploadedAt && (
+            <StatusKV
+              label="Uploaded"
+              value={new Date(svgStatus.uploadedAt).toLocaleDateString(undefined, {
+                year: 'numeric', month: 'short', day: 'numeric',
+              })}
+            />
+          )}
+        </>
+      ) : !isClassic ? (
         <>
           <StatusKV label="Resolution" value={`${osc.pathResolution} pts`} />
-          <StatusKV label="Render"     value={RENDER_LABELS[osc.renderMode]} />
+          <StatusKV label="Render" value={RENDER_LABELS[osc.renderMode]} />
         </>
+      ) : null}
+
+      {osc.sourceType === 'svgGlyph' && !svgStatus && !selectedGlyph && (
+        <div className="rv-osc-status-warn">No SVG glyph selected</div>
       )}
-      {isSvgVisual && (
-        <>
-          <StatusKV label="Render" value="Native SVG" />
-          <StatusKV label="Mode"   value="Visual" />
-          {!osc.selectedSvgVisualId && (
-            <div className="rv-osc-status-warn">No SVG selected — choose one from the Visual dropdown below</div>
-          )}
-          {osc.selectedSvgVisualId && svgVisualEntry?.error && (
-            <div className="rv-osc-status-warn">Load error: {svgVisualEntry.error}</div>
-          )}
-          {osc.selectedSvgVisualId && svgVisualEntry?.loading && (
-            <div className="rv-ctrl-info">Loading…</div>
-          )}
-          {selectedVisualItem?.createdAt && (
-            <StatusKV
-              label="Uploaded"
-              value={new Date(selectedVisualItem.createdAt).toLocaleDateString(undefined, {
-                year: 'numeric', month: 'short', day: 'numeric',
-              })}
-            />
-          )}
-        </>
-      )}
-      {osc.sourceType === 'svgGlyph' && (
-        selectedGlyph ? (
-          <>
-            <StatusKV label="Points" value={compiledPointCount.toLocaleString()} />
-            <StatusKV
-              label="Uploaded"
-              value={new Date(selectedGlyph.createdAt).toLocaleDateString(undefined, {
-                year: 'numeric', month: 'short', day: 'numeric',
-              })}
-            />
-          </>
-        ) : (
-          <div className="rv-osc-status-warn">No SVG selected — choose one from the Glyph dropdown below</div>
-        )
-      )}
+
       {osc.sourceType === 'text' && (
         <>
           {osc.text.trim() ? (
@@ -244,8 +241,6 @@ export function ReactEnginePanel() {
     oscillatorGlyphAssets,
     oscillatorGlyphPointCache,
     selectSvgAsset,
-    selectSvgMediaGlyph,
-    selectSvgVisual,
     oscillatorFontAssets,
     fontUploadPending,
     fontRemovePending,
@@ -261,8 +256,6 @@ export function ReactEnginePanel() {
     oscillatorGlyphAssets:      s.oscillatorGlyphAssets,
     oscillatorGlyphPointCache:  s.oscillatorGlyphPointCache,
     selectSvgAsset:             s.selectSvgAsset,
-    selectSvgMediaGlyph:        s.selectSvgMediaGlyph,
-    selectSvgVisual:            s.selectSvgVisual,
     oscillatorFontAssets:       s.oscillatorFontAssets,
     fontUploadPending:          s.fontUploadPending,
     fontRemovePending:          s.fontRemovePending,
@@ -278,15 +271,10 @@ export function ReactEnginePanel() {
   // SVG Visual rehydration is handled by useSvgVisualRehydration in ReactView —
   // that hook always runs regardless of which panel tab is active.
 
-  const allMediaItems   = useMediaStore(s => s.items)
-  // Only include SVG-role items (not raster images with .svg filenames)
-  const svgMediaItems   = allMediaItems.filter(m => m.mediaRole === 'svg' || isSvgFilename(m.name))
-  // Unified: selectedSvgId for 'svg' source; fall back to legacy glyph-media: prefix for svgGlyph
-  const selectedSvgMediaId =
-    osc.selectedSvgId ??
-    (osc.selectedGlyphId?.startsWith('glyph-media:')
-      ? osc.selectedGlyphId.slice('glyph-media:'.length)
-      : null)
+  const allMediaItems = useMediaStore(state => state.items)
+  const svgMediaItems = allMediaItems.filter(isUnifiedSvgMediaItem)
+  const activeSvgSource = resolveUnifiedSvgSource(osc)
+  const selectedSvgMediaId = activeSvgSource?.mediaId ?? null
 
   return (
     <div className="rv-ctrl-group">
@@ -518,8 +506,8 @@ export function ReactEnginePanel() {
           )}
 
           {/* ── Source: path resolution (non-classic; hide for pure originalArtwork modes) ── */}
-          {osc.sourceType !== 'classic' && osc.sourceType !== 'svgVisual' &&
-           !(osc.sourceType === 'svg' && osc.svgRenderMode === 'originalArtwork') && (
+          {osc.sourceType !== 'classic' &&
+           activeSvgSource?.renderMode !== 'originalArtwork' && (
             <>
               <CtrlSection label="Source" />
               <SliderRow

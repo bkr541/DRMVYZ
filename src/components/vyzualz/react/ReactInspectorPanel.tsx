@@ -1,5 +1,7 @@
+import { useSyncExternalStore } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
+import { useMediaStore } from '../../../stores/mediaStore'
 import { CtrlSection } from './ReactControlRows'
 import type {
   ReactEngineId,
@@ -8,6 +10,17 @@ import type {
   OscillatorFontAsset,
 } from './ReactTypes'
 import { ShaderInspectorPanel } from './shaders/ui/ShaderInspectorPanel'
+import {
+  getSvgVisualCacheVersion,
+  getSvgVisualEntry,
+  subscribeSvgVisualCache,
+} from './renderers/svgVisualCache'
+import {
+  buildUnifiedSvgStatus,
+  resolveUnifiedSvgSource,
+  SVG_RENDER_MODE_LABELS,
+} from './svgSourceLifecycle'
+import type { UnifiedSvgStatus } from './svgSourceLifecycle'
 
 // ── Display maps ──────────────────────────────────────────────────────────────
 
@@ -23,7 +36,9 @@ const SOURCE_LABELS: Record<string, string> = {
   classic:      'Classic',
   builtinShape: 'Built-in Shape',
   text:         'Text',
+  svg:          'SVG',
   svgGlyph:     'SVG Glyph',
+  svgVisual:    'SVG Visual',
 }
 
 const CLASSIC_MODE_LABELS: Record<string, string> = {
@@ -67,10 +82,12 @@ function OscSourceDetails({
   osc,
   glyphAssets,
   fontAssets,
+  svgStatus,
 }: {
   osc: OscillatorSettings
   glyphAssets: OscillatorGlyphAsset[]
   fontAssets: OscillatorFontAsset[]
+  svgStatus: UnifiedSvgStatus | null
 }) {
   switch (osc.sourceType) {
     case 'classic':
@@ -94,7 +111,28 @@ function OscSourceDetails({
       )
     }
 
+    case 'svg':
+    case 'svgVisual':
     case 'svgGlyph': {
+      if (svgStatus) {
+        return (
+          <>
+            <KvRow label="Asset" value={svgStatus.assetName ?? (svgStatus.mediaId ? 'Unknown SVG' : 'No SVG selected')} />
+            <KvRow label="Render As" value={svgStatus.renderModeLabel} />
+            {svgStatus.renderMode === 'auto' && svgStatus.resolvedMode && (
+              <KvRow label="Auto Output" value={svgStatus.resolvedMode === 'reactivePath' ? 'Reactive Path' : 'Original Artwork'} />
+            )}
+            {svgStatus.resolvedMode === 'reactivePath' && (
+              <KvRow label="Points" value={svgStatus.pointCount.toLocaleString()} />
+            )}
+            <KvRow label="Palette" value={osc.svgUseReactPalette ? 'React palette' : 'Original colors'} />
+            <KvRow label="Auto Rotate" value={osc.autoRotate ? 'On' : 'Off'} />
+            {svgStatus.loading && <KvRow label="Status" value="Loading SVG caches…" />}
+            {svgStatus.error && <KvRow label="Status" value={`Load error: ${svgStatus.error}`} />}
+          </>
+        )
+      }
+
       const glyph = glyphAssets.find(g => g.id === osc.selectedGlyphId)
       return (
         <KvRow
@@ -118,6 +156,7 @@ export function ReactInspectorPanel() {
     reactPresets,
     oscillatorSettings,
     oscillatorGlyphAssets,
+    oscillatorGlyphPointCache,
     oscillatorFontAssets,
     resetOscillatorSettings,
     resetReactView,
@@ -127,10 +166,29 @@ export function ReactInspectorPanel() {
     reactPresets:            s.reactPresets,
     oscillatorSettings:      s.oscillatorSettings,
     oscillatorGlyphAssets:   s.oscillatorGlyphAssets,
+    oscillatorGlyphPointCache: s.oscillatorGlyphPointCache,
     oscillatorFontAssets:    s.oscillatorFontAssets,
     resetOscillatorSettings: s.resetOscillatorSettings,
     resetReactView:          s.resetReactView,
   })))
+  const allMediaItems = useMediaStore(state => state.items)
+  useSyncExternalStore(
+    subscribeSvgVisualCache,
+    getSvgVisualCacheVersion,
+    getSvgVisualCacheVersion,
+  )
+
+  const activeSvgSource = resolveUnifiedSvgSource(oscillatorSettings)
+  const activeSvgEntry = activeSvgSource?.mediaId
+    ? getSvgVisualEntry(activeSvgSource.mediaId)
+    : null
+  const svgStatus = buildUnifiedSvgStatus(
+    oscillatorSettings,
+    oscillatorGlyphAssets,
+    oscillatorGlyphPointCache,
+    allMediaItems,
+    activeSvgEntry,
+  )
 
   // ── Shader engine info ───────────────────────────────────────────────────────
   if (activeReactEngineId === 'shaderPads') {
@@ -163,8 +221,9 @@ export function ReactInspectorPanel() {
   // Concise source label for the Info row
   let sourceModeLabel = ''
   if (isSoundDrawing) {
-    const src = SOURCE_LABELS[osc.sourceType] ?? osc.sourceType
+    const src = svgStatus ? 'SVG' : (SOURCE_LABELS[osc.sourceType] ?? osc.sourceType)
     let detail = ''
+    if (svgStatus)                         detail = SVG_RENDER_MODE_LABELS[svgStatus.renderMode]
     if (osc.sourceType === 'classic')      detail = CLASSIC_MODE_LABELS[osc.classicMode] ?? ''
     if (osc.sourceType === 'builtinShape') detail = SHAPE_LABELS[osc.builtinShape] ?? ''
     sourceModeLabel = detail ? `${src} · ${detail}` : src
@@ -191,8 +250,16 @@ export function ReactInspectorPanel() {
               osc={osc}
               glyphAssets={oscillatorGlyphAssets}
               fontAssets={oscillatorFontAssets}
+              svgStatus={svgStatus}
             />
-            <KvRow label="Render" value={RENDER_MODE_LABELS[osc.renderMode] ?? osc.renderMode} />
+            {svgStatus?.resolvedMode === 'reactivePath' ? (
+              <>
+                <KvRow label="Path Style" value={RENDER_MODE_LABELS[osc.renderMode] ?? osc.renderMode} />
+                <KvRow label="Resolution" value={`${osc.pathResolution} pts`} />
+              </>
+            ) : !svgStatus ? (
+              <KvRow label="Render" value={RENDER_MODE_LABELS[osc.renderMode] ?? osc.renderMode} />
+            ) : null}
             {osc.duplicateTraces > 1 && (
               <KvRow label="Traces" value={String(osc.duplicateTraces)} />
             )}
