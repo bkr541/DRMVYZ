@@ -4,7 +4,7 @@ import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useReactStore } from '../../../stores/reactStore'
 import { useVisualStore } from '../../../stores/visualStore'
 import { useMediaStore } from '../../../stores/mediaStore'
-import { isSvgFilename } from '../../../lib/mediaRoles'
+import { isUnifiedSvgMediaItem } from '../../../lib/svgMediaEligibility'
 import {
   SliderRow, SelectRow, ToggleRow, TextInputRow, CtrlSection,
 } from './ReactControlRows'
@@ -495,7 +495,7 @@ export function SoundDrawingTimelineLane({
   const activeTrackId = engine.currentTrack?.id ?? null
   const beatGrid      = (engine.currentEffectiveBeatGrid ?? engine.currentAnalysis?.beatGrid ?? []) as BeatMarkerMI[]
   const svgOptions    = allMediaItems
-    .filter(m => m.mediaRole === 'svg' || isSvgFilename(m.name))
+    .filter(isUnifiedSvgMediaItem)
     .map(m => ({ value: m.id, label: m.title ?? m.name }))
 
   // ── State ───────────────────────────────────────────────────────────────────

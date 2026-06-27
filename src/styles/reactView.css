@@ -3768,3 +3768,19 @@
   font-size: 0.8rem;
 }
 
+
+/* Lazy engine/workspace boundary placeholder. Kept deliberately neutral so
+   loading a split chunk does not alter the surrounding rail or canvas layout. */
+.rv-lazy-fallback {
+  min-height: 48px;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  color: var(--vz-text-muted, #8fa3b8);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.rv-canvas-wrap > .rv-lazy-fallback {
+  min-height: 100%;
+}

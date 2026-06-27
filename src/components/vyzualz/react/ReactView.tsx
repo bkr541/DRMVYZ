@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useId } from 'react'
+import { lazy, Suspense, useState, useMemo, useEffect, useCallback, useId } from 'react'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
@@ -13,15 +13,11 @@ import {
   ReactRecordingPanel,
   ReactInspectorPanel,
 } from './panels/ReactRightPanels'
-import { ReactTrackMapStrip } from './ReactTrackMapStrip'
-import { SoundDrawingTimelineLane } from './SoundDrawingTimelineLane'
 import { ReactPlaceholderCanvas } from './ReactPlaceholderCanvas'
-import { ReactShaderCanvas }       from './ReactShaderCanvas'
 import { isReactTransportPaused }  from './reactTransportState'
 import { resolvePositiveDuration } from '../../../features/timeline/timelineViewport'
 import { ReactPerformancePads } from './ReactPerformancePads'
 import { LaserDmxBeamMatrixEditorOverlay } from './LaserDmxBeamMatrixEditorOverlay'
-import { LaserDmxLayersPanel } from './LaserDmxLayersPanel'
 import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
 import { RailTabs } from '../layout/RailTabs'
@@ -33,7 +29,6 @@ import { useSvgVisualRehydration } from './useSvgVisualRehydration'
 import { useFontLibraryHydration } from './useFontLibraryHydration'
 import { useReactPresetAutomation } from './useReactPresetAutomation'
 import { useShaderPanelStore } from './shaders/ui/shaderPanelStore'
-import { ShaderLibraryPanel } from './shaders/ui/ShaderLibraryPanel'
 import { resolveReactInspectorSelection } from './reactInspectorSelection'
 import {
   readReactRightPanel,
@@ -48,6 +43,33 @@ import {
   type ReactLeftTab,
 } from './reactWorkspaceComposition'
 import '../../../styles/reactView.css'
+
+// These workspaces carry large, engine-specific renderers and authoring tools.
+// Keep them outside the initial React-view graph and load them only when their
+// engine/workspace is actually visible.
+const ReactShaderCanvas = lazy(() =>
+  import('./ReactShaderCanvas').then(module => ({ default: module.ReactShaderCanvas })),
+)
+const ReactTrackMapStrip = lazy(() =>
+  import('./ReactTrackMapStrip').then(module => ({ default: module.ReactTrackMapStrip })),
+)
+const SoundDrawingTimelineLane = lazy(() =>
+  import('./SoundDrawingTimelineLane').then(module => ({ default: module.SoundDrawingTimelineLane })),
+)
+const LaserDmxLayersPanel = lazy(() =>
+  import('./LaserDmxLayersPanel').then(module => ({ default: module.LaserDmxLayersPanel })),
+)
+const ShaderLibraryPanel = lazy(() =>
+  import('./shaders/ui/ShaderLibraryPanel').then(module => ({ default: module.ShaderLibraryPanel })),
+)
+
+function LazyWorkspaceFallback({ label }: { label: string }) {
+  return (
+    <div className="rv-lazy-fallback" role="status" aria-live="polite">
+      Loading {label}…
+    </div>
+  )
+}
 
 // BASE_RIGHT_TABS omits 'disabled' — injected dynamically via useMemo (same pattern as Visualizer)
 const REACT_RIGHT_BASE_TABS: Omit<RailTabOption<ReactRightPanel>, 'disabled'>[] = [
@@ -320,7 +342,9 @@ export function ReactView() {
               />
             )}
             {leftTab === 'layers' && workspaceComposition.showLaserLayersTab && (
-              <LaserDmxLayersPanel />
+              <Suspense fallback={<LazyWorkspaceFallback label="LaserDMX layers" />}>
+                <LaserDmxLayersPanel />
+              </Suspense>
             )}
             {leftTab === 'fonts' && <FontLibraryPanel />}
           </div>
@@ -330,25 +354,27 @@ export function ReactView() {
         <div className="rv-center-col">
           <div className="rv-canvas-wrap">
             {activeReactEngineId === 'shaderPads' ? (
-              <ReactShaderCanvas
-                analyser={analyser}
-                intensity={reactIntensity}
-                motion={reactMotion}
-                glow={reactGlow}
-                bassReactivity={reactBassReactivity}
-                trailDecay={reactTrailDecay}
-                fogDensity={reactFogDensity}
-                particleDensity={reactParticleDensity}
-                performancePadTransition={performancePadTransition}
-                isPlaying={engine.isPlaying}
-                isPaused={transportPaused}
-                getAudioTime={engine.getCurrentTime}
-                effectiveBpm={engine.currentEffectiveBpm}
-                durationSec={audioDurationSec}
-                trackSections={resolvedTrackSections}
-                onCanvasReady={setOutputCanvas}
-                onLiveFps={setLiveFps}
-              />
+              <Suspense fallback={<LazyWorkspaceFallback label="Shader renderer" />}>
+                <ReactShaderCanvas
+                  analyser={analyser}
+                  intensity={reactIntensity}
+                  motion={reactMotion}
+                  glow={reactGlow}
+                  bassReactivity={reactBassReactivity}
+                  trailDecay={reactTrailDecay}
+                  fogDensity={reactFogDensity}
+                  particleDensity={reactParticleDensity}
+                  performancePadTransition={performancePadTransition}
+                  isPlaying={engine.isPlaying}
+                  isPaused={transportPaused}
+                  getAudioTime={engine.getCurrentTime}
+                  effectiveBpm={engine.currentEffectiveBpm}
+                  durationSec={audioDurationSec}
+                  trackSections={resolvedTrackSections}
+                  onCanvasReady={setOutputCanvas}
+                  onLiveFps={setLiveFps}
+                />
+              </Suspense>
             ) : (
               <ReactPlaceholderCanvas
                 analyser={analyser}
@@ -384,13 +410,17 @@ export function ReactView() {
           </div>
           {workspaceComposition.showPerformancePads && <ReactPerformancePads />}
           {workspaceComposition.showSoundDrawingTimeline && (
-            <SoundDrawingTimelineLane
-              audioDurationSec={audioDurationSec}
-              trackSections={resolvedTrackSections}
-            />
+            <Suspense fallback={<LazyWorkspaceFallback label="Sound Drawing timeline" />}>
+              <SoundDrawingTimelineLane
+                audioDurationSec={audioDurationSec}
+                trackSections={resolvedTrackSections}
+              />
+            </Suspense>
           )}
           {workspaceComposition.showTrackMap && (
-            <ReactTrackMapStrip audioDurationSec={audioDurationSec} />
+            <Suspense fallback={<LazyWorkspaceFallback label="Track Map" />}>
+              <ReactTrackMapStrip audioDurationSec={audioDurationSec} />
+            </Suspense>
           )}
         </div>
 
@@ -410,7 +440,11 @@ export function ReactView() {
           <div className="vz-panel-body">
             {activeRightPanel === 'presets' && (
               workspaceComposition.presetSurface === 'shaderScenes'
-                ? <ShaderLibraryPanel />
+                ? (
+                  <Suspense fallback={<LazyWorkspaceFallback label="Shader scenes" />}>
+                    <ShaderLibraryPanel />
+                  </Suspense>
+                )
                 : <ReactPresetsPanel />
             )}
             {activeRightPanel === 'fx'      && <ReactFxPanel />}

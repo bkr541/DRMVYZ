@@ -7,6 +7,7 @@ import {
   getSvgGlyphAssetId,
   isUnifiedSvgMediaItem,
   normalizeUnifiedSvgSettings,
+  resolveSvgUiCapabilities,
 } from '../svgSourceLifecycle'
 
 function settings(patch: Partial<OscillatorSettings>): OscillatorSettings {
@@ -32,6 +33,41 @@ describe('unified SVG compatibility boundaries', () => {
     expect(glyph.svgRenderMode).toBe('reactivePath')
   })
 
+
+
+  it('derives Original Artwork controls from unified and legacy settings', () => {
+    const unifiedArtwork = resolveSvgUiCapabilities(settings({
+      sourceType: 'svg',
+      selectedSvgId: 'media-artwork',
+      svgRenderMode: 'originalArtwork',
+    }))
+    expect(unifiedArtwork).toEqual({
+      isSvgSource: true,
+      isOriginalArtwork: true,
+      supportsPointPathControls: false,
+    })
+
+    const legacyArtwork = resolveSvgUiCapabilities(settings({
+      sourceType: 'svgVisual',
+      selectedSvgVisualId: 'legacy-artwork',
+    }))
+    expect(legacyArtwork).toEqual(unifiedArtwork)
+
+    expect(resolveSvgUiCapabilities(settings({
+      sourceType: 'svg',
+      selectedSvgId: 'media-path',
+      svgRenderMode: 'reactivePath',
+    })).supportsPointPathControls).toBe(true)
+
+
+    const autoArtwork = settings({
+      sourceType: 'svg',
+      selectedSvgId: 'media-auto',
+      svgRenderMode: 'auto',
+    })
+    expect(resolveSvgUiCapabilities(autoArtwork, 0).isOriginalArtwork).toBe(true)
+    expect(resolveSvgUiCapabilities(autoArtwork, 12).supportsPointPathControls).toBe(true)
+  })
   it('preserves non-media legacy glyph libraries until they are imported', () => {
     const custom = normalizeUnifiedSvgSettings(settings({
       sourceType: 'svgGlyph',

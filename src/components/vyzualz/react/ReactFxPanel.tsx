@@ -4,6 +4,7 @@ import {
   SliderRow, SelectRow, ToggleRow,
   CtrlSection, Collapsible,
 } from './ReactControlRows'
+import { getUnifiedSvgPointCount, resolveSvgUiCapabilities } from './svgSourceLifecycle'
 import type {
   LaserDmxFogSettings,
   OscillatorRenderMode,
@@ -27,7 +28,8 @@ export function ReactFxPanel() {
     reactParticleDensity, setReactParticleDensity,
     activeReactEngineId,
     laserDmxWorkspaceMode,
-    oscillatorSettings,   setOscillatorSettings, resetOscillatorSettings,
+    oscillatorSettings, oscillatorGlyphAssets, oscillatorGlyphPointCache,
+    setOscillatorSettings, resetOscillatorSettings,
     laserDmxSettings,     setLaserDmxSettings,
     laserDmxBeamMatrix,   setLaserDmxBeamMatrixSettings, setLaserDmxBeamMatrixEditorSettings,
   } = useReactStore(useShallow(s => ({
@@ -48,6 +50,8 @@ export function ReactFxPanel() {
     activeReactEngineId:         s.activeReactEngineId,
     laserDmxWorkspaceMode:       s.laserDmxWorkspaceMode,
     oscillatorSettings:          s.oscillatorSettings,
+    oscillatorGlyphAssets:        s.oscillatorGlyphAssets,
+    oscillatorGlyphPointCache:    s.oscillatorGlyphPointCache,
     setOscillatorSettings:       s.setOscillatorSettings,
     resetOscillatorSettings:     s.resetOscillatorSettings,
     laserDmxSettings:            s.laserDmxSettings,
@@ -117,8 +121,16 @@ export function ReactFxPanel() {
     setLaserDmxBeamMatrixSettings({ fog: { ...bmFog, ...patch } })
   }
 
-  // SVG Visual is a pure image display mode — point-path controls have no effect on it.
-  const isSvgVisual = isSoundDrawing && osc.sourceType === 'svgVisual'
+  // Resolve SVG UI behavior through the unified source model. Legacy source
+  // values are normalized at this compatibility boundary rather than branching
+  // throughout the panel.
+  const svgPointCount = getUnifiedSvgPointCount(
+    osc,
+    oscillatorGlyphAssets,
+    oscillatorGlyphPointCache,
+  )
+  const svgCapabilities = resolveSvgUiCapabilities(osc, svgPointCount)
+  const isSvgOriginalArtwork = isSoundDrawing && svgCapabilities.isOriginalArtwork
 
   // Shader scenes consume the same React-wide master values passed into the
   // renderer, so keep them visible above the scene-specific parameter controls.
@@ -143,12 +155,12 @@ export function ReactFxPanel() {
 
         {/* ── Engine Appearance: Oscilloscope ─────────────────────────── */}
         {isSoundDrawing && (
-          isSvgVisual ? (
-            // SVG Visual: only scale and rotation affect rendering.
+          isSvgOriginalArtwork ? (
+            // Original Artwork: only whole-artwork transforms affect rendering.
             // Trail, render mode, duplicate traces, and mirror are point-path features
             // that do nothing when displaying a native SVG image.
             <>
-              <CtrlSection label="SVG Visual" />
+              <CtrlSection label="SVG Original Artwork" />
               <Collapsible label="Transform" defaultOpen>
                 <SliderRow
                   label="Scale"

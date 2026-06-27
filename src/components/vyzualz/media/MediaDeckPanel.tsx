@@ -22,6 +22,7 @@ import { MediaUploadModal } from '../MediaUploadModal'
 import { MediaPreviewModal } from './MediaPreviewModal'
 import { MediaStatusBar } from './MediaStatusBar'
 import { MEDIA_ROLE_BADGE_LABELS, MEDIA_ROLE_LABELS, isSvgFilename } from '../../../lib/mediaRoles'
+import { isUnifiedSvgMediaItem } from '../../../lib/svgMediaEligibility'
 
 type DeckFilter = 'all' | 'tracks' | 'collections' | 'images' | 'videos' | 'favorites' | 'backgrounds' | 'logos' | 'transparent' | 'overlays' | 'svg'
 type ViewMode  = 'grid' | 'list'
@@ -52,12 +53,13 @@ const REACT_FILTERS: { key: DeckFilter; label: string }[] = [
 const REACT_ELIGIBLE_ROLES = new Set<MediaRole>(['svg', 'logo', 'transparent_element', 'overlay'])
 
 function isReactEligibleMedia(m: UploadedMedia): boolean {
-  return REACT_ELIGIBLE_ROLES.has(m.mediaRole) || isSvgFilename(m.name)
+  if (m.mediaRole === 'svg') return isUnifiedSvgMediaItem(m)
+  return REACT_ELIGIBLE_ROLES.has(m.mediaRole)
 }
 
 function matchesDeckFilter(m: UploadedMedia, f: DeckFilter): boolean {
   switch (f) {
-    case 'svg':         return m.mediaRole === 'svg' || isSvgFilename(m.name)
+    case 'svg':         return isUnifiedSvgMediaItem(m)
     case 'images':      return m.type === 'image'
     case 'videos':      return m.type === 'video'
     case 'favorites':   return m.favorite

@@ -1,47 +1,15 @@
 import { execFileSync } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
+import {
+  git,
+  hasGitCheckout,
+  isForbiddenRepositoryPath,
+} from './repository-hygiene.mjs'
 
 const ref = process.argv[2] ?? 'HEAD'
-const generatedDirectoryNames = new Set([
-  'node_modules',
-  'dist',
-  'dist-ssr',
-  'coverage',
-  'logs',
-  'test-results',
-  'playwright-report',
-  'blob-report',
-  '.cache',
-  '.vite',
-  '.turbo',
-  '.tmp',
-  'tmp',
-  'temp',
-  'artifacts',
-])
 
-function isForbiddenTrackedPath(file) {
-  const parts = file.split('/')
-  if (parts.some((part) => generatedDirectoryNames.has(part))) return true
-  if (parts.some((part) => part === '.DS_Store' || part === 'Thumbs.db')) return true
-  if (/\.(?:log|tgz|tsbuildinfo)$/i.test(file)) return true
-  if (/(?:^|\/)\.env(?:\..+)?$/.test(file) && !file.endsWith('.env.example')) return true
-  return false
-}
-
-function git(args, options = {}) {
-  return execFileSync('git', args, {
-    cwd: process.cwd(),
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'inherit'],
-    ...options,
-  }).trim()
-}
-
-try {
-  git(['rev-parse', '--show-toplevel'])
-} catch {
+if (!hasGitCheckout()) {
   console.error('Source packaging requires a Git checkout.')
   process.exit(1)
 }
@@ -49,7 +17,7 @@ try {
 const tracked = git(['ls-tree', '-r', '--name-only', ref])
   .split('\n')
   .filter(Boolean)
-const forbiddenTracked = tracked.filter(isForbiddenTrackedPath)
+const forbiddenTracked = tracked.filter(isForbiddenRepositoryPath)
 
 if (forbiddenTracked.length > 0) {
   console.error('Refusing to package generated or machine-specific tracked files:')

@@ -6,28 +6,12 @@ import type {
 } from './ReactTypes'
 import { getSvgGlyphCacheKey, findNearestSvgGlyphCacheEntry } from './renderers/svgGlyphUtils'
 import type { SvgVisualCacheEntry } from './renderers/svgVisualCache'
+import type { SvgMediaCandidate, SvgMediaValidationSummary } from '../../../lib/svgMediaEligibility'
+
+export { isUnifiedSvgMediaItem } from '../../../lib/svgMediaEligibility'
+export type { SvgMediaCandidate, SvgMediaValidationSummary } from '../../../lib/svgMediaEligibility'
 
 export const SVG_MEDIA_GLYPH_PREFIX = 'glyph-media:'
-
-export interface SvgMediaValidationSummary {
-  isValidSvg: boolean
-  hasVectorGeometry: boolean
-  hasEmbeddedRaster: boolean
-  hasExternalRaster: boolean
-  reactivePathCompatible: boolean
-}
-
-export interface SvgMediaCandidate {
-  id: string
-  name: string
-  title?: string | null
-  mediaRole: string
-  mimeType?: string | null
-  createdAt?: string | null
-  metadata?: {
-    svgValidation?: SvgMediaValidationSummary
-  } | null
-}
 
 export interface UnifiedSvgSource {
   mediaId: string | null
@@ -104,6 +88,35 @@ export function resolveUnifiedSvgSource(osc: OscillatorSettings): UnifiedSvgSour
  * Non-media legacy glyph assets are left intact so old custom glyph libraries
  * remain usable until they are explicitly imported into the media library.
  */
+
+export interface SvgUiCapabilities {
+  isSvgSource: boolean
+  isOriginalArtwork: boolean
+  supportsPointPathControls: boolean
+}
+
+/**
+ * Resolves UI capabilities from the unified SVG model. Legacy source types are
+ * accepted only through resolveUnifiedSvgSource(), so runtime panels do not need
+ * their own svgGlyph/svgVisual branches.
+ */
+export function resolveSvgUiCapabilities(
+  osc: OscillatorSettings,
+  pointCount = 0,
+): SvgUiCapabilities {
+  const source = resolveUnifiedSvgSource(osc)
+  const resolvedMode = source?.renderMode === 'auto'
+    ? (pointCount > 0 ? 'reactivePath' : 'originalArtwork')
+    : source?.renderMode
+  const isOriginalArtwork = resolvedMode === 'originalArtwork'
+
+  return {
+    isSvgSource: source !== null,
+    isOriginalArtwork,
+    supportsPointPathControls: !isOriginalArtwork,
+  }
+}
+
 export function normalizeUnifiedSvgSettings(settings: OscillatorSettings): OscillatorSettings {
   if (settings.sourceType === 'svg') return settings
 
@@ -116,24 +129,6 @@ export function normalizeUnifiedSvgSettings(settings: OscillatorSettings): Oscil
     selectedSvgId: resolved.mediaId,
     svgRenderMode: resolved.renderMode,
   }
-}
-
-/**
- * Authoritative browser predicate. A filename is deliberately ignored. Newer
- * media carries inspected SVG metadata; older libraries fall back to the stored
- * SVG role and MIME type for backward compatibility.
- */
-export function isUnifiedSvgMediaItem(item: SvgMediaCandidate): boolean {
-  const validation = item.metadata?.svgValidation
-  if (validation) {
-    return validation.isValidSvg &&
-      !validation.hasEmbeddedRaster &&
-      !validation.hasExternalRaster
-  }
-
-  if (item.mediaRole !== 'svg') return false
-  if (!item.mimeType) return true
-  return item.mimeType.toLowerCase().split(';', 1)[0].trim() === 'image/svg+xml'
 }
 
 export function getUnifiedSvgPointCount(
