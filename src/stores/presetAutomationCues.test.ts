@@ -224,9 +224,9 @@ describe('presetAutomationCues — migration v9→v10', () => {
   })
 
   it('does not strip other state keys during migration', () => {
-    const oldState = { activeReactEngineId: 'shaderPads', someOtherKey: true }
+    const oldState = { activeReactEngineId: 'cinematicPortal', someOtherKey: true }
     const migrated = migrateReactStore(oldState, 9)
-    expect(migrated.activeReactEngineId).toBe('shaderPads')
+    expect(migrated.activeReactEngineId).toBe('cinematicPortal')
     expect(migrated.someOtherKey).toBe(true)
   })
 })

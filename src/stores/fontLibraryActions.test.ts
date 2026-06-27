@@ -36,6 +36,7 @@ const h = vi.hoisted(() => ({
   mockInspectFontFile:            vi.fn(),
   mockStoreFontRuntime:           vi.fn(),
   mockHasFontRuntime:             vi.fn(),
+  mockGetBufferFromCache:         vi.fn(),
   mockEvictFontFromCache:         vi.fn(),
   mockParseOpenTypeFontFromAsset: vi.fn(),
   mockTextToOpenTypeGlyphPoints:  vi.fn(),
@@ -63,6 +64,7 @@ vi.mock('../components/vyzualz/react/renderers/fontGlyphUtils', () => ({
   inspectFontFile:            h.mockInspectFontFile,
   storeFontRuntime:           h.mockStoreFontRuntime,
   hasFontRuntime:             h.mockHasFontRuntime,
+  getBufferFromCache:         h.mockGetBufferFromCache,
   evictFontFromCache:         h.mockEvictFontFromCache,
   parseOpenTypeFontFromAsset: h.mockParseOpenTypeFontFromAsset,
   textToOpenTypeGlyphPoints:  h.mockTextToOpenTypeGlyphPoints,
@@ -149,6 +151,7 @@ beforeEach(() => {
 
   // fontGlyphUtils defaults
   h.mockHasFontRuntime.mockReturnValue(false)
+  h.mockGetBufferFromCache.mockReturnValue(undefined)
   h.mockParseOpenTypeFontFromAsset.mockReturnValue({})
   h.mockTextToOpenTypeGlyphPoints.mockReturnValue([])
 

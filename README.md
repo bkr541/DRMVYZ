@@ -6,12 +6,14 @@ MiniMeters-inspired feature set in a DVYDRM neon cyan/green dark dashboard theme
 ## Quick Start
 
 ```bash
-npm install
+npm ci
 npm run dev
 # or double-click launch.command
 ```
 
 Open [http://localhost:5173](http://localhost:5173)
+
+For the complete locked-install, unit, production-build, Chromium smoke, and audit workflow, see [`docs/verification.md`](docs/verification.md).
 
 ---
 
@@ -119,7 +121,8 @@ Requires the Microphone source to be active.
 
 ## Tech Stack
 
-React 18 · Vite 5 · TypeScript · Web Audio API · Canvas 2D API  
+React 18 · Vite 6 · TypeScript · Web Audio API · Canvas 2D API
+
 No backend · No paid APIs · No external audio processing libraries
 
 ---

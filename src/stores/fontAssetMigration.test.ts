@@ -107,11 +107,11 @@ describe('fontAssetMigration — v10 → v11', () => {
   it('does not strip unrelated state keys', () => {
     const state = {
       oscillatorFontAssets: [makeLegacyFont()],
-      activeReactEngineId:  'shaderPads',
+      activeReactEngineId:  'cinematicPortal',
       reactIntensity:       0.8,
     }
     const result = migrateReactStore(state, 10)
-    expect(result.activeReactEngineId).toBe('shaderPads')
+    expect(result.activeReactEngineId).toBe('cinematicPortal')
     expect(result.reactIntensity).toBe(0.8)
   })
 })

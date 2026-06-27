@@ -11,6 +11,13 @@ export default defineConfig({
     // Default environment for unit/renderer tests (no DOM needed).
     environment: 'node',
 
+    // Use process isolation so timers, DOM resources, and native handles cannot
+    // keep a shared worker thread alive after a test file completes. Bound the
+    // pool because CPU-derived fan-out overwhelms high-core, low-memory runners.
+    pool: 'forks',
+    minWorkers: 1,
+    maxWorkers: 4,
+
     // E2E specs are Playwright-only — Vitest must not collect them.
     exclude: ['**/node_modules/**', 'src/test/e2e/**'],
 

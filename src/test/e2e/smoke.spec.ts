@@ -1,87 +1,64 @@
 /**
- * Smoke tests — verify the app boots without a JS crash and core UI scaffolding
- * is present.  These run on every push to main in CI (see ci.yml e2e job).
+ * Public smoke tests for a clean, unauthenticated checkout.
  *
- * Prerequisites (not handled by this spec):
- *   - A production build must exist: npm run build
- *   - Playwright Chromium must be installed: npx playwright install chromium
+ * A checkout without Supabase environment variables intentionally renders setup
+ * guidance. A configured checkout without a persisted session renders the login
+ * gate. Authenticated studio scenarios belong in suites that provide an explicit
+ * Playwright storage state or test account.
  *
- * To run locally:
- *   npm run build && npm run test:e2e
+ * Prerequisites:
+ *   npm run build
+ *   npm run playwright:install
+ *
+ * Run locally:
+ *   npm run test:e2e:smoke
  */
 import { test, expect } from '@playwright/test'
 
-test.describe('App boot', () => {
-  test('page loads without a JS error', async ({ page }) => {
+async function bootClean(page: import('@playwright/test').Page) {
+  await page.goto('/')
+  await page.evaluate(() => localStorage.clear())
+  await page.reload()
+  await page.waitForLoadState('networkidle')
+}
+
+test.describe('Public application boot', () => {
+  test('loads a known unauthenticated state without an uncaught error', async ({ page }) => {
     const errors: string[] = []
-    page.on('pageerror', e => errors.push(e.message))
+    page.on('pageerror', error => errors.push(error.message))
 
-    await page.goto('/')
-    // Wait for React to finish rendering the main app shell
-    await page.waitForLoadState('networkidle')
+    await bootClean(page)
 
-    expect(errors.filter(e => !e.includes('ResizeObserver'))).toHaveLength(0)
+    const setupNotice = page.getByText('Supabase not configured')
+    const loginHeading = page.getByRole('heading', { name: 'Welcome Back' })
+    await expect(setupNotice.or(loginHeading)).toBeVisible()
+    expect(errors.filter(error => !error.includes('ResizeObserver'))).toHaveLength(0)
   })
 
-  test('canvas element is present in the DOM', async ({ page }) => {
-    await page.goto('/')
-    await page.waitForLoadState('networkidle')
-    const canvas = page.locator('canvas').first()
-    await expect(canvas).toBeAttached()
+  test('renders actionable setup guidance or usable login controls', async ({ page }) => {
+    await bootClean(page)
+
+    const setupNotice = page.getByText('Supabase not configured')
+    if (await setupNotice.isVisible()) {
+      await expect(page.getByText('VITE_SUPABASE_URL')).toBeVisible()
+      await expect(page.getByText('VITE_SUPABASE_ANON_KEY')).toBeVisible()
+      return
+    }
+
+    await expect(page.locator('input[type="email"]')).toBeVisible()
+    await expect(page.locator('input[autocomplete="current-password"]')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Log In' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Create one' })).toBeVisible()
   })
 
-  test('transport controls are visible', async ({ page }) => {
-    await page.goto('/')
-    await page.waitForLoadState('networkidle')
-    // Play button is identified by its title attribute
-    const playBtn = page.locator('[title="Play"]').or(page.locator('[title="Pause"]'))
-    await expect(playBtn).toBeVisible()
-  })
-})
+  test('configured login gate can switch to account creation', async ({ page }) => {
+    await bootClean(page)
 
-test.describe('Fullscreen program output', () => {
-  test('diagnostic overlays are absent during fullscreen (class-based guard)', async ({ page }) => {
-    await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    const createAccount = page.getByRole('button', { name: 'Create one' })
+    test.skip(!(await createAccount.isVisible()), 'Supabase is intentionally unconfigured in this checkout')
 
-    // The FPS pill is rendered by PreviewOverlay which is gated on !isFullscreen.
-    // We can't trigger the Fullscreen API in headless Chromium without a user
-    // gesture, so we verify the pill IS visible in normal mode (precondition)
-    // and that its parent is a direct child of the canvas-wrap (not injected
-    // inside the canvas output layer itself).
-    const fpsPill = page.locator('.vz-preview-pill--fps')
-    await expect(fpsPill).toBeVisible()
-
-    // The pill must be outside the canvas element — it is an editor overlay.
-    const isInsideCanvas = await fpsPill.evaluate(el => !!el.closest('canvas'))
-    expect(isInsideCanvas).toBe(false)
-  })
-})
-
-test.describe('Quality selector', () => {
-  test('quality select has High / Medium / Low options', async ({ page }) => {
-    await page.goto('/')
-    await page.waitForLoadState('networkidle')
-
-    const select = page.locator('.az-select').first()
-    await expect(select).toBeVisible()
-
-    const options = await select.locator('option').allTextContents()
-    expect(options).toContain('High')
-    expect(options).toContain('Medium')
-    expect(options).toContain('Low')
-  })
-
-  test('changing quality to Low updates the displayed value', async ({ page }) => {
-    await page.goto('/')
-    await page.waitForLoadState('networkidle')
-
-    const select = page.locator('.az-select').first()
-    await select.selectOption('Low')
-    await expect(select).toHaveValue('Low')
-
-    // The quality pill in PreviewOverlay should now read "Low"
-    const qualityPill = page.locator('.vz-preview-pill').first()
-    await expect(qualityPill).toHaveText('Low')
+    await createAccount.click()
+    await expect(page.getByRole('heading', { name: 'Create Account' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible()
   })
 })

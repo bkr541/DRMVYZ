@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { OscillatorFontAsset } from '../../ReactTypes'
 
@@ -507,8 +508,8 @@ describe('textToOpenTypeGlyphPoints — letter-spacing unit conversion', () => {
 // ── SoundDrawingRenderer does not import fontGlyphUtils ───────────────────────
 
 describe('SoundDrawingRenderer import guard', () => {
-  it('does not re-export textToOpenTypeGlyphPoints (renderer must not call it)', async () => {
-    const mod = await import('../SoundDrawingRenderer')
-    expect((mod as Record<string, unknown>).textToOpenTypeGlyphPoints).toBeUndefined()
+  it('does not import fontGlyphUtils (renderer must consume prepared points)', () => {
+    const source = readFileSync(new URL('../SoundDrawingRenderer.ts', import.meta.url), 'utf8')
+    expect(source).not.toMatch(/from\s+['"]\.\/fontGlyphUtils['"]/)
   })
 })

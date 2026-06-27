@@ -5,13 +5,20 @@ on:
     branches: [main, dev]
   pull_request:
     branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  # ── Fast gate: type-check + unit tests + build ─────────────────────────────
   verify:
-    name: Typecheck / Test / Build
+    name: Typecheck / Unit / Build / Audit
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
@@ -22,7 +29,7 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install dependencies
+      - name: Clean locked install
         run: npm ci
 
       - name: Type-check
@@ -31,14 +38,16 @@ jobs:
       - name: Unit tests
         run: npm run test
 
-      - name: Build
+      - name: Production build
         run: npm run build
 
-  # ── Coverage gate (informational — does not block merge yet) ───────────────
+      - name: Dependency audit (high and critical block)
+        run: npm run audit
+
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     needs: verify
 
     steps:
@@ -50,7 +59,7 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install dependencies
+      - name: Clean locked install
         run: npm ci
 
       - name: Run tests with coverage
@@ -62,17 +71,14 @@ jobs:
         with:
           name: coverage-report
           path: coverage/
+          if-no-files-found: ignore
           retention-days: 14
 
-  # ── E2E tests (browser-level, requires Playwright) ─────────────────────────
-  # These run on pushes to main only to keep PR feedback fast.
-  # Requires: `npx playwright install --with-deps` on first setup.
-  e2e:
-    name: E2E (Playwright)
+  e2e-smoke:
+    name: E2E Smoke (Chromium)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: verify
-    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
 
     steps:
       - uses: actions/checkout@v4
@@ -83,22 +89,25 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install dependencies
+      - name: Clean locked install
         run: npm ci
 
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+      - name: Install Playwright Chromium
+        run: npm run playwright:install:ci
 
       - name: Build app
         run: npm run build
 
-      - name: Run E2E tests
-        run: npm run test:e2e
+      - name: Run Chromium smoke tests
+        run: npm run test:e2e:smoke
 
-      - name: Upload Playwright trace on failure
+      - name: Upload Playwright diagnostics
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-traces
-          path: test-results/
+          name: playwright-diagnostics
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
           retention-days: 7
