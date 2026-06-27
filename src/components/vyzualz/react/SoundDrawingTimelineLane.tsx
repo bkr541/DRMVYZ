@@ -8,7 +8,13 @@ import { isSvgFilename } from '../../../lib/mediaRoles'
 import {
   SliderRow, SelectRow, ToggleRow, TextInputRow, CtrlSection,
 } from './ReactControlRows'
-import { computeWaveformViewport } from '../../../features/timeline/timelineViewport'
+import {
+  computeViewportRangeLayout,
+  computeWaveformViewport,
+  resolvePositiveDuration,
+  timeToViewportRatio,
+  type TimelineViewport,
+} from '../../../features/timeline/timelineViewport'
 import type { ReactTrackSection, SoundDrawingLayer, SoundDrawingClip, SoundDrawingLayerSourceType, BuiltinOscillatorShape, OscillatorFontAsset } from './ReactTypes'
 import type { BeatMarkerMI } from '../../../features/musicIntelligence/types'
 
@@ -417,6 +423,23 @@ function AddClipForm({ onAdd, onCancel }: AddClipFormProps) {
   )
 }
 
+
+function applySoundDrawingViewport(
+  timeline: HTMLDivElement,
+  viewport: TimelineViewport,
+): void {
+  const clipBlocks = timeline.querySelectorAll<HTMLElement>('[data-sd-clip]')
+  clipBlocks.forEach(block => {
+    const startSec = Number(block.dataset.startSec)
+    const endSec   = Number(block.dataset.endSec)
+    const layout   = computeViewportRangeLayout({ startSec, endSec }, viewport)
+    block.style.display = layout.visible ? '' : 'none'
+    if (!layout.visible) return
+    block.style.left  = `${layout.leftPct}%`
+    block.style.width = `${Math.max(0.5, layout.widthPct)}%`
+  })
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 interface SoundDrawingTimelineLaneProps {
@@ -470,15 +493,21 @@ export function SoundDrawingTimelineLane({
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null)
   const [addOpen, setAddOpen] = useState(false)
 
-  // Viewport state — mirrors what ReactTrackMapStrip computes from same inputs
-  const [vpStart, setVpStart] = useState(0)
-  const [vpEnd,   setVpEnd]   = useState(audioDurationSec)
+  const safeDurationSec = resolvePositiveDuration(audioDurationSec)
+  // React state changes only when track duration or zoom changes. Playback-follow
+  // viewport motion is kept in refs and applied directly to clip/playhead styles.
+  const [layoutViewport, setLayoutViewport] = useState<TimelineViewport>({
+    startSec: 0,
+    endSec:   safeDurationSec,
+  })
 
   const timelineRef  = useRef<HTMLDivElement>(null)
   const playheadRef  = useRef<HTMLDivElement>(null)
   const dragRef      = useRef<DragState | null>(null)
+  const rafRef       = useRef<number | null>(null)
+  const viewportRef  = useRef<TimelineViewport>(layoutViewport)
   const waveformZoomRef    = useRef(waveformZoom)
-  const audioDurationSecRef = useRef(audioDurationSec)
+  const audioDurationSecRef = useRef(safeDurationSec)
 
   // Local drag preview (avoids re-rendering other clips during drag)
   const [localDrag, setLocalDrag] = useState<{ id: string; startSec: number; endSec: number } | null>(null)
@@ -512,31 +541,31 @@ export function SoundDrawingTimelineLane({
   // ── Viewport sync ────────────────────────────────────────────────────────────
 
   waveformZoomRef.current     = waveformZoom
-  audioDurationSecRef.current = audioDurationSec
+  audioDurationSecRef.current = safeDurationSec
 
   useEffect(() => {
-    if (audioDurationSec <= 0) return
     const t  = engine.getCurrentTime()
-    const vp = computeWaveformViewport(audioDurationSec, t, waveformZoom)
-    setVpStart(vp.startSec)
-    setVpEnd(vp.endSec)
-  }, [waveformZoom, audioDurationSec])
+    const vp = computeWaveformViewport(safeDurationSec, t, waveformZoom)
+    viewportRef.current = vp
+    setLayoutViewport(vp)
+  }, [waveformZoom, safeDurationSec, engine.getCurrentTime])
 
-  // Polling interval for playhead and viewport scroll (50 ms, no rAF loop)
+  // Playback clock: update only DOM geometry. The clip/layer React tree is not
+  // rerendered as the playhead advances or the follow viewport scrolls.
   useEffect(() => {
     if (collapsed) return
-    const id = setInterval(() => {
+
+    const tick = () => {
       const dur  = audioDurationSecRef.current
       const zoom = waveformZoomRef.current
       const t    = engine.getCurrentTime()
       const vp   = computeWaveformViewport(dur, t, zoom)
-      setVpStart(vp.startSec)
-      setVpEnd(vp.endSec)
+      const prev = viewportRef.current
+      viewportRef.current = vp
 
       const ph = playheadRef.current
       if (ph) {
-        const vpDur = vp.endSec - vp.startSec
-        const ratio = vpDur > 0 ? (t - vp.startSec) / vpDur : -1
+        const ratio = timeToViewportRatio(t, vp)
         if (ratio >= 0 && ratio <= 1) {
           ph.style.left    = `${ratio * 100}%`
           ph.style.display = 'block'
@@ -544,8 +573,19 @@ export function SoundDrawingTimelineLane({
           ph.style.display = 'none'
         }
       }
-    }, 50)
-    return () => clearInterval(id)
+
+      if (prev.startSec !== vp.startSec || prev.endSec !== vp.endSec) {
+        const timeline = timelineRef.current
+        if (timeline) applySoundDrawingViewport(timeline, vp)
+      }
+
+      rafRef.current = requestAnimationFrame(tick)
+    }
+
+    rafRef.current = requestAnimationFrame(tick)
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+    }
   }, [collapsed, engine.getCurrentTime])
 
   // ── Drag / resize ────────────────────────────────────────────────────────────
@@ -572,7 +612,8 @@ export function SoundDrawingTimelineLane({
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLElement>) => {
     const drag = dragRef.current
     if (!drag) return
-    const vpDur = vpEnd - vpStart
+    const activeViewport = viewportRef.current
+    const vpDur = activeViewport.endSec - activeViewport.startSec
     const tw    = drag.timelineWidth
     const delta = ((e.clientX - drag.startX) / tw) * vpDur
     const dur   = audioDurationSecRef.current
@@ -598,7 +639,7 @@ export function SoundDrawingTimelineLane({
     }
 
     setLocalDrag({ id: drag.clipId, startSec: s, endSec: en })
-  }, [vpStart, vpEnd, snapMode, beatGrid, resolvedSections])
+  }, [snapMode, beatGrid, resolvedSections])
 
   const handlePointerUp = useCallback(() => {
     const drag = dragRef.current
@@ -662,15 +703,11 @@ export function SoundDrawingTimelineLane({
 
   // ── Render helpers ────────────────────────────────────────────────────────────
 
-  const vpDur = Math.max(0.01, vpEnd - vpStart)
-
-  function clipStyle(c: SoundDrawingClip): React.CSSProperties {
-    const eff  = localDrag?.id === c.id ? localDrag : c
-    const left = Math.max(0, ((eff.startSec - vpStart) / vpDur) * 100)
-    const right = Math.min(100, ((eff.endSec - vpStart) / vpDur) * 100)
+  function clipLayout(c: SoundDrawingClip) {
+    const effective = localDrag?.id === c.id ? localDrag : c
     return {
-      left:  `${left}%`,
-      width: `${Math.max(0.5, right - left)}%`,
+      effective,
+      layout: computeViewportRangeLayout(effective, viewportRef.current),
     }
   }
 
@@ -758,17 +795,25 @@ export function SoundDrawingTimelineLane({
                     const layer = layers.find(l => l.id === clip.layerId)
                     const isSelected = clip.id === selectedClipId
                     const isDragging = localDrag?.id === clip.id
+                    const { effective, layout } = clipLayout(clip)
 
                     return (
                       <div
                         key={clip.id}
+                        data-sd-clip
+                        data-start-sec={effective.startSec}
+                        data-end-sec={effective.endSec}
                         className={[
                           'rv-sd-clip-block',
                           isSelected ? 'rv-sd-clip-block--selected' : '',
                           !clip.enabled ? 'rv-sd-clip-block--disabled' : '',
                           isDragging ? 'rv-sd-clip-block--dragging' : '',
                         ].filter(Boolean).join(' ')}
-                        style={clipStyle(clip)}
+                        style={{
+                          display: layout.visible ? undefined : 'none',
+                          left:  `${layout.leftPct}%`,
+                          width: `${Math.max(0.5, layout.widthPct)}%`,
+                        }}
                         onPointerDown={e => handleBlockPointerDown(e, clip, 'move')}
                         onPointerMove={handlePointerMove}
                         onPointerUp={handlePointerUp}

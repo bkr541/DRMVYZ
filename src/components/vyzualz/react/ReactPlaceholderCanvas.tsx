@@ -9,6 +9,7 @@ import { renderReactEngine } from './renderers/ReactEngineRenderer'
 import type { ReactFrameContext } from './renderers/reactRenderUtils'
 import { setSoundDrawingClipsForFrame } from './renderers/SoundDrawingRenderer'
 import { resolvePerformancePadTransition } from './renderers/reactPresetTransition'
+import { createLiveFpsReporter } from './fpsDiagnostics'
 
 interface Props {
   analyser:           AnalyserNode | null
@@ -170,7 +171,10 @@ export function ReactPlaceholderCanvas({
     // Notify the parent that this canvas is ready for capture (e.g. recording, PNG export).
     onCanvasReadyRef.current?.(canvas)
 
-    // FPS tracking — sample once per second and report via onLiveFps
+    // FPS tracking — sample once per second and report via onLiveFps. The
+    // reporter deduplicates unavailable=0 so the no-preset path never invokes a
+    // React state callback on every frame.
+    const fpsReporter = createLiveFpsReporter(() => onLiveFpsRef.current)
     let fpsFrameCount = 0
     let fpsLastMs = performance.now()
 
@@ -199,7 +203,11 @@ export function ReactPlaceholderCanvas({
 
       const preset = presetRef.current
       if (!preset) {
-        // No preset — just clear to black
+        // No preset — clear the canvas and invalidate diagnostics before this
+        // frame returns so an FPS value from the previous engine cannot linger.
+        fpsFrameCount = 0
+        fpsLastMs = now
+        fpsReporter.unavailable()
         ctx.fillStyle = '#060d10'
         ctx.fillRect(0, 0, W, H)
         animRef.current = requestAnimationFrame(frame)
@@ -358,7 +366,7 @@ export function ReactPlaceholderCanvas({
       const nowMs = performance.now()
       if (nowMs - fpsLastMs >= 1000) {
         const elapsed = (nowMs - fpsLastMs) / 1000
-        onLiveFpsRef.current?.(Math.round(fpsFrameCount / elapsed))
+        fpsReporter.report(fpsFrameCount / elapsed)
         fpsFrameCount = 0
         fpsLastMs = nowMs
       }
@@ -371,6 +379,7 @@ export function ReactPlaceholderCanvas({
       cancelAnimationFrame(animRef.current)
       ro.disconnect()
       onCanvasReadyRef.current?.(null)
+      fpsReporter.unavailable()
     }
   }, [])  // stable — reads all state via refs
 

@@ -7,9 +7,42 @@ import {
   zoomViewportAroundTime,
   panViewport,
   intersectTimeRange,
+  computeViewportRangeLayout,
+  isFinitePositiveDuration,
+  resolvePositiveDuration,
+  DEFAULT_TIMELINE_DURATION_SEC,
   MIN_VIEWPORT_SEC,
   type TimelineViewport,
 } from '../timelineViewport'
+
+
+// ── duration validation ───────────────────────────────────────────────────────
+
+describe('duration validation', () => {
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    'rejects invalid duration %s',
+    value => {
+      expect(isFinitePositiveDuration(value)).toBe(false)
+      expect(resolvePositiveDuration(value)).toBe(DEFAULT_TIMELINE_DURATION_SEC)
+    },
+  )
+
+  it('accepts finite positive durations and validates the fallback too', () => {
+    expect(isFinitePositiveDuration(0.001)).toBe(true)
+    expect(resolvePositiveDuration(245.5)).toBe(245.5)
+    expect(resolvePositiveDuration(Number.NaN, -10)).toBe(MIN_VIEWPORT_SEC)
+  })
+
+  it.each([0, -12, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    'keeps viewport output finite and positive for duration %s',
+    duration => {
+      const vp = computeWaveformViewport(duration, 30, 4)
+      expect(Number.isFinite(vp.startSec)).toBe(true)
+      expect(Number.isFinite(vp.endSec)).toBe(true)
+      expect(vp.endSec).toBeGreaterThan(vp.startSec)
+    },
+  )
+})
 
 // ── computeWaveformViewport ───────────────────────────────────────────────────
 
@@ -277,5 +310,39 @@ describe('intersectTimeRange', () => {
 
   it('returns null for a zero-duration range at the viewport boundary', () => {
     expect(intersectTimeRange({ startSec: 60, endSec: 60 }, vp)).toBeNull()
+  })
+})
+
+
+// ── computeViewportRangeLayout ────────────────────────────────────────────────
+
+describe('computeViewportRangeLayout', () => {
+  const vp: TimelineViewport = { startSec: 60, endSec: 120 }
+
+  it('clips a range to the current viewport without changing authored times', () => {
+    const range = { startSec: 30, endSec: 90 }
+    const snapshot = { ...range }
+    const layout = computeViewportRangeLayout(range, vp)
+
+    expect(layout.visible).toBe(true)
+    expect(layout.leftPct).toBeCloseTo(0)
+    expect(layout.widthPct).toBeCloseTo(50)
+    expect(layout.startEdgeVisible).toBe(false)
+    expect(layout.endEdgeVisible).toBe(true)
+    expect(range).toEqual(snapshot)
+  })
+
+  it('marks off-screen and invalid ranges as hidden with finite geometry', () => {
+    for (const range of [
+      { startSec: 0, endSec: 30 },
+      { startSec: 130, endSec: 160 },
+      { startSec: Number.NaN, endSec: 80 },
+      { startSec: 80, endSec: Number.POSITIVE_INFINITY },
+    ]) {
+      const layout = computeViewportRangeLayout(range, vp)
+      expect(layout.visible).toBe(false)
+      expect(Number.isFinite(layout.leftPct)).toBe(true)
+      expect(Number.isFinite(layout.widthPct)).toBe(true)
+    }
   })
 })

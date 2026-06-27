@@ -18,6 +18,7 @@ import { SoundDrawingTimelineLane } from './SoundDrawingTimelineLane'
 import { ReactPlaceholderCanvas } from './ReactPlaceholderCanvas'
 import { ReactShaderCanvas }       from './ReactShaderCanvas'
 import { isReactTransportPaused }  from './reactTransportState'
+import { resolvePositiveDuration } from '../../../features/timeline/timelineViewport'
 import { ReactPerformancePads } from './ReactPerformancePads'
 import { LaserDmxBeamMatrixEditorOverlay } from './LaserDmxBeamMatrixEditorOverlay'
 import { LaserDmxLayersPanel } from './LaserDmxLayersPanel'
@@ -156,6 +157,10 @@ export function ReactView() {
   const [outputCanvas, setOutputCanvas] = useState<HTMLCanvasElement | null>(null)
   const [liveFps, setLiveFps]           = useState(0)
 
+  // Engine swaps are semantic diagnostics boundaries. Clear immediately rather
+  // than showing the previous renderer's FPS until the new renderer samples.
+  useEffect(() => { setLiveFps(0) }, [activeReactEngineId])
+
   const handleStartRecording = useCallback((canvas: HTMLCanvasElement) => {
     const audioStream = engine.isActive ? engine.getRecordingStream() : null
     recorder.startVideoRecording(canvas, audioStream)
@@ -233,8 +238,9 @@ export function ReactView() {
     ? null
     : (selectedPresetForEngine ?? reactPresets.find(p => p.engine === activeReactEngineId) ?? null)
 
-  // Estimated track duration from the audio engine (fallback 180s)
-  const audioDurationSec = (engine as { duration?: number }).duration ?? 180
+  // Timeline math requires a finite positive duration. New/decoding tracks can
+  // briefly expose 0, and malformed metadata may contain NaN/Infinity/negatives.
+  const audioDurationSec = resolvePositiveDuration(engine.duration, 180)
   const transportPaused = isReactTransportPaused({
     isPlaying:     engine.isPlaying,
     currentTimeSec: engine.currentTime,

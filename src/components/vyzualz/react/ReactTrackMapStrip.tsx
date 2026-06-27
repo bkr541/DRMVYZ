@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { forwardRef, useState, useCallback, useRef, useEffect, useImperativeHandle, type MutableRefObject } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useReactStore } from '../../../stores/reactStore'
@@ -17,6 +17,9 @@ import {
 } from '../../../features/trackIntelligence/sectionBoundaryDrag'
 import {
   computeWaveformViewport,
+  computeViewportRangeLayout,
+  isFinitePositiveDuration,
+  resolvePositiveDuration,
   timeToViewportRatio,
   type TimelineViewport,
 } from '../../../features/timeline/timelineViewport'
@@ -203,7 +206,7 @@ export function drawBeatCanvas(
   const w = canvas.offsetWidth
   const h = canvas.offsetHeight
   const durationSec = analysis.durationMs / 1000
-  if (durationSec <= 0) return
+  if (!isFinitePositiveDuration(durationSec)) return
   ctx.clearRect(0, 0, w, h)
 
   const vpStart = viewport?.startSec ?? 0
@@ -266,14 +269,15 @@ export function drawEnergyCanvas(
   viewport?:   TimelineViewport,
 ): void {
   const ctx = setupCanvas(canvas)
-  if (!ctx || !curve || durationSec <= 0) return
+  if (!ctx || !curve || !isFinitePositiveDuration(durationSec)) return
+  const safeDurationSec = durationSec
   const w = canvas.offsetWidth
   const h = canvas.offsetHeight
   ctx.clearRect(0, 0, w, h)
 
   const vpStart = viewport?.startSec ?? 0
-  const vpEnd   = viewport?.endSec   ?? durationSec
-  const vpDur   = vpEnd > vpStart ? vpEnd - vpStart : durationSec
+  const vpEnd   = viewport?.endSec   ?? safeDurationSec
+  const vpDur   = vpEnd > vpStart ? vpEnd - vpStart : safeDurationSec
 
   // Filter out any non-finite samples so bad persisted data can't corrupt rendering.
   const valid = curve.filter(pt => isFinite(pt.timeSec) && isFinite(pt.value))
@@ -650,10 +654,8 @@ function AddSectionForm({ onAdd, onCancel }: AddSectionFormProps) {
 interface SectionTimelineProps {
   sections:      ReactTrackSection[]
   durationSec:   number
-  /** Visible start time. Defaults to 0 (full track). Future zoom support. */
-  viewportStart?: number
-  /** Visible end time. Defaults to durationSec (full track). Future zoom support. */
-  viewportEnd?:   number
+  viewport:      TimelineViewport
+  viewportRef:   MutableRefObject<TimelineViewport>
   beatGrid?:      BeatMarkerMI[]
   effectiveBpm?:  number | null
   selectedId:     string | null
@@ -674,11 +676,44 @@ interface SectionTimelineProps {
   presetAssignedSectionIds?: Set<string>
 }
 
-function SectionTimeline({
+interface SectionTimelineHandle {
+  updateViewport: (viewport: TimelineViewport) => void
+}
+
+function applySectionTimelineViewport(
+  container: HTMLDivElement,
+  viewport:  TimelineViewport,
+): void {
+  const regions = container.querySelectorAll<HTMLElement>('[data-section-region]')
+  regions.forEach(region => {
+    const startSec = Number(region.dataset.startSec)
+    const endSec   = Number(region.dataset.endSec)
+    const layout   = computeViewportRangeLayout({ startSec, endSec }, viewport)
+    region.style.display = layout.visible ? '' : 'none'
+    if (!layout.visible) return
+    region.style.left  = `${layout.leftPct}%`
+    region.style.width = `${layout.widthPct}%`
+    const startHandle = region.querySelector<HTMLElement>('[data-section-start-handle]')
+    const endHandle   = region.querySelector<HTMLElement>('[data-section-end-handle]')
+    if (startHandle) startHandle.style.display = layout.startEdgeVisible ? '' : 'none'
+    if (endHandle)   endHandle.style.display   = layout.endEdgeVisible   ? '' : 'none'
+  })
+
+  const boundaries = container.querySelectorAll<HTMLElement>('[data-section-boundary]')
+  boundaries.forEach(boundary => {
+    const timeSec = Number(boundary.dataset.boundaryTime)
+    const ratio   = timeToViewportRatio(timeSec, viewport)
+    const visible = Number.isFinite(timeSec) && ratio >= -0.0001 && ratio <= 1.0001
+    boundary.style.display = visible ? '' : 'none'
+    if (visible) boundary.style.left = `${ratio * 100}%`
+  })
+}
+
+const SectionTimeline = forwardRef<SectionTimelineHandle, SectionTimelineProps>(function SectionTimeline({
   sections,
   durationSec,
-  viewportStart = 0,
-  viewportEnd,
+  viewport,
+  viewportRef,
   beatGrid,
   effectiveBpm,
   selectedId,
@@ -687,7 +722,7 @@ function SectionTimeline({
   onCommitBoundary,
   onDragPreview,
   presetAssignedSectionIds,
-}: SectionTimelineProps) {
+}, ref) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [drag, setDrag] = useState<SectionBoundaryDragState | null>(null)
   // Ref so pointer-move handlers always read the latest drag state without
@@ -695,16 +730,23 @@ function SectionTimeline({
   // dragRef is always current.
   const dragRef = useRef<SectionBoundaryDragState | null>(null)
   dragRef.current = drag
+  useImperativeHandle(ref, () => ({
+    updateViewport(nextViewport) {
+      viewportRef.current = nextViewport
+      const container = containerRef.current
+      if (container) applySectionTimelineViewport(container, nextViewport)
+    },
+  }), [viewportRef])
 
-  const vpEnd = viewportEnd ?? durationSec
-  const vpDur = vpEnd - viewportStart
-
+  const vpDur = viewport.endSec - viewport.startSec
   if (durationSec <= 0 || vpDur <= 0) return null
 
+  // Keep every valid section mounted. Playback-follow only changes geometry,
+  // so off-screen sections can enter the viewport without rebuilding the tree.
   const sorted = sections
     .filter(s =>
-      s.endSec > s.startSec && s.startSec < durationSec && s.endSec > 0 &&
-      s.endSec > viewportStart && s.startSec < vpEnd
+      Number.isFinite(s.startSec) && Number.isFinite(s.endSec) &&
+      s.endSec > s.startSec && s.startSec < durationSec && s.endSec > 0
     )
     .map(s => ({ ...s, startSec: Math.max(0, s.startSec), endSec: Math.min(durationSec, s.endSec) }))
     .sort((a, b) => a.startSec - b.startSec)
@@ -762,8 +804,15 @@ function SectionTimeline({
       const container = containerRef.current
       if (!container) return
       const rect = container.getBoundingClientRect()
+      const activeViewport = viewportRef.current
 
-      const rawTime  = pointerXToTime(e.clientX, rect.left, rect.width, viewportStart, vpEnd)
+      const rawTime  = pointerXToTime(
+        e.clientX,
+        rect.left,
+        rect.width,
+        activeViewport.startSec,
+        activeViewport.endSec,
+      )
       const grid     = beatGrid ?? []
       const snapped  = snapToNearestBeat(rawTime, grid, e.altKey)
       const minDur   = computeMinDuration(effectiveBpm)
@@ -824,11 +873,7 @@ function SectionTimeline({
     >
       {display.map((section, i) => {
         const orig       = sorted[i]
-        // Clip section to the visible viewport for rendering
-        const clipStart  = Math.max(section.startSec, viewportStart)
-        const clipEnd    = Math.min(section.endSec,   vpEnd)
-        const leftPct    = ((clipStart - viewportStart) / vpDur) * 100
-        const widthPct   = ((clipEnd - clipStart)       / vpDur) * 100
+        const layout     = computeViewportRangeLayout(section, viewport)
         const color      = SECTION_COLORS[section.type] ?? '#6a7a8a'
         const barRange   = beatGrid ? buildBarRange(section, beatGrid) : null
         const isSelected = selectedId === section.id
@@ -838,23 +883,30 @@ function SectionTimeline({
         const activeEdge = isDragging ? drag.edge : null
         const previewStart = isDragging ? drag.previewStart : section.startSec
         const previewEnd   = isDragging ? drag.previewEnd   : section.endSec
-        // Only show boundary handles when the true edge is within the visible viewport
-        const startHandleVisible = orig.startSec >= viewportStart - 0.01
-        const endHandleVisible   = orig.endSec   <= vpEnd          + 0.01
 
         return (
           <div
             key={orig.id}
+            data-section-region
+            data-start-sec={section.startSec}
+            data-end-sec={section.endSec}
             className={[
               'rv-section-region',
               isSelected  ? 'rv-section-region--selected'  : '',
               isDragging  ? 'rv-section-region--dragging'  : '',
             ].filter(Boolean).join(' ')}
-            style={{ left: `${leftPct}%`, width: `${widthPct}%`, '--section-color': color } as React.CSSProperties}
+            style={{
+              display: layout.visible ? undefined : 'none',
+              left: `${layout.leftPct}%`,
+              width: `${layout.widthPct}%`,
+              '--section-color': color,
+            } as React.CSSProperties}
           >
             {/* ── Left (start) resize handle — hidden when start is off-screen ── */}
-            {startHandleVisible && <div
+            <div
+              data-section-start-handle
               className={`rv-section-handle rv-section-handle--start${activeEdge === 'start' ? ' rv-section-handle--active' : ''}`}
+              style={{ display: layout.startEdgeVisible ? undefined : 'none' }}
               role="slider"
               tabIndex={0}
               aria-label={`Adjust ${orig.label} start`}
@@ -873,7 +925,7 @@ function SectionTimeline({
                   {formatTimePrecise(previewStart)}
                 </div>
               )}
-            </div>}
+            </div>
 
             {/* ── Section body (click to select) ────────────────────── */}
             <div
@@ -906,8 +958,10 @@ function SectionTimeline({
             </div>
 
             {/* ── Right (end) resize handle — hidden when end is off-screen ── */}
-            {endHandleVisible && <div
+            <div
+              data-section-end-handle
               className={`rv-section-handle rv-section-handle--end${activeEdge === 'end' ? ' rv-section-handle--active' : ''}`}
+              style={{ display: layout.endEdgeVisible ? undefined : 'none' }}
               role="slider"
               tabIndex={0}
               aria-label={`Adjust ${orig.label} end`}
@@ -926,22 +980,24 @@ function SectionTimeline({
                   {formatTimePrecise(previewEnd)}
                 </div>
               )}
-            </div>}
+            </div>
           </div>
         )
       })}
 
-      {/* Diamond boundary markers — positions follow drag preview, clipped to viewport */}
+      {/* Diamond boundary markers stay mounted and are repositioned imperatively. */}
       {display.map((section, i) => {
         if (i === 0) return null
         const boundary = section.startSec
-        if (boundary < viewportStart - 0.01 || boundary > vpEnd + 0.01) return null
-        const pct = ((boundary - viewportStart) / vpDur) * 100
+        const ratio    = timeToViewportRatio(boundary, viewport)
+        const visible  = ratio >= -0.0001 && ratio <= 1.0001
         return (
           <div
             key={`bd-${sorted[i].id}`}
+            data-section-boundary
+            data-boundary-time={boundary}
             className="rv-section-boundary"
-            style={{ left: `${pct}%` }}
+            style={{ display: visible ? undefined : 'none', left: `${ratio * 100}%` }}
             aria-hidden="true"
           >
             <div className="rv-section-boundary-diamond" />
@@ -950,7 +1006,7 @@ function SectionTimeline({
       })}
     </div>
   )
-}
+})
 
 // ── ReactTrackMapStrip ────────────────────────────────────────────────────────
 
@@ -1024,17 +1080,22 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
   const [dragPreview,    setDragPreview]    = useState<{ sectionId: string; start: number; end: number } | null>(null)
   const [energyCurveKey, setEnergyCurveKey] = useState<EnergyCurveKey>('shortTerm')
   const [drawTick,       setDrawTick]       = useState(0)
-  // Viewport state for section positioning — updated by RAF loop and zoom changes
-  const [vpStart, setVpStart] = useState(0)
-  const [vpEnd,   setVpEnd]   = useState(audioDurationSec)
+  const fallbackDurationSec = resolvePositiveDuration(audioDurationSec)
+  // React state changes only for semantic viewport inputs (track, zoom, duration).
+  // Playback-follow geometry stays in viewportRef and is applied directly to DOM/canvas.
+  const [, setLayoutViewport] = useState<TimelineViewport>({
+    startSec: 0,
+    endSec:   fallbackDurationSec,
+  })
 
   const stripRef        = useRef<HTMLDivElement>(null)
   const beatCanvasRef   = useRef<HTMLCanvasElement>(null)
   const energyCanvasRef = useRef<HTMLCanvasElement>(null)
   const playheadRef     = useRef<HTMLDivElement>(null)
   const rafRef          = useRef<number | null>(null)
-  // Stable ref to the latest viewport — read by canvas effects and RAF loop
-  const viewportRef = useRef<TimelineViewport>({ startSec: 0, endSec: audioDurationSec })
+  const sectionTimelineRef = useRef<SectionTimelineHandle>(null)
+  // Stable ref to the latest viewport — read by canvas effects, interactions, and RAF loop
+  const viewportRef = useRef<TimelineViewport>({ startSec: 0, endSec: fallbackDurationSec })
   // Refs to avoid stale closures in RAF tick
   const waveformZoomRef             = useRef(waveformZoom)
   const durationSecForRafRef        = useRef(audioDurationSec)
@@ -1071,7 +1132,10 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
   const hasTrack    = currentTrack != null
   const isWorking   = isActivelyWorking(currentAnalysisStatus)
   const isComplete  = currentAnalysisStatus === 'complete' && currentAnalysis != null
-  const durationSec = currentAnalysis ? currentAnalysis.durationMs / 1000 : audioDurationSec
+  const durationSec = resolvePositiveDuration(
+    currentAnalysis ? currentAnalysis.durationMs / 1000 : undefined,
+    fallbackDurationSec,
+  )
 
   // Keep RAF refs in sync with the latest render values (avoids stale closures)
   waveformZoomRef.current             = waveformZoom
@@ -1113,8 +1177,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
       // Reset viewport to full track; the viewport sync effect will refine it
       const vp = { startSec: 0, endSec: durationSec }
       viewportRef.current = vp
-      setVpStart(0)
-      setVpEnd(durationSec)
+      setLayoutViewport(vp)
     }
   }, [activeTrackId])
 
@@ -1137,8 +1200,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     const t  = getCurrentTime()
     const vp = computeWaveformViewport(durationSec, t, waveformZoom)
     viewportRef.current = vp
-    setVpStart(vp.startSec)
-    setVpEnd(vp.endSec)
+    setLayoutViewport(vp)
   }, [waveformZoom, durationSec, getCurrentTime])
 
   // Beat canvas — redraws when analysis, zoom, effective override, or collapse changes.
@@ -1226,9 +1288,9 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
           }
         }
 
-        // Update React state for section positioning (batched by React 18)
-        setVpStart(vp.startSec)
-        setVpEnd(vp.endSec)
+        // Section geometry follows playback imperatively. This avoids rebuilding
+        // the section/editor tree on every animation frame.
+        sectionTimelineRef.current?.updateViewport(vp)
       }
 
       rafRef.current = requestAnimationFrame(tick)
@@ -1687,10 +1749,11 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
 
                 {resolvedSections.length > 0 ? (
                   <SectionTimeline
+                    ref={sectionTimelineRef}
                     sections={resolvedSections}
                     durationSec={durationSec}
-                    viewportStart={vpStart}
-                    viewportEnd={vpEnd}
+                    viewport={viewportRef.current}
+                    viewportRef={viewportRef}
                     beatGrid={currentEffectiveBeatGrid ?? currentAnalysis?.beatGrid ?? undefined}
                     effectiveBpm={currentEffectiveBpm}
                     selectedId={selectedSectionId}
