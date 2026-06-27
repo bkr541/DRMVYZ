@@ -64,7 +64,7 @@ export function ShaderModulationPanel({
   }
 
   return (
-    <div className="shader-mod-panel">
+    <div className="rv-ctrl-group shader-mod-panel">
       {/* ── Header ── */}
       <div className="shader-mod-panel-header">
         <span className="shader-mod-panel-title">Modulation</span>
@@ -72,7 +72,8 @@ export function ShaderModulationPanel({
           {routes.filter(r => r.enabled).length}/{routes.length} active
         </span>
         <button
-          className="shader-mod-add-btn"
+          type="button"
+          className="rv-glyph-upload-btn shader-mod-add-btn"
           onClick={handleAdd}
           disabled={modulatableParams.length === 0}
           title={modulatableParams.length === 0
@@ -85,7 +86,7 @@ export function ShaderModulationPanel({
 
       {/* ── Empty state ── */}
       {routes.length === 0 && (
-        <div className="shader-mod-empty">
+        <div className="rv-ctrl-info shader-mod-empty">
           {modulatableParams.length === 0
             ? 'No modulatable parameters in this shader.'
             : 'No modulation routes. Click "+ Route" to add one.'}

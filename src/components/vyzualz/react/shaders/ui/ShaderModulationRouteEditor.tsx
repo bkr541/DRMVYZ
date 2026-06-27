@@ -85,6 +85,7 @@ export function ShaderModulationRouteEditor({
             onChange={v => onUpdate({ enabled: v })}
           />
           <button
+            type="button"
             className="shader-mod-route-remove"
             onClick={onRemove}
             title="Remove route"

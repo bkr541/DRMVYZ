@@ -96,8 +96,10 @@ void main() {
   }
 
   // Surface color: interpolate between surface and highlight via spectral centroid
-  float centroid = uSpectralCentroid;
-  vec3 col = mix(uSurfaceColor.rgb, uHighlightColor.rgb, centroid * 0.6 + bass * 0.2);
+  // centroid is a reserved interpolation qualifier in GLSL ES 3.00,
+  // so keep the local name explicit rather than shadowing the uniform concept.
+  float spectralCentroid = uSpectralCentroid;
+  vec3 col = mix(uSurfaceColor.rgb, uHighlightColor.rgb, spectralCentroid * 0.6 + bass * 0.2);
 
   // Reflection-like highlights using surface normal
   vec2 norm = metaNormal(uvd, t, bass, speed, 0.02);
