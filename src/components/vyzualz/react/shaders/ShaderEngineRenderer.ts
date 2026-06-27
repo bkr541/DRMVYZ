@@ -18,12 +18,13 @@ import { useShaderLibraryStore }       from './library/ShaderLibraryStore'
 import { DEFAULT_SHADER_SCENE_ID }     from './scenes'
 import type { ReactFrameContext }      from '../renderers/reactRenderUtils'
 import type {
-  ShaderDefinition, ShaderParamValue, RGBA, Vec2, EnumParamDef, GradientStop,
+  ShaderDefinition, ShaderParamValue, RGBA, Vec2, EnumParamDef, GradientStop, QualityTier,
 } from './registry/shaderRegistryTypes'
 import type { CompiledGraph }          from './rendergraph/shaderRenderGraphTypes'
 import type { ShaderProgram }          from './runtime/ShaderProgram'
 import type { ShaderTexSourceSelection, ShaderTextureMeta } from './textures/shaderTextureInputTypes'
 import { DEFAULT_TRANSITION }          from './transitions/shaderTransitionTypes'
+import { resolveCanvasResolution, type CanvasResolution } from '../rendering/canvasResolution'
 
 // ── MasterParams ──────────────────────────────────────────────────────────────
 
@@ -99,8 +100,10 @@ export class ShaderEngineRenderer {
   // Cached CSS layout dimensions for quality-change resizes
   private _lastCssW:          number = 0
   private _lastCssH:          number = 0
-  private _lastPixelRatio:    number = 1
+  private _lastDevicePixelRatio: number = 1
+  private _lastResolution:     CanvasResolution | null = null
   private _lastEffectiveScale: number = -1  // detect scale changes each frame
+  private _lastEffectiveTier:  QualityTier | null = null
 
   // Per-frame texture selection diff (avoids stale textures when user removes a selection)
   private _lastAppliedSelections: Map<string, ShaderTexSourceSelection> = new Map()
@@ -141,14 +144,57 @@ export class ShaderEngineRenderer {
 
   // ── Resize ────────────────────────────────────────────────────────────────
 
-  resize(cssW: number, cssH: number, pixelRatio: number): void {
+  get effectivePixelRatio(): number {
+    return this._runtime.dims.pixelRatio
+  }
+
+  resize(cssW: number, cssH: number, devicePixelRatio: number): void {
     if (this._disposed) return
-    this._lastCssW       = cssW
-    this._lastCssH       = cssH
-    this._lastPixelRatio = pixelRatio
-    this._runtime.resize(cssW, cssH, pixelRatio)
-    const dims = this._runtime.dims
-    this._transRend.resize(dims.W, dims.H)
+    if (!Number.isFinite(cssW) || !Number.isFinite(cssH) || cssW <= 0 || cssH <= 0) return
+
+    this._lastCssW             = cssW
+    this._lastCssH             = cssH
+    this._lastDevicePixelRatio = devicePixelRatio
+    this._syncQualityProfile()
+    this._applyCanvasResolution()
+  }
+
+  private _syncQualityProfile(): boolean {
+    const qualPref = useShaderLibraryStore.getState().qualityPreference ?? 'auto'
+    this._qualCtrl.setTier(qualPref)
+
+    const effectiveTier = this._qualCtrl.effectiveTier
+    const scale         = this._qualCtrl.profile.internalResolutionScale
+    const changed       = effectiveTier !== this._lastEffectiveTier || scale !== this._lastEffectiveScale
+
+    if (changed) {
+      this._lastEffectiveTier  = effectiveTier
+      this._lastEffectiveScale = scale
+      this._runtime.setResolutionScale(scale)
+    }
+    return changed
+  }
+
+  private _applyCanvasResolution(): boolean {
+    if (this._lastCssW <= 0 || this._lastCssH <= 0) return false
+
+    const next = resolveCanvasResolution({
+      cssWidth: this._lastCssW,
+      cssHeight: this._lastCssH,
+      devicePixelRatio: this._lastDevicePixelRatio,
+      quality: this._qualCtrl.effectiveTier,
+      resolutionScale: this._runtime.resolutionScale,
+      previous: this._lastResolution,
+    })
+    if (!next.valid) return false
+
+    const changed = this._runtime.resize(next)
+    this._lastResolution = next
+    if (changed) {
+      const dims = this._runtime.dims
+      this._transRend.resize(dims.W, dims.H)
+    }
+    return changed
   }
 
   // ── Main render ───────────────────────────────────────────────────────────
@@ -186,20 +232,10 @@ export class ShaderEngineRenderer {
     }
 
     // ── Quality ────────────────────────────────────────────────────────────
-    const qualPref = libStore.qualityPreference ?? 'auto'
-    this._qualCtrl.setTier(qualPref)
-    const profile    = this._qualCtrl.profile
-    const newScale   = profile.internalResolutionScale
-    if (newScale !== this._lastEffectiveScale) {
-      // Quality changed (manual tier switch OR initial frame) — resize canvas
-      this._lastEffectiveScale = newScale
-      this._runtime.setResolutionScale(newScale)
-      if (this._lastCssW > 0 && this._lastCssH > 0) {
-        this._runtime.resize(this._lastCssW, this._lastCssH, this._lastPixelRatio)
-        const newDims = this._runtime.dims
-        this._transRend.resize(newDims.W, newDims.H)
-      }
-    }
+    // DPR ceiling and internal resolution scale are resolved as one allocation
+    // policy so the canvas, viewport, transition captures, and render graph all
+    // observe the same integer dimensions.
+    if (this._syncQualityProfile()) this._applyCanvasResolution()
 
     // ── Frame begin ────────────────────────────────────────────────────────
     const frameState = this._runtime.beginFrame()
@@ -407,11 +443,10 @@ export class ShaderEngineRenderer {
       const changed = this._qualCtrl.evaluate(this._perfMon)
       if (changed && this._lastCssW > 0 && this._lastCssH > 0) {
         const autoScale = this._qualCtrl.profile.internalResolutionScale
+        this._lastEffectiveTier  = this._qualCtrl.effectiveTier
         this._lastEffectiveScale = autoScale
         this._runtime.setResolutionScale(autoScale)
-        this._runtime.resize(this._lastCssW, this._lastCssH, this._lastPixelRatio)
-        const newDims = this._runtime.dims
-        this._transRend.resize(newDims.W, newDims.H)
+        this._applyCanvasResolution()
       }
     }
 

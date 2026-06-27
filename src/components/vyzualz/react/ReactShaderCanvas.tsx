@@ -143,6 +143,7 @@ export function ReactShaderCanvas({
     // Cached layout dimensions (CSS pixels) for resize + context restore
     let lastCssW = 0
     let lastCssH = 0
+    let lastDevicePixelRatio = 1
 
     function createRenderer(): ShaderEngineRenderer | null {
       const { runtime, error } = ShaderWebGLRuntime.create(canvas!, {
@@ -169,7 +170,7 @@ export function ReactShaderCanvas({
 
           // Resize with last known CSS dimensions
           if (lastCssW > 0 && lastCssH > 0) {
-            newRenderer.resize(lastCssW, lastCssH, devicePixelRatio)
+            newRenderer.resize(lastCssW, lastCssH, lastDevicePixelRatio)
           }
 
           // Resume rAF
@@ -201,7 +202,8 @@ export function ReactShaderCanvas({
       if (r.width <= 0 || r.height <= 0) return
       lastCssW = r.width
       lastCssH = r.height
-      renderer.resize(r.width, r.height, window.devicePixelRatio || 1)
+      lastDevicePixelRatio = window.devicePixelRatio
+      renderer.resize(r.width, r.height, lastDevicePixelRatio)
       // Do NOT set canvas.width/canvas.height here — the runtime handles it
     }
 
@@ -364,7 +366,7 @@ export function ReactShaderCanvas({
       const rfCtx: ReactFrameContext = {
         W,
         H,
-        dpr:       devicePixelRatio,
+        dpr:       rendererRef.current?.effectivePixelRatio ?? 1,
         t:         tRef.current,
         timeSec:   now / 1000,
         audioTime: audioTimeRef.current,

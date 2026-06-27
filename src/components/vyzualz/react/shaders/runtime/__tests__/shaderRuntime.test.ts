@@ -33,6 +33,7 @@ import {
   MIN_RESOLUTION_SCALE,
   MAX_RESOLUTION_SCALE,
 } from '../ShaderWebGLRuntime'
+import { resolveCanvasResolution } from '../../../rendering/canvasResolution'
 
 // Unwraps a successful create result; throws if the mock was configured wrong.
 function ok(result: ReturnType<typeof ShaderWebGLRuntime.create>): ShaderWebGLRuntime {
@@ -345,7 +346,13 @@ describe('F — runtime resize calculations', () => {
     const { gl } = makeGL()
     const { canvas } = makeCanvas(gl)
     const runtime = ok(ShaderWebGLRuntime.create(canvas, { resolutionScale: 0.5 }))
-    runtime.resize(1920, 1080, 2)
+    runtime.resize(resolveCanvasResolution({
+      cssWidth: 1920,
+      cssHeight: 1080,
+      devicePixelRatio: 2,
+      quality: 'ultra',
+      resolutionScale: runtime.resolutionScale,
+    }))
     const dims = runtime.dims
     // 1920 × 2 × 0.5 = 1920, 1080 × 2 × 0.5 = 1080
     expect(dims.W).toBe(1920)
@@ -354,11 +361,16 @@ describe('F — runtime resize calculations', () => {
     expect(dims.pixelRatio).toBe(2)
   })
 
-  it('clamps W and H to at least 1', () => {
+  it('ignores invalid zero-sized container resolutions', () => {
     const { gl } = makeGL()
     const { canvas } = makeCanvas(gl)
     const runtime = ok(ShaderWebGLRuntime.create(canvas))
-    runtime.resize(0, 0, 1)
+    const changed = runtime.resize(resolveCanvasResolution({
+      cssWidth: 0,
+      cssHeight: 0,
+      devicePixelRatio: 1,
+    }))
+    expect(changed).toBe(false)
     expect(runtime.dims.W).toBe(1)
     expect(runtime.dims.H).toBe(1)
   })
@@ -368,7 +380,13 @@ describe('F — runtime resize calculations', () => {
     const { canvas } = makeCanvas(gl)
     const runtime = ok(ShaderWebGLRuntime.create(canvas, { resolutionScale: 0.75 }))
     // 800 × 1 × 0.75 = 600 (exact), 600 × 1 × 0.75 = 450 (exact)
-    runtime.resize(800, 600, 1)
+    runtime.resize(resolveCanvasResolution({
+      cssWidth: 800,
+      cssHeight: 600,
+      devicePixelRatio: 1,
+      quality: 'ultra',
+      resolutionScale: runtime.resolutionScale,
+    }))
     expect(runtime.dims.W).toBe(600)
     expect(runtime.dims.H).toBe(450)
   })

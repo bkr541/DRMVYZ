@@ -1,4 +1,5 @@
 import type { FrameState, RuntimeDimensions } from './shaderRuntimeTypes'
+import { applyCanvasResolution, type CanvasResolution } from '../../rendering/canvasResolution'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -113,26 +114,29 @@ export class ShaderWebGLRuntime {
   // ── Resize ────────────────────────────────────────────────────────────────
 
   /**
-   * Update the canvas drawing buffer to match the current CSS size, device
-   * pixel ratio, and resolution scale.  Call from a ResizeObserver or any
-   * time the canvas layout dimensions change.
+   * Apply a centralized, already-resolved backing-store allocation.
    *
-   * @param cssW       Canvas CSS width in logical pixels.
-   * @param cssH       Canvas CSS height in logical pixels.
-   * @param pixelRatio Device pixel ratio (default 1). Pass window.devicePixelRatio.
+   * Returns true only when the integer backing dimensions changed. This keeps
+   * downstream framebuffer resize paths from reallocating on fractional CSS
+   * measurement chatter.
    */
-  resize(cssW: number, cssH: number, pixelRatio = 1): void {
-    if (this._disposed || this._contextLost) return
+  resize(resolution: CanvasResolution): boolean {
+    if (this._disposed || this._contextLost || !resolution.valid) return false
 
-    const scale = this._resolutionScale
-    const W = Math.max(1, Math.round(cssW * pixelRatio * scale))
-    const H = Math.max(1, Math.round(cssH * pixelRatio * scale))
+    const W = resolution.backingWidth
+    const H = resolution.backingHeight
+    const dimensionsChanged = this._dims.W !== W || this._dims.H !== H
+    const storageChanged    = applyCanvasResolution(this._canvas, resolution)
 
-    this._canvas.width  = W
-    this._canvas.height = H
-    this._dims = { W, H, aspect: W / H, pixelRatio }
+    this._dims = {
+      W,
+      H,
+      aspect: W / H,
+      pixelRatio: resolution.effectiveDpr,
+    }
 
-    this._gl.viewport(0, 0, W, H)
+    if (dimensionsChanged || storageChanged) this._gl.viewport(0, 0, W, H)
+    return dimensionsChanged
   }
 
   // ── Frame lifecycle ───────────────────────────────────────────────────────

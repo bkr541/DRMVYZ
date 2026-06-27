@@ -10,6 +10,7 @@ import type { ReactFrameContext } from './renderers/reactRenderUtils'
 import { setSoundDrawingClipsForFrame } from './renderers/SoundDrawingRenderer'
 import { resolvePerformancePadTransition } from './renderers/reactPresetTransition'
 import { createLiveFpsReporter } from './fpsDiagnostics'
+import { applyCanvasResolution, resolveCanvasResolution, type CanvasResolution } from './rendering/canvasResolution'
 
 interface Props {
   analyser:           AnalyserNode | null
@@ -154,15 +155,21 @@ export function ReactPlaceholderCanvas({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
+    let canvasResolution: CanvasResolution | null = null
+
     function resize() {
       if (!canvas) return
       const r = canvas.getBoundingClientRect()
-      const w = Math.round(r.width  * devicePixelRatio)
-      const h = Math.round(r.height * devicePixelRatio)
-      if (canvas.width !== w || canvas.height !== h) {
-        canvas.width  = w
-        canvas.height = h
-      }
+      const next = resolveCanvasResolution({
+        cssWidth: r.width,
+        cssHeight: r.height,
+        devicePixelRatio: window.devicePixelRatio,
+        quality: 'high',
+        previous: canvasResolution,
+      })
+      if (!next.valid) return
+      applyCanvasResolution(canvas, next)
+      canvasResolution = next
     }
     const ro = new ResizeObserver(resize)
     ro.observe(canvas)
@@ -304,7 +311,7 @@ export function ReactPlaceholderCanvas({
       }
 
       const t = tRef.current
-      const dpr = devicePixelRatio
+      const dpr = canvasResolution?.effectiveDpr ?? 1
       // Seconds-based time for strobe, envelopes, and time-accurate effects.
       // Prefer audioTime when valid; fall back to wall clock.
       const nowSec = performance.now() / 1000

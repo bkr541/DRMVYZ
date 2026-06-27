@@ -29,6 +29,7 @@ import type {
   FeatureCurve,
   TrackAnalysisStatus,
 } from '../../../features/musicIntelligence/types'
+import { applyCanvasResolution, resolveCanvasResolution } from './rendering/canvasResolution'
 
 // ── Engine display labels ─────────────────────────────────────────────────────
 
@@ -157,14 +158,19 @@ export const TRACK_MAP_BEAT_LINE_WIDTH       = 1    // px
 export const TRACK_MAP_DOWNBEAT_LINE_WIDTH   = 2    // px
 
 function setupCanvas(canvas: HTMLCanvasElement): CanvasRenderingContext2D | null {
-  const dpr = window.devicePixelRatio || 1
-  const w   = canvas.offsetWidth
-  const h   = canvas.offsetHeight
-  if (w === 0 || h === 0) return null
-  canvas.width  = Math.round(w * dpr)
-  canvas.height = Math.round(h * dpr)
+  const resolution = resolveCanvasResolution({
+    cssWidth: canvas.offsetWidth,
+    cssHeight: canvas.offsetHeight,
+    devicePixelRatio: window.devicePixelRatio,
+    quality: 'high',
+  })
+  if (!resolution.valid) return null
+
+  applyCanvasResolution(canvas, resolution)
   const ctx = canvas.getContext('2d')
-  if (ctx) ctx.scale(dpr, dpr)
+  if (ctx) {
+    ctx.setTransform(resolution.effectiveDpr, 0, 0, resolution.effectiveDpr, 0, 0)
+  }
   return ctx
 }
 
