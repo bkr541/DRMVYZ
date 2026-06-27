@@ -13,6 +13,9 @@ import { groupParams } from './shaderParameterUiTypes'
 // Uses narrow selectors so it does not rerender on every audio frame or
 // performance-metric update.
 
+const EMPTY_SELECTIONS = {} as Record<string, never>
+const EMPTY_VALIDATION: never[] = []
+
 export function ShaderParameterPanel() {
   // Stable fields — scene ID and definition-driving state
   const activeShaderId = useShaderPanelStore(s => s.activeShaderId)
@@ -33,10 +36,10 @@ export function ShaderParameterPanel() {
 
   // Per-scene texture state — only rerenders when this scene's entry changes
   const textureSelections = useShaderPanelStore(
-    s => activeShaderId ? (s.textureSelectionsByShaderId[activeShaderId] ?? {}) : {},
+    s => activeShaderId ? (s.textureSelectionsByShaderId[activeShaderId] ?? EMPTY_SELECTIONS) : EMPTY_SELECTIONS,
   )
   const textureValidation = useShaderPanelStore(
-    s => activeShaderId ? (s.textureValidationByShaderId[activeShaderId] ?? []) : [],
+    s => activeShaderId ? (s.textureValidationByShaderId[activeShaderId] ?? EMPTY_VALIDATION) : EMPTY_VALIDATION,
   )
 
   const def = activeShaderId ? shaderRegistry.get(activeShaderId) : null
