@@ -3001,6 +3001,91 @@
   gap: 6px;
   padding: 4px 0;
 }
+.rv-shader-library-quality {
+  padding-bottom: 2px;
+}
+.rv-shader-library-search {
+  display: flex;
+  gap: 4px;
+}
+.rv-shader-library-search-input {
+  flex: 1;
+  min-width: 0;
+}
+.rv-shader-library-cat {
+  flex-shrink: 0;
+  max-width: 110px;
+}
+.rv-shader-library-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rv-shader-library-import-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 3px;
+}
+.rv-shader-library-import-error button {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+.rv-shader-library-import-error button:hover {
+  opacity: 1;
+}
+.rv-shader-scene-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rv-shader-scene-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(232,244,248,0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rv-shader-scene-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: rgba(232,244,248,0.45);
+}
+.rv-shader-scene-category {
+  text-transform: lowercase;
+}
+.rv-shader-scene-badge {
+  padding: 0 3px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.08);
+  font-size: 9px;
+  letter-spacing: 0.03em;
+}
+.rv-shader-scene-badge--fav {
+  color: #f0b429;
+  background: rgba(240,180,41,0.12);
+}
+.rv-shader-scene-rename {
+  font-size: 12px;
+  padding: 1px 4px;
+  width: 100%;
+  box-sizing: border-box;
+}
 .rv-shader-scene-card {
   display: flex;
   align-items: center;
@@ -3033,6 +3118,97 @@
   gap: 4px;
   align-items: center;
   margin-left: auto;
+}
+
+/* Library tabs */
+.rv-shader-library-tabs {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+}
+.rv-shader-library-tab {
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  background: rgba(255,255,255,0.06);
+  color: rgba(232,244,248,0.65);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  line-height: 1.5;
+}
+.rv-shader-library-tab:hover {
+  background: rgba(74,199,219,0.12);
+  border-color: rgba(74,199,219,0.35);
+  color: rgba(232,244,248,0.9);
+}
+.rv-shader-library-tab--active {
+  background: rgba(74,199,219,0.2);
+  border-color: rgba(74,199,219,0.55);
+  color: #4ac7db;
+}
+
+/* Scene action icon buttons */
+.rv-shader-scene-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1;
+  background: rgba(255,255,255,0.06);
+  color: rgba(232,244,248,0.6);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.rv-shader-scene-action:hover {
+  background: rgba(74,199,219,0.15);
+  border-color: rgba(74,199,219,0.4);
+  color: rgba(232,244,248,0.9);
+}
+.rv-shader-scene-action--active {
+  background: rgba(74,199,219,0.22);
+  border-color: rgba(74,199,219,0.6);
+  color: #4ac7db;
+}
+.rv-shader-scene-action--danger {
+  color: rgba(232,100,100,0.7);
+  border-color: rgba(192,49,74,0.25);
+}
+.rv-shader-scene-action--danger:hover {
+  background: rgba(192,49,74,0.18);
+  border-color: rgba(192,49,74,0.6);
+  color: rgba(232,100,100,0.95);
+}
+
+/* Import Scene footer */
+.rv-shader-library-footer {
+  padding-top: 4px;
+}
+.rv-shader-editor-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  background: rgba(255,255,255,0.07);
+  color: rgba(232,244,248,0.8);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  line-height: 1.5;
+}
+.rv-shader-editor-btn:hover {
+  background: rgba(74,199,219,0.15);
+  border-color: rgba(74,199,219,0.45);
+}
+.rv-shader-editor-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* Code editor */
