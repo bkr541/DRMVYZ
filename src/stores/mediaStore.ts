@@ -592,17 +592,22 @@ export const useMediaStore = create<MediaState>((set, get) => ({
         // that anything placed while the upload was in-flight is not orphaned.
         useVisualStore.getState().remapMediaId(prevId, stableId)
 
-        // SVG glyph pre-cache — fire-and-forget, non-blocking
+        // SVG glyph pre-cache — fire-and-forget, non-blocking. The bridge is
+        // lazy so the general media store does not pretend reactStore/svgGlyphUtils
+        // can be split while also pulling them through the initial static graph.
         if (isSvgFile(files[i])) {
           ;(async () => {
             try {
-              const rawSvg = await files[i].text()
-              const { isSvgContent } = await import('../components/vyzualz/react/renderers/svgGlyphUtils')
-              if (!isSvgContent(rawSvg)) { console.warn('[mediaStore] SVG pre-cache: not valid SVG:', item.name); return }
-              const { useReactStore } = await import('./reactStore')
-              const displayName = (item.title ?? item.name).replace(/\.svg$/i, '').trim() || 'SVG Glyph'
-              // Use db-prefixed ID to match the media store item ID format used by the glyph dropdown
-              useReactStore.getState().addAndCacheMediaSvgGlyph(`db-${result.dbId}`, rawSvg, displayName)
+              const { precacheUploadedSvgGlyph } = await import('../components/vyzualz/react/services/svgMediaBridge')
+              const outcome = await precacheUploadedSvgGlyph({
+                file: files[i],
+                mediaId: `db-${result.dbId}`,
+                title: item.title,
+                name: item.name,
+              })
+              if (outcome === 'invalid') {
+                console.warn('[mediaStore] SVG pre-cache: not valid SVG:', item.name)
+              }
             } catch (e) {
               console.warn('[mediaStore] SVG glyph pre-cache failed (non-fatal):', e)
             }
@@ -667,17 +672,21 @@ export const useMediaStore = create<MediaState>((set, get) => ({
         // that anything placed while the upload was in-flight is not orphaned.
         useVisualStore.getState().remapMediaId(prevId, stableId)
 
-        // SVG glyph pre-cache — fire-and-forget, non-blocking
+        // SVG glyph pre-cache — fire-and-forget, non-blocking. The bridge is
+        // lazy so the general media store stays independent of React-view internals.
         if (isSvgFile(mediaFiles[i])) {
           ;(async () => {
             try {
-              const rawSvg = await mediaFiles[i].text()
-              const { isSvgContent } = await import('../components/vyzualz/react/renderers/svgGlyphUtils')
-              if (!isSvgContent(rawSvg)) { console.warn('[mediaStore] SVG pre-cache: not valid SVG:', item.name); return }
-              const { useReactStore } = await import('./reactStore')
-              const displayName = (item.title ?? item.name).replace(/\.svg$/i, '').trim() || 'SVG Glyph'
-              // Use db-prefixed ID to match the media store item ID format used by the glyph dropdown
-              useReactStore.getState().addAndCacheMediaSvgGlyph(`db-${result.dbId}`, rawSvg, displayName)
+              const { precacheUploadedSvgGlyph } = await import('../components/vyzualz/react/services/svgMediaBridge')
+              const outcome = await precacheUploadedSvgGlyph({
+                file: mediaFiles[i],
+                mediaId: `db-${result.dbId}`,
+                title: item.title,
+                name: item.name,
+              })
+              if (outcome === 'invalid') {
+                console.warn('[mediaStore] SVG pre-cache: not valid SVG:', item.name)
+              }
             } catch (e) {
               console.warn('[mediaStore] SVG glyph pre-cache failed (non-fatal):', e)
             }
@@ -820,13 +829,12 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     const visual = useVisualStore.getState()
     if (visual.activeMediaId === id) visual.setActiveMedia(remaining[0]?.id ?? null)
 
-    // Clean up any SVG glyph asset and SVG visual selection backed by this media item
+    // Clean up any SVG glyph asset and SVG visual selection backed by this media item.
+    // Keep the cross-feature dependency behind the same lazy SVG media bridge.
     ;(async () => {
       try {
-        const { useReactStore } = await import('./reactStore')
-        const store = useReactStore.getState()
-        store.removeOscillatorGlyphAsset(`glyph-media:${id}`)
-        store.clearSvgVisualForMedia(id)
+        const { cleanupRemovedSvgMedia } = await import('../components/vyzualz/react/services/svgMediaBridge')
+        cleanupRemovedSvgMedia(id)
       } catch { /* non-fatal */ }
     })()
 
