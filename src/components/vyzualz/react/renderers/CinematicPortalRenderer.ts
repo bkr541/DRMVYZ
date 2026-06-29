@@ -7,6 +7,8 @@ import type { CinematicWorldConfig } from '../CinematicWorldConfig'
 import type { ReactPreset, ReactSectionType } from '../ReactTypes'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { hexToRgba } from './reactRenderUtils'
+import { CinematicWebGLRuntime } from './cinematic/CinematicWebGLRuntime'
+import { diagnosticCinematicWorldDefinition } from './cinematic/worlds/DiagnosticCinematicWorld'
 import {
   CinematicWorldRendererHost,
   CinematicWorldRendererRegistry,
@@ -248,7 +250,8 @@ function updateAndDrawRings(
   atmosphere: SectionAtmosphere,
   frameScale: number,
 ): void {
-  const { width, height, dpr } = input.viewport
+  const { width, height } = input.resolution
+  const dpr = input.devicePixelRatio
   const { preset, params } = input
   const centerX = width / 2
   const centerY = height / 2
@@ -264,7 +267,7 @@ function updateAndDrawRings(
     })
   }
 
-  if (input.audio.beatHit) {
+  if (input.beat.hit) {
     spawnRing()
   } else if (state.rings.length < MAX_RINGS) {
     const eventsPerSecond = atmosphere.ringRate * (1 + bass * 2) * 3
@@ -312,7 +315,8 @@ function updateAndDrawFog(
   frameScale: number,
   seed: number,
 ): void {
-  const { width, height, dpr } = input.viewport
+  const { width, height } = input.resolution
+  const dpr = input.devicePixelRatio
   const { preset, params } = input
   const count = Math.floor(FOG_COUNT * atmosphere.fogIntensity * params.fogDensity)
   if (count < 1) return
@@ -360,7 +364,8 @@ function updateAndDrawEmbers(
   atmosphere: SectionAtmosphere,
   frameScale: number,
 ): void {
-  const { width, height, dpr } = input.viewport
+  const { width, height } = input.resolution
+  const dpr = input.devicePixelRatio
   const { preset, params } = input
   const count = Math.floor(EMBER_COUNT * atmosphere.emberRate * params.particleDensity)
   if (count < 1) return
@@ -405,7 +410,7 @@ function drawLightBeams(
   atmosphere: SectionAtmosphere,
 ): void {
   if (atmosphere.portalGlow < 0.2) return
-  const { width, height } = input.viewport
+  const { width, height } = input.resolution
   const { preset, params } = input
 
   ctx.save()
@@ -467,17 +472,18 @@ class LegacyPortalWorldRenderer implements CinematicWorldRenderer {
     if (!this.context || !this.config) return
 
     const ctx = this.context
-    const { width, height, dpr } = input.viewport
+    const { width, height } = input.resolution
+    const dpr = input.devicePixelRatio
     const params = input.params
-    const bass = input.audio.bass * params.bassReactivity
-    const atmosphere = atmosphereForSection(input.sectionType)
+    const bass = input.audio.smoothed.bass * params.bassReactivity
+    const atmosphere = atmosphereForSection(input.section.type)
     const frameScale = legacyPortalFrameScale(input.deltaTimeSec)
     const legacyTick = input.elapsedTimeSec * SIXTY_HZ
 
-    const shakeX = atmosphere.cameraShake > 0 && input.audio.beatHit
+    const shakeX = atmosphere.cameraShake > 0 && input.beat.hit
       ? (this.random() - 0.5) * 6 * dpr * atmosphere.cameraShake
       : 0
-    const shakeY = atmosphere.cameraShake > 0 && input.audio.beatHit
+    const shakeY = atmosphere.cameraShake > 0 && input.beat.hit
       ? (this.random() - 0.5) * 4 * dpr * atmosphere.cameraShake
       : 0
     const cameraBlend = 1 - legacyPortalPerFrameDecay(0.85, input.deltaTimeSec)
@@ -518,14 +524,35 @@ class LegacyPortalWorldRenderer implements CinematicWorldRenderer {
 }
 
 export const cinematicWorldRendererRegistry = new CinematicWorldRendererRegistry()
-cinematicWorldRendererRegistry.register('legacyPortal', () => new LegacyPortalWorldRenderer())
+cinematicWorldRendererRegistry.register({
+  id: 'legacyPortal',
+  label: 'Legacy Cinematic Portal',
+  backend: 'canvas2d',
+  capabilities: {
+    backend: 'canvas2d',
+    cameraRigs: ['locked'],
+    modulationTargets: ['glow', 'portalPulse', 'atmosphere', 'fog', 'debris'],
+    supportsGeometryPasses: false,
+    supportsFullscreenPasses: false,
+    supportsTextureInputs: false,
+    supportsPostProcessing: false,
+    supportsFeedback: false,
+  },
+  create: () => new LegacyPortalWorldRenderer(),
+})
+cinematicWorldRendererRegistry.register(diagnosticCinematicWorldDefinition)
 
 const hostByContext = new WeakMap<CanvasRenderingContext2D, CinematicWorldRendererHost>()
 
 function getHost(context: CanvasRenderingContext2D): CinematicWorldRendererHost {
   let host = hostByContext.get(context)
   if (!host) {
-    host = new CinematicWorldRendererHost(context, cinematicWorldRendererRegistry)
+    host = new CinematicWorldRendererHost(
+      context,
+      cinematicWorldRendererRegistry,
+      'legacyPortal',
+      outputContext => CinematicWebGLRuntime.create(outputContext),
+    )
     hostByContext.set(context, host)
   }
   return host
