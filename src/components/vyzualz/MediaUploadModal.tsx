@@ -14,6 +14,8 @@ import {
 } from '../../lib/mediaRoles'
 import type { MediaRole, MediaEnergy } from '../../lib/mediaRoles'
 import { analyzeAudioFile } from '../../utils/analyzeAudioFile'
+import { useAudioStore } from '../../stores/audioStore'
+import type { SavedAudioTrack } from '../../stores/audioStore'
 import { analyzeSvgCapabilities } from './react/renderers/svgCapabilityAnalysis'
 
 // ── Local display metadata ────────────────────────────────────────────────────
@@ -86,6 +88,12 @@ function getFilenameWithoutExt(name: string): string {
   return name.replace(/\.[^.]+$/, '')
 }
 
+const AUDIO_ACCEPT = [
+  'audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/aiff', 'audio/x-aiff',
+  'audio/flac', 'audio/ogg', 'audio/mp4', 'audio/x-m4a',
+  '.mp3', '.wav', '.aif', '.aiff', '.m4a', '.ogg', '.flac',
+].join(',')
+
 const ACCEPT = [
   'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml',
   'video/mp4', 'video/quicktime', 'video/webm',
@@ -139,7 +147,16 @@ function CollectionChips({ ids, collections, onRemove }: {
 
 // ── Main modal ────────────────────────────────────────────────────────────────
 
-export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; editItem?: UploadedMedia }) {
+interface MediaUploadModalProps {
+  onClose: () => void
+  editItem?: UploadedMedia
+  audioOnly?: boolean
+  onAudioUploaded?: (tracks: SavedAudioTrack[]) => void
+}
+
+export function MediaUploadModal({
+  onClose, editItem, audioOnly = false, onAudioUploaded,
+}: MediaUploadModalProps) {
   const isEdit = !!editItem
 
   const {
@@ -251,10 +268,12 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
   }
 
   const addFiles = useCallback(async (files: File[]) => {
-    const valid = files.filter(f =>
-      f.type.startsWith('image/') || f.type.startsWith('video/') || f.type.startsWith('audio/') ||
-      /\.(png|jpe?g|gif|webp|svg|mp4|mov|webm|mp3|wav|aiff?|m4a|ogg|flac)$/i.test(f.name)
-    )
+    const valid = audioOnly
+      ? files.filter(file => isAudioFile(file))
+      : files.filter(f =>
+          f.type.startsWith('image/') || f.type.startsWith('video/') || f.type.startsWith('audio/') ||
+          /\.(png|jpe?g|gif|webp|svg|mp4|mov|webm|mp3|wav|aiff?|m4a|ogg|flac)$/i.test(f.name)
+        )
     if (!valid.length) return
 
     // Screen SVG files for raster-only content before queuing
@@ -341,7 +360,7 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
       newMeta.forEach((v, k) => next.set(k, v))
       return next
     })
-  }, [uploadQueue.length, addFilesToUploadQueue]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [audioOnly, uploadQueue.length, addFilesToUploadQueue]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const removeEntry = (tempId: string) => {
     removeUploadQueueItem(tempId)
@@ -417,23 +436,34 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
       return next
     })
 
+    const beforeIds = new Set(useAudioStore.getState().savedTracks.map(track => track.dbId))
+    let uploadSucceeded = false
     try {
       await uploadQueuedMedia()
+      const uploadedTracks = useAudioStore.getState().savedTracks.filter(track => !beforeIds.has(track.dbId))
+      if (audioOnly && uploadedTracks.length === 0) {
+        throw new Error('The audio upload did not create a stored track.')
+      }
       setDisplayMeta(prev => {
         const next = new Map(prev)
         next.forEach((v, k) => next.set(k, { ...v, status: 'done' }))
         return next
       })
+      if (uploadedTracks.length > 0) onAudioUploaded?.(uploadedTracks)
+      uploadSucceeded = true
     } catch (err) {
       console.error('[MediaUploadModal] upload failed:', err)
       setDisplayMeta(prev => {
         const next = new Map(prev)
-        next.forEach((v, k) => next.set(k, { ...v, status: 'error', errorMsg: 'Upload failed' }))
+        const message = err instanceof Error ? err.message : 'Upload failed'
+        next.forEach((v, k) => next.set(k, { ...v, status: 'error', errorMsg: message }))
         return next
       })
     } finally {
       setUploading(false)
     }
+
+    if (!uploadSucceeded) return
 
     if (uploadAnother) {
       setDisplayMeta(new Map())
@@ -555,7 +585,7 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
         <div className="mum-header">
           <div>
             <div className="mum-title">
-              {isEdit ? 'EDIT MEDIA' : isAudioQueue ? 'AUDIO UPLOAD' : 'MEDIA UPLOAD'}
+              {isEdit ? 'EDIT MEDIA' : (audioOnly || isAudioQueue) ? 'AUDIO UPLOAD' : 'MEDIA UPLOAD'}
             </div>
             <div className="mum-subtitle">
               {isEdit
@@ -590,12 +620,12 @@ export function MediaUploadModal({ onClose, editItem }: { onClose: () => void; e
               <input
                 id={fileInputId}
                 type="file"
-                accept={ACCEPT}
+                accept={audioOnly ? AUDIO_ACCEPT : ACCEPT}
                 multiple
                 style={{ display: 'none' }}
                 onChange={e => { addFiles(Array.from(e.target.files ?? [])); e.target.value = '' }}
               />
-              <div className="mum-drop-hint">Supports: MP4, MOV, WEBM, PNG, JPG, GIF, WEBP, SVG</div>
+              {!audioOnly && <div className="mum-drop-hint">Supports: MP4, MOV, WEBM, PNG, JPG, GIF, WEBP, SVG</div>}
               <div className="mum-drop-hint">Audio: MP3, WAV, AIFF, M4A, OGG, FLAC</div>
               <div className="mum-drop-hint">Max file size: {MAX_FILE_LABEL}</div>
             </div>

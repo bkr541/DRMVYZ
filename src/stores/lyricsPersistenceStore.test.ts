@@ -117,4 +117,41 @@ describe('lyricsStore transactional save behavior', () => {
     expect(lyricDbMocks.activateLyricDocument).toHaveBeenCalledWith(activated.id, null)
     expect(useLyricsStore.getState().activeDocument?.revision).toBe(7)
   })
+
+  it('keeps a legacy document unattached even if a persisted track ID is present elsewhere in state', async () => {
+    const legacy = { ...document(2), id: 'legacy-document', audioTrackId: null }
+    useLyricsStore.getState().setActiveDocument(legacy, [])
+    useLyricsStore.setState({ activeAudioTrackId: 'track-1' })
+    lyricDbMocks.saveLyricDocumentAtomic.mockResolvedValue({
+      ok: true,
+      kind: 'success',
+      document: legacy,
+      cues: [],
+    })
+
+    await useLyricsStore.getState().saveActiveLyricDocument([])
+
+    expect(lyricDbMocks.saveLyricDocumentAtomic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentId: legacy.id,
+        document: expect.objectContaining({ audioTrackId: null }),
+      }),
+    )
+  })
+
+  it('can force-refresh the active track after the editor releases a protected draft', async () => {
+    const current = document(3)
+    const refreshed = document(4)
+    useLyricsStore.getState().setActiveDocument(current, [])
+    lyricDbMocks.getActiveLyricDocumentForAudioTrack.mockResolvedValue(refreshed)
+    lyricDbMocks.getLyricCuesForDocument.mockResolvedValue([])
+
+    await useLyricsStore.getState().loadLyricsForAudioTrack('track-1')
+    expect(lyricDbMocks.getActiveLyricDocumentForAudioTrack).not.toHaveBeenCalled()
+
+    await useLyricsStore.getState().loadLyricsForAudioTrack('track-1', true)
+    expect(lyricDbMocks.getActiveLyricDocumentForAudioTrack).toHaveBeenCalledWith('track-1')
+    expect(useLyricsStore.getState().activeDocument?.revision).toBe(4)
+  })
+
 })

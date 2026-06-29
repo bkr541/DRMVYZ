@@ -1,5 +1,6 @@
 import type { LyricCue, LyricDocument, LyricStyle } from '../../../types/lyrics'
 import { validateLyricCues, formatMsCompact } from '../utils/lyricValidation'
+import { getLyricReviewStatistics } from '../utils/lyricReview'
 
 interface Props {
   cues: LyricCue[]
@@ -45,6 +46,7 @@ function StylePreviewBox({ cue, doc }: { cue: LyricCue; doc: LyricDocument | nul
 
 export function LyricPreviewPanel({ cues, document, selectedCue, onPreviewInVisualizer }: Props) {
   const validation = validateLyricCues(cues)
+  const review = getLyricReviewStatistics(cues)
   const hasTimedCues = cues.some(c => typeof c.endMs === 'number' && typeof c.startMs === 'number' && c.endMs > c.startMs)
 
   const fmtMs = (ms: number | null) =>
@@ -127,6 +129,22 @@ export function LyricPreviewPanel({ cues, document, selectedCue, onPreviewInVisu
           <div className="lmv-stat-row">
             <span className="lmv-stat-label">Words</span>
             <span className="lmv-stat-value">{validation.wordCount}</span>
+          </div>
+          <div className="lmv-stat-row">
+            <span className="lmv-stat-label">Unreviewed</span>
+            <span className="lmv-stat-value">{review.unreviewed}</span>
+          </div>
+          <div className="lmv-stat-row">
+            <span className="lmv-stat-label">Low confidence</span>
+            <span className="lmv-stat-value">{review.lowConfidence}</span>
+          </div>
+          <div className="lmv-stat-row">
+            <span className="lmv-stat-label">Warnings</span>
+            <span className="lmv-stat-value">{review.withWarnings}</span>
+          </div>
+          <div className="lmv-stat-row">
+            <span className="lmv-stat-label">Review complete</span>
+            <span className="lmv-stat-value">{Math.round(review.completionPercent)}%</span>
           </div>
           <div className="lmv-stat-row">
             <span className="lmv-stat-label">Groups</span>

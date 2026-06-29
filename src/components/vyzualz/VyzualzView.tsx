@@ -7,6 +7,7 @@ import {
 } from 'hugeicons-react'
 import { VyzualzSidebar } from './VyzualzSidebar'
 import { LyricManagerView } from '../../features/lyrics/LyricManagerView'
+import { UnsavedLyricChangesDialog } from '../../features/lyrics/components/UnsavedLyricChangesDialog'
 import { useSharedAudio }  from '../../context/AudioEngineContext'
 import { useMediaStore }   from '../../stores/mediaStore'
 import { useVisualStore }  from '../../stores/visualStore'
@@ -261,6 +262,17 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
 
   // App-level view: 'visualizer' | 'lyrics' | 'react'
   const [appView, setAppView] = useState<'visualizer' | 'lyrics' | 'react'>('react')
+  const lyricEditorDirty = useLyricsStore(state => state.editorDirty)
+  const lyricEditorSaving = useLyricsStore(state => state.isSaving)
+  const [pendingAppView, setPendingAppView] = useState<'visualizer' | 'react' | null>(null)
+
+  const requestAppViewChange = useCallback((next: 'visualizer' | 'lyrics' | 'react') => {
+    if (appView === 'lyrics' && next !== 'lyrics' && lyricEditorDirty) {
+      setPendingAppView(next)
+      return
+    }
+    setAppView(next)
+  }, [appView, lyricEditorDirty])
 
   // Effect Chain catalog — loaded once from Supabase on mount
   const [effectChainOptions, setEffectChainOptions] = useState<EffectChainOptionRow[]>([])
@@ -570,16 +582,39 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   // ── Lyrics view ─────────────────────────────────────────────────────
   if (appView === 'lyrics') {
     return (
-      <div className="az-root">
-        <div className="az-shell">
-          <VyzualzSidebar
-            compact
-            appView={appView}
-            onAppViewChange={setAppView}
-          />
-          <LyricManagerView onBack={() => setAppView('visualizer')} />
+      <>
+        <div className="az-root">
+          <div className="az-shell">
+            <VyzualzSidebar
+              compact
+              appView={appView}
+              onAppViewChange={requestAppViewChange}
+            />
+            <LyricManagerView onBack={() => requestAppViewChange('visualizer')} />
+          </div>
         </div>
-      </div>
+        <UnsavedLyricChangesDialog
+          open={pendingAppView !== null}
+          busy={lyricEditorSaving}
+          message="Save your lyric edits before leaving Lyric Manager?"
+          onCancel={() => setPendingAppView(null)}
+          onDiscard={() => {
+            const next = pendingAppView
+            useLyricsStore.getState().markEditorDirty(false)
+            setPendingAppView(null)
+            if (next) setAppView(next)
+          }}
+          onSave={() => {
+            const next = pendingAppView
+            void useLyricsStore.getState().saveActiveLyricDocument().then(result => {
+              if (!result?.ok || !next) return
+              useLyricsStore.getState().markEditorDirty(false)
+              setPendingAppView(null)
+              setAppView(next)
+            })
+          }}
+        />
+      </>
     )
   }
 
@@ -591,7 +626,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
           <VyzualzSidebar
             compact
             appView={appView}
-            onAppViewChange={setAppView}
+            onAppViewChange={requestAppViewChange}
           />
           <div className="vz-main" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div style={{ flex: 1, overflow: 'hidden' }}>
@@ -612,7 +647,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
         <VyzualzSidebar
           compact
           appView={appView}
-          onAppViewChange={setAppView}
+          onAppViewChange={requestAppViewChange}
         />
       }
       topBar={

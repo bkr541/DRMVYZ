@@ -56,10 +56,18 @@ export interface LyricsState {
   selectedCueId:       string | null
   /** True when cue timing has been edited locally but not yet persisted. */
   lyricTimingDirty:    boolean
+  /** True while the track-first Lyric Manager owns draft selection and blocks automatic track sync. */
+  editorSessionActive: boolean
+  /** Unsaved document fields or cue edits in the Lyric Manager. */
+  editorDirty:         boolean
+  /** Whether the next document save should atomically make this version active. */
+  draftActivateOnSave: boolean
+  /** Preserve the currently selected draft for one intentional visualizer preview exit. */
+  skipNextEditorResync: boolean
 
   // Sync setters
   setLyricsEnabled(enabled: boolean): void
-  setActiveDocument(document: LyricDocument | null, cues?: LyricCue[]): void
+  setActiveDocument(document: LyricDocument | null, cues?: LyricCue[], activeAudioTrackId?: string | null): void
   setCues(cues: LyricCue[]): void
   setGlobalOffsetMs(offsetMs: number): void
   updateDraftDefaultStyle(patch: Partial<LyricStyle>): void
@@ -74,6 +82,10 @@ export interface LyricsState {
     metadata?:      Record<string, unknown> | null
   }): void
   setError(error: string | null): void
+  beginEditorSession(): void
+  endEditorSession(): void
+  markEditorDirty(dirty?: boolean): void
+  preserveDraftForNextEditorExit(): void
   clearLyrics(): void
 
   // ── Timeline timing editing ──────────────────────────────────────────────
@@ -102,7 +114,7 @@ export interface LyricsState {
 
   // Async actions
   loadLyricDocument(documentId: string): Promise<void>
-  loadLyricsForAudioTrack(audioTrackId: string): Promise<void>
+  loadLyricsForAudioTrack(audioTrackId: string, force?: boolean): Promise<void>
   loadLyricsForVisualSession(visualSessionId: string): Promise<void>
   saveActiveLyricDocument(cues?: LyricCue[]): Promise<SaveLyricDocumentResult | null>
   replaceActiveCues(inputs: CreateLyricCueInput[]): Promise<SaveLyricDocumentResult | null>
@@ -146,6 +158,8 @@ function activeDocumentState(
     error:                 null,
     lastPersistenceFailure: null,
     lyricTimingDirty:      false,
+    editorDirty:           false,
+    draftActivateOnSave:   document?.isActive ?? true,
   }
 }
 
@@ -156,8 +170,10 @@ function buildDocumentInput(state: LyricsState): CreateLyricDocumentInput {
   return {
     title: state.draftTitle,
     artist: state.draftArtist,
-    audioTrackId: current?.audioTrackId ?? state.activeAudioTrackId,
-    visualSessionId: current?.visualSessionId ?? null,
+    // Existing legacy documents keep their explicit null association. New drafts inherit
+    // the editor-selected persisted track through activeAudioTrackId.
+    audioTrackId: current ? (current.audioTrackId ?? null) : state.activeAudioTrackId,
+    visualSessionId: current ? (current.visualSessionId ?? null) : null,
     sourceType: state.draftSourceType ?? current?.sourceType ?? 'manual',
     sourceFormat: state.draftSourceFormat ?? current?.sourceFormat ?? 'json',
     rawSourceText: importedSource
@@ -204,39 +220,52 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
 
   selectedCueId:       null,
   lyricTimingDirty:    false,
+  editorSessionActive: false,
+  editorDirty:         false,
+  draftActivateOnSave: true,
+  skipNextEditorResync: false,
 
   // ── Sync setters ────────────────────────────────────────────────────────────
 
   setLyricsEnabled: (enabled) => set({ lyricsEnabled: enabled }),
 
-  setActiveDocument: (document, cues = []) => {
+  setActiveDocument: (document, cues = [], activeAudioTrackId) => {
     // Manual document selection or editing wins over any in-flight automatic lookup.
     beginLyricLoad()
-    set(activeDocumentState(document, cues))
+    set(activeDocumentState(
+      document,
+      cues,
+      activeAudioTrackId !== undefined ? activeAudioTrackId : (document?.audioTrackId ?? null),
+    ))
   },
 
-  setCues:           (cues)      => set({ cues }),
-  setGlobalOffsetMs: (offsetMs)  => set({ globalOffsetMs: offsetMs }),
-  setDraftTitle:     (title)     => set({ draftTitle: title }),
-  setDraftArtist:    (artist)    => set({ draftArtist: artist }),
+  setCues:           (cues)      => set(state => ({ cues, editorDirty: state.editorSessionActive ? true : state.editorDirty })),
+  setGlobalOffsetMs: (offsetMs)  => set(state => ({ globalOffsetMs: offsetMs, editorDirty: state.editorSessionActive ? true : state.editorDirty })),
+  setDraftTitle:     (title)     => set(state => ({ draftTitle: title, editorDirty: state.editorSessionActive ? true : state.editorDirty })),
+  setDraftArtist:    (artist)    => set(state => ({ draftArtist: artist, editorDirty: state.editorSessionActive ? true : state.editorDirty })),
 
-  setDraftSourceMeta: (meta) => set({
+  setDraftSourceMeta: (meta) => set(state => ({
     draftSourceType:     meta.sourceType    !== undefined ? meta.sourceType    : null,
     draftSourceFormat:   meta.sourceFormat  !== undefined ? meta.sourceFormat  : null,
     draftRawSourceText:  meta.rawSourceText !== undefined ? meta.rawSourceText : null,
     draftMetadata:       meta.metadata      !== undefined ? meta.metadata      : null,
-  }),
+    editorDirty:         state.editorSessionActive ? true : state.editorDirty,
+  })),
 
   setError:          (error)     => set({ error }),
+  beginEditorSession: () => set({ editorSessionActive: true, skipNextEditorResync: false }),
+  endEditorSession:   () => set({ editorSessionActive: false, editorDirty: false }),
+  markEditorDirty:    (dirty = true) => set({ editorDirty: dirty }),
+  preserveDraftForNextEditorExit: () => set({ skipNextEditorResync: true }),
 
   updateDraftDefaultStyle: (patch) =>
-    set(s => ({ draftDefaultStyle: { ...s.draftDefaultStyle, ...patch } })),
+    set(s => ({ draftDefaultStyle: { ...s.draftDefaultStyle, ...patch }, editorDirty: s.editorSessionActive ? true : s.editorDirty })),
 
   updateDraftDefaultAnimation: (patch) =>
-    set(s => ({ draftDefaultAnimation: { ...s.draftDefaultAnimation, ...patch } })),
+    set(s => ({ draftDefaultAnimation: { ...s.draftDefaultAnimation, ...patch }, editorDirty: s.editorSessionActive ? true : s.editorDirty })),
 
   updateDraftDefaultEffects: (patch) =>
-    set(s => ({ draftDefaultEffects: { ...s.draftDefaultEffects, ...patch } })),
+    set(s => ({ draftDefaultEffects: { ...s.draftDefaultEffects, ...patch }, editorDirty: s.editorSessionActive ? true : s.editorDirty })),
 
   clearLyrics: () => {
     beginLyricLoad()
@@ -261,6 +290,9 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       lastPersistenceFailure: null,
       selectedCueId:         null,
       lyricTimingDirty:      false,
+      editorDirty:           false,
+      draftActivateOnSave:   true,
+      skipNextEditorResync:   false,
     })
   },
 
@@ -278,7 +310,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       const safeEnd  = Math.max(newStart + MIN_CUE_DURATION_MS, newEnd)
       const next = [...s.cues]
       next[idx] = { ...cue, startMs: newStart, endMs: safeEnd }
-      return { cues: next, lyricTimingDirty: true }
+      return { cues: next, lyricTimingDirty: true, editorDirty: s.editorSessionActive ? true : s.editorDirty }
     })
   },
 
@@ -291,7 +323,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       const newStart = Math.max(0, cue.startMs + deltaMs)
       const next = [...s.cues]
       next[idx] = { ...cue, startMs: newStart, endMs: newStart + dur }
-      return { cues: next, lyricTimingDirty: true }
+      return { cues: next, lyricTimingDirty: true, editorDirty: s.editorSessionActive ? true : s.editorDirty }
     })
   },
 
@@ -303,7 +335,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       if (idx === -1) return {}
       const next = [...s.cues]
       next[idx] = { ...s.cues[idx], startMs: safeStart, endMs: safeEnd }
-      return { cues: next, lyricTimingDirty: true }
+      return { cues: next, lyricTimingDirty: true, editorDirty: s.editorSessionActive ? true : s.editorDirty }
     })
   },
 
@@ -311,18 +343,18 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     set(s => {
       const next = s.cues.filter(c => c.id !== cueId)
       const clearSelected = s.selectedCueId === cueId ? { selectedCueId: null } : {}
-      return { cues: next, lyricTimingDirty: true, ...clearSelected }
+      return { cues: next, lyricTimingDirty: true, editorDirty: s.editorSessionActive ? true : s.editorDirty, ...clearSelected }
     })
   },
 
-  clearCues: () => set({ cues: [], selectedCueId: null, lyricTimingDirty: true }),
+  clearCues: () => set(s => ({ cues: [], selectedCueId: null, lyricTimingDirty: true, editorDirty: s.editorSessionActive ? true : s.editorDirty })),
 
   addCue: (cue) => {
     const id = crypto.randomUUID()
     const newCue: LyricCue = { ...cue, id, source: cue.source ?? 'manual' }
     set(s => {
       const next = [...s.cues, newCue].sort((a, b) => a.startMs - b.startMs)
-      return { cues: next, selectedCueId: id, lyricTimingDirty: true }
+      return { cues: next, selectedCueId: id, lyricTimingDirty: true, editorDirty: s.editorSessionActive ? true : s.editorDirty }
     })
     return newCue
   },
@@ -348,11 +380,11 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     }
   },
 
-  loadLyricsForAudioTrack: async (audioTrackId) => {
+  loadLyricsForAudioTrack: async (audioTrackId, force = false) => {
     const current = get()
     // React StrictMode and provider re-renders may repeat the same linkage. Preserve
     // current edits and avoid another request until a genuinely different track is selected.
-    if (current.activeAudioTrackId === audioTrackId) return
+    if (!force && current.activeAudioTrackId === audioTrackId) return
 
     const generation = beginLyricLoad()
     set({
@@ -422,7 +454,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
         expectedRevision: s.activeDocument?.revision ?? null,
         document: buildDocumentInput(s),
         cues: cueInputs(cueSnapshot, s.activeDocumentId ?? ''),
-        activate: true,
+        activate: s.draftActivateOnSave,
       })
 
       if (!result.ok) {

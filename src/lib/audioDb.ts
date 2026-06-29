@@ -11,6 +11,7 @@ const db = supabase as unknown as SupabaseClient
 
 export interface DbListResult<T> { rows: T[]; error: string | null }
 export interface DbCreateResult  { id: string | null; error: string | null }
+export interface DbPageResult<T> { rows: T[]; count: number; error: string | null }
 export interface DbMutateResult  { error: string | null }
 export interface SignedUrlResult { url: string | null; error: string | null }
 
@@ -23,6 +24,42 @@ export async function listAudioTracks(userId: string): Promise<DbListResult<Audi
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
   return { rows: (data as AudioTrack[] | null) ?? [], error: error?.message ?? null }
+}
+
+
+
+export interface ListAudioTracksPageOptions {
+  offset?: number
+  limit?: number
+  search?: string
+}
+
+/** Server-paged, newest-first audio track listing used by track-first workflows. */
+export async function listAudioTracksPage(
+  userId: string,
+  options: ListAudioTracksPageOptions = {},
+): Promise<DbPageResult<AudioTrack>> {
+  const offset = Math.max(0, options.offset ?? 0)
+  const limit = Math.max(1, Math.min(100, options.limit ?? 24))
+  const search = options.search?.trim().replace(/[,%_]/g, ' ') ?? ''
+
+  let query = db
+    .from('audio_tracks')
+    .select('*', { count: 'exact' })
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1)
+
+  if (search) {
+    query = query.or(`title.ilike.%${search}%,artist.ilike.%${search}%`)
+  }
+
+  const { data, count, error } = await query
+  return {
+    rows: (data as AudioTrack[] | null) ?? [],
+    count: count ?? 0,
+    error: error?.message ?? null,
+  }
 }
 
 export async function createAudioTrack(insert: AudioTrackInsert): Promise<DbCreateResult> {

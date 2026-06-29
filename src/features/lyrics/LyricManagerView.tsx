@@ -1,16 +1,35 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase, supabaseConfigured } from '../../lib/supabase'
 import { useLyricsStore } from '../../stores/lyricsStore'
-import { getLyricDocumentsForUser } from '../../lib/lyricsDb'
+import {
+  deleteLyricDocument,
+  getFullLyricDocument,
+  updateLyricDocument,
+} from '../../lib/lyricsDb'
+import { useAudioStore } from '../../stores/audioStore'
+import type { SavedAudioTrack } from '../../stores/audioStore'
 import { useSharedAudio } from '../../context/AudioEngineContext'
-import type { LyricCue, LyricDocument } from '../../types/lyrics'
+import type { LyricCue } from '../../types/lyrics'
 import type { LyricDocumentImportResult } from './utils/lyricDocumentImport'
-import { LyricManagerHeader }    from './components/LyricManagerHeader'
-import { LyricDocumentSidebar }  from './components/LyricDocumentSidebar'
-import { ManualLyricEditor }     from './components/ManualLyricEditor'
-import { JsonLyricImporter }     from './components/JsonLyricImporter'
-import { AiLyricExtractor }      from './components/AiLyricExtractor'
-import { LyricPreviewPanel }     from './components/LyricPreviewPanel'
+import type {
+  LyricDocumentVersion,
+  LyricManagerTrack,
+} from './lyricManagerTypes'
+import {
+  getLegacyLyricDocumentVersions,
+  getLyricDocumentVersionsForTracks,
+  loadLyricManagerTrackPage,
+} from './services/lyricManagerData'
+import { LyricManagerHeader } from './components/LyricManagerHeader'
+import { LyricTrackBrowser } from './components/LyricTrackBrowser'
+import { LyricDocumentSidebar } from './components/LyricDocumentSidebar'
+import { ManualLyricEditor } from './components/ManualLyricEditor'
+import { JsonLyricImporter } from './components/JsonLyricImporter'
+import { AiLyricExtractor } from './components/AiLyricExtractor'
+import { LyricPreviewPanel } from './components/LyricPreviewPanel'
+import { UnsavedLyricChangesDialog } from './components/UnsavedLyricChangesDialog'
+import { ConfirmLyricDeleteDialog } from './components/ConfirmLyricDeleteDialog'
+import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
 
 type WorkflowTab = 'manual' | 'json' | 'ai'
 
@@ -18,257 +37,913 @@ interface Props {
   onBack: () => void
 }
 
+const PAGE_SIZE = 18
+
 const TAB_LABELS: { id: WorkflowTab; label: string }[] = [
   { id: 'manual', label: 'Manual Entry' },
-  { id: 'json',   label: 'JSON Import'  },
-  { id: 'ai',     label: 'AI Extract'   },
+  { id: 'json', label: 'Import Lyrics' },
+  { id: 'ai', label: 'AI Extract' },
 ]
 
-// Generate a local-only cue id
 function nextCueId(index: number): string {
   return `cue_${String(index + 1).padStart(3, '0')}_${Math.random().toString(36).slice(2, 6)}`
 }
 
+function uploadedTrackToManager(track: SavedAudioTrack): LyricManagerTrack {
+  return {
+    ...track,
+    lyricVersionCount: 0,
+    activeLyricDocumentId: null,
+    activeLyricDocumentName: null,
+  }
+}
+
+function mergeTracks(
+  current: LyricManagerTrack[],
+  incoming: LyricManagerTrack[],
+): LyricManagerTrack[] {
+  const merged = new Map(current.map((track) => [track.dbId, track]))
+  for (const track of incoming) merged.set(track.dbId, track)
+  return [...merged.values()].sort((a, b) =>
+    b.createdAt.localeCompare(a.createdAt),
+  )
+}
+
 export function LyricManagerView({ onBack }: Props) {
   const {
-    lyricsEnabled, setLyricsEnabled,
-    activeDocument, activeDocumentId,
-    cues: storeCues, setCues,
-    isLoading, isSaving,
-    error, setError,
-    draftTitle, draftArtist, globalOffsetMs,
-    setDraftTitle, setDraftArtist, setGlobalOffsetMs,
-    updateDraftDefaultStyle, updateDraftDefaultAnimation, updateDraftDefaultEffects,
+    lyricsEnabled,
+    setLyricsEnabled,
+    activeDocument,
+    activeDocumentId,
+    cues: storeCues,
+    setCues,
+    isLoading,
+    isSaving,
+    error,
+    setError,
+    draftTitle,
+    draftArtist,
+    globalOffsetMs,
+    setDraftTitle,
+    setDraftArtist,
+    setGlobalOffsetMs,
+    updateDraftDefaultStyle,
+    updateDraftDefaultAnimation,
+    updateDraftDefaultEffects,
     saveActiveLyricDocument,
-    setActiveDocument, loadLyricDocument, setDraftSourceMeta,
+    setActiveDocument,
+    loadLyricDocument,
+    setDraftSourceMeta,
+    activateLyricDocument,
+    beginEditorSession,
+    endEditorSession,
+    editorDirty,
+    markEditorDirty,
+    preserveDraftForNextEditorExit,
   } = useLyricsStore()
 
-  // Throttle audio playback time at 5 Hz to avoid excessive re-renders
-  const engine    = useSharedAudio()
+  const engine = useSharedAudio()
   const engineRef = useRef(engine)
   engineRef.current = engine
-  const [currentAudioTimeMs, setCurrentAudioTimeMs] = useState<number | undefined>(undefined)
+  const getSignedUrl = useAudioStore((state) => state.getSignedUrl)
+
+  const [currentAudioTimeMs, setCurrentAudioTimeMs] = useState<
+    number | undefined
+  >(undefined)
+  const [draftCues, setDraftCues] = useState<LyricCue[]>(() => storeCues)
+  const [tracks, setTracks] = useState<LyricManagerTrack[]>([])
+  const [trackTotal, setTrackTotal] = useState(0)
+  const [trackSearch, setTrackSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [tracksLoading, setTracksLoading] = useState(false)
+  const [tracksError, setTracksError] = useState<string | null>(null)
+  const [selectedTrack, setSelectedTrack] = useState<LyricManagerTrack | null>(
+    null,
+  )
+  const [documents, setDocuments] = useState<LyricDocumentVersion[]>([])
+  const [legacyDocuments, setLegacyDocuments] = useState<
+    LyricDocumentVersion[]
+  >([])
+  const [documentsLoading, setDocumentsLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState<WorkflowTab>('manual')
+  const [selectedCue, setSelectedCue] = useState<LyricCue | null>(null)
+  const [statusMsg, setStatusMsg] = useState<string | null>(null)
+  const [uploadOpen, setUploadOpen] = useState(false)
+  const [loadingTrackId, setLoadingTrackId] = useState<string | null>(null)
+  const [pendingTransition, setPendingTransition] = useState<{
+    message: string
+    action: () => void | Promise<void>
+  } | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<LyricDocumentVersion | null>(
+    null,
+  )
+  const [deleting, setDeleting] = useState(false)
+  const loadGeneration = useRef(0)
+
+  useEffect(() => {
+    beginEditorSession()
+    return () => endEditorSession()
+  }, [beginEditorSession, endEditorSession])
+
+  useEffect(() => {
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!useLyricsStore.getState().editorDirty) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [])
+
   useEffect(() => {
     const id = setInterval(() => {
-      const e = engineRef.current
-      setCurrentAudioTimeMs(e.duration > 0 ? Math.round(e.currentTime * 1000) : undefined)
+      const currentEngine = engineRef.current
+      setCurrentAudioTimeMs(
+        currentEngine.duration > 0
+          ? Math.round(currentEngine.currentTime * 1000)
+          : undefined,
+      )
     }, 200)
     return () => clearInterval(id)
   }, [])
 
-  // Local draft cues (editable in this view, not yet saved)
-  const [draftCues, setDraftCues] = useState<LyricCue[]>(() => storeCues)
-
-  // Document library
-  const [documents, setDocuments]           = useState<LyricDocument[]>([])
-  const [documentsLoading, setDocumentsLoading] = useState(false)
-
-  // Workflow
-  const [activeTab, setActiveTab]       = useState<WorkflowTab>('manual')
-  const [selectedCue, setSelectedCue]   = useState<LyricCue | null>(null)
-  const [statusMsg, setStatusMsg]       = useState<string | null>(null)
-
-  // Sync draft cues from store when store cues change externally
   useEffect(() => {
     setDraftCues(storeCues)
   }, [storeCues])
 
-  // Load document library on mount
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(trackSearch.trim()), 250)
+    return () => clearTimeout(id)
+  }, [trackSearch])
+
+  const showStatus = useCallback((message: string) => {
+    setStatusMsg(message)
+    window.setTimeout(() => setStatusMsg(null), 3000)
+  }, [])
+
+  const prepareTrackDraft = useCallback(
+    (
+      track: LyricManagerTrack,
+      dirty = false,
+      activateOnSave = track.activeLyricDocumentId === null,
+    ) => {
+      setActiveDocument(null, [], track.dbId)
+      useLyricsStore.setState({
+        draftTitle: track.title,
+        draftArtist: track.artist ?? '',
+        draftSourceType: null,
+        draftSourceFormat: null,
+        draftRawSourceText: null,
+        draftMetadata: null,
+        editorDirty: dirty,
+        draftActivateOnSave: activateOnSave,
+      })
+      setDraftCues([])
+      setSelectedCue(null)
+    },
+    [setActiveDocument],
+  )
+
+  const loadTracks = useCallback(
+    async (reset: boolean) => {
+      if (!supabaseConfigured) {
+        setTracksError('Supabase is not configured.')
+        return
+      }
+      const generation = ++loadGeneration.current
+      setTracksLoading(true)
+      setTracksError(null)
+      try {
+        const { data } = await supabase.auth.getUser()
+        if (!data.user) throw new Error('Sign in to view stored audio tracks.')
+        const offset = reset ? 0 : tracks.length
+        const page = await loadLyricManagerTrackPage(data.user.id, {
+          offset,
+          limit: PAGE_SIZE,
+          search: debouncedSearch,
+        })
+        if (generation !== loadGeneration.current) return
+        setTrackTotal(page.total)
+        setTracks((current) =>
+          reset ? page.tracks : mergeTracks(current, page.tracks),
+        )
+      } catch (loadError) {
+        if (generation !== loadGeneration.current) return
+        setTracksError(
+          loadError instanceof Error
+            ? loadError.message
+            : 'Failed to load stored tracks.',
+        )
+      } finally {
+        if (generation === loadGeneration.current) setTracksLoading(false)
+      }
+    },
+    [debouncedSearch, tracks.length],
+  )
+
+  useEffect(() => {
+    void loadTracks(true)
+  }, [debouncedSearch]) // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!supabaseConfigured) return
-    setDocumentsLoading(true)
-    supabase.auth.getUser()
-      .then(({ data }) => data.user ? getLyricDocumentsForUser(data.user.id) : [])
-      .then(docs => setDocuments(docs))
-      .catch(() => {})
-      .finally(() => setDocumentsLoading(false))
-  }, [])
-
-  const showStatus = useCallback((msg: string) => {
-    setStatusMsg(msg)
-    setTimeout(() => setStatusMsg(null), 3000)
-  }, [])
-
-  // ── Document actions ───────────────────────────────────────────────────
-
-  const handleSelectDocument = useCallback((doc: LyricDocument) => {
-    if (supabaseConfigured) {
-      loadLyricDocument(doc.id)
-    } else {
-      setActiveDocument(doc, [])
-    }
-  }, [loadLyricDocument, setActiveDocument])
-
-  const handleNewDocument = useCallback(() => {
-    setActiveDocument(null, [])
-    setDraftCues([])
-    setDraftTitle('')
-    setDraftArtist('')
-  }, [setActiveDocument, setDraftTitle, setDraftArtist])
-
-  // ── Save actions ───────────────────────────────────────────────────────
-
-  const doSave = useCallback(async () => {
-    setError(null)
-    await saveActiveLyricDocument(draftCues)
-    if (useLyricsStore.getState().error) return
-    showStatus('Saved')
-  }, [saveActiveLyricDocument, draftCues, setError, showStatus])
-
-  const doSaveAndEnable = useCallback(async () => {
-    await doSave()
-    if (!useLyricsStore.getState().error) {
-      setLyricsEnabled(true)
-      showStatus('Saved and enabled')
-    }
-  }, [doSave, setLyricsEnabled, showStatus])
-
-  // ── Draft cue mutations ────────────────────────────────────────────────
-
-  const handleAddCue = useCallback((cue: Omit<LyricCue, 'id'>) => {
-    setDraftCues(prev => {
-      const next = [...prev, { ...cue, id: nextCueId(prev.length), source: cue.source ?? 'manual' }]
-      next.sort((a, b) => a.startMs - b.startMs)
-      return next
-    })
-  }, [])
-
-  const handleUpdateCue = useCallback((index: number, cue: Omit<LyricCue, 'id'>) => {
-    setDraftCues(prev => {
-      const next = [...prev]
-      next[index] = { ...prev[index], ...cue, id: prev[index].id }
-      next.sort((a, b) => a.startMs - b.startMs)
-      return next
-    })
-  }, [])
-
-  const handleDeleteCue = useCallback((index: number) => {
-    setDraftCues(prev => prev.filter((_, i) => i !== index))
-    setSelectedCue(null)
-  }, [])
-
-  const handleDuplicateCue = useCallback((index: number) => {
-    setDraftCues(prev => {
-      const cue = prev[index]
-      const copy: LyricCue = {
-        ...cue,
-        id: nextCueId(prev.length),
-        startMs: cue.endMs,
-        endMs:   cue.endMs + (cue.endMs - cue.startMs),
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return
+      try {
+        setLegacyDocuments(await getLegacyLyricDocumentVersions(data.user.id))
+      } catch {
+        // Legacy documents are supplementary; track-first loading should still work.
       }
-      const next = [...prev, copy]
-      next.sort((a, b) => a.startMs - b.startMs)
-      return next
     })
   }, [])
 
-  // ── JSON / AI import ───────────────────────────────────────────────────
+  const refreshDocuments = useCallback(
+    async (track: LyricManagerTrack, selectPreferred = false) => {
+      setDocumentsLoading(true)
+      try {
+        const nextDocuments = await getLyricDocumentVersionsForTracks([
+          track.dbId,
+        ])
+        setDocuments(nextDocuments)
+        setTracks((current) =>
+          current.map((item) => {
+            if (item.dbId !== track.dbId) return item
+            const active =
+              nextDocuments.find((document) => document.isActive) ?? null
+            return {
+              ...item,
+              lyricVersionCount: nextDocuments.length,
+              activeLyricDocumentId: active?.id ?? null,
+              activeLyricDocumentName: active?.title ?? null,
+            }
+          }),
+        )
 
-  const handleImportToDraft = useCallback((result: LyricDocumentImportResult) => {
-    if (result.errors.length > 0) return
+        if (selectPreferred) {
+          const preferred =
+            nextDocuments.find((document) => document.isActive) ??
+            nextDocuments[0]
+          if (preferred) await loadLyricDocument(preferred.id)
+          else prepareTrackDraft(track, false)
+        }
+        return nextDocuments
+      } catch (documentError) {
+        setError(
+          documentError instanceof Error
+            ? documentError.message
+            : 'Failed to load lyric versions.',
+        )
+        return []
+      } finally {
+        setDocumentsLoading(false)
+      }
+    },
+    [loadLyricDocument, prepareTrackDraft, setError],
+  )
 
+  const requestTransition = useCallback(
+    (message: string, action: () => void | Promise<void>) => {
+      if (!useLyricsStore.getState().editorDirty) {
+        void action()
+        return
+      }
+      setPendingTransition({ message, action })
+    },
+    [],
+  )
+
+  const doSave = useCallback(async (): Promise<boolean> => {
+    setError(null)
+    const result = await saveActiveLyricDocument(draftCues)
+    if (!result?.ok) return false
     setDraftCues(result.cues)
-    setCues(result.cues) // push to store for immediate preview
-
-    const patch = result.documentPatch
-    if (patch.title)            setDraftTitle(patch.title)
-    if (patch.artist)           setDraftArtist(patch.artist)
-    if (patch.globalOffsetMs !== undefined) setGlobalOffsetMs(patch.globalOffsetMs)
-    if (patch.defaultStyle)     updateDraftDefaultStyle(patch.defaultStyle)
-    if (patch.defaultAnimation) updateDraftDefaultAnimation(patch.defaultAnimation)
-    if (patch.defaultEffects)   updateDraftDefaultEffects(patch.defaultEffects)
-
-    // Preserve import source metadata so save uses the correct sourceType/format
-    setDraftSourceMeta({
-      sourceType:    patch.sourceType    ?? null,
-      sourceFormat:  patch.sourceFormat  ?? null,
-      rawSourceText: patch.rawSourceText ?? null,
-      metadata:      patch.metadata      ?? null,
-    })
-
-    showStatus(`Imported ${result.cues.length} cues as draft`)
-    setActiveTab('manual')
+    markEditorDirty(false)
+    showStatus('Saved')
+    if (selectedTrack) await refreshDocuments(selectedTrack)
+    return true
   }, [
-    setCues, setDraftTitle, setDraftArtist, setGlobalOffsetMs,
-    updateDraftDefaultStyle, updateDraftDefaultAnimation, updateDraftDefaultEffects,
-    setDraftSourceMeta, showStatus,
+    draftCues,
+    markEditorDirty,
+    refreshDocuments,
+    saveActiveLyricDocument,
+    selectedTrack,
+    setError,
+    showStatus,
   ])
 
-  // ── Preview in visualizer ──────────────────────────────────────────────
+  const handleSelectTrack = useCallback(
+    (track: LyricManagerTrack) => {
+      if (selectedTrack?.dbId === track.dbId) return
+      requestTransition(
+        `Save changes before selecting “${track.title}”?`,
+        async () => {
+          markEditorDirty(false)
+          setSelectedTrack(track)
+          prepareTrackDraft(track, false)
+          setActiveTab('manual')
+          await refreshDocuments(track, true)
+        },
+      )
+    },
+    [
+      markEditorDirty,
+      prepareTrackDraft,
+      refreshDocuments,
+      requestTransition,
+      selectedTrack?.dbId,
+    ],
+  )
+
+  const handleSelectDocument = useCallback(
+    (document: LyricDocumentVersion) => {
+      if (document.id === activeDocumentId) return
+      requestTransition(
+        `Save changes before opening “${document.title}”?`,
+        async () => {
+          markEditorDirty(false)
+          if (!document.audioTrackId) {
+            setSelectedTrack(null)
+            setDocuments([])
+          }
+          await loadLyricDocument(document.id)
+          setActiveTab('manual')
+        },
+      )
+    },
+    [activeDocumentId, loadLyricDocument, markEditorDirty, requestTransition],
+  )
+
+  const handleNewDocument = useCallback(() => {
+    if (!selectedTrack) return
+    requestTransition(
+      'Save changes before creating a blank lyric version?',
+      () => {
+        prepareTrackDraft(
+          selectedTrack,
+          true,
+          !documents.some((document) => document.isActive),
+        )
+        setActiveTab('manual')
+        showStatus('Blank lyric version ready to edit')
+      },
+    )
+  }, [
+    documents,
+    prepareTrackDraft,
+    requestTransition,
+    selectedTrack,
+    showStatus,
+  ])
+
+  const handleImportDocument = useCallback(() => {
+    if (!selectedTrack) return
+    requestTransition(
+      'Save changes before importing a new lyric version?',
+      () => {
+        prepareTrackDraft(
+          selectedTrack,
+          true,
+          !documents.some((document) => document.isActive),
+        )
+        setActiveTab('json')
+      },
+    )
+  }, [documents, prepareTrackDraft, requestTransition, selectedTrack])
+
+  const handleDuplicateDocument = useCallback(
+    (document: LyricDocumentVersion) => {
+      if (!selectedTrack) return
+      requestTransition(
+        `Save changes before duplicating “${document.title}”?`,
+        async () => {
+          const full = await getFullLyricDocument(document.id)
+          setActiveDocument(null, full.cues, selectedTrack.dbId)
+          useLyricsStore.setState({
+            draftTitle: `${document.title} Copy`,
+            draftArtist: document.artist,
+            draftDefaultStyle: document.defaultStyle,
+            draftDefaultAnimation: document.defaultAnimation,
+            draftDefaultEffects: document.defaultEffects,
+            globalOffsetMs: document.globalOffsetMs,
+            draftSourceType: document.sourceType,
+            draftSourceFormat: document.sourceFormat,
+            draftRawSourceText: document.rawSourceText ?? null,
+            draftMetadata: {
+              ...document.metadata,
+              duplicatedFrom: document.id,
+            },
+            editorDirty: true,
+            draftActivateOnSave: false,
+          })
+          setDraftCues(full.cues)
+          setActiveTab('manual')
+          showStatus('Duplicated as a new draft')
+        },
+      )
+    },
+    [requestTransition, selectedTrack, setActiveDocument, showStatus],
+  )
+
+  const handleRenameDocument = useCallback(
+    async (document: LyricDocumentVersion, title: string) => {
+      if (document.id === activeDocumentId && editorDirty) {
+        setDraftTitle(title)
+        showStatus('Rename staged with unsaved changes')
+        return
+      }
+      try {
+        const updated = await updateLyricDocument(document.id, { title })
+        if (document.id === activeDocumentId)
+          setActiveDocument(updated, draftCues)
+        if (selectedTrack) await refreshDocuments(selectedTrack)
+        else {
+          const { data } = await supabase.auth.getUser()
+          if (data.user)
+            setLegacyDocuments(
+              await getLegacyLyricDocumentVersions(data.user.id),
+            )
+        }
+        showStatus('Version renamed')
+      } catch (renameError) {
+        setError(
+          renameError instanceof Error
+            ? renameError.message
+            : 'Failed to rename lyric version.',
+        )
+      }
+    },
+    [
+      activeDocumentId,
+      draftCues,
+      editorDirty,
+      refreshDocuments,
+      selectedTrack,
+      setActiveDocument,
+      setDraftTitle,
+      setError,
+      showStatus,
+    ],
+  )
+
+  const handleActivateDocument = useCallback(
+    (document: LyricDocumentVersion) => {
+      requestTransition(
+        `Save changes before activating “${document.title}”?`,
+        async () => {
+          const result = await activateLyricDocument(document.id)
+          if (!result?.ok) return
+          if (selectedTrack) await refreshDocuments(selectedTrack)
+          showStatus('Active lyric version updated')
+        },
+      )
+    },
+    [
+      activateLyricDocument,
+      refreshDocuments,
+      requestTransition,
+      selectedTrack,
+      showStatus,
+    ],
+  )
+
+  const handleRequestDelete = useCallback(
+    (document: LyricDocumentVersion) => {
+      const openConfirmation = () => setDeleteTarget(document)
+      if (document.id === activeDocumentId) {
+        requestTransition(
+          `Save changes before deleting “${document.title}”?`,
+          openConfirmation,
+        )
+      } else {
+        openConfirmation()
+      }
+    },
+    [activeDocumentId, requestTransition],
+  )
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      const deletingCurrent = deleteTarget.id === activeDocumentId
+      await deleteLyricDocument(deleteTarget.id)
+      setDeleteTarget(null)
+      markEditorDirty(false)
+      if (selectedTrack) {
+        const remaining = await refreshDocuments(selectedTrack)
+        if (deletingCurrent) {
+          const preferred =
+            remaining.find((document) => document.isActive) ?? remaining[0]
+          if (preferred) await loadLyricDocument(preferred.id)
+          else prepareTrackDraft(selectedTrack, false)
+        }
+      } else {
+        const { data } = await supabase.auth.getUser()
+        if (data.user)
+          setLegacyDocuments(await getLegacyLyricDocumentVersions(data.user.id))
+        if (deletingCurrent) setActiveDocument(null, [])
+      }
+      showStatus('Lyric version deleted')
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : 'Failed to delete lyric version.',
+      )
+    } finally {
+      setDeleting(false)
+    }
+  }, [
+    activeDocumentId,
+    deleteTarget,
+    loadLyricDocument,
+    markEditorDirty,
+    prepareTrackDraft,
+    refreshDocuments,
+    selectedTrack,
+    setActiveDocument,
+    setError,
+    showStatus,
+  ])
+
+  const applyDraftCues = useCallback(
+    (next: LyricCue[]) => {
+      setDraftCues(next)
+      setCues(next)
+    },
+    [setCues],
+  )
+
+  const handleAddCue = useCallback(
+    (cue: Omit<LyricCue, 'id'>) => {
+      const next = [
+        ...draftCues,
+        {
+          ...cue,
+          id: nextCueId(draftCues.length),
+          source: cue.source ?? 'manual',
+        },
+      ].sort((a, b) => a.startMs - b.startMs)
+      applyDraftCues(next)
+    },
+    [applyDraftCues, draftCues],
+  )
+
+  const handleUpdateCue = useCallback(
+    (index: number, cue: Omit<LyricCue, 'id'>) => {
+      const next = [...draftCues]
+      next[index] = { ...next[index], ...cue, id: next[index].id }
+      next.sort((a, b) => a.startMs - b.startMs)
+      applyDraftCues(next)
+    },
+    [applyDraftCues, draftCues],
+  )
+
+  const handleDeleteCue = useCallback(
+    (index: number) => {
+      applyDraftCues(draftCues.filter((_, cueIndex) => cueIndex !== index))
+      setSelectedCue(null)
+    },
+    [applyDraftCues, draftCues],
+  )
+
+  const handleDuplicateCue = useCallback(
+    (index: number) => {
+      const cue = draftCues[index]
+      const copy: LyricCue = {
+        ...cue,
+        id: nextCueId(draftCues.length),
+        startMs: cue.endMs,
+        endMs: cue.endMs + (cue.endMs - cue.startMs),
+      }
+      applyDraftCues([...draftCues, copy].sort((a, b) => a.startMs - b.startMs))
+    },
+    [applyDraftCues, draftCues],
+  )
+
+  const handleImportToDraft = useCallback(
+    (result: LyricDocumentImportResult) => {
+      if (result.errors.length > 0) return
+      applyDraftCues(result.cues)
+      const patch = result.documentPatch
+      if (patch.title) setDraftTitle(patch.title)
+      if (patch.artist) setDraftArtist(patch.artist)
+      if (patch.globalOffsetMs !== undefined)
+        setGlobalOffsetMs(patch.globalOffsetMs)
+      if (patch.defaultStyle) updateDraftDefaultStyle(patch.defaultStyle)
+      if (patch.defaultAnimation)
+        updateDraftDefaultAnimation(patch.defaultAnimation)
+      if (patch.defaultEffects) updateDraftDefaultEffects(patch.defaultEffects)
+      setDraftSourceMeta({
+        sourceType: patch.sourceType ?? null,
+        sourceFormat: patch.sourceFormat ?? null,
+        rawSourceText: patch.rawSourceText ?? null,
+        metadata: patch.metadata ?? null,
+      })
+      showStatus(`Imported ${result.cues.length} cues as a new draft`)
+      setActiveTab('manual')
+    },
+    [
+      applyDraftCues,
+      setDraftArtist,
+      setDraftSourceMeta,
+      setDraftTitle,
+      setGlobalOffsetMs,
+      showStatus,
+      updateDraftDefaultAnimation,
+      updateDraftDefaultEffects,
+      updateDraftDefaultStyle,
+    ],
+  )
+
+  const handleLoadSelectedTrack = useCallback(async () => {
+    if (!selectedTrack?.storagePath) return
+    setLoadingTrackId(selectedTrack.dbId)
+    try {
+      const url = await getSignedUrl(selectedTrack.storagePath)
+      if (!url)
+        throw new Error('Unable to create a signed preview URL for this track.')
+      const trackEntry = {
+        name: selectedTrack.fileName || selectedTrack.title,
+        title: selectedTrack.title,
+        artist: selectedTrack.artist,
+        url,
+        dbId: selectedTrack.dbId,
+        storagePath: selectedTrack.storagePath,
+        duration: selectedTrack.durationSec,
+        persistedMetadata: {
+          bpm: selectedTrack.bpm,
+          musicalKey: selectedTrack.musicalKey,
+          genre: selectedTrack.genre,
+          sampleRate: selectedTrack.sampleRate,
+          channels: selectedTrack.channels,
+        },
+      }
+      if (engine.tracks.length > 0) engine.replaceTrackUrls([trackEntry])
+      else engine.addTrackUrls([trackEntry])
+      if (engine.source !== 'file') engine.setSource('file')
+      showStatus('Track loaded to the audio deck without starting playback')
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : 'Failed to load track preview.',
+      )
+    } finally {
+      setLoadingTrackId(null)
+    }
+  }, [engine, getSignedUrl, selectedTrack, setError, showStatus])
+
+  const handleTogglePlayback = useCallback(() => {
+    if (!selectedTrack || engine.currentAudioTrackId !== selectedTrack.dbId) {
+      showStatus('Load the selected track to the deck before previewing it.')
+      return
+    }
+    if (engine.isPlaying) engine.pause()
+    else engine.play()
+  }, [engine, selectedTrack, showStatus])
 
   const handlePreviewInVisualizer = useCallback(() => {
-    if (draftCues.length === 0) {
-      setStatusMsg('No cues to preview. Import or create lyric cues first.')
-      return
-    }
-    const timedCues = draftCues.filter(c =>
-      typeof c.startMs === 'number' &&
-      typeof c.endMs === 'number' &&
-      c.endMs > c.startMs
-    )
+    const timedCues = draftCues.filter((cue) => cue.endMs > cue.startMs)
     if (timedCues.length === 0) {
-      setStatusMsg('Timed cues required for visualizer playback. Add start and end times to your cues.')
+      showStatus('Timed cues are required before previewing in the visualizer.')
       return
     }
-    setCues(draftCues)
+    if (editorDirty) {
+      showStatus(
+        'Save or discard unsaved changes before opening the visualizer preview.',
+      )
+      return
+    }
+    if (selectedTrack && engine.currentAudioTrackId !== selectedTrack.dbId) {
+      showStatus(
+        'Load the selected track to the deck before opening the visualizer preview.',
+      )
+      return
+    }
+    preserveDraftForNextEditorExit()
     setLyricsEnabled(true)
     onBack()
-  }, [draftCues, setCues, setLyricsEnabled, onBack])
+  }, [
+    draftCues,
+    editorDirty,
+    engine.currentAudioTrackId,
+    onBack,
+    preserveDraftForNextEditorExit,
+    selectedTrack,
+    setLyricsEnabled,
+    showStatus,
+  ])
+
+  const handleUploaded = useCallback(
+    (uploaded: SavedAudioTrack[]) => {
+      const newest = uploaded[0]
+      if (!newest) return
+      const managerTrack = uploadedTrackToManager(newest)
+      setTracks((current) =>
+        mergeTracks(current, uploaded.map(uploadedTrackToManager)),
+      )
+      setTrackTotal((current) => current + uploaded.length)
+      requestTransition(
+        `Save changes before selecting the newly uploaded track “${managerTrack.title}”?`,
+        () => {
+          setSelectedTrack(managerTrack)
+          setDocuments([])
+          prepareTrackDraft(managerTrack, false, true)
+          setActiveTab('json')
+          showStatus('Track uploaded. Import lyrics or create them manually.')
+        },
+      )
+    },
+    [prepareTrackDraft, requestTransition, showStatus],
+  )
+
+  const selectedTrackLoaded = selectedTrack?.dbId === engine.currentAudioTrackId
+  const selectedTrackPlaying = selectedTrackLoaded && engine.isPlaying
+  const hasMore = tracks.length < trackTotal
+  const selectedTrackName = selectedTrack?.title ?? null
+
+  const editorPlaceholder = useMemo(() => {
+    if (!selectedTrack && !activeDocument)
+      return 'Select a track to begin editing lyrics.'
+    if (selectedTrack && documents.length === 0 && !activeDocument)
+      return 'This track has no lyrics yet.'
+    return null
+  }, [activeDocument, documents.length, selectedTrack])
 
   return (
     <div className="lmv-root">
-
       <LyricManagerHeader
         isSaving={isSaving}
         lyricsEnabled={lyricsEnabled}
         hasDocument={!!activeDocument}
         draftTitle={draftTitle}
+        selectedTrackName={selectedTrackName}
+        dirty={editorDirty}
+        onBack={() =>
+          requestTransition(
+            'Save changes before leaving Lyric Manager?',
+            onBack,
+          )
+        }
         onToggleLyricsEnabled={() => setLyricsEnabled(!lyricsEnabled)}
-        onSave={doSave}
-        onSaveAndEnable={doSaveAndEnable}
+        onSave={() => {
+          void doSave()
+        }}
+        onSaveAndEnable={() => {
+          void doSave().then((saved) => {
+            if (saved) setLyricsEnabled(true)
+          })
+        }}
       />
 
       {(error || statusMsg) && (
-        <div className={`lmv-status-bar${error ? ' lmv-status-bar--error' : ' lmv-status-bar--ok'}`}>
+        <div
+          className={`lmv-status-bar${error ? ' lmv-status-bar--error' : ' lmv-status-bar--ok'}`}
+        >
           {error ?? statusMsg}
           {error && (
-            <button className="lmv-status-dismiss" onClick={() => setError(null)}>×</button>
+            <button
+              className="lmv-status-dismiss"
+              onClick={() => setError(null)}
+            >
+              ×
+            </button>
           )}
         </div>
       )}
 
-      <div className="lmv-body">
+      <LyricTrackBrowser
+        tracks={tracks}
+        selectedTrackId={selectedTrack?.dbId ?? null}
+        loadedAudioTrackId={engine.currentAudioTrackId}
+        playingAudioTrackId={
+          engine.isPlaying ? engine.currentAudioTrackId : null
+        }
+        search={trackSearch}
+        loading={tracksLoading}
+        error={tracksError}
+        hasMore={hasMore}
+        onSearchChange={setTrackSearch}
+        onSelectTrack={handleSelectTrack}
+        onLoadMore={() => {
+          void loadTracks(false)
+        }}
+        onUpload={() => setUploadOpen(true)}
+        onRetry={() => {
+          void loadTracks(true)
+        }}
+      />
 
-        {/* Left: document library */}
+      {selectedTrack && (
+        <div className="lmv-track-control-strip">
+          <div>
+            <strong>{selectedTrack.title}</strong>
+            <span>{selectedTrack.artist || 'Unknown artist'}</span>
+          </div>
+          <div className="lmv-track-identity-status">
+            <span>Editor: {selectedTrack.title}</span>
+            <span>
+              Deck:{' '}
+              {selectedTrackLoaded
+                ? selectedTrack.title
+                : (engine.currentTrack?.displayName ?? 'None')}
+            </span>
+            <span>
+              Playback:{' '}
+              {selectedTrackPlaying
+                ? 'Playing selected track'
+                : engine.isPlaying
+                  ? 'Playing another track'
+                  : 'Stopped'}
+            </span>
+          </div>
+          <button
+            className="lmv-btn lmv-btn--ghost"
+            onClick={() => {
+              void handleLoadSelectedTrack()
+            }}
+            disabled={loadingTrackId === selectedTrack.dbId}
+          >
+            {loadingTrackId === selectedTrack.dbId
+              ? 'Loading…'
+              : selectedTrackLoaded
+                ? 'Reload to Deck'
+                : 'Load to Deck'}
+          </button>
+          <button
+            className="lmv-btn lmv-btn--ghost"
+            onClick={handleTogglePlayback}
+            disabled={!selectedTrackLoaded}
+          >
+            {selectedTrackPlaying ? 'Pause Preview' : 'Play Preview'}
+          </button>
+        </div>
+      )}
+
+      <div className="lmv-body">
         <LyricDocumentSidebar
           documents={documents}
+          legacyDocuments={legacyDocuments}
           loading={documentsLoading || isLoading}
           activeDocumentId={activeDocumentId}
+          hasSelectedTrack={!!selectedTrack}
           onSelectDocument={handleSelectDocument}
           onNewDocument={handleNewDocument}
+          onDuplicateDocument={handleDuplicateDocument}
+          onRenameDocument={handleRenameDocument}
+          onActivateDocument={handleActivateDocument}
+          onDeleteDocument={handleRequestDelete}
+          onImportDocument={handleImportDocument}
         />
 
-        {/* Center: workflow */}
         <div className="lmv-center">
           <div className="lmv-tab-bar">
-            {TAB_LABELS.map(t => {
-              const isDisabled = t.id === 'ai'
+            {TAB_LABELS.map((tab) => {
+              const disabled =
+                tab.id === 'ai' || (!selectedTrack && !activeDocument)
               return (
                 <button
-                  key={t.id}
-                  className={`lmv-tab-btn${activeTab === t.id ? ' lmv-tab-btn--active' : ''}${isDisabled ? ' lmv-tab-btn--disabled' : ''}`}
-                  onClick={() => { if (!isDisabled) setActiveTab(t.id) }}
-                  disabled={isDisabled}
-                  title={isDisabled ? 'Coming soon' : undefined}
+                  key={tab.id}
+                  className={`lmv-tab-btn${activeTab === tab.id ? ' lmv-tab-btn--active' : ''}${disabled ? ' lmv-tab-btn--disabled' : ''}`}
+                  onClick={() => {
+                    if (!disabled) setActiveTab(tab.id)
+                  }}
+                  disabled={disabled}
+                  title={
+                    tab.id === 'ai'
+                      ? 'Automatic transcription arrives in Patch 6'
+                      : undefined
+                  }
                 >
-                  {t.label}
+                  {tab.label}
                 </button>
               )
             })}
           </div>
 
           <div className="lmv-tab-content">
-            {activeTab === 'manual' && (
+            {editorPlaceholder ? (
+              <div className="lmv-editor-placeholder">
+                <div>{editorPlaceholder}</div>
+                {selectedTrack && (
+                  <div className="lmv-editor-placeholder-actions">
+                    <button
+                      className="lmv-btn lmv-btn--primary"
+                      onClick={handleNewDocument}
+                    >
+                      Create Blank Lyrics
+                    </button>
+                    <button
+                      className="lmv-btn lmv-btn--ghost"
+                      onClick={handleImportDocument}
+                    >
+                      Import Lyrics
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : activeTab === 'manual' ? (
               <ManualLyricEditor
                 draftTitle={draftTitle}
                 draftArtist={draftArtist}
@@ -284,25 +959,59 @@ export function LyricManagerView({ onBack }: Props) {
                 onSelectCue={setSelectedCue}
                 currentAudioTimeMs={currentAudioTimeMs}
               />
-            )}
-            {activeTab === 'json' && (
+            ) : activeTab === 'json' ? (
               <JsonLyricImporter onImportToDraft={handleImportToDraft} />
-            )}
-            {activeTab === 'ai' && (
+            ) : (
               <AiLyricExtractor onImportToDraft={handleImportToDraft} />
             )}
           </div>
         </div>
 
-        {/* Right: preview + validation */}
         <LyricPreviewPanel
           cues={draftCues}
           document={activeDocument}
           selectedCue={selectedCue}
           onPreviewInVisualizer={handlePreviewInVisualizer}
         />
-
       </div>
+
+      <UnsavedLyricChangesDialog
+        open={pendingTransition !== null}
+        busy={isSaving}
+        message={pendingTransition?.message}
+        onCancel={() => setPendingTransition(null)}
+        onDiscard={() => {
+          const pending = pendingTransition
+          setPendingTransition(null)
+          markEditorDirty(false)
+          if (pending) void pending.action()
+        }}
+        onSave={() => {
+          const pending = pendingTransition
+          void doSave().then((saved) => {
+            if (!saved || !pending) return
+            setPendingTransition(null)
+            void pending.action()
+          })
+        }}
+      />
+
+      <ConfirmLyricDeleteDialog
+        title={deleteTarget?.title ?? null}
+        busy={deleting}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          void handleConfirmDelete()
+        }}
+      />
+
+      {uploadOpen && (
+        <MediaUploadModal
+          audioOnly
+          onAudioUploaded={handleUploaded}
+          onClose={() => setUploadOpen(false)}
+        />
+      )}
     </div>
   )
 }
