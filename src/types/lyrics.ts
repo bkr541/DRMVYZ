@@ -47,6 +47,7 @@ export type LyricWarning =
   | 'unknown_section_type'
   | 'needs_review'
   | 'provider_warning'
+  | 'chunk_boundary_uncertain'
   | 'unknown'
 
 export type LyricSectionType =
@@ -86,6 +87,7 @@ const LYRIC_WARNINGS: readonly LyricWarning[] = [
   'unknown_section_type',
   'needs_review',
   'provider_warning',
+  'chunk_boundary_uncertain',
   'unknown',
 ]
 const LYRIC_SECTION_TYPES: readonly LyricSectionType[] = [
@@ -325,6 +327,59 @@ export interface LyricDocument {
   createdAt:        string
   updatedAt:        string
 }
+
+export type LyricTranscriptionProviderName = 'openai' | 'custom'
+export type LyricTranscriptionJobStatus =
+  | 'queued'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+
+export interface LyricTranscriptionJob {
+  id: string
+  userId: string
+  audioTrackId: string
+  lyricDocumentId: string | null
+  provider: LyricTranscriptionProviderName
+  status: LyricTranscriptionJobStatus
+  progress: number
+  errorCode: string | null
+  errorMessage: string | null
+  providerMetadata: Record<string, unknown>
+  requestOptions: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
+  startedAt: string | null
+  completedAt: string | null
+}
+
+export interface LyricTranscriptionJobRow {
+  id: string
+  user_id: string
+  audio_track_id: string
+  lyric_document_id: string | null
+  provider: LyricTranscriptionProviderName
+  status: LyricTranscriptionJobStatus
+  progress: number
+  error_code: string | null
+  error_message: string | null
+  provider_metadata: Record<string, unknown>
+  request_options: Record<string, unknown>
+  created_at: string
+  updated_at: string
+  started_at: string | null
+  completed_at: string | null
+}
+
+export type LyricTranscriptionJobInsert = Omit<
+  LyricTranscriptionJobRow,
+  'id' | 'created_at' | 'updated_at' | 'started_at' | 'completed_at' | 'lyric_document_id' | 'error_code' | 'error_message'
+> & Partial<Pick<
+  LyricTranscriptionJobRow,
+  'lyric_document_id' | 'error_code' | 'error_message' | 'started_at' | 'completed_at'
+>>
+export type LyricTranscriptionJobUpdate = Partial<Omit<LyricTranscriptionJobRow, 'id' | 'user_id' | 'audio_track_id' | 'created_at'>>
 
 /** Average only known word confidence values. Missing values do not count as zero. */
 export function calculateLyricCueConfidence(words?: readonly LyricWord[]): number | undefined {

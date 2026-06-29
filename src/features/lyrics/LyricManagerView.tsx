@@ -562,6 +562,39 @@ export function LyricManagerView({ onBack }: Props) {
     showStatus,
   ])
 
+  const handleOpenCompletedDraft = useCallback(
+    (documentId: string) => {
+      requestTransition(
+        'Save changes before opening the extracted lyric draft?',
+        async () => {
+          markEditorDirty(false)
+          await loadLyricDocument(documentId)
+          if (selectedTrack) await refreshDocuments(selectedTrack)
+          setActiveTab('manual')
+          showStatus('Extracted draft opened for review')
+        },
+      )
+    },
+    [loadLyricDocument, markEditorDirty, refreshDocuments, requestTransition, selectedTrack, showStatus],
+  )
+
+  const handleActivateCompletedDraft = useCallback(
+    (documentId: string) => {
+      requestTransition(
+        'Save changes before activating the extracted lyric version?',
+        async () => {
+          const result = await activateLyricDocument(documentId)
+          if (!result?.ok) return
+          if (selectedTrack) await refreshDocuments(selectedTrack)
+          await loadLyricDocument(documentId)
+          setActiveTab('manual')
+          showStatus('Extracted lyric version activated')
+        },
+      )
+    },
+    [activateLyricDocument, loadLyricDocument, refreshDocuments, requestTransition, selectedTrack, showStatus],
+  )
+
   const applyDraftCues = useCallback((next: typeof storeCues) => setCues(next), [setCues])
 
   const handleImportToDraft = useCallback(
@@ -693,8 +726,8 @@ export function LyricManagerView({ onBack }: Props) {
           setSelectedTrack(managerTrack)
           setDocuments([])
           prepareTrackDraft(managerTrack, false, true)
-          setActiveTab('json')
-          showStatus('Track uploaded. Import lyrics or create them manually.')
+          setActiveTab('ai')
+          showStatus('Track uploaded. Automatic lyric extraction is ready.')
         },
       )
     },
@@ -866,8 +899,9 @@ export function LyricManagerView({ onBack }: Props) {
         <div className="lmv-center">
           <div className="lmv-tab-bar">
             {TAB_LABELS.map((tab) => {
-              const disabled =
-                tab.id === 'ai' || (!selectedTrack && !activeDocument)
+              const disabled = tab.id === 'ai'
+                ? !selectedTrack
+                : (!selectedTrack && !activeDocument)
               return (
                 <button
                   key={tab.id}
@@ -876,11 +910,7 @@ export function LyricManagerView({ onBack }: Props) {
                     if (!disabled) setActiveTab(tab.id)
                   }}
                   disabled={disabled}
-                  title={
-                    tab.id === 'ai'
-                      ? 'Automatic transcription arrives in Patch 6'
-                      : undefined
-                  }
+                  title={tab.id === 'ai' && !selectedTrack ? 'Select a stored track first' : undefined}
                 >
                   {tab.label}
                 </button>
@@ -889,7 +919,7 @@ export function LyricManagerView({ onBack }: Props) {
           </div>
 
           <div className="lmv-tab-content">
-            {editorPlaceholder ? (
+            {editorPlaceholder && activeTab === 'manual' ? (
               <div className="lmv-editor-placeholder">
                 <div>{editorPlaceholder}</div>
                 {selectedTrack && (
@@ -935,7 +965,12 @@ export function LyricManagerView({ onBack }: Props) {
             ) : activeTab === 'json' ? (
               <JsonLyricImporter onImportToDraft={handleImportToDraft} />
             ) : (
-              <AiLyricExtractor onImportToDraft={handleImportToDraft} />
+              <AiLyricExtractor
+                selectedTrack={selectedTrack}
+                existingDocumentCount={documents.length}
+                onOpenCompletedDraft={handleOpenCompletedDraft}
+                onActivateCompletedDraft={handleActivateCompletedDraft}
+              />
             )}
           </div>
         </div>

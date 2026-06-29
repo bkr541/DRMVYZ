@@ -186,4 +186,4 @@ These are not implemented in the browser. Use the `StemAnalysisBackend` interfac
 | **pyloudnorm** | LUFS loudness normalization |
 | **torch** | Custom ML models for mood, genre, structure |
 
-Configure via env variables (`VITE_WHISPER_ENDPOINT`, `VITE_DEEPGRAM_API_KEY`, etc.) or implement the corresponding provider interface in `src/features/lyrics/services/lyricExtraction.ts`.
+Lyric transcription is routed through `supabase/functions/lyric-transcription`. Configure provider credentials only as Supabase server-side secrets, using `supabase/functions/.env.example` as the non-secret template. Never expose transcription credentials through `VITE_*` variables or call a provider directly from React.

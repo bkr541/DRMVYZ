@@ -4,6 +4,7 @@
 import type {
   LyricDocumentRow, LyricDocumentInsert, LyricDocumentUpdate,
   LyricCueRow,      LyricCueInsert,      LyricCueUpdate,
+  LyricTranscriptionJobRow, LyricTranscriptionJobInsert, LyricTranscriptionJobUpdate,
 } from './lyrics'
 
 export type Json =
@@ -421,6 +422,15 @@ export interface Database {
         }
         Returns: Json
       }
+      complete_lyric_transcription_job: {
+        Args: {
+          p_job_id: string
+          p_document: Json
+          p_cues: Json
+          p_provider_metadata: Json
+        }
+        Returns: Json
+      }
     }
     Enums:          Record<string, never>
     CompositeTypes: Record<string, never>
@@ -462,6 +472,15 @@ export interface Database {
         Update: DBRec<LyricCueUpdate>
         Relationships: [
           { foreignKeyName: 'lyric_cues_lyric_document_id_fkey'; columns: ['lyric_document_id']; isOneToOne: false; referencedRelation: 'lyric_documents'; referencedColumns: ['id'] },
+        ]
+      }
+      lyric_transcription_jobs: {
+        Row: DBRec<LyricTranscriptionJobRow>
+        Insert: DBRec<LyricTranscriptionJobInsert>
+        Update: DBRec<LyricTranscriptionJobUpdate>
+        Relationships: [
+          { foreignKeyName: 'lyric_transcription_jobs_audio_track_id_fkey'; columns: ['audio_track_id']; isOneToOne: false; referencedRelation: 'audio_tracks'; referencedColumns: ['id'] },
+          { foreignKeyName: 'lyric_transcription_jobs_lyric_document_id_fkey'; columns: ['lyric_document_id']; isOneToOne: false; referencedRelation: 'lyric_documents'; referencedColumns: ['id'] },
         ]
       }
       font_assets:              { Row: DBRec<FontAssetRow>;     Insert: DBRec<FontAssetInsert>;     Update: DBRec<Partial<Omit<FontAssetRow, 'id' | 'created_at'>>>; Relationships: [] }

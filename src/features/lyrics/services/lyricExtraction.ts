@@ -1,187 +1,171 @@
-import type { LyricCue } from '../../../types/lyrics'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { supabase } from '../../../lib/supabase'
+import type {
+  LyricTranscriptionJob,
+  LyricTranscriptionJobRow,
+} from '../../../types/lyrics'
 
-// ── Legacy extraction types (preserved for existing JSON import flow) ─────────
+const db = supabase as unknown as SupabaseClient
+const FUNCTION_NAME = 'lyric-transcription'
+const JOB_COLUMNS = [
+  'id',
+  'user_id',
+  'audio_track_id',
+  'lyric_document_id',
+  'provider',
+  'status',
+  'progress',
+  'error_code',
+  'error_message',
+  'provider_metadata',
+  'request_options',
+  'created_at',
+  'updated_at',
+  'started_at',
+  'completed_at',
+].join(',')
 
 export interface LyricExtractionOptions {
-  language?:           string
-  timingDetail?:       'line' | 'word' | 'line+word'
-  stylePreset?:        string
+  language?: string
+  timingDetail?: 'line' | 'word' | 'line+word'
+  stylePreset?: string
   confidenceThreshold?: number
-  globalOffsetMs?:     number
+  globalOffsetMs?: number
 }
 
-export interface ExtractedCue extends LyricCue {
-  /** @deprecated Legacy provider payloads should migrate to reviewStatus. */
-  reviewed?: boolean
-}
-
-export interface LyricExtractionResult {
-  title?:         string
-  artist?:        string
-  sourceType:     'ai_transcription'
-  sourceFormat:   'json'
-  globalOffsetMs: number
-  metadata: {
-    model?:            string
-    language?:         string
-    confidence?:       number
-    originalFileName?: string
-  }
-  cues: ExtractedCue[]
-}
-
-// ── Provider-based transcription architecture ─────────────────────────────────
-
-export interface LyricTranscriptionOptions {
-  language?:            string
-  timingDetail?:        'line' | 'word' | 'line+word'
-  confidenceThreshold?: number
-}
+export type LyricTranscriptionOptions = Omit<LyricExtractionOptions, 'stylePreset'>
 
 export interface LyricWordResult {
-  text:       string
-  startSec:   number
-  endSec:     number
+  text: string
+  startSec: number
+  endSec: number
   confidence: number
 }
 
 export interface LyricLineResult {
-  text:       string
-  startSec:   number
-  endSec:     number
-  words:      LyricWordResult[]
+  text: string
+  startSec: number
+  endSec: number
+  words: LyricWordResult[]
   confidence: number
-  source:     string
+  source: string
 }
 
 export interface LyricTranscriptionResult {
-  lines:      LyricLineResult[]
-  language:   string | null
+  lines: LyricLineResult[]
+  language: string | null
   confidence: number
-  source:     string
-  model?:     string
+  source: string
+  model?: string
 }
 
-export interface LyricTranscriptionProvider {
-  readonly name:        string
-  readonly description: string
-  isConfigured():       boolean
-  transcribe(audioFile: File, options?: LyricTranscriptionOptions): Promise<LyricTranscriptionResult>
+interface FunctionEnvelope {
+  job?: LyricTranscriptionJobRow
+  duplicate?: boolean
+  error?: { code?: string; message?: string }
 }
 
-// ── Provider stubs ────────────────────────────────────────────────────────────
-
-function notConfiguredError(name: string): never {
-  throw new Error(
-    `${name} provider is not configured. ` +
-    'Set the required API key/endpoint in your environment or provider config before calling transcribe().'
-  )
+export interface StartLyricTranscriptionResult {
+  job: LyricTranscriptionJob
+  duplicate: boolean
 }
 
-/** OpenAI Whisper via the openai SDK or a proxy Edge Function. */
-export const openAIWhisperProvider: LyricTranscriptionProvider = {
-  name:        'OpenAI Whisper',
-  description: 'Transcription via OpenAI Whisper API (requires VITE_OPENAI_API_KEY).',
-  isConfigured() {
-    return !!(import.meta.env?.VITE_OPENAI_API_KEY)
-  },
-  async transcribe(_file, _options) {
-    if (!this.isConfigured()) notConfiguredError(this.name)
-    // TODO: POST to https://api.openai.com/v1/audio/transcriptions with model=whisper-1
-    // Body: FormData { file, model, response_format: 'verbose_json', timestamp_granularities: ['word'] }
-    throw new Error('OpenAI Whisper transcription is not yet implemented.')
-  },
+function mapJob(row: LyricTranscriptionJobRow): LyricTranscriptionJob {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    audioTrackId: row.audio_track_id,
+    lyricDocumentId: row.lyric_document_id,
+    provider: row.provider,
+    status: row.status,
+    progress: Math.max(0, Math.min(1, Number(row.progress) || 0)),
+    errorCode: row.error_code,
+    errorMessage: row.error_message,
+    providerMetadata: row.provider_metadata ?? {},
+    requestOptions: row.request_options ?? {},
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    startedAt: row.started_at,
+    completedAt: row.completed_at,
+  }
 }
 
-/** Local or server-hosted Whisper (e.g. Supabase Edge Function wrapping a Python server). */
-export const whisperBackendProvider: LyricTranscriptionProvider = {
-  name:        'Whisper Backend',
-  description: 'Transcription via a self-hosted Whisper endpoint (set VITE_WHISPER_ENDPOINT).',
-  isConfigured() {
-    return !!(import.meta.env?.VITE_WHISPER_ENDPOINT)
-  },
-  async transcribe(_file, _options) {
-    if (!this.isConfigured()) notConfiguredError(this.name)
-    // TODO: POST to VITE_WHISPER_ENDPOINT with audio file
-    // Expected JSON response: { segments: [{ text, start, end, words?: [{word, start, end}] }] }
-    throw new Error('Whisper backend transcription is not yet implemented.')
-  },
+async function functionErrorMessage(error: unknown, data: unknown): Promise<string> {
+  const envelope = data && typeof data === 'object' ? data as FunctionEnvelope : null
+  if (envelope?.error?.message) return envelope.error.message
+  if (error && typeof error === 'object' && 'context' in error) {
+    const context = (error as { context?: Response }).context
+    if (context && typeof context.clone === 'function') {
+      try {
+        const payload = await context.clone().json() as FunctionEnvelope
+        if (payload.error?.message) return payload.error.message
+      } catch {
+        // Relay responses are not always JSON.
+      }
+    }
+  }
+  if (error && typeof error === 'object' && 'message' in error) return String((error as { message: unknown }).message)
+  return 'The lyric transcription service could not be reached.'
 }
 
-/** WhisperX (word-level aligned Whisper) — typically served on the same backend. */
-export const whisperXProvider: LyricTranscriptionProvider = {
-  name:        'WhisperX',
-  description: 'Word-level aligned Whisper via WhisperX backend (set VITE_WHISPERX_ENDPOINT).',
-  isConfigured() {
-    return !!(import.meta.env?.VITE_WHISPERX_ENDPOINT)
-  },
-  async transcribe(_file, _options) {
-    if (!this.isConfigured()) notConfiguredError(this.name)
-    throw new Error('WhisperX transcription is not yet implemented.')
-  },
+async function invokeJobAction(body: Record<string, unknown>): Promise<FunctionEnvelope> {
+  const { data, error } = await supabase.functions.invoke<FunctionEnvelope>(FUNCTION_NAME, { body })
+  if (error || data?.error) throw new Error(await functionErrorMessage(error, data))
+  return data ?? {}
 }
 
-/** Deepgram speech-to-text API. */
-export const deepgramProvider: LyricTranscriptionProvider = {
-  name:        'Deepgram',
-  description: 'Transcription via Deepgram API (requires VITE_DEEPGRAM_API_KEY).',
-  isConfigured() {
-    return !!(import.meta.env?.VITE_DEEPGRAM_API_KEY)
-  },
-  async transcribe(_file, _options) {
-    if (!this.isConfigured()) notConfiguredError(this.name)
-    // TODO: POST to https://api.deepgram.com/v1/listen?model=nova-2&words=true
-    throw new Error('Deepgram transcription is not yet implemented.')
-  },
+export function isActiveLyricTranscriptionJob(job: LyricTranscriptionJob | null | undefined): boolean {
+  return job?.status === 'queued' || job?.status === 'processing'
 }
 
-/** AssemblyAI speech-to-text API. */
-export const assemblyAIProvider: LyricTranscriptionProvider = {
-  name:        'AssemblyAI',
-  description: 'Transcription via AssemblyAI API (requires VITE_ASSEMBLYAI_API_KEY).',
-  isConfigured() {
-    return !!(import.meta.env?.VITE_ASSEMBLYAI_API_KEY)
-  },
-  async transcribe(_file, _options) {
-    if (!this.isConfigured()) notConfiguredError(this.name)
-    throw new Error('AssemblyAI transcription is not yet implemented.')
-  },
+export async function startLyricTranscription(
+  audioTrackId: string,
+  options: LyricTranscriptionOptions = {},
+): Promise<StartLyricTranscriptionResult> {
+  const payload = await invokeJobAction({ action: 'start', audioTrackId, options })
+  if (!payload.job) throw new Error('The transcription service did not return a job.')
+  return { job: mapJob(payload.job), duplicate: payload.duplicate === true }
 }
 
-export const ALL_LYRIC_PROVIDERS: LyricTranscriptionProvider[] = [
-  openAIWhisperProvider,
-  whisperBackendProvider,
-  whisperXProvider,
-  deepgramProvider,
-  assemblyAIProvider,
-]
-
-/** Returns the first configured provider, or null if none are set up. */
-export function getConfiguredLyricProvider(): LyricTranscriptionProvider | null {
-  return ALL_LYRIC_PROVIDERS.find(p => p.isConfigured()) ?? null
+export async function refreshLyricTranscriptionJob(jobId: string): Promise<LyricTranscriptionJob> {
+  const payload = await invokeJobAction({ action: 'status', jobId })
+  if (!payload.job) throw new Error('The transcription job is no longer available.')
+  return mapJob(payload.job)
 }
 
-// ── Legacy placeholder (preserved for backwards compatibility) ────────────────
+export async function cancelLyricTranscription(jobId: string): Promise<LyricTranscriptionJob> {
+  const payload = await invokeJobAction({ action: 'cancel', jobId })
+  if (!payload.job) throw new Error('The transcription job could not be cancelled.')
+  return mapJob(payload.job)
+}
+
+export async function retryLyricTranscription(jobId: string): Promise<StartLyricTranscriptionResult> {
+  const payload = await invokeJobAction({ action: 'retry', jobId })
+  if (!payload.job) throw new Error('The transcription job could not be retried.')
+  return { job: mapJob(payload.job), duplicate: payload.duplicate === true }
+}
+
+export async function getRecentLyricTranscriptionJobs(
+  audioTrackId: string,
+  limit = 8,
+): Promise<LyricTranscriptionJob[]> {
+  const { data, error } = await db
+    .from('lyric_transcription_jobs')
+    .select(JOB_COLUMNS)
+    .eq('audio_track_id', audioTrackId)
+    .order('created_at', { ascending: false })
+    .limit(Math.max(1, Math.min(20, limit)))
+  if (error) throw new Error(error.message || 'Failed to load transcription jobs.')
+  return ((data as unknown as LyricTranscriptionJobRow[] | null) ?? []).map(mapJob)
+}
 
 /**
- * @deprecated Use a specific LyricTranscriptionProvider instead.
- * Kept to avoid breaking existing callers.
+ * Browser-file transcription was intentionally removed. New files must first
+ * pass through the existing persisted audio-track upload workflow, after which
+ * startLyricTranscription() addresses the file by audio_tracks.id.
  */
-export async function extractLyricsFromAudio(
-  _file: File,
-  _options: LyricExtractionOptions,
-): Promise<LyricExtractionResult> {
-  const provider = getConfiguredLyricProvider()
-  if (provider) {
-    throw new Error(
-      `Use provider.transcribe() instead. Configured provider: ${provider.name}. ` +
-      'extractLyricsFromAudio() is deprecated.'
-    )
-  }
-  throw new Error(
-    'AI lyric extraction is not yet implemented. ' +
-    'Connect a backend transcription service (e.g. Whisper via Supabase Edge Function) to enable this feature.'
-  )
+export async function extractLyricsFromAudio(): Promise<never> {
+  throw new Error('Store the audio track first, then start extraction from its Lyric Manager track record.')
 }
 
 // ── Active lyric tracker (runtime interpolation) ──────────────────────────────
