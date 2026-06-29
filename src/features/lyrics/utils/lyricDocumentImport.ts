@@ -12,6 +12,7 @@ import type {
 import {
   isLyricDocumentSourceFormat,
   isLyricDocumentSourceType,
+  toCanonicalLyricMs,
 } from '../../../types/lyrics'
 import { parseLyricCueJson, LyricParseError } from '../../../lib/lyricsImport'
 
@@ -136,7 +137,7 @@ export function parseLyricDocumentJson(input: string): LyricDocumentImportResult
       result.documentPatch.rawSourceText = doc.rawSourceText
     }
     if (typeof doc.globalOffsetMs === 'number' && isFinite(doc.globalOffsetMs)) {
-      result.documentPatch.globalOffsetMs = doc.globalOffsetMs
+      result.documentPatch.globalOffsetMs = toCanonicalLyricMs(doc.globalOffsetMs)
     }
     if (isPlainObject(doc.metadata)) {
       result.documentPatch.metadata = doc.metadata as Record<string, unknown>

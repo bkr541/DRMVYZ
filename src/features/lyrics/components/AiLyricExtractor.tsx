@@ -235,8 +235,8 @@ export function AiLyricExtractor({
       <div className="lmv-section-label" style={{ marginTop: 16 }}>EXTRACTION SETTINGS</div>
       <div className="lmv-grid2">
         <div className="lmv-field">
-          <label className="lmv-field-label">LANGUAGE</label>
-          <select className="lmv-select" value={options.language}
+          <label className="lmv-field-label" htmlFor="lyric-extraction-language">LANGUAGE</label>
+          <select id="lyric-extraction-language" className="lmv-select" value={options.language}
             disabled={active}
             onChange={event => setOptions(current => ({ ...current, language: event.target.value }))}>
             <option value="auto">Auto-detect</option>
@@ -248,23 +248,23 @@ export function AiLyricExtractor({
           </select>
         </div>
         <div className="lmv-field">
-          <label className="lmv-field-label">TIMING DETAIL</label>
-          <select className="lmv-select" value={options.timingDetail}
+          <label className="lmv-field-label" htmlFor="lyric-extraction-timing">TIMING DETAIL</label>
+          <select id="lyric-extraction-timing" className="lmv-select" value={options.timingDetail}
             disabled={active}
             onChange={event => setOptions(current => ({ ...current, timingDetail: event.target.value as LyricTranscriptionOptions['timingDetail'] }))}>
             {TIMING_OPTS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
         </div>
         <div className="lmv-field">
-          <label className="lmv-field-label">GLOBAL OFFSET MS</label>
-          <input className="lmv-num" type="number" step={50} value={options.globalOffsetMs ?? 0}
+          <label className="lmv-field-label" htmlFor="lyric-extraction-offset">GLOBAL OFFSET MS</label>
+          <input id="lyric-extraction-offset" className="lmv-num" type="number" step={50} value={options.globalOffsetMs ?? 0}
             disabled={active}
             onChange={event => setOptions(current => ({ ...current, globalOffsetMs: Number.parseInt(event.target.value, 10) || 0 }))} />
         </div>
         <div className="lmv-field">
-          <label className="lmv-field-label">CONFIDENCE THRESHOLD</label>
+          <label className="lmv-field-label" htmlFor="lyric-extraction-confidence">CONFIDENCE THRESHOLD</label>
           <div className="lmv-slider-row">
-            <input type="range" className="lmv-slider" min={0} max={1} step={0.05}
+            <input id="lyric-extraction-confidence" type="range" className="lmv-slider" min={0} max={1} step={0.05}
               disabled={active}
               value={options.confidenceThreshold ?? 0.6}
               onChange={event => setOptions(current => ({ ...current, confidenceThreshold: Number.parseFloat(event.target.value) }))} />
@@ -288,10 +288,10 @@ export function AiLyricExtractor({
             </div>
             <span className="lmv-job-progress-label">{progressPercent}%</span>
           </div>
-          <div className="lmv-job-progress" aria-label={`Transcription progress ${progressPercent}%`}>
+          <div className="lmv-job-progress" role="progressbar" aria-label="Transcription progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent}>
             <div style={{ width: `${progressPercent}%` }} />
           </div>
-          {job.errorMessage && <div className="lmv-job-error">{job.errorMessage}</div>}
+          {job.errorMessage && <div className="lmv-job-error" role="alert">{job.errorMessage}</div>}
           {active && (
             <div className="lmv-import-actions">
               <button className="lmv-btn lmv-btn--ghost" disabled={actionBusy} onClick={() => { void handleCancel() }}>Cancel</button>
@@ -307,8 +307,8 @@ export function AiLyricExtractor({
         </div>
       )}
 
-      {notice && <div className="lmv-msg-list lmv-msg-list--warn"><div className="lmv-msg-item">{notice}</div></div>}
-      {error && <div className="lmv-msg-list lmv-msg-list--error"><div className="lmv-msg-item">✕ {error}</div></div>}
+      {notice && <div className="lmv-msg-list lmv-msg-list--warn" role="status" aria-live="polite"><div className="lmv-msg-item">{notice}</div></div>}
+      {error && <div className="lmv-msg-list lmv-msg-list--error" role="alert"><div className="lmv-msg-item">✕ {error}</div></div>}
 
       {job?.status === 'completed' && document && (
         <>

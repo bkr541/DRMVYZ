@@ -144,6 +144,8 @@ let _sdClips:  SoundDrawingClip[]  = []
 let _sdLyricPlayback: LyricPlaybackState = EMPTY_LYRIC_PLAYBACK_STATE
 let _sdLyricDocumentKey = 'none:none:none:0'
 let _sdExpectedAudioTrackId: string | null = null
+let _sdTrailResetRevision = 0
+const trailResetSeenMap = new WeakMap<CanvasRenderingContext2D, number>()
 
 const lyricTextRuntime = new SoundDrawingLyricTextRuntime()
 let textGeometryBuildCount = 0
@@ -166,6 +168,7 @@ export function getSoundDrawingRuntimeCacheStats(): {
   openTypeTextEntries: number
   previousLyricEntries: number
   textGeometryBuildCount: number
+  trailResetRevision: number
 } {
   let canvasTextEntries = 0
   for (const key of pathCache.keys()) {
@@ -176,6 +179,7 @@ export function getSoundDrawingRuntimeCacheStats(): {
     openTypeTextEntries: getRuntimeOpenTypeTextGeometryStats().entries,
     previousLyricEntries: lyricTextRuntime.size,
     textGeometryBuildCount,
+    trailResetRevision: _sdTrailResetRevision,
   }
 }
 
@@ -198,6 +202,7 @@ export function setSoundDrawingClipsForFrame(
   ].join(':')
   if (nextDocumentKey !== _sdLyricDocumentKey) {
     _sdLyricDocumentKey = nextDocumentKey
+    _sdTrailResetRevision += 1
     clearSoundDrawingRuntimeCaches()
   }
 }
@@ -1579,6 +1584,31 @@ function hasSvgGlyphPoints(osc: OscillatorSettings, params: ReactRenderParams): 
   return findNearestSvgGlyphCacheEntry(params.oscillatorGlyphPointCache, asset.id, res, asset.contentHash) !== null
 }
 
+function resetTrailForLyricDocumentIfNeeded(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  background: string,
+  lyricDrivenTextActive: boolean,
+): void {
+  if (!lyricDrivenTextActive || trailResetSeenMap.get(ctx) === _sdTrailResetRevision) return
+
+  const trailCanvas = getTrail(ctx, W, H)
+  const trailContext = trailCanvas.getContext('2d')
+  if (trailContext) {
+    trailContext.save()
+    trailContext.globalCompositeOperation = 'source-over'
+    trailContext.globalAlpha = 1
+    trailContext.fillStyle = background
+    trailContext.fillRect(0, 0, trailCanvas.width, trailCanvas.height)
+    trailContext.restore()
+  }
+
+  ctx.fillStyle = background
+  ctx.fillRect(0, 0, W, H)
+  trailResetSeenMap.set(ctx, _sdTrailResetRevision)
+}
+
 // ── Public export ─────────────────────────────────────────────────────────────
 
 // ── Clip rendering helpers ────────────────────────────────────────────────────
@@ -1638,12 +1668,18 @@ function renderSoundDrawingClips(
   const timeSec = frame.timeSec ?? 0
   const layerMap = new Map(layers.map(l => [l.id, l]))
 
-  // Filter to active, enabled clips in z-order
+  // Filter to active, enabled clips in z-order. Runtime state belonging to
+  // inactive layers is discarded so lyric text does not linger between clips.
   const activeClips = clips
     .filter(c => c.enabled && timeSec >= c.startSec && timeSec < c.endSec)
     .sort((a, b) => a.zIndex - b.zIndex)
-
-  if (activeClips.length === 0) return
+  const activeLayerIds = new Set(activeClips.map(clip => clip.layerId))
+  for (const layer of layers) {
+    if (!layer.enabled || !activeLayerIds.has(layer.id)) {
+      lyricTextRuntime.delete(`layer:${layer.id}`)
+    }
+  }
+  lyricTextRuntime.delete('global')
 
   const trailCanvas = getTrail(ctx, W, H)
   const tctx        = trailCanvas.getContext('2d')
@@ -1651,6 +1687,15 @@ function renderSoundDrawingClips(
 
   const decayRate = params.trailDecay * 0.25 + 0.01
   fadeTrail(trailCanvas, preset.palette.background, decayRate)
+
+  // Continue fading and repainting during gaps instead of leaving the final
+  // lyric frame frozen on the canvas.
+  if (activeClips.length === 0) {
+    ctx.fillStyle = preset.palette.background
+    ctx.fillRect(0, 0, W, H)
+    ctx.drawImage(trailCanvas, 0, 0)
+    return
+  }
 
   for (const clip of activeClips) {
     const layer = layerMap.get(clip.layerId)
@@ -1696,6 +1741,18 @@ export function renderSoundDrawing(
   const { W, H, dpr } = frame
   const intMul = params.intensity
   const osc    = params.oscillator
+
+  const lyricDrivenTextActive = _sdClips.length > 0
+    ? _sdLayers.some(layer => (
+        layer.enabled &&
+        layer.sourceType === 'text' &&
+        (layer.textSource === 'activeLyricLine' || layer.textSource === 'activeLyricWord')
+      ))
+    : osc.sourceType === 'text' &&
+      (osc.textSource === 'activeLyricLine' || osc.textSource === 'activeLyricWord')
+  resetTrailForLyricDocumentIfNeeded(
+    ctx, W, H, preset.palette.background, lyricDrivenTextActive,
+  )
 
   // If clips are active for this frame, render through clip pipeline instead
   if (_sdClips.length > 0) {

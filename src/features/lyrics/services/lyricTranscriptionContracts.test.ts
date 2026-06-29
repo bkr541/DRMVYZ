@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import migrationSql from '../../../../supabase/migrations/0016_lyric_transcription_jobs.sql?raw'
+import finalAuditMigrationSql from '../../../../supabase/migrations/0017_lyric_final_audit.sql?raw'
 import edgeFunctionSource from '../../../../supabase/functions/lyric-transcription/index.ts?raw'
 import clientSource from './lyricExtraction.ts?raw'
 
 const compact = (value: string) => value.replace(/\s+/g, ' ').trim()
 const sql = compact(migrationSql)
+const finalAuditSql = compact(finalAuditMigrationSql)
 
 describe('secure lyric transcription contracts', () => {
   it('creates owned resumable jobs with constrained statuses, progress, indexes, and RLS', () => {
@@ -16,6 +18,13 @@ describe('secure lyric transcription contracts', () => {
     expect(sql).toContain('USING (auth.uid() = user_id)')
     expect(sql).not.toContain('FOR UPDATE TO authenticated')
     expect(sql).not.toContain('FOR INSERT TO authenticated')
+  })
+
+  it('bounds provider metadata and request options at the database boundary', () => {
+    expect(finalAuditSql).toContain('lyric_transcription_jobs_provider_metadata_size_check')
+    expect(finalAuditSql).toContain('octet_length(provider_metadata::text) <= 524288')
+    expect(finalAuditSql).toContain('lyric_transcription_jobs_request_options_size_check')
+    expect(finalAuditSql).toContain('octet_length(request_options::text) <= 16384')
   })
 
   it('verifies audio-track ownership and prevents duplicate active jobs server-side', () => {

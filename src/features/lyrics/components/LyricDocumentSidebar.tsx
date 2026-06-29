@@ -108,8 +108,8 @@ function DocumentCard({
             }}
             aria-label="Lyric document name"
           />
-          <button className="lmv-icon-btn" onClick={() => onCommitRename(renameValue.trim())} disabled={!renameValue.trim()}>✓</button>
-          <button className="lmv-icon-btn" onClick={onCancelRename}>×</button>
+          <button type="button" className="lmv-icon-btn" onClick={() => onCommitRename(renameValue.trim())} disabled={!renameValue.trim()} aria-label="Save lyric document name">✓</button>
+          <button type="button" className="lmv-icon-btn" onClick={onCancelRename} aria-label="Cancel lyric document rename">×</button>
         </div>
       ) : (
         <button className="lmv-doc-card-main" onClick={onSelectDocument}>
@@ -191,6 +191,7 @@ export function LyricDocumentSidebar({
         <input
           className="lmv-doc-search"
           placeholder="Search versions…"
+          aria-label="Search lyric versions"
           value={search}
           onChange={event => setSearch(event.target.value)}
         />
@@ -206,6 +207,7 @@ export function LyricDocumentSidebar({
             key={item.id}
             className={`lmv-filter-chip${filter === item.id ? ' lmv-filter-chip--active' : ''}`}
             onClick={() => setFilter(item.id)}
+            aria-pressed={filter === item.id}
           >
             {item.label}
           </button>

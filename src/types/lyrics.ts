@@ -69,6 +69,12 @@ export type LyricSectionType =
 export type LyricAnalysisMetadata = Record<string, unknown>
 export type LyricConfidenceStrategy = 'clamp' | 'reject'
 
+/** Canonical persisted lyric timing uses finite integer milliseconds. */
+export function toCanonicalLyricMs(value: number, fallback = 0): number {
+  const safeFallback = Number.isFinite(fallback) ? Math.round(fallback) : 0
+  return Number.isFinite(value) ? Math.round(value) : safeFallback
+}
+
 const LYRIC_SOURCES: readonly LyricSource[] = [
   'manual', 'import', 'transcription', 'corrected', 'generated', 'unknown',
 ]
@@ -430,6 +436,8 @@ export function normalizeLyricWordMetadata(
 
   return {
     ...base,
+    startMs: toCanonicalLyricMs(base.startMs),
+    endMs: toCanonicalLyricMs(base.endMs),
     ...(confidence !== undefined ? { confidence } : {}),
     ...(source !== undefined ? { source } : {}),
     ...(reviewStatus !== undefined ? { reviewStatus } : {}),
@@ -652,7 +660,7 @@ export function mapLyricDocumentRowToDocument(row: LyricDocumentRow): LyricDocum
     defaultStyle:     row.default_style,
     defaultAnimation: row.default_animation,
     defaultEffects:   row.default_effects,
-    globalOffsetMs:   row.global_offset_ms,
+    globalOffsetMs:   toCanonicalLyricMs(row.global_offset_ms),
     isActive:         row.is_active,
     metadata:         row.metadata,
     revision:         typeof row.revision === 'number' ? row.revision : 1,
@@ -693,8 +701,8 @@ export function mapLyricCueRowToCue(row: LyricCueRow): LyricCue {
 
   return {
     id:        row.id,
-    startMs:   row.start_ms,
-    endMs:     row.end_ms,
+    startMs:   toCanonicalLyricMs(row.start_ms),
+    endMs:     toCanonicalLyricMs(row.end_ms),
     text:      row.text,
     style:     nonEmptyObject<Partial<LyricStyle>>(row.style),
     animation: nonEmptyObject<Partial<LyricAnimation>>(row.animation),
@@ -722,13 +730,13 @@ export function createLyricCueInputFromCue(
 ): CreateLyricCueInput {
   return {
     lyricDocumentId,
-    startMs: cue.startMs,
-    endMs: cue.endMs,
+    startMs: toCanonicalLyricMs(cue.startMs),
+    endMs: toCanonicalLyricMs(cue.endMs),
     text: cue.text,
     style: cue.style,
     animation: cue.animation,
     effects: cue.effects,
-    words: cue.words,
+    words: cue.words?.map(word => normalizeLyricWordMetadata(word, cue.source)),
     groups: cue.groups,
     sortOrder,
     confidence: cue.confidence,
@@ -749,8 +757,8 @@ export function mapLyricCueToInsert(cue: CreateLyricCueInput): LyricCueInsert {
 
   return {
     lyric_document_id: cue.lyricDocumentId,
-    start_ms:          cue.startMs,
-    end_ms:            cue.endMs,
+    start_ms:          toCanonicalLyricMs(cue.startMs),
+    end_ms:            toCanonicalLyricMs(cue.endMs),
     text:              cue.text,
     style:             cue.style      ?? {},
     animation:         cue.animation  ?? {},

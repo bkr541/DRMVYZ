@@ -174,9 +174,16 @@ function AudioTrackRow({
           {loading ? '…' : 'Load Track'}
         </button>
         <button
+          type="button"
           className="vz-track-remove-btn"
-          onClick={onRemove}
-          title="Remove track"
+          onClick={() => {
+            const confirmed = window.confirm(
+              `Delete “${track.title}”? This also deletes its saved lyric versions and transcription jobs.`,
+            )
+            if (confirmed) onRemove()
+          }}
+          title="Delete track and linked lyric data"
+          aria-label={`Delete ${track.title} and linked lyric data`}
         >
           <Delete02Icon size={12} color="currentColor" />
         </button>

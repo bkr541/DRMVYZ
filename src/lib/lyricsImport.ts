@@ -18,6 +18,7 @@ import {
   normalizeLyricSectionType,
   normalizeLyricSource,
   normalizeLyricWarnings,
+  toCanonicalLyricMs,
 } from '../types/lyrics'
 
 // ── Formatting ────────────────────────────────────────────────────────────────
@@ -142,22 +143,21 @@ function normalizeImportedSectionType(
     : { sectionType }
 }
 
-function parseImportedWord(raw: unknown, inferredSource: LyricSource): LyricWord | null {
+function parseImportedWord(
+  raw: unknown,
+  inferredSource: LyricSource,
+  fallbackIndex: number,
+): LyricWord | null {
   if (!isPlainObject(raw)) return null
 
-  // Preserve the existing permissive word import behavior while normalizing
-  // only the new optional metadata fields.
-  const {
-    confidence: _rawConfidence,
-    source: _rawSource,
-    reviewStatus: _rawReviewStatus,
-    reviewed: _legacyReviewed,
-    warnings: _rawWarnings,
-    normalizedText: _rawNormalizedText,
-    originalTranscriptionText: _rawOriginalText,
-    ...baseFields
-  } = raw
-  const base = baseFields as unknown as LyricWord
+  const text = typeof raw.text === 'string' ? raw.text.trim() : ''
+  if (!text || typeof raw.startMs !== 'number' || typeof raw.endMs !== 'number') return null
+  if (!Number.isFinite(raw.startMs) || !Number.isFinite(raw.endMs)) return null
+
+  const startMs = toCanonicalLyricMs(raw.startMs)
+  const endMs = toCanonicalLyricMs(raw.endMs)
+  if (startMs < 0 || endMs <= startMs) return null
+
   const confidenceResult = normalizeImportedConfidence(raw.confidence)
   const sourceResult = normalizeImportedSource(raw.source, inferredSource)
   const reviewResult = normalizeImportedReviewStatus(raw.reviewStatus, raw.reviewed)
@@ -169,7 +169,15 @@ function parseImportedWord(raw: unknown, inferredSource: LyricSource): LyricWord
   )
 
   return {
-    ...base,
+    id: typeof raw.id === 'string' && raw.id.trim()
+      ? raw.id.trim()
+      : `word_${String(fallbackIndex + 1).padStart(3, '0')}`,
+    text,
+    startMs,
+    endMs,
+    style: isPlainObject(raw.style) ? raw.style as Partial<LyricStyle> : undefined,
+    animation: isPlainObject(raw.animation) ? raw.animation as Partial<LyricAnimation> : undefined,
+    effects: isPlainObject(raw.effects) ? raw.effects as Partial<LyricEffects> : undefined,
     ...(confidenceResult.confidence !== undefined ? { confidence: confidenceResult.confidence } : {}),
     ...(sourceResult.source !== undefined ? { source: sourceResult.source } : {}),
     ...(reviewResult.reviewStatus !== undefined ? { reviewStatus: reviewResult.reviewStatus } : {}),
@@ -187,14 +195,20 @@ function parseRawCue(raw: RawCue, fallbackIndex: number): LyricCue {
   if (typeof raw.text !== 'string' || !raw.text.trim()) {
     throw new LyricParseError(`Cue ${idx}: "text" must be a non-empty string`, fallbackIndex)
   }
-  if (typeof raw.startMs !== 'number') {
-    throw new LyricParseError(`Cue ${idx}: "startMs" must be a number`, fallbackIndex)
+  if (typeof raw.startMs !== 'number' || !Number.isFinite(raw.startMs)) {
+    throw new LyricParseError(`Cue ${idx}: "startMs" must be a finite number`, fallbackIndex)
   }
-  if (typeof raw.endMs !== 'number') {
-    throw new LyricParseError(`Cue ${idx}: "endMs" must be a number`, fallbackIndex)
+  if (typeof raw.endMs !== 'number' || !Number.isFinite(raw.endMs)) {
+    throw new LyricParseError(`Cue ${idx}: "endMs" must be a finite number`, fallbackIndex)
   }
-  if (raw.endMs <= raw.startMs) {
-    throw new LyricParseError(`Cue ${idx}: "endMs" (${raw.endMs}) must be greater than "startMs" (${raw.startMs})`, fallbackIndex)
+
+  const startMs = toCanonicalLyricMs(raw.startMs)
+  const endMs = toCanonicalLyricMs(raw.endMs)
+  if (startMs < 0) {
+    throw new LyricParseError(`Cue ${idx}: "startMs" must be zero or greater`, fallbackIndex)
+  }
+  if (endMs <= startMs) {
+    throw new LyricParseError(`Cue ${idx}: canonical "endMs" (${endMs}) must be greater than "startMs" (${startMs})`, fallbackIndex)
   }
 
   const id = typeof raw.id === 'string' && raw.id.trim()
@@ -203,11 +217,13 @@ function parseRawCue(raw: RawCue, fallbackIndex: number): LyricCue {
 
   const sourceResult = normalizeImportedSource(raw.source, 'import')
   const inferredSource = sourceResult.source ?? 'import'
-  const words = Array.isArray(raw.words)
-    ? raw.words
-        .map(word => parseImportedWord(word, inferredSource))
-        .filter((word): word is LyricWord => word !== null)
-    : undefined
+  const rawWords = Array.isArray(raw.words) ? raw.words : []
+  const words = rawWords
+    .map((word, wordIndex) => parseImportedWord(word, inferredSource, wordIndex))
+    .filter((word): word is LyricWord => word !== null)
+  const invalidWordWarnings: LyricWarning[] = words.length < rawWords.length
+    ? ['missing_word_timing']
+    : []
   const confidenceResult = normalizeImportedConfidence(raw.confidence)
   const confidence = confidenceResult.confidence ?? calculateLyricCueConfidence(words)
   const reviewResult = normalizeImportedReviewStatus(raw.reviewStatus, raw.reviewed)
@@ -218,17 +234,18 @@ function parseRawCue(raw: RawCue, fallbackIndex: number): LyricCue {
     sourceResult.warnings,
     reviewResult.warnings,
     sectionResult.warnings,
+    invalidWordWarnings,
   )
 
   return {
     id,
-    startMs:   raw.startMs,
-    endMs:     raw.endMs,
+    startMs,
+    endMs,
     text:      raw.text.trim(),
     style:     isPlainObject(raw.style)     ? (raw.style     as Partial<LyricStyle>)       : undefined,
     animation: isPlainObject(raw.animation) ? (raw.animation as Partial<LyricAnimation>) : undefined,
     effects:   isPlainObject(raw.effects)   ? (raw.effects   as Partial<LyricEffects>)    : undefined,
-    words:     words && words.length > 0 ? words : undefined,
+    words:     words.length > 0 ? words : undefined,
     groups:    Array.isArray(raw.groups) ? (raw.groups as LyricGroup[]) : undefined,
     confidence,
     source: inferredSource,

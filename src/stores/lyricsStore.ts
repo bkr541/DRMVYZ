@@ -27,7 +27,7 @@ import type {
   LyricPersistenceFailure,
   SaveLyricDocumentResult,
 } from '../types/lyrics'
-import { createLyricCueInputFromCue } from '../types/lyrics'
+import { createLyricCueInputFromCue, toCanonicalLyricMs } from '../types/lyrics'
 
 // ── State shape ───────────────────────────────────────────────────────────────
 
@@ -161,7 +161,7 @@ function activeDocumentState(
     draftDefaultStyle:     document?.defaultStyle     ?? {},
     draftDefaultAnimation: document?.defaultAnimation ?? {},
     draftDefaultEffects:   document?.defaultEffects   ?? {},
-    globalOffsetMs:        document?.globalOffsetMs   ?? 0,
+    globalOffsetMs:        toCanonicalLyricMs(document?.globalOffsetMs ?? 0),
     draftSourceType:       null,
     draftSourceFormat:     null,
     draftRawSourceText:    null,
@@ -221,7 +221,7 @@ function buildDocumentInput(state: LyricsState): CreateLyricDocumentInput {
     defaultStyle: state.draftDefaultStyle,
     defaultAnimation: state.draftDefaultAnimation,
     defaultEffects: state.draftDefaultEffects,
-    globalOffsetMs: state.globalOffsetMs,
+    globalOffsetMs: toCanonicalLyricMs(state.globalOffsetMs),
     metadata: importedSource
       ? state.draftMetadata ?? {}
       : current?.metadata ?? {},
@@ -291,7 +291,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       cueId,
     )
   }),
-  setGlobalOffsetMs: (offsetMs)  => set(state => ({ globalOffsetMs: offsetMs, editorDirty: state.editorSessionActive ? true : state.editorDirty })),
+  setGlobalOffsetMs: (offsetMs)  => set(state => ({ globalOffsetMs: toCanonicalLyricMs(offsetMs), editorDirty: state.editorSessionActive ? true : state.editorDirty })),
   setDraftTitle:     (title)     => set(state => ({ draftTitle: title, editorDirty: state.editorSessionActive ? true : state.editorDirty })),
   setDraftArtist:    (artist)    => set(state => ({ draftArtist: artist, editorDirty: state.editorSessionActive ? true : state.editorDirty })),
 
@@ -464,8 +464,9 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
   loadLyricsForAudioTrack: async (audioTrackId, force = false) => {
     const current = get()
     // React StrictMode and provider re-renders may repeat the same linkage. Preserve
-    // current edits and avoid another request until a genuinely different track is selected.
-    if (!force && current.activeAudioTrackId === audioTrackId) return
+    // current edits and deduplicate successful lookups, while allowing a normal
+    // same-track request to retry after a transient failure.
+    if (!force && current.activeAudioTrackId === audioTrackId && current.error === null) return
 
     const generation = beginLyricLoad()
     set({

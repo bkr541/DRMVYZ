@@ -125,6 +125,19 @@ describe('lyricsStore active audio-track synchronization', () => {
     expect(lyricDbMocks.getActiveLyricDocumentForAudioTrack).toHaveBeenCalledTimes(1)
   })
 
+  it('retries the same track after a failed automatic lookup', async () => {
+    lyricDbMocks.getActiveLyricDocumentForAudioTrack
+      .mockRejectedValueOnce(new Error('temporary lookup failure'))
+      .mockResolvedValueOnce(null)
+
+    await useLyricsStore.getState().loadLyricsForAudioTrack('track-a')
+    expect(useLyricsStore.getState().error).toContain('temporary lookup failure')
+
+    await useLyricsStore.getState().loadLyricsForAudioTrack('track-a')
+    expect(lyricDbMocks.getActiveLyricDocumentForAudioTrack).toHaveBeenCalledTimes(2)
+    expect(useLyricsStore.getState().error).toBeNull()
+  })
+
   it('clearing the active track invalidates an in-flight request and clears active lyrics', async () => {
     const pendingDocument = deferred<LyricDocument | null>()
     lyricDbMocks.getActiveLyricDocumentForAudioTrack.mockReturnValue(pendingDocument.promise)

@@ -115,6 +115,16 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
 
   async uploadAndSaveTrack(params) {
     const { file, title, artist, genre, bpmInput, musicalKey, userId, analysis } = params
+    let uploadedStoragePath: string | null = null
+    let databaseTrackCreated = false
+
+    const cleanupUnpersistedUpload = async () => {
+      if (!uploadedStoragePath || databaseTrackCreated) return
+      const { error } = await deleteAudioFiles([uploadedStoragePath])
+      if (error) console.warn('[audioStore] orphan cleanup:', error)
+      uploadedStoragePath = null
+    }
+
     try {
       // Derive final title: prefer user input, fall back to filename
       const finalTitle = title.trim() || getFilenameWithoutExtension(file.name)
@@ -122,10 +132,13 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
       // Build a unique storage path matching the media-items pattern
       const tempId   = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
       const storagePath = `${userId}/${tempId}/${file.name}`
+      uploadedStoragePath = storagePath
 
       const { error: uploadErr } = await uploadAudioFile(storagePath, file, file.type)
       if (uploadErr) {
+        uploadedStoragePath = null
         console.error('[audioStore] storage upload:', uploadErr)
+        set({ loadError: interpretError(uploadErr) })
         return null
       }
 
@@ -150,9 +163,13 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
       })
 
       if (dbErr || !dbId) {
-        console.error('[audioStore] db insert:', dbErr)
+        const message = dbErr || 'Audio track record was not created'
+        console.error('[audioStore] db insert:', message)
+        await cleanupUnpersistedUpload()
+        set({ loadError: interpretError(message) })
         return null
       }
+      databaseTrackCreated = true
 
       // Persist analysis data to track_analyses when available
       if (analysis) {
@@ -198,10 +215,13 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
         createdAt:    new Date().toISOString(),
       }
 
-      set(s => ({ savedTracks: [saved, ...s.savedTracks] }))
+      set(state => ({ savedTracks: [saved, ...state.savedTracks], loadError: null }))
       return saved
     } catch (e) {
+      await cleanupUnpersistedUpload()
+      const message = e instanceof Error ? interpretError(e.message) : 'Unexpected error saving track'
       console.error('[audioStore] uploadAndSaveTrack:', e)
+      set({ loadError: message })
       return null
     }
   },
@@ -213,14 +233,37 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
   },
 
   removeSavedTrack(id) {
-    const track = get().savedTracks.find(t => t.id === id)
+    const track = get().savedTracks.find(item => item.id === id)
     if (!track) return
-    set(s => ({ savedTracks: s.savedTracks.filter(t => t.id !== id) }))
-    if (track.storagePath && supabaseConfigured) {
-      Promise.all([
-        deleteAudioTrack(track.dbId),
-        deleteAudioFiles([track.storagePath]),
-      ]).catch(e => console.error('[audioStore] delete:', e))
+
+    if (!supabaseConfigured) {
+      set({ loadError: 'Supabase is not configured.' })
+      return
     }
+
+    void (async () => {
+      const { error: databaseError } = await deleteAudioTrack(track.dbId)
+      if (databaseError) {
+        set({ loadError: `Track deletion failed: ${interpretError(databaseError)}` })
+        return
+      }
+
+      // Remove the row from local state only after the database transaction has
+      // succeeded. The database owns lyric/job cascades; storage cleanup follows.
+      set(state => ({
+        savedTracks: state.savedTracks.filter(item => item.id !== id),
+        loadError: null,
+      }))
+
+      if (!track.storagePath) return
+      const { error: storageError } = await deleteAudioFiles([track.storagePath])
+      if (storageError) {
+        set({ loadError: `Track deleted, but audio cleanup failed: ${interpretError(storageError)}` })
+      }
+    })().catch(error => {
+      const message = error instanceof Error ? error.message : 'Unexpected track deletion error'
+      console.error('[audioStore] delete:', error)
+      set({ loadError: `Track deletion failed: ${interpretError(message)}` })
+    })
   },
 }))

@@ -14,11 +14,13 @@ const { textToGlyphPoints } = vi.hoisted(() => ({
 vi.mock('../textGlyphUtils', () => ({ textToGlyphPoints }))
 
 import { DEFAULT_OSCILLATOR_SETTINGS } from '../../ReactTypes'
+import { EMPTY_LYRIC_PLAYBACK_STATE } from '../../../../../features/lyrics/runtime/lyricPlaybackResolver'
 import { DEFAULT_REACT_RENDER_PARAMS } from '../reactRenderUtils'
 import {
   clearSoundDrawingRuntimeCaches,
   getSoundDrawingPathPointsForTest,
   getSoundDrawingRuntimeCacheStats,
+  setSoundDrawingClipsForFrame,
 } from '../SoundDrawingRenderer'
 
 describe('Sound Drawing lyric text geometry cache', () => {
@@ -54,6 +56,27 @@ describe('Sound Drawing lyric text geometry cache', () => {
       oscillator: { ...first.oscillator, textLetterSpacing: 12 },
     })
     expect(textToGlyphPoints).toHaveBeenCalledTimes(3)
+  })
+
+  it('schedules a trail reset whenever the lyric track or document identity changes', () => {
+    const initialRevision = getSoundDrawingRuntimeCacheStats().trailResetRevision
+    setSoundDrawingClipsForFrame([], [], {
+      ...EMPTY_LYRIC_PLAYBACK_STATE,
+      sourceIdentity: 'track-a:document-a',
+      documentId: 'document-a',
+      timelineRevision: 1,
+    }, 'track-a')
+    const firstRevision = getSoundDrawingRuntimeCacheStats().trailResetRevision
+
+    setSoundDrawingClipsForFrame([], [], {
+      ...EMPTY_LYRIC_PLAYBACK_STATE,
+      sourceIdentity: 'track-b:document-b',
+      documentId: 'document-b',
+      timelineRevision: 1,
+    }, 'track-b')
+
+    expect(firstRevision).toBeGreaterThan(initialRevision)
+    expect(getSoundDrawingRuntimeCacheStats().trailResetRevision).toBeGreaterThan(firstRevision)
   })
 
   it('releases replaced text geometry and runtime state on cleanup', () => {

@@ -799,12 +799,16 @@ export function LyricManagerView({ onBack }: Props) {
       {(error || statusMsg) && (
         <div
           className={`lmv-status-bar${error ? ' lmv-status-bar--error' : ' lmv-status-bar--ok'}`}
+          role={error ? 'alert' : 'status'}
+          aria-live={error ? 'assertive' : 'polite'}
         >
           {error ?? statusMsg}
           {error && (
             <button
+              type="button"
               className="lmv-status-dismiss"
               onClick={() => setError(null)}
+              aria-label="Dismiss lyric manager error"
             >
               ×
             </button>
@@ -897,7 +901,7 @@ export function LyricManagerView({ onBack }: Props) {
         />
 
         <div className="lmv-center">
-          <div className="lmv-tab-bar">
+          <div className="lmv-tab-bar" role="tablist" aria-label="Lyric workflow">
             {TAB_LABELS.map((tab) => {
               const disabled = tab.id === 'ai'
                 ? !selectedTrack
@@ -905,6 +909,11 @@ export function LyricManagerView({ onBack }: Props) {
               return (
                 <button
                   key={tab.id}
+                  id={`lyric-tab-${tab.id}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  aria-controls={`lyric-panel-${tab.id}`}
                   className={`lmv-tab-btn${activeTab === tab.id ? ' lmv-tab-btn--active' : ''}${disabled ? ' lmv-tab-btn--disabled' : ''}`}
                   onClick={() => {
                     if (!disabled) setActiveTab(tab.id)
@@ -918,7 +927,7 @@ export function LyricManagerView({ onBack }: Props) {
             })}
           </div>
 
-          <div className="lmv-tab-content">
+          <div className="lmv-tab-content" id={`lyric-panel-${activeTab}`} role="tabpanel" aria-labelledby={`lyric-tab-${activeTab}`}>
             {editorPlaceholder && activeTab === 'manual' ? (
               <div className="lmv-editor-placeholder">
                 <div>{editorPlaceholder}</div>
