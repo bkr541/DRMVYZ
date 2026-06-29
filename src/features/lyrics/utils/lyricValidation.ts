@@ -1,4 +1,5 @@
 import type { LyricCue } from '../../../types/lyrics'
+import { isValidLyricConfidence } from '../../../types/lyrics'
 
 // ── Result shape ──────────────────────────────────────────────────────────────
 
@@ -57,6 +58,9 @@ export function validateLyricCues(cues: LyricCue[]): LyricValidationResult {
     if (isFinite(cue.startMs) && isFinite(cue.endMs) && cue.endMs <= cue.startMs) {
       errors.push(`Cue ${idx}: endMs (${cue.endMs}) must be > startMs (${cue.startMs})`)
     }
+    if (cue.confidence !== undefined && !isValidLyricConfidence(cue.confidence)) {
+      errors.push(`Cue ${idx}: confidence must be between 0 and 1`)
+    }
 
     if (i > 0) {
       const prev = cues[i - 1]
@@ -71,6 +75,9 @@ export function validateLyricCues(cues: LyricCue[]): LyricValidationResult {
         const word = cue.words[wi]
         if (word.endMs <= word.startMs) {
           errors.push(`Cue ${idx}, word ${wi + 1}: endMs <= startMs`)
+        }
+        if (word.confidence !== undefined && !isValidLyricConfidence(word.confidence)) {
+          errors.push(`Cue ${idx}, word ${wi + 1}: confidence must be between 0 and 1`)
         }
         if (isFinite(cue.startMs) && isFinite(cue.endMs)) {
           if (word.startMs < cue.startMs || word.endMs > cue.endMs) {

@@ -20,6 +20,11 @@ import {
   mapLyricDocumentRowToDocument,
   mapLyricCueRowToCue,
   mapLyricCueToInsert,
+  normalizeLyricConfidence,
+  normalizeLyricSectionType,
+  normalizeLyricSource,
+  normalizeLyricWarnings,
+  normalizeLyricWordMetadata,
 } from '../types/lyrics'
 
 // supabase-js v2 createClient<Database> can infer `never` for tables
@@ -259,9 +264,29 @@ export async function updateLyricCue(
   if (input.style     !== undefined) patch.style      = input.style
   if (input.animation !== undefined) patch.animation  = input.animation
   if (input.effects   !== undefined) patch.effects    = input.effects
-  if (input.words     !== undefined) patch.words      = input.words
+  if (input.words !== undefined) {
+    patch.words = input.words.map(word => normalizeLyricWordMetadata(word, input.source ?? undefined))
+  }
   if (input.groups    !== undefined) patch.groups     = input.groups
   if (input.sortOrder !== undefined) patch.sort_order = input.sortOrder
+  if (input.confidence !== undefined) {
+    patch.confidence = input.confidence === null
+      ? null
+      : normalizeLyricConfidence(input.confidence)
+  }
+  if (input.source !== undefined) {
+    patch.source = input.source === null ? null : normalizeLyricSource(input.source)
+  }
+  if (input.reviewStatus !== undefined) patch.review_status = input.reviewStatus
+  if (input.sectionId !== undefined) patch.section_id = input.sectionId
+  if (input.sectionType !== undefined) {
+    patch.section_type = input.sectionType === null ? null : normalizeLyricSectionType(input.sectionType)
+  }
+  if (input.warnings !== undefined) patch.warnings = normalizeLyricWarnings(input.warnings) ?? []
+  if (input.analysisMetadata !== undefined) patch.analysis_metadata = input.analysisMetadata
+  if (input.originalTranscriptionText !== undefined) {
+    patch.original_transcription_text = input.originalTranscriptionText
+  }
 
   const { data, error } = await db
     .from('lyric_cues')

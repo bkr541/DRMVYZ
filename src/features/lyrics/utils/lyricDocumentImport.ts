@@ -9,6 +9,10 @@ import type {
   LyricDocumentSourceType,
   LyricDocumentSourceFormat,
 } from '../../../types/lyrics'
+import {
+  isLyricDocumentSourceFormat,
+  isLyricDocumentSourceType,
+} from '../../../types/lyrics'
 import { parseLyricCueJson, LyricParseError } from '../../../lib/lyricsImport'
 
 // ── Result shape ──────────────────────────────────────────────────────────────
@@ -49,7 +53,8 @@ function isPlainObject(val: unknown): val is Record<string, unknown> {
  *   3. Full document:   { title, artist, defaultStyle, ..., cues: [...] }
  *
  * Always attempts to extract cues. Document-level fields are extracted when
- * the input is a full document object.
+ * the input is a full document object. Because this function is specifically a
+ * JSON importer, its source metadata is safely inferred when not supplied.
  */
 export function parseLyricDocumentJson(input: string): LyricDocumentImportResult {
   const result: LyricDocumentImportResult = {
@@ -97,6 +102,12 @@ export function parseLyricDocumentJson(input: string): LyricDocumentImportResult
     }
   }
 
+  if (result.errors.length === 0) {
+    result.documentPatch.sourceType = 'json_import'
+    result.documentPatch.sourceFormat = 'json'
+    result.documentPatch.rawSourceText = input
+  }
+
   // Extract document-level fields when present
   if (isPlainObject(parsed) && result.detectedFormat === 'full_document') {
     const doc = parsed as Record<string, unknown>
@@ -107,11 +118,19 @@ export function parseLyricDocumentJson(input: string): LyricDocumentImportResult
     if (typeof doc.artist === 'string' && doc.artist.trim()) {
       result.documentPatch.artist = doc.artist.trim()
     }
-    if (typeof doc.sourceType === 'string') {
-      result.documentPatch.sourceType = doc.sourceType as LyricDocumentSourceType
+    if (doc.sourceType !== undefined) {
+      if (isLyricDocumentSourceType(doc.sourceType)) {
+        result.documentPatch.sourceType = doc.sourceType
+      } else {
+        result.warnings.push(`Unknown lyric document sourceType "${String(doc.sourceType)}"; using json_import`)
+      }
     }
-    if (typeof doc.sourceFormat === 'string') {
-      result.documentPatch.sourceFormat = doc.sourceFormat as LyricDocumentSourceFormat
+    if (doc.sourceFormat !== undefined) {
+      if (isLyricDocumentSourceFormat(doc.sourceFormat)) {
+        result.documentPatch.sourceFormat = doc.sourceFormat
+      } else {
+        result.warnings.push(`Unknown lyric document sourceFormat "${String(doc.sourceFormat)}"; using json`)
+      }
     }
     if (typeof doc.rawSourceText === 'string') {
       result.documentPatch.rawSourceText = doc.rawSourceText

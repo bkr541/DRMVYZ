@@ -1,7 +1,24 @@
 // Lyric import helpers — JSON parsing, timestamp formatting, and validation.
 // Does not call Supabase. Pure data transformation only.
 
-import type { LyricCue, LyricWord, LyricGroup, LyricStyle, LyricAnimation, LyricEffects } from '../types/lyrics'
+import type {
+  LyricCue,
+  LyricWord,
+  LyricGroup,
+  LyricStyle,
+  LyricAnimation,
+  LyricEffects,
+  LyricWarning,
+  LyricSource,
+} from '../types/lyrics'
+import {
+  calculateLyricCueConfidence,
+  normalizeLyricConfidence,
+  normalizeLyricReviewStatus,
+  normalizeLyricSectionType,
+  normalizeLyricSource,
+  normalizeLyricWarnings,
+} from '../types/lyrics'
 
 // ── Formatting ────────────────────────────────────────────────────────────────
 
@@ -48,18 +65,121 @@ export class LyricParseError extends Error {
 // ── Internal raw shape ────────────────────────────────────────────────────────
 
 interface RawCue {
-  id?:        unknown
-  startMs?:   unknown
-  endMs?:     unknown
-  text?:      unknown
-  style?:     unknown
-  animation?: unknown
-  effects?:   unknown
-  words?:     unknown
-  groups?:    unknown
+  id?:                        unknown
+  startMs?:                   unknown
+  endMs?:                     unknown
+  text?:                      unknown
+  style?:                     unknown
+  animation?:                 unknown
+  effects?:                   unknown
+  words?:                     unknown
+  groups?:                    unknown
+  confidence?:                unknown
+  source?:                    unknown
+  reviewStatus?:              unknown
+  reviewed?:                  unknown
+  sectionId?:                 unknown
+  sectionType?:               unknown
+  warnings?:                  unknown
+  analysisMetadata?:          unknown
+  originalTranscriptionText?: unknown
 }
 
 // ── Parsers ───────────────────────────────────────────────────────────────────
+
+function isPlainObject(val: unknown): val is Record<string, unknown> {
+  return typeof val === 'object' && val !== null && !Array.isArray(val)
+}
+
+function mergeWarnings(...sets: Array<LyricWarning[] | undefined>): LyricWarning[] | undefined {
+  const warnings = [...new Set(sets.flatMap(set => set ?? []))]
+  return warnings.length > 0 ? warnings : undefined
+}
+
+function normalizeImportedConfidence(
+  value: unknown,
+): { confidence?: number; warnings?: LyricWarning[] } {
+  if (value === undefined || value === null) return {}
+  const confidence = normalizeLyricConfidence(value)
+  if (confidence === undefined) return { warnings: ['invalid_confidence'] }
+  if (confidence !== value) return { confidence, warnings: ['confidence_clamped'] }
+  return { confidence }
+}
+
+function normalizeImportedSource(
+  value: unknown,
+  fallback?: LyricSource,
+): { source?: LyricSource; warnings?: LyricWarning[] } {
+  if (value === undefined || value === null) return { source: fallback }
+  const source = normalizeLyricSource(value)
+  return source === 'unknown' && value !== 'unknown'
+    ? { source, warnings: ['unknown_source'] }
+    : { source }
+}
+
+function normalizeImportedReviewStatus(
+  value: unknown,
+  legacyReviewed: unknown,
+): { reviewStatus?: LyricCue['reviewStatus']; warnings?: LyricWarning[] } {
+  const candidate = value === undefined && typeof legacyReviewed === 'boolean'
+    ? (legacyReviewed ? 'reviewed' : 'unreviewed')
+    : value
+
+  if (candidate === undefined || candidate === null) return {}
+  const reviewStatus = normalizeLyricReviewStatus(candidate)
+  return reviewStatus
+    ? { reviewStatus }
+    : { warnings: ['unknown_review_status'] }
+}
+
+function normalizeImportedSectionType(
+  value: unknown,
+): { sectionType?: LyricCue['sectionType']; warnings?: LyricWarning[] } {
+  if (value === undefined || value === null) return {}
+  const sectionType = normalizeLyricSectionType(value)
+  return sectionType === 'unknown' && value !== 'unknown'
+    ? { sectionType, warnings: ['unknown_section_type'] }
+    : { sectionType }
+}
+
+function parseImportedWord(raw: unknown, inferredSource: LyricSource): LyricWord | null {
+  if (!isPlainObject(raw)) return null
+
+  // Preserve the existing permissive word import behavior while normalizing
+  // only the new optional metadata fields.
+  const {
+    confidence: _rawConfidence,
+    source: _rawSource,
+    reviewStatus: _rawReviewStatus,
+    reviewed: _legacyReviewed,
+    warnings: _rawWarnings,
+    normalizedText: _rawNormalizedText,
+    originalTranscriptionText: _rawOriginalText,
+    ...baseFields
+  } = raw
+  const base = baseFields as unknown as LyricWord
+  const confidenceResult = normalizeImportedConfidence(raw.confidence)
+  const sourceResult = normalizeImportedSource(raw.source, inferredSource)
+  const reviewResult = normalizeImportedReviewStatus(raw.reviewStatus, raw.reviewed)
+  const warnings = mergeWarnings(
+    normalizeLyricWarnings(raw.warnings),
+    confidenceResult.warnings,
+    sourceResult.warnings,
+    reviewResult.warnings,
+  )
+
+  return {
+    ...base,
+    ...(confidenceResult.confidence !== undefined ? { confidence: confidenceResult.confidence } : {}),
+    ...(sourceResult.source !== undefined ? { source: sourceResult.source } : {}),
+    ...(reviewResult.reviewStatus !== undefined ? { reviewStatus: reviewResult.reviewStatus } : {}),
+    ...(typeof raw.normalizedText === 'string' ? { normalizedText: raw.normalizedText } : {}),
+    ...(typeof raw.originalTranscriptionText === 'string'
+      ? { originalTranscriptionText: raw.originalTranscriptionText }
+      : {}),
+    ...(warnings ? { warnings } : {}),
+  }
+}
 
 function parseRawCue(raw: RawCue, fallbackIndex: number): LyricCue {
   const idx = fallbackIndex + 1
@@ -81,21 +201,50 @@ function parseRawCue(raw: RawCue, fallbackIndex: number): LyricCue {
     ? raw.id.trim()
     : `cue_${String(fallbackIndex + 1).padStart(3, '0')}`
 
+  const sourceResult = normalizeImportedSource(raw.source, 'import')
+  const inferredSource = sourceResult.source ?? 'import'
+  const words = Array.isArray(raw.words)
+    ? raw.words
+        .map(word => parseImportedWord(word, inferredSource))
+        .filter((word): word is LyricWord => word !== null)
+    : undefined
+  const confidenceResult = normalizeImportedConfidence(raw.confidence)
+  const confidence = confidenceResult.confidence ?? calculateLyricCueConfidence(words)
+  const reviewResult = normalizeImportedReviewStatus(raw.reviewStatus, raw.reviewed)
+  const sectionResult = normalizeImportedSectionType(raw.sectionType)
+  const warnings = mergeWarnings(
+    normalizeLyricWarnings(raw.warnings),
+    confidenceResult.warnings,
+    sourceResult.warnings,
+    reviewResult.warnings,
+    sectionResult.warnings,
+  )
+
   return {
     id,
     startMs:   raw.startMs,
     endMs:     raw.endMs,
     text:      raw.text.trim(),
-    style:     isPlainObject(raw.style)     ? (raw.style     as Partial<LyricStyle>)    : undefined,
+    style:     isPlainObject(raw.style)     ? (raw.style     as Partial<LyricStyle>)       : undefined,
     animation: isPlainObject(raw.animation) ? (raw.animation as Partial<LyricAnimation>) : undefined,
-    effects:   isPlainObject(raw.effects)   ? (raw.effects   as Partial<LyricEffects>)  : undefined,
-    words:     Array.isArray(raw.words)     ? (raw.words     as LyricWord[])             : undefined,
-    groups:    Array.isArray(raw.groups)    ? (raw.groups    as LyricGroup[])            : undefined,
+    effects:   isPlainObject(raw.effects)   ? (raw.effects   as Partial<LyricEffects>)    : undefined,
+    words:     words && words.length > 0 ? words : undefined,
+    groups:    Array.isArray(raw.groups) ? (raw.groups as LyricGroup[]) : undefined,
+    confidence,
+    source: inferredSource,
+    reviewStatus: reviewResult.reviewStatus,
+    sectionId: typeof raw.sectionId === 'string' && raw.sectionId.trim()
+      ? raw.sectionId.trim()
+      : undefined,
+    sectionType: sectionResult.sectionType,
+    warnings,
+    analysisMetadata: isPlainObject(raw.analysisMetadata)
+      ? raw.analysisMetadata
+      : undefined,
+    originalTranscriptionText: typeof raw.originalTranscriptionText === 'string'
+      ? raw.originalTranscriptionText
+      : undefined,
   }
-}
-
-function isPlainObject(val: unknown): val is Record<string, unknown> {
-  return typeof val === 'object' && val !== null && !Array.isArray(val)
 }
 
 /**
@@ -105,7 +254,9 @@ function isPlainObject(val: unknown): val is Record<string, unknown> {
  *   1. Array of cues:         [ { startMs, endMs, text, ... }, ... ]
  *   2. Document-like object:  { cues: [ ... ], ... }
  *
- * Cues are sorted by startMs. Missing ids are auto-generated.
+ * Cues are sorted by startMs. Missing ids are auto-generated. Because the
+ * payload entered through an importer, missing cue/word source is safely
+ * inferred as "import". Missing confidence remains unknown.
  * Throws LyricParseError for invalid input.
  */
 export function parseLyricCueJson(input: string): LyricCue[] {
@@ -122,8 +273,8 @@ export function parseLyricCueJson(input: string): LyricCue[] {
 
   if (Array.isArray(parsed)) {
     rawArray = parsed as RawCue[]
-  } else if (isPlainObject(parsed) && Array.isArray((parsed as Record<string, unknown>).cues)) {
-    rawArray = (parsed as { cues: RawCue[] }).cues
+  } else if (isPlainObject(parsed) && Array.isArray(parsed.cues)) {
+    rawArray = parsed.cues as RawCue[]
   } else {
     throw new LyricParseError('JSON must be an array of cues or an object with a "cues" array')
   }
@@ -132,7 +283,7 @@ export function parseLyricCueJson(input: string): LyricCue[] {
 
   const cues = rawArray.map((raw, i) => parseRawCue(raw, i))
 
-  // Sort by startMs, assign sort_order based on sorted position
+  // Sort by startMs; DB sort_order is assigned by the persistence layer.
   cues.sort((a, b) => a.startMs - b.startMs)
 
   return cues

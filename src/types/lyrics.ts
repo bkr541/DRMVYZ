@@ -1,11 +1,12 @@
 // Lyric types for the VYZUALZ timed-lyrics system.
 // Runtime model uses camelCase; DB row model uses snake_case to match Supabase.
-// Keep in sync with supabase/migrations/0006_lyric_system.sql
+// Keep in sync with supabase/migrations/0006_lyric_system.sql and later lyric migrations.
 
 // ── Enum / union types ────────────────────────────────────────────────────────
 
 export type LyricDocumentSourceType =
   | 'manual'
+  | 'json_import'
   | 'lrc_import'
   | 'enhanced_lrc_import'
   | 'vtt_import'
@@ -18,6 +19,168 @@ export type LyricDocumentSourceFormat =
   | 'enhanced_lrc'
   | 'vtt'
   | 'text'
+
+/** Origin of an individual cue or word, independent of document wire format. */
+export type LyricSource =
+  | 'manual'
+  | 'import'
+  | 'transcription'
+  | 'corrected'
+  | 'generated'
+  | 'unknown'
+
+export type LyricReviewStatus =
+  | 'unreviewed'
+  | 'reviewed'
+  | 'corrected'
+  | 'rejected'
+
+export type LyricWarning =
+  | 'low_confidence'
+  | 'confidence_clamped'
+  | 'invalid_confidence'
+  | 'timing_overlap'
+  | 'timing_outside_cue'
+  | 'missing_word_timing'
+  | 'unknown_source'
+  | 'unknown_review_status'
+  | 'unknown_section_type'
+  | 'needs_review'
+  | 'provider_warning'
+  | 'unknown'
+
+export type LyricSectionType =
+  | 'intro'
+  | 'verse'
+  | 'pre_chorus'
+  | 'chorus'
+  | 'post_chorus'
+  | 'refrain'
+  | 'bridge'
+  | 'breakdown'
+  | 'build'
+  | 'drop'
+  | 'outro'
+  | 'instrumental'
+  | 'spoken'
+  | 'unknown'
+
+export type LyricAnalysisMetadata = Record<string, unknown>
+export type LyricConfidenceStrategy = 'clamp' | 'reject'
+
+const LYRIC_SOURCES: readonly LyricSource[] = [
+  'manual', 'import', 'transcription', 'corrected', 'generated', 'unknown',
+]
+const LYRIC_REVIEW_STATUSES: readonly LyricReviewStatus[] = [
+  'unreviewed', 'reviewed', 'corrected', 'rejected',
+]
+const LYRIC_WARNINGS: readonly LyricWarning[] = [
+  'low_confidence',
+  'confidence_clamped',
+  'invalid_confidence',
+  'timing_overlap',
+  'timing_outside_cue',
+  'missing_word_timing',
+  'unknown_source',
+  'unknown_review_status',
+  'unknown_section_type',
+  'needs_review',
+  'provider_warning',
+  'unknown',
+]
+const LYRIC_SECTION_TYPES: readonly LyricSectionType[] = [
+  'intro',
+  'verse',
+  'pre_chorus',
+  'chorus',
+  'post_chorus',
+  'refrain',
+  'bridge',
+  'breakdown',
+  'build',
+  'drop',
+  'outro',
+  'instrumental',
+  'spoken',
+  'unknown',
+]
+const LYRIC_DOCUMENT_SOURCE_TYPES: readonly LyricDocumentSourceType[] = [
+  'manual', 'json_import', 'lrc_import', 'enhanced_lrc_import', 'vtt_import', 'ai_transcription', 'api_lookup',
+]
+const LYRIC_DOCUMENT_SOURCE_FORMATS: readonly LyricDocumentSourceFormat[] = [
+  'json', 'lrc', 'enhanced_lrc', 'vtt', 'text',
+]
+
+export function isLyricSource(value: unknown): value is LyricSource {
+  return typeof value === 'string' && LYRIC_SOURCES.includes(value as LyricSource)
+}
+
+export function isLyricReviewStatus(value: unknown): value is LyricReviewStatus {
+  return typeof value === 'string' && LYRIC_REVIEW_STATUSES.includes(value as LyricReviewStatus)
+}
+
+export function isLyricWarning(value: unknown): value is LyricWarning {
+  return typeof value === 'string' && LYRIC_WARNINGS.includes(value as LyricWarning)
+}
+
+export function isLyricSectionType(value: unknown): value is LyricSectionType {
+  return typeof value === 'string' && LYRIC_SECTION_TYPES.includes(value as LyricSectionType)
+}
+
+export function isLyricDocumentSourceType(value: unknown): value is LyricDocumentSourceType {
+  return typeof value === 'string' && LYRIC_DOCUMENT_SOURCE_TYPES.includes(value as LyricDocumentSourceType)
+}
+
+export function isLyricDocumentSourceFormat(value: unknown): value is LyricDocumentSourceFormat {
+  return typeof value === 'string' && LYRIC_DOCUMENT_SOURCE_FORMATS.includes(value as LyricDocumentSourceFormat)
+}
+
+/** Missing confidence remains unknown. Provider values can be clamped or rejected through one shared policy. */
+export function normalizeLyricConfidence(
+  value: unknown,
+  strategy: LyricConfidenceStrategy = 'clamp',
+): number | undefined {
+  if (value === undefined || value === null) return undefined
+
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    if (strategy === 'reject') throw new RangeError('Lyric confidence must be a finite number between 0 and 1')
+    return undefined
+  }
+
+  if (value < 0 || value > 1) {
+    if (strategy === 'reject') throw new RangeError(`Lyric confidence ${value} is outside the 0 to 1 range`)
+    return Math.min(1, Math.max(0, value))
+  }
+
+  return value
+}
+
+export function isValidLyricConfidence(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1
+}
+
+export function normalizeLyricSource(value: unknown): LyricSource | undefined {
+  if (value === undefined || value === null) return undefined
+  return isLyricSource(value) ? value : 'unknown'
+}
+
+export function normalizeLyricReviewStatus(value: unknown): LyricReviewStatus | undefined {
+  return isLyricReviewStatus(value) ? value : undefined
+}
+
+export function normalizeLyricSectionType(value: unknown): LyricSectionType | undefined {
+  if (value === undefined || value === null) return undefined
+  return isLyricSectionType(value) ? value : 'unknown'
+}
+
+export function normalizeLyricWarnings(value: unknown): LyricWarning[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const normalized = value.map(warning => isLyricWarning(warning) ? warning : 'unknown')
+  const unique = [...new Set(normalized)]
+  return unique.length > 0 ? unique : undefined
+}
+
+// ── Visual property interfaces ─────────────────────────────────────────────────
 
 export type LyricAnimationName =
   | 'none'
@@ -42,8 +205,6 @@ export type LyricEasingName =
   | 'easeOutCubic'
   | 'easeInCubic'
   | 'easeInOutCubic'
-
-// ── Visual property interfaces ─────────────────────────────────────────────────
 
 export interface LyricStyle {
   fontFamily:    string
@@ -106,6 +267,13 @@ export interface LyricWord {
   style?:     Partial<LyricStyle>
   animation?: Partial<LyricAnimation>
   effects?:   Partial<LyricEffects>
+
+  confidence?:                 number
+  source?:                     LyricSource
+  reviewStatus?:               LyricReviewStatus
+  normalizedText?:             string
+  originalTranscriptionText?:  string
+  warnings?:                   LyricWarning[]
 }
 
 export interface LyricGroup {
@@ -126,6 +294,15 @@ export interface LyricCue {
   effects?:   Partial<LyricEffects>
   words?:     LyricWord[]
   groups?:    LyricGroup[]
+
+  confidence?:                number
+  source?:                    LyricSource
+  reviewStatus?:              LyricReviewStatus
+  sectionId?:                 string
+  sectionType?:               LyricSectionType
+  warnings?:                  LyricWarning[]
+  analysisMetadata?:          LyricAnalysisMetadata
+  originalTranscriptionText?: string
 }
 
 export interface LyricDocument {
@@ -146,6 +323,62 @@ export interface LyricDocument {
   metadata:         Record<string, unknown>
   createdAt:        string
   updatedAt:        string
+}
+
+/** Average only known word confidence values. Missing values do not count as zero. */
+export function calculateLyricCueConfidence(words?: readonly LyricWord[]): number | undefined {
+  if (!words || words.length === 0) return undefined
+  const known = words
+    .map(word => normalizeLyricConfidence(word.confidence))
+    .filter((confidence): confidence is number => confidence !== undefined)
+  if (known.length === 0) return undefined
+  return known.reduce((sum, confidence) => sum + confidence, 0) / known.length
+}
+
+/** Prefer an explicit cue value, otherwise derive it from known word confidence values. */
+export function resolveLyricCueConfidence(cue: Pick<LyricCue, 'confidence' | 'words'>): number | undefined {
+  return normalizeLyricConfidence(cue.confidence) ?? calculateLyricCueConfidence(cue.words)
+}
+
+export function normalizeLyricWordMetadata(
+  word: LyricWord,
+  inferredSource?: LyricSource,
+): LyricWord {
+  const {
+    confidence: rawConfidence,
+    source: rawSource,
+    reviewStatus: rawReviewStatus,
+    warnings: rawWarnings,
+    ...base
+  } = word
+  const confidence = normalizeLyricConfidence(rawConfidence)
+  const source = normalizeLyricSource(rawSource) ?? inferredSource
+  const reviewStatus = normalizeLyricReviewStatus(rawReviewStatus)
+  const derivedWarnings: LyricWarning[] = []
+
+  if (rawConfidence !== undefined && rawConfidence !== null) {
+    if (confidence === undefined) derivedWarnings.push('invalid_confidence')
+    else if (confidence !== rawConfidence) derivedWarnings.push('confidence_clamped')
+  }
+  if (rawSource !== undefined && rawSource !== null && source === 'unknown' && rawSource !== 'unknown') {
+    derivedWarnings.push('unknown_source')
+  }
+  if (rawReviewStatus !== undefined && rawReviewStatus !== null && reviewStatus === undefined) {
+    derivedWarnings.push('unknown_review_status')
+  }
+
+  const warnings = normalizeLyricWarnings([
+    ...(normalizeLyricWarnings(rawWarnings) ?? []),
+    ...derivedWarnings,
+  ])
+
+  return {
+    ...base,
+    ...(confidence !== undefined ? { confidence } : {}),
+    ...(source !== undefined ? { source } : {}),
+    ...(reviewStatus !== undefined ? { reviewStatus } : {}),
+    ...(warnings !== undefined ? { warnings } : {}),
+  }
 }
 
 // ── DB row types (snake_case) ─────────────────────────────────────────────────
@@ -184,6 +417,16 @@ export interface LyricCueRow {
   sort_order:        number
   created_at:        string
   updated_at:        string
+
+  // Optional in the TS row shape so legacy fixtures and pre-migration exports still parse.
+  confidence?:                 number | null
+  source?:                     LyricSource | string | null
+  review_status?:              LyricReviewStatus | string | null
+  section_id?:                 string | null
+  section_type?:               LyricSectionType | string | null
+  warnings?:                   LyricWarning[] | string[] | null
+  analysis_metadata?:          LyricAnalysisMetadata | null
+  original_transcription_text?: string | null
 }
 
 // ── Insert / Update DB types ──────────────────────────────────────────────────
@@ -221,6 +464,15 @@ export interface CreateLyricCueInput {
   words?:          LyricWord[]
   groups?:         LyricGroup[]
   sortOrder?:      number
+
+  confidence?:                number
+  source?:                    LyricSource
+  reviewStatus?:              LyricReviewStatus
+  sectionId?:                 string
+  sectionType?:               LyricSectionType
+  warnings?:                  LyricWarning[]
+  analysisMetadata?:          LyricAnalysisMetadata
+  originalTranscriptionText?: string
 }
 
 export interface UpdateLyricDocumentInput {
@@ -249,9 +501,23 @@ export interface UpdateLyricCueInput {
   words?:     LyricWord[]
   groups?:    LyricGroup[]
   sortOrder?: number
+
+  confidence?:                number | null
+  source?:                    LyricSource | null
+  reviewStatus?:              LyricReviewStatus | null
+  sectionId?:                 string | null
+  sectionType?:               LyricSectionType | null
+  warnings?:                  LyricWarning[]
+  analysisMetadata?:          LyricAnalysisMetadata
+  originalTranscriptionText?: string | null
 }
 
 // ── Mapper functions ──────────────────────────────────────────────────────────
+
+function nonEmptyObject<T extends object>(value: unknown): T | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+  return Object.keys(value).length > 0 ? value as T : undefined
+}
 
 export function mapLyricDocumentRowToDocument(row: LyricDocumentRow): LyricDocument {
   return {
@@ -276,20 +542,91 @@ export function mapLyricDocumentRowToDocument(row: LyricDocumentRow): LyricDocum
 }
 
 export function mapLyricCueRowToCue(row: LyricCueRow): LyricCue {
+  const source = normalizeLyricSource(row.source)
+  const reviewStatus = normalizeLyricReviewStatus(row.review_status)
+  const sectionType = normalizeLyricSectionType(row.section_type)
+  const words = Array.isArray(row.words)
+    ? row.words.map(word => normalizeLyricWordMetadata(word, source))
+    : []
+  const normalizedRowConfidence = normalizeLyricConfidence(row.confidence)
+  const confidence = normalizedRowConfidence ?? calculateLyricCueConfidence(words)
+  const derivedWarnings: LyricWarning[] = []
+
+  if (row.confidence !== undefined && row.confidence !== null) {
+    if (normalizedRowConfidence === undefined) derivedWarnings.push('invalid_confidence')
+    else if (normalizedRowConfidence !== row.confidence) derivedWarnings.push('confidence_clamped')
+  }
+  if (row.source !== undefined && row.source !== null && source === 'unknown' && row.source !== 'unknown') {
+    derivedWarnings.push('unknown_source')
+  }
+  if (row.review_status !== undefined && row.review_status !== null && reviewStatus === undefined) {
+    derivedWarnings.push('unknown_review_status')
+  }
+  if (row.section_type !== undefined && row.section_type !== null && sectionType === 'unknown' && row.section_type !== 'unknown') {
+    derivedWarnings.push('unknown_section_type')
+  }
+
+  const warnings = normalizeLyricWarnings([
+    ...(normalizeLyricWarnings(row.warnings) ?? []),
+    ...derivedWarnings,
+  ])
+
   return {
     id:        row.id,
     startMs:   row.start_ms,
     endMs:     row.end_ms,
     text:      row.text,
-    style:     Object.keys(row.style).length    > 0 ? row.style    : undefined,
-    animation: Object.keys(row.animation).length > 0 ? row.animation : undefined,
-    effects:   Object.keys(row.effects).length  > 0 ? row.effects  : undefined,
-    words:     row.words.length  > 0 ? row.words  : undefined,
-    groups:    row.groups.length > 0 ? row.groups : undefined,
+    style:     nonEmptyObject<Partial<LyricStyle>>(row.style),
+    animation: nonEmptyObject<Partial<LyricAnimation>>(row.animation),
+    effects:   nonEmptyObject<Partial<LyricEffects>>(row.effects),
+    words:     words.length > 0 ? words : undefined,
+    groups:    Array.isArray(row.groups) && row.groups.length > 0 ? row.groups : undefined,
+    confidence,
+    source,
+    reviewStatus,
+    sectionId: typeof row.section_id === 'string' && row.section_id.length > 0 ? row.section_id : undefined,
+    sectionType,
+    warnings,
+    analysisMetadata: nonEmptyObject<LyricAnalysisMetadata>(row.analysis_metadata),
+    originalTranscriptionText:
+      typeof row.original_transcription_text === 'string'
+        ? row.original_transcription_text
+        : undefined,
+  }
+}
+
+export function createLyricCueInputFromCue(
+  cue: LyricCue,
+  lyricDocumentId: string,
+  sortOrder?: number,
+): CreateLyricCueInput {
+  return {
+    lyricDocumentId,
+    startMs: cue.startMs,
+    endMs: cue.endMs,
+    text: cue.text,
+    style: cue.style,
+    animation: cue.animation,
+    effects: cue.effects,
+    words: cue.words,
+    groups: cue.groups,
+    sortOrder,
+    confidence: cue.confidence,
+    source: cue.source,
+    reviewStatus: cue.reviewStatus,
+    sectionId: cue.sectionId,
+    sectionType: cue.sectionType,
+    warnings: cue.warnings,
+    analysisMetadata: cue.analysisMetadata,
+    originalTranscriptionText: cue.originalTranscriptionText,
   }
 }
 
 export function mapLyricCueToInsert(cue: CreateLyricCueInput): LyricCueInsert {
+  const source = normalizeLyricSource(cue.source)
+  const words = (cue.words ?? []).map(word => normalizeLyricWordMetadata(word, source))
+  const confidence = normalizeLyricConfidence(cue.confidence) ?? calculateLyricCueConfidence(words)
+
   return {
     lyric_document_id: cue.lyricDocumentId,
     start_ms:          cue.startMs,
@@ -298,8 +635,16 @@ export function mapLyricCueToInsert(cue: CreateLyricCueInput): LyricCueInsert {
     style:             cue.style      ?? {},
     animation:         cue.animation  ?? {},
     effects:           cue.effects    ?? {},
-    words:             cue.words      ?? [],
+    words,
     groups:            cue.groups     ?? [],
     sort_order:        cue.sortOrder  ?? 0,
+    confidence:        confidence ?? null,
+    source:            source ?? null,
+    review_status:     normalizeLyricReviewStatus(cue.reviewStatus) ?? null,
+    section_id:        cue.sectionId ?? null,
+    section_type:      normalizeLyricSectionType(cue.sectionType) ?? null,
+    warnings:          normalizeLyricWarnings(cue.warnings) ?? [],
+    analysis_metadata: cue.analysisMetadata ?? {},
+    original_transcription_text: cue.originalTranscriptionText ?? null,
   }
 }

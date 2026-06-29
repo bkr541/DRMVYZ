@@ -21,6 +21,7 @@ import type {
   LyricDocumentSourceFormat,
   CreateLyricCueInput,
 } from '../types/lyrics'
+import { createLyricCueInputFromCue } from '../types/lyrics'
 
 // ── State shape ───────────────────────────────────────────────────────────────
 
@@ -252,7 +253,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
 
   addCue: (cue) => {
     const id = crypto.randomUUID()
-    const newCue: LyricCue = { ...cue, id }
+    const newCue: LyricCue = { ...cue, id, source: cue.source ?? 'manual' }
     set(s => {
       const next = [...s.cues, newCue].sort((a, b) => a.startMs - b.startMs)
       return { cues: next, selectedCueId: id, lyricTimingDirty: true }
@@ -387,18 +388,9 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     if (!s.lyricTimingDirty) return
     set({ isSaving: true, error: null })
     try {
-      const inputs: CreateLyricCueInput[] = s.cues.map((c, i) => ({
-        lyricDocumentId: s.activeDocumentId!,
-        startMs:   c.startMs,
-        endMs:     c.endMs,
-        text:      c.text,
-        style:     c.style,
-        animation: c.animation,
-        effects:   c.effects,
-        words:     c.words,
-        groups:    c.groups,
-        sortOrder: i,
-      }))
+      const inputs: CreateLyricCueInput[] = s.cues.map((cue, index) =>
+        createLyricCueInputFromCue(cue, s.activeDocumentId!, index),
+      )
       const saved = await replaceLyricCuesForDocument(s.activeDocumentId, inputs)
       set({ cues: saved, lyricTimingDirty: false })
     } catch (err) {

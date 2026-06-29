@@ -4,6 +4,7 @@ import { useLyricsStore } from '../../stores/lyricsStore'
 import { getLyricDocumentsForUser } from '../../lib/lyricsDb'
 import { useSharedAudio } from '../../context/AudioEngineContext'
 import type { LyricCue, LyricDocument, CreateLyricCueInput } from '../../types/lyrics'
+import { createLyricCueInputFromCue } from '../../types/lyrics'
 import type { LyricDocumentImportResult } from './utils/lyricDocumentImport'
 import { LyricManagerHeader }    from './components/LyricManagerHeader'
 import { LyricDocumentSidebar }  from './components/LyricDocumentSidebar'
@@ -116,18 +117,9 @@ export function LyricManagerView({ onBack }: Props) {
     if (draftCues.length > 0) {
       const docId = useLyricsStore.getState().activeDocumentId
       if (docId) {
-        const inputs: CreateLyricCueInput[] = draftCues.map((c, i) => ({
-          lyricDocumentId: docId,
-          startMs:  c.startMs,
-          endMs:    c.endMs,
-          text:     c.text,
-          style:    c.style,
-          animation: c.animation,
-          effects:   c.effects,
-          words:     c.words,
-          groups:    c.groups,
-          sortOrder: i,
-        }))
+        const inputs: CreateLyricCueInput[] = draftCues.map((cue, index) =>
+          createLyricCueInputFromCue(cue, docId, index),
+        )
         await replaceActiveCues(inputs)
       }
     }
@@ -146,7 +138,7 @@ export function LyricManagerView({ onBack }: Props) {
 
   const handleAddCue = useCallback((cue: Omit<LyricCue, 'id'>) => {
     setDraftCues(prev => {
-      const next = [...prev, { ...cue, id: nextCueId(prev.length) }]
+      const next = [...prev, { ...cue, id: nextCueId(prev.length), source: cue.source ?? 'manual' }]
       next.sort((a, b) => a.startMs - b.startMs)
       return next
     })
@@ -155,7 +147,7 @@ export function LyricManagerView({ onBack }: Props) {
   const handleUpdateCue = useCallback((index: number, cue: Omit<LyricCue, 'id'>) => {
     setDraftCues(prev => {
       const next = [...prev]
-      next[index] = { ...cue, id: prev[index].id }
+      next[index] = { ...prev[index], ...cue, id: prev[index].id }
       next.sort((a, b) => a.startMs - b.startMs)
       return next
     })

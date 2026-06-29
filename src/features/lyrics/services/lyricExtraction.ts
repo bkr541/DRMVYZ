@@ -11,8 +11,8 @@ export interface LyricExtractionOptions {
 }
 
 export interface ExtractedCue extends LyricCue {
-  confidence?: number
-  reviewed?:   boolean
+  /** @deprecated Legacy provider payloads should migrate to reviewStatus. */
+  reviewed?: boolean
 }
 
 export interface LyricExtractionResult {

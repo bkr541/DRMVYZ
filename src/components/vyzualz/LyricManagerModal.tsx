@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useLyricsStore } from '../../stores/lyricsStore'
 import { parseLyricCueJson, LyricParseError, formatMs } from '../../lib/lyricsImport'
 import type { CreateLyricCueInput } from '../../types/lyrics'
+import { createLyricCueInputFromCue } from '../../types/lyrics'
 
 const ANIM_IN_OPTIONS = [
   'none','fade','fadeUp','fadeDown','scale','scalePop',
@@ -99,17 +100,9 @@ export function LyricManagerModal({ onClose }: { onClose: () => void }) {
   // Seed pending cues from existing store cues when opening
   useEffect(() => {
     if (cues.length > 0 && pendingCues === null) {
-      setPendingCues(cues.map(c => ({
-        lyricDocumentId: activeDocument?.id ?? '',
-        startMs: c.startMs,
-        endMs:   c.endMs,
-        text:    c.text,
-        style:   c.style,
-        animation: c.animation,
-        effects:   c.effects,
-        words:     c.words,
-        groups:    c.groups,
-      })))
+      setPendingCues(cues.map((cue, index) =>
+        createLyricCueInputFromCue(cue, activeDocument?.id ?? '', index),
+      ))
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -117,18 +110,9 @@ export function LyricManagerModal({ onClose }: { onClose: () => void }) {
     setImportError(null)
     try {
       const parsed = parseLyricCueJson(jsonInput)
-      const inputs: CreateLyricCueInput[] = parsed.map((c, i) => ({
-        lyricDocumentId: activeDocument?.id ?? '',
-        startMs:   c.startMs,
-        endMs:     c.endMs,
-        text:      c.text,
-        style:     c.style,
-        animation: c.animation,
-        effects:   c.effects,
-        words:     c.words,
-        groups:    c.groups,
-        sortOrder: i,
-      }))
+      const inputs: CreateLyricCueInput[] = parsed.map((cue, index) =>
+        createLyricCueInputFromCue(cue, activeDocument?.id ?? '', index),
+      )
       setPendingCues(inputs)
       // Update store preview immediately
       setCues(parsed)
