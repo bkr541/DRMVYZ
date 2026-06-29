@@ -561,7 +561,7 @@ const legacyPortalDirection = defineCinematicWorldDirection({
 export const cinematicWorldRendererRegistry = new CinematicWorldRendererRegistry()
 cinematicWorldRendererRegistry.register({
   id: 'legacyPortal',
-  label: 'Legacy Cinematic Portal',
+  label: 'Legacy Portal',
   backend: 'canvas2d',
   direction: legacyPortalDirection,
   capabilities: {

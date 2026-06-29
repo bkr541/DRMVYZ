@@ -3,7 +3,7 @@ import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIn
 import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useRecorder } from '../../../hooks/useRecorder'
-import { useReactStore } from '../../../stores/reactStore'
+import { resolveCinematicConfigForPreset, useReactStore } from '../../../stores/reactStore'
 import {
   ReactPresetsPanel,
   ReactEnginePanel,
@@ -101,6 +101,7 @@ export function ReactView() {
 
   const {
     reactPresets,
+    cinematicConfigsByPresetId,
     activeReactPresetId,
     activeReactEngineId,
     laserDmxWorkspaceMode,
@@ -127,6 +128,7 @@ export function ReactView() {
     laserDmxBeamMatrix,
   } = useReactStore(useShallow(s => ({
     reactPresets:           s.reactPresets,
+    cinematicConfigsByPresetId: s.cinematicConfigsByPresetId,
     activeReactPresetId:    s.activeReactPresetId,
     activeReactEngineId:    s.activeReactEngineId,
     laserDmxWorkspaceMode:  s.laserDmxWorkspaceMode,
@@ -261,6 +263,12 @@ export function ReactView() {
     ? null
     : (selectedPresetForEngine ?? reactPresets.find(p => p.engine === activeReactEngineId) ?? null)
 
+  const renderPreset = useMemo(() => {
+    if (!activePreset || activePreset.engine !== 'cinematicPortal') return activePreset
+    const cinematicConfig = resolveCinematicConfigForPreset(activePreset, cinematicConfigsByPresetId)
+    return cinematicConfig ? { ...activePreset, cinematicConfig } : activePreset
+  }, [activePreset, cinematicConfigsByPresetId])
+
   // Timeline math requires a finite positive duration. New/decoding tracks can
   // briefly expose 0, and malformed metadata may contain NaN/Infinity/negatives.
   const audioDurationSec = resolvePositiveDuration(engine.duration, 180)
@@ -378,7 +386,7 @@ export function ReactView() {
             ) : (
               <ReactPlaceholderCanvas
                 analyser={analyser}
-                activePreset={activePreset}
+                activePreset={renderPreset}
                 intensity={reactIntensity}
                 motion={reactMotion}
                 glow={reactGlow}

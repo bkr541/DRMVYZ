@@ -10,14 +10,18 @@ export interface SliderRowProps {
   max?: number
   step?: number
   color?: string
+  id?: string
+  disabled?: boolean
+  description?: string
 }
 
 export function SliderRow({
   label, value, onChange,
   min = 0, max = 1, step = 0.01,
-  color = '#4ac7db',
+  color = '#4ac7db', id, disabled = false, description,
 }: SliderRowProps) {
-  const inputId = useId()
+  const generatedId = useId()
+  const inputId = id ?? generatedId
   const pct = `${Math.round(((value - min) / (max - min)) * 100)}%`
   const display =
     (min === 0 && max === 1) ? `${Math.round(value * 100)}%`
@@ -37,14 +41,17 @@ export function SliderRow({
         value={value}
         onChange={e => onChange(parseFloat(e.target.value))}
         style={{ '--accent': color, '--pct': pct } as React.CSSProperties}
+        disabled={disabled}
+        aria-describedby={description ? `${inputId}-description` : undefined}
       />
+      {description && <span id={`${inputId}-description`} className="rv-ctrl-description">{description}</span>}
     </div>
   )
 }
 
 // ── Select row ────────────────────────────────────────────────────────────────
 
-export interface SelectOption { value: string; label: string }
+export interface SelectOption { value: string; label: string; disabled?: boolean }
 
 export interface SelectRowProps {
   label: string
@@ -52,10 +59,13 @@ export interface SelectRowProps {
   onChange: (v: string) => void
   options: SelectOption[]
   disabled?: boolean
+  id?: string
+  description?: string
 }
 
-export function SelectRow({ label, value, onChange, options, disabled }: SelectRowProps) {
-  const inputId = useId()
+export function SelectRow({ label, value, onChange, options, disabled, id, description }: SelectRowProps) {
+  const generatedId = useId()
+  const inputId = id ?? generatedId
   return (
     <div className="rv-ctrl-row">
       <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
@@ -65,11 +75,13 @@ export function SelectRow({ label, value, onChange, options, disabled }: SelectR
         value={value}
         onChange={e => onChange(e.target.value)}
         disabled={disabled}
+        aria-describedby={description ? `${inputId}-description` : undefined}
       >
         {options.map(o => (
-          <option key={o.value} value={o.value}>{o.label}</option>
+          <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>
         ))}
       </select>
+      {description && <span id={`${inputId}-description`} className="rv-ctrl-description">{description}</span>}
     </div>
   )
 }
@@ -82,14 +94,19 @@ export interface ToggleRowProps {
   onChange: (v: boolean) => void
   disabled?: boolean
   title?: string
+  id?: string
+  description?: string
 }
 
-export function ToggleRow({ label, value, onChange, disabled, title }: ToggleRowProps) {
-  const labelId = useId()
+export function ToggleRow({ label, value, onChange, disabled, title, id, description }: ToggleRowProps) {
+  const generatedId = useId()
+  const labelId = `${id ?? generatedId}-label`
+  const buttonId = id ?? generatedId
   return (
     <div className={`rv-ctrl-toggle-row${disabled ? ' rv-ctrl-toggle-row--disabled' : ''}`}>
       <span className="rv-ctrl-label" id={labelId}>{label}</span>
       <button
+        id={buttonId}
         type="button"
         className={`rv-ctrl-toggle${value && !disabled ? ' rv-ctrl-toggle--on' : ''}`}
         onClick={() => onChange(!value)}
@@ -97,9 +114,11 @@ export function ToggleRow({ label, value, onChange, disabled, title }: ToggleRow
         aria-labelledby={labelId}
         disabled={disabled}
         title={title}
+        aria-describedby={description ? `${buttonId}-description` : undefined}
       >
         {value ? 'On' : 'Off'}
       </button>
+      {description && <span id={`${buttonId}-description`} className="rv-ctrl-description">{description}</span>}
     </div>
   )
 }
@@ -112,12 +131,14 @@ export interface TextInputRowProps {
   onChange: (v: string) => void
   maxLength?: number
   placeholder?: string
+  id?: string
 }
 
 export function TextInputRow({
-  label, value, onChange, maxLength = 32, placeholder = '',
+  label, value, onChange, maxLength = 32, placeholder = '', id,
 }: TextInputRowProps) {
-  const inputId = useId()
+  const generatedId = useId()
+  const inputId = id ?? generatedId
   return (
     <div className="rv-ctrl-row">
       <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>

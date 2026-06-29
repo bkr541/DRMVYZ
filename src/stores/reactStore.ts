@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { createSplitPersistStorage } from '../lib/splitPersistStorage'
 import { createLegacyPortalCinematicConfig, normalizeCinematicWorldConfig } from '../components/vyzualz/react/CinematicWorldConfig'
+import type { CinematicWorldConfig } from '../components/vyzualz/react/CinematicWorldConfig'
 import {
   DEFAULT_REACT_PRESETS,
   DEFAULT_PERFORMANCE_PADS,
@@ -752,10 +753,59 @@ function getPresetPatchControlValues(
   }
 }
 
+export type CinematicWorldsUiMode = 'simple' | 'advanced'
+
+export function resolveCinematicConfigForPreset(
+  preset: ReactPreset | null | undefined,
+  overrides: Record<string, CinematicWorldConfig>,
+): CinematicWorldConfig | null {
+  if (!preset || preset.engine !== 'cinematicPortal') return null
+  const override = overrides[preset.id]
+  if (override) return normalizeCinematicWorldConfig(override)
+  return normalizeCinematicWorldConfig(
+    preset.cinematicConfig ?? createLegacyPortalCinematicConfig({ ...preset.params, ...preset.renderSettings }),
+  )
+}
+
+function normalizeCinematicConfigOverrides(
+  value: unknown,
+  presets: ReactPreset[],
+): Record<string, CinematicWorldConfig> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {}
+  const cinematicPresetIds = new Set(presets.filter(preset => preset.engine === 'cinematicPortal').map(preset => preset.id))
+  const normalized: Record<string, CinematicWorldConfig> = {}
+  for (const [presetId, config] of Object.entries(value as Record<string, unknown>)) {
+    if (cinematicPresetIds.has(presetId)) normalized[presetId] = normalizeCinematicWorldConfig(config)
+  }
+  return normalized
+}
+
+function normalizeCinematicSeedLocks(
+  value: unknown,
+  presets: ReactPreset[],
+): Record<string, boolean> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {}
+  const cinematicPresetIds = new Set(presets.filter(preset => preset.engine === 'cinematicPortal').map(preset => preset.id))
+  const normalized: Record<string, boolean> = {}
+  for (const [presetId, locked] of Object.entries(value as Record<string, unknown>)) {
+    if (cinematicPresetIds.has(presetId) && typeof locked === 'boolean') normalized[presetId] = locked
+  }
+  return normalized
+}
+
 interface ReactStoreState {
   activeReactPresetId: string | null
   activeReactEngineId: ReactEngineId
   reactPresets: ReactPreset[]
+
+  // Cinematic Worlds live authoring state. Preset definitions remain immutable baselines.
+  cinematicConfigsByPresetId: Record<string, CinematicWorldConfig>
+  cinematicSeedLocksByPresetId: Record<string, boolean>
+  cinematicWorldsUiMode: CinematicWorldsUiMode
+  setCinematicConfigForPreset: (presetId: string, config: CinematicWorldConfig) => void
+  clearCinematicConfigForPreset: (presetId: string) => void
+  setCinematicSeedLocked: (presetId: string, locked: boolean) => void
+  setCinematicWorldsUiMode: (mode: CinematicWorldsUiMode) => void
 
   // Manual track sections — stored per stable track ID so edits on Track A
   // never affect Track B.  Key '_legacy' holds sections migrated from the
@@ -1604,6 +1654,17 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       reactPresets: normalizeCinematicPresetCollection(presets),
     }
   }
+  if (version < 25) {
+    const presets = Array.isArray(state.reactPresets)
+      ? normalizeCinematicPresetCollection(state.reactPresets as ReactPreset[])
+      : DEFAULT_REACT_PRESETS
+    state = {
+      ...state,
+      cinematicConfigsByPresetId: normalizeCinematicConfigOverrides(state.cinematicConfigsByPresetId, presets),
+      cinematicSeedLocksByPresetId: normalizeCinematicSeedLocks(state.cinematicSeedLocksByPresetId, presets),
+      cinematicWorldsUiMode: state.cinematicWorldsUiMode === 'advanced' ? 'advanced' : 'simple',
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -1718,6 +1779,9 @@ export function reactStorePartialize(s: ReactStoreState) {
     activeReactPresetId:                repairedSelection.activeReactPresetId,
     activeReactEngineId:                repairedSelection.activeReactEngineId,
     reactPresets:                       s.reactPresets,
+    cinematicConfigsByPresetId:         s.cinematicConfigsByPresetId,
+    cinematicSeedLocksByPresetId:       s.cinematicSeedLocksByPresetId,
+    cinematicWorldsUiMode:              s.cinematicWorldsUiMode,
     performancePads:                    s.performancePads,
     manualTrackSectionsByTrackId:       s.manualTrackSectionsByTrackId,
     suppressedAutoSectionsByTrackId:    s.suppressedAutoSectionsByTrackId,
@@ -1750,6 +1814,9 @@ export type ReactPersistedState = ReturnType<typeof reactStorePartialize>
  */
 export const REACT_PROJECT_STATE_KEYS = [
   'reactPresets',
+  'cinematicConfigsByPresetId',
+  'cinematicSeedLocksByPresetId',
+  'cinematicWorldsUiMode',
   'manualTrackSectionsByTrackId',
   'suppressedAutoSectionsByTrackId',
   'presetAutomationCuesByTrackId',
@@ -1769,11 +1836,24 @@ export function mergeReactStoreState(
     mergeCollectionsById(currentState.reactPresets, persisted.reactPresets),
   )
   const performancePads = mergeCollectionsById(currentState.performancePads, persisted.performancePads)
+  const cinematicConfigsByPresetId = normalizeCinematicConfigOverrides(
+    persisted.cinematicConfigsByPresetId ?? currentState.cinematicConfigsByPresetId,
+    reactPresets,
+  )
+  const cinematicSeedLocksByPresetId = normalizeCinematicSeedLocks(
+    persisted.cinematicSeedLocksByPresetId ?? currentState.cinematicSeedLocksByPresetId,
+    reactPresets,
+  )
+  const persistedUiMode = persisted.cinematicWorldsUiMode ?? currentState.cinematicWorldsUiMode
+  const cinematicWorldsUiMode: CinematicWorldsUiMode = persistedUiMode === 'advanced' ? 'advanced' : 'simple'
   const merged = {
     ...currentState,
     ...persisted,
     reactPresets,
     performancePads,
+    cinematicConfigsByPresetId,
+    cinematicSeedLocksByPresetId,
+    cinematicWorldsUiMode,
     soundDrawingClipsByTrackId: normalizeSoundDrawingClipsByTrackId(
       persisted.soundDrawingClipsByTrackId ?? currentState.soundDrawingClipsByTrackId,
     ),
@@ -1808,6 +1888,9 @@ export const useReactStore = create<ReactStoreState>()(
       activeReactPresetId: INITIAL_PRESET_ID,
       activeReactEngineId: INITIAL_ENGINE_ID,
       reactPresets: DEFAULT_REACT_PRESETS,
+      cinematicConfigsByPresetId: {},
+      cinematicSeedLocksByPresetId: {},
+      cinematicWorldsUiMode: 'simple',
       manualTrackSectionsByTrackId: {},
       selectedSectionId: null,
       selectedSectionByTrackId: {},
@@ -1847,6 +1930,35 @@ export const useReactStore = create<ReactStoreState>()(
       reactFogDensity:      0.5,
       reactParticleDensity: 0.5,
       performancePadTransition: null,
+
+      setCinematicConfigForPreset: (presetId, config) =>
+        set((state) => state.reactPresets.some(preset => preset.id === presetId && preset.engine === 'cinematicPortal')
+          ? {
+              cinematicConfigsByPresetId: {
+                ...state.cinematicConfigsByPresetId,
+                [presetId]: normalizeCinematicWorldConfig(config),
+              },
+            }
+          : {}),
+
+      clearCinematicConfigForPreset: (presetId) =>
+        set((state) => {
+          const { [presetId]: _removed, ...rest } = state.cinematicConfigsByPresetId
+          void _removed
+          return { cinematicConfigsByPresetId: rest }
+        }),
+
+      setCinematicSeedLocked: (presetId, locked) =>
+        set((state) => state.reactPresets.some(preset => preset.id === presetId && preset.engine === 'cinematicPortal')
+          ? {
+              cinematicSeedLocksByPresetId: {
+                ...state.cinematicSeedLocksByPresetId,
+                [presetId]: locked,
+              },
+            }
+          : {}),
+
+      setCinematicWorldsUiMode: (mode) => set({ cinematicWorldsUiMode: mode }),
 
       setActiveReactPresetId: (id) =>
         set((s) => {
@@ -3456,6 +3568,12 @@ export const useReactStore = create<ReactStoreState>()(
             performancePadTransition: null,
           }
 
+          if (s.activeReactEngineId === 'cinematicPortal' && s.activeReactPresetId) {
+            const { [s.activeReactPresetId]: _removed, ...rest } = s.cinematicConfigsByPresetId
+            void _removed
+            return { ...sharedDefaults, cinematicConfigsByPresetId: rest }
+          }
+
           if (s.activeReactEngineId === 'oscilloscope') {
             return {
               ...sharedDefaults,
@@ -3570,6 +3688,8 @@ export const useReactStore = create<ReactStoreState>()(
           return {
             ...repairedSelection,
             reactPresets: DEFAULT_REACT_PRESETS,
+            cinematicConfigsByPresetId: {},
+            cinematicSeedLocksByPresetId: {},
             manualTrackSectionsByTrackId: {},
             selectedSectionId: null,
             selectedSectionByTrackId: {},
@@ -3594,6 +3714,9 @@ export const useReactStore = create<ReactStoreState>()(
           activeReactPresetId:          INITIAL_PRESET_ID,
           activeReactEngineId:          INITIAL_ENGINE_ID,
           reactPresets:                 DEFAULT_REACT_PRESETS,
+          cinematicConfigsByPresetId:   {},
+          cinematicSeedLocksByPresetId: {},
+          cinematicWorldsUiMode:        'simple',
           manualTrackSectionsByTrackId: {},
           selectedSectionId:            null,
           selectedSectionByTrackId:     {},
@@ -3627,7 +3750,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 24,
+      version: 25,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

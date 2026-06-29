@@ -2,7 +2,7 @@ import type { ReactPreset, ReactEngineId } from './ReactTypes'
 
 const ENGINE_LABELS: Record<ReactEngineId, string> = {
   shaderPads:      'Shader Pads',
-  cinematicPortal: 'Cinematic Portal',
+  cinematicPortal: 'Cinematic Worlds',
   oscilloscope:    'Sound Drawing',
   laserDmx:        'LaserDMX',
   neonLattice:     'Neon Lattice',
@@ -35,7 +35,10 @@ export function ReactPresetBrowser({ presets, activePresetId, onSelect }: Props)
           return (
             <button
               key={preset.id}
+              type="button"
               className={`rv-preset-card${isActive ? ' rv-preset-card--active' : ''}`}
+              aria-pressed={isActive}
+              aria-current={isActive ? 'true' : undefined}
               onClick={() => onSelect(preset.id)}
               title={preset.description}
               style={isActive ? { '--accent': preset.palette.primary } as React.CSSProperties : undefined}
@@ -45,7 +48,7 @@ export function ReactPresetBrowser({ presets, activePresetId, onSelect }: Props)
                   {ENGINE_ICONS[preset.engine]}
                 </span>
                 <span className="rv-preset-name">{preset.name}</span>
-                {isActive && <span className="rv-preset-active-dot" />}
+                {isActive && <span className="rv-preset-selected-label"><span className="rv-preset-active-dot" aria-hidden="true" />Selected</span>}
               </div>
               <div className="rv-preset-engine-label">
                 {ENGINE_LABELS[preset.engine]}

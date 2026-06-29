@@ -12,6 +12,7 @@ import type {
 import { ShaderParameterPanel } from './shaders/ui/ShaderParameterPanel'
 import { getReactFxMasterControls } from './reactFxMasterControls'
 import { ReactResetActions } from './ReactResetActions'
+import { CinematicWorldsFxControls } from './CinematicWorldsControls'
 
 // ── FX panel ──────────────────────────────────────────────────────────────────
 // Styles the currently active visual engine.
@@ -134,6 +135,10 @@ export function ReactFxPanel() {
 
   // Shader scenes consume the same React-wide master values passed into the
   // renderer, so keep them visible above the scene-specific parameter controls.
+  if (isCinematic) {
+    return <CinematicWorldsFxControls />
+  }
+
   if (isShader) {
     return (
       <>
@@ -234,15 +239,6 @@ export function ReactFxPanel() {
               </button>
             </>
           )
-        )}
-
-        {/* ── Engine Appearance: Cinematic Portal ─────────────────────── */}
-        {isCinematic && (
-          <>
-            <CtrlSection label="Cinematic" />
-            <SliderRow label="Fog Density" value={reactFogDensity}      onChange={setReactFogDensity}      color="#61d6aa" />
-            <SliderRow label="Particles"   value={reactParticleDensity} onChange={setReactParticleDensity} color="#4ac7db" />
-          </>
         )}
 
         {/* ── Engine Appearance: LaserDMX Spatial Fixtures ─────────────── */}

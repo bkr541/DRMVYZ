@@ -35,7 +35,7 @@ import { applyCanvasResolution, resolveCanvasResolution } from './rendering/canv
 
 const ENGINE_LABELS: Record<ReactEngineId, string> = {
   shaderPads:      'Shader Pads',
-  cinematicPortal: 'Cinematic Portal',
+  cinematicPortal: 'Cinematic Worlds',
   oscilloscope:    'Sound Drawing',
   laserDmx:        'LaserDMX',
   neonLattice:     'Neon Lattice',

@@ -208,13 +208,21 @@ export interface CinematicQualityProfile {
   feedbackScale: number
 }
 
-type CinematicQualityTier = 'low' | 'medium' | 'high' | 'ultra'
+type CinematicQualityTier = 'auto' | 'low' | 'medium' | 'high' | 'ultra'
 
 type NumericBounds<T extends object> = {
   [Key in keyof T]: readonly [min: number, max: number]
 }
 
 export const CINEMATIC_QUALITY_PROFILES: Record<CinematicQualityTier, CinematicQualityProfile> = {
+  auto: {
+    level: 2,
+    geometryScale: 0.82,
+    particleScale: 0.78,
+    raymarchSteps: 28,
+    atmosphericLayers: 6,
+    feedbackScale: 0.84,
+  },
   low: {
     level: 0,
     geometryScale: 0.46,

@@ -274,7 +274,8 @@ export class CinematicShotScheduler {
     }
 
     const elapsed = Math.max(0, transportTimeSec - this.startedAtSec)
-    const minimum = Math.max(config.minimumShotDurationSec, this.current?.minimumDurationSec ?? 0)
+    const frequencyScale = 0.55 + config.transitionFrequency * 1.45
+    const minimum = Math.max(config.minimumShotDurationSec / frequencyScale, this.current?.minimumDurationSec ?? 0)
     const atBoundary = !config.preferMusicalBoundaries
       || audio.events.barStart
       || audio.events.downbeat
@@ -399,7 +400,9 @@ export class CinematicCameraSystem {
     const dt = input.isPlaying ? clamp(input.deltaTimeSec, 0, 0.1) : 0
     const section = resolveCinematicDirectionSection(input.audio)
     const manualOverride = input.requestedRig === 'autoDirector'
-      ? input.camera.autoDirector.manualOverrideRig
+      ? (input.camera.autoDirector.manualCameraLock
+          ? 'locked'
+          : input.camera.autoDirector.manualOverrideRig)
       : null
 
     let shot: CinematicWorldShot
@@ -442,8 +445,10 @@ export class CinematicCameraSystem {
     let desired = applyPosePatch(base, shot.pose)
     let routeProgress = 0
     const time = Math.max(0, input.transportTimeSec)
-    const beatImpulse = Math.exp(-this.impactAgeSec * 8)
-    const build = input.audio.values.buildProgress
+    const director = input.camera.autoDirector
+    const dropScale = section.type === 'drop' ? director.dropImpact : 1
+    const beatImpulse = Math.exp(-this.impactAgeSec * 8) * dropScale
+    const build = input.audio.values.buildProgress * director.buildIntensity
 
     switch (resolvedRig.rig) {
       case 'locked': {
@@ -524,6 +529,13 @@ export class CinematicCameraSystem {
         desired = interpolateCinematicCameraPose(this.displayedPose, desired, dampingAlpha)
         break
       }
+    }
+
+    if (input.requestedRig === 'autoDirector') {
+      const influence = clamp01(director.strength)
+      const activity = clamp01(director.cameraActivity)
+      const directed = interpolateCinematicCameraPose(base, desired, activity)
+      desired = interpolateCinematicCameraPose(base, directed, influence)
     }
 
     desired = safePose(desired, input.direction.safeCameraRange)

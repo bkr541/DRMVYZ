@@ -15,7 +15,7 @@ import { applyCanvasResolution, resolveCanvasResolution, type CanvasResolution }
 
 const ENGINE_ACCESSIBLE_LABELS: Record<ReactPreset['engine'], string> = {
   shaderPads:      'Shader',
-  cinematicPortal: 'Cinematic Portal',
+  cinematicPortal: 'Cinematic Worlds',
   oscilloscope:    'Sound Drawing',
   laserDmx:        'LaserDMX',
   neonLattice:     'Neon Lattice',

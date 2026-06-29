@@ -1,6 +1,7 @@
 import React, { useSyncExternalStore } from 'react'
 import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
 import { NeonLatticeEnginePanel } from './NeonLatticeEnginePanel'
+import { CinematicWorldsEngineControls } from './CinematicWorldsControls'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore } from '../../../stores/mediaStore'
@@ -38,7 +39,7 @@ const ENGINE_IDS: ReactEngineId[] = ['shaderPads', 'cinematicPortal', 'oscillosc
 
 const ENGINE_LABELS: Record<ReactEngineId, string> = {
   shaderPads:      'Shader Pads',
-  cinematicPortal: 'Cinematic Portal',
+  cinematicPortal: 'Cinematic Worlds',
   oscilloscope:    'Sound Drawing',
   laserDmx:        'LaserDMX',
   neonLattice:     'Neon Lattice',
@@ -54,7 +55,7 @@ const ENGINE_ICONS: Record<ReactEngineId, string> = {
 
 const ENGINE_DESCS: Record<ReactEngineId, string> = {
   shaderPads:      'Reactive shader fields driven by audio bands and beat timing.',
-  cinematicPortal: 'Immersive depth tunnels and cinematic light portals.',
+  cinematicPortal: 'Immersive cinematic environments, portals, media worlds and directed cameras.',
   oscilloscope:    'Live audio waveform drawing with glyph and text rendering.',
   laserDmx:        'DMX beam matrix and spatial fixture control with fog simulation.',
   neonLattice:     'Beat-reactive neon rail grid with pulsing blocks and shockwaves.',
@@ -267,6 +268,8 @@ export function ReactEnginePanel() {
               type="button"
               className={`rv-preset-card${isActive ? ' rv-preset-card--active' : ''}`}
               onClick={() => selectReactEngine(id)}
+              aria-pressed={isActive}
+              aria-label={`${ENGINE_LABELS[id]} engine${isActive ? ', selected' : ''}`}
               style={{ padding: '7px 10px' }}
             >
               <div className="rv-preset-card-header">
@@ -274,7 +277,7 @@ export function ReactEnginePanel() {
                   <span style={{ marginRight: 5, opacity: 0.75 }}>{ENGINE_ICONS[id]}</span>
                   {ENGINE_LABELS[id]}
                 </span>
-                {isActive && <span className="rv-preset-active-dot" />}
+                {isActive && <span className="rv-preset-selected-label"><span className="rv-preset-active-dot" aria-hidden="true" />Selected</span>}
               </div>
               <p className="rv-preset-desc" style={{ marginTop: 3, marginBottom: 0 }}>{ENGINE_DESCS[id]}</p>
             </button>
@@ -282,17 +285,8 @@ export function ReactEnginePanel() {
         })}
       </div>
 
-      {/* ── Engine Mode: Cinematic Portal ─────────────────────────────── */}
-      {activeReactEngineId === 'cinematicPortal' && (
-        <>
-          <CtrlSection label="Engine Mode" />
-          <div className="rv-ctrl-info">
-            Cinematic presets can now select Legacy Portal, Event Horizon,
-            Infinite Corridor, Fracture Rift, or Monolith Gate. Choose a preset
-            from the PRESETS tab to switch worlds and their focused controls.
-          </div>
-        </>
-      )}
+      {/* ── Engine Mode: Cinematic Worlds ─────────────────────────────── */}
+      {activeReactEngineId === 'cinematicPortal' && <CinematicWorldsEngineControls />}
 
       {/* ── Engine Mode: GLSL Shader ──────────────────────────────────── */}
       {activeReactEngineId === 'shaderPads' && (

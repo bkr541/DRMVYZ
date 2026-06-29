@@ -101,12 +101,24 @@ export interface CinematicCameraConfig {
     maxRotation: number
   }
   autoDirector: {
+    /** 0–1 overall influence of directed camera choices. */
+    strength: number
+    /** 0–1 amount of motion retained within each shot. */
+    cameraActivity: number
+    /** 0–1 multiplier controlling how readily shots change at musical boundaries. */
+    transitionFrequency: number
+    /** 0–1 drop-specific camera impulse. */
+    dropImpact: number
+    /** 0–1 build-specific camera acceleration. */
+    buildIntensity: number
     minimumShotDurationSec: number
     transitionDurationSec: number
     preferMusicalBoundaries: boolean
     repeatAvoidance: number
     manualOverrideRig: Exclude<CinematicCameraRig, 'autoDirector'> | null
     lockUntilNextSection: boolean
+    /** Keeps the camera on a locked manual shot while Auto Director remains enabled. */
+    manualCameraLock: boolean
   }
 }
 
@@ -152,17 +164,23 @@ export function createDefaultCinematicCameraConfig(): CinematicCameraConfig {
       maxRotation: 0.055,
     },
     autoDirector: {
+      strength: 0.82,
+      cameraActivity: 0.68,
+      transitionFrequency: 0.55,
+      dropImpact: 0.9,
+      buildIntensity: 0.72,
       minimumShotDurationSec: 4,
       transitionDurationSec: 0.85,
       preferMusicalBoundaries: true,
       repeatAvoidance: 2,
       manualOverrideRig: null,
       lockUntilNextSection: false,
+      manualCameraLock: false,
     },
   }
 }
 
-export const CINEMATIC_QUALITY_TIERS = ['low', 'medium', 'high', 'ultra'] as const
+export const CINEMATIC_QUALITY_TIERS = ['auto', 'low', 'medium', 'high', 'ultra'] as const
 export type CinematicQualityTier = typeof CINEMATIC_QUALITY_TIERS[number]
 
 export const CINEMATIC_TRANSITION_MODES = ['cut', 'crossfade', 'morph', 'portalWipe'] as const
@@ -664,6 +682,11 @@ export function normalizeCinematicCameraConfig(value: unknown): CinematicCameraC
       maxRotation: clampNumber(handheld.maxRotation, defaults.handheld.maxRotation, 0, 0.12),
     },
     autoDirector: {
+      strength: clampNumber(autoDirector.strength, defaults.autoDirector.strength, 0, 1),
+      cameraActivity: clampNumber(autoDirector.cameraActivity, defaults.autoDirector.cameraActivity, 0, 1),
+      transitionFrequency: clampNumber(autoDirector.transitionFrequency, defaults.autoDirector.transitionFrequency, 0, 1),
+      dropImpact: clampNumber(autoDirector.dropImpact, defaults.autoDirector.dropImpact, 0, 1),
+      buildIntensity: clampNumber(autoDirector.buildIntensity, defaults.autoDirector.buildIntensity, 0, 1),
       minimumShotDurationSec: clampNumber(
         autoDirector.minimumShotDurationSec,
         defaults.autoDirector.minimumShotDurationSec,
@@ -693,6 +716,9 @@ export function normalizeCinematicCameraConfig(value: unknown): CinematicCameraC
       lockUntilNextSection: typeof autoDirector.lockUntilNextSection === 'boolean'
         ? autoDirector.lockUntilNextSection
         : defaults.autoDirector.lockUntilNextSection,
+      manualCameraLock: typeof autoDirector.manualCameraLock === 'boolean'
+        ? autoDirector.manualCameraLock
+        : defaults.autoDirector.manualCameraLock,
     },
   }
 }

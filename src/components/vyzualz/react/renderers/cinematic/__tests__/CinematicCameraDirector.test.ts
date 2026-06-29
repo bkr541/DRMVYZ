@@ -191,6 +191,41 @@ describe('CinematicCameraDirector', () => {
     expect(updateCamera(system, audioFrame({ time: 20, section: 'verse', sectionSource: 'analysis' }), 'autoDirector', camera).rig).toBe('handheld')
   })
 
+  it('honors the DJ-facing manual camera lock while Auto Director remains selected', () => {
+    const system = new CinematicCameraSystem()
+    const camera = createDefaultCinematicCameraConfig()
+    camera.autoDirector.manualCameraLock = true
+    const frame = updateCamera(system, audioFrame({ time: 20, section: 'drop', sectionSource: 'analysis' }), 'autoDirector', camera)
+    expect(frame.rig).toBe('locked')
+  })
+
+  it('uses strength and camera activity to bound Auto Director influence', () => {
+    const camera = createDefaultCinematicCameraConfig()
+    camera.autoDirector.strength = 0
+    camera.autoDirector.cameraActivity = 0
+    camera.locked.breathingStrength = 0
+    camera.locked.beatPunch = 0
+    const audio = audioFrame({ time: 20, section: 'verse', sectionSource: 'analysis' })
+    const directed = updateCamera(new CinematicCameraSystem(), audio, 'autoDirector', camera)
+    const locked = updateCamera(new CinematicCameraSystem(), audio, 'locked', camera)
+    expect(directed.pose).toEqual(locked.pose)
+  })
+
+  it('uses transition frequency to safely shorten or lengthen Auto Director shot cadence', () => {
+    const firstAudio = audioFrame({ time: 8, section: 'verse', sectionSource: 'analysis', barStart: true })
+    const nextAudio = audioFrame({ time: 11, section: 'verse', sectionSource: 'analysis', barStart: true, barIndex: 2 })
+    const section = resolveCinematicDirectionSection(firstAudio)
+    const base = createDefaultCinematicCameraConfig().autoDirector
+    const slow = new CinematicShotScheduler()
+    const fast = new CinematicShotScheduler()
+    const slowConfig = { ...base, minimumShotDurationSec: 4, transitionFrequency: 0 }
+    const fastConfig = { ...base, minimumShotDurationSec: 4, transitionFrequency: 1 }
+    slow.update({ worldId: 'world', direction, section, audio: firstAudio, config: slowConfig, seed: 19, transportTimeSec: 8 })
+    fast.update({ worldId: 'world', direction, section, audio: firstAudio, config: fastConfig, seed: 19, transportTimeSec: 8 })
+    expect(slow.update({ worldId: 'world', direction, section, audio: nextAudio, config: slowConfig, seed: 19, transportTimeSec: 11 }).changed).toBe(false)
+    expect(fast.update({ worldId: 'world', direction, section, audio: nextAudio, config: fastConfig, seed: 19, transportTimeSec: 11 }).changed).toBe(true)
+  })
+
   it('switches worlds without retaining the previous Auto Director shot', () => {
     const system = new CinematicCameraSystem()
     const first = updateCamera(system, audioFrame({ time: 20, section: 'drop', sectionSource: 'analysis' }), 'autoDirector', undefined, 'world-a')
