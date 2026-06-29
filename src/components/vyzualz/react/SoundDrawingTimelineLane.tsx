@@ -2,6 +2,9 @@ import { useState, useEffect, useRef, useCallback, useId } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useReactStore } from '../../../stores/reactStore'
+import { useLyricsStore } from '../../../stores/lyricsStore'
+import { useLyricPlaybackSelector } from '../../../features/lyrics/runtime/useLyricPlayback'
+import { toEffectiveLyricTimeMs } from '../../../features/lyrics/runtime/lyricPlaybackResolver'
 import { useVisualStore } from '../../../stores/visualStore'
 import { useMediaStore } from '../../../stores/mediaStore'
 import { isUnifiedSvgMediaItem } from '../../../lib/svgMediaEligibility'
@@ -15,7 +18,7 @@ import {
   timeToViewportRatio,
   type TimelineViewport,
 } from '../../../features/timeline/timelineViewport'
-import type { ReactTrackSection, SoundDrawingLayer, SoundDrawingClip, SoundDrawingLayerSourceType, BuiltinOscillatorShape, OscillatorFontAsset } from './ReactTypes'
+import type { ReactTrackSection, SoundDrawingLayer, SoundDrawingClip, SoundDrawingLayerSourceType, BuiltinOscillatorShape, OscillatorFontAsset, SoundDrawingTextSource, SoundDrawingLyricGapBehavior } from './ReactTypes'
 import type { BeatMarkerMI } from '../../../features/musicIntelligence/types'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -113,16 +116,20 @@ interface LayerEditorProps {
   onDuplicate:   () => void
   onDelete:      () => void
   onClose:       () => void
+  lyricsAvailable: boolean
 }
 
 function LayerEditor({
   clip, layer, trackId, fontAssets, svgOptions,
   onUpdateLayer, onUpdateClip,
-  onDuplicate, onDelete, onClose,
+  onDuplicate, onDelete, onClose, lyricsAvailable,
 }: LayerEditorProps) {
   const idPrefix = useId()
   const pl = (patch: Partial<SoundDrawingLayer>) => onUpdateLayer(trackId, layer.id, patch)
   const pc = (patch: Partial<SoundDrawingClip>)  => onUpdateClip(trackId, clip.id, patch)
+  const activeLyricCue = useLyricPlaybackSelector(state => state.activeCue)
+  const activeLyricWord = useLyricPlaybackSelector(state => state.activeWord)
+  const activeLyricDocumentId = useLyricPlaybackSelector(state => state.documentId)
 
   const [startStr, setStartStr] = useState(formatTimeFmt(clip.startSec))
   const [endStr,   setEndStr]   = useState(formatTimeFmt(clip.endSec))
@@ -259,18 +266,68 @@ function LayerEditor({
         {/* Text fields */}
         {layer.sourceType === 'text' && (
           <>
-            <div className="rv-ctrl-row rv-ctrl-row--col">
-              <label className="rv-ctrl-label" htmlFor={`${idPrefix}-text`}>Text</label>
-              <textarea
-                id={`${idPrefix}-text`}
-                className="rv-sd-textarea"
-                value={layer.text}
-                onChange={e => pl({ text: e.target.value })}
-                rows={3}
-                placeholder="Enter text (newline for multiline)"
-                spellCheck={false}
-              />
-            </div>
+            <SelectRow
+              label="Text Source"
+              value={layer.textSource ?? 'static'}
+              onChange={value => pl({ textSource: value as SoundDrawingTextSource })}
+              options={[
+                { value: 'static', label: 'Static Text' },
+                { value: 'activeLyricLine', label: 'Active Lyric Line' },
+                { value: 'activeLyricWord', label: 'Active Lyric Word' },
+              ]}
+            />
+            {(layer.textSource ?? 'static') === 'static' ? (
+              <div className="rv-ctrl-row rv-ctrl-row--col">
+                <label className="rv-ctrl-label" htmlFor={`${idPrefix}-text`}>Static Text</label>
+                <textarea
+                  id={`${idPrefix}-text`}
+                  className="rv-sd-textarea"
+                  value={layer.text}
+                  onChange={e => pl({ text: e.target.value })}
+                  rows={3}
+                  placeholder="Enter text (newline for multiline)"
+                  spellCheck={false}
+                />
+              </div>
+            ) : (
+              <>
+                <div className="rv-ctrl-info rv-lyric-source-status" role="status" aria-live="polite">
+                  {lyricsAvailable && activeLyricDocumentId ? (
+                    <>
+                      <strong>Active lyric document</strong>
+                      <span>Line: {activeLyricCue?.text ?? 'No lyric at the current playhead'}</span>
+                      {layer.textSource === 'activeLyricWord' && (
+                        <span>Word: {activeLyricWord?.text ?? (activeLyricCue ? 'Line fallback or timed-word gap' : 'None')}</span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <strong>No lyrics available</strong>
+                      <span>Create or activate lyrics in Lyric Manager for the loaded persisted track.</span>
+                    </>
+                  )}
+                </div>
+                <SelectRow
+                  label="When No Lyric Is Active"
+                  value={layer.lyricGapBehavior ?? 'hide'}
+                  onChange={value => pl({ lyricGapBehavior: value as SoundDrawingLyricGapBehavior })}
+                  options={[
+                    { value: 'hide', label: 'Hide Text' },
+                    { value: 'keepPrevious', label: 'Keep Previous Lyric' },
+                    { value: 'fallback', label: 'Show Fallback Text' },
+                  ]}
+                />
+                {layer.lyricGapBehavior === 'fallback' && (
+                  <TextInputRow
+                    label="Fallback Text"
+                    value={layer.lyricFallbackText ?? ''}
+                    onChange={value => pl({ lyricFallbackText: value })}
+                    maxLength={128}
+                    placeholder="Instrumental"
+                  />
+                )}
+              </>
+            )}
             {fontAssets.length > 0 && (
               <SelectRow
                 label="Font"
@@ -439,7 +496,7 @@ function applySoundDrawingViewport(
   timeline: HTMLDivElement,
   viewport: TimelineViewport,
 ): void {
-  const clipBlocks = timeline.querySelectorAll<HTMLElement>('[data-sd-clip]')
+  const clipBlocks = timeline.querySelectorAll<HTMLElement>('[data-sd-clip], [data-sd-lyric-cue]')
   clipBlocks.forEach(block => {
     const startSec = Number(block.dataset.startSec)
     const endSec   = Number(block.dataset.endSec)
@@ -467,6 +524,22 @@ export function SoundDrawingTimelineLane({
   const allMediaItems = useMediaStore(s => s.items)
 
   const { waveformZoom } = useVisualStore(useShallow(s => ({ waveformZoom: s.waveformZoom })))
+
+  const {
+    lyricCues,
+    lyricGlobalOffsetMs,
+    lyricAudioTrackId,
+    lyricDocumentId,
+    lyricLoading,
+  } = useLyricsStore(useShallow(state => ({
+    lyricCues: state.cues,
+    lyricGlobalOffsetMs: state.globalOffsetMs,
+    lyricAudioTrackId: state.activeAudioTrackId,
+    lyricDocumentId: state.activeDocumentId,
+    lyricLoading: state.isLoading,
+  })))
+  const playbackDocumentId = useLyricPlaybackSelector(state => state.documentId)
+  const activeLyricCueId = useLyricPlaybackSelector(state => state.activeCue?.id ?? null)
 
   const {
     soundDrawingLayersByTrackId,
@@ -528,6 +601,13 @@ export function SoundDrawingTimelineLane({
 
   const layers = activeTrackId ? (soundDrawingLayersByTrackId[activeTrackId] ?? []) : []
   const clips  = activeTrackId ? (soundDrawingClipsByTrackId[activeTrackId]  ?? []) : []
+  const lyricsBelongToLoadedTrack = Boolean(
+    engine.currentAudioTrackId &&
+    lyricAudioTrackId === engine.currentAudioTrackId &&
+    lyricDocumentId &&
+    playbackDocumentId === lyricDocumentId,
+  )
+  const referenceLyricCues = lyricsBelongToLoadedTrack ? lyricCues : []
   const sortedClips = [...clips].sort((a, b) =>
     a.startSec !== b.startSec ? a.startSec - b.startSec : a.zIndex - b.zIndex
   )
@@ -674,6 +754,9 @@ export function SoundDrawingTimelineLane({
       enabled:       true,
       sourceType,
       text:          sourceType === 'text' ? 'DRMVYZ' : '',
+      textSource:    'static',
+      lyricGapBehavior: 'hide',
+      lyricFallbackText: '',
       fontId:        null,
       letterSpacing: 0,
       lineHeight:    1.2,
@@ -799,6 +882,46 @@ export function SoundDrawingTimelineLane({
             {/* Playhead */}
             <div ref={playheadRef} className="rv-sd-playhead" style={{ display: 'none' }} />
 
+            {/* Read-only canonical lyric reference lane. Cue text remains in lyric tables. */}
+            <div className="rv-sd-lyric-reference-row" aria-label="Active track lyric cue reference">
+              <div className="rv-sd-lyric-reference-label">
+                Lyrics <span>read-only · edit in Lyric Manager</span>
+              </div>
+              {referenceLyricCues.map(cue => {
+                const startSec = Math.max(0, toEffectiveLyricTimeMs(cue.startMs, lyricGlobalOffsetMs) / 1000)
+                const endSec = Math.max(startSec, toEffectiveLyricTimeMs(cue.endMs, lyricGlobalOffsetMs) / 1000)
+                const layout = computeViewportRangeLayout({ startSec, endSec }, viewportRef.current)
+                return (
+                  <button
+                    key={cue.id}
+                    type="button"
+                    data-sd-lyric-cue
+                    data-start-sec={startSec}
+                    data-end-sec={endSec}
+                    className={`rv-sd-lyric-cue${cue.id === activeLyricCueId ? ' rv-sd-lyric-cue--active' : ''}`}
+                    style={{
+                      display: layout.visible ? undefined : 'none',
+                      left: `${layout.leftPct}%`,
+                      width: `${Math.max(0.5, layout.widthPct)}%`,
+                    }}
+                    title={`${cue.text} · click to seek`}
+                    onClick={() => engine.seek(startSec)}
+                  >
+                    {cue.text}
+                  </button>
+                )
+              })}
+              {referenceLyricCues.length === 0 && (
+                <div className="rv-sd-lyric-reference-empty">
+                  {lyricLoading
+                    ? 'Loading lyrics…'
+                    : engine.currentAudioTrackId
+                      ? 'No active lyric document for this loaded track'
+                      : 'Load a persisted track to reference lyrics'}
+                </div>
+              )}
+            </div>
+
             {/* Clip rows */}
             {Array.from({ length: rowCount }, (_, rowIdx) => (
               <div key={rowIdx} className="rv-sd-clip-row">
@@ -886,6 +1009,7 @@ export function SoundDrawingTimelineLane({
               onDuplicate={handleDuplicateClip}
               onDelete={handleDeleteClip}
               onClose={() => setSelectedClipId(null)}
+              lyricsAvailable={lyricsBelongToLoadedTrack}
             />
           )}
         </div>

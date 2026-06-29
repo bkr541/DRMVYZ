@@ -114,6 +114,7 @@ export function ReactView() {
     reactParticleDensity,
     performancePadTransition,
     oscillatorSettings,
+    oscillatorFontAssets,
     oscillatorGlyphAssets,
     oscillatorGlyphPointCache,
     oscillatorTextPointCache,
@@ -141,6 +142,7 @@ export function ReactView() {
     reactParticleDensity:   s.reactParticleDensity,
     performancePadTransition: s.performancePadTransition,
     oscillatorSettings:             s.oscillatorSettings,
+    oscillatorFontAssets:            s.oscillatorFontAssets,
     oscillatorGlyphAssets:          s.oscillatorGlyphAssets,
     oscillatorGlyphPointCache:      s.oscillatorGlyphPointCache,
     oscillatorTextPointCache:       s.oscillatorTextPointCache,
@@ -396,6 +398,7 @@ export function ReactView() {
                 particleDensity={reactParticleDensity}
                 performancePadTransition={performancePadTransition}
                 oscillatorSettings={oscillatorSettings}
+                oscillatorFontAssets={oscillatorFontAssets}
                 oscillatorGlyphAssets={oscillatorGlyphAssets}
                 oscillatorGlyphPointCache={oscillatorGlyphPointCache}
                 oscillatorTextPointCache={oscillatorTextPointCache}
@@ -410,6 +413,7 @@ export function ReactView() {
                 onLiveFps={setLiveFps}
                 soundDrawingLayers={activeSdLayers}
                 soundDrawingClips={activeSdClips}
+                activeAudioTrackId={engine.currentAudioTrackId}
               />
             )}
             {workspaceComposition.showLaserBeamEditor && (

@@ -3836,3 +3836,93 @@
 @media (max-width: 1180px) {
   .rv-cinematic-world-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Sound Drawing lyric source and read-only cue reference ───────────────── */
+
+.rv-lyric-source-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rv-lyric-source-status strong {
+  color: rgba(97, 214, 170, 0.92);
+  font-size: 10px;
+}
+
+.rv-lyric-source-status span {
+  overflow-wrap: anywhere;
+}
+
+.rv-sd-lyric-reference-row {
+  position: relative;
+  height: 38px;
+  border-bottom: 1px solid rgba(74, 199, 219, 0.12);
+  background: rgba(74, 199, 219, 0.035);
+  overflow: hidden;
+}
+
+.rv-sd-lyric-reference-label {
+  position: absolute;
+  top: 2px;
+  left: 7px;
+  z-index: 4;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(74, 199, 219, 0.72);
+  pointer-events: none;
+}
+
+.rv-sd-lyric-reference-label span {
+  margin-left: 5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: rgba(232, 244, 248, 0.3);
+}
+
+.rv-sd-lyric-cue {
+  position: absolute;
+  top: 15px;
+  height: 19px;
+  min-width: 4px;
+  padding: 1px 5px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  border: 1px solid rgba(74, 199, 219, 0.38);
+  border-radius: 3px;
+  background: rgba(74, 199, 219, 0.14);
+  color: rgba(190, 239, 247, 0.82);
+  font: inherit;
+  font-size: 8px;
+  text-align: left;
+  cursor: pointer;
+  z-index: 3;
+}
+
+.rv-sd-lyric-cue:hover,
+.rv-sd-lyric-cue:focus-visible {
+  background: rgba(74, 199, 219, 0.26);
+  border-color: rgba(74, 199, 219, 0.72);
+  outline: none;
+}
+
+.rv-sd-lyric-cue--active {
+  background: rgba(97, 214, 170, 0.28);
+  border-color: rgba(97, 214, 170, 0.86);
+  color: rgba(226, 255, 245, 0.96);
+}
+
+.rv-sd-lyric-reference-empty {
+  position: absolute;
+  left: 7px;
+  right: 7px;
+  bottom: 4px;
+  font-size: 9px;
+  color: rgba(232, 244, 248, 0.3);
+  font-style: italic;
+  pointer-events: none;
+}

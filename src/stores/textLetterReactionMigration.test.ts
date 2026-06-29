@@ -21,9 +21,9 @@ describe('textLetterReactionMode migration — v11 → v12', () => {
     expect(osc.textLetterReactionMode).toBe('ripple')
   })
 
-  it('is a no-op when oscillatorSettings is absent', () => {
+  it('v27 migration initializes oscillatorSettings with defaults when absent', () => {
     const result = migrateReactStore({ activeReactEngineId: 'oscilloscope' }, 11)
-    expect(result.oscillatorSettings).toBeUndefined()
+    expect(result.oscillatorSettings).toBeDefined()
   })
 
   it('does not strip unrelated oscillatorSettings keys', () => {

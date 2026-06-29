@@ -1,5 +1,5 @@
 import type { VzFrameContext } from '../../effects/types'
-import type { ReactTrackSection, ReactSectionType, OscillatorSettings, OscillatorGlyphAsset, OscillatorGlyphPoint, NeonLatticeSettings, NeonLatticeTriggerEvent } from '../ReactTypes'
+import type { ReactTrackSection, ReactSectionType, OscillatorSettings, OscillatorFontAsset, OscillatorGlyphAsset, OscillatorGlyphPoint, NeonLatticeSettings, NeonLatticeTriggerEvent } from '../ReactTypes'
 import { DEFAULT_OSCILLATOR_SETTINGS } from '../ReactTypes'
 import type { MusicIntelligenceFrame } from '../../../../features/musicIntelligence/types'
 
@@ -74,6 +74,7 @@ export interface ReactRenderParams {
   fogDensity:            number  // 0–1 fog/particle density
   particleDensity:       number  // 0–1 particle count scale
   oscillator:            OscillatorSettings
+  oscillatorFontAssets:  OscillatorFontAsset[]
   oscillatorGlyphAssets: OscillatorGlyphAsset[]
   /** Pre-parsed SVG glyph points keyed by "${assetId}:${resolution}:v${compilerVersion}:${contentHash}". Populated at upload/select time; never by the renderer. */
   oscillatorGlyphPointCache: Record<string, OscillatorGlyphPoint[]>
@@ -93,6 +94,7 @@ export const DEFAULT_REACT_RENDER_PARAMS: ReactRenderParams = {
   fogDensity:            0.5,
   particleDensity:       0.5,
   oscillator:            DEFAULT_OSCILLATOR_SETTINGS,
+  oscillatorFontAssets:  [],
   oscillatorGlyphAssets: [],
   oscillatorGlyphPointCache: {},
   oscillatorTextPointCache:  {},

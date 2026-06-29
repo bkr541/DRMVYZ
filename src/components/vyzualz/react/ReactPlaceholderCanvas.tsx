@@ -1,14 +1,15 @@
 import { useRef, useEffect } from 'react'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
+import { LyricPlaybackBus } from '../../../features/lyrics/runtime/LyricPlaybackBus'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
-import type { ReactPreset, ReactTrackSection, OscillatorSettings, OscillatorGlyphAsset, OscillatorGlyphPoint, SoundDrawingLayer, SoundDrawingClip, NeonLatticeSettings, NeonLatticeTriggerEvent, ReactPerformancePadTransition } from './ReactTypes'
+import type { ReactPreset, ReactTrackSection, OscillatorSettings, OscillatorFontAsset, OscillatorGlyphAsset, OscillatorGlyphPoint, SoundDrawingLayer, SoundDrawingClip, NeonLatticeSettings, NeonLatticeTriggerEvent, ReactPerformancePadTransition } from './ReactTypes'
 import { DEFAULT_OSCILLATOR_SETTINGS, DEFAULT_NEON_LATTICE_SETTINGS } from './ReactTypes'
 import type { ReactRenderParams } from './renderers/reactRenderUtils'
 import { DEFAULT_REACT_RENDER_PARAMS } from './renderers/ReactEngineRenderer'
 import { renderReactEngine } from './renderers/ReactEngineRenderer'
 import { disposeCinematicPortalRenderer } from './renderers/CinematicPortalRenderer'
 import type { ReactFrameContext } from './renderers/reactRenderUtils'
-import { setSoundDrawingClipsForFrame } from './renderers/SoundDrawingRenderer'
+import { clearSoundDrawingRuntimeCaches, setSoundDrawingClipsForFrame } from './renderers/SoundDrawingRenderer'
 import { resolvePerformancePadTransition } from './renderers/reactPresetTransition'
 import { createLiveFpsReporter } from './fpsDiagnostics'
 import { applyCanvasResolution, resolveCanvasResolution, type CanvasResolution } from './rendering/canvasResolution'
@@ -33,6 +34,7 @@ interface Props {
   particleDensity?:   number
   performancePadTransition?: ReactPerformancePadTransition | null
   oscillatorSettings?:          OscillatorSettings
+  oscillatorFontAssets?:        OscillatorFontAsset[]
   oscillatorGlyphAssets?:       OscillatorGlyphAsset[]
   oscillatorGlyphPointCache?:   Record<string, OscillatorGlyphPoint[]>
   oscillatorTextPointCache?:    Record<string, OscillatorGlyphPoint[]>
@@ -56,6 +58,7 @@ interface Props {
   onLiveFps?:                   (fps: number) => void
   soundDrawingLayers?:          SoundDrawingLayer[]
   soundDrawingClips?:           SoundDrawingClip[]
+  activeAudioTrackId?:          string | null
 }
 
 export function ReactPlaceholderCanvas({
@@ -70,6 +73,7 @@ export function ReactPlaceholderCanvas({
   particleDensity    = 0.5,
   performancePadTransition = null,
   oscillatorSettings         = DEFAULT_OSCILLATOR_SETTINGS,
+  oscillatorFontAssets        = [] as OscillatorFontAsset[],
   oscillatorGlyphAssets      = [] as OscillatorGlyphAsset[],
   oscillatorGlyphPointCache  = {} as Record<string, OscillatorGlyphPoint[]>,
   oscillatorTextPointCache   = {} as Record<string, OscillatorGlyphPoint[]>,
@@ -84,6 +88,7 @@ export function ReactPlaceholderCanvas({
   onLiveFps,
   soundDrawingLayers         = [] as SoundDrawingLayer[],
   soundDrawingClips          = [] as SoundDrawingClip[],
+  activeAudioTrackId         = null,
 }: Props) {
   const canvasLabel = activePreset
     ? `${ENGINE_ACCESSIBLE_LABELS[activePreset.engine]} visualization: ${activePreset.name}`
@@ -94,6 +99,8 @@ export function ReactPlaceholderCanvas({
   const freqBufRef     = useRef<Uint8Array<ArrayBuffer> | null>(null)
   const timeBufRef     = useRef<Uint8Array<ArrayBuffer> | null>(null)
   const tRef           = useRef(0)
+  const renderRevisionRef = useRef(0)
+  renderRevisionRef.current += 1
 
   // Mutable refs so the rAF loop reads current values without restarting
   const intensityRef          = useRef(intensity)
@@ -105,6 +112,7 @@ export function ReactPlaceholderCanvas({
   const particleDensityRef    = useRef(particleDensity)
   const performancePadTransitionRef = useRef<ReactPerformancePadTransition | null>(performancePadTransition)
   const oscillatorSettingsRef  = useRef(oscillatorSettings)
+  const fontAssetsRef          = useRef<OscillatorFontAsset[]>(oscillatorFontAssets)
   const glyphAssetsRef         = useRef<OscillatorGlyphAsset[]>(oscillatorGlyphAssets)
   const glyphPointCacheRef     = useRef<Record<string, OscillatorGlyphPoint[]>>(oscillatorGlyphPointCache)
   const textPointCacheRef      = useRef<Record<string, OscillatorGlyphPoint[]>>(oscillatorTextPointCache)
@@ -121,6 +129,7 @@ export function ReactPlaceholderCanvas({
   const onLiveFpsRef           = useRef(onLiveFps)
   const sdLayersRef            = useRef<SoundDrawingLayer[]>(soundDrawingLayers)
   const sdClipsRef             = useRef<SoundDrawingClip[]>(soundDrawingClips)
+  const activeAudioTrackIdRef  = useRef<string | null>(activeAudioTrackId)
 
   // Keep refs current every render
   intensityRef.current          = intensity
@@ -132,6 +141,7 @@ export function ReactPlaceholderCanvas({
   particleDensityRef.current    = particleDensity
   performancePadTransitionRef.current = performancePadTransition
   oscillatorSettingsRef.current  = oscillatorSettings
+  fontAssetsRef.current           = oscillatorFontAssets
   glyphAssetsRef.current         = oscillatorGlyphAssets
   glyphPointCacheRef.current     = oscillatorGlyphPointCache
   textPointCacheRef.current      = oscillatorTextPointCache
@@ -147,6 +157,7 @@ export function ReactPlaceholderCanvas({
   onLiveFpsRef.current           = onLiveFps
   sdLayersRef.current            = soundDrawingLayers
   sdClipsRef.current             = soundDrawingClips
+  activeAudioTrackIdRef.current  = activeAudioTrackId
 
   // Update analyser buffers when analyser changes
   useEffect(() => {
@@ -159,6 +170,23 @@ export function ReactPlaceholderCanvas({
       timeBufRef.current = null
     }
   }, [analyser])
+
+  useEffect(() => {
+    clearSoundDrawingRuntimeCaches()
+  }, [
+    oscillatorFontAssets,
+    activeAudioTrackId,
+    soundDrawingLayers,
+    oscillatorSettings.textSource,
+    oscillatorSettings.lyricGapBehavior,
+    oscillatorSettings.lyricFallbackText,
+    oscillatorSettings.text,
+    oscillatorSettings.textFontId,
+    oscillatorSettings.textLetterSpacing,
+    oscillatorSettings.textLineHeight,
+    oscillatorSettings.textAlignment,
+    oscillatorSettings.pathResolution,
+  ])
 
   // Main rAF loop — stable, no dependencies on changing params (reads refs instead)
   useEffect(() => {
@@ -198,6 +226,7 @@ export function ReactPlaceholderCanvas({
     let fpsLastMs = performance.now()
     let previousFrameMs: number | null = null
     let elapsedTimeSec = 0
+    let lastPausedRenderKey = ''
 
     // Simple transient-based beat detection used when MI bus has no valid BPM yet.
     // beatPeriodMs is a LOCAL rendering fallback only — it drives visual beat phase
@@ -212,15 +241,33 @@ export function ReactPlaceholderCanvas({
       const W = canvas.width, H = canvas.height
       if (!W || !H) { animRef.current = requestAnimationFrame(frame); return }
 
-      // Preserve the exact completed frame during a user pause. This prevents
-      // Cinematic/Sound Drawing idle drift and stops LaserDMX/Neon Lattice from
-      // clearing themselves merely because the transport was paused.
+      // Preserve the completed frame during pause, but render one fresh frame
+      // when lyrics, project controls, fonts, or the loaded track change.
       if (isPausedRef.current) {
-        fpsFrameCount = 0
-        fpsLastMs = now
-        previousFrameMs = now
-        animRef.current = requestAnimationFrame(frame)
-        return
+        const pausedTime = getAudioTimeRef.current?.()
+        if (pausedTime !== undefined) audioTimeRef.current = pausedTime
+        musicIntelligenceEngine.resolveLyricsAt(audioTimeRef.current, 'discontinuous')
+        const lyricState = LyricPlaybackBus.getState()
+        const pausedRenderKey = [
+          renderRevisionRef.current,
+          activeAudioTrackIdRef.current ?? 'none',
+          lyricState.sourceIdentity ?? 'none',
+          lyricState.documentId ?? 'none',
+          lyricState.timelineRevision,
+          lyricState.activeCue?.id ?? 'none',
+          lyricState.activeWord?.id ?? 'none',
+          lyricState.isGap ? 'gap' : 'active',
+        ].join(':')
+        if (pausedRenderKey === lastPausedRenderKey) {
+          fpsFrameCount = 0
+          fpsLastMs = now
+          previousFrameMs = now
+          animRef.current = requestAnimationFrame(frame)
+          return
+        }
+        lastPausedRenderKey = pausedRenderKey
+      } else {
+        lastPausedRenderKey = ''
       }
 
       const preset = presetRef.current
@@ -329,6 +376,7 @@ export function ReactPlaceholderCanvas({
         } else if (isPlayingRef.current) {
           audioTimeRef.current += 1 / 60
         }
+        musicIntelligenceEngine.resolveLyricsAt(audioTimeRef.current)
       }
 
       const t = tRef.current
@@ -372,6 +420,7 @@ export function ReactPlaceholderCanvas({
         ...DEFAULT_REACT_RENDER_PARAMS,
         ...transitionedControls,
         oscillator:                oscillatorSettingsRef.current,
+        oscillatorFontAssets:      fontAssetsRef.current,
         oscillatorGlyphAssets:     glyphAssetsRef.current,
         oscillatorGlyphPointCache: glyphPointCacheRef.current,
         oscillatorTextPointCache:  textPointCacheRef.current,
@@ -379,7 +428,15 @@ export function ReactPlaceholderCanvas({
         neonLatticeTrigger:        neonLatticeTriggerRef.current,
       }
 
-      setSoundDrawingClipsForFrame(sdLayersRef.current, sdClipsRef.current)
+      const lyricPlayback = isPlayingRef.current || isPausedRef.current
+        ? LyricPlaybackBus.getState()
+        : undefined
+      setSoundDrawingClipsForFrame(
+        sdLayersRef.current,
+        sdClipsRef.current,
+        lyricPlayback,
+        activeAudioTrackIdRef.current,
+      )
       renderReactEngine(ctx, rfCtx, preset, renderParams, trackSectionsRef.current)
       elapsedTimeSec += deltaTimeSec
 
@@ -409,6 +466,7 @@ export function ReactPlaceholderCanvas({
     return () => {
       cancelAnimationFrame(animRef.current)
       disposeCinematicPortalRenderer(ctx)
+      clearSoundDrawingRuntimeCaches()
       ro.disconnect()
       onCanvasReadyRef.current?.(null)
       fpsReporter.unavailable()

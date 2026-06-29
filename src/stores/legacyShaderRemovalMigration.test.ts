@@ -204,9 +204,21 @@ describe('unrelated state fields survive migration unchanged', () => {
     expect(result.activeReactPresetId).toBe('preset-dream-gate')
     expect(result.activeReactEngineId).toBe('cinematicPortal')
 
-    // All other fields must be deeply preserved
-    expect(result.oscillatorSettings).toEqual(oscillatorSettings)
-    expect(result.soundDrawingLayersByTrackId).toEqual(soundDrawingLayersByTrackId)
+    // Unrelated values are preserved while Patch 8 adds safe lyric-source defaults.
+    expect(result.oscillatorSettings).toEqual({
+      ...oscillatorSettings,
+      textSource: 'static',
+      lyricGapBehavior: 'hide',
+      lyricFallbackText: '',
+    })
+    expect(result.soundDrawingLayersByTrackId).toEqual({
+      'track-1': [{
+        ...soundDrawingLayersByTrackId['track-1'][0],
+        textSource: 'static',
+        lyricGapBehavior: 'hide',
+        lyricFallbackText: '',
+      }],
+    })
     expect(result.soundDrawingClipsByTrackId).toEqual(soundDrawingClipsByTrackId)
     expect(result.laserDmxSettings).toEqual(laserDmxSettings)
     expect(result.laserDmxBeamMatrix).toEqual(laserDmxBeamMatrix)

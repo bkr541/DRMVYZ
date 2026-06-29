@@ -33,6 +33,8 @@ import type {
   OscillatorFontAsset,
   SoundDrawingLayer,
   SoundDrawingClip,
+  SoundDrawingTextSource,
+  SoundDrawingLyricGapBehavior,
   LaserDmxSettings,
   LaserDmxFixture,
   LaserDmxModulationRoute,
@@ -103,6 +105,42 @@ function clampRes(v: number): number {
 
 function textCacheKey(fontId: string, text: string, spacing: number, lineHeight: number, alignment: string, res: number): string {
   return `${fontId}:${text.trim()}:${spacing}:${lineHeight}:${alignment}:${res}`
+}
+
+export const SOUND_DRAWING_TEXT_POINT_CACHE_MAX = 64
+
+function putBoundedTextPoints(
+  cache: Record<string, OscillatorGlyphPoint[]>,
+  key: string,
+  points: OscillatorGlyphPoint[],
+): Record<string, OscillatorGlyphPoint[]> {
+  if (cache[key]) return cache
+  const next = { ...cache, [key]: points }
+  const keys = Object.keys(next)
+  for (let index = 0; index < keys.length - SOUND_DRAWING_TEXT_POINT_CACHE_MAX; index += 1) {
+    delete next[keys[index]]
+  }
+  return next
+}
+
+function normalizeSoundDrawingTextSource(value: unknown): SoundDrawingTextSource {
+  return value === 'activeLyricLine' || value === 'activeLyricWord' ? value : 'static'
+}
+
+function normalizeSoundDrawingGapBehavior(value: unknown): SoundDrawingLyricGapBehavior {
+  return value === 'keepPrevious' || value === 'fallback' ? value : 'hide'
+}
+
+function normalizeOscillatorSettings(settings: OscillatorSettings): OscillatorSettings {
+  const normalized = normalizeUnifiedSvgSettings(settings)
+  return {
+    ...normalized,
+    textSource: normalizeSoundDrawingTextSource(normalized.textSource),
+    lyricGapBehavior: normalizeSoundDrawingGapBehavior(normalized.lyricGapBehavior),
+    lyricFallbackText: typeof normalized.lyricFallbackText === 'string'
+      ? normalized.lyricFallbackText
+      : '',
+  }
 }
 
 function prepareSvgPoints(
@@ -397,7 +435,7 @@ function prepareTextPoints(
       lineHeight:    lh,
       alignment:     align,
     })
-    return { ...cache, [key]: pts }
+    return putBoundedTextPoints(cache, key, pts)
   } catch {
     return cache
   }
@@ -425,7 +463,7 @@ function prepareLayerTextPoints(
       lineHeight,
       alignment: alignment as 'left' | 'center' | 'right',
     })
-    return { ...cache, [key]: pts }
+    return putBoundedTextPoints(cache, key, pts)
   } catch {
     return cache
   }
@@ -453,6 +491,9 @@ function resolveSoundDrawingLayerTextSettings(
     sourceType: 'text',
     ...(layer.fontId !== null && { textFontId: layer.fontId }),
     ...(layer.text && { text: layer.text }),
+    textSource: normalizeSoundDrawingTextSource(layer.textSource),
+    lyricGapBehavior: normalizeSoundDrawingGapBehavior(layer.lyricGapBehavior),
+    lyricFallbackText: typeof layer.lyricFallbackText === 'string' ? layer.lyricFallbackText : '',
     textLetterSpacing: layer.letterSpacing,
     textLineHeight: layer.lineHeight,
     textAlignment: layer.alignment,
@@ -634,7 +675,7 @@ export function resolvePresetOscillatorSettings(
   currentSettings: OscillatorSettings,
 ): OscillatorSettings {
   if (preset.engine !== 'oscilloscope') return currentSettings
-  return normalizeUnifiedSvgSettings({
+  return normalizeOscillatorSettings({
     ...DEFAULT_OSCILLATOR_SETTINGS,
     ...(preset.oscillatorSettings ?? {}),
   })
@@ -1682,6 +1723,18 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       cinematicSeedLocksByPresetId: normalizeCinematicSeedLocks(state.cinematicSeedLocksByPresetId, presets),
     }
   }
+  if (version < 27) {
+    const oscillator = isRecord(state.oscillatorSettings)
+      ? state.oscillatorSettings as unknown as OscillatorSettings
+      : DEFAULT_OSCILLATOR_SETTINGS
+    state = {
+      ...state,
+      oscillatorSettings: normalizeOscillatorSettings(oscillator),
+      soundDrawingLayersByTrackId: normalizeSoundDrawingLayersByTrackId(
+        state.soundDrawingLayersByTrackId,
+      ),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -1690,7 +1743,7 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
   }
   const oscillatorSettings = state.oscillatorSettings as OscillatorSettings | undefined
   if (oscillatorSettings) {
-    state = { ...state, oscillatorSettings: normalizeUnifiedSvgSettings(oscillatorSettings) }
+    state = { ...state, oscillatorSettings: normalizeOscillatorSettings(oscillatorSettings) }
   }
   return state
 }
@@ -1744,6 +1797,43 @@ export function normalizeSoundDrawingClip(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+export function normalizeSoundDrawingLayer(layer: SoundDrawingLayer): SoundDrawingLayer {
+  const textSource = normalizeSoundDrawingTextSource(layer.textSource)
+  const lyricGapBehavior = normalizeSoundDrawingGapBehavior(layer.lyricGapBehavior)
+  const lyricFallbackText = typeof layer.lyricFallbackText === 'string' ? layer.lyricFallbackText : ''
+  if (
+    layer.textSource === textSource &&
+    layer.lyricGapBehavior === lyricGapBehavior &&
+    layer.lyricFallbackText === lyricFallbackText
+  ) return layer
+
+  return { ...layer, textSource, lyricGapBehavior, lyricFallbackText }
+}
+
+export function normalizeSoundDrawingLayersByTrackId(
+  value: unknown,
+): Record<string, SoundDrawingLayer[]> {
+  if (!isRecord(value)) return {}
+  let changed = false
+  const normalized: Record<string, SoundDrawingLayer[]> = {}
+
+  for (const [trackId, bucket] of Object.entries(value)) {
+    if (!Array.isArray(bucket)) {
+      normalized[trackId] = []
+      changed = true
+      continue
+    }
+
+    const valid = bucket.filter(isRecord)
+    const normalizedBucket = valid.map(raw => normalizeSoundDrawingLayer(raw as unknown as SoundDrawingLayer))
+    const bucketChanged = valid.length !== bucket.length || normalizedBucket.some((layer, index) => layer !== bucket[index])
+    normalized[trackId] = bucketChanged ? normalizedBucket : bucket as SoundDrawingLayer[]
+    changed ||= bucketChanged
+  }
+
+  return changed ? normalized : value as Record<string, SoundDrawingLayer[]>
 }
 
 /** Repairs persisted/imported clip buckets without dropping recoverable objects. */
@@ -1811,7 +1901,7 @@ export function reactStorePartialize(s: ReactStoreState) {
     laserDmxBeamMatrix:                 s.laserDmxBeamMatrix,
     activeLaserDmxBeamMatrixPresetId:   s.activeLaserDmxBeamMatrixPresetId,
     laserDmxBeamMatrixPresetDirty:      s.laserDmxBeamMatrixPresetDirty,
-    soundDrawingLayersByTrackId:        s.soundDrawingLayersByTrackId,
+    soundDrawingLayersByTrackId:        normalizeSoundDrawingLayersByTrackId(s.soundDrawingLayersByTrackId),
     soundDrawingClipsByTrackId:         s.soundDrawingClipsByTrackId,
     reactIntensity:       s.reactIntensity,
     reactMotion:          s.reactMotion,
@@ -1871,6 +1961,9 @@ export function mergeReactStoreState(
     cinematicConfigsByPresetId,
     cinematicSeedLocksByPresetId,
     cinematicWorldsUiMode,
+    soundDrawingLayersByTrackId: normalizeSoundDrawingLayersByTrackId(
+      persisted.soundDrawingLayersByTrackId ?? currentState.soundDrawingLayersByTrackId,
+    ),
     soundDrawingClipsByTrackId: normalizeSoundDrawingClipsByTrackId(
       persisted.soundDrawingClipsByTrackId ?? currentState.soundDrawingClipsByTrackId,
     ),
@@ -1890,7 +1983,10 @@ export function mergeReactStoreState(
   return {
     ...merged,
     ...repairedSelection,
-    oscillatorSettings: normalizeUnifiedSvgSettings(merged.oscillatorSettings),
+    oscillatorSettings: normalizeOscillatorSettings({
+      ...DEFAULT_OSCILLATOR_SETTINGS,
+      ...merged.oscillatorSettings,
+    }),
     laserDmxBeamMatrixPresetDirty: dirty,
   }
 }
@@ -2202,7 +2298,7 @@ export const useReactStore = create<ReactStoreState>()(
 
       setOscillatorSettings: (patch) =>
         set((s) => {
-          const newSettings = normalizeUnifiedSvgSettings({ ...s.oscillatorSettings, ...patch })
+          const newSettings = normalizeOscillatorSettings({ ...s.oscillatorSettings, ...patch })
           let newGlyphCache = s.oscillatorGlyphPointCache
           let newTextCache  = s.oscillatorTextPointCache
 
@@ -3401,7 +3497,7 @@ export const useReactStore = create<ReactStoreState>()(
       addSoundDrawingLayer: (trackId, layer) => {
         const id = crypto.randomUUID()
         set((s) => {
-          const storedLayer: SoundDrawingLayer = { ...layer, id }
+          const storedLayer = normalizeSoundDrawingLayer({ ...layer, id })
           const newTextCache = prepareSoundDrawingLayerTextPoints(
             s.oscillatorFontAssets,
             s.oscillatorSettings,
@@ -3422,7 +3518,9 @@ export const useReactStore = create<ReactStoreState>()(
       updateSoundDrawingLayer: (trackId, layerId, patch) =>
         set((s) => {
           const layers = s.soundDrawingLayersByTrackId[trackId] ?? []
-          const merged = layers.map((l) => l.id === layerId ? { ...l, ...patch } : l)
+          const merged = layers.map((l) => l.id === layerId
+            ? normalizeSoundDrawingLayer({ ...l, ...patch })
+            : l)
           const updated = merged.find(l => l.id === layerId)
           const newTextCache = updated
             ? prepareSoundDrawingLayerTextPoints(
@@ -3446,7 +3544,11 @@ export const useReactStore = create<ReactStoreState>()(
           const layers = s.soundDrawingLayersByTrackId[trackId] ?? []
           const src = layers.find((l) => l.id === layerId)
           if (!src) return {}
-          const copy: SoundDrawingLayer = { ...src, id: crypto.randomUUID(), name: `${src.name} Copy` }
+          const copy = normalizeSoundDrawingLayer({
+            ...src,
+            id: crypto.randomUUID(),
+            name: `${src.name} Copy`,
+          })
           const newTextCache = prepareSoundDrawingLayerTextPoints(
             s.oscillatorFontAssets,
             s.oscillatorSettings,
@@ -3767,7 +3869,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 26,
+      version: 27,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

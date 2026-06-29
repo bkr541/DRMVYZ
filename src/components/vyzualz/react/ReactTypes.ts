@@ -114,6 +114,9 @@ export type OscillatorAudioDisplaceMode = 'normal' | 'radial' | 'tangent' | 'xy'
 
 export type OscillatorTextWaveformMode = 'off' | 'normal' | 'radial' | 'tangent' | 'xy'
 
+export type SoundDrawingTextSource = 'static' | 'activeLyricLine' | 'activeLyricWord'
+export type SoundDrawingLyricGapBehavior = 'hide' | 'keepPrevious' | 'fallback'
+
 export type OscillatorTextLetterReactionMode =
   | 'uniform'
   | 'alternating'
@@ -190,6 +193,10 @@ export interface OscillatorSettings {
   /** Whether the shape continuously auto-rotates. When false, shape is stationary. */
   autoRotate: boolean
   text: string
+  /** Missing persisted values migrate to static, preserving legacy projects. */
+  textSource: SoundDrawingTextSource
+  lyricGapBehavior: SoundDrawingLyricGapBehavior
+  lyricFallbackText: string
   textFontId: string | null
   textFontSize: number
   textLetterSpacing: number
@@ -231,6 +238,9 @@ export const DEFAULT_OSCILLATOR_SETTINGS: OscillatorSettings = {
   svgUseReactPalette:  true,
   autoRotate:          false,
   text:                'DRMVYZ',
+  textSource:          'static',
+  lyricGapBehavior:    'hide',
+  lyricFallbackText:   '',
   textFontId:        null,
   textFontSize:      160,
   textLetterSpacing: 0,
@@ -276,6 +286,10 @@ export interface SoundDrawingLayer {
 
   // Text content
   text:          string
+  /** Optional for persisted backward compatibility; missing means static. */
+  textSource?:          SoundDrawingTextSource
+  lyricGapBehavior?:    SoundDrawingLyricGapBehavior
+  lyricFallbackText?:   string
   fontId:        string | null
   letterSpacing: number
   lineHeight:    number

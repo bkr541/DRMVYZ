@@ -5,6 +5,8 @@ import { CinematicWorldsEngineControls } from './CinematicWorldsControls'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore } from '../../../stores/mediaStore'
+import { useSharedAudio } from '../../../context/AudioEngineContext'
+import { useLyricPlaybackSelector } from '../../../features/lyrics/runtime/useLyricPlayback'
 import type { UploadedMedia } from '../../../stores/mediaStore'
 import {
   SliderRow, SelectRow, ToggleRow, TextInputRow,
@@ -31,6 +33,8 @@ import type {
   OscillatorSettings,
   OscillatorRenderMode,
   OscillatorGlyphPoint,
+  SoundDrawingTextSource,
+  SoundDrawingLyricGapBehavior,
 } from './ReactTypes'
 
 // ── Engine family display data ────────────────────────────────────────────────
@@ -120,7 +124,11 @@ function OscillatorStatusCard({
   if (osc.sourceType === 'builtinShape') {
     activeName = osc.builtinShape.charAt(0).toUpperCase() + osc.builtinShape.slice(1)
   } else if (osc.sourceType === 'text') {
-    activeName = osc.text.trim() || null
+    activeName = osc.textSource === 'activeLyricLine'
+      ? 'Active lyric line'
+      : osc.textSource === 'activeLyricWord'
+        ? 'Active lyric word'
+        : osc.text.trim() || null
   } else if (svgStatus) {
     activeName = svgStatus.assetName
   } else if (selectedGlyph) {
@@ -214,6 +222,7 @@ function OscillatorStatusCard({
 // ── ENGINE panel ──────────────────────────────────────────────────────────────
 
 export function ReactEnginePanel() {
+  const engine = useSharedAudio()
   const {
     activeReactEngineId, selectReactEngine,
     oscillatorSettings,  setOscillatorSettings,
@@ -246,6 +255,15 @@ export function ReactEnginePanel() {
 
   const osc = oscillatorSettings
   const set = setOscillatorSettings
+  const activeLyricCue = useLyricPlaybackSelector(state => state.activeCue)
+  const activeLyricWord = useLyricPlaybackSelector(state => state.activeWord)
+  const activeLyricDocumentId = useLyricPlaybackSelector(state => state.documentId)
+  const activeLyricSourceIdentity = useLyricPlaybackSelector(state => state.sourceIdentity)
+  const lyricsBelongToLoadedTrack = Boolean(
+    engine.currentAudioTrackId &&
+    activeLyricSourceIdentity?.startsWith(`${engine.currentAudioTrackId}:`) &&
+    activeLyricDocumentId,
+  )
 
   // SVG Visual rehydration is handled by useSvgVisualRehydration in ReactView —
   // that hook always runs regardless of which panel tab is active.
@@ -391,13 +409,64 @@ export function ReactEnginePanel() {
           {/* Text source */}
           {osc.sourceType === 'text' && (
             <>
-              <TextInputRow
-                label="Text"
-                value={osc.text}
-                onChange={v => set({ text: v })}
-                maxLength={32}
-                placeholder="DRMVYZ"
+              <SelectRow
+                label="Text Source"
+                value={osc.textSource ?? 'static'}
+                onChange={value => set({ textSource: value as SoundDrawingTextSource })}
+                options={[
+                  { value: 'static', label: 'Static Text' },
+                  { value: 'activeLyricLine', label: 'Active Lyric Line' },
+                  { value: 'activeLyricWord', label: 'Active Lyric Word' },
+                ]}
               />
+              {(osc.textSource ?? 'static') === 'static' ? (
+                <TextInputRow
+                  label="Static Text"
+                  value={osc.text}
+                  onChange={v => set({ text: v })}
+                  maxLength={128}
+                  placeholder="DRMVYZ"
+                />
+              ) : (
+                <>
+                  <div className="rv-ctrl-info rv-lyric-source-status" role="status" aria-live="polite">
+                    {lyricsBelongToLoadedTrack ? (
+                      <>
+                        <strong>Active lyrics linked</strong>
+                        <span>{activeLyricSourceIdentity ?? activeLyricDocumentId}</span>
+                        <span>Line: {activeLyricCue?.text ?? 'No lyric at the current playhead'}</span>
+                        {(osc.textSource === 'activeLyricWord') && (
+                          <span>Word: {activeLyricWord?.text ?? (activeLyricCue ? 'Line fallback or timed-word gap' : 'None')}</span>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <strong>No active lyric document</strong>
+                        <span>Load a persisted track with an active lyric version, or create one in Lyric Manager.</span>
+                      </>
+                    )}
+                  </div>
+                  <SelectRow
+                    label="When No Lyric Is Active"
+                    value={osc.lyricGapBehavior ?? 'hide'}
+                    onChange={value => set({ lyricGapBehavior: value as SoundDrawingLyricGapBehavior })}
+                    options={[
+                      { value: 'hide', label: 'Hide Text' },
+                      { value: 'keepPrevious', label: 'Keep Previous Lyric' },
+                      { value: 'fallback', label: 'Show Fallback Text' },
+                    ]}
+                  />
+                  {osc.lyricGapBehavior === 'fallback' && (
+                    <TextInputRow
+                      label="Fallback Text"
+                      value={osc.lyricFallbackText ?? ''}
+                      onChange={value => set({ lyricFallbackText: value })}
+                      maxLength={128}
+                      placeholder="Instrumental"
+                    />
+                  )}
+                </>
+              )}
               <ToggleRow
                 label="Auto Rotate"
                 value={osc.autoRotate === true}

@@ -6,6 +6,13 @@ import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { hexToRgba, getOrCreateOffscreen, seededRandom } from './reactRenderUtils'
 import { generateBuiltinShapePoints, clamp } from './oscillatorPathUtils'
 import { textToGlyphPoints } from './textGlyphUtils'
+import {
+  clearRuntimeOpenTypeTextGeometry,
+  getRuntimeOpenTypeTextGeometryStats,
+  getRuntimeOpenTypeTextPoints,
+} from './soundDrawingTextGeometryCache'
+import { EMPTY_LYRIC_PLAYBACK_STATE, type LyricPlaybackState } from '../../../../features/lyrics/runtime/lyricPlaybackResolver'
+import { SoundDrawingLyricTextRuntime } from '../../../../features/lyrics/runtime/soundDrawingLyricText'
 import { getSvgVisualEntry } from './svgVisualCache'
 import { getSvgGlyphCacheKey, findNearestSvgGlyphCacheEntry } from './svgGlyphUtils'
 import { getSvgGlyphAssetId, resolveUnifiedSvgSource } from '../svgSourceLifecycle'
@@ -134,13 +141,65 @@ const pathCache = new Map<string, OscillatorGlyphPoint[]>()
 // clip data reaches SoundDrawingRenderer without touching ReactRenderParams.
 let _sdLayers: SoundDrawingLayer[] = []
 let _sdClips:  SoundDrawingClip[]  = []
+let _sdLyricPlayback: LyricPlaybackState = EMPTY_LYRIC_PLAYBACK_STATE
+let _sdLyricDocumentKey = 'none:none:none:0'
+let _sdExpectedAudioTrackId: string | null = null
+
+const lyricTextRuntime = new SoundDrawingLyricTextRuntime()
+let textGeometryBuildCount = 0
+
+function clearTextPathEntries(): void {
+  for (const key of pathCache.keys()) {
+    if (key.startsWith('text:')) pathCache.delete(key)
+  }
+}
+
+/** Releases bounded text geometry and previous-lyric state on project/font teardown. */
+export function clearSoundDrawingRuntimeCaches(): void {
+  lyricTextRuntime.clear()
+  clearRuntimeOpenTypeTextGeometry()
+  clearTextPathEntries()
+}
+
+export function getSoundDrawingRuntimeCacheStats(): {
+  canvasTextEntries: number
+  openTypeTextEntries: number
+  previousLyricEntries: number
+  textGeometryBuildCount: number
+} {
+  let canvasTextEntries = 0
+  for (const key of pathCache.keys()) {
+    if (key.startsWith('text:')) canvasTextEntries += 1
+  }
+  return {
+    canvasTextEntries,
+    openTypeTextEntries: getRuntimeOpenTypeTextGeometryStats().entries,
+    previousLyricEntries: lyricTextRuntime.size,
+    textGeometryBuildCount,
+  }
+}
 
 export function setSoundDrawingClipsForFrame(
   layers: SoundDrawingLayer[],
   clips:  SoundDrawingClip[],
+  lyricPlayback: LyricPlaybackState = EMPTY_LYRIC_PLAYBACK_STATE,
+  expectedAudioTrackId: string | null = null,
 ): void {
   _sdLayers = layers
   _sdClips  = clips
+  _sdLyricPlayback = lyricPlayback
+  _sdExpectedAudioTrackId = expectedAudioTrackId
+
+  const nextDocumentKey = [
+    expectedAudioTrackId ?? 'none',
+    lyricPlayback.sourceIdentity ?? 'none',
+    lyricPlayback.documentId ?? 'none',
+    lyricPlayback.timelineRevision,
+  ].join(':')
+  if (nextDocumentKey !== _sdLyricDocumentKey) {
+    _sdLyricDocumentKey = nextDocumentKey
+    clearSoundDrawingRuntimeCaches()
+  }
 }
 
 /** Neutral textFontSize — matches the default value in OscillatorSettings.
@@ -153,6 +212,13 @@ function cachePut(key: string, pts: OscillatorGlyphPoint[]): void {
     if (first !== undefined) pathCache.delete(first)
   }
   pathCache.set(key, pts)
+}
+
+/** Test seam for verifying content-keyed geometry reuse without a render loop. */
+export function getSoundDrawingPathPointsForTest(
+  params: ReactRenderParams,
+): OscillatorGlyphPoint[] | null {
+  return getOscillatorPathPoints(params)
 }
 
 function getOscillatorPathPoints(params: ReactRenderParams): OscillatorGlyphPoint[] | null {
@@ -175,11 +241,19 @@ function getOscillatorPathPoints(params: ReactRenderParams): OscillatorGlyphPoin
       if (osc.textFontId && trimmed) {
         const lh  = osc.textLineHeight ?? 1.2
         const ali = osc.textAlignment  ?? 'center'
-        const openTypeKey = `${osc.textFontId}:${trimmed}:${osc.textLetterSpacing}:${lh}:${ali}:${res}`
-        const prepared = params.oscillatorTextPointCache[openTypeKey]
-        if (prepared) return prepared
-        if (import.meta.env.DEV) {
-          console.warn(`[SoundDrawingRenderer] OpenType points not ready for font "${osc.textFontId}" — using canvas fallback`)
+        const points = getRuntimeOpenTypeTextPoints({
+          assets: params.oscillatorFontAssets,
+          preparedCache: params.oscillatorTextPointCache,
+          fontId: osc.textFontId,
+          text: trimmed,
+          resolution: res,
+          letterSpacing: osc.textLetterSpacing,
+          lineHeight: lh,
+          alignment: ali,
+        })
+        if (points) {
+          textGeometryBuildCount = getRuntimeOpenTypeTextGeometryStats().buildCount
+          return points
         }
       }
 
@@ -200,6 +274,7 @@ function getOscillatorPathPoints(params: ReactRenderParams): OscillatorGlyphPoin
       if (cached) return cached
       const pts = textToGlyphPoints(trimmed, res, { letterSpacing: spacing, lineHeight: lh, alignment: ali })
       cachePut(key, pts)
+      textGeometryBuildCount += 1
       return pts
     }
     case 'svgGlyph':
@@ -1004,6 +1079,37 @@ function drawSpiralScopeOnTrail(
 
 // ── Path / glyph scope mode ───────────────────────────────────────────────────
 
+function resolveLyricDrivenOscillator(
+  oscillator: OscillatorSettings,
+  runtimeKey: string,
+): { oscillator: OscillatorSettings; visible: boolean } {
+  const textSource = oscillator.textSource ?? 'static'
+  if (oscillator.sourceType !== 'text' || textSource === 'static') {
+    lyricTextRuntime.delete(runtimeKey)
+    return { oscillator, visible: true }
+  }
+
+  const playbackMatchesTrack = Boolean(
+    _sdExpectedAudioTrackId &&
+    _sdLyricPlayback.sourceIdentity?.startsWith(`${_sdExpectedAudioTrackId}:`),
+  )
+  const playback = playbackMatchesTrack ? _sdLyricPlayback : EMPTY_LYRIC_PLAYBACK_STATE
+
+  const resolved = lyricTextRuntime.resolve(runtimeKey, {
+    textSource,
+    staticText: oscillator.text,
+    gapBehavior: oscillator.lyricGapBehavior,
+    fallbackText: oscillator.lyricFallbackText,
+  }, playback)
+
+  return {
+    oscillator: resolved.text === oscillator.text
+      ? oscillator
+      : { ...oscillator, text: resolved.text },
+    visible: resolved.visible,
+  }
+}
+
 function drawPathScopeOnTrail(
   tctx: CanvasRenderingContext2D,
   W: number, H: number, dpr: number,
@@ -1012,18 +1118,22 @@ function drawPathScopeOnTrail(
   params: ReactRenderParams,
   intMul: number,
   sectionType: ReactSectionType | null,
+  runtimeKey = 'global',
 ): void {
-  const osc = params.oscillator
+  const lyricDriven = resolveLyricDrivenOscillator(params.oscillator, runtimeKey)
+  if (!lyricDriven.visible) return
+  const osc = lyricDriven.oscillator
+  const effectiveParams = osc === params.oscillator ? params : { ...params, oscillator: osc }
   const { audio, timeDomainData, beatHit, t } = frame
 
-  const basePoints = getOscillatorPathPoints(params)
+  const basePoints = getOscillatorPathPoints(effectiveParams)
   if (!basePoints || basePoints.length === 0) return
 
   const resolution = basePoints.length
   const cx = W / 2
   const cy = H / 2
 
-  const bass = audio.bass * params.bassReactivity
+  const bass = audio.bass * effectiveParams.bassReactivity
   const mid  = audio.mid
   const high = audio.high
 
@@ -1054,7 +1164,7 @@ function drawPathScopeOnTrail(
   // All audio-reactive values in one pure call
   const amRaw = resolveOscillatorAudioModifiers(
     frame,
-    { ...params, oscillator: effectiveOsc },
+    { ...effectiveParams, oscillator: effectiveOsc },
     beatEnvelope,
   )
   const am = twistSign === -1
@@ -1062,7 +1172,7 @@ function drawPathScopeOnTrail(
     : amRaw
 
   const numTraces = clamp(effectiveOsc.duplicateTraces, 1, 6)
-  const close     = shouldClose(params)
+  const close     = shouldClose(effectiveParams)
 
   // Rotation: delta-time phase accumulator — changing speed doesn't snap angle.
   // For text sources: rotate only when autoRotate is explicitly true (default: stationary).
@@ -1072,13 +1182,13 @@ function drawPathScopeOnTrail(
     ? effectiveOsc.autoRotate === true
     : effectiveOsc.autoRotate !== false
   const sourceKey    = `${effectiveOsc.sourceType}:${effectiveOsc.selectedGlyphId ?? effectiveOsc.selectedSvgId ?? effectiveOsc.text ?? effectiveOsc.builtinShape}`
-  const angularVel   = 2 * params.motion * effectiveOsc.rotationSpeed * am.rotationBoost
+  const angularVel   = 2 * effectiveParams.motion * effectiveOsc.rotationSpeed * am.rotationBoost
   const rotRad       = tickRotPhase(tctx, t, sourceKey, rotate, angularVel)
 
   // visualIntensity drives opacity / glow / line weight — NOT geometry size.
   // intensityLineBoost is neutral at intensity=1 and subtle across the full range,
   // so lines feel stronger/weaker without appearing to scale the object.
-  const visualIntensity    = clamp(params.intensity ?? 1, 0, 2)
+  const visualIntensity    = clamp(effectiveParams.intensity ?? 1, 0, 2)
   const intensityLineBoost = 0.6 + visualIntensity * 0.4
 
   // Scale: section pathScale × font-size (text only) × bass pulse × sustained beat bloom.
@@ -1104,8 +1214,16 @@ function drawPathScopeOnTrail(
         // OpenType: look for the pre-computed zero-spacing entry in the params cache.
         const lh  = effectiveOsc.textLineHeight ?? 1.2
         const ali = effectiveOsc.textAlignment  ?? 'center'
-        const zeroOTKey = `${effectiveOsc.textFontId}:${trimmed}:0:${lh}:${ali}:${res}`
-        fitPoints = params.oscillatorTextPointCache[zeroOTKey] ?? null
+        fitPoints = getRuntimeOpenTypeTextPoints({
+          assets: effectiveParams.oscillatorFontAssets,
+          preparedCache: effectiveParams.oscillatorTextPointCache,
+          fontId: effectiveOsc.textFontId,
+          text: trimmed,
+          resolution: res,
+          letterSpacing: 0,
+          lineHeight: lh,
+          alignment: ali,
+        })
       }
       if (!fitPoints) {
         // Canvas fallback: look in the local path cache, generating on demand if absent.
@@ -1133,7 +1251,7 @@ function drawPathScopeOnTrail(
   }
 
   // Glow scales with intensity so the object looks dimmer/brighter as expected.
-  const glowBase    = (params.glow * (10 + am.glowBoost) + bass * 8) * visualIntensity
+  const glowBase    = (effectiveParams.glow * (10 + am.glowBoost) + bass * 8) * visualIntensity
 
   const tdLen = timeDomainData ? timeDomainData.length : resolution
 
@@ -1192,7 +1310,7 @@ function drawPathScopeOnTrail(
     ? buildTextWaveformMeta(basePoints, sourceGroups, effectiveOsc.text)
     : null
   const textWaveScrollPhase = isTextWaveActive
-    ? fract(t * 0.001 * params.motion * effectiveOsc.textWaveformScroll)
+    ? fract(t * 0.001 * effectiveParams.motion * effectiveOsc.textWaveformScroll)
     : 0
 
   let mainTraceGroups: [number, number][][] | null = null
@@ -1492,6 +1610,11 @@ function buildEffectiveOscForLayer(
     ...(layer.sourceType === 'svg'          && { sourceType: 'svg'          }),
     ...(layer.fontId        !== null         && { textFontId:       layer.fontId }),
     ...(layer.text                           && { text:             layer.text }),
+    ...(layer.sourceType === 'text' && {
+      textSource: layer.textSource ?? 'static',
+      lyricGapBehavior: layer.lyricGapBehavior ?? 'hide',
+      lyricFallbackText: layer.lyricFallbackText ?? '',
+    }),
     ...(layer.letterSpacing !== undefined    && { textLetterSpacing: layer.letterSpacing }),
     ...(layer.lineHeight    !== undefined    && { textLineHeight:   layer.lineHeight }),
     ...(layer.alignment     !== undefined    && { textAlignment:    layer.alignment }),
@@ -1551,7 +1674,9 @@ function renderSoundDrawingClips(
     tctx.scale(s, s)
     tctx.translate(-W / 2, -H / 2)
 
-    drawPathScopeOnTrail(tctx, W, H, dpr, frame, preset, effectiveParams, clipAlpha, sectionType)
+    drawPathScopeOnTrail(
+      tctx, W, H, dpr, frame, preset, effectiveParams, clipAlpha, sectionType, `layer:${layer.id}`,
+    )
 
     tctx.restore()
   }

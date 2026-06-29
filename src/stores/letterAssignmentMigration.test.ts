@@ -23,9 +23,9 @@ describe('textLetterAssignments migration — v12 → v13', () => {
     expect(osc.textLetterAssignments).toEqual(existing)
   })
 
-  it('is a no-op when oscillatorSettings is absent', () => {
+  it('v27 migration initializes oscillatorSettings with defaults when absent', () => {
     const result = migrateReactStore({ activeReactEngineId: 'oscilloscope' }, 12)
-    expect(result.oscillatorSettings).toBeUndefined()
+    expect(result.oscillatorSettings).toBeDefined()
   })
 
   it('does not strip unrelated oscillatorSettings keys', () => {
