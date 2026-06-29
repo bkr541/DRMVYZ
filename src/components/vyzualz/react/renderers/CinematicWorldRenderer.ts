@@ -1,4 +1,4 @@
-import type { MusicIntelligenceFrame } from '../../../../features/musicIntelligence/types'
+import type { MusicIntelligenceFrame, SectionSource } from '../../../../features/musicIntelligence/types'
 import type {
   CinematicAudioTarget,
   CinematicCameraRig,
@@ -22,6 +22,11 @@ import {
   type CinematicModulationSnapshot,
   type CinematicNormalizedAudioFrame,
 } from './cinematic/CinematicAudioModulation'
+import {
+  CinematicCameraSystem,
+  type CinematicCameraFrame,
+} from './cinematic/CinematicCameraDirector'
+import type { CinematicWorldDirection } from './cinematic/CinematicWorldDirection'
 
 export const CINEMATIC_DIAGNOSTIC_WORLD_ID = '__diagnostic' as const
 export type CinematicWorldId = CinematicWorldMode | typeof CINEMATIC_DIAGNOSTIC_WORLD_ID
@@ -67,6 +72,7 @@ export interface CinematicTrackSectionState {
   label?: string
   intensity?: number
   confidence?: number
+  source?: SectionSource | 'unknown'
 }
 
 export interface CinematicTransitionState {
@@ -101,6 +107,8 @@ export interface CinematicFrameContext {
   musicalAudio?: CinematicNormalizedAudioFrame
   /** Bounded source-to-target modulation values prepared once per frame. */
   modulation?: CinematicModulationSnapshot
+  /** Reusable camera/director output. Only Cinematic Worlds consume this field. */
+  camera?: CinematicCameraFrame
   section: CinematicTrackSectionState
   config: CinematicWorldConfig
   transition: CinematicTransitionState
@@ -187,6 +195,7 @@ interface CinematicWorldDefinitionBase {
   label: string
   internal?: boolean
   capabilities: CinematicWorldCapabilities
+  direction?: CinematicWorldDirection
 }
 
 export interface CinematicCanvasWorldDefinition extends CinematicWorldDefinitionBase {
@@ -262,6 +271,7 @@ export function cinematicStructuralKey(input: CinematicFrameContext): string {
     worldSettings: config.worldSettings,
     portalShape: config.portalShape,
     cameraRig: config.cameraRig,
+    camera: config.camera,
     seed: config.seed,
     qualityTier: config.qualityTier,
     customMaskId: config.customMaskId,
@@ -306,6 +316,7 @@ export class CinematicWorldRendererHost {
   private previousInput: CinematicFrameContext | null = null
   private readonly audioNormalizer = new CinematicAudioFrameNormalizer()
   private readonly modulationEngine = new CinematicModulationEngine()
+  private readonly cameraSystem = new CinematicCameraSystem()
   private mappingIssues: readonly CinematicMappingValidationIssue[] = []
   private lastError: string | null = null
 
@@ -361,6 +372,7 @@ export class CinematicWorldRendererHost {
     this.previousInput = null
     this.audioNormalizer.reset()
     this.modulationEngine.reset('manual')
+    this.cameraSystem.reset()
     this.mappingIssues = []
   }
 
@@ -371,6 +383,7 @@ export class CinematicWorldRendererHost {
     this.previousInput = null
     this.audioNormalizer.reset()
     this.modulationEngine.reset('manual')
+    this.cameraSystem.reset()
     this.mappingIssues = []
     this.lastError = null
   }
@@ -398,6 +411,7 @@ export class CinematicWorldRendererHost {
         progress: input.section.progress,
         intensity: input.section.intensity,
         confidence: input.section.confidence ?? analysis?.section.confidence,
+        source: input.section.source ?? analysis?.section.source ?? 'unknown',
       },
       sectionChanged: input.section.changed,
       worldId: definition.id,
@@ -422,6 +436,33 @@ export class CinematicWorldRendererHost {
       high: values.highs,
       volume: values.overallEnergy,
     }
+    const direction = definition.direction ?? {
+      supportedCameraRigs: definition.capabilities.cameraRigs,
+      safeCameraRange: {
+        minDistance: 0.45, maxDistance: 4.5, maxLateral: 1.25,
+        minElevation: -0.85, maxElevation: 1.25, minFieldOfView: 34, maxFieldOfView: 82,
+      },
+      shots: [{
+        id: `${definition.id}-compatibility-shot`,
+        rig: (definition.capabilities.cameraRigs.find(rig => rig !== 'autoDirector') ?? 'locked') as Exclude<CinematicCameraRig, 'autoDirector'>,
+        sections: ['unknown'] as const,
+        action: 'hold' as const,
+      }],
+      dropActions: ['impact'] as const,
+      revealActions: ['reveal'] as const,
+      retreatActions: ['retreat'] as const,
+    }
+    const camera = this.cameraSystem.update({
+      worldId: definition.id,
+      direction,
+      requestedRig: input.config.cameraRig,
+      camera: input.config.camera,
+      audio: musicalAudio,
+      transportTimeSec: input.transportTimeSec,
+      deltaTimeSec: input.deltaTimeSec,
+      isPlaying: musicalAudio.isPlaying,
+      seed: input.randomSeed,
+    })
     return {
       ...input,
       isPlaying: musicalAudio.isPlaying,
@@ -448,9 +489,11 @@ export class CinematicWorldRendererHost {
         progress: musicalAudio.section.progress,
         intensity: musicalAudio.section.intensity,
         confidence: musicalAudio.section.confidence,
+        source: musicalAudio.section.source,
       },
       musicalAudio,
       modulation,
+      camera,
     }
   }
 
@@ -610,6 +653,7 @@ export function cinematicInputFromReactFrame(
       label: mi?.section.label ?? '',
       intensity: undefined,
       confidence: mi?.section.confidence,
+      source: resolved?.source ?? mi?.section.source ?? 'unknown',
     },
     config,
     transition: {

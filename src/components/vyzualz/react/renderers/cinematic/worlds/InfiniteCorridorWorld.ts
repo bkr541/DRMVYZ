@@ -3,6 +3,7 @@ import type { ShaderProgram } from '../../../shaders/runtime/ShaderProgram'
 import type { CinematicFrameContext, CinematicWebGLWorldDefinition } from '../../CinematicWorldRenderer'
 import { INFINITE_CORRIDOR_FRAGMENT_SOURCE } from './CinematicWorldShaders'
 import { FullscreenCinematicWorld } from './FullscreenCinematicWorld'
+import { defineCinematicWorldDirection } from '../CinematicWorldDirection'
 import { applyCinematicModulation } from '../CinematicAudioModulation'
 
 const UNIFORMS = [
@@ -36,10 +37,32 @@ class InfiniteCorridorWorld extends FullscreenCinematicWorld {
   }
 }
 
+const infiniteCorridorDirection = defineCinematicWorldDirection({
+  supportedCameraRigs: ['dolly', 'flyThrough', 'handheld', 'autoDirector'],
+  safeCameraRange: { minDistance: 0.35, maxDistance: 5.8, maxLateral: 0.95, minElevation: -0.55, maxElevation: 0.8 },
+  shots: [
+    { id: 'corridor-establish', rig: 'dolly', sections: ['intro', 'breakdown', 'outro'], action: 'establish', pose: { position: { z: 4.6 }, fieldOfView: 72 } },
+    { id: 'corridor-dolly', rig: 'dolly', sections: ['verse', 'build', 'bridge'], action: 'approach', weight: 1.4 },
+    { id: 'corridor-tension', rig: 'handheld', sections: ['preDrop'], action: 'focus', pose: { position: { z: 1.15 }, fieldOfView: 48 } },
+    { id: 'corridor-flight', rig: 'flyThrough', sections: ['drop'], action: 'travel', weight: 1.6, minimumDurationSec: 4 },
+    { id: 'corridor-fallback', rig: 'dolly', sections: ['unknown'], action: 'hold' },
+  ],
+  dropActions: ['travel', 'impact', 'reveal'],
+  revealActions: ['travel', 'open'],
+  retreatActions: ['retreat', 'close'],
+  flyThroughPaths: [[
+    { position: { x: 0, y: 0.08, z: 5.4 }, fieldOfView: 72 },
+    { position: { x: -0.32, y: 0.02, z: 3.2 }, rotation: { z: -0.04 }, fieldOfView: 64 },
+    { position: { x: 0.24, y: -0.04, z: 1.5 }, rotation: { z: 0.05 }, fieldOfView: 58 },
+    { position: { x: 0, y: 0, z: 0.48 }, fieldOfView: 68 },
+  ]],
+})
+
 export const infiniteCorridorWorldDefinition: CinematicWebGLWorldDefinition = {
   id: 'infiniteCorridor',
   label: 'Infinite Corridor',
   backend: 'webgl2',
+  direction: infiniteCorridorDirection,
   capabilities: {
     backend: 'webgl2',
     cameraRigs: ['dolly', 'flyThrough', 'handheld', 'autoDirector'],

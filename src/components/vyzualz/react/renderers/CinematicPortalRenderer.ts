@@ -9,6 +9,7 @@ import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { hexToRgba } from './reactRenderUtils'
 import { CinematicWebGLRuntime } from './cinematic/CinematicWebGLRuntime'
 import { cinematicModulationValue } from './cinematic/CinematicAudioModulation'
+import { defineCinematicWorldDirection } from './cinematic/CinematicWorldDirection'
 import { diagnosticCinematicWorldDefinition } from './cinematic/worlds/DiagnosticCinematicWorld'
 import { cinematicWorldDefinitions } from './cinematic/worlds'
 import {
@@ -506,6 +507,14 @@ class LegacyPortalWorldRenderer implements CinematicWorldRenderer {
     this.state.cameraY += (shakeY - this.state.cameraY) * cameraBlend
 
     ctx.save()
+    const camera = input.camera?.pose
+    if (camera) {
+      const zoom = Math.max(0.72, Math.min(1.35, 58 / camera.fieldOfView + (1.8 - camera.position.z) * 0.05))
+      ctx.translate(width * 0.5, height * 0.5)
+      ctx.rotate(camera.rotation.z)
+      ctx.scale(zoom, zoom)
+      ctx.translate(-width * 0.5 + camera.position.x * width * 0.08, -height * 0.5 - camera.position.y * height * 0.08)
+    }
     if (Math.abs(this.state.cameraX) + Math.abs(this.state.cameraY) > 0.1) {
       ctx.translate(this.state.cameraX, this.state.cameraY)
     }
@@ -538,11 +547,23 @@ class LegacyPortalWorldRenderer implements CinematicWorldRenderer {
   }
 }
 
+const legacyPortalDirection = defineCinematicWorldDirection({
+  supportedCameraRigs: ['locked'],
+  safeCameraRange: { minDistance: 1.1, maxDistance: 3.2, maxLateral: 0.65, minElevation: -0.55, maxElevation: 0.55 },
+  shots: [
+    { id: 'legacy-locked', rig: 'locked', sections: ['intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'bridge', 'outro', 'unknown'], action: 'hold' },
+  ],
+  dropActions: ['impact'],
+  revealActions: ['reveal'],
+  retreatActions: ['retreat'],
+})
+
 export const cinematicWorldRendererRegistry = new CinematicWorldRendererRegistry()
 cinematicWorldRendererRegistry.register({
   id: 'legacyPortal',
   label: 'Legacy Cinematic Portal',
   backend: 'canvas2d',
+  direction: legacyPortalDirection,
   capabilities: {
     backend: 'canvas2d',
     cameraRigs: ['locked'],

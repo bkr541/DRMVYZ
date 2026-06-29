@@ -3,6 +3,7 @@ import type { ShaderProgram } from '../../../shaders/runtime/ShaderProgram'
 import type { CinematicFrameContext, CinematicWebGLWorldDefinition } from '../../CinematicWorldRenderer'
 import { STORM_GATEWAY_FRAGMENT_SOURCE } from './CinematicWorldPackBShaders'
 import { FullscreenCinematicWorld } from './FullscreenCinematicWorld'
+import { defineCinematicWorldDirection } from '../CinematicWorldDirection'
 import { applyCinematicModulation } from '../CinematicAudioModulation'
 
 const UNIFORMS = [
@@ -42,10 +43,26 @@ class StormGatewayWorld extends FullscreenCinematicWorld {
   }
 }
 
+const stormGatewayDirection = defineCinematicWorldDirection({
+  supportedCameraRigs: ['locked', 'orbit', 'handheld', 'autoDirector'],
+  safeCameraRange: { minDistance: 0.8, maxDistance: 4.6, maxLateral: 1.0, minElevation: -0.65, maxElevation: 1.0 },
+  shots: [
+    { id: 'storm-wide', rig: 'locked', sections: ['intro', 'breakdown', 'outro'], action: 'establish', pose: { position: { z: 3.7 }, fieldOfView: 72 } },
+    { id: 'storm-orbit', rig: 'orbit', sections: ['verse', 'build', 'bridge'], action: 'orbit' },
+    { id: 'storm-eye', rig: 'locked', sections: ['preDrop'], action: 'focus', pose: { position: { z: 1.1 }, fieldOfView: 44 } },
+    { id: 'storm-impact', rig: 'handheld', sections: ['drop'], action: 'impact', minimumDurationSec: 4 },
+    { id: 'storm-fallback', rig: 'locked', sections: ['unknown'], action: 'hold' },
+  ],
+  dropActions: ['impact', 'open', 'reveal'],
+  revealActions: ['open', 'reveal'],
+  retreatActions: ['retreat', 'close'],
+})
+
 export const stormGatewayWorldDefinition: CinematicWebGLWorldDefinition = {
   id: 'stormGateway',
   label: 'Storm Gateway',
   backend: 'webgl2',
+  direction: stormGatewayDirection,
   capabilities: {
     backend: 'webgl2',
     cameraRigs: ['locked', 'orbit', 'handheld', 'autoDirector'],

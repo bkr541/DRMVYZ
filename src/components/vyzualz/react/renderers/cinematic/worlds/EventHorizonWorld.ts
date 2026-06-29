@@ -3,6 +3,7 @@ import type { ShaderProgram } from '../../../shaders/runtime/ShaderProgram'
 import type { CinematicFrameContext, CinematicWebGLWorldDefinition } from '../../CinematicWorldRenderer'
 import { EVENT_HORIZON_FRAGMENT_SOURCE } from './CinematicWorldShaders'
 import { FullscreenCinematicWorld } from './FullscreenCinematicWorld'
+import { defineCinematicWorldDirection } from '../CinematicWorldDirection'
 import { applyCinematicModulation } from '../CinematicAudioModulation'
 
 const UNIFORMS = [
@@ -36,10 +37,26 @@ class EventHorizonWorld extends FullscreenCinematicWorld {
   }
 }
 
+const eventHorizonDirection = defineCinematicWorldDirection({
+  supportedCameraRigs: ['locked', 'orbit', 'autoDirector'],
+  safeCameraRange: { minDistance: 0.8, maxDistance: 4.6, maxLateral: 1.1 },
+  shots: [
+    { id: 'horizon-establish', rig: 'locked', sections: ['intro', 'breakdown', 'outro'], action: 'establish', pose: { position: { z: 3.4 }, fieldOfView: 72 } },
+    { id: 'horizon-slow-orbit', rig: 'orbit', sections: ['verse', 'build', 'bridge'], action: 'orbit', weight: 1.4 },
+    { id: 'horizon-focus', rig: 'locked', sections: ['preDrop'], action: 'focus', pose: { position: { z: 1.08 }, fieldOfView: 43 } },
+    { id: 'horizon-reveal', rig: 'orbit', sections: ['drop'], action: 'reveal', pose: { fieldOfView: 68 }, minimumDurationSec: 4 },
+    { id: 'horizon-hold', rig: 'locked', sections: ['unknown'], action: 'hold' },
+  ],
+  dropActions: ['impact', 'reveal', 'open'],
+  revealActions: ['reveal', 'open'],
+  retreatActions: ['retreat', 'close'],
+})
+
 export const eventHorizonWorldDefinition: CinematicWebGLWorldDefinition = {
   id: 'eventHorizon',
   label: 'Event Horizon',
   backend: 'webgl2',
+  direction: eventHorizonDirection,
   capabilities: {
     backend: 'webgl2',
     cameraRigs: ['locked', 'orbit', 'autoDirector'],

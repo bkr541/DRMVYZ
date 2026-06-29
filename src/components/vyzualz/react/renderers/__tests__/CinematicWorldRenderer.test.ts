@@ -174,6 +174,17 @@ describe('CinematicWorldRendererRegistry', () => {
     ])
   })
 
+  it('declares safe direction hooks for every registered production world', () => {
+    for (const definition of cinematicWorldRendererRegistry.list()) {
+      expect(definition.direction, `${definition.id} direction`).toBeDefined()
+      expect(definition.direction?.supportedCameraRigs.length).toBeGreaterThan(0)
+      expect(definition.direction?.shots.length).toBeGreaterThan(0)
+      expect(definition.direction?.safeCameraRange.maxDistance).toBeGreaterThan(
+        definition.direction?.safeCameraRange.minDistance ?? Number.POSITIVE_INFINITY,
+      )
+    }
+  })
+
   it('resolves registered definitions and hides internal diagnostics by default', () => {
     const registry = new CinematicWorldRendererRegistry()
     const legacy = canvasDefinition()

@@ -3,6 +3,7 @@ import type { ShaderProgram } from '../../../shaders/runtime/ShaderProgram'
 import type { CinematicFrameContext, CinematicWebGLWorldDefinition } from '../../CinematicWorldRenderer'
 import { FRACTURE_RIFT_FRAGMENT_SOURCE } from './CinematicWorldShaders'
 import { FullscreenCinematicWorld } from './FullscreenCinematicWorld'
+import { defineCinematicWorldDirection } from '../CinematicWorldDirection'
 import { applyCinematicModulation } from '../CinematicAudioModulation'
 
 const UNIFORMS = [
@@ -36,10 +37,26 @@ class FractureRiftWorld extends FullscreenCinematicWorld {
   }
 }
 
+const fractureRiftDirection = defineCinematicWorldDirection({
+  supportedCameraRigs: ['locked', 'orbit', 'handheld', 'autoDirector'],
+  safeCameraRange: { minDistance: 0.65, maxDistance: 4.1, maxLateral: 1.0 },
+  shots: [
+    { id: 'rift-distant', rig: 'locked', sections: ['intro', 'breakdown', 'outro'], action: 'establish', pose: { position: { z: 3.2 }, fieldOfView: 70 } },
+    { id: 'rift-orbit', rig: 'orbit', sections: ['verse', 'build', 'bridge'], action: 'orbit' },
+    { id: 'rift-tension', rig: 'locked', sections: ['preDrop'], action: 'focus', pose: { position: { z: 1.12 }, fieldOfView: 44 } },
+    { id: 'rift-impact', rig: 'handheld', sections: ['drop'], action: 'impact', minimumDurationSec: 4 },
+    { id: 'rift-fallback', rig: 'locked', sections: ['unknown'], action: 'hold' },
+  ],
+  dropActions: ['impact', 'open', 'reveal'],
+  revealActions: ['open', 'reveal'],
+  retreatActions: ['retreat', 'close'],
+})
+
 export const fractureRiftWorldDefinition: CinematicWebGLWorldDefinition = {
   id: 'fractureRift',
   label: 'Fracture Rift',
   backend: 'webgl2',
+  direction: fractureRiftDirection,
   capabilities: {
     backend: 'webgl2',
     cameraRigs: ['locked', 'orbit', 'handheld', 'autoDirector'],

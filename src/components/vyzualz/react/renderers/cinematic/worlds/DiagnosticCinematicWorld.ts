@@ -9,6 +9,7 @@ import type {
   CinematicWorldRenderTarget,
 } from '../../CinematicWorldRenderer'
 import { CINEMATIC_DIAGNOSTIC_WORLD_ID } from '../../CinematicWorldRenderer'
+import { defineCinematicWorldDirection } from '../CinematicWorldDirection'
 import type { ShaderProgram } from '../../../shaders/runtime/ShaderProgram'
 
 const VERTEX_SOURCE = `#version 300 es
@@ -120,11 +121,20 @@ class DiagnosticCinematicWorld implements CinematicWebGLWorldRenderer {
   }
 }
 
+const diagnosticDirection = defineCinematicWorldDirection({
+  supportedCameraRigs: ['locked'],
+  shots: [{ id: 'diagnostic-locked', rig: 'locked', sections: ['unknown'], action: 'hold' }],
+  dropActions: ['impact'],
+  revealActions: ['reveal'],
+  retreatActions: ['retreat'],
+})
+
 export const diagnosticCinematicWorldDefinition: CinematicWebGLWorldDefinition = {
   id: CINEMATIC_DIAGNOSTIC_WORLD_ID,
   label: 'Cinematic Runtime Diagnostic',
   internal: true,
   backend: 'webgl2',
+  direction: diagnosticDirection,
   capabilities: {
     backend: 'webgl2',
     cameraRigs: ['locked'],

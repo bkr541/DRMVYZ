@@ -3,6 +3,7 @@ import type { ShaderProgram } from '../../../shaders/runtime/ShaderProgram'
 import type { CinematicFrameContext, CinematicWebGLWorldDefinition } from '../../CinematicWorldRenderer'
 import { LIQUID_MEMBRANE_FRAGMENT_SOURCE } from './CinematicWorldPackBShaders'
 import { FullscreenCinematicWorld } from './FullscreenCinematicWorld'
+import { defineCinematicWorldDirection } from '../CinematicWorldDirection'
 import { applyCinematicModulation } from '../CinematicAudioModulation'
 
 const UNIFORMS = [
@@ -40,10 +41,26 @@ class LiquidMembraneWorld extends FullscreenCinematicWorld {
   }
 }
 
+const liquidMembraneDirection = defineCinematicWorldDirection({
+  supportedCameraRigs: ['locked', 'orbit', 'handheld', 'autoDirector'],
+  safeCameraRange: { minDistance: 0.75, maxDistance: 4.0, maxLateral: 0.9, minElevation: -0.7, maxElevation: 0.9 },
+  shots: [
+    { id: 'membrane-wide', rig: 'locked', sections: ['intro', 'breakdown', 'outro'], action: 'establish', pose: { position: { z: 3.1 }, fieldOfView: 68 } },
+    { id: 'membrane-orbit', rig: 'orbit', sections: ['verse', 'build', 'bridge'], action: 'orbit' },
+    { id: 'membrane-focus', rig: 'locked', sections: ['preDrop'], action: 'focus', pose: { position: { z: 1.0 }, fieldOfView: 42 } },
+    { id: 'membrane-tear', rig: 'handheld', sections: ['drop'], action: 'open', minimumDurationSec: 4 },
+    { id: 'membrane-fallback', rig: 'locked', sections: ['unknown'], action: 'hold' },
+  ],
+  dropActions: ['open', 'impact', 'reveal'],
+  revealActions: ['open', 'reveal'],
+  retreatActions: ['retreat', 'close'],
+})
+
 export const liquidMembraneWorldDefinition: CinematicWebGLWorldDefinition = {
   id: 'liquidMembrane',
   label: 'Liquid Membrane',
   backend: 'webgl2',
+  direction: liquidMembraneDirection,
   capabilities: {
     backend: 'webgl2',
     cameraRigs: ['locked', 'orbit', 'handheld', 'autoDirector'],

@@ -54,6 +54,8 @@ export interface ReactFrameContext {
     endSec:   number
     /** 0–1 normalised position within the section. -1 when unknown. */
     progress: number
+    /** Whether the active boundary came from manual editing, analysis, or inference. */
+    source?: MusicIntelligenceFrame['section']['source']
   } | null
   /** True on the first frame of each new resolved section. Optional for non-shader canvases. */
   sectionChanged?: boolean

@@ -31,7 +31,7 @@ float starLayer(vec2 p, float layer) {
 }
 
 void main() {
-  vec2 p = v_uv * 2.0 - 1.0;
+  vec2 p = cinematicCameraUv(v_uv);
   p.x *= uResolution.x / max(1.0, uResolution.y);
 
   float pressure = uBass * (0.08 + uLensingStrength * 0.10);
@@ -110,7 +110,7 @@ float corridorStructure(vec2 q, float width, float style) {
 }
 
 void main() {
-  vec2 p = v_uv * 2.0 - 1.0;
+  vec2 p = cinematicCameraUv(v_uv);
   p.x *= uResolution.x / max(1.0, uResolution.y);
   float sway = sin(uTime * 0.37 * uVariation.w + uVariation.x * 6.2831) * uCameraSway;
   vec2 vanish = vec2(uVanishingOffset + sway, sin(uTime * 0.23) * uCameraSway * 0.28);
@@ -187,7 +187,7 @@ float shardShape(vec2 p, float angle, float size) {
 }
 
 void main() {
-  vec2 p = v_uv * 2.0 - 1.0;
+  vec2 p = cinematicCameraUv(v_uv);
   p.x *= uResolution.x / max(1.0, uResolution.y);
 
   float transientMotion = exp(-uImpactAge * 5.2) * uFractureMotion;
@@ -270,7 +270,7 @@ float columnDistance(vec2 p, float x, float halfWidth, float halfHeight) {
 }
 
 void main() {
-  vec2 p = v_uv * 2.0 - 1.0;
+  vec2 p = cinematicCameraUv(v_uv);
   p.x *= uResolution.x / max(1.0, uResolution.y);
   float cameraPush = sin(uTime * 0.16 + uVariation.x * 6.0) * uCameraTravel;
   p *= 1.0 + cameraPush * 0.08;

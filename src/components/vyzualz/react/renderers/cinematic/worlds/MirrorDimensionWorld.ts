@@ -3,6 +3,7 @@ import type { ShaderProgram } from '../../../shaders/runtime/ShaderProgram'
 import type { CinematicFrameContext, CinematicWebGLWorldDefinition } from '../../CinematicWorldRenderer'
 import { MIRROR_DIMENSION_FRAGMENT_SOURCE } from './CinematicWorldPackBShaders'
 import { FullscreenCinematicWorld } from './FullscreenCinematicWorld'
+import { defineCinematicWorldDirection } from '../CinematicWorldDirection'
 import { applyCinematicModulation } from '../CinematicAudioModulation'
 
 const UNIFORMS = [
@@ -38,10 +39,26 @@ class MirrorDimensionWorld extends FullscreenCinematicWorld {
   }
 }
 
+const mirrorDimensionDirection = defineCinematicWorldDirection({
+  supportedCameraRigs: ['locked', 'orbit', 'autoDirector'],
+  safeCameraRange: { minDistance: 0.75, maxDistance: 4.2, maxLateral: 0.85, minFieldOfView: 38, maxFieldOfView: 78 },
+  shots: [
+    { id: 'mirror-wide', rig: 'locked', sections: ['intro', 'breakdown', 'outro'], action: 'establish', pose: { position: { z: 3.3 }, fieldOfView: 70 } },
+    { id: 'mirror-orbit', rig: 'orbit', sections: ['verse', 'build', 'bridge'], action: 'orbit', weight: 1.5 },
+    { id: 'mirror-focus', rig: 'locked', sections: ['preDrop'], action: 'focus', pose: { position: { z: 1.05 }, fieldOfView: 42 } },
+    { id: 'mirror-snap', rig: 'orbit', sections: ['drop'], action: 'reveal', minimumDurationSec: 4 },
+    { id: 'mirror-fallback', rig: 'locked', sections: ['unknown'], action: 'hold' },
+  ],
+  dropActions: ['reveal', 'impact'],
+  revealActions: ['reveal', 'open'],
+  retreatActions: ['retreat', 'close'],
+})
+
 export const mirrorDimensionWorldDefinition: CinematicWebGLWorldDefinition = {
   id: 'mirrorDimension',
   label: 'Mirror Dimension',
   backend: 'webgl2',
+  direction: mirrorDimensionDirection,
   capabilities: {
     backend: 'webgl2',
     cameraRigs: ['locked', 'orbit', 'autoDirector'],

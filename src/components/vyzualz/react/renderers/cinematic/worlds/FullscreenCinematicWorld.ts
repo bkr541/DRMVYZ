@@ -13,6 +13,7 @@ import type {
 import type { CinematicWorldMode } from '../../../CinematicWorldConfig'
 import { CINEMATIC_WORLD_COMMON_UNIFORMS } from './CinematicWorldShaders'
 import { cinematicModulationValue } from '../CinematicAudioModulation'
+import { cinematicDirectionActionValue } from '../CinematicCameraDirector'
 
 interface RgbColor {
   r: number
@@ -125,6 +126,22 @@ export abstract class FullscreenCinematicWorld implements CinematicWebGLWorldRen
     this.program.setVec3('uPrimary', primary.r, primary.g, primary.b)
     this.program.setVec3('uSecondary', secondary.r, secondary.g, secondary.b)
     this.program.setVec3('uAccent', accent.r, accent.g, accent.b)
+    const camera = frame.camera
+    this.program.setVec3(
+      'uCameraPosition',
+      camera?.pose.position.x ?? 0,
+      camera?.pose.position.y ?? 0,
+      camera?.pose.position.z ?? 1.8,
+    )
+    this.program.setVec3(
+      'uCameraRotation',
+      camera?.pose.rotation.x ?? 0,
+      camera?.pose.rotation.y ?? 0,
+      camera?.pose.rotation.z ?? 0,
+    )
+    this.program.setFloat('uCameraFieldOfView', camera?.pose.fieldOfView ?? 58)
+    this.program.setFloat('uCameraRoute', camera?.routeProgress ?? 0)
+    this.program.setFloat('uCameraAction', cinematicDirectionActionValue(camera?.action ?? 'hold'))
     this.setWorldUniforms(this.program, frame)
 
     this.services.fullscreenPass.run(

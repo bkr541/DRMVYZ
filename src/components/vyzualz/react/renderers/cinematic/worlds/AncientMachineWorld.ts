@@ -3,6 +3,7 @@ import type { ShaderProgram } from '../../../shaders/runtime/ShaderProgram'
 import type { CinematicFrameContext, CinematicWebGLWorldDefinition } from '../../CinematicWorldRenderer'
 import { ANCIENT_MACHINE_FRAGMENT_SOURCE } from './CinematicWorldPackBShaders'
 import { FullscreenCinematicWorld } from './FullscreenCinematicWorld'
+import { defineCinematicWorldDirection } from '../CinematicWorldDirection'
 import { applyCinematicModulation } from '../CinematicAudioModulation'
 
 const UNIFORMS = [
@@ -73,10 +74,28 @@ class AncientMachineWorld extends FullscreenCinematicWorld {
   }
 }
 
+const ancientMachineDirection = defineCinematicWorldDirection({
+  supportedCameraRigs: ['locked', 'dolly', 'orbit', 'autoDirector'],
+  safeCameraRange: { minDistance: 0.7, maxDistance: 5.0, maxLateral: 1.0, minElevation: -0.45, maxElevation: 1.1 },
+  shots: [
+    { id: 'machine-dormant', rig: 'locked', sections: ['intro', 'breakdown'], action: 'establish', pose: { position: { z: 4.2 }, fieldOfView: 70 } },
+    { id: 'machine-inspect', rig: 'orbit', sections: ['verse', 'bridge'], action: 'orbit' },
+    { id: 'machine-unlock', rig: 'dolly', sections: ['build'], action: 'approach', weight: 1.5 },
+    { id: 'machine-lock', rig: 'locked', sections: ['preDrop'], action: 'focus', pose: { position: { z: 1.08 }, fieldOfView: 43 } },
+    { id: 'machine-open', rig: 'orbit', sections: ['drop'], action: 'open', minimumDurationSec: 4 },
+    { id: 'machine-retreat', rig: 'dolly', sections: ['outro'], action: 'retreat', pose: { position: { z: 4.7 }, fieldOfView: 74 } },
+    { id: 'machine-fallback', rig: 'locked', sections: ['unknown'], action: 'hold' },
+  ],
+  dropActions: ['open', 'impact', 'reveal'],
+  revealActions: ['open', 'reveal'],
+  retreatActions: ['retreat', 'close'],
+})
+
 export const ancientMachineWorldDefinition: CinematicWebGLWorldDefinition = {
   id: 'ancientMachine',
   label: 'Ancient Machine',
   backend: 'webgl2',
+  direction: ancientMachineDirection,
   capabilities: {
     backend: 'webgl2',
     cameraRigs: ['locked', 'dolly', 'orbit', 'autoDirector'],

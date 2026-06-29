@@ -22,6 +22,11 @@ export const CINEMATIC_WORLD_COMMON_UNIFORMS = [
   'uPrimary',
   'uSecondary',
   'uAccent',
+  'uCameraPosition',
+  'uCameraRotation',
+  'uCameraFieldOfView',
+  'uCameraRoute',
+  'uCameraAction',
 ] as const
 
 export const CINEMATIC_WORLD_SHADER_HEADER = `#version 300 es
@@ -51,6 +56,11 @@ uniform vec4 uVariation;
 uniform vec3 uPrimary;
 uniform vec3 uSecondary;
 uniform vec3 uAccent;
+uniform vec3 uCameraPosition;
+uniform vec3 uCameraRotation;
+uniform float uCameraFieldOfView;
+uniform float uCameraRoute;
+uniform float uCameraAction;
 
 float hash11(float p) {
   return fract(sin(p * 127.1 + uSeed * 0.0137) * 43758.5453123);
@@ -88,6 +98,19 @@ mat2 rotate2d(float angle) {
   float c = cos(angle);
   float s = sin(angle);
   return mat2(c, -s, s, c);
+}
+
+vec2 cinematicCameraUv(vec2 uv) {
+  vec2 p = uv * 2.0 - 1.0;
+  float fov = clamp(uCameraFieldOfView, 20.0, 110.0);
+  float fovScale = tan(radians(fov) * 0.5) / tan(radians(58.0) * 0.5);
+  p *= fovScale;
+  p = rotate2d(-uCameraRotation.z) * p;
+  p += vec2(-uCameraPosition.x, uCameraPosition.y) * 0.16;
+  p += vec2(uCameraRotation.y, -uCameraRotation.x) * 0.22;
+  p *= 1.0 + (uCameraPosition.z - 1.8) * 0.10;
+  p.x += sin(uCameraRoute * 6.2831853) * 0.012 * step(5.5, uCameraAction);
+  return p;
 }
 
 float sdBox(vec2 p, vec2 b) {

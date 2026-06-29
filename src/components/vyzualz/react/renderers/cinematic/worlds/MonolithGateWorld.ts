@@ -3,6 +3,7 @@ import type { ShaderProgram } from '../../../shaders/runtime/ShaderProgram'
 import type { CinematicFrameContext, CinematicWebGLWorldDefinition } from '../../CinematicWorldRenderer'
 import { MONOLITH_GATE_FRAGMENT_SOURCE } from './CinematicWorldShaders'
 import { FullscreenCinematicWorld } from './FullscreenCinematicWorld'
+import { defineCinematicWorldDirection } from '../CinematicWorldDirection'
 import { applyCinematicModulation } from '../CinematicAudioModulation'
 
 const UNIFORMS = [
@@ -56,10 +57,27 @@ class MonolithGateWorld extends FullscreenCinematicWorld {
   }
 }
 
+const monolithGateDirection = defineCinematicWorldDirection({
+  supportedCameraRigs: ['locked', 'dolly', 'orbit', 'autoDirector'],
+  safeCameraRange: { minDistance: 0.7, maxDistance: 5.2, maxLateral: 1.15, minElevation: -0.5, maxElevation: 1.15 },
+  shots: [
+    { id: 'monolith-establish', rig: 'locked', sections: ['intro', 'breakdown'], action: 'establish', pose: { position: { y: 0.18, z: 4.4 }, fieldOfView: 70 } },
+    { id: 'monolith-approach', rig: 'dolly', sections: ['verse', 'build'], action: 'approach', weight: 1.5 },
+    { id: 'monolith-lock', rig: 'locked', sections: ['preDrop'], action: 'focus', pose: { position: { z: 1.1 }, fieldOfView: 43 } },
+    { id: 'monolith-reveal', rig: 'orbit', sections: ['drop'], action: 'open', minimumDurationSec: 4 },
+    { id: 'monolith-retreat', rig: 'dolly', sections: ['outro'], action: 'retreat', pose: { position: { z: 4.8 }, fieldOfView: 74 } },
+    { id: 'monolith-fallback', rig: 'locked', sections: ['bridge', 'unknown'], action: 'hold' },
+  ],
+  dropActions: ['open', 'impact', 'reveal'],
+  revealActions: ['open', 'reveal'],
+  retreatActions: ['retreat', 'close'],
+})
+
 export const monolithGateWorldDefinition: CinematicWebGLWorldDefinition = {
   id: 'monolithGate',
   label: 'Monolith Gate',
   backend: 'webgl2',
+  direction: monolithGateDirection,
   capabilities: {
     backend: 'webgl2',
     cameraRigs: ['locked', 'dolly', 'orbit', 'autoDirector'],

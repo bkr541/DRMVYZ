@@ -51,6 +51,117 @@ export const CINEMATIC_CAMERA_RIGS = [
 
 export type CinematicCameraRig = typeof CINEMATIC_CAMERA_RIGS[number]
 
+export const CINEMATIC_CAMERA_EASINGS = ['linear', 'easeInOut', 'smoothstep'] as const
+export type CinematicCameraEasing = typeof CINEMATIC_CAMERA_EASINGS[number]
+
+export interface CinematicCameraVectorConfig {
+  x: number
+  y: number
+  z: number
+}
+
+export interface CinematicCameraConfig {
+  locked: {
+    position: CinematicCameraVectorConfig
+    rotation: CinematicCameraVectorConfig
+    fieldOfView: number
+    breathingStrength: number
+    breathingFrequency: number
+    beatPunch: number
+  }
+  dolly: {
+    range: number
+    speed: number
+    direction: -1 | 1
+    easing: CinematicCameraEasing
+    beatAcceleration: number
+    buildAcceleration: number
+  }
+  orbit: {
+    radius: number
+    elevation: number
+    angularSpeed: number
+    direction: -1 | 1
+    sectionAware: boolean
+    safeMargin: number
+  }
+  flyThrough: {
+    speed: number
+    speedModulation: number
+    banking: number
+    loop: boolean
+  }
+  handheld: {
+    driftStrength: number
+    impactShake: number
+    damping: number
+    strength: number
+    frequency: number
+    maxTranslation: number
+    maxRotation: number
+  }
+  autoDirector: {
+    minimumShotDurationSec: number
+    transitionDurationSec: number
+    preferMusicalBoundaries: boolean
+    repeatAvoidance: number
+    manualOverrideRig: Exclude<CinematicCameraRig, 'autoDirector'> | null
+    lockUntilNextSection: boolean
+  }
+}
+
+export function createDefaultCinematicCameraConfig(): CinematicCameraConfig {
+  return {
+    locked: {
+      position: { x: 0, y: 0, z: 1.8 },
+      rotation: { x: 0, y: 0, z: 0 },
+      fieldOfView: 58,
+      breathingStrength: 0.018,
+      breathingFrequency: 0.16,
+      beatPunch: 0.08,
+    },
+    dolly: {
+      range: 1.15,
+      speed: 0.12,
+      direction: 1,
+      easing: 'easeInOut',
+      beatAcceleration: 0.22,
+      buildAcceleration: 0.65,
+    },
+    orbit: {
+      radius: 1.9,
+      elevation: 0.18,
+      angularSpeed: 0.10,
+      direction: 1,
+      sectionAware: true,
+      safeMargin: 0.16,
+    },
+    flyThrough: {
+      speed: 0.22,
+      speedModulation: 0.65,
+      banking: 0.12,
+      loop: true,
+    },
+    handheld: {
+      driftStrength: 0.06,
+      impactShake: 0.12,
+      damping: 9,
+      strength: 0.55,
+      frequency: 0.42,
+      maxTranslation: 0.10,
+      maxRotation: 0.055,
+    },
+    autoDirector: {
+      minimumShotDurationSec: 4,
+      transitionDurationSec: 0.85,
+      preferMusicalBoundaries: true,
+      repeatAvoidance: 2,
+      manualOverrideRig: null,
+      lockUntilNextSection: false,
+    },
+  }
+}
+
 export const CINEMATIC_QUALITY_TIERS = ['low', 'medium', 'high', 'ultra'] as const
 export type CinematicQualityTier = typeof CINEMATIC_QUALITY_TIERS[number]
 
@@ -281,6 +392,7 @@ export interface CinematicWorldConfig {
   worldSettings: CinematicWorldSpecificConfig
   portalShape: CinematicPortalShape
   cameraRig: CinematicCameraRig
+  camera: CinematicCameraConfig
   customMaskId: string | null
   environment: CinematicEnvironmentControls
   material: CinematicMaterialControls
@@ -405,6 +517,7 @@ export function createDefaultCinematicWorldConfig(): CinematicWorldConfig {
     worldSettings: createDefaultCinematicWorldSettings('legacyPortal'),
     portalShape: 'rectangle',
     cameraRig: 'locked',
+    camera: createDefaultCinematicCameraConfig(),
     customMaskId: null,
     environment: {
       depth: CINEMATIC_NUMERIC_RANGES.environment.depth.default,
@@ -471,6 +584,113 @@ function collectUnknown(
       .filter(([key]) => !known.has(key))
       .map(([key, value]) => [`${prefix}${key}`, value]),
   )
+}
+
+function clampNumber(value: unknown, fallback: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, finiteNumber(value, fallback)))
+}
+
+function normalizeCameraDirection(value: unknown, fallback: -1 | 1): -1 | 1 {
+  return value === -1 ? -1 : value === 1 ? 1 : fallback
+}
+
+function normalizeCameraVector(
+  value: unknown,
+  fallback: CinematicCameraVectorConfig,
+  min: number,
+  max: number,
+): CinematicCameraVectorConfig {
+  const source = isRecord(value) ? value : {}
+  return {
+    x: clampNumber(source.x, fallback.x, min, max),
+    y: clampNumber(source.y, fallback.y, min, max),
+    z: clampNumber(source.z, fallback.z, min, max),
+  }
+}
+
+export function normalizeCinematicCameraConfig(value: unknown): CinematicCameraConfig {
+  const defaults = createDefaultCinematicCameraConfig()
+  const source = isRecord(value) ? value : {}
+  const locked = isRecord(source.locked) ? source.locked : {}
+  const dolly = isRecord(source.dolly) ? source.dolly : {}
+  const orbit = isRecord(source.orbit) ? source.orbit : {}
+  const flyThrough = isRecord(source.flyThrough) ? source.flyThrough : {}
+  const handheld = isRecord(source.handheld) ? source.handheld : {}
+  const autoDirector = isRecord(source.autoDirector) ? source.autoDirector : {}
+  const overrideRig = autoDirector.manualOverrideRig
+
+  return {
+    locked: {
+      position: normalizeCameraVector(locked.position, defaults.locked.position, -8, 8),
+      rotation: normalizeCameraVector(locked.rotation, defaults.locked.rotation, -Math.PI, Math.PI),
+      fieldOfView: clampNumber(locked.fieldOfView, defaults.locked.fieldOfView, 20, 110),
+      breathingStrength: clampNumber(locked.breathingStrength, defaults.locked.breathingStrength, 0, 0.18),
+      breathingFrequency: clampNumber(locked.breathingFrequency, defaults.locked.breathingFrequency, 0, 2),
+      beatPunch: clampNumber(locked.beatPunch, defaults.locked.beatPunch, 0, 0.6),
+    },
+    dolly: {
+      range: clampNumber(dolly.range, defaults.dolly.range, 0, 6),
+      speed: clampNumber(dolly.speed, defaults.dolly.speed, 0, 3),
+      direction: normalizeCameraDirection(dolly.direction, defaults.dolly.direction),
+      easing: enumValue(dolly.easing, CINEMATIC_CAMERA_EASINGS, defaults.dolly.easing),
+      beatAcceleration: clampNumber(dolly.beatAcceleration, defaults.dolly.beatAcceleration, 0, 2),
+      buildAcceleration: clampNumber(dolly.buildAcceleration, defaults.dolly.buildAcceleration, 0, 3),
+    },
+    orbit: {
+      radius: clampNumber(orbit.radius, defaults.orbit.radius, 0.2, 8),
+      elevation: clampNumber(orbit.elevation, defaults.orbit.elevation, -2, 2),
+      angularSpeed: clampNumber(orbit.angularSpeed, defaults.orbit.angularSpeed, 0, 3),
+      direction: normalizeCameraDirection(orbit.direction, defaults.orbit.direction),
+      sectionAware: typeof orbit.sectionAware === 'boolean' ? orbit.sectionAware : defaults.orbit.sectionAware,
+      safeMargin: clampNumber(orbit.safeMargin, defaults.orbit.safeMargin, 0, 1),
+    },
+    flyThrough: {
+      speed: clampNumber(flyThrough.speed, defaults.flyThrough.speed, 0, 4),
+      speedModulation: clampNumber(flyThrough.speedModulation, defaults.flyThrough.speedModulation, 0, 3),
+      banking: clampNumber(flyThrough.banking, defaults.flyThrough.banking, 0, 0.8),
+      loop: typeof flyThrough.loop === 'boolean' ? flyThrough.loop : defaults.flyThrough.loop,
+    },
+    handheld: {
+      driftStrength: clampNumber(handheld.driftStrength, defaults.handheld.driftStrength, 0, 0.25),
+      impactShake: clampNumber(handheld.impactShake, defaults.handheld.impactShake, 0, 0.4),
+      damping: clampNumber(handheld.damping, defaults.handheld.damping, 0.5, 30),
+      strength: clampNumber(handheld.strength, defaults.handheld.strength, 0, 1),
+      frequency: clampNumber(handheld.frequency, defaults.handheld.frequency, 0.05, 3),
+      maxTranslation: clampNumber(handheld.maxTranslation, defaults.handheld.maxTranslation, 0, 0.25),
+      maxRotation: clampNumber(handheld.maxRotation, defaults.handheld.maxRotation, 0, 0.12),
+    },
+    autoDirector: {
+      minimumShotDurationSec: clampNumber(
+        autoDirector.minimumShotDurationSec,
+        defaults.autoDirector.minimumShotDurationSec,
+        1,
+        32,
+      ),
+      transitionDurationSec: clampNumber(
+        autoDirector.transitionDurationSec,
+        defaults.autoDirector.transitionDurationSec,
+        0,
+        8,
+      ),
+      preferMusicalBoundaries: typeof autoDirector.preferMusicalBoundaries === 'boolean'
+        ? autoDirector.preferMusicalBoundaries
+        : defaults.autoDirector.preferMusicalBoundaries,
+      repeatAvoidance: Math.round(clampNumber(
+        autoDirector.repeatAvoidance,
+        defaults.autoDirector.repeatAvoidance,
+        0,
+        8,
+      )),
+      manualOverrideRig: typeof overrideRig === 'string'
+        && overrideRig !== 'autoDirector'
+        && (CINEMATIC_CAMERA_RIGS as readonly string[]).includes(overrideRig)
+          ? overrideRig as Exclude<CinematicCameraRig, 'autoDirector'>
+          : null,
+      lockUntilNextSection: typeof autoDirector.lockUntilNextSection === 'boolean'
+        ? autoDirector.lockUntilNextSection
+        : defaults.autoDirector.lockUntilNextSection,
+    },
+  }
 }
 
 function normalizeSectionScale(value: unknown): Partial<Record<CinematicSectionScaleKey, number>> {
@@ -559,6 +779,7 @@ export function normalizeCinematicWorldConfig(
   const environment = isRecord(source.environment) ? source.environment : {}
   const material = isRecord(source.material) ? source.material : {}
   const audioMapping = isRecord(source.audioMapping) ? source.audioMapping : {}
+  const camera = isRecord(source.camera) ? source.camera : {}
   const transition = isRecord(source.transition) ? source.transition : {}
   const compatibility = isRecord(source.compatibility) ? source.compatibility : {}
   const priorLegacy = isRecord(compatibility.legacyValues) ? compatibility.legacyValues : {}
@@ -567,13 +788,14 @@ export function normalizeCinematicWorldConfig(
   const extensions: Record<string, unknown> = {
     ...priorExtensions,
     ...collectUnknown(source, [
-      'schemaVersion', 'worldMode', 'worldSettings', 'portalShape', 'cameraRig', 'customMaskId',
+      'schemaVersion', 'worldMode', 'worldSettings', 'portalShape', 'cameraRig', 'camera', 'customMaskId',
       'environment', 'material', 'audioMapping', 'seed', 'qualityTier',
       'transition', 'compatibility',
     ]),
     ...collectUnknown(environment, ['depth', 'architecture', 'fog', 'debris', 'stars', 'atmosphere'], 'environment.'),
     ...collectUnknown(material, ['distortion', 'refraction', 'bloom', 'chromaticAberration', 'feedback', 'glow'], 'material.'),
     ...collectUnknown(audioMapping, ['enabled', 'smoothingMs', 'routes'], 'audioMapping.'),
+    ...collectUnknown(camera, ['locked', 'dolly', 'orbit', 'flyThrough', 'handheld', 'autoDirector'], 'camera.'),
     ...collectUnknown(transition, ['mode', 'durationMs', 'easing', 'preserveCamera'], 'transition.'),
     ...collectUnknown(compatibility, ['legacyValues', 'extensions'], 'compatibility.'),
   }
@@ -587,6 +809,7 @@ export function normalizeCinematicWorldConfig(
     worldSettings: normalizeCinematicWorldSettings(worldMode, source.worldSettings),
     portalShape: enumValue(source.portalShape, CINEMATIC_PORTAL_SHAPES, defaults.portalShape),
     cameraRig: enumValue(source.cameraRig, CINEMATIC_CAMERA_RIGS, defaults.cameraRig),
+    camera: normalizeCinematicCameraConfig(source.camera),
     customMaskId: typeof source.customMaskId === 'string' && source.customMaskId
       ? source.customMaskId
       : null,
@@ -631,6 +854,7 @@ export function normalizeCinematicWorldConfig(
 export interface CinematicWorldConfigOverrides {
   portalShape?: CinematicPortalShape
   cameraRig?: CinematicCameraRig
+  camera?: Partial<CinematicCameraConfig>
   customMaskId?: string | null
   environment?: Partial<CinematicEnvironmentControls>
   material?: Partial<CinematicMaterialControls>
@@ -659,6 +883,16 @@ export function createCinematicWorldConfig<Mode extends CinematicWorldMode>(
     worldSettings: {
       mode,
       settings,
+    },
+    camera: {
+      ...defaults.camera,
+      ...overrides.camera,
+      locked: { ...defaults.camera.locked, ...overrides.camera?.locked },
+      dolly: { ...defaults.camera.dolly, ...overrides.camera?.dolly },
+      orbit: { ...defaults.camera.orbit, ...overrides.camera?.orbit },
+      flyThrough: { ...defaults.camera.flyThrough, ...overrides.camera?.flyThrough },
+      handheld: { ...defaults.camera.handheld, ...overrides.camera?.handheld },
+      autoDirector: { ...defaults.camera.autoDirector, ...overrides.camera?.autoDirector },
     },
     environment: {
       ...defaults.environment,

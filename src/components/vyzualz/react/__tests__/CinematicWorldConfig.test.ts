@@ -21,6 +21,7 @@ describe('CinematicWorldConfig', () => {
       qualityTier: 'high',
     })
     expect(first.audioMapping.routes.length).toBeGreaterThan(0)
+    expect(first.camera.autoDirector.minimumShotDurationSec).toBeGreaterThan(0)
     expect(first).not.toBe(second)
     expect(first.audioMapping.routes).not.toBe(second.audioMapping.routes)
   })
@@ -64,6 +65,13 @@ describe('CinematicWorldConfig', () => {
           futureEnvelope: 'curve',
         }],
       },
+      camera: {
+        locked: { fieldOfView: 999, breathingStrength: -1 },
+        dolly: { direction: -1, range: 99 },
+        orbit: { radius: -5 },
+        handheld: { maxTranslation: 5, maxRotation: 2 },
+        autoDirector: { minimumShotDurationSec: 0, manualOverrideRig: 'orbit' },
+      },
       transition: {
         mode: 'morph',
         durationMs: 20000,
@@ -80,6 +88,12 @@ describe('CinematicWorldConfig', () => {
     expect(normalized.material.refraction).toBe(1)
     expect(normalized.audioMapping.smoothingMs).toBe(2000)
     expect(normalized.audioMapping.routes[0]).toMatchObject({ amount: 2, attackMs: 0, releaseMs: 4000 })
+    expect(normalized.camera.locked.fieldOfView).toBe(110)
+    expect(normalized.camera.locked.breathingStrength).toBe(0)
+    expect(normalized.camera.dolly).toMatchObject({ direction: -1, range: 6 })
+    expect(normalized.camera.orbit.radius).toBe(0.2)
+    expect(normalized.camera.handheld).toMatchObject({ maxTranslation: 0.25, maxRotation: 0.12 })
+    expect(normalized.camera.autoDirector).toMatchObject({ minimumShotDurationSec: 1, manualOverrideRig: 'orbit' })
     expect(normalized.transition.durationMs).toBe(10000)
     expect(normalized.seed).toBe(0xffffffff)
     expect(normalized.compatibility.legacyValues.oldFogDensity).toBe(0.42)

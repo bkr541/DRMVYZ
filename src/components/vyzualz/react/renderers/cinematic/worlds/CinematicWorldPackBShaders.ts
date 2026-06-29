@@ -14,7 +14,7 @@ uniform float uOpeningBias;
 uniform float uMidSurfaceMotion;
 
 void main() {
-  vec2 p = v_uv * 2.0 - 1.0;
+  vec2 p = cinematicCameraUv(v_uv);
   p.x *= uResolution.x / max(1.0, uResolution.y);
 
   float qualityMix = uQuality / 3.0;
@@ -90,7 +90,7 @@ float cathedralArch(vec2 q, float width, float style) {
 }
 
 void main() {
-  vec2 p = v_uv * 2.0 - 1.0;
+  vec2 p = cinematicCameraUv(v_uv);
   p.x *= uResolution.x / max(1.0, uResolution.y);
   float slowTime = uTime * uMajesticSpeed * uVariation.w;
   vec2 drift = vec2(sin(slowTime * 0.37 + uVariation.x * 6.0), cos(slowTime * 0.29)) * uCameraDrift;
@@ -184,7 +184,7 @@ float mirrorStructure(vec2 q, float style) {
 }
 
 void main() {
-  vec2 p = v_uv * 2.0 - 1.0;
+  vec2 p = cinematicCameraUv(v_uv);
   p.x *= uResolution.x / max(1.0, uResolution.y);
   float qualityMix = uQuality / 3.0;
   int recursionBudget = int(mix(2.0, 8.0, qualityMix));
@@ -255,7 +255,7 @@ float ringLine(float radius, float target, float thickness) {
 }
 
 void main() {
-  vec2 p = v_uv * 2.0 - 1.0;
+  vec2 p = cinematicCameraUv(v_uv);
   p.x *= uResolution.x / max(1.0, uResolution.y);
   float radius = length(p);
   float angle = atan(p.y, p.x);
@@ -348,7 +348,7 @@ float lightningPath(vec2 p, float seed, float branchOffset) {
 }
 
 void main() {
-  vec2 p = v_uv * 2.0 - 1.0;
+  vec2 p = cinematicCameraUv(v_uv);
   p.x *= uResolution.x / max(1.0, uResolution.y);
   float radius = length(p);
   float angle = atan(p.y, p.x);

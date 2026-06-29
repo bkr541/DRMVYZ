@@ -331,6 +331,11 @@ export function ReactShaderCanvas({
       const resolvedSectionEnd   = trackSection
         ? trackSection.endSec
         : (miFrame.section?.endSec ?? Infinity)
+      const resolvedSectionSource = trackSection
+        ? (trackSection.source === 'user-created' || trackSection.source === 'user-edited-auto'
+            ? 'manual'
+            : trackSection.source === 'auto' ? 'analysis' : 'inferred')
+        : miFrame.section?.source
       const resolvedProgress = trackSection
         ? (resolvedSectionEnd > resolvedSectionStart
             ? Math.max(0, Math.min(1, (audioTimeSec - resolvedSectionStart) / (resolvedSectionEnd - resolvedSectionStart)))
@@ -391,6 +396,7 @@ export function ReactShaderCanvas({
               startSec: resolvedSectionStart,
               endSec:   resolvedSectionEnd,
               progress: resolvedProgress,
+              source:   resolvedSectionSource,
             }
           : null,
         sectionChanged,

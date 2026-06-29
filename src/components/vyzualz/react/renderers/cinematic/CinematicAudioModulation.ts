@@ -1,4 +1,4 @@
-import type { MusicIntelligenceFrame } from '../../../../../features/musicIntelligence/types'
+import type { MusicIntelligenceFrame, SectionSource } from '../../../../../features/musicIntelligence/types'
 import {
   CINEMATIC_AUDIO_CONTINUOUS_SOURCES,
   CINEMATIC_AUDIO_EVENT_SOURCES,
@@ -58,6 +58,7 @@ export interface CinematicMusicalSection {
   progress: number
   intensity: number
   confidence: number
+  source?: SectionSource | 'unknown'
 }
 
 export interface CinematicNormalizedAudioFrame {
@@ -97,6 +98,7 @@ export interface CinematicAudioFrameInput {
     progress: number
     intensity?: number
     confidence?: number
+    source?: SectionSource | 'unknown'
   }
   sectionChanged: boolean
   worldId: CinematicWorldMode | string
@@ -510,6 +512,7 @@ export class CinematicAudioFrameNormalizer {
         progress: capabilities.sectionTiming ? progress : 0,
         intensity,
         confidence: safeUnit(input.section.confidence ?? mi?.section.confidence),
+        source: input.section.source ?? mi?.section.source ?? 'unknown',
       },
       capabilities,
       resetReasons: reasons,
