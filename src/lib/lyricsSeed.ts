@@ -11,10 +11,9 @@
 import { supabase } from './supabase'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
-  createLyricDocument,
-  createLyricCues,
   getLyricDocumentsForUser,
   getLyricCuesForDocument,
+  saveLyricDocumentAtomic,
 } from './lyricsDb'
 import type {
   LyricDocument,
@@ -167,54 +166,55 @@ export async function seedSampleLyricsForCurrentUser(): Promise<{
   const user = await requireCurrentUser()
   console.log(`[lyricsSeed] seeding for user ${user.email ?? user.id} …`)
 
-  const document = await createLyricDocument({
-    title:        'VYZUALZ Lyric Test',
-    artist:       'DRMVYZ',
-    sourceType:   'manual',
-    sourceFormat: 'json',
-    globalOffsetMs: 0,
-    metadata: {
-      purpose:     'dev_seed',
-      description: 'Sample lyric document for testing VYZUALZ timed lyrics',
+  const result = await saveLyricDocumentAtomic({
+    document: {
+      title:        'VYZUALZ Lyric Test',
+      artist:       'DRMVYZ',
+      sourceType:   'manual',
+      sourceFormat: 'json',
+      globalOffsetMs: 0,
+      metadata: {
+        purpose:     'dev_seed',
+        description: 'Sample lyric document for testing VYZUALZ timed lyrics',
+      },
+      defaultStyle: {
+        fontFamily:   'Orbitron',
+        fontSize:     72,
+        fontWeight:   800,
+        color:        '#ffffff',
+        strokeColor:  '#00eaff',
+        strokeWidth:  2,
+        shadowColor:  '#00eaff',
+        shadowBlur:   24,
+        x:            0.5,
+        y:            0.78,
+        align:        'center',
+        textTransform: 'none',
+      },
+      defaultAnimation: {
+        in:     'fadeUp',
+        out:    'fadeDown',
+        inMs:   250,
+        outMs:  300,
+        easing: 'easeOutCubic',
+      },
+      defaultEffects: {
+        glow:      0.8,
+        rgbSplit:  0.12,
+        beatPunch: 0.35,
+        bassScale: 0.25,
+      },
     },
-    defaultStyle: {
-      fontFamily:   'Orbitron',
-      fontSize:     72,
-      fontWeight:   800,
-      color:        '#ffffff',
-      strokeColor:  '#00eaff',
-      strokeWidth:  2,
-      shadowColor:  '#00eaff',
-      shadowBlur:   24,
-      x:            0.5,
-      y:            0.78,
-      align:        'center',
-      textTransform: 'none',
-    },
-    defaultAnimation: {
-      in:     'fadeUp',
-      out:    'fadeDown',
-      inMs:   250,
-      outMs:  300,
-      easing: 'easeOutCubic',
-    },
-    defaultEffects: {
-      glow:      0.8,
-      rgbSplit:  0.12,
-      beatPunch: 0.35,
-      bassScale: 0.25,
-    },
+    cues: SAMPLE_CUES,
+    activate: true,
   })
 
-  console.log(`[lyricsSeed] created document  id=${document.id}`)
+  if (!result.ok) {
+    throw new Error(`lyricsSeed: ${result.kind}: ${result.message}`)
+  }
 
-  // lyricDocumentId is set by createLyricCues — the placeholder '' is replaced
-  // by the documentId argument passed in. Strip it from the input shape so the
-  // helper fills it correctly, then re-add so the type satisfies CreateLyricCueInput.
-  const cues = await createLyricCues(
-    document.id,
-    SAMPLE_CUES.map(c => ({ ...c, lyricDocumentId: document.id })),
-  )
+  const { document, cues } = result
+  console.log(`[lyricsSeed] created document  id=${document.id}`)
 
   console.log(`[lyricsSeed] inserted ${cues.length} cues`)
   cues.forEach((c, i) =>

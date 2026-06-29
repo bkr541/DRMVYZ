@@ -321,6 +321,7 @@ export interface LyricDocument {
   globalOffsetMs:   number
   isActive:         boolean
   metadata:         Record<string, unknown>
+  revision:         number
   createdAt:        string
   updatedAt:        string
 }
@@ -399,6 +400,8 @@ export interface LyricDocumentRow {
   global_offset_ms:  number
   is_active:         boolean
   metadata:          Record<string, unknown>
+  /** Optional for legacy exports created before migration 0015. */
+  revision?:         number
   created_at:        string
   updated_at:        string
 }
@@ -431,7 +434,9 @@ export interface LyricCueRow {
 
 // ── Insert / Update DB types ──────────────────────────────────────────────────
 
-export type LyricDocumentInsert = Omit<LyricDocumentRow, 'id' | 'created_at' | 'updated_at'>
+export type LyricDocumentInsert = Omit<LyricDocumentRow, 'id' | 'created_at' | 'updated_at' | 'revision'> & {
+  revision?: number
+}
 export type LyricCueInsert      = Omit<LyricCueRow,      'id' | 'created_at' | 'updated_at'>
 export type LyricDocumentUpdate = Partial<Omit<LyricDocumentRow, 'id'>>
 export type LyricCueUpdate      = Partial<Omit<LyricCueRow,      'id'>>
@@ -512,6 +517,65 @@ export interface UpdateLyricCueInput {
   originalTranscriptionText?: string | null
 }
 
+// ── Transactional persistence contracts ──────────────────────────────────────
+
+export interface SaveLyricDocumentAtomicInput {
+  documentId?:       string | null
+  expectedRevision?: number | null
+  document:          CreateLyricDocumentInput
+  cues:              CreateLyricCueInput[]
+  activate?:          boolean
+}
+
+export interface LyricPersistenceSuccess {
+  ok:       true
+  kind:     'success'
+  document: LyricDocument
+  cues:     LyricCue[]
+}
+
+export interface LyricActivationSuccess {
+  ok:       true
+  kind:     'success'
+  document: LyricDocument
+}
+
+export interface LyricValidationFailure {
+  ok:      false
+  kind:    'validation'
+  message: string
+  code?:   string
+}
+
+export interface LyricConflictFailure {
+  ok:               false
+  kind:             'conflict'
+  message:          string
+  currentRevision?: number
+}
+
+export interface LyricAuthorizationFailure {
+  ok:      false
+  kind:    'authorization'
+  message: string
+}
+
+export interface LyricUnexpectedFailure {
+  ok:      false
+  kind:    'unexpected'
+  message: string
+  code?:   string
+}
+
+export type LyricPersistenceFailure =
+  | LyricValidationFailure
+  | LyricConflictFailure
+  | LyricAuthorizationFailure
+  | LyricUnexpectedFailure
+
+export type SaveLyricDocumentResult = LyricPersistenceSuccess | LyricPersistenceFailure
+export type ActivateLyricDocumentResult = LyricActivationSuccess | LyricPersistenceFailure
+
 // ── Mapper functions ──────────────────────────────────────────────────────────
 
 function nonEmptyObject<T extends object>(value: unknown): T | undefined {
@@ -536,6 +600,7 @@ export function mapLyricDocumentRowToDocument(row: LyricDocumentRow): LyricDocum
     globalOffsetMs:   row.global_offset_ms,
     isActive:         row.is_active,
     metadata:         row.metadata,
+    revision:         typeof row.revision === 'number' ? row.revision : 1,
     createdAt:        row.created_at,
     updatedAt:        row.updated_at,
   }

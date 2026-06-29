@@ -82,7 +82,6 @@ export function LyricManagerModal({ onClose }: { onClose: () => void }) {
     draftDefaultEffects,   updateDraftDefaultEffects,
     globalOffsetMs,   setGlobalOffsetMs,
     saveActiveLyricDocument,
-    replaceActiveCues,
     clearLyrics,
   } = useLyricsStore()
 
@@ -124,13 +123,11 @@ export function LyricManagerModal({ onClose }: { onClose: () => void }) {
 
   const handleSave = useCallback(async () => {
     setError(null)
+    // The store saves document fields and the complete preview cue set in one RPC.
+    // This includes an intentionally empty array when the user removes every cue.
     await saveActiveLyricDocument()
-    // After doc is saved we have an ID — now replace cues if we have pending ones
-    if (pendingCues && pendingCues.length > 0) {
-      await replaceActiveCues(pendingCues)
-    }
     if (!useLyricsStore.getState().error) onClose()
-  }, [saveActiveLyricDocument, replaceActiveCues, pendingCues, setError, onClose])
+  }, [saveActiveLyricDocument, setError, onClose])
 
   const displayCues = pendingCues
     ? pendingCues.map(c => ({

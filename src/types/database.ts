@@ -6,6 +6,14 @@ import type {
   LyricCueRow,      LyricCueInsert,      LyricCueUpdate,
 } from './lyrics'
 
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
 export type AudioSource  = 'file' | 'microphone' | 'demo' | 'ring_buffer'
 export type MeterMode    = 'vu' | 'rms' | 'peak' | 'ebu'
 export type ViewMode     = 'analyzer' | 'reference' | 'vyzualz'
@@ -395,7 +403,25 @@ export type DBRec<T> = T & { [k: string]: unknown }
 export interface Database {
   public: {
     Views:          Record<string, never>
-    Functions:      Record<string, never>
+    Functions: {
+      activate_lyric_document: {
+        Args: {
+          p_document_id: string
+          p_expected_revision: number | null
+        }
+        Returns: Json
+      }
+      save_lyric_document_atomic: {
+        Args: {
+          p_document_id: string | null
+          p_expected_revision: number | null
+          p_document: Json
+          p_cues: Json
+          p_activate: boolean
+        }
+        Returns: Json
+      }
+    }
     Enums:          Record<string, never>
     CompositeTypes: Record<string, never>
     Tables: {
@@ -421,8 +447,23 @@ export interface Database {
       visual_sessions:          { Row: DBRec<VisualSessionRow>;       Insert: DBRec<Omit<VisualSessionRow,'id'|'created_at'|'updated_at'>>;    Update: DBRec<Partial<Omit<VisualSessionRow,'id'>>>; Relationships: [] }
       canvas_exports:           { Row: DBRec<CanvasExport>;           Insert: DBRec<Omit<CanvasExport,'id'|'exported_at'>>;                    Update: DBRec<Partial<Omit<CanvasExport,'id'>>>; Relationships: [] }
       audio_track_tags:         { Row: DBRec<{ track_id: string; tag_id: string }>; Insert: DBRec<{ track_id: string; tag_id: string }>; Update: never; Relationships: [] }
-      lyric_documents:          { Row: DBRec<LyricDocumentRow>; Insert: DBRec<LyricDocumentInsert>; Update: DBRec<LyricDocumentUpdate>; Relationships: [] }
-      lyric_cues:               { Row: DBRec<LyricCueRow>;      Insert: DBRec<LyricCueInsert>;      Update: DBRec<LyricCueUpdate>;      Relationships: [] }
+      lyric_documents: {
+        Row: DBRec<LyricDocumentRow>
+        Insert: DBRec<LyricDocumentInsert>
+        Update: DBRec<LyricDocumentUpdate>
+        Relationships: [
+          { foreignKeyName: 'lyric_documents_audio_track_id_fkey'; columns: ['audio_track_id']; isOneToOne: false; referencedRelation: 'audio_tracks'; referencedColumns: ['id'] },
+          { foreignKeyName: 'lyric_documents_visual_session_id_fkey'; columns: ['visual_session_id']; isOneToOne: false; referencedRelation: 'visual_sessions'; referencedColumns: ['id'] },
+        ]
+      }
+      lyric_cues: {
+        Row: DBRec<LyricCueRow>
+        Insert: DBRec<LyricCueInsert>
+        Update: DBRec<LyricCueUpdate>
+        Relationships: [
+          { foreignKeyName: 'lyric_cues_lyric_document_id_fkey'; columns: ['lyric_document_id']; isOneToOne: false; referencedRelation: 'lyric_documents'; referencedColumns: ['id'] },
+        ]
+      }
       font_assets:              { Row: DBRec<FontAssetRow>;     Insert: DBRec<FontAssetInsert>;     Update: DBRec<Partial<Omit<FontAssetRow, 'id' | 'created_at'>>>; Relationships: [] }
     }
   }

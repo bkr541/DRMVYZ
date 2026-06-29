@@ -3,8 +3,7 @@ import { supabase, supabaseConfigured } from '../../lib/supabase'
 import { useLyricsStore } from '../../stores/lyricsStore'
 import { getLyricDocumentsForUser } from '../../lib/lyricsDb'
 import { useSharedAudio } from '../../context/AudioEngineContext'
-import type { LyricCue, LyricDocument, CreateLyricCueInput } from '../../types/lyrics'
-import { createLyricCueInputFromCue } from '../../types/lyrics'
+import type { LyricCue, LyricDocument } from '../../types/lyrics'
 import type { LyricDocumentImportResult } from './utils/lyricDocumentImport'
 import { LyricManagerHeader }    from './components/LyricManagerHeader'
 import { LyricDocumentSidebar }  from './components/LyricDocumentSidebar'
@@ -40,7 +39,7 @@ export function LyricManagerView({ onBack }: Props) {
     draftTitle, draftArtist, globalOffsetMs,
     setDraftTitle, setDraftArtist, setGlobalOffsetMs,
     updateDraftDefaultStyle, updateDraftDefaultAnimation, updateDraftDefaultEffects,
-    saveActiveLyricDocument, replaceActiveCues,
+    saveActiveLyricDocument,
     setActiveDocument, loadLyricDocument, setDraftSourceMeta,
   } = useLyricsStore()
 
@@ -111,20 +110,10 @@ export function LyricManagerView({ onBack }: Props) {
 
   const doSave = useCallback(async () => {
     setError(null)
-    await saveActiveLyricDocument()
+    await saveActiveLyricDocument(draftCues)
     if (useLyricsStore.getState().error) return
-
-    if (draftCues.length > 0) {
-      const docId = useLyricsStore.getState().activeDocumentId
-      if (docId) {
-        const inputs: CreateLyricCueInput[] = draftCues.map((cue, index) =>
-          createLyricCueInputFromCue(cue, docId, index),
-        )
-        await replaceActiveCues(inputs)
-      }
-    }
     showStatus('Saved')
-  }, [saveActiveLyricDocument, replaceActiveCues, draftCues, setError, showStatus])
+  }, [saveActiveLyricDocument, draftCues, setError, showStatus])
 
   const doSaveAndEnable = useCallback(async () => {
     await doSave()

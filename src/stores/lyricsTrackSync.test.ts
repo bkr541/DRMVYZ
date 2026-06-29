@@ -6,9 +6,8 @@ const lyricDbMocks = vi.hoisted(() => ({
   getLyricCuesForDocument: vi.fn(),
   getActiveLyricDocumentForAudioTrack: vi.fn(),
   getActiveLyricDocumentForVisualSession: vi.fn(),
-  createLyricDocument: vi.fn(),
-  updateLyricDocument: vi.fn(),
-  replaceLyricCuesForDocument: vi.fn(),
+  saveLyricDocumentAtomic: vi.fn(),
+  activateLyricDocument: vi.fn(),
 }))
 
 vi.mock('../lib/supabase', () => ({ supabaseConfigured: true }))
@@ -38,6 +37,7 @@ function makeDocument(audioTrackId: string, suffix: string): LyricDocument {
     globalOffsetMs: 0,
     isActive: true,
     metadata: {},
+    revision: 1,
     createdAt: '2026-06-29T00:00:00.000Z',
     updatedAt: '2026-06-29T00:00:00.000Z',
   }

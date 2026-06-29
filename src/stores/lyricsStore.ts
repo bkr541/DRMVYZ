@@ -1,13 +1,12 @@
 import { create } from 'zustand'
 import { supabaseConfigured } from '../lib/supabase'
 import {
+  activateLyricDocument as activateLyricDocumentRpc,
   getLyricDocumentById,
   getLyricCuesForDocument,
   getActiveLyricDocumentForAudioTrack,
   getActiveLyricDocumentForVisualSession,
-  createLyricDocument,
-  updateLyricDocument,
-  replaceLyricCuesForDocument,
+  saveLyricDocumentAtomic,
 } from '../lib/lyricsDb'
 
 const MIN_CUE_DURATION_MS = 100
@@ -20,6 +19,10 @@ import type {
   LyricDocumentSourceType,
   LyricDocumentSourceFormat,
   CreateLyricCueInput,
+  CreateLyricDocumentInput,
+  ActivateLyricDocumentResult,
+  LyricPersistenceFailure,
+  SaveLyricDocumentResult,
 } from '../types/lyrics'
 import { createLyricCueInputFromCue } from '../types/lyrics'
 
@@ -35,6 +38,7 @@ export interface LyricsState {
   isLoading:           boolean
   isSaving:            boolean
   error:               string | null
+  lastPersistenceFailure: LyricPersistenceFailure | null
 
   draftTitle:            string
   draftArtist:           string
@@ -100,10 +104,11 @@ export interface LyricsState {
   loadLyricDocument(documentId: string): Promise<void>
   loadLyricsForAudioTrack(audioTrackId: string): Promise<void>
   loadLyricsForVisualSession(visualSessionId: string): Promise<void>
-  saveActiveLyricDocument(): Promise<void>
-  replaceActiveCues(inputs: CreateLyricCueInput[]): Promise<void>
+  saveActiveLyricDocument(cues?: LyricCue[]): Promise<SaveLyricDocumentResult | null>
+  replaceActiveCues(inputs: CreateLyricCueInput[]): Promise<SaveLyricDocumentResult | null>
+  activateLyricDocument(documentId: string): Promise<ActivateLyricDocumentResult | null>
   /** Persist current cue timing to the active lyric document. No-op when no document. */
-  saveTimingChanges(): Promise<void>
+  saveTimingChanges(): Promise<SaveLyricDocumentResult | null>
 }
 
 // A single generation protects all document-loading paths from stale async commits.
@@ -139,8 +144,37 @@ function activeDocumentState(
     draftRawSourceText:    null,
     draftMetadata:         null,
     error:                 null,
+    lastPersistenceFailure: null,
     lyricTimingDirty:      false,
   }
+}
+
+function buildDocumentInput(state: LyricsState): CreateLyricDocumentInput {
+  const current = state.activeDocument
+  const importedSource = state.draftSourceType !== null
+
+  return {
+    title: state.draftTitle,
+    artist: state.draftArtist,
+    audioTrackId: current?.audioTrackId ?? state.activeAudioTrackId,
+    visualSessionId: current?.visualSessionId ?? null,
+    sourceType: state.draftSourceType ?? current?.sourceType ?? 'manual',
+    sourceFormat: state.draftSourceFormat ?? current?.sourceFormat ?? 'json',
+    rawSourceText: importedSource
+      ? state.draftRawSourceText
+      : current?.rawSourceText ?? null,
+    defaultStyle: state.draftDefaultStyle,
+    defaultAnimation: state.draftDefaultAnimation,
+    defaultEffects: state.draftDefaultEffects,
+    globalOffsetMs: state.globalOffsetMs,
+    metadata: importedSource
+      ? state.draftMetadata ?? {}
+      : current?.metadata ?? {},
+  }
+}
+
+function cueInputs(cues: LyricCue[], documentId: string): CreateLyricCueInput[] {
+  return cues.map((cue, index) => createLyricCueInputFromCue(cue, documentId, index))
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -154,6 +188,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
   isLoading:           false,
   isSaving:            false,
   error:               null,
+  lastPersistenceFailure: null,
 
   draftTitle:            '',
   draftArtist:           '',
@@ -223,6 +258,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       draftRawSourceText:    null,
       draftMetadata:         null,
       error:                 null,
+      lastPersistenceFailure: null,
       selectedCueId:         null,
       lyricTimingDirty:      false,
     })
@@ -371,49 +407,40 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     }
   },
 
-  saveActiveLyricDocument: async () => {
+  saveActiveLyricDocument: async (cues) => {
     if (!supabaseConfigured) {
       set({ error: 'Supabase is not configured.' })
-      return
+      return null
     }
     const s = get()
-    set({ isSaving: true, error: null })
+    const cueSnapshot = cues ?? s.cues
+    const generation = beginLyricLoad()
+    set({ isSaving: true, error: null, lastPersistenceFailure: null })
     try {
-      const patch = {
-        title:            s.draftTitle,
-        artist:           s.draftArtist,
-        defaultStyle:     s.draftDefaultStyle,
-        defaultAnimation: s.draftDefaultAnimation,
-        defaultEffects:   s.draftDefaultEffects,
-        globalOffsetMs:   s.globalOffsetMs,
+      const result = await saveLyricDocumentAtomic({
+        documentId: s.activeDocumentId,
+        expectedRevision: s.activeDocument?.revision ?? null,
+        document: buildDocumentInput(s),
+        cues: cueInputs(cueSnapshot, s.activeDocumentId ?? ''),
+        activate: true,
+      })
+
+      if (!result.ok) {
+        if (isCurrentLyricLoad(generation)) {
+          set({ error: result.message, lastPersistenceFailure: result })
+        }
+        return result
       }
 
-      let doc: LyricDocument
-      if (s.activeDocumentId) {
-        // Include source metadata only when a new import has occurred since last save
-        doc = await updateLyricDocument(s.activeDocumentId, {
-          ...patch,
-          ...(s.draftSourceType !== null ? {
-            sourceType:    s.draftSourceType,
-            sourceFormat:  s.draftSourceFormat  ?? 'json',
-            rawSourceText: s.draftRawSourceText,
-            metadata:      s.draftMetadata      ?? {},
-          } : {}),
-        })
-      } else {
-        // Use import source metadata when available; fall back to manual defaults
-        doc = await createLyricDocument({
-          ...patch,
-          sourceType:    s.draftSourceType    ?? 'manual',
-          sourceFormat:  s.draftSourceFormat  ?? 'json',
-          rawSourceText: s.draftRawSourceText  ?? null,
-          metadata:      s.draftMetadata       ?? {},
-        })
+      if (isCurrentLyricLoad(generation)) {
+        set(activeDocumentState(result.document, result.cues))
       }
-      // setActiveDocument resets draftSource fields to null
-      get().setActiveDocument(doc, s.cues)
+      return result
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to save lyric document' })
+      if (isCurrentLyricLoad(generation)) {
+        set({ error: err instanceof Error ? err.message : 'Failed to save lyric document' })
+      }
+      return null
     } finally {
       set({ isSaving: false })
     }
@@ -423,18 +450,74 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     const { activeDocumentId } = get()
     if (!activeDocumentId) {
       set({ error: 'Save the lyric document first before replacing cues.' })
-      return
+      return null
     }
     if (!supabaseConfigured) {
       set({ error: 'Supabase is not configured.' })
-      return
+      return null
     }
-    set({ isSaving: true, error: null })
+    const state = get()
+    const generation = beginLyricLoad()
+    set({ isSaving: true, error: null, lastPersistenceFailure: null })
     try {
-      const cues = await replaceLyricCuesForDocument(activeDocumentId, inputs)
-      set({ cues })
+      const result = await saveLyricDocumentAtomic({
+        documentId: activeDocumentId,
+        expectedRevision: state.activeDocument?.revision ?? null,
+        document: buildDocumentInput(state),
+        cues: inputs,
+        activate: state.activeDocument?.isActive ?? true,
+      })
+      if (!result.ok) {
+        if (isCurrentLyricLoad(generation)) {
+          set({ error: result.message, lastPersistenceFailure: result })
+        }
+        return result
+      }
+      if (isCurrentLyricLoad(generation)) {
+        set(activeDocumentState(result.document, result.cues))
+      }
+      return result
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to replace lyric cues' })
+      if (isCurrentLyricLoad(generation)) {
+        set({ error: err instanceof Error ? err.message : 'Failed to replace lyric cues' })
+      }
+      return null
+    } finally {
+      set({ isSaving: false })
+    }
+  },
+
+  activateLyricDocument: async (documentId) => {
+    if (!supabaseConfigured) {
+      set({ error: 'Supabase is not configured.' })
+      return null
+    }
+    const state = get()
+    const generation = beginLyricLoad()
+    const expectedRevision = state.activeDocumentId === documentId
+      ? state.activeDocument?.revision ?? null
+      : null
+    set({ isSaving: true, error: null, lastPersistenceFailure: null })
+    try {
+      const result = await activateLyricDocumentRpc(documentId, expectedRevision)
+      if (!result.ok) {
+        if (isCurrentLyricLoad(generation)) {
+          set({ error: result.message, lastPersistenceFailure: result })
+        }
+        return result
+      }
+      const cues = state.activeDocumentId === documentId
+        ? state.cues
+        : await getLyricCuesForDocument(documentId)
+      if (isCurrentLyricLoad(generation)) {
+        set(activeDocumentState(result.document, cues))
+      }
+      return result
+    } catch (err) {
+      if (isCurrentLyricLoad(generation)) {
+        set({ error: err instanceof Error ? err.message : 'Failed to activate lyric document' })
+      }
+      return null
     } finally {
       set({ isSaving: false })
     }
@@ -444,19 +527,35 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     const s = get()
     if (!s.activeDocumentId) {
       // No document — timing changes are local-only for this session.
-      return
+      return null
     }
-    if (!supabaseConfigured) return
-    if (!s.lyricTimingDirty) return
-    set({ isSaving: true, error: null })
+    if (!supabaseConfigured) return null
+    if (!s.lyricTimingDirty) return null
+    const generation = beginLyricLoad()
+    set({ isSaving: true, error: null, lastPersistenceFailure: null })
     try {
-      const inputs: CreateLyricCueInput[] = s.cues.map((cue, index) =>
-        createLyricCueInputFromCue(cue, s.activeDocumentId!, index),
-      )
-      const saved = await replaceLyricCuesForDocument(s.activeDocumentId, inputs)
-      set({ cues: saved, lyricTimingDirty: false })
+      const result = await saveLyricDocumentAtomic({
+        documentId: s.activeDocumentId,
+        expectedRevision: s.activeDocument?.revision ?? null,
+        document: buildDocumentInput(s),
+        cues: cueInputs(s.cues, s.activeDocumentId),
+        activate: s.activeDocument?.isActive ?? true,
+      })
+      if (!result.ok) {
+        if (isCurrentLyricLoad(generation)) {
+          set({ error: result.message, lastPersistenceFailure: result })
+        }
+        return result
+      }
+      if (isCurrentLyricLoad(generation)) {
+        set(activeDocumentState(result.document, result.cues))
+      }
+      return result
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to save lyric timing' })
+      if (isCurrentLyricLoad(generation)) {
+        set({ error: err instanceof Error ? err.message : 'Failed to save lyric timing' })
+      }
+      return null
     } finally {
       set({ isSaving: false })
     }
