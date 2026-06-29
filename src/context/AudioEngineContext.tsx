@@ -23,7 +23,7 @@ export function AudioEngineProvider({ children }: { children: React.ReactNode })
     engine.refAnalyserMaster, engine.refAnalyserL, engine.refAnalyserR,
     engine.demoSilent, engine.spectralFeatures, engine.meydaActive,
     // Track analysis fields — re-render when analysis state changes
-    engine.currentTrackId, engine.currentTrack,
+    engine.currentTrackId, engine.currentAudioTrackId, engine.currentTrackIsPersisted, engine.currentTrack,
     engine.currentAnalysis, engine.currentAnalyzedBpm,
     engine.currentAnalysisStatus, engine.currentAnalysisError,
     engine.currentEffectiveBpm, engine.currentBpmConfidence, engine.currentBpmSource,

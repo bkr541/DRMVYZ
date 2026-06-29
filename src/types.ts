@@ -116,12 +116,29 @@ export const DEFAULT_TRACK_ANALYSIS_RUNTIME: TrackAnalysisRuntime = {
   bpmReanalysisStatus:  'idle',
 }
 
+export interface PersistedTrackMetadata {
+  bpm?:        number | null
+  musicalKey?: string | null
+  genre?:      string | null
+  sampleRate?: number | null
+  channels?:   number | null
+}
+
 export interface Track {
+  /** Runtime playlist identity. Saved tracks use the deterministic `audio-<dbId>` form. */
   id: string
+  /** Permanent public.audio_tracks primary key. Undefined for unsaved/local tracks. */
+  dbId?: string
   name: string
   displayName: string
+  /** Persisted title when it differs from the source filename. */
+  title?: string
+  artist?: string | null
   url: string
   duration: number
+  /** Supabase audio-tracks object path. Undefined for local and generic remote tracks. */
+  storagePath?: string | null
+  persistedMetadata?: PersistedTrackMetadata
   sourceKind:      'file' | 'remote'
   sourceFile?:     File
   analysisRuntime: TrackAnalysisRuntime

@@ -12,6 +12,7 @@ import {
 import type { AudioTrack } from '../types/database'
 import { getFilenameWithoutExtension } from '../utils/audioUtils'
 import type { AudioFileAnalysis } from '../utils/analyzeAudioFile'
+import { runtimeIdForAudioTrack } from '../audio/runtimeTrack'
 
 // ── Public types ───────────────────────────────────────────────────────────────
 
@@ -46,7 +47,7 @@ export interface AudioUploadParams {
 
 function rowToSaved(row: AudioTrack): SavedAudioTrack {
   return {
-    id:           `audio-${row.id}`,
+    id:           runtimeIdForAudioTrack(row.id),
     dbId:         row.id,
     title:        row.title,
     fileName:     row.file_name,
@@ -180,7 +181,7 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
       }
 
       const saved: SavedAudioTrack = {
-        id:           `audio-${dbId}`,
+        id:           runtimeIdForAudioTrack(dbId),
         dbId,
         title:        finalTitle,
         fileName:     file.name,

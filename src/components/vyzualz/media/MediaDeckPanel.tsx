@@ -473,7 +473,22 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({ activeMediaId, onSe
     try {
       const url = await getSignedUrl(track.storagePath)
       if (!url) return
-      const trackEntry = { name: track.title, url }
+      const trackEntry = {
+        name:        track.fileName || track.title,
+        title:       track.title,
+        artist:      track.artist,
+        url,
+        dbId:        track.dbId,
+        storagePath: track.storagePath,
+        duration:    track.durationSec,
+        persistedMetadata: {
+          bpm:        track.bpm,
+          musicalKey: track.musicalKey,
+          genre:      track.genre,
+          sampleRate: track.sampleRate,
+          channels:   track.channels,
+        },
+      }
       if (engine.tracks.length > 0) engine.replaceTrackUrls([trackEntry])
       else engine.addTrackUrls([trackEntry])
       if (engine.source !== 'file') engine.setSource('file')

@@ -25,10 +25,12 @@ import { createLyricCueInputFromCue } from '../types/lyrics'
 
 // ── State shape ───────────────────────────────────────────────────────────────
 
-interface LyricsState {
+export interface LyricsState {
   lyricsEnabled:       boolean
   activeDocumentId:    string | null
   activeDocument:      LyricDocument | null
+  /** audio_tracks ID whose automatic lyric lookup currently owns the active lyric state. */
+  activeAudioTrackId:   string | null
   cues:                LyricCue[]
   isLoading:           boolean
   isSaving:            boolean
@@ -104,12 +106,50 @@ interface LyricsState {
   saveTimingChanges(): Promise<void>
 }
 
+// A single generation protects all document-loading paths from stale async commits.
+let lyricLoadGeneration = 0
+
+function beginLyricLoad(): number {
+  lyricLoadGeneration += 1
+  return lyricLoadGeneration
+}
+
+function isCurrentLyricLoad(generation: number): boolean {
+  return generation === lyricLoadGeneration
+}
+
+function activeDocumentState(
+  document: LyricDocument | null,
+  cues: LyricCue[] = [],
+  activeAudioTrackId: string | null = document?.audioTrackId ?? null,
+): Partial<LyricsState> {
+  return {
+    activeDocument:        document,
+    activeDocumentId:      document?.id ?? null,
+    activeAudioTrackId,
+    cues,
+    draftTitle:            document?.title            ?? '',
+    draftArtist:           document?.artist           ?? '',
+    draftDefaultStyle:     document?.defaultStyle     ?? {},
+    draftDefaultAnimation: document?.defaultAnimation ?? {},
+    draftDefaultEffects:   document?.defaultEffects   ?? {},
+    globalOffsetMs:        document?.globalOffsetMs   ?? 0,
+    draftSourceType:       null,
+    draftSourceFormat:     null,
+    draftRawSourceText:    null,
+    draftMetadata:         null,
+    error:                 null,
+    lyricTimingDirty:      false,
+  }
+}
+
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 export const useLyricsStore = create<LyricsState>((set, get) => ({
   lyricsEnabled:       false,
   activeDocumentId:    null,
   activeDocument:      null,
+  activeAudioTrackId:   null,
   cues:                [],
   isLoading:           false,
   isSaving:            false,
@@ -135,23 +175,9 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
   setLyricsEnabled: (enabled) => set({ lyricsEnabled: enabled }),
 
   setActiveDocument: (document, cues = []) => {
-    set({
-      activeDocument:        document,
-      activeDocumentId:      document?.id ?? null,
-      cues,
-      draftTitle:            document?.title            ?? '',
-      draftArtist:           document?.artist           ?? '',
-      draftDefaultStyle:     document?.defaultStyle     ?? {},
-      draftDefaultAnimation: document?.defaultAnimation ?? {},
-      draftDefaultEffects:   document?.defaultEffects   ?? {},
-      globalOffsetMs:        document?.globalOffsetMs   ?? 0,
-      draftSourceType:       null,
-      draftSourceFormat:     null,
-      draftRawSourceText:    null,
-      draftMetadata:         null,
-      error:                 null,
-      lyricTimingDirty:      false,
-    })
+    // Manual document selection or editing wins over any in-flight automatic lookup.
+    beginLyricLoad()
+    set(activeDocumentState(document, cues))
   },
 
   setCues:           (cues)      => set({ cues }),
@@ -177,12 +203,15 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
   updateDraftDefaultEffects: (patch) =>
     set(s => ({ draftDefaultEffects: { ...s.draftDefaultEffects, ...patch } })),
 
-  clearLyrics: () =>
+  clearLyrics: () => {
+    beginLyricLoad()
     set({
       lyricsEnabled:         false,
       activeDocumentId:      null,
       activeDocument:        null,
+      activeAudioTrackId:    null,
       cues:                  [],
+      isLoading:             false,
       draftTitle:            '',
       draftArtist:           '',
       draftDefaultStyle:     {},
@@ -196,7 +225,8 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       error:                 null,
       selectedCueId:         null,
       lyricTimingDirty:      false,
-    }),
+    })
+  },
 
   // ── Timeline timing editing ────────────────────────────────────────────────
 
@@ -265,47 +295,79 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
 
   loadLyricDocument: async (documentId) => {
     if (!supabaseConfigured) return
+    const generation = beginLyricLoad()
     set({ isLoading: true, error: null })
     try {
       const [doc, cues] = await Promise.all([
         getLyricDocumentById(documentId),
         getLyricCuesForDocument(documentId),
       ])
-      get().setActiveDocument(doc, cues)
+      if (!isCurrentLyricLoad(generation)) return
+      set(activeDocumentState(doc, cues))
     } catch (err) {
+      if (!isCurrentLyricLoad(generation)) return
       set({ error: err instanceof Error ? err.message : 'Failed to load lyric document' })
     } finally {
-      set({ isLoading: false })
+      if (isCurrentLyricLoad(generation)) set({ isLoading: false })
     }
   },
 
   loadLyricsForAudioTrack: async (audioTrackId) => {
+    const current = get()
+    // React StrictMode and provider re-renders may repeat the same linkage. Preserve
+    // current edits and avoid another request until a genuinely different track is selected.
+    if (current.activeAudioTrackId === audioTrackId) return
+
+    const generation = beginLyricLoad()
+    set({
+      ...activeDocumentState(null, [], audioTrackId),
+      isLoading: supabaseConfigured,
+      error: null,
+    })
     if (!supabaseConfigured) return
-    set({ isLoading: true, error: null })
+
     try {
       const doc = await getActiveLyricDocumentForAudioTrack(audioTrackId)
-      if (!doc) { get().setActiveDocument(null); return }
+      if (!isCurrentLyricLoad(generation)) return
+      if (!doc) {
+        set(activeDocumentState(null, [], audioTrackId))
+        return
+      }
+
       const cues = await getLyricCuesForDocument(doc.id)
-      get().setActiveDocument(doc, cues)
+      if (!isCurrentLyricLoad(generation)) return
+      set(activeDocumentState(doc, cues, audioTrackId))
     } catch (err) {
+      if (!isCurrentLyricLoad(generation)) return
       set({ error: err instanceof Error ? err.message : 'Failed to load lyrics for audio track' })
     } finally {
-      set({ isLoading: false })
+      if (isCurrentLyricLoad(generation)) set({ isLoading: false })
     }
   },
 
   loadLyricsForVisualSession: async (visualSessionId) => {
     if (!supabaseConfigured) return
-    set({ isLoading: true, error: null })
+    const generation = beginLyricLoad()
+    set({
+      ...activeDocumentState(null),
+      isLoading: true,
+      error: null,
+    })
     try {
       const doc = await getActiveLyricDocumentForVisualSession(visualSessionId)
-      if (!doc) { get().setActiveDocument(null); return }
+      if (!isCurrentLyricLoad(generation)) return
+      if (!doc) {
+        set(activeDocumentState(null))
+        return
+      }
       const cues = await getLyricCuesForDocument(doc.id)
-      get().setActiveDocument(doc, cues)
+      if (!isCurrentLyricLoad(generation)) return
+      set(activeDocumentState(doc, cues))
     } catch (err) {
+      if (!isCurrentLyricLoad(generation)) return
       set({ error: err instanceof Error ? err.message : 'Failed to load lyrics for visual session' })
     } finally {
-      set({ isLoading: false })
+      if (isCurrentLyricLoad(generation)) set({ isLoading: false })
     }
   },
 
@@ -400,3 +462,16 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     }
   },
 }))
+
+export const selectLyricsLoading = (state: LyricsState): boolean => state.isLoading
+
+export const selectActiveLyricsAudioTrackId = (state: LyricsState): string | null =>
+  state.activeAudioTrackId
+
+export const selectHasActiveLyricDocument = (state: LyricsState): boolean =>
+  state.activeDocument !== null
+
+export const selectActiveTrackHasLyricDocument = (state: LyricsState): boolean =>
+  state.activeAudioTrackId !== null &&
+  state.activeDocument !== null &&
+  state.activeDocument.audioTrackId === state.activeAudioTrackId

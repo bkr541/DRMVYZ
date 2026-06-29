@@ -1,11 +1,11 @@
 import { useRef, useState, useCallback, useEffect, type MutableRefObject } from 'react'
 import {
   Track, AudioSource, FftSize,
-  TrackAnalysisRuntime, DEFAULT_TRACK_ANALYSIS_RUNTIME,
+  TrackAnalysisRuntime,
   BpmSource,
 } from '../types'
 import type { TrackAnalysisStatus, TrackIntelligenceAnalysis, BeatMarkerMI } from '../features/musicIntelligence/types'
-import { generateId, getFilenameWithoutExtension } from '../utils/audioUtils'
+import { generateId } from '../utils/audioUtils'
 import { buildMonitoringChain, type MonitoringChain } from '../audio/routing'
 import type { MonitoringMode, ReferenceTrack, SpectralFeatures } from '../types/audio'
 import Meyda from 'meyda'
@@ -16,13 +16,16 @@ import {
 import { buildEffectiveBeatGrid } from '../features/trackIntelligence/beatGridUtils'
 import { applyResnap, applyReanalyze } from '../features/musicIntelligence/bpmReanalysis'
 import type { BpmReanalysisMode, BpmReanalysisStatus } from '../features/musicIntelligence/types'
-import {
-  TrackAnalysisCoordinator,
-  computeAnalysisKey,
-  CURRENT_ANALYSIS_VERSION,
-} from '../features/trackIntelligence/TrackAnalysisCoordinator'
+import { TrackAnalysisCoordinator } from '../features/trackIntelligence/TrackAnalysisCoordinator'
 import { analyzeTrackBuffer } from '../features/musicIntelligence/offlineTrackAnalyzer'
 import { useTrackAnalysisStore } from '../features/musicIntelligence/trackAnalysisStorage'
+import {
+  createLocalRuntimeTrack,
+  createRemoteRuntimeTrack,
+  getTrackAudioTrackId,
+  isPersistedTrack,
+  type RuntimeTrackUrlInput,
+} from '../audio/runtimeTrack'
 
 // 60-second ring buffer
 class RingBuffer {
@@ -80,8 +83,8 @@ export interface AudioEngine {
   addTracks: (files: File[]) => void
   replaceTracks: (files: File[]) => void
   /** Load pre-built tracks by URL (e.g. signed Supabase URLs) without a File object. */
-  addTrackUrls: (tracks: { name: string; url: string }[]) => void
-  replaceTrackUrls: (tracks: { name: string; url: string }[]) => void
+  addTrackUrls: (tracks: RuntimeTrackUrlInput[]) => void
+  replaceTrackUrls: (tracks: RuntimeTrackUrlInput[]) => void
   removeTrack: (id: string) => void
   selectTrack: (i: number) => void
   play: () => void
@@ -153,6 +156,8 @@ export interface AudioEngine {
   // React consumers should read these rather than reaching into separate stores.
 
   currentTrackId:         string | null
+  currentAudioTrackId:    string | null
+  currentTrackIsPersisted: boolean
   currentTrack:           Track | null
   currentAnalysis:        TrackIntelligenceAnalysis | null
   currentAnalysisStatus:  TrackAnalysisStatus
@@ -809,8 +814,10 @@ export function useAudioEngine(): AudioEngine {
   }, [updateTrackRuntime])
 
   // ── Canonical active-track intelligence ────────────────────────────────────
-  const currentTrack   = currentIndex >= 0 && currentIndex < tracks.length ? tracks[currentIndex] ?? null : null
-  const currentTrackId = currentTrack?.id ?? null
+  const currentTrack            = currentIndex >= 0 && currentIndex < tracks.length ? tracks[currentIndex] ?? null : null
+  const currentTrackId          = currentTrack?.id ?? null
+  const currentAudioTrackId     = getTrackAudioTrackId(currentTrack)
+  const currentTrackIsPersisted = isPersistedTrack(currentTrack)
   const currentAnalysis        = currentTrack?.analysisRuntime.analysis ?? null
   const currentAnalysisStatus  = currentTrack?.analysisRuntime.status ?? ('not_analyzed' as TrackAnalysisStatus)
   const currentAnalysisError   = currentTrack?.analysisRuntime.error ?? null
@@ -987,21 +994,7 @@ export function useAudioEngine(): AudioEngine {
 
   // ── Playlist ─────────────────────────────────────────────────────────────────
   const addTracks = useCallback((files: File[]) => {
-    const newTracks: Track[] = files.map(f => {
-      const url         = URL.createObjectURL(f)
-      const analysisKey = computeAnalysisKey({ sourceKind: 'file', url, sourceFile: f })
-      return {
-        id: generateId(), name: f.name,
-        displayName:     getFilenameWithoutExtension(f.name),
-        url, duration:   0,
-        sourceKind:      'file' as const,
-        sourceFile:      f,
-        analysisRuntime: {
-          ...DEFAULT_TRACK_ANALYSIS_RUNTIME,
-          analysisKey, analysisVersion: CURRENT_ANALYSIS_VERSION, status: 'queued' as const,
-        },
-      }
-    })
+    const newTracks = files.map(createLocalRuntimeTrack)
     setTracks(prev => {
       if (prev.length === 0) setCurrentIndex(0)
       return [...prev, ...newTracks]
@@ -1015,21 +1008,7 @@ export function useAudioEngine(): AudioEngine {
     // old track's BPM/markers never bleed into the new track's analysis window.
     musicIntelligenceEngine.setSourceId(null, null)
     musicIntelligenceEngine.setTrackAnalysis(null)
-    const newTracks: Track[] = files.map(f => {
-      const url         = URL.createObjectURL(f)
-      const analysisKey = computeAnalysisKey({ sourceKind: 'file', url, sourceFile: f })
-      return {
-        id: generateId(), name: f.name,
-        displayName:     getFilenameWithoutExtension(f.name),
-        url, duration:   0,
-        sourceKind:      'file' as const,
-        sourceFile:      f,
-        analysisRuntime: {
-          ...DEFAULT_TRACK_ANALYSIS_RUNTIME,
-          analysisKey, analysisVersion: CURRENT_ANALYSIS_VERSION, status: 'queued' as const,
-        },
-      }
-    })
+    const newTracks = files.map(createLocalRuntimeTrack)
     setTracks(prev => {
       prev.forEach(t => URL.revokeObjectURL(t.url))
       setCurrentIndex(newTracks.length > 0 ? 0 : -1)
@@ -1038,20 +1017,8 @@ export function useAudioEngine(): AudioEngine {
     newTracks.forEach(t => coordinatorRef.current?.enqueue(t, 'normal'))
   }, [])
 
-  const addTrackUrls = useCallback((tracks: { name: string; url: string }[]) => {
-    const newTracks: Track[] = tracks.map(t => {
-      const analysisKey = computeAnalysisKey({ sourceKind: 'remote', url: t.url })
-      return {
-        id: generateId(), name: t.name,
-        displayName:     getFilenameWithoutExtension(t.name),
-        url:             t.url, duration: 0,
-        sourceKind:      'remote' as const,
-        analysisRuntime: {
-          ...DEFAULT_TRACK_ANALYSIS_RUNTIME,
-          analysisKey, analysisVersion: CURRENT_ANALYSIS_VERSION, status: 'queued' as const,
-        },
-      }
-    })
+  const addTrackUrls = useCallback((tracks: RuntimeTrackUrlInput[]) => {
+    const newTracks = tracks.map(createRemoteRuntimeTrack)
     setTracks(prev => {
       if (prev.length === 0) setCurrentIndex(0)
       return [...prev, ...newTracks]
@@ -1059,23 +1026,11 @@ export function useAudioEngine(): AudioEngine {
     newTracks.forEach(t => coordinatorRef.current?.enqueue(t, 'normal'))
   }, [])
 
-  const replaceTrackUrls = useCallback((tracks: { name: string; url: string }[]) => {
+  const replaceTrackUrls = useCallback((tracks: RuntimeTrackUrlInput[]) => {
     coordinatorRef.current?.invalidate()
     musicIntelligenceEngine.setSourceId(null, null)
     musicIntelligenceEngine.setTrackAnalysis(null)
-    const newTracks: Track[] = tracks.map(t => {
-      const analysisKey = computeAnalysisKey({ sourceKind: 'remote', url: t.url })
-      return {
-        id: generateId(), name: t.name,
-        displayName:     getFilenameWithoutExtension(t.name),
-        url:             t.url, duration: 0,
-        sourceKind:      'remote' as const,
-        analysisRuntime: {
-          ...DEFAULT_TRACK_ANALYSIS_RUNTIME,
-          analysisKey, analysisVersion: CURRENT_ANALYSIS_VERSION, status: 'queued' as const,
-        },
-      }
-    })
+    const newTracks = tracks.map(createRemoteRuntimeTrack)
     setTracks(prev => {
       // Only revoke blob: URLs — signed Supabase URLs should not be revoked
       prev.forEach(t => { if (t.url.startsWith('blob:')) URL.revokeObjectURL(t.url) })
@@ -1272,7 +1227,7 @@ export function useAudioEngine(): AudioEngine {
     getRecordingStream,
     musicIntelligenceEngine,
     getDecodedBuffer: (trackId: string) => coordinatorRef.current?.getDecodedBuffer(trackId),
-    currentTrackId, currentTrack, currentAnalysis,
+    currentTrackId, currentAudioTrackId, currentTrackIsPersisted, currentTrack, currentAnalysis,
     currentAnalysisStatus, currentAnalysisError,
     currentAnalyzedBpm, currentEffectiveBpm, currentBpmConfidence, currentBpmSource,
     currentEffectiveBeatGrid: currentTrack?.analysisRuntime.effectiveBeatGrid ?? null,

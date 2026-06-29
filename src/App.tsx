@@ -4,6 +4,7 @@ import { AudioEngineProvider } from './context/AudioEngineContext'
 import { AuthPage }            from './components/auth/AuthPage'
 import { VyzualzView }         from './components/vyzualz/VyzualzView'
 import { VyzualzErrorBoundary } from './components/vyzualz/VyzualzErrorBoundary'
+import { ActiveTrackLyricsBridge } from './features/lyrics/ActiveTrackLyricsBridge'
 
 export default function App() {
   const [authed, setAuthed] = useState<boolean | null>(null)
@@ -32,6 +33,7 @@ export default function App() {
   // Authenticated — VYZUALZ is the sole view
   return (
     <AudioEngineProvider>
+      <ActiveTrackLyricsBridge />
       <VyzualzErrorBoundary section="VyzualzView">
         <VyzualzView activeView="vyzualz" onNavigate={() => {}} />
       </VyzualzErrorBoundary>
