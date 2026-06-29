@@ -1081,6 +1081,7 @@ export function useAudioEngine(): AudioEngine {
     const el = audioRef.current
     if (!el) return
     el.pause(); el.currentTime = 0; setIsPlaying(false); setCurrentTime(0)
+    musicIntelligenceEngine.resolveLyricsAt(0, 'discontinuous')
   }, [])
   const next   = useCallback(() => {
     if (currentIndex < tracks.length - 1) { setCurrentIndex(i => i + 1); setIsPlaying(true); connectFileSource() }
@@ -1090,7 +1091,10 @@ export function useAudioEngine(): AudioEngine {
   }, [currentIndex, connectFileSource])
   const seek   = useCallback((t: number) => {
     const el = audioRef.current; if (!el) return
-    el.currentTime = t; setCurrentTime(t)
+    el.currentTime = t
+    const resolvedTime = el.currentTime
+    setCurrentTime(resolvedTime)
+    musicIntelligenceEngine.resolveLyricsAt(resolvedTime, 'discontinuous')
   }, [])
 
   // Stable getter — reads audioRef directly so it is safe to call every RAF frame

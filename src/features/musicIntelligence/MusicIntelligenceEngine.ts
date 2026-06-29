@@ -15,10 +15,18 @@ import { EnergyAnalyzer, type MeydaFeatureSnapshot } from './energyAnalysis'
 import { HarmonicAnalyzer } from './harmonicAnalysis'
 import { StemCurveInterpolator } from './stemAnalysis'
 import { SemanticAnalyzer } from './semanticAnalysis'
-import type { ActiveLyricState } from '../lyrics/services/lyricExtraction'
-import { ActiveLyricTracker } from '../lyrics/services/lyricExtraction'
+import { LyricPlaybackBus } from '../lyrics/runtime/LyricPlaybackBus'
+import {
+  ActiveLyricTracker,
+  EMPTY_LYRIC_PLAYBACK_STATE,
+  type ActiveLyricState,
+  type ActiveLyricTrackerSource,
+  type LyricPlaybackState,
+  type LyricPlaybackTransitionMode,
+} from '../lyrics/runtime/lyricPlaybackResolver'
 import type {
   MusicIntelligenceFrame,
+  MILyrics,
   TrackIntelligenceAnalysis,
   TrackSectionMI,
   ReactSectionType,
@@ -114,6 +122,20 @@ export class MusicIntelligenceEngine {
   private readonly harmonicAnalyzer = new HarmonicAnalyzer()
   private readonly stemInterpolator = new StemCurveInterpolator()
   private readonly lyricTracker    = new ActiveLyricTracker()
+  private managedLyricsConfigured  = false
+  private lyricState: ActiveLyricState = {
+    playback: EMPTY_LYRIC_PLAYBACK_STATE,
+    activeLine: null,
+    activeWord: null,
+    vocalActivity: 0,
+    phraseConfidence: 0,
+    lyricLineProgress: 0,
+    wordProgress: 0,
+    wordHit: false,
+    lineEnter: false,
+    lineExit: false,
+    isGap: false,
+  }
   private readonly semanticAnalyzer = new SemanticAnalyzer()
 
   // ── Public API ──────────────────────────────────────────────────────────────
@@ -187,24 +209,27 @@ export class MusicIntelligenceEngine {
       if (analysis.timeSignature) this.beatGrid.setTimeSignature(analysis.timeSignature)
       // Wire stem curves
       this.stemInterpolator.setData(analysis.stemCurves)
-      // Wire lyrics
-      if (analysis.lyrics) {
-        const lines = analysis.lyrics.lines.map(l => ({
-          text:       l.text,
-          startSec:   l.startMs / 1000,
-          endSec:     l.endMs   / 1000,
-          words:      l.words.map(w => ({
-            text:       w.text,
-            startSec:   w.startMs / 1000,
-            endSec:     w.endMs   / 1000,
-            confidence: w.confidence,
-          })),
-          confidence: l.confidence,
-          source:     'analysis',
-        }))
-        this.lyricTracker.setLines(lines)
-      } else {
-        this.lyricTracker.setLines([])
+      // Track-analysis lyrics remain a compatibility fallback. Once the active
+      // lyric-document bridge is configured it owns the canonical lyric source.
+      if (!this.managedLyricsConfigured) {
+        if (analysis.lyrics) {
+          const lines = analysis.lyrics.lines.map(l => ({
+            text:       l.text,
+            startSec:   l.startMs / 1000,
+            endSec:     l.endMs   / 1000,
+            words:      l.words.map(w => ({
+              text:       w.text,
+              startSec:   w.startMs / 1000,
+              endSec:     w.endMs   / 1000,
+              confidence: w.confidence,
+            })),
+            confidence: l.confidence,
+            source:     'analysis',
+          }))
+          this.lyricTracker.setLines(lines, this.analysisLyricSourceIdentity())
+        } else {
+          this.lyricTracker.setLines([], this.analysisLyricSourceIdentity())
+        }
       }
     } else {
       // No analysis — reset BPM state so the previous track's values do not leak
@@ -215,7 +240,9 @@ export class MusicIntelligenceEngine {
       this.beatGrid.setBpm(0, 0, 0)
       this.beatGrid.setMarkers([], [])
       this.stemInterpolator.setData(null)
-      this.lyricTracker.setLines([])
+      if (!this.managedLyricsConfigured) {
+        this.lyricTracker.setLines([], this.analysisLyricSourceIdentity())
+      }
     }
   }
 
@@ -230,6 +257,78 @@ export class MusicIntelligenceEngine {
 
   setMeydaFeaturesGetter(getter: () => MeydaFeatureSnapshot | null): void {
     this.meydaFeaturesGetter = getter
+  }
+
+  private analysisLyricSourceIdentity(): string {
+    return `track-analysis:${this.trackId ?? this.sourceId ?? 'unbound'}`
+  }
+
+  /** Configure the active lyric document used by every live lyric consumer. */
+  setActiveLyrics(source: ActiveLyricTrackerSource): void {
+    this.managedLyricsConfigured = true
+    this.lyricTracker.setLyrics(source)
+  }
+
+  private updateLyricState(
+    audioTimeSec: number,
+    transitionMode: LyricPlaybackTransitionMode,
+  ): LyricPlaybackState {
+    this.lyricState = this.lyricTracker.update(audioTimeSec, transitionMode)
+    LyricPlaybackBus.setState(this.lyricState.playback)
+    return this.lyricState.playback
+  }
+
+  private lyricFrameState(): MILyrics {
+    return {
+      activeLine:        this.lyricState.activeLine,
+      activeLineId:      this.lyricState.playback.activeCue?.id ?? null,
+      previousLine:      this.lyricState.playback.previousCue?.text ?? null,
+      nextLine:          this.lyricState.playback.nextCue?.text ?? null,
+      activeWord:        this.lyricState.activeWord,
+      activeWordId:      this.lyricState.playback.activeWord?.id ?? null,
+      vocalActivity:     this.lyricState.vocalActivity,
+      phraseConfidence:  this.lyricState.phraseConfidence,
+      lyricLineProgress: this.lyricState.lyricLineProgress,
+      wordProgress:      this.lyricState.wordProgress,
+      wordHit:           this.lyricState.wordHit,
+      lineEnter:         this.lyricState.lineEnter,
+      lineExit:          this.lyricState.lineExit,
+      isGap:             this.lyricState.isGap,
+    }
+  }
+
+  /**
+   * Resolve outside the analyser frame path, for paused edits, seeks, and source
+   * replacement. This also refreshes the lyric slice of the current MI frame.
+   */
+  resolveLyricsAt(
+    audioTimeSec: number,
+    transitionMode: LyricPlaybackTransitionMode = 'continuous',
+  ): LyricPlaybackState {
+    const playback = this.updateLyricState(audioTimeSec, transitionMode)
+    const currentFrame = AudioFeatureBus.getFrame()
+    const capabilities = currentFrame.capabilities ?? {
+      liveBands: false,
+      rhythmEvents: false,
+      beatGrid: false,
+      sections: false,
+      trackEnergyCurve: false,
+      stemCurves: false,
+      lyrics: false,
+    }
+    AudioFeatureBus.updatePartial({
+      timeSec: Number.isFinite(audioTimeSec) ? audioTimeSec : 0,
+      lyrics: this.lyricFrameState(),
+      capabilities: {
+        ...capabilities,
+        lyrics: this.lyricTracker.hasLyrics(),
+      },
+    })
+    return playback
+  }
+
+  getLyricPlaybackState(): LyricPlaybackState {
+    return this.lyricTracker.getState()
   }
 
   /** Feed a live AnalyserNode — allocates two typed arrays per call. */
@@ -273,7 +372,7 @@ export class MusicIntelligenceEngine {
     const stemValues = this.stemInterpolator.sampleAt(audioTime)
 
     // ── Lyric tracker ────────────────────────────────────────────────────────
-    const lyricState: ActiveLyricState = this.lyricTracker.update(audioTime)
+    this.updateLyricState(audioTime, 'continuous')
 
     // ── Section resolution ────────────────────────────────────────────────
     let sectionType:       ReactSectionType | null = null
@@ -381,14 +480,7 @@ export class MusicIntelligenceEngine {
       },
       harmonic: harmonicResult,
       stems:    stemValues,
-      lyrics: {
-        activeLine:        lyricState.activeLine,
-        activeWord:        lyricState.activeWord,
-        vocalActivity:     lyricState.vocalActivity,
-        phraseConfidence:  lyricState.phraseConfidence,
-        lyricLineProgress: lyricState.lyricLineProgress,
-        wordHit:           lyricState.wordHit,
-      },
+      lyrics: this.lyricFrameState(),
       semantics: { ...DEFAULT_MI_FRAME.semantics },
       capabilities: {
         liveBands: true,
@@ -397,7 +489,7 @@ export class MusicIntelligenceEngine {
         sections: this.manualSections.length > 0 || Boolean(this.trackAnalysis?.sections.length),
         trackEnergyCurve: Boolean(this.trackAnalysis?.energyCurves.shortTerm.length),
         stemCurves: this.trackAnalysis?.stemCurves != null,
-        lyrics: Boolean(this.trackAnalysis?.lyrics?.lines.length),
+        lyrics: this.lyricTracker.hasLyrics(),
       },
       raw: {
         freqData:       freqBuf,
@@ -433,7 +525,22 @@ export class MusicIntelligenceEngine {
     this.harmonicAnalyzer.reset()
     this.stemInterpolator.reset()
     this.lyricTracker.reset()
+    this.lyricState = {
+      ...this.lyricState,
+      playback: EMPTY_LYRIC_PLAYBACK_STATE,
+      activeLine: null,
+      activeWord: null,
+      vocalActivity: 0,
+      phraseConfidence: 0,
+      lyricLineProgress: 0,
+      wordProgress: 0,
+      wordHit: false,
+      lineEnter: false,
+      lineExit: false,
+      isGap: false,
+    }
     this.semanticAnalyzer.reset()
+    LyricPlaybackBus.reset()
     AudioFeatureBus.reset()
   }
 }

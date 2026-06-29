@@ -119,11 +119,19 @@ export interface MIStems {
 
 export interface MILyrics {
   activeLine:        string | null
+  activeLineId?:      string | null
+  previousLine?:      string | null
+  nextLine?:          string | null
   activeWord:        string | null
+  activeWordId?:      string | null
   vocalActivity:     number  // 0–1
   phraseConfidence:  number  // 0–1
   lyricLineProgress: number  // 0–1 position within active line
-  wordHit:           boolean // true on the frame a new word starts
+  wordProgress?:      number  // 0–1 position within active word
+  wordHit:           boolean // backward-compatible alias for wordEnter
+  lineEnter?:         boolean
+  lineExit?:          boolean
+  isGap?:             boolean
 }
 
 export type MoodLabel =

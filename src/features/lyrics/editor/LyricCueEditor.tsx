@@ -22,6 +22,7 @@ import {
 } from './lyricCueEditorModel'
 import { LyricCueInspector, type LyricSectionOption } from './LyricCueInspector'
 import { LyricCueTimeline } from './LyricCueTimeline'
+import { toCanonicalLyricTimeMs, toEffectiveLyricTimeMs } from '../runtime/lyricPlaybackResolver'
 
 export type LyricCueFilter = 'all' | 'unreviewed' | 'low-confidence' | 'warnings' | 'empty-text'
 
@@ -100,7 +101,9 @@ export function LyricCueEditor({
   const [filter, setFilter] = useState<LyricCueFilter>('all')
   const rootRef = useRef<HTMLDivElement>(null)
   const selectedCue = cues.find(cue => cue.id === selectedCueId) ?? null
-  const canonicalPlayheadMs = currentTimeMs === null ? null : Math.max(0, currentTimeMs - globalOffsetMs)
+  const canonicalPlayheadMs = currentTimeMs === null
+    ? null
+    : Math.max(0, toCanonicalLyricTimeMs(currentTimeMs, globalOffsetMs))
   const orderedCues = useMemo(() => sortLyricCues(cues), [cues])
   const selectedIndex = selectedCue ? orderedCues.findIndex(cue => cue.id === selectedCue.id) : -1
   const wordBoundaryMs = useMemo(() => cueWordBoundaries(selectedCue), [selectedCue])
@@ -108,7 +111,7 @@ export function LyricCueEditor({
   const snapContext = useMemo(() => ({
     mode: snapMode,
     beatGridMs,
-    wordBoundaryMs: wordBoundaryMs.map(boundary => boundary + globalOffsetMs),
+    wordBoundaryMs: wordBoundaryMs.map(boundary => toEffectiveLyricTimeMs(boundary, globalOffsetMs)),
     millisecondGridMs: 10,
     frameRate: 30,
   }), [beatGridMs, globalOffsetMs, snapMode, wordBoundaryMs])

@@ -13,6 +13,7 @@ import {
   type LyricSnapContext,
 } from './lyricCueEditorModel'
 import { LyricWaveformCanvas } from './LyricWaveformCanvas'
+import { toCanonicalLyricTimeMs, toEffectiveLyricTimeMs } from '../runtime/lyricPlaybackResolver'
 
 export type LyricCueDragKind = 'move' | 'resize-start' | 'resize-end'
 
@@ -76,15 +77,15 @@ export function LyricCueTimeline({
   const knownDurationMs = Number.isFinite(durationMs) && durationMs > 0 ? Math.round(durationMs) : 0
   const inferredDurationMs = Math.max(
     currentTimeMs ?? 0,
-    ...cues.map(cue => cue.endMs + globalOffsetMs),
+    ...cues.map(cue => toEffectiveLyricTimeMs(cue.endMs, globalOffsetMs)),
   )
   const safeDurationMs = Math.max(1, knownDurationMs || inferredDurationMs)
   const contentWidth = Math.max(compact ? 1 : 720, (safeDurationMs / 1000) * pxPerSecond)
   const issuesByCue = useMemo(() => new Map(cues.map(cue => [cue.id, getCueIssues(cue, cues, durationMs)])), [cues, durationMs])
 
   const snapCanonical = useCallback((rawMs: number) => {
-    const displayed = rawMs + globalOffsetMs
-    return Math.max(0, snapTimeMs(displayed, snapContext) - globalOffsetMs)
+    const displayed = toEffectiveLyricTimeMs(rawMs, globalOffsetMs)
+    return Math.max(0, toCanonicalLyricTimeMs(snapTimeMs(displayed, snapContext), globalOffsetMs))
   }, [globalOffsetMs, snapContext])
 
   const boundsForDrag = useCallback((drag: DragState, deltaMs: number): CueBounds => {
@@ -198,8 +199,8 @@ export function LyricCueTimeline({
 
       {cues.map((cue, index) => {
         const bounds = liveBounds?.cueId === cue.id ? liveBounds.bounds : cue
-        const displayStartMs = bounds.startMs + globalOffsetMs
-        const displayEndMs = bounds.endMs + globalOffsetMs
+        const displayStartMs = toEffectiveLyricTimeMs(bounds.startMs, globalOffsetMs)
+        const displayEndMs = toEffectiveLyricTimeMs(bounds.endMs, globalOffsetMs)
         const selected = cue.id === selectedCueId
         const active = currentTimeMs !== null && isCueActive(
           { startMs: displayStartMs, endMs: displayEndMs },

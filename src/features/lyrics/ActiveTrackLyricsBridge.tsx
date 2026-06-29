@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useSharedAudio } from '../../context/AudioEngineContext'
 import { useLyricsStore } from '../../stores/lyricsStore'
+import { musicIntelligenceEngine } from '../musicIntelligence/MusicIntelligenceEngine'
 
 interface ActiveTrackLyricsActions {
   loadLyricsForAudioTrack(audioTrackId: string, force?: boolean): Promise<void>
@@ -44,7 +45,7 @@ export function createActiveTrackLyricsSynchronizer(
 
 /** Mounted once under AudioEngineProvider. No visual surface owns lyric loading. */
 export function ActiveTrackLyricsBridge() {
-  const { currentAudioTrackId } = useSharedAudio()
+  const { currentAudioTrackId, getCurrentTime } = useSharedAudio()
   const editorSessionActive = useLyricsStore(state => state.editorSessionActive)
   const synchronizerRef = useRef<ActiveTrackLyricsSynchronizer | null>(null)
   const wasSuspendedRef = useRef(false)
@@ -56,6 +57,38 @@ export function ActiveTrackLyricsBridge() {
       clearLyrics: () => useLyricsStore.getState().clearLyrics(),
     })
   }
+
+  useEffect(() => {
+    let previousCues = useLyricsStore.getState().cues
+    let previousDocumentId = useLyricsStore.getState().activeDocumentId
+    let previousAudioTrackId = useLyricsStore.getState().activeAudioTrackId
+    let previousOffsetMs = useLyricsStore.getState().globalOffsetMs
+
+    const syncPlaybackSource = (state: ReturnType<typeof useLyricsStore.getState>, force = false) => {
+      if (!force &&
+        state.cues === previousCues &&
+        state.activeDocumentId === previousDocumentId &&
+        state.activeAudioTrackId === previousAudioTrackId &&
+        state.globalOffsetMs === previousOffsetMs
+      ) return
+
+      previousCues = state.cues
+      previousDocumentId = state.activeDocumentId
+      previousAudioTrackId = state.activeAudioTrackId
+      previousOffsetMs = state.globalOffsetMs
+
+      musicIntelligenceEngine.setActiveLyrics({
+        documentId: state.activeDocumentId,
+        sourceIdentity: `${state.activeAudioTrackId ?? 'unbound'}:${state.activeDocumentId ?? 'draft'}`,
+        cues: state.cues,
+        globalOffsetMs: state.globalOffsetMs,
+      })
+      musicIntelligenceEngine.resolveLyricsAt(getCurrentTime(), 'discontinuous')
+    }
+
+    syncPlaybackSource(useLyricsStore.getState(), true)
+    return useLyricsStore.subscribe(state => syncPlaybackSource(state))
+  }, [getCurrentTime])
 
   useEffect(() => {
     if (editorSessionActive) {

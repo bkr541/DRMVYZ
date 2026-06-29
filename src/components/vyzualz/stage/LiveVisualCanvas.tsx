@@ -106,16 +106,18 @@ function wrapLyricText(ctx: CanvasRenderingContext2D, text: string, maxW: number
 function drawLyricCue(
   ctx: CanvasRenderingContext2D,
   cue: LyricCue,
-  activeMs: number,
+  currentAudioMs: number,
+  effectiveStartMs: number,
+  effectiveEndMs: number,
   doc: LyricDocument | null,
   W: number, H: number, dpr: number,
 ): void {
   const style: LyricStyle = { ...LYRIC_DEF_STYLE, ...(doc?.defaultStyle ?? {}), ...(cue.style ?? {}) }
   const anim: LyricAnimation = { ...LYRIC_DEF_ANIM, ...(doc?.defaultAnimation ?? {}), ...(cue.animation ?? {}) }
 
-  const elapsed = activeMs - cue.startMs - anim.delayMs
+  const elapsed = currentAudioMs - effectiveStartMs - anim.delayMs
   const inT  = Math.max(0, Math.min(1, elapsed / Math.max(1, anim.inMs)))
-  const outT = Math.max(0, Math.min(1, (activeMs - (cue.endMs - anim.outMs)) / Math.max(1, anim.outMs)))
+  const outT = Math.max(0, Math.min(1, (currentAudioMs - (effectiveEndMs - anim.outMs)) / Math.max(1, anim.outMs)))
 
   const easedIn  = lyricEase(anim.easing, inT)
   const easedOut = lyricEase(anim.easing, outT)
@@ -686,10 +688,8 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
   const incomingFitModeRef   = useRef<'cover' | 'contain' | null>(null)
   const prevTransitionOnRef  = useRef(false)
 
-  const lyricsEnabledRef  = useRef(false)
-  const lyricsCuesRef     = useRef<LyricCue[]>([])
-  const lyricsOffsetMsRef = useRef(0)
-  const lyricsDocRef      = useRef<LyricDocument | null>(null)
+  const lyricsEnabledRef = useRef(false)
+  const lyricsDocRef     = useRef<LyricDocument | null>(null)
 
   const fpsRef            = useRef(0)
   const fpsFrameCountRef  = useRef(0)
@@ -937,10 +937,8 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
 
   useEffect(() => {
     const sync = (s: ReturnType<typeof useLyricsStore.getState>) => {
-      lyricsEnabledRef.current  = s.lyricsEnabled
-      lyricsCuesRef.current     = s.cues
-      lyricsOffsetMsRef.current = s.globalOffsetMs
-      lyricsDocRef.current      = s.activeDocument
+      lyricsEnabledRef.current = s.lyricsEnabled
+      lyricsDocRef.current     = s.activeDocument
       requestRedrawRef.current()
     }
     sync(useLyricsStore.getState())
@@ -1391,7 +1389,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       if (an && buf) {
         an.getByteFrequencyData(buf)
         rawBands = extractBandValues(buf, an.context.sampleRate, beatPhase, synced)
-        // Feed Music Intelligence Engine — publishes to AudioFeatureBus for all consumers
+        // Feed Music Intelligence Engine — publishes audio and canonical lyric state.
         musicIntelligenceEngine.updateFromAudioFrame({
           freqBuf:    buf,
           timeBuf:    null,   // time-domain only read when Oscilloscope is enabled
@@ -1400,6 +1398,9 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           isPlaying:  isPlayingRef.current,
         })
       }
+      const lyricPlayback = an && buf
+        ? musicIntelligenceEngine.getLyricPlaybackState()
+        : musicIntelligenceEngine.resolveLyricsAt(audioTimeNow)
       const audioOn    = audioReactivityEnabledRef.current
       // Single gate: all downstream consumers read activeBands, never rawBands,
       // so disabling audio reactivity makes every audio-driven path go silent.
@@ -2567,13 +2568,23 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
       prevBassRef.current = bass * 0.82
 
       // ── Lyrics ─────────────────────────────────────────────────────
-      if (lyricsEnabledRef.current && lyricsCuesRef.current.length > 0) {
-        const adjustedMs = audioTimeNow * 1000 + lyricsOffsetMsRef.current
-        const cues = lyricsCuesRef.current
-        const activeCue = cues.find(c => c.startMs <= adjustedMs && adjustedMs < c.endMs) ?? null
-        if (activeCue) {
-          drawLyricCue(ctx, activeCue, adjustedMs, lyricsDocRef.current, W, H, dpr)
-        }
+      if (
+        lyricsEnabledRef.current &&
+        lyricPlayback.activeCue &&
+        lyricPlayback.effectiveCueStartMs !== null &&
+        lyricPlayback.effectiveCueEndMs !== null
+      ) {
+        drawLyricCue(
+          ctx,
+          lyricPlayback.activeCue,
+          lyricPlayback.currentAudioMs,
+          lyricPlayback.effectiveCueStartMs,
+          lyricPlayback.effectiveCueEndMs,
+          lyricsDocRef.current,
+          W,
+          H,
+          dpr,
+        )
       }
 
       // ── HUD corners ────────────────────────────────────────────────

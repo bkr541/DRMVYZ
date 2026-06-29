@@ -6,6 +6,7 @@ import { useLyricsStore } from '../../stores/lyricsStore'
 import { useSharedAudio } from '../../context/AudioEngineContext'
 import { useWaveformPeaks } from './hooks/useWaveformPeaks'
 import { LyricCueTimeline } from '../../features/lyrics/editor/LyricCueTimeline'
+import { toCanonicalLyricTimeMs, toEffectiveLyricTimeMs } from '../../features/lyrics/runtime/lyricPlaybackResolver'
 import { LyricCueInspector as SharedLyricCueInspector } from '../../features/lyrics/editor/LyricCueInspector'
 import { LyricWaveformCanvas } from '../../features/lyrics/editor/LyricWaveformCanvas'
 import {
@@ -1019,7 +1020,7 @@ function TimelineLyricCueInspector({
     ...cues.map(item => item.endMs),
   )
   const currentDisplayTimeMs = Math.round(timelineClock * 1000)
-  const canonicalPlayheadMs = Math.max(0, currentDisplayTimeMs - globalOffsetMs)
+  const canonicalPlayheadMs = Math.max(0, toCanonicalLyricTimeMs(currentDisplayTimeMs, globalOffsetMs))
   const sections = (engine.currentAnalysis?.sections ?? []).map(section => ({
     id: section.id,
     label: section.label,
@@ -1100,7 +1101,7 @@ function TimelineLyricCueInspector({
         <button
           type="button"
           className="vz-tl-clip-btn"
-          onClick={() => onSeek((cue.startMs + globalOffsetMs) / 1000)}
+          onClick={() => onSeek(toEffectiveLyricTimeMs(cue.startMs, globalOffsetMs) / 1000)}
         >
           ⏮ Seek to cue
         </button>
@@ -1422,7 +1423,6 @@ export function TimelinePanel({ onScrub, onAddCue }: TimelinePanelProps) {
     trackIdTl ? engine.getDecodedBuffer(trackIdTl) : undefined,
     trackUrl,
   )
-  const globalOffsetSec = globalOffsetMs / 1000
 
   const mediaMap = useMemo(() => new Map(mediaItems.map(m => [m.id, m])), [mediaItems])
   const activeMedia = activeMediaId ? mediaMap.get(activeMediaId) ?? null : null
@@ -1440,7 +1440,7 @@ export function TimelinePanel({ onScrub, onAddCue }: TimelinePanelProps) {
   })
   const audioDur     = engine.duration > 0 ? engine.duration : 0
   const lyricEndSec  = lyricCues.length > 0
-    ? Math.max(...lyricCues.map(c => c.endMs / 1000 + globalOffsetSec))
+    ? Math.max(...lyricCues.map(c => toEffectiveLyricTimeMs(c.endMs, globalOffsetMs) / 1000))
     : 0
   const totalDuration = Math.max(audioDur, visualDur, lyricEndSec, 10)
   const contentWidth  = Math.max(600, timeToPx(totalDuration, pxPerSec) + 120)
