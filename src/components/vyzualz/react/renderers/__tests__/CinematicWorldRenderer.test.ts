@@ -171,6 +171,7 @@ describe('CinematicWorldRendererRegistry', () => {
       'mirrorDimension',
       'ancientMachine',
       'stormGateway',
+      'mediaPortal',
     ])
   })
 
@@ -266,7 +267,7 @@ describe('CinematicWorldRendererHost', () => {
       resources: {},
       compileProgram: vi.fn(() => program),
       createFramebuffer: vi.fn(),
-      createTexture: vi.fn(),
+      createTexture: vi.fn(() => ({ uploadBytes: vi.fn(), uploadImage: vi.fn(), handle: {}, dispose: vi.fn() })),
     } as unknown as CinematicWebGLServices
 
     for (const definition of cinematicWorldDefinitions) {

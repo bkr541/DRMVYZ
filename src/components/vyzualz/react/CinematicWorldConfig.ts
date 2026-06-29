@@ -501,7 +501,11 @@ const WORLD_DEFAULT_AUDIO_ROUTES: Readonly<Record<CinematicWorldMode, readonly C
     route('storm-bass-vortex', 'bass', 'portalAperture', { amount: 0.55, attackMs: 30, releaseMs: 280 }),
     route('storm-high-debris', 'highs', 'particleEmission', { amount: 0.5, attackMs: 24, releaseMs: 180 }),
   ],
-  mediaPortal: [],
+  mediaPortal: [
+    route('media-bass-warp', 'bass', 'distortion', { amount: 0.6, attackMs: 24, releaseMs: 220 }),
+    route('media-beat-flash', 'beat', 'impact', { amount: 0.85, attackMs: 0, releaseMs: 140, decayMs: 180 }),
+    route('media-high-chromatic', 'highs', 'chromaticAberration', { amount: 0.3, attackMs: 18, releaseMs: 160 }),
+  ],
 }
 
 export function createDefaultCinematicAudioRoutes(mode: CinematicWorldMode): CinematicAudioRoute[] {
