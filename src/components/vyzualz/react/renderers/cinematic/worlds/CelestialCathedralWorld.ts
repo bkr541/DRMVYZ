@@ -3,6 +3,7 @@ import type { ShaderProgram } from '../../../shaders/runtime/ShaderProgram'
 import type { CinematicFrameContext, CinematicWebGLWorldDefinition } from '../../CinematicWorldRenderer'
 import { CELESTIAL_CATHEDRAL_FRAGMENT_SOURCE } from './CinematicWorldPackBShaders'
 import { FullscreenCinematicWorld } from './FullscreenCinematicWorld'
+import { applyCinematicModulation } from '../CinematicAudioModulation'
 
 const UNIFORMS = [
   'uCathedralScale',
@@ -25,16 +26,16 @@ class CelestialCathedralWorld extends FullscreenCinematicWorld {
 
   protected setWorldUniforms(program: ShaderProgram, frame: CinematicFrameContext): void {
     const settings = resolveCelestialCathedralSettings(frame.config.worldSettings)
-    program.setFloat('uCathedralScale', settings.cathedralScale)
+    program.setFloat('uCathedralScale', applyCinematicModulation(settings.cathedralScale, frame.modulation, 'depth', 0.6, 0.4, 3))
     program.setFloat('uArchCount', settings.archCount)
     program.setFloat('uPillarCount', settings.pillarCount)
     program.setFloat('uRibDensity', settings.ribDensity)
-    program.setFloat('uAisleDepth', settings.aisleDepth)
-    program.setFloat('uLightShaftIntensity', settings.lightShaftIntensity)
-    program.setFloat('uStarDensity', settings.starDensity)
+    program.setFloat('uAisleDepth', applyCinematicModulation(settings.aisleDepth, frame.modulation, 'depth', 1.2, 0.4, 5))
+    program.setFloat('uLightShaftIntensity', applyCinematicModulation(settings.lightShaftIntensity, frame.modulation, 'environmentBrightness', 1.25, 0, 2.5))
+    program.setFloat('uStarDensity', applyCinematicModulation(settings.starDensity, frame.modulation, 'particleEmission', 0.8, 0, 1.8))
     program.setFloat('uMajesticSpeed', settings.majesticSpeed)
-    program.setFloat('uCameraDrift', settings.cameraDrift)
-    program.setFloat('uIlluminationResponse', settings.illuminationResponse)
+    program.setFloat('uCameraDrift', applyCinematicModulation(settings.cameraDrift, frame.modulation, 'cameraTravel', 0.55, 0, 1.5))
+    program.setFloat('uIlluminationResponse', applyCinematicModulation(settings.illuminationResponse, frame.modulation, 'impact', 0.8, 0, 2))
     program.setFloat('uArchitectureStyle', settings.architectureStyle)
   }
 }
@@ -46,7 +47,7 @@ export const celestialCathedralWorldDefinition: CinematicWebGLWorldDefinition = 
   capabilities: {
     backend: 'webgl2',
     cameraRigs: ['locked', 'dolly', 'flyThrough', 'autoDirector'],
-    modulationTargets: ['depth', 'fog', 'atmosphere', 'bloom', 'glow', 'cameraMotion'],
+    modulationTargets: ['depth', 'cameraTravel', 'fogDensity', 'particleEmission', 'environmentBrightness', 'bloom', 'impact'],
     supportsGeometryPasses: true,
     supportsFullscreenPasses: true,
     supportsTextureInputs: false,

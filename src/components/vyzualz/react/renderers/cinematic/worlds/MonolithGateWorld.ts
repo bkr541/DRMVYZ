@@ -3,6 +3,7 @@ import type { ShaderProgram } from '../../../shaders/runtime/ShaderProgram'
 import type { CinematicFrameContext, CinematicWebGLWorldDefinition } from '../../CinematicWorldRenderer'
 import { MONOLITH_GATE_FRAGMENT_SOURCE } from './CinematicWorldShaders'
 import { FullscreenCinematicWorld } from './FullscreenCinematicWorld'
+import { applyCinematicModulation } from '../CinematicAudioModulation'
 
 const UNIFORMS = [
   'uGateScale',
@@ -44,13 +45,13 @@ class MonolithGateWorld extends FullscreenCinematicWorld {
     const gateState = sectionGateState(frame, settings.openingAmount, settings.lockStrength)
     program.setFloat('uGateScale', settings.gateScale)
     program.setFloat('uColumnCount', settings.columnCount)
-    program.setFloat('uSlabDepth', settings.slabDepth)
+    program.setFloat('uSlabDepth', applyCinematicModulation(settings.slabDepth, frame.modulation, 'depth', 0.75, 0, 2))
     program.setFloat('uRingCount', settings.ringCount)
-    program.setFloat('uLightShaftIntensity', settings.lightShaftIntensity)
+    program.setFloat('uLightShaftIntensity', applyCinematicModulation(settings.lightShaftIntensity, frame.modulation, 'environmentBrightness', 1.2, 0, 2.5))
     program.setFloat('uGlyphDensity', settings.glyphDensity)
-    program.setFloat('uOpeningAmount', gateState.opening)
+    program.setFloat('uOpeningAmount', applyCinematicModulation(gateState.opening, frame.modulation, 'portalAperture', 0.8, 0, 1))
     program.setFloat('uLockStrength', gateState.lock)
-    program.setFloat('uCameraTravel', settings.cameraTravel)
+    program.setFloat('uCameraTravel', applyCinematicModulation(settings.cameraTravel, frame.modulation, 'cameraTravel', 1.2, 0, 3))
     program.setFloat('uArchitectureStyle', settings.architectureStyle)
   }
 }
@@ -62,7 +63,7 @@ export const monolithGateWorldDefinition: CinematicWebGLWorldDefinition = {
   capabilities: {
     backend: 'webgl2',
     cameraRigs: ['locked', 'dolly', 'orbit', 'autoDirector'],
-    modulationTargets: ['depth', 'fog', 'atmosphere', 'bloom', 'glow', 'cameraMotion'],
+    modulationTargets: ['portalAperture', 'depth', 'cameraPunch', 'cameraTravel', 'fogDensity', 'environmentBrightness', 'bloom', 'impact'],
     supportsGeometryPasses: true,
     supportsFullscreenPasses: true,
     supportsTextureInputs: false,

@@ -62,6 +62,8 @@ export interface MIEnergy {
   dropImpact:   number  // 0–1, burst magnitude when energy drops below average
   tension:      number  // 0–1, combined spectral flux + energy delta
   complexity:   number  // 0–1, spectral spread measure
+  /** Current sample from the offline track energy curve; absent when no curve exists. */
+  trackCurve?:   number
   // Meyda spectral features (0–1 normalized; 0 when Meyda is not running)
   spectralCentroid:  number
   spectralSpread:    number
@@ -168,6 +170,24 @@ export interface VisualAutomationSuggestion {
 
 // ── Core runtime frame ────────────────────────────────────────────────────────
 
+
+export interface MusicIntelligenceCapabilities {
+  /** Live FFT-derived detailed bands are populated for this frame. */
+  liveBands: boolean
+  /** Live transient/kick/snare detectors are running for this frame. */
+  rhythmEvents: boolean
+  /** BPM or stored beat markers provide beat/bar/phrase timing. */
+  beatGrid: boolean
+  /** Manual or analyzed sections exist for the active track. */
+  sections: boolean
+  /** Offline track energy curves exist for the active track. */
+  trackEnergyCurve: boolean
+  /** Separated-stem curves exist for the active track. */
+  stemCurves: boolean
+  /** Timed lyric analysis exists for the active track. */
+  lyrics: boolean
+}
+
 export interface MusicIntelligenceFrame {
   timeSec:    number        // current audio time in seconds
   frameId:    number        // monotonically increasing; 0 = not yet populated
@@ -182,6 +202,8 @@ export interface MusicIntelligenceFrame {
   stems:      MIStems
   lyrics:     MILyrics
   semantics:  MISemantics
+  /** Optional for analyses created before Patch 5; consumers must default false. */
+  capabilities?: MusicIntelligenceCapabilities
   raw: {
     freqData:       Uint8Array<ArrayBuffer> | null
     timeDomainData: Uint8Array<ArrayBuffer> | null

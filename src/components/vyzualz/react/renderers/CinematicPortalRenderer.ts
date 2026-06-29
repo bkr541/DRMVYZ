@@ -8,6 +8,7 @@ import type { ReactPreset, ReactSectionType } from '../ReactTypes'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { hexToRgba } from './reactRenderUtils'
 import { CinematicWebGLRuntime } from './cinematic/CinematicWebGLRuntime'
+import { cinematicModulationValue } from './cinematic/CinematicAudioModulation'
 import { diagnosticCinematicWorldDefinition } from './cinematic/worlds/DiagnosticCinematicWorld'
 import { cinematicWorldDefinitions } from './cinematic/worlds'
 import {
@@ -476,8 +477,21 @@ class LegacyPortalWorldRenderer implements CinematicWorldRenderer {
     const { width, height } = input.resolution
     const dpr = input.devicePixelRatio
     const params = input.params
-    const bass = input.audio.smoothed.bass * params.bassReactivity
-    const atmosphere = atmosphereForSection(input.section.type)
+    const mappedAperture = cinematicModulationValue(input.modulation, 'portalAperture')
+    const mappedImpact = cinematicModulationValue(input.modulation, 'impact')
+    const mappedBrightness = cinematicModulationValue(input.modulation, 'environmentBrightness')
+    const mappedFog = cinematicModulationValue(input.modulation, 'fogDensity')
+    const mappedParticles = cinematicModulationValue(input.modulation, 'particleEmission')
+    const mappedPunch = cinematicModulationValue(input.modulation, 'cameraPunch')
+    const bass = Math.min(1.5, input.audio.smoothed.bass * params.bassReactivity + mappedAperture * 0.65 + mappedImpact * 0.35)
+    const baseAtmosphere = atmosphereForSection(input.section.type)
+    const atmosphere: SectionAtmosphere = {
+      fogIntensity: Math.min(1.5, baseAtmosphere.fogIntensity + mappedFog * 0.5),
+      portalGlow: Math.min(1.6, baseAtmosphere.portalGlow + mappedBrightness * 0.6 + mappedImpact * 0.25),
+      ringRate: Math.min(0.8, baseAtmosphere.ringRate + mappedImpact * 0.22),
+      cameraShake: Math.min(1.5, baseAtmosphere.cameraShake + mappedPunch),
+      emberRate: Math.min(1.8, baseAtmosphere.emberRate + mappedParticles * 0.75),
+    }
     const frameScale = legacyPortalFrameScale(input.deltaTimeSec)
     const legacyTick = input.elapsedTimeSec * SIXTY_HZ
 
@@ -532,7 +546,7 @@ cinematicWorldRendererRegistry.register({
   capabilities: {
     backend: 'canvas2d',
     cameraRigs: ['locked'],
-    modulationTargets: ['glow', 'portalPulse', 'atmosphere', 'fog', 'debris'],
+    modulationTargets: ['portalAperture', 'cameraPunch', 'fogDensity', 'particleEmission', 'environmentBrightness', 'impact'],
     supportsGeometryPasses: false,
     supportsFullscreenPasses: false,
     supportsTextureInputs: false,

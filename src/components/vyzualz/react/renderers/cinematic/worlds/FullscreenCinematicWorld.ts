@@ -12,6 +12,7 @@ import type {
 } from '../../CinematicWorldRenderer'
 import type { CinematicWorldMode } from '../../../CinematicWorldConfig'
 import { CINEMATIC_WORLD_COMMON_UNIFORMS } from './CinematicWorldShaders'
+import { cinematicModulationValue } from '../CinematicAudioModulation'
 
 interface RgbColor {
   r: number
@@ -84,18 +85,24 @@ export abstract class FullscreenCinematicWorld implements CinematicWebGLWorldRen
     const primary = parseHexColor(frame.preset.palette.primary, { r: 0.05, g: 0.86, b: 0.95 })
     const secondary = parseHexColor(frame.preset.palette.secondary, { r: 0.42, g: 0.16, b: 0.96 })
     const accent = parseHexColor(frame.preset.palette.accent, { r: 1, g: 0.68, b: 0.22 })
-    const drop = frame.section.type === 'drop' ? 1 : 0
-    const impact = Math.exp(-this.impactAge * 5.5)
+    const musical = frame.musicalAudio?.values
+    const drop = musical?.dropState ?? (frame.section.type === 'drop' ? 1 : 0)
+    const mappedImpact = Math.max(
+      cinematicModulationValue(frame.modulation, 'impact'),
+      cinematicModulationValue(frame.modulation, 'cameraPunch'),
+    )
+    const brightness = cinematicModulationValue(frame.modulation, 'environmentBrightness')
+    const impact = Math.max(Math.exp(-this.impactAge * 5.5), mappedImpact)
     const downbeat = Math.exp(-this.downbeatAge * 4.0)
 
     this.program.activate()
     this.program.setVec2('uResolution', target.width, target.height)
     this.program.setFloat('uTime', frame.elapsedTimeSec)
     this.program.setFloat('uTransportTime', frame.transportTimeSec)
-    this.program.setFloat('uBass', frame.audio.smoothed.bass)
-    this.program.setFloat('uMid', frame.audio.smoothed.mid)
-    this.program.setFloat('uHigh', frame.audio.smoothed.high)
-    this.program.setFloat('uVolume', frame.audio.smoothed.volume)
+    this.program.setFloat('uBass', musical?.bass ?? frame.audio.smoothed.bass)
+    this.program.setFloat('uMid', musical?.mid ?? frame.audio.smoothed.mid)
+    this.program.setFloat('uHigh', musical?.highs ?? frame.audio.smoothed.high)
+    this.program.setFloat('uVolume', Math.min(1, (musical?.overallEnergy ?? frame.audio.smoothed.volume) + brightness * 0.28))
     this.program.setFloat('uBeat', Math.max(frame.beat.hit ? 1 : 0, impact))
     this.program.setFloat('uBeatPhase', frame.beat.phase)
     this.program.setFloat('uKick', frame.beat.kick)
@@ -104,7 +111,7 @@ export abstract class FullscreenCinematicWorld implements CinematicWebGLWorldRen
     this.program.setFloat('uBarProgress', frame.beat.barProgress)
     this.program.setFloat('uImpactAge', this.impactAge)
     this.program.setFloat('uDownbeat', Math.max(frame.beat.downbeat ? 1 : 0, downbeat))
-    this.program.setFloat('uSectionIntensity', sectionIntensity(frame))
+    this.program.setFloat('uSectionIntensity', sectionIntensity(frame) * (1 + brightness * 0.32))
     this.program.setFloat('uDrop', drop)
     this.program.setFloat('uSeed', frame.randomSeed)
     this.program.setFloat('uQuality', cinematicQualityLevel(frame.config.qualityTier))

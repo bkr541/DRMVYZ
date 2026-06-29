@@ -15,6 +15,13 @@ import type { ShaderProgram, ShaderProgramDescriptor } from '../shaders/runtime/
 import type { ShaderResourceManager } from '../shaders/runtime/ShaderResourceManager'
 import type { ShaderTexture } from '../shaders/runtime/ShaderTexture'
 import type { FramebufferDescriptor, TextureDescriptor } from '../shaders/runtime/shaderRuntimeTypes'
+import {
+  CinematicAudioFrameNormalizer,
+  CinematicModulationEngine,
+  type CinematicMappingValidationIssue,
+  type CinematicModulationSnapshot,
+  type CinematicNormalizedAudioFrame,
+} from './cinematic/CinematicAudioModulation'
 
 export const CINEMATIC_DIAGNOSTIC_WORLD_ID = '__diagnostic' as const
 export type CinematicWorldId = CinematicWorldMode | typeof CINEMATIC_DIAGNOSTIC_WORLD_ID
@@ -57,6 +64,9 @@ export interface CinematicTrackSectionState {
   progress: number
   changed: boolean
   analysis: MusicIntelligenceFrame | null
+  label?: string
+  intensity?: number
+  confidence?: number
 }
 
 export interface CinematicTransitionState {
@@ -76,6 +86,7 @@ export interface CinematicFrameContext {
   elapsedTimeSec: number
   deltaTimeSec: number
   transportTimeSec: number
+  isPlaying?: boolean
   frameIndex: number
   resolution: { width: number; height: number }
   devicePixelRatio: number
@@ -86,6 +97,10 @@ export interface CinematicFrameContext {
     waveform: Uint8Array<ArrayBuffer> | null
   }
   beat: CinematicBeatState
+  /** Capability-safe, analyzer-backed musical values prepared by the host. */
+  musicalAudio?: CinematicNormalizedAudioFrame
+  /** Bounded source-to-target modulation values prepared once per frame. */
+  modulation?: CinematicModulationSnapshot
   section: CinematicTrackSectionState
   config: CinematicWorldConfig
   transition: CinematicTransitionState
@@ -252,6 +267,7 @@ export function cinematicStructuralKey(input: CinematicFrameContext): string {
     customMaskId: config.customMaskId,
     depth: config.environment.depth,
     architecture: config.environment.architecture,
+    audioMapping: config.audioMapping,
   })
 }
 
@@ -274,6 +290,8 @@ function readMiNumber(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? clamp01(value) : 0
 }
 
+const EMPTY_AUDIO_ROUTES: readonly [] = []
+
 /**
  * Owns one active renderer for one visible Canvas2D context. WebGL worlds render
  * on a dedicated offscreen WebGL2 canvas and are composited into this context;
@@ -286,7 +304,9 @@ export class CinematicWorldRendererHost {
   private canvasViewport: CinematicViewport | null = null
   private webglRuntime: CinematicWebGLRuntimeLike | null = null
   private previousInput: CinematicFrameContext | null = null
-  private smoothedAudio: CinematicAudioBands | null = null
+  private readonly audioNormalizer = new CinematicAudioFrameNormalizer()
+  private readonly modulationEngine = new CinematicModulationEngine()
+  private mappingIssues: readonly CinematicMappingValidationIssue[] = []
   private lastError: string | null = null
 
   constructor(
@@ -297,10 +317,10 @@ export class CinematicWorldRendererHost {
   ) {}
 
   get error(): string | null { return this.lastError }
+  get audioMappingIssues(): readonly CinematicMappingValidationIssue[] { return this.mappingIssues }
 
   render(input: CinematicFrameContext): void {
-    const frame = this.prepareFrame(input)
-    const requestedId = frame.requestedWorldId ?? frame.config.worldMode
+    const requestedId = input.requestedWorldId ?? input.config.worldMode
     const requestedDefinition = this.registry.resolve(requestedId)
     const definition = requestedDefinition ?? this.registry.resolve(this.fallbackMode)
 
@@ -308,6 +328,8 @@ export class CinematicWorldRendererHost {
       this.drawReadableError(`No cinematic renderer registered for ${requestedId} or fallback ${this.fallbackMode}`)
       return
     }
+
+    const frame = this.prepareFrame(input, definition)
 
     if (definition.backend === 'webgl2') {
       const result = this.renderWebGL(definition, frame)
@@ -337,7 +359,9 @@ export class CinematicWorldRendererHost {
     this.webglRuntime?.reset('manualReset')
     this.canvasKey = null
     this.previousInput = null
-    this.smoothedAudio = null
+    this.audioNormalizer.reset()
+    this.modulationEngine.reset('manual')
+    this.mappingIssues = []
   }
 
   dispose(): void {
@@ -345,29 +369,88 @@ export class CinematicWorldRendererHost {
     this.webglRuntime?.dispose()
     this.webglRuntime = null
     this.previousInput = null
-    this.smoothedAudio = null
+    this.audioNormalizer.reset()
+    this.modulationEngine.reset('manual')
+    this.mappingIssues = []
     this.lastError = null
   }
 
-  private prepareFrame(input: CinematicFrameContext): CinematicFrameContext {
-    const raw = input.audio.raw
-    const smoothingMs = input.config.audioMapping.enabled
-      ? input.config.audioMapping.smoothingMs
-      : 0
-    const alpha = smoothingMs <= 0
-      ? 1
-      : 1 - Math.exp(-(input.deltaTimeSec * 1000) / Math.max(1, smoothingMs))
-    const previous = this.smoothedAudio ?? raw
+  private prepareFrame(
+    input: CinematicFrameContext,
+    definition: CinematicWorldDefinition,
+  ): CinematicFrameContext {
+    const analysis = input.section.analysis
+    const musicalAudio = this.audioNormalizer.update({
+      frameIndex: input.frameIndex,
+      deltaTimeSec: input.deltaTimeSec,
+      transportTimeSec: input.transportTimeSec,
+      isPlaying: input.isPlaying ?? true,
+      beatHit: input.beat.hit,
+      beatPhase: input.beat.phase,
+      bpm: input.beat.bpm,
+      broadBands: input.audio.raw,
+      musicIntelligence: analysis,
+      section: {
+        type: input.section.type,
+        label: input.section.label ?? analysis?.section.label ?? '',
+        startSec: input.section.startSec,
+        endSec: input.section.endSec,
+        progress: input.section.progress,
+        intensity: input.section.intensity,
+        confidence: input.section.confidence ?? analysis?.section.confidence,
+      },
+      sectionChanged: input.section.changed,
+      worldId: definition.id,
+      presetId: input.presetId,
+    })
+
+    const routes = input.config.audioMapping.enabled ? input.config.audioMapping.routes : EMPTY_AUDIO_ROUTES
+    const modulation = this.modulationEngine.update(
+      musicalAudio,
+      routes,
+      definition.capabilities.modulationTargets,
+      input.deltaTimeSec,
+      input.config.audioMapping.smoothingMs,
+      input.randomSeed,
+    )
+    this.mappingIssues = modulation.issues
+
+    const values = musicalAudio.values
     const smoothed: CinematicAudioBands = {
-      bass: previous.bass + (raw.bass - previous.bass) * alpha,
-      mid: previous.mid + (raw.mid - previous.mid) * alpha,
-      high: previous.high + (raw.high - previous.high) * alpha,
-      volume: previous.volume + (raw.volume - previous.volume) * alpha,
+      bass: values.bass,
+      mid: values.mid,
+      high: values.highs,
+      volume: values.overallEnergy,
     }
-    this.smoothedAudio = smoothed
     return {
       ...input,
+      isPlaying: musicalAudio.isPlaying,
       audio: { ...input.audio, smoothed },
+      beat: {
+        hit: musicalAudio.events.beat,
+        phase: musicalAudio.timing.beatPhase,
+        bpm: musicalAudio.timing.bpm,
+        kick: values.kickStrength,
+        snare: values.snareStrength,
+        transient: values.transientIntensity,
+        beatIndex: musicalAudio.timing.beatIndex,
+        beatInBar: musicalAudio.timing.beatInBar,
+        barIndex: musicalAudio.timing.barIndex,
+        barProgress: musicalAudio.timing.barPosition,
+        downbeat: musicalAudio.events.downbeat,
+      },
+      section: {
+        ...input.section,
+        type: musicalAudio.section.type,
+        label: musicalAudio.section.label,
+        startSec: musicalAudio.section.startSec,
+        endSec: musicalAudio.section.endSec,
+        progress: musicalAudio.section.progress,
+        intensity: musicalAudio.section.intensity,
+        confidence: musicalAudio.section.confidence,
+      },
+      musicalAudio,
+      modulation,
     }
   }
 
@@ -494,6 +577,7 @@ export function cinematicInputFromReactFrame(
     elapsedTimeSec,
     deltaTimeSec,
     transportTimeSec: frame.audioTime,
+    isPlaying: frame.isPlaying,
     frameIndex: Math.max(0, Math.floor(frame.t)),
     resolution: { width: frame.W, height: frame.H },
     devicePixelRatio: Math.max(0.1, frame.dpr || 1),
@@ -523,6 +607,9 @@ export function cinematicInputFromReactFrame(
       progress: sectionProgress,
       changed: Boolean(frame.sectionChanged),
       analysis: frame.musicIntelligence,
+      label: mi?.section.label ?? '',
+      intensity: undefined,
+      confidence: mi?.section.confidence,
     },
     config,
     transition: {

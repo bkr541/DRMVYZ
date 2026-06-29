@@ -3,6 +3,7 @@ import { FULLSCREEN_VERT_SRC, FullscreenPass } from '../../shaders/runtime/Fulls
 import { ShaderCompiler } from '../../shaders/runtime/ShaderCompiler'
 import { ShaderFramebuffer } from '../../shaders/runtime/ShaderFramebuffer'
 import { ShaderProgram } from '../../shaders/runtime/ShaderProgram'
+import { cinematicModulationValue } from './CinematicAudioModulation'
 import {
   cinematicQualityProfile,
   resolveEventHorizonSettings,
@@ -30,18 +31,25 @@ export function resolveCinematicPostProcessSettings(
     ? resolveMirrorDimensionSettings(frame.config.worldSettings)
     : null
   const quality = cinematicQualityProfile(frame.config.qualityTier)
-  const requestedFeedback = mirror
+  const mappedBloom = cinematicModulationValue(frame.modulation, 'bloom')
+  const mappedChromatic = cinematicModulationValue(frame.modulation, 'chromaticAberration')
+  const mappedFeedback = cinematicModulationValue(frame.modulation, 'feedback')
+  const mappedDepth = cinematicModulationValue(frame.modulation, 'depth')
+  const mappedParticles = cinematicModulationValue(frame.modulation, 'particleEmission')
+  const mappedFog = cinematicModulationValue(frame.modulation, 'fogDensity')
+  const mappedBrightness = cinematicModulationValue(frame.modulation, 'environmentBrightness')
+  const requestedFeedback = (mirror
     ? Math.max(material.feedback, mirror.feedbackAmount)
-    : material.feedback
+    : material.feedback) + mappedFeedback * 0.3
 
   return {
-    bloom: Math.min(1.6, Math.max(material.bloom, material.glow * 0.65) + (eventHorizon?.bloomBoost ?? 0)),
-    vignette: Math.min(0.65, frame.config.environment.depth * 0.28),
+    bloom: Math.min(1.6, Math.max(material.bloom, material.glow * 0.65) + (eventHorizon?.bloomBoost ?? 0) + mappedBloom * 0.7),
+    vignette: Math.min(0.65, (frame.config.environment.depth + mappedDepth * 0.5 + mappedFog * 0.18) * 0.28),
     chromaticAberration: Math.min(
       1,
-      material.chromaticAberration + (eventHorizon?.chromaticAberrationBoost ?? 0),
+      material.chromaticAberration + (eventHorizon?.chromaticAberrationBoost ?? 0) + mappedChromatic * 0.65,
     ),
-    filmGrain: Math.min(0.18, frame.config.environment.atmosphere * 0.07 * (0.65 + quality.particleScale * 0.35)),
+    filmGrain: Math.min(0.18, (frame.config.environment.atmosphere + mappedParticles * 0.35 + mappedFog * 0.16) * 0.07 * (0.65 + quality.particleScale * 0.35)),
     // Feedback is deliberately capped and quality-scaled so recursive worlds
     // stay readable instead of accumulating into a permanent full-frame smear.
     feedback: Math.min(
@@ -49,7 +57,7 @@ export function resolveCinematicPostProcessSettings(
       requestedFeedback * quality.feedbackScale,
     ),
     toneMapping: true,
-    exposure: 0.85 + frame.params.intensity * 0.5,
+    exposure: 0.85 + frame.params.intensity * 0.5 + mappedBrightness * 0.35,
   }
 }
 

@@ -60,33 +60,90 @@ export type CinematicTransitionMode = typeof CINEMATIC_TRANSITION_MODES[number]
 export const CINEMATIC_TRANSITION_EASINGS = ['linear', 'easeIn', 'easeOut', 'easeInOut'] as const
 export type CinematicTransitionEasing = typeof CINEMATIC_TRANSITION_EASINGS[number]
 
-export const CINEMATIC_AUDIO_SOURCES = [
+export const CINEMATIC_AUDIO_CONTINUOUS_SOURCES = [
+  'overallEnergy',
+  'subBass',
   'bass',
+  'lowMid',
   'mid',
-  'high',
+  'highMid',
+  'highs',
+  'transientIntensity',
+  'kickStrength',
+  'snareStrength',
+  'beatPhase',
+  'barPosition',
+  'phraseProgress',
+  'sectionProgress',
+  'buildProgress',
+  'dropState',
+  'trackEnergy',
+  'vocalEnergy',
+  // Backward-compatible aliases retained for presets created before Patch 5.
   'volume',
+  'high',
+  'sectionEnergy',
+] as const
+
+export const CINEMATIC_AUDIO_EVENT_SOURCES = [
   'beat',
   'kick',
   'snare',
-  'sectionEnergy',
+  'downbeat',
+  'barStart',
+  'sectionChange',
+  'dropEntry',
 ] as const
+
+export const CINEMATIC_AUDIO_SOURCES = [
+  ...CINEMATIC_AUDIO_CONTINUOUS_SOURCES,
+  ...CINEMATIC_AUDIO_EVENT_SOURCES,
+] as const
+export type CinematicAudioContinuousSource = typeof CINEMATIC_AUDIO_CONTINUOUS_SOURCES[number]
+export type CinematicAudioEventSource = typeof CINEMATIC_AUDIO_EVENT_SOURCES[number]
 export type CinematicAudioSource = typeof CINEMATIC_AUDIO_SOURCES[number]
 
 export const CINEMATIC_AUDIO_TARGETS = [
+  'portalAperture',
   'depth',
+  'cameraPunch',
+  'cameraTravel',
+  'lensing',
+  'distortion',
+  'refraction',
+  'geometryRotation',
+  'fractureAmount',
+  'fogDensity',
+  'particleEmission',
+  'lightning',
+  'bloom',
+  'chromaticAberration',
+  'environmentBrightness',
+  'feedback',
+  'impact',
+  // Backward-compatible target aliases. Renderers map these to canonical effects.
   'fog',
   'debris',
   'atmosphere',
-  'distortion',
-  'refraction',
-  'bloom',
-  'chromaticAberration',
-  'feedback',
   'glow',
   'cameraMotion',
   'portalPulse',
 ] as const
 export type CinematicAudioTarget = typeof CINEMATIC_AUDIO_TARGETS[number]
+
+export const CINEMATIC_RESPONSE_CURVES = [
+  'linear',
+  'smoothstep',
+  'easeIn',
+  'easeOut',
+  'exponential',
+] as const
+export type CinematicResponseCurve = typeof CINEMATIC_RESPONSE_CURVES[number]
+
+export const CINEMATIC_SECTION_SCALE_KEYS = [
+  'intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'bridge', 'outro', 'unknown',
+] as const
+export type CinematicSectionScaleKey = typeof CINEMATIC_SECTION_SCALE_KEYS[number]
 
 export interface NumericRange {
   min: number
@@ -113,9 +170,19 @@ export const CINEMATIC_NUMERIC_RANGES = {
     glow:                 { min: 0, max: 1, default: 0.75, description: 'Portal and emissive material glow.' },
   },
   audioRoute: {
-    amount:    { min: -2, max: 2, default: 0, description: 'Signed modulation depth.' },
-    attackMs:  { min: 0, max: 2000, default: 40, description: 'Attack smoothing in milliseconds.' },
-    releaseMs: { min: 0, max: 4000, default: 220, description: 'Release smoothing in milliseconds.' },
+    amount:              { min: -2, max: 2, default: 1, description: 'Signed modulation depth.' },
+    attackMs:            { min: 0, max: 2000, default: 40, description: 'Attack response in milliseconds.' },
+    releaseMs:           { min: 0, max: 4000, default: 220, description: 'Release response in milliseconds.' },
+    smoothingMs:         { min: 0, max: 2000, default: 0, description: 'Additional route smoothing in milliseconds.' },
+    gain:                { min: 0, max: 4, default: 1, description: 'Source gain before the route envelope.' },
+    bias:                { min: -1, max: 1, default: 0, description: 'Signed source bias.' },
+    threshold:           { min: 0, max: 1, default: 0, description: 'Source gate threshold.' },
+    clampMin:            { min: 0, max: 1, default: 0, description: 'Minimum transformed source value.' },
+    clampMax:            { min: 0, max: 1, default: 1, description: 'Maximum transformed source value.' },
+    beatHoldMs:          { min: 0, max: 2000, default: 0, description: 'Discrete-event hold time.' },
+    decayMs:             { min: 0, max: 8000, default: 180, description: 'Discrete-event decay time.' },
+    randomizationAmount: { min: 0, max: 1, default: 0, description: 'Deterministic seeded variation amount.' },
+    sectionScale:        { min: 0, max: 4, default: 1, description: 'Per-section route scale.' },
   },
   audioSmoothingMs: { min: 0, max: 2000, default: 80, description: 'Global audio-map smoothing in milliseconds.' },
   transitionDurationMs: { min: 0, max: 10000, default: 600, description: 'World transition duration in milliseconds.' },
@@ -157,12 +224,32 @@ export interface CinematicAudioRoute {
   enabled: boolean
   source: CinematicAudioSource
   target: CinematicAudioTarget
-  /** -2–2. Signed modulation depth. */
+  /** -2–2. Signed modulation depth retained for backward-compatible presets. */
   amount: number
   /** 0–2000 ms. */
   attackMs: number
   /** 0–4000 ms. */
   releaseMs: number
+  /** 0–2000 ms. Additional smoothing after attack/release. */
+  smoothingMs?: number
+  /** 0–4. Source gain before bias, threshold, and response curve. */
+  gain?: number
+  /** -1–1. Signed source offset. */
+  bias?: number
+  /** 0–1. Values at or below this gate resolve to zero. */
+  threshold?: number
+  responseCurve?: CinematicResponseCurve
+  clampMin?: number
+  clampMax?: number
+  invert?: boolean
+  /** 0–2000 ms. Hold a discrete event at full value before decay. */
+  beatHoldMs?: number
+  /** 0–8000 ms. Exponential event decay after hold. */
+  decayMs?: number
+  /** 0–1. Deterministic seeded variation, never Math.random() jitter. */
+  randomizationAmount?: number
+  /** Optional route scale by analyzed/manual section type. */
+  sectionScale?: Partial<Record<CinematicSectionScaleKey, number>>
 }
 
 export interface CinematicAudioMappingConfig {
@@ -205,11 +292,111 @@ export interface CinematicWorldConfig {
   compatibility: CinematicCompatibilityData
 }
 
-const DEFAULT_AUDIO_ROUTES: CinematicAudioRoute[] = [
-  { id: 'legacy-bass-glow', enabled: true, source: 'bass', target: 'glow', amount: 0.7, attackMs: 30, releaseMs: 180 },
-  { id: 'legacy-beat-pulse', enabled: true, source: 'beat', target: 'portalPulse', amount: 1, attackMs: 0, releaseMs: 180 },
-  { id: 'legacy-volume-atmosphere', enabled: true, source: 'volume', target: 'atmosphere', amount: 0.4, attackMs: 80, releaseMs: 300 },
-]
+const DEFAULT_ROUTE_BEHAVIOR: Omit<CinematicAudioRoute, 'id' | 'source' | 'target'> = {
+  enabled: true,
+  amount: 1,
+  attackMs: CINEMATIC_NUMERIC_RANGES.audioRoute.attackMs.default,
+  releaseMs: CINEMATIC_NUMERIC_RANGES.audioRoute.releaseMs.default,
+  smoothingMs: CINEMATIC_NUMERIC_RANGES.audioRoute.smoothingMs.default,
+  gain: CINEMATIC_NUMERIC_RANGES.audioRoute.gain.default,
+  bias: CINEMATIC_NUMERIC_RANGES.audioRoute.bias.default,
+  threshold: CINEMATIC_NUMERIC_RANGES.audioRoute.threshold.default,
+  responseCurve: 'linear',
+  clampMin: CINEMATIC_NUMERIC_RANGES.audioRoute.clampMin.default,
+  clampMax: CINEMATIC_NUMERIC_RANGES.audioRoute.clampMax.default,
+  invert: false,
+  beatHoldMs: CINEMATIC_NUMERIC_RANGES.audioRoute.beatHoldMs.default,
+  decayMs: CINEMATIC_NUMERIC_RANGES.audioRoute.decayMs.default,
+  randomizationAmount: CINEMATIC_NUMERIC_RANGES.audioRoute.randomizationAmount.default,
+  sectionScale: {},
+}
+
+function route(
+  id: string,
+  source: CinematicAudioSource,
+  target: CinematicAudioTarget,
+  overrides: Partial<Omit<CinematicAudioRoute, 'id' | 'source' | 'target'>> = {},
+): CinematicAudioRoute {
+  return {
+    id,
+    source,
+    target,
+    ...DEFAULT_ROUTE_BEHAVIOR,
+    ...overrides,
+    sectionScale: { ...DEFAULT_ROUTE_BEHAVIOR.sectionScale, ...overrides.sectionScale },
+  }
+}
+
+const WORLD_DEFAULT_AUDIO_ROUTES: Readonly<Record<CinematicWorldMode, readonly CinematicAudioRoute[]>> = {
+  legacyPortal: [
+    route('legacy-bass-glow', 'bass', 'glow', { amount: 0.7, attackMs: 30, releaseMs: 180 }),
+    route('legacy-beat-pulse', 'beat', 'portalPulse', { amount: 1, attackMs: 0, releaseMs: 180, decayMs: 180 }),
+    route('legacy-energy-atmosphere', 'overallEnergy', 'atmosphere', { amount: 0.4, attackMs: 80, releaseMs: 300 }),
+  ],
+  eventHorizon: [
+    route('event-horizon-sub-lensing', 'subBass', 'lensing', { amount: 0.9, attackMs: 20, releaseMs: 260, responseCurve: 'easeOut' }),
+    route('event-horizon-sub-aperture', 'subBass', 'portalAperture', { amount: 0.55, attackMs: 28, releaseMs: 300 }),
+    route('event-horizon-impact', 'kick', 'impact', { amount: 1, attackMs: 0, releaseMs: 180, beatHoldMs: 18, decayMs: 240 }),
+    route('event-horizon-stars', 'highs', 'environmentBrightness', { amount: 0.42, attackMs: 18, releaseMs: 160 }),
+    route('event-horizon-drop-entry', 'dropEntry', 'portalAperture', { amount: 0.8, attackMs: 0, releaseMs: 520, beatHoldMs: 120, decayMs: 620 }),
+  ],
+  infiniteCorridor: [
+    route('corridor-phase-travel', 'beatPhase', 'cameraTravel', { amount: 0.72, attackMs: 0, releaseMs: 0 }),
+    route('corridor-kick-punch', 'kick', 'cameraPunch', { amount: 0.9, attackMs: 0, releaseMs: 150, beatHoldMs: 12, decayMs: 180 }),
+    route('corridor-light-cuts', 'snare', 'environmentBrightness', { amount: 0.85, attackMs: 0, releaseMs: 120, decayMs: 150 }),
+    route('corridor-energy-depth', 'overallEnergy', 'depth', { amount: 0.35, attackMs: 90, releaseMs: 420 }),
+  ],
+  fractureRift: [
+    route('rift-transient-fracture', 'transientIntensity', 'fractureAmount', { amount: 1, attackMs: 0, releaseMs: 160, threshold: 0.08 }),
+    route('rift-bass-opening', 'bass', 'portalAperture', { amount: 0.72, attackMs: 28, releaseMs: 260 }),
+    route('rift-high-shards', 'highs', 'particleEmission', { amount: 0.5, attackMs: 16, releaseMs: 180 }),
+    route('rift-drop-impact', 'dropEntry', 'impact', { amount: 1, attackMs: 0, releaseMs: 420, beatHoldMs: 80, decayMs: 520 }),
+  ],
+  monolithGate: [
+    route('monolith-downbeat-symbols', 'downbeat', 'environmentBrightness', { amount: 1, attackMs: 0, releaseMs: 260, beatHoldMs: 45, decayMs: 300 }),
+    route('monolith-drop-open', 'dropState', 'portalAperture', { amount: 0.95, attackMs: 110, releaseMs: 560 }),
+    route('monolith-phase-travel', 'barPosition', 'cameraTravel', { amount: 0.35, attackMs: 0, releaseMs: 0 }),
+    route('monolith-bass-depth', 'subBass', 'depth', { amount: 0.32, attackMs: 80, releaseMs: 420 }),
+  ],
+  liquidMembrane: [
+    route('membrane-bass-pressure', 'bass', 'portalAperture', { amount: 0.78, attackMs: 18, releaseMs: 240 }),
+    route('membrane-mid-ripples', 'mid', 'distortion', { amount: 0.62, attackMs: 28, releaseMs: 200 }),
+    route('membrane-high-refraction', 'highMid', 'refraction', { amount: 0.42, attackMs: 18, releaseMs: 180 }),
+    route('membrane-transient-impact', 'transientIntensity', 'impact', { amount: 0.55, attackMs: 0, releaseMs: 150 }),
+  ],
+  celestialCathedral: [
+    route('cathedral-mid-illumination', 'mid', 'environmentBrightness', { amount: 0.8, attackMs: 70, releaseMs: 360 }),
+    route('cathedral-downbeat-shafts', 'downbeat', 'impact', { amount: 0.75, attackMs: 0, releaseMs: 320, beatHoldMs: 80, decayMs: 360 }),
+    route('cathedral-high-stars', 'highs', 'particleEmission', { amount: 0.52, attackMs: 24, releaseMs: 220 }),
+    route('cathedral-energy-bloom', 'overallEnergy', 'bloom', { amount: 0.4, attackMs: 110, releaseMs: 480 }),
+  ],
+  mirrorDimension: [
+    route('mirror-beat-snap', 'beat', 'impact', { amount: 0.9, attackMs: 0, releaseMs: 170, decayMs: 210 }),
+    route('mirror-phase-rotation', 'beatPhase', 'geometryRotation', { amount: 0.5, attackMs: 0, releaseMs: 0 }),
+    route('mirror-energy-feedback', 'overallEnergy', 'feedback', { amount: 0.38, attackMs: 120, releaseMs: 520 }),
+    route('mirror-high-chromatic', 'highs', 'chromaticAberration', { amount: 0.34, attackMs: 18, releaseMs: 140 }),
+  ],
+  ancientMachine: [
+    route('machine-downbeat-unlock', 'downbeat', 'impact', { amount: 0.85, attackMs: 0, releaseMs: 260, beatHoldMs: 50, decayMs: 320 }),
+    route('machine-phase-rotation', 'barPosition', 'geometryRotation', { amount: 0.48, attackMs: 0, releaseMs: 0 }),
+    route('machine-drop-aperture', 'dropState', 'portalAperture', { amount: 0.8, attackMs: 120, releaseMs: 500 }),
+    route('machine-high-glyphs', 'highs', 'environmentBrightness', { amount: 0.46, attackMs: 26, releaseMs: 210 }),
+  ],
+  stormGateway: [
+    route('storm-snare-lightning', 'snare', 'lightning', { amount: 1, attackMs: 0, releaseMs: 160, beatHoldMs: 20, decayMs: 200 }),
+    route('storm-transient-lightning', 'transientIntensity', 'lightning', { amount: 0.6, attackMs: 0, releaseMs: 130, threshold: 0.12 }),
+    route('storm-energy-turbulence', 'overallEnergy', 'distortion', { amount: 0.72, attackMs: 60, releaseMs: 360 }),
+    route('storm-bass-vortex', 'bass', 'portalAperture', { amount: 0.55, attackMs: 30, releaseMs: 280 }),
+    route('storm-high-debris', 'highs', 'particleEmission', { amount: 0.5, attackMs: 24, releaseMs: 180 }),
+  ],
+  mediaPortal: [],
+}
+
+export function createDefaultCinematicAudioRoutes(mode: CinematicWorldMode): CinematicAudioRoute[] {
+  return (WORLD_DEFAULT_AUDIO_ROUTES[mode] ?? WORLD_DEFAULT_AUDIO_ROUTES.legacyPortal)
+    .map(item => ({ ...item, sectionScale: { ...item.sectionScale } }))
+}
+
 
 export function createDefaultCinematicWorldConfig(): CinematicWorldConfig {
   return {
@@ -238,7 +425,7 @@ export function createDefaultCinematicWorldConfig(): CinematicWorldConfig {
     audioMapping: {
       enabled: true,
       smoothingMs: CINEMATIC_NUMERIC_RANGES.audioSmoothingMs.default,
-      routes: DEFAULT_AUDIO_ROUTES.map(route => ({ ...route })),
+      routes: createDefaultCinematicAudioRoutes('legacyPortal'),
     },
     seed: CINEMATIC_NUMERIC_RANGES.seed.default,
     qualityTier: 'high',
@@ -286,8 +473,23 @@ function collectUnknown(
   )
 }
 
-function normalizeAudioRoutes(value: unknown, extensions: Record<string, unknown>): CinematicAudioRoute[] {
-  if (!Array.isArray(value)) return DEFAULT_AUDIO_ROUTES.map(route => ({ ...route }))
+function normalizeSectionScale(value: unknown): Partial<Record<CinematicSectionScaleKey, number>> {
+  if (!isRecord(value)) return {}
+  const result: Partial<Record<CinematicSectionScaleKey, number>> = {}
+  for (const key of CINEMATIC_SECTION_SCALE_KEYS) {
+    if (value[key] !== undefined) {
+      result[key] = clampRange(value[key], CINEMATIC_NUMERIC_RANGES.audioRoute.sectionScale)
+    }
+  }
+  return result
+}
+
+function normalizeAudioRoutes(
+  value: unknown,
+  extensions: Record<string, unknown>,
+  mode: CinematicWorldMode,
+): CinematicAudioRoute[] {
+  if (!Array.isArray(value)) return createDefaultCinematicAudioRoutes(mode)
 
   return value.flatMap((raw, index) => {
     if (!isRecord(raw)) {
@@ -296,9 +498,26 @@ function normalizeAudioRoutes(value: unknown, extensions: Record<string, unknown
     }
     Object.assign(extensions, collectUnknown(
       raw,
-      ['id', 'enabled', 'source', 'target', 'amount', 'attackMs', 'releaseMs'],
+      [
+        'id', 'enabled', 'source', 'target', 'amount', 'attackMs', 'releaseMs',
+        'smoothingMs', 'gain', 'bias', 'threshold', 'responseCurve', 'clampMin',
+        'clampMax', 'invert', 'beatHoldMs', 'decayMs', 'randomizationAmount',
+        'sectionScale',
+      ],
       `audioMapping.routes.${index}.`,
     ))
+    if (isRecord(raw.sectionScale)) {
+      Object.assign(extensions, collectUnknown(
+        raw.sectionScale,
+        CINEMATIC_SECTION_SCALE_KEYS,
+        `audioMapping.routes.${index}.sectionScale.`,
+      ))
+    }
+    const clampMin = clampRange(raw.clampMin, CINEMATIC_NUMERIC_RANGES.audioRoute.clampMin)
+    const clampMax = Math.max(
+      clampMin,
+      clampRange(raw.clampMax, CINEMATIC_NUMERIC_RANGES.audioRoute.clampMax),
+    )
     return [{
       id: typeof raw.id === 'string' && raw.id ? raw.id : `cinematic-route-${index + 1}`,
       enabled: typeof raw.enabled === 'boolean' ? raw.enabled : true,
@@ -307,9 +526,25 @@ function normalizeAudioRoutes(value: unknown, extensions: Record<string, unknown
       amount: clampRange(raw.amount, CINEMATIC_NUMERIC_RANGES.audioRoute.amount),
       attackMs: clampRange(raw.attackMs, CINEMATIC_NUMERIC_RANGES.audioRoute.attackMs),
       releaseMs: clampRange(raw.releaseMs, CINEMATIC_NUMERIC_RANGES.audioRoute.releaseMs),
+      smoothingMs: clampRange(raw.smoothingMs, CINEMATIC_NUMERIC_RANGES.audioRoute.smoothingMs),
+      gain: clampRange(raw.gain, CINEMATIC_NUMERIC_RANGES.audioRoute.gain),
+      bias: clampRange(raw.bias, CINEMATIC_NUMERIC_RANGES.audioRoute.bias),
+      threshold: clampRange(raw.threshold, CINEMATIC_NUMERIC_RANGES.audioRoute.threshold),
+      responseCurve: enumValue(raw.responseCurve, CINEMATIC_RESPONSE_CURVES, 'linear'),
+      clampMin,
+      clampMax,
+      invert: typeof raw.invert === 'boolean' ? raw.invert : false,
+      beatHoldMs: clampRange(raw.beatHoldMs, CINEMATIC_NUMERIC_RANGES.audioRoute.beatHoldMs),
+      decayMs: clampRange(raw.decayMs, CINEMATIC_NUMERIC_RANGES.audioRoute.decayMs),
+      randomizationAmount: clampRange(
+        raw.randomizationAmount,
+        CINEMATIC_NUMERIC_RANGES.audioRoute.randomizationAmount,
+      ),
+      sectionScale: normalizeSectionScale(raw.sectionScale),
     }]
   })
 }
+
 
 /**
  * Converts legacy/partial/untrusted portal configuration into the current
@@ -374,7 +609,7 @@ export function normalizeCinematicWorldConfig(
     audioMapping: {
       enabled: typeof audioMapping.enabled === 'boolean' ? audioMapping.enabled : defaults.audioMapping.enabled,
       smoothingMs: clampRange(audioMapping.smoothingMs, CINEMATIC_NUMERIC_RANGES.audioSmoothingMs),
-      routes: normalizeAudioRoutes(audioMapping.routes, extensions),
+      routes: normalizeAudioRoutes(audioMapping.routes, extensions, worldMode),
     },
     seed: Math.trunc(rawSeed) >>> 0,
     qualityTier: enumValue(source.qualityTier, CINEMATIC_QUALITY_TIERS, defaults.qualityTier),
@@ -436,7 +671,7 @@ export function createCinematicWorldConfig<Mode extends CinematicWorldMode>(
     audioMapping: {
       ...defaults.audioMapping,
       ...overrides.audioMapping,
-      routes: overrides.audioMapping?.routes ?? defaults.audioMapping.routes,
+      routes: overrides.audioMapping?.routes ?? createDefaultCinematicAudioRoutes(mode),
     },
     transition: {
       ...defaults.transition,

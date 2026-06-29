@@ -111,6 +111,15 @@ export const DEFAULT_MI_FRAME: MusicIntelligenceFrame = {
     lyricLineProgress: 0,
     wordHit:           false,
   },
+  capabilities: {
+    liveBands: false,
+    rhythmEvents: false,
+    beatGrid: false,
+    sections: false,
+    trackEnergyCurve: false,
+    stemCurves: false,
+    lyrics: false,
+  },
   semantics: {
     buildConfidence:     0,
     dropConfidence:      0,

@@ -3,6 +3,7 @@ import type { ShaderProgram } from '../../../shaders/runtime/ShaderProgram'
 import type { CinematicFrameContext, CinematicWebGLWorldDefinition } from '../../CinematicWorldRenderer'
 import { EVENT_HORIZON_FRAGMENT_SOURCE } from './CinematicWorldShaders'
 import { FullscreenCinematicWorld } from './FullscreenCinematicWorld'
+import { applyCinematicModulation } from '../CinematicAudioModulation'
 
 const UNIFORMS = [
   'uCoreRadius',
@@ -23,14 +24,14 @@ class EventHorizonWorld extends FullscreenCinematicWorld {
 
   protected setWorldUniforms(program: ShaderProgram, frame: CinematicFrameContext): void {
     const settings = resolveEventHorizonSettings(frame.config.worldSettings)
-    program.setFloat('uCoreRadius', settings.coreRadius)
-    program.setFloat('uRingRadius', settings.ringRadius)
-    program.setFloat('uRingThickness', settings.ringThickness)
+    program.setFloat('uCoreRadius', applyCinematicModulation(settings.coreRadius, frame.modulation, 'portalAperture', 0.18, 0.05, 0.9))
+    program.setFloat('uRingRadius', applyCinematicModulation(settings.ringRadius, frame.modulation, 'portalAperture', 0.25, 0.08, 1.4))
+    program.setFloat('uRingThickness', applyCinematicModulation(settings.ringThickness, frame.modulation, 'distortion', 0.22, 0.01, 0.8))
     program.setFloat('uAccretionTilt', settings.accretionTilt)
-    program.setFloat('uLensingStrength', settings.lensingStrength)
-    program.setFloat('uDepthLayers', settings.depthLayers)
-    program.setFloat('uRotationSpeed', settings.rotationSpeed)
-    program.setFloat('uShockwaveStrength', settings.shockwaveStrength)
+    program.setFloat('uLensingStrength', applyCinematicModulation(settings.lensingStrength, frame.modulation, 'lensing', 1.1, 0, 2.5))
+    program.setFloat('uDepthLayers', applyCinematicModulation(settings.depthLayers, frame.modulation, 'depth', 3, 1, 12))
+    program.setFloat('uRotationSpeed', applyCinematicModulation(settings.rotationSpeed, frame.modulation, 'geometryRotation', 1.2, -3, 3))
+    program.setFloat('uShockwaveStrength', applyCinematicModulation(settings.shockwaveStrength, frame.modulation, 'impact', 1.35, 0, 2.5))
     program.setFloat('uDropExpansion', settings.dropExpansion)
   }
 }
@@ -42,7 +43,7 @@ export const eventHorizonWorldDefinition: CinematicWebGLWorldDefinition = {
   capabilities: {
     backend: 'webgl2',
     cameraRigs: ['locked', 'orbit', 'autoDirector'],
-    modulationTargets: ['depth', 'distortion', 'bloom', 'chromaticAberration', 'glow', 'portalPulse'],
+    modulationTargets: ['portalAperture', 'depth', 'lensing', 'distortion', 'geometryRotation', 'bloom', 'chromaticAberration', 'environmentBrightness', 'feedback', 'impact'],
     supportsGeometryPasses: true,
     supportsFullscreenPasses: true,
     supportsTextureInputs: false,

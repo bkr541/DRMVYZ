@@ -3,6 +3,7 @@ import type { ShaderProgram } from '../../../shaders/runtime/ShaderProgram'
 import type { CinematicFrameContext, CinematicWebGLWorldDefinition } from '../../CinematicWorldRenderer'
 import { ANCIENT_MACHINE_FRAGMENT_SOURCE } from './CinematicWorldPackBShaders'
 import { FullscreenCinematicWorld } from './FullscreenCinematicWorld'
+import { applyCinematicModulation } from '../CinematicAudioModulation'
 
 const UNIFORMS = [
   'uGateRadius',
@@ -57,17 +58,17 @@ class AncientMachineWorld extends FullscreenCinematicWorld {
 
   protected setWorldUniforms(program: ShaderProgram, frame: CinematicFrameContext): void {
     const settings = resolveAncientMachineSettings(frame.config.worldSettings)
-    program.setFloat('uGateRadius', settings.gateRadius)
+    program.setFloat('uGateRadius', applyCinematicModulation(settings.gateRadius, frame.modulation, 'portalAperture', 0.28, 0.05, 1.5))
     program.setFloat('uRingCount', settings.ringCount)
     program.setFloat('uGearCount', settings.gearCount)
-    program.setFloat('uGlyphDensity', settings.glyphDensity)
-    program.setFloat('uRotationSpeed', settings.rotationSpeed)
+    program.setFloat('uGlyphDensity', applyCinematicModulation(settings.glyphDensity, frame.modulation, 'environmentBrightness', 0.8, 0, 2))
+    program.setFloat('uRotationSpeed', applyCinematicModulation(settings.rotationSpeed, frame.modulation, 'geometryRotation', 1.3, -3, 3))
     program.setFloat('uLockProgress', settings.lockProgress)
     program.setFloat('uUnlockResponse', settings.unlockResponse)
     program.setFloat('uRadialComplexity', settings.radialComplexity)
-    program.setFloat('uMechanicalDepth', settings.mechanicalDepth)
-    program.setFloat('uMechanicalProgress', mechanicalProgress(frame, settings.progressionMode))
-    program.setFloat('uUnlockState', unlockState(frame, settings.lockProgress, settings.unlockResponse))
+    program.setFloat('uMechanicalDepth', applyCinematicModulation(settings.mechanicalDepth, frame.modulation, 'depth', 0.9, 0, 2.5))
+    program.setFloat('uMechanicalProgress', applyCinematicModulation(mechanicalProgress(frame, settings.progressionMode), frame.modulation, 'cameraTravel', 0.45, 0, 1))
+    program.setFloat('uUnlockState', applyCinematicModulation(unlockState(frame, settings.lockProgress, settings.unlockResponse), frame.modulation, 'impact', 0.35, 0, 1))
     program.setFloat('uToothDensity', settings.toothDensity)
   }
 }
@@ -79,7 +80,7 @@ export const ancientMachineWorldDefinition: CinematicWebGLWorldDefinition = {
   capabilities: {
     backend: 'webgl2',
     cameraRigs: ['locked', 'dolly', 'orbit', 'autoDirector'],
-    modulationTargets: ['depth', 'atmosphere', 'bloom', 'glow', 'portalPulse', 'cameraMotion'],
+    modulationTargets: ['portalAperture', 'depth', 'geometryRotation', 'cameraPunch', 'cameraTravel', 'environmentBrightness', 'bloom', 'impact'],
     supportsGeometryPasses: true,
     supportsFullscreenPasses: true,
     supportsTextureInputs: false,

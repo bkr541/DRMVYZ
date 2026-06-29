@@ -53,6 +53,28 @@ export interface MusicIntelligenceEngineOptions {
   sampleRate?: number
 }
 
+function sampleFeatureCurveAt(
+  curve: ReadonlyArray<{ timeSec: number; value: number }>,
+  timeSec: number,
+): number {
+  if (curve.length === 0) return 0
+  if (timeSec <= curve[0].timeSec) return curve[0].value
+  const last = curve[curve.length - 1]
+  if (timeSec >= last.timeSec) return last.value
+  let lo = 0
+  let hi = curve.length - 1
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1
+    if (curve[mid].timeSec <= timeSec) lo = mid
+    else hi = mid
+  }
+  const a = curve[lo]
+  const b = curve[hi]
+  const span = b.timeSec - a.timeSec
+  const t = span > 0 ? (timeSec - a.timeSec) / span : 0
+  return Math.max(0, Math.min(1, a.value + (b.value - a.value) * t))
+}
+
 export interface AnalyserInputFrame {
   analyser:   AnalyserNode
   sampleRate: number
@@ -339,6 +361,9 @@ export class MusicIntelligenceEngine {
         dropImpact:   energyResult.dropImpact,
         tension:      energyResult.tension,
         complexity:   energyResult.complexity,
+        trackCurve: this.trackAnalysis?.energyCurves.shortTerm.length
+          ? sampleFeatureCurveAt(this.trackAnalysis.energyCurves.shortTerm, audioTime)
+          : undefined,
         spectralCentroid:  energyResult.spectralCentroid,
         spectralSpread:    energyResult.spectralSpread,
         spectralRolloff:   energyResult.spectralRolloff,
@@ -365,6 +390,15 @@ export class MusicIntelligenceEngine {
         wordHit:           lyricState.wordHit,
       },
       semantics: { ...DEFAULT_MI_FRAME.semantics },
+      capabilities: {
+        liveBands: true,
+        rhythmEvents: true,
+        beatGrid: beatState.bpm > 0,
+        sections: this.manualSections.length > 0 || Boolean(this.trackAnalysis?.sections.length),
+        trackEnergyCurve: Boolean(this.trackAnalysis?.energyCurves.shortTerm.length),
+        stemCurves: this.trackAnalysis?.stemCurves != null,
+        lyrics: Boolean(this.trackAnalysis?.lyrics?.lines.length),
+      },
       raw: {
         freqData:       freqBuf,
         timeDomainData: timeBuf,
