@@ -41,26 +41,9 @@ export function TimelineInspectorPanel({ onSeekToLyric }: { onSeekToLyric: (sec:
     setMediaRole: s.setMediaRole,
   })))
 
-  const {
-    cues: lyricCues,
-    globalOffsetMs,
-    activeDocumentId: lyricDocumentId,
-    updateCueTiming,
-    saveTimingChanges,
-    lyricTimingDirty,
-    isSaving: lyricSaving,
-  } = useLyricsStore(useShallow(s => ({
-    cues:              s.cues,
-    globalOffsetMs:    s.globalOffsetMs,
-    activeDocumentId:  s.activeDocumentId,
-    updateCueTiming:   s.updateCueTiming,
-    saveTimingChanges: s.saveTimingChanges,
-    lyricTimingDirty:  s.lyricTimingDirty,
-    isSaving:          s.isSaving,
-  })))
+  const lyricCues = useLyricsStore(state => state.cues)
 
   const mediaMap = useMemo(() => new Map(mediaItems.map(m => [m.id, m])), [mediaItems])
-  const globalOffsetSec = globalOffsetMs / 1000
   const selected = selectedTimelineEntity as SelectedTimelineEntity | null
 
   const moveBgClip = useCallback((clipId: string, dir: -1 | 1) => {
@@ -94,13 +77,7 @@ export function TimelineInspectorPanel({ onSeekToLyric }: { onSeekToLyric: (sec:
       onUpdateEffect={updateEffectRegion}
       onRemoveEffect={id => { removeEffectRegion(id); setSelectedTimelineEntity(null) }}
       onSetMediaRole={setMediaRole}
-      onUpdateLyricTiming={updateCueTiming}
       onSeekToLyric={onSeekToLyric}
-      onSaveLyricTiming={saveTimingChanges}
-      lyricTimingDirty={lyricTimingDirty}
-      lyricSaving={lyricSaving}
-      hasLyricDocument={!!lyricDocumentId}
-      globalOffsetSec={globalOffsetSec}
       onClearFx={clearMediaElementFx}
     />
   )

@@ -8,8 +8,11 @@ import {
   getActiveLyricDocumentForVisualSession,
   saveLyricDocumentAtomic,
 } from '../lib/lyricsDb'
-
-const MIN_CUE_DURATION_MS = 100
+import {
+  normalizeCue,
+  normalizeCueBounds,
+  shiftCue,
+} from '../features/lyrics/editor/lyricCueEditorModel'
 import type {
   LyricDocument,
   LyricCue,
@@ -64,11 +67,15 @@ export interface LyricsState {
   draftActivateOnSave: boolean
   /** Preserve the currently selected draft for one intentional visualizer preview exit. */
   skipNextEditorResync: boolean
+  /** Bounded, lyric-only edit history. Drag previews are committed once on pointer release. */
+  cueHistoryPast: LyricCue[][]
+  cueHistoryFuture: LyricCue[][]
 
   // Sync setters
   setLyricsEnabled(enabled: boolean): void
   setActiveDocument(document: LyricDocument | null, cues?: LyricCue[], activeAudioTrackId?: string | null): void
   setCues(cues: LyricCue[]): void
+  updateCue(cueId: string, patch: Partial<Omit<LyricCue, 'id'>>): void
   setGlobalOffsetMs(offsetMs: number): void
   updateDraftDefaultStyle(patch: Partial<LyricStyle>): void
   updateDraftDefaultAnimation(patch: Partial<LyricAnimation>): void
@@ -111,6 +118,9 @@ export interface LyricsState {
   clearCues(): void
   /** Append a single cue, sort by startMs, select it, and mark dirty. Returns the created cue. */
   addCue(cue: Omit<LyricCue, 'id'>): LyricCue
+  undoCueEdit(): void
+  redoCueEdit(): void
+  resetCueHistory(): void
 
   // Async actions
   loadLyricDocument(documentId: string): Promise<void>
@@ -139,6 +149,7 @@ function activeDocumentState(
   document: LyricDocument | null,
   cues: LyricCue[] = [],
   activeAudioTrackId: string | null = document?.audioTrackId ?? null,
+  selectedCueId: string | null = null,
 ): Partial<LyricsState> {
   return {
     activeDocument:        document,
@@ -160,6 +171,34 @@ function activeDocumentState(
     lyricTimingDirty:      false,
     editorDirty:           false,
     draftActivateOnSave:   document?.isActive ?? true,
+    selectedCueId:         selectedCueId && cues.some(cue => cue.id === selectedCueId) ? selectedCueId : null,
+    cueHistoryPast:        [],
+    cueHistoryFuture:      [],
+  }
+}
+
+const MAX_CUE_HISTORY = 50
+
+function cueCollectionsEqual(left: LyricCue[], right: LyricCue[]): boolean {
+  if (left === right) return true
+  if (left.length !== right.length) return false
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
+function commitCueCollection(
+  state: LyricsState,
+  cues: LyricCue[],
+  selectedCueId: string | null = state.selectedCueId,
+): Partial<LyricsState> {
+  const next = cues
+  if (cueCollectionsEqual(state.cues, next)) return {}
+  return {
+    cues: next,
+    selectedCueId: selectedCueId && next.some(cue => cue.id === selectedCueId) ? selectedCueId : null,
+    cueHistoryPast: [...state.cueHistoryPast, state.cues].slice(-MAX_CUE_HISTORY),
+    cueHistoryFuture: [],
+    lyricTimingDirty: true,
+    editorDirty: state.editorSessionActive ? true : state.editorDirty,
   }
 }
 
@@ -224,6 +263,8 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
   editorDirty:         false,
   draftActivateOnSave: true,
   skipNextEditorResync: false,
+  cueHistoryPast:      [],
+  cueHistoryFuture:    [],
 
   // ── Sync setters ────────────────────────────────────────────────────────────
 
@@ -239,7 +280,17 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     ))
   },
 
-  setCues:           (cues)      => set(state => ({ cues, editorDirty: state.editorSessionActive ? true : state.editorDirty })),
+  setCues: (cues) => set(state => commitCueCollection(state, cues)),
+  updateCue: (cueId, patch) => set(state => {
+    const cue = state.cues.find(item => item.id === cueId)
+    if (!cue) return {}
+    const nextCue = normalizeCue({ ...cue, ...patch, id: cue.id })
+    return commitCueCollection(
+      state,
+      state.cues.map(item => item.id === cueId ? nextCue : item),
+      cueId,
+    )
+  }),
   setGlobalOffsetMs: (offsetMs)  => set(state => ({ globalOffsetMs: offsetMs, editorDirty: state.editorSessionActive ? true : state.editorDirty })),
   setDraftTitle:     (title)     => set(state => ({ draftTitle: title, editorDirty: state.editorSessionActive ? true : state.editorDirty })),
   setDraftArtist:    (artist)    => set(state => ({ draftArtist: artist, editorDirty: state.editorSessionActive ? true : state.editorDirty })),
@@ -293,6 +344,8 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       editorDirty:           false,
       draftActivateOnSave:   true,
       skipNextEditorResync:   false,
+      cueHistoryPast:         [],
+      cueHistoryFuture:       [],
     })
   },
 
@@ -305,12 +358,13 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       const idx = s.cues.findIndex(c => c.id === cueId)
       if (idx === -1) return {}
       const cue = s.cues[idx]
-      const newStart = patch.startMs !== undefined ? Math.max(0, patch.startMs) : cue.startMs
-      const newEnd   = patch.endMs   !== undefined ? patch.endMs : cue.endMs
-      const safeEnd  = Math.max(newStart + MIN_CUE_DURATION_MS, newEnd)
+      const bounds = normalizeCueBounds(
+        patch.startMs ?? cue.startMs,
+        patch.endMs ?? cue.endMs,
+      )
       const next = [...s.cues]
-      next[idx] = { ...cue, startMs: newStart, endMs: safeEnd }
-      return { cues: next, lyricTimingDirty: true, editorDirty: s.editorSessionActive ? true : s.editorDirty }
+      next[idx] = { ...cue, ...bounds }
+      return commitCueCollection(s, next, cueId)
     })
   },
 
@@ -319,45 +373,72 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       const idx = s.cues.findIndex(c => c.id === cueId)
       if (idx === -1) return {}
       const cue = s.cues[idx]
-      const dur = cue.endMs - cue.startMs
-      const newStart = Math.max(0, cue.startMs + deltaMs)
       const next = [...s.cues]
-      next[idx] = { ...cue, startMs: newStart, endMs: newStart + dur }
-      return { cues: next, lyricTimingDirty: true, editorDirty: s.editorSessionActive ? true : s.editorDirty }
+      next[idx] = { ...cue, ...shiftCue(cue, deltaMs) }
+      return commitCueCollection(s, next, cueId)
     })
   },
 
   setCueBounds: (cueId, startMs, endMs) => {
-    const safeStart = Math.max(0, startMs)
-    const safeEnd   = Math.max(safeStart + MIN_CUE_DURATION_MS, endMs)
+    const bounds = normalizeCueBounds(startMs, endMs)
     set(s => {
       const idx = s.cues.findIndex(c => c.id === cueId)
       if (idx === -1) return {}
       const next = [...s.cues]
-      next[idx] = { ...s.cues[idx], startMs: safeStart, endMs: safeEnd }
-      return { cues: next, lyricTimingDirty: true, editorDirty: s.editorSessionActive ? true : s.editorDirty }
+      next[idx] = { ...s.cues[idx], ...bounds }
+      return commitCueCollection(s, next, cueId)
     })
   },
 
   deleteCue: (cueId) => {
     set(s => {
       const next = s.cues.filter(c => c.id !== cueId)
-      const clearSelected = s.selectedCueId === cueId ? { selectedCueId: null } : {}
-      return { cues: next, lyricTimingDirty: true, editorDirty: s.editorSessionActive ? true : s.editorDirty, ...clearSelected }
+      return commitCueCollection(s, next, s.selectedCueId === cueId ? null : s.selectedCueId)
     })
   },
 
-  clearCues: () => set(s => ({ cues: [], selectedCueId: null, lyricTimingDirty: true, editorDirty: s.editorSessionActive ? true : s.editorDirty })),
+  clearCues: () => set(s => commitCueCollection(s, [], null)),
 
   addCue: (cue) => {
     const id = crypto.randomUUID()
-    const newCue: LyricCue = { ...cue, id, source: cue.source ?? 'manual' }
+    const newCue: LyricCue = normalizeCue({ ...cue, id, source: cue.source ?? 'manual' })
     set(s => {
-      const next = [...s.cues, newCue].sort((a, b) => a.startMs - b.startMs)
-      return { cues: next, selectedCueId: id, lyricTimingDirty: true, editorDirty: s.editorSessionActive ? true : s.editorDirty }
+      return commitCueCollection(s, [...s.cues, newCue], id)
     })
     return newCue
   },
+
+  undoCueEdit: () => set(state => {
+    const previous = state.cueHistoryPast[state.cueHistoryPast.length - 1]
+    if (!previous) return {}
+    return {
+      cues: previous,
+      selectedCueId: state.selectedCueId && previous.some(cue => cue.id === state.selectedCueId)
+        ? state.selectedCueId
+        : null,
+      cueHistoryPast: state.cueHistoryPast.slice(0, -1),
+      cueHistoryFuture: [state.cues, ...state.cueHistoryFuture].slice(0, MAX_CUE_HISTORY),
+      lyricTimingDirty: true,
+      editorDirty: state.editorSessionActive ? true : state.editorDirty,
+    }
+  }),
+
+  redoCueEdit: () => set(state => {
+    const next = state.cueHistoryFuture[0]
+    if (!next) return {}
+    return {
+      cues: next,
+      selectedCueId: state.selectedCueId && next.some(cue => cue.id === state.selectedCueId)
+        ? state.selectedCueId
+        : null,
+      cueHistoryPast: [...state.cueHistoryPast, state.cues].slice(-MAX_CUE_HISTORY),
+      cueHistoryFuture: state.cueHistoryFuture.slice(1),
+      lyricTimingDirty: true,
+      editorDirty: state.editorSessionActive ? true : state.editorDirty,
+    }
+  }),
+
+  resetCueHistory: () => set({ cueHistoryPast: [], cueHistoryFuture: [] }),
 
   // ── Async actions ────────────────────────────────────────────────────────────
 
@@ -465,7 +546,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       }
 
       if (isCurrentLyricLoad(generation)) {
-        set(activeDocumentState(result.document, result.cues))
+        set(activeDocumentState(result.document, result.cues, result.document.audioTrackId ?? null, s.selectedCueId))
       }
       return result
     } catch (err) {
@@ -506,7 +587,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
         return result
       }
       if (isCurrentLyricLoad(generation)) {
-        set(activeDocumentState(result.document, result.cues))
+        set(activeDocumentState(result.document, result.cues, result.document.audioTrackId ?? null, state.selectedCueId))
       }
       return result
     } catch (err) {
@@ -542,7 +623,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
         ? state.cues
         : await getLyricCuesForDocument(documentId)
       if (isCurrentLyricLoad(generation)) {
-        set(activeDocumentState(result.document, cues))
+        set(activeDocumentState(result.document, cues, result.document.audioTrackId ?? null, state.selectedCueId))
       }
       return result
     } catch (err) {
@@ -580,7 +661,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
         return result
       }
       if (isCurrentLyricLoad(generation)) {
-        set(activeDocumentState(result.document, result.cues))
+        set(activeDocumentState(result.document, result.cues, result.document.audioTrackId ?? null, s.selectedCueId))
       }
       return result
     } catch (err) {

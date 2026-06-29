@@ -9,7 +9,7 @@ import {
 import { useAudioStore } from '../../stores/audioStore'
 import type { SavedAudioTrack } from '../../stores/audioStore'
 import { useSharedAudio } from '../../context/AudioEngineContext'
-import type { LyricCue } from '../../types/lyrics'
+import type { LyricSectionType } from '../../types/lyrics'
 import type { LyricDocumentImportResult } from './utils/lyricDocumentImport'
 import type {
   LyricDocumentVersion,
@@ -45,8 +45,13 @@ const TAB_LABELS: { id: WorkflowTab; label: string }[] = [
   { id: 'ai', label: 'AI Extract' },
 ]
 
-function nextCueId(index: number): string {
-  return `cue_${String(index + 1).padStart(3, '0')}_${Math.random().toString(36).slice(2, 6)}`
+function toLyricSectionType(type: string): LyricSectionType {
+  if (type === 'preDrop') return 'build'
+  if (
+    type === 'intro' || type === 'verse' || type === 'build' ||
+    type === 'drop' || type === 'breakdown' || type === 'bridge' || type === 'outro'
+  ) return type
+  return 'unknown'
 }
 
 function uploadedTrackToManager(track: SavedAudioTrack): LyricManagerTrack {
@@ -77,6 +82,8 @@ export function LyricManagerView({ onBack }: Props) {
     activeDocumentId,
     cues: storeCues,
     setCues,
+    selectedCueId,
+    selectCue,
     isLoading,
     isSaving,
     error,
@@ -107,10 +114,7 @@ export function LyricManagerView({ onBack }: Props) {
   engineRef.current = engine
   const getSignedUrl = useAudioStore((state) => state.getSignedUrl)
 
-  const [currentAudioTimeMs, setCurrentAudioTimeMs] = useState<
-    number | undefined
-  >(undefined)
-  const [draftCues, setDraftCues] = useState<LyricCue[]>(() => storeCues)
+  const [currentAudioTimeMs, setCurrentAudioTimeMs] = useState<number | null>(null)
   const [tracks, setTracks] = useState<LyricManagerTrack[]>([])
   const [trackTotal, setTrackTotal] = useState(0)
   const [trackSearch, setTrackSearch] = useState('')
@@ -126,7 +130,6 @@ export function LyricManagerView({ onBack }: Props) {
   >([])
   const [documentsLoading, setDocumentsLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<WorkflowTab>('manual')
-  const [selectedCue, setSelectedCue] = useState<LyricCue | null>(null)
   const [statusMsg, setStatusMsg] = useState<string | null>(null)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [loadingTrackId, setLoadingTrackId] = useState<string | null>(null)
@@ -161,15 +164,11 @@ export function LyricManagerView({ onBack }: Props) {
       setCurrentAudioTimeMs(
         currentEngine.duration > 0
           ? Math.round(currentEngine.currentTime * 1000)
-          : undefined,
+          : null,
       )
     }, 200)
     return () => clearInterval(id)
   }, [])
-
-  useEffect(() => {
-    setDraftCues(storeCues)
-  }, [storeCues])
 
   useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(trackSearch.trim()), 250)
@@ -198,10 +197,9 @@ export function LyricManagerView({ onBack }: Props) {
         editorDirty: dirty,
         draftActivateOnSave: activateOnSave,
       })
-      setDraftCues([])
-      setSelectedCue(null)
+      selectCue(null)
     },
-    [setActiveDocument],
+    [selectCue, setActiveDocument],
   )
 
   const loadTracks = useCallback(
@@ -314,15 +312,14 @@ export function LyricManagerView({ onBack }: Props) {
 
   const doSave = useCallback(async (): Promise<boolean> => {
     setError(null)
-    const result = await saveActiveLyricDocument(draftCues)
+    const result = await saveActiveLyricDocument(storeCues)
     if (!result?.ok) return false
-    setDraftCues(result.cues)
     markEditorDirty(false)
     showStatus('Saved')
     if (selectedTrack) await refreshDocuments(selectedTrack)
     return true
   }, [
-    draftCues,
+    storeCues,
     markEditorDirty,
     refreshDocuments,
     saveActiveLyricDocument,
@@ -435,7 +432,6 @@ export function LyricManagerView({ onBack }: Props) {
             editorDirty: true,
             draftActivateOnSave: false,
           })
-          setDraftCues(full.cues)
           setActiveTab('manual')
           showStatus('Duplicated as a new draft')
         },
@@ -454,7 +450,7 @@ export function LyricManagerView({ onBack }: Props) {
       try {
         const updated = await updateLyricDocument(document.id, { title })
         if (document.id === activeDocumentId)
-          setActiveDocument(updated, draftCues)
+          setActiveDocument(updated, storeCues)
         if (selectedTrack) await refreshDocuments(selectedTrack)
         else {
           const { data } = await supabase.auth.getUser()
@@ -474,8 +470,8 @@ export function LyricManagerView({ onBack }: Props) {
     },
     [
       activeDocumentId,
-      draftCues,
       editorDirty,
+      storeCues,
       refreshDocuments,
       selectedTrack,
       setActiveDocument,
@@ -566,60 +562,7 @@ export function LyricManagerView({ onBack }: Props) {
     showStatus,
   ])
 
-  const applyDraftCues = useCallback(
-    (next: LyricCue[]) => {
-      setDraftCues(next)
-      setCues(next)
-    },
-    [setCues],
-  )
-
-  const handleAddCue = useCallback(
-    (cue: Omit<LyricCue, 'id'>) => {
-      const next = [
-        ...draftCues,
-        {
-          ...cue,
-          id: nextCueId(draftCues.length),
-          source: cue.source ?? 'manual',
-        },
-      ].sort((a, b) => a.startMs - b.startMs)
-      applyDraftCues(next)
-    },
-    [applyDraftCues, draftCues],
-  )
-
-  const handleUpdateCue = useCallback(
-    (index: number, cue: Omit<LyricCue, 'id'>) => {
-      const next = [...draftCues]
-      next[index] = { ...next[index], ...cue, id: next[index].id }
-      next.sort((a, b) => a.startMs - b.startMs)
-      applyDraftCues(next)
-    },
-    [applyDraftCues, draftCues],
-  )
-
-  const handleDeleteCue = useCallback(
-    (index: number) => {
-      applyDraftCues(draftCues.filter((_, cueIndex) => cueIndex !== index))
-      setSelectedCue(null)
-    },
-    [applyDraftCues, draftCues],
-  )
-
-  const handleDuplicateCue = useCallback(
-    (index: number) => {
-      const cue = draftCues[index]
-      const copy: LyricCue = {
-        ...cue,
-        id: nextCueId(draftCues.length),
-        startMs: cue.endMs,
-        endMs: cue.endMs + (cue.endMs - cue.startMs),
-      }
-      applyDraftCues([...draftCues, copy].sort((a, b) => a.startMs - b.startMs))
-    },
-    [applyDraftCues, draftCues],
-  )
+  const applyDraftCues = useCallback((next: typeof storeCues) => setCues(next), [setCues])
 
   const handleImportToDraft = useCallback(
     (result: LyricDocumentImportResult) => {
@@ -704,7 +647,7 @@ export function LyricManagerView({ onBack }: Props) {
   }, [engine, selectedTrack, showStatus])
 
   const handlePreviewInVisualizer = useCallback(() => {
-    const timedCues = draftCues.filter((cue) => cue.endMs > cue.startMs)
+    const timedCues = storeCues.filter((cue) => cue.endMs > cue.startMs)
     if (timedCues.length === 0) {
       showStatus('Timed cues are required before previewing in the visualizer.')
       return
@@ -725,8 +668,8 @@ export function LyricManagerView({ onBack }: Props) {
     setLyricsEnabled(true)
     onBack()
   }, [
-    draftCues,
     editorDirty,
+    storeCues,
     engine.currentAudioTrackId,
     onBack,
     preserveDraftForNextEditorExit,
@@ -760,6 +703,29 @@ export function LyricManagerView({ onBack }: Props) {
 
   const selectedTrackLoaded = selectedTrack?.dbId === engine.currentAudioTrackId
   const selectedTrackPlaying = selectedTrackLoaded && engine.isPlaying
+  const selectedCue = storeCues.find((cue) => cue.id === selectedCueId) ?? null
+  const runtimeTrackId = selectedTrackLoaded ? engine.currentTrackId : null
+  const runtimeTrackUrl = selectedTrackLoaded ? (engine.currentTrack?.url ?? null) : null
+  const decodedBuffer = runtimeTrackId ? (engine.getDecodedBuffer(runtimeTrackId) ?? null) : null
+  const editorDurationMs = Math.max(
+    0,
+    Math.round(
+      selectedTrackLoaded && engine.duration > 0
+        ? engine.duration * 1000
+        : (selectedTrack?.durationSec ?? 0) * 1000,
+    ),
+  )
+  const trustedBeatGridMs = selectedTrackLoaded && engine.currentAnalysisStatus === 'complete'
+    ? (engine.currentEffectiveBeatGrid ?? engine.currentAnalysis?.beatGrid ?? [])
+        .map((beat) => Math.round(beat.timeSec * 1000))
+    : []
+  const sectionOptions = selectedTrackLoaded
+    ? (engine.currentAnalysis?.sections ?? []).map((section) => ({
+        id: section.id,
+        label: section.label,
+        type: toLyricSectionType(section.type),
+      }))
+    : []
   const hasMore = tracks.length < trackTotal
   const selectedTrackName = selectedTrack?.title ?? null
 
@@ -948,16 +914,23 @@ export function LyricManagerView({ onBack }: Props) {
                 draftTitle={draftTitle}
                 draftArtist={draftArtist}
                 globalOffsetMs={globalOffsetMs}
-                cues={draftCues}
                 onUpdateTitle={setDraftTitle}
                 onUpdateArtist={setDraftArtist}
                 onUpdateGlobalOffset={setGlobalOffsetMs}
-                onAddCue={handleAddCue}
-                onUpdateCue={handleUpdateCue}
-                onDeleteCue={handleDeleteCue}
-                onDuplicateCue={handleDuplicateCue}
-                onSelectCue={setSelectedCue}
-                currentAudioTimeMs={currentAudioTimeMs}
+                trackId={runtimeTrackId}
+                trackUrl={runtimeTrackUrl}
+                decodedBuffer={decodedBuffer}
+                durationMs={editorDurationMs}
+                currentAudioTimeMs={selectedTrackLoaded ? currentAudioTimeMs : null}
+                onSeek={(timeMs) => {
+                  if (!selectedTrackLoaded) {
+                    showStatus('Load the selected track to the deck before seeking.')
+                    return
+                  }
+                  engine.seek(timeMs / 1000)
+                }}
+                beatGridMs={trustedBeatGridMs}
+                sections={sectionOptions}
               />
             ) : activeTab === 'json' ? (
               <JsonLyricImporter onImportToDraft={handleImportToDraft} />
@@ -968,7 +941,7 @@ export function LyricManagerView({ onBack }: Props) {
         </div>
 
         <LyricPreviewPanel
-          cues={draftCues}
+          cues={storeCues}
           document={activeDocument}
           selectedCue={selectedCue}
           onPreviewInVisualizer={handlePreviewInVisualizer}

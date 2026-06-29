@@ -1,0 +1,344 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
+import { useLyricsStore } from '../../../stores/lyricsStore'
+import type { LyricCue } from '../../../types/lyrics'
+import { useWaveformPeaks } from '../../../components/vyzualz/hooks/useWaveformPeaks'
+import {
+  addCueAtPlayhead,
+  canUseSnapMode,
+  cueWordBoundaries,
+  duplicateCue,
+  getCueIssues,
+  isCueActive,
+  LOW_LYRIC_CONFIDENCE,
+  mergeCues,
+  moveCueToStart,
+  normalizeCue,
+  resizeCueEnd,
+  resizeCueStart,
+  sortLyricCues,
+  splitCue,
+  type LyricSnapMode,
+} from './lyricCueEditorModel'
+import { LyricCueInspector, type LyricSectionOption } from './LyricCueInspector'
+import { LyricCueTimeline } from './LyricCueTimeline'
+
+export type LyricCueFilter = 'all' | 'unreviewed' | 'low-confidence' | 'warnings' | 'empty-text'
+
+interface Props {
+  trackId: string | null
+  trackUrl: string | null
+  decodedBuffer?: AudioBuffer | null
+  durationMs: number
+  currentTimeMs: number | null
+  globalOffsetMs?: number
+  onSeek: (timeMs: number) => void
+  beatGridMs?: number[]
+  sections?: LyricSectionOption[]
+}
+
+function createCueId(prefix = 'cue'): string {
+  return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function formatMs(ms: number): string {
+  const safe = Math.max(0, Math.round(ms))
+  const minutes = Math.floor(safe / 60_000)
+  const seconds = Math.floor((safe % 60_000) / 1_000)
+  const millis = safe % 1_000
+  return `${minutes}:${String(seconds).padStart(2, '0')}.${String(millis).padStart(3, '0')}`
+}
+
+function cueMatchesFilter(cue: LyricCue, filter: LyricCueFilter, issues: ReturnType<typeof getCueIssues>): boolean {
+  if (filter === 'unreviewed') return !cue.reviewStatus || cue.reviewStatus === 'unreviewed'
+  if (filter === 'low-confidence') return cue.confidence !== undefined && cue.confidence < LOW_LYRIC_CONFIDENCE
+  if (filter === 'warnings') return issues.length > 0 || (cue.warnings?.length ?? 0) > 0
+  if (filter === 'empty-text') return !cue.text.trim()
+  return true
+}
+
+export function LyricCueEditor({
+  trackId,
+  trackUrl,
+  decodedBuffer,
+  durationMs,
+  currentTimeMs,
+  globalOffsetMs = 0,
+  onSeek,
+  beatGridMs = [],
+  sections = [],
+}: Props) {
+  const {
+    cues,
+    selectedCueId,
+    cueHistoryPast,
+    cueHistoryFuture,
+    selectCue,
+    setCues,
+    updateCue,
+    setCueBounds,
+    deleteCue,
+    undoCueEdit,
+    redoCueEdit,
+  } = useLyricsStore(useShallow(state => ({
+    cues: state.cues,
+    selectedCueId: state.selectedCueId,
+    cueHistoryPast: state.cueHistoryPast,
+    cueHistoryFuture: state.cueHistoryFuture,
+    selectCue: state.selectCue,
+    setCues: state.setCues,
+    updateCue: state.updateCue,
+    setCueBounds: state.setCueBounds,
+    deleteCue: state.deleteCue,
+    undoCueEdit: state.undoCueEdit,
+    redoCueEdit: state.redoCueEdit,
+  })))
+  const [zoom, setZoom] = useState(1)
+  const [snapMode, setSnapMode] = useState<LyricSnapMode>('none')
+  const [filter, setFilter] = useState<LyricCueFilter>('all')
+  const rootRef = useRef<HTMLDivElement>(null)
+  const selectedCue = cues.find(cue => cue.id === selectedCueId) ?? null
+  const canonicalPlayheadMs = currentTimeMs === null ? null : Math.max(0, currentTimeMs - globalOffsetMs)
+  const orderedCues = useMemo(() => sortLyricCues(cues), [cues])
+  const selectedIndex = selectedCue ? orderedCues.findIndex(cue => cue.id === selectedCue.id) : -1
+  const wordBoundaryMs = useMemo(() => cueWordBoundaries(selectedCue), [selectedCue])
+  const { peaks, loading } = useWaveformPeaks(trackId, decodedBuffer, trackUrl)
+  const snapContext = useMemo(() => ({
+    mode: snapMode,
+    beatGridMs,
+    wordBoundaryMs: wordBoundaryMs.map(boundary => boundary + globalOffsetMs),
+    millisecondGridMs: 10,
+    frameRate: 30,
+  }), [beatGridMs, globalOffsetMs, snapMode, wordBoundaryMs])
+
+  useEffect(() => {
+    if (!selectedCueId && orderedCues.length > 0) selectCue(orderedCues[0].id)
+    if (selectedCueId && !cues.some(cue => cue.id === selectedCueId)) selectCue(orderedCues[0]?.id ?? null)
+  }, [cues, orderedCues, selectCue, selectedCueId])
+
+  useEffect(() => {
+    if (!canUseSnapMode(snapMode, { beatGridMs, wordBoundaryMs })) setSnapMode('none')
+  }, [beatGridMs, snapMode, wordBoundaryMs])
+
+  const focusCue = useCallback((cueId: string | null) => {
+    if (!cueId) return
+    requestAnimationFrame(() => {
+      const row = Array.from(rootRef.current?.querySelectorAll<HTMLElement>('[data-cue-row-id]') ?? [])
+        .find(element => element.dataset.cueRowId === cueId)
+      row?.focus()
+    })
+  }, [])
+
+  const replaceCues = useCallback((next: LyricCue[], selectedId: string | null) => {
+    setCues(next.map(cue => normalizeCue(cue, durationMs)))
+    selectCue(selectedId)
+    focusCue(selectedId)
+  }, [durationMs, focusCue, selectCue, setCues])
+
+  const commitCuePatch = useCallback((cueId: string, patch: Partial<Omit<LyricCue, 'id'>>) => {
+    const current = cues.find(cue => cue.id === cueId)
+    if (!current) return
+    const normalized = normalizeCue({ ...current, ...patch, id: current.id }, durationMs)
+    const { id: _id, ...nextPatch } = normalized
+    updateCue(cueId, nextPatch)
+  }, [cues, durationMs, updateCue])
+
+  const addAtPlayhead = useCallback(() => {
+    const cue = addCueAtPlayhead(createCueId(), canonicalPlayheadMs ?? 0, durationMs)
+    replaceCues([...cues, cue], cue.id)
+  }, [canonicalPlayheadMs, cues, durationMs, replaceCues])
+
+  const duplicateSelected = useCallback(() => {
+    if (!selectedCue) return
+    const copy = duplicateCue(selectedCue, createCueId(), durationMs)
+    replaceCues([...cues, copy], copy.id)
+  }, [cues, durationMs, replaceCues, selectedCue])
+
+  const splitSelected = useCallback(() => {
+    if (!selectedCue || canonicalPlayheadMs === null) return
+    const split = splitCue(selectedCue, canonicalPlayheadMs, createCueId(), createCueId())
+    if (!split) return
+    replaceCues(cues.flatMap(cue => cue.id === selectedCue.id ? split : [cue]), split[1].id)
+  }, [canonicalPlayheadMs, cues, replaceCues, selectedCue])
+
+  const mergeSelected = useCallback((direction: -1 | 1) => {
+    if (!selectedCue || selectedIndex < 0) return
+    const adjacent = orderedCues[selectedIndex + direction]
+    if (!adjacent) return
+    const first = direction < 0 ? adjacent : selectedCue
+    const second = direction < 0 ? selectedCue : adjacent
+    const merged = mergeCues(first, second, selectedCue.id)
+    replaceCues(cues.filter(cue => cue.id !== first.id && cue.id !== second.id).concat(merged), merged.id)
+  }, [cues, orderedCues, replaceCues, selectedCue, selectedIndex])
+
+  const deleteSelected = useCallback(() => {
+    if (!selectedCue) return
+    const fallback = orderedCues[selectedIndex + 1]?.id ?? orderedCues[selectedIndex - 1]?.id ?? null
+    deleteCue(selectedCue.id)
+    selectCue(fallback)
+    focusCue(fallback)
+  }, [deleteCue, focusCue, orderedCues, selectCue, selectedCue, selectedIndex])
+
+  const actions = selectedCue ? {
+    setStartToPlayhead: () => {
+      if (canonicalPlayheadMs === null) return
+      const bounds = resizeCueStart(selectedCue, canonicalPlayheadMs, durationMs)
+      setCueBounds(selectedCue.id, bounds.startMs, bounds.endMs)
+    },
+    setEndToPlayhead: () => {
+      if (canonicalPlayheadMs === null) return
+      const bounds = resizeCueEnd(selectedCue, canonicalPlayheadMs, durationMs)
+      setCueBounds(selectedCue.id, bounds.startMs, bounds.endMs)
+    },
+    moveToPlayhead: () => {
+      if (canonicalPlayheadMs === null) return
+      const bounds = moveCueToStart(selectedCue, canonicalPlayheadMs, durationMs)
+      setCueBounds(selectedCue.id, bounds.startMs, bounds.endMs)
+    },
+    addAtPlayhead,
+    duplicate: duplicateSelected,
+    split: splitSelected,
+    mergePrevious: () => mergeSelected(-1),
+    mergeNext: () => mergeSelected(1),
+    delete: deleteSelected,
+  } : null
+
+  const cueIssues = useMemo(() => new Map(cues.map(cue => [cue.id, getCueIssues(cue, cues, durationMs)])), [cues, durationMs])
+  const filteredCues = orderedCues.filter(cue => cueMatchesFilter(cue, filter, cueIssues.get(cue.id) ?? []))
+
+  return (
+    <div
+      ref={rootRef}
+      className="lyric-cue-editor-root"
+      onKeyDown={event => {
+        const target = event.target as HTMLElement
+        if (target.matches('input, textarea, select') || target.isContentEditable) return
+        if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z') return
+        event.preventDefault()
+        if (event.shiftKey) redoCueEdit()
+        else undoCueEdit()
+      }}
+    >
+      <div className="lyric-cue-editor-toolbar">
+        <button type="button" className="lmv-btn lmv-btn--ghost" onClick={addAtPlayhead}>+ Add cue at playhead</button>
+        <button type="button" className="lmv-btn lmv-btn--ghost" disabled={cueHistoryPast.length === 0} onClick={undoCueEdit} aria-label="Undo lyric edit">Undo</button>
+        <button type="button" className="lmv-btn lmv-btn--ghost" disabled={cueHistoryFuture.length === 0} onClick={redoCueEdit} aria-label="Redo lyric edit">Redo</button>
+        <label>
+          <span>Snap</span>
+          <select className="lmv-select" value={snapMode} onChange={event => setSnapMode(event.target.value as LyricSnapMode)}>
+            <option value="none">No snap</option>
+            <option value="millisecond">10 ms grid</option>
+            <option value="frame">30 fps frames</option>
+            <option value="beat" disabled={!canUseSnapMode('beat', { beatGridMs })}>Beat</option>
+            <option value="half-beat" disabled={!canUseSnapMode('half-beat', { beatGridMs })}>Half beat</option>
+            <option value="quarter-beat" disabled={!canUseSnapMode('quarter-beat', { beatGridMs })}>Quarter beat</option>
+            <option value="word" disabled={!canUseSnapMode('word', { wordBoundaryMs })}>Word boundary</option>
+          </select>
+        </label>
+        <label className="lyric-cue-editor-toolbar__zoom">
+          <span>Zoom {zoom.toFixed(2)}×</span>
+          <input type="range" min={0.25} max={8} step={0.25} value={zoom} onChange={event => setZoom(Number(event.target.value))} aria-label="Lyric timeline zoom" />
+        </label>
+        {beatGridMs.length < 2 && <span className="lyric-cue-editor-toolbar__hint">Beat snapping unavailable until this track has a trustworthy beat grid.</span>}
+      </div>
+
+      <LyricCueTimeline
+        cues={orderedCues}
+        selectedCueId={selectedCueId}
+        currentTimeMs={currentTimeMs}
+        durationMs={durationMs}
+        globalOffsetMs={globalOffsetMs}
+        pxPerSecond={80 * zoom}
+        waveformPeaks={peaks}
+        waveformLoading={loading}
+        snapContext={snapContext}
+        onSelectCue={selectCue}
+        onSeek={onSeek}
+        onCommitCue={(cueId, bounds) => setCueBounds(cueId, bounds.startMs, bounds.endMs)}
+        onDeleteCue={cueId => {
+          const deletedIndex = orderedCues.findIndex(cue => cue.id === cueId)
+          const fallback = orderedCues[deletedIndex + 1]?.id ?? orderedCues[deletedIndex - 1]?.id ?? null
+          deleteCue(cueId)
+          selectCue(fallback)
+        }}
+      />
+
+      <div className="lyric-cue-editor-layout">
+        <section className="lyric-cue-list" aria-label="Lyric cue list">
+          <div className="lyric-cue-list__controls">
+            <strong>{filteredCues.length} of {cues.length} cues</strong>
+            <label>
+              <span>Filter</span>
+              <select className="lmv-select" value={filter} onChange={event => setFilter(event.target.value as LyricCueFilter)}>
+                <option value="all">All</option>
+                <option value="unreviewed">Unreviewed</option>
+                <option value="low-confidence">Low confidence</option>
+                <option value="warnings">Warnings</option>
+                <option value="empty-text">Empty text</option>
+              </select>
+            </label>
+          </div>
+          <div className="lyric-cue-list__scroll">
+            <table>
+              <thead>
+                <tr><th>#</th><th>Start</th><th>End</th><th>Duration</th><th>Text</th><th>Confidence</th><th>Review</th><th>Warnings</th></tr>
+              </thead>
+              <tbody>
+                {filteredCues.map(cue => {
+                  const index = orderedCues.findIndex(item => item.id === cue.id)
+                  const issues = cueIssues.get(cue.id) ?? []
+                  const active = canonicalPlayheadMs !== null && isCueActive(cue, canonicalPlayheadMs)
+                  return (
+                    <tr
+                      key={cue.id}
+                      tabIndex={0}
+                      data-cue-row-id={cue.id}
+                      className={`${selectedCueId === cue.id ? 'lyric-cue-list__row--selected' : ''}${active ? ' lyric-cue-list__row--active' : ''}`}
+                      aria-selected={selectedCueId === cue.id}
+                      aria-current={active ? 'time' : undefined}
+                      onClick={() => selectCue(cue.id)}
+                      onKeyDown={event => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          selectCue(cue.id)
+                        }
+                      }}
+                    >
+                      <td>{index + 1}</td>
+                      <td>{formatMs(cue.startMs)}</td>
+                      <td>{formatMs(cue.endMs)}</td>
+                      <td>{cue.endMs - cue.startMs} ms</td>
+                      <td>{cue.text || <em>Empty</em>}</td>
+                      <td className={cue.confidence !== undefined && cue.confidence < LOW_LYRIC_CONFIDENCE ? 'lyric-cue-list__low-confidence' : ''}>{cue.confidence === undefined ? '—' : `${Math.round(cue.confidence * 100)}%`}</td>
+                      <td>{cue.reviewStatus ?? 'unreviewed'}</td>
+                      <td>{issues.length || cue.warnings?.length ? <span aria-label="Cue has warnings">⚠ {issues.length + (cue.warnings?.length ?? 0)}</span> : '—'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            {filteredCues.length === 0 && <div className="lyric-cue-list__empty">No cues match this filter.</div>}
+          </div>
+        </section>
+
+        {selectedCue && actions ? (
+          <LyricCueInspector
+            cue={selectedCue}
+            cues={cues}
+            currentTimeMs={canonicalPlayheadMs}
+            durationMs={durationMs}
+            sections={sections}
+            actions={actions}
+            canMergePrevious={selectedIndex > 0}
+            canMergeNext={selectedIndex >= 0 && selectedIndex < orderedCues.length - 1}
+            onUpdateCue={commitCuePatch}
+          />
+        ) : (
+          <div className="lyric-cue-editor__empty-selection">Select a cue in the timeline or list to edit it.</div>
+        )}
+      </div>
+    </div>
+  )
+}

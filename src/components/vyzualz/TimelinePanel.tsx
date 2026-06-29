@@ -5,6 +5,20 @@ import { useMediaStore } from '../../stores/mediaStore'
 import { useLyricsStore } from '../../stores/lyricsStore'
 import { useSharedAudio } from '../../context/AudioEngineContext'
 import { useWaveformPeaks } from './hooks/useWaveformPeaks'
+import { LyricCueTimeline } from '../../features/lyrics/editor/LyricCueTimeline'
+import { LyricCueInspector as SharedLyricCueInspector } from '../../features/lyrics/editor/LyricCueInspector'
+import { LyricWaveformCanvas } from '../../features/lyrics/editor/LyricWaveformCanvas'
+import {
+  addCueAtPlayhead,
+  duplicateCue,
+  mergeCues,
+  moveCueToStart,
+  normalizeCue,
+  resizeCueEnd,
+  resizeCueStart,
+  sortLyricCues,
+  splitCue,
+} from '../../features/lyrics/editor/lyricCueEditorModel'
 import { generateVideoFilmstrip } from './media/generateThumbnail'
 import type { VzTimelineClip, VzTimelineMediaClip, VzTimelineEffectRegion, VzOverlayCompositingConfig } from '../../types/timeline'
 import type { VzLayerConfig, VzLayerItem, SelectedTimelineEntity } from '../../stores/visualStore'
@@ -12,7 +26,7 @@ import { LAYER_LABELS } from '../../types/vzLayers'
 import type { VzTransitionConfig, VzTransitionType, VzTransitionEasing } from '../../types/timeline'
 import { DEFAULT_OVERLAY_COMPOSITING, resolveClipGlobalFx } from '../../types/timeline'
 import type { UploadedMedia } from '../../stores/mediaStore'
-import type { LyricCue } from '../../types/lyrics'
+import type { LyricCue, LyricSectionType } from '../../types/lyrics'
 import { CursorInfo01Icon } from 'hugeicons-react'
 import { getTimelineDuration, getTimelineProjectDuration, TRANSITION_LABELS, TRANSITION_DEFAULTS, isClipSnapToBpmEnabled } from '../../lib/timeline'
 import { MEDIA_ROLE_LABELS, MEDIA_ROLE_BADGE_LABELS, MEDIA_ROLES } from '../../lib/mediaRoles'
@@ -47,25 +61,6 @@ interface LiveDrag {
   durationSec: number
 }
 
-// ── Lyric-specific drag types ─────────────────────────────────────────────
-interface LyricDragData {
-  kind: DragKind
-  cueId: string
-  startClientX: number
-  /** Raw cue startMs at drag start (NOT offset-adjusted) */
-  origStartMs: number
-  /** Raw cue endMs at drag start */
-  origEndMs: number
-}
-
-interface LiveLyricDrag {
-  id: string
-  /** Live raw startMs (NOT offset-adjusted) */
-  startMs: number
-  /** Live raw endMs */
-  endMs: number
-}
-
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function resolveMediaDuration(m: UploadedMedia | null | undefined): number {
@@ -74,7 +69,6 @@ function resolveMediaDuration(m: UploadedMedia | null | undefined): number {
 }
 
 const EFFECT_LIST       = Array.from(EFFECT_MODULES.entries()).map(([id, m]) => ({ id, label: m.label }))
-const MIN_LYRIC_DUR_MS  = 100
 
 // ── TimelineRuler ────────────────────────────────────────────────────────
 
@@ -119,82 +113,6 @@ function TimelineRuler({
       ))}
     </div>
   )
-}
-
-// ── TimelineWaveformCanvas ────────────────────────────────────────────────
-
-const WAVE_ELAPSED  = 'rgba(97,214,170,0.72)'
-const WAVE_UPCOMING = 'rgba(255,255,255,0.13)'
-
-function TimelineWaveformCanvas({
-  peaks, loading, audioDuration, currentTime,
-}: {
-  peaks:         number[] | null
-  loading:       boolean
-  audioDuration: number
-  currentTime:   number
-}) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const propsRef  = useRef({ peaks, loading, audioDuration, currentTime })
-  propsRef.current = { peaks, loading, audioDuration, currentTime }
-
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    const W = canvas.width, H = canvas.height
-    if (!W || !H) return
-
-    const { peaks: pk, loading: ld, audioDuration: dur, currentTime: ct } = propsRef.current
-    ctx.clearRect(0, 0, W, H)
-
-    // Loading placeholder — dim sine-wave shape
-    if (ld && !pk) {
-      for (let i = 0; i < 60; i++) {
-        const barH = (Math.sin(i * 0.4) * 0.22 + 0.12) * H
-        ctx.fillStyle = 'rgba(97,214,170,0.07)'
-        ctx.fillRect((i / 60) * W + 0.5, (H - barH) / 2, W / 60 - 1, barH)
-      }
-      return
-    }
-    if (!pk || pk.length === 0 || dur <= 0) return
-
-    const bw = W / pk.length
-    for (let i = 0; i < pk.length; i++) {
-      const barT = (i / pk.length) * dur
-      const barH = Math.max(1, pk[i] * (H - 2))
-      ctx.fillStyle = barT < ct ? WAVE_ELAPSED : WAVE_UPCOMING
-      ctx.fillRect(i * bw, (H - barH) / 2, Math.max(1, bw - 0.3), barH)
-    }
-    // Soft elapsed tint
-    const phX = Math.min((ct / dur) * W, W)
-    if (phX > 1) {
-      const g = ctx.createLinearGradient(0, 0, phX, 0)
-      g.addColorStop(0, 'rgba(97,214,170,0.07)')
-      g.addColorStop(1, 'rgba(97,214,170,0.02)')
-      ctx.fillStyle = g
-      ctx.fillRect(0, 0, phX, H)
-    }
-  }, [])
-
-  useEffect(() => { draw() }, [draw, peaks, loading, audioDuration, currentTime])
-
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ro = new ResizeObserver(entries => {
-      for (const e of entries) {
-        canvas.width  = Math.round(e.contentRect.width)
-        canvas.height = Math.round(e.contentRect.height)
-        draw()
-      }
-    })
-    ro.observe(canvas)
-    return () => ro.disconnect()
-  }, [draw])
-
-  return <canvas ref={canvasRef} className="vz-ml-waveform-canvas" aria-hidden="true" />
 }
 
 // ── ClipBlock ────────────────────────────────────────────────────────────
@@ -329,63 +247,6 @@ function EffectBlock({
       />
       <span className="vz-ml-effect-name">{label}</span>
       {region.enabled && px > 60 && <span className="vz-ml-effect-plan-badge">PLAN</span>}
-      <div
-        className="vz-ml-clip-rhandle"
-        onPointerDown={e => { e.stopPropagation(); onResizeRight(e) }}
-      />
-      <button
-        className="vz-ml-clip-del"
-        onPointerDown={e => e.stopPropagation()}
-        onClick={e => { e.stopPropagation(); onDelete() }}
-        title="Delete"
-      >✕</button>
-    </div>
-  )
-}
-
-// ── LyricBlock ───────────────────────────────────────────────────────────
-
-function LyricBlock({
-  cue, pxPerSec, isSelected, globalOffsetSec, liveLyricDrag,
-  onSelect, onDragStart, onResizeLeft, onResizeRight, onDelete,
-}: {
-  cue: LyricCue
-  pxPerSec: number
-  isSelected: boolean
-  globalOffsetSec: number
-  liveLyricDrag: LiveLyricDrag | null
-  onSelect: () => void
-  onDragStart: (e: React.PointerEvent) => void
-  onResizeLeft: (e: React.PointerEvent) => void
-  onResizeRight: (e: React.PointerEvent) => void
-  onDelete: () => void
-}) {
-  const live = liveLyricDrag?.id === cue.id ? liveLyricDrag : null
-  // Display positions use RAW cue times + global offset
-  // so visible position matches actual canvas render time
-  const rawStartMs = live?.startMs ?? cue.startMs
-  const rawEndMs   = live?.endMs   ?? cue.endMs
-  const startSec   = rawStartMs / 1000 + globalOffsetSec
-  const durSec     = Math.max(0.1, (rawEndMs - rawStartMs) / 1000)
-  const px         = Math.max(4, timeToPx(durSec, pxPerSec))
-  const isDragging = live !== null
-
-  return (
-    <div
-      className={[
-        'vz-ml-lyric',
-        isSelected  ? 'vz-ml-lyric--sel'  : '',
-        isDragging  ? 'vz-ml-lyric--drag' : '',
-      ].filter(Boolean).join(' ')}
-      style={{ left: timeToPx(Math.max(0, startSec), pxPerSec), width: px }}
-      title={`${cue.text} (${fmtSec(startSec)} → ${fmtSec(startSec + durSec)})`}
-      onPointerDown={e => { onSelect(); onDragStart(e) }}
-    >
-      <div
-        className="vz-ml-clip-lhandle"
-        onPointerDown={e => { e.stopPropagation(); onResizeLeft(e) }}
-      />
-      <span className="vz-ml-lyric-text">{cue.text || '…'}</span>
       <div
         className="vz-ml-clip-rhandle"
         onPointerDown={e => { e.stopPropagation(); onResizeRight(e) }}
@@ -1097,111 +958,162 @@ function EffectInspector({
   )
 }
 
-function LyricCueInspector({
-  cue, globalOffsetSec, onUpdateTiming, onSeek, onSave, isSaving, isDirty, hasDocument,
+function lyricEditorId(prefix = 'cue'): string {
+  return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function timelineSectionType(type: string): LyricSectionType {
+  if (type === 'preDrop') return 'build'
+  if (
+    type === 'intro' || type === 'verse' || type === 'build' ||
+    type === 'drop' || type === 'breakdown' || type === 'bridge' || type === 'outro'
+  ) return type
+  return 'unknown'
+}
+
+function TimelineLyricCueInspector({
+  cueId,
+  onSeek,
 }: {
-  cue: LyricCue
-  globalOffsetSec: number
-  onUpdateTiming: (id: string, patch: { startMs?: number; endMs?: number }) => void
+  cueId: string
   onSeek: (sec: number) => void
-  onSave: () => void
-  isSaving: boolean
-  isDirty: boolean
-  hasDocument: boolean
 }) {
-  const [startVal, setStartVal] = useState(String(cue.startMs))
-  const [endVal,   setEndVal]   = useState(String(cue.endMs))
+  const engine = useSharedAudio()
+  const timelineClock = useVisualStore(state => state.timelineClock)
+  const {
+    cues,
+    globalOffsetMs,
+    activeDocumentId,
+    isSaving,
+    lyricTimingDirty,
+    setCues,
+    updateCue,
+    setCueBounds,
+    deleteCue,
+    selectCue,
+    saveTimingChanges,
+  } = useLyricsStore(useShallow(state => ({
+    cues: state.cues,
+    globalOffsetMs: state.globalOffsetMs,
+    activeDocumentId: state.activeDocumentId,
+    isSaving: state.isSaving,
+    lyricTimingDirty: state.lyricTimingDirty,
+    setCues: state.setCues,
+    updateCue: state.updateCue,
+    setCueBounds: state.setCueBounds,
+    deleteCue: state.deleteCue,
+    selectCue: state.selectCue,
+    saveTimingChanges: state.saveTimingChanges,
+  })))
 
-  // Keep inputs in sync when store updates (e.g. drag ends)
-  useEffect(() => { setStartVal(String(cue.startMs)) }, [cue.startMs])
-  useEffect(() => { setEndVal(String(cue.endMs)) },     [cue.endMs])
+  const cue = cues.find(item => item.id === cueId)
+  if (!cue) return <div className="vz-ml-insp-empty">Lyric cue not found</div>
 
-  const applyStart = () => {
-    const v = parseFloat(startVal)
-    if (isFinite(v) && v >= 0) onUpdateTiming(cue.id, { startMs: Math.round(v) })
-    else setStartVal(String(cue.startMs))
+  const ordered = sortLyricCues(cues)
+  const selectedIndex = ordered.findIndex(item => item.id === cue.id)
+  const durationMs = Math.max(
+    1,
+    Math.round(engine.duration * 1000),
+    ...cues.map(item => item.endMs),
+  )
+  const currentDisplayTimeMs = Math.round(timelineClock * 1000)
+  const canonicalPlayheadMs = Math.max(0, currentDisplayTimeMs - globalOffsetMs)
+  const sections = (engine.currentAnalysis?.sections ?? []).map(section => ({
+    id: section.id,
+    label: section.label,
+    type: timelineSectionType(section.type),
+  }))
+
+  const replaceCues = (next: LyricCue[], selectedId: string | null) => {
+    setCues(next.map(item => normalizeCue(item, durationMs)))
+    selectCue(selectedId)
   }
-  const applyEnd = () => {
-    const v = parseFloat(endVal)
-    if (isFinite(v) && v > cue.startMs) onUpdateTiming(cue.id, { endMs: Math.round(v) })
-    else setEndVal(String(cue.endMs))
+  const commitPatch = (id: string, patch: Partial<Omit<LyricCue, 'id'>>) => {
+    const current = cues.find(item => item.id === id)
+    if (!current) return
+    const normalized = normalizeCue({ ...current, ...patch, id }, durationMs)
+    const { id: _id, ...nextPatch } = normalized
+    updateCue(id, nextPatch)
   }
-
-  const durMs  = cue.endMs - cue.startMs
-  const dispStart = fmtSec(cue.startMs / 1000 + globalOffsetSec)
-  const dispEnd   = fmtSec(cue.endMs   / 1000 + globalOffsetSec)
+  const addAtPlayhead = () => {
+    const added = addCueAtPlayhead(lyricEditorId(), canonicalPlayheadMs, durationMs)
+    replaceCues([...cues, added], added.id)
+  }
+  const duplicate = () => {
+    const copy = duplicateCue(cue, lyricEditorId(), durationMs)
+    replaceCues([...cues, copy], copy.id)
+  }
+  const split = () => {
+    const result = splitCue(cue, canonicalPlayheadMs, lyricEditorId(), lyricEditorId())
+    if (!result) return
+    replaceCues(cues.flatMap(item => item.id === cue.id ? result : [item]), result[1].id)
+  }
+  const merge = (direction: -1 | 1) => {
+    const adjacent = ordered[selectedIndex + direction]
+    if (!adjacent) return
+    const first = direction < 0 ? adjacent : cue
+    const second = direction < 0 ? cue : adjacent
+    const merged = mergeCues(first, second, cue.id)
+    replaceCues(cues.filter(item => item.id !== first.id && item.id !== second.id).concat(merged), merged.id)
+  }
+  const remove = () => {
+    const fallback = ordered[selectedIndex + 1]?.id ?? ordered[selectedIndex - 1]?.id ?? null
+    deleteCue(cue.id)
+    selectCue(fallback)
+  }
 
   return (
-    <div className="vz-ml-insp-body">
-      <div className="vz-ml-insp-group">
-        <div className="vz-ml-insp-group-hd">
-          <span className="vz-ml-insp-group-chevron">▸</span>
-          <span className="vz-ml-insp-group-title">Info</span>
-        </div>
-        <div className="vz-ml-insp-group-body">
-          <div className="vz-ml-insp-row">
-            <span className="vz-ml-insp-lbl">Text</span>
-            <span className="vz-ml-insp-val" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cue.text}</span>
-          </div>
-          <div className="vz-ml-insp-row">
-            <span className="vz-ml-insp-lbl">Start ms</span>
-            <input type="number" className="vz-ml-insp-num" min={0} step={10}
-              value={startVal}
-              onChange={e => setStartVal(e.target.value)}
-              onBlur={applyStart}
-              onKeyDown={e => e.key === 'Enter' && applyStart()}
-            />
-            <span className="vz-ml-insp-lbl">End ms</span>
-            <input type="number" className="vz-ml-insp-num" min={0} step={10}
-              value={endVal}
-              onChange={e => setEndVal(e.target.value)}
-              onBlur={applyEnd}
-              onKeyDown={e => e.key === 'Enter' && applyEnd()}
-            />
-          </div>
-          <div className="vz-ml-insp-row">
-            <span className="vz-ml-insp-lbl">Timeline</span>
-            <span className="vz-ml-insp-val">{dispStart} → {dispEnd}</span>
-            <span className="vz-ml-insp-lbl">Dur</span>
-            <span className="vz-ml-insp-val">{fmtSec(durMs / 1000)}</span>
-          </div>
-          <div className="vz-ml-insp-row vz-ml-insp-actions">
-            <button className="vz-tl-clip-btn"
-              title="Seek to cue start"
-              onClick={() => onSeek(cue.startMs / 1000 + globalOffsetSec)}>
-              ⏮ Seek
-            </button>
-            <button
-              className="vz-tl-clip-btn"
-              disabled={!isDirty || isSaving || !hasDocument}
-              title={!hasDocument ? 'Save the lyric document first to enable timing persistence' : 'Save lyric timing to database'}
-              onClick={onSave}
-            >
-              {isSaving ? 'Saving…' : 'Save Timing'}
-            </button>
-            {isDirty && !isSaving && (
-              <span className="vz-ml-insp-hint" style={{ color: 'var(--az-accent)', margin: 0 }}>Unsaved</span>
-            )}
-          </div>
-          {!hasDocument && (
-            <div className="vz-ml-insp-hint">
-              Save the lyric document in Lyric Manager before timing changes can be persisted.
-            </div>
-          )}
-          {globalOffsetSec !== 0 && (
-            <div className="vz-ml-insp-hint">
-              Global offset {globalOffsetSec > 0 ? '+' : ''}{fmtSec(globalOffsetSec)} applied to display.
-              Raw cue: {fmtSec(cue.startMs / 1000)} → {fmtSec(cue.endMs / 1000)}
-            </div>
-          )}
-        </div>
-      </div>
-      <div className="vz-ml-insp-group">
-        <div className="vz-ml-insp-group-hd">
-          <span className="vz-ml-insp-group-chevron">▸</span>
-          <span className="vz-ml-insp-group-title">Color</span>
-        </div>
-        <div className="vz-ml-insp-group-body" />
+    <div className="vz-ml-insp-body vz-ml-insp-body--lyrics">
+      <SharedLyricCueInspector
+        cue={cue}
+        cues={cues}
+        currentTimeMs={canonicalPlayheadMs}
+        durationMs={durationMs}
+        sections={sections}
+        canMergePrevious={selectedIndex > 0}
+        canMergeNext={selectedIndex >= 0 && selectedIndex < ordered.length - 1}
+        onUpdateCue={commitPatch}
+        actions={{
+          setStartToPlayhead: () => {
+            const bounds = resizeCueStart(cue, canonicalPlayheadMs, durationMs)
+            setCueBounds(cue.id, bounds.startMs, bounds.endMs)
+          },
+          setEndToPlayhead: () => {
+            const bounds = resizeCueEnd(cue, canonicalPlayheadMs, durationMs)
+            setCueBounds(cue.id, bounds.startMs, bounds.endMs)
+          },
+          moveToPlayhead: () => {
+            const bounds = moveCueToStart(cue, canonicalPlayheadMs, durationMs)
+            setCueBounds(cue.id, bounds.startMs, bounds.endMs)
+          },
+          addAtPlayhead,
+          duplicate,
+          split,
+          mergePrevious: () => merge(-1),
+          mergeNext: () => merge(1),
+          delete: remove,
+        }}
+      />
+      <div className="vz-ml-lyric-save-row">
+        <button
+          type="button"
+          className="vz-tl-clip-btn"
+          onClick={() => onSeek((cue.startMs + globalOffsetMs) / 1000)}
+        >
+          ⏮ Seek to cue
+        </button>
+        <button
+          type="button"
+          className="vz-tl-clip-btn"
+          disabled={!lyricTimingDirty || isSaving || !activeDocumentId}
+          title={!activeDocumentId ? 'Save the lyric document first to enable persistence' : 'Save lyric edits transactionally'}
+          onClick={() => { void saveTimingChanges() }}
+        >
+          {isSaving ? 'Saving…' : 'Save lyrics'}
+        </button>
+        {lyricTimingDirty && !isSaving && <span className="vz-ml-insp-hint">Unsaved lyric changes</span>}
       </div>
     </div>
   )
@@ -1299,8 +1211,7 @@ export function TimelineInspector({
   layerItems, selectedLayerItemId, isGpu,
   onUpdateClip, onRemoveBg, onRemoveOverlay, onDuplicateBg, onDuplicateOverlay,
   onMoveClip, onUpdateEffect, onRemoveEffect, onSetMediaRole, onUpdateLayerItem,
-  onUpdateLyricTiming, onSeekToLyric, onSaveLyricTiming,
-  lyricTimingDirty, lyricSaving, hasLyricDocument, globalOffsetSec,
+  onSeekToLyric,
   onClearFx,
 }: {
   selected: SelectedEntity
@@ -1322,13 +1233,7 @@ export function TimelineInspector({
   onRemoveEffect: (id: string) => void
   onSetMediaRole: (mediaId: string, role: MediaRole) => void
   onUpdateLayerItem: (id: string, patch: Partial<Omit<VzLayerItem, 'id'>>) => void
-  onUpdateLyricTiming: (id: string, patch: { startMs?: number; endMs?: number }) => void
   onSeekToLyric: (sec: number) => void
-  onSaveLyricTiming: () => void
-  lyricTimingDirty: boolean
-  lyricSaving: boolean
-  hasLyricDocument: boolean
-  globalOffsetSec: number
   onClearFx: (elementId: string, kind: 'clip' | 'layerItem') => void
 }) {
   // No timeline entity selected: if a layer item is selected show its color
@@ -1418,16 +1323,7 @@ export function TimelineInspector({
     headLabel = 'LYRIC'
     headName  = cue?.text ?? ''
     if (cue) content = (
-      <LyricCueInspector
-        cue={cue}
-        globalOffsetSec={globalOffsetSec}
-        onUpdateTiming={onUpdateLyricTiming}
-        onSeek={onSeekToLyric}
-        onSave={onSaveLyricTiming}
-        isSaving={lyricSaving}
-        isDirty={lyricTimingDirty}
-        hasDocument={hasLyricDocument}
-      />
+      <TimelineLyricCueInspector cueId={cue.id} onSeek={onSeekToLyric} />
     )
   }
 
@@ -1499,23 +1395,21 @@ export function TimelinePanel({ onScrub, onAddCue }: TimelinePanelProps) {
 
   const { items: mediaItems, setMediaRole } = useMediaStore(useShallow(s => ({ items: s.items, setMediaRole: s.setMediaRole })))
   const {
-    cues: lyricCues, globalOffsetMs, activeDocumentId: lyricDocumentId,
+    cues: lyricCues,
+    globalOffsetMs,
     selectedCueId: storeSelectedCueId,
-    selectCue, updateCueTiming, setCueBounds, saveTimingChanges, deleteCue, clearCues,
-    lyricTimingDirty, isSaving: lyricSaving,
+    selectCue,
+    setCueBounds,
+    deleteCue,
+    clearCues,
   } = useLyricsStore(useShallow(s => ({
-    cues:              s.cues,
-    globalOffsetMs:    s.globalOffsetMs,
-    activeDocumentId:  s.activeDocumentId,
-    selectedCueId:     s.selectedCueId,
-    selectCue:         s.selectCue,
-    updateCueTiming:   s.updateCueTiming,
-    setCueBounds:      s.setCueBounds,
-    saveTimingChanges: s.saveTimingChanges,
-    deleteCue:         s.deleteCue,
-    clearCues:         s.clearCues,
-    lyricTimingDirty:  s.lyricTimingDirty,
-    isSaving:          s.isSaving,
+    cues: s.cues,
+    globalOffsetMs: s.globalOffsetMs,
+    selectedCueId: s.selectedCueId,
+    selectCue: s.selectCue,
+    setCueBounds: s.setCueBounds,
+    deleteCue: s.deleteCue,
+    clearCues: s.clearCues,
   })))
   const engine = useSharedAudio()
 
@@ -1562,7 +1456,7 @@ export function TimelinePanel({ onScrub, onAddCue }: TimelinePanelProps) {
     if (selected.kind === 'overlay' && !timelineOverlayClips.find(c => c.id === selected.id)) setSelected(null)
     if (selected.kind === 'effect'  && !timelineEffectRegions.find(r => r.id === selected.id)) setSelected(null)
     if (selected.kind === 'lyric'   && !lyricCues.find(c => c.id === selected.id)) setSelected(null)
-  }, [selected, timelineClips, timelineOverlayClips, timelineEffectRegions, lyricCues])
+  }, [selected, timelineClips, timelineOverlayClips, timelineEffectRegions, lyricCues, setSelected])
 
   // Sync Lyric Manager selection → Timeline selection
   useEffect(() => {
@@ -1584,7 +1478,7 @@ export function TimelinePanel({ onScrub, onAddCue }: TimelinePanelProps) {
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [selected, removeTimelineClip, removeMediaClip, removeEffectRegion])
+  }, [selected, removeTimelineClip, removeMediaClip, removeEffectRegion, setSelected])
 
   // ── Drag state ─────────────────────────────────────────────────────────
   const dragRef = useRef<DragData | null>(null)
@@ -1652,52 +1546,6 @@ export function TimelinePanel({ onScrub, onAddCue }: TimelinePanelProps) {
       updateEffectRegion(drag.clipId, { startSec: live.startSec, durationSec: live.durationSec })
     }
   }, [liveDrag, setMediaClipStart, setMediaClipDuration, updateEffectRegion])
-
-  // ── Lyric drag ─────────────────────────────────────────────────────────
-  const lyricDragRef = useRef<LyricDragData | null>(null)
-  const [liveLyricDrag, setLiveLyricDrag] = useState<LiveLyricDrag | null>(null)
-
-  const startLyricDrag = useCallback((
-    e: React.PointerEvent,
-    kind: DragKind,
-    cueId: string,
-    origStartMs: number,
-    origEndMs: number,
-  ) => {
-    e.currentTarget.setPointerCapture(e.pointerId)
-    e.stopPropagation()
-    lyricDragRef.current = { kind, cueId, startClientX: e.clientX, origStartMs, origEndMs }
-    setLiveLyricDrag({ id: cueId, startMs: origStartMs, endMs: origEndMs })
-  }, [])
-
-  const handleLyricDragMove = useCallback((e: React.PointerEvent) => {
-    const drag = lyricDragRef.current
-    if (!drag || !(e.buttons & 1)) return
-    const deltaMs = ((e.clientX - drag.startClientX) / pxPerSec) * 1000
-
-    if (drag.kind === 'move') {
-      const dur = drag.origEndMs - drag.origStartMs
-      const newStart = Math.max(0, drag.origStartMs + deltaMs)
-      setLiveLyricDrag({ id: drag.cueId, startMs: newStart, endMs: newStart + dur })
-    } else if (drag.kind === 'resize-right') {
-      const newEnd = Math.max(drag.origStartMs + MIN_LYRIC_DUR_MS, drag.origEndMs + deltaMs)
-      setLiveLyricDrag({ id: drag.cueId, startMs: drag.origStartMs, endMs: newEnd })
-    } else if (drag.kind === 'resize-left') {
-      const newStart = Math.max(0, Math.min(drag.origEndMs - MIN_LYRIC_DUR_MS, drag.origStartMs + deltaMs))
-      setLiveLyricDrag({ id: drag.cueId, startMs: newStart, endMs: drag.origEndMs })
-    }
-  }, [pxPerSec])
-
-  const handleLyricDragUp = useCallback(() => {
-    const drag = lyricDragRef.current
-    const live = liveLyricDrag
-    lyricDragRef.current = null
-    setLiveLyricDrag(null)
-    if (!drag || !live) return
-    setCueBounds(drag.cueId, live.startMs, live.endMs)
-    // Auto-save after every completed drag so timing is never silently lost
-    saveTimingChanges()
-  }, [liveLyricDrag, setCueBounds, saveTimingChanges])
 
   // ── Scrub ──────────────────────────────────────────────────────────────
   const handleScrub = useCallback((t: number) => {
@@ -1791,9 +1639,9 @@ export function TimelinePanel({ onScrub, onAddCue }: TimelinePanelProps) {
   return (
     <div
       className="vz-ml-tl"
-      onPointerMove={e => { handleDragMove(e); handleLyricDragMove(e) }}
-      onPointerUp={() => { handleDragUp(); handleLyricDragUp() }}
-      onPointerCancel={() => { handleDragUp(); handleLyricDragUp() }}
+      onPointerMove={handleDragMove}
+      onPointerUp={handleDragUp}
+      onPointerCancel={handleDragUp}
     >
       {/* ── Toolbar ──────────────────────────────────────────────────── */}
       <div className="vz-ml-toolbar">
@@ -1885,11 +1733,12 @@ export function TimelinePanel({ onScrub, onAddCue }: TimelinePanelProps) {
                   className="vz-ml-audio-region"
                   style={{ width: timeToPx(engine.duration, pxPerSec) }}
                 >
-                  <TimelineWaveformCanvas
+                  <LyricWaveformCanvas
+                    className="vz-ml-waveform-canvas"
                     peaks={waveformPeaks}
                     loading={waveformLoading}
-                    audioDuration={engine.duration}
-                    currentTime={timelineClock}
+                    audioDurationMs={Math.round(engine.duration * 1000)}
+                    currentTimeMs={Math.round(timelineClock * 1000)}
                   />
                   <span className="vz-ml-audio-name">
                     {(engine.tracks[engine.currentIndex])?.displayName ?? 'Audio Track'}
@@ -1972,24 +1821,26 @@ export function TimelinePanel({ onScrub, onAddCue }: TimelinePanelProps) {
               style={{ height: LANE_HEIGHTS.lyrics }}
               onPointerDown={e => { if (e.target === e.currentTarget) setSelected(null) }}
             >
-              {lyricCues.length === 0 && (
-                <div className="vz-ml-lane-empty">No timed lyrics loaded — open Lyric Manager to add cues</div>
-              )}
-              {lyricCues.map(cue => (
-                <LyricBlock
-                  key={cue.id}
-                  cue={cue}
-                  pxPerSec={pxPerSec}
-                  isSelected={selected?.kind === 'lyric' && selected.id === cue.id}
-                  globalOffsetSec={globalOffsetSec}
-                  liveLyricDrag={liveLyricDrag}
-                  onSelect={() => { setSelected({ kind: 'lyric', id: cue.id }); selectCue(cue.id) }}
-                  onDragStart={e => startLyricDrag(e, 'move', cue.id, cue.startMs, cue.endMs)}
-                  onResizeLeft={e => startLyricDrag(e, 'resize-left', cue.id, cue.startMs, cue.endMs)}
-                  onResizeRight={e => startLyricDrag(e, 'resize-right', cue.id, cue.startMs, cue.endMs)}
-                  onDelete={() => { deleteCue(cue.id); if (selected?.id === cue.id) setSelected(null) }}
-                />
-              ))}
+              <LyricCueTimeline
+                compact
+                cues={lyricCues}
+                selectedCueId={selected?.kind === 'lyric' ? selected.id : null}
+                currentTimeMs={Math.round(timelineClock * 1000)}
+                durationMs={Math.round(totalDuration * 1000)}
+                pxPerSecond={pxPerSec}
+                globalOffsetMs={globalOffsetMs}
+                snapContext={{ mode: 'none' }}
+                onSelectCue={(cueId) => {
+                  selectCue(cueId)
+                  setSelected(cueId ? { kind: 'lyric', id: cueId } : null)
+                }}
+                onSeek={(timeMs) => handleScrub(timeMs / 1000)}
+                onCommitCue={(cueId, bounds) => setCueBounds(cueId, bounds.startMs, bounds.endMs)}
+                onDeleteCue={(cueId) => {
+                  deleteCue(cueId)
+                  if (selected?.kind === 'lyric' && selected.id === cueId) setSelected(null)
+                }}
+              />
             </div>
 
             {/* ── Effects lane ────────────────────────────────────────── */}
