@@ -8,11 +8,19 @@ import {
 import {
   EVENT_HORIZON_DEFAULTS,
   IMPLEMENTED_CINEMATIC_WORLD_MODES,
+  PACK_A_CINEMATIC_WORLD_MODES,
+  PACK_B_CINEMATIC_WORLD_MODES,
+  cinematicQualityProfile,
   createCinematicSeededVariation,
+  resolveAncientMachineSettings,
+  resolveCelestialCathedralSettings,
   resolveEventHorizonSettings,
   resolveFractureRiftSettings,
   resolveInfiniteCorridorSettings,
+  resolveLiquidMembraneSettings,
+  resolveMirrorDimensionSettings,
   resolveMonolithGateSettings,
+  resolveStormGatewaySettings,
 } from '../CinematicWorldSettings'
 import { DEFAULT_REACT_PRESETS } from '../ReactTypes'
 import { resolveCinematicPostProcessSettings } from '../renderers/cinematic/CinematicPostProcessingPipeline'
@@ -34,7 +42,19 @@ function makeFrame(config = createDefaultCinematicWorldConfig()): CinematicFrame
       spectrum: null,
       waveform: null,
     },
-    beat: { hit: false, phase: 0.5, bpm: 120, kick: 0, snare: 0, downbeat: false },
+    beat: {
+      hit: false,
+      phase: 0.5,
+      bpm: 120,
+      kick: 0,
+      snare: 0,
+      transient: 0,
+      beatIndex: -1,
+      beatInBar: -1,
+      barIndex: -1,
+      barProgress: 0.5,
+      downbeat: false,
+    },
     section: { type: 'verse', startSec: 0, endSec: 8, progress: 0.5, changed: false, analysis: null },
     config,
     transition: { mode: 'crossfade', active: false, progress: 1, fromWorld: null, toWorld: config.worldMode },
@@ -46,16 +66,30 @@ function makeFrame(config = createDefaultCinematicWorldConfig()): CinematicFrame
 }
 
 describe('world-specific cinematic configuration', () => {
-  it('provides bounded defaults for each implemented world', () => {
+  it('provides bounded defaults for all Pack A and Pack B worlds', () => {
     const event = createCinematicWorldConfig('eventHorizon', {})
     const corridor = createCinematicWorldConfig('infiniteCorridor', {})
     const fracture = createCinematicWorldConfig('fractureRift', {})
     const monolith = createCinematicWorldConfig('monolithGate', {})
+    const liquid = createCinematicWorldConfig('liquidMembrane', {})
+    const cathedral = createCinematicWorldConfig('celestialCathedral', {})
+    const mirror = createCinematicWorldConfig('mirrorDimension', {})
+    const machine = createCinematicWorldConfig('ancientMachine', {})
+    const storm = createCinematicWorldConfig('stormGateway', {})
 
     expect(resolveEventHorizonSettings(event.worldSettings)).toEqual(EVENT_HORIZON_DEFAULTS)
     expect(resolveInfiniteCorridorSettings(corridor.worldSettings).corridorDensity).toBeGreaterThan(0)
     expect(resolveFractureRiftSettings(fracture.worldSettings).openingAmount).toBeGreaterThan(0)
     expect(resolveMonolithGateSettings(monolith.worldSettings).columnCount).toBeGreaterThanOrEqual(2)
+    expect(resolveLiquidMembraneSettings(liquid.worldSettings).viscosity).toBeGreaterThan(0)
+    expect(resolveCelestialCathedralSettings(cathedral.worldSettings).archCount).toBeGreaterThanOrEqual(3)
+    expect(resolveMirrorDimensionSettings(mirror.worldSettings).symmetryCount).toBeGreaterThanOrEqual(3)
+    expect(resolveAncientMachineSettings(machine.worldSettings).ringCount).toBeGreaterThanOrEqual(2)
+    expect(resolveStormGatewaySettings(storm.worldSettings).cloudLayers).toBeGreaterThanOrEqual(2)
+    expect(IMPLEMENTED_CINEMATIC_WORLD_MODES).toEqual([
+      ...PACK_A_CINEMATIC_WORLD_MODES,
+      ...PACK_B_CINEMATIC_WORLD_MODES,
+    ])
   })
 
   it('clamps invalid controls and falls back when the settings mode does not match the world', () => {
@@ -69,34 +103,64 @@ describe('world-specific cinematic configuration', () => {
     expect(normalized.worldSettings.mode).toBe('eventHorizon')
     expect(resolveEventHorizonSettings(normalized.worldSettings)).toEqual(EVENT_HORIZON_DEFAULTS)
 
-    const bounded = createCinematicWorldConfig('monolithGate', {
-      columnCount: 100,
-      ringCount: -5,
-      gateScale: 99,
-      openingAmount: -1,
+    const bounded = createCinematicWorldConfig('mirrorDimension', {
+      symmetryCount: 100,
+      recursionDepth: -5,
+      feedbackAmount: 99,
+      structureStyle: 8,
     })
-    expect(resolveMonolithGateSettings(bounded.worldSettings)).toMatchObject({
-      columnCount: 9,
-      ringCount: 0,
-      gateScale: 1.15,
-      openingAmount: 0,
+    expect(resolveMirrorDimensionSettings(bounded.worldSettings)).toMatchObject({
+      symmetryCount: 12,
+      recursionDepth: 2,
+      feedbackAmount: 0.55,
+      structureStyle: 2,
+    })
+
+    const storm = createCinematicWorldConfig('stormGateway', {
+      cloudLayers: 100,
+      debrisDensity: -1,
+      lightningResponse: 99,
+    })
+    expect(resolveStormGatewaySettings(storm.worldSettings)).toMatchObject({
+      cloudLayers: 8,
+      debrisDensity: 0,
+      lightningResponse: 1.5,
     })
   })
 
-  it('accepts lower-quality configurations without changing the selected world', () => {
-    const config = createCinematicWorldConfig('infiniteCorridor', { corridorDensity: 0.4 }, {
-      qualityTier: 'low',
-    })
-    expect(config.qualityTier).toBe('low')
-    expect(config.worldMode).toBe('infiniteCorridor')
-    expect(config.worldSettings.mode).toBe('infiniteCorridor')
+  it('scales expensive work down monotonically while keeping non-zero structural budgets', () => {
+    const low = cinematicQualityProfile('low')
+    const medium = cinematicQualityProfile('medium')
+    const high = cinematicQualityProfile('high')
+    const ultra = cinematicQualityProfile('ultra')
+
+    expect(low.raymarchSteps).toBeGreaterThan(0)
+    expect(low.atmosphericLayers).toBeGreaterThanOrEqual(2)
+    expect(low.geometryScale).toBeGreaterThan(0)
+    expect(low.particleScale).toBeGreaterThan(0)
+    expect(low.feedbackScale).toBeGreaterThan(0)
+    expect([low, medium, high, ultra].map(item => item.raymarchSteps)).toEqual([12, 20, 30, 42])
+    expect(low.geometryScale).toBeLessThan(medium.geometryScale)
+    expect(medium.geometryScale).toBeLessThan(high.geometryScale)
+    expect(high.geometryScale).toBeLessThan(ultra.geometryScale)
   })
 
-  it('preserves legacy Portal compatibility', () => {
+  it('preserves the five legacy Portal presets and compatibility payloads', () => {
     const legacy = createLegacyPortalCinematicConfig({ intensity: 0.6, fogDensity: 0.3 })
     expect(legacy.worldMode).toBe('legacyPortal')
     expect(legacy.worldSettings).toEqual({ mode: 'legacyPortal', settings: {} })
     expect(legacy.compatibility.legacyValues).toHaveProperty('legacyPortalControls')
+
+    const legacyPresetIds = DEFAULT_REACT_PRESETS
+      .filter(preset => preset.cinematicConfig?.worldMode === 'legacyPortal')
+      .map(preset => preset.id)
+    expect(legacyPresetIds).toEqual([
+      'preset-dream-gate',
+      'preset-crimson-rift',
+      'preset-emerald-fog',
+      'preset-portal-overload',
+      'preset-quiet-ruins',
+    ])
   })
 
   it('derives deterministic seeded structural variation', () => {
@@ -112,7 +176,7 @@ describe('world-specific cinematic configuration', () => {
     expect(first.density).toBeLessThanOrEqual(1.2)
   })
 
-  it('contains three structurally distinct presets per implemented world with unique IDs', () => {
+  it('contains three valid and structurally distinct presets per implemented world with unique IDs', () => {
     const ids = DEFAULT_REACT_PRESETS.map(preset => preset.id)
     expect(new Set(ids).size).toBe(ids.length)
 
@@ -124,21 +188,41 @@ describe('world-specific cinematic configuration', () => {
         cameraRig: preset.cinematicConfig?.cameraRig,
         environment: preset.cinematicConfig?.environment,
         material: preset.cinematicConfig?.material,
+        audioMapping: preset.cinematicConfig?.audioMapping,
       }))
       expect(new Set(structuralSignatures).size, mode).toBe(3)
       expect(presets.every(preset => preset.engine === 'cinematicPortal')).toBe(true)
+      for (const preset of presets) {
+        const normalized = normalizeCinematicWorldConfig(preset.cinematicConfig)
+        expect(normalized).toEqual(preset.cinematicConfig)
+        expect(normalized.worldSettings.mode).toBe(mode)
+        expect(normalized.audioMapping.routes.length).toBeGreaterThan(0)
+      }
     }
   })
 
-  it('applies Event Horizon bloom and chromatic post-process boosts', () => {
-    const base = createCinematicWorldConfig('eventHorizon', {
+  it('applies Event Horizon boosts and quality-scaled guarded Mirror feedback', () => {
+    const event = createCinematicWorldConfig('eventHorizon', {
       bloomBoost: 0.25,
       chromaticAberrationBoost: 0.2,
     }, {
       material: { bloom: 0.4, glow: 0.4, chromaticAberration: 0.1 },
     })
-    const settings = resolveCinematicPostProcessSettings(makeFrame(base))
-    expect(settings.bloom).toBeCloseTo(0.65)
-    expect(settings.chromaticAberration).toBeCloseTo(0.3)
+    const eventSettings = resolveCinematicPostProcessSettings(makeFrame(event))
+    expect(eventSettings.bloom).toBeCloseTo(0.65)
+    expect(eventSettings.chromaticAberration).toBeCloseTo(0.3)
+
+    const mirrorLow = createCinematicWorldConfig('mirrorDimension', { feedbackAmount: 0.55 }, {
+      qualityTier: 'low',
+      material: { feedback: 1 },
+    })
+    const mirrorUltra = createCinematicWorldConfig('mirrorDimension', { feedbackAmount: 0.55 }, {
+      qualityTier: 'ultra',
+      material: { feedback: 1 },
+    })
+    const lowFeedback = resolveCinematicPostProcessSettings(makeFrame(mirrorLow)).feedback
+    const ultraFeedback = resolveCinematicPostProcessSettings(makeFrame(mirrorUltra)).feedback
+    expect(lowFeedback).toBeLessThan(ultraFeedback)
+    expect(ultraFeedback).toBeLessThanOrEqual(0.48)
   })
 })

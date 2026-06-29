@@ -1,10 +1,23 @@
 import type { CinematicWorldMode } from './CinematicWorldConfig'
 
-export const IMPLEMENTED_CINEMATIC_WORLD_MODES = [
+export const PACK_A_CINEMATIC_WORLD_MODES = [
   'eventHorizon',
   'infiniteCorridor',
   'fractureRift',
   'monolithGate',
+] as const
+
+export const PACK_B_CINEMATIC_WORLD_MODES = [
+  'liquidMembrane',
+  'celestialCathedral',
+  'mirrorDimension',
+  'ancientMachine',
+  'stormGateway',
+] as const
+
+export const IMPLEMENTED_CINEMATIC_WORLD_MODES = [
+  ...PACK_A_CINEMATIC_WORLD_MODES,
+  ...PACK_B_CINEMATIC_WORLD_MODES,
 ] as const
 
 export type ImplementedCinematicWorldMode = typeof IMPLEMENTED_CINEMATIC_WORLD_MODES[number]
@@ -60,6 +73,76 @@ export interface MonolithGateSettings {
   architectureStyle: number
 }
 
+export interface LiquidMembraneSettings {
+  membraneScale: number
+  viscosity: number
+  stretch: number
+  rippleDensity: number
+  rippleSpeed: number
+  tearAmount: number
+  refractionStrength: number
+  surfaceDetail: number
+  edgeSoftness: number
+  openingBias: number
+  midSurfaceMotion: number
+}
+
+export interface CelestialCathedralSettings {
+  cathedralScale: number
+  archCount: number
+  pillarCount: number
+  ribDensity: number
+  aisleDepth: number
+  lightShaftIntensity: number
+  starDensity: number
+  majesticSpeed: number
+  cameraDrift: number
+  illuminationResponse: number
+  architectureStyle: number
+}
+
+export interface MirrorDimensionSettings {
+  symmetryCount: number
+  recursionDepth: number
+  chamberDepth: number
+  mirrorScale: number
+  feedbackAmount: number
+  feedbackDrift: number
+  snapStrength: number
+  foldStrength: number
+  rotationSpeed: number
+  structureStyle: number
+}
+
+export interface AncientMachineSettings {
+  gateRadius: number
+  ringCount: number
+  gearCount: number
+  glyphDensity: number
+  rotationSpeed: number
+  lockProgress: number
+  unlockResponse: number
+  radialComplexity: number
+  mechanicalDepth: number
+  progressionMode: number
+  toothDensity: number
+}
+
+export interface StormGatewaySettings {
+  stormIntensity: number
+  cloudDensity: number
+  cloudLayers: number
+  vortexStrength: number
+  windSpeed: number
+  debrisDensity: number
+  lightningFrequency: number
+  lightningBranching: number
+  gatewayRadius: number
+  atmosphericDepth: number
+  turbulence: number
+  lightningResponse: number
+}
+
 export type EmptyCinematicWorldSettings = Record<string, never>
 
 export interface CinematicWorldSettingsByMode {
@@ -68,11 +151,11 @@ export interface CinematicWorldSettingsByMode {
   infiniteCorridor: InfiniteCorridorSettings
   fractureRift: FractureRiftSettings
   monolithGate: MonolithGateSettings
-  liquidMembrane: EmptyCinematicWorldSettings
-  celestialCathedral: EmptyCinematicWorldSettings
-  mirrorDimension: EmptyCinematicWorldSettings
-  ancientMachine: EmptyCinematicWorldSettings
-  stormGateway: EmptyCinematicWorldSettings
+  liquidMembrane: LiquidMembraneSettings
+  celestialCathedral: CelestialCathedralSettings
+  mirrorDimension: MirrorDimensionSettings
+  ancientMachine: AncientMachineSettings
+  stormGateway: StormGatewaySettings
   mediaPortal: EmptyCinematicWorldSettings
 }
 
@@ -90,8 +173,54 @@ export interface CinematicSeededVariation {
   motion: number
 }
 
+export interface CinematicQualityProfile {
+  level: number
+  geometryScale: number
+  particleScale: number
+  raymarchSteps: number
+  atmosphericLayers: number
+  feedbackScale: number
+}
+
+type CinematicQualityTier = 'low' | 'medium' | 'high' | 'ultra'
+
 type NumericBounds<T extends object> = {
   [Key in keyof T]: readonly [min: number, max: number]
+}
+
+export const CINEMATIC_QUALITY_PROFILES: Record<CinematicQualityTier, CinematicQualityProfile> = {
+  low: {
+    level: 0,
+    geometryScale: 0.46,
+    particleScale: 0.36,
+    raymarchSteps: 12,
+    atmosphericLayers: 2,
+    feedbackScale: 0.54,
+  },
+  medium: {
+    level: 1,
+    geometryScale: 0.68,
+    particleScale: 0.58,
+    raymarchSteps: 20,
+    atmosphericLayers: 4,
+    feedbackScale: 0.72,
+  },
+  high: {
+    level: 2,
+    geometryScale: 0.86,
+    particleScale: 0.82,
+    raymarchSteps: 30,
+    atmosphericLayers: 6,
+    feedbackScale: 0.88,
+  },
+  ultra: {
+    level: 3,
+    geometryScale: 1,
+    particleScale: 1,
+    raymarchSteps: 42,
+    atmosphericLayers: 8,
+    feedbackScale: 1,
+  },
 }
 
 export const EVENT_HORIZON_DEFAULTS: EventHorizonSettings = {
@@ -196,6 +325,146 @@ export const MONOLITH_GATE_BOUNDS: NumericBounds<MonolithGateSettings> = {
   architectureStyle: [0, 2],
 }
 
+export const LIQUID_MEMBRANE_DEFAULTS: LiquidMembraneSettings = {
+  membraneScale: 0.72,
+  viscosity: 0.62,
+  stretch: 0.48,
+  rippleDensity: 5,
+  rippleSpeed: 0.55,
+  tearAmount: 0.38,
+  refractionStrength: 0.58,
+  surfaceDetail: 4,
+  edgeSoftness: 0.08,
+  openingBias: 0.48,
+  midSurfaceMotion: 0.72,
+}
+
+export const LIQUID_MEMBRANE_BOUNDS: NumericBounds<LiquidMembraneSettings> = {
+  membraneScale: [0.3, 1.2],
+  viscosity: [0, 1],
+  stretch: [0, 1.5],
+  rippleDensity: [1, 12],
+  rippleSpeed: [0, 2],
+  tearAmount: [0, 1],
+  refractionStrength: [0, 1.5],
+  surfaceDetail: [1, 7],
+  edgeSoftness: [0.015, 0.24],
+  openingBias: [0, 1],
+  midSurfaceMotion: [0, 1.5],
+}
+
+export const CELESTIAL_CATHEDRAL_DEFAULTS: CelestialCathedralSettings = {
+  cathedralScale: 0.86,
+  archCount: 10,
+  pillarCount: 7,
+  ribDensity: 0.62,
+  aisleDepth: 0.86,
+  lightShaftIntensity: 0.78,
+  starDensity: 0.6,
+  majesticSpeed: 0.18,
+  cameraDrift: 0.12,
+  illuminationResponse: 0.72,
+  architectureStyle: 0,
+}
+
+export const CELESTIAL_CATHEDRAL_BOUNDS: NumericBounds<CelestialCathedralSettings> = {
+  cathedralScale: [0.45, 1.35],
+  archCount: [3, 18],
+  pillarCount: [3, 15],
+  ribDensity: [0, 1.5],
+  aisleDepth: [0.15, 1.5],
+  lightShaftIntensity: [0, 1.5],
+  starDensity: [0, 1],
+  majesticSpeed: [0, 0.9],
+  cameraDrift: [0, 0.5],
+  illuminationResponse: [0, 1.5],
+  architectureStyle: [0, 2],
+}
+
+export const MIRROR_DIMENSION_DEFAULTS: MirrorDimensionSettings = {
+  symmetryCount: 6,
+  recursionDepth: 5,
+  chamberDepth: 0.72,
+  mirrorScale: 0.86,
+  feedbackAmount: 0.24,
+  feedbackDrift: 0.18,
+  snapStrength: 0.72,
+  foldStrength: 0.86,
+  rotationSpeed: 0.16,
+  structureStyle: 0,
+}
+
+export const MIRROR_DIMENSION_BOUNDS: NumericBounds<MirrorDimensionSettings> = {
+  symmetryCount: [3, 12],
+  recursionDepth: [2, 8],
+  chamberDepth: [0.2, 1.5],
+  mirrorScale: [0.45, 1.2],
+  feedbackAmount: [0, 0.55],
+  feedbackDrift: [0, 1],
+  snapStrength: [0, 1.5],
+  foldStrength: [0, 1.5],
+  rotationSpeed: [-1, 1],
+  structureStyle: [0, 2],
+}
+
+export const ANCIENT_MACHINE_DEFAULTS: AncientMachineSettings = {
+  gateRadius: 0.58,
+  ringCount: 5,
+  gearCount: 8,
+  glyphDensity: 0.64,
+  rotationSpeed: 0.32,
+  lockProgress: 0.72,
+  unlockResponse: 0.9,
+  radialComplexity: 0.68,
+  mechanicalDepth: 0.72,
+  progressionMode: 0,
+  toothDensity: 0.7,
+}
+
+export const ANCIENT_MACHINE_BOUNDS: NumericBounds<AncientMachineSettings> = {
+  gateRadius: [0.3, 1],
+  ringCount: [2, 8],
+  gearCount: [3, 14],
+  glyphDensity: [0, 1],
+  rotationSpeed: [-1.5, 1.5],
+  lockProgress: [0, 1],
+  unlockResponse: [0, 1.5],
+  radialComplexity: [0, 1],
+  mechanicalDepth: [0.1, 1.5],
+  progressionMode: [0, 2],
+  toothDensity: [0, 1],
+}
+
+export const STORM_GATEWAY_DEFAULTS: StormGatewaySettings = {
+  stormIntensity: 0.72,
+  cloudDensity: 0.76,
+  cloudLayers: 5,
+  vortexStrength: 0.7,
+  windSpeed: 0.62,
+  debrisDensity: 0.58,
+  lightningFrequency: 0.55,
+  lightningBranching: 0.72,
+  gatewayRadius: 0.46,
+  atmosphericDepth: 0.82,
+  turbulence: 0.78,
+  lightningResponse: 0.92,
+}
+
+export const STORM_GATEWAY_BOUNDS: NumericBounds<StormGatewaySettings> = {
+  stormIntensity: [0, 1.5],
+  cloudDensity: [0, 1],
+  cloudLayers: [2, 8],
+  vortexStrength: [0, 1.5],
+  windSpeed: [0, 2],
+  debrisDensity: [0, 1],
+  lightningFrequency: [0, 1],
+  lightningBranching: [0, 1],
+  gatewayRadius: [0.2, 0.85],
+  atmosphericDepth: [0, 1.5],
+  turbulence: [0, 1.5],
+  lightningResponse: [0, 1.5],
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -234,6 +503,11 @@ export function createDefaultCinematicWorldSettings(mode: CinematicWorldMode): C
     case 'infiniteCorridor': return { mode, settings: { ...INFINITE_CORRIDOR_DEFAULTS } }
     case 'fractureRift': return { mode, settings: { ...FRACTURE_RIFT_DEFAULTS } }
     case 'monolithGate': return { mode, settings: { ...MONOLITH_GATE_DEFAULTS } }
+    case 'liquidMembrane': return { mode, settings: { ...LIQUID_MEMBRANE_DEFAULTS } }
+    case 'celestialCathedral': return { mode, settings: { ...CELESTIAL_CATHEDRAL_DEFAULTS } }
+    case 'mirrorDimension': return { mode, settings: { ...MIRROR_DIMENSION_DEFAULTS } }
+    case 'ancientMachine': return { mode, settings: { ...ANCIENT_MACHINE_DEFAULTS } }
+    case 'stormGateway': return { mode, settings: { ...STORM_GATEWAY_DEFAULTS } }
     default: return { mode, settings: {} } as CinematicWorldSpecificConfig
   }
 }
@@ -266,6 +540,39 @@ export function normalizeCinematicWorldSettings(
           'columnCount', 'ringCount', 'architectureStyle',
         ]),
       }
+    case 'liquidMembrane':
+      return {
+        mode,
+        settings: normalizeNumericSettings(payload, LIQUID_MEMBRANE_DEFAULTS, LIQUID_MEMBRANE_BOUNDS, [
+          'rippleDensity', 'surfaceDetail',
+        ]),
+      }
+    case 'celestialCathedral':
+      return {
+        mode,
+        settings: normalizeNumericSettings(payload, CELESTIAL_CATHEDRAL_DEFAULTS, CELESTIAL_CATHEDRAL_BOUNDS, [
+          'archCount', 'pillarCount', 'architectureStyle',
+        ]),
+      }
+    case 'mirrorDimension':
+      return {
+        mode,
+        settings: normalizeNumericSettings(payload, MIRROR_DIMENSION_DEFAULTS, MIRROR_DIMENSION_BOUNDS, [
+          'symmetryCount', 'recursionDepth', 'structureStyle',
+        ]),
+      }
+    case 'ancientMachine':
+      return {
+        mode,
+        settings: normalizeNumericSettings(payload, ANCIENT_MACHINE_DEFAULTS, ANCIENT_MACHINE_BOUNDS, [
+          'ringCount', 'gearCount', 'progressionMode',
+        ]),
+      }
+    case 'stormGateway':
+      return {
+        mode,
+        settings: normalizeNumericSettings(payload, STORM_GATEWAY_DEFAULTS, STORM_GATEWAY_BOUNDS, ['cloudLayers']),
+      }
     default:
       return { mode, settings: {} } as CinematicWorldSpecificConfig
   }
@@ -285,6 +592,26 @@ export function resolveFractureRiftSettings(value: CinematicWorldSpecificConfig)
 
 export function resolveMonolithGateSettings(value: CinematicWorldSpecificConfig): MonolithGateSettings {
   return normalizeCinematicWorldSettings('monolithGate', value).settings as MonolithGateSettings
+}
+
+export function resolveLiquidMembraneSettings(value: CinematicWorldSpecificConfig): LiquidMembraneSettings {
+  return normalizeCinematicWorldSettings('liquidMembrane', value).settings as LiquidMembraneSettings
+}
+
+export function resolveCelestialCathedralSettings(value: CinematicWorldSpecificConfig): CelestialCathedralSettings {
+  return normalizeCinematicWorldSettings('celestialCathedral', value).settings as CelestialCathedralSettings
+}
+
+export function resolveMirrorDimensionSettings(value: CinematicWorldSpecificConfig): MirrorDimensionSettings {
+  return normalizeCinematicWorldSettings('mirrorDimension', value).settings as MirrorDimensionSettings
+}
+
+export function resolveAncientMachineSettings(value: CinematicWorldSpecificConfig): AncientMachineSettings {
+  return normalizeCinematicWorldSettings('ancientMachine', value).settings as AncientMachineSettings
+}
+
+export function resolveStormGatewaySettings(value: CinematicWorldSpecificConfig): StormGatewaySettings {
+  return normalizeCinematicWorldSettings('stormGateway', value).settings as StormGatewaySettings
 }
 
 function modeSalt(mode: CinematicWorldMode): number {
@@ -320,11 +647,10 @@ export function createCinematicSeededVariation(
   }
 }
 
-export function cinematicQualityLevel(quality: 'low' | 'medium' | 'high' | 'ultra'): number {
-  switch (quality) {
-    case 'low': return 0
-    case 'medium': return 1
-    case 'high': return 2
-    case 'ultra': return 3
-  }
+export function cinematicQualityProfile(quality: CinematicQualityTier): CinematicQualityProfile {
+  return CINEMATIC_QUALITY_PROFILES[quality]
+}
+
+export function cinematicQualityLevel(quality: CinematicQualityTier): number {
+  return cinematicQualityProfile(quality).level
 }

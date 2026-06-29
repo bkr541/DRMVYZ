@@ -1776,6 +1776,359 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     sectionMappings: makeMappings('mgaa'),
   },
 
+  // Cinematic Worlds Pack B: Liquid Membrane (3)
+  {
+    id: 'preset-placid-veil',
+    name: 'Placid Veil',
+    description: 'A heavy translucent membrane that breathes slowly, holds its shape, and reveals a softly refracted world beneath the surface.',
+    engine: 'cinematicPortal',
+    palette: { primary: '#8de9ff', secondary: '#254e82', accent: '#d7fff8', background: '#01060a', highlight: '#ffffff', text: DVYDRM_WHITE },
+    params: { intensity: 0.58, motion: 0.28, glow: 0.62, bassReactivity: 0.58 },
+    renderSettings: { trailDecay: 0.04, fogDensity: 0.38, particleDensity: 0.18 },
+    cinematicConfig: createCinematicWorldConfig('liquidMembrane', {
+      membraneScale: 0.84, viscosity: 0.92, stretch: 0.28, rippleDensity: 3, rippleSpeed: 0.22,
+      tearAmount: 0.12, refractionStrength: 0.72, surfaceDetail: 5, edgeSoftness: 0.14,
+      openingBias: 0.34, midSurfaceMotion: 0.36,
+    }, {
+      portalShape: 'organic', cameraRig: 'locked', seed: 41001, qualityTier: 'high',
+      environment: { depth: 0.56, architecture: 0.04, fog: 0.34, debris: 0.04, stars: 0.14, atmosphere: 0.52 },
+      material: { distortion: 0.24, refraction: 0.74, bloom: 0.54, chromaticAberration: 0.01, feedback: 0.02, glow: 0.62 },
+      audioMapping: { enabled: true, smoothingMs: 140, routes: [
+        { id: 'pv-bass-stretch', enabled: true, source: 'bass', target: 'distortion', amount: 0.38, attackMs: 60, releaseMs: 340 },
+        { id: 'pv-mid-sheen', enabled: true, source: 'mid', target: 'refraction', amount: 0.42, attackMs: 90, releaseMs: 420 },
+      ] },
+    }),
+    scenes: makeScenes('lmpv', 'cinematicPortal'), sectionMappings: makeMappings('lmpv'),
+  },
+  {
+    id: 'preset-bass-breach',
+    name: 'Bass Breach',
+    description: 'A taut dimensional skin stretches under low-end pressure, tears wide on drops, and snaps back through fast concentric ripples.',
+    engine: 'cinematicPortal',
+    palette: { primary: '#ff4d8a', secondary: '#6026c7', accent: '#ffcf5c', background: '#070109', highlight: '#ffd9ea', text: DVYDRM_WHITE },
+    params: { intensity: 0.94, motion: 0.9, glow: 0.9, bassReactivity: 1 },
+    renderSettings: { trailDecay: 0.1, fogDensity: 0.5, particleDensity: 0.42 },
+    cinematicConfig: createCinematicWorldConfig('liquidMembrane', {
+      membraneScale: 0.68, viscosity: 0.2, stretch: 1.28, rippleDensity: 10, rippleSpeed: 1.52,
+      tearAmount: 0.94, refractionStrength: 0.46, surfaceDetail: 6, edgeSoftness: 0.034,
+      openingBias: 0.76, midSurfaceMotion: 0.82,
+    }, {
+      portalShape: 'fracture', cameraRig: 'handheld', seed: 41002, qualityTier: 'high',
+      environment: { depth: 0.88, architecture: 0.02, fog: 0.42, debris: 0.38, stars: 0.04, atmosphere: 0.9 },
+      material: { distortion: 0.88, refraction: 0.46, bloom: 0.88, chromaticAberration: 0.18, feedback: 0.06, glow: 0.94 },
+      audioMapping: { enabled: true, smoothingMs: 42, routes: [
+        { id: 'bb-bass-breach', enabled: true, source: 'bass', target: 'portalPulse', amount: 1.35, attackMs: 8, releaseMs: 190 },
+        { id: 'bb-kick-tear', enabled: true, source: 'kick', target: 'distortion', amount: 1.1, attackMs: 0, releaseMs: 150 },
+      ] },
+      transition: { mode: 'portalWipe', durationMs: 420, easing: 'easeOut', preserveCamera: false },
+    }),
+    scenes: makeScenes('lmbb', 'cinematicPortal'), sectionMappings: makeMappings('lmbb'),
+  },
+  {
+    id: 'preset-prismatic-amnion',
+    name: 'Prismatic Amnion',
+    description: 'A floating iridescent membrane orbits gently while midrange detail crawls across its surface and bends the inner spectrum.',
+    engine: 'cinematicPortal',
+    palette: { primary: '#65ffd1', secondary: '#536dff', accent: '#f070ff', background: '#02030a', highlight: '#e7fffa', text: DVYDRM_WHITE },
+    params: { intensity: 0.76, motion: 0.58, glow: 0.82, bassReactivity: 0.7 },
+    renderSettings: { trailDecay: 0.07, fogDensity: 0.24, particleDensity: 0.28 },
+    cinematicConfig: createCinematicWorldConfig('liquidMembrane', {
+      membraneScale: 0.76, viscosity: 0.56, stretch: 0.62, rippleDensity: 7, rippleSpeed: 0.76,
+      tearAmount: 0.34, refractionStrength: 1.32, surfaceDetail: 7, edgeSoftness: 0.072,
+      openingBias: 0.58, midSurfaceMotion: 1.34,
+    }, {
+      portalShape: 'circle', cameraRig: 'orbit', seed: 41003, qualityTier: 'ultra',
+      environment: { depth: 0.72, architecture: 0, fog: 0.16, debris: 0.12, stars: 0.32, atmosphere: 0.74 },
+      material: { distortion: 0.46, refraction: 0.96, bloom: 0.76, chromaticAberration: 0.28, feedback: 0.04, glow: 0.84 },
+      audioMapping: { enabled: true, smoothingMs: 76, routes: [
+        { id: 'pa-mid-refraction', enabled: true, source: 'mid', target: 'refraction', amount: 0.92, attackMs: 55, releaseMs: 240 },
+        { id: 'pa-high-spectrum', enabled: true, source: 'high', target: 'chromaticAberration', amount: 0.52, attackMs: 24, releaseMs: 180 },
+      ] },
+    }),
+    scenes: makeScenes('lmpa', 'cinematicPortal'), sectionMappings: makeMappings('lmpa'),
+  },
+
+  // Cinematic Worlds Pack B: Celestial Cathedral (3)
+  {
+    id: 'preset-starlit-basilica',
+    name: 'Starlit Basilica',
+    description: 'A long procession of rounded cosmic arches advances through a star-filled nave with slow ceremonial light.',
+    engine: 'cinematicPortal',
+    palette: { primary: '#85d9ff', secondary: '#263a88', accent: '#f2ce78', background: '#01020a', highlight: '#e9f8ff', text: DVYDRM_WHITE },
+    params: { intensity: 0.72, motion: 0.36, glow: 0.78, bassReactivity: 0.56 },
+    renderSettings: { trailDecay: 0.03, fogDensity: 0.42, particleDensity: 0.58 },
+    cinematicConfig: createCinematicWorldConfig('celestialCathedral', {
+      cathedralScale: 0.9, archCount: 16, pillarCount: 9, ribDensity: 0.72, aisleDepth: 1.18,
+      lightShaftIntensity: 0.7, starDensity: 0.92, majesticSpeed: 0.12, cameraDrift: 0.06,
+      illuminationResponse: 0.58, architectureStyle: 0,
+    }, {
+      portalShape: 'arch', cameraRig: 'flyThrough', seed: 42001, qualityTier: 'ultra',
+      environment: { depth: 1, architecture: 0.94, fog: 0.48, debris: 0.02, stars: 0.96, atmosphere: 0.84 },
+      material: { distortion: 0.03, refraction: 0.02, bloom: 0.74, chromaticAberration: 0.01, feedback: 0, glow: 0.78 },
+      audioMapping: { enabled: true, smoothingMs: 160, routes: [
+        { id: 'sb-mid-arches', enabled: true, source: 'mid', target: 'glow', amount: 0.58, attackMs: 120, releaseMs: 520 },
+        { id: 'sb-volume-shafts', enabled: true, source: 'volume', target: 'atmosphere', amount: 0.36, attackMs: 160, releaseMs: 620 },
+      ] },
+    }),
+    scenes: makeScenes('ccsb', 'cinematicPortal'), sectionMappings: makeMappings('ccsb'),
+  },
+  {
+    id: 'preset-solar-nave',
+    name: 'Solar Nave',
+    description: 'Massive sparse pillars frame a blazing central aisle where broad shafts ignite from midrange chords and downbeats.',
+    engine: 'cinematicPortal',
+    palette: { primary: '#fff0b0', secondary: '#8a3d18', accent: '#ffffff', background: '#080401', highlight: '#fff8d9', text: DVYDRM_WHITE },
+    params: { intensity: 0.9, motion: 0.32, glow: 0.98, bassReactivity: 0.7 },
+    renderSettings: { trailDecay: 0.025, fogDensity: 0.72, particleDensity: 0.22 },
+    cinematicConfig: createCinematicWorldConfig('celestialCathedral', {
+      cathedralScale: 1.18, archCount: 6, pillarCount: 5, ribDensity: 0.24, aisleDepth: 0.74,
+      lightShaftIntensity: 1.46, starDensity: 0.24, majesticSpeed: 0.08, cameraDrift: 0.03,
+      illuminationResponse: 1.42, architectureStyle: 2,
+    }, {
+      portalShape: 'rectangle', cameraRig: 'dolly', seed: 42002, qualityTier: 'high',
+      environment: { depth: 0.9, architecture: 1, fog: 0.82, debris: 0.04, stars: 0.2, atmosphere: 1 },
+      material: { distortion: 0.02, refraction: 0.03, bloom: 1, chromaticAberration: 0.02, feedback: 0, glow: 1 },
+      audioMapping: { enabled: true, smoothingMs: 88, routes: [
+        { id: 'sn-mid-shafts', enabled: true, source: 'mid', target: 'bloom', amount: 1.05, attackMs: 60, releaseMs: 360 },
+        { id: 'sn-beat-pillars', enabled: true, source: 'beat', target: 'glow', amount: 0.78, attackMs: 0, releaseMs: 240 },
+      ] },
+    }),
+    scenes: makeScenes('ccsn', 'cinematicPortal'), sectionMappings: makeMappings('ccsn'),
+  },
+  {
+    id: 'preset-void-choir',
+    name: 'Void Choir',
+    description: 'Pointed black ribs hover in a cavernous starless sanctuary, moving almost imperceptibly until the architecture answers the music.',
+    engine: 'cinematicPortal',
+    palette: { primary: '#c8d4e8', secondary: '#20283d', accent: '#7566ff', background: '#000104', highlight: '#e8edff', text: DVYDRM_WHITE },
+    params: { intensity: 0.5, motion: 0.16, glow: 0.48, bassReactivity: 0.44 },
+    renderSettings: { trailDecay: 0.02, fogDensity: 0.62, particleDensity: 0.04 },
+    cinematicConfig: createCinematicWorldConfig('celestialCathedral', {
+      cathedralScale: 1.28, archCount: 8, pillarCount: 13, ribDensity: 1.34, aisleDepth: 1.42,
+      lightShaftIntensity: 0.26, starDensity: 0.04, majesticSpeed: 0.035, cameraDrift: 0.015,
+      illuminationResponse: 0.94, architectureStyle: 1,
+    }, {
+      portalShape: 'triangle', cameraRig: 'locked', seed: 42003, qualityTier: 'high',
+      environment: { depth: 1, architecture: 1, fog: 0.72, debris: 0, stars: 0.03, atmosphere: 0.62 },
+      material: { distortion: 0.01, refraction: 0, bloom: 0.44, chromaticAberration: 0, feedback: 0, glow: 0.5 },
+      audioMapping: { enabled: true, smoothingMs: 210, routes: [
+        { id: 'vc-mid-ribs', enabled: true, source: 'mid', target: 'glow', amount: 0.88, attackMs: 180, releaseMs: 720 },
+        { id: 'vc-section-depth', enabled: true, source: 'sectionEnergy', target: 'depth', amount: 0.52, attackMs: 300, releaseMs: 900 },
+      ] },
+    }),
+    scenes: makeScenes('ccvc', 'cinematicPortal'), sectionMappings: makeMappings('ccvc'),
+  },
+
+  // Cinematic Worlds Pack B: Mirror Dimension (3)
+  {
+    id: 'preset-sixfold-chamber',
+    name: 'Sixfold Chamber',
+    description: 'A readable six-way mirrored room folds inward through five chambers and locks its facets into place on beats.',
+    engine: 'cinematicPortal',
+    palette: { primary: '#6ee8ff', secondary: '#3e4eaa', accent: '#ffffff', background: '#010208', highlight: '#dffbff', text: DVYDRM_WHITE },
+    params: { intensity: 0.72, motion: 0.46, glow: 0.76, bassReactivity: 0.62 },
+    renderSettings: { trailDecay: 0.1, fogDensity: 0.18, particleDensity: 0.08 },
+    cinematicConfig: createCinematicWorldConfig('mirrorDimension', {
+      symmetryCount: 6, recursionDepth: 5, chamberDepth: 0.76, mirrorScale: 0.88, feedbackAmount: 0.2,
+      feedbackDrift: 0.12, snapStrength: 0.82, foldStrength: 0.74, rotationSpeed: 0.11, structureStyle: 0,
+    }, {
+      portalShape: 'circle', cameraRig: 'locked', seed: 43001, qualityTier: 'high',
+      environment: { depth: 0.86, architecture: 0.74, fog: 0.12, debris: 0, stars: 0.05, atmosphere: 0.56 },
+      material: { distortion: 0.18, refraction: 0.08, bloom: 0.68, chromaticAberration: 0.04, feedback: 0.18, glow: 0.78 },
+      audioMapping: { enabled: true, smoothingMs: 72, routes: [
+        { id: 'sc-beat-snap', enabled: true, source: 'beat', target: 'portalPulse', amount: 0.92, attackMs: 0, releaseMs: 180 },
+        { id: 'sc-high-facets', enabled: true, source: 'high', target: 'glow', amount: 0.48, attackMs: 35, releaseMs: 210 },
+      ] },
+    }),
+    scenes: makeScenes('mdsc', 'cinematicPortal'), sectionMappings: makeMappings('mdsc'),
+  },
+  {
+    id: 'preset-crystal-mandala',
+    name: 'Crystal Mandala',
+    description: 'A twelvefold crystal mechanism rotates through dense recursion, snapping into sharp radial mandalas without losing the center.',
+    engine: 'cinematicPortal',
+    palette: { primary: '#f26bff', secondary: '#3e9cff', accent: '#72ffd8', background: '#020106', highlight: '#ffe8ff', text: DVYDRM_WHITE },
+    params: { intensity: 0.9, motion: 0.76, glow: 0.9, bassReactivity: 0.82 },
+    renderSettings: { trailDecay: 0.15, fogDensity: 0.12, particleDensity: 0.14 },
+    cinematicConfig: createCinematicWorldConfig('mirrorDimension', {
+      symmetryCount: 12, recursionDepth: 8, chamberDepth: 0.54, mirrorScale: 1.08, feedbackAmount: 0.4,
+      feedbackDrift: 0.38, snapStrength: 1.36, foldStrength: 1.42, rotationSpeed: -0.34, structureStyle: 1,
+    }, {
+      portalShape: 'organic', cameraRig: 'orbit', seed: 43002, qualityTier: 'ultra',
+      environment: { depth: 0.72, architecture: 0.9, fog: 0.06, debris: 0.06, stars: 0.08, atmosphere: 0.78 },
+      material: { distortion: 0.42, refraction: 0.22, bloom: 0.86, chromaticAberration: 0.2, feedback: 0.36, glow: 0.92 },
+      audioMapping: { enabled: true, smoothingMs: 38, routes: [
+        { id: 'cm-beat-fold', enabled: true, source: 'beat', target: 'distortion', amount: 1.12, attackMs: 0, releaseMs: 150 },
+        { id: 'cm-high-prism', enabled: true, source: 'high', target: 'chromaticAberration', amount: 0.72, attackMs: 18, releaseMs: 150 },
+      ] },
+    }),
+    scenes: makeScenes('mdcm', 'cinematicPortal'), sectionMappings: makeMappings('mdcm'),
+  },
+  {
+    id: 'preset-infinite-gallery',
+    name: 'Infinite Gallery',
+    description: 'Four mirrored corridors recede like an endless gallery, drifting forward slowly with restrained feedback and architectural depth.',
+    engine: 'cinematicPortal',
+    palette: { primary: '#e5edf5', secondary: '#375b64', accent: '#8df5d2', background: '#010303', highlight: '#ffffff', text: DVYDRM_WHITE },
+    params: { intensity: 0.62, motion: 0.28, glow: 0.58, bassReactivity: 0.54 },
+    renderSettings: { trailDecay: 0.08, fogDensity: 0.46, particleDensity: 0.03 },
+    cinematicConfig: createCinematicWorldConfig('mirrorDimension', {
+      symmetryCount: 4, recursionDepth: 7, chamberDepth: 1.36, mirrorScale: 0.72, feedbackAmount: 0.24,
+      feedbackDrift: 0.06, snapStrength: 0.38, foldStrength: 0.5, rotationSpeed: 0.035, structureStyle: 2,
+    }, {
+      portalShape: 'rectangle', cameraRig: 'autoDirector', seed: 43003, qualityTier: 'high',
+      environment: { depth: 1, architecture: 1, fog: 0.52, debris: 0, stars: 0, atmosphere: 0.48 },
+      material: { distortion: 0.08, refraction: 0.04, bloom: 0.5, chromaticAberration: 0.01, feedback: 0.22, glow: 0.6 },
+      audioMapping: { enabled: true, smoothingMs: 128, routes: [
+        { id: 'ig-volume-depth', enabled: true, source: 'volume', target: 'depth', amount: 0.42, attackMs: 120, releaseMs: 520 },
+        { id: 'ig-beat-lock', enabled: true, source: 'beat', target: 'portalPulse', amount: 0.46, attackMs: 0, releaseMs: 260 },
+      ] },
+    }),
+    scenes: makeScenes('mdig', 'cinematicPortal'), sectionMappings: makeMappings('mdig'),
+  },
+
+  // Cinematic Worlds Pack B: Ancient Machine (3)
+  {
+    id: 'preset-oracle-lock',
+    name: 'Oracle Lock',
+    description: 'Glyph-covered concentric seals advance one bar at a time while a nearly closed oracle aperture waits for the drop.',
+    engine: 'cinematicPortal',
+    palette: { primary: '#d5b66d', secondary: '#33454b', accent: '#66e2d4', background: '#020403', highlight: '#fff0b5', text: DVYDRM_WHITE },
+    params: { intensity: 0.74, motion: 0.38, glow: 0.72, bassReactivity: 0.72 },
+    renderSettings: { trailDecay: 0.025, fogDensity: 0.36, particleDensity: 0.12 },
+    cinematicConfig: createCinematicWorldConfig('ancientMachine', {
+      gateRadius: 0.66, ringCount: 8, gearCount: 5, glyphDensity: 0.96, rotationSpeed: 0.16,
+      lockProgress: 0.94, unlockResponse: 1.1, radialComplexity: 0.86, mechanicalDepth: 1.08,
+      progressionMode: 0, toothDensity: 0.48,
+    }, {
+      portalShape: 'circle', cameraRig: 'locked', seed: 44001, qualityTier: 'high',
+      environment: { depth: 0.86, architecture: 0.7, fog: 0.4, debris: 0.08, stars: 0, atmosphere: 0.68 },
+      material: { distortion: 0.05, refraction: 0, bloom: 0.66, chromaticAberration: 0.01, feedback: 0, glow: 0.74 },
+      audioMapping: { enabled: true, smoothingMs: 92, routes: [
+        { id: 'ol-beat-rings', enabled: true, source: 'beat', target: 'portalPulse', amount: 0.8, attackMs: 0, releaseMs: 210 },
+        { id: 'ol-high-glyphs', enabled: true, source: 'high', target: 'glow', amount: 0.68, attackMs: 30, releaseMs: 240 },
+      ] },
+    }),
+    scenes: makeScenes('amol', 'cinematicPortal'), sectionMappings: makeMappings('amol'),
+  },
+  {
+    id: 'preset-gear-sun',
+    name: 'Gear Sun',
+    description: 'A dense crown of fast interlocking gears drives a bright radial aperture, progressing on every beat with aggressive unlock motion.',
+    engine: 'cinematicPortal',
+    palette: { primary: '#ff8d3b', secondary: '#8f1f20', accent: '#ffe37c', background: '#070201', highlight: '#fff4c4', text: DVYDRM_WHITE },
+    params: { intensity: 0.96, motion: 0.92, glow: 0.98, bassReactivity: 1 },
+    renderSettings: { trailDecay: 0.08, fogDensity: 0.28, particleDensity: 0.3 },
+    cinematicConfig: createCinematicWorldConfig('ancientMachine', {
+      gateRadius: 0.54, ringCount: 5, gearCount: 14, glyphDensity: 0.38, rotationSpeed: 1.16,
+      lockProgress: 0.38, unlockResponse: 1.46, radialComplexity: 1, mechanicalDepth: 0.62,
+      progressionMode: 1, toothDensity: 1,
+    }, {
+      portalShape: 'circle', cameraRig: 'orbit', seed: 44002, qualityTier: 'ultra',
+      environment: { depth: 0.72, architecture: 0.82, fog: 0.22, debris: 0.26, stars: 0, atmosphere: 0.92 },
+      material: { distortion: 0.32, refraction: 0.04, bloom: 0.96, chromaticAberration: 0.12, feedback: 0.03, glow: 1 },
+      audioMapping: { enabled: true, smoothingMs: 28, routes: [
+        { id: 'gs-kick-drive', enabled: true, source: 'kick', target: 'portalPulse', amount: 1.4, attackMs: 0, releaseMs: 125 },
+        { id: 'gs-bass-unlock', enabled: true, source: 'bass', target: 'glow', amount: 1.05, attackMs: 18, releaseMs: 180 },
+      ] },
+    }),
+    scenes: makeScenes('amgs', 'cinematicPortal'), sectionMappings: makeMappings('amgs'),
+  },
+  {
+    id: 'preset-epoch-engine',
+    name: 'Epoch Engine',
+    description: 'Deep layered mechanisms turn at geological speed, unlocking across the song section instead of chasing each individual beat.',
+    engine: 'cinematicPortal',
+    palette: { primary: '#9da9b5', secondary: '#26363b', accent: '#7a8dff', background: '#010203', highlight: '#e9f1ff', text: DVYDRM_WHITE },
+    params: { intensity: 0.62, motion: 0.22, glow: 0.56, bassReactivity: 0.5 },
+    renderSettings: { trailDecay: 0.02, fogDensity: 0.68, particleDensity: 0.06 },
+    cinematicConfig: createCinematicWorldConfig('ancientMachine', {
+      gateRadius: 0.82, ringCount: 6, gearCount: 9, glyphDensity: 0.62, rotationSpeed: -0.09,
+      lockProgress: 0.76, unlockResponse: 0.72, radialComplexity: 0.52, mechanicalDepth: 1.44,
+      progressionMode: 2, toothDensity: 0.66,
+    }, {
+      portalShape: 'arch', cameraRig: 'dolly', seed: 44003, qualityTier: 'high',
+      environment: { depth: 1, architecture: 0.92, fog: 0.74, debris: 0.04, stars: 0, atmosphere: 0.66 },
+      material: { distortion: 0.04, refraction: 0.02, bloom: 0.5, chromaticAberration: 0, feedback: 0, glow: 0.58 },
+      audioMapping: { enabled: true, smoothingMs: 180, routes: [
+        { id: 'ee-section-unlock', enabled: true, source: 'sectionEnergy', target: 'portalPulse', amount: 0.9, attackMs: 260, releaseMs: 840 },
+        { id: 'ee-volume-depth', enabled: true, source: 'volume', target: 'depth', amount: 0.34, attackMs: 180, releaseMs: 680 },
+      ] },
+    }),
+    scenes: makeScenes('amee', 'cinematicPortal'), sectionMappings: makeMappings('amee'),
+  },
+
+  // Cinematic Worlds Pack B: Storm Gateway (3)
+  {
+    id: 'preset-tempest-eye',
+    name: 'Tempest Eye',
+    description: 'Dense layered storm clouds spiral around a deep open eye while debris and branching lightning whip through the foreground.',
+    engine: 'cinematicPortal',
+    palette: { primary: '#6aaeff', secondary: '#27395c', accent: '#d8f2ff', background: '#010309', highlight: '#ffffff', text: DVYDRM_WHITE },
+    params: { intensity: 0.92, motion: 0.86, glow: 0.84, bassReactivity: 0.92 },
+    renderSettings: { trailDecay: 0.06, fogDensity: 0.9, particleDensity: 0.82 },
+    cinematicConfig: createCinematicWorldConfig('stormGateway', {
+      stormIntensity: 1.34, cloudDensity: 0.94, cloudLayers: 8, vortexStrength: 1.3, windSpeed: 0.9,
+      debrisDensity: 0.86, lightningFrequency: 0.62, lightningBranching: 0.9, gatewayRadius: 0.48,
+      atmosphericDepth: 1.36, turbulence: 1.24, lightningResponse: 1.12,
+    }, {
+      portalShape: 'circle', cameraRig: 'autoDirector', seed: 45001, qualityTier: 'ultra',
+      environment: { depth: 1, architecture: 0, fog: 1, debris: 0.92, stars: 0, atmosphere: 1 },
+      material: { distortion: 0.52, refraction: 0.14, bloom: 0.82, chromaticAberration: 0.08, feedback: 0.04, glow: 0.86 },
+      audioMapping: { enabled: true, smoothingMs: 42, routes: [
+        { id: 'te-transient-lightning', enabled: true, source: 'snare', target: 'bloom', amount: 1.18, attackMs: 0, releaseMs: 135 },
+        { id: 'te-bass-vortex', enabled: true, source: 'bass', target: 'distortion', amount: 0.84, attackMs: 24, releaseMs: 210 },
+      ] },
+    }),
+    scenes: makeScenes('sgte', 'cinematicPortal'), sectionMappings: makeMappings('sgte'),
+  },
+  {
+    id: 'preset-electric-front',
+    name: 'Electric Front',
+    description: 'A fast-moving thin cloud front leaves the portal exposed while frequent transient-driven bolts become the main performance gesture.',
+    engine: 'cinematicPortal',
+    palette: { primary: '#b9e8ff', secondary: '#5f33a8', accent: '#ffffff', background: '#02020a', highlight: '#ffffff', text: DVYDRM_WHITE },
+    params: { intensity: 0.88, motion: 0.96, glow: 1, bassReactivity: 0.68 },
+    renderSettings: { trailDecay: 0.035, fogDensity: 0.42, particleDensity: 0.26 },
+    cinematicConfig: createCinematicWorldConfig('stormGateway', {
+      stormIntensity: 0.88, cloudDensity: 0.52, cloudLayers: 3, vortexStrength: 0.42, windSpeed: 1.82,
+      debrisDensity: 0.22, lightningFrequency: 0.96, lightningBranching: 1, gatewayRadius: 0.58,
+      atmosphericDepth: 0.46, turbulence: 0.92, lightningResponse: 1.5,
+    }, {
+      portalShape: 'fracture', cameraRig: 'handheld', seed: 45002, qualityTier: 'high',
+      environment: { depth: 0.72, architecture: 0, fog: 0.46, debris: 0.28, stars: 0, atmosphere: 0.82 },
+      material: { distortion: 0.3, refraction: 0.06, bloom: 1, chromaticAberration: 0.2, feedback: 0.02, glow: 1 },
+      audioMapping: { enabled: true, smoothingMs: 18, routes: [
+        { id: 'ef-snare-flash', enabled: true, source: 'snare', target: 'bloom', amount: 1.6, attackMs: 0, releaseMs: 100 },
+        { id: 'ef-high-aberration', enabled: true, source: 'high', target: 'chromaticAberration', amount: 0.62, attackMs: 14, releaseMs: 120 },
+      ] },
+    }),
+    scenes: makeScenes('sgef', 'cinematicPortal'), sectionMappings: makeMappings('sgef'),
+  },
+  {
+    id: 'preset-ashen-cyclone',
+    name: 'Ashen Cyclone',
+    description: 'A slow black ash vortex carries heavy debris through deep fog, favoring wind and depth over frequent lightning spectacle.',
+    engine: 'cinematicPortal',
+    palette: { primary: '#aeb9bb', secondary: '#3a3b40', accent: '#cc784d', background: '#020202', highlight: '#e9e4df', text: DVYDRM_WHITE },
+    params: { intensity: 0.7, motion: 0.48, glow: 0.5, bassReactivity: 0.76 },
+    renderSettings: { trailDecay: 0.08, fogDensity: 1, particleDensity: 1 },
+    cinematicConfig: createCinematicWorldConfig('stormGateway', {
+      stormIntensity: 1.06, cloudDensity: 0.86, cloudLayers: 6, vortexStrength: 1.48, windSpeed: 0.34,
+      debrisDensity: 1, lightningFrequency: 0.12, lightningBranching: 0.34, gatewayRadius: 0.36,
+      atmosphericDepth: 1.5, turbulence: 0.68, lightningResponse: 0.48,
+    }, {
+      portalShape: 'organic', cameraRig: 'orbit', seed: 45003, qualityTier: 'high',
+      environment: { depth: 1, architecture: 0.02, fog: 1, debris: 1, stars: 0, atmosphere: 0.94 },
+      material: { distortion: 0.44, refraction: 0.04, bloom: 0.42, chromaticAberration: 0.02, feedback: 0.08, glow: 0.52 },
+      audioMapping: { enabled: true, smoothingMs: 110, routes: [
+        { id: 'ac-bass-pressure', enabled: true, source: 'bass', target: 'fog', amount: 0.86, attackMs: 70, releaseMs: 420 },
+        { id: 'ac-volume-debris', enabled: true, source: 'volume', target: 'debris', amount: 0.64, attackMs: 120, releaseMs: 560 },
+      ] },
+    }),
+    scenes: makeScenes('sgac', 'cinematicPortal'), sectionMappings: makeMappings('sgac'),
+  },
+
   // ── Sound Drawing (5) ────────────────────────────────────────────────────
   {
     id: 'preset-xy-cyan-scope',

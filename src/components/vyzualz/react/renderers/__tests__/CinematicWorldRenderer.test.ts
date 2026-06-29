@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { DEFAULT_MI_FRAME } from '../../../../../features/musicIntelligence/constants'
 import { createDefaultCinematicWorldConfig } from '../../CinematicWorldConfig'
 import { DEFAULT_REACT_PRESETS } from '../../ReactTypes'
 import {
@@ -15,6 +16,7 @@ import type {
   CinematicViewport,
   CinematicWebGLRuntimeLike,
   CinematicWebGLRuntimeRenderResult,
+  CinematicWebGLServices,
   CinematicWebGLWorldDefinition,
   CinematicWorldRenderer,
 } from '../CinematicWorldRenderer'
@@ -124,7 +126,7 @@ function makeInput(presetId = 'preset-dream-gate'): CinematicFrameContext {
       spectrum: null,
       waveform: null,
     },
-    beat: { hit: false, phase: 0.5, bpm: 120, kick: 0, snare: 0, downbeat: false },
+    beat: { hit: false, phase: 0.5, bpm: 120, kick: 0, snare: 0, transient: 0, beatIndex: -1, beatInBar: -1, barIndex: -1, barProgress: 0.5, downbeat: false },
     section: {
       type: 'verse', startSec: 8, endSec: 16, progress: 0.5, changed: false, analysis: null,
     },
@@ -157,13 +159,18 @@ describe('legacy portal timing', () => {
 })
 
 describe('CinematicWorldRendererRegistry', () => {
-  it('registers the four production WebGL worlds beside legacyPortal', () => {
+  it('registers all Pack A and Pack B production worlds beside legacyPortal', () => {
     expect(cinematicWorldRendererRegistry.list().map(item => item.id)).toEqual([
       'legacyPortal',
       'eventHorizon',
       'infiniteCorridor',
       'fractureRift',
       'monolithGate',
+      'liquidMembrane',
+      'celestialCathedral',
+      'mirrorDimension',
+      'ancientMachine',
+      'stormGateway',
     ])
   })
 
@@ -188,7 +195,7 @@ describe('CinematicWorldRendererRegistry', () => {
 })
 
 describe('CinematicWorldRendererHost', () => {
-  it('switches among all four production worlds through one WebGL runtime', () => {
+  it('switches through every Pack A and Pack B world using one WebGL runtime', () => {
     const registry = new CinematicWorldRendererRegistry()
     registry.register(canvasDefinition().definition)
     for (const definition of cinematicWorldDefinitions) registry.register(definition)
@@ -199,6 +206,11 @@ describe('CinematicWorldRendererHost', () => {
       'preset-cathedral-run',
       'preset-glass-wound',
       'preset-titan-seal',
+      'preset-placid-veil',
+      'preset-starlit-basilica',
+      'preset-sixfold-chamber',
+      'preset-oracle-lock',
+      'preset-tempest-eye',
     ]
 
     for (const presetId of presetIds) {
@@ -216,10 +228,55 @@ describe('CinematicWorldRendererHost', () => {
       'infiniteCorridor',
       'fractureRift',
       'monolithGate',
+      'liquidMembrane',
+      'celestialCathedral',
+      'mirrorDimension',
+      'ancientMachine',
+      'stormGateway',
     ])
     expect(runtime.disposed).toBe(0)
     host.dispose()
     expect(runtime.disposed).toBe(1)
+  })
+
+  it('disposes every Pack A and Pack B world without allowing released resources to draw again', () => {
+    const program = {
+      activate: vi.fn(),
+      setVec2: vi.fn(),
+      setVec3: vi.fn(),
+      setVec4: vi.fn(),
+      setFloat: vi.fn(),
+    }
+    const run = vi.fn()
+    const services = {
+      gl: {},
+      compiler: {},
+      fullscreenPass: { run },
+      resources: {},
+      compileProgram: vi.fn(() => program),
+      createFramebuffer: vi.fn(),
+      createTexture: vi.fn(),
+    } as unknown as CinematicWebGLServices
+
+    for (const definition of cinematicWorldDefinitions) {
+      const preset = DEFAULT_REACT_PRESETS.find(item => item.cinematicConfig?.worldMode === definition.id)!
+      const frame = makeInput(preset.id)
+      frame.preset = preset
+      frame.config = preset.cinematicConfig!
+      frame.randomSeed = frame.config.seed
+      frame.transition = { ...frame.transition, toWorld: frame.config.worldMode }
+      const world = definition.create()
+      world.initialize({ services, config: frame.config, presetId: preset.id })
+      world.resize({ width: 640, height: 360, dpr: 1 })
+      world.render(frame, { framebuffer: null, texture: null, width: 640, height: 360 })
+      const callsBeforeDispose = run.mock.calls.length
+      world.dispose()
+      world.render(frame, { framebuffer: null, texture: null, width: 640, height: 360 })
+      expect(run.mock.calls.length, definition.id).toBe(callsBeforeDispose)
+    }
+
+    expect(services.compileProgram).toHaveBeenCalledTimes(cinematicWorldDefinitions.length)
+    expect(run).toHaveBeenCalledTimes(cinematicWorldDefinitions.length)
   })
 
   it('lazily initializes, resizes, renders, resets, and disposes the legacy renderer', () => {
@@ -338,6 +395,41 @@ describe('CinematicWorldRendererHost', () => {
     expect(host.error).toBe('world initialize failed')
   })
 
+  it('recovers world switching after a non-recoverable shader initialization failure', () => {
+    const registry = new CinematicWorldRendererRegistry()
+    const legacy = canvasDefinition()
+    registry.register(legacy.definition)
+    for (const definition of cinematicWorldDefinitions) registry.register(definition)
+
+    const failed = new RecordingWebGLRuntime({ ok: false, error: 'shader initialize failed' })
+    const recovered = new RecordingWebGLRuntime()
+    const factory = vi.fn()
+      .mockReturnValueOnce(failed)
+      .mockReturnValueOnce(recovered)
+    const host = new CinematicWorldRendererHost(makeContext(), registry, 'legacyPortal', factory)
+
+    const failingPreset = DEFAULT_REACT_PRESETS.find(item => item.id === 'preset-placid-veil')!
+    const failingInput = makeInput(failingPreset.id)
+    failingInput.preset = failingPreset
+    failingInput.config = failingPreset.cinematicConfig!
+    failingInput.randomSeed = failingInput.config.seed
+    failingInput.transition = { ...failingInput.transition, toWorld: failingInput.config.worldMode }
+    host.render(failingInput)
+
+    const nextPreset = DEFAULT_REACT_PRESETS.find(item => item.id === 'preset-tempest-eye')!
+    const nextInput = makeInput(nextPreset.id)
+    nextInput.preset = nextPreset
+    nextInput.config = nextPreset.cinematicConfig!
+    nextInput.randomSeed = nextInput.config.seed
+    nextInput.transition = { ...nextInput.transition, toWorld: nextInput.config.worldMode }
+    host.render(nextInput)
+
+    expect(failed.disposed).toBe(1)
+    expect(legacy.recorder.rendered).toHaveLength(1)
+    expect(recovered.renders.map(item => item.definition.id)).toEqual(['stormGateway'])
+    expect(host.error).toBeNull()
+  })
+
   it('keeps a recoverable context-loss runtime alive while legacyPortal draws', () => {
     const registry = new CinematicWorldRendererRegistry()
     const legacy = canvasDefinition()
@@ -390,4 +482,51 @@ describe('cinematic frame normalization', () => {
     expect(frame.transition.toWorld).toBe('legacyPortal')
     expect(frame.randomSeed).toBe(config.seed)
   })
+  it('uses trustworthy Music Intelligence transient and bar timing when available', () => {
+    const preset = DEFAULT_REACT_PRESETS.find(item => item.id === 'preset-oracle-lock')!
+    const config = preset.cinematicConfig!
+    const frame = cinematicInputFromReactFrame({
+      W: 1280,
+      H: 720,
+      dpr: 1,
+      t: 120,
+      elapsedTimeSec: 2,
+      deltaTimeSec: 1 / 60,
+      audioTime: 18,
+      bpm: 128,
+      beatPhase: 0.25,
+      beatHit: true,
+      isPlaying: true,
+      audio: { bass: 0.8, mid: 0.5, high: 0.4, volume: 0.7 },
+      freqData: null,
+      timeDomainData: null,
+      musicIntelligence: {
+        ...DEFAULT_MI_FRAME,
+        rhythm: {
+          ...DEFAULT_MI_FRAME.rhythm,
+          beatIndex: 29,
+          beatInBar: 1,
+          barIndex: 7,
+          kickStrength: 0.82,
+          snareStrength: 0.64,
+          transient: 0.91,
+          downbeatHit: false,
+        },
+      },
+      resolvedSection: { type: 'build', startSec: 16, endSec: 24, progress: 0.25 },
+      sectionChanged: false,
+    }, preset, DEFAULT_REACT_RENDER_PARAMS, 'build', config)
+
+    expect(frame.beat).toMatchObject({
+      kick: 0.82,
+      snare: 0.64,
+      transient: 0.91,
+      beatIndex: 29,
+      beatInBar: 1,
+      barIndex: 7,
+      barProgress: 0.3125,
+      downbeat: false,
+    })
+  })
+
 })

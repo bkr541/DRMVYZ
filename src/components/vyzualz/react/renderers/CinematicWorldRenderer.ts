@@ -42,6 +42,11 @@ export interface CinematicBeatState {
   bpm: number
   kick: number
   snare: number
+  transient: number
+  beatIndex: number
+  beatInBar: number
+  barIndex: number
+  barProgress: number
   downbeat: boolean
 }
 
@@ -470,8 +475,15 @@ export function cinematicInputFromReactFrame(
   }
   const mi = frame.musicIntelligence as (MusicIntelligenceFrame & {
     percussion?: { kick?: number; snare?: number }
-    rhythm?: { downbeat?: boolean }
+    rhythm: MusicIntelligenceFrame['rhythm'] & { downbeat?: boolean }
   }) | null
+  const rhythm = mi?.rhythm
+  const beatInBar = Number.isFinite(rhythm?.beatInBar)
+    ? Math.max(0, Math.min(3, Math.floor(rhythm?.beatInBar ?? 0)))
+    : -1
+  const barProgress = beatInBar >= 0
+    ? clamp01((beatInBar + clamp01(frame.beatPhase)) / 4)
+    : clamp01(frame.beatPhase)
   const resolved = frame.resolvedSection
   const resolvedType = (resolved?.type ?? sectionType) as ReactSectionType | null
   const sectionStart = resolved?.startSec ?? mi?.section?.startSec ?? -1
@@ -495,9 +507,14 @@ export function cinematicInputFromReactFrame(
       hit: Boolean(frame.beatHit),
       phase: clamp01(frame.beatPhase),
       bpm: Number.isFinite(frame.bpm) ? Math.max(0, frame.bpm) : 0,
-      kick: readMiNumber(mi?.percussion?.kick),
-      snare: readMiNumber(mi?.percussion?.snare),
-      downbeat: Boolean(mi?.rhythm?.downbeat),
+      kick: readMiNumber(rhythm?.kickStrength ?? mi?.percussion?.kick),
+      snare: readMiNumber(rhythm?.snareStrength ?? mi?.percussion?.snare),
+      transient: readMiNumber(rhythm?.transient),
+      beatIndex: Number.isFinite(rhythm?.beatIndex) ? Math.floor(rhythm?.beatIndex ?? -1) : -1,
+      beatInBar,
+      barIndex: Number.isFinite(rhythm?.barIndex) ? Math.floor(rhythm?.barIndex ?? -1) : -1,
+      barProgress,
+      downbeat: Boolean(rhythm?.downbeatHit ?? rhythm?.downbeat),
     },
     section: {
       type: resolvedType,

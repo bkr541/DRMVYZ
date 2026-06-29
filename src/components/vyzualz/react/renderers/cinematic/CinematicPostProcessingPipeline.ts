@@ -3,7 +3,11 @@ import { FULLSCREEN_VERT_SRC, FullscreenPass } from '../../shaders/runtime/Fulls
 import { ShaderCompiler } from '../../shaders/runtime/ShaderCompiler'
 import { ShaderFramebuffer } from '../../shaders/runtime/ShaderFramebuffer'
 import { ShaderProgram } from '../../shaders/runtime/ShaderProgram'
-import { resolveEventHorizonSettings } from '../../CinematicWorldSettings'
+import {
+  cinematicQualityProfile,
+  resolveEventHorizonSettings,
+  resolveMirrorDimensionSettings,
+} from '../../CinematicWorldSettings'
 
 export interface CinematicPostProcessSettings {
   bloom: number
@@ -22,6 +26,14 @@ export function resolveCinematicPostProcessSettings(
   const eventHorizon = frame.config.worldMode === 'eventHorizon'
     ? resolveEventHorizonSettings(frame.config.worldSettings)
     : null
+  const mirror = frame.config.worldMode === 'mirrorDimension'
+    ? resolveMirrorDimensionSettings(frame.config.worldSettings)
+    : null
+  const quality = cinematicQualityProfile(frame.config.qualityTier)
+  const requestedFeedback = mirror
+    ? Math.max(material.feedback, mirror.feedbackAmount)
+    : material.feedback
+
   return {
     bloom: Math.min(1.6, Math.max(material.bloom, material.glow * 0.65) + (eventHorizon?.bloomBoost ?? 0)),
     vignette: Math.min(0.65, frame.config.environment.depth * 0.28),
@@ -29,8 +41,13 @@ export function resolveCinematicPostProcessSettings(
       1,
       material.chromaticAberration + (eventHorizon?.chromaticAberrationBoost ?? 0),
     ),
-    filmGrain: Math.min(0.18, frame.config.environment.atmosphere * 0.07),
-    feedback: material.feedback,
+    filmGrain: Math.min(0.18, frame.config.environment.atmosphere * 0.07 * (0.65 + quality.particleScale * 0.35)),
+    // Feedback is deliberately capped and quality-scaled so recursive worlds
+    // stay readable instead of accumulating into a permanent full-frame smear.
+    feedback: Math.min(
+      (mirror ? 0.48 : 0.62) * quality.feedbackScale,
+      requestedFeedback * quality.feedbackScale,
+    ),
     toneMapping: true,
     exposure: 0.85 + frame.params.intensity * 0.5,
   }
@@ -95,10 +112,16 @@ void main() {
   feedback: `${COMMON_HEADER}
 uniform sampler2D uHistory;
 void main() {
-  vec2 drift = vec2(sin(uTime * 0.17), cos(uTime * 0.13)) * 0.0015 * uAmount;
+  vec2 centered = v_uv - 0.5;
+  vec2 drift = vec2(sin(uTime * 0.17), cos(uTime * 0.13)) * 0.0012 * uAmount;
+  vec2 historyUv = 0.5 + centered * (1.0 + 0.008 * uAmount) + drift;
   vec3 current = texture(uSource, v_uv).rgb;
-  vec3 history = texture(uHistory, v_uv + drift).rgb;
-  outColor = vec4(mix(current, max(current, history * 0.985), uAmount), 1.0);
+  vec3 history = texture(uHistory, clamp(historyUv, vec2(0.001), vec2(0.999))).rgb * 0.925;
+  float currentLuma = dot(current, vec3(0.2126, 0.7152, 0.0722));
+  float historyLuma = dot(history, vec3(0.2126, 0.7152, 0.0722));
+  float readability = smoothstep(0.02, 0.22, currentLuma + historyLuma * 0.35);
+  float blend = uAmount * 0.72 * readability;
+  outColor = vec4(mix(current, current + history * 0.62, blend), 1.0);
 }
 `,
   tone: `${COMMON_HEADER}
