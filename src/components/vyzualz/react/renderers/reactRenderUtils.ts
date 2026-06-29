@@ -13,6 +13,10 @@ export interface ReactFrameContext {
   dpr: number
   /** Animation tick; advances only while playback is active. */
   t: number
+  /** Monotonic animation time in seconds from the owning canvas loop. */
+  elapsedTimeSec?: number
+  /** Seconds since the previous rendered frame, clamped by the owning canvas loop. */
+  deltaTimeSec?: number
   /** Wall-clock time in seconds (performance.now()/1000 or audioTime). Use for strobe, envelope, and time-accurate effects. Falls back to t/60 when absent. */
   timeSec?: number
   audioTime: number
@@ -96,6 +100,8 @@ export function reactFrameFromVz(vz: VzFrameContext): ReactFrameContext {
   return {
     W: vz.W, H: vz.H, dpr: vz.dpr,
     t:         vz.time,
+    elapsedTimeSec: vz.time / 60,
+    deltaTimeSec:   1 / 60,
     timeSec:   vz.audioTime,
     audioTime: vz.audioTime,
     bpm:       vz.bpm,

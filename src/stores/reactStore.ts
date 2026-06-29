@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { createSplitPersistStorage } from '../lib/splitPersistStorage'
+import { createLegacyPortalCinematicConfig, normalizeCinematicWorldConfig } from '../components/vyzualz/react/CinematicWorldConfig'
 import {
   DEFAULT_REACT_PRESETS,
   DEFAULT_PERFORMANCE_PADS,
@@ -1189,6 +1190,39 @@ function mergeCollectionsById<T extends { id: string }>(
   return merged
 }
 
+
+export function normalizeCinematicPresetConfiguration(preset: ReactPreset): ReactPreset {
+  if (preset.engine !== 'cinematicPortal') return preset
+
+  const legacyPreset = preset as ReactPreset & {
+    portalSettings?: unknown
+    cinematicSettings?: unknown
+  }
+  const legacyValues: Record<string, unknown> = {
+    params: { ...preset.params },
+    renderSettings: preset.renderSettings ? { ...preset.renderSettings } : {},
+  }
+  if (legacyPreset.portalSettings !== undefined) legacyValues.portalSettings = legacyPreset.portalSettings
+  if (legacyPreset.cinematicSettings !== undefined) legacyValues.cinematicSettings = legacyPreset.cinematicSettings
+
+  const rawConfig = preset.cinematicConfig ?? legacyPreset.cinematicSettings ?? legacyPreset.portalSettings
+  const migratedLegacyConfig = createLegacyPortalCinematicConfig({
+    ...preset.params,
+    ...preset.renderSettings,
+  }, legacyValues)
+
+  return {
+    ...preset,
+    cinematicConfig: rawConfig === undefined
+      ? migratedLegacyConfig
+      : normalizeCinematicWorldConfig(rawConfig, legacyValues),
+  }
+}
+
+export function normalizeCinematicPresetCollection(presets: ReactPreset[]): ReactPreset[] {
+  return presets.map(normalizeCinematicPresetConfiguration)
+}
+
 // ── Exported migration function (for testing) ─────────────────────────────────
 export function migrateReactStore(persistedState: unknown, version: number): Record<string, unknown> {
   let state = (persistedState ?? {}) as Record<string, unknown>
@@ -1561,6 +1595,21 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       ),
     }
   }
+  if (version < 24) {
+    const presets = Array.isArray(state.reactPresets)
+      ? state.reactPresets as ReactPreset[]
+      : DEFAULT_REACT_PRESETS
+    state = {
+      ...state,
+      reactPresets: normalizeCinematicPresetCollection(presets),
+    }
+  }
+  if (Array.isArray(state.reactPresets)) {
+    state = {
+      ...state,
+      reactPresets: normalizeCinematicPresetCollection(state.reactPresets as ReactPreset[]),
+    }
+  }
   const oscillatorSettings = state.oscillatorSettings as OscillatorSettings | undefined
   if (oscillatorSettings) {
     state = { ...state, oscillatorSettings: normalizeUnifiedSvgSettings(oscillatorSettings) }
@@ -1716,7 +1765,9 @@ export function mergeReactStoreState(
   currentState: ReactStoreState,
 ): ReactStoreState {
   const persisted = (persistedState ?? {}) as Partial<ReactPersistedState>
-  const reactPresets = mergeCollectionsById(currentState.reactPresets, persisted.reactPresets)
+  const reactPresets = normalizeCinematicPresetCollection(
+    mergeCollectionsById(currentState.reactPresets, persisted.reactPresets),
+  )
   const performancePads = mergeCollectionsById(currentState.performancePads, persisted.performancePads)
   const merged = {
     ...currentState,
@@ -3576,7 +3627,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 23,
+      version: 24,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

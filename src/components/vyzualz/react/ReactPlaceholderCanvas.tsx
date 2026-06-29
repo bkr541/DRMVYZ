@@ -6,6 +6,7 @@ import { DEFAULT_OSCILLATOR_SETTINGS, DEFAULT_NEON_LATTICE_SETTINGS } from './Re
 import type { ReactRenderParams } from './renderers/reactRenderUtils'
 import { DEFAULT_REACT_RENDER_PARAMS } from './renderers/ReactEngineRenderer'
 import { renderReactEngine } from './renderers/ReactEngineRenderer'
+import { disposeCinematicPortalRenderer } from './renderers/CinematicPortalRenderer'
 import type { ReactFrameContext } from './renderers/reactRenderUtils'
 import { setSoundDrawingClipsForFrame } from './renderers/SoundDrawingRenderer'
 import { resolvePerformancePadTransition } from './renderers/reactPresetTransition'
@@ -195,6 +196,8 @@ export function ReactPlaceholderCanvas({
     const fpsReporter = createLiveFpsReporter(() => onLiveFpsRef.current)
     let fpsFrameCount = 0
     let fpsLastMs = performance.now()
+    let previousFrameMs: number | null = null
+    let elapsedTimeSec = 0
 
     // Simple transient-based beat detection used when MI bus has no valid BPM yet.
     // beatPeriodMs is a LOCAL rendering fallback only — it drives visual beat phase
@@ -215,6 +218,7 @@ export function ReactPlaceholderCanvas({
       if (isPausedRef.current) {
         fpsFrameCount = 0
         fpsLastMs = now
+        previousFrameMs = now
         animRef.current = requestAnimationFrame(frame)
         return
       }
@@ -231,6 +235,12 @@ export function ReactPlaceholderCanvas({
         animRef.current = requestAnimationFrame(frame)
         return
       }
+
+      const deltaTimeSec = previousFrameMs == null
+        ? 1 / 60
+        : Math.min(0.1, Math.max(0, (now - previousFrameMs) / 1000))
+      previousFrameMs = now
+      const frameElapsedTimeSec = elapsedTimeSec
 
       // Sample audio
       const an  = analyserRef.current
@@ -333,6 +343,8 @@ export function ReactPlaceholderCanvas({
       const rfCtx: ReactFrameContext = {
         W, H, dpr,
         t,
+        elapsedTimeSec: frameElapsedTimeSec,
+        deltaTimeSec,
         timeSec,
         audioTime: audioTimeRef.current,
         bpm:       activeBpm,
@@ -369,6 +381,7 @@ export function ReactPlaceholderCanvas({
 
       setSoundDrawingClipsForFrame(sdLayersRef.current, sdClipsRef.current)
       renderReactEngine(ctx, rfCtx, preset, renderParams, trackSectionsRef.current)
+      elapsedTimeSec += deltaTimeSec
 
       // LaserDMX animation clock is frozen while paused so scan/path generators
       // don't accumulate ticks that cause a visible jump when playback resumes.
@@ -395,6 +408,7 @@ export function ReactPlaceholderCanvas({
     animRef.current = requestAnimationFrame(frame)
     return () => {
       cancelAnimationFrame(animRef.current)
+      disposeCinematicPortalRenderer(ctx)
       ro.disconnect()
       onCanvasReadyRef.current?.(null)
       fpsReporter.unavailable()

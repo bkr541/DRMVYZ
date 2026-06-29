@@ -1,3 +1,6 @@
+import { createLegacyPortalCinematicConfig } from './CinematicWorldConfig'
+import type { CinematicWorldConfig } from './CinematicWorldConfig'
+
 export type ReactEngineId = 'shaderPads' | 'cinematicPortal' | 'oscilloscope' | 'laserDmx' | 'neonLattice'
 
 // ── Neon Lattice performance trigger types ────────────────────────────────────
@@ -1042,6 +1045,8 @@ export interface ReactPreset {
   laserDmxSettings?: Partial<LaserDmxSettings>
   /** When present, selecting this preset merges these values onto DEFAULT_NEON_LATTICE_SETTINGS. */
   neonLatticeSettings?: Partial<NeonLatticeSettings>
+  /** Normalized Cinematic Worlds configuration. Present on cinematicPortal presets after migration. */
+  cinematicConfig?: CinematicWorldConfig
 }
 
 // ── React preset automation cues ─────────────────────────────────────────────
@@ -1290,6 +1295,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     engine: 'cinematicPortal',
     palette: PALETTE_DREAM,
     params: { intensity: 0.6, motion: 0.5, glow: 0.75, bassReactivity: 0.7 },
+    cinematicConfig: createLegacyPortalCinematicConfig({ intensity: 0.6, motion: 0.5, glow: 0.75, bassReactivity: 0.7 }),
     scenes: makeScenes('dg', 'cinematicPortal'),
     sectionMappings: makeMappings('dg'),
   },
@@ -1307,6 +1313,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
       text:       DVYDRM_WHITE,
     },
     params: { intensity: 0.85, motion: 0.75, glow: 0.9, bassReactivity: 0.95 },
+    cinematicConfig: createLegacyPortalCinematicConfig({ intensity: 0.85, motion: 0.75, glow: 0.9, bassReactivity: 0.95 }),
     scenes: makeScenes('cr', 'cinematicPortal'),
     sectionMappings: makeMappings('cr'),
   },
@@ -1317,6 +1324,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     engine: 'cinematicPortal',
     palette: PALETTE_EMERALD_FOG,
     params: { intensity: 0.55, motion: 0.4, glow: 0.7, bassReactivity: 0.65 },
+    cinematicConfig: createLegacyPortalCinematicConfig({ intensity: 0.55, motion: 0.4, glow: 0.7, bassReactivity: 0.65 }),
     scenes: makeScenes('ef', 'cinematicPortal'),
     sectionMappings: makeMappings('ef'),
   },
@@ -1327,6 +1335,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     engine: 'cinematicPortal',
     palette: PALETTE_OVERLOAD,
     params: { intensity: 1.0, motion: 1.0, glow: 1.0, bassReactivity: 1.0 },
+    cinematicConfig: createLegacyPortalCinematicConfig({ intensity: 1.0, motion: 1.0, glow: 1.0, bassReactivity: 1.0 }),
     scenes: makeScenes('po', 'cinematicPortal'),
     sectionMappings: makeMappings('po'),
   },
@@ -1337,6 +1346,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     engine: 'cinematicPortal',
     palette: PALETTE_RUINS,
     params: { intensity: 0.3, motion: 0.25, glow: 0.4, bassReactivity: 0.45 },
+    cinematicConfig: createLegacyPortalCinematicConfig({ intensity: 0.3, motion: 0.25, glow: 0.4, bassReactivity: 0.45 }),
     scenes: makeScenes('qr', 'cinematicPortal'),
     sectionMappings: makeMappings('qr'),
   },

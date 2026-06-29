@@ -1,21 +1,42 @@
+import {
+  createCinematicSeededRandom,
+  createLegacyPortalCinematicConfig,
+  normalizeCinematicWorldConfig,
+} from '../CinematicWorldConfig'
+import type { CinematicWorldConfig } from '../CinematicWorldConfig'
 import type { ReactPreset, ReactSectionType } from '../ReactTypes'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
-import { hexToRgba, seededRandom } from './reactRenderUtils'
-
-// ── Per-canvas state ──────────────────────────────────────────────────────────
+import { hexToRgba } from './reactRenderUtils'
+import {
+  CinematicWorldRendererHost,
+  CinematicWorldRendererRegistry,
+  cinematicInputFromReactFrame,
+} from './CinematicWorldRenderer'
+import type {
+  CinematicRendererInitializeInput,
+  CinematicRendererResetReason,
+  CinematicViewport,
+  CinematicWorldRenderer,
+  CinematicWorldRenderInput,
+} from './CinematicWorldRenderer'
 
 interface FogParticle {
-  x: number; y: number
-  vx: number; vy: number
+  x: number
+  y: number
+  vx: number
+  vy: number
   size: number
   alpha: number
   alphaSpeed: number
 }
 
 interface Ember {
-  x: number; y: number
-  vy: number; vx: number
-  life: number; maxLife: number
+  x: number
+  y: number
+  vy: number
+  vx: number
+  life: number
+  maxLife: number
   size: number
 }
 
@@ -27,207 +48,254 @@ interface PortalRing {
 
 interface CinematicState {
   fogParticles: FogParticle[]
-  embers:       Ember[]
-  rings:        PortalRing[]
-  cameraX:      number
-  cameraY:      number
+  embers: Ember[]
+  rings: PortalRing[]
+  cameraX: number
+  cameraY: number
+  ringHazard: number
+  nextRingThreshold: number
 }
 
-const stateMap = new WeakMap<CanvasRenderingContext2D, CinematicState>()
-
-const FOG_COUNT   = 130
+const FOG_COUNT = 130
 const EMBER_COUNT = 50
-const MAX_RINGS   = 8
+const MAX_RINGS = 8
+const SIXTY_HZ = 60
 
-function createFogParticle(i: number): FogParticle {
+export function legacyPortalFrameScale(deltaTimeSec: number): number {
+  return Math.max(0, deltaTimeSec) * SIXTY_HZ
+}
+
+export function legacyPortalPerFrameDecay(perFrameMultiplier: number, deltaTimeSec: number): number {
+  return Math.pow(perFrameMultiplier, legacyPortalFrameScale(deltaTimeSec))
+}
+
+function randomThreshold(random: () => number): number {
+  return -Math.log(Math.max(1e-7, 1 - random()))
+}
+
+function particleRandom(seed: number, index: number): () => number {
+  return createCinematicSeededRandom((seed ^ Math.imul(index + 1, 0x9e3779b1)) >>> 0)
+}
+
+function createFogParticle(seed: number, index: number): FogParticle {
+  const random = particleRandom(seed, index)
   return {
-    x:          seededRandom(i * 7    ) * 2 - 1,
-    y:          seededRandom(i * 7 + 1) * 2 - 1,
-    vx:        (seededRandom(i * 7 + 2) - 0.5) * 0.0006,
-    vy:        (seededRandom(i * 7 + 3) - 0.5) * 0.0004,
-    size:       seededRandom(i * 7 + 4) * 5 + 2,
-    alpha:      seededRandom(i * 7 + 5) * 0.3 + 0.05,
-    alphaSpeed: (seededRandom(i * 7 + 6) - 0.5) * 0.002,
+    x: random() * 2 - 1,
+    y: random() * 2 - 1,
+    vx: (random() - 0.5) * 0.0006,
+    vy: (random() - 0.5) * 0.0004,
+    size: random() * 5 + 2,
+    alpha: random() * 0.3 + 0.05,
+    alphaSpeed: (random() - 0.5) * 0.002,
   }
 }
 
-function createEmber(W: number, H: number): Ember {
+function createEmber(
+  random: () => number,
+  width: number,
+  height: number,
+  initial = false,
+): Ember {
+  const maxLife = random() * 120 + 60
   return {
-    x:       (Math.random() - 0.5) * W * 0.6 + W * 0.5,
-    y:        H * 0.8 + Math.random() * H * 0.2,
-    vx:      (Math.random() - 0.5) * 0.8,
-    vy:      -(Math.random() * 1.2 + 0.4),
-    life:     0,
-    maxLife:  Math.random() * 120 + 60,
-    size:     Math.random() * 2.5 + 0.5,
+    x: (random() - 0.5) * width * 0.6 + width * 0.5,
+    y: height * 0.8 + random() * height * 0.2,
+    vx: (random() - 0.5) * 0.8,
+    vy: -(random() * 1.2 + 0.4),
+    life: initial ? random() * maxLife : 0,
+    maxLife,
+    size: random() * 2.5 + 0.5,
   }
 }
 
-function getState(ctx: CanvasRenderingContext2D): CinematicState {
-  let s = stateMap.get(ctx)
-  if (!s) {
-    s = {
-      fogParticles: Array.from({ length: FOG_COUNT },  (_, i) => createFogParticle(i)),
-      embers:       Array.from({ length: EMBER_COUNT }, () => ({
-        x: 0, y: 0, vx: 0, vy: 0, life: Math.random() * 180, maxLife: 180, size: 1,
-      })),
-      rings:   [],
-      cameraX: 0,
-      cameraY: 0,
-    }
-    stateMap.set(ctx, s)
+function createState(seed: number, random: () => number): CinematicState {
+  return {
+    fogParticles: Array.from({ length: FOG_COUNT }, (_, index) => createFogParticle(seed, index)),
+    embers: [],
+    rings: [],
+    cameraX: 0,
+    cameraY: 0,
+    ringHazard: 0,
+    nextRingThreshold: randomThreshold(random),
   }
-  return s
 }
-
-// ── Scene atmosphere levels per section ───────────────────────────────────────
 
 interface SectionAtmosphere {
   fogIntensity: number
-  portalGlow:   number
-  ringRate:     number
-  cameraShake:  number
-  emberRate:    number
+  portalGlow: number
+  ringRate: number
+  cameraShake: number
+  emberRate: number
 }
 
 function atmosphereForSection(type: ReactSectionType | null): SectionAtmosphere {
   switch (type) {
-    case 'intro':     return { fogIntensity: 0.30, portalGlow: 0.35, ringRate: 0.02, cameraShake: 0.0, emberRate: 0.3 }
-    case 'verse':     return { fogIntensity: 0.50, portalGlow: 0.55, ringRate: 0.04, cameraShake: 0.0, emberRate: 0.5 }
-    case 'build':     return { fogIntensity: 0.70, portalGlow: 0.75, ringRate: 0.08, cameraShake: 0.2, emberRate: 0.7 }
-    case 'drop':      return { fogIntensity: 1.00, portalGlow: 1.00, ringRate: 0.25, cameraShake: 1.0, emberRate: 1.0 }
+    case 'intro': return { fogIntensity: 0.30, portalGlow: 0.35, ringRate: 0.02, cameraShake: 0.0, emberRate: 0.3 }
+    case 'verse': return { fogIntensity: 0.50, portalGlow: 0.55, ringRate: 0.04, cameraShake: 0.0, emberRate: 0.5 }
+    case 'build': return { fogIntensity: 0.70, portalGlow: 0.75, ringRate: 0.08, cameraShake: 0.2, emberRate: 0.7 }
+    case 'drop': return { fogIntensity: 1.00, portalGlow: 1.00, ringRate: 0.25, cameraShake: 1.0, emberRate: 1.0 }
     case 'breakdown': return { fogIntensity: 0.55, portalGlow: 0.45, ringRate: 0.03, cameraShake: 0.0, emberRate: 0.4 }
-    case 'outro':     return { fogIntensity: 0.25, portalGlow: 0.28, ringRate: 0.01, cameraShake: 0.0, emberRate: 0.2 }
-    default:          return { fogIntensity: 0.50, portalGlow: 0.50, ringRate: 0.05, cameraShake: 0.0, emberRate: 0.5 }
+    case 'outro': return { fogIntensity: 0.25, portalGlow: 0.28, ringRate: 0.01, cameraShake: 0.0, emberRate: 0.2 }
+    default: return { fogIntensity: 0.50, portalGlow: 0.50, ringRate: 0.05, cameraShake: 0.0, emberRate: 0.5 }
   }
 }
-
-// ── Background ────────────────────────────────────────────────────────────────
 
 function drawBackground(
   ctx: CanvasRenderingContext2D,
-  W: number, H: number,
+  width: number,
+  height: number,
   preset: ReactPreset,
   params: ReactRenderParams,
-  atm: SectionAtmosphere,
+  atmosphere: SectionAtmosphere,
 ): void {
   ctx.fillStyle = preset.palette.background
-  ctx.fillRect(0, 0, W, H)
+  ctx.fillRect(0, 0, width, height)
 
-  const cx2 = W / 2, cy2 = H / 2
-
-  // Deep space nebula blob
-  const nebG = ctx.createRadialGradient(cx2, cy2 * 0.7, 0, cx2, cy2, Math.max(W, H) * 0.7)
-  nebG.addColorStop(0,   hexToRgba(preset.palette.primary, 0.04 * atm.fogIntensity * params.glow))
-  nebG.addColorStop(0.4, hexToRgba(preset.palette.secondary, 0.02 * atm.fogIntensity * params.glow))
-  nebG.addColorStop(1,   'transparent')
-  ctx.fillStyle = nebG
-  ctx.fillRect(0, 0, W, H)
+  const centerX = width / 2
+  const centerY = height / 2
+  const gradient = ctx.createRadialGradient(
+    centerX,
+    centerY * 0.7,
+    0,
+    centerX,
+    centerY,
+    Math.max(width, height) * 0.7,
+  )
+  gradient.addColorStop(0, hexToRgba(preset.palette.primary, 0.04 * atmosphere.fogIntensity * params.glow))
+  gradient.addColorStop(0.4, hexToRgba(preset.palette.secondary, 0.02 * atmosphere.fogIntensity * params.glow))
+  gradient.addColorStop(1, 'transparent')
+  ctx.fillStyle = gradient
+  ctx.fillRect(0, 0, width, height)
 }
-
-// ── Portal monolith ───────────────────────────────────────────────────────────
 
 function drawPortal(
   ctx: CanvasRenderingContext2D,
-  W: number, H: number, dpr: number,
+  width: number,
+  height: number,
+  dpr: number,
   preset: ReactPreset,
   params: ReactRenderParams,
   bass: number,
-  atm: SectionAtmosphere,
-  t: number,
+  atmosphere: SectionAtmosphere,
+  legacyTick: number,
 ): void {
   const { primary, secondary, accent } = preset.palette
-  const cx2    = W / 2, cy2 = H / 2
-  const portalW = Math.min(W * 0.22, 180 * dpr)
-  const portalH = Math.min(H * 0.58, 360 * dpr)
-  const glow    = atm.portalGlow * params.glow * (1 + bass * 0.6)
-
-  const px = cx2 - portalW / 2
-  const py = cy2 - portalH / 2
+  const centerX = width / 2
+  const centerY = height / 2
+  const portalWidth = Math.min(width * 0.22, 180 * dpr)
+  const portalHeight = Math.min(height * 0.58, 360 * dpr)
+  const glow = atmosphere.portalGlow * params.glow * (1 + bass * 0.6)
+  const portalX = centerX - portalWidth / 2
+  const portalY = centerY - portalHeight / 2
 
   ctx.save()
   ctx.globalCompositeOperation = 'screen'
 
-  // Outer glow layers
   for (let layer = 4; layer >= 1; layer--) {
     const expand = layer * 18 * dpr * glow
-    const layerA = (glow * 0.18 / layer) * params.intensity
-    const layerG = ctx.createLinearGradient(px, py, px + portalW, py)
-    layerG.addColorStop(0,   hexToRgba(primary, layerA))
-    layerG.addColorStop(0.5, hexToRgba(secondary, layerA * 1.4))
-    layerG.addColorStop(1,   hexToRgba(primary, layerA))
-    ctx.fillStyle = layerG
+    const layerAlpha = (glow * 0.18 / layer) * params.intensity
+    const layerGradient = ctx.createLinearGradient(portalX, portalY, portalX + portalWidth, portalY)
+    layerGradient.addColorStop(0, hexToRgba(primary, layerAlpha))
+    layerGradient.addColorStop(0.5, hexToRgba(secondary, layerAlpha * 1.4))
+    layerGradient.addColorStop(1, hexToRgba(primary, layerAlpha))
+    ctx.fillStyle = layerGradient
     ctx.beginPath()
-    ctx.roundRect(px - expand, py - expand, portalW + expand * 2, portalH + expand * 2, 4 * dpr)
+    ctx.roundRect(
+      portalX - expand,
+      portalY - expand,
+      portalWidth + expand * 2,
+      portalHeight + expand * 2,
+      4 * dpr,
+    )
     ctx.fill()
   }
 
-  // Inner fill — dark with subtle radial from top
   ctx.globalCompositeOperation = 'source-over'
-  const innerG = ctx.createRadialGradient(cx2, py + portalH * 0.3, 0, cx2, py + portalH * 0.5, portalH * 0.6)
-  innerG.addColorStop(0,   hexToRgba(primary, 0.12 + Math.sin(t * 0.003) * 0.04))
-  innerG.addColorStop(0.4, hexToRgba(preset.palette.background, 0.85))
-  innerG.addColorStop(1,   hexToRgba(preset.palette.background, 0.97))
-  ctx.fillStyle = innerG
+  const innerGradient = ctx.createRadialGradient(
+    centerX,
+    portalY + portalHeight * 0.3,
+    0,
+    centerX,
+    portalY + portalHeight * 0.5,
+    portalHeight * 0.6,
+  )
+  innerGradient.addColorStop(0, hexToRgba(primary, 0.12 + Math.sin(legacyTick * 0.003) * 0.04))
+  innerGradient.addColorStop(0.4, hexToRgba(preset.palette.background, 0.85))
+  innerGradient.addColorStop(1, hexToRgba(preset.palette.background, 0.97))
+  ctx.fillStyle = innerGradient
   ctx.beginPath()
-  ctx.rect(px, py, portalW, portalH)
+  ctx.rect(portalX, portalY, portalWidth, portalHeight)
   ctx.fill()
 
-  // Edge lines
   ctx.globalCompositeOperation = 'screen'
   ctx.strokeStyle = hexToRgba(accent, 0.7 * glow)
-  ctx.lineWidth   = 1.5 * dpr
+  ctx.lineWidth = 1.5 * dpr
   ctx.shadowColor = accent
-  ctx.shadowBlur  = 16 * params.glow
+  ctx.shadowBlur = 16 * params.glow
   ctx.beginPath()
-  ctx.rect(px, py, portalW, portalH)
+  ctx.rect(portalX, portalY, portalWidth, portalHeight)
   ctx.stroke()
   ctx.shadowBlur = 0
-
   ctx.restore()
 }
 
-// ── Expanding rings ───────────────────────────────────────────────────────────
-
 function updateAndDrawRings(
   ctx: CanvasRenderingContext2D,
-  W: number, H: number, dpr: number,
-  preset: ReactPreset,
-  params: ReactRenderParams,
+  input: CinematicWorldRenderInput,
   state: CinematicState,
+  random: () => number,
   bass: number,
-  beatHit: boolean,
-  atm: SectionAtmosphere,
+  atmosphere: SectionAtmosphere,
+  frameScale: number,
 ): void {
-  const cx2 = W / 2, cy2 = H / 2
-  const portalW = Math.min(W * 0.22, 180 * dpr)
-  const portalH = Math.min(H * 0.58, 360 * dpr)
+  const { width, height, dpr } = input.viewport
+  const { preset, params } = input
+  const centerX = width / 2
+  const centerY = height / 2
+  const portalWidth = Math.min(width * 0.22, 180 * dpr)
+  const portalHeight = Math.min(height * 0.58, 360 * dpr)
 
-  // Spawn ring on beat or random
-  const spawnChance = atm.ringRate * (1 + bass * 2)
-  if ((beatHit || Math.random() < spawnChance * 0.05) && state.rings.length < MAX_RINGS) {
-    state.rings.push({ r: 1, maxR: Math.max(W, H) * (0.4 + Math.random() * 0.4), alpha: 0.6 * atm.portalGlow * params.glow })
+  const spawnRing = () => {
+    if (state.rings.length >= MAX_RINGS) return
+    state.rings.push({
+      r: 1,
+      maxR: Math.max(width, height) * (0.4 + random() * 0.4),
+      alpha: 0.6 * atmosphere.portalGlow * params.glow,
+    })
+  }
+
+  if (input.audio.beatHit) {
+    spawnRing()
+  } else if (state.rings.length < MAX_RINGS) {
+    const eventsPerSecond = atmosphere.ringRate * (1 + bass * 2) * 3
+    state.ringHazard += eventsPerSecond * input.deltaTimeSec
+    if (state.ringHazard >= state.nextRingThreshold) {
+      state.ringHazard -= state.nextRingThreshold
+      state.nextRingThreshold = randomThreshold(random)
+      spawnRing()
+    }
   }
 
   ctx.save()
   ctx.globalCompositeOperation = 'screen'
 
-  for (let i = state.rings.length - 1; i >= 0; i--) {
-    const ring = state.rings[i]
-    ring.r     += 1.5 * params.motion + bass * 3
-    ring.alpha *= 0.965
+  for (let index = state.rings.length - 1; index >= 0; index--) {
+    const ring = state.rings[index]
+    ring.r += (1.5 * params.motion + bass * 3) * frameScale
+    ring.alpha *= legacyPortalPerFrameDecay(0.965, input.deltaTimeSec)
 
-    if (ring.alpha < 0.005) { state.rings.splice(i, 1); continue }
+    if (ring.alpha < 0.005) {
+      state.rings.splice(index, 1)
+      continue
+    }
 
-    const rx = ring.r * (portalW / portalH)  // maintain portal aspect
-    const ry = ring.r
-
+    const radiusX = ring.r * (portalWidth / portalHeight)
     ctx.strokeStyle = hexToRgba(preset.palette.primary, ring.alpha)
     ctx.shadowColor = preset.palette.primary
-    ctx.shadowBlur  = 10 * params.glow
-    ctx.lineWidth   = (1.2 + bass) * dpr
+    ctx.shadowBlur = 10 * params.glow
+    ctx.lineWidth = (1.2 + bass) * dpr
     ctx.beginPath()
-    ctx.ellipse(cx2, cy2, rx, ry, 0, 0, Math.PI * 2)
+    ctx.ellipse(centerX, centerY, radiusX, ring.r, 0, 0, Math.PI * 2)
     ctx.stroke()
   }
 
@@ -235,127 +303,135 @@ function updateAndDrawRings(
   ctx.restore()
 }
 
-// ── Fog particles ─────────────────────────────────────────────────────────────
-
 function updateAndDrawFog(
   ctx: CanvasRenderingContext2D,
-  W: number, H: number, dpr: number,
-  preset: ReactPreset,
-  params: ReactRenderParams,
+  input: CinematicWorldRenderInput,
   state: CinematicState,
   bass: number,
-  atm: SectionAtmosphere,
+  atmosphere: SectionAtmosphere,
+  frameScale: number,
+  seed: number,
 ): void {
-  const count = Math.floor(FOG_COUNT * atm.fogIntensity * params.fogDensity)
+  const { width, height, dpr } = input.viewport
+  const { preset, params } = input
+  const count = Math.floor(FOG_COUNT * atmosphere.fogIntensity * params.fogDensity)
   if (count < 1) return
 
   ctx.save()
   ctx.globalCompositeOperation = 'screen'
 
-  for (let i = 0; i < count; i++) {
-    const p = state.fogParticles[i]
-    p.x     += p.vx * (1 + bass) * params.motion
-    p.y     += p.vy * (1 + bass) * params.motion
-    p.alpha += p.alphaSpeed
-    if (p.alpha > 0.45 || p.alpha < 0.02) p.alphaSpeed *= -1
-    p.alpha = Math.max(0.02, Math.min(0.45, p.alpha))
+  for (let index = 0; index < count; index++) {
+    const particle = state.fogParticles[index]
+    particle.x += particle.vx * (1 + bass) * params.motion * frameScale
+    particle.y += particle.vy * (1 + bass) * params.motion * frameScale
+    particle.alpha += particle.alphaSpeed * frameScale
+    if (particle.alpha > 0.45 || particle.alpha < 0.02) particle.alphaSpeed *= -1
+    particle.alpha = Math.max(0.02, Math.min(0.45, particle.alpha))
 
-    if (p.x >  1.15 || p.x < -1.15) { Object.assign(p, createFogParticle(i)); continue }
-    if (p.y >  1.15 || p.y < -1.15) { Object.assign(p, createFogParticle(i)); continue }
+    if (particle.x > 1.15 || particle.x < -1.15 || particle.y > 1.15 || particle.y < -1.15) {
+      Object.assign(particle, createFogParticle(seed, index))
+      continue
+    }
 
-    const px2 = (p.x + 1) * 0.5 * W
-    const py2 = (p.y + 1) * 0.5 * H
-    const r2  = (p.size + bass * 3) * dpr
-    const g   = ctx.createRadialGradient(px2, py2, 0, px2, py2, r2 * 3)
-    g.addColorStop(0, hexToRgba(preset.palette.secondary, p.alpha * atm.fogIntensity * params.glow))
-    g.addColorStop(1, 'transparent')
-    ctx.fillStyle = g
+    const x = (particle.x + 1) * 0.5 * width
+    const y = (particle.y + 1) * 0.5 * height
+    const radius = (particle.size + bass * 3) * dpr
+    const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius * 3)
+    gradient.addColorStop(0, hexToRgba(
+      preset.palette.secondary,
+      particle.alpha * atmosphere.fogIntensity * params.glow,
+    ))
+    gradient.addColorStop(1, 'transparent')
+    ctx.fillStyle = gradient
     ctx.beginPath()
-    ctx.arc(px2, py2, r2 * 3, 0, Math.PI * 2)
+    ctx.arc(x, y, radius * 3, 0, Math.PI * 2)
     ctx.fill()
   }
 
   ctx.restore()
 }
 
-// ── Embers ────────────────────────────────────────────────────────────────────
-
 function updateAndDrawEmbers(
   ctx: CanvasRenderingContext2D,
-  W: number, H: number, dpr: number,
-  preset: ReactPreset,
-  params: ReactRenderParams,
+  input: CinematicWorldRenderInput,
   state: CinematicState,
+  random: () => number,
   bass: number,
-  atm: SectionAtmosphere,
+  atmosphere: SectionAtmosphere,
+  frameScale: number,
 ): void {
-  const count = Math.floor(EMBER_COUNT * atm.emberRate * params.particleDensity)
+  const { width, height, dpr } = input.viewport
+  const { preset, params } = input
+  const count = Math.floor(EMBER_COUNT * atmosphere.emberRate * params.particleDensity)
   if (count < 1) return
 
   ctx.save()
   ctx.globalCompositeOperation = 'screen'
   ctx.shadowColor = preset.palette.accent
-  ctx.shadowBlur  = 6 * params.glow
+  ctx.shadowBlur = 6 * params.glow
 
-  for (let i = 0; i < count; i++) {
-    const e = state.embers[i]
-    e.life += 1 + bass * 2
-    if (e.life >= e.maxLife) { Object.assign(e, createEmber(W, H)); continue }
+  for (let index = 0; index < count; index++) {
+    const ember = state.embers[index]
+    ember.life += (1 + bass * 2) * frameScale
+    if (ember.life >= ember.maxLife) {
+      Object.assign(ember, createEmber(random, width, height))
+      continue
+    }
 
-    e.x  += e.vx * params.motion
-    e.y  += e.vy * (1 + bass) * params.motion
+    ember.x += ember.vx * params.motion * frameScale
+    ember.y += ember.vy * (1 + bass) * params.motion * frameScale
 
-    const progress = e.life / e.maxLife
-    const alpha    = Math.sin(progress * Math.PI) * 0.7 * atm.emberRate * params.glow
-    const r2       = e.size * (1 - progress * 0.5) * dpr
+    const progress = ember.life / ember.maxLife
+    const alpha = Math.sin(progress * Math.PI) * 0.7 * atmosphere.emberRate * params.glow
+    const radius = ember.size * (1 - progress * 0.5) * dpr
 
     ctx.globalAlpha = alpha
-    ctx.fillStyle   = progress < 0.5 ? preset.palette.accent : preset.palette.primary
+    ctx.fillStyle = progress < 0.5 ? preset.palette.accent : preset.palette.primary
     ctx.beginPath()
-    ctx.arc(e.x, e.y, r2, 0, Math.PI * 2)
+    ctx.arc(ember.x, ember.y, radius, 0, Math.PI * 2)
     ctx.fill()
   }
 
-  ctx.shadowBlur  = 0
+  ctx.shadowBlur = 0
   ctx.globalAlpha = 1
   ctx.restore()
 }
 
-// ── Light beams ───────────────────────────────────────────────────────────────
-
 function drawLightBeams(
   ctx: CanvasRenderingContext2D,
-  W: number, H: number,
-  preset: ReactPreset,
-  params: ReactRenderParams,
+  input: CinematicWorldRenderInput,
   bass: number,
-  t: number,
-  atm: SectionAtmosphere,
+  legacyTick: number,
+  atmosphere: SectionAtmosphere,
 ): void {
-  if (atm.portalGlow < 0.2) return
+  if (atmosphere.portalGlow < 0.2) return
+  const { width, height } = input.viewport
+  const { preset, params } = input
+
   ctx.save()
   ctx.globalCompositeOperation = 'screen'
 
-  const cx2 = W / 2, cy2 = H * 0.15
+  const centerX = width / 2
+  const centerY = height * 0.15
   const beamCount = 7
 
-  for (let i = 0; i < beamCount; i++) {
-    const angle = ((i / beamCount) - 0.5) * 0.9 + Math.sin(t * 0.001 + i) * 0.03
-    const len   = Math.max(W, H) * (0.7 + bass * 0.3)
-    const endX  = cx2 + Math.sin(angle) * len
-    const endY  = cy2 + Math.cos(angle) * len
-    const a     = atm.portalGlow * params.glow * 0.06 * (1 + bass * 0.5)
+  for (let index = 0; index < beamCount; index++) {
+    const angle = ((index / beamCount) - 0.5) * 0.9 + Math.sin(legacyTick * 0.001 + index) * 0.03
+    const length = Math.max(width, height) * (0.7 + bass * 0.3)
+    const endX = centerX + Math.sin(angle) * length
+    const endY = centerY + Math.cos(angle) * length
+    const alpha = atmosphere.portalGlow * params.glow * 0.06 * (1 + bass * 0.5)
 
-    const g = ctx.createLinearGradient(cx2, cy2, endX, endY)
-    g.addColorStop(0, hexToRgba(preset.palette.primary, a))
-    g.addColorStop(1, 'transparent')
+    const gradient = ctx.createLinearGradient(centerX, centerY, endX, endY)
+    gradient.addColorStop(0, hexToRgba(preset.palette.primary, alpha))
+    gradient.addColorStop(1, 'transparent')
 
-    const bw = W * 0.06 * (1 + i * 0.03)
-    ctx.fillStyle = g
+    const beamWidth = width * 0.06 * (1 + index * 0.03)
+    ctx.fillStyle = gradient
     ctx.beginPath()
-    ctx.moveTo(cx2, cy2)
-    ctx.lineTo(endX - bw, endY)
-    ctx.lineTo(endX + bw, endY)
+    ctx.moveTo(centerX, centerY)
+    ctx.lineTo(endX - beamWidth, endY)
+    ctx.lineTo(endX + beamWidth, endY)
     ctx.closePath()
     ctx.fill()
   }
@@ -363,8 +439,109 @@ function drawLightBeams(
   ctx.restore()
 }
 
-// ── Public export ─────────────────────────────────────────────────────────────
+class LegacyPortalWorldRenderer implements CinematicWorldRenderer {
+  private context: CanvasRenderingContext2D | null = null
+  private config: CinematicWorldConfig | null = null
+  private viewport: CinematicViewport = { width: 0, height: 0, dpr: 1 }
+  private random: () => number = createCinematicSeededRandom(1337)
+  private state: CinematicState = createState(1337, this.random)
 
+  initialize(input: CinematicRendererInitializeInput): void {
+    this.context = input.context
+    this.config = input.config
+    this.random = createCinematicSeededRandom(input.config.seed)
+    this.state = createState(input.config.seed, this.random)
+  }
+
+  resize(viewport: CinematicViewport): void {
+    this.viewport = { ...viewport }
+    if (this.state.embers.length === 0) {
+      this.state.embers = Array.from(
+        { length: EMBER_COUNT },
+        () => createEmber(this.random, viewport.width, viewport.height, true),
+      )
+    }
+  }
+
+  render(input: CinematicWorldRenderInput): void {
+    if (!this.context || !this.config) return
+
+    const ctx = this.context
+    const { width, height, dpr } = input.viewport
+    const params = input.params
+    const bass = input.audio.bass * params.bassReactivity
+    const atmosphere = atmosphereForSection(input.sectionType)
+    const frameScale = legacyPortalFrameScale(input.deltaTimeSec)
+    const legacyTick = input.elapsedTimeSec * SIXTY_HZ
+
+    const shakeX = atmosphere.cameraShake > 0 && input.audio.beatHit
+      ? (this.random() - 0.5) * 6 * dpr * atmosphere.cameraShake
+      : 0
+    const shakeY = atmosphere.cameraShake > 0 && input.audio.beatHit
+      ? (this.random() - 0.5) * 4 * dpr * atmosphere.cameraShake
+      : 0
+    const cameraBlend = 1 - legacyPortalPerFrameDecay(0.85, input.deltaTimeSec)
+    this.state.cameraX += (shakeX - this.state.cameraX) * cameraBlend
+    this.state.cameraY += (shakeY - this.state.cameraY) * cameraBlend
+
+    ctx.save()
+    if (Math.abs(this.state.cameraX) + Math.abs(this.state.cameraY) > 0.1) {
+      ctx.translate(this.state.cameraX, this.state.cameraY)
+    }
+
+    drawBackground(ctx, width, height, input.preset, params, atmosphere)
+    drawLightBeams(ctx, input, bass, legacyTick, atmosphere)
+    drawPortal(ctx, width, height, dpr, input.preset, params, bass, atmosphere, legacyTick)
+    updateAndDrawRings(ctx, input, this.state, this.random, bass, atmosphere, frameScale)
+    updateAndDrawFog(ctx, input, this.state, bass, atmosphere, frameScale, this.config.seed)
+    updateAndDrawEmbers(ctx, input, this.state, this.random, bass, atmosphere, frameScale)
+
+    ctx.restore()
+  }
+
+  reset(_reason: CinematicRendererResetReason): void {
+    if (!this.config) return
+    this.random = createCinematicSeededRandom(this.config.seed)
+    this.state = createState(this.config.seed, this.random)
+    if (this.viewport.width > 0 && this.viewport.height > 0) {
+      this.resize(this.viewport)
+    }
+  }
+
+  dispose(): void {
+    this.context = null
+    this.config = null
+    this.state.rings = []
+    this.state.embers = []
+    this.state.fogParticles = []
+  }
+}
+
+export const cinematicWorldRendererRegistry = new CinematicWorldRendererRegistry()
+cinematicWorldRendererRegistry.register('legacyPortal', () => new LegacyPortalWorldRenderer())
+
+const hostByContext = new WeakMap<CanvasRenderingContext2D, CinematicWorldRendererHost>()
+
+function getHost(context: CanvasRenderingContext2D): CinematicWorldRendererHost {
+  let host = hostByContext.get(context)
+  if (!host) {
+    host = new CinematicWorldRendererHost(context, cinematicWorldRendererRegistry)
+    hostByContext.set(context, host)
+  }
+  return host
+}
+
+function resolvePresetConfig(preset: ReactPreset): CinematicWorldConfig {
+  const legacyValues = {
+    params: { ...preset.params },
+    renderSettings: preset.renderSettings ? { ...preset.renderSettings } : {},
+  }
+  return preset.cinematicConfig
+    ? normalizeCinematicWorldConfig(preset.cinematicConfig, legacyValues)
+    : createLegacyPortalCinematicConfig({ ...preset.params, ...preset.renderSettings }, legacyValues)
+}
+
+/** Existing Canvas 2D integration retained as the legacy cinematic world. */
 export function renderCinematicPortal(
   ctx: CanvasRenderingContext2D,
   frame: ReactFrameContext,
@@ -372,33 +549,16 @@ export function renderCinematicPortal(
   params: ReactRenderParams,
   sectionType: ReactSectionType | null,
 ): void {
-  const { W, H, dpr, t, audio, beatHit } = frame
-  const bass  = audio.bass * params.bassReactivity
-  const state = getState(ctx)
-  const atm   = atmosphereForSection(sectionType)
+  const config = resolvePresetConfig(preset)
+  getHost(ctx).render(cinematicInputFromReactFrame(frame, preset, params, sectionType, config))
+}
 
-  // Camera drift for drop sections
-  const shakeX = atm.cameraShake > 0 && beatHit
-    ? (Math.random() - 0.5) * 6 * dpr * atm.cameraShake
-    : 0
-  const shakeY = atm.cameraShake > 0 && beatHit
-    ? (Math.random() - 0.5) * 4 * dpr * atm.cameraShake
-    : 0
+export function resetCinematicPortalRenderer(ctx: CanvasRenderingContext2D): void {
+  hostByContext.get(ctx)?.reset()
+}
 
-  state.cameraX = state.cameraX * 0.85 + shakeX * 0.15
-  state.cameraY = state.cameraY * 0.85 + shakeY * 0.15
-
-  ctx.save()
-  if (Math.abs(state.cameraX) + Math.abs(state.cameraY) > 0.1) {
-    ctx.translate(state.cameraX, state.cameraY)
-  }
-
-  drawBackground(ctx, W, H, preset, params, atm)
-  drawLightBeams(ctx, W, H, preset, params, bass, t, atm)
-  drawPortal(ctx, W, H, dpr, preset, params, bass, atm, t)
-  updateAndDrawRings(ctx, W, H, dpr, preset, params, state, bass, beatHit, atm)
-  updateAndDrawFog(ctx, W, H, dpr, preset, params, state, bass, atm)
-  updateAndDrawEmbers(ctx, W, H, dpr, preset, params, state, bass, atm)
-
-  ctx.restore()
+export function disposeCinematicPortalRenderer(ctx: CanvasRenderingContext2D): void {
+  const host = hostByContext.get(ctx)
+  host?.dispose()
+  hostByContext.delete(ctx)
 }
