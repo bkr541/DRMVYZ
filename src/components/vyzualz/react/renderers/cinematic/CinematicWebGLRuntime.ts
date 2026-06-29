@@ -94,14 +94,26 @@ export class CinematicWebGLRuntime implements CinematicWebGLRuntimeLike {
       return { ok: false, error: 'Cinematic WebGL context lost; using legacyPortal until restoration', recoverable: true }
     }
 
+    let frameBegan = false
     try {
       if (this.restoreRequested) this.rebuildAfterContextRestore()
       this.resize(frame)
       this.activateWorld(definition, frame)
+      if (frame.timingDiscontinuity || frame.musicalAudio?.resetReasons.some(reason =>
+        reason === 'seek' ||
+        reason === 'trackReplacement' ||
+        reason === 'transportRestart' ||
+        reason === 'presetReplacement' ||
+        reason === 'worldReplacement'
+      )) {
+        this.post.clearFeedback()
+        this.activeWorld?.reset('manualReset')
+      }
       const state = this.runtime.beginFrame()
       if (!state || !this.activeWorld) {
         return { ok: false, error: 'Cinematic WebGL frame could not begin', recoverable: true }
       }
+      frameBegan = true
 
       const target = {
         framebuffer: this.sceneTarget.framebuffer,
@@ -113,6 +125,7 @@ export class CinematicWebGLRuntime implements CinematicWebGLRuntimeLike {
       if (!target.texture) throw new Error('Cinematic scene render target is unavailable')
       this.post.render(target.texture, frame)
       this.runtime.endFrame()
+      frameBegan = false
 
       const outCanvas = this.outputContext.canvas
       this.outputContext.save()
@@ -121,8 +134,12 @@ export class CinematicWebGLRuntime implements CinematicWebGLRuntimeLike {
       this.outputContext.drawImage(this.canvas, 0, 0, outCanvas.width, outCanvas.height)
       this.outputContext.restore()
       this.previousFrame = frame
-      return { ok: true, error: null }
+      return { ok: true, error: null, warning: this.activeWorld.getDiagnostic?.() ?? null }
     } catch (error) {
+      if (frameBegan) {
+        try { this.runtime.endFrame() } catch { /* Continue into the readable fallback path. */ }
+      }
+      this.restoreSafeGlState()
       return {
         ok: false,
         error: error instanceof Error ? error.message : String(error),
@@ -146,6 +163,18 @@ export class CinematicWebGLRuntime implements CinematicWebGLRuntimeLike {
     this.fullscreenPass.dispose()
     this.resources.disposeAll()
     this.runtime.dispose()
+  }
+
+  private restoreSafeGlState(): void {
+    try {
+      this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null)
+      this.gl.activeTexture(this.gl.TEXTURE0)
+      this.gl.bindTexture(this.gl.TEXTURE_2D, null)
+      this.gl.disable(this.gl.BLEND)
+      this.gl.viewport(0, 0, this.runtime.dims.W, this.runtime.dims.H)
+    } catch {
+      // A lost context rejects state repair; restoration will rebuild resources.
+    }
   }
 
   private resize(frame: CinematicFrameContext): void {
@@ -261,9 +290,10 @@ export class CinematicWebGLRuntime implements CinematicWebGLRuntimeLike {
 
   private rebuildAfterContextRestore(): void {
     this.restoreRequested = false
-    // All prior WebGL handles were invalidated by the loss. Drop JS ownership
-    // without issuing delete calls against the restored context, then rebuild
-    // the reusable runtime resources lazily on the next world activation.
+    // All prior WebGL handles were invalidated by the loss. Dispose world-owned
+    // DOM/media resources, then drop GPU ownership without deleting stale handles.
+    this.activeWorld?.reset('contextRestored')
+    this.activeWorld?.dispose()
     this.activeWorld = null
     this.activeDefinition = null
     this.activeKey = null

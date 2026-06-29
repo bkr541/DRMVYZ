@@ -60,10 +60,14 @@ export class ShaderTexture {
     if (this._disposed) return
     const gl  = this.gl
     const tex = this.ensureTexture()
-    this._w = w
-    this._h = h
     gl.bindTexture(gl.TEXTURE_2D, tex)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, data)
+    if (this._w === w && this._h === h) {
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, data)
+    } else {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, data)
+      this._w = w
+      this._h = h
+    }
     gl.bindTexture(gl.TEXTURE_2D, null)
   }
 
@@ -72,9 +76,18 @@ export class ShaderTexture {
     if (this._disposed) return
     const gl  = this.gl
     const tex = this.ensureTexture()
+    const width = 'videoWidth' in source ? source.videoWidth : source.naturalWidth
+    const height = 'videoHeight' in source ? source.videoHeight : source.naturalHeight
+    if (width <= 0 || height <= 0) return
     gl.bindTexture(gl.TEXTURE_2D, tex)
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source)
+    if (this._w === width && this._h === height) {
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, source)
+    } else {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source)
+      this._w = width
+      this._h = height
+    }
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
     gl.bindTexture(gl.TEXTURE_2D, null)
   }
@@ -84,8 +97,15 @@ export class ShaderTexture {
     if (this._disposed) return
     const gl  = this.gl
     const tex = this.ensureTexture()
+    if (source.width <= 0 || source.height <= 0) return
     gl.bindTexture(gl.TEXTURE_2D, tex)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source)
+    if (this._w === source.width && this._h === source.height) {
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, source)
+    } else {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source)
+      this._w = source.width
+      this._h = source.height
+    }
     gl.bindTexture(gl.TEXTURE_2D, null)
   }
 

@@ -90,9 +90,13 @@ class MediaPortalWorld implements CinematicWebGLWorldRenderer {
   private maskManager = new MediaPortalSourceManager()
   private mediaElement: HTMLImageElement | HTMLVideoElement | null = null
   private maskElement: HTMLImageElement | HTMLVideoElement | null = null
-  private sourceId: string | null = null
-  private maskId: string | null = null
+  private sourceId: string | null | undefined
+  private maskId: string | null | undefined
   private viewport: CinematicViewport = { width: 1, height: 1, dpr: 1 }
+  private mediaUploaded = false
+  private maskUploaded = false
+  private mediaDiagnostic: string | null = null
+  private maskDiagnostic: string | null = null
 
   initialize(input: CinematicWebGLWorldInitializeInput): void {
     this.services = input.services
@@ -106,17 +110,46 @@ class MediaPortalWorld implements CinematicWebGLWorldRenderer {
   render(frame: CinematicFrameContext, target: CinematicWorldRenderTarget): void {
     if (!this.services || !this.program || !this.mediaTexture || !this.maskTexture) return
     const settings = resolveMediaPortalSettings(frame.config.worldSettings)
-    if (settings.sourceMediaId !== this.sourceId) { this.sourceId = settings.sourceMediaId; void this.loadSource(settings.sourceMediaId, settings.loop, settings.muted, false) }
-    const nextMask = frame.config.portalShape === 'customMask' ? frame.config.customMaskId : null
-    if (nextMask !== this.maskId) { this.maskId = nextMask; void this.loadSource(nextMask, true, true, true) }
-    if (typeof HTMLVideoElement !== 'undefined' && this.mediaElement instanceof HTMLVideoElement && frame.isPlaying && this.mediaElement.paused) void this.mediaElement.play().catch(() => undefined)
-    if (typeof HTMLVideoElement !== 'undefined' && this.mediaElement instanceof HTMLVideoElement && !frame.isPlaying && !this.mediaElement.paused) this.mediaElement.pause()
-    if (this.mediaElement && (typeof HTMLVideoElement === 'undefined' || !(this.mediaElement instanceof HTMLVideoElement) || this.mediaElement.readyState >= 2)) this.mediaTexture.uploadImage(this.mediaElement)
-    if (this.maskElement && (typeof HTMLVideoElement === 'undefined' || !(this.maskElement instanceof HTMLVideoElement) || this.maskElement.readyState >= 2)) this.maskTexture.uploadImage(this.maskElement)
-    const size = typeof HTMLVideoElement !== 'undefined' && this.mediaElement instanceof HTMLVideoElement
-      ? [this.mediaElement.videoWidth || 1, this.mediaElement.videoHeight || 1]
-      : [(this.mediaElement as HTMLImageElement | null)?.naturalWidth || 1, (this.mediaElement as HTMLImageElement | null)?.naturalHeight || 1]
-    const p=this.program; p.activate(); p.setVec2('uResolution',target.width,target.height); p.setVec2('uMediaSize',size[0],size[1]);
+    if (settings.sourceMediaId !== this.sourceId) {
+      this.sourceId = settings.sourceMediaId
+      void this.loadSource(settings.sourceMediaId, settings.loop, settings.muted, false)
+    }
+    const customMaskRequested = frame.config.portalShape === 'customMask'
+    const nextMask = customMaskRequested ? frame.config.customMaskId : null
+    if (nextMask !== this.maskId) {
+      this.maskId = nextMask
+      void this.loadSource(nextMask, true, true, true)
+    }
+    if (customMaskRequested && !nextMask) this.maskDiagnostic = 'Custom mask is missing. Choose a durable image asset.'
+    else if (!customMaskRequested) this.maskDiagnostic = null
+
+    const mediaVideo = typeof HTMLVideoElement !== 'undefined' && this.mediaElement instanceof HTMLVideoElement
+      ? this.mediaElement
+      : null
+    if (mediaVideo) {
+      mediaVideo.loop = settings.loop
+      mediaVideo.muted = settings.muted
+      if (frame.isPlaying && mediaVideo.paused) void mediaVideo.play().catch(() => undefined)
+      if (!frame.isPlaying && !mediaVideo.paused) mediaVideo.pause()
+    }
+    if (this.mediaElement && (!mediaVideo || mediaVideo.readyState >= 2) && (!this.mediaUploaded || mediaVideo)) {
+      this.mediaTexture.uploadImage(this.mediaElement)
+      this.mediaUploaded = true
+    }
+    const maskVideo = typeof HTMLVideoElement !== 'undefined' && this.maskElement instanceof HTMLVideoElement
+      ? this.maskElement
+      : null
+    if (this.maskElement && (!maskVideo || maskVideo.readyState >= 2) && (!this.maskUploaded || maskVideo)) {
+      this.maskTexture.uploadImage(this.maskElement)
+      this.maskUploaded = true
+    }
+    const mediaWidth = mediaVideo
+      ? mediaVideo.videoWidth || 1
+      : (this.mediaElement as HTMLImageElement | null)?.naturalWidth || 1
+    const mediaHeight = mediaVideo
+      ? mediaVideo.videoHeight || 1
+      : (this.mediaElement as HTMLImageElement | null)?.naturalHeight || 1
+    const p=this.program; p.activate(); p.setVec2('uResolution',target.width,target.height); p.setVec2('uMediaSize',mediaWidth,mediaHeight);
     p.setFloat('uTime',frame.elapsedTimeSec); p.setFloat('uBass',frame.audio.smoothed.bass); p.setFloat('uBeat',frame.beat.hit?1:0)
     p.setFloat('uFit',['contain','cover','stretch','centerCrop'].indexOf(settings.fit)); p.setFloat('uZoom',settings.zoom); p.setVec2('uPan',settings.panX,settings.panY)
     p.setFloat('uRotation',settings.rotation); p.setVec2('uMirror',settings.mirrorX?1:0,settings.mirrorY?1:0)
@@ -129,17 +162,28 @@ class MediaPortalWorld implements CinematicWebGLWorldRenderer {
       { uniformName:'uMedia',unit:0,texture:this.mediaTexture.handle! }, { uniformName:'uMask',unit:1,texture:this.maskTexture.handle! },
     ],{clear:true})
   }
-  reset(_reason: CinematicRendererResetReason): void { this.mediaManager.invalidate(); this.maskManager.invalidate() }
+  reset(_reason: CinematicRendererResetReason): void { /* Keep loaded media stable across seeks and timing resets. */ }
+  getDiagnostic(): string | null { return [this.mediaDiagnostic, this.maskDiagnostic].filter(Boolean).join(' ') || null }
   onContextLost(): void { this.program=null }
-  dispose(): void { this.mediaManager.dispose(); this.maskManager.dispose(); this.mediaElement=null; this.maskElement=null; this.program=null; this.services=null }
+  dispose(): void { this.mediaManager.dispose(); this.maskManager.dispose(); this.mediaElement=null; this.maskElement=null; this.program=null; this.services=null; this.mediaDiagnostic=null; this.maskDiagnostic=null }
 
   private async loadSource(id: string | null, loop: boolean, muted: boolean, mask: boolean): Promise<void> {
     const item = id ? useMediaStore.getState().items.find(candidate => candidate.id === id || candidate.dbId === id || candidate.storagePath === id) ?? null : null
     const manager = mask ? this.maskManager : this.mediaManager
+    if (mask) { this.maskElement = null; this.maskUploaded = false; this.maskDiagnostic = null }
+    else { this.mediaElement = null; this.mediaUploaded = false; this.mediaDiagnostic = null }
     const result = await manager.load(item,{loop,muted})
-    if (mask) this.maskElement = result.status==='ready' ? result.element : null
-    else this.mediaElement = result.status==='ready' ? result.element : null
-    if (result.message) console.warn(`[MediaPortal] ${result.message}`)
+    if ((mask ? this.maskId : this.sourceId) !== id) return
+    if (mask) {
+      this.maskElement = result.status==='ready' ? result.element : null
+      this.maskUploaded = false
+      this.maskDiagnostic = result.message
+    } else {
+      this.mediaElement = result.status==='ready' ? result.element : null
+      this.mediaUploaded = false
+      this.mediaDiagnostic = result.message
+    }
+    if (result.message && result.status !== 'missing' && import.meta.env.DEV) console.warn(`[MediaPortal] ${result.message}`)
   }
   private uploadFallback(texture: ShaderTexture): void {
     texture.uploadBytes(2, 2, new Uint8Array([

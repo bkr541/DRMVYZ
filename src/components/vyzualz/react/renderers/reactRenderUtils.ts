@@ -17,6 +17,8 @@ export interface ReactFrameContext {
   elapsedTimeSec?: number
   /** Seconds since the previous rendered frame, clamped by the owning canvas loop. */
   deltaTimeSec?: number
+  /** True for the first frame after a long suspension, clock reset, or visibility change. */
+  timingDiscontinuity?: boolean
   /** Wall-clock time in seconds (performance.now()/1000 or audioTime). Use for strobe, envelope, and time-accurate effects. Falls back to t/60 when absent. */
   timeSec?: number
   audioTime: number

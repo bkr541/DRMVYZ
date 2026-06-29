@@ -91,6 +91,8 @@ export interface CinematicTransitionState {
 export interface CinematicFrameContext {
   elapsedTimeSec: number
   deltaTimeSec: number
+  /** Set on the first frame after a long suspension or visibility-clock reset. */
+  timingDiscontinuity?: boolean
   transportTimeSec: number
   isPlaying?: boolean
   frameIndex: number
@@ -176,6 +178,8 @@ export interface CinematicWebGLWorldRenderer {
   reset(reason: CinematicRendererResetReason): void
   onContextLost?(): void
   onContextRestored?(): void
+  /** Optional non-fatal status rendered as a readable overlay by the host. */
+  getDiagnostic?(): string | null
   dispose(): void
 }
 
@@ -238,6 +242,8 @@ export interface CinematicWebGLRuntimeRenderResult {
   error: string | null
   /** True when the same runtime may recover, for example after context restoration. */
   recoverable?: boolean
+  /** Non-fatal issue while a valid frame is still produced. */
+  warning?: string | null
 }
 
 export interface CinematicWebGLRuntimeLike {
@@ -262,23 +268,42 @@ function viewportChanged(a: CinematicViewport | null, b: CinematicViewport): boo
   return a == null || a.width !== b.width || a.height !== b.height || a.dpr !== b.dpr
 }
 
+/** Resource identity only. Live controls and presets are supplied as uniforms. */
 export function cinematicStructuralKey(input: CinematicFrameContext): string {
-  const { config } = input
   return JSON.stringify({
-    presetId: input.presetId,
-    requestedWorldId: input.requestedWorldId ?? config.worldMode,
-    worldMode: config.worldMode,
-    worldSettings: config.worldSettings,
-    portalShape: config.portalShape,
-    cameraRig: config.cameraRig,
-    camera: config.camera,
-    seed: config.seed,
-    qualityTier: config.qualityTier,
-    customMaskId: config.customMaskId,
-    depth: config.environment.depth,
-    architecture: config.environment.architecture,
-    audioMapping: config.audioMapping,
+    requestedWorldId: input.requestedWorldId ?? input.config.worldMode,
+    seed: input.config.seed,
   })
+}
+
+export function cinematicPresentationKey(input: CinematicFrameContext): string {
+  return `${input.requestedWorldId ?? input.config.worldMode}::${input.presetId}`
+}
+
+function cinematicFailureKey(input: CinematicFrameContext): string {
+  return JSON.stringify({
+    world: input.requestedWorldId ?? input.config.worldMode,
+    presetId: input.presetId,
+    config: input.config,
+    resolution: input.resolution,
+    devicePixelRatio: input.devicePixelRatio,
+  })
+}
+
+export function cinematicTransitionProgress(
+  elapsedTimeSec: number,
+  startedAtSec: number,
+  durationMs: number,
+  easing: CinematicWorldConfig['transition']['easing'],
+): number {
+  const durationSec = Math.max(0, durationMs) / 1000
+  const linear = durationSec <= 0 ? 1 : clamp01((elapsedTimeSec - startedAtSec) / durationSec)
+  switch (easing) {
+    case 'easeIn': return linear * linear
+    case 'easeOut': return 1 - (1 - linear) * (1 - linear)
+    case 'easeInOut': return linear * linear * (3 - 2 * linear)
+    default: return linear
+  }
 }
 
 function resetReason(
@@ -319,6 +344,14 @@ export class CinematicWorldRendererHost {
   private readonly cameraSystem = new CinematicCameraSystem()
   private mappingIssues: readonly CinematicMappingValidationIssue[] = []
   private lastError: string | null = null
+  private lastWarning: string | null = null
+  private presentationKey: string | null = null
+  private presentationWorld: CinematicWorldId | null = null
+  private transitionSnapshot: HTMLCanvasElement | null = null
+  private transitionStartedAtSec = 0
+  private transitionFromWorld: CinematicWorldId | null = null
+  private failedWebglKey: string | null = null
+  private failedWebglError: string | null = null
 
   constructor(
     private readonly context: CanvasRenderingContext2D,
@@ -328,6 +361,7 @@ export class CinematicWorldRendererHost {
   ) {}
 
   get error(): string | null { return this.lastError }
+  get warning(): string | null { return this.lastWarning }
   get audioMappingIssues(): readonly CinematicMappingValidationIssue[] { return this.mappingIssues }
 
   render(input: CinematicFrameContext): void {
@@ -340,29 +374,56 @@ export class CinematicWorldRendererHost {
       return
     }
 
-    const frame = this.prepareFrame(input, definition)
+    const transitionStarted = this.beginTransition(input)
+    if (transitionStarted && !input.config.transition.preserveCamera) this.cameraSystem.reset()
+    const frame = this.withTransitionState(this.prepareFrame(input, definition), requestedId)
 
-    if (definition.backend === 'webgl2') {
-      const result = this.renderWebGL(definition, frame)
-      if (result.ok) {
-        this.lastError = null
-        this.previousInput = frame
+    try {
+      if (definition.backend === 'webgl2') {
+        const failureKey = cinematicFailureKey(frame)
+        const result = this.failedWebglKey === failureKey
+          ? { ok: false, error: this.failedWebglError ?? 'Cinematic WebGL world failed', recoverable: false }
+          : this.renderWebGL(definition, frame)
+        if (result.ok) {
+          this.failedWebglKey = null
+          this.failedWebglError = null
+          this.lastError = null
+          this.lastWarning = result.warning ?? null
+          this.drawTransition(frame)
+          if (this.lastWarning) this.drawReadableWarning(this.lastWarning)
+          this.completeFrame(frame, requestedId)
+          return
+        }
+        this.lastError = result.error
+        this.lastWarning = result.error
+        if (result.recoverable !== true) {
+          this.failedWebglKey = failureKey
+          this.failedWebglError = result.error
+        }
+        const fallback = this.registry.resolve(this.fallbackMode)
+        if (fallback?.backend === 'canvas2d') {
+          this.renderCanvas(fallback, frame, result.recoverable === true)
+          this.drawTransition(frame)
+          this.drawReadableWarning(result.error ?? 'Cinematic WebGL world failed; legacy fallback active')
+        } else {
+          this.drawReadableError(result.error ?? 'Cinematic WebGL world failed')
+        }
+        this.completeFrame(frame, requestedId)
         return
       }
-      this.lastError = result.error
-      const fallback = this.registry.resolve(this.fallbackMode)
-      if (fallback?.backend === 'canvas2d') {
-        this.renderCanvas(fallback, frame, result.recoverable === true)
-      } else {
-        this.drawReadableError(result.error ?? 'Cinematic WebGL world failed')
-      }
-      this.previousInput = frame
-      return
-    }
 
-    this.renderCanvas(definition, frame)
-    this.lastError = null
-    this.previousInput = frame
+      this.renderCanvas(definition, frame)
+      this.lastError = null
+      this.lastWarning = null
+      this.drawTransition(frame)
+      this.completeFrame(frame, requestedId)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.lastError = message
+      this.lastWarning = message
+      this.drawReadableError(message)
+      this.completeFrame(frame, requestedId)
+    }
   }
 
   reset(): void {
@@ -374,6 +435,11 @@ export class CinematicWorldRendererHost {
     this.modulationEngine.reset('manual')
     this.cameraSystem.reset()
     this.mappingIssues = []
+    this.clearTransition()
+    this.presentationKey = null
+    this.presentationWorld = null
+    this.failedWebglKey = null
+    this.failedWebglError = null
   }
 
   dispose(): void {
@@ -386,6 +452,12 @@ export class CinematicWorldRendererHost {
     this.cameraSystem.reset()
     this.mappingIssues = []
     this.lastError = null
+    this.lastWarning = null
+    this.clearTransition()
+    this.presentationKey = null
+    this.presentationWorld = null
+    this.failedWebglKey = null
+    this.failedWebglError = null
   }
 
   private prepareFrame(
@@ -552,6 +624,108 @@ export class CinematicWorldRendererHost {
     return result
   }
 
+  private beginTransition(input: CinematicFrameContext): boolean {
+    const nextKey = cinematicPresentationKey(input)
+    if (this.presentationKey == null || this.presentationKey === nextKey) return false
+
+    this.clearTransition()
+    if (input.config.transition.mode === 'cut' || input.config.transition.durationMs <= 0) return true
+
+    const sourceCanvas = this.context.canvas
+    if (typeof document === 'undefined' || typeof HTMLCanvasElement === 'undefined' || !(sourceCanvas instanceof HTMLCanvasElement)) {
+      return true
+    }
+    try {
+      const snapshot = document.createElement('canvas')
+      snapshot.width = Math.max(1, sourceCanvas.width)
+      snapshot.height = Math.max(1, sourceCanvas.height)
+      const snapshotContext = snapshot.getContext('2d')
+      if (!snapshotContext) return true
+      snapshotContext.drawImage(sourceCanvas, 0, 0, snapshot.width, snapshot.height)
+      this.transitionSnapshot = snapshot
+      this.transitionStartedAtSec = input.elapsedTimeSec
+      this.transitionFromWorld = this.presentationWorld
+    } catch {
+      this.clearTransition()
+    }
+    return true
+  }
+
+  private withTransitionState(
+    frame: CinematicFrameContext,
+    requestedId: CinematicWorldId,
+  ): CinematicFrameContext {
+    if (!this.transitionSnapshot) {
+      return {
+        ...frame,
+        transition: { ...frame.transition, active: false, progress: 1, fromWorld: null, toWorld: requestedId },
+      }
+    }
+    const progress = cinematicTransitionProgress(
+      frame.elapsedTimeSec,
+      this.transitionStartedAtSec,
+      frame.config.transition.durationMs,
+      frame.config.transition.easing,
+    )
+    return {
+      ...frame,
+      transition: {
+        mode: frame.config.transition.mode,
+        active: progress < 1,
+        progress,
+        fromWorld: this.transitionFromWorld,
+        toWorld: requestedId,
+      },
+    }
+  }
+
+  private drawTransition(frame: CinematicFrameContext): void {
+    const snapshot = this.transitionSnapshot
+    if (!snapshot) return
+    const progress = frame.transition.progress
+    if (progress >= 1) {
+      this.clearTransition()
+      return
+    }
+
+    const width = this.context.canvas.width || 1
+    const height = this.context.canvas.height || 1
+    this.context.save()
+    this.context.globalCompositeOperation = 'source-over'
+    if (frame.transition.mode === 'portalWipe') {
+      const radius = Math.hypot(width, height) * 0.55 * (1 - progress)
+      this.context.beginPath()
+      this.context.arc(width / 2, height / 2, Math.max(0.5, radius), 0, Math.PI * 2)
+      this.context.clip()
+      this.context.globalAlpha = 1
+      this.context.drawImage(snapshot, 0, 0, width, height)
+    } else if (frame.transition.mode === 'morph') {
+      const insetX = width * progress * 0.025
+      const insetY = height * progress * 0.025
+      this.context.globalAlpha = (1 - progress) * (1 - progress)
+      this.context.drawImage(snapshot, insetX, insetY, width - insetX * 2, height - insetY * 2)
+    } else {
+      this.context.globalAlpha = 1 - progress
+      this.context.drawImage(snapshot, 0, 0, width, height)
+    }
+    this.context.restore()
+  }
+
+  private completeFrame(frame: CinematicFrameContext, requestedId: CinematicWorldId): void {
+    this.previousInput = frame
+    this.presentationKey = cinematicPresentationKey(frame)
+    this.presentationWorld = requestedId
+  }
+
+  private clearTransition(): void {
+    if (this.transitionSnapshot) {
+      this.transitionSnapshot.width = 1
+      this.transitionSnapshot.height = 1
+    }
+    this.transitionSnapshot = null
+    this.transitionFromWorld = null
+  }
+
   private disposeCanvasRenderer(reason: CinematicRendererResetReason): void {
     if (this.canvasRenderer) {
       this.canvasRenderer.reset(reason)
@@ -561,6 +735,21 @@ export class CinematicWorldRendererHost {
     this.canvasDefinitionId = null
     this.canvasKey = null
     this.canvasViewport = null
+  }
+
+  private drawReadableWarning(message: string): void {
+    const canvas = this.context.canvas
+    const width = canvas.width || 1
+    const height = canvas.height || 1
+    this.context.save()
+    this.context.fillStyle = 'rgba(6, 8, 12, 0.88)'
+    this.context.fillRect(width * 0.08, height * 0.82, width * 0.84, Math.max(34, height * 0.10))
+    this.context.fillStyle = '#ffd36a'
+    this.context.font = `${Math.max(12, Math.round(14 * (width / 1280)))}px system-ui, sans-serif`
+    this.context.textAlign = 'center'
+    this.context.textBaseline = 'middle'
+    this.context.fillText(`Cinematic Worlds: ${message}`, width / 2, height * 0.87, width * 0.78)
+    this.context.restore()
   }
 
   private drawReadableError(message: string): void {
@@ -619,6 +808,7 @@ export function cinematicInputFromReactFrame(
   return {
     elapsedTimeSec,
     deltaTimeSec,
+    timingDiscontinuity: Boolean(frame.timingDiscontinuity),
     transportTimeSec: frame.audioTime,
     isPlaying: frame.isPlaying,
     frameIndex: Math.max(0, Math.floor(frame.t)),

@@ -242,6 +242,13 @@ export function ReactShaderCanvas({
     const beatPeriodMs = 60000 / FALLBACK_BPM
 
     let lastFrameMs = performance.now()
+    let cinematicElapsedSec = 0
+    let forceTimingReset = false
+    const handleVisibilityChange = () => {
+      lastFrameMs = performance.now()
+      forceTimingReset = true
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     // Track last resolved section to detect changes (for pulse signal)
     let lastSectionType: string | null = null
@@ -261,8 +268,12 @@ export function ReactShaderCanvas({
         return
       }
 
-      const deltaMs = now - lastFrameMs
+      const rawDeltaMs = now - lastFrameMs
       lastFrameMs = now
+      const timingDiscontinuity = forceTimingReset || !Number.isFinite(rawDeltaMs) || rawDeltaMs < 0 || rawDeltaMs > 250
+      forceTimingReset = false
+      const deltaMs = timingDiscontinuity ? 0 : Math.min(rawDeltaMs, 100)
+      cinematicElapsedSec += deltaMs / 1000
 
       fpsCount++
       if (now - fpsLastMs >= 1000) {
@@ -378,6 +389,9 @@ export function ReactShaderCanvas({
         H,
         dpr:       rendererRef.current?.effectivePixelRatio ?? 1,
         t:         tRef.current,
+        elapsedTimeSec: cinematicElapsedSec,
+        deltaTimeSec: deltaMs / 1000,
+        timingDiscontinuity,
         timeSec:   now / 1000,
         audioTime: audioTimeRef.current,
         bpm:       activeBpm,
@@ -423,6 +437,7 @@ export function ReactShaderCanvas({
 
     return () => {
       cancelAnimationFrame(animRef.current)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
       ro!.disconnect()
       // Dispose whatever renderer is currently live (may differ from initialRenderer
       // if context restoration replaced it)

@@ -1256,14 +1256,20 @@ export function normalizeCinematicPresetConfiguration(preset: ReactPreset): Reac
   if (legacyPreset.cinematicSettings !== undefined) legacyValues.cinematicSettings = legacyPreset.cinematicSettings
 
   const rawConfig = preset.cinematicConfig ?? legacyPreset.cinematicSettings ?? legacyPreset.portalSettings
-  const migratedLegacyConfig = createLegacyPortalCinematicConfig({
-    ...preset.params,
-    ...preset.renderSettings,
-  }, legacyValues)
+  const rawRecord = rawConfig && typeof rawConfig === 'object' && !Array.isArray(rawConfig)
+    ? rawConfig as Record<string, unknown>
+    : null
+  const isWorldConfig = rawRecord != null && [
+    'schemaVersion', 'worldMode', 'world', 'worldSettings', 'qualityTier', 'cameraRig', 'cameraMode',
+  ].some(key => key in rawRecord)
+  const legacyControls = rawRecord && !isWorldConfig
+    ? { ...preset.params, ...preset.renderSettings, ...rawRecord }
+    : { ...preset.params, ...preset.renderSettings }
+  const migratedLegacyConfig = createLegacyPortalCinematicConfig(legacyControls, legacyValues)
 
   return {
     ...preset,
-    cinematicConfig: rawConfig === undefined
+    cinematicConfig: rawConfig === undefined || !isWorldConfig
       ? migratedLegacyConfig
       : normalizeCinematicWorldConfig(rawConfig, legacyValues),
   }
@@ -1663,6 +1669,17 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       cinematicConfigsByPresetId: normalizeCinematicConfigOverrides(state.cinematicConfigsByPresetId, presets),
       cinematicSeedLocksByPresetId: normalizeCinematicSeedLocks(state.cinematicSeedLocksByPresetId, presets),
       cinematicWorldsUiMode: state.cinematicWorldsUiMode === 'advanced' ? 'advanced' : 'simple',
+    }
+  }
+  if (version < 26) {
+    const presets = Array.isArray(state.reactPresets)
+      ? normalizeCinematicPresetCollection(state.reactPresets as ReactPreset[])
+      : DEFAULT_REACT_PRESETS
+    state = {
+      ...state,
+      reactPresets: presets,
+      cinematicConfigsByPresetId: normalizeCinematicConfigOverrides(state.cinematicConfigsByPresetId, presets),
+      cinematicSeedLocksByPresetId: normalizeCinematicSeedLocks(state.cinematicSeedLocksByPresetId, presets),
     }
   }
   if (Array.isArray(state.reactPresets)) {
@@ -3750,7 +3767,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 25,
+      version: 26,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

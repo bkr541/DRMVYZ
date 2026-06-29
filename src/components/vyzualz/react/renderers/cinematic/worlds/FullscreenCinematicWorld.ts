@@ -54,6 +54,10 @@ export abstract class FullscreenCinematicWorld implements CinematicWebGLWorldRen
 
   private impactAge = 8
   private downbeatAge = 8
+  private paletteKey = ''
+  private primary: RgbColor = { r: 0.05, g: 0.86, b: 0.95 }
+  private secondary: RgbColor = { r: 0.42, g: 0.16, b: 0.96 }
+  private accent: RgbColor = { r: 1, g: 0.68, b: 0.22 }
 
   protected constructor(
     private readonly worldId: CinematicWorldMode,
@@ -83,9 +87,13 @@ export abstract class FullscreenCinematicWorld implements CinematicWebGLWorldRen
     if (frame.beat.downbeat) this.downbeatAge = 0
     else this.downbeatAge = Math.min(8, this.downbeatAge + frame.deltaTimeSec)
 
-    const primary = parseHexColor(frame.preset.palette.primary, { r: 0.05, g: 0.86, b: 0.95 })
-    const secondary = parseHexColor(frame.preset.palette.secondary, { r: 0.42, g: 0.16, b: 0.96 })
-    const accent = parseHexColor(frame.preset.palette.accent, { r: 1, g: 0.68, b: 0.22 })
+    const paletteKey = `${frame.preset.palette.primary}|${frame.preset.palette.secondary}|${frame.preset.palette.accent}`
+    if (paletteKey !== this.paletteKey) {
+      this.paletteKey = paletteKey
+      this.primary = parseHexColor(frame.preset.palette.primary, this.primary)
+      this.secondary = parseHexColor(frame.preset.palette.secondary, this.secondary)
+      this.accent = parseHexColor(frame.preset.palette.accent, this.accent)
+    }
     const musical = frame.musicalAudio?.values
     const drop = musical?.dropState ?? (frame.section.type === 'drop' ? 1 : 0)
     const mappedImpact = Math.max(
@@ -123,9 +131,9 @@ export abstract class FullscreenCinematicWorld implements CinematicWebGLWorldRen
       this.variation.density,
       this.variation.motion,
     )
-    this.program.setVec3('uPrimary', primary.r, primary.g, primary.b)
-    this.program.setVec3('uSecondary', secondary.r, secondary.g, secondary.b)
-    this.program.setVec3('uAccent', accent.r, accent.g, accent.b)
+    this.program.setVec3('uPrimary', this.primary.r, this.primary.g, this.primary.b)
+    this.program.setVec3('uSecondary', this.secondary.r, this.secondary.g, this.secondary.b)
+    this.program.setVec3('uAccent', this.accent.r, this.accent.g, this.accent.b)
     const camera = frame.camera
     this.program.setVec3(
       'uCameraPosition',

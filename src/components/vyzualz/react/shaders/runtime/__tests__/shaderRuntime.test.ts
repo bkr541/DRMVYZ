@@ -28,6 +28,7 @@ import { ShaderCompiler } from '../ShaderCompiler'
 import { ShaderProgram }  from '../ShaderProgram'
 import { ShaderResourceManager } from '../ShaderResourceManager'
 import { ShaderFramebuffer }     from '../ShaderFramebuffer'
+import { ShaderTexture }           from '../ShaderTexture'
 import {
   ShaderWebGLRuntime,
   MIN_RESOLUTION_SCALE,
@@ -151,6 +152,7 @@ function makeGL(opts: MockOpts = {}): { gl: WebGL2RenderingContext; deleted: Del
     },
     bindTexture:    () => {},
     texImage2D:     () => {},
+    texSubImage2D:  () => {},
     texStorage2D:   () => {},
     texParameteri:  () => {},
     pixelStorei:    () => {},
@@ -786,5 +788,49 @@ describe('Q — ShaderFramebuffer transactional allocation', () => {
     fb.resize(64, 64)
     expect(imageCalls).toBeGreaterThan(0)
     fb.dispose()
+  })
+})
+
+// ── R. Texture upload reuse ──────────────────────────────────────────────────
+
+describe('R — ShaderTexture upload reuse', () => {
+  function makeTextureGL(): { gl: WebGL2RenderingContext; texImage2D: ReturnType<typeof vi.fn>; texSubImage2D: ReturnType<typeof vi.fn> } {
+    const texImage2D = vi.fn()
+    const texSubImage2D = vi.fn()
+    const gl = {
+      ...GL,
+      UNPACK_FLIP_Y_WEBGL: 0x9240,
+      createTexture: vi.fn(() => ({})),
+      bindTexture: vi.fn(),
+      texParameteri: vi.fn(),
+      texImage2D,
+      texSubImage2D,
+      pixelStorei: vi.fn(),
+      activeTexture: vi.fn(),
+      deleteTexture: vi.fn(),
+    } as unknown as WebGL2RenderingContext
+    return { gl, texImage2D, texSubImage2D }
+  }
+
+  it('updates equal-sized byte textures without reallocating storage', () => {
+    const { gl, texImage2D, texSubImage2D } = makeTextureGL()
+    const texture = new ShaderTexture(gl)
+    texture.uploadBytes(2, 2, new Uint8Array(16))
+    texture.uploadBytes(2, 2, new Uint8Array(16))
+    texture.uploadBytes(4, 2, new Uint8Array(32))
+    expect(texImage2D).toHaveBeenCalledTimes(2)
+    expect(texSubImage2D).toHaveBeenCalledTimes(1)
+  })
+
+  it('updates equal-sized media and canvas textures without reallocating storage', () => {
+    const { gl, texImage2D, texSubImage2D } = makeTextureGL()
+    const texture = new ShaderTexture(gl)
+    const image = { naturalWidth: 64, naturalHeight: 32 } as HTMLImageElement
+    const canvas = { width: 64, height: 32 } as HTMLCanvasElement
+    texture.uploadImage(image)
+    texture.uploadImage(image)
+    texture.uploadCanvas(canvas)
+    expect(texImage2D).toHaveBeenCalledTimes(1)
+    expect(texSubImage2D).toHaveBeenCalledTimes(2)
   })
 })

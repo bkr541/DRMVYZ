@@ -595,6 +595,56 @@ function enumValue<T extends readonly string[]>(value: unknown, allowed: T, fall
     : fallback
 }
 
+function normalizedIdentifier(value: unknown): string {
+  return typeof value === 'string' ? value.replace(/[^a-z0-9]/gi, '').toLowerCase() : ''
+}
+
+const CINEMATIC_WORLD_MODE_ALIASES: Record<string, CinematicWorldMode> = {
+  cinematicportal: 'legacyPortal',
+  legacyportal: 'legacyPortal',
+  eventhorizon: 'eventHorizon',
+  infinitecorridor: 'infiniteCorridor',
+  fracturerift: 'fractureRift',
+  monolithgate: 'monolithGate',
+  liquidmembrane: 'liquidMembrane',
+  celestialcathedral: 'celestialCathedral',
+  mirrordimension: 'mirrorDimension',
+  ancientmachine: 'ancientMachine',
+  stormgateway: 'stormGateway',
+  mediaportal: 'mediaPortal',
+}
+
+const CINEMATIC_CAMERA_RIG_ALIASES: Record<string, CinematicCameraRig> = {
+  static: 'locked',
+  fixed: 'locked',
+  push: 'dolly',
+  pushin: 'dolly',
+  rotate: 'orbit',
+  fly: 'flyThrough',
+  flythrough: 'flyThrough',
+  shake: 'handheld',
+  director: 'autoDirector',
+  autodirector: 'autoDirector',
+}
+
+function normalizeWorldMode(value: unknown, fallback: CinematicWorldMode): CinematicWorldMode {
+  const exact = enumValue(value, CINEMATIC_WORLD_MODES, fallback)
+  if (exact !== fallback || value === fallback) return exact
+  return CINEMATIC_WORLD_MODE_ALIASES[normalizedIdentifier(value)] ?? fallback
+}
+
+function normalizeCameraRig(value: unknown, fallback: CinematicCameraRig): CinematicCameraRig {
+  const exact = enumValue(value, CINEMATIC_CAMERA_RIGS, fallback)
+  if (exact !== fallback || value === fallback) return exact
+  return CINEMATIC_CAMERA_RIG_ALIASES[normalizedIdentifier(value)] ?? fallback
+}
+
+function durableReference(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const reference = value.trim()
+  return reference && !/^(blob:|data:)/i.test(reference) ? reference : null
+}
+
 function collectUnknown(
   source: Record<string, unknown>,
   knownKeys: readonly string[],
@@ -811,6 +861,8 @@ export function normalizeCinematicWorldConfig(
   const audioMapping = isRecord(source.audioMapping) ? source.audioMapping : {}
   const camera = isRecord(source.camera) ? source.camera : {}
   const transition = isRecord(source.transition) ? source.transition : {}
+  const fogControls = isRecord(source.fogControls) ? source.fogControls : {}
+  const particleControls = isRecord(source.particleControls) ? source.particleControls : {}
   const compatibility = isRecord(source.compatibility) ? source.compatibility : {}
   const priorLegacy = isRecord(compatibility.legacyValues) ? compatibility.legacyValues : {}
   const priorExtensions = isRecord(compatibility.extensions) ? compatibility.extensions : {}
@@ -830,24 +882,23 @@ export function normalizeCinematicWorldConfig(
     ...collectUnknown(compatibility, ['legacyValues', 'extensions'], 'compatibility.'),
   }
 
-  const rawSeed = clampRange(source.seed, CINEMATIC_NUMERIC_RANGES.seed)
-  const worldMode = enumValue(source.worldMode, CINEMATIC_WORLD_MODES, defaults.worldMode)
+  const rawSeed = clampRange(source.seed ?? source.randomSeed, CINEMATIC_NUMERIC_RANGES.seed)
+  const worldMode = normalizeWorldMode(source.worldMode ?? source.world ?? source.mode ?? source.displayName, defaults.worldMode)
+  const worldSettings = source.worldSettings ?? source.settings
 
   return {
     schemaVersion: 1,
     worldMode,
-    worldSettings: normalizeCinematicWorldSettings(worldMode, source.worldSettings),
-    portalShape: enumValue(source.portalShape, CINEMATIC_PORTAL_SHAPES, defaults.portalShape),
-    cameraRig: enumValue(source.cameraRig, CINEMATIC_CAMERA_RIGS, defaults.cameraRig),
+    worldSettings: normalizeCinematicWorldSettings(worldMode, worldSettings),
+    portalShape: enumValue(source.portalShape ?? source.shape, CINEMATIC_PORTAL_SHAPES, defaults.portalShape),
+    cameraRig: normalizeCameraRig(source.cameraRig ?? source.cameraMode, defaults.cameraRig),
     camera: normalizeCinematicCameraConfig(source.camera),
-    customMaskId: typeof source.customMaskId === 'string' && source.customMaskId
-      ? source.customMaskId
-      : null,
+    customMaskId: durableReference(source.customMaskId ?? source.maskId),
     environment: {
       depth: clampRange(environment.depth, CINEMATIC_NUMERIC_RANGES.environment.depth),
       architecture: clampRange(environment.architecture, CINEMATIC_NUMERIC_RANGES.environment.architecture),
-      fog: clampRange(environment.fog, CINEMATIC_NUMERIC_RANGES.environment.fog),
-      debris: clampRange(environment.debris, CINEMATIC_NUMERIC_RANGES.environment.debris),
+      fog: clampRange(environment.fog ?? source.fogDensity ?? fogControls.density ?? fogControls.amount, CINEMATIC_NUMERIC_RANGES.environment.fog),
+      debris: clampRange(environment.debris ?? source.particleDensity ?? particleControls.density ?? particleControls.amount, CINEMATIC_NUMERIC_RANGES.environment.debris),
       stars: clampRange(environment.stars, CINEMATIC_NUMERIC_RANGES.environment.stars),
       atmosphere: clampRange(environment.atmosphere, CINEMATIC_NUMERIC_RANGES.environment.atmosphere),
     },
@@ -865,10 +916,10 @@ export function normalizeCinematicWorldConfig(
       routes: normalizeAudioRoutes(audioMapping.routes, extensions, worldMode),
     },
     seed: Math.trunc(rawSeed) >>> 0,
-    qualityTier: enumValue(source.qualityTier, CINEMATIC_QUALITY_TIERS, defaults.qualityTier),
+    qualityTier: enumValue(source.qualityTier ?? source.quality, CINEMATIC_QUALITY_TIERS, defaults.qualityTier),
     transition: {
-      mode: enumValue(transition.mode, CINEMATIC_TRANSITION_MODES, defaults.transition.mode),
-      durationMs: clampRange(transition.durationMs, CINEMATIC_NUMERIC_RANGES.transitionDurationMs),
+      mode: enumValue(transition.mode ?? source.transitionMode, CINEMATIC_TRANSITION_MODES, defaults.transition.mode),
+      durationMs: clampRange(transition.durationMs ?? source.transitionDurationMs, CINEMATIC_NUMERIC_RANGES.transitionDurationMs),
       easing: enumValue(transition.easing, CINEMATIC_TRANSITION_EASINGS, defaults.transition.easing),
       preserveCamera: typeof transition.preserveCamera === 'boolean'
         ? transition.preserveCamera

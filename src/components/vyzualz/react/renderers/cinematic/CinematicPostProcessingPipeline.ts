@@ -194,27 +194,22 @@ export class CinematicPostProcessingPipeline {
     if (this.disposed || this.width <= 0 || this.height <= 0) return
 
     let source = sourceTexture
-    let useA = true
-    const nextTarget = () => {
-      const target = useA ? this.workA : this.workB
-      useA = !useA
-      return target
-    }
+    let passIndex = 0
 
     if (settings.bloom > 0.001) {
-      source = this.runSingle('bloom', source, nextTarget(), settings.bloom, frame.elapsedTimeSec)
+      source = this.runSingle('bloom', source, this.workTarget(passIndex++), settings.bloom, frame.elapsedTimeSec)
     }
     if (settings.chromaticAberration > 0.001) {
-      source = this.runSingle('chromatic', source, nextTarget(), settings.chromaticAberration, frame.elapsedTimeSec)
+      source = this.runSingle('chromatic', source, this.workTarget(passIndex++), settings.chromaticAberration, frame.elapsedTimeSec)
     }
     if (settings.vignette > 0.001) {
-      source = this.runSingle('vignette', source, nextTarget(), settings.vignette, frame.elapsedTimeSec)
+      source = this.runSingle('vignette', source, this.workTarget(passIndex++), settings.vignette, frame.elapsedTimeSec)
     }
     if (settings.filmGrain > 0.001) {
-      source = this.runSingle('grain', source, nextTarget(), settings.filmGrain, frame.elapsedTimeSec)
+      source = this.runSingle('grain', source, this.workTarget(passIndex++), settings.filmGrain, frame.elapsedTimeSec)
     }
     if (settings.feedback > 0.001 && this.feedbackHistory.texture) {
-      const target = nextTarget()
+      const target = this.workTarget(passIndex++)
       const program = this.getProgram('feedback')
       program.activate()
       program.setVec2('uResolution', this.width, this.height)
@@ -227,7 +222,7 @@ export class CinematicPostProcessingPipeline {
       source = target.texture ?? source
     }
     if (settings.toneMapping) {
-      const target = nextTarget()
+      const target = this.workTarget(passIndex++)
       const program = this.getProgram('tone')
       program.activate()
       program.setVec2('uResolution', this.width, this.height)
@@ -276,6 +271,10 @@ export class CinematicPostProcessingPipeline {
     this.workB.dispose()
     this.feedbackHistory.dispose()
     this.fullscreen.dispose()
+  }
+
+  private workTarget(index: number): ShaderFramebuffer {
+    return index % 2 === 0 ? this.workA : this.workB
   }
 
   private runSingle(
