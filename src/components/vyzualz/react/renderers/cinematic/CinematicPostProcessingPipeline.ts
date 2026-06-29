@@ -3,6 +3,7 @@ import { FULLSCREEN_VERT_SRC, FullscreenPass } from '../../shaders/runtime/Fulls
 import { ShaderCompiler } from '../../shaders/runtime/ShaderCompiler'
 import { ShaderFramebuffer } from '../../shaders/runtime/ShaderFramebuffer'
 import { ShaderProgram } from '../../shaders/runtime/ShaderProgram'
+import { resolveEventHorizonSettings } from '../../CinematicWorldSettings'
 
 export interface CinematicPostProcessSettings {
   bloom: number
@@ -18,10 +19,16 @@ export function resolveCinematicPostProcessSettings(
   frame: CinematicFrameContext,
 ): CinematicPostProcessSettings {
   const material = frame.config.material
+  const eventHorizon = frame.config.worldMode === 'eventHorizon'
+    ? resolveEventHorizonSettings(frame.config.worldSettings)
+    : null
   return {
-    bloom: Math.max(material.bloom, material.glow * 0.65),
+    bloom: Math.min(1.6, Math.max(material.bloom, material.glow * 0.65) + (eventHorizon?.bloomBoost ?? 0)),
     vignette: Math.min(0.65, frame.config.environment.depth * 0.28),
-    chromaticAberration: material.chromaticAberration,
+    chromaticAberration: Math.min(
+      1,
+      material.chromaticAberration + (eventHorizon?.chromaticAberrationBoost ?? 0),
+    ),
     filmGrain: Math.min(0.18, frame.config.environment.atmosphere * 0.07),
     feedback: material.feedback,
     toneMapping: true,

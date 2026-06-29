@@ -5,6 +5,13 @@
  * normalizeCinematicWorldConfig() before renderer state is created.
  */
 
+import {
+  createDefaultCinematicWorldSettings,
+  normalizeCinematicWorldSettings,
+  type CinematicWorldSettingsByMode,
+  type CinematicWorldSpecificConfig,
+} from './CinematicWorldSettings'
+
 export const CINEMATIC_WORLD_MODES = [
   'legacyPortal',
   'eventHorizon',
@@ -183,6 +190,8 @@ export interface CinematicCompatibilityData {
 export interface CinematicWorldConfig {
   schemaVersion: 1
   worldMode: CinematicWorldMode
+  /** Focused controls for the selected world. */
+  worldSettings: CinematicWorldSpecificConfig
   portalShape: CinematicPortalShape
   cameraRig: CinematicCameraRig
   customMaskId: string | null
@@ -206,6 +215,7 @@ export function createDefaultCinematicWorldConfig(): CinematicWorldConfig {
   return {
     schemaVersion: 1,
     worldMode: 'legacyPortal',
+    worldSettings: createDefaultCinematicWorldSettings('legacyPortal'),
     portalShape: 'rectangle',
     cameraRig: 'locked',
     customMaskId: null,
@@ -322,7 +332,7 @@ export function normalizeCinematicWorldConfig(
   const extensions: Record<string, unknown> = {
     ...priorExtensions,
     ...collectUnknown(source, [
-      'schemaVersion', 'worldMode', 'portalShape', 'cameraRig', 'customMaskId',
+      'schemaVersion', 'worldMode', 'worldSettings', 'portalShape', 'cameraRig', 'customMaskId',
       'environment', 'material', 'audioMapping', 'seed', 'qualityTier',
       'transition', 'compatibility',
     ]),
@@ -334,10 +344,12 @@ export function normalizeCinematicWorldConfig(
   }
 
   const rawSeed = clampRange(source.seed, CINEMATIC_NUMERIC_RANGES.seed)
+  const worldMode = enumValue(source.worldMode, CINEMATIC_WORLD_MODES, defaults.worldMode)
 
   return {
     schemaVersion: 1,
-    worldMode: enumValue(source.worldMode, CINEMATIC_WORLD_MODES, defaults.worldMode),
+    worldMode,
+    worldSettings: normalizeCinematicWorldSettings(worldMode, source.worldSettings),
     portalShape: enumValue(source.portalShape, CINEMATIC_PORTAL_SHAPES, defaults.portalShape),
     cameraRig: enumValue(source.cameraRig, CINEMATIC_CAMERA_RIGS, defaults.cameraRig),
     customMaskId: typeof source.customMaskId === 'string' && source.customMaskId
@@ -379,6 +391,68 @@ export function normalizeCinematicWorldConfig(
       extensions,
     },
   }
+}
+
+export interface CinematicWorldConfigOverrides {
+  portalShape?: CinematicPortalShape
+  cameraRig?: CinematicCameraRig
+  customMaskId?: string | null
+  environment?: Partial<CinematicEnvironmentControls>
+  material?: Partial<CinematicMaterialControls>
+  audioMapping?: Partial<CinematicAudioMappingConfig>
+  seed?: number
+  qualityTier?: CinematicQualityTier
+  transition?: Partial<CinematicTransitionConfig>
+  compatibility?: Partial<CinematicCompatibilityData>
+}
+
+/**
+ * Preset-facing constructor that keeps world-specific controls isolated from
+ * shared environment/material controls while still returning one normalized
+ * CinematicWorldConfig payload.
+ */
+export function createCinematicWorldConfig<Mode extends CinematicWorldMode>(
+  mode: Mode,
+  settings: Partial<CinematicWorldSettingsByMode[Mode]>,
+  overrides: CinematicWorldConfigOverrides = {},
+): CinematicWorldConfig {
+  const defaults = createDefaultCinematicWorldConfig()
+  return normalizeCinematicWorldConfig({
+    ...defaults,
+    ...overrides,
+    worldMode: mode,
+    worldSettings: {
+      mode,
+      settings,
+    },
+    environment: {
+      ...defaults.environment,
+      ...overrides.environment,
+    },
+    material: {
+      ...defaults.material,
+      ...overrides.material,
+    },
+    audioMapping: {
+      ...defaults.audioMapping,
+      ...overrides.audioMapping,
+      routes: overrides.audioMapping?.routes ?? defaults.audioMapping.routes,
+    },
+    transition: {
+      ...defaults.transition,
+      ...overrides.transition,
+    },
+    compatibility: {
+      legacyValues: {
+        ...defaults.compatibility.legacyValues,
+        ...overrides.compatibility?.legacyValues,
+      },
+      extensions: {
+        ...defaults.compatibility.extensions,
+        ...overrides.compatibility?.extensions,
+      },
+    },
+  })
 }
 
 

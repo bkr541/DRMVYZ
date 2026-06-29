@@ -19,8 +19,13 @@ import type {
   CinematicWorldRenderer,
 } from '../CinematicWorldRenderer'
 import { DEFAULT_REACT_RENDER_PARAMS } from '../reactRenderUtils'
-import { legacyPortalFrameScale, legacyPortalPerFrameDecay } from '../CinematicPortalRenderer'
+import {
+  cinematicWorldRendererRegistry,
+  legacyPortalFrameScale,
+  legacyPortalPerFrameDecay,
+} from '../CinematicPortalRenderer'
 import { diagnosticCinematicWorldDefinition } from '../cinematic/worlds/DiagnosticCinematicWorld'
+import { cinematicWorldDefinitions } from '../cinematic/worlds'
 
 interface Recorder {
   initialized: CinematicRendererInitializeInput[]
@@ -152,6 +157,16 @@ describe('legacy portal timing', () => {
 })
 
 describe('CinematicWorldRendererRegistry', () => {
+  it('registers the four production WebGL worlds beside legacyPortal', () => {
+    expect(cinematicWorldRendererRegistry.list().map(item => item.id)).toEqual([
+      'legacyPortal',
+      'eventHorizon',
+      'infiniteCorridor',
+      'fractureRift',
+      'monolithGate',
+    ])
+  })
+
   it('resolves registered definitions and hides internal diagnostics by default', () => {
     const registry = new CinematicWorldRendererRegistry()
     const legacy = canvasDefinition()
@@ -173,6 +188,40 @@ describe('CinematicWorldRendererRegistry', () => {
 })
 
 describe('CinematicWorldRendererHost', () => {
+  it('switches among all four production worlds through one WebGL runtime', () => {
+    const registry = new CinematicWorldRendererRegistry()
+    registry.register(canvasDefinition().definition)
+    for (const definition of cinematicWorldDefinitions) registry.register(definition)
+    const runtime = new RecordingWebGLRuntime()
+    const host = new CinematicWorldRendererHost(makeContext(), registry, 'legacyPortal', () => runtime)
+    const presetIds = [
+      'preset-singularity-crown',
+      'preset-cathedral-run',
+      'preset-glass-wound',
+      'preset-titan-seal',
+    ]
+
+    for (const presetId of presetIds) {
+      const preset = DEFAULT_REACT_PRESETS.find(item => item.id === presetId)!
+      const input = makeInput(presetId)
+      input.preset = preset
+      input.config = preset.cinematicConfig!
+      input.randomSeed = input.config.seed
+      input.transition = { ...input.transition, toWorld: input.config.worldMode }
+      host.render(input)
+    }
+
+    expect(runtime.renders.map(item => item.definition.id)).toEqual([
+      'eventHorizon',
+      'infiniteCorridor',
+      'fractureRift',
+      'monolithGate',
+    ])
+    expect(runtime.disposed).toBe(0)
+    host.dispose()
+    expect(runtime.disposed).toBe(1)
+  })
+
   it('lazily initializes, resizes, renders, resets, and disposes the legacy renderer', () => {
     const registry = new CinematicWorldRendererRegistry()
     const legacy = canvasDefinition()

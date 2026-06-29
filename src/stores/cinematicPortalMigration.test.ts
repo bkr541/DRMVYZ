@@ -7,11 +7,13 @@ const dreamGate = DEFAULT_REACT_PRESETS.find(preset => preset.id === 'preset-dre
 
 describe('Cinematic Portal compatibility migration', () => {
   it('maps every existing Cinematic Portal preset to legacyPortal', () => {
-    const cinematicPresets = DEFAULT_REACT_PRESETS.filter(preset => preset.engine === 'cinematicPortal')
+    const allCinematicPresets = DEFAULT_REACT_PRESETS.filter(preset => preset.engine === 'cinematicPortal')
+    const legacyPortalPresets = allCinematicPresets.filter(
+      preset => preset.cinematicConfig?.worldMode === 'legacyPortal',
+    )
 
-    expect(cinematicPresets).toHaveLength(5)
-    for (const preset of cinematicPresets) {
-      expect(preset.cinematicConfig?.worldMode).toBe('legacyPortal')
+    expect(legacyPortalPresets).toHaveLength(5)
+    for (const preset of legacyPortalPresets) {
       expect(preset.cinematicConfig?.portalShape).toBe('rectangle')
     }
   })

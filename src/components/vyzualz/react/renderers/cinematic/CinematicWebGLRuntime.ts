@@ -179,10 +179,12 @@ export class CinematicWebGLRuntime implements CinematicWebGLRuntimeLike {
     const key = cinematicStructuralKey(frame)
     if (this.activeWorld && this.activeDefinition?.id === definition.id && this.activeKey === key) return
 
+    const worldChanged = this.activeDefinition?.id !== definition.id
     const reason = !this.previousFrame
       ? 'presetChanged'
-      : (this.activeDefinition?.id !== definition.id ? 'worldChanged' : 'structuralConfigurationChanged')
+      : (worldChanged ? 'worldChanged' : 'structuralConfigurationChanged')
     this.disposeActiveWorld(reason)
+    if (worldChanged) this.post.clearFeedback()
 
     const world = definition.create()
     this.activeDefinition = definition

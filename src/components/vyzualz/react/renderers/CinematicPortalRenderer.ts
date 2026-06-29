@@ -9,6 +9,7 @@ import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { hexToRgba } from './reactRenderUtils'
 import { CinematicWebGLRuntime } from './cinematic/CinematicWebGLRuntime'
 import { diagnosticCinematicWorldDefinition } from './cinematic/worlds/DiagnosticCinematicWorld'
+import { cinematicWorldDefinitions } from './cinematic/worlds'
 import {
   CinematicWorldRendererHost,
   CinematicWorldRendererRegistry,
@@ -540,6 +541,9 @@ cinematicWorldRendererRegistry.register({
   },
   create: () => new LegacyPortalWorldRenderer(),
 })
+for (const definition of cinematicWorldDefinitions) {
+  cinematicWorldRendererRegistry.register(definition)
+}
 cinematicWorldRendererRegistry.register(diagnosticCinematicWorldDefinition)
 
 const hostByContext = new WeakMap<CanvasRenderingContext2D, CinematicWorldRendererHost>()

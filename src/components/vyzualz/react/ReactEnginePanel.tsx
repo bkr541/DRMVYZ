@@ -286,17 +286,10 @@ export function ReactEnginePanel() {
       {activeReactEngineId === 'cinematicPortal' && (
         <>
           <CtrlSection label="Engine Mode" />
-          {/*
-           * TODO: Dream Gate, Crimson Rift, Emerald Fog, Portal Overload, and
-           * Quiet Ruins are currently look variations of the same cinematicPortal
-           * renderer — they differ only in palette and param values, not in
-           * rendering algorithm.  Add a portalMode field (e.g. 'fogGate' |
-           * 'lightBeam' | 'portalSquare' | 'ringExpansion') once the renderer
-           * supports distinct visual families selectable from the ENGINE tab.
-           */}
           <div className="rv-ctrl-info">
-            Cinematic Portal visual style is driven by the active preset palette
-            and parameters. Select a preset from the PRESETS tab to change looks.
+            Cinematic presets can now select Legacy Portal, Event Horizon,
+            Infinite Corridor, Fracture Rift, or Monolith Gate. Choose a preset
+            from the PRESETS tab to switch worlds and their focused controls.
           </div>
         </>
       )}

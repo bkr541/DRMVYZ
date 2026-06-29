@@ -239,6 +239,7 @@ export function cinematicStructuralKey(input: CinematicFrameContext): string {
     presetId: input.presetId,
     requestedWorldId: input.requestedWorldId ?? config.worldMode,
     worldMode: config.worldMode,
+    worldSettings: config.worldSettings,
     portalShape: config.portalShape,
     cameraRig: config.cameraRig,
     seed: config.seed,
