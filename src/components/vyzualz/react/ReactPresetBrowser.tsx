@@ -1,5 +1,6 @@
 import type { ReactPreset, ReactEngineId } from './ReactTypes'
 import { ReactPresetThumbnail } from './ReactPresetThumbnail'
+import { useEffectiveReactPresets } from '../../../features/personalization/useEffectiveReactPresets'
 
 const ENGINE_LABELS: Record<ReactEngineId, string> = {
   shaderPads:      'Shader Pads',
@@ -24,6 +25,7 @@ interface Props {
 }
 
 export function ReactPresetBrowser({ presets, activePresetId, onSelect }: Props) {
+  const displayPresets = useEffectiveReactPresets(presets)
   return (
     <div className="rv-preset-browser">
       <div className="rv-panel-header">
@@ -31,7 +33,7 @@ export function ReactPresetBrowser({ presets, activePresetId, onSelect }: Props)
         <span className="rv-panel-title">Visual Engines</span>
       </div>
       <div className="rv-preset-list">
-        {presets.map((preset) => {
+        {displayPresets.map((preset) => {
           const isActive = preset.id === activePresetId
           return (
             <button

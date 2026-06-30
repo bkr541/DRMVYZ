@@ -4,6 +4,8 @@ import { useReactStore } from '../../../stores/reactStore'
 import { CINEMATIC_WORLD_BY_ID, CINEMATIC_WORLD_UI, getCinematicPresetMood } from './CinematicWorldsUi'
 import type { ReactPreset, ReactEngineId } from './ReactTypes'
 import { ReactPresetThumbnail } from './ReactPresetThumbnail'
+import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
+import { resolveBrandedReactPreset } from '../../../features/personalization/resolveBrandedReactPreset'
 
 const ENGINE_ORDER: ReactEngineId[] = ['cinematicPortal', 'oscilloscope', 'laserDmx', 'neonLattice']
 
@@ -130,7 +132,10 @@ function EngineSection({ engineId, presets, activePresetId, modifiedIds, onSelec
   return (
     <div className={`rv-preset-group${collapsed ? ' rv-preset-group--collapsed' : ''}`}>
       <button type="button" className="rv-preset-group-hdr" onClick={() => setCollapsed(value => !value)} aria-expanded={!collapsed}>
-        <span className="rv-preset-group-hdr-icon">{ENGINE_ICONS[engineId]}</span>
+        <span
+          className="rv-preset-group-hdr-icon"
+          style={{ color: (presets.find(preset => preset.id === activePresetId) ?? presets[0])?.palette.primary }}
+        >{ENGINE_ICONS[engineId]}</span>
         <span className="rv-preset-group-hdr-label">{ENGINE_LABELS[engineId]}</span>
         <span className="rv-preset-group-hdr-count">{presets.length}</span>
         <span className="rv-preset-group-hdr-chevron" aria-hidden="true">▾</span>
@@ -144,16 +149,21 @@ function EngineSection({ engineId, presets, activePresetId, modifiedIds, onSelec
 }
 
 export function ReactPresetsPanel() {
+  const activeBrandKit = useBrandKitStore(state => state.activeKit)
   const { reactPresets, activeReactPresetId, cinematicConfigsByPresetId, selectReactPreset } = useReactStore(useShallow(state => ({
     reactPresets: state.reactPresets,
     activeReactPresetId: state.activeReactPresetId,
     cinematicConfigsByPresetId: state.cinematicConfigsByPresetId,
     selectReactPreset: state.selectReactPreset,
   })))
-  const displayPresets = useMemo(() => reactPresets.map(preset => ({
-    ...preset,
-    cinematicConfig: cinematicConfigsByPresetId[preset.id] ?? preset.cinematicConfig,
-  })), [reactPresets, cinematicConfigsByPresetId])
+  const displayPresets = useMemo(
+    () => reactPresets.map(preset => resolveBrandedReactPreset(
+      preset,
+      cinematicConfigsByPresetId,
+      activeBrandKit,
+    ) ?? preset),
+    [reactPresets, cinematicConfigsByPresetId, activeBrandKit],
+  )
   const grouped = useMemo(() => ENGINE_ORDER.map(engine => ({ engine, presets: displayPresets.filter(preset => preset.engine === engine) })).filter(group => group.presets.length > 0), [displayPresets])
   const active = displayPresets.find(preset => preset.id === activeReactPresetId)
   const activeWorld = active?.engine === 'cinematicPortal' ? CINEMATIC_WORLD_BY_ID[active.cinematicConfig?.worldMode ?? 'legacyPortal'].label : null

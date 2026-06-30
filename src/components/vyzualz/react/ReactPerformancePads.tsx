@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { resolveActivePerformanceActionTarget, useReactStore } from '../../../stores/reactStore'
+import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
+import { resolveEffectiveReactPresets } from '../../../features/personalization/effectivePalette'
 import type { NeonLatticeTriggerType } from './ReactTypes'
 import {
   getReactPerformanceActionsForTarget,
@@ -82,6 +84,16 @@ export function ReactPerformancePads() {
       performanceActionToggleStates: s.performanceActionToggleStates,
       triggerPerformanceAction: s.triggerPerformanceAction,
     })),
+  )
+
+  const activeBrandKit = useBrandKitStore(state => state.activeKit)
+  const effectivePresets = useMemo(
+    () => resolveEffectiveReactPresets(reactPresets, activeBrandKit),
+    [reactPresets, activeBrandKit],
+  )
+  const effectivePresetById = useMemo(
+    () => new Map(effectivePresets.map(preset => [preset.id, preset])),
+    [effectivePresets],
   )
 
   const target = useMemo(
@@ -193,7 +205,7 @@ export function ReactPerformancePads() {
                 onClick={() => pad.presetId && setActivePadId(pad.id)}
                 disabled={!pad.presetId}
                 title={pad.presetId ? `${pad.label} [${pad.keyBinding.toUpperCase()}]` : 'Empty pad'}
-                style={{ '--pad-color': pad.color } as React.CSSProperties}
+                style={{ '--pad-color': (pad.presetId ? (effectivePresetById.get(pad.presetId)?.palette.accent ?? pad.color) : pad.color) } as React.CSSProperties}
               >
                 <span className="rv-pad-label">{pad.label}</span>
                 <span className="rv-pad-key">{pad.keyBinding.toUpperCase()}</span>

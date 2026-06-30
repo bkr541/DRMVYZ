@@ -6,7 +6,6 @@ import {
   updateMediaItem,
   updateMediaItemRole,
   updateMediaItemFavorite,
-  updateMediaItemMetadata,
   deleteMediaItem,
   createSignedMediaUrl,
   uploadMediaFile,
@@ -425,6 +424,7 @@ interface MediaState {
   removeMediaTag(mediaId: string, tag: string): void
   bulkTagMedia(mediaIds: string[], tags: string[]): void
   saveMediaEdits(id: string, patch: { role: MediaRole; title: string; description: string; tags: string[]; collectionIds: string[]; metadata: MediaMetadata }): Promise<void>
+  updateMediaMetadata(mediaId: string, patch: Partial<MediaMetadata>): Promise<boolean>
 
   // Collections
   loadCollections(): Promise<void>
@@ -978,6 +978,24 @@ export const useMediaStore = create<MediaState>((set, get) => ({
           .then(({ error }) => { if (error) console.error('[mediaStore] saveMediaEdits collections:', error) }),
       ])
     }
+  },
+
+  async updateMediaMetadata(mediaId, patch) {
+    const item = get().items.find(candidate => candidate.id === mediaId || candidate.dbId === mediaId)
+    if (!item) return false
+    const previous = item.metadata
+    const metadata = mergeMediaMetadata(previous, patch)
+    set(state => ({
+      items: state.items.map(candidate => candidate.id === item.id ? { ...candidate, metadata } : candidate),
+    }))
+    if (!item.dbId || !supabaseConfigured) return true
+    const { error } = await updateMediaItem(item.dbId, { metadata })
+    if (!error) return true
+    console.error('[mediaStore] updateMediaMetadata:', error)
+    set(state => ({
+      items: state.items.map(candidate => candidate.id === item.id ? { ...candidate, metadata: previous } : candidate),
+    }))
+    return false
   },
 
   // ── Collections ───────────────────────────────────────────────────────────

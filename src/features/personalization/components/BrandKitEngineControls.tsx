@@ -1,0 +1,118 @@
+import type {
+  BrandKit,
+  BrandKitEngineRule,
+  BrandKitEngineTarget,
+  BrandPersonalizationMode,
+} from '../BrandKitTypes'
+import { BRAND_PERSONALIZATION_MODES } from '../BrandKitTypes'
+import { BrandKitPaletteEditor } from './BrandKitPaletteEditor'
+
+const ENGINES: ReadonlyArray<{
+  id: BrandKitEngineTarget
+  label: string
+  description: string
+}> = [
+  { id: 'oscilloscope', label: 'Sound Drawing', description: 'Waveforms, text, shapes, and palette-enabled SVG artwork.' },
+  { id: 'neonLattice', label: 'Neon Lattice', description: 'Rail, block, flare, and glow colors.' },
+  { id: 'cinematicPortal', label: 'Cinematic Worlds', description: 'All Cinematic Worlds, including Reactive Constellation.' },
+]
+
+const MODE_LABELS: Record<BrandPersonalizationMode, string> = {
+  original: 'Original',
+  hybrid: 'Hybrid',
+  brand: 'Brand',
+  custom: 'Custom',
+}
+
+const MODE_DESCRIPTIONS: Record<BrandPersonalizationMode, string> = {
+  original: 'Keep each preset exactly as designed.',
+  hybrid: 'Blend your identity into the preset while retaining its character.',
+  brand: 'Map the Brand Kit semantic colors directly.',
+  custom: 'Use an engine-specific semantic palette.',
+}
+
+function effectiveRule(kit: BrandKit, engineId: BrandKitEngineTarget): BrandKitEngineRule {
+  return kit.engineRules[engineId] ?? {
+    mode: 'hybrid',
+    strength: kit.defaultStrength,
+  }
+}
+
+export function BrandKitEngineControls({ kit, onChange }: {
+  kit: BrandKit
+  onChange: (engineRules: BrandKit['engineRules']) => void
+}) {
+  function updateRule(engineId: BrandKitEngineTarget, patch: Partial<BrandKitEngineRule>) {
+    const current = effectiveRule(kit, engineId)
+    onChange({
+      ...kit.engineRules,
+      [engineId]: { ...current, ...patch },
+    })
+  }
+
+  function resetRule(engineId: BrandKitEngineTarget) {
+    const next = { ...kit.engineRules }
+    delete next[engineId]
+    onChange(next)
+  }
+
+  return (
+    <div className="bk-engine-list">
+      {ENGINES.map(engine => {
+        const rule = effectiveRule(kit, engine.id)
+        const customPalette = rule.customPalette ?? kit.palette
+        return (
+          <section key={engine.id} className="bk-engine-card" aria-labelledby={`bk-engine-${engine.id}`}>
+            <div className="bk-engine-heading">
+              <div>
+                <h4 id={`bk-engine-${engine.id}`}>{engine.label}</h4>
+                <p>{engine.description}</p>
+              </div>
+              <button type="button" className="bk-text-button" onClick={() => resetRule(engine.id)}>
+                Reset to Brand Kit default
+              </button>
+            </div>
+            <div className="bk-mode-row" role="group" aria-label={`${engine.label} personalization mode`}>
+              {BRAND_PERSONALIZATION_MODES.map(mode => (
+                <button
+                  key={mode}
+                  type="button"
+                  className={`bk-mode-button${rule.mode === mode ? ' bk-mode-button--active' : ''}`}
+                  aria-pressed={rule.mode === mode}
+                  onClick={() => updateRule(engine.id, {
+                    mode,
+                    ...(mode === 'custom' && !rule.customPalette ? { customPalette: { ...kit.palette } } : {}),
+                  })}
+                >{MODE_LABELS[mode]}</button>
+              ))}
+            </div>
+            <p className="bk-mode-description">{MODE_DESCRIPTIONS[rule.mode]}</p>
+            <label className="bk-strength-label" htmlFor={`bk-strength-${engine.id}`}>
+              Strength <output>{Math.round(rule.strength * 100)}%</output>
+            </label>
+            <input
+              id={`bk-strength-${engine.id}`}
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={rule.strength}
+              disabled={rule.mode === 'original'}
+              onChange={event => updateRule(engine.id, { strength: Number(event.target.value) })}
+            />
+            {rule.mode === 'custom' && (
+              <div className="bk-custom-palette">
+                <BrandKitPaletteEditor
+                  palette={customPalette}
+                  resetPalette={kit.palette}
+                  compact
+                  onChange={palette => updateRule(engine.id, { customPalette: palette })}
+                />
+              </div>
+            )}
+          </section>
+        )
+      })}
+    </div>
+  )
+}

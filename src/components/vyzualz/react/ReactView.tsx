@@ -3,7 +3,7 @@ import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIn
 import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useRecorder } from '../../../hooks/useRecorder'
-import { resolveCinematicConfigForPreset, useReactStore } from '../../../stores/reactStore'
+import { useReactStore } from '../../../stores/reactStore'
 import {
   ReactPresetsPanel,
   ReactEnginePanel,
@@ -42,6 +42,8 @@ import {
   resolveReactWorkspaceComposition,
   type ReactLeftTab,
 } from './reactWorkspaceComposition'
+import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
+import { resolveBrandedReactPreset } from '../../../features/personalization/resolveBrandedReactPreset'
 import '../../../styles/reactView.css'
 
 // These workspaces carry large, engine-specific renderers and authoring tools.
@@ -163,6 +165,7 @@ export function ReactView() {
     laserDmxBeamMatrix:             s.laserDmxBeamMatrix,
   })))
   const activeShaderId = useShaderPanelStore(s => s.activeShaderId)
+  const activeBrandKit = useBrandKitStore(s => s.activeKit)
 
   const workspaceComposition = useMemo(
     () => resolveReactWorkspaceComposition(
@@ -271,11 +274,10 @@ export function ReactView() {
     ? null
     : (selectedPresetForEngine ?? reactPresets.find(p => p.engine === activeReactEngineId) ?? null)
 
-  const renderPreset = useMemo(() => {
-    if (!activePreset || activePreset.engine !== 'cinematicPortal') return activePreset
-    const cinematicConfig = resolveCinematicConfigForPreset(activePreset, cinematicConfigsByPresetId)
-    return cinematicConfig ? { ...activePreset, cinematicConfig } : activePreset
-  }, [activePreset, cinematicConfigsByPresetId])
+  const renderPreset = useMemo(
+    () => resolveBrandedReactPreset(activePreset, cinematicConfigsByPresetId, activeBrandKit),
+    [activePreset, cinematicConfigsByPresetId, activeBrandKit],
+  )
 
   // Timeline math requires a finite positive duration. New/decoding tracks can
   // briefly expose 0, and malformed metadata may contain NaN/Infinity/negatives.

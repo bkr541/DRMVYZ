@@ -12,6 +12,7 @@ import {
   clearActiveBrandKit,
   createBrandKit,
   deleteBrandKit,
+  listBrandKitAssets,
   listBrandKits,
   loadActiveBrandKitData,
   removeBrandKitAsset,
@@ -224,6 +225,8 @@ interface BrandKitState {
   kits: BrandKit[]
   activeKit: BrandKit | null
   activeAssets: BrandKitAssetWithMedia[]
+  assetsByKitId: Record<string, BrandKitAssetWithMedia[]>
+  loadingAssetsForKitId: string | null
   activeMetadata: ActiveBrandKitMetadata
   loading: boolean
   syncing: boolean
@@ -233,6 +236,7 @@ interface BrandKitState {
   initializeForUser(userId: string): Promise<void>
   clearForSignedOut(): void
   refresh(): Promise<void>
+  loadAssetsForKit(kitId: string): Promise<BrandKitAssetWithMedia[]>
   createKit(input: Omit<BrandKitInsert, 'user_id'>): Promise<BrandKit | null>
   updateKit(id: string, patch: Partial<BrandKit>): Promise<BrandKit | null>
   deleteKit(id: string): Promise<boolean>
@@ -252,6 +256,8 @@ export const useBrandKitStore = create<BrandKitState>((set, get) => ({
   kits: [],
   activeKit: null,
   activeAssets: [],
+  assetsByKitId: {},
+  loadingAssetsForKitId: null,
   activeMetadata: { activeKitId: null, source: 'none', loadedAt: null, lastSyncedAt: null },
   loading: false,
   syncing: false,
@@ -268,6 +274,8 @@ export const useBrandKitStore = create<BrandKitState>((set, get) => ({
         kits: cached?.kit ? [cached.kit] : [],
         activeKit: cached?.kit ?? null,
         activeAssets: cached?.assets ?? [],
+        assetsByKitId: cached?.kit ? { [cached.kit.id]: cached.assets } : {},
+        loadingAssetsForKitId: null,
         activeMetadata: {
           activeKitId: cached?.kit.id ?? null,
           source: cached ? 'localCache' : 'none',
@@ -301,6 +309,8 @@ export const useBrandKitStore = create<BrandKitState>((set, get) => ({
       kits: kitsResult.rows,
       activeKit: active?.kit ?? null,
       activeAssets: active?.assets ?? [],
+      assetsByKitId: active?.kit ? { ...get().assetsByKitId, [active.kit.id]: active.assets } : get().assetsByKitId,
+      loadingAssetsForKitId: null,
       activeMetadata: {
         activeKitId: active?.kit.id ?? null,
         source: 'database',
@@ -321,6 +331,8 @@ export const useBrandKitStore = create<BrandKitState>((set, get) => ({
       kits: [],
       activeKit: null,
       activeAssets: [],
+      assetsByKitId: {},
+      loadingAssetsForKitId: null,
       activeMetadata: { activeKitId: null, source: 'none', loadedAt: null, lastSyncedAt: null },
       loading: false,
       syncing: false,
@@ -332,6 +344,23 @@ export const useBrandKitStore = create<BrandKitState>((set, get) => ({
   async refresh() {
     const userId = get().currentUserId
     if (userId) await get().initializeForUser(userId)
+  },
+
+  async loadAssetsForKit(kitId) {
+    const existing = get().assetsByKitId[kitId]
+    if (existing) return existing
+    set({ loadingAssetsForKitId: kitId, error: null })
+    const result = await listBrandKitAssets(kitId)
+    if (get().loadingAssetsForKitId !== kitId) return get().assetsByKitId[kitId] ?? []
+    if (result.error) {
+      set({ loadingAssetsForKitId: null, error: result.error })
+      return []
+    }
+    set(state => ({
+      assetsByKitId: { ...state.assetsByKitId, [kitId]: result.rows },
+      loadingAssetsForKitId: null,
+    }))
+    return result.rows
   },
 
   async createKit(input) {
@@ -390,10 +419,13 @@ export const useBrandKitStore = create<BrandKitState>((set, get) => ({
     set(state => {
       const wasActive = state.activeKit?.id === id
       if (wasActive) cacheActiveState(userId, null, [])
+      const assetsByKitId = { ...state.assetsByKitId }
+      delete assetsByKitId[id]
       return {
         kits: state.kits.filter(kit => kit.id !== id),
         activeKit: wasActive ? null : state.activeKit,
         activeAssets: wasActive ? [] : state.activeAssets,
+        assetsByKitId,
         activeMetadata: wasActive
           ? { activeKitId: null, source: 'database', loadedAt: new Date().toISOString(), lastSyncedAt: new Date().toISOString() }
           : state.activeMetadata,
@@ -431,6 +463,7 @@ export const useBrandKitStore = create<BrandKitState>((set, get) => ({
     set({
       activeKit: activeResult.value.kit,
       activeAssets: activeResult.value.assets,
+      assetsByKitId: { ...get().assetsByKitId, [activeResult.value.kit.id]: activeResult.value.assets },
       activeMetadata: { activeKitId: activeResult.value.kit.id, source: 'database', loadedAt: new Date().toISOString(), lastSyncedAt: new Date().toISOString() },
       syncing: false,
       usingCachedActiveKit: false,
@@ -452,8 +485,12 @@ export const useBrandKitStore = create<BrandKitState>((set, get) => ({
         : state.activeAssets
       if (state.activeKit) cacheActiveState(userId, state.activeKit, activeAssets)
       const syncedAt = new Date().toISOString()
+      const kitAssets = [...(state.assetsByKitId[input.brand_kit_id] ?? []), result.value!]
+        .filter((asset, index, all) => all.findIndex(candidate => candidate.id === asset.id) === index)
+        .sort((a, b) => a.sortOrder - b.sortOrder)
       return {
         activeAssets,
+        assetsByKitId: { ...state.assetsByKitId, [input.brand_kit_id]: kitAssets },
         activeMetadata: updatesActiveKit
           ? { ...state.activeMetadata, source: 'database', loadedAt: syncedAt, lastSyncedAt: syncedAt }
           : state.activeMetadata,
@@ -473,10 +510,13 @@ export const useBrandKitStore = create<BrandKitState>((set, get) => ({
     set(state => {
       const updatesActiveKit = state.activeAssets.some(asset => asset.id === id)
       const activeAssets = state.activeAssets.map(asset => asset.id === id ? result.value! : asset).sort((a, b) => a.sortOrder - b.sortOrder)
+      const kitId = result.value!.brandKitId
+      const kitAssets = (state.assetsByKitId[kitId] ?? []).map(asset => asset.id === id ? result.value! : asset).sort((a, b) => a.sortOrder - b.sortOrder)
       if (state.activeKit) cacheActiveState(userId, state.activeKit, activeAssets)
       const syncedAt = new Date().toISOString()
       return {
         activeAssets,
+        assetsByKitId: { ...state.assetsByKitId, [kitId]: kitAssets },
         activeMetadata: updatesActiveKit
           ? { ...state.activeMetadata, source: 'database', loadedAt: syncedAt, lastSyncedAt: syncedAt }
           : state.activeMetadata,
@@ -494,12 +534,19 @@ export const useBrandKitStore = create<BrandKitState>((set, get) => ({
     if (get().currentUserId !== userId) return false
     if (result.error) { set({ syncing: false, error: result.error }); return false }
     set(state => {
+      const linkedAsset = state.activeAssets.find(asset => asset.id === id)
+        ?? Object.values(state.assetsByKitId).flat().find(asset => asset.id === id)
       const updatesActiveKit = state.activeAssets.some(asset => asset.id === id)
       const activeAssets = state.activeAssets.filter(asset => asset.id !== id)
+      const assetsByKitId = linkedAsset ? {
+        ...state.assetsByKitId,
+        [linkedAsset.brandKitId]: (state.assetsByKitId[linkedAsset.brandKitId] ?? []).filter(asset => asset.id !== id),
+      } : state.assetsByKitId
       if (state.activeKit) cacheActiveState(userId, state.activeKit, activeAssets)
       const syncedAt = new Date().toISOString()
       return {
         activeAssets,
+        assetsByKitId,
         activeMetadata: updatesActiveKit
           ? { ...state.activeMetadata, source: 'database', loadedAt: syncedAt, lastSyncedAt: syncedAt }
           : state.activeMetadata,

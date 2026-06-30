@@ -4,6 +4,7 @@ import { useMediaStore } from '../../../stores/mediaStore'
 import { supabase, supabaseConfigured } from '../../../lib/supabase'
 import { getProfile, updateProfile, uploadAvatar } from '../../../lib/profileDb'
 import type { Profile } from '../../../types/database'
+import { BrandKitSettingsPanel } from '../../../features/personalization/components/BrandKitSettingsPanel'
 
 // ── AccountPanel ──────────────────────────────────────────────────────────────
 
@@ -351,39 +352,107 @@ function SystemSettingsPanel() {
   )
 }
 
+type SettingsTab = 'account' | 'brand' | 'shortcuts' | 'system'
+
+const SETTINGS_TABS: Array<{ id: SettingsTab; label: string }> = [
+  { id: 'account', label: 'Account' },
+  { id: 'brand', label: 'Brand Kit' },
+  { id: 'shortcuts', label: 'Shortcuts' },
+  { id: 'system', label: 'System Settings' },
+]
+
 export function SettingsModal({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState<'account' | 'shortcuts' | 'system'>('account')
+  const [tab, setTab] = useState<SettingsTab>('account')
+  const modalRef = useRef<HTMLDivElement>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    modalRef.current?.focus()
+    return () => previousFocusRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+        return
+      }
+      if (event.key !== 'Tab' || !modalRef.current) return
+      const focusable = Array.from(modalRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+      )).filter(element => !element.hasAttribute('hidden'))
+      if (focusable.length === 0) {
+        event.preventDefault()
+        modalRef.current.focus()
+        return
+      }
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
   return (
     <div className="vsm-backdrop" onMouseDown={onClose}>
-      <div className="vsm-modal" role="dialog" aria-modal="true" onMouseDown={e => e.stopPropagation()}>
+      <div
+        ref={modalRef}
+        className={`vsm-modal${tab === 'brand' ? ' vsm-modal--brand' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="vsm-title"
+        tabIndex={-1}
+        onMouseDown={event => event.stopPropagation()}
+      >
         <div className="vsm-header">
-          <div className="vsm-title">SETTINGS</div>
-          <button className="vsm-close" onClick={onClose} aria-label="Close">×</button>
+          <div id="vsm-title" className="vsm-title">SETTINGS</div>
+          <button type="button" className="vsm-close" onClick={onClose} aria-label="Close settings">×</button>
         </div>
         <div className="vsm-body">
-          <nav className="vsm-nav">
-            <div
-              className={`vsm-nav-item${tab === 'account' ? ' vsm-nav-item--active' : ''}`}
-              onClick={() => setTab('account')}
-            >Account</div>
-            <div
-              className={`vsm-nav-item${tab === 'shortcuts' ? ' vsm-nav-item--active' : ''}`}
-              onClick={() => setTab('shortcuts')}
-            >Shortcuts</div>
-            <div
-              className={`vsm-nav-item${tab === 'system' ? ' vsm-nav-item--active' : ''}`}
-              onClick={() => setTab('system')}
-            >System Settings</div>
+          <nav className="vsm-nav" role="tablist" aria-label="Settings sections">
+            {SETTINGS_TABS.map(item => (
+              <button
+                key={item.id}
+                id={`vsm-tab-${item.id}`}
+                type="button"
+                role="tab"
+                aria-selected={tab === item.id}
+                aria-controls={`vsm-panel-${item.id}`}
+                tabIndex={tab === item.id ? 0 : -1}
+                className={`vsm-nav-item${tab === item.id ? ' vsm-nav-item--active' : ''}`}
+                onClick={() => setTab(item.id)}
+                onKeyDown={event => {
+                  const index = SETTINGS_TABS.findIndex(candidate => candidate.id === item.id)
+                  const delta = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1
+                    : event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1
+                      : 0
+                  if (!delta) return
+                  event.preventDefault()
+                  const next = SETTINGS_TABS[(index + delta + SETTINGS_TABS.length) % SETTINGS_TABS.length]
+                  setTab(next.id)
+                  requestAnimationFrame(() => document.getElementById(`vsm-tab-${next.id}`)?.focus())
+                }}
+              >{item.label}</button>
+            ))}
           </nav>
-          <div className="vsm-content">
+          <div
+            id={`vsm-panel-${tab}`}
+            className={`vsm-content${tab === 'brand' ? ' vsm-content--brand' : ''}`}
+            role="tabpanel"
+            aria-labelledby={`vsm-tab-${tab}`}
+            tabIndex={0}
+          >
             {tab === 'account' && <AccountPanel />}
+            {tab === 'brand' && <BrandKitSettingsPanel />}
             {tab === 'shortcuts' && <ShortcutPanel />}
             {tab === 'system' && <SystemSettingsPanel />}
           </div>

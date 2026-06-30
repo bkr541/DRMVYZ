@@ -6,9 +6,31 @@ import { VyzualzView }         from './components/vyzualz/VyzualzView'
 import { VyzualzErrorBoundary } from './components/vyzualz/VyzualzErrorBoundary'
 import { ActiveTrackLyricsBridge } from './features/lyrics/ActiveTrackLyricsBridge'
 import { useBrandKitStore } from './features/personalization/brandKitStore'
+import { hexToRgb } from './features/personalization/paletteColorSpace'
 
 export default function App() {
   const [authed, setAuthed] = useState<boolean | null>(null)
+  const activeBrandKit = useBrandKitStore(state => state.activeKit)
+
+  useEffect(() => {
+    const root = document.documentElement
+    if (!activeBrandKit?.useForAppAccent) {
+      root.style.removeProperty('--az-cyan')
+      root.style.removeProperty('--az-cyan-rgb')
+      root.style.removeProperty('--az-cyan-dim')
+      return
+    }
+    const accent = activeBrandKit.palette.primary
+    const { r, g, b } = hexToRgb(accent)
+    root.style.setProperty('--az-cyan', accent)
+    root.style.setProperty('--az-cyan-rgb', `${r},${g},${b}`)
+    root.style.setProperty('--az-cyan-dim', `rgba(${r},${g},${b},0.42)`)
+    return () => {
+      root.style.removeProperty('--az-cyan')
+      root.style.removeProperty('--az-cyan-rgb')
+      root.style.removeProperty('--az-cyan-dim')
+    }
+  }, [activeBrandKit?.id, activeBrandKit?.palette.primary, activeBrandKit?.useForAppAccent])
 
   useEffect(() => {
     // Skip auth check when Supabase is not configured (dev without .env)
