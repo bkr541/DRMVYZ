@@ -15,10 +15,10 @@ import type {
   LaserDmxSettings,
 } from './ReactTypes'
 
-export const LASER_DMX_SETTINGS_SCHEMA_VERSION = 4
+export const LASER_DMX_SETTINGS_SCHEMA_VERSION = 5
 export const LASER_DMX_FIXTURE_SCHEMA_VERSION = 4
 export const LASER_DMX_BEAM_MATRIX_SCHEMA_VERSION = 1
-export const LASER_DMX_PRODUCTION_RIG_SCHEMA_VERSION = 5
+export const LASER_DMX_PRODUCTION_RIG_SCHEMA_VERSION = 6
 export const LASER_DMX_STAGE_SCHEMA_VERSION = 1
 
 export type ProductionFixtureKind =
@@ -206,6 +206,8 @@ export interface ProductionAtmosphereSettings {
 }
 
 export interface ProductionAtmosphericFixtureSettings {
+  /** Arming is authored/persisted; triggerRequestId remains transient command state. */
+  armed: boolean
   outputLevel: number
   outputDurationSec: number
   plumeVelocity: number
@@ -523,6 +525,7 @@ export const DEFAULT_PRODUCTION_ATMOSPHERE_SETTINGS: ProductionAtmosphereSetting
 }
 
 export const DEFAULT_PRODUCTION_ATMOSPHERIC_FIXTURE_SETTINGS: ProductionAtmosphericFixtureSettings = {
+  armed: true,
   outputLevel: 0.7,
   outputDurationSec: 1.8,
   plumeVelocity: 3.5,
@@ -632,6 +635,7 @@ export function normalizeProductionAtmosphericFixtureSettings(
     ? raw.retriggerPolicy
     : 'ignoreWhileActive'
   return {
+    armed: booleanOr(raw.armed, defaults.armed),
     outputLevel: Math.max(0, Math.min(1, finiteOr(raw.outputLevel, defaults.outputLevel))),
     outputDurationSec: Math.max(0.05, Math.min(60, finiteOr(raw.outputDurationSec, defaults.outputDurationSec))),
     plumeVelocity: Math.max(0, Math.min(30, finiteOr(raw.plumeVelocity, defaults.plumeVelocity))),
@@ -862,22 +866,128 @@ export interface ProductionFixtureGroup {
   chase?: ProductionChaseSettings
 }
 
+export type ProductionLookOmissionMode = 'preserve' | 'resetIncluded'
+export type ProductionLookTransitionMode =
+  | 'cut'
+  | 'linearFade'
+  | 'easedFade'
+  | 'crossfade'
+  | 'blackout'
+  | 'shutteredPrePosition'
+  | 'colorOnly'
+  | 'movementOnly'
+
+export type ProductionLookTransitionEasing = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut'
+
+export interface ProductionLookTransitionSettings {
+  mode: ProductionLookTransitionMode
+  durationMs: number
+  easing: ProductionLookTransitionEasing
+  /** Discrete/non-interpolable properties switch at this normalized point. */
+  switchPoint: number
+  blackoutHoldMs: number
+  revealOutput: boolean
+  fixtureFamilyDurationsMs: Partial<Record<ProductionFixtureKind, number>>
+}
+
+export interface ProductionLookScope {
+  fixtureIds: string[]
+  fixtureKinds: ProductionFixtureKind[]
+  groupIds: string[]
+  includeGlobal: boolean
+  includeAtmosphere: boolean
+  includeStage: boolean
+}
+
+export interface ProductionLookGlobalState {
+  masterDimmer?: number
+  blackout?: boolean
+  hazeAmount?: number
+  beamPersistence?: number
+  glowAmount?: number
+  globalBeamWidth?: number
+  globalStrobeRate?: number
+  safetyClamp?: number
+  backgroundFade?: number
+}
+
+export interface ProductionLookAtmosphereState {
+  settings?: ProductionAtmosphereSettings
+  /** Fog/cryo fixtures can be armed by a look without firing a burst. */
+  armedFixtureIds?: string[]
+}
+
+export interface ProductionLookStageState {
+  camera?: ProductionCameraView
+  activeCameraViewId?: string
+}
+
+export interface ProductionLookColorAssignment {
+  mode?: LaserDmxFixture['color']['mode']
+  paletteId?: string
+  colorCycleSpeed?: number
+}
+
 export interface ProductionLookFixtureState {
   fixtureId: string
   properties: ProductionFixturePropertyState
   transitionMs?: number
+  enabled?: boolean
+  armed?: boolean
+  /** Palette identity stays authored; Brand Kit resolution still occurs at render time. */
+  colorAssignment?: ProductionLookColorAssignment
+  movingHead?: ProductionMovingHeadSettings
+  flashPattern?: ProductionFlashPatternSettings
+  wash?: ProductionWashSettings
+  ledBar?: ProductionLedBarSettings
+  atmosphericMedium?: ProductionAtmosphericCapability['medium']
+  atmospheric?: ProductionAtmosphericFixtureSettings
+}
+
+export interface ProductionLookGroupState {
+  groupId: string
+  properties: ProductionFixturePropertyState
+  transitionMs?: number
+  movement?: ProductionGroupMovementConfig
+  chase?: ProductionChaseSettings
 }
 
 export interface ProductionLook {
+  schemaVersion?: number
   id: string
   name: string
   description?: string
+  /** Partial looks preserve omitted state unless resetIncluded is explicit. */
+  omissionMode: ProductionLookOmissionMode
+  scope: ProductionLookScope
   fixtureStates: ProductionLookFixtureState[]
-  groupStates?: Array<{
-    groupId: string
-    properties: ProductionFixturePropertyState
-    transitionMs?: number
-  }>
+  groupStates: ProductionLookGroupState[]
+  global?: ProductionLookGlobalState
+  atmosphere?: ProductionLookAtmosphereState
+  stage?: ProductionLookStageState
+  transition: ProductionLookTransitionSettings
+  source?: 'authored' | 'spatialPreset' | 'beamMatrixConversion' | 'migration'
+  createdAt?: string
+  updatedAt?: string
+}
+
+export const DEFAULT_PRODUCTION_LOOK_TRANSITION: ProductionLookTransitionSettings = {
+  mode: 'easedFade',
+  durationMs: 600,
+  easing: 'easeInOut',
+  switchPoint: 0.5,
+  blackoutHoldMs: 120,
+  revealOutput: true,
+  fixtureFamilyDurationsMs: {},
+}
+
+export const DEFAULT_PRODUCTION_LOOK_SCOPE: ProductionLookScope = {
+  fixtureIds: [],
+  fixtureKinds: [],
+  groupIds: [],
+  includeGlobal: true,
+  includeAtmosphere: true,
+  includeStage: false,
 }
 
 export type ProductionCueAction =
@@ -2225,7 +2335,9 @@ export function normalizeLegacyLaserDmxFixture(raw: unknown, index = 0): LaserDm
     compatibility: {
       ...compatibility,
       source: 'laserDmxSpatialFixtures',
-      sourceSchemaVersion: isFiniteNumber(raw.schemaVersion) ? raw.schemaVersion : 0,
+      sourceSchemaVersion: isFiniteNumber(compatibility.sourceSchemaVersion)
+        ? compatibility.sourceSchemaVersion
+        : (isFiniteNumber(raw.schemaVersion) ? raw.schemaVersion : 0),
       validationErrors: validationErrors.length > 0 ? validationErrors : undefined,
     },
   }
@@ -2264,6 +2376,184 @@ function normalizeProductionTarget(raw: unknown, index: number): ProductionTarge
   }
 }
 
+
+const PRODUCTION_LOOK_TRANSITION_MODES: readonly ProductionLookTransitionMode[] = [
+  'cut', 'linearFade', 'easedFade', 'crossfade', 'blackout', 'shutteredPrePosition', 'colorOnly', 'movementOnly',
+]
+const PRODUCTION_LOOK_EASINGS: readonly ProductionLookTransitionEasing[] = ['linear', 'easeIn', 'easeOut', 'easeInOut']
+
+function normalizeStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? [...new Set(value.filter((item): item is string => typeof item === 'string' && item.length > 0))]
+    : []
+}
+
+function normalizeProductionColorState(value: unknown): ProductionColorState | undefined {
+  if (!isRecord(value)) return undefined
+  const color: ProductionColorState = {}
+  if (isFiniteNumber(value.red)) color.red = Math.max(0, Math.min(255, value.red))
+  if (isFiniteNumber(value.green)) color.green = Math.max(0, Math.min(255, value.green))
+  if (isFiniteNumber(value.blue)) color.blue = Math.max(0, Math.min(255, value.blue))
+  if (isFiniteNumber(value.white)) color.white = Math.max(0, Math.min(255, value.white))
+  if (isFiniteNumber(value.wheelSlot)) color.wheelSlot = Math.max(0, Math.round(value.wheelSlot))
+  if (isFiniteNumber(value.fixedWhiteIntensity)) color.fixedWhiteIntensity = Math.max(0, Math.min(1, value.fixedWhiteIntensity))
+  return Object.keys(color).length > 0 ? color : undefined
+}
+
+export function normalizeProductionFixturePropertyState(value: unknown): ProductionFixturePropertyState {
+  const raw = isRecord(value) ? value : {}
+  const result: ProductionFixturePropertyState = {}
+  const unitKeys: Array<keyof ProductionFixturePropertyState> = [
+    'dimmer', 'strobeRate', 'zoom', 'focus', 'iris', 'frost', 'atmosphericOutput', 'washSpread', 'washSoftness',
+  ]
+  for (const key of unitKeys) {
+    if (isFiniteNumber(raw[key])) (result as Record<string, unknown>)[key] = Math.max(0, Math.min(1, raw[key] as number))
+  }
+  const numericKeys: Array<keyof ProductionFixturePropertyState> = [
+    'panDeg', 'tiltDeg', 'goboRotation', 'prismRotation', 'colorWheelSlot', 'goboIndex', 'prismFacets', 'pixelSegmentCount',
+  ]
+  for (const key of numericKeys) {
+    if (isFiniteNumber(raw[key])) (result as Record<string, unknown>)[key] = raw[key]
+  }
+  if (typeof raw.shutterOpen === 'boolean') result.shutterOpen = raw.shutterOpen
+  if (typeof raw.triggered === 'boolean') result.triggered = raw.triggered
+  if (typeof raw.beamPatternId === 'string') result.beamPatternId = raw.beamPatternId
+  if (typeof raw.flashPatternId === 'string' && FLASH_PATTERNS.includes(raw.flashPatternId as ProductionFlashPatternId)) {
+    result.flashPatternId = raw.flashPatternId as ProductionFlashPatternId
+  }
+  const color = normalizeProductionColorState(raw.color)
+  if (color) result.color = color
+  return result
+}
+
+export function normalizeProductionLookTransition(value: unknown): ProductionLookTransitionSettings {
+  const raw = isRecord(value) ? value : {}
+  const mode = typeof raw.mode === 'string' && PRODUCTION_LOOK_TRANSITION_MODES.includes(raw.mode as ProductionLookTransitionMode)
+    ? raw.mode as ProductionLookTransitionMode
+    : DEFAULT_PRODUCTION_LOOK_TRANSITION.mode
+  const easing = typeof raw.easing === 'string' && PRODUCTION_LOOK_EASINGS.includes(raw.easing as ProductionLookTransitionEasing)
+    ? raw.easing as ProductionLookTransitionEasing
+    : DEFAULT_PRODUCTION_LOOK_TRANSITION.easing
+  const familyDurations = isRecord(raw.fixtureFamilyDurationsMs) ? raw.fixtureFamilyDurationsMs : {}
+  const fixtureFamilyDurationsMs: Partial<Record<ProductionFixtureKind, number>> = {}
+  for (const kind of ALL_PRODUCTION_FIXTURE_KINDS) {
+    if (isFiniteNumber(familyDurations[kind])) fixtureFamilyDurationsMs[kind] = Math.max(0, Math.min(60000, familyDurations[kind] as number))
+  }
+  return {
+    mode,
+    durationMs: Math.max(0, Math.min(60000, finiteOr(raw.durationMs, DEFAULT_PRODUCTION_LOOK_TRANSITION.durationMs))),
+    easing,
+    switchPoint: Math.max(0, Math.min(1, finiteOr(raw.switchPoint, DEFAULT_PRODUCTION_LOOK_TRANSITION.switchPoint))),
+    blackoutHoldMs: Math.max(0, Math.min(10000, finiteOr(raw.blackoutHoldMs, DEFAULT_PRODUCTION_LOOK_TRANSITION.blackoutHoldMs))),
+    revealOutput: booleanOr(raw.revealOutput, DEFAULT_PRODUCTION_LOOK_TRANSITION.revealOutput),
+    fixtureFamilyDurationsMs,
+  }
+}
+
+export function normalizeProductionLook(value: unknown, index = 0): ProductionLook {
+  const raw = isRecord(value) ? value : {}
+  const rawScope = isRecord(raw.scope) ? raw.scope : {}
+  const scope: ProductionLookScope = {
+    fixtureIds: normalizeStringArray(rawScope.fixtureIds),
+    fixtureKinds: Array.isArray(rawScope.fixtureKinds)
+      ? [...new Set(rawScope.fixtureKinds.filter(isFixtureKind))]
+      : [],
+    groupIds: normalizeStringArray(rawScope.groupIds),
+    includeGlobal: booleanOr(rawScope.includeGlobal, true),
+    includeAtmosphere: booleanOr(rawScope.includeAtmosphere, true),
+    includeStage: booleanOr(rawScope.includeStage, false),
+  }
+  const fixtureStates = normalizeArray<unknown>(raw.fixtureStates).flatMap(entry => {
+    if (!isRecord(entry)) return []
+    const fixtureId = stringOr(entry.fixtureId, '')
+    if (!fixtureId) return []
+    const colorAssignmentRaw = isRecord(entry.colorAssignment) ? entry.colorAssignment : null
+    const colorMode = colorAssignmentRaw?.mode === 'palette' || colorAssignmentRaw?.mode === 'music' || colorAssignmentRaw?.mode === 'fixed'
+      ? colorAssignmentRaw.mode as LaserDmxFixture['color']['mode']
+      : undefined
+    return [{
+      fixtureId,
+      properties: normalizeProductionFixturePropertyState(entry.properties),
+      ...(isFiniteNumber(entry.transitionMs) ? { transitionMs: Math.max(0, Math.min(60000, entry.transitionMs)) } : {}),
+      ...(typeof entry.enabled === 'boolean' ? { enabled: entry.enabled } : {}),
+      ...(typeof entry.armed === 'boolean' ? { armed: entry.armed } : {}),
+      ...(colorAssignmentRaw ? {
+        colorAssignment: {
+          ...(colorMode ? { mode: colorMode } : {}),
+          ...(typeof colorAssignmentRaw.paletteId === 'string' ? { paletteId: colorAssignmentRaw.paletteId } : {}),
+          ...(isFiniteNumber(colorAssignmentRaw.colorCycleSpeed)
+            ? { colorCycleSpeed: Math.max(0, Math.min(8, colorAssignmentRaw.colorCycleSpeed)) }
+            : {}),
+        },
+      } : {}),
+      ...(entry.movingHead ? { movingHead: normalizeProductionMovingHeadSettings(entry.movingHead) } : {}),
+      ...(entry.flashPattern ? { flashPattern: normalizeProductionFlashPattern(entry.flashPattern) } : {}),
+      ...(entry.wash ? { wash: normalizeProductionWashSettings(entry.wash) } : {}),
+      ...(entry.ledBar ? { ledBar: normalizeProductionLedBarSettings(entry.ledBar) } : {}),
+      ...(entry.atmospheric ? {
+        atmosphericMedium: entry.atmosphericMedium === 'haze' || entry.atmosphericMedium === 'cryo' ? entry.atmosphericMedium : 'fog',
+        atmospheric: normalizeProductionAtmosphericFixtureSettings(
+          entry.atmospheric,
+          entry.atmosphericMedium === 'haze' || entry.atmosphericMedium === 'cryo' ? entry.atmosphericMedium : 'fog',
+        ),
+      } : {}),
+    } satisfies ProductionLookFixtureState]
+  })
+  const groupStates = normalizeArray<unknown>(raw.groupStates).flatMap(entry => {
+    if (!isRecord(entry)) return []
+    const groupId = stringOr(entry.groupId, '')
+    if (!groupId) return []
+    return [{
+      groupId,
+      properties: normalizeProductionFixturePropertyState(entry.properties),
+      ...(isFiniteNumber(entry.transitionMs) ? { transitionMs: Math.max(0, Math.min(60000, entry.transitionMs)) } : {}),
+      ...(entry.movement ? { movement: normalizeProductionGroupMovement(entry.movement) } : {}),
+      ...(entry.chase ? { chase: normalizeProductionChase(entry.chase) } : {}),
+    } satisfies ProductionLookGroupState]
+  })
+  const global = isRecord(raw.global) ? {
+    ...(isFiniteNumber(raw.global.masterDimmer) ? { masterDimmer: Math.max(0, Math.min(1, raw.global.masterDimmer)) } : {}),
+    ...(typeof raw.global.blackout === 'boolean' ? { blackout: raw.global.blackout } : {}),
+    ...(isFiniteNumber(raw.global.hazeAmount) ? { hazeAmount: Math.max(0, Math.min(1, raw.global.hazeAmount)) } : {}),
+    ...(isFiniteNumber(raw.global.beamPersistence) ? { beamPersistence: Math.max(0, Math.min(1, raw.global.beamPersistence)) } : {}),
+    ...(isFiniteNumber(raw.global.glowAmount) ? { glowAmount: Math.max(0, Math.min(1, raw.global.glowAmount)) } : {}),
+    ...(isFiniteNumber(raw.global.globalBeamWidth) ? { globalBeamWidth: Math.max(0.2, Math.min(8, raw.global.globalBeamWidth)) } : {}),
+    ...(isFiniteNumber(raw.global.globalStrobeRate) ? { globalStrobeRate: Math.max(0, Math.min(1, raw.global.globalStrobeRate)) } : {}),
+    ...(isFiniteNumber(raw.global.safetyClamp) ? { safetyClamp: Math.max(0, Math.min(1, raw.global.safetyClamp)) } : {}),
+    ...(isFiniteNumber(raw.global.backgroundFade) ? { backgroundFade: Math.max(0, Math.min(1, raw.global.backgroundFade)) } : {}),
+  } satisfies ProductionLookGlobalState : undefined
+  const rawAtmosphere = isRecord(raw.atmosphere) ? raw.atmosphere : null
+  const atmosphere = rawAtmosphere ? {
+    ...(rawAtmosphere.settings ? { settings: normalizeProductionAtmosphereSettings(rawAtmosphere.settings) } : {}),
+    ...(Array.isArray(rawAtmosphere.armedFixtureIds) ? { armedFixtureIds: normalizeStringArray(rawAtmosphere.armedFixtureIds) } : {}),
+  } satisfies ProductionLookAtmosphereState : undefined
+  const rawStage = isRecord(raw.stage) ? raw.stage : null
+  const stage = rawStage ? {
+    ...(isRecord(rawStage.camera) ? { camera: normalizeCameraView(rawStage.camera, createDefaultProductionStageModel().camera) } : {}),
+    ...(typeof rawStage.activeCameraViewId === 'string' ? { activeCameraViewId: rawStage.activeCameraViewId } : {}),
+  } satisfies ProductionLookStageState : undefined
+  const source = raw.source === 'spatialPreset' || raw.source === 'beamMatrixConversion' || raw.source === 'migration'
+    ? raw.source
+    : 'authored'
+  return {
+    schemaVersion: 1,
+    id: stringOr(raw.id, `production-look:${index + 1}`),
+    name: stringOr(raw.name, `Look ${index + 1}`),
+    ...(typeof raw.description === 'string' ? { description: raw.description } : {}),
+    omissionMode: raw.omissionMode === 'resetIncluded' ? 'resetIncluded' : 'preserve',
+    scope,
+    fixtureStates,
+    groupStates,
+    ...(global && Object.keys(global).length > 0 ? { global } : {}),
+    ...(atmosphere && Object.keys(atmosphere).length > 0 ? { atmosphere } : {}),
+    ...(stage && Object.keys(stage).length > 0 ? { stage } : {}),
+    transition: normalizeProductionLookTransition(raw.transition),
+    source,
+    ...(typeof raw.createdAt === 'string' ? { createdAt: raw.createdAt } : {}),
+    ...(typeof raw.updatedAt === 'string' ? { updatedAt: raw.updatedAt } : {}),
+  }
+}
+
 export function normalizeLaserDmxSettings(raw: unknown): LaserDmxSettings {
   const fallback: LaserDmxSettings = {
     schemaVersion: LASER_DMX_SETTINGS_SCHEMA_VERSION,
@@ -2292,6 +2582,8 @@ export function normalizeLaserDmxSettings(raw: unknown): LaserDmxSettings {
     productionGroups: [],
     productionTargets: [],
     productionLooks: [],
+    activeProductionLookId: null,
+    productionLookTransitionDefaults: { ...DEFAULT_PRODUCTION_LOOK_TRANSITION, fixtureFamilyDurationsMs: {} },
     productionCues: [],
   }
   if (!isRecord(raw)) return fallback
@@ -2305,6 +2597,11 @@ export function normalizeLaserDmxSettings(raw: unknown): LaserDmxSettings {
   const selectedFixtureId = typeof raw.selectedFixtureId === 'string' && fixtures.some(fixture => fixture.id === raw.selectedFixtureId)
     ? raw.selectedFixtureId
     : (fixtures[0]?.id ?? null)
+  const productionLooks = normalizeArray<unknown>(raw.productionLooks).map(normalizeProductionLook)
+  const activeProductionLookId = typeof raw.activeProductionLookId === 'string'
+    && productionLooks.some(look => look.id === raw.activeProductionLookId)
+    ? raw.activeProductionLookId
+    : null
 
   return {
     ...fallback,
@@ -2328,7 +2625,7 @@ export function normalizeLaserDmxSettings(raw: unknown): LaserDmxSettings {
     visualComfort: normalizeProductionVisualComfort(raw.visualComfort),
     atmosphere: normalizeProductionAtmosphereSettings(raw.atmosphere),
     runtime: isRecord(raw.runtime)
-      ? { atmosphereClearRequestId: Math.max(0, Math.round(finiteOr(raw.runtime.atmosphereClearRequestId, 0))) }
+      ? { ...raw.runtime, atmosphereClearRequestId: Math.max(0, Math.round(finiteOr(raw.runtime.atmosphereClearRequestId, 0))) }
       : undefined,
     fixtures,
     productionStage,
@@ -2343,7 +2640,9 @@ export function normalizeLaserDmxSettings(raw: unknown): LaserDmxSettings {
     productionTargets: normalizeArray<unknown>(raw.productionTargets)
       .map(normalizeProductionTarget)
       .filter((target): target is ProductionTarget => target !== null),
-    productionLooks: normalizeArray<ProductionLook>(raw.productionLooks),
+    productionLooks,
+    activeProductionLookId,
+    productionLookTransitionDefaults: normalizeProductionLookTransition(raw.productionLookTransitionDefaults),
     productionCues: normalizeArray<ProductionCompoundCue>(raw.productionCues),
   }
 }

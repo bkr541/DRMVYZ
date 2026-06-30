@@ -8,6 +8,7 @@ import type {
   ProductionFixtureGroup,
   ProductionFixtureKind,
   ProductionLook,
+  ProductionLookTransitionSettings,
   ProductionMovingHeadSettings,
   ProductionFixtureColorPolicy,
   ProductionFlashPatternSettings,
@@ -616,6 +617,8 @@ export interface LaserDmxSettings {
   productionGroups?: ProductionFixtureGroup[]
   productionTargets?: ProductionTarget[]
   productionLooks?: ProductionLook[]
+  activeProductionLookId?: string | null
+  productionLookTransitionDefaults?: ProductionLookTransitionSettings
   productionCues?: ProductionCompoundCue[]
 }
 
@@ -722,7 +725,7 @@ export function createDefaultLaserDmxSettings(): LaserDmxSettings {
     ],
   }
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     rigId: 'laser-dmx-spatial-rig',
     rigName: 'LaserDMX Spatial Rig',
     selectedFixtureId: leftFan.id,
@@ -748,6 +751,16 @@ export function createDefaultLaserDmxSettings(): LaserDmxSettings {
     productionGroups: [],
     productionTargets: [],
     productionLooks: [],
+    activeProductionLookId: null,
+    productionLookTransitionDefaults: {
+      mode: 'easedFade',
+      durationMs: 600,
+      easing: 'easeInOut',
+      switchPoint: 0.5,
+      blackoutHoldMs: 120,
+      revealOutput: true,
+      fixtureFamilyDurationsMs: {},
+    },
     productionCues: [],
   }
 }

@@ -15,6 +15,7 @@ import { renderFog, resetFogState } from './LaserDmxFogRenderer'
 import { useBrandKitStore } from '../../../../features/personalization/brandKitStore'
 import { resolveLaserDmxPersonalization } from '../../../../features/personalization/laserDmxPersonalization'
 import { buildProductionRig } from '../LaserDmxProductionRig'
+import { resolveProductionLookTransitionRuntime } from './LaserDmxProductionLookEngine'
 import { renderLaserDmxSpatialStage } from './LaserDmxSpatialStageRenderer'
 import {
   disposeLaserDmxRendererLifecycle,
@@ -142,7 +143,8 @@ export function renderLaserDmx(
     return
   }
 
-  const settings = params.thumbnailLaserDmxSettings ?? state.laserDmxSettings
+  const authoredSettings = params.thumbnailLaserDmxSettings ?? state.laserDmxSettings
+  const settings = resolveProductionLookTransitionRuntime(authoredSettings)
   const compiled = compileLaserDmxFrame({
     settings,
     mi,
@@ -160,18 +162,21 @@ export function renderLaserDmx(
   ctx.fillRect(0, 0, W, H)
   ctx.globalAlpha = 1
 
-  if (global.blackout) {
-    ctx.fillStyle = '#000000'
-    ctx.fillRect(0, 0, W, H)
-    return
-  }
-
   const rig = buildProductionRig(settings)
   resumeProductionAtmosphere(timeSec)
   const rawSpatialDt = prevSpatialTimeSec >= 0 ? timeSec - prevSpatialTimeSec : 1 / 60
   const seeked = rawSpatialDt < -0.001 || rawSpatialDt > 0.75
   const atmosphere = stepProductionAtmosphere({ settings, timeSec, dt: Math.max(0, Math.min(0.1, rawSpatialDt)), seeked })
   prevSpatialTimeSec = timeSec
+
+  // Blackout masks visible output only. The stage, moving heads, and atmosphere
+  // continue advancing so a subsequent reveal does not jump or replay effects.
+  if (global.blackout) {
+    ctx.fillStyle = '#000000'
+    ctx.fillRect(0, 0, W, H)
+    return
+  }
+
   renderLaserDmxSpatialStage({
     ctx,
     W,

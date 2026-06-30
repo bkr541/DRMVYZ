@@ -92,8 +92,15 @@ import {
   normalizeProductionWashSettings,
   sanitizeLaserDmxBeamMatrixForPersistence,
   sanitizeLaserDmxSettingsForPersistence,
+  type ProductionLook,
+  type ProductionLookTransitionSettings,
 } from '../components/vyzualz/react/LaserDmxProductionRig'
 import { convertBeamMatrixToSpatialRig } from '../components/vyzualz/react/laserDmxBeamMatrixSpatialBridge'
+import {
+  beginProductionLookTransition,
+  captureProductionLook,
+  ensureProductionLookCompatibility,
+} from '../components/vyzualz/react/renderers/LaserDmxProductionLookEngine'
 import {
   getSvgVisualEntry,
   clearSvgVisualCache,
@@ -820,7 +827,7 @@ export function buildPresetPatch(
       ...createDefaultLaserDmxSettings(),
       ...preset.laserDmxSettings,
     })
-    laserPatch = merged
+    laserPatch = ensureProductionLookCompatibility(merged, preset.name, 'spatialPreset')
   }
 
   let neonLatticePatch: NeonLatticeSettings | undefined
@@ -1172,6 +1179,14 @@ interface ReactStoreState {
   triggerLaserAtmosphericFixture: (fixtureId: string) => void
   clearLaserAtmosphericBursts: () => void
   triggerLaserAtmosphericGroup: (groupId: string) => void
+  createLaserDmxProductionLook: (name?: string) => string
+  duplicateLaserDmxProductionLook: (lookId: string) => string | null
+  updateLaserDmxProductionLook: (lookId: string, patch: Partial<ProductionLook>) => void
+  updateLaserDmxProductionLookFromCurrent: (lookId: string) => void
+  reorderLaserDmxProductionLook: (lookId: string, direction: -1 | 1) => void
+  deleteLaserDmxProductionLook: (lookId: string) => void
+  activateLaserDmxProductionLook: (lookId: string, transition?: Partial<ProductionLookTransitionSettings>) => void
+  setLaserDmxBlackout: (enabled: boolean) => void
 
   // LaserDMX workspace mode (persisted, never changed by preset application)
   laserDmxWorkspaceMode: LaserDmxWorkspaceMode
@@ -1927,6 +1942,17 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     // visual-comfort limits, wash/pixel state, and group chase documents.
     state = { ...state, laserDmxSettings: normalizeLaserDmxSettings(state.laserDmxSettings) }
   }
+  if (version < 33 && isPersistedLaserDmxSettingsDocument(state.laserDmxSettings)) {
+    // Preserve pre-Look Spatial Fixtures as one complete compatibility Look.
+    state = {
+      ...state,
+      laserDmxSettings: ensureProductionLookCompatibility(
+        normalizeLaserDmxSettings(state.laserDmxSettings),
+        'Migrated Spatial Look',
+        'migration',
+      ),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -2248,7 +2274,7 @@ export const useReactStore = create<ReactStoreState>()(
       performanceActionToggleStates:  {},
       neonLatticeTrigger:             null,
       neonLatticeTriggerSeq:          0,
-      laserDmxSettings:               createDefaultLaserDmxSettings(),
+      laserDmxSettings:               ensureProductionLookCompatibility(createDefaultLaserDmxSettings()),
       laserDmxWorkspaceMode:  'spatialFixtures',
       laserDmxBeamMatrix:     createDefaultLaserDmxBeamMatrixSettings(),
       activeLaserDmxBeamMatrixPresetId: null,
@@ -3151,7 +3177,7 @@ export const useReactStore = create<ReactStoreState>()(
         set(s => ({ laserDmxSettings: normalizeLaserDmxSettings({ ...s.laserDmxSettings, ...partial }) })),
 
       resetLaserDmxSettings: () =>
-        set({ laserDmxSettings: createDefaultLaserDmxSettings() }),
+        set({ laserDmxSettings: ensureProductionLookCompatibility(createDefaultLaserDmxSettings()) }),
 
       selectLaserFixture: (fixtureId) =>
         set(s => ({ laserDmxSettings: { ...s.laserDmxSettings, selectedFixtureId: fixtureId } })),
@@ -3248,7 +3274,7 @@ export const useReactStore = create<ReactStoreState>()(
         set(s => ({
           laserDmxSettings: {
             ...s.laserDmxSettings,
-            fixtures: s.laserDmxSettings.fixtures.map(fixture => fixture.id === fixtureId && fixture.atmospheric
+            fixtures: s.laserDmxSettings.fixtures.map(fixture => fixture.id === fixtureId && fixture.atmospheric?.armed
               ? { ...fixture, atmospheric: { ...fixture.atmospheric, triggerRequestId: fixture.atmospheric.triggerRequestId + 1 } }
               : fixture),
           },
@@ -3260,7 +3286,7 @@ export const useReactStore = create<ReactStoreState>()(
           return {
             laserDmxSettings: {
               ...s.laserDmxSettings,
-              fixtures: s.laserDmxSettings.fixtures.map(fixture => ids.has(fixture.id) && fixture.fixtureKind !== 'hazer' && fixture.atmospheric
+              fixtures: s.laserDmxSettings.fixtures.map(fixture => ids.has(fixture.id) && fixture.fixtureKind !== 'hazer' && fixture.atmospheric?.armed
                 ? { ...fixture, atmospheric: { ...fixture.atmospheric, triggerRequestId: fixture.atmospheric.triggerRequestId + 1 } }
                 : fixture),
             },
@@ -3277,6 +3303,137 @@ export const useReactStore = create<ReactStoreState>()(
             },
           },
         })),
+
+      createLaserDmxProductionLook: (name) => {
+        const id = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `production-look:${Date.now()}`
+        set(s => {
+          const look = captureProductionLook(s.laserDmxSettings, {
+            id,
+            name: name?.trim() || `Look ${(s.laserDmxSettings.productionLooks?.length ?? 0) + 1}`,
+          })
+          return {
+            laserDmxSettings: normalizeLaserDmxSettings({
+              ...s.laserDmxSettings,
+              productionLooks: [...(s.laserDmxSettings.productionLooks ?? []), look],
+              activeProductionLookId: look.id,
+            }),
+          }
+        })
+        return id
+      },
+
+      duplicateLaserDmxProductionLook: (lookId) => {
+        const source = get().laserDmxSettings.productionLooks?.find(look => look.id === lookId)
+        if (!source) return null
+        const now = new Date().toISOString()
+        const id = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `production-look:${Date.now()}`
+        const copy: ProductionLook = {
+          ...JSON.parse(JSON.stringify(source)) as ProductionLook,
+          id,
+          name: `${source.name} Copy`,
+          source: 'authored',
+          createdAt: now,
+          updatedAt: now,
+        }
+        set(s => ({
+          laserDmxSettings: normalizeLaserDmxSettings({
+            ...s.laserDmxSettings,
+            productionLooks: [...(s.laserDmxSettings.productionLooks ?? []), copy],
+            activeProductionLookId: id,
+          }),
+        }))
+        return id
+      },
+
+      updateLaserDmxProductionLook: (lookId, patch) =>
+        set(s => ({
+          laserDmxSettings: normalizeLaserDmxSettings({
+            ...s.laserDmxSettings,
+            productionLooks: (s.laserDmxSettings.productionLooks ?? []).map(look => look.id === lookId ? {
+              ...look,
+              ...patch,
+              id: look.id,
+              updatedAt: new Date().toISOString(),
+            } : look),
+          }),
+        })),
+
+      updateLaserDmxProductionLookFromCurrent: (lookId) =>
+        set(s => {
+          const source = s.laserDmxSettings.productionLooks?.find(look => look.id === lookId)
+          if (!source) return {}
+          const replacement = captureProductionLook(s.laserDmxSettings, {
+            id: source.id,
+            name: source.name,
+            description: source.description,
+            scope: source.scope,
+            transition: source.transition,
+            omissionMode: source.omissionMode,
+            source: source.source,
+            createdAt: source.createdAt,
+          })
+          replacement.updatedAt = new Date().toISOString()
+          return {
+            laserDmxSettings: normalizeLaserDmxSettings({
+              ...s.laserDmxSettings,
+              productionLooks: (s.laserDmxSettings.productionLooks ?? []).map(look => look.id === lookId ? replacement : look),
+              activeProductionLookId: lookId,
+            }),
+          }
+        }),
+
+      reorderLaserDmxProductionLook: (lookId, direction) =>
+        set(s => {
+          const looks = [...(s.laserDmxSettings.productionLooks ?? [])]
+          const index = looks.findIndex(look => look.id === lookId)
+          const target = index + direction
+          if (index < 0 || target < 0 || target >= looks.length) return {}
+          const [look] = looks.splice(index, 1)
+          looks.splice(target, 0, look)
+          return { laserDmxSettings: { ...s.laserDmxSettings, productionLooks: looks } }
+        }),
+
+      deleteLaserDmxProductionLook: (lookId) =>
+        set(s => {
+          const looks = (s.laserDmxSettings.productionLooks ?? []).filter(look => look.id !== lookId)
+          return {
+            laserDmxSettings: normalizeLaserDmxSettings({
+              ...s.laserDmxSettings,
+              productionLooks: looks,
+              activeProductionLookId: s.laserDmxSettings.activeProductionLookId === lookId
+                ? (looks[0]?.id ?? null)
+                : s.laserDmxSettings.activeProductionLookId,
+            }),
+          }
+        }),
+
+      activateLaserDmxProductionLook: (lookId, transition) =>
+        set(s => {
+          const look = s.laserDmxSettings.productionLooks?.find(candidate => candidate.id === lookId)
+          if (!look) return {}
+          return { laserDmxSettings: beginProductionLookTransition(s.laserDmxSettings, look, transition).settings }
+        }),
+
+      setLaserDmxBlackout: (enabled) =>
+        set(s => {
+          const runtime = { ...s.laserDmxSettings.runtime }
+          delete runtime.lookTransition
+          return {
+            laserDmxSettings: normalizeLaserDmxSettings({
+              ...s.laserDmxSettings,
+              blackout: enabled,
+              runtime,
+            }),
+            laserDmxBeamMatrix: {
+              ...s.laserDmxBeamMatrix,
+              output: { ...s.laserDmxBeamMatrix.output, blackout: enabled },
+            },
+          }
+        }),
 
       addLaserModulationRoute: (fixtureId) =>
         set(s => ({
@@ -3329,15 +3486,17 @@ export const useReactStore = create<ReactStoreState>()(
           )
           return {
             laserDmxWorkspaceMode: 'spatialFixtures' as const,
-            laserDmxSettings: normalizeLaserDmxSettings({
+            laserDmxSettings: ensureProductionLookCompatibility(normalizeLaserDmxSettings({
               ...s.laserDmxSettings,
               productionStage: conversion.stage,
               fixtures: conversion.fixtures,
               productionGroups: conversion.groups,
               productionTargets: conversion.targets,
+              productionLooks: [],
+              activeProductionLookId: null,
               selectedFixtureId: conversion.fixtures[0]?.id ?? null,
               rigName: 'Beam Matrix Spatial Conversion',
-            }),
+            }), 'Beam Matrix Look', 'beamMatrixConversion'),
           }
         }),
 
@@ -4218,7 +4377,7 @@ export const useReactStore = create<ReactStoreState>()(
           performanceActionEvents:          [],
           performanceActionToggleStates:    {},
           neonLatticeTrigger:               null,
-          laserDmxSettings:                 createDefaultLaserDmxSettings(),
+          laserDmxSettings:                 ensureProductionLookCompatibility(createDefaultLaserDmxSettings()),
           laserDmxWorkspaceMode:            'spatialFixtures',
           laserDmxBeamMatrix:               createDefaultLaserDmxBeamMatrixSettings(),
           activeLaserDmxBeamMatrixPresetId: null,
@@ -4236,7 +4395,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 32,
+      version: 33,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

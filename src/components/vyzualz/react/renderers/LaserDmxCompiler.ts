@@ -43,6 +43,7 @@ import {
 import type { ProductionOutputFrame, ProductionRig } from '../LaserDmxProductionRig'
 import { inferSpatialFixtureSemantic, personalizeRgbw } from '../../../../features/personalization/laserDmxPersonalization'
 import { evaluateMovingHeadFixture } from './LaserDmxMovingHeadEngine'
+import { resolveProductionLookTransitionRuntime } from './LaserDmxProductionLookEngine'
 import {
   evaluateLedSegmentFrame,
   evaluateProductionChase,
@@ -361,7 +362,7 @@ export interface CompileInput {
 
 export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult {
   const { settings: settingsInput, mi, time, timeSec, canvasWidth: W, canvasHeight: H, personalization } = inp
-  const settings = normalizeLaserDmxSettings(settingsInput)
+  const settings = resolveProductionLookTransitionRuntime(normalizeLaserDmxSettings(settingsInput))
   const productionRig = buildProductionRig(settings)
   if (!W || !H) {
     const fixtures: LaserDmxFixtureFrame[] = []
@@ -389,17 +390,6 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
     globalStrobeRate:clamp01(safeNumber(settings.globalStrobeRate, 0)),
     safetyClamp:     clamp01(safeNumber(settings.safetyClamp, 0.85)),
     visualComfort:   normalizeProductionVisualComfort(settings.visualComfort),
-  }
-
-  if (settings.blackout) {
-    resetAllEnvelopes()
-    const fixtures: LaserDmxFixtureFrame[] = []
-    return {
-      global: { ...globalState, blackout: true },
-      fixtures,
-      productionRig,
-      outputFrame: createProductionOutputFrame(productionRig, timeSec, fixtures),
-    }
   }
 
   // Collect active fixture IDs to prune stale envelope entries
@@ -763,11 +753,57 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
   // Prune stale envelope entries (routes that no longer exist)
   pruneEnvelopes(activeEnvKeys)
 
+  const fixtureById = new Map(settings.fixtures.map(fixture => [fixture.id, fixture]))
+  const visibleFrames = settings.blackout
+    ? frames.map(frame => maskFixtureFrameForBlackout(frame, fixtureById.get(frame.fixtureId)))
+    : frames
   return {
-    global: { ...globalState, blackout: false },
-    fixtures: frames,
+    global: { ...globalState, blackout: settings.blackout },
+    fixtures: visibleFrames,
     productionRig,
-    outputFrame: createProductionOutputFrame(productionRig, timeSec, frames),
+    outputFrame: createProductionOutputFrame(productionRig, timeSec, visibleFrames),
+  }
+}
+
+const BLACKOUT_CHANNEL_SOURCES = new Set([
+  'dimmer', 'shutter', 'strobe', 'red', 'green', 'blue', 'white',
+  'atmosphericOutput', 'trigger',
+])
+
+function maskFixtureFrameForBlackout(
+  frame: LaserDmxFixtureFrame,
+  fixture: LaserDmxFixture | undefined,
+): LaserDmxFixtureFrame {
+  const profile = fixture ? getLaserDmxFixtureProfile(fixture.dmx.profileId) : null
+  const hiddenChannels = new Set(
+    profile?.channels
+      .filter(channel => BLACKOUT_CHANNEL_SOURCES.has(channel.source))
+      .map(channel => `ch${channel.channel}`) ?? [],
+  )
+  return {
+    ...frame,
+    channels: Object.fromEntries(
+      Object.entries(frame.channels).map(([name, value]) => [name, hiddenChannels.has(name) ? 0 : value]),
+    ),
+    visual: {
+      ...frame.visual,
+      color: 'rgba(0,0,0,0)',
+      rgba: { ...frame.visual.rgba, a: 0 },
+      intensity: 0,
+      strobeVisible: false,
+      ...(frame.visual.flash ? {
+        flash: { ...frame.visual.flash, intensity: 0, blackout: true },
+      } : {}),
+      ...(frame.visual.wash ? {
+        wash: { ...frame.visual.wash, atmosphericIntensity: 0 },
+      } : {}),
+      ...(frame.visual.ledBar ? {
+        ledBar: {
+          ...frame.visual.ledBar,
+          segmentIntensities: frame.visual.ledBar.segmentIntensities.map(() => 0),
+        },
+      } : {}),
+    },
   }
 }
 

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
+import { LaserDmxLookEditor } from './LaserDmxLookEditor'
 import {
   SliderRow, SelectRow, ToggleRow, TextInputRow, NumberInputRow,
   CtrlSection, Collapsible,
@@ -386,6 +387,9 @@ export function LaserDmxSpatialFixturesPanel() {
 
   return (
     <>
+      <CtrlSection label="Looks / Output" />
+      <LaserDmxLookEditor />
+
       <CtrlSection label="Venue / Stage" />
       <SelectRow
         label="Starter Layout"
@@ -806,6 +810,7 @@ export function LaserDmxSpatialFixturesPanel() {
 
           {capabilities?.atmosphericOutput && (
             <Collapsible label={capabilities.atmosphericOutput.medium === 'haze' ? 'Hazer Output' : capabilities.atmosphericOutput.medium === 'cryo' ? 'Virtual CO₂-Style Jet' : 'Fog Emitter'} defaultOpen>
+              <ToggleRow label="Armed" value={atmospheric.armed} onChange={armed => updateAtmospheric({ armed })} description="Looks may arm or disarm this virtual effect. Trigger buttons do nothing while disarmed." />
               <SliderRow label="Output Level" value={atmospheric.outputLevel} onChange={outputLevel => updateAtmospheric({ outputLevel })} min={0} max={1} step={0.01} color="#9bb8c5" />
               {capabilities.atmosphericOutput.medium !== 'haze' && <NumberInputRow label="Burst Duration" value={atmospheric.outputDurationSec} onChange={outputDurationSec => updateAtmospheric({ outputDurationSec })} min={0.05} max={60} step={0.05} unit="sec" />}
               <SelectRow label="Plume Orientation" value={atmospheric.orientationMode} onChange={orientationMode => updateAtmospheric({ orientationMode: orientationMode as typeof atmospheric.orientationMode })} options={[{ value: 'vertical', label: 'Vertical' }, { value: 'fixtureOrientation', label: 'Fixture Orientation' }]} />
@@ -822,7 +827,7 @@ export function LaserDmxSpatialFixturesPanel() {
                 <NumberInputRow label="Warm-Up Metadata" value={atmospheric.warmupSec} onChange={warmupSec => updateAtmospheric({ warmupSec })} min={0} max={30} step={0.1} unit="sec" />
                 <NumberInputRow label="Cooldown" value={atmospheric.cooldownSec} onChange={cooldownSec => updateAtmospheric({ cooldownSec })} min={0} max={120} step={0.1} unit="sec" />
                 <NumberInputRow label="Deterministic Seed" value={atmospheric.seed} onChange={seed => updateAtmospheric({ seed: Math.round(seed) })} min={0} max={999999} step={1} />
-                <button type="button" className="rv-glyph-upload-btn" onClick={() => triggerLaserAtmosphericFixture(fixture.id)}>Trigger Virtual Burst</button>
+                <button type="button" className="rv-glyph-upload-btn" onClick={() => triggerLaserAtmosphericFixture(fixture.id)} disabled={!atmospheric.armed}>Trigger Virtual Burst</button>
                 {movementGroup && movementGroup.fixtureIds.some(id => {
                   const candidate = fixtures.find(item => item.id === id)
                   return candidate?.fixtureKind === 'fogger' || candidate?.fixtureKind === 'cryoJet'
