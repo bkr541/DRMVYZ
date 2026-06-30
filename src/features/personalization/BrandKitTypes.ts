@@ -47,10 +47,17 @@ export interface BrandPaletteAnalysis {
   metadata: PaletteExtractionMetadata
 }
 
+export const LASER_DMX_SEMANTIC_SOURCES = ['bass', 'snare', 'beat', 'other', 'white'] as const
+export type LaserDmxSemanticSource = typeof LASER_DMX_SEMANTIC_SOURCES[number]
+
 export interface BrandKitEngineRule {
   mode: BrandPersonalizationMode
   strength: number
   customPalette?: BrandPalette
+  /** LaserDMX only. Keeps kick/snare/pulse/fill distinctions recognizable. */
+  preserveTriggerSemantics?: boolean
+  /** Optional LaserDMX semantic source to palette-role remapping. */
+  semanticRoleMapping?: Partial<Record<LaserDmxSemanticSource, BrandPaletteRole>>
 }
 
 export type BrandKitEngineRules = Partial<Record<BrandKitEngineTarget, BrandKitEngineRule>>
@@ -80,6 +87,33 @@ export interface BrandKit {
   updatedAt: string
 }
 
+export const BRAND_ASSET_PLACEMENTS = [
+  'top-left', 'top-center', 'top-right', 'center',
+  'bottom-left', 'bottom-center', 'bottom-right',
+] as const
+export type BrandAssetPlacement = typeof BRAND_ASSET_PLACEMENTS[number]
+
+export const BRAND_ASSET_BLEND_MODES = ['source-over', 'screen', 'multiply', 'overlay', 'lighter'] as const
+export type BrandAssetBlendMode = typeof BRAND_ASSET_BLEND_MODES[number]
+
+export const BRAND_ASSET_VISIBILITY_MODES = ['always', 'introOnly', 'outroOnly'] as const
+export type BrandAssetVisibilityMode = typeof BRAND_ASSET_VISIBILITY_MODES[number]
+
+export const BRAND_ASSET_GLOW_MODES = ['none', 'static', 'audioReactive'] as const
+export type BrandAssetGlowMode = typeof BRAND_ASSET_GLOW_MODES[number]
+
+export interface BrandAssetPresentation {
+  enabled: boolean
+  placement: BrandAssetPlacement
+  scale: number
+  opacity: number
+  margin: number
+  blendMode: BrandAssetBlendMode
+  glowMode: BrandAssetGlowMode
+  visibility: BrandAssetVisibilityMode
+  preserveOriginalColors: boolean
+}
+
 export interface BrandKitAssetLink {
   id: string
   brandKitId: string
@@ -87,7 +121,7 @@ export interface BrandKitAssetLink {
   role: BrandAssetRole
   sortOrder: number
   isPaletteSource: boolean
-  presentation: Record<string, unknown> | null
+  presentation: BrandAssetPresentation | null
   createdAt: string
   updatedAt: string
 }

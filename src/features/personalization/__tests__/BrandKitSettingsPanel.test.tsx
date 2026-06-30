@@ -102,6 +102,14 @@ describe('Brand Kit Settings states and accessibility', () => {
     expect(switches[0].getAttribute('aria-checked')).toBe('true')
     await act(async () => switches[0].click())
     expect(updateKit).toHaveBeenCalledWith(kit.id, { autoApply: false })
+
+    expect(container.querySelector('[role="group"][aria-label="LaserDMX personalization mode"]')).toBeTruthy()
+    const triggerSemantics = [...container.querySelectorAll('label')].find(label => label.textContent?.includes('Preserve trigger semantics'))
+    expect(triggerSemantics?.querySelector('input[type="checkbox"]')).toBeInstanceOf(HTMLInputElement)
+    const displayAssetLabel = [...container.querySelectorAll('label')].find(label => label.textContent === 'Display asset') as HTMLLabelElement
+    expect(displayAssetLabel.control?.id).toBe('bk-display-asset')
+    expect(container.textContent).toContain('Sound Drawing shortcuts')
+    expect(container.textContent).toContain('Personalization diagnostics')
   })
 
   it('keeps Settings navigation keyboard accessible and preserves Escape closing', async () => {

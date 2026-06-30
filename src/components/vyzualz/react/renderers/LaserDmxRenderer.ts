@@ -35,6 +35,8 @@ import { clamp, clamp01, resetLaserDmxCompilerState } from './LaserDmxCompiler'
 import { compileLaserDmxBeamMatrix, resetBeamMatrixCompilerState } from './LaserDmxBeamMatrixCompiler'
 import { renderLaserDmxBeamMatrix } from './LaserDmxBeamMatrixRenderer'
 import { renderFog, resetFogState } from './LaserDmxFogRenderer'
+import { useBrandKitStore } from '../../../../features/personalization/brandKitStore'
+import { resolveLaserDmxPersonalization } from '../../../../features/personalization/laserDmxPersonalization'
 
 // ── Drawing helpers (Spatial Fixtures — unchanged) ────────────────────────────
 
@@ -250,7 +252,7 @@ export function clearLaserDmxVisualState(
 export function renderLaserDmx(
   ctx:          CanvasRenderingContext2D,
   frame:        ReactFrameContext,
-  _preset:      ReactPreset,
+  preset:       ReactPreset,
   params:       ReactRenderParams,
   _sectionType: ReactSectionType | null,
 ): void {
@@ -268,6 +270,9 @@ export function renderLaserDmx(
   // Read workspace mode from store (singleton read — safe in rAF context)
   const state = useReactStore.getState()
   const workspaceMode = state.laserDmxWorkspaceMode
+  // Zustand is read only at the outer render boundary. The compilers remain pure
+  // and receive an immutable transient context rather than reading stores.
+  const personalization = resolveLaserDmxPersonalization(useBrandKitStore.getState().activeKit, preset.id)
 
   // ── BEAM MATRIX mode ──────────────────────────────────────────────────────
   if (workspaceMode === 'beamMatrix') {
@@ -281,6 +286,7 @@ export function renderLaserDmx(
       timeSec,
       canvasWidth:  W,
       canvasHeight: H,
+      personalization,
     })
 
     const out = compiled.output
@@ -338,6 +344,7 @@ export function renderLaserDmx(
     timeSec,
     canvasWidth:  W,
     canvasHeight: H,
+    personalization,
   })
 
   const g: CompiledGlobal = compiled.global

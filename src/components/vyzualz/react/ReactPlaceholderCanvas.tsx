@@ -14,6 +14,8 @@ import { clearSoundDrawingRuntimeCaches, setSoundDrawingClipsForFrame } from './
 import { resolvePerformancePadTransition } from './renderers/reactPresetTransition'
 import { createLiveFpsReporter } from './fpsDiagnostics'
 import { applyCanvasResolution, resolveCanvasResolution, type CanvasResolution } from './rendering/canvasResolution'
+import type { ActiveBrandOverlay } from '../../../features/personalization/brandAssetCompositor'
+import { compositeBrandAsset } from '../../../features/personalization/brandAssetCompositor'
 
 const ENGINE_ACCESSIBLE_LABELS: Record<ReactPreset['engine'], string> = {
   shaderPads:      'Shader',
@@ -63,6 +65,8 @@ interface Props {
   soundDrawingLayers?:          SoundDrawingLayer[]
   soundDrawingClips?:           SoundDrawingClip[]
   activeAudioTrackId?:          string | null
+  brandOverlay?:                ActiveBrandOverlay | null
+  durationSec?:                 number
 }
 
 export function ReactPlaceholderCanvas({
@@ -96,6 +100,8 @@ export function ReactPlaceholderCanvas({
   soundDrawingLayers         = [] as SoundDrawingLayer[],
   soundDrawingClips          = [] as SoundDrawingClip[],
   activeAudioTrackId         = null,
+  brandOverlay               = null,
+  durationSec                = 0,
 }: Props) {
   const canvasLabel = activePreset
     ? `${ENGINE_ACCESSIBLE_LABELS[activePreset.engine]} visualization: ${activePreset.name}`
@@ -140,6 +146,8 @@ export function ReactPlaceholderCanvas({
   const sdLayersRef            = useRef<SoundDrawingLayer[]>(soundDrawingLayers)
   const sdClipsRef             = useRef<SoundDrawingClip[]>(soundDrawingClips)
   const activeAudioTrackIdRef  = useRef<string | null>(activeAudioTrackId)
+  const brandOverlayRef        = useRef<ActiveBrandOverlay | null>(brandOverlay)
+  const durationSecRef         = useRef(durationSec)
 
   // Keep refs current every render
   intensityRef.current          = intensity
@@ -171,6 +179,8 @@ export function ReactPlaceholderCanvas({
   sdLayersRef.current            = soundDrawingLayers
   sdClipsRef.current             = soundDrawingClips
   activeAudioTrackIdRef.current  = activeAudioTrackId
+  brandOverlayRef.current         = brandOverlay
+  durationSecRef.current          = durationSec
 
   // Update analyser buffers when analyser changes
   useEffect(() => {
@@ -454,6 +464,14 @@ export function ReactPlaceholderCanvas({
         activeAudioTrackIdRef.current,
       )
       renderReactEngine(ctx, rfCtx, preset, renderParams, trackSectionsRef.current)
+      compositeBrandAsset(ctx, brandOverlayRef.current, {
+        width: W,
+        height: H,
+        audioTime: audioTimeRef.current,
+        durationSec: durationSecRef.current,
+        audioEnergy: vol,
+        sectionType: rfCtx.musicIntelligence?.section?.type ?? null,
+      })
       elapsedTimeSec += deltaTimeSec
 
       // LaserDMX animation clock is frozen while paused so scan/path generators

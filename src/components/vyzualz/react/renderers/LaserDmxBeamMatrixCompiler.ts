@@ -91,6 +91,8 @@ import {
 } from './LaserDmxBeamGeometry'
 import { computeSequenceOrder, computeBeamSequenceState, type BeamSequenceState } from './LaserDmxBeamSequencer'
 import { computeKinematics, lerpPt } from './LaserDmxBeamKinematics'
+import type { LaserDmxPersonalizationContext } from '../../../../features/personalization/laserDmxPersonalization'
+import { inferBeamSemantic, personalizeRgbw } from '../../../../features/personalization/laserDmxPersonalization'
 
 // ── Public result types ───────────────────────────────────────────────────────
 
@@ -173,6 +175,7 @@ export interface CompileLaserDmxBeamMatrixInput {
   timeSec:      number   // wall-clock seconds for strobe / envelopes
   canvasWidth:  number
   canvasHeight: number
+  personalization?: LaserDmxPersonalizationContext | null
 }
 
 // ── Module-level ephemeral state ──────────────────────────────────────────────
@@ -548,7 +551,7 @@ function checkLaunchTrigger(
 export function compileLaserDmxBeamMatrix(
   inp: CompileLaserDmxBeamMatrixInput,
 ): CompiledLaserDmxBeamMatrixResult {
-  const { settings, mi, time, timeSec, canvasWidth: W, canvasHeight: H } = inp
+  const { settings, mi, time, timeSec, canvasWidth: W, canvasHeight: H, personalization } = inp
 
   const empty = (): CompiledLaserDmxBeamMatrixResult => ({
     output: buildOutputFromSettings(settings),
@@ -792,6 +795,24 @@ export function compileLaserDmxBeamMatrix(
       const result = applyModulationRoute(route, mi, envKey, dt)
       if (!result) continue
       applyBeamRoute(route.target, result.value, route.mode, bs)
+    }
+
+    // ── Transient Brand Kit color adaptation ─────────────────────────────
+    // Apply after group and beam modulation so music-driven RGB changes remain
+    // live, but before the white channel is blended into the final presentation.
+    if (personalization) {
+      const personalized = personalizeRgbw({
+        red: bs.r,
+        green: bs.g,
+        blue: bs.b,
+        white: bs.white,
+        alpha: bs.a,
+      }, inferBeamSemantic(beam, group), personalization)
+      bs.r = personalized.red
+      bs.g = personalized.green
+      bs.b = personalized.blue
+      bs.white = personalized.white
+      bs.a = personalized.alpha
     }
 
     // ── Blend white into RGB ──────────────────────────────────────────────

@@ -84,6 +84,35 @@ describe('ReactView Brand Kit boundary', () => {
     expect(result?.oscillatorSettings?.svgUseReactPalette).toBe(false)
   })
 
+  it('keeps the thumbnail fingerprint stable when a kit switch resolves to the same effective palette', () => {
+    const preset = presetFor('oscilloscope')
+    const brandedA = resolveBrandedReactPreset(preset, {}, makeKit('kit-a')) as ReactPreset
+    const brandedB = resolveBrandedReactPreset(preset, {}, makeKit('kit-b')) as ReactPreset
+    expect(fingerprintReactPresetThumbnail(brandedA)).toBe(fingerprintReactPresetThumbnail(brandedB))
+  })
+
+  it('switches effective identity without mutating preset or Cinematic World state', () => {
+    const preset = presetFor('cinematicPortal')
+    const original = structuredClone(preset)
+    const config = preset.cinematicConfig
+    if (!config) throw new Error('Cinematic fixture is missing configuration')
+    const override = { ...structuredClone(config), seed: config.seed + 9 }
+    const overrides = { [preset.id]: override }
+    const kitA = makeKit('kit-a')
+    const kitB = makeKit('kit-b', { ...BRAND, primary: '#00E5FF' })
+
+    const brandedA = resolveBrandedReactPreset(preset, overrides, kitA)
+    const brandedB = resolveBrandedReactPreset(preset, overrides, kitB)
+
+    expect(brandedA?.id).toBe(preset.id)
+    expect(brandedB?.id).toBe(preset.id)
+    expect(brandedA?.cinematicConfig).toEqual(override)
+    expect(brandedB?.cinematicConfig).toEqual(override)
+    expect(brandedA?.palette.primary).not.toBe(brandedB?.palette.primary)
+    expect(preset).toEqual(original)
+    expect(overrides[preset.id]).toEqual(override)
+  })
+
   it('changes the thumbnail fingerprint when Brand Kits produce different effective palettes', () => {
     const preset = presetFor('oscilloscope')
     const kitA = makeKit('kit-a')

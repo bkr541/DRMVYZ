@@ -24,6 +24,8 @@ import {
 } from './LaserDmxModulationEngine'
 import { generateLaserPath, sliceByProgress } from './LaserDmxPathUtils'
 import type { LaserPoint } from './LaserDmxPathUtils'
+import type { LaserDmxPersonalizationContext } from '../../../../features/personalization/laserDmxPersonalization'
+import { inferSpatialFixtureSemantic, personalizeRgbw } from '../../../../features/personalization/laserDmxPersonalization'
 
 // ── Re-export safety helpers for existing callers (LaserDmxRenderer.ts etc.) ──
 export { safeNumber, clamp, clamp01, clamp255, lerp, applyCurve, resolveStrobeVisible }
@@ -262,10 +264,11 @@ export interface CompileInput {
   timeSec:      number   // wall-clock seconds — used for strobe, envelopes, color cycle
   canvasWidth:  number
   canvasHeight: number
+  personalization?: LaserDmxPersonalizationContext | null
 }
 
 export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult {
-  const { settings, mi, time, timeSec, canvasWidth: W, canvasHeight: H } = inp
+  const { settings, mi, time, timeSec, canvasWidth: W, canvasHeight: H, personalization } = inp
   if (!W || !H) {
     return {
       global: buildPassthroughGlobal(settings),
@@ -409,6 +412,23 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
       b = Math.round(lerp(b, cb, blend))
     }
 
+    // Personalization is transient. Saved fixture RGBW, routes, and palette IDs
+    // remain untouched; Original mode is represented by a null context.
+    const personalized = personalization
+      ? personalizeRgbw({
+          red: r,
+          green: g,
+          blue: b,
+          white: fState.white,
+          alpha: fState.alpha,
+        }, inferSpatialFixtureSemantic(fixture), personalization)
+      : null
+    if (personalized) {
+      r = personalized.red
+      g = personalized.green
+      b = personalized.blue
+    }
+
     // Focus: affects glow sharpness (1=sharp, 0=soft). Stored for renderer use.
     const focusFactor = clamp01(safeNumber(fState.focus, 1))
 
@@ -423,7 +443,12 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
     }
     const color = `rgba(${rgba.r},${rgba.g},${rgba.b},${rgba.a.toFixed(3)})`
 
-    const channels = compileChannels(fState, gState, fixture.dmx.profileId)
+    // Original mode preserves the exact legacy channel compilation path. Branded
+    // modes compile a temporary RGB state while retaining white and alpha intent.
+    const channelState = personalization
+      ? { ...fState, red: personalized!.red, green: personalized!.green, blue: personalized!.blue }
+      : fState
+    const channels = compileChannels(channelState, gState, fixture.dmx.profileId)
 
     frames.push({
       fixtureId:    fixture.id,

@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { MediaUploadModal } from '../../../components/vyzualz/MediaUploadModal'
 import { useMediaStore, type UploadedMedia } from '../../../stores/mediaStore'
-import type { BrandAssetRole, BrandKitAssetWithMedia, BrandPaletteAnalysis } from '../BrandKitTypes'
-import { BRAND_ASSET_ROLES } from '../BrandKitTypes'
+import type { BrandAssetPresentation, BrandAssetRole, BrandKitAssetWithMedia, BrandPaletteAnalysis } from '../BrandKitTypes'
+import { BRAND_ASSET_BLEND_MODES, BRAND_ASSET_GLOW_MODES, BRAND_ASSET_PLACEMENTS, BRAND_ASSET_ROLES, BRAND_ASSET_VISIBILITY_MODES } from '../BrandKitTypes'
+import { DEFAULT_BRAND_ASSET_PRESENTATION } from '../brandKitNormalization'
 import { useBrandKitStore } from '../brandKitStore'
 
 const ROLE_LABELS: Record<BrandAssetRole, string> = {
@@ -182,8 +183,9 @@ export function BrandKitAssetsEditor({
     storageAvailable: state.storageAvailable,
     authRequired: state.authRequired,
   })))
-  const { addAsset, removeAsset, syncing } = useBrandKitStore(useShallow(state => ({
+  const { addAsset, updateAsset, removeAsset, syncing } = useBrandKitStore(useShallow(state => ({
     addAsset: state.addAsset,
+    updateAsset: state.updateAsset,
     removeAsset: state.removeAsset,
     syncing: state.syncing,
   })))
@@ -222,8 +224,87 @@ export function BrandKitAssetsEditor({
     setPickerRole(null)
   }
 
+
+  const displayAssets = assets.filter(asset => ['primaryLogo', 'secondaryLogo', 'wordmark', 'monogram', 'watermark', 'keyArt'].includes(asset.role))
+  const activeDisplayAsset = displayAssets.find(asset => asset.presentation?.enabled) ?? null
+  const activePresentation = activeDisplayAsset?.presentation ?? DEFAULT_BRAND_ASSET_PRESENTATION
+
+  async function selectDisplayAsset(assetId: string) {
+    await Promise.all(displayAssets.map(asset => updateAsset(asset.id, {
+      presentation: asset.id === assetId
+        ? { ...(asset.presentation ?? DEFAULT_BRAND_ASSET_PRESENTATION), enabled: true }
+        : asset.presentation ? { ...asset.presentation, enabled: false } : null,
+    })))
+  }
+
+  async function patchDisplayPresentation(patch: Partial<BrandAssetPresentation>) {
+    if (!activeDisplayAsset) return
+    await updateAsset(activeDisplayAsset.id, {
+      presentation: { ...activePresentation, ...patch, enabled: true },
+    })
+  }
+
   return (
     <div className="bk-assets-editor">
+      <section className="bk-asset-role bk-compositor-settings" aria-labelledby="bk-compositor-heading">
+        <div className="bk-asset-role-heading">
+          <div>
+            <h4 id="bk-compositor-heading">Canvas branding</h4>
+            <p>Composite one linked mark into the actual React canvas so recordings, screenshots, exports, and fullscreen output match.</p>
+          </div>
+        </div>
+        <label className="bk-field-label" htmlFor="bk-display-asset">Display asset</label>
+        <select
+          id="bk-display-asset"
+          value={activeDisplayAsset?.id ?? ''}
+          disabled={syncing || displayAssets.length === 0}
+          onChange={event => void selectDisplayAsset(event.target.value)}
+        >
+          <option value="">Disabled</option>
+          {displayAssets.map(asset => (
+            <option key={asset.id} value={asset.id}>{ROLE_LABELS[asset.role]} · {mediaByDbId.get(asset.mediaItemId)?.name ?? asset.media?.name ?? 'Missing media'}</option>
+          ))}
+        </select>
+        {activeDisplayAsset && (
+          <div className="bk-compositor-grid">
+            <label>Placement
+              <select value={activePresentation.placement} onChange={event => void patchDisplayPresentation({ placement: event.target.value as BrandAssetPresentation['placement'] })}>
+                {BRAND_ASSET_PLACEMENTS.map(value => <option key={value} value={value}>{value.replace('-', ' ')}</option>)}
+              </select>
+            </label>
+            <label>Blend
+              <select value={activePresentation.blendMode} onChange={event => void patchDisplayPresentation({ blendMode: event.target.value as BrandAssetPresentation['blendMode'] })}>
+                {BRAND_ASSET_BLEND_MODES.map(value => <option key={value} value={value}>{value}</option>)}
+              </select>
+            </label>
+            <label>Visibility
+              <select value={activePresentation.visibility} onChange={event => void patchDisplayPresentation({ visibility: event.target.value as BrandAssetPresentation['visibility'] })}>
+                {BRAND_ASSET_VISIBILITY_MODES.map(value => <option key={value} value={value}>{value === 'always' ? 'Always' : value === 'introOnly' ? 'Intro only' : 'Outro only'}</option>)}
+              </select>
+            </label>
+            <label>Glow
+              <select value={activePresentation.glowMode} onChange={event => void patchDisplayPresentation({ glowMode: event.target.value as BrandAssetPresentation['glowMode'] })}>
+                {BRAND_ASSET_GLOW_MODES.map(value => <option key={value} value={value}>{value === 'audioReactive' ? 'Audio-reactive' : value}</option>)}
+              </select>
+            </label>
+            <label>Scale <output>{Math.round(activePresentation.scale * 100)}%</output>
+              <input type="range" min="0.04" max="0.6" step="0.01" value={activePresentation.scale} onChange={event => void patchDisplayPresentation({ scale: Number(event.target.value) })} />
+            </label>
+            <label>Opacity <output>{Math.round(activePresentation.opacity * 100)}%</output>
+              <input type="range" min="0" max="1" step="0.01" value={activePresentation.opacity} onChange={event => void patchDisplayPresentation({ opacity: Number(event.target.value) })} />
+            </label>
+            <label>Safe-area inset <output>{Math.round(activePresentation.margin * 100)}%</output>
+              <input type="range" min="0" max="0.2" step="0.01" value={activePresentation.margin} onChange={event => void patchDisplayPresentation({ margin: Number(event.target.value) })} />
+            </label>
+            <label className="bk-inline-toggle">
+              <input type="checkbox" checked={activePresentation.preserveOriginalColors} onChange={event => void patchDisplayPresentation({ preserveOriginalColors: event.target.checked })} />
+              <span>Preserve original artwork colors</span>
+            </label>
+            <button type="button" className="bk-text-button" onClick={() => void updateAsset(activeDisplayAsset.id, { presentation: { ...activePresentation, enabled: false } })}>Disable logo compositor</button>
+          </div>
+        )}
+        {displayAssets.length === 0 && <div className="bk-missing-slot">Link a logo, wordmark, monogram, watermark, or key art asset to enable canvas branding.</div>}
+      </section>
       {BRAND_ASSET_ROLES.map(role => {
         const linked = assets.filter(asset => asset.role === role)
         return (

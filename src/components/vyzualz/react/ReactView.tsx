@@ -43,6 +43,7 @@ import {
   type ReactLeftTab,
 } from './reactWorkspaceComposition'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
+import { useActiveBrandOverlay } from '../../../features/personalization/useActiveBrandOverlay'
 import { resolveBrandedReactPreset } from '../../../features/personalization/resolveBrandedReactPreset'
 import '../../../styles/reactView.css'
 
@@ -166,6 +167,7 @@ export function ReactView() {
   })))
   const activeShaderId = useShaderPanelStore(s => s.activeShaderId)
   const activeBrandKit = useBrandKitStore(s => s.activeKit)
+  const { overlay: activeBrandOverlay } = useActiveBrandOverlay()
 
   const workspaceComposition = useMemo(
     () => resolveReactWorkspaceComposition(
@@ -391,6 +393,7 @@ export function ReactView() {
                   trackSections={resolvedTrackSections}
                   onCanvasReady={setOutputCanvas}
                   onLiveFps={setLiveFps}
+                  brandOverlay={activeBrandOverlay}
                 />
               </Suspense>
             ) : (
@@ -422,6 +425,8 @@ export function ReactView() {
                 effectiveBpm={engine.currentEffectiveBpm}
                 onCanvasReady={setOutputCanvas}
                 onLiveFps={setLiveFps}
+                brandOverlay={activeBrandOverlay}
+                durationSec={audioDurationSec}
                 soundDrawingLayers={activeSdLayers}
                 soundDrawingClips={activeSdClips}
                 activeAudioTrackId={engine.currentAudioTrackId}

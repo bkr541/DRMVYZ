@@ -75,6 +75,12 @@ function protectReadableRoles(palette: ReactPalette): ReactPalette {
   return next
 }
 
+/**
+ * Override precedence is intentionally narrow and deterministic:
+ * global auto-apply -> preset enabled/mode/strength/palette -> engine rule ->
+ * kit default strength and palette. A preset can therefore opt out without
+ * changing either the saved preset or another engine's personalization.
+ */
 function resolveRule(
   brandKit: Readonly<BrandKit>,
   engineRule: Readonly<BrandKitEngineRule> | null | undefined,

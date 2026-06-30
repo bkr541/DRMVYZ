@@ -15,6 +15,7 @@ const ENGINES: ReadonlyArray<{
   { id: 'oscilloscope', label: 'Sound Drawing', description: 'Waveforms, text, shapes, and palette-enabled SVG artwork.' },
   { id: 'neonLattice', label: 'Neon Lattice', description: 'Rail, block, flare, and glow colors.' },
   { id: 'cinematicPortal', label: 'Cinematic Worlds', description: 'All Cinematic Worlds, including Reactive Constellation.' },
+  { id: 'laserDmx', label: 'LaserDMX', description: 'Transient virtual RGBW adaptation for Spatial Fixtures and Beam Matrix.' },
 ]
 
 const MODE_LABELS: Record<BrandPersonalizationMode, string> = {
@@ -35,6 +36,7 @@ function effectiveRule(kit: BrandKit, engineId: BrandKitEngineTarget): BrandKitE
   return kit.engineRules[engineId] ?? {
     mode: 'hybrid',
     strength: kit.defaultStrength,
+    ...(engineId === 'laserDmx' ? { preserveTriggerSemantics: true } : {}),
   }
 }
 
@@ -100,6 +102,30 @@ export function BrandKitEngineControls({ kit, onChange }: {
               disabled={rule.mode === 'original'}
               onChange={event => updateRule(engine.id, { strength: Number(event.target.value) })}
             />
+            {engine.id === 'laserDmx' && (
+              <div className="bk-laser-personalization">
+                <label className="bk-inline-toggle">
+                  <input
+                    type="checkbox"
+                    checked={rule.preserveTriggerSemantics !== false}
+                    disabled={rule.mode === 'original'}
+                    onChange={event => updateRule(engine.id, { preserveTriggerSemantics: event.target.checked })}
+                  />
+                  <span>Preserve trigger semantics</span>
+                </label>
+                <div className="bk-laser-swatches" aria-label="LaserDMX semantic role preview">
+                  {([
+                    ['Kick / bass', customPalette.primary],
+                    ['Snare / clap', customPalette.secondary],
+                    ['Beat / pulse', customPalette.accent],
+                    ['Fill / flash', customPalette.highlight],
+                  ] as const).map(([label, color]) => (
+                    <span key={label} title={label}><i style={{ background: color }} aria-hidden="true" />{label}</span>
+                  ))}
+                </div>
+                <p className="bk-mode-description">Color personalization is applied before virtual compilation. Blackout, safety clamp, shutter, dimmer, strobe, and playback gates always retain authority.</p>
+              </div>
+            )}
             {rule.mode === 'custom' && (
               <div className="bk-custom-palette">
                 <BrandKitPaletteEditor
@@ -108,6 +134,12 @@ export function BrandKitEngineControls({ kit, onChange }: {
                   compact
                   onChange={palette => updateRule(engine.id, { customPalette: palette })}
                 />
+                {rule.customPalette && (
+                  <button type="button" className="bk-text-button" onClick={() => {
+                    const { customPalette: _removed, ...withoutCustom } = rule
+                    onChange({ ...kit.engineRules, [engine.id]: withoutCustom })
+                  }}>Remove custom engine palette</button>
+                )}
               </div>
             )}
           </section>

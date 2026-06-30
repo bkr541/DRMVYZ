@@ -44,11 +44,11 @@ describe('Brand Kit normalization and cache', () => {
 
   it('drops unknown engine rules and clamps valid rules', () => {
     expect(normalizeBrandKitEngineRules({
-      laserDmx: { mode: 'brand', strength: 0.4 },
+      laserDmx: { mode: 'brand', strength: 0.4, preserveTriggerSemantics: false, semanticRoleMapping: { bass: 'accent', invalid: 'primary' } },
       reactiveConstellation: { mode: 'custom', strength: 2, customPalette: { primary: '#abc' } },
       unknownEngine: { mode: 'brand', strength: 1 },
     })).toEqual({
-      laserDmx: { mode: 'brand', strength: 0.4 },
+      laserDmx: { mode: 'brand', strength: 0.4, preserveTriggerSemantics: false, semanticRoleMapping: { bass: 'accent' } },
       reactiveConstellation: {
         mode: 'custom', strength: 1,
         customPalette: expect.objectContaining({ primary: '#AABBCC' }),
@@ -99,7 +99,10 @@ describe('Brand Kit normalization and cache', () => {
     expect(serialized).not.toContain('blob:')
     expect(serialized).not.toContain('secret.example')
     const cached = readBrandKitCache('user-a')
-    expect(cached?.assets[0]?.presentation).toEqual({ alignment: 'center' })
+    expect(cached?.assets[0]?.presentation).toEqual({
+      enabled: false, placement: 'bottom-right', scale: 0.18, opacity: 0.82, margin: 0.04,
+      blendMode: 'source-over', glowMode: 'none', visibility: 'always', preserveOriginalColors: true,
+    })
     expect(cached?.assets[0]?.media?.metadata).toEqual({ dominantColors: ['#112233'] })
   })
 

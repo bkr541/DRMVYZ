@@ -16,6 +16,8 @@ import {
   extractPaletteFromImageFile,
 } from '../paletteExtraction'
 import { BrandKitAssetsEditor } from './BrandKitAssetsEditor'
+import { BrandSoundDrawingShortcuts } from './BrandSoundDrawingShortcuts'
+import { BrandPersonalizationDiagnostics } from './BrandPersonalizationDiagnostics'
 import { BrandKitEngineControls } from './BrandKitEngineControls'
 import { BrandKitPaletteEditor } from './BrandKitPaletteEditor'
 
@@ -467,6 +469,8 @@ export function BrandKitSettingsPanel() {
                   : <BrandKitAssetsEditor kitId={kit.id} assets={assets} onPaletteAnalysis={applyAnalysis} />}
               </section>
 
+              <BrandSoundDrawingShortcuts assets={assets} />
+
               {paletteSources.length > 1 && (
                 <div className="bk-source-selector">
                   <label htmlFor="bk-palette-source">Palette source to analyze</label>
@@ -508,6 +512,8 @@ export function BrandKitSettingsPanel() {
                 <div className="bk-section-heading"><div><h3 id="bk-engines-heading">Engine personalization</h3><p>Choose how each palette-native engine interprets this Brand Kit.</p></div></div>
                 <BrandKitEngineControls kit={kit} onChange={engineRules => void patchKit({ engineRules })} />
               </section>
+
+              <BrandPersonalizationDiagnostics />
             </>
           )}
         </main>

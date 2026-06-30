@@ -20,9 +20,11 @@ import {
   updateBrandKit,
   updateBrandKitAsset,
 } from './brandKitDb'
+import { clearAllBrandAssetRuntime, clearBrandAssetRuntimeForUser } from './brandAssetRuntime'
 import {
   DEFAULT_BRAND_PALETTE,
   clampStrength,
+  normalizeBrandAssetPresentation,
   normalizeBrandAssetRole,
   normalizeBrandKitEngineRules,
   normalizeBrandKitPresetRules,
@@ -81,7 +83,7 @@ function normalizeCachedActive(value: unknown, userId: string): ActiveBrandKitDa
           role: normalizeBrandAssetRole(raw.role),
           sortOrder: Math.max(0, Math.round(typeof raw.sortOrder === 'number' && Number.isFinite(raw.sortOrder) ? raw.sortOrder : 0)),
           isPaletteSource: raw.isPaletteSource === true,
-          presentation: isRecord(raw.presentation) ? raw.presentation : null,
+          presentation: normalizeBrandAssetPresentation(raw.presentation),
           createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : '',
           updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : '',
           media: mediaRaw ? {
@@ -184,7 +186,7 @@ function toCacheSafeActive(active: ActiveBrandKitData | null): ActiveBrandKitDat
       role: asset.role,
       sortOrder: asset.sortOrder,
       isPaletteSource: asset.isPaletteSource,
-      presentation: cacheSafeRecord(asset.presentation),
+      presentation: normalizeBrandAssetPresentation(asset.presentation),
       createdAt: asset.createdAt,
       updatedAt: asset.updatedAt,
       media: asset.media ? {
@@ -265,6 +267,8 @@ export const useBrandKitStore = create<BrandKitState>((set, get) => ({
   usingCachedActiveKit: false,
 
   async initializeForUser(userId) {
+    const previousUserId = get().currentUserId
+    if (previousUserId && previousUserId !== userId) clearBrandAssetRuntimeForUser(previousUserId)
     const generation = ++initializationGeneration
     const changedUser = get().currentUserId !== userId
     const cached = readBrandKitCache(userId)
@@ -326,6 +330,7 @@ export const useBrandKitStore = create<BrandKitState>((set, get) => ({
 
   clearForSignedOut() {
     initializationGeneration += 1
+    clearAllBrandAssetRuntime()
     set({
       currentUserId: null,
       kits: [],
@@ -418,6 +423,7 @@ export const useBrandKitStore = create<BrandKitState>((set, get) => ({
     if (result.error) { set({ syncing: false, error: result.error }); return false }
     set(state => {
       const wasActive = state.activeKit?.id === id
+      if (wasActive) clearBrandAssetRuntimeForUser(userId)
       if (wasActive) cacheActiveState(userId, null, [])
       const assetsByKitId = { ...state.assetsByKitId }
       delete assetsByKitId[id]
@@ -443,6 +449,7 @@ export const useBrandKitStore = create<BrandKitState>((set, get) => ({
     if (get().currentUserId !== userId) return false
     if (result.error) { set({ syncing: false, error: result.error }); return false }
     if (!id) {
+      clearBrandAssetRuntimeForUser(userId)
       cacheActiveState(userId, null, [])
       set({
         activeKit: null,

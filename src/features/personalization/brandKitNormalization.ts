@@ -1,7 +1,9 @@
 import type { Json } from '../../types/database'
 import type {
   ActiveBrandKitData,
+  BrandAssetPresentation,
   BrandAssetRole,
+  BrandPaletteRole,
   BrandKit,
   BrandKitAssetWithMedia,
   BrandKitEngineRule,
@@ -13,8 +15,14 @@ import type {
   PaletteExtractionMetadata,
 } from './BrandKitTypes'
 import {
+  BRAND_ASSET_BLEND_MODES,
+  BRAND_ASSET_GLOW_MODES,
+  BRAND_ASSET_PLACEMENTS,
   BRAND_ASSET_ROLES,
+  BRAND_ASSET_VISIBILITY_MODES,
+  BRAND_PALETTE_ROLES,
   BRAND_PERSONALIZATION_MODES,
+  LASER_DMX_SEMANTIC_SOURCES,
 } from './BrandKitTypes'
 import { normalizeHexColor } from './paletteColorSpace'
 
@@ -60,10 +68,22 @@ export function normalizeEngineRule(value: unknown): BrandKitEngineRule {
   const mode = BRAND_PERSONALIZATION_MODES.includes(input.mode as never)
     ? input.mode as BrandKitEngineRule['mode']
     : 'hybrid'
+  const semanticRoleMapping = isRecord(input.semanticRoleMapping)
+    ? Object.fromEntries(Object.entries(input.semanticRoleMapping).flatMap(([source, role]) => (
+        LASER_DMX_SEMANTIC_SOURCES.includes(source as never)
+        && BRAND_PALETTE_ROLES.includes(role as BrandPaletteRole)
+          ? [[source, role]]
+          : []
+      ))) as BrandKitEngineRule['semanticRoleMapping']
+    : undefined
   return {
     mode,
     strength: clampStrength(input.strength),
     ...(input.customPalette ? { customPalette: normalizeBrandPalette(input.customPalette) } : {}),
+    ...(typeof input.preserveTriggerSemantics === 'boolean'
+      ? { preserveTriggerSemantics: input.preserveTriggerSemantics }
+      : {}),
+    ...(semanticRoleMapping && Object.keys(semanticRoleMapping).length ? { semanticRoleMapping } : {}),
   }
 }
 
@@ -171,6 +191,46 @@ export function normalizeBrandKitRow(row: BrandKitDbLike): BrandKit {
   }
 }
 
+
+export const DEFAULT_BRAND_ASSET_PRESENTATION: BrandAssetPresentation = {
+  enabled: false,
+  placement: 'bottom-right',
+  scale: 0.18,
+  opacity: 0.82,
+  margin: 0.04,
+  blendMode: 'source-over',
+  glowMode: 'none',
+  visibility: 'always',
+  preserveOriginalColors: true,
+}
+
+export function normalizeBrandAssetPresentation(value: unknown): BrandAssetPresentation | null {
+  if (!isRecord(value)) return null
+  const placement = BRAND_ASSET_PLACEMENTS.includes(value.placement as never)
+    ? value.placement as BrandAssetPresentation['placement']
+    : DEFAULT_BRAND_ASSET_PRESENTATION.placement
+  const blendMode = BRAND_ASSET_BLEND_MODES.includes(value.blendMode as never)
+    ? value.blendMode as BrandAssetPresentation['blendMode']
+    : DEFAULT_BRAND_ASSET_PRESENTATION.blendMode
+  const glowMode = BRAND_ASSET_GLOW_MODES.includes(value.glowMode as never)
+    ? value.glowMode as BrandAssetPresentation['glowMode']
+    : DEFAULT_BRAND_ASSET_PRESENTATION.glowMode
+  const visibility = BRAND_ASSET_VISIBILITY_MODES.includes(value.visibility as never)
+    ? value.visibility as BrandAssetPresentation['visibility']
+    : DEFAULT_BRAND_ASSET_PRESENTATION.visibility
+  return {
+    enabled: value.enabled === true,
+    placement,
+    scale: Math.max(0.04, Math.min(0.6, finiteNumber(value.scale, DEFAULT_BRAND_ASSET_PRESENTATION.scale))),
+    opacity: clampStrength(value.opacity, DEFAULT_BRAND_ASSET_PRESENTATION.opacity),
+    margin: Math.max(0, Math.min(0.2, finiteNumber(value.margin, DEFAULT_BRAND_ASSET_PRESENTATION.margin))),
+    blendMode,
+    glowMode,
+    visibility,
+    preserveOriginalColors: value.preserveOriginalColors !== false,
+  }
+}
+
 export function normalizeBrandAssetRole(value: unknown): BrandAssetRole {
   return BRAND_ASSET_ROLES.includes(value as BrandAssetRole) ? value as BrandAssetRole : 'paletteSource'
 }
@@ -185,7 +245,7 @@ export function normalizeBrandKitAssetRow(row: Record<string, unknown>): BrandKi
     role: normalizeBrandAssetRole(row.asset_role),
     sortOrder: Math.max(0, Math.round(finiteNumber(row.sort_order, 0))),
     isPaletteSource: row.is_palette_source === true,
-    presentation: isRecord(row.presentation) ? row.presentation : null,
+    presentation: normalizeBrandAssetPresentation(row.presentation),
     createdAt: typeof row.created_at === 'string' ? row.created_at : '',
     updatedAt: typeof row.updated_at === 'string' ? row.updated_at : '',
     media: mediaRaw && typeof mediaRaw.id === 'string' ? {

@@ -288,6 +288,44 @@ function decodeUnifiedSvgVisual(loaded: LoadedSvgMedia, generation: number): Pro
   })
 }
 
+
+function isSvgMediaItem(item: SvgMediaItem): boolean {
+  return item.mimeType === 'image/svg+xml' || item.mediaRole === 'svg' || /\.svg$/i.test(item.name)
+}
+
+async function decodeArtworkMedia(item: SvgMediaItem, generation: number): Promise<void> {
+  async function tryUrl(url: string): Promise<HTMLImageElement | null> {
+    return new Promise(resolve => {
+      const image = new Image()
+      image.decoding = 'async'
+      image.crossOrigin = 'anonymous'
+      image.onload = () => resolve(image)
+      image.onerror = () => resolve(null)
+      image.src = url
+    })
+  }
+
+  let image = item.url ? await tryUrl(item.url) : null
+  if (!image && item.storagePath) {
+    const { url } = await createSignedMediaUrl(item.storagePath, 3600)
+    if (url) image = await tryUrl(url)
+  }
+  if (!isCurrentSvgVisualGeneration(item.id, generation)) return
+  setSvgVisualEntry({
+    id: item.id,
+    loading: false,
+    image,
+    objectUrl: null,
+    loaded: Boolean(image),
+    error: image ? null : 'Artwork image failed to render',
+    width: image?.naturalWidth ?? 0,
+    height: image?.naturalHeight ?? 0,
+    mediaUrl: item.url || undefined,
+    storagePath: item.storagePath || undefined,
+    generation,
+  })
+}
+
 async function ensureUnifiedSvgCaches(mediaId: string): Promise<void> {
   // Persisted glyph assets are available before the asynchronous media library
   // finishes restoring. Rebuild their transient point cache immediately.
@@ -352,6 +390,11 @@ async function ensureUnifiedSvgCaches(mediaId: string): Promise<void> {
         storagePath: item.storagePath || undefined,
         generation,
       })
+    }
+
+    if (!isSvgMediaItem(item)) {
+      if (!visualReady) await decodeArtworkMedia(item, generation)
+      return
     }
 
     const loaded = await loadSvgMedia(mediaId)

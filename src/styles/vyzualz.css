@@ -7358,3 +7358,44 @@ input[type='range'].vz-slider--color {
   .bk-kit-header { align-items: stretch; flex-direction: column; }
   .bk-kit-header-actions { justify-content: flex-start; }
 }
+
+/* Brand Kit app accents are opt-in and deliberately scoped to decorative and
+   selection surfaces. Functional safety/status tokens remain untouched. */
+:root {
+  --drm-brand-accent: var(--az-cyan);
+  --drm-brand-accent-rgb: var(--az-cyan-rgb);
+  --drm-brand-accent-soft: rgba(var(--az-cyan-rgb), .28);
+  --drm-brand-accent-text: #061014;
+}
+:root[data-brand-accent] .bk-primary-button {
+  background: var(--drm-brand-accent);
+  color: var(--drm-brand-accent-text);
+}
+:root[data-brand-accent] .bk-active-badge,
+:root[data-brand-accent] .rv-preset-selected-label,
+:root[data-brand-accent] .rv-preset-active-dot {
+  color: var(--drm-brand-accent);
+}
+:root[data-brand-accent] .rv-preset-card--active {
+  border-color: var(--drm-brand-accent);
+  box-shadow: 0 0 0 1px var(--drm-brand-accent-soft), 0 0 18px var(--drm-brand-accent-soft);
+}
+.bk-laser-personalization { display: grid; gap: 10px; margin-top: 10px; }
+.bk-inline-toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--az-text-secondary); }
+.bk-laser-swatches { display: flex; flex-wrap: wrap; gap: 7px 12px; }
+.bk-laser-swatches span { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; color: var(--az-text-muted); }
+.bk-laser-swatches i { width: 16px; height: 16px; border-radius: 5px; border: 1px solid rgba(255,255,255,.18); }
+.bk-compositor-settings { border-color: rgba(255,255,255,.14); background: rgba(255,255,255,.025); }
+.bk-field-label { display: block; margin: 8px 0 5px; color: var(--az-text-muted); font-size: 11px; }
+.bk-compositor-settings > select { width: 100%; }
+.bk-compositor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.bk-compositor-grid label { display: grid; gap: 6px; color: var(--az-text-secondary); font-size: 11px; }
+.bk-compositor-grid .bk-inline-toggle { display: flex; }
+@media (max-width: 760px) { .bk-compositor-grid { grid-template-columns: 1fr; } }
+.bk-shortcut-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.bk-diagnostics { margin-top: 14px; border: 1px solid rgba(255,255,255,.1); border-radius: 10px; padding: 10px 12px; }
+.bk-diagnostics summary { cursor: pointer; color: var(--az-text-secondary); font-size: 12px; font-weight: 700; }
+.bk-diagnostics dl { display: grid; gap: 6px; margin: 10px 0 0; font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.bk-diagnostics dl div { display: grid; grid-template-columns: minmax(110px, .35fr) 1fr; gap: 12px; }
+.bk-diagnostics dt { color: var(--az-text-muted); }
+.bk-diagnostics dd { margin: 0; overflow-wrap: anywhere; color: var(--az-text-secondary); }

@@ -10,6 +10,8 @@ import type { ShaderMasterParams } from './shaders/ShaderEngineRenderer'
 import { useShaderPanelStore }     from './shaders/ui/shaderPanelStore'
 import { DEFAULT_SHADER_SCENE_ID } from './shaders/scenes'
 import { shaderRegistry }          from './shaders/registry'
+import type { ActiveBrandOverlay } from '../../../features/personalization/brandAssetCompositor'
+import { compositeBrandAsset } from '../../../features/personalization/brandAssetCompositor'
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -32,6 +34,7 @@ interface Props {
   trackSections?:    ReactTrackSection[]
   onCanvasReady?:    (canvas: HTMLCanvasElement | null) => void
   onLiveFps?:        (fps: number) => void
+  brandOverlay?:      ActiveBrandOverlay | null
 }
 
 // ── ReactShaderCanvas ─────────────────────────────────────────────────────────
@@ -68,12 +71,14 @@ export function ReactShaderCanvas({
   trackSections   = [],
   onCanvasReady,
   onLiveFps,
+  brandOverlay = null,
 }: Props) {
   const activeShaderId = useShaderPanelStore(s => s.activeShaderId)
   const activeShaderName = shaderRegistry.get(activeShaderId ?? DEFAULT_SHADER_SCENE_ID)?.name
     ?? 'Shader scene'
   const canvasLabel = `Shader Engine visualization: ${activeShaderName}`
   const canvasRef   = useRef<HTMLCanvasElement>(null)
+  const outputCanvasRef = useRef<HTMLCanvasElement>(null)
   const animRef     = useRef<number>(0)
   const rendererRef = useRef<ShaderEngineRenderer | null>(null)
   // Whether rAF is paused due to context loss
@@ -103,6 +108,7 @@ export function ReactShaderCanvas({
   const getAudioTimeRef     = useRef(getAudioTime)
   const onCanvasReadyRef    = useRef(onCanvasReady)
   const onLiveFpsRef        = useRef(onLiveFps)
+  const brandOverlayRef      = useRef<ActiveBrandOverlay | null>(brandOverlay)
 
   // Keep refs current every render
   intensityRef.current       = intensity
@@ -121,6 +127,7 @@ export function ReactShaderCanvas({
   getAudioTimeRef.current    = getAudioTime
   onCanvasReadyRef.current   = onCanvasReady
   onLiveFpsRef.current       = onLiveFps
+  brandOverlayRef.current     = brandOverlay
 
   // Sync analyser buffers on change
   useEffect(() => {
@@ -137,7 +144,12 @@ export function ReactShaderCanvas({
   // Main effect: create WebGL2 runtime + renderer, rAF loop
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas) return
+    const outputCanvas = outputCanvasRef.current
+    const outputCtx = outputCanvas?.getContext('2d') ?? null
+    if (!canvas || !outputCanvas || !outputCtx) return
+    const sourceCanvas: HTMLCanvasElement = canvas
+    const visibleCanvas: HTMLCanvasElement = outputCanvas
+    const visibleCtx: CanvasRenderingContext2D = outputCtx
 
     // Ensure a default scene is selected
     const store = useShaderPanelStore.getState()
@@ -151,7 +163,7 @@ export function ReactShaderCanvas({
     let lastDevicePixelRatio = 1
 
     function createRenderer(): ShaderEngineRenderer | null {
-      const { runtime, error } = ShaderWebGLRuntime.create(canvas!, {
+      const { runtime, error } = ShaderWebGLRuntime.create(sourceCanvas, {
         onContextLost: () => {
           pausedRef.current = true
           cancelAnimationFrame(animRef.current)
@@ -195,21 +207,24 @@ export function ReactShaderCanvas({
     if (!initialRenderer) return
 
     rendererRef.current = initialRenderer
-    onCanvasReadyRef.current?.(canvas)
+    onCanvasReadyRef.current?.(visibleCanvas)
 
     // ResizeObserver — reads from rendererRef.current so it stays valid across restores
     function resize() {
       if (pausedRef.current) return
       const renderer = rendererRef.current
       if (!renderer) return
-      const r = canvas!.getBoundingClientRect()
+      const r = visibleCanvas.getBoundingClientRect()
       if (!Number.isFinite(r.width) || !Number.isFinite(r.height)) return
       if (r.width <= 0 || r.height <= 0) return
       lastCssW = r.width
       lastCssH = r.height
       lastDevicePixelRatio = window.devicePixelRatio
       renderer.resize(r.width, r.height, lastDevicePixelRatio)
-      // Do NOT set canvas.width/canvas.height here — the runtime handles it
+      // The runtime owns the hidden WebGL buffer. The visible 2D output mirrors
+      // that exact buffer so recordings and screenshots include the compositor.
+      visibleCanvas.width = sourceCanvas.width
+      visibleCanvas.height = sourceCanvas.height
     }
 
     // Transactional setup: create observer, perform guarded first resize, then
@@ -218,7 +233,7 @@ export function ReactShaderCanvas({
     let ro: ResizeObserver | null = null
     try {
       ro = new ResizeObserver(resize)
-      ro.observe(canvas)
+      ro.observe(visibleCanvas)
       resize()
     } catch (err) {
       ro?.disconnect()
@@ -264,6 +279,21 @@ export function ReactShaderCanvas({
         lastFrameMs = now
         fpsCount = 0
         fpsLastMs = now
+        if (visibleCanvas.width !== sourceCanvas.width || visibleCanvas.height !== sourceCanvas.height) {
+          visibleCanvas.width = sourceCanvas.width
+          visibleCanvas.height = sourceCanvas.height
+        }
+        visibleCtx.globalCompositeOperation = 'source-over'
+        visibleCtx.globalAlpha = 1
+        visibleCtx.drawImage(sourceCanvas, 0, 0, visibleCanvas.width, visibleCanvas.height)
+        compositeBrandAsset(visibleCtx, brandOverlayRef.current, {
+          width: visibleCanvas.width,
+          height: visibleCanvas.height,
+          audioTime: audioTimeRef.current,
+          durationSec: durationSecRef.current,
+          audioEnergy: 0,
+          sectionType: null,
+        })
         animRef.current = requestAnimationFrame(frame)
         return
       }
@@ -381,8 +411,8 @@ export function ReactShaderCanvas({
         activeBeatPhase = beatPhase
       }
 
-      const W = canvas!.width  || 1
-      const H = canvas!.height || 1
+      const W = sourceCanvas.width  || 1
+      const H = sourceCanvas.height || 1
 
       const rfCtx: ReactFrameContext = {
         W,
@@ -430,6 +460,22 @@ export function ReactShaderCanvas({
       // so context-restoration can swap in a new renderer transparently.
       rendererRef.current?.render(rfCtx, durationSecRef.current, master)
 
+      if (visibleCanvas.width !== sourceCanvas.width || visibleCanvas.height !== sourceCanvas.height) {
+        visibleCanvas.width = sourceCanvas.width
+        visibleCanvas.height = sourceCanvas.height
+      }
+      visibleCtx.globalCompositeOperation = 'source-over'
+      visibleCtx.globalAlpha = 1
+      visibleCtx.drawImage(sourceCanvas, 0, 0, visibleCanvas.width, visibleCanvas.height)
+      compositeBrandAsset(visibleCtx, brandOverlayRef.current, {
+        width: visibleCanvas.width,
+        height: visibleCanvas.height,
+        audioTime: audioTimeRef.current,
+        durationSec: durationSecRef.current,
+        audioEnergy: vol,
+        sectionType: resolvedSectionType,
+      })
+
       animRef.current = requestAnimationFrame(frame)
     }
 
@@ -449,18 +495,20 @@ export function ReactShaderCanvas({
   }, [])
 
   return (
-    <canvas
-      ref={canvasRef}
-      role="img"
-      aria-label={canvasLabel}
-      style={{
-        display: 'block',
-        width:   '100%',
-        height:  '100%',
-        background: '#000',
-      }}
-    >
-      {canvasLabel}. Animated visual output is not described frame by frame.
-    </canvas>
+    <div style={{ position: 'relative', width: '100%', height: '100%', background: '#000' }}>
+      <canvas
+        ref={outputCanvasRef}
+        role="img"
+        aria-label={canvasLabel}
+        style={{ display: 'block', width: '100%', height: '100%', background: '#000' }}
+      >
+        {canvasLabel}. Animated visual output is not described frame by frame.
+      </canvas>
+      <canvas
+        ref={canvasRef}
+        aria-hidden="true"
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, pointerEvents: 'none' }}
+      />
+    </div>
   )
 }
