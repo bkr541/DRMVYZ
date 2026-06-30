@@ -1,6 +1,6 @@
 # LaserDMX production output security and safety boundary
 
-Patch 9 keeps DRMVYZ virtual-first. The repository is currently a Vite/React browser application. It does not contain an Electron main process, preload script, context-isolated IPC bridge, or packaged desktop runtime. Therefore:
+DRMVYZ remains virtual-first. The repository is currently a Vite/React browser application. It does not contain an Electron main process, preload script, context-isolated IPC bridge, or packaged desktop runtime. Therefore:
 
 - `VirtualProductionOutputAdapter` is the only executable adapter and the canonical default.
 - Art-Net 4 and sACN/E1.31 are represented by typed protocol and adapter descriptors only.
@@ -20,3 +20,5 @@ Physical enablement, network binding, arming, emergency blackout, heartbeat stat
 The output controller fails dark for adapter failures, invalid patch errors, stale frames, heartbeat timeout, renderer crashes, authentication/account changes, transport stop, page close, and lifecycle disposal. Atmospheric trigger channels are edge-gated and respect profile cooldown metadata. Strobe output is capped independently from preview rendering.
 
 Fixture patch diagnostics cover universe bounds, start address, channel footprint, address overflow, overlap, missing profiles, and excluded-zone target metadata. These checks are engineering safeguards only. They do not certify laser safety, venue compliance, electrical safety, atmospheric-effect suitability, or regulatory compliance.
+
+See `laser-dmx-production-rig-architecture.md` for the complete source-of-truth, timing, persistence, capability, and extension contracts.

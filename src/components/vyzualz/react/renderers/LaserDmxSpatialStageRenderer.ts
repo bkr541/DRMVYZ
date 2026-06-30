@@ -30,12 +30,15 @@ interface CameraBasis {
   far: number
   W: number
   H: number
+  pixelScale: number
 }
 
 export interface SpatialStageRenderInput {
   ctx: CanvasRenderingContext2D
   W: number
   H: number
+  /** Device-pixel ratio used for fixed-size strokes and editor affordances. */
+  dpr?: number
   rig: ProductionRig
   settings: LaserDmxSettings
   frames: LaserDmxFixtureFrame[]
@@ -63,7 +66,11 @@ function normalize(a: Vec3): Vec3 {
   return len > EPSILON ? scale(a, 1 / len) : { x: 0, y: 0, z: 1 }
 }
 
-function buildCameraBasis(camera: ProductionCameraView, W: number, H: number): CameraBasis {
+export function resolveSpatialStagePixelScale(dpr: number | undefined): number {
+  return Number.isFinite(dpr) ? Math.max(1, Math.min(4, dpr!)) : 1
+}
+
+function buildCameraBasis(camera: ProductionCameraView, W: number, H: number, dpr = 1): CameraBasis {
   const forward = normalize(subtract(camera.target, camera.position))
   let right = normalize(cross(forward, { x: 0, y: 1, z: 0 }))
   if (length(right) < EPSILON) right = { x: 1, y: 0, z: 0 }
@@ -80,6 +87,7 @@ function buildCameraBasis(camera: ProductionCameraView, W: number, H: number): C
     far: Math.max(camera.near + 1, camera.far),
     W,
     H,
+    pixelScale: resolveSpatialStagePixelScale(dpr),
   }
 }
 
@@ -123,7 +131,7 @@ function drawWorldLine(
   ctx.save()
   ctx.strokeStyle = strokeStyle
   ctx.globalAlpha = alpha
-  ctx.lineWidth = width
+  ctx.lineWidth = width * basis.pixelScale
   ctx.beginPath()
   ctx.moveTo(a.x, a.y)
   ctx.lineTo(b.x, b.y)
@@ -201,7 +209,7 @@ function drawMounts(ctx: CanvasRenderingContext2D, basis: CameraBasis, stage: Pr
         ctx.globalAlpha = 0.52
         ctx.fillStyle = '#b9c4ca'
         ctx.beginPath()
-        ctx.arc(projected.x, projected.y, Math.max(1, Math.min(3, projected.scale * 0.025)), 0, Math.PI * 2)
+        ctx.arc(projected.x, projected.y, Math.max(basis.pixelScale, Math.min(3 * basis.pixelScale, projected.scale * 0.025)), 0, Math.PI * 2)
         ctx.fill()
         ctx.restore()
       }
@@ -214,12 +222,12 @@ function drawZones(ctx: CanvasRenderingContext2D, basis: CameraBasis, stage: Pro
   for (const zone of stage.spatialZones) {
     const projected = projectWithBasis(zone.center, basis)
     if (!projected.visible) continue
-    const radius = Math.max(4, Math.min(80, Math.max(zone.size.x, zone.size.y, zone.size.z) * projected.scale * 0.4))
+    const radius = Math.max(4 * basis.pixelScale, Math.min(80 * basis.pixelScale, Math.max(zone.size.x, zone.size.y, zone.size.z) * projected.scale * 0.4))
     ctx.save()
     ctx.strokeStyle = zone.kind === 'excluded' ? '#d85b67' : '#61d6aa'
     ctx.globalAlpha = 0.42
-    ctx.setLineDash(zone.kind === 'excluded' ? [5, 4] : [2, 4])
-    ctx.lineWidth = 1
+    ctx.setLineDash((zone.kind === 'excluded' ? [5, 4] : [2, 4]).map(value => value * basis.pixelScale))
+    ctx.lineWidth = basis.pixelScale
     if (zone.shape === 'sphere') {
       ctx.beginPath()
       ctx.arc(projected.x, projected.y, radius, 0, Math.PI * 2)
@@ -264,7 +272,7 @@ function drawPerspectiveBeam(
   const b = projectWithBasis(target, basis)
   if (!a.visible || !b.visible || intensity < 0.001) return
   const depthScale = Math.max(0.35, Math.min(2.5, (a.scale + b.scale) * 0.035))
-  const width = Math.max(0.45, beamWidth * depthScale)
+  const width = Math.max(0.45 * basis.pixelScale, beamWidth * depthScale)
   const alpha = clamp01(intensity)
 
   ctx.save()
@@ -274,7 +282,7 @@ function drawPerspectiveBeam(
   ctx.globalAlpha = alpha * (0.08 + haze * 0.18) * glow
   ctx.lineWidth = width * (5 + haze * 7) * glow
   ctx.shadowColor = color
-  ctx.shadowBlur = 16 * glow
+  ctx.shadowBlur = 16 * glow * basis.pixelScale
   ctx.beginPath()
   ctx.moveTo(a.x, a.y)
   ctx.lineTo(b.x, b.y)
@@ -288,7 +296,7 @@ function drawPerspectiveBeam(
   ctx.globalAlpha = alpha * 0.72
   ctx.lineWidth = width * 1.8
   ctx.shadowColor = color
-  ctx.shadowBlur = 8 * glow
+  ctx.shadowBlur = 8 * glow * basis.pixelScale
   ctx.beginPath()
   ctx.moveTo(a.x, a.y)
   ctx.lineTo(b.x, b.y)
@@ -298,7 +306,7 @@ function drawPerspectiveBeam(
   ctx.save()
   ctx.globalCompositeOperation = 'screen'
   ctx.strokeStyle = `rgba(255,255,255,${(alpha * 0.82).toFixed(3)})`
-  ctx.lineWidth = Math.max(0.45, width * 0.28)
+  ctx.lineWidth = Math.max(0.45 * basis.pixelScale, width * 0.28)
   ctx.beginPath()
   ctx.moveTo(a.x, a.y)
   ctx.lineTo(b.x, b.y)
@@ -317,13 +325,13 @@ function drawBeamEndDot(
 ): void {
   const projected = projectWithBasis(point, basis)
   if (!projected.visible) return
-  const radius = Math.max(0.8, Math.min(8, width * projected.scale * 0.055))
+  const radius = Math.max(0.8 * basis.pixelScale, Math.min(8 * basis.pixelScale, width * projected.scale * 0.055))
   ctx.save()
   ctx.globalCompositeOperation = 'screen'
   ctx.globalAlpha = clamp01(intensity)
   ctx.fillStyle = color
   ctx.shadowColor = color
-  ctx.shadowBlur = 12 * glow
+  ctx.shadowBlur = 12 * glow * basis.pixelScale
   ctx.beginPath()
   ctx.arc(projected.x, projected.y, radius, 0, Math.PI * 2)
   ctx.fill()
@@ -337,7 +345,7 @@ function drawPathGuidePoint(ctx: CanvasRenderingContext2D, basis: CameraBasis, p
   ctx.globalAlpha = 0.55
   ctx.fillStyle = '#ffff00'
   ctx.beginPath()
-  ctx.arc(projected.x, projected.y, 2, 0, Math.PI * 2)
+  ctx.arc(projected.x, projected.y, 2 * basis.pixelScale, 0, Math.PI * 2)
   ctx.fill()
   ctx.restore()
 }
@@ -345,13 +353,13 @@ function drawPathGuidePoint(ctx: CanvasRenderingContext2D, basis: CameraBasis, p
 function drawFixtureOrigin(ctx: CanvasRenderingContext2D, basis: CameraBasis, point: Vec3, selected: boolean): void {
   const projected = projectWithBasis(point, basis)
   if (!projected.visible) return
-  const radius = Math.max(3, Math.min(9, projected.scale * 0.07))
+  const radius = Math.max(3 * basis.pixelScale, Math.min(9 * basis.pixelScale, projected.scale * 0.07))
   ctx.save()
   ctx.globalCompositeOperation = 'screen'
   ctx.strokeStyle = selected ? '#ffffff' : '#7e97a4'
   ctx.fillStyle = selected ? 'rgba(255,255,255,0.18)' : 'rgba(80,110,125,0.14)'
   ctx.globalAlpha = selected ? 0.9 : 0.55
-  ctx.lineWidth = selected ? 2 : 1
+  ctx.lineWidth = (selected ? 2 : 1) * basis.pixelScale
   ctx.beginPath()
   ctx.arc(projected.x, projected.y, radius, 0, Math.PI * 2)
   ctx.fill()
@@ -535,13 +543,13 @@ function drawStrobePanel(
   if (!projected.visible || frame.visual.intensity < 0.001) return
   const alpha = clamp01(frame.visual.intensity * frame.visual.rgba.a)
   const rgb = `${frame.visual.rgba.r},${frame.visual.rgba.g},${frame.visual.rgba.b}`
-  const width = Math.max(12, Math.min(90, projected.scale * 0.42))
+  const width = Math.max(12 * basis.pixelScale, Math.min(90 * basis.pixelScale, projected.scale * 0.42))
   const height = width * 0.34
 
   ctx.save()
   ctx.globalCompositeOperation = 'screen'
   ctx.shadowColor = frame.visual.color
-  ctx.shadowBlur = 28 + glow * 42
+  ctx.shadowBlur = (28 + glow * 42) * basis.pixelScale
   ctx.fillStyle = `rgba(${rgb},${Math.min(1, alpha * 0.95).toFixed(3)})`
   ctx.fillRect(projected.x - width / 2, projected.y - height / 2, width, height)
   ctx.restore()
@@ -623,9 +631,9 @@ function drawLedBarFixture(
     ctx.strokeStyle = ledBar.segmentColors[index]
     ctx.globalAlpha = intensity
     ctx.lineCap = 'butt'
-    ctx.lineWidth = Math.max(4, Math.min(24, (pa.scale + pb.scale) * 0.055))
+    ctx.lineWidth = Math.max(4 * basis.pixelScale, Math.min(24 * basis.pixelScale, (pa.scale + pb.scale) * 0.055))
     ctx.shadowColor = ledBar.segmentColors[index]
-    ctx.shadowBlur = 10 + glow * 20
+    ctx.shadowBlur = (10 + glow * 20) * basis.pixelScale
     ctx.beginPath()
     ctx.moveTo(pa.x, pa.y)
     ctx.lineTo(pb.x, pb.y)
@@ -677,7 +685,7 @@ function drawProductionAtmosphere(
   for (const particle of frame.particles) {
     const projected = projectWithBasis(particle.position, basis)
     if (!projected.visible || particle.density < 0.002) continue
-    const radius = Math.max(2, Math.min(90, particle.radius * projected.scale * (particle.medium === 'cryo' ? 0.75 : 1.15)))
+    const radius = Math.max(2 * basis.pixelScale, Math.min(90 * basis.pixelScale, particle.radius * projected.scale * (particle.medium === 'cryo' ? 0.75 : 1.15)))
     const alpha = clamp01(particle.density * (particle.medium === 'cryo' ? 0.42 : 0.24))
     const gradient = ctx.createRadialGradient(projected.x, projected.y, 0, projected.x, projected.y, radius)
     gradient.addColorStop(0, `rgba(${tint.r},${tint.g},${tint.b},${alpha.toFixed(3)})`)
@@ -692,7 +700,7 @@ function drawProductionAtmosphere(
 export function renderLaserDmxSpatialStage(input: SpatialStageRenderInput): void {
   const { ctx, W, H, rig, settings, frames } = input
   const stage = normalizeProductionStageModel(rig.stage)
-  const basis = buildCameraBasis(stage.camera, W, H)
+  const basis = buildCameraBasis(stage.camera, W, H, input.dpr)
 
   drawFloorGrid(ctx, basis, stage)
   drawAudienceRegion(ctx, basis, stage)
@@ -726,12 +734,14 @@ export function renderLaserDmxSpatialStage(input: SpatialStageRenderInput): void
     ctx.fillStyle = 'rgba(120,160,175,0.18)'
     ctx.globalAlpha = fixture.id === settings.selectedFixtureId ? 1 : 0.72
     ctx.beginPath()
-    ctx.rect(projected.x - 7, projected.y - 4, 14, 8)
+    const iconWidth = 14 * basis.pixelScale
+    const iconHeight = 8 * basis.pixelScale
+    ctx.rect(projected.x - iconWidth / 2, projected.y - iconHeight / 2, iconWidth, iconHeight)
     ctx.fill()
     ctx.stroke()
     ctx.beginPath()
-    ctx.moveTo(projected.x, projected.y - 5)
-    ctx.lineTo(projected.x, projected.y - (fixture.kind === 'cryoJet' ? 24 : 15))
+    ctx.moveTo(projected.x, projected.y - 5 * basis.pixelScale)
+    ctx.lineTo(projected.x, projected.y - (fixture.kind === 'cryoJet' ? 24 : 15) * basis.pixelScale)
     ctx.stroke()
     ctx.restore()
     if (settings.showFixtureOrigins || stage.editor.guidesVisible) drawFixtureOrigin(ctx, basis, fixture.transform.position, fixture.id === settings.selectedFixtureId)
@@ -804,9 +814,9 @@ export function renderLaserDmxSpatialStage(input: SpatialStageRenderInput): void
       ctx.globalCompositeOperation = 'screen'
       ctx.strokeStyle = frame.visual.color
       ctx.globalAlpha = clamp01(frame.visual.intensity * frame.visual.rgba.a * 0.72)
-      ctx.lineWidth = Math.max(0.5, frame.visual.beamWidth)
+      ctx.lineWidth = Math.max(0.5 * basis.pixelScale, frame.visual.beamWidth * basis.pixelScale)
       ctx.shadowColor = frame.visual.color
-      ctx.shadowBlur = 9 * focusedGlow
+      ctx.shadowBlur = 9 * focusedGlow * basis.pixelScale
       ctx.beginPath()
       let started = false
       for (const point of worldPoints) {

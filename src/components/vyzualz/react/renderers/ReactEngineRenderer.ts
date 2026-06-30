@@ -3,7 +3,7 @@ import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { resolveSectionAtTime, effectiveSectionIntensity, DEFAULT_REACT_RENDER_PARAMS } from './reactRenderUtils'
 import { renderCinematicPortal } from './CinematicPortalRenderer'
 import { renderSoundDrawing }    from './SoundDrawingRenderer'
-import { renderLaserDmx, clearLaserDmxVisualState } from './LaserDmxRenderer'
+import { renderLaserDmx, clearLaserDmxVisualState, pauseLaserDmxRenderer } from './LaserDmxRenderer'
 import { renderNeonLattice, clearNeonLatticeVisualState } from './NeonLatticeRenderer'
 
 export type { ReactFrameContext, ReactRenderParams }
@@ -52,7 +52,6 @@ function lerp(a: number, b: number, t: number): number {
  *
  * Returns base params unchanged when no matching scene is found.
  *
- * TODO: add scene-level OscillatorSettings blending here when needed.
  */
 export function resolveReactAutomation(
   preset:          ReactPreset,
@@ -115,7 +114,6 @@ export function resolveEffectiveParams(
     intensity: Math.max(0, effectiveIntensity),
   }
 
-  // TODO: add scene-level oscillator automation when needed
   return resolveReactAutomation(preset, sectionType, sectionProgress, withIntensity)
 }
 
@@ -139,7 +137,10 @@ export function renderReactEngine(
 ): void {
   // A user pause is a true frame hold across every React engine. Do not clear
   // gated engines and do not let idle/random animation mutate the last frame.
-  if (frame.isPaused === true) return
+  if (frame.isPaused === true) {
+    if (preset.engine === 'laserDmx') pauseLaserDmxRenderer(ctx, frame.audioTime)
+    return
+  }
 
   const { type: sectionType } = resolveCurrentSection(trackSections, frame.audioTime)
   const effectiveParams       = resolveEffectiveParams(preset, params, trackSections, frame.audioTime)

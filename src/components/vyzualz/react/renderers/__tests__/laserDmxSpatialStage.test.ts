@@ -11,7 +11,7 @@ import {
   stageVectorToLegacyNormalized,
 } from '../../LaserDmxProductionRig'
 import { createDefaultLaserDmxSettings } from '../../ReactTypes'
-import { projectProductionStagePoint } from '../LaserDmxSpatialStageRenderer'
+import { projectProductionStagePoint, resolveSpatialStagePixelScale } from '../LaserDmxSpatialStageRenderer'
 
 describe('LaserDMX spatial stage model', () => {
   it('normalizes dimensions and keeps the documented coordinate convention', () => {
@@ -55,6 +55,13 @@ describe('LaserDMX spatial stage model', () => {
     expect(near.visible).toBe(true)
     expect(far.visible).toBe(true)
     expect(near.scale).toBeGreaterThan(far.scale)
+  })
+
+  it('bounds fixed-size stage rendering metrics across device-pixel ratios', () => {
+    expect(resolveSpatialStagePixelScale(undefined)).toBe(1)
+    expect(resolveSpatialStagePixelScale(0.5)).toBe(1)
+    expect(resolveSpatialStagePixelScale(2)).toBe(2)
+    expect(resolveSpatialStagePixelScale(8)).toBe(4)
   })
 
   it('applies an editable venue template only when explicitly requested', () => {

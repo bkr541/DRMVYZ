@@ -156,7 +156,7 @@ async function renderThumbnailOnce(
 
     ctx.clearRect(0, 0, width, height)
     clearNeonLatticeVisualState(ctx, width, height)
-    clearLaserDmxVisualState(ctx, width, height)
+    clearLaserDmxVisualState(ctx, width, height, { affectProductionOutput: false })
 
     // The same engine entry point used by the live canvas is deliberately warmed
     // long enough for fixed-step springs and historical beam trails to settle.
@@ -173,7 +173,10 @@ async function renderThumbnailOnce(
       // A thumbnail owns its renderer host. Explicit disposal is required because
       // WeakMap reachability alone does not release WebGL contexts or GPU buffers.
       try { disposeCinematicPortalRenderer(ctx) } catch { /* Graceful fallback below. */ }
-      try { clearLaserDmxVisualState(ctx, width, height); disposeLaserDmxRenderer(ctx) } catch { /* Best-effort transient cleanup. */ }
+      try {
+        clearLaserDmxVisualState(ctx, width, height, { affectProductionOutput: false })
+        disposeLaserDmxRenderer(ctx, { affectProductionOutput: false })
+      } catch { /* Best-effort transient cleanup. */ }
       try { clearNeonLatticeVisualState(ctx, width, height) } catch { /* Best-effort transient cleanup. */ }
     }
     if (canvas) releaseCanvas(canvas)

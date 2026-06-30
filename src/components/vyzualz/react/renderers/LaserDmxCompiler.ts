@@ -353,15 +353,18 @@ export function clampLaserModulationRoute(route: LaserDmxModulationRoute): Laser
 export interface CompileInput {
   settings:     LaserDmxSettings
   mi:           MusicIntelligenceFrame
-  time:         number   // animation tick (frame counter) — used by path generators for animation
-  timeSec:      number   // wall-clock seconds — used for strobe, envelopes, color cycle
+  /** @deprecated Ignored. Retained only so older integrations compile safely. */
+  time?:        number
+  /** Canonical audio transport playhead in seconds. */
+  timeSec:      number
   canvasWidth:  number
   canvasHeight: number
   personalization?: LaserDmxPersonalizationContext | null
 }
 
 export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult {
-  const { settings: settingsInput, mi, time, timeSec, canvasWidth: W, canvasHeight: H, personalization } = inp
+  const { settings: settingsInput, mi, timeSec, canvasWidth: W, canvasHeight: H, personalization } = inp
+  const animationTimeMs = Math.max(0, safeNumber(timeSec, 0)) * 1000
   const settings = resolveProductionLookTransitionRuntime(normalizeLaserDmxSettings(settingsInput))
   const productionRig = buildProductionRig(settings)
   if (!W || !H) {
@@ -534,7 +537,7 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
         originY: oy,
         targetX: tx,
         targetY: ty,
-        W, H, time,
+        W, H, time: animationTimeMs,
         scale: effectivePathScale,
         rotation: fState.pathRotation,
         offsetX: safeNumber(fixture.path.offsetX, 0),

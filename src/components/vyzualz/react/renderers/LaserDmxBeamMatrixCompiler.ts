@@ -171,8 +171,10 @@ export interface CompiledLaserDmxBeamMatrixResult {
 export interface CompileLaserDmxBeamMatrixInput {
   settings:     LaserDmxBeamMatrixSettings
   mi:           MusicIntelligenceFrame
-  time:         number   // animation tick for flicker
-  timeSec:      number   // wall-clock seconds for strobe / envelopes
+  /** @deprecated Ignored. Retained only for persisted integration compatibility. */
+  time?:        number
+  /** Canonical audio transport playhead in seconds. */
+  timeSec:      number
   canvasWidth:  number
   canvasHeight: number
   personalization?: LaserDmxPersonalizationContext | null
@@ -551,7 +553,7 @@ function checkLaunchTrigger(
 export function compileLaserDmxBeamMatrix(
   inp: CompileLaserDmxBeamMatrixInput,
 ): CompiledLaserDmxBeamMatrixResult {
-  const { settings, mi, time, timeSec, canvasWidth: W, canvasHeight: H, personalization } = inp
+  const { settings, mi, timeSec, canvasWidth: W, canvasHeight: H, personalization } = inp
 
   const empty = (): CompiledLaserDmxBeamMatrixResult => ({
     output: buildOutputFromSettings(settings),

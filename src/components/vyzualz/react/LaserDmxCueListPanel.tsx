@@ -340,12 +340,12 @@ export function LaserDmxCueListPanel() {
               <span className="rv-cue-badge rv-cue-badge--action">P{cue.priority}</span>
               {cue.source === 'legacyBeamMigration' && <span className="rv-cue-badge rv-cue-badge--timing">Legacy</span>}
               {cueDiagnostics.length > 0 && <span className="rv-cue-error-icon" title={cueDiagnostics.map(item => item.message).join('\n')}>⚠ {cueDiagnostics.length}</span>}
-              <button type="button" className="rv-glyph-upload-btn" onClick={event => { event.stopPropagation(); fireCue(cue.id) }}>Fire</button>
-              <button type="button" className="rv-glyph-upload-btn" disabled={index === 0} onClick={event => { event.stopPropagation(); reorderCue(cue.id, -1) }}>↑</button>
-              <button type="button" className="rv-glyph-upload-btn" disabled={index === cues.length - 1} onClick={event => { event.stopPropagation(); reorderCue(cue.id, 1) }}>↓</button>
-              <button type="button" className="rv-glyph-upload-btn" onClick={event => { event.stopPropagation(); duplicateCue(cue.id) }}>⧉</button>
-              <button type="button" className="rv-glyph-upload-btn" onClick={event => { event.stopPropagation(); setExpandedId(expanded ? null : cue.id) }}>{expanded ? '▲' : '▼'}</button>
-              <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" onClick={event => { event.stopPropagation(); deleteCue(cue.id) }}>×</button>
+              <button type="button" className="rv-glyph-upload-btn" aria-label={`Fire ${cue.label}`} onClick={event => { event.stopPropagation(); fireCue(cue.id) }}>Fire</button>
+              <button type="button" className="rv-glyph-upload-btn" aria-label={`Move ${cue.label} earlier`} disabled={index === 0} onClick={event => { event.stopPropagation(); reorderCue(cue.id, -1) }}>↑</button>
+              <button type="button" className="rv-glyph-upload-btn" aria-label={`Move ${cue.label} later`} disabled={index === cues.length - 1} onClick={event => { event.stopPropagation(); reorderCue(cue.id, 1) }}>↓</button>
+              <button type="button" className="rv-glyph-upload-btn" aria-label={`Duplicate ${cue.label}`} onClick={event => { event.stopPropagation(); duplicateCue(cue.id) }}>⧉</button>
+              <button type="button" className="rv-glyph-upload-btn" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${cue.label}`} aria-expanded={expanded} onClick={event => { event.stopPropagation(); setExpandedId(expanded ? null : cue.id) }}>{expanded ? '▲' : '▼'}</button>
+              <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" aria-label={`Delete ${cue.label}`} onClick={event => { event.stopPropagation(); deleteCue(cue.id) }}>×</button>
             </div>
             {expanded && <div className="rv-cue-body">
               <label className="rv-show-director__description">Description<textarea value={cue.description ?? ''} onChange={event => update({ description: event.target.value })} /></label>

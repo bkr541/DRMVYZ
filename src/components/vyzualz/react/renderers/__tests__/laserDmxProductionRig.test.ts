@@ -144,6 +144,19 @@ describe('LaserDMX production-rig foundation', () => {
     expect(rigFixture.properties.color).toEqual({ red: 1, green: 2, blue: 3, white: 4 })
   })
 
+  it('repairs a stale duplicated fixture kind from the registered profile', () => {
+    const defaults = createDefaultLaserDmxSettings()
+    const repaired = normalizeLegacyLaserDmxFixture({
+      ...defaults.fixtures[0],
+      fixtureKind: 'fogger',
+      dmx: { ...defaults.fixtures[0].dmx, profileId: 'genericMovingHeadWash' },
+    })
+
+    expect(repaired.fixtureKind).toBe('movingHeadWash')
+    expect(repaired.compatibility?.migrationNotes?.[0]).toContain('Repaired fixture kind')
+    expect(buildProductionRig({ ...defaults, fixtures: [repaired] }).fixtures[0].kind).toBe('movingHeadWash')
+  })
+
   it('marks invalid profiles and rejects them from an enabled production rig', () => {
     expect(getLaserDmxFixtureProfile('not-a-real-profile')).toBeNull()
     const settings = normalizeLaserDmxSettings({

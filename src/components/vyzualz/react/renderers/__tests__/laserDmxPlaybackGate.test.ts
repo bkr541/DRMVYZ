@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { resetLaserDmxCompilerState } from '../LaserDmxCompiler'
-import { clearLaserDmxVisualState, shouldRenderLaserDmx } from '../LaserDmxRenderer'
+import {
+  clearLaserDmxVisualState,
+  consumeLaserDmxTimingDiscontinuity,
+  pauseLaserDmxRenderer,
+  shouldAffectLaserDmxProductionOutput,
+  shouldRenderLaserDmx,
+} from '../LaserDmxRenderer'
+import { productionOutputController } from '../../output/ProductionOutput'
 
 // Minimal CanvasRenderingContext2D stub covering every property clearLaserDmxVisualState touches.
 function makeMockCtx() {
@@ -105,6 +112,50 @@ describe('clearLaserDmxVisualState', () => {
 
   it('also resets compiler state without throwing', () => {
     expect(() => clearLaserDmxVisualState(ctx, 100, 100)).not.toThrow()
+  })
+})
+
+describe('pauseLaserDmxRenderer', () => {
+  it('holds the canvas frame while stopping the output boundary', () => {
+    const ctx = makeMockCtx()
+    const stop = vi.spyOn(productionOutputController, 'transportStopped').mockImplementation(() => {})
+
+    pauseLaserDmxRenderer(ctx, 12.5)
+
+    expect(ctx.clearRect).not.toHaveBeenCalled()
+    expect(stop).toHaveBeenCalledWith('LaserDMX playback paused')
+    stop.mockRestore()
+  })
+
+
+  it('retains a seek observed while paused until the first resumed frame', () => {
+    const ctx = makeMockCtx()
+    const stop = vi.spyOn(productionOutputController, 'transportStopped').mockImplementation(() => {})
+
+    pauseLaserDmxRenderer(ctx, 12.5)
+    pauseLaserDmxRenderer(ctx, 38.25)
+
+    expect(consumeLaserDmxTimingDiscontinuity(ctx, false)).toBe(true)
+    expect(consumeLaserDmxTimingDiscontinuity(ctx, false)).toBe(false)
+    stop.mockRestore()
+  })
+
+  it('does not touch the physical output boundary for an offscreen preview', () => {
+    const ctx = makeMockCtx()
+    const stop = vi.spyOn(productionOutputController, 'transportStopped').mockImplementation(() => {})
+
+    pauseLaserDmxRenderer(ctx, 3, { affectProductionOutput: false })
+    clearLaserDmxVisualState(ctx, 320, 180, { affectProductionOutput: false })
+
+    expect(stop).not.toHaveBeenCalled()
+    stop.mockRestore()
+  })
+})
+
+describe('production output boundary selection', () => {
+  it('keeps thumbnail renders virtual-only', () => {
+    expect(shouldAffectLaserDmxProductionOutput({ thumbnailLaserDmxSettings: undefined })).toBe(true)
+    expect(shouldAffectLaserDmxProductionOutput({ thumbnailLaserDmxSettings: {} as never })).toBe(false)
   })
 })
 

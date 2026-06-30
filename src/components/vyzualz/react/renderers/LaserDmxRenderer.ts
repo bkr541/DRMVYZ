@@ -40,6 +40,17 @@ export function shouldRenderLaserDmx(isPlaying: boolean): boolean {
 let prevFogTimeSec = -1
 let prevSpatialTimeSec = -1
 const showDirectorRuntimeByContext = new WeakMap<CanvasRenderingContext2D, ShowDirectorRuntime>()
+const pausedAudioTimeByContext = new WeakMap<CanvasRenderingContext2D, number>()
+const pendingPausedDiscontinuityByContext = new WeakSet<CanvasRenderingContext2D>()
+
+export interface LaserDmxRendererBoundaryOptions {
+  /** Offscreen previews must never arm, submit to, stop, or disarm physical output. */
+  affectProductionOutput?: boolean
+}
+
+export function shouldAffectLaserDmxProductionOutput(params: Pick<ReactRenderParams, 'thumbnailLaserDmxSettings'>): boolean {
+  return params.thumbnailLaserDmxSettings == null
+}
 
 function getShowDirectorRuntime(ctx: CanvasRenderingContext2D): ShowDirectorRuntime {
   const current = showDirectorRuntimeByContext.get(ctx)
@@ -49,17 +60,26 @@ function getShowDirectorRuntime(ctx: CanvasRenderingContext2D): ShowDirectorRunt
   return created
 }
 
-function resetLaserDmxRuntimeState(reason?: LaserDmxRendererResetReason, ctx?: CanvasRenderingContext2D): void {
+function resetLaserDmxTransientRuntimeState(): void {
   resetLaserDmxCompilerState()
   resetBeamMatrixCompilerState()
   resetFogState()
-  if (reason) {
-    resetMovingHeadRuntime()
-    resetProductionAtmosphereRuntime({ consumeExistingRequests: true })
-  }
+  resetMovingHeadRuntime()
+  resetProductionAtmosphereRuntime({ consumeExistingRequests: true })
   prevFogTimeSec = -1
   prevSpatialTimeSec = -1
-  if (ctx) resetShowDirectorRuntime(getShowDirectorRuntime(ctx))
+}
+
+function resetLaserDmxRuntimeState(reason?: LaserDmxRendererResetReason, ctx?: CanvasRenderingContext2D): void {
+  resetLaserDmxTransientRuntimeState()
+  if (ctx) {
+    resetShowDirectorRuntime(getShowDirectorRuntime(ctx))
+    pausedAudioTimeByContext.delete(ctx)
+    pendingPausedDiscontinuityByContext.delete(ctx)
+  }
+  if (reason === 'contextLost') {
+    productionOutputController.handleRendererCrash('LaserDMX canvas context lost')
+  }
 }
 
 /**
@@ -70,6 +90,7 @@ export function clearLaserDmxVisualState(
   ctx: CanvasRenderingContext2D,
   W: number,
   H: number,
+  options: LaserDmxRendererBoundaryOptions = {},
 ): void {
   ctx.save()
   ctx.setTransform(1, 0, 0, 1, 0, 0)
@@ -78,14 +99,55 @@ export function clearLaserDmxVisualState(
   ctx.clearRect(0, 0, W, H)
   ctx.restore()
   getLaserDmxRendererLifecycle(ctx, reason => resetLaserDmxRuntimeState(reason, ctx)).pause()
-  productionOutputController.transportStopped('LaserDMX rendering stopped')
+  if (options.affectProductionOutput !== false) {
+    productionOutputController.transportStopped('LaserDMX rendering stopped')
+  }
   if (prevSpatialTimeSec >= 0) pauseProductionAtmosphere(prevSpatialTimeSec)
   resetLaserDmxRuntimeState(undefined, ctx)
 }
 
+/**
+ * Holds the last virtual frame during a user pause while making the physical
+ * output boundary fail dark. No canvas clear occurs, so pause remains a visual
+ * frame hold rather than a transport reset.
+ */
+export function pauseLaserDmxRenderer(
+  ctx: CanvasRenderingContext2D,
+  audioTimeSec: number,
+  options: LaserDmxRendererBoundaryOptions = {},
+): void {
+  const canonicalAudioTime = Math.max(0, Number.isFinite(audioTimeSec) ? audioTimeSec : 0)
+  const previousPausedTime = pausedAudioTimeByContext.get(ctx)
+  if (previousPausedTime != null && Math.abs(canonicalAudioTime - previousPausedTime) > 0.001) {
+    pendingPausedDiscontinuityByContext.add(ctx)
+  }
+  pausedAudioTimeByContext.set(ctx, canonicalAudioTime)
+  getLaserDmxRendererLifecycle(ctx, reason => resetLaserDmxRuntimeState(reason, ctx)).pause()
+  if (options.affectProductionOutput !== false) {
+    productionOutputController.transportStopped('LaserDMX playback paused')
+  }
+  pauseProductionAtmosphere(canonicalAudioTime)
+}
+
+/** @internal Retains seeks observed during pause until Show Director can rebuild on resume. */
+export function consumeLaserDmxTimingDiscontinuity(
+  ctx: CanvasRenderingContext2D,
+  frameTimingDiscontinuity: boolean | undefined,
+): boolean {
+  const pausedDiscontinuity = pendingPausedDiscontinuityByContext.has(ctx)
+  pendingPausedDiscontinuityByContext.delete(ctx)
+  pausedAudioTimeByContext.delete(ctx)
+  return Boolean(frameTimingDiscontinuity || pausedDiscontinuity)
+}
+
 /** Releases context listeners and transient state for thumbnail/unmount cleanup. */
-export function disposeLaserDmxRenderer(ctx: CanvasRenderingContext2D): void {
-  productionOutputController.transportStopped('LaserDMX renderer disposed')
+export function disposeLaserDmxRenderer(
+  ctx: CanvasRenderingContext2D,
+  options: LaserDmxRendererBoundaryOptions = {},
+): void {
+  if (options.affectProductionOutput !== false) {
+    productionOutputController.transportStopped('LaserDMX renderer disposed')
+  }
   disposeLaserDmxRendererLifecycle(ctx)
   resetLaserDmxRuntimeState(undefined, ctx)
   showDirectorRuntimeByContext.delete(ctx)
@@ -98,7 +160,7 @@ export function renderLaserDmx(
   params: ReactRenderParams,
   _sectionType: ReactSectionType | null,
 ): void {
-  const { W, H, t } = frame
+  const { W, H } = frame
   if (!W || !H) return
 
   if (!shouldRenderLaserDmx(frame.isPlaying)) {
@@ -107,6 +169,7 @@ export function renderLaserDmx(
   }
 
   const state = useReactStore.getState()
+  const affectProductionOutput = shouldAffectLaserDmxProductionOutput(params)
   const workspaceMode = params.thumbnailLaserDmxSettings
     ? 'spatialFixtures'
     : state.laserDmxWorkspaceMode
@@ -130,12 +193,13 @@ export function renderLaserDmx(
   const actionResult = applyLaserDmxPerformanceActions(authoredSettings, actionEvents)
   const resolvedAuthoredSettings = resolveProductionLookTransitionRuntime(actionResult.settings)
   const directorPresetKey = `${preset.id}:${workspaceMode}:${state.activeLaserDmxBeamMatrixPresetId ?? 'custom'}:${resolvedAuthoredSettings.rigId ?? 'rig'}`
+  const timingDiscontinuity = consumeLaserDmxTimingDiscontinuity(ctx, frame.timingDiscontinuity)
   const director = evaluateShowDirector(getShowDirectorRuntime(ctx), {
     settings: resolvedAuthoredSettings,
     beamMatrix: state.laserDmxBeamMatrix,
     audioTimeSec: timeSec,
     isPlaying: frame.isPlaying,
-    timingDiscontinuity: frame.timingDiscontinuity,
+    timingDiscontinuity,
     bpm: frame.bpm,
     analysis: frame.trackAnalysis,
     sections: frame.trackSections,
@@ -144,15 +208,17 @@ export function renderLaserDmx(
     manualRequest: resolvedAuthoredSettings.runtime?.showDirectorManualRequest as { cueId: string; sequence: number } | undefined,
     musicIntelligence: mi.frameId > 0 ? mi : null,
   })
+  if (director.timingDiscontinuity) resetLaserDmxTransientRuntimeState()
   const personalization = resolveLaserDmxPersonalization(useBrandKitStore.getState().activeKit, preset.id)
 
   if (workspaceMode === 'beamMatrix') {
-    productionOutputController.transportStopped('Beam Matrix has no patched production output frame')
+    if (affectProductionOutput) {
+      productionOutputController.transportStopped('Beam Matrix has no patched production output frame')
+    }
     const bmSettings = director.beamMatrix
     const compiled = compileLaserDmxBeamMatrix({
       settings: bmSettings,
       mi,
-      time: t,
       timeSec,
       canvasWidth: W,
       canvasHeight: H,
@@ -192,13 +258,14 @@ export function renderLaserDmx(
   const compiled = compileLaserDmxFrame({
     settings,
     mi,
-    time: t,
     timeSec,
     canvasWidth: W,
     canvasHeight: H,
     personalization,
   })
-  productionOutputController.submitFrame(compiled.outputFrame, compiled.productionRig)
+  if (affectProductionOutput) {
+    productionOutputController.submitFrame(compiled.outputFrame, compiled.productionRig)
+  }
   const global: CompiledGlobal = compiled.global
   const fadeAlpha = clamp01(global.backgroundFade) * (0.3 + 0.7 * clamp01(1 - global.beamPersistence))
   ctx.globalCompositeOperation = 'source-over'
@@ -210,7 +277,7 @@ export function renderLaserDmx(
   const rig = buildProductionRig(settings)
   resumeProductionAtmosphere(timeSec)
   const rawSpatialDt = prevSpatialTimeSec >= 0 ? timeSec - prevSpatialTimeSec : 1 / 60
-  const seeked = rawSpatialDt < -0.001 || rawSpatialDt > 0.75
+  const seeked = director.timingDiscontinuity || rawSpatialDt < -0.001 || rawSpatialDt > 0.75
   const atmosphere = stepProductionAtmosphere({ settings, timeSec, dt: Math.max(0, Math.min(0.1, rawSpatialDt)), seeked })
   prevSpatialTimeSec = timeSec
 
@@ -226,6 +293,7 @@ export function renderLaserDmx(
     ctx,
     W,
     H,
+    dpr: frame.dpr,
     rig,
     settings,
     frames: compiled.fixtures,

@@ -150,6 +150,19 @@ describe('LaserDMX production flash patterns and chases', () => {
 })
 
 describe('LaserDMX non-laser fixture compilation', () => {
+  it('uses only the audio playhead for animated laser geometry', () => {
+    const laser = fixture('genericRgbLaser', 'clock-source')
+    laser.path = { ...laser.path, kind: 'circle', scanSpeed: 0.8 }
+    const settings = normalizeLaserDmxSettings({ ...createDefaultLaserDmxSettings(), fixtures: [laser] })
+
+    resetLaserDmxCompilerState()
+    const first = compileLaserDmxFrame({ settings, mi: MI, time: 1, timeSec: 2.25, canvasWidth: 1280, canvasHeight: 720 })
+    resetLaserDmxCompilerState()
+    const second = compileLaserDmxFrame({ settings, mi: MI, time: 987654, timeSec: 2.25, canvasWidth: 1280, canvasHeight: 720 })
+
+    expect(second.fixtures[0].visual.points).toEqual(first.fixtures[0].visual.points)
+  })
+
   it('filters unsupported authored state by fixture capability', () => {
     const wash = normalizeLegacyLaserDmxFixture({
       ...fixture('genericStaticWash', 'wash'),

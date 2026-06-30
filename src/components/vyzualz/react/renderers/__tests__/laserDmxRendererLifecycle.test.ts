@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { LaserDmxRendererLifecycle } from '../LaserDmxRendererLifecycle'
+import {
+  LaserDmxRendererLifecycle,
+  disposeLaserDmxRendererLifecycle,
+  getLaserDmxRendererLifecycle,
+} from '../LaserDmxRendererLifecycle'
 
 describe('LaserDMX renderer lifecycle helper', () => {
   it('pauses, resumes, and resets transient resources on track and preset replacement', () => {
@@ -27,6 +31,7 @@ describe('LaserDMX renderer lifecycle helper', () => {
 
     lifecycle.handleContextLost()
     expect(lifecycle.snapshot.contextLost).toBe(true)
+    expect(reset).toHaveBeenCalledWith('contextLost')
     expect(lifecycle.sync({ isPlaying: true, trackKey: 'track-a', presetKey: 'preset-a' })).toBe(false)
 
     lifecycle.handleContextRestored()
@@ -38,5 +43,46 @@ describe('LaserDMX renderer lifecycle helper', () => {
     expect(lifecycle.snapshot.disposed).toBe(true)
     expect(reset.mock.calls.filter(call => call[0] === 'dispose')).toHaveLength(1)
     expect(lifecycle.sync({ isPlaying: true, trackKey: 'track-a', presetKey: 'preset-a' })).toBe(false)
+  })
+
+  it('ignores duplicate context notifications and restores only after a real loss', () => {
+    const reset = vi.fn()
+    const lifecycle = new LaserDmxRendererLifecycle(reset)
+
+    lifecycle.handleContextRestored()
+    expect(reset).not.toHaveBeenCalled()
+
+    lifecycle.handleContextLost()
+    lifecycle.handleContextLost()
+    lifecycle.handleContextRestored()
+    lifecycle.handleContextRestored()
+
+    expect(reset.mock.calls.map(call => call[0])).toEqual(['contextLost', 'contextRestored'])
+  })
+
+  it('subscribes to standard WebGL context events and removes every listener on dispose', () => {
+    const listeners = new Map<string, EventListener>()
+    const canvas = {
+      addEventListener: vi.fn((name: string, listener: EventListener) => listeners.set(name, listener)),
+      removeEventListener: vi.fn((name: string) => listeners.delete(name)),
+    }
+    const ctx = { canvas } as unknown as CanvasRenderingContext2D
+    const reset = vi.fn()
+
+    const lifecycle = getLaserDmxRendererLifecycle(ctx, reset)
+    expect(canvas.addEventListener).toHaveBeenCalledWith('webglcontextlost', expect.any(Function))
+    expect(canvas.addEventListener).toHaveBeenCalledWith('webglcontextrestored', expect.any(Function))
+
+    const preventDefault = vi.fn()
+    listeners.get('webglcontextlost')?.({ preventDefault } as unknown as Event)
+    expect(preventDefault).toHaveBeenCalledTimes(1)
+    expect(lifecycle.snapshot.contextLost).toBe(true)
+    listeners.get('webglcontextrestored')?.({} as Event)
+    expect(lifecycle.snapshot.contextLost).toBe(false)
+
+    disposeLaserDmxRendererLifecycle(ctx)
+    expect(canvas.removeEventListener).toHaveBeenCalledWith('webglcontextlost', expect.any(Function))
+    expect(canvas.removeEventListener).toHaveBeenCalledWith('webglcontextrestored', expect.any(Function))
+    expect(listeners.size).toBe(0)
   })
 })

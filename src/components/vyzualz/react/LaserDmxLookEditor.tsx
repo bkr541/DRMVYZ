@@ -235,8 +235,8 @@ export function LaserDmxLookEditor() {
             <button type="button" className="rv-glyph-upload-btn" onClick={save} disabled={!dirty}>Save Edits</button>
             <button type="button" className="rv-glyph-upload-btn" onClick={() => updateLookFromCurrent(draft.id)}>Update from Current</button>
             <button type="button" className="rv-glyph-upload-btn" onClick={duplicate}>⧉ Duplicate</button>
-            <button type="button" className="rv-glyph-upload-btn" onClick={() => reorderLook(draft.id, -1)}>↑</button>
-            <button type="button" className="rv-glyph-upload-btn" onClick={() => reorderLook(draft.id, 1)}>↓</button>
+            <button type="button" className="rv-glyph-upload-btn" aria-label={`Move ${draft.name} earlier`} onClick={() => reorderLook(draft.id, -1)}>↑</button>
+            <button type="button" className="rv-glyph-upload-btn" aria-label={`Move ${draft.name} later`} onClick={() => reorderLook(draft.id, 1)}>↓</button>
             <button
               type="button"
               className="rv-glyph-upload-btn rv-glyph-upload-btn--danger"

@@ -1,4 +1,9 @@
-export type LaserDmxRendererResetReason = 'trackReplacement' | 'presetReplacement' | 'contextRestored' | 'dispose'
+export type LaserDmxRendererResetReason =
+  | 'trackReplacement'
+  | 'presetReplacement'
+  | 'contextLost'
+  | 'contextRestored'
+  | 'dispose'
 
 export interface LaserDmxRendererLifecycleSnapshot {
   paused: boolean
@@ -64,11 +69,18 @@ export class LaserDmxRendererLifecycle {
   }
 
   handleContextLost(): void {
-    if (!this.snapshotValue.disposed) this.snapshotValue = { ...this.snapshotValue, contextLost: true, paused: true }
+    if (this.snapshotValue.disposed || this.snapshotValue.contextLost) return
+    this.snapshotValue = {
+      ...this.snapshotValue,
+      contextLost: true,
+      paused: true,
+      generation: this.snapshotValue.generation + 1,
+    }
+    this.onReset('contextLost')
   }
 
   handleContextRestored(): void {
-    if (this.snapshotValue.disposed) return
+    if (this.snapshotValue.disposed || !this.snapshotValue.contextLost) return
     this.snapshotValue = { ...this.snapshotValue, contextLost: false, generation: this.snapshotValue.generation + 1 }
     this.onReset('contextRestored')
   }
@@ -93,6 +105,8 @@ interface LifecycleHost {
 }
 
 const hosts = new WeakMap<CanvasRenderingContext2D, LifecycleHost>()
+const CONTEXT_LOST_EVENTS = ['webglcontextlost', 'contextlost'] as const
+const CONTEXT_RESTORED_EVENTS = ['webglcontextrestored', 'contextrestored'] as const
 
 export function getLaserDmxRendererLifecycle(
   ctx: CanvasRenderingContext2D,
@@ -108,8 +122,8 @@ export function getLaserDmxRendererLifecycle(
     lifecycle.handleContextLost()
   }
   const onContextRestored: EventListener = () => lifecycle.handleContextRestored()
-  canvas?.addEventListener?.('contextlost', onContextLost)
-  canvas?.addEventListener?.('contextrestored', onContextRestored)
+  for (const eventName of CONTEXT_LOST_EVENTS) canvas?.addEventListener?.(eventName, onContextLost)
+  for (const eventName of CONTEXT_RESTORED_EVENTS) canvas?.addEventListener?.(eventName, onContextRestored)
   hosts.set(ctx, { lifecycle, canvas, onContextLost, onContextRestored })
   return lifecycle
 }
@@ -117,8 +131,8 @@ export function getLaserDmxRendererLifecycle(
 export function disposeLaserDmxRendererLifecycle(ctx: CanvasRenderingContext2D): void {
   const host = hosts.get(ctx)
   if (!host) return
-  host.canvas?.removeEventListener?.('contextlost', host.onContextLost)
-  host.canvas?.removeEventListener?.('contextrestored', host.onContextRestored)
+  for (const eventName of CONTEXT_LOST_EVENTS) host.canvas?.removeEventListener?.(eventName, host.onContextLost)
+  for (const eventName of CONTEXT_RESTORED_EVENTS) host.canvas?.removeEventListener?.(eventName, host.onContextRestored)
   host.lifecycle.dispose()
   hosts.delete(ctx)
 }

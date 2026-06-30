@@ -860,6 +860,7 @@ export interface ProductionFixtureInstance {
     source: 'laserDmxSpatialFixtures' | 'productionRig'
     sourceSchemaVersion?: number
     validationErrors?: string[]
+    migrationNotes?: string[]
   }
 }
 
@@ -2480,9 +2481,16 @@ export function normalizeLegacyLaserDmxFixture(raw: unknown, index = 0): LaserDm
       ].filter(issue => issue.severity === 'error').map(issue => issue.message)
     : [`Unknown fixture profile "${String(rawProfileId)}"`]
   const compatibility = isRecord(raw.compatibility) ? raw.compatibility : {}
-  const fixtureKind = isFixtureKind(raw.fixtureKind)
-    ? raw.fixtureKind
-    : (profile?.fixtureKind ?? 'laserProjector')
+  const declaredFixtureKind = isFixtureKind(raw.fixtureKind) ? raw.fixtureKind : null
+  // A registered profile is the capability and fixture-family source of truth.
+  // Older persisted data may contain a stale duplicated fixtureKind field.
+  const fixtureKind = profile?.fixtureKind ?? declaredFixtureKind ?? 'laserProjector'
+  const existingMigrationNotes = Array.isArray(compatibility.migrationNotes)
+    ? compatibility.migrationNotes.filter((note): note is string => typeof note === 'string')
+    : []
+  const kindMigrationNote = profile && declaredFixtureKind && declaredFixtureKind !== profile.fixtureKind
+    ? `Repaired fixture kind "${declaredFixtureKind}" to match profile "${profile.id}" (${profile.fixtureKind}).`
+    : null
 
   return {
     ...fallback,
@@ -2581,6 +2589,9 @@ export function normalizeLegacyLaserDmxFixture(raw: unknown, index = 0): LaserDm
         ? compatibility.sourceSchemaVersion
         : (isFiniteNumber(raw.schemaVersion) ? raw.schemaVersion : 0),
       validationErrors: validationErrors.length > 0 ? validationErrors : undefined,
+      migrationNotes: kindMigrationNote
+        ? [...new Set([...existingMigrationNotes, kindMigrationNote])]
+        : (existingMigrationNotes.length > 0 ? existingMigrationNotes : undefined),
     },
   }
 }
@@ -3296,7 +3307,7 @@ export function buildProductionRig(settingsInput: unknown): ProductionRig {
         id: fixture.id,
         name: fixture.name,
         enabled: fixture.enabled && validationErrors.length === 0,
-        kind: fixture.fixtureKind ?? profile?.fixtureKind ?? 'laserProjector',
+        kind: profile?.fixtureKind ?? fixture.fixtureKind ?? 'laserProjector',
         profileId: fixture.dmx.profileId,
         patch: {
           universe: fixture.dmx.universe,
@@ -3312,6 +3323,9 @@ export function buildProductionRig(settingsInput: unknown): ProductionRig {
           source: 'laserDmxSpatialFixtures',
           sourceSchemaVersion: fixture.schemaVersion ?? 0,
           ...(validationErrors.length > 0 ? { validationErrors } : {}),
+          ...(fixture.compatibility?.migrationNotes?.length
+            ? { migrationNotes: fixture.compatibility.migrationNotes }
+            : {}),
         },
       }
     }),

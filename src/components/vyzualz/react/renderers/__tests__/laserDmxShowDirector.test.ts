@@ -251,6 +251,7 @@ describe("LaserDMX Show Director", () => {
       trackKey: "track",
       presetKey: "preset",
     });
+    expect(result.timingDiscontinuity).toBe(true);
     expect(result.settings.blackout).toBe(true);
     expect(
       result.settings.fixtures.find((fixture) => fixture.id === "fog-1")
@@ -710,6 +711,7 @@ describe("LaserDMX Show Director", () => {
       audioTimeSec: 2.1,
       analysis: analysis(),
     });
+    expect(loaded.timingDiscontinuity).toBe(true);
     expect(loaded.settings.blackout).toBe(true);
     expect(
       loaded.settings.fixtures.find((fixture) => fixture.id === "fog-1")

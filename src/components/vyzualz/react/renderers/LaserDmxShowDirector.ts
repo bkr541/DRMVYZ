@@ -86,6 +86,8 @@ export interface ShowDirectorEvaluationInput {
 export interface ShowDirectorEvaluationResult {
   settings: LaserDmxSettings;
   beamMatrix: LaserDmxBeamMatrixSettings;
+  /** True when dependent transient runtimes must be rebased to this playhead. */
+  timingDiscontinuity: boolean;
   firedCueIds: string[];
   activeCueIds: string[];
   diagnostics: ShowDirectorDiagnostic[];
@@ -1368,6 +1370,7 @@ export function evaluateShowDirector(
   return {
     settings: normalizeLaserDmxSettings(settings),
     beamMatrix,
+    timingDiscontinuity: discontinuity,
     firedCueIds: [...firedCueIds],
     activeCueIds: [...activeCueIds],
     diagnostics: diagnoseProductionCues(

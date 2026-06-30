@@ -98,6 +98,16 @@ describe('React preset thumbnail renderer final audit', () => {
     expect(mocks.renderReactEngine.mock.calls[0][1]).toMatchObject({ timingDiscontinuity: true, isPlaying: true })
     expect(mocks.renderReactEngine.mock.calls[mocks.renderReactEngine.mock.calls.length - 1]?.[1]).toMatchObject({ isPlaying: true })
     expect(mocks.disposeCinematicPortalRenderer).toHaveBeenCalledTimes(1)
+    expect(mocks.clearLaserDmxVisualState).toHaveBeenCalledWith(
+      expect.anything(),
+      240,
+      135,
+      { affectProductionOutput: false },
+    )
+    expect(mocks.disposeLaserDmxRenderer).toHaveBeenCalledWith(
+      expect.anything(),
+      { affectProductionOutput: false },
+    )
     expect(mocks.disposeLaserDmxRenderer).toHaveBeenCalledTimes(1)
     expect(useReactStore.getState().laserDmxSettings).toBe(laserBefore)
     expect(canvases[0]).toMatchObject({ width: 0, height: 0 })
@@ -134,6 +144,16 @@ describe('React preset thumbnail renderer final audit', () => {
 
     await expect(renderReactPresetThumbnail(preset)).resolves.toBeNull()
     expect(mocks.disposeCinematicPortalRenderer).toHaveBeenCalledTimes(1)
+    expect(mocks.clearLaserDmxVisualState).toHaveBeenCalledWith(
+      expect.anything(),
+      192,
+      108,
+      { affectProductionOutput: false },
+    )
+    expect(mocks.disposeLaserDmxRenderer).toHaveBeenCalledWith(
+      expect.anything(),
+      { affectProductionOutput: false },
+    )
     expect(mocks.disposeLaserDmxRenderer).toHaveBeenCalledTimes(1)
     expect(canvases[0]).toMatchObject({ width: 0, height: 0 })
     expect(getReactPresetThumbnailDiagnosticsForTests().cacheEntries).toBe(0)

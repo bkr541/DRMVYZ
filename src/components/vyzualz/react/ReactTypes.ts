@@ -505,6 +505,7 @@ export interface LaserDmxFixture {
     source: 'laserDmxSpatialFixtures' | 'productionRig'
     sourceSchemaVersion?: number
     validationErrors?: string[]
+    migrationNotes?: string[]
   }
   /** Canonical metre-based transform. Missing legacy values are derived from position. */
   stageTransform?: ProductionStageTransform

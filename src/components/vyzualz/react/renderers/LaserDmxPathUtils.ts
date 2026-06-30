@@ -8,7 +8,7 @@ export interface LaserPathInput {
   targetY:     number  // canvas px
   W:           number
   H:           number
-  time:        number  // animation tick
+  time:        number  // canonical audio transport time in milliseconds
 
   scale:       number
   rotation:    number  // degrees
