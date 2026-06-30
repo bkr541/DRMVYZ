@@ -72,6 +72,32 @@ export interface NeonLatticeSettings {
   blackoutMode:     NeonLatticeBlackoutMode
   decayStyle:       NeonLatticeDecayStyle
   trigger:          NeonLatticeTrigger
+  /** Enables all continuous and event-driven audio modulation for the engine. */
+  audioReactive:    boolean
+  /** 0–1 — bass contribution to rail brightness and bloom. */
+  bassBrightnessResponse: number
+  /** 0–1 — kick contribution to vertical rail impacts. */
+  kickRailResponse: number
+  /** 0–1 — snare contribution to horizontal rail impacts. */
+  snareRailResponse: number
+  /** 0–1 — beat contribution to travelling pulses and block accents. */
+  beatPulseResponse: number
+  /** 0–1 — continuous mid-band contribution to block density. */
+  midBlockResponse: number
+  /** 0–1 — continuous high-band contribution to intersection flares. */
+  highFlareResponse: number
+  /** 0–1 — track energy contribution to live rail density. */
+  energyDensityResponse: number
+  /** 0–1 — build progress contribution to pulse and camera motion. */
+  buildMotionResponse: number
+  /** 0–1 — drop impact contribution to shockwave strength. */
+  dropImpactResponse: number
+  /** 0–1 — amount of section-aware choreography applied by the renderer. */
+  sectionDynamics: number
+  /** 0–1 — response smoothing; 0 is immediate and 1 is deliberately fluid. */
+  audioSmoothing: number
+  /** 0–1 — ignores audio energy below this normalized threshold. */
+  audioGate: number
 }
 
 export const DEFAULT_NEON_LATTICE_SETTINGS: NeonLatticeSettings = {
@@ -94,6 +120,19 @@ export const DEFAULT_NEON_LATTICE_SETTINGS: NeonLatticeSettings = {
   blackoutMode:     'none',
   decayStyle:       'exponential',
   trigger:          'beat',
+  audioReactive:    true,
+  bassBrightnessResponse: 0.85,
+  kickRailResponse:       0.85,
+  snareRailResponse:      0.80,
+  beatPulseResponse:      0.80,
+  midBlockResponse:       0.25,
+  highFlareResponse:      0.35,
+  energyDensityResponse:  0.20,
+  buildMotionResponse:    0.20,
+  dropImpactResponse:     0.85,
+  sectionDynamics:        0.85,
+  audioSmoothing:         0.18,
+  audioGate:              0.04,
 }
 
 // ── Oscillator path/glyph types ───────────────────────────────────────────────
@@ -2831,6 +2870,11 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
       bloom: 0.90, depth: 0.35, parallax: 0.30, cameraMotion: 0.15,
       shockwaveAmount: 0.75, reseedInterval: 16,
       decayStyle: 'exponential', blackoutMode: 'none', trigger: 'kick',
+      audioReactive: true, bassBrightnessResponse: 1.00,
+      kickRailResponse: 1.00, snareRailResponse: 0.75, beatPulseResponse: 0.85,
+      midBlockResponse: 0.35, highFlareResponse: 0.45, energyDensityResponse: 0.25,
+      buildMotionResponse: 0.25, dropImpactResponse: 1.00, sectionDynamics: 1.00,
+      audioSmoothing: 0.15, audioGate: 0.05,
     },
   },
 
@@ -2851,6 +2895,11 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
       bloom: 0.70, depth: 0.28, parallax: 0.15, cameraMotion: 0.08,
       shockwaveAmount: 0.55, reseedInterval: 16,
       decayStyle: 'exponential', blackoutMode: 'none', trigger: 'beat',
+      audioReactive: true, bassBrightnessResponse: 0.85,
+      kickRailResponse: 0.80, snareRailResponse: 0.80, beatPulseResponse: 0.75,
+      midBlockResponse: 0.25, highFlareResponse: 0.35, energyDensityResponse: 0.15,
+      buildMotionResponse: 0.15, dropImpactResponse: 0.80, sectionDynamics: 0.80,
+      audioSmoothing: 0.20, audioGate: 0.04,
     },
   },
 
@@ -2871,6 +2920,11 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
       bloom: 0.55, depth: 0.20, parallax: 0.10, cameraMotion: 0.05,
       shockwaveAmount: 0, reseedInterval: 32,
       decayStyle: 'exponential', blackoutMode: 'none', trigger: 'beat',
+      audioReactive: true, bassBrightnessResponse: 0.65,
+      kickRailResponse: 0.45, snareRailResponse: 0.50, beatPulseResponse: 0.65,
+      midBlockResponse: 0.05, highFlareResponse: 0.80, energyDensityResponse: 0.05,
+      buildMotionResponse: 0.10, dropImpactResponse: 0.35, sectionDynamics: 0.60,
+      audioSmoothing: 0.35, audioGate: 0.08,
     },
   },
 
@@ -2891,6 +2945,11 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
       bloom: 1.00, depth: 0.55, parallax: 0.40, cameraMotion: 0.25,
       shockwaveAmount: 0.90, reseedInterval: 8,
       decayStyle: 'exponential', blackoutMode: 'none', trigger: 'kick',
+      audioReactive: true, bassBrightnessResponse: 1.00,
+      kickRailResponse: 1.00, snareRailResponse: 1.00, beatPulseResponse: 0.95,
+      midBlockResponse: 0.70, highFlareResponse: 0.55, energyDensityResponse: 0.65,
+      buildMotionResponse: 0.55, dropImpactResponse: 1.00, sectionDynamics: 1.00,
+      audioSmoothing: 0.08, audioGate: 0.03,
     },
   },
 ]

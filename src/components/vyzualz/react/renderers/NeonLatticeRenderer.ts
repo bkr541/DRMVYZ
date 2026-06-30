@@ -132,6 +132,13 @@ interface NeonLatticeState {
   lastBeatIndex:    number
   lastBarIndex:     number
   lastPhrase4Index: number
+  // Smoothed audio / MI signals used by the engine-specific MOD controls.
+  smoothedBass:   number
+  smoothedMid:    number
+  smoothedHigh:   number
+  smoothedEnergy: number
+  smoothedBuild:  number
+  smoothedDrop:   number
 }
 
 const stateMap = new WeakMap<CanvasRenderingContext2D, NeonLatticeState>()
@@ -218,6 +225,12 @@ function makeState(W: number, H: number): NeonLatticeState {
     lastBeatIndex:    -1,
     lastBarIndex:     -1,
     lastPhrase4Index: -1,
+    smoothedBass:   0,
+    smoothedMid:    0,
+    smoothedHigh:   0,
+    smoothedEnergy: 0,
+    smoothedBuild:  0,
+    smoothedDrop:   0,
   }
 }
 
@@ -323,6 +336,12 @@ function resizeState(st: NeonLatticeState, W: number, H: number): void {
   st.rails = []
   st.lastW = W
   st.lastH = H
+  st.smoothedBass   = 0
+  st.smoothedMid    = 0
+  st.smoothedHigh   = 0
+  st.smoothedEnergy = 0
+  st.smoothedBuild  = 0
+  st.smoothedDrop   = 0
   resetAccentObjects(st)
 }
 
@@ -807,6 +826,29 @@ const FLUX_DEBOUNCE      = 0.30
 const COMPLEX_DEBOUNCE   = 0.50
 const DOWNBEAT_DEBOUNCE  = 0.80
 
+function clampUnit(value: number): number {
+  return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0))
+}
+
+/** Remove analyser floor noise, then expand the remaining signal to 0–1. */
+function applyAudioGate(value: number, gate: number): number {
+  const v = clampUnit(value)
+  const g = Math.min(0.98, clampUnit(gate))
+  return v <= g ? 0 : (v - g) / (1 - g)
+}
+
+/** Higher smoothing values deliberately produce a slower, silkier response. */
+function smoothReactiveSignal(current: number, target: number, dt: number, smoothing: number): number {
+  if (dt <= 0) return target
+  const responseHz = 24 - clampUnit(smoothing) * 21.5
+  const alpha = 1 - Math.exp(-responseHz * dt)
+  return current + (target - current) * alpha
+}
+
+function mixFromNeutral(neutral: number, value: number, amount: number): number {
+  return neutral + (value - neutral) * clampUnit(amount)
+}
+
 export function renderNeonLattice(
   ctx:         CanvasRenderingContext2D,
   frame:       ReactFrameContext,
@@ -850,14 +892,34 @@ export function renderNeonLattice(
   const accentRgb = paletteRgb.accent
   const cyanRgb   = '74,199,219'  // explicit cyan for cyanStrike override only
 
+  const mi = frame.musicIntelligence
+  const reactiveEnabled = settings.audioReactive
+  const gate = settings.audioGate
+  const rawBass   = reactiveEnabled ? applyAudioGate(frame.audio.bass, gate) : 0
+  const rawMid    = reactiveEnabled ? applyAudioGate(frame.audio.mid, gate) : 0
+  const rawHigh   = reactiveEnabled ? applyAudioGate(frame.audio.high, gate) : 0
+  const rawEnergy = reactiveEnabled ? applyAudioGate(mi?.energy.instant ?? frame.audio.volume, gate) : 0
+  const rawBuild  = reactiveEnabled ? applyAudioGate(mi?.energy.buildProgress ?? 0, gate) : 0
+  const rawDrop   = reactiveEnabled ? applyAudioGate(mi?.energy.dropImpact ?? 0, gate) : 0
+
+  st.smoothedBass   = smoothReactiveSignal(st.smoothedBass, rawBass, dt, settings.audioSmoothing)
+  st.smoothedMid    = smoothReactiveSignal(st.smoothedMid, rawMid, dt, settings.audioSmoothing)
+  st.smoothedHigh   = smoothReactiveSignal(st.smoothedHigh, rawHigh, dt, settings.audioSmoothing)
+  st.smoothedEnergy = smoothReactiveSignal(st.smoothedEnergy, rawEnergy, dt, settings.audioSmoothing)
+  st.smoothedBuild  = smoothReactiveSignal(st.smoothedBuild, rawBuild, dt, settings.audioSmoothing)
+  st.smoothedDrop   = smoothReactiveSignal(st.smoothedDrop, rawDrop, dt, settings.audioSmoothing)
+
   // ── Bass Reactivity ────────────────────────────────────────────────────────
-  // Never makes engine invisible: floor at 1.0 (no reaction), rises above 1.0
-  // only when both bassReactivity and current bass are non-zero.
-  const bassEnergy = Math.max(0, Math.min(1, frame.audio.bass))
-  const bassBoost  = 1.0 + params.bassReactivity * bassEnergy * 0.65
+  // Never makes the engine disappear: 1.0 is the authored look and audio can
+  // only add brightness above that floor.
+  const bassEnergy = st.smoothedBass
+  const bassBoost  = 1.0
+    + params.bassReactivity
+    * bassEnergy
+    * 0.65
+    * settings.bassBrightnessResponse
 
   // ── Effective section (manual > MI section > null) ─────────────────────────
-  const mi = frame.musicIntelligence
   const miSectionType = mi?.section.type ?? null
   const effectiveSectionType = resolveEffectiveSection(manualSectionType, miSectionType)
 
@@ -870,22 +932,57 @@ export function renderNeonLattice(
     mi?.section.progress     ?? 0,
     st.prevSectionType,
   )
-  // Section-adjusted effective settings — applied for all spawn/draw that
-  // should respond to the musical section.  Camera, depth, and parallax are
-  // intentionally kept at the raw settings values.
+  // Blend every section modifier from a neutral value. This makes the
+  // Section Dynamics control a true depth control instead of an on/off label.
+  const sectionMix          = reactiveEnabled ? settings.sectionDynamics : 0
+  const sectionRailSpawnMul = mixFromNeutral(1, sb.railSpawnMul, sectionMix)
+  const sectionPulseMul     = mixFromNeutral(1, sb.pulseSpeedMul, sectionMix)
+  const sectionGlowMul      = mixFromNeutral(1, sb.glowMul, sectionMix)
+  const sectionBlockMul     = mixFromNeutral(1, sb.blockMul, sectionMix)
+  const sectionCenterAdd    = sb.centerBiasAdd * sectionMix
+  const sectionLifetimeMul  = mixFromNeutral(1, sb.lifetimeMul, sectionMix)
+  const sectionDecayAdjust  = sb.decayAdjust * sectionMix
+  const sectionShockMul     = sb.shockwavesAllowed ? 1 : (1 - sectionMix)
+
+  // Engine-level routing turns the authored values into a responsive system:
+  // frequency bands control object families, while MI energy/build/drop shape
+  // density, motion and impact without erasing the preset's base design.
   const secSettings: NeonLatticeSettings = {
     ...settings,
-    pulseSpeed:   Math.max(0.01, settings.pulseSpeed   * sb.pulseSpeedMul),
-    bloom:        Math.min(2.0,  settings.bloom        * sb.glowMul),
-    blockDensity: Math.min(1.0,  settings.blockDensity * sb.blockMul),
-    centerBias:   Math.max(0,    Math.min(1, settings.centerBias + sb.centerBiasAdd)),
-    railLifetime: Math.max(0.5,  settings.railLifetime * sb.lifetimeMul),
-    shockwaveAmount: sb.shockwavesAllowed ? settings.shockwaveAmount : 0,
+    railDensity: clampUnit(
+      settings.railDensity
+      + st.smoothedEnergy * settings.energyDensityResponse * 0.28,
+    ),
+    pulseSpeed: Math.max(
+      0.01,
+      settings.pulseSpeed
+      * sectionPulseMul
+      * (1 + st.smoothedBuild * settings.buildMotionResponse * 0.45),
+    ),
+    bloom: Math.min(
+      2,
+      settings.bloom
+      * sectionGlowMul
+      * (1 + st.smoothedBass * settings.bassBrightnessResponse * 0.30),
+    ),
+    blockDensity: clampUnit(
+      (settings.blockDensity + st.smoothedMid * settings.midBlockResponse * 0.34)
+      * sectionBlockMul,
+    ),
+    centerBias: clampUnit(settings.centerBias + sectionCenterAdd),
+    railLifetime: Math.max(0.5, settings.railLifetime * sectionLifetimeMul),
+    shockwaveAmount: clampUnit(
+      settings.shockwaveAmount * sectionShockMul
+      + st.smoothedDrop * settings.dropImpactResponse * 0.38,
+    ),
   }
-  const effectiveDecay = Math.max(0.005, Math.min(0.98, (params.trailDecay ?? 0.08) + sb.decayAdjust))
+  const effectiveDecay = Math.max(0.005, Math.min(0.98, (params.trailDecay ?? 0.08) + sectionDecayAdjust))
 
   // ── Camera motion update (paused during freeze) ───────────────────────────
-  const cm = settings.cameraMotion
+  const cm = clampUnit(
+    settings.cameraMotion
+    + st.smoothedBuild * settings.buildMotionResponse * 0.35,
+  )
   const ZOOM_BURST_DECAY = 0.12  // seconds for downbeat zoom-punch to fully decay
   if (cm > 0 && dt > 0 && !isFrozen) {
     const driftSeed = ((st.seedCounter + 7777) * 1009 + (audioTime * 10 | 0)) >>> 0
@@ -1023,7 +1120,7 @@ export function renderNeonLattice(
   let spawnDownbeat  = false; let downbeatStrength  = 0.7
   let spawnDrop      = false; let dropStrength      = 0.7
 
-  if (mi !== null) {
+  if (reactiveEnabled && mi !== null) {
     // Index-based deduplication: each event is processed exactly once per MI frame.
     // Beat/bar events are further gated by their own index to prevent double-firing
     // when the renderer runs faster than the MI update rate.
@@ -1054,29 +1151,62 @@ export function renderNeonLattice(
       if (newBar)     st.lastBarIndex     = mi.rhythm.barIndex
       if (newPhrase4) st.lastPhrase4Index = p4Index
     }
-  } else {
+  } else if (reactiveEnabled) {
     // Fallback: analyser-only input — use elapsed-time debounces as rate limits
-    const bass = frame.audio.bass
-    const high = frame.audio.high
-    const mid  = frame.audio.mid
+    const bass = rawBass
+    const high = rawHigh
+    const mid  = rawMid
     if (bass > 0.52 && bass > st.prevBass + 0.07 && (audioTime - st.lastKickSec)  > KICK_DEBOUNCE)  { spawnKick  = true; kickStrength  = Math.min(1, (bass - 0.52) * 3 + 0.4) }
     if (frame.beatHit && mid > 0.25 && !spawnKick && (audioTime - st.lastSnareSec) > SNARE_DEBOUNCE) { spawnSnare = true; snareStrength = Math.min(1, 0.3 + mid * 0.5) }
-    if (!spawnKick && !spawnSnare && frame.beatHit && (audioTime - st.lastBeatSec)  > BEAT_DEBOUNCE) { spawnBeat  = true; beatStrength  = 0.3 + frame.audio.volume * 0.4 }
+    if (!spawnKick && !spawnSnare && frame.beatHit && (audioTime - st.lastBeatSec)  > BEAT_DEBOUNCE) { spawnBeat  = true; beatStrength  = 0.3 + rawEnergy * 0.4 }
     if (high > 0.45 && high > st.prevHigh + 0.05 && (audioTime - st.lastHatSec)    > HAT_DEBOUNCE)  { spawnHat   = true; hatStrength   = Math.min(1, (high - 0.45) * 4 + 0.3) }
     if (mid  > 0.42 && mid  > st.prevMid  + 0.08 && (audioTime - st.lastFluxSec)   > FLUX_DEBOUNCE) { spawnFlux  = true; fluxStrength  = Math.min(1, mid * 1.2) }
     if (frame.beatHit) {
       st.beatHitCount++
-      if (st.beatHitCount % 4 === 0 && frame.audio.bass > 0.40 && (audioTime - st.lastDownbeatSec) > DOWNBEAT_DEBOUNCE) {
-        spawnDownbeat = true; downbeatStrength = 0.5 + frame.audio.bass * 0.4
+      if (st.beatHitCount % 4 === 0 && bass > 0.40 && (audioTime - st.lastDownbeatSec) > DOWNBEAT_DEBOUNCE) {
+        spawnDownbeat = true; downbeatStrength = 0.5 + bass * 0.4
       }
     }
     // Fallback drop: approximate as a strong bass transient coinciding with estimated downbeat
-    if (spawnDownbeat && frame.audio.bass > 0.65 && (audioTime - st.lastDropSec) > DOWNBEAT_DEBOUNCE) {
-      spawnDrop = true; dropStrength = Math.min(1, 0.4 + frame.audio.bass * 0.6)
+    if (spawnDownbeat && bass > 0.65 && (audioTime - st.lastDropSec) > DOWNBEAT_DEBOUNCE) {
+      spawnDrop = true; dropStrength = Math.min(1, 0.4 + bass * 0.6)
     }
     st.prevBass = bass
     st.prevHigh = high
     st.prevMid  = mid
+  } else if (frame.beatHit && (audioTime - st.lastBeatSec) > BEAT_DEBOUNCE) {
+    // Reactive Engine off still keeps the BPM-authored lattice alive. It uses
+    // neutral, deterministic beat sequencing instead of analyser amplitudes.
+    spawnBeat = true
+    beatStrength = 0.55
+    st.beatHitCount++
+    if (st.beatHitCount % 4 === 0 && (audioTime - st.lastDownbeatSec) > DOWNBEAT_DEBOUNCE) {
+      spawnDownbeat = true
+      downbeatStrength = 0.65
+    }
+  }
+
+  // Engine-specific routing depth. A zeroed route suppresses that family
+  // completely; intermediate values scale event strength continuously.
+  if (spawnKick) {
+    kickStrength *= settings.kickRailResponse
+    spawnKick = kickStrength > 0.01
+  }
+  if (spawnSnare) {
+    snareStrength *= settings.snareRailResponse
+    spawnSnare = snareStrength > 0.01
+  }
+  if (spawnBeat) {
+    beatStrength *= reactiveEnabled ? settings.beatPulseResponse : 1
+    spawnBeat = beatStrength > 0.01
+  }
+  if (spawnDownbeat) {
+    downbeatStrength *= reactiveEnabled ? settings.beatPulseResponse : 1
+    spawnDownbeat = downbeatStrength > 0.01
+  }
+  if (spawnDrop) {
+    dropStrength *= settings.dropImpactResponse
+    spawnDrop = dropStrength > 0.01
   }
 
   if (spawnDrop) st.lastDropSec = audioTime
@@ -1085,10 +1215,10 @@ export function renderNeonLattice(
   // ── Rail spawning (railDensity + verticalBias → continuous orientation targets) ──
   const vertRails  = st.rails.filter(r => r.vertical)
   const horizRails = st.rails.filter(r => !r.vertical)
-  const { targetVert: rawTargetVert, targetHoriz: rawTargetHoriz } = resolveRailTargets(settings.railDensity, settings.verticalBias)
+  const { targetVert: rawTargetVert, targetHoriz: rawTargetHoriz } = resolveRailTargets(secSettings.railDensity, secSettings.verticalBias)
   // Section behavior scales the effective targets; hard-cap clamp ensures counts stay within object budgets
-  const targetVert  = Math.min(MAX_VERT,  Math.round(rawTargetVert  * Math.max(0.1, sb.railSpawnMul)))
-  const targetHoriz = Math.min(MAX_HORIZ, Math.round(rawTargetHoriz * Math.max(0.1, sb.railSpawnMul)))
+  const targetVert  = Math.min(MAX_VERT,  Math.round(rawTargetVert  * Math.max(0.1, sectionRailSpawnMul)))
+  const targetHoriz = Math.min(MAX_HORIZ, Math.round(rawTargetHoriz * Math.max(0.1, sectionRailSpawnMul)))
 
   if (spawnKick && targetVert > 0) {
     const toSpawn = Math.min(targetVert - vertRails.length, 2)
@@ -1264,7 +1394,7 @@ export function renderNeonLattice(
 
   // ── Section entry transitions (fires once per qualified section edge) ──────
   // "Qualified" = transitioning from a real previous section (not from null startup).
-  const qualifiedEntry = sb.isEntryFrame && st.prevSectionType !== null
+  const qualifiedEntry = sectionMix > 0.01 && sb.isEntryFrame && st.prevSectionType !== null
   if (qualifiedEntry) {
     if (effectiveSectionType === 'drop') {
       // Immediate release: spawn 2 foreground vertical rails + shockwave burst
@@ -1290,7 +1420,10 @@ export function renderNeonLattice(
 
   // ── Advance pulses + handle intersections (skipped during freeze) ─────────
   if (!isFrozen) {
-    const flareAmount  = settings.flareAmount
+    const flareAmount  = clampUnit(
+      settings.flareAmount
+      + st.smoothedHigh * settings.highFlareResponse * 0.35,
+    )
     const flareTarget  = Math.max(0, Math.round(flareAmount * MAX_FLARES))
     const { newFlares, newPulses } = updatePulses(st, dt, audioTime, paletteRgb.primary, secSettings, flareAmount, flareTarget, settings.depth)
     for (const f of newFlares) {

@@ -14,7 +14,10 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import { migrateReactStore, useReactStore } from './reactStore'
-import { DEFAULT_REACT_PRESETS } from '../components/vyzualz/react/ReactTypes'
+import {
+  DEFAULT_NEON_LATTICE_SETTINGS,
+  DEFAULT_REACT_PRESETS,
+} from '../components/vyzualz/react/ReactTypes'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -222,7 +225,10 @@ describe('unrelated state fields survive migration unchanged', () => {
     expect(result.soundDrawingClipsByTrackId).toEqual(soundDrawingClipsByTrackId)
     expect(result.laserDmxSettings).toEqual(laserDmxSettings)
     expect(result.laserDmxBeamMatrix).toEqual(laserDmxBeamMatrix)
-    expect(result.neonLatticeSettings).toEqual(neonLatticeSettings)
+    expect(result.neonLatticeSettings).toEqual({
+      ...DEFAULT_NEON_LATTICE_SETTINGS,
+      ...neonLatticeSettings,
+    })
     expect(result.presetAutomationCuesByTrackId).toEqual(presetAutomationCuesByTrackId)
     expect((result as Record<string, unknown>).futureField).toEqual(futureField)
   })

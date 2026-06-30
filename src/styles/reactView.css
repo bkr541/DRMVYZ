@@ -3786,7 +3786,7 @@
 }
 
 /* ── Cinematic Worlds Patch 8 controls ───────────────────────────────────── */
-.rv-cinematic-controls { display: flex; flex-direction: column; gap: 7px; }
+.rv-cinematic-controls { display: flex; flex-direction: column; gap: 9px; width: 100%; min-width: 0; }
 .rv-cinematic-mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border: 1px solid rgba(74,199,219,.16); border-radius: 7px; background: rgba(0,0,0,.18); }
 .rv-cinematic-mode-btn { min-height: 30px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: rgba(232,244,248,.62); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
 .rv-cinematic-mode-btn--active { border-color: rgba(74,199,219,.55); background: rgba(74,199,219,.14); color: #e8f4f8; }
@@ -3815,9 +3815,22 @@
 .rv-cinematic-capability { display: grid; gap: 4px; }
 .rv-cinematic-capability strong { font-size: 10px; }
 .rv-cinematic-capability span, .rv-cinematic-capability small { color: rgba(232,244,248,.58); }
-.rv-cinematic-route-list { display: flex; flex-direction: column; gap: 8px; }
-.rv-cinematic-route { margin: 0; padding: 8px; border: 1px solid rgba(255,255,255,.09); border-radius: 7px; }
+.rv-cinematic-route-list { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.rv-cinematic-route {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 7px;
+  background: rgba(255,255,255,.018);
+}
 .rv-cinematic-route legend { padding: 0 5px; color: #61d6aa; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; }
+.rv-cinematic-route .rv-ctrl-row,
+.rv-cinematic-route .rv-ctrl-toggle-row { min-width: 0; }
+.rv-cinematic-route .rv-ctrl-toggle-row .rv-ctrl-label { margin-right: auto; }
 .rv-cinematic-remove-route { width: 100%; border-color: rgba(192,49,74,.28); background: rgba(192,49,74,.07); }
 .rv-ctrl-description { display: block; margin-top: 3px; color: rgba(232,244,248,.38); font-size: 8px; line-height: 1.35; }
 .rv-ctrl-slider:disabled { opacity: .35; cursor: not-allowed; }

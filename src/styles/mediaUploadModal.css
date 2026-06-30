@@ -305,6 +305,8 @@
 
 /* Input / textarea */
 .mum-input, .mum-textarea {
+  width: 100%;
+  box-sizing: border-box;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 6px;
@@ -639,16 +641,17 @@
 
 /* ── Audio upload — Track Details group ──────────────────────────────── */
 .mum-track-details {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
   margin-top: 6px;
 }
 
-.mum-track-detail-row {
+.mum-track-detail-field {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
 }
 
 .mum-track-detail-label {
@@ -658,15 +661,18 @@
   letter-spacing: 0.07em;
   color: rgba(196,207,211,0.5);
   white-space: nowrap;
-  width: 72px;
-  flex-shrink: 0;
 }
 
-/* Smaller variant of mum-input for inline track detail rows */
+.mum-track-detail-control {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Compact input variant used by the Track Details grid. */
 .mum-input--sm {
-  padding: 5px 8px;
-  font-size: 11px;
-  height: 28px;
+  padding: 7px 10px;
+  font-size: 12px;
+  min-height: 34px;
 }
 
 .mum-input--error {
@@ -699,4 +705,10 @@
   background: rgba(74,199,219,0.08);
   border-radius: 3px;
   color: rgba(74,199,219,0.55);
+}
+
+@media (max-width: 760px) {
+  .mum-track-details {
+    grid-template-columns: 1fr;
+  }
 }

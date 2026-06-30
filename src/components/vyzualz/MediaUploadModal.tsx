@@ -705,7 +705,7 @@ export function MediaUploadModal({
                     {analyzingAudio && <span className="mum-analyzing"> — Analyzing…</span>}
                   </label>
                   <div className="mum-track-details">
-                    <div className="mum-track-detail-row">
+                    <div className="mum-track-detail-field">
                       <label className="mum-track-detail-label">ARTIST <span className="mum-opt">(OPTIONAL)</span></label>
                       <input
                         className="mum-input mum-input--sm"
@@ -714,7 +714,7 @@ export function MediaUploadModal({
                         onChange={e => setUploadDraftAudioArtist(e.target.value)}
                       />
                     </div>
-                    <div className="mum-track-detail-row">
+                    <div className="mum-track-detail-field">
                       <label className="mum-track-detail-label">GENRE <span className="mum-opt">(OPTIONAL)</span></label>
                       <input
                         className="mum-input mum-input--sm"
@@ -723,9 +723,9 @@ export function MediaUploadModal({
                         onChange={e => setUploadDraftAudioGenre(e.target.value)}
                       />
                     </div>
-                    <div className="mum-track-detail-row">
+                    <div className="mum-track-detail-field">
                       <label className="mum-track-detail-label">BPM <span className="mum-opt">(OPTIONAL)</span></label>
-                      <div style={{ flex: 1 }}>
+                      <div className="mum-track-detail-control">
                         <input
                           className={`mum-input mum-input--sm${bpmError ? ' mum-input--error' : ''}`}
                           type="number"
@@ -739,9 +739,9 @@ export function MediaUploadModal({
                         {bpmError && <div className="mum-field-error">{bpmError}</div>}
                       </div>
                     </div>
-                    <div className="mum-track-detail-row">
+                    <div className="mum-track-detail-field">
                       <label className="mum-track-detail-label">KEY <span className="mum-opt">(OPTIONAL)</span></label>
-                      <div className="mum-select-wrap" style={{ flex: 1 }}>
+                      <div className="mum-select-wrap mum-track-detail-control">
                         <select
                           className="mum-select"
                           value={uploadDraft.audioMusicalKey}

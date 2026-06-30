@@ -3031,10 +3031,10 @@ input[type='range'].vz-slider--color {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 5px;
+  gap: 4px;
 }
 
-/* Track identity row — title + upload button */
+/* Track identity row */
 .vz-dock-track-row {
   display: flex;
   align-items: center;
@@ -3046,15 +3046,15 @@ input[type='range'].vz-slider--color {
   flex: 1;
   min-width: 0;
   font-size: 11px;
-  font-weight: 500;
-  color: rgba(245,248,250,0.75);
+  font-weight: 650;
+  color: rgba(245,248,250,0.88);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   letter-spacing: 0.02em;
 }
 
-/* transport + volume row */
+/* Compact transport row */
 .vz-dock-controls-row {
   display: flex;
   align-items: center;
@@ -3067,13 +3067,28 @@ input[type='range'].vz-slider--color {
   justify-content: flex-start;
 }
 
-.vz-dock-controls-row .az-dock-volume {
+/* Volume gets its own row so the fader can consume all remaining width. */
+.vz-transport-dock .vz-dock-volume-row {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  gap: 6px;
   flex: 0 0 auto;
-  min-width: unset;
 }
-.vz-dock-controls-row .az-dock-vol-slider {
-  flex: 0 0 48px;
-  width: 48px;
+
+.vz-transport-dock .vz-dock-volume-row .az-dock-vol-icon {
+  flex: 0 0 auto;
+}
+
+.vz-transport-dock .vz-dock-volume-row .vz-dock-vol-db {
+  width: 42px;
+  font-size: 9px;
+}
+
+.vz-transport-dock .vz-dock-volume-row .az-dock-vol-slider {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 64px;
 }
 
 .vz-dock-addtrack-btn {

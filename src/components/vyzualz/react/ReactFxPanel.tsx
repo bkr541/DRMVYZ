@@ -13,6 +13,7 @@ import { ShaderParameterPanel } from './shaders/ui/ShaderParameterPanel'
 import { getReactFxMasterControls } from './reactFxMasterControls'
 import { ReactResetActions } from './ReactResetActions'
 import { CinematicWorldsFxControls } from './CinematicWorldsControls'
+import { NeonLatticeFxControls } from './NeonLatticeEnginePanel'
 
 // ── FX panel ──────────────────────────────────────────────────────────────────
 // Styles the currently active visual engine.
@@ -69,6 +70,7 @@ export function ReactFxPanel() {
   const isSoundDrawing  = activeReactEngineId === 'oscilloscope'
   const isCinematic     = activeReactEngineId === 'cinematicPortal'
   const isLaserDmx      = activeReactEngineId === 'laserDmx'
+  const isNeonLattice   = activeReactEngineId === 'neonLattice'
   const isBeamMatrix    = isLaserDmx && laserDmxWorkspaceMode === 'beamMatrix'
   const isSpatialFixtures = isLaserDmx && laserDmxWorkspaceMode === 'spatialFixtures'
 
@@ -157,6 +159,8 @@ export function ReactFxPanel() {
         {/* ── Master ──────────────────────────────────────────────────── */}
         <CtrlSection label={isLaserDmx ? 'React Master' : 'Master'} />
         {masterControlRows}
+
+        {isNeonLattice && <NeonLatticeFxControls />}
 
         {/* ── Engine Appearance: Oscilloscope ─────────────────────────── */}
         {isSoundDrawing && (

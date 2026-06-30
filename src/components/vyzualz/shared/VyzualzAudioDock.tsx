@@ -256,7 +256,11 @@ export function VyzualzAudioDock() {
         </label>
 
         <div className="vz-dock-left-body">
-          {/* Transport + add track + volume — single row */}
+          <div className="vz-dock-track-row">
+            <span className="vz-dock-track-title" title={title}>{title}</span>
+          </div>
+
+          {/* Transport and replace-track action stay compact on their own row. */}
           <div className="vz-dock-controls-row">
             <div className="az-dock-transport">
               <button className="az-transport-btn" title="Previous" disabled={!hasTrack} onClick={engine.prev}>
@@ -287,21 +291,30 @@ export function VyzualzAudioDock() {
                 <path d="M14.5 18V5.58888C14.5 4.73166 14.5 4.30306 14.6805 4.04492C14.8382 3.81952 15.0817 3.669 15.3538 3.6288C15.6655 3.58276 16.0488 3.77444 16.8155 4.1578L20.5 6.00003M14.5 18C14.5 19.6569 13.1569 21 11.5 21C9.84315 21 8.5 19.6569 8.5 18C8.5 16.3432 9.84315 15 11.5 15C13.1569 15 14.5 16.3432 14.5 18ZM6.5 10V4.00003M3.5 7.00003H9.5"/>
               </svg>
             </label>
-            <div className="az-dock-volume">
-              <span className="az-dock-vol-icon">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="rgba(245,248,250,0.4)">
-                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-                </svg>
-              </span>
-              <span className="az-dock-vol-db" style={{ fontSize: 9 }}>
-                {vol < 0.001 ? '-∞ dB' : `${(20 * Math.log10(vol)).toFixed(1)} dB`}
-              </span>
-              <input type="range" className="az-dock-vol-slider"
-                min={0} max={1} step={0.005} value={vol}
-                onChange={e => engine.setVolume(parseFloat(e.target.value))}
-                style={{ '--pct': volPct } as React.CSSProperties}
-              />
-            </div>
+          </div>
+
+          {/* A dedicated full-width row prevents the volume control collapsing. */}
+          <div className="az-dock-volume vz-dock-volume-row">
+            <span className="az-dock-vol-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="rgba(245,248,250,0.4)">
+                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+              </svg>
+            </span>
+            <span className="az-dock-vol-db vz-dock-vol-db">
+              {vol < 0.001 ? '-∞ dB' : `${(20 * Math.log10(vol)).toFixed(1)} dB`}
+            </span>
+            <input
+              type="range"
+              className="az-dock-vol-slider"
+              aria-label="Track volume"
+              title={`Track volume: ${Math.round(vol * 100)}%`}
+              min={0}
+              max={1}
+              step={0.005}
+              value={vol}
+              onChange={e => engine.setVolume(parseFloat(e.target.value))}
+              style={{ '--pct': volPct } as React.CSSProperties}
+            />
           </div>
         </div>
       </div>

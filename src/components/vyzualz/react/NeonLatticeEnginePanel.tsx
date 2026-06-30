@@ -1,6 +1,6 @@
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
-import { SliderRow, SelectRow, CtrlSection } from './ReactControlRows'
+import { SliderRow, SelectRow, ToggleRow, CtrlSection, Collapsible } from './ReactControlRows'
 import type { NeonLatticeTrigger, NeonLatticeSnapDivision, NeonLatticeDecayStyle, NeonLatticeBlackoutMode, NeonLatticeSettings } from './ReactTypes'
 import { clamp01 } from './renderers/reactRenderUtils'
 
@@ -62,84 +62,6 @@ export function NeonLatticeEnginePanel() {
         min={0.1} max={4} step={0.05}
         onChange={v => set({ blockHold: clampPosNum(v, 0.1, 4) })}
       />
-      <SliderRow
-        label="Cyan Accent Chance"
-        value={settings.cyanAccentChance}
-        min={0} max={1} step={0.01}
-        onChange={v => set({ cyanAccentChance: clamp01(v) })}
-      />
-      <SliderRow
-        label="Shockwave Amount"
-        value={settings.shockwaveAmount}
-        min={0} max={1} step={0.01}
-        onChange={v => set({ shockwaveAmount: clamp01(v) } as Partial<NeonLatticeSettings>)}
-      />
-      <SelectRow
-        label="Decay Style"
-        value={settings.decayStyle}
-        onChange={v => set({ decayStyle: v as NeonLatticeDecayStyle })}
-        options={[
-          { value: 'exponential', label: 'Exponential' },
-          { value: 'linear',      label: 'Linear'      },
-          { value: 'hold',        label: 'Hold'        },
-          { value: 'pulse',       label: 'Pulse'       },
-        ]}
-      />
-
-      {/* ── Motion and Depth ──────────────────────────────────────────────── */}
-      <CtrlSection label="Motion and Depth" />
-
-      <SliderRow
-        label="Pulse Speed"
-        value={settings.pulseSpeed}
-        min={0} max={1} step={0.01}
-        onChange={v => set({ pulseSpeed: clamp01(v) })}
-      />
-      <SliderRow
-        label="Depth"
-        value={settings.depth}
-        min={0} max={1} step={0.01}
-        onChange={v => set({ depth: clamp01(v) })}
-      />
-      <SliderRow
-        label="Parallax"
-        value={settings.parallax}
-        min={0} max={1} step={0.01}
-        onChange={v => set({ parallax: clamp01(v) })}
-      />
-      <SliderRow
-        label="Camera Motion"
-        value={settings.cameraMotion}
-        min={0} max={1} step={0.01}
-        onChange={v => set({ cameraMotion: clamp01(v) })}
-      />
-
-      {/* ── Accents ───────────────────────────────────────────────────────── */}
-      <CtrlSection label="Accents" />
-
-      <SliderRow
-        label="Flare Amount"
-        value={settings.flareAmount}
-        min={0} max={1} step={0.01}
-        onChange={v => set({ flareAmount: clamp01(v) })}
-      />
-      <SliderRow
-        label="Bloom"
-        value={settings.bloom}
-        min={0} max={1} step={0.01}
-        onChange={v => set({ bloom: clamp01(v) })}
-      />
-      <SelectRow
-        label="Blackout Mode"
-        value={settings.blackoutMode}
-        onChange={v => set({ blackoutMode: v as NeonLatticeBlackoutMode })}
-        options={[
-          { value: 'none',    label: 'None'    },
-          { value: 'instant', label: 'Instant' },
-          { value: 'fadeOut', label: 'Fade Out'},
-          { value: 'strobe',  label: 'Strobe'  },
-        ]}
-      />
 
       {/* ── Musical Timing ────────────────────────────────────────────────── */}
       <CtrlSection label="Musical Timing" />
@@ -156,6 +78,12 @@ export function NeonLatticeEnginePanel() {
           { value: 'snare',     label: 'Snare'     },
           { value: 'drop',      label: 'Drop'      },
         ]}
+      />
+      <SliderRow
+        label="Pulse Speed"
+        value={settings.pulseSpeed}
+        min={0} max={1} step={0.01}
+        onChange={v => set({ pulseSpeed: clamp01(v) })}
       />
       <SelectRow
         label="Snap Division"
@@ -185,6 +113,110 @@ export function NeonLatticeEnginePanel() {
           Reset Engine Settings
         </button>
       </div>
+    </>
+  )
+}
+
+/** Visual styling controls shown in the FX tab for Neon Lattice. */
+export function NeonLatticeFxControls() {
+  const {
+    settings,
+    trailDecay,
+    setNeonLatticeSettings,
+    setReactTrailDecay,
+  } = useReactStore(useShallow(s => ({
+    settings:                 s.neonLatticeSettings,
+    trailDecay:               s.reactTrailDecay,
+    setNeonLatticeSettings:   s.setNeonLatticeSettings,
+    setReactTrailDecay:       s.setReactTrailDecay,
+  })))
+
+  const set = (partial: Partial<NeonLatticeSettings>) => setNeonLatticeSettings(partial)
+
+  return (
+    <>
+      <CtrlSection label="Lattice Finish" />
+      <SliderRow
+        label="Trail Persistence"
+        value={1 - trailDecay}
+        onChange={v => setReactTrailDecay(1 - clamp01(v))}
+        color="#4ac7db"
+        description="Longer persistence leaves brighter rail paths behind moving pulses."
+      />
+      <SelectRow
+        label="Trail Character"
+        value={settings.decayStyle}
+        onChange={v => set({ decayStyle: v as NeonLatticeDecayStyle })}
+        options={[
+          { value: 'exponential', label: 'Smooth Fade' },
+          { value: 'linear',      label: 'Linear Fade' },
+          { value: 'hold',        label: 'Hold and Cut' },
+          { value: 'pulse',       label: 'Pulsing Decay' },
+        ]}
+      />
+      <SliderRow label="Rail Bloom" value={settings.bloom} onChange={v => set({ bloom: clamp01(v) })} color="#b84fc9" />
+      <SliderRow label="Intersection Flares" value={settings.flareAmount} onChange={v => set({ flareAmount: clamp01(v) })} color="#d8b95a" />
+      <SliderRow label="Impact Shockwaves" value={settings.shockwaveAmount} onChange={v => set({ shockwaveAmount: clamp01(v) })} color="#61d6aa" />
+      <SliderRow label="Cyan Accent Mix" value={settings.cyanAccentChance} onChange={v => set({ cyanAccentChance: clamp01(v) })} color="#4ac7db" />
+
+      <Collapsible label="Camera and Depth" defaultOpen>
+        <SliderRow label="Depth Separation" value={settings.depth} onChange={v => set({ depth: clamp01(v) })} color="#61d6aa" />
+        <SliderRow label="Parallax" value={settings.parallax} onChange={v => set({ parallax: clamp01(v) })} color="#4ac7db" />
+        <SliderRow label="Camera Drift" value={settings.cameraMotion} onChange={v => set({ cameraMotion: clamp01(v) })} color="#d8b95a" />
+      </Collapsible>
+
+      <CtrlSection label="Performance Gating" />
+      <SelectRow
+        label="Blackout Mode"
+        value={settings.blackoutMode}
+        onChange={v => set({ blackoutMode: v as NeonLatticeBlackoutMode })}
+        options={[
+          { value: 'none',    label: 'Off' },
+          { value: 'instant', label: 'Impact Cut' },
+          { value: 'fadeOut', label: 'Pre-Drop Fade' },
+          { value: 'strobe',  label: 'Black Strobe' },
+        ]}
+      />
+    </>
+  )
+}
+
+/** Audio and Music Intelligence routing shown in the MOD tab. */
+export function NeonLatticeModulationControls() {
+  const { settings, setNeonLatticeSettings } = useReactStore(
+    useShallow(s => ({
+      settings:               s.neonLatticeSettings,
+      setNeonLatticeSettings: s.setNeonLatticeSettings,
+    })),
+  )
+  const set = (partial: Partial<NeonLatticeSettings>) => setNeonLatticeSettings(partial)
+  const disabled = !settings.audioReactive
+
+  return (
+    <>
+      <CtrlSection label="Audio Reaction" />
+      <ToggleRow
+        label="Reactive Engine"
+        value={settings.audioReactive}
+        onChange={audioReactive => set({ audioReactive })}
+        description="Disables audio modulation while preserving the authored lattice look."
+      />
+      <SliderRow label="Response Smoothing" value={settings.audioSmoothing} onChange={v => set({ audioSmoothing: clamp01(v) })} disabled={disabled} color="#61d6aa" />
+      <SliderRow label="Noise Gate" value={settings.audioGate} onChange={v => set({ audioGate: clamp01(v) })} disabled={disabled} color="#d8b95a" />
+
+      <CtrlSection label="Frequency Routing" />
+      <SliderRow label="Bass → Brightness" value={settings.bassBrightnessResponse} onChange={v => set({ bassBrightnessResponse: clamp01(v) })} disabled={disabled} color="#d8b95a" />
+      <SliderRow label="Kick → Vertical Rails" value={settings.kickRailResponse} onChange={v => set({ kickRailResponse: clamp01(v) })} disabled={disabled} color="#c0314a" />
+      <SliderRow label="Snare → Horizontal Rails" value={settings.snareRailResponse} onChange={v => set({ snareRailResponse: clamp01(v) })} disabled={disabled} color="#4ac7db" />
+      <SliderRow label="Beat → Pulses" value={settings.beatPulseResponse} onChange={v => set({ beatPulseResponse: clamp01(v) })} disabled={disabled} color="#61d6aa" />
+      <SliderRow label="Mids → Blocks" value={settings.midBlockResponse} onChange={v => set({ midBlockResponse: clamp01(v) })} disabled={disabled} color="#b84fc9" />
+      <SliderRow label="Highs → Flares" value={settings.highFlareResponse} onChange={v => set({ highFlareResponse: clamp01(v) })} disabled={disabled} color="#4ac7db" />
+
+      <CtrlSection label="Music Intelligence" />
+      <SliderRow label="Energy → Rail Density" value={settings.energyDensityResponse} onChange={v => set({ energyDensityResponse: clamp01(v) })} disabled={disabled} color="#4ac7db" />
+      <SliderRow label="Build → Motion" value={settings.buildMotionResponse} onChange={v => set({ buildMotionResponse: clamp01(v) })} disabled={disabled} color="#61d6aa" />
+      <SliderRow label="Drop → Shockwaves" value={settings.dropImpactResponse} onChange={v => set({ dropImpactResponse: clamp01(v) })} disabled={disabled} color="#c0314a" />
+      <SliderRow label="Section Dynamics" value={settings.sectionDynamics} onChange={v => set({ sectionDynamics: clamp01(v) })} disabled={disabled} color="#d8b95a" />
     </>
   )
 }

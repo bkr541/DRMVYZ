@@ -1735,6 +1735,20 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       ),
     }
   }
+  if (version < 28) {
+    // Backfill the expanded Neon Lattice FX / MOD routing controls without
+    // disturbing any structure or appearance values the user already tuned.
+    const existing = isRecord(state.neonLatticeSettings)
+      ? state.neonLatticeSettings
+      : {}
+    state = {
+      ...state,
+      neonLatticeSettings: {
+        ...DEFAULT_NEON_LATTICE_SETTINGS,
+        ...existing,
+      },
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -1967,6 +1981,10 @@ export function mergeReactStoreState(
     soundDrawingClipsByTrackId: normalizeSoundDrawingClipsByTrackId(
       persisted.soundDrawingClipsByTrackId ?? currentState.soundDrawingClipsByTrackId,
     ),
+    neonLatticeSettings: {
+      ...DEFAULT_NEON_LATTICE_SETTINGS,
+      ...(persisted.neonLatticeSettings ?? currentState.neonLatticeSettings),
+    },
   } as ReactStoreState
   const repairedSelection = repairReactEnginePresetSelection(
     merged.activeReactPresetId,
@@ -3869,7 +3887,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 27,
+      version: 28,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,
