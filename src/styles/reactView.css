@@ -153,27 +153,35 @@
 }
 
 .rv-preset-card--with-thumb {
-  padding: 10px;
+  padding: 0;
+  overflow: hidden;
 }
 
 .rv-preset-card-layout {
   display: grid;
   grid-template-columns: 112px minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
+  gap: 0;
+  align-items: stretch;
+  min-height: 104px;
 }
 
 .rv-preset-card-content {
   min-width: 0;
+  min-height: 104px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
 }
 
 .rv-preset-thumb {
   position: relative;
-  width: 112px;
-  height: 64px;
-  border-radius: 8px;
+  width: 100%;
+  height: 100%;
+  min-height: 104px;
+  border-radius: 7px 0 0 7px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: none;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.04);
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.24);
 }
@@ -250,8 +258,8 @@
 }
 
 .rv-preset-name {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
   color: #e8f4f8;
   flex: 1;
 }
@@ -291,6 +299,7 @@
   color: rgba(232, 244, 248, 0.45);
   line-height: 1.45;
   margin: 0 0 8px;
+  flex: 1;
 }
 
 .rv-preset-palette {
@@ -534,17 +543,17 @@
 .rv-ctrl-collapsible {
   display: flex;
   flex-direction: column;
+  border-top: 1px solid rgba(255, 255, 255, 0.055);
 }
 
 .rv-ctrl-collapsible-hdr {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
-  background: none;
+  background: rgba(255, 255, 255, 0.012);
   border: none;
-  border-top: 1px solid rgba(255, 255, 255, 0.055);
-  padding: 7px 0 4px;
+  padding: 8px 2px 7px;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.15em;
@@ -552,25 +561,41 @@
   color: var(--az-text-muted, rgba(196, 207, 211, 0.58));
   cursor: pointer;
   text-align: left;
-  transition: color 0.12s;
-  margin-top: 2px;
+  transition: color 0.12s, background 0.12s;
 }
 
 .rv-ctrl-collapsible-hdr:hover {
   color: rgba(245, 248, 250, 0.85);
+  background: rgba(74, 199, 219, 0.035);
+}
+
+.rv-ctrl-collapsible-label {
+  flex: 1;
+  min-width: 0;
 }
 
 .rv-ctrl-collapsible-arrow {
-  font-size: 7px;
+  font-size: 9px;
   line-height: 1;
   flex-shrink: 0;
+  opacity: 0.58;
+  transform: rotate(0deg);
+  transition: transform 0.15s ease, opacity 0.12s;
+}
+
+.rv-ctrl-collapsible--closed .rv-ctrl-collapsible-arrow {
+  transform: rotate(-90deg);
+}
+
+.rv-ctrl-collapsible-hdr:hover .rv-ctrl-collapsible-arrow {
+  opacity: 0.9;
 }
 
 .rv-ctrl-collapsible-body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 6px 0 2px;
+  padding: 8px 1px 5px;
 }
 
 /* ── Info placeholder text ───────────────────────────────────────────────────── */
@@ -4053,11 +4078,12 @@
 
 @media (max-width: 720px) {
   .rv-preset-card-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: 96px minmax(0, 1fr);
   }
 
   .rv-preset-thumb {
     width: 100%;
-    height: 72px;
+    height: 100%;
+    min-height: 104px;
   }
 }

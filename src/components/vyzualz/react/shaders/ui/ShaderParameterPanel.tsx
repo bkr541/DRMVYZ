@@ -4,7 +4,7 @@ import { useShaderPanelStore } from './shaderPanelStore'
 import { shaderRegistry } from '../registry'
 import { ShaderParameterGroup } from './ShaderParameterGroup'
 import { ShaderTextureInputControl } from './ShaderTextureInputControl'
-import { CtrlSection } from '../../ReactControlRows'
+import { Collapsible } from '../../ReactControlRows'
 import { groupParams } from './shaderParameterUiTypes'
 
 // ── ShaderParameterPanel ──────────────────────────────────────────────────────
@@ -90,8 +90,7 @@ export function ShaderParameterPanel() {
       ))}
 
       {def.textureInputs && def.textureInputs.length > 0 && (
-        <>
-          <CtrlSection label="Texture Inputs" />
+        <Collapsible label="Texture Inputs" defaultOpen>
           <ShaderTextureInputControl
             definition={def}
             selections={textureSelections}
@@ -105,7 +104,7 @@ export function ShaderParameterPanel() {
               }
             }}
           />
-        </>
+        </Collapsible>
       )}
 
       <div className="rv-ctrl-footer">

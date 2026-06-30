@@ -54,3 +54,14 @@
 9:41:31 AM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
 9:41:31 AM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh ("ENERGY_CURVE_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
 9:41:31 AM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+10:02:54 AM [vite] hmr update /src/components/vyzualz/react/CinematicWorldsControls.tsx
+10:02:54 AM [vite] hmr update /src/components/vyzualz/react/NeonLatticeEnginePanel.tsx
+10:02:54 AM [vite] hmr update /src/components/vyzualz/react/ReactControlRows.tsx
+10:02:54 AM [vite] hmr update /src/components/vyzualz/react/ReactFxPanel.tsx
+10:02:54 AM [vite] hmr update /src/components/vyzualz/react/ReactModulationPanel.tsx
+10:02:54 AM [vite] hmr update /src/components/vyzualz/react/shaders/ui/ShaderParameterPanel.tsx
+10:02:54 AM [vite] hmr update /src/styles/reactView.css
+10:02:54 AM [vite] hmr invalidate /src/components/vyzualz/react/CinematicWorldsControls.tsx Could not Fast Refresh ("isUltraCinematicQualitySupported" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+10:02:54 AM [vite] hmr update /src/components/vyzualz/react/ReactEnginePanel.tsx, /src/components/vyzualz/react/ReactModulationPanel.tsx, /src/components/vyzualz/react/ReactFxPanel.tsx
+10:02:55 AM [vite] hmr invalidate /src/components/vyzualz/react/ReactModulationPanel.tsx Could not Fast Refresh ("BM_BEAM_TARGETS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+10:02:55 AM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx

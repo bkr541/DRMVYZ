@@ -217,7 +217,7 @@ export function Collapsible({ label, defaultOpen = true, children }: Collapsible
   const [open, setOpen] = useState(defaultOpen)
   const contentId = useId()
   return (
-    <div className="rv-ctrl-collapsible">
+    <div className={`rv-ctrl-collapsible${open ? ' rv-ctrl-collapsible--open' : ' rv-ctrl-collapsible--closed'}`}>
       <button
         type="button"
         className="rv-ctrl-collapsible-hdr"
@@ -225,8 +225,8 @@ export function Collapsible({ label, defaultOpen = true, children }: Collapsible
         aria-expanded={open}
         aria-controls={contentId}
       >
-        <span className="rv-ctrl-collapsible-arrow">{open ? '▾' : '▸'}</span>
-        {label}
+        <span className="rv-ctrl-collapsible-label">{label}</span>
+        <span className="rv-ctrl-collapsible-arrow" aria-hidden="true">▾</span>
       </button>
       {open && <div id={contentId} className="rv-ctrl-collapsible-body">{children}</div>}
     </div>

@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useSyncExternalStore } from 'react'
+import { useMemo, useSyncExternalStore } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 import { useMediaStore } from '../../../stores/mediaStore'
@@ -52,7 +52,7 @@ import {
   nextCinematicVariationSeed,
   randomizeCinematicVariationSeed,
 } from './CinematicWorldsUi'
-import { CtrlSection, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
+import { Collapsible, CtrlSection, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
 
 const PORTAL_SHAPE_LABELS: Record<CinematicPortalShape, string> = {
   rectangle: 'Rectangle', circle: 'Circle', arch: 'Arch', triangle: 'Triangle', fracture: 'Fracture', organic: 'Organic', customMask: 'Custom Mask',
@@ -103,8 +103,7 @@ export function CinematicWorldControlSchemaRenderer({
   return (
     <>
       {groups.map(group => (
-        <Fragment key={group.id}>
-          <CtrlSection label={group.label} />
+        <Collapsible key={group.id} label={group.label} defaultOpen>
           {group.description && <div className="rv-ctrl-info">{group.description}</div>}
           {group.controls.map(control => {
             const current = readCinematicWorldSetting(config, control.setting)
@@ -158,7 +157,7 @@ export function CinematicWorldControlSchemaRenderer({
               />
             )
           })}
-        </Fragment>
+        </Collapsible>
       ))}
     </>
   )
@@ -275,8 +274,7 @@ function ReactiveConstellationMacroControls({
   if (config.worldMode !== 'reactiveConstellation' || config.worldSettings.mode !== 'reactiveConstellation') return null
   const settings = resolveReactiveConstellationSettings(config.worldSettings)
   return (
-    <>
-      <CtrlSection label="Performance Macros" />
+    <Collapsible label="Performance Macros" defaultOpen>
       <div className="rv-constellation-macro-grid" role="group" aria-label="Reactive Constellation performance macros">
         {CONSTELLATION_MACROS.map(macro => (
           <SliderRow
@@ -293,7 +291,7 @@ function ReactiveConstellationMacroControls({
         ))}
       </div>
       <div className="rv-ctrl-info">Macros are non-destructive runtime offsets. Switch to Advanced to edit the underlying geometry, physics, materials, camera, and choreography.</div>
-    </>
+    </Collapsible>
   )
 }
 
@@ -497,17 +495,17 @@ function MediaPortalControls({ config, onChange, advanced }: { config: Cinematic
   const reactive = settings.displacement > 0 || settings.ripple > 0 || settings.beatFlash > 0 || settings.bassWarping > 0
   return (
     <>
-      <CtrlSection label="Media" />
-      <SelectRow id="cinematic-media-source" label="Media Source" value={settings.sourceMediaId ?? ''} onChange={sourceMediaId => set({ sourceMediaId: sourceMediaId || null, sourceLabel: items.find(item => item.id === sourceMediaId)?.title ?? items.find(item => item.id === sourceMediaId)?.name ?? 'Relink media' })} options={[{ value: '', label: 'No media selected' }, ...items.map(item => ({ value: item.id, label: item.title ?? item.name }))]} />
-      <SelectRow id="cinematic-media-fit" label="Source Fitting" value={settings.fit} onChange={fit => set({ fit: fit as MediaPortalFit })} options={[{ value: 'contain', label: 'Contain' }, { value: 'cover', label: 'Cover' }, { value: 'stretch', label: 'Stretch' }, { value: 'centerCrop', label: 'Center Crop' }]} />
-      <SelectRow id="cinematic-media-mask" label="Custom Mask" value={config.customMaskId ?? ''} onChange={customMaskId => onChange({ ...config, customMaskId: customMaskId || null, portalShape: customMaskId ? 'customMask' : config.portalShape })} options={[{ value: '', label: 'No custom mask' }, ...items.filter(item => item.type === 'image').map(item => ({ value: item.id, label: item.title ?? item.name }))]} />
-      <SelectRow id="cinematic-media-appearance" label="Appearance" value={reactive ? 'reactive' : 'original'} onChange={setAppearance} options={[{ value: 'original', label: 'Original Artwork' }, { value: 'reactive', label: 'Reactive Appearance' }]} />
-      <ToggleRow id="cinematic-media-loop" label="Loop Video" value={settings.loop} onChange={loop => set({ loop })} />
-      {!sourceExists && <div className="rv-cinematic-warning" role="status">The saved media asset is unavailable. Relink it to restore this project.</div>}
-      <button type="button" className="rv-cinematic-wide-button" onClick={openImportMediaModal}>{sourceExists ? 'Import or Relink Media' : 'Relink Missing Asset'}</button>
+      <Collapsible label="Media" defaultOpen>
+        <SelectRow id="cinematic-media-source" label="Media Source" value={settings.sourceMediaId ?? ''} onChange={sourceMediaId => set({ sourceMediaId: sourceMediaId || null, sourceLabel: items.find(item => item.id === sourceMediaId)?.title ?? items.find(item => item.id === sourceMediaId)?.name ?? 'Relink media' })} options={[{ value: '', label: 'No media selected' }, ...items.map(item => ({ value: item.id, label: item.title ?? item.name }))]} />
+        <SelectRow id="cinematic-media-fit" label="Source Fitting" value={settings.fit} onChange={fit => set({ fit: fit as MediaPortalFit })} options={[{ value: 'contain', label: 'Contain' }, { value: 'cover', label: 'Cover' }, { value: 'stretch', label: 'Stretch' }, { value: 'centerCrop', label: 'Center Crop' }]} />
+        <SelectRow id="cinematic-media-mask" label="Custom Mask" value={config.customMaskId ?? ''} onChange={customMaskId => onChange({ ...config, customMaskId: customMaskId || null, portalShape: customMaskId ? 'customMask' : config.portalShape })} options={[{ value: '', label: 'No custom mask' }, ...items.filter(item => item.type === 'image').map(item => ({ value: item.id, label: item.title ?? item.name }))]} />
+        <SelectRow id="cinematic-media-appearance" label="Appearance" value={reactive ? 'reactive' : 'original'} onChange={setAppearance} options={[{ value: 'original', label: 'Original Artwork' }, { value: 'reactive', label: 'Reactive Appearance' }]} />
+        <ToggleRow id="cinematic-media-loop" label="Loop Video" value={settings.loop} onChange={loop => set({ loop })} />
+        {!sourceExists && <div className="rv-cinematic-warning" role="status">The saved media asset is unavailable. Relink it to restore this project.</div>}
+        <button type="button" className="rv-cinematic-wide-button" onClick={openImportMediaModal}>{sourceExists ? 'Import or Relink Media' : 'Relink Missing Asset'}</button>
+      </Collapsible>
       {advanced && (
-        <>
-          <CtrlSection label="Media Effects" />
+        <Collapsible label="Media Effects" defaultOpen>
           <SliderRow id="cinematic-media-zoom" label="Zoom" value={settings.zoom} min={0.25} max={4} step={0.01} onChange={zoom => set({ zoom })} />
           <SliderRow id="cinematic-media-pan-x" label="Pan X" value={settings.panX} min={-1} max={1} step={0.01} onChange={panX => set({ panX })} />
           <SliderRow id="cinematic-media-pan-y" label="Pan Y" value={settings.panY} min={-1} max={1} step={0.01} onChange={panY => set({ panY })} />
@@ -518,7 +516,7 @@ function MediaPortalControls({ config, onChange, advanced }: { config: Cinematic
           {(['displacement', 'scanlines', 'edgeGlow', 'ripple', 'pixelation', 'revealAmount', 'beatFlash', 'bassWarping'] as const).map(key => (
             <SliderRow key={key} id={`cinematic-media-${key}`} label={humanizeCinematicKey(key)} value={settings[key]} min={0} max={key === 'edgeGlow' ? 1.5 : 1} step={0.01} onChange={value => set({ [key]: value })} />
           ))}
-        </>
+        </Collapsible>
       )}
     </>
   )
@@ -541,24 +539,26 @@ export function CinematicWorldsFxControls() {
   return (
     <div className="rv-cinematic-controls">
       <CinematicModeSwitch />
-      <CtrlSection label="Live Controls" />
-      <SliderRow id="cinematic-live-intensity" label="Intensity" value={reactIntensity} onChange={setReactIntensity} />
-      <SliderRow id="cinematic-live-motion" label="Motion" value={reactMotion} onChange={setReactMotion} />
-      <SliderRow id="cinematic-live-audio" label="Audio Reaction" value={reactBassReactivity} onChange={setReactBassReactivity} />
+      <Collapsible label="Live Controls" defaultOpen>
+        <SliderRow id="cinematic-live-intensity" label="Intensity" value={reactIntensity} onChange={setReactIntensity} />
+        <SliderRow id="cinematic-live-motion" label="Motion" value={reactMotion} onChange={setReactMotion} />
+        <SliderRow id="cinematic-live-audio" label="Audio Reaction" value={reactBassReactivity} onChange={setReactBassReactivity} />
+      </Collapsible>
 
-      <CtrlSection label="Output Quality" />
-      <SelectRow
-        id="cinematic-quality"
-        label="Quality"
-        value={config.qualityTier}
-        onChange={qualityTier => save({ ...config, qualityTier: qualityTier as CinematicQualityTier })}
-        options={[
-          { value: 'auto', label: 'Auto (Recommended)' }, { value: 'low', label: 'Low' }, { value: 'medium', label: 'Medium' }, { value: 'high', label: 'High' },
-          { value: 'ultra', label: ultraSupported ? 'Ultra' : 'Ultra (Unavailable on this device)', disabled: !ultraSupported && config.qualityTier !== 'ultra' },
-        ]}
-        description="Changes geometry density, particles, ray-march steps, atmospheric layers and feedback resolution."
-      />
-      {!ultraSupported && config.qualityTier === 'ultra' && <div className="rv-cinematic-warning" role="status">This project requests Ultra, but this device does not meet the safe WebGL2 and CPU threshold. Choose Auto to avoid overload.</div>}
+      <Collapsible label="Output Quality" defaultOpen>
+        <SelectRow
+          id="cinematic-quality"
+          label="Quality"
+          value={config.qualityTier}
+          onChange={qualityTier => save({ ...config, qualityTier: qualityTier as CinematicQualityTier })}
+          options={[
+            { value: 'auto', label: 'Auto (Recommended)' }, { value: 'low', label: 'Low' }, { value: 'medium', label: 'Medium' }, { value: 'high', label: 'High' },
+            { value: 'ultra', label: ultraSupported ? 'Ultra' : 'Ultra (Unavailable on this device)', disabled: !ultraSupported && config.qualityTier !== 'ultra' },
+          ]}
+          description="Changes geometry density, particles, ray-march steps, atmospheric layers and feedback resolution."
+        />
+        {!ultraSupported && config.qualityTier === 'ultra' && <div className="rv-cinematic-warning" role="status">This project requests Ultra, but this device does not meet the safe WebGL2 and CPU threshold. Choose Auto to avoid overload.</div>}
+      </Collapsible>
 
       {config.worldMode === 'reactiveConstellation' && uiMode === 'simple' && <ReactiveConstellationMacroControls config={config} onChange={save} />}
 
@@ -566,16 +566,18 @@ export function CinematicWorldsFxControls() {
 
       {uiMode === 'advanced' && (
         <>
-          <CtrlSection label="Environment" />
-          {Object.entries(config.environment).map(([key, value]) => {
-            const range = CINEMATIC_NUMERIC_RANGES.environment[key as keyof typeof CINEMATIC_NUMERIC_RANGES.environment]
-            return <SliderRow key={key} id={`cinematic-environment-${key}`} label={humanizeCinematicKey(key)} value={value} min={range.min} max={range.max} step={0.01} onChange={next => saveDetailed({ ...config, environment: { ...config.environment, [key]: next } })} />
-          })}
-          <CtrlSection label="Material" />
-          {Object.entries(config.material).map(([key, value]) => {
-            const range = CINEMATIC_NUMERIC_RANGES.material[key as keyof typeof CINEMATIC_NUMERIC_RANGES.material]
-            return <SliderRow key={key} id={`cinematic-material-${key}`} label={humanizeCinematicKey(key)} value={value} min={range.min} max={range.max} step={0.01} onChange={next => saveDetailed({ ...config, material: { ...config.material, [key]: next } })} />
-          })}
+          <Collapsible label="Environment" defaultOpen>
+            {Object.entries(config.environment).map(([key, value]) => {
+              const range = CINEMATIC_NUMERIC_RANGES.environment[key as keyof typeof CINEMATIC_NUMERIC_RANGES.environment]
+              return <SliderRow key={key} id={`cinematic-environment-${key}`} label={humanizeCinematicKey(key)} value={value} min={range.min} max={range.max} step={0.01} onChange={next => saveDetailed({ ...config, environment: { ...config.environment, [key]: next } })} />
+            })}
+          </Collapsible>
+          <Collapsible label="Material" defaultOpen>
+            {Object.entries(config.material).map(([key, value]) => {
+              const range = CINEMATIC_NUMERIC_RANGES.material[key as keyof typeof CINEMATIC_NUMERIC_RANGES.material]
+              return <SliderRow key={key} id={`cinematic-material-${key}`} label={humanizeCinematicKey(key)} value={value} min={range.min} max={range.max} step={0.01} onChange={next => saveDetailed({ ...config, material: { ...config.material, [key]: next } })} />
+            })}
+          </Collapsible>
         </>
       )}
       {config.worldMode !== 'mediaPortal' && (
@@ -614,43 +616,44 @@ export function CinematicWorldsModulationControls() {
   return (
     <div className="rv-cinematic-controls">
       <CinematicModeSwitch />
-      <CtrlSection label="Audio Reaction" />
-      <ToggleRow id="cinematic-audio-enabled" label="World Audio Mapping" value={config.audioMapping.enabled} onChange={enabled => save({ ...config, audioMapping: { ...config.audioMapping, enabled } })} />
-      {uiMode === 'simple' ? (
-        <div className="rv-ctrl-info">This world is using {config.audioMapping.routes.length} curated source-to-target mappings. Advanced mode unlocks individual assignments, attack and release.</div>
-      ) : (
-        <>
-          <SliderRow id="cinematic-audio-smoothing" label="Global Smoothing" value={config.audioMapping.smoothingMs} min={0} max={2000} step={10} onChange={smoothingMs => save({ ...config, audioMapping: { ...config.audioMapping, smoothingMs } })} />
-          {unavailableSources.length > 0 && (
-            <div className="rv-cinematic-capability" role="status">
-              <strong>Unavailable Music Intelligence inputs</strong>
-              <span>{unavailableSources.map(source => CINEMATIC_SOURCE_LABELS[source]).join(', ')}</span>
-              <small>Load and analyze a track to enable capabilities supplied by beat grids, sections, energy curves or stems.</small>
+      <Collapsible label="Audio Reaction" defaultOpen>
+        <ToggleRow id="cinematic-audio-enabled" label="World Audio Mapping" value={config.audioMapping.enabled} onChange={enabled => save({ ...config, audioMapping: { ...config.audioMapping, enabled } })} />
+        {uiMode === 'simple' ? (
+          <div className="rv-ctrl-info">This world is using {config.audioMapping.routes.length} curated source-to-target mappings. Advanced mode unlocks individual assignments, attack and release.</div>
+        ) : (
+          <>
+            <SliderRow id="cinematic-audio-smoothing" label="Global Smoothing" value={config.audioMapping.smoothingMs} min={0} max={2000} step={10} onChange={smoothingMs => save({ ...config, audioMapping: { ...config.audioMapping, smoothingMs } })} />
+            {unavailableSources.length > 0 && (
+              <div className="rv-cinematic-capability" role="status">
+                <strong>Unavailable Music Intelligence inputs</strong>
+                <span>{unavailableSources.map(source => CINEMATIC_SOURCE_LABELS[source]).join(', ')}</span>
+                <small>Load and analyze a track to enable capabilities supplied by beat grids, sections, energy curves or stems.</small>
+              </div>
+            )}
+            <div className="rv-cinematic-route-list" aria-label="Audio mappings">
+              {config.audioMapping.routes.map((route, index) => {
+                const currentSourceUnavailable = !isCinematicSourceAvailable(route.source, capabilities)
+                return (
+                  <fieldset className="rv-cinematic-route" key={route.id}>
+                    <legend>Mapping {index + 1}</legend>
+                    <ToggleRow id={`cinematic-route-${index}-enabled`} label="Enabled" value={route.enabled} onChange={enabled => updateRoute(index, { enabled })} />
+                    <SelectRow id={`cinematic-route-${index}-source`} label="Source" value={route.source} onChange={source => updateRoute(index, { source: source as CinematicAudioSource })} options={[
+                      ...(currentSourceUnavailable ? [{ value: route.source, label: `${CINEMATIC_SOURCE_LABELS[route.source]} (Unavailable)`, disabled: true }] : []),
+                      ...availableSources.filter(source => source !== route.source || !currentSourceUnavailable).map(source => ({ value: source, label: CINEMATIC_SOURCE_LABELS[source] })),
+                    ]} />
+                    <SelectRow id={`cinematic-route-${index}-target`} label="Target" value={route.target} onChange={target => updateRoute(index, { target: target as CinematicAudioTarget })} options={world.modulationTargets.map(target => ({ value: target, label: CINEMATIC_TARGET_LABELS[target] }))} />
+                    <SliderRow id={`cinematic-route-${index}-amount`} label="Amount" value={route.amount} min={-2} max={2} step={0.01} onChange={amount => updateRoute(index, { amount })} />
+                    <SliderRow id={`cinematic-route-${index}-attack`} label="Attack" value={route.attackMs} min={0} max={2000} step={10} onChange={attackMs => updateRoute(index, { attackMs })} />
+                    <SliderRow id={`cinematic-route-${index}-release`} label="Release" value={route.releaseMs} min={0} max={4000} step={10} onChange={releaseMs => updateRoute(index, { releaseMs })} />
+                    <button type="button" className="rv-cinematic-remove-route" aria-label={`Remove audio mapping ${index + 1}`} onClick={() => setRoutes(config.audioMapping.routes.filter((_, routeIndex) => routeIndex !== index))}>Remove Mapping</button>
+                  </fieldset>
+                )
+              })}
             </div>
-          )}
-          <div className="rv-cinematic-route-list" aria-label="Audio mappings">
-            {config.audioMapping.routes.map((route, index) => {
-              const currentSourceUnavailable = !isCinematicSourceAvailable(route.source, capabilities)
-              return (
-                <fieldset className="rv-cinematic-route" key={route.id}>
-                  <legend>Mapping {index + 1}</legend>
-                  <ToggleRow id={`cinematic-route-${index}-enabled`} label="Enabled" value={route.enabled} onChange={enabled => updateRoute(index, { enabled })} />
-                  <SelectRow id={`cinematic-route-${index}-source`} label="Source" value={route.source} onChange={source => updateRoute(index, { source: source as CinematicAudioSource })} options={[
-                    ...(currentSourceUnavailable ? [{ value: route.source, label: `${CINEMATIC_SOURCE_LABELS[route.source]} (Unavailable)`, disabled: true }] : []),
-                    ...availableSources.filter(source => source !== route.source || !currentSourceUnavailable).map(source => ({ value: source, label: CINEMATIC_SOURCE_LABELS[source] })),
-                  ]} />
-                  <SelectRow id={`cinematic-route-${index}-target`} label="Target" value={route.target} onChange={target => updateRoute(index, { target: target as CinematicAudioTarget })} options={world.modulationTargets.map(target => ({ value: target, label: CINEMATIC_TARGET_LABELS[target] }))} />
-                  <SliderRow id={`cinematic-route-${index}-amount`} label="Amount" value={route.amount} min={-2} max={2} step={0.01} onChange={amount => updateRoute(index, { amount })} />
-                  <SliderRow id={`cinematic-route-${index}-attack`} label="Attack" value={route.attackMs} min={0} max={2000} step={10} onChange={attackMs => updateRoute(index, { attackMs })} />
-                  <SliderRow id={`cinematic-route-${index}-release`} label="Release" value={route.releaseMs} min={0} max={4000} step={10} onChange={releaseMs => updateRoute(index, { releaseMs })} />
-                  <button type="button" className="rv-cinematic-remove-route" aria-label={`Remove audio mapping ${index + 1}`} onClick={() => setRoutes(config.audioMapping.routes.filter((_, routeIndex) => routeIndex !== index))}>Remove Mapping</button>
-                </fieldset>
-              )
-            })}
-          </div>
-          <button type="button" className="rv-cinematic-wide-button" onClick={addRoute}>Add Audio Mapping</button>
-        </>
-      )}
+            <button type="button" className="rv-cinematic-wide-button" onClick={addRoute}>Add Audio Mapping</button>
+          </>
+        )}
+      </Collapsible>
     </div>
   )
 }

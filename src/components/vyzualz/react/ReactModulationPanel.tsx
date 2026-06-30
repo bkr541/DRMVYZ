@@ -4,7 +4,7 @@ import { useReactStore } from '../../../stores/reactStore'
 import { ConnectedShaderModulationPanel } from './shaders/ui/ConnectedShaderModulationPanel'
 import { CinematicWorldsModulationControls } from './CinematicWorldsControls'
 import { NeonLatticeModulationControls } from './NeonLatticeEnginePanel'
-import { SliderRow, SelectRow, ToggleRow, CtrlSection } from './ReactControlRows'
+import { SliderRow, SelectRow, ToggleRow, Collapsible } from './ReactControlRows'
 import type { OscillatorAudioDisplaceMode, OscillatorTextLetterReactionMode, LetterReactionAssignment, LetterReactionSource, LetterReactionTarget, LaserDmxModulationRoute, LaserDmxTriggerTimingFilter, LaserDmxTriggerTimingFilterMode } from './ReactTypes'
 import { BEATS_PER_BAR } from './ReactTypes'
 import { TRIGGER_TIMING_EVENT_SOURCES } from './renderers/LaserDmxModulationEngine'
@@ -136,8 +136,7 @@ function TriggerTimingSection({
     onChange({ mode: 'everyOccurrence', ...filter, ...patch } as LaserDmxTriggerTimingFilter)
 
   return (
-    <>
-      <CtrlSection label="Trigger Timing" />
+    <Collapsible label="Trigger Timing" defaultOpen={false}>
       <SelectRow
         label="Timing"
         value={mode}
@@ -270,7 +269,7 @@ function TriggerTimingSection({
           </p>
         </>
       )}
-    </>
+    </Collapsible>
   )
 }
 
@@ -359,18 +358,16 @@ function LaserDmxModPanel() {
 
   if (!fixture) {
     return (
-      <>
-        <CtrlSection label="Modulation Routes" />
+      <Collapsible label="Modulation Routes" defaultOpen>
         <div className="rv-ctrl-info">Select or add a laser fixture to edit modulation routes.</div>
-      </>
+      </Collapsible>
     )
   }
 
   const routes = fixture.modulationRoutes
 
   return (
-    <>
-      <CtrlSection label={`Routes — ${fixture.name}`} />
+    <Collapsible label={`Routes — ${fixture.name}`} defaultOpen>
       {routes.length === 0 && (
         <>
           <div className="rv-ctrl-info">No modulation routes. Add starter routes or add one manually.</div>
@@ -399,7 +396,7 @@ function LaserDmxModPanel() {
       >
         + Add Mod Route
       </button>
-    </>
+    </Collapsible>
   )
 }
 
@@ -497,17 +494,17 @@ function LaserDmxBeamMatrixModPanel() {
 
   return (
     <>
-      <CtrlSection label="Scope" />
-      <SelectRow
-        label="Routes for"
-        value={scope}
-        onChange={v => setScope(v as BmModScope)}
-        options={scopeOptions}
-      />
+      <Collapsible label="Scope" defaultOpen>
+        <SelectRow
+          label="Routes for"
+          value={scope}
+          onChange={v => setScope(v as BmModScope)}
+          options={scopeOptions}
+        />
+      </Collapsible>
 
       {scope === 'global' && (
-        <>
-          <CtrlSection label="Global Matrix Routes" />
+        <Collapsible label="Global Matrix Routes" defaultOpen>
           {globalModulationRoutes.length === 0 && (
             <div className="rv-ctrl-info">No global routes. Global routes apply to all beams.</div>
           )}
@@ -524,19 +521,17 @@ function LaserDmxBeamMatrixModPanel() {
           <button type="button" className="rv-glyph-upload-btn" style={{ marginTop: 6 }} onClick={addLaserDmxMatrixGlobalRoute}>
             + Add Global Route
           </button>
-        </>
+        </Collapsible>
       )}
 
       {scope === 'group' && (
         <>
           {!selectedGroup ? (
-            <>
-              <CtrlSection label="Group Routes" />
+            <Collapsible label="Group Routes" defaultOpen>
               <div className="rv-ctrl-info">Select a group in the ENGINE tab or Layers panel.</div>
-            </>
+            </Collapsible>
           ) : (
-            <>
-              <CtrlSection label={`Routes — ${selectedGroup.name}`} />
+            <Collapsible label={`Routes — ${selectedGroup.name}`} defaultOpen>
               {selectedGroup.modulationRoutes.map(route => (
                 <RouteRow
                   key={route.id}
@@ -550,7 +545,7 @@ function LaserDmxBeamMatrixModPanel() {
               <button type="button" className="rv-glyph-upload-btn" style={{ marginTop: 6 }} onClick={() => addLaserDmxReactionGroupRoute(selectedGroup.id)}>
                 + Add Group Route
               </button>
-            </>
+            </Collapsible>
           )}
         </>
       )}
@@ -564,8 +559,7 @@ function LaserDmxBeamMatrixModPanel() {
             <div className="rv-ctrl-info">Select a beam in the editor or Layers panel.</div>
           )}
           {primaryBeam && (
-            <>
-              <CtrlSection label={`Routes — ${primaryBeam.name}`} />
+            <Collapsible label={`Routes — ${primaryBeam.name}`} defaultOpen>
               {primaryBeam.modulationRoutes.map(route => (
                 <RouteRow
                   key={route.id}
@@ -579,7 +573,7 @@ function LaserDmxBeamMatrixModPanel() {
               <button type="button" className="rv-glyph-upload-btn" style={{ marginTop: 6 }} onClick={() => addLaserDmxMatrixBeamRoute(primaryBeam.id)}>
                 + Add Beam Route
               </button>
-            </>
+            </Collapsible>
           )}
         </>
       )}
@@ -805,11 +799,12 @@ export function ReactModulationPanel() {
   if (!isSoundDrawing) {
     return (
       <div className="rv-ctrl-group">
-        <CtrlSection label="Audio Routing" />
-        <div className="rv-ctrl-info">
-          This engine currently uses global intensity/motion controls only.
-          Adjust Bass React and Motion in the FX tab for broad audio response.
-        </div>
+        <Collapsible label="Audio Routing" defaultOpen>
+          <div className="rv-ctrl-info">
+            This engine currently uses global intensity/motion controls only.
+            Adjust Bass React and Motion in the FX tab for broad audio response.
+          </div>
+        </Collapsible>
       </div>
     )
   }
@@ -817,67 +812,71 @@ export function ReactModulationPanel() {
   // ── Oscilloscope: full per-frequency routing ──────────────────────────────
   return (
     <div className="rv-ctrl-group">
-      <CtrlSection label="Audio Reactivity" />
-      <SelectRow
-        label="Displace Mode"
-        value={osc.audioDisplaceMode}
-        onChange={v => set({ audioDisplaceMode: v as OscillatorAudioDisplaceMode })}
-        options={[
-          { value: 'normal',  label: 'Normal'  },
-          { value: 'radial',  label: 'Radial'  },
-          { value: 'tangent', label: 'Tangent' },
-          { value: 'xy',      label: 'XY'      },
-        ]}
-      />
-      <SliderRow label="Displacement" value={osc.audioDisplacement} onChange={v => set({ audioDisplacement: v })} color="#4ac7db" />
+      <Collapsible label="Audio Reactivity" defaultOpen>
+        <SelectRow
+          label="Displace Mode"
+          value={osc.audioDisplaceMode}
+          onChange={v => set({ audioDisplaceMode: v as OscillatorAudioDisplaceMode })}
+          options={[
+            { value: 'normal',  label: 'Normal'  },
+            { value: 'radial',  label: 'Radial'  },
+            { value: 'tangent', label: 'Tangent' },
+            { value: 'xy',      label: 'XY'      },
+          ]}
+        />
+        <SliderRow label="Displacement" value={osc.audioDisplacement} onChange={v => set({ audioDisplacement: v })} color="#4ac7db" />
+      </Collapsible>
 
       {osc.sourceType === 'text' && (
         <>
-          <CtrlSection label="Text Letter Motion" />
-          <SelectRow
-            label="Letter Reaction"
-            value={osc.textLetterReactionMode}
-            onChange={v => set({ textLetterReactionMode: v as OscillatorTextLetterReactionMode })}
-            options={[
-              { value: 'uniform',        label: 'Uniform'         },
-              { value: 'alternating',    label: 'Alternating'     },
-              { value: 'frequencySplit', label: 'Frequency Split' },
-              { value: 'ripple',         label: 'Ripple'          },
-              { value: 'custom',         label: 'Custom'          },
-            ]}
-          />
-          {osc.textLetterReactionMode === 'custom' && (
-            <LetterAssignmentEditor
-              text={osc.text}
-              assignments={osc.textLetterAssignments}
-              onChange={next => set({ textLetterAssignments: next })}
+          <Collapsible label="Text Letter Motion" defaultOpen>
+            <SelectRow
+              label="Letter Reaction"
+              value={osc.textLetterReactionMode}
+              onChange={v => set({ textLetterReactionMode: v as OscillatorTextLetterReactionMode })}
+              options={[
+                { value: 'uniform',        label: 'Uniform'         },
+                { value: 'alternating',    label: 'Alternating'     },
+                { value: 'frequencySplit', label: 'Frequency Split' },
+                { value: 'ripple',         label: 'Ripple'          },
+                { value: 'custom',         label: 'Custom'          },
+              ]}
             />
-          )}
-          <CtrlSection label="Text Waveform Distortion" />
-          <SelectRow
-            label="Text Wave"
-            value={osc.textWaveformMode}
-            onChange={v => set({ textWaveformMode: v as import('./ReactTypes').OscillatorTextWaveformMode })}
-            options={[
-              { value: 'off',     label: 'Off'     },
-              { value: 'normal',  label: 'Normal'  },
-              { value: 'radial',  label: 'Radial'  },
-              { value: 'tangent', label: 'Tangent' },
-              { value: 'xy',      label: 'XY'      },
-            ]}
-          />
-          <SliderRow label="Text Wave Amount" value={osc.textWaveformAmount} onChange={v => set({ textWaveformAmount: v })} min={0} max={0.30} step={0.005} color="#4ac7db" />
-          <SliderRow label="Text Wave Cycles" value={osc.textWaveformCycles} onChange={v => set({ textWaveformCycles: v })} min={1} max={16} step={1} color="#61d6aa" />
-          <SliderRow label="Text Wave Scroll" value={osc.textWaveformScroll} onChange={v => set({ textWaveformScroll: v })} min={0} max={2} step={0.01} color="#b84fc9" />
+            {osc.textLetterReactionMode === 'custom' && (
+              <LetterAssignmentEditor
+                text={osc.text}
+                assignments={osc.textLetterAssignments}
+                onChange={next => set({ textLetterAssignments: next })}
+              />
+            )}
+          </Collapsible>
+          <Collapsible label="Text Waveform Distortion" defaultOpen>
+            <SelectRow
+              label="Text Wave"
+              value={osc.textWaveformMode}
+              onChange={v => set({ textWaveformMode: v as import('./ReactTypes').OscillatorTextWaveformMode })}
+              options={[
+                { value: 'off',     label: 'Off'     },
+                { value: 'normal',  label: 'Normal'  },
+                { value: 'radial',  label: 'Radial'  },
+                { value: 'tangent', label: 'Tangent' },
+                { value: 'xy',      label: 'XY'      },
+              ]}
+            />
+            <SliderRow label="Text Wave Amount" value={osc.textWaveformAmount} onChange={v => set({ textWaveformAmount: v })} min={0} max={0.30} step={0.005} color="#4ac7db" />
+            <SliderRow label="Text Wave Cycles" value={osc.textWaveformCycles} onChange={v => set({ textWaveformCycles: v })} min={1} max={16} step={1} color="#61d6aa" />
+            <SliderRow label="Text Wave Scroll" value={osc.textWaveformScroll} onChange={v => set({ textWaveformScroll: v })} min={0} max={2} step={0.01} color="#b84fc9" />
+          </Collapsible>
         </>
       )}
 
-      <CtrlSection label="Frequency Response" />
-      <SliderRow label="Bass → Scale"  value={osc.bassScale}  onChange={v => set({ bassScale:  v })} color="#d8b95a" />
-      <SliderRow label="Mid → Twist"   value={osc.midTwist}   onChange={v => set({ midTwist:   v })} color="#61d6aa" />
-      <ToggleRow  label="Alternate"    value={osc.altTwist}   onChange={v => set({ altTwist:   v })} title="Randomly alternate twist direction on each beat" />
-      <SliderRow label="High → Jitter" value={osc.highJitter} onChange={v => set({ highJitter: v })} color="#b84fc9" />
-      <SliderRow label="Beat → Bloom"  value={osc.beatBloom}  onChange={v => set({ beatBloom:  v })} color="#c0314a" />
+      <Collapsible label="Frequency Response" defaultOpen>
+        <SliderRow label="Bass → Scale"  value={osc.bassScale}  onChange={v => set({ bassScale:  v })} color="#d8b95a" />
+        <SliderRow label="Mid → Twist"   value={osc.midTwist}   onChange={v => set({ midTwist:   v })} color="#61d6aa" />
+        <ToggleRow  label="Alternate"    value={osc.altTwist}   onChange={v => set({ altTwist:   v })} title="Randomly alternate twist direction on each beat" />
+        <SliderRow label="High → Jitter" value={osc.highJitter} onChange={v => set({ highJitter: v })} color="#b84fc9" />
+        <SliderRow label="Beat → Bloom"  value={osc.beatBloom}  onChange={v => set({ beatBloom:  v })} color="#c0314a" />
+      </Collapsible>
     </div>
   )
 }

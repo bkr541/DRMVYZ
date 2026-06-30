@@ -12,6 +12,8 @@ import {
   TextInputRow,
   ToggleRow,
 } from '../ReactControlRows'
+import { ReactFxPanel } from '../ReactFxPanel'
+import { ReactModulationPanel } from '../ReactModulationPanel'
 import { ReactPresetsPanel } from '../ReactPresetsPanel'
 import { ReactPlaceholderCanvas } from '../ReactPlaceholderCanvas'
 import { ReactShaderCanvas } from '../ReactShaderCanvas'
@@ -80,7 +82,35 @@ describe('React-view control accessibility', () => {
     const collapsible = [...container.querySelectorAll('button')]
       .find(button => button.textContent?.includes('Advanced')) as HTMLButtonElement
     expect(collapsible.getAttribute('aria-expanded')).toBe('true')
-    expect(document.getElementById(collapsible.getAttribute('aria-controls') ?? '')).not.toBeNull()
+    const controlledId = collapsible.getAttribute('aria-controls') ?? ''
+    expect(document.getElementById(controlledId)).not.toBeNull()
+
+    await act(async () => collapsible.click())
+    expect(collapsible.getAttribute('aria-expanded')).toBe('false')
+    expect(document.getElementById(controlledId)).toBeNull()
+    expect(collapsible.closest('.rv-ctrl-collapsible')?.classList.contains('rv-ctrl-collapsible--closed')).toBe(true)
+  })
+})
+
+describe('React right-rail groups', () => {
+  it('renders FX and MOD child sections as independent disclosure controls', async () => {
+    const state = useReactStore.getState()
+    useReactStore.setState({
+      activeReactEngineId: 'oscilloscope',
+      oscillatorSettings: { ...state.oscillatorSettings, sourceType: 'classic' },
+    })
+
+    await act(async () => root.render(<ReactFxPanel />))
+    const fxGroups = [...container.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
+      .map(button => button.textContent?.trim())
+    expect(fxGroups).toContain('Master▾')
+    expect(fxGroups).toContain('Sound Drawing▾')
+
+    await act(async () => root.render(<ReactModulationPanel />))
+    const modGroups = [...container.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
+      .map(button => button.textContent?.trim())
+    expect(modGroups).toContain('Audio Reactivity▾')
+    expect(modGroups).toContain('Frequency Response▾')
   })
 })
 
@@ -98,6 +128,10 @@ describe('React preset accessibility', () => {
     expect(activeButton.textContent).toContain('Selected')
     expect(activeButton.querySelector('.rv-preset-active-dot')?.getAttribute('aria-hidden')).toBe('true')
     expect(container.querySelector('button[aria-pressed="false"]')).not.toBeNull()
+
+    const layout = activeButton.querySelector('.rv-preset-card-layout')
+    expect(layout?.firstElementChild?.classList.contains('rv-preset-thumb')).toBe(true)
+    expect(layout?.lastElementChild?.classList.contains('rv-preset-card-content')).toBe(true)
   })
 })
 
