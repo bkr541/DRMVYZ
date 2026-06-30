@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { CinematicWebGLServices } from '../../../../CinematicWorldRenderer'
 import { ReactiveConstellationWorld } from '../../ReactiveConstellationWorld'
 
@@ -96,6 +96,30 @@ describe('ReactiveConstellationWorld GPU lifecycle', () => {
     restoredWorld.dispose()
     expect(restoredHarness.deletedBuffers).toHaveLength(restoredHarness.createdBuffers.length)
     expect(restoredHarness.deletedVaos).toHaveLength(restoredHarness.createdVaos.length)
+  })
+
+  it('consumes lifecycle resets immediately without waiting for playback to resume', () => {
+    const harness = createHarness()
+    const world = new ReactiveConstellationWorld()
+    world.initialize({ services: harness.services, config: {} as never, presetId: 'paused-reset' })
+    const internals = world as unknown as {
+      applyPendingReset: () => void
+      simulation: { resetToAnchors: () => void }
+      trails: { reset: () => void }
+      pendingReset: string | null
+    }
+    const resetSimulation = vi.spyOn(internals.simulation, 'resetToAnchors')
+    const resetTrails = vi.spyOn(internals.trails, 'reset')
+
+    world.reset('seek')
+    expect(internals.pendingReset).toBe('seek')
+    expect(resetTrails).toHaveBeenCalledTimes(1)
+    internals.applyPendingReset()
+
+    expect(resetSimulation).toHaveBeenCalledTimes(1)
+    expect(resetTrails).toHaveBeenCalledTimes(2)
+    expect(internals.pendingReset).toBeNull()
+    world.dispose()
   })
 
   it('does not leak WebGL resources across repeated preset or world switches', () => {

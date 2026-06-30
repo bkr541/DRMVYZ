@@ -1,5 +1,5 @@
 import type { VzFrameContext } from '../../effects/types'
-import type { ReactTrackSection, ReactSectionType, OscillatorSettings, OscillatorFontAsset, OscillatorGlyphAsset, OscillatorGlyphPoint, NeonLatticeSettings, NeonLatticeTriggerEvent } from '../ReactTypes'
+import type { ReactTrackSection, ReactSectionType, OscillatorSettings, OscillatorFontAsset, OscillatorGlyphAsset, OscillatorGlyphPoint, NeonLatticeSettings, NeonLatticeTriggerEvent, LaserDmxSettings } from '../ReactTypes'
 import { DEFAULT_OSCILLATOR_SETTINGS } from '../ReactTypes'
 import type { MusicIntelligenceFrame } from '../../../../features/musicIntelligence/types'
 import type { ReactPerformanceActionEvent } from '../ReactPerformanceActions'
@@ -82,6 +82,8 @@ export interface ReactRenderParams {
   /** Pre-sampled OpenType text points keyed by "${fontId}:${text}:${fontSize}:${letterSpacing}:${resolution}". Populated at upload/select/settings-change time; never by the renderer. */
   oscillatorTextPointCache: Record<string, OscillatorGlyphPoint[]>
   neonLatticeSettings?: NeonLatticeSettings
+  /** Isolated preset-preview override. Never persisted and never read by the live control surface. */
+  thumbnailLaserDmxSettings?: LaserDmxSettings
   /** Generic transient event. Renderers consume each sequence at most once. */
   performanceActionEvent?: ReactPerformanceActionEvent | null
   /** Bounded transient event buffer so rapid pad hits are not collapsed between frames. */

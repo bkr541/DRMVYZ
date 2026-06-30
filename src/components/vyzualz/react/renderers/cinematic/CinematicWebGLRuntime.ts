@@ -20,6 +20,7 @@ import {
 } from '../CinematicWorldRenderer'
 import type { CinematicAudioResetReason } from './CinematicAudioModulation'
 import { CinematicPostProcessingPipeline } from './CinematicPostProcessingPipeline'
+import { reactiveConstellationResolutionScale } from './worlds/reactiveConstellation/ConstellationQuality'
 
 export interface CinematicWebGLRuntimeCreateOptions {
   createCanvas?: () => HTMLCanvasElement
@@ -194,6 +195,9 @@ export class CinematicWebGLRuntime implements CinematicWebGLRuntimeLike {
       cssHeight,
       devicePixelRatio: frame.devicePixelRatio,
       quality: frame.config.qualityTier,
+      resolutionScale: frame.config.worldMode === 'reactiveConstellation'
+        ? reactiveConstellationResolutionScale(frame.config.qualityTier)
+        : 1,
       previous: this.lastResolution,
     })
     if (!resolution.valid) return

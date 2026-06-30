@@ -328,7 +328,7 @@ export function renderLaserDmx(
   }
 
   // ── SPATIAL FIXTURES mode (existing behaviour — unchanged) ────────────────
-  const settings = state.laserDmxSettings
+  const settings = params.thumbnailLaserDmxSettings ?? state.laserDmxSettings
   const mi       = AudioFeatureBus.getFrame()
 
   const compiled = compileLaserDmxFrame({

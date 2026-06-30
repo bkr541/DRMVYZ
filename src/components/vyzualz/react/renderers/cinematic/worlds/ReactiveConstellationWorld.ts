@@ -301,13 +301,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     if ((this.lastTrailSamples === 0) !== (this.heldTrailLength === 0)) this.trails.reset()
     this.lastTrailSamples = this.heldTrailLength
 
-    if (this.pendingReset) {
-      if (isPlaying || !this.hasRendered) {
-        this.simulation.resetToAnchors()
-        this.pendingReset = null
-        this.lastReseedBar = -1
-      }
-    }
+    this.applyPendingReset()
 
     if (performance.reseedSequence != null) {
       this.simulation.reseed(hashSeed(frame.config.seed, performance.reseedSequence + 0x5f31))
@@ -563,6 +557,16 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     gl.depthMask(true)
 
     this.hasRendered = true
+  }
+
+  private applyPendingReset(): void {
+    if (!this.pendingReset) return
+    // Lifecycle resets must be observable immediately even while transport is
+    // paused. Deferring here leaves stale topology/trails visible until play.
+    this.simulation.resetToAnchors()
+    this.trails.reset()
+    this.pendingReset = null
+    this.lastReseedBar = -1
   }
 
   reset(reason: CinematicRendererResetReason): void {

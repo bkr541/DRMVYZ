@@ -1,5 +1,6 @@
 import { createCinematicWorldConfig, createLegacyPortalCinematicConfig } from './CinematicWorldConfig'
 import type { CinematicWorldConfig } from './CinematicWorldConfig'
+import { REACTIVE_CONSTELLATION_CURATED_PRESETS } from './ReactiveConstellationPresets'
 
 export type ReactEngineId = 'shaderPads' | 'cinematicPortal' | 'oscilloscope' | 'laserDmx' | 'neonLattice'
 
@@ -2182,7 +2183,10 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     scenes: makeScenes('sgac', 'cinematicPortal'), sectionMappings: makeMappings('sgac'),
   },
 
-  // Cinematic Worlds: Reactive Constellation (3)
+  // Cinematic Worlds: Reactive Constellation curated library
+  ...REACTIVE_CONSTELLATION_CURATED_PRESETS,
+
+  // Backward-compatible Reactive Constellation presets from Patches 2–8
   {
     id: 'preset-crystal-synapse',
     name: 'Crystal Synapse',

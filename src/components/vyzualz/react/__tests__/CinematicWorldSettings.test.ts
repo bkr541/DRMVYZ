@@ -258,13 +258,13 @@ describe('world-specific cinematic configuration', () => {
     expect(first.density).toBeLessThanOrEqual(1.2)
   })
 
-  it('contains three valid and structurally distinct presets per implemented world with unique IDs', () => {
+  it('contains valid and structurally distinct presets per implemented world with unique IDs', () => {
     const ids = DEFAULT_REACT_PRESETS.map(preset => preset.id)
     expect(new Set(ids).size).toBe(ids.length)
 
     for (const mode of IMPLEMENTED_CINEMATIC_WORLD_MODES) {
       const presets = DEFAULT_REACT_PRESETS.filter(preset => preset.cinematicConfig?.worldMode === mode)
-      expect(presets, mode).toHaveLength(3)
+      expect(presets, mode).toHaveLength(mode === 'reactiveConstellation' ? 11 : 3)
       const structuralSignatures = presets.map(preset => JSON.stringify({
         settings: preset.cinematicConfig?.worldSettings,
         cameraRig: preset.cinematicConfig?.cameraRig,
@@ -272,7 +272,7 @@ describe('world-specific cinematic configuration', () => {
         material: preset.cinematicConfig?.material,
         audioMapping: preset.cinematicConfig?.audioMapping,
       }))
-      expect(new Set(structuralSignatures).size, mode).toBe(3)
+      expect(new Set(structuralSignatures).size, mode).toBe(presets.length)
       expect(presets.every(preset => preset.engine === 'cinematicPortal')).toBe(true)
       for (const preset of presets) {
         const normalized = normalizeCinematicWorldConfig(preset.cinematicConfig)
