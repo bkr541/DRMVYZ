@@ -2192,7 +2192,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     params: { intensity: 0.72, motion: 0.56, glow: 0.78, bassReactivity: 0.68 },
     renderSettings: { trailDecay: 0.05, fogDensity: 0.24, particleDensity: 0.36 },
     cinematicConfig: createCinematicWorldConfig('reactiveConstellation', {
-      nodeCount: 48, topologyStyle: 'cluster', polyhedronStyle: 'mixed', networkSpread: 1.28,
+      visualDnaProfile: 'custom', nodeCount: 48, topologyStyle: 'cluster', polyhedronStyle: 'mixed', networkSpread: 1.28,
       depthSpread: 0.78, neighborCount: 4, nodeScale: 0.115, nodeScaleVariation: 0.54,
       faceOpacity: 0.82, facetContrast: 1.22, internalGlow: 0.82, rimIntensity: 1.12,
       wireframeAmount: 0.34, colorVariation: 0.78, nodeSpin: 0.42,
@@ -2215,7 +2215,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     params: { intensity: 0.62, motion: 0.38, glow: 0.66, bassReactivity: 0.58 },
     renderSettings: { trailDecay: 0.04, fogDensity: 0.34, particleDensity: 0.28 },
     cinematicConfig: createCinematicWorldConfig('reactiveConstellation', {
-      nodeCount: 38, topologyStyle: 'chain', polyhedronStyle: 'irregularCrystal', networkSpread: 1.02,
+      visualDnaProfile: 'custom', nodeCount: 38, topologyStyle: 'chain', polyhedronStyle: 'irregularCrystal', networkSpread: 1.02,
       depthSpread: 1.05, neighborCount: 2, nodeScale: 0.14, nodeScaleVariation: 0.72,
       faceOpacity: 0.7, facetContrast: 1.42, internalGlow: 0.56, rimIntensity: 0.96,
       wireframeAmount: 0.16, colorVariation: 0.55, nodeSpin: -0.22,
@@ -2238,7 +2238,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     params: { intensity: 0.92, motion: 0.86, glow: 0.94, bassReactivity: 0.9 },
     renderSettings: { trailDecay: 0.08, fogDensity: 0.18, particleDensity: 0.5 },
     cinematicConfig: createCinematicWorldConfig('reactiveConstellation', {
-      nodeCount: 72, topologyStyle: 'starburst', polyhedronStyle: 'icosahedron', networkSpread: 1.62,
+      visualDnaProfile: 'custom', nodeCount: 72, topologyStyle: 'starburst', polyhedronStyle: 'icosahedron', networkSpread: 1.62,
       depthSpread: 1.18, neighborCount: 6, nodeScale: 0.09, nodeScaleVariation: 0.36,
       faceOpacity: 0.9, facetContrast: 1.72, internalGlow: 1.12, rimIntensity: 1.48,
       wireframeAmount: 0.62, colorVariation: 0.92, nodeSpin: 0.92,

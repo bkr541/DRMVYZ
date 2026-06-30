@@ -244,8 +244,8 @@ const REACTIVE_CONSTELLATION_CONTROLS = {
   groups: [
     {
       id: 'reactive-constellation-composition',
-      label: 'Constellation Composition',
-      visibility: 'all',
+      label: 'Structure and Topology',
+      visibility: 'advanced',
       controls: [
         { kind: 'integer', id: 'constellation-node-count', setting: 'nodeCount', label: 'Node Count', min: REACTIVE_CONSTELLATION_BOUNDS.nodeCount[0], max: REACTIVE_CONSTELLATION_BOUNDS.nodeCount[1], step: 1, visibility: 'all' },
         {
@@ -276,8 +276,8 @@ const REACTIVE_CONSTELLATION_CONTROLS = {
     },
     {
       id: 'reactive-constellation-beams',
-      label: 'Network Beams',
-      visibility: 'all',
+      label: 'Beams and Trails',
+      visibility: 'advanced',
       controls: [
         { kind: 'slider', id: 'constellation-beam-width', setting: 'beamWidth', label: 'Beam Width', description: 'Sets the perspective-stable ribbon width in output pixels.', min: REACTIVE_CONSTELLATION_BOUNDS.beamWidth[0], max: REACTIVE_CONSTELLATION_BOUNDS.beamWidth[1], step: 0.1, visibility: 'all' },
         { kind: 'slider', id: 'constellation-edge-opacity', setting: 'edgeOpacity', label: 'Edge Opacity', min: REACTIVE_CONSTELLATION_BOUNDS.edgeOpacity[0], max: REACTIVE_CONSTELLATION_BOUNDS.edgeOpacity[1], step: 0.01, visibility: 'all' },
@@ -298,7 +298,7 @@ const REACTIVE_CONSTELLATION_CONTROLS = {
     },
     {
       id: 'reactive-constellation-structure',
-      label: 'Network Structure',
+      label: 'Node Geometry',
       visibility: 'advanced',
       controls: [
         { kind: 'slider', id: 'constellation-depth-spread', setting: 'depthSpread', label: 'Depth Spread', min: REACTIVE_CONSTELLATION_BOUNDS.depthSpread[0], max: REACTIVE_CONSTELLATION_BOUNDS.depthSpread[1], step: 0.01 },
@@ -309,7 +309,7 @@ const REACTIVE_CONSTELLATION_CONTROLS = {
     },
     {
       id: 'reactive-constellation-motion',
-      label: 'Elastic Motion',
+      label: 'Physics and Motion',
       visibility: 'advanced',
       controls: [
         { kind: 'slider', id: 'constellation-spring-strength', setting: 'springStrength', label: 'Spring Strength', description: 'Controls how strongly connected nodes pull back toward their graph rest lengths.', min: REACTIVE_CONSTELLATION_BOUNDS.springStrength[0], max: REACTIVE_CONSTELLATION_BOUNDS.springStrength[1], step: 0.01 },
@@ -343,7 +343,7 @@ const REACTIVE_CONSTELLATION_CONTROLS = {
     },
     {
       id: 'reactive-constellation-surface',
-      label: 'Faceted Surface',
+      label: 'Materials and Atmosphere',
       visibility: 'advanced',
       controls: [
         { kind: 'slider', id: 'constellation-face-opacity', setting: 'faceOpacity', label: 'Face Opacity', description: 'Uses ordered transparency coverage so faces remain stable without per-triangle sorting corruption.', min: REACTIVE_CONSTELLATION_BOUNDS.faceOpacity[0], max: REACTIVE_CONSTELLATION_BOUNDS.faceOpacity[1], step: 0.01 },

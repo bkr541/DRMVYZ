@@ -20,6 +20,7 @@ import {
   REACTIVE_CONSTELLATION_COMPOSITION_ORDER,
   resolveReactiveConstellationChoreography,
   resolveReactiveConstellationComposition,
+  resolveReactiveConstellationMacroOffsets,
   resolveReactiveConstellationSection,
 } from '../ReactiveConstellationChoreography'
 
@@ -175,6 +176,67 @@ describe('Reactive Constellation musical choreography', () => {
     expect(clamped.collapseForce).toBe(REACTIVE_CONSTELLATION_BOUNDS.collapseAmount[1])
     expect(clamped.burstImpulse).toBe(2.5)
     expect(clamped.facetOpacity).toBe(REACTIVE_CONSTELLATION_BOUNDS.faceOpacity[0])
+  })
+
+  it('keeps neutral macros inert and produces bounded, monotonic runtime changes', () => {
+    expect(resolveReactiveConstellationMacroOffsets(REACTIVE_CONSTELLATION_DEFAULTS)).toEqual({
+      networkSpread: 0,
+      nodeScale: 0,
+      topologyMorph: 0,
+      springStrength: 0,
+      nodeSpin: 0,
+      motionScale: 0,
+      edgeBrightness: 0,
+      edgeWidth: 0,
+      burstImpulse: 0,
+      collapseForce: 0,
+      trailLength: 0,
+      facetOpacity: 0,
+      internalGlow: 0,
+      rimIntensity: 0,
+      cameraOrbit: 0,
+    })
+
+    const lowSettings = {
+      ...REACTIVE_CONSTELLATION_DEFAULTS,
+      macroStructure: 0,
+      macroMotion: 0,
+      macroImpact: 0,
+      macroTrails: 0,
+      macroMaterial: 0,
+      macroCamera: 0,
+    }
+    const highSettings = {
+      ...REACTIVE_CONSTELLATION_DEFAULTS,
+      macroStructure: 1,
+      macroMotion: 1,
+      macroImpact: 1,
+      macroTrails: 1,
+      macroMaterial: 1,
+      macroCamera: 1,
+    }
+    const sourceSnapshot = JSON.stringify(highSettings)
+    const low = resolveReactiveConstellationComposition({
+      settings: lowSettings,
+      audio: audioFrame({ section: 'unknown' }),
+      modulation: modulation(),
+    }).values
+    const high = resolveReactiveConstellationComposition({
+      settings: highSettings,
+      audio: audioFrame({ section: 'unknown' }),
+      modulation: modulation(),
+    }).values
+
+    expect(high.networkSpread).toBeGreaterThan(low.networkSpread)
+    expect(high.nodeSpin).toBeGreaterThan(low.nodeSpin)
+    expect(high.edgeBrightness).toBeGreaterThan(low.edgeBrightness)
+    expect(high.trailLength).toBeGreaterThan(low.trailLength)
+    expect(high.facetOpacity).toBeGreaterThan(low.facetOpacity)
+    expect(high.internalGlow).toBeGreaterThan(low.internalGlow)
+    expect(high.rimIntensity).toBeGreaterThan(low.rimIntensity)
+    expect(high.cameraOrbit).toBeGreaterThan(low.cameraOrbit)
+    expect(JSON.stringify(highSettings)).toBe(sourceSnapshot)
+    expect(Object.values(high).every(Number.isFinite)).toBe(true)
   })
 
   it('degrades safely when offline analysis, beat grids, sections, stems, and lyrics are unavailable', () => {

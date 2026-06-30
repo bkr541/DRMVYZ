@@ -24,10 +24,17 @@ import {
 import {
   MEDIA_PORTAL_DEFAULTS,
   createDefaultCinematicWorldSettings,
+  resolveReactiveConstellationSettings,
   type MediaPortalFit,
   type MediaPortalMaskMode,
   type MediaPortalSettings,
 } from './CinematicWorldSettings'
+import {
+  REACTIVE_CONSTELLATION_VISUAL_DNA_OPTIONS,
+  applyReactiveConstellationVisualDnaProfile,
+  markReactiveConstellationVisualDnaCustom,
+  updateReactiveConstellationMacro,
+} from './ReactiveConstellationVisualDna'
 import {
   getVisibleCinematicWorldControlGroups,
   readCinematicWorldSetting,
@@ -101,7 +108,12 @@ export function CinematicWorldControlSchemaRenderer({
           {group.description && <div className="rv-ctrl-info">{group.description}</div>}
           {group.controls.map(control => {
             const current = readCinematicWorldSetting(config, control.setting)
-            const commit = (value: unknown) => onChange(updateCinematicWorldConfigSetting(config, schema, control, value))
+            const commit = (value: unknown) => {
+              const updated = updateCinematicWorldConfigSetting(config, schema, control, value)
+              onChange(uiMode === 'advanced' && schema.mode === 'reactiveConstellation'
+                ? markReactiveConstellationVisualDnaCustom(updated)
+                : updated)
+            }
             if (control.kind === 'slider' || control.kind === 'integer') {
               return (
                 <SliderRow
@@ -215,6 +227,76 @@ function updateConfig(
   return { ...config, ...patch }
 }
 
+function ReactiveConstellationProfileControls({
+  config,
+  onChange,
+}: {
+  config: CinematicWorldConfig
+  onChange: (config: CinematicWorldConfig) => void
+}) {
+  if (config.worldMode !== 'reactiveConstellation' || config.worldSettings.mode !== 'reactiveConstellation') return null
+  const settings = resolveReactiveConstellationSettings(config.worldSettings)
+  const selected = REACTIVE_CONSTELLATION_VISUAL_DNA_OPTIONS.find(option => option.value === settings.visualDnaProfile)
+  return (
+    <>
+      <CtrlSection label="Visual DNA" />
+      <SelectRow
+        id="constellation-visual-dna-profile"
+        label="Starting Profile"
+        value={settings.visualDnaProfile}
+        options={REACTIVE_CONSTELLATION_VISUAL_DNA_OPTIONS.map(option => ({ value: option.value, label: option.label }))}
+        onChange={profileId => onChange(applyReactiveConstellationVisualDnaProfile(config, profileId as typeof settings.visualDnaProfile))}
+        description="Applies a cloned, normalized starting character. Macros and advanced controls remain editable afterward."
+      />
+      <div className="rv-constellation-profile-summary" role="status" aria-live="polite">
+        <strong>{selected?.label ?? 'Custom'}</strong>
+        <span>{selected?.description}</span>
+      </div>
+    </>
+  )
+}
+
+const CONSTELLATION_MACROS = [
+  { key: 'macroStructure', label: 'Structure', description: 'Moves from sparse and compact to broad, connected, and morph-ready.' },
+  { key: 'macroMotion', label: 'Motion', description: 'Scales elastic travel, spin, and recovery energy without replacing physics values.' },
+  { key: 'macroImpact', label: 'Impact', description: 'Shapes beam hits, collapse pressure, and burst force.' },
+  { key: 'macroTrails', label: 'Trails', description: 'Controls historical beam density and luminous memory.' },
+  { key: 'macroMaterial', label: 'Material', description: 'Moves from transparent and restrained to bright, solid, and emissive.' },
+  { key: 'macroCamera', label: 'Camera', description: 'Adds bounded world orbit and motion energy while preserving the selected camera rig.' },
+] as const
+
+function ReactiveConstellationMacroControls({
+  config,
+  onChange,
+}: {
+  config: CinematicWorldConfig
+  onChange: (config: CinematicWorldConfig) => void
+}) {
+  if (config.worldMode !== 'reactiveConstellation' || config.worldSettings.mode !== 'reactiveConstellation') return null
+  const settings = resolveReactiveConstellationSettings(config.worldSettings)
+  return (
+    <>
+      <CtrlSection label="Performance Macros" />
+      <div className="rv-constellation-macro-grid" role="group" aria-label="Reactive Constellation performance macros">
+        {CONSTELLATION_MACROS.map(macro => (
+          <SliderRow
+            key={macro.key}
+            id={`constellation-${macro.key.replace('macro', '').toLowerCase()}-macro`}
+            label={macro.label}
+            description={macro.description}
+            value={settings[macro.key]}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={value => onChange(updateReactiveConstellationMacro(config, macro.key, value))}
+          />
+        ))}
+      </div>
+      <div className="rv-ctrl-info">Macros are non-destructive runtime offsets. Switch to Advanced to edit the underlying geometry, physics, materials, camera, and choreography.</div>
+    </>
+  )
+}
+
 function WorldStatus({ presetName, worldMode, modified }: { presetName: string; worldMode: CinematicWorldMode; modified: boolean }) {
   const world = CINEMATIC_WORLD_BY_ID[worldMode]
   return (
@@ -289,6 +371,9 @@ export function CinematicWorldsEngineControls() {
   const { preset, config, modified, presets, selectPreset, setConfig, clearConfig, seedLocked, setSeedLocked, uiMode } = active
   const world = CINEMATIC_WORLD_BY_ID[config.worldMode]
   const save = (next: CinematicWorldConfig) => setConfig(preset.id, next)
+  const saveCameraEdit = (next: CinematicWorldConfig) => save(uiMode === 'advanced' && config.worldMode === 'reactiveConstellation'
+    ? markReactiveConstellationVisualDnaCustom(next)
+    : next)
   const baseConfig = resolveCinematicConfigForPreset(preset, {})!
 
   const selectWorld = (worldMode: CinematicWorldMode) => {
@@ -297,8 +382,12 @@ export function CinematicWorldsEngineControls() {
     else save({ ...config, worldMode, worldSettings: createDefaultCinematicWorldSettings(worldMode), audioMapping: { ...config.audioMapping, routes: createDefaultCinematicAudioRoutes(worldMode) } })
   }
 
-  const resetCamera = () => save({ ...config, cameraRig: baseConfig.cameraRig, camera: cloneConfig(baseConfig).camera })
-  const resetAudio = () => save({ ...config, audioMapping: { ...config.audioMapping, routes: createDefaultCinematicAudioRoutes(config.worldMode) } })
+  const resetCamera = () => save(config.worldMode === 'reactiveConstellation'
+    ? markReactiveConstellationVisualDnaCustom({ ...config, cameraRig: baseConfig.cameraRig, camera: cloneConfig(baseConfig).camera })
+    : { ...config, cameraRig: baseConfig.cameraRig, camera: cloneConfig(baseConfig).camera })
+  const resetAudio = () => save(config.worldMode === 'reactiveConstellation'
+    ? markReactiveConstellationVisualDnaCustom({ ...config, audioMapping: cloneConfig(baseConfig).audioMapping })
+    : { ...config, audioMapping: cloneConfig(baseConfig).audioMapping })
 
   return (
     <div className="rv-cinematic-controls" data-world={config.worldMode}>
@@ -337,12 +426,14 @@ export function CinematicWorldsEngineControls() {
         description="Preset palettes and mood are saved with each world look."
       />
 
+      <ReactiveConstellationProfileControls config={config} onChange={save} />
+
       <CtrlSection label="Camera" />
       <SelectRow
         id="cinematic-camera-rig"
         label="Camera Mode"
         value={config.cameraRig}
-        onChange={cameraRig => save({ ...config, cameraRig: cameraRig as CinematicCameraRig })}
+        onChange={cameraRig => saveCameraEdit({ ...config, cameraRig: cameraRig as CinematicCameraRig })}
         options={world.cameraRigs.map(rig => ({ value: rig, label: CAMERA_LABELS[rig] }))}
       />
 
@@ -357,20 +448,20 @@ export function CinematicWorldsEngineControls() {
           <CtrlSection label="Camera Values" />
           {config.cameraRig === 'locked' && (
             <>
-              <SliderRow id="cinematic-camera-fov" label="Field of View" value={config.camera.locked.fieldOfView} min={30} max={100} step={1} onChange={fieldOfView => save({ ...config, camera: { ...config.camera, locked: { ...config.camera.locked, fieldOfView } } })} />
-              <SliderRow id="cinematic-camera-breathing" label="Breathing" value={config.camera.locked.breathingStrength} min={0} max={0.12} step={0.002} onChange={breathingStrength => save({ ...config, camera: { ...config.camera, locked: { ...config.camera.locked, breathingStrength } } })} />
-              <SliderRow id="cinematic-camera-beat-punch" label="Beat Punch" value={config.camera.locked.beatPunch} min={0} max={0.4} step={0.01} onChange={beatPunch => save({ ...config, camera: { ...config.camera, locked: { ...config.camera.locked, beatPunch } } })} />
+              <SliderRow id="cinematic-camera-fov" label="Field of View" value={config.camera.locked.fieldOfView} min={30} max={100} step={1} onChange={fieldOfView => saveCameraEdit({ ...config, camera: { ...config.camera, locked: { ...config.camera.locked, fieldOfView } } })} />
+              <SliderRow id="cinematic-camera-breathing" label="Breathing" value={config.camera.locked.breathingStrength} min={0} max={0.12} step={0.002} onChange={breathingStrength => saveCameraEdit({ ...config, camera: { ...config.camera, locked: { ...config.camera.locked, breathingStrength } } })} />
+              <SliderRow id="cinematic-camera-beat-punch" label="Beat Punch" value={config.camera.locked.beatPunch} min={0} max={0.4} step={0.01} onChange={beatPunch => saveCameraEdit({ ...config, camera: { ...config.camera, locked: { ...config.camera.locked, beatPunch } } })} />
             </>
           )}
-          {config.cameraRig === 'dolly' && <SliderRow id="cinematic-camera-dolly-speed" label="Dolly Speed" value={config.camera.dolly.speed} min={0} max={1} step={0.01} onChange={speed => save({ ...config, camera: { ...config.camera, dolly: { ...config.camera.dolly, speed } } })} />}
+          {config.cameraRig === 'dolly' && <SliderRow id="cinematic-camera-dolly-speed" label="Dolly Speed" value={config.camera.dolly.speed} min={0} max={1} step={0.01} onChange={speed => saveCameraEdit({ ...config, camera: { ...config.camera, dolly: { ...config.camera.dolly, speed } } })} />}
           {config.cameraRig === 'orbit' && (
             <>
-              <SliderRow id="cinematic-camera-orbit-radius" label="Orbit Radius" value={config.camera.orbit.radius} min={0.5} max={4} step={0.05} onChange={radius => save({ ...config, camera: { ...config.camera, orbit: { ...config.camera.orbit, radius } } })} />
-              <SliderRow id="cinematic-camera-orbit-speed" label="Orbit Speed" value={config.camera.orbit.angularSpeed} min={-1} max={1} step={0.01} onChange={angularSpeed => save({ ...config, camera: { ...config.camera, orbit: { ...config.camera.orbit, angularSpeed } } })} />
+              <SliderRow id="cinematic-camera-orbit-radius" label="Orbit Radius" value={config.camera.orbit.radius} min={0.5} max={4} step={0.05} onChange={radius => saveCameraEdit({ ...config, camera: { ...config.camera, orbit: { ...config.camera.orbit, radius } } })} />
+              <SliderRow id="cinematic-camera-orbit-speed" label="Orbit Speed" value={config.camera.orbit.angularSpeed} min={-1} max={1} step={0.01} onChange={angularSpeed => saveCameraEdit({ ...config, camera: { ...config.camera, orbit: { ...config.camera.orbit, angularSpeed } } })} />
             </>
           )}
-          {config.cameraRig === 'flyThrough' && <SliderRow id="cinematic-camera-fly-speed" label="Travel Speed" value={config.camera.flyThrough.speed} min={0} max={1.5} step={0.01} onChange={speed => save({ ...config, camera: { ...config.camera, flyThrough: { ...config.camera.flyThrough, speed } } })} />}
-          {config.cameraRig === 'handheld' && <SliderRow id="cinematic-camera-handheld" label="Handheld Strength" value={config.camera.handheld.strength} min={0} max={1} step={0.01} onChange={strength => save({ ...config, camera: { ...config.camera, handheld: { ...config.camera.handheld, strength } } })} />}
+          {config.cameraRig === 'flyThrough' && <SliderRow id="cinematic-camera-fly-speed" label="Travel Speed" value={config.camera.flyThrough.speed} min={0} max={1.5} step={0.01} onChange={speed => saveCameraEdit({ ...config, camera: { ...config.camera, flyThrough: { ...config.camera.flyThrough, speed } } })} />}
+          {config.cameraRig === 'handheld' && <SliderRow id="cinematic-camera-handheld" label="Handheld Strength" value={config.camera.handheld.strength} min={0} max={1} step={0.01} onChange={strength => saveCameraEdit({ ...config, camera: { ...config.camera, handheld: { ...config.camera.handheld, strength } } })} />}
           <CtrlSection label="Transitions" />
           <SelectRow id="cinematic-transition-mode" label="Transition" value={config.transition.mode} onChange={mode => save({ ...config, transition: { ...config.transition, mode: mode as CinematicTransitionMode } })} options={CINEMATIC_TRANSITION_MODES.map(mode => ({ value: mode, label: humanizeCinematicKey(mode) }))} />
           <SliderRow id="cinematic-transition-duration" label="Duration" value={config.transition.durationMs} min={0} max={10000} step={50} onChange={durationMs => save({ ...config, transition: { ...config.transition, durationMs } })} description="Milliseconds used when switching compatible worlds or presets." />
@@ -379,7 +470,7 @@ export function CinematicWorldsEngineControls() {
         </>
       )}
 
-      <AutoDirectorControls config={config} onChange={save} advanced={uiMode === 'advanced'} />
+      <AutoDirectorControls config={config} onChange={saveCameraEdit} advanced={uiMode === 'advanced'} />
       <VariationControls
         config={config}
         presetId={preset.id}
@@ -443,6 +534,9 @@ export function CinematicWorldsFxControls() {
   if (!active.preset || !active.config) return null
   const { preset, config, uiMode, setConfig } = active
   const save = (next: CinematicWorldConfig) => setConfig(preset.id, next)
+  const saveDetailed = (next: CinematicWorldConfig) => save(config.worldMode === 'reactiveConstellation'
+    ? markReactiveConstellationVisualDnaCustom(next)
+    : next)
   const ultraSupported = isUltraCinematicQualitySupported()
   return (
     <div className="rv-cinematic-controls">
@@ -466,6 +560,8 @@ export function CinematicWorldsFxControls() {
       />
       {!ultraSupported && config.qualityTier === 'ultra' && <div className="rv-cinematic-warning" role="status">This project requests Ultra, but this device does not meet the safe WebGL2 and CPU threshold. Choose Auto to avoid overload.</div>}
 
+      {config.worldMode === 'reactiveConstellation' && uiMode === 'simple' && <ReactiveConstellationMacroControls config={config} onChange={save} />}
+
       {config.worldMode === 'mediaPortal' && <MediaPortalControls config={config} onChange={save} advanced={uiMode === 'advanced'} />}
 
       {uiMode === 'advanced' && (
@@ -473,12 +569,12 @@ export function CinematicWorldsFxControls() {
           <CtrlSection label="Environment" />
           {Object.entries(config.environment).map(([key, value]) => {
             const range = CINEMATIC_NUMERIC_RANGES.environment[key as keyof typeof CINEMATIC_NUMERIC_RANGES.environment]
-            return <SliderRow key={key} id={`cinematic-environment-${key}`} label={humanizeCinematicKey(key)} value={value} min={range.min} max={range.max} step={0.01} onChange={next => save({ ...config, environment: { ...config.environment, [key]: next } })} />
+            return <SliderRow key={key} id={`cinematic-environment-${key}`} label={humanizeCinematicKey(key)} value={value} min={range.min} max={range.max} step={0.01} onChange={next => saveDetailed({ ...config, environment: { ...config.environment, [key]: next } })} />
           })}
           <CtrlSection label="Material" />
           {Object.entries(config.material).map(([key, value]) => {
             const range = CINEMATIC_NUMERIC_RANGES.material[key as keyof typeof CINEMATIC_NUMERIC_RANGES.material]
-            return <SliderRow key={key} id={`cinematic-material-${key}`} label={humanizeCinematicKey(key)} value={value} min={range.min} max={range.max} step={0.01} onChange={next => save({ ...config, material: { ...config.material, [key]: next } })} />
+            return <SliderRow key={key} id={`cinematic-material-${key}`} label={humanizeCinematicKey(key)} value={value} min={range.min} max={range.max} step={0.01} onChange={next => saveDetailed({ ...config, material: { ...config.material, [key]: next } })} />
           })}
         </>
       )}
@@ -487,7 +583,7 @@ export function CinematicWorldsFxControls() {
           config={config}
           schema={CINEMATIC_WORLD_BY_ID[config.worldMode].controls}
           uiMode={uiMode}
-          onChange={save}
+          onChange={saveDetailed}
         />
       )}
     </div>
@@ -499,7 +595,9 @@ export function CinematicWorldsModulationControls() {
   const capabilities = useMusicIntelligenceCapabilities()
   if (!active.preset || !active.config) return null
   const { preset, config, uiMode, setConfig } = active
-  const save = (next: CinematicWorldConfig) => setConfig(preset.id, next)
+  const save = (next: CinematicWorldConfig) => setConfig(preset.id, uiMode === 'advanced' && config.worldMode === 'reactiveConstellation'
+    ? markReactiveConstellationVisualDnaCustom(next)
+    : next)
   const world = CINEMATIC_WORLD_BY_ID[config.worldMode]
   const availableSources = CINEMATIC_AUDIO_SOURCES.filter(source => isCinematicSourceAvailable(source, capabilities))
   const unavailableSources = CINEMATIC_AUDIO_SOURCES.filter(source => !isCinematicSourceAvailable(source, capabilities))

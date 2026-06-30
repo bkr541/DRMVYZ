@@ -13,6 +13,8 @@ import {
 } from '../CinematicWorldsControls'
 import { ReactPresetsPanel } from '../ReactPresetsPanel'
 import { DEFAULT_REACT_PRESETS } from '../ReactTypes'
+import { resolveReactiveConstellationSettings } from '../CinematicWorldSettings'
+import { applyReactiveConstellationVisualDnaProfile } from '../ReactiveConstellationVisualDna'
 
 let container: HTMLElement
 let root: ReturnType<typeof createRoot>
@@ -47,6 +49,18 @@ function buttonWithText(text: string): HTMLButtonElement {
 function labelControl(text: string): HTMLElement | null {
   const label = [...container.querySelectorAll('label')].find(candidate => candidate.textContent === text) as HTMLLabelElement | undefined
   return label?.control as HTMLElement | null
+}
+
+async function setRangeValue(input: HTMLInputElement, value: number) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+  setter?.call(input, String(value))
+  await act(async () => input.dispatchEvent(new Event('input', { bubbles: true })))
+}
+
+function activeConstellationSettings(presetId: string) {
+  const config = useReactStore.getState().cinematicConfigsByPresetId[presetId]
+  if (!config || config.worldSettings.mode !== 'reactiveConstellation') throw new Error('Expected Reactive Constellation override')
+  return resolveReactiveConstellationSettings(config.worldSettings)
 }
 
 describe('Cinematic Worlds engine controls', () => {
@@ -108,6 +122,44 @@ describe('Cinematic Worlds engine controls', () => {
     expect(buttonWithText('Reset Camera')).toBeTruthy()
     expect(buttonWithText('Reset Audio Mappings')).toBeTruthy()
   })
+
+  it('applies Visual DNA through a labeled native selector and preserves scoped reset behavior', async () => {
+    const preset = presetFor('reactiveConstellation')
+    const base = resolveCinematicConfigForPreset(preset, {})!
+    useReactStore.getState().selectReactPreset(preset.id)
+    await render(<CinematicWorldsEngineControls />)
+
+    const selector = container.querySelector('#constellation-visual-dna-profile') as HTMLSelectElement
+    expect(selector).toBeInstanceOf(HTMLSelectElement)
+    expect((container.querySelector('label[for="constellation-visual-dna-profile"]') as HTMLLabelElement).control).toBe(selector)
+    selector.focus()
+    expect(document.activeElement).toBe(selector)
+    expect([...selector.options].map(option => option.value)).toEqual([
+      'melodicBass', 'heavyDubstep', 'hybridTrap', 'house', 'techno', 'openFormat', 'custom',
+    ])
+
+    selector.value = 'heavyDubstep'
+    await act(async () => selector.dispatchEvent(new Event('change', { bubbles: true })))
+    expect(activeConstellationSettings(preset.id).visualDnaProfile).toBe('heavyDubstep')
+    expect(useReactStore.getState().cinematicConfigsByPresetId[preset.id].worldMode).toBe('reactiveConstellation')
+
+    await act(async () => buttonWithText('Reset Camera').click())
+    let override = useReactStore.getState().cinematicConfigsByPresetId[preset.id]
+    expect(override.camera).toEqual(base.camera)
+    expect(activeConstellationSettings(preset.id).visualDnaProfile).toBe('custom')
+
+    selector.value = 'techno'
+    await act(async () => selector.dispatchEvent(new Event('change', { bubbles: true })))
+    await act(async () => buttonWithText('Reset Audio Mappings').click())
+    override = useReactStore.getState().cinematicConfigsByPresetId[preset.id]
+    expect(override.audioMapping).toEqual(base.audioMapping)
+    expect(activeConstellationSettings(preset.id).visualDnaProfile).toBe('custom')
+
+    selector.value = 'house'
+    await act(async () => selector.dispatchEvent(new Event('change', { bubbles: true })))
+    await act(async () => buttonWithText('Reset World').click())
+    expect(useReactStore.getState().cinematicConfigsByPresetId[preset.id]).toBeUndefined()
+  })
 })
 
 describe('Cinematic Worlds FX and media controls', () => {
@@ -136,6 +188,47 @@ describe('Cinematic Worlds FX and media controls', () => {
     expect(container.querySelector('#cinematic-environment-depth')).not.toBeNull()
     expect(container.querySelector('#cinematic-material-refraction')).not.toBeNull()
     expect(container.querySelector('#cinematic-world-setting-viscosity')).not.toBeNull()
+  })
+
+  it('exposes six responsive, focusable simple-mode macros and keeps low-level controls in advanced mode', async () => {
+    const preset = presetFor('reactiveConstellation')
+    useReactStore.getState().selectReactPreset(preset.id)
+    await render(<CinematicWorldsFxControls />)
+
+    const group = container.querySelector('[aria-label="Reactive Constellation performance macros"]')
+    expect(group?.querySelectorAll('input[type="range"]')).toHaveLength(6)
+    expect(container.querySelector('#constellation-node-count')).toBeNull()
+    const structure = container.querySelector('#constellation-structure-macro') as HTMLInputElement
+    expect((container.querySelector('label[for="constellation-structure-macro"]') as HTMLLabelElement).control).toBe(structure)
+    expect(structure.getAttribute('aria-describedby')).toBe('constellation-structure-macro-description')
+    structure.focus()
+    expect(document.activeElement).toBe(structure)
+    await setRangeValue(structure, 0.86)
+    expect(activeConstellationSettings(preset.id).macroStructure).toBe(0.86)
+
+    await act(async () => buttonWithText('Advanced').click())
+    expect(container.querySelector('#constellation-node-count')).toBeInstanceOf(HTMLInputElement)
+    expect(container.querySelector('#constellation-structure-macro')).toBeNull()
+  })
+
+  it('moves a profiled look to Custom after an advanced detail edit without replacing other values', async () => {
+    const preset = presetFor('reactiveConstellation')
+    const base = resolveCinematicConfigForPreset(preset, {})!
+    const profiled = applyReactiveConstellationVisualDnaProfile(base, 'melodicBass')
+    useReactStore.getState().selectReactPreset(preset.id)
+    useReactStore.getState().setCinematicConfigForPreset(preset.id, profiled)
+    useReactStore.getState().setCinematicWorldsUiMode('advanced')
+    await render(<CinematicWorldsFxControls />)
+
+    const before = activeConstellationSettings(preset.id)
+    const nodeCount = container.querySelector('#constellation-node-count') as HTMLInputElement
+    await setRangeValue(nodeCount, 57)
+    const after = activeConstellationSettings(preset.id)
+
+    expect(after.visualDnaProfile).toBe('custom')
+    expect(after.nodeCount).toBe(57)
+    expect(after.networkSpread).toBe(before.networkSpread)
+    expect(after.macroImpact).toBe(before.macroImpact)
   })
 })
 

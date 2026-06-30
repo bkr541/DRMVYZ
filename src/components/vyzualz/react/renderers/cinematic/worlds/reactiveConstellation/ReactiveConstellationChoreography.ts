@@ -21,8 +21,11 @@ export interface ReactiveConstellationRuntimeValues {
   collapseForce: number
   burstImpulse: number
   facetOpacity: number
+  internalGlow: number
+  rimIntensity: number
   springStrength: number
   motionScale: number
+  cameraOrbit: number
 }
 
 export type ReactiveConstellationRuntimeOffsets = Partial<ReactiveConstellationRuntimeValues>
@@ -118,6 +121,35 @@ export function resolveReactiveConstellationChoreography(
   }
 }
 
+
+export function resolveReactiveConstellationMacroOffsets(
+  settings: ReactiveConstellationSettings,
+): ReactiveConstellationRuntimeOffsets {
+  const structure = (clamp01(settings.macroStructure) - 0.5) * 2
+  const motion = (clamp01(settings.macroMotion) - 0.5) * 2
+  const impact = (clamp01(settings.macroImpact) - 0.5) * 2
+  const trails = (clamp01(settings.macroTrails) - 0.5) * 2
+  const material = (clamp01(settings.macroMaterial) - 0.5) * 2
+  const camera = (clamp01(settings.macroCamera) - 0.5) * 2
+  return {
+    networkSpread: structure * 0.36,
+    nodeScale: structure * 0.018,
+    topologyMorph: structure * 0.18,
+    springStrength: structure * 0.16 + motion * 0.12,
+    nodeSpin: motion * 0.32 + camera * 0.08,
+    motionScale: motion * 0.28 + camera * 0.12,
+    edgeBrightness: impact * 0.8 + trails * 0.25 + material * 0.45,
+    edgeWidth: impact * 0.65,
+    burstImpulse: impact * 0.65,
+    collapseForce: impact * 0.18,
+    trailLength: trails * 10,
+    facetOpacity: material * 0.16,
+    internalGlow: material * 0.42,
+    rimIntensity: material * 0.38,
+    cameraOrbit: camera * 0.35,
+  }
+}
+
 function addOffsets(values: ReactiveConstellationRuntimeValues, offsets: ReactiveConstellationRuntimeOffsets | undefined): void {
   if (!offsets) return
   for (const key of Object.keys(offsets) as Array<keyof ReactiveConstellationRuntimeValues>) {
@@ -156,12 +188,16 @@ export function resolveReactiveConstellationComposition(
     collapseForce: settings.collapseAmount,
     burstImpulse: 0,
     facetOpacity: settings.faceOpacity,
+    internalGlow: settings.internalGlow,
+    rimIntensity: settings.rimIntensity,
     springStrength: settings.springStrength,
     motionScale: clamp(input.motionScale ?? 1, 0, 2),
+    cameraOrbit: settings.cameraOrbit,
   }
 
   addOffsets(values, resolveReactiveConstellationChoreography(input.audio))
   addOffsets(values, audioOffsets(input.modulation))
+  addOffsets(values, resolveReactiveConstellationMacroOffsets(settings))
   addOffsets(values, input.manualMacroOffsets)
   addOffsets(values, input.performanceActionEnvelopes)
 
@@ -175,8 +211,11 @@ export function resolveReactiveConstellationComposition(
   values.collapseForce = clamp(values.collapseForce, 0, REACTIVE_CONSTELLATION_BOUNDS.collapseAmount[1])
   values.burstImpulse = clamp(values.burstImpulse, 0, 2.5)
   values.facetOpacity = clamp(values.facetOpacity, REACTIVE_CONSTELLATION_BOUNDS.faceOpacity[0], REACTIVE_CONSTELLATION_BOUNDS.faceOpacity[1])
+  values.internalGlow = clamp(values.internalGlow, REACTIVE_CONSTELLATION_BOUNDS.internalGlow[0], REACTIVE_CONSTELLATION_BOUNDS.internalGlow[1])
+  values.rimIntensity = clamp(values.rimIntensity, REACTIVE_CONSTELLATION_BOUNDS.rimIntensity[0], REACTIVE_CONSTELLATION_BOUNDS.rimIntensity[1])
   values.springStrength = clamp(values.springStrength, REACTIVE_CONSTELLATION_BOUNDS.springStrength[0], REACTIVE_CONSTELLATION_BOUNDS.springStrength[1])
   values.motionScale = clamp(values.motionScale, 0, 2)
+  values.cameraOrbit = clamp(values.cameraOrbit, REACTIVE_CONSTELLATION_BOUNDS.cameraOrbit[0], REACTIVE_CONSTELLATION_BOUNDS.cameraOrbit[1])
 
   return {
     values,

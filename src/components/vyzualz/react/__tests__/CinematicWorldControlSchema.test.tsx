@@ -33,6 +33,7 @@ import {
   MONOLITH_GATE_BOUNDS,
   REACTIVE_CONSTELLATION_BOUNDS,
   REACTIVE_CONSTELLATION_DEFAULTS,
+  REACTIVE_CONSTELLATION_MACRO_KEYS,
   STORM_GATEWAY_BOUNDS,
   createDefaultCinematicWorldSettings,
   type CinematicWorldSpecificConfig,
@@ -204,7 +205,7 @@ describe('Cinematic World control schema', () => {
     expect(controls.some(control => /trail|beam/i.test(String(control.setting)))).toBe(true)
     expect(controls.some(control => /audio/i.test(String(control.setting)))).toBe(false)
     expect(selectControls.map(control => control.setting)).toEqual(['topologyStyle', 'polyhedronStyle'])
-    expect(numericControls).toHaveLength(Object.keys(REACTIVE_CONSTELLATION_BOUNDS).length)
+    expect(numericControls).toHaveLength(Object.keys(REACTIVE_CONSTELLATION_BOUNDS).length - REACTIVE_CONSTELLATION_MACRO_KEYS.length)
     for (const control of numericControls) {
       if (control.kind !== 'slider' && control.kind !== 'integer') continue
       expect([control.min, control.max]).toEqual(REACTIVE_CONSTELLATION_BOUNDS[control.setting])
@@ -226,6 +227,16 @@ describe('Cinematic World control schema', () => {
     expect(container.querySelector('#constellation-trail-samples')).toBeInstanceOf(HTMLInputElement)
     expect(container.querySelector('#constellation-facet-contrast')).toBeInstanceOf(HTMLInputElement)
     expect(container.querySelector('#constellation-background-curtains')).toBeInstanceOf(HTMLInputElement)
+
+    await render(
+      <CinematicWorldControlSchemaRenderer
+        config={config}
+        schema={schema}
+        uiMode="simple"
+        onChange={vi.fn()}
+      />,
+    )
+    expect(container.querySelector('#constellation-node-count')).toBeNull()
 
     const settings = createDefaultCinematicWorldSettings('reactiveConstellation') as Extract<CinematicWorldSpecificConfig, { mode: 'reactiveConstellation' }>
     const nodeCount = controls.find(control => control.setting === 'nodeCount') as CinematicWorldIntegerControl<'reactiveConstellation'>

@@ -201,8 +201,11 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
   private heldCollapseForce = 0
   private heldBurstImpulse = 0
   private heldFacetOpacity = 1
+  private heldInternalGlow = 0.68
+  private heldRimIntensity = 0.88
   private heldSpringStrength = 0.7
   private heldMotionScale = 1
+  private heldCameraOrbit = 0
   private diagnostic: string | null = null
   private disposed = false
 
@@ -278,8 +281,11 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
       this.heldCollapseForce = next.collapseForce
       this.heldBurstImpulse = next.burstImpulse
       this.heldFacetOpacity = next.facetOpacity
+      this.heldInternalGlow = next.internalGlow
+      this.heldRimIntensity = next.rimIntensity
       this.heldSpringStrength = next.springStrength
       this.heldMotionScale = next.motionScale
+      this.heldCameraOrbit = next.cameraOrbit
     }
     if ((this.lastTrailSamples === 0) !== (this.heldTrailLength === 0)) this.trails.reset()
     this.lastTrailSamples = this.heldTrailLength
@@ -390,7 +396,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     this.beamProgram.setVec3('uCameraPosition', camera.position.x, camera.position.y, camera.position.z)
     this.beamProgram.setFloat('uTime', simulationState.simulationTimeSec)
     this.beamProgram.setFloat('uMotion', motion)
-    this.beamProgram.setFloat('uCameraOrbit', settings.cameraOrbit)
+    this.beamProgram.setFloat('uCameraOrbit', this.heldCameraOrbit)
     this.beamProgram.setFloat('uGeometryRotation', this.heldGeometryRotation)
     this.beamProgram.setFloat('uDepthPulse', this.heldDepthPulse)
     this.beamProgram.setVec3('uBeamColor', palette.beamCore.r, palette.beamCore.g, palette.beamCore.b)
@@ -443,7 +449,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     this.nodeProgram.setFloat('uNodeScale', this.heldNodeScale)
     this.nodeProgram.setFloat('uNodeSpin', this.heldNodeSpin)
     this.nodeProgram.setFloat('uMotion', motion)
-    this.nodeProgram.setFloat('uCameraOrbit', settings.cameraOrbit)
+    this.nodeProgram.setFloat('uCameraOrbit', this.heldCameraOrbit)
     this.nodeProgram.setFloat('uGeometryRotation', this.heldGeometryRotation)
     this.nodeProgram.setFloat('uDepthPulse', this.heldDepthPulse)
     this.nodeProgram.setFloat('uBeat', Math.min(1, this.heldBurstImpulse / 2.5))
@@ -455,8 +461,8 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     this.nodeProgram.setFloat('uGlow', materialGlow)
     this.nodeProgram.setFloat('uFaceOpacity', this.heldFacetOpacity)
     this.nodeProgram.setFloat('uFacetContrast', settings.facetContrast)
-    this.nodeProgram.setFloat('uInternalGlow', settings.internalGlow)
-    this.nodeProgram.setFloat('uRimIntensity', settings.rimIntensity)
+    this.nodeProgram.setFloat('uInternalGlow', this.heldInternalGlow)
+    this.nodeProgram.setFloat('uRimIntensity', this.heldRimIntensity)
     this.nodeProgram.setFloat('uWireframeAmount', settings.wireframeAmount)
     this.nodeProgram.setFloat('uColorVariation', settings.colorVariation)
     this.nodeProgram.setFloat('uFogAmount', fogAmount)
@@ -474,7 +480,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
       gl.drawArraysInstanced(gl.TRIANGLES, 0, resource.vertexCount, resource.instanceCount)
     }
 
-    if (settings.wireframeAmount > 0 || settings.rimIntensity > 0 || settings.internalGlow > 0) {
+    if (settings.wireframeAmount > 0 || this.heldRimIntensity > 0 || this.heldInternalGlow > 0) {
       gl.enable(gl.BLEND)
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE)
       gl.depthMask(false)
