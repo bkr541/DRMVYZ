@@ -200,3 +200,4 @@
 6:09:31 PM [vite] hmr update /src/components/vyzualz/stage/LiveVisualCanvas.tsx, /src/components/vyzualz/react/ReactPlaceholderCanvas.tsx, /src/components/vyzualz/react/ReactPresetThumbnail.tsx
 6:09:31 PM [vite] hmr update /src/components/vyzualz/stage/LiveVisualCanvas.tsx, /src/components/vyzualz/react/ReactPlaceholderCanvas.tsx, /src/components/vyzualz/react/ReactPresetThumbnail.tsx
 6:09:31 PM [vite] hmr update /src/components/vyzualz/react/ReactPresetThumbnail.tsx
+6:38:17 PM [vite] hmr update /src/features/lyrics/components/AiLyricExtractor.tsx

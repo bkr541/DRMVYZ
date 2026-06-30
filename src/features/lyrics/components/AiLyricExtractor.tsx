@@ -37,6 +37,26 @@ function jobStatusLabel(job: LyricTranscriptionJob): string {
   }
 }
 
+const PROCESSING_STAGE_LABELS: Record<string, string> = {
+  validating: 'Validating…',
+  downloading: 'Downloading audio…',
+  inspecting: 'Inspecting format…',
+  routing: 'Preparing backend…',
+  transcribing: 'Transcribing…',
+  merging: 'Merging results…',
+  saving: 'Saving draft…',
+}
+
+function processingStageLabel(job: LyricTranscriptionJob): string | null {
+  if (job.status !== 'processing') return null
+  const stage = job.providerMetadata.processingStage
+  return typeof stage === 'string' ? (PROCESSING_STAGE_LABELS[stage] ?? null) : null
+}
+
+function isConfigurationError(job: LyricTranscriptionJob | null): boolean {
+  return job?.errorCode === 'long_audio_backend_not_configured'
+}
+
 export function chooseRecoveredJob(jobs: LyricTranscriptionJob[]): LyricTranscriptionJob | null {
   return jobs.find(isActiveLyricTranscriptionJob) ?? jobs[0] ?? null
 }
@@ -203,6 +223,19 @@ export function AiLyricExtractor({
     ? job.providerMetadata.warnings.filter((warning): warning is string => typeof warning === 'string')
     : []
 
+  const stageLabel = job ? processingStageLabel(job) : null
+  const chunksCompleted = typeof job?.providerMetadata.chunksCompleted === 'number'
+    ? job.providerMetadata.chunksCompleted : null
+  const chunksTotal = typeof job?.providerMetadata.chunksTotal === 'number'
+    ? job.providerMetadata.chunksTotal : null
+  const showChunkProgress = active && chunksTotal !== null && chunksTotal > 1 && chunksCompleted !== null
+
+  const configError = isConfigurationError(job)
+  const canRetry = (job?.status === 'failed' || job?.status === 'cancelled') && !configError
+
+  const fnVersion = typeof job?.providerMetadata.fnVersion === 'string'
+    ? job.providerMetadata.fnVersion : null
+
   return (
     <div className="lmv-workflow-content">
       <div className="lmv-ai-notice lmv-ai-notice--ready">
@@ -285,24 +318,39 @@ export function AiLyricExtractor({
             <div>
               <span className="lmv-job-status">{jobStatusLabel(job)}</span>
               <span className="lmv-job-provider">{job.provider === 'openai' ? 'OpenAI' : 'Custom provider'}</span>
+              {stageLabel && <span className="lmv-job-stage">{stageLabel}</span>}
             </div>
             <span className="lmv-job-progress-label">{progressPercent}%</span>
           </div>
           <div className="lmv-job-progress" role="progressbar" aria-label="Transcription progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent}>
             <div style={{ width: `${progressPercent}%` }} />
           </div>
-          {job.errorMessage && <div className="lmv-job-error" role="alert">{job.errorMessage}</div>}
+          {showChunkProgress && (
+            <div className="lmv-job-chunk-progress">
+              Chunk {chunksCompleted} of {chunksTotal}
+            </div>
+          )}
+          {job.errorMessage && (
+            <div className="lmv-job-error" role="alert">
+              {configError
+                ? 'Server configuration required: this file is too large for direct transcription and the long-audio backend is not set up. Contact the server administrator.'
+                : job.errorMessage}
+            </div>
+          )}
           {active && (
             <div className="lmv-import-actions">
               <button className="lmv-btn lmv-btn--ghost" disabled={actionBusy} onClick={() => { void handleCancel() }}>Cancel</button>
             </div>
           )}
-          {(job.status === 'failed' || job.status === 'cancelled') && (
+          {canRetry && (
             <div className="lmv-import-actions">
               <button className="lmv-btn lmv-btn--primary" disabled={actionBusy} onClick={() => { void handleRetry() }}>
                 {actionBusy ? 'Retrying…' : 'Retry Extraction'}
               </button>
             </div>
+          )}
+          {fnVersion && (
+            <div className="lmv-job-fn-version" aria-hidden="true">fn v{fnVersion}</div>
           )}
         </div>
       )}

@@ -35,6 +35,12 @@ const DEFAULT_PROVIDER_TIMEOUT_MS = 180_000
 const RAW_PROVIDER_METADATA_LIMIT = 120_000
 const ACTIVE_STATUSES = ['queued', 'processing'] as const
 
+// Increment this whenever a behaviorally significant change is deployed so clients
+// can detect stale deployments from job.providerMetadata.fnVersion.
+const LYRIC_TRANSCRIPTION_FN_VERSION = '2.0.0'
+
+type ProcessingMode = 'direct' | 'wav-chunking' | 'long-audio-worker'
+
 interface AudioTrackRow {
   id: string
   user_id: string
@@ -148,6 +154,19 @@ function configuredProvider(): 'openai' | 'custom' {
   return Deno.env.get('LYRIC_TRANSCRIPTION_PROVIDER')?.trim().toLowerCase() === 'custom'
     ? 'custom'
     : 'openai'
+}
+
+function isCustomProviderConfigured(): boolean {
+  return Boolean(
+    Deno.env.get('LYRIC_TRANSCRIPTION_ENDPOINT')?.trim() &&
+    Deno.env.get('LYRIC_TRANSCRIPTION_ENDPOINT_TOKEN')?.trim(),
+  )
+}
+
+function isLikelyWavFile(track: AudioTrackRow): boolean {
+  const mime = (track.mime_type ?? '').toLowerCase()
+  const ext = track.file_name.split('.').pop()?.toLowerCase() ?? ''
+  return mime.includes('wav') || ext === 'wav'
 }
 
 function publicJob(job: JobRow): JobRow {
@@ -445,6 +464,8 @@ async function runOpenAIProvider(
   blob: Blob,
   track: AudioTrackRow,
   options: Record<string, unknown>,
+  onChunkProgress?: (completed: number, total: number) => Promise<void>,
+  preFetchedSourceBytes?: Uint8Array,
 ): Promise<ProviderRunResult> {
   const apiKey = requiredEnv('OPENAI_API_KEY')
   const maxBytes = positiveEnvNumber('OPENAI_MAX_AUDIO_BYTES', DEFAULT_OPENAI_MAX_BYTES)
@@ -469,7 +490,7 @@ async function runOpenAIProvider(
     return { transcripts: [{ unit, transcript }], rawPayload: payload, model }
   }
 
-  const sourceBytes = new Uint8Array(await blob.arrayBuffer())
+  const sourceBytes = preFetchedSourceBytes ?? new Uint8Array(await blob.arrayBuffer())
   if (!isRiffWave(sourceBytes)) throw wavChunkingFailure(null)
 
   const safetyBytes = Math.min(
@@ -490,6 +511,7 @@ async function runOpenAIProvider(
     DEFAULT_OPENAI_CHUNK_CONCURRENCY,
     4,
   )
+  let chunksCompleted = 0
   const completed = await mapWithConcurrency(plan.chunks, concurrency, async descriptor => {
     const chunkBytes = buildWavTranscriptionChunk(sourceBytes, plan, descriptor)
     const chunkBlob = new Blob([chunkBytes], { type: 'audio/wav' })
@@ -502,6 +524,8 @@ async function runOpenAIProvider(
       options,
     )
     const transcript = providerTranscript(payload)
+    chunksCompleted++
+    if (onChunkProgress) await onChunkProgress(chunksCompleted, plan.chunks.length)
     return { unit: descriptor.unit, transcript, metadata: wavChunkMetadata(plan, descriptor, transcript) }
   })
 
@@ -647,24 +671,117 @@ async function processJob(
       started_at: new Date().toISOString(),
       error_code: null,
       error_message: null,
+      provider_metadata: { processingStage: 'validating', fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION },
     })
 
     if (await jobWasCancelled(adminClient, job.id)) return
+
     let providerResult: ProviderRunResult
+    let processingMode: ProcessingMode
+    const maxBytes = positiveEnvNumber('OPENAI_MAX_AUDIO_BYTES', DEFAULT_OPENAI_MAX_BYTES)
+
     if (job.provider === 'custom') {
-      await updateJob(adminClient, job.id, { progress: 0.2 })
+      processingMode = 'long-audio-worker'
+      await updateJob(adminClient, job.id, {
+        progress: 0.15,
+        provider_metadata: { processingStage: 'routing', fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION },
+      })
       providerResult = await runCustomProvider(adminClient, track, job.request_options)
     } else {
-      const { data: audioBlob, error: downloadError } = await adminClient.storage
-        .from(AUDIO_BUCKET)
-        .download(track.storage_path!)
-      if (downloadError || !audioBlob) throw new TranscriptionError('storage_failure', 'The stored audio file could not be read.', 500)
-      if (audioBlob.size > MAX_STORED_AUDIO_BYTES) throw new TranscriptionError('unsupported_audio', 'This audio file is too large for automatic lyric extraction.', 413)
-      await updateJob(adminClient, job.id, { progress: 0.2 })
-      providerResult = await runOpenAIProvider(audioBlob, track, job.request_options)
+      // Pre-check: if stored metadata reveals an oversized non-WAV file, avoid a wasted download
+      const estimatedSize = track.file_size ?? 0
+      if (estimatedSize > 0 && estimatedSize > maxBytes && !isLikelyWavFile(track)) {
+        if (!isCustomProviderConfigured()) {
+          throw new TranscriptionError(
+            'long_audio_backend_not_configured',
+            'This audio file is too large for direct transcription and requires the long-audio backend, which is not configured on this server. Contact the server administrator.',
+            413,
+          )
+        }
+        processingMode = 'long-audio-worker'
+        await updateJob(adminClient, job.id, {
+          progress: 0.15,
+          provider_metadata: { processingStage: 'routing', fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION },
+        })
+        providerResult = await runCustomProvider(adminClient, track, job.request_options)
+      } else {
+        await updateJob(adminClient, job.id, {
+          progress: 0.1,
+          provider_metadata: { processingStage: 'downloading', fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION },
+        })
+        const { data: audioBlob, error: downloadError } = await adminClient.storage
+          .from(AUDIO_BUCKET)
+          .download(track.storage_path!)
+        if (downloadError || !audioBlob) {
+          throw new TranscriptionError('storage_failure', 'The stored audio file could not be read.', 500)
+        }
+        if (audioBlob.size > MAX_STORED_AUDIO_BYTES) {
+          throw new TranscriptionError('unsupported_audio', 'This audio file is too large for automatic lyric extraction.', 413)
+        }
+
+        await updateJob(adminClient, job.id, {
+          progress: 0.18,
+          provider_metadata: { processingStage: 'inspecting', fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION },
+        })
+
+        if (audioBlob.size > maxBytes) {
+          // Blob is oversized: verify WAV before committing to chunking
+          const sourceBytes = new Uint8Array(await audioBlob.arrayBuffer())
+          if (!isRiffWave(sourceBytes)) {
+            // Compressed oversized file — file_size was null or wrong in metadata
+            if (!isCustomProviderConfigured()) {
+              throw new TranscriptionError(
+                'long_audio_backend_not_configured',
+                'This audio file is too large for direct transcription and requires the long-audio backend, which is not configured on this server. Contact the server administrator.',
+                413,
+              )
+            }
+            processingMode = 'long-audio-worker'
+            await updateJob(adminClient, job.id, {
+              progress: 0.2,
+              provider_metadata: { processingStage: 'routing', fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION },
+            })
+            providerResult = await runCustomProvider(adminClient, track, job.request_options)
+          } else {
+            processingMode = 'wav-chunking'
+            await updateJob(adminClient, job.id, {
+              progress: 0.2,
+              provider_metadata: {
+                processingStage: 'transcribing',
+                fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION,
+                chunksCompleted: 0,
+                chunksTotal: 0,
+              },
+            })
+            const onChunkProgress = async (completed: number, total: number) => {
+              await updateJob(adminClient, job.id, {
+                progress: 0.2 + (completed / total) * 0.5,
+                provider_metadata: {
+                  processingStage: 'transcribing',
+                  fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION,
+                  chunksCompleted: completed,
+                  chunksTotal: total,
+                },
+              })
+            }
+            providerResult = await runOpenAIProvider(audioBlob, track, job.request_options, onChunkProgress, sourceBytes)
+          }
+        } else {
+          processingMode = 'direct'
+          await updateJob(adminClient, job.id, {
+            progress: 0.2,
+            provider_metadata: { processingStage: 'transcribing', fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION },
+          })
+          providerResult = await runOpenAIProvider(audioBlob, track, job.request_options)
+        }
+      }
     }
+
     if (await jobWasCancelled(adminClient, job.id)) return
-    await updateJob(adminClient, job.id, { progress: 0.72 })
+    await updateJob(adminClient, job.id, {
+      progress: 0.72,
+      provider_metadata: { processingStage: 'merging', fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION },
+    })
 
     const confidenceThreshold = finiteNumber(job.request_options.confidenceThreshold) ?? 0.6
     const normalizedUnits = providerResult.transcripts.map(({ unit, transcript }) =>
@@ -677,7 +794,11 @@ async function processJob(
       .filter(cue => cue.endMs > cue.startMs && cue.text.trim())
       .map((cue, index) => databaseCue(cue, index, confidenceThreshold))
     if (!dbCues.length) throw new TranscriptionError('normalization_failure', 'The provider response did not contain usable timed lyrics.', 422)
-    await updateJob(adminClient, job.id, { progress: 0.9 })
+
+    await updateJob(adminClient, job.id, {
+      progress: 0.9,
+      provider_metadata: { processingStage: 'saving', fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION },
+    })
 
     const metadata = {
       extractionJobId: job.id,
@@ -708,6 +829,8 @@ async function processJob(
     const providerMetadata = {
       provider: job.provider,
       model: providerResult.model,
+      processingMode,
+      fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION,
       unitCount: providerResult.transcripts.length,
       usedSingleUnit: providerResult.transcripts.length === 1,
       durationMs: reconciled.durationMs,

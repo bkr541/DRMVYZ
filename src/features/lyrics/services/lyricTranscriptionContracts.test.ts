@@ -95,4 +95,37 @@ describe('secure lyric transcription contracts', () => {
     expect(edgeFunctionSource).toContain("positiveEnvInteger(\n    'OPENAI_TRANSCRIPTION_CONCURRENCY'")
     expect(edgeFunctionSource).toContain('reconcileTranscriptUnits(normalizedUnits)')
   })
+
+  it('embeds a function version identifier in every job response to detect stale deployments', () => {
+    expect(edgeFunctionSource).toContain('LYRIC_TRANSCRIPTION_FN_VERSION')
+    expect(edgeFunctionSource).toContain('fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION')
+    expect(edgeFunctionSource).toContain("processingMode,")
+  })
+
+  it('returns distinct long_audio_backend_not_configured code for oversized compressed files without a backend', () => {
+    expect(edgeFunctionSource).toContain("'long_audio_backend_not_configured'")
+    expect(edgeFunctionSource).toContain('isCustomProviderConfigured()')
+    expect(edgeFunctionSource).toContain('isLikelyWavFile(track)')
+    expect(edgeFunctionSource).toContain("processingMode = 'long-audio-worker'")
+    expect(edgeFunctionSource).toContain("processingMode = 'wav-chunking'")
+    expect(edgeFunctionSource).toContain("processingMode = 'direct'")
+  })
+
+  it('reports named processing stages and per-chunk progress throughout the job lifecycle', () => {
+    expect(edgeFunctionSource).toContain("processingStage: 'validating'")
+    expect(edgeFunctionSource).toContain("processingStage: 'downloading'")
+    expect(edgeFunctionSource).toContain("processingStage: 'inspecting'")
+    expect(edgeFunctionSource).toContain("processingStage: 'transcribing'")
+    expect(edgeFunctionSource).toContain("processingStage: 'merging'")
+    expect(edgeFunctionSource).toContain("processingStage: 'saving'")
+    expect(edgeFunctionSource).toContain('chunksCompleted')
+    expect(edgeFunctionSource).toContain('chunksTotal')
+  })
+
+  it('passes request options through the full pipeline including WAV chunking and custom provider', () => {
+    expect(edgeFunctionSource).toContain('job.request_options')
+    expect(edgeFunctionSource).toContain('runOpenAIProvider(audioBlob, track, job.request_options')
+    expect(edgeFunctionSource).toContain('runCustomProvider(adminClient, track, job.request_options)')
+    expect(edgeFunctionSource).toContain('safeOptions(job.request_options)')
+  })
 })
