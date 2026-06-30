@@ -471,6 +471,167 @@ function drawMovingHeadFixture(
   )
 }
 
+
+function drawWashFixture(
+  ctx: CanvasRenderingContext2D,
+  basis: CameraBasis,
+  fixture: ProductionRig['fixtures'][number],
+  frame: LaserDmxFixtureFrame,
+  haze: number,
+  glow: number,
+  quality: ProductionStageModel['editor']['qualityTier'],
+): void {
+  const wash = frame.visual.wash
+  if (!wash || frame.visual.intensity < 0.001) return
+  const origin = projectWithBasis(fixture.transform.position, basis)
+  const target = projectWithBasis(wash.worldTarget, basis)
+  if (!origin.visible || !target.visible) return
+  const radius = Math.max(10, Math.min(260, (0.45 + wash.spread * 2.2) * target.scale * 0.22))
+  const softness = clamp01(wash.softness)
+  const alpha = clamp01(frame.visual.intensity * frame.visual.rgba.a)
+  const rgb = `${frame.visual.rgba.r},${frame.visual.rgba.g},${frame.visual.rgba.b}`
+
+  ctx.save()
+  ctx.globalCompositeOperation = 'screen'
+  const volume = ctx.createLinearGradient(origin.x, origin.y, target.x, target.y)
+  volume.addColorStop(0, `rgba(${rgb},${(alpha * 0.18 * wash.atmosphericIntensity * haze).toFixed(3)})`)
+  volume.addColorStop(1, `rgba(${rgb},${(alpha * 0.04 * wash.atmosphericIntensity * haze).toFixed(3)})`)
+  ctx.fillStyle = volume
+  ctx.beginPath()
+  ctx.moveTo(origin.x, origin.y)
+  ctx.lineTo(target.x - radius, target.y)
+  ctx.quadraticCurveTo(target.x, target.y + radius * 0.35, target.x + radius, target.y)
+  ctx.closePath()
+  ctx.fill()
+  ctx.restore()
+
+  const layers = quality === 'low' ? 1 : quality === 'medium' ? 2 : 3
+  for (let layer = layers; layer >= 1; layer -= 1) {
+    const layerScale = layer / layers
+    ctx.save()
+    ctx.globalCompositeOperation = 'screen'
+    const gradient = ctx.createRadialGradient(target.x, target.y, 0, target.x, target.y, radius * layerScale)
+    gradient.addColorStop(0, `rgba(${rgb},${(alpha * (0.22 + glow * 0.18)).toFixed(3)})`)
+    gradient.addColorStop(Math.max(0.05, 0.5 - softness * 0.25), `rgba(${rgb},${(alpha * 0.1).toFixed(3)})`)
+    gradient.addColorStop(1, `rgba(${rgb},0)`)
+    ctx.fillStyle = gradient
+    ctx.beginPath()
+    ctx.ellipse(target.x, target.y, radius * layerScale, radius * (0.28 + softness * 0.28) * layerScale, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.restore()
+  }
+}
+
+function drawStrobePanel(
+  ctx: CanvasRenderingContext2D,
+  basis: CameraBasis,
+  fixture: ProductionRig['fixtures'][number],
+  frame: LaserDmxFixtureFrame,
+  glow: number,
+): void {
+  const projected = projectWithBasis(fixture.transform.position, basis)
+  if (!projected.visible || frame.visual.intensity < 0.001) return
+  const alpha = clamp01(frame.visual.intensity * frame.visual.rgba.a)
+  const rgb = `${frame.visual.rgba.r},${frame.visual.rgba.g},${frame.visual.rgba.b}`
+  const width = Math.max(12, Math.min(90, projected.scale * 0.42))
+  const height = width * 0.34
+
+  ctx.save()
+  ctx.globalCompositeOperation = 'screen'
+  ctx.shadowColor = frame.visual.color
+  ctx.shadowBlur = 28 + glow * 42
+  ctx.fillStyle = `rgba(${rgb},${Math.min(1, alpha * 0.95).toFixed(3)})`
+  ctx.fillRect(projected.x - width / 2, projected.y - height / 2, width, height)
+  ctx.restore()
+
+  ctx.save()
+  ctx.globalCompositeOperation = 'screen'
+  const bloom = ctx.createRadialGradient(projected.x, projected.y, 0, projected.x, projected.y, width * 2.6)
+  bloom.addColorStop(0, `rgba(${rgb},${(alpha * 0.55).toFixed(3)})`)
+  bloom.addColorStop(1, `rgba(${rgb},0)`)
+  ctx.fillStyle = bloom
+  ctx.fillRect(projected.x - width * 2.6, projected.y - width * 2.6, width * 5.2, width * 5.2)
+  ctx.restore()
+
+  if (frame.visual.flash?.pattern === 'fullStageWhiteout' && alpha > 0) {
+    ctx.save()
+    ctx.globalCompositeOperation = 'screen'
+    ctx.fillStyle = `rgba(255,255,255,${Math.min(0.72, alpha * 0.52).toFixed(3)})`
+    ctx.fillRect(0, 0, basis.W, basis.H)
+    ctx.restore()
+  }
+}
+
+function drawAudienceBlinder(
+  ctx: CanvasRenderingContext2D,
+  basis: CameraBasis,
+  fixture: ProductionRig['fixtures'][number],
+  frame: LaserDmxFixtureFrame,
+  glow: number,
+): void {
+  drawStrobePanel(ctx, basis, fixture, frame, glow)
+  const wash = frame.visual.wash
+  if (!wash) return
+  const origin = projectWithBasis(fixture.transform.position, basis)
+  const target = projectWithBasis(wash.worldTarget, basis)
+  if (!origin.visible || !target.visible) return
+  const alpha = clamp01(frame.visual.intensity * frame.visual.rgba.a)
+  const rgb = `${frame.visual.rgba.r},${frame.visual.rgba.g},${frame.visual.rgba.b}`
+  const width = Math.max(30, Math.min(300, target.scale * (1.2 + wash.spread * 2.5)))
+  ctx.save()
+  ctx.globalCompositeOperation = 'screen'
+  const gradient = ctx.createLinearGradient(origin.x, origin.y, target.x, target.y)
+  gradient.addColorStop(0, `rgba(${rgb},${(alpha * 0.24).toFixed(3)})`)
+  gradient.addColorStop(1, `rgba(${rgb},0)`)
+  ctx.fillStyle = gradient
+  ctx.beginPath()
+  ctx.moveTo(origin.x, origin.y)
+  ctx.lineTo(target.x - width, target.y + width * 0.22)
+  ctx.lineTo(target.x + width, target.y + width * 0.22)
+  ctx.closePath()
+  ctx.fill()
+  ctx.restore()
+}
+
+function drawLedBarFixture(
+  ctx: CanvasRenderingContext2D,
+  basis: CameraBasis,
+  fixture: ProductionRig['fixtures'][number],
+  frame: LaserDmxFixtureFrame,
+  glow: number,
+): void {
+  const ledBar = frame.visual.ledBar
+  if (!ledBar || ledBar.segmentColors.length === 0) return
+  const count = ledBar.segmentColors.length
+  const roll = fixture.transform.orientation.rollDeg * Math.PI / 180
+  const halfLength = 1.25
+  const axis = { x: Math.cos(roll), y: Math.sin(roll), z: 0 }
+  for (let index = 0; index < count; index += 1) {
+    const t0 = index / count - 0.5
+    const t1 = (index + 1) / count - 0.5
+    const a = add(fixture.transform.position, scale(axis, t0 * halfLength * 2))
+    const b = add(fixture.transform.position, scale(axis, t1 * halfLength * 2))
+    const pa = projectWithBasis(a, basis)
+    const pb = projectWithBasis(b, basis)
+    if (!pa.visible || !pb.visible) continue
+    const intensity = clamp01(ledBar.segmentIntensities[index] ?? 0)
+    if (intensity < 0.001) continue
+    ctx.save()
+    ctx.globalCompositeOperation = 'screen'
+    ctx.strokeStyle = ledBar.segmentColors[index]
+    ctx.globalAlpha = intensity
+    ctx.lineCap = 'butt'
+    ctx.lineWidth = Math.max(4, Math.min(24, (pa.scale + pb.scale) * 0.055))
+    ctx.shadowColor = ledBar.segmentColors[index]
+    ctx.shadowBlur = 10 + glow * 20
+    ctx.beginPath()
+    ctx.moveTo(pa.x, pa.y)
+    ctx.lineTo(pb.x, pb.y)
+    ctx.stroke()
+    ctx.restore()
+  }
+}
+
 export function renderLaserDmxSpatialStage(input: SpatialStageRenderInput): void {
   const { ctx, W, H, rig, settings, frames } = input
   const stage = normalizeProductionStageModel(rig.stage)
@@ -502,9 +663,30 @@ export function renderLaserDmxSpatialStage(input: SpatialStageRenderInput): void
     const sourceFixture = sourceFixtureById.get(fixture.id)
     if (isMovingHeadFixtureKind(fixture.kind) && frame.visual.movingHead) {
       drawMovingHeadFixture(ctx, basis, fixture, frame, haze, glow)
+      if (frame.visual.wash) drawWashFixture(ctx, basis, fixture, frame, haze, glow, stage.editor.qualityTier)
       if (settings.showFixtureOrigins || stage.editor.guidesVisible) {
         drawFixtureOrigin(ctx, basis, fixture.transform.position, fixture.id === settings.selectedFixtureId)
       }
+      continue
+    }
+    if (fixture.kind === 'strobe') {
+      drawStrobePanel(ctx, basis, fixture, frame, glow)
+      if (settings.showFixtureOrigins || stage.editor.guidesVisible) drawFixtureOrigin(ctx, basis, fixture.transform.position, fixture.id === settings.selectedFixtureId)
+      continue
+    }
+    if (fixture.kind === 'blinder') {
+      drawAudienceBlinder(ctx, basis, fixture, frame, glow)
+      if (settings.showFixtureOrigins || stage.editor.guidesVisible) drawFixtureOrigin(ctx, basis, fixture.transform.position, fixture.id === settings.selectedFixtureId)
+      continue
+    }
+    if (fixture.kind === 'staticWash') {
+      drawWashFixture(ctx, basis, fixture, frame, haze, glow, stage.editor.qualityTier)
+      if (settings.showFixtureOrigins || stage.editor.guidesVisible) drawFixtureOrigin(ctx, basis, fixture.transform.position, fixture.id === settings.selectedFixtureId)
+      continue
+    }
+    if (fixture.kind === 'ledBar') {
+      drawLedBarFixture(ctx, basis, fixture, frame, glow)
+      if (settings.showFixtureOrigins || stage.editor.guidesVisible) drawFixtureOrigin(ctx, basis, fixture.transform.position, fixture.id === settings.selectedFixtureId)
       continue
     }
     const explicitTarget = sourceFixture?.targetId

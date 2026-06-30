@@ -70,7 +70,11 @@ import {
 import { resetBeamMatrixCompilerState } from '../components/vyzualz/react/renderers/LaserDmxBeamMatrixCompiler'
 import { resetFogState } from '../components/vyzualz/react/renderers/LaserDmxFogRenderer'
 import {
+  DEFAULT_PRODUCTION_FIXTURE_COLOR_POLICY,
+  DEFAULT_PRODUCTION_FLASH_PATTERN,
+  DEFAULT_PRODUCTION_LED_BAR_SETTINGS,
   DEFAULT_PRODUCTION_MOVING_HEAD_SETTINGS,
+  DEFAULT_PRODUCTION_WASH_SETTINGS,
   LASER_DMX_FIXTURE_SCHEMA_VERSION,
   applyProductionVenueTemplate,
   getLaserDmxFixtureProfile,
@@ -80,6 +84,10 @@ import {
   normalizeLaserDmxBeamMatrixSettings,
   normalizeLaserDmxSettings,
   normalizeLegacyLaserDmxFixture,
+  normalizeProductionFlashPattern,
+  normalizeProductionFixtureColorPolicy,
+  normalizeProductionLedBarSettings,
+  normalizeProductionWashSettings,
   sanitizeLaserDmxBeamMatrixForPersistence,
   sanitizeLaserDmxSettingsForPersistence,
 } from '../components/vyzualz/react/LaserDmxProductionRig'
@@ -626,18 +634,52 @@ function makeNewLaserFixture(existingFixtures: LaserDmxFixture[], profileId: Las
   const profile = getLaserDmxFixtureProfile(profileId)
   const fixtureKind = profile?.fixtureKind ?? 'laserProjector'
   const isMovingHead = isMovingHeadFixtureKind(fixtureKind)
+  const isLaser = fixtureKind === 'laserProjector'
+  const capabilities = profile?.capabilities
+  const colorSystem = capabilities?.color
+  const isFixedWhite = colorSystem?.mode === 'fixedWhite'
+  const fixedColor = colorSystem?.mode === 'fixedColor' ? colorSystem.color : null
+  const fixedRgb = fixedColor && /^#[0-9a-f]{6}$/i.test(fixedColor)
+    ? {
+        red: Number.parseInt(fixedColor.slice(1, 3), 16),
+        green: Number.parseInt(fixedColor.slice(3, 5), 16),
+        blue: Number.parseInt(fixedColor.slice(5, 7), 16),
+      }
+    : null
+  const defaultFlash = normalizeProductionFlashPattern({
+    ...DEFAULT_PRODUCTION_FLASH_PATTERN,
+    enabled: fixtureKind === 'strobe',
+    pattern: fixtureKind === 'strobe' ? 'sustainedStrobe' : 'singleHit',
+    durationBeats: fixtureKind === 'strobe' ? 4 : 1,
+    repeat: fixtureKind === 'strobe'
+      ? { mode: 'loop', count: 1, intervalBeats: 4 }
+      : DEFAULT_PRODUCTION_FLASH_PATTERN.repeat,
+  })
   return {
     schemaVersion: LASER_DMX_FIXTURE_SCHEMA_VERSION,
     fixtureKind,
     id:      crypto.randomUUID(),
-    name:    `${isMovingHead ? profile?.label ?? 'Moving Head' : 'Laser'} ${existingFixtures.length + 1}`,
+    name:    `${profile?.label ?? (isMovingHead ? 'Moving Head' : isLaser ? 'Laser' : 'Fixture')} ${existingFixtures.length + 1}`,
     enabled: true,
     dmx: { universe: 1, startAddress: nextAddr, profileId, channelMode: profileId === 'genericRgbLaser' ? 'basic' : 'extended' },
     position: { originX: 0.5, originY: 0.85, originZ: 0, targetX: 0.5, targetY: 0.5, targetZ: 0, pan: 0, tilt: 0, rotation: 0, mirrorX: false, mirrorY: false },
-    color: { mode: 'fixed', red: 0, green: 255, blue: 220, white: 0, alpha: 1, paletteId: '', colorCycleSpeed: 0.5 },
+    color: {
+      mode: 'fixed',
+      red: fixedRgb?.red ?? (isFixedWhite ? 255 : 0),
+      green: fixedRgb?.green ?? (isFixedWhite ? 255 : 255),
+      blue: fixedRgb?.blue ?? (isFixedWhite ? 255 : 220),
+      white: capabilities?.color?.mode === 'rgbw' || isFixedWhite ? 255 : 0,
+      alpha: 1,
+      paletteId: '',
+      colorCycleSpeed: isLaser || isMovingHead ? 0.5 : 0,
+    },
+    colorPolicy: normalizeProductionFixtureColorPolicy(DEFAULT_PRODUCTION_FIXTURE_COLOR_POLICY),
     beam: { dimmer: 1, shutterOpen: true, width: 1, zoom: 1, focus: 1, strobeRate: 0, flickerAmount: 0 },
-    path: { kind: isMovingHead ? 'staticBeam' : 'fan', scale: 1, rotation: 0, offsetX: 0, offsetY: 0, scanSpeed: isMovingHead ? 0 : 0.45, phaseOffset: 0, pointCount: isMovingHead ? 1 : 18, spread: 0.6, radius: 0.4, complexity: 0.4, smoothing: 0, pathProgress: isMovingHead ? 1 : 0 },
+    path: { kind: isLaser ? 'fan' : 'staticBeam', scale: 1, rotation: 0, offsetX: 0, offsetY: 0, scanSpeed: isLaser ? 0.45 : 0, phaseOffset: 0, pointCount: isLaser ? 18 : 1, spread: 0.6, radius: 0.4, complexity: 0.4, smoothing: 0, pathProgress: isLaser ? 0 : 1 },
     ...(isMovingHead ? { movingHead: { ...DEFAULT_PRODUCTION_MOVING_HEAD_SETTINGS } } : {}),
+    ...(capabilities?.strobe ? { flashPattern: defaultFlash } : {}),
+    ...(capabilities?.wash ? { wash: normalizeProductionWashSettings(DEFAULT_PRODUCTION_WASH_SETTINGS) } : {}),
+    ...(capabilities?.pixels ? { ledBar: normalizeProductionLedBarSettings(DEFAULT_PRODUCTION_LED_BAR_SETTINGS, capabilities.pixels.maxSegments) } : {}),
     modulationRoutes: [],
   }
 }
@@ -1872,6 +1914,11 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
   if (version < 31 && isPersistedLaserDmxSettingsDocument(state.laserDmxSettings)) {
     // Backfill capability-gated moving-head state and normalized group movement
     // documents without touching Beam Matrix travel or reaction-group data.
+    state = { ...state, laserDmxSettings: normalizeLaserDmxSettings(state.laserDmxSettings) }
+  }
+  if (version < 32 && isPersistedLaserDmxSettingsDocument(state.laserDmxSettings)) {
+    // Backfill Patch 4 production-fixture profiles, typed flash patterns,
+    // visual-comfort limits, wash/pixel state, and group chase documents.
     state = { ...state, laserDmxSettings: normalizeLaserDmxSettings(state.laserDmxSettings) }
   }
   if (Array.isArray(state.reactPresets)) {
@@ -3127,6 +3174,22 @@ export const useReactStore = create<ReactStoreState>()(
             name: `${src.name} Copy`,
             dmx:  { ...src.dmx, startAddress: nextAddr },
             ...(src.movingHead ? { movingHead: { ...src.movingHead } } : {}),
+            ...(src.colorPolicy ? { colorPolicy: { ...src.colorPolicy } } : {}),
+            ...(src.flashPattern ? {
+              flashPattern: {
+                ...src.flashPattern,
+                envelope: { ...src.flashPattern.envelope },
+                repeat: { ...src.flashPattern.repeat },
+              },
+            } : {}),
+            ...(src.wash ? { wash: { ...src.wash } } : {}),
+            ...(src.ledBar ? {
+              ledBar: {
+                ...src.ledBar,
+                secondaryColor: { ...src.ledBar.secondaryColor },
+                chase: { ...src.ledBar.chase },
+              },
+            } : {}),
             ...(src.stageTransform ? {
               stageTransform: {
                 position: { ...src.stageTransform.position },
@@ -4132,7 +4195,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 31,
+      version: 32,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

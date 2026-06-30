@@ -15,10 +15,10 @@ import type {
   LaserDmxSettings,
 } from './ReactTypes'
 
-export const LASER_DMX_SETTINGS_SCHEMA_VERSION = 2
-export const LASER_DMX_FIXTURE_SCHEMA_VERSION = 2
+export const LASER_DMX_SETTINGS_SCHEMA_VERSION = 3
+export const LASER_DMX_FIXTURE_SCHEMA_VERSION = 3
 export const LASER_DMX_BEAM_MATRIX_SCHEMA_VERSION = 1
-export const LASER_DMX_PRODUCTION_RIG_SCHEMA_VERSION = 3
+export const LASER_DMX_PRODUCTION_RIG_SCHEMA_VERSION = 4
 export const LASER_DMX_STAGE_SCHEMA_VERSION = 1
 
 export type ProductionFixtureKind =
@@ -26,6 +26,7 @@ export type ProductionFixtureKind =
   | 'movingHeadBeam'
   | 'movingHeadSpot'
   | 'movingHeadWash'
+  | 'staticWash'
   | 'strobe'
   | 'blinder'
   | 'ledBar'
@@ -38,6 +39,7 @@ export type ProductionColorSystem =
   | { mode: 'rgbw' }
   | { mode: 'colorWheel'; slots: readonly string[] }
   | { mode: 'fixedWhite'; colorTemperatureKelvin?: number }
+  | { mode: 'fixedColor'; color: string; label?: string }
 
 export interface ProductionPanTiltCapability {
   panRangeDeg: number
@@ -61,6 +63,18 @@ export interface ProductionTriggerCapability {
   cooldownMs: number
 }
 
+export interface ProductionWashCapability {
+  spread: ProductionRangeCapability
+  softness: ProductionRangeCapability
+  atmosphericVolume: boolean
+}
+
+export interface ProductionPixelCapability {
+  maxSegments: number
+  supportsWholeBar: boolean
+  supportsSegmentPatterns: boolean
+}
+
 /**
  * A fixture exposes only the controls declared here. UI and renderer code must
  * query this contract instead of inferring behavior from the fixture kind.
@@ -78,6 +92,8 @@ export interface ProductionFixtureCapabilities {
   prism?: { facets: readonly number[]; rotation?: boolean }
   frost?: ProductionRangeCapability
   beamPattern?: { programmable: boolean; patternIds?: readonly string[] }
+  wash?: ProductionWashCapability
+  pixels?: ProductionPixelCapability
   atmosphericOutput?: ProductionAtmosphericCapability
   trigger?: ProductionTriggerCapability
 }
@@ -240,6 +256,100 @@ export interface ProductionFixturePropertyState {
   beamPatternId?: string
   atmosphericOutput?: number
   triggered?: boolean
+  flashPatternId?: ProductionFlashPatternId
+  washSpread?: number
+  washSoftness?: number
+  pixelSegmentCount?: number
+}
+
+export type ProductionWhiteAccentPolicy = 'off' | 'impactOnly' | 'continuous'
+
+export interface ProductionFixtureColorPolicy {
+  whiteAccentPolicy: ProductionWhiteAccentPolicy
+  whiteAccentIntensity: number
+  preserveFixedColor: boolean
+}
+
+export type ProductionFlashPatternId =
+  | 'singleHit'
+  | 'doubleHit'
+  | 'tripleHit'
+  | 'sustainedStrobe'
+  | 'quarterBeatBurst'
+  | 'eighthNoteBurst'
+  | 'rampUpBuildStrobe'
+  | 'alternatingLeftRight'
+  | 'centerOutFlash'
+  | 'randomizedFlicker'
+  | 'fullStageWhiteout'
+  | 'flashThenBlackout'
+
+export type ProductionFlashQuantize = 'none' | 'beat' | 'eighth' | 'sixteenth' | 'bar'
+export type ProductionFlashRepeatMode = 'once' | 'count' | 'loop'
+export type ProductionFlashRetriggerPolicy = 'restart' | 'ignoreWhileActive' | 'queueNextQuantized'
+export type ProductionFlashEnvelopeCurve = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut'
+
+export interface ProductionFlashEnvelope {
+  attack: number
+  hold: number
+  release: number
+  curve: ProductionFlashEnvelopeCurve
+}
+
+export interface ProductionFlashRepeatRule {
+  mode: ProductionFlashRepeatMode
+  count: number
+  intervalBeats: number
+}
+
+export interface ProductionFlashPatternSettings {
+  enabled: boolean
+  pattern: ProductionFlashPatternId
+  triggerTimeSec: number
+  durationBeats: number
+  rateHz: number
+  dutyCycle: number
+  intensity: number
+  envelope: ProductionFlashEnvelope
+  repeat: ProductionFlashRepeatRule
+  quantize: ProductionFlashQuantize
+  retriggerPolicy: ProductionFlashRetriggerPolicy
+  whiteAccent: boolean
+  seed: number
+}
+
+export type ProductionChaseOrder = 'forward' | 'reverse' | 'alternate' | 'centerOut' | 'outsideIn' | 'randomized'
+
+export interface ProductionChaseSettings {
+  enabled: boolean
+  order: ProductionChaseOrder
+  stepBeats: number
+  width: number
+  seed: number
+}
+
+export interface ProductionWashSettings {
+  spread: number
+  softness: number
+  atmosphericIntensity: number
+}
+
+export type ProductionLedBarMode = 'wholeBar' | 'segments'
+export type ProductionLedBarPattern = 'solid' | 'alternating' | 'gradient' | 'chase' | 'sparkle'
+
+export interface ProductionLedBarSettings {
+  mode: ProductionLedBarMode
+  segmentCount: number
+  pattern: ProductionLedBarPattern
+  secondaryColor: { red: number; green: number; blue: number; white: number }
+  chase: ProductionChaseSettings
+}
+
+export interface ProductionVisualComfortSettings {
+  disableStrobe: boolean
+  maxFlashHz: number
+  warningThresholdHz: number
+  maxContinuousFlashSec: number
 }
 
 export type ProductionMovingHeadEasing = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut'
@@ -305,6 +415,57 @@ export interface ProductionGroupMovementConfig {
   prePositionWhileShuttered: boolean
 }
 
+export const DEFAULT_PRODUCTION_FIXTURE_COLOR_POLICY: ProductionFixtureColorPolicy = {
+  whiteAccentPolicy: 'impactOnly',
+  whiteAccentIntensity: 1,
+  preserveFixedColor: true,
+}
+
+export const DEFAULT_PRODUCTION_FLASH_PATTERN: ProductionFlashPatternSettings = {
+  enabled: false,
+  pattern: 'singleHit',
+  triggerTimeSec: 0,
+  durationBeats: 1,
+  rateHz: 8,
+  dutyCycle: 0.35,
+  intensity: 1,
+  envelope: { attack: 0, hold: 0.7, release: 0.3, curve: 'easeOut' },
+  repeat: { mode: 'once', count: 1, intervalBeats: 4 },
+  quantize: 'beat',
+  retriggerPolicy: 'restart',
+  whiteAccent: true,
+  seed: 1,
+}
+
+export const DEFAULT_PRODUCTION_CHASE: ProductionChaseSettings = {
+  enabled: false,
+  order: 'forward',
+  stepBeats: 0.5,
+  width: 1,
+  seed: 1,
+}
+
+export const DEFAULT_PRODUCTION_WASH_SETTINGS: ProductionWashSettings = {
+  spread: 0.72,
+  softness: 0.72,
+  atmosphericIntensity: 0.65,
+}
+
+export const DEFAULT_PRODUCTION_LED_BAR_SETTINGS: ProductionLedBarSettings = {
+  mode: 'wholeBar',
+  segmentCount: 8,
+  pattern: 'solid',
+  secondaryColor: { red: 255, green: 255, blue: 255, white: 0 },
+  chase: { ...DEFAULT_PRODUCTION_CHASE },
+}
+
+export const DEFAULT_PRODUCTION_VISUAL_COMFORT: ProductionVisualComfortSettings = {
+  disableStrobe: false,
+  maxFlashHz: 12,
+  warningThresholdHz: 7,
+  maxContinuousFlashSec: 4,
+}
+
 export const DEFAULT_PRODUCTION_MOVING_HEAD_SETTINGS: ProductionMovingHeadSettings = {
   panDeg: 0,
   tiltDeg: -35,
@@ -365,6 +526,128 @@ export function normalizeProductionMovingHeadSettings(value: unknown): Productio
     goboRotation: finiteOr(raw.goboRotation, 0),
     prismFacets: Math.max(0, Math.round(finiteOr(raw.prismFacets, 0))),
     prismRotation: finiteOr(raw.prismRotation, 0),
+  }
+}
+
+const FLASH_PATTERNS: readonly ProductionFlashPatternId[] = [
+  'singleHit', 'doubleHit', 'tripleHit', 'sustainedStrobe', 'quarterBeatBurst',
+  'eighthNoteBurst', 'rampUpBuildStrobe', 'alternatingLeftRight', 'centerOutFlash',
+  'randomizedFlicker', 'fullStageWhiteout', 'flashThenBlackout',
+]
+const FLASH_QUANTIZE: readonly ProductionFlashQuantize[] = ['none', 'beat', 'eighth', 'sixteenth', 'bar']
+const FLASH_REPEAT_MODES: readonly ProductionFlashRepeatMode[] = ['once', 'count', 'loop']
+const FLASH_RETRIGGER_POLICIES: readonly ProductionFlashRetriggerPolicy[] = ['restart', 'ignoreWhileActive', 'queueNextQuantized']
+const CHASE_ORDERS: readonly ProductionChaseOrder[] = ['forward', 'reverse', 'alternate', 'centerOut', 'outsideIn', 'randomized']
+
+export function normalizeProductionFixtureColorPolicy(value: unknown): ProductionFixtureColorPolicy {
+  const raw = isRecord(value) ? value : {}
+  const whiteAccentPolicy = raw.whiteAccentPolicy === 'off' || raw.whiteAccentPolicy === 'continuous'
+    ? raw.whiteAccentPolicy
+    : 'impactOnly'
+  return {
+    whiteAccentPolicy,
+    whiteAccentIntensity: Math.max(0, Math.min(1, finiteOr(raw.whiteAccentIntensity, 1))),
+    preserveFixedColor: booleanOr(raw.preserveFixedColor, true),
+  }
+}
+
+export function normalizeProductionFlashPattern(value: unknown): ProductionFlashPatternSettings {
+  const raw = isRecord(value) ? value : {}
+  const rawEnvelope = isRecord(raw.envelope) ? raw.envelope : {}
+  const rawRepeat = isRecord(raw.repeat) ? raw.repeat : {}
+  const pattern = typeof raw.pattern === 'string' && FLASH_PATTERNS.includes(raw.pattern as ProductionFlashPatternId)
+    ? raw.pattern as ProductionFlashPatternId
+    : DEFAULT_PRODUCTION_FLASH_PATTERN.pattern
+  const quantize = typeof raw.quantize === 'string' && FLASH_QUANTIZE.includes(raw.quantize as ProductionFlashQuantize)
+    ? raw.quantize as ProductionFlashQuantize
+    : DEFAULT_PRODUCTION_FLASH_PATTERN.quantize
+  const retriggerPolicy = typeof raw.retriggerPolicy === 'string' && FLASH_RETRIGGER_POLICIES.includes(raw.retriggerPolicy as ProductionFlashRetriggerPolicy)
+    ? raw.retriggerPolicy as ProductionFlashRetriggerPolicy
+    : DEFAULT_PRODUCTION_FLASH_PATTERN.retriggerPolicy
+  const repeatMode = typeof rawRepeat.mode === 'string' && FLASH_REPEAT_MODES.includes(rawRepeat.mode as ProductionFlashRepeatMode)
+    ? rawRepeat.mode as ProductionFlashRepeatMode
+    : DEFAULT_PRODUCTION_FLASH_PATTERN.repeat.mode
+  const curve = rawEnvelope.curve === 'linear' || rawEnvelope.curve === 'easeIn' || rawEnvelope.curve === 'easeInOut'
+    ? rawEnvelope.curve
+    : 'easeOut'
+  return {
+    enabled: booleanOr(raw.enabled, DEFAULT_PRODUCTION_FLASH_PATTERN.enabled),
+    pattern,
+    triggerTimeSec: Math.max(0, finiteOr(raw.triggerTimeSec, DEFAULT_PRODUCTION_FLASH_PATTERN.triggerTimeSec)),
+    durationBeats: Math.max(0.0625, Math.min(128, finiteOr(raw.durationBeats, DEFAULT_PRODUCTION_FLASH_PATTERN.durationBeats))),
+    rateHz: Math.max(0.1, Math.min(60, finiteOr(raw.rateHz, DEFAULT_PRODUCTION_FLASH_PATTERN.rateHz))),
+    dutyCycle: Math.max(0.02, Math.min(0.98, finiteOr(raw.dutyCycle, DEFAULT_PRODUCTION_FLASH_PATTERN.dutyCycle))),
+    intensity: Math.max(0, Math.min(1, finiteOr(raw.intensity, DEFAULT_PRODUCTION_FLASH_PATTERN.intensity))),
+    envelope: {
+      attack: Math.max(0, Math.min(1, finiteOr(rawEnvelope.attack, DEFAULT_PRODUCTION_FLASH_PATTERN.envelope.attack))),
+      hold: Math.max(0, Math.min(1, finiteOr(rawEnvelope.hold, DEFAULT_PRODUCTION_FLASH_PATTERN.envelope.hold))),
+      release: Math.max(0, Math.min(1, finiteOr(rawEnvelope.release, DEFAULT_PRODUCTION_FLASH_PATTERN.envelope.release))),
+      curve,
+    },
+    repeat: {
+      mode: repeatMode,
+      count: Math.max(1, Math.min(256, Math.round(finiteOr(rawRepeat.count, DEFAULT_PRODUCTION_FLASH_PATTERN.repeat.count)))),
+      intervalBeats: Math.max(0.0625, Math.min(256, finiteOr(rawRepeat.intervalBeats, DEFAULT_PRODUCTION_FLASH_PATTERN.repeat.intervalBeats))),
+    },
+    quantize,
+    retriggerPolicy,
+    whiteAccent: booleanOr(raw.whiteAccent, DEFAULT_PRODUCTION_FLASH_PATTERN.whiteAccent),
+    seed: Math.round(finiteOr(raw.seed, DEFAULT_PRODUCTION_FLASH_PATTERN.seed)),
+  }
+}
+
+export function normalizeProductionChase(value: unknown): ProductionChaseSettings {
+  const raw = isRecord(value) ? value : {}
+  const order = typeof raw.order === 'string' && CHASE_ORDERS.includes(raw.order as ProductionChaseOrder)
+    ? raw.order as ProductionChaseOrder
+    : DEFAULT_PRODUCTION_CHASE.order
+  return {
+    enabled: booleanOr(raw.enabled, DEFAULT_PRODUCTION_CHASE.enabled),
+    order,
+    stepBeats: Math.max(0.0625, Math.min(64, finiteOr(raw.stepBeats, DEFAULT_PRODUCTION_CHASE.stepBeats))),
+    width: Math.max(1, Math.min(64, Math.round(finiteOr(raw.width, DEFAULT_PRODUCTION_CHASE.width)))),
+    seed: Math.round(finiteOr(raw.seed, DEFAULT_PRODUCTION_CHASE.seed)),
+  }
+}
+
+export function normalizeProductionWashSettings(value: unknown): ProductionWashSettings {
+  const raw = isRecord(value) ? value : {}
+  return {
+    spread: Math.max(0, Math.min(1, finiteOr(raw.spread, DEFAULT_PRODUCTION_WASH_SETTINGS.spread))),
+    softness: Math.max(0, Math.min(1, finiteOr(raw.softness, DEFAULT_PRODUCTION_WASH_SETTINGS.softness))),
+    atmosphericIntensity: Math.max(0, Math.min(1, finiteOr(raw.atmosphericIntensity, DEFAULT_PRODUCTION_WASH_SETTINGS.atmosphericIntensity))),
+  }
+}
+
+export function normalizeProductionLedBarSettings(value: unknown, maxSegments = 32): ProductionLedBarSettings {
+  const raw = isRecord(value) ? value : {}
+  const secondary = isRecord(raw.secondaryColor) ? raw.secondaryColor : {}
+  const mode = raw.mode === 'segments' ? 'segments' : 'wholeBar'
+  const pattern = raw.pattern === 'alternating' || raw.pattern === 'gradient' || raw.pattern === 'chase' || raw.pattern === 'sparkle'
+    ? raw.pattern
+    : 'solid'
+  return {
+    mode,
+    segmentCount: Math.max(1, Math.min(maxSegments, Math.round(finiteOr(raw.segmentCount, DEFAULT_PRODUCTION_LED_BAR_SETTINGS.segmentCount)))),
+    pattern,
+    secondaryColor: {
+      red: Math.max(0, Math.min(255, Math.round(finiteOr(secondary.red, 255)))),
+      green: Math.max(0, Math.min(255, Math.round(finiteOr(secondary.green, 255)))),
+      blue: Math.max(0, Math.min(255, Math.round(finiteOr(secondary.blue, 255)))),
+      white: Math.max(0, Math.min(255, Math.round(finiteOr(secondary.white, 0)))),
+    },
+    chase: normalizeProductionChase(raw.chase),
+  }
+}
+
+export function normalizeProductionVisualComfort(value: unknown): ProductionVisualComfortSettings {
+  const raw = isRecord(value) ? value : {}
+  const maxFlashHz = Math.max(1, Math.min(30, finiteOr(raw.maxFlashHz, DEFAULT_PRODUCTION_VISUAL_COMFORT.maxFlashHz)))
+  return {
+    disableStrobe: booleanOr(raw.disableStrobe, DEFAULT_PRODUCTION_VISUAL_COMFORT.disableStrobe),
+    maxFlashHz,
+    warningThresholdHz: Math.max(1, Math.min(maxFlashHz, finiteOr(raw.warningThresholdHz, DEFAULT_PRODUCTION_VISUAL_COMFORT.warningThresholdHz))),
+    maxContinuousFlashSec: Math.max(0.5, Math.min(30, finiteOr(raw.maxContinuousFlashSec, DEFAULT_PRODUCTION_VISUAL_COMFORT.maxContinuousFlashSec))),
   }
 }
 
@@ -433,6 +716,7 @@ export interface ProductionFixtureGroup {
   parentGroupId?: string | null
   tags?: string[]
   movement?: ProductionGroupMovementConfig
+  chase?: ProductionChaseSettings
 }
 
 export interface ProductionLookFixtureState {
@@ -458,6 +742,14 @@ export type ProductionCueAction =
   | { type: 'setFixtureProperties'; fixtureId: string; properties: ProductionFixturePropertyState; transitionMs?: number }
   | { type: 'setGroupProperties'; groupId: string; properties: ProductionFixturePropertyState; transitionMs?: number }
   | { type: 'triggerFixture'; fixtureId: string; intensity?: number }
+  | {
+      type: 'triggerFlashPattern'
+      fixtureId?: string
+      groupId?: string
+      pattern: ProductionFlashPatternId
+      overrides?: Partial<ProductionFlashPatternSettings>
+    }
+  | { type: 'setGroupChase'; groupId: string; chase: ProductionChaseSettings }
   | { type: 'blackout'; enabled: boolean }
   | { type: 'wait'; durationMs: number }
 
@@ -830,6 +1122,7 @@ export const ALL_PRODUCTION_FIXTURE_KINDS: readonly ProductionFixtureKind[] = [
   'movingHeadBeam',
   'movingHeadSpot',
   'movingHeadWash',
+  'staticWash',
   'strobe',
   'blinder',
   'ledBar',
@@ -841,7 +1134,7 @@ export const ALL_PRODUCTION_FIXTURE_KINDS: readonly ProductionFixtureKind[] = [
 export const LASER_DMX_VIRTUAL_RENDERER_CAPABILITIES: ProductionRendererCapabilities = {
   id: 'laserDmxVirtualRenderer',
   virtualOnly: true,
-  fixtureKinds: ['laserProjector', 'movingHeadBeam', 'movingHeadSpot', 'movingHeadWash'],
+  fixtureKinds: ['laserProjector', 'movingHeadBeam', 'movingHeadSpot', 'movingHeadWash', 'staticWash', 'strobe', 'blinder', 'ledBar'],
   supportsBeamPaths: true,
   supportsVolumetrics: true,
   supportsAtmospherics: true,
@@ -857,7 +1150,7 @@ export const LASER_DMX_OUTPUT_ADAPTER_CAPABILITIES: ProductionOutputAdapterCapab
   enabled: true,
   canTransmit: false,
   transports: ['none'],
-  fixtureKinds: ['laserProjector', 'movingHeadBeam', 'movingHeadSpot', 'movingHeadWash'],
+  fixtureKinds: ['laserProjector', 'movingHeadBeam', 'movingHeadSpot', 'movingHeadWash', 'staticWash', 'strobe', 'blinder', 'ledBar'],
 }
 
 /**
@@ -889,18 +1182,24 @@ export const PRODUCTION_FIXTURE_KIND_CAPABILITIES: Readonly<Record<ProductionFix
     color: { mode: 'rgbw' }, dimmer: true, shutter: true, strobe: { min: 0, max: 1 },
     panTilt: { panRangeDeg: 540, tiltRangeDeg: 270 }, zoom: { min: 0, max: 1 },
     frost: { min: 0, max: 1 },
+    wash: { spread: { min: 0, max: 1 }, softness: { min: 0, max: 1 }, atmosphericVolume: true },
+  },
+  staticWash: {
+    color: { mode: 'rgbw' }, dimmer: true, shutter: true,
+    wash: { spread: { min: 0, max: 1 }, softness: { min: 0, max: 1 }, atmosphericVolume: true },
   },
   strobe: {
     color: { mode: 'fixedWhite', colorTemperatureKelvin: 6500 }, dimmer: true, shutter: true,
     strobe: { min: 0, max: 1 }, trigger: { momentary: false, cooldownMs: 0 },
   },
   blinder: {
-    color: { mode: 'fixedWhite', colorTemperatureKelvin: 3200 }, dimmer: true, shutter: true,
+    color: { mode: 'fixedColor', color: '#FFD09A', label: 'Tungsten amber' }, dimmer: true, shutter: true,
     strobe: { min: 0, max: 1 },
+    wash: { spread: { min: 0.35, max: 1 }, softness: { min: 0.4, max: 1 }, atmosphericVolume: true },
   },
   ledBar: {
     color: { mode: 'rgbw' }, dimmer: true, shutter: true, strobe: { min: 0, max: 1 },
-    beamPattern: { programmable: true, patternIds: ['pixels'] },
+    pixels: { maxSegments: 32, supportsWholeBar: true, supportsSegmentPatterns: true },
   },
   hazer: {
     atmosphericOutput: { medium: 'haze', variableOutput: true },
@@ -1127,6 +1426,7 @@ export const LASER_DMX_FIXTURE_PROFILES: Readonly<Record<LaserDmxProfileId, Prod
       panTilt: { panRangeDeg: 540, tiltRangeDeg: 270 },
       zoom: { min: 0, max: 1 },
       frost: { min: 0, max: 1 },
+      wash: { spread: { min: 0, max: 1 }, softness: { min: 0, max: 1 }, atmosphericVolume: true },
     },
     channels: [
       ...movingHeadCoreChannels,
@@ -1136,6 +1436,91 @@ export const LASER_DMX_FIXTURE_PROFILES: Readonly<Record<LaserDmxProfileId, Prod
       { channel: 9, source: 'white', label: 'White' },
       { channel: 10, source: 'zoom', label: 'Zoom' },
       { channel: 11, source: 'frost', label: 'Frost' },
+    ],
+  },
+  genericStaticWash: {
+    schemaVersion: 1,
+    id: 'genericStaticWash',
+    label: 'Virtual Static Wash',
+    fixtureKind: 'staticWash',
+    capabilities: {
+      ...PRODUCTION_FIXTURE_KIND_CAPABILITIES.staticWash,
+    },
+    channels: [
+      { channel: 1, source: 'dimmer', label: 'Dimmer' },
+      { channel: 2, source: 'shutter', label: 'Shutter' },
+      { channel: 3, source: 'red', label: 'Red' },
+      { channel: 4, source: 'green', label: 'Green' },
+      { channel: 5, source: 'blue', label: 'Blue' },
+      { channel: 6, source: 'white', label: 'White' },
+    ],
+  },
+  genericWhiteStrobe: {
+    schemaVersion: 1,
+    id: 'genericWhiteStrobe',
+    label: 'Virtual White Strobe',
+    fixtureKind: 'strobe',
+    capabilities: {
+      ...PRODUCTION_FIXTURE_KIND_CAPABILITIES.strobe,
+    },
+    channels: [
+      { channel: 1, source: 'dimmer', label: 'Dimmer' },
+      { channel: 2, source: 'shutter', label: 'Shutter' },
+      { channel: 3, source: 'strobe', label: 'Flash rate' },
+    ],
+  },
+  genericRgbwStrobe: {
+    schemaVersion: 1,
+    id: 'genericRgbwStrobe',
+    label: 'Virtual RGBW Strobe',
+    fixtureKind: 'strobe',
+    capabilities: {
+      color: { mode: 'rgbw' },
+      dimmer: true,
+      shutter: true,
+      strobe: { min: 0, max: 1 },
+      trigger: { momentary: false, cooldownMs: 0 },
+    },
+    channels: [
+      { channel: 1, source: 'dimmer', label: 'Dimmer' },
+      { channel: 2, source: 'shutter', label: 'Shutter' },
+      { channel: 3, source: 'strobe', label: 'Flash rate' },
+      { channel: 4, source: 'red', label: 'Red' },
+      { channel: 5, source: 'green', label: 'Green' },
+      { channel: 6, source: 'blue', label: 'Blue' },
+      { channel: 7, source: 'white', label: 'White' },
+    ],
+  },
+  genericAudienceBlinder: {
+    schemaVersion: 1,
+    id: 'genericAudienceBlinder',
+    label: 'Virtual Audience Blinder',
+    fixtureKind: 'blinder',
+    capabilities: {
+      ...PRODUCTION_FIXTURE_KIND_CAPABILITIES.blinder,
+    },
+    channels: [
+      { channel: 1, source: 'dimmer', label: 'Dimmer' },
+      { channel: 2, source: 'shutter', label: 'Shutter' },
+      { channel: 3, source: 'strobe', label: 'Flash rate' },
+    ],
+  },
+  genericLedBar: {
+    schemaVersion: 1,
+    id: 'genericLedBar',
+    label: 'Virtual LED Pixel Bar',
+    fixtureKind: 'ledBar',
+    capabilities: {
+      ...PRODUCTION_FIXTURE_KIND_CAPABILITIES.ledBar,
+    },
+    channels: [
+      { channel: 1, source: 'dimmer', label: 'Dimmer' },
+      { channel: 2, source: 'shutter', label: 'Shutter' },
+      { channel: 3, source: 'strobe', label: 'Flash rate' },
+      { channel: 4, source: 'red', label: 'Red' },
+      { channel: 5, source: 'green', label: 'Green' },
+      { channel: 6, source: 'blue', label: 'Blue' },
+      { channel: 7, source: 'white', label: 'White' },
     ],
   },
 }
@@ -1278,6 +1663,9 @@ export function validateFixtureCapabilities(
   if (capabilities.color?.mode === 'colorWheel' && capabilities.color.slots.length === 0) {
     issues.push({ severity: 'error', path: `${path}.color.slots`, message: 'Color-wheel fixtures require at least one slot' })
   }
+  if (capabilities.color?.mode === 'fixedColor' && !/^#[0-9a-f]{6}$/i.test(capabilities.color.color)) {
+    issues.push({ severity: 'error', path: `${path}.color.color`, message: 'Fixed color must be a six-digit hex color' })
+  }
   if (capabilities.color?.mode === 'fixedWhite') {
     const kelvin = capabilities.color.colorTemperatureKelvin
     if (kelvin !== undefined && (!isFiniteNumber(kelvin) || kelvin < 1000 || kelvin > 20000)) {
@@ -1289,6 +1677,13 @@ export function validateFixtureCapabilities(
   validateRange(capabilities.focus, `${path}.focus`, issues)
   validateRange(capabilities.iris, `${path}.iris`, issues)
   validateRange(capabilities.frost, `${path}.frost`, issues)
+  if (capabilities.wash) {
+    validateRange(capabilities.wash.spread, `${path}.wash.spread`, issues)
+    validateRange(capabilities.wash.softness, `${path}.wash.softness`, issues)
+  }
+  if (capabilities.pixels && (!Number.isInteger(capabilities.pixels.maxSegments) || capabilities.pixels.maxSegments < 1 || capabilities.pixels.maxSegments > 512)) {
+    issues.push({ severity: 'error', path: `${path}.pixels.maxSegments`, message: 'Pixel segment count must be an integer between 1 and 512' })
+  }
   if (capabilities.panTilt) {
     if (!isFiniteNumber(capabilities.panTilt.panRangeDeg) || capabilities.panTilt.panRangeDeg <= 0) {
       issues.push({ severity: 'error', path: `${path}.panTilt.panRangeDeg`, message: 'Pan range must be a positive finite number' })
@@ -1569,6 +1964,12 @@ export function normalizeLegacyLaserDmxFixture(raw: unknown, index = 0): LaserDm
     ...(isMovingHeadFixtureKind(fixtureKind)
       ? { movingHead: normalizeProductionMovingHeadSettings(raw.movingHead) }
       : { movingHead: undefined }),
+    ...(isRecord(raw.colorPolicy)
+      ? { colorPolicy: normalizeProductionFixtureColorPolicy(raw.colorPolicy) }
+      : { colorPolicy: undefined }),
+    ...(resolvedCapabilities?.strobe ? { flashPattern: normalizeProductionFlashPattern(raw.flashPattern) } : { flashPattern: undefined }),
+    ...(resolvedCapabilities?.wash ? { wash: normalizeProductionWashSettings(raw.wash) } : { wash: undefined }),
+    ...(resolvedCapabilities?.pixels ? { ledBar: normalizeProductionLedBarSettings(raw.ledBar, resolvedCapabilities.pixels.maxSegments) } : { ledBar: undefined }),
     ...(isRecord(raw.stageTransform) ? { stageTransform: raw.stageTransform as unknown as ProductionStageTransform } : {}),
     compatibility: {
       ...compatibility,
@@ -1630,6 +2031,7 @@ export function normalizeLaserDmxSettings(raw: unknown): LaserDmxSettings {
     showFixtureOrigins: false,
     showPathPoints: false,
     showDmxDebug: false,
+    visualComfort: { ...DEFAULT_PRODUCTION_VISUAL_COMFORT },
     fixtures: [],
     productionStage: createDefaultProductionStageModel(),
     productionGroups: [],
@@ -1668,6 +2070,7 @@ export function normalizeLaserDmxSettings(raw: unknown): LaserDmxSettings {
     showFixtureOrigins: booleanOr(raw.showFixtureOrigins, false),
     showPathPoints: booleanOr(raw.showPathPoints, false),
     showDmxDebug: booleanOr(raw.showDmxDebug, false),
+    visualComfort: normalizeProductionVisualComfort(raw.visualComfort),
     fixtures,
     productionStage,
     productionGroups: normalizeArray<ProductionFixtureGroup>(raw.productionGroups).map((group, index) => ({
@@ -1676,6 +2079,7 @@ export function normalizeLaserDmxSettings(raw: unknown): LaserDmxSettings {
       name: typeof group.name === 'string' && group.name.length > 0 ? group.name : `Fixture Group ${index + 1}`,
       fixtureIds: Array.isArray(group.fixtureIds) ? group.fixtureIds.filter((value): value is string => typeof value === 'string') : [],
       ...(group.movement ? { movement: normalizeProductionGroupMovement(group.movement) } : {}),
+      ...(group.chase ? { chase: normalizeProductionChase(group.chase) } : {}),
     })),
     productionTargets: normalizeArray<unknown>(raw.productionTargets)
       .map(normalizeProductionTarget)
@@ -1753,6 +2157,12 @@ function buildFixturePropertyState(
     if (capabilities.prism.rotation) properties.prismRotation = fixture.movingHead?.prismRotation ?? 0
   }
   if (capabilities.beamPattern) properties.beamPatternId = fixture.path.kind
+  if (capabilities.strobe && fixture.flashPattern) properties.flashPatternId = fixture.flashPattern.pattern
+  if (capabilities.wash && fixture.wash) {
+    properties.washSpread = fixture.wash.spread
+    properties.washSoftness = fixture.wash.softness
+  }
+  if (capabilities.pixels && fixture.ledBar) properties.pixelSegmentCount = fixture.ledBar.segmentCount
   return properties
 }
 

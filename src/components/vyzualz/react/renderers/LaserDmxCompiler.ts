@@ -28,15 +28,26 @@ import type { LaserDmxPersonalizationContext } from '../../../../features/person
 import {
   buildProductionRig,
   compileProfileChannels,
+  getLaserDmxFixtureProfile,
   createProductionOutputFrame,
   isMovingHeadFixtureKind,
   normalizeProductionMovingHeadSettings,
+  normalizeProductionFixtureColorPolicy,
+  normalizeProductionFlashPattern,
+  normalizeProductionLedBarSettings,
+  normalizeProductionVisualComfort,
+  normalizeProductionWashSettings,
   normalizeLaserDmxSettings,
   resolveLaserDmxFixtureCapabilities,
 } from '../LaserDmxProductionRig'
 import type { ProductionOutputFrame, ProductionRig } from '../LaserDmxProductionRig'
 import { inferSpatialFixtureSemantic, personalizeRgbw } from '../../../../features/personalization/laserDmxPersonalization'
 import { evaluateMovingHeadFixture } from './LaserDmxMovingHeadEngine'
+import {
+  evaluateLedSegmentFrame,
+  evaluateProductionChase,
+  evaluateProductionFlashPattern,
+} from './LaserDmxFlashPatternEngine'
 
 // ── Re-export safety helpers for existing callers (LaserDmxRenderer.ts etc.) ──
 export { safeNumber, clamp, clamp01, clamp255, lerp, applyCurve, resolveStrobeVisible }
@@ -88,6 +99,29 @@ const VIRTUAL_COLOR_WHEEL_RGB: Readonly<Record<string, [number, number, number]>
 function sampleVirtualColorWheel(slots: readonly string[], slotIndex: number): [number, number, number] {
   const slot = slots[Math.max(0, Math.min(slots.length - 1, Math.round(slotIndex)))] ?? 'open'
   return VIRTUAL_COLOR_WHEEL_RGB[slot.toLowerCase()] ?? [255, 255, 255]
+}
+
+function parseHexColor(value: string): [number, number, number] {
+  const normalized = /^#[0-9a-f]{6}$/i.test(value) ? value.slice(1) : 'ffffff'
+  return [
+    Number.parseInt(normalized.slice(0, 2), 16),
+    Number.parseInt(normalized.slice(2, 4), 16),
+    Number.parseInt(normalized.slice(4, 6), 16),
+  ]
+}
+
+function colorTemperatureToRgb(kelvin: number): [number, number, number] {
+  const temperature = clamp(kelvin, 1000, 20000) / 100
+  const red = temperature <= 66 ? 255 : 329.698727446 * Math.pow(temperature - 60, -0.1332047592)
+  const green = temperature <= 66
+    ? 99.4708025861 * Math.log(Math.max(1, temperature)) - 161.1195681661
+    : 288.1221695283 * Math.pow(temperature - 60, -0.0755148492)
+  const blue = temperature >= 66 ? 255 : temperature <= 19 ? 0 : 138.5177312231 * Math.log(temperature - 10) - 305.0447927307
+  return [clamp255(red), clamp255(green), clamp255(blue)]
+}
+
+function colorString(rgb: [number, number, number], alpha: number): string {
+  return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${clamp01(alpha).toFixed(3)})`
 }
 
 // ── Module-level ephemeral state ──────────────────────────────────────────────
@@ -146,6 +180,7 @@ interface GlobalRenderState {
   globalBeamWidth: number
   globalStrobeRate:number
   safetyClamp:     number
+  visualComfort:   ReturnType<typeof normalizeProductionVisualComfort>
 }
 
 // Compiler result — renderer uses compiled.global instead of raw settings
@@ -158,6 +193,7 @@ export interface CompiledGlobal {
   globalBeamWidth: number
   globalStrobeRate:number
   safetyClamp:     number
+  visualComfort:   ReturnType<typeof normalizeProductionVisualComfort>
   blackout:        boolean
 }
 
@@ -346,6 +382,7 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
     globalBeamWidth: clamp(safeNumber(settings.globalBeamWidth, 1), 0.2, 6),
     globalStrobeRate:clamp01(safeNumber(settings.globalStrobeRate, 0)),
     safetyClamp:     clamp01(safeNumber(settings.safetyClamp, 0.85)),
+    visualComfort:   normalizeProductionVisualComfort(settings.visualComfort),
   }
 
   if (settings.blackout) {
@@ -364,26 +401,27 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
 
   const frames: LaserDmxFixtureFrame[] = []
 
+  const rigFixtureById = new Map(productionRig.fixtures.map(fixture => [fixture.id, fixture]))
+  const rigTargetById = new Map(productionRig.targets.map(target => [target.id, target]))
+  const bpm = safeNumber(mi.rhythm?.bpm, 120)
+
   for (let fixtureIdx = 0; fixtureIdx < settings.fixtures.length; fixtureIdx++) {
     const fixture = settings.fixtures[fixtureIdx]
     if (!fixture.enabled) continue
+    const profile = getLaserDmxFixtureProfile(fixture.dmx.profileId)
     const capabilities = resolveLaserDmxFixtureCapabilities(fixture)
-    if (!capabilities) continue
+    if (!profile || !capabilities) continue
+    const fixtureKind = profile.fixtureKind
 
     const fState = fixtureStateFromFixture(fixture)
-    // Each fixture gets its own copy of global state so per-fixture routes don't bleed across fixtures
-    const gState: GlobalRenderState = { ...globalState }
+    const gState: GlobalRenderState = { ...globalState, visualComfort: { ...globalState.visualComfort } }
 
-    // Apply modulation routes
     for (const route of fixture.modulationRoutes) {
       const envKey = `sf:${fixture.id}:${route.id}`
       activeEnvKeys.add(envKey)
       applyRoute(route, fState, gState, mi, fixture.id, dt)
     }
 
-    // Capability declarations are the authority for fixture behavior. Routes may
-    // target a shared property vocabulary, but unsupported properties are reset
-    // before rendering/channel compilation.
     if (!capabilities.dimmer) fState.dimmer = 1
     if (!capabilities.shutter) fState.shutterOpen = true
     if (!capabilities.strobe) fState.strobeRate = 0
@@ -406,14 +444,14 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
     }
     if (capabilities.color?.mode !== 'rgbw') fState.white = 0
 
-    const movingHeadKind = isMovingHeadFixtureKind(fixture.fixtureKind)
+    const movingHeadKind = isMovingHeadFixtureKind(fixtureKind)
     const authoredMovingHead = movingHeadKind ? normalizeProductionMovingHeadSettings(fixture.movingHead) : null
     const movingHeadFrame = movingHeadKind
       ? evaluateMovingHeadFixture({
-          fixture,
+          fixture: { ...fixture, fixtureKind },
           rig: productionRig,
           timeSec,
-          bpm: safeNumber(mi.rhythm?.bpm, 120),
+          bpm,
           shutterOpen: fState.shutterOpen,
           panModulationDeg: fState.pan - authoredMovingHead!.panDeg,
           tiltModulationDeg: fState.tilt - authoredMovingHead!.tiltDeg,
@@ -424,97 +462,128 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
       fState.tilt = movingHeadFrame.tiltDeg
     }
 
-    // Safety clamp caps effective intensity
     fState.dimmer = clamp01(fState.dimmer * gState.safetyClamp)
+    const effectiveMaster = clamp01(gState.masterDimmer)
 
-    const effectiveMaster   = clamp01(gState.masterDimmer)
-    const effectiveIntensity = clamp01(fState.dimmer * effectiveMaster)
+    const chaseGroup = productionRig.groups.find(group => group.chase?.enabled && group.fixtureIds.includes(fixture.id))
+    const chaseIndex = chaseGroup ? chaseGroup.fixtureIds.indexOf(fixture.id) : fixtureIdx
+    const chaseCount = chaseGroup ? chaseGroup.fixtureIds.length : settings.fixtures.length
+    const chaseLevel = chaseGroup
+      ? evaluateProductionChase(chaseGroup.chase, chaseIndex, chaseCount, timeSec, bpm)
+      : 1
+    const effectiveIntensity = clamp01(fState.dimmer * effectiveMaster * chaseLevel)
     if ((!fState.shutterOpen || effectiveIntensity < 0.001) && !movingHeadFrame) continue
 
-    // Effective strobe: fixture rate + global additive contribution
     const effectiveStrobeRate = clamp01(fState.strobeRate + gState.globalStrobeRate)
-    const strobeVisible = fState.shutterOpen && effectiveIntensity >= 0.001 && resolveStrobeVisible(effectiveStrobeRate, timeSec)
+    const authoredFlash = normalizeProductionFlashPattern(fixture.flashPattern)
+    const legacyFlash = capabilities.strobe && !authoredFlash.enabled && effectiveStrobeRate > 0.001
+      ? normalizeProductionFlashPattern({
+          ...authoredFlash,
+          enabled: true,
+          pattern: 'sustainedStrobe',
+          durationBeats: 128,
+          rateHz: lerp(1, 18, effectiveStrobeRate),
+          repeat: { mode: 'loop', count: 1, intervalBeats: 128 },
+          quantize: 'none',
+          whiteAccent: false,
+        })
+      : authoredFlash
+    const evaluatedFlash = capabilities.strobe && legacyFlash.enabled
+      ? evaluateProductionFlashPattern({
+          settings: legacyFlash,
+          timeSec,
+          bpm,
+          fixtureIndex: chaseIndex,
+          fixtureCount: chaseCount,
+          comfort: gState.visualComfort,
+        })
+      : null
+    const flashSuppressed = Boolean(legacyFlash.enabled && gState.visualComfort.disableStrobe)
+    // A global no-strobe preference suppresses modulation, not the underlying steady
+    // wash, blinder, LED, moving-head, or laser output. Dedicated strobe fixtures go dark.
+    const flash = flashSuppressed && fixtureKind !== 'strobe' ? null : evaluatedFlash
+    const strobeVisible = flash
+      ? fState.shutterOpen && effectiveIntensity >= 0.001 && flash.visible
+      : fState.shutterOpen && effectiveIntensity >= 0.001 && resolveStrobeVisible(
+          gState.visualComfort.disableStrobe ? 0 : effectiveStrobeRate,
+          timeSec,
+        )
 
-    // Pan / Tilt: offset the target point in canvas pixels
     const ox = safeNumber(fixture.position.originX, 0.5) * W
     const oy = safeNumber(fixture.position.originY, 0.88) * H
     const baseTx = safeNumber(fixture.position.targetX, 0.5) * W
     const baseTy = safeNumber(fixture.position.targetY, 0.5) * H
-    // pan shifts target horizontally, tilt shifts vertically
-    const panOffsetPx  = (fState.pan  / 180) * W * 0.35
-    const tiltOffsetPx = (fState.tilt / 90)  * H * 0.25
+    const panOffsetPx = (fState.pan / 180) * W * 0.35
+    const tiltOffsetPx = (fState.tilt / 90) * H * 0.25
     const tx = baseTx + panOffsetPx
     const ty = baseTy + tiltOffsetPx
 
-    // Zoom: multiplies effective path scale (zoom=0 → 0.5×, zoom=1 → 1×)
     const zoomScale = lerp(0.5, 1.0, clamp01(fState.zoom))
     const effectivePathScale = fState.pathScale * zoomScale
 
-    // Flicker: deterministic per-fixture intensity noise (no Math.random — no jitter between frames)
     let intensityWithFlicker = fState.shutterOpen ? effectiveIntensity : 0
     if (fState.flickerAmount > 0.001) {
       const fp = timeSec * 11.3 + fixtureIdx * 2.7
       const noise = Math.sin(fp * 11.0) * Math.sin(fp * 7.3) * Math.cos(fp * 3.1)
       intensityWithFlicker = clamp01(effectiveIntensity * Math.max(0.3, 1.0 + noise * fState.flickerAmount * 0.3))
     }
+    if (flash) intensityWithFlicker = clamp01(intensityWithFlicker * flash.intensity)
 
-    // Laser projectors keep their established programmable path generator.
-    // Moving heads emit one physically aimed beam; their optical treatment is
-    // applied by the shared spatial stage renderer.
     let points: LaserPoint[]
-    if (movingHeadFrame) {
+    if (movingHeadFrame || fixtureKind !== 'laserProjector') {
       points = [{ x: tx, y: ty }]
     } else {
       const rawPoints = generateLaserPath({
-        originX:     ox,
-        originY:     oy,
-        targetX:     tx,
-        targetY:     ty,
+        originX: ox,
+        originY: oy,
+        targetX: tx,
+        targetY: ty,
         W, H, time,
-        scale:       effectivePathScale,
-        rotation:    fState.pathRotation,
-        offsetX:     safeNumber(fixture.path.offsetX, 0),
-        offsetY:     safeNumber(fixture.path.offsetY, 0),
-        scanSpeed:   fState.scanSpeed,
+        scale: effectivePathScale,
+        rotation: fState.pathRotation,
+        offsetX: safeNumber(fixture.path.offsetX, 0),
+        offsetY: safeNumber(fixture.path.offsetY, 0),
+        scanSpeed: fState.scanSpeed,
         phaseOffset: safeNumber(fixture.path.phaseOffset, 0),
-        pointCount:  safeNumber(fixture.path.pointCount, 18),
-        spread:      fState.pathSpread,
-        radius:      fState.pathRadius,
-        complexity:  fState.pathComplexity,
-        pathProgress:fState.pathProgress,
-        pathKind:    fixture.path.kind,
+        pointCount: safeNumber(fixture.path.pointCount, 18),
+        spread: fState.pathSpread,
+        radius: fState.pathRadius,
+        complexity: fState.pathComplexity,
+        pathProgress: fState.pathProgress,
+        pathKind: fixture.path.kind,
       })
-      points = fState.pathProgress < 0.999
-        ? sliceByProgress(rawPoints, fState.pathProgress)
-        : rawPoints
+      points = fState.pathProgress < 0.999 ? sliceByProgress(rawPoints, fState.pathProgress) : rawPoints
     }
 
-    // Mirror X / Mirror Y — reflect points around the (adjusted) target
-    if (!movingHeadFrame && fixture.position.mirrorX) {
-      points = points.map(pt => ({ x: tx * 2 - pt.x, y: pt.y }))
+    if (!movingHeadFrame && fixtureKind === 'laserProjector' && fixture.position.mirrorX) {
+      points = points.map(point => ({ x: tx * 2 - point.x, y: point.y }))
     }
-    if (!movingHeadFrame && fixture.position.mirrorY) {
-      points = points.map(pt => ({ x: pt.x, y: ty * 2 - pt.y }))
+    if (!movingHeadFrame && fixtureKind === 'laserProjector' && fixture.position.mirrorY) {
+      points = points.map(point => ({ x: point.x, y: ty * 2 - point.y }))
     }
 
-    // Color computation
-    let r = fState.red, g = fState.green, b = fState.blue
-
-    if (capabilities.color?.mode === 'colorWheel') {
-      ;[r, g, b] = sampleVirtualColorWheel(capabilities.color.slots, fState.colorWheelSlot)
+    let r = fState.red
+    let g = fState.green
+    let b = fState.blue
+    const colorSystem = capabilities.color
+    const hasAuthoredColorPolicy = fixture.colorPolicy !== undefined
+    const colorPolicy = normalizeProductionFixtureColorPolicy(fixture.colorPolicy)
+    if (colorSystem?.mode === 'colorWheel') {
+      ;[r, g, b] = sampleVirtualColorWheel(colorSystem.slots, fState.colorWheelSlot)
+    } else if (colorSystem?.mode === 'fixedWhite') {
+      ;[r, g, b] = colorTemperatureToRgb(colorSystem.colorTemperatureKelvin ?? 6500)
+    } else if (colorSystem?.mode === 'fixedColor') {
+      ;[r, g, b] = parseHexColor(colorSystem.color)
     } else if (fixture.color.mode === 'palette' && fState.colorCycleSpeed > 0.001) {
-      // Cycle through a built-in palette
       const pos = ((timeSec * fState.colorCycleSpeed * 0.3) % 1 + 1) % 1
       ;[r, g, b] = samplePalette(fixture.color.paletteId || 'cyanEmerald', pos)
     } else if (fixture.color.mode === 'music') {
-      // MI-driven color blending
       const energy = clamp01(safeNumber(mi.energy?.instant, 0))
-      const bass   = clamp01(safeNumber(mi.bands?.bass, 0))
-      r = clamp255(lerp(r, 80,  bass))
+      const bass = clamp01(safeNumber(mi.bands?.bass, 0))
+      r = clamp255(lerp(r, 80, bass))
       g = clamp255(lerp(g, 255, energy))
       b = clamp255(lerp(b, 220, 1 - energy * 0.5))
-    } else if (fixture.color.mode === 'fixed' && fState.colorCycleSpeed > 0.001) {
-      // Fixed mode: gentle hue rotation on top of the configured color
+    } else if (fixture.color.mode === 'fixed' && fState.colorCycleSpeed > 0.001 && (colorSystem?.mode === 'rgb' || colorSystem?.mode === 'rgbw')) {
       const hueShift = ((timeSec * fState.colorCycleSpeed * 0.07) % 1 + 1) % 1
       const [cr, cg, cb] = hsvToRgb(hueShift, 0.9, 1.0)
       const blend = clamp01(fState.colorCycleSpeed * 0.4)
@@ -523,9 +592,10 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
       b = Math.round(lerp(b, cb, blend))
     }
 
-    // Personalization is transient. Saved fixture RGBW, routes, and palette IDs
-    // remain untouched; Original mode is represented by a null context.
-    const personalized = personalization
+    const canPersonalize = colorSystem?.mode === 'rgb'
+      || colorSystem?.mode === 'rgbw'
+      || (colorSystem?.mode === 'fixedColor' && !colorPolicy.preserveFixedColor)
+    const personalized = personalization && canPersonalize
       ? personalizeRgbw({
           red: r,
           green: g,
@@ -540,43 +610,128 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
       b = personalized.blue
     }
 
-    // Focus: affects glow sharpness (1=sharp, 0=soft). Stored for renderer use.
+    const impactWhite = Boolean(flash?.whiteAccent) && colorPolicy.whiteAccentPolicy !== 'off'
+    const continuousWhite = colorPolicy.whiteAccentPolicy === 'continuous' ? fState.white / 255 : 0
+    if (continuousWhite > 0) {
+      r = lerp(r, 255, continuousWhite * colorPolicy.whiteAccentIntensity)
+      g = lerp(g, 255, continuousWhite * colorPolicy.whiteAccentIntensity)
+      b = lerp(b, 255, continuousWhite * colorPolicy.whiteAccentIntensity)
+    }
+    if (impactWhite) {
+      const amount = colorPolicy.whiteAccentIntensity
+      r = lerp(r, 255, amount)
+      g = lerp(g, 255, amount)
+      b = lerp(b, 255, amount)
+    }
+
     const focusFactor = clamp01(safeNumber(fState.focus, 1))
-
-    // Effective beam width — apply globalBeamWidth once (renderer must NOT multiply again)
     const effectiveBeamWidth = clamp(fState.width * gState.globalBeamWidth, 0.2, 8)
-
     const rgba = {
       r: clamp255(r),
       g: clamp255(g),
       b: clamp255(b),
       a: clamp01(fState.alpha * intensityWithFlicker),
     }
-    const color = `rgba(${rgba.r},${rgba.g},${rgba.b},${rgba.a.toFixed(3)})`
+    const color = colorString([rgba.r, rgba.g, rgba.b], rgba.a)
 
-    // Original mode preserves the exact legacy channel compilation path. Branded
-    // modes compile a temporary RGB state while retaining white and alpha intent.
-    const channelState = personalization
-      ? { ...fState, red: personalized!.red, green: personalized!.green, blue: personalized!.blue }
-      : fState
+    const channelWhite = impactWhite
+      ? clamp255(255 * colorPolicy.whiteAccentIntensity)
+      : (!hasAuthoredColorPolicy || colorPolicy.whiteAccentPolicy === 'continuous') ? fState.white : 0
+    const channelState = {
+      ...fState,
+      red: rgba.r,
+      green: rgba.g,
+      blue: rgba.b,
+      white: channelWhite,
+      strobeRate: flash ? clamp01(flash.effectiveHz / Math.max(1, gState.visualComfort.maxFlashHz)) : fState.strobeRate,
+    }
     const channels = compileChannels(channelState, gState, fixture.dmx.profileId)
     if (!channels) continue
 
+    const rigFixture = rigFixtureById.get(fixture.id)
+    const rigTarget = rigFixture?.targetId ? rigTargetById.get(rigFixture.targetId) : undefined
+    const fallbackWorldTarget = {
+      x: (tx / Math.max(1, W) - 0.5) * productionRig.stage.dimensions.width,
+      y: (1 - ty / Math.max(1, H)) * productionRig.stage.dimensions.height,
+      z: productionRig.stage.dimensions.depth * 0.5,
+    }
+    const worldTarget = movingHeadFrame?.worldTarget
+      ?? (rigTarget?.kind === 'point' ? rigTarget.position : rigTarget?.center)
+      ?? fallbackWorldTarget
+
+    const washSettings = capabilities.wash ? normalizeProductionWashSettings(fixture.wash) : null
+    const maxSegments = productionRig.stage.editor.qualityTier === 'low'
+      ? 8
+      : productionRig.stage.editor.qualityTier === 'medium' ? 16 : 32
+    const ledSettings = capabilities.pixels
+      ? normalizeProductionLedBarSettings(fixture.ledBar, Math.min(capabilities.pixels.maxSegments, maxSegments))
+      : null
+    let ledVisual: LaserDmxFixtureFrame['visual']['ledBar'] | undefined
+    if (ledSettings) {
+      const secondaryPersonalized = personalization && canPersonalize
+        ? personalizeRgbw({
+            ...ledSettings.secondaryColor,
+            alpha: 1,
+          }, 'other', personalization)
+        : null
+      const primary: [number, number, number] = [rgba.r, rgba.g, rgba.b]
+      const secondary: [number, number, number] = secondaryPersonalized
+        ? [secondaryPersonalized.red, secondaryPersonalized.green, secondaryPersonalized.blue]
+        : [ledSettings.secondaryColor.red, ledSettings.secondaryColor.green, ledSettings.secondaryColor.blue]
+      const segmentCount = ledSettings.mode === 'wholeBar' ? 1 : ledSettings.segmentCount
+      const segmentFrame = evaluateLedSegmentFrame({
+        count: segmentCount,
+        pattern: ledSettings.pattern,
+        primary,
+        secondary,
+        chase: ledSettings.chase,
+        timeSec,
+        bpm,
+        seed: ledSettings.chase.seed,
+      })
+      ledVisual = {
+        mode: ledSettings.mode,
+        pattern: ledSettings.pattern,
+        segmentColors: segmentFrame.colors.map(segment => colorString(segment, rgba.a)),
+        segmentIntensities: segmentFrame.intensities.map(value => clamp01(value * intensityWithFlicker)),
+      }
+    }
+
     frames.push({
-      fixtureId:    fixture.id,
-      universe:     fixture.dmx.universe,
+      fixtureId: fixture.id,
+      universe: fixture.dmx.universe,
       startAddress: fixture.dmx.startAddress,
       channels,
       visual: {
-        origin:       { x: ox, y: oy, z: safeNumber(fixture.position.originZ, 0) },
-        target:       { x: tx, y: ty, z: safeNumber(fixture.position.targetZ, 0) },
+        origin: { x: ox, y: oy, z: safeNumber(fixture.position.originZ, 0) },
+        target: { x: tx, y: ty, z: safeNumber(fixture.position.targetZ, 0) },
         points,
         color,
         rgba,
-        intensity:    intensityWithFlicker,
-        beamWidth:    effectiveBeamWidth,
+        intensity: intensityWithFlicker,
+        beamWidth: effectiveBeamWidth,
         strobeVisible,
         focusFactor,
+        ...(flash ? {
+          flash: {
+            pattern: legacyFlash.pattern,
+            intensity: flash.intensity,
+            whiteAccent: impactWhite,
+            blackout: flash.blackout,
+            comfortLimited: flash.comfortLimited,
+            effectiveHz: flash.effectiveHz,
+            warning: flash.warning,
+          },
+        } : {}),
+        ...(washSettings ? {
+          wash: {
+            worldTarget,
+            spread: washSettings.spread,
+            softness: washSettings.softness,
+            atmosphericIntensity: washSettings.atmosphericIntensity,
+          },
+        } : {}),
+        ...(ledVisual ? { ledBar: ledVisual } : {}),
         ...(movingHeadFrame ? {
           movingHead: {
             panDeg: movingHeadFrame.panDeg,
@@ -620,6 +775,7 @@ function buildPassthroughGlobal(settings: LaserDmxSettings): CompiledGlobal {
     globalBeamWidth: clamp(safeNumber(settings.globalBeamWidth, 1), 0.2, 6),
     globalStrobeRate:clamp01(safeNumber(settings.globalStrobeRate, 0)),
     safetyClamp:     clamp01(safeNumber(settings.safetyClamp, 0.85)),
+    visualComfort:   normalizeProductionVisualComfort(settings.visualComfort),
     blackout:        settings.blackout ?? false,
   }
 }

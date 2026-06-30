@@ -7,14 +7,32 @@ import {
 } from './ReactControlRows'
 import type { LaserDmxFixture, LaserDmxProfileId } from './ReactTypes'
 import {
+  DEFAULT_PRODUCTION_CHASE,
+  DEFAULT_PRODUCTION_FIXTURE_COLOR_POLICY,
+  DEFAULT_PRODUCTION_FLASH_PATTERN,
   DEFAULT_PRODUCTION_GROUP_MOVEMENT,
+  DEFAULT_PRODUCTION_LED_BAR_SETTINGS,
+  DEFAULT_PRODUCTION_WASH_SETTINGS,
   diagnoseProductionRig,
   getLaserDmxFixtureProfile,
   isMovingHeadFixtureKind,
   LASER_DMX_FIXTURE_PROFILES,
+  normalizeProductionChase,
+  normalizeProductionFixtureColorPolicy,
+  normalizeProductionFlashPattern,
   normalizeProductionGroupMovement,
+  normalizeProductionLedBarSettings,
   normalizeProductionMovingHeadSettings,
   normalizeProductionStageModel,
+  normalizeProductionVisualComfort,
+  normalizeProductionWashSettings,
+  type ProductionChaseOrder,
+  type ProductionFlashPatternId,
+  type ProductionFlashQuantize,
+  type ProductionFlashRepeatMode,
+  type ProductionFlashRetriggerPolicy,
+  type ProductionLedBarMode,
+  type ProductionLedBarPattern,
   PRODUCTION_STAGE_COORDINATE_CONVENTION,
   PRODUCTION_VENUE_TEMPLATES,
   resolveLaserDmxFixtureCapabilities,
@@ -28,6 +46,7 @@ import {
   type ProductionMovementQuantize,
   type ProductionMovementSymmetry,
   type ProductionMovingHeadEasing,
+  type ProductionWhiteAccentPolicy,
 } from './LaserDmxProductionRig'
 
 const PROFILE_OPTIONS = Object.values(LASER_DMX_FIXTURE_PROFILES).map(profile => ({
@@ -101,6 +120,65 @@ const MOVEMENT_EASING_OPTIONS = [
   { value: 'easeInOut', label: 'Ease In / Out' },
 ]
 
+const FLASH_PATTERN_OPTIONS: Array<{ value: ProductionFlashPatternId; label: string }> = [
+  { value: 'singleHit', label: 'Single Hit' },
+  { value: 'doubleHit', label: 'Double Hit' },
+  { value: 'tripleHit', label: 'Triple Hit' },
+  { value: 'sustainedStrobe', label: 'Sustained Strobe' },
+  { value: 'quarterBeatBurst', label: 'Quarter-Beat Burst' },
+  { value: 'eighthNoteBurst', label: 'Eighth-Note Burst' },
+  { value: 'rampUpBuildStrobe', label: 'Ramp-Up Build Strobe' },
+  { value: 'alternatingLeftRight', label: 'Alternating Left / Right' },
+  { value: 'centerOutFlash', label: 'Center-Out Flash' },
+  { value: 'randomizedFlicker', label: 'Deterministic Flicker' },
+  { value: 'fullStageWhiteout', label: 'Full-Stage Whiteout' },
+  { value: 'flashThenBlackout', label: 'Flash then Blackout' },
+]
+
+const FLASH_QUANTIZE_OPTIONS = [
+  { value: 'none', label: 'Free' },
+  { value: 'sixteenth', label: '1/16 Note' },
+  { value: 'eighth', label: '1/8 Note' },
+  { value: 'beat', label: 'Beat' },
+  { value: 'bar', label: 'Bar' },
+]
+
+const FLASH_REPEAT_OPTIONS = [
+  { value: 'once', label: 'Once' },
+  { value: 'count', label: 'Count' },
+  { value: 'loop', label: 'Loop' },
+]
+
+const FLASH_RETRIGGER_OPTIONS = [
+  { value: 'restart', label: 'Restart' },
+  { value: 'ignoreWhileActive', label: 'Ignore While Active' },
+  { value: 'queueNextQuantized', label: 'Queue Next Quantized' },
+]
+
+const CHASE_ORDER_OPTIONS = [
+  { value: 'forward', label: 'Forward' },
+  { value: 'reverse', label: 'Reverse' },
+  { value: 'alternate', label: 'Alternate' },
+  { value: 'centerOut', label: 'Center Out' },
+  { value: 'outsideIn', label: 'Outside In' },
+  { value: 'randomized', label: 'Deterministic Random' },
+]
+
+const LED_PATTERN_OPTIONS = [
+  { value: 'solid', label: 'Solid' },
+  { value: 'alternating', label: 'Alternating' },
+  { value: 'gradient', label: 'Gradient' },
+  { value: 'chase', label: 'Segment Chase' },
+  { value: 'sparkle', label: 'Deterministic Sparkle' },
+]
+
+const RATE_DRIVEN_FLASH_PATTERNS = new Set<ProductionFlashPatternId>([
+  'sustainedStrobe',
+  'rampUpBuildStrobe',
+  'alternatingLeftRight',
+  'randomizedFlicker',
+])
+
 type ColorKey = keyof LaserDmxFixture['color']
 type BeamKey = keyof LaserDmxFixture['beam']
 type PathKey = keyof LaserDmxFixture['path']
@@ -146,6 +224,15 @@ export function LaserDmxSpatialFixturesPanel() {
     ?? groups[0]
     ?? null
   const movement = normalizeProductionGroupMovement(movementGroup?.movement)
+  const groupChase = normalizeProductionChase(movementGroup?.chase)
+  const visualComfort = normalizeProductionVisualComfort(laserDmxSettings.visualComfort)
+  const colorPolicy = normalizeProductionFixtureColorPolicy(fixture?.colorPolicy)
+  const flashPattern = normalizeProductionFlashPattern(fixture?.flashPattern)
+  const wash = normalizeProductionWashSettings(fixture?.wash)
+  const ledBar = normalizeProductionLedBarSettings(
+    fixture?.ledBar,
+    capabilities?.pixels?.maxSegments ?? DEFAULT_PRODUCTION_LED_BAR_SETTINGS.segmentCount,
+  )
 
   function updateStage(patch: Partial<ProductionStageModel>) {
     setLaserDmxSettings({ productionStage: normalizeProductionStageModel({ ...stage, ...patch }) })
@@ -201,6 +288,34 @@ export function LaserDmxSpatialFixturesPanel() {
     updateLaserFixture(fixture.id, { movingHead: { ...movingHead, ...patch } })
   }
 
+  function updateColorPolicy(patch: Partial<typeof colorPolicy>) {
+    if (!fixture) return
+    updateLaserFixture(fixture.id, {
+      colorPolicy: normalizeProductionFixtureColorPolicy({ ...colorPolicy, ...patch }),
+    })
+  }
+
+  function updateFlashPattern(patch: Partial<typeof flashPattern>) {
+    if (!fixture || !capabilities?.strobe) return
+    updateLaserFixture(fixture.id, {
+      flashPattern: normalizeProductionFlashPattern({ ...flashPattern, ...patch }),
+    })
+  }
+
+  function updateWash(patch: Partial<typeof wash>) {
+    if (!fixture || !capabilities?.wash) return
+    updateLaserFixture(fixture.id, {
+      wash: normalizeProductionWashSettings({ ...wash, ...patch }),
+    })
+  }
+
+  function updateLedBar(patch: Partial<typeof ledBar>) {
+    if (!fixture || !capabilities?.pixels) return
+    updateLaserFixture(fixture.id, {
+      ledBar: normalizeProductionLedBarSettings({ ...ledBar, ...patch }, capabilities.pixels.maxSegments),
+    })
+  }
+
   function requestMovingHeadSnap() {
     if (!movingHead) return
     updateMovingHead({ snapRequestId: movingHead.snapRequestId + 1 })
@@ -211,6 +326,15 @@ export function LaserDmxSpatialFixturesPanel() {
     setLaserDmxSettings({
       productionGroups: groups.map(group => group.id === movementGroup.id
         ? { ...group, movement: normalizeProductionGroupMovement({ ...movement, ...patch }) }
+        : group),
+    })
+  }
+
+  function updateGroupChase(patch: Partial<typeof groupChase>) {
+    if (!movementGroup) return
+    setLaserDmxSettings({
+      productionGroups: groups.map(group => group.id === movementGroup.id
+        ? { ...group, chase: normalizeProductionChase({ ...groupChase, ...patch }) }
         : group),
     })
   }
@@ -237,6 +361,7 @@ export function LaserDmxSpatialFixturesPanel() {
         name: `Fixture Group ${groups.length + 1}`,
         fixtureIds: fixture ? [fixture.id] : [],
         movement: { ...DEFAULT_PRODUCTION_GROUP_MOVEMENT, centerPoint: { ...DEFAULT_PRODUCTION_GROUP_MOVEMENT.centerPoint } },
+        chase: { ...DEFAULT_PRODUCTION_CHASE },
       }],
     })
     setMovementGroupId(id)
@@ -287,6 +412,45 @@ export function LaserDmxSpatialFixturesPanel() {
         <ToggleRow label="Path Points" value={laserDmxSettings.showPathPoints ?? false} onChange={showPathPoints => setLaserDmxSettings({ showPathPoints })} />
       </Collapsible>
 
+      <Collapsible label="Visual Comfort" defaultOpen={false}>
+        <ToggleRow
+          label="Disable Strobe Effects"
+          value={visualComfort.disableStrobe}
+          onChange={disableStrobe => setLaserDmxSettings({ visualComfort: { ...visualComfort, disableStrobe } })}
+          description="Disables typed flash patterns in the virtual renderer. This is a comfort preference, not certified medical protection."
+        />
+        <NumberInputRow
+          label="Maximum Flash Rate"
+          value={visualComfort.maxFlashHz}
+          min={1}
+          max={30}
+          step={0.5}
+          unit="Hz"
+          onChange={maxFlashHz => setLaserDmxSettings({ visualComfort: normalizeProductionVisualComfort({ ...visualComfort, maxFlashHz }) })}
+        />
+        <NumberInputRow
+          label="Warning Threshold"
+          value={visualComfort.warningThresholdHz}
+          min={1}
+          max={visualComfort.maxFlashHz}
+          step={0.5}
+          unit="Hz"
+          onChange={warningThresholdHz => setLaserDmxSettings({ visualComfort: normalizeProductionVisualComfort({ ...visualComfort, warningThresholdHz }) })}
+        />
+        <NumberInputRow
+          label="Continuous Flash Window"
+          value={visualComfort.maxContinuousFlashSec}
+          min={0.5}
+          max={30}
+          step={0.5}
+          unit="sec"
+          onChange={maxContinuousFlashSec => setLaserDmxSettings({ visualComfort: normalizeProductionVisualComfort({ ...visualComfort, maxContinuousFlashSec }) })}
+        />
+        <div className="rv-ctrl-info" role="status">
+          High-frequency virtual flashes can be uncomfortable. DRMVYZ limits authored rates and inserts rest windows, but these safeguards are not a medical guarantee.
+        </div>
+      </Collapsible>
+
       <CtrlSection label="Fixtures" />
       <div style={{ display: 'flex', gap: 4, alignItems: 'end', flexWrap: 'wrap' }}>
         <div style={{ flex: '1 1 150px' }}>
@@ -335,13 +499,26 @@ export function LaserDmxSpatialFixturesPanel() {
                 const profile = getLaserDmxFixtureProfile(value)
                 if (!profile) return
                 const nextIsMovingHead = isMovingHeadFixtureKind(profile.fixtureKind)
+                const nextCapabilities = profile.capabilities
                 updateLaserFixture(fixture.id, {
                   fixtureKind: profile.fixtureKind,
                   dmx: { ...fixture.dmx, profileId: value as LaserDmxProfileId },
                   movingHead: nextIsMovingHead
                     ? normalizeProductionMovingHeadSettings(fixture.movingHead)
                     : undefined,
-                  path: nextIsMovingHead ? { ...fixture.path, kind: 'staticBeam' } : fixture.path,
+                  colorPolicy: normalizeProductionFixtureColorPolicy(fixture.colorPolicy ?? DEFAULT_PRODUCTION_FIXTURE_COLOR_POLICY),
+                  flashPattern: nextCapabilities.strobe
+                    ? normalizeProductionFlashPattern(fixture.flashPattern ?? DEFAULT_PRODUCTION_FLASH_PATTERN)
+                    : undefined,
+                  wash: nextCapabilities.wash
+                    ? normalizeProductionWashSettings(fixture.wash ?? DEFAULT_PRODUCTION_WASH_SETTINGS)
+                    : undefined,
+                  ledBar: nextCapabilities.pixels
+                    ? normalizeProductionLedBarSettings(fixture.ledBar ?? DEFAULT_PRODUCTION_LED_BAR_SETTINGS, nextCapabilities.pixels.maxSegments)
+                    : undefined,
+                  path: profile.fixtureKind === 'laserProjector'
+                    ? fixture.path
+                    : { ...fixture.path, kind: 'staticBeam', pointCount: 1, scanSpeed: 0 },
                 })
               }}
               options={PROFILE_OPTIONS}
@@ -375,6 +552,21 @@ export function LaserDmxSpatialFixturesPanel() {
               <ToggleRow key={group.id} label={group.name} value={group.fixtureIds.includes(fixture.id)} onChange={() => toggleGroup(group.id)} />
             ))}
             <button type="button" className="rv-glyph-upload-btn" onClick={addGroup}>+ Create Group</button>
+          </Collapsible>
+
+          <Collapsible label="Group Chase" defaultOpen={false}>
+            {groups.length === 0 || !movementGroup ? (
+              <div className="rv-ctrl-info">Create a fixture group to author a shared fixture-order chase.</div>
+            ) : (
+              <>
+                <SelectRow label="Chase Group" value={movementGroup.id} onChange={setMovementGroupId} options={groups.map(group => ({ value: group.id, label: group.name }))} />
+                <ToggleRow label="Chase Enabled" value={groupChase.enabled} onChange={enabled => updateGroupChase({ enabled })} />
+                <SelectRow label="Order" value={groupChase.order} onChange={order => updateGroupChase({ order: order as ProductionChaseOrder })} options={CHASE_ORDER_OPTIONS} />
+                <NumberInputRow label="Step" value={groupChase.stepBeats} onChange={stepBeats => updateGroupChase({ stepBeats })} min={0.0625} max={64} step={0.0625} unit="beats" />
+                <NumberInputRow label="Active Width" value={groupChase.width} onChange={width => updateGroupChase({ width: Math.round(width) })} min={1} max={Math.max(1, movementGroup.fixtureIds.length)} step={1} unit="fixtures" />
+                <NumberInputRow label="Random Seed" value={groupChase.seed} onChange={seed => updateGroupChase({ seed: Math.round(seed) })} min={0} max={999999} step={1} />
+              </>
+            )}
           </Collapsible>
 
           {movingHead && capabilities?.panTilt && (
@@ -462,7 +654,26 @@ export function LaserDmxSpatialFixturesPanel() {
                 options={capabilities.color.slots.map((slot, index) => ({ value: String(index), label: slot }))}
               />
             )}
+            {capabilities?.color?.mode === 'fixedWhite' && (
+              <div className="rv-ctrl-info">This fixture uses a profile-defined white emitter. Brand Kit colors do not replace its fixed white output.</div>
+            )}
+            {capabilities?.color?.mode === 'fixedColor' && (
+              <div className="rv-ctrl-info">Fixed emitter: {capabilities.color.label ?? capabilities.color.color}. It remains profile-accurate unless Preserve Fixed Emitters is disabled.</div>
+            )}
             <SliderRow label="Alpha" value={fixture.color.alpha} onChange={value => setColor('alpha', value)} min={0} max={1} step={0.01} color="#b84fc9" />
+            <SelectRow
+              label="White Accent Policy"
+              value={colorPolicy.whiteAccentPolicy}
+              onChange={whiteAccentPolicy => updateColorPolicy({ whiteAccentPolicy: whiteAccentPolicy as ProductionWhiteAccentPolicy })}
+              options={[
+                { value: 'off', label: 'Never Add White' },
+                { value: 'impactOnly', label: 'Impact Patterns Only' },
+                { value: 'continuous', label: 'Continuous White Channel' },
+              ]}
+              description="Reserves bright white as production punctuation instead of mixing it into every color cycle."
+            />
+            <SliderRow label="White Accent Intensity" value={colorPolicy.whiteAccentIntensity} onChange={whiteAccentIntensity => updateColorPolicy({ whiteAccentIntensity })} min={0} max={1} step={0.01} color="#e8f4f8" />
+            <ToggleRow label="Preserve Fixed Emitters" value={colorPolicy.preserveFixedColor} onChange={preserveFixedColor => updateColorPolicy({ preserveFixedColor })} />
           </Collapsible>
 
           <Collapsible label="Beam Shape" defaultOpen={false}>
@@ -481,8 +692,80 @@ export function LaserDmxSpatialFixturesPanel() {
               <SelectRow label="Prism" value={String(movingHead.prismFacets)} onChange={value => updateMovingHead({ prismFacets: Number(value) })} options={[{ value: '0', label: 'Open' }, ...capabilities.prism.facets.map(facets => ({ value: String(facets), label: `${facets}-facet` }))]} />
             )}
             {capabilities?.prism?.rotation && movingHead && <SliderRow label="Prism Rotation" value={movingHead.prismRotation} onChange={prismRotation => updateMovingHead({ prismRotation })} min={-1} max={1} step={0.01} color="#b84fc9" />}
-            {capabilities?.strobe && <SliderRow label="Strobe Rate" value={fixture.beam.strobeRate} onChange={value => setBeam('strobeRate', value)} min={capabilities.strobe.min} max={capabilities.strobe.max} step={0.01} color="#c0314a" />}
+            {capabilities?.strobe && (fixture.fixtureKind === 'laserProjector' || isMovingHeadFixtureKind(fixture.fixtureKind)) && (
+              <SliderRow
+                label="Legacy Shutter Pulse"
+                value={fixture.beam.strobeRate}
+                onChange={value => setBeam('strobeRate', value)}
+                min={capabilities.strobe.min}
+                max={capabilities.strobe.max}
+                step={0.01}
+                color="#c0314a"
+                description="Compatibility pulse for laser and moving-head shutters. Dedicated strobes use the typed flash-pattern engine below."
+              />
+            )}
           </Collapsible>
+
+          {capabilities?.strobe && (
+            <Collapsible label="Flash Pattern" defaultOpen={fixture.fixtureKind === 'strobe' || fixture.fixtureKind === 'blinder'}>
+              <ToggleRow label="Pattern Enabled" value={flashPattern.enabled} onChange={enabled => updateFlashPattern({ enabled })} />
+              <SelectRow label="Pattern" value={flashPattern.pattern} onChange={pattern => updateFlashPattern({ pattern: pattern as ProductionFlashPatternId })} options={FLASH_PATTERN_OPTIONS} />
+              <NumberInputRow label="Trigger Time" value={flashPattern.triggerTimeSec} onChange={triggerTimeSec => updateFlashPattern({ triggerTimeSec })} min={0} max={86400} step={0.01} unit="sec" />
+              <NumberInputRow label="Duration" value={flashPattern.durationBeats} onChange={durationBeats => updateFlashPattern({ durationBeats })} min={0.0625} max={128} step={0.0625} unit="beats" />
+              <NumberInputRow label="Requested Rate" value={flashPattern.rateHz} onChange={rateHz => updateFlashPattern({ rateHz })} min={0.1} max={60} step={0.1} unit="Hz" />
+              <SliderRow label="Duty Cycle" value={flashPattern.dutyCycle} onChange={dutyCycle => updateFlashPattern({ dutyCycle })} min={0.02} max={0.98} step={0.01} color="#c0314a" />
+              <SliderRow label="Pattern Intensity" value={flashPattern.intensity} onChange={intensity => updateFlashPattern({ intensity })} min={0} max={1} step={0.01} color="#e8f4f8" />
+              <ToggleRow label="Use White Accent" value={flashPattern.whiteAccent} onChange={whiteAccent => updateFlashPattern({ whiteAccent })} />
+              <SelectRow label="Quantize" value={flashPattern.quantize} onChange={quantize => updateFlashPattern({ quantize: quantize as ProductionFlashQuantize })} options={FLASH_QUANTIZE_OPTIONS} />
+              <SelectRow label="Retrigger" value={flashPattern.retriggerPolicy} onChange={retriggerPolicy => updateFlashPattern({ retriggerPolicy: retriggerPolicy as ProductionFlashRetriggerPolicy })} options={FLASH_RETRIGGER_OPTIONS} />
+              <SelectRow label="Repeat" value={flashPattern.repeat.mode} onChange={mode => updateFlashPattern({ repeat: { ...flashPattern.repeat, mode: mode as ProductionFlashRepeatMode } })} options={FLASH_REPEAT_OPTIONS} />
+              {flashPattern.repeat.mode === 'count' && <NumberInputRow label="Repeat Count" value={flashPattern.repeat.count} onChange={count => updateFlashPattern({ repeat: { ...flashPattern.repeat, count: Math.round(count) } })} min={1} max={256} step={1} />}
+              {flashPattern.repeat.mode !== 'once' && <NumberInputRow label="Repeat Interval" value={flashPattern.repeat.intervalBeats} onChange={intervalBeats => updateFlashPattern({ repeat: { ...flashPattern.repeat, intervalBeats } })} min={0.0625} max={256} step={0.0625} unit="beats" />}
+              <Collapsible label="Flash Envelope" defaultOpen={false}>
+                <SliderRow label="Attack" value={flashPattern.envelope.attack} onChange={attack => updateFlashPattern({ envelope: { ...flashPattern.envelope, attack } })} min={0} max={1} step={0.01} color="#4ac7db" />
+                <SliderRow label="Hold" value={flashPattern.envelope.hold} onChange={hold => updateFlashPattern({ envelope: { ...flashPattern.envelope, hold } })} min={0} max={1} step={0.01} color="#61d6aa" />
+                <SliderRow label="Release" value={flashPattern.envelope.release} onChange={release => updateFlashPattern({ envelope: { ...flashPattern.envelope, release } })} min={0} max={1} step={0.01} color="#b84fc9" />
+                <SelectRow label="Envelope Curve" value={flashPattern.envelope.curve} onChange={curve => updateFlashPattern({ envelope: { ...flashPattern.envelope, curve: curve as typeof flashPattern.envelope.curve } })} options={MOVEMENT_EASING_OPTIONS} />
+              </Collapsible>
+              {flashPattern.enabled && RATE_DRIVEN_FLASH_PATTERNS.has(flashPattern.pattern) && flashPattern.rateHz >= visualComfort.warningThresholdHz && (
+                <div className="rv-ctrl-info" role="alert">
+                  High-frequency effect requested at {flashPattern.rateHz.toFixed(1)} Hz. The virtual renderer clamps it to {visualComfort.maxFlashHz.toFixed(1)} Hz and applies continuous-use rest windows. This is not certified medical protection.
+                </div>
+              )}
+            </Collapsible>
+          )}
+
+          {capabilities?.wash && (
+            <Collapsible label="Wash Illumination" defaultOpen={fixture.fixtureKind === 'movingHeadWash' || fixture.fixtureKind === 'staticWash'}>
+              <SliderRow label="Spread" value={wash.spread} onChange={spread => updateWash({ spread })} min={capabilities.wash.spread.min} max={capabilities.wash.spread.max} step={0.01} color="#4ac7db" />
+              <SliderRow label="Softness" value={wash.softness} onChange={softness => updateWash({ softness })} min={capabilities.wash.softness.min} max={capabilities.wash.softness.max} step={0.01} color="#61d6aa" />
+              {capabilities.wash.atmosphericVolume && <SliderRow label="Atmospheric Volume" value={wash.atmosphericIntensity} onChange={atmosphericIntensity => updateWash({ atmosphericIntensity })} min={0} max={1} step={0.01} color="#b84fc9" />}
+            </Collapsible>
+          )}
+
+          {capabilities?.pixels && (
+            <Collapsible label="LED Bar / Pixels" defaultOpen>
+              <SelectRow label="Mode" value={ledBar.mode} onChange={mode => updateLedBar({ mode: mode as ProductionLedBarMode })} options={[{ value: 'wholeBar', label: 'Whole Bar' }, { value: 'segments', label: 'Segments / Pixels' }]} />
+              <NumberInputRow label="Segments" value={ledBar.segmentCount} onChange={segmentCount => updateLedBar({ segmentCount: Math.round(segmentCount) })} min={1} max={capabilities.pixels.maxSegments} step={1} />
+              <SelectRow label="Pattern" value={ledBar.pattern} onChange={pattern => updateLedBar({ pattern: pattern as ProductionLedBarPattern })} options={LED_PATTERN_OPTIONS} />
+              {ledBar.mode === 'segments' && ledBar.pattern !== 'solid' && (
+                <Collapsible label="Secondary Pixel Color" defaultOpen={false}>
+                  <SliderRow label="Secondary Red" value={ledBar.secondaryColor.red} onChange={red => updateLedBar({ secondaryColor: { ...ledBar.secondaryColor, red: Math.round(red) } })} min={0} max={255} step={1} color="#c0314a" />
+                  <SliderRow label="Secondary Green" value={ledBar.secondaryColor.green} onChange={green => updateLedBar({ secondaryColor: { ...ledBar.secondaryColor, green: Math.round(green) } })} min={0} max={255} step={1} color="#61d6aa" />
+                  <SliderRow label="Secondary Blue" value={ledBar.secondaryColor.blue} onChange={blue => updateLedBar({ secondaryColor: { ...ledBar.secondaryColor, blue: Math.round(blue) } })} min={0} max={255} step={1} color="#4ac7db" />
+                </Collapsible>
+              )}
+              <ToggleRow label="Segment Chase" value={ledBar.chase.enabled} onChange={enabled => updateLedBar({ chase: { ...ledBar.chase, enabled } })} />
+              {ledBar.chase.enabled && (
+                <>
+                  <SelectRow label="Segment Order" value={ledBar.chase.order} onChange={order => updateLedBar({ chase: { ...ledBar.chase, order: order as ProductionChaseOrder } })} options={CHASE_ORDER_OPTIONS} />
+                  <NumberInputRow label="Segment Step" value={ledBar.chase.stepBeats} onChange={stepBeats => updateLedBar({ chase: { ...ledBar.chase, stepBeats } })} min={0.0625} max={64} step={0.0625} unit="beats" />
+                  <NumberInputRow label="Lit Segments" value={ledBar.chase.width} onChange={width => updateLedBar({ chase: { ...ledBar.chase, width: Math.round(width) } })} min={1} max={ledBar.segmentCount} step={1} />
+                  <NumberInputRow label="Segment Seed" value={ledBar.chase.seed} onChange={seed => updateLedBar({ chase: { ...ledBar.chase, seed: Math.round(seed) } })} min={0} max={999999} step={1} />
+                </>
+              )}
+            </Collapsible>
+          )}
 
           {capabilities?.beamPattern && (
             <Collapsible label="Path / Program" defaultOpen={false}>

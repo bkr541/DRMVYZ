@@ -33,6 +33,7 @@ describe('LaserDMX production-rig foundation', () => {
       'movingHeadBeam',
       'movingHeadSpot',
       'movingHeadWash',
+      'staticWash',
       'strobe',
       'blinder',
       'ledBar',
@@ -46,8 +47,8 @@ describe('LaserDMX production-rig foundation', () => {
     }
     expect(LASER_DMX_OUTPUT_ADAPTER_CAPABILITIES.canTransmit).toBe(false)
     expect(LASER_DMX_OUTPUT_ADAPTER_CAPABILITIES.transports).toEqual(['none'])
-    expect(LASER_DMX_OUTPUT_ADAPTER_CAPABILITIES.fixtureKinds).toEqual(['laserProjector', 'movingHeadBeam', 'movingHeadSpot', 'movingHeadWash'])
-    expect(LASER_DMX_VIRTUAL_RENDERER_CAPABILITIES.fixtureKinds).toEqual(['laserProjector', 'movingHeadBeam', 'movingHeadSpot', 'movingHeadWash'])
+    expect(LASER_DMX_OUTPUT_ADAPTER_CAPABILITIES.fixtureKinds).toEqual(['laserProjector', 'movingHeadBeam', 'movingHeadSpot', 'movingHeadWash', 'staticWash', 'strobe', 'blinder', 'ledBar'])
+    expect(LASER_DMX_VIRTUAL_RENDERER_CAPABILITIES.fixtureKinds).toEqual(['laserProjector', 'movingHeadBeam', 'movingHeadSpot', 'movingHeadWash', 'staticWash', 'strobe', 'blinder', 'ledBar'])
     expect(LASER_DMX_VIRTUAL_RENDERER_CAPABILITIES.supportsCompoundCues).toBe(false)
   })
 
@@ -250,6 +251,68 @@ describe('LaserDMX production-rig foundation', () => {
     expect((restored as unknown as Record<string, unknown>).customAuthoredField).toEqual({ a: 1, z: 2 })
     expect((restored as unknown as Record<string, unknown>).runtime).toBeUndefined()
     expect((restored as unknown as Record<string, unknown>).outputFrame).toBeUndefined()
+  })
+
+  it('round-trips non-laser fixture controls, visual comfort, and group chase state', () => {
+    const defaults = createDefaultLaserDmxSettings()
+    const base = defaults.fixtures[0]
+    const strobe = normalizeLegacyLaserDmxFixture({
+      ...base,
+      id: 'persisted-strobe',
+      dmx: { ...base.dmx, profileId: 'genericRgbwStrobe' },
+      flashPattern: {
+        enabled: true,
+        pattern: 'tripleHit',
+        triggerTimeSec: 2.5,
+        durationBeats: 2,
+        rateHz: 9,
+        dutyCycle: 0.25,
+        intensity: 0.9,
+        envelope: { attack: 0.1, hold: 0.6, release: 0.3, curve: 'easeInOut' },
+        repeat: { mode: 'count', count: 3, intervalBeats: 4 },
+        quantize: 'bar',
+        retriggerPolicy: 'queueNextQuantized',
+        whiteAccent: true,
+        seed: 91,
+      },
+      colorPolicy: { whiteAccentPolicy: 'impactOnly', whiteAccentIntensity: 0.85, preserveFixedColor: true },
+    })
+    const wash = normalizeLegacyLaserDmxFixture({
+      ...base,
+      id: 'persisted-wash',
+      dmx: { ...base.dmx, profileId: 'genericStaticWash' },
+      wash: { spread: 0.82, softness: 0.66, atmosphericIntensity: 0.74 },
+    })
+    const led = normalizeLegacyLaserDmxFixture({
+      ...base,
+      id: 'persisted-led',
+      dmx: { ...base.dmx, profileId: 'genericLedBar' },
+      ledBar: {
+        mode: 'segments',
+        segmentCount: 20,
+        pattern: 'alternating',
+        secondaryColor: { red: 10, green: 20, blue: 30, white: 0 },
+        chase: { enabled: true, order: 'outsideIn', stepBeats: 0.25, width: 3, seed: 14 },
+      },
+    })
+    const authored = normalizeLaserDmxSettings({
+      ...defaults,
+      visualComfort: { disableStrobe: true, maxFlashHz: 9, warningThresholdHz: 6, maxContinuousFlashSec: 3 },
+      fixtures: [strobe, wash, led],
+      productionGroups: [{
+        id: 'group:non-laser',
+        name: 'Non-laser fixtures',
+        fixtureIds: [strobe.id, wash.id, led.id],
+        chase: { enabled: true, order: 'centerOut', stepBeats: 0.5, width: 2, seed: 22 },
+      }],
+    })
+
+    const restored = deserializeLaserDmxSettings(serializeLaserDmxSettings(authored))
+    expect(restored.visualComfort).toEqual(authored.visualComfort)
+    expect(restored.fixtures.find(fixture => fixture.id === strobe.id)?.flashPattern).toEqual(strobe.flashPattern)
+    expect(restored.fixtures.find(fixture => fixture.id === wash.id)?.wash).toEqual(wash.wash)
+    expect(restored.fixtures.find(fixture => fixture.id === led.id)?.ledBar).toEqual(led.ledBar)
+    expect(restored.productionGroups?.[0]?.chase).toEqual(authored.productionGroups?.[0]?.chase)
   })
 
   it('keeps transient render/output state outside the Zustand persistence boundary', () => {

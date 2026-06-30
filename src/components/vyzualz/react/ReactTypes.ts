@@ -9,6 +9,11 @@ import type {
   ProductionFixtureKind,
   ProductionLook,
   ProductionMovingHeadSettings,
+  ProductionFixtureColorPolicy,
+  ProductionFlashPatternSettings,
+  ProductionLedBarSettings,
+  ProductionVisualComfortSettings,
+  ProductionWashSettings,
   ProductionStageModel,
   ProductionStageTransform,
   ProductionTarget,
@@ -384,6 +389,11 @@ export type LaserDmxProfileId =
   | 'genericMovingHeadBeam'
   | 'genericMovingHeadSpot'
   | 'genericMovingHeadWash'
+  | 'genericStaticWash'
+  | 'genericWhiteStrobe'
+  | 'genericRgbwStrobe'
+  | 'genericAudienceBlinder'
+  | 'genericLedBar'
 
 export type LaserDmxModulationTarget =
   // Spatial Fixtures targets
@@ -493,6 +503,14 @@ export interface LaserDmxFixture {
   targetId?: string | null
   /** Capability-gated moving-head state. Omitted for laser projectors and static fixtures. */
   movingHead?: ProductionMovingHeadSettings
+  /** Production color policy keeps white/fixed-color accents intentional. */
+  colorPolicy?: ProductionFixtureColorPolicy
+  /** Typed pattern engine used by strobes, blinders, and optional fixture flashes. */
+  flashPattern?: ProductionFlashPatternSettings
+  /** Region/atmosphere illumination controls for moving and static washes. */
+  wash?: ProductionWashSettings
+  /** Whole-bar and bounded segmented rendering controls. */
+  ledBar?: ProductionLedBarSettings
 
   id: string
   name: string
@@ -580,6 +598,7 @@ export interface LaserDmxSettings {
   showFixtureOrigins?: boolean
   showPathPoints?: boolean
   showDmxDebug?: boolean
+  visualComfort?: ProductionVisualComfortSettings
   fixtures: LaserDmxFixture[]
   /** Shared metre-based stage, venue, camera, guide, and safety-zone document. */
   productionStage?: ProductionStageModel
@@ -606,6 +625,27 @@ export interface LaserDmxFixtureFrame {
     strobeVisible: boolean
     /** 0=soft/diffuse, 1=sharp/tight. Computed from fixture.beam.focus. Used to scale glow blur. */
     focusFactor: number
+    flash?: {
+      pattern: ProductionFlashPatternSettings['pattern']
+      intensity: number
+      whiteAccent: boolean
+      blackout: boolean
+      comfortLimited: boolean
+      effectiveHz: number
+      warning: boolean
+    }
+    wash?: {
+      worldTarget: ProductionStageTransform['position']
+      spread: number
+      softness: number
+      atmosphericIntensity: number
+    }
+    ledBar?: {
+      mode: ProductionLedBarSettings['mode']
+      pattern: ProductionLedBarSettings['pattern']
+      segmentColors: string[]
+      segmentIntensities: number[]
+    }
     movingHead?: {
       panDeg: number
       tiltDeg: number
@@ -672,7 +712,7 @@ export function createDefaultLaserDmxSettings(): LaserDmxSettings {
     ],
   }
   return {
-    schemaVersion: 1,
+    schemaVersion: 3,
     rigId: 'laser-dmx-spatial-rig',
     rigName: 'LaserDMX Spatial Rig',
     selectedFixtureId: leftFan.id,
@@ -688,6 +728,7 @@ export function createDefaultLaserDmxSettings(): LaserDmxSettings {
     showFixtureOrigins: false,
     showPathPoints:     false,
     showDmxDebug:       false,
+    visualComfort: { disableStrobe: false, maxFlashHz: 12, warningThresholdHz: 7, maxContinuousFlashSec: 4 },
     fixtures: [leftFan, rightFan, centerAccent],
     productionStage: createDefaultProductionStageModel(),
     productionGroups: [],
