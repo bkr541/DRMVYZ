@@ -74,6 +74,7 @@ import {
   DEFAULT_PRODUCTION_FLASH_PATTERN,
   DEFAULT_PRODUCTION_LED_BAR_SETTINGS,
   DEFAULT_PRODUCTION_MOVING_HEAD_SETTINGS,
+  DEFAULT_PRODUCTION_ATMOSPHERIC_FIXTURE_SETTINGS,
   DEFAULT_PRODUCTION_WASH_SETTINGS,
   LASER_DMX_FIXTURE_SCHEMA_VERSION,
   applyProductionVenueTemplate,
@@ -87,6 +88,7 @@ import {
   normalizeProductionFlashPattern,
   normalizeProductionFixtureColorPolicy,
   normalizeProductionLedBarSettings,
+  normalizeProductionAtmosphericFixtureSettings,
   normalizeProductionWashSettings,
   sanitizeLaserDmxBeamMatrixForPersistence,
   sanitizeLaserDmxSettingsForPersistence,
@@ -680,6 +682,7 @@ function makeNewLaserFixture(existingFixtures: LaserDmxFixture[], profileId: Las
     ...(capabilities?.strobe ? { flashPattern: defaultFlash } : {}),
     ...(capabilities?.wash ? { wash: normalizeProductionWashSettings(DEFAULT_PRODUCTION_WASH_SETTINGS) } : {}),
     ...(capabilities?.pixels ? { ledBar: normalizeProductionLedBarSettings(DEFAULT_PRODUCTION_LED_BAR_SETTINGS, capabilities.pixels.maxSegments) } : {}),
+    ...(capabilities?.atmosphericOutput ? { atmospheric: normalizeProductionAtmosphericFixtureSettings(DEFAULT_PRODUCTION_ATMOSPHERIC_FIXTURE_SETTINGS, capabilities.atmosphericOutput.medium) } : {}),
     modulationRoutes: [],
   }
 }
@@ -1166,6 +1169,9 @@ interface ReactStoreState {
   removeLaserModulationRoute: (fixtureId: string, routeId: string) => void
   applyLaserDmxVenueTemplate: (templateId: string) => void
   convertLaserDmxBeamMatrixToSpatialRig: () => void
+  triggerLaserAtmosphericFixture: (fixtureId: string) => void
+  clearLaserAtmosphericBursts: () => void
+  triggerLaserAtmosphericGroup: (groupId: string) => void
 
   // LaserDMX workspace mode (persisted, never changed by preset application)
   laserDmxWorkspaceMode: LaserDmxWorkspaceMode
@@ -3183,6 +3189,7 @@ export const useReactStore = create<ReactStoreState>()(
               },
             } : {}),
             ...(src.wash ? { wash: { ...src.wash } } : {}),
+            ...(src.atmospheric ? { atmospheric: { ...src.atmospheric } } : {}),
             ...(src.ledBar ? {
               ledBar: {
                 ...src.ledBar,
@@ -3234,6 +3241,40 @@ export const useReactStore = create<ReactStoreState>()(
             fixtures: s.laserDmxSettings.fixtures.map((f, index) =>
               f.id === fixtureId ? normalizeLegacyLaserDmxFixture({ ...f, ...patch }, index) : f
             ),
+          },
+        })),
+
+      triggerLaserAtmosphericFixture: (fixtureId) =>
+        set(s => ({
+          laserDmxSettings: {
+            ...s.laserDmxSettings,
+            fixtures: s.laserDmxSettings.fixtures.map(fixture => fixture.id === fixtureId && fixture.atmospheric
+              ? { ...fixture, atmospheric: { ...fixture.atmospheric, triggerRequestId: fixture.atmospheric.triggerRequestId + 1 } }
+              : fixture),
+          },
+        })),
+
+      triggerLaserAtmosphericGroup: (groupId) =>
+        set(s => {
+          const ids = new Set((s.laserDmxSettings.productionGroups ?? []).find(group => group.id === groupId)?.fixtureIds ?? [])
+          return {
+            laserDmxSettings: {
+              ...s.laserDmxSettings,
+              fixtures: s.laserDmxSettings.fixtures.map(fixture => ids.has(fixture.id) && fixture.fixtureKind !== 'hazer' && fixture.atmospheric
+                ? { ...fixture, atmospheric: { ...fixture.atmospheric, triggerRequestId: fixture.atmospheric.triggerRequestId + 1 } }
+                : fixture),
+            },
+          }
+        }),
+
+      clearLaserAtmosphericBursts: () =>
+        set(s => ({
+          laserDmxSettings: {
+            ...s.laserDmxSettings,
+            runtime: {
+              ...s.laserDmxSettings.runtime,
+              atmosphereClearRequestId: (s.laserDmxSettings.runtime?.atmosphereClearRequestId ?? 0) + 1,
+            },
           },
         })),
 

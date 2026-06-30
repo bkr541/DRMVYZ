@@ -167,6 +167,8 @@ interface FixtureRenderState {
   pathSpread:    number
   pathRadius:    number
   pathComplexity:number
+  atmosphericOutput:number
+  trigger:number
   colorCycleSpeed: number
 }
 
@@ -236,6 +238,8 @@ function fixtureStateFromFixture(f: LaserDmxFixture): FixtureRenderState {
     pathSpread:      clamp01(safeNumber(f.path.spread, 0.6)),
     pathRadius:      clamp01(safeNumber(f.path.radius, 0.4)),
     pathComplexity:  clamp01(safeNumber(f.path.complexity, 0.4)),
+    atmosphericOutput: clamp01(safeNumber(f.atmospheric?.outputLevel, 0)),
+    trigger: clamp01((f.atmospheric?.triggerRequestId ?? 0) > 0 ? 1 : 0),
     colorCycleSpeed: clamp(safeNumber(f.color.colorCycleSpeed, 0), 0, 4),
   }
 }
@@ -323,6 +327,8 @@ function compileChannels(
     rotation:      clamp255((state.rotation + 180) / 360 * 255),
     scanSpeed:     clamp255(state.scanSpeed / 4 * 255),
     pathComplexity: clamp255(state.pathComplexity * 255),
+    atmosphericOutput: clamp255(state.atmosphericOutput * 255),
+    trigger:       clamp255(state.trigger * 255),
     zero:          0,
   })
 }

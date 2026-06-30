@@ -22,6 +22,7 @@ import {
   type LaserDmxRendererResetReason,
 } from './LaserDmxRendererLifecycle'
 import { resetMovingHeadRuntime } from './LaserDmxMovingHeadEngine'
+import { pauseProductionAtmosphere, resetProductionAtmosphereRuntime, resumeProductionAtmosphere, stepProductionAtmosphere } from './LaserDmxAtmosphereEngine'
 
 /** Returns true when the LaserDMX renderer should draw. */
 export function shouldRenderLaserDmx(isPlaying: boolean): boolean {
@@ -29,13 +30,18 @@ export function shouldRenderLaserDmx(isPlaying: boolean): boolean {
 }
 
 let prevFogTimeSec = -1
+let prevSpatialTimeSec = -1
 
 function resetLaserDmxRuntimeState(reason?: LaserDmxRendererResetReason): void {
   resetLaserDmxCompilerState()
   resetBeamMatrixCompilerState()
   resetFogState()
-  if (reason) resetMovingHeadRuntime()
+  if (reason) {
+    resetMovingHeadRuntime()
+    resetProductionAtmosphereRuntime({ consumeExistingRequests: true })
+  }
   prevFogTimeSec = -1
+  prevSpatialTimeSec = -1
 }
 
 /**
@@ -54,6 +60,7 @@ export function clearLaserDmxVisualState(
   ctx.clearRect(0, 0, W, H)
   ctx.restore()
   getLaserDmxRendererLifecycle(ctx, resetLaserDmxRuntimeState).pause()
+  if (prevSpatialTimeSec >= 0) pauseProductionAtmosphere(prevSpatialTimeSec)
   resetLaserDmxRuntimeState()
 }
 
@@ -160,6 +167,11 @@ export function renderLaserDmx(
   }
 
   const rig = buildProductionRig(settings)
+  resumeProductionAtmosphere(timeSec)
+  const rawSpatialDt = prevSpatialTimeSec >= 0 ? timeSec - prevSpatialTimeSec : 1 / 60
+  const seeked = rawSpatialDt < -0.001 || rawSpatialDt > 0.75
+  const atmosphere = stepProductionAtmosphere({ settings, timeSec, dt: Math.max(0, Math.min(0.1, rawSpatialDt)), seeked })
+  prevSpatialTimeSec = timeSec
   renderLaserDmxSpatialStage({
     ctx,
     W,
@@ -169,6 +181,7 @@ export function renderLaserDmx(
     frames: compiled.fixtures,
     glowAmount: clamp01(global.glowAmount * params.glow),
     hazeAmount: global.hazeAmount,
+    atmosphere,
   })
 
   if (settings.showDmxDebug && compiled.fixtures.length > 0) {
@@ -178,7 +191,7 @@ export function renderLaserDmx(
     ctx.fillRect(4, 4, 244, compiled.fixtures.length * 14 + 26)
     ctx.fillStyle = '#00ffcc'
     ctx.font = '10px monospace'
-    ctx.fillText(`3D stage ${rig.stage.dimensions.width}×${rig.stage.dimensions.height}×${rig.stage.dimensions.depth}m`, 8, 16)
+    ctx.fillText(`3D stage ${rig.stage.dimensions.width}×${rig.stage.dimensions.height}×${rig.stage.dimensions.depth}m · atmosphere ${atmosphere.particles.length}/${atmosphere.budget}`, 8, 16)
     compiled.fixtures.forEach((fixture, index) => {
       const channels = Object.values(fixture.channels).slice(0, 6).map(value => String(value).padStart(3)).join(' ')
       ctx.fillText(`U${fixture.universe} A${fixture.startAddress} | ${channels}`, 8, 30 + index * 14)

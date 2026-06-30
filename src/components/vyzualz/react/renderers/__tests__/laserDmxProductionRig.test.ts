@@ -47,8 +47,8 @@ describe('LaserDMX production-rig foundation', () => {
     }
     expect(LASER_DMX_OUTPUT_ADAPTER_CAPABILITIES.canTransmit).toBe(false)
     expect(LASER_DMX_OUTPUT_ADAPTER_CAPABILITIES.transports).toEqual(['none'])
-    expect(LASER_DMX_OUTPUT_ADAPTER_CAPABILITIES.fixtureKinds).toEqual(['laserProjector', 'movingHeadBeam', 'movingHeadSpot', 'movingHeadWash', 'staticWash', 'strobe', 'blinder', 'ledBar'])
-    expect(LASER_DMX_VIRTUAL_RENDERER_CAPABILITIES.fixtureKinds).toEqual(['laserProjector', 'movingHeadBeam', 'movingHeadSpot', 'movingHeadWash', 'staticWash', 'strobe', 'blinder', 'ledBar'])
+    expect(LASER_DMX_OUTPUT_ADAPTER_CAPABILITIES.fixtureKinds).toEqual(['laserProjector', 'movingHeadBeam', 'movingHeadSpot', 'movingHeadWash', 'staticWash', 'strobe', 'blinder', 'ledBar', 'hazer', 'fogger', 'cryoJet'])
+    expect(LASER_DMX_VIRTUAL_RENDERER_CAPABILITIES.fixtureKinds).toEqual(['laserProjector', 'movingHeadBeam', 'movingHeadSpot', 'movingHeadWash', 'staticWash', 'strobe', 'blinder', 'ledBar', 'hazer', 'fogger', 'cryoJet'])
     expect(LASER_DMX_VIRTUAL_RENDERER_CAPABILITIES.supportsCompoundCues).toBe(false)
   })
 

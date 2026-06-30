@@ -12,6 +12,8 @@ import type {
   ProductionFixtureColorPolicy,
   ProductionFlashPatternSettings,
   ProductionLedBarSettings,
+  ProductionAtmosphereSettings,
+  ProductionAtmosphericFixtureSettings,
   ProductionVisualComfortSettings,
   ProductionWashSettings,
   ProductionStageModel,
@@ -394,6 +396,9 @@ export type LaserDmxProfileId =
   | 'genericRgbwStrobe'
   | 'genericAudienceBlinder'
   | 'genericLedBar'
+  | 'genericHazer'
+  | 'genericFogger'
+  | 'genericCryoJet'
 
 export type LaserDmxModulationTarget =
   // Spatial Fixtures targets
@@ -511,6 +516,8 @@ export interface LaserDmxFixture {
   wash?: ProductionWashSettings
   /** Whole-bar and bounded segmented rendering controls. */
   ledBar?: ProductionLedBarSettings
+  /** Persistent haze output or cue-triggered fog / virtual CO₂-style plume controls. */
+  atmospheric?: ProductionAtmosphericFixtureSettings
 
   id: string
   name: string
@@ -599,6 +606,9 @@ export interface LaserDmxSettings {
   showPathPoints?: boolean
   showDmxDebug?: boolean
   visualComfort?: ProductionVisualComfortSettings
+  atmosphere?: ProductionAtmosphereSettings
+  /** Non-persisted virtual-effects commands. */
+  runtime?: { atmosphereClearRequestId?: number; [key: string]: unknown }
   fixtures: LaserDmxFixture[]
   /** Shared metre-based stage, venue, camera, guide, and safety-zone document. */
   productionStage?: ProductionStageModel
@@ -712,7 +722,7 @@ export function createDefaultLaserDmxSettings(): LaserDmxSettings {
     ],
   }
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     rigId: 'laser-dmx-spatial-rig',
     rigName: 'LaserDMX Spatial Rig',
     selectedFixtureId: leftFan.id,
@@ -729,6 +739,10 @@ export function createDefaultLaserDmxSettings(): LaserDmxSettings {
     showPathPoints:     false,
     showDmxDebug:       false,
     visualComfort: { disableStrobe: false, maxFlashHz: 12, warningThresholdHz: 7, maxContinuousFlashSec: 4 },
+    atmosphere: {
+      persistentHaze: { enabled: true, baseDensity: 0.45, heightDistribution: 0.62, turbulence: 0.25, diffusion: 0.68, driftSpeed: 0.12, driftDirectionDeg: 18, ventilation: 0.18, beamScatter: 0.72 },
+      qualityTier: 'medium', maxParticleBudget: 180, retainBaseHazeOnClear: true,
+    },
     fixtures: [leftFan, rightFan, centerAccent],
     productionStage: createDefaultProductionStageModel(),
     productionGroups: [],

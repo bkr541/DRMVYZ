@@ -15,10 +15,10 @@ import type {
   LaserDmxSettings,
 } from './ReactTypes'
 
-export const LASER_DMX_SETTINGS_SCHEMA_VERSION = 3
-export const LASER_DMX_FIXTURE_SCHEMA_VERSION = 3
+export const LASER_DMX_SETTINGS_SCHEMA_VERSION = 4
+export const LASER_DMX_FIXTURE_SCHEMA_VERSION = 4
 export const LASER_DMX_BEAM_MATRIX_SCHEMA_VERSION = 1
-export const LASER_DMX_PRODUCTION_RIG_SCHEMA_VERSION = 4
+export const LASER_DMX_PRODUCTION_RIG_SCHEMA_VERSION = 5
 export const LASER_DMX_STAGE_SCHEMA_VERSION = 1
 
 export type ProductionFixtureKind =
@@ -183,6 +183,46 @@ export interface ProductionSpatialZone {
 }
 
 export type ProductionRenderQualityTier = 'low' | 'medium' | 'high'
+export type ProductionAtmosphereQualityTier = 'low' | 'medium' | 'high'
+export type ProductionAtmosphericRetriggerPolicy = 'restart' | 'ignoreWhileActive' | 'extend'
+
+export interface ProductionPersistentHazeSettings {
+  enabled: boolean
+  baseDensity: number
+  heightDistribution: number
+  turbulence: number
+  diffusion: number
+  driftSpeed: number
+  driftDirectionDeg: number
+  ventilation: number
+  beamScatter: number
+}
+
+export interface ProductionAtmosphereSettings {
+  persistentHaze: ProductionPersistentHazeSettings
+  qualityTier: ProductionAtmosphereQualityTier
+  maxParticleBudget: number
+  retainBaseHazeOnClear: boolean
+}
+
+export interface ProductionAtmosphericFixtureSettings {
+  outputLevel: number
+  outputDurationSec: number
+  plumeVelocity: number
+  spread: number
+  density: number
+  turbulence: number
+  driftSpeed: number
+  driftDirectionDeg: number
+  dissipation: number
+  retriggerPolicy: ProductionAtmosphericRetriggerPolicy
+  warmupSec: number
+  cooldownSec: number
+  height: number
+  seed: number
+  triggerRequestId: number
+  orientationMode: 'vertical' | 'fixtureOrientation'
+}
 
 export interface ProductionStageModel {
   schemaVersion: number
@@ -459,6 +499,48 @@ export const DEFAULT_PRODUCTION_LED_BAR_SETTINGS: ProductionLedBarSettings = {
   chase: { ...DEFAULT_PRODUCTION_CHASE },
 }
 
+export const PRODUCTION_ATMOSPHERE_PARTICLE_BUDGETS: Readonly<Record<ProductionAtmosphereQualityTier, number>> = {
+  low: 80,
+  medium: 180,
+  high: 360,
+}
+
+export const DEFAULT_PRODUCTION_ATMOSPHERE_SETTINGS: ProductionAtmosphereSettings = {
+  persistentHaze: {
+    enabled: true,
+    baseDensity: 0.45,
+    heightDistribution: 0.62,
+    turbulence: 0.25,
+    diffusion: 0.68,
+    driftSpeed: 0.12,
+    driftDirectionDeg: 18,
+    ventilation: 0.18,
+    beamScatter: 0.72,
+  },
+  qualityTier: 'medium',
+  maxParticleBudget: 180,
+  retainBaseHazeOnClear: true,
+}
+
+export const DEFAULT_PRODUCTION_ATMOSPHERIC_FIXTURE_SETTINGS: ProductionAtmosphericFixtureSettings = {
+  outputLevel: 0.7,
+  outputDurationSec: 1.8,
+  plumeVelocity: 3.5,
+  spread: 0.55,
+  density: 0.75,
+  turbulence: 0.35,
+  driftSpeed: 0.18,
+  driftDirectionDeg: 12,
+  dissipation: 0.65,
+  retriggerPolicy: 'ignoreWhileActive',
+  warmupSec: 0,
+  cooldownSec: 3,
+  height: 4.5,
+  seed: 1,
+  triggerRequestId: 0,
+  orientationMode: 'fixtureOrientation',
+}
+
 export const DEFAULT_PRODUCTION_VISUAL_COMFORT: ProductionVisualComfortSettings = {
   disableStrobe: false,
   maxFlashHz: 12,
@@ -506,6 +588,67 @@ export const DEFAULT_PRODUCTION_GROUP_MOVEMENT: ProductionGroupMovementConfig = 
 
 function isMovingHeadEasing(value: unknown): value is ProductionMovingHeadEasing {
   return value === 'linear' || value === 'easeIn' || value === 'easeOut' || value === 'easeInOut'
+}
+
+export function normalizeProductionAtmosphereSettings(value: unknown): ProductionAtmosphereSettings {
+  const raw = isRecord(value) ? value : {}
+  const haze = isRecord(raw.persistentHaze) ? raw.persistentHaze : {}
+  const qualityTier: ProductionAtmosphereQualityTier = raw.qualityTier === 'low' || raw.qualityTier === 'high'
+    ? raw.qualityTier
+    : 'medium'
+  return {
+    persistentHaze: {
+      enabled: booleanOr(haze.enabled, DEFAULT_PRODUCTION_ATMOSPHERE_SETTINGS.persistentHaze.enabled),
+      baseDensity: Math.max(0, Math.min(1, finiteOr(haze.baseDensity, DEFAULT_PRODUCTION_ATMOSPHERE_SETTINGS.persistentHaze.baseDensity))),
+      heightDistribution: Math.max(0, Math.min(1, finiteOr(haze.heightDistribution, DEFAULT_PRODUCTION_ATMOSPHERE_SETTINGS.persistentHaze.heightDistribution))),
+      turbulence: Math.max(0, Math.min(1, finiteOr(haze.turbulence, DEFAULT_PRODUCTION_ATMOSPHERE_SETTINGS.persistentHaze.turbulence))),
+      diffusion: Math.max(0, Math.min(1, finiteOr(haze.diffusion, DEFAULT_PRODUCTION_ATMOSPHERE_SETTINGS.persistentHaze.diffusion))),
+      driftSpeed: Math.max(0, Math.min(2, finiteOr(haze.driftSpeed, DEFAULT_PRODUCTION_ATMOSPHERE_SETTINGS.persistentHaze.driftSpeed))),
+      driftDirectionDeg: finiteOr(haze.driftDirectionDeg, DEFAULT_PRODUCTION_ATMOSPHERE_SETTINGS.persistentHaze.driftDirectionDeg),
+      ventilation: Math.max(0, Math.min(1, finiteOr(haze.ventilation, DEFAULT_PRODUCTION_ATMOSPHERE_SETTINGS.persistentHaze.ventilation))),
+      beamScatter: Math.max(0, Math.min(1, finiteOr(haze.beamScatter, DEFAULT_PRODUCTION_ATMOSPHERE_SETTINGS.persistentHaze.beamScatter))),
+    },
+    qualityTier,
+    maxParticleBudget: Math.max(16, Math.min(2000, Math.round(finiteOr(raw.maxParticleBudget, DEFAULT_PRODUCTION_ATMOSPHERE_SETTINGS.maxParticleBudget)))),
+    retainBaseHazeOnClear: booleanOr(raw.retainBaseHazeOnClear, true),
+  }
+}
+
+export function normalizeProductionAtmosphericFixtureSettings(
+  value: unknown,
+  medium: 'haze' | 'fog' | 'cryo' = 'fog',
+): ProductionAtmosphericFixtureSettings {
+  const raw = isRecord(value) ? value : {}
+  const defaults = {
+    ...DEFAULT_PRODUCTION_ATMOSPHERIC_FIXTURE_SETTINGS,
+    outputDurationSec: medium === 'cryo' ? 0.9 : medium === 'haze' ? 9999 : 2.2,
+    plumeVelocity: medium === 'cryo' ? 7.5 : medium === 'haze' ? 0.4 : 3.2,
+    spread: medium === 'cryo' ? 0.38 : medium === 'haze' ? 0.9 : 0.62,
+    dissipation: medium === 'cryo' ? 0.9 : medium === 'haze' ? 0.18 : 0.62,
+    cooldownSec: medium === 'cryo' ? 3 : medium === 'haze' ? 0 : 5,
+    height: medium === 'cryo' ? 6 : medium === 'haze' ? 2.5 : 4.5,
+  }
+  const retriggerPolicy: ProductionAtmosphericRetriggerPolicy = raw.retriggerPolicy === 'restart' || raw.retriggerPolicy === 'extend'
+    ? raw.retriggerPolicy
+    : 'ignoreWhileActive'
+  return {
+    outputLevel: Math.max(0, Math.min(1, finiteOr(raw.outputLevel, defaults.outputLevel))),
+    outputDurationSec: Math.max(0.05, Math.min(60, finiteOr(raw.outputDurationSec, defaults.outputDurationSec))),
+    plumeVelocity: Math.max(0, Math.min(30, finiteOr(raw.plumeVelocity, defaults.plumeVelocity))),
+    spread: Math.max(0.02, Math.min(4, finiteOr(raw.spread, defaults.spread))),
+    density: Math.max(0, Math.min(1, finiteOr(raw.density, defaults.density))),
+    turbulence: Math.max(0, Math.min(1, finiteOr(raw.turbulence, defaults.turbulence))),
+    driftSpeed: Math.max(0, Math.min(5, finiteOr(raw.driftSpeed, defaults.driftSpeed))),
+    driftDirectionDeg: finiteOr(raw.driftDirectionDeg, defaults.driftDirectionDeg),
+    dissipation: Math.max(0, Math.min(1, finiteOr(raw.dissipation, defaults.dissipation))),
+    retriggerPolicy,
+    warmupSec: Math.max(0, Math.min(30, finiteOr(raw.warmupSec, defaults.warmupSec))),
+    cooldownSec: Math.max(0, Math.min(120, finiteOr(raw.cooldownSec, defaults.cooldownSec))),
+    height: Math.max(0.1, Math.min(30, finiteOr(raw.height, defaults.height))),
+    seed: Math.round(finiteOr(raw.seed, defaults.seed)),
+    triggerRequestId: Math.max(0, Math.round(finiteOr(raw.triggerRequestId, 0))),
+    orientationMode: raw.orientationMode === 'vertical' ? 'vertical' : medium === 'cryo' ? 'vertical' : 'fixtureOrientation',
+  }
 }
 
 export function normalizeProductionMovingHeadSettings(value: unknown): ProductionMovingHeadSettings {
@@ -742,6 +885,7 @@ export type ProductionCueAction =
   | { type: 'setFixtureProperties'; fixtureId: string; properties: ProductionFixturePropertyState; transitionMs?: number }
   | { type: 'setGroupProperties'; groupId: string; properties: ProductionFixturePropertyState; transitionMs?: number }
   | { type: 'triggerFixture'; fixtureId: string; intensity?: number }
+  | { type: 'triggerAtmosphere'; fixtureId?: string; groupId?: string; intensity?: number }
   | {
       type: 'triggerFlashPattern'
       fixtureId?: string
@@ -1134,7 +1278,7 @@ export const ALL_PRODUCTION_FIXTURE_KINDS: readonly ProductionFixtureKind[] = [
 export const LASER_DMX_VIRTUAL_RENDERER_CAPABILITIES: ProductionRendererCapabilities = {
   id: 'laserDmxVirtualRenderer',
   virtualOnly: true,
-  fixtureKinds: ['laserProjector', 'movingHeadBeam', 'movingHeadSpot', 'movingHeadWash', 'staticWash', 'strobe', 'blinder', 'ledBar'],
+  fixtureKinds: ['laserProjector', 'movingHeadBeam', 'movingHeadSpot', 'movingHeadWash', 'staticWash', 'strobe', 'blinder', 'ledBar', 'hazer', 'fogger', 'cryoJet'],
   supportsBeamPaths: true,
   supportsVolumetrics: true,
   supportsAtmospherics: true,
@@ -1150,7 +1294,7 @@ export const LASER_DMX_OUTPUT_ADAPTER_CAPABILITIES: ProductionOutputAdapterCapab
   enabled: true,
   canTransmit: false,
   transports: ['none'],
-  fixtureKinds: ['laserProjector', 'movingHeadBeam', 'movingHeadSpot', 'movingHeadWash', 'staticWash', 'strobe', 'blinder', 'ledBar'],
+  fixtureKinds: ['laserProjector', 'movingHeadBeam', 'movingHeadSpot', 'movingHeadWash', 'staticWash', 'strobe', 'blinder', 'ledBar', 'hazer', 'fogger', 'cryoJet'],
 }
 
 /**
@@ -1237,6 +1381,8 @@ export type ProductionChannelSource =
   | 'rotation'
   | 'scanSpeed'
   | 'pathComplexity'
+  | 'atmosphericOutput'
+  | 'trigger'
   | 'zero'
 
 export interface ProductionChannelDefinition {
@@ -1523,6 +1669,33 @@ export const LASER_DMX_FIXTURE_PROFILES: Readonly<Record<LaserDmxProfileId, Prod
       { channel: 7, source: 'white', label: 'White' },
     ],
   },
+  genericHazer: {
+    schemaVersion: 1,
+    id: 'genericHazer',
+    label: 'Virtual Hazer',
+    fixtureKind: 'hazer',
+    capabilities: { ...PRODUCTION_FIXTURE_KIND_CAPABILITIES.hazer },
+    channels: [{ channel: 1, source: 'atmosphericOutput', label: 'Haze output' }],
+  },
+  genericFogger: {
+    schemaVersion: 1,
+    id: 'genericFogger',
+    label: 'Virtual Fog Emitter',
+    fixtureKind: 'fogger',
+    capabilities: { ...PRODUCTION_FIXTURE_KIND_CAPABILITIES.fogger },
+    channels: [
+      { channel: 1, source: 'atmosphericOutput', label: 'Fog output' },
+      { channel: 2, source: 'trigger', label: 'Virtual trigger' },
+    ],
+  },
+  genericCryoJet: {
+    schemaVersion: 1,
+    id: 'genericCryoJet',
+    label: 'Virtual CO₂-Style Jet',
+    fixtureKind: 'cryoJet',
+    capabilities: { ...PRODUCTION_FIXTURE_KIND_CAPABILITIES.cryoJet },
+    channels: [{ channel: 1, source: 'trigger', label: 'Virtual trigger' }],
+  },
 }
 
 export type ProductionRigDiagnosticCode =
@@ -1531,6 +1704,10 @@ export type ProductionRigDiagnosticCode =
   | 'duplicateFixtureId'
   | 'fixtureOutsideStageBounds'
   | 'unresolvedTarget'
+  | 'invalidEmitterParameters'
+  | 'excessiveParticleBudget'
+  | 'cooldownConflict'
+  | 'unsupportedRendererCapability'
 
 export interface ProductionRigDiagnostic {
   code: ProductionRigDiagnosticCode
@@ -1551,7 +1728,35 @@ function hasInvalidAuthoredPosition(rawFixture: unknown): boolean {
   return authored.some(value => typeof value !== 'number' || !Number.isFinite(value))
 }
 
-export function diagnoseProductionRig(settingsInput: unknown): ProductionRigDiagnostic[] {
+function hasInvalidAtmosphericParameters(rawFixture: unknown): boolean {
+  if (!isRecord(rawFixture) || !isRecord(rawFixture.atmospheric)) return false
+  const atmospheric = rawFixture.atmospheric
+  const bounded: Array<[string, number, number]> = [
+    ['outputLevel', 0, 1],
+    ['outputDurationSec', 0.05, 60],
+    ['plumeVelocity', 0, 30],
+    ['spread', 0.02, 4],
+    ['density', 0, 1],
+    ['turbulence', 0, 1],
+    ['driftSpeed', 0, 5],
+    ['dissipation', 0, 1],
+    ['warmupSec', 0, 30],
+    ['cooldownSec', 0, 120],
+    ['height', 0.1, 30],
+    ['triggerRequestId', 0, Number.MAX_SAFE_INTEGER],
+  ]
+  if (bounded.some(([key, min, max]) => key in atmospheric && (!isFiniteNumber(atmospheric[key]) || atmospheric[key] < min || atmospheric[key] > max))) return true
+  if ('driftDirectionDeg' in atmospheric && !isFiniteNumber(atmospheric.driftDirectionDeg)) return true
+  if ('seed' in atmospheric && !isFiniteNumber(atmospheric.seed)) return true
+  if ('orientationMode' in atmospheric && atmospheric.orientationMode !== 'vertical' && atmospheric.orientationMode !== 'fixtureOrientation') return true
+  if ('retriggerPolicy' in atmospheric && atmospheric.retriggerPolicy !== 'restart' && atmospheric.retriggerPolicy !== 'ignoreWhileActive' && atmospheric.retriggerPolicy !== 'extend') return true
+  return false
+}
+
+export function diagnoseProductionRig(
+  settingsInput: unknown,
+  rendererCapabilities: ProductionRendererCapabilities = LASER_DMX_VIRTUAL_RENDERER_CAPABILITIES,
+): ProductionRigDiagnostic[] {
   const settings = normalizeLaserDmxSettings(settingsInput)
   const stage = normalizeProductionStageModel(settings.productionStage)
   const diagnostics: ProductionRigDiagnostic[] = []
@@ -1579,6 +1784,45 @@ export function diagnoseProductionRig(settingsInput: unknown): ProductionRigDiag
     }
     if (fixture.targetId && !targets.has(fixture.targetId)) {
       diagnostics.push({ code: 'unresolvedTarget', severity: 'error', fixtureId: fixture.id, message: `${fixture.name} references unresolved target “${fixture.targetId}”.` })
+    }
+  }
+  const atmosphere = normalizeProductionAtmosphereSettings(settings.atmosphere)
+  const tierBudget = PRODUCTION_ATMOSPHERE_PARTICLE_BUDGETS[atmosphere.qualityTier]
+  if (atmosphere.maxParticleBudget > tierBudget) {
+    diagnostics.push({
+      code: 'excessiveParticleBudget',
+      severity: 'warning',
+      message: `Atmosphere particle budget ${atmosphere.maxParticleBudget} exceeds the ${atmosphere.qualityTier}-tier limit of ${tierBudget}; rendering will clamp to the tier limit.`,
+    })
+  }
+  for (const [fixtureIndex, fixture] of settings.fixtures.entries()) {
+    if (fixture.fixtureKind !== 'hazer' && fixture.fixtureKind !== 'fogger' && fixture.fixtureKind !== 'cryoJet') continue
+    const medium = fixture.fixtureKind === 'hazer' ? 'haze' : fixture.fixtureKind === 'fogger' ? 'fog' : 'cryo'
+    const emitter = normalizeProductionAtmosphericFixtureSettings(fixture.atmospheric, medium)
+    if (hasInvalidAtmosphericParameters(rawFixtures[fixtureIndex]) || emitter.density <= 0 || emitter.spread <= 0 || emitter.height <= 0) {
+      diagnostics.push({
+        code: 'invalidEmitterParameters',
+        severity: 'error',
+        fixtureId: fixture.id,
+        message: `${fixture.name} has invalid or unusable emitter parameters; safe normalized values will be used.`,
+      })
+    }
+    const profileCooldownSec = (getLaserDmxFixtureProfile(fixture.dmx.profileId)?.capabilities.trigger?.cooldownMs ?? 0) / 1000
+    if (fixture.fixtureKind !== 'hazer' && emitter.cooldownSec < Math.max(profileCooldownSec, emitter.outputDurationSec * 0.25)) {
+      diagnostics.push({
+        code: 'cooldownConflict',
+        severity: 'warning',
+        fixtureId: fixture.id,
+        message: `${fixture.name} cooldown is shorter than its profile or burst-duration guard.`,
+      })
+    }
+    if (!rendererCapabilities.supportsAtmospherics || !rendererCapabilities.fixtureKinds.includes(fixture.fixtureKind)) {
+      diagnostics.push({
+        code: 'unsupportedRendererCapability',
+        severity: 'error',
+        fixtureId: fixture.id,
+        message: `${fixture.name} requires atmospheric rendering support that the active renderer does not declare.`,
+      })
     }
   }
   return diagnostics
@@ -1755,7 +1999,9 @@ export function validateFixtureProfile(profile: unknown): ProductionValidationIs
         (source === 'gobo' || source === 'goboRotation') && Boolean(capabilities.gobo) ||
         (source === 'prism' || source === 'prismRotation') && Boolean(capabilities.prism) ||
         source === 'rotation' && Boolean(capabilities.beamPattern) ||
-        (source === 'scanSpeed' || source === 'pathComplexity') && Boolean(capabilities.beamPattern)
+        (source === 'scanSpeed' || source === 'pathComplexity') && Boolean(capabilities.beamPattern) ||
+        source === 'atmosphericOutput' && Boolean(capabilities.atmosphericOutput) ||
+        source === 'trigger' && Boolean(capabilities.trigger)
       if (!sourceSupported) {
         issues.push({
           severity: 'error',
@@ -1806,6 +2052,8 @@ export interface ProductionChannelValues {
   rotation: number
   scanSpeed: number
   pathComplexity: number
+  atmosphericOutput?: number
+  trigger?: number
   zero: number
 }
 
@@ -1970,6 +2218,9 @@ export function normalizeLegacyLaserDmxFixture(raw: unknown, index = 0): LaserDm
     ...(resolvedCapabilities?.strobe ? { flashPattern: normalizeProductionFlashPattern(raw.flashPattern) } : { flashPattern: undefined }),
     ...(resolvedCapabilities?.wash ? { wash: normalizeProductionWashSettings(raw.wash) } : { wash: undefined }),
     ...(resolvedCapabilities?.pixels ? { ledBar: normalizeProductionLedBarSettings(raw.ledBar, resolvedCapabilities.pixels.maxSegments) } : { ledBar: undefined }),
+    ...(resolvedCapabilities?.atmosphericOutput
+      ? { atmospheric: normalizeProductionAtmosphericFixtureSettings(raw.atmospheric, resolvedCapabilities.atmosphericOutput.medium) }
+      : { atmospheric: undefined }),
     ...(isRecord(raw.stageTransform) ? { stageTransform: raw.stageTransform as unknown as ProductionStageTransform } : {}),
     compatibility: {
       ...compatibility,
@@ -2032,6 +2283,10 @@ export function normalizeLaserDmxSettings(raw: unknown): LaserDmxSettings {
     showPathPoints: false,
     showDmxDebug: false,
     visualComfort: { ...DEFAULT_PRODUCTION_VISUAL_COMFORT },
+    atmosphere: {
+      ...DEFAULT_PRODUCTION_ATMOSPHERE_SETTINGS,
+      persistentHaze: { ...DEFAULT_PRODUCTION_ATMOSPHERE_SETTINGS.persistentHaze },
+    },
     fixtures: [],
     productionStage: createDefaultProductionStageModel(),
     productionGroups: [],
@@ -2071,6 +2326,10 @@ export function normalizeLaserDmxSettings(raw: unknown): LaserDmxSettings {
     showPathPoints: booleanOr(raw.showPathPoints, false),
     showDmxDebug: booleanOr(raw.showDmxDebug, false),
     visualComfort: normalizeProductionVisualComfort(raw.visualComfort),
+    atmosphere: normalizeProductionAtmosphereSettings(raw.atmosphere),
+    runtime: isRecord(raw.runtime)
+      ? { atmosphereClearRequestId: Math.max(0, Math.round(finiteOr(raw.runtime.atmosphereClearRequestId, 0))) }
+      : undefined,
     fixtures,
     productionStage,
     productionGroups: normalizeArray<ProductionFixtureGroup>(raw.productionGroups).map((group, index) => ({
@@ -2114,7 +2373,10 @@ function omitTransientKeys<T extends Record<string, unknown>>(value: T): T {
 /** Removes known runtime/output fields while preserving unknown authored fields. */
 export function sanitizeLaserDmxSettingsForPersistence(raw: unknown): LaserDmxSettings {
   const normalized = normalizeLaserDmxSettings(raw)
-  return omitTransientKeys(normalized as unknown as Record<string, unknown>) as unknown as LaserDmxSettings
+  const fixtures = normalized.fixtures.map(fixture => fixture.atmospheric
+    ? { ...fixture, atmospheric: { ...fixture.atmospheric, triggerRequestId: 0 } }
+    : fixture)
+  return omitTransientKeys({ ...normalized, fixtures } as unknown as Record<string, unknown>) as unknown as LaserDmxSettings
 }
 
 export function sanitizeLaserDmxBeamMatrixForPersistence(raw: unknown): LaserDmxBeamMatrixSettings {
@@ -2163,6 +2425,10 @@ function buildFixturePropertyState(
     properties.washSoftness = fixture.wash.softness
   }
   if (capabilities.pixels && fixture.ledBar) properties.pixelSegmentCount = fixture.ledBar.segmentCount
+  if (capabilities.atmosphericOutput && fixture.atmospheric) {
+    properties.atmosphericOutput = fixture.atmospheric.outputLevel
+    properties.triggered = fixture.atmospheric.triggerRequestId > 0
+  }
   return properties
 }
 

@@ -12,6 +12,7 @@ import {
   DEFAULT_PRODUCTION_FLASH_PATTERN,
   DEFAULT_PRODUCTION_GROUP_MOVEMENT,
   DEFAULT_PRODUCTION_LED_BAR_SETTINGS,
+  DEFAULT_PRODUCTION_ATMOSPHERIC_FIXTURE_SETTINGS,
   DEFAULT_PRODUCTION_WASH_SETTINGS,
   diagnoseProductionRig,
   getLaserDmxFixtureProfile,
@@ -22,6 +23,8 @@ import {
   normalizeProductionFlashPattern,
   normalizeProductionGroupMovement,
   normalizeProductionLedBarSettings,
+  normalizeProductionAtmosphereSettings,
+  normalizeProductionAtmosphericFixtureSettings,
   normalizeProductionMovingHeadSettings,
   normalizeProductionStageModel,
   normalizeProductionVisualComfort,
@@ -193,6 +196,9 @@ export function LaserDmxSpatialFixturesPanel() {
     removeLaserFixture,
     updateLaserFixture,
     applyLaserDmxVenueTemplate,
+    triggerLaserAtmosphericFixture,
+    clearLaserAtmosphericBursts,
+    triggerLaserAtmosphericGroup,
   } = useReactStore(useShallow(state => ({
     laserDmxSettings: state.laserDmxSettings,
     setLaserDmxSettings: state.setLaserDmxSettings,
@@ -202,6 +208,9 @@ export function LaserDmxSpatialFixturesPanel() {
     removeLaserFixture: state.removeLaserFixture,
     updateLaserFixture: state.updateLaserFixture,
     applyLaserDmxVenueTemplate: state.applyLaserDmxVenueTemplate,
+    triggerLaserAtmosphericFixture: state.triggerLaserAtmosphericFixture,
+    clearLaserAtmosphericBursts: state.clearLaserAtmosphericBursts,
+    triggerLaserAtmosphericGroup: state.triggerLaserAtmosphericGroup,
   })))
 
   const [newProfileId, setNewProfileId] = useState<LaserDmxProfileId>('genericRgbLaser')
@@ -226,9 +235,12 @@ export function LaserDmxSpatialFixturesPanel() {
   const movement = normalizeProductionGroupMovement(movementGroup?.movement)
   const groupChase = normalizeProductionChase(movementGroup?.chase)
   const visualComfort = normalizeProductionVisualComfort(laserDmxSettings.visualComfort)
+  const atmosphere = normalizeProductionAtmosphereSettings(laserDmxSettings.atmosphere)
   const colorPolicy = normalizeProductionFixtureColorPolicy(fixture?.colorPolicy)
   const flashPattern = normalizeProductionFlashPattern(fixture?.flashPattern)
   const wash = normalizeProductionWashSettings(fixture?.wash)
+  const atmosphericMedium = capabilities?.atmosphericOutput?.medium ?? 'fog'
+  const atmospheric = normalizeProductionAtmosphericFixtureSettings(fixture?.atmospheric, atmosphericMedium)
   const ledBar = normalizeProductionLedBarSettings(
     fixture?.ledBar,
     capabilities?.pixels?.maxSegments ?? DEFAULT_PRODUCTION_LED_BAR_SETTINGS.segmentCount,
@@ -307,6 +319,11 @@ export function LaserDmxSpatialFixturesPanel() {
     updateLaserFixture(fixture.id, {
       wash: normalizeProductionWashSettings({ ...wash, ...patch }),
     })
+  }
+
+  function updateAtmospheric(patch: Partial<typeof atmospheric>) {
+    if (!fixture || !capabilities?.atmosphericOutput) return
+    updateLaserFixture(fixture.id, { atmospheric: normalizeProductionAtmosphericFixtureSettings({ ...atmospheric, ...patch }, capabilities.atmosphericOutput.medium) })
   }
 
   function updateLedBar(patch: Partial<typeof ledBar>) {
@@ -451,6 +468,23 @@ export function LaserDmxSpatialFixturesPanel() {
         </div>
       </Collapsible>
 
+      <Collapsible label="Global Atmosphere" defaultOpen>
+        <ToggleRow label="Persistent Haze" value={atmosphere.persistentHaze.enabled} onChange={enabled => setLaserDmxSettings({ atmosphere: { ...atmosphere, persistentHaze: { ...atmosphere.persistentHaze, enabled } } })} />
+        <SliderRow label="Base Density" value={atmosphere.persistentHaze.baseDensity} onChange={baseDensity => setLaserDmxSettings({ atmosphere: { ...atmosphere, persistentHaze: { ...atmosphere.persistentHaze, baseDensity } } })} min={0} max={1} step={0.01} color="#9bb8c5" />
+        <SliderRow label="Height Distribution" value={atmosphere.persistentHaze.heightDistribution} onChange={heightDistribution => setLaserDmxSettings({ atmosphere: { ...atmosphere, persistentHaze: { ...atmosphere.persistentHaze, heightDistribution } } })} min={0} max={1} step={0.01} color="#77a6b8" />
+        <SliderRow label="Turbulence" value={atmosphere.persistentHaze.turbulence} onChange={turbulence => setLaserDmxSettings({ atmosphere: { ...atmosphere, persistentHaze: { ...atmosphere.persistentHaze, turbulence } } })} min={0} max={1} step={0.01} color="#b84fc9" />
+        <SliderRow label="Diffusion" value={atmosphere.persistentHaze.diffusion} onChange={diffusion => setLaserDmxSettings({ atmosphere: { ...atmosphere, persistentHaze: { ...atmosphere.persistentHaze, diffusion } } })} min={0} max={1} step={0.01} color="#61d6aa" />
+        <SliderRow label="Ventilation / Decay" value={atmosphere.persistentHaze.ventilation} onChange={ventilation => setLaserDmxSettings({ atmosphere: { ...atmosphere, persistentHaze: { ...atmosphere.persistentHaze, ventilation } } })} min={0} max={1} step={0.01} color="#d8b95a" />
+        <SliderRow label="Beam Scatter" value={atmosphere.persistentHaze.beamScatter} onChange={beamScatter => setLaserDmxSettings({ atmosphere: { ...atmosphere, persistentHaze: { ...atmosphere.persistentHaze, beamScatter } } })} min={0} max={1} step={0.01} color="#4ac7db" />
+        <NumberInputRow label="Drift Speed" value={atmosphere.persistentHaze.driftSpeed} onChange={driftSpeed => setLaserDmxSettings({ atmosphere: { ...atmosphere, persistentHaze: { ...atmosphere.persistentHaze, driftSpeed } } })} min={0} max={2} step={0.01} />
+        <NumberInputRow label="Drift Direction" value={atmosphere.persistentHaze.driftDirectionDeg} onChange={driftDirectionDeg => setLaserDmxSettings({ atmosphere: { ...atmosphere, persistentHaze: { ...atmosphere.persistentHaze, driftDirectionDeg } } })} min={-360} max={360} step={1} unit="°" />
+        <SelectRow label="Atmosphere Quality" value={atmosphere.qualityTier} onChange={qualityTier => setLaserDmxSettings({ atmosphere: normalizeProductionAtmosphereSettings({ ...atmosphere, qualityTier }) })} options={[{ value: 'low', label: 'Low · 80 particles' }, { value: 'medium', label: 'Medium · 180 particles' }, { value: 'high', label: 'High · 360 particles' }]} />
+        <NumberInputRow label="Particle Budget" value={atmosphere.maxParticleBudget} onChange={maxParticleBudget => setLaserDmxSettings({ atmosphere: normalizeProductionAtmosphereSettings({ ...atmosphere, maxParticleBudget }) })} min={16} max={2000} step={1} />
+        <ToggleRow label="Keep Base Haze on Clear" value={atmosphere.retainBaseHazeOnClear} onChange={retainBaseHazeOnClear => setLaserDmxSettings({ atmosphere: { ...atmosphere, retainBaseHazeOnClear } })} />
+        <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" onClick={clearLaserAtmosphericBursts}>Clear Active Virtual Bursts</button>
+        <div className="rv-ctrl-info">Virtual visualization only. This does not control or certify physical fog, cryogenic, pressurized, or pyrotechnic equipment.</div>
+      </Collapsible>
+
       <CtrlSection label="Fixtures" />
       <div style={{ display: 'flex', gap: 4, alignItems: 'end', flexWrap: 'wrap' }}>
         <div style={{ flex: '1 1 150px' }}>
@@ -515,6 +549,9 @@ export function LaserDmxSpatialFixturesPanel() {
                     : undefined,
                   ledBar: nextCapabilities.pixels
                     ? normalizeProductionLedBarSettings(fixture.ledBar ?? DEFAULT_PRODUCTION_LED_BAR_SETTINGS, nextCapabilities.pixels.maxSegments)
+                    : undefined,
+                  atmospheric: nextCapabilities.atmosphericOutput
+                    ? normalizeProductionAtmosphericFixtureSettings(fixture.atmospheric ?? DEFAULT_PRODUCTION_ATMOSPHERIC_FIXTURE_SETTINGS, nextCapabilities.atmosphericOutput.medium)
                     : undefined,
                   path: profile.fixtureKind === 'laserProjector'
                     ? fixture.path
@@ -764,6 +801,33 @@ export function LaserDmxSpatialFixturesPanel() {
                   <NumberInputRow label="Segment Seed" value={ledBar.chase.seed} onChange={seed => updateLedBar({ chase: { ...ledBar.chase, seed: Math.round(seed) } })} min={0} max={999999} step={1} />
                 </>
               )}
+            </Collapsible>
+          )}
+
+          {capabilities?.atmosphericOutput && (
+            <Collapsible label={capabilities.atmosphericOutput.medium === 'haze' ? 'Hazer Output' : capabilities.atmosphericOutput.medium === 'cryo' ? 'Virtual CO₂-Style Jet' : 'Fog Emitter'} defaultOpen>
+              <SliderRow label="Output Level" value={atmospheric.outputLevel} onChange={outputLevel => updateAtmospheric({ outputLevel })} min={0} max={1} step={0.01} color="#9bb8c5" />
+              {capabilities.atmosphericOutput.medium !== 'haze' && <NumberInputRow label="Burst Duration" value={atmospheric.outputDurationSec} onChange={outputDurationSec => updateAtmospheric({ outputDurationSec })} min={0.05} max={60} step={0.05} unit="sec" />}
+              <SelectRow label="Plume Orientation" value={atmospheric.orientationMode} onChange={orientationMode => updateAtmospheric({ orientationMode: orientationMode as typeof atmospheric.orientationMode })} options={[{ value: 'vertical', label: 'Vertical' }, { value: 'fixtureOrientation', label: 'Fixture Orientation' }]} />
+              <NumberInputRow label="Plume Velocity" value={atmospheric.plumeVelocity} onChange={plumeVelocity => updateAtmospheric({ plumeVelocity })} min={0} max={30} step={0.1} unit="m/s" />
+              <NumberInputRow label="Plume Height" value={atmospheric.height} onChange={height => updateAtmospheric({ height })} min={0.1} max={30} step={0.1} unit="m" />
+              <SliderRow label="Spread" value={Math.min(1, atmospheric.spread)} onChange={spread => updateAtmospheric({ spread })} min={0.02} max={1} step={0.01} color="#77a6b8" />
+              <SliderRow label="Density" value={atmospheric.density} onChange={density => updateAtmospheric({ density })} min={0} max={1} step={0.01} color="#d8f6ff" />
+              <SliderRow label="Turbulence" value={atmospheric.turbulence} onChange={turbulence => updateAtmospheric({ turbulence })} min={0} max={1} step={0.01} color="#b84fc9" />
+              <SliderRow label="Dissipation" value={atmospheric.dissipation} onChange={dissipation => updateAtmospheric({ dissipation })} min={0} max={1} step={0.01} color="#61d6aa" />
+              <NumberInputRow label="Drift Speed" value={atmospheric.driftSpeed} onChange={driftSpeed => updateAtmospheric({ driftSpeed })} min={0} max={5} step={0.05} unit="m/s" />
+              <NumberInputRow label="Drift Direction" value={atmospheric.driftDirectionDeg} onChange={driftDirectionDeg => updateAtmospheric({ driftDirectionDeg })} min={-360} max={360} step={1} unit="°" />
+              {capabilities.atmosphericOutput.medium !== 'haze' && (<>
+                <SelectRow label="Retrigger" value={atmospheric.retriggerPolicy} onChange={retriggerPolicy => updateAtmospheric({ retriggerPolicy: retriggerPolicy as typeof atmospheric.retriggerPolicy })} options={[{ value: 'restart', label: 'Restart' }, { value: 'ignoreWhileActive', label: 'Ignore While Active' }, { value: 'extend', label: 'Extend Active Burst' }]} />
+                <NumberInputRow label="Warm-Up Metadata" value={atmospheric.warmupSec} onChange={warmupSec => updateAtmospheric({ warmupSec })} min={0} max={30} step={0.1} unit="sec" />
+                <NumberInputRow label="Cooldown" value={atmospheric.cooldownSec} onChange={cooldownSec => updateAtmospheric({ cooldownSec })} min={0} max={120} step={0.1} unit="sec" />
+                <NumberInputRow label="Deterministic Seed" value={atmospheric.seed} onChange={seed => updateAtmospheric({ seed: Math.round(seed) })} min={0} max={999999} step={1} />
+                <button type="button" className="rv-glyph-upload-btn" onClick={() => triggerLaserAtmosphericFixture(fixture.id)}>Trigger Virtual Burst</button>
+                {movementGroup && movementGroup.fixtureIds.some(id => {
+                  const candidate = fixtures.find(item => item.id === id)
+                  return candidate?.fixtureKind === 'fogger' || candidate?.fixtureKind === 'cryoJet'
+                }) && <button type="button" className="rv-glyph-upload-btn" onClick={() => triggerLaserAtmosphericGroup(movementGroup.id)}>Trigger Group Bursts</button>}
+              </>)}
             </Collapsible>
           )}
 

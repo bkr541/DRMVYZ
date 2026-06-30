@@ -1,4 +1,5 @@
 import type { LaserDmxFixtureFrame, LaserDmxSettings } from '../ReactTypes'
+import type { ProductionAtmosphereFrame } from './LaserDmxAtmosphereEngine'
 import {
   isMovingHeadFixtureKind,
   normalizeProductionStageModel,
@@ -40,6 +41,7 @@ export interface SpatialStageRenderInput {
   frames: LaserDmxFixtureFrame[]
   glowAmount: number
   hazeAmount: number
+  atmosphere: ProductionAtmosphereFrame
 }
 
 const EPSILON = 1e-6
@@ -632,6 +634,61 @@ function drawLedBarFixture(
   }
 }
 
+function drawProductionAtmosphere(
+  ctx: CanvasRenderingContext2D,
+  basis: CameraBasis,
+  frame: ProductionAtmosphereFrame,
+  fixtureFrames: LaserDmxFixtureFrame[],
+): void {
+  const haze = frame.settings.persistentHaze
+  if (haze.enabled && haze.baseDensity > 0.001) {
+    const layers = frame.settings.qualityTier === 'low' ? 2 : frame.settings.qualityTier === 'high' ? 5 : 3
+    const ventilation = 1 - haze.ventilation * 0.72
+    ctx.save()
+    ctx.globalCompositeOperation = 'screen'
+    for (let index = 0; index < layers; index += 1) {
+      const y = basis.H * (0.2 + (index / Math.max(1, layers - 1)) * 0.72)
+      const radiusX = basis.W * (0.55 + haze.diffusion * 0.35)
+      const radiusY = basis.H * (0.16 + haze.heightDistribution * 0.22)
+      const driftPhase = frame.timeSec * haze.driftSpeed * 0.55 + haze.driftDirectionDeg * Math.PI / 180
+      const turbulencePhase = frame.timeSec * (0.18 + haze.turbulence * 0.85) + index * 2.31
+      const centerX = basis.W * 0.5
+        + Math.cos(driftPhase) * basis.W * haze.driftSpeed * 0.08
+        + Math.sin(turbulencePhase) * basis.W * haze.turbulence * 0.025
+      const centerY = y + Math.cos(turbulencePhase * 0.73) * basis.H * haze.turbulence * 0.018
+      const gradient = ctx.createRadialGradient(centerX, centerY, 0, basis.W * 0.5, y, radiusX)
+      const alpha = haze.baseDensity * ventilation * (0.035 + haze.diffusion * 0.035) * (0.9 + Math.sin(turbulencePhase) * haze.turbulence * 0.1) / layers
+      gradient.addColorStop(0, `rgba(170,188,196,${alpha.toFixed(4)})`)
+      gradient.addColorStop(1, 'rgba(90,110,120,0)')
+      ctx.fillStyle = gradient
+      ctx.fillRect(-radiusX * 0.2, y - radiusY, basis.W + radiusX * 0.4, radiusY * 2)
+    }
+    ctx.restore()
+  }
+
+  if (frame.particles.length === 0) return
+  const brightest = fixtureFrames.reduce<LaserDmxFixtureFrame | null>((best, candidate) => {
+    if (!candidate.visual.strobeVisible) return best
+    return !best || candidate.visual.intensity > best.visual.intensity ? candidate : best
+  }, null)
+  const tint = brightest?.visual.rgba ?? { r: 210, g: 230, b: 238, a: 1 }
+  ctx.save()
+  ctx.globalCompositeOperation = 'screen'
+  for (const particle of frame.particles) {
+    const projected = projectWithBasis(particle.position, basis)
+    if (!projected.visible || particle.density < 0.002) continue
+    const radius = Math.max(2, Math.min(90, particle.radius * projected.scale * (particle.medium === 'cryo' ? 0.75 : 1.15)))
+    const alpha = clamp01(particle.density * (particle.medium === 'cryo' ? 0.42 : 0.24))
+    const gradient = ctx.createRadialGradient(projected.x, projected.y, 0, projected.x, projected.y, radius)
+    gradient.addColorStop(0, `rgba(${tint.r},${tint.g},${tint.b},${alpha.toFixed(3)})`)
+    gradient.addColorStop(0.45, `rgba(210,225,232,${(alpha * 0.48).toFixed(3)})`)
+    gradient.addColorStop(1, 'rgba(180,200,210,0)')
+    ctx.fillStyle = gradient
+    ctx.fillRect(projected.x - radius, projected.y - radius, radius * 2, radius * 2)
+  }
+  ctx.restore()
+}
+
 export function renderLaserDmxSpatialStage(input: SpatialStageRenderInput): void {
   const { ctx, W, H, rig, settings, frames } = input
   const stage = normalizeProductionStageModel(rig.stage)
@@ -641,12 +698,13 @@ export function renderLaserDmxSpatialStage(input: SpatialStageRenderInput): void
   drawAudienceRegion(ctx, basis, stage)
   drawMounts(ctx, basis, stage)
   drawZones(ctx, basis, stage)
+  drawProductionAtmosphere(ctx, basis, input.atmosphere, frames)
 
   const fixtureById = new Map(rig.fixtures.map(fixture => [fixture.id, fixture]))
   const sourceFixtureById = new Map(settings.fixtures.map(fixture => [fixture.id, fixture]))
   const targetById = new Map(rig.targets.map(target => [target.id, target]))
   const maxPoints = stage.editor.qualityTier === 'low' ? 24 : stage.editor.qualityTier === 'medium' ? 56 : 120
-  const haze = clamp01(input.hazeAmount)
+  const haze = clamp01(input.hazeAmount + input.atmosphere.settings.persistentHaze.baseDensity * input.atmosphere.settings.persistentHaze.beamScatter * 0.55 + input.atmosphere.localHazeDensity * 0.45 + Math.min(0.35, input.atmosphere.particles.length / Math.max(1, input.atmosphere.budget) * 0.35))
   const glow = clamp01(input.glowAmount)
 
   const ordered = frames
@@ -657,6 +715,27 @@ export function renderLaserDmxSpatialStage(input: SpatialStageRenderInput): void
       const bDepth = projectWithBasis(b.fixture.transform.position, basis).depth
       return bDepth - aDepth
     })
+
+  for (const fixture of rig.fixtures) {
+    if (fixture.kind !== 'hazer' && fixture.kind !== 'fogger' && fixture.kind !== 'cryoJet') continue
+    const projected = projectWithBasis(fixture.transform.position, basis)
+    if (!projected.visible) continue
+    ctx.save()
+    ctx.globalCompositeOperation = 'screen'
+    ctx.strokeStyle = fixture.kind === 'cryoJet' ? '#d8f6ff' : fixture.kind === 'fogger' ? '#9bb8c5' : '#77a6b8'
+    ctx.fillStyle = 'rgba(120,160,175,0.18)'
+    ctx.globalAlpha = fixture.id === settings.selectedFixtureId ? 1 : 0.72
+    ctx.beginPath()
+    ctx.rect(projected.x - 7, projected.y - 4, 14, 8)
+    ctx.fill()
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(projected.x, projected.y - 5)
+    ctx.lineTo(projected.x, projected.y - (fixture.kind === 'cryoJet' ? 24 : 15))
+    ctx.stroke()
+    ctx.restore()
+    if (settings.showFixtureOrigins || stage.editor.guidesVisible) drawFixtureOrigin(ctx, basis, fixture.transform.position, fixture.id === settings.selectedFixtureId)
+  }
 
   for (const { frame, fixture } of ordered) {
     if (!frame.visual.strobeVisible || frame.visual.intensity < 0.001) continue
