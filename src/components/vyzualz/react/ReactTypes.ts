@@ -3,6 +3,7 @@ import type { CinematicWorldConfig } from './CinematicWorldConfig'
 import { REACTIVE_CONSTELLATION_CURATED_PRESETS } from './ReactiveConstellationPresets'
 import { createDefaultProductionStageModel } from './LaserDmxProductionRig'
 import type {
+  ProductionChoreographySettings,
   ProductionCompoundCue,
   ProductionFixtureCapabilityOverride,
   ProductionFixtureGroup,
@@ -620,6 +621,8 @@ export interface LaserDmxSettings {
   activeProductionLookId?: string | null
   productionLookTransitionDefaults?: ProductionLookTransitionSettings
   productionCues?: ProductionCompoundCue[]
+  /** Layered automatic choreography driven only by canonical Music Intelligence frames. */
+  choreography?: ProductionChoreographySettings
 }
 
 export interface LaserDmxFixtureFrame {
@@ -762,6 +765,13 @@ export function createDefaultLaserDmxSettings(): LaserDmxSettings {
       fixtureFamilyDurationsMs: {},
     },
     productionCues: [],
+    choreography: {
+      enabled: true, profileId: 'openFormat', intensity: 0.65,
+      fixtureFamilyParticipation: { laserProjector: true, movingHeadBeam: true, movingHeadSpot: true, movingHeadWash: true, staticWash: true, strobe: true, blinder: true, ledBar: true, hazer: true, fogger: true, cryoJet: true },
+      automaticLookChanges: true, automaticMovementChanges: true, impactSensitivity: 0.55, blackoutFrequency: 0.2, whiteImpactIntensity: 0.9,
+      allowStrobe: false, allowAtmospherics: false, manualOverridePrecedence: 'authoredFirst', manualOverrideHoldMs: 1200,
+      seed: 1, variationMode: 'locked', variationAmount: 0.25,
+    },
   }
 }
 

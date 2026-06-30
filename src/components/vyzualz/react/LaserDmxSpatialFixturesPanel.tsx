@@ -8,6 +8,7 @@ import {
 } from './ReactControlRows'
 import type { LaserDmxFixture, LaserDmxProfileId } from './ReactTypes'
 import {
+  ALL_PRODUCTION_FIXTURE_KINDS,
   DEFAULT_PRODUCTION_CHASE,
   DEFAULT_PRODUCTION_FIXTURE_COLOR_POLICY,
   DEFAULT_PRODUCTION_FLASH_PATTERN,
@@ -20,6 +21,7 @@ import {
   isMovingHeadFixtureKind,
   LASER_DMX_FIXTURE_PROFILES,
   normalizeProductionChase,
+  normalizeProductionChoreographySettings,
   normalizeProductionFixtureColorPolicy,
   normalizeProductionFlashPattern,
   normalizeProductionGroupMovement,
@@ -31,6 +33,7 @@ import {
   normalizeProductionVisualComfort,
   normalizeProductionWashSettings,
   type ProductionChaseOrder,
+  type ProductionChoreographyProfileId,
   type ProductionFlashPatternId,
   type ProductionFlashQuantize,
   type ProductionFlashRepeatMode,
@@ -52,11 +55,31 @@ import {
   type ProductionMovingHeadEasing,
   type ProductionWhiteAccentPolicy,
 } from './LaserDmxProductionRig'
+import { PRODUCTION_CHOREOGRAPHY_PROFILES } from './renderers/LaserDmxChoreographyEngine'
 
 const PROFILE_OPTIONS = Object.values(LASER_DMX_FIXTURE_PROFILES).map(profile => ({
   value: profile.id,
   label: profile.label,
 }))
+
+const CHOREOGRAPHY_PROFILE_OPTIONS = [
+  ...Object.values(PRODUCTION_CHOREOGRAPHY_PROFILES).map(profile => ({ value: profile.id, label: profile.label })),
+  { value: 'custom', label: 'Custom' },
+]
+
+const CHOREOGRAPHY_FAMILY_LABELS: Record<(typeof ALL_PRODUCTION_FIXTURE_KINDS)[number], string> = {
+  laserProjector: 'Lasers',
+  movingHeadBeam: 'Moving-Head Beams',
+  movingHeadSpot: 'Moving-Head Spots',
+  movingHeadWash: 'Moving-Head Washes',
+  staticWash: 'Static Washes',
+  strobe: 'Strobes',
+  blinder: 'Blinders',
+  ledBar: 'LED Bars',
+  hazer: 'Hazers',
+  fogger: 'Foggers',
+  cryoJet: 'Cryogenic Jets',
+}
 
 const PATH_KIND_OPTIONS = [
   { value: 'staticBeam', label: 'Static Beam' },
@@ -237,6 +260,7 @@ export function LaserDmxSpatialFixturesPanel() {
   const groupChase = normalizeProductionChase(movementGroup?.chase)
   const visualComfort = normalizeProductionVisualComfort(laserDmxSettings.visualComfort)
   const atmosphere = normalizeProductionAtmosphereSettings(laserDmxSettings.atmosphere)
+  const choreography = normalizeProductionChoreographySettings(laserDmxSettings.choreography)
   const colorPolicy = normalizeProductionFixtureColorPolicy(fixture?.colorPolicy)
   const flashPattern = normalizeProductionFlashPattern(fixture?.flashPattern)
   const wash = normalizeProductionWashSettings(fixture?.wash)
@@ -469,6 +493,69 @@ export function LaserDmxSpatialFixturesPanel() {
         />
         <div className="rv-ctrl-info" role="status">
           High-frequency virtual flashes can be uncomfortable. DRMVYZ limits authored rates and inserts rest windows, but these safeguards are not a medical guarantee.
+        </div>
+      </Collapsible>
+
+      <Collapsible label="Musical Choreography" defaultOpen={false}>
+        <ToggleRow
+          label="Automatic Choreography"
+          value={choreography.enabled}
+          onChange={enabled => setLaserDmxSettings({ choreography: { ...choreography, enabled } })}
+          description="Uses the canonical Music Intelligence frame for sections, phrases, bars, beats, transients, and drop impacts. It never starts a separate BPM clock."
+        />
+        <SelectRow
+          label="Genre Profile"
+          value={choreography.profileId}
+          onChange={profileId => setLaserDmxSettings({ choreography: { ...choreography, profileId: profileId as ProductionChoreographyProfileId } })}
+          options={CHOREOGRAPHY_PROFILE_OPTIONS}
+        />
+        <SliderRow label="Choreography Intensity" value={choreography.intensity} onChange={intensity => setLaserDmxSettings({ choreography: { ...choreography, intensity } })} min={0} max={1} step={0.01} color="#61d6aa" />
+        <ToggleRow label="Automatic Look Changes" value={choreography.automaticLookChanges} onChange={automaticLookChanges => setLaserDmxSettings({ choreography: { ...choreography, automaticLookChanges } })} />
+        <ToggleRow label="Automatic Movement Changes" value={choreography.automaticMovementChanges} onChange={automaticMovementChanges => setLaserDmxSettings({ choreography: { ...choreography, automaticMovementChanges } })} />
+        <SliderRow label="Impact Sensitivity" value={choreography.impactSensitivity} onChange={impactSensitivity => setLaserDmxSettings({ choreography: { ...choreography, impactSensitivity } })} min={0} max={1} step={0.01} color="#d8b95a" />
+        <SliderRow label="Blackout Frequency" value={choreography.blackoutFrequency} onChange={blackoutFrequency => setLaserDmxSettings({ choreography: { ...choreography, blackoutFrequency } })} min={0} max={1} step={0.01} color="#7f8a91" />
+        <SliderRow label="White Impact Intensity" value={choreography.whiteImpactIntensity} onChange={whiteImpactIntensity => setLaserDmxSettings({ choreography: { ...choreography, whiteImpactIntensity } })} min={0} max={1} step={0.01} color="#e8f4f8" />
+        <ToggleRow label="Permit Automatic Strobes" value={choreography.allowStrobe} onChange={allowStrobe => setLaserDmxSettings({ choreography: { ...choreography, allowStrobe } })} description="Off by default. Visual Comfort limits still apply when enabled." />
+        <ToggleRow label="Permit Automatic Fog / Cryo" value={choreography.allowAtmospherics} onChange={allowAtmospherics => setLaserDmxSettings({ choreography: { ...choreography, allowAtmospherics } })} description="Virtual effects only. Automatic atmosphere is off by default." />
+        <SelectRow
+          label="Manual Override Precedence"
+          value={choreography.manualOverridePrecedence}
+          onChange={manualOverridePrecedence => setLaserDmxSettings({ choreography: normalizeProductionChoreographySettings({ ...choreography, manualOverridePrecedence }) })}
+          options={[
+            { value: 'authoredFirst', label: 'Authored Cues Win' },
+            { value: 'manualFirst', label: 'Manual Performance Wins' },
+          ]}
+        />
+        <NumberInputRow label="Manual Hold" value={choreography.manualOverrideHoldMs} onChange={manualOverrideHoldMs => setLaserDmxSettings({ choreography: normalizeProductionChoreographySettings({ ...choreography, manualOverrideHoldMs }) })} min={0} max={30000} step={100} unit="ms" />
+        <SelectRow
+          label="Variation Mode"
+          value={choreography.variationMode}
+          onChange={variationMode => setLaserDmxSettings({ choreography: normalizeProductionChoreographySettings({ ...choreography, variationMode }) })}
+          options={[
+            { value: 'locked', label: 'Locked Seed · Repeatable' },
+            { value: 'controlled', label: 'Controlled Per Playback' },
+          ]}
+        />
+        <NumberInputRow label="Variation Seed" value={choreography.seed} onChange={seed => setLaserDmxSettings({ choreography: normalizeProductionChoreographySettings({ ...choreography, seed }) })} min={1} max={2147483647} step={1} />
+        {choreography.variationMode === 'controlled' && (
+          <SliderRow label="Variation Amount" value={choreography.variationAmount} onChange={variationAmount => setLaserDmxSettings({ choreography: { ...choreography, variationAmount } })} min={0} max={1} step={0.01} color="#b84fc9" />
+        )}
+        <CtrlSection label="Fixture-Family Participation" />
+        {ALL_PRODUCTION_FIXTURE_KINDS.map(kind => (
+          <ToggleRow
+            key={kind}
+            label={CHOREOGRAPHY_FAMILY_LABELS[kind]}
+            value={choreography.fixtureFamilyParticipation[kind]}
+            onChange={enabled => setLaserDmxSettings({
+              choreography: {
+                ...choreography,
+                fixtureFamilyParticipation: { ...choreography.fixtureFamilyParticipation, [kind]: enabled },
+              },
+            })}
+          />
+        ))}
+        <div className="rv-ctrl-info">
+          Priority: automatic choreography is the underlay; authored Show Director cues override it. Manual performance actions follow the precedence choice above and temporarily suspend automatic reactions.
         </div>
       </Collapsible>
 

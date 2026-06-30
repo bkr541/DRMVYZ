@@ -15,10 +15,10 @@ import type {
   LaserDmxSettings,
 } from './ReactTypes'
 
-export const LASER_DMX_SETTINGS_SCHEMA_VERSION = 6
+export const LASER_DMX_SETTINGS_SCHEMA_VERSION = 7
 export const LASER_DMX_FIXTURE_SCHEMA_VERSION = 4
 export const LASER_DMX_BEAM_MATRIX_SCHEMA_VERSION = 1
-export const LASER_DMX_PRODUCTION_RIG_SCHEMA_VERSION = 7
+export const LASER_DMX_PRODUCTION_RIG_SCHEMA_VERSION = 8
 export const LASER_DMX_STAGE_SCHEMA_VERSION = 1
 
 export type ProductionFixtureKind =
@@ -997,6 +997,97 @@ export type ProductionCueActionExecution = 'simultaneous' | 'sequential'
 export type ProductionCueSubdivision = 1 | 2 | 4 | 8 | 16
 export type ProductionCueSectionType =
   | 'intro' | 'verse' | 'build' | 'preDrop' | 'drop' | 'breakdown' | 'bridge' | 'outro' | 'unknown'
+
+export type ProductionChoreographyProfileId =
+  | 'melodicBass'
+  | 'heavyDubstep'
+  | 'hybridTrap'
+  | 'house'
+  | 'techno'
+  | 'openFormat'
+  | 'custom'
+
+export type ProductionChoreographyVariationMode = 'locked' | 'controlled'
+export type ProductionManualOverridePrecedence = 'authoredFirst' | 'manualFirst'
+
+/**
+ * Genre-oriented tuning consumed by the automatic choreography layer. It is
+ * deliberately expressed in musical events already published by Music
+ * Intelligence; it does not own a BPM detector, beat clock, or section model.
+ */
+export interface ProductionChoreographyProfile {
+  id: ProductionChoreographyProfileId
+  label: string
+  description: string
+  phraseLength: 8 | 16 | 32
+  beatPulseEvery: number
+  downbeatAccentChance: number
+  phraseMovementChance: number
+  impactThreshold: number
+  impactCooldownSec: number
+  recoverySec: number
+  maxTransientFamilies: number
+  sectionIntensity: Partial<Record<ProductionCueSectionType, number>>
+  beatFamilies: ProductionFixtureKind[]
+  kickFamilies: ProductionFixtureKind[]
+  snareFamilies: ProductionFixtureKind[]
+  impactFamilies: ProductionFixtureKind[]
+  movementGenerators: ProductionGroupMovementGenerator[]
+}
+
+export interface ProductionChoreographySettings {
+  enabled: boolean
+  profileId: ProductionChoreographyProfileId
+  intensity: number
+  fixtureFamilyParticipation: Record<ProductionFixtureKind, boolean>
+  automaticLookChanges: boolean
+  automaticMovementChanges: boolean
+  impactSensitivity: number
+  blackoutFrequency: number
+  whiteImpactIntensity: number
+  allowStrobe: boolean
+  allowAtmospherics: boolean
+  /** Authored cues always outrank automation. This controls manual-vs-authored order. */
+  manualOverridePrecedence: ProductionManualOverridePrecedence
+  manualOverrideHoldMs: number
+  seed: number
+  variationMode: ProductionChoreographyVariationMode
+  variationAmount: number
+  customProfile?: Partial<ProductionChoreographyProfile>
+}
+
+export const DEFAULT_PRODUCTION_CHOREOGRAPHY_PARTICIPATION: Readonly<Record<ProductionFixtureKind, boolean>> = {
+  laserProjector: true,
+  movingHeadBeam: true,
+  movingHeadSpot: true,
+  movingHeadWash: true,
+  staticWash: true,
+  strobe: true,
+  blinder: true,
+  ledBar: true,
+  hazer: true,
+  fogger: true,
+  cryoJet: true,
+}
+
+export const DEFAULT_PRODUCTION_CHOREOGRAPHY: ProductionChoreographySettings = {
+  enabled: true,
+  profileId: 'openFormat',
+  intensity: 0.65,
+  fixtureFamilyParticipation: { ...DEFAULT_PRODUCTION_CHOREOGRAPHY_PARTICIPATION },
+  automaticLookChanges: true,
+  automaticMovementChanges: true,
+  impactSensitivity: 0.55,
+  blackoutFrequency: 0.2,
+  whiteImpactIntensity: 0.9,
+  allowStrobe: false,
+  allowAtmospherics: false,
+  manualOverridePrecedence: 'authoredFirst',
+  manualOverrideHoldMs: 1200,
+  seed: 1,
+  variationMode: 'locked',
+  variationAmount: 0.25,
+}
 
 export type ProductionCueTiming =
   | { mode: 'absolute'; timeSec: number }
@@ -2691,6 +2782,94 @@ function cueActionBase(raw: Record<string, unknown>, fallbackId: string): Produc
   }
 }
 
+function normalizeProductionChoreographyCustomProfile(value: unknown): Partial<ProductionChoreographyProfile> | undefined {
+  if (!isRecord(value)) return undefined
+  const result: Partial<ProductionChoreographyProfile> = {}
+  if (typeof value.label === 'string' && value.label.trim()) result.label = value.label.trim()
+  if (typeof value.description === 'string') result.description = value.description.trim()
+  if (value.phraseLength === 8 || value.phraseLength === 16 || value.phraseLength === 32) result.phraseLength = value.phraseLength
+  if (isFiniteNumber(value.beatPulseEvery)) result.beatPulseEvery = Math.max(1, Math.min(32, Math.round(value.beatPulseEvery)))
+  if (isFiniteNumber(value.downbeatAccentChance)) result.downbeatAccentChance = Math.max(0, Math.min(1, value.downbeatAccentChance))
+  if (isFiniteNumber(value.phraseMovementChance)) result.phraseMovementChance = Math.max(0, Math.min(1, value.phraseMovementChance))
+  if (isFiniteNumber(value.impactThreshold)) result.impactThreshold = Math.max(0, Math.min(1, value.impactThreshold))
+  if (isFiniteNumber(value.impactCooldownSec)) result.impactCooldownSec = Math.max(0.1, Math.min(30, value.impactCooldownSec))
+  if (isFiniteNumber(value.recoverySec)) result.recoverySec = Math.max(0.05, Math.min(30, value.recoverySec))
+  if (isFiniteNumber(value.maxTransientFamilies)) result.maxTransientFamilies = Math.max(1, Math.min(4, Math.round(value.maxTransientFamilies)))
+
+  if (isRecord(value.sectionIntensity)) {
+    const sectionIntensity: Partial<Record<ProductionCueSectionType, number>> = {}
+    const sectionTypes: readonly ProductionCueSectionType[] = [
+      'intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'bridge', 'outro', 'unknown',
+    ]
+    for (const section of sectionTypes) {
+      if (isFiniteNumber(value.sectionIntensity[section])) {
+        sectionIntensity[section] = Math.max(0, Math.min(1, value.sectionIntensity[section]))
+      }
+    }
+    result.sectionIntensity = sectionIntensity
+  }
+
+  const normalizeFamilies = (candidate: unknown): ProductionFixtureKind[] | undefined => Array.isArray(candidate)
+    ? [...new Set(candidate.filter(isFixtureKind))]
+    : undefined
+  const beatFamilies = normalizeFamilies(value.beatFamilies)
+  const kickFamilies = normalizeFamilies(value.kickFamilies)
+  const snareFamilies = normalizeFamilies(value.snareFamilies)
+  const impactFamilies = normalizeFamilies(value.impactFamilies)
+  if (beatFamilies) result.beatFamilies = beatFamilies
+  if (kickFamilies) result.kickFamilies = kickFamilies
+  if (snareFamilies) result.snareFamilies = snareFamilies
+  if (impactFamilies) result.impactFamilies = impactFamilies
+  if (Array.isArray(value.movementGenerators)) {
+    result.movementGenerators = [...new Set(value.movementGenerators.filter((generator): generator is ProductionGroupMovementGenerator =>
+      typeof generator === 'string' && GROUP_MOVEMENT_GENERATORS.includes(generator as ProductionGroupMovementGenerator),
+    ))]
+  }
+  return result
+}
+
+export function normalizeProductionChoreographySettings(value: unknown): ProductionChoreographySettings {
+  const raw = isRecord(value) ? value : {}
+  const participationRaw = isRecord(raw.fixtureFamilyParticipation) ? raw.fixtureFamilyParticipation : {}
+  const fixtureFamilyParticipation = { ...DEFAULT_PRODUCTION_CHOREOGRAPHY_PARTICIPATION }
+  for (const kind of ALL_PRODUCTION_FIXTURE_KINDS) {
+    fixtureFamilyParticipation[kind] = booleanOr(
+      participationRaw[kind],
+      DEFAULT_PRODUCTION_CHOREOGRAPHY_PARTICIPATION[kind],
+    )
+  }
+  const profileIds: readonly ProductionChoreographyProfileId[] = [
+    'melodicBass', 'heavyDubstep', 'hybridTrap', 'house', 'techno', 'openFormat', 'custom',
+  ]
+  const profileId = typeof raw.profileId === 'string' && profileIds.includes(raw.profileId as ProductionChoreographyProfileId)
+    ? raw.profileId as ProductionChoreographyProfileId
+    : DEFAULT_PRODUCTION_CHOREOGRAPHY.profileId
+  const variationMode: ProductionChoreographyVariationMode = raw.variationMode === 'controlled' ? 'controlled' : 'locked'
+  const manualOverridePrecedence: ProductionManualOverridePrecedence = raw.manualOverridePrecedence === 'manualFirst'
+    ? 'manualFirst'
+    : 'authoredFirst'
+  const customProfile = normalizeProductionChoreographyCustomProfile(raw.customProfile)
+  return {
+    enabled: booleanOr(raw.enabled, DEFAULT_PRODUCTION_CHOREOGRAPHY.enabled),
+    profileId,
+    intensity: Math.max(0, Math.min(1, finiteOr(raw.intensity, DEFAULT_PRODUCTION_CHOREOGRAPHY.intensity))),
+    fixtureFamilyParticipation,
+    automaticLookChanges: booleanOr(raw.automaticLookChanges, DEFAULT_PRODUCTION_CHOREOGRAPHY.automaticLookChanges),
+    automaticMovementChanges: booleanOr(raw.automaticMovementChanges, DEFAULT_PRODUCTION_CHOREOGRAPHY.automaticMovementChanges),
+    impactSensitivity: Math.max(0, Math.min(1, finiteOr(raw.impactSensitivity, DEFAULT_PRODUCTION_CHOREOGRAPHY.impactSensitivity))),
+    blackoutFrequency: Math.max(0, Math.min(1, finiteOr(raw.blackoutFrequency, DEFAULT_PRODUCTION_CHOREOGRAPHY.blackoutFrequency))),
+    whiteImpactIntensity: Math.max(0, Math.min(1, finiteOr(raw.whiteImpactIntensity, DEFAULT_PRODUCTION_CHOREOGRAPHY.whiteImpactIntensity))),
+    allowStrobe: booleanOr(raw.allowStrobe, DEFAULT_PRODUCTION_CHOREOGRAPHY.allowStrobe),
+    allowAtmospherics: booleanOr(raw.allowAtmospherics, DEFAULT_PRODUCTION_CHOREOGRAPHY.allowAtmospherics),
+    manualOverridePrecedence,
+    manualOverrideHoldMs: Math.max(0, Math.min(30000, finiteOr(raw.manualOverrideHoldMs, DEFAULT_PRODUCTION_CHOREOGRAPHY.manualOverrideHoldMs))),
+    seed: Math.max(1, Math.min(2147483647, Math.round(finiteOr(raw.seed, DEFAULT_PRODUCTION_CHOREOGRAPHY.seed)))),
+    variationMode,
+    variationAmount: Math.max(0, Math.min(1, finiteOr(raw.variationAmount, DEFAULT_PRODUCTION_CHOREOGRAPHY.variationAmount))),
+    ...(customProfile ? { customProfile } : {}),
+  }
+}
+
 export function normalizeProductionCueAction(value: unknown, cueId: string, index = 0): ProductionCueAction | null {
   if (!isRecord(value) || typeof value.type !== 'string') return null
   const raw = value
@@ -2861,6 +3040,7 @@ export function normalizeLaserDmxSettings(raw: unknown): LaserDmxSettings {
     activeProductionLookId: null,
     productionLookTransitionDefaults: { ...DEFAULT_PRODUCTION_LOOK_TRANSITION, fixtureFamilyDurationsMs: {} },
     productionCues: [],
+    choreography: { ...DEFAULT_PRODUCTION_CHOREOGRAPHY, fixtureFamilyParticipation: { ...DEFAULT_PRODUCTION_CHOREOGRAPHY_PARTICIPATION } },
   }
   if (!isRecord(raw)) return fallback
   const productionStage = normalizeProductionStageModel(raw.productionStage)
@@ -2920,6 +3100,7 @@ export function normalizeLaserDmxSettings(raw: unknown): LaserDmxSettings {
     activeProductionLookId,
     productionLookTransitionDefaults: normalizeProductionLookTransition(raw.productionLookTransitionDefaults),
     productionCues: normalizeArray<unknown>(raw.productionCues).map(normalizeProductionCompoundCue),
+    choreography: normalizeProductionChoreographySettings(raw.choreography),
   }
 }
 

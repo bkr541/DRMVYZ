@@ -5,7 +5,7 @@ import type {
   LaserDmxSettings,
   ReactTrackSection,
 } from "../ReactTypes";
-import type { TrackIntelligenceAnalysis } from "../../../../features/musicIntelligence/types";
+import type { MusicIntelligenceFrame, TrackIntelligenceAnalysis } from "../../../../features/musicIntelligence/types";
 import {
   DEFAULT_PRODUCTION_CHASE,
   DEFAULT_PRODUCTION_GROUP_MOVEMENT,
@@ -14,6 +14,7 @@ import {
   normalizeProductionChase,
   normalizeProductionFlashPattern,
   normalizeProductionGroupMovement,
+  normalizeProductionChoreographySettings,
   resolveLaserDmxFixtureCapabilities,
   type ProductionCompoundCue,
   type ProductionCueAction,
@@ -25,6 +26,14 @@ import {
   applyProductionLook,
   interpolateProductionLookSettings,
 } from "./LaserDmxProductionLookEngine";
+import {
+  createProductionChoreographyRuntime,
+  evaluateProductionChoreography,
+  resetProductionChoreographyRuntime,
+  type ProductionChoreographyEvent,
+  type ProductionChoreographyResult,
+  type ProductionChoreographyRuntime,
+} from "./LaserDmxChoreographyEngine";
 
 export type ShowDirectorDiagnosticCode =
   | "missing-look"
@@ -70,6 +79,8 @@ export interface ShowDirectorEvaluationInput {
   trackKey?: string | null;
   presetKey?: string | null;
   manualRequest?: ShowDirectorManualRequest | null;
+  /** Canonical live Music Intelligence frame from AudioFeatureBus. */
+  musicIntelligence?: MusicIntelligenceFrame | null;
 }
 
 export interface ShowDirectorEvaluationResult {
@@ -78,6 +89,8 @@ export interface ShowDirectorEvaluationResult {
   firedCueIds: string[];
   activeCueIds: string[];
   diagnostics: ShowDirectorDiagnostic[];
+  choreographyEvents: ProductionChoreographyEvent[];
+  choreographyStatus: Pick<ProductionChoreographyResult, "activeProfileId" | "analysisAvailable" | "beatGridAvailable" | "sectionAvailable" | "suppressedReason">;
 }
 
 interface ManualRun {
@@ -98,6 +111,7 @@ export interface ShowDirectorRuntime {
   firedKeys: Set<string>;
   atmosphericRequestId: number;
   snapRequestId: number;
+  choreography: ProductionChoreographyRuntime;
 }
 
 const EPSILON = 0.0005;
@@ -116,6 +130,7 @@ export function createShowDirectorRuntime(): ShowDirectorRuntime {
     firedKeys: new Set(),
     atmosphericRequestId: 0,
     snapRequestId: 0,
+    choreography: createProductionChoreographyRuntime(),
   };
 }
 
@@ -132,6 +147,7 @@ export function resetShowDirectorRuntime(runtime: ShowDirectorRuntime): void {
   runtime.firedKeys = next.firedKeys;
   runtime.atmosphericRequestId = next.atmosphericRequestId;
   runtime.snapRequestId = next.snapRequestId;
+  resetProductionChoreographyRuntime(runtime.choreography);
 }
 
 function clone<T>(value: T): T {
@@ -1198,10 +1214,12 @@ export function evaluateShowDirector(
     runtime.transportPass = 0;
     runtime.firedKeys.clear();
     runtime.manualRuns = [];
+    resetProductionChoreographyRuntime(runtime.choreography);
   } else if (wentBackward) {
     runtime.transportPass += 1;
     runtime.firedKeys.clear();
     runtime.manualRuns = [];
+    resetProductionChoreographyRuntime(runtime.choreography);
   } else if (analysisChanged || sectionsChanged) {
     runtime.firedKeys.clear();
   }
@@ -1232,61 +1250,100 @@ export function evaluateShowDirector(
     );
     return cue ? manualSchedule(cue, run.startedAtSec, bpm) : [];
   });
-  const allItems = [...scheduled, ...manual].sort(
+  const sortItems = (items: ResolvedProductionCueAction[]) => [...items].sort(
     (a, b) =>
       a.startTimeSec - b.startTimeSec ||
       a.cue.priority - b.cue.priority ||
       a.order - b.order ||
       a.cue.id.localeCompare(b.cue.id),
   );
-
-  let settings = settingsBase;
-  let beamMatrix = input.beamMatrix;
-  const activeCueIds = new Set<string>();
-  const firedCueIds = new Set<string>();
-
-  for (const item of allItems) {
-    if (item.startTimeSec > current + EPSILON) continue;
-    const isActive =
-      item.endTimeSec > item.startTimeSec &&
-      current < item.endTimeSec - EPSILON;
-    if (isActive) activeCueIds.add(item.cue.id);
+  const scheduledItems = sortItems(scheduled);
+  const manualItems = sortItems(manual);
+  const previousForCrossing = freshStart
+    ? -EPSILON * 2
+    : runtime.previousAudioTimeSec;
+  const authoredCueActive = scheduledItems.some((item) => {
+    if (item.startTimeSec > current + EPSILON) return false;
     const durationExpired =
       item.endTimeSec > item.startTimeSec &&
       current >= item.endTimeSec - EPSILON &&
       (item.cue.cancellationBehavior === "restoreOnExit" ||
         item.cue.cancellationBehavior === "cancelOnSeek");
-    if (!durationExpired)
-      settings = applyPersistentAction(settings, item, current);
-    if (!durationExpired && item.action.type === "blackout")
-      beamMatrix = {
-        ...beamMatrix,
-        output: { ...beamMatrix.output, blackout: true },
-      };
-    if (!durationExpired && item.action.type === "reveal")
-      beamMatrix = {
-        ...beamMatrix,
-        output: { ...beamMatrix.output, blackout: false },
-      };
-    beamMatrix = addLegacyCue(beamMatrix, item);
-
-    const previousForCrossing = freshStart
-      ? -EPSILON * 2
-      : runtime.previousAudioTimeSec;
     const crossed =
       !discontinuity &&
       input.isPlaying &&
       actionCrossed(previousForCrossing, current, item.startTimeSec);
-    const key = `${runtime.transportPass}:${item.cue.id}:${item.action.id}:${item.startTimeSec}`;
-    const canRetrigger =
-      item.cue.retriggerPolicy === "allow" ||
-      item.cue.retriggerPolicy === "restart" ||
-      !runtime.firedKeys.has(key);
-    if (crossed && canRetrigger) {
-      settings = applyMomentaryCrossing(settings, item, runtime, true);
-      firedCueIds.add(item.cue.id);
-      if (item.cue.retriggerPolicy !== "allow") runtime.firedKeys.add(key);
+    return !durationExpired && (item.endTimeSec > current || crossed);
+  });
+
+  const choreography = evaluateProductionChoreography(runtime.choreography, {
+    settings: settingsBase,
+    musicIntelligence: input.musicIntelligence ?? null,
+    audioTimeSec: current,
+    isPlaying: input.isPlaying,
+    trackKey: input.trackKey,
+    transportPass: runtime.transportPass,
+    manualOverrideActive: runtime.manualRuns.length > 0,
+    authoredCueActive,
+  });
+
+  let settings = choreography.settings;
+  let beamMatrix = choreography.blackoutActive
+    ? { ...input.beamMatrix, output: { ...input.beamMatrix.output, blackout: true } }
+    : input.beamMatrix;
+  const activeCueIds = new Set<string>();
+  const firedCueIds = new Set<string>();
+
+  const processItems = (items: ResolvedProductionCueAction[]) => {
+    for (const item of items) {
+      if (item.startTimeSec > current + EPSILON) continue;
+      const isActive =
+        item.endTimeSec > item.startTimeSec &&
+        current < item.endTimeSec - EPSILON;
+      if (isActive) activeCueIds.add(item.cue.id);
+      const durationExpired =
+        item.endTimeSec > item.startTimeSec &&
+        current >= item.endTimeSec - EPSILON &&
+        (item.cue.cancellationBehavior === "restoreOnExit" ||
+          item.cue.cancellationBehavior === "cancelOnSeek");
+      if (!durationExpired)
+        settings = applyPersistentAction(settings, item, current);
+      if (!durationExpired && item.action.type === "blackout")
+        beamMatrix = {
+          ...beamMatrix,
+          output: { ...beamMatrix.output, blackout: true },
+        };
+      if (!durationExpired && item.action.type === "reveal")
+        beamMatrix = {
+          ...beamMatrix,
+          output: { ...beamMatrix.output, blackout: false },
+        };
+      beamMatrix = addLegacyCue(beamMatrix, item);
+
+      const crossed =
+        !discontinuity &&
+        input.isPlaying &&
+        actionCrossed(previousForCrossing, current, item.startTimeSec);
+      const key = `${runtime.transportPass}:${item.cue.id}:${item.action.id}:${item.startTimeSec}`;
+      const canRetrigger =
+        item.cue.retriggerPolicy === "allow" ||
+        item.cue.retriggerPolicy === "restart" ||
+        !runtime.firedKeys.has(key);
+      if (crossed && canRetrigger) {
+        settings = applyMomentaryCrossing(settings, item, runtime, true);
+        firedCueIds.add(item.cue.id);
+        if (item.cue.retriggerPolicy !== "allow") runtime.firedKeys.add(key);
+      }
     }
+  };
+
+  const choreographySettings = normalizeProductionChoreographySettings(settingsBase.choreography);
+  if (choreographySettings.manualOverridePrecedence === "manualFirst") {
+    processItems(scheduledItems);
+    processItems(manualItems);
+  } else {
+    processItems(manualItems);
+    processItems(scheduledItems);
   }
 
   runtime.manualRuns = runtime.manualRuns.filter((run) => {
@@ -1320,5 +1377,13 @@ export function evaluateShowDirector(
       input.analysis,
       input.sections ?? [],
     ),
+    choreographyEvents: choreography.events,
+    choreographyStatus: {
+      activeProfileId: choreography.activeProfileId,
+      analysisAvailable: choreography.analysisAvailable,
+      beatGridAvailable: choreography.beatGridAvailable,
+      sectionAvailable: choreography.sectionAvailable,
+      suppressedReason: choreography.suppressedReason,
+    },
   };
 }

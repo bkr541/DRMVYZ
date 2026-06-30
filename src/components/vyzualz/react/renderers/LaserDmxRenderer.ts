@@ -128,6 +128,7 @@ export function renderLaserDmx(
     trackKey,
     presetKey: directorPresetKey,
     manualRequest: resolvedAuthoredSettings.runtime?.showDirectorManualRequest as { cueId: string; sequence: number } | undefined,
+    musicIntelligence: mi.frameId > 0 ? mi : null,
   })
   const personalization = resolveLaserDmxPersonalization(useBrandKitStore.getState().activeKit, preset.id)
 
