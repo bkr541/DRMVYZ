@@ -16,3 +16,6 @@
 8:33:10 AM [vite] hmr update /src/features/lyrics/LyricManagerView.tsx
 8:33:16 AM [vite] hmr update /src/features/lyrics/LyricManagerView.tsx
 8:33:34 AM [vite] hmr update /src/styles/lyricManager.css
+9:03:57 AM [vite] hmr update /src/components/vyzualz/settings/SettingsModal.tsx
+9:03:57 AM [vite] hmr update /src/components/vyzualz/shared/VyzualzAudioDock.tsx
+9:03:57 AM [vite] hmr update /src/styles/vyzualz.css

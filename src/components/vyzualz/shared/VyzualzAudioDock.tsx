@@ -236,6 +236,7 @@ export function VyzualzAudioDock() {
 
   const initial = track?.displayName?.[0]?.toUpperCase() ?? '♪'
   const title   = track?.displayName ?? 'No track loaded'
+  const artist  = track?.artist?.trim() || (hasTrack ? 'Local audio track' : 'Load a track to begin')
   const vol     = engine.volume
   const volPct  = `${Math.round(vol * 100)}%`
 
@@ -243,7 +244,7 @@ export function VyzualzAudioDock() {
     <div className="az-dock vz-transport-dock">
 
       {/* ── LEFT: sidebar + left-inspector footprint ─────────────────── */}
-      <div className="vz-dock-left">
+      <div className="vz-dock-left vz-dock-card">
         <label
           className="az-dock-thumb vz-dock-art"
           htmlFor={fileInputId}
@@ -258,9 +259,10 @@ export function VyzualzAudioDock() {
         <div className="vz-dock-left-body">
           <div className="vz-dock-track-row">
             <span className="vz-dock-track-title" title={title}>{title}</span>
+            <span className="vz-dock-track-artist" title={artist}>{artist}</span>
           </div>
 
-          {/* Transport and replace-track action stay compact on their own row. */}
+          {/* Transport receives its own full-width row instead of competing with track metadata. */}
           <div className="vz-dock-controls-row">
             <div className="az-dock-transport">
               <button className="az-transport-btn" title="Previous" disabled={!hasTrack} onClick={engine.prev}>
@@ -282,15 +284,6 @@ export function VyzualzAudioDock() {
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
               </button>
             </div>
-            <label
-              className="az-transport-btn vz-dock-addtrack-btn"
-              htmlFor={fileInputId}
-              title={hasTrack ? `Replace: ${title}` : 'Add Track'}
-            >
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14.5 18V5.58888C14.5 4.73166 14.5 4.30306 14.6805 4.04492C14.8382 3.81952 15.0817 3.669 15.3538 3.6288C15.6655 3.58276 16.0488 3.77444 16.8155 4.1578L20.5 6.00003M14.5 18C14.5 19.6569 13.1569 21 11.5 21C9.84315 21 8.5 19.6569 8.5 18C8.5 16.3432 9.84315 15 11.5 15C13.1569 15 14.5 16.3432 14.5 18ZM6.5 10V4.00003M3.5 7.00003H9.5"/>
-              </svg>
-            </label>
           </div>
 
           {/* A dedicated full-width row prevents the volume control collapsing. */}
@@ -317,10 +310,21 @@ export function VyzualzAudioDock() {
             />
           </div>
         </div>
+
+        <label
+          className="vz-dock-addtrack-btn"
+          htmlFor={fileInputId}
+          title={hasTrack ? `Replace: ${title}` : 'Add Track'}
+        >
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 5v14M5 12h14"/>
+          </svg>
+          <span>{hasTrack ? 'Replace Track' : 'Add Track'}</span>
+        </label>
       </div>
 
       {/* ── CENTER: waveform + zoom buttons side by side ─────────────── */}
-      <div className="vz-dock-center">
+      <div className="vz-dock-center vz-dock-card">
         <div className="vz-dock-waveform-wrap">
           <PeaksWaveformView
             engine={engine}
@@ -337,7 +341,8 @@ export function VyzualzAudioDock() {
       </div>
 
       {/* ── RIGHT: BPM + TAP / CUE / SYNC / BEATGRID ────────────────── */}
-      <div className="vz-dock-right">
+      <div className="vz-dock-right vz-dock-card">
+        <div className="vz-dock-right-main">
         {/* Column wrapper so the stale banner sits below the BPM block */}
         <div className="vz-dock-bpm-wrap">
         <div className="vz-dock-bpm-block">
@@ -475,27 +480,37 @@ export function VyzualzAudioDock() {
         )}
         </div>{/* end vz-dock-bpm-wrap */}
 
+        <button
+          className="vz-dock-tap-btn"
+          onClick={handleTap}
+          disabled={engine.source !== 'file' || !track}
+          title={engine.source === 'file' && track ? 'Tap tempo' : 'Tap tempo (requires a file track)'}
+        >
+          TAP
+        </button>
+        </div>
+
         <div className="vz-dock-right-btns">
-          <button
-            className="vz-dock-tap-btn"
-            onClick={handleTap}
-            disabled={engine.source !== 'file' || !track}
-            title={engine.source === 'file' && track ? 'Tap tempo' : 'Tap tempo (requires a file track)'}
-          >
-            TAP
-          </button>
           <button
             className="vz-dock-cue-btn"
             onClick={handleCue}
             title={engine.isPlaying ? 'Set cue point here' : `Jump to cue (${fmtPlayTime(cuePoint)})`}
             disabled={!hasTrack}
-          >CUE</button>
+          >
+            <svg className="vz-dock-action-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M5 21V4m0 1h11l-2.5 3L16 11H5"/>
+            </svg>
+            <span>CUE</span>
+          </button>
           <button
             className={`vz-dock-sync-master-btn${bpmSync ? ' vz-dock-sync-master-btn--on' : ''}`}
             onClick={toggleBpmSync}
             title={bpmSync ? 'BPM Sync: ON' : 'BPM Sync: OFF'}
           >
             {bpmSync && <span className="vz-dock-sync-dot" />}
+            <svg className="vz-dock-action-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M10.5 13.5l3-3M7.2 16.8l-1 1a3.4 3.4 0 0 1-4.8-4.8l3.2-3.2a3.4 3.4 0 0 1 4.8 0M16.8 7.2l1-1a3.4 3.4 0 0 1 4.8 4.8l-3.2 3.2a3.4 3.4 0 0 1-4.8 0"/>
+            </svg>
             <span className="vz-dock-sync-master-label">SYNC</span>
           </button>
           <button
@@ -503,7 +518,12 @@ export function VyzualzAudioDock() {
             onClick={() => setBeatGridEnabled(!beatGridEnabled)}
             title={beatGridEnabled ? 'Beat grid: ON' : 'Beat grid: OFF'}
           >
-            GRID
+            <svg className="vz-dock-action-icon" viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true">
+              <rect x="3" y="3" width="4" height="4" rx="0.7"/><rect x="10" y="3" width="4" height="4" rx="0.7"/><rect x="17" y="3" width="4" height="4" rx="0.7"/>
+              <rect x="3" y="10" width="4" height="4" rx="0.7"/><rect x="10" y="10" width="4" height="4" rx="0.7"/><rect x="17" y="10" width="4" height="4" rx="0.7"/>
+              <rect x="3" y="17" width="4" height="4" rx="0.7"/><rect x="10" y="17" width="4" height="4" rx="0.7"/><rect x="17" y="17" width="4" height="4" rx="0.7"/>
+            </svg>
+            <span>GRID</span>
           </button>
         </div>
       </div>

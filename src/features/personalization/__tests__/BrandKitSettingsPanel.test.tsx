@@ -117,11 +117,14 @@ describe('Brand Kit Settings states and accessibility', () => {
     await render(<SettingsModal onClose={onClose} />)
     const account = container.querySelector('#vsm-tab-account') as HTMLButtonElement
     const brand = container.querySelector('#vsm-tab-brand') as HTMLButtonElement
+    const modal = container.querySelector('.vsm-modal') as HTMLDivElement
+    const initialModalClassName = modal.className
     expect(account.getAttribute('aria-selected')).toBe('true')
 
     await act(async () => account.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })))
     expect(brand.getAttribute('aria-selected')).toBe('true')
     expect(container.querySelector('[role="tabpanel"]')?.getAttribute('aria-labelledby')).toBe('vsm-tab-brand')
+    expect(modal.className).toBe(initialModalClassName)
 
     await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
     expect(onClose).toHaveBeenCalledTimes(1)

@@ -406,7 +406,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     <div className="vsm-backdrop" onMouseDown={onClose}>
       <div
         ref={modalRef}
-        className={`vsm-modal${tab === 'brand' ? ' vsm-modal--brand' : ''}`}
+        className="vsm-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="vsm-title"
