@@ -3,6 +3,16 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 115 ms
+  VITE v5.4.21  ready in 145 ms
 
   ➜  Local:   http://127.0.0.1:5173/
+8:31:46 AM [vite] hmr update /src/features/lyrics/components/LyricTrackBrowser.tsx
+8:31:55 AM [vite] hmr update /src/features/lyrics/components/LyricTrackBrowser.tsx
+8:32:11 AM [vite] hmr update /src/features/lyrics/components/LyricTrackBrowser.tsx
+8:32:33 AM [vite] hmr update /src/features/lyrics/LyricManagerView.tsx
+8:32:41 AM [vite] hmr update /src/features/lyrics/LyricManagerView.tsx
+8:32:51 AM [vite] hmr update /src/features/lyrics/LyricManagerView.tsx
+8:33:03 AM [vite] hmr update /src/features/lyrics/LyricManagerView.tsx
+8:33:10 AM [vite] hmr update /src/features/lyrics/LyricManagerView.tsx
+8:33:16 AM [vite] hmr update /src/features/lyrics/LyricManagerView.tsx
+8:33:34 AM [vite] hmr update /src/styles/lyricManager.css

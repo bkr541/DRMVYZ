@@ -6,6 +6,7 @@ import {
   getFullLyricDocument,
   updateLyricDocument,
 } from '../../lib/lyricsDb'
+import { deleteAudioTrack, deleteAudioFiles } from '../../lib/audioDb'
 import { useAudioStore } from '../../stores/audioStore'
 import type { SavedAudioTrack } from '../../stores/audioStore'
 import { useSharedAudio } from '../../context/AudioEngineContext'
@@ -29,6 +30,7 @@ import { AiLyricExtractor } from './components/AiLyricExtractor'
 import { LyricPreviewPanel } from './components/LyricPreviewPanel'
 import { UnsavedLyricChangesDialog } from './components/UnsavedLyricChangesDialog'
 import { ConfirmLyricDeleteDialog } from './components/ConfirmLyricDeleteDialog'
+import { ConfirmTrackDeleteDialog } from './components/ConfirmTrackDeleteDialog'
 import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
 
 type WorkflowTab = 'manual' | 'json' | 'ai'
@@ -141,6 +143,8 @@ export function LyricManagerView({ onBack }: Props) {
     null,
   )
   const [deleting, setDeleting] = useState(false)
+  const [trackDeleteTarget, setTrackDeleteTarget] = useState<LyricManagerTrack | null>(null)
+  const [trackDeleting, setTrackDeleting] = useState(false)
   const loadGeneration = useRef(0)
 
   useEffect(() => {
@@ -562,6 +566,66 @@ export function LyricManagerView({ onBack }: Props) {
     showStatus,
   ])
 
+  const handleRequestDeleteTrack = useCallback(
+    (track: LyricManagerTrack) => {
+      const openConfirmation = () => setTrackDeleteTarget(track)
+      if (track.dbId === selectedTrack?.dbId && editorDirty) {
+        requestTransition(
+          `Save changes before deleting "${track.title}"?`,
+          openConfirmation,
+        )
+      } else {
+        openConfirmation()
+      }
+    },
+    [editorDirty, requestTransition, selectedTrack?.dbId],
+  )
+
+  const handleConfirmDeleteTrack = useCallback(async () => {
+    if (!trackDeleteTarget) return
+    setTrackDeleting(true)
+    try {
+      const wasSelected = trackDeleteTarget.dbId === selectedTrack?.dbId
+      const { error: dbError } = await deleteAudioTrack(trackDeleteTarget.dbId)
+      if (dbError) {
+        setError(`Track deletion failed: ${dbError}`)
+        return
+      }
+      setTrackDeleteTarget(null)
+      markEditorDirty(false)
+      setTracks(current => current.filter(item => item.dbId !== trackDeleteTarget.dbId))
+      setTrackTotal(current => Math.max(0, current - 1))
+      if (wasSelected) {
+        setSelectedTrack(null)
+        setDocuments([])
+        setActiveDocument(null, [])
+      }
+      if (trackDeleteTarget.storagePath) {
+        const { error: storageError } = await deleteAudioFiles([trackDeleteTarget.storagePath])
+        if (storageError) {
+          showStatus('Track deleted, but audio file cleanup failed.')
+          return
+        }
+      }
+      showStatus('Track and all lyric versions deleted')
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : 'Failed to delete track.',
+      )
+    } finally {
+      setTrackDeleting(false)
+    }
+  }, [
+    markEditorDirty,
+    selectedTrack?.dbId,
+    setActiveDocument,
+    setError,
+    showStatus,
+    trackDeleteTarget,
+  ])
+
   const handleOpenCompletedDraft = useCallback(
     (documentId: string) => {
       requestTransition(
@@ -829,6 +893,7 @@ export function LyricManagerView({ onBack }: Props) {
         hasMore={hasMore}
         onSearchChange={setTrackSearch}
         onSelectTrack={handleSelectTrack}
+        onDeleteTrack={handleRequestDeleteTrack}
         onLoadMore={() => {
           void loadTracks(false)
         }}
@@ -1019,6 +1084,15 @@ export function LyricManagerView({ onBack }: Props) {
         onCancel={() => setDeleteTarget(null)}
         onConfirm={() => {
           void handleConfirmDelete()
+        }}
+      />
+
+      <ConfirmTrackDeleteDialog
+        trackTitle={trackDeleteTarget?.title ?? trackDeleteTarget?.fileName ?? null}
+        busy={trackDeleting}
+        onCancel={() => setTrackDeleteTarget(null)}
+        onConfirm={() => {
+          void handleConfirmDeleteTrack()
         }}
       />
 

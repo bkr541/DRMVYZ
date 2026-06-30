@@ -1,3 +1,4 @@
+import { Delete02Icon } from 'hugeicons-react'
 import type { LyricManagerTrack } from '../lyricManagerTypes'
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
   hasMore: boolean
   onSearchChange: (value: string) => void
   onSelectTrack: (track: LyricManagerTrack) => void
+  onDeleteTrack: (track: LyricManagerTrack) => void
   onLoadMore: () => void
   onUpload: () => void
   onRetry: () => void
@@ -39,6 +41,7 @@ export function LyricTrackBrowser({
   hasMore,
   onSearchChange,
   onSelectTrack,
+  onDeleteTrack,
   onLoadMore,
   onUpload,
   onRetry,
@@ -85,35 +88,45 @@ export function LyricTrackBrowser({
           const loaded = loadedAudioTrackId === track.dbId
           const playing = playingAudioTrackId === track.dbId
           return (
-            <button
-              key={track.dbId}
-              type="button"
-              className={`lmv-track-card${selected ? ' lmv-track-card--selected' : ''}`}
-              onClick={() => onSelectTrack(track)}
-              aria-pressed={selected}
-            >
-              <div className="lmv-track-card-topline">
-                <span className="lmv-track-title">{track.title || track.fileName}</span>
-                {playing ? <span className="lmv-playing-badge">Playing</span> : loaded ? <span className="lmv-loaded-badge">Loaded</span> : null}
-              </div>
-              <div className="lmv-track-artist">{track.artist || 'Unknown artist'}</div>
-              <div className="lmv-track-meta">
-                <span>{formatDuration(track.durationSec)}</span>
-                <span>{track.bpm ? `${Math.round(track.bpm)} BPM` : 'BPM —'}</span>
-                <span>{track.musicalKey || 'Key —'}</span>
-                <span>{formatDate(track.createdAt)}</span>
-              </div>
-              <div className="lmv-track-lyrics-row">
-                <span className={track.lyricVersionCount > 0 ? 'lmv-track-has-lyrics' : 'lmv-track-no-lyrics'}>
-                  {track.lyricVersionCount > 0
-                    ? `${track.lyricVersionCount} lyric version${track.lyricVersionCount === 1 ? '' : 's'}`
-                    : 'No lyrics'}
-                </span>
-                <span className="lmv-track-active-doc">
-                  {track.activeLyricDocumentName ? `Active: ${track.activeLyricDocumentName}` : 'No active version'}
-                </span>
-              </div>
-            </button>
+            <div key={track.dbId} className="lmv-track-card-wrap">
+              <button
+                type="button"
+                className={`lmv-track-card${selected ? ' lmv-track-card--selected' : ''}`}
+                onClick={() => onSelectTrack(track)}
+                aria-pressed={selected}
+              >
+                <div className="lmv-track-card-topline">
+                  <span className="lmv-track-title">{track.title || track.fileName}</span>
+                  {playing ? <span className="lmv-playing-badge">Playing</span> : loaded ? <span className="lmv-loaded-badge">Loaded</span> : null}
+                </div>
+                <div className="lmv-track-artist">{track.artist || 'Unknown artist'}</div>
+                <div className="lmv-track-meta">
+                  <span>{formatDuration(track.durationSec)}</span>
+                  <span>{track.bpm ? `${Math.round(track.bpm)} BPM` : 'BPM —'}</span>
+                  <span>{track.musicalKey || 'Key —'}</span>
+                  <span>{formatDate(track.createdAt)}</span>
+                </div>
+                <div className="lmv-track-lyrics-row">
+                  <span className={track.lyricVersionCount > 0 ? 'lmv-track-has-lyrics' : 'lmv-track-no-lyrics'}>
+                    {track.lyricVersionCount > 0
+                      ? `${track.lyricVersionCount} lyric version${track.lyricVersionCount === 1 ? '' : 's'}`
+                      : 'No lyrics'}
+                  </span>
+                  <span className="lmv-track-active-doc">
+                    {track.activeLyricDocumentName ? `Active: ${track.activeLyricDocumentName}` : 'No active version'}
+                  </span>
+                </div>
+              </button>
+              <button
+                type="button"
+                className="lmv-track-delete-btn"
+                onClick={() => onDeleteTrack(track)}
+                title="Delete track and all lyric versions"
+                aria-label={`Delete ${track.title || track.fileName} and all lyric versions`}
+              >
+                <Delete02Icon size={12} color="currentColor" />
+              </button>
+            </div>
           )
         })}
       </div>

@@ -45,6 +45,7 @@ const baseProps = {
   hasMore: false,
   onSearchChange: vi.fn(),
   onSelectTrack: vi.fn(),
+  onDeleteTrack: vi.fn(),
   onLoadMore: vi.fn(),
   onUpload: vi.fn(),
   onRetry: vi.fn(),
@@ -98,6 +99,18 @@ describe('LyricTrackBrowser', () => {
 
     expect(onSearchChange).toHaveBeenCalledWith('grace')
     expect(onLoadMore).toHaveBeenCalledOnce()
+  })
+
+  it('calls onDeleteTrack without triggering onSelectTrack when the trash button is clicked', async () => {
+    const onSelectTrack = vi.fn()
+    const onDeleteTrack = vi.fn()
+    await render({ onSelectTrack, onDeleteTrack })
+
+    const deleteBtn = container.querySelector('.lmv-track-delete-btn') as HTMLButtonElement
+    expect(deleteBtn).toBeTruthy()
+    await act(async () => deleteBtn.click())
+    expect(onDeleteTrack).toHaveBeenCalledWith(expect.objectContaining({ dbId: 'track-a' }))
+    expect(onSelectTrack).not.toHaveBeenCalled()
   })
 
   it('shows no-lyrics, empty-search, loading, and recoverable error states', async () => {
