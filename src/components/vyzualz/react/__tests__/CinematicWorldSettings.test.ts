@@ -142,6 +142,14 @@ describe('world-specific cinematic configuration', () => {
       rimIntensity: 50,
       springStrength: 99,
       damping: -3,
+      beamWidth: 99,
+      beamCoreBrightness: -4,
+      beamGlow: 99,
+      edgeOpacity: -1,
+      trailSamples: 99,
+      trailDecay: 0,
+      trailSpacing: 9,
+      beamFanAmount: 9,
       reseedEveryBars: 17.8,
     } as never)
     expect(resolveReactiveConstellationSettings(constellation.worldSettings)).toMatchObject({
@@ -153,6 +161,14 @@ describe('world-specific cinematic configuration', () => {
       rimIntensity: 2,
       springStrength: 2,
       damping: 0,
+      beamWidth: 12,
+      beamCoreBrightness: 0,
+      beamGlow: 3,
+      edgeOpacity: 0,
+      trailSamples: 32,
+      trailDecay: 0.2,
+      trailSpacing: 0.25,
+      beamFanAmount: 2,
       reseedEveryBars: 18,
     })
   })

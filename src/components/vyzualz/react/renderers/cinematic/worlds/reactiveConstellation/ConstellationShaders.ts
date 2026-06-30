@@ -101,3 +101,121 @@ void main() {
   outColor = vec4(color, alpha);
 }
 `
+
+export const REACTIVE_CONSTELLATION_BEAM_VERTEX_SOURCE = `#version 300 es
+precision highp float;
+
+layout(location = 0) in vec2 aCorner;
+layout(location = 1) in vec3 aEndpointA;
+layout(location = 2) in vec3 aEndpointB;
+layout(location = 3) in float aInstanceAlpha;
+layout(location = 4) in float aInstanceWidth;
+layout(location = 5) in float aInstancePalette;
+layout(location = 6) in float aInstanceAge;
+
+uniform mat4 uViewProjection;
+uniform vec2 uViewport;
+uniform float uBeamWidthPx;
+uniform float uPassWidthScale;
+uniform float uTime;
+uniform float uMotion;
+uniform float uCameraOrbit;
+uniform float uGeometryRotation;
+uniform float uDepthPulse;
+
+out float vAlpha;
+out float vAcross;
+out float vPalette;
+out float vAge;
+
+mat3 rotateX(float angle) {
+  float c = cos(angle); float s = sin(angle);
+  return mat3(1.0, 0.0, 0.0, 0.0, c, s, 0.0, -s, c);
+}
+mat3 rotateY(float angle) {
+  float c = cos(angle); float s = sin(angle);
+  return mat3(c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c);
+}
+
+vec3 transformEndpoint(vec3 endpoint) {
+  endpoint.z *= 1.0 + uDepthPulse * 0.38;
+  float orbit = uTime * uCameraOrbit * (0.15 + uMotion * 0.5) + uGeometryRotation * 0.65;
+  mat3 worldOrbit = rotateY(orbit) * rotateX(sin(orbit * 0.37) * uCameraOrbit * 0.12);
+  return worldOrbit * endpoint;
+}
+
+void main() {
+  vec4 clipA = uViewProjection * vec4(transformEndpoint(aEndpointA), 1.0);
+  vec4 clipB = uViewProjection * vec4(transformEndpoint(aEndpointB), 1.0);
+  float nearA = clipA.z + clipA.w;
+  float nearB = clipB.z + clipB.w;
+  bool invalid = nearA < 0.0 && nearB < 0.0;
+
+  if (!invalid && nearA < 0.0) {
+    float t = clamp(nearA / (nearA - nearB), 0.0, 1.0);
+    clipA = mix(clipA, clipB, t);
+  }
+  if (!invalid && nearB < 0.0) {
+    float t = clamp(nearB / (nearB - nearA), 0.0, 1.0);
+    clipB = mix(clipB, clipA, t);
+  }
+
+  float safeWa = max(clipA.w, 0.0001);
+  float safeWb = max(clipB.w, 0.0001);
+  vec2 ndcA = clipA.xy / safeWa;
+  vec2 ndcB = clipB.xy / safeWb;
+  vec2 screenDelta = (ndcB - ndcA) * max(uViewport, vec2(1.0)) * 0.5;
+  float projectedLength = length(screenDelta);
+  invalid = invalid || clipA.w <= 0.0001 || clipB.w <= 0.0001 || projectedLength < 0.001;
+
+  if (invalid) {
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    vAlpha = 0.0;
+    vAcross = aCorner.y;
+    vPalette = aInstancePalette;
+    vAge = aInstanceAge;
+    return;
+  }
+
+  vec2 perpendicularPixels = vec2(-screenDelta.y, screenDelta.x) / projectedLength;
+  vec2 offsetNdc = perpendicularPixels
+    * (uBeamWidthPx * uPassWidthScale * aInstanceWidth)
+    / max(uViewport, vec2(1.0));
+  vec4 clip = mix(clipA, clipB, clamp(aCorner.x, 0.0, 1.0));
+  clip.xy += offsetNdc * aCorner.y * clip.w;
+  gl_Position = clip;
+  vAlpha = aInstanceAlpha;
+  vAcross = aCorner.y;
+  vPalette = aInstancePalette;
+  vAge = aInstanceAge;
+}
+`
+
+export const REACTIVE_CONSTELLATION_BEAM_FRAGMENT_SOURCE = `#version 300 es
+precision highp float;
+
+in float vAlpha;
+in float vAcross;
+in float vPalette;
+in float vAge;
+
+uniform vec3 uBeamColor;
+uniform vec3 uBeamAccent;
+uniform float uEdgeOpacity;
+uniform float uPassBrightness;
+uniform float uPassSoftness;
+uniform float uBeat;
+uniform float uBrightness;
+
+out vec4 outColor;
+
+void main() {
+  float edge = abs(vAcross);
+  float profile = 1.0 - smoothstep(1.0 - uPassSoftness, 1.0, edge);
+  float ageColor = smoothstep(0.15, 1.0, vAge);
+  vec3 color = mix(uBeamColor, uBeamAccent, clamp(vPalette * 0.42 + ageColor * 0.22, 0.0, 1.0));
+  float brightness = uPassBrightness * (1.0 + uBeat * 0.24 + uBrightness * 0.2);
+  float alpha = clamp(vAlpha * uEdgeOpacity * profile, 0.0, 1.0);
+  outColor = vec4(color * brightness, alpha);
+}
+`

@@ -339,11 +339,12 @@ describe('CinematicWorldRendererHost', () => {
       expect(drawArraysInstanced.mock.calls.length, `${definition.id} geometry`).toBe(geometryCallsBeforeDispose)
     }
 
-    expect(services.compileProgram).toHaveBeenCalledTimes(cinematicWorldDefinitions.length)
+    // Reactive Constellation owns separate node and beam programs; the other worlds compile one each.
+    expect(services.compileProgram).toHaveBeenCalledTimes(cinematicWorldDefinitions.length + 1)
     expect(run).toHaveBeenCalledTimes(cinematicWorldDefinitions.filter(definition => definition.capabilities.supportsFullscreenPasses).length)
     expect(drawArraysInstanced).toHaveBeenCalled()
-    expect(resources.trackVAO).toHaveBeenCalledTimes(4)
-    expect(resources.untrackVAO).toHaveBeenCalledTimes(4)
+    expect(resources.trackVAO).toHaveBeenCalledTimes(5)
+    expect(resources.untrackVAO).toHaveBeenCalledTimes(5)
   })
 
   it('lazily initializes, resizes, renders, resets, and disposes the legacy renderer', () => {

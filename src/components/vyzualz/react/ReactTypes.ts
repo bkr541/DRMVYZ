@@ -2195,6 +2195,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
       nodeCount: 48, topologyStyle: 'cluster', polyhedronStyle: 'mixed', networkSpread: 1.28,
       depthSpread: 0.78, neighborCount: 4, nodeScale: 0.115, nodeScaleVariation: 0.54,
       faceOpacity: 0.82, rimIntensity: 1.12, wireframeAmount: 0.34, nodeSpin: 0.42,
+      beamWidth: 2.2, beamCoreBrightness: 2.8, beamGlow: 1.25, edgeOpacity: 0.8, trailSamples: 14, trailDecay: 0.8, trailSpacing: 0.03, beamFanAmount: 1.05,
       centralGravity: 0.18, cameraOrbit: 0.16, springStrength: 0.82, damping: 0.58, driftAmount: 0.28, turbulence: 0.2, orbitAmount: 0.22, elasticity: 0.68, topologyStability: 0.76, collapseAmount: 0.05, burstStrength: 0.58, reseedEveryBars: 0,
     }, {
       cameraRig: 'autoDirector', seed: 48001, qualityTier: 'high',
@@ -2215,6 +2216,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
       nodeCount: 38, topologyStyle: 'chain', polyhedronStyle: 'irregularCrystal', networkSpread: 1.02,
       depthSpread: 1.05, neighborCount: 2, nodeScale: 0.14, nodeScaleVariation: 0.72,
       faceOpacity: 0.7, rimIntensity: 0.96, wireframeAmount: 0.16, nodeSpin: -0.22,
+      beamWidth: 1.8, beamCoreBrightness: 2.2, beamGlow: 0.9, edgeOpacity: 0.68, trailSamples: 10, trailDecay: 0.74, trailSpacing: 0.045, beamFanAmount: 0.85,
       centralGravity: 0.06, cameraOrbit: -0.12, springStrength: 0.56, damping: 0.72, driftAmount: 0.36, turbulence: 0.08, orbitAmount: -0.16, elasticity: 0.42, topologyStability: 0.84, collapseAmount: 0.02, burstStrength: 0.3, reseedEveryBars: 16,
     }, {
       cameraRig: 'orbit', seed: 48002, qualityTier: 'high',
@@ -2235,6 +2237,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
       nodeCount: 72, topologyStyle: 'starburst', polyhedronStyle: 'icosahedron', networkSpread: 1.62,
       depthSpread: 1.18, neighborCount: 6, nodeScale: 0.09, nodeScaleVariation: 0.36,
       faceOpacity: 0.9, rimIntensity: 1.48, wireframeAmount: 0.62, nodeSpin: 0.92,
+      beamWidth: 3, beamCoreBrightness: 3.8, beamGlow: 1.6, edgeOpacity: 0.92, trailSamples: 18, trailDecay: 0.84, trailSpacing: 0.022, beamFanAmount: 1.35,
       centralGravity: 0.3, cameraOrbit: 0.54, springStrength: 1.08, damping: 0.42, driftAmount: 0.18, turbulence: 0.46, orbitAmount: 0.72, elasticity: 0.86, topologyStability: 0.54, collapseAmount: 0.14, burstStrength: 1.08, reseedEveryBars: 8,
     }, {
       cameraRig: 'autoDirector', seed: 48003, qualityTier: 'high',

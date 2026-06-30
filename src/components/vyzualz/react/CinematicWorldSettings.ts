@@ -165,6 +165,14 @@ export interface ReactiveConstellationSettings {
   rimIntensity: number
   wireframeAmount: number
   nodeSpin: number
+  beamWidth: number
+  beamCoreBrightness: number
+  beamGlow: number
+  edgeOpacity: number
+  trailSamples: number
+  trailDecay: number
+  trailSpacing: number
+  beamFanAmount: number
   centralGravity: number
   cameraOrbit: number
   springStrength: number
@@ -581,6 +589,14 @@ export const REACTIVE_CONSTELLATION_DEFAULTS: ReactiveConstellationSettings = {
   rimIntensity: 0.88,
   wireframeAmount: 0.28,
   nodeSpin: 0.34,
+  beamWidth: 2.4,
+  beamCoreBrightness: 2.6,
+  beamGlow: 1.15,
+  edgeOpacity: 0.78,
+  trailSamples: 12,
+  trailDecay: 0.78,
+  trailSpacing: 0.032,
+  beamFanAmount: 1,
   centralGravity: 0.18,
   cameraOrbit: 0.16,
   springStrength: 0.72,
@@ -606,6 +622,14 @@ export const REACTIVE_CONSTELLATION_BOUNDS = {
   rimIntensity: [0, 2],
   wireframeAmount: [0, 1],
   nodeSpin: [-1.5, 1.5],
+  beamWidth: [0.5, 12],
+  beamCoreBrightness: [0, 6],
+  beamGlow: [0, 3],
+  edgeOpacity: [0, 1],
+  trailSamples: [0, 32],
+  trailDecay: [0.2, 0.98],
+  trailSpacing: [0.008, 0.25],
+  beamFanAmount: [0, 2],
   centralGravity: [0, 1],
   cameraOrbit: [-1, 1],
   springStrength: [0, 2],
@@ -636,6 +660,14 @@ function normalizeReactiveConstellationSettings(raw: unknown): ReactiveConstella
       rimIntensity: REACTIVE_CONSTELLATION_DEFAULTS.rimIntensity,
       wireframeAmount: REACTIVE_CONSTELLATION_DEFAULTS.wireframeAmount,
       nodeSpin: REACTIVE_CONSTELLATION_DEFAULTS.nodeSpin,
+      beamWidth: REACTIVE_CONSTELLATION_DEFAULTS.beamWidth,
+      beamCoreBrightness: REACTIVE_CONSTELLATION_DEFAULTS.beamCoreBrightness,
+      beamGlow: REACTIVE_CONSTELLATION_DEFAULTS.beamGlow,
+      edgeOpacity: REACTIVE_CONSTELLATION_DEFAULTS.edgeOpacity,
+      trailSamples: REACTIVE_CONSTELLATION_DEFAULTS.trailSamples,
+      trailDecay: REACTIVE_CONSTELLATION_DEFAULTS.trailDecay,
+      trailSpacing: REACTIVE_CONSTELLATION_DEFAULTS.trailSpacing,
+      beamFanAmount: REACTIVE_CONSTELLATION_DEFAULTS.beamFanAmount,
       centralGravity: REACTIVE_CONSTELLATION_DEFAULTS.centralGravity,
       cameraOrbit: REACTIVE_CONSTELLATION_DEFAULTS.cameraOrbit,
       springStrength: REACTIVE_CONSTELLATION_DEFAULTS.springStrength,
@@ -650,7 +682,7 @@ function normalizeReactiveConstellationSettings(raw: unknown): ReactiveConstella
       reseedEveryBars: REACTIVE_CONSTELLATION_DEFAULTS.reseedEveryBars,
     },
     REACTIVE_CONSTELLATION_BOUNDS,
-    ['nodeCount', 'neighborCount', 'reseedEveryBars'],
+    ['nodeCount', 'neighborCount', 'trailSamples', 'reseedEveryBars'],
   )
   const legacyTopologyAliases: Record<string, ReactiveConstellationTopologyStyle> = {
     radial: 'starburst',

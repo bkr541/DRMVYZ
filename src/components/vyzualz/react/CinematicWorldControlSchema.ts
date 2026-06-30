@@ -275,6 +275,28 @@ const REACTIVE_CONSTELLATION_CONTROLS = {
       ],
     },
     {
+      id: 'reactive-constellation-beams',
+      label: 'Network Beams',
+      visibility: 'all',
+      controls: [
+        { kind: 'slider', id: 'constellation-beam-width', setting: 'beamWidth', label: 'Beam Width', description: 'Sets the perspective-stable ribbon width in output pixels.', min: REACTIVE_CONSTELLATION_BOUNDS.beamWidth[0], max: REACTIVE_CONSTELLATION_BOUNDS.beamWidth[1], step: 0.1, visibility: 'all' },
+        { kind: 'slider', id: 'constellation-edge-opacity', setting: 'edgeOpacity', label: 'Edge Opacity', min: REACTIVE_CONSTELLATION_BOUNDS.edgeOpacity[0], max: REACTIVE_CONSTELLATION_BOUNDS.edgeOpacity[1], step: 0.01, visibility: 'all' },
+        { kind: 'integer', id: 'constellation-trail-samples', setting: 'trailSamples', label: 'Trail Samples', description: 'Controls the requested history depth before the active quality budget is applied.', min: REACTIVE_CONSTELLATION_BOUNDS.trailSamples[0], max: REACTIVE_CONSTELLATION_BOUNDS.trailSamples[1], step: 1, visibility: 'all' },
+        { kind: 'slider', id: 'constellation-beam-fan', setting: 'beamFanAmount', label: 'Beam Fan', description: 'Compresses or exaggerates historical edge displacement around the live network.', min: REACTIVE_CONSTELLATION_BOUNDS.beamFanAmount[0], max: REACTIVE_CONSTELLATION_BOUNDS.beamFanAmount[1], step: 0.01, visibility: 'all' },
+      ],
+    },
+    {
+      id: 'reactive-constellation-beam-detail',
+      label: 'Beam Detail',
+      visibility: 'advanced',
+      controls: [
+        { kind: 'slider', id: 'constellation-beam-core', setting: 'beamCoreBrightness', label: 'Core Brightness', min: REACTIVE_CONSTELLATION_BOUNDS.beamCoreBrightness[0], max: REACTIVE_CONSTELLATION_BOUNDS.beamCoreBrightness[1], step: 0.05 },
+        { kind: 'slider', id: 'constellation-beam-glow', setting: 'beamGlow', label: 'Glow Shell', description: 'Scales the wider emissive shell while shared Cinematic bloom remains the only bloom pipeline.', min: REACTIVE_CONSTELLATION_BOUNDS.beamGlow[0], max: REACTIVE_CONSTELLATION_BOUNDS.beamGlow[1], step: 0.05 },
+        { kind: 'slider', id: 'constellation-trail-decay', setting: 'trailDecay', label: 'Trail Retention', description: 'Higher values preserve older edge copies for longer.', min: REACTIVE_CONSTELLATION_BOUNDS.trailDecay[0], max: REACTIVE_CONSTELLATION_BOUNDS.trailDecay[1], step: 0.01 },
+        { kind: 'slider', id: 'constellation-trail-spacing', setting: 'trailSpacing', label: 'Trail Spacing', description: 'Seconds between bounded history captures while transport is playing.', min: REACTIVE_CONSTELLATION_BOUNDS.trailSpacing[0], max: REACTIVE_CONSTELLATION_BOUNDS.trailSpacing[1], step: 0.001 },
+      ],
+    },
+    {
       id: 'reactive-constellation-structure',
       label: 'Network Structure',
       visibility: 'advanced',
@@ -383,7 +405,7 @@ export const CINEMATIC_WORLD_CATALOG: CinematicWorldCatalog = {
   celestialCathedral: { id: 'celestialCathedral', label: 'Celestial Cathedral', category: 'Architectural', description: 'Cosmic arches, pillars, stars and deep light shafts.', cameraRigs: ['locked', 'dolly', 'flyThrough', 'autoDirector'], modulationTargets: ['depth', 'cameraTravel', 'fogDensity', 'particleEmission', 'environmentBrightness', 'bloom', 'impact'], supportsPortalShape: false, controls: CELESTIAL_CATHEDRAL_CONTROLS },
   mirrorDimension: { id: 'mirrorDimension', label: 'Mirror Dimension', category: 'Cosmic', description: 'Symmetrical mirrored chambers with controlled recursive depth.', cameraRigs: ['locked', 'orbit', 'autoDirector'], modulationTargets: ['depth', 'geometryRotation', 'feedback', 'distortion', 'chromaticAberration', 'environmentBrightness', 'bloom', 'impact'], supportsPortalShape: false, controls: MIRROR_DIMENSION_CONTROLS },
   ancientMachine: { id: 'ancientMachine', label: 'Ancient Machine', category: 'Mechanical', description: 'Interlocking rings, gears, glyphs and a mechanical unlock sequence.', cameraRigs: ['locked', 'dolly', 'orbit', 'autoDirector'], modulationTargets: ['portalAperture', 'depth', 'geometryRotation', 'cameraPunch', 'cameraTravel', 'environmentBrightness', 'bloom', 'impact'], supportsPortalShape: true, controls: ANCIENT_MACHINE_CONTROLS },
-  reactiveConstellation: { id: 'reactiveConstellation', label: 'Reactive Constellation', category: 'Cosmic', description: 'A true 3D network of independently transformed faceted crystal nodes.', cameraRigs: ['locked', 'dolly', 'orbit', 'handheld', 'autoDirector'], modulationTargets: ['depth', 'geometryRotation', 'environmentBrightness', 'bloom', 'impact'], supportsPortalShape: false, controls: REACTIVE_CONSTELLATION_CONTROLS },
+  reactiveConstellation: { id: 'reactiveConstellation', label: 'Reactive Constellation', category: 'Cosmic', description: 'A true 3D faceted crystal network with emissive magenta beams and bounded temporal beam fans.', cameraRigs: ['locked', 'dolly', 'orbit', 'handheld', 'autoDirector'], modulationTargets: ['depth', 'geometryRotation', 'environmentBrightness', 'bloom', 'impact'], supportsPortalShape: false, controls: REACTIVE_CONSTELLATION_CONTROLS },
   stormGateway: { id: 'stormGateway', label: 'Storm Gateway', category: 'Storm', description: 'Cloud vortex, debris, turbulence and branching lightning.', cameraRigs: ['locked', 'orbit', 'handheld', 'autoDirector'], modulationTargets: ['portalAperture', 'depth', 'cameraPunch', 'fogDensity', 'particleEmission', 'lightning', 'environmentBrightness', 'distortion', 'bloom', 'chromaticAberration', 'impact'], supportsPortalShape: true, controls: STORM_GATEWAY_CONTROLS },
   mediaPortal: { id: 'mediaPortal', label: 'Media Portal', category: 'Media', description: 'Places images, video, logos or SVG artwork inside a reactive gateway.', cameraRigs: ['locked', 'dolly', 'orbit', 'autoDirector'], modulationTargets: ['portalAperture', 'distortion', 'refraction', 'bloom', 'chromaticAberration', 'feedback', 'impact'], supportsPortalShape: true, controls: MEDIA_PORTAL_CONTROLS },
   legacyPortal: { id: 'legacyPortal', label: 'Legacy Portal', category: 'Legacy', description: 'Compatibility renderer for projects created before Cinematic Worlds.', cameraRigs: ['locked'], modulationTargets: ['portalAperture', 'cameraPunch', 'fogDensity', 'particleEmission', 'environmentBrightness', 'impact', 'fog', 'debris', 'atmosphere', 'glow', 'cameraMotion', 'portalPulse'], rendererModulationTargets: ['portalAperture', 'cameraPunch', 'fogDensity', 'particleEmission', 'environmentBrightness', 'impact'], supportsPortalShape: true, controls: EMPTY_SCHEMA('legacyPortal') },

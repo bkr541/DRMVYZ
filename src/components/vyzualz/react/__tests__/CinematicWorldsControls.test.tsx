@@ -57,7 +57,7 @@ describe('Cinematic Worlds engine controls', () => {
     const worlds = container.querySelectorAll('[role="radio"]')
     expect(worlds).toHaveLength(12)
     expect(container.querySelector('#cinematic-world-eventHorizon')?.getAttribute('aria-checked')).toBe('true')
-    expect(container.querySelector('#cinematic-world-reactiveConstellation')?.textContent).toContain('true 3D network')
+    expect(container.querySelector('#cinematic-world-reactiveConstellation')?.textContent).toContain('true 3D faceted crystal network')
     expect(container.querySelector('#cinematic-world-mediaPortal')?.textContent).toContain('Places images, video, logos or SVG artwork')
     expect(container.textContent).toContain('Selected')
   })
