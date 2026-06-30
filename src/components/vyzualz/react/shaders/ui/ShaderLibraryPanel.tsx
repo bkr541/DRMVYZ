@@ -7,6 +7,7 @@ import { shaderRegistry } from '../registry'
 import { SelectRow, ToggleRow } from '../../ReactControlRows'
 import type { ShaderCategory } from '../registry/shaderRegistryTypes'
 import type { QualityTierWithAuto } from '../performance/shaderPerformanceTypes'
+import { ShaderSceneThumbnail } from './ShaderSceneThumbnail'
 
 // ── Tab types ─────────────────────────────────────────────────────────────────
 
@@ -62,10 +63,7 @@ function SceneCard({
       aria-pressed={isActive}
     >
       {/* Thumbnail */}
-      <div
-        className="rv-shader-scene-thumb"
-        style={{ background: def.thumbnail?.color ?? '#111' }}
-      />
+      <ShaderSceneThumbnail definition={def} />
 
       {/* Info */}
       <div className="rv-shader-scene-card-body">

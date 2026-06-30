@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { CINEMATIC_WORLD_BY_ID, CINEMATIC_WORLD_UI, getCinematicPresetMood } from './CinematicWorldsUi'
 import type { ReactPreset, ReactEngineId } from './ReactTypes'
+import { ReactPresetThumbnail } from './ReactPresetThumbnail'
 
 const ENGINE_ORDER: ReactEngineId[] = ['cinematicPortal', 'oscilloscope', 'laserDmx', 'neonLattice']
 
@@ -46,24 +47,29 @@ function PresetCard({ preset, isActive, modified, onSelect }: {
   return (
     <button
       type="button"
-      className={`rv-preset-card${isActive ? ' rv-preset-card--active' : ''}`}
+      className={`rv-preset-card rv-preset-card--with-thumb${isActive ? ' rv-preset-card--active' : ''}`}
       onClick={() => onSelect(preset.id)}
       aria-pressed={isActive}
       aria-current={isActive ? 'true' : undefined}
       title={preset.description}
       style={isActive ? { '--accent': preset.palette.primary } as React.CSSProperties : undefined}
     >
-      <div className="rv-preset-card-header">
-        <span className="rv-preset-name">{preset.name}</span>
-        {isActive && <span className="rv-preset-selected-label"><span className="rv-preset-active-dot" aria-hidden="true" />Selected</span>}
-      </div>
-      <div className="rv-preset-chip-row">
-        {modeHint && <span className="rv-preset-mode-chip">{modeHint}</span>}
-        {modified && <span className="rv-preset-modified-chip">Modified</span>}
-      </div>
-      <p className="rv-preset-desc">{preset.description}</p>
-      <div className="rv-preset-palette" aria-label={`${preset.name} palette`}>
-        {Object.values(preset.palette).slice(0, 5).map((color, index) => <span key={index} className="rv-palette-swatch" style={{ background: color }} title={color} />)}
+      <div className="rv-preset-card-layout">
+        <ReactPresetThumbnail preset={preset} />
+        <div className="rv-preset-card-content">
+          <div className="rv-preset-card-header">
+            <span className="rv-preset-name">{preset.name}</span>
+            {isActive && <span className="rv-preset-selected-label"><span className="rv-preset-active-dot" aria-hidden="true" />Selected</span>}
+          </div>
+          <div className="rv-preset-chip-row">
+            {modeHint && <span className="rv-preset-mode-chip">{modeHint}</span>}
+            {modified && <span className="rv-preset-modified-chip">Modified</span>}
+          </div>
+          <p className="rv-preset-desc">{preset.description}</p>
+          <div className="rv-preset-palette" aria-label={`${preset.name} palette`}>
+            {Object.values(preset.palette).slice(0, 5).map((color, index) => <span key={index} className="rv-palette-swatch" style={{ background: color }} title={color} />)}
+          </div>
+        </div>
       </div>
     </button>
   )
@@ -144,8 +150,12 @@ export function ReactPresetsPanel() {
     cinematicConfigsByPresetId: state.cinematicConfigsByPresetId,
     selectReactPreset: state.selectReactPreset,
   })))
-  const grouped = useMemo(() => ENGINE_ORDER.map(engine => ({ engine, presets: reactPresets.filter(preset => preset.engine === engine) })).filter(group => group.presets.length > 0), [reactPresets])
-  const active = reactPresets.find(preset => preset.id === activeReactPresetId)
+  const displayPresets = useMemo(() => reactPresets.map(preset => ({
+    ...preset,
+    cinematicConfig: cinematicConfigsByPresetId[preset.id] ?? preset.cinematicConfig,
+  })), [reactPresets, cinematicConfigsByPresetId])
+  const grouped = useMemo(() => ENGINE_ORDER.map(engine => ({ engine, presets: displayPresets.filter(preset => preset.engine === engine) })).filter(group => group.presets.length > 0), [displayPresets])
+  const active = displayPresets.find(preset => preset.id === activeReactPresetId)
   const activeWorld = active?.engine === 'cinematicPortal' ? CINEMATIC_WORLD_BY_ID[active.cinematicConfig?.worldMode ?? 'legacyPortal'].label : null
   const modifiedIds = useMemo(() => new Set(Object.keys(cinematicConfigsByPresetId)), [cinematicConfigsByPresetId])
   return (
