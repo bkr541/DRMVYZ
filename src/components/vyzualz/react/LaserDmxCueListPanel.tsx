@@ -1,421 +1,387 @@
-import { useId, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
+import { useSharedAudio } from '../../../context/AudioEngineContext'
+import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import { useReactStore } from '../../../stores/reactStore'
-import type { LaserDmxBeamMatrixCue } from './ReactTypes'
-import { BEATS_PER_BAR } from './ReactTypes'
+import {
+  DEFAULT_PRODUCTION_CHASE,
+  DEFAULT_PRODUCTION_GROUP_MOVEMENT,
+  type ProductionCompoundCue,
+  type ProductionCueAction,
+  type ProductionCueActionExecution,
+  type ProductionCueTiming,
+} from './LaserDmxProductionRig'
+import { diagnoseProductionCues } from './renderers/LaserDmxShowDirector'
 
-// ── Formatting helpers ────────────────────────────────────────────────────────
+const ACTION_TYPES: ProductionCueAction['type'][] = [
+  'activateLook', 'fadeToLook', 'blackout', 'reveal', 'setFixtureProperty', 'moveToTarget',
+  'runMovementEffect', 'stopMovementEffect', 'startChase', 'stopChase', 'pulse', 'strobeBurst',
+  'blinderHit', 'fogBurst', 'cryoBurst', 'paletteChange', 'fanOpen', 'fanClose',
+  'gateFixtureGroup', 'triggerLegacyBeamAction',
+]
 
-function fmtMs(ms: number): string {
-  const totalSec = Math.floor(ms / 1000)
-  const m        = Math.floor(totalSec / 60)
-  const s        = totalSec % 60
-  const msFrac   = Math.round(ms % 1000)
-  return `${m}:${String(s).padStart(2, '0')}.${String(msFrac).padStart(3, '0')}`
+function labelForAction(type: ProductionCueAction['type']): string {
+  return type.replace(/([A-Z])/g, ' $1').replace(/^./, value => value.toUpperCase())
 }
 
-function parseMs(raw: string): number | undefined {
-  const trimmed = raw.trim()
-  // Accept "m:ss.mmm", "s.mmm", or plain integer ms
-  const colonMatch = trimmed.match(/^(\d+):(\d{1,2})(?:\.(\d{1,3}))?$/)
-  if (colonMatch) {
-    const m    = parseInt(colonMatch[1], 10)
-    const s    = parseInt(colonMatch[2], 10)
-    const msFr = colonMatch[3] ? parseInt(colonMatch[3].padEnd(3, '0'), 10) : 0
-    return (m * 60 + s) * 1000 + msFr
+function makeAction(
+  type: ProductionCueAction['type'],
+  groupId: string,
+  fixtureId: string,
+  lookId: string,
+  targetId: string,
+): ProductionCueAction {
+  const base = { id: crypto.randomUUID(), execution: 'simultaneous' as const }
+  switch (type) {
+    case 'activateLook': return { ...base, type, lookId }
+    case 'fadeToLook': return { ...base, type, lookId, transitionMs: 600 }
+    case 'blackout': return { ...base, type }
+    case 'reveal': return { ...base, type }
+    case 'setFixtureProperty': return { ...base, type, groupId, properties: { dimmer: 1 } }
+    case 'moveToTarget': return { ...base, type, groupId, targetId, snap: false }
+    case 'runMovementEffect': return { ...base, type, groupId, movement: { ...DEFAULT_PRODUCTION_GROUP_MOVEMENT, enabled: true } }
+    case 'stopMovementEffect': return { ...base, type, groupId }
+    case 'startChase': return { ...base, type, groupId, chase: { ...DEFAULT_PRODUCTION_CHASE, enabled: true } }
+    case 'stopChase': return { ...base, type, groupId }
+    case 'pulse': return { ...base, type, groupId, intensity: 1, durationMs: 250 }
+    case 'strobeBurst': return { ...base, type, groupId, pattern: 'quarterBeatBurst', rateHz: 12, intensity: 1, durationMs: 500 }
+    case 'blinderHit': return { ...base, type, groupId, intensity: 1, durationMs: 250 }
+    case 'fogBurst': return { ...base, type, fixtureId, intensity: 1, durationMs: 2200 }
+    case 'cryoBurst': return { ...base, type, fixtureId, intensity: 1, durationMs: 900 }
+    case 'paletteChange': return { ...base, type, groupId, paletteId: '' }
+    case 'fanOpen': return { ...base, type, groupId }
+    case 'fanClose': return { ...base, type, groupId }
+    case 'gateFixtureGroup': return { ...base, type, groupId, open: true }
+    case 'triggerLegacyBeamAction': return { ...base, type, targetType: 'group', targetId: groupId, action: 'gate' }
   }
-  const numericMs = parseFloat(trimmed)
-  if (!isNaN(numericMs) && numericMs >= 0) return Math.round(numericMs)
-  return undefined
 }
 
-function validateMusical(
-  startBar?: number, startBeat?: number,
-  endBar?: number,   endBeat?: number,
-  action?: string,
-): string | null {
-  if (!startBar || startBar < 1)               return 'Start bar must be ≥ 1'
-  if (!startBeat || startBeat < 1 || startBeat > BEATS_PER_BAR)
-    return `Start beat must be 1–${BEATS_PER_BAR}`
-  if (action === 'gate' && endBar != null) {
-    if (endBar < 1) return 'End bar must be ≥ 1'
-    const endBeatVal = endBeat ?? 1
-    if (endBeatVal < 1 || endBeatVal > BEATS_PER_BAR) return `End beat must be 1–${BEATS_PER_BAR}`
-    const startPos = (startBar - 1) * BEATS_PER_BAR + (startBeat - 1)
-    const endPos   = (endBar   - 1) * BEATS_PER_BAR + (endBeatVal - 1)
-    if (endPos <= startPos) return 'End must be after start'
+function timingSummary(timing: ProductionCueTiming): string {
+  if (timing.mode === 'manual') return 'Manual only'
+  if (timing.mode === 'absolute') {
+    const mins = Math.floor(timing.timeSec / 60)
+    const secs = timing.timeSec - mins * 60
+    return `${mins}:${secs.toFixed(3).padStart(6, '0')}`
   }
-  return null
-}
-
-function validateAbsolute(startMs?: number, endMs?: number, action?: string): string | null {
-  if (startMs == null || startMs < 0) return 'Start time must be ≥ 0'
-  if (action === 'gate' && endMs != null) {
-    if (endMs <= startMs) return 'End time must be after start'
+  if (timing.mode === 'musical') {
+    const subdivision = timing.subdivision > 1 ? ` + ${timing.subdivisionIndex}/${timing.subdivision}` : ''
+    return `Bar ${timing.bar} · Beat ${timing.beat}${subdivision}`
   }
-  return null
+  const section = timing.sectionId || timing.sectionType || 'section'
+  return `${section} #${timing.occurrence} + ${timing.offsetBars} bars ${timing.offsetBeats} beats`
 }
 
-function validateCue(cue: LaserDmxBeamMatrixCue, beamIds: Set<string>, groupIds: Set<string>): string | null {
-  if (!cue.targetId) return 'No target selected'
-  if (cue.targetType === 'beam'  && !beamIds.has(cue.targetId))  return 'Target beam not found'
-  if (cue.targetType === 'group' && !groupIds.has(cue.targetId)) return 'Target group not found'
-  if (cue.timingMode === 'musical') {
-    return validateMusical(cue.startBar, cue.startBeat, cue.endBar, cue.endBeat, cue.action)
+function actionSummary(cue: ProductionCompoundCue): string {
+  if (!cue.actions.length) return 'No actions'
+  const labels = cue.actions.slice(0, 3).map(action => labelForAction(action.type))
+  return `${labels.join(' · ')}${cue.actions.length > 3 ? ` +${cue.actions.length - 3}` : ''}`
+}
+
+function actionTargetSummary(action: ProductionCueAction): string {
+  if ('groupId' in action && action.groupId) return `Group: ${action.groupId}`
+  if ('fixtureId' in action && action.fixtureId) return `Fixture: ${action.fixtureId}`
+  if (action.type === 'activateLook' || action.type === 'fadeToLook') return `Look: ${action.lookId}`
+  if (action.type === 'triggerLegacyBeamAction') return `${action.targetType}: ${action.targetId}`
+  return 'Global'
+}
+
+function CueTimingEditor({ cue, groups, update }: { cue: ProductionCompoundCue; groups: { id: string; name: string }[]; update: (patch: Partial<ProductionCompoundCue>) => void }) {
+  const mode = cue.manualOnly ? 'manual' : cue.timing.mode
+  const musicalTiming = cue.timing.mode === 'musical' ? cue.timing : null
+  const sectionTiming = cue.timing.mode === 'sectionRelative' ? cue.timing : null
+  const setMode = (next: ProductionCueTiming['mode']) => {
+    if (next === 'manual') update({ manualOnly: true, timing: { mode: 'manual' } })
+    else if (next === 'absolute') update({ manualOnly: false, timing: { mode: 'absolute', timeSec: 0 } })
+    else if (next === 'sectionRelative') update({
+      manualOnly: false,
+      timing: { mode: 'sectionRelative', sectionType: 'drop', occurrence: 1, offsetBars: 0, offsetBeats: 0, subdivision: 1, subdivisionIndex: 0, offsetSec: 0 },
+    })
+    else update({ manualOnly: false, timing: { mode: 'musical', bar: 1, beat: 1, subdivision: 1, subdivisionIndex: 0 } })
   }
-  return validateAbsolute(cue.startMs, cue.endMs, cue.action)
-}
-
-// ── Cue row editor ────────────────────────────────────────────────────────────
-
-function CueRow({
-  cue,
-  beams,
-  groups,
-}: {
-  cue:    LaserDmxBeamMatrixCue
-  beams:  { id: string; name: string }[]
-  groups: { id: string; name: string }[]
-}) {
-  const idPrefix = useId()
-  const {
-    updateLaserDmxBeamMatrixCue,
-    removeLaserDmxBeamMatrixCue,
-    duplicateLaserDmxBeamMatrixCue,
-  } = useReactStore(useShallow(s => ({
-    updateLaserDmxBeamMatrixCue:    s.updateLaserDmxBeamMatrixCue,
-    removeLaserDmxBeamMatrixCue:    s.removeLaserDmxBeamMatrixCue,
-    duplicateLaserDmxBeamMatrixCue: s.duplicateLaserDmxBeamMatrixCue,
-  })))
-
-  const [expanded, setExpanded] = useState(false)
-
-  const upd = (patch: Partial<LaserDmxBeamMatrixCue>) =>
-    updateLaserDmxBeamMatrixCue(cue.id, patch)
-
-  const beamIds  = new Set(beams.map(b => b.id))
-  const groupIds = new Set(groups.map(g => g.id))
-  const validationError = validateCue(cue, beamIds, groupIds)
-
-  const targetOptions = cue.targetType === 'beam'
-    ? beams.map(b  => ({ value: b.id,  label: b.name  }))
-    : groups.map(g => ({ value: g.id,  label: g.name  }))
-
-  const startMsStr = cue.startMs != null ? fmtMs(cue.startMs) : ''
-  const endMsStr   = cue.endMs   != null ? fmtMs(cue.endMs)   : ''
-
   return (
-    <div className={`rv-cue-row${!cue.enabled ? ' rv-cue-row--disabled' : ''}${validationError ? ' rv-cue-row--invalid' : ''}`}>
-      {/* Header */}
-      <div className="rv-cue-row-header">
-        <button
-          type="button"
-          className={`rv-ctrl-toggle${cue.enabled ? ' rv-ctrl-toggle--on' : ''}`}
-          onClick={() => upd({ enabled: !cue.enabled })}
-          aria-pressed={cue.enabled}
-          aria-label={`${cue.enabled ? 'Disable' : 'Enable'} cue ${cue.name}`}
-          title="Enable / disable cue"
+    <div className="rv-cue-editor-grid">
+      <label>Placement
+        <select className="rv-ctrl-select" value={mode} onChange={event => setMode(event.target.value as ProductionCueTiming['mode'])}>
+          <option value="musical">Bar / beat</option>
+          <option value="absolute">Absolute time</option>
+          <option value="sectionRelative">Section-relative</option>
+          <option value="manual">Manual only</option>
+        </select>
+      </label>
+      {musicalTiming && !cue.manualOnly && <>
+        <label>Bar<input type="number" min={1} value={musicalTiming.bar} onChange={event => update({ timing: { ...musicalTiming, bar: Math.max(1, Number(event.target.value) || 1) } })} /></label>
+        <label>Beat<input type="number" min={1} max={16} value={musicalTiming.beat} onChange={event => update({ timing: { ...musicalTiming, beat: Math.max(1, Number(event.target.value) || 1) } })} /></label>
+        <label>Subdivision
+          <select value={musicalTiming.subdivision} onChange={event => update({ timing: { ...musicalTiming, subdivision: Number(event.target.value) as 1 | 2 | 4 | 8 | 16 } })}>
+            {[1, 2, 4, 8, 16].map(value => <option key={value} value={value}>1/{value}</option>)}
+          </select>
+        </label>
+        <label>Sub index<input type="number" min={0} value={musicalTiming.subdivisionIndex} onChange={event => update({ timing: { ...musicalTiming, subdivisionIndex: Math.max(0, Number(event.target.value) || 0) } })} /></label>
+      </>}
+      {cue.timing.mode === 'absolute' && !cue.manualOnly &&
+        <label>Time (seconds)<input type="number" min={0} step={0.001} value={cue.timing.timeSec} onChange={event => update({ timing: { mode: 'absolute', timeSec: Math.max(0, Number(event.target.value) || 0) } })} /></label>}
+      {sectionTiming && !cue.manualOnly && <>
+        <label>Section
+          <select value={sectionTiming.sectionType ?? 'drop'} onChange={event => update({ timing: { ...sectionTiming, sectionId: undefined, sectionType: event.target.value as typeof sectionTiming.sectionType } })}>
+            {['intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'bridge', 'outro', 'unknown'].map(value => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </label>
+        <label>Occurrence<input type="number" min={1} value={sectionTiming.occurrence} onChange={event => update({ timing: { ...sectionTiming, occurrence: Math.max(1, Number(event.target.value) || 1) } })} /></label>
+        <label>Offset bars<input type="number" value={sectionTiming.offsetBars} onChange={event => update({ timing: { ...sectionTiming, offsetBars: Number(event.target.value) || 0 } })} /></label>
+        <label>Offset beats<input type="number" step={0.25} value={sectionTiming.offsetBeats} onChange={event => update({ timing: { ...sectionTiming, offsetBeats: Number(event.target.value) || 0 } })} /></label>
+        <label>Offset seconds<input type="number" step={0.01} value={sectionTiming.offsetSec} onChange={event => update({ timing: { ...sectionTiming, offsetSec: Number(event.target.value) || 0 } })} /></label>
+      </>}
+      <label>Quantize
+        <select value={cue.quantize} onChange={event => update({ quantize: event.target.value as ProductionCompoundCue['quantize'] })}>
+          {['none', 'beat', 'eighth', 'sixteenth', 'bar', 'phrase', 'section'].map(value => <option key={value} value={value}>{value}</option>)}
+        </select>
+      </label>
+      <label className="rv-show-director__group-target">Default fixture groups
+        <select
+          multiple
+          size={Math.min(4, Math.max(2, groups.length))}
+          value={cue.fixtureGroupIds}
+          onChange={event => update({ fixtureGroupIds: Array.from(event.currentTarget.selectedOptions, option => option.value) })}
         >
-          {cue.enabled ? 'On' : 'Off'}
-        </button>
-        <input
-          className="rv-cue-name-input"
-          value={cue.name}
-          onChange={e => upd({ name: e.target.value })}
-          placeholder="Cue name"
-          aria-label="Cue name"
-        />
-        <span className="rv-cue-badge rv-cue-badge--action">{cue.action}</span>
-        <span className="rv-cue-badge rv-cue-badge--timing">{cue.timingMode === 'musical' ? 'musical' : 'abs'}</span>
-        {validationError && <span className="rv-cue-error-icon" title={validationError}>⚠</span>}
-        <button
-          type="button"
-          className="rv-glyph-upload-btn"
-          title="Expand / collapse cue editor"
-          onClick={() => setExpanded(v => !v)}
-          aria-expanded={expanded}
-          aria-label={`${expanded ? 'Collapse' : 'Expand'} cue ${cue.name}`}
-        >
-          {expanded ? '▲' : '▼'}
-        </button>
-        <button
-          type="button"
-          className="rv-glyph-upload-btn"
-          title="Duplicate cue"
-          aria-label={`Duplicate cue ${cue.name}`}
-          onClick={() => duplicateLaserDmxBeamMatrixCue(cue.id)}
-        >⧉</button>
-        <button
-          type="button"
-          className="rv-glyph-upload-btn rv-glyph-upload-btn--danger"
-          title="Delete cue"
-          aria-label={`Delete cue ${cue.name}`}
-          onClick={() => {
-            if (window.confirm(`Delete cue "${cue.name}"?`)) removeLaserDmxBeamMatrixCue(cue.id)
-          }}
-        >×</button>
-      </div>
-
-      {/* Expanded editor */}
-      {expanded && (
-        <div className="rv-cue-body">
-          {validationError && (
-            <p className="rv-cue-validation-error">{validationError}</p>
-          )}
-
-          {/* Target type */}
-          <div className="rv-ctrl-row rv-cue-field-row">
-            <label className="rv-ctrl-label" htmlFor={`${idPrefix}-target-type`}>Target type</label>
-            <select
-              id={`${idPrefix}-target-type`}
-              className="rv-ctrl-select"
-              value={cue.targetType}
-              onChange={e => upd({ targetType: e.target.value as 'beam' | 'group', targetId: '' })}
-            >
-              <option value="beam">Beam</option>
-              <option value="group">Reaction Group</option>
-            </select>
-          </div>
-
-          {/* Target */}
-          <div className="rv-ctrl-row rv-cue-field-row">
-            <label className="rv-ctrl-label" htmlFor={`${idPrefix}-target`}>Target</label>
-            <select
-              id={`${idPrefix}-target`}
-              className="rv-ctrl-select"
-              value={cue.targetId}
-              onChange={e => upd({ targetId: e.target.value })}
-            >
-              {targetOptions.length === 0 && (
-                <option value="">— none available —</option>
-              )}
-              {targetOptions.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Action */}
-          <div className="rv-ctrl-row rv-cue-field-row">
-            <label className="rv-ctrl-label" htmlFor={`${idPrefix}-action`}>Action</label>
-            <select
-              id={`${idPrefix}-action`}
-              className="rv-ctrl-select"
-              value={cue.action}
-              onChange={e => upd({ action: e.target.value as 'gate' | 'trigger' })}
-            >
-              <option value="gate">Gate (active range)</option>
-              <option value="trigger">Trigger (one-shot)</option>
-            </select>
-          </div>
-
-          {/* Timing mode */}
-          <div className="rv-ctrl-row rv-cue-field-row">
-            <label className="rv-ctrl-label" htmlFor={`${idPrefix}-timing`}>Timing</label>
-            <select
-              id={`${idPrefix}-timing`}
-              className="rv-ctrl-select"
-              value={cue.timingMode}
-              onChange={e => upd({ timingMode: e.target.value as 'musical' | 'absolute' })}
-            >
-              <option value="musical">Musical (bar / beat)</option>
-              <option value="absolute">Absolute (time)</option>
-            </select>
-          </div>
-
-          {/* Musical timing inputs */}
-          {cue.timingMode === 'musical' && (
-            <>
-              <div className="rv-ctrl-row rv-cue-field-row">
-                <span className="rv-ctrl-label">Start</span>
-                <div className="rv-cue-time-fields">
-                  <label className="rv-cue-time-label">Bar
-                    <input
-                      type="number"
-                      className="rv-cue-num-input"
-                      value={cue.startBar ?? 1}
-                      min={1}
-                      step={1}
-                      onChange={e => upd({ startBar: Math.max(1, parseInt(e.target.value, 10) || 1) })}
-                    />
-                  </label>
-                  <label className="rv-cue-time-label">Beat
-                    <input
-                      type="number"
-                      className="rv-cue-num-input"
-                      value={cue.startBeat ?? 1}
-                      min={1}
-                      max={BEATS_PER_BAR}
-                      step={1}
-                      onChange={e => upd({ startBeat: Math.max(1, Math.min(BEATS_PER_BAR, parseInt(e.target.value, 10) || 1)) })}
-                    />
-                  </label>
-                </div>
-              </div>
-              {cue.action === 'gate' && (
-                <div className="rv-ctrl-row rv-cue-field-row">
-                  <span className="rv-ctrl-label">End</span>
-                  <div className="rv-cue-time-fields">
-                    <label className="rv-cue-time-label">Bar
-                      <input
-                        type="number"
-                        className="rv-cue-num-input"
-                        value={cue.endBar ?? ''}
-                        min={1}
-                        step={1}
-                        placeholder="∞"
-                        onChange={e => {
-                          const v = parseInt(e.target.value, 10)
-                          upd({ endBar: isNaN(v) ? undefined : Math.max(1, v) })
-                        }}
-                      />
-                    </label>
-                    <label className="rv-cue-time-label">Beat
-                      <input
-                        type="number"
-                        className="rv-cue-num-input"
-                        value={cue.endBeat ?? ''}
-                        min={1}
-                        max={BEATS_PER_BAR}
-                        step={1}
-                        placeholder="1"
-                        disabled={cue.endBar == null}
-                        onChange={e => {
-                          const v = parseInt(e.target.value, 10)
-                          upd({ endBeat: isNaN(v) ? undefined : Math.max(1, Math.min(BEATS_PER_BAR, v)) })
-                        }}
-                      />
-                    </label>
-                  </div>
-                  {cue.endBar == null && (
-                    <p className="rv-ctrl-info">No end = open-ended (active until track end)</p>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Absolute timing inputs */}
-          {cue.timingMode === 'absolute' && (
-            <>
-              <div className="rv-ctrl-row rv-cue-field-row">
-                <label className="rv-ctrl-label" htmlFor={`${idPrefix}-start-ms`}>Start (m:ss.mmm)</label>
-                <input
-                  id={`${idPrefix}-start-ms`}
-                  type="text"
-                  className="rv-cue-ms-input"
-                  defaultValue={startMsStr}
-                  placeholder="0:00.000"
-                  onBlur={e => {
-                    const ms = parseMs(e.target.value)
-                    if (ms != null) upd({ startMs: ms })
-                    else e.target.value = startMsStr
-                  }}
-                />
-              </div>
-              {cue.action === 'gate' && (
-                <div className="rv-ctrl-row rv-cue-field-row">
-                  <label className="rv-ctrl-label" htmlFor={`${idPrefix}-end-ms`}>End (m:ss.mmm)</label>
-                  <input
-                    id={`${idPrefix}-end-ms`}
-                    type="text"
-                    className="rv-cue-ms-input"
-                    defaultValue={endMsStr}
-                    placeholder="∞"
-                    onBlur={e => {
-                      const raw = e.target.value.trim()
-                      if (raw === '' || raw === '∞') {
-                        upd({ endMs: undefined })
-                      } else {
-                        const ms = parseMs(raw)
-                        if (ms != null) upd({ endMs: ms })
-                        else e.target.value = endMsStr
-                      }
-                    }}
-                  />
-                  {cue.endMs == null && (
-                    <p className="rv-ctrl-info">No end = open-ended (active until track end)</p>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-
-          {cue.action === 'gate' && (
-            <p className="rv-ctrl-info">
-              Gate: beam is active while playhead is inside the range. Cue-gating activates on seek into range.
-            </p>
-          )}
-          {cue.action === 'trigger' && (
-            <p className="rv-ctrl-info">
-              Trigger: fires once when playhead crosses start in forward playback. Rearms when playhead rewinds before start.
-            </p>
-          )}
-        </div>
-      )}
+          {groups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
+        </select>
+      </label>
+      <label>Priority<input type="number" value={cue.priority} onChange={event => update({ priority: Number(event.target.value) || 0 })} /></label>
+      <label>Duration ms<input type="number" min={0} value={cue.durationMs ?? ''} placeholder="action default" onChange={event => update({ durationMs: event.target.value === '' ? undefined : Math.max(0, Number(event.target.value) || 0) })} /></label>
+      <label>Transition ms<input type="number" min={0} value={cue.transitionMs ?? ''} placeholder="look default" onChange={event => update({ transitionMs: event.target.value === '' ? undefined : Math.max(0, Number(event.target.value) || 0) })} /></label>
+      <label>Retrigger
+        <select value={cue.retriggerPolicy} onChange={event => update({ retriggerPolicy: event.target.value as ProductionCompoundCue['retriggerPolicy'] })}>
+          {['oncePerPass', 'restart', 'ignoreWhileActive', 'allow'].map(value => <option key={value} value={value}>{value}</option>)}
+        </select>
+      </label>
+      <label>On seek / cancel
+        <select value={cue.cancellationBehavior} onChange={event => update({ cancellationBehavior: event.target.value as ProductionCompoundCue['cancellationBehavior'] })}>
+          {['cancelOnSeek', 'restoreOnExit', 'holdUntilChanged', 'complete'].map(value => <option key={value} value={value}>{value}</option>)}
+        </select>
+      </label>
     </div>
   )
 }
 
-// ── Cue list panel ────────────────────────────────────────────────────────────
+function ActionEditor({
+  action,
+  groups,
+  fixtures,
+  looks,
+  targets,
+  update,
+  moveUp,
+  moveDown,
+  duplicate,
+  remove,
+}: {
+  action: ProductionCueAction
+  groups: { id: string; name: string }[]
+  fixtures: { id: string; name: string }[]
+  looks: { id: string; name: string }[]
+  targets: { id: string; name: string }[]
+  update: (next: ProductionCueAction) => void
+  moveUp: () => void
+  moveDown: () => void
+  duplicate: () => void
+  remove: () => void
+}) {
+  const patch = (partial: Partial<ProductionCueAction>) => update({ ...action, ...partial } as ProductionCueAction)
+  return (
+    <div className="rv-show-action">
+      <div className="rv-show-action__header">
+        <select value={action.type} onChange={event => update(makeAction(event.target.value as ProductionCueAction['type'], groups[0]?.id ?? '', fixtures[0]?.id ?? '', looks[0]?.id ?? '', targets[0]?.id ?? ''))}>
+          {ACTION_TYPES.map(type => <option key={type} value={type}>{labelForAction(type)}</option>)}
+        </select>
+        <select value={action.execution} onChange={event => patch({ execution: event.target.value as ProductionCueActionExecution })} title="Execution order">
+          <option value="simultaneous">Simultaneous</option>
+          <option value="sequential">Sequential</option>
+        </select>
+        <input aria-label="Action delay milliseconds" title="Delay ms" type="number" min={0} value={action.delayMs ?? 0} onChange={event => patch({ delayMs: Math.max(0, Number(event.target.value) || 0) })} />
+        <button type="button" className="rv-glyph-upload-btn" onClick={moveUp} aria-label="Move action earlier">↑</button>
+        <button type="button" className="rv-glyph-upload-btn" onClick={moveDown} aria-label="Move action later">↓</button>
+        <button type="button" className="rv-glyph-upload-btn" onClick={duplicate} aria-label="Duplicate action">⧉</button>
+        <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" onClick={remove} aria-label="Remove action">×</button>
+      </div>
+      <div className="rv-show-action__body">
+        {'groupId' in action && <label>Group
+          <select value={action.groupId ?? ''} onChange={event => patch({ groupId: event.target.value } as Partial<ProductionCueAction>)}>
+            <option value="">Select group</option>{groups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
+          </select>
+        </label>}
+        {'fixtureId' in action && !('groupId' in action && action.groupId) && <label>Fixture
+          <select value={action.fixtureId ?? ''} onChange={event => patch({ fixtureId: event.target.value } as Partial<ProductionCueAction>)}>
+            <option value="">Select fixture</option>{fixtures.map(fixture => <option key={fixture.id} value={fixture.id}>{fixture.name}</option>)}
+          </select>
+        </label>}
+        {(action.type === 'activateLook' || action.type === 'fadeToLook') && <label>Look
+          <select value={action.lookId} onChange={event => patch({ lookId: event.target.value })}>
+            <option value="">Select Look</option>{looks.map(look => <option key={look.id} value={look.id}>{look.name}</option>)}
+          </select>
+        </label>}
+        {action.type === 'moveToTarget' && <label>Target
+          <select value={action.targetId} onChange={event => patch({ targetId: event.target.value })}>
+            <option value="">Select target</option>{targets.map(target => <option key={target.id} value={target.id}>{target.name}</option>)}
+          </select>
+        </label>}
+        {(action.type === 'pulse' || action.type === 'blinderHit' || action.type === 'fogBurst' || action.type === 'cryoBurst' || action.type === 'strobeBurst') &&
+          <label>Intensity<input type="number" min={0} max={1} step={0.05} value={action.intensity ?? 1} onChange={event => patch({ intensity: Math.max(0, Math.min(1, Number(event.target.value) || 0)) })} /></label>}
+        {action.type === 'strobeBurst' && <>
+          <label>Pattern<select value={action.pattern} onChange={event => patch({ pattern: event.target.value as typeof action.pattern })}>
+            {['singleHit', 'doubleHit', 'tripleHit', 'sustainedStrobe', 'quarterBeatBurst', 'eighthNoteBurst', 'rampUpBuildStrobe', 'alternatingLeftRight', 'centerOutFlash', 'randomizedFlicker', 'fullStageWhiteout', 'flashThenBlackout'].map(value => <option key={value} value={value}>{value}</option>)}
+          </select></label>
+          <label>Rate Hz<input type="number" min={0.1} max={30} step={0.1} value={action.rateHz ?? 12} onChange={event => patch({ rateHz: Number(event.target.value) || 12 })} /></label>
+        </>}
+        {action.type === 'gateFixtureGroup' && <label>Gate<select value={action.open ? 'open' : 'closed'} onChange={event => patch({ open: event.target.value === 'open' })}><option value="open">Open</option><option value="closed">Closed</option></select></label>}
+        {action.type === 'setFixtureProperty' && <>
+          <label>Dimmer<input type="number" min={0} max={1} step={0.05} value={action.properties.dimmer ?? ''} onChange={event => patch({ properties: { ...action.properties, dimmer: event.target.value === '' ? undefined : Number(event.target.value) } })} /></label>
+          <label>Shutter<select value={action.properties.shutterOpen == null ? '' : action.properties.shutterOpen ? 'open' : 'closed'} onChange={event => patch({ properties: { ...action.properties, shutterOpen: event.target.value === '' ? undefined : event.target.value === 'open' } })}><option value="">Unchanged</option><option value="open">Open</option><option value="closed">Closed</option></select></label>
+        </>}
+        <label>Duration ms<input type="number" min={0} value={action.durationMs ?? ''} placeholder="cue/default" onChange={event => patch({ durationMs: event.target.value === '' ? undefined : Math.max(0, Number(event.target.value) || 0) })} /></label>
+        <span className="rv-show-action__target">{actionTargetSummary(action)}</span>
+      </div>
+    </div>
+  )
+}
 
 export function LaserDmxCueListPanel() {
+  const engine = useSharedAudio()
+  const [expandedId, setExpandedId] = useState<string | null>(null)
   const {
-    beams,
-    groups,
-    cues,
-    addLaserDmxBeamMatrixCue,
-  } = useReactStore(useShallow(s => ({
-    beams:                   s.laserDmxBeamMatrix.beams,
-    groups:                  s.laserDmxBeamMatrix.groups,
-    cues:                    s.laserDmxBeamMatrix.cues ?? [],
-    addLaserDmxBeamMatrixCue: s.addLaserDmxBeamMatrixCue,
+    settings,
+    beamMatrix,
+    selectedCueId,
+    addCue,
+    duplicateCue,
+    updateCue,
+    reorderCue,
+    deleteCue,
+    selectCue,
+    fireCue,
+    manualTrackSectionsByTrackId,
+    suppressedAutoSectionsByTrackId,
+  } = useReactStore(useShallow(state => ({
+    settings: state.laserDmxSettings,
+    beamMatrix: state.laserDmxBeamMatrix,
+    selectedCueId: state.selectedLaserDmxProductionCueId,
+    addCue: state.addLaserDmxProductionCue,
+    duplicateCue: state.duplicateLaserDmxProductionCue,
+    updateCue: state.updateLaserDmxProductionCue,
+    reorderCue: state.reorderLaserDmxProductionCue,
+    deleteCue: state.deleteLaserDmxProductionCue,
+    selectCue: state.selectLaserDmxProductionCue,
+    fireCue: state.fireLaserDmxProductionCue,
+    manualTrackSectionsByTrackId: state.manualTrackSectionsByTrackId,
+    suppressedAutoSectionsByTrackId: state.suppressedAutoSectionsByTrackId,
   })))
-
-  const gateCount    = cues.filter(c => c.enabled && c.action === 'gate').length
-  const triggerCount = cues.filter(c => c.enabled && c.action === 'trigger').length
+  const cues = settings.productionCues ?? []
+  const effectiveAnalysis = useMemo(() => {
+    const analysis = engine.currentAnalysis
+    const grid = engine.currentEffectiveBeatGrid
+    const bpm = engine.currentEffectiveBpm
+    if (!analysis || !grid || bpm == null || bpm <= 0) return analysis
+    return {
+      ...analysis,
+      bpmUsedForGrid: bpm,
+      beatGridOffsetSec: grid[0]?.timeSec ?? analysis.beatGridOffsetSec,
+      beatGrid: grid,
+      downbeats: grid.filter(marker => marker.isDownbeat),
+    }
+  }, [engine.currentAnalysis, engine.currentEffectiveBeatGrid, engine.currentEffectiveBpm])
+  const resolvedSections = useMemo(() => {
+    const trackId = engine.currentTrackId
+    const analyzedSections = effectiveAnalysis ? adaptMIAnalysis(effectiveAnalysis) : []
+    const manualSections = trackId ? (manualTrackSectionsByTrackId[trackId] ?? []) : []
+    const suppressedIds = trackId ? (suppressedAutoSectionsByTrackId[trackId] ?? []) : []
+    return resolveTrackSections({ analyzedSections, manualSections, suppressedIds, durationSec: Math.max(1, engine.duration || 1) })
+  }, [effectiveAnalysis, engine.currentTrackId, engine.duration, manualTrackSectionsByTrackId, suppressedAutoSectionsByTrackId])
+  const bpm = engine.currentEffectiveBpm ?? 0
+  const diagnostics = useMemo(
+    () => diagnoseProductionCues(settings, beamMatrix, bpm, effectiveAnalysis, resolvedSections),
+    [settings, beamMatrix, bpm, effectiveAnalysis, resolvedSections],
+  )
+  const diagnosticsByCue = useMemo(() => {
+    const map = new Map<string, typeof diagnostics>()
+    diagnostics.forEach(diagnostic => map.set(diagnostic.cueId, [...(map.get(diagnostic.cueId) ?? []), diagnostic]))
+    return map
+  }, [diagnostics])
+  const groups = (settings.productionGroups ?? []).map(group => ({ id: group.id, name: group.name }))
+  const fixtures = settings.fixtures.map(fixture => ({ id: fixture.id, name: fixture.name }))
+  const looks = (settings.productionLooks ?? []).map(look => ({ id: look.id, name: look.name }))
+  const targets = (settings.productionTargets ?? []).map(target => ({ id: target.id, name: target.name }))
 
   return (
-    <div className="rv-cue-list">
+    <div className="rv-cue-list rv-show-director">
       <div className="rv-cue-list-header">
-        <button
-          type="button"
-          className="rv-glyph-upload-btn"
-          onClick={addLaserDmxBeamMatrixCue}
-          disabled={beams.length === 0 && groups.length === 0}
-          title={beams.length === 0 && groups.length === 0 ? 'Add beams or groups before creating cues' : 'Add a new cue'}
-        >
-          + Add Cue
-        </button>
-        {cues.length > 0 && (
-          <span className="rv-cue-stats">
-            {cues.length} cue{cues.length !== 1 ? 's' : ''}
-            {gateCount > 0 && ` · ${gateCount} gate`}
-            {triggerCount > 0 && ` · ${triggerCount} trigger`}
-          </span>
-        )}
+        <div>
+          <strong>Show Director</strong>
+          <div className="rv-ctrl-info">Compound production events use the audio playhead plus the analyzed grid. Fire rehearses a cue without moving it.</div>
+        </div>
+        <div className="rv-show-director__buttons">
+          <button type="button" className="rv-glyph-upload-btn" onClick={() => addCue()}>+ Cue</button>
+          <button type="button" className="rv-glyph-upload-btn rv-show-director__fire" disabled={!selectedCueId} onClick={() => fireCue()}>GO / FIRE</button>
+        </div>
       </div>
-
-      {cues.length === 0 && (
-        <p className="rv-ctrl-info" style={{ margin: '6px 0' }}>
-          No cues. Add cues to schedule beam or group activation at exact musical or absolute positions.
-        </p>
-      )}
-
-      {gateCount > 0 && (
-        <p className="rv-ctrl-info" style={{ margin: '2px 0 6px' }}>
-          Beams with gate cues are silenced outside active ranges.
-        </p>
-      )}
-
-      {cues.map(cue => (
-        <CueRow
-          key={cue.id}
-          cue={cue}
-          beams={beams}
-          groups={groups}
-        />
-      ))}
+      {diagnostics.length > 0 && <div className="rv-show-director__diagnostics" role="status">{diagnostics.length} cue diagnostic{diagnostics.length === 1 ? '' : 's'} detected</div>}
+      {cues.length === 0 && <div className="rv-cue-empty">No show cues yet. Add one to coordinate Looks, fixtures, movement, atmosphere, and legacy beam actions.</div>}
+      {cues.map((cue, index) => {
+        const expanded = expandedId === cue.id
+        const selected = selectedCueId === cue.id
+        const cueDiagnostics = diagnosticsByCue.get(cue.id) ?? []
+        const update = (patch: Partial<ProductionCompoundCue>) => updateCue(cue.id, patch)
+        return (
+          <div key={cue.id} className={`rv-cue-row rv-show-cue${selected ? ' rv-show-cue--selected' : ''}${cue.enabled ? '' : ' rv-cue-row--disabled'}${cueDiagnostics.some(item => item.severity === 'error') ? ' rv-cue-row--invalid' : ''}`}>
+            <div className="rv-cue-row-header" onClick={() => selectCue(cue.id)}>
+              <button type="button" className={`rv-ctrl-toggle${cue.enabled ? ' rv-ctrl-toggle--on' : ''}`} onClick={event => { event.stopPropagation(); update({ enabled: !cue.enabled }) }}>{cue.enabled ? 'On' : 'Off'}</button>
+              <div className="rv-show-cue__identity">
+                <input className="rv-cue-name-input" value={cue.label} onClick={event => event.stopPropagation()} onChange={event => update({ label: event.target.value })} aria-label="Cue label" />
+                <div className="rv-show-cue__summary"><span>{timingSummary(cue.timing)}</span><span>{actionSummary(cue)}</span></div>
+              </div>
+              <span className="rv-cue-badge rv-cue-badge--action">P{cue.priority}</span>
+              {cue.source === 'legacyBeamMigration' && <span className="rv-cue-badge rv-cue-badge--timing">Legacy</span>}
+              {cueDiagnostics.length > 0 && <span className="rv-cue-error-icon" title={cueDiagnostics.map(item => item.message).join('\n')}>⚠ {cueDiagnostics.length}</span>}
+              <button type="button" className="rv-glyph-upload-btn" onClick={event => { event.stopPropagation(); fireCue(cue.id) }}>Fire</button>
+              <button type="button" className="rv-glyph-upload-btn" disabled={index === 0} onClick={event => { event.stopPropagation(); reorderCue(cue.id, -1) }}>↑</button>
+              <button type="button" className="rv-glyph-upload-btn" disabled={index === cues.length - 1} onClick={event => { event.stopPropagation(); reorderCue(cue.id, 1) }}>↓</button>
+              <button type="button" className="rv-glyph-upload-btn" onClick={event => { event.stopPropagation(); duplicateCue(cue.id) }}>⧉</button>
+              <button type="button" className="rv-glyph-upload-btn" onClick={event => { event.stopPropagation(); setExpandedId(expanded ? null : cue.id) }}>{expanded ? '▲' : '▼'}</button>
+              <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" onClick={event => { event.stopPropagation(); deleteCue(cue.id) }}>×</button>
+            </div>
+            {expanded && <div className="rv-cue-body">
+              <label className="rv-show-director__description">Description<textarea value={cue.description ?? ''} onChange={event => update({ description: event.target.value })} /></label>
+              <CueTimingEditor cue={cue} groups={groups} update={update} />
+              {cueDiagnostics.length > 0 && <div className="rv-show-cue__issues">{cueDiagnostics.map(item => <div key={`${item.code}:${item.actionId ?? ''}:${item.message}`} className={`rv-show-cue__issue rv-show-cue__issue--${item.severity}`}>{item.message}</div>)}</div>}
+              <div className="rv-show-director__action-heading"><strong>Ordered actions</strong><button type="button" className="rv-glyph-upload-btn" onClick={() => update({ actions: [...cue.actions, makeAction('activateLook', groups[0]?.id ?? '', fixtures[0]?.id ?? '', looks[0]?.id ?? '', targets[0]?.id ?? '')] })}>+ Action</button></div>
+              {cue.actions.map((action, actionIndex) => <ActionEditor
+                key={action.id}
+                action={action}
+                groups={groups}
+                fixtures={fixtures}
+                looks={looks}
+                targets={targets}
+                update={next => update({ actions: cue.actions.map((candidate, index) => index === actionIndex ? next : candidate) })}
+                moveUp={() => {
+                  if (actionIndex === 0) return
+                  const actions = [...cue.actions]
+                  ;[actions[actionIndex - 1], actions[actionIndex]] = [actions[actionIndex], actions[actionIndex - 1]]
+                  update({ actions })
+                }}
+                moveDown={() => {
+                  if (actionIndex === cue.actions.length - 1) return
+                  const actions = [...cue.actions]
+                  ;[actions[actionIndex], actions[actionIndex + 1]] = [actions[actionIndex + 1], actions[actionIndex]]
+                  update({ actions })
+                }}
+                duplicate={() => {
+                  const duplicate = { ...JSON.parse(JSON.stringify(action)) as ProductionCueAction, id: crypto.randomUUID() }
+                  update({ actions: [...cue.actions.slice(0, actionIndex + 1), duplicate, ...cue.actions.slice(actionIndex + 1)] })
+                }}
+                remove={() => update({ actions: cue.actions.filter((_, index) => index !== actionIndex) })}
+              />)}
+            </div>}
+          </div>
+        )
+      })}
     </div>
   )
 }

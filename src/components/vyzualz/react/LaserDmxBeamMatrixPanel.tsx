@@ -5,7 +5,6 @@ import { CtrlSection, Collapsible } from './ReactControlRows'
 import { LaserDmxBeamInspector } from './LaserDmxBeamInspector'
 import { LaserDmxReactionGroupInspector } from './LaserDmxReactionGroupInspector'
 import { LaserDmxBeamMatrixPresetBrowser } from './LaserDmxBeamMatrixPresetBrowser'
-import { LaserDmxCueListPanel } from './LaserDmxCueListPanel'
 import { LASER_DMX_MATRIX_MAX_BEAMS } from './ReactTypes'
 
 export function LaserDmxBeamMatrixPanel() {
@@ -162,7 +161,6 @@ export function LaserDmxBeamMatrixPanel() {
 
       {/* ── Cue list ────────────────────────────────────────────────────── */}
       <CtrlSection label="Cue List" />
-      <LaserDmxCueListPanel />
     </>
   )
 }

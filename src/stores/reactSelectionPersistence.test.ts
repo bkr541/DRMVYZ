@@ -8,7 +8,13 @@ import {
   repairReactEnginePresetSelection,
   useReactStore,
 } from './reactStore'
-import { DEFAULT_PERFORMANCE_PADS, DEFAULT_REACT_PRESETS } from '../components/vyzualz/react/ReactTypes'
+import {
+  DEFAULT_PERFORMANCE_PADS,
+  DEFAULT_REACT_PRESETS,
+  createDefaultLaserDmxBeamMatrixSettings,
+  createDefaultLaserDmxSettings,
+  type LaserDmxSettings,
+} from '../components/vyzualz/react/ReactTypes'
 import { LASER_DMX_BEAM_MATRIX_PRESETS } from '../components/vyzualz/react/laserDmxBeamMatrixPresets'
 import { splitStorageValue } from '../lib/splitPersistStorage'
 
@@ -179,5 +185,63 @@ describe('React authored-state persistence', () => {
     expect(merged.performancePads[0].label).toBe('Persisted')
     expect(merged.performancePads.length).toBe(current.performancePads.length)
     expect(merged.laserDmxBeamMatrixPresetDirty).toBe(true)
+  })
+})
+
+
+describe('LaserDMX Show Director persistence and migration', () => {
+  beforeEach(() => {
+    useReactStore.getState().resetReactView()
+  })
+
+  it('migrates v33 Beam Matrix gate and trigger cues without deleting the legacy list', () => {
+    const matrix = createDefaultLaserDmxBeamMatrixSettings()
+    matrix.cues = [{
+      id: 'legacy-gate',
+      name: 'Legacy Gate',
+      enabled: true,
+      targetType: 'group',
+      targetId: 'grp-bass',
+      timingMode: 'absolute',
+      action: 'gate',
+      startMs: 1000,
+      endMs: 2000,
+    }]
+    const migrated = migrateReactStore({
+      laserDmxSettings: createDefaultLaserDmxSettings(),
+      laserDmxBeamMatrix: matrix,
+    }, 33)
+    const spatial = migrated.laserDmxSettings as LaserDmxSettings
+    expect(spatial.productionCues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'production-cue:legacy:legacy-gate', source: 'legacyBeamMigration' }),
+    ]))
+    expect((migrated.laserDmxBeamMatrix as typeof matrix).cues).toEqual(matrix.cues)
+  })
+
+  it('does not persist cue selection or transient manual Fire requests', () => {
+    const cueId = useReactStore.getState().addLaserDmxProductionCue()
+    useReactStore.getState().fireLaserDmxProductionCue(cueId)
+    const persisted = reactStorePartialize(useReactStore.getState()) as Record<string, unknown>
+    const laserDmxSettings = persisted.laserDmxSettings as LaserDmxSettings
+    expect(persisted.selectedLaserDmxProductionCueId).toBeUndefined()
+    expect(laserDmxSettings.runtime).toBeUndefined()
+    expect(laserDmxSettings.productionCues?.some(cue => cue.id === cueId)).toBe(true)
+  })
+
+  it('migrates newly loaded legacy cue lists exactly once', () => {
+    const cue = {
+      id: 'runtime-legacy-trigger',
+      name: 'Runtime Trigger',
+      enabled: true,
+      targetType: 'group' as const,
+      targetId: 'grp-bass',
+      timingMode: 'absolute' as const,
+      action: 'trigger' as const,
+      startMs: 750,
+    }
+    useReactStore.getState().setLaserDmxBeamMatrixSettings({ cues: [cue] })
+    useReactStore.getState().setLaserDmxBeamMatrixSettings({ cues: [cue] })
+    const migrated = useReactStore.getState().laserDmxSettings.productionCues?.filter(item => item.id === 'production-cue:legacy:runtime-legacy-trigger') ?? []
+    expect(migrated).toHaveLength(1)
   })
 })

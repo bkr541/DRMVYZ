@@ -4,6 +4,7 @@ import { LyricPlaybackBus } from '../../../features/lyrics/runtime/LyricPlayback
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
 import type { ReactPreset, ReactTrackSection, OscillatorSettings, OscillatorFontAsset, OscillatorGlyphAsset, OscillatorGlyphPoint, SoundDrawingLayer, SoundDrawingClip, NeonLatticeSettings, NeonLatticeTriggerEvent, ReactPerformancePadTransition } from './ReactTypes'
 import type { ReactPerformanceActionEvent } from './ReactPerformanceActions'
+import type { TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
 import { DEFAULT_OSCILLATOR_SETTINGS, DEFAULT_NEON_LATTICE_SETTINGS } from './ReactTypes'
 import type { ReactRenderParams } from './renderers/reactRenderUtils'
 import { DEFAULT_REACT_RENDER_PARAMS } from './renderers/ReactEngineRenderer'
@@ -51,6 +52,7 @@ interface Props {
   /** True when playback is paused at a non-terminal playhead position. */
   isPaused?:                    boolean
   trackSections?:               ReactTrackSection[]
+  trackAnalysis?:               TrackIntelligenceAnalysis | null
   getAudioTime?:                () => number
   /**
    * Canonical effective BPM from the audio engine.  When provided and > 0 this
@@ -94,6 +96,7 @@ export function ReactPlaceholderCanvas({
   isPlaying,
   isPaused                    = false,
   trackSections              = [],
+  trackAnalysis              = null,
   getAudioTime,
   effectiveBpm               = null,
   onCanvasReady,
@@ -139,6 +142,7 @@ export function ReactPlaceholderCanvas({
   const isPausedRef            = useRef(isPaused)
   const presetRef             = useRef<ReactPreset | null>(activePreset)
   const trackSectionsRef      = useRef<ReactTrackSection[]>(trackSections)
+  const trackAnalysisRef      = useRef<TrackIntelligenceAnalysis | null>(trackAnalysis)
   const audioTimeRef          = useRef(0)
   const getAudioTimeRef        = useRef(getAudioTime)
   const effectiveBpmRef        = useRef<number | null>(effectiveBpm)
@@ -173,6 +177,7 @@ export function ReactPlaceholderCanvas({
   isPausedRef.current            = isPaused
   presetRef.current             = activePreset
   trackSectionsRef.current      = trackSections
+  trackAnalysisRef.current      = trackAnalysis
   getAudioTimeRef.current        = getAudioTime
   effectiveBpmRef.current        = effectiveBpm
   onCanvasReadyRef.current       = onCanvasReady
@@ -249,6 +254,7 @@ export function ReactPlaceholderCanvas({
     let fpsFrameCount = 0
     let fpsLastMs = performance.now()
     let previousFrameMs: number | null = null
+    let previousAudioTimeSec: number | null = null
     let elapsedTimeSec = 0
     let lastPausedRenderKey = ''
 
@@ -403,6 +409,13 @@ export function ReactPlaceholderCanvas({
         musicIntelligenceEngine.resolveLyricsAt(audioTimeRef.current)
       }
 
+      const canonicalAudioTime = Number.isFinite(audioTimeRef.current) ? Math.max(0, audioTimeRef.current) : 0
+      const audioDeltaSec = previousAudioTimeSec == null ? 0 : canonicalAudioTime - previousAudioTimeSec
+      const timingDiscontinuity = previousAudioTimeSec != null && (
+        audioDeltaSec < -0.001 || audioDeltaSec > Math.max(0.2, deltaTimeSec * 4 + 0.05)
+      )
+      previousAudioTimeSec = canonicalAudioTime
+
       const t = tRef.current
       const dpr = canvasResolution?.effectiveDpr ?? 1
       // Seconds-based time for strobe, envelopes, and time-accurate effects.
@@ -418,7 +431,9 @@ export function ReactPlaceholderCanvas({
         elapsedTimeSec: frameElapsedTimeSec,
         deltaTimeSec,
         timeSec,
-        audioTime: audioTimeRef.current,
+        audioTime: canonicalAudioTime,
+        trackKey: activeAudioTrackIdRef.current,
+        timingDiscontinuity,
         bpm:       activeBpm,
         beatPhase: activeBeatPhase,
         beatHit,
@@ -428,6 +443,8 @@ export function ReactPlaceholderCanvas({
         freqData:       buf ?? null,
         timeDomainData: tBuf ?? null,
         musicIntelligence: hasMI ? miFrame : null,
+        trackAnalysis: trackAnalysisRef.current,
+        trackSections: trackSectionsRef.current,
       }
 
       const transitionedControls = resolvePerformancePadTransition({

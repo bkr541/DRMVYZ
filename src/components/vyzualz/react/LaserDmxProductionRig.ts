@@ -15,10 +15,10 @@ import type {
   LaserDmxSettings,
 } from './ReactTypes'
 
-export const LASER_DMX_SETTINGS_SCHEMA_VERSION = 5
+export const LASER_DMX_SETTINGS_SCHEMA_VERSION = 6
 export const LASER_DMX_FIXTURE_SCHEMA_VERSION = 4
 export const LASER_DMX_BEAM_MATRIX_SCHEMA_VERSION = 1
-export const LASER_DMX_PRODUCTION_RIG_SCHEMA_VERSION = 6
+export const LASER_DMX_PRODUCTION_RIG_SCHEMA_VERSION = 7
 export const LASER_DMX_STAGE_SCHEMA_VERSION = 1
 
 export type ProductionFixtureKind =
@@ -990,29 +990,112 @@ export const DEFAULT_PRODUCTION_LOOK_SCOPE: ProductionLookScope = {
   includeStage: false,
 }
 
-export type ProductionCueAction =
-  | { type: 'activateLook'; lookId: string; transitionMs?: number }
-  | { type: 'setFixtureProperties'; fixtureId: string; properties: ProductionFixturePropertyState; transitionMs?: number }
-  | { type: 'setGroupProperties'; groupId: string; properties: ProductionFixturePropertyState; transitionMs?: number }
-  | { type: 'triggerFixture'; fixtureId: string; intensity?: number }
-  | { type: 'triggerAtmosphere'; fixtureId?: string; groupId?: string; intensity?: number }
+export type ProductionCueQuantize = 'none' | 'beat' | 'eighth' | 'sixteenth' | 'bar' | 'phrase' | 'section'
+export type ProductionCueRetriggerPolicy = 'oncePerPass' | 'restart' | 'ignoreWhileActive' | 'allow'
+export type ProductionCueCancellationBehavior = 'cancelOnSeek' | 'restoreOnExit' | 'holdUntilChanged' | 'complete'
+export type ProductionCueActionExecution = 'simultaneous' | 'sequential'
+export type ProductionCueSubdivision = 1 | 2 | 4 | 8 | 16
+export type ProductionCueSectionType =
+  | 'intro' | 'verse' | 'build' | 'preDrop' | 'drop' | 'breakdown' | 'bridge' | 'outro' | 'unknown'
+
+export type ProductionCueTiming =
+  | { mode: 'absolute'; timeSec: number }
   | {
-      type: 'triggerFlashPattern'
+      mode: 'musical'
+      bar: number
+      beat: number
+      subdivision: ProductionCueSubdivision
+      subdivisionIndex: number
+    }
+  | {
+      mode: 'sectionRelative'
+      sectionId?: string
+      sectionType?: ProductionCueSectionType
+      occurrence: number
+      offsetBars: number
+      offsetBeats: number
+      subdivision: ProductionCueSubdivision
+      subdivisionIndex: number
+      offsetSec: number
+    }
+  | { mode: 'manual' }
+
+export interface ProductionCueActionBase {
+  /** Stable within the parent cue so diagnostics and runtime state survive reorder. */
+  id: string
+  /** Array order is authoritative. Sequential actions start after the preceding action. */
+  execution: ProductionCueActionExecution
+  delayMs?: number
+  durationMs?: number
+  transitionMs?: number
+}
+
+export type ProductionCueAction =
+  | (ProductionCueActionBase & { type: 'activateLook'; lookId: string })
+  | (ProductionCueActionBase & { type: 'fadeToLook'; lookId: string })
+  | (ProductionCueActionBase & { type: 'blackout' })
+  | (ProductionCueActionBase & { type: 'reveal' })
+  | (ProductionCueActionBase & {
+      type: 'setFixtureProperty'
+      fixtureId?: string
+      groupId?: string
+      properties: ProductionFixturePropertyState
+    })
+  | (ProductionCueActionBase & { type: 'moveToTarget'; fixtureId?: string; groupId?: string; targetId: string; snap?: boolean })
+  | (ProductionCueActionBase & { type: 'runMovementEffect'; groupId: string; movement: ProductionGroupMovementConfig })
+  | (ProductionCueActionBase & { type: 'stopMovementEffect'; groupId: string })
+  | (ProductionCueActionBase & { type: 'startChase'; groupId: string; chase: ProductionChaseSettings })
+  | (ProductionCueActionBase & { type: 'stopChase'; groupId: string })
+  | (ProductionCueActionBase & { type: 'pulse'; fixtureId?: string; groupId?: string; intensity: number })
+  | (ProductionCueActionBase & {
+      type: 'strobeBurst'
       fixtureId?: string
       groupId?: string
       pattern: ProductionFlashPatternId
-      overrides?: Partial<ProductionFlashPatternSettings>
-    }
-  | { type: 'setGroupChase'; groupId: string; chase: ProductionChaseSettings }
-  | { type: 'blackout'; enabled: boolean }
-  | { type: 'wait'; durationMs: number }
+      rateHz?: number
+      intensity?: number
+    })
+  | (ProductionCueActionBase & { type: 'blinderHit'; fixtureId?: string; groupId?: string; intensity: number })
+  | (ProductionCueActionBase & { type: 'fogBurst'; fixtureId?: string; groupId?: string; intensity: number })
+  | (ProductionCueActionBase & { type: 'cryoBurst'; fixtureId?: string; groupId?: string; intensity: number })
+  | (ProductionCueActionBase & {
+      type: 'paletteChange'
+      fixtureId?: string
+      groupId?: string
+      paletteId?: string
+      color?: ProductionColorState
+    })
+  | (ProductionCueActionBase & { type: 'fanOpen'; groupId: string; movement?: Partial<ProductionGroupMovementConfig> })
+  | (ProductionCueActionBase & { type: 'fanClose'; groupId: string; movement?: Partial<ProductionGroupMovementConfig> })
+  | (ProductionCueActionBase & { type: 'gateFixtureGroup'; groupId: string; open: boolean })
+  | (ProductionCueActionBase & {
+      type: 'triggerLegacyBeamAction'
+      legacyCueId?: string
+      targetType: 'beam' | 'group'
+      targetId: string
+      action: 'gate' | 'trigger'
+      /** Preserves musical legacy gate length without baking in a fallback BPM. */
+      legacyDurationBeats?: number
+    })
 
 export interface ProductionCompoundCue {
+  schemaVersion?: number
   id: string
-  name: string
+  label: string
+  description?: string
   enabled: boolean
+  timing: ProductionCueTiming
+  quantize: ProductionCueQuantize
+  durationMs?: number
+  transitionMs?: number
+  priority: number
+  retriggerPolicy: ProductionCueRetriggerPolicy
+  cancellationBehavior: ProductionCueCancellationBehavior
+  /** Optional default target used by newly inserted actions and UI summaries. */
+  fixtureGroupIds: string[]
+  manualOnly: boolean
   actions: ProductionCueAction[]
-  quantize?: 'none' | 'beat' | 'bar' | 'phrase'
+  source?: 'authored' | 'legacyBeamMigration' | 'preset'
 }
 
 export interface ProductionRendererCapabilities {
@@ -2554,6 +2637,199 @@ export function normalizeProductionLook(value: unknown, index = 0): ProductionLo
   }
 }
 
+
+const PRODUCTION_CUE_QUANTIZE: readonly ProductionCueQuantize[] = ['none', 'beat', 'eighth', 'sixteenth', 'bar', 'phrase', 'section']
+const PRODUCTION_CUE_RETRIGGER: readonly ProductionCueRetriggerPolicy[] = ['oncePerPass', 'restart', 'ignoreWhileActive', 'allow']
+const PRODUCTION_CUE_CANCELLATION: readonly ProductionCueCancellationBehavior[] = ['cancelOnSeek', 'restoreOnExit', 'holdUntilChanged', 'complete']
+const PRODUCTION_CUE_SECTION_TYPES: readonly ProductionCueSectionType[] = ['intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'bridge', 'outro', 'unknown']
+const PRODUCTION_CUE_SUBDIVISIONS: readonly ProductionCueSubdivision[] = [1, 2, 4, 8, 16]
+
+function normalizeProductionCueTiming(value: unknown): ProductionCueTiming {
+  const raw = isRecord(value) ? value : {}
+  if (raw.mode === 'manual') return { mode: 'manual' }
+  if (raw.mode === 'absolute') {
+    return { mode: 'absolute', timeSec: Math.max(0, finiteOr(raw.timeSec, finiteOr(raw.startSec, 0))) }
+  }
+  if (raw.mode === 'sectionRelative') {
+    const subdivision = PRODUCTION_CUE_SUBDIVISIONS.includes(raw.subdivision as ProductionCueSubdivision)
+      ? raw.subdivision as ProductionCueSubdivision
+      : 1
+    const sectionType = typeof raw.sectionType === 'string' && PRODUCTION_CUE_SECTION_TYPES.includes(raw.sectionType as ProductionCueSectionType)
+      ? raw.sectionType as ProductionCueSectionType
+      : undefined
+    return {
+      mode: 'sectionRelative',
+      ...(typeof raw.sectionId === 'string' && raw.sectionId ? { sectionId: raw.sectionId } : {}),
+      ...(sectionType ? { sectionType } : {}),
+      occurrence: Math.max(1, Math.round(finiteOr(raw.occurrence, 1))),
+      offsetBars: Math.max(-10000, Math.min(10000, Math.round(finiteOr(raw.offsetBars, 0)))),
+      offsetBeats: Math.max(-64, Math.min(64, finiteOr(raw.offsetBeats, 0))),
+      subdivision,
+      subdivisionIndex: Math.max(0, Math.min(subdivision - 1, Math.round(finiteOr(raw.subdivisionIndex, 0)))),
+      offsetSec: finiteOr(raw.offsetSec, 0),
+    }
+  }
+  const subdivision = PRODUCTION_CUE_SUBDIVISIONS.includes(raw.subdivision as ProductionCueSubdivision)
+    ? raw.subdivision as ProductionCueSubdivision
+    : 1
+  return {
+    mode: 'musical',
+    bar: Math.max(1, Math.round(finiteOr(raw.bar, finiteOr(raw.startBar, 1)))),
+    beat: Math.max(1, Math.round(finiteOr(raw.beat, finiteOr(raw.startBeat, 1)))),
+    subdivision,
+    subdivisionIndex: Math.max(0, Math.min(subdivision - 1, Math.round(finiteOr(raw.subdivisionIndex, 0)))),
+  }
+}
+
+function cueActionBase(raw: Record<string, unknown>, fallbackId: string): ProductionCueActionBase {
+  return {
+    id: stringOr(raw.id, fallbackId),
+    execution: raw.execution === 'sequential' ? 'sequential' : 'simultaneous',
+    ...(isFiniteNumber(raw.delayMs) ? { delayMs: Math.max(0, Math.min(600000, raw.delayMs)) } : {}),
+    ...(isFiniteNumber(raw.durationMs) ? { durationMs: Math.max(0, Math.min(600000, raw.durationMs)) } : {}),
+    ...(isFiniteNumber(raw.transitionMs) ? { transitionMs: Math.max(0, Math.min(600000, raw.transitionMs)) } : {}),
+  }
+}
+
+export function normalizeProductionCueAction(value: unknown, cueId: string, index = 0): ProductionCueAction | null {
+  if (!isRecord(value) || typeof value.type !== 'string') return null
+  const raw = value
+  const base = cueActionBase(raw, `${cueId}:action:${index + 1}`)
+  const fixtureId = typeof raw.fixtureId === 'string' && raw.fixtureId ? raw.fixtureId : undefined
+  const groupId = typeof raw.groupId === 'string' && raw.groupId ? raw.groupId : undefined
+  const intensity = Math.max(0, Math.min(1, finiteOr(raw.intensity, 1)))
+  switch (raw.type) {
+    case 'activateLook':
+    case 'fadeToLook':
+      return { ...base, type: raw.type, lookId: stringOr(raw.lookId, '') }
+    case 'blackout':
+      return raw.enabled === false ? { ...base, type: 'reveal' } : { ...base, type: 'blackout' }
+    case 'reveal':
+      return { ...base, type: 'reveal' }
+    case 'setFixtureProperty':
+    case 'setFixtureProperties':
+      return { ...base, type: 'setFixtureProperty', ...(fixtureId ? { fixtureId } : {}), ...(groupId ? { groupId } : {}), properties: normalizeProductionFixturePropertyState(raw.properties) }
+    case 'setGroupProperties':
+      return { ...base, type: 'setFixtureProperty', groupId: stringOr(raw.groupId, ''), properties: normalizeProductionFixturePropertyState(raw.properties) }
+    case 'moveToTarget':
+      return { ...base, type: 'moveToTarget', ...(fixtureId ? { fixtureId } : {}), ...(groupId ? { groupId } : {}), targetId: stringOr(raw.targetId, ''), ...(typeof raw.snap === 'boolean' ? { snap: raw.snap } : {}) }
+    case 'runMovementEffect':
+      return { ...base, type: 'runMovementEffect', groupId: stringOr(raw.groupId, ''), movement: normalizeProductionGroupMovement(raw.movement) }
+    case 'stopMovementEffect':
+      return { ...base, type: 'stopMovementEffect', groupId: stringOr(raw.groupId, '') }
+    case 'startChase':
+    case 'setGroupChase':
+      return { ...base, type: 'startChase', groupId: stringOr(raw.groupId, ''), chase: normalizeProductionChase(raw.chase) }
+    case 'stopChase':
+      return { ...base, type: 'stopChase', groupId: stringOr(raw.groupId, '') }
+    case 'pulse':
+    case 'triggerFixture':
+      return { ...base, type: 'pulse', ...(fixtureId ? { fixtureId } : {}), ...(groupId ? { groupId } : {}), intensity }
+    case 'strobeBurst':
+    case 'triggerFlashPattern': {
+      const pattern = typeof raw.pattern === 'string' && FLASH_PATTERNS.includes(raw.pattern as ProductionFlashPatternId)
+        ? raw.pattern as ProductionFlashPatternId
+        : 'singleHit'
+      const overrides = isRecord(raw.overrides) ? raw.overrides : {}
+      return {
+        ...base,
+        type: 'strobeBurst',
+        ...(fixtureId ? { fixtureId } : {}),
+        ...(groupId ? { groupId } : {}),
+        pattern,
+        ...(isFiniteNumber(raw.rateHz) || isFiniteNumber(overrides.rateHz) ? { rateHz: Math.max(0.1, Math.min(60, finiteOr(raw.rateHz, finiteOr(overrides.rateHz, 12)))) } : {}),
+        ...(isFiniteNumber(raw.intensity) || isFiniteNumber(overrides.intensity) ? { intensity } : {}),
+      }
+    }
+    case 'blinderHit':
+      return { ...base, type: 'blinderHit', ...(fixtureId ? { fixtureId } : {}), ...(groupId ? { groupId } : {}), intensity }
+    case 'fogBurst':
+    case 'triggerAtmosphere':
+      return { ...base, type: 'fogBurst', ...(fixtureId ? { fixtureId } : {}), ...(groupId ? { groupId } : {}), intensity }
+    case 'cryoBurst':
+      return { ...base, type: 'cryoBurst', ...(fixtureId ? { fixtureId } : {}), ...(groupId ? { groupId } : {}), intensity }
+    case 'paletteChange':
+      return {
+        ...base,
+        type: 'paletteChange',
+        ...(fixtureId ? { fixtureId } : {}),
+        ...(groupId ? { groupId } : {}),
+        ...(typeof raw.paletteId === 'string' ? { paletteId: raw.paletteId } : {}),
+        ...(normalizeProductionColorState(raw.color) ? { color: normalizeProductionColorState(raw.color)! } : {}),
+      }
+    case 'fanOpen':
+    case 'fanClose':
+      return { ...base, type: raw.type, groupId: stringOr(raw.groupId, ''), ...(isRecord(raw.movement) ? { movement: raw.movement as Partial<ProductionGroupMovementConfig> } : {}) }
+    case 'gateFixtureGroup':
+      return { ...base, type: 'gateFixtureGroup', groupId: stringOr(raw.groupId, ''), open: booleanOr(raw.open, true) }
+    case 'triggerLegacyBeamAction':
+      return {
+        ...base,
+        type: 'triggerLegacyBeamAction',
+        ...(typeof raw.legacyCueId === 'string' ? { legacyCueId: raw.legacyCueId } : {}),
+        targetType: raw.targetType === 'beam' ? 'beam' : 'group',
+        targetId: stringOr(raw.targetId, ''),
+        action: raw.action === 'trigger' ? 'trigger' : 'gate',
+        ...(isFiniteNumber(raw.legacyDurationBeats) ? { legacyDurationBeats: Math.max(0, raw.legacyDurationBeats) } : {}),
+      }
+    default:
+      return null
+  }
+}
+
+export function normalizeProductionCompoundCue(value: unknown, index = 0): ProductionCompoundCue {
+  const raw = isRecord(value) ? value : {}
+  const id = stringOr(raw.id, `production-cue:${index + 1}`)
+  const timingSource = isRecord(raw.timing)
+    ? raw.timing
+    : raw.quantize === 'manual' || raw.manualOnly === true
+      ? { mode: 'manual' }
+      : { mode: 'musical', bar: 1, beat: 1, subdivision: 1, subdivisionIndex: 0 }
+  const actions: ProductionCueAction[] = []
+  let pendingLegacyWaitMs = 0
+  normalizeArray<unknown>(raw.actions).forEach((actionValue, actionIndex) => {
+    if (isRecord(actionValue) && actionValue.type === 'wait') {
+      pendingLegacyWaitMs += Math.max(0, Math.min(600000, finiteOr(actionValue.durationMs, 0)))
+      return
+    }
+    const action = normalizeProductionCueAction(actionValue, id, actionIndex)
+    if (!action) return
+    if (pendingLegacyWaitMs > 0) {
+      action.execution = 'sequential'
+      action.delayMs = (action.delayMs ?? 0) + pendingLegacyWaitMs
+      pendingLegacyWaitMs = 0
+    }
+    actions.push(action)
+  })
+  const quantize = typeof raw.quantize === 'string' && PRODUCTION_CUE_QUANTIZE.includes(raw.quantize as ProductionCueQuantize)
+    ? raw.quantize as ProductionCueQuantize
+    : 'none'
+  const retriggerPolicy = typeof raw.retriggerPolicy === 'string' && PRODUCTION_CUE_RETRIGGER.includes(raw.retriggerPolicy as ProductionCueRetriggerPolicy)
+    ? raw.retriggerPolicy as ProductionCueRetriggerPolicy
+    : 'oncePerPass'
+  const cancellationBehavior = typeof raw.cancellationBehavior === 'string' && PRODUCTION_CUE_CANCELLATION.includes(raw.cancellationBehavior as ProductionCueCancellationBehavior)
+    ? raw.cancellationBehavior as ProductionCueCancellationBehavior
+    : 'cancelOnSeek'
+  return {
+    schemaVersion: 2,
+    id,
+    label: stringOr(raw.label, stringOr(raw.name, `Cue ${index + 1}`)),
+    ...(typeof raw.description === 'string' ? { description: raw.description } : {}),
+    enabled: booleanOr(raw.enabled, true),
+    timing: normalizeProductionCueTiming(timingSource),
+    quantize,
+    ...(isFiniteNumber(raw.durationMs) ? { durationMs: Math.max(0, Math.min(600000, raw.durationMs)) } : {}),
+    ...(isFiniteNumber(raw.transitionMs) ? { transitionMs: Math.max(0, Math.min(600000, raw.transitionMs)) } : {}),
+    priority: Math.round(finiteOr(raw.priority, 0)),
+    retriggerPolicy,
+    cancellationBehavior,
+    fixtureGroupIds: normalizeStringArray(raw.fixtureGroupIds),
+    manualOnly: booleanOr(raw.manualOnly, false) || (isRecord(timingSource) && timingSource.mode === 'manual'),
+    actions,
+    source: raw.source === 'legacyBeamMigration' || raw.source === 'preset' ? raw.source : 'authored',
+  }
+}
+
 export function normalizeLaserDmxSettings(raw: unknown): LaserDmxSettings {
   const fallback: LaserDmxSettings = {
     schemaVersion: LASER_DMX_SETTINGS_SCHEMA_VERSION,
@@ -2643,7 +2919,7 @@ export function normalizeLaserDmxSettings(raw: unknown): LaserDmxSettings {
     productionLooks,
     activeProductionLookId,
     productionLookTransitionDefaults: normalizeProductionLookTransition(raw.productionLookTransitionDefaults),
-    productionCues: normalizeArray<ProductionCompoundCue>(raw.productionCues),
+    productionCues: normalizeArray<unknown>(raw.productionCues).map(normalizeProductionCompoundCue),
   }
 }
 

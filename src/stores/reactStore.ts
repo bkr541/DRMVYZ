@@ -94,6 +94,9 @@ import {
   sanitizeLaserDmxSettingsForPersistence,
   type ProductionLook,
   type ProductionLookTransitionSettings,
+  type ProductionCompoundCue,
+  type ProductionCueAction,
+  normalizeProductionCompoundCue,
 } from '../components/vyzualz/react/LaserDmxProductionRig'
 import { convertBeamMatrixToSpatialRig } from '../components/vyzualz/react/laserDmxBeamMatrixSpatialBridge'
 import {
@@ -101,6 +104,7 @@ import {
   captureProductionLook,
   ensureProductionLookCompatibility,
 } from '../components/vyzualz/react/renderers/LaserDmxProductionLookEngine'
+import { migrateLegacyBeamMatrixCues } from '../components/vyzualz/react/renderers/LaserDmxShowDirector'
 import {
   getSvgVisualEntry,
   clearSvgVisualCache,
@@ -1188,6 +1192,16 @@ interface ReactStoreState {
   activateLaserDmxProductionLook: (lookId: string, transition?: Partial<ProductionLookTransitionSettings>) => void
   setLaserDmxBlackout: (enabled: boolean) => void
 
+  // Generalized Show Director cue stack. Selection and Fire requests are transient.
+  selectedLaserDmxProductionCueId: string | null
+  selectLaserDmxProductionCue: (cueId: string | null) => void
+  addLaserDmxProductionCue: () => string
+  duplicateLaserDmxProductionCue: (cueId: string) => string | null
+  updateLaserDmxProductionCue: (cueId: string, patch: Partial<ProductionCompoundCue>) => void
+  reorderLaserDmxProductionCue: (cueId: string, direction: -1 | 1) => void
+  deleteLaserDmxProductionCue: (cueId: string) => void
+  fireLaserDmxProductionCue: (cueId?: string) => void
+
   // LaserDMX workspace mode (persisted, never changed by preset application)
   laserDmxWorkspaceMode: LaserDmxWorkspaceMode
   setLaserDmxWorkspaceMode: (mode: LaserDmxWorkspaceMode) => void
@@ -1953,6 +1967,23 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       ),
     }
   }
+  if (version < 34) {
+    const spatial = isPersistedLaserDmxSettingsDocument(state.laserDmxSettings)
+      ? normalizeLaserDmxSettings(state.laserDmxSettings)
+      : null
+    const matrix = isPersistedLaserDmxBeamMatrixDocument(state.laserDmxBeamMatrix)
+      ? normalizeLaserDmxBeamMatrixSettings(state.laserDmxBeamMatrix)
+      : null
+    if (spatial && matrix) {
+      state = {
+        ...state,
+        laserDmxSettings: normalizeLaserDmxSettings({
+          ...spatial,
+          productionCues: migrateLegacyBeamMatrixCues(matrix.cues ?? [], spatial.productionCues ?? []),
+        }),
+      }
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -2191,9 +2222,14 @@ export function mergeReactStoreState(
     soundDrawingClipsByTrackId: normalizeSoundDrawingClipsByTrackId(
       persisted.soundDrawingClipsByTrackId ?? currentState.soundDrawingClipsByTrackId,
     ),
-    laserDmxSettings: normalizeLaserDmxSettings(
-      persisted.laserDmxSettings ?? currentState.laserDmxSettings,
-    ),
+    laserDmxSettings: (() => {
+      const spatial = normalizeLaserDmxSettings(persisted.laserDmxSettings ?? currentState.laserDmxSettings)
+      const matrix = normalizeLaserDmxBeamMatrixSettings(persisted.laserDmxBeamMatrix ?? currentState.laserDmxBeamMatrix)
+      return normalizeLaserDmxSettings({
+        ...spatial,
+        productionCues: migrateLegacyBeamMatrixCues(matrix.cues ?? [], spatial.productionCues ?? []),
+      })
+    })(),
     laserDmxBeamMatrix: normalizeLaserDmxBeamMatrixSettings(
       persisted.laserDmxBeamMatrix ?? currentState.laserDmxBeamMatrix,
     ),
@@ -2275,6 +2311,7 @@ export const useReactStore = create<ReactStoreState>()(
       neonLatticeTrigger:             null,
       neonLatticeTriggerSeq:          0,
       laserDmxSettings:               ensureProductionLookCompatibility(createDefaultLaserDmxSettings()),
+      selectedLaserDmxProductionCueId: null,
       laserDmxWorkspaceMode:  'spatialFixtures',
       laserDmxBeamMatrix:     createDefaultLaserDmxBeamMatrixSettings(),
       activeLaserDmxBeamMatrixPresetId: null,
@@ -3177,7 +3214,10 @@ export const useReactStore = create<ReactStoreState>()(
         set(s => ({ laserDmxSettings: normalizeLaserDmxSettings({ ...s.laserDmxSettings, ...partial }) })),
 
       resetLaserDmxSettings: () =>
-        set({ laserDmxSettings: ensureProductionLookCompatibility(createDefaultLaserDmxSettings()) }),
+        set({
+          laserDmxSettings: ensureProductionLookCompatibility(createDefaultLaserDmxSettings()),
+          selectedLaserDmxProductionCueId: null,
+        }),
 
       selectLaserFixture: (fixtureId) =>
         set(s => ({ laserDmxSettings: { ...s.laserDmxSettings, selectedFixtureId: fixtureId } })),
@@ -3435,6 +3475,101 @@ export const useReactStore = create<ReactStoreState>()(
           }
         }),
 
+      selectLaserDmxProductionCue: (cueId) => set({ selectedLaserDmxProductionCueId: cueId }),
+
+      addLaserDmxProductionCue: () => {
+        const id = crypto.randomUUID()
+        set(s => {
+          const groupId = s.laserDmxSettings.productionGroups?.[0]?.id ?? ''
+          const action: ProductionCueAction = groupId
+            ? { id: crypto.randomUUID(), type: 'gateFixtureGroup', execution: 'simultaneous', groupId, open: true }
+            : { id: crypto.randomUUID(), type: 'reveal', execution: 'simultaneous' }
+          const cue = normalizeProductionCompoundCue({
+            id,
+            label: 'New Show Cue',
+            enabled: true,
+            timing: { mode: 'musical', bar: 1, beat: 1, subdivision: 1, subdivisionIndex: 0 },
+            quantize: 'beat',
+            priority: 0,
+            retriggerPolicy: 'oncePerPass',
+            cancellationBehavior: 'restoreOnExit',
+            fixtureGroupIds: groupId ? [groupId] : [],
+            manualOnly: false,
+            actions: [action],
+            source: 'authored',
+          }, s.laserDmxSettings.productionCues?.length ?? 0)
+          return {
+            selectedLaserDmxProductionCueId: id,
+            laserDmxSettings: normalizeLaserDmxSettings({
+              ...s.laserDmxSettings,
+              productionCues: [...(s.laserDmxSettings.productionCues ?? []), cue],
+            }),
+          }
+        })
+        return id
+      },
+
+      duplicateLaserDmxProductionCue: (cueId) => {
+        const source = get().laserDmxSettings.productionCues?.find(cue => cue.id === cueId)
+        if (!source) return null
+        const id = crypto.randomUUID()
+        const copy = JSON.parse(JSON.stringify(source)) as ProductionCompoundCue
+        copy.id = id
+        copy.label = `${source.label} Copy`
+        copy.source = 'authored'
+        copy.actions = copy.actions.map(action => ({ ...action, id: crypto.randomUUID() }))
+        set(s => ({
+          selectedLaserDmxProductionCueId: id,
+          laserDmxSettings: normalizeLaserDmxSettings({
+            ...s.laserDmxSettings,
+            productionCues: [...(s.laserDmxSettings.productionCues ?? []), copy],
+          }),
+        }))
+        return id
+      },
+
+      updateLaserDmxProductionCue: (cueId, patch) => set(s => ({
+        laserDmxSettings: normalizeLaserDmxSettings({
+          ...s.laserDmxSettings,
+          productionCues: (s.laserDmxSettings.productionCues ?? []).map((cue, index) => cue.id === cueId
+            ? normalizeProductionCompoundCue({ ...cue, ...patch, id: cue.id }, index)
+            : cue),
+        }),
+      })),
+
+      reorderLaserDmxProductionCue: (cueId, direction) => set(s => {
+        const cues = [...(s.laserDmxSettings.productionCues ?? [])]
+        const index = cues.findIndex(cue => cue.id === cueId)
+        const target = index + direction
+        if (index < 0 || target < 0 || target >= cues.length) return {}
+        ;[cues[index], cues[target]] = [cues[target], cues[index]]
+        return { laserDmxSettings: { ...s.laserDmxSettings, productionCues: cues } }
+      }),
+
+      deleteLaserDmxProductionCue: (cueId) => set(s => ({
+        selectedLaserDmxProductionCueId: s.selectedLaserDmxProductionCueId === cueId ? null : s.selectedLaserDmxProductionCueId,
+        laserDmxSettings: {
+          ...s.laserDmxSettings,
+          productionCues: (s.laserDmxSettings.productionCues ?? []).filter(cue => cue.id !== cueId),
+        },
+      })),
+
+      fireLaserDmxProductionCue: (cueId) => set(s => {
+        const selected = cueId ?? s.selectedLaserDmxProductionCueId
+        if (!selected || !(s.laserDmxSettings.productionCues ?? []).some(cue => cue.id === selected)) return {}
+        const previous = s.laserDmxSettings.runtime?.showDirectorManualRequest as { sequence?: number } | undefined
+        return {
+          selectedLaserDmxProductionCueId: selected,
+          laserDmxSettings: {
+            ...s.laserDmxSettings,
+            runtime: {
+              ...s.laserDmxSettings.runtime,
+              showDirectorManualRequest: { cueId: selected, sequence: (previous?.sequence ?? 0) + 1 },
+            },
+          },
+        }
+      }),
+
       addLaserModulationRoute: (fixtureId) =>
         set(s => ({
           laserDmxSettings: {
@@ -3507,7 +3642,18 @@ export const useReactStore = create<ReactStoreState>()(
       // ── LaserDMX Beam Matrix ────────────────────────────────────────────────
 
       setLaserDmxBeamMatrixSettings: (partial) =>
-        set(s => ({ laserDmxBeamMatrix: normalizeLaserDmxBeamMatrixSettings({ ...s.laserDmxBeamMatrix, ...partial }) })),
+        set(s => {
+          const matrix = normalizeLaserDmxBeamMatrixSettings({ ...s.laserDmxBeamMatrix, ...partial })
+          return {
+            laserDmxBeamMatrix: matrix,
+            ...(partial.cues ? {
+              laserDmxSettings: normalizeLaserDmxSettings({
+                ...s.laserDmxSettings,
+                productionCues: migrateLegacyBeamMatrixCues(matrix.cues ?? [], s.laserDmxSettings.productionCues ?? []),
+              }),
+            } : {}),
+          }
+        }),
 
       resetLaserDmxBeamMatrix: () =>
         set({ laserDmxBeamMatrix: createDefaultLaserDmxBeamMatrixSettings() }),
@@ -4176,6 +4322,10 @@ export const useReactStore = create<ReactStoreState>()(
           ...clearPerformanceActionPatch(),
           activeLaserDmxBeamMatrixPresetId:   presetId,
           laserDmxBeamMatrixPresetDirty:      false,
+          laserDmxSettings: normalizeLaserDmxSettings({
+            ...s.laserDmxSettings,
+            productionCues: migrateLegacyBeamMatrixCues(fresh.cues ?? [], s.laserDmxSettings.productionCues ?? []),
+          }),
           laserDmxBeamMatrix: {
             ...s.laserDmxBeamMatrix,
             beams:                  clampedBeams,
@@ -4341,6 +4491,7 @@ export const useReactStore = create<ReactStoreState>()(
             performancePads: DEFAULT_PERFORMANCE_PADS,
             activePadId: null,
             laserDmxSettings: createDefaultLaserDmxSettings(),
+            selectedLaserDmxProductionCueId: null,
             laserDmxBeamMatrix: createDefaultLaserDmxBeamMatrixSettings(),
             activeLaserDmxBeamMatrixPresetId: null,
             laserDmxBeamMatrixPresetDirty: false,
@@ -4378,6 +4529,7 @@ export const useReactStore = create<ReactStoreState>()(
           performanceActionToggleStates:    {},
           neonLatticeTrigger:               null,
           laserDmxSettings:                 ensureProductionLookCompatibility(createDefaultLaserDmxSettings()),
+          selectedLaserDmxProductionCueId:   null,
           laserDmxWorkspaceMode:            'spatialFixtures',
           laserDmxBeamMatrix:               createDefaultLaserDmxBeamMatrixSettings(),
           activeLaserDmxBeamMatrixPresetId: null,
@@ -4395,7 +4547,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 33,
+      version: 34,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

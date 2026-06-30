@@ -302,6 +302,22 @@ export function ReactView() {
     return resolveTrackSections({ analyzedSections, manualSections, durationSec: audioDurationSec, suppressedIds })
   }, [engine.currentTrackId, engine.currentAnalysis, manualTrackSectionsByTrackId, suppressedAutoSectionsByTrackId, audioDurationSec])
 
+  // Manual BPM overrides regenerate the Track Map grid. Show Director receives
+  // that exact effective grid while still using the same audio-engine playhead.
+  const effectiveTrackAnalysis = useMemo(() => {
+    const analysis = engine.currentAnalysis
+    const beatGrid = engine.currentEffectiveBeatGrid
+    const bpm = engine.currentEffectiveBpm
+    if (!analysis || !beatGrid || bpm == null || bpm <= 0) return analysis
+    return {
+      ...analysis,
+      bpmUsedForGrid: bpm,
+      beatGridOffsetSec: beatGrid[0]?.timeSec ?? analysis.beatGridOffsetSec,
+      beatGrid,
+      downbeats: beatGrid.filter(marker => marker.isDownbeat),
+    }
+  }, [engine.currentAnalysis, engine.currentEffectiveBeatGrid, engine.currentEffectiveBpm])
+
   // Sound Drawing layers and clips for the active track — forwarded to canvas for per-frame rendering
   const activeTrackId        = engine.currentTrack?.id ?? null
   const activeSdLayers       = activeTrackId ? (soundDrawingLayersByTrackId[activeTrackId] ?? []) : []
@@ -421,6 +437,7 @@ export function ReactView() {
                 isPlaying={engine.isPlaying}
                 isPaused={transportPaused}
                 trackSections={resolvedTrackSections}
+                trackAnalysis={effectiveTrackAnalysis}
                 getAudioTime={engine.getCurrentTime}
                 effectiveBpm={engine.currentEffectiveBpm}
                 onCanvasReady={setOutputCanvas}

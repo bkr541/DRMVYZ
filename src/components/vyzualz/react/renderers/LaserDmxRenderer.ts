@@ -24,6 +24,7 @@ import {
 } from './LaserDmxRendererLifecycle'
 import { resetMovingHeadRuntime } from './LaserDmxMovingHeadEngine'
 import { pauseProductionAtmosphere, resetProductionAtmosphereRuntime, resumeProductionAtmosphere, stepProductionAtmosphere } from './LaserDmxAtmosphereEngine'
+import { createShowDirectorRuntime, evaluateShowDirector, resetShowDirectorRuntime, type ShowDirectorRuntime } from './LaserDmxShowDirector'
 
 /** Returns true when the LaserDMX renderer should draw. */
 export function shouldRenderLaserDmx(isPlaying: boolean): boolean {
@@ -32,8 +33,17 @@ export function shouldRenderLaserDmx(isPlaying: boolean): boolean {
 
 let prevFogTimeSec = -1
 let prevSpatialTimeSec = -1
+const showDirectorRuntimeByContext = new WeakMap<CanvasRenderingContext2D, ShowDirectorRuntime>()
 
-function resetLaserDmxRuntimeState(reason?: LaserDmxRendererResetReason): void {
+function getShowDirectorRuntime(ctx: CanvasRenderingContext2D): ShowDirectorRuntime {
+  const current = showDirectorRuntimeByContext.get(ctx)
+  if (current) return current
+  const created = createShowDirectorRuntime()
+  showDirectorRuntimeByContext.set(ctx, created)
+  return created
+}
+
+function resetLaserDmxRuntimeState(reason?: LaserDmxRendererResetReason, ctx?: CanvasRenderingContext2D): void {
   resetLaserDmxCompilerState()
   resetBeamMatrixCompilerState()
   resetFogState()
@@ -43,6 +53,7 @@ function resetLaserDmxRuntimeState(reason?: LaserDmxRendererResetReason): void {
   }
   prevFogTimeSec = -1
   prevSpatialTimeSec = -1
+  if (ctx) resetShowDirectorRuntime(getShowDirectorRuntime(ctx))
 }
 
 /**
@@ -60,15 +71,16 @@ export function clearLaserDmxVisualState(
   ctx.globalCompositeOperation = 'source-over'
   ctx.clearRect(0, 0, W, H)
   ctx.restore()
-  getLaserDmxRendererLifecycle(ctx, resetLaserDmxRuntimeState).pause()
+  getLaserDmxRendererLifecycle(ctx, reason => resetLaserDmxRuntimeState(reason, ctx)).pause()
   if (prevSpatialTimeSec >= 0) pauseProductionAtmosphere(prevSpatialTimeSec)
-  resetLaserDmxRuntimeState()
+  resetLaserDmxRuntimeState(undefined, ctx)
 }
 
 /** Releases context listeners and transient state for thumbnail/unmount cleanup. */
 export function disposeLaserDmxRenderer(ctx: CanvasRenderingContext2D): void {
   disposeLaserDmxRendererLifecycle(ctx)
-  resetLaserDmxRuntimeState()
+  resetLaserDmxRuntimeState(undefined, ctx)
+  showDirectorRuntimeByContext.delete(ctx)
 }
 
 export function renderLaserDmx(
@@ -91,19 +103,36 @@ export function renderLaserDmx(
     ? 'spatialFixtures'
     : state.laserDmxWorkspaceMode
   const mi = AudioFeatureBus.getFrame()
-  const trackKey = mi.trackId ?? mi.sourceId
-  const lifecycle = getLaserDmxRendererLifecycle(ctx, resetLaserDmxRuntimeState)
+  const trackKey = frame.trackKey ?? mi.trackId ?? mi.sourceId
+  const lifecycle = getLaserDmxRendererLifecycle(ctx, reason => resetLaserDmxRuntimeState(reason, ctx))
   if (!lifecycle.sync({
     isPlaying: frame.isPlaying,
     trackKey,
     presetKey: `${preset.id}:${workspaceMode}`,
   })) return
 
-  const timeSec = frame.timeSec ?? (t / 60)
+  // The audio engine playhead is the only Show Director clock. Wall time is intentionally excluded.
+  const timeSec = Math.max(0, frame.audioTime)
+  const authoredSettings = params.thumbnailLaserDmxSettings ?? state.laserDmxSettings
+  const resolvedAuthoredSettings = resolveProductionLookTransitionRuntime(authoredSettings)
+  const directorPresetKey = `${preset.id}:${workspaceMode}:${state.activeLaserDmxBeamMatrixPresetId ?? 'custom'}:${resolvedAuthoredSettings.rigId ?? 'rig'}`
+  const director = evaluateShowDirector(getShowDirectorRuntime(ctx), {
+    settings: resolvedAuthoredSettings,
+    beamMatrix: state.laserDmxBeamMatrix,
+    audioTimeSec: timeSec,
+    isPlaying: frame.isPlaying,
+    timingDiscontinuity: frame.timingDiscontinuity,
+    bpm: frame.bpm,
+    analysis: frame.trackAnalysis,
+    sections: frame.trackSections,
+    trackKey,
+    presetKey: directorPresetKey,
+    manualRequest: resolvedAuthoredSettings.runtime?.showDirectorManualRequest as { cueId: string; sequence: number } | undefined,
+  })
   const personalization = resolveLaserDmxPersonalization(useBrandKitStore.getState().activeKit, preset.id)
 
   if (workspaceMode === 'beamMatrix') {
-    const bmSettings = state.laserDmxBeamMatrix
+    const bmSettings = director.beamMatrix
     const compiled = compileLaserDmxBeamMatrix({
       settings: bmSettings,
       mi,
@@ -143,8 +172,7 @@ export function renderLaserDmx(
     return
   }
 
-  const authoredSettings = params.thumbnailLaserDmxSettings ?? state.laserDmxSettings
-  const settings = resolveProductionLookTransitionRuntime(authoredSettings)
+  const settings = director.settings
   const compiled = compileLaserDmxFrame({
     settings,
     mi,

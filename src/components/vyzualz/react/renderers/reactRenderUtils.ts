@@ -1,7 +1,7 @@
 import type { VzFrameContext } from '../../effects/types'
 import type { ReactTrackSection, ReactSectionType, OscillatorSettings, OscillatorFontAsset, OscillatorGlyphAsset, OscillatorGlyphPoint, NeonLatticeSettings, NeonLatticeTriggerEvent, LaserDmxSettings } from '../ReactTypes'
 import { DEFAULT_OSCILLATOR_SETTINGS } from '../ReactTypes'
-import type { MusicIntelligenceFrame } from '../../../../features/musicIntelligence/types'
+import type { MusicIntelligenceFrame, TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
 import type { ReactPerformanceActionEvent } from '../ReactPerformanceActions'
 
 // ── React frame context ───────────────────────────────────────────────────────
@@ -23,6 +23,8 @@ export interface ReactFrameContext {
   /** Wall-clock time in seconds (performance.now()/1000 or audioTime). Use for strobe, envelope, and time-accurate effects. Falls back to t/60 when absent. */
   timeSec?: number
   audioTime: number
+  /** Stable active-track identity used for deterministic transport resets. */
+  trackKey?: string | null
   bpm: number
   beatPhase: number
   beatHit: boolean
@@ -43,6 +45,10 @@ export interface ReactFrameContext {
   timeDomainData: Uint8Array<ArrayBuffer> | null
   /** Current music intelligence frame; null when MI engine has not produced data yet. */
   musicIntelligence: MusicIntelligenceFrame | null
+  /** Offline analysis used only to resolve authored musical placement. audioTime remains the canonical clock. */
+  trackAnalysis?: TrackIntelligenceAnalysis | null
+  /** Manual-section-aware track map used for section-relative cue placement. */
+  trackSections?: readonly ReactTrackSection[]
   /**
    * Manual-section-override-aware section for the current audio time.
    * Prefers a manually placed section over the MI-detected one.
