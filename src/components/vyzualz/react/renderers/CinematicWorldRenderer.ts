@@ -7,6 +7,7 @@ import type {
   CinematicWorldMode,
 } from '../CinematicWorldConfig'
 import type { ReactPreset, ReactSectionType } from '../ReactTypes'
+import { CINEMATIC_WORLD_CATALOG } from '../CinematicWorldControlSchema'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import type { FullscreenPass } from '../shaders/runtime/FullscreenPass'
 import type { ShaderCompiler } from '../shaders/runtime/ShaderCompiler'
@@ -217,6 +218,11 @@ export type CinematicWorldDefinition = CinematicCanvasWorldDefinition | Cinemati
 /** Formal world registry. Duplicate IDs are rejected instead of silently overwritten. */
 export class CinematicWorldRendererRegistry {
   private readonly definitions = new Map<CinematicWorldId, CinematicWorldDefinition>()
+  private readonly validateSharedCatalog: boolean
+
+  constructor(options: { validateSharedCatalog?: boolean } = {}) {
+    this.validateSharedCatalog = options.validateSharedCatalog === true
+  }
 
   register(definition: CinematicWorldDefinition): void {
     if (this.definitions.has(definition.id)) {
@@ -224,6 +230,21 @@ export class CinematicWorldRendererRegistry {
     }
     if (definition.capabilities.backend !== definition.backend) {
       throw new Error(`Cinematic world "${definition.id}" capability backend does not match its renderer backend`)
+    }
+    if (this.validateSharedCatalog && !definition.internal && definition.id !== CINEMATIC_DIAGNOSTIC_WORLD_ID) {
+      const catalog = CINEMATIC_WORLD_CATALOG[definition.id]
+      if (definition.label !== catalog.label) {
+        throw new Error(`Cinematic world "${definition.id}" label does not match the shared catalog`)
+      }
+      const sameValues = <Value extends string>(actual: readonly Value[], expected: readonly Value[]) =>
+        actual.length === expected.length && actual.every(value => expected.includes(value))
+      if (!sameValues(definition.capabilities.cameraRigs, catalog.cameraRigs)) {
+        throw new Error(`Cinematic world "${definition.id}" camera capabilities do not match the shared catalog`)
+      }
+      const expectedTargets = catalog.rendererModulationTargets ?? catalog.modulationTargets
+      if (!sameValues(definition.capabilities.modulationTargets, expectedTargets)) {
+        throw new Error(`Cinematic world "${definition.id}" modulation capabilities do not match the shared catalog`)
+      }
     }
     this.definitions.set(definition.id, definition)
   }

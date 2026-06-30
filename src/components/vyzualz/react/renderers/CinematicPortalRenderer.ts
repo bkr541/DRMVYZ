@@ -558,7 +558,7 @@ const legacyPortalDirection = defineCinematicWorldDirection({
   retreatActions: ['retreat'],
 })
 
-export const cinematicWorldRendererRegistry = new CinematicWorldRendererRegistry()
+export const cinematicWorldRendererRegistry = new CinematicWorldRendererRegistry({ validateSharedCatalog: true })
 cinematicWorldRendererRegistry.register({
   id: 'legacyPortal',
   label: 'Legacy Portal',

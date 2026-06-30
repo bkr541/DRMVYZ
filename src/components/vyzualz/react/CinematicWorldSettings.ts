@@ -210,7 +210,7 @@ export interface CinematicQualityProfile {
 
 type CinematicQualityTier = 'auto' | 'low' | 'medium' | 'high' | 'ultra'
 
-type NumericBounds<T extends object> = {
+export type NumericBounds<T extends object> = {
   [Key in keyof T]: readonly [min: number, max: number]
 }
 

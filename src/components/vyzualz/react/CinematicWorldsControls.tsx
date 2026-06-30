@@ -1,4 +1,4 @@
-import { useMemo, useSyncExternalStore } from 'react'
+import { Fragment, useMemo, useSyncExternalStore } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 import { useMediaStore } from '../../../stores/mediaStore'
@@ -22,21 +22,18 @@ import {
   type CinematicWorldMode,
 } from './CinematicWorldConfig'
 import {
-  ANCIENT_MACHINE_BOUNDS,
-  CELESTIAL_CATHEDRAL_BOUNDS,
-  EVENT_HORIZON_BOUNDS,
-  FRACTURE_RIFT_BOUNDS,
-  INFINITE_CORRIDOR_BOUNDS,
-  LIQUID_MEMBRANE_BOUNDS,
   MEDIA_PORTAL_DEFAULTS,
-  MIRROR_DIMENSION_BOUNDS,
-  MONOLITH_GATE_BOUNDS,
-  STORM_GATEWAY_BOUNDS,
   createDefaultCinematicWorldSettings,
   type MediaPortalFit,
   type MediaPortalMaskMode,
   type MediaPortalSettings,
 } from './CinematicWorldSettings'
+import {
+  getVisibleCinematicWorldControlGroups,
+  readCinematicWorldSetting,
+  updateCinematicWorldConfigSetting,
+  type AnyCinematicWorldControlSchema,
+} from './CinematicWorldControlSchema'
 import {
   CINEMATIC_SOURCE_CAPABILITY,
   CINEMATIC_SOURCE_LABELS,
@@ -49,18 +46,6 @@ import {
   randomizeCinematicVariationSeed,
 } from './CinematicWorldsUi'
 import { CtrlSection, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
-
-const WORLD_SETTING_BOUNDS: Partial<Record<CinematicWorldMode, Record<string, readonly [number, number]>>> = {
-  eventHorizon: EVENT_HORIZON_BOUNDS,
-  infiniteCorridor: INFINITE_CORRIDOR_BOUNDS,
-  fractureRift: FRACTURE_RIFT_BOUNDS,
-  monolithGate: MONOLITH_GATE_BOUNDS,
-  liquidMembrane: LIQUID_MEMBRANE_BOUNDS,
-  celestialCathedral: CELESTIAL_CATHEDRAL_BOUNDS,
-  mirrorDimension: MIRROR_DIMENSION_BOUNDS,
-  ancientMachine: ANCIENT_MACHINE_BOUNDS,
-  stormGateway: STORM_GATEWAY_BOUNDS,
-}
 
 const PORTAL_SHAPE_LABELS: Record<CinematicPortalShape, string> = {
   rectangle: 'Rectangle', circle: 'Circle', arch: 'Arch', triangle: 'Triangle', fracture: 'Fracture', organic: 'Organic', customMask: 'Custom Mask',
@@ -99,11 +84,72 @@ function cloneConfig(config: CinematicWorldConfig): CinematicWorldConfig {
   return structuredClone(config)
 }
 
-function getStep(min: number, max: number): number {
-  if (Number.isInteger(min) && Number.isInteger(max) && max - min <= 20) return 1
-  if (max - min <= 0.5) return 0.005
-  if (max - min <= 3) return 0.01
-  return 0.1
+export function CinematicWorldControlSchemaRenderer({
+  config, schema, uiMode, onChange,
+}: {
+  config: CinematicWorldConfig
+  schema: AnyCinematicWorldControlSchema
+  uiMode: 'simple' | 'advanced'
+  onChange: (config: CinematicWorldConfig) => void
+}) {
+  const groups = getVisibleCinematicWorldControlGroups(schema, uiMode)
+  return (
+    <>
+      {groups.map(group => (
+        <Fragment key={group.id}>
+          <CtrlSection label={group.label} />
+          {group.description && <div className="rv-ctrl-info">{group.description}</div>}
+          {group.controls.map(control => {
+            const current = readCinematicWorldSetting(config, control.setting)
+            const commit = (value: unknown) => onChange(updateCinematicWorldConfigSetting(config, schema, control, value))
+            if (control.kind === 'slider' || control.kind === 'integer') {
+              return (
+                <SliderRow
+                  key={control.id}
+                  id={control.id}
+                  label={control.label}
+                  description={control.description}
+                  value={typeof current === 'number' ? current : control.min}
+                  min={control.min}
+                  max={control.max}
+                  step={control.step}
+                  onChange={commit}
+                />
+              )
+            }
+            if (control.kind === 'select') {
+              const selected = control.options.find(option => Object.is(option.value, current))
+              return (
+                <SelectRow
+                  key={control.id}
+                  id={control.id}
+                  label={control.label}
+                  description={control.description}
+                  value={String(selected?.value ?? control.options[0]?.value ?? '')}
+                  options={control.options.map(option => ({
+                    value: String(option.value),
+                    label: option.label,
+                    disabled: option.disabled,
+                  }))}
+                  onChange={value => commit(control.options.find(option => String(option.value) === value)?.value)}
+                />
+              )
+            }
+            return (
+              <ToggleRow
+                key={control.id}
+                id={control.id}
+                label={control.label}
+                description={control.description}
+                value={current === true}
+                onChange={commit}
+              />
+            )
+          })}
+        </Fragment>
+      ))}
+    </>
+  )
 }
 
 function CinematicModeSwitch() {
@@ -398,8 +444,6 @@ export function CinematicWorldsFxControls() {
   const { preset, config, uiMode, setConfig } = active
   const save = (next: CinematicWorldConfig) => setConfig(preset.id, next)
   const ultraSupported = isUltraCinematicQualitySupported()
-  const settings = config.worldSettings.settings as unknown as Record<string, number>
-  const bounds = WORLD_SETTING_BOUNDS[config.worldMode]
   return (
     <div className="rv-cinematic-controls">
       <CinematicModeSwitch />
@@ -436,15 +480,15 @@ export function CinematicWorldsFxControls() {
             const range = CINEMATIC_NUMERIC_RANGES.material[key as keyof typeof CINEMATIC_NUMERIC_RANGES.material]
             return <SliderRow key={key} id={`cinematic-material-${key}`} label={humanizeCinematicKey(key)} value={value} min={range.min} max={range.max} step={0.01} onChange={next => save({ ...config, material: { ...config.material, [key]: next } })} />
           })}
-          {bounds && (
-            <>
-              <CtrlSection label={`${CINEMATIC_WORLD_BY_ID[config.worldMode].label} Controls`} />
-              {Object.entries(bounds).map(([key, [min, max]]) => (
-                <SliderRow key={key} id={`cinematic-world-setting-${key}`} label={humanizeCinematicKey(key)} value={settings[key] ?? min} min={min} max={max} step={getStep(min, max)} onChange={value => save({ ...config, worldSettings: { mode: config.worldMode, settings: { ...settings, [key]: value } } as CinematicWorldConfig['worldSettings'] })} />
-              ))}
-            </>
-          )}
         </>
+      )}
+      {config.worldMode !== 'mediaPortal' && (
+        <CinematicWorldControlSchemaRenderer
+          config={config}
+          schema={CINEMATIC_WORLD_BY_ID[config.worldMode].controls}
+          uiMode={uiMode}
+          onChange={save}
+        />
       )}
     </div>
   )
