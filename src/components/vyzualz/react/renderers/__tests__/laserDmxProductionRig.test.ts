@@ -46,8 +46,8 @@ describe('LaserDMX production-rig foundation', () => {
     }
     expect(LASER_DMX_OUTPUT_ADAPTER_CAPABILITIES.canTransmit).toBe(false)
     expect(LASER_DMX_OUTPUT_ADAPTER_CAPABILITIES.transports).toEqual(['none'])
-    expect(LASER_DMX_OUTPUT_ADAPTER_CAPABILITIES.fixtureKinds).toEqual(['laserProjector'])
-    expect(LASER_DMX_VIRTUAL_RENDERER_CAPABILITIES.fixtureKinds).toEqual(['laserProjector'])
+    expect(LASER_DMX_OUTPUT_ADAPTER_CAPABILITIES.fixtureKinds).toEqual(['laserProjector', 'movingHeadBeam', 'movingHeadSpot', 'movingHeadWash'])
+    expect(LASER_DMX_VIRTUAL_RENDERER_CAPABILITIES.fixtureKinds).toEqual(['laserProjector', 'movingHeadBeam', 'movingHeadSpot', 'movingHeadWash'])
     expect(LASER_DMX_VIRTUAL_RENDERER_CAPABILITIES.supportsCompoundCues).toBe(false)
   })
 
@@ -66,6 +66,20 @@ describe('LaserDMX production-rig foundation', () => {
       'capabilities.zoom',
       'capabilities.trigger.cooldownMs',
     ]))
+  })
+
+  it('declares only the optics supported by each virtual moving-head profile', () => {
+    const beam = getLaserDmxFixtureProfile('genericMovingHeadBeam')!
+    const spot = getLaserDmxFixtureProfile('genericMovingHeadSpot')!
+    const wash = getLaserDmxFixtureProfile('genericMovingHeadWash')!
+
+    expect(beam.capabilities).toMatchObject({ panTilt: expect.any(Object), gobo: expect.any(Object), prism: expect.any(Object), iris: expect.any(Object) })
+    expect(spot.capabilities).toMatchObject({ panTilt: expect.any(Object), gobo: expect.any(Object), prism: expect.any(Object), focus: expect.any(Object) })
+    expect(wash.capabilities).toMatchObject({ color: { mode: 'rgbw' }, panTilt: expect.any(Object), zoom: expect.any(Object), frost: expect.any(Object) })
+    expect(wash.capabilities.gobo).toBeUndefined()
+    expect(wash.capabilities.prism).toBeUndefined()
+    expect(wash.capabilities.iris).toBeUndefined()
+    expect(wash.capabilities.focus).toBeUndefined()
   })
 
   it('preserves the legacy RGB, RGBW, scanner, and multi-pattern channel layouts', () => {

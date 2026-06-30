@@ -5,9 +5,10 @@ import { ConnectedShaderModulationPanel } from './shaders/ui/ConnectedShaderModu
 import { CinematicWorldsModulationControls } from './CinematicWorldsControls'
 import { NeonLatticeModulationControls } from './NeonLatticeEnginePanel'
 import { SliderRow, SelectRow, ToggleRow, Collapsible } from './ReactControlRows'
-import type { OscillatorAudioDisplaceMode, OscillatorTextLetterReactionMode, LetterReactionAssignment, LetterReactionSource, LetterReactionTarget, LaserDmxModulationRoute, LaserDmxTriggerTimingFilter, LaserDmxTriggerTimingFilterMode } from './ReactTypes'
+import type { OscillatorAudioDisplaceMode, OscillatorTextLetterReactionMode, LetterReactionAssignment, LetterReactionSource, LetterReactionTarget, LaserDmxFixture, LaserDmxModulationRoute, LaserDmxTriggerTimingFilter, LaserDmxTriggerTimingFilterMode } from './ReactTypes'
 import { BEATS_PER_BAR } from './ReactTypes'
 import { TRIGGER_TIMING_EVENT_SOURCES } from './renderers/LaserDmxModulationEngine'
+import { resolveLaserDmxFixtureCapabilities } from './LaserDmxProductionRig'
 
 // ── Source / target option lists ──────────────────────────────────────────────
 
@@ -69,6 +70,11 @@ const MOD_TARGETS = [
   { value: 'tilt',          label: 'Tilt'           },
   { value: 'rotation',      label: 'Rotation'       },
   { value: 'zoom',          label: 'Zoom'           },
+  { value: 'focus',         label: 'Focus'          },
+  { value: 'iris',          label: 'Iris'           },
+  { value: 'frost',         label: 'Frost'          },
+  { value: 'goboRotation',  label: 'Gobo Rotation'  },
+  { value: 'prismRotation', label: 'Prism Rotation' },
   { value: 'beamWidth',     label: 'Beam Width'     },
   { value: 'strobeRate',    label: 'Strobe Rate'    },
   { value: 'scanSpeed',     label: 'Scan Speed'     },
@@ -286,6 +292,30 @@ function starterRoutes(): LaserDmxModulationRoute[] {
   ]
 }
 
+function modulationTargetsForFixture(fixture: LaserDmxFixture) {
+  const capabilities = resolveLaserDmxFixtureCapabilities(fixture)
+  const allowed = new Set<string>(['masterDimmer', 'alpha', 'hazeAmount', 'glowAmount'])
+  if (!capabilities) return MOD_TARGETS.filter(target => allowed.has(target.value))
+  if (capabilities.dimmer) allowed.add('fixtureDimmer')
+  if (capabilities.color?.mode === 'rgb' || capabilities.color?.mode === 'rgbw') {
+    allowed.add('red'); allowed.add('green'); allowed.add('blue')
+  }
+  if (capabilities.color?.mode === 'rgbw') allowed.add('white')
+  if (capabilities.panTilt) { allowed.add('pan'); allowed.add('tilt') }
+  if (capabilities.zoom) allowed.add('zoom')
+  if (capabilities.focus) allowed.add('focus')
+  if (capabilities.iris) allowed.add('iris')
+  if (capabilities.frost) allowed.add('frost')
+  if (capabilities.gobo?.rotation) allowed.add('goboRotation')
+  if (capabilities.prism?.rotation) allowed.add('prismRotation')
+  if (capabilities.strobe) allowed.add('strobeRate')
+  if (capabilities.shutter) allowed.add('shutter')
+  if (capabilities.beamPattern) {
+    for (const target of ['rotation', 'beamWidth', 'scanSpeed', 'pathProgress', 'pathScale', 'pathRotation', 'pathSpread', 'pathRadius', 'pathComplexity']) allowed.add(target)
+  }
+  return MOD_TARGETS.filter(target => allowed.has(target.value))
+}
+
 // ── Route row ─────────────────────────────────────────────────────────────────
 
 function RouteRow({
@@ -365,6 +395,8 @@ function LaserDmxModPanel() {
   }
 
   const routes = fixture.modulationRoutes
+  const fixtureTargets = modulationTargetsForFixture(fixture)
+  const supportedTargetIds = new Set(fixtureTargets.map(target => target.value))
 
   return (
     <Collapsible label={`Routes — ${fixture.name}`} defaultOpen>
@@ -374,7 +406,7 @@ function LaserDmxModPanel() {
           <button
             type="button"
             className="rv-glyph-upload-btn"
-            onClick={() => updateLaserFixture(fid, { modulationRoutes: starterRoutes() })}
+            onClick={() => updateLaserFixture(fid, { modulationRoutes: starterRoutes().filter(route => supportedTargetIds.has(route.target)) })}
           >
             Add Starter Routes
           </button>
@@ -384,6 +416,7 @@ function LaserDmxModPanel() {
         <RouteRow
           key={route.id}
           route={route}
+          targets={fixtureTargets}
           onChange={patch => updateLaserModulationRoute(fid, route.id, patch)}
           onDelete={() => removeLaserModulationRoute(fid, route.id)}
         />

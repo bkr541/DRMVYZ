@@ -29,11 +29,14 @@ import {
   buildProductionRig,
   compileProfileChannels,
   createProductionOutputFrame,
+  isMovingHeadFixtureKind,
+  normalizeProductionMovingHeadSettings,
   normalizeLaserDmxSettings,
   resolveLaserDmxFixtureCapabilities,
 } from '../LaserDmxProductionRig'
 import type { ProductionOutputFrame, ProductionRig } from '../LaserDmxProductionRig'
 import { inferSpatialFixtureSemantic, personalizeRgbw } from '../../../../features/personalization/laserDmxPersonalization'
+import { evaluateMovingHeadFixture } from './LaserDmxMovingHeadEngine'
 
 // ── Re-export safety helpers for existing callers (LaserDmxRenderer.ts etc.) ──
 export { safeNumber, clamp, clamp01, clamp255, lerp, applyCurve, resolveStrobeVisible }
@@ -71,6 +74,22 @@ function samplePalette(paletteId: string, pos: number): [number, number, number]
   ]
 }
 
+const VIRTUAL_COLOR_WHEEL_RGB: Readonly<Record<string, [number, number, number]>> = {
+  open: [255, 255, 255],
+  white: [255, 255, 255],
+  red: [255, 36, 28],
+  green: [32, 255, 96],
+  blue: [40, 92, 255],
+  cyan: [0, 235, 255],
+  magenta: [255, 32, 220],
+  amber: [255, 170, 32],
+}
+
+function sampleVirtualColorWheel(slots: readonly string[], slotIndex: number): [number, number, number] {
+  const slot = slots[Math.max(0, Math.min(slots.length - 1, Math.round(slotIndex)))] ?? 'open'
+  return VIRTUAL_COLOR_WHEEL_RGB[slot.toLowerCase()] ?? [255, 255, 255]
+}
+
 // ── Module-level ephemeral state ──────────────────────────────────────────────
 
 let prevCompileTimeSec = -1
@@ -90,6 +109,13 @@ interface FixtureRenderState {
   width:         number   // beam width multiplier
   zoom:          number   // 0–1
   focus:         number   // 0–1
+  iris:          number   // 0–1
+  frost:         number   // 0–1
+  colorWheelSlot:number
+  goboIndex:     number
+  goboRotation:  number
+  prismFacets:   number
+  prismRotation: number
   strobeRate:    number   // 0–1
   flickerAmount: number
   red:           number   // 0–255
@@ -143,12 +169,20 @@ export interface CompiledLaserDmxResult {
 }
 
 function fixtureStateFromFixture(f: LaserDmxFixture): FixtureRenderState {
+  const movingHead = normalizeProductionMovingHeadSettings(f.movingHead)
   return {
     dimmer:          clamp01(safeNumber(f.beam.dimmer, 1)),
     shutterOpen:     f.beam.shutterOpen !== false,
     width:           clamp(safeNumber(f.beam.width, 1), 0.2, 8),
     zoom:            clamp01(safeNumber(f.beam.zoom, 1)),
     focus:           clamp01(safeNumber(f.beam.focus, 1)),
+    iris:            clamp01(safeNumber(movingHead.iris, 1)),
+    frost:           clamp01(safeNumber(movingHead.frost, 0)),
+    colorWheelSlot:  Math.max(0, Math.round(safeNumber(movingHead.colorWheelSlot, 0))),
+    goboIndex:       Math.max(0, Math.round(safeNumber(movingHead.goboIndex, 0))),
+    goboRotation:    safeNumber(movingHead.goboRotation, 0),
+    prismFacets:     Math.max(0, Math.round(safeNumber(movingHead.prismFacets, 0))),
+    prismRotation:   safeNumber(movingHead.prismRotation, 0),
     strobeRate:      clamp01(safeNumber(f.beam.strobeRate, 0)),
     flickerAmount:   clamp01(safeNumber(f.beam.flickerAmount, 0)),
     red:             clamp255(safeNumber(f.color.red, 0)),
@@ -156,8 +190,8 @@ function fixtureStateFromFixture(f: LaserDmxFixture): FixtureRenderState {
     blue:            clamp255(safeNumber(f.color.blue, 220)),
     white:           clamp255(safeNumber(f.color.white, 0)),
     alpha:           clamp01(safeNumber(f.color.alpha, 1)),
-    pan:             clamp(safeNumber(f.position.pan, 0), -180, 180),
-    tilt:            clamp(safeNumber(f.position.tilt, 0), -90, 90),
+    pan:             safeNumber(f.movingHead?.panDeg, f.position.pan),
+    tilt:            safeNumber(f.movingHead?.tiltDeg, f.position.tilt),
     rotation:        safeNumber(f.position.rotation, 0),
     scanSpeed:       clamp(safeNumber(f.path.scanSpeed, 0.45), 0, 4),
     pathProgress:    clamp01(safeNumber(f.path.pathProgress, 0)),
@@ -205,6 +239,11 @@ function applyRoute(
     case 'tilt':            state.tilt             = lerp(-90,  90,  v);                     break
     case 'rotation':        state.rotation         = lerp(-180, 180, v);                     break
     case 'zoom':            state.zoom             = clamp01(applyF(state.zoom));            break
+    case 'focus':           state.focus            = clamp01(applyF(state.focus));           break
+    case 'iris':            state.iris             = clamp01(applyF(state.iris));            break
+    case 'frost':           state.frost            = clamp01(applyF(state.frost));           break
+    case 'goboRotation':    state.goboRotation     = lerp(-180, 180, v);                     break
+    case 'prismRotation':   state.prismRotation    = lerp(-180, 180, v);                     break
     case 'beamWidth':       state.width            = lerp(0.2, 6, v);                        break
     case 'strobeRate':      state.strobeRate       = clamp01(applyF(state.strobeRate));      break
     case 'shutter':         state.shutterOpen      = v > 0.5;                                break
@@ -237,6 +276,14 @@ function compileChannels(
     pan:           clamp255((state.pan + 180) / 360 * 255),
     tilt:          clamp255((state.tilt + 90) / 180 * 255),
     zoom:          clamp255(state.zoom * 255),
+    focus:         clamp255(state.focus * 255),
+    iris:          clamp255(state.iris * 255),
+    frost:         clamp255(state.frost * 255),
+    colorWheel:    clamp255(state.colorWheelSlot / 15 * 255),
+    gobo:          clamp255(state.goboIndex / 15 * 255),
+    goboRotation:  clamp255((state.goboRotation + 180) / 360 * 255),
+    prism:         clamp255(state.prismFacets / 16 * 255),
+    prismRotation: clamp255((state.prismRotation + 180) / 360 * 255),
     rotation:      clamp255((state.rotation + 180) / 360 * 255),
     scanSpeed:     clamp255(state.scanSpeed / 4 * 255),
     pathComplexity: clamp255(state.pathComplexity * 255),
@@ -343,6 +390,11 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
     if (!capabilities.panTilt) { fState.pan = 0; fState.tilt = 0 }
     if (!capabilities.zoom) fState.zoom = 1
     if (!capabilities.focus) fState.focus = 1
+    if (!capabilities.iris) fState.iris = 1
+    if (!capabilities.frost) fState.frost = 0
+    if (!capabilities.gobo) { fState.goboIndex = 0; fState.goboRotation = 0 }
+    if (!capabilities.prism) { fState.prismFacets = 0; fState.prismRotation = 0 }
+    if (capabilities.color?.mode !== 'colorWheel') fState.colorWheelSlot = 0
     if (!capabilities.beamPattern) {
       fState.scanSpeed = 0
       fState.pathProgress = 1
@@ -354,16 +406,34 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
     }
     if (capabilities.color?.mode !== 'rgbw') fState.white = 0
 
+    const movingHeadKind = isMovingHeadFixtureKind(fixture.fixtureKind)
+    const authoredMovingHead = movingHeadKind ? normalizeProductionMovingHeadSettings(fixture.movingHead) : null
+    const movingHeadFrame = movingHeadKind
+      ? evaluateMovingHeadFixture({
+          fixture,
+          rig: productionRig,
+          timeSec,
+          bpm: safeNumber(mi.rhythm?.bpm, 120),
+          shutterOpen: fState.shutterOpen,
+          panModulationDeg: fState.pan - authoredMovingHead!.panDeg,
+          tiltModulationDeg: fState.tilt - authoredMovingHead!.tiltDeg,
+        })
+      : null
+    if (movingHeadFrame) {
+      fState.pan = movingHeadFrame.panDeg
+      fState.tilt = movingHeadFrame.tiltDeg
+    }
+
     // Safety clamp caps effective intensity
     fState.dimmer = clamp01(fState.dimmer * gState.safetyClamp)
 
     const effectiveMaster   = clamp01(gState.masterDimmer)
     const effectiveIntensity = clamp01(fState.dimmer * effectiveMaster)
-    if (!fState.shutterOpen || effectiveIntensity < 0.001) continue
+    if ((!fState.shutterOpen || effectiveIntensity < 0.001) && !movingHeadFrame) continue
 
     // Effective strobe: fixture rate + global additive contribution
     const effectiveStrobeRate = clamp01(fState.strobeRate + gState.globalStrobeRate)
-    const strobeVisible = resolveStrobeVisible(effectiveStrobeRate, timeSec)
+    const strobeVisible = fState.shutterOpen && effectiveIntensity >= 0.001 && resolveStrobeVisible(effectiveStrobeRate, timeSec)
 
     // Pan / Tilt: offset the target point in canvas pixels
     const ox = safeNumber(fixture.position.originX, 0.5) * W
@@ -381,50 +451,58 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
     const effectivePathScale = fState.pathScale * zoomScale
 
     // Flicker: deterministic per-fixture intensity noise (no Math.random — no jitter between frames)
-    let intensityWithFlicker = effectiveIntensity
+    let intensityWithFlicker = fState.shutterOpen ? effectiveIntensity : 0
     if (fState.flickerAmount > 0.001) {
       const fp = timeSec * 11.3 + fixtureIdx * 2.7
       const noise = Math.sin(fp * 11.0) * Math.sin(fp * 7.3) * Math.cos(fp * 3.1)
       intensityWithFlicker = clamp01(effectiveIntensity * Math.max(0.3, 1.0 + noise * fState.flickerAmount * 0.3))
     }
 
-    // Generate path points in canvas pixel space
-    const rawPoints = generateLaserPath({
-      originX:     ox,
-      originY:     oy,
-      targetX:     tx,
-      targetY:     ty,
-      W, H, time,
-      scale:       effectivePathScale,
-      rotation:    fState.pathRotation,
-      offsetX:     safeNumber(fixture.path.offsetX, 0),
-      offsetY:     safeNumber(fixture.path.offsetY, 0),
-      scanSpeed:   fState.scanSpeed,
-      phaseOffset: safeNumber(fixture.path.phaseOffset, 0),
-      pointCount:  safeNumber(fixture.path.pointCount, 18),
-      spread:      fState.pathSpread,
-      radius:      fState.pathRadius,
-      complexity:  fState.pathComplexity,
-      pathProgress:fState.pathProgress,
-      pathKind:    fixture.path.kind,
-    })
-
-    let points: LaserPoint[] = fState.pathProgress < 0.999
-      ? sliceByProgress(rawPoints, fState.pathProgress)
-      : rawPoints
+    // Laser projectors keep their established programmable path generator.
+    // Moving heads emit one physically aimed beam; their optical treatment is
+    // applied by the shared spatial stage renderer.
+    let points: LaserPoint[]
+    if (movingHeadFrame) {
+      points = [{ x: tx, y: ty }]
+    } else {
+      const rawPoints = generateLaserPath({
+        originX:     ox,
+        originY:     oy,
+        targetX:     tx,
+        targetY:     ty,
+        W, H, time,
+        scale:       effectivePathScale,
+        rotation:    fState.pathRotation,
+        offsetX:     safeNumber(fixture.path.offsetX, 0),
+        offsetY:     safeNumber(fixture.path.offsetY, 0),
+        scanSpeed:   fState.scanSpeed,
+        phaseOffset: safeNumber(fixture.path.phaseOffset, 0),
+        pointCount:  safeNumber(fixture.path.pointCount, 18),
+        spread:      fState.pathSpread,
+        radius:      fState.pathRadius,
+        complexity:  fState.pathComplexity,
+        pathProgress:fState.pathProgress,
+        pathKind:    fixture.path.kind,
+      })
+      points = fState.pathProgress < 0.999
+        ? sliceByProgress(rawPoints, fState.pathProgress)
+        : rawPoints
+    }
 
     // Mirror X / Mirror Y — reflect points around the (adjusted) target
-    if (fixture.position.mirrorX) {
+    if (!movingHeadFrame && fixture.position.mirrorX) {
       points = points.map(pt => ({ x: tx * 2 - pt.x, y: pt.y }))
     }
-    if (fixture.position.mirrorY) {
+    if (!movingHeadFrame && fixture.position.mirrorY) {
       points = points.map(pt => ({ x: pt.x, y: ty * 2 - pt.y }))
     }
 
     // Color computation
     let r = fState.red, g = fState.green, b = fState.blue
 
-    if (fixture.color.mode === 'palette' && fState.colorCycleSpeed > 0.001) {
+    if (capabilities.color?.mode === 'colorWheel') {
+      ;[r, g, b] = sampleVirtualColorWheel(capabilities.color.slots, fState.colorWheelSlot)
+    } else if (fixture.color.mode === 'palette' && fState.colorCycleSpeed > 0.001) {
       // Cycle through a built-in palette
       const pos = ((timeSec * fState.colorCycleSpeed * 0.3) % 1 + 1) % 1
       ;[r, g, b] = samplePalette(fixture.color.paletteId || 'cyanEmerald', pos)
@@ -499,6 +577,24 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
         beamWidth:    effectiveBeamWidth,
         strobeVisible,
         focusFactor,
+        ...(movingHeadFrame ? {
+          movingHead: {
+            panDeg: movingHeadFrame.panDeg,
+            tiltDeg: movingHeadFrame.tiltDeg,
+            movementComplete: movingHeadFrame.movementComplete,
+            targetAvailable: movingHeadFrame.targetAvailable,
+            worldTarget: movingHeadFrame.worldTarget,
+            zoom: fState.zoom,
+            focus: fState.focus,
+            iris: fState.iris,
+            frost: fState.frost,
+            goboIndex: fState.goboIndex,
+            goboRotation: fState.goboRotation,
+            prismFacets: fState.prismFacets,
+            prismRotation: fState.prismRotation,
+            colorWheelSlot: fState.colorWheelSlot,
+          },
+        } : {}),
       },
     })
   }

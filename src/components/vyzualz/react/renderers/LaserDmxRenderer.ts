@@ -19,7 +19,9 @@ import { renderLaserDmxSpatialStage } from './LaserDmxSpatialStageRenderer'
 import {
   disposeLaserDmxRendererLifecycle,
   getLaserDmxRendererLifecycle,
+  type LaserDmxRendererResetReason,
 } from './LaserDmxRendererLifecycle'
+import { resetMovingHeadRuntime } from './LaserDmxMovingHeadEngine'
 
 /** Returns true when the LaserDMX renderer should draw. */
 export function shouldRenderLaserDmx(isPlaying: boolean): boolean {
@@ -28,10 +30,11 @@ export function shouldRenderLaserDmx(isPlaying: boolean): boolean {
 
 let prevFogTimeSec = -1
 
-function resetLaserDmxRuntimeState(): void {
+function resetLaserDmxRuntimeState(reason?: LaserDmxRendererResetReason): void {
   resetLaserDmxCompilerState()
   resetBeamMatrixCompilerState()
   resetFogState()
+  if (reason) resetMovingHeadRuntime()
   prevFogTimeSec = -1
 }
 

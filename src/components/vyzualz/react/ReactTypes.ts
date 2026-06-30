@@ -8,6 +8,7 @@ import type {
   ProductionFixtureGroup,
   ProductionFixtureKind,
   ProductionLook,
+  ProductionMovingHeadSettings,
   ProductionStageModel,
   ProductionStageTransform,
   ProductionTarget,
@@ -380,6 +381,9 @@ export type LaserDmxProfileId =
   | 'genericRgbwLaser'
   | 'scannerLaser'
   | 'multiPatternLaser'
+  | 'genericMovingHeadBeam'
+  | 'genericMovingHeadSpot'
+  | 'genericMovingHeadWash'
 
 export type LaserDmxModulationTarget =
   // Spatial Fixtures targets
@@ -387,7 +391,7 @@ export type LaserDmxModulationTarget =
   | 'fixtureDimmer'
   | 'red' | 'green' | 'blue' | 'white' | 'alpha'
   | 'pan' | 'tilt' | 'rotation'
-  | 'zoom' | 'beamWidth' | 'strobeRate'
+  | 'zoom' | 'focus' | 'iris' | 'frost' | 'goboRotation' | 'prismRotation' | 'beamWidth' | 'strobeRate'
   | 'scanSpeed' | 'pathProgress' | 'pathScale' | 'pathRotation' | 'pathSpread' | 'pathRadius' | 'pathComplexity'
   | 'hazeAmount' | 'glowAmount' | 'shutter'
   // Beam Matrix targets
@@ -487,6 +491,8 @@ export interface LaserDmxFixture {
   stageTransform?: ProductionStageTransform
   /** Explicit shared target; null/undefined keeps the legacy per-fixture aim point. */
   targetId?: string | null
+  /** Capability-gated moving-head state. Omitted for laser projectors and static fixtures. */
+  movingHead?: ProductionMovingHeadSettings
 
   id: string
   name: string
@@ -600,6 +606,22 @@ export interface LaserDmxFixtureFrame {
     strobeVisible: boolean
     /** 0=soft/diffuse, 1=sharp/tight. Computed from fixture.beam.focus. Used to scale glow blur. */
     focusFactor: number
+    movingHead?: {
+      panDeg: number
+      tiltDeg: number
+      movementComplete: boolean
+      targetAvailable: boolean
+      worldTarget: ProductionStageTransform['position']
+      zoom: number
+      focus: number
+      iris: number
+      frost: number
+      goboIndex: number
+      goboRotation: number
+      prismFacets: number
+      prismRotation: number
+      colorWheelSlot: number
+    }
   }
 }
 

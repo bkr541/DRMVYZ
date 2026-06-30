@@ -7,9 +7,13 @@ import {
 } from './ReactControlRows'
 import type { LaserDmxFixture, LaserDmxProfileId } from './ReactTypes'
 import {
+  DEFAULT_PRODUCTION_GROUP_MOVEMENT,
   diagnoseProductionRig,
   getLaserDmxFixtureProfile,
+  isMovingHeadFixtureKind,
   LASER_DMX_FIXTURE_PROFILES,
+  normalizeProductionGroupMovement,
+  normalizeProductionMovingHeadSettings,
   normalizeProductionStageModel,
   PRODUCTION_STAGE_COORDINATE_CONVENTION,
   PRODUCTION_VENUE_TEMPLATES,
@@ -19,6 +23,11 @@ import {
   stageVectorToLegacyNormalized,
   type ProductionStageModel,
   type ProductionStageTransform,
+  type ProductionGroupMovementGenerator,
+  type ProductionMovementDirection,
+  type ProductionMovementQuantize,
+  type ProductionMovementSymmetry,
+  type ProductionMovingHeadEasing,
 } from './LaserDmxProductionRig'
 
 const PROFILE_OPTIONS = Object.values(LASER_DMX_FIXTURE_PROFILES).map(profile => ({
@@ -45,6 +54,51 @@ const COLOR_MODE_OPTIONS = [
   { value: 'fixed', label: 'Fixed' },
   { value: 'palette', label: 'Palette' },
   { value: 'music', label: 'Music' },
+]
+
+const MOVEMENT_GENERATOR_OPTIONS: Array<{ value: ProductionGroupMovementGenerator; label: string }> = [
+  { value: 'mirroredFan', label: 'Mirrored Fan' },
+  { value: 'fanOpen', label: 'Fan Open' },
+  { value: 'fanClose', label: 'Fan Close' },
+  { value: 'centerOutSpread', label: 'Center-Out Spread' },
+  { value: 'outsideInCollapse', label: 'Outside-In Collapse' },
+  { value: 'crossfire', label: 'Crossfire' },
+  { value: 'tunnel', label: 'Tunnel' },
+  { value: 'ceilingCanopy', label: 'Ceiling Canopy' },
+  { value: 'crowdScan', label: 'Crowd Scan' },
+  { value: 'pendulum', label: 'Pendulum' },
+  { value: 'figureEight', label: 'Figure Eight' },
+  { value: 'panWave', label: 'Pan Wave' },
+  { value: 'tiltWave', label: 'Tilt Wave' },
+  { value: 'alternatingBanks', label: 'Alternating Banks' },
+  { value: 'staticAerialHold', label: 'Static Aerial Hold' },
+]
+
+const MOVEMENT_DIRECTION_OPTIONS = [
+  { value: 'forward', label: 'Forward' },
+  { value: 'reverse', label: 'Reverse' },
+  { value: 'alternate', label: 'Alternate Banks' },
+]
+
+const MOVEMENT_SYMMETRY_OPTIONS = [
+  { value: 'none', label: 'None' },
+  { value: 'mirrorPairs', label: 'Mirror Pairs' },
+  { value: 'centerMirror', label: 'Center Mirror' },
+  { value: 'alternatingBanks', label: 'Alternating Banks' },
+]
+
+const MOVEMENT_QUANTIZE_OPTIONS = [
+  { value: 'none', label: 'Custom Duration' },
+  { value: 'beat', label: '1 Beat' },
+  { value: 'bar', label: '1 Bar' },
+  { value: 'phrase', label: '1 Phrase (16 beats)' },
+]
+
+const MOVEMENT_EASING_OPTIONS = [
+  { value: 'linear', label: 'Linear' },
+  { value: 'easeIn', label: 'Ease In' },
+  { value: 'easeOut', label: 'Ease Out' },
+  { value: 'easeInOut', label: 'Ease In / Out' },
 ]
 
 type ColorKey = keyof LaserDmxFixture['color']
@@ -74,6 +128,7 @@ export function LaserDmxSpatialFixturesPanel() {
 
   const [newProfileId, setNewProfileId] = useState<LaserDmxProfileId>('genericRgbLaser')
   const [venueTemplateId, setVenueTemplateId] = useState<(typeof PRODUCTION_VENUE_TEMPLATES)[number]['id']>(PRODUCTION_VENUE_TEMPLATES[1].id)
+  const [movementGroupId, setMovementGroupId] = useState('')
   const { fixtures, selectedFixtureId } = laserDmxSettings
   const fixture = fixtures.find(candidate => candidate.id === selectedFixtureId) ?? fixtures[0] ?? null
   const fixtureId = fixture?.id ?? ''
@@ -83,6 +138,14 @@ export function LaserDmxSpatialFixturesPanel() {
   const diagnostics = diagnoseProductionRig(laserDmxSettings)
   const groups = laserDmxSettings.productionGroups ?? []
   const targets = laserDmxSettings.productionTargets ?? []
+  const movingHead = fixture && isMovingHeadFixtureKind(fixture.fixtureKind)
+    ? normalizeProductionMovingHeadSettings(fixture.movingHead)
+    : null
+  const movementGroup = groups.find(group => group.id === movementGroupId)
+    ?? groups.find(group => fixture && group.fixtureIds.includes(fixture.id))
+    ?? groups[0]
+    ?? null
+  const movement = normalizeProductionGroupMovement(movementGroup?.movement)
 
   function updateStage(patch: Partial<ProductionStageModel>) {
     setLaserDmxSettings({ productionStage: normalizeProductionStageModel({ ...stage, ...patch }) })
@@ -133,6 +196,25 @@ export function LaserDmxSpatialFixturesPanel() {
     updateLaserFixture(fixtureId, { path: { ...fixture.path, [key]: value } })
   }
 
+  function updateMovingHead(patch: Partial<NonNullable<LaserDmxFixture['movingHead']>>) {
+    if (!fixture || !movingHead) return
+    updateLaserFixture(fixture.id, { movingHead: { ...movingHead, ...patch } })
+  }
+
+  function requestMovingHeadSnap() {
+    if (!movingHead) return
+    updateMovingHead({ snapRequestId: movingHead.snapRequestId + 1 })
+  }
+
+  function updateGroupMovement(patch: Partial<typeof movement>) {
+    if (!movementGroup) return
+    setLaserDmxSettings({
+      productionGroups: groups.map(group => group.id === movementGroup.id
+        ? { ...group, movement: normalizeProductionGroupMovement({ ...movement, ...patch }) }
+        : group),
+    })
+  }
+
   function toggleGroup(groupId: string) {
     if (!fixture) return
     setLaserDmxSettings({
@@ -150,8 +232,14 @@ export function LaserDmxSpatialFixturesPanel() {
   function addGroup() {
     const id = crypto.randomUUID()
     setLaserDmxSettings({
-      productionGroups: [...groups, { id, name: `Fixture Group ${groups.length + 1}`, fixtureIds: fixture ? [fixture.id] : [] }],
+      productionGroups: [...groups, {
+        id,
+        name: `Fixture Group ${groups.length + 1}`,
+        fixtureIds: fixture ? [fixture.id] : [],
+        movement: { ...DEFAULT_PRODUCTION_GROUP_MOVEMENT, centerPoint: { ...DEFAULT_PRODUCTION_GROUP_MOVEMENT.centerPoint } },
+      }],
     })
+    setMovementGroupId(id)
   }
 
   return (
@@ -246,7 +334,15 @@ export function LaserDmxSpatialFixturesPanel() {
               onChange={value => {
                 const profile = getLaserDmxFixtureProfile(value)
                 if (!profile) return
-                updateLaserFixture(fixture.id, { fixtureKind: profile.fixtureKind, dmx: { ...fixture.dmx, profileId: value as LaserDmxProfileId } })
+                const nextIsMovingHead = isMovingHeadFixtureKind(profile.fixtureKind)
+                updateLaserFixture(fixture.id, {
+                  fixtureKind: profile.fixtureKind,
+                  dmx: { ...fixture.dmx, profileId: value as LaserDmxProfileId },
+                  movingHead: nextIsMovingHead
+                    ? normalizeProductionMovingHeadSettings(fixture.movingHead)
+                    : undefined,
+                  path: nextIsMovingHead ? { ...fixture.path, kind: 'staticBeam' } : fixture.path,
+                })
               }}
               options={PROFILE_OPTIONS}
             />
@@ -281,16 +377,91 @@ export function LaserDmxSpatialFixturesPanel() {
             <button type="button" className="rv-glyph-upload-btn" onClick={addGroup}>+ Create Group</button>
           </Collapsible>
 
+          {movingHead && capabilities?.panTilt && (
+            <Collapsible label="Moving Head Motion" defaultOpen>
+              <ToggleRow
+                label="Track Target"
+                value={movingHead.targetTracking}
+                onChange={targetTracking => updateMovingHead({ targetTracking })}
+                description="Tracks the selected stage point or zone. Manual pan and tilt are the fallback when a target is unavailable."
+              />
+              <NumberInputRow
+                label="Manual Pan"
+                value={movingHead.panDeg}
+                min={-capabilities.panTilt.panRangeDeg / 2}
+                max={capabilities.panTilt.panRangeDeg / 2}
+                step={1}
+                unit="°"
+                onChange={panDeg => updateMovingHead({ panDeg })}
+              />
+              <NumberInputRow
+                label="Manual Tilt"
+                value={movingHead.tiltDeg}
+                min={-capabilities.panTilt.tiltRangeDeg / 2}
+                max={capabilities.panTilt.tiltRangeDeg / 2}
+                step={1}
+                unit="°"
+                onChange={tiltDeg => updateMovingHead({ tiltDeg })}
+              />
+              <SliderRow label="Pan Speed" value={movingHead.panSpeedDegPerSec} onChange={panSpeedDegPerSec => updateMovingHead({ panSpeedDegPerSec })} min={1} max={720} step={1} color="#4ac7db" />
+              <SliderRow label="Tilt Speed" value={movingHead.tiltSpeedDegPerSec} onChange={tiltSpeedDegPerSec => updateMovingHead({ tiltSpeedDegPerSec })} min={1} max={540} step={1} color="#61d6aa" />
+              <SelectRow label="Motion Easing" value={movingHead.easing} onChange={easing => updateMovingHead({ easing: easing as ProductionMovingHeadEasing })} options={MOVEMENT_EASING_OPTIONS} />
+              <ToggleRow label="Pre-position While Shuttered" value={movingHead.prePositionWhileShuttered} onChange={prePositionWhileShuttered => updateMovingHead({ prePositionWhileShuttered })} />
+              <button type="button" className="rv-glyph-upload-btn" onClick={requestMovingHeadSnap} aria-label={`Snap ${fixture.name} to its requested position`}>Snap to Position</button>
+            </Collapsible>
+          )}
+
+          {movingHead && (
+            <Collapsible label="Group Movement" defaultOpen={false}>
+              {groups.length === 0 || !movementGroup ? (
+                <div className="rv-ctrl-info">Create a fixture group to apply reusable movement effects.</div>
+              ) : (
+                <>
+                  <SelectRow label="Movement Group" value={movementGroup.id} onChange={setMovementGroupId} options={groups.map(group => ({ value: group.id, label: group.name }))} />
+                  <ToggleRow label="Movement Enabled" value={movement.enabled} onChange={enabled => updateGroupMovement({ enabled })} />
+                  <SelectRow label="Movement" value={movement.generator} onChange={generator => updateGroupMovement({ generator: generator as ProductionGroupMovementGenerator })} options={MOVEMENT_GENERATOR_OPTIONS} />
+                  <SliderRow label="Speed" value={movement.speed} onChange={speed => updateGroupMovement({ speed })} min={0} max={8} step={0.05} color="#4ac7db" />
+                  <SliderRow label="Amplitude" value={movement.amplitude} onChange={amplitude => updateGroupMovement({ amplitude })} min={0} max={2} step={0.01} color="#61d6aa" />
+                  <SliderRow label="Spread" value={movement.spreadDeg} onChange={spreadDeg => updateGroupMovement({ spreadDeg })} min={0} max={270} step={1} color="#d8b95a" />
+                  <SelectRow label="Direction" value={movement.direction} onChange={direction => updateGroupMovement({ direction: direction as ProductionMovementDirection })} options={MOVEMENT_DIRECTION_OPTIONS} />
+                  <Collapsible label="Advanced Movement" defaultOpen={false}>
+                    <SliderRow label="Pan Amplitude" value={movement.panAmplitudeDeg} onChange={panAmplitudeDeg => updateGroupMovement({ panAmplitudeDeg })} min={0} max={270} step={1} color="#4ac7db" />
+                    <SliderRow label="Tilt Amplitude" value={movement.tiltAmplitudeDeg} onChange={tiltAmplitudeDeg => updateGroupMovement({ tiltAmplitudeDeg })} min={0} max={180} step={1} color="#61d6aa" />
+                    <NumberInputRow label="Center X" value={movement.centerPoint.x} onChange={x => updateGroupMovement({ centerPoint: { ...movement.centerPoint, x } })} min={-stage.dimensions.width} max={stage.dimensions.width} unit="m" />
+                    <NumberInputRow label="Center Y" value={movement.centerPoint.y} onChange={y => updateGroupMovement({ centerPoint: { ...movement.centerPoint, y } })} min={-stage.dimensions.height} max={stage.dimensions.height * 2} unit="m" />
+                    <NumberInputRow label="Center Z" value={movement.centerPoint.z} onChange={z => updateGroupMovement({ centerPoint: { ...movement.centerPoint, z } })} min={-stage.dimensions.depth * 2} max={stage.dimensions.depth * 2} unit="m" />
+                    <SliderRow label="Phase Offset" value={movement.phaseOffset} onChange={phaseOffset => updateGroupMovement({ phaseOffset })} min={-2} max={2} step={0.01} color="#b84fc9" />
+                    <SliderRow label="Fixture Phase Spread" value={movement.phaseSpread} onChange={phaseSpread => updateGroupMovement({ phaseSpread })} min={-1} max={1} step={0.01} color="#b84fc9" />
+                    <SelectRow label="Symmetry" value={movement.symmetry} onChange={symmetry => updateGroupMovement({ symmetry: symmetry as ProductionMovementSymmetry })} options={MOVEMENT_SYMMETRY_OPTIONS} />
+                    <SelectRow label="Quantize" value={movement.quantize} onChange={quantize => updateGroupMovement({ quantize: quantize as ProductionMovementQuantize })} options={MOVEMENT_QUANTIZE_OPTIONS} />
+                    <NumberInputRow label="Duration" value={movement.durationBeats} onChange={durationBeats => updateGroupMovement({ durationBeats })} min={0.25} max={128} step={0.25} unit="beats" />
+                    <SelectRow label="Generator Easing" value={movement.easing} onChange={easing => updateGroupMovement({ easing: easing as ProductionMovingHeadEasing })} options={MOVEMENT_EASING_OPTIONS} />
+                    <ToggleRow label="Snap Generator" value={movement.snap} onChange={snap => updateGroupMovement({ snap })} description="Use only for intentional hard cuts. Normal movement remains interpolated." />
+                    <ToggleRow label="Pre-position Group" value={movement.prePositionWhileShuttered} onChange={prePositionWhileShuttered => updateGroupMovement({ prePositionWhileShuttered })} />
+                  </Collapsible>
+                </>
+              )}
+            </Collapsible>
+          )}
+
           <Collapsible label="Fixture Color" defaultOpen={false}>
-            <SelectRow label="Color Mode" value={fixture.color.mode} onChange={value => setColor('mode', value as LaserDmxFixture['color']['mode'])} options={COLOR_MODE_OPTIONS} />
             {(capabilities?.color?.mode === 'rgb' || capabilities?.color?.mode === 'rgbw') && (
               <>
+                <SelectRow label="Color Mode" value={fixture.color.mode} onChange={value => setColor('mode', value as LaserDmxFixture['color']['mode'])} options={COLOR_MODE_OPTIONS} />
                 <SliderRow label="Red" value={fixture.color.red} onChange={value => setColor('red', Math.round(value))} min={0} max={255} step={1} color="#c0314a" />
                 <SliderRow label="Green" value={fixture.color.green} onChange={value => setColor('green', Math.round(value))} min={0} max={255} step={1} color="#61d6aa" />
                 <SliderRow label="Blue" value={fixture.color.blue} onChange={value => setColor('blue', Math.round(value))} min={0} max={255} step={1} color="#4ac7db" />
               </>
             )}
             {capabilities?.color?.mode === 'rgbw' && <SliderRow label="White" value={fixture.color.white} onChange={value => setColor('white', Math.round(value))} min={0} max={255} step={1} color="#e8f4f8" />}
+            {capabilities?.color?.mode === 'colorWheel' && movingHead && (
+              <SelectRow
+                label="Color Wheel"
+                value={String(movingHead.colorWheelSlot)}
+                onChange={value => updateMovingHead({ colorWheelSlot: Number(value) })}
+                options={capabilities.color.slots.map((slot, index) => ({ value: String(index), label: slot }))}
+              />
+            )}
             <SliderRow label="Alpha" value={fixture.color.alpha} onChange={value => setColor('alpha', value)} min={0} max={1} step={0.01} color="#b84fc9" />
           </Collapsible>
 
@@ -300,6 +471,16 @@ export function LaserDmxSpatialFixturesPanel() {
             {capabilities?.beamPattern && <SliderRow label="Beam Width" value={fixture.beam.width} onChange={value => setBeam('width', value)} min={0.2} max={6} step={0.05} color="#61d6aa" />}
             {capabilities?.zoom && <SliderRow label="Zoom" value={fixture.beam.zoom} onChange={value => setBeam('zoom', value)} min={capabilities.zoom.min} max={capabilities.zoom.max} step={0.01} color="#d8b95a" />}
             {capabilities?.focus && <SliderRow label="Focus" value={fixture.beam.focus} onChange={value => setBeam('focus', value)} min={capabilities.focus.min} max={capabilities.focus.max} step={0.01} color="#d8b95a" />}
+            {capabilities?.iris && movingHead && <SliderRow label="Iris" value={movingHead.iris} onChange={iris => updateMovingHead({ iris })} min={capabilities.iris.min} max={capabilities.iris.max} step={0.01} color="#d8b95a" />}
+            {capabilities?.frost && movingHead && <SliderRow label="Frost" value={movingHead.frost} onChange={frost => updateMovingHead({ frost })} min={capabilities.frost.min} max={capabilities.frost.max} step={0.01} color="#e8f4f8" />}
+            {capabilities?.gobo && movingHead && (
+              <SelectRow label="Gobo" value={String(movingHead.goboIndex)} onChange={value => updateMovingHead({ goboIndex: Number(value) })} options={capabilities.gobo.slots.map((slot, index) => ({ value: String(index), label: slot }))} />
+            )}
+            {capabilities?.gobo?.rotation && movingHead && <SliderRow label="Gobo Rotation" value={movingHead.goboRotation} onChange={goboRotation => updateMovingHead({ goboRotation })} min={-1} max={1} step={0.01} color="#b84fc9" />}
+            {capabilities?.prism && movingHead && (
+              <SelectRow label="Prism" value={String(movingHead.prismFacets)} onChange={value => updateMovingHead({ prismFacets: Number(value) })} options={[{ value: '0', label: 'Open' }, ...capabilities.prism.facets.map(facets => ({ value: String(facets), label: `${facets}-facet` }))]} />
+            )}
+            {capabilities?.prism?.rotation && movingHead && <SliderRow label="Prism Rotation" value={movingHead.prismRotation} onChange={prismRotation => updateMovingHead({ prismRotation })} min={-1} max={1} step={0.01} color="#b84fc9" />}
             {capabilities?.strobe && <SliderRow label="Strobe Rate" value={fixture.beam.strobeRate} onChange={value => setBeam('strobeRate', value)} min={capabilities.strobe.min} max={capabilities.strobe.max} step={0.01} color="#c0314a" />}
           </Collapsible>
 

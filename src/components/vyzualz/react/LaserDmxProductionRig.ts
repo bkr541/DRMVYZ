@@ -15,10 +15,10 @@ import type {
   LaserDmxSettings,
 } from './ReactTypes'
 
-export const LASER_DMX_SETTINGS_SCHEMA_VERSION = 1
-export const LASER_DMX_FIXTURE_SCHEMA_VERSION = 1
+export const LASER_DMX_SETTINGS_SCHEMA_VERSION = 2
+export const LASER_DMX_FIXTURE_SCHEMA_VERSION = 2
 export const LASER_DMX_BEAM_MATRIX_SCHEMA_VERSION = 1
-export const LASER_DMX_PRODUCTION_RIG_SCHEMA_VERSION = 2
+export const LASER_DMX_PRODUCTION_RIG_SCHEMA_VERSION = 3
 export const LASER_DMX_STAGE_SCHEMA_VERSION = 1
 
 export type ProductionFixtureKind =
@@ -228,6 +228,7 @@ export interface ProductionFixturePropertyState {
   color?: ProductionColorState
   panDeg?: number
   tiltDeg?: number
+  colorWheelSlot?: number
   zoom?: number
   focus?: number
   iris?: number
@@ -239,6 +240,171 @@ export interface ProductionFixturePropertyState {
   beamPatternId?: string
   atmosphericOutput?: number
   triggered?: boolean
+}
+
+export type ProductionMovingHeadEasing = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut'
+
+export interface ProductionMovingHeadSettings {
+  /** Manual home pose, used whenever target tracking is disabled or unavailable. */
+  panDeg: number
+  tiltDeg: number
+  panSpeedDegPerSec: number
+  tiltSpeedDegPerSec: number
+  easing: ProductionMovingHeadEasing
+  targetTracking: boolean
+  prePositionWhileShuttered: boolean
+  /** Monotonic explicit snap action token. Normal runtime movement is interpolated. */
+  snapRequestId: number
+  colorWheelSlot: number
+  iris: number
+  frost: number
+  goboIndex: number
+  goboRotation: number
+  prismFacets: number
+  prismRotation: number
+}
+
+export type ProductionGroupMovementGenerator =
+  | 'mirroredFan'
+  | 'fanOpen'
+  | 'fanClose'
+  | 'centerOutSpread'
+  | 'outsideInCollapse'
+  | 'crossfire'
+  | 'tunnel'
+  | 'ceilingCanopy'
+  | 'crowdScan'
+  | 'pendulum'
+  | 'figureEight'
+  | 'panWave'
+  | 'tiltWave'
+  | 'alternatingBanks'
+  | 'staticAerialHold'
+
+export type ProductionMovementSymmetry = 'none' | 'mirrorPairs' | 'centerMirror' | 'alternatingBanks'
+export type ProductionMovementDirection = 'forward' | 'reverse' | 'alternate'
+export type ProductionMovementQuantize = 'none' | 'beat' | 'bar' | 'phrase'
+
+export interface ProductionGroupMovementConfig {
+  enabled: boolean
+  generator: ProductionGroupMovementGenerator
+  speed: number
+  amplitude: number
+  panAmplitudeDeg: number
+  tiltAmplitudeDeg: number
+  centerPoint: ProductionStageVector3
+  spreadDeg: number
+  direction: ProductionMovementDirection
+  phaseOffset: number
+  phaseSpread: number
+  symmetry: ProductionMovementSymmetry
+  quantize: ProductionMovementQuantize
+  durationBeats: number
+  snap: boolean
+  easing: ProductionMovingHeadEasing
+  prePositionWhileShuttered: boolean
+}
+
+export const DEFAULT_PRODUCTION_MOVING_HEAD_SETTINGS: ProductionMovingHeadSettings = {
+  panDeg: 0,
+  tiltDeg: -35,
+  panSpeedDegPerSec: 180,
+  tiltSpeedDegPerSec: 140,
+  easing: 'easeInOut',
+  targetTracking: true,
+  prePositionWhileShuttered: true,
+  snapRequestId: 0,
+  colorWheelSlot: 0,
+  iris: 1,
+  frost: 0,
+  goboIndex: 0,
+  goboRotation: 0,
+  prismFacets: 0,
+  prismRotation: 0,
+}
+
+export const DEFAULT_PRODUCTION_GROUP_MOVEMENT: ProductionGroupMovementConfig = {
+  enabled: false,
+  generator: 'staticAerialHold',
+  speed: 1,
+  amplitude: 1,
+  panAmplitudeDeg: 55,
+  tiltAmplitudeDeg: 28,
+  centerPoint: { x: 0, y: 1.8, z: -4 },
+  spreadDeg: 45,
+  direction: 'forward',
+  phaseOffset: 0,
+  phaseSpread: 0.125,
+  symmetry: 'mirrorPairs',
+  quantize: 'bar',
+  durationBeats: 4,
+  snap: false,
+  easing: 'easeInOut',
+  prePositionWhileShuttered: true,
+}
+
+function isMovingHeadEasing(value: unknown): value is ProductionMovingHeadEasing {
+  return value === 'linear' || value === 'easeIn' || value === 'easeOut' || value === 'easeInOut'
+}
+
+export function normalizeProductionMovingHeadSettings(value: unknown): ProductionMovingHeadSettings {
+  const raw = isRecord(value) ? value : {}
+  return {
+    panDeg: finiteOr(raw.panDeg, DEFAULT_PRODUCTION_MOVING_HEAD_SETTINGS.panDeg),
+    tiltDeg: finiteOr(raw.tiltDeg, DEFAULT_PRODUCTION_MOVING_HEAD_SETTINGS.tiltDeg),
+    panSpeedDegPerSec: Math.max(1, finiteOr(raw.panSpeedDegPerSec, DEFAULT_PRODUCTION_MOVING_HEAD_SETTINGS.panSpeedDegPerSec)),
+    tiltSpeedDegPerSec: Math.max(1, finiteOr(raw.tiltSpeedDegPerSec, DEFAULT_PRODUCTION_MOVING_HEAD_SETTINGS.tiltSpeedDegPerSec)),
+    easing: isMovingHeadEasing(raw.easing) ? raw.easing : DEFAULT_PRODUCTION_MOVING_HEAD_SETTINGS.easing,
+    targetTracking: booleanOr(raw.targetTracking, DEFAULT_PRODUCTION_MOVING_HEAD_SETTINGS.targetTracking),
+    prePositionWhileShuttered: booleanOr(raw.prePositionWhileShuttered, DEFAULT_PRODUCTION_MOVING_HEAD_SETTINGS.prePositionWhileShuttered),
+    snapRequestId: Math.max(0, Math.round(finiteOr(raw.snapRequestId, booleanOr(raw.snapOnNextFrame, false) ? 1 : 0))),
+    colorWheelSlot: Math.max(0, Math.round(finiteOr(raw.colorWheelSlot, 0))),
+    iris: Math.max(0, Math.min(1, finiteOr(raw.iris, 1))),
+    frost: Math.max(0, Math.min(1, finiteOr(raw.frost, 0))),
+    goboIndex: Math.max(0, Math.round(finiteOr(raw.goboIndex, 0))),
+    goboRotation: finiteOr(raw.goboRotation, 0),
+    prismFacets: Math.max(0, Math.round(finiteOr(raw.prismFacets, 0))),
+    prismRotation: finiteOr(raw.prismRotation, 0),
+  }
+}
+
+const GROUP_MOVEMENT_GENERATORS: readonly ProductionGroupMovementGenerator[] = [
+  'mirroredFan', 'fanOpen', 'fanClose', 'centerOutSpread', 'outsideInCollapse',
+  'crossfire', 'tunnel', 'ceilingCanopy', 'crowdScan', 'pendulum', 'figureEight',
+  'panWave', 'tiltWave', 'alternatingBanks', 'staticAerialHold',
+]
+
+export function normalizeProductionGroupMovement(value: unknown): ProductionGroupMovementConfig {
+  const raw = isRecord(value) ? value : {}
+  const generator = typeof raw.generator === 'string' && GROUP_MOVEMENT_GENERATORS.includes(raw.generator as ProductionGroupMovementGenerator)
+    ? raw.generator as ProductionGroupMovementGenerator
+    : DEFAULT_PRODUCTION_GROUP_MOVEMENT.generator
+  const direction = raw.direction === 'reverse' || raw.direction === 'alternate' ? raw.direction : 'forward'
+  const symmetry = raw.symmetry === 'none' || raw.symmetry === 'centerMirror' || raw.symmetry === 'alternatingBanks'
+    ? raw.symmetry
+    : 'mirrorPairs'
+  const quantize = raw.quantize === 'none' || raw.quantize === 'beat' || raw.quantize === 'phrase'
+    ? raw.quantize
+    : 'bar'
+  return {
+    enabled: booleanOr(raw.enabled, DEFAULT_PRODUCTION_GROUP_MOVEMENT.enabled),
+    generator,
+    speed: Math.max(0, Math.min(16, finiteOr(raw.speed, DEFAULT_PRODUCTION_GROUP_MOVEMENT.speed))),
+    amplitude: Math.max(0, Math.min(2, finiteOr(raw.amplitude, DEFAULT_PRODUCTION_GROUP_MOVEMENT.amplitude))),
+    panAmplitudeDeg: Math.max(0, Math.min(270, finiteOr(raw.panAmplitudeDeg, DEFAULT_PRODUCTION_GROUP_MOVEMENT.panAmplitudeDeg))),
+    tiltAmplitudeDeg: Math.max(0, Math.min(180, finiteOr(raw.tiltAmplitudeDeg, DEFAULT_PRODUCTION_GROUP_MOVEMENT.tiltAmplitudeDeg))),
+    centerPoint: normalizeStageVector(raw.centerPoint, DEFAULT_PRODUCTION_GROUP_MOVEMENT.centerPoint),
+    spreadDeg: Math.max(0, Math.min(270, finiteOr(raw.spreadDeg, DEFAULT_PRODUCTION_GROUP_MOVEMENT.spreadDeg))),
+    direction,
+    phaseOffset: finiteOr(raw.phaseOffset, DEFAULT_PRODUCTION_GROUP_MOVEMENT.phaseOffset),
+    phaseSpread: finiteOr(raw.phaseSpread, DEFAULT_PRODUCTION_GROUP_MOVEMENT.phaseSpread),
+    symmetry,
+    quantize,
+    durationBeats: Math.max(0.25, Math.min(128, finiteOr(raw.durationBeats, DEFAULT_PRODUCTION_GROUP_MOVEMENT.durationBeats))),
+    snap: booleanOr(raw.snap, DEFAULT_PRODUCTION_GROUP_MOVEMENT.snap),
+    easing: isMovingHeadEasing(raw.easing) ? raw.easing : DEFAULT_PRODUCTION_GROUP_MOVEMENT.easing,
+    prePositionWhileShuttered: booleanOr(raw.prePositionWhileShuttered, DEFAULT_PRODUCTION_GROUP_MOVEMENT.prePositionWhileShuttered),
+  }
 }
 
 export interface ProductionFixtureInstance {
@@ -266,6 +432,7 @@ export interface ProductionFixtureGroup {
   fixtureIds: string[]
   parentGroupId?: string | null
   tags?: string[]
+  movement?: ProductionGroupMovementConfig
 }
 
 export interface ProductionLookFixtureState {
@@ -674,9 +841,7 @@ export const ALL_PRODUCTION_FIXTURE_KINDS: readonly ProductionFixtureKind[] = [
 export const LASER_DMX_VIRTUAL_RENDERER_CAPABILITIES: ProductionRendererCapabilities = {
   id: 'laserDmxVirtualRenderer',
   virtualOnly: true,
-  // Patch 1 compiles existing laser profiles only. Later renderers can advertise
-  // additional kinds without changing the rig document contract.
-  fixtureKinds: ['laserProjector'],
+  fixtureKinds: ['laserProjector', 'movingHeadBeam', 'movingHeadSpot', 'movingHeadWash'],
   supportsBeamPaths: true,
   supportsVolumetrics: true,
   supportsAtmospherics: true,
@@ -692,7 +857,7 @@ export const LASER_DMX_OUTPUT_ADAPTER_CAPABILITIES: ProductionOutputAdapterCapab
   enabled: true,
   canTransmit: false,
   transports: ['none'],
-  fixtureKinds: ['laserProjector'],
+  fixtureKinds: ['laserProjector', 'movingHeadBeam', 'movingHeadSpot', 'movingHeadWash'],
 }
 
 /**
@@ -762,6 +927,14 @@ export type ProductionChannelSource =
   | 'pan'
   | 'tilt'
   | 'zoom'
+  | 'focus'
+  | 'iris'
+  | 'frost'
+  | 'colorWheel'
+  | 'gobo'
+  | 'goboRotation'
+  | 'prism'
+  | 'prismRotation'
   | 'rotation'
   | 'scanSpeed'
   | 'pathComplexity'
@@ -803,6 +976,14 @@ const baseRgbChannels: readonly ProductionChannelDefinition[] = [
   { channel: 9, source: 'zoom', label: 'Zoom' },
   { channel: 10, source: 'zero', label: 'Reserved' },
   { channel: 11, source: 'scanSpeed', label: 'Scan speed' },
+]
+
+const movingHeadCoreChannels: readonly ProductionChannelDefinition[] = [
+  { channel: 1, source: 'pan', label: 'Pan' },
+  { channel: 2, source: 'tilt', label: 'Tilt' },
+  { channel: 3, source: 'dimmer', label: 'Dimmer' },
+  { channel: 4, source: 'shutter', label: 'Shutter' },
+  { channel: 5, source: 'strobe', label: 'Strobe' },
 ]
 
 export const LASER_DMX_FIXTURE_PROFILES: Readonly<Record<LaserDmxProfileId, ProductionFixtureProfile>> = {
@@ -869,6 +1050,92 @@ export const LASER_DMX_FIXTURE_PROFILES: Readonly<Record<LaserDmxProfileId, Prod
       { channel: 12, source: 'scanSpeed', label: 'Scan speed' },
       { channel: 13, source: 'zoom', label: 'Zoom' },
       { channel: 14, source: 'pathComplexity', label: 'Pattern complexity' },
+    ],
+  },
+  genericMovingHeadBeam: {
+    schemaVersion: 1,
+    id: 'genericMovingHeadBeam',
+    label: 'Virtual Moving-Head Beam',
+    fixtureKind: 'movingHeadBeam',
+    capabilities: {
+      color: { mode: 'colorWheel', slots: ['open', 'red', 'green', 'blue', 'cyan', 'magenta', 'amber', 'white'] },
+      dimmer: true,
+      shutter: true,
+      strobe: { min: 0, max: 1 },
+      panTilt: { panRangeDeg: 540, tiltRangeDeg: 270 },
+      zoom: { min: 0, max: 1 },
+      focus: { min: 0, max: 1 },
+      iris: { min: 0, max: 1 },
+      frost: { min: 0, max: 1 },
+      gobo: { slots: ['open', 'dots', 'bars', 'triangle', 'star'], rotation: true },
+      prism: { facets: [3, 8], rotation: true },
+    },
+    channels: [
+      ...movingHeadCoreChannels,
+      { channel: 6, source: 'colorWheel', label: 'Color wheel' },
+      { channel: 7, source: 'gobo', label: 'Gobo' },
+      { channel: 8, source: 'goboRotation', label: 'Gobo rotation' },
+      { channel: 9, source: 'prism', label: 'Prism' },
+      { channel: 10, source: 'prismRotation', label: 'Prism rotation' },
+      { channel: 11, source: 'zoom', label: 'Zoom' },
+      { channel: 12, source: 'focus', label: 'Focus' },
+      { channel: 13, source: 'iris', label: 'Iris' },
+      { channel: 14, source: 'frost', label: 'Frost' },
+    ],
+  },
+  genericMovingHeadSpot: {
+    schemaVersion: 1,
+    id: 'genericMovingHeadSpot',
+    label: 'Virtual Moving-Head Spot',
+    fixtureKind: 'movingHeadSpot',
+    capabilities: {
+      color: { mode: 'colorWheel', slots: ['open', 'red', 'green', 'blue', 'cyan', 'magenta', 'amber', 'white'] },
+      dimmer: true,
+      shutter: true,
+      strobe: { min: 0, max: 1 },
+      panTilt: { panRangeDeg: 540, tiltRangeDeg: 270 },
+      zoom: { min: 0, max: 1 },
+      focus: { min: 0, max: 1 },
+      iris: { min: 0, max: 1 },
+      frost: { min: 0, max: 1 },
+      gobo: { slots: ['open', 'breakup', 'window', 'star', 'rings'], rotation: true },
+      prism: { facets: [3], rotation: true },
+    },
+    channels: [
+      ...movingHeadCoreChannels,
+      { channel: 6, source: 'colorWheel', label: 'Color wheel' },
+      { channel: 7, source: 'gobo', label: 'Gobo' },
+      { channel: 8, source: 'goboRotation', label: 'Gobo rotation' },
+      { channel: 9, source: 'zoom', label: 'Zoom' },
+      { channel: 10, source: 'focus', label: 'Focus' },
+      { channel: 11, source: 'iris', label: 'Iris' },
+      { channel: 12, source: 'frost', label: 'Frost' },
+      { channel: 13, source: 'prism', label: 'Prism' },
+      { channel: 14, source: 'prismRotation', label: 'Prism rotation' },
+    ],
+  },
+  genericMovingHeadWash: {
+    schemaVersion: 1,
+    id: 'genericMovingHeadWash',
+    label: 'Virtual Moving-Head Wash',
+    fixtureKind: 'movingHeadWash',
+    capabilities: {
+      color: { mode: 'rgbw' },
+      dimmer: true,
+      shutter: true,
+      strobe: { min: 0, max: 1 },
+      panTilt: { panRangeDeg: 540, tiltRangeDeg: 270 },
+      zoom: { min: 0, max: 1 },
+      frost: { min: 0, max: 1 },
+    },
+    channels: [
+      ...movingHeadCoreChannels,
+      { channel: 6, source: 'red', label: 'Red' },
+      { channel: 7, source: 'green', label: 'Green' },
+      { channel: 8, source: 'blue', label: 'Blue' },
+      { channel: 9, source: 'white', label: 'White' },
+      { channel: 10, source: 'zoom', label: 'Zoom' },
+      { channel: 11, source: 'frost', label: 'Frost' },
     ],
   },
 }
@@ -988,6 +1255,10 @@ function isFixtureKind(value: unknown): value is ProductionFixtureKind {
   return typeof value === 'string' && ALL_PRODUCTION_FIXTURE_KINDS.includes(value as ProductionFixtureKind)
 }
 
+export function isMovingHeadFixtureKind(value: ProductionFixtureKind | undefined): value is 'movingHeadBeam' | 'movingHeadSpot' | 'movingHeadWash' {
+  return value === 'movingHeadBeam' || value === 'movingHeadSpot' || value === 'movingHeadWash'
+}
+
 function validateRange(
   range: ProductionRangeCapability | undefined,
   path: string,
@@ -1080,8 +1351,14 @@ export function validateFixtureProfile(profile: unknown): ProductionValidationIs
         (source === 'red' || source === 'green' || source === 'blue') &&
           (capabilities.color?.mode === 'rgb' || capabilities.color?.mode === 'rgbw') ||
         source === 'white' && capabilities.color?.mode === 'rgbw' ||
+        source === 'colorWheel' && capabilities.color?.mode === 'colorWheel' ||
         (source === 'pan' || source === 'tilt') && Boolean(capabilities.panTilt) ||
         source === 'zoom' && Boolean(capabilities.zoom) ||
+        source === 'focus' && Boolean(capabilities.focus) ||
+        source === 'iris' && Boolean(capabilities.iris) ||
+        source === 'frost' && Boolean(capabilities.frost) ||
+        (source === 'gobo' || source === 'goboRotation') && Boolean(capabilities.gobo) ||
+        (source === 'prism' || source === 'prismRotation') && Boolean(capabilities.prism) ||
         source === 'rotation' && Boolean(capabilities.beamPattern) ||
         (source === 'scanSpeed' || source === 'pathComplexity') && Boolean(capabilities.beamPattern)
       if (!sourceSupported) {
@@ -1123,6 +1400,14 @@ export interface ProductionChannelValues {
   pan: number
   tilt: number
   zoom: number
+  focus?: number
+  iris?: number
+  frost?: number
+  colorWheel?: number
+  gobo?: number
+  goboRotation?: number
+  prism?: number
+  prismRotation?: number
   rotation: number
   scanSpeed: number
   pathComplexity: number
@@ -1137,7 +1422,7 @@ export function compileProfileChannels(
   if (!profile) return null
   const channels: Record<string, number> = {}
   for (const definition of profile.channels) {
-    channels[`ch${definition.channel}`] = values[definition.source]
+    channels[`ch${definition.channel}`] = values[definition.source] ?? 0
   }
   return channels
 }
@@ -1200,14 +1485,15 @@ export function normalizeLegacyLaserDmxFixture(raw: unknown, index = 0): LaserDm
       ].filter(issue => issue.severity === 'error').map(issue => issue.message)
     : [`Unknown fixture profile "${String(rawProfileId)}"`]
   const compatibility = isRecord(raw.compatibility) ? raw.compatibility : {}
+  const fixtureKind = isFixtureKind(raw.fixtureKind)
+    ? raw.fixtureKind
+    : (profile?.fixtureKind ?? 'laserProjector')
 
   return {
     ...fallback,
     ...raw,
     schemaVersion: LASER_DMX_FIXTURE_SCHEMA_VERSION,
-    fixtureKind: isFixtureKind(raw.fixtureKind)
-      ? raw.fixtureKind
-      : (profile?.fixtureKind ?? 'laserProjector'),
+    fixtureKind,
     id: stringOr(raw.id, fallback.id),
     name: stringOr(raw.name, fallback.name),
     enabled: booleanOr(raw.enabled, fallback.enabled),
@@ -1280,6 +1566,9 @@ export function normalizeLegacyLaserDmxFixture(raw: unknown, index = 0): LaserDm
       : fallback.modulationRoutes,
     capabilityOverrides,
     targetId: typeof raw.targetId === 'string' ? raw.targetId : null,
+    ...(isMovingHeadFixtureKind(fixtureKind)
+      ? { movingHead: normalizeProductionMovingHeadSettings(raw.movingHead) }
+      : { movingHead: undefined }),
     ...(isRecord(raw.stageTransform) ? { stageTransform: raw.stageTransform as unknown as ProductionStageTransform } : {}),
     compatibility: {
       ...compatibility,
@@ -1381,7 +1670,13 @@ export function normalizeLaserDmxSettings(raw: unknown): LaserDmxSettings {
     showDmxDebug: booleanOr(raw.showDmxDebug, false),
     fixtures,
     productionStage,
-    productionGroups: normalizeArray<ProductionFixtureGroup>(raw.productionGroups),
+    productionGroups: normalizeArray<ProductionFixtureGroup>(raw.productionGroups).map((group, index) => ({
+      ...group,
+      id: typeof group.id === 'string' && group.id.length > 0 ? group.id : `fixture-group:${index + 1}`,
+      name: typeof group.name === 'string' && group.name.length > 0 ? group.name : `Fixture Group ${index + 1}`,
+      fixtureIds: Array.isArray(group.fixtureIds) ? group.fixtureIds.filter((value): value is string => typeof value === 'string') : [],
+      ...(group.movement ? { movement: normalizeProductionGroupMovement(group.movement) } : {}),
+    })),
     productionTargets: normalizeArray<unknown>(raw.productionTargets)
       .map(normalizeProductionTarget)
       .filter((target): target is ProductionTarget => target !== null),
@@ -1441,11 +1736,22 @@ function buildFixturePropertyState(
     }
   }
   if (capabilities.panTilt) {
-    properties.panDeg = fixture.position.pan
-    properties.tiltDeg = fixture.position.tilt
+    properties.panDeg = fixture.movingHead?.panDeg ?? fixture.position.pan
+    properties.tiltDeg = fixture.movingHead?.tiltDeg ?? fixture.position.tilt
   }
+  if (capabilities.color?.mode === 'colorWheel') properties.colorWheelSlot = fixture.movingHead?.colorWheelSlot ?? 0
   if (capabilities.zoom) properties.zoom = fixture.beam.zoom
   if (capabilities.focus) properties.focus = fixture.beam.focus
+  if (capabilities.iris) properties.iris = fixture.movingHead?.iris ?? 1
+  if (capabilities.frost) properties.frost = fixture.movingHead?.frost ?? 0
+  if (capabilities.gobo) {
+    properties.goboIndex = fixture.movingHead?.goboIndex ?? 0
+    if (capabilities.gobo.rotation) properties.goboRotation = fixture.movingHead?.goboRotation ?? 0
+  }
+  if (capabilities.prism) {
+    properties.prismFacets = fixture.movingHead?.prismFacets ?? 0
+    if (capabilities.prism.rotation) properties.prismRotation = fixture.movingHead?.prismRotation ?? 0
+  }
   if (capabilities.beamPattern) properties.beamPatternId = fixture.path.kind
   return properties
 }

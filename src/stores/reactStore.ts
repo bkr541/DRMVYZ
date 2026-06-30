@@ -70,9 +70,11 @@ import {
 import { resetBeamMatrixCompilerState } from '../components/vyzualz/react/renderers/LaserDmxBeamMatrixCompiler'
 import { resetFogState } from '../components/vyzualz/react/renderers/LaserDmxFogRenderer'
 import {
+  DEFAULT_PRODUCTION_MOVING_HEAD_SETTINGS,
   LASER_DMX_FIXTURE_SCHEMA_VERSION,
   applyProductionVenueTemplate,
   getLaserDmxFixtureProfile,
+  isMovingHeadFixtureKind,
   isPersistedLaserDmxBeamMatrixDocument,
   isPersistedLaserDmxSettingsDocument,
   normalizeLaserDmxBeamMatrixSettings,
@@ -622,17 +624,20 @@ function makeNewLaserFixture(existingFixtures: LaserDmxFixture[], profileId: Las
   const maxAddr = existingFixtures.reduce((m, f) => Math.max(m, f.dmx.startAddress), 0)
   const nextAddr = Math.min(497, maxAddr + 16)  // keep within 512-channel universe
   const profile = getLaserDmxFixtureProfile(profileId)
+  const fixtureKind = profile?.fixtureKind ?? 'laserProjector'
+  const isMovingHead = isMovingHeadFixtureKind(fixtureKind)
   return {
     schemaVersion: LASER_DMX_FIXTURE_SCHEMA_VERSION,
-    fixtureKind: profile?.fixtureKind ?? 'laserProjector',
+    fixtureKind,
     id:      crypto.randomUUID(),
-    name:    `Laser ${existingFixtures.length + 1}`,
+    name:    `${isMovingHead ? profile?.label ?? 'Moving Head' : 'Laser'} ${existingFixtures.length + 1}`,
     enabled: true,
     dmx: { universe: 1, startAddress: nextAddr, profileId, channelMode: profileId === 'genericRgbLaser' ? 'basic' : 'extended' },
     position: { originX: 0.5, originY: 0.85, originZ: 0, targetX: 0.5, targetY: 0.5, targetZ: 0, pan: 0, tilt: 0, rotation: 0, mirrorX: false, mirrorY: false },
     color: { mode: 'fixed', red: 0, green: 255, blue: 220, white: 0, alpha: 1, paletteId: '', colorCycleSpeed: 0.5 },
     beam: { dimmer: 1, shutterOpen: true, width: 1, zoom: 1, focus: 1, strobeRate: 0, flickerAmount: 0 },
-    path: { kind: 'fan', scale: 1, rotation: 0, offsetX: 0, offsetY: 0, scanSpeed: 0.45, phaseOffset: 0, pointCount: 18, spread: 0.6, radius: 0.4, complexity: 0.4, smoothing: 0, pathProgress: 0 },
+    path: { kind: isMovingHead ? 'staticBeam' : 'fan', scale: 1, rotation: 0, offsetX: 0, offsetY: 0, scanSpeed: isMovingHead ? 0 : 0.45, phaseOffset: 0, pointCount: isMovingHead ? 1 : 18, spread: 0.6, radius: 0.4, complexity: 0.4, smoothing: 0, pathProgress: isMovingHead ? 1 : 0 },
+    ...(isMovingHead ? { movingHead: { ...DEFAULT_PRODUCTION_MOVING_HEAD_SETTINGS } } : {}),
     modulationRoutes: [],
   }
 }
@@ -1862,6 +1867,11 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
   }
   if (version < 30 && isPersistedLaserDmxSettingsDocument(state.laserDmxSettings)) {
     // Backfill the shared metre-based stage and canonical fixture transforms.
+    state = { ...state, laserDmxSettings: normalizeLaserDmxSettings(state.laserDmxSettings) }
+  }
+  if (version < 31 && isPersistedLaserDmxSettingsDocument(state.laserDmxSettings)) {
+    // Backfill capability-gated moving-head state and normalized group movement
+    // documents without touching Beam Matrix travel or reaction-group data.
     state = { ...state, laserDmxSettings: normalizeLaserDmxSettings(state.laserDmxSettings) }
   }
   if (Array.isArray(state.reactPresets)) {
@@ -3116,6 +3126,13 @@ export const useReactStore = create<ReactStoreState>()(
             id:   crypto.randomUUID(),
             name: `${src.name} Copy`,
             dmx:  { ...src.dmx, startAddress: nextAddr },
+            ...(src.movingHead ? { movingHead: { ...src.movingHead } } : {}),
+            ...(src.stageTransform ? {
+              stageTransform: {
+                position: { ...src.stageTransform.position },
+                orientation: { ...src.stageTransform.orientation },
+              },
+            } : {}),
             modulationRoutes: src.modulationRoutes.map(r => ({ ...r, id: crypto.randomUUID() })),
           }
           return {
@@ -4115,7 +4132,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 30,
+      version: 31,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

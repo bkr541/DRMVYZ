@@ -1,5 +1,6 @@
 import type { LaserDmxFixtureFrame, LaserDmxSettings } from '../ReactTypes'
 import {
+  isMovingHeadFixtureKind,
   normalizeProductionStageModel,
   type ProductionCameraView,
   type ProductionRig,
@@ -356,6 +357,120 @@ function drawFixtureOrigin(ctx: CanvasRenderingContext2D, basis: CameraBasis, po
   ctx.restore()
 }
 
+function drawGoboProjection(
+  ctx: CanvasRenderingContext2D,
+  basis: CameraBasis,
+  target: Vec3,
+  color: string,
+  intensity: number,
+  radiusWorld: number,
+  goboIndex: number,
+  rotationDeg: number,
+): void {
+  if (goboIndex <= 0 || intensity <= 0.001) return
+  const projected = projectWithBasis(target, basis)
+  if (!projected.visible) return
+  const radius = Math.max(2, Math.min(48, radiusWorld * projected.scale))
+  const sides = [0, 24, 4, 3, 5, 6][goboIndex % 6] ?? 5
+  ctx.save()
+  ctx.translate(projected.x, projected.y)
+  ctx.rotate(rotationDeg * Math.PI / 180)
+  ctx.globalCompositeOperation = 'screen'
+  ctx.strokeStyle = color
+  ctx.fillStyle = color
+  ctx.globalAlpha = clamp01(intensity) * 0.62
+  ctx.lineWidth = Math.max(0.75, radius * 0.08)
+  if (sides === 24) {
+    for (let x = -1; x <= 1; x += 1) {
+      for (let y = -1; y <= 1; y += 1) {
+        ctx.beginPath()
+        ctx.arc(x * radius * 0.55, y * radius * 0.55, radius * 0.12, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    }
+  } else {
+    ctx.beginPath()
+    for (let index = 0; index < sides; index += 1) {
+      const angle = -Math.PI / 2 + index / sides * Math.PI * 2
+      const r = sides === 5 && index % 2 === 1 ? radius * 0.45 : radius
+      const x = Math.cos(angle) * r
+      const y = Math.sin(angle) * r
+      if (index === 0) ctx.moveTo(x, y)
+      else ctx.lineTo(x, y)
+    }
+    ctx.closePath()
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
+function drawMovingHeadFixture(
+  ctx: CanvasRenderingContext2D,
+  basis: CameraBasis,
+  fixture: ProductionRig['fixtures'][number],
+  frame: LaserDmxFixtureFrame,
+  haze: number,
+  glow: number,
+): void {
+  const movingHead = frame.visual.movingHead
+  if (!movingHead) return
+  const origin = fixture.transform.position
+  const target = movingHead.worldTarget
+  const irisScale = 0.2 + 0.8 * clamp01(movingHead.iris)
+  const zoom = clamp01(movingHead.zoom)
+  const frost = clamp01(movingHead.frost)
+  const focus = clamp01(movingHead.focus)
+  const kindScale = fixture.kind === 'movingHeadWash'
+    ? 5.5 + zoom * 8
+    : fixture.kind === 'movingHeadSpot'
+      ? 1.8 + zoom * 4.2
+      : 0.7 + zoom * 1.8
+  const beamWidth = frame.visual.beamWidth * kindScale * irisScale * (1 + frost * 1.7)
+  const opticalGlow = clamp01(glow * (0.5 + frost * 0.8 + (1 - focus) * 0.35))
+  const opticalHaze = clamp01(haze + frost * 0.35)
+  const facets = Math.max(0, Math.min(12, Math.round(movingHead.prismFacets)))
+
+  if (fixture.kind === 'movingHeadWash') {
+    const washRadius = 0.3 + zoom * 1.6
+    for (let index = 0; index < 7; index += 1) {
+      const angle = index / 7 * Math.PI * 2
+      const washTarget = index === 0 ? target : {
+        x: target.x + Math.cos(angle) * washRadius,
+        y: target.y + Math.sin(angle) * washRadius * 0.55,
+        z: target.z,
+      }
+      drawPerspectiveBeam(ctx, basis, origin, washTarget, frame.visual.color, frame.visual.intensity * (index === 0 ? 0.62 : 0.18), beamWidth, opticalGlow, opticalHaze)
+    }
+  } else if (facets >= 2) {
+    const prismRadius = (0.12 + zoom * 0.55) * Math.max(1, facets / 3)
+    const rotation = movingHead.prismRotation * Math.PI / 180
+    for (let index = 0; index < facets; index += 1) {
+      const angle = rotation + index / facets * Math.PI * 2
+      const prismTarget = {
+        x: target.x + Math.cos(angle) * prismRadius,
+        y: target.y + Math.sin(angle) * prismRadius,
+        z: target.z,
+      }
+      drawPerspectiveBeam(ctx, basis, origin, prismTarget, frame.visual.color, frame.visual.intensity * 0.72, beamWidth * 0.72, opticalGlow, opticalHaze)
+      drawBeamEndDot(ctx, basis, prismTarget, frame.visual.color, frame.visual.intensity * 0.7, beamWidth, opticalGlow)
+    }
+  } else {
+    drawPerspectiveBeam(ctx, basis, origin, target, frame.visual.color, frame.visual.intensity * frame.visual.rgba.a, beamWidth, opticalGlow, opticalHaze)
+  }
+
+  drawBeamEndDot(ctx, basis, target, frame.visual.color, frame.visual.intensity * frame.visual.rgba.a, beamWidth, opticalGlow)
+  drawGoboProjection(
+    ctx,
+    basis,
+    target,
+    frame.visual.color,
+    frame.visual.intensity * frame.visual.rgba.a,
+    0.08 + zoom * 0.35,
+    movingHead.goboIndex,
+    movingHead.goboRotation,
+  )
+}
+
 export function renderLaserDmxSpatialStage(input: SpatialStageRenderInput): void {
   const { ctx, W, H, rig, settings, frames } = input
   const stage = normalizeProductionStageModel(rig.stage)
@@ -385,6 +500,13 @@ export function renderLaserDmxSpatialStage(input: SpatialStageRenderInput): void
   for (const { frame, fixture } of ordered) {
     if (!frame.visual.strobeVisible || frame.visual.intensity < 0.001) continue
     const sourceFixture = sourceFixtureById.get(fixture.id)
+    if (isMovingHeadFixtureKind(fixture.kind) && frame.visual.movingHead) {
+      drawMovingHeadFixture(ctx, basis, fixture, frame, haze, glow)
+      if (settings.showFixtureOrigins || stage.editor.guidesVisible) {
+        drawFixtureOrigin(ctx, basis, fixture.transform.position, fixture.id === settings.selectedFixtureId)
+      }
+      continue
+    }
     const explicitTarget = sourceFixture?.targetId
       ? targetPosition(targetById.get(sourceFixture.targetId))
       : null
