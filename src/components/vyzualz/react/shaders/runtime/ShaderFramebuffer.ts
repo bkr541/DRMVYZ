@@ -38,6 +38,7 @@ export class ShaderFramebuffer {
   private readonly gl: WebGL2RenderingContext
   private tex: WebGLTexture | null  = null
   private fbo: WebGLFramebuffer | null = null
+  private depth: WebGLRenderbuffer | null = null
   private _w = 0
   private _h = 0
   private _disposed = false
@@ -49,6 +50,7 @@ export class ShaderFramebuffer {
       format: desc.format ?? 'rgba8',
       filter: desc.filter ?? 'linear',
       wrap:   desc.wrap   ?? 'clamp',
+      depth:  desc.depth  ?? false,
     }
   }
 
@@ -56,6 +58,7 @@ export class ShaderFramebuffer {
   get height():      number                  { return this._h }
   get texture():     WebGLTexture | null     { return this.tex }
   get framebuffer(): WebGLFramebuffer | null { return this.fbo }
+  get depthBuffer(): WebGLRenderbuffer | null { return this.depth }
 
   /**
    * Resize (or initially create) the backing texture and FBO.
@@ -131,6 +134,24 @@ export class ShaderFramebuffer {
     gl.bindFramebuffer(gl.FRAMEBUFFER, newFbo)
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, newTex, 0)
 
+    let newDepth: WebGLRenderbuffer | null = null
+    if (this.desc.depth) {
+      newDepth = gl.createRenderbuffer()
+      if (!newDepth) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+        gl.deleteTexture(newTex)
+        gl.deleteFramebuffer(newFbo)
+        if (!gl.isContextLost()) {
+          throw new Error(`[ShaderFramebuffer] createRenderbuffer() failed at ${nextW}×${nextH}`)
+        }
+        return
+      }
+      gl.bindRenderbuffer(gl.RENDERBUFFER, newDepth)
+      gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, nextW, nextH)
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, newDepth)
+      gl.bindRenderbuffer(gl.RENDERBUFFER, null)
+    }
+
     // Explicitly configure draw and read targets.
     gl.drawBuffers([gl.COLOR_ATTACHMENT0])
     gl.readBuffer(gl.COLOR_ATTACHMENT0)
@@ -143,6 +164,7 @@ export class ShaderFramebuffer {
       // The old valid fbo/tex are preserved intact.
       gl.deleteTexture(newTex)
       gl.deleteFramebuffer(newFbo)
+      if (newDepth) gl.deleteRenderbuffer(newDepth)
 
       // Don't throw during a lost context — it will recover via restoration.
       if (gl.isContextLost()) return
@@ -167,9 +189,11 @@ export class ShaderFramebuffer {
     // ── Success: now safe to delete old resources and commit ──────────────────
     if (this.fbo) gl.deleteFramebuffer(this.fbo)
     if (this.tex) gl.deleteTexture(this.tex)
+    if (this.depth) gl.deleteRenderbuffer(this.depth)
 
     this.tex = newTex
     this.fbo = newFbo
+    this.depth = newDepth
     this._w  = nextW
     this._h  = nextH
   }
@@ -188,8 +212,10 @@ export class ShaderFramebuffer {
     this._disposed = true
     if (this.fbo) this.gl.deleteFramebuffer(this.fbo)
     if (this.tex) this.gl.deleteTexture(this.tex)
+    if (this.depth) this.gl.deleteRenderbuffer(this.depth)
     this.fbo = null
     this.tex = null
+    this.depth = null
   }
 
   // ── GL constant resolution ────────────────────────────────────────────────

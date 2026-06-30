@@ -15,9 +15,12 @@ export const PACK_B_CINEMATIC_WORLD_MODES = [
   'stormGateway',
 ] as const
 
+export const GEOMETRY_CINEMATIC_WORLD_MODES = ['reactiveConstellation'] as const
+
 export const IMPLEMENTED_CINEMATIC_WORLD_MODES = [
   ...PACK_A_CINEMATIC_WORLD_MODES,
   ...PACK_B_CINEMATIC_WORLD_MODES,
+  ...GEOMETRY_CINEMATIC_WORLD_MODES,
 ] as const
 
 export type ImplementedCinematicWorldMode = typeof IMPLEMENTED_CINEMATIC_WORLD_MODES[number]
@@ -143,6 +146,29 @@ export interface StormGatewaySettings {
   lightningResponse: number
 }
 
+export const REACTIVE_CONSTELLATION_TOPOLOGIES = ['radial', 'clustered', 'helix', 'layered'] as const
+export type ReactiveConstellationTopologyStyle = typeof REACTIVE_CONSTELLATION_TOPOLOGIES[number]
+
+export const REACTIVE_CONSTELLATION_POLYHEDRA = ['tetrahedron', 'octahedron', 'icosahedron', 'irregularCrystal', 'mixed'] as const
+export type ReactiveConstellationPolyhedronStyle = typeof REACTIVE_CONSTELLATION_POLYHEDRA[number]
+
+export interface ReactiveConstellationSettings {
+  nodeCount: number
+  topologyStyle: ReactiveConstellationTopologyStyle
+  polyhedronStyle: ReactiveConstellationPolyhedronStyle
+  networkSpread: number
+  depthSpread: number
+  neighborCount: number
+  nodeScale: number
+  nodeScaleVariation: number
+  faceOpacity: number
+  rimIntensity: number
+  wireframeAmount: number
+  nodeSpin: number
+  centralGravity: number
+  cameraOrbit: number
+}
+
 export type MediaPortalFit = 'contain' | 'cover' | 'stretch' | 'centerCrop'
 export type MediaPortalMaskMode = 'alpha' | 'luminance'
 
@@ -182,6 +208,7 @@ export interface CinematicWorldSettingsByMode {
   mirrorDimension: MirrorDimensionSettings
   ancientMachine: AncientMachineSettings
   stormGateway: StormGatewaySettings
+  reactiveConstellation: ReactiveConstellationSettings
   mediaPortal: MediaPortalSettings
 }
 
@@ -531,6 +558,68 @@ function settingsPayload(value: unknown, mode: CinematicWorldMode): unknown {
   return 'settings' in value ? value.settings : value
 }
 
+export const REACTIVE_CONSTELLATION_DEFAULTS: ReactiveConstellationSettings = {
+  nodeCount: 42,
+  topologyStyle: 'clustered',
+  polyhedronStyle: 'mixed',
+  networkSpread: 1.2,
+  depthSpread: 0.72,
+  neighborCount: 3,
+  nodeScale: 0.12,
+  nodeScaleVariation: 0.48,
+  faceOpacity: 0.82,
+  rimIntensity: 0.88,
+  wireframeAmount: 0.28,
+  nodeSpin: 0.34,
+  centralGravity: 0.18,
+  cameraOrbit: 0.16,
+}
+
+export const REACTIVE_CONSTELLATION_BOUNDS = {
+  nodeCount: [12, 96],
+  networkSpread: [0.45, 2.4],
+  depthSpread: [0.08, 1.8],
+  neighborCount: [1, 8],
+  nodeScale: [0.045, 0.28],
+  nodeScaleVariation: [0, 1],
+  faceOpacity: [0.08, 1],
+  rimIntensity: [0, 2],
+  wireframeAmount: [0, 1],
+  nodeSpin: [-1.5, 1.5],
+  centralGravity: [0, 1],
+  cameraOrbit: [-1, 1],
+} as const satisfies NumericBounds<Omit<ReactiveConstellationSettings, 'topologyStyle' | 'polyhedronStyle'>>
+
+function normalizeReactiveConstellationSettings(raw: unknown): ReactiveConstellationSettings {
+  const payload = settingsPayload(raw, 'reactiveConstellation')
+  const source = isRecord(payload) ? payload : {}
+  const numeric = normalizeNumericSettings(
+    source,
+    {
+      nodeCount: REACTIVE_CONSTELLATION_DEFAULTS.nodeCount,
+      networkSpread: REACTIVE_CONSTELLATION_DEFAULTS.networkSpread,
+      depthSpread: REACTIVE_CONSTELLATION_DEFAULTS.depthSpread,
+      neighborCount: REACTIVE_CONSTELLATION_DEFAULTS.neighborCount,
+      nodeScale: REACTIVE_CONSTELLATION_DEFAULTS.nodeScale,
+      nodeScaleVariation: REACTIVE_CONSTELLATION_DEFAULTS.nodeScaleVariation,
+      faceOpacity: REACTIVE_CONSTELLATION_DEFAULTS.faceOpacity,
+      rimIntensity: REACTIVE_CONSTELLATION_DEFAULTS.rimIntensity,
+      wireframeAmount: REACTIVE_CONSTELLATION_DEFAULTS.wireframeAmount,
+      nodeSpin: REACTIVE_CONSTELLATION_DEFAULTS.nodeSpin,
+      centralGravity: REACTIVE_CONSTELLATION_DEFAULTS.centralGravity,
+      cameraOrbit: REACTIVE_CONSTELLATION_DEFAULTS.cameraOrbit,
+    },
+    REACTIVE_CONSTELLATION_BOUNDS,
+    ['nodeCount', 'neighborCount'],
+  )
+  const topologyStyle = REACTIVE_CONSTELLATION_TOPOLOGIES.includes(source.topologyStyle as ReactiveConstellationTopologyStyle)
+    ? source.topologyStyle as ReactiveConstellationTopologyStyle
+    : REACTIVE_CONSTELLATION_DEFAULTS.topologyStyle
+  const polyhedronStyle = REACTIVE_CONSTELLATION_POLYHEDRA.includes(source.polyhedronStyle as ReactiveConstellationPolyhedronStyle)
+    ? source.polyhedronStyle as ReactiveConstellationPolyhedronStyle
+    : REACTIVE_CONSTELLATION_DEFAULTS.polyhedronStyle
+  return { ...numeric, topologyStyle, polyhedronStyle }
+}
 
 export const MEDIA_PORTAL_DEFAULTS: MediaPortalSettings = {
   sourceMediaId: null, sourceLabel: '', fit: 'cover', zoom: 1, panX: 0, panY: 0,
@@ -574,6 +663,7 @@ export function createDefaultCinematicWorldSettings(mode: CinematicWorldMode): C
     case 'mirrorDimension': return { mode, settings: { ...MIRROR_DIMENSION_DEFAULTS } }
     case 'ancientMachine': return { mode, settings: { ...ANCIENT_MACHINE_DEFAULTS } }
     case 'stormGateway': return { mode, settings: { ...STORM_GATEWAY_DEFAULTS } }
+    case 'reactiveConstellation': return { mode, settings: { ...REACTIVE_CONSTELLATION_DEFAULTS } }
     case 'mediaPortal': return { mode, settings: { ...MEDIA_PORTAL_DEFAULTS } }
     default: return { mode, settings: {} } as CinematicWorldSpecificConfig
   }
@@ -640,6 +730,7 @@ export function normalizeCinematicWorldSettings(
         mode,
         settings: normalizeNumericSettings(payload, STORM_GATEWAY_DEFAULTS, STORM_GATEWAY_BOUNDS, ['cloudLayers']),
       }
+    case 'reactiveConstellation': return { mode, settings: normalizeReactiveConstellationSettings(value) }
     case 'mediaPortal': return { mode, settings: normalizeMediaPortalSettings(value) }
     default:
       return { mode, settings: {} } as CinematicWorldSpecificConfig
@@ -680,6 +771,10 @@ export function resolveAncientMachineSettings(value: CinematicWorldSpecificConfi
 
 export function resolveStormGatewaySettings(value: CinematicWorldSpecificConfig): StormGatewaySettings {
   return normalizeCinematicWorldSettings('stormGateway', value).settings as StormGatewaySettings
+}
+
+export function resolveReactiveConstellationSettings(value: CinematicWorldSpecificConfig): ReactiveConstellationSettings {
+  return normalizeCinematicWorldSettings('reactiveConstellation', value).settings as ReactiveConstellationSettings
 }
 
 export function resolveMediaPortalSettings(value: CinematicWorldSpecificConfig): MediaPortalSettings {

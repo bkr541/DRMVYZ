@@ -81,7 +81,7 @@ export class CinematicWebGLRuntime implements CinematicWebGLRuntimeLike {
     this.compiler = new ShaderCompiler(this.gl)
     this.fullscreenPass = new FullscreenPass(this.gl)
     this.resources = new ShaderResourceManager(this.gl)
-    this.sceneTarget = new ShaderFramebuffer(this.gl)
+    this.sceneTarget = new ShaderFramebuffer(this.gl, { depth: true })
     this.post = new CinematicPostProcessingPipeline(this.gl)
   }
 
@@ -304,7 +304,7 @@ export class CinematicWebGLRuntime implements CinematicWebGLRuntimeLike {
     this.resources = new ShaderResourceManager(this.gl)
     this.compiler = new ShaderCompiler(this.gl)
     this.fullscreenPass = new FullscreenPass(this.gl)
-    this.sceneTarget = new ShaderFramebuffer(this.gl)
+    this.sceneTarget = new ShaderFramebuffer(this.gl, { depth: true })
     this.post = new CinematicPostProcessingPipeline(this.gl)
     this.lastResolution = null
     this.viewport = null

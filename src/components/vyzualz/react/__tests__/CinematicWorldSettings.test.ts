@@ -7,9 +7,11 @@ import {
 } from '../CinematicWorldConfig'
 import {
   EVENT_HORIZON_DEFAULTS,
+  GEOMETRY_CINEMATIC_WORLD_MODES,
   IMPLEMENTED_CINEMATIC_WORLD_MODES,
   PACK_A_CINEMATIC_WORLD_MODES,
   PACK_B_CINEMATIC_WORLD_MODES,
+  REACTIVE_CONSTELLATION_DEFAULTS,
   cinematicQualityProfile,
   createCinematicSeededVariation,
   resolveAncientMachineSettings,
@@ -20,6 +22,7 @@ import {
   resolveLiquidMembraneSettings,
   resolveMirrorDimensionSettings,
   resolveMonolithGateSettings,
+  resolveReactiveConstellationSettings,
   resolveStormGatewaySettings,
 } from '../CinematicWorldSettings'
 import { DEFAULT_REACT_PRESETS } from '../ReactTypes'
@@ -66,7 +69,7 @@ function makeFrame(config = createDefaultCinematicWorldConfig()): CinematicFrame
 }
 
 describe('world-specific cinematic configuration', () => {
-  it('provides bounded defaults for all Pack A and Pack B worlds', () => {
+  it('provides bounded defaults for all implemented worlds', () => {
     const event = createCinematicWorldConfig('eventHorizon', {})
     const corridor = createCinematicWorldConfig('infiniteCorridor', {})
     const fracture = createCinematicWorldConfig('fractureRift', {})
@@ -76,6 +79,7 @@ describe('world-specific cinematic configuration', () => {
     const mirror = createCinematicWorldConfig('mirrorDimension', {})
     const machine = createCinematicWorldConfig('ancientMachine', {})
     const storm = createCinematicWorldConfig('stormGateway', {})
+    const constellation = createCinematicWorldConfig('reactiveConstellation', {})
 
     expect(resolveEventHorizonSettings(event.worldSettings)).toEqual(EVENT_HORIZON_DEFAULTS)
     expect(resolveInfiniteCorridorSettings(corridor.worldSettings).corridorDensity).toBeGreaterThan(0)
@@ -86,9 +90,11 @@ describe('world-specific cinematic configuration', () => {
     expect(resolveMirrorDimensionSettings(mirror.worldSettings).symmetryCount).toBeGreaterThanOrEqual(3)
     expect(resolveAncientMachineSettings(machine.worldSettings).ringCount).toBeGreaterThanOrEqual(2)
     expect(resolveStormGatewaySettings(storm.worldSettings).cloudLayers).toBeGreaterThanOrEqual(2)
+    expect(resolveReactiveConstellationSettings(constellation.worldSettings)).toEqual(REACTIVE_CONSTELLATION_DEFAULTS)
     expect(IMPLEMENTED_CINEMATIC_WORLD_MODES).toEqual([
       ...PACK_A_CINEMATIC_WORLD_MODES,
       ...PACK_B_CINEMATIC_WORLD_MODES,
+      ...GEOMETRY_CINEMATIC_WORLD_MODES,
     ])
   })
 
@@ -126,6 +132,34 @@ describe('world-specific cinematic configuration', () => {
       debrisDensity: 0,
       lightningResponse: 1.5,
     })
+
+    const constellation = createCinematicWorldConfig('reactiveConstellation', {
+      nodeCount: 999,
+      topologyStyle: 'futureTopology',
+      polyhedronStyle: 'futurePolyhedron',
+      neighborCount: 4.7,
+      faceOpacity: -2,
+      rimIntensity: 50,
+    } as never)
+    expect(resolveReactiveConstellationSettings(constellation.worldSettings)).toMatchObject({
+      nodeCount: 96,
+      topologyStyle: REACTIVE_CONSTELLATION_DEFAULTS.topologyStyle,
+      polyhedronStyle: REACTIVE_CONSTELLATION_DEFAULTS.polyhedronStyle,
+      neighborCount: 5,
+      faceOpacity: 0.08,
+      rimIntensity: 2,
+    })
+  })
+
+  it('migrates constellation aliases into the typed world mode and default settings', () => {
+    const normalized = normalizeCinematicWorldConfig({
+      worldMode: 'constellation',
+      worldSettings: { mode: 'constellation', settings: { nodeCount: 48 } },
+    } as never)
+
+    expect(normalized.worldMode).toBe('reactiveConstellation')
+    expect(normalized.worldSettings.mode).toBe('reactiveConstellation')
+    expect(resolveReactiveConstellationSettings(normalized.worldSettings)).toEqual(REACTIVE_CONSTELLATION_DEFAULTS)
   })
 
   it('scales expensive work down monotonically while keeping non-zero structural budgets', () => {

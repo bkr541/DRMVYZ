@@ -31,6 +31,8 @@ import {
   LIQUID_MEMBRANE_BOUNDS,
   MIRROR_DIMENSION_BOUNDS,
   MONOLITH_GATE_BOUNDS,
+  REACTIVE_CONSTELLATION_BOUNDS,
+  REACTIVE_CONSTELLATION_DEFAULTS,
   STORM_GATEWAY_BOUNDS,
   createDefaultCinematicWorldSettings,
   type CinematicWorldSpecificConfig,
@@ -180,6 +182,46 @@ describe('Cinematic World control schema', () => {
     expect(updateCinematicWorldSettings(media, fit, 'contain').settings.fit).toBe('contain')
     expect(updateCinematicWorldSettings(media, loop, 'yes').settings.loop).toBe(true)
     expect(updateCinematicWorldSettings(media, loop, false).settings.loop).toBe(false)
+  })
+
+  it('exposes only implemented Reactive Constellation controls and preserves typed selections', async () => {
+    const schema = CINEMATIC_WORLD_CATALOG.reactiveConstellation.controls
+    const controls = schema.groups.flatMap(group => group.controls)
+    const numericControls = controls.filter(control => control.kind === 'slider' || control.kind === 'integer')
+    const selectControls = controls.filter(control => control.kind === 'select')
+
+    expect(controls.map(control => control.setting)).toEqual([
+      'nodeCount', 'topologyStyle', 'polyhedronStyle', 'networkSpread', 'nodeScale',
+      'depthSpread', 'neighborCount', 'nodeScaleVariation', 'centralGravity',
+      'faceOpacity', 'rimIntensity', 'wireframeAmount', 'nodeSpin', 'cameraOrbit',
+    ])
+    expect(controls.some(control => /trail|audio|beam/i.test(String(control.setting)))).toBe(false)
+    expect(selectControls.map(control => control.setting)).toEqual(['topologyStyle', 'polyhedronStyle'])
+    expect(numericControls).toHaveLength(Object.keys(REACTIVE_CONSTELLATION_BOUNDS).length)
+    for (const control of numericControls) {
+      if (control.kind !== 'slider' && control.kind !== 'integer') continue
+      expect([control.min, control.max]).toEqual(REACTIVE_CONSTELLATION_BOUNDS[control.setting])
+    }
+
+    const config = createCinematicWorldConfig('reactiveConstellation', {})
+    await render(
+      <CinematicWorldControlSchemaRenderer
+        config={config}
+        schema={schema}
+        uiMode="advanced"
+        onChange={vi.fn()}
+      />,
+    )
+    expect(container.querySelector('#constellation-node-count')).toBeInstanceOf(HTMLInputElement)
+    expect(container.querySelector('#constellation-topology-style')).toBeInstanceOf(HTMLSelectElement)
+    expect(container.querySelector('#constellation-camera-orbit')).toBeInstanceOf(HTMLInputElement)
+
+    const settings = createDefaultCinematicWorldSettings('reactiveConstellation') as Extract<CinematicWorldSpecificConfig, { mode: 'reactiveConstellation' }>
+    const nodeCount = controls.find(control => control.setting === 'nodeCount') as CinematicWorldIntegerControl<'reactiveConstellation'>
+    const topology = controls.find(control => control.setting === 'topologyStyle') as CinematicWorldSelectControl<'reactiveConstellation'>
+    expect(updateCinematicWorldSettings(settings, nodeCount, 200).settings.nodeCount).toBe(96)
+    expect(updateCinematicWorldSettings(settings, topology, 'helix').settings.topologyStyle).toBe('helix')
+    expect(updateCinematicWorldSettings(settings, topology, 'future').settings.topologyStyle).toBe(REACTIVE_CONSTELLATION_DEFAULTS.topologyStyle)
   })
 
   it('normalizes persisted configuration safely and preserves the existing compatibility extension strategy', () => {

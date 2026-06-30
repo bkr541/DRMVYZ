@@ -7,6 +7,7 @@ import { infiniteCorridorWorldDefinition } from './InfiniteCorridorWorld'
 import { liquidMembraneWorldDefinition } from './LiquidMembraneWorld'
 import { mirrorDimensionWorldDefinition } from './MirrorDimensionWorld'
 import { monolithGateWorldDefinition } from './MonolithGateWorld'
+import { reactiveConstellationWorldDefinition } from './ReactiveConstellationWorld'
 import { mediaPortalWorldDefinition } from './MediaPortalWorld'
 import { stormGatewayWorldDefinition } from './StormGatewayWorld'
 
@@ -19,6 +20,7 @@ export {
   liquidMembraneWorldDefinition,
   mirrorDimensionWorldDefinition,
   monolithGateWorldDefinition,
+  reactiveConstellationWorldDefinition,
   mediaPortalWorldDefinition,
   stormGatewayWorldDefinition,
 }
@@ -33,5 +35,6 @@ export const cinematicWorldDefinitions: readonly CinematicWebGLWorldDefinition[]
   mirrorDimensionWorldDefinition,
   ancientMachineWorldDefinition,
   stormGatewayWorldDefinition,
+  reactiveConstellationWorldDefinition,
   mediaPortalWorldDefinition,
 ]

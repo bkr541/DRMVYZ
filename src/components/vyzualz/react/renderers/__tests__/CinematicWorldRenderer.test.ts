@@ -159,7 +159,7 @@ describe('legacy portal timing', () => {
 })
 
 describe('CinematicWorldRendererRegistry', () => {
-  it('registers all Pack A and Pack B production worlds beside legacyPortal', () => {
+  it('registers all production worlds beside legacyPortal', () => {
     expect(cinematicWorldRendererRegistry.list().map(item => item.id)).toEqual([
       'legacyPortal',
       'eventHorizon',
@@ -171,6 +171,7 @@ describe('CinematicWorldRendererRegistry', () => {
       'mirrorDimension',
       'ancientMachine',
       'stormGateway',
+      'reactiveConstellation',
       'mediaPortal',
     ])
   })
@@ -207,7 +208,7 @@ describe('CinematicWorldRendererRegistry', () => {
 })
 
 describe('CinematicWorldRendererHost', () => {
-  it('switches through every Pack A and Pack B world using one WebGL runtime', () => {
+  it('switches through every implemented world using one WebGL runtime', () => {
     const registry = new CinematicWorldRendererRegistry()
     registry.register(canvasDefinition().definition)
     for (const definition of cinematicWorldDefinitions) registry.register(definition)
@@ -223,6 +224,7 @@ describe('CinematicWorldRendererHost', () => {
       'preset-sixfold-chamber',
       'preset-oracle-lock',
       'preset-tempest-eye',
+      'preset-crystal-synapse',
     ]
 
     for (const presetId of presetIds) {
@@ -245,26 +247,74 @@ describe('CinematicWorldRendererHost', () => {
       'mirrorDimension',
       'ancientMachine',
       'stormGateway',
+      'reactiveConstellation',
     ])
     expect(runtime.disposed).toBe(0)
     host.dispose()
     expect(runtime.disposed).toBe(1)
   })
 
-  it('disposes every Pack A and Pack B world without allowing released resources to draw again', () => {
+  it('disposes fullscreen and geometry worlds without allowing released resources to draw again', () => {
     const program = {
       activate: vi.fn(),
       setVec2: vi.fn(),
       setVec3: vi.fn(),
       setVec4: vi.fn(),
       setFloat: vi.fn(),
+      setMat4: vi.fn(),
     }
     const run = vi.fn()
+    const drawArraysInstanced = vi.fn()
+    const gl = {
+      ARRAY_BUFFER: 0x8892,
+      STATIC_DRAW: 0x88e4,
+      DYNAMIC_DRAW: 0x88e8,
+      FLOAT: 0x1406,
+      FRAMEBUFFER: 0x8d40,
+      COLOR_BUFFER_BIT: 0x4000,
+      DEPTH_BUFFER_BIT: 0x0100,
+      DEPTH_TEST: 0x0b71,
+      LEQUAL: 0x0203,
+      CULL_FACE: 0x0b44,
+      BACK: 0x0405,
+      BLEND: 0x0be2,
+      SRC_ALPHA: 0x0302,
+      ONE_MINUS_SRC_ALPHA: 0x0303,
+      TRIANGLES: 0x0004,
+      createVertexArray: vi.fn(() => ({} as WebGLVertexArrayObject)),
+      createBuffer: vi.fn(() => ({} as WebGLBuffer)),
+      bindVertexArray: vi.fn(),
+      bindBuffer: vi.fn(),
+      bufferData: vi.fn(),
+      enableVertexAttribArray: vi.fn(),
+      vertexAttribPointer: vi.fn(),
+      vertexAttribDivisor: vi.fn(),
+      bindFramebuffer: vi.fn(),
+      viewport: vi.fn(),
+      clearColor: vi.fn(),
+      clearDepth: vi.fn(),
+      clear: vi.fn(),
+      enable: vi.fn(),
+      depthFunc: vi.fn(),
+      depthMask: vi.fn(),
+      cullFace: vi.fn(),
+      blendFunc: vi.fn(),
+      drawArraysInstanced,
+      disable: vi.fn(),
+      deleteVertexArray: vi.fn(),
+      deleteBuffer: vi.fn(),
+    } as unknown as WebGL2RenderingContext
+    const resources = {
+      trackBuffer: vi.fn((buffer: WebGLBuffer) => buffer),
+      trackVAO: vi.fn((vao: WebGLVertexArrayObject) => vao),
+      untrackBuffer: vi.fn(),
+      untrackVAO: vi.fn(),
+    }
     const services = {
-      gl: {},
+      gl,
       compiler: {},
       fullscreenPass: { run },
-      resources: {},
+      resources,
       compileProgram: vi.fn(() => program),
       createFramebuffer: vi.fn(),
       createTexture: vi.fn(() => ({ uploadBytes: vi.fn(), uploadImage: vi.fn(), handle: {}, dispose: vi.fn() })),
@@ -281,14 +331,19 @@ describe('CinematicWorldRendererHost', () => {
       world.initialize({ services, config: frame.config, presetId: preset.id })
       world.resize({ width: 640, height: 360, dpr: 1 })
       world.render(frame, { framebuffer: null, texture: null, width: 640, height: 360 })
-      const callsBeforeDispose = run.mock.calls.length
+      const fullscreenCallsBeforeDispose = run.mock.calls.length
+      const geometryCallsBeforeDispose = drawArraysInstanced.mock.calls.length
       world.dispose()
       world.render(frame, { framebuffer: null, texture: null, width: 640, height: 360 })
-      expect(run.mock.calls.length, definition.id).toBe(callsBeforeDispose)
+      expect(run.mock.calls.length, `${definition.id} fullscreen`).toBe(fullscreenCallsBeforeDispose)
+      expect(drawArraysInstanced.mock.calls.length, `${definition.id} geometry`).toBe(geometryCallsBeforeDispose)
     }
 
     expect(services.compileProgram).toHaveBeenCalledTimes(cinematicWorldDefinitions.length)
-    expect(run).toHaveBeenCalledTimes(cinematicWorldDefinitions.length)
+    expect(run).toHaveBeenCalledTimes(cinematicWorldDefinitions.filter(definition => definition.capabilities.supportsFullscreenPasses).length)
+    expect(drawArraysInstanced).toHaveBeenCalled()
+    expect(resources.trackVAO).toHaveBeenCalledTimes(4)
+    expect(resources.untrackVAO).toHaveBeenCalledTimes(4)
   })
 
   it('lazily initializes, resizes, renders, resets, and disposes the legacy renderer', () => {

@@ -2182,6 +2182,68 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     scenes: makeScenes('sgac', 'cinematicPortal'), sectionMappings: makeMappings('sgac'),
   },
 
+  // Cinematic Worlds: Reactive Constellation (3)
+  {
+    id: 'preset-crystal-synapse',
+    name: 'Crystal Synapse',
+    description: 'A clustered cyan-violet neural field of mixed faceted crystals with bright connected hubs.',
+    engine: 'cinematicPortal',
+    palette: { primary: '#4ac7db', secondary: '#7857ff', accent: '#d8f7ff', background: '#01050d', highlight: '#61d6aa', text: DVYDRM_WHITE },
+    params: { intensity: 0.72, motion: 0.56, glow: 0.78, bassReactivity: 0.68 },
+    renderSettings: { trailDecay: 0.05, fogDensity: 0.24, particleDensity: 0.36 },
+    cinematicConfig: createCinematicWorldConfig('reactiveConstellation', {
+      nodeCount: 48, topologyStyle: 'clustered', polyhedronStyle: 'mixed', networkSpread: 1.28,
+      depthSpread: 0.78, neighborCount: 4, nodeScale: 0.115, nodeScaleVariation: 0.54,
+      faceOpacity: 0.82, rimIntensity: 1.12, wireframeAmount: 0.34, nodeSpin: 0.42,
+      centralGravity: 0.18, cameraOrbit: 0.16,
+    }, {
+      cameraRig: 'autoDirector', seed: 48001, qualityTier: 'high',
+      environment: { depth: 0.78, architecture: 0.12, fog: 0.18, debris: 0.08, stars: 0.46, atmosphere: 0.5 },
+      material: { distortion: 0.03, refraction: 0.04, bloom: 0.72, chromaticAberration: 0.025, feedback: 0, glow: 0.82 },
+    }),
+    scenes: makeScenes('rcs1', 'cinematicPortal'), sectionMappings: makeMappings('rcs1'),
+  },
+  {
+    id: 'preset-helix-reliquary',
+    name: 'Helix Reliquary',
+    description: 'A slow emerald-gold crystal helix with irregular relic nodes suspended through deep space.',
+    engine: 'cinematicPortal',
+    palette: { primary: '#61d6aa', secondary: '#1b6f79', accent: '#d8b95a', background: '#020906', highlight: '#b7ffe4', text: DVYDRM_WHITE },
+    params: { intensity: 0.62, motion: 0.38, glow: 0.66, bassReactivity: 0.58 },
+    renderSettings: { trailDecay: 0.04, fogDensity: 0.34, particleDensity: 0.28 },
+    cinematicConfig: createCinematicWorldConfig('reactiveConstellation', {
+      nodeCount: 38, topologyStyle: 'helix', polyhedronStyle: 'irregularCrystal', networkSpread: 1.02,
+      depthSpread: 1.05, neighborCount: 2, nodeScale: 0.14, nodeScaleVariation: 0.72,
+      faceOpacity: 0.7, rimIntensity: 0.96, wireframeAmount: 0.16, nodeSpin: -0.22,
+      centralGravity: 0.06, cameraOrbit: -0.12,
+    }, {
+      cameraRig: 'orbit', seed: 48002, qualityTier: 'high',
+      environment: { depth: 0.92, architecture: 0.08, fog: 0.3, debris: 0.02, stars: 0.34, atmosphere: 0.62 },
+      material: { distortion: 0.02, refraction: 0.06, bloom: 0.58, chromaticAberration: 0.012, feedback: 0, glow: 0.68 },
+    }),
+    scenes: makeScenes('rcs2', 'cinematicPortal'), sectionMappings: makeMappings('rcs2'),
+  },
+  {
+    id: 'preset-polyhedral-supernova',
+    name: 'Polyhedral Supernova',
+    description: 'A dense radial bloom of sharp icosahedra with hot crimson edges and aggressive orbital motion.',
+    engine: 'cinematicPortal',
+    palette: { primary: '#ff5c78', secondary: '#b84fc9', accent: '#ffd36a', background: '#090108', highlight: '#fff0c2', text: DVYDRM_WHITE },
+    params: { intensity: 0.92, motion: 0.86, glow: 0.94, bassReactivity: 0.9 },
+    renderSettings: { trailDecay: 0.08, fogDensity: 0.18, particleDensity: 0.5 },
+    cinematicConfig: createCinematicWorldConfig('reactiveConstellation', {
+      nodeCount: 72, topologyStyle: 'radial', polyhedronStyle: 'icosahedron', networkSpread: 1.62,
+      depthSpread: 1.18, neighborCount: 6, nodeScale: 0.09, nodeScaleVariation: 0.36,
+      faceOpacity: 0.9, rimIntensity: 1.48, wireframeAmount: 0.62, nodeSpin: 0.92,
+      centralGravity: 0.3, cameraOrbit: 0.54,
+    }, {
+      cameraRig: 'autoDirector', seed: 48003, qualityTier: 'high',
+      environment: { depth: 0.86, architecture: 0.04, fog: 0.14, debris: 0.1, stars: 0.72, atmosphere: 0.42 },
+      material: { distortion: 0.06, refraction: 0.03, bloom: 0.92, chromaticAberration: 0.085, feedback: 0, glow: 1 },
+    }),
+    scenes: makeScenes('rcs3', 'cinematicPortal'), sectionMappings: makeMappings('rcs3'),
+  },
+
   // Cinematic Worlds: Media Portal (6)
   {
     id: 'preset-clean-broadcast-gate', name: 'Clean Broadcast Gate', description: 'Media Portal treatment with a distinct rectangle frame and contain media composition.',

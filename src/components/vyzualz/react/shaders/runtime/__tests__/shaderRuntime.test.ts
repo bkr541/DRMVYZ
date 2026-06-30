@@ -56,6 +56,9 @@ const GL = {
   FRAMEBUFFER_INCOMPLETE_DIMENSIONS:         0x8CD9,
   FRAMEBUFFER_UNSUPPORTED:                   0x8CDD,
   COLOR_ATTACHMENT0:    36064,
+  DEPTH_ATTACHMENT:      36096,
+  RENDERBUFFER:          36161,
+  DEPTH_COMPONENT16:     33189,
   TEXTURE_2D:           3553,
   TEXTURE_WRAP_S:       10242,
   TEXTURE_WRAP_T:       10243,
@@ -92,6 +95,7 @@ interface DeleteCounts {
   framebuffers: number
   buffers:      number
   vaos:         number
+  renderbuffers: number
 }
 
 interface MockOpts {
@@ -103,7 +107,7 @@ interface MockOpts {
 }
 
 function makeGL(opts: MockOpts = {}): { gl: WebGL2RenderingContext; deleted: DeleteCounts } {
-  const deleted: DeleteCounts = { shaders: 0, programs: 0, textures: 0, framebuffers: 0, buffers: 0, vaos: 0 }
+  const deleted: DeleteCounts = { shaders: 0, programs: 0, textures: 0, framebuffers: 0, buffers: 0, vaos: 0, renderbuffers: 0 }
   let shaderN = 0, programN = 0, textureN = 0, fboN = 0
 
   const gl: Record<string, unknown> = {
@@ -170,6 +174,11 @@ function makeGL(opts: MockOpts = {}): { gl: WebGL2RenderingContext; deleted: Del
     readBuffer:            () => {},
     checkFramebufferStatus: () => opts.framebufferStatus ?? GL.FRAMEBUFFER_COMPLETE,
     deleteFramebuffer:     () => { deleted.framebuffers++ },
+    createRenderbuffer:     () => ({}),
+    bindRenderbuffer:       () => {},
+    renderbufferStorage:    () => {},
+    framebufferRenderbuffer: () => {},
+    deleteRenderbuffer:     () => { deleted.renderbuffers++ },
     isContextLost:         () => false,
     getError:              () => 0,
     getParameter:          (pname: number) => {
@@ -678,6 +687,21 @@ describe('Q — ShaderFramebuffer transactional allocation', () => {
     expect(drawCalls.length).toBeGreaterThan(0)
     expect(drawCalls[0]).toContain(GL.COLOR_ATTACHMENT0)
     fb.dispose()
+  })
+
+  it('Q2b: optional depth storage attaches and disposes an owned renderbuffer', () => {
+    const { gl, deleted } = makeGL()
+    const attach = vi.fn()
+    const glSpy = {
+      ...gl,
+      framebufferRenderbuffer: attach,
+    } as unknown as WebGL2RenderingContext
+    const fb = new ShaderFramebuffer(glSpy, { depth: true })
+    fb.resize(64, 64)
+    expect(fb.depthBuffer).not.toBeNull()
+    expect(attach).toHaveBeenCalledWith(GL.FRAMEBUFFER, GL.DEPTH_ATTACHMENT, GL.RENDERBUFFER, expect.anything())
+    fb.dispose()
+    expect(deleted.renderbuffers).toBe(1)
   })
 
   it('Q3: readBuffer(COLOR_ATTACHMENT0) is called on successful allocation', () => {

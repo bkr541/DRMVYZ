@@ -56,6 +56,8 @@ export interface FramebufferDescriptor {
   format?: TextureFormat
   filter?: TextureFilter
   wrap?: TextureWrap
+  /** Allocate and attach a DEPTH_COMPONENT16 renderbuffer. */
+  depth?: boolean
 }
 
 // ── Render pass options ───────────────────────────────────────────────────────

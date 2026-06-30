@@ -23,6 +23,7 @@ export const CINEMATIC_WORLD_MODES = [
   'mirrorDimension',
   'ancientMachine',
   'stormGateway',
+  'reactiveConstellation',
   'mediaPortal',
 ] as const
 
@@ -512,6 +513,12 @@ const WORLD_DEFAULT_AUDIO_ROUTES: Readonly<Record<CinematicWorldMode, readonly C
     route('machine-drop-aperture', 'dropState', 'portalAperture', { amount: 0.8, attackMs: 120, releaseMs: 500 }),
     route('machine-high-glyphs', 'highs', 'environmentBrightness', { amount: 0.46, attackMs: 26, releaseMs: 210 }),
   ],
+  reactiveConstellation: [
+    route('constellation-energy-light', 'overallEnergy', 'environmentBrightness', { amount: 0.58, attackMs: 70, releaseMs: 320 }),
+    route('constellation-beat-impact', 'beat', 'impact', { amount: 0.72, attackMs: 0, releaseMs: 180, beatHoldMs: 18, decayMs: 220 }),
+    route('constellation-phase-rotation', 'beatPhase', 'geometryRotation', { amount: 0.32, attackMs: 0, releaseMs: 0 }),
+    route('constellation-bass-depth', 'subBass', 'depth', { amount: 0.28, attackMs: 45, releaseMs: 280 }),
+  ],
   stormGateway: [
     route('storm-snare-lightning', 'snare', 'lightning', { amount: 1, attackMs: 0, releaseMs: 160, beatHoldMs: 20, decayMs: 200 }),
     route('storm-transient-lightning', 'transientIntensity', 'lightning', { amount: 0.6, attackMs: 0, releaseMs: 130, threshold: 0.12 }),
@@ -611,6 +618,8 @@ const CINEMATIC_WORLD_MODE_ALIASES: Record<string, CinematicWorldMode> = {
   mirrordimension: 'mirrorDimension',
   ancientmachine: 'ancientMachine',
   stormgateway: 'stormGateway',
+  reactiveconstellation: 'reactiveConstellation',
+  constellation: 'reactiveConstellation',
   mediaportal: 'mediaPortal',
 }
 

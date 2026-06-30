@@ -22,6 +22,7 @@ import {
   MIRROR_DIMENSION_DEFAULTS,
   MONOLITH_GATE_BOUNDS,
   MONOLITH_GATE_DEFAULTS,
+  REACTIVE_CONSTELLATION_BOUNDS,
   STORM_GATEWAY_BOUNDS,
   STORM_GATEWAY_DEFAULTS,
   createDefaultCinematicWorldSettings,
@@ -238,6 +239,64 @@ const STORM_GATEWAY_CONTROLS = createNumericControlSchema({
   integerKeys: ['cloudLayers'],
 })
 
+const REACTIVE_CONSTELLATION_CONTROLS = {
+  mode: 'reactiveConstellation',
+  groups: [
+    {
+      id: 'reactive-constellation-composition',
+      label: 'Constellation Composition',
+      visibility: 'all',
+      controls: [
+        { kind: 'integer', id: 'constellation-node-count', setting: 'nodeCount', label: 'Node Count', min: REACTIVE_CONSTELLATION_BOUNDS.nodeCount[0], max: REACTIVE_CONSTELLATION_BOUNDS.nodeCount[1], step: 1, visibility: 'all' },
+        {
+          kind: 'select', id: 'constellation-topology-style', setting: 'topologyStyle', label: 'Topology Style', visibility: 'all',
+          options: [
+            { value: 'radial', label: 'Radial Bloom' },
+            { value: 'clustered', label: 'Clustered Network' },
+            { value: 'helix', label: 'Helix Spine' },
+            { value: 'layered', label: 'Layered Field' },
+          ],
+        },
+        {
+          kind: 'select', id: 'constellation-polyhedron-style', setting: 'polyhedronStyle', label: 'Polyhedron Style', visibility: 'all',
+          options: [
+            { value: 'tetrahedron', label: 'Tetrahedron' },
+            { value: 'octahedron', label: 'Octahedron' },
+            { value: 'icosahedron', label: 'Icosahedron' },
+            { value: 'irregularCrystal', label: 'Irregular Crystal' },
+            { value: 'mixed', label: 'Mixed Facets' },
+          ],
+        },
+        { kind: 'slider', id: 'constellation-network-spread', setting: 'networkSpread', label: 'Network Spread', min: REACTIVE_CONSTELLATION_BOUNDS.networkSpread[0], max: REACTIVE_CONSTELLATION_BOUNDS.networkSpread[1], step: 0.01, visibility: 'all' },
+        { kind: 'slider', id: 'constellation-node-scale', setting: 'nodeScale', label: 'Node Scale', min: REACTIVE_CONSTELLATION_BOUNDS.nodeScale[0], max: REACTIVE_CONSTELLATION_BOUNDS.nodeScale[1], step: 0.005, visibility: 'all' },
+      ],
+    },
+    {
+      id: 'reactive-constellation-structure',
+      label: 'Network Structure',
+      visibility: 'advanced',
+      controls: [
+        { kind: 'slider', id: 'constellation-depth-spread', setting: 'depthSpread', label: 'Depth Spread', min: REACTIVE_CONSTELLATION_BOUNDS.depthSpread[0], max: REACTIVE_CONSTELLATION_BOUNDS.depthSpread[1], step: 0.01 },
+        { kind: 'integer', id: 'constellation-neighbor-count', setting: 'neighborCount', label: 'Neighbor Count', description: 'Changes graph connectivity, node orientation, and connected-node prominence.', min: REACTIVE_CONSTELLATION_BOUNDS.neighborCount[0], max: REACTIVE_CONSTELLATION_BOUNDS.neighborCount[1], step: 1 },
+        { kind: 'slider', id: 'constellation-scale-variation', setting: 'nodeScaleVariation', label: 'Scale Variation', min: REACTIVE_CONSTELLATION_BOUNDS.nodeScaleVariation[0], max: REACTIVE_CONSTELLATION_BOUNDS.nodeScaleVariation[1], step: 0.01 },
+        { kind: 'slider', id: 'constellation-central-gravity', setting: 'centralGravity', label: 'Central Gravity', min: REACTIVE_CONSTELLATION_BOUNDS.centralGravity[0], max: REACTIVE_CONSTELLATION_BOUNDS.centralGravity[1], step: 0.01 },
+      ],
+    },
+    {
+      id: 'reactive-constellation-surface',
+      label: 'Faceted Surface',
+      visibility: 'advanced',
+      controls: [
+        { kind: 'slider', id: 'constellation-face-opacity', setting: 'faceOpacity', label: 'Face Opacity', min: REACTIVE_CONSTELLATION_BOUNDS.faceOpacity[0], max: REACTIVE_CONSTELLATION_BOUNDS.faceOpacity[1], step: 0.01 },
+        { kind: 'slider', id: 'constellation-rim-intensity', setting: 'rimIntensity', label: 'Rim Intensity', min: REACTIVE_CONSTELLATION_BOUNDS.rimIntensity[0], max: REACTIVE_CONSTELLATION_BOUNDS.rimIntensity[1], step: 0.01 },
+        { kind: 'slider', id: 'constellation-wireframe-amount', setting: 'wireframeAmount', label: 'Wireframe Amount', min: REACTIVE_CONSTELLATION_BOUNDS.wireframeAmount[0], max: REACTIVE_CONSTELLATION_BOUNDS.wireframeAmount[1], step: 0.01 },
+        { kind: 'slider', id: 'constellation-node-spin', setting: 'nodeSpin', label: 'Node Spin', min: REACTIVE_CONSTELLATION_BOUNDS.nodeSpin[0], max: REACTIVE_CONSTELLATION_BOUNDS.nodeSpin[1], step: 0.01 },
+        { kind: 'slider', id: 'constellation-camera-orbit', setting: 'cameraOrbit', label: 'World Orbit', description: 'Adds a model-space orbit while retaining the shared Cinematic camera frame.', min: REACTIVE_CONSTELLATION_BOUNDS.cameraOrbit[0], max: REACTIVE_CONSTELLATION_BOUNDS.cameraOrbit[1], step: 0.01 },
+      ],
+    },
+  ],
+} as const satisfies CinematicWorldControlSchema<'reactiveConstellation'>
+
 const MEDIA_PORTAL_CONTROLS = {
   mode: 'mediaPortal',
   groups: [
@@ -297,6 +356,7 @@ export const CINEMATIC_WORLD_CATALOG: CinematicWorldCatalog = {
   celestialCathedral: { id: 'celestialCathedral', label: 'Celestial Cathedral', category: 'Architectural', description: 'Cosmic arches, pillars, stars and deep light shafts.', cameraRigs: ['locked', 'dolly', 'flyThrough', 'autoDirector'], modulationTargets: ['depth', 'cameraTravel', 'fogDensity', 'particleEmission', 'environmentBrightness', 'bloom', 'impact'], supportsPortalShape: false, controls: CELESTIAL_CATHEDRAL_CONTROLS },
   mirrorDimension: { id: 'mirrorDimension', label: 'Mirror Dimension', category: 'Cosmic', description: 'Symmetrical mirrored chambers with controlled recursive depth.', cameraRigs: ['locked', 'orbit', 'autoDirector'], modulationTargets: ['depth', 'geometryRotation', 'feedback', 'distortion', 'chromaticAberration', 'environmentBrightness', 'bloom', 'impact'], supportsPortalShape: false, controls: MIRROR_DIMENSION_CONTROLS },
   ancientMachine: { id: 'ancientMachine', label: 'Ancient Machine', category: 'Mechanical', description: 'Interlocking rings, gears, glyphs and a mechanical unlock sequence.', cameraRigs: ['locked', 'dolly', 'orbit', 'autoDirector'], modulationTargets: ['portalAperture', 'depth', 'geometryRotation', 'cameraPunch', 'cameraTravel', 'environmentBrightness', 'bloom', 'impact'], supportsPortalShape: true, controls: ANCIENT_MACHINE_CONTROLS },
+  reactiveConstellation: { id: 'reactiveConstellation', label: 'Reactive Constellation', category: 'Cosmic', description: 'A true 3D network of independently transformed faceted crystal nodes.', cameraRigs: ['locked', 'dolly', 'orbit', 'handheld', 'autoDirector'], modulationTargets: ['depth', 'geometryRotation', 'environmentBrightness', 'bloom', 'impact'], supportsPortalShape: false, controls: REACTIVE_CONSTELLATION_CONTROLS },
   stormGateway: { id: 'stormGateway', label: 'Storm Gateway', category: 'Storm', description: 'Cloud vortex, debris, turbulence and branching lightning.', cameraRigs: ['locked', 'orbit', 'handheld', 'autoDirector'], modulationTargets: ['portalAperture', 'depth', 'cameraPunch', 'fogDensity', 'particleEmission', 'lightning', 'environmentBrightness', 'distortion', 'bloom', 'chromaticAberration', 'impact'], supportsPortalShape: true, controls: STORM_GATEWAY_CONTROLS },
   mediaPortal: { id: 'mediaPortal', label: 'Media Portal', category: 'Media', description: 'Places images, video, logos or SVG artwork inside a reactive gateway.', cameraRigs: ['locked', 'dolly', 'orbit', 'autoDirector'], modulationTargets: ['portalAperture', 'distortion', 'refraction', 'bloom', 'chromaticAberration', 'feedback', 'impact'], supportsPortalShape: true, controls: MEDIA_PORTAL_CONTROLS },
   legacyPortal: { id: 'legacyPortal', label: 'Legacy Portal', category: 'Legacy', description: 'Compatibility renderer for projects created before Cinematic Worlds.', cameraRigs: ['locked'], modulationTargets: ['portalAperture', 'cameraPunch', 'fogDensity', 'particleEmission', 'environmentBrightness', 'impact', 'fog', 'debris', 'atmosphere', 'glow', 'cameraMotion', 'portalPulse'], rendererModulationTargets: ['portalAperture', 'cameraPunch', 'fogDensity', 'particleEmission', 'environmentBrightness', 'impact'], supportsPortalShape: true, controls: EMPTY_SCHEMA('legacyPortal') },
@@ -312,6 +372,7 @@ export const CINEMATIC_WORLD_CATALOG_LIST: readonly AnyCinematicWorldCatalogEntr
   CINEMATIC_WORLD_CATALOG.mirrorDimension,
   CINEMATIC_WORLD_CATALOG.ancientMachine,
   CINEMATIC_WORLD_CATALOG.stormGateway,
+  CINEMATIC_WORLD_CATALOG.reactiveConstellation,
   CINEMATIC_WORLD_CATALOG.mediaPortal,
   CINEMATIC_WORLD_CATALOG.legacyPortal,
 ]
