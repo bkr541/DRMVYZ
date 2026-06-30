@@ -1,6 +1,14 @@
 import { createCinematicWorldConfig, createLegacyPortalCinematicConfig } from './CinematicWorldConfig'
 import type { CinematicWorldConfig } from './CinematicWorldConfig'
 import { REACTIVE_CONSTELLATION_CURATED_PRESETS } from './ReactiveConstellationPresets'
+import type {
+  ProductionCompoundCue,
+  ProductionFixtureCapabilityOverride,
+  ProductionFixtureGroup,
+  ProductionFixtureKind,
+  ProductionLook,
+  ProductionTarget,
+} from './LaserDmxProductionRig'
 
 export type ReactEngineId = 'shaderPads' | 'cinematicPortal' | 'oscilloscope' | 'laserDmx' | 'neonLattice'
 
@@ -460,6 +468,19 @@ export interface LaserDmxBeamMatrixPresetSummary {
 }
 
 export interface LaserDmxFixture {
+  /** Versioned on persistence; omitted legacy fixtures are normalized on load. */
+  schemaVersion?: number
+  /** Generalized production kind. Legacy fixtures resolve this from their profile. */
+  fixtureKind?: ProductionFixtureKind
+  /** Optional capability overrides layered over the selected profile declaration. */
+  capabilityOverrides?: ProductionFixtureCapabilityOverride
+  /** Compatibility diagnostics preserve invalid/unknown legacy profile information. */
+  compatibility?: {
+    source: 'laserDmxSpatialFixtures' | 'productionRig'
+    sourceSchemaVersion?: number
+    validationErrors?: string[]
+  }
+
   id: string
   name: string
   enabled: boolean
@@ -529,6 +550,10 @@ export interface LaserDmxFixture {
 }
 
 export interface LaserDmxSettings {
+  /** Spatial Fixtures persistence schema. Missing legacy values normalize to v1. */
+  schemaVersion?: number
+  rigId?: string
+  rigName?: string
   selectedFixtureId: string | null
   masterDimmer: number
   blackout: boolean
@@ -543,6 +568,11 @@ export interface LaserDmxSettings {
   showPathPoints?: boolean
   showDmxDebug?: boolean
   fixtures: LaserDmxFixture[]
+  /** Production-rig scaffolding shared by future fixture workspaces. */
+  productionGroups?: ProductionFixtureGroup[]
+  productionTargets?: ProductionTarget[]
+  productionLooks?: ProductionLook[]
+  productionCues?: ProductionCompoundCue[]
 }
 
 export interface LaserDmxFixtureFrame {
@@ -611,6 +641,9 @@ export function createDefaultLaserDmxSettings(): LaserDmxSettings {
     ],
   }
   return {
+    schemaVersion: 1,
+    rigId: 'laser-dmx-spatial-rig',
+    rigName: 'LaserDMX Spatial Rig',
     selectedFixtureId: leftFan.id,
     masterDimmer:      0.85,
     blackout:          false,
@@ -625,6 +658,10 @@ export function createDefaultLaserDmxSettings(): LaserDmxSettings {
     showPathPoints:     false,
     showDmxDebug:       false,
     fixtures: [leftFan, rightFan, centerAccent],
+    productionGroups: [],
+    productionTargets: [],
+    productionLooks: [],
+    productionCues: [],
   }
 }
 
@@ -905,6 +942,7 @@ export interface LaserDmxBeamMatrixCue {
 }
 
 export interface LaserDmxBeamMatrixSettings {
+  schemaVersion?: number
   selectedBeamIds:  string[]
   selectedGroupId:  string | null
 
@@ -973,6 +1011,7 @@ export function createDefaultLaserDmxBeamMatrixSettings(): LaserDmxBeamMatrixSet
   ])
 
   return {
+    schemaVersion: 1,
     selectedBeamIds: [],
     selectedGroupId: null,
     beams:  [],

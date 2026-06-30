@@ -69,6 +69,16 @@ import {
 import { resetBeamMatrixCompilerState } from '../components/vyzualz/react/renderers/LaserDmxBeamMatrixCompiler'
 import { resetFogState } from '../components/vyzualz/react/renderers/LaserDmxFogRenderer'
 import {
+  LASER_DMX_FIXTURE_SCHEMA_VERSION,
+  isPersistedLaserDmxBeamMatrixDocument,
+  isPersistedLaserDmxSettingsDocument,
+  normalizeLaserDmxBeamMatrixSettings,
+  normalizeLaserDmxSettings,
+  normalizeLegacyLaserDmxFixture,
+  sanitizeLaserDmxBeamMatrixForPersistence,
+  sanitizeLaserDmxSettingsForPersistence,
+} from '../components/vyzualz/react/LaserDmxProductionRig'
+import {
   getSvgVisualEntry,
   clearSvgVisualCache,
   setSvgVisualEntry,
@@ -608,6 +618,8 @@ function makeNewLaserFixture(existingFixtures: LaserDmxFixture[]): LaserDmxFixtu
   const maxAddr = existingFixtures.reduce((m, f) => Math.max(m, f.dmx.startAddress), 0)
   const nextAddr = Math.min(497, maxAddr + 16)  // keep within 512-channel universe
   return {
+    schemaVersion: LASER_DMX_FIXTURE_SCHEMA_VERSION,
+    fixtureKind: 'laserProjector',
     id:      crypto.randomUUID(),
     name:    `Laser ${existingFixtures.length + 1}`,
     enabled: true,
@@ -749,13 +761,10 @@ export function buildPresetPatch(
   let laserPatch: LaserDmxSettings | undefined
   if (preset.laserDmxSettings != null) {
     // Presets are complete looks, not deltas against live authored state.
-    const merged = { ...createDefaultLaserDmxSettings(), ...preset.laserDmxSettings }
-    // Ensure selectedFixtureId always points to a fixture that exists after the merge.
-    const fixtures = merged.fixtures ?? []
-    const hasSelected = fixtures.some(f => f.id === merged.selectedFixtureId)
-    if (!hasSelected) {
-      merged.selectedFixtureId = fixtures[0]?.id ?? null
-    }
+    const merged = normalizeLaserDmxSettings({
+      ...createDefaultLaserDmxSettings(),
+      ...preset.laserDmxSettings,
+    })
     laserPatch = merged
   }
 
@@ -1830,6 +1839,20 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       },
     }
   }
+  if (version < 29) {
+    // Introduce explicit LaserDMX schema versions and normalize legacy Spatial
+    // Fixtures without dropping unknown authored fields. Beam Matrix receives a
+    // version marker only; its established document shape remains unchanged.
+    state = {
+      ...state,
+      ...(isPersistedLaserDmxSettingsDocument(state.laserDmxSettings)
+        ? { laserDmxSettings: normalizeLaserDmxSettings(state.laserDmxSettings) }
+        : {}),
+      ...(isPersistedLaserDmxBeamMatrixDocument(state.laserDmxBeamMatrix)
+        ? { laserDmxBeamMatrix: normalizeLaserDmxBeamMatrixSettings(state.laserDmxBeamMatrix) }
+        : {}),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -1839,6 +1862,12 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
   const oscillatorSettings = state.oscillatorSettings as OscillatorSettings | undefined
   if (oscillatorSettings) {
     state = { ...state, oscillatorSettings: normalizeOscillatorSettings(oscillatorSettings) }
+  }
+  if (isPersistedLaserDmxSettingsDocument(state.laserDmxSettings)) {
+    state = { ...state, laserDmxSettings: normalizeLaserDmxSettings(state.laserDmxSettings) }
+  }
+  if (isPersistedLaserDmxBeamMatrixDocument(state.laserDmxBeamMatrix)) {
+    state = { ...state, laserDmxBeamMatrix: normalizeLaserDmxBeamMatrixSettings(state.laserDmxBeamMatrix) }
   }
   return state
 }
@@ -1991,9 +2020,9 @@ export function reactStorePartialize(s: ReactStoreState) {
     oscillatorSettings:                 s.oscillatorSettings,
     oscillatorGlyphAssets:              s.oscillatorGlyphAssets,
     neonLatticeSettings:                s.neonLatticeSettings,
-    laserDmxSettings:                   s.laserDmxSettings,
+    laserDmxSettings:                   sanitizeLaserDmxSettingsForPersistence(s.laserDmxSettings),
     laserDmxWorkspaceMode:              s.laserDmxWorkspaceMode,
-    laserDmxBeamMatrix:                 s.laserDmxBeamMatrix,
+    laserDmxBeamMatrix:                 sanitizeLaserDmxBeamMatrixForPersistence(s.laserDmxBeamMatrix),
     activeLaserDmxBeamMatrixPresetId:   s.activeLaserDmxBeamMatrixPresetId,
     laserDmxBeamMatrixPresetDirty:      s.laserDmxBeamMatrixPresetDirty,
     soundDrawingLayersByTrackId:        normalizeSoundDrawingLayersByTrackId(s.soundDrawingLayersByTrackId),
@@ -2061,6 +2090,12 @@ export function mergeReactStoreState(
     ),
     soundDrawingClipsByTrackId: normalizeSoundDrawingClipsByTrackId(
       persisted.soundDrawingClipsByTrackId ?? currentState.soundDrawingClipsByTrackId,
+    ),
+    laserDmxSettings: normalizeLaserDmxSettings(
+      persisted.laserDmxSettings ?? currentState.laserDmxSettings,
+    ),
+    laserDmxBeamMatrix: normalizeLaserDmxBeamMatrixSettings(
+      persisted.laserDmxBeamMatrix ?? currentState.laserDmxBeamMatrix,
     ),
     neonLatticeSettings: {
       ...DEFAULT_NEON_LATTICE_SETTINGS,
@@ -3039,7 +3074,7 @@ export const useReactStore = create<ReactStoreState>()(
       // ── LaserDMX actions ────────────────────────────────────────────────────
 
       setLaserDmxSettings: (partial) =>
-        set(s => ({ laserDmxSettings: { ...s.laserDmxSettings, ...partial } })),
+        set(s => ({ laserDmxSettings: normalizeLaserDmxSettings({ ...s.laserDmxSettings, ...partial }) })),
 
       resetLaserDmxSettings: () =>
         set({ laserDmxSettings: createDefaultLaserDmxSettings() }),
@@ -3101,8 +3136,8 @@ export const useReactStore = create<ReactStoreState>()(
         set(s => ({
           laserDmxSettings: {
             ...s.laserDmxSettings,
-            fixtures: s.laserDmxSettings.fixtures.map(f =>
-              f.id === fixtureId ? { ...f, ...patch } : f
+            fixtures: s.laserDmxSettings.fixtures.map((f, index) =>
+              f.id === fixtureId ? normalizeLegacyLaserDmxFixture({ ...f, ...patch }, index) : f
             ),
           },
         })),
@@ -3154,7 +3189,7 @@ export const useReactStore = create<ReactStoreState>()(
       // ── LaserDMX Beam Matrix ────────────────────────────────────────────────
 
       setLaserDmxBeamMatrixSettings: (partial) =>
-        set(s => ({ laserDmxBeamMatrix: { ...s.laserDmxBeamMatrix, ...partial } })),
+        set(s => ({ laserDmxBeamMatrix: normalizeLaserDmxBeamMatrixSettings({ ...s.laserDmxBeamMatrix, ...partial }) })),
 
       resetLaserDmxBeamMatrix: () =>
         set({ laserDmxBeamMatrix: createDefaultLaserDmxBeamMatrixSettings() }),
@@ -4042,7 +4077,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 28,
+      version: 29,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

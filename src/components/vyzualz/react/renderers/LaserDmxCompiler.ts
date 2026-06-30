@@ -25,6 +25,14 @@ import {
 import { generateLaserPath, sliceByProgress } from './LaserDmxPathUtils'
 import type { LaserPoint } from './LaserDmxPathUtils'
 import type { LaserDmxPersonalizationContext } from '../../../../features/personalization/laserDmxPersonalization'
+import {
+  buildProductionRig,
+  compileProfileChannels,
+  createProductionOutputFrame,
+  normalizeLaserDmxSettings,
+  resolveLaserDmxFixtureCapabilities,
+} from '../LaserDmxProductionRig'
+import type { ProductionOutputFrame, ProductionRig } from '../LaserDmxProductionRig'
 import { inferSpatialFixtureSemantic, personalizeRgbw } from '../../../../features/personalization/laserDmxPersonalization'
 
 // ── Re-export safety helpers for existing callers (LaserDmxRenderer.ts etc.) ──
@@ -128,8 +136,10 @@ export interface CompiledGlobal {
 }
 
 export interface CompiledLaserDmxResult {
-  global:   CompiledGlobal
-  fixtures: LaserDmxFixtureFrame[]
+  global:        CompiledGlobal
+  fixtures:      LaserDmxFixtureFrame[]
+  productionRig: ProductionRig
+  outputFrame:   ProductionOutputFrame
 }
 
 function fixtureStateFromFixture(f: LaserDmxFixture): FixtureRenderState {
@@ -215,30 +225,23 @@ function compileChannels(
   state:   FixtureRenderState,
   global:  GlobalRenderState,
   profile: string,
-): Record<string, number> {
-  const dimmer  = clamp255(state.dimmer * global.masterDimmer * 255)
-  const shutter = state.shutterOpen ? 255 : 0
-  const strobe  = clamp255(state.strobeRate * 255)
-  const r = clamp255(state.red)
-  const g = clamp255(state.green)
-  const b = clamp255(state.blue)
-  const w = clamp255(state.white)
-  const pan  = clamp255((state.pan  + 180) / 360 * 255)
-  const tilt = clamp255((state.tilt + 90)  / 180 * 255)
-  const zoom = clamp255(state.zoom * 255)
-  const rot  = clamp255((state.rotation + 180) / 360 * 255)
-  const spd  = clamp255(state.scanSpeed / 4 * 255)
-
-  switch (profile) {
-    case 'genericRgbwLaser':
-      return { ch1: dimmer, ch2: shutter, ch3: strobe, ch4: r, ch5: g, ch6: b, ch7: pan, ch8: tilt, ch9: zoom, ch10: 0, ch11: spd, ch12: w }
-    case 'scannerLaser':
-      return { ch1: dimmer, ch2: shutter, ch3: strobe, ch4: r, ch5: g, ch6: b, ch7: pan, ch8: tilt, ch9: rot, ch10: 0, ch11: spd, ch12: zoom }
-    case 'multiPatternLaser':
-      return { ch1: dimmer, ch2: shutter, ch3: strobe, ch4: r, ch5: g, ch6: b, ch7: w, ch8: pan, ch9: tilt, ch10: rot, ch11: 0, ch12: spd, ch13: zoom, ch14: clamp255(state.pathComplexity * 255) }
-    default: // genericRgbLaser
-      return { ch1: dimmer, ch2: shutter, ch3: strobe, ch4: r, ch5: g, ch6: b, ch7: pan, ch8: tilt, ch9: zoom, ch10: 0, ch11: spd }
-  }
+): Record<string, number> | null {
+  return compileProfileChannels(profile, {
+    dimmer:        clamp255(state.dimmer * global.masterDimmer * 255),
+    shutter:       state.shutterOpen ? 255 : 0,
+    strobe:        clamp255(state.strobeRate * 255),
+    red:           clamp255(state.red),
+    green:         clamp255(state.green),
+    blue:          clamp255(state.blue),
+    white:         clamp255(state.white),
+    pan:           clamp255((state.pan + 180) / 360 * 255),
+    tilt:          clamp255((state.tilt + 90) / 180 * 255),
+    zoom:          clamp255(state.zoom * 255),
+    rotation:      clamp255((state.rotation + 180) / 360 * 255),
+    scanSpeed:     clamp255(state.scanSpeed / 4 * 255),
+    pathComplexity: clamp255(state.pathComplexity * 255),
+    zero:          0,
+  })
 }
 
 // ── Validation helpers (exported for store/preset application) ────────────────
@@ -268,11 +271,16 @@ export interface CompileInput {
 }
 
 export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult {
-  const { settings, mi, time, timeSec, canvasWidth: W, canvasHeight: H, personalization } = inp
+  const { settings: settingsInput, mi, time, timeSec, canvasWidth: W, canvasHeight: H, personalization } = inp
+  const settings = normalizeLaserDmxSettings(settingsInput)
+  const productionRig = buildProductionRig(settings)
   if (!W || !H) {
+    const fixtures: LaserDmxFixtureFrame[] = []
     return {
       global: buildPassthroughGlobal(settings),
-      fixtures: [],
+      fixtures,
+      productionRig,
+      outputFrame: createProductionOutputFrame(productionRig, timeSec, fixtures),
     }
   }
 
@@ -295,9 +303,12 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
 
   if (settings.blackout) {
     resetAllEnvelopes()
+    const fixtures: LaserDmxFixtureFrame[] = []
     return {
       global: { ...globalState, blackout: true },
-      fixtures: [],
+      fixtures,
+      productionRig,
+      outputFrame: createProductionOutputFrame(productionRig, timeSec, fixtures),
     }
   }
 
@@ -309,6 +320,8 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
   for (let fixtureIdx = 0; fixtureIdx < settings.fixtures.length; fixtureIdx++) {
     const fixture = settings.fixtures[fixtureIdx]
     if (!fixture.enabled) continue
+    const capabilities = resolveLaserDmxFixtureCapabilities(fixture)
+    if (!capabilities) continue
 
     const fState = fixtureStateFromFixture(fixture)
     // Each fixture gets its own copy of global state so per-fixture routes don't bleed across fixtures
@@ -320,6 +333,26 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
       activeEnvKeys.add(envKey)
       applyRoute(route, fState, gState, mi, fixture.id, dt)
     }
+
+    // Capability declarations are the authority for fixture behavior. Routes may
+    // target a shared property vocabulary, but unsupported properties are reset
+    // before rendering/channel compilation.
+    if (!capabilities.dimmer) fState.dimmer = 1
+    if (!capabilities.shutter) fState.shutterOpen = true
+    if (!capabilities.strobe) fState.strobeRate = 0
+    if (!capabilities.panTilt) { fState.pan = 0; fState.tilt = 0 }
+    if (!capabilities.zoom) fState.zoom = 1
+    if (!capabilities.focus) fState.focus = 1
+    if (!capabilities.beamPattern) {
+      fState.scanSpeed = 0
+      fState.pathProgress = 1
+      fState.pathScale = 1
+      fState.pathRotation = 0
+      fState.pathSpread = 0
+      fState.pathRadius = 0
+      fState.pathComplexity = 0
+    }
+    if (capabilities.color?.mode !== 'rgbw') fState.white = 0
 
     // Safety clamp caps effective intensity
     fState.dimmer = clamp01(fState.dimmer * gState.safetyClamp)
@@ -449,6 +482,7 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
       ? { ...fState, red: personalized!.red, green: personalized!.green, blue: personalized!.blue }
       : fState
     const channels = compileChannels(channelState, gState, fixture.dmx.profileId)
+    if (!channels) continue
 
     frames.push({
       fixtureId:    fixture.id,
@@ -475,6 +509,8 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
   return {
     global: { ...globalState, blackout: false },
     fixtures: frames,
+    productionRig,
+    outputFrame: createProductionOutputFrame(productionRig, timeSec, frames),
   }
 }
 

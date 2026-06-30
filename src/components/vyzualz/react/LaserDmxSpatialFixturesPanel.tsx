@@ -5,13 +5,16 @@ import {
   CtrlSection, Collapsible,
 } from './ReactControlRows'
 import type { LaserDmxFixture, LaserDmxProfileId } from './ReactTypes'
+import {
+  getLaserDmxFixtureProfile,
+  LASER_DMX_FIXTURE_PROFILES,
+  resolveLaserDmxFixtureCapabilities,
+} from './LaserDmxProductionRig'
 
-const PROFILE_LABELS: Record<LaserDmxProfileId, string> = {
-  genericRgbLaser:    'RGB Laser',
-  genericRgbwLaser:   'RGBW Laser',
-  scannerLaser:       'Scanner',
-  multiPatternLaser:  'Multi-Pattern',
-}
+const PROFILE_OPTIONS = Object.values(LASER_DMX_FIXTURE_PROFILES).map(profile => ({
+  value: profile.id,
+  label: profile.label,
+}))
 
 const PATH_KIND_OPTIONS = [
   { value: 'staticBeam',    label: 'Static Beam'   },
@@ -59,6 +62,7 @@ export function LaserDmxSpatialFixturesPanel() {
   const { fixtures, selectedFixtureId } = laserDmxSettings
   const fixture = fixtures.find(f => f.id === selectedFixtureId) ?? fixtures[0] ?? null
   const fid = fixture?.id ?? ''
+  const capabilities = fixture ? resolveLaserDmxFixtureCapabilities(fixture) : null
 
   function setPosition<K extends PositionKey>(key: K, value: LaserDmxFixture['position'][K]) {
     if (!fixture) return
@@ -162,8 +166,15 @@ export function LaserDmxSpatialFixturesPanel() {
             <SelectRow
               label="Profile"
               value={fixture.dmx.profileId}
-              onChange={v => updateLaserFixture(fid, { dmx: { ...fixture.dmx, profileId: v as LaserDmxProfileId } })}
-              options={Object.entries(PROFILE_LABELS).map(([value, label]) => ({ value, label }))}
+              onChange={v => {
+                const profile = getLaserDmxFixtureProfile(v)
+                if (!profile) return
+                updateLaserFixture(fid, {
+                  fixtureKind: profile.fixtureKind,
+                  dmx: { ...fixture.dmx, profileId: v as LaserDmxProfileId },
+                })
+              }}
+              options={PROFILE_OPTIONS}
             />
             <SelectRow
               label="Channel Mode"
@@ -180,9 +191,15 @@ export function LaserDmxSpatialFixturesPanel() {
             <SliderRow label="Target X" value={fixture.position.targetX} onChange={v => setPosition('targetX', v)} min={0} max={1} step={0.01} color="#4ac7db" />
             <SliderRow label="Target Y" value={fixture.position.targetY} onChange={v => setPosition('targetY', v)} min={0} max={1} step={0.01} color="#4ac7db" />
             <SliderRow label="Target Z" value={fixture.position.targetZ} onChange={v => setPosition('targetZ', v)} min={-1} max={1} step={0.01} color="#4ac7db" />
-            <SliderRow label="Pan"      value={fixture.position.pan}     onChange={v => setPosition('pan',     v)} min={-180} max={180} step={1} color="#d8b95a" />
-            <SliderRow label="Tilt"     value={fixture.position.tilt}    onChange={v => setPosition('tilt',    v)} min={-90}  max={90}  step={1} color="#d8b95a" />
-            <SliderRow label="Rotation" value={fixture.position.rotation} onChange={v => setPosition('rotation', v)} min={-180} max={180} step={1} color="#d8b95a" />
+            {capabilities?.panTilt && (
+              <>
+                <SliderRow label="Pan"      value={fixture.position.pan}     onChange={v => setPosition('pan',     v)} min={-capabilities.panTilt.panRangeDeg / 2} max={capabilities.panTilt.panRangeDeg / 2} step={1} color="#d8b95a" />
+                <SliderRow label="Tilt"     value={fixture.position.tilt}    onChange={v => setPosition('tilt',    v)} min={-capabilities.panTilt.tiltRangeDeg / 2} max={capabilities.panTilt.tiltRangeDeg / 2} step={1} color="#d8b95a" />
+              </>
+            )}
+            {capabilities?.beamPattern && (
+              <SliderRow label="Rotation" value={fixture.position.rotation} onChange={v => setPosition('rotation', v)} min={-180} max={180} step={1} color="#d8b95a" />
+            )}
             <ToggleRow label="Mirror X" value={fixture.position.mirrorX} onChange={v => setPosition('mirrorX', v)} />
             <ToggleRow label="Mirror Y" value={fixture.position.mirrorY} onChange={v => setPosition('mirrorY', v)} />
           </Collapsible>
@@ -194,10 +211,14 @@ export function LaserDmxSpatialFixturesPanel() {
               onChange={v => setColor('mode', v as 'fixed' | 'palette' | 'music')}
               options={COLOR_MODE_OPTIONS}
             />
-            <SliderRow label="Red"   value={fixture.color.red}   onChange={v => setColor('red',   Math.round(v))} min={0} max={255} step={1} color="#c0314a" />
-            <SliderRow label="Green" value={fixture.color.green} onChange={v => setColor('green', Math.round(v))} min={0} max={255} step={1} color="#61d6aa" />
-            <SliderRow label="Blue"  value={fixture.color.blue}  onChange={v => setColor('blue',  Math.round(v))} min={0} max={255} step={1} color="#4ac7db" />
-            {(fixture.dmx.profileId === 'genericRgbwLaser' || fixture.dmx.profileId === 'multiPatternLaser') && (
+            {(capabilities?.color?.mode === 'rgb' || capabilities?.color?.mode === 'rgbw') && (
+              <>
+                <SliderRow label="Red"   value={fixture.color.red}   onChange={v => setColor('red',   Math.round(v))} min={0} max={255} step={1} color="#c0314a" />
+                <SliderRow label="Green" value={fixture.color.green} onChange={v => setColor('green', Math.round(v))} min={0} max={255} step={1} color="#61d6aa" />
+                <SliderRow label="Blue"  value={fixture.color.blue}  onChange={v => setColor('blue',  Math.round(v))} min={0} max={255} step={1} color="#4ac7db" />
+              </>
+            )}
+            {capabilities?.color?.mode === 'rgbw' && (
               <SliderRow label="White" value={fixture.color.white} onChange={v => setColor('white', Math.round(v))} min={0} max={255} step={1} color="#e8f4f8" />
             )}
             <SliderRow label="Alpha"       value={fixture.color.alpha}           onChange={v => setColor('alpha',          v)} min={0} max={1}   step={0.01} color="#b84fc9" />
@@ -205,16 +226,31 @@ export function LaserDmxSpatialFixturesPanel() {
           </Collapsible>
 
           <Collapsible label="Beam Shape" defaultOpen={false}>
-            <SliderRow label="Dimmer"      value={fixture.beam.dimmer}        onChange={v => setBeam('dimmer',        v)}             min={0} max={1}   step={0.01} color="#4ac7db" />
-            <ToggleRow label="Shutter"     value={fixture.beam.shutterOpen}   onChange={v => setBeam('shutterOpen',   v)} />
-            <SliderRow label="Beam Width"  value={fixture.beam.width}         onChange={v => setBeam('width',         v)}             min={0.2} max={6} step={0.05} color="#61d6aa" />
-            <SliderRow label="Zoom"        value={fixture.beam.zoom}          onChange={v => setBeam('zoom',          v)}             min={0} max={1}   step={0.01} color="#d8b95a" />
-            <SliderRow label="Focus"       value={fixture.beam.focus}         onChange={v => setBeam('focus',         v)}             min={0} max={1}   step={0.01} color="#d8b95a" />
-            <SliderRow label="Strobe Rate" value={fixture.beam.strobeRate}    onChange={v => setBeam('strobeRate',    v)}             min={0} max={1}   step={0.01} color="#c0314a" />
-            <SliderRow label="Flicker"     value={fixture.beam.flickerAmount} onChange={v => setBeam('flickerAmount', v)}             min={0} max={1}   step={0.01} color="#c0314a" />
+            {capabilities?.dimmer && (
+              <SliderRow label="Dimmer" value={fixture.beam.dimmer} onChange={v => setBeam('dimmer', v)} min={0} max={1} step={0.01} color="#4ac7db" />
+            )}
+            {capabilities?.shutter && (
+              <ToggleRow label="Shutter" value={fixture.beam.shutterOpen} onChange={v => setBeam('shutterOpen', v)} />
+            )}
+            {capabilities?.beamPattern && (
+              <SliderRow label="Beam Width" value={fixture.beam.width} onChange={v => setBeam('width', v)} min={0.2} max={6} step={0.05} color="#61d6aa" />
+            )}
+            {capabilities?.zoom && (
+              <SliderRow label="Zoom" value={fixture.beam.zoom} onChange={v => setBeam('zoom', v)} min={capabilities.zoom.min} max={capabilities.zoom.max} step={0.01} color="#d8b95a" />
+            )}
+            {capabilities?.focus && (
+              <SliderRow label="Focus" value={fixture.beam.focus} onChange={v => setBeam('focus', v)} min={capabilities.focus.min} max={capabilities.focus.max} step={0.01} color="#d8b95a" />
+            )}
+            {capabilities?.strobe && (
+              <>
+                <SliderRow label="Strobe Rate" value={fixture.beam.strobeRate} onChange={v => setBeam('strobeRate', v)} min={capabilities.strobe.min} max={capabilities.strobe.max} step={0.01} color="#c0314a" />
+                <SliderRow label="Flicker" value={fixture.beam.flickerAmount} onChange={v => setBeam('flickerAmount', v)} min={0} max={1} step={0.01} color="#c0314a" />
+              </>
+            )}
           </Collapsible>
 
-          <Collapsible label="Path / Program" defaultOpen>
+          {capabilities?.beamPattern && (
+            <Collapsible label="Path / Program" defaultOpen>
             <SelectRow
               label="Path Kind"
               value={fixture.path.kind}
@@ -233,7 +269,8 @@ export function LaserDmxSpatialFixturesPanel() {
             <SliderRow label="Complexity"    value={fixture.path.complexity}   onChange={v => setPath('complexity',   v)}              min={0} max={1}    step={0.01} color="#b84fc9" />
             <SliderRow label="Smoothing"     value={fixture.path.smoothing}    onChange={v => setPath('smoothing',    v)}              min={0} max={1}    step={0.01} color="#4ac7db" />
             <SliderRow label="Progress"      value={fixture.path.pathProgress} onChange={v => setPath('pathProgress', v)}              min={0} max={1}    step={0.01} color="#61d6aa" />
-          </Collapsible>
+            </Collapsible>
+          )}
         </>
       )}
     </>
