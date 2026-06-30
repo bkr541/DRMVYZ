@@ -1,12 +1,15 @@
 import { createCinematicWorldConfig, createLegacyPortalCinematicConfig } from './CinematicWorldConfig'
 import type { CinematicWorldConfig } from './CinematicWorldConfig'
 import { REACTIVE_CONSTELLATION_CURATED_PRESETS } from './ReactiveConstellationPresets'
+import { createDefaultProductionStageModel } from './LaserDmxProductionRig'
 import type {
   ProductionCompoundCue,
   ProductionFixtureCapabilityOverride,
   ProductionFixtureGroup,
   ProductionFixtureKind,
   ProductionLook,
+  ProductionStageModel,
+  ProductionStageTransform,
   ProductionTarget,
 } from './LaserDmxProductionRig'
 
@@ -480,6 +483,10 @@ export interface LaserDmxFixture {
     sourceSchemaVersion?: number
     validationErrors?: string[]
   }
+  /** Canonical metre-based transform. Missing legacy values are derived from position. */
+  stageTransform?: ProductionStageTransform
+  /** Explicit shared target; null/undefined keeps the legacy per-fixture aim point. */
+  targetId?: string | null
 
   id: string
   name: string
@@ -568,6 +575,8 @@ export interface LaserDmxSettings {
   showPathPoints?: boolean
   showDmxDebug?: boolean
   fixtures: LaserDmxFixture[]
+  /** Shared metre-based stage, venue, camera, guide, and safety-zone document. */
+  productionStage?: ProductionStageModel
   /** Production-rig scaffolding shared by future fixture workspaces. */
   productionGroups?: ProductionFixtureGroup[]
   productionTargets?: ProductionTarget[]
@@ -658,6 +667,7 @@ export function createDefaultLaserDmxSettings(): LaserDmxSettings {
     showPathPoints:     false,
     showDmxDebug:       false,
     fixtures: [leftFan, rightFan, centerAccent],
+    productionStage: createDefaultProductionStageModel(),
     productionGroups: [],
     productionTargets: [],
     productionLooks: [],

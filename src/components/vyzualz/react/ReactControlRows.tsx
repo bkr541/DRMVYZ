@@ -49,6 +49,49 @@ export function SliderRow({
   )
 }
 
+// ── Numeric input row ─────────────────────────────────────────────────────────
+
+export interface NumberInputRowProps {
+  label: string
+  value: number
+  onChange: (value: number) => void
+  min?: number
+  max?: number
+  step?: number
+  unit?: string
+  disabled?: boolean
+  id?: string
+}
+
+export function NumberInputRow({
+  label, value, onChange, min, max, step = 0.1, unit, disabled = false, id,
+}: NumberInputRowProps) {
+  const generatedId = useId()
+  const inputId = id ?? generatedId
+  return (
+    <div className="rv-ctrl-row">
+      <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <input
+          id={inputId}
+          type="number"
+          className="rv-ctrl-text-input"
+          value={Number.isFinite(value) ? value : 0}
+          min={min}
+          max={max}
+          step={step}
+          disabled={disabled}
+          onChange={event => {
+            const next = Number(event.target.value)
+            if (Number.isFinite(next)) onChange(next)
+          }}
+        />
+        {unit && <span className="rv-ctrl-val" aria-hidden="true">{unit}</span>}
+      </div>
+    </div>
+  )
+}
+
 // ── Select row ────────────────────────────────────────────────────────────────
 
 export interface SelectOption { value: string; label: string; disabled?: boolean }

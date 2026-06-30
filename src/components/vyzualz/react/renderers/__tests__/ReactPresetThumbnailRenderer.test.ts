@@ -5,12 +5,16 @@ import { useReactStore } from '../../../../../stores/reactStore'
 const mocks = vi.hoisted(() => ({
   renderReactEngine: vi.fn(),
   clearLaserDmxVisualState: vi.fn(),
+  disposeLaserDmxRenderer: vi.fn(),
   clearNeonLatticeVisualState: vi.fn(),
   disposeCinematicPortalRenderer: vi.fn(),
 }))
 
 vi.mock('../ReactEngineRenderer', () => ({ renderReactEngine: mocks.renderReactEngine }))
-vi.mock('../LaserDmxRenderer', () => ({ clearLaserDmxVisualState: mocks.clearLaserDmxVisualState }))
+vi.mock('../LaserDmxRenderer', () => ({
+  clearLaserDmxVisualState: mocks.clearLaserDmxVisualState,
+  disposeLaserDmxRenderer: mocks.disposeLaserDmxRenderer,
+}))
 vi.mock('../NeonLatticeRenderer', () => ({ clearNeonLatticeVisualState: mocks.clearNeonLatticeVisualState }))
 vi.mock('../CinematicPortalRenderer', () => ({ disposeCinematicPortalRenderer: mocks.disposeCinematicPortalRenderer }))
 
@@ -48,6 +52,7 @@ describe('React preset thumbnail renderer final audit', () => {
     canvases.length = 0
     mocks.renderReactEngine.mockClear()
     mocks.clearLaserDmxVisualState.mockClear()
+    mocks.disposeLaserDmxRenderer.mockClear()
     mocks.clearNeonLatticeVisualState.mockClear()
     mocks.disposeCinematicPortalRenderer.mockClear()
     vi.stubGlobal('document', { createElement: vi.fn(() => createFakeCanvas()) })
@@ -93,6 +98,7 @@ describe('React preset thumbnail renderer final audit', () => {
     expect(mocks.renderReactEngine.mock.calls[0][1]).toMatchObject({ timingDiscontinuity: true, isPlaying: true })
     expect(mocks.renderReactEngine.mock.calls[mocks.renderReactEngine.mock.calls.length - 1]?.[1]).toMatchObject({ isPlaying: true })
     expect(mocks.disposeCinematicPortalRenderer).toHaveBeenCalledTimes(1)
+    expect(mocks.disposeLaserDmxRenderer).toHaveBeenCalledTimes(1)
     expect(useReactStore.getState().laserDmxSettings).toBe(laserBefore)
     expect(canvases[0]).toMatchObject({ width: 0, height: 0 })
   })
@@ -115,6 +121,7 @@ describe('React preset thumbnail renderer final audit', () => {
     ])
     expect(getReactPresetThumbnailDiagnosticsForTests()).toMatchObject({ activeJobs: 0, queuedJobs: 0 })
     expect(mocks.disposeCinematicPortalRenderer).toHaveBeenCalledTimes(3)
+    expect(mocks.disposeLaserDmxRenderer).toHaveBeenCalledTimes(3)
   })
 
   it('falls back to null and still disposes when preview serialization fails', async () => {
@@ -127,6 +134,7 @@ describe('React preset thumbnail renderer final audit', () => {
 
     await expect(renderReactPresetThumbnail(preset)).resolves.toBeNull()
     expect(mocks.disposeCinematicPortalRenderer).toHaveBeenCalledTimes(1)
+    expect(mocks.disposeLaserDmxRenderer).toHaveBeenCalledTimes(1)
     expect(canvases[0]).toMatchObject({ width: 0, height: 0 })
     expect(getReactPresetThumbnailDiagnosticsForTests().cacheEntries).toBe(0)
   })

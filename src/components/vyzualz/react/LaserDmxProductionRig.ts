@@ -18,7 +18,8 @@ import type {
 export const LASER_DMX_SETTINGS_SCHEMA_VERSION = 1
 export const LASER_DMX_FIXTURE_SCHEMA_VERSION = 1
 export const LASER_DMX_BEAM_MATRIX_SCHEMA_VERSION = 1
-export const LASER_DMX_PRODUCTION_RIG_SCHEMA_VERSION = 1
+export const LASER_DMX_PRODUCTION_RIG_SCHEMA_VERSION = 2
+export const LASER_DMX_STAGE_SCHEMA_VERSION = 1
 
 export type ProductionFixtureKind =
   | 'laserProjector'
@@ -90,14 +91,106 @@ export interface ProductionStageVector3 {
 }
 
 export interface ProductionStageOrientation {
+  /** Canonical aerospace-style rotations in degrees. */
+  yawDeg: number
+  pitchDeg: number
+  rollDeg: number
+  /** Compatibility aliases retained for Patch 1 consumers. */
   panDeg: number
   tiltDeg: number
-  rollDeg: number
 }
 
 export interface ProductionStageTransform {
   position: ProductionStageVector3
   orientation: ProductionStageOrientation
+}
+
+/**
+ * Coordinate convention used by every spatial rig helper and renderer:
+ * - origin: centre of the downstage floor edge
+ * - +X: stage right from the performer's perspective
+ * - +Y: upward
+ * - +Z: upstage, away from the audience
+ * - audience locations normally use negative Z
+ * - yaw rotates around +Y, pitch around +X, roll around +Z
+ * Units are metres and angles are degrees.
+ */
+export const PRODUCTION_STAGE_COORDINATE_CONVENTION = 'centerDownstageFloor+xStageRight+yUp+zUpstage' as const
+export type ProductionStageOriginConvention = typeof PRODUCTION_STAGE_COORDINATE_CONVENTION
+
+export interface ProductionStageDimensions {
+  width: number
+  height: number
+  depth: number
+}
+
+export interface ProductionFloorPlane {
+  enabled: boolean
+  elevation: number
+  width: number
+  depth: number
+}
+
+export interface ProductionAudienceRegion {
+  enabled: boolean
+  center: ProductionStageVector3
+  size: ProductionStageVector3
+}
+
+export interface ProductionMountingSurface {
+  id: string
+  name: string
+  kind: 'trussLine' | 'mountingPlane'
+  start: ProductionStageVector3
+  end: ProductionStageVector3
+  width?: number
+  height?: number
+}
+
+export interface ProductionCameraView {
+  id: string
+  name: string
+  position: ProductionStageVector3
+  target: ProductionStageVector3
+  fieldOfViewDeg: number
+  near: number
+  far: number
+}
+
+export interface ProductionSpatialZone {
+  id: string
+  name: string
+  kind: 'safe' | 'excluded'
+  shape: 'box' | 'sphere'
+  center: ProductionStageVector3
+  size: ProductionStageVector3
+}
+
+export type ProductionRenderQualityTier = 'low' | 'medium' | 'high'
+
+export interface ProductionStageModel {
+  schemaVersion: number
+  originConvention: ProductionStageOriginConvention
+  dimensions: ProductionStageDimensions
+  floor: ProductionFloorPlane
+  audience: ProductionAudienceRegion
+  mountingSurfaces: ProductionMountingSurface[]
+  camera: ProductionCameraView
+  savedCameraViews: ProductionCameraView[]
+  activeCameraViewId: string
+  spatialZones: ProductionSpatialZone[]
+  editor: {
+    guidesVisible: boolean
+    qualityTier: ProductionRenderQualityTier
+  }
+}
+
+export interface ProductionVenueTemplate {
+  id: 'compactClub' | 'mediumStage' | 'wideFestivalStage'
+  label: string
+  description: string
+  stage: ProductionStageModel
+  targets: ProductionTarget[]
 }
 
 export interface ProductionTargetPoint {
@@ -251,6 +344,7 @@ export interface ProductionRig {
   schemaVersion: number
   id: string
   name: string
+  stage: ProductionStageModel
   fixtures: ProductionFixtureInstance[]
   groups: ProductionFixtureGroup[]
   targets: ProductionTarget[]
@@ -258,6 +352,310 @@ export interface ProductionRig {
   cues: ProductionCompoundCue[]
   rendererCapabilities: ProductionRendererCapabilities
   outputAdapterCapabilities: ProductionOutputAdapterCapabilities
+}
+
+const DEFAULT_CAMERA_VIEW_ID = 'camera:front-house'
+
+function cloneStageVector(value: ProductionStageVector3): ProductionStageVector3 {
+  return { x: value.x, y: value.y, z: value.z }
+}
+
+function makeCameraView(
+  id: string,
+  name: string,
+  position: ProductionStageVector3,
+  target: ProductionStageVector3,
+  fieldOfViewDeg = 48,
+): ProductionCameraView {
+  return { id, name, position, target, fieldOfViewDeg, near: 0.1, far: 250 }
+}
+
+export function createDefaultProductionStageModel(): ProductionStageModel {
+  const front = makeCameraView(DEFAULT_CAMERA_VIEW_ID, 'Front of House', { x: 0, y: 5.5, z: -17 }, { x: 0, y: 3.2, z: 4 })
+  const booth = makeCameraView('camera:booth', 'DJ Booth', { x: 0, y: 2.1, z: 1.1 }, { x: 0, y: 2.4, z: 7 }, 62)
+  const left = makeCameraView('camera:left-wing', 'Stage Left Wing', { x: -8.5, y: 4.2, z: 1 }, { x: 0, y: 3, z: 4.5 }, 55)
+  return {
+    schemaVersion: LASER_DMX_STAGE_SCHEMA_VERSION,
+    originConvention: PRODUCTION_STAGE_COORDINATE_CONVENTION,
+    dimensions: { width: 14, height: 8, depth: 9 },
+    floor: { enabled: true, elevation: 0, width: 14, depth: 9 },
+    audience: { enabled: true, center: { x: 0, y: 0, z: -8 }, size: { x: 18, y: 0.1, z: 14 } },
+    mountingSurfaces: [
+      { id: 'truss:front', name: 'Front Truss', kind: 'trussLine', start: { x: -6, y: 6.5, z: 1.5 }, end: { x: 6, y: 6.5, z: 1.5 } },
+      { id: 'truss:rear', name: 'Rear Truss', kind: 'trussLine', start: { x: -6, y: 6.5, z: 7.5 }, end: { x: 6, y: 6.5, z: 7.5 } },
+    ],
+    camera: front,
+    savedCameraViews: [front, booth, left],
+    activeCameraViewId: front.id,
+    spatialZones: [
+      { id: 'zone:audience-safe', name: 'Audience safe volume', kind: 'safe', shape: 'box', center: { x: 0, y: 1.5, z: -5 }, size: { x: 16, y: 3, z: 8 } },
+    ],
+    editor: { guidesVisible: true, qualityTier: 'high' },
+  }
+}
+
+function normalizeStageVector(raw: unknown, fallback: ProductionStageVector3): ProductionStageVector3 {
+  const value = isRecord(raw) ? raw : {}
+  return {
+    x: finiteOr(value.x, fallback.x),
+    y: finiteOr(value.y, fallback.y),
+    z: finiteOr(value.z, fallback.z),
+  }
+}
+
+function normalizeCameraView(raw: unknown, fallback: ProductionCameraView): ProductionCameraView {
+  const value = isRecord(raw) ? raw : {}
+  return {
+    ...fallback,
+    ...value,
+    id: stringOr(value.id, fallback.id),
+    name: stringOr(value.name, fallback.name),
+    position: normalizeStageVector(value.position, fallback.position),
+    target: normalizeStageVector(value.target, fallback.target),
+    fieldOfViewDeg: Math.max(10, Math.min(120, finiteOr(value.fieldOfViewDeg, fallback.fieldOfViewDeg))),
+    near: Math.max(0.01, finiteOr(value.near, fallback.near)),
+    far: Math.max(1, finiteOr(value.far, fallback.far)),
+  }
+}
+
+export function normalizeProductionStageModel(raw: unknown): ProductionStageModel {
+  const fallback = createDefaultProductionStageModel()
+  if (!isRecord(raw)) return fallback
+  const dimensions = isRecord(raw.dimensions) ? raw.dimensions : {}
+  const floor = isRecord(raw.floor) ? raw.floor : {}
+  const audience = isRecord(raw.audience) ? raw.audience : {}
+  const editor = isRecord(raw.editor) ? raw.editor : {}
+  const savedRaw = Array.isArray(raw.savedCameraViews) ? raw.savedCameraViews : []
+  const savedCameraViews = savedRaw.length > 0
+    ? savedRaw.map((view, index) => normalizeCameraView(view, fallback.savedCameraViews[index] ?? fallback.camera))
+    : fallback.savedCameraViews.map(view => ({ ...view, position: cloneStageVector(view.position), target: cloneStageVector(view.target) }))
+  const requestedActive = stringOr(raw.activeCameraViewId, fallback.activeCameraViewId)
+  const activeCameraViewId = savedCameraViews.some(view => view.id === requestedActive)
+    ? requestedActive
+    : savedCameraViews[0]?.id ?? fallback.activeCameraViewId
+  const active = savedCameraViews.find(view => view.id === activeCameraViewId) ?? fallback.camera
+  return {
+    ...fallback,
+    ...raw,
+    schemaVersion: LASER_DMX_STAGE_SCHEMA_VERSION,
+    originConvention: PRODUCTION_STAGE_COORDINATE_CONVENTION,
+    dimensions: {
+      width: Math.max(1, finiteOr(dimensions.width, fallback.dimensions.width)),
+      height: Math.max(1, finiteOr(dimensions.height, fallback.dimensions.height)),
+      depth: Math.max(1, finiteOr(dimensions.depth, fallback.dimensions.depth)),
+    },
+    floor: {
+      ...fallback.floor,
+      ...floor,
+      enabled: booleanOr(floor.enabled, fallback.floor.enabled),
+      elevation: finiteOr(floor.elevation, fallback.floor.elevation),
+      width: Math.max(1, finiteOr(floor.width, finiteOr(dimensions.width, fallback.floor.width))),
+      depth: Math.max(1, finiteOr(floor.depth, finiteOr(dimensions.depth, fallback.floor.depth))),
+    },
+    audience: {
+      ...fallback.audience,
+      ...audience,
+      enabled: booleanOr(audience.enabled, fallback.audience.enabled),
+      center: normalizeStageVector(audience.center, fallback.audience.center),
+      size: normalizeStageVector(audience.size, fallback.audience.size),
+    },
+    mountingSurfaces: (Array.isArray(raw.mountingSurfaces) ? raw.mountingSurfaces : fallback.mountingSurfaces).map((surface, index) => {
+      const value = isRecord(surface) ? surface : {}
+      const base = fallback.mountingSurfaces[index] ?? fallback.mountingSurfaces[0]
+      return {
+        ...base,
+        ...value,
+        id: stringOr(value.id, `mount:${index + 1}`),
+        name: stringOr(value.name, `Mount ${index + 1}`),
+        kind: value.kind === 'mountingPlane' ? 'mountingPlane' as const : 'trussLine' as const,
+        start: normalizeStageVector(value.start, base.start),
+        end: normalizeStageVector(value.end, base.end),
+        ...(isFiniteNumber(value.width) ? { width: Math.max(0, value.width) } : {}),
+        ...(isFiniteNumber(value.height) ? { height: Math.max(0, value.height) } : {}),
+      }
+    }),
+    camera: normalizeCameraView(raw.camera, active),
+    savedCameraViews,
+    activeCameraViewId,
+    spatialZones: (Array.isArray(raw.spatialZones) ? raw.spatialZones : fallback.spatialZones).map((zone, index) => {
+      const value = isRecord(zone) ? zone : {}
+      const size = normalizeStageVector(value.size, { x: 1, y: 1, z: 1 })
+      return {
+        id: stringOr(value.id, `zone:${index + 1}`),
+        name: stringOr(value.name, `Zone ${index + 1}`),
+        kind: value.kind === 'excluded' ? 'excluded' as const : 'safe' as const,
+        shape: value.shape === 'sphere' ? 'sphere' as const : 'box' as const,
+        center: normalizeStageVector(value.center, { x: 0, y: 0, z: 0 }),
+        size: { x: Math.max(0.01, Math.abs(size.x)), y: Math.max(0.01, Math.abs(size.y)), z: Math.max(0.01, Math.abs(size.z)) },
+      }
+    }),
+    editor: {
+      guidesVisible: booleanOr(editor.guidesVisible, fallback.editor.guidesVisible),
+      qualityTier: editor.qualityTier === 'low' || editor.qualityTier === 'medium' ? editor.qualityTier : 'high',
+    },
+  }
+}
+
+export function setActiveProductionCameraView(stageInput: unknown, cameraViewId: string): ProductionStageModel {
+  const stage = normalizeProductionStageModel(stageInput)
+  const view = stage.savedCameraViews.find(candidate => candidate.id === cameraViewId)
+  if (!view) return stage
+  return { ...stage, activeCameraViewId: view.id, camera: { ...view, position: cloneStageVector(view.position), target: cloneStageVector(view.target) } }
+}
+
+export function legacyNormalizedToStageVector(
+  point: { x: number; y: number; z: number },
+  stageInput: unknown,
+): ProductionStageVector3 {
+  const stage = normalizeProductionStageModel(stageInput)
+  return {
+    x: (finiteOr(point.x, 0.5) - 0.5) * stage.dimensions.width,
+    y: (1 - finiteOr(point.y, 0.5)) * stage.dimensions.height,
+    z: ((finiteOr(point.z, 0) + 1) * 0.5) * stage.dimensions.depth,
+  }
+}
+
+export function stageVectorToLegacyNormalized(
+  point: ProductionStageVector3,
+  stageInput: unknown,
+): ProductionStageVector3 {
+  const stage = normalizeProductionStageModel(stageInput)
+  return {
+    x: point.x / stage.dimensions.width + 0.5,
+    y: 1 - point.y / stage.dimensions.height,
+    z: point.z / stage.dimensions.depth * 2 - 1,
+  }
+}
+
+export function normalizeProductionStageTransform(raw: unknown, fallback: ProductionStageTransform): ProductionStageTransform {
+  const value = isRecord(raw) ? raw : {}
+  const orientation = isRecord(value.orientation) ? value.orientation : {}
+  const yawDeg = finiteOr(orientation.yawDeg, finiteOr(orientation.panDeg, fallback.orientation.yawDeg))
+  const pitchDeg = finiteOr(orientation.pitchDeg, finiteOr(orientation.tiltDeg, fallback.orientation.pitchDeg))
+  return {
+    position: normalizeStageVector(value.position, fallback.position),
+    orientation: {
+      yawDeg,
+      pitchDeg,
+      rollDeg: finiteOr(orientation.rollDeg, fallback.orientation.rollDeg),
+      panDeg: yawDeg,
+      tiltDeg: pitchDeg,
+    },
+  }
+}
+
+export function resolveLaserDmxFixtureStageTransform(
+  fixture: LaserDmxFixture,
+  stageInput: unknown,
+): ProductionStageTransform {
+  const fallback: ProductionStageTransform = {
+    position: legacyNormalizedToStageVector({
+      x: fixture.position.originX,
+      y: fixture.position.originY,
+      z: fixture.position.originZ,
+    }, stageInput),
+    orientation: {
+      yawDeg: fixture.position.pan,
+      pitchDeg: fixture.position.tilt,
+      rollDeg: fixture.position.rotation,
+      panDeg: fixture.position.pan,
+      tiltDeg: fixture.position.tilt,
+    },
+  }
+  return normalizeProductionStageTransform(fixture.stageTransform, fallback)
+}
+
+function createVenueStage(
+  dimensions: ProductionStageDimensions,
+  cameraZ: number,
+  trussY: number,
+): ProductionStageModel {
+  const base = createDefaultProductionStageModel()
+  const front = makeCameraView(DEFAULT_CAMERA_VIEW_ID, 'Front of House', { x: 0, y: dimensions.height * 0.62, z: cameraZ }, { x: 0, y: dimensions.height * 0.38, z: dimensions.depth * 0.48 })
+  const widthInset = dimensions.width * 0.42
+  const rearZ = dimensions.depth * 0.82
+  return normalizeProductionStageModel({
+    ...base,
+    dimensions,
+    floor: { ...base.floor, width: dimensions.width, depth: dimensions.depth },
+    audience: { ...base.audience, center: { x: 0, y: 0, z: cameraZ * 0.48 }, size: { x: dimensions.width * 1.4, y: 0.1, z: Math.abs(cameraZ) * 0.9 } },
+    mountingSurfaces: [
+      { id: 'truss:front', name: 'Front Truss', kind: 'trussLine', start: { x: -widthInset, y: trussY, z: dimensions.depth * 0.18 }, end: { x: widthInset, y: trussY, z: dimensions.depth * 0.18 } },
+      { id: 'truss:rear', name: 'Rear Truss', kind: 'trussLine', start: { x: -widthInset, y: trussY, z: rearZ }, end: { x: widthInset, y: trussY, z: rearZ } },
+    ],
+    camera: front,
+    savedCameraViews: [
+      front,
+      makeCameraView('camera:booth', 'DJ Booth', { x: 0, y: 2.1, z: dimensions.depth * 0.18 }, { x: 0, y: dimensions.height * 0.35, z: dimensions.depth * 0.9 }, 62),
+      makeCameraView('camera:left-wing', 'Stage Left Wing', { x: -dimensions.width * 0.64, y: dimensions.height * 0.48, z: dimensions.depth * 0.25 }, { x: 0, y: dimensions.height * 0.4, z: dimensions.depth * 0.55 }, 55),
+    ],
+    activeCameraViewId: front.id,
+    spatialZones: [
+      { id: 'zone:audience-safe', name: 'Audience safe volume', kind: 'safe', shape: 'box', center: { x: 0, y: 1.5, z: -Math.abs(cameraZ) * 0.28 }, size: { x: dimensions.width * 1.25, y: 3, z: Math.abs(cameraZ) * 0.45 } },
+      { id: 'zone:performer-exclusion', name: 'Performer exclusion', kind: 'excluded', shape: 'box', center: { x: 0, y: 1.2, z: dimensions.depth * 0.32 }, size: { x: dimensions.width * 0.32, y: 2.4, z: dimensions.depth * 0.22 } },
+    ],
+  })
+}
+
+function createVenueTargets(dimensions: ProductionStageDimensions): ProductionTarget[] {
+  return [
+    { id: 'target:center-stage', name: 'Center Stage', kind: 'point', position: { x: 0, y: dimensions.height * 0.32, z: dimensions.depth * 0.48 } },
+    { id: 'target:dance-floor', name: 'Dance Floor', kind: 'zone', shape: 'box', center: { x: 0, y: 1.4, z: -dimensions.depth * 0.28 }, size: { x: dimensions.width * 0.8, y: 2.8, z: dimensions.depth * 0.45 } },
+    { id: 'target:stage-fan', name: 'Stage Fan', kind: 'zone', shape: 'plane', center: { x: 0, y: dimensions.height * 0.44, z: dimensions.depth * 0.7 }, size: { x: dimensions.width * 0.85, y: dimensions.height * 0.55, z: 0.1 } },
+  ]
+}
+
+export const PRODUCTION_VENUE_TEMPLATES: readonly ProductionVenueTemplate[] = [
+  { id: 'compactClub', label: 'Compact Club', description: '8 × 5 × 5 m club stage with a close audience and two trusses.', stage: createVenueStage({ width: 8, height: 5, depth: 5 }, -10, 4.2), targets: createVenueTargets({ width: 8, height: 5, depth: 5 }) },
+  { id: 'mediumStage', label: 'Medium Stage', description: '14 × 8 × 9 m stage suitable for theatres and mid-size rooms.', stage: createVenueStage({ width: 14, height: 8, depth: 9 }, -17, 6.5), targets: createVenueTargets({ width: 14, height: 8, depth: 9 }) },
+  { id: 'wideFestivalStage', label: 'Wide Festival Stage', description: '28 × 14 × 15 m festival deck with wide truss spans and deep audience sightlines.', stage: createVenueStage({ width: 28, height: 14, depth: 15 }, -34, 11.5), targets: createVenueTargets({ width: 28, height: 14, depth: 15 }) },
+] as const
+
+export function getProductionVenueTemplate(templateId: string): ProductionVenueTemplate | null {
+  return PRODUCTION_VENUE_TEMPLATES.find(template => template.id === templateId) ?? null
+}
+
+export function applyProductionVenueTemplate(
+  settingsInput: unknown,
+  templateId: string,
+): LaserDmxSettings {
+  const settings = normalizeLaserDmxSettings(settingsInput)
+  const template = getProductionVenueTemplate(templateId)
+  if (!template) return settings
+  const stage = normalizeProductionStageModel(template.stage)
+  const frontTruss = stage.mountingSurfaces.find(surface => surface.id === 'truss:front') ?? stage.mountingSurfaces[0]
+  const count = Math.max(1, settings.fixtures.length)
+  const fixtures = settings.fixtures.map((fixture, index) => {
+    const fraction = count === 1 ? 0.5 : index / (count - 1)
+    const position = frontTruss
+      ? {
+          x: frontTruss.start.x + (frontTruss.end.x - frontTruss.start.x) * fraction,
+          y: frontTruss.start.y + (frontTruss.end.y - frontTruss.start.y) * fraction,
+          z: frontTruss.start.z + (frontTruss.end.z - frontTruss.start.z) * fraction,
+        }
+      : { x: 0, y: stage.dimensions.height * 0.8, z: stage.dimensions.depth * 0.2 }
+    const legacy = stageVectorToLegacyNormalized(position, stage)
+    return normalizeLegacyLaserDmxFixture({
+      ...fixture,
+      targetId: template.targets[0]?.id ?? null,
+      stageTransform: {
+        position,
+        orientation: { yawDeg: 0, pitchDeg: -12, rollDeg: 0, panDeg: 0, tiltDeg: -12 },
+      },
+      position: {
+        ...fixture.position,
+        originX: legacy.x,
+        originY: legacy.y,
+        originZ: legacy.z,
+      },
+    }, index)
+  })
+  return normalizeLaserDmxSettings({
+    ...settings,
+    productionStage: stage,
+    productionTargets: template.targets.map(target => JSON.parse(JSON.stringify(target)) as ProductionTarget),
+    fixtures,
+  })
 }
 
 export const ALL_PRODUCTION_FIXTURE_KINDS: readonly ProductionFixtureKind[] = [
@@ -473,6 +871,65 @@ export const LASER_DMX_FIXTURE_PROFILES: Readonly<Record<LaserDmxProfileId, Prod
       { channel: 14, source: 'pathComplexity', label: 'Pattern complexity' },
     ],
   },
+}
+
+export type ProductionRigDiagnosticCode =
+  | 'invalidPosition'
+  | 'missingProfile'
+  | 'duplicateFixtureId'
+  | 'fixtureOutsideStageBounds'
+  | 'unresolvedTarget'
+
+export interface ProductionRigDiagnostic {
+  code: ProductionRigDiagnosticCode
+  severity: 'error' | 'warning'
+  fixtureId?: string
+  message: string
+}
+
+function hasInvalidAuthoredPosition(rawFixture: unknown): boolean {
+  if (!isRecord(rawFixture)) return false
+  const legacy = isRecord(rawFixture.position) ? rawFixture.position : null
+  const transform = isRecord(rawFixture.stageTransform) ? rawFixture.stageTransform : null
+  const stagePosition = transform && isRecord(transform.position) ? transform.position : null
+  const authored = [
+    ...(legacy ? [legacy.originX, legacy.originY, legacy.originZ] : []),
+    ...(stagePosition ? [stagePosition.x, stagePosition.y, stagePosition.z] : []),
+  ].filter(value => value !== undefined)
+  return authored.some(value => typeof value !== 'number' || !Number.isFinite(value))
+}
+
+export function diagnoseProductionRig(settingsInput: unknown): ProductionRigDiagnostic[] {
+  const settings = normalizeLaserDmxSettings(settingsInput)
+  const stage = normalizeProductionStageModel(settings.productionStage)
+  const diagnostics: ProductionRigDiagnostic[] = []
+  const seen = new Set<string>()
+  const targets = new Set((settings.productionTargets ?? []).map(target => target.id))
+  const rawFixtures = isRecord(settingsInput) && Array.isArray(settingsInput.fixtures)
+    ? settingsInput.fixtures
+    : []
+  for (const [fixtureIndex, fixture] of settings.fixtures.entries()) {
+    if (seen.has(fixture.id)) {
+      diagnostics.push({ code: 'duplicateFixtureId', severity: 'error', fixtureId: fixture.id, message: `Duplicate fixture ID “${fixture.id}”.` })
+    }
+    seen.add(fixture.id)
+    if (!getLaserDmxFixtureProfile(fixture.dmx.profileId)) {
+      diagnostics.push({ code: 'missingProfile', severity: 'error', fixtureId: fixture.id, message: `${fixture.name} references missing profile “${fixture.dmx.profileId}”.` })
+    }
+    const transform = resolveLaserDmxFixtureStageTransform(fixture, stage)
+    const { x, y, z } = transform.position
+    if (hasInvalidAuthoredPosition(rawFixtures[fixtureIndex]) || ![x, y, z].every(Number.isFinite)) {
+      diagnostics.push({ code: 'invalidPosition', severity: 'error', fixtureId: fixture.id, message: `${fixture.name} has an invalid stage position; normalization used safe fallback coordinates.` })
+    }
+    const halfWidth = stage.dimensions.width / 2
+    if (x < -halfWidth || x > halfWidth || y < 0 || y > stage.dimensions.height || z < 0 || z > stage.dimensions.depth) {
+      diagnostics.push({ code: 'fixtureOutsideStageBounds', severity: 'warning', fixtureId: fixture.id, message: `${fixture.name} is outside the ${stage.dimensions.width} × ${stage.dimensions.height} × ${stage.dimensions.depth} m stage bounds.` })
+    }
+    if (fixture.targetId && !targets.has(fixture.targetId)) {
+      diagnostics.push({ code: 'unresolvedTarget', severity: 'error', fixtureId: fixture.id, message: `${fixture.name} references unresolved target “${fixture.targetId}”.` })
+    }
+  }
+  return diagnostics
 }
 
 export interface ProductionValidationIssue {
@@ -822,6 +1279,8 @@ export function normalizeLegacyLaserDmxFixture(raw: unknown, index = 0): LaserDm
       ? raw.modulationRoutes as LaserDmxFixture['modulationRoutes']
       : fallback.modulationRoutes,
     capabilityOverrides,
+    targetId: typeof raw.targetId === 'string' ? raw.targetId : null,
+    ...(isRecord(raw.stageTransform) ? { stageTransform: raw.stageTransform as unknown as ProductionStageTransform } : {}),
     compatibility: {
       ...compatibility,
       source: 'laserDmxSpatialFixtures',
@@ -833,6 +1292,35 @@ export function normalizeLegacyLaserDmxFixture(raw: unknown, index = 0): LaserDm
 
 function normalizeArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? value as T[] : []
+}
+
+function normalizeProductionTarget(raw: unknown, index: number): ProductionTarget | null {
+  if (!isRecord(raw)) return null
+  const id = stringOr(raw.id, `target:${index + 1}`)
+  const name = stringOr(raw.name, `Target ${index + 1}`)
+  if (raw.kind === 'zone') {
+    const size = normalizeStageVector(raw.size, { x: 1, y: 1, z: 1 })
+    return {
+      ...raw,
+      id,
+      name,
+      kind: 'zone',
+      shape: raw.shape === 'sphere' || raw.shape === 'plane' ? raw.shape : 'box',
+      center: normalizeStageVector(raw.center, { x: 0, y: 1, z: 0 }),
+      size: {
+        x: Math.max(0.01, Math.abs(size.x)),
+        y: Math.max(0.01, Math.abs(size.y)),
+        z: Math.max(0.01, Math.abs(size.z)),
+      },
+    }
+  }
+  return {
+    ...raw,
+    id,
+    name,
+    kind: 'point',
+    position: normalizeStageVector(raw.position, { x: 0, y: 1, z: 0 }),
+  }
 }
 
 export function normalizeLaserDmxSettings(raw: unknown): LaserDmxSettings {
@@ -854,13 +1342,20 @@ export function normalizeLaserDmxSettings(raw: unknown): LaserDmxSettings {
     showPathPoints: false,
     showDmxDebug: false,
     fixtures: [],
+    productionStage: createDefaultProductionStageModel(),
     productionGroups: [],
     productionTargets: [],
     productionLooks: [],
     productionCues: [],
   }
   if (!isRecord(raw)) return fallback
-  const fixtures = normalizeArray<unknown>(raw.fixtures).map(normalizeLegacyLaserDmxFixture)
+  const productionStage = normalizeProductionStageModel(raw.productionStage)
+  const fixtures = normalizeArray<unknown>(raw.fixtures)
+    .map(normalizeLegacyLaserDmxFixture)
+    .map(fixture => ({
+      ...fixture,
+      stageTransform: resolveLaserDmxFixtureStageTransform(fixture, productionStage),
+    }))
   const selectedFixtureId = typeof raw.selectedFixtureId === 'string' && fixtures.some(fixture => fixture.id === raw.selectedFixtureId)
     ? raw.selectedFixtureId
     : (fixtures[0]?.id ?? null)
@@ -885,8 +1380,11 @@ export function normalizeLaserDmxSettings(raw: unknown): LaserDmxSettings {
     showPathPoints: booleanOr(raw.showPathPoints, false),
     showDmxDebug: booleanOr(raw.showDmxDebug, false),
     fixtures,
+    productionStage,
     productionGroups: normalizeArray<ProductionFixtureGroup>(raw.productionGroups),
-    productionTargets: normalizeArray<ProductionTarget>(raw.productionTargets),
+    productionTargets: normalizeArray<unknown>(raw.productionTargets)
+      .map(normalizeProductionTarget)
+      .filter((target): target is ProductionTarget => target !== null),
     productionLooks: normalizeArray<ProductionLook>(raw.productionLooks),
     productionCues: normalizeArray<ProductionCompoundCue>(raw.productionCues),
   }
@@ -954,15 +1452,16 @@ function buildFixturePropertyState(
 
 export function buildProductionRig(settingsInput: unknown): ProductionRig {
   const settings = normalizeLaserDmxSettings(settingsInput)
+  const stage = normalizeProductionStageModel(settings.productionStage)
   const generatedTargets: ProductionTargetPoint[] = settings.fixtures.map(fixture => ({
     id: `target:${fixture.id}`,
     name: `${fixture.name} target`,
     kind: 'point',
-    position: {
+    position: legacyNormalizedToStageVector({
       x: fixture.position.targetX,
       y: fixture.position.targetY,
       z: fixture.position.targetZ,
-    },
+    }, stage),
   }))
   const explicitTargetIds = new Set((settings.productionTargets ?? []).map(target => target.id))
   const targets = [
@@ -981,6 +1480,7 @@ export function buildProductionRig(settingsInput: unknown): ProductionRig {
     schemaVersion: LASER_DMX_PRODUCTION_RIG_SCHEMA_VERSION,
     id: settings.rigId ?? 'laser-dmx-spatial-rig',
     name: settings.rigName ?? 'LaserDMX Spatial Rig',
+    stage,
     fixtures: settings.fixtures.map(fixture => {
       const profile = getLaserDmxFixtureProfile(fixture.dmx.profileId)
       const capabilities = resolveLaserDmxFixtureCapabilities(fixture)
@@ -993,19 +1493,8 @@ export function buildProductionRig(settingsInput: unknown): ProductionRig {
         kind: fixture.fixtureKind ?? profile?.fixtureKind ?? 'laserProjector',
         profileId: fixture.dmx.profileId,
         groupIds: groupIdsByFixture.get(fixture.id) ?? [],
-        transform: {
-          position: {
-            x: fixture.position.originX,
-            y: fixture.position.originY,
-            z: fixture.position.originZ,
-          },
-          orientation: {
-            panDeg: fixture.position.pan,
-            tiltDeg: fixture.position.tilt,
-            rollDeg: fixture.position.rotation,
-          },
-        },
-        targetId: `target:${fixture.id}`,
+        transform: resolveLaserDmxFixtureStageTransform(fixture, stage),
+        targetId: fixture.targetId ?? `target:${fixture.id}`,
         properties: buildFixturePropertyState(fixture, capabilities),
         capabilityOverrides: fixture.capabilityOverrides,
         compatibility: {

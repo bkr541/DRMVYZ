@@ -9,7 +9,7 @@ import {
 import { renderReactEngine } from './ReactEngineRenderer'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { DEFAULT_REACT_RENDER_PARAMS } from './reactRenderUtils'
-import { clearLaserDmxVisualState } from './LaserDmxRenderer'
+import { clearLaserDmxVisualState, disposeLaserDmxRenderer } from './LaserDmxRenderer'
 import { clearNeonLatticeVisualState } from './NeonLatticeRenderer'
 import { disposeCinematicPortalRenderer } from './CinematicPortalRenderer'
 
@@ -172,7 +172,7 @@ async function renderThumbnailOnce(
       // A thumbnail owns its renderer host. Explicit disposal is required because
       // WeakMap reachability alone does not release WebGL contexts or GPU buffers.
       try { disposeCinematicPortalRenderer(ctx) } catch { /* Graceful fallback below. */ }
-      try { clearLaserDmxVisualState(ctx, width, height) } catch { /* Best-effort transient cleanup. */ }
+      try { clearLaserDmxVisualState(ctx, width, height); disposeLaserDmxRenderer(ctx) } catch { /* Best-effort transient cleanup. */ }
       try { clearNeonLatticeVisualState(ctx, width, height) } catch { /* Best-effort transient cleanup. */ }
     }
     if (canvas) releaseCanvas(canvas)

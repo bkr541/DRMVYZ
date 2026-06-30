@@ -45,6 +45,7 @@ import type {
   SoundDrawingLyricGapBehavior,
   LaserDmxSettings,
   LaserDmxFixture,
+  LaserDmxProfileId,
   LaserDmxModulationRoute,
   LaserDmxWorkspaceMode,
   LaserDmxBeamMatrixSettings,
@@ -70,6 +71,8 @@ import { resetBeamMatrixCompilerState } from '../components/vyzualz/react/render
 import { resetFogState } from '../components/vyzualz/react/renderers/LaserDmxFogRenderer'
 import {
   LASER_DMX_FIXTURE_SCHEMA_VERSION,
+  applyProductionVenueTemplate,
+  getLaserDmxFixtureProfile,
   isPersistedLaserDmxBeamMatrixDocument,
   isPersistedLaserDmxSettingsDocument,
   normalizeLaserDmxBeamMatrixSettings,
@@ -78,6 +81,7 @@ import {
   sanitizeLaserDmxBeamMatrixForPersistence,
   sanitizeLaserDmxSettingsForPersistence,
 } from '../components/vyzualz/react/LaserDmxProductionRig'
+import { convertBeamMatrixToSpatialRig } from '../components/vyzualz/react/laserDmxBeamMatrixSpatialBridge'
 import {
   getSvgVisualEntry,
   clearSvgVisualCache,
@@ -614,16 +618,17 @@ export function prepareAllSoundDrawingTextPoints(
 
 // ── LaserDMX local helpers ────────────────────────────────────────────────────
 
-function makeNewLaserFixture(existingFixtures: LaserDmxFixture[]): LaserDmxFixture {
+function makeNewLaserFixture(existingFixtures: LaserDmxFixture[], profileId: LaserDmxProfileId = 'genericRgbLaser'): LaserDmxFixture {
   const maxAddr = existingFixtures.reduce((m, f) => Math.max(m, f.dmx.startAddress), 0)
   const nextAddr = Math.min(497, maxAddr + 16)  // keep within 512-channel universe
+  const profile = getLaserDmxFixtureProfile(profileId)
   return {
     schemaVersion: LASER_DMX_FIXTURE_SCHEMA_VERSION,
-    fixtureKind: 'laserProjector',
+    fixtureKind: profile?.fixtureKind ?? 'laserProjector',
     id:      crypto.randomUUID(),
     name:    `Laser ${existingFixtures.length + 1}`,
     enabled: true,
-    dmx: { universe: 1, startAddress: nextAddr, profileId: 'genericRgbLaser', channelMode: 'basic' },
+    dmx: { universe: 1, startAddress: nextAddr, profileId, channelMode: profileId === 'genericRgbLaser' ? 'basic' : 'extended' },
     position: { originX: 0.5, originY: 0.85, originZ: 0, targetX: 0.5, targetY: 0.5, targetZ: 0, pan: 0, tilt: 0, rotation: 0, mirrorX: false, mirrorY: false },
     color: { mode: 'fixed', red: 0, green: 255, blue: 220, white: 0, alpha: 1, paletteId: '', colorCycleSpeed: 0.5 },
     beam: { dimmer: 1, shutterOpen: true, width: 1, zoom: 1, focus: 1, strobeRate: 0, flickerAmount: 0 },
@@ -1105,13 +1110,15 @@ interface ReactStoreState {
   setLaserDmxSettings: (partial: Partial<LaserDmxSettings>) => void
   resetLaserDmxSettings: () => void
   selectLaserFixture: (fixtureId: string) => void
-  addLaserFixture: () => void
+  addLaserFixture: (profileId?: LaserDmxProfileId) => void
   duplicateLaserFixture: (fixtureId: string) => void
   removeLaserFixture: (fixtureId: string) => void
   updateLaserFixture: (fixtureId: string, patch: Partial<LaserDmxFixture>) => void
   addLaserModulationRoute: (fixtureId: string) => void
   updateLaserModulationRoute: (fixtureId: string, routeId: string, patch: Partial<LaserDmxModulationRoute>) => void
   removeLaserModulationRoute: (fixtureId: string, routeId: string) => void
+  applyLaserDmxVenueTemplate: (templateId: string) => void
+  convertLaserDmxBeamMatrixToSpatialRig: () => void
 
   // LaserDMX workspace mode (persisted, never changed by preset application)
   laserDmxWorkspaceMode: LaserDmxWorkspaceMode
@@ -1852,6 +1859,10 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
         ? { laserDmxBeamMatrix: normalizeLaserDmxBeamMatrixSettings(state.laserDmxBeamMatrix) }
         : {}),
     }
+  }
+  if (version < 30 && isPersistedLaserDmxSettingsDocument(state.laserDmxSettings)) {
+    // Backfill the shared metre-based stage and canonical fixture transforms.
+    state = { ...state, laserDmxSettings: normalizeLaserDmxSettings(state.laserDmxSettings) }
   }
   if (Array.isArray(state.reactPresets)) {
     state = {
@@ -3082,9 +3093,9 @@ export const useReactStore = create<ReactStoreState>()(
       selectLaserFixture: (fixtureId) =>
         set(s => ({ laserDmxSettings: { ...s.laserDmxSettings, selectedFixtureId: fixtureId } })),
 
-      addLaserFixture: () =>
+      addLaserFixture: (profileId) =>
         set(s => {
-          const fixture = makeNewLaserFixture(s.laserDmxSettings.fixtures)
+          const fixture = makeNewLaserFixture(s.laserDmxSettings.fixtures, profileId)
           return {
             laserDmxSettings: {
               ...s.laserDmxSettings,
@@ -3128,6 +3139,10 @@ export const useReactStore = create<ReactStoreState>()(
               ...s.laserDmxSettings,
               fixtures:          remaining,
               selectedFixtureId: nextSelected,
+              productionGroups: (s.laserDmxSettings.productionGroups ?? []).map(group => ({
+                ...group,
+                fixtureIds: group.fixtureIds.filter(id => id !== fixtureId),
+              })),
             },
           }
         }),
@@ -3181,6 +3196,29 @@ export const useReactStore = create<ReactStoreState>()(
             ),
           },
         })),
+
+      applyLaserDmxVenueTemplate: (templateId) =>
+        set(s => ({ laserDmxSettings: applyProductionVenueTemplate(s.laserDmxSettings, templateId) })),
+
+      convertLaserDmxBeamMatrixToSpatialRig: () =>
+        set(s => {
+          const conversion = convertBeamMatrixToSpatialRig(
+            s.laserDmxBeamMatrix,
+            s.laserDmxSettings.productionStage,
+          )
+          return {
+            laserDmxWorkspaceMode: 'spatialFixtures' as const,
+            laserDmxSettings: normalizeLaserDmxSettings({
+              ...s.laserDmxSettings,
+              productionStage: conversion.stage,
+              fixtures: conversion.fixtures,
+              productionGroups: conversion.groups,
+              productionTargets: conversion.targets,
+              selectedFixtureId: conversion.fixtures[0]?.id ?? null,
+              rigName: 'Beam Matrix Spatial Conversion',
+            }),
+          }
+        }),
 
       // ── LaserDMX workspace mode ─────────────────────────────────────────────
 
@@ -4077,7 +4115,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 29,
+      version: 30,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

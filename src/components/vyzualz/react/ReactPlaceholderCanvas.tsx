@@ -9,6 +9,7 @@ import type { ReactRenderParams } from './renderers/reactRenderUtils'
 import { DEFAULT_REACT_RENDER_PARAMS } from './renderers/ReactEngineRenderer'
 import { renderReactEngine } from './renderers/ReactEngineRenderer'
 import { disposeCinematicPortalRenderer } from './renderers/CinematicPortalRenderer'
+import { disposeLaserDmxRenderer } from './renderers/LaserDmxRenderer'
 import type { ReactFrameContext } from './renderers/reactRenderUtils'
 import { clearSoundDrawingRuntimeCaches, setSoundDrawingClipsForFrame } from './renderers/SoundDrawingRenderer'
 import { resolvePerformancePadTransition } from './renderers/reactPresetTransition'
@@ -500,6 +501,7 @@ export function ReactPlaceholderCanvas({
     return () => {
       cancelAnimationFrame(animRef.current)
       disposeCinematicPortalRenderer(ctx)
+      disposeLaserDmxRenderer(ctx)
       clearSoundDrawingRuntimeCaches()
       ro.disconnect()
       onCanvasReadyRef.current?.(null)
