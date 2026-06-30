@@ -5,20 +5,31 @@ import { AuthPage }            from './components/auth/AuthPage'
 import { VyzualzView }         from './components/vyzualz/VyzualzView'
 import { VyzualzErrorBoundary } from './components/vyzualz/VyzualzErrorBoundary'
 import { ActiveTrackLyricsBridge } from './features/lyrics/ActiveTrackLyricsBridge'
+import { useBrandKitStore } from './features/personalization/brandKitStore'
 
 export default function App() {
   const [authed, setAuthed] = useState<boolean | null>(null)
 
   useEffect(() => {
     // Skip auth check when Supabase is not configured (dev without .env)
-    if (!supabaseConfigured) { setAuthed(false); return }
+    if (!supabaseConfigured) {
+      useBrandKitStore.getState().clearForSignedOut()
+      setAuthed(false)
+      return
+    }
 
     supabase.auth.getSession().then(({ data }) => {
-      setAuthed(!!data.session)
+      const userId = data.session?.user.id ?? null
+      setAuthed(Boolean(userId))
+      if (userId) void useBrandKitStore.getState().initializeForUser(userId)
+      else useBrandKitStore.getState().clearForSignedOut()
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthed(!!session)
+      const userId = session?.user.id ?? null
+      setAuthed(Boolean(userId))
+      if (userId) void useBrandKitStore.getState().initializeForUser(userId)
+      else useBrandKitStore.getState().clearForSignedOut()
     })
 
     return () => subscription.unsubscribe()

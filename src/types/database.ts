@@ -6,6 +6,7 @@ import type {
   LyricCueRow,      LyricCueInsert,      LyricCueUpdate,
   LyricTranscriptionJobRow, LyricTranscriptionJobInsert, LyricTranscriptionJobUpdate,
 } from './lyrics'
+import type { BrandAssetRole, BrandPaletteAnalysis } from '../features/personalization/BrandKitTypes'
 
 export type Json =
   | string
@@ -48,6 +49,14 @@ export interface MediaMetadata {
   energy?:         'low' | 'medium' | 'high' | 'peak'
   dominantColors?: string[]
   analyzedAt?:     number   // Date.now() of last client-side analysis pass
+  /** Deterministic client-side image palette analysis. */
+  paletteAnalysis?: BrandPaletteAnalysis
+  /** Non-fatal palette-analysis diagnostic; uploads continue when present. */
+  paletteAnalysisError?: {
+    algorithmVersion: string
+    attemptedAt: string
+    message: string
+  }
   /** Content-inspected SVG classification. Filename alone is never authoritative. */
   svgValidation?:  SvgMediaValidationMetadata
 }
@@ -79,6 +88,7 @@ export interface UserSettings {
   fft_size: 512 | 1024 | 2048 | 4096 | 8192 | 16384
   smoothing: number
   default_volume: number
+  active_brand_kit_id: string | null
   updated_at: string
 }
 
@@ -323,6 +333,62 @@ export interface MediaCollectionItemRow {
   created_at: string
 }
 
+export interface BrandKitRow {
+  id: string
+  user_id: string
+  name: string
+  palette: Json
+  extracted_palette: Json
+  extraction_metadata: Json
+  default_strength: number
+  engine_rules: Json
+  preset_rules: Json
+  use_for_app_accent: boolean
+  auto_apply: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface BrandKitInsert {
+  user_id: string
+  name: string
+  palette?: Json
+  extracted_palette?: Json
+  extraction_metadata?: Json
+  default_strength?: number
+  engine_rules?: Json
+  preset_rules?: Json
+  use_for_app_accent?: boolean
+  auto_apply?: boolean
+}
+
+export type BrandKitUpdate = Partial<Omit<BrandKitInsert, 'user_id'>>
+
+export interface BrandKitAssetRow {
+  id: string
+  brand_kit_id: string
+  media_item_id: string
+  asset_role: BrandAssetRole
+  sort_order: number
+  is_palette_source: boolean
+  presentation: Json | null
+  created_at: string
+  updated_at: string
+}
+
+export interface BrandKitAssetInsert {
+  brand_kit_id: string
+  media_item_id: string
+  asset_role: BrandAssetRole
+  sort_order?: number
+  is_palette_source?: boolean
+  presentation?: Json | null
+}
+
+export type BrandKitAssetUpdate = Partial<Pick<BrandKitAssetRow,
+  'asset_role' | 'sort_order' | 'is_palette_source' | 'presentation'
+>>
+
 export interface VisualPresetRow {
   id: string
   user_id: string | null
@@ -437,7 +503,14 @@ export interface Database {
     Tables: {
       profiles:               { Row: DBRec<Profile>;              Insert: DBRec<Omit<Profile, 'created_at'|'updated_at'>>;              Update: DBRec<Partial<Omit<Profile, 'id'>>>; Relationships: [] }
       sessions:               { Row: DBRec<Session>;              Insert: DBRec<Omit<Session, 'id'>>;                                    Update: DBRec<Partial<Omit<Session, 'id'>>>; Relationships: [] }
-      user_settings:          { Row: DBRec<UserSettings>;         Insert: DBRec<Pick<UserSettings,'user_id'> & Partial<UserSettings>>;   Update: DBRec<Partial<Omit<UserSettings,'user_id'>>>; Relationships: [] }
+      user_settings: {
+        Row: DBRec<UserSettings>
+        Insert: DBRec<Pick<UserSettings,'user_id'> & Partial<UserSettings>>
+        Update: DBRec<Partial<Omit<UserSettings,'user_id'>>>
+        Relationships: [
+          { foreignKeyName: 'user_settings_active_brand_kit_id_fkey'; columns: ['active_brand_kit_id']; isOneToOne: false; referencedRelation: 'brand_kits'; referencedColumns: ['id'] },
+        ]
+      }
       tags:                   { Row: DBRec<Tag>;                  Insert: DBRec<Omit<Tag,'id'>>;                                         Update: DBRec<Partial<Omit<Tag,'id'>>>; Relationships: [] }
       audio_tracks:           { Row: DBRec<AudioTrack>;           Insert: DBRec<AudioTrackInsert>;                                       Update: DBRec<Partial<Omit<AudioTrack,'id'>>>; Relationships: [] }
       track_analyses:         { Row: DBRec<TrackAnalysisRow>;     Insert: DBRec<Omit<TrackAnalysisRow,'id'|'analyzed_at'>>;              Update: DBRec<Partial<Omit<TrackAnalysisRow,'id'>>>; Relationships: [] }
@@ -452,6 +525,23 @@ export interface Database {
       media_item_tags:          { Row: DBRec<MediaItemTagRow>;        Insert: DBRec<Omit<MediaItemTagRow,'created_at'>>;                                Update: never; Relationships: [] }
       media_collections:        { Row: DBRec<MediaCollectionRow>;     Insert: DBRec<MediaCollectionInsert>;                                             Update: DBRec<Partial<Omit<MediaCollectionRow,'id'>>>; Relationships: [] }
       media_collection_items:   { Row: DBRec<MediaCollectionItemRow>; Insert: DBRec<Omit<MediaCollectionItemRow,'created_at'>>;                        Update: DBRec<Pick<MediaCollectionItemRow,'sort_order'>>; Relationships: [] }
+      brand_kits: {
+        Row: DBRec<BrandKitRow>
+        Insert: DBRec<BrandKitInsert>
+        Update: DBRec<BrandKitUpdate>
+        Relationships: [
+          { foreignKeyName: 'brand_kits_user_id_fkey'; columns: ['user_id']; isOneToOne: false; referencedRelation: 'profiles'; referencedColumns: ['id'] },
+        ]
+      }
+      brand_kit_assets: {
+        Row: DBRec<BrandKitAssetRow>
+        Insert: DBRec<BrandKitAssetInsert>
+        Update: DBRec<BrandKitAssetUpdate>
+        Relationships: [
+          { foreignKeyName: 'brand_kit_assets_brand_kit_id_fkey'; columns: ['brand_kit_id']; isOneToOne: false; referencedRelation: 'brand_kits'; referencedColumns: ['id'] },
+          { foreignKeyName: 'brand_kit_assets_media_item_id_fkey'; columns: ['media_item_id']; isOneToOne: false; referencedRelation: 'media_items'; referencedColumns: ['id'] },
+        ]
+      }
       effect_chain_options:     { Row: DBRec<EffectChainOptionRow>;    Insert: DBRec<Omit<EffectChainOptionRow,'created_at'|'updated_at'>>;     Update: DBRec<Partial<Omit<EffectChainOptionRow,'id'|'created_at'|'updated_at'>>>; Relationships: [] }
       visual_presets:           { Row: DBRec<VisualPresetRow>;        Insert: DBRec<Omit<VisualPresetRow,'id'|'created_at'|'updated_at'>>;     Update: DBRec<Partial<Omit<VisualPresetRow,'id'>>>; Relationships: [] }
       visual_sessions:          { Row: DBRec<VisualSessionRow>;       Insert: DBRec<Omit<VisualSessionRow,'id'|'created_at'|'updated_at'>>;    Update: DBRec<Partial<Omit<VisualSessionRow,'id'>>>; Relationships: [] }

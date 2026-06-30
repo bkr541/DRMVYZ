@@ -28,6 +28,7 @@ import { analyzeAudioFile } from '../utils/analyzeAudioFile'
 import { useVisualStore } from './visualStore'
 import { generateThumbnail, clearFilmstripCache } from '../components/vyzualz/media/generateThumbnail'
 import { analyzeSvgCapabilities } from '../components/vyzualz/react/renderers/svgCapabilityAnalysis'
+import { analyzePaletteForMediaFile, mergeMediaMetadata } from '../features/personalization/mediaPaletteMetadata'
 
 export type { MediaRole, MediaEnergy }
 export type { MediaMetadata }
@@ -222,6 +223,7 @@ async function buildLocalItem(file: File, opts?: BuildItemOptions): Promise<Loca
   const mimeType = svgValidation?.isValidSvg
     ? 'image/svg+xml'
     : (file.type || null)
+  const metadataWithSvg = mergeMediaMetadata(baseMeta, svgValidation ? { svgValidation } : {})
 
   if (isVideo) {
     const [thumbDataUrl, duration] = await Promise.all([
@@ -238,7 +240,7 @@ async function buildLocalItem(file: File, opts?: BuildItemOptions): Promise<Loca
       collectionIds: opts?.collectionIds ?? [],
       title: opts?.title,
       description: opts?.description,
-      metadata: { ...baseMeta, ...(svgValidation ? { svgValidation } : {}), duration },
+      metadata: mergeMediaMetadata(metadataWithSvg, { duration }),
       mimeType,
       _duration: duration,
       _thumbDataUrl: thumbDataUrl ?? undefined,
@@ -246,6 +248,16 @@ async function buildLocalItem(file: File, opts?: BuildItemOptions): Promise<Loca
   }
 
   const dims = await getImageDimensions(url)
+  const shouldAnalyzePalette = !isSvgFile(file) || svgValidation?.isValidSvg === true
+  const paletteMetadata = shouldAnalyzePalette ? await analyzePaletteForMediaFile(file) : {}
+  const preparedMetadata = mergeMediaMetadata(metadataWithSvg, {
+    ...paletteMetadata,
+    width: dims?.w,
+    height: dims?.h,
+  })
+  if (paletteMetadata.paletteAnalysisError) {
+    console.warn('[mediaStore] palette analysis failed (non-fatal):', file.name, paletteMetadata.paletteAnalysisError.message)
+  }
   return {
     id: generateId(), name: file.name, type: 'image', url,
     thumbnailUrl: url,
@@ -256,7 +268,7 @@ async function buildLocalItem(file: File, opts?: BuildItemOptions): Promise<Loca
     collectionIds: opts?.collectionIds ?? [],
     title: opts?.title,
     description: opts?.description,
-    metadata: { ...baseMeta, ...(svgValidation ? { svgValidation } : {}), width: dims?.w, height: dims?.h },
+    metadata: preparedMetadata,
     mimeType,
     _width: dims?.w,
     _height: dims?.h,
