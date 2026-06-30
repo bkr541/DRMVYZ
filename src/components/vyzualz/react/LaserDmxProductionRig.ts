@@ -18,7 +18,7 @@ import type {
 export const LASER_DMX_SETTINGS_SCHEMA_VERSION = 7
 export const LASER_DMX_FIXTURE_SCHEMA_VERSION = 4
 export const LASER_DMX_BEAM_MATRIX_SCHEMA_VERSION = 1
-export const LASER_DMX_PRODUCTION_RIG_SCHEMA_VERSION = 8
+export const LASER_DMX_PRODUCTION_RIG_SCHEMA_VERSION = 9
 export const LASER_DMX_STAGE_SCHEMA_VERSION = 1
 
 export type ProductionFixtureKind =
@@ -837,6 +837,12 @@ export function normalizeProductionGroupMovement(value: unknown): ProductionGrou
   }
 }
 
+export interface ProductionFixturePatch {
+  universe: number
+  startAddress: number
+  channelFootprint: number
+}
+
 export interface ProductionFixtureInstance {
   schemaVersion: number
   id: string
@@ -844,6 +850,7 @@ export interface ProductionFixtureInstance {
   enabled: boolean
   kind: ProductionFixtureKind
   profileId: string
+  patch: ProductionFixturePatch
   groupIds: string[]
   transform: ProductionStageTransform
   targetId: string | null
@@ -1214,6 +1221,7 @@ export interface ProductionFixtureOutputFrame {
   fixtureId: string
   profileId: string
   fixtureKind: ProductionFixtureKind
+  patch: ProductionFixturePatch
   channels: Record<string, number>
   visual?: LaserDmxFixtureFrame['visual']
 }
@@ -1224,6 +1232,13 @@ export interface ProductionOutputFrame {
   timestampSec: number
   rendererId: string
   adapterId: string
+  /** Renderer brightness remains independent from any hardware master applied by an adapter. */
+  intensityDomains: { preview: 'renderer'; hardware: 'adapter' }
+  safetyMetadata: {
+    audienceRegionEnabled: boolean
+    exclusionZoneIds: string[]
+    validationOnly: true
+  }
   fixtures: ProductionFixtureOutputFrame[]
 }
 
@@ -3230,6 +3245,11 @@ export function buildProductionRig(settingsInput: unknown): ProductionRig {
         enabled: fixture.enabled && validationErrors.length === 0,
         kind: fixture.fixtureKind ?? profile?.fixtureKind ?? 'laserProjector',
         profileId: fixture.dmx.profileId,
+        patch: {
+          universe: fixture.dmx.universe,
+          startAddress: fixture.dmx.startAddress,
+          channelFootprint: profile ? Math.max(0, ...profile.channels.map(channel => channel.channel)) : 0,
+        },
         groupIds: groupIdsByFixture.get(fixture.id) ?? [],
         transform: resolveLaserDmxFixtureStageTransform(fixture, stage),
         targetId: fixture.targetId ?? `target:${fixture.id}`,
@@ -3281,12 +3301,23 @@ export function createProductionOutputFrame(
     timestampSec,
     rendererId: rig.rendererCapabilities.id,
     adapterId: rig.outputAdapterCapabilities.id,
+    intensityDomains: { preview: 'renderer', hardware: 'adapter' },
+    safetyMetadata: {
+      audienceRegionEnabled: rig.stage.audience.enabled,
+      exclusionZoneIds: rig.stage.spatialZones.filter(zone => zone.kind === 'excluded').map(zone => zone.id),
+      validationOnly: true,
+    },
     fixtures: fixtures.map(frame => {
       const fixture = rigFixtures.get(frame.fixtureId)
       return {
         fixtureId: frame.fixtureId,
         profileId: fixture?.profileId ?? 'unknown',
         fixtureKind: fixture?.kind ?? 'laserProjector',
+        patch: fixture?.patch ?? {
+          universe: frame.universe,
+          startAddress: frame.startAddress,
+          channelFootprint: Object.keys(frame.channels).length,
+        },
         channels: frame.channels,
         visual: frame.visual,
       }

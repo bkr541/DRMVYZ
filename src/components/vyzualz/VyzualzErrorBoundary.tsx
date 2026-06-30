@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { productionOutputController } from './react/output/ProductionOutput'
 
 interface Props {
   /**
@@ -21,6 +22,7 @@ export class VyzualzErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
+    productionOutputController.handleRendererCrash(this.props.section)
     console.error(
       `[VyzualzErrorBoundary][${this.props.section ?? 'VyzualzView'}]`,
       error,

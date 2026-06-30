@@ -25,6 +25,7 @@ import {
 import { resetMovingHeadRuntime } from './LaserDmxMovingHeadEngine'
 import { pauseProductionAtmosphere, resetProductionAtmosphereRuntime, resumeProductionAtmosphere, stepProductionAtmosphere } from './LaserDmxAtmosphereEngine'
 import { createShowDirectorRuntime, evaluateShowDirector, resetShowDirectorRuntime, type ShowDirectorRuntime } from './LaserDmxShowDirector'
+import { productionOutputController } from '../output/ProductionOutput'
 
 /** Returns true when the LaserDMX renderer should draw. */
 export function shouldRenderLaserDmx(isPlaying: boolean): boolean {
@@ -72,12 +73,14 @@ export function clearLaserDmxVisualState(
   ctx.clearRect(0, 0, W, H)
   ctx.restore()
   getLaserDmxRendererLifecycle(ctx, reason => resetLaserDmxRuntimeState(reason, ctx)).pause()
+  productionOutputController.transportStopped('LaserDMX rendering stopped')
   if (prevSpatialTimeSec >= 0) pauseProductionAtmosphere(prevSpatialTimeSec)
   resetLaserDmxRuntimeState(undefined, ctx)
 }
 
 /** Releases context listeners and transient state for thumbnail/unmount cleanup. */
 export function disposeLaserDmxRenderer(ctx: CanvasRenderingContext2D): void {
+  productionOutputController.transportStopped('LaserDMX renderer disposed')
   disposeLaserDmxRendererLifecycle(ctx)
   resetLaserDmxRuntimeState(undefined, ctx)
   showDirectorRuntimeByContext.delete(ctx)
@@ -133,6 +136,7 @@ export function renderLaserDmx(
   const personalization = resolveLaserDmxPersonalization(useBrandKitStore.getState().activeKit, preset.id)
 
   if (workspaceMode === 'beamMatrix') {
+    productionOutputController.transportStopped('Beam Matrix has no patched production output frame')
     const bmSettings = director.beamMatrix
     const compiled = compileLaserDmxBeamMatrix({
       settings: bmSettings,
@@ -183,6 +187,7 @@ export function renderLaserDmx(
     canvasHeight: H,
     personalization,
   })
+  productionOutputController.submitFrame(compiled.outputFrame, compiled.productionRig)
   const global: CompiledGlobal = compiled.global
   const fadeAlpha = clamp01(global.backgroundFade) * (0.3 + 0.7 * clamp01(1 - global.beamPersistence))
   ctx.globalCompositeOperation = 'source-over'

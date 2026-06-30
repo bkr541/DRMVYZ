@@ -5,6 +5,7 @@ import { LaserDmxSpatialFixturesPanel } from './LaserDmxSpatialFixturesPanel'
 import { LaserDmxBeamMatrixPanel } from './LaserDmxBeamMatrixPanel'
 import { CtrlSection } from './ReactControlRows'
 import { LaserDmxCueListPanel } from './LaserDmxCueListPanel'
+import { ProductionOutputPanel } from './output/ProductionOutputPanel'
 
 export function LaserDmxEnginePanel() {
   const { laserDmxWorkspaceMode, blackout, matrixBlackout, setBlackout } = useReactStore(
@@ -29,6 +30,7 @@ export function LaserDmxEnginePanel() {
       <div className="rv-ctrl-info">
         Global blackout masks Spatial Fixtures and Beam Matrix output without overwriting authored fixture, movement, cue, or atmosphere state.
       </div>
+      <ProductionOutputPanel />
       {laserDmxWorkspaceMode === 'beamMatrix'
         ? <LaserDmxBeamMatrixPanel />
         : <LaserDmxSpatialFixturesPanel />

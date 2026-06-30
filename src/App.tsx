@@ -7,6 +7,7 @@ import { VyzualzErrorBoundary } from './components/vyzualz/VyzualzErrorBoundary'
 import { ActiveTrackLyricsBridge } from './features/lyrics/ActiveTrackLyricsBridge'
 import { useBrandKitStore } from './features/personalization/brandKitStore'
 import { applyBrandAppAccent, restoreStandardAppAccent } from './features/personalization/appAccentPersonalization'
+import { productionOutputController } from './components/vyzualz/react/output/ProductionOutput'
 
 export default function App() {
   const [authed, setAuthed] = useState<boolean | null>(null)
@@ -17,8 +18,23 @@ export default function App() {
     return () => restoreStandardAppAccent()
   }, [activeBrandKit])
 
+  useEffect(() => {
+    const handlePageExit = () => productionOutputController.shutdown('Application closing')
+    const heartbeatTimer = window.setInterval(() => productionOutputController.heartbeat(), 500)
+    window.addEventListener('beforeunload', handlePageExit)
+    window.addEventListener('pagehide', handlePageExit)
+    return () => {
+      window.clearInterval(heartbeatTimer)
+      window.removeEventListener('beforeunload', handlePageExit)
+      window.removeEventListener('pagehide', handlePageExit)
+      productionOutputController.shutdown('Application lifecycle disposed')
+    }
+  }, [])
+
 
   useEffect(() => {
+    let activeUserId: string | null = null
+
     // Skip auth check when Supabase is not configured (dev without .env)
     if (!supabaseConfigured) {
       useBrandKitStore.getState().clearForSignedOut()
@@ -28,6 +44,7 @@ export default function App() {
 
     supabase.auth.getSession().then(({ data }) => {
       const userId = data.session?.user.id ?? null
+      activeUserId = userId
       setAuthed(Boolean(userId))
       if (userId) void useBrandKitStore.getState().initializeForUser(userId)
       else useBrandKitStore.getState().clearForSignedOut()
@@ -35,12 +52,17 @@ export default function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const userId = session?.user.id ?? null
+      if (activeUserId !== userId) productionOutputController.handleAuthChange()
+      activeUserId = userId
       setAuthed(Boolean(userId))
       if (userId) void useBrandKitStore.getState().initializeForUser(userId)
       else useBrandKitStore.getState().clearForSignedOut()
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      subscription.unsubscribe()
+      productionOutputController.shutdown('Authentication lifecycle disposed')
+    }
   }, [])
 
   // Still checking session — render blank to avoid flash
