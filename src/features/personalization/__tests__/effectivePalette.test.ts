@@ -116,10 +116,10 @@ describe('effective Brand Kit palette resolution', () => {
     expect(resolve(kit)).toEqual(enginePalette)
   })
 
-  it('leaves LaserDMX unchanged until the dedicated RGBW adaptation patch', () => {
+  it('applies Brand Kit palette resolution to LaserDMX in brand mode', () => {
     const kit = makeKit({ engineRules: { laserDmx: { mode: 'brand', strength: 1 } } })
     const result = resolve(kit, { engineId: 'laserDmx' })
-    expect(result).toEqual(ORIGINAL)
+    expect(result).toEqual(BRAND)
   })
 
   it('falls back safely for an invalid rule', () => {

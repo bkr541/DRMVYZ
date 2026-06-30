@@ -52,7 +52,7 @@ export function resolvePerformancePadKeyboardRoute(
 function contextualHint(target: ReactPerformanceActionTarget, actions: readonly ReactPerformanceActionDefinition[]): string {
   if (actions.length === 0) return '1–5 · Q–R·T · A–F·G · Z–V·B'
   const keys = actions.map(action => action.keyBinding.toUpperCase()).join(' · ')
-  const label = target.worldId === 'reactiveConstellation' ? 'Reactive Constellation' : 'Neon Lattice'
+  const label = target.engineId === 'laserDmx' ? 'LaserDMX' : target.worldId === 'reactiveConstellation' ? 'Reactive Constellation' : 'Neon Lattice'
   return `${keys} = ${label} actions · remaining slots = presets`
 }
 

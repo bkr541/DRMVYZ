@@ -58,6 +58,7 @@ import type {
   NeonLatticeTriggerEvent,
 } from '../components/vyzualz/react/ReactTypes'
 import { resolvePerformancePadTransition } from '../components/vyzualz/react/renderers/reactPresetTransition'
+import { adaptProductionPresetToRig, shouldPreserveCurrentProductionRig } from '../components/vyzualz/react/LaserDmxProductionPresets'
 import {
   parseSvgToGlyphPoints,
   makeSvgGlyphAsset,
@@ -821,7 +822,7 @@ export function resolvePresetOscillatorSettings(
 export function buildPresetPatch(
   preset: ReactPreset,
   currentOscSettings: OscillatorSettings,
-  _currentLaserSettings?: LaserDmxSettings,
+  currentLaserSettings?: LaserDmxSettings,
   currentNeonLatticeSettings?: NeonLatticeSettings,
 ) {
   let laserPatch: LaserDmxSettings | undefined
@@ -831,7 +832,10 @@ export function buildPresetPatch(
       ...createDefaultLaserDmxSettings(),
       ...preset.laserDmxSettings,
     })
-    laserPatch = ensureProductionLookCompatibility(merged, preset.name, 'spatialPreset')
+    const resolved = preset.productionPreset && currentLaserSettings && shouldPreserveCurrentProductionRig(currentLaserSettings)
+      ? adaptProductionPresetToRig({ ...preset, laserDmxSettings: merged }, currentLaserSettings).settings
+      : merged
+    laserPatch = ensureProductionLookCompatibility(normalizeLaserDmxSettings(resolved), preset.name, 'spatialPreset')
   }
 
   let neonLatticePatch: NeonLatticeSettings | undefined

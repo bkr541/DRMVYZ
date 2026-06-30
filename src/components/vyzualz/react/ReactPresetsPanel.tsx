@@ -2,10 +2,12 @@ import { useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { CINEMATIC_WORLD_BY_ID, CINEMATIC_WORLD_UI, getCinematicPresetMood } from './CinematicWorldsUi'
-import type { ReactPreset, ReactEngineId } from './ReactTypes'
+import type { LaserDmxSettings, ReactPreset, ReactEngineId } from './ReactTypes'
 import { ReactPresetThumbnail } from './ReactPresetThumbnail'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
 import { resolveBrandedReactPreset } from '../../../features/personalization/resolveBrandedReactPreset'
+import { analyzeProductionPresetCompatibility } from './LaserDmxProductionPresets'
+import type { ProductionFixtureKind, ProductionPresetCompatibilityResult } from './LaserDmxProductionRig'
 
 const ENGINE_ORDER: ReactEngineId[] = ['cinematicPortal', 'oscilloscope', 'laserDmx', 'neonLattice']
 
@@ -39,18 +41,57 @@ function getModeHint(preset: ReactPreset): string | null {
   }
 }
 
-function PresetCard({ preset, isActive, modified, onSelect }: {
+
+const FIXTURE_BADGE_LABELS: Record<ProductionFixtureKind, string> = {
+  laserProjector: 'Laser', movingHeadBeam: 'Beam', movingHeadSpot: 'Spot', movingHeadWash: 'Wash', staticWash: 'Static Wash',
+  strobe: 'Strobe', blinder: 'Blinder', ledBar: 'LED Bar', hazer: 'Haze', fogger: 'Fog', cryoJet: 'Cryo',
+}
+
+export function resolvePresetCardNavigationIndex(currentIndex: number, key: string, itemCount: number, columns = 1): number | null {
+  if (itemCount <= 0) return null
+  if (key === 'Home') return 0
+  if (key === 'End') return itemCount - 1
+  const delta = key === 'ArrowRight' ? 1 : key === 'ArrowLeft' ? -1 : key === 'ArrowDown' ? columns : key === 'ArrowUp' ? -columns : 0
+  if (delta === 0) return null
+  return Math.max(0, Math.min(itemCount - 1, currentIndex + delta))
+}
+
+function handlePresetCardKeyDown(event: React.KeyboardEvent<HTMLButtonElement>): void {
+  const group = event.currentTarget.closest<HTMLElement>('[data-preset-grid]')
+  if (!group) return
+  const cards = Array.from(group.querySelectorAll<HTMLButtonElement>('[data-preset-card]'))
+  const currentIndex = cards.indexOf(event.currentTarget)
+  const columns = group.clientWidth >= 720 ? 2 : 1
+  const nextIndex = resolvePresetCardNavigationIndex(currentIndex, event.key, cards.length, columns)
+  if (nextIndex == null || nextIndex === currentIndex) return
+  event.preventDefault()
+  cards[nextIndex]?.focus()
+}
+
+function CompatibilitySummary({ result }: { result: ProductionPresetCompatibilityResult }) {
+  const label = result.mode === 'full' ? 'Rig ready' : result.mode === 'adapted' ? 'Safe adaptation' : result.mode === 'partial' ? 'Partial playback' : 'Reference rig only'
+  const detail = result.diagnostics.find(item => item.severity === 'error')?.message
+    ?? result.diagnostics.find(item => item.severity === 'warning')?.message
+  return <div className={`rv-production-compat rv-production-compat--${result.mode}`} title={detail}><strong>{label}</strong>{detail ? <span>{detail}</span> : null}</div>
+}
+
+function PresetCard({ preset, isActive, modified, onSelect, currentRig }: {
   preset: ReactPreset
   isActive: boolean
   modified: boolean
   onSelect: (id: string) => void
+  currentRig: LaserDmxSettings
 }) {
   const modeHint = getModeHint(preset)
+  const production = preset.productionPreset
+  const compatibility = production ? analyzeProductionPresetCompatibility(preset, currentRig) : null
   return (
     <button
       type="button"
       className={`rv-preset-card rv-preset-card--with-thumb${isActive ? ' rv-preset-card--active' : ''}`}
       onClick={() => onSelect(preset.id)}
+      onKeyDown={handlePresetCardKeyDown}
+      data-preset-card
       aria-pressed={isActive}
       aria-current={isActive ? 'true' : undefined}
       title={preset.description}
@@ -67,6 +108,14 @@ function PresetCard({ preset, isActive, modified, onSelect }: {
             {modeHint && <span className="rv-preset-mode-chip">{modeHint}</span>}
             {modified && <span className="rv-preset-modified-chip">Modified</span>}
           </div>
+          {production && <>
+            <div className="rv-production-badges" aria-label={`${preset.name} fixture families`}>
+              {production.fixtureFamilyBadges.slice(0, 7).map(kind => <span key={kind}>{FIXTURE_BADGE_LABELS[kind]}</span>)}
+            </div>
+            <div className="rv-production-meta"><span>Cost: {production.complexity}</span><span>{production.requiredCapabilities.map(item => item.label).join(' · ')}</span></div>
+            <div className="rv-production-tags">{production.styleTags.map(tag => <span key={tag}>{tag}</span>)}</div>
+            {compatibility && <CompatibilitySummary result={compatibility} />}
+          </>}
           <p className="rv-preset-desc">{preset.description}</p>
           <div className="rv-preset-palette" aria-label={`${preset.name} palette`}>
             {Object.values(preset.palette).slice(0, 5).map((color, index) => <span key={index} className="rv-palette-swatch" style={{ background: color }} title={color} />)}
@@ -77,11 +126,12 @@ function PresetCard({ preset, isActive, modified, onSelect }: {
   )
 }
 
-function CinematicPresetGroups({ presets, activePresetId, modifiedIds, onSelect }: {
+function CinematicPresetGroups({ presets, activePresetId, modifiedIds, onSelect, currentRig }: {
   presets: ReactPreset[]
   activePresetId: string | null
   modifiedIds: Set<string>
   onSelect: (id: string) => void
+  currentRig: LaserDmxSettings
 }) {
   const categories = useMemo(() => {
     const order = ['Cosmic', 'Architectural', 'Organic', 'Mechanical', 'Storm', 'Media', 'Legacy'] as const
@@ -109,8 +159,8 @@ function CinematicPresetGroups({ presets, activePresetId, modifiedIds, onSelect 
             {moods.map(({ mood, presets: moodPresets }) => (
               <div key={mood} className="rv-cinematic-preset-mood">
                 <h4>{mood}</h4>
-                <div className="rv-preset-group-cards">
-                  {moodPresets.map(preset => <PresetCard key={preset.id} preset={preset} isActive={preset.id === activePresetId} modified={modifiedIds.has(preset.id)} onSelect={onSelect} />)}
+                <div className="rv-preset-group-cards" data-preset-grid>
+                  {moodPresets.map(preset => <PresetCard key={preset.id} preset={preset} isActive={preset.id === activePresetId} modified={modifiedIds.has(preset.id)} onSelect={onSelect} currentRig={currentRig} />)}
                 </div>
               </div>
             ))}
@@ -121,12 +171,13 @@ function CinematicPresetGroups({ presets, activePresetId, modifiedIds, onSelect 
   </div>
 }
 
-function EngineSection({ engineId, presets, activePresetId, modifiedIds, onSelect }: {
+function EngineSection({ engineId, presets, activePresetId, modifiedIds, onSelect, currentRig }: {
   engineId: ReactEngineId
   presets: ReactPreset[]
   activePresetId: string | null
   modifiedIds: Set<string>
   onSelect: (id: string) => void
+  currentRig: LaserDmxSettings
 }) {
   const [collapsed, setCollapsed] = useState(() => !presets.some(preset => preset.id === activePresetId))
   return (
@@ -141,8 +192,8 @@ function EngineSection({ engineId, presets, activePresetId, modifiedIds, onSelec
         <span className="rv-preset-group-hdr-chevron" aria-hidden="true">▾</span>
       </button>
       {!collapsed && (engineId === 'cinematicPortal'
-        ? <CinematicPresetGroups presets={presets} activePresetId={activePresetId} modifiedIds={modifiedIds} onSelect={onSelect} />
-        : <div className="rv-preset-group-cards">{presets.map(preset => <PresetCard key={preset.id} preset={preset} isActive={preset.id === activePresetId} modified={false} onSelect={onSelect} />)}</div>
+        ? <CinematicPresetGroups presets={presets} activePresetId={activePresetId} modifiedIds={modifiedIds} onSelect={onSelect} currentRig={currentRig} />
+        : <div className="rv-preset-group-cards" data-preset-grid>{presets.map(preset => <PresetCard key={preset.id} preset={preset} isActive={preset.id === activePresetId} modified={false} onSelect={onSelect} currentRig={currentRig} />)}</div>
       )}
     </div>
   )
@@ -150,11 +201,12 @@ function EngineSection({ engineId, presets, activePresetId, modifiedIds, onSelec
 
 export function ReactPresetsPanel() {
   const activeBrandKit = useBrandKitStore(state => state.activeKit)
-  const { reactPresets, activeReactPresetId, cinematicConfigsByPresetId, selectReactPreset } = useReactStore(useShallow(state => ({
+  const { reactPresets, activeReactPresetId, cinematicConfigsByPresetId, selectReactPreset, laserDmxSettings } = useReactStore(useShallow(state => ({
     reactPresets: state.reactPresets,
     activeReactPresetId: state.activeReactPresetId,
     cinematicConfigsByPresetId: state.cinematicConfigsByPresetId,
     selectReactPreset: state.selectReactPreset,
+    laserDmxSettings: state.laserDmxSettings,
   })))
   const displayPresets = useMemo(
     () => reactPresets.map(preset => resolveBrandedReactPreset(
@@ -172,7 +224,7 @@ export function ReactPresetsPanel() {
     <div className="rv-presets-panel">
       <p className="rv-presets-hint">Presets are saved looks organized by engine. Cinematic Worlds are grouped by category, world and mood.</p>
       {activeWorld && <div className="rv-cinematic-current-world" aria-live="polite">Current world: <strong>{activeWorld}</strong>{activeReactPresetId && modifiedIds.has(activeReactPresetId) ? ' · Modified from preset' : ''}</div>}
-      {grouped.map(({ engine, presets }) => <EngineSection key={engine} engineId={engine} presets={presets} activePresetId={activeReactPresetId} modifiedIds={modifiedIds} onSelect={selectReactPreset} />)}
+      {grouped.map(({ engine, presets }) => <EngineSection key={engine} engineId={engine} presets={presets} activePresetId={activeReactPresetId} modifiedIds={modifiedIds} onSelect={selectReactPreset} currentRig={laserDmxSettings} />)}
     </div>
   )
 }

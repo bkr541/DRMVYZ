@@ -26,8 +26,13 @@ import { resetMovingHeadRuntime } from './LaserDmxMovingHeadEngine'
 import { pauseProductionAtmosphere, resetProductionAtmosphereRuntime, resumeProductionAtmosphere, stepProductionAtmosphere } from './LaserDmxAtmosphereEngine'
 import { createShowDirectorRuntime, evaluateShowDirector, resetShowDirectorRuntime, type ShowDirectorRuntime } from './LaserDmxShowDirector'
 import { productionOutputController } from '../output/ProductionOutput'
+import { applyLaserDmxPerformanceActions } from './LaserDmxPerformanceActionEngine'
 
 /** Returns true when the LaserDMX renderer should draw. */
+export const LASER_DMX_VIRTUAL_CAPTURE_LAYERS = [
+  'stage', 'lasers', 'movingHeads', 'washes', 'ledBars', 'persistentHaze', 'localizedFog', 'cryoPlumes', 'flashImpacts',
+] as const
+
 export function shouldRenderLaserDmx(isPlaying: boolean): boolean {
   return isPlaying
 }
@@ -117,7 +122,13 @@ export function renderLaserDmx(
   // The audio engine playhead is the only Show Director clock. Wall time is intentionally excluded.
   const timeSec = Math.max(0, frame.audioTime)
   const authoredSettings = params.thumbnailLaserDmxSettings ?? state.laserDmxSettings
-  const resolvedAuthoredSettings = resolveProductionLookTransitionRuntime(authoredSettings)
+  const actionEvents = params.thumbnailLaserDmxSettings
+    ? []
+    : params.performanceActionEvents && params.performanceActionEvents.length > 0
+      ? params.performanceActionEvents
+      : params.performanceActionEvent ? [params.performanceActionEvent] : []
+  const actionResult = applyLaserDmxPerformanceActions(authoredSettings, actionEvents)
+  const resolvedAuthoredSettings = resolveProductionLookTransitionRuntime(actionResult.settings)
   const directorPresetKey = `${preset.id}:${workspaceMode}:${state.activeLaserDmxBeamMatrixPresetId ?? 'custom'}:${resolvedAuthoredSettings.rigId ?? 'rig'}`
   const director = evaluateShowDirector(getShowDirectorRuntime(ctx), {
     settings: resolvedAuthoredSettings,
@@ -231,6 +242,8 @@ export function renderLaserDmx(
     ctx.fillStyle = '#00ffcc'
     ctx.font = '10px monospace'
     ctx.fillText(`3D stage ${rig.stage.dimensions.width}×${rig.stage.dimensions.height}×${rig.stage.dimensions.depth}m · atmosphere ${atmosphere.particles.length}/${atmosphere.budget}`, 8, 16)
+    const actionDiagnostic = actionResult.diagnostics.find(item => item.severity === 'warning')
+    if (actionDiagnostic) ctx.fillText(`Action: ${actionDiagnostic.message}`, 8, 28)
     compiled.fixtures.forEach((fixture, index) => {
       const channels = Object.values(fixture.channels).slice(0, 6).map(value => String(value).padStart(3)).join(' ')
       ctx.fillText(`U${fixture.universe} A${fixture.startAddress} | ${channels}`, 8, 30 + index * 14)

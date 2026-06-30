@@ -37,6 +37,7 @@ export type ProductionOutputDiagnosticCode =
   | 'physicalOutputDisabled'
   | 'sessionNotArmed'
   | 'fixtureTestRestricted'
+  | 'rehearsalMode'
 
 export interface ProductionOutputDiagnostic {
   code: ProductionOutputDiagnosticCode
@@ -140,6 +141,7 @@ export interface ProductionOutputControllerSnapshot {
   status: ProductionOutputAdapterStatus
   session: ProductionOutputSessionSettings
   emergencyBlackout: boolean
+  rehearsalMode: boolean
   diagnostics: ProductionOutputDiagnostic[]
   registeredAdapters: ProductionOutputAdapterDescriptor[]
   lastUniverseCount: number
@@ -490,6 +492,7 @@ export class ProductionOutputController {
   private readonly safetyRuntime = createProductionOutputSafetyRuntime()
   private session: ProductionOutputSessionSettings = structuredClone(DEFAULT_PRODUCTION_OUTPUT_SESSION_SETTINGS)
   private emergencyBlackout = false
+  private rehearsalMode = true
   private diagnostics: ProductionOutputDiagnostic[] = []
   private lastUniverseCount = 0
   private lastFixtureCount = 0
@@ -542,6 +545,7 @@ export class ProductionOutputController {
       status,
       session: structuredClone(this.session),
       emergencyBlackout: this.emergencyBlackout,
+      rehearsalMode: this.rehearsalMode,
       diagnostics: [...this.diagnostics],
       registeredAdapters: [...this.descriptors.values()],
       lastUniverseCount: this.lastUniverseCount,
@@ -611,11 +615,27 @@ export class ProductionOutputController {
     this.emit()
   }
 
+  setRehearsalMode(enabled: boolean): void {
+    this.rehearsalMode = enabled
+    this.diagnostics = this.diagnostics.filter(diagnostic => diagnostic.code !== 'rehearsalMode')
+    if (enabled) {
+      this.diagnostics.push({ code: 'rehearsalMode', severity: 'info', message: 'Rehearsal preview is active. Cues, looks, and performance actions remain virtual and cannot reach physical adapters.' })
+      this.disarm('Rehearsal mode enabled')
+      return
+    }
+    this.emit()
+  }
+
   arm(): void {
     const descriptor = this.descriptors.get(this.session.selectedAdapterId)
     const adapter = this.adapters.get(this.session.selectedAdapterId)
     if (!adapter || !descriptor) {
       this.failDark('Adapter is unavailable', 'adapterUnavailable')
+      return
+    }
+    if (this.rehearsalMode && descriptor.canTransmit) {
+      this.diagnostics = [{ code: 'rehearsalMode', severity: 'info', message: 'Physical arming is blocked while rehearsal preview is active.' }]
+      this.disarm('Rehearsal preview active')
       return
     }
     if (descriptor.canTransmit && !this.session.physicalOutputEnabled) {
@@ -704,6 +724,31 @@ export class ProductionOutputController {
     this.diagnostics = [...runtimeDiagnostics, ...prepared.diagnostics]
     this.lastUniverseCount = prepared.universes.length
     this.lastFixtureCount = frame.fixtures.length
+
+    if (this.rehearsalMode && descriptor.canTransmit) {
+      const virtualAdapter = this.adapters.get(VIRTUAL_PRODUCTION_OUTPUT_ADAPTER_DESCRIPTOR.id)
+      if (virtualAdapter) {
+        const preview = prepareProductionOutputFrame(frame, rig, this.session.safety, {
+          blackout: this.emergencyBlackout,
+          protocol: 'virtual',
+          nowMs,
+          runtime: this.safetyRuntime,
+        })
+        try {
+          virtualAdapter.sendFrame(preview)
+        } catch (error) {
+          this.failDark(outputErrorMessage(error, 'Virtual rehearsal adapter failure'))
+          return
+        }
+      }
+      adapter.blackout('Rehearsal preview active')
+      this.diagnostics = [
+        ...this.diagnostics.filter(diagnostic => diagnostic.code !== 'rehearsalMode'),
+        { code: 'rehearsalMode', severity: 'info', message: 'Frame rendered through Virtual Output only. The selected physical adapter remained dark.' },
+      ]
+      this.emit()
+      return
+    }
 
     if (descriptor.canTransmit && (!this.session.physicalOutputEnabled || !adapter.getStatus().armed)) {
       adapter.blackout(!this.session.physicalOutputEnabled ? 'Physical output disabled' : 'Session not armed')

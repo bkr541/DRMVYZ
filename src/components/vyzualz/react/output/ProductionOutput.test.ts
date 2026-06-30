@@ -143,6 +143,20 @@ describe('production output security boundary', () => {
     expect(PRODUCTION_OUTPUT_PROTOCOLS.sacn).toMatchObject({ transport: 'udp', executableInCurrentRuntime: false, requiresTrustedHost: true })
   })
 
+  it('starts in rehearsal mode and keeps virtual preview separate from physical arming', () => {
+    const { controller } = createMockController()
+    expect(controller.getSnapshot().rehearsalMode).toBe(true)
+    controller.arm()
+    expect(controller.getSnapshot().status.armed).toBe(true)
+    controller.setRehearsalMode(false)
+    expect(controller.getSnapshot().rehearsalMode).toBe(false)
+    controller.setRehearsalMode(true)
+    expect(controller.getSnapshot()).toMatchObject({ rehearsalMode: true, status: { armed: false, blackout: true } })
+    expect(controller.getSnapshot().diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'rehearsalMode' }),
+    ]))
+  })
+
   it('does not enable or arm unavailable network adapters', () => {
     const { controller } = createMockController()
     controller.selectAdapter(ARTNET_PRODUCTION_OUTPUT_ADAPTER_DESCRIPTOR.id)

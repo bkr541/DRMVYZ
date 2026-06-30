@@ -1,6 +1,7 @@
 import { createCinematicWorldConfig, createLegacyPortalCinematicConfig } from './CinematicWorldConfig'
 import type { CinematicWorldConfig } from './CinematicWorldConfig'
 import { REACTIVE_CONSTELLATION_CURATED_PRESETS } from './ReactiveConstellationPresets'
+import { LASER_DMX_PRODUCTION_PRESETS } from './LaserDmxProductionPresets'
 import { createDefaultProductionStageModel } from './LaserDmxProductionRig'
 import type {
   ProductionChoreographySettings,
@@ -10,6 +11,7 @@ import type {
   ProductionFixtureKind,
   ProductionLook,
   ProductionLookTransitionSettings,
+  ProductionPresetMetadata,
   ProductionMovingHeadSettings,
   ProductionFixtureColorPolicy,
   ProductionFlashPatternSettings,
@@ -1246,6 +1248,8 @@ export interface ReactPreset {
   oscillatorSettings?: Partial<OscillatorSettings>
   /** When present, selecting this preset merges these values onto createDefaultLaserDmxSettings(). */
   laserDmxSettings?: Partial<LaserDmxSettings>
+  /** Curated production-language metadata used by the preset browser and compatibility layer. */
+  productionPreset?: ProductionPresetMetadata
   /** When present, selecting this preset merges these values onto DEFAULT_NEON_LATTICE_SETTINGS. */
   neonLatticeSettings?: Partial<NeonLatticeSettings>
   /** Normalized Cinematic Worlds configuration. Present on cinematicPortal presets after migration. */
@@ -3076,6 +3080,9 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
       ],
     },
   },
+
+  // LaserDMX Production Rig Patch 10 curated multi-look library
+  ...LASER_DMX_PRODUCTION_PRESETS,
 
   // ── Neon Lattice (1) – Acid Magenta ──────────────────────────────────────
   {

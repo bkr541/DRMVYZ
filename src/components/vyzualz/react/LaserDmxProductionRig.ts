@@ -1256,6 +1256,59 @@ export interface ProductionRig {
   outputAdapterCapabilities: ProductionOutputAdapterCapabilities
 }
 
+export type ProductionPresetComplexity = 'low' | 'medium' | 'high' | 'extreme'
+
+export interface ProductionPresetFixtureRequirement {
+  fixtureKind: ProductionFixtureKind
+  minimumCount: number
+  optional?: boolean
+  /** Ordered fixture-family substitutes used only for safe virtual adaptation. */
+  fallbackKinds?: ProductionFixtureKind[]
+}
+
+export interface ProductionPresetCapabilityRequirement {
+  id: string
+  label: string
+  fixtureKinds: ProductionFixtureKind[]
+  optional?: boolean
+}
+
+export interface ProductionPresetMetadata {
+  schemaVersion: 1
+  fixtureFamilyBadges: ProductionFixtureKind[]
+  complexity: ProductionPresetComplexity
+  styleTags: string[]
+  requiredCapabilities: ProductionPresetCapabilityRequirement[]
+  rigRequirements: ProductionPresetFixtureRequirement[]
+  palettePolicy: 'authored' | 'brandKitAdaptable'
+  /** White remains reserved for impact fixtures even when a Brand Kit is active. */
+  reserveWhiteForImpacts: boolean
+  thumbnail: {
+    framing: 'clubLowCeiling' | 'festivalWide' | 'aerialCanopy' | 'cathedralWide'
+    activeLookId: string
+  }
+  performanceActionIds: string[]
+  referenceVideoIds: string[]
+}
+
+export type ProductionPresetCompatibilityMode = 'full' | 'adapted' | 'partial' | 'unavailable'
+
+export interface ProductionPresetCompatibilityDiagnostic {
+  code: 'missingFixtureFamily' | 'fallbackFixtureFamily' | 'missingCapability' | 'noPlayableFixtures'
+  severity: 'info' | 'warning' | 'error'
+  message: string
+  fixtureKind?: ProductionFixtureKind
+  fallbackKind?: ProductionFixtureKind
+}
+
+export interface ProductionPresetCompatibilityResult {
+  mode: ProductionPresetCompatibilityMode
+  availableFixtureCounts: Partial<Record<ProductionFixtureKind, number>>
+  missingRequiredKinds: ProductionFixtureKind[]
+  adaptedKinds: Partial<Record<ProductionFixtureKind, ProductionFixtureKind>>
+  diagnostics: ProductionPresetCompatibilityDiagnostic[]
+}
+
 const DEFAULT_CAMERA_VIEW_ID = 'camera:front-house'
 
 function cloneStageVector(value: ProductionStageVector3): ProductionStageVector3 {

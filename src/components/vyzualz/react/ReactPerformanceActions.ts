@@ -3,6 +3,11 @@ import type { NeonLatticeTriggerType, ReactEngineId } from './ReactTypes'
 
 export type ReactPerformanceActionBehavior = 'momentary' | 'toggle' | 'oneShot'
 
+export type LaserDmxPerformanceActionId =
+  | 'blackout' | 'reveal' | 'whiteHit' | 'blinderHit' | 'laserStarburst'
+  | 'fanOpen' | 'fanClose' | 'movementVariation' | 'strobeBurst'
+  | 'fogBurst' | 'cryoBurst' | 'nextLook' | 'previousLook'
+
 export interface ReactPerformanceActionEnvelope {
   attackMs: number
   holdMs: number
@@ -27,6 +32,8 @@ export interface ReactPerformanceActionDefinition {
   exclusiveGroup?: string
   /** Compatibility metadata used only by the legacy Neon Lattice wrapper. */
   legacyNeonLatticeTrigger?: NeonLatticeTriggerType
+  /** Generic production-rig command consumed by the LaserDMX action adapter. */
+  productionAction?: LaserDmxPerformanceActionId
 }
 
 export interface ReactPerformanceActionEvent {
@@ -55,6 +62,25 @@ const NL_ACTIONS: readonly ReactPerformanceActionDefinition[] = [
   { id: 'neonLattice.cyanStrike',   padId: 'pad-8', keyBinding: 'r', label: 'Cyan Strike', description: 'Temporarily drive the lattice into its cyan strike look.', color: '#00ffee', behavior: 'oneShot', target: { engineId: 'neonLattice' }, legacyNeonLatticeTrigger: 'cyanStrike' },
 ]
 
+
+const LASER_DMX_TARGET: ReactPerformanceActionTarget = { engineId: 'laserDmx' }
+
+const LASER_DMX_ACTIONS: readonly ReactPerformanceActionDefinition[] = [
+  { id: 'laserDmx.blackout', padId: 'pad-1', keyBinding: '1', label: 'Blackout', description: 'Cut all visible production output while virtual movement and atmosphere keep advancing.', color: '#140b19', behavior: 'oneShot', target: LASER_DMX_TARGET, productionAction: 'blackout' },
+  { id: 'laserDmx.reveal', padId: 'pad-2', keyBinding: '2', label: 'Reveal', description: 'Reveal the current production look after a blackout.', color: '#58dfff', behavior: 'oneShot', target: LASER_DMX_TARGET, productionAction: 'reveal' },
+  { id: 'laserDmx.whiteHit', padId: 'pad-3', keyBinding: '3', label: 'White Hit', description: 'Fire a bounded reserved-white impact across compatible fixtures.', color: '#ffffff', behavior: 'momentary', envelope: { attackMs: 10, holdMs: 70, releaseMs: 260 }, target: LASER_DMX_TARGET, productionAction: 'whiteHit' },
+  { id: 'laserDmx.blinderHit', padId: 'pad-4', keyBinding: '4', label: 'Blinder', description: 'Fire the audience blinder group when available.', color: '#fff3c5', behavior: 'momentary', envelope: { attackMs: 10, holdMs: 120, releaseMs: 320 }, target: LASER_DMX_TARGET, productionAction: 'blinderHit' },
+  { id: 'laserDmx.laserStarburst', padId: 'pad-5', keyBinding: 'q', label: 'Starburst', description: 'Open the laser bank into a short center-out starburst.', color: '#ff47bf', behavior: 'momentary', envelope: { attackMs: 20, holdMs: 180, releaseMs: 520 }, target: LASER_DMX_TARGET, productionAction: 'laserStarburst' },
+  { id: 'laserDmx.fanOpen', padId: 'pad-6', keyBinding: 'w', label: 'Fan Open', description: 'Open the primary laser fan using the rig movement generator.', color: '#21e6ff', behavior: 'oneShot', target: LASER_DMX_TARGET, productionAction: 'fanOpen' },
+  { id: 'laserDmx.fanClose', padId: 'pad-7', keyBinding: 'e', label: 'Fan Close', description: 'Fold the primary laser fan inward.', color: '#8957ff', behavior: 'oneShot', target: LASER_DMX_TARGET, productionAction: 'fanClose' },
+  { id: 'laserDmx.movementVariation', padId: 'pad-8', keyBinding: 'r', label: 'Variation', description: 'Select a deterministic alternate movement for the main aerial group.', color: '#61d6aa', behavior: 'oneShot', target: LASER_DMX_TARGET, productionAction: 'movementVariation' },
+  { id: 'laserDmx.strobeBurst', padId: 'pad-9', keyBinding: 'a', label: 'Strobe', description: 'Fire a bounded triple-hit strobe pattern.', color: '#d9f7ff', behavior: 'momentary', envelope: { attackMs: 5, holdMs: 90, releaseMs: 260 }, target: LASER_DMX_TARGET, productionAction: 'strobeBurst' },
+  { id: 'laserDmx.fogBurst', padId: 'pad-10', keyBinding: 's', label: 'Fog', description: 'Trigger localized fog emitters without changing persistent haze.', color: '#c3d5dc', behavior: 'momentary', envelope: { attackMs: 30, holdMs: 500, releaseMs: 900 }, target: LASER_DMX_TARGET, productionAction: 'fogBurst' },
+  { id: 'laserDmx.cryoBurst', padId: 'pad-11', keyBinding: 'd', label: 'Cryo', description: 'Trigger a short virtual cryogenic-style plume event.', color: '#eafcff', behavior: 'momentary', envelope: { attackMs: 10, holdMs: 300, releaseMs: 520 }, target: LASER_DMX_TARGET, productionAction: 'cryoBurst' },
+  { id: 'laserDmx.previousLook', padId: 'pad-12', keyBinding: 'f', label: 'Prev Look', description: 'Move to the previous authored production look.', color: '#b484ff', behavior: 'oneShot', target: LASER_DMX_TARGET, productionAction: 'previousLook' },
+  { id: 'laserDmx.nextLook', padId: 'pad-13', keyBinding: 'z', label: 'Next Look', description: 'Move to the next authored production look.', color: '#ff72ca', behavior: 'oneShot', target: LASER_DMX_TARGET, productionAction: 'nextLook' },
+]
+
 const RC_TARGET: ReactPerformanceActionTarget = {
   engineId: 'cinematicPortal',
   worldId: 'reactiveConstellation',
@@ -73,7 +99,7 @@ const RC_ACTIONS: readonly ReactPerformanceActionDefinition[] = [
   { id: 'reactiveConstellation.blackout',    padId: 'pad-10', keyBinding: 's', label: 'Blackout',     description: 'Toggle a temporary full blackout without changing the saved preset.', color: '#130b1d', behavior: 'toggle', target: RC_TARGET },
 ]
 
-export const REACT_VISUAL_PERFORMANCE_ACTIONS = [...NL_ACTIONS, ...RC_ACTIONS] as const
+export const REACT_VISUAL_PERFORMANCE_ACTIONS = [...NL_ACTIONS, ...LASER_DMX_ACTIONS, ...RC_ACTIONS] as const
 
 export interface ReactPerformanceActionRegistryValidationIssue {
   actionId: string

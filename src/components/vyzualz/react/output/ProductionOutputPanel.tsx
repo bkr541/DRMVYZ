@@ -44,6 +44,19 @@ export function ProductionOutputPanel() {
         description="Virtual Output is canonical. Art-Net and sACN are protocol-ready but cannot transmit from this renderer-only build."
       />
 
+      <button
+        type="button"
+        className={`rv-glyph-upload-btn${snapshot.rehearsalMode ? ' rv-glyph-upload-btn--active' : ''}`}
+        aria-pressed={snapshot.rehearsalMode}
+        onClick={() => productionOutputController.setRehearsalMode(!snapshot.rehearsalMode)}
+        style={{ marginBottom: 8 }}
+      >
+        Rehearsal Preview: {snapshot.rehearsalMode ? 'ON' : 'OFF'}
+      </button>
+      <div className="rv-ctrl-info">
+        Rehearsal Preview routes cues, looks, and pad actions to Virtual Output only. Enabling it immediately disarms physical output.
+      </div>
+
       <SliderRow
         label="Hardware Master"
         value={snapshot.session.safety.hardwareMasterIntensity}
@@ -65,7 +78,7 @@ export function ProductionOutputPanel() {
           type="button"
           className="rv-glyph-upload-btn"
           onClick={() => productionOutputController.arm()}
-          disabled={physicalUnavailable || snapshot.status.armed}
+          disabled={physicalUnavailable || snapshot.status.armed || Boolean(snapshot.rehearsalMode && selected?.canTransmit)}
         >
           {selected?.virtual ? 'Arm Virtual Test' : 'Arm Session'}
         </button>

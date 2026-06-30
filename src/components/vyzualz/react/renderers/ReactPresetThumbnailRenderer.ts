@@ -21,7 +21,7 @@ const PREVIEW_START_TIME_SEC = 31.5
 const PREVIEW_SECONDS = 2.4
 const MAX_CONCURRENT_THUMBNAILS = 2
 const MAX_THUMBNAIL_CACHE_ENTRIES = 256
-const THUMBNAIL_FINGERPRINT_VERSION = 2
+const THUMBNAIL_FINGERPRINT_VERSION = 3
 const MIN_THUMBNAIL_DIMENSION = 16
 const MAX_THUMBNAIL_DIMENSION = 1024
 
@@ -73,6 +73,7 @@ export function fingerprintReactPresetThumbnail(preset: ReactPreset): string {
     renderSettings: preset.renderSettings ?? null,
     oscillatorSettings: preset.oscillatorSettings ?? null,
     laserDmxSettings: preset.laserDmxSettings ?? null,
+    productionPreset: preset.productionPreset ?? null,
     neonLatticeSettings: preset.neonLatticeSettings ?? null,
     cinematicConfig: preset.cinematicConfig ?? null,
     sectionMappings: preset.sectionMappings,
@@ -222,7 +223,13 @@ function buildRenderParams(preset: ReactPreset): ReactRenderParams {
       ? { ...DEFAULT_NEON_LATTICE_SETTINGS, ...preset.neonLatticeSettings }
       : undefined,
     thumbnailLaserDmxSettings: preset.laserDmxSettings
-      ? { ...createDefaultLaserDmxSettings(), ...preset.laserDmxSettings }
+      ? {
+          ...createDefaultLaserDmxSettings(),
+          ...preset.laserDmxSettings,
+          ...(preset.productionPreset?.thumbnail.activeLookId
+            ? { activeProductionLookId: preset.productionPreset.thumbnail.activeLookId }
+            : {}),
+        }
       : undefined,
     neonLatticeTrigger: null,
   }
