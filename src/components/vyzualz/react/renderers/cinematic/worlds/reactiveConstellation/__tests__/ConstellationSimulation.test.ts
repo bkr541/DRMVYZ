@@ -148,6 +148,36 @@ describe('ConstellationSimulation', () => {
     }
   })
 
+  it('applies deterministic bounded musical runtime targets without rebuilding the graph', () => {
+    const first = configured()
+    const second = configured()
+    const firstGraph = first.getState().graph
+    const runtime = {
+      deltaTimeSec: 1 / 60,
+      isPlaying: true,
+      motionScale: 1.2,
+      networkSpreadScale: 1.65,
+      nodeScaleMultiplier: 1.4,
+      nodeSpinOffset: 0.6,
+      springTension: 1.4,
+      collapseForce: 0.35,
+      burstImpulse: 0.8,
+      topologyMorph: 0.55,
+    }
+
+    for (let frame = 0; frame < 120; frame += 1) {
+      first.update(runtime)
+      second.update(runtime)
+    }
+
+    expect(first.getState().graph).toBe(firstGraph)
+    expect(Array.from(first.getState().positions)).toEqual(Array.from(second.getState().positions))
+    expect(Array.from(first.getState().scaleVariations)).toEqual(Array.from(second.getState().scaleVariations))
+    expectFinite(first.getState().positions)
+    expectFinite(first.getState().rotations)
+    expectFinite(first.getState().scaleVariations)
+  })
+
   it('rebuilds structural edits but applies motion settings live without discarding state', () => {
     const simulation = configured()
     runFrames(simulation, 20, 1 / 60)

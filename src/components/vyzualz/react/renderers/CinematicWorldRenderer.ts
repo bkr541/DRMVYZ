@@ -557,6 +557,7 @@ export class CinematicWorldRendererHost {
       requestedRig: input.config.cameraRig,
       camera: input.config.camera,
       audio: musicalAudio,
+      modulation,
       transportTimeSec: input.transportTimeSec,
       deltaTimeSec: input.deltaTimeSec,
       isPlaying: musicalAudio.isPlaying,

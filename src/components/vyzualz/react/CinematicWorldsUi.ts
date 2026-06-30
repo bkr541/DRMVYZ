@@ -30,14 +30,37 @@ export const CINEMATIC_TARGET_LABELS: Record<CinematicAudioTarget, string> = {
   portalAperture: 'Portal Aperture', depth: 'World Depth', cameraPunch: 'Camera Punch', cameraTravel: 'Camera Travel', lensing: 'Gravitational Lensing',
   distortion: 'Distortion', refraction: 'Refraction', geometryRotation: 'Geometry Rotation', fractureAmount: 'Fracture Amount', fogDensity: 'Fog Density',
   particleEmission: 'Particle Emission', lightning: 'Lightning', bloom: 'Bloom', chromaticAberration: 'Chromatic Aberration', environmentBrightness: 'Environment Brightness',
-  feedback: 'Feedback', impact: 'Impact', fog: 'Fog (Legacy)', debris: 'Debris (Legacy)', atmosphere: 'Atmosphere (Legacy)', glow: 'Glow (Legacy)',
+  feedback: 'Feedback', impact: 'Impact', networkSpread: 'Network Spread', nodeScale: 'Node Scale', nodeSpin: 'Node Spin', edgeBrightness: 'Edge Brightness', edgeWidth: 'Edge Width', trailLength: 'Trail Length', topologyMorph: 'Topology Morph', collapseForce: 'Collapse Force', burstImpulse: 'Burst Impulse', facetOpacity: 'Facet Opacity', fog: 'Fog (Legacy)', debris: 'Debris (Legacy)', atmosphere: 'Atmosphere (Legacy)', glow: 'Glow (Legacy)',
   cameraMotion: 'Camera Motion (Legacy)', portalPulse: 'Portal Pulse (Legacy)',
 }
 
-export const CINEMATIC_SOURCE_CAPABILITY: Partial<Record<CinematicAudioSource, 'liveBands' | 'rhythmEvents' | 'beatGrid' | 'sections' | 'trackEnergyCurve' | 'stemCurves'>> = {
+export type CinematicSourceCapability = 'liveBands' | 'rhythmEvents' | 'beatGrid' | 'sections' | 'trackEnergyCurve' | 'vocalAnalysis'
+
+export interface CinematicSourceCapabilityFlags {
+  liveBands: boolean
+  rhythmEvents: boolean
+  beatGrid: boolean
+  sections: boolean
+  trackEnergyCurve: boolean
+  stemCurves: boolean
+  lyrics: boolean
+}
+
+export const CINEMATIC_SOURCE_CAPABILITY: Partial<Record<CinematicAudioSource, CinematicSourceCapability>> = {
+  subBass: 'liveBands', lowMid: 'liveBands', highMid: 'liveBands', transientIntensity: 'rhythmEvents', kickStrength: 'rhythmEvents', snareStrength: 'rhythmEvents',
   beat: 'rhythmEvents', kick: 'rhythmEvents', snare: 'rhythmEvents', downbeat: 'beatGrid', barStart: 'beatGrid', beatPhase: 'beatGrid', barPosition: 'beatGrid',
-  phraseProgress: 'sections', sectionProgress: 'sections', buildProgress: 'sections', dropState: 'sections', sectionChange: 'sections', dropEntry: 'sections', sectionEnergy: 'sections',
-  trackEnergy: 'trackEnergyCurve', vocalEnergy: 'stemCurves',
+  phraseProgress: 'beatGrid', sectionProgress: 'sections', buildProgress: 'sections', dropState: 'sections', sectionChange: 'sections', dropEntry: 'sections', sectionEnergy: 'sections',
+  trackEnergy: 'trackEnergyCurve', vocalEnergy: 'vocalAnalysis',
+}
+
+export function isCinematicSourceAvailable(
+  source: CinematicAudioSource,
+  capabilities: CinematicSourceCapabilityFlags,
+): boolean {
+  const capability = CINEMATIC_SOURCE_CAPABILITY[source]
+  if (!capability) return true
+  if (capability === 'vocalAnalysis') return capabilities.stemCurves || capabilities.lyrics
+  return capabilities[capability]
 }
 
 export function getCinematicPresetMood(preset: ReactPreset): 'Ambient' | 'Driving' | 'Peak' {

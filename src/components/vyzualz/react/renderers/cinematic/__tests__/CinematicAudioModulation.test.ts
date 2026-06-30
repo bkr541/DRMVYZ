@@ -4,6 +4,7 @@ import {
   CINEMATIC_AUDIO_SOURCES,
   CINEMATIC_WORLD_MODES,
   createDefaultCinematicAudioRoutes,
+  normalizeCinematicWorldConfig,
   type CinematicAudioRoute,
   type CinematicAudioSource,
   type CinematicAudioTarget,
@@ -107,6 +108,7 @@ function miFrame(options: {
   beatIndex?: number
   beatHit?: boolean
   kickHit?: boolean
+  snareHit?: boolean
   sectionType?: MusicIntelligenceFrame['section']['type']
 } = {}): MusicIntelligenceFrame {
   const frameId = options.frameId ?? 1
@@ -142,7 +144,9 @@ function miFrame(options: {
       downbeatHit: Boolean(options.beatHit && beatIndex % 4 === 0),
       kickHit: options.kickHit ?? false,
       kickStrength: options.kickHit ? 0.9 : 0,
-      transient: options.kickHit ? 0.9 : 0,
+      snareHit: options.snareHit ?? false,
+      snareStrength: options.snareHit ? 0.85 : 0,
+      transient: options.kickHit || options.snareHit ? 0.9 : 0,
     },
     energy: {
       ...DEFAULT_MI_FRAME.energy,
@@ -323,6 +327,23 @@ describe('CinematicAudioFrameNormalizer events and capabilities', () => {
     expect(after.events.beat).toBe(true)
   })
 
+  it('fires drop entry once when the canonical section transition enters drop', () => {
+    const normalizer = new CinematicAudioFrameNormalizer()
+    normalizer.update(normalizerInput(miFrame({ frameId: 1, beatIndex: 8, sectionType: 'verse' })))
+    const entry = normalizer.update(normalizerInput(
+      miFrame({ frameId: 2, beatIndex: 9, sectionType: 'drop' }),
+      { transportTimeSec: 2 / 60, sectionChanged: true },
+    ))
+    const held = normalizer.update(normalizerInput(
+      miFrame({ frameId: 3, beatIndex: 9, sectionType: 'drop' }),
+      { transportTimeSec: 3 / 60 },
+    ))
+
+    expect(entry.events.dropEntry).toBe(true)
+    expect(held.values.dropState).toBe(1)
+    expect(held.events.dropEntry).toBe(false)
+  })
+
   it('resets event state when the track identity changes', () => {
     const normalizer = new CinematicAudioFrameNormalizer()
     normalizer.update(normalizerInput(miFrame({ frameId: 1, trackId: 'a' })))
@@ -463,6 +484,24 @@ describe('cinematic mapping validation and world defaults', () => {
       invalid.push(...issues.map(issue => `${preset.id}:${mode}:${issue.routeId}:${issue.code}`))
     }
     expect(invalid).toEqual([])
+  })
+
+  it('accepts every Reactive Constellation target and restores curated routes during normalization', () => {
+    const targets: CinematicAudioTarget[] = [
+      'networkSpread', 'nodeScale', 'nodeSpin', 'edgeBrightness', 'edgeWidth',
+      'trailLength', 'topologyMorph', 'collapseForce', 'burstImpulse', 'facetOpacity',
+    ]
+    const routes = targets.map((target, index) => route('bass', target, { id: `constellation-${index}` }))
+    expect(validateCinematicMappings(routes, targets)).toEqual([])
+
+    const normalized = normalizeCinematicWorldConfig({
+      worldMode: 'reactiveConstellation',
+      audioMapping: { enabled: true, routes: null },
+    })
+    const defaults = createDefaultCinematicAudioRoutes('reactiveConstellation')
+    expect(normalized.audioMapping.routes.map(item => item.id)).toEqual(defaults.map(item => item.id))
+    expect(normalized.audioMapping.routes.some(item => item.target === 'burstImpulse')).toBe(true)
+    expect(normalized.audioMapping.routes.some(item => item.target === 'cameraPunch')).toBe(true)
   })
 
   it('provides valid supported default mappings for every implemented world', () => {

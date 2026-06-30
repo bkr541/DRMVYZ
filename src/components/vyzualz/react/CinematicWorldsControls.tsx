@@ -35,13 +35,13 @@ import {
   type AnyCinematicWorldControlSchema,
 } from './CinematicWorldControlSchema'
 import {
-  CINEMATIC_SOURCE_CAPABILITY,
   CINEMATIC_SOURCE_LABELS,
   CINEMATIC_TARGET_LABELS,
   CINEMATIC_WORLD_BY_ID,
   CINEMATIC_WORLD_UI,
   getCinematicPresetMood,
   humanizeCinematicKey,
+  isCinematicSourceAvailable,
   nextCinematicVariationSeed,
   randomizeCinematicVariationSeed,
 } from './CinematicWorldsUi'
@@ -494,11 +494,6 @@ export function CinematicWorldsFxControls() {
   )
 }
 
-function isSourceAvailable(source: CinematicAudioSource, capabilities: NonNullable<ReturnType<typeof AudioFeatureBus.getFrame>['capabilities']>): boolean {
-  const capability = CINEMATIC_SOURCE_CAPABILITY[source]
-  return capability ? capabilities[capability] : true
-}
-
 export function CinematicWorldsModulationControls() {
   const active = useActiveCinematic()
   const capabilities = useMusicIntelligenceCapabilities()
@@ -506,8 +501,8 @@ export function CinematicWorldsModulationControls() {
   const { preset, config, uiMode, setConfig } = active
   const save = (next: CinematicWorldConfig) => setConfig(preset.id, next)
   const world = CINEMATIC_WORLD_BY_ID[config.worldMode]
-  const availableSources = CINEMATIC_AUDIO_SOURCES.filter(source => isSourceAvailable(source, capabilities))
-  const unavailableSources = CINEMATIC_AUDIO_SOURCES.filter(source => !isSourceAvailable(source, capabilities))
+  const availableSources = CINEMATIC_AUDIO_SOURCES.filter(source => isCinematicSourceAvailable(source, capabilities))
+  const unavailableSources = CINEMATIC_AUDIO_SOURCES.filter(source => !isCinematicSourceAvailable(source, capabilities))
   const setRoutes = (routes: CinematicAudioRoute[]) => save({ ...config, audioMapping: { ...config.audioMapping, routes } })
   const updateRoute = (index: number, patch: Partial<CinematicAudioRoute>) => setRoutes(config.audioMapping.routes.map((route, routeIndex) => routeIndex === index ? { ...route, ...patch } : route))
   const addRoute = () => {
@@ -537,7 +532,7 @@ export function CinematicWorldsModulationControls() {
           )}
           <div className="rv-cinematic-route-list" aria-label="Audio mappings">
             {config.audioMapping.routes.map((route, index) => {
-              const currentSourceUnavailable = !isSourceAvailable(route.source, capabilities)
+              const currentSourceUnavailable = !isCinematicSourceAvailable(route.source, capabilities)
               return (
                 <fieldset className="rv-cinematic-route" key={route.id}>
                   <legend>Mapping {index + 1}</legend>

@@ -23,6 +23,13 @@ export interface ConstellationSimulationUpdateInput {
   timingDiscontinuity?: boolean
   motionScale?: number
   impact?: number
+  networkSpreadScale?: number
+  nodeScaleMultiplier?: number
+  nodeSpinOffset?: number
+  springTension?: number
+  collapseForce?: number
+  burstImpulse?: number
+  topologyMorph?: number
 }
 
 export interface ConstellationSimulationConfigureResult {
@@ -155,7 +162,7 @@ export class ConstellationSimulation {
     const impact = clamp(finite(input.impact), 0, 2)
     let steps = 0
     while (this.accumulatorSec >= CONSTELLATION_FIXED_TIMESTEP_SEC && steps < CONSTELLATION_MAX_SUBSTEPS) {
-      this.integrateStep(CONSTELLATION_FIXED_TIMESTEP_SEC, motionScale, impact)
+      this.integrateStep(CONSTELLATION_FIXED_TIMESTEP_SEC, motionScale, impact, input)
       this.accumulatorSec -= CONSTELLATION_FIXED_TIMESTEP_SEC
       steps += 1
     }
@@ -307,19 +314,31 @@ export class ConstellationSimulation {
     this.updateStateView()
   }
 
-  private integrateStep(dt: number, motionScale: number, impact: number): void {
+  private integrateStep(
+    dt: number,
+    motionScale: number,
+    impact: number,
+    runtime: ConstellationSimulationUpdateInput,
+  ): void {
     const settings = this.settings
     if (!settings) return
     this.previousPositions.set(this.positions)
     this.forces.fill(0)
 
-    const springCoefficient = (5 + settings.springStrength * 27) * (0.72 + settings.topologyStability * 0.62)
-    const anchorCoefficient = (0.6 + settings.topologyStability * 11) * (0.35 + settings.springStrength * 0.65)
-    const centralCoefficient = settings.centralGravity * 3.2 + settings.collapseAmount * 2.4
+    const springStrength = clamp(finite(runtime.springTension, settings.springStrength), 0, 2)
+    const spreadScale = clamp(finite(runtime.networkSpreadScale, 1), 0.18, 5.4)
+    const topologyMorph = clamp(finite(runtime.topologyMorph), -1, 1)
+    const collapseForce = clamp(finite(runtime.collapseForce, settings.collapseAmount), 0, 1.5)
+    const burstImpulse = clamp(finite(runtime.burstImpulse), 0, 2.5)
+    const nodeSpinOffset = clamp(finite(runtime.nodeSpinOffset), -1.5, 1.5)
+    const nodeScaleMultiplier = clamp(finite(runtime.nodeScaleMultiplier, 1), 0.15, 6.25)
+    const springCoefficient = (5 + springStrength * 27) * (0.72 + settings.topologyStability * 0.62)
+    const anchorCoefficient = (0.6 + settings.topologyStability * 11) * (0.35 + springStrength * 0.65)
+    const centralCoefficient = settings.centralGravity * 3.2 + collapseForce * 2.4
     const driftCoefficient = settings.driftAmount * (0.25 + motionScale * 0.75)
     const turbulenceCoefficient = settings.turbulence * (0.15 + motionScale * 0.85)
     const orbitCoefficient = settings.orbitAmount * (0.3 + motionScale * 0.7)
-    const burstCoefficient = impact * settings.burstStrength * 5.2
+    const burstCoefficient = (impact * settings.burstStrength + burstImpulse) * 5.2
     const time = this.simulationTimeSec
 
     for (const edge of this.graph.edges) {
@@ -330,7 +349,9 @@ export class ConstellationSimulation {
       const dz = this.positions[bOffset + 2] - this.positions[aOffset + 2]
       const distance = Math.hypot(dx, dy, dz)
       if (!Number.isFinite(distance) || distance < 0.00001) continue
-      const stretch = clamp(distance - edge.distance, -0.75, 0.75)
+      const edgeMorph = 1 + topologyMorph * Math.sin((edge.a + 1) * 1.73 + (edge.b + 1) * 0.91) * 0.08
+      const targetDistance = edge.distance * spreadScale * edgeMorph
+      const stretch = clamp(distance - targetDistance, -0.95, 0.95)
       const force = clamp(stretch * springCoefficient, -14, 14) / distance
       const fx = dx * force
       const fy = dy * force
@@ -348,9 +369,11 @@ export class ConstellationSimulation {
       const x = this.positions[offset]
       const y = this.positions[offset + 1]
       const z = this.positions[offset + 2]
-      const ax = this.anchors[offset]
-      const ay = this.anchors[offset + 1]
-      const az = this.anchors[offset + 2]
+      const morphPhase = this.driftPhases[offset] + this.driftPhases[offset + 1] * 0.37
+      const morphAmount = topologyMorph * settings.networkSpread * 0.12
+      const ax = this.anchors[offset] * spreadScale + Math.cos(morphPhase) * morphAmount
+      const ay = this.anchors[offset + 1] * spreadScale + Math.sin(morphPhase * 1.31) * morphAmount * 0.65
+      const az = this.anchors[offset + 2] * spreadScale + Math.sin(morphPhase) * morphAmount
       const radialLength = Math.hypot(x, y, z) || 1
       const phaseX = this.driftPhases[offset]
       const phaseY = this.driftPhases[offset + 1]
@@ -400,8 +423,8 @@ export class ConstellationSimulation {
     const dampingRate = (0.7 + settings.damping * 8.5) * (1 - settings.elasticity * 0.48)
     const damping = Math.exp(-dampingRate * dt)
     const maximumVelocity = 2.2 + settings.elasticity * 2.8 + motionScale * 0.8
-    const maximumDisplacement = 0.55 + settings.networkSpread * (0.45 + settings.elasticity * 0.55)
-    const spinTarget = settings.nodeSpin * (0.35 + motionScale * 0.9)
+    const maximumDisplacement = 0.55 + settings.networkSpread * spreadScale * (0.45 + settings.elasticity * 0.55)
+    const spinTarget = (settings.nodeSpin + nodeSpinOffset) * (0.35 + motionScale * 0.9)
 
     for (let index = 0; index < this.graph.nodes.length; index += 1) {
       const offset = index * 3
@@ -414,9 +437,14 @@ export class ConstellationSimulation {
       this.positions[offset + 1] += this.velocities[offset + 1] * dt
       this.positions[offset + 2] += this.velocities[offset + 2] * dt
 
-      const dx = this.positions[offset] - this.anchors[offset]
-      const dy = this.positions[offset + 1] - this.anchors[offset + 1]
-      const dz = this.positions[offset + 2] - this.anchors[offset + 2]
+      const morphPhase = this.driftPhases[offset] + this.driftPhases[offset + 1] * 0.37
+      const morphAmount = topologyMorph * settings.networkSpread * 0.12
+      const targetAnchorX = this.anchors[offset] * spreadScale + Math.cos(morphPhase) * morphAmount
+      const targetAnchorY = this.anchors[offset + 1] * spreadScale + Math.sin(morphPhase * 1.31) * morphAmount * 0.65
+      const targetAnchorZ = this.anchors[offset + 2] * spreadScale + Math.sin(morphPhase) * morphAmount
+      const dx = this.positions[offset] - targetAnchorX
+      const dy = this.positions[offset + 1] - targetAnchorY
+      const dz = this.positions[offset + 2] - targetAnchorZ
       const displacement = Math.hypot(dx, dy, dz)
       if (!Number.isFinite(displacement)) {
         this.restoreNode(index)
@@ -424,9 +452,9 @@ export class ConstellationSimulation {
       }
       if (displacement > maximumDisplacement && displacement > 0) {
         const scale = maximumDisplacement / displacement
-        this.positions[offset] = this.anchors[offset] + dx * scale
-        this.positions[offset + 1] = this.anchors[offset + 1] + dy * scale
-        this.positions[offset + 2] = this.anchors[offset + 2] + dz * scale
+        this.positions[offset] = targetAnchorX + dx * scale
+        this.positions[offset + 1] = targetAnchorY + dy * scale
+        this.positions[offset + 2] = targetAnchorZ + dz * scale
         this.velocities[offset] *= 0.35
         this.velocities[offset + 1] *= 0.35
         this.velocities[offset + 2] *= 0.35
@@ -445,8 +473,8 @@ export class ConstellationSimulation {
       this.rotations[offset + 2] = finite(this.rotations[offset + 2] + this.angularVelocities[offset + 2] * dt, this.initialRotations[offset + 2])
 
       const speed = Math.hypot(this.velocities[offset], this.velocities[offset + 1], this.velocities[offset + 2])
-      const targetScale = this.baseScaleVariations[index] * (
-        1 + Math.min(0.22, speed * 0.045 * settings.elasticity) + impact * settings.burstStrength * 0.018
+      const targetScale = this.baseScaleVariations[index] * nodeScaleMultiplier * (
+        1 + Math.min(0.22, speed * 0.045 * settings.elasticity) + (impact * settings.burstStrength + burstImpulse) * 0.018
       )
       const scaleResponse = 1 - Math.exp(-dt * 8)
       this.scaleVariations[index] = finite(

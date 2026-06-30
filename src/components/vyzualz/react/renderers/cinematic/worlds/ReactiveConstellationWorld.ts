@@ -41,6 +41,7 @@ import {
   type ConstellationQualityBudget,
 } from './reactiveConstellation/ConstellationQuality'
 import { ConstellationSimulation } from './reactiveConstellation/ConstellationSimulation'
+import { resolveReactiveConstellationComposition } from './reactiveConstellation/ReactiveConstellationChoreography'
 import {
   REACTIVE_CONSTELLATION_BEAM_FRAGMENT_SOURCE,
   REACTIVE_CONSTELLATION_BEAM_VERTEX_SOURCE,
@@ -190,7 +191,18 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
   private heldGeometryRotation = 0
   private heldBrightness = 0
   private heldDepthPulse = 0
-  private heldImpact = 0
+  private heldNetworkSpread = 1
+  private heldNodeScale = 0.12
+  private heldNodeSpin = 0
+  private heldEdgeBrightness = 1
+  private heldEdgeWidth = 2
+  private heldTrailLength = 0
+  private heldTopologyMorph = 0
+  private heldCollapseForce = 0
+  private heldBurstImpulse = 0
+  private heldFacetOpacity = 1
+  private heldSpringStrength = 0.7
+  private heldMotionScale = 1
   private diagnostic: string | null = null
   private disposed = false
 
@@ -247,10 +259,31 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
       this.rebuildBeamLayout(budget, frame.config.qualityTier)
     }
 
-    if ((this.lastTrailSamples === 0) !== (settings.trailSamples === 0)) this.trails.reset()
-    this.lastTrailSamples = settings.trailSamples
-
     const isPlaying = frame.isPlaying !== false
+    const composition = resolveReactiveConstellationComposition({
+      settings,
+      audio: frame.musicalAudio,
+      modulation: frame.modulation,
+      motionScale: Math.max(0, frame.params.motion),
+    })
+    const next = composition.values
+    if (isPlaying || !this.hasRendered) {
+      this.heldNetworkSpread = next.networkSpread
+      this.heldNodeScale = next.nodeScale
+      this.heldNodeSpin = next.nodeSpin
+      this.heldEdgeBrightness = next.edgeBrightness
+      this.heldEdgeWidth = next.edgeWidth
+      this.heldTrailLength = next.trailLength
+      this.heldTopologyMorph = next.topologyMorph
+      this.heldCollapseForce = next.collapseForce
+      this.heldBurstImpulse = next.burstImpulse
+      this.heldFacetOpacity = next.facetOpacity
+      this.heldSpringStrength = next.springStrength
+      this.heldMotionScale = next.motionScale
+    }
+    if ((this.lastTrailSamples === 0) !== (this.heldTrailLength === 0)) this.trails.reset()
+    this.lastTrailSamples = this.heldTrailLength
+
     if (this.pendingReset) {
       if (isPlaying || !this.hasRendered) {
         this.simulation.resetToAnchors()
@@ -280,20 +313,25 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     const nextGeometryRotation = cinematicModulationValue(frame.modulation, 'geometryRotation')
     const nextBrightness = cinematicModulationValue(frame.modulation, 'environmentBrightness')
     const nextDepthPulse = cinematicModulationValue(frame.modulation, 'depth')
-    const nextImpact = Math.max(cinematicModulationValue(frame.modulation, 'impact'), frame.beat.hit ? 1 : 0)
     if (isPlaying || !this.hasRendered) {
       this.heldGeometryRotation = nextGeometryRotation
       this.heldBrightness = nextBrightness
       this.heldDepthPulse = nextDepthPulse
-      this.heldImpact = nextImpact
     }
 
     this.simulation.update({
       deltaTimeSec: frame.deltaTimeSec,
       isPlaying,
       timingDiscontinuity: frame.timingDiscontinuity,
-      motionScale: Math.max(0, frame.params.motion),
-      impact: this.heldImpact,
+      motionScale: this.heldMotionScale,
+      impact: 0,
+      networkSpreadScale: this.heldNetworkSpread / Math.max(0.001, settings.networkSpread),
+      nodeScaleMultiplier: this.heldNodeScale / Math.max(0.001, settings.nodeScale),
+      nodeSpinOffset: this.heldNodeSpin - settings.nodeSpin,
+      springTension: this.heldSpringStrength,
+      collapseForce: this.heldCollapseForce,
+      burstImpulse: this.heldBurstImpulse,
+      topologyMorph: this.heldTopologyMorph,
     })
     const simulationState = this.simulation.getState()
     if (simulationState.structureRevision !== this.uploadedStructureRevision) this.rebuildInstanceLayouts()
@@ -305,7 +343,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
 
     this.uploadSimulationInstances()
     this.updateCurrentEdgeEndpoints()
-    this.buildBeamInstances(settings, budget)
+    this.buildBeamInstances(settings, budget, this.heldTrailLength)
     this.uploadBeamInstances()
     this.buildCurtainInstances(frame, settings, budget)
     this.uploadCurtainInstances()
@@ -335,7 +373,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     }
     const palette = resolveConstellationPalette(frame.preset.palette)
     const fogAmount = Math.min(1, Math.max(0, frame.config.environment.fog))
-    const motion = Math.max(0, frame.params.motion)
+    const motion = this.heldMotionScale
     const materialGlow = Math.max(frame.params.glow, frame.config.material.glow)
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, target.framebuffer)
@@ -361,7 +399,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     this.beamProgram.setFloat('uColorVariation', settings.colorVariation)
     this.beamProgram.setFloat('uFogAmount', fogAmount)
     this.beamProgram.setFloat('uDepthFade', settings.depthFade)
-    this.beamProgram.setFloat('uBeat', this.heldImpact)
+    this.beamProgram.setFloat('uBeat', Math.min(1, this.heldBurstImpulse / 2.5))
     this.beamProgram.setFloat('uBrightness', this.heldBrightness)
 
     // Additive background and network beams are drawn before the ordered face pass.
@@ -373,7 +411,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     gl.depthMask(false)
 
     if (this.curtainInstanceCount > 0 && settings.backgroundCurtains > 0) {
-      this.beamProgram.setFloat('uBeamWidthPx', Math.max(0.8, settings.beamWidth * 0.72))
+      this.beamProgram.setFloat('uBeamWidthPx', Math.max(0.8, this.heldEdgeWidth * 0.72))
       this.beamProgram.setFloat('uEdgeOpacity', settings.backgroundCurtains * (0.35 + frame.config.environment.atmosphere * 0.35))
       this.beamProgram.setFloat('uPassWidthScale', 2.4 + budget.glowPassComplexity * 0.8)
       this.beamProgram.setFloat('uPassBrightness', 0.42 + materialGlow * 0.3)
@@ -383,7 +421,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     }
 
     if (this.beamInstanceCount > 0 && settings.edgeOpacity > 0) {
-      this.beamProgram.setFloat('uBeamWidthPx', settings.beamWidth)
+      this.beamProgram.setFloat('uBeamWidthPx', this.heldEdgeWidth)
       this.beamProgram.setFloat('uEdgeOpacity', settings.edgeOpacity)
       gl.bindVertexArray(this.beamResource.vao)
       if (settings.beamGlow > 0 && this.beamGlowInstanceCount > 0) {
@@ -393,7 +431,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
         gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.beamGlowInstanceCount)
       }
       this.beamProgram.setFloat('uPassWidthScale', 1)
-      this.beamProgram.setFloat('uPassBrightness', settings.beamCoreBrightness)
+      this.beamProgram.setFloat('uPassBrightness', this.heldEdgeBrightness)
       this.beamProgram.setFloat('uPassSoftness', 0.34)
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.beamInstanceCount)
     }
@@ -402,20 +440,20 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     this.nodeProgram.setMat4('uViewProjection', viewProjection)
     this.nodeProgram.setVec3('uCameraPosition', camera.position.x, camera.position.y, camera.position.z)
     this.nodeProgram.setFloat('uTime', simulationState.simulationTimeSec)
-    this.nodeProgram.setFloat('uNodeScale', settings.nodeScale)
-    this.nodeProgram.setFloat('uNodeSpin', settings.nodeSpin)
+    this.nodeProgram.setFloat('uNodeScale', this.heldNodeScale)
+    this.nodeProgram.setFloat('uNodeSpin', this.heldNodeSpin)
     this.nodeProgram.setFloat('uMotion', motion)
     this.nodeProgram.setFloat('uCameraOrbit', settings.cameraOrbit)
     this.nodeProgram.setFloat('uGeometryRotation', this.heldGeometryRotation)
     this.nodeProgram.setFloat('uDepthPulse', this.heldDepthPulse)
-    this.nodeProgram.setFloat('uBeat', this.heldImpact)
+    this.nodeProgram.setFloat('uBeat', Math.min(1, this.heldBurstImpulse / 2.5))
     this.nodeProgram.setVec3('uPrimary', palette.primary.r, palette.primary.g, palette.primary.b)
     this.nodeProgram.setVec3('uSecondary', palette.secondary.r, palette.secondary.g, palette.secondary.b)
     this.nodeProgram.setVec3('uAccent', palette.accent.r, palette.accent.g, palette.accent.b)
     this.nodeProgram.setVec3('uFogColor', palette.fog.r, palette.fog.g, palette.fog.b)
     this.nodeProgram.setFloat('uIntensity', Math.max(0, frame.params.intensity))
     this.nodeProgram.setFloat('uGlow', materialGlow)
-    this.nodeProgram.setFloat('uFaceOpacity', settings.faceOpacity)
+    this.nodeProgram.setFloat('uFaceOpacity', this.heldFacetOpacity)
     this.nodeProgram.setFloat('uFacetContrast', settings.facetContrast)
     this.nodeProgram.setFloat('uInternalGlow', settings.internalGlow)
     this.nodeProgram.setFloat('uRimIntensity', settings.rimIntensity)
@@ -456,7 +494,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     gl.disable(gl.DEPTH_TEST)
     gl.depthMask(true)
 
-    if (settings.trailSamples > 0 && !frame.timingDiscontinuity) {
+    if (this.heldTrailLength > 0 && !frame.timingDiscontinuity) {
       this.trails.capture({
         endpoints: this.currentEdgeEndpoints,
         deltaTimeSec: frame.deltaTimeSec,
@@ -716,7 +754,11 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     }
   }
 
-  private buildBeamInstances(settings: ReactiveConstellationSettings, budget: ConstellationQualityBudget): void {
+  private buildBeamInstances(
+    settings: ReactiveConstellationSettings,
+    budget: ConstellationQualityBudget,
+    trailLength: number,
+  ): void {
     let instanceCount = 0
     const edgeCount = this.beamEdgeIndices.length
     for (let edge = 0; edge < edgeCount; edge += 1) {
@@ -737,7 +779,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     }
     let glowInstanceCount = instanceCount
 
-    const requestedHistory = clampConstellationTrailSamples(settings.trailSamples, budget)
+    const requestedHistory = clampConstellationTrailSamples(trailLength, budget)
     const historyCount = Math.min(
       this.trails.getSampleCount(),
       requestedHistory,
@@ -804,7 +846,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     this.curtainInstanceCount = writeConstellationCurtainInstances(this.curtainInstanceValues, {
       seed: frame.config.seed,
       count: requestedCount,
-      spread: settings.networkSpread,
+      spread: this.heldNetworkSpread,
       depthSpread: settings.depthSpread,
       timeSec: this.simulation.getState().simulationTimeSec,
       intensity: settings.backgroundCurtains,
@@ -847,7 +889,7 @@ export const reactiveConstellationWorldDefinition: CinematicWebGLWorldDefinition
   capabilities: {
     backend: 'webgl2',
     cameraRigs: ['locked', 'dolly', 'orbit', 'handheld', 'autoDirector'],
-    modulationTargets: ['depth', 'geometryRotation', 'environmentBrightness', 'bloom', 'impact'],
+    modulationTargets: ['networkSpread', 'nodeScale', 'nodeSpin', 'edgeBrightness', 'edgeWidth', 'trailLength', 'topologyMorph', 'collapseForce', 'burstImpulse', 'facetOpacity', 'depth', 'geometryRotation', 'environmentBrightness', 'cameraPunch', 'bloom', 'impact'],
     supportsGeometryPasses: true,
     supportsFullscreenPasses: false,
     supportsTextureInputs: false,

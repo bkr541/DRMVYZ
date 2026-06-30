@@ -4,8 +4,10 @@ import type {
   CinematicCameraRig,
 } from '../../CinematicWorldConfig'
 import type { ReactSectionType } from '../../ReactTypes'
-import type {
-  CinematicNormalizedAudioFrame,
+import {
+  cinematicModulationValue,
+  type CinematicModulationSnapshot,
+  type CinematicNormalizedAudioFrame,
 } from './CinematicAudioModulation'
 import type {
   CinematicCameraPose,
@@ -53,6 +55,7 @@ export interface CinematicCameraUpdateInput {
   requestedRig: CinematicCameraRig
   camera: CinematicCameraConfig
   audio: CinematicNormalizedAudioFrame
+  modulation?: CinematicModulationSnapshot
   transportTimeSec: number
   deltaTimeSec: number
   isPlaying: boolean
@@ -447,7 +450,12 @@ export class CinematicCameraSystem {
     const time = Math.max(0, input.transportTimeSec)
     const director = input.camera.autoDirector
     const dropScale = section.type === 'drop' ? director.dropImpact : 1
-    const beatImpulse = Math.exp(-this.impactAgeSec * 8) * dropScale
+    const routedPunch = Math.max(
+      0,
+      cinematicModulationValue(input.modulation, 'cameraPunch'),
+      cinematicModulationValue(input.modulation, 'impact'),
+    )
+    const beatImpulse = Math.max(Math.exp(-this.impactAgeSec * 8), routedPunch) * dropScale
     const build = input.audio.values.buildProgress * director.buildIntensity
 
     switch (resolvedRig.rig) {

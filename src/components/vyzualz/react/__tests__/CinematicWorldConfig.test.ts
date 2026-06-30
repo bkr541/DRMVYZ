@@ -5,6 +5,7 @@ import {
   createDefaultCinematicWorldConfig,
   normalizeCinematicWorldConfig,
 } from '../CinematicWorldConfig'
+import { isCinematicSourceAvailable } from '../CinematicWorldsUi'
 
 
 describe('CinematicWorldConfig', () => {
@@ -100,6 +101,24 @@ describe('CinematicWorldConfig', () => {
     expect(normalized.compatibility.extensions.futureTopLevel).toEqual({ enabled: true })
     expect(normalized.compatibility.extensions['environment.futureWeather']).toBe('ionized')
     expect(normalized.compatibility.extensions['audioMapping.routes.0.futureEnvelope']).toBe('curve')
+  })
+
+  it('matches modulation UI availability to live, grid, section, and vocal-analysis capabilities', () => {
+    const capabilities = {
+      liveBands: false,
+      rhythmEvents: false,
+      beatGrid: false,
+      sections: false,
+      trackEnergyCurve: false,
+      stemCurves: false,
+      lyrics: true,
+    }
+
+    expect(isCinematicSourceAvailable('bass', capabilities)).toBe(true)
+    expect(isCinematicSourceAvailable('subBass', capabilities)).toBe(false)
+    expect(isCinematicSourceAvailable('barStart', capabilities)).toBe(false)
+    expect(isCinematicSourceAvailable('dropEntry', capabilities)).toBe(false)
+    expect(isCinematicSourceAvailable('vocalEnergy', capabilities)).toBe(true)
   })
 
   it('produces repeatable seeded random sequences', () => {

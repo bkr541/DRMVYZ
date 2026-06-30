@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   CINEMATIC_AUDIO_EVENT_SOURCES,
   CINEMATIC_AUDIO_SOURCES,
+  CINEMATIC_AUDIO_TARGETS,
   createDefaultCinematicCameraConfig,
 } from '../../../CinematicWorldConfig'
 import type { ReactSectionType } from '../../../ReactTypes'
@@ -12,7 +13,7 @@ import {
   resolveCinematicDirectionSection,
   resolveSupportedCameraRig,
 } from '../CinematicCameraDirector'
-import type { CinematicNormalizedAudioFrame } from '../CinematicAudioModulation'
+import type { CinematicModulationSnapshot, CinematicNormalizedAudioFrame } from '../CinematicAudioModulation'
 import { defineCinematicWorldDirection } from '../CinematicWorldDirection'
 
 function audioFrame(overrides: {
@@ -114,6 +115,7 @@ function updateCamera(
   camera = createDefaultCinematicCameraConfig(),
   worldId = 'test-world',
   deltaTimeSec = 1 / 60,
+  modulation?: CinematicModulationSnapshot,
 ) {
   return system.update({
     worldId,
@@ -121,6 +123,7 @@ function updateCamera(
     requestedRig,
     camera,
     audio,
+    modulation,
     transportTimeSec: audio.transportTimeSec,
     deltaTimeSec,
     isPlaying: audio.isPlaying,
@@ -209,6 +212,28 @@ describe('CinematicCameraDirector', () => {
     const directed = updateCamera(new CinematicCameraSystem(), audio, 'autoDirector', camera)
     const locked = updateCamera(new CinematicCameraSystem(), audio, 'locked', camera)
     expect(directed.pose).toEqual(locked.pose)
+  })
+
+  it('consumes routed camera punch in the shared camera director', () => {
+    const values = Object.fromEntries(CINEMATIC_AUDIO_TARGETS.map(target => [target, 0])) as CinematicModulationSnapshot['values']
+    values.cameraPunch = 1
+    const routed = updateCamera(
+      new CinematicCameraSystem(),
+      audioFrame({ time: 20, section: 'verse', sectionSource: 'analysis' }),
+      'locked',
+      undefined,
+      'test-world',
+      1 / 60,
+      { values, issues: [], planKey: 'camera-punch' },
+    )
+    const baseline = updateCamera(
+      new CinematicCameraSystem(),
+      audioFrame({ time: 20, section: 'verse', sectionSource: 'analysis' }),
+      'locked',
+    )
+
+    expect(routed.pose.fieldOfView).toBeGreaterThan(baseline.pose.fieldOfView)
+    expect(routed.pose.position.z).toBeLessThan(baseline.pose.position.z)
   })
 
   it('uses transition frequency to safely shorten or lengthen Auto Director shot cadence', () => {
