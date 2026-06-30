@@ -10,6 +10,14 @@ import {
   type ProviderWord,
   type TranscriptionUnitPlan,
 } from '../_shared/lyricTranscriptionCore.ts'
+import {
+  buildWavTranscriptionChunk,
+  isRiffWave,
+  planWavTranscriptionChunks,
+  WavChunkingError,
+  type WavChunkDescriptor,
+  type WavChunkPlan,
+} from '../_shared/wavAudioChunking.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,6 +28,9 @@ const corsHeaders = {
 const AUDIO_BUCKET = 'audio-tracks'
 const MAX_STORED_AUDIO_BYTES = 100 * 1024 * 1024
 const DEFAULT_OPENAI_MAX_BYTES = 25 * 1024 * 1024
+const DEFAULT_OPENAI_CHUNK_SAFETY_BYTES = 256 * 1024
+const DEFAULT_OPENAI_CHUNK_OVERLAP_MS = 4_000
+const DEFAULT_OPENAI_CHUNK_CONCURRENCY = 2
 const DEFAULT_PROVIDER_TIMEOUT_MS = 180_000
 const RAW_PROVIDER_METADATA_LIMIT = 120_000
 const ACTIVE_STATUSES = ['queued', 'processing'] as const
@@ -109,6 +120,10 @@ function finiteNumber(value: unknown): number | null {
 function positiveEnvNumber(name: string, fallback: number): number {
   const parsed = Number(Deno.env.get(name))
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
+function positiveEnvInteger(name: string, fallback: number, max: number): number {
+  return Math.max(1, Math.min(max, Math.floor(positiveEnvNumber(name, fallback))))
 }
 
 function safeOptions(value: unknown): Record<string, unknown> {
@@ -337,7 +352,7 @@ function providerHttpError(response: Response): TranscriptionError {
   return new TranscriptionError('provider_rejection', 'The transcription provider rejected this audio file.', 422)
 }
 
-function reliableTranscriptDurationMs(transcript: ProviderTranscript, track: AudioTrackRow): number {
+function reliableTranscriptDurationMs(transcript: ProviderTranscript, fallbackDurationMs: number): number {
   const providerDurationMs = transcript.duration && transcript.duration > 0
     ? Math.round(transcript.duration * 1000)
     : 0
@@ -346,34 +361,48 @@ function reliableTranscriptDurationMs(transcript: ProviderTranscript, track: Aud
     ...(transcript.words ?? []).map(word => Math.round(word.end * 1000)),
     ...(transcript.segments ?? []).map(segment => Math.round(segment.end * 1000)),
   )
-  const storedDurationMs = track.duration_sec && track.duration_sec > 0
-    ? Math.round(track.duration_sec * 1000)
-    : 0
-  const durationMs = Math.max(providerDurationMs, timedEndMs, storedDurationMs)
+  const durationMs = Math.max(providerDurationMs, timedEndMs, fallbackDurationMs)
   if (durationMs <= 0) {
     throw new TranscriptionError('normalization_failure', 'The transcription provider did not return a reliable audio duration.', 422)
   }
   return durationMs
 }
 
-async function runOpenAIProvider(
-  blob: Blob,
-  track: AudioTrackRow,
-  options: Record<string, unknown>,
-): Promise<ProviderRunResult> {
-  const apiKey = requiredEnv('OPENAI_API_KEY')
-  const maxBytes = positiveEnvNumber('OPENAI_MAX_AUDIO_BYTES', DEFAULT_OPENAI_MAX_BYTES)
-  if (blob.size > maxBytes) {
-    throw new TranscriptionError(
-      'unsupported_audio',
-      'This stored audio file exceeds the direct provider limit. Configure the long-audio backend or upload a smaller compatible file.',
-      413,
-    )
-  }
+function openAiChunkFileName(fileName: string, index: number): string {
+  const extensionIndex = fileName.lastIndexOf('.')
+  const base = extensionIndex > 0 ? fileName.slice(0, extensionIndex) : fileName
+  return `${base}.transcription-${String(index + 1).padStart(2, '0')}.wav`
+}
 
-  const model = Deno.env.get('OPENAI_TRANSCRIPTION_MODEL')?.trim() || 'whisper-1'
+async function mapWithConcurrency<TInput, TOutput>(
+  items: readonly TInput[],
+  concurrency: number,
+  worker: (item: TInput, index: number) => Promise<TOutput>,
+): Promise<TOutput[]> {
+  const results = new Array<TOutput>(items.length)
+  let cursor = 0
+  const runners = Array.from({ length: Math.min(Math.max(1, concurrency), items.length) }, async () => {
+    while (true) {
+      const index = cursor
+      cursor += 1
+      if (index >= items.length) return
+      results[index] = await worker(items[index], index)
+    }
+  })
+  await Promise.all(runners)
+  return results
+}
+
+async function requestOpenAITranscript(
+  apiKey: string,
+  model: string,
+  blob: Blob,
+  fileName: string,
+  mimeType: string,
+  options: Record<string, unknown>,
+): Promise<unknown> {
   const form = new FormData()
-  form.append('file', new File([blob], track.file_name, { type: track.mime_type || blob.type || 'application/octet-stream' }))
+  form.append('file', new File([blob], fileName, { type: mimeType || blob.type || 'application/octet-stream' }))
   form.append('model', model)
   form.append('response_format', 'verbose_json')
   form.append('timestamp_granularities[]', 'segment')
@@ -386,12 +415,110 @@ async function runOpenAIProvider(
     body: form,
   })
   if (!response.ok) throw providerHttpError(response)
-  const payload = await response.json()
-  const transcript = providerTranscript(payload)
-  const durationMs = reliableTranscriptDurationMs(transcript, track)
-  const unit = planTranscriptionUnits(durationMs, { forceChunking: false })[0]
-    ?? { index: 0, startMs: 0, endMs: durationMs, overlapBeforeMs: 0, overlapAfterMs: 0 }
-  return { transcripts: [{ unit, transcript }], rawPayload: payload, model }
+  return await response.json()
+}
+
+function wavChunkingFailure(error: unknown): TranscriptionError {
+  const detail = error instanceof WavChunkingError ? ` ${error.message}` : ''
+  return new TranscriptionError(
+    'unsupported_audio',
+    `This audio file exceeds the direct provider limit and could not be split safely.${detail} Upload a smaller WAV, use a compressed audio format, or configure the long-audio backend.`,
+    413,
+  )
+}
+
+function wavChunkMetadata(plan: WavChunkPlan, descriptor: WavChunkDescriptor, transcript: ProviderTranscript) {
+  return {
+    index: descriptor.index,
+    startMs: descriptor.unit.startMs,
+    endMs: descriptor.unit.endMs,
+    overlapBeforeMs: descriptor.unit.overlapBeforeMs,
+    overlapAfterMs: descriptor.unit.overlapAfterMs,
+    fileBytes: descriptor.fileBytes,
+    wordCount: transcript.words?.length ?? 0,
+    segmentCount: transcript.segments?.length ?? 0,
+    language: transcript.language ?? null,
+  }
+}
+
+async function runOpenAIProvider(
+  blob: Blob,
+  track: AudioTrackRow,
+  options: Record<string, unknown>,
+): Promise<ProviderRunResult> {
+  const apiKey = requiredEnv('OPENAI_API_KEY')
+  const maxBytes = positiveEnvNumber('OPENAI_MAX_AUDIO_BYTES', DEFAULT_OPENAI_MAX_BYTES)
+  const model = Deno.env.get('OPENAI_TRANSCRIPTION_MODEL')?.trim() || 'whisper-1'
+
+  if (blob.size <= maxBytes) {
+    const payload = await requestOpenAITranscript(
+      apiKey,
+      model,
+      blob,
+      track.file_name,
+      track.mime_type || blob.type || 'application/octet-stream',
+      options,
+    )
+    const transcript = providerTranscript(payload)
+    const storedDurationMs = track.duration_sec && track.duration_sec > 0
+      ? Math.round(track.duration_sec * 1000)
+      : 0
+    const durationMs = reliableTranscriptDurationMs(transcript, storedDurationMs)
+    const unit = planTranscriptionUnits(durationMs, { forceChunking: false })[0]
+      ?? { index: 0, startMs: 0, endMs: durationMs, overlapBeforeMs: 0, overlapAfterMs: 0 }
+    return { transcripts: [{ unit, transcript }], rawPayload: payload, model }
+  }
+
+  const sourceBytes = new Uint8Array(await blob.arrayBuffer())
+  if (!isRiffWave(sourceBytes)) throw wavChunkingFailure(null)
+
+  const safetyBytes = Math.min(
+    positiveEnvNumber('OPENAI_CHUNK_SAFETY_BYTES', DEFAULT_OPENAI_CHUNK_SAFETY_BYTES),
+    Math.max(1, Math.floor(maxBytes / 8)),
+  )
+  const chunkLimitBytes = Math.floor(maxBytes - safetyBytes)
+  const overlapMs = positiveEnvNumber('OPENAI_TRANSCRIPTION_OVERLAP_MS', DEFAULT_OPENAI_CHUNK_OVERLAP_MS)
+  let plan: WavChunkPlan
+  try {
+    plan = planWavTranscriptionChunks(sourceBytes, { maxFileBytes: chunkLimitBytes, overlapMs })
+  } catch (error) {
+    throw wavChunkingFailure(error)
+  }
+
+  const concurrency = positiveEnvInteger(
+    'OPENAI_TRANSCRIPTION_CONCURRENCY',
+    DEFAULT_OPENAI_CHUNK_CONCURRENCY,
+    4,
+  )
+  const completed = await mapWithConcurrency(plan.chunks, concurrency, async descriptor => {
+    const chunkBytes = buildWavTranscriptionChunk(sourceBytes, plan, descriptor)
+    const chunkBlob = new Blob([chunkBytes], { type: 'audio/wav' })
+    const payload = await requestOpenAITranscript(
+      apiKey,
+      model,
+      chunkBlob,
+      openAiChunkFileName(track.file_name, descriptor.index),
+      'audio/wav',
+      options,
+    )
+    const transcript = providerTranscript(payload)
+    return { unit: descriptor.unit, transcript, metadata: wavChunkMetadata(plan, descriptor, transcript) }
+  })
+
+  return {
+    transcripts: completed.map(({ unit, transcript }) => ({ unit, transcript })),
+    rawPayload: {
+      chunkedWav: true,
+      sourceBytes: blob.size,
+      providerMaxBytes: maxBytes,
+      chunkLimitBytes,
+      sampleRate: plan.sampleRate,
+      channelCount: plan.channelCount,
+      bitsPerSample: plan.bitsPerSample,
+      units: completed.map(({ metadata }) => metadata),
+    },
+    model,
+  }
 }
 
 async function runCustomProvider(

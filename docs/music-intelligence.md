@@ -187,3 +187,5 @@ These are not implemented in the browser. Use the `StemAnalysisBackend` interfac
 | **torch** | Custom ML models for mood, genre, structure |
 
 Lyric transcription is routed through `supabase/functions/lyric-transcription`. Configure provider credentials only as Supabase server-side secrets, using `supabase/functions/.env.example` as the non-secret template. Never expose transcription credentials through `VITE_*` variables or call a provider directly from React.
+
+The direct OpenAI route keeps compatible files under the provider byte limit as one request. Oversized uncompressed PCM or IEEE-float WAV files are automatically split into valid overlapping RIFF/WAVE chunks, transcribed with bounded concurrency, and reconciled back onto the original track timeline. Oversized compressed containers still require a smaller source file or the optional long-audio backend because they cannot be cut safely without a codec-aware transcoder.

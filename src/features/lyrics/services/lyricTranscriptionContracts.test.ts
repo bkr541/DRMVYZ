@@ -87,9 +87,12 @@ describe('secure lyric transcription contracts', () => {
     expect(sql).toContain('lyric_document_id = v_document_id')
   })
 
-  it('uses one provider unit for under-five-minute songs and only plans long chunks for the custom backend', () => {
+  it('keeps normal files single-request while transparently chunking oversized PCM WAV files', () => {
     expect(edgeFunctionSource).toContain('const forceChunking = durationMs >= FIVE_MINUTES_MS && durationMs > maxUnitMs')
     expect(edgeFunctionSource).toContain('planTranscriptionUnits(durationMs, { forceChunking: false })')
+    expect(edgeFunctionSource).toContain('planWavTranscriptionChunks(sourceBytes')
+    expect(edgeFunctionSource).toContain('buildWavTranscriptionChunk(sourceBytes, plan, descriptor)')
+    expect(edgeFunctionSource).toContain("positiveEnvInteger(\n    'OPENAI_TRANSCRIPTION_CONCURRENCY'")
     expect(edgeFunctionSource).toContain('reconcileTranscriptUnits(normalizedUnits)')
   })
 })
