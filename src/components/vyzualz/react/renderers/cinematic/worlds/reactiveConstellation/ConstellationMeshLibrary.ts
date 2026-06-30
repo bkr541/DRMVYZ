@@ -1,11 +1,14 @@
-import { normalize3, subtract3, type ConstellationVec3 } from './ConstellationMath'
+import { length3, normalize3, subtract3, type ConstellationVec3 } from './ConstellationMath'
 import type { ConstellationMeshStyle } from './ConstellationGraphBuilder'
 
 export interface ConstellationMeshData {
   positions: Float32Array
   normals: Float32Array
   barycentrics: Float32Array
+  /** Sequential indices retained for validation and future indexed batching. */
+  indices: Uint16Array
   vertexCount: number
+  boundsRadius: number
 }
 
 type Face = readonly [number, number, number]
@@ -18,28 +21,47 @@ function cross(a: ConstellationVec3, b: ConstellationVec3): ConstellationVec3 {
   }
 }
 
+function finiteVertex(vertex: ConstellationVec3 | undefined): vertex is ConstellationVec3 {
+  return Boolean(vertex)
+    && Number.isFinite(vertex?.x)
+    && Number.isFinite(vertex?.y)
+    && Number.isFinite(vertex?.z)
+}
+
 function flatMesh(vertices: readonly ConstellationVec3[], faces: readonly Face[]): ConstellationMeshData {
   const positions: number[] = []
   const normals: number[] = []
   const barycentrics: number[] = []
   const bary = [[1, 0, 0], [0, 1, 0], [0, 0, 1]] as const
+  let boundsRadius = 0
+
   for (const face of faces) {
     const a = vertices[face[0]]
     const b = vertices[face[1]]
     const c = vertices[face[2]]
-    const normal = normalize3(cross(subtract3(b, a), subtract3(c, a)))
+    if (!finiteVertex(a) || !finiteVertex(b) || !finiteVertex(c)) continue
+    const crossValue = cross(subtract3(b, a), subtract3(c, a))
+    if (length3(crossValue) <= 1e-6) continue
+    const normal = normalize3(crossValue)
     for (let corner = 0; corner < 3; corner += 1) {
       const vertex = vertices[face[corner]]
       positions.push(vertex.x, vertex.y, vertex.z)
       normals.push(normal.x, normal.y, normal.z)
       barycentrics.push(...bary[corner])
+      boundsRadius = Math.max(boundsRadius, length3(vertex))
     }
   }
+
+  const vertexCount = positions.length / 3
+  const indices = new Uint16Array(vertexCount)
+  for (let index = 0; index < vertexCount; index += 1) indices[index] = index
   return {
     positions: new Float32Array(positions),
     normals: new Float32Array(normals),
     barycentrics: new Float32Array(barycentrics),
-    vertexCount: positions.length / 3,
+    indices,
+    vertexCount,
+    boundsRadius,
   }
 }
 
@@ -112,4 +134,12 @@ export function getConstellationMesh(style: ConstellationMeshStyle): Constellati
 
 export function listConstellationMeshStyles(): readonly ConstellationMeshStyle[] {
   return Object.keys(LIBRARY) as ConstellationMeshStyle[]
+}
+
+export function isConstellationMeshValid(mesh: ConstellationMeshData): boolean {
+  if (mesh.vertexCount < 3 || mesh.vertexCount % 3 !== 0 || !Number.isFinite(mesh.boundsRadius) || mesh.boundsRadius <= 0) return false
+  if (mesh.positions.length !== mesh.vertexCount * 3 || mesh.normals.length !== mesh.positions.length) return false
+  if (mesh.barycentrics.length !== mesh.positions.length || mesh.indices.length !== mesh.vertexCount) return false
+  if (!Array.from(mesh.positions).every(Number.isFinite) || !Array.from(mesh.normals).every(Number.isFinite)) return false
+  return Array.from(mesh.indices).every((index, position) => index === position && index < mesh.vertexCount)
 }

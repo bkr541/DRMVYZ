@@ -97,4 +97,20 @@ describe('ReactiveConstellationWorld GPU lifecycle', () => {
     expect(restoredHarness.deletedBuffers).toHaveLength(restoredHarness.createdBuffers.length)
     expect(restoredHarness.deletedVaos).toHaveLength(restoredHarness.createdVaos.length)
   })
+
+  it('does not leak WebGL resources across repeated preset or world switches', () => {
+    const harness = createHarness()
+    for (let index = 0; index < 6; index += 1) {
+      const world = new ReactiveConstellationWorld()
+      world.initialize({ services: harness.services, config: {} as never, presetId: `switch-${index}` })
+      world.reset('presetChanged')
+      world.dispose()
+    }
+
+    expect(harness.programLabels).toHaveLength(12)
+    expect(harness.deletedBuffers).toHaveLength(harness.createdBuffers.length)
+    expect(harness.deletedVaos).toHaveLength(harness.createdVaos.length)
+    expect(new Set(harness.deletedBuffers).size).toBe(harness.deletedBuffers.length)
+    expect(new Set(harness.deletedVaos).size).toBe(harness.deletedVaos.length)
+  })
 })

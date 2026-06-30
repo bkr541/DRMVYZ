@@ -197,7 +197,9 @@ describe('Cinematic World control schema', () => {
       'depthSpread', 'neighborCount', 'nodeScaleVariation', 'centralGravity',
       'springStrength', 'damping', 'elasticity', 'topologyStability', 'driftAmount',
       'turbulence', 'orbitAmount', 'collapseAmount', 'burstStrength', 'reseedEveryBars',
-      'faceOpacity', 'rimIntensity', 'wireframeAmount', 'nodeSpin', 'cameraOrbit',
+      'backgroundCurtains', 'curtainDensity', 'depthFade',
+      'faceOpacity', 'facetContrast', 'internalGlow', 'rimIntensity', 'wireframeAmount',
+      'colorVariation', 'nodeSpin', 'cameraOrbit',
     ])
     expect(controls.some(control => /trail|beam/i.test(String(control.setting)))).toBe(true)
     expect(controls.some(control => /audio/i.test(String(control.setting)))).toBe(false)
@@ -222,6 +224,8 @@ describe('Cinematic World control schema', () => {
     expect(container.querySelector('#constellation-camera-orbit')).toBeInstanceOf(HTMLInputElement)
     expect(container.querySelector('#constellation-beam-width')).toBeInstanceOf(HTMLInputElement)
     expect(container.querySelector('#constellation-trail-samples')).toBeInstanceOf(HTMLInputElement)
+    expect(container.querySelector('#constellation-facet-contrast')).toBeInstanceOf(HTMLInputElement)
+    expect(container.querySelector('#constellation-background-curtains')).toBeInstanceOf(HTMLInputElement)
 
     const settings = createDefaultCinematicWorldSettings('reactiveConstellation') as Extract<CinematicWorldSpecificConfig, { mode: 'reactiveConstellation' }>
     const nodeCount = controls.find(control => control.setting === 'nodeCount') as CinematicWorldIntegerControl<'reactiveConstellation'>

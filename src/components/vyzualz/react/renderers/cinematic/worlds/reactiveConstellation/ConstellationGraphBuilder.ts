@@ -45,7 +45,7 @@ export interface BuildConstellationGraphInput {
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5))
 const MESH_STYLES: readonly ConstellationMeshStyle[] = ['tetrahedron', 'octahedron', 'icosahedron', 'irregularCrystal']
 
-function meshStyleFor(style: ReactiveConstellationPolyhedronStyle, seed: number, index: number): ConstellationMeshStyle {
+export function selectConstellationMeshStyle(style: ReactiveConstellationPolyhedronStyle, seed: number, index: number): ConstellationMeshStyle {
   if (style !== 'mixed') return style
   return MESH_STYLES[Math.floor(seededUnit(hashSeed(seed, index + 701)) * MESH_STYLES.length) % MESH_STYLES.length]
 }
@@ -327,7 +327,7 @@ export function buildConstellationGraph(input: BuildConstellationGraphInput): Co
       scaleVariation: Math.max(0.35, 1 + variation * 0.62),
       prominence: clamp(connected.length / 8, 0.08, 1),
       paletteMix: seededUnit(hashSeed(input.seed, index + 1297)),
-      meshStyle: meshStyleFor(input.settings.polyhedronStyle, input.seed, index),
+      meshStyle: selectConstellationMeshStyle(input.settings.polyhedronStyle, input.seed, index),
     }
   })
 

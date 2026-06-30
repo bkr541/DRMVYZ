@@ -22,6 +22,16 @@ import {
 } from './reactiveConstellation/ConstellationBeamGeometry'
 import type { ConstellationMeshStyle } from './reactiveConstellation/ConstellationGraphBuilder'
 import { cameraViewProjectionMatrix, hashSeed } from './reactiveConstellation/ConstellationMath'
+import {
+  CONSTELLATION_MAX_CURTAINS,
+  writeConstellationCurtainInstances,
+} from './reactiveConstellation/ConstellationCurtains'
+import { resolveConstellationPalette } from './reactiveConstellation/ConstellationMaterial'
+import {
+  isConstellationCameraPoseSafe,
+  REACTIVE_CONSTELLATION_SAFE_CAMERA_RANGE,
+  REACTIVE_CONSTELLATION_SHOTS,
+} from './reactiveConstellation/ConstellationPresentation'
 import { getConstellationMesh, listConstellationMeshStyles } from './reactiveConstellation/ConstellationMeshLibrary'
 import {
   clampConstellationEdgeCount,
@@ -41,12 +51,6 @@ import {
   ConstellationTrailBuffer,
   constellationTrailAgeWeight,
 } from './reactiveConstellation/ConstellationTrailBuffer'
-
-interface RgbColor {
-  r: number
-  g: number
-  b: number
-}
 
 interface MeshGpuResource {
   vao: WebGLVertexArrayObject
@@ -94,43 +98,16 @@ const BEAM_ATTRIBUTES = {
 const NODE_REQUIRED_UNIFORMS = [
   'uViewProjection', 'uCameraPosition', 'uTime', 'uNodeScale', 'uNodeSpin', 'uMotion',
   'uCameraOrbit', 'uGeometryRotation', 'uDepthPulse', 'uBeat', 'uPrimary', 'uSecondary',
-  'uAccent', 'uIntensity', 'uGlow', 'uFaceOpacity', 'uRimIntensity', 'uWireframeAmount',
-  'uBrightness',
+  'uAccent', 'uFogColor', 'uIntensity', 'uGlow', 'uFaceOpacity', 'uFacetContrast',
+  'uInternalGlow', 'uRimIntensity', 'uWireframeAmount', 'uColorVariation', 'uFogAmount',
+  'uDepthFade', 'uBrightness', 'uPassMode',
 ] as const
 const BEAM_REQUIRED_UNIFORMS = [
-  'uViewProjection', 'uViewport', 'uBeamWidthPx', 'uPassWidthScale', 'uTime', 'uMotion',
-  'uCameraOrbit', 'uGeometryRotation', 'uDepthPulse', 'uBeamColor', 'uBeamAccent',
-  'uEdgeOpacity', 'uPassBrightness', 'uPassSoftness', 'uBeat', 'uBrightness',
+  'uViewProjection', 'uViewport', 'uCameraPosition', 'uBeamWidthPx', 'uPassWidthScale',
+  'uTime', 'uMotion', 'uCameraOrbit', 'uGeometryRotation', 'uDepthPulse', 'uBeamColor',
+  'uBeamAccent', 'uFogColor', 'uEdgeOpacity', 'uPassBrightness', 'uPassSoftness',
+  'uColorVariation', 'uFogAmount', 'uDepthFade', 'uBeat', 'uBrightness',
 ] as const
-
-function parseHexColor(value: string, fallback: RgbColor): RgbColor {
-  const normalized = value.trim().replace(/^#/, '')
-  const expanded = normalized.length === 3
-    ? normalized.split('').map(character => `${character}${character}`).join('')
-    : normalized
-  if (!/^[0-9a-f]{6}$/i.test(expanded)) return fallback
-  return {
-    r: Number.parseInt(expanded.slice(0, 2), 16) / 255,
-    g: Number.parseInt(expanded.slice(2, 4), 16) / 255,
-    b: Number.parseInt(expanded.slice(4, 6), 16) / 255,
-  }
-}
-
-function hotBeamColor(primary: RgbColor, secondary: RgbColor, accent: RgbColor): RgbColor {
-  return {
-    r: Math.max(0.92, primary.r, secondary.r * 0.9, accent.r),
-    g: Math.min(0.22, 0.025 + primary.g * 0.08 + accent.g * 0.05),
-    b: Math.max(0.18, primary.b * 0.5, secondary.b * 0.82, accent.b * 0.45),
-  }
-}
-
-function magentaBeamColor(secondary: RgbColor, accent: RgbColor): RgbColor {
-  return {
-    r: Math.max(0.94, secondary.r, accent.r),
-    g: Math.min(0.16, 0.015 + secondary.g * 0.06),
-    b: Math.max(0.58, secondary.b, accent.b * 0.82),
-  }
-}
 
 function createBuffer(gl: WebGL2RenderingContext, services: CinematicWebGLServices): WebGLBuffer {
   const buffer = gl.createBuffer()
@@ -178,6 +155,13 @@ function bindInstanceAttribute(
   gl.vertexAttribDivisor(location, 1)
 }
 
+function allFinite(values: ArrayLike<number>): boolean {
+  for (let index = 0; index < values.length; index += 1) {
+    if (!Number.isFinite(values[index])) return false
+  }
+  return true
+}
+
 export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
   private services: CinematicWebGLServices | null = null
   private nodeProgram: ShaderProgram | null = null
@@ -185,6 +169,9 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
   private readonly meshes = new Map<ConstellationMeshStyle, MeshGpuResource>()
   private readonly instanceLayouts = new Map<ConstellationMeshStyle, MeshInstanceLayout>()
   private beamResource: BeamGpuResource | null = null
+  private curtainResource: BeamGpuResource | null = null
+  private curtainInstanceValues = new Float32Array(CONSTELLATION_MAX_CURTAINS * CONSTELLATION_BEAM_INSTANCE_FLOATS)
+  private curtainInstanceCount = 0
   private readonly simulation = new ConstellationSimulation()
   private readonly trails = new ConstellationTrailBuffer()
   private beamEdgeIndices = new Uint16Array(0)
@@ -204,6 +191,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
   private heldBrightness = 0
   private heldDepthPulse = 0
   private heldImpact = 0
+  private diagnostic: string | null = null
   private disposed = false
 
   initialize(input: CinematicWebGLWorldInitializeInput): void {
@@ -225,12 +213,26 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     })
     for (const style of listConstellationMeshStyles()) this.meshes.set(style, this.createMeshResource(style))
     this.beamResource = this.createBeamResource()
+    this.curtainResource = this.createBeamResource(CONSTELLATION_MAX_CURTAINS)
+    this.diagnostic = null
   }
 
   resize(_viewport: CinematicViewport): void {}
 
+  getDiagnostic(): string | null {
+    return this.diagnostic
+  }
+
   render(frame: CinematicFrameContext, target: CinematicWorldRenderTarget): void {
-    if (this.disposed || !this.services || !this.nodeProgram || !this.beamProgram || !this.beamResource) return
+    if (this.disposed || !this.services || !this.nodeProgram || !this.beamProgram || !this.beamResource || !this.curtainResource) {
+      this.diagnostic = 'Reactive Constellation paused because required WebGL resources are unavailable.'
+      return
+    }
+    if (target.width <= 0 || target.height <= 0 || !Number.isFinite(target.width) || !Number.isFinite(target.height)) {
+      this.diagnostic = 'Reactive Constellation paused because the render target is invalid.'
+      return
+    }
+    this.diagnostic = null
     const settings = resolveReactiveConstellationSettings(frame.config.worldSettings)
     const budget = constellationQualityBudget(frame.config.qualityTier)
     const effectiveNodeCount = clampConstellationNodeCount(settings.nodeCount, budget)
@@ -305,97 +307,145 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     this.updateCurrentEdgeEndpoints()
     this.buildBeamInstances(settings, budget)
     this.uploadBeamInstances()
+    this.buildCurtainInstances(frame, settings, budget)
+    this.uploadCurtainInstances()
 
     const gl = this.services.gl
-    const camera = frame.camera?.pose ?? {
-      position: { x: 0, y: 0, z: 2.4 },
+    const requestedCamera = frame.camera?.pose ?? {
+      position: { x: 0, y: 0, z: 4 },
       rotation: { x: 0, y: 0, z: 0 },
-      fieldOfView: 58,
+      fieldOfView: 60,
     }
+    const camera = isConstellationCameraPoseSafe(requestedCamera)
+      ? requestedCamera
+      : {
+          position: { x: 0, y: 0, z: 4 },
+          rotation: { x: 0, y: 0, z: 0 },
+          fieldOfView: 60,
+        }
     const viewProjection = cameraViewProjectionMatrix({
       position: camera.position,
       rotation: camera.rotation,
       fieldOfView: camera.fieldOfView,
       aspect: target.width / Math.max(1, target.height),
     })
-    const primary = parseHexColor(frame.preset.palette.primary, { r: 0.15, g: 0.82, b: 0.92 })
-    const secondary = parseHexColor(frame.preset.palette.secondary, { r: 0.45, g: 0.22, b: 0.92 })
-    const accent = parseHexColor(frame.preset.palette.accent, { r: 1, g: 0.72, b: 0.26 })
-    const background = parseHexColor(frame.preset.palette.background, { r: 0.004, g: 0.012, b: 0.025 })
-    const beamColor = hotBeamColor(primary, secondary, accent)
-    const beamAccent = magentaBeamColor(secondary, accent)
+    if (!allFinite(viewProjection)) {
+      this.diagnostic = 'Reactive Constellation paused because the camera frame is invalid.'
+      return
+    }
+    const palette = resolveConstellationPalette(frame.preset.palette)
+    const fogAmount = Math.min(1, Math.max(0, frame.config.environment.fog))
+    const motion = Math.max(0, frame.params.motion)
+    const materialGlow = Math.max(frame.params.glow, frame.config.material.glow)
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, target.framebuffer)
     gl.viewport(0, 0, target.width, target.height)
-    gl.clearColor(background.r, background.g, background.b, 1)
+    gl.clearColor(palette.background.r, palette.background.g, palette.background.b, 1)
     gl.clearDepth(1)
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
     gl.enable(gl.DEPTH_TEST)
     gl.depthFunc(gl.LEQUAL)
-    gl.depthMask(true)
-    gl.enable(gl.CULL_FACE)
-    gl.cullFace(gl.BACK)
+
+    this.beamProgram.activate()
+    this.beamProgram.setMat4('uViewProjection', viewProjection)
+    this.beamProgram.setVec2('uViewport', target.width, target.height)
+    this.beamProgram.setVec3('uCameraPosition', camera.position.x, camera.position.y, camera.position.z)
+    this.beamProgram.setFloat('uTime', simulationState.simulationTimeSec)
+    this.beamProgram.setFloat('uMotion', motion)
+    this.beamProgram.setFloat('uCameraOrbit', settings.cameraOrbit)
+    this.beamProgram.setFloat('uGeometryRotation', this.heldGeometryRotation)
+    this.beamProgram.setFloat('uDepthPulse', this.heldDepthPulse)
+    this.beamProgram.setVec3('uBeamColor', palette.beamCore.r, palette.beamCore.g, palette.beamCore.b)
+    this.beamProgram.setVec3('uBeamAccent', palette.beamAccent.r, palette.beamAccent.g, palette.beamAccent.b)
+    this.beamProgram.setVec3('uFogColor', palette.fog.r, palette.fog.g, palette.fog.b)
+    this.beamProgram.setFloat('uColorVariation', settings.colorVariation)
+    this.beamProgram.setFloat('uFogAmount', fogAmount)
+    this.beamProgram.setFloat('uDepthFade', settings.depthFade)
+    this.beamProgram.setFloat('uBeat', this.heldImpact)
+    this.beamProgram.setFloat('uBrightness', this.heldBrightness)
+
+    // Additive background and network beams are drawn before the ordered face pass.
+    // The subsequent dithered opaque coverage lets beams remain visible through
+    // translucent facets without unstable per-triangle sorting.
+    gl.disable(gl.CULL_FACE)
     gl.enable(gl.BLEND)
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE)
+    gl.depthMask(false)
 
-    this.nodeProgram.activate()
-    this.nodeProgram.setMat4('uViewProjection', viewProjection)
-    this.nodeProgram.setVec3('uCameraPosition', camera.position.x, camera.position.y, camera.position.z)
-    this.nodeProgram.setFloat('uTime', simulationState.simulationTimeSec)
-    this.nodeProgram.setFloat('uNodeScale', settings.nodeScale)
-    this.nodeProgram.setFloat('uNodeSpin', 0)
-    this.nodeProgram.setFloat('uMotion', Math.max(0, frame.params.motion))
-    this.nodeProgram.setFloat('uCameraOrbit', settings.cameraOrbit)
-    this.nodeProgram.setFloat('uGeometryRotation', this.heldGeometryRotation)
-    this.nodeProgram.setFloat('uDepthPulse', this.heldDepthPulse)
-    this.nodeProgram.setFloat('uBeat', this.heldImpact)
-    this.nodeProgram.setVec3('uPrimary', primary.r, primary.g, primary.b)
-    this.nodeProgram.setVec3('uSecondary', secondary.r, secondary.g, secondary.b)
-    this.nodeProgram.setVec3('uAccent', accent.r, accent.g, accent.b)
-    this.nodeProgram.setFloat('uIntensity', Math.max(0, frame.params.intensity))
-    this.nodeProgram.setFloat('uGlow', Math.max(frame.params.glow, frame.config.material.glow))
-    this.nodeProgram.setFloat('uFaceOpacity', settings.faceOpacity)
-    this.nodeProgram.setFloat('uRimIntensity', settings.rimIntensity)
-    this.nodeProgram.setFloat('uWireframeAmount', settings.wireframeAmount)
-    this.nodeProgram.setFloat('uBrightness', this.heldBrightness)
-
-    for (const resource of this.meshes.values()) {
-      if (resource.instanceCount <= 0) continue
-      gl.bindVertexArray(resource.vao)
-      gl.drawArraysInstanced(gl.TRIANGLES, 0, resource.vertexCount, resource.instanceCount)
+    if (this.curtainInstanceCount > 0 && settings.backgroundCurtains > 0) {
+      this.beamProgram.setFloat('uBeamWidthPx', Math.max(0.8, settings.beamWidth * 0.72))
+      this.beamProgram.setFloat('uEdgeOpacity', settings.backgroundCurtains * (0.35 + frame.config.environment.atmosphere * 0.35))
+      this.beamProgram.setFloat('uPassWidthScale', 2.4 + budget.glowPassComplexity * 0.8)
+      this.beamProgram.setFloat('uPassBrightness', 0.42 + materialGlow * 0.3)
+      this.beamProgram.setFloat('uPassSoftness', 0.82)
+      gl.bindVertexArray(this.curtainResource.vao)
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.curtainInstanceCount)
     }
 
     if (this.beamInstanceCount > 0 && settings.edgeOpacity > 0) {
-      gl.disable(gl.CULL_FACE)
-      gl.depthMask(false)
-      gl.blendFunc(gl.SRC_ALPHA, gl.ONE)
-      this.beamProgram.activate()
-      this.beamProgram.setMat4('uViewProjection', viewProjection)
-      this.beamProgram.setVec2('uViewport', target.width, target.height)
       this.beamProgram.setFloat('uBeamWidthPx', settings.beamWidth)
-      this.beamProgram.setFloat('uTime', simulationState.simulationTimeSec)
-      this.beamProgram.setFloat('uMotion', Math.max(0, frame.params.motion))
-      this.beamProgram.setFloat('uCameraOrbit', settings.cameraOrbit)
-      this.beamProgram.setFloat('uGeometryRotation', this.heldGeometryRotation)
-      this.beamProgram.setFloat('uDepthPulse', this.heldDepthPulse)
-      this.beamProgram.setVec3('uBeamColor', beamColor.r, beamColor.g, beamColor.b)
-      this.beamProgram.setVec3('uBeamAccent', beamAccent.r, beamAccent.g, beamAccent.b)
       this.beamProgram.setFloat('uEdgeOpacity', settings.edgeOpacity)
-      this.beamProgram.setFloat('uBeat', this.heldImpact)
-      this.beamProgram.setFloat('uBrightness', this.heldBrightness)
       gl.bindVertexArray(this.beamResource.vao)
-
       if (settings.beamGlow > 0 && this.beamGlowInstanceCount > 0) {
         this.beamProgram.setFloat('uPassWidthScale', 3.2 + budget.glowPassComplexity * 1.7)
         this.beamProgram.setFloat('uPassBrightness', settings.beamGlow * (0.36 + budget.glowPassComplexity * 0.22))
         this.beamProgram.setFloat('uPassSoftness', 0.72)
         gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.beamGlowInstanceCount)
       }
-
       this.beamProgram.setFloat('uPassWidthScale', 1)
       this.beamProgram.setFloat('uPassBrightness', settings.beamCoreBrightness)
       this.beamProgram.setFloat('uPassSoftness', 0.34)
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.beamInstanceCount)
+    }
+
+    this.nodeProgram.activate()
+    this.nodeProgram.setMat4('uViewProjection', viewProjection)
+    this.nodeProgram.setVec3('uCameraPosition', camera.position.x, camera.position.y, camera.position.z)
+    this.nodeProgram.setFloat('uTime', simulationState.simulationTimeSec)
+    this.nodeProgram.setFloat('uNodeScale', settings.nodeScale)
+    this.nodeProgram.setFloat('uNodeSpin', settings.nodeSpin)
+    this.nodeProgram.setFloat('uMotion', motion)
+    this.nodeProgram.setFloat('uCameraOrbit', settings.cameraOrbit)
+    this.nodeProgram.setFloat('uGeometryRotation', this.heldGeometryRotation)
+    this.nodeProgram.setFloat('uDepthPulse', this.heldDepthPulse)
+    this.nodeProgram.setFloat('uBeat', this.heldImpact)
+    this.nodeProgram.setVec3('uPrimary', palette.primary.r, palette.primary.g, palette.primary.b)
+    this.nodeProgram.setVec3('uSecondary', palette.secondary.r, palette.secondary.g, palette.secondary.b)
+    this.nodeProgram.setVec3('uAccent', palette.accent.r, palette.accent.g, palette.accent.b)
+    this.nodeProgram.setVec3('uFogColor', palette.fog.r, palette.fog.g, palette.fog.b)
+    this.nodeProgram.setFloat('uIntensity', Math.max(0, frame.params.intensity))
+    this.nodeProgram.setFloat('uGlow', materialGlow)
+    this.nodeProgram.setFloat('uFaceOpacity', settings.faceOpacity)
+    this.nodeProgram.setFloat('uFacetContrast', settings.facetContrast)
+    this.nodeProgram.setFloat('uInternalGlow', settings.internalGlow)
+    this.nodeProgram.setFloat('uRimIntensity', settings.rimIntensity)
+    this.nodeProgram.setFloat('uWireframeAmount', settings.wireframeAmount)
+    this.nodeProgram.setFloat('uColorVariation', settings.colorVariation)
+    this.nodeProgram.setFloat('uFogAmount', fogAmount)
+    this.nodeProgram.setFloat('uDepthFade', settings.depthFade)
+    this.nodeProgram.setFloat('uBrightness', this.heldBrightness)
+
+    gl.enable(gl.CULL_FACE)
+    gl.cullFace(gl.BACK)
+    gl.disable(gl.BLEND)
+    gl.depthMask(true)
+    this.nodeProgram.setFloat('uPassMode', 0)
+    for (const resource of this.meshes.values()) {
+      if (resource.instanceCount <= 0) continue
+      gl.bindVertexArray(resource.vao)
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, resource.vertexCount, resource.instanceCount)
+    }
+
+    if (settings.wireframeAmount > 0 || settings.rimIntensity > 0 || settings.internalGlow > 0) {
+      gl.enable(gl.BLEND)
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE)
+      gl.depthMask(false)
+      this.nodeProgram.setFloat('uPassMode', 1)
+      for (const resource of this.meshes.values()) {
+        if (resource.instanceCount <= 0) continue
+        gl.bindVertexArray(resource.vao)
+        gl.drawArraysInstanced(gl.TRIANGLES, 0, resource.vertexCount, resource.instanceCount)
+      }
     }
 
     gl.bindVertexArray(null)
@@ -423,6 +473,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     this.trails.reset()
     this.beamInstanceCount = 0
     this.beamGlowInstanceCount = 0
+    this.curtainInstanceCount = 0
   }
 
   onContextLost(): void {
@@ -431,6 +482,8 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     this.meshes.clear()
     this.instanceLayouts.clear()
     this.beamResource = null
+    this.curtainResource = null
+    this.curtainInstanceCount = 0
     this.uploadedStructureRevision = -1
     this.beamStructureRevision = -1
     this.beamBudgetKey = ''
@@ -450,10 +503,12 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     if (services) {
       for (const resource of this.meshes.values()) this.deleteGpuResource(resource.vao, resource.buffers)
       if (this.beamResource) this.deleteGpuResource(this.beamResource.vao, this.beamResource.buffers)
+      if (this.curtainResource) this.deleteGpuResource(this.curtainResource.vao, this.curtainResource.buffers)
     }
     this.meshes.clear()
     this.instanceLayouts.clear()
     this.beamResource = null
+    this.curtainResource = null
     this.nodeProgram = null
     this.beamProgram = null
     this.services = null
@@ -468,6 +523,8 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     this.beamInstanceValues = new Float32Array(0)
     this.beamInstanceCount = 0
     this.beamGlowInstanceCount = 0
+    this.curtainInstanceCount = 0
+    this.diagnostic = null
     this.trails.dispose()
   }
 
@@ -496,7 +553,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     return { vao, buffers, instanceBuffer, vertexCount: mesh.vertexCount, instanceCount: 0 }
   }
 
-  private createBeamResource(): BeamGpuResource {
+  private createBeamResource(instanceCapacity = 1): BeamGpuResource {
     if (!this.services) throw new Error('Reactive Constellation services are unavailable')
     const gl = this.services.gl
     const vao = createVertexArray(gl, this.services)
@@ -511,7 +568,8 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     const instanceBuffer = createBuffer(gl, this.services)
     buffers.push(instanceBuffer)
     gl.bindBuffer(gl.ARRAY_BUFFER, instanceBuffer)
-    gl.bufferData(gl.ARRAY_BUFFER, BEAM_INSTANCE_STRIDE, gl.DYNAMIC_DRAW)
+    const safeCapacity = Math.max(1, Math.floor(instanceCapacity))
+    gl.bufferData(gl.ARRAY_BUFFER, safeCapacity * BEAM_INSTANCE_STRIDE, gl.DYNAMIC_DRAW)
     bindInstanceAttribute(gl, BEAM_ATTRIBUTES.aEndpointA, 3, BEAM_INSTANCE_STRIDE, 0)
     bindInstanceAttribute(gl, BEAM_ATTRIBUTES.aEndpointB, 3, BEAM_INSTANCE_STRIDE, 3)
     bindInstanceAttribute(gl, BEAM_ATTRIBUTES.aInstanceAlpha, 1, BEAM_INSTANCE_STRIDE, 6)
@@ -520,7 +578,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     bindInstanceAttribute(gl, BEAM_ATTRIBUTES.aInstanceAge, 1, BEAM_INSTANCE_STRIDE, 9)
     gl.bindVertexArray(null)
     gl.bindBuffer(gl.ARRAY_BUFFER, null)
-    return { vao, buffers, instanceBuffer, instanceCapacity: 1 }
+    return { vao, buffers, instanceBuffer, instanceCapacity: safeCapacity }
   }
 
   private deleteGpuResource(vao: WebGLVertexArrayObject, buffers: readonly WebGLBuffer[]): void {
@@ -736,19 +794,46 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     }
     gl.bindBuffer(gl.ARRAY_BUFFER, null)
   }
+
+  private buildCurtainInstances(
+    frame: CinematicFrameContext,
+    settings: ReactiveConstellationSettings,
+    budget: ConstellationQualityBudget,
+  ): void {
+    const requestedCount = Math.min(settings.curtainDensity, budget.curtainCountCap)
+    this.curtainInstanceCount = writeConstellationCurtainInstances(this.curtainInstanceValues, {
+      seed: frame.config.seed,
+      count: requestedCount,
+      spread: settings.networkSpread,
+      depthSpread: settings.depthSpread,
+      timeSec: this.simulation.getState().simulationTimeSec,
+      intensity: settings.backgroundCurtains,
+    })
+  }
+
+  private uploadCurtainInstances(): void {
+    if (!this.services || !this.curtainResource || this.curtainInstanceCount <= 0) return
+    const gl = this.services.gl
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.curtainResource.instanceBuffer)
+    if (typeof gl.bufferSubData === 'function') {
+      gl.bufferSubData(
+        gl.ARRAY_BUFFER,
+        0,
+        this.curtainInstanceValues,
+        0,
+        this.curtainInstanceCount * CONSTELLATION_BEAM_INSTANCE_FLOATS,
+      )
+    } else {
+      gl.bufferData(gl.ARRAY_BUFFER, this.curtainInstanceValues, gl.DYNAMIC_DRAW)
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, null)
+  }
 }
 
 const reactiveConstellationDirection = defineCinematicWorldDirection({
   supportedCameraRigs: ['locked', 'dolly', 'orbit', 'handheld', 'autoDirector'],
-  safeCameraRange: { minDistance: 1.15, maxDistance: 6.2, maxLateral: 1.8, minElevation: -1.1, maxElevation: 1.7 },
-  shots: [
-    { id: 'constellation-establish', rig: 'locked', sections: ['intro', 'breakdown', 'outro'], action: 'establish', pose: { position: { z: 4.1 }, fieldOfView: 66 } },
-    { id: 'constellation-drift', rig: 'orbit', sections: ['verse', 'bridge'], action: 'orbit', weight: 1.3 },
-    { id: 'constellation-approach', rig: 'dolly', sections: ['build'], action: 'approach', pose: { position: { z: 2.5 }, fieldOfView: 56 } },
-    { id: 'constellation-focus', rig: 'locked', sections: ['preDrop'], action: 'focus', pose: { position: { z: 2.05 }, fieldOfView: 48 } },
-    { id: 'constellation-reveal', rig: 'orbit', sections: ['drop'], action: 'reveal', pose: { position: { z: 3.0 }, fieldOfView: 68 }, minimumDurationSec: 4 },
-    { id: 'constellation-fallback', rig: 'locked', sections: ['unknown'], action: 'hold', pose: { position: { z: 3.4 } } },
-  ],
+  safeCameraRange: REACTIVE_CONSTELLATION_SAFE_CAMERA_RANGE,
+  shots: REACTIVE_CONSTELLATION_SHOTS,
   dropActions: ['impact', 'reveal', 'open'],
   revealActions: ['reveal', 'open'],
   retreatActions: ['retreat', 'close'],

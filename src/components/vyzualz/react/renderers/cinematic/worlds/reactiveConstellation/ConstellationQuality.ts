@@ -6,6 +6,7 @@ export interface ConstellationQualityBudget {
   trailSampleCap: number
   historicalDrawCount: number
   glowPassComplexity: number
+  curtainCountCap: number
 }
 
 export const CONSTELLATION_QUALITY_BUDGETS: Readonly<Record<CinematicQualityTier, ConstellationQualityBudget>> = {
@@ -15,6 +16,7 @@ export const CONSTELLATION_QUALITY_BUDGETS: Readonly<Record<CinematicQualityTier
     trailSampleCap: 5,
     historicalDrawCount: 3,
     glowPassComplexity: 0.42,
+    curtainCountCap: 6,
   },
   medium: {
     nodeCountCap: 44,
@@ -22,6 +24,7 @@ export const CONSTELLATION_QUALITY_BUDGETS: Readonly<Record<CinematicQualityTier
     trailSampleCap: 9,
     historicalDrawCount: 6,
     glowPassComplexity: 0.68,
+    curtainCountCap: 10,
   },
   high: {
     nodeCountCap: 72,
@@ -29,6 +32,7 @@ export const CONSTELLATION_QUALITY_BUDGETS: Readonly<Record<CinematicQualityTier
     trailSampleCap: 16,
     historicalDrawCount: 12,
     glowPassComplexity: 1,
+    curtainCountCap: 16,
   },
   ultra: {
     nodeCountCap: 96,
@@ -36,6 +40,7 @@ export const CONSTELLATION_QUALITY_BUDGETS: Readonly<Record<CinematicQualityTier
     trailSampleCap: 28,
     historicalDrawCount: 24,
     glowPassComplexity: 1.35,
+    curtainCountCap: 24,
   },
   // Auto is intentionally bounded below Ultra. Device eligibility for an
   // explicit Ultra selection is handled by the existing Cinematic controls.
@@ -45,6 +50,7 @@ export const CONSTELLATION_QUALITY_BUDGETS: Readonly<Record<CinematicQualityTier
     trailSampleCap: 13,
     historicalDrawCount: 9,
     glowPassComplexity: 0.88,
+    curtainCountCap: 12,
   },
 }
 

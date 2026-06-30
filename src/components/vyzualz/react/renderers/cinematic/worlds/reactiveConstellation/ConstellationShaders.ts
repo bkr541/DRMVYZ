@@ -71,34 +71,84 @@ uniform vec3 uCameraPosition;
 uniform vec3 uPrimary;
 uniform vec3 uSecondary;
 uniform vec3 uAccent;
+uniform vec3 uFogColor;
 uniform float uIntensity;
 uniform float uGlow;
 uniform float uFaceOpacity;
+uniform float uFacetContrast;
+uniform float uInternalGlow;
 uniform float uRimIntensity;
 uniform float uWireframeAmount;
+uniform float uColorVariation;
+uniform float uFogAmount;
+uniform float uDepthFade;
 uniform float uBrightness;
 uniform float uBeat;
+uniform float uPassMode;
 
 out vec4 outColor;
+
+int bayer2x2(int x, int y) {
+  return ((x ^ y) << 1) | y;
+}
+
+float orderedDither4x4(vec2 pixel) {
+  ivec2 cell = ivec2(mod(floor(pixel), 4.0));
+  int low = bayer2x2(cell.x & 1, cell.y & 1);
+  int high = bayer2x2((cell.x >> 1) & 1, (cell.y >> 1) & 1);
+  return (float(low * 4 + high) + 0.5) / 16.0;
+}
 
 void main() {
   vec3 normal = normalize(vNormal);
   vec3 viewDirection = normalize(uCameraPosition - vWorldPosition);
   vec3 lightDirection = normalize(vec3(-0.35, 0.72, 0.58));
-  float diffuse = max(dot(normal, lightDirection), 0.0);
-  float backLight = max(dot(normal, -lightDirection), 0.0) * 0.22;
-  float rim = pow(1.0 - abs(dot(normal, viewDirection)), 2.15) * uRimIntensity;
-  vec3 derivative = fwidth(vBarycentric);
-  vec3 edgeDistance = smoothstep(vec3(0.0), derivative * 1.35, vBarycentric);
+  vec3 fillDirection = normalize(vec3(0.58, -0.18, -0.72));
+  float rawDiffuse = max(dot(normal, lightDirection), 0.0);
+  float fill = max(dot(normal, fillDirection), 0.0);
+  float contrast = clamp(uFacetContrast * 0.5, 0.0, 1.0);
+  float bands = mix(8.0, 3.0, contrast);
+  float facetedDiffuse = floor(rawDiffuse * bands + 0.5) / bands;
+  float diffuse = mix(rawDiffuse, smoothstep(0.08, 0.92, facetedDiffuse), contrast);
+  float backLight = max(dot(normal, -lightDirection), 0.0);
+  float rim = pow(1.0 - abs(dot(normal, viewDirection)), 2.05) * uRimIntensity;
+  vec3 derivative = max(fwidth(vBarycentric), vec3(0.0001));
+  vec3 edgeDistance = smoothstep(vec3(0.0), derivative * 1.4, vBarycentric);
   float edge = 1.0 - min(min(edgeDistance.x, edgeDistance.y), edgeDistance.z);
 
-  vec3 base = mix(uPrimary, uSecondary, smoothstep(0.08, 0.92, vPalette));
-  base = mix(base, uAccent, vProminence * 0.22 + edge * uWireframeAmount * 0.72);
-  float lighting = 0.24 + diffuse * 0.72 + backLight + rim * (0.55 + uGlow * 0.65);
-  lighting *= (0.65 + uIntensity * 0.55) * (1.0 + uBrightness * 0.28 + uBeat * 0.08);
-  vec3 color = base * lighting + uAccent * rim * (0.12 + uGlow * 0.22);
-  float alpha = clamp(uFaceOpacity + edge * uWireframeAmount * 0.35 + rim * 0.08, 0.04, 1.0);
-  outColor = vec4(color, alpha);
+  float paletteMix = clamp(0.5 + (vPalette - 0.5) * (0.2 + uColorVariation * 1.8), 0.0, 1.0);
+  vec3 base = mix(uPrimary, uSecondary, paletteMix);
+  base = mix(base, uAccent, vProminence * 0.18 + edge * uWireframeAmount * 0.52);
+  float internal = (backLight * 0.62 + pow(1.0 - abs(dot(normal, viewDirection)), 4.0) * 0.38) * uInternalGlow;
+  float lighting = 0.12 + diffuse * 0.82 + fill * 0.22 + internal * 0.38;
+  lighting *= (0.62 + uIntensity * 0.58) * (1.0 + uBrightness * 0.26 + uBeat * 0.08);
+  vec3 faceColor = base * lighting + uAccent * (rim * (0.16 + uGlow * 0.18) + internal * 0.12);
+
+  float distanceToCamera = length(uCameraPosition - vWorldPosition);
+  float fogFactor = 1.0 - exp(-max(0.0, distanceToCamera - 1.1) * uFogAmount * uDepthFade * 0.34);
+  faceColor = mix(faceColor, uFogColor, clamp(fogFactor, 0.0, 0.82));
+
+  if (uPassMode < 0.5) {
+    if (uFaceOpacity < orderedDither4x4(gl_FragCoord.xy)) discard;
+    outColor = vec4(faceColor, 1.0);
+    return;
+  }
+
+  float emissiveAlpha = clamp(
+    edge * uWireframeAmount * 0.72
+      + rim * (0.18 + uGlow * 0.18)
+      + internal * 0.12,
+    0.0,
+    1.0
+  );
+  if (emissiveAlpha <= 0.002) discard;
+  vec3 emissive = mix(base, uAccent, 0.56) * (
+    edge * uWireframeAmount * 1.35
+      + rim * (0.5 + uGlow * 0.5)
+      + internal * 0.34
+  );
+  emissive = mix(emissive, uFogColor, clamp(fogFactor * 0.65, 0.0, 0.7));
+  outColor = vec4(emissive, emissiveAlpha);
 }
 `
 
@@ -115,6 +165,7 @@ layout(location = 6) in float aInstanceAge;
 
 uniform mat4 uViewProjection;
 uniform vec2 uViewport;
+uniform vec3 uCameraPosition;
 uniform float uBeamWidthPx;
 uniform float uPassWidthScale;
 uniform float uTime;
@@ -127,6 +178,7 @@ out float vAlpha;
 out float vAcross;
 out float vPalette;
 out float vAge;
+out float vDistance;
 
 mat3 rotateX(float angle) {
   float c = cos(angle); float s = sin(angle);
@@ -145,8 +197,10 @@ vec3 transformEndpoint(vec3 endpoint) {
 }
 
 void main() {
-  vec4 clipA = uViewProjection * vec4(transformEndpoint(aEndpointA), 1.0);
-  vec4 clipB = uViewProjection * vec4(transformEndpoint(aEndpointB), 1.0);
+  vec3 worldA = transformEndpoint(aEndpointA);
+  vec3 worldB = transformEndpoint(aEndpointB);
+  vec4 clipA = uViewProjection * vec4(worldA, 1.0);
+  vec4 clipB = uViewProjection * vec4(worldB, 1.0);
   float nearA = clipA.z + clipA.w;
   float nearB = clipB.z + clipB.w;
   bool invalid = nearA < 0.0 && nearB < 0.0;
@@ -154,10 +208,12 @@ void main() {
   if (!invalid && nearA < 0.0) {
     float t = clamp(nearA / (nearA - nearB), 0.0, 1.0);
     clipA = mix(clipA, clipB, t);
+    worldA = mix(worldA, worldB, t);
   }
   if (!invalid && nearB < 0.0) {
     float t = clamp(nearB / (nearB - nearA), 0.0, 1.0);
     clipB = mix(clipB, clipA, t);
+    worldB = mix(worldB, worldA, t);
   }
 
   float safeWa = max(clipA.w, 0.0001);
@@ -174,6 +230,7 @@ void main() {
     vAcross = aCorner.y;
     vPalette = aInstancePalette;
     vAge = aInstanceAge;
+    vDistance = 0.0;
     return;
   }
 
@@ -181,13 +238,15 @@ void main() {
   vec2 offsetNdc = perpendicularPixels
     * (uBeamWidthPx * uPassWidthScale * aInstanceWidth)
     / max(uViewport, vec2(1.0));
-  vec4 clip = mix(clipA, clipB, clamp(aCorner.x, 0.0, 1.0));
+  float along = clamp(aCorner.x, 0.0, 1.0);
+  vec4 clip = mix(clipA, clipB, along);
   clip.xy += offsetNdc * aCorner.y * clip.w;
   gl_Position = clip;
   vAlpha = aInstanceAlpha;
   vAcross = aCorner.y;
   vPalette = aInstancePalette;
   vAge = aInstanceAge;
+  vDistance = length(uCameraPosition - mix(worldA, worldB, along));
 }
 `
 
@@ -198,12 +257,17 @@ in float vAlpha;
 in float vAcross;
 in float vPalette;
 in float vAge;
+in float vDistance;
 
 uniform vec3 uBeamColor;
 uniform vec3 uBeamAccent;
+uniform vec3 uFogColor;
 uniform float uEdgeOpacity;
 uniform float uPassBrightness;
 uniform float uPassSoftness;
+uniform float uColorVariation;
+uniform float uFogAmount;
+uniform float uDepthFade;
 uniform float uBeat;
 uniform float uBrightness;
 
@@ -213,9 +277,12 @@ void main() {
   float edge = abs(vAcross);
   float profile = 1.0 - smoothstep(1.0 - uPassSoftness, 1.0, edge);
   float ageColor = smoothstep(0.15, 1.0, vAge);
-  vec3 color = mix(uBeamColor, uBeamAccent, clamp(vPalette * 0.42 + ageColor * 0.22, 0.0, 1.0));
+  float paletteMix = clamp(0.5 + (vPalette - 0.5) * (0.24 + uColorVariation * 1.76), 0.0, 1.0);
+  vec3 color = mix(uBeamColor, uBeamAccent, clamp(paletteMix * 0.7 + ageColor * 0.16, 0.0, 1.0));
   float brightness = uPassBrightness * (1.0 + uBeat * 0.24 + uBrightness * 0.2);
-  float alpha = clamp(vAlpha * uEdgeOpacity * profile, 0.0, 1.0);
+  float fogFactor = 1.0 - exp(-max(0.0, vDistance - 1.0) * uFogAmount * uDepthFade * 0.28);
+  color = mix(color, uFogColor, clamp(fogFactor, 0.0, 0.78));
+  float alpha = clamp(vAlpha * uEdgeOpacity * profile * (1.0 - fogFactor * 0.45), 0.0, 1.0);
   outColor = vec4(color * brightness, alpha);
 }
 `

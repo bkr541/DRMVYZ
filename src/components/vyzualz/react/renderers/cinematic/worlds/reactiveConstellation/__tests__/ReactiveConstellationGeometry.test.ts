@@ -3,9 +3,21 @@ import {
   REACTIVE_CONSTELLATION_DEFAULTS,
   type ReactiveConstellationSettings,
 } from '../../../../../CinematicWorldSettings'
-import { buildConstellationGraph } from '../ConstellationGraphBuilder'
+import {
+  buildConstellationGraph,
+  selectConstellationMeshStyle,
+} from '../ConstellationGraphBuilder'
 import { cameraViewProjectionMatrix } from '../ConstellationMath'
-import { getConstellationMesh, listConstellationMeshStyles } from '../ConstellationMeshLibrary'
+import {
+  getConstellationMesh,
+  isConstellationMeshValid,
+  listConstellationMeshStyles,
+} from '../ConstellationMeshLibrary'
+import {
+  isConstellationCameraPoseSafe,
+  REACTIVE_CONSTELLATION_SAFE_CAMERA_RANGE,
+  REACTIVE_CONSTELLATION_SHOTS,
+} from '../ConstellationPresentation'
 
 function settings(patch: Partial<ReactiveConstellationSettings> = {}): ReactiveConstellationSettings {
   return { ...REACTIVE_CONSTELLATION_DEFAULTS, ...patch }
@@ -57,17 +69,37 @@ describe('Reactive Constellation geometry foundation', () => {
   it('provides real flat-shaded triangle geometry for every supported mesh style', () => {
     for (const style of listConstellationMeshStyles()) {
       const mesh = getConstellationMesh(style)
+      expect(isConstellationMeshValid(mesh), style).toBe(true)
       expect(mesh.vertexCount, style).toBeGreaterThanOrEqual(12)
       expect(mesh.vertexCount % 3, style).toBe(0)
       expect(mesh.positions.length, style).toBe(mesh.vertexCount * 3)
       expect(mesh.normals.length, style).toBe(mesh.positions.length)
       expect(mesh.barycentrics.length, style).toBe(mesh.positions.length)
+      expect(mesh.indices.length, style).toBe(mesh.vertexCount)
+      expect(mesh.boundsRadius, style).toBeGreaterThan(0)
+      expect(Array.from(mesh.positions).every(Number.isFinite), style).toBe(true)
+      expect(Array.from(mesh.normals).every(Number.isFinite), style).toBe(true)
+      expect(Array.from(mesh.indices).every((value, index) => value === index), style).toBe(true)
       for (let index = 0; index < mesh.vertexCount; index += 3) {
         const offset = index * 3
-        expect(Array.from(mesh.normals.slice(offset, offset + 3))).toEqual(Array.from(mesh.normals.slice(offset + 3, offset + 6)))
-        expect(Array.from(mesh.normals.slice(offset, offset + 3))).toEqual(Array.from(mesh.normals.slice(offset + 6, offset + 9)))
+        const normal = Array.from(mesh.normals.slice(offset, offset + 3))
+        expect(normal).toEqual(Array.from(mesh.normals.slice(offset + 3, offset + 6)))
+        expect(normal).toEqual(Array.from(mesh.normals.slice(offset + 6, offset + 9)))
+        expect(Math.hypot(...normal)).toBeCloseTo(1, 5)
       }
     }
+  })
+
+  it('selects fixed and mixed crystal shapes deterministically', () => {
+    const first = Array.from({ length: 48 }, (_, index) => selectConstellationMeshStyle('mixed', 7221, index))
+    const second = Array.from({ length: 48 }, (_, index) => selectConstellationMeshStyle('mixed', 7221, index))
+    const different = Array.from({ length: 48 }, (_, index) => selectConstellationMeshStyle('mixed', 7222, index))
+
+    expect(first).toEqual(second)
+    expect(first).not.toEqual(different)
+    expect(new Set(first).size).toBeGreaterThan(1)
+    expect(Array.from({ length: 12 }, (_, index) => selectConstellationMeshStyle('octahedron', 9, index)))
+      .toEqual(new Array(12).fill('octahedron'))
   })
 
   it('distributes mixed polyhedra and produces a finite shared-camera view projection', () => {
@@ -86,5 +118,32 @@ describe('Reactive Constellation geometry foundation', () => {
     })
     expect(matrix).toHaveLength(16)
     expect(Array.from(matrix).every(Number.isFinite)).toBe(true)
+  })
+
+  it('keeps every authored camera shot inside the world safety envelope', () => {
+    expect(REACTIVE_CONSTELLATION_SAFE_CAMERA_RANGE.minDistance).toBeGreaterThan(0)
+    expect(REACTIVE_CONSTELLATION_SAFE_CAMERA_RANGE.maxDistance)
+      .toBeGreaterThan(REACTIVE_CONSTELLATION_SAFE_CAMERA_RANGE.minDistance)
+    expect(REACTIVE_CONSTELLATION_SAFE_CAMERA_RANGE.maxFieldOfView)
+      .toBeGreaterThan(REACTIVE_CONSTELLATION_SAFE_CAMERA_RANGE.minFieldOfView)
+
+    for (const shot of REACTIVE_CONSTELLATION_SHOTS) {
+      const pose = {
+        position: {
+          x: shot.pose?.position?.x ?? 0,
+          y: shot.pose?.position?.y ?? 0,
+          z: shot.pose?.position?.z ?? 4,
+        },
+        fieldOfView: shot.pose?.fieldOfView ?? 60,
+      }
+      expect(isConstellationCameraPoseSafe(pose), shot.id).toBe(true)
+    }
+    expect(isConstellationCameraPoseSafe({ position: { x: 0, y: 0, z: 0.2 }, fieldOfView: 60 })).toBe(false)
+    expect(isConstellationCameraPoseSafe({ position: { x: Number.NaN, y: 0, z: 4 }, fieldOfView: 60 })).toBe(false)
+    expect(isConstellationCameraPoseSafe({
+      position: { x: 0, y: 0, z: 4 },
+      rotation: { x: 0, y: Number.NaN, z: 0 },
+      fieldOfView: 60,
+    })).toBe(false)
   })
 })

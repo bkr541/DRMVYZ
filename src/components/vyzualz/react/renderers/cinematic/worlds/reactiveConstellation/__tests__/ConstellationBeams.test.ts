@@ -20,9 +20,11 @@ describe('Reactive Constellation beam safety and quality', () => {
     const nodeCaps = tiers.map(tier => constellationQualityBudget(tier).nodeCountCap)
     const edgeCaps = tiers.map(tier => constellationQualityBudget(tier).edgeCountCap)
     const trailCaps = tiers.map(tier => constellationQualityBudget(tier).trailSampleCap)
+    const curtainCaps = tiers.map(tier => constellationQualityBudget(tier).curtainCountCap)
     expect(nodeCaps).toEqual([...nodeCaps].sort((a, b) => a - b))
     expect(edgeCaps).toEqual([...edgeCaps].sort((a, b) => a - b))
     expect(trailCaps).toEqual([...trailCaps].sort((a, b) => a - b))
+    expect(curtainCaps).toEqual([...curtainCaps].sort((a, b) => a - b))
     expect(clampConstellationNodeCount(999, CONSTELLATION_QUALITY_BUDGETS.low)).toBe(28)
     expect(clampConstellationEdgeCount(999, CONSTELLATION_QUALITY_BUDGETS.medium)).toBe(112)
     expect(clampConstellationTrailSamples(999, CONSTELLATION_QUALITY_BUDGETS.high)).toBe(16)
@@ -30,6 +32,7 @@ describe('Reactive Constellation beam safety and quality', () => {
     expect(CONSTELLATION_QUALITY_BUDGETS.low.glowPassComplexity).toBeGreaterThan(0)
     expect(CONSTELLATION_QUALITY_BUDGETS.auto.nodeCountCap).toBeLessThan(CONSTELLATION_QUALITY_BUDGETS.ultra.nodeCountCap)
     expect(CONSTELLATION_QUALITY_BUDGETS.auto.historicalDrawCount).toBeLessThan(CONSTELLATION_QUALITY_BUDGETS.ultra.historicalDrawCount)
+    expect(CONSTELLATION_QUALITY_BUDGETS.auto.curtainCountCap).toBeLessThan(CONSTELLATION_QUALITY_BUDGETS.ultra.curtainCountCap)
   })
 
   it('rejects zero-length and non-finite edges without poisoning the instance buffer', () => {

@@ -162,9 +162,15 @@ export interface ReactiveConstellationSettings {
   nodeScale: number
   nodeScaleVariation: number
   faceOpacity: number
+  facetContrast: number
+  internalGlow: number
   rimIntensity: number
   wireframeAmount: number
+  colorVariation: number
   nodeSpin: number
+  backgroundCurtains: number
+  curtainDensity: number
+  depthFade: number
   beamWidth: number
   beamCoreBrightness: number
   beamGlow: number
@@ -586,9 +592,15 @@ export const REACTIVE_CONSTELLATION_DEFAULTS: ReactiveConstellationSettings = {
   nodeScale: 0.12,
   nodeScaleVariation: 0.48,
   faceOpacity: 0.82,
+  facetContrast: 1.18,
+  internalGlow: 0.68,
   rimIntensity: 0.88,
   wireframeAmount: 0.28,
+  colorVariation: 0.72,
   nodeSpin: 0.34,
+  backgroundCurtains: 0.34,
+  curtainDensity: 10,
+  depthFade: 0.56,
   beamWidth: 2.4,
   beamCoreBrightness: 2.6,
   beamGlow: 1.15,
@@ -619,9 +631,15 @@ export const REACTIVE_CONSTELLATION_BOUNDS = {
   nodeScale: [0.045, 0.28],
   nodeScaleVariation: [0, 1],
   faceOpacity: [0.08, 1],
+  facetContrast: [0, 2],
+  internalGlow: [0, 2],
   rimIntensity: [0, 2],
   wireframeAmount: [0, 1],
+  colorVariation: [0, 1],
   nodeSpin: [-1.5, 1.5],
+  backgroundCurtains: [0, 1],
+  curtainDensity: [0, 24],
+  depthFade: [0, 1.5],
   beamWidth: [0.5, 12],
   beamCoreBrightness: [0, 6],
   beamGlow: [0, 3],
@@ -657,9 +675,15 @@ function normalizeReactiveConstellationSettings(raw: unknown): ReactiveConstella
       nodeScale: REACTIVE_CONSTELLATION_DEFAULTS.nodeScale,
       nodeScaleVariation: REACTIVE_CONSTELLATION_DEFAULTS.nodeScaleVariation,
       faceOpacity: REACTIVE_CONSTELLATION_DEFAULTS.faceOpacity,
+      facetContrast: REACTIVE_CONSTELLATION_DEFAULTS.facetContrast,
+      internalGlow: REACTIVE_CONSTELLATION_DEFAULTS.internalGlow,
       rimIntensity: REACTIVE_CONSTELLATION_DEFAULTS.rimIntensity,
       wireframeAmount: REACTIVE_CONSTELLATION_DEFAULTS.wireframeAmount,
+      colorVariation: REACTIVE_CONSTELLATION_DEFAULTS.colorVariation,
       nodeSpin: REACTIVE_CONSTELLATION_DEFAULTS.nodeSpin,
+      backgroundCurtains: REACTIVE_CONSTELLATION_DEFAULTS.backgroundCurtains,
+      curtainDensity: REACTIVE_CONSTELLATION_DEFAULTS.curtainDensity,
+      depthFade: REACTIVE_CONSTELLATION_DEFAULTS.depthFade,
       beamWidth: REACTIVE_CONSTELLATION_DEFAULTS.beamWidth,
       beamCoreBrightness: REACTIVE_CONSTELLATION_DEFAULTS.beamCoreBrightness,
       beamGlow: REACTIVE_CONSTELLATION_DEFAULTS.beamGlow,
@@ -682,7 +706,7 @@ function normalizeReactiveConstellationSettings(raw: unknown): ReactiveConstella
       reseedEveryBars: REACTIVE_CONSTELLATION_DEFAULTS.reseedEveryBars,
     },
     REACTIVE_CONSTELLATION_BOUNDS,
-    ['nodeCount', 'neighborCount', 'trailSamples', 'reseedEveryBars'],
+    ['nodeCount', 'neighborCount', 'trailSamples', 'curtainDensity', 'reseedEveryBars'],
   )
   const legacyTopologyAliases: Record<string, ReactiveConstellationTopologyStyle> = {
     radial: 'starburst',

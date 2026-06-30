@@ -339,12 +339,13 @@ describe('CinematicWorldRendererHost', () => {
       expect(drawArraysInstanced.mock.calls.length, `${definition.id} geometry`).toBe(geometryCallsBeforeDispose)
     }
 
-    // Reactive Constellation owns separate node and beam programs; the other worlds compile one each.
+    // Reactive Constellation owns separate node and beam programs plus four
+    // shape VAOs, one network-beam VAO, and one background-curtain VAO.
     expect(services.compileProgram).toHaveBeenCalledTimes(cinematicWorldDefinitions.length + 1)
     expect(run).toHaveBeenCalledTimes(cinematicWorldDefinitions.filter(definition => definition.capabilities.supportsFullscreenPasses).length)
     expect(drawArraysInstanced).toHaveBeenCalled()
-    expect(resources.trackVAO).toHaveBeenCalledTimes(5)
-    expect(resources.untrackVAO).toHaveBeenCalledTimes(5)
+    expect(resources.trackVAO).toHaveBeenCalledTimes(6)
+    expect(resources.untrackVAO).toHaveBeenCalledTimes(6)
   })
 
   it('lazily initializes, resizes, renders, resets, and disposes the legacy renderer', () => {
