@@ -4,6 +4,14 @@ import { createSplitPersistStorage } from '../lib/splitPersistStorage'
 import { createLegacyPortalCinematicConfig, normalizeCinematicWorldConfig } from '../components/vyzualz/react/CinematicWorldConfig'
 import type { CinematicWorldConfig } from '../components/vyzualz/react/CinematicWorldConfig'
 import {
+  getReactPerformanceAction,
+  isReactPerformanceActionCompatible,
+  NEON_LATTICE_ACTION_ID_BY_TRIGGER,
+  REACT_VISUAL_PERFORMANCE_ACTIONS,
+  type ReactPerformanceActionEvent,
+  type ReactPerformanceActionTarget,
+} from '../components/vyzualz/react/ReactPerformanceActions'
+import {
   DEFAULT_REACT_PRESETS,
   DEFAULT_PERFORMANCE_PADS,
   DEFAULT_OSCILLATOR_SETTINGS,
@@ -731,7 +739,7 @@ export function buildPresetPatch(
     oscillatorSettings:  resolvePresetOscillatorSettings(preset, currentOscSettings),
     ...(laserPatch        != null ? { laserDmxSettings:   laserPatch        } : {}),
     ...(neonLatticePatch  != null ? { neonLatticeSettings: neonLatticePatch } : {}),
-    ...(preset.engine !== 'neonLattice' ? { neonLatticeTrigger: null as NeonLatticeTriggerEvent | null } : {}),
+    ...clearPerformanceActionPatch(),
   }
 }
 
@@ -1027,9 +1035,17 @@ interface ReactStoreState {
   setNeonLatticeSettings: (partial: Partial<NeonLatticeSettings>) => void
   resetNeonLatticeSettings: () => void
 
-  // Neon Lattice one-shot performance triggers (non-persisted)
+  // Generic visual performance actions (transient; excluded from persistence)
+  performanceActionEvent: ReactPerformanceActionEvent | null
+  performanceActionEvents: ReactPerformanceActionEvent[]
+  performanceActionSeq: number
+  performanceActionToggleStates: Record<string, boolean>
+  triggerPerformanceAction: (actionId: string, toggleState?: boolean) => void
+  clearPerformanceActions: () => void
+
+  // Neon Lattice compatibility aliases. New UI code consumes the generic action contract.
   neonLatticeTrigger:    NeonLatticeTriggerEvent | null
-  neonLatticeTriggerSeq: number   // monotonic counter; never persisted, never reset
+  neonLatticeTriggerSeq: number
   triggerNeonLattice: (type: NeonLatticeTriggerType) => void
 
   // LaserDMX Spatial Fixtures settings
@@ -1133,6 +1149,28 @@ interface ReactStoreState {
   duplicateSoundDrawingClip: (trackId: string, clipId: string) => void
   removeSoundDrawingClip: (trackId: string, clipId: string) => void
 }
+
+export function resolveActivePerformanceActionTarget(
+  state: Pick<ReactStoreState, 'activeReactEngineId' | 'activeReactPresetId' | 'reactPresets' | 'cinematicConfigsByPresetId'>,
+): ReactPerformanceActionTarget {
+  if (state.activeReactEngineId !== 'cinematicPortal') return { engineId: state.activeReactEngineId }
+  const preset = state.activeReactPresetId
+    ? state.reactPresets.find(candidate => candidate.id === state.activeReactPresetId)
+    : null
+  const config = resolveCinematicConfigForPreset(preset, state.cinematicConfigsByPresetId)
+  return { engineId: 'cinematicPortal', ...(config ? { worldId: config.worldMode } : {}) }
+}
+
+function clearPerformanceActionPatch() {
+  return {
+    performanceActionEvent: null as ReactPerformanceActionEvent | null,
+    performanceActionEvents: [] as ReactPerformanceActionEvent[],
+    performanceActionToggleStates: {} as Record<string, boolean>,
+    neonLatticeTrigger: null as NeonLatticeTriggerEvent | null,
+  }
+}
+
+const MAX_PERFORMANCE_ACTION_EVENTS = 64
 
 const INITIAL_PRESET_ID = 'preset-dream-gate'
 const INITIAL_ENGINE_ID: ReactEngineId = 'cinematicPortal'
@@ -2006,6 +2044,12 @@ export function mergeReactStoreState(
       ...merged.oscillatorSettings,
     }),
     laserDmxBeamMatrixPresetDirty: dirty,
+    performanceActionEvent: null,
+    performanceActionEvents: [],
+    performanceActionSeq: currentState.performanceActionSeq,
+    performanceActionToggleStates: {},
+    neonLatticeTrigger: null,
+    neonLatticeTriggerSeq: currentState.neonLatticeTriggerSeq,
   }
 }
 
@@ -2045,10 +2089,14 @@ export const useReactStore = create<ReactStoreState>()(
       fontsLoadState:    'idle',
       fontLoadError:     null,
       glyphLostNotice: null,
-      neonLatticeSettings:    { ...DEFAULT_NEON_LATTICE_SETTINGS },
-      neonLatticeTrigger:     null,
-      neonLatticeTriggerSeq:  0,
-      laserDmxSettings:       createDefaultLaserDmxSettings(),
+      neonLatticeSettings:            { ...DEFAULT_NEON_LATTICE_SETTINGS },
+      performanceActionEvent:         null,
+      performanceActionEvents:        [],
+      performanceActionSeq:           0,
+      performanceActionToggleStates:  {},
+      neonLatticeTrigger:             null,
+      neonLatticeTriggerSeq:          0,
+      laserDmxSettings:               createDefaultLaserDmxSettings(),
       laserDmxWorkspaceMode:  'spatialFixtures',
       laserDmxBeamMatrix:     createDefaultLaserDmxBeamMatrixSettings(),
       activeLaserDmxBeamMatrixPresetId: null,
@@ -2063,20 +2111,33 @@ export const useReactStore = create<ReactStoreState>()(
       performancePadTransition: null,
 
       setCinematicConfigForPreset: (presetId, config) =>
-        set((state) => state.reactPresets.some(preset => preset.id === presetId && preset.engine === 'cinematicPortal')
-          ? {
-              cinematicConfigsByPresetId: {
-                ...state.cinematicConfigsByPresetId,
-                [presetId]: normalizeCinematicWorldConfig(config),
-              },
-            }
-          : {}),
+        set((state) => {
+          const preset = state.reactPresets.find(candidate => candidate.id === presetId && candidate.engine === 'cinematicPortal')
+          if (!preset) return {}
+          const normalized = normalizeCinematicWorldConfig(config)
+          const previous = resolveCinematicConfigForPreset(preset, state.cinematicConfigsByPresetId)
+          const worldChanged = state.activeReactPresetId === presetId && previous?.worldMode !== normalized.worldMode
+          return {
+            cinematicConfigsByPresetId: {
+              ...state.cinematicConfigsByPresetId,
+              [presetId]: normalized,
+            },
+            ...(worldChanged ? clearPerformanceActionPatch() : {}),
+          }
+        }),
 
       clearCinematicConfigForPreset: (presetId) =>
         set((state) => {
+          const preset = state.reactPresets.find(candidate => candidate.id === presetId && candidate.engine === 'cinematicPortal')
+          const previous = resolveCinematicConfigForPreset(preset, state.cinematicConfigsByPresetId)
           const { [presetId]: _removed, ...rest } = state.cinematicConfigsByPresetId
           void _removed
-          return { cinematicConfigsByPresetId: rest }
+          const next = resolveCinematicConfigForPreset(preset, rest)
+          const worldChanged = state.activeReactPresetId === presetId && previous?.worldMode !== next?.worldMode
+          return {
+            cinematicConfigsByPresetId: rest,
+            ...(worldChanged ? clearPerformanceActionPatch() : {}),
+          }
         }),
 
       setCinematicSeedLocked: (presetId, locked) =>
@@ -2101,7 +2162,7 @@ export const useReactStore = create<ReactStoreState>()(
           }
 
           if (s.activeReactEngineId === 'shaderPads') {
-            return { activeReactPresetId: null, performancePadTransition: null }
+            return { activeReactPresetId: null, performancePadTransition: null, ...clearPerformanceActionPatch() }
           }
 
           const fallback = s.reactPresets.find(p => p.engine === s.activeReactEngineId)
@@ -2111,6 +2172,7 @@ export const useReactStore = create<ReactStoreState>()(
                 activeReactPresetId: INITIAL_PRESET_ID,
                 activeReactEngineId: INITIAL_ENGINE_ID,
                 performancePadTransition: null,
+                ...clearPerformanceActionPatch(),
               }
         }),
 
@@ -2120,7 +2182,7 @@ export const useReactStore = create<ReactStoreState>()(
         set((s) => {
           // Shader Pads has no React presets — switch directly without a preset lookup.
           if (engineId === 'shaderPads') {
-            return { activeReactEngineId: 'shaderPads', activeReactPresetId: null, neonLatticeTrigger: null as NeonLatticeTriggerEvent | null, performancePadTransition: null }
+            return { activeReactEngineId: 'shaderPads', activeReactPresetId: null, performancePadTransition: null, ...clearPerformanceActionPatch() }
           }
           // If the current preset already belongs to the selected engine, only ensure
           // activeReactEngineId is correct (repairs any prior drift without a preset switch).
@@ -2137,7 +2199,7 @@ export const useReactStore = create<ReactStoreState>()(
             return {
               activeReactEngineId: engineId,
               performancePadTransition: null,
-              ...(engineId !== 'neonLattice' ? { neonLatticeTrigger: null as NeonLatticeTriggerEvent | null } : {}),
+              ...clearPerformanceActionPatch(),
             }
           }
           return { ...buildPresetPatchForState(preset, s), performancePadTransition: null }
@@ -2880,13 +2942,56 @@ export const useReactStore = create<ReactStoreState>()(
         set(s => ({ neonLatticeSettings: { ...s.neonLatticeSettings, ...partial } })),
 
       resetNeonLatticeSettings: () =>
-        set({ neonLatticeSettings: { ...DEFAULT_NEON_LATTICE_SETTINGS } }),
+        set({ neonLatticeSettings: { ...DEFAULT_NEON_LATTICE_SETTINGS }, ...clearPerformanceActionPatch() }),
 
-      triggerNeonLattice: (type) =>
+      triggerPerformanceAction: (actionId, requestedToggleState) =>
         set(s => {
-          const seq = s.neonLatticeTriggerSeq + 1
-          return { neonLatticeTriggerSeq: seq, neonLatticeTrigger: { type, seq } }
+          const action = getReactPerformanceAction(actionId)
+          const target = resolveActivePerformanceActionTarget(s)
+          if (!action || !isReactPerformanceActionCompatible(action, target)) return {}
+
+          const sequence = s.performanceActionSeq + 1
+          const triggeredAtMs = typeof performance !== 'undefined' ? performance.now() : Date.now()
+          let toggleState: boolean | undefined
+          let toggleStates = s.performanceActionToggleStates
+          if (action.behavior === 'toggle') {
+            toggleState = requestedToggleState ?? !Boolean(toggleStates[action.id])
+            toggleStates = { ...toggleStates }
+            if (toggleState && action.exclusiveGroup) {
+              for (const candidate of REACT_VISUAL_PERFORMANCE_ACTIONS) {
+                if (candidate.exclusiveGroup === action.exclusiveGroup) toggleStates[candidate.id] = false
+              }
+            }
+            toggleStates[action.id] = toggleState
+          }
+
+          const event: ReactPerformanceActionEvent = {
+            actionId: action.id,
+            sequence,
+            target,
+            triggeredAtMs,
+            ...(toggleState == null ? {} : { toggleState }),
+          }
+          const legacyType = action.legacyNeonLatticeTrigger
+          const legacySequence = legacyType ? s.neonLatticeTriggerSeq + 1 : s.neonLatticeTriggerSeq
+          return {
+            performanceActionSeq: sequence,
+            performanceActionEvent: event,
+            performanceActionEvents: [...s.performanceActionEvents, event].slice(-MAX_PERFORMANCE_ACTION_EVENTS),
+            performanceActionToggleStates: toggleStates,
+            ...(legacyType ? {
+              neonLatticeTriggerSeq: legacySequence,
+              neonLatticeTrigger: { type: legacyType, seq: legacySequence } as NeonLatticeTriggerEvent,
+            } : {}),
+          }
         }),
+
+      clearPerformanceActions: () => set(clearPerformanceActionPatch()),
+
+      triggerNeonLattice: (type) => {
+        const actionId = NEON_LATTICE_ACTION_ID_BY_TRIGGER[type]
+        if (actionId) get().triggerPerformanceAction(actionId)
+      },
 
       // ── LaserDMX actions ────────────────────────────────────────────────────
 
@@ -3672,6 +3777,7 @@ export const useReactStore = create<ReactStoreState>()(
         set(s => ({
           laserDmxWorkspaceMode:              'beamMatrix' as const,
           activeReactEngineId:                'laserDmx' as const,
+          ...clearPerformanceActionPatch(),
           activeLaserDmxBeamMatrixPresetId:   presetId,
           laserDmxBeamMatrixPresetDirty:      false,
           laserDmxBeamMatrix: {
@@ -3703,6 +3809,7 @@ export const useReactStore = create<ReactStoreState>()(
             reactFogDensity:      0.5,
             reactParticleDensity: 0.5,
             performancePadTransition: null,
+            ...clearPerformanceActionPatch(),
           }
 
           if (s.activeReactEngineId === 'cinematicPortal' && s.activeReactPresetId) {
@@ -3789,6 +3896,7 @@ export const useReactStore = create<ReactStoreState>()(
             : {
                 activeReactPresetId: INITIAL_PRESET_ID,
                 activeReactEngineId: INITIAL_ENGINE_ID,
+                ...clearPerformanceActionPatch(),
               }
 
           return {
@@ -3841,6 +3949,7 @@ export const useReactStore = create<ReactStoreState>()(
             activeLaserDmxBeamMatrixPresetId: null,
             laserDmxBeamMatrixPresetDirty: false,
             performancePadTransition: null,
+            ...clearPerformanceActionPatch(),
           }
         }),
 
@@ -3868,6 +3977,9 @@ export const useReactStore = create<ReactStoreState>()(
           oscillatorTextPointCache:  {},
           glyphLostNotice:           null,
           neonLatticeSettings:              { ...DEFAULT_NEON_LATTICE_SETTINGS },
+          performanceActionEvent:           null,
+          performanceActionEvents:          [],
+          performanceActionToggleStates:    {},
           neonLatticeTrigger:               null,
           laserDmxSettings:                 createDefaultLaserDmxSettings(),
           laserDmxWorkspaceMode:            'spatialFixtures',

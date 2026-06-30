@@ -1,6 +1,7 @@
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import type { ReactPreset, NeonLatticeTriggerType, NeonLatticeSettings, NeonLatticeDecayStyle, NeonLatticeTrigger, ReactSectionType } from '../ReactTypes'
 import { DEFAULT_NEON_LATTICE_SETTINGS } from '../ReactTypes'
+import { neonLatticeTriggerFromPerformanceEvent } from '../ReactPerformanceActions'
 import {
   type NeonRail,
   type NeonPulse,
@@ -102,7 +103,8 @@ interface NeonLatticeState {
   lastPulseSnapSlot:  number
   lastBlockSnapSlot:  number
   // trigger / overlay state (non-persisted visual effects)
-  lastConsumedSeq:    number      // renderer only consumes each seq once
+  lastConsumedSeq:    number      // legacy renderer trigger sequence
+  lastConsumedPerformanceActionSeq: number
   overlayAlpha:       number      // 0 = inactive, >0 = drawing overlay
   overlayColor:       string      // '#ffffff' | '#000000'
   overlayStartSec:    number
@@ -201,6 +203,7 @@ function makeState(W: number, H: number): NeonLatticeState {
     lastPulseSnapSlot:  -1,
     lastBlockSnapSlot:  -1,
     lastConsumedSeq:    0,
+    lastConsumedPerformanceActionSeq: 0,
     overlayAlpha:       0,
     overlayColor:       '#ffffff',
     overlayStartSec:    -10,
@@ -1085,10 +1088,20 @@ export function renderNeonLattice(
   }
 
   // ── Trigger consumption (one-shot per seq) ─────────────────────────────────
-  const trig = params.neonLatticeTrigger
-  if (trig && trig.seq !== st.lastConsumedSeq) {
-    st.lastConsumedSeq = trig.seq
-    dispatchTrigger(st, trig.type, audioTime, paletteRgb, secSettings, frame.bpm, W, H)
+  const actionEvents = params.performanceActionEvents && params.performanceActionEvents.length > 0
+    ? [...params.performanceActionEvents].sort((a, b) => a.sequence - b.sequence)
+    : params.performanceActionEvent ? [params.performanceActionEvent] : []
+  for (const actionEvent of actionEvents) {
+    if (actionEvent.sequence <= st.lastConsumedPerformanceActionSeq) continue
+    st.lastConsumedPerformanceActionSeq = actionEvent.sequence
+    const trigger = neonLatticeTriggerFromPerformanceEvent(actionEvent)
+    if (trigger) dispatchTrigger(st, trigger.type, audioTime, paletteRgb, secSettings, frame.bpm, W, H)
+  }
+
+  const legacyTrigger = params.neonLatticeTrigger
+  if (actionEvents.length === 0 && legacyTrigger && legacyTrigger.seq !== st.lastConsumedSeq) {
+    st.lastConsumedSeq = legacyTrigger.seq
+    dispatchTrigger(st, legacyTrigger.type, audioTime, paletteRgb, secSettings, frame.bpm, W, H)
   }
 
   // ── Post-freeze burst (restrained — fires once on release) ────────────────

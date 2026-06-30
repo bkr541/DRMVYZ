@@ -119,6 +119,9 @@ export function ReactView() {
     oscillatorGlyphPointCache,
     oscillatorTextPointCache,
     neonLatticeSettings,
+    performanceActionEvent,
+    performanceActionEvents,
+    performanceActionToggleStates,
     neonLatticeTrigger,
     manualTrackSectionsByTrackId,
     suppressedAutoSectionsByTrackId,
@@ -147,6 +150,9 @@ export function ReactView() {
     oscillatorGlyphPointCache:      s.oscillatorGlyphPointCache,
     oscillatorTextPointCache:       s.oscillatorTextPointCache,
     neonLatticeSettings:            s.neonLatticeSettings,
+    performanceActionEvent:         s.performanceActionEvent,
+    performanceActionEvents:        s.performanceActionEvents,
+    performanceActionToggleStates:  s.performanceActionToggleStates,
     neonLatticeTrigger:             s.neonLatticeTrigger,
     manualTrackSectionsByTrackId:   s.manualTrackSectionsByTrackId,
     suppressedAutoSectionsByTrackId: s.suppressedAutoSectionsByTrackId,
@@ -403,6 +409,9 @@ export function ReactView() {
                 oscillatorGlyphPointCache={oscillatorGlyphPointCache}
                 oscillatorTextPointCache={oscillatorTextPointCache}
                 neonLatticeSettings={neonLatticeSettings}
+                performanceActionEvent={performanceActionEvent}
+                performanceActionEvents={performanceActionEvents}
+                performanceActionToggleStates={performanceActionToggleStates}
                 neonLatticeTrigger={neonLatticeTrigger}
                 isPlaying={engine.isPlaying}
                 isPaused={transportPaused}

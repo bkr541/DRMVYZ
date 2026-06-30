@@ -211,7 +211,7 @@ describe('NL factory presets', () => {
 // ── 5. triggerNeonLattice — monotonic seq, one-shot consumption ───────────────
 
 describe('triggerNeonLattice action', () => {
-  beforeEach(freshStore)
+  beforeEach(() => { freshStore(); useReactStore.getState().selectReactEngine('neonLattice') })
 
   it('starts at null', () => {
     expect(useReactStore.getState().neonLatticeTrigger).toBeNull()

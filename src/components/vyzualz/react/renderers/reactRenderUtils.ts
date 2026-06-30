@@ -2,6 +2,7 @@ import type { VzFrameContext } from '../../effects/types'
 import type { ReactTrackSection, ReactSectionType, OscillatorSettings, OscillatorFontAsset, OscillatorGlyphAsset, OscillatorGlyphPoint, NeonLatticeSettings, NeonLatticeTriggerEvent } from '../ReactTypes'
 import { DEFAULT_OSCILLATOR_SETTINGS } from '../ReactTypes'
 import type { MusicIntelligenceFrame } from '../../../../features/musicIntelligence/types'
+import type { ReactPerformanceActionEvent } from '../ReactPerformanceActions'
 
 // ── React frame context ───────────────────────────────────────────────────────
 // A lighter version of VzFrameContext used by all React engine renderers.
@@ -81,7 +82,13 @@ export interface ReactRenderParams {
   /** Pre-sampled OpenType text points keyed by "${fontId}:${text}:${fontSize}:${letterSpacing}:${resolution}". Populated at upload/select/settings-change time; never by the renderer. */
   oscillatorTextPointCache: Record<string, OscillatorGlyphPoint[]>
   neonLatticeSettings?: NeonLatticeSettings
-  /** One-shot performance trigger; renderer must consume each seq at most once. */
+  /** Generic transient event. Renderers consume each sequence at most once. */
+  performanceActionEvent?: ReactPerformanceActionEvent | null
+  /** Bounded transient event buffer so rapid pad hits are not collapsed between frames. */
+  performanceActionEvents?: readonly ReactPerformanceActionEvent[]
+  /** Current transient toggle states for context restoration and accessibility parity. */
+  performanceActionToggleStates?: Readonly<Record<string, boolean>>
+  /** @deprecated Neon Lattice compatibility alias. */
   neonLatticeTrigger?: NeonLatticeTriggerEvent | null
 }
 

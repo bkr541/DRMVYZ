@@ -3,6 +3,7 @@ import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatur
 import { LyricPlaybackBus } from '../../../features/lyrics/runtime/LyricPlaybackBus'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
 import type { ReactPreset, ReactTrackSection, OscillatorSettings, OscillatorFontAsset, OscillatorGlyphAsset, OscillatorGlyphPoint, SoundDrawingLayer, SoundDrawingClip, NeonLatticeSettings, NeonLatticeTriggerEvent, ReactPerformancePadTransition } from './ReactTypes'
+import type { ReactPerformanceActionEvent } from './ReactPerformanceActions'
 import { DEFAULT_OSCILLATOR_SETTINGS, DEFAULT_NEON_LATTICE_SETTINGS } from './ReactTypes'
 import type { ReactRenderParams } from './renderers/reactRenderUtils'
 import { DEFAULT_REACT_RENDER_PARAMS } from './renderers/ReactEngineRenderer'
@@ -39,6 +40,9 @@ interface Props {
   oscillatorGlyphPointCache?:   Record<string, OscillatorGlyphPoint[]>
   oscillatorTextPointCache?:    Record<string, OscillatorGlyphPoint[]>
   neonLatticeSettings?:         NeonLatticeSettings
+  performanceActionEvent?:      ReactPerformanceActionEvent | null
+  performanceActionEvents?:     readonly ReactPerformanceActionEvent[]
+  performanceActionToggleStates?: Readonly<Record<string, boolean>>
   neonLatticeTrigger?:          NeonLatticeTriggerEvent | null
   isPlaying:                    boolean
   /** True when playback is paused at a non-terminal playhead position. */
@@ -78,6 +82,9 @@ export function ReactPlaceholderCanvas({
   oscillatorGlyphPointCache  = {} as Record<string, OscillatorGlyphPoint[]>,
   oscillatorTextPointCache   = {} as Record<string, OscillatorGlyphPoint[]>,
   neonLatticeSettings        = DEFAULT_NEON_LATTICE_SETTINGS,
+  performanceActionEvent     = null,
+  performanceActionEvents    = [],
+  performanceActionToggleStates = {},
   neonLatticeTrigger         = null,
   isPlaying,
   isPaused                    = false,
@@ -117,6 +124,9 @@ export function ReactPlaceholderCanvas({
   const glyphPointCacheRef     = useRef<Record<string, OscillatorGlyphPoint[]>>(oscillatorGlyphPointCache)
   const textPointCacheRef      = useRef<Record<string, OscillatorGlyphPoint[]>>(oscillatorTextPointCache)
   const neonLatticeSettingsRef = useRef<NeonLatticeSettings>(neonLatticeSettings)
+  const performanceActionEventRef = useRef<ReactPerformanceActionEvent | null>(performanceActionEvent)
+  const performanceActionEventsRef = useRef<readonly ReactPerformanceActionEvent[]>(performanceActionEvents)
+  const performanceActionToggleStatesRef = useRef<Readonly<Record<string, boolean>>>(performanceActionToggleStates)
   const neonLatticeTriggerRef  = useRef<NeonLatticeTriggerEvent | null>(neonLatticeTrigger)
   const isPlayingRef           = useRef(isPlaying)
   const isPausedRef            = useRef(isPaused)
@@ -146,6 +156,9 @@ export function ReactPlaceholderCanvas({
   glyphPointCacheRef.current     = oscillatorGlyphPointCache
   textPointCacheRef.current      = oscillatorTextPointCache
   neonLatticeSettingsRef.current = neonLatticeSettings
+  performanceActionEventRef.current = performanceActionEvent
+  performanceActionEventsRef.current = performanceActionEvents
+  performanceActionToggleStatesRef.current = performanceActionToggleStates
   neonLatticeTriggerRef.current  = neonLatticeTrigger
   isPlayingRef.current           = isPlaying
   isPausedRef.current            = isPaused
@@ -425,6 +438,9 @@ export function ReactPlaceholderCanvas({
         oscillatorGlyphPointCache: glyphPointCacheRef.current,
         oscillatorTextPointCache:  textPointCacheRef.current,
         neonLatticeSettings:       neonLatticeSettingsRef.current,
+        performanceActionEvent:    performanceActionEventRef.current,
+        performanceActionEvents:   performanceActionEventsRef.current,
+        performanceActionToggleStates: performanceActionToggleStatesRef.current,
         neonLatticeTrigger:        neonLatticeTriggerRef.current,
       }
 

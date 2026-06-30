@@ -1,93 +1,132 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { useReactStore } from '../../../stores/reactStore'
+import { resolveActivePerformanceActionTarget, useReactStore } from '../../../stores/reactStore'
 import type { NeonLatticeTriggerType } from './ReactTypes'
+import {
+  getReactPerformanceActionsForTarget,
+  isFormFieldKeyboardTarget,
+  isReactPerformanceActionCompatible,
+  type ReactPerformanceActionDefinition,
+  type ReactPerformanceActionTarget,
+} from './ReactPerformanceActions'
 
-// ── Key→pad mapping (unchanged) ──────────────────────────────────────────────
-
-const KEY_MAP: Record<string, string> = {
+export const PERFORMANCE_PAD_KEY_MAP: Readonly<Record<string, string>> = {
   '1': 'pad-1',  '2': 'pad-2',  '3': 'pad-3',  '4': 'pad-4',  '5': 'pad-17',
   'q': 'pad-5',  'w': 'pad-6',  'e': 'pad-7',  'r': 'pad-8',  't': 'pad-18',
   'a': 'pad-9',  's': 'pad-10', 'd': 'pad-11', 'f': 'pad-12', 'g': 'pad-19',
   'z': 'pad-13', 'x': 'pad-14', 'c': 'pad-15', 'v': 'pad-16', 'b': 'pad-20',
 }
 
-// ── Neon Lattice contextual pads (first 8 slots when engine is neonLattice) ──
-
+/** Backward-compatible metadata export used by the existing Neon Lattice tests. */
 export const NL_TRIGGER_PADS: Array<{
-  padId:   string
+  padId: string
   trigger: NeonLatticeTriggerType
-  label:   string
-  color:   string
-}> = [
-  { padId: 'pad-1', trigger: 'railBurst',    label: 'Rail Burst',  color: '#4ac7db' },
-  { padId: 'pad-2', trigger: 'blockCascade', label: 'Cascade',     color: '#61d6aa' },
-  { padId: 'pad-3', trigger: 'crossFlare',   label: 'Cross Flare', color: '#e8f4f8' },
-  { padId: 'pad-4', trigger: 'whiteout',     label: 'Whiteout',    color: '#ffffff' },
-  { padId: 'pad-5', trigger: 'blackout',     label: 'Blackout',    color: '#1a0a2e' },
-  { padId: 'pad-6', trigger: 'reseed',       label: 'Reseed',      color: '#b84fc9' },
-  { padId: 'pad-7', trigger: 'freezeTrails', label: 'Freeze',      color: '#80c8ff' },
-  { padId: 'pad-8', trigger: 'cyanStrike',   label: 'Cyan Strike', color: '#00ffee' },
-]
-
-const NL_TRIGGER_PAD_IDS = new Set(NL_TRIGGER_PADS.map(p => p.padId))
+  label: string
+  color: string
+}> = getReactPerformanceActionsForTarget({ engineId: 'neonLattice' }).map(action => ({
+  padId: action.padId,
+  trigger: action.legacyNeonLatticeTrigger!,
+  label: action.label,
+  color: action.color,
+}))
 
 const PRESSED_DURATION_MS = 150
 
+export type PerformancePadKeyboardRoute =
+  | { kind: 'action'; actionId: string }
+  | { kind: 'preset'; padId: string }
+  | null
+
+export function resolvePerformancePadKeyboardRoute(
+  key: string,
+  actions: readonly ReactPerformanceActionDefinition[],
+): PerformancePadKeyboardRoute {
+  const padId = PERFORMANCE_PAD_KEY_MAP[key.toLowerCase()]
+  if (!padId) return null
+  const action = actions.find(candidate => candidate.padId === padId)
+  return action ? { kind: 'action', actionId: action.id } : { kind: 'preset', padId }
+}
+
+function contextualHint(target: ReactPerformanceActionTarget, actions: readonly ReactPerformanceActionDefinition[]): string {
+  if (actions.length === 0) return '1–5 · Q–R·T · A–F·G · Z–V·B'
+  const keys = actions.map(action => action.keyBinding.toUpperCase()).join(' · ')
+  const label = target.worldId === 'reactiveConstellation' ? 'Reactive Constellation' : 'Neon Lattice'
+  return `${keys} = ${label} actions · remaining slots = presets`
+}
+
 export function ReactPerformancePads() {
   const [collapsed, setCollapsed] = useState(true)
-  const [pressedNlPadId, setPressedNlPadId] = useState<string | null>(null)
+  const [pressedActionId, setPressedActionId] = useState<string | null>(null)
 
   const {
     performancePads,
     activePadId,
     setActivePadId,
     activeReactEngineId,
-    triggerNeonLattice,
+    activeReactPresetId,
+    reactPresets,
+    cinematicConfigsByPresetId,
+    performanceActionEvent,
+    performanceActionToggleStates,
+    triggerPerformanceAction,
   } = useReactStore(
     useShallow((s) => ({
-      performancePads:      s.performancePads,
-      activePadId:          s.activePadId,
-      setActivePadId:       s.setActivePadId,
-      activeReactEngineId:  s.activeReactEngineId,
-      triggerNeonLattice:   s.triggerNeonLattice,
+      performancePads: s.performancePads,
+      activePadId: s.activePadId,
+      setActivePadId: s.setActivePadId,
+      activeReactEngineId: s.activeReactEngineId,
+      activeReactPresetId: s.activeReactPresetId,
+      reactPresets: s.reactPresets,
+      cinematicConfigsByPresetId: s.cinematicConfigsByPresetId,
+      performanceActionEvent: s.performanceActionEvent,
+      performanceActionToggleStates: s.performanceActionToggleStates,
+      triggerPerformanceAction: s.triggerPerformanceAction,
     })),
   )
 
-  const isNeonLattice = activeReactEngineId === 'neonLattice'
-
-  // Fire trigger + brief visual flash; does not persist state beyond the timeout
-  const fireNlTrigger = useCallback(
-    (padId: string, trigger: NeonLatticeTriggerType) => {
-      triggerNeonLattice(trigger)
-      setPressedNlPadId(padId)
-      setTimeout(() => setPressedNlPadId(p => p === padId ? null : p), PRESSED_DURATION_MS)
-    },
-    [triggerNeonLattice],
+  const target = useMemo(
+    () => resolveActivePerformanceActionTarget({
+      activeReactEngineId,
+      activeReactPresetId,
+      reactPresets,
+      cinematicConfigsByPresetId,
+    }),
+    [activeReactEngineId, activeReactPresetId, reactPresets, cinematicConfigsByPresetId],
+  )
+  const contextualActions = useMemo(() => getReactPerformanceActionsForTarget(target), [target])
+  const actionsByPadId = useMemo(
+    () => new Map(contextualActions.map(action => [action.padId, action])),
+    [contextualActions],
   )
 
-  const handleKey = useCallback(
-    (e: KeyboardEvent) => {
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
-      ) return
+  useEffect(() => {
+    if (!performanceActionEvent) return
+    const action = contextualActions.find(candidate => candidate.id === performanceActionEvent.actionId)
+    if (!action || action.behavior === 'toggle') return
+    setPressedActionId(action.id)
+    const timerId = window.setTimeout(() => {
+      setPressedActionId(current => current === action.id ? null : current)
+    }, PRESSED_DURATION_MS)
+    return () => window.clearTimeout(timerId)
+  }, [performanceActionEvent, contextualActions])
 
-      const padId = KEY_MAP[e.key.toLowerCase()]
-      if (!padId) return
-      e.preventDefault()
+  const fireAction = useCallback((action: ReactPerformanceActionDefinition) => {
+    if (!isReactPerformanceActionCompatible(action, target)) return
+    triggerPerformanceAction(action.id)
+  }, [target, triggerPerformanceAction])
 
-      // Contextual NL trigger pads (pads 1-8 when neonLattice is active)
-      if (isNeonLattice && NL_TRIGGER_PAD_IDS.has(padId)) {
-        const nlPad = NL_TRIGGER_PADS.find(p => p.padId === padId)
-        if (nlPad) fireNlTrigger(nlPad.padId, nlPad.trigger)
-        return
-      }
-
-      setActivePadId(padId)
-    },
-    [setActivePadId, fireNlTrigger, isNeonLattice],
-  )
+  const handleKey = useCallback((event: KeyboardEvent) => {
+    if (isFormFieldKeyboardTarget(event.target) || event.repeat) return
+    const route = resolvePerformancePadKeyboardRoute(event.key, contextualActions)
+    if (!route) return
+    event.preventDefault()
+    if (route.kind === 'action') {
+      const action = contextualActions.find(candidate => candidate.id === route.actionId)
+      if (action) fireAction(action)
+      return
+    }
+    setActivePadId(route.padId)
+  }, [contextualActions, fireAction, setActivePadId])
 
   useEffect(() => {
     window.addEventListener('keydown', handleKey)
@@ -101,8 +140,13 @@ export function ReactPerformancePads() {
         role="button"
         tabIndex={0}
         aria-expanded={!collapsed}
-        onClick={() => setCollapsed(v => !v)}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCollapsed(v => !v) } }}
+        onClick={() => setCollapsed(value => !value)}
+        onKeyDown={event => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            setCollapsed(value => !value)
+          }
+        }}
       >
         <svg width="14" height="14" viewBox="0 0 512 512" fill="#a78bfa" style={{ flexShrink: 0 }}>
           <path d="M217.043,0.001H16.696C7.515,0.001,0,7.479,0,16.697v200.348c0,9.214,7.482,16.693,16.696,16.693h200.348c9.214,0,16.696-7.481,16.696-16.693V16.697C233.739,7.479,226.224,0.001,217.043,0.001z"/>
@@ -111,37 +155,37 @@ export function ReactPerformancePads() {
           <path d="M495.304,278.262H294.957c-9.18,0-16.696,7.477-16.696,16.696v200.348c0,9.214,7.482,16.693,16.696,16.693h200.348c9.214,0,16.696-7.481,16.696-16.693V294.958C512,285.739,504.485,278.262,495.304,278.262z"/>
         </svg>
         <span className="rv-panel-title">Performance Pads</span>
-        <span className="rv-pads-hint">
-          {isNeonLattice ? '1–4 · Q–R = NL Triggers · 5·T·A–G·Z–B' : '1–5 · Q–R·T · A–F·G · Z–V·B'}
-        </span>
+        <span className="rv-pads-hint">{contextualHint(target, contextualActions)}</span>
         <span className="rv-collapse-arrow">{collapsed ? '▶' : '▼'}</span>
       </div>
       {!collapsed && (
         <div className="rv-pads-grid">
           {performancePads.map((pad) => {
-            const isActive = pad.id === activePadId
-
-            // Contextual NL trigger pads override the first 8 slots
-            if (isNeonLattice) {
-              const nlPad = NL_TRIGGER_PADS.find(p => p.padId === pad.id)
-              if (nlPad) {
-                const isPressed = pressedNlPadId === nlPad.padId
-                return (
-                  <button
-                    key={pad.id}
-                    className={`rv-pad rv-pad--nl-trigger${isPressed ? ' rv-pad--pressed' : ''}`}
-                    onClick={() => fireNlTrigger(nlPad.padId, nlPad.trigger)}
-                    title={`${nlPad.label} [${pad.keyBinding.toUpperCase()}]`}
-                    style={{ '--pad-color': nlPad.color } as React.CSSProperties}
-                  >
-                    <span className="rv-pad-label">{nlPad.label}</span>
-                    <span className="rv-pad-key">{pad.keyBinding.toUpperCase()}</span>
-                  </button>
-                )
-              }
+            const action = actionsByPadId.get(pad.id)
+            if (action) {
+              const available = isReactPerformanceActionCompatible(action, target)
+              const isToggle = action.behavior === 'toggle'
+              const isPressed = isToggle
+                ? performanceActionToggleStates[action.id] === true
+                : pressedActionId === action.id
+              return (
+                <button
+                  key={pad.id}
+                  className={`rv-pad rv-pad--action rv-pad--nl-trigger${isPressed ? ' rv-pad--pressed' : ''}`}
+                  onClick={() => fireAction(action)}
+                  disabled={!available}
+                  aria-label={`${action.label}. ${action.description}`}
+                  {...(isToggle ? { 'aria-pressed': isPressed } : {})}
+                  title={`${action.label} [${action.keyBinding.toUpperCase()}]: ${action.description}`}
+                  style={{ '--pad-color': action.color } as React.CSSProperties}
+                >
+                  <span className="rv-pad-label">{action.label}</span>
+                  <span className="rv-pad-key">{action.keyBinding.toUpperCase()}</span>
+                </button>
+              )
             }
 
-            // Default preset pad behavior for remaining slots
+            const isActive = pad.id === activePadId
             return (
               <button
                 key={pad.id}
