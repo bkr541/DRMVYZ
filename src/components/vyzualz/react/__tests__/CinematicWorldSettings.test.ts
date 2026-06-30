@@ -140,6 +140,9 @@ describe('world-specific cinematic configuration', () => {
       neighborCount: 4.7,
       faceOpacity: -2,
       rimIntensity: 50,
+      springStrength: 99,
+      damping: -3,
+      reseedEveryBars: 17.8,
     } as never)
     expect(resolveReactiveConstellationSettings(constellation.worldSettings)).toMatchObject({
       nodeCount: 96,
@@ -148,6 +151,23 @@ describe('world-specific cinematic configuration', () => {
       neighborCount: 5,
       faceOpacity: 0.08,
       rimIntensity: 2,
+      springStrength: 2,
+      damping: 0,
+      reseedEveryBars: 18,
+    })
+  })
+
+  it('migrates legacy constellation topology names without discarding persisted motion settings', () => {
+    const normalized = createCinematicWorldConfig('reactiveConstellation', {
+      topologyStyle: 'helix',
+      springStrength: 1.1,
+      reseedEveryBars: 12,
+    } as never)
+
+    expect(resolveReactiveConstellationSettings(normalized.worldSettings)).toMatchObject({
+      topologyStyle: 'chain',
+      springStrength: 1.1,
+      reseedEveryBars: 12,
     })
   })
 

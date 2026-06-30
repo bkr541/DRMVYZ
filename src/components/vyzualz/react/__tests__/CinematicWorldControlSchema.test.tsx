@@ -193,6 +193,8 @@ describe('Cinematic World control schema', () => {
     expect(controls.map(control => control.setting)).toEqual([
       'nodeCount', 'topologyStyle', 'polyhedronStyle', 'networkSpread', 'nodeScale',
       'depthSpread', 'neighborCount', 'nodeScaleVariation', 'centralGravity',
+      'springStrength', 'damping', 'elasticity', 'topologyStability', 'driftAmount',
+      'turbulence', 'orbitAmount', 'collapseAmount', 'burstStrength', 'reseedEveryBars',
       'faceOpacity', 'rimIntensity', 'wireframeAmount', 'nodeSpin', 'cameraOrbit',
     ])
     expect(controls.some(control => /trail|audio|beam/i.test(String(control.setting)))).toBe(false)
@@ -220,7 +222,7 @@ describe('Cinematic World control schema', () => {
     const nodeCount = controls.find(control => control.setting === 'nodeCount') as CinematicWorldIntegerControl<'reactiveConstellation'>
     const topology = controls.find(control => control.setting === 'topologyStyle') as CinematicWorldSelectControl<'reactiveConstellation'>
     expect(updateCinematicWorldSettings(settings, nodeCount, 200).settings.nodeCount).toBe(96)
-    expect(updateCinematicWorldSettings(settings, topology, 'helix').settings.topologyStyle).toBe('helix')
+    expect(updateCinematicWorldSettings(settings, topology, 'chain').settings.topologyStyle).toBe('chain')
     expect(updateCinematicWorldSettings(settings, topology, 'future').settings.topologyStyle).toBe(REACTIVE_CONSTELLATION_DEFAULTS.topologyStyle)
   })
 

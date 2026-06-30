@@ -251,10 +251,13 @@ const REACTIVE_CONSTELLATION_CONTROLS = {
         {
           kind: 'select', id: 'constellation-topology-style', setting: 'topologyStyle', label: 'Topology Style', visibility: 'all',
           options: [
-            { value: 'radial', label: 'Radial Bloom' },
-            { value: 'clustered', label: 'Clustered Network' },
-            { value: 'helix', label: 'Helix Spine' },
-            { value: 'layered', label: 'Layered Field' },
+            { value: 'cluster', label: 'Cluster' },
+            { value: 'chain', label: 'Chain' },
+            { value: 'triangulated', label: 'Triangulated' },
+            { value: 'starburst', label: 'Starburst' },
+            { value: 'branching', label: 'Branching' },
+            { value: 'ring', label: 'Ring' },
+            { value: 'splitClusters', label: 'Split Clusters' },
           ],
         },
         {
@@ -280,6 +283,30 @@ const REACTIVE_CONSTELLATION_CONTROLS = {
         { kind: 'integer', id: 'constellation-neighbor-count', setting: 'neighborCount', label: 'Neighbor Count', description: 'Changes graph connectivity, node orientation, and connected-node prominence.', min: REACTIVE_CONSTELLATION_BOUNDS.neighborCount[0], max: REACTIVE_CONSTELLATION_BOUNDS.neighborCount[1], step: 1 },
         { kind: 'slider', id: 'constellation-scale-variation', setting: 'nodeScaleVariation', label: 'Scale Variation', min: REACTIVE_CONSTELLATION_BOUNDS.nodeScaleVariation[0], max: REACTIVE_CONSTELLATION_BOUNDS.nodeScaleVariation[1], step: 0.01 },
         { kind: 'slider', id: 'constellation-central-gravity', setting: 'centralGravity', label: 'Central Gravity', min: REACTIVE_CONSTELLATION_BOUNDS.centralGravity[0], max: REACTIVE_CONSTELLATION_BOUNDS.centralGravity[1], step: 0.01 },
+      ],
+    },
+    {
+      id: 'reactive-constellation-motion',
+      label: 'Elastic Motion',
+      visibility: 'advanced',
+      controls: [
+        { kind: 'slider', id: 'constellation-spring-strength', setting: 'springStrength', label: 'Spring Strength', description: 'Controls how strongly connected nodes pull back toward their graph rest lengths.', min: REACTIVE_CONSTELLATION_BOUNDS.springStrength[0], max: REACTIVE_CONSTELLATION_BOUNDS.springStrength[1], step: 0.01 },
+        { kind: 'slider', id: 'constellation-damping', setting: 'damping', label: 'Damping', description: 'Reduces oscillation and settles the network after impacts.', min: REACTIVE_CONSTELLATION_BOUNDS.damping[0], max: REACTIVE_CONSTELLATION_BOUNDS.damping[1], step: 0.01 },
+        { kind: 'slider', id: 'constellation-elasticity', setting: 'elasticity', label: 'Elasticity', description: 'Increases overshoot, displacement, and scale stretch without removing safety clamps.', min: REACTIVE_CONSTELLATION_BOUNDS.elasticity[0], max: REACTIVE_CONSTELLATION_BOUNDS.elasticity[1], step: 0.01 },
+        { kind: 'slider', id: 'constellation-topology-stability', setting: 'topologyStability', label: 'Topology Stability', description: 'Controls anchor resistance while preserving the selected graph structure.', min: REACTIVE_CONSTELLATION_BOUNDS.topologyStability[0], max: REACTIVE_CONSTELLATION_BOUNDS.topologyStability[1], step: 0.01 },
+        { kind: 'slider', id: 'constellation-drift-amount', setting: 'driftAmount', label: 'Seeded Drift', min: REACTIVE_CONSTELLATION_BOUNDS.driftAmount[0], max: REACTIVE_CONSTELLATION_BOUNDS.driftAmount[1], step: 0.01 },
+        { kind: 'slider', id: 'constellation-turbulence', setting: 'turbulence', label: 'Turbulence', min: REACTIVE_CONSTELLATION_BOUNDS.turbulence[0], max: REACTIVE_CONSTELLATION_BOUNDS.turbulence[1], step: 0.01 },
+        { kind: 'slider', id: 'constellation-orbit-amount', setting: 'orbitAmount', label: 'Node Orbit Force', min: REACTIVE_CONSTELLATION_BOUNDS.orbitAmount[0], max: REACTIVE_CONSTELLATION_BOUNDS.orbitAmount[1], step: 0.01 },
+      ],
+    },
+    {
+      id: 'reactive-constellation-impulses',
+      label: 'Collapse & Recovery',
+      visibility: 'advanced',
+      controls: [
+        { kind: 'slider', id: 'constellation-collapse-amount', setting: 'collapseAmount', label: 'Collapse Amount', description: 'Adds a bounded inward force that the spring network must resist and recover from.', min: REACTIVE_CONSTELLATION_BOUNDS.collapseAmount[0], max: REACTIVE_CONSTELLATION_BOUNDS.collapseAmount[1], step: 0.01 },
+        { kind: 'slider', id: 'constellation-burst-strength', setting: 'burstStrength', label: 'Burst Strength', description: 'Scales radial response to the existing impact modulation signal.', min: REACTIVE_CONSTELLATION_BOUNDS.burstStrength[0], max: REACTIVE_CONSTELLATION_BOUNDS.burstStrength[1], step: 0.01 },
+        { kind: 'integer', id: 'constellation-reseed-bars', setting: 'reseedEveryBars', label: 'Reseed Every Bars', description: 'Zero disables musical reseeding. Other values rebuild deterministically at matching bar boundaries.', min: REACTIVE_CONSTELLATION_BOUNDS.reseedEveryBars[0], max: REACTIVE_CONSTELLATION_BOUNDS.reseedEveryBars[1], step: 1 },
       ],
     },
     {

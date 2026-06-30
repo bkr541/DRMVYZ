@@ -18,6 +18,7 @@ import {
   type CinematicWebGLWorldDefinition,
   type CinematicWebGLWorldRenderer,
 } from '../CinematicWorldRenderer'
+import type { CinematicAudioResetReason } from './CinematicAudioModulation'
 import { CinematicPostProcessingPipeline } from './CinematicPostProcessingPipeline'
 
 export interface CinematicWebGLRuntimeCreateOptions {
@@ -30,6 +31,19 @@ export interface CinematicWebGLRuntimeCreateOptions {
  * pass, and canvas-resolution infrastructure instead of creating a second GPU
  * platform beside it.
  */
+export function cinematicLifecycleResetReason(frame: CinematicFrameContext): CinematicRendererResetReason | null {
+  if (frame.timingDiscontinuity) return 'timingDiscontinuity'
+  const reasons = frame.musicalAudio?.resetReasons ?? []
+  const priority: readonly Exclude<CinematicAudioResetReason, 'manual'>[] = [
+    'trackReplacement',
+    'seek',
+    'presetReplacement',
+    'worldReplacement',
+    'transportRestart',
+  ]
+  return priority.find(reason => reasons.includes(reason)) ?? null
+}
+
 export class CinematicWebGLRuntime implements CinematicWebGLRuntimeLike {
   static create(
     outputContext: CanvasRenderingContext2D,
@@ -99,15 +113,10 @@ export class CinematicWebGLRuntime implements CinematicWebGLRuntimeLike {
       if (this.restoreRequested) this.rebuildAfterContextRestore()
       this.resize(frame)
       this.activateWorld(definition, frame)
-      if (frame.timingDiscontinuity || frame.musicalAudio?.resetReasons.some(reason =>
-        reason === 'seek' ||
-        reason === 'trackReplacement' ||
-        reason === 'transportRestart' ||
-        reason === 'presetReplacement' ||
-        reason === 'worldReplacement'
-      )) {
+      const lifecycleResetReason = cinematicLifecycleResetReason(frame)
+      if (lifecycleResetReason) {
         this.post.clearFeedback()
-        this.activeWorld?.reset('manualReset')
+        this.activeWorld?.reset(lifecycleResetReason)
       }
       const state = this.runtime.beginFrame()
       if (!state || !this.activeWorld) {

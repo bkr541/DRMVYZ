@@ -136,6 +136,12 @@ export type CinematicRendererResetReason =
   | 'worldChanged'
   | 'structuralConfigurationChanged'
   | 'contextRestored'
+  | 'timingDiscontinuity'
+  | 'seek'
+  | 'trackReplacement'
+  | 'transportRestart'
+  | 'presetReplacement'
+  | 'worldReplacement'
   | 'manualReset'
   | 'dispose'
 

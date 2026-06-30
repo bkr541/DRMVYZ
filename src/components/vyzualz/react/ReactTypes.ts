@@ -2192,10 +2192,10 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     params: { intensity: 0.72, motion: 0.56, glow: 0.78, bassReactivity: 0.68 },
     renderSettings: { trailDecay: 0.05, fogDensity: 0.24, particleDensity: 0.36 },
     cinematicConfig: createCinematicWorldConfig('reactiveConstellation', {
-      nodeCount: 48, topologyStyle: 'clustered', polyhedronStyle: 'mixed', networkSpread: 1.28,
+      nodeCount: 48, topologyStyle: 'cluster', polyhedronStyle: 'mixed', networkSpread: 1.28,
       depthSpread: 0.78, neighborCount: 4, nodeScale: 0.115, nodeScaleVariation: 0.54,
       faceOpacity: 0.82, rimIntensity: 1.12, wireframeAmount: 0.34, nodeSpin: 0.42,
-      centralGravity: 0.18, cameraOrbit: 0.16,
+      centralGravity: 0.18, cameraOrbit: 0.16, springStrength: 0.82, damping: 0.58, driftAmount: 0.28, turbulence: 0.2, orbitAmount: 0.22, elasticity: 0.68, topologyStability: 0.76, collapseAmount: 0.05, burstStrength: 0.58, reseedEveryBars: 0,
     }, {
       cameraRig: 'autoDirector', seed: 48001, qualityTier: 'high',
       environment: { depth: 0.78, architecture: 0.12, fog: 0.18, debris: 0.08, stars: 0.46, atmosphere: 0.5 },
@@ -2212,10 +2212,10 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     params: { intensity: 0.62, motion: 0.38, glow: 0.66, bassReactivity: 0.58 },
     renderSettings: { trailDecay: 0.04, fogDensity: 0.34, particleDensity: 0.28 },
     cinematicConfig: createCinematicWorldConfig('reactiveConstellation', {
-      nodeCount: 38, topologyStyle: 'helix', polyhedronStyle: 'irregularCrystal', networkSpread: 1.02,
+      nodeCount: 38, topologyStyle: 'chain', polyhedronStyle: 'irregularCrystal', networkSpread: 1.02,
       depthSpread: 1.05, neighborCount: 2, nodeScale: 0.14, nodeScaleVariation: 0.72,
       faceOpacity: 0.7, rimIntensity: 0.96, wireframeAmount: 0.16, nodeSpin: -0.22,
-      centralGravity: 0.06, cameraOrbit: -0.12,
+      centralGravity: 0.06, cameraOrbit: -0.12, springStrength: 0.56, damping: 0.72, driftAmount: 0.36, turbulence: 0.08, orbitAmount: -0.16, elasticity: 0.42, topologyStability: 0.84, collapseAmount: 0.02, burstStrength: 0.3, reseedEveryBars: 16,
     }, {
       cameraRig: 'orbit', seed: 48002, qualityTier: 'high',
       environment: { depth: 0.92, architecture: 0.08, fog: 0.3, debris: 0.02, stars: 0.34, atmosphere: 0.62 },
@@ -2232,10 +2232,10 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     params: { intensity: 0.92, motion: 0.86, glow: 0.94, bassReactivity: 0.9 },
     renderSettings: { trailDecay: 0.08, fogDensity: 0.18, particleDensity: 0.5 },
     cinematicConfig: createCinematicWorldConfig('reactiveConstellation', {
-      nodeCount: 72, topologyStyle: 'radial', polyhedronStyle: 'icosahedron', networkSpread: 1.62,
+      nodeCount: 72, topologyStyle: 'starburst', polyhedronStyle: 'icosahedron', networkSpread: 1.62,
       depthSpread: 1.18, neighborCount: 6, nodeScale: 0.09, nodeScaleVariation: 0.36,
       faceOpacity: 0.9, rimIntensity: 1.48, wireframeAmount: 0.62, nodeSpin: 0.92,
-      centralGravity: 0.3, cameraOrbit: 0.54,
+      centralGravity: 0.3, cameraOrbit: 0.54, springStrength: 1.08, damping: 0.42, driftAmount: 0.18, turbulence: 0.46, orbitAmount: 0.72, elasticity: 0.86, topologyStability: 0.54, collapseAmount: 0.14, burstStrength: 1.08, reseedEveryBars: 8,
     }, {
       cameraRig: 'autoDirector', seed: 48003, qualityTier: 'high',
       environment: { depth: 0.86, architecture: 0.04, fog: 0.14, debris: 0.1, stars: 0.72, atmosphere: 0.42 },

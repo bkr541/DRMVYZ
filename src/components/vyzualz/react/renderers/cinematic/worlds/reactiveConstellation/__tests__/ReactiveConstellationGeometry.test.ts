@@ -17,13 +17,30 @@ describe('Reactive Constellation geometry foundation', () => {
     const first = buildConstellationGraph(input)
     const second = buildConstellationGraph(input)
     const differentSeed = buildConstellationGraph({ ...input, seed: 48002 })
-    const helix = buildConstellationGraph({ ...input, settings: settings({ topologyStyle: 'helix' }) })
+    const chain = buildConstellationGraph({ ...input, settings: settings({ topologyStyle: 'chain' }) })
 
     expect(first).toEqual(second)
     expect(first.nodes).toHaveLength(48)
     expect(first.edges.length).toBeGreaterThan(0)
     expect(first.nodes.map(node => node.position)).not.toEqual(differentSeed.nodes.map(node => node.position))
-    expect(first.nodes.map(node => node.position)).not.toEqual(helix.nodes.map(node => node.position))
+    expect(first.nodes.map(node => node.position)).not.toEqual(chain.nodes.map(node => node.position))
+  })
+
+  it('builds meaningfully distinct deterministic connectivity for every typed topology', () => {
+    const styles = ['cluster', 'chain', 'triangulated', 'starburst', 'branching', 'ring', 'splitClusters'] as const
+    const signatures = styles.map((topologyStyle) => {
+      const graph = buildConstellationGraph({
+        seed: 8112,
+        nodeCount: 52,
+        settings: settings({ topologyStyle, neighborCount: 3 }),
+      })
+      expect(graph.nodes).toHaveLength(52)
+      expect(graph.edges.length).toBeGreaterThan(0)
+      expect(graph.edges.every(edge => edge.distance > 0 && Number.isFinite(edge.distance))).toBe(true)
+      return graph.edges.map(edge => `${edge.a}:${edge.b}`).join('|')
+    })
+
+    expect(new Set(signatures).size).toBe(styles.length)
   })
 
   it('uses neighbor count to alter graph density, node orientation, and prominence', () => {

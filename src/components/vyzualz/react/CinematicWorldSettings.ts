@@ -146,7 +146,7 @@ export interface StormGatewaySettings {
   lightningResponse: number
 }
 
-export const REACTIVE_CONSTELLATION_TOPOLOGIES = ['radial', 'clustered', 'helix', 'layered'] as const
+export const REACTIVE_CONSTELLATION_TOPOLOGIES = ['cluster', 'chain', 'triangulated', 'starburst', 'branching', 'ring', 'splitClusters'] as const
 export type ReactiveConstellationTopologyStyle = typeof REACTIVE_CONSTELLATION_TOPOLOGIES[number]
 
 export const REACTIVE_CONSTELLATION_POLYHEDRA = ['tetrahedron', 'octahedron', 'icosahedron', 'irregularCrystal', 'mixed'] as const
@@ -167,6 +167,16 @@ export interface ReactiveConstellationSettings {
   nodeSpin: number
   centralGravity: number
   cameraOrbit: number
+  springStrength: number
+  damping: number
+  driftAmount: number
+  turbulence: number
+  orbitAmount: number
+  elasticity: number
+  topologyStability: number
+  collapseAmount: number
+  burstStrength: number
+  reseedEveryBars: number
 }
 
 export type MediaPortalFit = 'contain' | 'cover' | 'stretch' | 'centerCrop'
@@ -560,7 +570,7 @@ function settingsPayload(value: unknown, mode: CinematicWorldMode): unknown {
 
 export const REACTIVE_CONSTELLATION_DEFAULTS: ReactiveConstellationSettings = {
   nodeCount: 42,
-  topologyStyle: 'clustered',
+  topologyStyle: 'cluster',
   polyhedronStyle: 'mixed',
   networkSpread: 1.2,
   depthSpread: 0.72,
@@ -573,6 +583,16 @@ export const REACTIVE_CONSTELLATION_DEFAULTS: ReactiveConstellationSettings = {
   nodeSpin: 0.34,
   centralGravity: 0.18,
   cameraOrbit: 0.16,
+  springStrength: 0.72,
+  damping: 0.62,
+  driftAmount: 0.22,
+  turbulence: 0.18,
+  orbitAmount: 0.2,
+  elasticity: 0.58,
+  topologyStability: 0.72,
+  collapseAmount: 0.06,
+  burstStrength: 0.46,
+  reseedEveryBars: 0,
 }
 
 export const REACTIVE_CONSTELLATION_BOUNDS = {
@@ -588,6 +608,16 @@ export const REACTIVE_CONSTELLATION_BOUNDS = {
   nodeSpin: [-1.5, 1.5],
   centralGravity: [0, 1],
   cameraOrbit: [-1, 1],
+  springStrength: [0, 2],
+  damping: [0, 1],
+  driftAmount: [0, 1.5],
+  turbulence: [0, 1.5],
+  orbitAmount: [-1.5, 1.5],
+  elasticity: [0, 1],
+  topologyStability: [0, 1],
+  collapseAmount: [0, 1.5],
+  burstStrength: [0, 2.5],
+  reseedEveryBars: [0, 64],
 } as const satisfies NumericBounds<Omit<ReactiveConstellationSettings, 'topologyStyle' | 'polyhedronStyle'>>
 
 function normalizeReactiveConstellationSettings(raw: unknown): ReactiveConstellationSettings {
@@ -608,12 +638,29 @@ function normalizeReactiveConstellationSettings(raw: unknown): ReactiveConstella
       nodeSpin: REACTIVE_CONSTELLATION_DEFAULTS.nodeSpin,
       centralGravity: REACTIVE_CONSTELLATION_DEFAULTS.centralGravity,
       cameraOrbit: REACTIVE_CONSTELLATION_DEFAULTS.cameraOrbit,
+      springStrength: REACTIVE_CONSTELLATION_DEFAULTS.springStrength,
+      damping: REACTIVE_CONSTELLATION_DEFAULTS.damping,
+      driftAmount: REACTIVE_CONSTELLATION_DEFAULTS.driftAmount,
+      turbulence: REACTIVE_CONSTELLATION_DEFAULTS.turbulence,
+      orbitAmount: REACTIVE_CONSTELLATION_DEFAULTS.orbitAmount,
+      elasticity: REACTIVE_CONSTELLATION_DEFAULTS.elasticity,
+      topologyStability: REACTIVE_CONSTELLATION_DEFAULTS.topologyStability,
+      collapseAmount: REACTIVE_CONSTELLATION_DEFAULTS.collapseAmount,
+      burstStrength: REACTIVE_CONSTELLATION_DEFAULTS.burstStrength,
+      reseedEveryBars: REACTIVE_CONSTELLATION_DEFAULTS.reseedEveryBars,
     },
     REACTIVE_CONSTELLATION_BOUNDS,
-    ['nodeCount', 'neighborCount'],
+    ['nodeCount', 'neighborCount', 'reseedEveryBars'],
   )
-  const topologyStyle = REACTIVE_CONSTELLATION_TOPOLOGIES.includes(source.topologyStyle as ReactiveConstellationTopologyStyle)
-    ? source.topologyStyle as ReactiveConstellationTopologyStyle
+  const legacyTopologyAliases: Record<string, ReactiveConstellationTopologyStyle> = {
+    radial: 'starburst',
+    clustered: 'cluster',
+    helix: 'chain',
+    layered: 'splitClusters',
+  }
+  const topologyCandidate = legacyTopologyAliases[String(source.topologyStyle)] ?? source.topologyStyle
+  const topologyStyle = REACTIVE_CONSTELLATION_TOPOLOGIES.includes(topologyCandidate as ReactiveConstellationTopologyStyle)
+    ? topologyCandidate as ReactiveConstellationTopologyStyle
     : REACTIVE_CONSTELLATION_DEFAULTS.topologyStyle
   const polyhedronStyle = REACTIVE_CONSTELLATION_POLYHEDRA.includes(source.polyhedronStyle as ReactiveConstellationPolyhedronStyle)
     ? source.polyhedronStyle as ReactiveConstellationPolyhedronStyle

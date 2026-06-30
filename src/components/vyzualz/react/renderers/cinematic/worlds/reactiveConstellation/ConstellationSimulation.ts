@@ -1,0 +1,505 @@
+import type { ReactiveConstellationSettings } from '../../../../CinematicWorldSettings'
+import {
+  buildConstellationGraph,
+  type ConstellationGraph,
+} from './ConstellationGraphBuilder'
+import { clamp, hashSeed, seededUnit } from './ConstellationMath'
+
+export const CONSTELLATION_FIXED_TIMESTEP_SEC = 1 / 120
+export const CONSTELLATION_MAX_SUBSTEPS = 8
+export const CONSTELLATION_MAX_FRAME_DELTA_SEC = 0.1
+const CONSTELLATION_MAX_ACCUMULATOR_SEC = CONSTELLATION_FIXED_TIMESTEP_SEC * CONSTELLATION_MAX_SUBSTEPS
+const EMPTY_GRAPH: ConstellationGraph = { nodes: [], edges: [] }
+
+export interface ConstellationSimulationConfigureInput {
+  seed: number
+  nodeCount: number
+  settings: ReactiveConstellationSettings
+}
+
+export interface ConstellationSimulationUpdateInput {
+  deltaTimeSec: number
+  isPlaying: boolean
+  timingDiscontinuity?: boolean
+  motionScale?: number
+  impact?: number
+}
+
+export interface ConstellationSimulationConfigureResult {
+  rebuilt: boolean
+  structureRevision: number
+}
+
+export interface ConstellationSimulationStateView {
+  graph: ConstellationGraph
+  positions: Float32Array
+  previousPositions: Float32Array
+  anchors: Float32Array
+  velocities: Float32Array
+  rotations: Float32Array
+  angularVelocities: Float32Array
+  scaleVariations: Float32Array
+  interpolationAlpha: number
+  simulationTimeSec: number
+  structureRevision: number
+  activeSeed: number
+  randomState: number
+}
+
+export function constellationStructuralSignature(input: ConstellationSimulationConfigureInput): string {
+  return JSON.stringify({
+    seed: Math.trunc(input.seed),
+    nodeCount: Math.max(1, Math.floor(input.nodeCount)),
+    topologyStyle: input.settings.topologyStyle,
+    polyhedronStyle: input.settings.polyhedronStyle,
+    neighborCount: input.settings.neighborCount,
+    networkSpread: input.settings.networkSpread,
+    depthSpread: input.settings.depthSpread,
+    nodeScaleVariation: input.settings.nodeScaleVariation,
+  })
+}
+
+function finite(value: number | undefined, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function clampMagnitude3(values: Float32Array, offset: number, maximum: number): void {
+  const x = finite(values[offset])
+  const y = finite(values[offset + 1])
+  const z = finite(values[offset + 2])
+  const length = Math.hypot(x, y, z)
+  if (length > maximum && length > 0) {
+    const scale = maximum / length
+    values[offset] = x * scale
+    values[offset + 1] = y * scale
+    values[offset + 2] = z * scale
+  } else {
+    values[offset] = x
+    values[offset + 1] = y
+    values[offset + 2] = z
+  }
+}
+
+export class ConstellationSimulation {
+  private settings: ReactiveConstellationSettings | null = null
+  private requestedStructuralSignature = ''
+  private graph: ConstellationGraph = EMPTY_GRAPH
+  private positions = new Float32Array(0)
+  private previousPositions = new Float32Array(0)
+  private anchors = new Float32Array(0)
+  private velocities = new Float32Array(0)
+  private rotations = new Float32Array(0)
+  private initialRotations = new Float32Array(0)
+  private angularVelocities = new Float32Array(0)
+  private scaleVariations = new Float32Array(0)
+  private baseScaleVariations = new Float32Array(0)
+  private forces = new Float32Array(0)
+  private driftPhases = new Float32Array(0)
+  private accumulatorSec = 0
+  private simulationTimeSec = 0
+  private interpolationAlpha = 1
+  private structureRevision = 0
+  private activeSeed = 0
+  private randomState = 0
+  private frozen = false
+  private readonly stateView: ConstellationSimulationStateView = {
+    graph: EMPTY_GRAPH,
+    positions: this.positions,
+    previousPositions: this.previousPositions,
+    anchors: this.anchors,
+    velocities: this.velocities,
+    rotations: this.rotations,
+    angularVelocities: this.angularVelocities,
+    scaleVariations: this.scaleVariations,
+    interpolationAlpha: 1,
+    simulationTimeSec: 0,
+    structureRevision: 0,
+    activeSeed: 0,
+    randomState: 0,
+  }
+
+  configure(input: ConstellationSimulationConfigureInput): ConstellationSimulationConfigureResult {
+    const signature = constellationStructuralSignature(input)
+    this.settings = input.settings
+    if (signature === this.requestedStructuralSignature && this.graph.nodes.length > 0) {
+      return { rebuilt: false, structureRevision: this.structureRevision }
+    }
+    this.requestedStructuralSignature = signature
+    this.rebuild(Math.trunc(input.seed), Math.max(1, Math.floor(input.nodeCount)))
+    return { rebuilt: true, structureRevision: this.structureRevision }
+  }
+
+  update(input: ConstellationSimulationUpdateInput): number {
+    if (input.timingDiscontinuity) {
+      this.accumulatorSec = 0
+      if (input.isPlaying) {
+        this.previousPositions.set(this.positions)
+        this.interpolationAlpha = 1
+      }
+      this.updateStateView()
+      return 0
+    }
+    if (!input.isPlaying || this.frozen || !this.settings || this.graph.nodes.length === 0) {
+      this.updateStateView()
+      return 0
+    }
+
+    const delta = clamp(finite(input.deltaTimeSec), 0, CONSTELLATION_MAX_FRAME_DELTA_SEC)
+    if (delta <= 0) {
+      this.interpolationAlpha = 1
+      this.updateStateView()
+      return 0
+    }
+    this.accumulatorSec = Math.min(CONSTELLATION_MAX_ACCUMULATOR_SEC, this.accumulatorSec + delta)
+    const motionScale = clamp(finite(input.motionScale, 1), 0, 2)
+    const impact = clamp(finite(input.impact), 0, 2)
+    let steps = 0
+    while (this.accumulatorSec >= CONSTELLATION_FIXED_TIMESTEP_SEC && steps < CONSTELLATION_MAX_SUBSTEPS) {
+      this.integrateStep(CONSTELLATION_FIXED_TIMESTEP_SEC, motionScale, impact)
+      this.accumulatorSec -= CONSTELLATION_FIXED_TIMESTEP_SEC
+      steps += 1
+    }
+    if (steps >= CONSTELLATION_MAX_SUBSTEPS && this.accumulatorSec >= CONSTELLATION_FIXED_TIMESTEP_SEC) {
+      this.accumulatorSec = 0
+    }
+    this.interpolationAlpha = steps > 0
+      ? clamp(this.accumulatorSec / CONSTELLATION_FIXED_TIMESTEP_SEC, 0, 1)
+      : 1
+    this.updateStateView()
+    return steps
+  }
+
+  applyRadialBurst(strength = this.settings?.burstStrength ?? 1): void {
+    const impulse = clamp(finite(strength), 0, 4)
+    for (let index = 0; index < this.graph.nodes.length; index += 1) {
+      const offset = index * 3
+      let x = this.positions[offset]
+      let y = this.positions[offset + 1]
+      let z = this.positions[offset + 2]
+      let length = Math.hypot(x, y, z)
+      if (length < 0.0001) {
+        const phase = this.driftPhases[offset]
+        x = Math.cos(phase)
+        y = Math.sin(this.driftPhases[offset + 1]) * 0.5
+        z = Math.sin(phase)
+        length = Math.hypot(x, y, z) || 1
+      }
+      const prominence = this.graph.nodes[index].prominence
+      const amount = impulse * (0.55 + prominence * 0.75)
+      this.velocities[offset] += x / length * amount
+      this.velocities[offset + 1] += y / length * amount
+      this.velocities[offset + 2] += z / length * amount
+      clampMagnitude3(this.velocities, offset, 5)
+    }
+    this.updateStateView()
+  }
+
+  applyCollapseImpulse(strength = this.settings?.collapseAmount ?? 1): void {
+    const impulse = clamp(finite(strength), 0, 4)
+    for (let index = 0; index < this.graph.nodes.length; index += 1) {
+      const offset = index * 3
+      const x = this.positions[offset]
+      const y = this.positions[offset + 1]
+      const z = this.positions[offset + 2]
+      const length = Math.hypot(x, y, z) || 1
+      this.velocities[offset] -= x / length * impulse
+      this.velocities[offset + 1] -= y / length * impulse
+      this.velocities[offset + 2] -= z / length * impulse
+      clampMagnitude3(this.velocities, offset, 5)
+    }
+    this.updateStateView()
+  }
+
+  reseed(seed?: number): number {
+    if (!this.settings || this.graph.nodes.length === 0) return this.activeSeed
+    const nextSeed = seed == null ? this.nextRandomUint() : Math.trunc(seed)
+    this.rebuild(nextSeed, this.graph.nodes.length)
+    return this.activeSeed
+  }
+
+  freeze(): void {
+    this.frozen = true
+  }
+
+  unfreeze(): void {
+    this.frozen = false
+    this.accumulatorSec = 0
+    this.updateStateView()
+  }
+
+  isFrozen(): boolean {
+    return this.frozen
+  }
+
+  resetToAnchors(): void {
+    this.positions.set(this.anchors)
+    this.previousPositions.set(this.anchors)
+    this.velocities.fill(0)
+    this.rotations.set(this.initialRotations)
+    this.angularVelocities.fill(0)
+    this.scaleVariations.set(this.baseScaleVariations)
+    this.forces.fill(0)
+    this.accumulatorSec = 0
+    this.simulationTimeSec = 0
+    this.interpolationAlpha = 1
+    this.updateStateView()
+  }
+
+  synchronizeTiming(): void {
+    this.accumulatorSec = 0
+    this.previousPositions.set(this.positions)
+    this.interpolationAlpha = 1
+    this.updateStateView()
+  }
+
+  getState(): ConstellationSimulationStateView {
+    this.updateStateView()
+    return this.stateView
+  }
+
+  private rebuild(seed: number, nodeCount: number): void {
+    if (!this.settings) return
+    this.activeSeed = seed >>> 0
+    this.randomState = hashSeed(this.activeSeed, 0x51f15e)
+    this.graph = buildConstellationGraph({ seed: this.activeSeed, nodeCount, settings: this.settings })
+    const vectorLength = this.graph.nodes.length * 3
+    this.positions = new Float32Array(vectorLength)
+    this.previousPositions = new Float32Array(vectorLength)
+    this.anchors = new Float32Array(vectorLength)
+    this.velocities = new Float32Array(vectorLength)
+    this.rotations = new Float32Array(vectorLength)
+    this.initialRotations = new Float32Array(vectorLength)
+    this.angularVelocities = new Float32Array(vectorLength)
+    this.scaleVariations = new Float32Array(this.graph.nodes.length)
+    this.baseScaleVariations = new Float32Array(this.graph.nodes.length)
+    this.forces = new Float32Array(vectorLength)
+    this.driftPhases = new Float32Array(vectorLength)
+
+    for (let index = 0; index < this.graph.nodes.length; index += 1) {
+      const node = this.graph.nodes[index]
+      const offset = index * 3
+      this.positions[offset] = node.position.x
+      this.positions[offset + 1] = node.position.y
+      this.positions[offset + 2] = node.position.z
+      this.previousPositions[offset] = node.position.x
+      this.previousPositions[offset + 1] = node.position.y
+      this.previousPositions[offset + 2] = node.position.z
+      this.anchors[offset] = node.position.x
+      this.anchors[offset + 1] = node.position.y
+      this.anchors[offset + 2] = node.position.z
+      this.rotations[offset] = node.rotation.x
+      this.rotations[offset + 1] = node.rotation.y
+      this.rotations[offset + 2] = node.rotation.z
+      this.initialRotations[offset] = node.rotation.x
+      this.initialRotations[offset + 1] = node.rotation.y
+      this.initialRotations[offset + 2] = node.rotation.z
+      this.scaleVariations[index] = node.scaleVariation
+      this.baseScaleVariations[index] = node.scaleVariation
+      this.driftPhases[offset] = seededUnit(hashSeed(this.activeSeed, index * 3 + 101)) * Math.PI * 2
+      this.driftPhases[offset + 1] = seededUnit(hashSeed(this.activeSeed, index * 3 + 102)) * Math.PI * 2
+      this.driftPhases[offset + 2] = seededUnit(hashSeed(this.activeSeed, index * 3 + 103)) * Math.PI * 2
+    }
+
+    this.accumulatorSec = 0
+    this.simulationTimeSec = 0
+    this.interpolationAlpha = 1
+    this.structureRevision += 1
+    this.updateStateView()
+  }
+
+  private integrateStep(dt: number, motionScale: number, impact: number): void {
+    const settings = this.settings
+    if (!settings) return
+    this.previousPositions.set(this.positions)
+    this.forces.fill(0)
+
+    const springCoefficient = (5 + settings.springStrength * 27) * (0.72 + settings.topologyStability * 0.62)
+    const anchorCoefficient = (0.6 + settings.topologyStability * 11) * (0.35 + settings.springStrength * 0.65)
+    const centralCoefficient = settings.centralGravity * 3.2 + settings.collapseAmount * 2.4
+    const driftCoefficient = settings.driftAmount * (0.25 + motionScale * 0.75)
+    const turbulenceCoefficient = settings.turbulence * (0.15 + motionScale * 0.85)
+    const orbitCoefficient = settings.orbitAmount * (0.3 + motionScale * 0.7)
+    const burstCoefficient = impact * settings.burstStrength * 5.2
+    const time = this.simulationTimeSec
+
+    for (const edge of this.graph.edges) {
+      const aOffset = edge.a * 3
+      const bOffset = edge.b * 3
+      const dx = this.positions[bOffset] - this.positions[aOffset]
+      const dy = this.positions[bOffset + 1] - this.positions[aOffset + 1]
+      const dz = this.positions[bOffset + 2] - this.positions[aOffset + 2]
+      const distance = Math.hypot(dx, dy, dz)
+      if (!Number.isFinite(distance) || distance < 0.00001) continue
+      const stretch = clamp(distance - edge.distance, -0.75, 0.75)
+      const force = clamp(stretch * springCoefficient, -14, 14) / distance
+      const fx = dx * force
+      const fy = dy * force
+      const fz = dz * force
+      this.forces[aOffset] += fx
+      this.forces[aOffset + 1] += fy
+      this.forces[aOffset + 2] += fz
+      this.forces[bOffset] -= fx
+      this.forces[bOffset + 1] -= fy
+      this.forces[bOffset + 2] -= fz
+    }
+
+    for (let index = 0; index < this.graph.nodes.length; index += 1) {
+      const offset = index * 3
+      const x = this.positions[offset]
+      const y = this.positions[offset + 1]
+      const z = this.positions[offset + 2]
+      const ax = this.anchors[offset]
+      const ay = this.anchors[offset + 1]
+      const az = this.anchors[offset + 2]
+      const radialLength = Math.hypot(x, y, z) || 1
+      const phaseX = this.driftPhases[offset]
+      const phaseY = this.driftPhases[offset + 1]
+      const phaseZ = this.driftPhases[offset + 2]
+      const driftX = Math.sin(time * 0.73 + phaseX) * driftCoefficient
+      const driftY = Math.sin(time * 0.61 + phaseY) * driftCoefficient
+      const driftZ = Math.sin(time * 0.83 + phaseZ) * driftCoefficient
+      const turbulenceX = Math.sin(time * 2.17 + phaseY + y * 2.4) * turbulenceCoefficient
+      const turbulenceY = Math.cos(time * 1.91 + phaseZ + z * 2.1) * turbulenceCoefficient
+      const turbulenceZ = Math.sin(time * 2.43 + phaseX + x * 2.6) * turbulenceCoefficient
+
+      this.forces[offset] += (ax - x) * anchorCoefficient - x * centralCoefficient + driftX + turbulenceX
+      this.forces[offset + 1] += (ay - y) * anchorCoefficient - y * centralCoefficient + driftY + turbulenceY
+      this.forces[offset + 2] += (az - z) * anchorCoefficient - z * centralCoefficient + driftZ + turbulenceZ
+      this.forces[offset] += -z * orbitCoefficient
+      this.forces[offset + 2] += x * orbitCoefficient
+      this.forces[offset] += x / radialLength * burstCoefficient
+      this.forces[offset + 1] += y / radialLength * burstCoefficient
+      this.forces[offset + 2] += z / radialLength * burstCoefficient
+    }
+
+    const minimumDistance = Math.max(0.035, settings.nodeScale * 1.15)
+    const minimumDistanceSquared = minimumDistance * minimumDistance
+    for (let a = 0; a < this.graph.nodes.length; a += 1) {
+      const aOffset = a * 3
+      for (let b = a + 1; b < this.graph.nodes.length; b += 1) {
+        const bOffset = b * 3
+        const dx = this.positions[bOffset] - this.positions[aOffset]
+        const dy = this.positions[bOffset + 1] - this.positions[aOffset + 1]
+        const dz = this.positions[bOffset + 2] - this.positions[aOffset + 2]
+        const distanceSquared = dx * dx + dy * dy + dz * dz
+        if (!Number.isFinite(distanceSquared) || distanceSquared >= minimumDistanceSquared) continue
+        const distance = Math.sqrt(Math.max(distanceSquared, 0.0000001))
+        const separation = (minimumDistance - distance) * 18 / distance
+        const fx = dx * separation
+        const fy = dy * separation
+        const fz = dz * separation
+        this.forces[aOffset] -= fx
+        this.forces[aOffset + 1] -= fy
+        this.forces[aOffset + 2] -= fz
+        this.forces[bOffset] += fx
+        this.forces[bOffset + 1] += fy
+        this.forces[bOffset + 2] += fz
+      }
+    }
+
+    const dampingRate = (0.7 + settings.damping * 8.5) * (1 - settings.elasticity * 0.48)
+    const damping = Math.exp(-dampingRate * dt)
+    const maximumVelocity = 2.2 + settings.elasticity * 2.8 + motionScale * 0.8
+    const maximumDisplacement = 0.55 + settings.networkSpread * (0.45 + settings.elasticity * 0.55)
+    const spinTarget = settings.nodeSpin * (0.35 + motionScale * 0.9)
+
+    for (let index = 0; index < this.graph.nodes.length; index += 1) {
+      const offset = index * 3
+      this.velocities[offset] = (this.velocities[offset] + finite(this.forces[offset]) * dt) * damping
+      this.velocities[offset + 1] = (this.velocities[offset + 1] + finite(this.forces[offset + 1]) * dt) * damping
+      this.velocities[offset + 2] = (this.velocities[offset + 2] + finite(this.forces[offset + 2]) * dt) * damping
+      clampMagnitude3(this.velocities, offset, maximumVelocity)
+
+      this.positions[offset] += this.velocities[offset] * dt
+      this.positions[offset + 1] += this.velocities[offset + 1] * dt
+      this.positions[offset + 2] += this.velocities[offset + 2] * dt
+
+      const dx = this.positions[offset] - this.anchors[offset]
+      const dy = this.positions[offset + 1] - this.anchors[offset + 1]
+      const dz = this.positions[offset + 2] - this.anchors[offset + 2]
+      const displacement = Math.hypot(dx, dy, dz)
+      if (!Number.isFinite(displacement)) {
+        this.restoreNode(index)
+        continue
+      }
+      if (displacement > maximumDisplacement && displacement > 0) {
+        const scale = maximumDisplacement / displacement
+        this.positions[offset] = this.anchors[offset] + dx * scale
+        this.positions[offset + 1] = this.anchors[offset + 1] + dy * scale
+        this.positions[offset + 2] = this.anchors[offset + 2] + dz * scale
+        this.velocities[offset] *= 0.35
+        this.velocities[offset + 1] *= 0.35
+        this.velocities[offset + 2] *= 0.35
+      }
+
+      const palette = this.graph.nodes[index].paletteMix
+      const targetX = spinTarget * (0.45 + palette * 0.35)
+      const targetY = spinTarget * (0.75 + palette * 0.5)
+      const targetZ = -spinTarget * (0.3 + palette * 0.25)
+      const angularResponse = 1 - Math.exp(-dt * (2.2 + settings.elasticity * 3.4))
+      this.angularVelocities[offset] += (targetX - this.angularVelocities[offset]) * angularResponse
+      this.angularVelocities[offset + 1] += (targetY - this.angularVelocities[offset + 1]) * angularResponse
+      this.angularVelocities[offset + 2] += (targetZ - this.angularVelocities[offset + 2]) * angularResponse
+      this.rotations[offset] = finite(this.rotations[offset] + this.angularVelocities[offset] * dt, this.initialRotations[offset])
+      this.rotations[offset + 1] = finite(this.rotations[offset + 1] + this.angularVelocities[offset + 1] * dt, this.initialRotations[offset + 1])
+      this.rotations[offset + 2] = finite(this.rotations[offset + 2] + this.angularVelocities[offset + 2] * dt, this.initialRotations[offset + 2])
+
+      const speed = Math.hypot(this.velocities[offset], this.velocities[offset + 1], this.velocities[offset + 2])
+      const targetScale = this.baseScaleVariations[index] * (
+        1 + Math.min(0.22, speed * 0.045 * settings.elasticity) + impact * settings.burstStrength * 0.018
+      )
+      const scaleResponse = 1 - Math.exp(-dt * 8)
+      this.scaleVariations[index] = finite(
+        this.scaleVariations[index] + (targetScale - this.scaleVariations[index]) * scaleResponse,
+        this.baseScaleVariations[index],
+      )
+    }
+
+    this.simulationTimeSec += dt
+  }
+
+  private restoreNode(index: number): void {
+    const offset = index * 3
+    this.positions[offset] = this.anchors[offset]
+    this.positions[offset + 1] = this.anchors[offset + 1]
+    this.positions[offset + 2] = this.anchors[offset + 2]
+    this.previousPositions[offset] = this.anchors[offset]
+    this.previousPositions[offset + 1] = this.anchors[offset + 1]
+    this.previousPositions[offset + 2] = this.anchors[offset + 2]
+    this.velocities[offset] = 0
+    this.velocities[offset + 1] = 0
+    this.velocities[offset + 2] = 0
+    this.rotations[offset] = this.initialRotations[offset]
+    this.rotations[offset + 1] = this.initialRotations[offset + 1]
+    this.rotations[offset + 2] = this.initialRotations[offset + 2]
+    this.angularVelocities[offset] = 0
+    this.angularVelocities[offset + 1] = 0
+    this.angularVelocities[offset + 2] = 0
+    this.scaleVariations[index] = this.baseScaleVariations[index]
+  }
+
+  private nextRandomUint(): number {
+    let value = this.randomState || 0x6d2b79f5
+    value ^= value << 13
+    value ^= value >>> 17
+    value ^= value << 5
+    this.randomState = value >>> 0
+    return this.randomState
+  }
+
+  private updateStateView(): void {
+    this.stateView.graph = this.graph
+    this.stateView.positions = this.positions
+    this.stateView.previousPositions = this.previousPositions
+    this.stateView.anchors = this.anchors
+    this.stateView.velocities = this.velocities
+    this.stateView.rotations = this.rotations
+    this.stateView.angularVelocities = this.angularVelocities
+    this.stateView.scaleVariations = this.scaleVariations
+    this.stateView.interpolationAlpha = this.interpolationAlpha
+    this.stateView.simulationTimeSec = this.simulationTimeSec
+    this.stateView.structureRevision = this.structureRevision
+    this.stateView.activeSeed = this.activeSeed
+    this.stateView.randomState = this.randomState
+  }
+}
