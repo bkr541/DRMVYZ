@@ -25,6 +25,8 @@ import type { RailTabOption } from '../layout/RailTabs'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
 import { MediaDeckPanel } from '../media/MediaDeckPanel'
 import { FontLibraryPanel } from './FontLibraryPanel'
+import { ReactEngineBrowser } from './ReactEngineBrowser'
+import { REACT_ENGINE_CATALOG } from './reactEngineCatalog'
 import { useSvgVisualRehydration } from './useSvgVisualRehydration'
 import { useFontLibraryHydration } from './useFontLibraryHydration'
 import { useReactPresetAutomation } from './useReactPresetAutomation'
@@ -36,6 +38,7 @@ import {
   type ReactRightPanel,
 } from './reactRightPanelPersistence'
 import {
+  getReactLeftTabLabel,
   getReactLeftTabs,
   getReactPresetTabLabel,
   isReactLeftTabAvailable,
@@ -83,13 +86,6 @@ const REACT_RIGHT_BASE_TABS: Omit<RailTabOption<ReactRightPanel>, 'disabled'>[] 
   { id: 'rec',     label: 'REC'     },
   { id: 'insp',    label: 'INSP'    },
 ]
-
-const REACT_LEFT_TAB_LABELS: Record<ReactLeftTab, string> = {
-  engine: 'ENGINES',
-  media: 'Media',
-  layers: 'Layers',
-  fonts: 'Fonts',
-}
 
 export function ReactView() {
   const audioSourceId = useId()
@@ -180,12 +176,12 @@ export function ReactView() {
   const leftTabs = useMemo<RailTabOption<ReactLeftTab>[]>(
     () => getReactLeftTabs(workspaceComposition).map(id => ({
       id,
-      label: REACT_LEFT_TAB_LABELS[id],
+      label: getReactLeftTabLabel(id, workspaceComposition),
     })),
     [workspaceComposition],
   )
 
-  const [leftTab, setLeftTab]             = useState<ReactLeftTab>('engine')
+  const [leftTab, setLeftTab]             = useState<ReactLeftTab>('workspace')
   const [activeMediaId, setActiveMediaId] = useState<string | null>(null)
   const [leftCollapsed,  setLeftCollapsed]  = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(false)
@@ -266,9 +262,16 @@ export function ReactView() {
 
   useEffect(() => {
     if (!isReactLeftTabAvailable(leftTab, workspaceComposition)) {
-      setLeftTab('engine')
+      setLeftTab('workspace')
     }
   }, [leftTab, workspaceComposition])
+
+  // Engine selection is a top-level workspace change. Always return to that
+  // engine's primary authoring surface rather than carrying a contextual tab
+  // such as Media or Fonts into a different engine family.
+  useEffect(() => {
+    setLeftTab('workspace')
+  }, [activeReactEngineId])
 
   // Fall back only within the active engine family. Never render a preset from
   // another engine merely because it appears first in the global collection.
@@ -362,27 +365,42 @@ export function ReactView() {
           collapsed={leftCollapsed}
           onToggleCollapsed={() => setLeftCollapsed(v => !v)}
         >
-          <RailTabs
-            tabs={leftTabs}
-            activeTab={leftTab}
-            onChange={setLeftTab}
-            ariaLabel="React left panel tabs"
-          />
-          <div className="rv-left-tab-body">
-            {leftTab === 'engine' && <ReactEnginePanel />}
-            {leftTab === 'media' && (
-              <MediaDeckPanel
-                mode="react"
-                activeMediaId={activeMediaId}
-                onSelect={setActiveMediaId}
+          <div className="rv-left-workspace-shell">
+            <ReactEngineBrowser />
+            <section className="rv-context-workspace" aria-label={`${REACT_ENGINE_CATALOG[activeReactEngineId].label} workspace`}>
+              <header className="rv-context-workspace-header">
+                <span className="rv-context-workspace-icon" aria-hidden="true">
+                  {REACT_ENGINE_CATALOG[activeReactEngineId].icon}
+                </span>
+                <span className="rv-context-workspace-copy">
+                  <strong>{REACT_ENGINE_CATALOG[activeReactEngineId].label}</strong>
+                  <span>{REACT_ENGINE_CATALOG[activeReactEngineId].description}</span>
+                </span>
+              </header>
+              <RailTabs
+                tabs={leftTabs}
+                activeTab={leftTab}
+                onChange={setLeftTab}
+                ariaLabel={`${REACT_ENGINE_CATALOG[activeReactEngineId].label} workspace tabs`}
+                className="rv-context-workspace-tabs"
               />
-            )}
-            {leftTab === 'layers' && workspaceComposition.showLaserLayersTab && (
-              <Suspense fallback={<LazyWorkspaceFallback label="LaserDMX layers" />}>
-                <LaserDmxLayersPanel />
-              </Suspense>
-            )}
-            {leftTab === 'fonts' && <FontLibraryPanel />}
+              <div className="rv-left-tab-body">
+                {leftTab === 'workspace' && <ReactEnginePanel />}
+                {leftTab === 'media' && (
+                  <MediaDeckPanel
+                    mode="react"
+                    activeMediaId={activeMediaId}
+                    onSelect={setActiveMediaId}
+                  />
+                )}
+                {leftTab === 'layers' && workspaceComposition.showLaserLayersTab && (
+                  <Suspense fallback={<LazyWorkspaceFallback label="LaserDMX layers" />}>
+                    <LaserDmxLayersPanel />
+                  </Suspense>
+                )}
+                {leftTab === 'fonts' && <FontLibraryPanel />}
+              </div>
+            </section>
           </div>
         </WorkspaceRail>
 

@@ -23,7 +23,6 @@ import {
   resolveUnifiedSvgSource,
 } from './svgSourceLifecycle'
 import type {
-  ReactEngineId,
   OscillatorSourceType,
   SvgRenderMode,
   ClassicScopeMode,
@@ -36,34 +35,6 @@ import type {
   SoundDrawingTextSource,
   SoundDrawingLyricGapBehavior,
 } from './ReactTypes'
-
-// ── Engine family display data ────────────────────────────────────────────────
-
-const ENGINE_IDS: ReactEngineId[] = ['shaderPads', 'cinematicPortal', 'oscilloscope', 'laserDmx', 'neonLattice']
-
-const ENGINE_LABELS: Record<ReactEngineId, string> = {
-  shaderPads:      'Shader Pads',
-  cinematicPortal: 'Cinematic Worlds',
-  oscilloscope:    'Sound Drawing',
-  laserDmx:        'LaserDMX',
-  neonLattice:     'Neon Lattice',
-}
-
-const ENGINE_ICONS: Record<ReactEngineId, string> = {
-  shaderPads:      '◈',
-  cinematicPortal: '◎',
-  oscilloscope:    '〜',
-  laserDmx:        '✦',
-  neonLattice:     '⬡',
-}
-
-const ENGINE_DESCS: Record<ReactEngineId, string> = {
-  shaderPads:      'Reactive shader fields driven by audio bands and beat timing.',
-  cinematicPortal: 'Immersive cinematic environments, portals, media worlds and directed cameras.',
-  oscilloscope:    'Live audio waveform drawing with glyph and text rendering.',
-  laserDmx:        'DMX beam matrix and spatial fixture control with fog simulation.',
-  neonLattice:     'Beat-reactive neon rail grid with pulsing blocks and shockwaves.',
-}
 
 // ── Oscillator status card ────────────────────────────────────────────────────
 
@@ -219,12 +190,12 @@ function OscillatorStatusCard({
   )
 }
 
-// ── ENGINE panel ──────────────────────────────────────────────────────────────
+// ── Contextual engine workspace ──────────────────────────────────────────────────────────────
 
 export function ReactEnginePanel() {
   const engine = useSharedAudio()
   const {
-    activeReactEngineId, selectReactEngine,
+    activeReactEngineId,
     oscillatorSettings,  setOscillatorSettings,
     oscillatorGlyphAssets,
     oscillatorGlyphPointCache,
@@ -238,7 +209,6 @@ export function ReactEnginePanel() {
     clearGlyphLostNotice,
   } = useReactStore(useShallow(s => ({
     activeReactEngineId:        s.activeReactEngineId,
-    selectReactEngine:          s.selectReactEngine,
     oscillatorSettings:         s.oscillatorSettings,
     setOscillatorSettings:      s.setOscillatorSettings,
     oscillatorGlyphAssets:      s.oscillatorGlyphAssets,
@@ -275,34 +245,6 @@ export function ReactEnginePanel() {
 
   return (
     <div className="rv-ctrl-group">
-      {/* ── Engine Family ──────────────────────────────────────────────── */}
-      <CtrlSection label="Engine Family" />
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {ENGINE_IDS.map(id => {
-          const isActive = activeReactEngineId === id
-          return (
-            <button
-              key={id}
-              type="button"
-              className={`rv-preset-card${isActive ? ' rv-preset-card--active' : ''}`}
-              onClick={() => selectReactEngine(id)}
-              aria-pressed={isActive}
-              aria-label={`${ENGINE_LABELS[id]} engine${isActive ? ', selected' : ''}`}
-              style={{ padding: '7px 10px' }}
-            >
-              <div className="rv-preset-card-header">
-                <span className="rv-preset-name">
-                  <span style={{ marginRight: 5, opacity: 0.75 }}>{ENGINE_ICONS[id]}</span>
-                  {ENGINE_LABELS[id]}
-                </span>
-                {isActive && <span className="rv-preset-selected-label"><span className="rv-preset-active-dot" aria-hidden="true" />Selected</span>}
-              </div>
-              <p className="rv-preset-desc" style={{ marginTop: 3, marginBottom: 0 }}>{ENGINE_DESCS[id]}</p>
-            </button>
-          )
-        })}
-      </div>
-
       {/* ── Engine Mode: Cinematic Worlds ─────────────────────────────── */}
       {activeReactEngineId === 'cinematicPortal' && <CinematicWorldsEngineControls />}
 

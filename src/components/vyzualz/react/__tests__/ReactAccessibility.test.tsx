@@ -119,7 +119,11 @@ describe('React preset accessibility', () => {
     const state = useReactStore.getState()
     const activeId = state.activeReactPresetId ?? state.reactPresets[0]?.id
     expect(activeId).toBeTruthy()
-    useReactStore.setState({ activeReactPresetId: activeId })
+    const activePreset = state.reactPresets.find(p => p.id === activeId)
+    useReactStore.setState({
+      activeReactPresetId: activeId,
+      activeReactEngineId: activePreset?.engine ?? state.activeReactEngineId,
+    })
 
     await act(async () => root.render(<ReactPresetsPanel />))
 

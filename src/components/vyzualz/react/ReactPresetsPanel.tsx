@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { CINEMATIC_WORLD_BY_ID, CINEMATIC_WORLD_UI, getCinematicPresetMood } from './CinematicWorldsUi'
@@ -8,16 +8,15 @@ import { useBrandKitStore } from '../../../features/personalization/brandKitStor
 import { resolveBrandedReactPreset } from '../../../features/personalization/resolveBrandedReactPreset'
 import { analyzeProductionPresetCompatibility } from './LaserDmxProductionPresets'
 import type { ProductionFixtureKind, ProductionPresetCompatibilityResult } from './LaserDmxProductionRig'
+import { REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from './reactEngineCatalog'
+import {
+  filterReactPresetLibrary,
+  readReactPresetFavorites,
+  writeReactPresetFavorites,
+  type ReactPresetLibraryView,
+} from './reactPresetLibraryState'
 
-const ENGINE_ORDER: ReactEngineId[] = ['cinematicPortal', 'oscilloscope', 'laserDmx', 'neonLattice']
-
-const ENGINE_LABELS: Record<ReactEngineId, string> = {
-  shaderPads: 'Shader Pads', cinematicPortal: 'Cinematic Worlds', oscilloscope: 'Sound Drawing', laserDmx: 'LaserDMX', neonLattice: 'Neon Lattice',
-}
-
-const ENGINE_ICONS: Record<ReactEngineId, string> = {
-  shaderPads: '◈', cinematicPortal: '◎', oscilloscope: '〜', laserDmx: '✦', neonLattice: '⬡',
-}
+const ENGINE_ORDER: ReactEngineId[] = REACT_ENGINE_IDS.filter(engine => engine !== 'shaderPads')
 
 function getModeHint(preset: ReactPreset): string | null {
   if (preset.engine === 'cinematicPortal') {
@@ -40,7 +39,6 @@ function getModeHint(preset: ReactPreset): string | null {
     default: return null
   }
 }
-
 
 const FIXTURE_BADGE_LABELS: Record<ProductionFixtureKind, string> = {
   laserProjector: 'Laser', movingHeadBeam: 'Beam', movingHeadSpot: 'Spot', movingHeadWash: 'Wash', staticWash: 'Static Wash',
@@ -75,64 +73,113 @@ function CompatibilitySummary({ result }: { result: ProductionPresetCompatibilit
   return <div className={`rv-production-compat rv-production-compat--${result.mode}`} title={detail}><strong>{label}</strong>{detail ? <span>{detail}</span> : null}</div>
 }
 
-function PresetCard({ preset, isActive, modified, onSelect, currentRig }: {
+function PresetCard({
+  preset,
+  isActive,
+  modified,
+  isFavorite,
+  activeEngineId,
+  onSelect,
+  onToggleFavorite,
+  currentRig,
+}: {
   preset: ReactPreset
   isActive: boolean
   modified: boolean
+  isFavorite: boolean
+  activeEngineId: ReactEngineId
   onSelect: (id: string) => void
+  onToggleFavorite: (id: string) => void
   currentRig: LaserDmxSettings
 }) {
   const modeHint = getModeHint(preset)
   const production = preset.productionPreset
   const compatibility = production ? analyzeProductionPresetCompatibility(preset, currentRig) : null
+  const switchesEngine = preset.engine !== activeEngineId
+
   return (
-    <button
-      type="button"
-      className={`rv-preset-card rv-preset-card--with-thumb${isActive ? ' rv-preset-card--active' : ''}`}
-      onClick={() => onSelect(preset.id)}
-      onKeyDown={handlePresetCardKeyDown}
-      data-preset-card
-      aria-pressed={isActive}
-      aria-current={isActive ? 'true' : undefined}
-      title={preset.description}
-      style={isActive ? { '--accent': preset.palette.primary } as React.CSSProperties : undefined}
-    >
-      <div className="rv-preset-card-layout">
-        <ReactPresetThumbnail preset={preset} />
-        <div className="rv-preset-card-content">
-          <div className="rv-preset-card-header">
-            <span className="rv-preset-name">{preset.name}</span>
-            {isActive && <span className="rv-preset-selected-label"><span className="rv-preset-active-dot" aria-hidden="true" />Selected</span>}
-          </div>
-          <div className="rv-preset-chip-row">
-            {modeHint && <span className="rv-preset-mode-chip">{modeHint}</span>}
-            {modified && <span className="rv-preset-modified-chip">Modified</span>}
-          </div>
-          {production && <>
-            <div className="rv-production-badges" aria-label={`${preset.name} fixture families`}>
-              {production.fixtureFamilyBadges.slice(0, 7).map(kind => <span key={kind}>{FIXTURE_BADGE_LABELS[kind]}</span>)}
+    <div className="rv-preset-card-shell">
+      <button
+        type="button"
+        className={`rv-preset-card rv-preset-card--with-thumb${isActive ? ' rv-preset-card--active' : ''}`}
+        onClick={() => onSelect(preset.id)}
+        onKeyDown={handlePresetCardKeyDown}
+        data-preset-card
+        aria-pressed={isActive}
+        aria-current={isActive ? 'true' : undefined}
+        aria-label={`${switchesEngine ? `Switch to ${REACT_ENGINE_CATALOG[preset.engine].label} and load` : 'Load'} ${preset.name}`}
+        title={preset.description}
+        style={isActive ? { '--accent': preset.palette.primary } as React.CSSProperties : undefined}
+      >
+        <div className="rv-preset-card-layout">
+          <ReactPresetThumbnail preset={preset} />
+          <div className="rv-preset-card-content">
+            <div className="rv-preset-card-header">
+              <span className="rv-preset-name">{preset.name}</span>
+              {isActive && <span className="rv-preset-selected-label"><span className="rv-preset-active-dot" aria-hidden="true" />Selected</span>}
             </div>
-            <div className="rv-production-meta"><span>Cost: {production.complexity}</span><span>{production.requiredCapabilities.map(item => item.label).join(' · ')}</span></div>
-            <div className="rv-production-tags">{production.styleTags.map(tag => <span key={tag}>{tag}</span>)}</div>
-            {compatibility && <CompatibilitySummary result={compatibility} />}
-          </>}
-          <p className="rv-preset-desc">{preset.description}</p>
-          <div className="rv-preset-palette" aria-label={`${preset.name} palette`}>
-            {Object.values(preset.palette).slice(0, 5).map((color, index) => <span key={index} className="rv-palette-swatch" style={{ background: color }} title={color} />)}
+            <div className="rv-preset-chip-row">
+              {modeHint && <span className="rv-preset-mode-chip">{modeHint}</span>}
+              {modified && <span className="rv-preset-modified-chip">Modified</span>}
+              {switchesEngine && <span className="rv-preset-switch-chip">Switch &amp; Load</span>}
+            </div>
+            {production && <>
+              <div className="rv-production-badges" aria-label={`${preset.name} fixture families`}>
+                {production.fixtureFamilyBadges.slice(0, 7).map(kind => <span key={kind}>{FIXTURE_BADGE_LABELS[kind]}</span>)}
+              </div>
+              <div className="rv-production-meta"><span>Cost: {production.complexity}</span><span>{production.requiredCapabilities.map(item => item.label).join(' · ')}</span></div>
+              <div className="rv-production-tags">{production.styleTags.map(tag => <span key={tag}>{tag}</span>)}</div>
+              {compatibility && <CompatibilitySummary result={compatibility} />}
+            </>}
+            <p className="rv-preset-desc">{preset.description}</p>
+            <div className="rv-preset-palette" aria-label={`${preset.name} palette`}>
+              {Object.values(preset.palette).slice(0, 5).map((color, index) => <span key={index} className="rv-palette-swatch" style={{ background: color }} title={color} />)}
+            </div>
           </div>
         </div>
-      </div>
-    </button>
+      </button>
+      <button
+        type="button"
+        className={`rv-preset-favorite${isFavorite ? ' rv-preset-favorite--active' : ''}`}
+        onClick={() => onToggleFavorite(preset.id)}
+        aria-pressed={isFavorite}
+        aria-label={`${isFavorite ? 'Remove' : 'Add'} ${preset.name} ${isFavorite ? 'from' : 'to'} favorites`}
+        title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+      >
+        {isFavorite ? '★' : '☆'}
+      </button>
+    </div>
   )
 }
 
-function CinematicPresetGroups({ presets, activePresetId, modifiedIds, onSelect, currentRig }: {
+type PresetCollectionProps = {
   presets: ReactPreset[]
   activePresetId: string | null
   modifiedIds: Set<string>
+  favoriteIds: Set<string>
+  activeEngineId: ReactEngineId
   onSelect: (id: string) => void
+  onToggleFavorite: (id: string) => void
   currentRig: LaserDmxSettings
-}) {
+}
+
+function renderPresetCard(preset: ReactPreset, props: Omit<PresetCollectionProps, 'presets'>) {
+  return (
+    <PresetCard
+      key={preset.id}
+      preset={preset}
+      isActive={preset.id === props.activePresetId}
+      modified={props.modifiedIds.has(preset.id)}
+      isFavorite={props.favoriteIds.has(preset.id)}
+      activeEngineId={props.activeEngineId}
+      onSelect={props.onSelect}
+      onToggleFavorite={props.onToggleFavorite}
+      currentRig={props.currentRig}
+    />
+  )
+}
+
+function CinematicPresetGroups({ presets, ...props }: PresetCollectionProps) {
   const categories = useMemo(() => {
     const order = ['Cosmic', 'Architectural', 'Organic', 'Mechanical', 'Storm', 'Media', 'Legacy'] as const
     return order.map(category => ({
@@ -160,7 +207,7 @@ function CinematicPresetGroups({ presets, activePresetId, modifiedIds, onSelect,
               <div key={mood} className="rv-cinematic-preset-mood">
                 <h4>{mood}</h4>
                 <div className="rv-preset-group-cards" data-preset-grid>
-                  {moodPresets.map(preset => <PresetCard key={preset.id} preset={preset} isActive={preset.id === activePresetId} modified={modifiedIds.has(preset.id)} onSelect={onSelect} currentRig={currentRig} />)}
+                  {moodPresets.map(preset => renderPresetCard(preset, props))}
                 </div>
               </div>
             ))}
@@ -171,43 +218,70 @@ function CinematicPresetGroups({ presets, activePresetId, modifiedIds, onSelect,
   </div>
 }
 
-function EngineSection({ engineId, presets, activePresetId, modifiedIds, onSelect, currentRig }: {
+function EngineSection({ engineId, presets, expandedByDefault = false, ...props }: PresetCollectionProps & {
   engineId: ReactEngineId
-  presets: ReactPreset[]
-  activePresetId: string | null
-  modifiedIds: Set<string>
-  onSelect: (id: string) => void
-  currentRig: LaserDmxSettings
+  expandedByDefault?: boolean
 }) {
-  const [collapsed, setCollapsed] = useState(() => !presets.some(preset => preset.id === activePresetId))
+  const containsActive = presets.some(preset => preset.id === props.activePresetId)
+  const [collapsed, setCollapsed] = useState(() => !expandedByDefault && !containsActive)
+
+  useEffect(() => {
+    if (containsActive) setCollapsed(false)
+  }, [containsActive])
+
+  const engine = REACT_ENGINE_CATALOG[engineId]
   return (
     <div className={`rv-preset-group${collapsed ? ' rv-preset-group--collapsed' : ''}`}>
       <button type="button" className="rv-preset-group-hdr" onClick={() => setCollapsed(value => !value)} aria-expanded={!collapsed}>
         <span
           className="rv-preset-group-hdr-icon"
-          style={{ color: (presets.find(preset => preset.id === activePresetId) ?? presets[0])?.palette.primary }}
-        >{ENGINE_ICONS[engineId]}</span>
-        <span className="rv-preset-group-hdr-label">{ENGINE_LABELS[engineId]}</span>
+          style={{ color: (presets.find(preset => preset.id === props.activePresetId) ?? presets[0])?.palette.primary }}
+        >{engine.icon}</span>
+        <span className="rv-preset-group-hdr-label">{engine.label}</span>
         <span className="rv-preset-group-hdr-count">{presets.length}</span>
         <span className="rv-preset-group-hdr-chevron" aria-hidden="true">▾</span>
       </button>
       {!collapsed && (engineId === 'cinematicPortal'
-        ? <CinematicPresetGroups presets={presets} activePresetId={activePresetId} modifiedIds={modifiedIds} onSelect={onSelect} currentRig={currentRig} />
-        : <div className="rv-preset-group-cards" data-preset-grid>{presets.map(preset => <PresetCard key={preset.id} preset={preset} isActive={preset.id === activePresetId} modified={false} onSelect={onSelect} currentRig={currentRig} />)}</div>
+        ? <CinematicPresetGroups presets={presets} {...props} />
+        : <div className="rv-preset-group-cards" data-preset-grid>{presets.map(preset => renderPresetCard(preset, props))}</div>
       )}
     </div>
   )
 }
 
+const LIBRARY_VIEW_LABELS: Record<ReactPresetLibraryView, string> = {
+  current: 'Current Engine',
+  favorites: 'Favorites',
+  all: 'All Engines',
+}
+
 export function ReactPresetsPanel() {
   const activeBrandKit = useBrandKitStore(state => state.activeKit)
-  const { reactPresets, activeReactPresetId, cinematicConfigsByPresetId, selectReactPreset, laserDmxSettings } = useReactStore(useShallow(state => ({
+  const {
+    reactPresets,
+    activeReactPresetId,
+    activeReactEngineId,
+    cinematicConfigsByPresetId,
+    selectReactPreset,
+    laserDmxSettings,
+  } = useReactStore(useShallow(state => ({
     reactPresets: state.reactPresets,
     activeReactPresetId: state.activeReactPresetId,
+    activeReactEngineId: state.activeReactEngineId,
     cinematicConfigsByPresetId: state.cinematicConfigsByPresetId,
     selectReactPreset: state.selectReactPreset,
     laserDmxSettings: state.laserDmxSettings,
   })))
+  const [libraryView, setLibraryView] = useState<ReactPresetLibraryView>('current')
+  const [favoritePresetIds, setFavoritePresetIds] = useState<string[]>(readReactPresetFavorites)
+
+  // Selecting an engine always opens that engine's own library. Cross-engine
+  // browsing remains available through All Engines without leaving stale
+  // Cinematic/other-engine content beside the newly selected workspace.
+  useEffect(() => {
+    setLibraryView('current')
+  }, [activeReactEngineId])
+
   const displayPresets = useMemo(
     () => reactPresets.map(preset => resolveBrandedReactPreset(
       preset,
@@ -216,15 +290,106 @@ export function ReactPresetsPanel() {
     ) ?? preset),
     [reactPresets, cinematicConfigsByPresetId, activeBrandKit],
   )
-  const grouped = useMemo(() => ENGINE_ORDER.map(engine => ({ engine, presets: displayPresets.filter(preset => preset.engine === engine) })).filter(group => group.presets.length > 0), [displayPresets])
+  const favoriteIds = useMemo(() => new Set(favoritePresetIds), [favoritePresetIds])
+  const visiblePresets = useMemo(
+    () => filterReactPresetLibrary(displayPresets, activeReactEngineId, libraryView, favoriteIds),
+    [displayPresets, activeReactEngineId, libraryView, favoriteIds],
+  )
+  const grouped = useMemo(
+    () => ENGINE_ORDER
+      .map(engine => ({ engine, presets: visiblePresets.filter(preset => preset.engine === engine) }))
+      .filter(group => group.presets.length > 0),
+    [visiblePresets],
+  )
   const active = displayPresets.find(preset => preset.id === activeReactPresetId)
-  const activeWorld = active?.engine === 'cinematicPortal' ? CINEMATIC_WORLD_BY_ID[active.cinematicConfig?.worldMode ?? 'legacyPortal'].label : null
+  const activeWorld = active?.engine === 'cinematicPortal'
+    ? CINEMATIC_WORLD_BY_ID[active.cinematicConfig?.worldMode ?? 'legacyPortal'].label
+    : null
   const modifiedIds = useMemo(() => new Set(Object.keys(cinematicConfigsByPresetId)), [cinematicConfigsByPresetId])
+  const activeEngine = REACT_ENGINE_CATALOG[activeReactEngineId]
+
+  const toggleFavorite = (presetId: string) => {
+    setFavoritePresetIds(current => {
+      const next = current.includes(presetId)
+        ? current.filter(id => id !== presetId)
+        : [...current, presetId]
+      writeReactPresetFavorites(next)
+      return next
+    })
+  }
+
+  const collectionProps: Omit<PresetCollectionProps, 'presets'> = {
+    activePresetId: activeReactPresetId,
+    modifiedIds,
+    favoriteIds,
+    activeEngineId: activeReactEngineId,
+    onSelect: selectReactPreset,
+    onToggleFavorite: toggleFavorite,
+    currentRig: laserDmxSettings,
+  }
+
   return (
     <div className="rv-presets-panel">
-      <p className="rv-presets-hint">Presets are saved looks organized by engine. Cinematic Worlds are grouped by category, world and mood.</p>
-      {activeWorld && <div className="rv-cinematic-current-world" aria-live="polite">Current world: <strong>{activeWorld}</strong>{activeReactPresetId && modifiedIds.has(activeReactPresetId) ? ' · Modified from preset' : ''}</div>}
-      {grouped.map(({ engine, presets }) => <EngineSection key={engine} engineId={engine} presets={presets} activePresetId={activeReactPresetId} modifiedIds={modifiedIds} onSelect={selectReactPreset} currentRig={laserDmxSettings} />)}
+      <header className="rv-preset-library-header">
+        <div className="rv-preset-library-engine">
+          <span aria-hidden="true">{activeEngine.icon}</span>
+          <div>
+            <strong>{activeEngine.label}</strong>
+            <small>{libraryView === 'current' ? `${visiblePresets.length} presets for the selected engine` : `${visiblePresets.length} presets shown`}</small>
+          </div>
+        </div>
+        <div className="rv-preset-library-views" role="tablist" aria-label="Preset library filter">
+          {(Object.keys(LIBRARY_VIEW_LABELS) as ReactPresetLibraryView[]).map(view => (
+            <button
+              key={view}
+              type="button"
+              role="tab"
+              className={libraryView === view ? 'is-active' : ''}
+              aria-selected={libraryView === view}
+              onClick={() => setLibraryView(view)}
+            >
+              {LIBRARY_VIEW_LABELS[view]}
+              {view === 'favorites' && favoritePresetIds.length > 0 ? ` ${favoritePresetIds.length}` : ''}
+            </button>
+          ))}
+        </div>
+      </header>
+
+      <p className="rv-presets-hint">
+        {libraryView === 'current'
+          ? `${activeEngine.label} presets only. Use All Engines to browse and switch workspaces.`
+          : libraryView === 'favorites'
+            ? 'Star presets from any engine to keep them together here.'
+            : 'Selecting another engine’s preset switches that engine and loads the look.'}
+      </p>
+
+      {activeWorld && active?.engine === activeReactEngineId && (
+        <div className="rv-cinematic-current-world" aria-live="polite">
+          Current world: <strong>{activeWorld}</strong>
+          {activeReactPresetId && modifiedIds.has(activeReactPresetId) ? ' · Modified from preset' : ''}
+        </div>
+      )}
+
+      {visiblePresets.length === 0 ? (
+        <div className="rv-preset-library-empty">
+          <strong>{libraryView === 'favorites' ? 'No favorite presets yet' : `No ${activeEngine.label} presets found`}</strong>
+          <span>{libraryView === 'favorites' ? 'Choose ☆ on a preset to pin it here.' : 'This engine can still be edited from its left workspace.'}</span>
+        </div>
+      ) : libraryView === 'current' ? (
+        activeReactEngineId === 'cinematicPortal'
+          ? <CinematicPresetGroups presets={visiblePresets} {...collectionProps} />
+          : <div className="rv-preset-group-cards rv-preset-group-cards--current" data-preset-grid>{visiblePresets.map(preset => renderPresetCard(preset, collectionProps))}</div>
+      ) : (
+        grouped.map(({ engine, presets }) => (
+          <EngineSection
+            key={`${libraryView}-${engine}`}
+            engineId={engine}
+            presets={presets}
+            expandedByDefault={libraryView === 'favorites'}
+            {...collectionProps}
+          />
+        ))
+      )}
     </div>
   )
 }

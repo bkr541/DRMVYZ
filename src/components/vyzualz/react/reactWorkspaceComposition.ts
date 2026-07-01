@@ -1,7 +1,8 @@
 import type { LaserDmxWorkspaceMode, ReactEngineId } from './ReactTypes'
 
-export type ReactLeftTab = 'engine' | 'media' | 'layers' | 'fonts'
+export type ReactLeftTab = 'workspace' | 'media' | 'layers' | 'fonts'
 export type ReactPresetSurface = 'enginePresets' | 'shaderScenes'
+export type ReactWorkspaceTabLabel = 'SETUP' | 'WORLD' | 'SOURCE' | 'RIG' | 'LAYOUT'
 
 export interface ReactWorkspaceComposition {
   showPerformancePads: boolean
@@ -10,6 +11,8 @@ export interface ReactWorkspaceComposition {
   showLaserBeamEditor: boolean
   showLaserLayersTab: boolean
   presetSurface: ReactPresetSurface
+  leftTabs: ReactLeftTab[]
+  workspaceTabLabel: ReactWorkspaceTabLabel
 }
 
 /**
@@ -23,7 +26,25 @@ export function resolveReactWorkspaceComposition(
 ): ReactWorkspaceComposition {
   const isShader = engineId === 'shaderPads'
   const isSoundDrawing = engineId === 'oscilloscope'
-  const isLaserBeamMatrix = engineId === 'laserDmx' && laserWorkspaceMode === 'beamMatrix'
+  const isCinematic = engineId === 'cinematicPortal'
+  const isLaser = engineId === 'laserDmx'
+  const isLaserBeamMatrix = isLaser && laserWorkspaceMode === 'beamMatrix'
+
+  let leftTabs: ReactLeftTab[] = ['workspace']
+  let workspaceTabLabel: ReactWorkspaceTabLabel = 'SETUP'
+
+  if (isCinematic) {
+    leftTabs = ['workspace', 'media']
+    workspaceTabLabel = 'WORLD'
+  } else if (isSoundDrawing) {
+    leftTabs = ['workspace', 'media', 'fonts']
+    workspaceTabLabel = 'SOURCE'
+  } else if (isLaser) {
+    leftTabs = isLaserBeamMatrix ? ['workspace', 'layers'] : ['workspace']
+    workspaceTabLabel = 'RIG'
+  } else if (engineId === 'neonLattice') {
+    workspaceTabLabel = 'LAYOUT'
+  }
 
   return {
     // React performance pads target React presets (plus Neon Lattice triggers).
@@ -35,6 +56,8 @@ export function resolveReactWorkspaceComposition(
     showLaserBeamEditor: isLaserBeamMatrix && beamEditorVisible,
     showLaserLayersTab: isLaserBeamMatrix,
     presetSurface: isShader ? 'shaderScenes' : 'enginePresets',
+    leftTabs,
+    workspaceTabLabel,
   }
 }
 
@@ -47,9 +70,17 @@ export function getReactPresetTabLabel(
 export function getReactLeftTabs(
   composition: ReactWorkspaceComposition,
 ): ReactLeftTab[] {
-  return composition.showLaserLayersTab
-    ? ['engine', 'media', 'layers', 'fonts']
-    : ['engine', 'media', 'fonts']
+  return composition.leftTabs
+}
+
+export function getReactLeftTabLabel(
+  tab: ReactLeftTab,
+  composition: ReactWorkspaceComposition,
+): string {
+  if (tab === 'workspace') return composition.workspaceTabLabel
+  if (tab === 'media') return 'MEDIA'
+  if (tab === 'layers') return 'LAYERS'
+  return 'FONTS'
 }
 
 export function isReactLeftTabAvailable(
