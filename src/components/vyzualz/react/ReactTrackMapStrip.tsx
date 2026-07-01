@@ -1095,9 +1095,11 @@ const SectionTimeline = forwardRef<SectionTimelineHandle, SectionTimelineProps>(
 interface ReactTrackMapStripProps {
   /** Fallback duration when no analysis is available yet. */
   audioDurationSec?: number
+  /** Hides the legacy strip header when mounted inside the unified lower workspace. */
+  embedded?: boolean
 }
 
-export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStripProps) {
+export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }: ReactTrackMapStripProps) {
   const engine = useSharedAudio()
   const {
     source,
@@ -1161,7 +1163,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     }))
   )
 
-  const [collapsed,      setCollapsed]      = useState(true)
+  const [collapsed,      setCollapsed]      = useState(() => !embedded)
   const [editorMode,     setEditorMode]     = useState<SectionEditorMode>('none')
   const [dragPreview,    setDragPreview]    = useState<{ sectionId: string; start: number; end: number } | null>(null)
   const [energyCurveKey, setEnergyCurveKey] = useState<EnergyCurveKey>('shortTerm')
@@ -1188,7 +1190,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
   const waveformZoomRef             = useRef(waveformZoom)
   const durationSecForRafRef        = useRef(audioDurationSec)
   const isCompleteRef               = useRef(false)
-  const collapsedRef                = useRef(true)
+  const collapsedRef                = useRef(!embedded)
   const currentAnalysisRef          = useRef(currentAnalysis)
   const energyCurveKeyRef           = useRef(energyCurveKey)
   const currentEffectiveBeatGridRef = useRef(currentEffectiveBeatGrid)
@@ -1645,7 +1647,8 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
   }
 
   return (
-    <div className="rv-track-map-strip" ref={stripRef} data-unified-timeline="true">
+    <div className={`rv-track-map-strip${embedded ? ' rv-track-map-strip--embedded' : ''}`} ref={stripRef}>
+      {!embedded && (
       <div
         className="rv-strip-header rv-strip-header--toggle"
         role="button"
@@ -1693,8 +1696,9 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
         )}
         <span className="rv-collapse-arrow">{collapsed ? '▶' : '▼'}</span>
       </div>
+      )}
 
-      {!collapsed && (
+      {(!collapsed || embedded) && (
         <>
           {!hasTrack && (
             <div className="rv-strip-empty">

@@ -7,16 +7,17 @@ import { useReactStore } from '../../../stores/reactStore'
 import {
   ReactPresetsPanel,
   ReactEnginePanel,
-  ReactFxPanel,
-  ReactModulationPanel,
-  ReactAudioPanel,
-  ReactRecordingPanel,
-  ReactInspectorPanel,
 } from './panels/ReactRightPanels'
 import { ReactPlaceholderCanvas } from './ReactPlaceholderCanvas'
 import { isReactTransportPaused }  from './reactTransportState'
 import { resolvePositiveDuration } from '../../../features/timeline/timelineViewport'
 import { ReactPerformancePads } from './ReactPerformancePads'
+import { ReactGlobalOutputControls } from './ReactGlobalOutputControls'
+import {
+  ReactDesignWorkspacePanel,
+  ReactOutputWorkspacePanel,
+  ReactReactivityWorkspacePanel,
+} from './panels/ReactWorkspacePanels'
 import { LaserDmxBeamMatrixEditorOverlay } from './LaserDmxBeamMatrixEditorOverlay'
 import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
@@ -77,15 +78,15 @@ function LazyWorkspaceFallback({ label }: { label: string }) {
   )
 }
 
-// BASE_RIGHT_TABS omits 'disabled' — injected dynamically via useMemo (same pattern as Visualizer)
+// Four top-level destinations keep the right rail compact and role-based.
 const REACT_RIGHT_BASE_TABS: Omit<RailTabOption<ReactRightPanel>, 'disabled'>[] = [
   { id: 'presets', label: 'PRESETS' },
-  { id: 'fx',      label: 'FX'      },
-  { id: 'mod',     label: 'MOD'     },
-  { id: 'audio',   label: 'AUDIO'   },
-  { id: 'rec',     label: 'REC'     },
-  { id: 'insp',    label: 'INSP'    },
+  { id: 'design',  label: 'DESIGN'  },
+  { id: 'react',   label: 'REACT'   },
+  { id: 'output',  label: 'OUTPUT'  },
 ]
+
+type ReactLowerSurface = 'trackMap' | 'performancePads'
 
 export function ReactView() {
   const audioSourceId = useId()
@@ -185,6 +186,8 @@ export function ReactView() {
   const [activeMediaId, setActiveMediaId] = useState<string | null>(null)
   const [leftCollapsed,  setLeftCollapsed]  = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(false)
+  const [lowerSurface, setLowerSurface] = useState<ReactLowerSurface>('trackMap')
+  const [stageFocus, setStageFocus] = useState(false)
 
   // Recording — useRecorder lives at view level so active recordings survive tab switches
   const recorder = useRecorder()
@@ -239,26 +242,17 @@ export function ReactView() {
   )
 
   const rightTabs = useMemo<RailTabOption<ReactRightPanel>[]>(
-    () => REACT_RIGHT_BASE_TABS.map(t => {
-      if (t.id === 'presets') {
-        return {
-          ...t,
-          label: getReactPresetTabLabel(workspaceComposition),
-        }
-      }
-      if (t.id === 'insp') {
-        return { ...t, disabled: inspectableSelection === null }
-      }
-      return t
-    }),
-    [inspectableSelection, workspaceComposition.presetSurface],
+    () => REACT_RIGHT_BASE_TABS.map(tab => tab.id === 'presets'
+      ? { ...tab, label: getReactPresetTabLabel(workspaceComposition) }
+      : tab),
+    [workspaceComposition],
   )
 
   useEffect(() => {
-    if (activeRightPanel === 'insp' && inspectableSelection === null) {
-      setActiveRightPanel('presets')
+    if (lowerSurface === 'performancePads' && !workspaceComposition.showPerformancePads) {
+      setLowerSurface('trackMap')
     }
-  }, [activeRightPanel, inspectableSelection])
+  }, [lowerSurface, workspaceComposition.showPerformancePads])
 
   useEffect(() => {
     if (!isReactLeftTabAvailable(leftTab, workspaceComposition)) {
@@ -327,7 +321,7 @@ export function ReactView() {
   const activeSdClips        = activeTrackId ? (soundDrawingClipsByTrackId[activeTrackId]   ?? []) : []
 
   return (
-    <div className="rv-shell">
+    <div className="rv-shell" data-stage-focus={stageFocus ? 'true' : undefined}>
       <div className="vz-header">
         <div className="vz-header-title-group">
           <div className="vz-header-title">REACT</div>
@@ -337,20 +331,21 @@ export function ReactView() {
         <div className="vz-header-sep" />
 
         <div className="vz-input-group">
-          <label className="vz-input-label" htmlFor={audioSourceId}>Audio In</label>
+          <label className="vz-input-label" htmlFor={audioSourceId}>Input</label>
           <select
             id={audioSourceId}
             className="az-select"
             value={engine.source}
             onChange={e => engine.setSource(e.target.value as typeof engine.source)}
           >
-            <option value="file">File Input</option>
+            <option value="file">Track Input</option>
             <option value="microphone">Microphone</option>
             <option value="demo">Demo Signal</option>
           </select>
         </div>
 
         <span className="az-spacer" />
+        <ReactGlobalOutputControls />
         <VyzualzHeaderActions />
       </div>
       <div
@@ -471,19 +466,67 @@ export function ReactView() {
               <LaserDmxBeamMatrixEditorOverlay />
             )}
           </div>
-          {workspaceComposition.showPerformancePads && <ReactPerformancePads />}
-          {workspaceComposition.showSoundDrawingTimeline && (
-            <Suspense fallback={<LazyWorkspaceFallback label="Sound Drawing timeline" />}>
-              <SoundDrawingTimelineLane
-                audioDurationSec={audioDurationSec}
-                trackSections={resolvedTrackSections}
-              />
-            </Suspense>
-          )}
-          {workspaceComposition.showTrackMap && (
-            <Suspense fallback={<LazyWorkspaceFallback label="Track Map" />}>
-              <ReactTrackMapStrip audioDurationSec={audioDurationSec} />
-            </Suspense>
+          {(workspaceComposition.showTrackMap || workspaceComposition.showPerformancePads) && (
+            <section className="rv-lower-workspace" aria-label="Performance timeline workspace">
+              <div className="rv-lower-workspace-toolbar">
+                <div className="rv-lower-workspace-tabs" role="tablist" aria-label="Timeline surfaces">
+                  {workspaceComposition.showTrackMap && (
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={lowerSurface === 'trackMap'}
+                      className={lowerSurface === 'trackMap' ? 'is-active' : ''}
+                      onClick={() => setLowerSurface('trackMap')}
+                    >
+                      Track Map
+                    </button>
+                  )}
+                  {workspaceComposition.showPerformancePads && (
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={lowerSurface === 'performancePads'}
+                      className={lowerSurface === 'performancePads' ? 'is-active' : ''}
+                      onClick={() => setLowerSurface('performancePads')}
+                    >
+                      Performance Pads
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className={`rv-stage-focus-btn${stageFocus ? ' is-active' : ''}`}
+                  aria-pressed={stageFocus}
+                  onClick={() => setStageFocus(value => !value)}
+                  title={stageFocus ? 'Restore workspace rails and timeline' : 'Maximize the live output stage'}
+                >
+                  <span aria-hidden="true">◉</span>
+                  Stage Focus
+                </button>
+              </div>
+
+              <div hidden={lowerSurface !== 'trackMap' || stageFocus} className="rv-lower-workspace-surface">
+                {workspaceComposition.showSoundDrawingTimeline && (
+                  <Suspense fallback={<LazyWorkspaceFallback label="Sound Drawing timeline" />}>
+                    <SoundDrawingTimelineLane
+                      audioDurationSec={audioDurationSec}
+                      trackSections={resolvedTrackSections}
+                    />
+                  </Suspense>
+                )}
+                {workspaceComposition.showTrackMap && (
+                  <Suspense fallback={<LazyWorkspaceFallback label="Track Map" />}>
+                    <ReactTrackMapStrip audioDurationSec={audioDurationSec} embedded />
+                  </Suspense>
+                )}
+              </div>
+
+              {workspaceComposition.showPerformancePads && (
+                <div hidden={lowerSurface !== 'performancePads' || stageFocus} className="rv-lower-workspace-surface">
+                  <ReactPerformancePads embedded />
+                </div>
+              )}
+            </section>
           )}
         </div>
 
@@ -510,11 +553,12 @@ export function ReactView() {
                 )
                 : <ReactPresetsPanel />
             )}
-            {activeRightPanel === 'fx'      && <ReactFxPanel />}
-            {activeRightPanel === 'mod'     && <ReactModulationPanel />}
-            {activeRightPanel === 'audio'   && <ReactAudioPanel />}
-            {activeRightPanel === 'rec'     && (
-              <ReactRecordingPanel
+            {activeRightPanel === 'design' && (
+              <ReactDesignWorkspacePanel hasSelection={inspectableSelection !== null} />
+            )}
+            {activeRightPanel === 'react' && <ReactReactivityWorkspacePanel />}
+            {activeRightPanel === 'output' && (
+              <ReactOutputWorkspacePanel
                 canvas={outputCanvas}
                 recorder={recorder}
                 liveFps={liveFps}
@@ -522,13 +566,12 @@ export function ReactView() {
                 onStartRecording={handleStartRecording}
               />
             )}
-            {activeRightPanel === 'insp'    && <ReactInspectorPanel />}
           </div>
         </WorkspaceRail>
       </div>
 
       {/* Bottom dock — outside the grid, full width */}
-      <VyzualzAudioDock unifiedTimeline />
+      <VyzualzAudioDock compact={stageFocus} deckLabel="Track Deck" />
     </div>
   )
 }

@@ -1,13 +1,25 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_REACT_RIGHT_PANEL,
+  migrateReactRightPanel,
   readReactRightPanel,
   writeReactRightPanel,
 } from './reactRightPanelPersistence'
 
 describe('React right-panel persistence', () => {
-  it('restores a valid panel ID', () => {
-    expect(readReactRightPanel({ getItem: () => JSON.stringify('mod') })).toBe('mod')
+  it('restores a valid four-destination panel ID', () => {
+    expect(readReactRightPanel({ getItem: () => JSON.stringify('react') })).toBe('react')
+  })
+
+  it.each([
+    ['fx', 'design'],
+    ['insp', 'design'],
+    ['mod', 'react'],
+    ['audio', 'react'],
+    ['rec', 'output'],
+  ] as const)('migrates legacy %s destinations to %s', (legacy, expected) => {
+    expect(migrateReactRightPanel(legacy)).toBe(expected)
+    expect(readReactRightPanel({ getItem: () => JSON.stringify(legacy) })).toBe(expected)
   })
 
   it('falls back for obsolete, malformed, or non-string values', () => {

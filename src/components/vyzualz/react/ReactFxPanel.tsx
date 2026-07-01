@@ -248,9 +248,8 @@ export function ReactFxPanel() {
         {/* ── Engine Appearance: LaserDMX Spatial Fixtures ─────────────── */}
         {isSpatialFixtures && (
           <>
-            <Collapsible label="Global Output" defaultOpen>
+            <Collapsible label="Output Styling" defaultOpen>
               <SliderRow label="Master Dimmer" value={laserDmxSettings.masterDimmer} onChange={v => setLaserDmxSettings({ masterDimmer: v })} color="#4ac7db" />
-              <ToggleRow  label="Blackout"     value={laserDmxSettings.blackout}     onChange={v => setLaserDmxSettings({ blackout: v })} />
               <SliderRow label="Safety Clamp"  value={laserDmxSettings.safetyClamp}  onChange={v => setLaserDmxSettings({ safetyClamp: v })} color="#c0314a" />
             </Collapsible>
 
@@ -277,9 +276,8 @@ export function ReactFxPanel() {
         {/* ── Engine Appearance: LaserDMX Beam Matrix ──────────────────── */}
         {isBeamMatrix && (
           <>
-            <Collapsible label="Global Output" defaultOpen>
+            <Collapsible label="Output Styling" defaultOpen>
               <SliderRow label="Master Dimmer"  value={bmOut.masterDimmer}    onChange={v => setOutput({ masterDimmer: v })}    color="#4ac7db" />
-              <ToggleRow  label="Blackout"      value={bmOut.blackout}        onChange={v => setOutput({ blackout: v })} />
               <SliderRow label="Safety Clamp"   value={bmOut.safetyClamp}     onChange={v => setOutput({ safetyClamp: v })}     color="#c0314a" />
               <SliderRow label="Bg Fade"        value={bmOut.backgroundFade}  onChange={v => setOutput({ backgroundFade: v })}  color="#d8b95a" />
               <SliderRow label="Persistence"    value={bmOut.beamPersistence} onChange={v => setOutput({ beamPersistence: v })} color="#4ac7db" />

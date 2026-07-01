@@ -56,8 +56,8 @@ function contextualHint(target: ReactPerformanceActionTarget, actions: readonly 
   return `${keys} = ${label} actions · remaining slots = presets`
 }
 
-export function ReactPerformancePads() {
-  const [collapsed, setCollapsed] = useState(true)
+export function ReactPerformancePads({ embedded = false }: { embedded?: boolean }) {
+  const [collapsed, setCollapsed] = useState(() => !embedded)
   const [pressedActionId, setPressedActionId] = useState<string | null>(null)
 
   const {
@@ -146,31 +146,33 @@ export function ReactPerformancePads() {
   }, [handleKey])
 
   return (
-    <div className="rv-pads-section">
-      <div
-        className="rv-panel-header rv-panel-header--toggle"
-        role="button"
-        tabIndex={0}
-        aria-expanded={!collapsed}
-        onClick={() => setCollapsed(value => !value)}
-        onKeyDown={event => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault()
-            setCollapsed(value => !value)
-          }
-        }}
-      >
-        <svg width="14" height="14" viewBox="0 0 512 512" fill="#a78bfa" style={{ flexShrink: 0 }}>
-          <path d="M217.043,0.001H16.696C7.515,0.001,0,7.479,0,16.697v200.348c0,9.214,7.482,16.693,16.696,16.693h200.348c9.214,0,16.696-7.481,16.696-16.693V16.697C233.739,7.479,226.224,0.001,217.043,0.001z"/>
-          <path d="M495.304,0.001H294.957c-9.18,0-16.696,7.477-16.696,16.696v200.348c0,9.214,7.482,16.693,16.696,16.693h200.348c9.214,0,16.696-7.481,16.696-16.693V16.697C512,7.479,504.485,0.001,495.304,0.001z"/>
-          <path d="M217.043,278.262H16.696C7.515,278.262,0,285.739,0,294.958v200.348c0,9.214,7.482,16.693,16.696,16.693h200.348c9.214,0,16.696-7.481,16.696-16.693V294.958C233.739,285.739,226.224,278.262,217.043,278.262z"/>
-          <path d="M495.304,278.262H294.957c-9.18,0-16.696,7.477-16.696,16.696v200.348c0,9.214,7.482,16.693,16.696,16.693h200.348c9.214,0,16.696-7.481,16.696-16.693V294.958C512,285.739,504.485,278.262,495.304,278.262z"/>
-        </svg>
-        <span className="rv-panel-title">Performance Pads</span>
-        <span className="rv-pads-hint">{contextualHint(target, contextualActions)}</span>
-        <span className="rv-collapse-arrow">{collapsed ? '▶' : '▼'}</span>
-      </div>
-      {!collapsed && (
+    <div className={`rv-pads-section${embedded ? ' rv-pads-section--embedded' : ''}`}>
+      {!embedded && (
+        <div
+          className="rv-panel-header rv-panel-header--toggle"
+          role="button"
+          tabIndex={0}
+          aria-expanded={!collapsed}
+          onClick={() => setCollapsed(value => !value)}
+          onKeyDown={event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              setCollapsed(value => !value)
+            }
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 512 512" fill="#a78bfa" style={{ flexShrink: 0 }}>
+            <path d="M217.043,0.001H16.696C7.515,0.001,0,7.479,0,16.697v200.348c0,9.214,7.482,16.693,16.696,16.693h200.348c9.214,0,16.696-7.481,16.696-16.693V16.697C233.739,7.479,226.224,0.001,217.043,0.001z"/>
+            <path d="M495.304,0.001H294.957c-9.18,0-16.696,7.477-16.696,16.696v200.348c0,9.214,7.482,16.693,16.696,16.693h200.348c9.214,0,16.696-7.481,16.696-16.693V16.697C512,7.479,504.485,0.001,495.304,0.001z"/>
+            <path d="M217.043,278.262H16.696C7.515,278.262,0,285.739,0,294.958v200.348c0,9.214,7.482,16.693,16.696,16.693h200.348c9.214,0,16.696-7.481,16.696-16.693V294.958C233.739,285.739,226.224,278.262,217.043,278.262z"/>
+            <path d="M495.304,278.262H294.957c-9.18,0-16.696,7.477-16.696,16.696v200.348c0,9.214,7.482,16.693,16.696,16.693h200.348c9.214,0,16.696-7.481,16.696-16.693V294.958C512,285.739,504.485,278.262,495.304,278.262z"/>
+          </svg>
+          <span className="rv-panel-title">Performance Pads</span>
+          <span className="rv-pads-hint">{contextualHint(target, contextualActions)}</span>
+          <span className="rv-collapse-arrow">{collapsed ? '▶' : '▼'}</span>
+        </div>
+      )}
+      {(!collapsed || embedded) && (
         <div className="rv-pads-grid">
           {performancePads.map((pad) => {
             const action = actionsByPadId.get(pad.id)

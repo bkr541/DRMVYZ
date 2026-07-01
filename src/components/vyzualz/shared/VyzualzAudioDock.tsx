@@ -64,12 +64,7 @@ function deriveBpmState(
   return { kind: 'none' }
 }
 
-interface VyzualzAudioDockProps {
-  /** Align the dock waveform with the React Track Map lane viewport. */
-  unifiedTimeline?: boolean
-}
-
-export function VyzualzAudioDock({ unifiedTimeline = false }: VyzualzAudioDockProps = {}) {
+export function VyzualzAudioDock({ compact = false, deckLabel }: { compact?: boolean; deckLabel?: string }) {
   const {
     presets, activePresetId, bpmSync, toggleBpmSync, setPlaying,
     cuePoint, setCuePoint, beatGridEnabled, setBeatGridEnabled,
@@ -246,10 +241,11 @@ export function VyzualzAudioDock({ unifiedTimeline = false }: VyzualzAudioDockPr
   const volPct  = `${Math.round(vol * 100)}%`
 
   return (
-    <div className={`az-dock vz-transport-dock${unifiedTimeline ? ' vz-transport-dock--unified' : ''}`}>
+    <div className={`az-dock vz-transport-dock${compact ? ' vz-transport-dock--focus' : ''}`} data-has-deck-label={deckLabel ? 'true' : undefined}>
 
       {/* ── LEFT: sidebar + left-inspector footprint ─────────────────── */}
       <div className="vz-dock-left vz-dock-card">
+        {deckLabel && <div className="vz-dock-card-label">{deckLabel}</div>}
         <label
           className="az-dock-thumb vz-dock-art"
           htmlFor={fileInputId}
