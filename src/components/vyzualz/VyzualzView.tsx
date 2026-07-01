@@ -6,7 +6,14 @@ import {
   Tv01Icon,
 } from 'hugeicons-react'
 import { VyzualzSidebar } from './VyzualzSidebar'
+import {
+  DEFAULT_PERFORMANCE_VIEW,
+  isPerformanceAppView,
+  resolveAppViewNavigation,
+} from './appView'
+import type { AppView, PerformanceAppView } from './appView'
 import { LyricManagerView } from '../../features/lyrics/LyricManagerView'
+import { MediaManagerView } from '../../features/media/MediaManagerView'
 import { UnsavedLyricChangesDialog } from '../../features/lyrics/components/UnsavedLyricChangesDialog'
 import { useSharedAudio }  from '../../context/AudioEngineContext'
 import { useMediaStore }   from '../../stores/mediaStore'
@@ -260,19 +267,21 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   const engine = useSharedAudio()
   const analyser = engine.analyserMaster
 
-  // App-level view: 'visualizer' | 'lyrics' | 'react'
-  const [appView, setAppView] = useState<'visualizer' | 'lyrics' | 'react'>('react')
+  const [appView, setAppView] = useState<AppView>(DEFAULT_PERFORMANCE_VIEW)
   const lyricEditorDirty = useLyricsStore(state => state.editorDirty)
   const lyricEditorSaving = useLyricsStore(state => state.isSaving)
-  const [pendingAppView, setPendingAppView] = useState<'visualizer' | 'react' | null>(null)
+  const [pendingAppView, setPendingAppView] = useState<AppView | null>(null)
+  const lastPerformanceViewRef = useRef<PerformanceAppView>(DEFAULT_PERFORMANCE_VIEW)
 
-  const requestAppViewChange = useCallback((next: 'visualizer' | 'lyrics' | 'react') => {
-    if (appView === 'lyrics' && next !== 'lyrics' && lyricEditorDirty) {
-      setPendingAppView(next)
-      return
-    }
-    setAppView(next)
+  const requestAppViewChange = useCallback((next: AppView) => {
+    const decision = resolveAppViewNavigation(appView, next, lyricEditorDirty)
+    setPendingAppView(decision.pendingView)
+    setAppView(decision.nextView)
   }, [appView, lyricEditorDirty])
+
+  useEffect(() => {
+    if (isPerformanceAppView(appView)) lastPerformanceViewRef.current = appView
+  }, [appView])
 
   // Effect Chain catalog — loaded once from Supabase on mount
   const [effectChainOptions, setEffectChainOptions] = useState<EffectChainOptionRow[]>([])
@@ -439,7 +448,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
   // Lyric state — subscribe to just the two values we render (enabled + count)
 
   // Show confirmation toast when the user returns from the Lyric Manager via "Preview in Visualizer"
-  const prevAppViewRef = useRef<'visualizer' | 'lyrics' | 'react'>(appView)
+  const prevAppViewRef = useRef<AppView>(appView)
   useEffect(() => {
     if (prevAppViewRef.current === 'lyrics' && appView === 'visualizer') {
       const { lyricsEnabled: enabled, cues } = useLyricsStore.getState()
@@ -615,6 +624,26 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
           }}
         />
       </>
+    )
+  }
+
+  // ── Media Manager view ───────────────────────────────────────────────
+  if (appView === 'media') {
+    const returnView = lastPerformanceViewRef.current
+    return (
+      <div className="az-root">
+        <div className="az-shell">
+          <VyzualzSidebar
+            compact
+            appView={appView}
+            onAppViewChange={requestAppViewChange}
+          />
+          <MediaManagerView
+            returnView={returnView}
+            onBack={() => requestAppViewChange(returnView)}
+          />
+        </div>
+      </div>
     )
   }
 

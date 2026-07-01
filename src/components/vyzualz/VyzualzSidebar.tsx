@@ -1,6 +1,5 @@
 import { useState } from 'react'
-
-type AppView = 'visualizer' | 'lyrics' | 'react'
+import type { AppView } from './appView'
 
 interface Props {
   compact?: boolean
@@ -100,6 +99,27 @@ export function VyzualzSidebar({
             <line x1="21.2" y1="19.6" x2="23" y2="20.4" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
           </svg>
           <span className="az-nav-label">Lyrics</span>
+        </div>
+
+        {/* Media Manager icon */}
+        <div
+          className={`az-nav-item${appView === 'media' ? ' az-nav-item--active' : ''}`}
+          onClick={() => onAppViewChange?.('media')}
+          title="Media Manager"
+          role="button"
+          tabIndex={0}
+          aria-label="Media Manager"
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onAppViewChange?.('media') }}
+        >
+          <svg viewBox="0 0 28 28" width="28" height="28" fill="none">
+            <rect x="3.5" y="5" width="21" height="17" rx="2.5" fill="#0d1820" />
+            <rect x="3.5" y="5" width="21" height="17" rx="2.5" stroke="currentColor" strokeWidth="1.2" strokeOpacity="0.5" />
+            <path d="M7.5 18.2l4.1-4.2 3 2.9 2.1-2.1 3.8 3.4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            <circle cx="18.8" cy="10.2" r="1.7" fill="currentColor" fillOpacity="0.8" />
+            <path d="M9 3.5h10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeOpacity="0.45" />
+            <path d="M9 23.8h10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeOpacity="0.45" />
+          </svg>
+          <span className="az-nav-label">Media Manager</span>
         </div>
       </nav>
 
