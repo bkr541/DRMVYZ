@@ -1,4 +1,5 @@
 import type { CinematicQualityTier } from '../../../../CinematicWorldConfig'
+import type { ReactiveConstellationChoreographyProfile } from '../../../../CinematicWorldSettings'
 
 export interface ConstellationQualityBudget {
   nodeCountCap: number
@@ -61,8 +62,22 @@ export const CONSTELLATION_QUALITY_BUDGETS: Readonly<Record<CinematicQualityTier
   },
 }
 
-export function constellationQualityBudget(tier: CinematicQualityTier): ConstellationQualityBudget {
-  return CONSTELLATION_QUALITY_BUDGETS[tier] ?? CONSTELLATION_QUALITY_BUDGETS.auto
+const CRIMSON_LAUNCH_SECONDARY_BUDGETS: Readonly<Record<CinematicQualityTier, Pick<ConstellationQualityBudget, 'trailSampleCap' | 'historicalDrawCount' | 'glowPassComplexity' | 'curtainCountCap'>>> = {
+  low: { trailSampleCap: 4, historicalDrawCount: 2, glowPassComplexity: 0.34, curtainCountCap: 4 },
+  medium: { trailSampleCap: 8, historicalDrawCount: 5, glowPassComplexity: 0.62, curtainCountCap: 8 },
+  high: { trailSampleCap: 16, historicalDrawCount: 12, glowPassComplexity: 1, curtainCountCap: 15 },
+  ultra: { trailSampleCap: 28, historicalDrawCount: 24, glowPassComplexity: 1.35, curtainCountCap: 24 },
+  auto: { trailSampleCap: 12, historicalDrawCount: 8, glowPassComplexity: 0.84, curtainCountCap: 11 },
+}
+
+export function constellationQualityBudget(
+  tier: CinematicQualityTier,
+  choreographyProfile: ReactiveConstellationChoreographyProfile = 'standard',
+): ConstellationQualityBudget {
+  const base = CONSTELLATION_QUALITY_BUDGETS[tier] ?? CONSTELLATION_QUALITY_BUDGETS.auto
+  if (choreographyProfile !== 'crimsonLaunch') return base
+  const secondary = CRIMSON_LAUNCH_SECONDARY_BUDGETS[tier] ?? CRIMSON_LAUNCH_SECONDARY_BUDGETS.auto
+  return { ...base, ...secondary }
 }
 
 export function clampConstellationNodeCount(requested: number, budget: ConstellationQualityBudget): number {

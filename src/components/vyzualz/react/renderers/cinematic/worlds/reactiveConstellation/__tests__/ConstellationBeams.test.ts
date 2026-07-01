@@ -35,6 +35,20 @@ describe('Reactive Constellation beam safety and quality', () => {
     expect(CONSTELLATION_QUALITY_BUDGETS.auto.curtainCountCap).toBeLessThan(CONSTELLATION_QUALITY_BUDGETS.ultra.curtainCountCap)
   })
 
+  it('reduces crimson secondary trails and curtains before sacrificing the central launch geometry', () => {
+    const standardLow = constellationQualityBudget('low')
+    const crimsonLow = constellationQualityBudget('low', 'crimsonLaunch')
+    const crimsonHigh = constellationQualityBudget('high', 'crimsonLaunch')
+
+    expect(crimsonLow.nodeCountCap).toBe(standardLow.nodeCountCap)
+    expect(clampConstellationNodeCount(26, crimsonLow)).toBe(26)
+    expect(crimsonLow.trailSampleCap).toBeLessThan(standardLow.trailSampleCap)
+    expect(crimsonLow.historicalDrawCount).toBeLessThan(standardLow.historicalDrawCount)
+    expect(crimsonLow.curtainCountCap).toBeLessThan(standardLow.curtainCountCap)
+    expect(crimsonLow.trailSampleCap).toBeLessThan(crimsonHigh.trailSampleCap)
+    expect(crimsonLow.curtainCountCap).toBeLessThan(crimsonHigh.curtainCountCap)
+  })
+
   it('rejects zero-length and non-finite edges without poisoning the instance buffer', () => {
     const target = new Float32Array(CONSTELLATION_BEAM_INSTANCE_FLOATS).fill(7)
     const current = new Float32Array([1, 2, 3, 1, 2, 3])

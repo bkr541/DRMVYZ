@@ -89,6 +89,55 @@ describe('ConstellationSimulation', () => {
     expect(averageRadius(expanded.positions)).toBeLessThan(averageRadius(expanded.anchors) * 1.3)
   })
 
+  it('compresses toward a live build target and launches from that compressed state on drop entry', () => {
+    const simulation = configured({
+      initialExpansion: 0.1,
+      expansionTarget: 1.08,
+      expansionAttackSec: 0.22,
+      expansionReleaseSec: 0.5,
+      expansionSpringStrength: 1.6,
+      expansionDamping: 0.34,
+      expansionOvershoot: 0.5,
+      radialStaggerSec: 0,
+      expansionBurstImpulse: 0,
+      driftAmount: 0,
+      turbulence: 0,
+      orbitAmount: 0,
+      centralGravity: 0,
+      collapseAmount: 0,
+    }, 49001, 26)
+
+    for (let frame = 0; frame < 120; frame += 1) {
+      simulation.update({ deltaTimeSec: 1 / 60, isPlaying: true, motionScale: 0, expansionTarget: 1.08 })
+    }
+    const open = simulation.getState().meanExpansionProgress
+
+    for (let frame = 0; frame < 90; frame += 1) {
+      simulation.update({ deltaTimeSec: 1 / 60, isPlaying: true, motionScale: 0, expansionTarget: 0.16 })
+    }
+    const compressed = simulation.getState().meanExpansionProgress
+
+    simulation.update({
+      deltaTimeSec: 1 / 60,
+      isPlaying: true,
+      motionScale: 0,
+      expansionTarget: 1.08,
+      radialBurstImpulse: 1.9,
+      burstSequence: 1,
+    })
+    const launchVelocity = simulation.getState().meanExpansionVelocity
+    for (let frame = 0; frame < 24; frame += 1) {
+      simulation.update({ deltaTimeSec: 1 / 60, isPlaying: true, motionScale: 0, expansionTarget: 1.08 })
+    }
+    const launched = simulation.getState()
+
+    expect(open).toBeGreaterThan(0.95)
+    expect(compressed).toBeLessThan(0.28)
+    expect(launched.meanExpansionProgress).toBeGreaterThan(compressed + 0.5)
+    expect(launched.lastBurstSequence).toBe(1)
+    expect(launchVelocity).toBeGreaterThan(0)
+  })
+
   it('supports bounded radial overshoot and settles elastically at the target', () => {
     const simulation = configured({
       initialExpansion: 0.05,

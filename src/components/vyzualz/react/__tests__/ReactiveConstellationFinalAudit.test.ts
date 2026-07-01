@@ -39,6 +39,37 @@ describe('Reactive Constellation final curated library', () => {
     }
   })
 
+  it('isolates the center-collapse radial choreography to Crimson Collapse', () => {
+    const target = presets.find(candidate => candidate.id === 'preset-crimson-collapse')!
+    const worldSettings = target.cinematicConfig!.worldSettings
+    if (worldSettings.mode !== 'reactiveConstellation') throw new Error('Unexpected mode')
+    const settings = worldSettings.settings
+    const routes = target.cinematicConfig!.audioMapping.routes
+
+    expect(settings.choreographyProfile).toBe('crimsonLaunch')
+    expect(settings.nodeCount).toBeGreaterThanOrEqual(20)
+    expect(settings.nodeCount).toBeLessThanOrEqual(30)
+    expect(settings.topologyStyle).toBe('starburst')
+    expect(settings.neighborCount).toBeGreaterThanOrEqual(2)
+    expect(settings.neighborCount).toBeLessThanOrEqual(3)
+    expect(settings.nodeScale).toBeGreaterThan(0.2)
+    expect(settings.beamWidth).toBeGreaterThan(4)
+    expect(settings.trailSamples).toBeGreaterThanOrEqual(20)
+    expect(settings.collapseAmount).toBe(0)
+    expect(settings.reseedEveryBars).toBe(0)
+    expect(target.description).toContain('compresses through the build')
+    expect(target.description).toContain('launches outward')
+
+    expect(routes.some(route => route.source === 'dropEntry' && route.target === 'burstImpulse')).toBe(true)
+    expect(routes.some(route => route.source === 'kick' && route.target === 'burstImpulse')).toBe(true)
+    expect(routes.some(route => route.source === 'subBass' && route.target === 'collapseForce')).toBe(false)
+    expect(presets.filter(candidate => candidate.id !== target.id).every(candidate => {
+      const candidateSettings = candidate.cinematicConfig?.worldSettings
+      return candidateSettings?.mode === 'reactiveConstellation'
+        && candidateSettings.settings.choreographyProfile === 'standard'
+    })).toBe(true)
+  })
+
   it('uses unique seeds, palettes, settings, cameras, routes, and section choreography', () => {
     const unique = (selector: (preset: typeof presets[number]) => unknown) =>
       new Set(presets.map(preset => JSON.stringify(selector(preset)))).size

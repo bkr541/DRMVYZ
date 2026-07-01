@@ -31,6 +31,7 @@ import {
   isConstellationCameraPoseSafe,
   REACTIVE_CONSTELLATION_SAFE_CAMERA_RANGE,
   REACTIVE_CONSTELLATION_SHOTS,
+  resolveReactiveConstellationCameraConstraint,
 } from './reactiveConstellation/ConstellationPresentation'
 import { getConstellationMesh, listConstellationMeshStyles } from './reactiveConstellation/ConstellationMeshLibrary'
 import {
@@ -194,6 +195,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
   private heldBrightness = 0
   private heldDepthPulse = 0
   private heldNetworkSpread = 1
+  private heldExpansionTarget = 1
   private heldNodeScale = 0.12
   private heldNodeSpin = 0
   private heldEdgeBrightness = 1
@@ -214,6 +216,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
   private burstGateActive = false
   private trackIdentityObserved = false
   private lastTrackIdentity: string | null = null
+  private constrainedCameraPose: NonNullable<CinematicFrameContext['camera']>['pose'] | null = null
   private diagnostic: string | null = null
   private disposed = false
 
@@ -257,7 +260,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     }
     this.diagnostic = null
     const settings = resolveReactiveConstellationSettings(frame.config.worldSettings)
-    const budget = constellationQualityBudget(frame.config.qualityTier)
+    const budget = constellationQualityBudget(frame.config.qualityTier, settings.choreographyProfile)
     const effectiveNodeCount = clampConstellationNodeCount(settings.nodeCount, budget)
     const configuration = this.simulation.configure({
       seed: frame.config.seed,
@@ -291,6 +294,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     // final performance layer every frame lets a DJ release flashes and toggles safely
     // without advancing the transport-driven simulation.
     this.heldNetworkSpread = next.networkSpread
+    this.heldExpansionTarget = next.expansionTarget
     this.heldNodeScale = next.nodeScale
     this.heldNodeSpin = next.nodeSpin
     this.heldEdgeBrightness = next.edgeBrightness
@@ -344,8 +348,8 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
       this.heldDepthPulse = nextDepthPulse
     }
 
-    const burstSequence = isPlaying && !performance.freeze && !frame.timingDiscontinuity
-      ? this.resolveBurstSequence(frame, performance.burstSequence)
+    const burst = isPlaying && !performance.freeze && !frame.timingDiscontinuity
+      ? this.resolveBurstTrigger(frame, performance.burstSequence, settings)
       : null
 
     this.simulation.update({
@@ -355,12 +359,14 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
       motionScale: this.heldMotionScale,
       impact: 0,
       networkSpreadScale: this.heldNetworkSpread / Math.max(0.001, settings.networkSpread),
+      expansionTarget: this.heldExpansionTarget,
       nodeScaleMultiplier: this.heldNodeScale / Math.max(0.001, settings.nodeScale),
       nodeSpinOffset: this.heldNodeSpin - settings.nodeSpin,
       springTension: this.heldSpringStrength,
       collapseForce: this.heldCollapseForce,
       burstImpulse: this.heldBurstImpulse,
-      burstSequence: burstSequence ?? undefined,
+      radialBurstImpulse: burst?.impulse,
+      burstSequence: burst?.sequence,
       topologyMorph: this.heldTopologyMorph,
     })
     const simulationState = this.simulation.getState()
@@ -384,13 +390,23 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
       rotation: { x: 0, y: 0, z: 0 },
       fieldOfView: 60,
     }
-    const camera = isConstellationCameraPoseSafe(requestedCamera)
+    const safeRequestedCamera = isConstellationCameraPoseSafe(requestedCamera)
       ? requestedCamera
       : {
           position: { x: 0, y: 0, z: 4 },
           rotation: { x: 0, y: 0, z: 0 },
           fieldOfView: 60,
         }
+    const cameraConstraint = resolveReactiveConstellationCameraConstraint({
+      profile: settings.choreographyProfile,
+      requestedPose: safeRequestedCamera,
+      previousPose: this.constrainedCameraPose,
+      expansionProgress: simulationState.meanExpansionProgress,
+      expansionVelocity: simulationState.meanExpansionVelocity,
+      deltaTimeSec: frame.deltaTimeSec,
+    })
+    this.constrainedCameraPose = cameraConstraint.active ? cameraConstraint.pose : null
+    const camera = cameraConstraint.pose
     const viewProjection = cameraViewProjectionMatrix({
       position: camera.position,
       rotation: camera.rotation,
@@ -571,36 +587,67 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     this.hasRendered = true
   }
 
-  private resolveBurstSequence(
+  private resolveBurstTrigger(
     frame: CinematicFrameContext,
     performanceSequence: number | null,
-  ): number | null {
-    let triggered = false
+    settings: ReactiveConstellationSettings,
+  ): { sequence: number; impulse: number } | null {
+    let impulse = 0
     if (performanceSequence != null && performanceSequence !== this.lastPerformanceBurstSequence) {
       this.lastPerformanceBurstSequence = performanceSequence
-      triggered = true
+      impulse = Math.max(this.heldBurstImpulse, settings.expansionBurstImpulse)
     }
 
     const audio = frame.musicalAudio
     if (audio && audio.frameId !== this.lastAudioBurstFrameId) {
       this.lastAudioBurstFrameId = audio.frameId
-      const audioTriggered = frame.config.audioMapping.enabled && frame.config.audioMapping.routes.some(route => (
-        route.enabled
-        && route.target === 'burstImpulse'
-        && route.source in audio.events
-        && audio.events[route.source as keyof typeof audio.events] === true
-      ))
-      if (audioTriggered) {
-        triggered = true
+      const routedBurstSources = frame.config.audioMapping.enabled
+        ? new Set(frame.config.audioMapping.routes.filter(route => (
+            route.enabled
+            && route.target === 'burstImpulse'
+            && Number.isFinite(route.amount)
+            && Math.abs(route.amount) > Number.EPSILON
+          )).map(route => route.source))
+        : new Set<string>()
+
+      if (settings.choreographyProfile === 'crimsonLaunch') {
+        if (routedBurstSources.has('dropEntry') && audio.events.dropEntry) {
+          impulse = Math.max(impulse, settings.expansionBurstImpulse, this.heldBurstImpulse)
+        } else if (routedBurstSources.has('kick') && audio.events.kick) {
+          impulse = Math.max(impulse, Math.min(1.05, Math.max(0.32, this.heldBurstImpulse)))
+        } else if (
+          frame.config.audioMapping.enabled
+          && routedBurstSources.has('dropEntry')
+          && !audio.capabilities.dropState
+          && (
+            audio.events.downbeat
+            || (audio.events.beat && audio.values.transientIntensity > 0.72)
+          )
+          && (
+            audio.values.buildProgress > 0.72
+            || (audio.values.overallEnergy > 0.84 && audio.values.transientIntensity > 0.68)
+          )
+        ) {
+          impulse = Math.max(impulse, settings.expansionBurstImpulse * 0.44)
+        }
+      } else {
+        const audioTriggered = [...routedBurstSources].some(source => (
+          source in audio.events
+          && audio.events[source as keyof typeof audio.events] === true
+        ))
+        if (audioTriggered) impulse = Math.max(impulse, this.heldBurstImpulse)
       }
     }
 
     const gateHigh = this.heldBurstImpulse > 0.08
     const risingEdge = gateHigh && !this.burstGateActive
     this.burstGateActive = this.heldBurstImpulse > 0.035
-    if (!triggered && !risingEdge) return null
+    if (settings.choreographyProfile !== 'crimsonLaunch' && impulse <= 0 && risingEdge) {
+      impulse = this.heldBurstImpulse
+    }
+    if (impulse <= 0) return null
     this.burstSequenceCounter += 1
-    return this.burstSequenceCounter
+    return { sequence: this.burstSequenceCounter, impulse: Math.min(2.5, impulse) }
   }
 
   private resetBurstTracking(): void {
@@ -622,6 +669,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     if (!this.hasRendered) return
     this.pendingReset = 'trackReplacement'
     this.trails.reset()
+    this.constrainedCameraPose = null
   }
 
   private applyPendingReset(): void {
@@ -631,6 +679,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     this.simulation.resetExpansion()
     this.resetBurstTracking()
     this.trails.reset()
+    this.constrainedCameraPose = null
     this.pendingReset = null
     this.lastReseedBar = -1
   }
@@ -651,6 +700,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     this.beamInstanceCount = 0
     this.beamGlowInstanceCount = 0
     this.curtainInstanceCount = 0
+    this.constrainedCameraPose = null
   }
 
   onContextLost(): void {
@@ -666,12 +716,14 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     this.beamBudgetKey = ''
     this.performanceActions.reset({ preserveConsumedSequence: true })
     this.trails.reset()
+    this.constrainedCameraPose = null
     this.pendingReset = 'contextRestored'
   }
 
   onContextRestored(): void {
     this.performanceActions.reset({ preserveConsumedSequence: true })
     this.trails.reset()
+    this.constrainedCameraPose = null
     this.pendingReset = 'contextRestored'
   }
 
@@ -699,6 +751,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     this.resetBurstTracking()
     this.trackIdentityObserved = false
     this.lastTrackIdentity = null
+    this.constrainedCameraPose = null
     this.beamEdgeIndices = new Uint16Array(0)
     this.beamEdgePalette = new Float32Array(0)
     this.currentEdgeEndpoints = new Float32Array(0)

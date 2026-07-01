@@ -47,6 +47,22 @@ describe('Reactive Constellation crystalline material utilities', () => {
     expect(emerald.beamAccent).not.toEqual(crimson.beamAccent)
   })
 
+  it('preserves Brand Kit palette authority instead of applying the authored crimson colors downstream', () => {
+    const brandKit = {
+      primary: '#0bd3ff',
+      secondary: '#3d5afe',
+      accent: '#d8fff8',
+      background: '#010914',
+    }
+    const snapshot = JSON.stringify(brandKit)
+    const resolved = resolveConstellationPalette(brandKit)
+
+    expect(resolved.primary.b).toBeGreaterThan(resolved.primary.r)
+    expect(resolved.beamCore.b).toBeGreaterThan(resolved.beamCore.r)
+    expect(resolved.beamAccent).not.toEqual({ r: 1, g: 0, b: 0 })
+    expect(JSON.stringify(brandKit)).toBe(snapshot)
+  })
+
   it('uses deterministic ordered coverage whose density rises monotonically with opacity', () => {
     const thresholds = Array.from({ length: 16 }, (_, index) => constellationDitherThreshold(index % 4, Math.floor(index / 4)))
     expect(new Set(thresholds).size).toBe(16)

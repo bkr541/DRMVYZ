@@ -25,11 +25,13 @@ export interface ConstellationSimulationUpdateInput {
   motionScale?: number
   impact?: number
   networkSpreadScale?: number
+  expansionTarget?: number
   nodeScaleMultiplier?: number
   nodeSpinOffset?: number
   springTension?: number
   collapseForce?: number
   burstImpulse?: number
+  radialBurstImpulse?: number
   burstSequence?: number
   topologyMorph?: number
 }
@@ -181,7 +183,7 @@ export class ConstellationSimulation {
 
     if (input.burstSequence != null) {
       this.applyRadialBurst(
-        finite(input.burstImpulse, this.settings.expansionBurstImpulse),
+        finite(input.radialBurstImpulse, finite(input.burstImpulse, this.settings.expansionBurstImpulse)),
         Math.trunc(input.burstSequence),
       )
     }
@@ -418,7 +420,7 @@ export class ConstellationSimulation {
     if (!settings) return
     this.previousPositions.set(this.positions)
     this.forces.fill(0)
-    this.integrateExpansionStep(dt)
+    this.integrateExpansionStep(dt, runtime.expansionTarget)
 
     const springStrength = clamp(finite(runtime.springTension, settings.springStrength), 0, 2)
     const spreadScale = clamp(finite(runtime.networkSpreadScale, 1), 0.18, 5.4)
@@ -597,11 +599,11 @@ export class ConstellationSimulation {
     this.updateExpansionMeans()
   }
 
-  private integrateExpansionStep(dt: number): void {
+  private integrateExpansionStep(dt: number, runtimeTarget?: number): void {
     const settings = this.settings
     if (!settings) return
     const initial = clamp(settings.initialExpansion, 0.01, 1)
-    const target = clamp(settings.expansionTarget, 0, 1.35)
+    const target = clamp(finite(runtimeTarget, settings.expansionTarget), 0, 1.35)
     const overshoot = clamp(settings.expansionOvershoot, 0, 0.75)
     const staggerSec = clamp(settings.radialStaggerSec, 0, 1.5)
     const launchImpulse = clamp(settings.expansionBurstImpulse, 0, 2.5)

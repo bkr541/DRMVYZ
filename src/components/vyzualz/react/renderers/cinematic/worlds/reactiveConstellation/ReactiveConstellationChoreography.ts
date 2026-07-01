@@ -1,6 +1,7 @@
 import type { CinematicAudioTarget } from '../../../../CinematicWorldConfig'
 import {
   REACTIVE_CONSTELLATION_BOUNDS,
+  type ReactiveConstellationChoreographyProfile,
   type ReactiveConstellationSettings,
 } from '../../../../CinematicWorldSettings'
 import type {
@@ -12,6 +13,7 @@ import type { ReactSectionType } from '../../../../ReactTypes'
 
 export interface ReactiveConstellationRuntimeValues {
   networkSpread: number
+  expansionTarget: number
   nodeScale: number
   nodeSpin: number
   edgeBrightness: number
@@ -92,7 +94,7 @@ export function resolveReactiveConstellationSection(audio: CinematicNormalizedAu
   return 'verse'
 }
 
-export function resolveReactiveConstellationChoreography(
+function resolveStandardConstellationChoreography(
   audio: CinematicNormalizedAudioFrame | null | undefined,
 ): ReactiveConstellationRuntimeOffsets {
   const section = resolveReactiveConstellationSection(audio)
@@ -121,6 +123,148 @@ export function resolveReactiveConstellationChoreography(
   }
 }
 
+function resolveCrimsonLaunchChoreography(
+  audio: CinematicNormalizedAudioFrame | null | undefined,
+): ReactiveConstellationRuntimeOffsets {
+  const section = resolveReactiveConstellationSection(audio)
+  const progress = clamp01(audio?.section.progress ?? 0)
+  const buildProgress = clamp01(audio?.values.buildProgress ?? 0)
+  const eased = smoothstep(Math.max(progress, buildProgress))
+
+  switch (section) {
+    case 'intro':
+      return {
+        expansionTarget: -0.42,
+        networkSpread: -0.1,
+        nodeScale: 0.006,
+        nodeSpin: -0.18,
+        edgeBrightness: -0.42,
+        edgeWidth: -0.45,
+        trailLength: -7,
+        topologyMorph: -0.06,
+        collapseForce: 0,
+        facetOpacity: -0.08,
+        springStrength: 0.28,
+        motionScale: -0.3,
+      }
+    case 'verse':
+      return {
+        expansionTarget: -0.18,
+        networkSpread: -0.04,
+        nodeSpin: -0.08,
+        edgeBrightness: -0.14,
+        edgeWidth: -0.18,
+        trailLength: -2,
+        topologyMorph: 0.04,
+        collapseForce: 0,
+        springStrength: 0.22,
+        motionScale: -0.12,
+      }
+    case 'build':
+      return {
+        expansionTarget: -0.28 - eased * 0.58,
+        networkSpread: -0.04 - eased * 0.12,
+        nodeScale: eased * 0.012,
+        nodeSpin: -0.08 - eased * 0.18,
+        edgeBrightness: 0.18 + eased * 1.12,
+        edgeWidth: 0.2 + eased * 1.18,
+        trailLength: 2 + eased * 9,
+        topologyMorph: 0.08 + eased * 0.2,
+        collapseForce: 0,
+        facetOpacity: eased * 0.05,
+        springStrength: 0.36 + eased * 0.5,
+        motionScale: -0.12 - eased * 0.12,
+      }
+    case 'preDrop':
+      return {
+        expansionTarget: -0.94,
+        networkSpread: -0.14,
+        nodeScale: 0.008,
+        nodeSpin: -0.28,
+        edgeBrightness: 0.72,
+        edgeWidth: 0.92,
+        trailLength: 10,
+        topologyMorph: 0.26,
+        collapseForce: 0,
+        facetOpacity: 0.04,
+        springStrength: 0.78,
+        motionScale: -0.34,
+      }
+    case 'drop':
+      return {
+        expansionTarget: 0,
+        networkSpread: 0.12,
+        nodeScale: 0.026,
+        nodeSpin: 0.18,
+        edgeBrightness: 1.18,
+        edgeWidth: 1.36,
+        trailLength: 8,
+        topologyMorph: 0.14,
+        collapseForce: 0,
+        facetOpacity: 0.08,
+        springStrength: 0.18,
+        motionScale: 0.18,
+      }
+    case 'breakdown':
+      return {
+        expansionTarget: -0.36,
+        networkSpread: -0.08,
+        nodeSpin: -0.2,
+        edgeBrightness: -0.48,
+        edgeWidth: -0.42,
+        trailLength: -6,
+        topologyMorph: -0.04,
+        collapseForce: 0,
+        facetOpacity: -0.12,
+        springStrength: 0.24,
+        motionScale: -0.32,
+      }
+    case 'bridge':
+      return {
+        expansionTarget: -0.24 + eased * 0.08,
+        networkSpread: -0.04,
+        nodeSpin: -0.1,
+        edgeBrightness: -0.2,
+        trailLength: -3,
+        topologyMorph: 0.08 + eased * 0.1,
+        collapseForce: 0,
+        springStrength: 0.3,
+        motionScale: -0.18,
+      }
+    case 'outro':
+      return {
+        expansionTarget: -0.48 - eased * 0.18,
+        networkSpread: -0.12,
+        nodeScale: -0.012,
+        nodeSpin: -0.18,
+        edgeBrightness: -0.52 - eased * 0.42,
+        edgeWidth: -0.5,
+        trailLength: -6 - eased * 5,
+        topologyMorph: -0.08,
+        collapseForce: 0,
+        facetOpacity: -0.12,
+        springStrength: 0.28,
+        motionScale: -0.3,
+      }
+    default:
+      return {
+        expansionTarget: -0.1,
+        networkSpread: -0.02,
+        edgeBrightness: -0.06,
+        topologyMorph: 0.03,
+        collapseForce: 0,
+      }
+  }
+}
+
+export function resolveReactiveConstellationChoreography(
+  audio: CinematicNormalizedAudioFrame | null | undefined,
+  profile: ReactiveConstellationChoreographyProfile = 'standard',
+): ReactiveConstellationRuntimeOffsets {
+  return profile === 'crimsonLaunch'
+    ? resolveCrimsonLaunchChoreography(audio)
+    : resolveStandardConstellationChoreography(audio)
+}
 
 export function resolveReactiveConstellationMacroOffsets(
   settings: ReactiveConstellationSettings,
@@ -133,6 +277,7 @@ export function resolveReactiveConstellationMacroOffsets(
   const camera = (clamp01(settings.macroCamera) - 0.5) * 2
   return {
     networkSpread: structure * 0.36,
+    expansionTarget: 0,
     nodeScale: structure * 0.018,
     topologyMorph: structure * 0.18,
     springStrength: structure * 0.16 + motion * 0.12,
@@ -140,8 +285,8 @@ export function resolveReactiveConstellationMacroOffsets(
     motionScale: motion * 0.28 + camera * 0.12,
     edgeBrightness: impact * 0.8 + trails * 0.25 + material * 0.45,
     edgeWidth: impact * 0.65,
-    burstImpulse: impact * 0.65,
-    collapseForce: impact * 0.18,
+    burstImpulse: settings.choreographyProfile === 'crimsonLaunch' ? 0 : impact * 0.65,
+    collapseForce: settings.choreographyProfile === 'crimsonLaunch' ? 0 : impact * 0.18,
     trailLength: trails * 10,
     facetOpacity: material * 0.16,
     internalGlow: material * 0.42,
@@ -179,6 +324,7 @@ export function resolveReactiveConstellationComposition(
   const settings = input.settings
   const values: ReactiveConstellationRuntimeValues = {
     networkSpread: settings.networkSpread,
+    expansionTarget: settings.expansionTarget,
     nodeScale: settings.nodeScale,
     nodeSpin: settings.nodeSpin,
     edgeBrightness: settings.beamCoreBrightness,
@@ -195,13 +341,14 @@ export function resolveReactiveConstellationComposition(
     cameraOrbit: settings.cameraOrbit,
   }
 
-  addOffsets(values, resolveReactiveConstellationChoreography(input.audio))
+  addOffsets(values, resolveReactiveConstellationChoreography(input.audio, settings.choreographyProfile))
   addOffsets(values, audioOffsets(input.modulation))
   addOffsets(values, resolveReactiveConstellationMacroOffsets(settings))
   addOffsets(values, input.manualMacroOffsets)
   addOffsets(values, input.performanceActionEnvelopes)
 
   values.networkSpread = clamp(values.networkSpread, REACTIVE_CONSTELLATION_BOUNDS.networkSpread[0], REACTIVE_CONSTELLATION_BOUNDS.networkSpread[1])
+  values.expansionTarget = clamp(values.expansionTarget, REACTIVE_CONSTELLATION_BOUNDS.expansionTarget[0], REACTIVE_CONSTELLATION_BOUNDS.expansionTarget[1])
   values.nodeScale = clamp(values.nodeScale, REACTIVE_CONSTELLATION_BOUNDS.nodeScale[0], REACTIVE_CONSTELLATION_BOUNDS.nodeScale[1])
   values.nodeSpin = clamp(values.nodeSpin, REACTIVE_CONSTELLATION_BOUNDS.nodeSpin[0], REACTIVE_CONSTELLATION_BOUNDS.nodeSpin[1])
   values.edgeBrightness = clamp(values.edgeBrightness, REACTIVE_CONSTELLATION_BOUNDS.beamCoreBrightness[0], REACTIVE_CONSTELLATION_BOUNDS.beamCoreBrightness[1])

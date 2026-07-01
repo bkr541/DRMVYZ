@@ -55,18 +55,23 @@ function audioFrame(options: {
   time?: number
   values?: Partial<Record<CinematicAudioSource, number>>
   capabilities?: Partial<CinematicNormalizedAudioFrame['capabilities']>
+  events?: Partial<CinematicNormalizedAudioFrame['events']>
+  frameId?: number
 } = {}): CinematicNormalizedAudioFrame {
   const values = sourceValues(options.values)
   return {
-    frameId: 1,
+    frameId: options.frameId ?? 1,
     sourceId: 'source-a',
     trackId: 'track-a',
     transportTimeSec: options.time ?? 32,
     isPlaying: true,
     values,
-    events: Object.fromEntries(
-      CINEMATIC_AUDIO_EVENT_SOURCES.map(source => [source, values[source] > 0]),
-    ) as CinematicNormalizedAudioFrame['events'],
+    events: {
+      ...Object.fromEntries(
+        CINEMATIC_AUDIO_EVENT_SOURCES.map(source => [source, values[source] > 0]),
+      ) as CinematicNormalizedAudioFrame['events'],
+      ...options.events,
+    },
     timing: {
       bpm: 120,
       beatPhase: values.beatPhase,
@@ -137,6 +142,60 @@ describe('Reactive Constellation musical choreography', () => {
     expect(outro.edgeBrightness).toBeLessThan(breakdown.edgeBrightness!)
   })
 
+
+  it('compresses the crimson launch target through the build without increasing random motion', () => {
+    const settings = {
+      ...REACTIVE_CONSTELLATION_DEFAULTS,
+      choreographyProfile: 'crimsonLaunch' as const,
+      expansionTarget: 1.08,
+      collapseAmount: 0,
+    }
+    const early = resolveReactiveConstellationComposition({
+      settings,
+      audio: audioFrame({ section: 'build', progress: 0.12, values: { buildProgress: 0.12 } }),
+      modulation: modulation(),
+    }).values
+    const late = resolveReactiveConstellationComposition({
+      settings,
+      audio: audioFrame({ section: 'build', progress: 0.92, values: { buildProgress: 0.92 } }),
+      modulation: modulation(),
+    }).values
+
+    expect(late.expansionTarget).toBeLessThan(early.expansionTarget)
+    expect(late.edgeBrightness).toBeGreaterThan(early.edgeBrightness)
+    expect(late.edgeWidth).toBeGreaterThan(early.edgeWidth)
+    expect(late.trailLength).toBeGreaterThan(early.trailLength)
+    expect(late.motionScale).toBeLessThanOrEqual(early.motionScale)
+    expect(late.collapseForce).toBe(0)
+  })
+
+  it('releases the crimson launch target on the drop without a collapse-versus-burst tug-of-war', () => {
+    const settings = {
+      ...REACTIVE_CONSTELLATION_DEFAULTS,
+      choreographyProfile: 'crimsonLaunch' as const,
+      expansionTarget: 1.08,
+      collapseAmount: 0,
+      macroImpact: 1,
+    }
+    const preDrop = resolveReactiveConstellationComposition({
+      settings,
+      audio: audioFrame({ section: 'preDrop', progress: 0.96, values: { buildProgress: 0.98 } }),
+      modulation: modulation(),
+    }).values
+    const drop = resolveReactiveConstellationComposition({
+      settings,
+      audio: audioFrame({ section: 'drop', events: { dropEntry: true } }),
+      modulation: modulation(),
+    }).values
+
+    expect(preDrop.expansionTarget).toBeLessThan(0.2)
+    expect(drop.expansionTarget).toBeGreaterThan(preDrop.expansionTarget)
+    expect(preDrop.collapseForce).toBe(0)
+    expect(drop.collapseForce).toBe(0)
+    expect(drop.burstImpulse).toBe(0)
+  })
+
+
   it('applies preset, section, audio, macro, action, and clamp layers in the documented order', () => {
     const audio = audioFrame({ section: 'unknown' })
     const result = resolveReactiveConstellationComposition({
@@ -181,6 +240,7 @@ describe('Reactive Constellation musical choreography', () => {
   it('keeps neutral macros inert and produces bounded, monotonic runtime changes', () => {
     expect(resolveReactiveConstellationMacroOffsets(REACTIVE_CONSTELLATION_DEFAULTS)).toEqual({
       networkSpread: 0,
+      expansionTarget: 0,
       nodeScale: 0,
       topologyMorph: 0,
       springStrength: 0,

@@ -157,6 +157,9 @@ export const REACTIVE_CONSTELLATION_VISUAL_DNA_PROFILES = [
 ] as const
 export type ReactiveConstellationVisualDnaProfile = typeof REACTIVE_CONSTELLATION_VISUAL_DNA_PROFILES[number]
 
+export const REACTIVE_CONSTELLATION_CHOREOGRAPHY_PROFILES = ['standard', 'crimsonLaunch'] as const
+export type ReactiveConstellationChoreographyProfile = typeof REACTIVE_CONSTELLATION_CHOREOGRAPHY_PROFILES[number]
+
 export const REACTIVE_CONSTELLATION_MACRO_KEYS = [
   'macroStructure', 'macroMotion', 'macroImpact', 'macroTrails', 'macroMaterial', 'macroCamera',
 ] as const
@@ -164,6 +167,7 @@ export type ReactiveConstellationMacroKey = typeof REACTIVE_CONSTELLATION_MACRO_
 
 export interface ReactiveConstellationSettings {
   visualDnaProfile: ReactiveConstellationVisualDnaProfile
+  choreographyProfile: ReactiveConstellationChoreographyProfile
   macroStructure: number
   macroMotion: number
   macroImpact: number
@@ -610,6 +614,7 @@ function settingsPayload(value: unknown, mode: CinematicWorldMode): unknown {
 
 export const REACTIVE_CONSTELLATION_DEFAULTS: ReactiveConstellationSettings = {
   visualDnaProfile: 'openFormat',
+  choreographyProfile: 'standard',
   macroStructure: 0.5,
   macroMotion: 0.5,
   macroImpact: 0.5,
@@ -717,7 +722,7 @@ export const REACTIVE_CONSTELLATION_BOUNDS = {
   collapseAmount: [0, 1.5],
   burstStrength: [0, 2.5],
   reseedEveryBars: [0, 64],
-} as const satisfies NumericBounds<Omit<ReactiveConstellationSettings, 'visualDnaProfile' | 'topologyStyle' | 'polyhedronStyle'>>
+} as const satisfies NumericBounds<Omit<ReactiveConstellationSettings, 'visualDnaProfile' | 'choreographyProfile' | 'topologyStyle' | 'polyhedronStyle'>>
 
 function normalizeReactiveConstellationSettings(raw: unknown): ReactiveConstellationSettings {
   const payload = settingsPayload(raw, 'reactiveConstellation')
@@ -789,6 +794,9 @@ function normalizeReactiveConstellationSettings(raw: unknown): ReactiveConstella
   const visualDnaProfile = REACTIVE_CONSTELLATION_VISUAL_DNA_PROFILES.includes(source.visualDnaProfile as ReactiveConstellationVisualDnaProfile)
     ? source.visualDnaProfile as ReactiveConstellationVisualDnaProfile
     : REACTIVE_CONSTELLATION_DEFAULTS.visualDnaProfile
+  const choreographyProfile = REACTIVE_CONSTELLATION_CHOREOGRAPHY_PROFILES.includes(source.choreographyProfile as ReactiveConstellationChoreographyProfile)
+    ? source.choreographyProfile as ReactiveConstellationChoreographyProfile
+    : REACTIVE_CONSTELLATION_DEFAULTS.choreographyProfile
   const topologyCandidate = legacyTopologyAliases[String(source.topologyStyle)] ?? source.topologyStyle
   const topologyStyle = REACTIVE_CONSTELLATION_TOPOLOGIES.includes(topologyCandidate as ReactiveConstellationTopologyStyle)
     ? topologyCandidate as ReactiveConstellationTopologyStyle
@@ -796,7 +804,7 @@ function normalizeReactiveConstellationSettings(raw: unknown): ReactiveConstella
   const polyhedronStyle = REACTIVE_CONSTELLATION_POLYHEDRA.includes(source.polyhedronStyle as ReactiveConstellationPolyhedronStyle)
     ? source.polyhedronStyle as ReactiveConstellationPolyhedronStyle
     : REACTIVE_CONSTELLATION_DEFAULTS.polyhedronStyle
-  return { ...numeric, visualDnaProfile, topologyStyle, polyhedronStyle }
+  return { ...numeric, visualDnaProfile, choreographyProfile, topologyStyle, polyhedronStyle }
 }
 
 export const MEDIA_PORTAL_DEFAULTS: MediaPortalSettings = {

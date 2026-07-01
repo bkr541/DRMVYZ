@@ -1,6 +1,105 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { CinematicWebGLServices } from '../../../../CinematicWorldRenderer'
+import {
+  CINEMATIC_AUDIO_EVENT_SOURCES,
+  CINEMATIC_AUDIO_SOURCES,
+  type CinematicAudioSource,
+} from '../../../../../CinematicWorldConfig'
+import {
+  REACTIVE_CONSTELLATION_DEFAULTS,
+  type ReactiveConstellationSettings,
+} from '../../../../../CinematicWorldSettings'
+import type { CinematicNormalizedAudioFrame } from '../../../CinematicAudioModulation'
+import type { CinematicFrameContext, CinematicWebGLServices } from '../../../../CinematicWorldRenderer'
 import { ReactiveConstellationWorld } from '../../ReactiveConstellationWorld'
+
+const ALL_CAPABILITIES: CinematicNormalizedAudioFrame['capabilities'] = {
+  musicIntelligence: true,
+  broadBands: true,
+  detailedBands: true,
+  transientEvents: true,
+  kickEvents: true,
+  snareEvents: true,
+  beatTiming: true,
+  downbeatTiming: true,
+  barTiming: true,
+  phraseTiming: true,
+  sectionTiming: true,
+  buildProgress: true,
+  dropState: true,
+  trackEnergyCurve: true,
+  vocalEnergy: true,
+}
+
+function normalizedAudio(options: {
+  frameId: number
+  events?: Partial<CinematicNormalizedAudioFrame['events']>
+  values?: Partial<Record<CinematicAudioSource, number>>
+  capabilities?: Partial<CinematicNormalizedAudioFrame['capabilities']>
+}): CinematicNormalizedAudioFrame {
+  const values = Object.assign(
+    Object.fromEntries(CINEMATIC_AUDIO_SOURCES.map(source => [source, 0])) as Record<CinematicAudioSource, number>,
+    options.values,
+  )
+  return {
+    frameId: options.frameId,
+    sourceId: 'source-a',
+    trackId: 'track-a',
+    transportTimeSec: 48,
+    isPlaying: true,
+    values,
+    events: {
+      ...Object.fromEntries(CINEMATIC_AUDIO_EVENT_SOURCES.map(source => [source, false])) as CinematicNormalizedAudioFrame['events'],
+      ...options.events,
+    },
+    timing: {
+      bpm: 150,
+      beatPhase: 0,
+      beatIndex: 120,
+      beatInBar: 0,
+      barIndex: 30,
+      barPosition: 0,
+      phraseProgress: 0.75,
+    },
+    section: {
+      type: null,
+      label: '',
+      startSec: 0,
+      endSec: 0,
+      progress: 0,
+      intensity: 0,
+      confidence: 0,
+      source: 'unknown',
+    },
+    capabilities: { ...ALL_CAPABILITIES, ...options.capabilities },
+    resetReasons: [],
+  }
+}
+
+function burstFrame(audio: CinematicNormalizedAudioFrame, sources: CinematicAudioSource[]): CinematicFrameContext {
+  return {
+    musicalAudio: audio,
+    config: {
+      audioMapping: {
+        enabled: true,
+        routes: sources.map((source, index) => ({
+          id: `burst-${source}-${index}`,
+          source,
+          target: 'burstImpulse',
+          enabled: true,
+          amount: 1,
+        })),
+      },
+    },
+  } as unknown as CinematicFrameContext
+}
+
+function crimsonSettings(): ReactiveConstellationSettings {
+  return {
+    ...REACTIVE_CONSTELLATION_DEFAULTS,
+    choreographyProfile: 'crimsonLaunch',
+    expansionBurstImpulse: 1.9,
+  }
+}
 
 interface FakeGpuHarness {
   services: CinematicWebGLServices
@@ -98,7 +197,74 @@ describe('ReactiveConstellationWorld GPU lifecycle', () => {
     expect(restoredHarness.deletedVaos).toHaveLength(restoredHarness.createdVaos.length)
   })
 
-  it('restarts center expansion for seek and track-replacement resets without waiting for playback', () => {
+  it('turns one kick event into one bounded secondary radial impulse', () => {
+    const world = new ReactiveConstellationWorld()
+    const internals = world as unknown as {
+      heldBurstImpulse: number
+      resolveBurstTrigger: (
+        frame: CinematicFrameContext,
+        performanceSequence: number | null,
+        settings: ReactiveConstellationSettings,
+      ) => { sequence: number; impulse: number } | null
+    }
+    internals.heldBurstImpulse = 0.72
+    const frame = burstFrame(normalizedAudio({ frameId: 11, events: { kick: true } }), ['kick', 'dropEntry'])
+
+    const first = internals.resolveBurstTrigger(frame, null, crimsonSettings())
+    const duplicate = internals.resolveBurstTrigger(frame, null, crimsonSettings())
+    const nextFrame = burstFrame(normalizedAudio({ frameId: 12 }), ['kick', 'dropEntry'])
+
+    expect(first?.impulse).toBeCloseTo(0.72)
+    expect(first?.impulse).toBeLessThanOrEqual(1.05)
+    expect(duplicate).toBeNull()
+    expect(internals.resolveBurstTrigger(nextFrame, null, crimsonSettings())).toBeNull()
+  })
+
+  it('uses drop entry for the primary launch and a restrained downbeat fallback when drop data is unavailable', () => {
+    const world = new ReactiveConstellationWorld()
+    const internals = world as unknown as {
+      heldBurstImpulse: number
+      resolveBurstTrigger: (
+        frame: CinematicFrameContext,
+        performanceSequence: number | null,
+        settings: ReactiveConstellationSettings,
+      ) => { sequence: number; impulse: number } | null
+    }
+    internals.heldBurstImpulse = 1.56
+    const settings = crimsonSettings()
+    const drop = internals.resolveBurstTrigger(
+      burstFrame(normalizedAudio({ frameId: 21, events: { dropEntry: true } }), ['dropEntry', 'kick']),
+      null,
+      settings,
+    )
+    const fallback = internals.resolveBurstTrigger(
+      burstFrame(normalizedAudio({
+        frameId: 22,
+        events: { downbeat: true },
+        values: { buildProgress: 0.92, overallEnergy: 0.86, transientIntensity: 0.74 },
+        capabilities: { dropState: false, sectionTiming: false },
+      }), ['dropEntry', 'kick']),
+      null,
+      settings,
+    )
+    const noActiveDropRoute = internals.resolveBurstTrigger(
+      burstFrame(normalizedAudio({
+        frameId: 23,
+        events: { downbeat: true },
+        values: { buildProgress: 0.95, overallEnergy: 0.9, transientIntensity: 0.8 },
+        capabilities: { dropState: false, sectionTiming: false },
+      }), ['kick']),
+      null,
+      settings,
+    )
+
+    expect(drop?.impulse).toBe(1.9)
+    expect(fallback?.impulse).toBeCloseTo(1.9 * 0.44)
+    expect(fallback!.impulse).toBeLessThan(drop!.impulse)
+    expect(noActiveDropRoute).toBeNull()
+  })
+
+  it('restarts center expansion for manual reset, seek, loop discontinuity, and track replacement', () => {
     const harness = createHarness()
     const world = new ReactiveConstellationWorld()
     world.initialize({ services: harness.services, config: {} as never, presetId: 'paused-reset' })
@@ -111,20 +277,31 @@ describe('ReactiveConstellationWorld GPU lifecycle', () => {
     const resetSimulation = vi.spyOn(internals.simulation, 'resetExpansion')
     const resetTrails = vi.spyOn(internals.trails, 'reset')
 
-    world.reset('seek')
-    expect(internals.pendingReset).toBe('seek')
-    expect(resetTrails).toHaveBeenCalledTimes(1)
+    world.reset('manualReset')
+    expect(internals.pendingReset).toBe('manualReset')
     internals.applyPendingReset()
-
     expect(resetSimulation).toHaveBeenCalledTimes(1)
     expect(resetTrails).toHaveBeenCalledTimes(2)
+
+    world.reset('seek')
+    expect(internals.pendingReset).toBe('seek')
+    expect(resetTrails).toHaveBeenCalledTimes(3)
+    internals.applyPendingReset()
+
+    expect(resetSimulation).toHaveBeenCalledTimes(2)
+    expect(resetTrails).toHaveBeenCalledTimes(4)
     expect(internals.pendingReset).toBeNull()
+
+    world.reset('timingDiscontinuity')
+    expect(internals.pendingReset).toBe('timingDiscontinuity')
+    internals.applyPendingReset()
+    expect(resetSimulation).toHaveBeenCalledTimes(3)
 
     world.reset('trackReplacement')
     expect(internals.pendingReset).toBe('trackReplacement')
     internals.applyPendingReset()
-    expect(resetSimulation).toHaveBeenCalledTimes(2)
-    expect(resetTrails).toHaveBeenCalledTimes(4)
+    expect(resetSimulation).toHaveBeenCalledTimes(4)
+    expect(resetTrails).toHaveBeenCalledTimes(8)
     expect(internals.pendingReset).toBeNull()
     world.dispose()
   })

@@ -134,6 +134,7 @@ describe('world-specific cinematic configuration', () => {
     })
 
     const constellation = createCinematicWorldConfig('reactiveConstellation', {
+      choreographyProfile: 'future-launch',
       nodeCount: 999,
       topologyStyle: 'futureTopology',
       polyhedronStyle: 'futurePolyhedron',
@@ -168,6 +169,7 @@ describe('world-specific cinematic configuration', () => {
       reseedEveryBars: 17.8,
     } as never)
     expect(resolveReactiveConstellationSettings(constellation.worldSettings)).toMatchObject({
+      choreographyProfile: REACTIVE_CONSTELLATION_DEFAULTS.choreographyProfile,
       nodeCount: 96,
       topologyStyle: REACTIVE_CONSTELLATION_DEFAULTS.topologyStyle,
       polyhedronStyle: REACTIVE_CONSTELLATION_DEFAULTS.polyhedronStyle,
@@ -211,6 +213,7 @@ describe('world-specific cinematic configuration', () => {
     } as never)
 
     expect(resolveReactiveConstellationSettings(normalized.worldSettings)).toMatchObject({
+      choreographyProfile: REACTIVE_CONSTELLATION_DEFAULTS.choreographyProfile,
       topologyStyle: 'chain',
       springStrength: 1.1,
       reseedEveryBars: 12,
