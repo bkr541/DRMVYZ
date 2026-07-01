@@ -34,6 +34,7 @@ function audioTrack(id: string, title = `Track ${id}`): AudioTrack {
     file_size: 1234,
     mime_type: 'audio/mpeg',
     source_type: 'file',
+    transcription_assets: null,
     artist: 'DVYDRM',
     genre: 'Melodic Bass',
     bpm: 150,

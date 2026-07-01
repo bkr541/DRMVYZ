@@ -31,6 +31,7 @@ function track(overrides: Partial<LyricManagerTrack> = {}): LyricManagerTrack {
     activeLyricDocumentId: 'doc-a',
     activeLyricDocumentName: 'Approved Lyrics',
     ...overrides,
+    transcriptionAssets: overrides.transcriptionAssets ?? null,
   }
 }
 

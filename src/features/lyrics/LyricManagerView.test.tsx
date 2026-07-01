@@ -102,6 +102,7 @@ function track(id: string, title: string): LyricManagerTrack {
     channels: 2,
     fileSizeByte: 1000,
     mimeType: 'audio/mpeg',
+    transcriptionAssets: null,
     artist: 'DVYDRM',
     genre: 'Melodic Bass',
     bpm: 150,

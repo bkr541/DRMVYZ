@@ -26,8 +26,10 @@ const corsHeaders = {
 }
 
 const AUDIO_BUCKET = 'audio-tracks'
-const MAX_STORED_AUDIO_BYTES = 100 * 1024 * 1024
+const MAX_STORED_AUDIO_BYTES = 500 * 1024 * 1024
+const MAX_SERVER_DOWNLOAD_BYTES = 100 * 1024 * 1024
 const DEFAULT_OPENAI_MAX_BYTES = 25 * 1024 * 1024
+const DEFAULT_OPENAI_SAFE_AUDIO_BYTES = 23 * 1024 * 1024
 const DEFAULT_OPENAI_CHUNK_SAFETY_BYTES = 256 * 1024
 const DEFAULT_OPENAI_CHUNK_OVERLAP_MS = 4_000
 const DEFAULT_OPENAI_CHUNK_CONCURRENCY = 2
@@ -37,9 +39,11 @@ const ACTIVE_STATUSES = ['queued', 'processing'] as const
 
 // Increment this whenever a behaviorally significant change is deployed so clients
 // can detect stale deployments from job.providerMetadata.fnVersion.
-const LYRIC_TRANSCRIPTION_FN_VERSION = '2.0.0'
+const LYRIC_TRANSCRIPTION_FN_VERSION = '3.0.0'
+const PREPARED_AUDIO_VERSION = 'browser-pcm16-v1'
+const MAX_PREPARED_AUDIO_CHUNKS = 64
 
-type ProcessingMode = 'direct' | 'wav-chunking' | 'long-audio-worker'
+type ProcessingMode = 'direct' | 'wav-chunking' | 'prepared-audio' | 'long-audio-worker'
 
 interface AudioTrackRow {
   id: string
@@ -51,6 +55,32 @@ interface AudioTrackRow {
   duration_sec: number | null
   file_size: number | null
   mime_type: string | null
+  transcription_assets: unknown
+}
+
+
+interface PreparedAudioChunk {
+  index: number
+  storagePath: string
+  fileName: string
+  mimeType: 'audio/wav'
+  byteSize: number
+  startMs: number
+  endMs: number
+  overlapBeforeMs: number
+  overlapAfterMs: number
+}
+
+interface PreparedAudioManifest {
+  version: string
+  preparedAt: string
+  sourceFileSize: number
+  sourceMimeType: string | null
+  durationMs: number
+  sampleRate: number
+  channels: number
+  bitsPerSample: number
+  chunks: PreparedAudioChunk[]
 }
 
 interface JobRow {
@@ -132,6 +162,12 @@ function positiveEnvInteger(name: string, fallback: number, max: number): number
   return Math.max(1, Math.min(max, Math.floor(positiveEnvNumber(name, fallback))))
 }
 
+function openAiSafeAudioBytes(): number {
+  const documentedMax = positiveEnvNumber('OPENAI_MAX_AUDIO_BYTES', DEFAULT_OPENAI_MAX_BYTES)
+  const configuredSafe = positiveEnvNumber('OPENAI_SAFE_AUDIO_BYTES', DEFAULT_OPENAI_SAFE_AUDIO_BYTES)
+  return Math.max(1024 * 1024, Math.min(configuredSafe, documentedMax - 256 * 1024))
+}
+
 function safeOptions(value: unknown): Record<string, unknown> {
   const input = asRecord(value)
   const language = typeof input.language === 'string' && /^[a-z]{2,8}(-[a-z0-9]{2,8})?$/i.test(input.language)
@@ -167,6 +203,67 @@ function isLikelyWavFile(track: AudioTrackRow): boolean {
   const mime = (track.mime_type ?? '').toLowerCase()
   const ext = track.file_name.split('.').pop()?.toLowerCase() ?? ''
   return mime.includes('wav') || ext === 'wav'
+}
+
+
+function preparedAudioManifest(track: AudioTrackRow, maxChunkBytes: number): PreparedAudioManifest | null {
+  const root = asRecord(track.transcription_assets)
+  if (root.version !== PREPARED_AUDIO_VERSION || !Array.isArray(root.chunks)) return null
+  if (root.chunks.length < 1 || root.chunks.length > MAX_PREPARED_AUDIO_CHUNKS) return null
+
+  const durationMs = finiteNumber(root.durationMs)
+  const sourceFileSize = finiteNumber(root.sourceFileSize)
+  if (durationMs === null || durationMs <= 0 || sourceFileSize === null || sourceFileSize <= 0) return null
+  if (track.file_size && sourceFileSize !== track.file_size) return null
+  if (root.sampleRate !== 16_000 || root.channels !== 1 || root.bitsPerSample !== 16) return null
+  if (typeof root.preparedAt !== 'string' || !root.preparedAt) return null
+  if (root.sourceMimeType !== null && typeof root.sourceMimeType !== 'string') return null
+
+  const chunks: PreparedAudioChunk[] = []
+  const seenPaths = new Set<string>()
+  let previousStart = -1
+  for (let index = 0; index < root.chunks.length; index += 1) {
+    const item = asRecord(root.chunks[index])
+    const byteSize = finiteNumber(item.byteSize)
+    const startMs = finiteNumber(item.startMs)
+    const endMs = finiteNumber(item.endMs)
+    const overlapBeforeMs = finiteNumber(item.overlapBeforeMs)
+    const overlapAfterMs = finiteNumber(item.overlapAfterMs)
+    const storagePath = typeof item.storagePath === 'string' ? item.storagePath : ''
+    const fileName = typeof item.fileName === 'string' ? item.fileName : ''
+    if (item.index !== index || item.mimeType !== 'audio/wav') return null
+    if (!storagePath || storagePath.includes('..') || !storagePath.startsWith(`${track.user_id}/`) || seenPaths.has(storagePath)) return null
+    if (!fileName.toLowerCase().endsWith('.wav')) return null
+    if (byteSize === null || byteSize <= 44 || byteSize > maxChunkBytes) return null
+    if (startMs === null || endMs === null || startMs < 0 || endMs <= startMs || startMs < previousStart) return null
+    if (overlapBeforeMs === null || overlapAfterMs === null || overlapBeforeMs < 0 || overlapAfterMs < 0) return null
+    if (endMs > durationMs + 1_000) return null
+    seenPaths.add(storagePath)
+    previousStart = startMs
+    chunks.push({
+      index,
+      storagePath,
+      fileName,
+      mimeType: 'audio/wav',
+      byteSize,
+      startMs: Math.round(startMs),
+      endMs: Math.round(endMs),
+      overlapBeforeMs: Math.round(overlapBeforeMs),
+      overlapAfterMs: Math.round(overlapAfterMs),
+    })
+  }
+
+  return {
+    version: PREPARED_AUDIO_VERSION,
+    preparedAt: root.preparedAt,
+    sourceFileSize,
+    sourceMimeType: root.sourceMimeType as string | null,
+    durationMs: Math.round(durationMs),
+    sampleRate: 16_000,
+    channels: 1,
+    bitsPerSample: 16,
+    chunks,
+  }
 }
 
 function publicJob(job: JobRow): JobRow {
@@ -219,7 +316,7 @@ async function authenticatedClients(req: Request): Promise<{
 async function ownedTrack(adminClient: SupabaseClient, userId: string, audioTrackId: string): Promise<AudioTrackRow> {
   const { data, error } = await adminClient
     .from('audio_tracks')
-    .select('id,user_id,title,artist,file_name,storage_path,duration_sec,file_size,mime_type')
+    .select('id,user_id,title,artist,file_name,storage_path,duration_sec,file_size,mime_type,transcription_assets')
     .eq('id', audioTrackId)
     .eq('user_id', userId)
     .maybeSingle()
@@ -440,9 +537,9 @@ async function requestOpenAITranscript(
 function wavChunkingFailure(error: unknown): TranscriptionError {
   const detail = error instanceof WavChunkingError ? ` ${error.message}` : ''
   return new TranscriptionError(
-    'unsupported_audio',
-    `This audio file exceeds the direct provider limit and could not be split safely.${detail} Upload a smaller WAV, use a compressed audio format, or configure the long-audio backend.`,
-    413,
+    'transcription_asset_required',
+    `This WAV file could not be split safely on the server.${detail} Retry from DRMVYZ so it can prepare a private provider-safe audio copy.`,
+    409,
   )
 }
 
@@ -468,7 +565,7 @@ async function runOpenAIProvider(
   preFetchedSourceBytes?: Uint8Array,
 ): Promise<ProviderRunResult> {
   const apiKey = requiredEnv('OPENAI_API_KEY')
-  const maxBytes = positiveEnvNumber('OPENAI_MAX_AUDIO_BYTES', DEFAULT_OPENAI_MAX_BYTES)
+  const maxBytes = openAiSafeAudioBytes()
   const model = Deno.env.get('OPENAI_TRANSCRIPTION_MODEL')?.trim() || 'whisper-1'
 
   if (blob.size <= maxBytes) {
@@ -534,11 +631,93 @@ async function runOpenAIProvider(
     rawPayload: {
       chunkedWav: true,
       sourceBytes: blob.size,
-      providerMaxBytes: maxBytes,
+      providerDocumentedMaxBytes: positiveEnvNumber('OPENAI_MAX_AUDIO_BYTES', DEFAULT_OPENAI_MAX_BYTES),
+      providerSafeBytes: maxBytes,
       chunkLimitBytes,
       sampleRate: plan.sampleRate,
       channelCount: plan.channelCount,
       bitsPerSample: plan.bitsPerSample,
+      units: completed.map(({ metadata }) => metadata),
+    },
+    model,
+  }
+}
+
+async function runPreparedAudioProvider(
+  adminClient: SupabaseClient,
+  manifest: PreparedAudioManifest,
+  options: Record<string, unknown>,
+  onChunkProgress?: (completed: number, total: number) => Promise<void>,
+): Promise<ProviderRunResult> {
+  const apiKey = requiredEnv('OPENAI_API_KEY')
+  const model = Deno.env.get('OPENAI_TRANSCRIPTION_MODEL')?.trim() || 'whisper-1'
+  const safeBytes = openAiSafeAudioBytes()
+  const concurrency = positiveEnvInteger(
+    'OPENAI_TRANSCRIPTION_CONCURRENCY',
+    DEFAULT_OPENAI_CHUNK_CONCURRENCY,
+    4,
+  )
+  let chunksCompleted = 0
+
+  const completed = await mapWithConcurrency(manifest.chunks, concurrency, async chunk => {
+    const { data: blob, error } = await adminClient.storage
+      .from(AUDIO_BUCKET)
+      .download(chunk.storagePath)
+    if (error || !blob) {
+      throw new TranscriptionError('prepared_audio_missing', 'A prepared transcription audio chunk is missing. Retry extraction to rebuild it.', 409)
+    }
+    if (blob.size !== chunk.byteSize || blob.size > safeBytes) {
+      throw new TranscriptionError('prepared_audio_invalid', 'A prepared transcription audio chunk is invalid. Retry extraction to rebuild it.', 409)
+    }
+    const bytes = new Uint8Array(await blob.arrayBuffer())
+    if (!isRiffWave(bytes)) {
+      throw new TranscriptionError('prepared_audio_invalid', 'A prepared transcription audio chunk is not a valid WAV file. Retry extraction to rebuild it.', 409)
+    }
+
+    const payload = await requestOpenAITranscript(
+      apiKey,
+      model,
+      new Blob([bytes], { type: 'audio/wav' }),
+      chunk.fileName,
+      'audio/wav',
+      options,
+    )
+    const transcript = providerTranscript(payload)
+    chunksCompleted += 1
+    if (onChunkProgress) await onChunkProgress(chunksCompleted, manifest.chunks.length)
+    return {
+      unit: {
+        index: chunk.index,
+        startMs: chunk.startMs,
+        endMs: chunk.endMs,
+        overlapBeforeMs: chunk.overlapBeforeMs,
+        overlapAfterMs: chunk.overlapAfterMs,
+      },
+      transcript,
+      metadata: {
+        index: chunk.index,
+        startMs: chunk.startMs,
+        endMs: chunk.endMs,
+        overlapBeforeMs: chunk.overlapBeforeMs,
+        overlapAfterMs: chunk.overlapAfterMs,
+        fileBytes: blob.size,
+        wordCount: transcript.words?.length ?? 0,
+        segmentCount: transcript.segments?.length ?? 0,
+        language: transcript.language ?? null,
+      },
+    }
+  })
+
+  return {
+    transcripts: completed.map(({ unit, transcript }) => ({ unit, transcript })),
+    rawPayload: {
+      preparedAudio: true,
+      preparationVersion: manifest.version,
+      preprocessingRuntime: 'browser-web-audio',
+      preparedFormat: 'pcm16-wav',
+      sampleRate: manifest.sampleRate,
+      channelCount: manifest.channels,
+      durationMs: manifest.durationMs,
       units: completed.map(({ metadata }) => metadata),
     },
     model,
@@ -678,7 +857,20 @@ async function processJob(
 
     let providerResult: ProviderRunResult
     let processingMode: ProcessingMode
-    const maxBytes = positiveEnvNumber('OPENAI_MAX_AUDIO_BYTES', DEFAULT_OPENAI_MAX_BYTES)
+    const maxBytes = openAiSafeAudioBytes()
+    const prepared = preparedAudioManifest(track, maxBytes)
+
+    const updateChunkProgress = async (completed: number, total: number) => {
+      await updateJob(adminClient, job.id, {
+        progress: 0.2 + (completed / total) * 0.5,
+        provider_metadata: {
+          processingStage: 'transcribing',
+          fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION,
+          chunksCompleted: completed,
+          chunksTotal: total,
+        },
+      })
+    }
 
     if (job.provider === 'custom') {
       processingMode = 'long-audio-worker'
@@ -687,15 +879,38 @@ async function processJob(
         provider_metadata: { processingStage: 'routing', fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION },
       })
       providerResult = await runCustomProvider(adminClient, track, job.request_options)
+    } else if (prepared) {
+      processingMode = 'prepared-audio'
+      await updateJob(adminClient, job.id, {
+        progress: 0.2,
+        provider_metadata: {
+          processingStage: 'transcribing',
+          fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION,
+          processingMode,
+          preprocessingRuntime: 'browser-web-audio',
+          chunksCompleted: 0,
+          chunksTotal: prepared.chunks.length,
+        },
+      })
+      providerResult = await runPreparedAudioProvider(
+        adminClient,
+        prepared,
+        job.request_options,
+        updateChunkProgress,
+      )
     } else {
-      // Pre-check: if stored metadata reveals an oversized non-WAV file, avoid a wasted download
+      // A current client prepares oversized compressed sources as private PCM WAV
+      // derivatives before starting the server job. The optional custom worker
+      // remains a fallback for clients that cannot decode a source codec.
       const estimatedSize = track.file_size ?? 0
-      if (estimatedSize > 0 && estimatedSize > maxBytes && !isLikelyWavFile(track)) {
+      const requiresLocalPreparation = estimatedSize > MAX_SERVER_DOWNLOAD_BYTES
+        || (estimatedSize > maxBytes && !isLikelyWavFile(track))
+      if (requiresLocalPreparation) {
         if (!isCustomProviderConfigured()) {
           throw new TranscriptionError(
-            'long_audio_backend_not_configured',
-            'This audio file is too large for direct transcription and requires the long-audio backend, which is not configured on this server. Contact the server administrator.',
-            413,
+            'transcription_asset_required',
+            'This track needs local audio preparation before transcription. Retry from DRMVYZ so it can create private provider-safe audio chunks.',
+            409,
           )
         }
         processingMode = 'long-audio-worker'
@@ -718,6 +933,13 @@ async function processJob(
         if (audioBlob.size > MAX_STORED_AUDIO_BYTES) {
           throw new TranscriptionError('unsupported_audio', 'This audio file is too large for automatic lyric extraction.', 413)
         }
+        if (audioBlob.size > MAX_SERVER_DOWNLOAD_BYTES) {
+          throw new TranscriptionError(
+            'transcription_asset_required',
+            'This track needs local audio preparation before transcription. Retry from DRMVYZ so it can create private provider-safe audio chunks.',
+            409,
+          )
+        }
 
         await updateJob(adminClient, job.id, {
           progress: 0.18,
@@ -725,15 +947,13 @@ async function processJob(
         })
 
         if (audioBlob.size > maxBytes) {
-          // Blob is oversized: verify WAV before committing to chunking
           const sourceBytes = new Uint8Array(await audioBlob.arrayBuffer())
           if (!isRiffWave(sourceBytes)) {
-            // Compressed oversized file — file_size was null or wrong in metadata
             if (!isCustomProviderConfigured()) {
               throw new TranscriptionError(
-                'long_audio_backend_not_configured',
-                'This audio file is too large for direct transcription and requires the long-audio backend, which is not configured on this server. Contact the server administrator.',
-                413,
+                'transcription_asset_required',
+                'This track needs local audio preparation before transcription. Retry from DRMVYZ so it can create a private provider-safe audio copy.',
+                409,
               )
             }
             processingMode = 'long-audio-worker'
@@ -749,28 +969,28 @@ async function processJob(
               provider_metadata: {
                 processingStage: 'transcribing',
                 fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION,
+                processingMode,
                 chunksCompleted: 0,
                 chunksTotal: 0,
               },
             })
-            const onChunkProgress = async (completed: number, total: number) => {
-              await updateJob(adminClient, job.id, {
-                progress: 0.2 + (completed / total) * 0.5,
-                provider_metadata: {
-                  processingStage: 'transcribing',
-                  fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION,
-                  chunksCompleted: completed,
-                  chunksTotal: total,
-                },
-              })
-            }
-            providerResult = await runOpenAIProvider(audioBlob, track, job.request_options, onChunkProgress, sourceBytes)
+            providerResult = await runOpenAIProvider(
+              audioBlob,
+              track,
+              job.request_options,
+              updateChunkProgress,
+              sourceBytes,
+            )
           }
         } else {
           processingMode = 'direct'
           await updateJob(adminClient, job.id, {
             progress: 0.2,
-            provider_metadata: { processingStage: 'transcribing', fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION },
+            provider_metadata: {
+              processingStage: 'transcribing',
+              fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION,
+              processingMode,
+            },
           })
           providerResult = await runOpenAIProvider(audioBlob, track, job.request_options)
         }
@@ -831,6 +1051,11 @@ async function processJob(
       model: providerResult.model,
       processingMode,
       fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION,
+      pipelineVersion: LYRIC_TRANSCRIPTION_FN_VERSION,
+      preprocessingRuntime: processingMode === 'prepared-audio' ? 'browser-web-audio' : 'server',
+      preparationVersion: prepared?.version ?? null,
+      sourceFormat: track.mime_type ?? track.file_name.split('.').pop()?.toLowerCase() ?? null,
+      preparedFormat: processingMode === 'prepared-audio' ? 'pcm16-wav' : null,
       unitCount: providerResult.transcripts.length,
       usedSingleUnit: providerResult.transcripts.length === 1,
       durationMs: reconciled.durationMs,

@@ -13,6 +13,10 @@ import {
   type LyricTranscriptionOptions,
 } from '../services/lyricExtraction'
 import { getLyricReviewStatistics } from '../utils/lyricReview'
+import {
+  ensurePreparedTranscriptionAudio,
+  type LocalAudioPreparationProgress,
+} from '../services/localAudioPreparation'
 
 const TIMING_OPTS = [
   { value: 'line', label: 'Line-level' },
@@ -53,8 +57,21 @@ function processingStageLabel(job: LyricTranscriptionJob): string | null {
   return typeof stage === 'string' ? (PROCESSING_STAGE_LABELS[stage] ?? null) : null
 }
 
-function isConfigurationError(job: LyricTranscriptionJob | null): boolean {
+const LOCAL_PREPARATION_LABELS: Record<LocalAudioPreparationProgress['stage'], string> = {
+  downloading: 'Downloading stored audio…',
+  decoding: 'Decoding audio locally…',
+  planning: 'Planning provider-safe audio…',
+  encoding: 'Encoding transcription audio…',
+  uploading: 'Uploading private transcription audio…',
+  saving: 'Saving transcription manifest…',
+  complete: 'Audio preparation complete',
+}
+
+function isPreparationRecoverableError(job: LyricTranscriptionJob | null): boolean {
   return job?.errorCode === 'long_audio_backend_not_configured'
+    || job?.errorCode === 'transcription_asset_required'
+    || job?.errorCode === 'prepared_audio_missing'
+    || job?.errorCode === 'prepared_audio_invalid'
 }
 
 export function chooseRecoveredJob(jobs: LyricTranscriptionJob[]): LyricTranscriptionJob | null {
@@ -74,6 +91,8 @@ export function AiLyricExtractor({
   const [actionBusy, setActionBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [localPreparation, setLocalPreparation] = useState<LocalAudioPreparationProgress | null>(null)
+  const preparationAbortRef = useRef<AbortController | null>(null)
   const previewDocumentId = useRef<string | null>(null)
 
   const selectedTrackId = selectedTrack?.dbId ?? null
@@ -108,6 +127,9 @@ export function AiLyricExtractor({
     setCues([])
     setError(null)
     setNotice(null)
+    setLocalPreparation(null)
+    preparationAbortRef.current?.abort()
+    preparationAbortRef.current = null
     if (!selectedTrackId) return () => { cancelled = true }
 
     setLoading(true)
@@ -160,17 +182,33 @@ export function AiLyricExtractor({
     setError(null)
     setNotice(null)
     try {
+      const controller = new AbortController()
+      preparationAbortRef.current = controller
+      const preparation = await ensurePreparedTranscriptionAudio(selectedTrack, {
+        signal: controller.signal,
+        onProgress: setLocalPreparation,
+      })
+      preparationAbortRef.current = null
       const result = await startLyricTranscription(selectedTrack.dbId, options)
+      setLocalPreparation(null)
       setJob(result.job)
       setDocument(null)
       setCues([])
       previewDocumentId.current = null
       setNotice(result.duplicate
         ? 'An extraction is already running for this track. Its status has been resumed.'
-        : 'Extraction queued. You can leave Lyric Manager and return without losing the job.')
+        : preparation.prepared
+          ? 'Provider-safe audio prepared privately and extraction queued.'
+          : 'Extraction queued. You can leave Lyric Manager and return without losing the job.')
     } catch (startError) {
-      setError(startError instanceof Error ? startError.message : 'Failed to start lyric extraction.')
+      if (!(startError instanceof DOMException && startError.name === 'AbortError')) {
+        setError(startError instanceof Error ? startError.message : 'Failed to start lyric extraction.')
+      } else {
+        setNotice('Audio preparation cancelled.')
+      }
     } finally {
+      preparationAbortRef.current = null
+      setLocalPreparation(null)
       setActionBusy(false)
     }
   }, [options, selectedTrack])
@@ -196,18 +234,35 @@ export function AiLyricExtractor({
     setError(null)
     setNotice(null)
     try {
+      if (selectedTrack) {
+        const controller = new AbortController()
+        preparationAbortRef.current = controller
+        await ensurePreparedTranscriptionAudio(selectedTrack, {
+          signal: controller.signal,
+          onProgress: setLocalPreparation,
+          force: job.errorCode === 'prepared_audio_missing' || job.errorCode === 'prepared_audio_invalid',
+        })
+        preparationAbortRef.current = null
+      }
       const result = await retryLyricTranscription(job.id)
+      setLocalPreparation(null)
       setJob(result.job)
       setDocument(null)
       setCues([])
       previewDocumentId.current = null
       setNotice(result.duplicate ? 'An active retry was already found and resumed.' : 'Retry queued.')
     } catch (retryError) {
-      setError(retryError instanceof Error ? retryError.message : 'Failed to retry transcription.')
+      if (!(retryError instanceof DOMException && retryError.name === 'AbortError')) {
+        setError(retryError instanceof Error ? retryError.message : 'Failed to retry transcription.')
+      } else {
+        setNotice('Audio preparation cancelled.')
+      }
     } finally {
+      preparationAbortRef.current = null
+      setLocalPreparation(null)
       setActionBusy(false)
     }
-  }, [job])
+  }, [job, selectedTrack])
 
   if (!selectedTrack) {
     return (
@@ -230,8 +285,8 @@ export function AiLyricExtractor({
     ? job.providerMetadata.chunksTotal : null
   const showChunkProgress = active && chunksTotal !== null && chunksTotal > 1 && chunksCompleted !== null
 
-  const configError = isConfigurationError(job)
-  const canRetry = (job?.status === 'failed' || job?.status === 'cancelled') && !configError
+  const preparationRecoverable = isPreparationRecoverableError(job)
+  const canRetry = job?.status === 'failed' || job?.status === 'cancelled'
 
   const fnVersion = typeof job?.providerMetadata.fnVersion === 'string'
     ? job.providerMetadata.fnVersion : null
@@ -243,7 +298,7 @@ export function AiLyricExtractor({
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
         </svg>
         <span>
-          The server reads the private stored file for <strong>{selectedTrack.title}</strong>. Provider credentials and signed storage URLs never enter the browser.
+          Provider credentials stay server-side. For oversized tracks, DRMVYZ creates a private mono transcription copy in your browser before the server sends provider-safe chunks.
         </span>
       </div>
 
@@ -308,8 +363,33 @@ export function AiLyricExtractor({
 
       {!active && (!job || job.status === 'completed') && (
         <button className="lmv-btn lmv-btn--primary lmv-extract-btn" disabled={loading || actionBusy} onClick={() => { void handleStart() }}>
-          {actionBusy ? 'Starting…' : job?.status === 'completed' ? 'Extract Another Draft Version' : 'Start Automatic Extraction'}
+          {actionBusy
+            ? localPreparation ? LOCAL_PREPARATION_LABELS[localPreparation.stage] : 'Starting…'
+            : job?.status === 'completed' ? 'Extract Another Draft Version' : 'Start Automatic Extraction'}
         </button>
+      )}
+
+      {localPreparation && (
+        <div className="lmv-job-card lmv-job-card--processing" aria-live="polite">
+          <div className="lmv-job-header">
+            <div>
+              <span className="lmv-job-status">Preparing audio</span>
+              <span className="lmv-job-stage">{LOCAL_PREPARATION_LABELS[localPreparation.stage]}</span>
+            </div>
+            <span className="lmv-job-progress-label">{Math.round(localPreparation.progress * 100)}%</span>
+          </div>
+          <div className="lmv-job-progress" role="progressbar" aria-label="Local audio preparation progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(localPreparation.progress * 100)}>
+            <div style={{ width: `${Math.round(localPreparation.progress * 100)}%` }} />
+          </div>
+          {localPreparation.chunkTotal && localPreparation.chunkTotal > 1 && (
+            <div className="lmv-job-chunk-progress">
+              Chunk {localPreparation.chunkIndex ?? 1} of {localPreparation.chunkTotal}
+            </div>
+          )}
+          <div className="lmv-import-actions">
+            <button className="lmv-btn lmv-btn--ghost" onClick={() => preparationAbortRef.current?.abort()}>Cancel Preparation</button>
+          </div>
+        </div>
       )}
 
       {job && (
@@ -332,8 +412,8 @@ export function AiLyricExtractor({
           )}
           {job.errorMessage && (
             <div className="lmv-job-error" role="alert">
-              {configError
-                ? 'Server configuration required: this file is too large for direct transcription and the long-audio backend is not set up. Contact the server administrator.'
+              {preparationRecoverable
+                ? 'This track needs a fresh provider-safe audio copy. Retry Extraction and DRMVYZ will prepare it locally before restarting the server job.'
                 : job.errorMessage}
             </div>
           )}

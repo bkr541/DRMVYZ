@@ -10,6 +10,7 @@ import {
   createTrackAnalysis,
 } from '../lib/audioDb'
 import type { AudioTrack } from '../types/database'
+import type { PreparedTranscriptionAudioManifest } from '../types/audio'
 import { getFilenameWithoutExtension } from '../utils/audioUtils'
 import type { AudioFileAnalysis } from '../utils/analyzeAudioFile'
 import { runtimeIdForAudioTrack } from '../audio/runtimeTrack'
@@ -27,6 +28,7 @@ export interface SavedAudioTrack {
   channels: number | null
   fileSizeByte: number | null
   mimeType: string | null
+  transcriptionAssets: PreparedTranscriptionAudioManifest | null
   artist: string | null
   genre: string | null
   bpm: number | null
@@ -57,6 +59,7 @@ function rowToSaved(row: AudioTrack): SavedAudioTrack {
     channels:     row.channels,
     fileSizeByte: row.file_size,
     mimeType:     row.mime_type,
+    transcriptionAssets: row.transcription_assets ?? null,
     artist:       row.artist ?? null,
     genre:        row.genre ?? null,
     bpm:          row.bpm ?? null,
@@ -156,6 +159,7 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
         file_size:    file.size,
         mime_type:    file.type || null,
         source_type:  'file',
+        transcription_assets: null,
         artist:       artist.trim()   || null,
         genre:        genre.trim()    || null,
         bpm:          bpmValue,
@@ -208,6 +212,7 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
         channels:     analysis?.channels    ?? null,
         fileSizeByte: file.size,
         mimeType:     file.type || null,
+        transcriptionAssets: null,
         artist:       artist.trim()   || null,
         genre:        genre.trim()    || null,
         bpm:          bpmValue,
@@ -255,8 +260,10 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
         loadError: null,
       }))
 
-      if (!track.storagePath) return
-      const { error: storageError } = await deleteAudioFiles([track.storagePath])
+      const derivativePaths = track.transcriptionAssets?.chunks.map(chunk => chunk.storagePath) ?? []
+      const storagePaths = [track.storagePath, ...derivativePaths].filter((path): path is string => Boolean(path))
+      if (!storagePaths.length) return
+      const { error: storageError } = await deleteAudioFiles(storagePaths)
       if (storageError) {
         set({ loadError: `Track deleted, but audio cleanup failed: ${interpretError(storageError)}` })
       }

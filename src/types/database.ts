@@ -7,6 +7,7 @@ import type {
   LyricTranscriptionJobRow, LyricTranscriptionJobInsert, LyricTranscriptionJobUpdate,
 } from './lyrics'
 import type { BrandAssetRole, BrandPaletteAnalysis } from '../features/personalization/BrandKitTypes'
+import type { PreparedTranscriptionAudioManifest } from './audio'
 
 export type Json =
   | string
@@ -119,11 +120,15 @@ export interface AudioTrack {
   genre: string | null
   bpm: number | null
   musical_key: string | null
+  // Added in migration 0018
+  transcription_assets: PreparedTranscriptionAudioManifest | null
   created_at: string
   updated_at: string
 }
 
-export type AudioTrackInsert = Omit<AudioTrack, 'id' | 'created_at' | 'updated_at'>
+export type AudioTrackInsert = Omit<AudioTrack, 'id' | 'created_at' | 'updated_at' | 'transcription_assets'> & {
+  transcription_assets?: PreparedTranscriptionAudioManifest | null
+}
 
 export interface TrackAnalysisRow {
   id: string

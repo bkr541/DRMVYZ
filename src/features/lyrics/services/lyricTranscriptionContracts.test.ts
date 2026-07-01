@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import migrationSql from '../../../../supabase/migrations/0016_lyric_transcription_jobs.sql?raw'
 import finalAuditMigrationSql from '../../../../supabase/migrations/0017_lyric_final_audit.sql?raw'
+import preparedAudioMigrationSql from '../../../../supabase/migrations/0019_audio_transcription_assets.sql?raw'
 import edgeFunctionSource from '../../../../supabase/functions/lyric-transcription/index.ts?raw'
 import clientSource from './lyricExtraction.ts?raw'
 
 const compact = (value: string) => value.replace(/\s+/g, ' ').trim()
 const sql = compact(migrationSql)
 const finalAuditSql = compact(finalAuditMigrationSql)
+const preparedAudioSql = compact(preparedAudioMigrationSql)
 
 describe('secure lyric transcription contracts', () => {
   it('creates owned resumable jobs with constrained statuses, progress, indexes, and RLS', () => {
@@ -43,13 +45,14 @@ describe('secure lyric transcription contracts', () => {
     expect(clientSource).toContain("action: 'status'")
   })
 
-  it('uses audio_tracks.id and server-side storage access instead of browser file re-upload', () => {
+  it('uses audio_tracks.id and private storage access without exposing provider credentials', () => {
     expect(clientSource).toContain("action: 'start', audioTrackId")
     expect(edgeFunctionSource).toContain(".from('audio_tracks')")
     expect(edgeFunctionSource).toContain(".from(AUDIO_BUCKET)")
     expect(edgeFunctionSource).toContain('.download(track.storage_path!)')
     expect(edgeFunctionSource).toContain('.createSignedUrl(track.storage_path!, 600)')
     expect(clientSource).not.toContain('new FormData')
+    expect(edgeFunctionSource).toContain('runPreparedAudioProvider')
   })
 
   it('maps the required safe error taxonomy without returning provider internals', () => {
@@ -102,13 +105,24 @@ describe('secure lyric transcription contracts', () => {
     expect(edgeFunctionSource).toContain("processingMode,")
   })
 
-  it('returns distinct long_audio_backend_not_configured code for oversized compressed files without a backend', () => {
-    expect(edgeFunctionSource).toContain("'long_audio_backend_not_configured'")
+  it('routes oversized compressed files through browser-prepared private audio with an optional worker fallback', () => {
+    expect(edgeFunctionSource).toContain("'transcription_asset_required'")
     expect(edgeFunctionSource).toContain('isCustomProviderConfigured()')
     expect(edgeFunctionSource).toContain('isLikelyWavFile(track)')
     expect(edgeFunctionSource).toContain("processingMode = 'long-audio-worker'")
     expect(edgeFunctionSource).toContain("processingMode = 'wav-chunking'")
+    expect(edgeFunctionSource).toContain("processingMode = 'prepared-audio'")
     expect(edgeFunctionSource).toContain("processingMode = 'direct'")
+  })
+
+
+  it('stores bounded user-owned prepared-audio manifests on audio tracks', () => {
+    expect(preparedAudioSql).toContain('ADD COLUMN IF NOT EXISTS transcription_assets jsonb')
+    expect(preparedAudioSql).toContain('audio_tracks_transcription_assets_shape_check')
+    expect(preparedAudioSql).toContain('octet_length(transcription_assets::text) <= 131072')
+    expect(edgeFunctionSource).toContain('preparedAudioManifest(track, maxBytes)')
+    expect(edgeFunctionSource).toContain("storagePath.startsWith(`${track.user_id}/`)")
+    expect(edgeFunctionSource).toContain("preprocessingRuntime: 'browser-web-audio'")
   })
 
   it('reports named processing stages and per-chunk progress throughout the job lifecycle', () => {

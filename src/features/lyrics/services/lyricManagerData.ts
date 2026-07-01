@@ -40,6 +40,7 @@ export function mapAudioTrackForLyricManager(row: AudioTrack): LyricManagerTrack
     channels: row.channels,
     fileSizeByte: row.file_size,
     mimeType: row.mime_type,
+    transcriptionAssets: row.transcription_assets ?? null,
     artist: row.artist ?? null,
     genre: row.genre ?? null,
     bpm: row.bpm ?? null,

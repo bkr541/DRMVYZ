@@ -31,6 +31,7 @@ function savedTrack(overrides: Partial<SavedAudioTrack> = {}): SavedAudioTrack {
     channels: 2,
     fileSizeByte: 1_024,
     mimeType: 'audio/wav',
+    transcriptionAssets: null,
     artist: 'DRMVYZ',
     genre: null,
     bpm: 150,

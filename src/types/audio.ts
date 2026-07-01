@@ -54,3 +54,33 @@ export interface SpectralFeatures {
   flatness: number
   bpm: number | null
 }
+
+// ── Lyric-transcription preparation ──────────────────────────────────────────
+
+/**
+ * A provider-safe PCM WAV generated in the browser from a stored source track.
+ * Storage paths are always private, user-owned objects in the audio-tracks bucket.
+ */
+export interface PreparedTranscriptionAudioChunk {
+  index: number
+  storagePath: string
+  fileName: string
+  mimeType: 'audio/wav'
+  byteSize: number
+  startMs: number
+  endMs: number
+  overlapBeforeMs: number
+  overlapAfterMs: number
+}
+
+export interface PreparedTranscriptionAudioManifest {
+  version: 'browser-pcm16-v1'
+  preparedAt: string
+  sourceFileSize: number
+  sourceMimeType: string | null
+  durationMs: number
+  sampleRate: 16000
+  channels: 1
+  bitsPerSample: 16
+  chunks: PreparedTranscriptionAudioChunk[]
+}

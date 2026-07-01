@@ -1,111 +1,108 @@
-# Lyric Transcription — Deployment Guide
+# Lyric Transcription Deployment Guide
 
-## Overview
+## Architecture
 
-Automatic lyric extraction runs entirely server-side via the `lyric-transcription` Supabase Edge Function. The browser never touches audio files directly; it invokes the function with an `audio_tracks.id` and the function downloads the file from private storage using a service-role key.
+DRMVYZ keeps the provider key in the Supabase Edge Function. Small stored files are sent directly from the function. Oversized files are normalized in the browser to private mono, 16 kHz, 16-bit PCM WAV chunks, uploaded to the existing `audio-tracks` bucket, and recorded in `audio_tracks.transcription_assets`. The function validates ownership, size, timing, and format before reading those chunks.
 
-The function version is embedded in `provider_metadata.fnVersion` on every job record. Use this to verify the deployed function matches the repository.
+The original upload remains the canonical playback file. Prepared transcription audio is a private derivative and is deleted with the track.
 
----
+The completed job records `provider_metadata.fnVersion`, `pipelineVersion`, `processingMode`, and safe preprocessing metadata so stale deployments are visible without exposing storage paths or secrets.
 
-## Environment Variables
+## Required migration
 
-Set all secrets with:
+Apply the new schema before deploying the function:
 
+```bash
+supabase db push
 ```
+
+Migration `0019_audio_transcription_assets.sql` adds the bounded JSON manifest used by the prepared-audio pipeline.
+
+## Environment variables
+
+Set secrets with:
+
+```bash
 supabase secrets set --env-file supabase/functions/.env.local
 ```
 
-**Required**
+Required:
 
 | Variable | Description |
 |---|---|
-| `OPENAI_API_KEY` | OpenAI secret key for Whisper transcription |
-| `SUPABASE_URL` | Injected automatically by the Supabase runtime |
-| `SUPABASE_ANON_KEY` | Injected automatically |
-| `SUPABASE_SERVICE_ROLE_KEY` | Injected automatically |
+| `OPENAI_API_KEY` | Server-only transcription provider key |
+| `SUPABASE_URL` | Injected by Supabase |
+| `SUPABASE_ANON_KEY` | Injected by Supabase |
+| `SUPABASE_SERVICE_ROLE_KEY` | Injected by Supabase |
 
-**Optional — OpenAI tuning**
+Optional OpenAI tuning:
 
 | Variable | Default | Description |
-|---|---|---|
-| `OPENAI_TRANSCRIPTION_MODEL` | `whisper-1` | Whisper model identifier |
-| `OPENAI_MAX_AUDIO_BYTES` | `26214400` (25 MB) | Per-request upload limit; matches the OpenAI API hard limit |
-| `OPENAI_CHUNK_SAFETY_BYTES` | `262144` (256 KB) | Safety margin subtracted from `OPENAI_MAX_AUDIO_BYTES` per chunk |
-| `OPENAI_TRANSCRIPTION_OVERLAP_MS` | `4000` | Overlap between WAV chunks for deduplication |
-| `OPENAI_TRANSCRIPTION_CONCURRENCY` | `2` | Parallel chunk uploads (max 4) |
+|---|---:|---|
+| `OPENAI_TRANSCRIPTION_MODEL` | `whisper-1` | Transcription model |
+| `OPENAI_MAX_AUDIO_BYTES` | `26214400` | Documented provider file maximum |
+| `OPENAI_SAFE_AUDIO_BYTES` | `24117248` | Application-safe direct/chunk limit, clamped below the documented maximum |
+| `OPENAI_CHUNK_SAFETY_BYTES` | `262144` | Additional reserve used by server-side WAV splitting |
+| `OPENAI_TRANSCRIPTION_OVERLAP_MS` | `4000` | Server-side WAV overlap |
+| `OPENAI_TRANSCRIPTION_CONCURRENCY` | `2` | Bounded parallel provider requests, maximum 4 |
 
-**Optional — Long-audio backend (required for oversized compressed files)**
-
-MP3, M4A, AAC, FLAC, and OGG files larger than `OPENAI_MAX_AUDIO_BYTES` cannot be byte-split in the Edge Function. They must be handled by an external backend that accepts a signed storage URL.
+Optional worker fallback:
 
 | Variable | Description |
 |---|---|
-| `LYRIC_TRANSCRIPTION_ENDPOINT` | HTTPS URL of your private transcription service |
-| `LYRIC_TRANSCRIPTION_ENDPOINT_TOKEN` | Bearer token sent with every request to the endpoint |
-| `LYRIC_TRANSCRIPTION_CHUNK_MS` | Max segment duration sent to the custom backend (default: 240000) |
-| `LYRIC_TRANSCRIPTION_OVERLAP_MS` | Segment overlap for the custom backend (default: 4000) |
-| `LYRIC_TRANSCRIPTION_PROVIDER` | Set to `custom` to always use the custom backend; omit for auto-routing |
+| `LYRIC_TRANSCRIPTION_ENDPOINT` | Private codec-aware transcription service |
+| `LYRIC_TRANSCRIPTION_ENDPOINT_TOKEN` | Bearer token for that service |
+| `LYRIC_TRANSCRIPTION_CHUNK_MS` | Worker segment duration |
+| `LYRIC_TRANSCRIPTION_OVERLAP_MS` | Worker segment overlap |
+| `LYRIC_TRANSCRIPTION_PROVIDER` | Set to `custom` only to force the worker for every job |
 
-When `LYRIC_TRANSCRIPTION_ENDPOINT` and `LYRIC_TRANSCRIPTION_ENDPOINT_TOKEN` are both set, oversized compressed files are automatically routed to the custom backend. When they are not set and a compressed file exceeds the per-request limit, the job fails with `error_code: long_audio_backend_not_configured`.
+The worker is no longer required for ordinary oversized songs. It is only a fallback when the current browser cannot decode the source codec.
 
----
+## Processing modes
 
-## Processing Modes
-
-| Mode | When used |
+| Mode | Behavior |
 |---|---|
-| `direct` | File fits within `OPENAI_MAX_AUDIO_BYTES`; single Whisper request |
-| `wav-chunking` | Oversized uncompressed PCM/IEEE-float WAV; byte-split into overlapping chunks |
-| `long-audio-worker` | Compressed file exceeds limit, or `LYRIC_TRANSCRIPTION_PROVIDER=custom`; signed URL forwarded to external backend |
+| `direct` | Stored file is below the safe request limit |
+| `wav-chunking` | Oversized uncompressed PCM/IEEE-float WAV is split inside the Edge Function |
+| `prepared-audio` | Browser-generated private PCM WAV chunks are validated and transcribed by the Edge Function |
+| `long-audio-worker` | Optional external fallback or explicitly selected custom provider |
 
-The active mode is stored in `provider_metadata.processingMode` on the completed job record.
+Prepared audio uses version `browser-pcm16-v1`, mono PCM16 at 16 kHz, 20 MiB target chunks, and 3 seconds of overlap. Chunk-relative provider timestamps are shifted back to the source timeline and overlap duplicates are removed by the existing reconciliation layer. `globalOffsetMs` is still applied only when the lyric document is saved.
 
----
+## Secure deployment
 
-## Deployment
+Deploy with JWT verification enabled:
 
-1. Deploy the function:
-   ```
-   supabase functions deploy lyric-transcription --no-verify-jwt
-   ```
-   JWT verification is handled inside the function via `auth.getUser()`.
+```bash
+supabase functions deploy lyric-transcription
+```
 
-2. Verify the deployed version matches the repository:
-   ```
-   supabase functions deploy --dry-run lyric-transcription
-   ```
-   Or check a completed job's `provider_metadata.fnVersion` field in the database.
+The function also calls `auth.getUser()`, checks track/job ownership, and validates every prepared storage path against the authenticated owner. Do not use `--no-verify-jwt` for the normal production deployment.
 
-3. Check function logs after deployment:
-   ```
-   supabase functions logs lyric-transcription --tail
-   ```
+Inspect logs:
 
----
+```bash
+supabase functions logs lyric-transcription --tail
+```
 
-## Verification Steps
+## Verification
 
-After deployment, start a test extraction from a known track:
+1. Run `supabase db push`.
+2. Deploy the function.
+3. Reload the DRMVYZ frontend so it includes the browser preparation code.
+4. Test a small file. The completed job should show `processingMode: "direct"`.
+5. Test an oversized PCM WAV. It may use `wav-chunking` or `prepared-audio` depending on whether DRMVYZ prepared it before the job began.
+6. Test an oversized MP3 or M4A. The UI should show local download, decode, encode, and upload progress, followed by a completed job with `processingMode: "prepared-audio"`.
+7. Confirm `provider_metadata.fnVersion` and `pipelineVersion` are `3.0.0`.
+8. Confirm `audio_tracks.transcription_assets` contains only private chunk metadata and no signed URLs.
 
-- **Small file (any format, < 25 MB)**: job should reach `completed` with `processingMode: "direct"` in provider_metadata.
-- **Oversized PCM WAV**: job should complete with `processingMode: "wav-chunking"` and per-chunk progress visible in `provider_metadata.chunksCompleted` / `chunksTotal` during processing.
-- **Oversized MP3/AAC/FLAC without backend**: job should fail with `error_code: long_audio_backend_not_configured` and no retry button in the UI.
-- **Oversized compressed with backend configured**: job should complete with `processingMode: "long-audio-worker"`.
+A source codec the browser cannot decode produces `unsupported_audio_codec`. In that case, convert the source to a browser-decodable format or configure the optional worker fallback.
 
----
+## Security and cleanup
 
-## Supported Audio Formats
-
-WAV, MP3, M4A (AAC), AAC, FLAC, OGG. Files with an unsupported MIME type or extension fail immediately with `error_code: unsupported_audio`.
-
-Files larger than 100 MB (hard limit regardless of format) are rejected at job creation with `error_code: unsupported_audio`.
-
----
-
-## Security Notes
-
-- Never prefix provider secrets with `VITE_` — they must only exist in the Edge Function environment.
-- The custom backend receives a signed storage URL (valid for 10 minutes). The URL is redacted from stored `provider_metadata`.
-- JWT verification is mandatory; removing `--no-verify-jwt` from production deploys is strongly recommended once verified.
-- The `complete_lyric_transcription_job` RPC is the only path that marks a job `completed`. A job cannot be marked complete without a saved lyric document.
+- Provider credentials remain server-side.
+- Prepared chunks live under the authenticated user's first storage-path segment and are protected by the existing `audio-tracks` RLS policies.
+- Signed source URLs are short-lived and are never stored in job metadata.
+- Prepared manifests are limited to 128 KiB and 64 chunks.
+- Deleting a track also removes its prepared transcription chunks.
+- A job is not marked complete unless `complete_lyric_transcription_job` atomically saves a lyric document and cues.
