@@ -233,13 +233,15 @@ describe('Cinematic Worlds FX and media controls', () => {
 })
 
 describe('Cinematic Worlds audio mappings', () => {
-  it('presents unsupported Music Intelligence capabilities and readable assignments', async () => {
+  it('reports only unavailable active Music Intelligence routes with readable assignments', async () => {
     useReactStore.getState().selectReactPreset(presetFor('stormGateway').id)
     useReactStore.getState().setCinematicWorldsUiMode('advanced')
     await render(<CinematicWorldsModulationControls />)
 
     expect(container.textContent).toContain('Unavailable Music Intelligence inputs')
-    expect(container.textContent).toContain('Track Energy Curve')
+    expect(container.textContent).toContain('Snare unavailable')
+    expect(container.textContent).toContain('Waiting for live audio input.')
+    expect(container.textContent).not.toContain('Track Energy Curve')
     expect(container.textContent).toContain('Lightning')
     expect(container.textContent).not.toContain('storm-snare-lightning')
     expect(container.querySelector('#cinematic-route-0-source')).not.toBeNull()

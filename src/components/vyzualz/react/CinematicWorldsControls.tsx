@@ -52,6 +52,9 @@ import {
   nextCinematicVariationSeed,
   randomizeCinematicVariationSeed,
 } from './CinematicWorldsUi'
+import {
+  diagnoseCinematicMusicIntelligenceInputs,
+} from './CinematicMusicIntelligenceDiagnostics'
 import { Collapsible, CtrlSection, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
 
 const PORTAL_SHAPE_LABELS: Record<CinematicPortalShape, string> = {
@@ -602,7 +605,12 @@ export function CinematicWorldsModulationControls() {
     : next)
   const world = CINEMATIC_WORLD_BY_ID[config.worldMode]
   const availableSources = CINEMATIC_AUDIO_SOURCES.filter(source => isCinematicSourceAvailable(source, capabilities))
-  const unavailableSources = CINEMATIC_AUDIO_SOURCES.filter(source => !isCinematicSourceAvailable(source, capabilities))
+  const inputDiagnostics = diagnoseCinematicMusicIntelligenceInputs(
+    config.audioMapping.routes,
+    config.audioMapping.enabled,
+    world.modulationTargets,
+    capabilities,
+  )
   const setRoutes = (routes: CinematicAudioRoute[]) => save({ ...config, audioMapping: { ...config.audioMapping, routes } })
   const updateRoute = (index: number, patch: Partial<CinematicAudioRoute>) => setRoutes(config.audioMapping.routes.map((route, routeIndex) => routeIndex === index ? { ...route, ...patch } : route))
   const addRoute = () => {
@@ -618,23 +626,24 @@ export function CinematicWorldsModulationControls() {
       <CinematicModeSwitch />
       <Collapsible label="Audio Reaction" defaultOpen>
         <ToggleRow id="cinematic-audio-enabled" label="World Audio Mapping" value={config.audioMapping.enabled} onChange={enabled => save({ ...config, audioMapping: { ...config.audioMapping, enabled } })} />
+        {inputDiagnostics.unavailableRoutes.length > 0 && (
+          <div className="rv-cinematic-capability" role="status">
+            <strong>Unavailable Music Intelligence inputs</strong>
+            <span>{inputDiagnostics.reasons.map(reason => reason.message).join(' ')}</span>
+            <small>Only {inputDiagnostics.unavailableRoutes.length} of {inputDiagnostics.activeRouteCount} active audio {inputDiagnostics.activeRouteCount === 1 ? 'mapping needs' : 'mappings need'} attention.</small>
+          </div>
+        )}
         {uiMode === 'simple' ? (
           <div className="rv-ctrl-info">This world is using {config.audioMapping.routes.length} curated source-to-target mappings. Advanced mode unlocks individual assignments, attack and release.</div>
         ) : (
           <>
             <SliderRow id="cinematic-audio-smoothing" label="Global Smoothing" value={config.audioMapping.smoothingMs} min={0} max={2000} step={10} onChange={smoothingMs => save({ ...config, audioMapping: { ...config.audioMapping, smoothingMs } })} />
-            {unavailableSources.length > 0 && (
-              <div className="rv-cinematic-capability" role="status">
-                <strong>Unavailable Music Intelligence inputs</strong>
-                <span>{unavailableSources.map(source => CINEMATIC_SOURCE_LABELS[source]).join(', ')}</span>
-                <small>Load and analyze a track to enable capabilities supplied by beat grids, sections, energy curves or stems.</small>
-              </div>
-            )}
             <div className="rv-cinematic-route-list" aria-label="Audio mappings">
               {config.audioMapping.routes.map((route, index) => {
                 const currentSourceUnavailable = !isCinematicSourceAvailable(route.source, capabilities)
+                const routeDiagnostic = inputDiagnostics.unavailableRoutes.find(item => item.routeIndex === index)
                 return (
-                  <fieldset className="rv-cinematic-route" key={route.id}>
+                  <fieldset className={`rv-cinematic-route${routeDiagnostic ? ' rv-cinematic-route--unavailable' : ''}`} key={route.id}>
                     <legend>Mapping {index + 1}</legend>
                     <ToggleRow id={`cinematic-route-${index}-enabled`} label="Enabled" value={route.enabled} onChange={enabled => updateRoute(index, { enabled })} />
                     <SelectRow id={`cinematic-route-${index}-source`} label="Source" value={route.source} onChange={source => updateRoute(index, { source: source as CinematicAudioSource })} options={[
@@ -642,6 +651,12 @@ export function CinematicWorldsModulationControls() {
                       ...availableSources.filter(source => source !== route.source || !currentSourceUnavailable).map(source => ({ value: source, label: CINEMATIC_SOURCE_LABELS[source] })),
                     ]} />
                     <SelectRow id={`cinematic-route-${index}-target`} label="Target" value={route.target} onChange={target => updateRoute(index, { target: target as CinematicAudioTarget })} options={world.modulationTargets.map(target => ({ value: target, label: CINEMATIC_TARGET_LABELS[target] }))} />
+                    {routeDiagnostic && (
+                      <div className="rv-cinematic-route-diagnostic" role="status">
+                        <strong>{CINEMATIC_SOURCE_LABELS[route.source]} unavailable</strong>
+                        <span>{routeDiagnostic.reasons.map(reason => reason.message).join(' ')}</span>
+                      </div>
+                    )}
                     <SliderRow id={`cinematic-route-${index}-amount`} label="Amount" value={route.amount} min={-2} max={2} step={0.01} onChange={amount => updateRoute(index, { amount })} />
                     <SliderRow id={`cinematic-route-${index}-attack`} label="Attack" value={route.attackMs} min={0} max={2000} step={10} onChange={attackMs => updateRoute(index, { attackMs })} />
                     <SliderRow id={`cinematic-route-${index}-release`} label="Release" value={route.releaseMs} min={0} max={4000} step={10} onChange={releaseMs => updateRoute(index, { releaseMs })} />

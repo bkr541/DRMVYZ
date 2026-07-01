@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState, useMemo, useEffect, useCallback, useId } from 'react'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
+import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
 import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useRecorder } from '../../../hooks/useRecorder'
@@ -287,6 +288,11 @@ export function ReactView() {
     durationSec:    audioDurationSec,
   })
 
+  const activeManualTrackSections = useMemo(() => {
+    const trackId = engine.currentTrackId
+    return trackId ? (manualTrackSectionsByTrackId[trackId] ?? []) : []
+  }, [engine.currentTrackId, manualTrackSectionsByTrackId])
+
   // Resolved sections for the current track: auto + manual merged.
   // This is the single section timeline consumed by Track Map, the renderer,
   // and any preset automation.  Manual overrides always take precedence.
@@ -294,10 +300,17 @@ export function ReactView() {
     const trackId = engine.currentTrackId
     const analysis = engine.currentAnalysis
     const analyzedSections = analysis ? adaptMIAnalysis(analysis) : []
-    const manualSections = trackId ? (manualTrackSectionsByTrackId[trackId] ?? []) : []
     const suppressedIds  = trackId ? (suppressedAutoSectionsByTrackId[trackId]  ?? []) : []
-    return resolveTrackSections({ analyzedSections, manualSections, durationSec: audioDurationSec, suppressedIds })
-  }, [engine.currentTrackId, engine.currentAnalysis, manualTrackSectionsByTrackId, suppressedAutoSectionsByTrackId, audioDurationSec])
+    return resolveTrackSections({ analyzedSections, manualSections: activeManualTrackSections, durationSec: audioDurationSec, suppressedIds })
+  }, [engine.currentTrackId, engine.currentAnalysis, activeManualTrackSections, suppressedAutoSectionsByTrackId, audioDurationSec])
+
+  useEffect(() => {
+    musicIntelligenceEngine.setManualSections(activeManualTrackSections)
+  }, [activeManualTrackSections])
+
+  useEffect(() => () => {
+    musicIntelligenceEngine.setManualSections([])
+  }, [])
 
   // Manual BPM overrides regenerate the Track Map grid. Show Director receives
   // that exact effective grid while still using the same audio-engine playhead.

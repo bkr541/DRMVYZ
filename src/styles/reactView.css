@@ -4030,6 +4030,10 @@
 .rv-cinematic-capability { display: grid; gap: 4px; }
 .rv-cinematic-capability strong { font-size: 10px; }
 .rv-cinematic-capability span, .rv-cinematic-capability small { color: rgba(232,244,248,.58); }
+.rv-cinematic-route--unavailable { border-color: rgba(216,185,90,.38); }
+.rv-cinematic-route-diagnostic { display: grid; gap: 3px; margin: 2px 0 6px; padding: 7px 8px; border: 1px solid rgba(216,185,90,.24); border-radius: 5px; background: rgba(216,185,90,.06); font-size: 9px; line-height: 1.4; }
+.rv-cinematic-route-diagnostic strong { color: rgba(255,241,190,.9); font-size: 9px; }
+.rv-cinematic-route-diagnostic span { color: rgba(232,244,248,.62); }
 .rv-constellation-profile-summary { display: grid; gap: 4px; min-width: 0; padding: 9px; border: 1px solid rgba(97,214,170,.22); border-radius: 7px; background: linear-gradient(135deg, rgba(74,199,219,.07), rgba(120,87,255,.045)); }
 .rv-constellation-profile-summary strong { color: rgba(232,244,248,.92); font-size: 10px; }
 .rv-constellation-profile-summary span { color: rgba(232,244,248,.5); font-size: 9px; line-height: 1.45; overflow-wrap: anywhere; }

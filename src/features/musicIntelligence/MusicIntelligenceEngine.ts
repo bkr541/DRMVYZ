@@ -25,6 +25,7 @@ import {
   type LyricPlaybackTransitionMode,
 } from '../lyrics/runtime/lyricPlaybackResolver'
 import type {
+  MusicIntelligenceCapabilities,
   MusicIntelligenceFrame,
   MILyrics,
   TrackIntelligenceAnalysis,
@@ -138,6 +139,48 @@ export class MusicIntelligenceEngine {
   }
   private readonly semanticAnalyzer = new SemanticAnalyzer()
 
+  private capabilityState(preserveLiveState = true): MusicIntelligenceCapabilities {
+    const currentFrame = AudioFeatureBus.getFrame()
+    const sameSource = currentFrame.sourceId === this.sourceId && currentFrame.trackId === this.trackId
+    const current = currentFrame.capabilities ?? DEFAULT_MI_FRAME.capabilities!
+    return {
+      liveBands: preserveLiveState && sameSource && current.liveBands,
+      rhythmEvents: preserveLiveState && sameSource && current.rhythmEvents,
+      beatGrid: this.bpm > 0,
+      sections: this.manualSections.length > 0 || Boolean(this.trackAnalysis?.sections.length),
+      trackEnergyCurve: Boolean(this.trackAnalysis?.energyCurves.shortTerm.length),
+      stemCurves: this.trackAnalysis?.stemCurves != null,
+      lyrics: this.lyricTracker.hasLyrics(),
+    }
+  }
+
+  private publishCapabilityState(preserveLiveState = true): void {
+    AudioFeatureBus.updatePartial({
+      sourceId: this.sourceId,
+      trackId: this.trackId,
+      capabilities: this.capabilityState(preserveLiveState),
+    })
+  }
+
+  private clearLyricStateForSource(sourceIdentity: string): void {
+    this.lyricTracker.setLyrics({ cues: [], sourceIdentity, globalOffsetMs: 0 })
+    this.lyricState = {
+      ...this.lyricState,
+      playback: EMPTY_LYRIC_PLAYBACK_STATE,
+      activeLine: null,
+      activeWord: null,
+      vocalActivity: 0,
+      phraseConfidence: 0,
+      lyricLineProgress: 0,
+      wordProgress: 0,
+      wordHit: false,
+      lineEnter: false,
+      lineExit: false,
+      isGap: false,
+    }
+    LyricPlaybackBus.reset()
+  }
+
   // ── Public API ──────────────────────────────────────────────────────────────
 
   initialize(options: MusicIntelligenceEngineOptions = {}): void {
@@ -152,11 +195,13 @@ export class MusicIntelligenceEngine {
     this.bpmConfidence = Math.max(0, Math.min(1, confidence))
     // Always pass the stored beatGridOffset so manual overrides preserve the original grid phase.
     this.beatGrid.setBpm(this.bpm, this.bpmConfidence, this.beatGridOffset)
+    this.publishCapabilityState()
   }
 
   setBeatGridOffset(offsetSec: number): void {
     this.beatGridOffset = offsetSec
     this.beatGrid.setBpm(this.bpm, this.bpmConfidence, offsetSec)
+    this.publishCapabilityState()
   }
 
   /**
@@ -173,6 +218,7 @@ export class MusicIntelligenceEngine {
       this.beatGridOffset = offsetSec
       this.beatGrid.setBpm(0, 0, offsetSec)
       this.beatGrid.setMarkers([], [])
+      this.publishCapabilityState()
       return
     }
     this.bpm            = bpm
@@ -181,6 +227,7 @@ export class MusicIntelligenceEngine {
     this.beatGrid.setBpm(bpm, this.bpmConfidence, offsetSec)
     const markers = buildBeatMarkers(bpm, offsetSec, durationSec)
     this.beatGrid.setMarkers(markers, markers.filter(m => m.isDownbeat))
+    this.publishCapabilityState()
   }
 
   /**
@@ -193,6 +240,7 @@ export class MusicIntelligenceEngine {
     } else {
       this.beatGrid.setMarkers([], [])
     }
+    this.publishCapabilityState()
   }
 
   setTrackAnalysis(analysis: TrackIntelligenceAnalysis | null): void {
@@ -244,15 +292,34 @@ export class MusicIntelligenceEngine {
         this.lyricTracker.setLines([], this.analysisLyricSourceIdentity())
       }
     }
+    this.publishCapabilityState()
   }
 
   setManualSections(sections: ReactTrackSection[]): void {
-    this.manualSections = sections
+    this.manualSections = [...sections]
+    this.publishCapabilityState()
   }
 
   setSourceId(sourceId: string | null, trackId: string | null = null): void {
+    const changed = this.sourceId !== sourceId || this.trackId !== trackId
     this.sourceId = sourceId
     this.trackId  = trackId
+    if (!changed) {
+      this.publishCapabilityState()
+      return
+    }
+
+    this.trackAnalysis = null
+    this.manualSections = []
+    this.bpm = 0
+    this.bpmConfidence = 0
+    this.beatGridOffset = 0
+    this.beatGrid.setBpm(0, 0, 0)
+    this.beatGrid.setMarkers([], [])
+    this.stemInterpolator.setData(null)
+    this.clearLyricStateForSource(`source:${trackId ?? sourceId ?? 'none'}`)
+    AudioFeatureBus.reset()
+    this.publishCapabilityState(false)
   }
 
   setMeydaFeaturesGetter(getter: () => MeydaFeatureSnapshot | null): void {
@@ -267,6 +334,7 @@ export class MusicIntelligenceEngine {
   setActiveLyrics(source: ActiveLyricTrackerSource): void {
     this.managedLyricsConfigured = true
     this.lyricTracker.setLyrics(source)
+    this.publishCapabilityState()
   }
 
   private updateLyricState(

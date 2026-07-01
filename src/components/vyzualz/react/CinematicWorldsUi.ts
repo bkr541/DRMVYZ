@@ -34,34 +34,7 @@ export const CINEMATIC_TARGET_LABELS: Record<CinematicAudioTarget, string> = {
   cameraMotion: 'Camera Motion (Legacy)', portalPulse: 'Portal Pulse (Legacy)',
 }
 
-export type CinematicSourceCapability = 'liveBands' | 'rhythmEvents' | 'beatGrid' | 'sections' | 'trackEnergyCurve' | 'vocalAnalysis'
-
-export interface CinematicSourceCapabilityFlags {
-  liveBands: boolean
-  rhythmEvents: boolean
-  beatGrid: boolean
-  sections: boolean
-  trackEnergyCurve: boolean
-  stemCurves: boolean
-  lyrics: boolean
-}
-
-export const CINEMATIC_SOURCE_CAPABILITY: Partial<Record<CinematicAudioSource, CinematicSourceCapability>> = {
-  subBass: 'liveBands', lowMid: 'liveBands', highMid: 'liveBands', transientIntensity: 'rhythmEvents', kickStrength: 'rhythmEvents', snareStrength: 'rhythmEvents',
-  beat: 'rhythmEvents', kick: 'rhythmEvents', snare: 'rhythmEvents', downbeat: 'beatGrid', barStart: 'beatGrid', beatPhase: 'beatGrid', barPosition: 'beatGrid',
-  phraseProgress: 'beatGrid', sectionProgress: 'sections', buildProgress: 'sections', dropState: 'sections', sectionChange: 'sections', dropEntry: 'sections', sectionEnergy: 'sections',
-  trackEnergy: 'trackEnergyCurve', vocalEnergy: 'vocalAnalysis',
-}
-
-export function isCinematicSourceAvailable(
-  source: CinematicAudioSource,
-  capabilities: CinematicSourceCapabilityFlags,
-): boolean {
-  const capability = CINEMATIC_SOURCE_CAPABILITY[source]
-  if (!capability) return true
-  if (capability === 'vocalAnalysis') return capabilities.stemCurves || capabilities.lyrics
-  return capabilities[capability]
-}
+export { isCinematicSourceAvailable } from './CinematicMusicIntelligenceDiagnostics'
 
 export function getCinematicPresetMood(preset: ReactPreset): 'Ambient' | 'Driving' | 'Peak' {
   const intensity = Number(preset.params.intensity ?? 0.6)
