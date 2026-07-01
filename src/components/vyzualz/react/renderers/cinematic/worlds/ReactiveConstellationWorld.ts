@@ -208,6 +208,12 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
   private heldSpringStrength = 0.7
   private heldMotionScale = 1
   private heldCameraOrbit = 0
+  private burstSequenceCounter = 0
+  private lastAudioBurstFrameId = -1
+  private lastPerformanceBurstSequence = -1
+  private burstGateActive = false
+  private trackIdentityObserved = false
+  private lastTrackIdentity: string | null = null
   private diagnostic: string | null = null
   private disposed = false
 
@@ -263,6 +269,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
       this.rebuildInstanceLayouts()
       this.rebuildBeamLayout(budget, frame.config.qualityTier)
     }
+    this.observeTrackIdentity(frame)
 
     const isPlaying = frame.isPlaying !== false
     const performance = this.performanceActions.update({
@@ -337,6 +344,10 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
       this.heldDepthPulse = nextDepthPulse
     }
 
+    const burstSequence = isPlaying && !performance.freeze && !frame.timingDiscontinuity
+      ? this.resolveBurstSequence(frame, performance.burstSequence)
+      : null
+
     this.simulation.update({
       deltaTimeSec: frame.deltaTimeSec,
       isPlaying: isPlaying && !performance.freeze,
@@ -349,6 +360,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
       springTension: this.heldSpringStrength,
       collapseForce: this.heldCollapseForce,
       burstImpulse: this.heldBurstImpulse,
+      burstSequence: burstSequence ?? undefined,
       topologyMorph: this.heldTopologyMorph,
     })
     const simulationState = this.simulation.getState()
@@ -559,11 +571,65 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     this.hasRendered = true
   }
 
+  private resolveBurstSequence(
+    frame: CinematicFrameContext,
+    performanceSequence: number | null,
+  ): number | null {
+    let triggered = false
+    if (performanceSequence != null && performanceSequence !== this.lastPerformanceBurstSequence) {
+      this.lastPerformanceBurstSequence = performanceSequence
+      triggered = true
+    }
+
+    const audio = frame.musicalAudio
+    if (audio && audio.frameId !== this.lastAudioBurstFrameId) {
+      this.lastAudioBurstFrameId = audio.frameId
+      const audioTriggered = frame.config.audioMapping.enabled && frame.config.audioMapping.routes.some(route => (
+        route.enabled
+        && route.target === 'burstImpulse'
+        && route.source in audio.events
+        && audio.events[route.source as keyof typeof audio.events] === true
+      ))
+      if (audioTriggered) {
+        triggered = true
+      }
+    }
+
+    const gateHigh = this.heldBurstImpulse > 0.08
+    const risingEdge = gateHigh && !this.burstGateActive
+    this.burstGateActive = this.heldBurstImpulse > 0.035
+    if (!triggered && !risingEdge) return null
+    this.burstSequenceCounter += 1
+    return this.burstSequenceCounter
+  }
+
+  private resetBurstTracking(): void {
+    this.burstSequenceCounter = 0
+    this.lastAudioBurstFrameId = -1
+    this.lastPerformanceBurstSequence = -1
+    this.burstGateActive = false
+  }
+
+  private observeTrackIdentity(frame: CinematicFrameContext): void {
+    const identity = frame.musicalAudio?.trackId ?? frame.musicalAudio?.sourceId ?? null
+    if (!this.trackIdentityObserved) {
+      this.trackIdentityObserved = true
+      this.lastTrackIdentity = identity
+      return
+    }
+    if (!identity || identity === this.lastTrackIdentity) return
+    this.lastTrackIdentity = identity
+    if (!this.hasRendered) return
+    this.pendingReset = 'trackReplacement'
+    this.trails.reset()
+  }
+
   private applyPendingReset(): void {
     if (!this.pendingReset) return
     // Lifecycle resets must be observable immediately even while transport is
     // paused. Deferring here leaves stale topology/trails visible until play.
-    this.simulation.resetToAnchors()
+    this.simulation.resetExpansion()
+    this.resetBurstTracking()
     this.trails.reset()
     this.pendingReset = null
     this.lastReseedBar = -1
@@ -571,6 +637,14 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
 
   reset(reason: CinematicRendererResetReason): void {
     if (reason === 'dispose') return
+    if (reason === 'transportRestart') {
+      // The shared lifecycle emits transportRestart for a normal pause/resume.
+      // Preserve the held physical frame; seeks and stops-to-zero arrive as
+      // higher-priority seek resets and still restart center expansion.
+      this.performanceActions.reset({ preserveConsumedSequence: true })
+      this.simulation.synchronizeTiming()
+      return
+    }
     this.pendingReset = reason
     this.performanceActions.reset({ preserveConsumedSequence: true })
     this.trails.reset()
@@ -622,6 +696,9 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     this.beamBudgetKey = ''
     this.pendingReset = null
     this.hasRendered = false
+    this.resetBurstTracking()
+    this.trackIdentityObserved = false
+    this.lastTrackIdentity = null
     this.beamEdgeIndices = new Uint16Array(0)
     this.beamEdgePalette = new Float32Array(0)
     this.currentEdgeEndpoints = new Float32Array(0)

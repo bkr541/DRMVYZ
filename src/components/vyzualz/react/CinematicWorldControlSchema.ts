@@ -322,6 +322,22 @@ const REACTIVE_CONSTELLATION_CONTROLS = {
       ],
     },
     {
+      id: 'reactive-constellation-expansion',
+      label: 'Center-Out Expansion',
+      visibility: 'advanced',
+      controls: [
+        { kind: 'slider', id: 'constellation-initial-expansion', setting: 'initialExpansion', label: 'Initial Expansion', description: 'Sets how tightly simulated nodes begin around the center without changing their authored full-spread anchors.', min: REACTIVE_CONSTELLATION_BOUNDS.initialExpansion[0], max: REACTIVE_CONSTELLATION_BOUNDS.initialExpansion[1], step: 0.01 },
+        { kind: 'slider', id: 'constellation-expansion-target', setting: 'expansionTarget', label: 'Expansion Target', description: 'Sets the settled radial scale relative to the authored graph anchors.', min: REACTIVE_CONSTELLATION_BOUNDS.expansionTarget[0], max: REACTIVE_CONSTELLATION_BOUNDS.expansionTarget[1], step: 0.01 },
+        { kind: 'slider', id: 'constellation-expansion-attack', setting: 'expansionAttackSec', label: 'Expansion Attack', description: 'Controls how quickly nodes accelerate toward a larger radial target.', min: REACTIVE_CONSTELLATION_BOUNDS.expansionAttackSec[0], max: REACTIVE_CONSTELLATION_BOUNDS.expansionAttackSec[1], step: 0.01 },
+        { kind: 'slider', id: 'constellation-expansion-release', setting: 'expansionReleaseSec', label: 'Expansion Release', description: 'Controls how quickly nodes recover toward a smaller radial target.', min: REACTIVE_CONSTELLATION_BOUNDS.expansionReleaseSec[0], max: REACTIVE_CONSTELLATION_BOUNDS.expansionReleaseSec[1], step: 0.01 },
+        { kind: 'slider', id: 'constellation-expansion-spring', setting: 'expansionSpringStrength', label: 'Expansion Spring', description: 'Controls radial spring acceleration independently from the graph-edge springs.', min: REACTIVE_CONSTELLATION_BOUNDS.expansionSpringStrength[0], max: REACTIVE_CONSTELLATION_BOUNDS.expansionSpringStrength[1], step: 0.01 },
+        { kind: 'slider', id: 'constellation-expansion-damping', setting: 'expansionDamping', label: 'Expansion Damping', description: 'Settles radial expansion velocity after launch and overshoot.', min: REACTIVE_CONSTELLATION_BOUNDS.expansionDamping[0], max: REACTIVE_CONSTELLATION_BOUNDS.expansionDamping[1], step: 0.01 },
+        { kind: 'slider', id: 'constellation-expansion-overshoot', setting: 'expansionOvershoot', label: 'Expansion Overshoot', description: 'Allows a bounded elastic pass beyond the radial target before settling.', min: REACTIVE_CONSTELLATION_BOUNDS.expansionOvershoot[0], max: REACTIVE_CONSTELLATION_BOUNDS.expansionOvershoot[1], step: 0.01 },
+        { kind: 'slider', id: 'constellation-radial-stagger', setting: 'radialStaggerSec', label: 'Radial Stagger', description: 'Spreads deterministic node launch delays across this many seconds.', min: REACTIVE_CONSTELLATION_BOUNDS.radialStaggerSec[0], max: REACTIVE_CONSTELLATION_BOUNDS.radialStaggerSec[1], step: 0.01 },
+        { kind: 'slider', id: 'constellation-expansion-burst', setting: 'expansionBurstImpulse', label: 'Launch Impulse', description: 'Adds a one-time outward kick as each staggered node begins expanding.', min: REACTIVE_CONSTELLATION_BOUNDS.expansionBurstImpulse[0], max: REACTIVE_CONSTELLATION_BOUNDS.expansionBurstImpulse[1], step: 0.01 },
+      ],
+    },
+    {
       id: 'reactive-constellation-impulses',
       label: 'Collapse & Recovery',
       visibility: 'advanced',

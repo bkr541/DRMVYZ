@@ -49,8 +49,10 @@ describe('Reactive Constellation performance action runtime', () => {
   it('advances bounded momentary envelopes independently of transport and clears them on seek', () => {
     const runtime = new ReactiveConstellationPerformanceActionRuntime()
     const burst = event('reactiveConstellation.burst', 3)
-    runtime.update({ event: burst, deltaTimeSec: 0.05 })
+    const launched = runtime.update({ event: burst, deltaTimeSec: 0.05 })
+    expect(launched.burstSequence).toBe(3)
     const active = runtime.update({ event: burst, deltaTimeSec: 0 })
+    expect(active.burstSequence).toBeNull()
     expect(active.offsets.burstImpulse).toBeGreaterThan(0)
     expect(active.offsets.burstImpulse).toBeLessThanOrEqual(2.5)
 

@@ -198,6 +198,15 @@ export interface ReactiveConstellationSettings {
   beamFanAmount: number
   centralGravity: number
   cameraOrbit: number
+  initialExpansion: number
+  expansionTarget: number
+  expansionAttackSec: number
+  expansionReleaseSec: number
+  expansionSpringStrength: number
+  expansionDamping: number
+  expansionOvershoot: number
+  radialStaggerSec: number
+  expansionBurstImpulse: number
   springStrength: number
   damping: number
   driftAmount: number
@@ -635,6 +644,15 @@ export const REACTIVE_CONSTELLATION_DEFAULTS: ReactiveConstellationSettings = {
   beamFanAmount: 1,
   centralGravity: 0.18,
   cameraOrbit: 0.16,
+  initialExpansion: 0.08,
+  expansionTarget: 1,
+  expansionAttackSec: 0.72,
+  expansionReleaseSec: 0.48,
+  expansionSpringStrength: 0.9,
+  expansionDamping: 0.58,
+  expansionOvershoot: 0.18,
+  radialStaggerSec: 0.18,
+  expansionBurstImpulse: 0.42,
   springStrength: 0.72,
   damping: 0.62,
   driftAmount: 0.22,
@@ -680,6 +698,15 @@ export const REACTIVE_CONSTELLATION_BOUNDS = {
   beamFanAmount: [0, 2],
   centralGravity: [0, 1],
   cameraOrbit: [-1, 1],
+  initialExpansion: [0.01, 1],
+  expansionTarget: [0, 1.35],
+  expansionAttackSec: [0.08, 4],
+  expansionReleaseSec: [0.08, 4],
+  expansionSpringStrength: [0, 2],
+  expansionDamping: [0, 1],
+  expansionOvershoot: [0, 0.75],
+  radialStaggerSec: [0, 1.5],
+  expansionBurstImpulse: [0, 2.5],
   springStrength: [0, 2],
   damping: [0, 1],
   driftAmount: [0, 1.5],
@@ -730,6 +757,15 @@ function normalizeReactiveConstellationSettings(raw: unknown): ReactiveConstella
       beamFanAmount: REACTIVE_CONSTELLATION_DEFAULTS.beamFanAmount,
       centralGravity: REACTIVE_CONSTELLATION_DEFAULTS.centralGravity,
       cameraOrbit: REACTIVE_CONSTELLATION_DEFAULTS.cameraOrbit,
+      initialExpansion: REACTIVE_CONSTELLATION_DEFAULTS.initialExpansion,
+      expansionTarget: REACTIVE_CONSTELLATION_DEFAULTS.expansionTarget,
+      expansionAttackSec: REACTIVE_CONSTELLATION_DEFAULTS.expansionAttackSec,
+      expansionReleaseSec: REACTIVE_CONSTELLATION_DEFAULTS.expansionReleaseSec,
+      expansionSpringStrength: REACTIVE_CONSTELLATION_DEFAULTS.expansionSpringStrength,
+      expansionDamping: REACTIVE_CONSTELLATION_DEFAULTS.expansionDamping,
+      expansionOvershoot: REACTIVE_CONSTELLATION_DEFAULTS.expansionOvershoot,
+      radialStaggerSec: REACTIVE_CONSTELLATION_DEFAULTS.radialStaggerSec,
+      expansionBurstImpulse: REACTIVE_CONSTELLATION_DEFAULTS.expansionBurstImpulse,
       springStrength: REACTIVE_CONSTELLATION_DEFAULTS.springStrength,
       damping: REACTIVE_CONSTELLATION_DEFAULTS.damping,
       driftAmount: REACTIVE_CONSTELLATION_DEFAULTS.driftAmount,

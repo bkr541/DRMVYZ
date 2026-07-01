@@ -197,7 +197,10 @@ describe('Cinematic World control schema', () => {
       'beamCoreBrightness', 'beamGlow', 'trailDecay', 'trailSpacing',
       'depthSpread', 'neighborCount', 'nodeScaleVariation', 'centralGravity',
       'springStrength', 'damping', 'elasticity', 'topologyStability', 'driftAmount',
-      'turbulence', 'orbitAmount', 'collapseAmount', 'burstStrength', 'reseedEveryBars',
+      'turbulence', 'orbitAmount',
+      'initialExpansion', 'expansionTarget', 'expansionAttackSec', 'expansionReleaseSec',
+      'expansionSpringStrength', 'expansionDamping', 'expansionOvershoot', 'radialStaggerSec',
+      'expansionBurstImpulse', 'collapseAmount', 'burstStrength', 'reseedEveryBars',
       'backgroundCurtains', 'curtainDensity', 'depthFade',
       'faceOpacity', 'facetContrast', 'internalGlow', 'rimIntensity', 'wireframeAmount',
       'colorVariation', 'nodeSpin', 'cameraOrbit',
@@ -227,6 +230,8 @@ describe('Cinematic World control schema', () => {
     expect(container.querySelector('#constellation-trail-samples')).toBeInstanceOf(HTMLInputElement)
     expect(container.querySelector('#constellation-facet-contrast')).toBeInstanceOf(HTMLInputElement)
     expect(container.querySelector('#constellation-background-curtains')).toBeInstanceOf(HTMLInputElement)
+    expect(container.querySelector('#constellation-initial-expansion')).toBeInstanceOf(HTMLInputElement)
+    expect(container.querySelector('#constellation-expansion-overshoot')).toBeInstanceOf(HTMLInputElement)
 
     await render(
       <CinematicWorldControlSchemaRenderer

@@ -156,6 +156,15 @@ describe('world-specific cinematic configuration', () => {
       trailDecay: 0,
       trailSpacing: 9,
       beamFanAmount: 9,
+      initialExpansion: -2,
+      expansionTarget: 99,
+      expansionAttackSec: 0,
+      expansionReleaseSec: 99,
+      expansionSpringStrength: 99,
+      expansionDamping: -1,
+      expansionOvershoot: 99,
+      radialStaggerSec: 99,
+      expansionBurstImpulse: 99,
       reseedEveryBars: 17.8,
     } as never)
     expect(resolveReactiveConstellationSettings(constellation.worldSettings)).toMatchObject({
@@ -181,11 +190,20 @@ describe('world-specific cinematic configuration', () => {
       trailDecay: 0.2,
       trailSpacing: 0.25,
       beamFanAmount: 2,
+      initialExpansion: 0.01,
+      expansionTarget: 1.35,
+      expansionAttackSec: 0.08,
+      expansionReleaseSec: 4,
+      expansionSpringStrength: 2,
+      expansionDamping: 0,
+      expansionOvershoot: 0.75,
+      radialStaggerSec: 1.5,
+      expansionBurstImpulse: 2.5,
       reseedEveryBars: 18,
     })
   })
 
-  it('migrates legacy constellation topology names without discarding persisted motion settings', () => {
+  it('migrates legacy constellation data and fills expansion defaults without discarding persisted motion settings', () => {
     const normalized = createCinematicWorldConfig('reactiveConstellation', {
       topologyStyle: 'helix',
       springStrength: 1.1,
@@ -196,6 +214,15 @@ describe('world-specific cinematic configuration', () => {
       topologyStyle: 'chain',
       springStrength: 1.1,
       reseedEveryBars: 12,
+      initialExpansion: REACTIVE_CONSTELLATION_DEFAULTS.initialExpansion,
+      expansionTarget: REACTIVE_CONSTELLATION_DEFAULTS.expansionTarget,
+      expansionAttackSec: REACTIVE_CONSTELLATION_DEFAULTS.expansionAttackSec,
+      expansionReleaseSec: REACTIVE_CONSTELLATION_DEFAULTS.expansionReleaseSec,
+      expansionSpringStrength: REACTIVE_CONSTELLATION_DEFAULTS.expansionSpringStrength,
+      expansionDamping: REACTIVE_CONSTELLATION_DEFAULTS.expansionDamping,
+      expansionOvershoot: REACTIVE_CONSTELLATION_DEFAULTS.expansionOvershoot,
+      radialStaggerSec: REACTIVE_CONSTELLATION_DEFAULTS.radialStaggerSec,
+      expansionBurstImpulse: REACTIVE_CONSTELLATION_DEFAULTS.expansionBurstImpulse,
     })
   })
 

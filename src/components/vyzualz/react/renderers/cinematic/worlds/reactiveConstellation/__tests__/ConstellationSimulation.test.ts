@@ -33,7 +33,171 @@ function expectFinite(values: Float32Array): void {
   expect(Array.from(values).every(Number.isFinite)).toBe(true)
 }
 
+function averageRadius(values: Float32Array): number {
+  let radius = 0
+  for (let offset = 0; offset < values.length; offset += 3) {
+    radius += Math.hypot(values[offset], values[offset + 1], values[offset + 2])
+  }
+  return radius / Math.max(1, values.length / 3)
+}
+
 describe('ConstellationSimulation', () => {
+  it('initializes simulated nodes near the center while preserving full authored anchors', () => {
+    const initialExpansion = 0.06
+    const simulation = configured({
+      initialExpansion,
+      driftAmount: 0,
+      turbulence: 0,
+      orbitAmount: 0,
+      centralGravity: 0,
+    }, 4822, 24)
+    const state = simulation.getState()
+
+    expect(state.meanExpansionProgress).toBeCloseTo(initialExpansion, 6)
+    expect(state.expansionElapsedSec).toBe(0)
+    for (let index = 0; index < state.graph.nodes.length; index += 1) {
+      const offset = index * 3
+      const authored = state.graph.nodes[index].position
+      expect(state.anchors[offset]).toBeCloseTo(authored.x, 6)
+      expect(state.anchors[offset + 1]).toBeCloseTo(authored.y, 6)
+      expect(state.anchors[offset + 2]).toBeCloseTo(authored.z, 6)
+      expect(state.positions[offset]).toBeCloseTo(state.anchors[offset] * initialExpansion, 6)
+      expect(state.positions[offset + 1]).toBeCloseTo(state.anchors[offset + 1] * initialExpansion, 6)
+      expect(state.positions[offset + 2]).toBeCloseTo(state.anchors[offset + 2] * initialExpansion, 6)
+    }
+    expect(averageRadius(state.positions)).toBeLessThan(averageRadius(state.anchors) * 0.08)
+  })
+
+  it('expands outward toward the authored full-spread anchors', () => {
+    const simulation = configured({
+      initialExpansion: 0.05,
+      expansionTarget: 1,
+      radialStaggerSec: 0.12,
+      driftAmount: 0,
+      turbulence: 0,
+      orbitAmount: 0,
+      centralGravity: 0,
+      collapseAmount: 0,
+    })
+    const initial = averageRadius(simulation.getState().positions)
+
+    runFrames(simulation, 60, 1 / 60)
+    const expanded = simulation.getState()
+
+    expect(expanded.meanExpansionProgress).toBeGreaterThan(0.95)
+    expect(averageRadius(expanded.positions)).toBeGreaterThan(initial * 8)
+    expect(averageRadius(expanded.positions)).toBeLessThan(averageRadius(expanded.anchors) * 1.3)
+  })
+
+  it('supports bounded radial overshoot and settles elastically at the target', () => {
+    const simulation = configured({
+      initialExpansion: 0.05,
+      expansionTarget: 1,
+      expansionAttackSec: 0.25,
+      expansionReleaseSec: 0.4,
+      expansionSpringStrength: 2,
+      expansionDamping: 0.05,
+      expansionOvershoot: 0.4,
+      radialStaggerSec: 0,
+      expansionBurstImpulse: 1.2,
+      driftAmount: 0,
+      turbulence: 0,
+      orbitAmount: 0,
+      centralGravity: 0,
+      collapseAmount: 0,
+    })
+    let maximumProgress = simulation.getState().meanExpansionProgress
+
+    for (let frame = 0; frame < 360; frame += 1) {
+      simulation.update({ deltaTimeSec: 1 / 60, isPlaying: true, motionScale: 0, impact: 0 })
+      maximumProgress = Math.max(maximumProgress, simulation.getState().meanExpansionProgress)
+    }
+    const settled = simulation.getState()
+
+    expect(maximumProgress).toBeGreaterThan(1.02)
+    expect(maximumProgress).toBeLessThanOrEqual(1.4)
+    expect(settled.meanExpansionProgress).toBeCloseTo(1, 4)
+    expect(settled.meanExpansionVelocity).toBeCloseTo(0, 4)
+  })
+
+  it('uses deterministic seeded radial staggering that survives resets', () => {
+    const first = configured({
+      initialExpansion: 0.06,
+      radialStaggerSec: 0.6,
+      expansionBurstImpulse: 0.2,
+      driftAmount: 0,
+      turbulence: 0,
+      orbitAmount: 0,
+      centralGravity: 0,
+    }, 8112, 36)
+    const second = configured({
+      initialExpansion: 0.06,
+      radialStaggerSec: 0.6,
+      expansionBurstImpulse: 0.2,
+      driftAmount: 0,
+      turbulence: 0,
+      orbitAmount: 0,
+      centralGravity: 0,
+    }, 8112, 36)
+    const otherSeed = configured({ radialStaggerSec: 0.6 }, 8113, 36)
+    const originalStagger = Array.from(first.getState().radialStagger)
+
+    expect(Array.from(second.getState().radialStagger)).toEqual(originalStagger)
+    expect(Array.from(otherSeed.getState().radialStagger)).not.toEqual(originalStagger)
+    runFrames(first, 6, 1 / 60)
+    runFrames(second, 6, 1 / 60)
+    const launched = Array.from(first.getState().expansionProgress)
+      .filter(value => value > 0.0601).length
+    expect(launched).toBeGreaterThan(0)
+    expect(launched).toBeLessThan(first.getState().graph.nodes.length)
+    expect(Array.from(first.getState().expansionProgress)).toEqual(Array.from(second.getState().expansionProgress))
+
+    first.resetExpansion()
+    expect(Array.from(first.getState().radialStagger)).toEqual(originalStagger)
+    expect(Array.from(first.getState().expansionProgress).every(value => Math.abs(value - 0.06) < 0.00001)).toBe(true)
+  })
+
+  it('applies each sequenced radial burst exactly once', () => {
+    const simulation = configured({ radialStaggerSec: 1, expansionBurstImpulse: 0 })
+
+    expect(simulation.update({
+      deltaTimeSec: 0,
+      isPlaying: true,
+      burstImpulse: 1.2,
+      burstSequence: 7,
+    })).toBe(0)
+    const firstImpulse = Array.from(simulation.getState().velocities)
+    const firstExpansionImpulse = Array.from(simulation.getState().expansionVelocity)
+    expect(simulation.getState().lastBurstSequence).toBe(7)
+    simulation.update({ deltaTimeSec: 0, isPlaying: true, burstImpulse: 1.2, burstSequence: 7 })
+    expect(Array.from(simulation.getState().velocities)).toEqual(firstImpulse)
+    expect(Array.from(simulation.getState().expansionVelocity)).toEqual(firstExpansionImpulse)
+    simulation.update({ deltaTimeSec: 0, isPlaying: true, burstImpulse: 1.2, burstSequence: 8 })
+    expect(Array.from(simulation.getState().velocities)).not.toEqual(firstImpulse)
+    expect(simulation.getState().lastBurstSequence).toBe(8)
+  })
+
+  it('restores the deterministic compressed expansion state on reset', () => {
+    const simulation = configured({ initialExpansion: 0.09, radialStaggerSec: 0.5 }, 9217, 30)
+    const stagger = Array.from(simulation.getState().radialStagger)
+    simulation.applyRadialBurst(1, 4)
+    runFrames(simulation, 90, 1 / 60, 0.5)
+    expect(simulation.getState().meanExpansionProgress).toBeGreaterThan(0.5)
+
+    simulation.resetExpansion()
+    const reset = simulation.getState()
+    expect(reset.simulationTimeSec).toBe(0)
+    expect(reset.expansionElapsedSec).toBe(0)
+    expect(reset.lastBurstSequence).toBeNull()
+    expect(reset.meanExpansionProgress).toBeCloseTo(0.09, 6)
+    expect(reset.meanExpansionVelocity).toBe(0)
+    expect(Array.from(reset.radialStagger)).toEqual(stagger)
+    expect(Array.from(reset.velocities).every(value => value === 0)).toBe(true)
+    for (let offset = 0; offset < reset.positions.length; offset += 1) {
+      expect(reset.positions[offset]).toBeCloseTo(reset.anchors[offset] * 0.09, 6)
+    }
+  })
+
   it('uses deterministic fixed steps independent of render-frame grouping', () => {
     const singleSteps = configured()
     const doubleSteps = configured()
@@ -45,6 +209,26 @@ describe('ConstellationSimulation', () => {
     expect(doubleSteps.getState().simulationTimeSec).toBeCloseTo(1, 8)
     expect(Array.from(singleSteps.getState().positions)).toEqual(Array.from(doubleSteps.getState().positions))
     expect(Array.from(singleSteps.getState().velocities)).toEqual(Array.from(doubleSteps.getState().velocities))
+    expect(Array.from(singleSteps.getState().expansionProgress)).toEqual(Array.from(doubleSteps.getState().expansionProgress))
+    expect(Array.from(singleSteps.getState().expansionVelocity)).toEqual(Array.from(doubleSteps.getState().expansionVelocity))
+  })
+
+  it('remains frame-rate independent within tolerance for common render rates', () => {
+    const at60Hz = configured({ driftAmount: 0.2, turbulence: 0.1, orbitAmount: 0.1 }, 789)
+    const at144Hz = configured({ driftAmount: 0.2, turbulence: 0.1, orbitAmount: 0.1 }, 789)
+
+    runFrames(at60Hz, 120, 1 / 60, 0.1)
+    runFrames(at144Hz, 288, 1 / 144, 0.1)
+    const first = at60Hz.getState()
+    const second = at144Hz.getState()
+
+    expect(Math.abs(first.simulationTimeSec - second.simulationTimeSec)).toBeLessThanOrEqual(CONSTELLATION_FIXED_TIMESTEP_SEC + 0.000001)
+    expect(first.meanExpansionProgress).toBeCloseTo(second.meanExpansionProgress, 5)
+    let maximumPositionDelta = 0
+    for (let index = 0; index < first.positions.length; index += 1) {
+      maximumPositionDelta = Math.max(maximumPositionDelta, Math.abs(first.positions[index] - second.positions[index]))
+    }
+    expect(maximumPositionDelta).toBeLessThan(0.002)
   })
 
   it('bounds catch-up work and ignores suspension-sized deltas without explosive recovery', () => {
@@ -134,6 +318,9 @@ describe('ConstellationSimulation', () => {
       state.rotations,
       state.angularVelocities,
       state.scaleVariations,
+      state.expansionProgress,
+      state.expansionVelocity,
+      state.radialStagger,
     ]) expectFinite(values)
 
     const maximumDisplacement = 0.55 + 2.4
@@ -206,6 +393,27 @@ describe('ConstellationSimulation', () => {
       expect(result.rebuilt).toBe(true)
       expect(result.structureRevision).toBeGreaterThan(previousRevision)
       previousRevision = result.structureRevision
+    }
+  })
+
+  it('restarts from the compressed core when a quality-tier node budget rebuilds the graph', () => {
+    const initialExpansion = 0.07
+    const simulation = configured({ initialExpansion }, 48001, 64)
+    runFrames(simulation, 90, 1 / 60)
+    expect(simulation.getState().meanExpansionProgress).toBeGreaterThan(0.9)
+
+    const rebuilt = simulation.configure({
+      seed: 48001,
+      nodeCount: 24,
+      settings: settings({ initialExpansion }),
+    })
+    const state = simulation.getState()
+
+    expect(rebuilt.rebuilt).toBe(true)
+    expect(state.graph.nodes).toHaveLength(24)
+    expect(state.meanExpansionProgress).toBeCloseTo(initialExpansion, 6)
+    for (let offset = 0; offset < state.positions.length; offset += 1) {
+      expect(state.positions[offset]).toBeCloseTo(state.anchors[offset] * initialExpansion, 6)
     }
   })
 
@@ -294,6 +502,9 @@ describe('ConstellationSimulation', () => {
       rotations: before.rotations,
       angularVelocities: before.angularVelocities,
       scaleVariations: before.scaleVariations,
+      expansionProgress: before.expansionProgress,
+      expansionVelocity: before.expansionVelocity,
+      radialStagger: before.radialStagger,
     }
 
     runFrames(simulation, 240, 1 / 60, 0.35)
@@ -307,5 +518,8 @@ describe('ConstellationSimulation', () => {
     expect(after.rotations).toBe(references.rotations)
     expect(after.angularVelocities).toBe(references.angularVelocities)
     expect(after.scaleVariations).toBe(references.scaleVariations)
+    expect(after.expansionProgress).toBe(references.expansionProgress)
+    expect(after.expansionVelocity).toBe(references.expansionVelocity)
+    expect(after.radialStagger).toBe(references.radialStagger)
   })
 })

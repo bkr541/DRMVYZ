@@ -98,17 +98,17 @@ describe('ReactiveConstellationWorld GPU lifecycle', () => {
     expect(restoredHarness.deletedVaos).toHaveLength(restoredHarness.createdVaos.length)
   })
 
-  it('consumes lifecycle resets immediately without waiting for playback to resume', () => {
+  it('restarts center expansion for seek and track-replacement resets without waiting for playback', () => {
     const harness = createHarness()
     const world = new ReactiveConstellationWorld()
     world.initialize({ services: harness.services, config: {} as never, presetId: 'paused-reset' })
     const internals = world as unknown as {
       applyPendingReset: () => void
-      simulation: { resetToAnchors: () => void }
+      simulation: { resetExpansion: () => void }
       trails: { reset: () => void }
       pendingReset: string | null
     }
-    const resetSimulation = vi.spyOn(internals.simulation, 'resetToAnchors')
+    const resetSimulation = vi.spyOn(internals.simulation, 'resetExpansion')
     const resetTrails = vi.spyOn(internals.trails, 'reset')
 
     world.reset('seek')
@@ -119,6 +119,59 @@ describe('ReactiveConstellationWorld GPU lifecycle', () => {
     expect(resetSimulation).toHaveBeenCalledTimes(1)
     expect(resetTrails).toHaveBeenCalledTimes(2)
     expect(internals.pendingReset).toBeNull()
+
+    world.reset('trackReplacement')
+    expect(internals.pendingReset).toBe('trackReplacement')
+    internals.applyPendingReset()
+    expect(resetSimulation).toHaveBeenCalledTimes(2)
+    expect(resetTrails).toHaveBeenCalledTimes(4)
+    expect(internals.pendingReset).toBeNull()
+    world.dispose()
+  })
+
+  it('preserves the frozen physical frame across a normal pause and resume', () => {
+    const harness = createHarness()
+    const world = new ReactiveConstellationWorld()
+    world.initialize({ services: harness.services, config: {} as never, presetId: 'pause-resume' })
+    const internals = world as unknown as {
+      simulation: { resetExpansion: () => void; synchronizeTiming: () => void }
+      pendingReset: string | null
+    }
+    const resetExpansion = vi.spyOn(internals.simulation, 'resetExpansion')
+    const synchronizeTiming = vi.spyOn(internals.simulation, 'synchronizeTiming')
+
+    world.reset('transportRestart')
+
+    expect(synchronizeTiming).toHaveBeenCalledTimes(1)
+    expect(resetExpansion).not.toHaveBeenCalled()
+    expect(internals.pendingReset).toBeNull()
+    world.dispose()
+  })
+
+  it('restarts expansion when a track identity appears or is replaced after the world has rendered', () => {
+    const harness = createHarness()
+    const world = new ReactiveConstellationWorld()
+    world.initialize({ services: harness.services, config: {} as never, presetId: 'track-load' })
+    const internals = world as unknown as {
+      observeTrackIdentity: (frame: { musicalAudio?: { trackId: string | null; sourceId: string | null } }) => void
+      applyPendingReset: () => void
+      simulation: { resetExpansion: () => void }
+      hasRendered: boolean
+      pendingReset: string | null
+    }
+    const resetExpansion = vi.spyOn(internals.simulation, 'resetExpansion')
+
+    internals.observeTrackIdentity({ musicalAudio: { trackId: null, sourceId: null } })
+    internals.hasRendered = true
+    internals.observeTrackIdentity({ musicalAudio: { trackId: 'track-a', sourceId: 'source-a' } })
+    expect(internals.pendingReset).toBe('trackReplacement')
+    internals.applyPendingReset()
+    expect(resetExpansion).toHaveBeenCalledTimes(1)
+
+    internals.observeTrackIdentity({ musicalAudio: { trackId: 'track-b', sourceId: 'source-b' } })
+    expect(internals.pendingReset).toBe('trackReplacement')
+    internals.applyPendingReset()
+    expect(resetExpansion).toHaveBeenCalledTimes(2)
     world.dispose()
   })
 

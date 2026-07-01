@@ -27,6 +27,7 @@ export interface ReactiveConstellationPerformanceFrame {
   blackout: boolean
   whiteFlash: number
   reseedSequence: number | null
+  burstSequence: number | null
 }
 
 const EMPTY_FRAME: ReactiveConstellationPerformanceFrame = {
@@ -38,6 +39,7 @@ const EMPTY_FRAME: ReactiveConstellationPerformanceFrame = {
   blackout: false,
   whiteFlash: 0,
   reseedSequence: null,
+  burstSequence: null,
 }
 
 function clamp01(value: number): number {
@@ -72,6 +74,7 @@ export class ReactiveConstellationPerformanceActionRuntime {
   private readonly momentary = new Map<string, ActiveMomentaryAction>()
   private readonly toggles = new Map<string, boolean>()
   private pendingReseedSequence: number | null = null
+  private pendingBurstSequence: number | null = null
 
   get consumedSequence(): number {
     return this.lastConsumedSequence
@@ -139,8 +142,10 @@ export class ReactiveConstellationPerformanceActionRuntime {
       blackout: this.toggles.get('reactiveConstellation.blackout') === true,
       whiteFlash,
       reseedSequence: this.pendingReseedSequence,
+      burstSequence: this.pendingBurstSequence,
     }
     this.pendingReseedSequence = null
+    this.pendingBurstSequence = null
     return frame
   }
 
@@ -148,6 +153,7 @@ export class ReactiveConstellationPerformanceActionRuntime {
     this.momentary.clear()
     this.toggles.clear()
     this.pendingReseedSequence = null
+    this.pendingBurstSequence = null
     if (options.preserveConsumedSequence !== true) this.lastConsumedSequence = -1
   }
 
@@ -166,6 +172,7 @@ export class ReactiveConstellationPerformanceActionRuntime {
       this.pendingReseedSequence = event.sequence
       return
     }
+    if (action.id === 'reactiveConstellation.burst') this.pendingBurstSequence = event.sequence
     if (action.behavior === 'momentary' && action.envelope) {
       this.momentary.set(action.id, { actionId: action.id, ageMs: 0, envelope: action.envelope })
     }
