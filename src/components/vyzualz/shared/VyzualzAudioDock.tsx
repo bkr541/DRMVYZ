@@ -64,7 +64,18 @@ function deriveBpmState(
   return { kind: 'none' }
 }
 
-export function VyzualzAudioDock({ compact = false, deckLabel }: { compact?: boolean; deckLabel?: string }) {
+export interface VyzualzAudioDockProps {
+  compact?: boolean
+  deckLabel?: string
+  /** Align the waveform viewport and chrome with the Track Map directly above it. */
+  unifiedTimeline?: boolean
+}
+
+export function VyzualzAudioDock({
+  compact = false,
+  deckLabel,
+  unifiedTimeline = false,
+}: VyzualzAudioDockProps) {
   const {
     presets, activePresetId, bpmSync, toggleBpmSync, setPlaying,
     cuePoint, setCuePoint, beatGridEnabled, setBeatGridEnabled,

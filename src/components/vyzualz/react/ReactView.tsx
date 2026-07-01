@@ -571,7 +571,11 @@ export function ReactView() {
       </div>
 
       {/* Bottom dock — outside the grid, full width */}
-      <VyzualzAudioDock compact={stageFocus} deckLabel="Track Deck" />
+      <VyzualzAudioDock
+        compact={stageFocus}
+        deckLabel="Track Deck"
+        unifiedTimeline={workspaceComposition.showTrackMap && lowerSurface === 'trackMap' && !stageFocus}
+      />
     </div>
   )
 }
