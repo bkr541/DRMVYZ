@@ -139,7 +139,8 @@ describe('audioStore persistence safety', () => {
       bpm: 149.5,
       musical_key: 'D Minor',
     })
-    expect(useAudioStore.getState().savedTracks[0]).toMatchObject({
+    expect(useAudioStore.getState().savedTracks[0]).toEqual({
+      ...track,
       title: 'New Title',
       artist: 'New Artist',
       genre: 'Melodic Bass',

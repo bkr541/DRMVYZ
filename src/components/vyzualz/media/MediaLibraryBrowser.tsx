@@ -66,6 +66,7 @@ const REACT_FILTERS: { key: MediaLibraryFilter; label: string }[] = [
   { key: 'all',         label: 'All'         },
   { key: 'collections', label: 'Collections' },
   { key: 'favorites',   label: 'Favorites'   },
+  { key: 'tracks',      label: 'Tracks'      },
   { key: 'svg',         label: 'SVG'         },
   { key: 'logos',       label: 'Logos'       },
   { key: 'transparent', label: 'Transparent' },

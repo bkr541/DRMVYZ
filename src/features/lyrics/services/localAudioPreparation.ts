@@ -249,7 +249,7 @@ export async function ensurePreparedTranscriptionAudio(
     const fileName = chunkFileName(track.fileName, index)
     const { error: uploadError } = await supabase.storage
       .from(AUDIO_BUCKET)
-      .upload(storagePath, new Blob([wavBytes], { type: 'audio/wav' }), { contentType: 'audio/wav', upsert: true })
+      .upload(storagePath, new Blob([new Uint8Array(wavBytes)], { type: 'audio/wav' }), { contentType: 'audio/wav', upsert: true })
     if (uploadError) throw new Error(`Chunk upload failed: ${uploadError.message}`)
 
     chunks.push({

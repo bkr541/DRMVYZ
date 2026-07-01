@@ -226,6 +226,33 @@ describe('MediaLibraryBrowser capability boundaries', () => {
     expect(mocks.engine.setSource).toHaveBeenCalledWith('file')
   })
 
+  it('exposes saved-audio loading from the React View Media Deck', async () => {
+    await renderBrowser({
+      activeMediaId: null,
+      onSelect: vi.fn(),
+      context: 'react',
+      capabilities: MEDIA_DECK_CAPABILITIES,
+    })
+
+    expect(findButton('Tracks')).not.toBeNull()
+    act(() => findButton('Tracks')?.click())
+    expect(container?.textContent).toContain('Performance Track')
+
+    await act(async () => {
+      findButton('Load Track')?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(mocks.audioState.getSignedUrl).toHaveBeenCalledWith(track.storagePath)
+    expect(mocks.engine.addTrackUrls).toHaveBeenCalledWith([
+      expect.objectContaining({
+        title: track.title,
+        dbId: track.dbId,
+      }),
+    ])
+  })
+
   it('retains upload, edit, delete, and drop workflows in Media Manager', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     const onSelect = vi.fn()
