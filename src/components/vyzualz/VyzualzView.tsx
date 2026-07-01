@@ -659,7 +659,7 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
           />
           <div className="vz-main" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div style={{ flex: 1, overflow: 'hidden' }}>
-              <ReactView />
+              <ReactView onOpenMediaManager={() => requestAppViewChange('media')} />
             </div>
           </div>
         </div>
@@ -701,7 +701,11 @@ export function VyzualzView({ activeView, onNavigate }: Props) {
           <div className="vz-panel-body">
             {activeLeftPanel === 'media' && (
               <VyzualzErrorBoundary section="MediaDeck">
-                <MediaDeckPanel activeMediaId={activeMediaId} onSelect={setActiveMedia} />
+                <MediaDeckPanel
+                  activeMediaId={activeMediaId}
+                  onSelect={setActiveMedia}
+                  onOpenMediaManager={() => requestAppViewChange('media')}
+                />
               </VyzualzErrorBoundary>
             )}
             {activeLeftPanel === 'layers' && (

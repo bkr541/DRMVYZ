@@ -89,7 +89,11 @@ const REACT_RIGHT_BASE_TABS: Omit<RailTabOption<ReactRightPanel>, 'disabled'>[] 
 
 type ReactLowerSurface = 'trackMap' | 'performancePads'
 
-export function ReactView() {
+export interface ReactViewProps {
+  onOpenMediaManager?: () => void
+}
+
+export function ReactView({ onOpenMediaManager }: ReactViewProps) {
   const audioSourceId = useId()
   const engine   = useSharedAudio()
   const analyser = engine.analyserMaster
@@ -399,6 +403,7 @@ export function ReactView() {
                     mode="react"
                     activeMediaId={activeMediaId}
                     onSelect={setActiveMediaId}
+                    onOpenMediaManager={onOpenMediaManager}
                   />
                 )}
                 {leftTab === 'layers' && workspaceComposition.showLaserLayersTab && (

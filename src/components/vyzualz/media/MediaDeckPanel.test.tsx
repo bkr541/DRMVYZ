@@ -30,51 +30,49 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('MediaDeckPanel compatibility adapter', () => {
-  it('keeps the complete pre-refactor deck capability contract', () => {
+describe('MediaDeckPanel performance adapter', () => {
+  it('exposes only performance-focused deck capabilities', () => {
     expect(MEDIA_DECK_CAPABILITIES).toEqual([
       'select',
       'load-track',
       'preview',
       'favorite',
-      'upload',
-      'edit',
-      'remove',
       'collections',
       'drag-media',
     ])
+    expect(MEDIA_DECK_CAPABILITIES).not.toContain('upload')
+    expect(MEDIA_DECK_CAPABILITIES).not.toContain('edit')
+    expect(MEDIA_DECK_CAPABILITIES).not.toContain('remove')
   })
 
-  it('preserves every existing deck capability in Visualizer', () => {
+  it('uses the shared performance-only contract in Visualizer', () => {
     const onSelect = vi.fn()
+    const onOpenMediaManager = vi.fn()
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
 
     act(() => {
-      root?.render(<MediaDeckPanel activeMediaId="media-1" onSelect={onSelect} />)
+      root?.render(
+        <MediaDeckPanel
+          activeMediaId="media-1"
+          onSelect={onSelect}
+          onOpenMediaManager={onOpenMediaManager}
+        />,
+      )
     })
 
     expect(mocks.browserProps).toHaveBeenCalledWith(expect.objectContaining({
       activeMediaId: 'media-1',
       onSelect,
+      onOpenMediaManager,
       context: 'visualizer',
       title: 'Media Deck',
-      capabilities: [
-        'select',
-        'load-track',
-        'preview',
-        'favorite',
-        'upload',
-        'edit',
-        'remove',
-        'collections',
-        'drag-media',
-      ],
+      capabilities: MEDIA_DECK_CAPABILITIES,
     }))
   })
 
-  it('preserves the React-specific browsing context', () => {
+  it('uses the same capability contract in React View', () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -83,6 +81,9 @@ describe('MediaDeckPanel compatibility adapter', () => {
       root?.render(<MediaDeckPanel mode="react" activeMediaId={null} onSelect={vi.fn()} />)
     })
 
-    expect(mocks.browserProps).toHaveBeenCalledWith(expect.objectContaining({ context: 'react' }))
+    expect(mocks.browserProps).toHaveBeenCalledWith(expect.objectContaining({
+      context: 'react',
+      capabilities: MEDIA_DECK_CAPABILITIES,
+    }))
   })
 })

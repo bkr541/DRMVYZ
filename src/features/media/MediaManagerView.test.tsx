@@ -38,6 +38,7 @@ vi.mock('../../components/vyzualz/media/MediaLibraryBrowser', () => ({
 }))
 
 import { MediaManagerView } from './MediaManagerView'
+import { MEDIA_MANAGER_CAPABILITIES } from '../../components/vyzualz/media/mediaLibraryCapabilities'
 
 let container: HTMLDivElement | null = null
 let root: ReturnType<typeof createRoot> | null = null
@@ -69,7 +70,9 @@ describe('MediaManagerView', () => {
       context: 'manager',
       title: 'Media Library',
       onSelect: mocks.setActiveMedia,
+      capabilities: MEDIA_MANAGER_CAPABILITIES,
     }))
+    expect(MEDIA_MANAGER_CAPABILITIES).toEqual(expect.arrayContaining(['upload', 'edit', 'remove', 'collections']))
   })
 
   it('returns to the prior performance view', () => {

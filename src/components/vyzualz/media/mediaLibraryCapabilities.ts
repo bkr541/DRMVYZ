@@ -12,18 +12,16 @@ export type MediaLibraryCapability =
   | 'drag-media'
 
 /**
- * The performance deck keeps its complete pre-refactor behavior in Patch 3.
- * Later patches may intentionally narrow this list once Media Manager owns the
- * management-first actions.
+ * Performance views can browse, preview, favorite, select, and load media, but
+ * all authoring and destructive actions belong exclusively to Media Manager.
+ * `drag-media` refers to dragging an existing library item into a performance
+ * target, not accepting file drops for upload.
  */
 export const MEDIA_DECK_CAPABILITIES = [
   'select',
   'load-track',
   'preview',
   'favorite',
-  'upload',
-  'edit',
-  'remove',
   'collections',
   'drag-media',
 ] as const satisfies readonly MediaLibraryCapability[]

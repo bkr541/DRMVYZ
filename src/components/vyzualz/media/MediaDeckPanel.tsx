@@ -6,19 +6,20 @@ export interface MediaDeckPanelProps {
   activeMediaId: string | null
   onSelect: (id: string) => void
   mode?: 'visualizer' | 'react'
+  onOpenMediaManager?: () => void
 }
 
 /**
  * Performance-deck adapter around the shared media-library browser.
  *
- * Keep this wrapper intentionally small: Visualizer and React retain the
- * complete legacy deck capability set while Media Manager can reuse the same
- * browser with a management-oriented shell.
+ * Keep this wrapper intentionally small so Visualizer and React always share
+ * the same performance-only capability contract.
  */
 export const MediaDeckPanel = memo(function MediaDeckPanel({
   activeMediaId,
   onSelect,
   mode = 'visualizer',
+  onOpenMediaManager,
 }: MediaDeckPanelProps) {
   return (
     <MediaLibraryBrowser
@@ -27,6 +28,7 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({
       context={mode}
       title="Media Deck"
       capabilities={MEDIA_DECK_CAPABILITIES}
+      onOpenMediaManager={onOpenMediaManager}
     />
   )
 })

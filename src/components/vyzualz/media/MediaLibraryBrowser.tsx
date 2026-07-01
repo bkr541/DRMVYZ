@@ -23,12 +23,31 @@ import { MediaStatusBar } from './MediaStatusBar'
 import { AudioTrackEditModal } from './AudioTrackEditModal'
 import { AudioTrackPreviewModal } from './AudioTrackPreviewModal'
 import { CollectionEditorModal } from './CollectionEditorModal'
-import { MEDIA_ROLE_BADGE_LABELS, MEDIA_ROLE_LABELS, isSvgFilename } from '../../../lib/mediaRoles'
+import { MEDIA_ROLE_BADGE_LABELS, MEDIA_ROLE_LABELS } from '../../../lib/mediaRoles'
 import { isUnifiedSvgMediaItem } from '../../../lib/svgMediaEligibility'
 import type { MediaLibraryCapability, MediaLibraryContext } from './mediaLibraryCapabilities'
 
 type MediaLibraryFilter = 'all' | 'tracks' | 'collections' | 'images' | 'videos' | 'favorites' | 'backgrounds' | 'logos' | 'transparent' | 'overlays' | 'svg'
 type ViewMode = 'grid' | 'list'
+
+function PerformanceDeckEmptyState({
+  message,
+  onOpenMediaManager,
+}: {
+  message: string
+  onOpenMediaManager?: () => void
+}) {
+  return (
+    <div className="vz-media-empty">
+      <span>{message}</span>
+      {onOpenMediaManager && (
+        <button type="button" className="vz-media-empty-action" onClick={onOpenMediaManager}>
+          Open Media Manager
+        </button>
+      )}
+    </div>
+  )
+}
 
 const VISUALIZER_FILTERS: { key: MediaLibraryFilter; label: string }[] = [
   { key: 'all',         label: 'All'         },
@@ -165,14 +184,14 @@ function AudioTrackRow({
 }: {
   track: SavedAudioTrack
   onLoad: () => void
-  onRemove: () => void
+  onRemove?: () => void
   loading: boolean
   canLoad: boolean
   canRemove: boolean
   canEdit: boolean
   canPreview: boolean
-  onEdit: () => void
-  onPreview: () => void
+  onEdit?: () => void
+  onPreview?: () => void
 }) {
   const meta: string[] = []
   if (track.durationSec) meta.push(fmtDur(track.durationSec))
@@ -192,8 +211,8 @@ function AudioTrackRow({
         </div>
       </div>
       <div className="vz-track-row-actions">
-        {canPreview && <button type="button" className="vz-track-load-btn" onClick={onPreview}>Preview</button>}
-        {canEdit && <button type="button" className="vz-media-edit-btn" onClick={onEdit} title="Edit track metadata"><PencilEdit01Icon size={12} color="currentColor" /></button>}
+        {canPreview && onPreview && <button type="button" className="vz-track-load-btn" onClick={onPreview}>Preview</button>}
+        {canEdit && onEdit && <button type="button" className="vz-media-edit-btn" onClick={onEdit} title="Edit track metadata"><PencilEdit01Icon size={12} color="currentColor" /></button>}
         {canLoad && (
           <button
             className="vz-track-load-btn"
@@ -204,7 +223,7 @@ function AudioTrackRow({
             {loading ? '…' : 'Load Track'}
           </button>
         )}
-        {canRemove && (
+        {canRemove && onRemove && (
           <button
             type="button"
             className="vz-track-remove-btn"
@@ -249,8 +268,8 @@ function MediaCard({
   isActive: boolean
   viewMode: ViewMode
   onSelect: () => void
-  onEdit: () => void
-  onRemove: () => void
+  onEdit?: () => void
+  onRemove?: () => void
   onToggleFavorite: () => void
   onPreview: () => void
   canSelect: boolean
@@ -321,7 +340,7 @@ function MediaCard({
               <FavouriteIcon size={14} color="currentColor" />
             </button>
           )}
-          {canEdit && (
+          {canEdit && onEdit && (
             <button
               className="vz-media-edit-btn"
               onClick={e => { e.stopPropagation(); onEdit() }}
@@ -331,7 +350,7 @@ function MediaCard({
               <PencilEdit01Icon size={11} color="currentColor" />
             </button>
           )}
-          {canRemove && (
+          {canRemove && onRemove && (
             <button
               className="vz-media-remove"
               onClick={e => { e.stopPropagation(); onRemove() }}
@@ -376,7 +395,7 @@ function MediaCard({
             <FavouriteIcon size={17} color="currentColor" />
           </button>
         )}
-        {canRemove && (
+        {canRemove && onRemove && (
           <button
             className="vz-media-remove"
             onClick={e => { e.stopPropagation(); onRemove() }}
@@ -398,7 +417,7 @@ function MediaCard({
       <div className="vz-media-info">
         <div className="vz-media-name-row">
           <div className="vz-media-name">{displayName}</div>
-          {canEdit && (
+          {canEdit && onEdit && (
             <button
               className="vz-media-edit-btn"
               onClick={e => { e.stopPropagation(); onEdit() }}
@@ -427,6 +446,7 @@ function MediaCard({
 export interface MediaLibraryBrowserProps {
   activeMediaId: string | null
   onSelect?: (id: string) => void
+  onOpenMediaManager?: () => void
   context?: MediaLibraryContext
   title?: string
   capabilities: readonly MediaLibraryCapability[]
@@ -435,12 +455,13 @@ export interface MediaLibraryBrowserProps {
 export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   activeMediaId,
   onSelect,
+  onOpenMediaManager,
   context = 'visualizer',
   title = 'Media Library',
   capabilities,
 }: MediaLibraryBrowserProps) {
   const {
-    items, addFiles, addFilesToUploadQueue, clearUploadQueue, removeItem, retryUpload, toggleFavorite,
+    items, addFilesToUploadQueue, clearUploadQueue, removeItem, retryUpload, toggleFavorite,
     loadFromSupabase, loading,
     collections, collectionsLoading, loadCollections, removeCollection,
     importModalOpen, openImportMediaModal, closeImportMediaModal,
@@ -467,13 +488,14 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const searchLower  = searchQuery.toLowerCase()
 
   const capabilitySet = useMemo(() => new Set<MediaLibraryCapability>(capabilities), [capabilities])
+  const isManager = context === 'manager'
   const canSelect = capabilitySet.has('select') && onSelect !== undefined
   const canLoadTrack = capabilitySet.has('load-track')
   const canPreview = capabilitySet.has('preview')
   const canFavorite = capabilitySet.has('favorite')
-  const canUpload = capabilitySet.has('upload')
-  const canEdit = capabilitySet.has('edit')
-  const canRemove = capabilitySet.has('remove')
+  const canUpload = isManager && capabilitySet.has('upload')
+  const canEdit = isManager && capabilitySet.has('edit')
+  const canRemove = isManager && capabilitySet.has('remove')
   const canBrowseCollections = capabilitySet.has('collections')
   const canDragMedia = capabilitySet.has('drag-media')
 
@@ -577,20 +599,12 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   }, [collections, itemsByCollection, searchActive, searchLower, isReactMode])
 
   const handleQuickDrop = (files: File[]) => {
-    if (context === 'manager') {
-      clearUploadQueue()
-      const queued = addFilesToUploadQueue(files)
-      if (queued > 0) {
-        setPreserveQueuedFiles(true)
-        openImportMediaModal()
-      }
-      return
+    clearUploadQueue()
+    const queued = addFilesToUploadQueue(files)
+    if (queued > 0) {
+      setPreserveQueuedFiles(true)
+      openImportMediaModal()
     }
-    const media = files.filter(f =>
-      f.type.startsWith('image/') || f.type.startsWith('video/') || isSvgFilename(f.name) ||
-      /\.(png|jpe?g|gif|webp|mp4|mov|webm)$/i.test(f.name)
-    )
-    if (media.length) void addFiles(media)
   }
 
   const handleLoadTrack = useCallback(async (track: SavedAudioTrack) => {
@@ -651,10 +665,10 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
           isActive={activeMediaId === m.id}
           viewMode={viewMode}
           onSelect={() => onSelect?.(m.id)}
-          onEdit={() => setEditItem(m)}
-          onRemove={() => {
+          onEdit={canEdit ? () => setEditItem(m) : undefined}
+          onRemove={canRemove ? () => {
             if (window.confirm(`Delete “${m.title ?? m.name}”? This removes the stored file and its collection assignments.`)) void removeItem(m.id)
-          }}
+          } : undefined}
           onToggleFavorite={() => toggleFavorite(m.id)}
           onPreview={() => setPreviewItem(m)}
           canSelect={canSelect}
@@ -691,9 +705,16 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
       return (
         <div className="vz-track-list">
           <div className="vz-track-empty">
-            {searchActive
-              ? `No tracks match "${searchQuery}"`
-              : 'No audio tracks yet — upload one via Import'}
+            {searchActive ? (
+              `No tracks match "${searchQuery}"`
+            ) : isManager ? (
+              'No audio tracks yet. Import audio files to get started.'
+            ) : (
+              <PerformanceDeckEmptyState
+                message="No audio tracks available. Add files from Media Manager."
+                onOpenMediaManager={onOpenMediaManager}
+              />
+            )}
           </div>
         </div>
       )
@@ -706,14 +727,14 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             key={t.id}
             track={t}
             onLoad={() => handleLoadTrack(t)}
-            onRemove={() => { void handleRemoveTrack(t) }}
+            onRemove={canRemove ? () => { void handleRemoveTrack(t) } : undefined}
             loading={loadingTrackId === t.id}
             canLoad={canLoadTrack}
             canRemove={canRemove}
-            canEdit={context === 'manager' && canEdit}
-            canPreview={context === 'manager' && canPreview}
-            onEdit={() => setEditTrack(t)}
-            onPreview={() => setPreviewTrack(t)}
+            canEdit={canEdit}
+            canPreview={isManager && canPreview}
+            onEdit={canEdit ? () => setEditTrack(t) : undefined}
+            onPreview={isManager && canPreview ? () => setPreviewTrack(t) : undefined}
           />
         ))}
       </div>
@@ -735,7 +756,14 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
           </div>
           {openCollectionItems.length === 0 ? (
             <div className="vz-media-grid">
-              <div className="vz-coll-folder-empty">No media in this collection</div>
+              {isManager ? (
+                <div className="vz-coll-folder-empty">No media in this collection</div>
+              ) : (
+                <PerformanceDeckEmptyState
+                  message="No media in this collection. Add files from Media Manager."
+                  onOpenMediaManager={onOpenMediaManager}
+                />
+              )}
             </div>
           ) : renderGrid(openCollectionItems)}
         </>
@@ -764,7 +792,16 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
       return (
         <div className="vz-media-grid">
           <div className="vz-coll-folder-empty">
-            {searchActive ? `No collections match "${searchQuery}"` : context === 'manager' ? 'No collections yet. Use New Collection to create one.' : 'No collections yet.'}
+            {searchActive ? (
+              `No collections match "${searchQuery}"`
+            ) : isManager ? (
+              'No collections yet. Use New Collection to create one.'
+            ) : (
+              <PerformanceDeckEmptyState
+                message="No collections available. Create collections from Media Manager."
+                onOpenMediaManager={onOpenMediaManager}
+              />
+            )}
           </div>
         </div>
       )
@@ -779,8 +816,8 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             items={itemsByCollection.get(c.id) ?? []}
             viewMode={viewMode}
             onClick={() => setOpenCollectionId(c.id)}
-            onEdit={context === 'manager' ? () => { setEditCollection(c); setCollectionEditorOpen(true) } : undefined}
-            onRemove={context === 'manager' ? () => {
+            onEdit={isManager ? () => { setEditCollection(c); setCollectionEditorOpen(true) } : undefined}
+            onRemove={isManager ? () => {
               if (window.confirm(`Delete collection “${c.name}”? Media files will remain in the library.`)) void removeCollection(c.id)
             } : undefined}
           />
@@ -794,11 +831,11 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
       {canUpload && importModalOpen && <MediaUploadModal preserveQueuedFiles={preserveQueuedFiles} onClose={() => { setPreserveQueuedFiles(false); closeImportMediaModal() }} />}
       {canEdit && editItem && <MediaUploadModal editItem={editItem} onClose={() => setEditItem(null)} />}
       {canPreview && previewItem && <MediaPreviewModal media={previewItem} onClose={() => setPreviewItem(null)} />}
-      {context === 'manager' && editTrack && <AudioTrackEditModal track={editTrack} onClose={() => setEditTrack(null)} />}
-      {context === 'manager' && previewTrack && <AudioTrackPreviewModal track={previewTrack} onClose={() => setPreviewTrack(null)} />}
-      {context === 'manager' && collectionEditorOpen && <CollectionEditorModal collection={editCollection} onClose={() => { setCollectionEditorOpen(false); setEditCollection(undefined) }} />}
+      {isManager && editTrack && <AudioTrackEditModal track={editTrack} onClose={() => setEditTrack(null)} />}
+      {isManager && previewTrack && <AudioTrackPreviewModal track={previewTrack} onClose={() => setPreviewTrack(null)} />}
+      {isManager && collectionEditorOpen && <CollectionEditorModal collection={editCollection} onClose={() => { setCollectionEditorOpen(false); setEditCollection(undefined) }} />}
       <div
-        className={`vz-panel vz-media-browser${context === 'manager' ? ' vz-media-browser--manager' : ''}`}
+        className={`vz-panel vz-media-browser${isManager ? ' vz-media-browser--manager' : ''}`}
         style={{ flex: 1, minHeight: 0 }}
         onDragOver={canUpload ? e => { e.preventDefault(); setDragOver(true) } : undefined}
         onDragLeave={canUpload ? () => setDragOver(false) : undefined}
@@ -807,7 +844,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         <div className="vz-panel-header">
           <Layers01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
           <span className="vz-panel-title">{title}</span>
-          {context === 'manager' && canBrowseCollections && (
+          {isManager && canBrowseCollections && (
             <button type="button" className="vz-import-btn vz-import-btn--secondary" onClick={() => { setEditCollection(undefined); setCollectionEditorOpen(true) }}>New Collection</button>
           )}
           {canUpload && (
@@ -865,7 +902,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
           )}
         </div>
 
-        <MediaStatusBar includeAudio={context === 'manager'} />
+        <MediaStatusBar includeAudio={isManager} />
 
         <div className="vz-media-scroll">
           {libraryFilter === 'tracks' ? (
@@ -895,10 +932,19 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
               <div className="ref-empty-title">Import Media</div>
               <div className="ref-empty-sub" style={{ fontSize: 9 }}>{dragOver ? 'Drop here!' : isReactMode ? 'SVGs, Logos & Overlays' : 'Images & Video'}</div>
             </div>
-          ) : items.length === 0 ? (
-            <div className="vz-media-grid">
-              <div className="vz-coll-folder-empty">No media available</div>
-            </div>
+          ) : filtered.length === 0 ? (
+            isManager ? (
+              <div className="vz-media-grid">
+                <div className="vz-coll-folder-empty">
+                  {searchActive ? `No media matches "${searchQuery}"` : 'No media matches this filter.'}
+                </div>
+              </div>
+            ) : (
+              <PerformanceDeckEmptyState
+                message={searchActive ? `No media matches "${searchQuery}"` : 'No media available. Add files from Media Manager.'}
+                onOpenMediaManager={searchActive ? undefined : onOpenMediaManager}
+              />
+            )
           ) : (
             renderGrid(filtered)
           )}
