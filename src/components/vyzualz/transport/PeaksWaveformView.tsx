@@ -16,6 +16,8 @@ export interface PeaksWaveformViewProps {
   fallbackPeaks?: number[] | null
   /** Keep the zoom view locked to the same centered viewport used by Track Map. */
   followTimelineViewport?: boolean
+  /** Visual treatment for both Peaks.js and the canvas fallback. */
+  appearance?: 'rgb' | 'deck'
 }
 
 export function syncCueMarkers(instance: PeaksInstance, markers: VzCueMarker[]): void {
@@ -40,6 +42,7 @@ export function PeaksWaveformView({
   rgbAnalysis,
   fallbackPeaks,
   followTimelineViewport = false,
+  appearance = 'rgb',
 }: PeaksWaveformViewProps) {
   const overviewRef = useRef<HTMLDivElement>(null)
   const zoomviewRef = useRef<HTMLDivElement>(null)
@@ -190,13 +193,19 @@ export function PeaksWaveformView({
 
   // ── Init / reinit when the active track, status, or buffer availability changes ─
   useEffect(() => {
+    if (appearance === 'deck') {
+      destroyPeaks()
+      setPeaksReady(false)
+      setPeaksError(false)
+      return
+    }
     const status = engine.currentAnalysisStatus
     // Require status past 'queued' AND the buffer in the engine cache.
     // initPeaks() still guards internally against a missing buffer or duplicate init.
     if (currentTrackId && status !== 'queued' && hasBuffer) {
       initPeaks()
     }
-  }, [currentTrackId, engine.currentAnalysisStatus, hasBuffer, initPeaks])
+  }, [appearance, currentTrackId, engine.currentAnalysisStatus, hasBuffer, initPeaks, destroyPeaks])
 
   // ── Keep Peaks informed of engine play-state changes ──────────────────────
   useEffect(() => {
@@ -278,6 +287,23 @@ export function PeaksWaveformView({
       destroyPeaks()
     }
   }, [destroyPeaks])
+
+  if (appearance === 'deck') {
+    return (
+      <div className="vz-peaks-wrap vz-peaks-wrap--deck">
+        <RgbWaveformCanvas
+          analysis={rgbAnalysis}
+          fallbackPeaks={fallbackPeaks}
+          duration={engine.duration}
+          currentTime={engine.currentTime}
+          markers={cueMarkers}
+          onSeek={engine.currentTrack ? engine.seek : undefined}
+          zoom={waveformZoom}
+          monochrome
+        />
+      </div>
+    )
+  }
 
   return (
     <div className={`vz-peaks-wrap${followTimelineViewport ? ' vz-peaks-wrap--unified' : ''}`}>

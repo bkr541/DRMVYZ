@@ -11,6 +11,8 @@ interface RgbWaveformCanvasProps {
   markers?:       VzCueMarker[]
   onSeek?:        (t: number) => void
   zoom?:          number
+  /** Render a cyan, bar-based deck waveform instead of the RGB energy fill. */
+  monochrome?:    boolean
 }
 
 const PLAYHEAD_COLOR = '#4ac7db'
@@ -58,13 +60,14 @@ export function RgbWaveformCanvas({
   markers = [],
   onSeek,
   zoom = 1,
+  monochrome = false,
 }: RgbWaveformCanvasProps) {
   const canvasRef  = useRef<HTMLCanvasElement>(null)
   const sizeRef    = useRef({ cssW: 0, cssH: 0, dpr: 1 })
   const buffersRef = useRef<DrawBuffers | null>(null)
 
-  const propsRef = useRef({ analysis, fallbackPeaks, duration, currentTime, markers, zoom })
-  propsRef.current = { analysis, fallbackPeaks, duration, currentTime, markers, zoom }
+  const propsRef = useRef({ analysis, fallbackPeaks, duration, currentTime, markers, zoom, monochrome })
+  propsRef.current = { analysis, fallbackPeaks, duration, currentTime, markers, zoom, monochrome }
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current
@@ -78,7 +81,15 @@ export function RgbWaveformCanvas({
     // Work in CSS-pixel coordinates; DPR scaling is handled by the canvas transform.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
-    const { analysis: ana, fallbackPeaks: pk, duration: dur, currentTime: ct, markers: mks, zoom: zm } = propsRef.current
+    const {
+      analysis: ana,
+      fallbackPeaks: pk,
+      duration: dur,
+      currentTime: ct,
+      markers: mks,
+      zoom: zm,
+      monochrome: mono,
+    } = propsRef.current
     const safe = dur > 0 ? dur : 1
     const { start: winStart, end: winEnd } = getWindow(safe, ct, zm)
     const winLen = Math.max(0.001, winEnd - winStart)
@@ -86,13 +97,74 @@ export function RgbWaveformCanvas({
     ctx.fillStyle = 'rgba(10,13,18,0.96)'
     ctx.fillRect(0, 0, cssW, cssH)
 
+    if (mono) {
+      ctx.save()
+      ctx.strokeStyle = 'rgba(51, 209, 235, 0.08)'
+      ctx.lineWidth = 1
+      for (let i = 1; i < 24; i++) {
+        const x = Math.round((i / 24) * cssW) + 0.5
+        ctx.beginPath()
+        ctx.moveTo(x, 0)
+        ctx.lineTo(x, cssH)
+        ctx.stroke()
+      }
+      ctx.strokeStyle = 'rgba(51, 209, 235, 0.13)'
+      for (let i = 1; i < 6; i++) {
+        const x = Math.round((i / 6) * cssW) + 0.5
+        ctx.beginPath()
+        ctx.moveTo(x, 0)
+        ctx.lineTo(x, cssH)
+        ctx.stroke()
+      }
+      const mid = Math.round(cssH / 2) + 0.5
+      ctx.strokeStyle = 'rgba(51, 209, 235, 0.09)'
+      ctx.beginPath()
+      ctx.moveTo(0, mid)
+      ctx.lineTo(cssW, mid)
+      ctx.stroke()
+      ctx.restore()
+    }
+
     const availH  = cssH - PAD * 2
     const centerY = PAD + availH / 2
     const halfH   = availH / 2
     const timeToX = (t: number) => ((t - winStart) / winLen) * cssW
     const progressX = timeToX(ct)
 
-    if (ana) {
+    if (ana && mono) {
+      const { binCount, positivePeaks, negativePeaks, rms } = ana
+      const startFrac = winStart / safe
+      const endFrac   = winEnd / safe
+      const bi0 = Math.max(0, Math.floor(startFrac * binCount))
+      const bi1 = Math.min(binCount - 1, Math.ceil(endFrac * binCount))
+      const visibleBins = Math.max(1, bi1 - bi0 + 1)
+      const pitch = 4
+      const barWidth = 2
+      const barCount = Math.max(1, Math.floor(cssW / pitch))
+
+      ctx.save()
+      ctx.shadowColor = 'rgba(58, 219, 247, 0.45)'
+      ctx.shadowBlur = 4
+      for (let i = 0; i < barCount; i++) {
+        const frac0 = i / barCount
+        const frac1 = (i + 1) / barCount
+        const b0 = Math.min(binCount - 1, bi0 + Math.floor(frac0 * visibleBins))
+        const b1 = Math.min(binCount - 1, bi0 + Math.max(0, Math.floor(frac1 * visibleBins)))
+        let amp = 0
+        for (let b = b0; b <= Math.max(b0, b1); b++) {
+          amp = Math.max(amp, rms[b], positivePeaks[b] * 0.78, negativePeaks[b] * 0.78)
+        }
+        const barH = Math.max(2, Math.min(availH, amp * availH * 0.96))
+        const x = i * pitch + Math.max(0, (pitch - barWidth) / 2)
+        const y = centerY - barH / 2
+        const barTime = winStart + ((i + 0.5) / barCount) * winLen
+        ctx.fillStyle = barTime <= ct
+          ? 'rgba(72, 230, 255, 0.98)'
+          : 'rgba(48, 198, 225, 0.74)'
+        ctx.fillRect(x, y, barWidth, barH)
+      }
+      ctx.restore()
+    } else if (ana) {
       const { binCount, positivePeaks, negativePeaks, rms, lowEnergy, midEnergy, highEnergy } = ana
       const startFrac = winStart / safe
       const endFrac   = winEnd   / safe
@@ -181,7 +253,9 @@ export function RgbWaveformCanvas({
         const peakT = winStart + ((si + i) / pk.length) * safe
         const barH  = Math.max(1, vis[i] * availH)
         const y     = PAD + (availH - barH) / 2
-        ctx.fillStyle = peakT < ct ? 'rgba(74,199,219,0.75)' : 'rgba(255,255,255,0.16)'
+        ctx.fillStyle = mono
+          ? (peakT < ct ? 'rgba(72,230,255,0.96)' : 'rgba(48,198,225,0.66)')
+          : (peakT < ct ? 'rgba(74,199,219,0.75)' : 'rgba(255,255,255,0.16)')
         ctx.fillRect(i * bw, y, Math.max(1, bw - 0.5), barH)
       }
 
@@ -195,13 +269,13 @@ export function RgbWaveformCanvas({
 
     } else {
       // ── Placeholder ───────────────────────────────────────────────────────
-      const bars  = 80
+      const bars  = mono ? Math.max(80, Math.floor(cssW / 4)) : 80
       const barW  = cssW / bars
       for (let i = 0; i < bars; i++) {
         const h = (Math.sin(i * 0.38) * 0.26 + 0.13) * availH
         const y = PAD + (availH - h) / 2
-        ctx.fillStyle = 'rgba(255,255,255,0.05)'
-        ctx.fillRect(i * barW + 0.5, y, barW - 1, h)
+        ctx.fillStyle = mono ? 'rgba(48,198,225,0.18)' : 'rgba(255,255,255,0.05)'
+        ctx.fillRect(i * barW + 0.5, y, Math.max(1, barW - (mono ? 2 : 1)), h)
       }
     }
 
@@ -227,7 +301,7 @@ export function RgbWaveformCanvas({
     }
   }, [])
 
-  useEffect(() => { draw() }, [draw, analysis, currentTime, duration, zoom, markers, fallbackPeaks])
+  useEffect(() => { draw() }, [draw, analysis, currentTime, duration, zoom, markers, fallbackPeaks, monochrome])
 
   // Sync canvas physical resolution to CSS layout size, accounting for DPR.
   useEffect(() => {

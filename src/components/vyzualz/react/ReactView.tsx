@@ -575,6 +575,7 @@ export function ReactView() {
         compact={stageFocus}
         deckLabel="Track Deck"
         unifiedTimeline={workspaceComposition.showTrackMap && lowerSurface === 'trackMap' && !stageFocus}
+        waveformAppearance="deck"
       />
     </div>
   )

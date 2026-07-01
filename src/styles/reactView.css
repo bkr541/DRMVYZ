@@ -4934,9 +4934,11 @@
 }
 
 .rv-lower-workspace-surface {
+  height: 205px;
   max-height: 205px;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .rv-lower-workspace-surface[hidden] {
@@ -4944,14 +4946,314 @@
 }
 
 .rv-track-map-strip--embedded {
-  max-height: 205px;
+  min-height: 100%;
+  max-height: none;
   border-top: 0;
   background: transparent;
+  overflow: visible;
 }
 
 .rv-track-map-strip--embedded .rv-strip-meta-row {
   padding-top: 4px;
   padding-bottom: 4px;
+}
+
+.rv-strip-title-sub {
+  font-size: 8px;
+  line-height: 1;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: rgba(74, 199, 219, 0.42);
+  white-space: nowrap;
+}
+
+/* ── Restored Track Map lane geometry ────────────────────────────────────── */
+.rv-track-map-strip--embedded .rv-timeline-lanes {
+  position: relative;
+  display: grid;
+  grid-template-rows: 24px 44px 48px 32px 38px;
+  min-height: 186px;
+  padding: 0 var(--rv-timeline-inline-pad);
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    linear-gradient(180deg, rgba(74, 199, 219, 0.032), transparent 30%),
+    #071018;
+  border-left: 1px solid rgba(74, 199, 219, 0.18);
+  border-right: 1px solid rgba(74, 199, 219, 0.18);
+  border-bottom: 1px solid rgba(74, 199, 219, 0.22);
+  box-shadow: inset 0 -10px 22px rgba(0, 0, 0, 0.16);
+}
+
+.rv-timeline-lane {
+  display: grid;
+  grid-template-columns:
+    var(--rv-timeline-label-width)
+    minmax(0, 1fr)
+    var(--rv-timeline-tool-width);
+  column-gap: var(--rv-timeline-column-gap);
+  align-items: stretch;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-top: 1px solid rgba(74, 199, 219, 0.09);
+}
+
+.rv-timeline-lane:first-child { border-top: 0; }
+
+.rv-timeline-lane-label {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding: 4px 7px 4px 4px;
+  overflow: hidden;
+  border-right: 1px solid rgba(74, 199, 219, 0.08);
+  background: linear-gradient(90deg, rgba(8, 17, 25, 0.97), rgba(8, 17, 25, 0.76));
+}
+
+.rv-timeline-lane-label strong {
+  overflow: hidden;
+  color: rgba(232, 244, 248, 0.74);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.075em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.rv-timeline-lane-label span {
+  overflow: hidden;
+  margin-top: 2px;
+  color: rgba(232, 244, 248, 0.34);
+  font-size: 8px;
+  line-height: 1.1;
+  letter-spacing: 0.035em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rv-timeline-lane-content {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background-color: rgba(5, 11, 17, 0.76);
+  background-image:
+    linear-gradient(to right, rgba(74, 199, 219, 0.055) 1px, transparent 1px),
+    linear-gradient(to right, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+  background-size: 16.6667% 100%, 4.1667% 100%;
+}
+
+.rv-timeline-ruler-content {
+  background-color: rgba(4, 10, 15, 0.9);
+  background-image: none;
+}
+
+.rv-timeline-ruler-canvas,
+.rv-timeline-lane--energy .rv-energy-canvas,
+.rv-timeline-lane--beats .rv-beat-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.rv-timeline-lane-content.rv-beat-canvas-wrap {
+  width: auto;
+  height: auto;
+  flex: none;
+  border: 0;
+}
+
+.rv-timeline-lane-content .rv-section-timeline {
+  height: 32px;
+  margin: 5px 0;
+}
+
+.rv-timeline-lane-empty {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  min-width: 0;
+  padding: 0 8px;
+  overflow: hidden;
+  color: rgba(232, 244, 248, 0.3);
+  font-size: 8.5px;
+  letter-spacing: 0.025em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rv-timeline-lane-tools {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 3px 1px;
+  overflow: hidden;
+  border-left: 1px solid rgba(74, 199, 219, 0.08);
+  background: linear-gradient(270deg, rgba(8, 17, 25, 0.97), rgba(8, 17, 25, 0.76));
+}
+
+.rv-timeline-tool-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid rgba(232, 244, 248, 0.11);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.025);
+  color: rgba(232, 244, 248, 0.52);
+  font: 700 10px/1 var(--az-font, sans-serif);
+  cursor: pointer;
+}
+
+.rv-timeline-tool-btn:hover:not(:disabled) {
+  border-color: rgba(74, 199, 219, 0.38);
+  background: rgba(74, 199, 219, 0.08);
+  color: #4ac7db;
+}
+
+.rv-timeline-tool-btn--accent { color: #4ac7db; }
+.rv-timeline-tool-btn--danger { color: rgba(224, 95, 112, 0.72); }
+.rv-timeline-tool-btn:disabled { opacity: 0.25; cursor: default; }
+
+.rv-timeline-lane-select {
+  width: 66px;
+  min-width: 0;
+  height: 22px;
+  padding: 0 3px;
+  border: 1px solid rgba(74, 199, 219, 0.17);
+  border-radius: 4px;
+  outline: 0;
+  background: rgba(5, 11, 17, 0.92);
+  color: rgba(232, 244, 248, 0.58);
+  font: 600 7.5px/1 var(--az-font, sans-serif);
+  letter-spacing: 0.015em;
+}
+
+.rv-timeline-zoom-readout,
+.rv-timeline-lane-state {
+  color: rgba(74, 199, 219, 0.62);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.rv-timeline-cue-lane { overflow: hidden; }
+
+.rv-timeline-cue {
+  position: absolute;
+  top: 5px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 128px;
+  height: 27px;
+  padding: 0 7px 0 5px;
+  transform: translateX(-5px);
+  border: 1px solid color-mix(in srgb, var(--cue-color, #4ac7db) 30%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--cue-color, #4ac7db) 10%, rgba(5, 10, 16, 0.9));
+  color: rgba(232, 244, 248, 0.7);
+  cursor: pointer;
+  z-index: 2;
+}
+
+.rv-timeline-cue:hover {
+  border-color: color-mix(in srgb, var(--cue-color, #4ac7db) 64%, transparent);
+  background: color-mix(in srgb, var(--cue-color, #4ac7db) 17%, rgba(5, 10, 16, 0.9));
+}
+
+.rv-timeline-cue--disabled { opacity: 0.35; }
+
+.rv-timeline-cue-diamond {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  transform: rotate(45deg);
+  background: var(--cue-color, #4ac7db);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--cue-color, #4ac7db) 58%, transparent);
+}
+
+.rv-timeline-cue-label {
+  overflow: hidden;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rv-timeline-playhead-layer {
+  position: absolute;
+  top: 0;
+  right: calc(var(--rv-timeline-inline-pad) + var(--rv-timeline-tool-width) + var(--rv-timeline-column-gap));
+  bottom: 0;
+  left: calc(var(--rv-timeline-inline-pad) + var(--rv-timeline-label-width) + var(--rv-timeline-column-gap));
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.rv-timeline-shared-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: none;
+  width: 1px;
+  transform: translateX(-0.5px);
+  background: rgba(74, 199, 219, 0.94);
+  box-shadow: 0 0 8px rgba(74, 199, 219, 0.58);
+}
+
+.rv-timeline-shared-playhead::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -4px;
+  width: 0;
+  height: 0;
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+  border-top: 6px solid #4ac7db;
+}
+
+.rv-timeline-editor-drawer {
+  margin: 0 var(--rv-timeline-inline-pad) 8px;
+  border: 1px solid rgba(74, 199, 219, 0.18);
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+  background: rgba(6, 13, 20, 0.98);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
+}
+
+.rv-timeline-editor-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  padding: 4px 9px;
+  border-bottom: 1px solid rgba(74, 199, 219, 0.09);
+  color: rgba(232, 244, 248, 0.6);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rv-timeline-editor-close {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(232, 244, 248, 0.4);
+  font-size: 16px;
+  cursor: pointer;
 }
 
 .rv-pads-section--embedded {
@@ -4986,112 +5288,187 @@
   pointer-events: none;
 }
 
-/* ── React Track Deck: slimmer default and ultra-compact focus state ──────── */
+/* ── React Track Deck: full-height three-card performance layout ─────────── */
 .rv-shell > .az-dock.vz-transport-dock {
-  height: 128px;
-  padding: 0 8px 8px;
-  gap: 8px;
+  height: 176px;
+  padding: 10px 12px 12px;
+  gap: 10px;
+  grid-template-columns:
+    minmax(350px, var(--vz-left-width, 390px))
+    minmax(320px, 1fr)
+    minmax(286px, var(--vz-right-width, 322px));
 }
 
 .rv-shell > .vz-transport-dock .vz-dock-card {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
+  border-radius: 12px;
+  border-color: rgba(74, 199, 219, 0.34);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(74, 199, 219, 0.055), transparent 44%),
+    linear-gradient(180deg, rgba(10, 17, 24, 0.98), rgba(5, 10, 16, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
+    inset 0 0 20px rgba(74, 199, 219, 0.025),
+    0 8px 24px rgba(0, 0, 0, 0.32);
 }
 
 .rv-shell > .vz-transport-dock .vz-dock-left {
   position: relative;
-  grid-template-columns: 56px minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) 28px;
-  column-gap: 9px;
-  row-gap: 5px;
-  padding: 23px 10px 7px;
+  grid-template-columns: 82px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  column-gap: 14px;
+  row-gap: 0;
+  padding: 28px 13px 12px;
 }
 
 .rv-shell .vz-dock-card-label {
   position: absolute;
-  top: 7px;
-  left: 11px;
-  color: rgba(103, 247, 255, 0.84);
-  font: 800 8px/1 var(--az-font);
+  top: 9px;
+  left: 13px;
+  color: rgba(103, 247, 255, 0.88);
+  font: 800 9px/1 var(--az-font);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   pointer-events: none;
 }
 
 .rv-shell > .vz-transport-dock .vz-dock-art {
-  width: 56px !important;
-  height: 56px !important;
-  border-radius: 8px;
+  width: 82px !important;
+  height: 108px !important;
+  border-radius: 9px;
+  align-self: center;
+  background:
+    linear-gradient(145deg, rgba(21, 39, 55, 0.96), rgba(12, 21, 31, 0.98));
+  box-shadow:
+    inset 0 0 22px rgba(74, 199, 219, 0.05),
+    0 0 0 1px rgba(255, 255, 255, 0.025);
 }
 
 .rv-shell > .vz-transport-dock .vz-dock-art .az-dock-thumb-letter {
-  font-size: 21px !important;
+  font-size: 24px !important;
 }
 
 .rv-shell > .vz-transport-dock .vz-dock-left-body {
+  height: 100%;
+  justify-content: space-between;
+  gap: 7px;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-track-row {
   gap: 3px;
 }
 
 .rv-shell > .vz-transport-dock .vz-dock-track-title {
-  font-size: 11px;
+  font-size: 14px;
+  line-height: 1.15;
 }
 
 .rv-shell > .vz-transport-dock .vz-dock-track-artist {
-  font-size: 8.5px;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-controls-row .az-transport-btn {
-  width: 25px;
-  height: 25px;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-controls-row .az-play-btn {
-  width: 34px;
-  height: 34px;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-addtrack-btn {
-  height: 28px;
-  font-size: 8.5px;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-center,
-.rv-shell > .vz-transport-dock .vz-dock-right {
-  padding: 8px;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-right {
-  gap: 6px;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-right-btns {
-  flex-basis: 29px;
-  gap: 4px;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-bpm-block-val {
-  font-size: 18px;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-tap-btn {
-  width: 48px;
-  height: 48px;
   font-size: 10px;
 }
 
+.rv-shell > .vz-transport-dock .vz-dock-controls-row {
+  justify-content: flex-start;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-controls-row .az-dock-transport {
+  gap: 10px;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-controls-row .az-transport-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-controls-row .az-play-btn {
+  width: 48px;
+  height: 48px;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-volume-row {
+  gap: 8px;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-volume-row .vz-dock-vol-db {
+  width: 46px;
+  font-size: 9.5px;
+}
+
+/* The cover itself is already an upload target. Removing the second, full-width
+   upload row prevents the left deck from collapsing into a stack of controls. */
+.rv-shell > .vz-transport-dock .vz-dock-addtrack-btn {
+  display: none;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-center {
+  padding: 10px;
+  gap: 8px;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-waveform-wrap {
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(4, 10, 15, 0.92);
+  box-shadow:
+    inset 0 0 0 1px rgba(74, 199, 219, 0.16),
+    inset 0 0 24px rgba(74, 199, 219, 0.025);
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-zoom-btns {
+  gap: 6px;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-zoom-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-right {
+  padding: 12px;
+  gap: 10px;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-right-main {
+  gap: 14px;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-right-btns {
+  flex-basis: 40px;
+  gap: 7px;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-right-btns > button {
+  border-radius: 7px;
+  font-size: 10px;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-bpm-block-val {
+  width: 92px;
+  font-size: 24px;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-tap-btn {
+  width: 84px;
+  height: 54px;
+  border-radius: 8px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+}
+
 .rv-shell > .az-dock.vz-transport-dock--focus {
-  height: 76px;
+  height: 82px;
 }
 
 .rv-shell > .vz-transport-dock--focus .vz-dock-left {
-  grid-template-columns: 38px minmax(0, 1fr);
+  grid-template-columns: 40px minmax(0, 1fr);
   grid-template-rows: 1fr;
-  padding: 21px 9px 6px;
+  padding: 24px 10px 7px;
 }
 
 .rv-shell > .vz-transport-dock--focus .vz-dock-art {
-  width: 38px !important;
-  height: 38px !important;
+  width: 40px !important;
+  height: 40px !important;
 }
 
 .rv-shell > .vz-transport-dock--focus .vz-dock-controls-row,
@@ -5106,8 +5483,8 @@
 }
 
 .rv-shell > .vz-transport-dock--focus .vz-dock-tap-btn {
-  width: 42px;
-  height: 42px;
+  width: 46px;
+  height: 46px;
 }
 
 @media (max-width: 1180px) {

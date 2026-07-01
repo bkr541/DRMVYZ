@@ -67,14 +67,17 @@ function deriveBpmState(
 export interface VyzualzAudioDockProps {
   compact?: boolean
   deckLabel?: string
-  /** Align the waveform viewport and chrome with the Track Map directly above it. */
+  /** Keep the waveform viewport aligned with the Track Map directly above it. */
   unifiedTimeline?: boolean
+  /** Select the waveform rendering language used by this dock. */
+  waveformAppearance?: 'rgb' | 'deck'
 }
 
 export function VyzualzAudioDock({
   compact = false,
   deckLabel,
   unifiedTimeline = false,
+  waveformAppearance = 'rgb',
 }: VyzualzAudioDockProps) {
   const {
     presets, activePresetId, bpmSync, toggleBpmSync, setPlaying,
@@ -336,13 +339,7 @@ export function VyzualzAudioDock({
       </div>
 
       {/* ── CENTER: waveform + zoom buttons side by side ─────────────── */}
-      <div className={`vz-dock-center vz-dock-card${unifiedTimeline ? ' vz-dock-center--unified' : ''}`}>
-        {unifiedTimeline && (
-          <div className="vz-dock-timeline-label" aria-hidden="true">
-            <span className="vz-dock-timeline-label-title">Waveform</span>
-            <span className="vz-dock-timeline-label-sub">{waveformZoom > 1 ? `${waveformZoom}× detail` : 'Full track'}</span>
-          </div>
-        )}
+      <div className="vz-dock-center vz-dock-card">
         <div className="vz-dock-waveform-wrap">
           <PeaksWaveformView
             engine={engine}
@@ -351,6 +348,7 @@ export function VyzualzAudioDock({
             rgbAnalysis={rgbAnalysis}
             fallbackPeaks={peaks}
             followTimelineViewport={unifiedTimeline}
+            appearance={waveformAppearance}
           />
         </div>
         <div className="vz-dock-zoom-btns">
