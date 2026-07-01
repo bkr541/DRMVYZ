@@ -16,6 +16,7 @@ import type { PeaksInstance } from 'peaks.js'
 const mockPointsAdd    = vi.fn()
 const mockPointsRemove = vi.fn()
 const mockZoomSetZoom  = vi.fn()
+const mockZoomSetStart = vi.fn()
 const mockZoomFit      = vi.fn()
 const mockOverviewFit  = vi.fn()
 const mockInstanceOn   = vi.fn()
@@ -30,7 +31,7 @@ const mockInstance: Partial<PeaksInstance> = {
   } as unknown as PeaksInstance['points'],
   views: {
     getView: vi.fn((name: string) => {
-      if (name === 'zoomview') return { setZoom: mockZoomSetZoom, fitToContainer: mockZoomFit }
+      if (name === 'zoomview') return { setZoom: mockZoomSetZoom, setStartTime: mockZoomSetStart, fitToContainer: mockZoomFit }
       if (name === 'overview') return { fitToContainer: mockOverviewFit }
       return null
     }),
@@ -78,10 +79,15 @@ const MARKERS: VzCueMarker[] = [
 let container: HTMLElement
 let root: ReturnType<typeof createRoot>
 
-async function mount(engine: AudioEngine, markers = MARKERS, zoom = 1) {
+async function mount(engine: AudioEngine, markers = MARKERS, zoom = 1, followTimelineViewport = false) {
   await act(async () => {
     root.render(
-      <PeaksWaveformView engine={engine} cueMarkers={markers} waveformZoom={zoom} />
+      <PeaksWaveformView
+        engine={engine}
+        cueMarkers={markers}
+        waveformZoom={zoom}
+        followTimelineViewport={followTimelineViewport}
+      />
     )
   })
 }
@@ -403,6 +409,19 @@ describe('PeaksWaveformView', () => {
       })
       // 120 / 2 = 60 seconds
       expect(mockZoomSetZoom).toHaveBeenCalledWith({ seconds: 60 })
+    })
+
+    it('locks the waveform start time to the Track Map viewport in unified mode', async () => {
+      await mount(makeEngine({ duration: 120, getCurrentTime: vi.fn(() => 60) }), [], 2, true)
+      await act(async () => { capturedCb?.(null, mockInstance as PeaksInstance) })
+
+      // 120 second track at 2× zoom shows a centered 60 second window: 30..90.
+      expect(mockZoomSetZoom).toHaveBeenCalledWith({ seconds: 60 })
+      expect(mockZoomSetStart).toHaveBeenCalledWith(30)
+      expect(container.querySelector('.vz-peaks-wrap--unified')).not.toBeNull()
+
+      const opts = vi.mocked(Peaks.init).mock.calls[0][0] as { zoomview: { autoScroll: boolean } }
+      expect(opts.zoomview.autoScroll).toBe(false)
     })
   })
 

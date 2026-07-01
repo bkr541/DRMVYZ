@@ -528,7 +528,7 @@ export function ReactView() {
       </div>
 
       {/* Bottom dock — outside the grid, full width */}
-      <VyzualzAudioDock />
+      <VyzualzAudioDock unifiedTimeline />
     </div>
   )
 }

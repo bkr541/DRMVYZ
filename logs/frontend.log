@@ -16,3 +16,9 @@
 11:38:54 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
 11:38:54 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
 11:38:54 PM [vite] hmr update /src/styles/reactView.css
+11:58:13 PM [vite] hmr update /src/components/vyzualz/react/ReactTrackMapStrip.tsx
+11:58:13 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
+11:58:13 PM [vite] hmr update /src/components/vyzualz/shared/VyzualzAudioDock.tsx
+11:58:13 PM [vite] hmr update /src/components/vyzualz/transport/PeaksWaveformView.tsx
+11:58:13 PM [vite] hmr update /src/styles/reactView.css
+11:58:13 PM [vite] hmr update /src/styles/vyzualz.css

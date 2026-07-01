@@ -6,6 +6,7 @@ import type { VzCueMarker } from '../../../types/cue'
 import { PeaksAudioEngineAdapter } from './peaksAudioEngineAdapter'
 import { RgbWaveformCanvas } from './RgbWaveformCanvas'
 import type { RgbWaveformAnalysis } from '../../../features/waveform/rgbWaveformTypes'
+import { computeWaveformViewport } from '../../../features/timeline/timelineViewport'
 
 export interface PeaksWaveformViewProps {
   engine:         AudioEngine
@@ -13,6 +14,8 @@ export interface PeaksWaveformViewProps {
   waveformZoom:   number
   rgbAnalysis?:   RgbWaveformAnalysis | null
   fallbackPeaks?: number[] | null
+  /** Keep the zoom view locked to the same centered viewport used by Track Map. */
+  followTimelineViewport?: boolean
 }
 
 export function syncCueMarkers(instance: PeaksInstance, markers: VzCueMarker[]): void {
@@ -36,6 +39,7 @@ export function PeaksWaveformView({
   waveformZoom,
   rgbAnalysis,
   fallbackPeaks,
+  followTimelineViewport = false,
 }: PeaksWaveformViewProps) {
   const overviewRef = useRef<HTMLDivElement>(null)
   const zoomviewRef = useRef<HTMLDivElement>(null)
@@ -48,6 +52,8 @@ export function PeaksWaveformView({
   cueMarkersRef.current   = cueMarkers
   const waveformZoomRef   = useRef(waveformZoom)
   waveformZoomRef.current = waveformZoom
+  const followTimelineViewportRef = useRef(followTimelineViewport)
+  followTimelineViewportRef.current = followTimelineViewport
 
   // Generation counter — incremented on every destroyPeaks() to invalidate
   // any in-flight Peaks.init callback (handles StrictMode double-invoke + track change).
@@ -95,8 +101,8 @@ export function PeaksWaveformView({
           playheadColor:       '#4ac7db',
           showPlayheadTime:    false,
           showAxisLabels:      false,
-          autoScroll:          true,
-          autoScrollOffset:    0.2,
+          autoScroll:          !followTimelineViewportRef.current,
+          autoScrollOffset:    0,
         },
         overview: {
           container:            overviewEl,
@@ -151,9 +157,14 @@ export function PeaksWaveformView({
         // Apply the current zoom setting
         const dur = engineRef.current.duration
         if (dur > 0) {
-          instance.views
-            .getView('zoomview')
-            ?.setZoom({ seconds: Math.max(1, dur / waveformZoomRef.current) })
+          const zoomview = instance.views.getView('zoomview')
+          zoomview?.setZoom({ seconds: Math.max(1, dur / waveformZoomRef.current) })
+          if (followTimelineViewportRef.current) {
+            const currentTime = engineRef.current.getCurrentTime()
+            zoomview?.setStartTime(
+              computeWaveformViewport(dur, currentTime, waveformZoomRef.current).startSec,
+            )
+          }
         }
 
         adapter.notifyCanPlay()
@@ -197,8 +208,45 @@ export function PeaksWaveformView({
     const peaks = peaksRef.current
     const dur   = engineRef.current.duration
     if (!peaks || dur <= 0) return
-    peaks.views.getView('zoomview')?.setZoom({ seconds: Math.max(1, dur / waveformZoom) })
-  }, [waveformZoom])
+    const zoomview = peaks.views.getView('zoomview')
+    zoomview?.setZoom({ seconds: Math.max(1, dur / waveformZoom) })
+    if (followTimelineViewport) {
+      zoomview?.setStartTime(
+        computeWaveformViewport(dur, engineRef.current.getCurrentTime(), waveformZoom).startSec,
+      )
+    }
+  }, [waveformZoom, followTimelineViewport])
+
+  // Peaks' built-in auto-scroll positions the playhead by pixel threshold, while
+  // Track Map follows a centered time viewport. In unified mode, explicitly lock
+  // the Peaks zoom view to the shared viewport every frame so both surfaces show
+  // the same start/end time and the playhead lands at the same horizontal ratio.
+  useEffect(() => {
+    if (!followTimelineViewport) return
+
+    let rafId = 0
+    let lastStartSec = Number.NaN
+    const tick = () => {
+      const peaks = peaksRef.current
+      const eng   = engineRef.current
+      const dur   = eng.duration
+      if (peaks && dur > 0) {
+        const startSec = computeWaveformViewport(
+          dur,
+          eng.getCurrentTime(),
+          waveformZoomRef.current,
+        ).startSec
+        if (!Number.isFinite(lastStartSec) || Math.abs(startSec - lastStartSec) > 0.002) {
+          peaks.views.getView('zoomview')?.setStartTime(startSec)
+          lastStartSec = startSec
+        }
+      }
+      rafId = requestAnimationFrame(tick)
+    }
+
+    rafId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafId)
+  }, [followTimelineViewport, currentTrackId])
 
   // ── Sync VzCueMarkers → Peaks point markers ───────────────────────────────
   useEffect(() => {
@@ -232,7 +280,7 @@ export function PeaksWaveformView({
   }, [destroyPeaks])
 
   return (
-    <div className="vz-peaks-wrap">
+    <div className={`vz-peaks-wrap${followTimelineViewport ? ' vz-peaks-wrap--unified' : ''}`}>
       {/* Peaks containers are always in the DOM so Peaks can mount/resize into them */}
       <div className="vz-peaks-overview" ref={overviewRef} />
       <div className="vz-peaks-zoomview" ref={zoomviewRef} />

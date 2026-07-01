@@ -64,7 +64,12 @@ function deriveBpmState(
   return { kind: 'none' }
 }
 
-export function VyzualzAudioDock() {
+interface VyzualzAudioDockProps {
+  /** Align the dock waveform with the React Track Map lane viewport. */
+  unifiedTimeline?: boolean
+}
+
+export function VyzualzAudioDock({ unifiedTimeline = false }: VyzualzAudioDockProps = {}) {
   const {
     presets, activePresetId, bpmSync, toggleBpmSync, setPlaying,
     cuePoint, setCuePoint, beatGridEnabled, setBeatGridEnabled,
@@ -241,7 +246,7 @@ export function VyzualzAudioDock() {
   const volPct  = `${Math.round(vol * 100)}%`
 
   return (
-    <div className="az-dock vz-transport-dock">
+    <div className={`az-dock vz-transport-dock${unifiedTimeline ? ' vz-transport-dock--unified' : ''}`}>
 
       {/* ── LEFT: sidebar + left-inspector footprint ─────────────────── */}
       <div className="vz-dock-left vz-dock-card">
@@ -324,7 +329,13 @@ export function VyzualzAudioDock() {
       </div>
 
       {/* ── CENTER: waveform + zoom buttons side by side ─────────────── */}
-      <div className="vz-dock-center vz-dock-card">
+      <div className={`vz-dock-center vz-dock-card${unifiedTimeline ? ' vz-dock-center--unified' : ''}`}>
+        {unifiedTimeline && (
+          <div className="vz-dock-timeline-label" aria-hidden="true">
+            <span className="vz-dock-timeline-label-title">Waveform</span>
+            <span className="vz-dock-timeline-label-sub">{waveformZoom > 1 ? `${waveformZoom}× detail` : 'Full track'}</span>
+          </div>
+        )}
         <div className="vz-dock-waveform-wrap">
           <PeaksWaveformView
             engine={engine}
@@ -332,6 +343,7 @@ export function VyzualzAudioDock() {
             waveformZoom={waveformZoom}
             rgbAnalysis={rgbAnalysis}
             fallbackPeaks={peaks}
+            followTimelineViewport={unifiedTimeline}
           />
         </div>
         <div className="vz-dock-zoom-btns">

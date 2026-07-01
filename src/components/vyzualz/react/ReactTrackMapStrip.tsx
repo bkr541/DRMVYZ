@@ -314,6 +314,69 @@ export function drawEnergyCanvas(
   ctx.stroke()
 }
 
+/** Draws the shared visible-time ruler used above every Track Map lane. */
+export function drawTimelineRuler(
+  canvas: HTMLCanvasElement,
+  viewport: TimelineViewport,
+  divisions = 6,
+): void {
+  const ctx = setupCanvas(canvas)
+  if (!ctx) return
+  const w = canvas.offsetWidth
+  const h = canvas.offsetHeight
+  const span = viewport.endSec - viewport.startSec
+  if (w <= 0 || h <= 0 || !Number.isFinite(span) || span <= 0) return
+
+  ctx.clearRect(0, 0, w, h)
+  ctx.font = '9px sans-serif'
+  ctx.textBaseline = 'top'
+  ctx.fillStyle = 'rgba(232,244,248,0.42)'
+  ctx.strokeStyle = 'rgba(74,199,219,0.12)'
+  ctx.lineWidth = 1
+
+  const count = Math.max(2, Math.floor(divisions))
+  for (let i = 0; i <= count; i++) {
+    const ratio = i / count
+    const x = Math.round(ratio * w) + 0.5
+    const timeSec = viewport.startSec + ratio * span
+
+    ctx.beginPath()
+    ctx.moveTo(x, h - 5)
+    ctx.lineTo(x, h)
+    ctx.stroke()
+
+    const label = formatTime(Math.max(0, timeSec))
+    ctx.textAlign = i === 0 ? 'left' : i === count ? 'right' : 'center'
+    ctx.fillText(label, Math.max(1, Math.min(w - 1, x)), 2)
+  }
+}
+
+export interface TimelineCueLayout {
+  visible: boolean
+  leftPct: number
+}
+
+/** Computes viewport-relative marker placement for preset and transport cues. */
+export function computeTimelineCueLayout(
+  timeSec: number,
+  viewport: TimelineViewport,
+): TimelineCueLayout {
+  const ratio = timeToViewportRatio(timeSec, viewport)
+  return {
+    visible: Number.isFinite(timeSec) && ratio >= -0.0001 && ratio <= 1.0001,
+    leftPct: ratio * 100,
+  }
+}
+
+function applyTimelineCueViewport(container: HTMLDivElement, viewport: TimelineViewport): void {
+  container.querySelectorAll<HTMLElement>('[data-timeline-cue]').forEach(marker => {
+    const timeSec = Number(marker.dataset.cueTime)
+    const layout = computeTimelineCueLayout(timeSec, viewport)
+    marker.style.display = layout.visible ? '' : 'none'
+    if (layout.visible) marker.style.left = `${layout.leftPct}%`
+  })
+}
+
 // ── Section editor mode ───────────────────────────────────────────────────────
 
 export type SectionEditorMode = 'none' | 'create' | 'edit'
@@ -1090,8 +1153,12 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     removePresetAutomationCue:       s.removePresetAutomationCue,
   })))
 
-  const { waveformZoom, beatGridEnabled } = useVisualStore(
-    useShallow(s => ({ waveformZoom: s.waveformZoom, beatGridEnabled: s.beatGridEnabled }))
+  const { waveformZoom, beatGridEnabled, cueMarkers } = useVisualStore(
+    useShallow(s => ({
+      waveformZoom: s.waveformZoom,
+      beatGridEnabled: s.beatGridEnabled,
+      cueMarkers: s.cueMarkers,
+    }))
   )
 
   const [collapsed,      setCollapsed]      = useState(true)
@@ -1108,8 +1175,10 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
   })
 
   const stripRef        = useRef<HTMLDivElement>(null)
+  const rulerCanvasRef  = useRef<HTMLCanvasElement>(null)
   const beatCanvasRef   = useRef<HTMLCanvasElement>(null)
   const energyCanvasRef = useRef<HTMLCanvasElement>(null)
+  const cueTimelineRef  = useRef<HTMLDivElement>(null)
   const playheadRef     = useRef<HTMLDivElement>(null)
   const rafRef          = useRef<number | null>(null)
   const sectionTimelineRef = useRef<SectionTimelineHandle>(null)
@@ -1146,6 +1215,27 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
   const assignedSectionIds = new Set(
     trackCues.filter(c => c.sectionId != null).map(c => c.sectionId!)
   )
+  const timelineCueItems = [
+    ...trackCues.map(cue => {
+      const preset = reactPresets.find(candidate => candidate.id === cue.presetId)
+      return {
+        id: `preset:${cue.id}`,
+        timeSec: cue.timeSec,
+        label: cue.label,
+        color: preset?.palette.primary ?? '#b84fc9',
+        kind: 'preset' as const,
+        enabled: cue.enabled,
+      }
+    }),
+    ...cueMarkers.map(cue => ({
+      id: `transport:${cue.id}`,
+      timeSec: cue.time,
+      label: cue.label,
+      color: cue.color ?? '#4ac7db',
+      kind: 'cue' as const,
+      enabled: true,
+    })),
+  ].filter(cue => Number.isFinite(cue.timeSec))
 
   // Derived
   const hasTrack    = currentTrack != null
@@ -1222,6 +1312,15 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
     setLayoutViewport(vp)
   }, [waveformZoom, durationSec, getCurrentTime])
 
+  // Shared ruler and cue geometry use the same viewport as sections, energy,
+  // beat ticks, and the dock waveform. ResizeObserver increments drawTick.
+  useEffect(() => {
+    const ruler = rulerCanvasRef.current
+    if (ruler) drawTimelineRuler(ruler, viewportRef.current)
+    const cueLane = cueTimelineRef.current
+    if (cueLane) applyTimelineCueViewport(cueLane, viewportRef.current)
+  }, [drawTick, collapsed, waveformZoom, durationSec, trackCues, cueMarkers])
+
   // Beat canvas — redraws when analysis, zoom, effective override, or collapse changes.
   // When a manual BPM override is active, currentEffectiveBeatGrid contains the
   // regenerated markers; we pass them as `effective` so the canvas reflects the
@@ -1285,6 +1384,11 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
       const vpChanged = prev.startSec !== vp.startSec || prev.endSec !== vp.endSec
       if (vpChanged && !collapsedRef.current && isCompleteRef.current) {
         viewportRef.current = vp
+
+        const ruler = rulerCanvasRef.current
+        if (ruler) drawTimelineRuler(ruler, vp)
+        const cueLane = cueTimelineRef.current
+        if (cueLane) applyTimelineCueViewport(cueLane, vp)
 
         const analysis = currentAnalysisRef.current
         if (analysis) {
@@ -1541,7 +1645,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
   }
 
   return (
-    <div className="rv-track-map-strip" ref={stripRef}>
+    <div className="rv-track-map-strip" ref={stripRef} data-unified-timeline="true">
       <div
         className="rv-strip-header rv-strip-header--toggle"
         role="button"
@@ -1556,6 +1660,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
           <path d="M29.002,0v368.238L256.002,512l226.996-143.762V0H29.002z M379.593,247.561H287.92v91.659h-63.836v-91.659h-91.673v-63.843h91.673v-91.68h63.836v91.68h91.673V247.561z"/>
         </svg>
         <span className="rv-strip-title">Track Map</span>
+        <span className="rv-strip-title-sub">Timeline lanes</span>
         {hasTrack && currentAnalysisStatus !== 'not_analyzed' && (
           <span
             className="rv-strip-status-dot"
@@ -1565,7 +1670,6 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
             {isWorking ? '◌' : currentAnalysisStatus === 'failed' ? '✕' : '●'}
           </span>
         )}
-        {/* Compact analysis-state badge — stale, reanalyzing, or failed */}
         {isComplete && (
           currentBpmReanalysisStatus === 'reanalyzing' ? (
             <span className="rv-strip-analysis-badge rv-strip-analysis-badge--progress">◌ Reanalyzing…</span>
@@ -1592,64 +1696,9 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
 
       {!collapsed && (
         <>
-          {/* Section type legend + energy curve selector */}
-          {isComplete && (
-            <div className="rv-strip-meta-row">
-              <div className="rv-strip-type-legend">
-                {SECTION_ORDER.filter(t => t !== 'unknown').map(t => (
-                  <span key={t} className="rv-legend-item" style={{ color: SECTION_COLORS[t] }}>
-                    {t}
-                  </span>
-                ))}
-              </div>
-              <select
-                className="rv-energy-select rv-energy-select--inline"
-                value={energyCurveKey}
-                onChange={e => setEnergyCurveKey(e.target.value as EnergyCurveKey)}
-                title="Energy curve"
-                aria-label="Energy curve"
-              >
-                {ENERGY_CURVE_OPTIONS.map(o => (
-                  <option key={o.key} value={o.key}>{o.label}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Beat grid canvas + playhead — canvas cleared when GRID is toggled off */}
-          {isComplete && (
-            <div className="rv-beat-canvas-wrap" style={{ position: 'relative' }}>
-              <canvas ref={beatCanvasRef} className="rv-beat-canvas" aria-hidden="true" />
-              {/* Playhead — moved by RAF, not React state */}
-              <div
-                ref={playheadRef}
-                className="rv-playhead"
-                aria-hidden="true"
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: '0%',
-                  width: 2,
-                  height: '100%',
-                  background: 'rgba(255,255,255,0.85)',
-                  pointerEvents: 'none',
-                  display: 'none',
-                }}
-              />
-            </div>
-          )}
-
-          {/* Energy curve canvas */}
-          {isComplete && (
-            <div className="rv-energy-row">
-              <canvas ref={energyCanvasRef} className="rv-energy-canvas" aria-hidden="true" />
-            </div>
-          )}
-
-          {/* States: no track / not yet analyzed / analyzing / failed / complete+empty */}
           {!hasTrack && (
             <div className="rv-strip-empty">
-              Load a track to generate its beat grid, energy map, and sections.
+              Load a track to generate its beat grid, energy map, sections, and cue lanes.
             </div>
           )}
           {hasTrack && currentAnalysisStatus === 'not_analyzed' && (
@@ -1684,8 +1733,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
             </div>
           )}
 
-          {/* Unified proportional section timeline + contextual inspector */}
-          {(() => {
+          {isComplete && (() => {
             const selectedSection = editorMode === 'edit' && selectedSectionId
               ? resolvedSections.find(s => s.id === selectedSectionId) ?? null
               : null
@@ -1694,103 +1742,205 @@ export function ReactTrackMapStrip({ audioDurationSec = 180 }: ReactTrackMapStri
               : null
 
             return (
-              <div className="rv-section-group">
-                <div className="rv-section-group-header">
-                  <span className="rv-section-group-label">Sections</span>
-                  <div className="rv-section-group-actions">
-                    {/* Reanalyze bypasses cache; Retry only re-queues and may use cache */}
-                    {isComplete && (
+              <>
+                <div className="rv-timeline-lanes" aria-label="Expandable Track Map timeline lanes">
+                  <div className="rv-timeline-lane rv-timeline-lane--ruler">
+                    <div className="rv-timeline-lane-label">
+                      <strong>Visible Range</strong>
+                      <span>Shared with waveform</span>
+                    </div>
+                    <div className="rv-timeline-lane-content rv-timeline-ruler-content">
+                      <canvas ref={rulerCanvasRef} className="rv-timeline-ruler-canvas" aria-hidden="true" />
+                    </div>
+                    <div className="rv-timeline-lane-tools rv-timeline-zoom-readout" title="Waveform zoom">
+                      {waveformZoom}×
+                    </div>
+                  </div>
+
+                  <div className="rv-timeline-lane rv-timeline-lane--sections">
+                    <div className="rv-timeline-lane-label">
+                      <strong>Sections</strong>
+                      <span>Structure</span>
+                    </div>
+                    <div className="rv-timeline-lane-content">
+                      {resolvedSections.length > 0 ? (
+                        <SectionTimeline
+                          ref={sectionTimelineRef}
+                          sections={resolvedSections}
+                          durationSec={durationSec}
+                          viewport={viewportRef.current}
+                          viewportRef={viewportRef}
+                          beatGrid={currentEffectiveBeatGrid ?? currentAnalysis?.beatGrid ?? undefined}
+                          effectiveBpm={currentEffectiveBpm}
+                          selectedId={selectedSectionId}
+                          onSelect={handleSelectSection}
+                          onRemove={activeTrackId ? handleRemove : undefined}
+                          onCommitBoundary={handleCommitBoundary}
+                          onDragPreview={handleDragPreview}
+                          presetAssignedSectionIds={assignedSectionIds}
+                        />
+                      ) : (
+                        <div className="rv-timeline-lane-empty">
+                          No sections yet. Use + to create one.
+                        </div>
+                      )}
+                    </div>
+                    <div className="rv-timeline-lane-tools">
                       <button
-                        className="rv-reanalyze-btn"
+                        className="rv-timeline-tool-btn"
                         onClick={handleReanalyze}
-                        title="Force fresh analysis, bypassing cache"
-                      >
-                        ↺ Reanalyze
-                      </button>
-                    )}
-                    {resolvedSections.length > 0 && (
+                        title="Force fresh analysis"
+                        aria-label="Reanalyze track sections"
+                      >↺</button>
                       <button
-                        className="rv-delete-all-btn"
+                        className="rv-timeline-tool-btn rv-timeline-tool-btn--danger"
                         onClick={handleDeleteAllSections}
-                        title="Clear all sections so you can add your own"
+                        title="Clear all sections"
+                        aria-label="Clear all sections"
+                        disabled={resolvedSections.length === 0}
+                      >✕</button>
+                      <button
+                        className="rv-timeline-tool-btn rv-timeline-tool-btn--accent"
+                        onClick={() => {
+                          if (editorMode === 'create') {
+                            setEditorMode('none')
+                          } else {
+                            if (activeTrackId) setSelectedSectionIdForTrack(activeTrackId, null)
+                            setEditorMode('create')
+                          }
+                        }}
+                        title="Add a manual section"
+                        aria-label="Add a manual section"
+                        disabled={!activeTrackId}
+                      >{editorMode === 'create' ? '−' : '+'}</button>
+                    </div>
+                  </div>
+
+                  <div className="rv-timeline-lane rv-timeline-lane--energy">
+                    <div className="rv-timeline-lane-label">
+                      <strong>Energy</strong>
+                      <span>Intensity</span>
+                    </div>
+                    <div className="rv-timeline-lane-content">
+                      <canvas ref={energyCanvasRef} className="rv-energy-canvas" aria-hidden="true" />
+                    </div>
+                    <div className="rv-timeline-lane-tools">
+                      <select
+                        className="rv-timeline-lane-select"
+                        value={energyCurveKey}
+                        onChange={e => setEnergyCurveKey(e.target.value as EnergyCurveKey)}
+                        title="Energy curve"
+                        aria-label="Energy curve"
                       >
-                        ✕ Delete All
-                      </button>
-                    )}
-                    <button
-                      className="rv-add-section-btn"
-                      onClick={() => {
-                        if (editorMode === 'create') {
-                          setEditorMode('none')
-                        } else {
-                          if (activeTrackId) setSelectedSectionIdForTrack(activeTrackId, null)
-                          setEditorMode('create')
-                        }
-                      }}
-                      title="Add a manual section"
-                      disabled={!activeTrackId}
-                    >
-                      {editorMode === 'create' ? '✕ Cancel' : '+ Add'}
-                    </button>
+                        {ENERGY_CURVE_OPTIONS.map(o => (
+                          <option key={o.key} value={o.key}>{o.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="rv-timeline-lane rv-timeline-lane--beats">
+                    <div className="rv-timeline-lane-label">
+                      <strong>Beat Grid</strong>
+                      <span>{currentEffectiveBpm != null ? `1/4 · ${currentEffectiveBpm.toFixed(2)} BPM` : 'Quarter-note grid'}</span>
+                    </div>
+                    <div className="rv-timeline-lane-content rv-beat-canvas-wrap">
+                      <canvas ref={beatCanvasRef} className="rv-beat-canvas" aria-hidden="true" />
+                    </div>
+                    <div className="rv-timeline-lane-tools rv-timeline-lane-state">
+                      {beatGridEnabled ? 'ON' : 'OFF'}
+                    </div>
+                  </div>
+
+                  <div className="rv-timeline-lane rv-timeline-lane--cues">
+                    <div className="rv-timeline-lane-label">
+                      <strong>Cues / Presets</strong>
+                      <span>Markers & looks</span>
+                    </div>
+                    <div ref={cueTimelineRef} className="rv-timeline-lane-content rv-timeline-cue-lane">
+                      {timelineCueItems.map(cue => {
+                        const layout = computeTimelineCueLayout(cue.timeSec, viewportRef.current)
+                        return (
+                          <button
+                            key={cue.id}
+                            type="button"
+                            data-timeline-cue
+                            data-cue-time={cue.timeSec}
+                            className={`rv-timeline-cue rv-timeline-cue--${cue.kind}${cue.enabled ? '' : ' rv-timeline-cue--disabled'}`}
+                            style={{
+                              display: layout.visible ? undefined : 'none',
+                              left: `${layout.leftPct}%`,
+                              '--cue-color': cue.color,
+                            } as React.CSSProperties}
+                            onClick={() => engine.seek(cue.timeSec)}
+                            title={`${cue.label} · ${formatTimePrecise(cue.timeSec)}`}
+                          >
+                            <span className="rv-timeline-cue-diamond" aria-hidden="true" />
+                            <span className="rv-timeline-cue-label">{cue.label}</span>
+                          </button>
+                        )
+                      })}
+                      {timelineCueItems.length === 0 && (
+                        <span className="rv-timeline-lane-empty">No cue or preset markers</span>
+                      )}
+                    </div>
+                    <div className="rv-timeline-lane-tools rv-timeline-lane-state">
+                      {timelineCueItems.length}
+                    </div>
+                  </div>
+
+                  <div className="rv-timeline-playhead-layer" aria-hidden="true">
+                    <div ref={playheadRef} className="rv-timeline-shared-playhead" />
                   </div>
                 </div>
 
-                {editorMode === 'create' && (
-                  <AddSectionForm onAdd={handleAdd} onCancel={() => setEditorMode('none')} />
-                )}
-
-                {editorMode === 'edit' && selectedSection && (() => {
-                  const src      = selectedSection.source
-                  const isAuto   = src === 'auto'
-                  const isEdited = src === 'user-edited-auto'
-                  const isUser   = !isAuto && !isEdited
-                  return (
-                    <EditSectionForm
-                      section={selectedSection}
-                      durationSec={durationSec}
-                      effectiveBpm={currentEffectiveBpm}
-                      dragPreview={editorDragPreview}
-                      onSave={handleSaveSection}
-                      onCancel={() => {
-                        setEditorMode('none')
-                        if (activeTrackId) setSelectedSectionIdForTrack(activeTrackId, null)
-                      }}
-                      onDelete={isUser ? handleDeleteSection : undefined}
-                      onRestore={isEdited ? handleRestoreSection : undefined}
-                      onSuppress={isAuto ? handleSuppressSection : undefined}
-                      reactPresets={reactPresets}
-                      assignedPresetId={
-                        trackCues.find(c => c.id === buildPresetCueId(selectedSection.id))?.presetId ?? null
-                      }
-                      onAssignPreset={handleAssignPreset}
-                    />
-                  )
-                })()}
-
-                {resolvedSections.length > 0 ? (
-                  <SectionTimeline
-                    ref={sectionTimelineRef}
-                    sections={resolvedSections}
-                    durationSec={durationSec}
-                    viewport={viewportRef.current}
-                    viewportRef={viewportRef}
-                    beatGrid={currentEffectiveBeatGrid ?? currentAnalysis?.beatGrid ?? undefined}
-                    effectiveBpm={currentEffectiveBpm}
-                    selectedId={selectedSectionId}
-                    onSelect={handleSelectSection}
-                    onRemove={activeTrackId ? handleRemove : undefined}
-                    onCommitBoundary={handleCommitBoundary}
-                    onDragPreview={handleDragPreview}
-                    presetAssignedSectionIds={assignedSectionIds}
-                  />
-                ) : (
-                  <div className="rv-section-group-empty">
-                    {activeTrackId
-                      ? <>No sections yet — hit <strong>+ Add</strong> to create one.</>
-                      : 'Load a track to add sections.'}
+                {(editorMode === 'create' || (editorMode === 'edit' && selectedSection)) && (
+                  <div className="rv-timeline-editor-drawer">
+                    <div className="rv-timeline-editor-heading">
+                      <span>{editorMode === 'create' ? 'New Section' : `Edit ${selectedSection?.label ?? 'Section'}`}</span>
+                      <button
+                        type="button"
+                        className="rv-timeline-editor-close"
+                        onClick={() => {
+                          setEditorMode('none')
+                          if (activeTrackId) setSelectedSectionIdForTrack(activeTrackId, null)
+                        }}
+                        aria-label="Close section editor"
+                      >×</button>
+                    </div>
+                    {editorMode === 'create' && (
+                      <AddSectionForm onAdd={handleAdd} onCancel={() => setEditorMode('none')} />
+                    )}
+                    {editorMode === 'edit' && selectedSection && (() => {
+                      const src = selectedSection.source
+                      const isAuto = src === 'auto'
+                      const isEdited = src === 'user-edited-auto'
+                      const isUser = !isAuto && !isEdited
+                      return (
+                        <EditSectionForm
+                          section={selectedSection}
+                          durationSec={durationSec}
+                          effectiveBpm={currentEffectiveBpm}
+                          dragPreview={editorDragPreview}
+                          onSave={handleSaveSection}
+                          onCancel={() => {
+                            setEditorMode('none')
+                            if (activeTrackId) setSelectedSectionIdForTrack(activeTrackId, null)
+                          }}
+                          onDelete={isUser ? handleDeleteSection : undefined}
+                          onRestore={isEdited ? handleRestoreSection : undefined}
+                          onSuppress={isAuto ? handleSuppressSection : undefined}
+                          reactPresets={reactPresets}
+                          assignedPresetId={
+                            trackCues.find(c => c.id === buildPresetCueId(selectedSection.id))?.presetId ?? null
+                          }
+                          onAssignPreset={handleAssignPreset}
+                        />
+                      )
+                    })()}
                   </div>
                 )}
-              </div>
+              </>
             )
           })()}
         </>

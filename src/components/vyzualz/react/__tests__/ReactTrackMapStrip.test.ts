@@ -6,6 +6,8 @@ import {
   buildBarRange,
   drawBeatCanvas,
   drawEnergyCanvas,
+  drawTimelineRuler,
+  computeTimelineCueLayout,
   computeBeatStride,
   ENERGY_CURVE_OPTIONS,
   TRACK_MAP_DOWNBEAT_COLOR,
@@ -83,6 +85,10 @@ function makeCanvas(w = 400, h = 24): HTMLCanvasElement {
     closePath: () => { calls.push('closePath') },
     scale:     () => { calls.push('scale')     },
     setTransform: () => { calls.push('setTransform') },
+    fillText: () => { calls.push('fillText') },
+    font: '',
+    textBaseline: 'top' as CanvasTextBaseline,
+    textAlign: 'left' as CanvasTextAlign,
     strokeStyle: '',
     fillStyle:   '',
     lineWidth:   1,
@@ -144,6 +150,26 @@ describe('formatTime', () => {
     expect(formatTime(65)).toBe('1:05')
     expect(formatTime(180)).toBe('3:00')
     expect(formatTime(3599)).toBe('59:59')
+  })
+})
+
+// Shared timeline ruler and cue placement
+describe('unified timeline helpers', () => {
+  it('draws the visible range ruler without throwing', () => {
+    const canvas = makeCanvas(600, 22)
+    expect(() => drawTimelineRuler(canvas, { startSec: 30, endSec: 90 })).not.toThrow()
+  })
+
+  it('places cues relative to the shared viewport', () => {
+    expect(computeTimelineCueLayout(60, { startSec: 30, endSec: 90 })).toEqual({
+      visible: true,
+      leftPct: 50,
+    })
+  })
+
+  it('hides cues outside the shared viewport', () => {
+    expect(computeTimelineCueLayout(10, { startSec: 30, endSec: 90 }).visible).toBe(false)
+    expect(computeTimelineCueLayout(100, { startSec: 30, endSec: 90 }).visible).toBe(false)
   })
 })
 
