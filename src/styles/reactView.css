@@ -963,9 +963,12 @@
 .rv-reset-btn {
   width: 100%;
   padding: 7px 0;
+  appearance: none;
+  -webkit-appearance: none;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 5px;
+  font-family: inherit;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -979,6 +982,13 @@
   background: rgba(192, 49, 74, 0.12);
   border-color: rgba(192, 49, 74, 0.4);
   color: #c0314a;
+}
+
+.rv-reset-btn:focus-visible {
+  outline: 2px solid #4ac7db;
+  outline-offset: 2px;
+  border-color: rgba(74, 199, 219, 0.55);
+  color: #e8f4f8;
 }
 
 .rv-reset-actions {

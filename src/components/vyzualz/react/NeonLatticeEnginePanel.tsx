@@ -103,9 +103,10 @@ export function NeonLatticeEnginePanel() {
         />
       </Collapsible>
 
-      <div className="rv-engine-panel-reset">
+      <div className="rv-ctrl-footer">
         <button
-          className="rv-btn rv-btn--ghost rv-btn--sm"
+          type="button"
+          className="rv-reset-btn"
           onClick={resetNeonLatticeSettings}
           title="Reset all Neon Lattice settings to defaults"
         >
