@@ -7,6 +7,7 @@ import {
   createSignedAudioUrl,
   deleteAudioTrack,
   deleteAudioFiles,
+  updateAudioTrack,
   createTrackAnalysis,
 } from '../lib/audioDb'
 import type { AudioTrack } from '../types/database'
@@ -34,6 +35,14 @@ export interface SavedAudioTrack {
   bpm: number | null
   musicalKey: string | null
   createdAt: string
+}
+
+export interface SavedAudioMetadataPatch {
+  title: string
+  artist: string | null
+  genre: string | null
+  bpm: number | null
+  musicalKey: string | null
 }
 
 export interface AudioUploadParams {
@@ -87,7 +96,9 @@ interface AudioStoreState {
   loadSavedTracks(): Promise<void>
   uploadAndSaveTrack(params: AudioUploadParams): Promise<SavedAudioTrack | null>
   getSignedUrl(storagePath: string): Promise<string | null>
-  removeSavedTrack(id: string): void
+  updateSavedTrackMetadata(id: string, patch: SavedAudioMetadataPatch): Promise<boolean>
+  removeSavedTrack(id: string): Promise<boolean>
+  clearError(): void
 }
 
 // ── Store ──────────────────────────────────────────────────────────────────────
@@ -98,10 +109,16 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
   loadError: null,
 
   async loadSavedTracks() {
-    if (!supabaseConfigured) return
+    if (!supabaseConfigured) {
+      set({ loadError: 'Supabase is not configured. Saved audio is unavailable.' })
+      return
+    }
     const { data } = await supabase.auth.getUser()
     const userId = data.user?.id
-    if (!userId) return
+    if (!userId) {
+      set({ loadError: 'Sign in to load saved audio tracks.' })
+      return
+    }
 
     set({ loading: true, loadError: null })
     try {
@@ -233,28 +250,82 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
 
   async getSignedUrl(storagePath) {
     const { url, error } = await createSignedAudioUrl(storagePath)
-    if (error) console.warn('[audioStore] signed URL:', error)
+    if (error) {
+      const message = `Audio preview unavailable: ${interpretError(error)}`
+      console.warn('[audioStore] signed URL:', error)
+      set({ loadError: message })
+      return null
+    }
     return url
   },
 
-  removeSavedTrack(id) {
+  async updateSavedTrackMetadata(id, patch) {
     const track = get().savedTracks.find(item => item.id === id)
-    if (!track) return
+    if (!track) {
+      set({ loadError: 'That audio track is no longer available.' })
+      return false
+    }
+
+    const title = patch.title.trim()
+    if (!title) {
+      set({ loadError: 'Track title is required.' })
+      return false
+    }
+    if (patch.bpm !== null && (!Number.isFinite(patch.bpm) || patch.bpm <= 0)) {
+      set({ loadError: 'BPM must be a positive number.' })
+      return false
+    }
+    if (!supabaseConfigured) {
+      set({ loadError: 'Supabase is not configured. Audio metadata was not changed.' })
+      return false
+    }
+
+    const databasePatch = {
+      title,
+      artist: patch.artist?.trim() || null,
+      genre: patch.genre?.trim() || null,
+      bpm: patch.bpm,
+      musical_key: patch.musicalKey?.trim() || null,
+    }
+    const { error } = await updateAudioTrack(track.dbId, databasePatch)
+    if (error) {
+      set({ loadError: `Track update failed: ${interpretError(error)}` })
+      return false
+    }
+
+    set(state => ({
+      savedTracks: state.savedTracks.map(item => item.id === id ? {
+        ...item,
+        title: databasePatch.title,
+        artist: databasePatch.artist,
+        genre: databasePatch.genre,
+        bpm: databasePatch.bpm,
+        musicalKey: databasePatch.musical_key,
+      } : item),
+      loadError: null,
+    }))
+    return true
+  },
+
+  async removeSavedTrack(id) {
+    const track = get().savedTracks.find(item => item.id === id)
+    if (!track) {
+      set({ loadError: 'That audio track is no longer available.' })
+      return false
+    }
 
     if (!supabaseConfigured) {
       set({ loadError: 'Supabase is not configured.' })
-      return
+      return false
     }
 
-    void (async () => {
+    try {
       const { error: databaseError } = await deleteAudioTrack(track.dbId)
       if (databaseError) {
         set({ loadError: `Track deletion failed: ${interpretError(databaseError)}` })
-        return
+        return false
       }
 
-      // Remove the row from local state only after the database transaction has
-      // succeeded. The database owns lyric/job cascades; storage cleanup follows.
       set(state => ({
         savedTracks: state.savedTracks.filter(item => item.id !== id),
         loadError: null,
@@ -262,15 +333,21 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
 
       const derivativePaths = track.transcriptionAssets?.chunks.map(chunk => chunk.storagePath) ?? []
       const storagePaths = [track.storagePath, ...derivativePaths].filter((path): path is string => Boolean(path))
-      if (!storagePaths.length) return
-      const { error: storageError } = await deleteAudioFiles(storagePaths)
-      if (storageError) {
-        set({ loadError: `Track deleted, but audio cleanup failed: ${interpretError(storageError)}` })
+      if (storagePaths.length) {
+        const { error: storageError } = await deleteAudioFiles(storagePaths)
+        if (storageError) {
+          set({ loadError: `Track deleted, but audio cleanup failed: ${interpretError(storageError)}` })
+        }
       }
-    })().catch(error => {
+      return true
+    } catch (error) {
       const message = error instanceof Error ? error.message : 'Unexpected track deletion error'
       console.error('[audioStore] delete:', error)
       set({ loadError: `Track deletion failed: ${interpretError(message)}` })
-    })
+      return false
+    }
   },
+
+  clearError() { set({ loadError: null }) },
+
 }))

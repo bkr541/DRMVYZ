@@ -152,10 +152,12 @@ interface MediaUploadModalProps {
   editItem?: UploadedMedia
   audioOnly?: boolean
   onAudioUploaded?: (tracks: SavedAudioTrack[]) => void
+  /** Keep files preloaded by Media Manager drag-and-drop instead of clearing them on mount. */
+  preserveQueuedFiles?: boolean
 }
 
 export function MediaUploadModal({
-  onClose, editItem, audioOnly = false, onAudioUploaded,
+  onClose, editItem, audioOnly = false, onAudioUploaded, preserveQueuedFiles = false,
 }: MediaUploadModalProps) {
   const isEdit = !!editItem
 
@@ -181,6 +183,8 @@ export function MediaUploadModal({
     collections,
     createCollection,
     loadCollections,
+    loadError,
+    clearLoadError,
   } = useMediaStore()
 
   // Local display metadata keyed by tempId — only for thumbnail/dims in file list
@@ -195,6 +199,9 @@ export function MediaUploadModal({
   const [saving,    setSaving]    = useState(false)
   const [uploadAnother, setUploadAnother] = useState(false)
   const [bpmError,  setBpmError]  = useState('')
+  const [batchError, setBatchError] = useState<string | null>(null)
+  const [selectionError, setSelectionError] = useState<string | null>(null)
+  const [progress, setProgress] = useState({ completed: 0, total: 0 })
   const [rasterSvgWarning, setRasterSvgWarning] = useState<{ file: File } | null>(null)
 
   const fileInputId = useId()
@@ -205,14 +212,53 @@ export function MediaUploadModal({
   // Whether every queued file is an SVG (hides ADDITIONAL INFO which doesn't apply to vector glyphs)
   const isSvgQueue   = !isEdit && uploadQueue.length > 0 && uploadQueue.every(q => q.suggestedRole === 'svg')
 
-  useEffect(() => { loadCollections() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    clearLoadError()
+    loadCollections()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset queue and draft on every fresh open so prior upload values don't persist
   useEffect(() => {
     if (!isEdit) {
-      clearUploadQueue()
+      if (!preserveQueuedFiles) clearUploadQueue()
       resetUploadDraft()
     }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Files dropped on the manager are queued before this modal mounts. Hydrate
+  // their display metadata without rebuilding or duplicating the upload queue.
+  useEffect(() => {
+    if (isEdit || !preserveQueuedFiles || uploadQueue.length === 0) return
+    let cancelled = false
+    void Promise.all(uploadQueue.map(async (item): Promise<readonly [string, EntryDisplay]> => {
+      if (item.isAudio) {
+        const audio = new Audio()
+        const duration = await new Promise<number>(resolve => {
+          audio.onloadedmetadata = () => resolve(audio.duration || 0)
+          audio.onerror = () => resolve(0)
+          audio.src = item.previewUrl
+        })
+        return [item.tempId, { thumbnailUrl: null, isAudio: true, duration, status: 'ready' }] as const
+      }
+      const isVideo = item.file.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(item.file.name)
+      if (isVideo) {
+        const [thumbnailUrl, duration] = await Promise.all([
+          grabVideoThumb(item.previewUrl),
+          getVidDuration(item.previewUrl),
+        ])
+        return [item.tempId, { thumbnailUrl, duration, status: 'ready' }] as const
+      }
+      const dimensions = await getImgDims(item.previewUrl)
+      return [item.tempId, {
+        thumbnailUrl: item.previewUrl,
+        width: dimensions?.w,
+        height: dimensions?.h,
+        status: 'ready',
+      }] as const
+    })).then(entries => {
+      if (!cancelled) setDisplayMeta(new Map(entries))
+    })
+    return () => { cancelled = true }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pre-fill draft from editItem when in edit mode
@@ -274,7 +320,17 @@ export function MediaUploadModal({
           f.type.startsWith('image/') || f.type.startsWith('video/') || f.type.startsWith('audio/') ||
           /\.(png|jpe?g|gif|webp|svg|mp4|mov|webm|mp3|wav|aiff?|m4a|ogg|flac)$/i.test(f.name)
         )
-    if (!valid.length) return
+    if (!valid.length) {
+      setSelectionError('No supported files were selected.')
+      return
+    }
+    const kinds = new Set(valid.map(file => isAudioFile(file) ? 'audio' : 'visual'))
+    const queuedKind = uploadQueue[0] ? (uploadQueue[0].isAudio ? 'audio' : 'visual') : null
+    if (kinds.size > 1 || (queuedKind && !kinds.has(queuedKind))) {
+      setSelectionError('Upload audio and visual files in separate batches so each receives the correct metadata.')
+      return
+    }
+    setSelectionError(null)
 
     // Screen SVG files for raster-only content before queuing
     const safeFiles: File[] = []
@@ -427,46 +483,43 @@ export function MediaUploadModal({
 
   // Upload
   const handleUpload = async () => {
-    if (!uploadQueue.length) return
-    if (bpmError) return
+    if (!uploadQueue.length || bpmError) return
     setUploading(true)
+    clearLoadError()
+    setBatchError(null)
+    setProgress({ completed: 0, total: uploadQueue.length })
     setDisplayMeta(prev => {
       const next = new Map(prev)
-      next.forEach((v, k) => next.set(k, { ...v, status: 'uploading' }))
+      next.forEach((value, key) => next.set(key, { ...value, status: 'ready', errorMsg: undefined }))
       return next
     })
 
     const beforeIds = new Set(useAudioStore.getState().savedTracks.map(track => track.dbId))
-    let uploadSucceeded = false
-    try {
-      await uploadQueuedMedia()
-      const uploadedTracks = useAudioStore.getState().savedTracks.filter(track => !beforeIds.has(track.dbId))
-      if (audioOnly && uploadedTracks.length === 0) {
-        throw new Error('The audio upload did not create a stored track.')
-      }
-      setDisplayMeta(prev => {
-        const next = new Map(prev)
-        next.forEach((v, k) => next.set(k, { ...v, status: 'done' }))
-        return next
-      })
-      if (uploadedTracks.length > 0) onAudioUploaded?.(uploadedTracks)
-      uploadSucceeded = true
-    } catch (err) {
-      console.error('[MediaUploadModal] upload failed:', err)
-      setDisplayMeta(prev => {
-        const next = new Map(prev)
-        const message = err instanceof Error ? err.message : 'Upload failed'
-        next.forEach((v, k) => next.set(k, { ...v, status: 'error', errorMsg: message }))
-        return next
-      })
-    } finally {
-      setUploading(false)
-    }
+    const result = await uploadQueuedMedia({
+      onProgress: event => {
+        setProgress({ completed: event.completed, total: event.total })
+        setDisplayMeta(prev => {
+          const next = new Map(prev)
+          const current = next.get(event.tempId)
+          if (current) next.set(event.tempId, { ...current, status: event.status, errorMsg: event.error })
+          return next
+        })
+      },
+    })
+    const uploadedTracks = useAudioStore.getState().savedTracks.filter(track => !beforeIds.has(track.dbId))
+    if (uploadedTracks.length > 0) onAudioUploaded?.(uploadedTracks)
+    setUploading(false)
 
-    if (!uploadSucceeded) return
+    if (result.failures.length > 0) {
+      setBatchError(result.succeeded > 0
+        ? `${result.succeeded} file${result.succeeded === 1 ? '' : 's'} uploaded. ${result.failures.length} failed and can be retried.`
+        : result.failures[0].error)
+      return
+    }
 
     if (uploadAnother) {
       setDisplayMeta(new Map())
+      setProgress({ completed: 0, total: 0 })
       resetUploadDraft()
     } else {
       onClose()
@@ -477,8 +530,9 @@ export function MediaUploadModal({
   const handleSave = async () => {
     if (!editItem) return
     setSaving(true)
+    clearLoadError()
     try {
-      await saveMediaEdits(editItem.id, {
+      const saved = await saveMediaEdits(editItem.id, {
         role:          uploadDraft.role,
         title:         uploadDraft.title,
         description:   uploadDraft.description,
@@ -486,10 +540,10 @@ export function MediaUploadModal({
         collectionIds: uploadDraft.collectionIds,
         metadata:      uploadDraft.metadata,
       })
+      if (saved) onClose()
     } finally {
       setSaving(false)
     }
-    onClose()
   }
 
   // Drag-drop
@@ -658,6 +712,9 @@ export function MediaUploadModal({
                             {(dm?.width && dm?.height) ? ` · ${dm.width}×${dm.height}` : ''}
                             {dm?.duration !== undefined ? ` · ${fmtDur(dm.duration)}` : ''}
                           </div>
+                          {dm?.status === 'error' && dm.errorMsg && (
+                            <div className="mum-file-error" role="alert">{dm.errorMsg}</div>
+                          )}
                         </div>
                         <StatusBadge status={dm?.status ?? 'ready'} errorMsg={dm?.errorMsg} />
                         <button
@@ -790,7 +847,7 @@ export function MediaUploadModal({
                   <input
                     className="mum-input"
                     placeholder="e.g. Portal Loop Alpha"
-                    maxLength={22}
+                    maxLength={160}
                     value={uploadDraft.title}
                     onChange={e => setUploadDraftTitle(e.target.value)}
                   />
@@ -910,6 +967,16 @@ export function MediaUploadModal({
           </div>{/* /mum-right */}
         </div>{/* /mum-body */}
 
+        {(selectionError || batchError || (isEdit && loadError)) && (
+          <div className="mum-batch-error" role="alert">{selectionError ?? batchError ?? loadError}</div>
+        )}
+        {uploading && progress.total > 0 && (
+          <div className="mum-progress" aria-label={`Uploaded ${progress.completed} of ${progress.total} files`}>
+            <div className="mum-progress-bar" style={{ width: `${Math.round((progress.completed / progress.total) * 100)}%` }} />
+            <span>{progress.completed} / {progress.total}</span>
+          </div>
+        )}
+
         {/* ── Footer ─────────────────────────────────────────────────── */}
         <div className={`mum-footer${isEdit ? ' mum-footer--edit' : ''}`}>
           <button className="mum-cancel-btn" onClick={() => { if (!busy) onClose() }}>Cancel</button>
@@ -938,7 +1005,7 @@ export function MediaUploadModal({
               onClick={handleUpload}
             >
               {uploading
-                ? 'Uploading…'
+                ? `Uploading ${progress.completed}/${progress.total}…`
                 : isAudioQueue
                   ? `Upload ${uploadQueue.length > 0 ? uploadQueue.length + ' ' : ''}Track${uploadQueue.length !== 1 ? 's' : ''}`
                   : `Upload ${uploadQueue.length > 0 ? uploadQueue.length + ' ' : ''}Media`}

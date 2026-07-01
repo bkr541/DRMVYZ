@@ -1,12 +1,15 @@
 import { useEffect } from 'react'
 import { useMediaStore } from '../../../stores/mediaStore'
+import { useAudioStore } from '../../../stores/audioStore'
 
-export function MediaStatusBar() {
+export function MediaStatusBar({ includeAudio = false }: { includeAudio?: boolean }) {
   const {
     loading, loadError, deleteError, authRequired,
     storageAvailable, lastRestored,
     clearLoadError, clearDeleteError, clearRestored,
   } = useMediaStore()
+  const audioError = useAudioStore(state => state.loadError)
+  const clearAudioError = useAudioStore(state => state.clearError)
 
   useEffect(() => {
     if (lastRestored === null || lastRestored === 0) return
@@ -33,6 +36,14 @@ export function MediaStatusBar() {
       <span className="vz-media-status-dot" />
       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Delete failed: {deleteError}</span>
       <button className="vz-media-status-dismiss" onClick={clearDeleteError} title="Dismiss">✕</button>
+    </div>
+  )
+
+  if (includeAudio && audioError) return (
+    <div className="vz-media-status vz-media-status--error">
+      <span className="vz-media-status-dot" />
+      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{audioError}</span>
+      <button className="vz-media-status-dismiss" onClick={clearAudioError} title="Dismiss">✕</button>
     </div>
   )
 

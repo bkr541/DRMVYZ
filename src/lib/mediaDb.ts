@@ -238,6 +238,14 @@ export async function createMediaCollection(insert: MediaCollectionInsert): Prom
   return { id: (data as { id: string } | null)?.id ?? null, error: error?.message ?? null }
 }
 
+export async function updateMediaCollection(
+  id: string,
+  update: Partial<Pick<MediaCollectionRow, 'name' | 'description'>>,
+): Promise<DbMutateResult> {
+  const { error } = await db.from('media_collections').update(update).eq('id', id)
+  return { error: error?.message ?? null }
+}
+
 export async function deleteMediaCollection(id: string): Promise<DbMutateResult> {
   const { error } = await db.from('media_collections').delete().eq('id', id)
   return { error: error?.message ?? null }

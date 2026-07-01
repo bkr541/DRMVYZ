@@ -28,9 +28,8 @@ export const MEDIA_DECK_CAPABILITIES = [
   'drag-media',
 ] as const satisfies readonly MediaLibraryCapability[]
 
-/** Foundation management mode: expose the canonical browser's existing tools
- * without creating a second upload, signed-URL, collection, or media state path.
- */
+/** Full management mode backed by the canonical upload, signed-URL, collection,
+ * visual-media, and saved-audio services. */
 export const MEDIA_MANAGER_CAPABILITIES = [
   'select',
   'load-track',

@@ -444,3 +444,63 @@ describe('upload simulation — placements survive ID transition', () => {
     expect(s.layerItems[0].mediaId).toBe(STABLE_A)
   })
 })
+
+// ── Tests: deleted media reference cleanup ───────────────────────────────────
+
+describe('removeMediaReferences — deletion safety', () => {
+  beforeEach(resetVisualStore)
+
+  it('removes live timeline and layer references and clears affected selections', () => {
+    const bg = makeBgClip(LOCAL_ID)
+    const overlay = makeOverlayClip(LOCAL_ID)
+    const layer = makeLayerItem(LOCAL_ID)
+    useVisualStore.setState({
+      activeMediaId: LOCAL_ID,
+      timelineClips: [bg, makeBgClip('other-media')],
+      timelineOverlayClips: [overlay],
+      layerItems: [layer],
+      selectedLayerId: layer.layerId,
+      selectedLayerItemId: layer.id,
+      selectedTimelineEntity: { kind: 'bg', id: bg.id },
+    })
+
+    useVisualStore.getState().removeMediaReferences(LOCAL_ID)
+
+    const state = useVisualStore.getState()
+    expect(state.activeMediaId).toBeNull()
+    expect(state.timelineClips.map(clip => clip.mediaId)).toEqual(['other-media'])
+    expect(state.timelineOverlayClips).toEqual([])
+    expect(state.layerItems).toEqual([])
+    expect(state.selectedLayerId).toBeNull()
+    expect(state.selectedLayerItemId).toBeNull()
+    expect(state.selectedTimelineEntity).toBeNull()
+  })
+
+  it('removes deleted media from saved session and preset snapshots', () => {
+    const session = makeSession(LOCAL_ID)
+    const presets = useVisualStore.getState().presets
+    const preset = {
+      ...presets[0],
+      activeMediaId: LOCAL_ID,
+      mediaOrder: [LOCAL_ID, 'other-media'],
+      timelineClips: [makeBgClip(LOCAL_ID)],
+      timelineOverlayClips: [makeOverlayClip(LOCAL_ID)],
+    }
+    useVisualStore.setState({ sessions: [session], presets: [preset, ...presets.slice(1)] })
+
+    useVisualStore.getState().removeMediaReferences(LOCAL_ID)
+
+    const nextSession = useVisualStore.getState().sessions[0]
+    expect(nextSession.activeMediaId).toBeNull()
+    expect(nextSession.mediaOrder).toEqual(['other-media-id'])
+    expect(nextSession.timelineClips).toEqual([])
+    expect(nextSession.timelineOverlayClips).toEqual([])
+    expect(nextSession.layerItems).toEqual([])
+
+    const nextPreset = useVisualStore.getState().presets[0]
+    expect(nextPreset.activeMediaId).toBeNull()
+    expect(nextPreset.mediaOrder).toEqual(['other-media'])
+    expect(nextPreset.timelineClips).toEqual([])
+    expect(nextPreset.timelineOverlayClips).toEqual([])
+  })
+})

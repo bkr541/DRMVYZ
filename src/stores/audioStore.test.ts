@@ -7,6 +7,7 @@ const audioDbMocks = vi.hoisted(() => ({
   createSignedAudioUrl: vi.fn(),
   deleteAudioTrack: vi.fn(),
   deleteAudioFiles: vi.fn(),
+  updateAudioTrack: vi.fn(),
   createTrackAnalysis: vi.fn(),
 }))
 
@@ -48,6 +49,7 @@ describe('audioStore persistence safety', () => {
     audioDbMocks.uploadAudioFile.mockResolvedValue({ error: null })
     audioDbMocks.deleteAudioFiles.mockResolvedValue({ error: null })
     audioDbMocks.deleteAudioTrack.mockResolvedValue({ error: null })
+    audioDbMocks.updateAudioTrack.mockResolvedValue({ error: null })
   })
 
   it('removes an uploaded storage object when the audio_tracks insert fails', async () => {
@@ -77,7 +79,7 @@ describe('audioStore persistence safety', () => {
     useAudioStore.setState({ savedTracks: [track] })
     audioDbMocks.deleteAudioTrack.mockResolvedValue({ error: 'permission denied' })
 
-    useAudioStore.getState().removeSavedTrack(track.id)
+    await useAudioStore.getState().removeSavedTrack(track.id)
 
     await vi.waitFor(() => {
       expect(useAudioStore.getState().loadError).toContain('Track deletion failed')
@@ -99,7 +101,7 @@ describe('audioStore persistence safety', () => {
       return { error: null }
     })
 
-    useAudioStore.getState().removeSavedTrack(track.id)
+    await useAudioStore.getState().removeSavedTrack(track.id)
 
     await vi.waitFor(() => expect(useAudioStore.getState().savedTracks).toEqual([]))
     await vi.waitFor(() => expect(audioDbMocks.deleteAudioFiles).toHaveBeenCalled())
@@ -110,10 +112,58 @@ describe('audioStore persistence safety', () => {
     const track = savedTrack({ storagePath: null })
     useAudioStore.setState({ savedTracks: [track] })
 
-    useAudioStore.getState().removeSavedTrack(track.id)
+    await useAudioStore.getState().removeSavedTrack(track.id)
 
     await vi.waitFor(() => expect(useAudioStore.getState().savedTracks).toEqual([]))
     expect(audioDbMocks.deleteAudioTrack).toHaveBeenCalledWith(track.dbId)
     expect(audioDbMocks.deleteAudioFiles).not.toHaveBeenCalled()
   })
+
+  it('updates saved-audio metadata through the canonical database service', async () => {
+    const track = savedTrack()
+    useAudioStore.setState({ savedTracks: [track] })
+
+    const updated = await useAudioStore.getState().updateSavedTrackMetadata(track.id, {
+      title: '  New Title  ',
+      artist: '  New Artist  ',
+      genre: 'Melodic Bass',
+      bpm: 149.5,
+      musicalKey: 'D Minor',
+    })
+
+    expect(updated).toBe(true)
+    expect(audioDbMocks.updateAudioTrack).toHaveBeenCalledWith(track.dbId, {
+      title: 'New Title',
+      artist: 'New Artist',
+      genre: 'Melodic Bass',
+      bpm: 149.5,
+      musical_key: 'D Minor',
+    })
+    expect(useAudioStore.getState().savedTracks[0]).toMatchObject({
+      title: 'New Title',
+      artist: 'New Artist',
+      genre: 'Melodic Bass',
+      bpm: 149.5,
+      musicalKey: 'D Minor',
+    })
+  })
+
+  it('keeps the previous audio metadata when persistence fails', async () => {
+    const track = savedTrack()
+    useAudioStore.setState({ savedTracks: [track] })
+    audioDbMocks.updateAudioTrack.mockResolvedValue({ error: 'network unavailable' })
+
+    const updated = await useAudioStore.getState().updateSavedTrackMetadata(track.id, {
+      title: 'Changed',
+      artist: null,
+      genre: null,
+      bpm: null,
+      musicalKey: null,
+    })
+
+    expect(updated).toBe(false)
+    expect(useAudioStore.getState().savedTracks).toEqual([track])
+    expect(useAudioStore.getState().loadError).toContain('Track update failed')
+  })
+
 })

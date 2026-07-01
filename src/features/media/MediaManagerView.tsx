@@ -36,7 +36,7 @@ export function MediaManagerView({ onBack, returnView }: MediaManagerViewProps) 
           <div className="mmv-header-title-group">
             <h1 id="media-manager-title" className="mmv-header-title">Media Manager</h1>
             <p className="mmv-header-subtitle">
-              Browse, preview, organize, and load the media shared by every DRMVYZ performance view.
+              Upload, preview, edit, organize, and safely remove the visual and audio media shared by every DRMVYZ performance view.
             </p>
           </div>
         </div>
@@ -50,10 +50,10 @@ export function MediaManagerView({ onBack, returnView }: MediaManagerViewProps) 
       <section className="mmv-workspace" aria-label="Media management workspace">
         <div className="mmv-guidance">
           <div>
-            <strong>One library, two stages.</strong>
-            <span>Changes here use the same media, audio, upload, preview, and collection state as Visualizer and React.</span>
+            <strong>Your media control room.</strong>
+            <span>Manage visual assets, saved tracks, metadata, favorites, and collections through the same canonical stores used on stage.</span>
           </div>
-          <span className="mmv-foundation-badge">Foundation mode</span>
+          <span className="mmv-foundation-badge">Management online</span>
         </div>
         <MediaLibraryBrowser
           activeMediaId={activeMediaId}

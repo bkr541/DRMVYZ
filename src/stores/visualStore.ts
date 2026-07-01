@@ -407,6 +407,8 @@ interface VisualState {
   // visual state. Called by mediaStore when an upload completes and the
   // temporary local-* ID is superseded by a stable db-* ID.
   remapMediaId(prevId: string, newId: string): void
+  // Removes every runtime and saved-snapshot reference to a deleted media item.
+  removeMediaReferences(mediaId: string): void
   setBpm(v: number): void
   toggleBpmSync(): void
   setPlaying(v: boolean): void
@@ -736,6 +738,50 @@ export const useVisualStore = create<VisualState>()(
             ),
           })),
         }))
+      },
+
+      removeMediaReferences(mediaId) {
+        set(s => {
+          const removedClipIds = new Set([
+            ...s.timelineClips.filter(clip => clip.mediaId === mediaId).map(clip => clip.id),
+            ...s.timelineOverlayClips.filter(clip => clip.mediaId === mediaId).map(clip => clip.id),
+          ])
+          const removedLayerItemIds = new Set(
+            s.layerItems.filter(item => item.mediaId === mediaId).map(item => item.id),
+          )
+          const selectedTimelineEntity = s.selectedTimelineEntity && removedClipIds.has(s.selectedTimelineEntity.id)
+            ? null
+            : s.selectedTimelineEntity
+
+          return {
+            activeMediaId: s.activeMediaId === mediaId ? null : s.activeMediaId,
+            timelineClips: s.timelineClips.filter(clip => clip.mediaId !== mediaId),
+            timelineOverlayClips: s.timelineOverlayClips.filter(clip => clip.mediaId !== mediaId),
+            layerItems: s.layerItems.filter(item => item.mediaId !== mediaId),
+            selectedLayerItemId: s.selectedLayerItemId && removedLayerItemIds.has(s.selectedLayerItemId)
+              ? null
+              : s.selectedLayerItemId,
+            selectedLayerId: s.selectedLayerItemId && removedLayerItemIds.has(s.selectedLayerItemId)
+              ? null
+              : s.selectedLayerId,
+            selectedTimelineEntity,
+            sessions: s.sessions.map(session => ({
+              ...session,
+              activeMediaId: session.activeMediaId === mediaId ? null : session.activeMediaId,
+              mediaOrder: session.mediaOrder.filter(id => id !== mediaId),
+              timelineClips: session.timelineClips?.filter(clip => clip.mediaId !== mediaId),
+              timelineOverlayClips: session.timelineOverlayClips?.filter(clip => clip.mediaId !== mediaId),
+              layerItems: session.layerItems?.filter(item => item.mediaId !== mediaId),
+            })),
+            presets: s.presets.map(preset => ({
+              ...preset,
+              activeMediaId: preset.activeMediaId === mediaId ? null : preset.activeMediaId,
+              mediaOrder: preset.mediaOrder?.filter(id => id !== mediaId),
+              timelineClips: preset.timelineClips?.filter(clip => clip.mediaId !== mediaId),
+              timelineOverlayClips: preset.timelineOverlayClips?.filter(clip => clip.mediaId !== mediaId),
+            })),
+          }
+        })
       },
 
       setBpm(v)          { set({ bpm: Math.max(40, Math.min(300, v)) }) },
