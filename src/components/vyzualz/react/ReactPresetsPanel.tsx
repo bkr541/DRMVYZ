@@ -82,6 +82,7 @@ function PresetCard({
   onSelect,
   onToggleFavorite,
   currentRig,
+  thumbnailGenerationKey,
 }: {
   preset: ReactPreset
   isActive: boolean
@@ -91,6 +92,7 @@ function PresetCard({
   onSelect: (id: string) => void
   onToggleFavorite: (id: string) => void
   currentRig: LaserDmxSettings
+  thumbnailGenerationKey: string
 }) {
   const modeHint = getModeHint(preset)
   const production = preset.productionPreset
@@ -112,7 +114,7 @@ function PresetCard({
         style={isActive ? { '--accent': preset.palette.primary } as React.CSSProperties : undefined}
       >
         <div className="rv-preset-card-layout">
-          <ReactPresetThumbnail preset={preset} />
+          <ReactPresetThumbnail preset={preset} generationKey={thumbnailGenerationKey} />
           <div className="rv-preset-card-content">
             <div className="rv-preset-card-header">
               <span className="rv-preset-name">{preset.name}</span>
@@ -161,6 +163,7 @@ type PresetCollectionProps = {
   onSelect: (id: string) => void
   onToggleFavorite: (id: string) => void
   currentRig: LaserDmxSettings
+  thumbnailGenerationKey: string
 }
 
 function renderPresetCard(preset: ReactPreset, props: Omit<PresetCollectionProps, 'presets'>) {
@@ -175,6 +178,7 @@ function renderPresetCard(preset: ReactPreset, props: Omit<PresetCollectionProps
       onSelect={props.onSelect}
       onToggleFavorite={props.onToggleFavorite}
       currentRig={props.currentRig}
+      thumbnailGenerationKey={props.thumbnailGenerationKey}
     />
   )
 }
@@ -307,6 +311,10 @@ export function ReactPresetsPanel() {
     : null
   const modifiedIds = useMemo(() => new Set(Object.keys(cinematicConfigsByPresetId)), [cinematicConfigsByPresetId])
   const activeEngine = REACT_ENGINE_CATALOG[activeReactEngineId]
+  const thumbnailGenerationKey = useMemo(
+    () => `${activeReactEngineId}:${libraryView}:${visiblePresets.map(preset => preset.id).join('|')}`,
+    [activeReactEngineId, libraryView, visiblePresets],
+  )
 
   const toggleFavorite = (presetId: string) => {
     setFavoritePresetIds(current => {
@@ -326,6 +334,7 @@ export function ReactPresetsPanel() {
     onSelect: selectReactPreset,
     onToggleFavorite: toggleFavorite,
     currentRig: laserDmxSettings,
+    thumbnailGenerationKey,
   }
 
   return (

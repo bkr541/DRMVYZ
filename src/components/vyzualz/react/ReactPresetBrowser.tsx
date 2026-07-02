@@ -26,6 +26,7 @@ interface Props {
 
 export function ReactPresetBrowser({ presets, activePresetId, onSelect }: Props) {
   const displayPresets = useEffectiveReactPresets(presets)
+  const thumbnailGenerationKey = displayPresets.map(preset => preset.id).join('|')
   return (
     <div className="rv-preset-browser">
       <div className="rv-panel-header">
@@ -47,7 +48,7 @@ export function ReactPresetBrowser({ presets, activePresetId, onSelect }: Props)
               style={isActive ? { '--accent': preset.palette.primary } as React.CSSProperties : undefined}
             >
               <div className="rv-preset-card-layout">
-                <ReactPresetThumbnail preset={preset} />
+                <ReactPresetThumbnail preset={preset} generationKey={thumbnailGenerationKey} />
                 <div className="rv-preset-card-content">
                   <div className="rv-preset-card-header">
                     <span className="rv-preset-engine-icon" style={{ color: preset.palette.primary }}>

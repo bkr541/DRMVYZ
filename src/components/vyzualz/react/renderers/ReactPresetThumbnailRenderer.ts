@@ -16,50 +16,95 @@ import { disposeCinematicPortalRenderer } from './CinematicPortalRenderer'
 const DEFAULT_W = 192
 const DEFAULT_H = 108
 const PREVIEW_BPM = 142
-const PREVIEW_FRAMES = 54
 const PREVIEW_START_TIME_SEC = 31.5
 const PREVIEW_SECONDS = 2.4
-const MAX_CONCURRENT_THUMBNAILS = 2
+const MAX_CONCURRENT_WEBGL_THUMBNAILS = 1
 const MAX_THUMBNAIL_CACHE_ENTRIES = 256
-const THUMBNAIL_FINGERPRINT_VERSION = 3
+const THUMBNAIL_FINGERPRINT_VERSION = 4
+const THUMBNAIL_QUALITY_MODE = 'low-cost-v1'
 const MIN_THUMBNAIL_DIMENSION = 16
 const MAX_THUMBNAIL_DIMENSION = 1024
 
 export interface ReactPresetThumbnailRequest {
   width?: number
   height?: number
+  signal?: AbortSignal
 }
 
-interface ThumbnailJob<T> {
-  run: () => Promise<T>
-  resolve: (value: T) => void
-  reject: (reason?: unknown) => void
+export interface ReactPresetThumbnailScheduler {
+  yield: (signal: AbortSignal) => Promise<void>
 }
 
-const thumbnailPromiseCache = new Map<string, Promise<string | null>>()
-const thumbnailQueue: ThumbnailJob<unknown>[] = []
+interface ThumbnailSubscriber {
+  id: number
+  resolve: (value: string | null) => void
+  signal?: AbortSignal
+  abortListener?: () => void
+}
+
+interface ThumbnailJob {
+  key: string
+  preset: ReactPreset
+  width: number
+  height: number
+  controller: AbortController
+  state: 'queued' | 'running' | 'settled'
+  subscribers: Map<number, ThumbnailSubscriber>
+  completion: Promise<void>
+  complete: () => void
+}
+
+const thumbnailResultCache = new Map<string, string>()
+const pendingThumbnailJobs = new Map<string, ThumbnailJob>()
+const thumbnailQueue: ThumbnailJob[] = []
 let activeThumbnailJobs = 0
+let nextSubscriberId = 1
+let queuePumpScheduled = false
+let queuePumpEpoch = 0
 
-export async function renderReactPresetThumbnail(
+const browserThumbnailScheduler = createBrowserThumbnailScheduler()
+let thumbnailScheduler: ReactPresetThumbnailScheduler = browserThumbnailScheduler
+const queuePumpSignal = new AbortController().signal
+
+export function renderReactPresetThumbnail(
   preset: ReactPreset,
   request: ReactPresetThumbnailRequest = {},
 ): Promise<string | null> {
   const width = normalizeDimension(request.width, DEFAULT_W)
   const height = normalizeDimension(request.height, DEFAULT_H)
-  const cacheKey = `${width}x${height}:${fingerprintReactPresetThumbnail(preset)}`
-  const cached = thumbnailPromiseCache.get(cacheKey)
-  if (cached) return cached
+  const cacheKey = createReactPresetThumbnailCacheKey(preset, { width, height })
+  const cached = thumbnailResultCache.get(cacheKey)
+  if (cached) return Promise.resolve(cached)
+  if (request.signal?.aborted) return Promise.resolve(null)
 
-  const promise = scheduleThumbnail(() => renderThumbnailOnce(preset, width, height))
-  cacheThumbnailPromise(cacheKey, promise)
-  try {
-    const result = await promise
-    if (!result) thumbnailPromiseCache.delete(cacheKey)
-    return result
-  } catch {
-    thumbnailPromiseCache.delete(cacheKey)
-    return null
+  const existing = pendingThumbnailJobs.get(cacheKey)
+  if (existing?.controller.signal.aborted) {
+    return waitForRetiringJob(existing, preset, request)
   }
+
+  const job = existing ?? createThumbnailJob(cacheKey, preset, width, height)
+  if (!existing) {
+    pendingThumbnailJobs.set(cacheKey, job)
+    thumbnailQueue.push(job)
+    requestQueuePump()
+  }
+  return subscribeToThumbnailJob(job, request.signal)
+}
+
+export function readCachedReactPresetThumbnail(
+  preset: ReactPreset,
+  request: Pick<ReactPresetThumbnailRequest, 'width' | 'height'> = {},
+): string | null {
+  return thumbnailResultCache.get(createReactPresetThumbnailCacheKey(preset, request)) ?? null
+}
+
+export function createReactPresetThumbnailCacheKey(
+  preset: ReactPreset,
+  request: Pick<ReactPresetThumbnailRequest, 'width' | 'height'> = {},
+): string {
+  const width = normalizeDimension(request.width, DEFAULT_W)
+  const height = normalizeDimension(request.height, DEFAULT_H)
+  return `${THUMBNAIL_QUALITY_MODE}:${width}x${height}:${fingerprintReactPresetThumbnail(preset)}`
 }
 
 /** Stable cache key containing every persisted preset field that can alter a preview. */
@@ -81,71 +126,216 @@ export function fingerprintReactPresetThumbnail(preset: ReactPreset): string {
   })
 }
 
-/** Test-only cache reset. It does not cancel already-running GPU work. */
+/** Test-only reset. Queued work is removed and active work is cooperatively aborted. */
 export function clearReactPresetThumbnailCacheForTests(): void {
-  thumbnailPromiseCache.clear()
+  thumbnailResultCache.clear()
+  queuePumpEpoch += 1
+  queuePumpScheduled = false
+  for (const job of [...pendingThumbnailJobs.values()]) {
+    cancelThumbnailJob(job)
+  }
+  thumbnailQueue.length = 0
+}
+
+export function setReactPresetThumbnailSchedulerForTests(
+  scheduler: ReactPresetThumbnailScheduler | null,
+): void {
+  thumbnailScheduler = scheduler ?? browserThumbnailScheduler
+  queuePumpEpoch += 1
+  queuePumpScheduled = false
+  requestQueuePump()
 }
 
 export function getReactPresetThumbnailDiagnosticsForTests(): Readonly<{
   activeJobs: number
   queuedJobs: number
+  pendingJobs: number
   cacheEntries: number
   concurrencyLimit: number
 }> {
   return {
     activeJobs: activeThumbnailJobs,
-    queuedJobs: thumbnailQueue.length,
-    cacheEntries: thumbnailPromiseCache.size,
-    concurrencyLimit: MAX_CONCURRENT_THUMBNAILS,
+    queuedJobs: thumbnailQueue.filter(job => job.state === 'queued').length,
+    pendingJobs: pendingThumbnailJobs.size,
+    cacheEntries: thumbnailResultCache.size,
+    concurrencyLimit: MAX_CONCURRENT_WEBGL_THUMBNAILS,
   }
 }
 
-function cacheThumbnailPromise(key: string, promise: Promise<string | null>): void {
-  if (!thumbnailPromiseCache.has(key) && thumbnailPromiseCache.size >= MAX_THUMBNAIL_CACHE_ENTRIES) {
-    const oldestKey = thumbnailPromiseCache.keys().next().value as string | undefined
-    if (oldestKey) thumbnailPromiseCache.delete(oldestKey)
-  }
-  thumbnailPromiseCache.set(key, promise)
+export function getReactPresetThumbnailFrameBudgetForTests(preset: ReactPreset): number {
+  return resolveThumbnailFrameBudget(preset)
 }
 
-function scheduleThumbnail<T>(run: () => Promise<T>): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    thumbnailQueue.push({ run, resolve, reject } as ThumbnailJob<unknown>)
-    drainThumbnailQueue()
+function createThumbnailJob(key: string, preset: ReactPreset, width: number, height: number): ThumbnailJob {
+  let complete = () => {}
+  const completion = new Promise<void>(resolve => { complete = resolve })
+  return {
+    key,
+    preset,
+    width,
+    height,
+    controller: new AbortController(),
+    state: 'queued',
+    subscribers: new Map(),
+    completion,
+    complete,
+  }
+}
+
+function subscribeToThumbnailJob(job: ThumbnailJob, signal?: AbortSignal): Promise<string | null> {
+  if (signal?.aborted) return Promise.resolve(null)
+
+  return new Promise(resolve => {
+    const subscriber: ThumbnailSubscriber = {
+      id: nextSubscriberId++,
+      resolve,
+      signal,
+    }
+    if (signal) {
+      subscriber.abortListener = () => detachThumbnailSubscriber(job, subscriber.id, true)
+      signal.addEventListener('abort', subscriber.abortListener, { once: true })
+    }
+    job.subscribers.set(subscriber.id, subscriber)
   })
 }
 
-function drainThumbnailQueue(): void {
-  while (activeThumbnailJobs < MAX_CONCURRENT_THUMBNAILS && thumbnailQueue.length > 0) {
-    const job = thumbnailQueue.shift()
-    if (!job) return
-    activeThumbnailJobs += 1
-    void job.run()
-      .then(job.resolve, job.reject)
-      .finally(() => {
-        activeThumbnailJobs = Math.max(0, activeThumbnailJobs - 1)
-        drainThumbnailQueue()
-      })
+function detachThumbnailSubscriber(job: ThumbnailJob, subscriberId: number, resolveCancelled: boolean): void {
+  const subscriber = job.subscribers.get(subscriberId)
+  if (!subscriber) return
+  job.subscribers.delete(subscriberId)
+  if (subscriber.signal && subscriber.abortListener) {
+    subscriber.signal.removeEventListener('abort', subscriber.abortListener)
   }
+  if (resolveCancelled) subscriber.resolve(null)
+  if (job.subscribers.size === 0) cancelThumbnailJob(job)
+}
+
+function cancelThumbnailJob(job: ThumbnailJob): void {
+  if (job.state === 'settled') return
+  job.controller.abort()
+  for (const subscriber of [...job.subscribers.values()]) {
+    job.subscribers.delete(subscriber.id)
+    if (subscriber.signal && subscriber.abortListener) {
+      subscriber.signal.removeEventListener('abort', subscriber.abortListener)
+    }
+    subscriber.resolve(null)
+  }
+
+  if (job.state === 'queued') {
+    const index = thumbnailQueue.indexOf(job)
+    if (index >= 0) thumbnailQueue.splice(index, 1)
+    if (pendingThumbnailJobs.get(job.key) === job) pendingThumbnailJobs.delete(job.key)
+    job.state = 'settled'
+    job.complete()
+    requestQueuePump()
+  }
+}
+
+function waitForRetiringJob(
+  job: ThumbnailJob,
+  preset: ReactPreset,
+  request: ReactPresetThumbnailRequest,
+): Promise<string | null> {
+  if (request.signal?.aborted) return Promise.resolve(null)
+  return new Promise(resolve => {
+    let settled = false
+    const finish = (value: string | null) => {
+      if (settled) return
+      settled = true
+      request.signal?.removeEventListener('abort', abort)
+      resolve(value)
+    }
+    const abort = () => finish(null)
+    request.signal?.addEventListener('abort', abort, { once: true })
+    void job.completion.then(() => {
+      if (request.signal?.aborted) finish(null)
+      else void renderReactPresetThumbnail(preset, request).then(finish)
+    })
+  })
+}
+
+function requestQueuePump(): void {
+  if (queuePumpScheduled || activeThumbnailJobs >= MAX_CONCURRENT_WEBGL_THUMBNAILS) return
+  if (!thumbnailQueue.some(job => job.state === 'queued')) return
+
+  queuePumpScheduled = true
+  const epoch = queuePumpEpoch
+  void thumbnailScheduler.yield(queuePumpSignal).then(() => {
+    if (epoch !== queuePumpEpoch) return
+    queuePumpScheduled = false
+    startNextThumbnailJob()
+  }, () => {
+    if (epoch !== queuePumpEpoch) return
+    queuePumpScheduled = false
+    requestQueuePump()
+  })
+}
+
+function startNextThumbnailJob(): void {
+  if (activeThumbnailJobs >= MAX_CONCURRENT_WEBGL_THUMBNAILS) return
+  let job = thumbnailQueue.shift()
+  while (job && (job.state !== 'queued' || job.controller.signal.aborted || job.subscribers.size === 0)) {
+    if (job.state === 'queued') cancelThumbnailJob(job)
+    job = thumbnailQueue.shift()
+  }
+  if (!job) return
+
+  job.state = 'running'
+  activeThumbnailJobs += 1
+  void renderThumbnailOnce(job.preset, job.width, job.height, job.controller.signal)
+    .then(result => settleThumbnailJob(job, result), () => settleThumbnailJob(job, null))
+    .finally(() => {
+      activeThumbnailJobs = Math.max(0, activeThumbnailJobs - 1)
+      requestQueuePump()
+    })
+}
+
+function settleThumbnailJob(job: ThumbnailJob, result: string | null): void {
+  const validResult = !job.controller.signal.aborted && job.subscribers.size > 0 ? result : null
+  if (validResult) cacheThumbnailResult(job.key, validResult)
+
+  for (const subscriber of [...job.subscribers.values()]) {
+    job.subscribers.delete(subscriber.id)
+    if (subscriber.signal && subscriber.abortListener) {
+      subscriber.signal.removeEventListener('abort', subscriber.abortListener)
+    }
+    subscriber.resolve(validResult)
+  }
+
+  if (pendingThumbnailJobs.get(job.key) === job) pendingThumbnailJobs.delete(job.key)
+  job.state = 'settled'
+  job.complete()
+}
+
+function cacheThumbnailResult(key: string, value: string): void {
+  if (!thumbnailResultCache.has(key) && thumbnailResultCache.size >= MAX_THUMBNAIL_CACHE_ENTRIES) {
+    const oldestKey = thumbnailResultCache.keys().next().value as string | undefined
+    if (oldestKey) thumbnailResultCache.delete(oldestKey)
+  }
+  thumbnailResultCache.delete(key)
+  thumbnailResultCache.set(key, value)
 }
 
 async function renderThumbnailOnce(
   preset: ReactPreset,
   width: number,
   height: number,
+  signal: AbortSignal,
 ): Promise<string | null> {
   let canvas: HTMLCanvasElement | null = null
   let ctx: CanvasRenderingContext2D | null = null
   try {
+    if (signal.aborted) return null
     canvas = createCanvas(width, height)
-    if (!canvas) return null
+    if (!canvas || signal.aborted) return null
     ctx = canvas.getContext('2d')
-    if (!ctx) return null
+    if (!ctx || signal.aborted) return null
 
-    const renderParams = buildRenderParams(preset)
-    const sectionType = pickPreviewSectionType(preset)
+    const thumbnailPreset = createLowCostThumbnailPreset(preset)
+    const renderParams = buildRenderParams(thumbnailPreset)
+    const sectionType = pickPreviewSectionType(thumbnailPreset)
     const sections = sectionType ? [{
-      id: `thumb-${preset.id}-${sectionType}`,
+      id: `thumb-${thumbnailPreset.id}-${sectionType}`,
       label: 'Preview',
       type: sectionType,
       startSec: 0,
@@ -153,26 +343,28 @@ async function renderThumbnailOnce(
       intensity: 1,
       source: 'manual' as const,
     }] : []
+    const frameBudget = resolveThumbnailFrameBudget(thumbnailPreset)
 
     ctx.clearRect(0, 0, width, height)
     clearNeonLatticeVisualState(ctx, width, height)
     clearLaserDmxVisualState(ctx, width, height, { affectProductionOutput: false })
 
-    // The same engine entry point used by the live canvas is deliberately warmed
-    // long enough for fixed-step springs and historical beam trails to settle.
-    for (let index = 0; index < PREVIEW_FRAMES; index += 1) {
-      const frame = buildFrame(index, width, height, sectionType)
-      renderReactEngine(ctx, frame, preset, renderParams, sections)
+    for (let index = 0; index < frameBudget; index += 1) {
+      if (signal.aborted) return null
+      const frame = buildFrame(index, frameBudget, width, height, sectionType)
+      renderReactEngine(ctx, frame, thumbnailPreset, renderParams, sections)
+      if (index < frameBudget - 1) {
+        await thumbnailScheduler.yield(signal)
+      }
     }
 
+    if (signal.aborted) return null
     return canvas.toDataURL('image/png')
   } catch {
     return null
   } finally {
     if (ctx) {
-      // A thumbnail owns its renderer host. Explicit disposal is required because
-      // WeakMap reachability alone does not release WebGL contexts or GPU buffers.
-      try { disposeCinematicPortalRenderer(ctx) } catch { /* Graceful fallback below. */ }
+      try { disposeCinematicPortalRenderer(ctx) } catch { /* Best-effort transient cleanup. */ }
       try {
         clearLaserDmxVisualState(ctx, width, height, { affectProductionOutput: false })
         disposeLaserDmxRenderer(ctx, { affectProductionOutput: false })
@@ -180,6 +372,54 @@ async function renderThumbnailOnce(
       try { clearNeonLatticeVisualState(ctx, width, height) } catch { /* Best-effort transient cleanup. */ }
     }
     if (canvas) releaseCanvas(canvas)
+  }
+}
+
+function createLowCostThumbnailPreset(preset: ReactPreset): ReactPreset {
+  let thumbnailPreset = preset
+  if (preset.cinematicConfig) {
+    thumbnailPreset = {
+      ...thumbnailPreset,
+      cinematicConfig: { ...preset.cinematicConfig, qualityTier: 'low' },
+    }
+  }
+  if (preset.laserDmxSettings) {
+    const productionStage = preset.laserDmxSettings.productionStage
+    const atmosphere = preset.laserDmxSettings.atmosphere
+    thumbnailPreset = {
+      ...thumbnailPreset,
+      laserDmxSettings: {
+        ...preset.laserDmxSettings,
+        ...(productionStage ? {
+          productionStage: {
+            ...productionStage,
+            editor: { ...productionStage.editor, qualityTier: 'low' },
+          },
+        } : {}),
+        ...(atmosphere ? {
+          atmosphere: {
+            ...atmosphere,
+            qualityTier: 'low',
+            maxParticleBudget: Math.min(atmosphere.maxParticleBudget, 80),
+          },
+        } : {}),
+      },
+    }
+  }
+  return thumbnailPreset
+}
+
+function resolveThumbnailFrameBudget(preset: ReactPreset): number {
+  switch (preset.engine) {
+    case 'shaderPads': return 1
+    case 'oscilloscope': return 2
+    case 'neonLattice': return 4
+    case 'laserDmx': return 5
+    case 'cinematicPortal':
+      if (preset.cinematicConfig?.worldMode === 'reactiveConstellation') return 10
+      if (preset.cinematicConfig?.worldMode === 'mediaPortal') return 4
+      return 7
+    default: return 4
   }
 }
 
@@ -192,8 +432,6 @@ function createCanvas(width: number, height: number): HTMLCanvasElement | null {
 }
 
 function releaseCanvas(canvas: HTMLCanvasElement): void {
-  // Clearing the backing store gives browsers permission to release its pixels
-  // immediately when a scrolling preset grid creates many previews.
   canvas.width = 0
   canvas.height = 0
 }
@@ -249,11 +487,12 @@ function pickPreviewSectionType(preset: ReactPreset): ReactSectionType | null {
 
 function buildFrame(
   index: number,
+  frameBudget: number,
   width: number,
   height: number,
   sectionType: ReactSectionType | null,
 ): ReactFrameContext {
-  const progress = PREVIEW_FRAMES <= 1 ? 1 : index / (PREVIEW_FRAMES - 1)
+  const progress = frameBudget <= 1 ? 1 : index / (frameBudget - 1)
   const timeSec = PREVIEW_START_TIME_SEC + PREVIEW_SECONDS * progress
   const musicalTime = timeSec * PREVIEW_BPM / 60
   const beatPhase = musicalTime - Math.floor(musicalTime)
@@ -270,7 +509,7 @@ function buildFrame(
     dpr: 1,
     t: index,
     elapsedTimeSec: timeSec,
-    deltaTimeSec: PREVIEW_SECONDS / PREVIEW_FRAMES,
+    deltaTimeSec: PREVIEW_SECONDS / Math.max(1, frameBudget),
     timingDiscontinuity: index === 0,
     timeSec,
     audioTime: timeSec,
@@ -291,6 +530,53 @@ function buildFrame(
       source: 'manual',
     } : null,
     sectionChanged: index === 0,
+  }
+}
+
+function createBrowserThumbnailScheduler(): ReactPresetThumbnailScheduler {
+  return {
+    yield(signal) {
+      if (signal.aborted) return Promise.resolve()
+      return new Promise(resolve => {
+        let finished = false
+        let cancelScheduled = () => {}
+        const finish = () => {
+          if (finished) return
+          finished = true
+          signal.removeEventListener('abort', finish)
+          cancelScheduled()
+          resolve()
+        }
+        signal.addEventListener('abort', finish, { once: true })
+
+        const requestIdle = (globalThis as typeof globalThis & {
+          requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
+          cancelIdleCallback?: (id: number) => void
+        }).requestIdleCallback
+        const cancelIdle = (globalThis as typeof globalThis & {
+          cancelIdleCallback?: (id: number) => void
+        }).cancelIdleCallback
+
+        if (typeof requestIdle === 'function') {
+          const id = requestIdle(finish, { timeout: 80 })
+          cancelScheduled = () => cancelIdle?.(id)
+        } else if (typeof requestAnimationFrame === 'function') {
+          const id = requestAnimationFrame(() => finish())
+          cancelScheduled = () => { if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(id) }
+        } else if (typeof MessageChannel !== 'undefined') {
+          const channel = new MessageChannel()
+          channel.port1.onmessage = finish
+          channel.port2.postMessage(undefined)
+          cancelScheduled = () => {
+            channel.port1.onmessage = null
+            channel.port1.close()
+            channel.port2.close()
+          }
+        } else {
+          queueMicrotask(finish)
+        }
+      })
+    },
   }
 }
 
