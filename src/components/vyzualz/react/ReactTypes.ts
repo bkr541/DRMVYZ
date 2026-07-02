@@ -60,11 +60,112 @@ export type NeonLatticeDecayStyle = 'linear' | 'exponential' | 'hold' | 'pulse'
 /** Audio event that triggers pulse emission and block spawning. */
 export type NeonLatticeTrigger = 'none' | 'beat' | 'downbeat' | 'kick' | 'snare' | 'drop'
 
+/** Authored composition runtime. Legacy presets remain legacyLattice. */
+export type NeonLatticeCompositionMode = 'legacyLattice' | 'laneSequencer' | 'hybrid'
+export type NeonLatticeLineOrientation = 'vertical' | 'horizontal' | 'diagonalUp' | 'diagonalDown' | 'custom'
+export type NeonLatticeSpanMode = 'fullCanvas' | 'long' | 'short' | 'random' | 'presetDefined'
+export type NeonLatticePaletteRole = 'primary' | 'secondary' | 'accent' | 'highlight' | 'background'
+export type NeonLatticeRetriggerBehavior = 'restart' | 'extend' | 'stack'
+export type NeonLatticeTemporaryOverrideResetPolicy = 'nextStep' | 'nextBar' | 'nextPhrase' | 'explicitRestore'
+export type NeonLatticePhraseBoundaryPriority = 'step' | 'bar' | 'phrase' | 'section'
+
+export interface NeonLatticeOrientationWeights {
+  vertical: number
+  horizontal: number
+  diagonalUp: number
+  diagonalDown: number
+}
+
+export interface NeonLatticeLineEnvelope {
+  attackBeats: number
+  holdBeats: number
+  releaseBeats: number
+  gateLengthBeats: number
+  triggerStrengthScale: number
+}
+
+export interface NeonLatticeCustomSegment {
+  id: string
+  startX: number
+  startY: number
+  endX: number
+  endY: number
+  orientation?: NeonLatticeLineOrientation
+  paletteRole?: NeonLatticePaletteRole
+}
+
+export interface NeonLatticeLanePatternStep {
+  lanes: number[]
+  rest?: boolean
+  orientation?: NeonLatticeLineOrientation
+  mirrored?: boolean
+  paletteRole?: NeonLatticePaletteRole
+  triggerStrength?: number
+  chordSize?: number
+}
+
+export interface NeonLatticeLanePattern {
+  id: string
+  name: string
+  laneCount: number
+  sequenceLength: number
+  orientations: NeonLatticeLineOrientation[]
+  mirrored: boolean
+  seed: number
+  steps: NeonLatticeLanePatternStep[]
+}
+
+export type NeonLatticePhraseAction =
+  | { type: 'spawnLine'; orientation?: NeonLatticeLineOrientation; lane?: number; paletteRole?: NeonLatticePaletteRole; strength?: number }
+  | { type: 'spawnLineCluster'; orientation?: NeonLatticeLineOrientation; lanes?: number[]; chordSize?: number; paletteRole?: NeonLatticePaletteRole; strength?: number }
+  | { type: 'lineSweep'; orientation?: NeonLatticeLineOrientation; direction?: 1 | -1; durationBeats?: number; strength?: number }
+  | { type: 'orientationChange'; weights: Partial<NeonLatticeOrientationWeights>; temporary?: boolean }
+  | { type: 'mirroredLayout'; enabled: boolean; temporary?: boolean }
+  | { type: 'paletteStep'; role?: NeonLatticePaletteRole; offset?: number }
+  | { type: 'densityShift'; amount: number; temporary?: boolean }
+  | { type: 'patternReseed'; seed?: number }
+  | { type: 'clearLines' }
+  | { type: 'blackout'; durationBeats?: number }
+  | { type: 'highlightStrike'; orientation?: NeonLatticeLineOrientation; strength?: number }
+  | { type: 'blockCascade'; strength?: number }
+  | { type: 'temporaryEnvelopeChange'; envelope: Partial<NeonLatticeLineEnvelope> }
+  | { type: 'temporaryLaneCountChange'; laneCount: number }
+  | { type: 'restoreBaseState' }
+
+export interface NeonLatticePhraseProgram {
+  id: string
+  name: string
+  boundary: NeonLatticePhraseBoundaryPriority
+  every: number
+  actions: NeonLatticePhraseAction[]
+}
+
 export interface NeonLatticeSettings {
   /** 0–1 — how many rails are active across the canvas. */
   railDensity:      number
-  /** 0–1 — 0 = all horizontal rails, 1 = all vertical, 0.5 = balanced. */
+  /** 0–1 — compatibility field: 0 = horizontal, 1 = vertical. */
   verticalBias:     number
+  /** Canonical orientation distribution. Legacy presets map from verticalBias. */
+  orientationWeights: NeonLatticeOrientationWeights
+  /** Runtime composition owner. */
+  compositionMode: NeonLatticeCompositionMode
+  /** Default span policy for authored vertical lines. */
+  verticalSpanMode: NeonLatticeSpanMode
+  /** Default span policy for authored horizontal lines. Legacy default is short. */
+  horizontalSpanMode: NeonLatticeSpanMode
+  /** Default diagonal span policy. */
+  diagonalSpanMode: NeonLatticeSpanMode
+  /** Safe diagonal angle magnitude in degrees. Up/down orientation supplies the sign. */
+  diagonalAngleDegrees: number
+  /** Optional preset-authored normalized custom segments. */
+  customSegments: NeonLatticeCustomSegment[]
+  /** Visual-note envelope used by sequenced lines. */
+  lineEnvelope: NeonLatticeLineEnvelope
+  retriggerBehavior: NeonLatticeRetriggerBehavior
+  lanePattern: NeonLatticeLanePattern
+  phrasePrograms: NeonLatticePhraseProgram[]
+  phraseBoundaryPriority: NeonLatticePhraseBoundaryPriority
+  temporaryOverrideResetPolicy: NeonLatticeTemporaryOverrideResetPolicy
   /** 0–1 — how strongly rails cluster toward the canvas center. */
   centerBias:       number
   /** Seconds a rail persists before fading out. */
@@ -79,7 +180,7 @@ export interface NeonLatticeSettings {
   blockDensity:     number
   /** Seconds each block lingers before fading. */
   blockHold:        number
-  /** 0–1 — probability that a rail is drawn in the cyan accent color. */
+  /** 0–1 — probability that a rail is drawn in the highlight accent color. */
   cyanAccentChance: number
   /** 0–1 — bloom / glow intensity around hot rails. */
   bloom:            number
@@ -124,9 +225,61 @@ export interface NeonLatticeSettings {
   audioGate: number
 }
 
+export const DEFAULT_NEON_LATTICE_ORIENTATION_WEIGHTS: NeonLatticeOrientationWeights = {
+  vertical: 0.60,
+  horizontal: 0.40,
+  diagonalUp: 0,
+  diagonalDown: 0,
+}
+
+export const DEFAULT_NEON_LATTICE_LINE_ENVELOPE: NeonLatticeLineEnvelope = {
+  attackBeats: 0.05,
+  holdBeats: 0.65,
+  releaseBeats: 0.30,
+  gateLengthBeats: 1,
+  triggerStrengthScale: 1,
+}
+
+export const DEFAULT_NEON_LATTICE_LANE_PATTERN: NeonLatticeLanePattern = {
+  id: 'legacy-default',
+  name: 'Legacy Default',
+  laneCount: 8,
+  sequenceLength: 8,
+  orientations: ['vertical', 'horizontal'],
+  mirrored: false,
+  seed: 1,
+  steps: [
+    { lanes: [0], orientation: 'vertical' },
+    { lanes: [], rest: true },
+    { lanes: [4], orientation: 'horizontal' },
+    { lanes: [], rest: true },
+    { lanes: [2], orientation: 'vertical' },
+    { lanes: [], rest: true },
+    { lanes: [6], orientation: 'horizontal' },
+    { lanes: [], rest: true },
+  ],
+}
+
 export const DEFAULT_NEON_LATTICE_SETTINGS: NeonLatticeSettings = {
   railDensity:      0.45,
   verticalBias:     0.60,
+  orientationWeights: { ...DEFAULT_NEON_LATTICE_ORIENTATION_WEIGHTS },
+  compositionMode: 'legacyLattice',
+  verticalSpanMode: 'presetDefined',
+  horizontalSpanMode: 'short',
+  diagonalSpanMode: 'long',
+  diagonalAngleDegrees: 45,
+  customSegments: [],
+  lineEnvelope: { ...DEFAULT_NEON_LATTICE_LINE_ENVELOPE },
+  retriggerBehavior: 'restart',
+  lanePattern: {
+    ...DEFAULT_NEON_LATTICE_LANE_PATTERN,
+    orientations: [...DEFAULT_NEON_LATTICE_LANE_PATTERN.orientations],
+    steps: DEFAULT_NEON_LATTICE_LANE_PATTERN.steps.map(step => ({ ...step, lanes: [...step.lanes] })),
+  },
+  phrasePrograms: [],
+  phraseBoundaryPriority: 'phrase',
+  temporaryOverrideResetPolicy: 'nextPhrase',
   centerBias:       0.30,
   railLifetime:     4.0,
   pulseSpeed:       0.60,

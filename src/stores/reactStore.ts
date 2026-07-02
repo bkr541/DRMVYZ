@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { createSplitPersistStorage } from '../lib/splitPersistStorage'
 import { createLegacyPortalCinematicConfig, normalizeCinematicWorldConfig } from '../components/vyzualz/react/CinematicWorldConfig'
+import { normalizeNeonLatticeSettings } from '../components/vyzualz/react/NeonLatticeConfig'
 import type { CinematicWorldConfig } from '../components/vyzualz/react/CinematicWorldConfig'
 import {
   getReactPerformanceAction,
@@ -864,7 +865,7 @@ export function buildPresetPatch(
 
   let neonLatticePatch: NeonLatticeSettings | undefined
   if (preset.neonLatticeSettings != null) {
-    neonLatticePatch = { ...DEFAULT_NEON_LATTICE_SETTINGS, ...preset.neonLatticeSettings }
+    neonLatticePatch = normalizeNeonLatticeSettings({ ...DEFAULT_NEON_LATTICE_SETTINGS, ...preset.neonLatticeSettings })
   }
 
   const renderSettings = {
@@ -1812,7 +1813,7 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     const existing = (state as Record<string, unknown>).neonLatticeSettings
     state = {
       ...state,
-      neonLatticeSettings: { ...DEFAULT_NEON_LATTICE_SETTINGS, ...(existing as object ?? {}) },
+      neonLatticeSettings: normalizeNeonLatticeSettings(existing),
     }
   }
   if (version < 18) {
@@ -1989,10 +1990,7 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       : {}
     state = {
       ...state,
-      neonLatticeSettings: {
-        ...DEFAULT_NEON_LATTICE_SETTINGS,
-        ...existing,
-      },
+      neonLatticeSettings: normalizeNeonLatticeSettings(existing),
     }
   }
   if (version < 29) {
@@ -2098,6 +2096,9 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
   }
   if (isPersistedLaserDmxBeamMatrixDocument(state.laserDmxBeamMatrix)) {
     state = { ...state, laserDmxBeamMatrix: normalizeLaserDmxBeamMatrixSettings(state.laserDmxBeamMatrix) }
+  }
+  if ('neonLatticeSettings' in state) {
+    state = { ...state, neonLatticeSettings: normalizeNeonLatticeSettings(state.neonLatticeSettings) }
   }
   return state
 }
@@ -2337,10 +2338,9 @@ export function mergeReactStoreState(
     laserDmxBeamMatrix: normalizeLaserDmxBeamMatrixSettings(
       persisted.laserDmxBeamMatrix ?? currentState.laserDmxBeamMatrix,
     ),
-    neonLatticeSettings: {
-      ...DEFAULT_NEON_LATTICE_SETTINGS,
-      ...(persisted.neonLatticeSettings ?? currentState.neonLatticeSettings),
-    },
+    neonLatticeSettings: normalizeNeonLatticeSettings(
+      persisted.neonLatticeSettings ?? currentState.neonLatticeSettings,
+    ),
   } as ReactStoreState
   const repairedSelection = repairReactEnginePresetSelection(
     merged.activeReactPresetId,
@@ -2407,7 +2407,7 @@ export const useReactStore = create<ReactStoreState>()(
       fontsLoadState:    'idle',
       fontLoadError:     null,
       glyphLostNotice: null,
-      neonLatticeSettings:            { ...DEFAULT_NEON_LATTICE_SETTINGS },
+      neonLatticeSettings:            normalizeNeonLatticeSettings(DEFAULT_NEON_LATTICE_SETTINGS),
       performanceActionEvent:         null,
       performanceActionEvents:        [],
       performanceActionSeq:           0,
@@ -3258,10 +3258,10 @@ export const useReactStore = create<ReactStoreState>()(
       // ── Neon Lattice actions ────────────────────────────────────────────────
 
       setNeonLatticeSettings: (partial) =>
-        set(s => ({ neonLatticeSettings: { ...s.neonLatticeSettings, ...partial } })),
+        set(s => ({ neonLatticeSettings: normalizeNeonLatticeSettings({ ...s.neonLatticeSettings, ...partial }) })),
 
       resetNeonLatticeSettings: () =>
-        set({ neonLatticeSettings: { ...DEFAULT_NEON_LATTICE_SETTINGS }, ...clearPerformanceActionPatch() }),
+        set({ neonLatticeSettings: normalizeNeonLatticeSettings(DEFAULT_NEON_LATTICE_SETTINGS), ...clearPerformanceActionPatch() }),
 
       triggerPerformanceAction: (actionId, requestedToggleState) =>
         set(s => {
@@ -4485,7 +4485,7 @@ export const useReactStore = create<ReactStoreState>()(
           if (s.activeReactEngineId === 'neonLattice') {
             return {
               ...sharedDefaults,
-              neonLatticeSettings: { ...DEFAULT_NEON_LATTICE_SETTINGS },
+              neonLatticeSettings: normalizeNeonLatticeSettings(DEFAULT_NEON_LATTICE_SETTINGS),
               neonLatticeTrigger: null,
             }
           }
@@ -4627,7 +4627,7 @@ export const useReactStore = create<ReactStoreState>()(
           oscillatorGlyphPointCache: {},
           oscillatorTextPointCache:  {},
           glyphLostNotice:           null,
-          neonLatticeSettings:              { ...DEFAULT_NEON_LATTICE_SETTINGS },
+          neonLatticeSettings:              normalizeNeonLatticeSettings(DEFAULT_NEON_LATTICE_SETTINGS),
           performanceActionEvent:           null,
           performanceActionEvents:          [],
           performanceActionToggleStates:    {},

@@ -14,7 +14,7 @@ import {
 import type { NeonLatticeSettings, NeonLatticeTriggerType } from '../../ReactTypes'
 import {
   MAX_PULSES, MAX_FLARES, MAX_BLOCKS, MAX_SHOCKWAVES, MAX_VERT, MAX_HORIZ,
-  makeFlare, makeBlock, makeShockwave, makePulseOnRail,
+  makeFlare, makeBlock, makeShockwave, makePulseOnRail, pulsePointAt,
   makeVerticalRail, makeHorizontalRail,
   isPulseExpired, isFlareExpired, isBlockExpired, isShockwaveExpired,
   isRailExpired,
@@ -26,6 +26,7 @@ import {
   hexToRgbStr,
 } from '../neonLatticeUtils'
 import { NL_TRIGGER_PADS } from '../../ReactPerformancePads'
+import { normalizeNeonLatticeSettings } from '../../NeonLatticeConfig'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -195,14 +196,15 @@ describe('NL factory presets', () => {
     }
   })
 
-  it('every named NL preset has every NeonLatticeSettings field', () => {
+  it('every named NL preset resolves to every NeonLatticeSettings field', () => {
     const allKeys = Object.keys(DEFAULT_NEON_LATTICE_SETTINGS) as Array<keyof NeonLatticeSettings>
     const named = ['preset-nl-acid-magenta', 'preset-nl-drmvyz-lattice', 'preset-nl-sparse-starlines', 'preset-nl-overload-matrix']
     for (const id of named) {
       const p = nlPresets.find(p => p.id === id)!
       expect(p.neonLatticeSettings).toBeDefined()
+      const resolved = normalizeNeonLatticeSettings(p.neonLatticeSettings)
       for (const key of allKeys) {
-        expect(p.neonLatticeSettings!).toHaveProperty(key)
+        expect(resolved).toHaveProperty(key)
       }
     }
   })
@@ -606,17 +608,18 @@ describe('resolveOverlayAlpha (whiteout / blackout fade)', () => {
 // ── 15. Pulse factory ─────────────────────────────────────────────────────────
 
 describe('makePulseOnRail', () => {
-  it('pulse starts at rail.spanStart when direction=1', () => {
+  it('pulse starts at the segment start when direction=1', () => {
     const vr = makeVRail()
     const p  = makePulseOnRail(vr, 1, SETTINGS, 0, PALETTE, 0.8, 42, 1.0)
-    // progress = spanStart for direction = +1
-    expect(p.progress).toBeCloseTo(vr.spanStart, 5)
+    expect(p.progress).toBe(0)
+    expect(pulsePointAt(p)).toEqual({ x: vr.pos, y: vr.spanStart })
   })
 
-  it('pulse starts at rail.spanEnd when direction=-1', () => {
+  it('pulse starts at the segment end when direction=-1', () => {
     const vr = makeVRail()
     const p  = makePulseOnRail(vr, -1, SETTINGS, 0, PALETTE, 0.8, 42, 1.0)
-    expect(p.progress).toBeCloseTo(vr.spanEnd, 5)
+    expect(p.progress).toBe(1)
+    expect(pulsePointAt(p)).toEqual({ x: vr.pos, y: vr.spanEnd })
   })
 
   it('pulse is attached to the rail it was made from', () => {

@@ -764,3 +764,127 @@ describe('Depth plane: rails get normalized depth in [0, 1]', () => {
     }
   })
 })
+
+// ── Patch 2: diagonal + sequencer ownership/lifecycle ────────────────────────
+
+describe('Patch 2 composition ownership and sequencer lifecycle', () => {
+  const lanePattern: NeonLatticeSettings['lanePattern'] = {
+    id: 'renderer-test-pattern',
+    name: 'Renderer Test Pattern',
+    laneCount: 4,
+    sequenceLength: 4,
+    orientations: ['vertical', 'diagonalUp'],
+    mirrored: false,
+    seed: 17,
+    steps: [
+      { lanes: [0], orientation: 'vertical', triggerStrength: 1 },
+      { lanes: [], rest: true },
+      { lanes: [1, 2], orientation: 'diagonalUp' },
+      { lanes: [], rest: true },
+    ],
+  }
+
+  it('laneSequencer owns authored envelopes without autonomous legacy rails', () => {
+    const ctx = makeCtx()
+    run(ctx, { audioTime: 1, beatHit: true }, {
+      compositionMode: 'laneSequencer',
+      audioReactive: false,
+      lanePattern,
+    })
+    const snapshot = __getNeonLatticeState(ctx)!
+    expect(snapshot.activeCompositionMode).toBe('laneSequencer')
+    expect(snapshot.currentPatternId).toBe(lanePattern.id)
+    expect(snapshot.currentSequenceStep).toBe(0)
+    expect(snapshot.activeEnvelopeCount).toBe(1)
+
+    run(ctx, { audioTime: 1.3, beatHit: true }, {
+      compositionMode: 'laneSequencer',
+      audioReactive: false,
+      lanePattern,
+    })
+    const active = __getNeonLatticeState(ctx)!
+    expect(active.currentSequenceStep).toBe(1)
+    expect(active.activeEnvelopeCount).toBe(1) // step 1 is a rest; step 0 releases naturally
+    expect(active.rails.every(rail => 'laneId' in rail && rail.laneId != null)).toBe(true)
+    expect(active.blockCount).toBe(0)
+    expect(active.shockwaveCount).toBe(0)
+  })
+
+  it('hybrid mode keeps legacy and sequencer lines under shared ownership', () => {
+    const ctx = makeCtx()
+    run(ctx, { audioTime: 1, mi: makeMI({ frameId: 1, beatIndex: 0, beatHit: true, kickHit: true, kickStrength: 1 }) }, {
+      compositionMode: 'hybrid',
+      audioReactive: true,
+      lanePattern,
+      railDensity: 1,
+      orientationWeights: { vertical: 1, horizontal: 0, diagonalUp: 0, diagonalDown: 0 },
+    })
+    const snapshot = __getNeonLatticeState(ctx)!
+    expect(snapshot.activeCompositionMode).toBe('hybrid')
+    expect(snapshot.rails.some(rail => 'laneId' in rail && rail.laneId != null)).toBe(true)
+    expect(snapshot.rails.some(rail => !('laneId' in rail) || rail.laneId == null)).toBe(true)
+    expect(snapshot.railCount).toBeLessThanOrEqual(36)
+  })
+
+  it('legacy presets remain diagonal-free unless explicitly authored otherwise', () => {
+    const ctx = makeCtx()
+    for (let index = 0; index < 8; index++) {
+      run(ctx, { audioTime: 1 + index * 0.3, beatHit: true }, {
+        ...DEFAULT_NEON_LATTICE_SETTINGS,
+        audioReactive: false,
+        compositionMode: 'legacyLattice',
+      })
+    }
+    const snapshot = __getNeonLatticeState(ctx)!
+    expect(snapshot.activeCompositionMode).toBe('legacyLattice')
+    expect(snapshot.orientationCounts.diagonalUp).toBe(0)
+    expect(snapshot.orientationCounts.diagonalDown).toBe(0)
+    expect(snapshot.currentPatternId).toBeNull()
+  })
+
+  it('resets lane identities and sequence indices on resize, track replacement, seek, and stop', () => {
+    const baseSettings: Partial<NeonLatticeSettings> = {
+      compositionMode: 'laneSequencer',
+      audioReactive: false,
+      lanePattern: { ...lanePattern, steps: [{ lanes: [0] }, { lanes: [1] }, { lanes: [2] }, { lanes: [3] }] },
+    }
+
+    const resizeCtx = makeCtx()
+    run(resizeCtx, { audioTime: 1, beatHit: true, trackKey: 'track-a' }, baseSettings)
+    expect(__getNeonLatticeState(resizeCtx)!.railCount).toBeGreaterThan(0)
+    run(resizeCtx, { audioTime: 1.1, W: 1024, H: 768, beatHit: false, trackKey: 'track-a' }, baseSettings)
+    expect(__getNeonLatticeState(resizeCtx)!.railCount).toBe(0)
+    expect(__getNeonLatticeState(resizeCtx)!.currentSequenceStep).toBe(-1)
+
+    const trackCtx = makeCtx()
+    run(trackCtx, { audioTime: 1, beatHit: true, trackKey: 'track-a' }, baseSettings)
+    run(trackCtx, { audioTime: 1.1, beatHit: false, trackKey: 'track-b' }, baseSettings)
+    expect(__getNeonLatticeState(trackCtx)!.railCount).toBe(0)
+
+    const seekCtx = makeCtx()
+    run(seekCtx, { audioTime: 5, beatHit: true, trackKey: 'track-a' }, baseSettings)
+    run(seekCtx, { audioTime: 2, beatHit: false, trackKey: 'track-a' }, baseSettings)
+    expect(__getNeonLatticeState(seekCtx)!.railCount).toBe(0)
+    expect(__getNeonLatticeState(seekCtx)!.currentSequenceStep).toBe(-1)
+
+    const stopCtx = makeCtx()
+    run(stopCtx, { audioTime: 1, beatHit: true, trackKey: 'track-a', isPlaying: true }, baseSettings)
+    run(stopCtx, { audioTime: 1.1, beatHit: false, trackKey: 'track-a', isPlaying: false, isPaused: false }, baseSettings)
+    expect(__getNeonLatticeState(stopCtx)!.railCount).toBe(0)
+  })
+
+  it('preserves authored lines during a user pause and resets on timing discontinuity', () => {
+    const ctx = makeCtx()
+    const local = {
+      compositionMode: 'laneSequencer' as const,
+      audioReactive: false,
+      lanePattern: { ...lanePattern, steps: [{ lanes: [0] }, { lanes: [1] }, { lanes: [2] }, { lanes: [3] }] },
+    }
+    run(ctx, { audioTime: 1, beatHit: true, isPlaying: true }, local)
+    const before = __getNeonLatticeState(ctx)!.railCount
+    run(ctx, { audioTime: 1, beatHit: false, isPlaying: false, isPaused: true }, local)
+    expect(__getNeonLatticeState(ctx)!.railCount).toBe(before)
+    run(ctx, { audioTime: 2, beatHit: false, isPlaying: true, timingDiscontinuity: true }, local)
+    expect(__getNeonLatticeState(ctx)!.railCount).toBe(0)
+  })
+})

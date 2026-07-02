@@ -3,52 +3,212 @@
 
 import type { NeonLatticeSettings, NeonLatticeTrigger } from '../ReactTypes'
 
-// ── Rail model ────────────────────────────────────────────────────────────────
+// ── Canonical normalized segment model ───────────────────────────────────────
 
-/** A single rail line in normalized canvas space. */
-export interface NeonRail {
-  /** true = vertical line at x=pos, false = horizontal line at y=pos */
-  vertical:   boolean
-  /** Normalized position along the perpendicular axis (0–1). */
-  pos:        number
-  /** Normalized start along the rail's own axis (0–1). */
-  spanStart:  number
-  /** Normalized end along the rail's own axis (0–1). */
-  spanEnd:    number
-  /** Line width in logical pixels (not yet DPR-scaled). */
-  width:      number
-  /** Base alpha before intensity/lifetime modulation (0–1). */
-  alpha:      number
-  /** Bloom radius multiplier (0–1). */
-  glow:       number
-  /** Depth layer (0 = far/dim, 1 = near/bright). */
-  depth:      number
-  /** Audio time when the rail was born. */
-  birthSec:   number
-  /** Lifetime in seconds before full fade-out. */
-  lifetime:   number
-  /** Packed RGB string, e.g. '74,199,219'. */
-  colorRgb:   string
-  // ── Morph fields ────────────────────────────────────────────────────────────
-  // morphProgress = 1 means "at target / not morphing".
-  // beginLayoutReseed sets it to 0 and supplies new targets; advanceRailMorph
-  // interpolates pos/spanStart/spanEnd toward the targets each frame.
-  /** 0 = morph just started, 1 = complete/idle. */
-  morphProgress:        number
-  /** Duration in seconds for this rail's morph to complete. */
-  morphDuration:        number
-  /** pos value when the morph started. */
-  morphStartPos:        number
-  /** pos target (normalized 0–1). */
-  morphTargetPos:       number
-  /** spanStart value when the morph started. */
-  morphStartSpanStart:  number
-  /** spanStart target (normalized 0–1). */
+import type {
+  NeonLatticeLineEnvelope,
+  NeonLatticeLineOrientation,
+  NeonLatticePaletteRole,
+  NeonLatticeSpanMode,
+} from '../ReactTypes'
+
+/**
+ * Canonical production geometry for every Neon Lattice line.
+ * Coordinates are normalized to canvas space and therefore resize-safe.
+ *
+ * The deprecated axis fields are compatibility mirrors for old tests and
+ * persisted helpers. Rendering, pulse interpolation, and new code use the
+ * normalized endpoints exclusively.
+ */
+export interface NeonSegment {
+  id: string
+  startX: number
+  startY: number
+  endX: number
+  endY: number
+  orientation: NeonLatticeLineOrientation
+  spanMode: NeonLatticeSpanMode
+  width: number
+  alpha: number
+  glow: number
+  depth: number
+  paletteRole: NeonLatticePaletteRole
+  colorRgb: string
+  birthSec: number
+  lifetime: number
+  envelope: NeonLatticeLineEnvelope | null
+  envelopeStrength: number
+  laneId?: string
+  morphProgress: number
+  morphDuration: number
+  morphStartX: number
+  morphStartY: number
+  morphStartEndX: number
+  morphStartEndY: number
+  morphTargetX: number
+  morphTargetY: number
+  morphTargetEndX: number
+  morphTargetEndY: number
+
+  /** @deprecated compatibility mirror; use orientation/start/end coordinates. */
+  vertical: boolean
+  /** @deprecated compatibility mirror; use normalized endpoints. */
+  pos: number
+  /** @deprecated compatibility mirror; use normalized endpoints. */
+  spanStart: number
+  /** @deprecated compatibility mirror; use normalized endpoints. */
+  spanEnd: number
+  /** @deprecated compatibility morph mirror. */
+  morphStartPos: number
+  /** @deprecated compatibility morph mirror. */
+  morphTargetPos: number
+  /** @deprecated compatibility morph mirror. */
+  morphStartSpanStart: number
+  /** @deprecated compatibility morph mirror. */
   morphTargetSpanStart: number
-  /** spanEnd value when the morph started. */
-  morphStartSpanEnd:    number
-  /** spanEnd target (normalized 0–1). */
-  morphTargetSpanEnd:   number
+  /** @deprecated compatibility morph mirror. */
+  morphStartSpanEnd: number
+  /** @deprecated compatibility morph mirror. */
+  morphTargetSpanEnd: number
+}
+
+export interface LegacyNeonRailGeometry {
+  vertical: boolean
+  pos: number
+  spanStart: number
+  spanEnd: number
+}
+
+/** Input-only shape accepted by compatibility helpers and older tests. */
+export interface LegacyNeonRail extends LegacyNeonRailGeometry {
+  width: number
+  alpha: number
+  glow: number
+  depth: number
+  birthSec: number
+  lifetime: number
+  colorRgb: string
+  morphProgress: number
+  morphDuration: number
+  morphStartPos: number
+  morphTargetPos: number
+  morphStartSpanStart: number
+  morphTargetSpanStart: number
+  morphStartSpanEnd: number
+  morphTargetSpanEnd: number
+}
+
+/** Legacy public name retained as an adapter input union. Production state uses NeonSegment. */
+export type NeonRail = NeonSegment | LegacyNeonRail
+
+export function isNeonSegment(rail: NeonRail): rail is NeonSegment {
+  return 'startX' in rail && 'endX' in rail
+}
+
+export function ensureNeonSegment(rail: NeonRail): NeonSegment {
+  return isNeonSegment(rail) ? rail : legacyRailToSegment(rail, rail)
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0))
+}
+
+export function classifySegmentOrientation(
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+  epsilon = 1e-5,
+): NeonLatticeLineOrientation {
+  const dx = endX - startX
+  const dy = endY - startY
+  if (Math.abs(dx) <= epsilon && Math.abs(dy) > epsilon) return 'vertical'
+  if (Math.abs(dy) <= epsilon && Math.abs(dx) > epsilon) return 'horizontal'
+  if (Math.abs(dx) <= epsilon && Math.abs(dy) <= epsilon) return 'custom'
+  return dx * dy < 0 ? 'diagonalUp' : 'diagonalDown'
+}
+
+export function syncLegacyRailGeometry(segment: NeonSegment): NeonSegment {
+  const orientation = classifySegmentOrientation(segment.startX, segment.startY, segment.endX, segment.endY)
+  segment.orientation = segment.orientation === 'custom' ? 'custom' : orientation
+  segment.vertical = orientation === 'vertical'
+  if (orientation === 'vertical') {
+    segment.pos = segment.startX
+    segment.spanStart = Math.min(segment.startY, segment.endY)
+    segment.spanEnd = Math.max(segment.startY, segment.endY)
+  } else if (orientation === 'horizontal') {
+    segment.pos = segment.startY
+    segment.spanStart = Math.min(segment.startX, segment.endX)
+    segment.spanEnd = Math.max(segment.startX, segment.endX)
+  } else {
+    segment.pos = 0.5
+    segment.spanStart = 0
+    segment.spanEnd = 1
+  }
+  return segment
+}
+
+export function legacyRailToSegment(
+  legacy: LegacyNeonRailGeometry,
+  overrides: Partial<NeonSegment> = {},
+): NeonSegment {
+  const pos = clamp01(legacy.pos)
+  const spanStart = clamp01(Math.min(legacy.spanStart, legacy.spanEnd))
+  const spanEnd = clamp01(Math.max(legacy.spanStart, legacy.spanEnd))
+  const startX = legacy.vertical ? pos : spanStart
+  const startY = legacy.vertical ? spanStart : pos
+  const endX = legacy.vertical ? pos : spanEnd
+  const endY = legacy.vertical ? spanEnd : pos
+  const orientation: NeonLatticeLineOrientation = legacy.vertical ? 'vertical' : 'horizontal'
+  const base: NeonSegment = {
+    id: 'legacy-segment',
+    startX, startY, endX, endY,
+    orientation,
+    spanMode: legacy.vertical && spanStart <= 0.001 && spanEnd >= 0.999 ? 'fullCanvas' : 'short',
+    width: 1,
+    alpha: 1,
+    glow: 0,
+    depth: 0.5,
+    paletteRole: 'primary',
+    colorRgb: '74,199,219',
+    birthSec: 0,
+    lifetime: 4,
+    envelope: null,
+    envelopeStrength: 1,
+    morphProgress: 1,
+    morphDuration: 1,
+    morphStartX: startX,
+    morphStartY: startY,
+    morphStartEndX: endX,
+    morphStartEndY: endY,
+    morphTargetX: startX,
+    morphTargetY: startY,
+    morphTargetEndX: endX,
+    morphTargetEndY: endY,
+    vertical: legacy.vertical,
+    pos,
+    spanStart,
+    spanEnd,
+    morphStartPos: pos,
+    morphTargetPos: pos,
+    morphStartSpanStart: spanStart,
+    morphTargetSpanStart: spanStart,
+    morphStartSpanEnd: spanEnd,
+    morphTargetSpanEnd: spanEnd,
+  }
+  return syncLegacyRailGeometry({ ...base, ...overrides })
+}
+
+export function segmentPointAt(segment: Pick<NeonSegment, 'startX' | 'startY' | 'endX' | 'endY'>, progress: number): { x: number; y: number } {
+  const t = clamp01(progress)
+  return {
+    x: segment.startX + (segment.endX - segment.startX) * t,
+    y: segment.startY + (segment.endY - segment.startY) * t,
+  }
+}
+
+export function segmentLength(segment: Pick<NeonSegment, 'startX' | 'startY' | 'endX' | 'endY'>): number {
+  return Math.hypot(segment.endX - segment.startX, segment.endY - segment.startY)
 }
 
 // ── Seeded PRNG (xorshift32) ──────────────────────────────────────────────────
@@ -182,58 +342,78 @@ export function makeVerticalRail(
   existing: NeonRail[],
   paletteRgb: NeonPaletteRgb,
   strength: number,
-): NeonRail {
+): NeonSegment {
   const lane     = selectVerticalLane(seed, existing)
-  let   norm     = lane / (MAX_VERT - 1)        // 0–1
-  // Center bias pulls positions away from edges
-  norm           = 0.1 + norm * 0.8             // keep off extreme edges
+  let   norm     = lane / (MAX_VERT - 1)
+  norm           = 0.1 + norm * 0.8
   const cb       = settings.centerBias * 0.3
-  norm           = norm * (1 - cb) + 0.5 * cb   // blend toward centre
+  norm           = norm * (1 - cb) + 0.5 * cb
 
   let [r, s] = prngNext(seed + 1)
   const isHighlight = r < settings.cyanAccentChance
   ;[r, s]           = prngNext(s)
   const isSecondary = !isHighlight && r < 0.4
+  const paletteRole: NeonLatticePaletteRole = isHighlight ? 'highlight' : isSecondary ? 'secondary' : 'primary'
+  const colorRgb = paletteRgb[paletteRole]
 
-  const colorRgb = isHighlight ? paletteRgb.highlight : isSecondary ? paletteRgb.secondary : paletteRgb.primary
+  ;[r, s] = prngNext(s)
+  const legacyY0 = r * 0.15
+  ;[r, s] = prngNext(s)
+  const legacyY1 = 0.85 + r * 0.15
+  const spanMode = settings.verticalSpanMode
+  const spanY0 = spanMode === 'fullCanvas' ? 0 : legacyY0
+  const spanY1 = spanMode === 'fullCanvas' ? 1 : legacyY1
 
-  ;[r, s]        = prngNext(s)
-  const spanY0   = r * 0.15
-  ;[r, s]        = prngNext(s)
-  const spanY1   = 0.85 + r * 0.15
-
-  ;[r]           = prngNext(s)
-  const depth    = 0.25 + r * 0.75
-
+  ;[r] = prngNext(s)
+  const depth = 0.25 + r * 0.75
   const rawLifetime = settings.railLifetime * (0.7 + strength * 0.5)
 
-  return {
-    vertical:  true,
-    pos:       norm,
-    spanStart: spanY0,
-    spanEnd:   spanY1,
-    width:     depth * (1.5 + strength * 1.5),
-    alpha:     0.5 + strength * 0.4,
-    glow:      settings.bloom * (0.5 + strength * 0.5),
-    depth,
-    birthSec:  audioTime,
-    lifetime:  rawLifetime,
-    colorRgb,
-    // Morph fields: idle (already at target, no animation in progress)
-    morphProgress:        1,
-    morphDuration:        1,
-    morphStartPos:        norm,
-    morphTargetPos:       norm,
-    morphStartSpanStart:  spanY0,
-    morphTargetSpanStart: spanY0,
-    morphStartSpanEnd:    spanY1,
-    morphTargetSpanEnd:   spanY1,
-  }
+  return legacyRailToSegment(
+    { vertical: true, pos: norm, spanStart: spanY0, spanEnd: spanY1 },
+    {
+      id: `nl-v-${seed}-${Math.round(audioTime * 1000)}`,
+      spanMode,
+      width: depth * (1.5 + strength * 1.5),
+      alpha: 0.5 + strength * 0.4,
+      glow: settings.bloom * (0.5 + strength * 0.5),
+      depth,
+      paletteRole,
+      colorRgb,
+      birthSec: audioTime,
+      lifetime: rawLifetime,
+      envelope: null,
+      envelopeStrength: strength,
+    },
+  )
 }
 
-/**
- * Build a horizontal rail seeded from the given integer.
- */
+function resolveHorizontalSpan(
+  mode: NeonLatticeSpanMode,
+  seed: number,
+): { start: number; end: number } {
+  let [r, s] = prngNext(seed)
+  if (mode === 'fullCanvas') return { start: 0, end: 1 }
+  if (mode === 'long') {
+    const length = 0.68 + r * 0.24
+    ;[r] = prngNext(s)
+    const center = 0.5 + (r - 0.5) * Math.max(0, 1 - length)
+    return { start: Math.max(0, center - length / 2), end: Math.min(1, center + length / 2) }
+  }
+  if (mode === 'random') {
+    const length = 0.12 + r * 0.78
+    ;[r] = prngNext(s)
+    const start = r * (1 - length)
+    return { start, end: start + length }
+  }
+  // presetDefined currently falls back to the legacy authored dash until a
+  // custom segment is selected by the composition runtime.
+  const halfSpan = 0.15 + r * 0.35
+  ;[r] = prngNext(s)
+  const cx = 0.2 + r * 0.6
+  return { start: Math.max(0, cx - halfSpan), end: Math.min(1, cx + halfSpan) }
+}
+
+/** Build a horizontal segment. The legacy short-dash span remains the default. */
 export function makeHorizontalRail(
   seed: number,
   settings: NeonLatticeSettings,
@@ -241,55 +421,466 @@ export function makeHorizontalRail(
   existing: NeonRail[],
   paletteRgb: NeonPaletteRgb,
   strength: number,
-): NeonRail {
+): NeonSegment {
   const lane  = selectHorizontalLane(seed, existing)
-  let   norm  = lane / Math.max(1, MAX_HORIZ - 1)
+  let norm    = lane / Math.max(1, MAX_HORIZ - 1)
   norm        = 0.1 + norm * 0.8
   const cb    = settings.centerBias * 0.25
   norm        = norm * (1 - cb) + 0.5 * cb
 
   let [r, s]  = prngNext(seed + 7)
   const isHighlight = r < settings.cyanAccentChance
-  ;[r, s]     = prngNext(s)
+  ;[r, s] = prngNext(s)
+  const paletteRole: NeonLatticePaletteRole = isHighlight ? 'highlight' : r < 0.4 ? 'secondary' : 'primary'
+  const colorRgb = paletteRgb[paletteRole]
 
-  // Horizontal rails: highlight, secondary, or primary
-  const colorRgb = isHighlight ? paletteRgb.highlight : r < 0.4 ? paletteRgb.secondary : paletteRgb.primary
-
-  ;[r, s]     = prngNext(s)
-  // Shorter spans — snare hits produce tighter dashes
-  const halfSpan = 0.15 + r * 0.35
-  ;[r, s]     = prngNext(s)
-  const cx    = 0.2 + r * 0.6
-  const x0    = Math.max(0, cx - halfSpan)
-  const x1    = Math.min(1, cx + halfSpan)
-
-  ;[r]        = prngNext(s)
+  const span = resolveHorizontalSpan(settings.horizontalSpanMode, s)
+  ;[r] = prngNext(s)
   const depth = 0.15 + r * 0.65
-
   const rawLifetime = settings.railLifetime * 0.6 * (0.6 + strength * 0.4)
 
-  return {
-    vertical:  false,
-    pos:       norm,
-    spanStart: x0,
-    spanEnd:   x1,
-    width:     depth * (1.0 + strength),
-    alpha:     0.35 + strength * 0.35,
-    glow:      settings.bloom * (0.3 + strength * 0.4),
-    depth,
-    birthSec:  audioTime,
-    lifetime:  rawLifetime,
-    colorRgb,
-    // Morph fields: idle
-    morphProgress:        1,
-    morphDuration:        1,
-    morphStartPos:        norm,
-    morphTargetPos:       norm,
-    morphStartSpanStart:  x0,
-    morphTargetSpanStart: x0,
-    morphStartSpanEnd:    x1,
-    morphTargetSpanEnd:   x1,
+  return legacyRailToSegment(
+    { vertical: false, pos: norm, spanStart: span.start, spanEnd: span.end },
+    {
+      id: `nl-h-${seed}-${Math.round(audioTime * 1000)}`,
+      spanMode: settings.horizontalSpanMode,
+      width: depth * (1.0 + strength),
+      alpha: 0.35 + strength * 0.35,
+      glow: settings.bloom * (0.3 + strength * 0.4),
+      depth,
+      paletteRole,
+      colorRgb,
+      birthSec: audioTime,
+      lifetime: rawLifetime,
+      envelope: null,
+      envelopeStrength: strength,
+    },
+  )
+}
+
+
+// ── Orientation-independent segment factories ───────────────────────────────
+
+export interface NeonSegmentFactoryOptions {
+  spanMode?: NeonLatticeSpanMode
+  paletteRole?: NeonLatticePaletteRole
+  angleDeg?: number
+  custom?: { startX: number; startY: number; endX: number; endY: number }
+  laneId?: string
+}
+
+function paletteColorForRole(palette: NeonPaletteRgb, role: NeonLatticePaletteRole): string {
+  return role === 'background' ? palette.primary : palette[role]
+}
+
+export function clampDiagonalAngleDegrees(angleDeg: number): number {
+  const finiteAngle = Number.isFinite(angleDeg) ? angleDeg : 45
+  const sign = finiteAngle < 0 ? -1 : 1
+  return sign * Math.max(10, Math.min(80, Math.abs(finiteAngle)))
+}
+
+function clipInfiniteLineToUnitSquare(cx: number, cy: number, dx: number, dy: number): { startX: number; startY: number; endX: number; endY: number } {
+  const candidates: Array<{ t: number; x: number; y: number }> = []
+  const push = (t: number) => {
+    const x = cx + dx * t
+    const y = cy + dy * t
+    if (x >= -1e-6 && x <= 1 + 1e-6 && y >= -1e-6 && y <= 1 + 1e-6) {
+      candidates.push({ t, x: clamp01(x), y: clamp01(y) })
+    }
   }
+  if (Math.abs(dx) > 1e-8) { push((0 - cx) / dx); push((1 - cx) / dx) }
+  if (Math.abs(dy) > 1e-8) { push((0 - cy) / dy); push((1 - cy) / dy) }
+  candidates.sort((a, b) => a.t - b.t)
+  const first = candidates[0] ?? { x: 0, y: 0, t: 0 }
+  const last = candidates[candidates.length - 1] ?? { x: 1, y: 1, t: 1 }
+  return { startX: first.x, startY: first.y, endX: last.x, endY: last.y }
+}
+
+function applySpanModeToEndpoints(
+  endpoints: { startX: number; startY: number; endX: number; endY: number },
+  mode: NeonLatticeSpanMode,
+  seed: number,
+): { startX: number; startY: number; endX: number; endY: number } {
+  if (mode === 'fullCanvas' || mode === 'presetDefined') return endpoints
+  let [r, s] = prngNext(seed)
+  const scale = mode === 'long' ? 0.62 + r * 0.25 : mode === 'short' ? 0.18 + r * 0.28 : 0.15 + r * 0.80
+  ;[r] = prngNext(s)
+  const centerT = Math.max(scale / 2, Math.min(1 - scale / 2, r))
+  const startT = centerT - scale / 2
+  const endT = centerT + scale / 2
+  return {
+    startX: endpoints.startX + (endpoints.endX - endpoints.startX) * startT,
+    startY: endpoints.startY + (endpoints.endY - endpoints.startY) * startT,
+    endX: endpoints.startX + (endpoints.endX - endpoints.startX) * endT,
+    endY: endpoints.startY + (endpoints.endY - endpoints.startY) * endT,
+  }
+}
+
+export function makeSegmentFromEndpoints(
+  id: string,
+  endpoints: { startX: number; startY: number; endX: number; endY: number },
+  settings: NeonLatticeSettings,
+  audioTime: number,
+  paletteRgb: NeonPaletteRgb,
+  strength: number,
+  options: NeonSegmentFactoryOptions = {},
+): NeonSegment {
+  const startX = clamp01(endpoints.startX)
+  const startY = clamp01(endpoints.startY)
+  const endX = clamp01(endpoints.endX)
+  const endY = clamp01(endpoints.endY)
+  const orientation = classifySegmentOrientation(startX, startY, endX, endY)
+  const role = options.paletteRole ?? 'primary'
+  const depthSeed = xorshift32(Math.abs(id.split('').reduce((acc, char) => acc * 31 + char.charCodeAt(0), 7)))
+  const depth = 0.2 + depthSeed * 0.75
+  const segment = legacyRailToSegment(
+    orientation === 'vertical'
+      ? { vertical: true, pos: startX, spanStart: Math.min(startY, endY), spanEnd: Math.max(startY, endY) }
+      : { vertical: false, pos: startY, spanStart: Math.min(startX, endX), spanEnd: Math.max(startX, endX) },
+    {
+      id,
+      startX, startY, endX, endY,
+      orientation,
+      spanMode: options.spanMode ?? 'presetDefined',
+      width: (1.1 + depth * 1.8) * (0.7 + strength * 0.6),
+      alpha: 0.4 + strength * 0.45,
+      glow: settings.bloom * (0.4 + strength * 0.6),
+      depth,
+      paletteRole: role,
+      colorRgb: paletteColorForRole(paletteRgb, role),
+      birthSec: audioTime,
+      lifetime: settings.railLifetime * (0.7 + strength * 0.5),
+      envelope: null,
+      envelopeStrength: strength,
+      laneId: options.laneId,
+      morphStartX: startX,
+      morphStartY: startY,
+      morphStartEndX: endX,
+      morphStartEndY: endY,
+      morphTargetX: startX,
+      morphTargetY: startY,
+      morphTargetEndX: endX,
+      morphTargetEndY: endY,
+    },
+  )
+  segment.startX = startX; segment.startY = startY; segment.endX = endX; segment.endY = endY
+  segment.orientation = orientation
+  return syncLegacyRailGeometry(segment)
+}
+
+export function makeDiagonalRail(
+  seed: number,
+  orientation: 'diagonalUp' | 'diagonalDown',
+  settings: NeonLatticeSettings,
+  audioTime: number,
+  _existing: NeonRail[],
+  paletteRgb: NeonPaletteRgb,
+  strength: number,
+  options: NeonSegmentFactoryOptions = {},
+): NeonSegment {
+  const authoredAngle = options.angleDeg ?? (orientation === 'diagonalUp' ? -settings.diagonalAngleDegrees : settings.diagonalAngleDegrees)
+  const angle = clampDiagonalAngleDegrees(authoredAngle)
+  const radians = angle * Math.PI / 180
+  let [r, s] = prngNext(seed + 17)
+  const offset = (r - 0.5) * 0.65
+  ;[r] = prngNext(s)
+  const cx = 0.5 + offset * 0.35
+  const cy = 0.5 + (r - 0.5) * 0.35
+  const full = clipInfiniteLineToUnitSquare(cx, cy, Math.cos(radians), Math.sin(radians))
+  const spanMode = options.spanMode ?? settings.diagonalSpanMode
+  const endpoints = options.custom ?? applySpanModeToEndpoints(full, spanMode, seed + 101)
+  const role: NeonLatticePaletteRole = options.paletteRole ?? (xorshift32(seed + 5) < settings.cyanAccentChance ? 'highlight' : 'primary')
+  return makeSegmentFromEndpoints(
+    `nl-${orientation === 'diagonalUp' ? 'du' : 'dd'}-${seed}-${Math.round(audioTime * 1000)}`,
+    endpoints,
+    settings,
+    audioTime,
+    paletteRgb,
+    strength,
+    { ...options, spanMode, paletteRole: role },
+  )
+}
+
+export function makeCustomSegmentRail(
+  seed: number,
+  custom: { id?: string; startX: number; startY: number; endX: number; endY: number; paletteRole?: NeonLatticePaletteRole },
+  settings: NeonLatticeSettings,
+  audioTime: number,
+  paletteRgb: NeonPaletteRgb,
+  strength: number,
+): NeonSegment {
+  return makeSegmentFromEndpoints(
+    custom.id ?? `nl-custom-${seed}-${Math.round(audioTime * 1000)}`,
+    custom,
+    settings,
+    audioTime,
+    paletteRgb,
+    strength,
+    { spanMode: 'presetDefined', paletteRole: custom.paletteRole ?? 'primary' },
+  )
+}
+
+export function selectWeightedOrientation(
+  weights: NeonLatticeSettings['orientationWeights'],
+  seed: number,
+): Exclude<NeonLatticeLineOrientation, 'custom'> {
+  const normalized = [weights.vertical, weights.horizontal, weights.diagonalUp, weights.diagonalDown]
+  const total = normalized.reduce((sum, value) => sum + Math.max(0, value), 0)
+  if (total <= 1e-9) return 'vertical'
+  const [value] = prngNext(seed)
+  let cursor = value * total
+  const orientations: Array<Exclude<NeonLatticeLineOrientation, 'custom'>> = ['vertical', 'horizontal', 'diagonalUp', 'diagonalDown']
+  for (let index = 0; index < orientations.length; index++) {
+    cursor -= Math.max(0, normalized[index])
+    if (cursor <= 0) return orientations[index]
+  }
+  return 'vertical'
+}
+
+// ── General segment intersections ────────────────────────────────────────────
+
+export interface NeonSegmentIntersection {
+  id: string
+  segmentAId: string
+  segmentBId: string
+  x: number
+  y: number
+  progressA: number
+  progressB: number
+  kind: 'point' | 'overlap'
+}
+
+function cross2(ax: number, ay: number, bx: number, by: number): number {
+  return ax * by - ay * bx
+}
+
+export function intersectSegments(
+  a: Pick<NeonSegment, 'id' | 'startX' | 'startY' | 'endX' | 'endY'>,
+  b: Pick<NeonSegment, 'id' | 'startX' | 'startY' | 'endX' | 'endY'>,
+  tolerance = 1e-6,
+): NeonSegmentIntersection | null {
+  const rx = a.endX - a.startX
+  const ry = a.endY - a.startY
+  const sx = b.endX - b.startX
+  const sy = b.endY - b.startY
+  const qpx = b.startX - a.startX
+  const qpy = b.startY - a.startY
+  const rxs = cross2(rx, ry, sx, sy)
+  const qpxr = cross2(qpx, qpy, rx, ry)
+  const aLen2 = rx * rx + ry * ry
+  const bLen2 = sx * sx + sy * sy
+  if (aLen2 <= tolerance * tolerance || bLen2 <= tolerance * tolerance) return null
+
+  let t: number
+  let u: number
+  let kind: 'point' | 'overlap' = 'point'
+  if (Math.abs(rxs) <= tolerance) {
+    if (Math.abs(qpxr) > tolerance) return null
+    const t0 = (qpx * rx + qpy * ry) / aLen2
+    const t1 = t0 + (sx * rx + sy * ry) / aLen2
+    const lo = Math.max(0, Math.min(t0, t1))
+    const hi = Math.min(1, Math.max(t0, t1))
+    if (hi < lo - tolerance) return null
+    t = clamp01((lo + hi) / 2)
+    const x = a.startX + rx * t
+    const y = a.startY + ry * t
+    u = Math.abs(sx) >= Math.abs(sy) ? (x - b.startX) / sx : (y - b.startY) / sy
+    kind = 'overlap'
+  } else {
+    t = cross2(qpx, qpy, sx, sy) / rxs
+    u = cross2(qpx, qpy, rx, ry) / rxs
+    if (t < -tolerance || t > 1 + tolerance || u < -tolerance || u > 1 + tolerance) return null
+    t = clamp01(t)
+    u = clamp01(u)
+  }
+  const x = clamp01(a.startX + rx * t)
+  const y = clamp01(a.startY + ry * t)
+  const pair = [a.id, b.id].sort()
+  const qx = Math.round(x * 1e6)
+  const qy = Math.round(y * 1e6)
+  return {
+    id: `${pair[0]}|${pair[1]}@${qx},${qy}`,
+    segmentAId: a.id,
+    segmentBId: b.id,
+    x, y,
+    progressA: t,
+    progressB: u,
+    kind,
+  }
+}
+
+export function buildSegmentIntersections(
+  segments: NeonSegment[],
+  tolerance = 1e-6,
+): { intersections: NeonSegmentIntersection[]; duplicatesSuppressed: number } {
+  const seen = new Set<string>()
+  const intersections: NeonSegmentIntersection[] = []
+  let duplicatesSuppressed = 0
+  for (let i = 0; i < segments.length; i++) {
+    for (let j = i + 1; j < segments.length; j++) {
+      const hit = intersectSegments(segments[i], segments[j], tolerance)
+      if (!hit) continue
+      if (seen.has(hit.id)) { duplicatesSuppressed++; continue }
+      seen.add(hit.id)
+      intersections.push(hit)
+    }
+  }
+  intersections.sort((a, b) => a.id.localeCompare(b.id))
+  return { intersections, duplicatesSuppressed }
+}
+
+
+export interface PulseIntersectionCandidate {
+  intersection: NeonSegmentIntersection
+  otherSegmentId: string
+  currentProgress: number
+  otherProgress: number
+}
+
+/**
+ * Select the nearest valid intersection crossed during this update. Recent
+ * route history is rejected so a pulse cannot immediately ping-pong between
+ * two connected segments.
+ */
+export function selectPulseIntersectionCandidate(
+  segmentId: string,
+  previousProgress: number,
+  nextProgress: number,
+  direction: 1 | -1,
+  intersections: readonly NeonSegmentIntersection[],
+  routeHistory: readonly string[],
+  lastIntersectionId?: string,
+  tolerance = 1e-6,
+): PulseIntersectionCandidate | null {
+  const candidates: PulseIntersectionCandidate[] = []
+  for (const intersection of intersections) {
+    if (intersection.kind === 'overlap') continue
+    const isA = intersection.segmentAId === segmentId
+    const isB = intersection.segmentBId === segmentId
+    if (!isA && !isB) continue
+    if (intersection.id === lastIntersectionId) continue
+    const currentProgress = isA ? intersection.progressA : intersection.progressB
+    const otherProgress = isA ? intersection.progressB : intersection.progressA
+    const otherSegmentId = isA ? intersection.segmentBId : intersection.segmentAId
+    if (routeHistory.slice(-2).includes(otherSegmentId)) continue
+    const crossed = direction === 1
+      ? currentProgress > previousProgress + tolerance && currentProgress <= nextProgress + tolerance
+      : currentProgress < previousProgress - tolerance && currentProgress >= nextProgress - tolerance
+    if (crossed) candidates.push({ intersection, otherSegmentId, currentProgress, otherProgress })
+  }
+  candidates.sort((a, b) => direction === 1
+    ? a.currentProgress - b.currentProgress
+    : b.currentProgress - a.currentProgress)
+  return candidates[0] ?? null
+}
+
+function syncLegacyMorphFieldsFromCanonical(segment: NeonSegment): void {
+  const sourceOrientation = classifySegmentOrientation(
+    segment.morphStartX, segment.morphStartY, segment.morphStartEndX, segment.morphStartEndY,
+  )
+  const targetOrientation = classifySegmentOrientation(
+    segment.morphTargetX, segment.morphTargetY, segment.morphTargetEndX, segment.morphTargetEndY,
+  )
+  if (sourceOrientation !== targetOrientation) return
+  if (sourceOrientation === 'vertical') {
+    segment.morphStartPos = segment.morphStartX
+    segment.morphTargetPos = segment.morphTargetX
+    segment.morphStartSpanStart = Math.min(segment.morphStartY, segment.morphStartEndY)
+    segment.morphTargetSpanStart = Math.min(segment.morphTargetY, segment.morphTargetEndY)
+    segment.morphStartSpanEnd = Math.max(segment.morphStartY, segment.morphStartEndY)
+    segment.morphTargetSpanEnd = Math.max(segment.morphTargetY, segment.morphTargetEndY)
+  } else if (sourceOrientation === 'horizontal') {
+    segment.morphStartPos = segment.morphStartY
+    segment.morphTargetPos = segment.morphTargetY
+    segment.morphStartSpanStart = Math.min(segment.morphStartX, segment.morphStartEndX)
+    segment.morphTargetSpanStart = Math.min(segment.morphTargetX, segment.morphTargetEndX)
+    segment.morphStartSpanEnd = Math.max(segment.morphStartX, segment.morphStartEndX)
+    segment.morphTargetSpanEnd = Math.max(segment.morphTargetX, segment.morphTargetEndX)
+  }
+}
+
+function adoptLegacyAxisMorphIfChanged(segment: NeonSegment): void {
+  const sourceOrientation = classifySegmentOrientation(
+    segment.morphStartX, segment.morphStartY, segment.morphStartEndX, segment.morphStartEndY,
+  )
+  const targetOrientation = classifySegmentOrientation(
+    segment.morphTargetX, segment.morphTargetY, segment.morphTargetEndX, segment.morphTargetEndY,
+  )
+  if (sourceOrientation !== targetOrientation || (sourceOrientation !== 'vertical' && sourceOrientation !== 'horizontal')) return
+  const values = [
+    segment.morphStartPos, segment.morphTargetPos,
+    segment.morphStartSpanStart, segment.morphTargetSpanStart,
+    segment.morphStartSpanEnd, segment.morphTargetSpanEnd,
+  ]
+  if (!values.every(Number.isFinite)) return
+
+  const projected = sourceOrientation === 'vertical'
+    ? [
+        segment.morphStartX, segment.morphTargetX,
+        Math.min(segment.morphStartY, segment.morphStartEndY),
+        Math.min(segment.morphTargetY, segment.morphTargetEndY),
+        Math.max(segment.morphStartY, segment.morphStartEndY),
+        Math.max(segment.morphTargetY, segment.morphTargetEndY),
+      ]
+    : [
+        segment.morphStartY, segment.morphTargetY,
+        Math.min(segment.morphStartX, segment.morphStartEndX),
+        Math.min(segment.morphTargetX, segment.morphTargetEndX),
+        Math.max(segment.morphStartX, segment.morphStartEndX),
+        Math.max(segment.morphTargetX, segment.morphTargetEndX),
+      ]
+  if (!values.some((value, index) => Math.abs(value - projected[index]) > 1e-9)) return
+
+  const startPos = clamp01(segment.morphStartPos)
+  const targetPos = clamp01(segment.morphTargetPos)
+  const startSpanStart = clamp01(Math.min(segment.morphStartSpanStart, segment.morphStartSpanEnd))
+  const startSpanEnd = clamp01(Math.max(segment.morphStartSpanStart, segment.morphStartSpanEnd))
+  const targetSpanStart = clamp01(Math.min(segment.morphTargetSpanStart, segment.morphTargetSpanEnd))
+  const targetSpanEnd = clamp01(Math.max(segment.morphTargetSpanStart, segment.morphTargetSpanEnd))
+  if (sourceOrientation === 'vertical') {
+    segment.morphStartX = startPos
+    segment.morphStartY = startSpanStart
+    segment.morphStartEndX = startPos
+    segment.morphStartEndY = startSpanEnd
+    segment.morphTargetX = targetPos
+    segment.morphTargetY = targetSpanStart
+    segment.morphTargetEndX = targetPos
+    segment.morphTargetEndY = targetSpanEnd
+  } else {
+    segment.morphStartX = startSpanStart
+    segment.morphStartY = startPos
+    segment.morphStartEndX = startSpanEnd
+    segment.morphStartEndY = startPos
+    segment.morphTargetX = targetSpanStart
+    segment.morphTargetY = targetPos
+    segment.morphTargetEndX = targetSpanEnd
+    segment.morphTargetEndY = targetPos
+  }
+}
+
+export function beginSegmentMorph(
+  segment: NeonSegment,
+  target: Pick<NeonSegment, 'startX' | 'startY' | 'endX' | 'endY'>,
+  duration: number,
+): 'morph' | 'replace' {
+  const sourceOrientation = classifySegmentOrientation(segment.startX, segment.startY, segment.endX, segment.endY)
+  const targetOrientation = classifySegmentOrientation(target.startX, target.startY, target.endX, target.endY)
+  const sourceAngle = Math.atan2(segment.endY - segment.startY, segment.endX - segment.startX)
+  const targetAngle = Math.atan2(target.endY - target.startY, target.endX - target.startX)
+  const delta = Math.abs(Math.atan2(Math.sin(targetAngle - sourceAngle), Math.cos(targetAngle - sourceAngle)))
+  if (sourceOrientation !== targetOrientation && delta > Math.PI * 0.72) return 'replace'
+  segment.morphStartX = segment.startX
+  segment.morphStartY = segment.startY
+  segment.morphStartEndX = segment.endX
+  segment.morphStartEndY = segment.endY
+  segment.morphTargetX = clamp01(target.startX)
+  segment.morphTargetY = clamp01(target.startY)
+  segment.morphTargetEndX = clamp01(target.endX)
+  segment.morphTargetEndY = clamp01(target.endY)
+  segment.morphDuration = Math.max(0.01, duration)
+  segment.morphProgress = 0
+  syncLegacyMorphFieldsFromCanonical(segment)
+  return 'morph'
 }
 
 // ── Lifetime alpha ────────────────────────────────────────────────────────────
@@ -342,26 +933,36 @@ export const MAX_SHOCKWAVES = 4
 // ── Pulse model ────────────────────────────────────────────────────────────────
 
 export interface NeonPulse {
-  /** true = pulse on a vertical rail (moves along Y). */
-  vertical:   boolean
-  /** Normalized perpendicular-axis position of the rail (X if vertical, Y if horizontal). */
-  railPos:    number
-  /** Normalized current position along the rail's own axis (Y if vertical, X if horizontal). */
-  progress:   number
-  /** +1 = downward/rightward, -1 = upward/leftward. */
-  direction:  1 | -1
-  /** Normalized canvas units per second. */
-  speed:      number
-  /** 0–1 peak brightness. */
+  id: string
+  segmentId: string
+  startX: number
+  startY: number
+  endX: number
+  endY: number
+  /** Normalized 0–1 progress from segment start to segment end. */
+  progress: number
+  /** +1 travels start→end, -1 travels end→start. */
+  direction: 1 | -1
+  speed: number
   brightness: number
-  /** Normalized canvas radius of the pulse head. */
-  radius:     number
-  colorRgb:   string
-  birthSec:   number
-  lifetime:   number
-  depth:      number
-  /** How many child pulses this object has already spawned (cap: 1). */
+  radius: number
+  colorRgb: string
+  birthSec: number
+  lifetime: number
+  depth: number
   splitCount: number
+  /** Segment IDs visited most recently, used by the general router in Patch 2. */
+  routeHistory: string[]
+  /** Last routed intersection, preventing zero-distance re-entry on the next frame. */
+  lastIntersectionId?: string
+  /** @deprecated compatibility mirror. */
+  vertical: boolean
+  /** @deprecated compatibility mirror. */
+  railPos: number
+}
+
+export function pulsePointAt(pulse: Pick<NeonPulse, 'startX' | 'startY' | 'endX' | 'endY' | 'progress'>): { x: number; y: number } {
+  return segmentPointAt(pulse, pulse.progress)
 }
 
 // ── Flare model ────────────────────────────────────────────────────────────────
@@ -469,33 +1070,39 @@ export function makePulseOnRail(
   seed:        number,
   motionScale: number,
 ): NeonPulse {
-  // Clamp minimum speed so zero pulseSpeed never creates permanent stationary pulses
-  const rawSpeed    = settings.pulseSpeed * (0.20 + strength * 0.40) * Math.max(0.1, motionScale)
-  const speed       = Math.max(0.06, rawSpeed)
-  const railLength  = Math.max(0.05, rail.spanEnd - rail.spanStart)
-  const lifetime    = Math.min(4.0, railLength / speed * (0.8 + strength * 0.2))
-  const startProg   = direction === 1 ? rail.spanStart : rail.spanEnd
+  const segment = ensureNeonSegment(rail)
+  const rawSpeed = settings.pulseSpeed * (0.20 + strength * 0.40) * Math.max(0.1, motionScale)
+  const speed = Math.max(0.06, rawSpeed)
+  const length = Math.max(0.05, segmentLength(segment))
+  const lifetime = Math.min(4.0, length / speed * (0.8 + strength * 0.2))
 
   let [r, s] = prngNext(seed + 3)
   const isHighlight = r < settings.cyanAccentChance
   ;[r, s] = prngNext(s)
   const colorRgb = isHighlight ? paletteRgb.highlight : r < 0.30 ? paletteRgb.secondary : paletteRgb.primary
-  ;[r]    = prngNext(s)
+  ;[r] = prngNext(s)
   const radius = 0.007 + r * 0.011
 
   return {
-    vertical:   rail.vertical,
-    railPos:    rail.pos,
-    progress:   startProg,
+    id: `nl-p-${seed}-${Math.round(audioTime * 1000)}`,
+    segmentId: segment.id,
+    startX: segment.startX,
+    startY: segment.startY,
+    endX: segment.endX,
+    endY: segment.endY,
+    progress: direction === 1 ? 0 : 1,
     direction,
     speed,
     brightness: 0.55 + strength * 0.45,
     radius,
     colorRgb,
-    birthSec:   audioTime,
+    birthSec: audioTime,
     lifetime,
-    depth:      rail.depth,
+    depth: segment.depth,
     splitCount: 0,
+    routeHistory: [segment.id],
+    vertical: segment.orientation === 'vertical',
+    railPos: segment.orientation === 'vertical' ? segment.startX : segment.startY,
   }
 }
 
@@ -861,12 +1468,20 @@ export function computeHorizRailMorphTarget(
  * using smoothstep easing.  Does nothing when `morphProgress >= 1`.
  */
 export function advanceRailMorph(rail: NeonRail, dt: number): void {
-  if (rail.morphProgress >= 1) return
-  rail.morphProgress = Math.min(1, rail.morphProgress + dt / Math.max(0.01, rail.morphDuration))
-  const t = smoothstep(rail.morphProgress)
-  rail.pos       = rail.morphStartPos       + (rail.morphTargetPos       - rail.morphStartPos)       * t
-  rail.spanStart = rail.morphStartSpanStart + (rail.morphTargetSpanStart - rail.morphStartSpanStart) * t
-  rail.spanEnd   = rail.morphStartSpanEnd   + (rail.morphTargetSpanEnd   - rail.morphStartSpanEnd)   * t
+  const segment = ensureNeonSegment(rail)
+  if (segment.morphProgress >= 1) return
+  // Older renderer/test integrations still author axis morphs through the
+  // compatibility fields. Adopt those values only when they differ from the
+  // canonical same-axis segment morph; diagonal/cross-axis morphs stay native.
+  adoptLegacyAxisMorphIfChanged(segment)
+  segment.morphProgress = Math.min(1, segment.morphProgress + dt / Math.max(0.01, segment.morphDuration))
+  const t = smoothstep(segment.morphProgress)
+  segment.startX = segment.morphStartX + (segment.morphTargetX - segment.morphStartX) * t
+  segment.startY = segment.morphStartY + (segment.morphTargetY - segment.morphStartY) * t
+  segment.endX = segment.morphStartEndX + (segment.morphTargetEndX - segment.morphStartEndX) * t
+  segment.endY = segment.morphStartEndY + (segment.morphTargetEndY - segment.morphStartEndY) * t
+  syncLegacyRailGeometry(segment)
+  syncLegacyMorphFieldsFromCanonical(segment)
 }
 
 // ── Section / MI helpers ───────────────────────────────────────────────────────

@@ -7,6 +7,7 @@ import {
   makeFlare,
   makeShockwave,
   makePulseOnRail,
+  pulsePointAt,
   flareLifetimeAlpha,
   blockLifetimeAlpha,
   isPulseExpired,
@@ -345,14 +346,16 @@ describe('object caps', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('makePulseOnRail', () => {
-  it('starts at spanStart for direction=1', () => {
+  it('starts at the segment start for direction=1', () => {
     const p = makePulseOnRail(vertRail, 1, settings, 0, palette, 0.7, 1, 0.5)
-    expect(p.progress).toBeCloseTo(vertRail.spanStart)
+    expect(p.progress).toBe(0)
+    expect(pulsePointAt(p)).toEqual({ x: vertRail.pos, y: vertRail.spanStart })
   })
 
-  it('starts at spanEnd for direction=-1', () => {
+  it('starts at the segment end for direction=-1', () => {
     const p = makePulseOnRail(vertRail, -1, settings, 0, palette, 0.7, 1, 0.5)
-    expect(p.progress).toBeCloseTo(vertRail.spanEnd)
+    expect(p.progress).toBe(1)
+    expect(pulsePointAt(p)).toEqual({ x: vertRail.pos, y: vertRail.spanEnd })
   })
 
   it('inherits rail.vertical and rail.pos', () => {
