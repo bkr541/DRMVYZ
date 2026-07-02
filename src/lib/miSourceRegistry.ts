@@ -10,6 +10,7 @@ export type MISourceCategory =
   | 'harmonic'
   | 'stems'
   | 'semantic'
+  | 'capability'
 
 export interface MISourceDef {
   key:          string
@@ -52,6 +53,9 @@ export const MI_SOURCE_REGISTRY: MISourceDef[] = [
   { key: 'snare',     label: 'Snare Str.',    category: 'rhythm' },
   { key: 'hat',       label: 'Hat Str.',      category: 'rhythm' },
   { key: 'transient', label: 'Transient',     category: 'rhythm' },
+  { key: 'bpm',       label: 'BPM (norm)',    category: 'rhythm', description: 'BPM normalized to 0–1 over 40–240 BPM' },
+  { key: 'bpmConfidence', label: 'BPM Conf.', category: 'rhythm' },
+  { key: 'transientConfidence', label: 'Transient Conf.', category: 'rhythm' },
   { key: 'downbeat',  label: 'Downbeat',      category: 'rhythm', isTrigger: true },
 
   // ── Layer 3: Musical Grid ────────────────────────────────────────────────
@@ -78,10 +82,14 @@ export const MI_SOURCE_REGISTRY: MISourceDef[] = [
   { key: 'delta',           label: 'Energy Delta',   category: 'energy' },
   { key: 'spectralCentroid',label: 'Centroid',       category: 'energy' },
   { key: 'spectralFlatness',label: 'Flatness',       category: 'energy' },
+  { key: 'spectralSpread', label: 'Spread',          category: 'energy' },
+  { key: 'spectralRolloff',label: 'Rolloff',         category: 'energy' },
+  { key: 'trackEnergy',    label: 'Track Energy',    category: 'energy' },
 
   // ── Layer 5: Sections ────────────────────────────────────────────────────
   { key: 'sectionProgress',  label: 'Section Prog.', category: 'section' },
   { key: 'sectionIntensity', label: 'Section Int.',  category: 'section' },
+  { key: 'sectionConfidence',label: 'Section Conf.', category: 'section' },
 
   // ── Layer 6: Harmonic ────────────────────────────────────────────────────
   { key: 'pitchHz',        label: 'Pitch (Hz)',      category: 'harmonic' },
@@ -95,11 +103,16 @@ export const MI_SOURCE_REGISTRY: MISourceDef[] = [
   { key: 'drumEnergy',        label: 'Drum Energy',   category: 'stems' },
   { key: 'bassStemEnergy',    label: 'Bass Stem',     category: 'stems' },
   { key: 'instrumentEnergy',  label: 'Instr. Energy', category: 'stems' },
+  { key: 'otherStemEnergy',  label: 'Other Stem',    category: 'stems' },
   { key: 'vocalActivity',     label: 'Vocal Act.',    category: 'stems' },
   { key: 'lyricActivity',     label: 'Lyric Act.',    category: 'stems' },
   { key: 'lyricLineProgress', label: 'Lyric Prog.',   category: 'stems' },
   { key: 'phraseConfidence',  label: 'Phrase Conf.',  category: 'stems' },
+  { key: 'lyricWordProgress', label: 'Word Prog.',     category: 'stems' },
   { key: 'wordHit',           label: 'Word Hit',      category: 'stems', isTrigger: true },
+  { key: 'lineEnter',         label: 'Line Enter',    category: 'stems', isTrigger: true },
+  { key: 'lineExit',          label: 'Line Exit',     category: 'stems', isTrigger: true },
+  { key: 'lyricGap',          label: 'Lyric Gap',     category: 'stems', isCondition: true },
   { key: 'drumTrans',         label: 'Drum Trans.',   category: 'stems', isTrigger: true },
   { key: 'bassTrans',         label: 'Bass Trans.',   category: 'stems', isTrigger: true },
 
@@ -108,6 +121,18 @@ export const MI_SOURCE_REGISTRY: MISourceDef[] = [
   { key: 'dropConfidence',      label: 'Drop Conf.',     category: 'semantic' },
   { key: 'fakeoutConfidence',   label: 'Fakeout Conf.',  category: 'semantic' },
   { key: 'vocalHookConfidence', label: 'Hook Conf.',     category: 'semantic' },
+  { key: 'overallConfidence',   label: 'Overall Conf.',  category: 'semantic' },
+  { key: 'rhythmConfidence',    label: 'Rhythm Conf.',   category: 'semantic' },
+  { key: 'harmonicConfidence',  label: 'Harmonic Conf.', category: 'semantic' },
+
+  // Availability gates distinguish unavailable analysis from a real zero.
+  { key: 'hasLiveBands',       label: 'Has Live Bands', category: 'capability', isCondition: true },
+  { key: 'hasRhythmEvents',    label: 'Has Rhythm',     category: 'capability', isCondition: true },
+  { key: 'hasBeatGrid',        label: 'Has Beat Grid',  category: 'capability', isCondition: true },
+  { key: 'hasSections',        label: 'Has Sections',   category: 'capability', isCondition: true },
+  { key: 'hasTrackEnergyCurve',label: 'Has Track Curve',category: 'capability', isCondition: true },
+  { key: 'hasStems',           label: 'Has Stems',      category: 'capability', isCondition: true },
+  { key: 'hasLyrics',          label: 'Has Lyrics',     category: 'capability', isCondition: true },
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -121,6 +146,7 @@ export type ModulationSourceKey =
   | 'nSub' | 'nBass' | 'nLowMid' | 'nMid' | 'nHigh' | 'nAir'
   // Layer 2
   | 'beatPhase' | 'kick' | 'snare' | 'hat' | 'transient' | 'downbeat'
+  | 'bpm' | 'bpmConfidence' | 'transientConfidence'
   // Layer 3
   | 'phrase4' | 'phrase8' | 'phrase16' | 'phrase32'
   | 'phrase4Hit' | 'phrase8Hit' | 'phrase16Hit' | 'phrase32Hit'
@@ -128,17 +154,21 @@ export type ModulationSourceKey =
   | 'energy' | 'energyShort' | 'energyLong'
   | 'spectralFlux' | 'tension' | 'complexity' | 'buildProgress' | 'dropImpact'
   | 'crestFactor' | 'percentile' | 'delta'
-  | 'spectralCentroid' | 'spectralFlatness'
+  | 'spectralCentroid' | 'spectralSpread' | 'spectralRolloff' | 'spectralFlatness' | 'trackEnergy'
   // Layer 5
-  | 'sectionProgress' | 'sectionIntensity'
+  | 'sectionProgress' | 'sectionIntensity' | 'sectionConfidence'
   // Layer 6
   | 'pitchHz' | 'melodyHeight' | 'keyConfidence' | 'chordConfidence' | 'chordChange'
   // Layer 7
-  | 'vocalEnergy' | 'drumEnergy' | 'bassStemEnergy' | 'instrumentEnergy' | 'vocalActivity'
-  | 'lyricActivity' | 'lyricLineProgress' | 'phraseConfidence'
-  | 'wordHit' | 'drumTrans' | 'bassTrans'
+  | 'vocalEnergy' | 'drumEnergy' | 'bassStemEnergy' | 'instrumentEnergy' | 'otherStemEnergy' | 'vocalActivity'
+  | 'lyricActivity' | 'lyricLineProgress' | 'lyricWordProgress' | 'phraseConfidence'
+  | 'wordHit' | 'lineEnter' | 'lineExit' | 'lyricGap' | 'drumTrans' | 'bassTrans'
   // Layer 8
   | 'buildConfidence' | 'dropConfidence' | 'fakeoutConfidence' | 'vocalHookConfidence'
+  | 'overallConfidence' | 'rhythmConfidence' | 'harmonicConfidence'
+  // Capability gates
+  | 'hasLiveBands' | 'hasRhythmEvents' | 'hasBeatGrid' | 'hasSections'
+  | 'hasTrackEnergyCurve' | 'hasStems' | 'hasLyrics'
 
 export const MI_SOURCE_CATEGORY_LABELS: Record<MISourceCategory, string> = {
   bands:    'Audio Bands',
@@ -149,6 +179,7 @@ export const MI_SOURCE_CATEGORY_LABELS: Record<MISourceCategory, string> = {
   harmonic: 'Harmonic',
   stems:    'Stems & Lyrics',
   semantic: 'Semantic',
+  capability: 'Availability',
 }
 
 const _labelMap: Record<string, string> = Object.fromEntries(
@@ -167,7 +198,7 @@ export function getMISourceDef(key: string): MISourceDef | undefined {
 export const MI_SOURCES_BY_CATEGORY: Record<MISourceCategory, MISourceDef[]> = (() => {
   const out: Record<MISourceCategory, MISourceDef[]> = {
     bands: [], rhythm: [], grid: [], energy: [],
-    section: [], harmonic: [], stems: [], semantic: [],
+    section: [], harmonic: [], stems: [], semantic: [], capability: [],
   }
   for (const def of MI_SOURCE_REGISTRY) out[def.category].push(def)
   return out

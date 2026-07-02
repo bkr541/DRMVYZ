@@ -6,6 +6,8 @@ import { ShaderSpectrumTexture }       from './audio/ShaderSpectrumTexture'
 import { ShaderWaveformTexture }       from './audio/ShaderWaveformTexture'
 import { ShaderTextureInputManager }   from './textures/ShaderTextureInputManager'
 import { ShaderGradientTextureCache }  from './textures/ShaderGradientTextureCache'
+import { ShaderBrandTextureBridge }     from './brand/ShaderBrandTextureBridge'
+import { applyShaderBrandUniforms, resolveShaderBrandPalette, resolveShaderColorParam, type ShaderBrandPaletteContext } from './brand/ShaderBrandPersonalization'
 import { ShaderModulationEvaluator }   from './modulation/ShaderModulationEvaluator'
 import { ShaderModulationMatrix }      from './modulation/ShaderModulationMatrix'
 import { ShaderTransitionController }  from './transitions/ShaderTransitionController'
@@ -25,6 +27,8 @@ import type { ShaderProgram }          from './runtime/ShaderProgram'
 import type { ShaderTexSourceSelection, ShaderTextureMeta } from './textures/shaderTextureInputTypes'
 import { DEFAULT_TRANSITION }          from './transitions/shaderTransitionTypes'
 import { resolveCanvasResolution, type CanvasResolution } from '../rendering/canvasResolution'
+import { useBrandKitStore } from '../../../../features/personalization/brandKitStore'
+import { getShaderReservedTextureUnits } from './runtime/shaderTextureUnits'
 
 // ── MasterParams ──────────────────────────────────────────────────────────────
 
@@ -74,6 +78,7 @@ export class ShaderEngineRenderer {
   private readonly _waveTex:        ShaderWaveformTexture
   private readonly _texManager:     ShaderTextureInputManager
   private readonly _gradientCache:  ShaderGradientTextureCache
+  private readonly _brandTextureBridge: ShaderBrandTextureBridge
   private readonly _modEval:        ShaderModulationEvaluator
   private readonly _matrix:         ShaderModulationMatrix
   private readonly _transCtrl:      ShaderTransitionController
@@ -126,6 +131,7 @@ export class ShaderEngineRenderer {
     this._waveTex        = new ShaderWaveformTexture(gl)
     this._texManager     = new ShaderTextureInputManager(gl)
     this._gradientCache  = new ShaderGradientTextureCache(gl)
+    this._brandTextureBridge = new ShaderBrandTextureBridge(gl)
     this._modEval        = new ShaderModulationEvaluator()
     this._matrix      = new ShaderModulationMatrix()
     this._transCtrl   = new ShaderTransitionController()
@@ -208,8 +214,9 @@ export class ShaderEngineRenderer {
 
     const t0 = performance.now()
 
-    const store    = useShaderPanelStore.getState()
-    const libStore = useShaderLibraryStore.getState()
+    const store      = useShaderPanelStore.getState()
+    const libStore   = useShaderLibraryStore.getState()
+    const brandState = useBrandKitStore.getState()
 
     // ── Scene activation / recompile check ────────────────────────────────
     const requestedId = store.activeShaderId ?? DEFAULT_SHADER_SCENE_ID
@@ -297,16 +304,19 @@ export class ShaderEngineRenderer {
       store.paramValues,
       frameState.deltaTime,
       this._activeSceneId ?? '',
+      frame.musicIntelligence,
     )
     store.setEvaluationFrame(evalFrame)
 
-    const modulatedValues: Record<string, number> = {}
+    const effectiveValues: Record<string, ShaderParamValue> = {}
+    const numericModulatedValues: Record<string, number> = {}
     for (const [pid, result] of Object.entries(evalFrame.params)) {
+      effectiveValues[pid] = result.effectiveValue
       if (typeof result.effectiveValue === 'number') {
-        modulatedValues[pid] = result.effectiveValue
+        numericModulatedValues[pid] = result.effectiveValue
       }
     }
-    store.setModulatedValues(modulatedValues)
+    store.setModulatedValues(numericModulatedValues)
 
     // ── Consume triggered params ───────────────────────────────────────────
     const consumed = store.consumeTriggeredParams()
@@ -316,13 +326,22 @@ export class ShaderEngineRenderer {
     const def     = this._activeDef
     // Build texture metadata snapshot once per frame (not per program)
     const texMeta = this._texManager.getAllMetadata()
-    // Gradient params need texture units; use 8–13 (above scene inputs, below audio)
+    const reservedUnits = getShaderReservedTextureUnits(this._gl)
+    const firstGradientUnit = _maxPassInputCount(def)
     const gradientUnits = this._gradientCache.buildUnitMap(
-      def, store.paramValues, this._gl, 8,
+      def,
+      store.paramValues,
+      this._gl,
+      firstGradientUnit,
+      reservedUnits.firstReserved,
     )
+    const brandContext = resolveShaderBrandPalette(def, effectiveValues, brandState.activeKit)
+    this._brandTextureBridge.update(brandState.activeKit, brandState.activeAssets, brandContext.enabled)
 
     const applyUniforms = (program: ShaderProgram) => {
       this._audioBridge.applyToProgram(program, this._gl, this._specTex, this._waveTex)
+      applyShaderBrandUniforms(program, brandContext)
+      this._brandTextureBridge.applyToProgram(program)
 
       program.setVec2('uResolution', dims.W, dims.H)
       program.setFloat('uAspect', dims.aspect)
@@ -335,7 +354,7 @@ export class ShaderEngineRenderer {
       program.setFloat('uMasterFogDensity',      master.fogDensity)
       program.setFloat('uMasterParticleDensity', master.particleDensity)
 
-      _applyParamUniforms(program, this._gl as WebGL2RenderingContext, def, store.paramValues, modulatedValues, consumed, gradientUnits)
+      _applyParamUniforms(program, this._gl as WebGL2RenderingContext, def, store.paramValues, effectiveValues, consumed, gradientUnits, brandContext)
       _applyTextureMetaUniforms(program, def, texMeta)
     }
 
@@ -367,6 +386,8 @@ export class ShaderEngineRenderer {
       this._outgoingExecutor.setOutputFbo(this._transRend.outCaptureFbo)
       this._outgoingExecutor.execute(dims, texMap, (prog) => {
         this._audioBridge.applyToProgram(prog, this._gl, this._specTex, this._waveTex)
+        applyShaderBrandUniforms(prog, brandContext)
+        this._brandTextureBridge.applyToProgram(prog)
         prog.setVec2('uResolution', dims.W, dims.H)
         prog.setFloat('uAspect', dims.aspect)
         _applyMasterUniforms(prog, master)
@@ -572,6 +593,7 @@ export class ShaderEngineRenderer {
     this._waveTex.dispose?.()
     this._texManager.dispose?.()
     this._gradientCache.dispose()
+    this._brandTextureBridge.dispose()
     this._transRend.dispose()
     this._perfMon.dispose(this._gl)
   }
@@ -728,13 +750,14 @@ function _applyParamUniforms(
   gl:              WebGL2RenderingContext,
   def:             ShaderDefinition,
   paramValues:     Record<string, ShaderParamValue>,
-  modulatedValues: Record<string, number>,
+  effectiveValues: Record<string, ShaderParamValue>,
   consumed:        string[],
   gradientUnits:   ReadonlyMap<string, number>,
+  brandContext:    ShaderBrandPaletteContext,
 ): void {
   for (const param of def.params) {
     const base   = paramValues[param.id] ?? def.defaults[param.id]
-    const effNum = modulatedValues[param.id]
+    const evaluated = effectiveValues[param.id]
 
     if (param.type === 'trigger') {
       const triggered = consumed.includes(param.id) || base === true
@@ -742,7 +765,7 @@ function _applyParamUniforms(
       continue
     }
 
-    const effective: ShaderParamValue = effNum !== undefined ? effNum : base
+    const effective: ShaderParamValue = evaluated !== undefined ? evaluated : base
 
     switch (param.type) {
       case 'float':
@@ -753,7 +776,8 @@ function _applyParamUniforms(
         program.setFloat(param.uniformName, effective ? 1.0 : 0.0)
         break
       case 'color': {
-        const c = (effective as RGBA | undefined) ?? [1, 1, 1, 1] as RGBA
+        const authored = (effective as RGBA | undefined) ?? [1, 1, 1, 1] as RGBA
+        const c = resolveShaderColorParam(authored, param.brandRole, brandContext)
         program.setVec4(param.uniformName, c[0], c[1], c[2], c[3])
         break
       }
@@ -810,6 +834,14 @@ function _applyTextureMetaUniforms(
     program.setVec2(base + 'UvScale', meta.uvScaleX, meta.uvScaleY)
     program.setVec2(base + 'UvOffset', meta.uvOffsetX, meta.uvOffsetY)
   }
+}
+
+
+function _maxPassInputCount(def: ShaderDefinition): number {
+  if (def.passes && def.passes.length > 0) {
+    return def.passes.reduce((max, pass) => Math.max(max, pass.inputs.length), 0)
+  }
+  return def.textureInputs?.length ?? 0
 }
 
 function _estimateTextureMbFromPasses(passes: { dimensions: { w: number; h: number }; pingPong: boolean; persistent: boolean }[]): number {

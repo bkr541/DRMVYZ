@@ -16,6 +16,7 @@ const ENGINES: ReadonlyArray<{
   { id: 'neonLattice', label: 'Neon Lattice', description: 'Rail, block, flare, and glow colors.' },
   { id: 'cinematicPortal', label: 'Cinematic Worlds', description: 'All Cinematic Worlds, including Reactive Constellation.' },
   { id: 'laserDmx', label: 'LaserDMX', description: 'Transient virtual RGBW adaptation for Spatial Fixtures and Beam Matrix.' },
+  { id: 'shaderPads', label: 'Shader ENGINE', description: 'Semantic shader colors, gradients, and optional in-shader Brand Kit assets.' },
 ]
 
 const MODE_LABELS: Record<BrandPersonalizationMode, string> = {

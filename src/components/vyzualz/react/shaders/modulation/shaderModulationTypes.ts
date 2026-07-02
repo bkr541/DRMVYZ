@@ -1,24 +1,20 @@
 import type { ShaderParamValue } from '../registry/shaderRegistryTypes'
+import { MI_SOURCE_CATEGORY_LABELS, MI_SOURCE_REGISTRY } from '../../../../../lib/miSourceRegistry'
+import type { ModulationSourceKey } from '../../../../../lib/miSourceRegistry'
 
 // ── Modulation source IDs ─────────────────────────────────────────────────────
 //
-// Every source maps to a field in ShaderAudioUniformFrame or ShaderTimingUniformFrame.
-// Source values are guaranteed 0–1 by the audio bridge.
+// The Shader ENGINE consumes the canonical MI source registry. The small alias
+// set below preserves existing Shader routes and exposes engine-specific phase
+// or decaying-envelope signals that are not canonical MI source keys.
 
-export type ModulationSourceId =
-  // Spectral bands
-  | 'sub' | 'bass' | 'lowMid' | 'mid' | 'highMid' | 'high' | 'air'
-  // Percussion energies
-  | 'kick' | 'snare' | 'hat'
-  // Per-onset trigger envelopes (already decaying 1→0 from bridge)
+export type ShaderModulationAliasSourceId =
+  | 'highMid'
   | 'kickHit' | 'snareHit' | 'hatHit' | 'beatHit' | 'downbeatHit'
-  // Beat-grid phases (0–1)
-  | 'beatPhase' | 'barPhase' | 'phrasePhase' | 'sectionPhase'
-  // Energy and spectral features
-  | 'energy' | 'tension' | 'buildProgress' | 'dropImpact'
-  | 'spectralCentroid' | 'spectralFlux' | 'spectralSpread' | 'spectralFlatness'
-  // Playback position
+  | 'barPhase' | 'phrasePhase' | 'sectionPhase'
   | 'playbackProgress'
+
+export type ModulationSourceId = ModulationSourceKey | ShaderModulationAliasSourceId
 
 // ── Curve shapes ──────────────────────────────────────────────────────────────
 
@@ -145,32 +141,19 @@ export interface ModulationSourceMeta {
 }
 
 export const MODULATION_SOURCE_META: readonly ModulationSourceMeta[] = [
-  { id: 'sub',             label: 'Sub',              group: 'Spectral Bands' },
-  { id: 'bass',            label: 'Bass',             group: 'Spectral Bands' },
-  { id: 'lowMid',          label: 'Low Mid',          group: 'Spectral Bands' },
-  { id: 'mid',             label: 'Mid',              group: 'Spectral Bands' },
-  { id: 'highMid',         label: 'High Mid',         group: 'Spectral Bands' },
-  { id: 'high',            label: 'High',             group: 'Spectral Bands' },
-  { id: 'air',             label: 'Air',              group: 'Spectral Bands' },
-  { id: 'kick',            label: 'Kick',             group: 'Percussion' },
-  { id: 'snare',           label: 'Snare',            group: 'Percussion' },
-  { id: 'hat',             label: 'Hat',              group: 'Percussion' },
-  { id: 'kickHit',         label: 'Kick Hit',         group: 'Hits' },
-  { id: 'snareHit',        label: 'Snare Hit',        group: 'Hits' },
-  { id: 'hatHit',          label: 'Hat Hit',          group: 'Hits' },
-  { id: 'beatHit',         label: 'Beat',             group: 'Hits' },
-  { id: 'downbeatHit',     label: 'Downbeat',         group: 'Hits' },
-  { id: 'energy',          label: 'Energy',           group: 'Music' },
-  { id: 'tension',         label: 'Tension',          group: 'Music' },
-  { id: 'buildProgress',   label: 'Build Progress',   group: 'Music' },
-  { id: 'dropImpact',      label: 'Drop Impact',      group: 'Music' },
-  { id: 'spectralCentroid', label: 'Spectral Centroid', group: 'Spectral' },
-  { id: 'spectralFlux',    label: 'Spectral Flux',    group: 'Spectral' },
-  { id: 'spectralSpread',  label: 'Spectral Spread',  group: 'Spectral' },
-  { id: 'spectralFlatness', label: 'Spectral Flatness', group: 'Spectral' },
-  { id: 'beatPhase',       label: 'Beat Phase',       group: 'Timing' },
-  { id: 'barPhase',        label: 'Bar Phase',        group: 'Timing' },
-  { id: 'phrasePhase',     label: 'Phrase Phase',     group: 'Timing' },
-  { id: 'sectionPhase',    label: 'Section Phase',    group: 'Timing' },
-  { id: 'playbackProgress', label: 'Playback Position', group: 'Timing' },
+  ...MI_SOURCE_REGISTRY.map(source => ({
+    id: source.key as ModulationSourceId,
+    label: source.label,
+    group: MI_SOURCE_CATEGORY_LABELS[source.category],
+  })),
+  { id: 'highMid',          label: 'High Mid',          group: 'Audio Bands' },
+  { id: 'kickHit',          label: 'Kick Hit Envelope', group: 'Shader Envelopes' },
+  { id: 'snareHit',         label: 'Snare Hit Envelope',group: 'Shader Envelopes' },
+  { id: 'hatHit',           label: 'Hat Hit Envelope',  group: 'Shader Envelopes' },
+  { id: 'beatHit',          label: 'Beat Envelope',     group: 'Shader Envelopes' },
+  { id: 'downbeatHit',      label: 'Downbeat Envelope', group: 'Shader Envelopes' },
+  { id: 'barPhase',         label: 'Bar Phase',         group: 'Shader Timing' },
+  { id: 'phrasePhase',      label: 'Phrase 8 Phase',    group: 'Shader Timing' },
+  { id: 'sectionPhase',     label: 'Section Phase',     group: 'Shader Timing' },
+  { id: 'playbackProgress', label: 'Playback Position', group: 'Shader Timing' },
 ]

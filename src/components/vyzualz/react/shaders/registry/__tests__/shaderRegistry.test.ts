@@ -25,6 +25,7 @@ import { ShaderRegistry }           from '../ShaderRegistry'
 import { ShaderDefinitionValidator } from '../ShaderDefinitionValidator'
 import { shaderRegistry }           from '../index'
 import type { ShaderDefinition }    from '../shaderRegistryTypes'
+import { PRODUCTION_SCENES } from '../../scenes'
 
 // ── Minimal valid definition factory ─────────────────────────────────────────
 
@@ -330,6 +331,36 @@ describe('I — development scene', () => {
   it('dev scene has exactly two params: color and brightness', () => {
     const def = shaderRegistry.get('shader-dev-solid-color')!
     expect(def.params.map(p => p.id)).toEqual(['color', 'brightness'])
+  })
+
+  it('registers and validates the six production scenes', () => {
+    expect(PRODUCTION_SCENES.map(scene => scene.id)).toEqual([
+      'shader-neon-tunnel',
+      'shader-liquid-metaballs',
+      'shader-feedback-kaleidoscope',
+      'shader-spectrum-cathedral',
+      'shader-brand-echo-signal',
+      'shader-semantic-drop-reactor',
+    ])
+    for (const scene of PRODUCTION_SCENES) {
+      expect(shaderRegistry.has(scene.id)).toBe(true)
+      expect(ShaderDefinitionValidator.validate(scene).valid).toBe(true)
+    }
+  })
+
+  it('ships production coverage for FFT, waveform, gradients, Brand roles, and media inputs', () => {
+    const spectrum = shaderRegistry.get('shader-spectrum-cathedral')!
+    const echo = shaderRegistry.get('shader-brand-echo-signal')!
+    expect(spectrum.fragSrc).toContain('uSpectrumTexture')
+    expect(spectrum.params.some(param => param.type === 'gradient')).toBe(true)
+    expect(echo.fragSrc).toContain('uWaveformTexture')
+    expect(echo.fragSrc).toContain('uBrandLogoTexture')
+    expect(echo.textureInputs?.map(input => input.source)).toEqual([
+      'uploaded-image', 'album-artwork', 'media-output',
+    ])
+    expect(PRODUCTION_SCENES.some(scene => scene.params.some(param =>
+      param.type === 'color' && param.brandRole === 'primary'
+    ))).toBe(true)
   })
 })
 

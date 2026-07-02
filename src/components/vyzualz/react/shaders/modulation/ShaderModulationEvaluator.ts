@@ -14,6 +14,9 @@ import type {
 import type {
   ShaderTimingUniformFrame,
 } from '../audio/shaderAudioTypes'
+import type { MusicIntelligenceFrame } from '../../../../../features/musicIntelligence/types'
+import { getConditionSourceValue, getModulationSourceValue, getTriggerSourceValue } from '../../../../../features/musicIntelligence/selectors'
+import { getMISourceDef } from '../../../../../lib/miSourceRegistry'
 import { AudioSmoother }                 from '../audio/ShaderAudioSmoothing'
 import type {
   ShaderModulationRoute,
@@ -55,30 +58,82 @@ export function applyCurve(x: number, curve: ModulationCurve): number {
 
 // ── Source lookup ─────────────────────────────────────────────────────────────
 
-// Sources that live in ShaderAudioUniformFrame
-const AUDIO_SOURCE_KEYS = new Set<string>([
-  'sub','bass','lowMid','mid','highMid','high','air',
-  'kick','snare','hat',
-  'kickHit','snareHit','hatHit','beatHit','downbeatHit',
-  'energy','tension','buildProgress','dropImpact',
-  'spectralCentroid','spectralFlux','spectralSpread','spectralFlatness',
+const SHADER_AUDIO_ALIAS_KEYS = new Set<string>([
+  'highMid',
+  'kickHit', 'snareHit', 'hatHit', 'beatHit', 'downbeatHit',
 ])
 
 function getSourceValue(
   source: ModulationSourceId,
-  audio:  ShaderAudioUniformFrame,
+  audio: ShaderAudioUniformFrame,
   timing: ShaderTimingUniformFrame,
+  miFrame: MusicIntelligenceFrame | null | undefined,
 ): number {
-  if (AUDIO_SOURCE_KEYS.has(source)) {
-    const v = (audio as unknown as Record<string, number>)[source]
-    return isFinite(v) ? v : 0
+  // Shader-only aliases preserve the historical route vocabulary without
+  // shadowing canonical registry IDs such as bass, kick, or energy.
+  if (SHADER_AUDIO_ALIAS_KEYS.has(source)) {
+    const value = (audio as unknown as Record<string, number>)[source]
+    if (Number.isFinite(value)) return value
   }
   switch (source) {
-    case 'beatPhase':        return timing.beatPhase
-    case 'barPhase':         return timing.barPhase
-    case 'phrasePhase':      return timing.phrasePhase
-    case 'sectionPhase':     return timing.sectionPhase
+    case 'barPhase': return timing.barPhase
+    case 'phrasePhase': return timing.phrasePhase
+    case 'sectionPhase': return timing.sectionPhase
     case 'playbackProgress': return timing.playbackProgress
+  }
+
+  // Canonical source IDs resolve through the shared MI registry and selectors.
+  // This removes the Shader ENGINE's parallel, drifting source vocabulary.
+  if (miFrame) {
+    const sourceDef = getMISourceDef(source)
+    if (sourceDef?.isTrigger) return getTriggerSourceValue(miFrame, source) ? 1 : 0
+    if (sourceDef?.isCondition) return getConditionSourceValue(miFrame, source) ? 1 : 0
+    const value = getModulationSourceValue(miFrame, source)
+    return Number.isFinite(value) ? value : 0
+  }
+
+  // Graceful no-MI fallback for legacy routes and renderer boot frames.
+  const audioFallback: Readonly<Record<string, number>> = {
+    sub: audio.sub,
+    bass: audio.bass,
+    lowMid: audio.lowMid,
+    mid: audio.mid,
+    high: audio.high,
+    air: audio.air,
+    nSub: audio.sub,
+    nBass: audio.bass,
+    nLowMid: audio.lowMid,
+    nMid: audio.mid,
+    nHigh: audio.high,
+    nAir: audio.air,
+    kick: audio.kick,
+    snare: audio.snare,
+    hat: audio.hat,
+    energy: audio.energy,
+    tension: audio.tension,
+    buildProgress: audio.buildProgress,
+    dropImpact: audio.dropImpact,
+    spectralCentroid: audio.spectralCentroid,
+    spectralFlux: audio.spectralFlux,
+    spectralSpread: audio.spectralSpread,
+    spectralFlatness: audio.spectralFlatness,
+  }
+  const fallback = audioFallback[source]
+  if (Number.isFinite(fallback)) return fallback
+
+  switch (source) {
+    case 'beat': return audio.beatHit
+    case 'downbeat': return audio.downbeatHit
+    case 'beatPhase': return timing.beatPhase
+    case 'phrase4': return timing.phrase4Progress
+    case 'phrase8': return timing.phrase8Progress
+    case 'phrase16': return timing.phrase16Progress
+    case 'phrase32': return timing.phrase32Progress
+    case 'phrase4Hit': return timing.phrase4Hit
+    case 'phrase8Hit': return timing.phrase8Hit
+    case 'phrase16Hit': return timing.phrase16Hit
+    case 'phrase32Hit': return timing.phrase32Hit
+    case 'sectionProgress': return timing.sectionPhase
   }
   return 0
 }
@@ -128,6 +183,7 @@ export class ShaderModulationEvaluator {
    * @param baseValues  The preset's unmodulated parameter values.
    * @param dt          Seconds since the last frame.
    * @param sceneId     ID of the active shader scene; change triggers state reset.
+   * @param miFrame     Canonical MI frame used by shared-registry source adapters.
    */
   evaluate(
     matrix:     ShaderModulationMatrix,
@@ -137,6 +193,7 @@ export class ShaderModulationEvaluator {
     baseValues: ShaderParamValues,
     dt:         number,
     sceneId:    string,
+    miFrame?:    MusicIntelligenceFrame | null,
   ): ModulationEvaluationFrame {
     if (sceneId !== this._lastSceneId) {
       this._resetAll()
@@ -164,7 +221,7 @@ export class ShaderModulationEvaluator {
       const param = def.params.find(p => p.id === route.targetParamId)
       if (!param) continue
 
-      const rawSource  = clamp01(getSourceValue(route.source, audio, timing))
+      const rawSource  = clamp01(getSourceValue(route.source, audio, timing, miFrame))
       const routeSignal = this._processRouteSignal(route, rawSource, safeDt)
 
       if (routeSignal === null) continue  // phase/mode produced no output this frame

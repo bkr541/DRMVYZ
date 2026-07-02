@@ -267,6 +267,7 @@ export const FEEDBACK_KALEIDOSCOPE: ShaderDefinition = {
       type: 'color',
       label: 'Color Shift',
       uniformName: 'uColorShift',
+      brandRole: 'accent',
       default: [0.6, 0.3, 0.9, 1.0],
     },
   ],

@@ -136,7 +136,7 @@ void main() {
       uniformName: 'uViscosity',
       min: 0.1, max: 2.0, step: 0.05,
       default: 0.9,
-      modulatable: false,
+      modulatable: true,
     },
     {
       id: 'scale',
@@ -145,7 +145,7 @@ void main() {
       uniformName: 'uScale',
       min: 0.2, max: 2.5, step: 0.05,
       default: 1.0,
-      modulatable: false,
+      modulatable: true,
     },
     {
       id: 'turbulence',
@@ -154,7 +154,7 @@ void main() {
       uniformName: 'uTurbulence',
       min: 0.0, max: 2.0, step: 0.05,
       default: 0.5,
-      modulatable: false,
+      modulatable: true,
     },
     {
       id: 'reflection',
@@ -163,13 +163,14 @@ void main() {
       uniformName: 'uReflection',
       min: 0.0, max: 2.0, step: 0.05,
       default: 1.0,
-      modulatable: false,
+      modulatable: true,
     },
     {
       id: 'surfaceColor',
       type: 'color',
       label: 'Surface Color',
       uniformName: 'uSurfaceColor',
+      brandRole: 'primary',
       default: [0.1, 0.4, 0.9, 1.0],
     },
     {
@@ -177,6 +178,7 @@ void main() {
       type: 'color',
       label: 'Highlight Color',
       uniformName: 'uHighlightColor',
+      brandRole: 'highlight',
       default: [0.8, 0.95, 1.0, 1.0],
     },
     {
@@ -186,7 +188,7 @@ void main() {
       uniformName: 'uMotionSpeed',
       min: 0.0, max: 3.0, step: 0.05,
       default: 0.8,
-      modulatable: false,
+      modulatable: true,
     },
   ],
 

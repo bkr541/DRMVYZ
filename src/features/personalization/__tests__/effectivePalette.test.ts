@@ -122,6 +122,13 @@ describe('effective Brand Kit palette resolution', () => {
     expect(result).toEqual(BRAND)
   })
 
+
+  it('applies native Brand Kit palette resolution to the Shader ENGINE', () => {
+    const kit = makeKit({ engineRules: { shaderPads: { mode: 'brand', strength: 1 } } })
+    const result = resolve(kit, { engineId: 'shaderPads' })
+    expect(result).toEqual(BRAND)
+  })
+
   it('falls back safely for an invalid rule', () => {
     const kit = makeKit({
       engineRules: { oscilloscope: { mode: 'invalid', strength: Number.NaN } as never },

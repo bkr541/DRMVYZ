@@ -33,7 +33,7 @@ export function BrandPersonalizationDiagnostics() {
   const laser = resolveLaserDmxPersonalization(activeKit, activePresetId)
   const presetRule = activeKit && activePresetId ? activeKit.presetRules[activePresetId] : undefined
   const engineRule = activeKit?.engineRules[activeEngineId]
-  const engineSupported = activeEngineId !== 'shaderPads'
+  const engineSupported = true
   const effectiveMode = !activeKit || activeKit.autoApply === false || !engineSupported || presetRule?.enabled === false
     ? 'original'
     : (activeEngineId === 'laserDmx' ? laser?.mode ?? 'original' : presetRule?.mode ?? engineRule?.mode ?? 'hybrid')

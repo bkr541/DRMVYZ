@@ -1,4 +1,8 @@
-import type { ShaderDefinition } from '../registry/shaderRegistryTypes'
+import type { ShaderDefinition, RGBA, Vec2, EnumParamDef, GradientStop } from '../registry/shaderRegistryTypes'
+import type { BrandKit } from '../../../../../features/personalization/BrandKitTypes'
+import { applyShaderBrandUniforms, resolveShaderBrandPalette, resolveShaderColorParam, shaderBrandPaletteCacheKey } from '../brand/ShaderBrandPersonalization'
+import { ShaderGradientTextureCache } from '../textures/ShaderGradientTextureCache'
+import { getShaderReservedTextureUnits } from '../runtime/shaderTextureUnits'
 import { FullscreenPass, FULLSCREEN_VERT_SRC } from '../runtime/FullscreenPass'
 import { ShaderProgram } from '../runtime/ShaderProgram'
 import { ShaderCompiler } from '../runtime/ShaderCompiler'
@@ -37,6 +41,8 @@ interface SharedShaderThumbnailPool {
   gl: WebGL2RenderingContext
   compiler: ShaderCompiler
   fullscreenPass: FullscreenPass
+  gradientCache: ShaderGradientTextureCache
+  fallbackTexture: WebGLTexture
   diagnostics: WebGLContextDiagnosticHandle | null
   lease: DrmvyzThumbnailWebGLContextLease
 }
@@ -66,15 +72,16 @@ export class ShaderThumbnailRenderer {
   }
 
   /** Return a cached thumbnail for `sceneId`, or `null` if not yet rendered. */
-  getCached(sceneId: string): ThumbnailResult | null {
-    return this._cache.get(sceneId) ?? null
+  getCached(sceneId: string, brandKit?: Readonly<BrandKit> | null): ThumbnailResult | null {
+    return this._cache.get(shaderBrandPaletteCacheKey(sceneId, brandKit)) ?? null
   }
 
   /** Render one frame using the shared, bounded thumbnail context. */
-  async render(def: ShaderDefinition): Promise<ThumbnailResult | null> {
+  async render(def: ShaderDefinition, brandKit?: Readonly<BrandKit> | null): Promise<ThumbnailResult | null> {
     if (this._disposed) return null
 
-    const cached = this._cache.get(def.id)
+    const cacheKey = shaderBrandPaletteCacheKey(def, brandKit)
+    const cached = this._cache.get(cacheKey)
     if (cached) return cached
 
     const fragSrc = def.fragSrc ?? def.passes?.[0]?.fragSrc
@@ -83,17 +90,22 @@ export class ShaderThumbnailRenderer {
     const result = await enqueueSharedShaderThumbnail(() => (
       serializeDrmvyzThumbnailWebGLWork(async () => {
         if (this._disposed) return null
-        return this._renderOnce(def.id, fragSrc)
+        return this._renderOnce(def, fragSrc, brandKit)
       })
     ))
-    if (result && !this._disposed) this._cache.set(def.id, result)
+    if (result && !this._disposed) this._cache.set(cacheKey, result)
     return this._disposed ? null : result
   }
 
   /** Remove a single cached entry (forces re-render on next call). */
   clearCache(sceneId?: string): void {
-    if (sceneId) this._cache.delete(sceneId)
-    else this._cache.clear()
+    if (!sceneId) {
+      this._cache.clear()
+      return
+    }
+    for (const key of this._cache.keys()) {
+      if (key === sceneId || key.startsWith(`${sceneId}:`)) this._cache.delete(key)
+    }
   }
 
   /** All currently cached scene IDs. */
@@ -112,7 +124,8 @@ export class ShaderThumbnailRenderer {
 
   // ── Private ───────────────────────────────────────────────────────────────
 
-  private async _renderOnce(sceneId: string, fragSrc: string): Promise<ThumbnailResult | null> {
+  private async _renderOnce(def: ShaderDefinition, fragSrc: string, brandKit?: Readonly<BrandKit> | null): Promise<ThumbnailResult | null> {
+    const sceneId = def.id
     const pool = acquireSharedShaderThumbnailPool()
     if (!pool) return null
 
@@ -125,7 +138,7 @@ export class ShaderThumbnailRenderer {
         vertSrc: FULLSCREEN_VERT_SRC,
         fragSrc,
         label: `thumb:${sceneId}`,
-        optionalUniforms: ['u_time', 'u_seed', 'u_resolution', 'u_aspect'],
+        optionalUniforms: ['uTime', 'uSeed', 'uResolution', 'uAspect'],
       })
       if (!result.program) return null
       program = result.program
@@ -135,10 +148,24 @@ export class ShaderThumbnailRenderer {
       gl.clear(gl.COLOR_BUFFER_BIT)
 
       program.activate()
-      program.setFloat('u_time', PREVIEW_TIME_SEC)
-      program.setFloat('u_seed', PREVIEW_SEED)
-      program.setVec2('u_resolution', THUMB_W, THUMB_H)
-      program.setFloat('u_aspect', THUMB_W / THUMB_H)
+      program.setFloat('uTime', PREVIEW_TIME_SEC)
+      program.setFloat('uSeed', PREVIEW_SEED)
+      program.setVec2('uResolution', THUMB_W, THUMB_H)
+      program.setFloat('uAspect', THUMB_W / THUMB_H)
+      applyThumbnailPreviewUniforms(program)
+      bindThumbnailFallbackTextures(program, def, gl, pool.fallbackTexture)
+
+      const brandContext = resolveShaderBrandPalette(def, def.defaults, brandKit)
+      applyShaderBrandUniforms(program, brandContext)
+      const reservedUnits = getShaderReservedTextureUnits(gl)
+      const gradientUnits = pool.gradientCache.buildUnitMap(
+        def,
+        def.defaults,
+        gl,
+        def.textureInputs?.length ?? 0,
+        reservedUnits.firstReserved,
+      )
+      applyThumbnailParamUniforms(program, def, gradientUnits, brandContext)
       fullscreenPass.run(program, null, THUMB_W, THUMB_H, [])
       gl.flush()
 
@@ -152,7 +179,140 @@ export class ShaderThumbnailRenderer {
     } finally {
       try { program?.dispose() } catch { /* Context may already be lost. */ }
       if (terminalFailure) terminallyDisposeSharedShaderThumbnailPool(pool)
-      else if (sharedPool === pool) resetSharedShaderThumbnailState(gl)
+      else if (sharedPool === pool) {
+        pool.gradientCache.clearAll()
+        resetSharedShaderThumbnailState(gl)
+      }
+    }
+  }
+}
+
+
+function applyThumbnailPreviewUniforms(program: ShaderProgram): void {
+  const preview: Record<string, number> = {
+    uDeltaTime: 1 / 60,
+    uPlaybackTime: PREVIEW_TIME_SEC,
+    uPlaybackProgress: 0.42,
+    uSub: 0.52,
+    uBass: 0.68,
+    uLowMid: 0.44,
+    uMid: 0.38,
+    uHighMid: 0.32,
+    uHigh: 0.28,
+    uAir: 0.2,
+    uKick: 0.72,
+    uSnare: 0.48,
+    uHat: 0.35,
+    uKickHit: 0.65,
+    uSnareHit: 0.2,
+    uHatHit: 0.15,
+    uBeatHit: 0.55,
+    uDownbeatHit: 0.35,
+    uBeatPhase: 0.28,
+    uBarPhase: 0.57,
+    uPhrasePhase: 0.44,
+    uPhrase4Progress: 0.63,
+    uPhrase8Progress: 0.44,
+    uPhrase16Progress: 0.72,
+    uPhrase32Progress: 0.36,
+    uSectionPhase: 0.58,
+    uSectionProgress: 0.58,
+    uSectionType: 5,
+    uSectionIntensity: 0.82,
+    uEnergy: 0.7,
+    uEnergyShort: 0.68,
+    uEnergyShortTerm: 0.68,
+    uEnergyLong: 0.53,
+    uEnergyLongTerm: 0.53,
+    uEnergyDelta: 0.15,
+    uBuildProgress: 0.36,
+    uDropImpact: 0.78,
+    uBuildConfidence: 0.25,
+    uDropConfidence: 0.86,
+    uFakeoutConfidence: 0.08,
+    uVocalHookConfidence: 0.4,
+    uSpectralCentroid: 0.52,
+    uSpectralFlux: 0.42,
+    uSpectralSpread: 0.48,
+    uSpectralRolloff: 0.62,
+    uSpectralFlatness: 0.21,
+    uVocalEnergy: 0.35,
+    uDrumEnergy: 0.72,
+    uBassStemEnergy: 0.66,
+    uInstrumentEnergy: 0.48,
+    uLyricActivity: 0.3,
+    uLyricLineProgress: 0.55,
+    uLyricWordProgress: 0.72,
+    uLyricWordHit: 0.2,
+    uChordChangeHit: 0.15,
+    uPitchNormalized: 0.56,
+    uHasStems: 1,
+    uHasLyrics: 1,
+    uHasHarmonics: 1,
+    uSpectrumAvailable: 0,
+    uWaveformAvailable: 0,
+    uBrandLogoAvailable: 0,
+    uBrandTextureAvailable: 0,
+    uBrandBackgroundAvailable: 0,
+    uMasterIntensity: 1,
+    uMasterMotion: 1,
+    uMasterGlow: 1,
+    uMasterBassReactivity: 1,
+    uMasterTrailDecay: 0.35,
+    uMasterFogDensity: 1,
+    uMasterParticleDensity: 1,
+  }
+  for (const [name, value] of Object.entries(preview)) program.setFloat(name, value)
+}
+
+function applyThumbnailParamUniforms(
+  program: ShaderProgram,
+  def: ShaderDefinition,
+  gradientUnits: ReadonlyMap<string, number>,
+  brandContext: ReturnType<typeof resolveShaderBrandPalette>,
+): void {
+  for (const param of def.params) {
+    const value = def.defaults[param.id]
+    switch (param.type) {
+      case 'float':
+      case 'integer':
+        program.setFloat(param.uniformName, typeof value === 'number' ? value : param.default)
+        break
+      case 'boolean':
+        program.setFloat(param.uniformName, value ? 1 : 0)
+        break
+      case 'color': {
+        const authored = (Array.isArray(value) ? value : param.default) as RGBA
+        const color = resolveShaderColorParam(authored, param.brandRole, brandContext)
+        program.setVec4(param.uniformName, color[0], color[1], color[2], color[3])
+        break
+      }
+      case 'vec2': {
+        const vec = (Array.isArray(value) ? value : param.default) as Vec2
+        program.setVec2(param.uniformName, vec[0], vec[1])
+        break
+      }
+      case 'enum': {
+        const enumDef = param as EnumParamDef
+        const selected = typeof value === 'string' ? value : enumDef.default
+        const index = Math.max(0, enumDef.values.findIndex(option => option.value === selected))
+        if (enumDef.uniformType === 'int') program.setInt(param.uniformName, index)
+        else program.setFloat(param.uniformName, index)
+        break
+      }
+      case 'gradient': {
+        const unit = gradientUnits.get(param.id)
+        if (unit !== undefined) {
+          program.setSampler(param.uniformName, unit)
+          program.setFloat(`${param.uniformName}StopCount`, ((value as GradientStop[] | undefined) ?? param.default).length)
+        }
+        break
+      }
+      case 'trigger':
+        program.setFloat(param.uniformName, 0)
+        break
+      case 'texture':
+        break
     }
   }
 }
@@ -207,6 +367,8 @@ function acquireSharedShaderThumbnailPool(): SharedShaderThumbnailPool | null {
       gl,
       compiler: new ShaderCompiler(gl),
       fullscreenPass: new FullscreenPass(gl),
+      gradientCache: new ShaderGradientTextureCache(gl),
+      fallbackTexture: createThumbnailFallbackTexture(gl),
       diagnostics: registerDrmvyzWebGLContext(gl, {
         lifetime: 'transient-thumbnail',
         role: 'shader-scene-thumbnail',
@@ -227,6 +389,62 @@ function acquireSharedShaderThumbnailPool(): SharedShaderThumbnailPool | null {
   }
 }
 
+
+function createThumbnailFallbackTexture(gl: WebGL2RenderingContext): WebGLTexture {
+  const texture = gl.createTexture()
+  if (!texture) throw new Error('Unable to allocate Shader thumbnail fallback texture')
+  gl.bindTexture(gl.TEXTURE_2D, texture)
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RGBA,
+    1,
+    1,
+    0,
+    gl.RGBA,
+    gl.UNSIGNED_BYTE,
+    new Uint8Array([0, 0, 0, 0]),
+  )
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+  gl.bindTexture(gl.TEXTURE_2D, null)
+  return texture
+}
+
+function bindThumbnailFallbackTextures(
+  program: ShaderProgram,
+  def: ShaderDefinition,
+  gl: WebGL2RenderingContext,
+  fallbackTexture: WebGLTexture,
+): void {
+  for (const [unit, input] of (def.textureInputs ?? []).entries()) {
+    gl.activeTexture(gl.TEXTURE0 + unit)
+    gl.bindTexture(gl.TEXTURE_2D, fallbackTexture)
+    program.setSampler(input.name, unit)
+    program.setFloat(`${input.name}Available`, 0)
+    program.setVec2(`${input.name}Resolution`, 1, 1)
+    program.setFloat(`${input.name}Aspect`, 1)
+    program.setVec2(`${input.name}UvScale`, 1, 1)
+    program.setVec2(`${input.name}UvOffset`, 0, 0)
+  }
+
+  const units = getShaderReservedTextureUnits(gl)
+  const universal: ReadonlyArray<readonly [number, string]> = [
+    [units.brandLogo, 'uBrandLogoTexture'],
+    [units.brandTexture, 'uBrandTexture'],
+    [units.brandBackground, 'uBrandBackgroundTexture'],
+    [units.spectrum, 'uSpectrumTexture'],
+    [units.waveform, 'uWaveformTexture'],
+  ]
+  for (const [unit, sampler] of universal) {
+    gl.activeTexture(gl.TEXTURE0 + unit)
+    gl.bindTexture(gl.TEXTURE_2D, fallbackTexture)
+    program.setSampler(sampler, unit)
+  }
+}
+
 function terminallyDisposeSharedShaderThumbnailPool(
   expectedPool: SharedShaderThumbnailPool | null = sharedPool,
 ): void {
@@ -235,6 +453,8 @@ function terminallyDisposeSharedShaderThumbnailPool(
   sharedPool = null
   retireSharedPoolWhenIdle = false
 
+  try { pool.gradientCache.dispose() } catch { /* Best effort. */ }
+  try { pool.gl.deleteTexture(pool.fallbackTexture) } catch { /* Best effort. */ }
   try { pool.fullscreenPass.dispose() } catch { /* Best effort. */ }
   try { pool.gl.getExtension('WEBGL_lose_context')?.loseContext() } catch { /* Already lost or unsupported. */ }
   retireDrmvyzWebGLContext(pool.diagnostics, 'terminal-retire')

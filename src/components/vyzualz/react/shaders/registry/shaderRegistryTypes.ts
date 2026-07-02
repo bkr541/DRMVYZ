@@ -1,3 +1,5 @@
+import type { BrandPaletteRole } from '../../../../../features/personalization/BrandKitTypes'
+
 // ── Categories ────────────────────────────────────────────────────────────────
 
 export type ShaderCategory =
@@ -111,6 +113,8 @@ export interface BooleanParamDef extends ShaderParamBase {
 
 export interface ColorParamDef extends ShaderParamBase {
   type: 'color'
+  /** Semantic Brand Kit role resolved at render time without mutating presets. */
+  brandRole?: BrandPaletteRole
   /** Normalised RGBA default, each channel 0..1. */
   default: RGBA
 }

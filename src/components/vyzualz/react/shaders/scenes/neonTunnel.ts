@@ -207,6 +207,7 @@ void main() {
       type: 'color',
       label: 'Primary Color',
       uniformName: 'uPrimaryColor',
+      brandRole: 'primary',
       default: [0.0, 0.9, 0.85, 1.0],
     },
     {
@@ -214,6 +215,7 @@ void main() {
       type: 'color',
       label: 'Secondary Color',
       uniformName: 'uSecondaryColor',
+      brandRole: 'secondary',
       default: [0.1, 0.9, 0.3, 1.0],
     },
     {

@@ -72,6 +72,9 @@ export function getModulationSourceValue(
     case 'snare':     return frame.rhythm.snareStrength
     case 'hat':       return frame.rhythm.hatStrength
     case 'transient': return frame.rhythm.transient
+    case 'bpm': return Math.max(0, Math.min(1, (frame.rhythm.bpm - 40) / 200))
+    case 'bpmConfidence': return frame.rhythm.bpmConfidence
+    case 'transientConfidence': return frame.rhythm.transientConfidence
     // Phrase progress
     case 'phrase4':   return frame.rhythm.phrase4Progress
     case 'phrase8':   return frame.rhythm.phrase8Progress
@@ -96,16 +99,18 @@ export function getModulationSourceValue(
     case 'spectralSpread':    return frame.energy.spectralSpread
     case 'spectralRolloff':   return frame.energy.spectralRolloff
     case 'spectralFlatness':  return frame.energy.spectralFlatness
+    case 'trackEnergy':       return frame.energy.trackCurve ?? 0
     // Section
     case 'sectionProgress':   return frame.section.progress
     case 'sectionIntensity':  return frame.section.intensity
+    case 'sectionConfidence': return frame.section.confidence
     // Harmonic
     case 'pitchHz':          return frame.harmonic.pitchHz != null ? Math.min(1, frame.harmonic.pitchHz / 2000) : 0
     case 'melodyHeight':     return frame.harmonic.pitchHz != null ? Math.min(1, Math.max(0, (frame.harmonic.pitchHz - 50) / 1950)) : 0
     case 'keyConfidence':       return frame.harmonic.keyConfidence
     case 'chordConfidence':     return frame.harmonic.chordConfidence
     // Backward-compat alias (older routes and LaserDMX mod matrix may use this key)
-    case 'harmonicConfidence':  return Math.max(frame.harmonic.keyConfidence, frame.harmonic.chordConfidence)
+    case 'harmonicConfidence':  return Math.max(frame.confidence.harmonic, frame.harmonic.keyConfidence, frame.harmonic.chordConfidence)
     // Stems
     case 'stemVocals':       return frame.stems.vocals
     case 'stemDrums':        return frame.stems.drums
@@ -115,16 +120,27 @@ export function getModulationSourceValue(
     case 'drumEnergy':       return frame.stems.drumEnergy
     case 'bassStemEnergy':   return frame.stems.bassStemEnergy
     case 'instrumentEnergy': return frame.stems.instrumentEnergy
+    case 'otherStemEnergy':  return frame.stems.otherStemEnergy
     case 'vocalActivity':    return frame.stems.vocalActivity
     // Lyrics
     case 'lyricActivity':    return frame.lyrics.vocalActivity
     case 'lyricLineProgress':return frame.lyrics.lyricLineProgress
     case 'phraseConfidence': return frame.lyrics.phraseConfidence
+    case 'lyricWordProgress':return frame.lyrics.wordProgress ?? 0
     // Semantics
     case 'buildConfidence':     return frame.semantics.buildConfidence
     case 'dropConfidence':      return frame.semantics.dropConfidence
     case 'fakeoutConfidence':   return frame.semantics.fakeoutConfidence
     case 'vocalHookConfidence': return frame.semantics.vocalHookConfidence
+    case 'overallConfidence':  return frame.confidence.overall
+    case 'rhythmConfidence':   return frame.confidence.rhythm
+    case 'hasLiveBands':       return frame.capabilities?.liveBands ? 1 : 0
+    case 'hasRhythmEvents':    return frame.capabilities?.rhythmEvents ? 1 : 0
+    case 'hasBeatGrid':        return frame.capabilities?.beatGrid ? 1 : 0
+    case 'hasSections':        return frame.capabilities?.sections ? 1 : 0
+    case 'hasTrackEnergyCurve':return frame.capabilities?.trackEnergyCurve ? 1 : 0
+    case 'hasStems':           return frame.capabilities?.stemCurves ? 1 : 0
+    case 'hasLyrics':          return frame.capabilities?.lyrics ? 1 : 0
     default: return 0
   }
 }
@@ -148,6 +164,8 @@ export function getTriggerSourceValue(
     case 'phrase32':   return frame.rhythm.phrase32Hit
     case 'chordChange':return frame.harmonic.chordChanged
     case 'wordHit':    return frame.lyrics.wordHit
+    case 'lineEnter':  return frame.lyrics.lineEnter === true
+    case 'lineExit':   return frame.lyrics.lineExit === true
     case 'drumTrans':  return frame.stems.drumTransient
     case 'bassTrans':  return frame.stems.bassStemTransient
     // Explicit Hit aliases (Beam Matrix reaction groups use these)
@@ -190,6 +208,14 @@ export function getConditionSourceValue(
     // Lyric conditions
     case 'hasActiveLine':return frame.lyrics.activeLine !== null
     case 'hasActiveWord':return frame.lyrics.activeWord !== null
+    case 'lyricGap':     return frame.lyrics.isGap === true
+    case 'hasLiveBands': return frame.capabilities?.liveBands === true
+    case 'hasRhythmEvents': return frame.capabilities?.rhythmEvents === true
+    case 'hasBeatGrid':  return frame.capabilities?.beatGrid === true
+    case 'hasSections':  return frame.capabilities?.sections === true
+    case 'hasTrackEnergyCurve': return frame.capabilities?.trackEnergyCurve === true
+    case 'hasStems':     return frame.capabilities?.stemCurves === true
+    case 'hasLyrics':    return frame.capabilities?.lyrics === true
     // Semantic conditions
     case 'isBuildPhase': return frame.semantics.buildConfidence > 0.5
     case 'isDropPhase':  return frame.semantics.dropConfidence > 0.5

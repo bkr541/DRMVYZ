@@ -28,6 +28,8 @@ import {
 } from '../shaderModulationTypes'
 import type { ShaderModulationRoute } from '../shaderModulationTypes'
 import type { ShaderDefinition }      from '../../registry/shaderRegistryTypes'
+import type { MusicIntelligenceFrame } from '../../../../../../features/musicIntelligence/types'
+import { MI_SOURCE_REGISTRY } from '../../../../../../lib/miSourceRegistry'
 import type {
   ShaderAudioUniformFrame,
 } from '../../audio/shaderAudioTypes'
@@ -132,8 +134,9 @@ function evaluate(
   base = BASE_PARAMS,
   dt   = 0.016,
   scene = 'test-shader',
+  miFrame?: MusicIntelligenceFrame | null,
 ) {
-  return evaluator.evaluate(matrix, def, audio, timing, base, dt, scene)
+  return evaluator.evaluate(matrix, def, audio, timing, base, dt, scene, miFrame)
 }
 
 // ── A — Curves ───────────────────────────────────────────────────────────────
@@ -830,7 +833,39 @@ describe('O — non-modulatable param rejection', () => {
     expect(err?.message).toContain('tex')
   })
 
-  it('source metadata covers all 28 declared sources', () => {
-    expect(MODULATION_SOURCE_META.length).toBe(28)
+  it('source metadata mirrors the canonical MI registry plus Shader aliases', () => {
+    expect(MODULATION_SOURCE_META.length).toBe(MI_SOURCE_REGISTRY.length + 10)
+    for (const source of MI_SOURCE_REGISTRY) {
+      expect(MODULATION_SOURCE_META.some(meta => meta.id === source.key)).toBe(true)
+    }
+  })
+
+  it('evaluates canonical stem and capability sources through shared selectors', () => {
+    const def = makeFloatDef()
+    const stemMatrix = new ShaderModulationMatrix()
+    stemMatrix.setDefinition(def)
+    stemMatrix.addRoute(makeRoute({
+      source: 'vocalEnergy', mode: 'phase', combineMode: 'replace', amount: 1,
+    }))
+    const mi = {
+      stems: { vocalEnergy: 0.75 },
+      capabilities: { stemCurves: true },
+    } as MusicIntelligenceFrame
+    const stemResult = evaluate(
+      new ShaderModulationEvaluator(), stemMatrix, def,
+      makeAudio(), makeTiming(), BASE_PARAMS, 0.016, 'test-shader', mi,
+    )
+    expect(stemResult.params['speed'].effectiveValue).toBeCloseTo(1.5)
+
+    const gateMatrix = new ShaderModulationMatrix()
+    gateMatrix.setDefinition(def)
+    gateMatrix.addRoute(makeRoute({
+      source: 'hasStems', mode: 'phase', combineMode: 'replace', amount: 1,
+    }))
+    const gateResult = evaluate(
+      new ShaderModulationEvaluator(), gateMatrix, def,
+      makeAudio(), makeTiming(), BASE_PARAMS, 0.016, 'test-shader', mi,
+    )
+    expect(gateResult.params['speed'].effectiveValue).toBe(2)
   })
 })

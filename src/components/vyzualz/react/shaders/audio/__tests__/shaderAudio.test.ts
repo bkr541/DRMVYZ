@@ -85,6 +85,10 @@ function makeMI(overrides: DeepPartial<MusicIntelligenceFrame> = {}): MusicIntel
       buildConfidence: 0, dropConfidence: 0, fakeoutConfidence: 0,
       vocalHookConfidence: 0, mood: null, texture: null,
     },
+    capabilities: {
+      liveBands: true, rhythmEvents: true, beatGrid: true, sections: true,
+      trackEnergyCurve: false, stemCurves: false, lyrics: false,
+    },
     raw: { freqData: null, timeDomainData: null },
     confidence: { overall: 0.5, rhythm: 0.7, harmonic: 0.3, section: 0.6 },
   }
@@ -683,6 +687,8 @@ describe('L — applyToProgram', () => {
   function makeGlForProgram() {
     return {
       TEXTURE0: 0x84C0, TEXTURE_2D: 0x0DE1,
+      MAX_TEXTURE_IMAGE_UNITS: 0x8872,
+      getParameter: (_pname: number) => 16,
       activeTexture: (_u: number) => {},
       bindTexture: (_t: number, _tex: unknown) => {},
     } as unknown as WebGL2RenderingContext
@@ -700,6 +706,76 @@ describe('L — applyToProgram', () => {
     expect(prog._floats['uPlaybackTime']).toBeCloseTo(10)
     expect(prog._floats['uBeatPhase']).toBeCloseTo(0.3)
     expect(prog._floats['uEnergy']).toBeGreaterThan(0)
+  })
+
+
+
+  it('uploads indices, phrase lengths, section metadata, MI layers, and capability gates', () => {
+    const bridge = new ShaderAudioBridge()
+    const mi = makeMI({
+      bands: { sub: 0.11, volume: 0.72 },
+      rhythm: {
+        bpm: 150, bpmConfidence: 0.94, beatPhase: 0.25,
+        beatIndex: 37, beatInBar: 1, barIndex: 9,
+        phrase4Progress: 0.5, phrase8Progress: 0.25,
+        phrase16Progress: 0.125, phrase32Progress: 0.0625,
+        phrase4Hit: true, phrase16Hit: true,
+        transient: 0.66, transientConfidence: 0.88,
+      },
+      energy: {
+        shortTerm: 0.7, longTerm: 0.4, delta: 0.3, percentile: 0.82,
+        complexity: 0.61, spectralRolloff: 0.73, trackCurve: 0.58,
+      },
+      section: {
+        type: 'drop', startSec: 32, progress: 0.2, intensity: 0.95,
+        confidence: 0.91, source: 'analysis',
+      },
+      harmonic: {
+        key: 'F#', mode: 'minor', keyConfidence: 0.81,
+        chord: 'F#m7', chordConfidence: 0.77, chordChanged: true,
+        rootNote: 'F#3', pitchHz: 185, melodyContour: 'ascending',
+      },
+      stems: {
+        vocalEnergy: 0.4, drumEnergy: 0.9, bassStemEnergy: 0.8,
+        instrumentEnergy: 0.6, otherStemEnergy: 0.2, vocalActivity: 0.5,
+        drumTransient: true, bassStemTransient: true,
+      },
+      lyrics: {
+        vocalActivity: 0.55, phraseConfidence: 0.86,
+        lyricLineProgress: 0.42, wordProgress: 0.7, wordHit: true,
+        lineEnter: true, lineExit: false, isGap: false,
+      },
+      semantics: {
+        buildConfidence: 0.2, dropConfidence: 0.96,
+        fakeoutConfidence: 0.05, vocalHookConfidence: 0.62,
+        mood: 'aggressive', texture: 'dense',
+      },
+      capabilities: {
+        liveBands: true, rhythmEvents: true, beatGrid: true, sections: true,
+        trackEnergyCurve: true, stemCurves: true, lyrics: true,
+      },
+    })
+    bridge.update(makeFrame({ audioTime: 40, musicIntelligence: mi }), 12, 0.016, 200)
+
+    const prog = makeMockProgram()
+    bridge.applyToProgram(prog as never, makeGlForProgram())
+
+    expect(prog._floats['uBeatIndex']).toBe(37)
+    expect(prog._floats['uBeatInBar']).toBe(1)
+    expect(prog._floats['uBarIndex']).toBe(9)
+    expect(prog._floats['uPhrase4Progress']).toBeCloseTo(0.5)
+    expect(prog._floats['uPhrase16Hit']).toBe(1)
+    expect(prog._floats['uSectionType']).toBe(5)
+    expect(prog._floats['uSectionStartPulse']).toBe(1)
+    expect(prog._floats['uBpm']).toBe(150)
+    expect(prog._floats['uTrackEnergy']).toBeCloseTo(0.58)
+    expect(prog._floats['uChordChangeHit']).toBe(1)
+    expect(prog._floats['uDrumEnergy']).toBeCloseTo(0.9)
+    expect(prog._floats['uLyricWordProgress']).toBeCloseTo(0.7)
+    expect(prog._floats['uDropConfidence']).toBeCloseTo(0.96)
+    expect(prog._floats['uHasStems']).toBe(1)
+    expect(prog._floats['uHasLyrics']).toBe(1)
+    expect(prog._floats['uPlaybackProgress']).toBeCloseTo(0.2)
   })
 
   it('does not throw when textures are omitted', () => {

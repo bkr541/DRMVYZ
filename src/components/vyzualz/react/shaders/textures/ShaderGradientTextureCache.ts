@@ -43,12 +43,16 @@ export class ShaderGradientTextureCache {
     paramValues: Record<string, ShaderParamValue>,
     gl:          WebGL2RenderingContext,
     firstUnit:   number,
+    lastUnitExclusive = Number.POSITIVE_INFINITY,
   ): ReadonlyMap<string, number> {
     const result  = new Map<string, number>()
     let unit = firstUnit
 
     for (const param of def.params) {
       if (param.type !== 'gradient') continue
+      if (unit >= lastUnitExclusive) {
+        throw new Error(`Shader "${def.id}" declares more gradient samplers than the available texture-unit budget`)
+      }
       const gradParam = param as GradientParamDef
       const stops = (paramValues[param.id] as GradientStop[] | undefined) ?? gradParam.default
       const tex   = this._getOrCreate(param.id, stops)

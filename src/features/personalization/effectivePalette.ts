@@ -13,6 +13,7 @@ export const PALETTE_NATIVE_REACT_ENGINES: ReadonlySet<ReactEngineId> = new Set(
   'neonLattice',
   'cinematicPortal',
   'laserDmx',
+  'shaderPads',
 ])
 const PALETTE_KEYS: ReadonlyArray<keyof ReactPalette> = [
   'primary', 'secondary', 'accent', 'background', 'highlight', 'text',
