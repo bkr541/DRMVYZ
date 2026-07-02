@@ -243,6 +243,7 @@ export interface NeonPaletteRgb {
   secondary: string
   accent:    string
   highlight: string
+  background?: string
 }
 
 // ── Lane selection ────────────────────────────────────────────────────────────
@@ -469,8 +470,8 @@ export interface NeonSegmentFactoryOptions {
   laneId?: string
 }
 
-function paletteColorForRole(palette: NeonPaletteRgb, role: NeonLatticePaletteRole): string {
-  return role === 'background' ? palette.primary : palette[role]
+export function paletteColorForRole(palette: NeonPaletteRgb, role: NeonLatticePaletteRole): string {
+  return role === 'background' ? (palette.background ?? palette.primary) : palette[role]
 }
 
 export function clampDiagonalAngleDegrees(angleDeg: number): number {

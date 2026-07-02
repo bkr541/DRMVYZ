@@ -300,6 +300,31 @@ describe('State bootstrap: renderer creates and reuses per-canvas state', () => 
   })
 })
 
+describe('continuous Music Intelligence modulation', () => {
+  it('smooths bass in a time-based bounded range and holds the completed value while paused', () => {
+    const ctx = makeCtx()
+    const local: Partial<NeonLatticeSettings> = {
+      audioReactive: true,
+      audioGate: 0,
+      audioSmoothing: 0.5,
+    }
+    run(ctx, { audioTime: 0, audio: { bass: 0, mid: 0, high: 0, volume: 0 }, mi: makeMI({ frameId: 1 }) }, local)
+    run(ctx, { audioTime: 0.1, audio: { bass: 1, mid: 0, high: 0, volume: 1 }, mi: makeMI({ frameId: 2 }) }, local)
+    const smoothed = __getNeonLatticeState(ctx)!.smoothedBass
+    expect(smoothed).toBeGreaterThan(0)
+    expect(smoothed).toBeLessThan(1)
+
+    run(ctx, {
+      audioTime: 0.1,
+      isPlaying: false,
+      isPaused: true,
+      audio: { bass: 0, mid: 0, high: 0, volume: 0 },
+      mi: makeMI({ frameId: 3 }),
+    }, local)
+    expect(__getNeonLatticeState(ctx)!.smoothedBass).toBeCloseTo(smoothed, 8)
+  })
+})
+
 // ── 2. Pulse Trigger event selection ─────────────────────────────────────────
 
 describe('Pulse Trigger: events route to the correct trigger type', () => {
@@ -786,9 +811,9 @@ describe('Patch 2 composition ownership and sequencer lifecycle', () => {
 
   it('laneSequencer owns authored envelopes without autonomous legacy rails', () => {
     const ctx = makeCtx()
-    run(ctx, { audioTime: 1, beatHit: true }, {
+    run(ctx, { audioTime: 1, mi: makeMI({ frameId: 1, beatIndex: 0, beatHit: true }) }, {
       compositionMode: 'laneSequencer',
-      audioReactive: false,
+      audioReactive: true,
       lanePattern,
     })
     const snapshot = __getNeonLatticeState(ctx)!
@@ -797,9 +822,9 @@ describe('Patch 2 composition ownership and sequencer lifecycle', () => {
     expect(snapshot.currentSequenceStep).toBe(0)
     expect(snapshot.activeEnvelopeCount).toBe(1)
 
-    run(ctx, { audioTime: 1.3, beatHit: true }, {
+    run(ctx, { audioTime: 1.3, mi: makeMI({ frameId: 2, beatIndex: 1, beatHit: true }) }, {
       compositionMode: 'laneSequencer',
-      audioReactive: false,
+      audioReactive: true,
       lanePattern,
     })
     const active = __getNeonLatticeState(ctx)!
@@ -845,30 +870,30 @@ describe('Patch 2 composition ownership and sequencer lifecycle', () => {
   it('resets lane identities and sequence indices on resize, track replacement, seek, and stop', () => {
     const baseSettings: Partial<NeonLatticeSettings> = {
       compositionMode: 'laneSequencer',
-      audioReactive: false,
+      audioReactive: true,
       lanePattern: { ...lanePattern, steps: [{ lanes: [0] }, { lanes: [1] }, { lanes: [2] }, { lanes: [3] }] },
     }
 
     const resizeCtx = makeCtx()
-    run(resizeCtx, { audioTime: 1, beatHit: true, trackKey: 'track-a' }, baseSettings)
+    run(resizeCtx, { audioTime: 1, trackKey: 'track-a', mi: makeMI({ frameId: 1, beatIndex: 0, beatHit: true }) }, baseSettings)
     expect(__getNeonLatticeState(resizeCtx)!.railCount).toBeGreaterThan(0)
     run(resizeCtx, { audioTime: 1.1, W: 1024, H: 768, beatHit: false, trackKey: 'track-a' }, baseSettings)
     expect(__getNeonLatticeState(resizeCtx)!.railCount).toBe(0)
     expect(__getNeonLatticeState(resizeCtx)!.currentSequenceStep).toBe(-1)
 
     const trackCtx = makeCtx()
-    run(trackCtx, { audioTime: 1, beatHit: true, trackKey: 'track-a' }, baseSettings)
+    run(trackCtx, { audioTime: 1, trackKey: 'track-a', mi: makeMI({ frameId: 1, beatIndex: 0, beatHit: true }) }, baseSettings)
     run(trackCtx, { audioTime: 1.1, beatHit: false, trackKey: 'track-b' }, baseSettings)
     expect(__getNeonLatticeState(trackCtx)!.railCount).toBe(0)
 
     const seekCtx = makeCtx()
-    run(seekCtx, { audioTime: 5, beatHit: true, trackKey: 'track-a' }, baseSettings)
+    run(seekCtx, { audioTime: 5, trackKey: 'track-a', mi: makeMI({ frameId: 1, beatIndex: 0, beatHit: true }) }, baseSettings)
     run(seekCtx, { audioTime: 2, beatHit: false, trackKey: 'track-a' }, baseSettings)
     expect(__getNeonLatticeState(seekCtx)!.railCount).toBe(0)
     expect(__getNeonLatticeState(seekCtx)!.currentSequenceStep).toBe(-1)
 
     const stopCtx = makeCtx()
-    run(stopCtx, { audioTime: 1, beatHit: true, trackKey: 'track-a', isPlaying: true }, baseSettings)
+    run(stopCtx, { audioTime: 1, trackKey: 'track-a', isPlaying: true, mi: makeMI({ frameId: 1, beatIndex: 0, beatHit: true }) }, baseSettings)
     run(stopCtx, { audioTime: 1.1, beatHit: false, trackKey: 'track-a', isPlaying: false, isPaused: false }, baseSettings)
     expect(__getNeonLatticeState(stopCtx)!.railCount).toBe(0)
   })
@@ -877,10 +902,10 @@ describe('Patch 2 composition ownership and sequencer lifecycle', () => {
     const ctx = makeCtx()
     const local = {
       compositionMode: 'laneSequencer' as const,
-      audioReactive: false,
+      audioReactive: true,
       lanePattern: { ...lanePattern, steps: [{ lanes: [0] }, { lanes: [1] }, { lanes: [2] }, { lanes: [3] }] },
     }
-    run(ctx, { audioTime: 1, beatHit: true, isPlaying: true }, local)
+    run(ctx, { audioTime: 1, isPlaying: true, mi: makeMI({ frameId: 1, beatIndex: 0, beatHit: true }) }, local)
     const before = __getNeonLatticeState(ctx)!.railCount
     run(ctx, { audioTime: 1, beatHit: false, isPlaying: false, isPaused: true }, local)
     expect(__getNeonLatticeState(ctx)!.railCount).toBe(before)

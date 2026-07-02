@@ -1,10 +1,14 @@
 import {
   DEFAULT_NEON_LATTICE_LANE_PATTERN,
   DEFAULT_NEON_LATTICE_LINE_ENVELOPE,
+  DEFAULT_NEON_LATTICE_MODULATION_ROUTES,
   DEFAULT_NEON_LATTICE_SETTINGS,
+  DEFAULT_NEON_LATTICE_TRIGGER_ROUTES,
 } from './ReactTypes'
 import type {
+  NeonLatticeContinuousModulationRoutes,
   NeonLatticeCustomSegment,
+  NeonLatticeDiscreteTriggerSource,
   NeonLatticeLanePattern,
   NeonLatticeLanePatternStep,
   NeonLatticeLineEnvelope,
@@ -14,8 +18,11 @@ import type {
   NeonLatticePhraseAction,
   NeonLatticePhraseBoundaryPriority,
   NeonLatticePhraseProgram,
+  NeonLatticePhraseScale,
   NeonLatticeSettings,
   NeonLatticeSpanMode,
+  NeonLatticeTriggerAction,
+  NeonLatticeTriggerRoute,
 } from './ReactTypes'
 
 const ORIENTATIONS = new Set<NeonLatticeLineOrientation>([
@@ -28,6 +35,17 @@ const PALETTE_ROLES = new Set<NeonLatticePaletteRole>([
   'primary', 'secondary', 'accent', 'highlight', 'background',
 ])
 const BOUNDARIES = new Set<NeonLatticePhraseBoundaryPriority>(['step', 'bar', 'phrase', 'section'])
+const PHRASE_SCALES = new Set<NeonLatticePhraseScale>([4, 8, 16, 32])
+const TRIGGER_SOURCES = new Set<NeonLatticeDiscreteTriggerSource>([
+  'beat', 'downbeat', 'kick', 'snare', 'hat', 'bassEvent', 'buildStart',
+  'buildThreshold', 'dropImpact', 'sectionChange', 'manual',
+  'phrase4', 'phrase8', 'phrase16', 'phrase32',
+])
+const TRIGGER_ACTIONS = new Set<NeonLatticeTriggerAction>([
+  'advanceSequence', 'emphasizedStep', 'pillar', 'horizontalStrike', 'thinAccent',
+  'fullChord', 'highlightStrike', 'lineSweep', 'blockCascade', 'reseedPattern',
+  'runPhraseProgram',
+])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value != null && typeof value === 'object' && !Array.isArray(value)
@@ -174,34 +192,49 @@ export function normalizeNeonLatticePhraseAction(value: unknown): NeonLatticePhr
   if (!isRecord(value) || typeof value.type !== 'string') return null
   const strength = value.strength == null ? undefined : clamp(value.strength, 0, 4, 1)
   const orientation = value.orientation == null ? undefined : orientationOr(value.orientation, 'vertical')
+  let action: NeonLatticePhraseAction | null
   switch (value.type) {
     case 'spawnLine':
-      return { type: 'spawnLine', orientation, lane: value.lane == null ? undefined : integer(value.lane, 0, 31, 0), paletteRole: paletteRoleOr(value.paletteRole), strength }
+      action = { type: 'spawnLine', orientation, lane: value.lane == null ? undefined : integer(value.lane, 0, 31, 0), paletteRole: paletteRoleOr(value.paletteRole), strength }
+      break
     case 'spawnLineCluster': {
       const lanes = Array.isArray(value.lanes) ? value.lanes.map(v => integer(v, 0, 31, 0)).slice(0, 16) : undefined
-      return { type: 'spawnLineCluster', orientation, lanes, chordSize: value.chordSize == null ? undefined : integer(value.chordSize, 1, 16, 2), paletteRole: paletteRoleOr(value.paletteRole), strength }
+      action = { type: 'spawnLineCluster', orientation, lanes, chordSize: value.chordSize == null ? undefined : integer(value.chordSize, 1, 16, 2), paletteRole: paletteRoleOr(value.paletteRole), strength }
+      break
     }
     case 'lineSweep':
-      return { type: 'lineSweep', orientation, direction: value.direction === -1 ? -1 : 1, durationBeats: clamp(value.durationBeats, 0.0625, 128, 4), strength }
+      action = { type: 'lineSweep', orientation, direction: value.direction === -1 ? -1 : 1, durationBeats: clamp(value.durationBeats, 0.0625, 128, 4), strength }
+      break
     case 'orientationChange':
-      return { type: 'orientationChange', weights: normalizeNeonLatticeOrientationWeights(value.weights), temporary: value.temporary === true }
+      action = { type: 'orientationChange', weights: normalizeNeonLatticeOrientationWeights(value.weights), temporary: value.temporary === true }
+      break
     case 'mirroredLayout':
-      return { type: 'mirroredLayout', enabled: value.enabled !== false, temporary: value.temporary === true }
+      action = { type: 'mirroredLayout', enabled: value.enabled !== false, temporary: value.temporary === true }
+      break
     case 'paletteStep':
-      return { type: 'paletteStep', role: paletteRoleOr(value.role), offset: integer(value.offset, -64, 64, 1) }
+      action = { type: 'paletteStep', role: paletteRoleOr(value.role), offset: integer(value.offset, -64, 64, 1) }
+      break
     case 'densityShift':
-      return { type: 'densityShift', amount: clamp(value.amount, -1, 1, 0), temporary: value.temporary === true }
+      action = { type: 'densityShift', amount: clamp(value.amount, -1, 1, 0), temporary: value.temporary === true }
+      break
     case 'patternReseed':
-      return { type: 'patternReseed', seed: value.seed == null ? undefined : integer(value.seed, 1, 0x7fffffff, 1) }
-    case 'clearLines': return { type: 'clearLines' }
-    case 'blackout': return { type: 'blackout', durationBeats: clamp(value.durationBeats, 0.0625, 128, 1) }
-    case 'highlightStrike': return { type: 'highlightStrike', orientation, strength }
-    case 'blockCascade': return { type: 'blockCascade', strength }
-    case 'temporaryEnvelopeChange': return { type: 'temporaryEnvelopeChange', envelope: normalizeNeonLatticeEnvelope(value.envelope) }
-    case 'temporaryLaneCountChange': return { type: 'temporaryLaneCountChange', laneCount: integer(value.laneCount, 1, 32, 8) }
-    case 'restoreBaseState': return { type: 'restoreBaseState' }
+      action = { type: 'patternReseed', seed: value.seed == null ? undefined : integer(value.seed, 1, 0x7fffffff, 1) }
+      break
+    case 'clearLines': action = { type: 'clearLines' }; break
+    case 'blackout': action = { type: 'blackout', durationBeats: clamp(value.durationBeats, 0.0625, 128, 1) }; break
+    case 'highlightStrike': action = { type: 'highlightStrike', orientation, strength }; break
+    case 'blockCascade': action = { type: 'blockCascade', strength }; break
+    case 'temporaryEnvelopeChange': action = { type: 'temporaryEnvelopeChange', envelope: normalizeNeonLatticeEnvelope(value.envelope) }; break
+    case 'temporaryLaneCountChange': action = { type: 'temporaryLaneCountChange', laneCount: integer(value.laneCount, 1, 32, 8) }; break
+    case 'restoreBaseState': action = { type: 'restoreBaseState' }; break
     default: return null
   }
+  const persistence = value.persistence === 'persistent' ? 'persistent' : value.persistence === 'temporary' ? 'temporary' : undefined
+  const resetOn = value.resetOn === 'sectionChange' || value.resetOn === 'presetChange' || value.resetOn === 'trackReplacement'
+    || value.resetOn === 'rendererRemount' || value.resetOn === 'explicitRestore'
+    ? value.resetOn
+    : value.resetOn === 'nextPhrase' ? 'nextPhrase' : undefined
+  return { ...action, persistence, resetOn } as NeonLatticePhraseAction
 }
 
 function normalizePhraseProgram(value: unknown, index: number): NeonLatticePhraseProgram | null {
@@ -216,9 +249,53 @@ function normalizePhraseProgram(value: unknown, index: number): NeonLatticePhras
     boundary: typeof value.boundary === 'string' && BOUNDARIES.has(value.boundary as NeonLatticePhraseBoundaryPriority)
       ? value.boundary as NeonLatticePhraseBoundaryPriority
       : 'phrase',
+    phraseBeats: typeof value.phraseBeats === 'number' && PHRASE_SCALES.has(value.phraseBeats as NeonLatticePhraseScale)
+      ? value.phraseBeats as NeonLatticePhraseScale
+      : undefined,
+    stackWithLonger: value.stackWithLonger === true,
     every: integer(value.every, 1, 128, 1),
     actions,
   } as NeonLatticePhraseProgram
+}
+
+function normalizeTriggerRoute(value: unknown, index: number): NeonLatticeTriggerRoute | null {
+  if (!isRecord(value)) return null
+  if (typeof value.source !== 'string' || !TRIGGER_SOURCES.has(value.source as NeonLatticeDiscreteTriggerSource)) return null
+  if (typeof value.action !== 'string' || !TRIGGER_ACTIONS.has(value.action as NeonLatticeTriggerAction)) return null
+  return {
+    id: stringOr(value.id, `route-${index + 1}`),
+    source: value.source as NeonLatticeDiscreteTriggerSource,
+    action: value.action as NeonLatticeTriggerAction,
+    enabled: value.enabled !== false,
+    amount: clamp(value.amount, 0, 1, 1),
+    threshold: value.threshold == null ? undefined : clamp(value.threshold, 0, 1, 0.5),
+    orientation: value.orientation == null ? undefined : orientationOr(value.orientation, 'vertical'),
+    chordSize: value.chordSize == null ? undefined : integer(value.chordSize, 1, 16, 1),
+    paletteRole: paletteRoleOr(value.paletteRole),
+  }
+}
+
+export function normalizeNeonLatticeTriggerRoutes(value: unknown): NeonLatticeTriggerRoute[] {
+  const source = Array.isArray(value) ? value : DEFAULT_NEON_LATTICE_TRIGGER_ROUTES
+  const routes = source.map(normalizeTriggerRoute).filter((route): route is NeonLatticeTriggerRoute => route != null)
+  return routes.length > 0 ? routes.slice(0, 64) : DEFAULT_NEON_LATTICE_TRIGGER_ROUTES.map(route => ({ ...route }))
+}
+
+export function normalizeNeonLatticeModulationRoutes(value: unknown): NeonLatticeContinuousModulationRoutes {
+  const raw = isRecord(value) ? value : {}
+  const fallback = DEFAULT_NEON_LATTICE_MODULATION_ROUTES
+  return {
+    bassToBloom: clamp(raw.bassToBloom, 0, 1, fallback.bassToBloom),
+    bassToWidth: clamp(raw.bassToWidth, 0, 1, fallback.bassToWidth),
+    energyToChordSize: clamp(raw.energyToChordSize, 0, 1, fallback.energyToChordSize),
+    energyToActiveLanes: clamp(raw.energyToActiveLanes, 0, 1, fallback.energyToActiveLanes),
+    buildToPatternRate: clamp(raw.buildToPatternRate, 0, 1, fallback.buildToPatternRate),
+    buildToDensity: clamp(raw.buildToDensity, 0, 1, fallback.buildToDensity),
+    phrase4ProgressToDensity: clamp(raw.phrase4ProgressToDensity, -1, 1, fallback.phrase4ProgressToDensity),
+    phrase8ProgressToBloom: clamp(raw.phrase8ProgressToBloom, -1, 1, fallback.phrase8ProgressToBloom),
+    phrase16ProgressToSpacing: clamp(raw.phrase16ProgressToSpacing, -1, 1, fallback.phrase16ProgressToSpacing),
+    phrase32ProgressToDiagonalWeight: clamp(raw.phrase32ProgressToDiagonalWeight, -1, 1, fallback.phrase32ProgressToDiagonalWeight),
+  }
 }
 
 /** Canonical, idempotent compatibility layer for persisted, preset, and live settings. */
@@ -248,7 +325,17 @@ export function normalizeNeonLatticeSettings(value: unknown): NeonLatticeSetting
     lineEnvelope: normalizeNeonLatticeEnvelope(raw.lineEnvelope),
     retriggerBehavior: raw.retriggerBehavior === 'extend' || raw.retriggerBehavior === 'stack' ? raw.retriggerBehavior : 'restart',
     lanePattern: normalizeNeonLatticeLanePattern(raw.lanePattern),
+    laneAssignmentMode: raw.laneAssignmentMode === 'random' || raw.laneAssignmentMode === 'centerOut'
+      || raw.laneAssignmentMode === 'outsideIn' || raw.laneAssignmentMode === 'presetDefined'
+      ? raw.laneAssignmentMode
+      : 'sequence',
+    chordSize: integer(raw.chordSize, 1, 16, DEFAULT_NEON_LATTICE_SETTINGS.chordSize),
+    triggerRoutes: normalizeNeonLatticeTriggerRoutes(raw.triggerRoutes),
+    modulationRoutes: normalizeNeonLatticeModulationRoutes(raw.modulationRoutes),
     phrasePrograms,
+    phraseStackingPolicy: raw.phraseStackingPolicy === 'stackAll' || raw.phraseStackingPolicy === 'presetDefined'
+      ? raw.phraseStackingPolicy
+      : 'longestOnly',
     phraseBoundaryPriority: typeof raw.phraseBoundaryPriority === 'string' && BOUNDARIES.has(raw.phraseBoundaryPriority as NeonLatticePhraseBoundaryPriority)
       ? raw.phraseBoundaryPriority as NeonLatticePhraseBoundaryPriority
       : DEFAULT_NEON_LATTICE_SETTINGS.phraseBoundaryPriority,
@@ -263,7 +350,22 @@ export function normalizeNeonLatticeSettings(value: unknown): NeonLatticeSetting
     blockDensity: clamp(raw.blockDensity, 0, 1, DEFAULT_NEON_LATTICE_SETTINGS.blockDensity),
     blockHold: clamp(raw.blockHold, 0.02, 30, DEFAULT_NEON_LATTICE_SETTINGS.blockHold),
     cyanAccentChance: clamp(raw.cyanAccentChance, 0, 1, DEFAULT_NEON_LATTICE_SETTINGS.cyanAccentChance),
+    cyanStrikePaletteRole: paletteRoleOr(raw.cyanStrikePaletteRole, DEFAULT_NEON_LATTICE_SETTINGS.cyanStrikePaletteRole)!,
     bloom: clamp(raw.bloom, 0, 2, DEFAULT_NEON_LATTICE_SETTINGS.bloom),
+    coreWidth: clamp(raw.coreWidth, 0.1, 8, DEFAULT_NEON_LATTICE_SETTINGS.coreWidth),
+    bodyWidth: clamp(raw.bodyWidth, 0.1, 16, DEFAULT_NEON_LATTICE_SETTINGS.bodyWidth),
+    haloWidth: clamp(raw.haloWidth, 0, 32, DEFAULT_NEON_LATTICE_SETTINGS.haloWidth),
+    coreIntensity: clamp(raw.coreIntensity, 0, 2, DEFAULT_NEON_LATTICE_SETTINGS.coreIntensity),
+    bodyIntensity: clamp(raw.bodyIntensity, 0, 2, DEFAULT_NEON_LATTICE_SETTINGS.bodyIntensity),
+    haloIntensity: clamp(raw.haloIntensity, 0, 1, DEFAULT_NEON_LATTICE_SETTINGS.haloIntensity),
+    haloFalloff: clamp(raw.haloFalloff, 0, 1, DEFAULT_NEON_LATTICE_SETTINGS.haloFalloff),
+    bloomSpread: clamp(raw.bloomSpread, 0.25, 2, DEFAULT_NEON_LATTICE_SETTINGS.bloomSpread),
+    bloomGain: clamp(raw.bloomGain, 0, 2, DEFAULT_NEON_LATTICE_SETTINGS.bloomGain),
+    lineFlicker: clamp(raw.lineFlicker, 0, 1, DEFAULT_NEON_LATTICE_SETTINGS.lineFlicker),
+    chordBloomBoost: clamp(raw.chordBloomBoost, 0, 1, DEFAULT_NEON_LATTICE_SETTINGS.chordBloomBoost),
+    phraseFlashStrength: clamp(raw.phraseFlashStrength, 0, 1, DEFAULT_NEON_LATTICE_SETTINGS.phraseFlashStrength),
+    highlightCenterHot: raw.highlightCenterHot !== false,
+    qualityTier: raw.qualityTier === 'low' || raw.qualityTier === 'medium' ? raw.qualityTier : 'high',
     depth: clamp(raw.depth, 0, 1, DEFAULT_NEON_LATTICE_SETTINGS.depth),
     parallax: clamp(raw.parallax, 0, 1, DEFAULT_NEON_LATTICE_SETTINGS.parallax),
     cameraMotion: clamp(raw.cameraMotion, 0, 1, DEFAULT_NEON_LATTICE_SETTINGS.cameraMotion),

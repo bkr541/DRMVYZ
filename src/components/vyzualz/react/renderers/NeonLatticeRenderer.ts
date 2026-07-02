@@ -1,5 +1,16 @@
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
-import type { ReactPreset, NeonLatticeTriggerType, NeonLatticeSettings, NeonLatticeDecayStyle, NeonLatticeTrigger, ReactSectionType } from '../ReactTypes'
+import type {
+  ReactPreset,
+  NeonLatticeTriggerType,
+  NeonLatticeSettings,
+  NeonLatticeDecayStyle,
+  NeonLatticeTrigger,
+  ReactSectionType,
+  NeonLatticeDiscreteTriggerSource,
+  NeonLatticeLineOrientation,
+  NeonLatticePaletteRole,
+  NeonLatticePhraseScale,
+} from '../ReactTypes'
 import { DEFAULT_NEON_LATTICE_SETTINGS } from '../ReactTypes'
 import { normalizeNeonLatticeSettings } from '../NeonLatticeConfig'
 import { neonLatticeTriggerFromPerformanceEvent } from '../ReactPerformanceActions'
@@ -71,6 +82,7 @@ import {
 } from './neonLatticeUtils'
 import {
   createNeonLatticeSequencerState,
+  laneGeometryFor,
   reseedNeonLatticePattern,
   resetNeonLatticeSequencerState,
   resolveSequenceTrigger,
@@ -78,6 +90,22 @@ import {
   sequencedEnvelopeAlpha,
   type NeonLatticeSequencerState,
 } from './neonLatticeSequencer'
+import {
+  activeNeonLatticeOverrideNames,
+  applyNeonLatticePhraseRuntime,
+  computeNeonLatticePhraseProgressModulation,
+  consumeNeonLatticeAudioFrame,
+  createNeonLatticeAudioDirectorState,
+  executeNeonLatticePhraseActions,
+  programsForPhraseScale,
+  resetNeonLatticeAudioDirector,
+  resetNeonLatticePhraseOverrides,
+  type NeonLatticeAudioDirectorState,
+  type NeonLatticeAudioEvent,
+  type NeonLatticePhraseCommand,
+  type NeonLatticePhraseRuntimeState,
+  type NeonLatticeRuntimeResetReason,
+} from './neonLatticeAudioDirector'
 
 // ── Ctx2D union ───────────────────────────────────────────────────────────────
 
@@ -138,7 +166,7 @@ interface NeonLatticeState {
   overlayDuration:    number
   frozenUntilSec:     number      // trail freeze; 0 = not frozen
   burstAfterFreeze:   boolean     // emit railBurst when freeze ends
-  cyanStrikeUntilSec: number      // force cyan color on rails; 0 = off
+  cyanStrikeUntilSec: number      // legacy action ID; forces the configured semantic palette role while active
   // Camera motion state
   cameraDriftX:        number      // normalized x offset; 0 = center
   cameraDriftVX:       number      // velocity per second (normalized)
@@ -161,6 +189,8 @@ interface NeonLatticeState {
   lastBeatIndex:    number
   lastBarIndex:     number
   lastPhrase4Index: number
+  audioDirector: NeonLatticeAudioDirectorState
+  phraseRuntime: NeonLatticePhraseRuntimeState
   // Smoothed audio / MI signals used by the engine-specific MOD controls.
   smoothedBass:   number
   smoothedMid:    number
@@ -264,6 +294,8 @@ function makeState(W: number, H: number): NeonLatticeState {
     lastBeatIndex:    -1,
     lastBarIndex:     -1,
     lastPhrase4Index: -1,
+    audioDirector: createNeonLatticeAudioDirectorState(),
+    phraseRuntime: {},
     smoothedBass:   0,
     smoothedMid:    0,
     smoothedHigh:   0,
@@ -374,7 +406,7 @@ function beginLayoutReseed(
   spawnDeficit('horizontal')
   spawnDeficit('diagonalUp')
   spawnDeficit('diagonalDown')
-  pruneSegmentBudget(st)
+  pruneSegmentBudget(st, settings)
 }
 
 function resizeState(st: NeonLatticeState, W: number, H: number): void {
@@ -382,6 +414,7 @@ function resizeState(st: NeonLatticeState, W: number, H: number): void {
   st.trailCanvas.height = H
   st.bloomCanvas.width  = Math.max(1, W >> 1)
   st.bloomCanvas.height = Math.max(1, H >> 1)
+  st.lastFrameSec = -1
   st.rails = []
   st.sequencer = null
   st.intersectionCount = 0
@@ -393,6 +426,8 @@ function resizeState(st: NeonLatticeState, W: number, H: number): void {
   st.lastBeatIndex = -1
   st.lastBarIndex = -1
   st.lastPhrase4Index = -1
+  st.audioDirector = createNeonLatticeAudioDirectorState()
+  st.phraseRuntime = {}
   st.lastReseedBarIndex = -1
   st.beatHitCount = 0
   st.lastPulseSnapSlot = -1
@@ -452,7 +487,7 @@ function dispatchTrigger(
         for (const lane of trigger?.lanes ?? []) {
           retriggerSequencedLane(st.rails, lane, settings, paletteRgb, audioTime, bpm, strength, trigger?.paletteRole)
         }
-        pruneSegmentBudget(st)
+        pruneSegmentBudget(st, settings)
         if (settings.compositionMode === 'laneSequencer') break
       }
       // Legacy/hybrid autonomous burst remains bounded and axis-compatible.
@@ -469,7 +504,7 @@ function dispatchTrigger(
           st.rails.push(makeHorizontalRail(st.seedCounter, settings, audioTime, st.rails, paletteRgb, strength))
         }
       }
-      pruneSegmentBudget(st)
+      pruneSegmentBudget(st, settings)
       break
     }
 
@@ -548,7 +583,7 @@ function dispatchTrigger(
     }
 
     case 'cyanStrike': {
-      // Temporarily override rail draw colors to cyan; palette restores automatically on expiry
+      // Preserve the legacy action ID while resolving the visible color from the active semantic palette.
       st.cyanStrikeUntilSec = audioTime + resolveCyanStrikeDuration(bpm)
       break
     }
@@ -654,6 +689,50 @@ function drawPulse(
   ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px - ux * tLen, py - uy * tLen); ctx.stroke()
 }
 
+export interface NeonLatticeLinePass {
+  width: number
+  alpha: number
+  color: 'palette' | 'white'
+  composite: GlobalCompositeOperation
+}
+
+export function resolveNeonLatticeLinePasses(
+  settings: NeonLatticeSettings,
+  railWidth: number,
+  widthMul: number,
+  baseAlpha: number,
+  railGlow: number,
+  authoredChord: boolean,
+): NeonLatticeLinePass[] {
+  const alpha = clampUnit(baseAlpha)
+  const width = Math.max(0.05, Number.isFinite(railWidth * widthMul) ? railWidth * widthMul : 0.5)
+  const chordBoost = authoredChord ? 1 + settings.chordBloomBoost * 0.35 : 1
+  const limits = neonLatticeQualityLimits(settings.qualityTier)
+  const passes: NeonLatticeLinePass[] = []
+  for (let index = limits.haloPasses - 1; index >= 0; index--) {
+    const normalized = limits.haloPasses <= 1 ? 1 : (index + 1) / limits.haloPasses
+    passes.push({
+      width: Math.max(width, width * settings.haloWidth * (0.55 + normalized * 0.45)),
+      alpha: Math.min(0.55, alpha * settings.haloIntensity * railGlow * chordBoost * Math.pow(settings.haloFalloff, index)),
+      color: 'palette',
+      composite: 'screen',
+    })
+  }
+  passes.push({
+    width: Math.max(0.1, width * settings.bodyWidth),
+    alpha: Math.min(0.88, alpha * settings.bodyIntensity),
+    color: 'palette',
+    composite: 'screen',
+  })
+  passes.push({
+    width: Math.max(0.25, width * settings.coreWidth),
+    alpha: Math.min(1, alpha * settings.coreIntensity),
+    color: settings.highlightCenterHot ? 'white' : 'palette',
+    composite: 'source-over',
+  })
+  return passes.filter(pass => Number.isFinite(pass.width) && Number.isFinite(pass.alpha) && pass.alpha > 0.001)
+}
+
 function drawRail(
   ctx:           Ctx2D,
   rail:          NeonSegment,
@@ -662,9 +741,11 @@ function drawRail(
   la:            number,
   intensity:     number,
   widthMul:      number,
+  settings:      NeonLatticeSettings,
+  flickerMultiplier: number,
   colorOverride?: string,
 ): void {
-  const a = la * rail.alpha * intensity
+  const a = clampUnit(la * rail.alpha * intensity * flickerMultiplier)
   if (a < 0.01) return
   const rgb = colorOverride ?? rail.colorRgb
   const x0 = rail.startX * W
@@ -672,17 +753,17 @@ function drawRail(
   const x1 = rail.endX * W
   const y1 = rail.endY * H
 
-  ctx.lineWidth   = rail.width * widthMul * (3 + rail.glow * 5)
-  ctx.strokeStyle = `rgba(${rgb},${(a * rail.glow * 0.18).toFixed(3)})`
-  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke()
-
-  ctx.lineWidth   = rail.width * widthMul * 1.4
-  ctx.strokeStyle = `rgba(${rgb},${(a * 0.70).toFixed(3)})`
-  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke()
-
-  ctx.lineWidth   = Math.max(0.5, rail.width * widthMul * 0.35)
-  ctx.strokeStyle = `rgba(255,255,255,${Math.min(1, a * 1.2).toFixed(3)})`
-  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke()
+  const passes = resolveNeonLatticeLinePasses(settings, rail.width, widthMul, a, rail.glow, rail.envelope != null)
+  ctx.save()
+  for (const pass of passes) {
+    ctx.globalCompositeOperation = pass.composite
+    ctx.lineWidth = pass.width
+    ctx.strokeStyle = pass.color === 'white'
+      ? `rgba(255,255,255,${pass.alpha.toFixed(3)})`
+      : `rgba(${rgb},${pass.alpha.toFixed(3)})`
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke()
+  }
+  ctx.restore()
 }
 
 // ── Draw helpers (main canvas) ────────────────────────────────────────────────
@@ -754,16 +835,17 @@ function applyBloom(
   trailCanvas: OffscreenCanvas,
   bloomCanvas: OffscreenCanvas,
   bloomAmount: number,
+  bloomGain: number,
   W:           number,
   H:           number,
 ): void {
-  if (bloomAmount < 0.05) return
   const bCtx = bloomCanvas.getContext('2d')
   if (!bCtx) return
   bCtx.clearRect(0, 0, bloomCanvas.width, bloomCanvas.height)
+  if (bloomAmount < 0.01 || bloomGain <= 0) return
   bCtx.drawImage(trailCanvas, 0, 0, bloomCanvas.width, bloomCanvas.height)
   ctx.save()
-  ctx.globalAlpha              = bloomAmount * 0.32
+  ctx.globalAlpha              = Math.min(0.78, Math.max(0, bloomAmount * bloomGain))
   ctx.globalCompositeOperation = 'screen' as GlobalCompositeOperation
   ctx.drawImage(bloomCanvas, 0, 0, W, H)
   ctx.restore()
@@ -886,15 +968,182 @@ const COMPLEX_DEBOUNCE   = 0.50
 const DOWNBEAT_DEBOUNCE  = 0.80
 const MAX_ACTIVE_SEGMENTS = 36
 
-function pruneSegmentBudget(st: NeonLatticeState): void {
-  if (st.rails.length <= MAX_ACTIVE_SEGMENTS) return
+export function neonLatticeQualityLimits(qualityTier: NeonLatticeSettings['qualityTier']): {
+  maxSegments: number
+  maxFlares: number
+  maxPulses: number
+  maxChordSize: number
+  haloPasses: number
+  bloomScale: number
+} {
+  if (qualityTier === 'low') return { maxSegments: 20, maxFlares: 8, maxPulses: 14, maxChordSize: 4, haloPasses: 1, bloomScale: 0.25 }
+  if (qualityTier === 'medium') return { maxSegments: 28, maxFlares: 16, maxPulses: 22, maxChordSize: 8, haloPasses: 2, bloomScale: 0.38 }
+  return { maxSegments: MAX_ACTIVE_SEGMENTS, maxFlares: MAX_FLARES, maxPulses: MAX_PULSES, maxChordSize: 16, haloPasses: 3, bloomScale: 0.5 }
+}
+
+function pruneSegmentBudget(st: NeonLatticeState, settings: NeonLatticeSettings): void {
+  const maxSegments = neonLatticeQualityLimits(settings.qualityTier).maxSegments
+  if (st.rails.length <= maxSegments) return
   const retained = st.rails
     .slice()
     .sort((a, b) => b.birthSec - a.birthSec || a.id.localeCompare(b.id))
-    .slice(0, MAX_ACTIVE_SEGMENTS)
+    .slice(0, maxSegments)
   const retainedIds = new Set(retained.map(rail => rail.id))
   st.rails = retained
   st.pulses = st.pulses.filter(pulse => retainedIds.has(pulse.segmentId))
+}
+
+function stableRouteOffset(id: string, modulo: number): number {
+  if (modulo <= 1) return 0
+  let hash = 2166136261
+  for (let index = 0; index < id.length; index++) {
+    hash ^= id.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0) % modulo
+}
+
+function resolveLineFlickerMultiplier(id: string, audioTime: number, amount: number): number {
+  const depth = clampUnit(amount)
+  if (depth <= 0) return 1
+  const phase = stableRouteOffset(id, 4093) / 4093 * Math.PI * 2
+  const wave = 0.5 + 0.5 * Math.sin(audioTime * 47 + phase)
+  return Math.max(0.65, 1 - depth * 0.22 + wave * depth * 0.22)
+}
+
+function spawnAuthoredLaneCluster(
+  st: NeonLatticeState,
+  settings: NeonLatticeSettings,
+  paletteRgb: NeonPaletteRgb,
+  audioTime: number,
+  bpm: number,
+  event: Pick<NeonLatticeAudioEvent, 'beatIndex' | 'strength'>,
+  options: {
+    routeId: string
+    orientation?: NeonLatticeLineOrientation
+    chordSize?: number
+    strength?: number
+    paletteRole?: NeonLatticePaletteRole
+    explicitLanes?: readonly number[]
+    laneSpacingScale?: number
+  },
+): void {
+  if (settings.compositionMode === 'legacyLattice') return
+  const laneCount = Math.max(1, settings.lanePattern.laneCount)
+  const requestedOrientation = options.orientation ?? settings.lanePattern.orientations[0] ?? 'vertical'
+  const orientation: Exclude<NeonLatticeLineOrientation, 'custom'> = requestedOrientation === 'custom'
+    ? 'vertical'
+    : requestedOrientation
+  const qualityChordLimit = neonLatticeQualityLimits(settings.qualityTier).maxChordSize
+  const requestedChord = Math.max(1, Math.min(laneCount, qualityChordLimit, Math.round(options.chordSize ?? settings.chordSize)))
+  const routeOffset = stableRouteOffset(options.routeId, laneCount)
+  const baseLane = ((event.beatIndex + routeOffset) % laneCount + laneCount) % laneCount
+  const spacing = Math.max(1, Math.round(options.laneSpacingScale ?? 1))
+  const orderedLanes = Array.from({ length: laneCount }, (_, index) => index)
+  const center = (laneCount - 1) / 2
+  if (settings.laneAssignmentMode === 'centerOut') orderedLanes.sort((a, b) => Math.abs(a - center) - Math.abs(b - center) || a - b)
+  if (settings.laneAssignmentMode === 'outsideIn') orderedLanes.sort((a, b) => Math.abs(b - center) - Math.abs(a - center) || a - b)
+  if (settings.laneAssignmentMode === 'random') {
+    orderedLanes.sort((a, b) => stableRouteOffset(`${options.routeId}:${event.beatIndex}:${a}`, 1009) - stableRouteOffset(`${options.routeId}:${event.beatIndex}:${b}`, 1009))
+  }
+  const presetStep = settings.lanePattern.steps[event.beatIndex % Math.max(1, settings.lanePattern.steps.length)]
+  const laneIndexes = options.explicitLanes && options.explicitLanes.length > 0
+    ? options.explicitLanes.map(lane => Math.max(0, Math.min(laneCount - 1, Math.round(lane))))
+    : settings.laneAssignmentMode === 'presetDefined' && presetStep?.lanes.length
+      ? presetStep.lanes
+      : settings.laneAssignmentMode === 'sequence'
+        ? Array.from({ length: requestedChord }, (_, index) => (baseLane + index * spacing) % laneCount)
+        : orderedLanes.slice(0, requestedChord)
+  const uniqueLanes = [...new Set(laneIndexes)].slice(0, requestedChord)
+  const maxSegments = neonLatticeQualityLimits(settings.qualityTier).maxSegments
+  for (const laneIndex of uniqueLanes) {
+    const lane = laneGeometryFor(orientation, laneIndex, laneCount, settings.lanePattern.mirrored)
+    if (st.rails.length >= maxSegments && !st.rails.some(rail => rail.laneId === lane.id)) break
+    retriggerSequencedLane(
+      st.rails,
+      lane,
+      settings,
+      paletteRgb,
+      audioTime,
+      bpm,
+      clampUnit((options.strength ?? 1) * event.strength),
+      options.paletteRole,
+    )
+  }
+  pruneSegmentBudget(st, settings)
+}
+
+function executePhraseCommand(
+  st: NeonLatticeState,
+  command: NeonLatticePhraseCommand,
+  settings: NeonLatticeSettings,
+  paletteRgb: NeonPaletteRgb,
+  audioTime: number,
+  bpm: number,
+  phraseEvent: NeonLatticeAudioEvent,
+): void {
+  switch (command.type) {
+    case 'spawnLine':
+      spawnAuthoredLaneCluster(st, settings, paletteRgb, audioTime, bpm, phraseEvent, {
+        routeId: `phrase-line-${phraseEvent.phraseScale ?? 0}`,
+        orientation: command.orientation,
+        explicitLanes: command.lane == null ? undefined : [command.lane],
+        strength: command.strength,
+        paletteRole: command.paletteRole,
+      })
+      break
+    case 'spawnLineCluster':
+      spawnAuthoredLaneCluster(st, settings, paletteRgb, audioTime, bpm, phraseEvent, {
+        routeId: `phrase-cluster-${phraseEvent.phraseScale ?? 0}`,
+        orientation: command.orientation,
+        chordSize: command.chordSize,
+        explicitLanes: command.lanes,
+        strength: command.strength,
+        paletteRole: command.paletteRole,
+      })
+      break
+    case 'lineSweep': {
+      const laneCount = Math.max(1, settings.lanePattern.laneCount)
+      const lanes = Array.from({ length: Math.min(laneCount, 8) }, (_, index) => command.direction === -1 ? laneCount - 1 - index : index)
+      spawnAuthoredLaneCluster(st, settings, paletteRgb, audioTime, bpm, phraseEvent, {
+        routeId: `phrase-sweep-${phraseEvent.phraseScale ?? 0}`,
+        orientation: command.orientation,
+        chordSize: lanes.length,
+        explicitLanes: lanes,
+        strength: command.strength,
+        paletteRole: 'accent',
+      })
+      break
+    }
+    case 'patternReseed':
+      if (st.sequencer) reseedNeonLatticePattern(st.sequencer, settings.lanePattern, command.seed)
+      if (settings.compositionMode !== 'laneSequencer') beginLayoutReseed(st, settings, paletteRgb, audioTime)
+      break
+    case 'clearLines':
+      st.rails = []
+      st.pulses = []
+      break
+    case 'blackout': {
+      const beatSeconds = 60 / Math.max(1, bpm || 120)
+      st.overlayColor = '#000000'
+      st.overlayAlpha = 1
+      st.overlayStartSec = audioTime
+      st.overlayDuration = Math.max(0.03, command.durationBeats * beatSeconds)
+      break
+    }
+    case 'highlightStrike':
+      spawnAuthoredLaneCluster(st, settings, paletteRgb, audioTime, bpm, phraseEvent, {
+        routeId: `phrase-highlight-${phraseEvent.phraseScale ?? 0}`,
+        orientation: command.orientation,
+        chordSize: Math.min(4, settings.lanePattern.laneCount),
+        strength: command.strength,
+        paletteRole: 'highlight',
+      })
+      break
+    case 'blockCascade':
+      dispatchTrigger(st, 'blockCascade', audioTime, paletteRgb, settings, bpm, 0, 0)
+      break
+  }
 }
 
 function clampUnit(value: number): number {
@@ -910,7 +1159,7 @@ function applyAudioGate(value: number, gate: number): number {
 
 /** Higher smoothing values deliberately produce a slower, silkier response. */
 function smoothReactiveSignal(current: number, target: number, dt: number, smoothing: number): number {
-  if (dt <= 0) return target
+  if (dt <= 0) return Number.isFinite(current) ? current : 0
   const responseHz = 24 - clampUnit(smoothing) * 21.5
   const alpha = 1 - Math.exp(-responseHz * dt)
   return current + (target - current) * alpha
@@ -928,7 +1177,8 @@ export function renderNeonLattice(
   manualSectionType: ReactSectionType | null = null,
 ): void {
   const { W, H } = frame
-  const settings  = normalizeNeonLatticeSettings({ ...DEFAULT_NEON_LATTICE_SETTINGS, ...params.neonLatticeSettings })
+  const baseSettings = normalizeNeonLatticeSettings({ ...DEFAULT_NEON_LATTICE_SETTINGS, ...params.neonLatticeSettings })
+  let settings = baseSettings
   const audioTime = frame.audioTime
 
   // ── State bootstrap / reset guards ────────────────────────────────────────
@@ -946,14 +1196,21 @@ export function renderNeonLattice(
   const nextTrackKey = frame.trackKey ?? null
   const trackChanged = st.lastFrameSec >= 0 && st.lastTrackKey !== nextTrackKey
   const presetChanged = st.activePresetId !== null && st.activePresetId !== preset.id
+  let lifecycleResetReason: NeonLatticeRuntimeResetReason | null = null
+  if (trackChanged) lifecycleResetReason = 'trackReplacement'
+  else if (presetChanged) lifecycleResetReason = 'presetChange'
+  else if (dimChanged || longGap || stoppedPlay || transportDiscontinuity || rewound) lifecycleResetReason = 'rendererRemount'
 
   if (dimChanged || longGap || stoppedPlay || transportDiscontinuity || rewound || trackChanged || presetChanged) {
     resizeState(st, W, H)
+    if (lifecycleResetReason) st.audioDirector.diagnostics.phraseResetReason = lifecycleResetReason
   }
 
   const dt          = Math.min(0.1, Math.max(0, audioTime - (st.lastFrameSec < 0 ? audioTime : st.lastFrameSec)))
   st.lastFrameSec   = audioTime
   st.wasPlaying     = frame.isPlaying
+  st.activePresetId = preset.id
+  st.lastTrackKey   = nextTrackKey
   // Freeze guard — declared early so blackout/camera sections can test it
   const isFrozen    = audioTime < st.frozenUntilSec
 
@@ -963,10 +1220,86 @@ export function renderNeonLattice(
     secondary: hexToRgbStr(preset.palette.secondary),
     accent:    hexToRgbStr(preset.palette.accent),
     highlight: hexToRgbStr(preset.palette.highlight),
+    background: hexToRgbStr(preset.palette.background ?? '#03070d'),
   }
   const bgColor  = preset.palette.background ?? '#03070d'
   const accentRgb = paletteRgb.accent
-  const cyanRgb   = '74,199,219'  // explicit cyan for cyanStrike override only
+  const strikeRgb = paletteRgb[settings.cyanStrikePaletteRole] ?? paletteRgb.highlight
+
+  const mi = frame.musicIntelligence
+  const consumedAudio = consumeNeonLatticeAudioFrame(st.audioDirector, {
+    frame: mi,
+    settings: baseSettings,
+    isPlaying: frame.isPlaying,
+    isPaused: frame.isPaused,
+    timingDiscontinuity: frame.timingDiscontinuity,
+    audioTime,
+    trackKey: frame.trackKey,
+  })
+  if (consumedAudio.resetReason === 'trackReplacement' || consumedAudio.resetReason === 'analysisReplacement') {
+    st.phraseRuntime = resetNeonLatticePhraseOverrides(st.phraseRuntime, 'trackReplacement')
+  } else if (consumedAudio.resetReason) {
+    st.phraseRuntime = resetNeonLatticePhraseOverrides(st.phraseRuntime, 'rendererRemount')
+  }
+
+  const audioEvents = consumedAudio.events
+  if (audioEvents.some(event => event.source === 'beat')) {
+    st.phraseRuntime = resetNeonLatticePhraseOverrides(st.phraseRuntime, 'nextStep')
+    st.audioDirector.diagnostics.phraseResetReason = 'nextStep'
+  }
+  if (audioEvents.some(event => event.source === 'downbeat')) {
+    st.phraseRuntime = resetNeonLatticePhraseOverrides(st.phraseRuntime, 'nextBar')
+    st.audioDirector.diagnostics.phraseResetReason = 'nextBar'
+  }
+  if (audioEvents.some(event => event.phraseScale != null)) {
+    st.phraseRuntime = resetNeonLatticePhraseOverrides(st.phraseRuntime, 'nextPhrase')
+    st.audioDirector.diagnostics.phraseResetReason = 'nextPhrase'
+  }
+  if (audioEvents.some(event => event.source === 'sectionChange')) {
+    st.phraseRuntime = resetNeonLatticePhraseOverrides(st.phraseRuntime, 'sectionChange')
+    st.audioDirector.diagnostics.phraseResetReason = 'sectionChange'
+  }
+
+  const phraseCommands: Array<{ command: NeonLatticePhraseCommand; event: NeonLatticeAudioEvent }> = []
+  for (const event of audioEvents) {
+    if (!event.phraseScale) continue
+    const phraseRouteEnabled = baseSettings.triggerRoutes.some(route =>
+      route.enabled && route.source === event.source && route.action === 'runPhraseProgram' && route.amount > 0,
+    )
+    if (!phraseRouteEnabled) continue
+    const phraseIndex = Math.floor(event.beatIndex / event.phraseScale)
+    const programs = programsForPhraseScale(baseSettings.phrasePrograms, event.phraseScale, phraseIndex)
+    for (const program of programs) {
+      const execution = executeNeonLatticePhraseActions(st.phraseRuntime, program.actions, baseSettings)
+      st.phraseRuntime = execution.runtime
+      st.audioDirector.diagnostics.lastPhraseActionExecuted = execution.lastAction
+      for (const command of execution.commands) phraseCommands.push({ command, event })
+    }
+  }
+  st.audioDirector.diagnostics.activeTemporaryOverrides = activeNeonLatticeOverrideNames(st.phraseRuntime)
+  settings = applyNeonLatticePhraseRuntime(baseSettings, st.phraseRuntime)
+  const phraseProgress = computeNeonLatticePhraseProgressModulation(mi, settings)
+  settings = normalizeNeonLatticeSettings({
+    ...settings,
+    railDensity: clampUnit(settings.railDensity + phraseProgress.densityDelta),
+    bloom: Math.max(0, Math.min(2, settings.bloom * phraseProgress.bloomMultiplier)),
+    orientationWeights: {
+      ...settings.orientationWeights,
+      diagonalUp: settings.orientationWeights.diagonalUp + phraseProgress.diagonalWeightDelta * 0.5,
+      diagonalDown: settings.orientationWeights.diagonalDown + phraseProgress.diagonalWeightDelta * 0.5,
+    },
+  })
+  const qualityLimits = neonLatticeQualityLimits(settings.qualityTier)
+  const bloomResolutionScale = Math.max(
+    0.15,
+    Math.min(0.75, qualityLimits.bloomScale / Math.max(0.5, settings.bloomSpread)),
+  )
+  const bloomWidth = Math.max(1, Math.round(W * bloomResolutionScale))
+  const bloomHeight = Math.max(1, Math.round(H * bloomResolutionScale))
+  if (st.bloomCanvas.width !== bloomWidth || st.bloomCanvas.height !== bloomHeight) {
+    st.bloomCanvas.width = bloomWidth
+    st.bloomCanvas.height = bloomHeight
+  }
 
   // Composition ownership is explicit. Switching modes retires the other
   // runtime's authored lines and clears route state so an engine change, seek,
@@ -992,8 +1325,16 @@ export function renderNeonLattice(
       st.pulses = []
     }
   }
+  for (const { command, event } of phraseCommands) {
+    executePhraseCommand(st, command, settings, paletteRgb, audioTime, frame.bpm, event)
+  }
+  if (audioEvents.some(event => event.phraseScale != null) && settings.phraseFlashStrength > 0) {
+    st.overlayColor = preset.palette.highlight
+    st.overlayAlpha = Math.max(st.overlayAlpha, Math.min(0.35, settings.phraseFlashStrength * 0.35))
+    st.overlayStartSec = audioTime
+    st.overlayDuration = Math.max(0.08, 60 / Math.max(1, frame.bpm || 120) * 0.35)
+  }
 
-  const mi = frame.musicIntelligence
   const reactiveEnabled = settings.audioReactive
   const gate = settings.audioGate
   const rawBass   = reactiveEnabled ? applyAudioGate(frame.audio.bass, gate) : 0
@@ -1064,7 +1405,7 @@ export function renderNeonLattice(
       2,
       settings.bloom
       * sectionGlowMul
-      * (1 + st.smoothedBass * settings.bassBrightnessResponse * 0.30),
+      * (1 + st.smoothedBass * (settings.bassBrightnessResponse * 0.30 + settings.modulationRoutes.bassToBloom * 0.45)),
     ),
     blockDensity: clampUnit(
       (settings.blockDensity + st.smoothedMid * settings.midBlockResponse * 0.34)
@@ -1195,6 +1536,16 @@ export function renderNeonLattice(
     st.lastConsumedPerformanceActionSeq = actionEvent.sequence
     const trigger = neonLatticeTriggerFromPerformanceEvent(actionEvent)
     if (trigger) dispatchTrigger(st, trigger.type, audioTime, paletteRgb, secSettings, frame.bpm, W, H)
+    const manualIdentity = `${frame.trackKey ?? mi?.trackId ?? mi?.sourceId ?? 'unbound'}:manual:${actionEvent.sequence}`
+    audioEvents.push({
+      source: 'manual',
+      identity: manualIdentity,
+      strength: 1,
+      frameId: mi?.frameId ?? -1,
+      beatIndex: mi?.rhythm.beatIndex ?? st.beatHitCount,
+      barIndex: mi?.rhythm.barIndex ?? Math.floor(st.beatHitCount / 4),
+    })
+    st.audioDirector.diagnostics.lastConsumedAudioEvent = manualIdentity
   }
 
   const legacyTrigger = params.neonLatticeTrigger
@@ -1234,38 +1585,154 @@ export function renderNeonLattice(
   let sequenceTriggerIndex: number | null = null
 
   if (frame.isPlaying && reactiveEnabled && mi !== null) {
-    // Index-based deduplication: each event is processed exactly once per MI frame.
-    // Beat/bar events are further gated by their own index to prevent double-firing
-    // when the renderer runs faster than the MI update rate.
-    const newMiFrame = mi.frameId          !== st.lastMiFrameId
-    const newBeat    = mi.rhythm.beatIndex !== st.lastBeatIndex
-    const newBar     = mi.rhythm.barIndex  !== st.lastBarIndex
-    const p4Index    = Math.floor(mi.rhythm.beatIndex / 4)
-    const newPhrase4 = p4Index !== st.lastPhrase4Index
+    const routeAmount = (source: NeonLatticeDiscreteTriggerSource): number => {
+      const amounts = settings.triggerRoutes
+        .filter(route => route.enabled && route.source === source)
+        .map(route => route.amount)
+      return amounts.length > 0 ? Math.max(...amounts) : 0
+    }
 
-    if (newMiFrame) {
-      if (newBeat) sequenceTriggerIndex = mi.rhythm.beatIndex
-      // Transient hits — MI flags are true only on the frame the event occurs
-      if (newBeat && mi.rhythm.kickHit  && mi.rhythm.kickStrength  > 0.25) { spawnKick  = true; kickStrength  = mi.rhythm.kickStrength  }
-      if (newBeat && mi.rhythm.snareHit && mi.rhythm.snareStrength > 0.20) { spawnSnare = true; snareStrength = mi.rhythm.snareStrength }
-      if (!spawnKick && !spawnSnare && newBeat && mi.rhythm.beatHit) { spawnBeat = true; beatStrength = 0.35 + mi.energy.instant * 0.35 }
-      if (mi.rhythm.hatHit && mi.rhythm.hatStrength > 0.15) { spawnHat  = true; hatStrength  = mi.rhythm.hatStrength   }
-      if (mi.energy.spectralFlux > 0.38) { spawnFlux    = true; fluxStrength = mi.energy.spectralFlux }
-      if (mi.energy.complexity   > 0.50) { spawnComplex = true }
-
-      // Bar-boundary events: downbeat and drop are processed once per bar
-      if (newBar && mi.rhythm.downbeatHit) {
-        if (mi.energy.instant    > 0.40) { spawnDownbeat = true; downbeatStrength = 0.5 + mi.energy.instant * 0.5 }
-        if (mi.energy.dropImpact > 0.75) { spawnDrop     = true; dropStrength     = mi.energy.dropImpact }
+    for (const event of audioEvents) {
+      const amount = routeAmount(event.source)
+      switch (event.source) {
+        case 'beat':
+          spawnBeat = amount > 0
+          beatStrength = event.strength * amount
+          break
+        case 'downbeat':
+          spawnDownbeat = amount > 0
+          downbeatStrength = event.strength * amount
+          break
+        case 'kick':
+          spawnKick = amount > 0
+          kickStrength = event.strength * amount
+          break
+        case 'snare':
+          spawnSnare = amount > 0
+          snareStrength = event.strength * amount
+          break
+        case 'hat':
+          spawnHat = amount > 0
+          hatStrength = event.strength * amount
+          break
+        case 'dropImpact':
+          spawnDrop = amount > 0
+          dropStrength = event.strength * amount
+          break
       }
 
-      // Advance tracking indices
-      st.lastMiFrameId = mi.frameId
-      if (newBeat)    st.lastBeatIndex    = mi.rhythm.beatIndex
-      if (newBar)     st.lastBarIndex     = mi.rhythm.barIndex
-      if (newPhrase4) st.lastPhrase4Index = p4Index
+      for (const route of settings.triggerRoutes) {
+        if (!route.enabled || route.source !== event.source || route.amount <= 0) continue
+        const routedStrength = clampUnit(event.strength * route.amount)
+        const activeLaneLimit = Math.max(1, Math.min(
+          settings.lanePattern.laneCount,
+          settings.chordSize + phraseProgress.activeLaneBonus,
+        ))
+        const chordSize = Math.max(1, Math.min(
+          activeLaneLimit,
+          Math.round((route.chordSize ?? settings.chordSize) + phraseProgress.chordSizeBonus),
+        ))
+        switch (route.action) {
+          case 'advanceSequence':
+            if (sequenceTriggerIndex == null) {
+              sequenceTriggerIndex = Math.floor(event.beatIndex * phraseProgress.patternRateMultiplier)
+            }
+            break
+          case 'emphasizedStep':
+            spawnAuthoredLaneCluster(st, settings, paletteRgb, audioTime, frame.bpm, event, {
+              routeId: route.id,
+              orientation: route.orientation,
+              chordSize: Math.max(2, chordSize),
+              strength: routedStrength,
+              paletteRole: route.paletteRole ?? 'highlight',
+              laneSpacingScale: phraseProgress.laneSpacingScale,
+            })
+            break
+          case 'pillar':
+            spawnAuthoredLaneCluster(st, settings, paletteRgb, audioTime, frame.bpm, event, {
+              routeId: route.id,
+              orientation: route.orientation ?? 'vertical',
+              chordSize,
+              strength: routedStrength,
+              paletteRole: route.paletteRole ?? 'primary',
+              laneSpacingScale: phraseProgress.laneSpacingScale,
+            })
+            break
+          case 'horizontalStrike':
+            spawnAuthoredLaneCluster(st, settings, paletteRgb, audioTime, frame.bpm, event, {
+              routeId: route.id,
+              orientation: route.orientation ?? 'horizontal',
+              chordSize,
+              strength: routedStrength,
+              paletteRole: route.paletteRole ?? 'secondary',
+              laneSpacingScale: phraseProgress.laneSpacingScale,
+            })
+            break
+          case 'thinAccent':
+            spawnAuthoredLaneCluster(st, settings, paletteRgb, audioTime, frame.bpm, event, {
+              routeId: route.id,
+              orientation: route.orientation ?? settings.lanePattern.orientations[event.beatIndex % Math.max(1, settings.lanePattern.orientations.length)],
+              chordSize: 1,
+              strength: routedStrength * 0.7,
+              paletteRole: route.paletteRole ?? 'accent',
+            })
+            break
+          case 'fullChord':
+            spawnAuthoredLaneCluster(st, settings, paletteRgb, audioTime, frame.bpm, event, {
+              routeId: route.id,
+              orientation: route.orientation,
+              chordSize: Math.max(chordSize, Math.min(settings.lanePattern.laneCount, 4)),
+              strength: routedStrength,
+              paletteRole: route.paletteRole ?? 'highlight',
+              laneSpacingScale: phraseProgress.laneSpacingScale,
+            })
+            break
+          case 'highlightStrike':
+            spawnAuthoredLaneCluster(st, settings, paletteRgb, audioTime, frame.bpm, event, {
+              routeId: route.id,
+              orientation: route.orientation,
+              chordSize: Math.max(1, chordSize),
+              strength: routedStrength,
+              paletteRole: route.paletteRole ?? 'highlight',
+            })
+            break
+          case 'lineSweep': {
+            const sweepCount = Math.min(settings.lanePattern.laneCount, Math.max(2, chordSize + 2))
+            spawnAuthoredLaneCluster(st, settings, paletteRgb, audioTime, frame.bpm, event, {
+              routeId: route.id,
+              orientation: route.orientation,
+              chordSize: sweepCount,
+              strength: routedStrength,
+              paletteRole: route.paletteRole ?? 'accent',
+              laneSpacingScale: phraseProgress.laneSpacingScale,
+            })
+            break
+          }
+          case 'blockCascade':
+            dispatchTrigger(st, 'blockCascade', audioTime, paletteRgb, settings, frame.bpm, W, H)
+            break
+          case 'reseedPattern':
+            if (st.sequencer) reseedNeonLatticePattern(st.sequencer, settings.lanePattern)
+            if (legacyRuntimeEnabled) beginLayoutReseed(st, settings, paletteRgb, audioTime)
+            break
+          case 'runPhraseProgram':
+            break
+        }
+      }
     }
-  } else if (frame.isPlaying && reactiveEnabled) {
+
+    if (mi.frameId !== st.lastMiFrameId) {
+      if (mi.energy.spectralFlux > 0.38 && (audioTime - st.lastFluxSec) > FLUX_DEBOUNCE) {
+        spawnFlux = true
+        fluxStrength = mi.energy.spectralFlux
+      }
+      if (mi.energy.complexity > 0.50 && (audioTime - st.lastComplexSec) > COMPLEX_DEBOUNCE) spawnComplex = true
+    }
+    st.lastMiFrameId = mi.frameId
+    st.lastBeatIndex = mi.rhythm.beatIndex
+    st.lastBarIndex = mi.rhythm.barIndex
+    st.lastPhrase4Index = Math.floor(mi.rhythm.beatIndex / 4)
+  } else if (frame.isPlaying && reactiveEnabled && legacyRuntimeEnabled) {
     // Fallback: analyser-only input — use elapsed-time debounces as rate limits
     const bass = rawBass
     const high = rawHigh
@@ -1289,7 +1756,7 @@ export function renderNeonLattice(
     st.prevBass = bass
     st.prevHigh = high
     st.prevMid  = mid
-  } else if (frame.isPlaying && frame.beatHit && (audioTime - st.lastBeatSec) > BEAT_DEBOUNCE) {
+  } else if (frame.isPlaying && legacyRuntimeEnabled && frame.beatHit && (audioTime - st.lastBeatSec) > BEAT_DEBOUNCE) {
     // Reactive Engine off still keeps the BPM-authored lattice alive. It uses
     // neutral, deterministic beat sequencing instead of analyser amplitudes.
     spawnBeat = true
@@ -1335,8 +1802,9 @@ export function renderNeonLattice(
       settings.customSegments,
     )
     if (sequenceTrigger && sequenceTrigger.lanes.length > 0) {
+      const maxSegments = neonLatticeQualityLimits(settings.qualityTier).maxSegments
       for (const lane of sequenceTrigger.lanes) {
-        if (st.rails.length >= MAX_ACTIVE_SEGMENTS && !st.rails.some(rail => rail.laneId === lane.id)) break
+        if (st.rails.length >= maxSegments && !st.rails.some(rail => rail.laneId === lane.id)) break
         retriggerSequencedLane(
           st.rails,
           lane,
@@ -1350,6 +1818,7 @@ export function renderNeonLattice(
       }
     }
   }
+  st.audioDirector.diagnostics.currentSequenceStep = st.sequencer?.currentStep ?? -1
 
   if (!isFrozen) {
   // ── Orientation-independent autonomous spawning ───────────────────────────
@@ -1573,7 +2042,7 @@ export function renderNeonLattice(
   // Remove expired geometry before bounded O(n²) intersection work, then
   // enforce one shared segment budget across legacy and sequencer ownership.
   st.rails = st.rails.filter(rail => !isRailExpired(rail, audioTime))
-  pruneSegmentBudget(st)
+  pruneSegmentBudget(st, settings)
 
   // ── Advance pulses + handle intersections (skipped during freeze) ─────────
   if (!isFrozen) {
@@ -1581,14 +2050,16 @@ export function renderNeonLattice(
       settings.flareAmount
       + st.smoothedHigh * settings.highFlareResponse * 0.35,
     )
-    const flareTarget  = Math.max(0, Math.round(flareAmount * MAX_FLARES))
+    const flareTarget  = Math.min(qualityLimits.maxFlares, Math.max(0, Math.round(flareAmount * MAX_FLARES)))
     const { newFlares, newPulses } = updatePulses(st, dt, audioTime, paletteRgb.primary, secSettings, flareAmount, flareTarget, settings.depth)
     for (const f of newFlares) {
       if (st.flares.length < flareTarget) st.flares.push(f)
     }
     for (const p of newPulses) {
-      if (st.pulses.length < MAX_PULSES) st.pulses.push(p)
+      if (st.pulses.length < qualityLimits.maxPulses) st.pulses.push(p)
     }
+    if (st.pulses.length > qualityLimits.maxPulses) st.pulses = st.pulses.slice(-qualityLimits.maxPulses)
+    if (st.flares.length > qualityLimits.maxFlares) st.flares = st.flares.slice(-qualityLimits.maxFlares)
   }
 
   // ── Expire dead objects ────────────────────────────────────────────────────
@@ -1627,7 +2098,7 @@ export function renderNeonLattice(
   if (!isFrozen) {
     for (const pulse of st.pulses) {
       const pdm = resolveDepthModifiers(settings.depth, pulse.depth)
-      drawPulse(tCtx, pulse, W, H, audioTime - pulse.birthSec, drawIntensity * pdm.alphaMul, isCyanStrike ? cyanRgb : undefined)
+      drawPulse(tCtx, pulse, W, H, audioTime - pulse.birthSec, drawIntensity * pdm.alphaMul, isCyanStrike ? strikeRgb : undefined)
     }
   }
 
@@ -1644,7 +2115,18 @@ export function renderNeonLattice(
     const needsShift = Math.abs(pxOff) > 0.0005
     if (needsShift) tCtx.save()
     if (needsShift) tCtx.translate(pxOff * W, 0)
-    drawRail(tCtx, rail, W, H, la * dm.alphaMul, drawIntensity * dm.intensityMul, dm.widthMul, isCyanStrike ? cyanRgb : undefined)
+    drawRail(
+      tCtx,
+      rail,
+      W,
+      H,
+      la * dm.alphaMul,
+      drawIntensity * dm.intensityMul,
+      dm.widthMul * (1 + st.smoothedBass * settings.modulationRoutes.bassToWidth * 0.45),
+      settings,
+      resolveLineFlickerMultiplier(rail.id, audioTime, settings.lineFlicker),
+      isCyanStrike ? strikeRgb : undefined,
+    )
     if (needsShift) tCtx.restore()
   }
 
@@ -1684,7 +2166,15 @@ export function renderNeonLattice(
   }
 
   // Bloom under camera transform (screen-blend downscaled trail)
-  applyBloom(ctx, st.trailCanvas, st.bloomCanvas, secSettings.bloom * params.glow * Math.min(1.5, bassBoost), W, H)
+  applyBloom(
+    ctx,
+    st.trailCanvas,
+    st.bloomCanvas,
+    secSettings.bloom * params.glow * Math.min(1.5, bassBoost),
+    secSettings.bloomGain,
+    W,
+    H,
+  )
 
   if (hasCamera) ctx.restore()
 
@@ -1778,6 +2268,15 @@ export interface NeonLatticeSnapshot {
   readonly currentPatternId: string | null
   readonly currentSequenceStep: number
   readonly activeEnvelopeCount: number
+  readonly lastConsumedAudioEvent: string | null
+  readonly skippedDuplicateEvent: string | null
+  readonly lastPhraseBoundaryConsumed: NeonLatticePhraseScale | null
+  readonly boundaryPriorityDecision: string | null
+  readonly lastPhraseActionExecuted: string | null
+  readonly phraseResetReason: string | null
+  readonly activeTemporaryOverrides: readonly string[]
+  readonly smoothedBass: number
+  readonly smoothedEnergy: number
   /** Frozen shallow copies of every rail (safe to inspect morph fields). */
   readonly rails:               ReadonlyArray<Readonly<NeonRail>>
 }
@@ -1826,6 +2325,15 @@ export function __getNeonLatticeState(ctx: CanvasRenderingContext2D): NeonLattic
     currentPatternId: st.sequencer?.patternId ?? null,
     currentSequenceStep: st.sequencer?.currentStep ?? -1,
     activeEnvelopeCount: st.rails.filter(rail => rail.envelope != null).length,
+    lastConsumedAudioEvent: st.audioDirector.diagnostics.lastConsumedAudioEvent,
+    skippedDuplicateEvent: st.audioDirector.diagnostics.skippedDuplicateEvent,
+    lastPhraseBoundaryConsumed: st.audioDirector.diagnostics.lastPhraseBoundaryConsumed,
+    boundaryPriorityDecision: st.audioDirector.diagnostics.boundaryPriorityDecision,
+    lastPhraseActionExecuted: st.audioDirector.diagnostics.lastPhraseActionExecuted,
+    phraseResetReason: st.audioDirector.diagnostics.phraseResetReason,
+    activeTemporaryOverrides: Object.freeze([...st.audioDirector.diagnostics.activeTemporaryOverrides]),
+    smoothedBass: st.smoothedBass,
+    smoothedEnergy: st.smoothedEnergy,
     rails:               Object.freeze(st.rails.map(r => Object.freeze({ ...r }))),
   })
 }

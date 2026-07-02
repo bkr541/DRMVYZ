@@ -66,8 +66,68 @@ export type NeonLatticeLineOrientation = 'vertical' | 'horizontal' | 'diagonalUp
 export type NeonLatticeSpanMode = 'fullCanvas' | 'long' | 'short' | 'random' | 'presetDefined'
 export type NeonLatticePaletteRole = 'primary' | 'secondary' | 'accent' | 'highlight' | 'background'
 export type NeonLatticeRetriggerBehavior = 'restart' | 'extend' | 'stack'
+export type NeonLatticeLaneAssignmentMode = 'sequence' | 'random' | 'centerOut' | 'outsideIn' | 'presetDefined'
+export type NeonLatticeQualityTier = 'low' | 'medium' | 'high'
 export type NeonLatticeTemporaryOverrideResetPolicy = 'nextStep' | 'nextBar' | 'nextPhrase' | 'explicitRestore'
 export type NeonLatticePhraseBoundaryPriority = 'step' | 'bar' | 'phrase' | 'section'
+export type NeonLatticePhraseScale = 4 | 8 | 16 | 32
+export type NeonLatticePhraseStackingPolicy = 'longestOnly' | 'stackAll' | 'presetDefined'
+export type NeonLatticeDiscreteTriggerSource =
+  | 'beat'
+  | 'downbeat'
+  | 'kick'
+  | 'snare'
+  | 'hat'
+  | 'bassEvent'
+  | 'buildStart'
+  | 'buildThreshold'
+  | 'dropImpact'
+  | 'sectionChange'
+  | 'manual'
+  | 'phrase4'
+  | 'phrase8'
+  | 'phrase16'
+  | 'phrase32'
+export type NeonLatticeTriggerAction =
+  | 'advanceSequence'
+  | 'emphasizedStep'
+  | 'pillar'
+  | 'horizontalStrike'
+  | 'thinAccent'
+  | 'fullChord'
+  | 'highlightStrike'
+  | 'lineSweep'
+  | 'blockCascade'
+  | 'reseedPattern'
+  | 'runPhraseProgram'
+
+export interface NeonLatticeTriggerRoute {
+  id: string
+  source: NeonLatticeDiscreteTriggerSource
+  action: NeonLatticeTriggerAction
+  enabled: boolean
+  /** 0–1 route depth applied to the canonical event strength. */
+  amount: number
+  /** Optional canonical normalized threshold for crossing/impact sources. */
+  threshold?: number
+  orientation?: NeonLatticeLineOrientation
+  chordSize?: number
+  paletteRole?: NeonLatticePaletteRole
+}
+
+/** Continuous canonical MI values. These never advance a sequence by themselves. */
+export interface NeonLatticeContinuousModulationRoutes {
+  bassToBloom: number
+  bassToWidth: number
+  energyToChordSize: number
+  energyToActiveLanes: number
+  buildToPatternRate: number
+  buildToDensity: number
+  phrase4ProgressToDensity: number
+  phrase8ProgressToBloom: number
+  phrase16ProgressToSpacing: number
+  phrase32ProgressToDiagonalWeight: number
+}
 
 export interface NeonLatticeOrientationWeights {
   vertical: number
@@ -115,7 +175,16 @@ export interface NeonLatticeLanePattern {
   steps: NeonLatticeLanePatternStep[]
 }
 
-export type NeonLatticePhraseAction =
+export type NeonLatticePhraseActionPersistence = 'temporary' | 'persistent'
+export type NeonLatticePhraseActionReset =
+  | 'nextPhrase'
+  | 'sectionChange'
+  | 'presetChange'
+  | 'trackReplacement'
+  | 'rendererRemount'
+  | 'explicitRestore'
+
+type NeonLatticePhraseActionBase =
   | { type: 'spawnLine'; orientation?: NeonLatticeLineOrientation; lane?: number; paletteRole?: NeonLatticePaletteRole; strength?: number }
   | { type: 'spawnLineCluster'; orientation?: NeonLatticeLineOrientation; lanes?: number[]; chordSize?: number; paletteRole?: NeonLatticePaletteRole; strength?: number }
   | { type: 'lineSweep'; orientation?: NeonLatticeLineOrientation; direction?: 1 | -1; durationBeats?: number; strength?: number }
@@ -132,10 +201,21 @@ export type NeonLatticePhraseAction =
   | { type: 'temporaryLaneCountChange'; laneCount: number }
   | { type: 'restoreBaseState' }
 
+export type NeonLatticePhraseAction = NeonLatticePhraseActionBase & {
+  /** Runtime-only persistence. Stored preset settings are never mutated. */
+  persistence?: NeonLatticePhraseActionPersistence
+  /** Explicit lifecycle for reversible runtime overrides. */
+  resetOn?: NeonLatticePhraseActionReset
+}
+
 export interface NeonLatticePhraseProgram {
   id: string
   name: string
   boundary: NeonLatticePhraseBoundaryPriority
+  /** Canonical beat-index phrase boundary. Omitted legacy programs retain boundary/every behavior. */
+  phraseBeats?: NeonLatticePhraseScale
+  /** Used only by presetDefined phrase stacking. */
+  stackWithLonger?: boolean
   every: number
   actions: NeonLatticePhraseAction[]
 }
@@ -163,7 +243,16 @@ export interface NeonLatticeSettings {
   lineEnvelope: NeonLatticeLineEnvelope
   retriggerBehavior: NeonLatticeRetriggerBehavior
   lanePattern: NeonLatticeLanePattern
+  /** How authored chords select lanes when a route does not specify exact lane IDs. */
+  laneAssignmentMode: NeonLatticeLaneAssignmentMode
+  /** Default authored chord size before energy modulation and route overrides. */
+  chordSize: number
+  /** Discrete edge-safe Music Intelligence routes. */
+  triggerRoutes: NeonLatticeTriggerRoute[]
+  /** Continuous, smoothed Music Intelligence routes. */
+  modulationRoutes: NeonLatticeContinuousModulationRoutes
   phrasePrograms: NeonLatticePhraseProgram[]
+  phraseStackingPolicy: NeonLatticePhraseStackingPolicy
   phraseBoundaryPriority: NeonLatticePhraseBoundaryPriority
   temporaryOverrideResetPolicy: NeonLatticeTemporaryOverrideResetPolicy
   /** 0–1 — how strongly rails cluster toward the canvas center. */
@@ -182,8 +271,25 @@ export interface NeonLatticeSettings {
   blockHold:        number
   /** 0–1 — probability that a rail is drawn in the highlight accent color. */
   cyanAccentChance: number
+  /** Semantic color role used by the legacy cyanStrike performance action. */
+  cyanStrikePaletteRole: NeonLatticePaletteRole
   /** 0–1 — bloom / glow intensity around hot rails. */
   bloom:            number
+  /** Canvas multipass line finish. All values are normalized and capture-safe. */
+  coreWidth:        number
+  bodyWidth:        number
+  haloWidth:        number
+  coreIntensity:    number
+  bodyIntensity:    number
+  haloIntensity:    number
+  haloFalloff:      number
+  bloomSpread:      number
+  bloomGain:        number
+  lineFlicker:      number
+  chordBloomBoost:  number
+  phraseFlashStrength: number
+  highlightCenterHot: boolean
+  qualityTier: NeonLatticeQualityTier
   /** 0–1 — z-plane depth separation between near and far rails. */
   depth:            number
   /** 0–1 — camera parallax offset magnitude. */
@@ -260,6 +366,37 @@ export const DEFAULT_NEON_LATTICE_LANE_PATTERN: NeonLatticeLanePattern = {
   ],
 }
 
+export const DEFAULT_NEON_LATTICE_TRIGGER_ROUTES: NeonLatticeTriggerRoute[] = [
+  { id: 'beat-lane-step', source: 'beat', action: 'advanceSequence', enabled: true, amount: 1 },
+  { id: 'downbeat-chord', source: 'downbeat', action: 'emphasizedStep', enabled: true, amount: 0.9, chordSize: 3, paletteRole: 'highlight' },
+  { id: 'kick-pillar', source: 'kick', action: 'pillar', enabled: true, amount: 0.9, orientation: 'vertical', chordSize: 2, paletteRole: 'primary' },
+  { id: 'snare-horizontal', source: 'snare', action: 'horizontalStrike', enabled: true, amount: 0.85, orientation: 'horizontal', chordSize: 2, paletteRole: 'secondary' },
+  { id: 'hat-accent', source: 'hat', action: 'thinAccent', enabled: true, amount: 0.55, paletteRole: 'accent' },
+  { id: 'bass-threshold', source: 'bassEvent', action: 'highlightStrike', enabled: true, amount: 0.45, threshold: 0.72, paletteRole: 'highlight' },
+  { id: 'build-start', source: 'buildStart', action: 'lineSweep', enabled: true, amount: 0.55, threshold: 0.18, paletteRole: 'accent' },
+  { id: 'build-threshold', source: 'buildThreshold', action: 'lineSweep', enabled: true, amount: 0.7, threshold: 0.68, paletteRole: 'highlight' },
+  { id: 'drop-full-chord', source: 'dropImpact', action: 'fullChord', enabled: true, amount: 1, threshold: 0.65, chordSize: 4, paletteRole: 'highlight' },
+  { id: 'section-change', source: 'sectionChange', action: 'reseedPattern', enabled: true, amount: 0.35 },
+  { id: 'manual-sequence', source: 'manual', action: 'advanceSequence', enabled: false, amount: 1 },
+  { id: 'phrase4-program', source: 'phrase4', action: 'runPhraseProgram', enabled: true, amount: 1 },
+  { id: 'phrase8-program', source: 'phrase8', action: 'runPhraseProgram', enabled: true, amount: 1 },
+  { id: 'phrase16-program', source: 'phrase16', action: 'runPhraseProgram', enabled: true, amount: 1 },
+  { id: 'phrase32-program', source: 'phrase32', action: 'runPhraseProgram', enabled: true, amount: 1 },
+]
+
+export const DEFAULT_NEON_LATTICE_MODULATION_ROUTES: NeonLatticeContinuousModulationRoutes = {
+  bassToBloom: 0.30,
+  bassToWidth: 0.15,
+  energyToChordSize: 0.45,
+  energyToActiveLanes: 0.25,
+  buildToPatternRate: 0.20,
+  buildToDensity: 0.20,
+  phrase4ProgressToDensity: 0,
+  phrase8ProgressToBloom: 0,
+  phrase16ProgressToSpacing: 0,
+  phrase32ProgressToDiagonalWeight: 0,
+}
+
 export const DEFAULT_NEON_LATTICE_SETTINGS: NeonLatticeSettings = {
   railDensity:      0.45,
   verticalBias:     0.60,
@@ -277,7 +414,12 @@ export const DEFAULT_NEON_LATTICE_SETTINGS: NeonLatticeSettings = {
     orientations: [...DEFAULT_NEON_LATTICE_LANE_PATTERN.orientations],
     steps: DEFAULT_NEON_LATTICE_LANE_PATTERN.steps.map(step => ({ ...step, lanes: [...step.lanes] })),
   },
+  laneAssignmentMode: 'sequence',
+  chordSize: 3,
+  triggerRoutes: DEFAULT_NEON_LATTICE_TRIGGER_ROUTES.map(route => ({ ...route })),
+  modulationRoutes: { ...DEFAULT_NEON_LATTICE_MODULATION_ROUTES },
   phrasePrograms: [],
+  phraseStackingPolicy: 'longestOnly',
   phraseBoundaryPriority: 'phrase',
   temporaryOverrideResetPolicy: 'nextPhrase',
   centerBias:       0.30,
@@ -288,7 +430,22 @@ export const DEFAULT_NEON_LATTICE_SETTINGS: NeonLatticeSettings = {
   blockDensity:     0.20,
   blockHold:        0.50,
   cyanAccentChance: 0.35,
+  cyanStrikePaletteRole: 'highlight',
   bloom:            0.65,
+  coreWidth:        0.45,
+  bodyWidth:        1.4,
+  haloWidth:        6.0,
+  coreIntensity:    1.15,
+  bodyIntensity:    0.70,
+  haloIntensity:    0.18,
+  haloFalloff:      0.62,
+  bloomSpread:      1.0,
+  bloomGain:        0.32,
+  lineFlicker:      0.04,
+  chordBloomBoost:  0.22,
+  phraseFlashStrength: 0.30,
+  highlightCenterHot: true,
+  qualityTier: 'high',
   depth:            0.30,
   parallax:         0.15,
   cameraMotion:     0.10,

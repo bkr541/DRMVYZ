@@ -1182,6 +1182,7 @@ interface ReactStoreState {
   neonLatticeSettings: NeonLatticeSettings
   setNeonLatticeSettings: (partial: Partial<NeonLatticeSettings>) => void
   resetNeonLatticeSettings: () => void
+  resetNeonLatticeSettingsToPreset: () => void
 
   // Generic visual performance actions (transient; excluded from persistence)
   performanceActionEvent: ReactPerformanceActionEvent | null
@@ -3262,6 +3263,20 @@ export const useReactStore = create<ReactStoreState>()(
 
       resetNeonLatticeSettings: () =>
         set({ neonLatticeSettings: normalizeNeonLatticeSettings(DEFAULT_NEON_LATTICE_SETTINGS), ...clearPerformanceActionPatch() }),
+
+      resetNeonLatticeSettingsToPreset: () =>
+        set(s => {
+          const preset = s.activeReactPresetId
+            ? s.reactPresets.find(candidate => candidate.id === s.activeReactPresetId)
+            : undefined
+          return {
+            neonLatticeSettings: normalizeNeonLatticeSettings({
+              ...DEFAULT_NEON_LATTICE_SETTINGS,
+              ...(preset?.neonLatticeSettings ?? {}),
+            }),
+            ...clearPerformanceActionPatch(),
+          }
+        }),
 
       triggerPerformanceAction: (actionId, requestedToggleState) =>
         set(s => {
