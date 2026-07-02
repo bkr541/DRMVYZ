@@ -21,9 +21,10 @@
 
 /* Three-column content grid — takes all remaining space above the dock */
 .rv-layout {
-  --rv-left-width: 322px;
-  --rv-right-width: 322px;
+  --rv-left-width: 400px;
+  --rv-right-width: 400px;
   --rv-collapsed-width: 48px;
+  --rv-rail-inline-padding: 12px;
   display: grid;
   grid-template-columns: var(--rv-left-width) 1fr var(--rv-right-width);
   grid-template-rows: 1fr;
@@ -40,8 +41,8 @@
 /* Dock sits below the grid; set column widths to align with rv-layout panels */
 .rv-shell > .az-dock {
   --vz-sidebar-width: 0px;
-  --vz-left-width: 322px;
-  --vz-right-width: 322px;
+  --vz-left-width: 400px;
+  --vz-right-width: 400px;
 }
 
 /* ── Shared panel header ─────────────────────────────────────────────────────── */
@@ -770,6 +771,29 @@
 /* ── Glyph / Fixture selection list ─────────────────────────────────────────── */
 .rv-font-preview-input-wrap {
   padding: 4px 10px 8px;
+}
+
+.rv-font-library-panel {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.rv-font-library-body {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-bottom: 10px;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.rv-font-library-body::-webkit-scrollbar { width: 4px; }
+.rv-font-library-body::-webkit-scrollbar-track { background: transparent; }
+.rv-font-library-body::-webkit-scrollbar-thumb {
+  background: rgba(74, 199, 219, 0.24);
+  border-radius: 2px;
 }
 
 .rv-font-preview-input {
@@ -4333,11 +4357,18 @@
 
 /* ── React engine browser + contextual workspace (layout coherence pass) ───── */
 .rv-layout {
-  --rv-left-width: 390px;
+  --rv-left-width: 400px;
+  --rv-right-width: 400px;
 }
 
 .rv-shell > .az-dock {
-  --vz-left-width: 390px;
+  --vz-left-width: 400px;
+  --vz-right-width: 400px;
+}
+
+.rv-layout > .vz-inspector > .vz-inspector-inner {
+  box-sizing: border-box;
+  padding: 8px var(--rv-rail-inline-padding);
 }
 
 .rv-left-workspace-shell {
@@ -4673,10 +4704,12 @@
 @media (max-width: 1180px) {
   .rv-layout {
     --rv-left-width: 350px;
+    --rv-right-width: 350px;
   }
 
   .rv-shell > .az-dock {
     --vz-left-width: 350px;
+    --vz-right-width: 350px;
   }
 
   .rv-left-workspace-shell {
@@ -4896,6 +4929,10 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.065);
 }
 
+.rv-lower-workspace[data-collapsed='true'] .rv-lower-workspace-toolbar {
+  border-bottom-color: transparent;
+}
+
 .rv-lower-workspace-tabs {
   display: flex;
   align-items: center;
@@ -4903,6 +4940,7 @@
 }
 
 .rv-lower-workspace-tabs button,
+.rv-lower-workspace-toggle,
 .rv-stage-focus-btn {
   min-height: 26px;
   padding: 4px 11px;
@@ -4918,10 +4956,24 @@
 }
 
 .rv-lower-workspace-tabs button:hover,
+.rv-lower-workspace-toggle:hover,
 .rv-stage-focus-btn:hover {
   color: rgba(232, 244, 248, 0.84);
   border-color: rgba(74, 199, 219, 0.3);
   background: rgba(74, 199, 219, 0.065);
+}
+
+.rv-lower-workspace-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: rgba(232, 244, 248, 0.52);
+}
+
+.rv-lower-workspace-toggle span {
+  color: rgba(103, 247, 255, 0.78);
+  font-size: 12px;
+  line-height: 0.8;
 }
 
 .rv-lower-workspace-tabs button.is-active {
