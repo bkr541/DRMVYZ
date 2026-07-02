@@ -1356,24 +1356,6 @@ const PALETTE_EMERALD_FOG: ReactPalette = {
   text:       DVYDRM_WHITE,
 }
 
-const PALETTE_OVERLOAD: ReactPalette = {
-  primary:    '#b84fc9',
-  secondary:  DVYDRM_CRIMSON,
-  accent:     DVYDRM_CYAN,
-  background: DVYDRM_BLACK,
-  highlight:  DVYDRM_GOLD,
-  text:       DVYDRM_WHITE,
-}
-
-const PALETTE_RUINS: ReactPalette = {
-  primary:    '#7a9bac',
-  secondary:  '#5c7a7a',
-  accent:     '#9ab0b0',
-  background: DVYDRM_BLACK,
-  highlight:  '#a8c0c8',
-  text:       '#c8d8dc',
-}
-
 const PALETTE_SPIRAL: ReactPalette = {
   primary:    DVYDRM_GOLD,
   secondary:  '#f5c26b',
@@ -1509,7 +1491,7 @@ function makeMappings(prefix: string): ReactSectionMapping[] {
 // ── Default presets ───────────────────────────────────────────────────────────
 
 export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
-  // ── Cinematic Portal (5) ─────────────────────────────────────────────────
+  // ── Cinematic Portal (1) ─────────────────────────────────────────────────
   {
     id: 'preset-dream-gate',
     name: 'Dream Gate',
@@ -1521,58 +1503,6 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     scenes: makeScenes('dg', 'cinematicPortal'),
     sectionMappings: makeMappings('dg'),
   },
-  {
-    id: 'preset-crimson-rift',
-    name: 'Crimson Rift',
-    description: 'Intense crimson-gold portal with aggressive ring expansion and camera shake on drops.',
-    engine: 'cinematicPortal',
-    palette: {
-      primary:    DVYDRM_CRIMSON,
-      secondary:  DVYDRM_GOLD,
-      accent:     '#ff6b35',
-      background: '#07030a',
-      highlight:  '#ff4466',
-      text:       DVYDRM_WHITE,
-    },
-    params: { intensity: 0.85, motion: 0.75, glow: 0.9, bassReactivity: 0.95 },
-    cinematicConfig: createLegacyPortalCinematicConfig({ intensity: 0.85, motion: 0.75, glow: 0.9, bassReactivity: 0.95 }),
-    scenes: makeScenes('cr', 'cinematicPortal'),
-    sectionMappings: makeMappings('cr'),
-  },
-  {
-    id: 'preset-emerald-fog',
-    name: 'Emerald Fog',
-    description: 'Dense green-teal mist with a slow-breathing portal monolith at center.',
-    engine: 'cinematicPortal',
-    palette: PALETTE_EMERALD_FOG,
-    params: { intensity: 0.55, motion: 0.4, glow: 0.7, bassReactivity: 0.65 },
-    cinematicConfig: createLegacyPortalCinematicConfig({ intensity: 0.55, motion: 0.4, glow: 0.7, bassReactivity: 0.65 }),
-    scenes: makeScenes('ef', 'cinematicPortal'),
-    sectionMappings: makeMappings('ef'),
-  },
-  {
-    id: 'preset-portal-overload',
-    name: 'Portal Overload',
-    description: 'Every parameter maxed — rings multiply rapidly and fog fills the frame.',
-    engine: 'cinematicPortal',
-    palette: PALETTE_OVERLOAD,
-    params: { intensity: 1.0, motion: 1.0, glow: 1.0, bassReactivity: 1.0 },
-    cinematicConfig: createLegacyPortalCinematicConfig({ intensity: 1.0, motion: 1.0, glow: 1.0, bassReactivity: 1.0 }),
-    scenes: makeScenes('po', 'cinematicPortal'),
-    sectionMappings: makeMappings('po'),
-  },
-  {
-    id: 'preset-quiet-ruins',
-    name: 'Quiet Ruins',
-    description: 'Muted, ambient atmosphere — barely visible fog and distant ember glow.',
-    engine: 'cinematicPortal',
-    palette: PALETTE_RUINS,
-    params: { intensity: 0.3, motion: 0.25, glow: 0.4, bassReactivity: 0.45 },
-    cinematicConfig: createLegacyPortalCinematicConfig({ intensity: 0.3, motion: 0.25, glow: 0.4, bassReactivity: 0.45 }),
-    scenes: makeScenes('qr', 'cinematicPortal'),
-    sectionMappings: makeMappings('qr'),
-  },
-
   // Cinematic Worlds: Event Horizon (3)
   {
     id: 'preset-singularity-crown',
@@ -3102,7 +3032,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     },
   },
 
-  // LaserDMX Production Rig Patch 10 curated multi-look library
+  // LaserDMX Production Rig retained Spatial Fixtures preset
   ...LASER_DMX_PRODUCTION_PRESETS,
 
   // ── Neon Lattice (1) – Acid Magenta ──────────────────────────────────────
@@ -3214,12 +3144,12 @@ export const DEFAULT_PERFORMANCE_PADS: ReactPerformancePad[] = [
   { id: 'pad-2',  presetId: 'preset-laser-dmx-drop-cage',    label: 'Drop Cage', color: DVYDRM_CYAN,    keyBinding: '2', transitionTimeMs: 400 },
   { id: 'pad-3',  presetId: 'preset-infinity-signal',        label: 'Infinity',  color: DVYDRM_EMERALD, keyBinding: '3', transitionTimeMs: 600 },
   { id: 'pad-4',  presetId: 'preset-laser-dmx-build-tunnel', label: 'Tunnel',    color: '#ff8c42',      keyBinding: '4', transitionTimeMs: 300 },
-  { id: 'pad-17', presetId: 'preset-quiet-ruins',            label: 'Ruins',    color: '#7a9bac',      keyBinding: '5', transitionTimeMs: 600 },
+  { id: 'pad-17', presetId: null,                            label: 'Empty',    color: '#3a4650',      keyBinding: '5', transitionTimeMs: 600 },
   // Row 2 — Cinematic / Neon Lattice
   { id: 'pad-5',  presetId: 'preset-dream-gate',             label: 'Dream',    color: '#5b8def',      keyBinding: 'q', transitionTimeMs: 800 },
-  { id: 'pad-6',  presetId: 'preset-crimson-rift',           label: 'Rift',     color: DVYDRM_CRIMSON, keyBinding: 'w', transitionTimeMs: 400 },
-  { id: 'pad-7',  presetId: 'preset-emerald-fog',            label: 'Fog',      color: DVYDRM_EMERALD, keyBinding: 'e', transitionTimeMs: 700 },
-  { id: 'pad-8',  presetId: 'preset-portal-overload',        label: 'Overload', color: '#b84fc9',      keyBinding: 'r', transitionTimeMs: 200 },
+  { id: 'pad-6',  presetId: null,                            label: 'Empty',    color: '#3a4650',      keyBinding: 'w', transitionTimeMs: 400 },
+  { id: 'pad-7',  presetId: null,                            label: 'Empty',    color: '#3a4650',      keyBinding: 'e', transitionTimeMs: 700 },
+  { id: 'pad-8',  presetId: null,                            label: 'Empty',    color: '#3a4650',      keyBinding: 'r', transitionTimeMs: 200 },
   { id: 'pad-18', presetId: 'preset-nl-acid-magenta',        label: 'Acid NL',  color: '#e040fb',      keyBinding: 't', transitionTimeMs: 300 },
   // Row 3 — Sound Drawing
   { id: 'pad-9',  presetId: 'preset-xy-cyan-scope',          label: 'XY Scope', color: DVYDRM_CYAN,    keyBinding: 'a', transitionTimeMs: 300 },

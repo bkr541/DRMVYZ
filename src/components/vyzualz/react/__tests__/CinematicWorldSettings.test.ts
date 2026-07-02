@@ -257,7 +257,7 @@ describe('world-specific cinematic configuration', () => {
     expect(high.geometryScale).toBeLessThan(ultra.geometryScale)
   })
 
-  it('preserves the five legacy Portal presets and compatibility payloads', () => {
+  it('keeps Dream Gate as the single legacy Portal preset and preserves compatibility payloads', () => {
     const legacy = createLegacyPortalCinematicConfig({ intensity: 0.6, fogDensity: 0.3 })
     expect(legacy.worldMode).toBe('legacyPortal')
     expect(legacy.worldSettings).toEqual({ mode: 'legacyPortal', settings: {} })
@@ -266,13 +266,7 @@ describe('world-specific cinematic configuration', () => {
     const legacyPresetIds = DEFAULT_REACT_PRESETS
       .filter(preset => preset.cinematicConfig?.worldMode === 'legacyPortal')
       .map(preset => preset.id)
-    expect(legacyPresetIds).toEqual([
-      'preset-dream-gate',
-      'preset-crimson-rift',
-      'preset-emerald-fog',
-      'preset-portal-overload',
-      'preset-quiet-ruins',
-    ])
+    expect(legacyPresetIds).toEqual(['preset-dream-gate'])
   })
 
   it('derives deterministic seeded structural variation', () => {

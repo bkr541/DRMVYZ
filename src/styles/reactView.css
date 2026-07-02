@@ -153,7 +153,7 @@
 
 .rv-preset-card--active {
   background: rgba(74, 199, 219, 0.08);
-  border-color: var(--accent, #4ac7db);
+  border-color: #4ac7db;
   box-shadow: 0 0 12px rgba(74, 199, 219, 0.15);
 }
 

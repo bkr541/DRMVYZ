@@ -22,17 +22,10 @@ import { resolveLaserDmxPersonalization } from '../../../../features/personaliza
 import { resolveEffectiveReactPreset } from '../../../../features/personalization/effectivePalette'
 import type { BrandKit } from '../../../../features/personalization/BrandKitTypes'
 
-const EXPECTED_NAMES = [
-  'Red Club Crossfire',
-  'RGB Plane Shift',
-  'Ceiling Lattice Overload',
-  'Magenta Cyan Festival Fan',
-  'Blinder and Cryo Drop',
-  'White Fog Cathedral',
-]
+const EXPECTED_NAMES = ['Red Club Crossfire']
 
-function settingsFor(index = 0): LaserDmxSettings {
-  return structuredClone(LASER_DMX_PRODUCTION_PRESETS[index].laserDmxSettings as LaserDmxSettings)
+function settingsFor(): LaserDmxSettings {
+  return structuredClone(LASER_DMX_PRODUCTION_PRESETS[0].laserDmxSettings as LaserDmxSettings)
 }
 
 function brandKit(): BrandKit {
@@ -46,7 +39,7 @@ function brandKit(): BrandKit {
 }
 
 describe('LaserDMX Production Rig Patch 10 curated presets', () => {
-  it('loads exactly the six requested multi-look production presets into the canonical browser library', () => {
+  it('keeps Red Club Crossfire as the single curated Spatial Fixtures preset in the canonical browser library', () => {
     expect(LASER_DMX_PRODUCTION_PRESETS.map(preset => preset.name)).toEqual(EXPECTED_NAMES)
     for (const name of EXPECTED_NAMES) {
       expect(DEFAULT_REACT_PRESETS.some(preset => preset.name === name && preset.engine === 'laserDmx')).toBe(true)
@@ -72,7 +65,7 @@ describe('LaserDMX Production Rig Patch 10 curated presets', () => {
   })
 
   it('reports missing families and produces safe partial playback on a smaller rig', () => {
-    const preset = LASER_DMX_PRODUCTION_PRESETS[4]
+    const preset = LASER_DMX_PRODUCTION_PRESETS[0]
     const smallRig = createDefaultLaserDmxSettings()
     const compatibility = analyzeProductionPresetCompatibility(preset, smallRig)
     expect(compatibility.mode).toBe('partial')
@@ -86,8 +79,8 @@ describe('LaserDMX Production Rig Patch 10 curated presets', () => {
   })
 
   it('reports the included virtual rig as fully compatible', () => {
-    const preset = LASER_DMX_PRODUCTION_PRESETS[2]
-    expect(analyzeProductionPresetCompatibility(preset, settingsFor(2))).toMatchObject({ mode: 'full', missingRequiredKinds: [] })
+    const preset = LASER_DMX_PRODUCTION_PRESETS[0]
+    expect(analyzeProductionPresetCompatibility(preset, settingsFor())).toMatchObject({ mode: 'full', missingRequiredKinds: [] })
   })
 
   it('fingerprints production metadata and uses distinct thumbnail identities', () => {
@@ -104,7 +97,7 @@ describe('LaserDMX Production Rig Patch 10 curated presets', () => {
   })
 
   it('keeps Brand Kit adaptation enabled while preserving authored white-impact intent', () => {
-    const preset = LASER_DMX_PRODUCTION_PRESETS[1]
+    const preset = LASER_DMX_PRODUCTION_PRESETS[0]
     const kit = brandKit()
     const context = resolveLaserDmxPersonalization(kit, preset.id)
     expect(context?.palette.primary).toBe('#10E0D0')
@@ -127,16 +120,19 @@ describe('LaserDMX contextual performance actions', () => {
   })
 
   it('queues compatible actions through Show Director and diagnoses unavailable effects', () => {
-    const settings = settingsFor(4)
+    const settings = settingsFor()
     const event: ReactPerformanceActionEvent = {
-      actionId: 'laserDmx.cryoBurst', sequence: 11, target: { engineId: 'laserDmx' }, triggeredAtMs: 100,
+      actionId: 'laserDmx.fanOpen', sequence: 11, target: { engineId: 'laserDmx' }, triggeredAtMs: 100,
     }
     const result = applyLaserDmxPerformanceActions(settings, [event])
-    expect(result.settings.runtime?.showDirectorManualRequest).toEqual({ cueId: 'performance:laserDmx.cryoBurst:11', sequence: 11 })
+    expect(result.settings.runtime?.showDirectorManualRequest).toEqual({ cueId: 'performance:laserDmx.fanOpen:11', sequence: 11 })
     const lastCue = result.settings.productionCues?.[Math.max(0, (result.settings.productionCues?.length ?? 1) - 1)]
-    expect(lastCue?.actions[0]).toMatchObject({ type: 'cryoBurst', groupId: 'group:cryo' })
+    expect(lastCue?.actions[0]).toMatchObject({ type: 'fanOpen', groupId: 'group:lasers' })
 
-    const unavailable = applyLaserDmxPerformanceActions(createDefaultLaserDmxSettings(), [event])
+    const unavailableEvent: ReactPerformanceActionEvent = {
+      actionId: 'laserDmx.fogBurst', sequence: 12, target: { engineId: 'laserDmx' }, triggeredAtMs: 120,
+    }
+    const unavailable = applyLaserDmxPerformanceActions(createDefaultLaserDmxSettings(), [unavailableEvent])
     expect(unavailable.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'missingFixtureFamily', severity: 'warning' }),
     ]))

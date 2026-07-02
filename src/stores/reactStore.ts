@@ -1371,6 +1371,35 @@ const LEGACY_SHADER_PRESET_IDS = new Set([
   'preset-festival-burst',
 ])
 
+const RETIRED_DUPLICATE_PRESET_REPLACEMENTS = new Map<string, string>([
+  ['preset-crimson-rift', 'preset-dream-gate'],
+  ['preset-emerald-fog', 'preset-dream-gate'],
+  ['preset-portal-overload', 'preset-dream-gate'],
+  ['preset-quiet-ruins', 'preset-dream-gate'],
+  ['preset-rgb-plane-shift', 'preset-red-club-crossfire'],
+  ['preset-ceiling-lattice-overload', 'preset-red-club-crossfire'],
+  ['preset-magenta-cyan-festival-fan', 'preset-red-club-crossfire'],
+  ['preset-blinder-cryo-drop', 'preset-red-club-crossfire'],
+  ['preset-white-fog-cathedral', 'preset-red-club-crossfire'],
+])
+
+const RETIRED_DUPLICATE_PRESET_IDS = new Set(RETIRED_DUPLICATE_PRESET_REPLACEMENTS.keys())
+
+function replaceRetiredDuplicatePresetId(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  return RETIRED_DUPLICATE_PRESET_REPLACEMENTS.get(value) ?? value
+}
+
+function removeRetiredDuplicatePresets(presets: ReactPreset[]): ReactPreset[] {
+  return presets.filter(preset => !RETIRED_DUPLICATE_PRESET_IDS.has(preset.id))
+}
+
+function clearRetiredDuplicatePadAssignments(pads: ReactPerformancePad[]): ReactPerformancePad[] {
+  return pads.map(pad => pad.presetId && RETIRED_DUPLICATE_PRESET_IDS.has(pad.presetId)
+    ? { ...pad, presetId: null, label: 'Empty', color: '#3a4650' }
+    : pad)
+}
+
 const VALID_REACT_ENGINE_IDS = new Set<ReactEngineId>([
   'shaderPads',
   'cinematicPortal',
@@ -1398,7 +1427,7 @@ export function repairReactEnginePresetSelection(
   activeReactEngineId: unknown,
   presets: ReactPreset[] = DEFAULT_REACT_PRESETS,
 ): RepairedReactSelection {
-  const presetId = typeof activeReactPresetId === 'string' ? activeReactPresetId : null
+  const presetId = replaceRetiredDuplicatePresetId(activeReactPresetId)
   const selectedPreset = presetId ? presets.find(p => p.id === presetId) ?? null : null
   const engineIsValid = typeof activeReactEngineId === 'string' &&
     VALID_REACT_ENGINE_IDS.has(activeReactEngineId as ReactEngineId)
@@ -2034,6 +2063,26 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
         : {}),
     }
   }
+  if (version < 36) {
+    const presets = removeRetiredDuplicatePresets(
+      Array.isArray(state.reactPresets)
+        ? state.reactPresets as ReactPreset[]
+        : DEFAULT_REACT_PRESETS,
+    )
+    const pads = clearRetiredDuplicatePadAssignments(
+      Array.isArray(state.performancePads)
+        ? state.performancePads as ReactPerformancePad[]
+        : DEFAULT_PERFORMANCE_PADS,
+    )
+    state = {
+      ...state,
+      activeReactPresetId: replaceRetiredDuplicatePresetId(state.activeReactPresetId),
+      reactPresets: normalizeCinematicPresetCollection(presets),
+      performancePads: pads,
+      cinematicConfigsByPresetId: normalizeCinematicConfigOverrides(state.cinematicConfigsByPresetId, presets),
+      cinematicSeedLocksByPresetId: normalizeCinematicSeedLocks(state.cinematicSeedLocksByPresetId, presets),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -2244,10 +2293,15 @@ export function mergeReactStoreState(
   currentState: ReactStoreState,
 ): ReactStoreState {
   const persisted = (persistedState ?? {}) as Partial<ReactPersistedState>
+  const persistedPresets = Array.isArray(persisted.reactPresets)
+    ? removeRetiredDuplicatePresets(persisted.reactPresets)
+    : undefined
   const reactPresets = normalizeCinematicPresetCollection(
-    mergeCollectionsById(currentState.reactPresets, persisted.reactPresets),
+    removeRetiredDuplicatePresets(mergeCollectionsById(currentState.reactPresets, persistedPresets)),
   )
-  const performancePads = mergeCollectionsById(currentState.performancePads, persisted.performancePads)
+  const performancePads = clearRetiredDuplicatePadAssignments(
+    mergeCollectionsById(currentState.performancePads, persisted.performancePads),
+  )
   const cinematicConfigsByPresetId = normalizeCinematicConfigOverrides(
     persisted.cinematicConfigsByPresetId ?? currentState.cinematicConfigsByPresetId,
     reactPresets,
@@ -4597,7 +4651,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 35,
+      version: 36,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

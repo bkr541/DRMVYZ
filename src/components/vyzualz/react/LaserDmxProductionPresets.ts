@@ -545,46 +545,6 @@ const RECIPES: readonly ProductionPresetRecipe[] = [
     primaryMovement: 'crossfire', secondaryMovement: 'crowdScan', baseColors: { primary: [255, 18, 45], secondary: [170, 0, 28] }, atmosphere: { haze: 0.68, fog: false, cryo: false },
     enabledKinds: ['laserProjector', 'movingHeadBeam', 'movingHeadWash', 'strobe', 'blinder', 'hazer'],
   },
-  {
-    id: 'preset-rgb-plane-shift', name: 'RGB Plane Shift', prefix: 'rps',
-    description: 'Primary-color planes trade across mirrored laser banks and moving heads with clean phrase-scale handoffs.',
-    palette: { primary: '#ff2851', secondary: '#28e06f', accent: '#2f7bff', background: '#020407', highlight: '#ffffff', text: '#ffffff' },
-    profileId: 'openFormat', complexity: 'high', styleTags: ['rgb', 'open-format', 'plane-shift', 'handoff'], referenceVideoIds: ['IMG_2246.mp4', 'IMG_8320.mp4'], camera: 'festivalWide',
-    primaryMovement: 'alternatingBanks', secondaryMovement: 'panWave', baseColors: { primary: [255, 28, 64], secondary: [35, 110, 255] }, atmosphere: { haze: 0.62, fog: false, cryo: false },
-    enabledKinds: ['laserProjector', 'movingHeadBeam', 'movingHeadWash', 'strobe', 'blinder', 'hazer'],
-  },
-  {
-    id: 'preset-ceiling-lattice-overload', name: 'Ceiling Lattice Overload', prefix: 'clo',
-    description: 'Dense overhead laser canopies crosshatch the venue ceiling while deep beams travel beneath the grid.',
-    palette: { primary: '#2ef2ff', secondary: '#7d3cff', accent: '#ff3fb9', background: '#010205', highlight: '#ffffff', text: '#ffffff' },
-    profileId: 'heavyDubstep', complexity: 'extreme', styleTags: ['festival', 'ceiling-canopy', 'crosshatch', 'dubstep'], referenceVideoIds: ['IMG_2257.mp4', 'IMG_3947.mp4'], camera: 'aerialCanopy',
-    primaryMovement: 'ceilingCanopy', secondaryMovement: 'tunnel', baseColors: { primary: [32, 232, 255], secondary: [126, 45, 255] }, atmosphere: { haze: 0.82, fog: true, cryo: false },
-    enabledKinds: ['laserProjector', 'movingHeadBeam', 'movingHeadWash', 'strobe', 'blinder', 'hazer', 'fogger'],
-  },
-  {
-    id: 'preset-magenta-cyan-festival-fan', name: 'Magenta Cyan Festival Fan', prefix: 'mcf',
-    description: 'Wide mirrored fans alternate cyan and magenta groups, opening at phrase boundaries and folding inward for breaks.',
-    palette: { primary: '#ff2fbd', secondary: '#16e7ff', accent: '#9d55ff', background: '#020108', highlight: '#ffffff', text: '#ffffff' },
-    profileId: 'melodicBass', complexity: 'high', styleTags: ['melodic-bass', 'festival', 'fan', 'cyan-magenta'], referenceVideoIds: ['IMG_8320.mp4', 'IMG_3317.mp4'], camera: 'festivalWide',
-    primaryMovement: 'mirroredFan', secondaryMovement: 'centerOutSpread', baseColors: { primary: [255, 28, 184], secondary: [12, 224, 255] }, atmosphere: { haze: 0.72, fog: false, cryo: false },
-    enabledKinds: ['laserProjector', 'movingHeadBeam', 'movingHeadWash', 'strobe', 'blinder', 'hazer'],
-  },
-  {
-    id: 'preset-blinder-cryo-drop', name: 'Blinder and Cryo Drop', prefix: 'bcd',
-    description: 'A blackout-led drop weapon with reserved white blinders, triple strobe hits, and short paired cryogenic-style plumes.',
-    palette: { primary: '#ff2b75', secondary: '#5d3bff', accent: '#26e6ff', background: '#020104', highlight: '#ffffff', text: '#ffffff' },
-    profileId: 'hybridTrap', complexity: 'high', styleTags: ['drop', 'hybrid-trap', 'blinder', 'cryo'], referenceVideoIds: ['IMG_8957.mp4', 'IMG_3317.mp4'], camera: 'festivalWide',
-    primaryMovement: 'fanOpen', secondaryMovement: 'outsideInCollapse', baseColors: { primary: [255, 30, 105], secondary: [82, 54, 255] }, atmosphere: { haze: 0.7, fog: false, cryo: true },
-    enabledKinds: ['laserProjector', 'movingHeadBeam', 'movingHeadWash', 'strobe', 'blinder', 'hazer', 'cryoJet'],
-  },
-  {
-    id: 'preset-white-fog-cathedral', name: 'White Fog Cathedral', prefix: 'wfc',
-    description: 'Deep white aerial-beam columns emerge through persistent haze and localized fog, opening into a cathedral-scale formation.',
-    palette: { primary: '#f4fbff', secondary: '#a8d9ff', accent: '#d7c8ff', background: '#010205', highlight: '#ffffff', text: '#ffffff' },
-    profileId: 'melodicBass', complexity: 'extreme', styleTags: ['cinematic', 'white-aerials', 'fog', 'cathedral'], referenceVideoIds: ['IMG_2246.mp4', 'IMG_8957.mp4'], camera: 'cathedralWide',
-    primaryMovement: 'staticAerialHold', secondaryMovement: 'centerOutSpread', baseColors: { primary: [238, 250, 255], secondary: [190, 224, 255] }, atmosphere: { haze: 0.9, fog: true, cryo: false },
-    enabledKinds: ['laserProjector', 'movingHeadBeam', 'movingHeadWash', 'strobe', 'blinder', 'hazer', 'fogger'],
-  },
 ]
 
 export const LASER_DMX_PRODUCTION_PRESETS: readonly ReactPreset[] = RECIPES.map(buildPreset)
