@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_REACT_PRESETS, type ReactPreset } from '../../ReactTypes'
 import { useReactStore } from '../../../../../stores/reactStore'
+import {
+  getDrmvyzThumbnailWebGLCoordinatorDiagnosticsForTests,
+  resetDrmvyzThumbnailWebGLCoordinatorForTests,
+} from '../../shaders/runtime/WebGLContextLifecycle'
 
 const mocks = vi.hoisted(() => ({
   renderReactEngine: vi.fn(),
@@ -8,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   disposeLaserDmxRenderer: vi.fn(),
   clearNeonLatticeVisualState: vi.fn(),
   disposeCinematicPortalRenderer: vi.fn(),
+  resetCinematicPortalRenderer: vi.fn(),
+  resolveCinematicPortalBackend: vi.fn(() => 'webgl2'),
 }))
 
 vi.mock('../ReactEngineRenderer', () => ({ renderReactEngine: mocks.renderReactEngine }))
@@ -16,7 +22,11 @@ vi.mock('../LaserDmxRenderer', () => ({
   disposeLaserDmxRenderer: mocks.disposeLaserDmxRenderer,
 }))
 vi.mock('../NeonLatticeRenderer', () => ({ clearNeonLatticeVisualState: mocks.clearNeonLatticeVisualState }))
-vi.mock('../CinematicPortalRenderer', () => ({ disposeCinematicPortalRenderer: mocks.disposeCinematicPortalRenderer }))
+vi.mock('../CinematicPortalRenderer', () => ({
+  disposeCinematicPortalRenderer: mocks.disposeCinematicPortalRenderer,
+  resetCinematicPortalRenderer: mocks.resetCinematicPortalRenderer,
+  resolveCinematicPortalBackend: mocks.resolveCinematicPortalBackend,
+}))
 
 import {
   clearReactPresetThumbnailCacheForTests,
@@ -105,6 +115,7 @@ function preset(id: string): ReactPreset {
 describe('React preset thumbnail renderer scheduling', () => {
   beforeEach(() => {
     clearReactPresetThumbnailCacheForTests()
+    resetDrmvyzThumbnailWebGLCoordinatorForTests()
     setReactPresetThumbnailSchedulerForTests(immediateScheduler)
     canvases.length = 0
     mocks.renderReactEngine.mockClear()
@@ -112,11 +123,15 @@ describe('React preset thumbnail renderer scheduling', () => {
     mocks.disposeLaserDmxRenderer.mockClear()
     mocks.clearNeonLatticeVisualState.mockClear()
     mocks.disposeCinematicPortalRenderer.mockClear()
+    mocks.resetCinematicPortalRenderer.mockClear()
+    mocks.resolveCinematicPortalBackend.mockClear()
+    mocks.resolveCinematicPortalBackend.mockReturnValue('webgl2')
     vi.stubGlobal('document', { createElement: vi.fn(() => createFakeCanvas()) })
   })
 
   afterEach(() => {
     clearReactPresetThumbnailCacheForTests()
+    resetDrmvyzThumbnailWebGLCoordinatorForTests()
     setReactPresetThumbnailSchedulerForTests(null)
     vi.unstubAllGlobals()
   })
@@ -162,10 +177,21 @@ describe('React preset thumbnail renderer scheduling', () => {
       cinematicConfig: expect.objectContaining({ qualityTier: 'low' }),
     })
     expect(source.cinematicConfig?.qualityTier).toBe(originalQuality)
-    expect(mocks.disposeCinematicPortalRenderer).toHaveBeenCalledTimes(1)
-    expect(mocks.disposeLaserDmxRenderer).toHaveBeenCalledTimes(1)
+    expect(mocks.disposeCinematicPortalRenderer).not.toHaveBeenCalled()
+    expect(mocks.resetCinematicPortalRenderer).toHaveBeenCalled()
+    expect(mocks.disposeLaserDmxRenderer).toHaveBeenCalled()
     expect(useReactStore.getState().laserDmxSettings).toBe(laserBefore)
-    expect(canvases[0]).toMatchObject({ width: 0, height: 0 })
+    expect(canvases[0]).toMatchObject({ width: 240, height: 135 })
+    expect(getReactPresetThumbnailDiagnosticsForTests()).toMatchObject({
+      pooledCanvasActive: true,
+      pooledFamily: 'cinematic-webgl',
+      webglContextLimit: 1,
+    })
+    expect(getDrmvyzThumbnailWebGLCoordinatorDiagnosticsForTests()).toEqual({
+      activeLeaseCount: 1,
+      activeFamily: 'react-preset-thumbnail',
+      contextLimit: 1,
+    })
   })
 
   it('does not synchronously drain the collection and limits WebGL work to one job', async () => {
@@ -241,8 +267,8 @@ describe('React preset thumbnail renderer scheduling', () => {
 
     expect(mocks.renderReactEngine).toHaveBeenCalledTimes(1)
     expect(readCachedReactPresetThumbnail(source)).toBeNull()
-    expect(mocks.disposeCinematicPortalRenderer).toHaveBeenCalledTimes(1)
-    expect(mocks.disposeLaserDmxRenderer).toHaveBeenCalledTimes(1)
+    expect(mocks.disposeCinematicPortalRenderer).toHaveBeenCalledWith(expect.anything(), 'terminal-retire')
+    expect(mocks.disposeLaserDmxRenderer).toHaveBeenCalled()
     expect(canvases[0]).toMatchObject({ width: 0, height: 0 })
   })
 
@@ -282,13 +308,78 @@ describe('React preset thumbnail renderer scheduling', () => {
     firstMount.abort()
     const secondMount = new AbortController()
     const second = renderReactPresetThumbnail(source, { signal: secondMount.signal })
+    let secondSettled = false
+    void second.finally(() => { secondSettled = true })
     expect(getReactPresetThumbnailDiagnosticsForTests()).toMatchObject({ activeJobs: 1, queuedJobs: 0, pendingJobs: 1 })
 
-    await flushManualScheduler(manual, () => getReactPresetThumbnailDiagnosticsForTests().pendingJobs === 0)
+    await flushManualScheduler(manual, () => secondSettled)
     await expect(first).resolves.toBeNull()
     await expect(second).resolves.toBe('data:image/png;base64,exact-preview')
     expect(canvases).toHaveLength(2)
-    expect(getReactPresetThumbnailDiagnosticsForTests().concurrencyLimit).toBe(1)
+    expect(mocks.disposeCinematicPortalRenderer).toHaveBeenCalledWith(expect.anything(), 'terminal-retire')
+    expect(getReactPresetThumbnailDiagnosticsForTests()).toMatchObject({
+      concurrencyLimit: 1,
+      webglContextLimit: 1,
+      pooledCanvasActive: true,
+    })
+  })
+
+  it('reuses one pooled canvas and transient lifetime across sequential WebGL presets', async () => {
+    const first = preset('preset-crimson-collapse')
+    const second = preset('preset-cyan-reverie')
+
+    await expect(renderReactPresetThumbnail(first)).resolves.toBe('data:image/png;base64,exact-preview')
+    await expect(renderReactPresetThumbnail(second)).resolves.toBe('data:image/png;base64,exact-preview')
+
+    expect(canvases).toHaveLength(1)
+    expect(mocks.renderReactEngine.mock.calls.every(call => call[0] === mocks.renderReactEngine.mock.calls[0][0])).toBe(true)
+    expect(mocks.renderReactEngine.mock.calls.every(call => call[5]?.webglLifetime === 'transient-thumbnail')).toBe(true)
+    expect(mocks.resetCinematicPortalRenderer).toHaveBeenCalledWith(expect.anything(), 'thumbnailReuse')
+    expect(getReactPresetThumbnailDiagnosticsForTests()).toMatchObject({
+      pooledCanvasActive: true,
+      pooledFamily: 'cinematic-webgl',
+      webglContextLimit: 1,
+    })
+  })
+
+  it('terminally retires an incompatible WebGL family before a Canvas 2D thumbnail reuses the pool', async () => {
+    const webglPreset = preset('preset-crimson-collapse')
+    const canvasPreset: ReactPreset = {
+      ...preset('preset-cyan-reverie'),
+      id: 'test-canvas-family',
+      engine: 'oscilloscope',
+    }
+
+    await renderReactPresetThumbnail(webglPreset)
+    await renderReactPresetThumbnail(canvasPreset)
+
+    expect(canvases).toHaveLength(1)
+    expect(mocks.disposeCinematicPortalRenderer).toHaveBeenCalledWith(expect.anything(), 'terminal-retire')
+    expect(getReactPresetThumbnailDiagnosticsForTests()).toMatchObject({
+      pooledCanvasActive: true,
+      pooledFamily: 'canvas2d',
+    })
+  })
+
+  it('repeated cache invalidation retires the old pool instead of accumulating hidden ownership', async () => {
+    const source = preset('preset-crimson-collapse')
+
+    for (let index = 0; index < 3; index += 1) {
+      await expect(renderReactPresetThumbnail({ ...source, id: `${source.id}-${index}` }))
+        .resolves.toBe('data:image/png;base64,exact-preview')
+      clearReactPresetThumbnailCacheForTests()
+      expect(getReactPresetThumbnailDiagnosticsForTests().pooledCanvasActive).toBe(false)
+    }
+
+    await expect(renderReactPresetThumbnail({ ...source, id: `${source.id}-final` }))
+      .resolves.toBe('data:image/png;base64,exact-preview')
+    expect(canvases).toHaveLength(4)
+    expect(canvases.slice(0, 3).every(canvas => canvas.width === 0 && canvas.height === 0)).toBe(true)
+    expect(getReactPresetThumbnailDiagnosticsForTests()).toMatchObject({
+      activeJobs: 0,
+      pooledCanvasActive: true,
+      webglContextLimit: 1,
+    })
   })
 
   it('serves cached thumbnails without scheduling or rendering again', async () => {
@@ -312,8 +403,8 @@ describe('React preset thumbnail renderer scheduling', () => {
     })
 
     await expect(renderReactPresetThumbnail(source)).resolves.toBeNull()
-    expect(mocks.disposeCinematicPortalRenderer).toHaveBeenCalledTimes(1)
-    expect(mocks.disposeLaserDmxRenderer).toHaveBeenCalledTimes(1)
+    expect(mocks.disposeCinematicPortalRenderer).toHaveBeenCalledWith(expect.anything(), 'terminal-retire')
+    expect(mocks.disposeLaserDmxRenderer).toHaveBeenCalled()
     expect(canvases[0]).toMatchObject({ width: 0, height: 0 })
     expect(getReactPresetThumbnailDiagnosticsForTests().cacheEntries).toBe(0)
   })

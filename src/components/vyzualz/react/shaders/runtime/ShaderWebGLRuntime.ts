@@ -1,5 +1,12 @@
 import type { FrameState, RuntimeDimensions } from './shaderRuntimeTypes'
 import { applyCanvasResolution, type CanvasResolution } from '../../rendering/canvasResolution'
+import {
+  registerDrmvyzWebGLContext,
+  retireDrmvyzWebGLContext,
+  type WebGLContextDiagnosticHandle,
+  type WebGLContextDisposalMode,
+  type WebGLContextOwnership,
+} from './WebGLContextLifecycle'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -15,8 +22,12 @@ export type RuntimeCreateResult =
 // ── ShaderWebGLRuntime ────────────────────────────────────────────────────────
 
 export class ShaderWebGLRuntime {
-  private readonly _canvas: HTMLCanvasElement
-  private readonly _gl:     WebGL2RenderingContext
+  private _canvas: HTMLCanvasElement | null
+  private _gl: WebGL2RenderingContext | null
+  private readonly _ownership: WebGLContextOwnership
+  private _diagnosticHandle: WebGLContextDiagnosticHandle | null
+  private _onContextLostCallback: (() => void) | null
+  private _onContextRestoredCallback: (() => void) | null
   private _disposed     = false
   private _contextLost  = false
   private _resolutionScale: number
@@ -45,6 +56,7 @@ export class ShaderWebGLRuntime {
       resolutionScale?: number
       onContextLost?: () => void
       onContextRestored?: () => void
+      ownership?: WebGLContextOwnership
     },
   ): RuntimeCreateResult {
     const gl = canvas.getContext('webgl2', {
@@ -68,10 +80,19 @@ export class ShaderWebGLRuntime {
       resolutionScale?: number
       onContextLost?: () => void
       onContextRestored?: () => void
+      ownership?: WebGLContextOwnership
     },
   ) {
     this._canvas = canvas
-    this._gl     = gl
+    this._gl = gl
+    this._ownership = opts?.ownership ?? {
+      lifetime: 'live-reusable',
+      role: 'unspecified-live-webgl',
+      engine: 'unknown',
+    }
+    this._diagnosticHandle = registerDrmvyzWebGLContext(gl, this._ownership)
+    this._onContextLostCallback = opts?.onContextLost ?? null
+    this._onContextRestoredCallback = opts?.onContextRestored ?? null
 
     const now = performance.now() * 0.001
     this._startTime     = now
@@ -83,14 +104,14 @@ export class ShaderWebGLRuntime {
       e.preventDefault()
       this._contextLost = true
       if (import.meta.env.DEV) console.warn('[ShaderWebGLRuntime] context lost')
-      opts?.onContextLost?.()
+      this._onContextLostCallback?.()
     }
     this._onContextRestoredHandler = () => {
       this._contextLost = false
       if (import.meta.env.DEV) console.log('[ShaderWebGLRuntime] context restored')
       // Runtime owns no GPU resources of its own; scene-level rebuild is the
       // caller's responsibility via the onContextRestored callback.
-      opts?.onContextRestored?.()
+      this._onContextRestoredCallback?.()
     }
 
     canvas.addEventListener('webglcontextlost',     this._onContextLostHandler)
@@ -99,7 +120,10 @@ export class ShaderWebGLRuntime {
 
   // ── Accessors ─────────────────────────────────────────────────────────────
 
-  get gl():              WebGL2RenderingContext { return this._gl }
+  get gl(): WebGL2RenderingContext {
+    if (!this._gl) throw new Error('Shader WebGL runtime is disposed')
+    return this._gl
+  }
   get dims():            RuntimeDimensions      { return { ...this._dims } }
   get contextLost():     boolean                { return this._contextLost }
   get disposed():        boolean                { return this._disposed }
@@ -126,7 +150,10 @@ export class ShaderWebGLRuntime {
     const W = resolution.backingWidth
     const H = resolution.backingHeight
     const dimensionsChanged = this._dims.W !== W || this._dims.H !== H
-    const storageChanged    = applyCanvasResolution(this._canvas, resolution)
+    const canvas = this._canvas
+    const gl = this._gl
+    if (!canvas || !gl) return false
+    const storageChanged = applyCanvasResolution(canvas, resolution)
 
     this._dims = {
       W,
@@ -135,7 +162,7 @@ export class ShaderWebGLRuntime {
       pixelRatio: resolution.effectiveDpr,
     }
 
-    if (dimensionsChanged || storageChanged) this._gl.viewport(0, 0, W, H)
+    if (dimensionsChanged || storageChanged) gl.viewport(0, 0, W, H)
     return dimensionsChanged
   }
 
@@ -167,6 +194,7 @@ export class ShaderWebGLRuntime {
   clearViewport(r = 0, g = 0, b = 0, a = 1): void {
     if (this._disposed || this._contextLost) return
     const gl = this._gl
+    if (!gl) return
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
     gl.viewport(0, 0, this._dims.W, this._dims.H)
     gl.clearColor(r, g, b, a)
@@ -176,7 +204,7 @@ export class ShaderWebGLRuntime {
   /** Flush the command queue at the end of the render frame. */
   endFrame(): void {
     if (this._disposed || this._contextLost) return
-    this._gl.flush()
+    this._gl?.flush()
   }
 
   // ── Disposal ──────────────────────────────────────────────────────────────
@@ -184,24 +212,43 @@ export class ShaderWebGLRuntime {
   /**
    * Release the runtime.  Idempotent — safe to call multiple times.
    *
-   * Removes context-loss listeners and marks the runtime disposed.
-   * Does NOT call WEBGL_lose_context.loseContext() — the renderer explicitly
-   * deletes its own programs, textures, framebuffers, buffers, and vertex
-   * arrays, so forced context loss is unnecessary and harmful (it prevents
-   * re-use of the same canvas element, which React.StrictMode relies on).
+   * Removes context-loss listeners and marks the runtime disposed. Live
+   * reusable ownership never calls WEBGL_lose_context. Only explicit terminal
+   * retirement of a transient thumbnail context may request context loss.
    */
-  dispose(): void {
+  dispose(mode: WebGLContextDisposalMode = 'release-resources'): void {
     if (this._disposed) return
     this._disposed = true
 
-    this._canvas.removeEventListener(
-      'webglcontextlost',
-      this._onContextLostHandler,
+    const canvas = this._canvas
+    const gl = this._gl
+    canvas?.removeEventListener('webglcontextlost', this._onContextLostHandler)
+    canvas?.removeEventListener('webglcontextrestored', this._onContextRestoredHandler)
+
+    const terminalTransient = mode === 'terminal-retire' && this._ownership.lifetime === 'transient-thumbnail'
+    if (terminalTransient && gl) {
+      try {
+        gl.getExtension('WEBGL_lose_context')?.loseContext()
+      } catch {
+        // Context loss may already be in progress or the extension may reject the call.
+      }
+      if (canvas) {
+        canvas.width = 1
+        canvas.height = 1
+      }
+    } else if (mode === 'terminal-retire' && import.meta.env.DEV) {
+      console.warn('[ShaderWebGLRuntime] ignored terminal retirement for a live reusable context')
+    }
+
+    retireDrmvyzWebGLContext(
+      this._diagnosticHandle,
+      terminalTransient ? 'terminal-retire' : 'release-resources',
     )
-    this._canvas.removeEventListener(
-      'webglcontextrestored',
-      this._onContextRestoredHandler,
-    )
+    this._diagnosticHandle = null
+    this._onContextLostCallback = null
+    this._onContextRestoredCallback = null
+    this._canvas = null
+    this._gl = null
   }
 
   /**
@@ -213,7 +260,7 @@ export class ShaderWebGLRuntime {
    * Delegates to dispose() since dispose() no longer calls loseContext().
    */
   disposeHandlers(): void {
-    this.dispose()
+    this.dispose('release-resources')
   }
 
   /**
@@ -224,7 +271,7 @@ export class ShaderWebGLRuntime {
    * switching, normal application shutdown, or context restoration.
    */
   forceLoseContextForTesting(): void {
-    const ext = this._gl.getExtension('WEBGL_lose_context')
+    const ext = this._gl?.getExtension('WEBGL_lose_context')
     ext?.loseContext()
   }
 }

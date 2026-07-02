@@ -28,6 +28,7 @@ import {
   type CinematicCameraFrame,
 } from './cinematic/CinematicCameraDirector'
 import type { CinematicWorldDirection } from './cinematic/CinematicWorldDirection'
+import type { WebGLContextDisposalMode, WebGLContextLifetime } from '../shaders/runtime/WebGLContextLifecycle'
 
 export const CINEMATIC_DIAGNOSTIC_WORLD_ID = '__diagnostic' as const
 export type CinematicWorldId = CinematicWorldMode | typeof CINEMATIC_DIAGNOSTIC_WORLD_ID
@@ -143,6 +144,7 @@ export type CinematicRendererResetReason =
   | 'presetReplacement'
   | 'worldReplacement'
   | 'manualReset'
+  | 'thumbnailReuse'
   | 'dispose'
 
 /** Canvas2D compatibility renderer contract, currently used by legacyPortal. */
@@ -276,11 +278,12 @@ export interface CinematicWebGLRuntimeRenderResult {
 export interface CinematicWebGLRuntimeLike {
   render(definition: CinematicWebGLWorldDefinition, frame: CinematicFrameContext): CinematicWebGLRuntimeRenderResult
   reset(reason: CinematicRendererResetReason): void
-  dispose(): void
+  dispose(mode?: WebGLContextDisposalMode): void
 }
 
 export type CinematicWebGLRuntimeFactory = (
   outputContext: CanvasRenderingContext2D,
+  lifetime: WebGLContextLifetime,
 ) => CinematicWebGLRuntimeLike | null
 
 function viewportOf(frame: CinematicFrameContext): CinematicViewport {
@@ -385,6 +388,7 @@ export class CinematicWorldRendererHost {
     private readonly registry: CinematicWorldRendererRegistry,
     private readonly fallbackMode: CinematicWorldMode = 'legacyPortal',
     private readonly createWebGLRuntime?: CinematicWebGLRuntimeFactory,
+    private readonly lifetime: WebGLContextLifetime = 'live-reusable',
   ) {}
 
   get error(): string | null { return this.lastError }
@@ -453,9 +457,9 @@ export class CinematicWorldRendererHost {
     }
   }
 
-  reset(): void {
-    this.canvasRenderer?.reset('manualReset')
-    this.webglRuntime?.reset('manualReset')
+  reset(reason: CinematicRendererResetReason = 'manualReset'): void {
+    this.canvasRenderer?.reset(reason)
+    this.webglRuntime?.reset(reason)
     this.canvasKey = null
     this.previousInput = null
     this.audioNormalizer.reset()
@@ -469,9 +473,9 @@ export class CinematicWorldRendererHost {
     this.failedWebglError = null
   }
 
-  dispose(): void {
+  dispose(mode: WebGLContextDisposalMode = 'release-resources'): void {
     this.disposeCanvasRenderer('dispose')
-    this.webglRuntime?.dispose()
+    this.webglRuntime?.dispose(mode)
     this.webglRuntime = null
     this.previousInput = null
     this.audioNormalizer.reset()
@@ -603,7 +607,7 @@ export class CinematicWorldRendererHost {
     preserveWebGLRuntime = false,
   ): void {
     if (this.webglRuntime && !preserveWebGLRuntime) {
-      this.webglRuntime.dispose()
+      this.webglRuntime.dispose(this.runtimeDisposalMode())
       this.webglRuntime = null
     }
 
@@ -638,7 +642,7 @@ export class CinematicWorldRendererHost {
       return { ok: false, error: 'Cinematic WebGL runtime is unavailable' }
     }
     if (!this.webglRuntime) {
-      this.webglRuntime = this.createWebGLRuntime(this.context)
+      this.webglRuntime = this.createWebGLRuntime(this.context, this.lifetime)
       if (!this.webglRuntime) {
         return { ok: false, error: 'WebGL2 is unavailable; using legacyPortal fallback' }
       }
@@ -646,10 +650,14 @@ export class CinematicWorldRendererHost {
 
     const result = this.webglRuntime.render(definition, frame)
     if (!result.ok && result.recoverable !== true) {
-      this.webglRuntime.dispose()
+      this.webglRuntime.dispose(this.runtimeDisposalMode())
       this.webglRuntime = null
     }
     return result
+  }
+
+  private runtimeDisposalMode(): WebGLContextDisposalMode {
+    return this.lifetime === 'transient-thumbnail' ? 'terminal-retire' : 'release-resources'
   }
 
   private beginTransition(input: CinematicFrameContext): boolean {

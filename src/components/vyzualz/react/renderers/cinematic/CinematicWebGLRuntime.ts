@@ -6,6 +6,7 @@ import { ShaderProgram, type ShaderProgramDescriptor } from '../../shaders/runti
 import { ShaderResourceManager } from '../../shaders/runtime/ShaderResourceManager'
 import { ShaderTexture } from '../../shaders/runtime/ShaderTexture'
 import { ShaderWebGLRuntime } from '../../shaders/runtime/ShaderWebGLRuntime'
+import type { WebGLContextDisposalMode, WebGLContextLifetime } from '../../shaders/runtime/WebGLContextLifecycle'
 import type { FramebufferDescriptor, TextureDescriptor } from '../../shaders/runtime/shaderRuntimeTypes'
 import {
   cinematicStructuralKey,
@@ -24,6 +25,7 @@ import { reactiveConstellationResolutionScale } from './worlds/reactiveConstella
 
 export interface CinematicWebGLRuntimeCreateOptions {
   createCanvas?: () => HTMLCanvasElement
+  lifetime?: WebGLContextLifetime
 }
 
 /**
@@ -58,13 +60,20 @@ export class CinematicWebGLRuntime implements CinematicWebGLRuntimeLike {
       return null
     }
 
+    const lifetime = options.lifetime ?? 'live-reusable'
     let owner: CinematicWebGLRuntime | null = null
     const result = ShaderWebGLRuntime.create(canvas, {
+      ownership: {
+        lifetime,
+        role: lifetime === 'transient-thumbnail' ? 'preset-thumbnail' : 'react-preview',
+        engine: 'cinematic-worlds',
+        expectedMaxActive: lifetime === 'transient-thumbnail' ? 1 : undefined,
+      },
       onContextLost: () => owner?.handleContextLost(),
       onContextRestored: () => owner?.handleContextRestored(),
     })
     if (!result.runtime) return null
-    owner = new CinematicWebGLRuntime(outputContext, canvas, result.runtime)
+    owner = new CinematicWebGLRuntime(outputContext, canvas, result.runtime, lifetime)
     return owner
   }
 
@@ -91,6 +100,7 @@ export class CinematicWebGLRuntime implements CinematicWebGLRuntimeLike {
     private readonly outputContext: CanvasRenderingContext2D,
     private readonly canvas: HTMLCanvasElement,
     private readonly runtime: ShaderWebGLRuntime,
+    private readonly lifetime: WebGLContextLifetime,
   ) {
     this.gl = runtime.gl
     this.compiler = new ShaderCompiler(this.gl)
@@ -162,26 +172,63 @@ export class CinematicWebGLRuntime implements CinematicWebGLRuntimeLike {
     this.post.clearFeedback()
     this.activeKey = null
     this.previousFrame = null
+    this.restoreSafeGlState(true)
   }
 
-  dispose(): void {
+  dispose(mode: WebGLContextDisposalMode = 'release-resources'): void {
     if (this.disposed) return
     this.disposed = true
-    this.disposeActiveWorld('dispose')
-    this.post.dispose()
-    this.sceneTarget.dispose()
-    this.fullscreenPass.dispose()
-    this.resources.disposeAll()
-    this.runtime.dispose()
+    const effectiveMode = mode === 'terminal-retire' && this.lifetime === 'transient-thumbnail'
+      ? 'terminal-retire'
+      : 'release-resources'
+
+    // Disposal is deliberately best-effort. A context can be lost between any
+    // two WebGL calls, and one misbehaving world must not prevent terminal
+    // retirement of the transient context that owns it.
+    this.disposeActiveWorld('dispose', false)
+    try { this.post.dispose() } catch { /* Continue cleanup. */ }
+    try { this.sceneTarget.dispose() } catch { /* Continue cleanup. */ }
+    try { this.fullscreenPass.dispose() } catch { /* Continue cleanup. */ }
+    try { this.resources.disposeAll() } catch { /* Continue cleanup. */ }
+    this.worldPrograms.clear()
+    this.worldFramebuffers.clear()
+    this.worldTextures.clear()
+    this.activeWorld = null
+    this.activeDefinition = null
+    this.activeKey = null
+    this.previousFrame = null
+    this.lastResolution = null
+    this.viewport = null
+    this.runtime.dispose(effectiveMode)
   }
 
-  private restoreSafeGlState(): void {
+  private restoreSafeGlState(clearBuffers = false): void {
     try {
-      this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null)
-      this.gl.activeTexture(this.gl.TEXTURE0)
-      this.gl.bindTexture(this.gl.TEXTURE_2D, null)
-      this.gl.disable(this.gl.BLEND)
-      this.gl.viewport(0, 0, this.runtime.dims.W, this.runtime.dims.H)
+      const gl = this.gl
+      const dims = this.runtime.dims
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+      gl.bindRenderbuffer(gl.RENDERBUFFER, null)
+      gl.bindVertexArray(null)
+      gl.bindBuffer(gl.ARRAY_BUFFER, null)
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null)
+      gl.activeTexture(gl.TEXTURE0)
+      gl.bindTexture(gl.TEXTURE_2D, null)
+      gl.disable(gl.BLEND)
+      gl.disable(gl.CULL_FACE)
+      gl.disable(gl.DEPTH_TEST)
+      gl.disable(gl.SCISSOR_TEST)
+      gl.disable(gl.STENCIL_TEST)
+      gl.colorMask(true, true, true, true)
+      gl.depthMask(true)
+      gl.stencilMask(0xffffffff)
+      gl.clearColor(0, 0, 0, 1)
+      gl.clearDepth(1)
+      gl.clearStencil(0)
+      gl.viewport(0, 0, dims.W, dims.H)
+      gl.scissor(0, 0, dims.W, dims.H)
+      if (clearBuffers) {
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT)
+      }
     } catch {
       // A lost context rejects state repair; restoration will rebuild resources.
     }
@@ -272,22 +319,33 @@ export class CinematicWebGLRuntime implements CinematicWebGLRuntimeLike {
     }
   }
 
-  private disposeActiveWorld(reason: CinematicRendererResetReason): void {
-    if (this.activeWorld) {
-      this.activeWorld.reset(reason)
-      this.activeWorld.dispose()
-    }
-    for (const program of this.worldPrograms) program.dispose()
-    for (const framebuffer of this.worldFramebuffers) framebuffer.dispose()
-    for (const texture of this.worldTextures) texture.dispose()
-    this.worldPrograms.clear()
-    this.worldFramebuffers.clear()
-    this.worldTextures.clear()
-    this.resources.disposeAll()
-    this.resources = new ShaderResourceManager(this.gl)
+  private disposeActiveWorld(
+    reason: CinematicRendererResetReason,
+    recreateResourceManager = true,
+  ): void {
+    const world = this.activeWorld
     this.activeWorld = null
     this.activeDefinition = null
     this.activeKey = null
+
+    if (world) {
+      try { world.reset(reason) } catch { /* Continue owned-resource cleanup. */ }
+      try { world.dispose() } catch { /* Continue owned-resource cleanup. */ }
+    }
+    for (const program of this.worldPrograms) {
+      try { program.dispose() } catch { /* Context may already be lost. */ }
+    }
+    for (const framebuffer of this.worldFramebuffers) {
+      try { framebuffer.dispose() } catch { /* Context may already be lost. */ }
+    }
+    for (const texture of this.worldTextures) {
+      try { texture.dispose() } catch { /* Context may already be lost. */ }
+    }
+    this.worldPrograms.clear()
+    this.worldFramebuffers.clear()
+    this.worldTextures.clear()
+    try { this.resources.disposeAll() } catch { /* Context may already be lost. */ }
+    if (recreateResourceManager) this.resources = new ShaderResourceManager(this.gl)
   }
 
   private handleContextLost(): void {

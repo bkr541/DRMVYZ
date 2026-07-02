@@ -54,6 +54,7 @@ class RecordingWebGLRuntime implements CinematicWebGLRuntimeLike {
   renders: Array<{ definition: CinematicWebGLWorldDefinition; frame: CinematicFrameContext }> = []
   resets: CinematicRendererResetReason[] = []
   disposed = 0
+  disposalModes: Array<'release-resources' | 'terminal-retire'> = []
 
   constructor(private readonly result: CinematicWebGLRuntimeRenderResult = { ok: true, error: null }) {}
 
@@ -62,7 +63,10 @@ class RecordingWebGLRuntime implements CinematicWebGLRuntimeLike {
     return this.result
   }
   reset(reason: CinematicRendererResetReason): void { this.resets.push(reason) }
-  dispose(): void { this.disposed++ }
+  dispose(mode: 'release-resources' | 'terminal-retire' = 'release-resources'): void {
+    this.disposed++
+    this.disposalModes.push(mode)
+  }
 }
 
 function canvasDefinition(id: 'legacyPortal' = 'legacyPortal', recorder = createRecorder()): {
@@ -420,6 +424,42 @@ describe('CinematicWorldRendererHost', () => {
 
     expect(runtime.disposed).toBe(1)
     expect(legacy.recorder.rendered).toHaveLength(1)
+  })
+
+  it('passes transient thumbnail ownership to the runtime factory and terminally retires it on family change', () => {
+    const registry = new CinematicWorldRendererRegistry()
+    const legacy = canvasDefinition()
+    registry.register(legacy.definition)
+    registry.register(webglDefinition())
+    const runtime = new RecordingWebGLRuntime()
+    const factory = vi.fn(() => runtime)
+    const host = new CinematicWorldRendererHost(
+      makeContext(),
+      registry,
+      'legacyPortal',
+      factory,
+      'transient-thumbnail',
+    )
+
+    host.render({ ...makeInput(), requestedWorldId: CINEMATIC_DIAGNOSTIC_WORLD_ID })
+    host.render(makeInput())
+
+    expect(factory).toHaveBeenCalledWith(expect.anything(), 'transient-thumbnail')
+    expect(runtime.disposalModes).toEqual(['terminal-retire'])
+  })
+
+  it('keeps ordinary live renderer cleanup resource-only and idempotent', () => {
+    const registry = new CinematicWorldRendererRegistry()
+    registry.register(canvasDefinition().definition)
+    registry.register(webglDefinition())
+    const runtime = new RecordingWebGLRuntime()
+    const host = new CinematicWorldRendererHost(makeContext(), registry, 'legacyPortal', () => runtime)
+
+    host.render({ ...makeInput(), requestedWorldId: CINEMATIC_DIAGNOSTIC_WORLD_ID })
+    host.dispose()
+    host.dispose()
+
+    expect(runtime.disposalModes).toEqual(['release-resources'])
   })
 
   it('uses legacy routing for unregistered future worlds', () => {

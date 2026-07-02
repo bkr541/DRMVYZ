@@ -11,7 +11,18 @@ import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { DEFAULT_REACT_RENDER_PARAMS } from './reactRenderUtils'
 import { clearLaserDmxVisualState, disposeLaserDmxRenderer } from './LaserDmxRenderer'
 import { clearNeonLatticeVisualState } from './NeonLatticeRenderer'
-import { disposeCinematicPortalRenderer } from './CinematicPortalRenderer'
+import {
+  disposeCinematicPortalRenderer,
+  resetCinematicPortalRenderer,
+  resolveCinematicPortalBackend,
+} from './CinematicPortalRenderer'
+import {
+  MAX_ACTIVE_DRMVYZ_THUMBNAIL_WEBGL_CONTEXTS,
+  claimDrmvyzThumbnailWebGLContext,
+  releaseDrmvyzThumbnailWebGLContext,
+  serializeDrmvyzThumbnailWebGLWork,
+  type DrmvyzThumbnailWebGLContextLease,
+} from '../shaders/runtime/WebGLContextLifecycle'
 
 const DEFAULT_W = 192
 const DEFAULT_H = 108
@@ -20,7 +31,7 @@ const PREVIEW_START_TIME_SEC = 31.5
 const PREVIEW_SECONDS = 2.4
 const MAX_CONCURRENT_WEBGL_THUMBNAILS = 1
 const MAX_THUMBNAIL_CACHE_ENTRIES = 256
-const THUMBNAIL_FINGERPRINT_VERSION = 4
+const THUMBNAIL_FINGERPRINT_VERSION = 5
 const THUMBNAIL_QUALITY_MODE = 'low-cost-v1'
 const MIN_THUMBNAIL_DIMENSION = 16
 const MAX_THUMBNAIL_DIMENSION = 1024
@@ -33,6 +44,16 @@ export interface ReactPresetThumbnailRequest {
 
 export interface ReactPresetThumbnailScheduler {
   yield: (signal: AbortSignal) => Promise<void>
+}
+
+
+type ThumbnailRendererFamily = 'canvas2d' | 'cinematic-webgl'
+
+interface ThumbnailRendererPool {
+  canvas: HTMLCanvasElement
+  context: CanvasRenderingContext2D
+  family: ThumbnailRendererFamily | null
+  webglLease: DrmvyzThumbnailWebGLContextLease | null
 }
 
 interface ThumbnailSubscriber {
@@ -61,6 +82,9 @@ let activeThumbnailJobs = 0
 let nextSubscriberId = 1
 let queuePumpScheduled = false
 let queuePumpEpoch = 0
+let thumbnailRendererPool: ThumbnailRendererPool | null = null
+let retireThumbnailPoolWhenIdle = false
+let thumbnailPoolTerminalRetirements = 0
 
 const browserThumbnailScheduler = createBrowserThumbnailScheduler()
 let thumbnailScheduler: ReactPresetThumbnailScheduler = browserThumbnailScheduler
@@ -135,6 +159,8 @@ export function clearReactPresetThumbnailCacheForTests(): void {
     cancelThumbnailJob(job)
   }
   thumbnailQueue.length = 0
+  retireThumbnailPoolWhenIdle = true
+  if (activeThumbnailJobs === 0) terminallyDisposeThumbnailRendererPool()
 }
 
 export function setReactPresetThumbnailSchedulerForTests(
@@ -152,6 +178,10 @@ export function getReactPresetThumbnailDiagnosticsForTests(): Readonly<{
   pendingJobs: number
   cacheEntries: number
   concurrencyLimit: number
+  webglContextLimit: number
+  pooledCanvasActive: boolean
+  pooledFamily: ThumbnailRendererFamily | null
+  terminalRetirements: number
 }> {
   return {
     activeJobs: activeThumbnailJobs,
@@ -159,6 +189,10 @@ export function getReactPresetThumbnailDiagnosticsForTests(): Readonly<{
     pendingJobs: pendingThumbnailJobs.size,
     cacheEntries: thumbnailResultCache.size,
     concurrencyLimit: MAX_CONCURRENT_WEBGL_THUMBNAILS,
+    webglContextLimit: MAX_ACTIVE_DRMVYZ_THUMBNAIL_WEBGL_CONTEXTS,
+    pooledCanvasActive: thumbnailRendererPool != null,
+    pooledFamily: thumbnailRendererPool?.family ?? null,
+    terminalRetirements: thumbnailPoolTerminalRetirements,
   }
 }
 
@@ -286,6 +320,9 @@ function startNextThumbnailJob(): void {
     .then(result => settleThumbnailJob(job, result), () => settleThumbnailJob(job, null))
     .finally(() => {
       activeThumbnailJobs = Math.max(0, activeThumbnailJobs - 1)
+      if (retireThumbnailPoolWhenIdle && activeThumbnailJobs === 0) {
+        terminallyDisposeThumbnailRendererPool()
+      }
       requestQueuePump()
     })
 }
@@ -316,22 +353,32 @@ function cacheThumbnailResult(key: string, value: string): void {
   thumbnailResultCache.set(key, value)
 }
 
-async function renderThumbnailOnce(
+function renderThumbnailOnce(
   preset: ReactPreset,
   width: number,
   height: number,
   signal: AbortSignal,
 ): Promise<string | null> {
-  let canvas: HTMLCanvasElement | null = null
-  let ctx: CanvasRenderingContext2D | null = null
+  return serializeDrmvyzThumbnailWebGLWork(
+    () => renderThumbnailOnceWithExclusiveContextAccess(preset, width, height, signal),
+  )
+}
+
+async function renderThumbnailOnceWithExclusiveContextAccess(
+  preset: ReactPreset,
+  width: number,
+  height: number,
+  signal: AbortSignal,
+): Promise<string | null> {
+  let pool: ThumbnailRendererPool | null = null
+  let completed = false
   try {
     if (signal.aborted) return null
-    canvas = createCanvas(width, height)
-    if (!canvas || signal.aborted) return null
-    ctx = canvas.getContext('2d')
-    if (!ctx || signal.aborted) return null
-
     const thumbnailPreset = createLowCostThumbnailPreset(preset)
+    pool = acquireThumbnailRendererPool(thumbnailPreset, width, height)
+    if (!pool || signal.aborted) return null
+    const { canvas, context: ctx } = pool
+
     const renderParams = buildRenderParams(thumbnailPreset)
     const sectionType = pickPreviewSectionType(thumbnailPreset)
     const sections = sectionType ? [{
@@ -345,33 +392,143 @@ async function renderThumbnailOnce(
     }] : []
     const frameBudget = resolveThumbnailFrameBudget(thumbnailPreset)
 
-    ctx.clearRect(0, 0, width, height)
-    clearNeonLatticeVisualState(ctx, width, height)
-    clearLaserDmxVisualState(ctx, width, height, { affectProductionOutput: false })
-
     for (let index = 0; index < frameBudget; index += 1) {
       if (signal.aborted) return null
       const frame = buildFrame(index, frameBudget, width, height, sectionType)
-      renderReactEngine(ctx, frame, thumbnailPreset, renderParams, sections)
-      if (index < frameBudget - 1) {
-        await thumbnailScheduler.yield(signal)
-      }
+      renderReactEngine(ctx, frame, thumbnailPreset, renderParams, sections, {
+        webglLifetime: 'transient-thumbnail',
+      })
+      if (index < frameBudget - 1) await thumbnailScheduler.yield(signal)
     }
 
     if (signal.aborted) return null
-    return canvas.toDataURL('image/png')
+    const result = canvas.toDataURL('image/png')
+    completed = true
+    return result
   } catch {
     return null
   } finally {
-    if (ctx) {
-      try { disposeCinematicPortalRenderer(ctx) } catch { /* Best-effort transient cleanup. */ }
-      try {
-        clearLaserDmxVisualState(ctx, width, height, { affectProductionOutput: false })
-        disposeLaserDmxRenderer(ctx, { affectProductionOutput: false })
-      } catch { /* Best-effort transient cleanup. */ }
-      try { clearNeonLatticeVisualState(ctx, width, height) } catch { /* Best-effort transient cleanup. */ }
+    if (pool) {
+      if (!completed || signal.aborted) invalidateThumbnailRendererPool(pool)
+      else resetThumbnailRendererPoolAfterJob(pool)
     }
-    if (canvas) releaseCanvas(canvas)
+  }
+}
+
+function acquireThumbnailRendererPool(
+  preset: ReactPreset,
+  width: number,
+  height: number,
+): ThumbnailRendererPool | null {
+  const family = resolveThumbnailRendererFamily(preset)
+  let pool = thumbnailRendererPool
+  if (!pool) {
+    const canvas = createCanvas(width, height)
+    const context = canvas?.getContext('2d') ?? null
+    if (!canvas || !context) return null
+    pool = { canvas, context, family: null, webglLease: null }
+    thumbnailRendererPool = pool
+    retireThumbnailPoolWhenIdle = false
+  }
+
+  if (pool.family && pool.family !== family) {
+    retireIncompatibleThumbnailFamily(pool)
+  }
+  pool.family = family
+  if (family === 'cinematic-webgl' && !pool.webglLease) {
+    pool.webglLease = claimDrmvyzThumbnailWebGLContext(
+      'react-preset-thumbnail',
+      () => terminallyDisposeThumbnailRendererPool(pool),
+    )
+  }
+  prepareThumbnailRendererPool(pool, width, height)
+  return pool
+}
+
+function resolveThumbnailRendererFamily(preset: ReactPreset): ThumbnailRendererFamily {
+  return preset.engine === 'cinematicPortal' && resolveCinematicPortalBackend(preset) === 'webgl2'
+    ? 'cinematic-webgl'
+    : 'canvas2d'
+}
+
+function prepareThumbnailRendererPool(
+  pool: ThumbnailRendererPool,
+  width: number,
+  height: number,
+): void {
+  const { canvas, context } = pool
+  if (canvas.width !== width) canvas.width = width
+  if (canvas.height !== height) canvas.height = height
+  resetCanvas2DState(context)
+  resetCinematicPortalRenderer(context, 'thumbnailReuse')
+  clearLaserDmxVisualState(context, width, height, { affectProductionOutput: false })
+  disposeLaserDmxRenderer(context, { affectProductionOutput: false })
+  clearNeonLatticeVisualState(context, width, height)
+  context.clearRect(0, 0, width, height)
+}
+
+function resetThumbnailRendererPoolAfterJob(pool: ThumbnailRendererPool): void {
+  if (thumbnailRendererPool !== pool) return
+  resetCinematicPortalRenderer(pool.context, 'thumbnailReuse')
+  clearLaserDmxVisualState(pool.context, pool.canvas.width, pool.canvas.height, { affectProductionOutput: false })
+  disposeLaserDmxRenderer(pool.context, { affectProductionOutput: false })
+  clearNeonLatticeVisualState(pool.context, pool.canvas.width, pool.canvas.height)
+  resetCanvas2DState(pool.context)
+}
+
+function retireIncompatibleThumbnailFamily(pool: ThumbnailRendererPool): void {
+  if (pool.family === 'cinematic-webgl') {
+    disposeCinematicPortalRenderer(pool.context, 'terminal-retire')
+    releaseDrmvyzThumbnailWebGLContext(pool.webglLease)
+    pool.webglLease = null
+    thumbnailPoolTerminalRetirements += 1
+  } else {
+    resetCinematicPortalRenderer(pool.context, 'thumbnailReuse')
+  }
+  clearLaserDmxVisualState(pool.context, pool.canvas.width, pool.canvas.height, { affectProductionOutput: false })
+  disposeLaserDmxRenderer(pool.context, { affectProductionOutput: false })
+  clearNeonLatticeVisualState(pool.context, pool.canvas.width, pool.canvas.height)
+  resetCanvas2DState(pool.context)
+}
+
+function invalidateThumbnailRendererPool(pool: ThumbnailRendererPool): void {
+  if (thumbnailRendererPool !== pool) return
+  terminallyDisposeThumbnailRendererPool()
+}
+
+function terminallyDisposeThumbnailRendererPool(expectedPool: ThumbnailRendererPool | null = thumbnailRendererPool): void {
+  const pool = thumbnailRendererPool
+  if (!pool || (expectedPool && expectedPool !== pool)) {
+    retireThumbnailPoolWhenIdle = false
+    return
+  }
+  try { disposeCinematicPortalRenderer(pool.context, 'terminal-retire') } catch { /* Best effort. */ }
+  try {
+    clearLaserDmxVisualState(pool.context, pool.canvas.width, pool.canvas.height, { affectProductionOutput: false })
+    disposeLaserDmxRenderer(pool.context, { affectProductionOutput: false })
+  } catch { /* Best effort. */ }
+  try { clearNeonLatticeVisualState(pool.context, pool.canvas.width, pool.canvas.height) } catch { /* Best effort. */ }
+  releaseDrmvyzThumbnailWebGLContext(pool.webglLease)
+  pool.webglLease = null
+  releaseCanvas(pool.canvas)
+  thumbnailRendererPool = null
+  retireThumbnailPoolWhenIdle = false
+  thumbnailPoolTerminalRetirements += 1
+}
+
+function resetCanvas2DState(ctx: CanvasRenderingContext2D): void {
+  try {
+    ctx.resetTransform?.()
+    ctx.setTransform?.(1, 0, 0, 1, 0, 0)
+    ctx.globalAlpha = 1
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.filter = 'none'
+    ctx.shadowBlur = 0
+    ctx.shadowColor = 'rgba(0,0,0,0)'
+    ctx.lineWidth = 1
+    ctx.setLineDash?.([])
+  } catch {
+    // Tests and older canvas implementations may expose only a subset of state APIs.
   }
 }
 

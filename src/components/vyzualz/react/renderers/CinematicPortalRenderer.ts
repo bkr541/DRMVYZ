@@ -4,6 +4,7 @@ import {
   normalizeCinematicWorldConfig,
 } from '../CinematicWorldConfig'
 import type { CinematicWorldConfig } from '../CinematicWorldConfig'
+import type { WebGLContextDisposalMode, WebGLContextLifetime } from '../shaders/runtime/WebGLContextLifecycle'
 import type { ReactPreset, ReactSectionType } from '../ReactTypes'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { hexToRgba } from './reactRenderUtils'
@@ -581,20 +582,35 @@ for (const definition of cinematicWorldDefinitions) {
 }
 cinematicWorldRendererRegistry.register(diagnosticCinematicWorldDefinition)
 
-const hostByContext = new WeakMap<CanvasRenderingContext2D, CinematicWorldRendererHost>()
+interface CinematicHostOwnership {
+  host: CinematicWorldRendererHost
+  lifetime: WebGLContextLifetime
+}
 
-function getHost(context: CanvasRenderingContext2D): CinematicWorldRendererHost {
-  let host = hostByContext.get(context)
-  if (!host) {
-    host = new CinematicWorldRendererHost(
+const hostByContext = new WeakMap<CanvasRenderingContext2D, CinematicHostOwnership>()
+
+function getHost(
+  context: CanvasRenderingContext2D,
+  lifetime: WebGLContextLifetime,
+): CinematicWorldRendererHost {
+  let ownership = hostByContext.get(context)
+  if (ownership && ownership.lifetime !== lifetime) {
+    ownership.host.dispose(ownership.lifetime === 'transient-thumbnail' ? 'terminal-retire' : 'release-resources')
+    hostByContext.delete(context)
+    ownership = undefined
+  }
+  if (!ownership) {
+    const host = new CinematicWorldRendererHost(
       context,
       cinematicWorldRendererRegistry,
       'legacyPortal',
-      outputContext => CinematicWebGLRuntime.create(outputContext),
+      (outputContext, runtimeLifetime) => CinematicWebGLRuntime.create(outputContext, { lifetime: runtimeLifetime }),
+      lifetime,
     )
-    hostByContext.set(context, host)
+    ownership = { host, lifetime }
+    hostByContext.set(context, ownership)
   }
-  return host
+  return ownership.host
 }
 
 function resolvePresetConfig(preset: ReactPreset): CinematicWorldConfig {
@@ -614,17 +630,29 @@ export function renderCinematicPortal(
   preset: ReactPreset,
   params: ReactRenderParams,
   sectionType: ReactSectionType | null,
+  lifetime: WebGLContextLifetime = 'live-reusable',
 ): void {
   const config = resolvePresetConfig(preset)
-  getHost(ctx).render(cinematicInputFromReactFrame(frame, preset, params, sectionType, config))
+  getHost(ctx, lifetime).render(cinematicInputFromReactFrame(frame, preset, params, sectionType, config))
 }
 
-export function resetCinematicPortalRenderer(ctx: CanvasRenderingContext2D): void {
-  hostByContext.get(ctx)?.reset()
+export function resolveCinematicPortalBackend(preset: ReactPreset): 'canvas2d' | 'webgl2' {
+  const definition = cinematicWorldRendererRegistry.resolve(resolvePresetConfig(preset).worldMode)
+  return definition?.backend ?? 'canvas2d'
 }
 
-export function disposeCinematicPortalRenderer(ctx: CanvasRenderingContext2D): void {
-  const host = hostByContext.get(ctx)
-  host?.dispose()
+export function resetCinematicPortalRenderer(
+  ctx: CanvasRenderingContext2D,
+  reason: CinematicRendererResetReason = 'manualReset',
+): void {
+  hostByContext.get(ctx)?.host.reset(reason)
+}
+
+export function disposeCinematicPortalRenderer(
+  ctx: CanvasRenderingContext2D,
+  mode: WebGLContextDisposalMode = 'release-resources',
+): void {
+  const ownership = hostByContext.get(ctx)
+  ownership?.host.dispose(mode)
   hostByContext.delete(ctx)
 }

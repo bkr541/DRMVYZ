@@ -168,6 +168,11 @@ export function ReactShaderCanvas({
           pausedRef.current = true
           cancelAnimationFrame(animRef.current)
         },
+        ownership: {
+          lifetime: 'live-reusable',
+          role: 'react-preview',
+          engine: 'shader-engine',
+        },
         onContextRestored: () => {
           // The old renderer's GL handles are all invalid.  Use disposeAfterContextLoss()
           // instead of dispose() to avoid re-losing the freshly restored context via loseContext().

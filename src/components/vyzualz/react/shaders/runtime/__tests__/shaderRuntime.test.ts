@@ -663,6 +663,80 @@ describe('P — Strict Mode lifecycle: setup → cleanup → setup on same canva
   })
 })
 
+// ── P2. Explicit transient retirement ─────────────────────────────────────────
+
+describe('P2 — explicit transient thumbnail retirement', () => {
+  it('requests WEBGL_lose_context exactly once for terminal transient disposal', () => {
+    const { gl } = makeGL()
+    const loseContext = vi.fn()
+    const glWithExt = {
+      ...gl,
+      getExtension: (name: string) => name === 'WEBGL_lose_context' ? { loseContext } : null,
+    } as unknown as WebGL2RenderingContext
+    const { canvas } = makeCanvas(glWithExt)
+    const runtime = ok(ShaderWebGLRuntime.create(canvas, {
+      ownership: {
+        lifetime: 'transient-thumbnail',
+        role: 'preset-thumbnail',
+        engine: 'test-engine',
+        expectedMaxActive: 1,
+      },
+    }))
+
+    runtime.dispose('terminal-retire')
+    runtime.dispose('terminal-retire')
+
+    expect(loseContext).toHaveBeenCalledTimes(1)
+    expect(canvas.width).toBe(1)
+    expect(canvas.height).toBe(1)
+  })
+
+  it('handles missing WEBGL_lose_context support without throwing', () => {
+    const { gl } = makeGL()
+    const { canvas } = makeCanvas(gl)
+    const runtime = ok(ShaderWebGLRuntime.create(canvas, {
+      ownership: { lifetime: 'transient-thumbnail', role: 'preset-thumbnail', engine: 'test-engine' },
+    }))
+
+    expect(() => runtime.dispose('terminal-retire')).not.toThrow()
+    expect(runtime.disposed).toBe(true)
+  })
+
+  it('tolerates terminal context loss that has already begun', () => {
+    const { gl } = makeGL()
+    const glWithThrowingExtension = {
+      ...gl,
+      getExtension: () => ({ loseContext: () => { throw new Error('already lost') } }),
+    } as unknown as WebGL2RenderingContext
+    const { canvas } = makeCanvas(glWithThrowingExtension)
+    const runtime = ok(ShaderWebGLRuntime.create(canvas, {
+      ownership: { lifetime: 'transient-thumbnail', role: 'preset-thumbnail', engine: 'test-engine' },
+    }))
+
+    expect(() => runtime.dispose('terminal-retire')).not.toThrow()
+  })
+
+  it('never requests context loss for a live reusable renderer', () => {
+    const { gl } = makeGL()
+    const loseContext = vi.fn()
+    const glWithExt = {
+      ...gl,
+      getExtension: () => ({ loseContext }),
+    } as unknown as WebGL2RenderingContext
+    const { canvas } = makeCanvas(glWithExt)
+    const runtime = ok(ShaderWebGLRuntime.create(canvas, {
+      ownership: { lifetime: 'live-reusable', role: 'react-preview', engine: 'test-engine' },
+    }))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    runtime.dispose('terminal-retire')
+
+    expect(loseContext).not.toHaveBeenCalled()
+    expect(canvas.width).toBe(0)
+    warn.mockRestore()
+  })
+})
+
 // ── Q. ShaderFramebuffer — transactional allocation and guards ────────────────
 
 describe('Q — ShaderFramebuffer transactional allocation', () => {

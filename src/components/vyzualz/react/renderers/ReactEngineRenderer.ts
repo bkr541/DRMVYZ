@@ -5,6 +5,7 @@ import { renderCinematicPortal } from './CinematicPortalRenderer'
 import { renderSoundDrawing }    from './SoundDrawingRenderer'
 import { renderLaserDmx, clearLaserDmxVisualState, pauseLaserDmxRenderer } from './LaserDmxRenderer'
 import { renderNeonLattice, clearNeonLatticeVisualState } from './NeonLatticeRenderer'
+import type { WebGLContextLifetime } from '../shaders/runtime/WebGLContextLifecycle'
 
 export type { ReactFrameContext, ReactRenderParams }
 export { DEFAULT_REACT_RENDER_PARAMS }
@@ -13,6 +14,10 @@ export { DEFAULT_REACT_RENDER_PARAMS }
 export { reactFrameFromVz } from './reactRenderUtils'
 
 // ── Section resolution ────────────────────────────────────────────────────────
+
+export interface ReactEngineRenderOptions {
+  webglLifetime?: WebGLContextLifetime
+}
 
 export interface SectionResolution {
   /** Active section type, or null when no section matches. */
@@ -134,6 +139,7 @@ export function renderReactEngine(
   preset:         ReactPreset,
   params:         ReactRenderParams,
   trackSections:  ReactTrackSection[] = [],
+  options: ReactEngineRenderOptions = {},
 ): void {
   // A user pause is a true frame hold across every React engine. Do not clear
   // gated engines and do not let idle/random animation mutate the last frame.
@@ -155,7 +161,10 @@ export function renderReactEngine(
       break
     case 'cinematicPortal':
       clearNeonLatticeVisualState(ctx, frame.W, frame.H)
-      renderCinematicPortal(ctx, frame, preset, effectiveParams, sectionType)
+      renderCinematicPortal(
+        ctx, frame, preset, effectiveParams, sectionType,
+        options.webglLifetime ?? 'live-reusable',
+      )
       break
     case 'oscilloscope':
       clearNeonLatticeVisualState(ctx, frame.W, frame.H)
