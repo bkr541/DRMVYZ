@@ -19,7 +19,7 @@ export const LASER_DMX_SETTINGS_SCHEMA_VERSION = 7
 export const LASER_DMX_FIXTURE_SCHEMA_VERSION = 4
 export const LASER_DMX_BEAM_MATRIX_SCHEMA_VERSION = 1
 export const LASER_DMX_PRODUCTION_RIG_SCHEMA_VERSION = 9
-export const LASER_DMX_STAGE_SCHEMA_VERSION = 1
+export const LASER_DMX_STAGE_SCHEMA_VERSION = 2
 
 export type ProductionFixtureKind =
   | 'laserProjector'
@@ -230,6 +230,8 @@ export interface ProductionStageModel {
   schemaVersion: number
   originConvention: ProductionStageOriginConvention
   dimensions: ProductionStageDimensions
+  /** Presentation-only magnification applied after the authored camera framing. */
+  previewZoom: number
   floor: ProductionFloorPlane
   audience: ProductionAudienceRegion
   mountingSurfaces: ProductionMountingSurface[]
@@ -1334,6 +1336,7 @@ export function createDefaultProductionStageModel(): ProductionStageModel {
     schemaVersion: LASER_DMX_STAGE_SCHEMA_VERSION,
     originConvention: PRODUCTION_STAGE_COORDINATE_CONVENTION,
     dimensions: { width: 14, height: 8, depth: 9 },
+    previewZoom: 1.6,
     floor: { enabled: true, elevation: 0, width: 14, depth: 9 },
     audience: { enabled: true, center: { x: 0, y: 0, z: -8 }, size: { x: 18, y: 0.1, z: 14 } },
     mountingSurfaces: [
@@ -1346,7 +1349,7 @@ export function createDefaultProductionStageModel(): ProductionStageModel {
     spatialZones: [
       { id: 'zone:audience-safe', name: 'Audience safe volume', kind: 'safe', shape: 'box', center: { x: 0, y: 1.5, z: -5 }, size: { x: 16, y: 3, z: 8 } },
     ],
-    editor: { guidesVisible: true, qualityTier: 'high' },
+    editor: { guidesVisible: false, qualityTier: 'high' },
   }
 }
 
@@ -1400,6 +1403,7 @@ export function normalizeProductionStageModel(raw: unknown): ProductionStageMode
       height: Math.max(1, finiteOr(dimensions.height, fallback.dimensions.height)),
       depth: Math.max(1, finiteOr(dimensions.depth, fallback.dimensions.depth)),
     },
+    previewZoom: Math.max(0.5, Math.min(3, finiteOr(raw.previewZoom, fallback.previewZoom))),
     floor: {
       ...fallback.floor,
       ...floor,

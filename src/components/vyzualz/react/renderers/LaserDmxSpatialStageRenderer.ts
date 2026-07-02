@@ -70,13 +70,21 @@ export function resolveSpatialStagePixelScale(dpr: number | undefined): number {
   return Number.isFinite(dpr) ? Math.max(1, Math.min(4, dpr!)) : 1
 }
 
-function buildCameraBasis(camera: ProductionCameraView, W: number, H: number, dpr = 1): CameraBasis {
+export function resolveSpatialStagePreviewZoom(zoom: number | undefined): number {
+  return Number.isFinite(zoom) ? Math.max(0.5, Math.min(3, zoom!)) : 1
+}
+
+export function shouldRenderSpatialStageEditorGuides(stage: Pick<ProductionStageModel, 'editor'>): boolean {
+  return stage.editor.guidesVisible
+}
+
+function buildCameraBasis(camera: ProductionCameraView, W: number, H: number, dpr = 1, previewZoom = 1): CameraBasis {
   const forward = normalize(subtract(camera.target, camera.position))
   let right = normalize(cross(forward, { x: 0, y: 1, z: 0 }))
   if (length(right) < EPSILON) right = { x: 1, y: 0, z: 0 }
   const up = normalize(cross(right, forward))
   const radians = Math.max(10, Math.min(120, camera.fieldOfViewDeg)) * Math.PI / 180
-  const focalLength = (H * 0.5) / Math.tan(radians * 0.5)
+  const focalLength = ((H * 0.5) / Math.tan(radians * 0.5)) * resolveSpatialStagePreviewZoom(previewZoom)
   return {
     position: camera.position,
     right,
@@ -91,8 +99,14 @@ function buildCameraBasis(camera: ProductionCameraView, W: number, H: number, dp
   }
 }
 
-export function projectProductionStagePoint(point: ProductionStageVector3, camera: ProductionCameraView, W: number, H: number): ProjectedPoint {
-  const basis = buildCameraBasis(camera, W, H)
+export function projectProductionStagePoint(
+  point: ProductionStageVector3,
+  camera: ProductionCameraView,
+  W: number,
+  H: number,
+  previewZoom = 1,
+): ProjectedPoint {
+  const basis = buildCameraBasis(camera, W, H, 1, previewZoom)
   return projectWithBasis(point, basis)
 }
 
@@ -140,7 +154,7 @@ function drawWorldLine(
 }
 
 function drawFloorGrid(ctx: CanvasRenderingContext2D, basis: CameraBasis, stage: ProductionStageModel): void {
-  if (!stage.floor.enabled) return
+  if (!shouldRenderSpatialStageEditorGuides(stage) || !stage.floor.enabled) return
   const halfWidth = stage.floor.width / 2
   const depth = stage.floor.depth
   const y = stage.floor.elevation
@@ -700,7 +714,7 @@ function drawProductionAtmosphere(
 export function renderLaserDmxSpatialStage(input: SpatialStageRenderInput): void {
   const { ctx, W, H, rig, settings, frames } = input
   const stage = normalizeProductionStageModel(rig.stage)
-  const basis = buildCameraBasis(stage.camera, W, H, input.dpr)
+  const basis = buildCameraBasis(stage.camera, W, H, input.dpr, stage.previewZoom)
 
   drawFloorGrid(ctx, basis, stage)
   drawAudienceRegion(ctx, basis, stage)
@@ -724,27 +738,31 @@ export function renderLaserDmxSpatialStage(input: SpatialStageRenderInput): void
       return bDepth - aDepth
     })
 
-  for (const fixture of rig.fixtures) {
-    if (fixture.kind !== 'hazer' && fixture.kind !== 'fogger' && fixture.kind !== 'cryoJet') continue
-    const projected = projectWithBasis(fixture.transform.position, basis)
-    if (!projected.visible) continue
-    ctx.save()
-    ctx.globalCompositeOperation = 'screen'
-    ctx.strokeStyle = fixture.kind === 'cryoJet' ? '#d8f6ff' : fixture.kind === 'fogger' ? '#9bb8c5' : '#77a6b8'
-    ctx.fillStyle = 'rgba(120,160,175,0.18)'
-    ctx.globalAlpha = fixture.id === settings.selectedFixtureId ? 1 : 0.72
-    ctx.beginPath()
-    const iconWidth = 14 * basis.pixelScale
-    const iconHeight = 8 * basis.pixelScale
-    ctx.rect(projected.x - iconWidth / 2, projected.y - iconHeight / 2, iconWidth, iconHeight)
-    ctx.fill()
-    ctx.stroke()
-    ctx.beginPath()
-    ctx.moveTo(projected.x, projected.y - 5 * basis.pixelScale)
-    ctx.lineTo(projected.x, projected.y - (fixture.kind === 'cryoJet' ? 24 : 15) * basis.pixelScale)
-    ctx.stroke()
-    ctx.restore()
-    if (settings.showFixtureOrigins || stage.editor.guidesVisible) drawFixtureOrigin(ctx, basis, fixture.transform.position, fixture.id === settings.selectedFixtureId)
+  if (shouldRenderSpatialStageEditorGuides(stage)) {
+    for (const fixture of rig.fixtures) {
+      if (fixture.kind !== 'hazer' && fixture.kind !== 'fogger' && fixture.kind !== 'cryoJet') continue
+      const projected = projectWithBasis(fixture.transform.position, basis)
+      if (!projected.visible) continue
+      ctx.save()
+      ctx.globalCompositeOperation = 'screen'
+      ctx.strokeStyle = fixture.kind === 'cryoJet' ? '#d8f6ff' : fixture.kind === 'fogger' ? '#9bb8c5' : '#77a6b8'
+      ctx.fillStyle = 'rgba(120,160,175,0.18)'
+      ctx.globalAlpha = fixture.id === settings.selectedFixtureId ? 1 : 0.72
+      ctx.beginPath()
+      const iconWidth = 14 * basis.pixelScale
+      const iconHeight = 8 * basis.pixelScale
+      ctx.rect(projected.x - iconWidth / 2, projected.y - iconHeight / 2, iconWidth, iconHeight)
+      ctx.fill()
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.moveTo(projected.x, projected.y - 5 * basis.pixelScale)
+      ctx.lineTo(projected.x, projected.y - (fixture.kind === 'cryoJet' ? 24 : 15) * basis.pixelScale)
+      ctx.stroke()
+      ctx.restore()
+      if (settings.showFixtureOrigins) {
+        drawFixtureOrigin(ctx, basis, fixture.transform.position, fixture.id === settings.selectedFixtureId)
+      }
+    }
   }
 
   for (const { frame, fixture } of ordered) {
@@ -753,29 +771,29 @@ export function renderLaserDmxSpatialStage(input: SpatialStageRenderInput): void
     if (isMovingHeadFixtureKind(fixture.kind) && frame.visual.movingHead) {
       drawMovingHeadFixture(ctx, basis, fixture, frame, haze, glow)
       if (frame.visual.wash) drawWashFixture(ctx, basis, fixture, frame, haze, glow, stage.editor.qualityTier)
-      if (settings.showFixtureOrigins || stage.editor.guidesVisible) {
+      if (stage.editor.guidesVisible && settings.showFixtureOrigins) {
         drawFixtureOrigin(ctx, basis, fixture.transform.position, fixture.id === settings.selectedFixtureId)
       }
       continue
     }
     if (fixture.kind === 'strobe') {
       drawStrobePanel(ctx, basis, fixture, frame, glow)
-      if (settings.showFixtureOrigins || stage.editor.guidesVisible) drawFixtureOrigin(ctx, basis, fixture.transform.position, fixture.id === settings.selectedFixtureId)
+      if (stage.editor.guidesVisible && settings.showFixtureOrigins) drawFixtureOrigin(ctx, basis, fixture.transform.position, fixture.id === settings.selectedFixtureId)
       continue
     }
     if (fixture.kind === 'blinder') {
       drawAudienceBlinder(ctx, basis, fixture, frame, glow)
-      if (settings.showFixtureOrigins || stage.editor.guidesVisible) drawFixtureOrigin(ctx, basis, fixture.transform.position, fixture.id === settings.selectedFixtureId)
+      if (stage.editor.guidesVisible && settings.showFixtureOrigins) drawFixtureOrigin(ctx, basis, fixture.transform.position, fixture.id === settings.selectedFixtureId)
       continue
     }
     if (fixture.kind === 'staticWash') {
       drawWashFixture(ctx, basis, fixture, frame, haze, glow, stage.editor.qualityTier)
-      if (settings.showFixtureOrigins || stage.editor.guidesVisible) drawFixtureOrigin(ctx, basis, fixture.transform.position, fixture.id === settings.selectedFixtureId)
+      if (stage.editor.guidesVisible && settings.showFixtureOrigins) drawFixtureOrigin(ctx, basis, fixture.transform.position, fixture.id === settings.selectedFixtureId)
       continue
     }
     if (fixture.kind === 'ledBar') {
       drawLedBarFixture(ctx, basis, fixture, frame, glow)
-      if (settings.showFixtureOrigins || stage.editor.guidesVisible) drawFixtureOrigin(ctx, basis, fixture.transform.position, fixture.id === settings.selectedFixtureId)
+      if (stage.editor.guidesVisible && settings.showFixtureOrigins) drawFixtureOrigin(ctx, basis, fixture.transform.position, fixture.id === settings.selectedFixtureId)
       continue
     }
     const explicitTarget = sourceFixture?.targetId
@@ -826,13 +844,13 @@ export function renderLaserDmxSpatialStage(input: SpatialStageRenderInput): void
       }
       if (started) ctx.stroke()
       ctx.restore()
-      if (settings.showPathPoints) {
+      if (stage.editor.guidesVisible && settings.showPathPoints) {
         for (const point of worldPoints) drawPathGuidePoint(ctx, basis, point)
       }
     } else {
       for (const point of worldPoints) {
         drawPerspectiveBeam(ctx, basis, fixture.transform.position, point, frame.visual.color, frame.visual.intensity * frame.visual.rgba.a, frame.visual.beamWidth, focusedGlow, haze)
-        if (settings.showPathPoints) drawPathGuidePoint(ctx, basis, point)
+        if (stage.editor.guidesVisible && settings.showPathPoints) drawPathGuidePoint(ctx, basis, point)
       }
     }
 
@@ -848,7 +866,7 @@ export function renderLaserDmxSpatialStage(input: SpatialStageRenderInput): void
       )
     }
 
-    if (settings.showFixtureOrigins || stage.editor.guidesVisible) {
+    if (stage.editor.guidesVisible && settings.showFixtureOrigins) {
       drawFixtureOrigin(ctx, basis, fixture.transform.position, fixture.id === settings.selectedFixtureId)
     }
   }

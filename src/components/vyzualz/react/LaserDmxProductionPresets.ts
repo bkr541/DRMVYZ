@@ -525,6 +525,7 @@ function buildPreset(recipe: ProductionPresetRecipe): ReactPreset {
     name: recipe.name,
     description: recipe.description,
     engine: 'laserDmx',
+    laserDmxWorkspace: 'spatialFixtures',
     palette: recipe.palette,
     params: { intensity: 0.94, motion: 0.82, glow: 0.92, bassReactivity: 0.9 },
     renderSettings: { trailDecay: 0.09, fogDensity: recipe.atmosphere.haze, particleDensity: recipe.complexity === 'extreme' ? 0.92 : 0.7 },

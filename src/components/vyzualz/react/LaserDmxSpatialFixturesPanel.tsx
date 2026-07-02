@@ -446,15 +446,40 @@ export function LaserDmxSpatialFixturesPanel() {
           onChange={viewId => setLaserDmxSettings({ productionStage: setActiveProductionCameraView(stage, viewId) })}
           options={stage.savedCameraViews.map(view => ({ value: view.id, label: view.name }))}
         />
+        <SliderRow
+          label="Output Zoom"
+          value={stage.previewZoom}
+          onChange={previewZoom => updateStage({ previewZoom })}
+          min={0.5}
+          max={3}
+          step={0.05}
+          color="#4ac7db"
+          description="Magnifies the performance view without changing fixture positions or the saved camera angle."
+        />
         <SelectRow
           label="Render Quality"
           value={stage.editor.qualityTier}
           onChange={qualityTier => updateStage({ editor: { ...stage.editor, qualityTier: qualityTier as ProductionStageModel['editor']['qualityTier'] } })}
           options={[{ value: 'low', label: 'Low' }, { value: 'medium', label: 'Medium' }, { value: 'high', label: 'High' }]}
         />
-        <ToggleRow label="Editor Guides" value={stage.editor.guidesVisible} onChange={guidesVisible => updateStage({ editor: { ...stage.editor, guidesVisible } })} />
-        <ToggleRow label="Fixture Origins" value={laserDmxSettings.showFixtureOrigins ?? false} onChange={showFixtureOrigins => setLaserDmxSettings({ showFixtureOrigins })} />
-        <ToggleRow label="Path Points" value={laserDmxSettings.showPathPoints ?? false} onChange={showPathPoints => setLaserDmxSettings({ showPathPoints })} />
+        <ToggleRow
+          label="Editor Guides"
+          value={stage.editor.guidesVisible}
+          onChange={guidesVisible => updateStage({ editor: { ...stage.editor, guidesVisible } })}
+          description="Master switch for the floor, grid, trusses, safety zones, fixture origins, path points, and atmospheric fixture markers. Turn it off for a clean club-output view."
+        />
+        <ToggleRow
+          label="Fixture Origins"
+          value={laserDmxSettings.showFixtureOrigins ?? false}
+          onChange={showFixtureOrigins => setLaserDmxSettings({ showFixtureOrigins })}
+          disabled={!stage.editor.guidesVisible}
+        />
+        <ToggleRow
+          label="Path Points"
+          value={laserDmxSettings.showPathPoints ?? false}
+          onChange={showPathPoints => setLaserDmxSettings({ showPathPoints })}
+          disabled={!stage.editor.guidesVisible}
+        />
       </Collapsible>
 
       <Collapsible label="Visual Comfort" defaultOpen={false}>

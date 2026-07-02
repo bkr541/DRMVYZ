@@ -13,6 +13,7 @@ import {
   LASER_DMX_MATRIX_ROWS,
   LASER_DMX_MATRIX_MAX_BEAMS,
   DEFAULT_BEAM_MOTION,
+  resolveReactPresetLaserDmxWorkspace,
 } from '../../ReactTypes'
 
 // ── Snapshot the store factory for isolated per-test state ────────────────────
@@ -65,12 +66,12 @@ describe('persist migration', () => {
 
 // ── Preset application isolation ──────────────────────────────────────────────
 
-describe('preset application does not touch Beam Matrix state', () => {
-  it('buildPresetPatch does not include laserDmxWorkspaceMode', () => {
+describe('preset application switches to the preset-owned workspace', () => {
+  it('buildPresetPatch includes the Spatial Fixtures workspace', () => {
     const { reactPresets, oscillatorSettings, laserDmxSettings } = useReactStore.getState()
     const ldxPreset = reactPresets.find(p => p.engine === 'laserDmx')!
     const patch = buildPresetPatch(ldxPreset, oscillatorSettings, laserDmxSettings)
-    expect(patch).not.toHaveProperty('laserDmxWorkspaceMode')
+    expect(patch.laserDmxWorkspaceMode).toBe('spatialFixtures')
   })
 
   it('buildPresetPatch does not include laserDmxBeamMatrix', () => {
@@ -80,15 +81,30 @@ describe('preset application does not touch Beam Matrix state', () => {
     expect(patch).not.toHaveProperty('laserDmxBeamMatrix')
   })
 
-  it('selectReactPreset does not change laserDmxWorkspaceMode', () => {
+  it('selectReactPreset switches from Beam Matrix to Spatial Fixtures', () => {
     const store = useReactStore.getState()
     const ldxPreset = store.reactPresets.find(p => p.engine === 'laserDmx')!
     // Set to beamMatrix first
     store.setLaserDmxWorkspaceMode('beamMatrix')
     store.selectReactPreset(ldxPreset.id)
-    expect(useReactStore.getState().laserDmxWorkspaceMode).toBe('beamMatrix')
-    // Restore
-    useReactStore.getState().setLaserDmxWorkspaceMode('spatialFixtures')
+    expect(useReactStore.getState().laserDmxWorkspaceMode).toBe('spatialFixtures')
+  })
+
+  it('loads every Spatial Fixtures preset with its complete workspace context', () => {
+    const spatialPresets = useReactStore.getState().reactPresets.filter(preset =>
+      preset.engine === 'laserDmx'
+      && resolveReactPresetLaserDmxWorkspace(preset) === 'spatialFixtures',
+    )
+
+    expect(spatialPresets.length).toBeGreaterThan(1)
+    for (const preset of spatialPresets) {
+      useReactStore.getState().setLaserDmxWorkspaceMode('beamMatrix')
+      useReactStore.getState().selectReactPreset(preset.id)
+      const selected = useReactStore.getState()
+      expect(selected.activeReactEngineId).toBe('laserDmx')
+      expect(selected.activeReactPresetId).toBe(preset.id)
+      expect(selected.laserDmxWorkspaceMode).toBe('spatialFixtures')
+    }
   })
 
   it('selectReactPreset does not replace beam matrix beams', () => {

@@ -11,7 +11,12 @@ import {
   stageVectorToLegacyNormalized,
 } from '../../LaserDmxProductionRig'
 import { createDefaultLaserDmxSettings } from '../../ReactTypes'
-import { projectProductionStagePoint, resolveSpatialStagePixelScale } from '../LaserDmxSpatialStageRenderer'
+import {
+  projectProductionStagePoint,
+  resolveSpatialStagePixelScale,
+  resolveSpatialStagePreviewZoom,
+  shouldRenderSpatialStageEditorGuides,
+} from '../LaserDmxSpatialStageRenderer'
 
 describe('LaserDMX spatial stage model', () => {
   it('normalizes dimensions and keeps the documented coordinate convention', () => {
@@ -22,7 +27,7 @@ describe('LaserDMX spatial stage model', () => {
     })
 
     expect(stage.originConvention).toBe(PRODUCTION_STAGE_COORDINATE_CONVENTION)
-    expect(stage.schemaVersion).toBe(1)
+    expect(stage.schemaVersion).toBe(2)
     expect(stage.dimensions.width).toBe(1)
     expect(stage.dimensions.height).toBeGreaterThan(0)
     expect(stage.dimensions.depth).toBe(1)
@@ -31,6 +36,7 @@ describe('LaserDMX spatial stage model', () => {
     expect(stage.mountingSurfaces.length).toBeGreaterThan(0)
     expect(stage.savedCameraViews.length).toBeGreaterThan(0)
     expect(stage.editor.qualityTier).toBe('medium')
+    expect(stage.previewZoom).toBe(1.6)
   })
 
   it('round-trips legacy normalized coordinates through metre-based stage space', () => {
@@ -55,6 +61,25 @@ describe('LaserDMX spatial stage model', () => {
     expect(near.visible).toBe(true)
     expect(far.visible).toBe(true)
     expect(near.scale).toBeGreaterThan(far.scale)
+  })
+
+  it('applies presentation zoom without changing the authored camera', () => {
+    const stage = createDefaultProductionStageModel()
+    const normal = projectProductionStagePoint({ x: 2, y: 3, z: 4 }, stage.camera, 1280, 720, 1)
+    const zoomed = projectProductionStagePoint({ x: 2, y: 3, z: 4 }, stage.camera, 1280, 720, 2)
+
+    expect(zoomed.scale).toBeCloseTo(normal.scale * 2)
+    expect(resolveSpatialStagePreviewZoom(undefined)).toBe(1)
+    expect(resolveSpatialStagePreviewZoom(0.1)).toBe(0.5)
+    expect(resolveSpatialStagePreviewZoom(8)).toBe(3)
+  })
+
+  it('uses Editor Guides as the master visibility switch', () => {
+    const stage = createDefaultProductionStageModel()
+    expect(shouldRenderSpatialStageEditorGuides(stage)).toBe(false)
+    expect(shouldRenderSpatialStageEditorGuides({
+      editor: { ...stage.editor, guidesVisible: true },
+    })).toBe(true)
   })
 
   it('bounds fixed-size stage rendering metrics across device-pixel ratios', () => {

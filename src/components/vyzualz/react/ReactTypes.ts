@@ -1249,12 +1249,26 @@ export interface ReactPreset {
   oscillatorSettings?: Partial<OscillatorSettings>
   /** When present, selecting this preset merges these values onto createDefaultLaserDmxSettings(). */
   laserDmxSettings?: Partial<LaserDmxSettings>
+  /** LaserDMX sub-workspace that owns this preset. Required for correct filtering and switching. */
+  laserDmxWorkspace?: LaserDmxWorkspaceMode
   /** Curated production-language metadata used by the preset browser and compatibility layer. */
   productionPreset?: ProductionPresetMetadata
   /** When present, selecting this preset merges these values onto DEFAULT_NEON_LATTICE_SETTINGS. */
   neonLatticeSettings?: Partial<NeonLatticeSettings>
   /** Normalized Cinematic Worlds configuration. Present on cinematicPortal presets after migration. */
   cinematicConfig?: CinematicWorldConfig
+}
+
+export function resolveReactPresetLaserDmxWorkspace(
+  preset: Pick<ReactPreset, 'engine' | 'laserDmxWorkspace' | 'laserDmxSettings'>,
+): LaserDmxWorkspaceMode | null {
+  if (preset.engine !== 'laserDmx') return null
+  if (preset.laserDmxWorkspace === 'beamMatrix' || preset.laserDmxWorkspace === 'spatialFixtures') {
+    return preset.laserDmxWorkspace
+  }
+  // Legacy React presets only carried Spatial Fixtures settings. Keep old
+  // project snapshots compatible while making workspace ownership explicit.
+  return 'spatialFixtures'
 }
 
 // ── React preset automation cues ─────────────────────────────────────────────
@@ -2664,6 +2678,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     name: 'Laser Fan Grid',
     description: 'Virtual laser show: fan beams from left and right with a lissajous accent at center.',
     engine: 'laserDmx',
+    laserDmxWorkspace: 'spatialFixtures',
     palette: PALETTE_LASER_DMX,
     params: { intensity: 0.85, motion: 0.55, glow: 0.7, bassReactivity: 0.8 },
     scenes: makeScenes('ldx', 'laserDmx'),
@@ -2737,6 +2752,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     name: 'Club Fan Sweep',
     description: 'Wide synchronized fan beams from both sides sweep in time with the beat.',
     engine: 'laserDmx',
+    laserDmxWorkspace: 'spatialFixtures',
     palette: PALETTE_LASER_DMX,
     params: { intensity: 0.95, motion: 0.75, glow: 0.8, bassReactivity: 0.95 },
     scenes: makeScenes('cfs', 'laserDmx'),
@@ -2806,6 +2822,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     name: 'Drop Cage',
     description: 'Hard grid and tunnel beams that explode on drops and lock into phrase-driven rotation.',
     engine: 'laserDmx',
+    laserDmxWorkspace: 'spatialFixtures',
     palette: PALETTE_LASER_DMX,
     params: { intensity: 0.9, motion: 0.6, glow: 0.5, bassReactivity: 1.0 },
     scenes: makeScenes('dc', 'laserDmx'),
@@ -2876,6 +2893,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     name: 'Breakdown Constellation',
     description: 'Ambient star-field laser scatter with vocal activity driving color and glow.',
     engine: 'laserDmx',
+    laserDmxWorkspace: 'spatialFixtures',
     palette: PALETTE_LASER_DMX,
     params: { intensity: 0.5, motion: 0.3, glow: 0.9, bassReactivity: 0.4 },
     scenes: makeScenes('bkc', 'laserDmx'),
@@ -2944,6 +2962,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     name: 'Build Tunnel',
     description: 'Tunnel beams expand and accelerate through buildups before dropping hard.',
     engine: 'laserDmx',
+    laserDmxWorkspace: 'spatialFixtures',
     palette: PALETTE_LASER_DMX,
     params: { intensity: 0.8, motion: 0.85, glow: 0.6, bassReactivity: 0.85 },
     scenes: makeScenes('bt', 'laserDmx'),
@@ -3016,6 +3035,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     name: 'Vocal Skywriter',
     description: 'Lissajous and spiral beams trace shapes in the air driven by vocal energy and beat phase.',
     engine: 'laserDmx',
+    laserDmxWorkspace: 'spatialFixtures',
     palette: PALETTE_LASER_DMX,
     params: { intensity: 0.7, motion: 0.5, glow: 0.85, bassReactivity: 0.6 },
     scenes: makeScenes('vs', 'laserDmx'),

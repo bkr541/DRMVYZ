@@ -1,4 +1,5 @@
-import type { ReactEngineId, ReactPreset } from './ReactTypes'
+import { resolveReactPresetLaserDmxWorkspace } from './ReactTypes'
+import type { LaserDmxWorkspaceMode, ReactEngineId, ReactPreset } from './ReactTypes'
 
 export type ReactPresetLibraryView = 'current' | 'favorites' | 'all'
 
@@ -39,10 +40,17 @@ export function writeReactPresetFavorites(
 export function filterReactPresetLibrary(
   presets: ReactPreset[],
   activeEngineId: ReactEngineId,
+  activeLaserDmxWorkspace: LaserDmxWorkspaceMode,
   view: ReactPresetLibraryView,
   favoriteIds: ReadonlySet<string>,
 ): ReactPreset[] {
-  if (view === 'current') return presets.filter(preset => preset.engine === activeEngineId)
+  if (view === 'current') {
+    return presets.filter(preset => {
+      if (preset.engine !== activeEngineId) return false
+      if (activeEngineId !== 'laserDmx') return true
+      return resolveReactPresetLaserDmxWorkspace(preset) === activeLaserDmxWorkspace
+    })
+  }
   if (view === 'favorites') return presets.filter(preset => favoriteIds.has(preset.id))
   return presets
 }

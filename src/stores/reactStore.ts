@@ -22,6 +22,7 @@ import {
   DEFAULT_REACT_PRESET_RENDER_SETTINGS,
   createDefaultLaserDmxSettings,
   createDefaultLaserDmxBeamMatrixSettings,
+  resolveReactPresetLaserDmxWorkspace,
   LASER_DMX_MATRIX_COLUMNS,
   LASER_DMX_MATRIX_ROWS,
   LASER_DMX_MATRIX_MAX_BEAMS,
@@ -90,6 +91,7 @@ import {
   normalizeProductionFixtureColorPolicy,
   normalizeProductionLedBarSettings,
   normalizeProductionAtmosphericFixtureSettings,
+  normalizeProductionStageModel,
   normalizeProductionWashSettings,
   sanitizeLaserDmxBeamMatrixForPersistence,
   sanitizeLaserDmxSettingsForPersistence,
@@ -825,6 +827,7 @@ export function buildPresetPatch(
   currentLaserSettings?: LaserDmxSettings,
   currentNeonLatticeSettings?: NeonLatticeSettings,
 ) {
+  const laserDmxWorkspaceMode = resolveReactPresetLaserDmxWorkspace(preset)
   let laserPatch: LaserDmxSettings | undefined
   if (preset.laserDmxSettings != null) {
     // Presets are complete looks, not deltas against live authored state.
@@ -832,9 +835,30 @@ export function buildPresetPatch(
       ...createDefaultLaserDmxSettings(),
       ...preset.laserDmxSettings,
     })
-    const resolved = preset.productionPreset && currentLaserSettings && shouldPreserveCurrentProductionRig(currentLaserSettings)
+    const adapted = preset.productionPreset && currentLaserSettings && shouldPreserveCurrentProductionRig(currentLaserSettings)
       ? adaptProductionPresetToRig({ ...preset, laserDmxSettings: merged }, currentLaserSettings).settings
       : merged
+    const resolved = currentLaserSettings
+      ? (() => {
+          const currentStage = normalizeProductionStageModel(currentLaserSettings.productionStage)
+          const nextStage = normalizeProductionStageModel(adapted.productionStage)
+          return normalizeLaserDmxSettings({
+            ...adapted,
+            // Presentation controls are workspace preferences rather than part
+            // of a fixture look. Keep them stable while DJs audition presets.
+            productionStage: {
+              ...nextStage,
+              previewZoom: currentStage.previewZoom,
+              editor: {
+                ...nextStage.editor,
+                guidesVisible: currentStage.editor.guidesVisible,
+              },
+            },
+            showFixtureOrigins: currentLaserSettings.showFixtureOrigins,
+            showPathPoints: currentLaserSettings.showPathPoints,
+          })
+        })()
+      : adapted
     laserPatch = ensureProductionLookCompatibility(normalizeLaserDmxSettings(resolved), preset.name, 'spatialPreset')
   }
 
@@ -859,6 +883,7 @@ export function buildPresetPatch(
     reactFogDensity:      renderSettings.fogDensity,
     reactParticleDensity: renderSettings.particleDensity,
     oscillatorSettings:  resolvePresetOscillatorSettings(preset, currentOscSettings),
+    ...(laserDmxWorkspaceMode != null ? { laserDmxWorkspaceMode } : {}),
     ...(laserPatch        != null ? { laserDmxSettings:   laserPatch        } : {}),
     ...(neonLatticePatch  != null ? { neonLatticeSettings: neonLatticePatch } : {}),
     ...clearPerformanceActionPatch(),
@@ -1499,8 +1524,17 @@ export function normalizeCinematicPresetConfiguration(preset: ReactPreset): Reac
   }
 }
 
+export function normalizeReactPresetWorkspaceConfiguration(preset: ReactPreset): ReactPreset {
+  const workspace = resolveReactPresetLaserDmxWorkspace(preset)
+  return workspace == null || preset.laserDmxWorkspace === workspace
+    ? preset
+    : { ...preset, laserDmxWorkspace: workspace }
+}
+
 export function normalizeCinematicPresetCollection(presets: ReactPreset[]): ReactPreset[] {
-  return presets.map(normalizeCinematicPresetConfiguration)
+  return presets.map(preset => normalizeReactPresetWorkspaceConfiguration(
+    normalizeCinematicPresetConfiguration(preset),
+  ))
 }
 
 // ── Exported migration function (for testing) ─────────────────────────────────
@@ -1986,6 +2020,18 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
           productionCues: migrateLegacyBeamMatrixCues(matrix.cues ?? [], spatial.productionCues ?? []),
         }),
       }
+    }
+  }
+  if (version < 35) {
+    const presets = Array.isArray(state.reactPresets)
+      ? state.reactPresets as ReactPreset[]
+      : DEFAULT_REACT_PRESETS
+    state = {
+      ...state,
+      reactPresets: normalizeCinematicPresetCollection(presets),
+      ...(isPersistedLaserDmxSettingsDocument(state.laserDmxSettings)
+        ? { laserDmxSettings: normalizeLaserDmxSettings(state.laserDmxSettings) }
+        : {}),
     }
   }
   if (Array.isArray(state.reactPresets)) {
@@ -4551,7 +4597,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 34,
+      version: 35,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,
