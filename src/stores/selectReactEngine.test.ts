@@ -19,6 +19,7 @@ import {
   DEFAULT_PERFORMANCE_PADS,
 } from '../components/vyzualz/react/ReactTypes'
 import type { ReactPreset, NeonLatticeSettings } from '../components/vyzualz/react/ReactTypes'
+import { normalizeNeonLatticeSettings } from '../components/vyzualz/react/NeonLatticeConfig'
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -237,10 +238,11 @@ describe('Neon Lattice preset transitions via buildPresetPatch', () => {
         const patchB = buildPresetPatch(presetB, DEFAULT_OSCILLATOR_SETTINGS, undefined, stateAfterA)
         const stateAfterB = patchB.neonLatticeSettings as NeonLatticeSettings
 
-        // Every key explicitly in B's neonLatticeSettings must match B's value
-        for (const [key, val] of Object.entries(presetB.neonLatticeSettings!)) {
-          expect(stateAfterB[key as keyof NeonLatticeSettings]).toBe(val)
-        }
+        const expectedB = normalizeNeonLatticeSettings({
+          ...DEFAULT_NEON_LATTICE_SETTINGS,
+          ...presetB.neonLatticeSettings,
+        })
+        expect(stateAfterB).toEqual(expectedB)
       }
     }
   })
@@ -258,10 +260,11 @@ describe('Neon Lattice preset transitions via buildPresetPatch', () => {
     for (const preset of nlPresets) {
       const patch = buildPresetPatch(preset, DEFAULT_OSCILLATOR_SETTINGS, undefined, modifiedCurrent)
       const s = patch.neonLatticeSettings as NeonLatticeSettings
-      // The result must match the preset's own values, not the 0.999 sentinels
-      for (const [key, val] of Object.entries(preset.neonLatticeSettings!)) {
-        expect(s[key as keyof NeonLatticeSettings]).toBe(val)
-      }
+      const expected = normalizeNeonLatticeSettings({
+        ...DEFAULT_NEON_LATTICE_SETTINGS,
+        ...preset.neonLatticeSettings,
+      })
+      expect(s).toEqual(expected)
     }
   })
 
@@ -297,11 +300,7 @@ describe('NL preset order independence', () => {
 
         const patchC   = buildPresetPatch(presetC, DEFAULT_OSCILLATOR_SETTINGS, undefined, DEFAULT_NEON_LATTICE_SETTINGS)
 
-        for (const [key, val] of Object.entries(presetC.neonLatticeSettings!)) {
-          const k = key as keyof NeonLatticeSettings
-          expect(patchBC.neonLatticeSettings![k]).toBe(val)
-          expect(patchC.neonLatticeSettings![k]).toBe(val)
-        }
+        expect(patchBC.neonLatticeSettings).toEqual(patchC.neonLatticeSettings)
       }
     }
   })

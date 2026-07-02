@@ -200,6 +200,22 @@ describe('React preset thumbnail renderer scheduling', () => {
     })
   })
 
+  it('renders Neon Lattice previews with the deterministic nine-frame Music Intelligence reel', async () => {
+    const source = preset('preset-nl-reverie-keygrid')
+    expect(getReactPresetThumbnailFrameBudgetForTests(source)).toBe(9)
+
+    await expect(renderReactPresetThumbnail(source)).resolves.toBe('data:image/png;base64,exact-preview')
+
+    const frames = mocks.renderReactEngine.mock.calls.map(call => call[1])
+    expect(frames).toHaveLength(9)
+    expect(frames.every(frame => frame.musicIntelligence != null)).toBe(true)
+    expect(frames.some(frame => frame.musicIntelligence?.rhythm.phrase4Hit)).toBe(true)
+    expect(frames.some(frame => frame.musicIntelligence?.rhythm.phrase8Hit)).toBe(true)
+    expect(frames.some(frame => frame.musicIntelligence?.rhythm.phrase16Hit)).toBe(true)
+    expect(frames.some(frame => frame.musicIntelligence?.rhythm.phrase32Hit)).toBe(true)
+    expect(mocks.clearNeonLatticeVisualState).toHaveBeenCalled()
+  })
+
   it('does not synchronously drain the collection and limits WebGL work to one job', async () => {
     const manual = createManualScheduler()
     setReactPresetThumbnailSchedulerForTests(manual.scheduler)

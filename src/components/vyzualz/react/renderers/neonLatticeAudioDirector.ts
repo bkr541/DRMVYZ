@@ -188,9 +188,16 @@ export function resetNeonLatticeAudioDirector(
   state.previousKickHit = Boolean(frame?.rhythm.kickHit)
   state.previousSnareHit = Boolean(frame?.rhythm.snareHit)
   state.previousHatHit = Boolean(frame?.rhythm.hatHit)
+  state.wasPlaying = false
   state.lastEventIdentity = {}
+  state.diagnostics.lastConsumedAudioEvent = null
   state.diagnostics.skippedDuplicateEvent = null
+  state.diagnostics.lastPhraseBoundaryConsumed = null
+  state.diagnostics.boundaryPriorityDecision = null
+  state.diagnostics.lastPhraseActionExecuted = null
   state.diagnostics.phraseResetReason = reason
+  state.diagnostics.currentSequenceStep = -1
+  state.diagnostics.activeTemporaryOverrides = []
 }
 
 function phraseHits(frame: MusicIntelligenceFrame): NeonLatticePhraseScale[] {
@@ -526,6 +533,30 @@ export function applyNeonLatticePhraseRuntime(
       })),
     },
   }
+}
+
+export function applyNeonLatticePaletteRuntime<T extends Record<NeonLatticePaletteRole, string>>(
+  palette: T,
+  runtime: NeonLatticePhraseRuntimeState,
+): T {
+  const roles: NeonLatticePaletteRole[] = ['primary', 'secondary', 'accent', 'highlight']
+  const rawOffset = Math.round(runtime.paletteOffset?.value ?? 0)
+  const offset = ((rawOffset % roles.length) + roles.length) % roles.length
+  const selectedRole = runtime.paletteRole?.value
+  if (offset === 0 && selectedRole == null) return palette
+
+  const rotated = { ...palette }
+  for (let index = 0; index < roles.length; index += 1) {
+    const targetRole = roles[index]
+    const sourceRole = roles[(index + offset) % roles.length]
+    rotated[targetRole] = palette[sourceRole]
+  }
+  if (selectedRole != null && selectedRole !== 'background') {
+    const roleIndex = roles.indexOf(selectedRole)
+    rotated.primary = palette[selectedRole]
+    rotated.highlight = palette[roles[(roleIndex + 1) % roles.length]]
+  }
+  return rotated
 }
 
 export function computeNeonLatticePhraseProgressModulation(

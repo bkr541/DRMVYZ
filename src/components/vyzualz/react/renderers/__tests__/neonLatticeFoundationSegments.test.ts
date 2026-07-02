@@ -140,9 +140,9 @@ describe('canonical normalized segments', () => {
 })
 
 describe('preset compatibility', () => {
-  it('keeps the four stable Neon Lattice preset IDs unchanged', () => {
+  it('keeps the four stable Neon Lattice preset IDs unchanged while allowing additive presets', () => {
     const ids = DEFAULT_REACT_PRESETS.filter(preset => preset.engine === 'neonLattice').map(preset => preset.id)
-    expect(ids).toEqual([
+    expect(ids.slice(0, 4)).toEqual([
       'preset-nl-acid-magenta',
       'preset-nl-drmvyz-lattice',
       'preset-nl-sparse-starlines',
@@ -150,15 +150,13 @@ describe('preset compatibility', () => {
     ])
   })
 
-  it('normalizes current presets without materially changing authored legacy values', () => {
+  it('normalizes every enhanced preset safely and idempotently', () => {
     for (const preset of DEFAULT_REACT_PRESETS.filter(preset => preset.engine === 'neonLattice')) {
       const normalized = normalizeNeonLatticeSettings(preset.neonLatticeSettings)
-      for (const [key, value] of Object.entries(preset.neonLatticeSettings ?? {})) {
-        expect(normalized[key as keyof typeof normalized]).toEqual(value)
-      }
-      expect(normalized.compositionMode).toBe('legacyLattice')
-      expect(normalized.orientationWeights.diagonalUp).toBe(0)
-      expect(normalized.orientationWeights.diagonalDown).toBe(0)
+      expect(normalizeNeonLatticeSettings(normalized)).toEqual(normalized)
+      expect(normalized.compositionMode).not.toBe('legacyLattice')
+      expect(Object.values(normalized.orientationWeights).reduce((sum, value) => sum + value, 0)).toBeCloseTo(1)
+      expect(normalized.lanePattern.steps).toHaveLength(normalized.lanePattern.sequenceLength)
     }
   })
 })

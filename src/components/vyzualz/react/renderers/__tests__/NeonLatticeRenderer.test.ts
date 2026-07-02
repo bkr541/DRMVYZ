@@ -819,8 +819,11 @@ describe('Patch 2 composition ownership and sequencer lifecycle', () => {
     const snapshot = __getNeonLatticeState(ctx)!
     expect(snapshot.activeCompositionMode).toBe('laneSequencer')
     expect(snapshot.currentPatternId).toBe(lanePattern.id)
+    expect(snapshot.activeLaneCount).toBe(8)
     expect(snapshot.currentSequenceStep).toBe(0)
     expect(snapshot.activeEnvelopeCount).toBe(1)
+    expect(snapshot.qualityTier).toBe(DEFAULT_NEON_LATTICE_SETTINGS.qualityTier)
+    expect(snapshot.droppedOrLimitedEvents).toBeGreaterThanOrEqual(0)
 
     run(ctx, { audioTime: 1.3, mi: makeMI({ frameId: 2, beatIndex: 1, beatHit: true }) }, {
       compositionMode: 'laneSequencer',
@@ -885,12 +888,14 @@ describe('Patch 2 composition ownership and sequencer lifecycle', () => {
     run(trackCtx, { audioTime: 1, trackKey: 'track-a', mi: makeMI({ frameId: 1, beatIndex: 0, beatHit: true }) }, baseSettings)
     run(trackCtx, { audioTime: 1.1, beatHit: false, trackKey: 'track-b' }, baseSettings)
     expect(__getNeonLatticeState(trackCtx)!.railCount).toBe(0)
+    expect(__getNeonLatticeState(trackCtx)!.resetReason).toBe('trackReplacement')
 
     const seekCtx = makeCtx()
     run(seekCtx, { audioTime: 5, trackKey: 'track-a', mi: makeMI({ frameId: 1, beatIndex: 0, beatHit: true }) }, baseSettings)
     run(seekCtx, { audioTime: 2, beatHit: false, trackKey: 'track-a' }, baseSettings)
     expect(__getNeonLatticeState(seekCtx)!.railCount).toBe(0)
     expect(__getNeonLatticeState(seekCtx)!.currentSequenceStep).toBe(-1)
+    expect(__getNeonLatticeState(seekCtx)!.resetReason).toBe('rendererRemount')
 
     const stopCtx = makeCtx()
     run(stopCtx, { audioTime: 1, trackKey: 'track-a', isPlaying: true, mi: makeMI({ frameId: 1, beatIndex: 0, beatHit: true }) }, baseSettings)

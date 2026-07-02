@@ -92,6 +92,7 @@ import {
 } from './neonLatticeSequencer'
 import {
   activeNeonLatticeOverrideNames,
+  applyNeonLatticePaletteRuntime,
   applyNeonLatticePhraseRuntime,
   computeNeonLatticePhraseProgressModulation,
   consumeNeonLatticeAudioFrame,
@@ -123,6 +124,9 @@ interface NeonLatticeState {
   duplicateIntersectionsSuppressed: number
   routedPulseCount: number
   preventedRoutingLoops: number
+  limitedEvents: number
+  qualityTier: NeonLatticeSettings['qualityTier']
+  lastResetReason: string | null
   activePresetId: string | null
   lastTrackKey: string | null
   trailCanvas:  OffscreenCanvas
@@ -241,6 +245,9 @@ function makeState(W: number, H: number): NeonLatticeState {
     duplicateIntersectionsSuppressed: 0,
     routedPulseCount: 0,
     preventedRoutingLoops: 0,
+    limitedEvents: 0,
+    qualityTier: DEFAULT_NEON_LATTICE_SETTINGS.qualityTier,
+    lastResetReason: null,
     activePresetId: null,
     lastTrackKey: null,
     trailCanvas:  new OffscreenCanvas(W, H),
@@ -422,6 +429,8 @@ function resizeState(st: NeonLatticeState, W: number, H: number): void {
   st.invalidSegmentsDiscarded = 0
   st.routedPulseCount = 0
   st.preventedRoutingLoops = 0
+  st.limitedEvents = 0
+  st.lastResetReason = null
   st.lastMiFrameId = -1
   st.lastBeatIndex = -1
   st.lastBarIndex = -1
@@ -984,6 +993,7 @@ export function neonLatticeQualityLimits(qualityTier: NeonLatticeSettings['quali
 function pruneSegmentBudget(st: NeonLatticeState, settings: NeonLatticeSettings): void {
   const maxSegments = neonLatticeQualityLimits(settings.qualityTier).maxSegments
   if (st.rails.length <= maxSegments) return
+  st.limitedEvents += st.rails.length - maxSegments
   const retained = st.rails
     .slice()
     .sort((a, b) => b.birthSec - a.birthSec || a.id.localeCompare(b.id))
@@ -1035,7 +1045,9 @@ function spawnAuthoredLaneCluster(
     ? 'vertical'
     : requestedOrientation
   const qualityChordLimit = neonLatticeQualityLimits(settings.qualityTier).maxChordSize
-  const requestedChord = Math.max(1, Math.min(laneCount, qualityChordLimit, Math.round(options.chordSize ?? settings.chordSize)))
+  const rawRequestedChord = Math.max(1, Math.round(options.chordSize ?? settings.chordSize))
+  const requestedChord = Math.max(1, Math.min(laneCount, qualityChordLimit, rawRequestedChord))
+  st.limitedEvents += Math.max(0, rawRequestedChord - requestedChord)
   const routeOffset = stableRouteOffset(options.routeId, laneCount)
   const baseLane = ((event.beatIndex + routeOffset) % laneCount + laneCount) % laneCount
   const spacing = Math.max(1, Math.round(options.laneSpacingScale ?? 1))
@@ -1203,9 +1215,13 @@ export function renderNeonLattice(
 
   if (dimChanged || longGap || stoppedPlay || transportDiscontinuity || rewound || trackChanged || presetChanged) {
     resizeState(st, W, H)
-    if (lifecycleResetReason) st.audioDirector.diagnostics.phraseResetReason = lifecycleResetReason
+    if (lifecycleResetReason) {
+      st.audioDirector.diagnostics.phraseResetReason = lifecycleResetReason
+      st.lastResetReason = lifecycleResetReason
+    }
   }
 
+  st.qualityTier = baseSettings.qualityTier
   const dt          = Math.min(0.1, Math.max(0, audioTime - (st.lastFrameSec < 0 ? audioTime : st.lastFrameSec)))
   st.lastFrameSec   = audioTime
   st.wasPlaying     = frame.isPlaying
@@ -1215,16 +1231,14 @@ export function renderNeonLattice(
   const isFrozen    = audioTime < st.frozenUntilSec
 
   // ── Palette ────────────────────────────────────────────────────────────────
-  const paletteRgb: NeonPaletteRgb = {
+  const basePaletteRgb: Required<NeonPaletteRgb> = {
     primary:   hexToRgbStr(preset.palette.primary),
     secondary: hexToRgbStr(preset.palette.secondary),
     accent:    hexToRgbStr(preset.palette.accent),
     highlight: hexToRgbStr(preset.palette.highlight),
     background: hexToRgbStr(preset.palette.background ?? '#03070d'),
   }
-  const bgColor  = preset.palette.background ?? '#03070d'
-  const accentRgb = paletteRgb.accent
-  const strikeRgb = paletteRgb[settings.cyanStrikePaletteRole] ?? paletteRgb.highlight
+  const bgColor = preset.palette.background ?? '#03070d'
 
   const mi = frame.musicIntelligence
   const consumedAudio = consumeNeonLatticeAudioFrame(st.audioDirector, {
@@ -1242,6 +1256,7 @@ export function renderNeonLattice(
     st.phraseRuntime = resetNeonLatticePhraseOverrides(st.phraseRuntime, 'rendererRemount')
   }
 
+  if (consumedAudio.resetReason) st.lastResetReason = consumedAudio.resetReason
   const audioEvents = consumedAudio.events
   if (audioEvents.some(event => event.source === 'beat')) {
     st.phraseRuntime = resetNeonLatticePhraseOverrides(st.phraseRuntime, 'nextStep')
@@ -1289,6 +1304,9 @@ export function renderNeonLattice(
       diagonalDown: settings.orientationWeights.diagonalDown + phraseProgress.diagonalWeightDelta * 0.5,
     },
   })
+  const paletteRgb = applyNeonLatticePaletteRuntime(basePaletteRgb, st.phraseRuntime)
+  const accentRgb = paletteRgb.accent
+  const strikeRgb = paletteRgb[settings.cyanStrikePaletteRole] ?? paletteRgb.highlight
   const qualityLimits = neonLatticeQualityLimits(settings.qualityTier)
   const bloomResolutionScale = Math.max(
     0.15,
@@ -2058,8 +2076,14 @@ export function renderNeonLattice(
     for (const p of newPulses) {
       if (st.pulses.length < qualityLimits.maxPulses) st.pulses.push(p)
     }
-    if (st.pulses.length > qualityLimits.maxPulses) st.pulses = st.pulses.slice(-qualityLimits.maxPulses)
-    if (st.flares.length > qualityLimits.maxFlares) st.flares = st.flares.slice(-qualityLimits.maxFlares)
+    if (st.pulses.length > qualityLimits.maxPulses) {
+      st.limitedEvents += st.pulses.length - qualityLimits.maxPulses
+      st.pulses = st.pulses.slice(-qualityLimits.maxPulses)
+    }
+    if (st.flares.length > qualityLimits.maxFlares) {
+      st.limitedEvents += st.flares.length - qualityLimits.maxFlares
+      st.flares = st.flares.slice(-qualityLimits.maxFlares)
+    }
   }
 
   // ── Expire dead objects ────────────────────────────────────────────────────
@@ -2265,7 +2289,11 @@ export interface NeonLatticeSnapshot {
   readonly duplicateIntersectionsSuppressed: number
   readonly routedPulseCount: number
   readonly preventedRoutingLoops: number
+  readonly droppedOrLimitedEvents: number
+  readonly qualityTier: NeonLatticeSettings['qualityTier']
+  readonly resetReason: string | null
   readonly currentPatternId: string | null
+  readonly activeLaneCount: number
   readonly currentSequenceStep: number
   readonly activeEnvelopeCount: number
   readonly lastConsumedAudioEvent: string | null
@@ -2322,7 +2350,11 @@ export function __getNeonLatticeState(ctx: CanvasRenderingContext2D): NeonLattic
     duplicateIntersectionsSuppressed: st.duplicateIntersectionsSuppressed,
     routedPulseCount: st.routedPulseCount,
     preventedRoutingLoops: st.preventedRoutingLoops,
+    droppedOrLimitedEvents: st.limitedEvents,
+    qualityTier: st.qualityTier,
+    resetReason: st.lastResetReason,
     currentPatternId: st.sequencer?.patternId ?? null,
+    activeLaneCount: st.sequencer?.lanes.length ?? 0,
     currentSequenceStep: st.sequencer?.currentStep ?? -1,
     activeEnvelopeCount: st.rails.filter(rail => rail.envelope != null).length,
     lastConsumedAudioEvent: st.audioDirector.diagnostics.lastConsumedAudioEvent,

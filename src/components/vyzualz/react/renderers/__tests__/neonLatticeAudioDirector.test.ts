@@ -5,11 +5,13 @@ import type { NeonLatticePhraseProgram, NeonLatticeSettings } from '../../ReactT
 import { DEFAULT_NEON_LATTICE_SETTINGS } from '../../ReactTypes'
 import {
   activeNeonLatticeOverrideNames,
+  applyNeonLatticePaletteRuntime,
   applyNeonLatticePhraseRuntime,
   computeNeonLatticePhraseProgressModulation,
   consumeNeonLatticeAudioFrame,
   createNeonLatticeAudioDirectorState,
   executeNeonLatticePhraseActions,
+  resetNeonLatticeAudioDirector,
   resetNeonLatticePhraseOverrides,
   resolvePhraseBoundaryPriority,
   validateNeonLatticePhraseCompleteness,
@@ -243,6 +245,39 @@ describe('phrase actions, modulation, and validation', () => {
     expect(validateNeonLatticePhraseCompleteness(settings()).exempt).toBe(true)
     expect(validateNeonLatticePhraseCompleteness(settings({ compositionMode: 'laneSequencer', phrasePrograms: programs }))).toMatchObject({ valid: true, missing: [] })
     expect(validateNeonLatticePhraseCompleteness(settings({ compositionMode: 'laneSequencer', phrasePrograms: programs.slice(0, 3) }))).toMatchObject({ valid: false, missing: [32] })
+  })
+
+  it('applies phrase palette rotation without mutating the Brand Kit roles', () => {
+    const palette = { primary: 'p', secondary: 's', accent: 'a', highlight: 'h', background: 'b' }
+    const rotated = applyNeonLatticePaletteRuntime(palette, {
+      paletteOffset: { value: 1, resetOn: 'nextPhrase', persistent: false },
+    })
+    expect(rotated).toEqual({ primary: 's', secondary: 'a', accent: 'h', highlight: 'p', background: 'b' })
+    expect(palette).toEqual({ primary: 'p', secondary: 's', accent: 'a', highlight: 'h', background: 'b' })
+  })
+
+  it('clears stale event, phrase, sequence, and transport diagnostics on reset', () => {
+    const state = createNeonLatticeAudioDirectorState()
+    state.wasPlaying = true
+    state.lastEventIdentity.beat = 'old-beat'
+    state.diagnostics.lastConsumedAudioEvent = 'old-event'
+    state.diagnostics.lastPhraseBoundaryConsumed = 32
+    state.diagnostics.boundaryPriorityDecision = 'old-priority'
+    state.diagnostics.lastPhraseActionExecuted = 'blackout'
+    state.diagnostics.currentSequenceStep = 12
+    state.diagnostics.activeTemporaryOverrides = ['paletteOffset']
+    resetNeonLatticeAudioDirector(state, 'trackReplacement', frame({ frameId: 77 }), 'new-track')
+    expect(state.wasPlaying).toBe(false)
+    expect(state.lastEventIdentity).toEqual({})
+    expect(state.diagnostics).toMatchObject({
+      lastConsumedAudioEvent: null,
+      lastPhraseBoundaryConsumed: null,
+      boundaryPriorityDecision: null,
+      lastPhraseActionExecuted: null,
+      currentSequenceStep: -1,
+      activeTemporaryOverrides: [],
+      phraseResetReason: 'trackReplacement',
+    })
   })
 
   it('contains no elapsed-seconds phrase clock', () => {

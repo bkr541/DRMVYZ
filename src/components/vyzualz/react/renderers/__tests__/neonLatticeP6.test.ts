@@ -125,7 +125,7 @@ describe('preset merge: neonLatticeSettings applied when NL preset activated', (
   it('NL preset overrides railDensity', () => {
     const acidMagenta = DEFAULT_REACT_PRESETS.find(p => p.id === 'preset-nl-acid-magenta')
     expect(acidMagenta).toBeDefined()
-    expect(acidMagenta!.neonLatticeSettings?.railDensity).toBe(0.55)
+    expect(acidMagenta!.neonLatticeSettings?.railDensity).toBe(0.5)
   })
 
   it('setNeonLatticeSettings partial-merges without clobbering other fields', () => {
@@ -147,13 +147,13 @@ describe('preset merge: neonLatticeSettings applied when NL preset activated', (
   })
 })
 
-// ── 4. Four NL presets exist and have correct engine ─────────────────────────
+// ── 4. Enhanced NL presets exist and have correct engine ─────────────────────────
 
 describe('NL factory presets', () => {
   const nlPresets = DEFAULT_REACT_PRESETS.filter(p => p.engine === 'neonLattice')
 
-  it('has exactly 4 NL presets', () => {
-    expect(nlPresets.length).toBe(4)
+  it('has the four stable presets plus Reverie Keygrid', () => {
+    expect(nlPresets.length).toBe(5)
   })
 
   it('preset-nl-acid-magenta is the first NL preset', () => {
@@ -161,7 +161,7 @@ describe('NL factory presets', () => {
   })
 
   it('every explicitly-named NL preset has neonLatticeSettings', () => {
-    const named = ['preset-nl-acid-magenta', 'preset-nl-drmvyz-lattice', 'preset-nl-sparse-starlines', 'preset-nl-overload-matrix']
+    const named = ['preset-nl-acid-magenta', 'preset-nl-drmvyz-lattice', 'preset-nl-sparse-starlines', 'preset-nl-overload-matrix', 'preset-nl-reverie-keygrid']
     for (const id of named) {
       const p = nlPresets.find(p => p.id === id)
       expect(p).toBeDefined()
@@ -198,7 +198,7 @@ describe('NL factory presets', () => {
 
   it('every named NL preset resolves to every NeonLatticeSettings field', () => {
     const allKeys = Object.keys(DEFAULT_NEON_LATTICE_SETTINGS) as Array<keyof NeonLatticeSettings>
-    const named = ['preset-nl-acid-magenta', 'preset-nl-drmvyz-lattice', 'preset-nl-sparse-starlines', 'preset-nl-overload-matrix']
+    const named = ['preset-nl-acid-magenta', 'preset-nl-drmvyz-lattice', 'preset-nl-sparse-starlines', 'preset-nl-overload-matrix', 'preset-nl-reverie-keygrid']
     for (const id of named) {
       const p = nlPresets.find(p => p.id === id)!
       expect(p.neonLatticeSettings).toBeDefined()
@@ -1182,12 +1182,7 @@ describe('NL preset order independence', () => {
         // Path 2: directly to B
         const patchB     = buildPresetPatch(presetB, DEFAULT_OSCILLATOR_SETTINGS, undefined, DEFAULT_NEON_LATTICE_SETTINGS)
 
-        // All explicitly-defined keys in preset B must match in both paths
-        for (const [key, val] of Object.entries(presetB.neonLatticeSettings!)) {
-          const kk = key as keyof NeonLatticeSettings
-          expect(patchAtoB.neonLatticeSettings![kk]).toBe(val)
-          expect(patchB.neonLatticeSettings![kk]).toBe(val)
-        }
+        expect(patchAtoB.neonLatticeSettings).toEqual(patchB.neonLatticeSettings)
       }
     }
   })

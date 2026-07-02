@@ -11,6 +11,7 @@ import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { DEFAULT_REACT_RENDER_PARAMS } from './reactRenderUtils'
 import { clearLaserDmxVisualState, disposeLaserDmxRenderer } from './LaserDmxRenderer'
 import { clearNeonLatticeVisualState } from './NeonLatticeRenderer'
+import { createNeonLatticeSyntheticPreviewFrame } from './neonLatticePreview'
 import {
   disposeCinematicPortalRenderer,
   resetCinematicPortalRenderer,
@@ -36,7 +37,7 @@ const PREVIEW_START_TIME_SEC = 31.5
 const PREVIEW_SECONDS = 2.4
 const MAX_CONCURRENT_WEBGL_THUMBNAILS = 1
 const MAX_THUMBNAIL_CACHE_ENTRIES = 256
-const THUMBNAIL_FINGERPRINT_VERSION = 5
+const THUMBNAIL_FINGERPRINT_VERSION = 6
 const THUMBNAIL_QUALITY_MODE = 'low-cost-v1'
 const MIN_THUMBNAIL_DIMENSION = 16
 const MAX_THUMBNAIL_DIMENSION = 1024
@@ -431,7 +432,7 @@ async function renderThumbnailOnceWithExclusiveContextAccess(
 
     for (let index = 0; index < frameBudget; index += 1) {
       if (signal.aborted) return null
-      const frame = buildFrame(index, frameBudget, width, height, sectionType)
+      const frame = buildFrame(index, frameBudget, width, height, sectionType, thumbnailPreset)
       renderReactEngine(ctx, frame, thumbnailPreset, renderParams, sections, {
         webglLifetime: 'transient-thumbnail',
       })
@@ -636,7 +637,7 @@ function resolveThumbnailFrameBudget(preset: ReactPreset): number {
   switch (preset.engine) {
     case 'shaderPads': return 1
     case 'oscilloscope': return 2
-    case 'neonLattice': return 4
+    case 'neonLattice': return 9
     case 'laserDmx': return 5
     case 'cinematicPortal':
       if (preset.cinematicConfig?.worldMode === 'reactiveConstellation') return 10
@@ -714,6 +715,7 @@ function buildFrame(
   width: number,
   height: number,
   sectionType: ReactSectionType | null,
+  preset: ReactPreset,
 ): ReactFrameContext {
   const progress = frameBudget <= 1 ? 1 : index / (frameBudget - 1)
   const timeSec = PREVIEW_START_TIME_SEC + PREVIEW_SECONDS * progress
@@ -744,7 +746,12 @@ function buildFrame(
     audio: { bass, mid, high, volume },
     freqData: null,
     timeDomainData: null,
-    musicIntelligence: null,
+    musicIntelligence: preset.engine === 'neonLattice'
+      ? createNeonLatticeSyntheticPreviewFrame({
+          index, frameBudget, timeSec, bpm: PREVIEW_BPM,
+          requestedSectionType: sectionType, presetId: preset.id,
+        })
+      : null,
     resolvedSection: sectionType ? {
       type: sectionType,
       startSec: 0,
