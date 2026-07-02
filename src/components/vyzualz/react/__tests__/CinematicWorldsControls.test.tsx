@@ -76,22 +76,22 @@ describe('Cinematic Worlds engine controls', () => {
     expect(container.textContent).toContain('Selected')
   })
 
-  it('switches simple and advanced modes without discarding authored values or focusable semantics', async () => {
+  it('responds to right-rail simple and advanced mode changes without duplicating the mode switch', async () => {
     const preset = presetFor('eventHorizon')
     const base = resolveCinematicConfigForPreset(preset, {})!
     useReactStore.getState().selectReactPreset(preset.id)
     useReactStore.getState().setCinematicConfigForPreset(preset.id, { ...base, seed: 7654321 })
     await render(<CinematicWorldsEngineControls />)
 
+    expect([...container.querySelectorAll('button')].some(button => button.textContent?.trim() === 'Simple')).toBe(false)
+    expect([...container.querySelectorAll('button')].some(button => button.textContent?.trim() === 'Advanced')).toBe(false)
     expect(container.querySelector('#cinematic-portal-shape')).toBeNull()
-    const advanced = buttonWithText('Advanced')
-    await act(async () => advanced.click())
-    expect(advanced.getAttribute('aria-pressed')).toBe('true')
+    await act(async () => useReactStore.getState().setCinematicWorldsUiMode('advanced'))
     expect(container.querySelector('#cinematic-portal-shape')).not.toBeNull()
     expect(container.querySelector('output')?.textContent).toBe('7654321')
 
-    await act(async () => buttonWithText('Simple').click())
-    await act(async () => buttonWithText('Advanced').click())
+    await act(async () => useReactStore.getState().setCinematicWorldsUiMode('simple'))
+    await act(async () => useReactStore.getState().setCinematicWorldsUiMode('advanced'))
     expect(container.querySelector('output')?.textContent).toBe('7654321')
   })
 
@@ -163,6 +163,16 @@ describe('Cinematic Worlds engine controls', () => {
 })
 
 describe('Cinematic Worlds FX and media controls', () => {
+  it('keeps the Simple and Advanced switch in the right-rail FX controls', async () => {
+    useReactStore.getState().selectReactPreset(presetFor('eventHorizon').id)
+    await render(<CinematicWorldsFxControls />)
+
+    expect(buttonWithText('Simple').getAttribute('aria-pressed')).toBe('true')
+    const advanced = buttonWithText('Advanced')
+    await act(async () => advanced.click())
+    expect(advanced.getAttribute('aria-pressed')).toBe('true')
+  })
+
   it('shows Media Portal controls only for Media Portal and labels quality effects', async () => {
     useReactStore.getState().selectReactPreset(presetFor('eventHorizon').id)
     await render(<CinematicWorldsFxControls />)

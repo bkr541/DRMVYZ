@@ -392,7 +392,6 @@ export function CinematicWorldsEngineControls() {
 
   return (
     <div className="rv-cinematic-controls" data-world={config.worldMode}>
-      <CinematicModeSwitch />
       <WorldStatus presetName={preset.name} worldMode={config.worldMode} modified={modified} />
       <CtrlSection label="World" />
       <div className="rv-cinematic-world-grid" role="radiogroup" aria-label="Cinematic world">

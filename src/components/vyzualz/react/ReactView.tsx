@@ -79,6 +79,24 @@ function LazyWorkspaceFallback({ label }: { label: string }) {
   )
 }
 
+function LowerWorkspaceChevron({ expanded }: { expanded: boolean }) {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <path d={expanded ? 'm4 12 6-6 6 6' : 'm4 8 6 6 6-6'} />
+    </svg>
+  )
+}
+
+function StageFocusIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M8 4H4v4M16 4h4v4M20 16v4h-4M8 20H4v-4" />
+      <circle cx="12" cy="12" r="3.25" />
+      <path d="M12 7.5v1.25M12 15.25v1.25M7.5 12h1.25M15.25 12h1.25" />
+    </svg>
+  )
+}
+
 // Four top-level destinations keep the right rail compact and role-based.
 const REACT_RIGHT_BASE_TABS: Omit<RailTabOption<ReactRightPanel>, 'disabled'>[] = [
   { id: 'presets', label: 'PRESETS' },
@@ -495,6 +513,15 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
               aria-label="Performance timeline workspace"
             >
               <div className="rv-lower-workspace-toolbar">
+                <button
+                  type="button"
+                  className="rv-lower-workspace-row-toggle"
+                  aria-expanded={!lowerWorkspaceCollapsed}
+                  aria-label={lowerWorkspaceCollapsed
+                    ? 'Expand Track Map and Performance Pads'
+                    : 'Collapse Track Map and Performance Pads'}
+                  onClick={() => setLowerWorkspaceCollapsed(value => !value)}
+                />
                 <div className="rv-lower-workspace-tabs" role="tablist" aria-label="Timeline surfaces">
                   {workspaceComposition.showTrackMap && (
                     <button
@@ -525,26 +552,21 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
                     </button>
                   )}
                 </div>
-                <button
-                  type="button"
-                  className="rv-lower-workspace-toggle"
-                  aria-expanded={!lowerWorkspaceCollapsed}
-                  onClick={() => setLowerWorkspaceCollapsed(value => !value)}
-                  title={lowerWorkspaceCollapsed ? 'Expand Track Map and Performance Pads' : 'Collapse Track Map and Performance Pads'}
-                >
-                  <span aria-hidden="true">{lowerWorkspaceCollapsed ? '▾' : '▴'}</span>
-                  {lowerWorkspaceCollapsed ? 'Expand' : 'Collapse'}
-                </button>
-                <button
-                  type="button"
-                  className={`rv-stage-focus-btn${stageFocus ? ' is-active' : ''}`}
-                  aria-pressed={stageFocus}
-                  onClick={() => setStageFocus(value => !value)}
-                  title={stageFocus ? 'Restore workspace rails and timeline' : 'Maximize the live output stage'}
-                >
-                  <span aria-hidden="true">◉</span>
-                  Stage Focus
-                </button>
+                <div className="rv-lower-workspace-actions">
+                  <button
+                    type="button"
+                    className={`rv-stage-focus-btn${stageFocus ? ' is-active' : ''}`}
+                    aria-label={stageFocus ? 'Restore workspace rails and timeline' : 'Maximize the live output stage'}
+                    aria-pressed={stageFocus}
+                    onClick={() => setStageFocus(value => !value)}
+                    title={stageFocus ? 'Restore workspace rails and timeline' : 'Maximize the live output stage'}
+                  >
+                    <StageFocusIcon />
+                  </button>
+                  <span className="rv-lower-workspace-chevron" aria-hidden="true">
+                    <LowerWorkspaceChevron expanded={!lowerWorkspaceCollapsed} />
+                  </span>
+                </div>
               </div>
 
               <div

@@ -54,6 +54,80 @@ const RENDER_LABELS: Record<OscillatorRenderMode, string> = {
   ribbon:     'Ribbon',
 }
 
+type SoundDrawingSourceChoice = 'classic' | 'builtinShape' | 'text' | 'svg'
+
+const SOUND_DRAWING_SOURCE_OPTIONS: Array<{
+  value: SoundDrawingSourceChoice
+  label: string
+}> = [
+  { value: 'classic', label: 'Classic Scope' },
+  { value: 'builtinShape', label: 'Built-in Shape' },
+  { value: 'text', label: 'Text' },
+  { value: 'svg', label: 'SVG' },
+]
+
+function SoundDrawingSourceIcon({ source }: { source: SoundDrawingSourceChoice }) {
+  if (source === 'classic') {
+    return (
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M3 16h4l3-8 5 16 4-12 3 8h7" />
+      </svg>
+    )
+  }
+
+  if (source === 'builtinShape') {
+    return (
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path d="m16 3 11 7v12l-11 7L5 22V10Z" />
+        <circle cx="16" cy="16" r="4" />
+      </svg>
+    )
+  }
+
+  if (source === 'text') {
+    return (
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M7 7h18M16 7v18M11 25h10" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M8 3h11l6 6v20H8Z" />
+      <path d="M19 3v7h6M11 22c3-8 7 3 11-7" />
+    </svg>
+  )
+}
+
+function SoundDrawingSourceGrid({
+  value,
+  onChange,
+}: {
+  value: SoundDrawingSourceChoice
+  onChange: (value: SoundDrawingSourceChoice) => void
+}) {
+  return (
+    <div className="rv-sound-source-grid" role="radiogroup" aria-label="Sound Drawing source">
+      {SOUND_DRAWING_SOURCE_OPTIONS.map(option => (
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          aria-checked={value === option.value}
+          className={value === option.value ? 'rv-sound-source-card is-active' : 'rv-sound-source-card'}
+          onClick={() => onChange(option.value)}
+        >
+          <span className="rv-sound-source-card-icon">
+            <SoundDrawingSourceIcon source={option.value} />
+          </span>
+          <span className="rv-sound-source-card-label">{option.label}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function StatusKV({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="rv-osc-status-kv">
@@ -293,16 +367,11 @@ export function ReactEnginePanel() {
             allMediaItems={allMediaItems}
           />
 
-          <SelectRow
-            label="Source"
-            value={osc.sourceType === 'svgGlyph' || osc.sourceType === 'svgVisual' ? 'svg' : osc.sourceType}
-            onChange={v => set({ sourceType: v as OscillatorSourceType })}
-            options={[
-              { value: 'classic',      label: 'Classic Scope' },
-              { value: 'builtinShape', label: 'Built-in Shape' },
-              { value: 'text',         label: 'Text' },
-              { value: 'svg',          label: 'SVG' },
-            ]}
+          <SoundDrawingSourceGrid
+            value={osc.sourceType === 'svgGlyph' || osc.sourceType === 'svgVisual'
+              ? 'svg'
+              : osc.sourceType}
+            onChange={sourceType => set({ sourceType })}
           />
 
           {/* Classic Scope mode */}
