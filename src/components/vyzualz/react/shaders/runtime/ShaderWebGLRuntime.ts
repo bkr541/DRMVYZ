@@ -28,6 +28,7 @@ export class ShaderWebGLRuntime {
   private _diagnosticHandle: WebGLContextDiagnosticHandle | null
   private _onContextLostCallback: (() => void) | null
   private _onContextRestoredCallback: (() => void) | null
+  private readonly _restoreContext: boolean
   private _disposed     = false
   private _contextLost  = false
   private _resolutionScale: number
@@ -56,6 +57,7 @@ export class ShaderWebGLRuntime {
       resolutionScale?: number
       onContextLost?: () => void
       onContextRestored?: () => void
+      restoreContext?: boolean
       ownership?: WebGLContextOwnership
     },
   ): RuntimeCreateResult {
@@ -80,6 +82,7 @@ export class ShaderWebGLRuntime {
       resolutionScale?: number
       onContextLost?: () => void
       onContextRestored?: () => void
+      restoreContext?: boolean
       ownership?: WebGLContextOwnership
     },
   ) {
@@ -93,6 +96,7 @@ export class ShaderWebGLRuntime {
     this._diagnosticHandle = registerDrmvyzWebGLContext(gl, this._ownership)
     this._onContextLostCallback = opts?.onContextLost ?? null
     this._onContextRestoredCallback = opts?.onContextRestored ?? null
+    this._restoreContext = opts?.restoreContext ?? this._onContextRestoredCallback != null
 
     const now = performance.now() * 0.001
     this._startTime     = now
@@ -101,12 +105,14 @@ export class ShaderWebGLRuntime {
     this._resolutionScale = clampScale(opts?.resolutionScale ?? 1.0)
 
     this._onContextLostHandler = (e: Event) => {
-      e.preventDefault()
+      if (this._disposed) return
+      if (this._restoreContext) e.preventDefault()
       this._contextLost = true
       if (import.meta.env.DEV) console.warn('[ShaderWebGLRuntime] context lost')
       this._onContextLostCallback?.()
     }
     this._onContextRestoredHandler = () => {
+      if (this._disposed || !this._restoreContext) return
       this._contextLost = false
       if (import.meta.env.DEV) console.log('[ShaderWebGLRuntime] context restored')
       // Runtime owns no GPU resources of its own; scene-level rebuild is the

@@ -423,6 +423,7 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
             {activeReactEngineId === 'shaderPads' ? (
               <Suspense fallback={<LazyWorkspaceFallback label="Shader renderer" />}>
                 <ReactShaderCanvas
+                  key="react-live-shaderPads"
                   analyser={analyser}
                   intensity={reactIntensity}
                   motion={reactMotion}
@@ -445,7 +446,9 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
               </Suspense>
             ) : (
               <ReactPlaceholderCanvas
+                key={`react-live-${activeReactEngineId}`}
                 analyser={analyser}
+                engine={activeReactEngineId}
                 activePreset={renderPreset}
                 intensity={reactIntensity}
                 motion={reactMotion}

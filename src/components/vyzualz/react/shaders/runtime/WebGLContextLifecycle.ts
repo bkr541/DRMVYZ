@@ -26,6 +26,8 @@ export interface WebGLContextDiagnosticSnapshot {
   activeCount: number
   activeByLifetime: Record<WebGLContextLifetime, number>
   activeByRole: Record<string, number>
+  activeByEngine: Record<string, number>
+  activeLiveByEngine: Record<string, number>
 }
 
 export interface WebGLContextDiagnosticHandle {
@@ -181,9 +183,15 @@ export function getDrmvyzWebGLContextDiagnosticsForTests(): WebGLContextDiagnost
     'transient-thumbnail': 0,
   }
   const activeByRole: Record<string, number> = {}
+  const activeByEngine: Record<string, number> = {}
+  const activeLiveByEngine: Record<string, number> = {}
   for (const record of activeRecords.values()) {
     activeByLifetime[record.ownership.lifetime] += 1
     activeByRole[record.ownership.role] = (activeByRole[record.ownership.role] ?? 0) + 1
+    activeByEngine[record.ownership.engine] = (activeByEngine[record.ownership.engine] ?? 0) + 1
+    if (record.ownership.lifetime === 'live-reusable') {
+      activeLiveByEngine[record.ownership.engine] = (activeLiveByEngine[record.ownership.engine] ?? 0) + 1
+    }
   }
   return {
     creationCount,
@@ -194,6 +202,63 @@ export function getDrmvyzWebGLContextDiagnosticsForTests(): WebGLContextDiagnost
     activeCount: activeRecords.size,
     activeByLifetime,
     activeByRole,
+    activeByEngine,
+    activeLiveByEngine,
+  }
+}
+
+
+export interface DrmvyzWebGLContextOwnershipValidation {
+  ok: boolean
+  violations: string[]
+}
+
+/**
+ * Development guardrail for the final React-preview architecture. It validates
+ * DRMVYZ ownership, not Chromium's process-wide context accounting.
+ */
+export function validateDrmvyzWebGLContextOwnershipBounds(
+  expectedLiveEngine: 'shader-engine' | 'cinematic-worlds' | null,
+): DrmvyzWebGLContextOwnershipValidation {
+  const snapshot = getDrmvyzWebGLContextDiagnosticsForTests()
+  const violations: string[] = []
+  const liveCount = snapshot.activeByLifetime['live-reusable']
+  const thumbnailCount = snapshot.activeByLifetime['transient-thumbnail']
+
+  if (liveCount > 1) violations.push(`expected at most 1 live WebGL context, found ${liveCount}`)
+  if (thumbnailCount > MAX_ACTIVE_DRMVYZ_THUMBNAIL_WEBGL_CONTEXTS) {
+    violations.push(
+      `expected at most ${MAX_ACTIVE_DRMVYZ_THUMBNAIL_WEBGL_CONTEXTS} thumbnail WebGL context, found ${thumbnailCount}`,
+    )
+  }
+
+  if (expectedLiveEngine == null) {
+    if (liveCount !== 0) violations.push(`expected no live WebGL context, found ${liveCount}`)
+  } else {
+    const expectedCount = snapshot.activeLiveByEngine[expectedLiveEngine] ?? 0
+    if (expectedCount > 1) violations.push(`expected at most 1 live ${expectedLiveEngine} context, found ${expectedCount}`)
+    const unexpectedLiveCount = liveCount - expectedCount
+    if (unexpectedLiveCount > 0) {
+      const engines = Object.entries(snapshot.activeLiveByEngine)
+        .filter(([engine, count]) => engine !== expectedLiveEngine && count > 0)
+        .map(([engine]) => engine)
+      violations.push(
+        `inactive live WebGL engine still owns ${unexpectedLiveCount} context${unexpectedLiveCount === 1 ? '' : 's'}` +
+        (engines.length > 0 ? `: ${engines.join(', ')}` : ''),
+      )
+    }
+  }
+
+  return { ok: violations.length === 0, violations }
+}
+
+export function assertDrmvyzWebGLContextOwnershipBoundsForDevelopment(
+  expectedLiveEngine: 'shader-engine' | 'cinematic-worlds' | null,
+): void {
+  if (!diagnosticsEnabled) return
+  const validation = validateDrmvyzWebGLContextOwnershipBounds(expectedLiveEngine)
+  if (!validation.ok) {
+    console.warn(`[WebGLContextLifecycle] ownership guardrail failed: ${validation.violations.join('; ')}`)
   }
 }
 

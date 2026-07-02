@@ -9,6 +9,7 @@ import {
   resetDrmvyzWebGLContextDiagnosticsForTests,
   retireDrmvyzWebGLContext,
   serializeDrmvyzThumbnailWebGLWork,
+  validateDrmvyzWebGLContextOwnershipBounds,
 } from '../WebGLContextLifecycle'
 
 const ownership = {
@@ -98,6 +99,84 @@ describe('DRMVYZ WebGL context lifecycle diagnostics', () => {
     })
     retireDrmvyzWebGLContext(next, 'terminal-retire')
   })
+
+  it('tracks active engines and rejects ownership left behind by an inactive live family', () => {
+    const shader = registerDrmvyzWebGLContext(fakeContext(), {
+      lifetime: 'live-reusable',
+      role: 'react-preview',
+      engine: 'shader-engine',
+      expectedMaxActive: 1,
+    })
+
+    expect(getDrmvyzWebGLContextDiagnosticsForTests()).toMatchObject({
+      activeByEngine: { 'shader-engine': 1 },
+      activeLiveByEngine: { 'shader-engine': 1 },
+    })
+    expect(validateDrmvyzWebGLContextOwnershipBounds('shader-engine')).toEqual({
+      ok: true,
+      violations: [],
+    })
+    expect(validateDrmvyzWebGLContextOwnershipBounds(null)).toMatchObject({
+      ok: false,
+      violations: [expect.stringContaining('expected no live WebGL context')],
+    })
+    expect(validateDrmvyzWebGLContextOwnershipBounds('cinematic-worlds')).toMatchObject({
+      ok: false,
+      violations: [expect.stringContaining('inactive live WebGL engine')],
+    })
+
+    retireDrmvyzWebGLContext(shader, 'release-resources')
+    expect(validateDrmvyzWebGLContextOwnershipBounds(null)).toEqual({ ok: true, violations: [] })
+  })
+
+
+  it('allows the selected live engine to coexist with a thumbnail from another engine family', () => {
+    const shader = registerDrmvyzWebGLContext(fakeContext(), {
+      lifetime: 'live-reusable',
+      role: 'react-preview',
+      engine: 'shader-engine',
+      expectedMaxActive: 1,
+    })
+    const thumbnail = registerDrmvyzWebGLContext(fakeContext(), ownership)
+
+    expect(getDrmvyzWebGLContextDiagnosticsForTests()).toMatchObject({
+      activeByEngine: { 'shader-engine': 1, 'cinematic-worlds': 1 },
+      activeLiveByEngine: { 'shader-engine': 1 },
+    })
+    expect(validateDrmvyzWebGLContextOwnershipBounds('shader-engine')).toEqual({
+      ok: true,
+      violations: [],
+    })
+
+    retireDrmvyzWebGLContext(thumbnail, 'terminal-retire')
+    retireDrmvyzWebGLContext(shader, 'release-resources')
+  })
+
+  it('returns active ownership to baseline across repeated live mount and retirement cycles', () => {
+    for (let index = 0; index < 12; index += 1) {
+      const engine = index % 2 === 0 ? 'shader-engine' : 'cinematic-worlds'
+      const handle = registerDrmvyzWebGLContext(fakeContext(), {
+        lifetime: 'live-reusable',
+        role: 'react-preview',
+        engine,
+        expectedMaxActive: 1,
+      })
+      expect(getDrmvyzWebGLContextDiagnosticsForTests().activeCount).toBe(1)
+      retireDrmvyzWebGLContext(handle, 'release-resources')
+      expect(getDrmvyzWebGLContextDiagnosticsForTests()).toMatchObject({
+        activeCount: 0,
+        activeByLifetime: { 'live-reusable': 0, 'transient-thumbnail': 0 },
+        activeLiveByEngine: {},
+      })
+    }
+  })
+
+  it('accepts a non-WebGL live engine while retaining only the declared thumbnail pool', () => {
+    const thumbnail = registerDrmvyzWebGLContext(fakeContext(), ownership)
+    expect(validateDrmvyzWebGLContextOwnershipBounds(null)).toEqual({ ok: true, violations: [] })
+    retireDrmvyzWebGLContext(thumbnail, 'terminal-retire')
+  })
+
   it('terminally retires the previous thumbnail family before assigning the single slot', () => {
     const retireFirst = vi.fn()
     const first = claimDrmvyzThumbnailWebGLContext('cinematic-preset', retireFirst)

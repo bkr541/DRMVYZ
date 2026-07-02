@@ -5,6 +5,10 @@ import {
   getDrmvyzThumbnailWebGLCoordinatorDiagnosticsForTests,
   resetDrmvyzThumbnailWebGLCoordinatorForTests,
 } from '../../shaders/runtime/WebGLContextLifecycle'
+import {
+  acquireReactLiveEngineOwnership,
+  resetReactLiveEngineOwnershipForTests,
+} from '../ReactLiveEngineOwnership'
 
 const mocks = vi.hoisted(() => ({
   renderReactEngine: vi.fn(),
@@ -115,6 +119,7 @@ function preset(id: string): ReactPreset {
 describe('React preset thumbnail renderer scheduling', () => {
   beforeEach(() => {
     clearReactPresetThumbnailCacheForTests()
+    resetReactLiveEngineOwnershipForTests()
     resetDrmvyzThumbnailWebGLCoordinatorForTests()
     setReactPresetThumbnailSchedulerForTests(immediateScheduler)
     canvases.length = 0
@@ -131,6 +136,7 @@ describe('React preset thumbnail renderer scheduling', () => {
 
   afterEach(() => {
     clearReactPresetThumbnailCacheForTests()
+    resetReactLiveEngineOwnershipForTests()
     resetDrmvyzThumbnailWebGLCoordinatorForTests()
     setReactPresetThumbnailSchedulerForTests(null)
     vi.unstubAllGlobals()
@@ -220,6 +226,54 @@ describe('React preset thumbnail renderer scheduling', () => {
       'data:image/png;base64,exact-preview',
       'data:image/png;base64,exact-preview',
     ])
+  })
+
+  it('defers new thumbnail work until live preview initialization is stable', async () => {
+    const manual = createManualScheduler()
+    setReactPresetThumbnailSchedulerForTests(manual.scheduler)
+    const live = acquireReactLiveEngineOwnership('shaderPads', vi.fn())
+    const result = renderReactPresetThumbnail(preset('preset-crimson-collapse'))
+
+    await Promise.resolve()
+    expect(mocks.renderReactEngine).not.toHaveBeenCalled()
+    expect(getReactPresetThumbnailDiagnosticsForTests()).toMatchObject({
+      activeJobs: 0,
+      queuedJobs: 1,
+      livePriorityDeferrals: 1,
+    })
+
+    live.markStable()
+    await flushManualScheduler(manual, () => getReactPresetThumbnailDiagnosticsForTests().pendingJobs === 0)
+    await expect(result).resolves.toBe('data:image/png;base64,exact-preview')
+  })
+
+  it('interrupts and retries active thumbnail work so a new live owner gets the pooled context first', async () => {
+    const manual = createManualScheduler()
+    setReactPresetThumbnailSchedulerForTests(manual.scheduler)
+    const source = preset('preset-crimson-collapse')
+    const result = renderReactPresetThumbnail(source)
+
+    await manual.flushOne()
+    expect(mocks.renderReactEngine).toHaveBeenCalledTimes(1)
+    expect(getReactPresetThumbnailDiagnosticsForTests()).toMatchObject({
+      activeJobs: 1,
+      pooledCanvasActive: true,
+      pooledFamily: 'cinematic-webgl',
+    })
+
+    const live = acquireReactLiveEngineOwnership('shaderPads', vi.fn())
+    expect(getReactPresetThumbnailDiagnosticsForTests()).toMatchObject({
+      livePriorityInterruptions: 1,
+      pooledCanvasActive: false,
+    })
+    expect(mocks.disposeCinematicPortalRenderer).toHaveBeenCalledWith(expect.anything(), 'terminal-retire')
+    expect(canvases[0]).toMatchObject({ width: 0, height: 0 })
+
+    live.markStable()
+    await flushManualScheduler(manual, () => getReactPresetThumbnailDiagnosticsForTests().pendingJobs === 0)
+    await expect(result).resolves.toBe('data:image/png;base64,exact-preview')
+    expect(canvases).toHaveLength(2)
+    expect(readCachedReactPresetThumbnail(source)).toBe('data:image/png;base64,exact-preview')
   })
 
   it('deduplicates duplicate consumers onto one render job', async () => {

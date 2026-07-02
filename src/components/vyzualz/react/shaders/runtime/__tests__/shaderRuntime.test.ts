@@ -483,6 +483,73 @@ describe('J — beginFrame returns null after dispose or context loss', () => {
     expect(runtime.contextLost).toBe(true)
   })
 
+  it('prevents default and restores only when the caller intentionally supports recovery', () => {
+    const { gl } = makeGL()
+    const { canvas, fire } = makeCanvas(gl)
+    const preventDefault = vi.fn()
+    const onContextLost = vi.fn()
+    const onContextRestored = vi.fn()
+    const runtime = ok(ShaderWebGLRuntime.create(canvas, {
+      restoreContext: true,
+      onContextLost,
+      onContextRestored,
+    }))
+
+    fire('webglcontextlost', { preventDefault })
+    expect(preventDefault).toHaveBeenCalledTimes(1)
+    expect(onContextLost).toHaveBeenCalledTimes(1)
+    expect(runtime.contextLost).toBe(true)
+
+    fire('webglcontextrestored')
+    expect(onContextRestored).toHaveBeenCalledTimes(1)
+    expect(runtime.contextLost).toBe(false)
+  })
+
+  it('does not opt terminal thumbnail contexts into browser restoration', () => {
+    const { gl } = makeGL()
+    const { canvas, fire } = makeCanvas(gl)
+    const preventDefault = vi.fn()
+    const onContextLost = vi.fn()
+    const onContextRestored = vi.fn()
+    const runtime = ok(ShaderWebGLRuntime.create(canvas, {
+      restoreContext: false,
+      onContextLost,
+      onContextRestored,
+      ownership: {
+        lifetime: 'transient-thumbnail',
+        role: 'preset-thumbnail',
+        engine: 'cinematic-worlds',
+      },
+    }))
+
+    fire('webglcontextlost', { preventDefault })
+    fire('webglcontextrestored')
+
+    expect(preventDefault).not.toHaveBeenCalled()
+    expect(onContextLost).toHaveBeenCalledTimes(1)
+    expect(onContextRestored).not.toHaveBeenCalled()
+    expect(runtime.contextLost).toBe(true)
+  })
+
+  it('ignores context events after cleanup removes runtime ownership', () => {
+    const { gl } = makeGL()
+    const { canvas, fire } = makeCanvas(gl)
+    const onContextLost = vi.fn()
+    const onContextRestored = vi.fn()
+    const runtime = ok(ShaderWebGLRuntime.create(canvas, {
+      restoreContext: true,
+      onContextLost,
+      onContextRestored,
+    }))
+
+    runtime.dispose()
+    fire('webglcontextlost', { preventDefault: vi.fn() })
+    fire('webglcontextrestored')
+
+    expect(onContextLost).not.toHaveBeenCalled()
+    expect(onContextRestored).not.toHaveBeenCalled()
+  })
+
   it('returns a FrameState when the context is healthy', () => {
     const { gl } = makeGL()
     const { canvas } = makeCanvas(gl)

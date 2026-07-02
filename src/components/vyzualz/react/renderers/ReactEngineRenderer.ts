@@ -1,9 +1,9 @@
 import type { ReactPreset, ReactSectionType, ReactTrackSection } from '../ReactTypes'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { resolveSectionAtTime, effectiveSectionIntensity, DEFAULT_REACT_RENDER_PARAMS } from './reactRenderUtils'
-import { renderCinematicPortal } from './CinematicPortalRenderer'
-import { renderSoundDrawing }    from './SoundDrawingRenderer'
-import { renderLaserDmx, clearLaserDmxVisualState, pauseLaserDmxRenderer } from './LaserDmxRenderer'
+import { disposeCinematicPortalRenderer, renderCinematicPortal } from './CinematicPortalRenderer'
+import { disposeSoundDrawingRenderer, renderSoundDrawing } from './SoundDrawingRenderer'
+import { renderLaserDmx, clearLaserDmxVisualState, disposeLaserDmxRenderer, pauseLaserDmxRenderer } from './LaserDmxRenderer'
 import { renderNeonLattice, clearNeonLatticeVisualState } from './NeonLatticeRenderer'
 import type { WebGLContextLifetime } from '../shaders/runtime/WebGLContextLifecycle'
 
@@ -194,5 +194,48 @@ export function renderReactEngine(
       clearNeonLatticeVisualState(ctx, frame.W, frame.H)
       ctx.fillStyle = preset.palette.background
       ctx.fillRect(0, 0, frame.W, frame.H)
+  }
+}
+
+
+export interface ReactEngineDisposalOptions {
+  width?: number
+  height?: number
+  affectProductionOutput?: boolean
+}
+
+/**
+ * Retires resources owned by one non-shader React engine family. The parent
+ * canvas owns the animation loop; this function owns family-specific caches,
+ * listeners, observers, and GPU runtimes reached through the Canvas2D context.
+ */
+export function disposeReactEngineRenderer(
+  ctx: CanvasRenderingContext2D,
+  engine: ReactPreset['engine'],
+  options: ReactEngineDisposalOptions = {},
+): void {
+  const width = options.width ?? ctx.canvas.width
+  const height = options.height ?? ctx.canvas.height
+  switch (engine) {
+    case 'cinematicPortal':
+      disposeCinematicPortalRenderer(ctx, 'release-resources')
+      break
+    case 'laserDmx':
+      clearLaserDmxVisualState(ctx, width, height, {
+        affectProductionOutput: options.affectProductionOutput,
+      })
+      disposeLaserDmxRenderer(ctx, {
+        affectProductionOutput: options.affectProductionOutput,
+      })
+      break
+    case 'neonLattice':
+      clearNeonLatticeVisualState(ctx, width, height)
+      break
+    case 'oscilloscope':
+      disposeSoundDrawingRenderer(ctx)
+      break
+    case 'shaderPads':
+      // Shader Pads owns a dedicated canvas and ShaderEngineRenderer lifecycle.
+      break
   }
 }

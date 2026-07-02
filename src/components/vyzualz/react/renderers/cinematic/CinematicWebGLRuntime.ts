@@ -62,15 +62,17 @@ export class CinematicWebGLRuntime implements CinematicWebGLRuntimeLike {
 
     const lifetime = options.lifetime ?? 'live-reusable'
     let owner: CinematicWebGLRuntime | null = null
+    const supportsRestoration = lifetime === 'live-reusable'
     const result = ShaderWebGLRuntime.create(canvas, {
       ownership: {
         lifetime,
         role: lifetime === 'transient-thumbnail' ? 'preset-thumbnail' : 'react-preview',
         engine: 'cinematic-worlds',
-        expectedMaxActive: lifetime === 'transient-thumbnail' ? 1 : undefined,
+        expectedMaxActive: 1,
       },
-      onContextLost: () => owner?.handleContextLost(),
-      onContextRestored: () => owner?.handleContextRestored(),
+      restoreContext: supportsRestoration,
+      onContextLost: supportsRestoration ? () => owner?.handleContextLost() : undefined,
+      onContextRestored: supportsRestoration ? () => owner?.handleContextRestored() : undefined,
     })
     if (!result.runtime) return null
     owner = new CinematicWebGLRuntime(outputContext, canvas, result.runtime, lifetime)

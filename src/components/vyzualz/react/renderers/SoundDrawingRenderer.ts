@@ -163,6 +163,31 @@ export function clearSoundDrawingRuntimeCaches(): void {
   clearTextPathEntries()
 }
 
+/** Releases per-canvas trails and animation accumulators when Sound Drawing is no longer live. */
+export function disposeSoundDrawingRenderer(
+  ctx: CanvasRenderingContext2D,
+): void {
+  const trail = trailMap.get(ctx)
+  if (trail) {
+    trail.getContext('2d')?.clearRect(0, 0, trail.width, trail.height)
+    trail.width = 1
+    trail.height = 1
+  }
+  const artwork = artworkPaletteMap.get(ctx)
+  if (artwork) {
+    artwork.getContext('2d')?.clearRect(0, 0, artwork.width, artwork.height)
+    artwork.width = 1
+    artwork.height = 1
+  }
+  trailMap.delete(ctx)
+  artworkPaletteMap.delete(ctx)
+  beatEnvelopeMap.delete(ctx)
+  twistSignMap.delete(ctx)
+  twistPhasePrevMap.delete(ctx)
+  rotPhaseMap.delete(ctx)
+  trailResetSeenMap.delete(ctx)
+}
+
 export function getSoundDrawingRuntimeCacheStats(): {
   canvasTextEntries: number
   openTypeTextEntries: number

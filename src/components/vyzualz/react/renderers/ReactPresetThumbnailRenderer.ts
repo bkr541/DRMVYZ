@@ -23,6 +23,11 @@ import {
   serializeDrmvyzThumbnailWebGLWork,
   type DrmvyzThumbnailWebGLContextLease,
 } from '../shaders/runtime/WebGLContextLifecycle'
+import {
+  isReactLiveEngineInitializing,
+  subscribeReactLiveEngineOwnership,
+  waitForReactLiveEngineStable,
+} from './ReactLiveEngineOwnership'
 
 const DEFAULT_W = 192
 const DEFAULT_H = 108
@@ -73,6 +78,7 @@ interface ThumbnailJob {
   subscribers: Map<number, ThumbnailSubscriber>
   completion: Promise<void>
   complete: () => void
+  interruptedByLivePreview: boolean
 }
 
 const thumbnailResultCache = new Map<string, string>()
@@ -85,6 +91,9 @@ let queuePumpEpoch = 0
 let thumbnailRendererPool: ThumbnailRendererPool | null = null
 let retireThumbnailPoolWhenIdle = false
 let thumbnailPoolTerminalRetirements = 0
+let livePriorityInterruptions = 0
+let livePriorityDeferrals = 0
+let livePrioritySubscription: (() => void) | null = null
 
 const browserThumbnailScheduler = createBrowserThumbnailScheduler()
 let thumbnailScheduler: ReactPresetThumbnailScheduler = browserThumbnailScheduler
@@ -94,6 +103,7 @@ export function renderReactPresetThumbnail(
   preset: ReactPreset,
   request: ReactPresetThumbnailRequest = {},
 ): Promise<string | null> {
+  ensureLivePreviewPrioritySubscription()
   const width = normalizeDimension(request.width, DEFAULT_W)
   const height = normalizeDimension(request.height, DEFAULT_H)
   const cacheKey = createReactPresetThumbnailCacheKey(preset, { width, height })
@@ -161,6 +171,8 @@ export function clearReactPresetThumbnailCacheForTests(): void {
   thumbnailQueue.length = 0
   retireThumbnailPoolWhenIdle = true
   if (activeThumbnailJobs === 0) terminallyDisposeThumbnailRendererPool()
+  livePriorityInterruptions = 0
+  livePriorityDeferrals = 0
 }
 
 export function setReactPresetThumbnailSchedulerForTests(
@@ -182,6 +194,8 @@ export function getReactPresetThumbnailDiagnosticsForTests(): Readonly<{
   pooledCanvasActive: boolean
   pooledFamily: ThumbnailRendererFamily | null
   terminalRetirements: number
+  livePriorityInterruptions: number
+  livePriorityDeferrals: number
 }> {
   return {
     activeJobs: activeThumbnailJobs,
@@ -193,6 +207,8 @@ export function getReactPresetThumbnailDiagnosticsForTests(): Readonly<{
     pooledCanvasActive: thumbnailRendererPool != null,
     pooledFamily: thumbnailRendererPool?.family ?? null,
     terminalRetirements: thumbnailPoolTerminalRetirements,
+    livePriorityInterruptions,
+    livePriorityDeferrals,
   }
 }
 
@@ -213,6 +229,7 @@ function createThumbnailJob(key: string, preset: ReactPreset, width: number, hei
     subscribers: new Map(),
     completion,
     complete,
+    interruptedByLivePreview: false,
   }
 }
 
@@ -291,6 +308,10 @@ function waitForRetiringJob(
 function requestQueuePump(): void {
   if (queuePumpScheduled || activeThumbnailJobs >= MAX_CONCURRENT_WEBGL_THUMBNAILS) return
   if (!thumbnailQueue.some(job => job.state === 'queued')) return
+  if (isReactLiveEngineInitializing()) {
+    livePriorityDeferrals += 1
+    return
+  }
 
   queuePumpScheduled = true
   const epoch = queuePumpEpoch
@@ -317,7 +338,10 @@ function startNextThumbnailJob(): void {
   job.state = 'running'
   activeThumbnailJobs += 1
   void renderThumbnailOnce(job.preset, job.width, job.height, job.controller.signal)
-    .then(result => settleThumbnailJob(job, result), () => settleThumbnailJob(job, null))
+    .then(
+      result => finishRunningThumbnailJob(job, result),
+      () => finishRunningThumbnailJob(job, null),
+    )
     .finally(() => {
       activeThumbnailJobs = Math.max(0, activeThumbnailJobs - 1)
       if (retireThumbnailPoolWhenIdle && activeThumbnailJobs === 0) {
@@ -325,6 +349,17 @@ function startNextThumbnailJob(): void {
       }
       requestQueuePump()
     })
+}
+
+function finishRunningThumbnailJob(job: ThumbnailJob, result: string | null): void {
+  if (job.interruptedByLivePreview && job.subscribers.size > 0) {
+    job.interruptedByLivePreview = false
+    job.controller = new AbortController()
+    job.state = 'queued'
+    thumbnailQueue.unshift(job)
+    return
+  }
+  settleThumbnailJob(job, result)
 }
 
 function settleThumbnailJob(job: ThumbnailJob, result: string | null): void {
@@ -374,6 +409,8 @@ async function renderThumbnailOnceWithExclusiveContextAccess(
   let completed = false
   try {
     if (signal.aborted) return null
+    if (isReactLiveEngineInitializing()) await waitForReactLiveEngineStable(signal)
+    if (signal.aborted) return null
     const thumbnailPreset = createLowCostThumbnailPreset(preset)
     pool = acquireThumbnailRendererPool(thumbnailPreset, width, height)
     if (!pool || signal.aborted) return null
@@ -398,7 +435,10 @@ async function renderThumbnailOnceWithExclusiveContextAccess(
       renderReactEngine(ctx, frame, thumbnailPreset, renderParams, sections, {
         webglLifetime: 'transient-thumbnail',
       })
-      if (index < frameBudget - 1) await thumbnailScheduler.yield(signal)
+      if (index < frameBudget - 1) {
+        if (isReactLiveEngineInitializing()) await waitForReactLiveEngineStable(signal)
+        await thumbnailScheduler.yield(signal)
+      }
     }
 
     if (signal.aborted) return null
@@ -413,6 +453,32 @@ async function renderThumbnailOnceWithExclusiveContextAccess(
       else resetThumbnailRendererPoolAfterJob(pool)
     }
   }
+}
+
+function ensureLivePreviewPrioritySubscription(): void {
+  if (livePrioritySubscription) return
+  livePrioritySubscription = subscribeReactLiveEngineOwnership(snapshot => {
+    queuePumpEpoch += 1
+    queuePumpScheduled = false
+
+    if (snapshot.phase !== 'initializing') {
+      requestQueuePump()
+      return
+    }
+
+    retireThumbnailPoolWhenIdle = activeThumbnailJobs > 0
+    for (const job of pendingThumbnailJobs.values()) {
+      if (job.state !== 'running' || job.controller.signal.aborted || job.subscribers.size === 0) continue
+      job.interruptedByLivePreview = true
+      livePriorityInterruptions += 1
+      job.controller.abort()
+    }
+
+    // Active thumbnail work is always suspended at an explicit yield boundary
+    // when this callback can run. Retire the pooled context synchronously so
+    // the user-selected live renderer receives the GPU slot first.
+    terminallyDisposeThumbnailRendererPool()
+  })
 }
 
 function acquireThumbnailRendererPool(

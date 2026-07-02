@@ -146,6 +146,7 @@ describe('React visualization canvas accessibility', () => {
     const markup = renderToStaticMarkup(
       <ReactPlaceholderCanvas
         analyser={null}
+        engine={preset.engine === 'shaderPads' ? 'oscilloscope' : preset.engine}
         activePreset={preset}
         intensity={1}
         motion={1}

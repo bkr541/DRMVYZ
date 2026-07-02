@@ -12,6 +12,8 @@ import { DEFAULT_SHADER_SCENE_ID } from './shaders/scenes'
 import { shaderRegistry }          from './shaders/registry'
 import type { ActiveBrandOverlay } from '../../../features/personalization/brandAssetCompositor'
 import { compositeBrandAsset } from '../../../features/personalization/brandAssetCompositor'
+import { acquireReactLiveEngineOwnership } from './renderers/ReactLiveEngineOwnership'
+import { assertDrmvyzWebGLContextOwnershipBoundsForDevelopment } from './shaders/runtime/WebGLContextLifecycle'
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -150,6 +152,27 @@ export function ReactShaderCanvas({
     const sourceCanvas: HTMLCanvasElement = canvas
     const visibleCanvas: HTMLCanvasElement = outputCanvas
     const visibleCtx: CanvasRenderingContext2D = outputCtx
+    let disposed = false
+    pausedRef.current = false
+    let ro: ResizeObserver | null = null
+    let removeVisibilityListener = () => {}
+
+    const retireOwnedResources = () => {
+      if (disposed) return
+      disposed = true
+      pausedRef.current = true
+      cancelAnimationFrame(animRef.current)
+      animRef.current = 0
+      removeVisibilityListener()
+      ro?.disconnect()
+      const renderer = rendererRef.current
+      rendererRef.current = null
+      try { renderer?.dispose() } catch (error) {
+        if (import.meta.env.DEV) console.error('[ReactShaderCanvas] renderer disposal failed:', error)
+      }
+      try { onCanvasReadyRef.current?.(null) } catch { /* Parent teardown must not retain renderer ownership. */ }
+    }
+    const ownership = acquireReactLiveEngineOwnership('shaderPads', retireOwnedResources)
 
     // Ensure a default scene is selected
     const store = useShaderPanelStore.getState()
@@ -161,42 +184,83 @@ export function ReactShaderCanvas({
     let lastCssW = 0
     let lastCssH = 0
     let lastDevicePixelRatio = 1
+    let contextLossGeneration = 0
+    let restoredGeneration = 0
+    let restoreInProgress = false
 
     function createRenderer(): ShaderEngineRenderer | null {
       const { runtime, error } = ShaderWebGLRuntime.create(sourceCanvas, {
+        restoreContext: true,
         onContextLost: () => {
+          if (disposed || !ownership.isCurrent()) return
+          contextLossGeneration += 1
           pausedRef.current = true
           cancelAnimationFrame(animRef.current)
+          animRef.current = 0
         },
         ownership: {
           lifetime: 'live-reusable',
           role: 'react-preview',
           engine: 'shader-engine',
+          expectedMaxActive: 1,
         },
         onContextRestored: () => {
-          // The old renderer's GL handles are all invalid.  Use disposeAfterContextLoss()
-          // instead of dispose() to avoid re-losing the freshly restored context via loseContext().
-          rendererRef.current?.disposeAfterContextLoss()
+          const lossGeneration = contextLossGeneration
+          if (
+            disposed
+            || !ownership.isCurrent()
+            || lossGeneration === 0
+            || restoredGeneration === lossGeneration
+            || restoreInProgress
+          ) return
 
-          const newRenderer = createRenderer()
-          if (!newRenderer) return
+          restoreInProgress = true
+          restoredGeneration = lossGeneration
+          let replacementRenderer: ShaderEngineRenderer | null = null
+          try {
+            const staleRenderer = rendererRef.current
+            rendererRef.current = null
+            staleRenderer?.disposeAfterContextLoss()
 
-          rendererRef.current  = newRenderer
-          pausedRef.current    = false
+            if (disposed || !ownership.isCurrent()) return
 
-          // Restore active scene
-          const s = useShaderPanelStore.getState()
-          const sceneId = s.activeShaderId ?? DEFAULT_SHADER_SCENE_ID
-          s.setActiveShaderId(null)
-          s.setActiveShaderId(sceneId)
+            replacementRenderer = createRenderer()
+            if (!replacementRenderer) {
+              ownership.markStable()
+              assertDrmvyzWebGLContextOwnershipBoundsForDevelopment(null)
+              return
+            }
+            if (disposed || !ownership.isCurrent()) {
+              replacementRenderer.dispose()
+              replacementRenderer = null
+              return
+            }
 
-          // Resize with last known CSS dimensions
-          if (lastCssW > 0 && lastCssH > 0) {
-            newRenderer.resize(lastCssW, lastCssH, lastDevicePixelRatio)
+            rendererRef.current = replacementRenderer
+            pausedRef.current = false
+
+            // Restore the current scene and all store-backed configuration in place.
+            const shaderState = useShaderPanelStore.getState()
+            const sceneId = shaderState.activeShaderId ?? DEFAULT_SHADER_SCENE_ID
+            shaderState.setActiveShaderId(null)
+            shaderState.setActiveShaderId(sceneId)
+
+            if (lastCssW > 0 && lastCssH > 0) {
+              replacementRenderer.resize(lastCssW, lastCssH, lastDevicePixelRatio)
+            }
+
+            scheduleNextFrame()
+          } catch (error) {
+            try { replacementRenderer?.dispose() } catch { /* Continue recovery shutdown. */ }
+            if (rendererRef.current === replacementRenderer) rendererRef.current = null
+            pausedRef.current = true
+            useShaderPanelStore.getState().setCompileError(
+              `Shader context restoration failed: ${error instanceof Error ? error.message : String(error)}`,
+            )
+            if (import.meta.env.DEV) console.warn('[ReactShaderCanvas] context restoration failed:', error)
+          } finally {
+            restoreInProgress = false
           }
-
-          // Resume rAF
-          animRef.current = requestAnimationFrame(frame)
         },
       })
 
@@ -209,14 +273,18 @@ export function ReactShaderCanvas({
     }
 
     const initialRenderer = createRenderer()
-    if (!initialRenderer) return
+    if (!initialRenderer) {
+      ownership.markStable()
+      assertDrmvyzWebGLContextOwnershipBoundsForDevelopment(null)
+      return () => ownership.retire('unmount')
+    }
 
     rendererRef.current = initialRenderer
     onCanvasReadyRef.current?.(visibleCanvas)
 
     // ResizeObserver — reads from rendererRef.current so it stays valid across restores
     function resize() {
-      if (pausedRef.current) return
+      if (disposed || !ownership.isCurrent() || pausedRef.current) return
       const renderer = rendererRef.current
       if (!renderer) return
       const r = visibleCanvas.getBoundingClientRect()
@@ -235,15 +303,12 @@ export function ReactShaderCanvas({
     // Transactional setup: create observer, perform guarded first resize, then
     // start rAF — if any step fails the cleanup function is still returned so
     // the observer is always disconnected.
-    let ro: ResizeObserver | null = null
     try {
       ro = new ResizeObserver(resize)
       ro.observe(visibleCanvas)
       resize()
     } catch (err) {
-      ro?.disconnect()
-      rendererRef.current?.dispose()
-      rendererRef.current = null
+      ownership.retire('setup-failed')
       if (import.meta.env.DEV) {
         console.error('[ReactShaderCanvas] setup failed:', err)
       }
@@ -269,13 +334,39 @@ export function ReactShaderCanvas({
       forceTimingReset = true
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
+    removeVisibilityListener = () => document.removeEventListener('visibilitychange', handleVisibilityChange)
 
     // Track last resolved section to detect changes (for pulse signal)
     let lastSectionType: string | null = null
     let lastSectionStart = -1
+    let stableReported = false
+
+    function reportStable(): void {
+      if (stableReported) return
+      stableReported = true
+      ownership.markStable()
+      assertDrmvyzWebGLContextOwnershipBoundsForDevelopment('shader-engine')
+    }
+
+    function scheduleNextFrame(): void {
+      if (disposed || pausedRef.current || !ownership.isCurrent()) return
+      animRef.current = requestAnimationFrame(runFrame)
+    }
+
+    function runFrame(now: number): void {
+      try {
+        frame(now)
+      } catch (error) {
+        ownership.retire('render-failed')
+        useShaderPanelStore.getState().setCompileError(
+          `Shader render failed: ${error instanceof Error ? error.message : String(error)}`,
+        )
+        if (import.meta.env.DEV) console.error('[ReactShaderCanvas] render failed:', error)
+      }
+    }
 
     function frame(now: number) {
-      if (pausedRef.current) return
+      if (disposed || pausedRef.current || !ownership.isCurrent()) return
 
       // Freeze the WebGL drawing buffer and all transport-driven shader state
       // while paused. Keeping the rAF heartbeat alive avoids a large resume
@@ -299,7 +390,8 @@ export function ReactShaderCanvas({
           audioEnergy: 0,
           sectionType: null,
         })
-        animRef.current = requestAnimationFrame(frame)
+        reportStable()
+        scheduleNextFrame()
         return
       }
 
@@ -480,21 +572,15 @@ export function ReactShaderCanvas({
         audioEnergy: vol,
         sectionType: resolvedSectionType,
       })
+      reportStable()
 
-      animRef.current = requestAnimationFrame(frame)
+      scheduleNextFrame()
     }
 
-    animRef.current = requestAnimationFrame(frame)
+    runFrame(performance.now())
 
     return () => {
-      cancelAnimationFrame(animRef.current)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      ro!.disconnect()
-      // Dispose whatever renderer is currently live (may differ from initialRenderer
-      // if context restoration replaced it)
-      rendererRef.current?.dispose()
-      rendererRef.current = null
-      onCanvasReadyRef.current?.(null)
+      ownership.retire('unmount')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

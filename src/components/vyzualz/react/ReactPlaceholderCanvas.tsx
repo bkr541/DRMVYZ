@@ -7,10 +7,10 @@ import type { ReactPerformanceActionEvent } from './ReactPerformanceActions'
 import type { TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
 import { DEFAULT_OSCILLATOR_SETTINGS, DEFAULT_NEON_LATTICE_SETTINGS } from './ReactTypes'
 import type { ReactRenderParams } from './renderers/reactRenderUtils'
-import { DEFAULT_REACT_RENDER_PARAMS } from './renderers/ReactEngineRenderer'
-import { renderReactEngine } from './renderers/ReactEngineRenderer'
-import { disposeCinematicPortalRenderer } from './renderers/CinematicPortalRenderer'
-import { disposeLaserDmxRenderer } from './renderers/LaserDmxRenderer'
+import { DEFAULT_REACT_RENDER_PARAMS, disposeReactEngineRenderer, renderReactEngine } from './renderers/ReactEngineRenderer'
+import { resolveCinematicPortalBackend } from './renderers/CinematicPortalRenderer'
+import { acquireReactLiveEngineOwnership } from './renderers/ReactLiveEngineOwnership'
+import { assertDrmvyzWebGLContextOwnershipBoundsForDevelopment } from './shaders/runtime/WebGLContextLifecycle'
 import type { ReactFrameContext } from './renderers/reactRenderUtils'
 import { clearSoundDrawingRuntimeCaches, setSoundDrawingClipsForFrame } from './renderers/SoundDrawingRenderer'
 import { resolvePerformancePadTransition } from './renderers/reactPresetTransition'
@@ -29,6 +29,8 @@ const ENGINE_ACCESSIBLE_LABELS: Record<ReactPreset['engine'], string> = {
 
 interface Props {
   analyser:           AnalyserNode | null
+  /** Stable ownership boundary for the mounted live renderer. */
+  engine:             Exclude<ReactPreset['engine'], 'shaderPads'>
   activePreset:       ReactPreset | null
   intensity:          number
   motion:             number
@@ -74,6 +76,7 @@ interface Props {
 
 export function ReactPlaceholderCanvas({
   analyser,
+  engine,
   activePreset,
   intensity,
   motion,
@@ -223,11 +226,36 @@ export function ReactPlaceholderCanvas({
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
+    const ownedEngine = engine
 
+    let disposed = false
     let canvasResolution: CanvasResolution | null = null
+    let ro: ResizeObserver | null = null
+    let fpsReporter: ReturnType<typeof createLiveFpsReporter> | null = null
+
+    const retireOwnedResources = () => {
+      if (disposed) return
+      disposed = true
+      cancelAnimationFrame(animRef.current)
+      animRef.current = 0
+      ro?.disconnect()
+      try {
+        disposeReactEngineRenderer(ctx, ownedEngine, {
+          width: canvas.width,
+          height: canvas.height,
+          affectProductionOutput: true,
+        })
+      } catch (error) {
+        if (import.meta.env.DEV) console.error('[ReactPlaceholderCanvas] renderer disposal failed:', error)
+      }
+      try { clearSoundDrawingRuntimeCaches() } catch { /* Continue deterministic cleanup. */ }
+      try { onCanvasReadyRef.current?.(null) } catch { /* Parent teardown must not retain renderer ownership. */ }
+      try { fpsReporter?.unavailable() } catch { /* Diagnostic callbacks are non-critical. */ }
+    }
+    const ownership = acquireReactLiveEngineOwnership(ownedEngine, retireOwnedResources)
 
     function resize() {
-      if (!canvas) return
+      if (disposed || !ownership.isCurrent() || !canvas) return
       const r = canvas.getBoundingClientRect()
       const next = resolveCanvasResolution({
         cssWidth: r.width,
@@ -240,9 +268,15 @@ export function ReactPlaceholderCanvas({
       applyCanvasResolution(canvas, next)
       canvasResolution = next
     }
-    const ro = new ResizeObserver(resize)
-    ro.observe(canvas)
-    resize()
+    try {
+      ro = new ResizeObserver(resize)
+      ro.observe(canvas)
+      resize()
+    } catch (error) {
+      ownership.retire('setup-failed')
+      if (import.meta.env.DEV) console.error('[ReactPlaceholderCanvas] setup failed:', error)
+      return
+    }
 
     // Notify the parent that this canvas is ready for capture (e.g. recording, PNG export).
     onCanvasReadyRef.current?.(canvas)
@@ -250,7 +284,7 @@ export function ReactPlaceholderCanvas({
     // FPS tracking — sample once per second and report via onLiveFps. The
     // reporter deduplicates unavailable=0 so the no-preset path never invokes a
     // React state callback on every frame.
-    const fpsReporter = createLiveFpsReporter(() => onLiveFpsRef.current)
+    fpsReporter = createLiveFpsReporter(() => onLiveFpsRef.current)
     let fpsFrameCount = 0
     let fpsLastMs = performance.now()
     let previousFrameMs: number | null = null
@@ -265,11 +299,42 @@ export function ReactPlaceholderCanvas({
     let beatPhase = 0
     const FALLBACK_BPM_LOCAL = 120           // internal visual fallback only
     const beatPeriodMs = 60000 / FALLBACK_BPM_LOCAL
+    let stableReported = false
+    let lastExpectedWebglEngine: 'cinematic-worlds' | null | undefined
+
+    function reportStable(preset: ReactPreset | null): void {
+      const expectedWebglEngine = preset?.engine === 'cinematicPortal'
+        && resolveCinematicPortalBackend(preset) === 'webgl2'
+        ? 'cinematic-worlds'
+        : null
+      if (!stableReported) {
+        stableReported = true
+        ownership.markStable()
+      }
+      if (lastExpectedWebglEngine !== expectedWebglEngine) {
+        lastExpectedWebglEngine = expectedWebglEngine
+        assertDrmvyzWebGLContextOwnershipBoundsForDevelopment(expectedWebglEngine)
+      }
+    }
+
+    function scheduleNextFrame(): void {
+      if (disposed || !ownership.isCurrent()) return
+      animRef.current = requestAnimationFrame(runFrame)
+    }
+
+    function runFrame(now: number): void {
+      try {
+        frame(now)
+      } catch (error) {
+        ownership.retire('render-failed')
+        if (import.meta.env.DEV) console.error('[ReactPlaceholderCanvas] render failed:', error)
+      }
+    }
 
     function frame(now: number) {
-      if (!canvas || !ctx) return
+      if (disposed || !ownership.isCurrent() || !canvas || !ctx) return
       const W = canvas.width, H = canvas.height
-      if (!W || !H) { animRef.current = requestAnimationFrame(frame); return }
+      if (!W || !H) { scheduleNextFrame(); return }
 
       // Preserve the completed frame during pause, but render one fresh frame
       // when lyrics, project controls, fonts, or the loaded track change.
@@ -292,7 +357,7 @@ export function ReactPlaceholderCanvas({
           fpsFrameCount = 0
           fpsLastMs = now
           previousFrameMs = now
-          animRef.current = requestAnimationFrame(frame)
+          scheduleNextFrame()
           return
         }
         lastPausedRenderKey = pausedRenderKey
@@ -306,10 +371,11 @@ export function ReactPlaceholderCanvas({
         // frame returns so an FPS value from the previous engine cannot linger.
         fpsFrameCount = 0
         fpsLastMs = now
-        fpsReporter.unavailable()
+        fpsReporter?.unavailable()
         ctx.fillStyle = '#060d10'
         ctx.fillRect(0, 0, W, H)
-        animRef.current = requestAnimationFrame(frame)
+        reportStable(null)
+        scheduleNextFrame()
         return
       }
 
@@ -490,6 +556,7 @@ export function ReactPlaceholderCanvas({
         audioEnergy: vol,
         sectionType: rfCtx.musicIntelligence?.section?.type ?? null,
       })
+      reportStable(preset)
       elapsedTimeSec += deltaTimeSec
 
       // LaserDMX animation clock is frozen while paused so scan/path generators
@@ -506,25 +573,19 @@ export function ReactPlaceholderCanvas({
       const nowMs = performance.now()
       if (nowMs - fpsLastMs >= 1000) {
         const elapsed = (nowMs - fpsLastMs) / 1000
-        fpsReporter.report(fpsFrameCount / elapsed)
+        fpsReporter?.report(fpsFrameCount / elapsed)
         fpsFrameCount = 0
         fpsLastMs = nowMs
       }
 
-      animRef.current = requestAnimationFrame(frame)
+      scheduleNextFrame()
     }
 
-    animRef.current = requestAnimationFrame(frame)
+    runFrame(performance.now())
     return () => {
-      cancelAnimationFrame(animRef.current)
-      disposeCinematicPortalRenderer(ctx)
-      disposeLaserDmxRenderer(ctx)
-      clearSoundDrawingRuntimeCaches()
-      ro.disconnect()
-      onCanvasReadyRef.current?.(null)
-      fpsReporter.unavailable()
+      ownership.retire('unmount')
     }
-  }, [])  // stable — reads all state via refs
+  }, [engine])  // ReactView also keys by engine; this documents the ownership boundary.
 
   return (
     <canvas
