@@ -645,6 +645,7 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
       {/* Bottom dock — outside the grid, full width */}
       <VyzualzAudioDock
         compact={stageFocus}
+        expandable
         deckLabel="Track Deck"
         unifiedTimeline={workspaceComposition.showTrackMap && lowerSurface === 'trackMap' && !lowerWorkspaceCollapsed && !stageFocus}
         waveformAppearance="deck"

@@ -8,6 +8,28 @@ import { useRgbWaveformAnalysis } from '../hooks/useRgbWaveformAnalysis'
 import { useRgbWaveformStore } from '../../../features/waveform/rgbWaveformStorage'
 import { PeaksWaveformView } from '../transport/PeaksWaveformView'
 
+const AUDIO_DOCK_COLLAPSED_STORAGE_KEY = 'drmvyz.audioDock.collapsed.v1'
+
+function readCollapsedPreference(): boolean {
+  if (typeof window === 'undefined') return false
+
+  try {
+    return window.localStorage.getItem(AUDIO_DOCK_COLLAPSED_STORAGE_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+function writeCollapsedPreference(collapsed: boolean): void {
+  if (typeof window === 'undefined') return
+
+  try {
+    window.localStorage.setItem(AUDIO_DOCK_COLLAPSED_STORAGE_KEY, String(collapsed))
+  } catch {
+    // Storage can be unavailable in private browsing or embedded runtimes.
+  }
+}
+
 function fmtPlayTime(secs: number): string {
   if (!isFinite(secs) || secs < 0) return '--:--.--'
   const m  = Math.floor(secs / 60)
@@ -66,6 +88,8 @@ function deriveBpmState(
 
 export interface VyzualzAudioDockProps {
   compact?: boolean
+  /** Allow the user to collapse the dock independently of Stage Focus. */
+  expandable?: boolean
   deckLabel?: string
   /** Keep the waveform viewport aligned with the Track Map directly above it. */
   unifiedTimeline?: boolean
@@ -75,6 +99,7 @@ export interface VyzualzAudioDockProps {
 
 export function VyzualzAudioDock({
   compact = false,
+  expandable = false,
   deckLabel,
   unifiedTimeline = false,
   waveformAppearance = 'rgb',
@@ -102,6 +127,17 @@ export function VyzualzAudioDock({
   const engine      = useSharedAudio()
   const fileInputId = useId()
   const { handleTap } = useTapTempo()
+
+  const [collapsedByUser, setCollapsedByUser] = useState(() => (
+    expandable ? readCollapsedPreference() : false
+  ))
+
+  const dockCollapsed = compact || (expandable && collapsedByUser)
+
+  useEffect(() => {
+    if (!expandable) return
+    writeCollapsedPreference(collapsedByUser)
+  }, [collapsedByUser, expandable])
 
   const track    = engine.currentTrack
   const hasTrack = engine.tracks.length > 0
@@ -254,8 +290,43 @@ export function VyzualzAudioDock({
   const vol     = engine.volume
   const volPct  = `${Math.round(vol * 100)}%`
 
+  const handleDensityToggle = () => {
+    if (!expandable || compact) return
+    setCollapsedByUser(current => !current)
+  }
+
+  const dockClassName = [
+    'az-dock',
+    'vz-transport-dock',
+    expandable ? 'vz-transport-dock--expandable' : '',
+    dockCollapsed ? 'vz-transport-dock--collapsed' : '',
+    compact ? 'vz-transport-dock--focus' : '',
+  ].filter(Boolean).join(' ')
+
   return (
-    <div className={`az-dock vz-transport-dock${compact ? ' vz-transport-dock--focus' : ''}`} data-has-deck-label={deckLabel ? 'true' : undefined}>
+    <div
+      className={dockClassName}
+      data-collapsed={dockCollapsed ? 'true' : 'false'}
+      data-has-deck-label={deckLabel ? 'true' : undefined}
+    >
+
+      {expandable && !compact && (
+        <button
+          type="button"
+          className="vz-dock-density-toggle"
+          aria-expanded={!dockCollapsed}
+          aria-label={dockCollapsed ? 'Expand audio deck' : 'Collapse audio deck'}
+          title={dockCollapsed ? 'Expand audio deck' : 'Collapse audio deck'}
+          onClick={handleDensityToggle}
+        >
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            {dockCollapsed
+              ? <path d="M6 14l6-6 6 6"/>
+              : <path d="M6 10l6 6 6-6"/>
+            }
+          </svg>
+        </button>
+      )}
 
       {/* ── LEFT: sidebar + left-inspector footprint ─────────────────── */}
       <div className="vz-dock-left vz-dock-card">
