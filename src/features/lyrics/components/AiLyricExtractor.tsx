@@ -7,6 +7,7 @@ import {
   cancelLyricTranscription,
   getRecentLyricTranscriptionJobs,
   isActiveLyricTranscriptionJob,
+  lyricTranscriptionProviderLabel,
   refreshLyricTranscriptionJob,
   retryLyricTranscription,
   startLyricTranscription,
@@ -51,15 +52,6 @@ const PROCESSING_STAGE_LABELS: Record<string, string> = {
   saving: 'Saving draft…',
 }
 
-
-function providerLabel(job: LyricTranscriptionJob): string {
-  switch (job.provider) {
-    case 'groq': return 'Groq Whisper'
-    case 'openai': return 'OpenAI (legacy)'
-    case 'custom': return 'Custom provider'
-  }
-}
-
 function processingStageLabel(job: LyricTranscriptionJob): string | null {
   if (job.status !== 'processing') return null
   const stage = job.providerMetadata.processingStage
@@ -69,11 +61,39 @@ function processingStageLabel(job: LyricTranscriptionJob): string | null {
 const LOCAL_PREPARATION_LABELS: Record<LocalAudioPreparationProgress['stage'], string> = {
   downloading: 'Downloading stored audio…',
   decoding: 'Decoding audio locally…',
-  planning: 'Planning provider-safe audio…',
+  planning: 'Planning Groq-ready audio…',
   encoding: 'Encoding transcription audio…',
   uploading: 'Uploading private transcription audio…',
   saving: 'Saving transcription manifest…',
   complete: 'Audio preparation complete',
+}
+
+export const OFFLINE_LYRIC_EXTRACTION_MESSAGE = 'Lyric extraction requires an internet connection. Connect to the internet and try again.'
+
+const PROCESSING_MODE_LABELS: Record<string, string> = {
+  direct: 'Direct mode',
+  'wav-chunking': 'WAV chunking',
+  'prepared-audio': 'Browser-prepared audio',
+  'long-audio-worker': 'Custom long-audio fallback',
+}
+
+function browserReportsOnline(): boolean {
+  if (typeof navigator === 'undefined') return true
+  return navigator.onLine !== false
+}
+
+function metadataString(metadata: Record<string, unknown> | undefined, key: string): string | null {
+  const value = metadata?.[key]
+  return typeof value === 'string' && value.trim().length > 0 ? value : null
+}
+
+function metadataNumber(metadata: Record<string, unknown> | undefined, key: string): number | null {
+  const value = metadata?.[key]
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function providerWarningLabel(warning: string): string {
+  return warning.split('_').join(' ')
 }
 
 function isPreparationRecoverableError(job: LyricTranscriptionJob | null): boolean {
@@ -101,11 +121,23 @@ export function AiLyricExtractor({
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [localPreparation, setLocalPreparation] = useState<LocalAudioPreparationProgress | null>(null)
+  const [browserOnline, setBrowserOnline] = useState(browserReportsOnline)
   const preparationAbortRef = useRef<AbortController | null>(null)
   const previewDocumentId = useRef<string | null>(null)
 
   const selectedTrackId = selectedTrack?.dbId ?? null
   const activeJobId = job && isActiveLyricTranscriptionJob(job) ? job.id : null
+
+  useEffect(() => {
+    const updateOnlineState = () => setBrowserOnline(browserReportsOnline())
+    updateOnlineState()
+    window.addEventListener('online', updateOnlineState)
+    window.addEventListener('offline', updateOnlineState)
+    return () => {
+      window.removeEventListener('online', updateOnlineState)
+      window.removeEventListener('offline', updateOnlineState)
+    }
+  }, [])
 
   const [options, setOptions] = useState<LyricTranscriptionOptions>({
     language: 'auto',
@@ -187,6 +219,12 @@ export function AiLyricExtractor({
 
   const handleStart = useCallback(async () => {
     if (!selectedTrack) return
+    if (!browserReportsOnline()) {
+      setBrowserOnline(false)
+      setNotice(null)
+      setError(OFFLINE_LYRIC_EXTRACTION_MESSAGE)
+      return
+    }
     setActionBusy(true)
     setError(null)
     setNotice(null)
@@ -207,7 +245,7 @@ export function AiLyricExtractor({
       setNotice(result.duplicate
         ? 'An extraction is already running for this track. Its status has been resumed.'
         : preparation.prepared
-          ? 'Provider-safe audio prepared privately and extraction queued.'
+          ? 'Groq-ready audio prepared privately and extraction queued.'
           : 'Extraction queued. You can leave Lyric Manager and return without losing the job.')
     } catch (startError) {
       if (!(startError instanceof DOMException && startError.name === 'AbortError')) {
@@ -239,6 +277,12 @@ export function AiLyricExtractor({
 
   const handleRetry = useCallback(async () => {
     if (!job) return
+    if (!browserReportsOnline()) {
+      setBrowserOnline(false)
+      setNotice(null)
+      setError(OFFLINE_LYRIC_EXTRACTION_MESSAGE)
+      return
+    }
     setActionBusy(true)
     setError(null)
     setNotice(null)
@@ -288,11 +332,19 @@ export function AiLyricExtractor({
     : []
 
   const stageLabel = job ? processingStageLabel(job) : null
-  const chunksCompleted = typeof job?.providerMetadata.chunksCompleted === 'number'
-    ? job.providerMetadata.chunksCompleted : null
-  const chunksTotal = typeof job?.providerMetadata.chunksTotal === 'number'
-    ? job.providerMetadata.chunksTotal : null
+  const chunksCompleted = metadataNumber(job?.providerMetadata, 'chunksCompleted')
+  const chunksTotal = metadataNumber(job?.providerMetadata, 'chunksTotal')
+  const unitCount = metadataNumber(job?.providerMetadata, 'unitCount')
   const showChunkProgress = active && chunksTotal !== null && chunksTotal > 1 && chunksCompleted !== null
+  const modelLabel = metadataString(job?.providerMetadata, 'model')
+  const rawProcessingMode = metadataString(job?.providerMetadata, 'processingMode')
+  const processingModeLabel = rawProcessingMode ? (PROCESSING_MODE_LABELS[rawProcessingMode] ?? rawProcessingMode) : null
+  const displayedChunkCount = chunksTotal && chunksTotal > 1 ? chunksTotal : unitCount && unitCount > 1 ? unitCount : null
+  const jobMetadataBadges = [
+    modelLabel,
+    processingModeLabel,
+    displayedChunkCount ? `${displayedChunkCount} chunks` : null,
+  ].filter((value): value is string => Boolean(value))
 
   const preparationRecoverable = isPreparationRecoverableError(job)
   const canRetry = job?.status === 'failed' || job?.status === 'cancelled'
@@ -307,7 +359,7 @@ export function AiLyricExtractor({
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
         </svg>
         <span>
-          Provider credentials stay server-side. For oversized tracks, DRMVYZ creates a private mono transcription copy in your browser before the server sends provider-safe chunks.
+          Groq credentials stay server-side. For oversized tracks, DRMVYZ creates private transcription-ready audio in your browser before the server sends safe chunks.
         </span>
       </div>
 
@@ -371,11 +423,14 @@ export function AiLyricExtractor({
       </div>
 
       {!active && (!job || job.status === 'completed') && (
-        <button className="lmv-btn lmv-btn--primary lmv-extract-btn" disabled={loading || actionBusy} onClick={() => { void handleStart() }}>
+        <button className="lmv-btn lmv-btn--primary lmv-extract-btn" disabled={loading || actionBusy || !browserOnline} onClick={() => { void handleStart() }}>
           {actionBusy
             ? localPreparation ? LOCAL_PREPARATION_LABELS[localPreparation.stage] : 'Starting…'
             : job?.status === 'completed' ? 'Extract Another Draft Version' : 'Start Automatic Extraction'}
         </button>
+      )}
+      {!browserOnline && (
+        <div className="lmv-ai-offline-hint" role="status" aria-live="polite">{OFFLINE_LYRIC_EXTRACTION_MESSAGE}</div>
       )}
 
       {localPreparation && (
@@ -406,7 +461,7 @@ export function AiLyricExtractor({
           <div className="lmv-job-header">
             <div>
               <span className="lmv-job-status">{jobStatusLabel(job)}</span>
-              <span className="lmv-job-provider">{providerLabel(job)}</span>
+              <span className="lmv-job-provider">{lyricTranscriptionProviderLabel(job.provider)}</span>
               {stageLabel && <span className="lmv-job-stage">{stageLabel}</span>}
             </div>
             <span className="lmv-job-progress-label">{progressPercent}%</span>
@@ -414,15 +469,25 @@ export function AiLyricExtractor({
           <div className="lmv-job-progress" role="progressbar" aria-label="Transcription progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent}>
             <div style={{ width: `${progressPercent}%` }} />
           </div>
+          {jobMetadataBadges.length > 0 && (
+            <div className="lmv-job-meta-strip">
+              {jobMetadataBadges.map(badge => <span key={badge}>{badge}</span>)}
+            </div>
+          )}
           {showChunkProgress && (
             <div className="lmv-job-chunk-progress">
               Chunk {chunksCompleted} of {chunksTotal}
             </div>
           )}
+          {providerWarnings.length > 0 && (
+            <div className="lmv-job-warning-list">
+              {providerWarnings.slice(0, 3).map(warning => <span key={warning}>Warning: {providerWarningLabel(warning)}</span>)}
+            </div>
+          )}
           {job.errorMessage && (
             <div className="lmv-job-error" role="alert">
               {preparationRecoverable
-                ? 'This track needs a fresh provider-safe audio copy. Retry Extraction and DRMVYZ will prepare it locally before restarting the server job.'
+                ? 'This track needs a fresh transcription-ready audio copy. Retry Extraction and DRMVYZ will prepare it locally before restarting the server job.'
                 : job.errorMessage}
             </div>
           )}
@@ -433,7 +498,7 @@ export function AiLyricExtractor({
           )}
           {canRetry && (
             <div className="lmv-import-actions">
-              <button className="lmv-btn lmv-btn--primary" disabled={actionBusy} onClick={() => { void handleRetry() }}>
+              <button className="lmv-btn lmv-btn--primary" disabled={actionBusy || !browserOnline} onClick={() => { void handleRetry() }}>
                 {actionBusy ? 'Retrying…' : 'Retry Extraction'}
               </button>
             </div>
@@ -460,7 +525,7 @@ export function AiLyricExtractor({
 
           {(providerWarnings.length > 0) && (
             <div className="lmv-msg-list lmv-msg-list--warn">
-              {providerWarnings.slice(0, 4).map(warning => <div className="lmv-msg-item" key={warning}>Review warning: {warning.split('_').join(' ')}</div>)}
+              {providerWarnings.slice(0, 4).map(warning => <div className="lmv-msg-item" key={warning}>Review warning: {providerWarningLabel(warning)}</div>)}
             </div>
           )}
 

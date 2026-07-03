@@ -1501,6 +1501,17 @@
   white-space: nowrap;
 }
 
+.lmv-ai-offline-hint {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  border: 1px solid rgba(224,172,90,0.22);
+  background: rgba(224,172,90,0.08);
+  color: rgba(255,216,152,0.88);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
 .lmv-job-card {
   margin-top: 12px;
   padding: 12px;
@@ -1548,6 +1559,31 @@
   border-radius: inherit;
   background: linear-gradient(90deg, rgba(74,199,219,0.55), rgba(97,214,170,0.76));
   transition: width 0.25s ease;
+}
+
+.lmv-job-meta-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 9px;
+}
+.lmv-job-meta-strip span {
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(126,218,232,0.13);
+  background: rgba(126,218,232,0.055);
+  color: rgba(196,207,211,0.58);
+  font-size: 9px;
+  line-height: 1.25;
+}
+.lmv-job-warning-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 9px;
+  color: rgba(255,216,152,0.82);
+  font-size: 10px;
+  line-height: 1.45;
 }
 .lmv-job-error {
   margin-top: 9px;

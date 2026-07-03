@@ -58,7 +58,7 @@ export interface SpectralFeatures {
 // ── Lyric-transcription preparation ──────────────────────────────────────────
 
 /**
- * A provider-safe PCM WAV generated in the browser from a stored source track.
+ * A transcription-ready PCM WAV generated in the browser from a stored source track.
  * Storage paths are always private, user-owned objects in the audio-tracks bucket.
  */
 export interface PreparedTranscriptionAudioChunk {

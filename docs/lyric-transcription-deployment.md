@@ -2,7 +2,7 @@
 
 ## Architecture
 
-DRMVYZ lyric extraction currently requires an internet connection. Browser users never call Groq or any transcription provider directly. The React client starts and monitors a server-owned job, and `supabase/functions/lyric-transcription` keeps provider credentials inside Supabase Edge Function secrets.
+DRMVYZ lyric extraction currently requires an internet connection. The frontend uses the browser online/offline signal to stop local audio preparation before it starts when the user is offline, then still relies on normal async error handling for Supabase and Groq reachability. Browser users never call Groq or any transcription provider directly. The React client starts and monitors a server-owned job, and `supabase/functions/lyric-transcription` keeps provider credentials inside Supabase Edge Function secrets.
 
 Groq Whisper is the provider for new lyric transcription jobs. Historical `openai` job rows remain valid for status display and retry compatibility, but active server execution and retries route through Groq. The optional `custom` provider remains available only for the existing long-audio/custom backend fallback path.
 
@@ -95,13 +95,14 @@ supabase functions logs lyric-transcription --tail
 
 1. Run `supabase db push`.
 2. Deploy the function.
-3. Reload the DRMVYZ frontend so it includes the browser preparation code.
-4. Confirm new queued jobs store `provider: "groq"`.
+3. Reload the DRMVYZ frontend so it includes the browser preparation and offline-guard code.
+4. Confirm new queued jobs store `provider: "groq"` and display as `Groq Whisper` in the extractor.
 5. Test a small file. The completed job should show `processingMode: "direct"`.
 6. Test an oversized PCM WAV. It may use `wav-chunking` or `prepared-audio` depending on whether DRMVYZ prepared it before the job began.
-7. Test an oversized MP3 or M4A. The UI should show local download, decode, encode, and upload progress, followed by a completed job with `processingMode: "prepared-audio"`.
+7. Test an oversized MP3 or M4A. The UI should show local download, decode, encode, and upload progress, followed by a completed job with `processingMode: "prepared-audio"` and model/chunk metadata when available.
 8. Confirm `provider_metadata.fnVersion` and `pipelineVersion` are `3.0.0`.
 9. Confirm `audio_tracks.transcription_assets` contains only private chunk metadata and no signed URLs.
+10. Turn off network access or use browser offline simulation. The extractor button should be disabled and show: `Lyric extraction requires an internet connection. Connect to the internet and try again.`
 
 A source codec the browser cannot decode produces `unsupported_audio_codec`. In that case, convert the source to a browser-decodable format or configure the optional worker fallback.
 

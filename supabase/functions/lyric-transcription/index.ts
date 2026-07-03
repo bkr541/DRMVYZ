@@ -518,7 +518,7 @@ async function providerHttpError(response: Response): Promise<TranscriptionError
     return new TranscriptionError('unsupported_audio', 'This audio file is too large for automatic lyric extraction.', 413)
   }
   if (response.status === 429) {
-    return new TranscriptionError('rate_limit', 'The transcription service is busy. Try again shortly.', 429)
+    return new TranscriptionError('rate_limit', 'The transcription provider is busy. Try again shortly.', 429)
   }
   if (response.status === 400 || response.status === 422) {
     const code = looksLikeNormalizationFailure(preview) ? 'normalization_failure' : 'unsupported_audio'
@@ -605,7 +605,7 @@ function wavChunkingFailure(error: unknown): TranscriptionError {
   const detail = error instanceof WavChunkingError ? ` ${error.message}` : ''
   return new TranscriptionError(
     'transcription_asset_required',
-    `This WAV file could not be split safely on the server.${detail} Retry from DRMVYZ so it can prepare a private provider-safe audio copy.`,
+    `This WAV file could not be split safely on the server.${detail} Retry from DRMVYZ so it can prepare a private transcription-ready audio copy.`,
     409,
   )
 }
@@ -999,7 +999,7 @@ async function processJob(
         if (!isCustomProviderConfigured()) {
           throw new TranscriptionError(
             'transcription_asset_required',
-            'This track needs local audio preparation before transcription. Retry from DRMVYZ so it can create private provider-safe audio chunks.',
+            'This track needs local audio preparation before transcription. Retry from DRMVYZ so it can create private transcription-ready audio chunks.',
             409,
           )
         }
@@ -1026,7 +1026,7 @@ async function processJob(
         if (audioBlob.size > MAX_SERVER_DOWNLOAD_BYTES) {
           throw new TranscriptionError(
             'transcription_asset_required',
-            'This track needs local audio preparation before transcription. Retry from DRMVYZ so it can create private provider-safe audio chunks.',
+            'This track needs local audio preparation before transcription. Retry from DRMVYZ so it can create private transcription-ready audio chunks.',
             409,
           )
         }
@@ -1042,7 +1042,7 @@ async function processJob(
             if (!isCustomProviderConfigured()) {
               throw new TranscriptionError(
                 'transcription_asset_required',
-                'This track needs local audio preparation before transcription. Retry from DRMVYZ so it can create a private provider-safe audio copy.',
+                'This track needs local audio preparation before transcription. Retry from DRMVYZ so it can create a private transcription-ready audio copy.',
                 409,
               )
             }

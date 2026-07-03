@@ -65,6 +65,18 @@ interface FunctionEnvelope {
   error?: { code?: string; message?: string }
 }
 
+
+export function lyricTranscriptionProviderLabel(provider: unknown): string {
+  switch (provider) {
+    case 'groq': return 'Groq Whisper'
+    case 'openai': return 'Legacy OpenAI'
+    case 'custom': return 'Custom provider'
+    default: return typeof provider === 'string' && provider.trim().length > 0
+      ? `Provider: ${provider}`
+      : 'Unknown provider'
+  }
+}
+
 export interface StartLyricTranscriptionResult {
   job: LyricTranscriptionJob
   duplicate: boolean

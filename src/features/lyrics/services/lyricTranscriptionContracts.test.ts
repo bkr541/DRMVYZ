@@ -6,6 +6,7 @@ import preparedAudioMigrationSql from '../../../../supabase/migrations/0019_audi
 import groqProviderMigrationSql from '../../../../supabase/migrations/0020_groq_lyric_transcription_provider.sql?raw'
 import edgeFunctionSource from '../../../../supabase/functions/lyric-transcription/index.ts?raw'
 import clientSource from './lyricExtraction.ts?raw'
+import extractorSource from '../components/AiLyricExtractor.tsx?raw'
 
 const compact = (value: string) => value.replace(/\s+/g, ' ').trim()
 const sql = compact(migrationSql)
@@ -59,6 +60,24 @@ describe('secure lyric transcription contracts', () => {
     expect(edgeFunctionSource).toContain("status: 'failed'")
     expect(clientSource).toContain(".from('lyric_transcription_jobs')")
     expect(clientSource).toContain("action: 'status'")
+  })
+
+  it('keeps the browser extraction UI internet-required without exposing provider health checks', () => {
+    expect(extractorSource).toContain('navigator.onLine')
+    expect(extractorSource).toContain('online')
+    expect(extractorSource).toContain('offline')
+    expect(extractorSource).toContain('Lyric extraction requires an internet connection. Connect to the internet and try again.')
+    expect(extractorSource).toContain('ensurePreparedTranscriptionAudio(selectedTrack')
+    expect(extractorSource).toContain('startLyricTranscription(selectedTrack.dbId, options)')
+    expect(clientSource).not.toContain('api.groq.com')
+    expect(extractorSource).not.toContain('GROQ_API_KEY')
+  })
+
+  it('uses stable user-facing provider labels for current and historical jobs', () => {
+    expect(clientSource).toContain("case 'groq': return 'Groq Whisper'")
+    expect(clientSource).toContain("case 'openai': return 'Legacy OpenAI'")
+    expect(clientSource).toContain("case 'custom': return 'Custom provider'")
+    expect(extractorSource).toContain('lyricTranscriptionProviderLabel(job.provider)')
   })
 
   it('uses audio_tracks.id and private storage access without exposing provider credentials', () => {
