@@ -31,6 +31,14 @@ const ENGINE_TARGETS = new Set<BrandKitEngineTarget>([
 ])
 const RETIRED_NEON_LATTICE_ENGINE_ID = 'neonLattice'
 
+function normalizeRetiredEngineIdentifier(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+export function isRetiredBrandKitEngineTarget(value: string): boolean {
+  return normalizeRetiredEngineIdentifier(value) === normalizeRetiredEngineIdentifier(RETIRED_NEON_LATTICE_ENGINE_ID)
+}
+
 export const DEFAULT_BRAND_PALETTE: BrandPalette = {
   primary: '#19BFF2',
   secondary: '#7C5CFC',
@@ -92,7 +100,7 @@ export function normalizeBrandKitEngineRules(value: unknown): BrandKitEngineRule
   if (!isRecord(value)) return {}
   const rules: BrandKitEngineRules = {}
   for (const [key, rule] of Object.entries(value)) {
-    if (key === RETIRED_NEON_LATTICE_ENGINE_ID) continue
+    if (isRetiredBrandKitEngineTarget(key)) continue
     if (!ENGINE_TARGETS.has(key as BrandKitEngineTarget)) continue
     rules[key as BrandKitEngineTarget] = normalizeEngineRule(rule)
   }

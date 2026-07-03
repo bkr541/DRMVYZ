@@ -24,6 +24,7 @@ import { clearAllBrandAssetRuntime, clearBrandAssetRuntimeForUser } from './bran
 import {
   DEFAULT_BRAND_PALETTE,
   clampStrength,
+  isRetiredBrandKitEngineTarget,
   normalizeBrandAssetPresentation,
   normalizeBrandAssetRole,
   normalizeBrandKitEngineRules,
@@ -119,7 +120,7 @@ export function readBrandKitCache(userId: string): ActiveBrandKitData | null {
       && isRecord(parsed.active.kit.engineRules)
       ? parsed.active.kit.engineRules
       : null
-    if (normalized && rawEngineRules && 'neonLattice' in rawEngineRules) {
+    if (normalized && rawEngineRules && Object.keys(rawEngineRules).some(isRetiredBrandKitEngineTarget)) {
       writeBrandKitCache(userId, normalized)
     }
     return normalized

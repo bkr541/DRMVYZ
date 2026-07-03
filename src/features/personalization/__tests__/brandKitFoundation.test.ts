@@ -66,6 +66,8 @@ describe('Brand Kit normalization and cache', () => {
     const stale = structuredClone(activeFixture)
     stale.kit.engineRules = {
       neonLattice: { mode: 'brand', strength: 0.8 },
+      NEON_LATTICE: { mode: 'custom', strength: 0.4 },
+      'Neon Lattice': { mode: 'original', strength: 0.2 },
       oscilloscope: { mode: 'hybrid', strength: 0.6 },
     } as unknown as typeof stale.kit.engineRules
     localStorage.setItem(brandKitCacheKey('user-a'), JSON.stringify({
@@ -77,7 +79,10 @@ describe('Brand Kit normalization and cache', () => {
     expect(readBrandKitCache('user-a')?.kit.engineRules).toEqual({
       oscilloscope: { mode: 'hybrid', strength: 0.6 },
     })
-    expect(localStorage.getItem(brandKitCacheKey('user-a'))).not.toContain('neonLattice')
+    const rewritten = localStorage.getItem(brandKitCacheKey('user-a'))
+    expect(rewritten).not.toContain('neonLattice')
+    expect(rewritten).not.toContain('NEON_LATTICE')
+    expect(rewritten).not.toContain('Neon Lattice')
   })
 
   it('isolates active-kit cache by user', () => {

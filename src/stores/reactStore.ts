@@ -1396,6 +1396,9 @@ export const RETIRED_NEON_LATTICE_BUILT_IN_PRESET_IDS = new Set<string>([
 ])
 
 const RETIRED_NEON_ACTION_PREFIX = `${RETIRED_NEON_LATTICE_ENGINE_ID}.`
+const RETIRED_NEON_ACTION_PREFIX_NORMALIZED = normalizeRetiredNeonIdentifier(RETIRED_NEON_ACTION_PREFIX)
+const RETIRED_NL_TRIGGER_PREFIX_NORMALIZED = 'nltrigger'
+const RETIRED_TRIGGER_NEON_LATTICE_KEY_NORMALIZED = 'triggerneonlattice'
 const RETIRED_NEON_ACTION_FIELDS = [
   'action',
   'actionId',
@@ -1405,13 +1408,36 @@ const RETIRED_NEON_ACTION_FIELDS = [
   'visualActionId',
 ] as const
 
+function normalizeRetiredNeonIdentifier(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+function isRetiredNeonIdentifier(value: string): boolean {
+  return normalizeRetiredNeonIdentifier(value) === normalizeRetiredNeonIdentifier(RETIRED_NEON_LATTICE_ENGINE_ID)
+}
+
+function isRetiredNeonFieldKey(key: string): boolean {
+  const normalized = normalizeRetiredNeonIdentifier(key)
+  return normalized.includes(normalizeRetiredNeonIdentifier(RETIRED_NEON_LATTICE_ENGINE_ID))
+    || normalized === RETIRED_TRIGGER_NEON_LATTICE_KEY_NORMALIZED
+    || normalized.startsWith(RETIRED_NL_TRIGGER_PREFIX_NORMALIZED)
+}
+
 function isRetiredNeonEngine(value: unknown): boolean {
-  return value === RETIRED_NEON_LATTICE_ENGINE_ID
+  return typeof value === 'string' && isRetiredNeonIdentifier(value)
+}
+
+function isRetiredNeonActionString(value: string): boolean {
+  const normalized = normalizeRetiredNeonIdentifier(value)
+  return value.startsWith(RETIRED_NEON_ACTION_PREFIX)
+    || normalized.startsWith(RETIRED_NEON_ACTION_PREFIX_NORMALIZED)
+    || normalized === RETIRED_TRIGGER_NEON_LATTICE_KEY_NORMALIZED
+    || normalized.startsWith(RETIRED_NL_TRIGGER_PREFIX_NORMALIZED)
 }
 
 function isRetiredNeonActionValue(value: unknown): boolean {
   if (typeof value === 'string') {
-    return value.startsWith(RETIRED_NEON_ACTION_PREFIX)
+    return isRetiredNeonActionString(value)
   }
   if (!isRecord(value)) return false
   if (isRetiredNeonEngine(value.engine) || isRetiredNeonEngine(value.engineId)) return true
@@ -1445,7 +1471,7 @@ function collectRetiredNeonPresetIds(value: unknown): Set<string> {
 function stripRetiredNeonFields<T extends Record<string, unknown>>(value: T): T {
   let next: Record<string, unknown> | null = null
   for (const key of Object.keys(value)) {
-    if (!key.toLowerCase().includes('neonlattice')) continue
+    if (!isRetiredNeonFieldKey(key)) continue
     next ??= { ...value }
     delete next[key]
   }

@@ -215,6 +215,8 @@ describe('Neon Lattice persisted-data retirement', () => {
   it('drops only the retired Brand Kit engine rule', () => {
     expect(normalizeBrandKitEngineRules({
       neonLattice: { mode: 'brand', strength: 0.8 },
+      NEON_LATTICE: { mode: 'custom', strength: 0.9 },
+      'Neon Lattice': { mode: 'original', strength: 0.2 },
       oscilloscope: { mode: 'hybrid', strength: 0.6 },
       laserDmx: { mode: 'brand', strength: 0.7, preserveTriggerSemantics: true },
     })).toEqual({
@@ -245,6 +247,67 @@ describe('Neon Lattice persisted-data retirement', () => {
     expect(sanitized.activeReactPresetId).toBe('preset-dream-gate')
     expect(sanitized).not.toHaveProperty('neonLatticePreviewState')
     expect(sanitized).not.toHaveProperty('neonLatticeSettings')
+  })
+
+  it('sanitizes legacy spelling variants and old nl-trigger action residue', () => {
+    const safePreset = customPreset('custom-safe-variant', 'oscilloscope') as ReactPreset
+    const variantPreset = {
+      ...BASE_NEON_PRESET,
+      id: 'custom-variant-import',
+      engine: 'Neon Lattice',
+      neon_latticeSettings: { railDensity: 0.5 },
+    }
+    const fixture = {
+      activeReactPresetId: variantPreset.id,
+      activeReactEngineId: 'NEON_LATTICE',
+      reactPresets: [variantPreset, safePreset],
+      performancePads: [{
+        ...DEFAULT_PERFORMANCE_PADS[0],
+        presetId: variantPreset.id,
+        actionId: 'nl-trigger-rail-burst',
+        visualAction: 'triggerNeonLattice',
+      }],
+      presetAutomationCuesByTrackId: {
+        trackA: [
+          { id: 'variant-action', timeSec: 12, presetId: safePreset.id, label: 'Variant', enabled: true, transitionMs: 250, actionId: 'nl-trigger-whiteout' },
+          { id: 'safe', timeSec: 24, presetId: safePreset.id, label: 'Safe', enabled: true, transitionMs: 250 },
+        ],
+      },
+      manualTrackSectionsByTrackId: {
+        trackA: [{
+          id: 'variant-section', label: 'Variant', type: 'drop', startSec: 0, endSec: 16,
+          intensity: 1, engineId: 'neon_lattice', source: 'manual', confidence: 0.9,
+        }],
+      },
+      neon_latticeSettings: { stale: true },
+      NEON_LATTICE_TRIGGER: { stale: true },
+      'nl-trigger-state': { stale: true },
+      performanceActionEvent: { actionId: 'nl-trigger-rail-burst', sequence: 1, target: { engineId: 'Neon Lattice' }, triggeredAtMs: 1 },
+      performanceActionEvents: [
+        { actionId: 'nl-trigger-rail-burst', sequence: 1, target: { engineId: 'Neon Lattice' }, triggeredAtMs: 1 },
+        { actionId: 'laserDmx.whiteHit', sequence: 2, target: { engineId: 'laserDmx' }, triggeredAtMs: 2 },
+      ],
+      performanceActionToggleStates: {
+        'nl-trigger-rail-burst': true,
+        'laserDmx.blackout': true,
+      },
+    }
+
+    const sanitized = migrateReactStore(fixture, 37)
+    expect(sanitized.activeReactEngineId).toBe('cinematicPortal')
+    expect(sanitized.activeReactPresetId).toBe('preset-dream-gate')
+    expect((sanitized.reactPresets as ReactPreset[]).map(preset => preset.id)).toEqual([safePreset.id])
+    expect((sanitized.performancePads as Array<Record<string, unknown>>)[0]).toMatchObject({ presetId: null, actionId: null, visualAction: null })
+    expect((sanitized.presetAutomationCuesByTrackId as Record<string, Array<Record<string, unknown>>>).trackA)
+      .toEqual([fixture.presetAutomationCuesByTrackId.trackA[1]])
+    expect((sanitized.manualTrackSectionsByTrackId as Record<string, Array<Record<string, unknown>>>).trackA[0])
+      .not.toHaveProperty('engineId')
+    expect(sanitized).not.toHaveProperty('neon_latticeSettings')
+    expect(sanitized).not.toHaveProperty('NEON_LATTICE_TRIGGER')
+    expect(sanitized).not.toHaveProperty('nl-trigger-state')
+    expect(sanitized.performanceActionEvent).toBeNull()
+    expect(sanitized.performanceActionEvents).toEqual([fixture.performanceActionEvents[1]])
+    expect(sanitized.performanceActionToggleStates).toEqual({ 'laserDmx.blackout': true })
   })
 
   it('does not invent a selection when sanitizing an unrelated partial import', () => {

@@ -4,6 +4,7 @@ import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_REACT_PRESETS, type ReactEngineId, type ReactPreset } from '../ReactTypes'
+import { REACT_ENGINE_IDS } from '../reactEngineCatalog'
 import {
   getReactLiveEngineOwnershipDiagnosticsForTests,
   resetReactLiveEngineOwnershipForTests,
@@ -54,6 +55,8 @@ let root: Root | null = null
 let host: HTMLDivElement | null = null
 let nextRafId = 1
 let rafCallbacks = new Map<number, FrameRequestCallback>()
+
+const LIVE_CANVAS_ENGINE_IDS = REACT_ENGINE_IDS.filter((engine): engine is Exclude<ReactEngineId, 'shaderPads'> => engine !== 'shaderPads')
 
 function findPreset(engine: Exclude<ReactEngineId, 'shaderPads'>): ReactPreset {
   const found = DEFAULT_REACT_PRESETS.find(preset => preset.engine === engine)
@@ -219,6 +222,34 @@ describe('ReactPlaceholderCanvas live ownership boundary', () => {
     }
 
     expect(mocks.disposeReactEngineRenderer).toHaveBeenCalledTimes(6)
+    expect(resizeObservers.every(observer => observer.disconnect.mock.calls.length === 1)).toBe(true)
+  })
+
+  it('cycles all non-shader engine families without overlapping loops or ownership', async () => {
+    const onCanvasReady = vi.fn()
+
+    for (let pass = 0; pass < 2; pass += 1) {
+      for (const engineId of LIVE_CANVAS_ENGINE_IDS) {
+        await act(async () => root?.render(renderCanvas(engineId, onCanvasReady)))
+        expect(getReactLiveEngineOwnershipDiagnosticsForTests()).toMatchObject({
+          activeOwnerCount: 1,
+          activeEngine: engineId,
+        })
+        expect(rafCallbacks.size).toBe(1)
+      }
+    }
+
+    await act(async () => root?.unmount())
+    root = null
+
+    expect(getReactLiveEngineOwnershipDiagnosticsForTests()).toMatchObject({
+      activeOwnerCount: 0,
+      activeEngine: null,
+    })
+    expect(rafCallbacks.size).toBe(0)
+    expect(mocks.disposeReactEngineRenderer).toHaveBeenCalledTimes(LIVE_CANVAS_ENGINE_IDS.length * 2)
+    expect(new Set(mocks.disposeReactEngineRenderer.mock.calls.map(call => call[1])))
+      .toEqual(new Set(LIVE_CANVAS_ENGINE_IDS))
     expect(resizeObservers.every(observer => observer.disconnect.mock.calls.length === 1)).toBe(true)
   })
 

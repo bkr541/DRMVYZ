@@ -44,12 +44,21 @@ describe('Neon Lattice secondary integration retirement', () => {
   it('leaves exact retired Neon identifiers only in historical sanitizers', () => {
     const retiredNeedles = [
       /neonLattice/g,
+      /NeonLattice/g,
+      /neon_lattice/gi,
+      /NEON_LATTICE/g,
       /Neon\s+Lattice/g,
+      /neon\s+lattice/g,
       /neon-lattice/gi,
       /preset-nl-/g,
+      /nl-trigger/g,
+      /acid-magenta/g,
+      /drmvyz-lattice/g,
+      /sparse-starlines/g,
+      /overload-matrix/g,
+      /reverie-keygrid/g,
       /preset-neon-energy-cloud/g,
       /triggerNeonLattice/g,
-      /NeonLattice/g,
     ]
     const offenders: string[] = []
 
