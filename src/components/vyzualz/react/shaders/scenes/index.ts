@@ -1,4 +1,4 @@
-export { NEON_TUNNEL } from './neonTunnel'
+export { PRISM_TUNNEL } from './prismTunnel'
 export { LIQUID_METABALLS } from './liquidMetaballs'
 export { FEEDBACK_KALEIDOSCOPE } from './feedbackKaleidoscope'
 export { SPECTRUM_CATHEDRAL } from './spectrumCathedral'
@@ -13,7 +13,7 @@ export { MELODIC_RIFT_BLOOM } from './melodicRiftBloom'
 export { RIDDIM_RAILGUN_SEQUENCER } from './riddimRailgunSequencer'
 export { BRAND_SINGULARITY } from './brandSingularity'
 
-import { NEON_TUNNEL } from './neonTunnel'
+import { PRISM_TUNNEL } from './prismTunnel'
 import { LIQUID_METABALLS } from './liquidMetaballs'
 import { FEEDBACK_KALEIDOSCOPE } from './feedbackKaleidoscope'
 import { SPECTRUM_CATHEDRAL } from './spectrumCathedral'
@@ -30,7 +30,7 @@ import { BRAND_SINGULARITY } from './brandSingularity'
 import type { ShaderDefinition } from '../registry/shaderRegistryTypes'
 
 export const PRODUCTION_SCENES: ShaderDefinition[] = [
-  NEON_TUNNEL,
+  PRISM_TUNNEL,
   LIQUID_METABALLS,
   FEEDBACK_KALEIDOSCOPE,
   SPECTRUM_CATHEDRAL,
@@ -46,4 +46,4 @@ export const PRODUCTION_SCENES: ShaderDefinition[] = [
   BRAND_SINGULARITY,
 ]
 
-export const DEFAULT_SHADER_SCENE_ID = NEON_TUNNEL.id
+export const DEFAULT_SHADER_SCENE_ID = PRISM_TUNNEL.id

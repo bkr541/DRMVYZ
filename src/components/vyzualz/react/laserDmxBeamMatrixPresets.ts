@@ -1944,7 +1944,7 @@ export const LASER_DMX_BEAM_MATRIX_PRESETS: LaserDmxBeamMatrixPreset[] = [
   {
     id:          'laser-cage',
     name:        'Laser Cage',
-    description: 'A rigid neon enclosure of horizontal, vertical, and diagonal beams with drop-impact accents.',
+    description: 'A rigid beam enclosure of horizontal, vertical, and diagonal beams with drop-impact accents.',
     category:    'drop',
     tags:        ['cage', 'grid', 'red', 'blue', 'purple', 'geometric'],
     createSettings: createLaserCageSettings,

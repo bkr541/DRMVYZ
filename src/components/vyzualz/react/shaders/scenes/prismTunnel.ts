@@ -1,8 +1,8 @@
 import type { ShaderDefinition } from '../registry/shaderRegistryTypes'
 
-export const NEON_TUNNEL: ShaderDefinition = {
+export const PRISM_TUNNEL: ShaderDefinition = {
   id: 'shader-neon-tunnel',
-  name: 'Neon Tunnel',
+  name: 'Prism Tunnel',
   description: 'Ray-marched tunnel with cyan-emerald lighting, beat pulse, and bass wall deformation.',
   category: 'raymarch',
   version: 1,
@@ -248,5 +248,5 @@ void main() {
 
   thumbnail: { color: '#063333' },
 
-  tags: ['tunnel', 'neon', 'raymarch'],
+  tags: ['tunnel', 'prism', 'raymarch'],
 }

@@ -371,7 +371,7 @@ export class ShaderEngineRenderer {
     // Ensure transition capture FBOs are allocated before the dual-render path.
     // If allocation fails (context lost, FRAMEBUFFER_UNSUPPORTED, etc.) fall
     // back to an immediate hard cut: promote the incoming scene and continue
-    // rendering normally.  This keeps Neon Tunnel / Liquid Metaballs rendering
+    // rendering normally.  This keeps Prism Tunnel / Liquid Metaballs rendering
     // even when optional transition targets cannot be created.
     if (transResult.shouldRenderDual && this._outgoingExecutor) {
       if (!this._transRend.ensureCaptureTargets()) {

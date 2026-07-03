@@ -541,7 +541,7 @@ describe('L. ShaderImportExport — filename helpers', () => {
   })
 
   it('suggestFilename handles special characters', () => {
-    const def = makeDef('s2', { name: 'Neon/Lattice 3.0!' })
+    const def = makeDef('s2', { name: 'Prism/Grid 3.0!' })
     const name = ShaderImportExport.suggestFilename(def)
     expect(name).toMatch(/\.json$/)
     expect(name).not.toMatch(/[/!]/)

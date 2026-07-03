@@ -235,7 +235,7 @@ export function updateAndDrawParticles(
 }
 
 // ── F) Reactive Grid ──────────────────────────────────────────────────────────
-// Perspective neon grid drawn behind media; warps with bass / low-mid.
+// Perspective emissive grid drawn behind media; warps with bass / low-mid.
 export function drawReactiveGrid(
   ctx: CanvasRenderingContext2D,
   W: number, H: number, dpr: number,

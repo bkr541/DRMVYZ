@@ -41,7 +41,7 @@ export function buildPresetCueId(sectionId: string): string {
   return `section-preset:${sectionId}`
 }
 
-/** Returns a human-readable cue label, e.g. "Drop → Neon Energy Cloud". */
+/** Returns a human-readable cue label, e.g. "Drop → Energy Cloud". */
 export function buildPresetCueLabel(sectionLabel: string, presetName: string): string {
   return `${sectionLabel} → ${presetName}`
 }

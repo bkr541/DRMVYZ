@@ -527,9 +527,9 @@ describe('H: ShaderDefinitionValidator — production scenes', () => {
     expect(result.errors).toHaveLength(0)
   })
 
-  it('H2: neonTunnel single-pass scene has no validation errors', async () => {
-    const { NEON_TUNNEL } = await import('../scenes/neonTunnel')
-    const result = ShaderDefinitionValidator.validate(NEON_TUNNEL)
+  it('H2: prismTunnel single-pass scene has no validation errors', async () => {
+    const { PRISM_TUNNEL } = await import('../scenes/prismTunnel')
+    const result = ShaderDefinitionValidator.validate(PRISM_TUNNEL)
     expect(result.valid).toBe(true)
   })
 

@@ -1240,7 +1240,7 @@ const PALETTE_RADIAL: ReactPalette = {
   text:       DVYDRM_WHITE,
 }
 
-const PALETTE_NEON_TRACE: ReactPalette = {
+const PALETTE_PRISM_TRACE: ReactPalette = {
   primary:    '#b84fc9',
   secondary:  DVYDRM_CYAN,
   accent:     DVYDRM_GOLD,
@@ -1471,7 +1471,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
   },
   {
     id: 'preset-neon-transit',
-    name: 'Neon Transit',
+    name: 'Prism Transit',
     description: 'A fast pillar-lined transit tunnel with lateral camera sway, sharp alternating light lanes, and thin haze.',
     engine: 'cinematicPortal',
     palette: {
@@ -2270,10 +2270,10 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
   },
   {
     id: 'preset-neon-text-trace',
-    name: 'Neon Text Trace',
+    name: 'Prism Text Trace',
     description: 'Purple-cyan waveform trace with high glow — text-style oscilloscope aesthetics.',
     engine: 'oscilloscope',
-    palette: PALETTE_NEON_TRACE,
+    palette: PALETTE_PRISM_TRACE,
     params: { intensity: 0.75, motion: 0.5, glow: 0.9, bassReactivity: 0.7 },
     scenes: makeScenes('ntt', 'oscilloscope'),
     sectionMappings: makeMappings('ntt'),
@@ -2354,7 +2354,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     name: 'DRMVYZ Text Trace',
     description: 'The DRMVYZ logotype traced as a glyph path — dual trace with high glow.',
     engine: 'oscilloscope',
-    palette: PALETTE_NEON_TRACE,
+    palette: PALETTE_PRISM_TRACE,
     params: { intensity: 0.75, motion: 0.42, glow: 0.88, bassReactivity: 0.75 },
     scenes: makeScenes('dtt', 'oscilloscope'),
     sectionMappings: makeMappings('dtt'),

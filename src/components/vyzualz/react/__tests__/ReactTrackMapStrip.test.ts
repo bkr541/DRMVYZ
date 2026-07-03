@@ -845,7 +845,7 @@ describe('buildPresetCueId', () => {
 
 describe('buildPresetCueLabel', () => {
   it('formats "SectionLabel → PresetName"', () => {
-    expect(buildPresetCueLabel('Drop', 'Neon Energy Cloud')).toBe('Drop → Neon Energy Cloud')
+    expect(buildPresetCueLabel('Drop', 'Energy Cloud')).toBe('Drop → Energy Cloud')
   })
 
   it('handles empty strings without throwing', () => {
@@ -923,16 +923,16 @@ describe('section preset assignment — assigning', () => {
 
   it('creates a cue with the correct shape when a preset is assigned', () => {
     const section = makeSection()
-    assignPreset(section, 'preset-neon-energy', 'Neon Energy')
+    assignPreset(section, 'preset-energy-cloud', 'Energy Cloud')
     const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
     expect(cues).toHaveLength(1)
     const cue = cues[0]
     expect(cue.id).toBe(buildPresetCueId(section.id))
     expect(cue.timeSec).toBe(section.startSec)
-    expect(cue.presetId).toBe('preset-neon-energy')
+    expect(cue.presetId).toBe('preset-energy-cloud')
     expect(cue.sectionId).toBe(section.id)
     expect(cue.enabled).toBe(true)
-    expect(cue.label).toBe('Drop → Neon Energy')
+    expect(cue.label).toBe('Drop → Energy Cloud')
   })
 
   it('cue timeSec matches the section startSec', () => {
@@ -1220,12 +1220,12 @@ describe('orphaned cue cleanup — rename (handleSaveSection label change)', () 
 
   it('renaming a section updates the linked cue label', () => {
     const section = makeSection({ id: 'sec-rename', label: 'Drop', startSec: 30 })
-    assignPreset(section, 'p-neon', 'Neon Cloud')
+    assignPreset(section, 'p-energy-cloud', 'Energy Cloud')
 
-    saveSectionLabel(section, 'Big Drop', 'Neon Cloud')
+    saveSectionLabel(section, 'Big Drop', 'Energy Cloud')
 
     const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
-    expect(cues[0].label).toBe(buildPresetCueLabel('Big Drop', 'Neon Cloud'))
+    expect(cues[0].label).toBe(buildPresetCueLabel('Big Drop', 'Energy Cloud'))
   })
 
   it('renaming preserves presetId and timeSec', () => {
