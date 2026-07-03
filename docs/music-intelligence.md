@@ -186,6 +186,8 @@ These are not implemented in the browser. Use the `StemAnalysisBackend` interfac
 | **pyloudnorm** | LUFS loudness normalization |
 | **torch** | Custom ML models for mood, genre, structure |
 
-Lyric transcription is routed through `supabase/functions/lyric-transcription`. Configure provider credentials only as Supabase server-side secrets, using `supabase/functions/.env.example` as the non-secret template. Never expose transcription credentials through `VITE_*` variables or call a provider directly from React.
+Lyric transcription is routed through `supabase/functions/lyric-transcription` and currently requires an internet connection. Groq Whisper is the intended provider for new jobs, called server-side from the Supabase Edge Function. Browser users never call Groq directly and no transcription credentials should be exposed through `VITE_*` variables.
 
-The direct OpenAI route keeps compatible files under the provider byte limit as one request. Oversized uncompressed PCM or IEEE-float WAV files are automatically split into valid overlapping RIFF/WAVE chunks, transcribed with bounded concurrency, and reconciled back onto the original track timeline. Oversized compressed containers still require a smaller source file or the optional long-audio backend because they cannot be cut safely without a codec-aware transcoder.
+OpenAI is retained only as legacy historical/transitional compatibility during the staged provider replacement. Existing lyric document saving, cue saving, word timing, chunk reconciliation, retry/cancel behavior, and private browser-prepared audio storage remain unchanged.
+
+The direct provider route keeps compatible files under the provider byte limit as one request. Oversized uncompressed PCM or IEEE-float WAV files are automatically split into valid overlapping RIFF/WAVE chunks, transcribed with bounded concurrency, and reconciled back onto the original track timeline. Oversized compressed containers are prepared in the browser as private mono PCM WAV chunks when possible; a source codec the browser cannot decode still requires conversion or the optional long-audio backend.

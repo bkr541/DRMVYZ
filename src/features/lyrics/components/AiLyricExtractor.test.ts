@@ -8,7 +8,7 @@ function job(id: string, status: LyricTranscriptionJob['status'], createdAt: str
     userId: 'user-1',
     audioTrackId: 'track-1',
     lyricDocumentId: status === 'completed' ? `doc-${id}` : null,
-    provider: 'openai',
+    provider: 'groq',
     status,
     progress: status === 'completed' ? 1 : 0.4,
     errorCode: null,

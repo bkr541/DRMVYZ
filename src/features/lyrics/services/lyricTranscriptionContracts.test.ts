@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import type { LyricTranscriptionProviderName } from '../../../types/lyrics'
 import migrationSql from '../../../../supabase/migrations/0016_lyric_transcription_jobs.sql?raw'
 import finalAuditMigrationSql from '../../../../supabase/migrations/0017_lyric_final_audit.sql?raw'
 import preparedAudioMigrationSql from '../../../../supabase/migrations/0019_audio_transcription_assets.sql?raw'
+import groqProviderMigrationSql from '../../../../supabase/migrations/0020_groq_lyric_transcription_provider.sql?raw'
 import edgeFunctionSource from '../../../../supabase/functions/lyric-transcription/index.ts?raw'
 import clientSource from './lyricExtraction.ts?raw'
 
@@ -9,6 +11,9 @@ const compact = (value: string) => value.replace(/\s+/g, ' ').trim()
 const sql = compact(migrationSql)
 const finalAuditSql = compact(finalAuditMigrationSql)
 const preparedAudioSql = compact(preparedAudioMigrationSql)
+const groqProviderSql = compact(groqProviderMigrationSql)
+
+const supportedProviders = ['groq', 'openai', 'custom'] as const satisfies readonly LyricTranscriptionProviderName[]
 
 describe('secure lyric transcription contracts', () => {
   it('creates owned resumable jobs with constrained statuses, progress, indexes, and RLS', () => {
@@ -27,6 +32,17 @@ describe('secure lyric transcription contracts', () => {
     expect(finalAuditSql).toContain('octet_length(provider_metadata::text) <= 524288')
     expect(finalAuditSql).toContain('lyric_transcription_jobs_request_options_size_check')
     expect(finalAuditSql).toContain('octet_length(request_options::text) <= 16384')
+  })
+
+  it('allows Groq for new jobs while preserving historical OpenAI/custom provider rows', () => {
+    expect(supportedProviders).toEqual(['groq', 'openai', 'custom'])
+    expect(groqProviderSql).toContain('DROP CONSTRAINT IF EXISTS lyric_transcription_jobs_provider_check')
+    expect(groqProviderSql).toContain("provider IN ('groq', 'openai', 'custom')")
+    expect(groqProviderSql).not.toContain('UPDATE public.lyric_transcription_jobs')
+    expect(edgeFunctionSource).toContain("type LyricTranscriptionProviderName = 'groq' | 'openai' | 'custom'")
+    expect(edgeFunctionSource).toContain("function configuredProvider(): 'groq' | 'custom'")
+    expect(edgeFunctionSource).toContain(": 'groq'")
+    expect(edgeFunctionSource).toContain('legacy OpenAI path')
   })
 
   it('verifies audio-track ownership and prevents duplicate active jobs server-side', () => {
@@ -76,8 +92,8 @@ describe('secure lyric transcription contracts', () => {
   it('keeps provider credentials server-only with no browser-exposed provider key', () => {
     expect(edgeFunctionSource).toContain("requiredEnv('OPENAI_API_KEY')")
     expect(edgeFunctionSource).toContain("requiredEnv('LYRIC_TRANSCRIPTION_ENDPOINT_TOKEN')")
-    expect(clientSource).not.toMatch(/VITE_(OPENAI|ANTHROPIC|DEEPGRAM|ASSEMBLYAI|WHISPER)/)
-    expect(edgeFunctionSource).not.toMatch(/VITE_(OPENAI|ANTHROPIC|DEEPGRAM|ASSEMBLYAI|WHISPER)/)
+    expect(clientSource).not.toMatch(/VITE_(OPENAI|GROQ|ANTHROPIC|DEEPGRAM|ASSEMBLYAI|WHISPER)/)
+    expect(edgeFunctionSource).not.toMatch(/VITE_(OPENAI|GROQ|ANTHROPIC|DEEPGRAM|ASSEMBLYAI|WHISPER)/)
   })
 
   it('creates a new inactive AI draft and completes document, cues, and job in one RPC transaction', () => {
@@ -95,7 +111,9 @@ describe('secure lyric transcription contracts', () => {
     expect(edgeFunctionSource).toContain('planTranscriptionUnits(durationMs, { forceChunking: false })')
     expect(edgeFunctionSource).toContain('planWavTranscriptionChunks(sourceBytes')
     expect(edgeFunctionSource).toContain('buildWavTranscriptionChunk(sourceBytes, plan, descriptor)')
-    expect(edgeFunctionSource).toContain("positiveEnvInteger(\n    'OPENAI_TRANSCRIPTION_CONCURRENCY'")
+    expect(edgeFunctionSource).toContain('providerTranscriptionConcurrency(provider)')
+    expect(edgeFunctionSource).toContain('GROQ_TRANSCRIPTION_CONCURRENCY')
+    expect(edgeFunctionSource).toContain('OPENAI_TRANSCRIPTION_CONCURRENCY')
     expect(edgeFunctionSource).toContain('reconcileTranscriptUnits(normalizedUnits)')
   })
 

@@ -51,6 +51,15 @@ const PROCESSING_STAGE_LABELS: Record<string, string> = {
   saving: 'Saving draft…',
 }
 
+
+function providerLabel(job: LyricTranscriptionJob): string {
+  switch (job.provider) {
+    case 'groq': return 'Groq Whisper'
+    case 'openai': return 'OpenAI (legacy)'
+    case 'custom': return 'Custom provider'
+  }
+}
+
 function processingStageLabel(job: LyricTranscriptionJob): string | null {
   if (job.status !== 'processing') return null
   const stage = job.providerMetadata.processingStage
@@ -397,7 +406,7 @@ export function AiLyricExtractor({
           <div className="lmv-job-header">
             <div>
               <span className="lmv-job-status">{jobStatusLabel(job)}</span>
-              <span className="lmv-job-provider">{job.provider === 'openai' ? 'OpenAI' : 'Custom provider'}</span>
+              <span className="lmv-job-provider">{providerLabel(job)}</span>
               {stageLabel && <span className="lmv-job-stage">{stageLabel}</span>}
             </div>
             <span className="lmv-job-progress-label">{progressPercent}%</span>

@@ -334,7 +334,7 @@ export interface LyricDocument {
   updatedAt:        string
 }
 
-export type LyricTranscriptionProviderName = 'openai' | 'custom'
+export type LyricTranscriptionProviderName = 'groq' | 'openai' | 'custom'
 export type LyricTranscriptionJobStatus =
   | 'queued'
   | 'processing'

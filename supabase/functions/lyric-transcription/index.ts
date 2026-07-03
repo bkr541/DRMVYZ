@@ -28,12 +28,20 @@ const corsHeaders = {
 const AUDIO_BUCKET = 'audio-tracks'
 const MAX_STORED_AUDIO_BYTES = 500 * 1024 * 1024
 const MAX_SERVER_DOWNLOAD_BYTES = 100 * 1024 * 1024
+const DEFAULT_GROQ_MAX_BYTES = 25 * 1024 * 1024
+const DEFAULT_GROQ_SAFE_AUDIO_BYTES = 23 * 1024 * 1024
+const DEFAULT_GROQ_CHUNK_SAFETY_BYTES = 256 * 1024
+const DEFAULT_GROQ_CHUNK_OVERLAP_MS = 4_000
+const DEFAULT_GROQ_CHUNK_CONCURRENCY = 1
+const DEFAULT_GROQ_PROVIDER_TIMEOUT_MS = 180_000
 const DEFAULT_OPENAI_MAX_BYTES = 25 * 1024 * 1024
 const DEFAULT_OPENAI_SAFE_AUDIO_BYTES = 23 * 1024 * 1024
 const DEFAULT_OPENAI_CHUNK_SAFETY_BYTES = 256 * 1024
 const DEFAULT_OPENAI_CHUNK_OVERLAP_MS = 4_000
 const DEFAULT_OPENAI_CHUNK_CONCURRENCY = 2
 const DEFAULT_PROVIDER_TIMEOUT_MS = 180_000
+
+type LyricTranscriptionProviderName = 'groq' | 'openai' | 'custom'
 const RAW_PROVIDER_METADATA_LIMIT = 120_000
 const ACTIVE_STATUSES = ['queued', 'processing'] as const
 
@@ -88,7 +96,7 @@ interface JobRow {
   user_id: string
   audio_track_id: string
   lyric_document_id: string | null
-  provider: 'openai' | 'custom'
+  provider: LyricTranscriptionProviderName
   status: 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled'
   progress: number
   error_code: string | null
@@ -168,6 +176,47 @@ function openAiSafeAudioBytes(): number {
   return Math.max(1024 * 1024, Math.min(configuredSafe, documentedMax - 256 * 1024))
 }
 
+function groqSafeAudioBytes(): number {
+  const documentedMax = positiveEnvNumber('GROQ_MAX_AUDIO_BYTES', DEFAULT_GROQ_MAX_BYTES)
+  const configuredSafe = positiveEnvNumber('GROQ_SAFE_AUDIO_BYTES', DEFAULT_GROQ_SAFE_AUDIO_BYTES)
+  return Math.max(1024 * 1024, Math.min(configuredSafe, documentedMax - 256 * 1024))
+}
+
+function providerSafeAudioBytes(provider: LyricTranscriptionProviderName): number {
+  return provider === 'openai' ? openAiSafeAudioBytes() : groqSafeAudioBytes()
+}
+
+function providerDocumentedMaxAudioBytes(provider: LyricTranscriptionProviderName): number {
+  return provider === 'openai'
+    ? positiveEnvNumber('OPENAI_MAX_AUDIO_BYTES', DEFAULT_OPENAI_MAX_BYTES)
+    : positiveEnvNumber('GROQ_MAX_AUDIO_BYTES', DEFAULT_GROQ_MAX_BYTES)
+}
+
+function providerChunkSafetyBytes(provider: LyricTranscriptionProviderName, maxBytes: number): number {
+  const configuredSafety = provider === 'openai'
+    ? positiveEnvNumber('OPENAI_CHUNK_SAFETY_BYTES', DEFAULT_OPENAI_CHUNK_SAFETY_BYTES)
+    : positiveEnvNumber('GROQ_CHUNK_SAFETY_BYTES', DEFAULT_GROQ_CHUNK_SAFETY_BYTES)
+  return Math.min(configuredSafety, Math.max(1, Math.floor(maxBytes / 8)))
+}
+
+function providerTranscriptionOverlapMs(provider: LyricTranscriptionProviderName): number {
+  return provider === 'openai'
+    ? positiveEnvNumber('OPENAI_TRANSCRIPTION_OVERLAP_MS', DEFAULT_OPENAI_CHUNK_OVERLAP_MS)
+    : positiveEnvNumber('GROQ_TRANSCRIPTION_OVERLAP_MS', DEFAULT_GROQ_CHUNK_OVERLAP_MS)
+}
+
+function providerTranscriptionConcurrency(provider: LyricTranscriptionProviderName): number {
+  return provider === 'openai'
+    ? positiveEnvInteger('OPENAI_TRANSCRIPTION_CONCURRENCY', DEFAULT_OPENAI_CHUNK_CONCURRENCY, 4)
+    : positiveEnvInteger('GROQ_TRANSCRIPTION_CONCURRENCY', DEFAULT_GROQ_CHUNK_CONCURRENCY, 4)
+}
+
+function providerTimeoutMs(provider: LyricTranscriptionProviderName): number {
+  return provider === 'groq'
+    ? positiveEnvNumber('GROQ_PROVIDER_TIMEOUT_MS', DEFAULT_GROQ_PROVIDER_TIMEOUT_MS)
+    : DEFAULT_PROVIDER_TIMEOUT_MS
+}
+
 function safeOptions(value: unknown): Record<string, unknown> {
   const input = asRecord(value)
   const language = typeof input.language === 'string' && /^[a-z]{2,8}(-[a-z0-9]{2,8})?$/i.test(input.language)
@@ -186,10 +235,12 @@ function safeOptions(value: unknown): Record<string, unknown> {
   }
 }
 
-function configuredProvider(): 'openai' | 'custom' {
+function configuredProvider(): 'groq' | 'custom' {
+  // Groq is the canonical provider for new jobs. The legacy OpenAI path below
+  // remains callable only as transitional runtime code until the Groq API swap lands.
   return Deno.env.get('LYRIC_TRANSCRIPTION_PROVIDER')?.trim().toLowerCase() === 'custom'
     ? 'custom'
-    : 'openai'
+    : 'groq'
 }
 
 function isCustomProviderConfigured(): boolean {
@@ -509,6 +560,8 @@ async function mapWithConcurrency<TInput, TOutput>(
   return results
 }
 
+// Legacy transitional provider call. Patch 1 switches job/provider contracts to Groq
+// without changing the active provider HTTP implementation yet.
 async function requestOpenAITranscript(
   apiKey: string,
   model: string,
@@ -516,6 +569,7 @@ async function requestOpenAITranscript(
   fileName: string,
   mimeType: string,
   options: Record<string, unknown>,
+  timeoutMs = DEFAULT_PROVIDER_TIMEOUT_MS,
 ): Promise<unknown> {
   const form = new FormData()
   form.append('file', new File([blob], fileName, { type: mimeType || blob.type || 'application/octet-stream' }))
@@ -529,7 +583,7 @@ async function requestOpenAITranscript(
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}` },
     body: form,
-  })
+  }, timeoutMs)
   if (!response.ok) throw providerHttpError(response)
   return await response.json()
 }
@@ -563,9 +617,11 @@ async function runOpenAIProvider(
   options: Record<string, unknown>,
   onChunkProgress?: (completed: number, total: number) => Promise<void>,
   preFetchedSourceBytes?: Uint8Array,
+  provider: LyricTranscriptionProviderName = 'openai',
 ): Promise<ProviderRunResult> {
   const apiKey = requiredEnv('OPENAI_API_KEY')
-  const maxBytes = openAiSafeAudioBytes()
+  const maxBytes = providerSafeAudioBytes(provider)
+  const timeoutMs = providerTimeoutMs(provider)
   const model = Deno.env.get('OPENAI_TRANSCRIPTION_MODEL')?.trim() || 'whisper-1'
 
   if (blob.size <= maxBytes) {
@@ -576,6 +632,7 @@ async function runOpenAIProvider(
       track.file_name,
       track.mime_type || blob.type || 'application/octet-stream',
       options,
+      timeoutMs,
     )
     const transcript = providerTranscript(payload)
     const storedDurationMs = track.duration_sec && track.duration_sec > 0
@@ -591,11 +648,11 @@ async function runOpenAIProvider(
   if (!isRiffWave(sourceBytes)) throw wavChunkingFailure(null)
 
   const safetyBytes = Math.min(
-    positiveEnvNumber('OPENAI_CHUNK_SAFETY_BYTES', DEFAULT_OPENAI_CHUNK_SAFETY_BYTES),
+    providerChunkSafetyBytes(provider, maxBytes),
     Math.max(1, Math.floor(maxBytes / 8)),
   )
   const chunkLimitBytes = Math.floor(maxBytes - safetyBytes)
-  const overlapMs = positiveEnvNumber('OPENAI_TRANSCRIPTION_OVERLAP_MS', DEFAULT_OPENAI_CHUNK_OVERLAP_MS)
+  const overlapMs = providerTranscriptionOverlapMs(provider)
   let plan: WavChunkPlan
   try {
     plan = planWavTranscriptionChunks(sourceBytes, { maxFileBytes: chunkLimitBytes, overlapMs })
@@ -603,11 +660,7 @@ async function runOpenAIProvider(
     throw wavChunkingFailure(error)
   }
 
-  const concurrency = positiveEnvInteger(
-    'OPENAI_TRANSCRIPTION_CONCURRENCY',
-    DEFAULT_OPENAI_CHUNK_CONCURRENCY,
-    4,
-  )
+  const concurrency = providerTranscriptionConcurrency(provider)
   let chunksCompleted = 0
   const completed = await mapWithConcurrency(plan.chunks, concurrency, async descriptor => {
     const chunkBytes = buildWavTranscriptionChunk(sourceBytes, plan, descriptor)
@@ -619,6 +672,7 @@ async function runOpenAIProvider(
       openAiChunkFileName(track.file_name, descriptor.index),
       'audio/wav',
       options,
+      timeoutMs,
     )
     const transcript = providerTranscript(payload)
     chunksCompleted++
@@ -631,7 +685,7 @@ async function runOpenAIProvider(
     rawPayload: {
       chunkedWav: true,
       sourceBytes: blob.size,
-      providerDocumentedMaxBytes: positiveEnvNumber('OPENAI_MAX_AUDIO_BYTES', DEFAULT_OPENAI_MAX_BYTES),
+      providerDocumentedMaxBytes: providerDocumentedMaxAudioBytes(provider),
       providerSafeBytes: maxBytes,
       chunkLimitBytes,
       sampleRate: plan.sampleRate,
@@ -648,15 +702,13 @@ async function runPreparedAudioProvider(
   manifest: PreparedAudioManifest,
   options: Record<string, unknown>,
   onChunkProgress?: (completed: number, total: number) => Promise<void>,
+  provider: LyricTranscriptionProviderName = 'openai',
 ): Promise<ProviderRunResult> {
   const apiKey = requiredEnv('OPENAI_API_KEY')
   const model = Deno.env.get('OPENAI_TRANSCRIPTION_MODEL')?.trim() || 'whisper-1'
-  const safeBytes = openAiSafeAudioBytes()
-  const concurrency = positiveEnvInteger(
-    'OPENAI_TRANSCRIPTION_CONCURRENCY',
-    DEFAULT_OPENAI_CHUNK_CONCURRENCY,
-    4,
-  )
+  const safeBytes = providerSafeAudioBytes(provider)
+  const timeoutMs = providerTimeoutMs(provider)
+  const concurrency = providerTranscriptionConcurrency(provider)
   let chunksCompleted = 0
 
   const completed = await mapWithConcurrency(manifest.chunks, concurrency, async chunk => {
@@ -681,6 +733,7 @@ async function runPreparedAudioProvider(
       chunk.fileName,
       'audio/wav',
       options,
+      timeoutMs,
     )
     const transcript = providerTranscript(payload)
     chunksCompleted += 1
@@ -857,7 +910,7 @@ async function processJob(
 
     let providerResult: ProviderRunResult
     let processingMode: ProcessingMode
-    const maxBytes = openAiSafeAudioBytes()
+    const maxBytes = providerSafeAudioBytes(job.provider)
     const prepared = preparedAudioManifest(track, maxBytes)
 
     const updateChunkProgress = async (completed: number, total: number) => {
@@ -897,6 +950,7 @@ async function processJob(
         prepared,
         job.request_options,
         updateChunkProgress,
+        job.provider,
       )
     } else {
       // A current client prepares oversized compressed sources as private PCM WAV
@@ -980,6 +1034,7 @@ async function processJob(
               job.request_options,
               updateChunkProgress,
               sourceBytes,
+              job.provider,
             )
           }
         } else {
@@ -992,7 +1047,7 @@ async function processJob(
               processingMode,
             },
           })
-          providerResult = await runOpenAIProvider(audioBlob, track, job.request_options)
+          providerResult = await runOpenAIProvider(audioBlob, track, job.request_options, undefined, undefined, job.provider)
         }
       }
     }
