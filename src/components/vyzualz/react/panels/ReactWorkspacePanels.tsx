@@ -61,7 +61,9 @@ export function ReactDesignWorkspacePanel({ hasSelection }: { hasSelection: bool
         ]}
       />
       <div className="rv-workspace-panel-body">
-        {surface === 'selection' && hasSelection ? <ReactInspectorPanel /> : <ReactFxPanel />}
+        <div className="rv-inspector rv-inspector-scroll">
+          {surface === 'selection' && hasSelection ? <ReactInspectorPanel /> : <ReactFxPanel />}
+        </div>
       </div>
     </div>
   )
@@ -82,7 +84,9 @@ export function ReactReactivityWorkspacePanel() {
         ]}
       />
       <div className="rv-workspace-panel-body">
-        {surface === 'analysis' ? <ReactAudioPanel /> : <ReactModulationPanel />}
+        <div className="rv-inspector rv-inspector-scroll">
+          {surface === 'analysis' ? <ReactAudioPanel /> : <ReactModulationPanel />}
+        </div>
       </div>
     </div>
   )
@@ -122,17 +126,19 @@ export function ReactOutputWorkspacePanel({
         ]}
       />
       <div className="rv-workspace-panel-body">
-        {surface === 'production' && isLaserDmx ? (
-          <div className="rv-ctrl-group"><ProductionOutputPanel /></div>
-        ) : (
-          <ReactRecordingPanel
-            canvas={canvas}
-            recorder={recorder}
-            liveFps={liveFps}
-            hasActiveProgramAudio={hasActiveProgramAudio}
-            onStartRecording={onStartRecording}
-          />
-        )}
+        <div className="rv-inspector rv-inspector-scroll">
+          {surface === 'production' && isLaserDmx ? (
+            <div className="rv-ctrl-group"><ProductionOutputPanel /></div>
+          ) : (
+            <ReactRecordingPanel
+              canvas={canvas}
+              recorder={recorder}
+              liveFps={liveFps}
+              hasActiveProgramAudio={hasActiveProgramAudio}
+              onStartRecording={onStartRecording}
+            />
+          )}
+        </div>
       </div>
     </div>
   )

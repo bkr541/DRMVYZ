@@ -210,7 +210,9 @@ type ColorKey = keyof LaserDmxFixture['color']
 type BeamKey = keyof LaserDmxFixture['beam']
 type PathKey = keyof LaserDmxFixture['path']
 
-export function LaserDmxSpatialFixturesPanel() {
+export type LaserDmxSpatialRigSurface = 'setup' | 'fixtures'
+
+export function LaserDmxSpatialFixturesPanel({ surface = 'setup' }: { surface?: LaserDmxSpatialRigSurface }) {
   const {
     laserDmxSettings,
     setLaserDmxSettings,
@@ -411,35 +413,36 @@ export function LaserDmxSpatialFixturesPanel() {
 
   return (
     <>
-      <CtrlSection label="Looks / Output" />
-      <LaserDmxLookEditor />
+      {surface === 'setup' && <>
+        <CtrlSection label="Looks / Output" />
+        <LaserDmxLookEditor />
 
-      <CtrlSection label="Venue / Stage" />
-      <SelectRow
-        label="Starter Layout"
-        value={venueTemplateId}
-        onChange={value => setVenueTemplateId(value as (typeof PRODUCTION_VENUE_TEMPLATES)[number]['id'])}
-        options={PRODUCTION_VENUE_TEMPLATES.map(template => ({ value: template.id, label: template.label }))}
-        description="Applying is explicit and replaces the current stage layout and shared targets."
-      />
-      <button
-        type="button"
-        className="rv-glyph-upload-btn"
-        onClick={() => applyLaserDmxVenueTemplate(venueTemplateId)}
-        aria-label={`Apply ${PRODUCTION_VENUE_TEMPLATES.find(template => template.id === venueTemplateId)?.label ?? 'venue'} layout`}
-      >
-        Apply Layout
-      </button>
-      <div className="rv-ctrl-info">Axes: +X stage right, +Y up, +Z upstage. Origin is centre-downstage floor. Units are metres.</div>
-      <span className="rv-ctrl-description" style={{ display: 'none' }}>{PRODUCTION_STAGE_COORDINATE_CONVENTION}</span>
+        <CtrlSection label="Venue / Stage" />
+        <SelectRow
+          label="Starter Layout"
+          value={venueTemplateId}
+          onChange={value => setVenueTemplateId(value as (typeof PRODUCTION_VENUE_TEMPLATES)[number]['id'])}
+          options={PRODUCTION_VENUE_TEMPLATES.map(template => ({ value: template.id, label: template.label }))}
+          description="Applying is explicit and replaces the current stage layout and shared targets."
+        />
+        <button
+          type="button"
+          className="rv-glyph-upload-btn"
+          onClick={() => applyLaserDmxVenueTemplate(venueTemplateId)}
+          aria-label={`Apply ${PRODUCTION_VENUE_TEMPLATES.find(template => template.id === venueTemplateId)?.label ?? 'venue'} layout`}
+        >
+          Apply Layout
+        </button>
+        <div className="rv-ctrl-info">Axes: +X stage right, +Y up, +Z upstage. Origin is centre-downstage floor. Units are metres.</div>
+        <span className="rv-ctrl-description" style={{ display: 'none' }}>{PRODUCTION_STAGE_COORDINATE_CONVENTION}</span>
 
-      <Collapsible label="Stage Dimensions" defaultOpen={false}>
+        <Collapsible label="Stage Dimensions" defaultOpen={false}>
         <NumberInputRow label="Width" value={stage.dimensions.width} min={1} max={100} unit="m" onChange={width => updateStage({ dimensions: { ...stage.dimensions, width }, floor: { ...stage.floor, width } })} />
         <NumberInputRow label="Height" value={stage.dimensions.height} min={1} max={50} unit="m" onChange={height => updateStage({ dimensions: { ...stage.dimensions, height } })} />
         <NumberInputRow label="Depth" value={stage.dimensions.depth} min={1} max={100} unit="m" onChange={depth => updateStage({ dimensions: { ...stage.dimensions, depth }, floor: { ...stage.floor, depth } })} />
-      </Collapsible>
+        </Collapsible>
 
-      <Collapsible label="Camera / Guides" defaultOpen={false}>
+        <Collapsible label="Camera / Guides" defaultOpen={false}>
         <SelectRow
           label="Saved View"
           value={stage.activeCameraViewId}
@@ -480,9 +483,9 @@ export function LaserDmxSpatialFixturesPanel() {
           onChange={showPathPoints => setLaserDmxSettings({ showPathPoints })}
           disabled={!stage.editor.guidesVisible}
         />
-      </Collapsible>
+        </Collapsible>
 
-      <Collapsible label="Visual Comfort" defaultOpen={false}>
+        <Collapsible label="Visual Comfort" defaultOpen={false}>
         <ToggleRow
           label="Disable Strobe Effects"
           value={visualComfort.disableStrobe}
@@ -519,9 +522,9 @@ export function LaserDmxSpatialFixturesPanel() {
         <div className="rv-ctrl-info" role="status">
           High-frequency virtual flashes can be uncomfortable. DRMVYZ limits authored rates and inserts rest windows, but these safeguards are not a medical guarantee.
         </div>
-      </Collapsible>
+        </Collapsible>
 
-      <Collapsible label="Musical Choreography" defaultOpen={false}>
+        <Collapsible label="Musical Choreography" defaultOpen={false}>
         <ToggleRow
           label="Automatic Choreography"
           value={choreography.enabled}
@@ -582,9 +585,9 @@ export function LaserDmxSpatialFixturesPanel() {
         <div className="rv-ctrl-info">
           Priority: automatic choreography is the underlay; authored Show Director cues override it. Manual performance actions follow the precedence choice above and temporarily suspend automatic reactions.
         </div>
-      </Collapsible>
+        </Collapsible>
 
-      <Collapsible label="Global Atmosphere" defaultOpen>
+        <Collapsible label="Global Atmosphere" defaultOpen>
         <ToggleRow label="Persistent Haze" value={atmosphere.persistentHaze.enabled} onChange={enabled => setLaserDmxSettings({ atmosphere: { ...atmosphere, persistentHaze: { ...atmosphere.persistentHaze, enabled } } })} />
         <SliderRow label="Base Density" value={atmosphere.persistentHaze.baseDensity} onChange={baseDensity => setLaserDmxSettings({ atmosphere: { ...atmosphere, persistentHaze: { ...atmosphere.persistentHaze, baseDensity } } })} min={0} max={1} step={0.01} color="#9bb8c5" />
         <SliderRow label="Height Distribution" value={atmosphere.persistentHaze.heightDistribution} onChange={heightDistribution => setLaserDmxSettings({ atmosphere: { ...atmosphere, persistentHaze: { ...atmosphere.persistentHaze, heightDistribution } } })} min={0} max={1} step={0.01} color="#77a6b8" />
@@ -599,32 +602,38 @@ export function LaserDmxSpatialFixturesPanel() {
         <ToggleRow label="Keep Base Haze on Clear" value={atmosphere.retainBaseHazeOnClear} onChange={retainBaseHazeOnClear => setLaserDmxSettings({ atmosphere: { ...atmosphere, retainBaseHazeOnClear } })} />
         <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" onClick={clearLaserAtmosphericBursts}>Clear Active Virtual Bursts</button>
         <div className="rv-ctrl-info">Virtual visualization only. This does not control or certify physical fog, cryogenic, pressurized, or pyrotechnic equipment.</div>
-      </Collapsible>
+        </Collapsible>
+      </>}
 
-      <CtrlSection label="Fixtures" />
-      <div style={{ display: 'flex', gap: 4, alignItems: 'end', flexWrap: 'wrap' }}>
+      {surface === 'fixtures' && <>
+        <CtrlSection label="Fixtures" />
+        <div className="rv-fixture-add-row">
         <div style={{ flex: '1 1 150px' }}>
           <SelectRow label="Fixture Profile" value={newProfileId} onChange={value => setNewProfileId(value as LaserDmxProfileId)} options={PROFILE_OPTIONS} />
         </div>
         <button type="button" className="rv-glyph-upload-btn" onClick={() => addLaserFixture(newProfileId)}>+ Add Fixture</button>
-      </div>
+        </div>
 
       {fixtures.length === 0 ? (
         <div className="rv-ctrl-info">No fixtures. Choose a profile and add one to begin.</div>
       ) : (
-        <div className="rv-glyph-list">
+        <div className="rv-fixture-list">
           {fixtures.map(candidate => (
             <div
               key={candidate.id}
-              className={`rv-glyph-item${candidate.id === selectedFixtureId ? ' rv-glyph-item--active' : ''}${!candidate.enabled ? ' rv-glyph-item--disabled' : ''}`}
-              onClick={() => selectLaserFixture(candidate.id)}
-              role="button"
-              tabIndex={0}
-              aria-label={`Select fixture ${candidate.name}`}
-              onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') selectLaserFixture(candidate.id) }}
+              className={`rv-fixture-list-item${candidate.id === selectedFixtureId ? ' rv-fixture-list-item--active' : ''}${!candidate.enabled ? ' rv-fixture-list-item--disabled' : ''}`}
             >
-              <span className="rv-glyph-item-name" title={candidate.name}>{candidate.enabled ? '●' : '○'} {candidate.name}</span>
-              <button type="button" className="rv-glyph-item-del" aria-label={`${candidate.enabled ? 'Disable' : 'Enable'} fixture ${candidate.name}`} onClick={event => { event.stopPropagation(); updateLaserFixture(candidate.id, { enabled: !candidate.enabled }) }}>{candidate.enabled ? '⏸' : '▶'}</button>
+              <button
+                type="button"
+                className="rv-fixture-list-item__select"
+                aria-label={`Select fixture ${candidate.name}`}
+                aria-pressed={candidate.id === selectedFixtureId}
+                onClick={() => selectLaserFixture(candidate.id)}
+              >
+                <span className="rv-fixture-list-item__status" aria-hidden="true">{candidate.enabled ? '●' : '○'}</span>
+                <span className="rv-fixture-list-item__name" title={candidate.name}>{candidate.name}</span>
+              </button>
+              <button type="button" className="rv-fixture-list-item__action" aria-label={`${candidate.enabled ? 'Disable' : 'Enable'} fixture ${candidate.name}`} onClick={event => { event.stopPropagation(); updateLaserFixture(candidate.id, { enabled: !candidate.enabled }) }}>{candidate.enabled ? '⏸' : '▶'}</button>
             </div>
           ))}
         </div>
@@ -961,6 +970,7 @@ export function LaserDmxSpatialFixturesPanel() {
           )}
         </>
       )}
+      </>}
 
       <Collapsible label={`Rig Diagnostics (${diagnostics.length})`} defaultOpen={diagnostics.some(item => item.severity === 'error')}>
         {diagnostics.length === 0 ? (

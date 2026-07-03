@@ -71,7 +71,7 @@ export function NumberInputRow({
   return (
     <div className="rv-ctrl-row">
       <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div className={`rv-ctrl-number-field${unit ? ' rv-ctrl-number-field--with-unit' : ''}`}>
         <input
           id={inputId}
           type="number"
@@ -86,7 +86,7 @@ export function NumberInputRow({
             if (Number.isFinite(next)) onChange(next)
           }}
         />
-        {unit && <span className="rv-ctrl-val" aria-hidden="true">{unit}</span>}
+        {unit && <span className="rv-ctrl-number-unit" aria-hidden="true">{unit}</span>}
       </div>
     </div>
   )
@@ -147,20 +147,22 @@ export function ToggleRow({ label, value, onChange, disabled, title, id, descrip
   const buttonId = id ?? generatedId
   return (
     <div className={`rv-ctrl-toggle-row${disabled ? ' rv-ctrl-toggle-row--disabled' : ''}`}>
-      <span className="rv-ctrl-label" id={labelId}>{label}</span>
-      <button
-        id={buttonId}
-        type="button"
-        className={`rv-ctrl-toggle${value && !disabled ? ' rv-ctrl-toggle--on' : ''}`}
-        onClick={() => onChange(!value)}
-        aria-pressed={value}
-        aria-labelledby={labelId}
-        disabled={disabled}
-        title={title}
-        aria-describedby={description ? `${buttonId}-description` : undefined}
-      >
-        {value ? 'On' : 'Off'}
-      </button>
+      <div className="rv-ctrl-toggle-line">
+        <span className="rv-ctrl-label" id={labelId}>{label}</span>
+        <button
+          id={buttonId}
+          type="button"
+          className={`rv-ctrl-toggle${value && !disabled ? ' rv-ctrl-toggle--on' : ''}`}
+          onClick={() => onChange(!value)}
+          aria-pressed={value}
+          aria-labelledby={labelId}
+          disabled={disabled}
+          title={title}
+          aria-describedby={description ? `${buttonId}-description` : undefined}
+        >
+          {value ? 'On' : 'Off'}
+        </button>
+      </div>
       {description && <span id={`${buttonId}-description`} className="rv-ctrl-description">{description}</span>}
     </div>
   )

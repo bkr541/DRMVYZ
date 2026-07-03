@@ -331,21 +331,38 @@ export function LaserDmxCueListPanel() {
         const update = (patch: Partial<ProductionCompoundCue>) => updateCue(cue.id, patch)
         return (
           <div key={cue.id} className={`rv-cue-row rv-show-cue${selected ? ' rv-show-cue--selected' : ''}${cue.enabled ? '' : ' rv-cue-row--disabled'}${cueDiagnostics.some(item => item.severity === 'error') ? ' rv-cue-row--invalid' : ''}`}>
-            <div className="rv-cue-row-header" onClick={() => selectCue(cue.id)}>
-              <button type="button" className={`rv-ctrl-toggle${cue.enabled ? ' rv-ctrl-toggle--on' : ''}`} onClick={event => { event.stopPropagation(); update({ enabled: !cue.enabled }) }}>{cue.enabled ? 'On' : 'Off'}</button>
+            <div className="rv-cue-row-header">
+              <button
+                type="button"
+                className={`rv-ctrl-toggle${cue.enabled ? ' rv-ctrl-toggle--on' : ''}`}
+                aria-label={`${cue.enabled ? 'Disable' : 'Enable'} cue ${cue.label}`}
+                onClick={() => update({ enabled: !cue.enabled })}
+              >
+                {cue.enabled ? 'On' : 'Off'}
+              </button>
               <div className="rv-show-cue__identity">
-                <input className="rv-cue-name-input" value={cue.label} onClick={event => event.stopPropagation()} onChange={event => update({ label: event.target.value })} aria-label="Cue label" />
-                <div className="rv-show-cue__summary"><span>{timingSummary(cue.timing)}</span><span>{actionSummary(cue)}</span></div>
+                <input className="rv-cue-name-input" value={cue.label} onChange={event => update({ label: event.target.value })} aria-label="Cue label" />
+                <button
+                  type="button"
+                  className="rv-show-cue__select rv-show-cue__summary"
+                  aria-label={`Select cue ${cue.label}`}
+                  aria-pressed={selected}
+                  onClick={() => selectCue(cue.id)}
+                >
+                  <span>{timingSummary(cue.timing)}</span><span>{actionSummary(cue)}</span>
+                </button>
               </div>
-              <span className="rv-cue-badge rv-cue-badge--action">P{cue.priority}</span>
-              {cue.source === 'legacyBeamMigration' && <span className="rv-cue-badge rv-cue-badge--timing">Legacy</span>}
-              {cueDiagnostics.length > 0 && <span className="rv-cue-error-icon" title={cueDiagnostics.map(item => item.message).join('\n')}>⚠ {cueDiagnostics.length}</span>}
-              <button type="button" className="rv-glyph-upload-btn" aria-label={`Fire ${cue.label}`} onClick={event => { event.stopPropagation(); fireCue(cue.id) }}>Fire</button>
-              <button type="button" className="rv-glyph-upload-btn" aria-label={`Move ${cue.label} earlier`} disabled={index === 0} onClick={event => { event.stopPropagation(); reorderCue(cue.id, -1) }}>↑</button>
-              <button type="button" className="rv-glyph-upload-btn" aria-label={`Move ${cue.label} later`} disabled={index === cues.length - 1} onClick={event => { event.stopPropagation(); reorderCue(cue.id, 1) }}>↓</button>
-              <button type="button" className="rv-glyph-upload-btn" aria-label={`Duplicate ${cue.label}`} onClick={event => { event.stopPropagation(); duplicateCue(cue.id) }}>⧉</button>
-              <button type="button" className="rv-glyph-upload-btn" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${cue.label}`} aria-expanded={expanded} onClick={event => { event.stopPropagation(); setExpandedId(expanded ? null : cue.id) }}>{expanded ? '▲' : '▼'}</button>
-              <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" aria-label={`Delete ${cue.label}`} onClick={event => { event.stopPropagation(); deleteCue(cue.id) }}>×</button>
+              <div className="rv-show-cue__toolbar" role="group" aria-label={`Actions for ${cue.label}`}>
+                <span className="rv-cue-badge rv-cue-badge--action">P{cue.priority}</span>
+                {cue.source === 'legacyBeamMigration' && <span className="rv-cue-badge rv-cue-badge--timing">Legacy</span>}
+                {cueDiagnostics.length > 0 && <span className="rv-cue-error-icon" title={cueDiagnostics.map(item => item.message).join('\n')}>⚠ {cueDiagnostics.length}</span>}
+                <button type="button" className="rv-glyph-upload-btn rv-show-cue__fire" aria-label={`Fire ${cue.label}`} onClick={() => fireCue(cue.id)}>Fire</button>
+                <button type="button" className="rv-glyph-upload-btn" title="Move earlier" aria-label={`Move ${cue.label} earlier`} disabled={index === 0} onClick={() => reorderCue(cue.id, -1)}>↑</button>
+                <button type="button" className="rv-glyph-upload-btn" title="Move later" aria-label={`Move ${cue.label} later`} disabled={index === cues.length - 1} onClick={() => reorderCue(cue.id, 1)}>↓</button>
+                <button type="button" className="rv-glyph-upload-btn" title="Duplicate cue" aria-label={`Duplicate ${cue.label}`} onClick={() => duplicateCue(cue.id)}>⧉</button>
+                <button type="button" className="rv-glyph-upload-btn" title={expanded ? 'Collapse cue' : 'Expand cue'} aria-label={`${expanded ? 'Collapse' : 'Expand'} ${cue.label}`} aria-expanded={expanded} onClick={() => setExpandedId(expanded ? null : cue.id)}>{expanded ? '▲' : '▼'}</button>
+                <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" title="Delete cue" aria-label={`Delete ${cue.label}`} onClick={() => deleteCue(cue.id)}>×</button>
+              </div>
             </div>
             {expanded && <div className="rv-cue-body">
               <label className="rv-show-director__description">Description<textarea value={cue.description ?? ''} onChange={event => update({ description: event.target.value })} /></label>

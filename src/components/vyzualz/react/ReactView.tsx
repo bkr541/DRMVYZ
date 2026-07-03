@@ -416,21 +416,23 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
                 className="rv-context-workspace-tabs"
               />
               <div className="rv-left-tab-body">
-                {leftTab === 'workspace' && <ReactEnginePanel />}
-                {leftTab === 'media' && (
-                  <MediaDeckPanel
-                    mode="react"
-                    activeMediaId={activeMediaId}
-                    onSelect={setActiveMediaId}
-                    onOpenMediaManager={onOpenMediaManager}
-                  />
-                )}
-                {leftTab === 'layers' && workspaceComposition.showLaserLayersTab && (
-                  <Suspense fallback={<LazyWorkspaceFallback label="LaserDMX layers" />}>
-                    <LaserDmxLayersPanel />
-                  </Suspense>
-                )}
-                {leftTab === 'fonts' && <FontLibraryPanel />}
+                <div className="rv-engine-viewport rv-inspector rv-inspector-scroll">
+                  {leftTab === 'workspace' && <ReactEnginePanel />}
+                  {leftTab === 'media' && (
+                    <MediaDeckPanel
+                      mode="react"
+                      activeMediaId={activeMediaId}
+                      onSelect={setActiveMediaId}
+                      onOpenMediaManager={onOpenMediaManager}
+                    />
+                  )}
+                  {leftTab === 'layers' && workspaceComposition.showLaserLayersTab && (
+                    <Suspense fallback={<LazyWorkspaceFallback label="LaserDMX layers" />}>
+                      <LaserDmxLayersPanel />
+                    </Suspense>
+                  )}
+                  {leftTab === 'fonts' && <FontLibraryPanel />}
+                </div>
               </div>
             </section>
           </div>

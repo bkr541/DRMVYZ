@@ -17,6 +17,12 @@
   --rv-timeline-tool-width: 72px;
   --rv-timeline-column-gap: 8px;
   --rv-timeline-inline-pad: 10px;
+  --ui-control-height: 30px;
+  --ui-control-radius: 6px;
+  --ui-control-padding-inline: 9px;
+  --ui-text-primary: rgba(232, 244, 248, 0.92);
+  --ui-text-secondary: rgba(214, 228, 234, 0.68);
+  --ui-text-muted: rgba(196, 212, 220, 0.5);
 }
 
 /* Three-column content grid — takes all remaining space above the dock */
@@ -5693,4 +5699,495 @@
 @media (max-width: 980px) {
   .rv-global-output-status { display: none; }
   .rv-global-output button { min-width: 72px; }
+}
+
+/* ── Styling audit fixes: scroll ownership, controls, and LaserDMX surfaces ── */
+
+/* Every rail has one intentional vertical scroll owner. Child control groups
+   size to content instead of creating competing scrollbars. */
+.rv-inspector,
+.rv-engine-viewport {
+  min-width: 0;
+  min-height: 0;
+}
+
+.rv-inspector {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.rv-left-tab-body {
+  overflow: hidden;
+}
+
+.rv-left-tab-body > .rv-engine-viewport {
+  width: 100%;
+}
+
+.rv-context-workspace > .rv-left-tab-body > .rv-engine-viewport > .rv-ctrl-group {
+  padding: 8px 10px 12px;
+}
+
+.rv-inspector-scroll {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(74, 199, 219, 0.34) transparent;
+}
+
+.rv-inspector-scroll::-webkit-scrollbar {
+  width: 7px;
+}
+
+.rv-inspector-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.rv-inspector-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(74, 199, 219, 0.34);
+  background-clip: padding-box;
+}
+
+.rv-inspector-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(74, 199, 219, 0.56);
+  background-clip: padding-box;
+}
+
+.rv-workspace-panel,
+.rv-control-panel {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+}
+
+.rv-workspace-panel-body {
+  overflow: hidden;
+}
+
+.rv-workspace-panel-body > .rv-inspector {
+  flex: 1 1 auto;
+}
+
+.rv-inspector .rv-ctrl-group,
+.rv-engine-viewport .rv-ctrl-group {
+  flex: 0 0 auto;
+  min-height: auto;
+  overflow: visible;
+}
+
+.rv-engine-viewport {
+  flex: 1 1 auto;
+}
+
+.rv-cinematic-controls {
+  flex: 0 0 auto;
+  min-height: auto;
+  overflow: visible;
+}
+
+/* Section headings are structural labels, not independent sticky layers. */
+.rv-ctrl-section-label {
+  position: static;
+  top: auto;
+  z-index: auto;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Shared control geometry and readable secondary text. */
+.rv-ctrl-label {
+  color: var(--ui-text-secondary);
+}
+
+.rv-ctrl-val,
+.rv-ctrl-select,
+.rv-ctrl-text-input {
+  color: var(--ui-text-secondary);
+}
+
+.rv-ctrl-info,
+.rv-ctrl-description {
+  color: var(--ui-text-muted);
+}
+
+.rv-ctrl-section-label,
+.rv-ctrl-collapsible-hdr {
+  font-size: 10px;
+  line-height: 1.25;
+  letter-spacing: 0.12em;
+}
+
+.rv-ctrl-select,
+.rv-ctrl-text-input,
+.rv-ctrl-toggle,
+.rv-glyph-upload-btn {
+  min-height: var(--ui-control-height);
+  border-radius: var(--ui-control-radius);
+  box-sizing: border-box;
+}
+
+.rv-ctrl-select {
+  padding: 0 28px 0 var(--ui-control-padding-inline);
+}
+
+.rv-ctrl-text-input {
+  padding: 0 var(--ui-control-padding-inline);
+}
+
+.rv-ctrl-toggle {
+  min-width: 54px;
+  padding: 0 11px;
+}
+
+.rv-glyph-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+}
+
+.rv-ctrl-toggle-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 4px;
+}
+
+.rv-ctrl-toggle-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.rv-ctrl-toggle-line .rv-ctrl-label {
+  min-width: 0;
+  margin-right: auto;
+}
+
+.rv-ctrl-toggle-row > .rv-ctrl-description {
+  margin-top: 0;
+  padding-right: 2px;
+}
+
+.rv-ctrl-number-field {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
+.rv-ctrl-number-field .rv-ctrl-text-input {
+  min-width: 0;
+}
+
+.rv-ctrl-number-field--with-unit .rv-ctrl-text-input {
+  padding-right: 48px;
+}
+
+.rv-ctrl-number-unit {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  bottom: 1px;
+  min-width: 36px;
+  display: grid;
+  place-items: center;
+  padding: 0 7px;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0 calc(var(--ui-control-radius) - 1px) calc(var(--ui-control-radius) - 1px) 0;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--ui-text-muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  pointer-events: none;
+}
+
+/* One segmented-control language across workspace and rig navigation. */
+.rv-segmented-control {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 3px;
+  min-width: 0;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.rv-segmented-control button {
+  min-width: 0;
+  min-height: var(--ui-control-height);
+  padding: 4px 7px;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ui-text-muted);
+  font: 800 8.5px/1.15 var(--az-font);
+  letter-spacing: 0.07em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.rv-segmented-control button:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ui-text-primary);
+}
+
+.rv-segmented-control button.is-active,
+.rv-segmented-control button[aria-checked='true'],
+.rv-segmented-control button[aria-selected='true'] {
+  border-color: rgba(103, 247, 255, 0.32);
+  background: rgba(74, 199, 219, 0.12);
+  color: #67f7ff;
+}
+
+.rv-right-subtabs button,
+.rv-lower-workspace-tabs button {
+  min-height: var(--ui-control-height);
+  border-radius: 5px;
+}
+
+/* LaserDMX RIG is now divided into compact, reachable sub-surfaces. */
+.rv-laser-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.rv-laser-rig-surfaces {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: rgba(6, 13, 16, 0.96);
+  backdrop-filter: blur(10px);
+}
+
+.rv-laser-workspace-surface {
+  min-width: 0;
+}
+
+.rv-fixture-add-row {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rv-fixture-add-row > .rv-ctrl-row {
+  flex: 1 1 170px;
+}
+
+.rv-fixture-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 3px 0;
+}
+
+.rv-fixture-list-item {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 4px 5px 4px 9px;
+  border: 1px solid rgba(74, 199, 219, 0.1);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.022);
+  cursor: pointer;
+  outline: none;
+  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.rv-fixture-list-item:hover,
+.rv-fixture-list-item:focus-visible {
+  border-color: rgba(74, 199, 219, 0.3);
+  background: rgba(74, 199, 219, 0.065);
+}
+
+.rv-fixture-list-item--active {
+  border-color: rgba(74, 199, 219, 0.42);
+  background: rgba(74, 199, 219, 0.09);
+  box-shadow: inset 3px 0 0 rgba(74, 199, 219, 0.72);
+}
+
+.rv-fixture-list-item--disabled {
+  opacity: 0.55;
+}
+
+.rv-fixture-list-item__status {
+  color: #61d6aa;
+  font-size: 9px;
+  text-align: center;
+}
+
+.rv-fixture-list-item--disabled .rv-fixture-list-item__status {
+  color: rgba(232, 244, 248, 0.35);
+}
+
+.rv-fixture-list-item__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ui-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rv-fixture-list-item--active .rv-fixture-list-item__name {
+  color: var(--ui-text-primary);
+}
+
+.rv-fixture-list-item__action {
+  width: var(--ui-control-height);
+  height: var(--ui-control-height);
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.18);
+  color: rgba(232, 244, 248, 0.58);
+  cursor: pointer;
+}
+
+.rv-fixture-list-item__action:hover,
+.rv-fixture-list-item__action:focus-visible {
+  border-color: rgba(74, 199, 219, 0.35);
+  color: #67f7ff;
+}
+
+/* Show Director controls wrap into a dedicated toolbar instead of clipping. */
+.rv-show-director .rv-cue-list-header {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rv-show-director__buttons {
+  display: grid;
+  grid-template-columns: auto minmax(92px, auto);
+  width: 100%;
+}
+
+.rv-cue-row-header {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px;
+}
+
+.rv-show-cue__identity {
+  flex: 1 1 220px;
+  min-width: 150px;
+  padding: 2px;
+  border-radius: 4px;
+  outline: none;
+}
+
+.rv-show-cue__identity:focus-visible {
+  box-shadow: 0 0 0 2px rgba(103, 247, 255, 0.45);
+}
+
+.rv-show-cue__toolbar {
+  display: flex;
+  flex: 1 1 100%;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+  padding-top: 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.045);
+}
+
+.rv-show-cue__toolbar .rv-glyph-upload-btn {
+  min-width: var(--ui-control-height);
+}
+
+.rv-show-cue__fire {
+  border-color: rgba(97, 214, 170, 0.45);
+  color: rgba(142, 255, 214, 0.94);
+}
+
+.rv-cue-editor-grid input,
+.rv-cue-editor-grid select,
+.rv-show-action input,
+.rv-show-action select,
+.rv-show-director__description textarea {
+  min-height: var(--ui-control-height);
+  border-radius: var(--ui-control-radius);
+  color: var(--ui-text-primary);
+}
+
+.rv-glyph-upload-btn:focus-visible,
+.rv-ctrl-toggle:focus-visible,
+.rv-ctrl-select:focus-visible,
+.rv-ctrl-text-input:focus-visible,
+.rv-segmented-control button:focus-visible,
+.rv-fixture-list-item__action:focus-visible {
+  outline: 2px solid rgba(103, 247, 255, 0.62);
+  outline-offset: 2px;
+}
+
+.rv-glyph-upload-btn:disabled,
+.rv-segmented-control button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.rv-show-cue__select {
+  width: 100%;
+  padding: 1px 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rv-show-cue__select:focus-visible {
+  outline: 2px solid rgba(103, 247, 255, 0.5);
+  outline-offset: 1px;
+}
+
+.rv-fixture-list-item__select {
+  grid-column: 1 / 3;
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rv-fixture-list-item__select:focus-visible {
+  outline: 2px solid rgba(103, 247, 255, 0.58);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.rv-fixture-list-item {
+  cursor: default;
+}
+
+.rv-fixture-list-item:focus-within {
+  border-color: rgba(74, 199, 219, 0.3);
+  background: rgba(74, 199, 219, 0.065);
 }

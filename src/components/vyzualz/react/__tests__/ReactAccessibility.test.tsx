@@ -7,6 +7,7 @@ import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
   Collapsible,
+  NumberInputRow,
   SelectRow,
   SliderRow,
   TextInputRow,
@@ -17,6 +18,7 @@ import { ReactModulationPanel } from '../ReactModulationPanel'
 import { ReactPresetsPanel } from '../ReactPresetsPanel'
 import { ReactPlaceholderCanvas } from '../ReactPlaceholderCanvas'
 import { ReactShaderCanvas } from '../ReactShaderCanvas'
+import { LaserDmxSpatialFixturesPanel } from '../LaserDmxSpatialFixturesPanel'
 import { DEFAULT_REACT_PRESETS } from '../ReactTypes'
 import { useReactStore } from '../../../../stores/reactStore'
 import { useShaderPanelStore } from '../shaders/ui/shaderPanelStore'
@@ -51,7 +53,8 @@ describe('React-view control accessibility', () => {
             disabled
           />
           <TextInputRow label="Layer name" value="Title" onChange={vi.fn()} />
-          <ToggleRow label="Enabled" value={false} onChange={vi.fn()} disabled />
+          <NumberInputRow label="Delay" value={125} onChange={vi.fn()} unit="ms" />
+          <ToggleRow label="Enabled" value={false} onChange={vi.fn()} disabled description="Controls whether the route is active." />
           <Collapsible label="Advanced"><span>Content</span></Collapsible>
         </>,
       )
@@ -78,6 +81,15 @@ describe('React-view control accessibility', () => {
     const toggleLabel = document.getElementById(toggle.getAttribute('aria-labelledby') ?? '')
     expect(toggleLabel?.textContent).toBe('Enabled')
     expect(toggle.disabled).toBe(true)
+    expect(toggle.closest('.rv-ctrl-toggle-line')).not.toBeNull()
+    expect(toggle.closest('.rv-ctrl-toggle-row')?.querySelector(':scope > .rv-ctrl-description')?.textContent)
+      .toBe('Controls whether the route is active.')
+
+    const delayInput = [...container.querySelectorAll('input[type="number"]')]
+      .find(input => input.id === ([...container.querySelectorAll('label')]
+        .find(label => label.textContent === 'Delay') as HTMLLabelElement).htmlFor) as HTMLInputElement
+    expect(delayInput.closest('.rv-ctrl-number-field--with-unit')).not.toBeNull()
+    expect(delayInput.parentElement?.querySelector('.rv-ctrl-number-unit')?.textContent).toBe('ms')
 
     const collapsible = [...container.querySelectorAll('button')]
       .find(button => button.textContent?.includes('Advanced')) as HTMLButtonElement
@@ -111,6 +123,25 @@ describe('React right-rail groups', () => {
       .map(button => button.textContent?.trim())
     expect(modGroups).toContain('Audio Reactivity▾')
     expect(modGroups).toContain('Frequency Response▾')
+  })
+})
+
+describe('LaserDMX fixture-list accessibility', () => {
+  it('keeps fixture rows separate from Font Library glyph styling and exposes explicit controls', async () => {
+    const state = useReactStore.getState()
+    expect(state.laserDmxSettings.fixtures.length).toBeGreaterThan(0)
+
+    await act(async () => root.render(<LaserDmxSpatialFixturesPanel surface="fixtures" />))
+
+    const fixtureRow = container.querySelector('.rv-fixture-list-item')
+    expect(fixtureRow).not.toBeNull()
+    expect(fixtureRow?.querySelector('.rv-glyph-item-name')).toBeNull()
+
+    const selectButton = fixtureRow?.querySelector<HTMLButtonElement>('.rv-fixture-list-item__select')
+    const enableButton = fixtureRow?.querySelector<HTMLButtonElement>('.rv-fixture-list-item__action')
+    expect(selectButton?.getAttribute('aria-pressed')).toMatch(/true|false/)
+    expect(selectButton?.getAttribute('aria-label')).toContain('Select fixture')
+    expect(enableButton?.getAttribute('aria-label')).toMatch(/Enable fixture|Disable fixture/)
   })
 })
 
