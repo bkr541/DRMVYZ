@@ -20,6 +20,7 @@ import { ReactPlaceholderCanvas } from '../ReactPlaceholderCanvas'
 import { ReactShaderCanvas } from '../ReactShaderCanvas'
 import { LaserDmxSpatialFixturesPanel } from '../LaserDmxSpatialFixturesPanel'
 import { DEFAULT_REACT_PRESETS } from '../ReactTypes'
+import { isSelectableReactEngineId } from '../reactEngineCatalog'
 import { useReactStore } from '../../../../stores/reactStore'
 import { useShaderPanelStore } from '../shaders/ui/shaderPanelStore'
 import { DEFAULT_SHADER_SCENE_ID } from '../shaders/scenes'
@@ -153,7 +154,9 @@ describe('React preset accessibility', () => {
     const activePreset = state.reactPresets.find(p => p.id === activeId)
     useReactStore.setState({
       activeReactPresetId: activeId,
-      activeReactEngineId: activePreset?.engine ?? state.activeReactEngineId,
+      activeReactEngineId: activePreset && isSelectableReactEngineId(activePreset.engine)
+        ? activePreset.engine
+        : state.activeReactEngineId,
     })
 
     await act(async () => root.render(<ReactPresetsPanel />))
@@ -177,7 +180,9 @@ describe('React visualization canvas accessibility', () => {
     const markup = renderToStaticMarkup(
       <ReactPlaceholderCanvas
         analyser={null}
-        engine={preset.engine === 'shaderPads' ? 'oscilloscope' : preset.engine}
+        engine={preset.engine === 'cinematicPortal' || preset.engine === 'oscilloscope' || preset.engine === 'laserDmx'
+          ? preset.engine
+          : 'oscilloscope'}
         activePreset={preset}
         intensity={1}
         motion={1}

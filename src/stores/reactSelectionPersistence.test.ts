@@ -39,11 +39,10 @@ describe('repairReactEnginePresetSelection', () => {
     })
   })
 
-  it('replaces a missing preset with the first preset for the active engine', () => {
-    const expected = firstFor('neonLattice')
+  it('retires a stale Neon engine selection to the explicit startup pair', () => {
     expect(repairReactEnginePresetSelection('removed-preset', 'neonLattice')).toEqual({
-      activeReactPresetId: expected.id,
-      activeReactEngineId: 'neonLattice',
+      activeReactPresetId: 'preset-dream-gate',
+      activeReactEngineId: 'cinematicPortal',
     })
   })
 
@@ -90,7 +89,7 @@ describe('React selection persistence invariant', () => {
     useReactStore.setState({
       activeReactPresetId: firstFor('cinematicPortal').id,
       activeReactEngineId: 'neonLattice',
-    })
+    } as never)
 
     const persisted = reactStorePartialize(useReactStore.getState())
     expect(persisted.activeReactEngineId).toBe('cinematicPortal')

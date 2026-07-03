@@ -141,11 +141,9 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
     oscillatorGlyphAssets,
     oscillatorGlyphPointCache,
     oscillatorTextPointCache,
-    neonLatticeSettings,
     performanceActionEvent,
     performanceActionEvents,
     performanceActionToggleStates,
-    neonLatticeTrigger,
     manualTrackSectionsByTrackId,
     suppressedAutoSectionsByTrackId,
     beamEditorVisible,
@@ -172,11 +170,9 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
     oscillatorGlyphAssets:          s.oscillatorGlyphAssets,
     oscillatorGlyphPointCache:      s.oscillatorGlyphPointCache,
     oscillatorTextPointCache:       s.oscillatorTextPointCache,
-    neonLatticeSettings:            s.neonLatticeSettings,
     performanceActionEvent:         s.performanceActionEvent,
     performanceActionEvents:        s.performanceActionEvents,
     performanceActionToggleStates:  s.performanceActionToggleStates,
-    neonLatticeTrigger:             s.neonLatticeTrigger,
     manualTrackSectionsByTrackId:   s.manualTrackSectionsByTrackId,
     suppressedAutoSectionsByTrackId: s.suppressedAutoSectionsByTrackId,
     beamEditorVisible:              s.laserDmxBeamMatrix.editor.beamEditorVisible,
@@ -484,11 +480,9 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
                 oscillatorGlyphAssets={oscillatorGlyphAssets}
                 oscillatorGlyphPointCache={oscillatorGlyphPointCache}
                 oscillatorTextPointCache={oscillatorTextPointCache}
-                neonLatticeSettings={neonLatticeSettings}
                 performanceActionEvent={performanceActionEvent}
                 performanceActionEvents={performanceActionEvents}
                 performanceActionToggleStates={performanceActionToggleStates}
-                neonLatticeTrigger={neonLatticeTrigger}
                 isPlaying={engine.isPlaying}
                 isPaused={transportPaused}
                 trackSections={resolvedTrackSections}

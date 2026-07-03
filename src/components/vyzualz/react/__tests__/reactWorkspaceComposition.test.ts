@@ -15,7 +15,6 @@ describe('React workspace composition', () => {
       'cinematicPortal',
       'oscilloscope',
       'laserDmx',
-      'neonLattice',
     ]
 
     for (const engine of engines) {
@@ -28,7 +27,7 @@ describe('React workspace composition', () => {
     expect(resolveReactWorkspaceComposition('oscilloscope', 'spatialFixtures', false).showSoundDrawingTimeline)
       .toBe(true)
 
-    for (const engine of ['shaderPads', 'cinematicPortal', 'laserDmx', 'neonLattice'] as ReactEngineId[]) {
+    for (const engine of ['shaderPads', 'cinematicPortal', 'laserDmx'] as ReactEngineId[]) {
       expect(resolveReactWorkspaceComposition(engine, 'spatialFixtures', false).showSoundDrawingTimeline)
         .toBe(false)
     }
@@ -42,7 +41,7 @@ describe('React workspace composition', () => {
     expect(getReactPresetTabLabel(shader)).toBe('SCENES')
     expect(shader.showPerformancePads).toBe(false)
 
-    for (const engine of ['cinematicPortal', 'oscilloscope', 'laserDmx', 'neonLattice'] as ReactEngineId[]) {
+    for (const engine of ['cinematicPortal', 'oscilloscope', 'laserDmx'] as ReactEngineId[]) {
       const composition = resolveReactWorkspaceComposition(engine, 'spatialFixtures', false)
       expect(composition.presetSurface).toBe('enginePresets')
       expect(getReactPresetTabLabel(composition)).toBe('PRESETS')
@@ -79,14 +78,10 @@ describe('React workspace composition', () => {
     const soundDrawing = resolveReactWorkspaceComposition('oscilloscope', 'spatialFixtures', false)
     expect(getReactLeftTabs(soundDrawing)).toEqual(['workspace', 'media', 'fonts'])
     expect(getReactLeftTabLabel('workspace', soundDrawing)).toBe('SOURCE')
-
-    const neon = resolveReactWorkspaceComposition('neonLattice', 'spatialFixtures', false)
-    expect(getReactLeftTabs(neon)).toEqual(['workspace'])
-    expect(getReactLeftTabLabel('workspace', neon)).toBe('LAYOUT')
   })
 
   it('never advertises unfinished or unrelated contextual destinations', () => {
-    for (const engine of ['shaderPads', 'cinematicPortal', 'oscilloscope', 'laserDmx', 'neonLattice'] as ReactEngineId[]) {
+    for (const engine of ['shaderPads', 'cinematicPortal', 'oscilloscope', 'laserDmx'] as ReactEngineId[]) {
       const tabs = getReactLeftTabs(resolveReactWorkspaceComposition(engine, 'spatialFixtures', false))
       expect(tabs).not.toContain('sessions')
       if (engine !== 'oscilloscope') expect(tabs).not.toContain('fonts')

@@ -6,7 +6,6 @@ describe('getReactFxMasterControls', () => {
     'shaderPads',
     'cinematicPortal',
     'oscilloscope',
-    'neonLattice',
   ] as const)('shows all React-wide controls for %s', engineId => {
     expect(getReactFxMasterControls(engineId, 'spatialFixtures')).toEqual([
       'intensity',

@@ -25,7 +25,11 @@ import type {
   ProductionTarget,
 } from './LaserDmxProductionRig'
 
-export type ReactEngineId = 'shaderPads' | 'cinematicPortal' | 'oscilloscope' | 'laserDmx' | 'neonLattice'
+export type ReactEngineId = 'shaderPads' | 'cinematicPortal' | 'oscilloscope' | 'laserDmx'
+
+/** Historical persisted identifier retained only for migration and staged file removal. */
+export type RetiredReactEngineId = 'neonLattice'
+export type ReactEngineCompatibilityId = ReactEngineId | RetiredReactEngineId
 
 // ── Neon Lattice performance trigger types ────────────────────────────────────
 
@@ -1523,7 +1527,7 @@ export interface ReactPerformancePadTransition {
 export interface ReactScene {
   id: string
   sectionType: ReactSectionType
-  engineId: ReactEngineId
+  engineId: ReactEngineCompatibilityId
   params: Partial<ReactPresetParams>
 }
 
@@ -1534,7 +1538,7 @@ export interface ReactTrackSection {
   startSec: number
   endSec: number
   intensity: number
-  engineId?: ReactEngineId
+  engineId?: ReactEngineCompatibilityId
   source?: 'manual' | 'auto' | 'mock' | 'user-edited-auto' | 'user-created'
   confidence?: number
 }
@@ -1548,7 +1552,7 @@ export interface ReactPreset {
   id: string
   name: string
   description: string
-  engine: ReactEngineId
+  engine: ReactEngineCompatibilityId
   palette: ReactPalette
   params: ReactPresetParams
   /** Omitted values resolve from DEFAULT_REACT_PRESET_RENDER_SETTINGS. */
@@ -3361,373 +3365,6 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
   // LaserDMX Production Rig retained Spatial Fixtures preset
   ...LASER_DMX_PRODUCTION_PRESETS,
 
-  // ── Neon Lattice (1) – Acid Magenta ──────────────────────────────────────
-  {
-    id:          'preset-nl-acid-magenta',
-    name:        'Acid Magenta',
-    description: 'Alternating magenta pillars and diagonal cuts with phrase-scale grid reveals.',
-    engine:      'neonLattice',
-    palette:     PALETTE_ACID_MAGENTA,
-    params:      { intensity: 0.84, motion: 0.72, glow: 0.94, bassReactivity: 0.92 },
-    scenes:      makeScenes('nlam', 'neonLattice'),
-    sectionMappings: makeMappings('nlam'),
-    neonLatticeSettings: {
-      compositionMode: 'hybrid',
-      railDensity: 0.50, verticalBias: 0.48,
-      orientationWeights: { vertical: 0.42, horizontal: 0.16, diagonalUp: 0.24, diagonalDown: 0.18 },
-      verticalSpanMode: 'fullCanvas', horizontalSpanMode: 'fullCanvas', diagonalSpanMode: 'long',
-      diagonalAngleDegrees: 48, customSegments: [],
-      lanePattern: {
-        id: 'acid-magenta-switchblade', name: 'Acid Magenta Switchblade', laneCount: 10, sequenceLength: 8,
-        orientations: ['vertical', 'diagonalUp', 'diagonalDown'], mirrored: false, seed: 4104,
-        steps: [
-          { lanes: [1], orientation: 'vertical', paletteRole: 'primary', triggerStrength: 0.92 },
-          { lanes: [7], orientation: 'diagonalUp', paletteRole: 'accent', triggerStrength: 0.78 },
-          { lanes: [3], orientation: 'vertical', paletteRole: 'primary', triggerStrength: 0.88 },
-          { lanes: [8], orientation: 'diagonalDown', paletteRole: 'secondary', triggerStrength: 0.82 },
-          { lanes: [5], orientation: 'vertical', paletteRole: 'primary', triggerStrength: 1 },
-          { lanes: [2], orientation: 'diagonalUp', paletteRole: 'accent', triggerStrength: 0.8 },
-          { lanes: [9], orientation: 'vertical', paletteRole: 'highlight', triggerStrength: 0.9 },
-          { lanes: [4], orientation: 'diagonalDown', paletteRole: 'secondary', triggerStrength: 0.84 },
-        ],
-      },
-      lineEnvelope: { attackBeats: 0.025, holdBeats: 0.22, releaseBeats: 0.30, gateLengthBeats: 0.28, triggerStrengthScale: 1.1 },
-      retriggerBehavior: 'stack', laneAssignmentMode: 'sequence', chordSize: 4,
-      phrasePrograms: makeNeonLatticePhrasePrograms('acid-magenta', {
-        4: [{ type: 'spawnLine', orientation: 'horizontal', lane: 5, paletteRole: 'primary', strength: 1 }],
-        8: [
-          { type: 'mirroredLayout', enabled: true, temporary: true, resetOn: 'nextPhrase' },
-          { type: 'spawnLineCluster', orientation: 'diagonalDown', lanes: [2, 7], chordSize: 2, paletteRole: 'secondary', strength: 0.94 },
-        ],
-        16: [
-          { type: 'spawnLine', orientation: 'diagonalUp', lane: 1, paletteRole: 'primary', strength: 0.86 },
-          { type: 'spawnLine', orientation: 'diagonalDown', lane: 3, paletteRole: 'secondary', strength: 0.9 },
-          { type: 'spawnLine', orientation: 'diagonalUp', lane: 6, paletteRole: 'primary', strength: 0.94 },
-          { type: 'spawnLine', orientation: 'diagonalDown', lane: 8, paletteRole: 'highlight', strength: 1 },
-        ],
-        32: [
-          { type: 'clearLines' },
-          { type: 'blackout', durationBeats: 0.5 },
-          { type: 'spawnLineCluster', orientation: 'vertical', lanes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], chordSize: 10, paletteRole: 'primary', strength: 1 },
-          { type: 'spawnLineCluster', orientation: 'horizontal', lanes: [1, 3, 5, 7, 9], chordSize: 5, paletteRole: 'highlight', strength: 0.92 },
-        ],
-      }),
-      phraseStackingPolicy: 'longestOnly', phraseBoundaryPriority: 'phrase', temporaryOverrideResetPolicy: 'nextPhrase',
-      centerBias: 0.22, railLifetime: 3.2, pulseSpeed: 0.78, flareAmount: 0.78, snapDivision: 4,
-      blockDensity: 0.14, blockHold: 0.42, cyanAccentChance: 0.38, cyanStrikePaletteRole: 'highlight',
-      bloom: 0.96, coreWidth: 0.52, bodyWidth: 1.55, haloWidth: 7.2,
-      coreIntensity: 1.28, bodyIntensity: 0.78, haloIntensity: 0.22, haloFalloff: 0.58,
-      bloomSpread: 1.08, bloomGain: 0.4, lineFlicker: 0.08, chordBloomBoost: 0.32,
-      phraseFlashStrength: 0.34, highlightCenterHot: true, qualityTier: 'high',
-      depth: 0.34, parallax: 0.22, cameraMotion: 0.10, shockwaveAmount: 0.25, reseedInterval: 0,
-      decayStyle: 'exponential', blackoutMode: 'none', trigger: 'kick',
-      audioReactive: true, bassBrightnessResponse: 1,
-      kickRailResponse: 1, snareRailResponse: 0.82, beatPulseResponse: 0.9,
-      midBlockResponse: 0.18, highFlareResponse: 0.52, energyDensityResponse: 0.26,
-      buildMotionResponse: 0.28, dropImpactResponse: 1, sectionDynamics: 0.9,
-      audioSmoothing: 0.12, audioGate: 0.04,
-      modulationRoutes: {
-        bassToBloom: 0.48, bassToWidth: 0.22, energyToChordSize: 0.42, energyToActiveLanes: 0.24,
-        buildToPatternRate: 0.28, buildToDensity: 0.18, phrase4ProgressToDensity: 0.08,
-        phrase8ProgressToBloom: 0.14, phrase16ProgressToSpacing: 0.18, phrase32ProgressToDiagonalWeight: 0.16,
-      },
-    },
-  },
-
-  // ── Neon Lattice (2) – DVYDRM Lattice ────────────────────────────────────
-  {
-    id:          'preset-nl-drmvyz-lattice',
-    name:        'DVYDRM Lattice',
-    description: 'A Brand Kit lane melody with mirrored chords, gold accents, and semantic palette rotation.',
-    engine:      'neonLattice',
-    palette:     PALETTE_DRMVYZ_LATTICE,
-    params:      { intensity: 0.78, motion: 0.58, glow: 0.82, bassReactivity: 0.88 },
-    scenes:      makeScenes('nldl', 'neonLattice'),
-    sectionMappings: makeMappings('nldl'),
-    neonLatticeSettings: {
-      compositionMode: 'laneSequencer',
-      railDensity: 0.38, verticalBias: 0.72,
-      orientationWeights: { vertical: 0.68, horizontal: 0.18, diagonalUp: 0.08, diagonalDown: 0.06 },
-      verticalSpanMode: 'fullCanvas', horizontalSpanMode: 'fullCanvas', diagonalSpanMode: 'long',
-      diagonalAngleDegrees: 42, customSegments: [],
-      lanePattern: {
-        id: 'drmvyz-brand-melody', name: 'DVYDRM Brand Melody', laneCount: 12, sequenceLength: 16,
-        orientations: ['vertical', 'horizontal', 'diagonalUp'], mirrored: false, seed: 22026,
-        steps: [
-          { lanes: [1], orientation: 'vertical', paletteRole: 'primary' },
-          { lanes: [4], orientation: 'vertical', paletteRole: 'secondary' },
-          { lanes: [7], orientation: 'vertical', paletteRole: 'primary' },
-          { lanes: [10], orientation: 'vertical', paletteRole: 'accent' },
-          { lanes: [2, 9], orientation: 'vertical', paletteRole: 'secondary', chordSize: 2 },
-          { lanes: [5], orientation: 'horizontal', paletteRole: 'accent', triggerStrength: 0.78 },
-          { lanes: [8], orientation: 'vertical', paletteRole: 'primary' },
-          { lanes: [], rest: true },
-          { lanes: [0, 6], orientation: 'vertical', paletteRole: 'primary', chordSize: 2 },
-          { lanes: [3], orientation: 'diagonalUp', paletteRole: 'accent', triggerStrength: 0.72 },
-          { lanes: [11], orientation: 'vertical', paletteRole: 'highlight' },
-          { lanes: [6], orientation: 'horizontal', paletteRole: 'secondary', triggerStrength: 0.75 },
-          { lanes: [2, 5, 8], orientation: 'vertical', paletteRole: 'primary', chordSize: 3 },
-          { lanes: [], rest: true },
-          { lanes: [9], orientation: 'vertical', paletteRole: 'accent' },
-          { lanes: [1, 10], orientation: 'vertical', paletteRole: 'secondary', chordSize: 2 },
-        ],
-      },
-      lineEnvelope: { attackBeats: 0.035, holdBeats: 0.42, releaseBeats: 0.32, gateLengthBeats: 0.48, triggerStrengthScale: 1 },
-      retriggerBehavior: 'restart', laneAssignmentMode: 'presetDefined', chordSize: 3,
-      phrasePrograms: makeNeonLatticePhrasePrograms('drmvyz-lattice', {
-        4: [
-          { type: 'mirroredLayout', enabled: true, temporary: true, resetOn: 'nextPhrase' },
-          { type: 'spawnLineCluster', orientation: 'vertical', lanes: [2, 9], chordSize: 2, paletteRole: 'secondary', strength: 0.9 },
-        ],
-        8: [{ type: 'spawnLine', orientation: 'horizontal', lane: 6, paletteRole: 'accent', strength: 0.96 }],
-        16: [
-          { type: 'spawnLineCluster', orientation: 'vertical', lanes: [1, 4], chordSize: 2, paletteRole: 'primary', strength: 0.95 },
-          { type: 'spawnLineCluster', orientation: 'vertical', lanes: [7, 10], chordSize: 2, paletteRole: 'secondary', strength: 0.95 },
-        ],
-        32: [
-          { type: 'paletteStep', role: 'primary', offset: 1, persistence: 'temporary', resetOn: 'nextPhrase' },
-          { type: 'patternReseed' },
-          { type: 'orientationChange', weights: { vertical: 0.58, horizontal: 0.24, diagonalUp: 0.10, diagonalDown: 0.08 }, temporary: true, resetOn: 'nextPhrase' },
-        ],
-      }),
-      phraseStackingPolicy: 'longestOnly', phraseBoundaryPriority: 'phrase', temporaryOverrideResetPolicy: 'nextPhrase',
-      centerBias: 0.28, railLifetime: 4.2, pulseSpeed: 0.58, flareAmount: 0.58, snapDivision: 4,
-      blockDensity: 0.04, blockHold: 0.35, cyanAccentChance: 0.42, cyanStrikePaletteRole: 'highlight',
-      bloom: 0.78, coreWidth: 0.44, bodyWidth: 1.35, haloWidth: 6.4,
-      coreIntensity: 1.22, bodyIntensity: 0.7, haloIntensity: 0.18, haloFalloff: 0.64,
-      bloomSpread: 1.0, bloomGain: 0.31, lineFlicker: 0.025, chordBloomBoost: 0.28,
-      phraseFlashStrength: 0.25, highlightCenterHot: true, qualityTier: 'high',
-      depth: 0.24, parallax: 0.08, cameraMotion: 0.025, shockwaveAmount: 0.04, reseedInterval: 0,
-      decayStyle: 'exponential', blackoutMode: 'none', trigger: 'beat',
-      audioReactive: true, bassBrightnessResponse: 0.88,
-      kickRailResponse: 0.8, snareRailResponse: 0.76, beatPulseResponse: 0.82,
-      midBlockResponse: 0.04, highFlareResponse: 0.36, energyDensityResponse: 0.12,
-      buildMotionResponse: 0.18, dropImpactResponse: 0.72, sectionDynamics: 0.8,
-      audioSmoothing: 0.2, audioGate: 0.04,
-      modulationRoutes: {
-        bassToBloom: 0.34, bassToWidth: 0.14, energyToChordSize: 0.5, energyToActiveLanes: 0.28,
-        buildToPatternRate: 0.22, buildToDensity: 0.08, phrase4ProgressToDensity: 0,
-        phrase8ProgressToBloom: 0.12, phrase16ProgressToSpacing: 0.16, phrase32ProgressToDiagonalWeight: 0.08,
-      },
-    },
-  },
-
-  // ── Neon Lattice (3) – Sparse Starlines ──────────────────────────────────
-  {
-    id:          'preset-nl-sparse-starlines',
-    name:        'Sparse Starlines',
-    description: 'Isolated thin lines, restrained crossings, and long atmospheric phrase relocations.',
-    engine:      'neonLattice',
-    palette:     PALETTE_SPARSE_STARLINES,
-    params:      { intensity: 0.62, motion: 0.30, glow: 0.68, bassReactivity: 0.68 },
-    scenes:      makeScenes('nlss', 'neonLattice'),
-    sectionMappings: makeMappings('nlss'),
-    neonLatticeSettings: {
-      compositionMode: 'laneSequencer',
-      railDensity: 0.16, verticalBias: 0.56,
-      orientationWeights: { vertical: 0.46, horizontal: 0.18, diagonalUp: 0.20, diagonalDown: 0.16 },
-      verticalSpanMode: 'fullCanvas', horizontalSpanMode: 'fullCanvas', diagonalSpanMode: 'long',
-      diagonalAngleDegrees: 38, customSegments: [],
-      lanePattern: {
-        id: 'sparse-star-relay', name: 'Sparse Star Relay', laneCount: 9, sequenceLength: 12,
-        orientations: ['vertical', 'horizontal', 'diagonalUp', 'diagonalDown'], mirrored: false, seed: 7301,
-        steps: [
-          { lanes: [1], orientation: 'vertical', paletteRole: 'primary', triggerStrength: 0.58 },
-          { lanes: [], rest: true }, { lanes: [], rest: true },
-          { lanes: [6], orientation: 'horizontal', paletteRole: 'secondary', triggerStrength: 0.46 },
-          { lanes: [], rest: true }, { lanes: [], rest: true },
-          { lanes: [3], orientation: 'diagonalUp', paletteRole: 'accent', triggerStrength: 0.54 },
-          { lanes: [], rest: true }, { lanes: [], rest: true },
-          { lanes: [8], orientation: 'vertical', paletteRole: 'highlight', triggerStrength: 0.62 },
-          { lanes: [], rest: true }, { lanes: [], rest: true },
-        ],
-      },
-      lineEnvelope: { attackBeats: 0.08, holdBeats: 0.72, releaseBeats: 1.25, gateLengthBeats: 0.8, triggerStrengthScale: 0.82 },
-      retriggerBehavior: 'extend', laneAssignmentMode: 'presetDefined', chordSize: 2,
-      phrasePrograms: makeNeonLatticePhrasePrograms('sparse-starlines', {
-        4: [
-          { type: 'spawnLine', orientation: 'vertical', lane: 4, paletteRole: 'primary', strength: 0.5 },
-          { type: 'spawnLine', orientation: 'horizontal', lane: 4, paletteRole: 'highlight', strength: 0.42 },
-        ],
-        8: [{ type: 'spawnLine', orientation: 'diagonalUp', lane: 6, paletteRole: 'accent', strength: 0.58 }],
-        16: [{ type: 'spawnLineCluster', orientation: 'diagonalDown', lanes: [1, 4, 7], chordSize: 3, paletteRole: 'secondary', strength: 0.56 }],
-        32: [
-          { type: 'clearLines' },
-          { type: 'blackout', durationBeats: 1 },
-          { type: 'patternReseed' },
-        ],
-      }),
-      phraseStackingPolicy: 'longestOnly', phraseBoundaryPriority: 'phrase', temporaryOverrideResetPolicy: 'nextPhrase',
-      centerBias: 0.16, railLifetime: 8, pulseSpeed: 0.34, flareAmount: 0.38, snapDivision: 2,
-      blockDensity: 0, blockHold: 0.7, cyanAccentChance: 0.55, cyanStrikePaletteRole: 'highlight',
-      bloom: 0.5, coreWidth: 0.28, bodyWidth: 0.72, haloWidth: 4.8,
-      coreIntensity: 1.04, bodyIntensity: 0.54, haloIntensity: 0.12, haloFalloff: 0.72,
-      bloomSpread: 1.2, bloomGain: 0.2, lineFlicker: 0.01, chordBloomBoost: 0.12,
-      phraseFlashStrength: 0.12, highlightCenterHot: true, qualityTier: 'high',
-      depth: 0.18, parallax: 0.04, cameraMotion: 0, shockwaveAmount: 0, reseedInterval: 0,
-      decayStyle: 'exponential', blackoutMode: 'none', trigger: 'beat',
-      audioReactive: true, bassBrightnessResponse: 0.58,
-      kickRailResponse: 0.35, snareRailResponse: 0.4, beatPulseResponse: 0.5,
-      midBlockResponse: 0, highFlareResponse: 0.52, energyDensityResponse: 0.02,
-      buildMotionResponse: 0.04, dropImpactResponse: 0.22, sectionDynamics: 0.5,
-      audioSmoothing: 0.42, audioGate: 0.09,
-      modulationRoutes: {
-        bassToBloom: 0.16, bassToWidth: 0.04, energyToChordSize: 0.08, energyToActiveLanes: 0.04,
-        buildToPatternRate: 0.02, buildToDensity: 0, phrase4ProgressToDensity: -0.08,
-        phrase8ProgressToBloom: 0.08, phrase16ProgressToSpacing: 0.22, phrase32ProgressToDiagonalWeight: 0.04,
-      },
-    },
-  },
-
-  // ── Neon Lattice (4) – Overload Matrix ───────────────────────────────────
-  {
-    id:          'preset-nl-overload-matrix',
-    name:        'Overload Matrix',
-    description: 'Rapid alternating rails, mirrored diagonal fans, and bounded full-impact clusters.',
-    engine:      'neonLattice',
-    palette:     PALETTE_OVERLOAD_MATRIX,
-    params:      { intensity: 0.92, motion: 0.9, glow: 1, bassReactivity: 0.98 },
-    scenes:      makeScenes('nlom', 'neonLattice'),
-    sectionMappings: makeMappings('nlom'),
-    neonLatticeSettings: {
-      compositionMode: 'hybrid',
-      railDensity: 0.72, verticalBias: 0.44,
-      orientationWeights: { vertical: 0.34, horizontal: 0.22, diagonalUp: 0.24, diagonalDown: 0.20 },
-      verticalSpanMode: 'fullCanvas', horizontalSpanMode: 'fullCanvas', diagonalSpanMode: 'fullCanvas',
-      diagonalAngleDegrees: 52, customSegments: [],
-      lanePattern: {
-        id: 'overload-rapid-matrix', name: 'Overload Rapid Matrix', laneCount: 12, sequenceLength: 8,
-        orientations: ['vertical', 'horizontal', 'diagonalUp', 'diagonalDown'], mirrored: true, seed: 9908,
-        steps: [
-          { lanes: [0], orientation: 'vertical', paletteRole: 'primary', triggerStrength: 1 },
-          { lanes: [2], orientation: 'diagonalUp', paletteRole: 'secondary', triggerStrength: 0.94 },
-          { lanes: [4], orientation: 'horizontal', paletteRole: 'accent', triggerStrength: 0.9 },
-          { lanes: [6], orientation: 'diagonalDown', paletteRole: 'primary', triggerStrength: 1 },
-          { lanes: [8], orientation: 'vertical', paletteRole: 'highlight', triggerStrength: 1 },
-          { lanes: [10], orientation: 'diagonalUp', paletteRole: 'secondary', triggerStrength: 0.96 },
-          { lanes: [5], orientation: 'horizontal', paletteRole: 'accent', triggerStrength: 0.92 },
-          { lanes: [11], orientation: 'diagonalDown', paletteRole: 'primary', triggerStrength: 1 },
-        ],
-      },
-      lineEnvelope: { attackBeats: 0.0125, holdBeats: 0.14, releaseBeats: 0.18, gateLengthBeats: 0.18, triggerStrengthScale: 1.15 },
-      retriggerBehavior: 'stack', laneAssignmentMode: 'outsideIn', chordSize: 6,
-      phrasePrograms: makeNeonLatticePhrasePrograms('overload-matrix', {
-        4: [{ type: 'highlightStrike', orientation: 'horizontal', strength: 1 }],
-        8: [
-          { type: 'mirroredLayout', enabled: true, temporary: true, resetOn: 'nextPhrase' },
-          { type: 'lineSweep', orientation: 'diagonalUp', direction: 1, durationBeats: 1, strength: 1 },
-        ],
-        16: [{ type: 'spawnLineCluster', orientation: 'diagonalDown', lanes: [0, 2, 4, 6, 8, 10], chordSize: 6, paletteRole: 'primary', strength: 1 }],
-        32: [
-          { type: 'blackout', durationBeats: 0.25 },
-          { type: 'highlightStrike', orientation: 'vertical', strength: 1 },
-          { type: 'orientationChange', weights: { vertical: 0.18, horizontal: 0.18, diagonalUp: 0.34, diagonalDown: 0.30 }, temporary: true, resetOn: 'nextPhrase' },
-          { type: 'patternReseed' },
-        ],
-      }),
-      phraseStackingPolicy: 'longestOnly', phraseBoundaryPriority: 'phrase', temporaryOverrideResetPolicy: 'nextPhrase',
-      centerBias: 0.38, railLifetime: 1.7, pulseSpeed: 1.15, flareAmount: 0.86, snapDivision: 8,
-      blockDensity: 0.28, blockHold: 0.25, cyanAccentChance: 0.24, cyanStrikePaletteRole: 'highlight',
-      bloom: 1.15, coreWidth: 0.64, bodyWidth: 1.9, haloWidth: 8.6,
-      coreIntensity: 1.38, bodyIntensity: 0.86, haloIntensity: 0.26, haloFalloff: 0.52,
-      bloomSpread: 0.92, bloomGain: 0.5, lineFlicker: 0.14, chordBloomBoost: 0.42,
-      phraseFlashStrength: 0.4, highlightCenterHot: true, qualityTier: 'high',
-      depth: 0.5, parallax: 0.28, cameraMotion: 0.16, shockwaveAmount: 0.82, reseedInterval: 0,
-      decayStyle: 'pulse', blackoutMode: 'none', trigger: 'kick',
-      audioReactive: true, bassBrightnessResponse: 1,
-      kickRailResponse: 1, snareRailResponse: 1, beatPulseResponse: 1,
-      midBlockResponse: 0.52, highFlareResponse: 0.64, energyDensityResponse: 0.58,
-      buildMotionResponse: 0.5, dropImpactResponse: 1, sectionDynamics: 1,
-      audioSmoothing: 0.06, audioGate: 0.025,
-      modulationRoutes: {
-        bassToBloom: 0.62, bassToWidth: 0.36, energyToChordSize: 0.9, energyToActiveLanes: 0.72,
-        buildToPatternRate: 0.62, buildToDensity: 0.48, phrase4ProgressToDensity: 0.18,
-        phrase8ProgressToBloom: 0.24, phrase16ProgressToSpacing: -0.12, phrase32ProgressToDiagonalWeight: 0.4,
-      },
-    },
-  },
-
-  // ── Neon Lattice (5) – Reverie Keygrid ───────────────────────────────────
-  {
-    id:          'preset-nl-reverie-keygrid',
-    name:        'Reverie Keygrid',
-    description: 'A recording-inspired neon keybed with deterministic lane melody, hot cores, and restrained motion.',
-    engine:      'neonLattice',
-    palette: {
-      primary: DVYDRM_CYAN, secondary: DVYDRM_EMERALD, accent: '#7a5cff',
-      background: '#010207', highlight: '#ffffff', text: DVYDRM_WHITE,
-    },
-    params:      { intensity: 0.82, motion: 0.62, glow: 0.96, bassReactivity: 0.9 },
-    scenes:      makeScenes('nlrk', 'neonLattice'),
-    sectionMappings: makeMappings('nlrk'),
-    neonLatticeSettings: {
-      compositionMode: 'laneSequencer',
-      railDensity: 0.32, verticalBias: 0.9,
-      orientationWeights: { vertical: 0.82, horizontal: 0.10, diagonalUp: 0.04, diagonalDown: 0.04 },
-      verticalSpanMode: 'fullCanvas', horizontalSpanMode: 'fullCanvas', diagonalSpanMode: 'long',
-      diagonalAngleDegrees: 44, customSegments: [],
-      lanePattern: {
-        id: 'reverie-keybed-16', name: 'Reverie Keybed 16', laneCount: 12, sequenceLength: 16,
-        orientations: ['vertical'], mirrored: false, seed: 15032,
-        steps: [
-          { lanes: [0], orientation: 'vertical', paletteRole: 'primary' },
-          { lanes: [4], orientation: 'vertical', paletteRole: 'secondary' },
-          { lanes: [7], orientation: 'vertical', paletteRole: 'primary' },
-          { lanes: [2, 6, 9], orientation: 'vertical', paletteRole: 'accent', chordSize: 3, triggerStrength: 0.92 },
-          { lanes: [5], orientation: 'vertical', paletteRole: 'primary' },
-          { lanes: [10], orientation: 'vertical', paletteRole: 'secondary' },
-          { lanes: [3], orientation: 'vertical', paletteRole: 'primary' },
-          { lanes: [1, 5, 8, 11], orientation: 'vertical', paletteRole: 'highlight', chordSize: 4, triggerStrength: 1 },
-          { lanes: [8], orientation: 'vertical', paletteRole: 'primary' },
-          { lanes: [1], orientation: 'vertical', paletteRole: 'secondary' },
-          { lanes: [6], orientation: 'vertical', paletteRole: 'primary' },
-          { lanes: [0, 4, 7], orientation: 'vertical', paletteRole: 'accent', chordSize: 3, triggerStrength: 0.94 },
-          { lanes: [9], orientation: 'vertical', paletteRole: 'primary' },
-          { lanes: [3], orientation: 'vertical', paletteRole: 'secondary' },
-          { lanes: [11], orientation: 'vertical', paletteRole: 'highlight' },
-          { lanes: [2, 5, 9], orientation: 'vertical', paletteRole: 'primary', chordSize: 3, triggerStrength: 1 },
-        ],
-      },
-      lineEnvelope: { attackBeats: 0.018, holdBeats: 0.24, releaseBeats: 0.22, gateLengthBeats: 0.3, triggerStrengthScale: 1.12 },
-      retriggerBehavior: 'restart', laneAssignmentMode: 'presetDefined', chordSize: 4,
-      phrasePrograms: makeNeonLatticePhrasePrograms('reverie-keygrid', {
-        4: [{ type: 'spawnLine', orientation: 'horizontal', lane: 6, paletteRole: 'accent', strength: 0.72 }],
-        8: [
-          { type: 'mirroredLayout', enabled: true, temporary: true, resetOn: 'nextPhrase' },
-          { type: 'spawnLineCluster', orientation: 'vertical', lanes: [2, 5], chordSize: 2, paletteRole: 'secondary', strength: 0.92 },
-        ],
-        16: [
-          { type: 'temporaryEnvelopeChange', envelope: { attackBeats: 0.01, holdBeats: 0.34, releaseBeats: 0.2, gateLengthBeats: 0.38, triggerStrengthScale: 1.2 }, resetOn: 'nextPhrase' },
-          { type: 'spawnLineCluster', orientation: 'vertical', lanes: [1, 4, 7, 10], chordSize: 4, paletteRole: 'primary', strength: 1 },
-        ],
-        32: [
-          { type: 'blackout', durationBeats: 0.35 },
-          { type: 'paletteStep', role: 'secondary', offset: 1, persistence: 'temporary', resetOn: 'nextPhrase' },
-          { type: 'patternReseed' },
-          { type: 'highlightStrike', orientation: 'vertical', strength: 1 },
-        ],
-      }),
-      phraseStackingPolicy: 'longestOnly', phraseBoundaryPriority: 'phrase', temporaryOverrideResetPolicy: 'nextPhrase',
-      centerBias: 0.2, railLifetime: 2.4, pulseSpeed: 0.7, flareAmount: 0.62, snapDivision: 4,
-      blockDensity: 0, blockHold: 0.2, cyanAccentChance: 0.28, cyanStrikePaletteRole: 'highlight',
-      bloom: 1.05, coreWidth: 0.58, bodyWidth: 1.65, haloWidth: 9.2,
-      coreIntensity: 1.45, bodyIntensity: 0.82, haloIntensity: 0.28, haloFalloff: 0.5,
-      bloomSpread: 1.18, bloomGain: 0.46, lineFlicker: 0.02, chordBloomBoost: 0.38,
-      phraseFlashStrength: 0.24, highlightCenterHot: true, qualityTier: 'high',
-      depth: 0.12, parallax: 0.02, cameraMotion: 0, shockwaveAmount: 0, reseedInterval: 0,
-      decayStyle: 'exponential', blackoutMode: 'none', trigger: 'beat',
-      audioReactive: true, bassBrightnessResponse: 0.9,
-      kickRailResponse: 0.86, snareRailResponse: 0.72, beatPulseResponse: 0.84,
-      midBlockResponse: 0, highFlareResponse: 0.42, energyDensityResponse: 0.08,
-      buildMotionResponse: 0.12, dropImpactResponse: 0.68, sectionDynamics: 0.74,
-      audioSmoothing: 0.16, audioGate: 0.04,
-      modulationRoutes: {
-        bassToBloom: 0.44, bassToWidth: 0.18, energyToChordSize: 0.56, energyToActiveLanes: 0.3,
-        buildToPatternRate: 0.3, buildToDensity: 0.04, phrase4ProgressToDensity: 0,
-        phrase8ProgressToBloom: 0.16, phrase16ProgressToSpacing: 0.18, phrase32ProgressToDiagonalWeight: 0,
-      },
-    },
-  },
 ]
 
 // ── Default performance pads ──────────────────────────────────────────────────
@@ -3739,12 +3376,12 @@ export const DEFAULT_PERFORMANCE_PADS: ReactPerformancePad[] = [
   { id: 'pad-3',  presetId: 'preset-infinity-signal',        label: 'Infinity',  color: DVYDRM_EMERALD, keyBinding: '3', transitionTimeMs: 600 },
   { id: 'pad-4',  presetId: 'preset-laser-dmx-build-tunnel', label: 'Tunnel',    color: '#ff8c42',      keyBinding: '4', transitionTimeMs: 300 },
   { id: 'pad-17', presetId: null,                            label: 'Empty',    color: '#3a4650',      keyBinding: '5', transitionTimeMs: 600 },
-  // Row 2 — Cinematic / Neon Lattice
+  // Row 2 — Cinematic / open slots
   { id: 'pad-5',  presetId: 'preset-dream-gate',             label: 'Dream',    color: '#5b8def',      keyBinding: 'q', transitionTimeMs: 800 },
   { id: 'pad-6',  presetId: null,                            label: 'Empty',    color: '#3a4650',      keyBinding: 'w', transitionTimeMs: 400 },
   { id: 'pad-7',  presetId: null,                            label: 'Empty',    color: '#3a4650',      keyBinding: 'e', transitionTimeMs: 700 },
   { id: 'pad-8',  presetId: null,                            label: 'Empty',    color: '#3a4650',      keyBinding: 'r', transitionTimeMs: 200 },
-  { id: 'pad-18', presetId: 'preset-nl-acid-magenta',        label: 'Acid NL',  color: '#e040fb',      keyBinding: 't', transitionTimeMs: 300 },
+  { id: 'pad-18', presetId: null,                            label: 'Empty',    color: '#3a4650',      keyBinding: 't', transitionTimeMs: 300 },
   // Row 3 — Sound Drawing
   { id: 'pad-9',  presetId: 'preset-xy-cyan-scope',          label: 'XY Scope', color: DVYDRM_CYAN,    keyBinding: 'a', transitionTimeMs: 300 },
   { id: 'pad-10', presetId: 'preset-lissajous-flower',       label: 'Lissajous',color: DVYDRM_EMERALD, keyBinding: 's', transitionTimeMs: 400 },
@@ -3752,7 +3389,7 @@ export const DEFAULT_PERFORMANCE_PADS: ReactPerformancePad[] = [
   { id: 'pad-12', presetId: 'preset-radial-voice',           label: 'Radial',   color: DVYDRM_WHITE,   keyBinding: 'f', transitionTimeMs: 450 },
   { id: 'pad-19', presetId: 'preset-bass-triangle-reactor',  label: 'Triangle', color: DVYDRM_CRIMSON, keyBinding: 'g', transitionTimeMs: 250 },
   // Row 4 — Peak / enhanced visuals
-  { id: 'pad-13', presetId: 'preset-nl-overload-matrix',     label: 'Matrix',   color: '#ff3c6e',      keyBinding: 'z', transitionTimeMs: 200 },
+  { id: 'pad-13', presetId: null,                            label: 'Empty',    color: '#3a4650',      keyBinding: 'z', transitionTimeMs: 200 },
   { id: 'pad-14', presetId: 'preset-drmvyz-text-trace',      label: 'DRMVYZ',   color: '#b84fc9',      keyBinding: 'x', transitionTimeMs: 400 },
   { id: 'pad-15', presetId: 'preset-star-drop-burst',        label: 'StarBurst',color: DVYDRM_GOLD,    keyBinding: 'c', transitionTimeMs: 250 },
   { id: 'pad-16', presetId: 'preset-glyph-circle-pulse',     label: 'Circle',   color: DVYDRM_CYAN,    keyBinding: 'v', transitionTimeMs: 400 },

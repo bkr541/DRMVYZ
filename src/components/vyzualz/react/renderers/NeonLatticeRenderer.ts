@@ -2,6 +2,7 @@ import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import type {
   ReactPreset,
   NeonLatticeTriggerType,
+  NeonLatticeTriggerEvent,
   NeonLatticeSettings,
   NeonLatticeDecayStyle,
   NeonLatticeTrigger,
@@ -13,7 +14,11 @@ import type {
 } from '../ReactTypes'
 import { DEFAULT_NEON_LATTICE_SETTINGS } from '../ReactTypes'
 import { normalizeNeonLatticeSettings } from '../NeonLatticeConfig'
-import { neonLatticeTriggerFromPerformanceEvent } from '../ReactPerformanceActions'
+
+export interface NeonLatticeRenderParams extends ReactRenderParams {
+  neonLatticeSettings?: Partial<NeonLatticeSettings>
+  neonLatticeTrigger?: NeonLatticeTriggerEvent | null
+}
 import {
   type NeonRail,
   type NeonSegment,
@@ -1184,7 +1189,7 @@ function mixFromNeutral(neutral: number, value: number, amount: number): number 
 export function renderNeonLattice(
   ctx:         CanvasRenderingContext2D,
   frame:       ReactFrameContext,
-  params:      ReactRenderParams,
+  params:      NeonLatticeRenderParams,
   preset:      ReactPreset,
   manualSectionType: ReactSectionType | null = null,
 ): void {
@@ -1545,29 +1550,11 @@ export function renderNeonLattice(
     }
   }
 
-  // ── Trigger consumption (one-shot per seq) ─────────────────────────────────
-  const actionEvents = params.performanceActionEvents && params.performanceActionEvents.length > 0
-    ? [...params.performanceActionEvents].sort((a, b) => a.sequence - b.sequence)
-    : params.performanceActionEvent ? [params.performanceActionEvent] : []
-  for (const actionEvent of actionEvents) {
-    if (actionEvent.sequence <= st.lastConsumedPerformanceActionSeq) continue
-    st.lastConsumedPerformanceActionSeq = actionEvent.sequence
-    const trigger = neonLatticeTriggerFromPerformanceEvent(actionEvent)
-    if (trigger) dispatchTrigger(st, trigger.type, audioTime, paletteRgb, secSettings, frame.bpm, W, H)
-    const manualIdentity = `${frame.trackKey ?? mi?.trackId ?? mi?.sourceId ?? 'unbound'}:manual:${actionEvent.sequence}`
-    audioEvents.push({
-      source: 'manual',
-      identity: manualIdentity,
-      strength: 1,
-      frameId: mi?.frameId ?? -1,
-      beatIndex: mi?.rhythm.beatIndex ?? st.beatHitCount,
-      barIndex: mi?.rhythm.barIndex ?? Math.floor(st.beatHitCount / 4),
-    })
-    st.audioDirector.diagnostics.lastConsumedAudioEvent = manualIdentity
-  }
-
+  // Dedicated compatibility input retained only for direct renderer tests until
+  // the implementation is deleted in Patch 3. The live render contract and
+  // central dispatch no longer carry this field.
   const legacyTrigger = params.neonLatticeTrigger
-  if (actionEvents.length === 0 && legacyTrigger && legacyTrigger.seq !== st.lastConsumedSeq) {
+  if (legacyTrigger && legacyTrigger.seq !== st.lastConsumedSeq) {
     st.lastConsumedSeq = legacyTrigger.seq
     dispatchTrigger(st, legacyTrigger.type, audioTime, paletteRgb, secSettings, frame.bpm, W, H)
   }

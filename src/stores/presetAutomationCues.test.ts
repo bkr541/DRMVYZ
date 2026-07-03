@@ -23,7 +23,7 @@ function makeCue(overrides: Partial<ReactPresetAutomationCue> = {}): ReactPreset
   return {
     id:           `cue-${_cueCounter}`,
     timeSec:      10,
-    presetId:     'preset-neon-energy-cloud',
+    presetId:     'preset-dream-gate',
     label:        'Test Cue',
     enabled:      true,
     transitionMs: 500,

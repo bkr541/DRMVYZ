@@ -1,4 +1,5 @@
 import type { ReactEngineId, ReactPalette, ReactPreset } from '../../components/vyzualz/react/ReactTypes'
+import { isSelectableReactEngineId } from '../../components/vyzualz/react/reactEngineCatalog'
 import type {
   BrandKit,
   BrandKitEngineRule,
@@ -10,7 +11,6 @@ import { contrastRatio, mixHex, normalizeHexColor, readableTextColor } from './p
 const HEX_COLOR = /^#[0-9A-F]{6}$/i
 export const PALETTE_NATIVE_REACT_ENGINES: ReadonlySet<ReactEngineId> = new Set([
   'oscilloscope',
-  'neonLattice',
   'cinematicPortal',
   'laserDmx',
   'shaderPads',
@@ -162,6 +162,7 @@ export function resolveEffectiveReactPreset(
   preset: Readonly<ReactPreset>,
   brandKit: Readonly<BrandKit> | null | undefined,
 ): ReactPreset {
+  if (!isSelectableReactEngineId(preset.engine)) return { ...preset, palette: clonePalette(preset.palette) }
   const palette = resolveEffectivePalette({
     basePalette: preset.palette,
     brandKit,

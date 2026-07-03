@@ -16,7 +16,6 @@ function makeKit(id: string, palette: ReactPalette = BRAND): BrandKit {
     extractedPalette: null, extractionMetadata: null, defaultStrength: 1,
     engineRules: {
       oscilloscope: { mode: 'brand', strength: 1 },
-      neonLattice: { mode: 'brand', strength: 1 },
       cinematicPortal: { mode: 'brand', strength: 1 },
     },
     presetRules: {}, useForAppAccent: false, autoApply: true,
@@ -54,10 +53,8 @@ describe('ReactView Brand Kit boundary', () => {
     expect(result?.palette).toEqual(BRAND)
   })
 
-  it('delivers the effective palette to Neon Lattice', () => {
-    const result = resolveBrandedReactPreset(presetFor('neonLattice'), {}, makeKit('kit-a'))
-    expect(result?.engine).toBe('neonLattice')
-    expect(result?.palette).toEqual(BRAND)
+  it('does not expose a built-in Neon Lattice preset to the Brand Kit boundary', () => {
+    expect(DEFAULT_REACT_PRESETS.some(candidate => candidate.engine === 'neonLattice')).toBe(false)
   })
 
   it('delivers the Cinematic Worlds palette to Reactive Constellation', () => {

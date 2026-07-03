@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
+  DEFAULT_NEON_LATTICE_SETTINGS,
   DEFAULT_PERFORMANCE_PADS,
   DEFAULT_REACT_PRESETS,
   type ReactPreset,
@@ -20,7 +21,13 @@ import {
 
 const NEON_PRESET_ID = 'preset-nl-acid-magenta'
 const NON_NEON_PRESET = DEFAULT_REACT_PRESETS.find(preset => preset.engine === 'oscilloscope')!
-const BASE_NEON_PRESET = DEFAULT_REACT_PRESETS.find(preset => preset.id === NEON_PRESET_ID)!
+const BASE_NEON_PRESET: ReactPreset = {
+  ...structuredClone(NON_NEON_PRESET),
+  id: NEON_PRESET_ID,
+  name: 'Historical Neon Fixture',
+  engine: 'neonLattice',
+  neonLatticeSettings: structuredClone(DEFAULT_NEON_LATTICE_SETTINGS),
+}
 
 function customPreset(id: string, engine: ReactPreset['engine']): ReactPreset {
   const base = engine === 'neonLattice' ? BASE_NEON_PRESET : NON_NEON_PRESET

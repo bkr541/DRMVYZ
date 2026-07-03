@@ -1,5 +1,5 @@
 import type { VzFrameContext } from '../../effects/types'
-import type { ReactTrackSection, ReactSectionType, OscillatorSettings, OscillatorFontAsset, OscillatorGlyphAsset, OscillatorGlyphPoint, NeonLatticeSettings, NeonLatticeTriggerEvent, LaserDmxSettings } from '../ReactTypes'
+import type { ReactTrackSection, ReactSectionType, OscillatorSettings, OscillatorFontAsset, OscillatorGlyphAsset, OscillatorGlyphPoint, LaserDmxSettings } from '../ReactTypes'
 import { DEFAULT_OSCILLATOR_SETTINGS } from '../ReactTypes'
 import type { MusicIntelligenceFrame, TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
 import type { ReactPerformanceActionEvent } from '../ReactPerformanceActions'
@@ -87,7 +87,6 @@ export interface ReactRenderParams {
   oscillatorGlyphPointCache: Record<string, OscillatorGlyphPoint[]>
   /** Pre-sampled OpenType text points keyed by "${fontId}:${text}:${fontSize}:${letterSpacing}:${resolution}". Populated at upload/select/settings-change time; never by the renderer. */
   oscillatorTextPointCache: Record<string, OscillatorGlyphPoint[]>
-  neonLatticeSettings?: NeonLatticeSettings
   /** Isolated preset-preview override. Never persisted and never read by the live control surface. */
   thumbnailLaserDmxSettings?: LaserDmxSettings
   /** Generic transient event. Renderers consume each sequence at most once. */
@@ -96,8 +95,6 @@ export interface ReactRenderParams {
   performanceActionEvents?: readonly ReactPerformanceActionEvent[]
   /** Current transient toggle states for context restoration and accessibility parity. */
   performanceActionToggleStates?: Readonly<Record<string, boolean>>
-  /** @deprecated Neon Lattice compatibility alias. */
-  neonLatticeTrigger?: NeonLatticeTriggerEvent | null
 }
 
 export const DEFAULT_REACT_RENDER_PARAMS: ReactRenderParams = {

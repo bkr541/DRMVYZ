@@ -15,11 +15,10 @@ import { useReactStore, buildPresetPatch } from './reactStore'
 import {
   DEFAULT_REACT_PRESETS,
   DEFAULT_OSCILLATOR_SETTINGS,
-  DEFAULT_NEON_LATTICE_SETTINGS,
   DEFAULT_PERFORMANCE_PADS,
 } from '../components/vyzualz/react/ReactTypes'
-import type { ReactPreset, NeonLatticeSettings } from '../components/vyzualz/react/ReactTypes'
-import { normalizeNeonLatticeSettings } from '../components/vyzualz/react/NeonLatticeConfig'
+import type { ReactPreset } from '../components/vyzualz/react/ReactTypes'
+import { REACT_ENGINE_IDS } from '../components/vyzualz/react/reactEngineCatalog'
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -137,7 +136,7 @@ describe('selectReactEngine', () => {
 
   it("applying params: intensity from the selected engine's first preset", () => {
     // Prime a different engine first so selectReactEngine('cinematicPortal') is a real switch.
-    useReactStore.getState().selectReactEngine('neonLattice')
+    useReactStore.getState().selectReactEngine('oscilloscope')
     useReactStore.getState().selectReactEngine('cinematicPortal')
     const { reactIntensity, activeReactPresetId, reactPresets } = useReactStore.getState()
     const preset = activePreset(reactPresets, activeReactPresetId)
@@ -155,6 +154,28 @@ describe('selectReactEngine', () => {
       expect(preset?.engine).toBe(activeReactEngineId)
     },
   )
+
+  it('can repeatedly switch among every remaining engine without losing synchronization', () => {
+    for (let pass = 0; pass < 3; pass += 1) {
+      for (const engineId of REACT_ENGINE_IDS) {
+        expect(() => useReactStore.getState().selectReactEngine(engineId)).not.toThrow()
+        const { activeReactEngineId, activeReactPresetId, reactPresets } = useReactStore.getState()
+        expect(activeReactEngineId).toBe(engineId)
+        if (engineId === 'shaderPads') {
+          expect(activeReactPresetId).toBeNull()
+        } else {
+          expect(activePreset(reactPresets, activeReactPresetId)?.engine).toBe(engineId)
+        }
+      }
+    }
+  })
+
+  it('rejects the retired Neon engine and restores the startup pair', () => {
+    useReactStore.getState().selectReactEngine('neonLattice')
+    const { activeReactPresetId, activeReactEngineId } = useReactStore.getState()
+    expect(activeReactEngineId).toBe('cinematicPortal')
+    expect(activeReactPresetId).toBe('preset-dream-gate')
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -217,109 +238,11 @@ describe('setActivePadId', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Neon Lattice preset transitions — deterministic settings
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('Neon Lattice preset transitions via buildPresetPatch', () => {
-  const nlPresets = DEFAULT_REACT_PRESETS.filter(
-    p => p.engine === 'neonLattice' && p.neonLatticeSettings != null,
-  )
-
-  it('every NL preset transition produces the preset-defined value, not the previous state', () => {
-    for (const presetA of nlPresets) {
-      for (const presetB of nlPresets) {
-        if (presetA.id === presetB.id) continue
-
-        // Apply A first to get "current" state
-        const patchA = buildPresetPatch(presetA, DEFAULT_OSCILLATOR_SETTINGS, undefined, DEFAULT_NEON_LATTICE_SETTINGS)
-        const stateAfterA = patchA.neonLatticeSettings as NeonLatticeSettings
-
-        // Apply B on top of A's settings — the result must equal B's preset values (not A's)
-        const patchB = buildPresetPatch(presetB, DEFAULT_OSCILLATOR_SETTINGS, undefined, stateAfterA)
-        const stateAfterB = patchB.neonLatticeSettings as NeonLatticeSettings
-
-        const expectedB = normalizeNeonLatticeSettings({
-          ...DEFAULT_NEON_LATTICE_SETTINGS,
-          ...presetB.neonLatticeSettings,
-        })
-        expect(stateAfterB).toEqual(expectedB)
-      }
-    }
-  })
-
-  it('NL settings from DEFAULT are never leaked from a previous preset selection', () => {
-    // Modify current settings to contain sentinel values on every field
-    const modifiedCurrent: NeonLatticeSettings = {
-      ...DEFAULT_NEON_LATTICE_SETTINGS,
-      railDensity: 0.999,
-      parallax:    0.999,
-      cameraMotion: 0.999,
-      bloom:       0.999,
-    }
-
-    for (const preset of nlPresets) {
-      const patch = buildPresetPatch(preset, DEFAULT_OSCILLATOR_SETTINGS, undefined, modifiedCurrent)
-      const s = patch.neonLatticeSettings as NeonLatticeSettings
-      const expected = normalizeNeonLatticeSettings({
-        ...DEFAULT_NEON_LATTICE_SETTINGS,
-        ...preset.neonLatticeSettings,
-      })
-      expect(s).toEqual(expected)
-    }
-  })
-
-  it('NL preset result contains every NeonLatticeSettings key', () => {
-    const allKeys = Object.keys(DEFAULT_NEON_LATTICE_SETTINGS) as Array<keyof NeonLatticeSettings>
-    for (const preset of nlPresets) {
-      const patch = buildPresetPatch(preset, DEFAULT_OSCILLATOR_SETTINGS, undefined, DEFAULT_NEON_LATTICE_SETTINGS)
-      const s = patch.neonLatticeSettings as NeonLatticeSettings
-      for (const key of allKeys) {
-        expect(s).toHaveProperty(key)
-      }
-    }
-  })
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
-// NL preset order independence — confirmed via buildPresetPatch
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('NL preset order independence', () => {
-  const nlPresets = DEFAULT_REACT_PRESETS.filter(
-    p => p.engine === 'neonLattice' && p.neonLatticeSettings != null,
-  )
-
-  it('applying preset C after B yields the same settings as applying C directly', () => {
-    for (const presetB of nlPresets) {
-      for (const presetC of nlPresets) {
-        if (presetB.id === presetC.id) continue
-
-        const patchB   = buildPresetPatch(presetB, DEFAULT_OSCILLATOR_SETTINGS, undefined, DEFAULT_NEON_LATTICE_SETTINGS)
-        const afterB   = patchB.neonLatticeSettings as NeonLatticeSettings
-        const patchBC  = buildPresetPatch(presetC, DEFAULT_OSCILLATOR_SETTINGS, undefined, afterB)
-
-        const patchC   = buildPresetPatch(presetC, DEFAULT_OSCILLATOR_SETTINGS, undefined, DEFAULT_NEON_LATTICE_SETTINGS)
-
-        expect(patchBC.neonLatticeSettings).toEqual(patchC.neonLatticeSettings)
-      }
-    }
-  })
-
-  it('selectReactEngine(neonLattice) produces a consistent active preset', () => {
-    useReactStore.getState().selectReactEngine('neonLattice')
-    const { activeReactPresetId, activeReactEngineId, reactPresets } = useReactStore.getState()
-    const preset = reactPresets.find(p => p.id === activeReactPresetId)
-    expect(activeReactEngineId).toBe('neonLattice')
-    expect(preset?.engine).toBe('neonLattice')
-  })
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
 // DEFAULT_PERFORMANCE_PADS — remapped pad assignments
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('DEFAULT_PERFORMANCE_PADS remapped assignments', () => {
-  it('five pads carry their exact replacement presetIds', () => {
+  it('preserves the four non-Neon replacement assignments and clears retired slots', () => {
     expect(DEFAULT_PERFORMANCE_PADS.find(p => p.id === 'pad-1')?.presetId)
       .toBe('preset-bass-triangle-reactor')
 
@@ -332,8 +255,8 @@ describe('DEFAULT_PERFORMANCE_PADS remapped assignments', () => {
     expect(DEFAULT_PERFORMANCE_PADS.find(p => p.id === 'pad-4')?.presetId)
       .toBe('preset-laser-dmx-build-tunnel')
 
-    expect(DEFAULT_PERFORMANCE_PADS.find(p => p.id === 'pad-13')?.presetId)
-      .toBe('preset-nl-overload-matrix')
+    expect(DEFAULT_PERFORMANCE_PADS.find(p => p.id === 'pad-13')?.presetId).toBeNull()
+    expect(DEFAULT_PERFORMANCE_PADS.find(p => p.id === 'pad-18')?.presetId).toBeNull()
   })
 
   it('no pad references a legacy shaderPads preset', () => {
@@ -358,6 +281,13 @@ describe('DEFAULT_PERFORMANCE_PADS remapped assignments', () => {
       const preset = DEFAULT_REACT_PRESETS.find(p => p.id === pad.presetId)
       expect(preset, `pad ${pad.id} presetId '${pad.presetId}' not found in DEFAULT_REACT_PRESETS`).toBeDefined()
       expect(preset?.engine, `pad ${pad.id} maps to shaderPads preset '${pad.presetId}'`).not.toBe('shaderPads')
+    }
+  })
+
+  it('contains no retired Neon preset or action reference', () => {
+    for (const pad of DEFAULT_PERFORMANCE_PADS) {
+      expect(pad.presetId?.startsWith('preset-nl-') ?? false).toBe(false)
+      expect((pad as { actionId?: string }).actionId?.startsWith('neonLattice.') ?? false).toBe(false)
     }
   })
 })

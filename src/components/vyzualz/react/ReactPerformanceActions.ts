@@ -1,5 +1,5 @@
 import type { CinematicWorldMode } from './CinematicWorldConfig'
-import type { NeonLatticeTriggerType, ReactEngineId } from './ReactTypes'
+import type { ReactEngineId } from './ReactTypes'
 
 export type ReactPerformanceActionBehavior = 'momentary' | 'toggle' | 'oneShot'
 
@@ -30,8 +30,6 @@ export interface ReactPerformanceActionDefinition {
   target: ReactPerformanceActionTarget
   envelope?: ReactPerformanceActionEnvelope
   exclusiveGroup?: string
-  /** Compatibility metadata used only by the legacy Neon Lattice wrapper. */
-  legacyNeonLatticeTrigger?: NeonLatticeTriggerType
   /** Generic production-rig command consumed by the LaserDMX action adapter. */
   productionAction?: LaserDmxPerformanceActionId
 }
@@ -50,18 +48,6 @@ const PAD_KEY_BINDINGS: Readonly<Record<string, string>> = {
   'pad-9': 'a', 'pad-10': 's', 'pad-11': 'd', 'pad-12': 'f', 'pad-19': 'g',
   'pad-13': 'z', 'pad-14': 'x', 'pad-15': 'c', 'pad-16': 'v', 'pad-20': 'b',
 }
-
-const NL_ACTIONS: readonly ReactPerformanceActionDefinition[] = [
-  { id: 'neonLattice.railBurst',    padId: 'pad-1', keyBinding: '1', label: 'Rail Burst',  description: 'Launch a bounded burst of vertical and horizontal neon rails.', color: '#4ac7db', behavior: 'oneShot', target: { engineId: 'neonLattice' }, legacyNeonLatticeTrigger: 'railBurst' },
-  { id: 'neonLattice.blockCascade', padId: 'pad-2', keyBinding: '2', label: 'Cascade',     description: 'Launch one deterministic neon block cascade pattern.', color: '#61d6aa', behavior: 'oneShot', target: { engineId: 'neonLattice' }, legacyNeonLatticeTrigger: 'blockCascade' },
-  { id: 'neonLattice.crossFlare',   padId: 'pad-3', keyBinding: '3', label: 'Cross Flare', description: 'Flash a bright crossing flare at active rail intersections.', color: '#e8f4f8', behavior: 'oneShot', target: { engineId: 'neonLattice' }, legacyNeonLatticeTrigger: 'crossFlare' },
-  { id: 'neonLattice.whiteout',     padId: 'pad-4', keyBinding: '4', label: 'Whiteout',    description: 'Fire the existing bounded Neon Lattice whiteout sequence.', color: '#ffffff', behavior: 'oneShot', target: { engineId: 'neonLattice' }, legacyNeonLatticeTrigger: 'whiteout' },
-  { id: 'neonLattice.blackout',     padId: 'pad-5', keyBinding: 'q', label: 'Blackout',    description: 'Fire the existing bounded Neon Lattice blackout sequence.', color: '#1a0a2e', behavior: 'oneShot', target: { engineId: 'neonLattice' }, legacyNeonLatticeTrigger: 'blackout' },
-  { id: 'neonLattice.reseed',       padId: 'pad-6', keyBinding: 'w', label: 'Reseed',      description: 'Regenerate the Neon Lattice from its deterministic trigger sequence.', color: '#b84fc9', behavior: 'oneShot', target: { engineId: 'neonLattice' }, legacyNeonLatticeTrigger: 'reseed' },
-  { id: 'neonLattice.freezeTrails', padId: 'pad-7', keyBinding: 'e', label: 'Freeze',      description: 'Fire the existing bounded trail-freeze sequence.', color: '#80c8ff', behavior: 'oneShot', target: { engineId: 'neonLattice' }, legacyNeonLatticeTrigger: 'freezeTrails' },
-  { id: 'neonLattice.cyanStrike',   padId: 'pad-8', keyBinding: 'r', label: 'Cyan Strike', description: 'Temporarily drive the lattice into its cyan strike look.', color: '#00ffee', behavior: 'oneShot', target: { engineId: 'neonLattice' }, legacyNeonLatticeTrigger: 'cyanStrike' },
-]
-
 
 const LASER_DMX_TARGET: ReactPerformanceActionTarget = { engineId: 'laserDmx' }
 
@@ -99,7 +85,7 @@ const RC_ACTIONS: readonly ReactPerformanceActionDefinition[] = [
   { id: 'reactiveConstellation.blackout',    padId: 'pad-10', keyBinding: 's', label: 'Blackout',     description: 'Toggle a temporary full blackout without changing the saved preset.', color: '#130b1d', behavior: 'toggle', target: RC_TARGET },
 ]
 
-export const REACT_VISUAL_PERFORMANCE_ACTIONS = [...NL_ACTIONS, ...LASER_DMX_ACTIONS, ...RC_ACTIONS] as const
+export const REACT_VISUAL_PERFORMANCE_ACTIONS = [...LASER_DMX_ACTIONS, ...RC_ACTIONS] as const
 
 export interface ReactPerformanceActionRegistryValidationIssue {
   actionId: string
@@ -166,19 +152,6 @@ export function getReactPerformanceActionsForTarget(
   return REACT_VISUAL_PERFORMANCE_ACTIONS
     .filter(action => isReactPerformanceActionCompatible(action, target))
     .sort((a, b) => Number(a.padId.slice(4)) - Number(b.padId.slice(4)))
-}
-
-export const NEON_LATTICE_ACTION_ID_BY_TRIGGER: Readonly<Record<NeonLatticeTriggerType, string>> = Object.freeze(
-  Object.fromEntries(NL_ACTIONS.map(action => [action.legacyNeonLatticeTrigger!, action.id])) as Record<NeonLatticeTriggerType, string>,
-)
-
-export function neonLatticeTriggerFromPerformanceEvent(
-  event: ReactPerformanceActionEvent | null | undefined,
-): { type: NeonLatticeTriggerType; seq: number } | null {
-  if (!event) return null
-  const action = getReactPerformanceAction(event.actionId)
-  if (!action?.legacyNeonLatticeTrigger || !isReactPerformanceActionCompatible(action, event.target)) return null
-  return { type: action.legacyNeonLatticeTrigger, seq: event.sequence }
 }
 
 export function isFormFieldKeyboardTarget(target: EventTarget | null): boolean {

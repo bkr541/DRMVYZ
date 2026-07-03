@@ -10,7 +10,6 @@ import {
   NeonLatticeFxControls,
   NeonLatticeModulationControls,
 } from '../NeonLatticeEnginePanel'
-import { normalizeNeonLatticeSettings } from '../NeonLatticeConfig'
 import { DEFAULT_NEON_LATTICE_SETTINGS } from '../ReactTypes'
 
 let container: HTMLElement
@@ -111,25 +110,21 @@ describe('NeonLatticeEnginePanel reset action', () => {
     expect(state.neonLatticeSettings.laneAssignmentMode).toBe('centerOut')
     expect(state.neonLatticeSettings.chordSize).toBe(6)
     expect(state.neonLatticeSettings.lanePattern.seed).toBe(beforeSeed)
-    expect(state.performanceActionEvent?.actionId).toBe('neonLattice.reseed')
+    expect(state.performanceActionEvent).toBeNull()
   })
 
-  it('restores the active preset independently from engine defaults', async () => {
+  it('routes a stale preset request to the startup preset without restoring retired settings', async () => {
     useReactStore.getState().selectReactPreset('preset-nl-acid-magenta')
-    const preset = useReactStore.getState().reactPresets.find(candidate => candidate.id === 'preset-nl-acid-magenta')!
-    const expected = normalizeNeonLatticeSettings({
-      ...DEFAULT_NEON_LATTICE_SETTINGS,
-      ...preset.neonLatticeSettings,
-    })
+    expect(useReactStore.getState().activeReactPresetId).toBe('preset-dream-gate')
     useReactStore.getState().setNeonLatticeSettings({ railDensity: 0.01, coreWidth: 7 })
 
     await act(async () => root.render(<NeonLatticeEnginePanel />))
     const resetPreset = [...container.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.trim() === 'Reset to Current Preset')
+    expect(resetPreset).toBeDefined()
     await act(async () => resetPreset?.click())
 
-    expect(useReactStore.getState().neonLatticeSettings).toEqual(expected)
-    expect(useReactStore.getState().neonLatticeSettings).not.toEqual(DEFAULT_NEON_LATTICE_SETTINGS)
+    expect(useReactStore.getState().neonLatticeSettings).toEqual(DEFAULT_NEON_LATTICE_SETTINGS)
   })
 
   it('associates visible controls with labels and names the reseed action', async () => {

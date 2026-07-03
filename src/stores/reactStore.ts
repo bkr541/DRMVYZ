@@ -7,7 +7,6 @@ import type { CinematicWorldConfig } from '../components/vyzualz/react/Cinematic
 import {
   getReactPerformanceAction,
   isReactPerformanceActionCompatible,
-  NEON_LATTICE_ACTION_ID_BY_TRIGGER,
   REACT_VISUAL_PERFORMANCE_ACTIONS,
   type ReactPerformanceActionEvent,
   type ReactPerformanceActionTarget,
@@ -30,6 +29,7 @@ import {
 } from '../components/vyzualz/react/ReactTypes'
 import type {
   ReactEngineId,
+  ReactEngineCompatibilityId,
   ReactPreset,
   ReactPresetParams,
   ReactTrackSection,
@@ -117,6 +117,7 @@ import {
   isCurrentSvgVisualGeneration,
 } from '../components/vyzualz/react/renderers/svgVisualCache'
 import { sanitizeReactPresetFavorites } from '../components/vyzualz/react/reactPresetLibraryState'
+import { isSelectableReactEngineId, REACT_ENGINE_IDS } from '../components/vyzualz/react/reactEngineCatalog'
 import {
   getMediaIdFromSvgGlyphId,
   getSvgGlyphAssetId,
@@ -829,6 +830,12 @@ export function buildPresetPatch(
   currentLaserSettings?: LaserDmxSettings,
   currentNeonLatticeSettings?: NeonLatticeSettings,
 ) {
+  if (!isSelectableReactEngineId(preset.engine)) {
+    const fallback = DEFAULT_REACT_PRESETS.find(candidate => candidate.id === INITIAL_PRESET_ID)
+    if (!fallback) throw new Error(`[DRMVYZ] Missing startup preset ${INITIAL_PRESET_ID}`)
+    return buildPresetPatch(fallback, currentOscSettings, currentLaserSettings, currentNeonLatticeSettings)
+  }
+
   const laserDmxWorkspaceMode = resolveReactPresetLaserDmxWorkspace(preset)
   let laserPatch: LaserDmxSettings | undefined
   if (preset.laserDmxSettings != null) {
@@ -1043,14 +1050,14 @@ interface ReactStoreState {
    * Compatibility setter. Delegates to selectReactEngine so engine and preset
    * selection cannot drift apart in memory or in the persisted snapshot.
    */
-  setActiveReactEngineId: (id: ReactEngineId) => void
+  setActiveReactEngineId: (id: ReactEngineCompatibilityId) => void
   /**
    * High-level engine selector for UI use.  Finds a compatible preset for the given engine,
    * applies its params/oscillatorSettings, and keeps activeReactEngineId and
    * activeReactPresetId in sync.  Use this wherever the ENGINE tab or any other UI switches
    * the active engine family.
    */
-  selectReactEngine: (id: ReactEngineId) => void
+  selectReactEngine: (id: ReactEngineCompatibilityId) => void
   selectReactPreset: (id: string) => void
   updateReactPresetParams: (id: string, patch: Partial<ReactPresetParams>) => void
 
@@ -1345,6 +1352,16 @@ function clearPerformanceActionPatch() {
 
 const MAX_PERFORMANCE_ACTION_EVENTS = 64
 
+function sanitizeLiveTrackSection(section: ReactTrackSection): ReactTrackSection {
+  if (section.engineId == null || isSelectableReactEngineId(section.engineId)) return section
+  const { engineId: _retiredEngineId, ...safeSection } = section
+  return safeSection
+}
+
+function isLivePresetId(presets: readonly ReactPreset[], presetId: string): boolean {
+  return presets.some(preset => preset.id === presetId && isSelectableReactEngineId(preset.engine))
+}
+
 const INITIAL_PRESET_ID = 'preset-dream-gate'
 const INITIAL_ENGINE_ID: ReactEngineId = 'cinematicPortal'
 
@@ -1419,8 +1436,7 @@ function isRetiredNeonEngine(value: unknown): boolean {
 
 function isRetiredNeonActionValue(value: unknown): boolean {
   if (typeof value === 'string') {
-    if (value.startsWith(RETIRED_NEON_ACTION_PREFIX)) return true
-    return getReactPerformanceAction(value)?.target.engineId === RETIRED_NEON_LATTICE_ENGINE_ID
+    return value.startsWith(RETIRED_NEON_ACTION_PREFIX)
   }
   if (!isRecord(value)) return false
   if (isRetiredNeonEngine(value.engine) || isRetiredNeonEngine(value.engineId)) return true
@@ -1672,13 +1688,7 @@ function clearRetiredDuplicatePadAssignments(pads: ReactPerformancePad[]): React
     : pad)
 }
 
-const VALID_REACT_ENGINE_IDS = new Set<ReactEngineId>([
-  'shaderPads',
-  'cinematicPortal',
-  'oscilloscope',
-  'laserDmx',
-  'neonLattice',
-])
+const VALID_REACT_ENGINE_IDS = new Set<ReactEngineId>(REACT_ENGINE_IDS)
 
 export interface RepairedReactSelection {
   activeReactPresetId: string | null
@@ -1700,12 +1710,14 @@ export function repairReactEnginePresetSelection(
   presets: ReactPreset[] = DEFAULT_REACT_PRESETS,
 ): RepairedReactSelection {
   const presetId = replaceRetiredDuplicatePresetId(activeReactPresetId)
-  const selectedPreset = presetId ? presets.find(p => p.id === presetId) ?? null : null
+  const selectedPreset = presetId
+    ? presets.find(p => p.id === presetId && isSelectableReactEngineId(p.engine)) ?? null
+    : null
   const engineIsValid = typeof activeReactEngineId === 'string' &&
     VALID_REACT_ENGINE_IDS.has(activeReactEngineId as ReactEngineId)
 
   if (!engineIsValid) {
-    if (selectedPreset) {
+    if (selectedPreset && isSelectableReactEngineId(selectedPreset.engine)) {
       return {
         activeReactPresetId: selectedPreset.id,
         activeReactEngineId: selectedPreset.engine,
@@ -1726,7 +1738,7 @@ export function repairReactEnginePresetSelection(
     return { activeReactPresetId: selectedPreset.id, activeReactEngineId: engineId }
   }
 
-  const compatiblePreset = presets.find(p => p.engine === engineId)
+  const compatiblePreset = presets.find(p => p.engine === engineId && isSelectableReactEngineId(p.engine))
   if (compatiblePreset) {
     return { activeReactPresetId: compatiblePreset.id, activeReactEngineId: engineId }
   }
@@ -2759,7 +2771,7 @@ export const useReactStore = create<ReactStoreState>()(
       setActiveReactPresetId: (id) =>
         set((s) => {
           if (id != null) {
-            const preset = s.reactPresets.find(p => p.id === id)
+            const preset = s.reactPresets.find(p => p.id === id && isSelectableReactEngineId(p.engine))
             return preset
               ? { ...buildPresetPatchForState(preset, s), performancePadTransition: null }
               : {}
@@ -2769,7 +2781,7 @@ export const useReactStore = create<ReactStoreState>()(
             return { activeReactPresetId: null, performancePadTransition: null, ...clearPerformanceActionPatch() }
           }
 
-          const fallback = s.reactPresets.find(p => p.engine === s.activeReactEngineId)
+          const fallback = s.reactPresets.find(p => p.engine === s.activeReactEngineId && isSelectableReactEngineId(p.engine))
           return fallback
             ? { ...buildPresetPatchForState(fallback, s), performancePadTransition: null }
             : {
@@ -2784,35 +2796,64 @@ export const useReactStore = create<ReactStoreState>()(
 
       selectReactEngine: (engineId) =>
         set((s) => {
-          // Shader Pads has no React presets — switch directly without a preset lookup.
+          if (!isSelectableReactEngineId(engineId)) {
+            const fallback = s.reactPresets.find(
+              preset => preset.id === INITIAL_PRESET_ID && isSelectableReactEngineId(preset.engine),
+            )
+            return fallback
+              ? { ...buildPresetPatchForState(fallback, s), performancePadTransition: null }
+              : {
+                  activeReactEngineId: INITIAL_ENGINE_ID,
+                  activeReactPresetId: INITIAL_PRESET_ID,
+                  performancePadTransition: null,
+                  ...clearPerformanceActionPatch(),
+                }
+          }
+
+          // Shader Pads has no React presets.
           if (engineId === 'shaderPads') {
-            return { activeReactEngineId: 'shaderPads', activeReactPresetId: null, performancePadTransition: null, ...clearPerformanceActionPatch() }
-          }
-          // If the current preset already belongs to the selected engine, only ensure
-          // activeReactEngineId is correct (repairs any prior drift without a preset switch).
-          const current = s.activeReactPresetId
-            ? s.reactPresets.find(p => p.id === s.activeReactPresetId)
-            : null
-          if (current?.engine === engineId) {
-            return { activeReactEngineId: engineId, performancePadTransition: null }
-          }
-          // Switch to the first preset available for this engine.
-          const preset = s.reactPresets.find(p => p.engine === engineId)
-          if (!preset) {
-            // No presets registered for this engine — update ID only; panel shows empty state.
             return {
-              activeReactEngineId: engineId,
+              activeReactEngineId: 'shaderPads',
+              activeReactPresetId: null,
               performancePadTransition: null,
               ...clearPerformanceActionPatch(),
             }
           }
-          return { ...buildPresetPatchForState(preset, s), performancePadTransition: null }
+
+          const current = s.activeReactPresetId
+            ? s.reactPresets.find(
+                preset => preset.id === s.activeReactPresetId && isSelectableReactEngineId(preset.engine),
+              )
+            : null
+          if (current?.engine === engineId) {
+            return { activeReactEngineId: engineId, performancePadTransition: null }
+          }
+
+          const preset = s.reactPresets.find(
+            candidate => candidate.engine === engineId && isSelectableReactEngineId(candidate.engine),
+          )
+          if (preset) return { ...buildPresetPatchForState(preset, s), performancePadTransition: null }
+
+          const fallback = s.reactPresets.find(
+            candidate => candidate.id === INITIAL_PRESET_ID && isSelectableReactEngineId(candidate.engine),
+          )
+          return fallback
+            ? { ...buildPresetPatchForState(fallback, s), performancePadTransition: null }
+            : {
+                activeReactEngineId: INITIAL_ENGINE_ID,
+                activeReactPresetId: INITIAL_PRESET_ID,
+                performancePadTransition: null,
+                ...clearPerformanceActionPatch(),
+              }
         }),
 
       selectReactPreset: (id) =>
         set((s) => {
-          const preset = s.reactPresets.find((p) => p.id === id)
-          if (!preset) return {}
+          const preset = s.reactPresets.find((p) => p.id === id && isSelectableReactEngineId(p.engine))
+          if (!preset) {
+            const fallback = s.reactPresets.find(candidate => candidate.id === INITIAL_PRESET_ID && isSelectableReactEngineId(candidate.engine))
+            return fallback ? { ...buildPresetPatchForState(fallback, s), performancePadTransition: null } : {}
+          }
           return { ...buildPresetPatchForState(preset, s), performancePadTransition: null }
         }),
 
@@ -2882,7 +2923,7 @@ export const useReactStore = create<ReactStoreState>()(
         set((s) => ({
           manualTrackSectionsByTrackId: {
             ...s.manualTrackSectionsByTrackId,
-            [trackId]: [...(s.manualTrackSectionsByTrackId[trackId] ?? []), section],
+            [trackId]: [...(s.manualTrackSectionsByTrackId[trackId] ?? []), sanitizeLiveTrackSection(section)],
           },
         })),
 
@@ -2892,7 +2933,7 @@ export const useReactStore = create<ReactStoreState>()(
           return {
             manualTrackSectionsByTrackId: {
               ...s.manualTrackSectionsByTrackId,
-              [trackId]: existing.map((sec) => sec.id === id ? { ...sec, ...patch } : sec),
+              [trackId]: existing.map((sec) => sec.id === id ? sanitizeLiveTrackSection({ ...sec, ...patch }) : sec),
             },
           }
         }),
@@ -2927,15 +2968,15 @@ export const useReactStore = create<ReactStoreState>()(
           if (overrideIdx >= 0) {
             // Update the existing user-edited-auto entry in place.
             newSections = existing.map((sec, i) =>
-              i === overrideIdx ? { ...sec, ...patch, source: 'user-edited-auto' as const } : sec,
+              i === overrideIdx ? sanitizeLiveTrackSection({ ...sec, ...patch, source: 'user-edited-auto' as const }) : sec,
             )
           } else {
             // Create a fresh override that inherits all original metadata.
-            const override: ReactTrackSection = {
+            const override = sanitizeLiveTrackSection({
               ...originalSection,
               ...patch,
               source: 'user-edited-auto',
-            }
+            })
             newSections = [...existing, override]
           }
           return {
@@ -2951,8 +2992,8 @@ export const useReactStore = create<ReactStoreState>()(
           if (!id) return { activePadId: null, performancePadTransition: null }
           const pad = s.performancePads.find((p) => p.id === id)
           if (!pad?.presetId) return { activePadId: id }
-          const preset = s.reactPresets.find((p) => p.id === pad.presetId)
-          if (!preset) return { activePadId: id }
+          const preset = s.reactPresets.find((p) => p.id === pad.presetId && isSelectableReactEngineId(p.engine))
+          if (!preset) return { activePadId: id, performancePadTransition: null }
           const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now()
           const currentTarget = getReactPresetControlValues(s)
           const from = resolvePerformancePadTransition(
@@ -2974,11 +3015,19 @@ export const useReactStore = create<ReactStoreState>()(
         }),
 
       updatePerformancePad: (id, patch) =>
-        set((s) => ({
-          performancePads: s.performancePads.map((p) =>
-            p.id === id ? { ...p, ...patch } : p,
-          ),
-        })),
+        set((s) => {
+          const requestedPreset = patch.presetId
+            ? s.reactPresets.find(preset => preset.id === patch.presetId && isSelectableReactEngineId(preset.engine))
+            : null
+          const safePatch = 'presetId' in patch && patch.presetId && !requestedPreset
+            ? { ...patch, presetId: null, label: 'Empty', color: '#3a4650' }
+            : patch
+          return {
+            performancePads: s.performancePads.map((pad) =>
+              pad.id === id ? { ...pad, ...safePatch } : pad,
+            ),
+          }
+        }),
 
       setOscillatorSettings: (patch) =>
         set((s) => {
@@ -3590,26 +3639,19 @@ export const useReactStore = create<ReactStoreState>()(
             triggeredAtMs,
             ...(toggleState == null ? {} : { toggleState }),
           }
-          const legacyType = action.legacyNeonLatticeTrigger
-          const legacySequence = legacyType ? s.neonLatticeTriggerSeq + 1 : s.neonLatticeTriggerSeq
           return {
             performanceActionSeq: sequence,
             performanceActionEvent: event,
             performanceActionEvents: [...s.performanceActionEvents, event].slice(-MAX_PERFORMANCE_ACTION_EVENTS),
             performanceActionToggleStates: toggleStates,
-            ...(legacyType ? {
-              neonLatticeTriggerSeq: legacySequence,
-              neonLatticeTrigger: { type: legacyType, seq: legacySequence } as NeonLatticeTriggerEvent,
-            } : {}),
           }
         }),
 
       clearPerformanceActions: () => set(clearPerformanceActionPatch()),
 
-      triggerNeonLattice: (type) => {
-        const actionId = NEON_LATTICE_ACTION_ID_BY_TRIGGER[type]
-        if (actionId) get().triggerPerformanceAction(actionId)
-      },
+      // Historical API retained until Patch 3. Neon is retired from live dispatch,
+      // so stale callers cannot enqueue an action or mutate renderer state.
+      triggerNeonLattice: (_type) => {},
 
       // ── LaserDMX actions ────────────────────────────────────────────────────
 
@@ -4515,7 +4557,7 @@ export const useReactStore = create<ReactStoreState>()(
       addPresetAutomationCue: (trackId, cue) =>
         set((s) => {
           const existing = s.presetAutomationCuesByTrackId[trackId] ?? []
-          if (existing.some(c => c.id === cue.id)) return {}
+          if (existing.some(c => c.id === cue.id) || !isLivePresetId(s.reactPresets, cue.presetId)) return {}
           const safe: ReactPresetAutomationCue = { ...cue, timeSec: Math.max(0, cue.timeSec) }
           return {
             presetAutomationCuesByTrackId: {
@@ -4534,6 +4576,7 @@ export const useReactStore = create<ReactStoreState>()(
               [trackId]: existing.map((c) => {
                 if (c.id !== id) return c
                 const merged = { ...c, ...patch }
+                if (!isLivePresetId(s.reactPresets, merged.presetId)) return c
                 return { ...merged, timeSec: Math.max(0, merged.timeSec) }
               }),
             },
@@ -4778,14 +4821,6 @@ export const useReactStore = create<ReactStoreState>()(
                 s.oscillatorTextPointCache,
               ),
               glyphLostNotice: null,
-            }
-          }
-
-          if (s.activeReactEngineId === 'neonLattice') {
-            return {
-              ...sharedDefaults,
-              neonLatticeSettings: normalizeNeonLatticeSettings(DEFAULT_NEON_LATTICE_SETTINGS),
-              neonLatticeTrigger: null,
             }
           }
 

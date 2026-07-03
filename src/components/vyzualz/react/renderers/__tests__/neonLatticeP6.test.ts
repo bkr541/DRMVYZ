@@ -25,8 +25,24 @@ import {
   prngNext,
   hexToRgbStr,
 } from '../neonLatticeUtils'
-import { NL_TRIGGER_PADS } from '../../ReactPerformancePads'
-import { normalizeNeonLatticeSettings } from '../../NeonLatticeConfig'
+
+
+/** Historical dedicated-renderer fixture. These actions are no longer exported by the live pad registry. */
+const NL_TRIGGER_PADS: ReadonlyArray<{
+  padId: string
+  trigger: NeonLatticeTriggerType
+  label: string
+  color: string
+}> = [
+  { padId: 'pad-1', trigger: 'railBurst', label: 'Rail Burst', color: '#4ac7db' },
+  { padId: 'pad-2', trigger: 'blockCascade', label: 'Cascade', color: '#61d6aa' },
+  { padId: 'pad-3', trigger: 'crossFlare', label: 'Cross Flare', color: '#e8f4f8' },
+  { padId: 'pad-4', trigger: 'whiteout', label: 'Whiteout', color: '#ffffff' },
+  { padId: 'pad-5', trigger: 'blackout', label: 'Blackout', color: '#1a0a2e' },
+  { padId: 'pad-6', trigger: 'reseed', label: 'Reseed', color: '#b84fc9' },
+  { padId: 'pad-7', trigger: 'freezeTrails', label: 'Freeze', color: '#80c8ff' },
+  { padId: 'pad-8', trigger: 'cyanStrike', label: 'Cyan Strike', color: '#00ffee' },
+]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -103,226 +119,35 @@ describe('reactStorePartialize', () => {
   })
 })
 
-// ── 3. Preset merge / reset ───────────────────────────────────────────────────
+// ── 3–5. Retired live integration and retained compatibility state ────────────
 
-describe('preset merge: neonLatticeSettings applied when NL preset activated', () => {
+describe('retired Neon Lattice live integration', () => {
   beforeEach(freshStore)
 
-  it('NL preset overrides railDensity', () => {
-    const acidMagenta = DEFAULT_REACT_PRESETS.find(p => p.id === 'preset-nl-acid-magenta')
-    expect(acidMagenta).toBeDefined()
-    expect(acidMagenta!.neonLatticeSettings?.railDensity).toBe(0.5)
+  it('keeps compatibility settings isolated from persistence', () => {
+    const state = useReactStore.getState()
+    state.setNeonLatticeSettings({ railDensity: 0.99 })
+    expect(useReactStore.getState().neonLatticeSettings.railDensity).toBe(0.99)
+    expect(reactStorePartialize(useReactStore.getState())).not.toHaveProperty('neonLatticeSettings')
   })
 
-  it('setNeonLatticeSettings partial-merges without clobbering other fields', () => {
-    const s = useReactStore.getState()
-    const origBloom = s.neonLatticeSettings.bloom
-    s.setNeonLatticeSettings({ railDensity: 0.99 })
-    const after = useReactStore.getState().neonLatticeSettings
-    expect(after.railDensity).toBe(0.99)
-    expect(after.bloom).toBe(origBloom)
+  it('ships no built-in Neon presets', () => {
+    expect(DEFAULT_REACT_PRESETS.filter(preset => preset.engine === 'neonLattice')).toEqual([])
   })
 
-  it('resetNeonLatticeSettings restores defaults', () => {
-    const s = useReactStore.getState()
-    s.setNeonLatticeSettings({ railDensity: 0.99, bloom: 0.01 })
-    useReactStore.getState().resetNeonLatticeSettings()
-    const after = useReactStore.getState().neonLatticeSettings
-    expect(after.railDensity).toBe(DEFAULT_NEON_LATTICE_SETTINGS.railDensity)
-    expect(after.bloom).toBe(DEFAULT_NEON_LATTICE_SETTINGS.bloom)
-  })
-})
-
-// ── 4. Enhanced NL presets exist and have correct engine ─────────────────────────
-
-describe('NL factory presets', () => {
-  const nlPresets = DEFAULT_REACT_PRESETS.filter(p => p.engine === 'neonLattice')
-
-  it('has the four stable presets plus Reverie Keygrid', () => {
-    expect(nlPresets.length).toBe(5)
-  })
-
-  it('preset-nl-acid-magenta is the first NL preset', () => {
-    expect(nlPresets[0].id).toBe('preset-nl-acid-magenta')
-  })
-
-  it('every explicitly-named NL preset has neonLatticeSettings', () => {
-    const named = ['preset-nl-acid-magenta', 'preset-nl-drmvyz-lattice', 'preset-nl-sparse-starlines', 'preset-nl-overload-matrix', 'preset-nl-reverie-keygrid']
-    for (const id of named) {
-      const p = nlPresets.find(p => p.id === id)
-      expect(p).toBeDefined()
-      expect(p!.neonLatticeSettings).toBeDefined()
+  it('keeps the compatibility trigger API as a no-op', () => {
+    const before = useReactStore.getState().neonLatticeTriggerSeq
+    for (const trigger of NL_TRIGGER_PADS.map(pad => pad.trigger)) {
+      expect(() => useReactStore.getState().triggerNeonLattice(trigger)).not.toThrow()
     }
-  })
-
-  it('Acid Magenta: trigger is kick', () => {
-    const p = nlPresets.find(p => p.id === 'preset-nl-acid-magenta')!
-    expect(p.neonLatticeSettings?.trigger).toBe('kick')
-  })
-
-  it('DVYDRM Lattice: trigger is beat', () => {
-    const p = nlPresets.find(p => p.id === 'preset-nl-drmvyz-lattice')!
-    expect(p.neonLatticeSettings?.trigger).toBe('beat')
-  })
-
-  it('Sparse Starlines: shockwaves disabled (shockwaveAmount === 0)', () => {
-    const p = nlPresets.find(p => p.id === 'preset-nl-sparse-starlines')!
-    expect(p.neonLatticeSettings?.shockwaveAmount).toBe(0)
-  })
-
-  it('Overload Matrix: railDensity is highest among NL presets', () => {
-    const densities = nlPresets.map(p => p.neonLatticeSettings?.railDensity ?? 0)
-    const overload = nlPresets.find(p => p.id === 'preset-nl-overload-matrix')!
-    expect(overload.neonLatticeSettings?.railDensity).toBe(Math.max(...densities))
-  })
-
-  it('every NL preset has a background color', () => {
-    for (const p of nlPresets) {
-      expect(p.palette.background).toBeTruthy()
-    }
-  })
-
-  it('every named NL preset resolves to every NeonLatticeSettings field', () => {
-    const allKeys = Object.keys(DEFAULT_NEON_LATTICE_SETTINGS) as Array<keyof NeonLatticeSettings>
-    const named = ['preset-nl-acid-magenta', 'preset-nl-drmvyz-lattice', 'preset-nl-sparse-starlines', 'preset-nl-overload-matrix', 'preset-nl-reverie-keygrid']
-    for (const id of named) {
-      const p = nlPresets.find(p => p.id === id)!
-      expect(p.neonLatticeSettings).toBeDefined()
-      const resolved = normalizeNeonLatticeSettings(p.neonLatticeSettings)
-      for (const key of allKeys) {
-        expect(resolved).toHaveProperty(key)
-      }
-    }
-  })
-})
-
-// ── 5. triggerNeonLattice — monotonic seq, one-shot consumption ───────────────
-
-describe('triggerNeonLattice action', () => {
-  beforeEach(() => { freshStore(); useReactStore.getState().selectReactEngine('neonLattice') })
-
-  it('starts at null', () => {
     expect(useReactStore.getState().neonLatticeTrigger).toBeNull()
+    expect(useReactStore.getState().neonLatticeTriggerSeq).toBe(before)
   })
 
-  it('seq increments on each call', () => {
-    const s = useReactStore.getState()
-    s.triggerNeonLattice('railBurst')
-    const first = useReactStore.getState().neonLatticeTrigger
-    s.triggerNeonLattice('railBurst')
-    const second = useReactStore.getState().neonLatticeTrigger
-    expect(second!.seq).toBe(first!.seq + 1)
-  })
-
-  it('type is preserved on the event', () => {
-    useReactStore.getState().triggerNeonLattice('whiteout')
-    expect(useReactStore.getState().neonLatticeTrigger?.type).toBe('whiteout')
-  })
-
-  it('rapid fire produces strictly-increasing seqs', () => {
-    const s = useReactStore.getState()
-    const types = ['railBurst', 'blockCascade', 'crossFlare', 'reseed', 'freezeTrails'] as const
-    let prev = -1
-    for (const t of types) {
-      s.triggerNeonLattice(t)
-      const cur = useReactStore.getState().neonLatticeTrigger!.seq
-      expect(cur).toBeGreaterThan(prev)
-      prev = cur
-    }
-  })
-
-  it('all 8 trigger types are accepted without error', () => {
-    const s = useReactStore.getState()
-    const types = [
-      'railBurst', 'blockCascade', 'crossFlare', 'whiteout',
-      'blackout', 'reseed', 'freezeTrails', 'cyanStrike',
-    ] as const
-    for (const t of types) {
-      expect(() => s.triggerNeonLattice(t)).not.toThrow()
-    }
-  })
-})
-
-// ── 5b. Monotonic seq counter lifecycle ──────────────────────────────────────
-
-describe('neonLatticeTriggerSeq — monotonic counter and trigger clearing', () => {
-  beforeEach(freshStore)
-
-  it('seq is strictly greater than any previous seq after trigger is cleared by engine switch', () => {
-    const s = useReactStore.getState()
-    s.selectReactEngine('neonLattice')
-    s.triggerNeonLattice('railBurst')
-    const seq1 = useReactStore.getState().neonLatticeTrigger!.seq
-
-    s.selectReactEngine('oscilloscope')   // clears neonLatticeTrigger, seq counter stays
-    s.selectReactEngine('neonLattice')    // back to NL
-    s.triggerNeonLattice('blockCascade')
-    const seq2 = useReactStore.getState().neonLatticeTrigger!.seq
-
-    expect(seq2).toBeGreaterThan(seq1)
-  })
-
-  it('seq counter increases monotonically across multiple clear/fire cycles', () => {
-    const s = useReactStore.getState()
-    s.selectReactEngine('neonLattice')
-    const seqs: number[] = []
-
-    for (let i = 0; i < 3; i++) {
-      s.triggerNeonLattice('railBurst')
-      seqs.push(useReactStore.getState().neonLatticeTrigger!.seq)
-      s.selectReactEngine('oscilloscope')
-      s.selectReactEngine('neonLattice')
-    }
-
-    expect(seqs[0]).toBeLessThan(seqs[1])
-    expect(seqs[1]).toBeLessThan(seqs[2])
-  })
-
-  it('neonLatticeTrigger is null after selectReactPreset to non-NL preset', () => {
-    const s = useReactStore.getState()
-    s.selectReactEngine('neonLattice')
-    s.triggerNeonLattice('whiteout')
-    expect(useReactStore.getState().neonLatticeTrigger).not.toBeNull()
-
-    const nonNlPreset = DEFAULT_REACT_PRESETS.find(p => p.engine === 'cinematicPortal')!
-    s.selectReactPreset(nonNlPreset.id)
-    expect(useReactStore.getState().neonLatticeTrigger).toBeNull()
-  })
-
-  it('neonLatticeTrigger is null after setActivePadId to non-NL pad', () => {
-    const s = useReactStore.getState()
-    s.selectReactEngine('neonLattice')
-    s.triggerNeonLattice('railBurst')
-
-    const { performancePads, reactPresets } = useReactStore.getState()
-    const nonNLPad = performancePads.find(p => {
-      if (!p.presetId) return false
-      return reactPresets.find(r => r.id === p.presetId)?.engine !== 'neonLattice'
-    })
-    if (!nonNLPad) return  // skip if no non-NL pad configured
-
-    s.setActivePadId(nonNLPad.id)
-    expect(useReactStore.getState().neonLatticeTrigger).toBeNull()
-  })
-
-  it('neonLatticeTrigger is null after resetting current Neon Lattice settings', () => {
-    const s = useReactStore.getState()
-    s.selectReactEngine('neonLattice')
-    s.triggerNeonLattice('blackout')
-    expect(useReactStore.getState().neonLatticeTrigger).not.toBeNull()
-
-    s.resetCurrentEngineSettings()
-    expect(useReactStore.getState().neonLatticeTrigger).toBeNull()
-  })
-
-  it('switching to NL engine does not restore a previously cleared trigger', () => {
-    const s = useReactStore.getState()
-    s.selectReactEngine('neonLattice')
-    s.triggerNeonLattice('railBurst')
-    s.selectReactEngine('oscilloscope')   // trigger cleared
-    s.selectReactEngine('neonLattice')    // back to NL
-
-    expect(useReactStore.getState().neonLatticeTrigger).toBeNull()
+  it('rejects stale direct engine selection safely', () => {
+    useReactStore.getState().selectReactEngine('neonLattice')
+    expect(useReactStore.getState().activeReactEngineId).toBe('cinematicPortal')
+    expect(useReactStore.getState().activeReactPresetId).toBe('preset-dream-gate')
   })
 })
 
@@ -475,24 +300,25 @@ describe('DEFAULT_NEON_LATTICE_SETTINGS sanity', () => {
   })
 })
 
-// ── 11. Engine selection sync ─────────────────────────────────────────────────
+// ── 11. Engine selection retirement boundary ─────────────────────────────────
 
-describe('engine selection', () => {
+describe('engine selection retirement boundary', () => {
   beforeEach(freshStore)
 
-  it('selectReactEngine updates activeReactEngineId', () => {
+  it('never activates Neon Lattice and preserves a renderable fallback', () => {
     useReactStore.getState().selectReactEngine('neonLattice')
-    expect(useReactStore.getState().activeReactEngineId).toBe('neonLattice')
+    expect(useReactStore.getState().activeReactEngineId).toBe('cinematicPortal')
+    expect(useReactStore.getState().activeReactPresetId).toBe('preset-dream-gate')
+    expect(useReactStore.getState().neonLatticeTrigger).toBeNull()
   })
 
-  it('switching away from neonLattice clears neonLatticeTrigger to null', () => {
-    const s = useReactStore.getState()
-    s.selectReactEngine('neonLattice')
-    s.triggerNeonLattice('railBurst')
-    expect(useReactStore.getState().neonLatticeTrigger).not.toBeNull()
-    s.selectReactEngine('oscilloscope')
+  it('still selects a remaining engine normally', () => {
+    useReactStore.getState().selectReactEngine('oscilloscope')
     expect(useReactStore.getState().activeReactEngineId).toBe('oscilloscope')
-    expect(useReactStore.getState().neonLatticeTrigger).toBeNull()
+    const active = useReactStore.getState().reactPresets.find(
+      preset => preset.id === useReactStore.getState().activeReactPresetId,
+    )
+    expect(active?.engine).toBe('oscilloscope')
   })
 })
 
@@ -1145,67 +971,20 @@ describe('NL_TRIGGER_PADS: pad configuration and keyboard mappings', () => {
   })
 })
 
-// ── 21. Preset order independence ─────────────────────────────────────────────
+// ── 21–22. Retired preset and trigger surfaces ────────────────────────────────
 
-import { buildPresetPatch } from '../../../../../stores/reactStore'
-import { DEFAULT_OSCILLATOR_SETTINGS } from '../../ReactTypes'
-
-describe('NL preset order independence', () => {
-  const nlPresets = DEFAULT_REACT_PRESETS.filter(
-    p => p.engine === 'neonLattice' && p.neonLatticeSettings != null,
-  )
-
-  it('applying preset B after A yields same settings as applying B directly', () => {
-    for (const presetA of nlPresets) {
-      for (const presetB of nlPresets) {
-        if (presetA.id === presetB.id) continue
-
-        // Path 1: A → B
-        const patchA     = buildPresetPatch(presetA, DEFAULT_OSCILLATOR_SETTINGS, undefined, DEFAULT_NEON_LATTICE_SETTINGS)
-        const afterA     = patchA.neonLatticeSettings as import('../../ReactTypes').NeonLatticeSettings
-        const patchAtoB  = buildPresetPatch(presetB, DEFAULT_OSCILLATOR_SETTINGS, undefined, afterA)
-
-        // Path 2: directly to B
-        const patchB     = buildPresetPatch(presetB, DEFAULT_OSCILLATOR_SETTINGS, undefined, DEFAULT_NEON_LATTICE_SETTINGS)
-
-        expect(patchAtoB.neonLatticeSettings).toEqual(patchB.neonLatticeSettings)
-      }
-    }
-  })
-})
-
-// ── 22. One-shot trigger consumption via monotonic seq ───────────────────────
-
-describe('one-shot trigger consumption: each seq consumed at most once', () => {
+describe('retired preset and trigger surfaces', () => {
   beforeEach(freshStore)
 
-  it('after consuming seq N, a second call with same seq produces a new seq', () => {
-    const s = useReactStore.getState()
-    s.selectReactEngine('neonLattice')
-    s.triggerNeonLattice('railBurst')
-    const seq1 = useReactStore.getState().neonLatticeTrigger!.seq
-
-    // Renderer would consume seq1 (lastConsumedSeq = seq1).
-    // Firing the same trigger type again must produce seq > seq1.
-    s.triggerNeonLattice('railBurst')
-    const seq2 = useReactStore.getState().neonLatticeTrigger!.seq
-
-    expect(seq2).toBeGreaterThan(seq1)
+  it('contains no Neon preset to order or activate', () => {
+    expect(DEFAULT_REACT_PRESETS.some(preset => preset.engine === 'neonLattice')).toBe(false)
   })
 
-  it('seq counter is never reset by engine switches', () => {
-    const s = useReactStore.getState()
-    s.selectReactEngine('neonLattice')
-    s.triggerNeonLattice('railBurst')
-    const seqBeforeSwitch = useReactStore.getState().neonLatticeTrigger!.seq
-
-    s.selectReactEngine('oscilloscope')
-    s.selectReactEngine('neonLattice')
-    s.triggerNeonLattice('railBurst')
-    const seqAfterSwitch = useReactStore.getState().neonLatticeTrigger!.seq
-
-    // After round-trip, seq is strictly higher — never reset to an earlier value
-    expect(seqAfterSwitch).toBeGreaterThan(seqBeforeSwitch)
+  it('does not create one-shot trigger state through the compatibility method', () => {
+    useReactStore.getState().triggerNeonLattice('railBurst')
+    useReactStore.getState().triggerNeonLattice('whiteout')
+    expect(useReactStore.getState().neonLatticeTrigger).toBeNull()
+    expect(useReactStore.getState().neonLatticeTriggerSeq).toBe(0)
   })
 })
 
@@ -2145,14 +1924,8 @@ describe('shockwaveAmount: replaces boolean shockwaves', () => {
     expect(s2).toBeGreaterThan(s1)
   })
 
-  it('Sparse Starlines preset has shockwaveAmount=0', () => {
-    const p = DEFAULT_REACT_PRESETS.find(p => p.id === 'preset-nl-sparse-starlines')!
-    expect(p.neonLatticeSettings?.shockwaveAmount).toBe(0)
-  })
-
-  it('Overload Matrix preset has shockwaveAmount above default', () => {
-    const p = DEFAULT_REACT_PRESETS.find(p => p.id === 'preset-nl-overload-matrix')!
-    expect(p.neonLatticeSettings?.shockwaveAmount).toBeGreaterThan(DEFAULT_NEON_LATTICE_SETTINGS.shockwaveAmount)
+  it('does not expose preset-specific shockwave settings through the live library', () => {
+    expect(DEFAULT_REACT_PRESETS.some(preset => preset.id.startsWith('preset-nl-'))).toBe(false)
   })
 })
 

@@ -86,9 +86,9 @@ describe('React performance action transient bus', () => {
     expect(useReactStore.getState().performanceActionEvents).toEqual([])
     expect(useReactStore.getState().performanceActionToggleStates).toEqual({})
 
-    useReactStore.getState().selectReactEngine('neonLattice')
-    useReactStore.getState().triggerNeonLattice('railBurst')
-    expect(useReactStore.getState().neonLatticeTrigger?.type).toBe('railBurst')
+    useReactStore.getState().selectReactEngine('laserDmx')
+    useReactStore.getState().triggerPerformanceAction('laserDmx.whiteHit')
+    expect(useReactStore.getState().performanceActionEvent?.actionId).toBe('laserDmx.whiteHit')
     useReactStore.getState().selectReactEngine('oscilloscope')
     expect(useReactStore.getState().performanceActionEvent).toBeNull()
     expect(useReactStore.getState().neonLatticeTrigger).toBeNull()

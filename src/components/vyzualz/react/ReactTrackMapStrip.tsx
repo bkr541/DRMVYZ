@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useReactStore } from '../../../stores/reactStore'
 import { useVisualStore } from '../../../stores/visualStore'
-import type { ReactEngineId, ReactPreset, ReactSectionType, ReactTrackSection } from './ReactTypes'
+import type { ReactPreset, ReactSectionType, ReactTrackSection } from './ReactTypes'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import {
   computeMinDuration,
@@ -30,16 +30,9 @@ import type {
   TrackAnalysisStatus,
 } from '../../../features/musicIntelligence/types'
 import { applyCanvasResolution, resolveCanvasResolution } from './rendering/canvasResolution'
+import { isSelectableReactEngineId, REACT_ENGINE_CATALOG } from './reactEngineCatalog'
 
 // ── Engine display labels ─────────────────────────────────────────────────────
-
-const ENGINE_LABELS: Record<ReactEngineId, string> = {
-  shaderPads:      'Shader Pads',
-  cinematicPortal: 'Cinematic Worlds',
-  oscilloscope:    'Sound Drawing',
-  laserDmx:        'LaserDMX',
-  neonLattice:     'Neon Lattice',
-}
 
 // ── Preset-cue helpers (exported for tests) ───────────────────────────────────
 
@@ -568,7 +561,7 @@ function EditSectionForm({
               onChange={e => onAssignPreset(e.target.value || null)}
             >
               <option value="">No preset assignment</option>
-              {reactPresets.map(p => (
+              {reactPresets.filter(p => isSelectableReactEngineId(p.engine)).map(p => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
@@ -579,7 +572,7 @@ function EditSectionForm({
               <div className="rv-form-row">
                 <label className="rv-form-label">Engine</label>
                 <span className="rv-form-val rv-form-val--readonly">
-                  {ENGINE_LABELS[preset.engine] ?? preset.engine}
+                  {isSelectableReactEngineId(preset.engine) ? REACT_ENGINE_CATALOG[preset.engine].label : 'Unavailable engine'}
                 </span>
               </div>
             ) : null

@@ -2,10 +2,11 @@ import { useRef, useEffect } from 'react'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 import { LyricPlaybackBus } from '../../../features/lyrics/runtime/LyricPlaybackBus'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
-import type { ReactPreset, ReactTrackSection, OscillatorSettings, OscillatorFontAsset, OscillatorGlyphAsset, OscillatorGlyphPoint, SoundDrawingLayer, SoundDrawingClip, NeonLatticeSettings, NeonLatticeTriggerEvent, ReactPerformancePadTransition } from './ReactTypes'
+import type { ReactEngineId, ReactPreset, ReactTrackSection, OscillatorSettings, OscillatorFontAsset, OscillatorGlyphAsset, OscillatorGlyphPoint, SoundDrawingLayer, SoundDrawingClip, ReactPerformancePadTransition } from './ReactTypes'
+import { isSelectableReactEngineId } from './reactEngineCatalog'
 import type { ReactPerformanceActionEvent } from './ReactPerformanceActions'
 import type { TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
-import { DEFAULT_OSCILLATOR_SETTINGS, DEFAULT_NEON_LATTICE_SETTINGS } from './ReactTypes'
+import { DEFAULT_OSCILLATOR_SETTINGS } from './ReactTypes'
 import type { ReactRenderParams } from './renderers/reactRenderUtils'
 import { DEFAULT_REACT_RENDER_PARAMS, disposeReactEngineRenderer, renderReactEngine } from './renderers/ReactEngineRenderer'
 import { resolveCinematicPortalBackend } from './renderers/CinematicPortalRenderer'
@@ -19,18 +20,17 @@ import { applyCanvasResolution, resolveCanvasResolution, type CanvasResolution }
 import type { ActiveBrandOverlay } from '../../../features/personalization/brandAssetCompositor'
 import { compositeBrandAsset } from '../../../features/personalization/brandAssetCompositor'
 
-const ENGINE_ACCESSIBLE_LABELS: Record<ReactPreset['engine'], string> = {
+const ENGINE_ACCESSIBLE_LABELS: Record<ReactEngineId, string> = {
   shaderPads:      'Shader',
   cinematicPortal: 'Cinematic Worlds',
   oscilloscope:    'Sound Drawing',
   laserDmx:        'LaserDMX',
-  neonLattice:     'Neon Lattice',
 }
 
 interface Props {
   analyser:           AnalyserNode | null
   /** Stable ownership boundary for the mounted live renderer. */
-  engine:             Exclude<ReactPreset['engine'], 'shaderPads'>
+  engine:             Exclude<ReactEngineId, 'shaderPads'>
   activePreset:       ReactPreset | null
   intensity:          number
   motion:             number
@@ -45,11 +45,9 @@ interface Props {
   oscillatorGlyphAssets?:       OscillatorGlyphAsset[]
   oscillatorGlyphPointCache?:   Record<string, OscillatorGlyphPoint[]>
   oscillatorTextPointCache?:    Record<string, OscillatorGlyphPoint[]>
-  neonLatticeSettings?:         NeonLatticeSettings
   performanceActionEvent?:      ReactPerformanceActionEvent | null
   performanceActionEvents?:     readonly ReactPerformanceActionEvent[]
   performanceActionToggleStates?: Readonly<Record<string, boolean>>
-  neonLatticeTrigger?:          NeonLatticeTriggerEvent | null
   isPlaying:                    boolean
   /** True when playback is paused at a non-terminal playhead position. */
   isPaused?:                    boolean
@@ -91,11 +89,9 @@ export function ReactPlaceholderCanvas({
   oscillatorGlyphAssets      = [] as OscillatorGlyphAsset[],
   oscillatorGlyphPointCache  = {} as Record<string, OscillatorGlyphPoint[]>,
   oscillatorTextPointCache   = {} as Record<string, OscillatorGlyphPoint[]>,
-  neonLatticeSettings        = DEFAULT_NEON_LATTICE_SETTINGS,
   performanceActionEvent     = null,
   performanceActionEvents    = [],
   performanceActionToggleStates = {},
-  neonLatticeTrigger         = null,
   isPlaying,
   isPaused                    = false,
   trackSections              = [],
@@ -110,7 +106,7 @@ export function ReactPlaceholderCanvas({
   brandOverlay               = null,
   durationSec                = 0,
 }: Props) {
-  const canvasLabel = activePreset
+  const canvasLabel = activePreset && isSelectableReactEngineId(activePreset.engine)
     ? `${ENGINE_ACCESSIBLE_LABELS[activePreset.engine]} visualization: ${activePreset.name}`
     : 'React visualization preview'
   const canvasRef      = useRef<HTMLCanvasElement>(null)
@@ -136,11 +132,9 @@ export function ReactPlaceholderCanvas({
   const glyphAssetsRef         = useRef<OscillatorGlyphAsset[]>(oscillatorGlyphAssets)
   const glyphPointCacheRef     = useRef<Record<string, OscillatorGlyphPoint[]>>(oscillatorGlyphPointCache)
   const textPointCacheRef      = useRef<Record<string, OscillatorGlyphPoint[]>>(oscillatorTextPointCache)
-  const neonLatticeSettingsRef = useRef<NeonLatticeSettings>(neonLatticeSettings)
   const performanceActionEventRef = useRef<ReactPerformanceActionEvent | null>(performanceActionEvent)
   const performanceActionEventsRef = useRef<readonly ReactPerformanceActionEvent[]>(performanceActionEvents)
   const performanceActionToggleStatesRef = useRef<Readonly<Record<string, boolean>>>(performanceActionToggleStates)
-  const neonLatticeTriggerRef  = useRef<NeonLatticeTriggerEvent | null>(neonLatticeTrigger)
   const isPlayingRef           = useRef(isPlaying)
   const isPausedRef            = useRef(isPaused)
   const presetRef             = useRef<ReactPreset | null>(activePreset)
@@ -171,11 +165,9 @@ export function ReactPlaceholderCanvas({
   glyphAssetsRef.current         = oscillatorGlyphAssets
   glyphPointCacheRef.current     = oscillatorGlyphPointCache
   textPointCacheRef.current      = oscillatorTextPointCache
-  neonLatticeSettingsRef.current = neonLatticeSettings
   performanceActionEventRef.current = performanceActionEvent
   performanceActionEventsRef.current = performanceActionEvents
   performanceActionToggleStatesRef.current = performanceActionToggleStates
-  neonLatticeTriggerRef.current  = neonLatticeTrigger
   isPlayingRef.current           = isPlaying
   isPausedRef.current            = isPaused
   presetRef.current             = activePreset
@@ -531,11 +523,9 @@ export function ReactPlaceholderCanvas({
         oscillatorGlyphAssets:     glyphAssetsRef.current,
         oscillatorGlyphPointCache: glyphPointCacheRef.current,
         oscillatorTextPointCache:  textPointCacheRef.current,
-        neonLatticeSettings:       neonLatticeSettingsRef.current,
         performanceActionEvent:    performanceActionEventRef.current,
         performanceActionEvents:   performanceActionEventsRef.current,
         performanceActionToggleStates: performanceActionToggleStatesRef.current,
-        neonLatticeTrigger:        neonLatticeTriggerRef.current,
       }
 
       const lyricPlayback = isPlayingRef.current || isPausedRef.current

@@ -4,7 +4,6 @@ import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore } from '../../../stores/mediaStore'
 import { CtrlSection } from './ReactControlRows'
 import type {
-  ReactEngineId,
   OscillatorSettings,
   OscillatorGlyphAsset,
   OscillatorFontAsset,
@@ -26,16 +25,9 @@ import {
   SVG_RENDER_MODE_LABELS,
 } from './svgSourceLifecycle'
 import type { UnifiedSvgStatus } from './svgSourceLifecycle'
+import { REACT_ENGINE_CATALOG } from './reactEngineCatalog'
 
 // ── Display maps ──────────────────────────────────────────────────────────────
-
-const ENGINE_LABELS: Record<ReactEngineId, string> = {
-  shaderPads:      'Shader Pads',
-  cinematicPortal: 'Cinematic Worlds',
-  oscilloscope:    'Sound Drawing',
-  laserDmx:        'LaserDMX',
-  neonLattice:     'Neon Lattice',
-}
 
 const SOURCE_LABELS: Record<string, string> = {
   classic:      'Classic',
@@ -203,7 +195,7 @@ export function ReactInspectorPanel() {
   const engineSummary = (
     <div className="rv-ctrl-group">
       <CtrlSection label="Engine Summary" />
-      <KvRow label="Engine" value={ENGINE_LABELS[activeReactEngineId] ?? activeReactEngineId} />
+      <KvRow label="Engine" value={REACT_ENGINE_CATALOG[activeReactEngineId].label} />
       <KvRow label="Active Preset" value={preset?.name ?? 'None'} />
     </div>
   )

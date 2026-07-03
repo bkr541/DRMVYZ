@@ -1,22 +1,7 @@
-import type { ReactPreset, ReactEngineId } from './ReactTypes'
+import type { ReactPreset } from './ReactTypes'
 import { ReactPresetThumbnail } from './ReactPresetThumbnail'
 import { useEffectiveReactPresets } from '../../../features/personalization/useEffectiveReactPresets'
-
-const ENGINE_LABELS: Record<ReactEngineId, string> = {
-  shaderPads:      'Shader Pads',
-  cinematicPortal: 'Cinematic Worlds',
-  oscilloscope:    'Sound Drawing',
-  laserDmx:        'LaserDMX',
-  neonLattice:     'Neon Lattice',
-}
-
-const ENGINE_ICONS: Record<ReactEngineId, string> = {
-  shaderPads:      '◈',
-  cinematicPortal: '◎',
-  oscilloscope:    '〜',
-  laserDmx:        '✦',
-  neonLattice:     '⬡',
-}
+import { isSelectableReactEngineId, REACT_ENGINE_CATALOG } from './reactEngineCatalog'
 
 interface Props {
   presets: ReactPreset[]
@@ -25,7 +10,7 @@ interface Props {
 }
 
 export function ReactPresetBrowser({ presets, activePresetId, onSelect }: Props) {
-  const displayPresets = useEffectiveReactPresets(presets)
+  const displayPresets = useEffectiveReactPresets(presets).filter(preset => isSelectableReactEngineId(preset.engine))
   const thumbnailGenerationKey = displayPresets.map(preset => preset.id).join('|')
   return (
     <div className="rv-preset-browser">
@@ -35,6 +20,7 @@ export function ReactPresetBrowser({ presets, activePresetId, onSelect }: Props)
       </div>
       <div className="rv-preset-list">
         {displayPresets.map((preset) => {
+          if (!isSelectableReactEngineId(preset.engine)) return null
           const isActive = preset.id === activePresetId
           return (
             <button
@@ -51,13 +37,13 @@ export function ReactPresetBrowser({ presets, activePresetId, onSelect }: Props)
                 <div className="rv-preset-card-content">
                   <div className="rv-preset-card-header">
                     <span className="rv-preset-engine-icon" style={{ color: preset.palette.primary }}>
-                      {ENGINE_ICONS[preset.engine]}
+                      {REACT_ENGINE_CATALOG[preset.engine].icon}
                     </span>
                     <span className="rv-preset-name">{preset.name}</span>
                     {isActive && <span className="rv-preset-selected-label"><span className="rv-preset-active-dot" aria-hidden="true" />Selected</span>}
                   </div>
                   <div className="rv-preset-engine-label">
-                    {ENGINE_LABELS[preset.engine]}
+                    {REACT_ENGINE_CATALOG[preset.engine].label}
                   </div>
                   <p className="rv-preset-desc">{preset.description}</p>
                   <div className="rv-preset-palette">

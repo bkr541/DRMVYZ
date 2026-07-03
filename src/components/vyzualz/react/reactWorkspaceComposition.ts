@@ -42,12 +42,10 @@ export function resolveReactWorkspaceComposition(
   } else if (isLaser) {
     leftTabs = isLaserBeamMatrix ? ['workspace', 'layers'] : ['workspace']
     workspaceTabLabel = 'RIG'
-  } else if (engineId === 'neonLattice') {
-    workspaceTabLabel = 'LAYOUT'
   }
 
   return {
-    // React performance pads target React presets (plus Neon Lattice triggers).
+    // React performance pads target live React presets and contextual production actions.
     // Shader uses its independent scene system and has no compatible React presets.
     showPerformancePads: !isShader,
     showSoundDrawingTimeline: isSoundDrawing,

@@ -1,70 +1,78 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_NEON_LATTICE_SETTINGS,
   DEFAULT_PERFORMANCE_PADS,
   DEFAULT_REACT_PRESETS,
-  type NeonLatticePhraseScale,
+  type ReactPreset,
 } from '../../ReactTypes'
 import { normalizeNeonLatticeSettings } from '../../NeonLatticeConfig'
-import {
-  STABLE_NEON_LATTICE_PRESET_IDS,
-  neonLatticePhraseActionSignature,
-  validateNeonLatticePresetLibrary,
-} from '../neonLatticePresetValidation'
+import { REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from '../../reactEngineCatalog'
+import { DEFAULT_REACT_RENDER_PARAMS, renderReactEngine, type ReactFrameContext } from '../ReactEngineRenderer'
+import { STABLE_NEON_LATTICE_PRESET_IDS } from '../neonLatticePresetValidation'
+import { RETIRED_NEON_LATTICE_BUILT_IN_PRESET_IDS } from '../../../../../stores/reactStore'
 
-function neonSettings(presetId: string) {
-  const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.id === presetId)
-  expect(preset?.engine).toBe('neonLattice')
-  return normalizeNeonLatticeSettings({
-    ...DEFAULT_NEON_LATTICE_SETTINGS,
-    ...preset?.neonLatticeSettings,
-  })
-}
-
-describe('final Neon Lattice preset library audit', () => {
-  it('keeps the four public IDs and every existing performance-pad reference valid', () => {
-    const presetIds = new Set(DEFAULT_REACT_PRESETS.map(preset => preset.id))
-    expect(STABLE_NEON_LATTICE_PRESET_IDS.every(id => presetIds.has(id))).toBe(true)
-    expect(DEFAULT_PERFORMANCE_PADS
-      .filter(pad => pad.presetId != null)
-      .every(pad => presetIds.has(pad.presetId!))).toBe(true)
+describe('final Neon Lattice retirement audit', () => {
+  it('keeps every historical public ID recognized while removing it from live registration', () => {
+    expect([...RETIRED_NEON_LATTICE_BUILT_IN_PRESET_IDS]).toEqual(expect.arrayContaining([
+      ...STABLE_NEON_LATTICE_PRESET_IDS,
+      'preset-nl-reverie-keygrid',
+    ]))
+    expect(DEFAULT_REACT_PRESETS.some(preset => preset.engine === 'neonLattice')).toBe(false)
+    expect(DEFAULT_REACT_PRESETS.some(preset => preset.id.startsWith('preset-nl-'))).toBe(false)
   })
 
-  it('validates unique IDs, normalized settings, authored patterns, palette roles, and distinct choreography', () => {
-    const validation = validateNeonLatticePresetLibrary(DEFAULT_REACT_PRESETS)
-    expect(validation.issues).toEqual([])
-    expect(validation.valid).toBe(true)
-    expect(new Set(Object.values(validation.choreographySignatures)).size)
-      .toBe(Object.keys(validation.choreographySignatures).length)
+  it('removes Neon from the canonical selectable engine catalog', () => {
+    expect(REACT_ENGINE_IDS).toEqual(['shaderPads', 'cinematicPortal', 'oscilloscope', 'laserDmx'])
+    expect(REACT_ENGINE_IDS).not.toContain('neonLattice')
+    expect(Object.keys(REACT_ENGINE_CATALOG)).not.toContain('neonLattice')
   })
 
-  it.each(STABLE_NEON_LATTICE_PRESET_IDS)('%s has intentional and different 4/8/16/32-beat actions', presetId => {
-    const settings = neonSettings(presetId)
-    const scales: NeonLatticePhraseScale[] = [4, 8, 16, 32]
-    const signatures = scales.map(scale => neonLatticePhraseActionSignature(settings, scale))
-    expect(signatures.every(Boolean)).toBe(true)
-    expect(new Set(signatures).size).toBe(scales.length)
+  it('central renderer dispatch treats a malformed retired preset as an unknown safe frame', () => {
+    const base = DEFAULT_REACT_PRESETS.find(preset => preset.engine === 'cinematicPortal')!
+    const retiredPreset = {
+      ...base,
+      id: 'malformed-retired-preset',
+      engine: 'neonLattice',
+      neonLatticeSettings: DEFAULT_NEON_LATTICE_SETTINGS,
+    } as ReactPreset
+    const clearRect = vi.fn()
+    const fillRect = vi.fn()
+    const ctx = {
+      clearRect,
+      fillRect,
+      fillStyle: '',
+    } as unknown as CanvasRenderingContext2D
+    const frame: ReactFrameContext = {
+      W: 1280,
+      H: 720,
+      dpr: 1,
+      t: 0,
+      audioTime: 0,
+      bpm: 120,
+      beatPhase: 0,
+      beatHit: false,
+      isPlaying: true,
+      audio: { bass: 0, mid: 0, high: 0, volume: 0 },
+      freqData: null,
+      timeDomainData: null,
+      musicIntelligence: null,
+    }
+
+    expect(() => renderReactEngine(ctx, frame, retiredPreset, DEFAULT_REACT_RENDER_PARAMS)).not.toThrow()
+    expect(clearRect).toHaveBeenCalledWith(0, 0, 1280, 720)
+    expect(fillRect).toHaveBeenCalledWith(0, 0, 1280, 720)
   })
 
-  it('ships Reverie Keygrid as a deterministic, recording-inspired, no-MIDI lane sequencer', () => {
-    const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.id === 'preset-nl-reverie-keygrid')
-    const settings = neonSettings('preset-nl-reverie-keygrid')
-    expect(preset?.palette.background).toBe('#010207')
-    expect(preset?.palette.highlight).toBe('#ffffff')
-    expect(settings).toMatchObject({
-      compositionMode: 'laneSequencer',
-      verticalSpanMode: 'fullCanvas',
-      retriggerBehavior: 'restart',
-      blockDensity: 0,
-      shockwaveAmount: 0,
-      cameraMotion: 0,
-    })
-    expect(settings.lanePattern.orientations).toEqual(['vertical'])
-    expect(settings.lanePattern.steps.some(step => step.lanes.length >= 3)).toBe(true)
-    expect(JSON.stringify(preset?.neonLatticeSettings)).not.toMatch(/midi/i)
+  it('leaves no default performance pad pointing at a retired preset or action', () => {
+    for (const pad of DEFAULT_PERFORMANCE_PADS) {
+      expect(pad.presetId?.startsWith('preset-nl-') ?? false).toBe(false)
+      expect((pad as { actionId?: string }).actionId?.startsWith('neonLattice.') ?? false).toBe(false)
+    }
+    expect(DEFAULT_PERFORMANCE_PADS.find(pad => pad.id === 'pad-13')?.presetId).toBeNull()
+    expect(DEFAULT_PERFORMANCE_PADS.find(pad => pad.id === 'pad-18')?.presetId).toBeNull()
   })
 
-  it('normalizes malformed settings safely and idempotently without persisting runtime state', () => {
+  it('retains deterministic compatibility normalization for staged deletion', () => {
     const malformed = normalizeNeonLatticeSettings({
       ...DEFAULT_NEON_LATTICE_SETTINGS,
       orientationWeights: { vertical: Number.NaN, horizontal: -4, diagonalUp: 2, diagonalDown: 3 },

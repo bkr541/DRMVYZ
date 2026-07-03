@@ -67,7 +67,7 @@ describe('Brand Kit normalization and cache', () => {
     stale.kit.engineRules = {
       neonLattice: { mode: 'brand', strength: 0.8 },
       oscilloscope: { mode: 'hybrid', strength: 0.6 },
-    }
+    } as unknown as typeof stale.kit.engineRules
     localStorage.setItem(brandKitCacheKey('user-a'), JSON.stringify({
       version: BRAND_KIT_CACHE_VERSION,
       userId: 'user-a',

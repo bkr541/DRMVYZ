@@ -3,7 +3,7 @@
 import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_REACT_PRESETS, type ReactPreset } from '../ReactTypes'
+import { DEFAULT_REACT_PRESETS, type ReactEngineId, type ReactPreset } from '../ReactTypes'
 import {
   getReactLiveEngineOwnershipDiagnosticsForTests,
   resetReactLiveEngineOwnershipForTests,
@@ -55,14 +55,14 @@ let host: HTMLDivElement | null = null
 let nextRafId = 1
 let rafCallbacks = new Map<number, FrameRequestCallback>()
 
-function findPreset(engine: Exclude<ReactPreset['engine'], 'shaderPads'>): ReactPreset {
+function findPreset(engine: Exclude<ReactEngineId, 'shaderPads'>): ReactPreset {
   const found = DEFAULT_REACT_PRESETS.find(preset => preset.engine === engine)
   if (!found) throw new Error(`Missing test preset for ${engine}`)
   return found
 }
 
 function renderCanvas(
-  engine: Exclude<ReactPreset['engine'], 'shaderPads'>,
+  engine: Exclude<ReactEngineId, 'shaderPads'>,
   onCanvasReady = vi.fn(),
 ): React.ReactElement {
   return (
@@ -204,10 +204,10 @@ describe('ReactPlaceholderCanvas live ownership boundary', () => {
 
   it('returns ownership and scheduled frames to baseline across repeated mount cycles', async () => {
     for (let index = 0; index < 6; index += 1) {
-      await act(async () => root?.render(renderCanvas('neonLattice')))
+      await act(async () => root?.render(renderCanvas('oscilloscope')))
       expect(getReactLiveEngineOwnershipDiagnosticsForTests()).toMatchObject({
         activeOwnerCount: 1,
-        activeEngine: 'neonLattice',
+        activeEngine: 'oscilloscope',
       })
 
       await act(async () => root?.render(null))

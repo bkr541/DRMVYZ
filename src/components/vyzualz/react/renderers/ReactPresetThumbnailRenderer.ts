@@ -1,5 +1,4 @@
 import {
-  DEFAULT_NEON_LATTICE_SETTINGS,
   DEFAULT_OSCILLATOR_SETTINGS,
   DEFAULT_REACT_PRESET_RENDER_SETTINGS,
   createDefaultLaserDmxSettings,
@@ -10,8 +9,6 @@ import { renderReactEngine } from './ReactEngineRenderer'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { DEFAULT_REACT_RENDER_PARAMS } from './reactRenderUtils'
 import { clearLaserDmxVisualState, disposeLaserDmxRenderer } from './LaserDmxRenderer'
-import { clearNeonLatticeVisualState } from './NeonLatticeRenderer'
-import { createNeonLatticeSyntheticPreviewFrame } from './neonLatticePreview'
 import {
   disposeCinematicPortalRenderer,
   resetCinematicPortalRenderer,
@@ -154,7 +151,6 @@ export function fingerprintReactPresetThumbnail(preset: ReactPreset): string {
     oscillatorSettings: preset.oscillatorSettings ?? null,
     laserDmxSettings: preset.laserDmxSettings ?? null,
     productionPreset: preset.productionPreset ?? null,
-    neonLatticeSettings: preset.neonLatticeSettings ?? null,
     cinematicConfig: preset.cinematicConfig ?? null,
     sectionMappings: preset.sectionMappings,
     scenes: preset.scenes,
@@ -432,7 +428,7 @@ async function renderThumbnailOnceWithExclusiveContextAccess(
 
     for (let index = 0; index < frameBudget; index += 1) {
       if (signal.aborted) return null
-      const frame = buildFrame(index, frameBudget, width, height, sectionType, thumbnailPreset)
+      const frame = buildFrame(index, frameBudget, width, height, sectionType)
       renderReactEngine(ctx, frame, thumbnailPreset, renderParams, sections, {
         webglLifetime: 'transient-thumbnail',
       })
@@ -530,7 +526,6 @@ function prepareThumbnailRendererPool(
   resetCinematicPortalRenderer(context, 'thumbnailReuse')
   clearLaserDmxVisualState(context, width, height, { affectProductionOutput: false })
   disposeLaserDmxRenderer(context, { affectProductionOutput: false })
-  clearNeonLatticeVisualState(context, width, height)
   context.clearRect(0, 0, width, height)
 }
 
@@ -539,7 +534,6 @@ function resetThumbnailRendererPoolAfterJob(pool: ThumbnailRendererPool): void {
   resetCinematicPortalRenderer(pool.context, 'thumbnailReuse')
   clearLaserDmxVisualState(pool.context, pool.canvas.width, pool.canvas.height, { affectProductionOutput: false })
   disposeLaserDmxRenderer(pool.context, { affectProductionOutput: false })
-  clearNeonLatticeVisualState(pool.context, pool.canvas.width, pool.canvas.height)
   resetCanvas2DState(pool.context)
 }
 
@@ -554,7 +548,6 @@ function retireIncompatibleThumbnailFamily(pool: ThumbnailRendererPool): void {
   }
   clearLaserDmxVisualState(pool.context, pool.canvas.width, pool.canvas.height, { affectProductionOutput: false })
   disposeLaserDmxRenderer(pool.context, { affectProductionOutput: false })
-  clearNeonLatticeVisualState(pool.context, pool.canvas.width, pool.canvas.height)
   resetCanvas2DState(pool.context)
 }
 
@@ -574,7 +567,6 @@ function terminallyDisposeThumbnailRendererPool(expectedPool: ThumbnailRendererP
     clearLaserDmxVisualState(pool.context, pool.canvas.width, pool.canvas.height, { affectProductionOutput: false })
     disposeLaserDmxRenderer(pool.context, { affectProductionOutput: false })
   } catch { /* Best effort. */ }
-  try { clearNeonLatticeVisualState(pool.context, pool.canvas.width, pool.canvas.height) } catch { /* Best effort. */ }
   releaseDrmvyzThumbnailWebGLContext(pool.webglLease)
   pool.webglLease = null
   releaseCanvas(pool.canvas)
@@ -637,7 +629,6 @@ function resolveThumbnailFrameBudget(preset: ReactPreset): number {
   switch (preset.engine) {
     case 'shaderPads': return 1
     case 'oscilloscope': return 2
-    case 'neonLattice': return 9
     case 'laserDmx': return 5
     case 'cinematicPortal':
       if (preset.cinematicConfig?.worldMode === 'reactiveConstellation') return 10
@@ -684,9 +675,6 @@ function buildRenderParams(preset: ReactPreset): ReactRenderParams {
       ...DEFAULT_OSCILLATOR_SETTINGS,
       ...(preset.oscillatorSettings ?? {}),
     },
-    neonLatticeSettings: preset.neonLatticeSettings
-      ? { ...DEFAULT_NEON_LATTICE_SETTINGS, ...preset.neonLatticeSettings }
-      : undefined,
     thumbnailLaserDmxSettings: preset.laserDmxSettings
       ? {
           ...createDefaultLaserDmxSettings(),
@@ -696,7 +684,6 @@ function buildRenderParams(preset: ReactPreset): ReactRenderParams {
             : {}),
         }
       : undefined,
-    neonLatticeTrigger: null,
   }
 }
 
@@ -715,7 +702,6 @@ function buildFrame(
   width: number,
   height: number,
   sectionType: ReactSectionType | null,
-  preset: ReactPreset,
 ): ReactFrameContext {
   const progress = frameBudget <= 1 ? 1 : index / (frameBudget - 1)
   const timeSec = PREVIEW_START_TIME_SEC + PREVIEW_SECONDS * progress
@@ -746,12 +732,7 @@ function buildFrame(
     audio: { bass, mid, high, volume },
     freqData: null,
     timeDomainData: null,
-    musicIntelligence: preset.engine === 'neonLattice'
-      ? createNeonLatticeSyntheticPreviewFrame({
-          index, frameBudget, timeSec, bpm: PREVIEW_BPM,
-          requestedSectionType: sectionType, presetId: preset.id,
-        })
-      : null,
+    musicIntelligence: null,
     resolvedSection: sectionType ? {
       type: sectionType,
       startSec: 0,

@@ -387,7 +387,7 @@ export function BrandKitSettingsPanel() {
         <div className="bk-empty">
           <div className="bk-empty-mark" aria-hidden="true">◇</div>
           <h2>Make DRMVYZ feel like your booth</h2>
-          <p>Create a Brand Kit from your logos or artwork, then apply its palette to Sound Drawing, Neon Lattice, and Cinematic Worlds.</p>
+          <p>Create a Brand Kit from your logos or artwork, then apply its palette to Sound Drawing, Cinematic Worlds, LaserDMX, and Shader ENGINE.</p>
           <label className="bk-field-label" htmlFor="bk-first-name">Brand Kit name</label>
           <input id="bk-first-name" value={newKitName} onChange={event => setNewKitName(event.target.value)} placeholder={suggestedName} />
           <button type="button" className="bk-primary-button" onClick={() => void handleCreate()} disabled={syncing}>Create Brand Kit</button>

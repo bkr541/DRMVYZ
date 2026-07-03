@@ -140,14 +140,9 @@ describe('canonical normalized segments', () => {
 })
 
 describe('preset compatibility', () => {
-  it('keeps the four stable Neon Lattice preset IDs unchanged while allowing additive presets', () => {
-    const ids = DEFAULT_REACT_PRESETS.filter(preset => preset.engine === 'neonLattice').map(preset => preset.id)
-    expect(ids.slice(0, 4)).toEqual([
-      'preset-nl-acid-magenta',
-      'preset-nl-drmvyz-lattice',
-      'preset-nl-sparse-starlines',
-      'preset-nl-overload-matrix',
-    ])
+  it('keeps Neon compatibility normalization while removing every live built-in preset', () => {
+    expect(DEFAULT_REACT_PRESETS.filter(preset => preset.engine === 'neonLattice')).toEqual([])
+    expect(normalizeNeonLatticeSettings(DEFAULT_NEON_LATTICE_SETTINGS)).toEqual(DEFAULT_NEON_LATTICE_SETTINGS)
   })
 
   it('normalizes every enhanced preset safely and idempotently', () => {

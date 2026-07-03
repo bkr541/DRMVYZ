@@ -15,11 +15,12 @@ import {
   renderNeonLattice,
   clearNeonLatticeVisualState,
   __getNeonLatticeState,
+  type NeonLatticeRenderParams,
 } from '../NeonLatticeRenderer'
-import type { ReactFrameContext, ReactRenderParams } from '../reactRenderUtils'
+import type { ReactFrameContext } from '../reactRenderUtils'
 import { DEFAULT_REACT_RENDER_PARAMS } from '../reactRenderUtils'
 import type { ReactPreset, ReactSectionType, NeonLatticeSettings } from '../../ReactTypes'
-import { DEFAULT_NEON_LATTICE_SETTINGS, DEFAULT_REACT_PRESETS } from '../../ReactTypes'
+import { DEFAULT_NEON_LATTICE_SETTINGS, PALETTE_NEON_LATTICE } from '../../ReactTypes'
 import type { MusicIntelligenceFrame } from '../../../../../features/musicIntelligence/types'
 import { MAX_VERT, MAX_HORIZ, MAX_PULSES, MAX_SHOCKWAVES } from '../neonLatticeUtils'
 
@@ -78,7 +79,17 @@ function makeCtx(): CanvasRenderingContext2D {
   return makeMockCtx2d() as unknown as CanvasRenderingContext2D
 }
 
-const NL_PRESET = DEFAULT_REACT_PRESETS.find(p => p.engine === 'neonLattice')!
+const NL_PRESET: ReactPreset = {
+  id: 'retired-neon-renderer-test',
+  name: 'Retired Neon Renderer Test',
+  description: 'Dedicated renderer fixture outside the live preset library.',
+  engine: 'neonLattice',
+  palette: PALETTE_NEON_LATTICE,
+  params: { intensity: 0.7, motion: 0.5, glow: 0.65, bassReactivity: 0.8 },
+  scenes: [],
+  sectionMappings: [],
+  neonLatticeSettings: DEFAULT_NEON_LATTICE_SETTINGS,
+}
 
 function makePreset(nlOverrides: Partial<NeonLatticeSettings> = {}): ReactPreset {
   return {
@@ -87,8 +98,8 @@ function makePreset(nlOverrides: Partial<NeonLatticeSettings> = {}): ReactPreset
   }
 }
 
-function makeParams(nlOverrides: Partial<NeonLatticeSettings> = {}, extra: Partial<ReactRenderParams> = {}): ReactRenderParams {
-  const { neonLatticeTrigger, ...extraRest } = extra as Partial<ReactRenderParams> & { neonLatticeTrigger?: ReactRenderParams['neonLatticeTrigger'] }
+function makeParams(nlOverrides: Partial<NeonLatticeSettings> = {}, extra: Partial<NeonLatticeRenderParams> = {}): NeonLatticeRenderParams {
+  const { neonLatticeTrigger, ...extraRest } = extra
   return {
     ...DEFAULT_REACT_RENDER_PARAMS,
     intensity:      0.7,
@@ -218,7 +229,7 @@ function run(
   ctx:          CanvasRenderingContext2D,
   frame?:       Partial<ReactFrameContext> & { mi?: MusicIntelligenceFrame | null },
   nlSettings?:  Partial<NeonLatticeSettings>,
-  extraParams?: Partial<ReactRenderParams>,
+  extraParams?: Partial<NeonLatticeRenderParams>,
   section?:     ReactSectionType | null,
 ): void {
   const nl = nlSettings ?? {}

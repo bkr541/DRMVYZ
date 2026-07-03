@@ -3,7 +3,6 @@ import { useShallow } from 'zustand/react/shallow'
 import { resolveActivePerformanceActionTarget, useReactStore } from '../../../stores/reactStore'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
 import { resolveEffectiveReactPresets } from '../../../features/personalization/effectivePalette'
-import type { NeonLatticeTriggerType } from './ReactTypes'
 import {
   getReactPerformanceActionsForTarget,
   isFormFieldKeyboardTarget,
@@ -18,19 +17,6 @@ export const PERFORMANCE_PAD_KEY_MAP: Readonly<Record<string, string>> = {
   'a': 'pad-9',  's': 'pad-10', 'd': 'pad-11', 'f': 'pad-12', 'g': 'pad-19',
   'z': 'pad-13', 'x': 'pad-14', 'c': 'pad-15', 'v': 'pad-16', 'b': 'pad-20',
 }
-
-/** Backward-compatible metadata export used by the existing Neon Lattice tests. */
-export const NL_TRIGGER_PADS: Array<{
-  padId: string
-  trigger: NeonLatticeTriggerType
-  label: string
-  color: string
-}> = getReactPerformanceActionsForTarget({ engineId: 'neonLattice' }).map(action => ({
-  padId: action.padId,
-  trigger: action.legacyNeonLatticeTrigger!,
-  label: action.label,
-  color: action.color,
-}))
 
 const PRESSED_DURATION_MS = 150
 
@@ -52,7 +38,7 @@ export function resolvePerformancePadKeyboardRoute(
 function contextualHint(target: ReactPerformanceActionTarget, actions: readonly ReactPerformanceActionDefinition[]): string {
   if (actions.length === 0) return '1–5 · Q–R·T · A–F·G · Z–V·B'
   const keys = actions.map(action => action.keyBinding.toUpperCase()).join(' · ')
-  const label = target.engineId === 'laserDmx' ? 'LaserDMX' : target.worldId === 'reactiveConstellation' ? 'Reactive Constellation' : 'Neon Lattice'
+  const label = target.engineId === 'laserDmx' ? 'LaserDMX' : 'Reactive Constellation'
   return `${keys} = ${label} actions · remaining slots = presets`
 }
 
@@ -185,7 +171,7 @@ export function ReactPerformancePads({ embedded = false }: { embedded?: boolean 
               return (
                 <button
                   key={pad.id}
-                  className={`rv-pad rv-pad--action rv-pad--nl-trigger${isPressed ? ' rv-pad--pressed' : ''}`}
+                  className={`rv-pad rv-pad--action${isPressed ? ' rv-pad--pressed' : ''}`}
                   onClick={() => fireAction(action)}
                   disabled={!available}
                   aria-label={`${action.label}. ${action.description}`}

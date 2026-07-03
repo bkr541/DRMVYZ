@@ -1,6 +1,5 @@
 import React, { useSyncExternalStore } from 'react'
 import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
-import { NeonLatticeEnginePanel } from './NeonLatticeEnginePanel'
 import { CinematicWorldsEngineControls } from './CinematicWorldsControls'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
@@ -334,8 +333,7 @@ export function ReactEnginePanel() {
       )}
 
       {/* ── Engine Mode: LaserDMX ─────────────────────────────────────── */}
-      {activeReactEngineId === 'laserDmx'     && <LaserDmxEnginePanel />}
-      {activeReactEngineId === 'neonLattice'  && <NeonLatticeEnginePanel />}
+      {activeReactEngineId === 'laserDmx' && <LaserDmxEnginePanel />}
 
       {/* ── Engine Mode: Oscilloscope ──────────────────────────────────── */}
       {activeReactEngineId === 'oscilloscope' && (

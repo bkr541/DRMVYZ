@@ -3,6 +3,7 @@ import { DEFAULT_REACT_PRESETS } from '../ReactTypes'
 import {
   filterReactPresetLibrary,
   readReactPresetFavorites,
+  sanitizeReactPresetFavorites,
   writeReactPresetFavorites,
 } from '../reactPresetLibraryState'
 
@@ -54,13 +55,13 @@ describe('React preset library state', () => {
 
   it('keeps all-engine browsing explicit and favorites engine-agnostic', () => {
     const cinematic = DEFAULT_REACT_PRESETS.find(preset => preset.engine === 'cinematicPortal')!
-    const neon = DEFAULT_REACT_PRESETS.find(preset => preset.engine === 'neonLattice')!
-    const favorites = new Set([cinematic.id, neon.id])
+    const oscilloscope = DEFAULT_REACT_PRESETS.find(preset => preset.engine === 'oscilloscope')!
+    const favorites = new Set([cinematic.id, oscilloscope.id])
 
     expect(filterReactPresetLibrary(DEFAULT_REACT_PRESETS, 'laserDmx', 'spatialFixtures', 'all', favorites))
       .toHaveLength(DEFAULT_REACT_PRESETS.length)
     expect(filterReactPresetLibrary(DEFAULT_REACT_PRESETS, 'laserDmx', 'spatialFixtures', 'favorites', favorites).map(preset => preset.id))
-      .toEqual([cinematic.id, neon.id])
+      .toEqual([cinematic.id, oscilloscope.id])
   })
 
   it('persists unique favorite ids and tolerates malformed storage', () => {
@@ -70,5 +71,20 @@ describe('React preset library state', () => {
 
     storage.setItem('drmvyz.reactPresetFavorites.v1', '{not-json')
     expect(readReactPresetFavorites(storage)).toEqual([])
+  })
+
+  it('removes retired and ghost favorites without disturbing valid order', () => {
+    const storage = createMemoryStorage()
+    const valid = DEFAULT_REACT_PRESETS.slice(0, 2).map(preset => preset.id)
+    writeReactPresetFavorites([
+      valid[1],
+      'preset-nl-acid-magenta',
+      'missing-preset',
+      valid[0],
+      valid[1],
+    ], storage)
+
+    expect(sanitizeReactPresetFavorites(valid, storage)).toEqual([valid[1], valid[0]])
+    expect(readReactPresetFavorites(storage)).toEqual([valid[1], valid[0]])
   })
 })

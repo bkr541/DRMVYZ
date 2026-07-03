@@ -14,10 +14,11 @@ import { useBrandKitStore } from '../../../features/personalization/brandKitStor
 import { resolveBrandedReactPreset } from '../../../features/personalization/resolveBrandedReactPreset'
 import { analyzeProductionPresetCompatibility } from './LaserDmxProductionPresets'
 import type { ProductionFixtureKind, ProductionPresetCompatibilityResult } from './LaserDmxProductionRig'
-import { REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from './reactEngineCatalog'
+import { isSelectableReactEngineId, REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from './reactEngineCatalog'
 import {
   filterReactPresetLibrary,
   readReactPresetFavorites,
+  sanitizeReactPresetFavorites,
   writeReactPresetFavorites,
   type ReactPresetLibraryView,
 } from './reactPresetLibraryState'
@@ -106,6 +107,7 @@ function PresetCard({
   currentRig: LaserDmxSettings
   thumbnailGenerationKey: string
 }) {
+  if (!isSelectableReactEngineId(preset.engine)) return null
   const modeHint = getModeHint(preset)
   const production = preset.productionPreset
   const compatibility = production ? analyzeProductionPresetCompatibility(preset, currentRig) : null
@@ -318,13 +320,23 @@ export function ReactPresetsPanel() {
   }, [activeReactEngineId, laserDmxWorkspaceMode])
 
   const displayPresets = useMemo(
-    () => reactPresets.map(preset => resolveBrandedReactPreset(
+    () => reactPresets.filter(preset => isSelectableReactEngineId(preset.engine)).map(preset => resolveBrandedReactPreset(
       preset,
       cinematicConfigsByPresetId,
       activeBrandKit,
     ) ?? preset),
     [reactPresets, cinematicConfigsByPresetId, activeBrandKit],
   )
+
+  useEffect(() => {
+    const sanitized = sanitizeReactPresetFavorites(displayPresets.map(preset => preset.id))
+    setFavoritePresetIds(current => (
+      current.length === sanitized.length && current.every((presetId, index) => presetId === sanitized[index])
+        ? current
+        : sanitized
+    ))
+  }, [displayPresets])
+
   const favoriteIds = useMemo(() => new Set(favoritePresetIds), [favoritePresetIds])
   const visiblePresets = useMemo(
     () => filterReactPresetLibrary(displayPresets, activeReactEngineId, laserDmxWorkspaceMode, libraryView, favoriteIds),

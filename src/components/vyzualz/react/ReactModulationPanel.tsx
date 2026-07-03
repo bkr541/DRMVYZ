@@ -3,7 +3,6 @@ import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { ConnectedShaderModulationPanel } from './shaders/ui/ConnectedShaderModulationPanel'
 import { CinematicWorldsModulationControls } from './CinematicWorldsControls'
-import { NeonLatticeModulationControls } from './NeonLatticeEnginePanel'
 import { SliderRow, SelectRow, ToggleRow, Collapsible } from './ReactControlRows'
 import type { OscillatorAudioDisplaceMode, OscillatorTextLetterReactionMode, LetterReactionAssignment, LetterReactionSource, LetterReactionTarget, LaserDmxFixture, LaserDmxModulationRoute, LaserDmxTriggerTimingFilter, LaserDmxTriggerTimingFilterMode } from './ReactTypes'
 import { BEATS_PER_BAR } from './ReactTypes'
@@ -801,7 +800,6 @@ export function ReactModulationPanel() {
   const isSoundDrawing = activeReactEngineId === 'oscilloscope'
   const isCinematic    = activeReactEngineId === 'cinematicPortal'
   const isLaserDmx     = activeReactEngineId === 'laserDmx'
-  const isNeonLattice  = activeReactEngineId === 'neonLattice'
 
   // ── Shader: delegate to ConnectedShaderModulationPanel ───────────────────
   if (activeReactEngineId === 'shaderPads') {
@@ -810,10 +808,6 @@ export function ReactModulationPanel() {
 
   if (isCinematic) {
     return <div className="rv-ctrl-group"><CinematicWorldsModulationControls /></div>
-  }
-
-  if (isNeonLattice) {
-    return <div className="rv-ctrl-group"><NeonLatticeModulationControls /></div>
   }
 
   // ── LaserDMX: branch by workspace mode ───────────────────────────────────

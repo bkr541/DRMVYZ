@@ -874,7 +874,17 @@ function makeSection(overrides: Partial<ReactTrackSection> = {}): ReactTrackSect
 }
 
 function resetStore() {
-  useReactStore.setState({ presetAutomationCuesByTrackId: {} })
+  useReactStore.setState(useReactStore.getInitialState())
+}
+
+function ensureTestPreset(presetId: string, presetName = 'Test Preset'): void {
+  const state = useReactStore.getState()
+  if (state.reactPresets.some(preset => preset.id === presetId)) return
+  const base = state.reactPresets.find(preset => preset.engine === 'oscilloscope')
+  if (!base) throw new Error('Missing live test preset fixture')
+  useReactStore.setState({
+    reactPresets: [...state.reactPresets, { ...base, id: presetId, name: presetName }],
+  })
 }
 
 /** Simulates the handleAssignPreset action from ReactTrackMapStrip. */
@@ -889,6 +899,7 @@ function assignPreset(
     store.removePresetAutomationCue(TRACK_ID, cueId)
     return
   }
+  ensureTestPreset(presetId, presetName)
   const label    = buildPresetCueLabel(section.label, presetName)
   const trackCues = store.presetAutomationCuesByTrackId[TRACK_ID] ?? []
   const existing  = trackCues.find(c => c.id === cueId)
@@ -1139,6 +1150,7 @@ describe('orphaned cue cleanup — Delete All (handleDeleteAllSections)', () => 
     const sOther = makeSection({ id: 'sec-other', startSec: 0 })
     assignPreset(sThis, 'p-this', 'This Preset')
     // Add a cue for the other track manually
+    ensureTestPreset('p-other', 'Other Preset')
     useReactStore.getState().addPresetAutomationCue(otherTrack, {
       id:           buildPresetCueId(sOther.id),
       timeSec:      0,

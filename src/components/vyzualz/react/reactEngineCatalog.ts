@@ -13,7 +13,6 @@ export const REACT_ENGINE_IDS: ReactEngineId[] = [
   'cinematicPortal',
   'oscilloscope',
   'laserDmx',
-  'neonLattice',
 ]
 
 export const REACT_ENGINE_CATALOG: Record<ReactEngineId, ReactEngineCatalogEntry> = {
@@ -45,11 +44,10 @@ export const REACT_ENGINE_CATALOG: Record<ReactEngineId, ReactEngineCatalogEntry
     icon: '✦',
     description: 'DMX beam matrix and spatial fixture control with production atmosphere.',
   },
-  neonLattice: {
-    id: 'neonLattice',
-    label: 'Neon Lattice',
-    shortLabel: 'Lattice',
-    icon: '⬡',
-    description: 'Beat-reactive neon rail grid with pulsing blocks and shockwaves.',
-  },
+}
+
+const REACT_ENGINE_ID_SET = new Set<string>(REACT_ENGINE_IDS)
+
+export function isSelectableReactEngineId(value: unknown): value is ReactEngineId {
+  return typeof value === 'string' && REACT_ENGINE_ID_SET.has(value)
 }

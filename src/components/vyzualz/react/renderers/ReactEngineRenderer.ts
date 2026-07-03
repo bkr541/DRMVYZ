@@ -1,10 +1,9 @@
-import type { ReactPreset, ReactSectionType, ReactTrackSection } from '../ReactTypes'
+import type { ReactEngineId, ReactPreset, ReactSectionType, ReactTrackSection } from '../ReactTypes'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { resolveSectionAtTime, effectiveSectionIntensity, DEFAULT_REACT_RENDER_PARAMS } from './reactRenderUtils'
 import { disposeCinematicPortalRenderer, renderCinematicPortal } from './CinematicPortalRenderer'
 import { disposeSoundDrawingRenderer, renderSoundDrawing } from './SoundDrawingRenderer'
 import { renderLaserDmx, clearLaserDmxVisualState, disposeLaserDmxRenderer, pauseLaserDmxRenderer } from './LaserDmxRenderer'
-import { renderNeonLattice, clearNeonLatticeVisualState } from './NeonLatticeRenderer'
 import type { WebGLContextLifetime } from '../shaders/runtime/WebGLContextLifecycle'
 
 export type { ReactFrameContext, ReactRenderParams }
@@ -155,43 +154,31 @@ export function renderReactEngine(
     case 'shaderPads':
       // Compatibility-only branch for legacy persisted state.
       // The former Canvas 2D Shader Pads renderer has been removed.
-      clearNeonLatticeVisualState(ctx, frame.W, frame.H)
+      ctx.clearRect(0, 0, frame.W, frame.H)
       ctx.fillStyle = preset.palette.background
       ctx.fillRect(0, 0, frame.W, frame.H)
       break
     case 'cinematicPortal':
-      clearNeonLatticeVisualState(ctx, frame.W, frame.H)
       renderCinematicPortal(
         ctx, frame, preset, effectiveParams, sectionType,
         options.webglLifetime ?? 'live-reusable',
       )
       break
     case 'oscilloscope':
-      clearNeonLatticeVisualState(ctx, frame.W, frame.H)
       renderSoundDrawing(ctx, frame, preset, effectiveParams, sectionType)
       break
     case 'laserDmx':
       // Level-1 gate: skip compilation entirely when not playing.
       // clearLaserDmxVisualState wipes trail persistence and resets compiler dt.
-      clearNeonLatticeVisualState(ctx, frame.W, frame.H)
       if (frame.isPlaying === false) {
         clearLaserDmxVisualState(ctx, frame.W, frame.H)
       } else {
         renderLaserDmx(ctx, frame, preset, effectiveParams, sectionType)
       }
       break
-    case 'neonLattice':
-      if (frame.isPlaying === false) {
-        clearNeonLatticeVisualState(ctx, frame.W, frame.H)
-        ctx.fillStyle = preset.palette.background
-        ctx.fillRect(0, 0, frame.W, frame.H)
-      } else {
-        renderNeonLattice(ctx, frame, effectiveParams, preset, sectionType)
-      }
-      break
     default:
       // Unknown engine — draw a placeholder so the frame is never blank
-      clearNeonLatticeVisualState(ctx, frame.W, frame.H)
+      ctx.clearRect(0, 0, frame.W, frame.H)
       ctx.fillStyle = preset.palette.background
       ctx.fillRect(0, 0, frame.W, frame.H)
   }
@@ -211,7 +198,7 @@ export interface ReactEngineDisposalOptions {
  */
 export function disposeReactEngineRenderer(
   ctx: CanvasRenderingContext2D,
-  engine: ReactPreset['engine'],
+  engine: ReactEngineId,
   options: ReactEngineDisposalOptions = {},
 ): void {
   const width = options.width ?? ctx.canvas.width
@@ -227,9 +214,6 @@ export function disposeReactEngineRenderer(
       disposeLaserDmxRenderer(ctx, {
         affectProductionOutput: options.affectProductionOutput,
       })
-      break
-    case 'neonLattice':
-      clearNeonLatticeVisualState(ctx, width, height)
       break
     case 'oscilloscope':
       disposeSoundDrawingRenderer(ctx)

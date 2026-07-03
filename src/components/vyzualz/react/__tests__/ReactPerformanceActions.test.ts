@@ -2,22 +2,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   getReactPerformanceActionsForTarget,
+  REACT_VISUAL_PERFORMANCE_ACTIONS,
   isFormFieldKeyboardTarget,
   validateReactPerformanceActionRegistry,
 } from '../ReactPerformanceActions'
-import {
-  NL_TRIGGER_PADS,
-  resolvePerformancePadKeyboardRoute,
-} from '../ReactPerformancePads'
-
-const LEGACY_NEON_LABELS = [
-  'Rail Burst', 'Cascade', 'Cross Flare', 'Whiteout',
-  'Blackout', 'Reseed', 'Freeze', 'Cyan Strike',
-]
-const LEGACY_NEON_TRIGGERS = [
-  'railBurst', 'blockCascade', 'crossFlare', 'whiteout',
-  'blackout', 'reseed', 'freezeTrails', 'cyanStrike',
-]
+import { resolvePerformancePadKeyboardRoute } from '../ReactPerformancePads'
 
 describe('React visual performance action registry', () => {
   it('validates stable IDs, contextual slots, bindings, targets, and envelopes', () => {
@@ -35,12 +24,9 @@ describe('React visual performance action registry', () => {
     ))).toBe(true)
   })
 
-  it('preserves Neon Lattice labels, pad slots, keyboard bindings, and legacy trigger IDs', () => {
-    expect(NL_TRIGGER_PADS.map(pad => pad.label)).toEqual(LEGACY_NEON_LABELS)
-    expect(NL_TRIGGER_PADS.map(pad => pad.trigger)).toEqual(LEGACY_NEON_TRIGGERS)
-    expect(NL_TRIGGER_PADS.map(pad => pad.padId)).toEqual([
-      'pad-1', 'pad-2', 'pad-3', 'pad-4', 'pad-5', 'pad-6', 'pad-7', 'pad-8',
-    ])
+  it('does not register retired Neon Lattice actions or targets', () => {
+    expect(REACT_VISUAL_PERFORMANCE_ACTIONS.some(action => action.id.startsWith('neonLattice.'))).toBe(false)
+    expect(REACT_VISUAL_PERFORMANCE_ACTIONS.some(action => String(action.target.engineId) === 'neonLattice')).toBe(false)
   })
 
   it('routes contextual keys before preset pads and leaves remaining slots assigned to presets', () => {

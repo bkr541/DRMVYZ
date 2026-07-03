@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useReactStore } from '../../../stores/reactStore'
 import type { ReactPresetAutomationCue } from './ReactTypes'
+import { isSelectableReactEngineId } from './reactEngineCatalog'
 
 /**
  * Returns the last enabled cue whose timeSec <= positionSec and whose presetId
@@ -60,7 +61,7 @@ export function useReactPresetAutomation(): void {
 
     const rawCues    = cuesByTrackId[currentTrackId] ?? []
     const sortedCues = [...rawCues].sort((a, b) => a.timeSec - b.timeSec)
-    const validIds   = new Set(reactPresets.map(p => p.id))
+    const validIds   = new Set(reactPresets.filter(p => isSelectableReactEngineId(p.engine)).map(p => p.id))
     const activeCue  = resolveActiveCue(sortedCues, currentTime, validIds)
 
     // Reset execution state on track change; treat first run as a track change.
