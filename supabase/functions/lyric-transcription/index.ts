@@ -221,8 +221,8 @@ function safeOptions(value: unknown): Record<string, unknown> {
 }
 
 function configuredProvider(): 'groq' {
-  // Groq is the canonical provider for all newly created jobs. Historical
-  // OpenAI rows stay readable, but retries and resumed execution run through Groq.
+  // Groq is the canonical provider for all newly created jobs.
+  // Historical OpenAI rows stay readable, but retries and resumed execution run through Groq.
   return 'groq'
 }
 
@@ -462,6 +462,7 @@ function providerSegments(value: unknown): ProviderSegment[] {
       start: finiteNumber(record.start) ?? -1,
       end: finiteNumber(record.end) ?? -1,
       confidence: confidenceFromSegment(record),
+      no_speech_prob: finiteNumber(record.no_speech_prob),
       words: providerWords(record.words),
     }
   })

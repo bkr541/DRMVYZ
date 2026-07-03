@@ -13,7 +13,8 @@ export interface TranscriptionUnitPlan {
 }
 
 export interface ProviderWord {
-  text: string
+  text?: string
+  word?: string
   start: number
   end: number
   confidence?: number | null
@@ -24,6 +25,8 @@ export interface ProviderSegment {
   start: number
   end: number
   confidence?: number | null
+  avg_logprob?: number | null
+  no_speech_prob?: number | null
   words?: ProviderWord[]
 }
 
@@ -155,7 +158,7 @@ function normalizeWord(
   index: number,
   confidenceThreshold: number,
 ): CanonicalWord | null {
-  const text = cleanText(word.text)
+  const text = cleanText(word.text ?? word.word)
   const relativeStartMs = secondsToIntegerMs(word.start)
   const relativeEndMs = secondsToIntegerMs(word.end)
   if (!text || relativeStartMs === null || relativeEndMs === null || relativeEndMs <= relativeStartMs) return null
@@ -178,6 +181,11 @@ function normalizeWord(
     originalTranscriptionText: text,
     ...(warnings.length ? { warnings } : {}),
   }
+}
+
+function confidenceFromAverageLogProbability(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined
+  return clamp01(Math.exp(value))
 }
 
 function averageConfidence(values: Array<number | undefined>): number | undefined {
@@ -213,9 +221,13 @@ export function normalizeProviderTranscript(
       const startMs = timestampOffsetMs + relativeStartMs
       const endMs = timestampOffsetMs + relativeEndMs
       const segmentWordsInRange = words.filter(word => word.startMs >= startMs - 5 && word.endMs <= endMs + 5)
-      const confidence = clamp01(segment.confidence) ?? averageConfidence(segmentWordsInRange.map(word => word.confidence))
+      const confidence = clamp01(segment.confidence)
+        ?? confidenceFromAverageLogProbability(segment.avg_logprob)
+        ?? averageConfidence(segmentWordsInRange.map(word => word.confidence))
       const cueWarnings: string[] = []
       if (confidence !== undefined && confidence < safeThreshold) cueWarnings.push('low_confidence')
+      const noSpeechProbability = clamp01(segment.no_speech_prob)
+      if (noSpeechProbability !== undefined && noSpeechProbability >= safeThreshold) cueWarnings.push('possible_silence', 'provider_warning')
       if (segmentWordsInRange.length === 0 && words.length > 0) cueWarnings.push('missing_word_timing')
       return {
         id: stableId('segment', index, startMs, endMs),

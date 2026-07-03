@@ -14,6 +14,14 @@ const finalAuditSql = compact(finalAuditMigrationSql)
 const preparedAudioSql = compact(preparedAudioMigrationSql)
 const groqProviderSql = compact(groqProviderMigrationSql)
 
+const edgeBlock = (start: string, end: string) => {
+  const startIndex = edgeFunctionSource.indexOf(start)
+  const endIndex = edgeFunctionSource.indexOf(end, startIndex)
+  expect(startIndex).toBeGreaterThanOrEqual(0)
+  expect(endIndex).toBeGreaterThan(startIndex)
+  return edgeFunctionSource.slice(startIndex, endIndex)
+}
+
 const supportedProviders = ['groq', 'openai', 'custom'] as const satisfies readonly LyricTranscriptionProviderName[]
 
 describe('secure lyric transcription contracts', () => {
@@ -111,12 +119,33 @@ describe('secure lyric transcription contracts', () => {
 
   it('keeps provider credentials server-only with no browser-exposed provider key', () => {
     expect(edgeFunctionSource).toContain("requiredEnv('GROQ_API_KEY')")
+    expect(edgeFunctionSource).toContain("Deno.env.get('GROQ_TRANSCRIPTION_MODEL')")
     expect(edgeFunctionSource).toContain("requiredEnv('LYRIC_TRANSCRIPTION_ENDPOINT_TOKEN')")
     expect(clientSource).not.toMatch(/VITE_(OPENAI|GROQ|ANTHROPIC|DEEPGRAM|ASSEMBLYAI|WHISPER)/)
     expect(edgeFunctionSource).not.toMatch(/VITE_(OPENAI|GROQ|ANTHROPIC|DEEPGRAM|ASSEMBLYAI|WHISPER)/)
     expect(edgeFunctionSource).toContain('https://api.groq.com/openai/v1/audio/transcriptions')
     expect(edgeFunctionSource).not.toContain('https://api.openai.com/v1/audio/transcriptions')
+    expect(edgeFunctionSource).not.toContain("requiredEnv('OPENAI_API_KEY')")
+    expect(edgeFunctionSource).not.toContain('OPENAI_TRANSCRIPTION_MODEL')
     expect(edgeFunctionSource).toContain("form.append('temperature', '0')")
+  })
+
+  it('locks the active Groq Whisper runtime contract while keeping OpenAI historical only', () => {
+    const createJobBlock = edgeBlock('async function createJob(', 'async function updateJob(')
+    const runtimeProviderBlock = edgeBlock('function runtimeProviderForJob(', 'function safeOptions(')
+    const groqProviderBlock = edgeBlock('async function runGroqProvider(', 'async function runPreparedAudioProvider(')
+
+    expect(edgeFunctionSource).toContain("const GROQ_TRANSCRIPTION_ENDPOINT = 'https://api.groq.com/openai/v1/audio/transcriptions'")
+    expect(groqProviderBlock).toContain("requiredEnv('GROQ_API_KEY')")
+    expect(groqProviderBlock).toContain("Deno.env.get('GROQ_TRANSCRIPTION_MODEL')")
+    expect(groqProviderBlock).toContain('requestGroqTranscript')
+    expect(edgeFunctionSource).not.toContain('https://api.openai.com/v1/audio/transcriptions')
+    expect(edgeFunctionSource).not.toContain('requestOpenAITranscript')
+    expect(createJobBlock).toContain('const provider = configuredProvider()')
+    expect(createJobBlock).toContain('provider,')
+    expect(runtimeProviderBlock).toContain("provider === 'custom' ? 'custom' : 'groq'")
+    expect(runtimeProviderBlock).not.toContain("provider === 'openai'")
+    expect(edgeFunctionSource).toContain('Historical OpenAI rows stay readable')
   })
 
   it('creates a new inactive AI draft and completes document, cues, and job in one RPC transaction', () => {
@@ -156,6 +185,28 @@ describe('secure lyric transcription contracts', () => {
     expect(edgeFunctionSource).toContain("processingMode = 'direct'")
   })
 
+  it('sets chunk totals before chunk requests and validates prepared audio invariants', () => {
+    const runGroqBlock = edgeBlock('async function runGroqProvider(', 'async function runPreparedAudioProvider(')
+    const preparedManifestBlock = edgeBlock('function preparedAudioManifest(', 'function publicJob(')
+    const preparedRunBlock = edgeBlock('async function runPreparedAudioProvider(', 'async function runCustomProvider(')
+    const wavPlanIndex = runGroqBlock.indexOf('plan = planWavTranscriptionChunks')
+    const plannedChunksIndex = runGroqBlock.indexOf('if (plannedChunks) await plannedChunks(plan.chunks.length)')
+    const chunkRequestIndex = runGroqBlock.indexOf('const payload = await requestGroqTranscript(', plannedChunksIndex)
+    const preparedUpdateIndex = edgeFunctionSource.indexOf('chunksTotal: prepared.chunks.length')
+    const preparedRunIndex = edgeFunctionSource.indexOf('providerResult = await runPreparedAudioProvider(')
+
+    expect(wavPlanIndex).toBeGreaterThanOrEqual(0)
+    expect(plannedChunksIndex).toBeGreaterThan(wavPlanIndex)
+    expect(chunkRequestIndex).toBeGreaterThan(plannedChunksIndex)
+    expect(preparedUpdateIndex).toBeGreaterThanOrEqual(0)
+    expect(preparedRunIndex).toBeGreaterThan(preparedUpdateIndex)
+    expect(preparedManifestBlock).toContain("storagePath.startsWith(`${track.user_id}/`)")
+    expect(preparedManifestBlock).toContain("item.mimeType !== 'audio/wav'")
+    expect(preparedManifestBlock).toContain('byteSize === null || byteSize <= 44 || byteSize > maxChunkBytes')
+    expect(preparedRunBlock).toContain('blob.size !== chunk.byteSize || blob.size > safeBytes')
+    expect(preparedRunBlock).toContain('!isRiffWave(bytes)')
+  })
+
 
   it('stores bounded user-owned prepared-audio manifests on audio tracks', () => {
     expect(preparedAudioSql).toContain('ADD COLUMN IF NOT EXISTS transcription_assets jsonb')
@@ -175,6 +226,36 @@ describe('secure lyric transcription contracts', () => {
     expect(edgeFunctionSource).toContain("processingStage: 'saving'")
     expect(edgeFunctionSource).toContain('chunksCompleted')
     expect(edgeFunctionSource).toContain('chunksTotal')
+  })
+
+  it('sanitizes and bounds provider metadata before persisting raw previews', () => {
+    const sanitizerBlock = edgeBlock('function shouldRedactProviderMetadataKey(', 'function databaseCue(')
+
+    expect(edgeFunctionSource).toContain('RAW_PROVIDER_METADATA_LIMIT = 120_000')
+    expect(sanitizerBlock).toContain("lower.includes('key')")
+    expect(sanitizerBlock).toContain("lower.includes('token')")
+    expect(sanitizerBlock).toContain("lower.includes('authorization')")
+    expect(sanitizerBlock).toContain("lower.includes('signedurl')")
+    expect(sanitizerBlock).toContain("lower.includes('url')")
+    expect(sanitizerBlock).toContain("lower.includes('path')")
+    expect(sanitizerBlock).toContain('/https?:\\/\\//i.test(value)')
+    expect(sanitizerBlock).toContain('/storage\\/v1\\/object/i.test(value)')
+    expect(sanitizerBlock).toContain("return '[redacted]'")
+    expect(sanitizerBlock).toContain('serialized.slice(0, RAW_PROVIDER_METADATA_LIMIT)')
+    expect(sanitizerBlock).toContain('rawResponsePreview: serialized')
+    expect(finalAuditSql).toContain('octet_length(provider_metadata::text) <= 524288')
+  })
+
+  it('stores global lyric offset separately instead of baking it into cue timestamps', () => {
+    const databaseCueBlock = edgeBlock('function databaseCue(', 'async function processJob(')
+    const normalizationBlock = edgeBlock('const normalizedUnits = providerResult.transcripts.map', 'const providerMetadata = {')
+
+    expect(databaseCueBlock).toContain('start_ms: Math.max(0, Math.round(cue.startMs))')
+    expect(databaseCueBlock).toContain('end_ms: Math.max(1, Math.round(cue.endMs))')
+    expect(databaseCueBlock).not.toContain('globalOffset')
+    expect(normalizationBlock).toContain('global_offset_ms: finiteNumber(job.request_options.globalOffsetMs) ?? 0')
+    expect(normalizationBlock).not.toContain('cue.startMs +')
+    expect(normalizationBlock).not.toContain('cue.endMs +')
   })
 
   it('passes request options through the full pipeline including WAV chunking and custom provider', () => {
