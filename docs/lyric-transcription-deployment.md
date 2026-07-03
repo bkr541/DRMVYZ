@@ -94,18 +94,38 @@ supabase functions logs lyric-transcription --tail
 
 ## Verification
 
-1. Run `supabase db push`.
-2. Deploy the function.
-3. Reload the DRMVYZ frontend so it includes the browser preparation and offline-guard code.
-4. Confirm new queued jobs store `provider: "groq"` and display as `Groq Whisper` in the extractor.
-5. Test a small file. The completed job should show `processingMode: "direct"`.
-6. Test an oversized PCM WAV. It may use `wav-chunking` or `prepared-audio` depending on whether DRMVYZ prepared it before the job began.
-7. Test an oversized MP3 or M4A. The UI should show local download, decode, encode, and upload progress, followed by a completed job with `processingMode: "prepared-audio"` and model/chunk metadata when available.
-8. Confirm `provider_metadata.fnVersion` and `pipelineVersion` are `3.0.0`.
-9. Confirm `audio_tracks.transcription_assets` contains only private chunk metadata and no signed URLs.
-10. Turn off network access or use browser offline simulation. The extractor button should be disabled and show: `Lyric extraction requires an internet connection. Connect to the internet and try again.`
+Run the local app checks before deploying the Edge Function:
 
-A source codec the browser cannot decode produces `unsupported_audio_codec`. In that case, convert the source to a browser-decodable format or configure the optional worker fallback.
+```bash
+npm run typecheck
+npm run test
+npm run build
+```
+
+Apply migrations and deploy the server-owned transcription function from a Supabase-linked environment:
+
+```bash
+supabase db push
+supabase secrets set --env-file supabase/functions/.env.local
+supabase functions deploy lyric-transcription
+```
+
+The Supabase CLI commands require a linked project, authenticated CLI session, and network access to Supabase. If a local sandbox or CI worker does not have those credentials or outbound access, record them as not runnable there and execute them from the deployment environment instead.
+
+Sample manual extraction test steps:
+
+1. Reload the DRMVYZ frontend so it includes the browser preparation and offline-guard code.
+2. Confirm new queued jobs store `provider: "groq"` and display as `Groq Whisper` in the extractor.
+3. Test a small file. The completed job should show `processingMode: "direct"`.
+4. Test an oversized PCM WAV. It may use `wav-chunking` or `prepared-audio` depending on whether DRMVYZ prepared it before the job began.
+5. Test an oversized MP3 or M4A. The UI should show local download, decode, encode, and upload progress, followed by a completed job with `processingMode: "prepared-audio"` and model/chunk metadata when available.
+6. Confirm `provider_metadata.fnVersion` and `pipelineVersion` are `3.0.0`.
+7. Confirm `audio_tracks.transcription_assets` contains only private chunk metadata and no signed URLs.
+8. Turn off network access or use browser offline simulation. The extractor button should be disabled and show: `Lyric extraction requires an internet connection. Connect to the internet and try again.`
+9. Return the browser online and confirm extraction can start again without reloading.
+10. Simulate a provider/network failure and confirm the UI shows a useful sanitized error without stack traces, signed URLs, storage paths, tokens, or keys.
+
+A source codec the browser cannot decode shows a browser-decode error before local preparation completes. The UI then lets the Edge Function try the secure server fallback when that fallback is configured; otherwise, convert the source to a browser-decodable format such as MP3, M4A, WAV, or OGG.
 
 ## Retry and rate-limit troubleshooting
 

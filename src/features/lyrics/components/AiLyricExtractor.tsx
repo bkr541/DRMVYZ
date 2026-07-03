@@ -103,6 +103,11 @@ function isPreparationRecoverableError(job: LyricTranscriptionJob | null): boole
     || job?.errorCode === 'prepared_audio_invalid'
 }
 
+function isBrowserCodecFallbackError(error: unknown): boolean {
+  return error instanceof Error
+    && error.message.toLowerCase().includes('could not be decoded in the browser')
+}
+
 export function chooseRecoveredJob(jobs: LyricTranscriptionJob[]): LyricTranscriptionJob | null {
   return jobs.find(isActiveLyricTranscriptionJob) ?? jobs[0] ?? null
 }
@@ -231,10 +236,19 @@ export function AiLyricExtractor({
     try {
       const controller = new AbortController()
       preparationAbortRef.current = controller
-      const preparation = await ensurePreparedTranscriptionAudio(selectedTrack, {
-        signal: controller.signal,
-        onProgress: setLocalPreparation,
-      })
+      let preparation = { prepared: false }
+      let usingServerFallback = false
+      try {
+        preparation = await ensurePreparedTranscriptionAudio(selectedTrack, {
+          signal: controller.signal,
+          onProgress: setLocalPreparation,
+        })
+      } catch (preparationError) {
+        if (preparationError instanceof DOMException && preparationError.name === 'AbortError') throw preparationError
+        if (!isBrowserCodecFallbackError(preparationError)) throw preparationError
+        usingServerFallback = true
+        setLocalPreparation(null)
+      }
       preparationAbortRef.current = null
       const result = await startLyricTranscription(selectedTrack.dbId, options)
       setLocalPreparation(null)
@@ -244,9 +258,11 @@ export function AiLyricExtractor({
       previewDocumentId.current = null
       setNotice(result.duplicate
         ? 'An extraction is already running for this track. Its status has been resumed.'
-        : preparation.prepared
-          ? 'Groq-ready audio prepared privately and extraction queued.'
-          : 'Extraction queued. You can leave Lyric Manager and return without losing the job.')
+        : usingServerFallback
+          ? 'Browser audio preparation could not decode this file. Extraction queued through the secure server fallback if it is configured.'
+          : preparation.prepared
+            ? 'Groq-ready audio prepared privately and extraction queued.'
+            : 'Extraction queued. You can leave Lyric Manager and return without losing the job.')
     } catch (startError) {
       if (!(startError instanceof DOMException && startError.name === 'AbortError')) {
         setError(startError instanceof Error ? startError.message : 'Failed to start lyric extraction.')
@@ -290,11 +306,17 @@ export function AiLyricExtractor({
       if (selectedTrack) {
         const controller = new AbortController()
         preparationAbortRef.current = controller
-        await ensurePreparedTranscriptionAudio(selectedTrack, {
-          signal: controller.signal,
-          onProgress: setLocalPreparation,
-          force: job.errorCode === 'prepared_audio_missing' || job.errorCode === 'prepared_audio_invalid',
-        })
+        try {
+          await ensurePreparedTranscriptionAudio(selectedTrack, {
+            signal: controller.signal,
+            onProgress: setLocalPreparation,
+            force: job.errorCode === 'prepared_audio_missing' || job.errorCode === 'prepared_audio_invalid',
+          })
+        } catch (preparationError) {
+          if (preparationError instanceof DOMException && preparationError.name === 'AbortError') throw preparationError
+          if (!isBrowserCodecFallbackError(preparationError)) throw preparationError
+          setLocalPreparation(null)
+        }
         preparationAbortRef.current = null
       }
       const result = await retryLyricTranscription(job.id)

@@ -156,6 +156,36 @@ describe('secure lyric transcription contracts', () => {
     expect(edgeFunctionSource).toContain('Historical OpenAI rows stay readable')
   })
 
+  it('requests Groq verbose JSON with word and segment timestamps under bounded runtime settings', () => {
+    const requestBlock = edgeBlock('async function requestGroqTranscript(', 'function wavChunkingFailure(')
+    const concurrencyBlock = edgeBlock('function groqTranscriptionConcurrency(', 'function groqProviderTimeoutMs(')
+
+    expect(edgeFunctionSource).toContain("const DEFAULT_GROQ_TRANSCRIPTION_MODEL = 'whisper-large-v3-turbo'")
+    expect(edgeFunctionSource).toContain('DEFAULT_GROQ_PROVIDER_TIMEOUT_MS = 180_000')
+    expect(edgeFunctionSource).toContain('groqProviderTimeoutMs()')
+    expect(concurrencyBlock).toContain("positiveEnvInteger('GROQ_TRANSCRIPTION_CONCURRENCY'")
+    expect(concurrencyBlock).toContain('DEFAULT_GROQ_CHUNK_CONCURRENCY, 4')
+    expect(requestBlock).toContain("form.append('response_format', 'verbose_json')")
+    expect(requestBlock).toContain("form.append('timestamp_granularities[]', 'segment')")
+    expect(requestBlock).toContain("form.append('timestamp_granularities[]', 'word')")
+    expect(requestBlock).toContain('fetchWithTimeout(GROQ_TRANSCRIPTION_ENDPOINT')
+    expect(requestBlock).toContain('timeoutMs')
+    expect(edgeFunctionSource).toContain("new TranscriptionError('provider_authentication_failed'")
+    expect(edgeFunctionSource).toContain("new TranscriptionError('provider_timeout'")
+    expect(edgeFunctionSource).toContain("new TranscriptionError('rate_limit'")
+  })
+
+  it('keeps active OpenAI transcription residue out of runtime code', () => {
+    expect(edgeFunctionSource).not.toContain('api.openai.com/v1/audio/transcriptions')
+    expect(edgeFunctionSource).not.toContain('whisper-1')
+    expect(edgeFunctionSource).not.toContain('OPENAI_API_KEY')
+    expect(edgeFunctionSource).not.toContain('OPENAI_TRANSCRIPTION_MODEL')
+    expect(edgeFunctionSource).not.toContain('requestOpenAITranscript')
+    expect(clientSource).not.toMatch(/openai.*startLyricTranscription|startLyricTranscription.*openai/i)
+    expect(rootEnvExample).not.toMatch(/OPENAI|whisper-1/)
+    expect(edgeEnvExample).not.toMatch(/OPENAI|whisper-1/)
+  })
+
   it('keeps Groq environment and documentation canonical without frontend transcription secrets', () => {
     expect(edgeEnvExample).toContain('GROQ_API_KEY=replace-with-server-secret')
     expect(edgeEnvExample).toContain('GROQ_TRANSCRIPTION_MODEL=whisper-large-v3-turbo')
@@ -167,6 +197,15 @@ describe('secure lyric transcription contracts', () => {
     expect(deploymentGuide).toContain('There is intentionally no `VITE_GROQ_API_KEY`')
     expect(deploymentGuide).toContain('Browser users do not send audio or credentials directly to Groq')
     expect(deploymentGuide).toContain('Retry and rate-limit troubleshooting')
+    expect(deploymentGuide).toContain('npm run typecheck')
+    expect(deploymentGuide).toContain('npm run test')
+    expect(deploymentGuide).toContain('npm run build')
+    expect(deploymentGuide).toContain('supabase db push')
+    expect(deploymentGuide).toContain('supabase secrets set --env-file supabase/functions/.env.local')
+    expect(deploymentGuide).toContain('supabase functions deploy lyric-transcription')
+    expect(deploymentGuide).toContain('requires a linked project, authenticated CLI session, and network access')
+    expect(deploymentGuide).toContain('browser-decode error')
+    expect(deploymentGuide).not.toContain('unsupported_audio_codec')
     expect(deploymentGuide).not.toContain('OPENAI_API_KEY')
     expect(deploymentGuide).not.toContain('whisper-1')
     expect(musicIntelligenceDoc).toContain('Groq Whisper is the canonical online provider for new jobs')
@@ -209,6 +248,8 @@ describe('secure lyric transcription contracts', () => {
     expect(edgeFunctionSource).toContain("processingMode = 'wav-chunking'")
     expect(edgeFunctionSource).toContain("processingMode = 'prepared-audio'")
     expect(edgeFunctionSource).toContain("processingMode = 'direct'")
+    expect(extractorSource).toContain('isBrowserCodecFallbackError')
+    expect(extractorSource).toContain('Extraction queued through the secure server fallback')
   })
 
   it('sets chunk totals before chunk requests and validates prepared audio invariants', () => {

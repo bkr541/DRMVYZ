@@ -302,6 +302,61 @@ describe('AI lyric extractor internet-required guard', () => {
     expect(buttonByText('Start Automatic Extraction').disabled).toBe(true)
     expect(container!.textContent).toContain(OFFLINE_LYRIC_EXTRACTION_MESSAGE)
   })
+
+  it('allows extraction again after the browser comes back online', async () => {
+    setNavigatorOnline(false)
+    await renderExtractor()
+    expect(buttonByText('Start Automatic Extraction').disabled).toBe(true)
+
+    setNavigatorOnline(true)
+    await act(async () => window.dispatchEvent(new Event('online')))
+
+    const button = buttonByText('Start Automatic Extraction')
+    expect(button.disabled).toBe(false)
+
+    await act(async () => button.click())
+    await flush()
+
+    expect(mocks.ensurePreparedTranscriptionAudio).toHaveBeenCalled()
+    expect(mocks.functionsInvoke).toHaveBeenCalledWith('lyric-transcription', {
+      body: {
+        action: 'start',
+        audioTrackId: 'track-1',
+        options: expect.objectContaining({ timingDetail: 'line+word' }),
+      },
+    })
+    expect(container!.textContent).toContain('Extraction queued')
+  })
+
+  it('keeps provider network failures useful without implying local offline transcription', async () => {
+    mocks.functionsInvoke.mockResolvedValueOnce({
+      data: { error: { code: 'provider_unavailable', message: 'The transcription provider could not be reached.' } },
+      error: null,
+    })
+
+    await renderExtractor()
+    await act(async () => buttonByText('Start Automatic Extraction').click())
+    await flush()
+
+    expect(mocks.ensurePreparedTranscriptionAudio).toHaveBeenCalled()
+    expect(container!.textContent).toContain('The transcription provider could not be reached.')
+    expect(container!.textContent).not.toContain('offline transcription')
+  })
+
+  it('continues to the secure server fallback when browser codec preparation cannot decode the track', async () => {
+    mocks.ensurePreparedTranscriptionAudio.mockRejectedValueOnce(
+      new Error('This audio file could not be decoded in the browser. Convert it to a supported format (MP3, M4A, WAV, OGG) or configure the optional worker fallback.'),
+    )
+
+    await renderExtractor()
+    await act(async () => buttonByText('Start Automatic Extraction').click())
+    await flush()
+
+    expect(mocks.functionsInvoke).toHaveBeenCalledWith('lyric-transcription', {
+      body: expect.objectContaining({ action: 'start', audioTrackId: 'track-1' }),
+    })
+    expect(container!.textContent).toContain('secure server fallback')
+  })
 })
 
 describe('AI lyric extractor provider labels and retries', () => {

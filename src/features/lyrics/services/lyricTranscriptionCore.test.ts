@@ -291,6 +291,93 @@ describe('lyric transcription normalization core', () => {
     expect(cues[0].reviewStatus).toBe('unreviewed')
   })
 
+  it('reconciles overlapping WAV chunk transcripts without duplicating boundary words', () => {
+    const firstUnit = { index: 0, startMs: 0, endMs: 8_000, overlapBeforeMs: 0, overlapAfterMs: 2_000 }
+    const secondUnit = { index: 1, startMs: 6_000, endMs: 14_000, overlapBeforeMs: 2_000, overlapAfterMs: 0 }
+    const reconciled = reconcileTranscriptUnits([
+      normalizeProviderTranscript({
+        text: 'we rise',
+        language: 'en',
+        duration: 8,
+        words: [
+          { word: 'we', start: 5.5, end: 5.8, confidence: 0.82 },
+          { word: 'rise', start: 6.2, end: 6.7, confidence: 0.64 },
+        ],
+      }, firstUnit),
+      normalizeProviderTranscript({
+        text: 'rise again',
+        language: 'en',
+        duration: 8,
+        words: [
+          { word: 'rise', start: 0.2, end: 0.7, confidence: 0.93 },
+          { word: 'again', start: 1, end: 1.4, confidence: 0.9 },
+        ],
+      }, secondUnit),
+    ])
+
+    expect(reconciled.words.map(word => word.text)).toEqual(['we', 'rise', 'again'])
+    expect(reconciled.words.find(word => word.text === 'rise')?.confidence).toBe(0.93)
+    expect(reconciled.warnings).not.toContain('chunk_boundary_uncertain')
+  })
+
+  it('reconciles browser-prepared overlapping chunks on the source timeline', () => {
+    const firstPreparedChunk = { index: 0, startMs: 0, endMs: 23_000, overlapBeforeMs: 0, overlapAfterMs: 3_000 }
+    const secondPreparedChunk = { index: 1, startMs: 20_000, endMs: 43_000, overlapBeforeMs: 3_000, overlapAfterMs: 3_000 }
+    const reconciled = reconcileTranscriptUnits([
+      normalizeProviderTranscript({
+        text: 'take my hand',
+        language: 'en',
+        duration: 23,
+        words: [
+          { word: 'take', start: 20.4, end: 20.8, confidence: 0.88 },
+          { word: 'my', start: 21, end: 21.2, confidence: 0.7 },
+          { word: 'hand', start: 21.3, end: 21.75, confidence: 0.74 },
+        ],
+      }, firstPreparedChunk),
+      normalizeProviderTranscript({
+        text: 'my hand lead',
+        language: 'en',
+        duration: 23,
+        words: [
+          { word: 'my', start: 1, end: 1.2, confidence: 0.95 },
+          { word: 'hand', start: 1.3, end: 1.75, confidence: 0.96 },
+          { word: 'lead', start: 4, end: 4.42, confidence: 0.86 },
+        ],
+      }, secondPreparedChunk),
+    ])
+    const cues = selectUsefulCues(reconciled)
+
+    expect(reconciled.words.map(word => `${word.text}@${word.startMs}`)).toEqual([
+      'take@20400',
+      'my@21000',
+      'hand@21300',
+      'lead@24000',
+    ])
+    expect(reconciled.words.find(word => word.text === 'hand')?.confidence).toBe(0.96)
+    expect(cues[0].text).toBe('take my hand lead')
+  })
+
+  it('returns no usable cues when Groq verbose_json has no valid word or segment timing', () => {
+    const unit = planTranscriptionUnits(5_000)[0]
+    const normalized = reconcileTranscriptUnits([
+      normalizeProviderTranscript({
+        text: 'untimed lyrics only',
+        language: 'en',
+        duration: 5,
+        words: [
+          { word: 'untimed', start: -1, end: 0.2 },
+          { word: 'bad', start: 2, end: 1.8 },
+        ],
+        segments: [
+          { text: 'also bad', start: 3, end: 3 },
+        ],
+      }, unit),
+    ])
+
+    expect(normalized.warnings).toContain('provider_warning')
+    expect(selectUsefulCues(normalized)).toHaveLength(0)
+  })
+
   it('keeps chunk unit offsets but does not bake document global offset into cue timestamps', () => {
     const unit = { index: 2, startMs: 12_000, endMs: 18_000, overlapBeforeMs: 500, overlapAfterMs: 0 }
     const normalized = reconcileTranscriptUnits([
