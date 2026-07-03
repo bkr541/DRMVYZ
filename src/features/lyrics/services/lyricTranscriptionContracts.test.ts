@@ -40,9 +40,9 @@ describe('secure lyric transcription contracts', () => {
     expect(groqProviderSql).toContain("provider IN ('groq', 'openai', 'custom')")
     expect(groqProviderSql).not.toContain('UPDATE public.lyric_transcription_jobs')
     expect(edgeFunctionSource).toContain("type LyricTranscriptionProviderName = 'groq' | 'openai' | 'custom'")
-    expect(edgeFunctionSource).toContain("function configuredProvider(): 'groq' | 'custom'")
-    expect(edgeFunctionSource).toContain(": 'groq'")
-    expect(edgeFunctionSource).toContain('legacy OpenAI path')
+    expect(edgeFunctionSource).toContain("function configuredProvider(): 'groq'")
+    expect(edgeFunctionSource).toContain("return 'groq'")
+    expect(edgeFunctionSource).toContain('Historical OpenAI rows stay readable')
   })
 
   it('verifies audio-track ownership and prevents duplicate active jobs server-side', () => {
@@ -77,7 +77,8 @@ describe('secure lyric transcription contracts', () => {
       'missing_stored_file',
       'authorization_failure',
       'provider_configuration_missing',
-      'provider_rejection',
+      'provider_authentication_failed',
+      'provider_unavailable',
       'provider_timeout',
       'rate_limit',
       'storage_failure',
@@ -90,10 +91,13 @@ describe('secure lyric transcription contracts', () => {
   })
 
   it('keeps provider credentials server-only with no browser-exposed provider key', () => {
-    expect(edgeFunctionSource).toContain("requiredEnv('OPENAI_API_KEY')")
+    expect(edgeFunctionSource).toContain("requiredEnv('GROQ_API_KEY')")
     expect(edgeFunctionSource).toContain("requiredEnv('LYRIC_TRANSCRIPTION_ENDPOINT_TOKEN')")
     expect(clientSource).not.toMatch(/VITE_(OPENAI|GROQ|ANTHROPIC|DEEPGRAM|ASSEMBLYAI|WHISPER)/)
     expect(edgeFunctionSource).not.toMatch(/VITE_(OPENAI|GROQ|ANTHROPIC|DEEPGRAM|ASSEMBLYAI|WHISPER)/)
+    expect(edgeFunctionSource).toContain('https://api.groq.com/openai/v1/audio/transcriptions')
+    expect(edgeFunctionSource).not.toContain('https://api.openai.com/v1/audio/transcriptions')
+    expect(edgeFunctionSource).toContain("form.append('temperature', '0')")
   })
 
   it('creates a new inactive AI draft and completes document, cues, and job in one RPC transaction', () => {
@@ -111,9 +115,9 @@ describe('secure lyric transcription contracts', () => {
     expect(edgeFunctionSource).toContain('planTranscriptionUnits(durationMs, { forceChunking: false })')
     expect(edgeFunctionSource).toContain('planWavTranscriptionChunks(sourceBytes')
     expect(edgeFunctionSource).toContain('buildWavTranscriptionChunk(sourceBytes, plan, descriptor)')
-    expect(edgeFunctionSource).toContain('providerTranscriptionConcurrency(provider)')
+    expect(edgeFunctionSource).toContain('providerTranscriptionConcurrency()')
     expect(edgeFunctionSource).toContain('GROQ_TRANSCRIPTION_CONCURRENCY')
-    expect(edgeFunctionSource).toContain('OPENAI_TRANSCRIPTION_CONCURRENCY')
+    expect(edgeFunctionSource).not.toContain('OPENAI_TRANSCRIPTION_CONCURRENCY')
     expect(edgeFunctionSource).toContain('reconcileTranscriptUnits(normalizedUnits)')
   })
 
@@ -156,7 +160,7 @@ describe('secure lyric transcription contracts', () => {
 
   it('passes request options through the full pipeline including WAV chunking and custom provider', () => {
     expect(edgeFunctionSource).toContain('job.request_options')
-    expect(edgeFunctionSource).toContain('runOpenAIProvider(audioBlob, track, job.request_options')
+    expect(edgeFunctionSource).toContain('runGroqProvider(audioBlob, track, job.request_options')
     expect(edgeFunctionSource).toContain('runCustomProvider(adminClient, track, job.request_options)')
     expect(edgeFunctionSource).toContain('safeOptions(job.request_options)')
   })

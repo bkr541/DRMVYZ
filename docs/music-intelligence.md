@@ -186,8 +186,8 @@ These are not implemented in the browser. Use the `StemAnalysisBackend` interfac
 | **pyloudnorm** | LUFS loudness normalization |
 | **torch** | Custom ML models for mood, genre, structure |
 
-Lyric transcription is routed through `supabase/functions/lyric-transcription` and currently requires an internet connection. Groq Whisper is the intended provider for new jobs, called server-side from the Supabase Edge Function. Browser users never call Groq directly and no transcription credentials should be exposed through `VITE_*` variables.
+Lyric transcription is routed through `supabase/functions/lyric-transcription` and currently requires an internet connection. Groq Whisper is the active provider for new jobs, called server-side from the Supabase Edge Function. Browser users never call Groq directly and no transcription credentials should be exposed through `VITE_*` variables.
 
-OpenAI is retained only as legacy historical/transitional compatibility during the staged provider replacement. Existing lyric document saving, cue saving, word timing, chunk reconciliation, retry/cancel behavior, and private browser-prepared audio storage remain unchanged.
+Historical OpenAI-era job rows remain readable for compatibility, but active transcription execution and retries route through Groq. Existing lyric document saving, cue saving, word timing, chunk reconciliation, retry/cancel behavior, and private browser-prepared audio storage remain unchanged.
 
 The direct provider route keeps compatible files under the provider byte limit as one request. Oversized uncompressed PCM or IEEE-float WAV files are automatically split into valid overlapping RIFF/WAVE chunks, transcribed with bounded concurrency, and reconciled back onto the original track timeline. Oversized compressed containers are prepared in the browser as private mono PCM WAV chunks when possible; a source codec the browser cannot decode still requires conversion or the optional long-audio backend.
