@@ -467,7 +467,7 @@ describe('J. ShaderLibrary search and filter', () => {
       makeDef('b2', { category: 'particle' }),
       makeDef('b3', { category: 'fractal' }),
     ])
-    const results = lib.getAll({ category: 'fractal' })
+    const results = lib.getAll({ category: 'fractal', userOnly: true })
     expect(results.length).toBe(2)
   })
 

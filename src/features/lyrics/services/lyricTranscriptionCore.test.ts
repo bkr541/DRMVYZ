@@ -354,7 +354,12 @@ describe('lyric transcription normalization core', () => {
       'lead@24000',
     ])
     expect(reconciled.words.find(word => word.text === 'hand')?.confidence).toBe(0.96)
-    expect(cues[0].text).toBe('take my hand lead')
+    // The 2.25s pause between "hand" and "lead" should remain a lyric-line
+    // break. This fixture verifies overlap reconciliation without loosening the
+    // readable cue grouping behavior.
+    expect(cues.map(cue => cue.text)).toEqual(['take my hand', 'lead'])
+    expect(cues[0]).toMatchObject({ startMs: 20_400, endMs: 21_750 })
+    expect(cues[1]).toMatchObject({ startMs: 24_000, endMs: 24_420 })
   })
 
   it('returns no usable cues when Groq verbose_json has no valid word or segment timing', () => {

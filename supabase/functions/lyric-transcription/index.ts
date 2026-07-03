@@ -978,6 +978,7 @@ async function processJob(
     let providerResult: ProviderRunResult
     let processingMode: ProcessingMode = 'direct'
     const runtimeProvider = runtimeProviderForJob(job.provider)
+    let actualProvider: RuntimeTranscriptionProviderName = runtimeProvider
     const maxBytes = groqSafeAudioBytes()
     const prepared = runtimeProvider === 'groq' ? preparedAudioManifest(track, maxBytes) : null
 
@@ -1000,6 +1001,7 @@ async function processJob(
         progress: 0.15,
         provider_metadata: { processingStage: 'routing', fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION },
       })
+      actualProvider = 'custom'
       providerResult = await runCustomProvider(adminClient, track, job.request_options)
     } else if (prepared) {
       processingMode = 'prepared-audio'
@@ -1040,6 +1042,7 @@ async function processJob(
           progress: 0.15,
           provider_metadata: { processingStage: 'routing', fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION },
         })
+        actualProvider = 'custom'
         providerResult = await runCustomProvider(adminClient, track, job.request_options)
       } else {
         await updateJob(adminClient, job.id, {
@@ -1083,6 +1086,7 @@ async function processJob(
               progress: 0.2,
               provider_metadata: { processingStage: 'routing', fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION },
             })
+            actualProvider = 'custom'
             providerResult = await runCustomProvider(adminClient, track, job.request_options)
           } else {
             processingMode = 'wav-chunking'
@@ -1156,7 +1160,8 @@ async function processJob(
 
     const metadata = {
       extractionJobId: job.id,
-      provider: runtimeProvider,
+      provider: actualProvider,
+      requestedProvider: runtimeProvider,
       model: providerResult.model,
       language: reconciled.language,
       confidence: reconciled.confidence,
@@ -1181,12 +1186,13 @@ async function processJob(
       metadata,
     }
     const providerMetadata = {
-      provider: runtimeProvider,
+      provider: actualProvider,
+      requestedProvider: runtimeProvider,
       model: providerResult.model,
       processingMode,
       fnVersion: LYRIC_TRANSCRIPTION_FN_VERSION,
       pipelineVersion: LYRIC_TRANSCRIPTION_FN_VERSION,
-      preprocessingRuntime: processingMode === 'prepared-audio' ? 'browser-web-audio' : 'server',
+      preprocessingRuntime: processingMode === 'prepared-audio' ? 'browser-web-audio' : actualProvider === 'custom' ? 'custom-worker' : 'server',
       preparationVersion: prepared?.version ?? null,
       sourceFormat: track.mime_type ?? track.file_name.split('.').pop()?.toLowerCase() ?? null,
       preparedFormat: processingMode === 'prepared-audio' ? 'pcm16-wav' : null,

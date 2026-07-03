@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import type { LyricTranscriptionProviderName } from '../../../types/lyrics'
 import migrationSql from '../../../../supabase/migrations/0016_lyric_transcription_jobs.sql?raw'
@@ -7,10 +8,11 @@ import groqProviderMigrationSql from '../../../../supabase/migrations/0020_groq_
 import edgeFunctionSource from '../../../../supabase/functions/lyric-transcription/index.ts?raw'
 import clientSource from './lyricExtraction.ts?raw'
 import extractorSource from '../components/AiLyricExtractor.tsx?raw'
-import rootEnvExample from '../../../../.env.example?raw'
-import edgeEnvExample from '../../../../supabase/functions/.env.example?raw'
 import deploymentGuide from '../../../../docs/lyric-transcription-deployment.md?raw'
 import musicIntelligenceDoc from '../../../../docs/music-intelligence.md?raw'
+
+const rootEnvExample = readFileSync(new URL('../../../../.env.example', import.meta.url), 'utf8')
+const edgeEnvExample = readFileSync(new URL('../../../../supabase/functions/.env.example', import.meta.url), 'utf8')
 
 const compact = (value: string) => value.replace(/\s+/g, ' ').trim()
 const sql = compact(migrationSql)
@@ -187,6 +189,7 @@ describe('secure lyric transcription contracts', () => {
   })
 
   it('keeps Groq environment and documentation canonical without frontend transcription secrets', () => {
+    expect(edgeEnvExample).toContain('LYRIC_TRANSCRIPTION_PROVIDER=groq')
     expect(edgeEnvExample).toContain('GROQ_API_KEY=replace-with-server-secret')
     expect(edgeEnvExample).toContain('GROQ_TRANSCRIPTION_MODEL=whisper-large-v3-turbo')
     expect(edgeEnvExample).toContain('GROQ_FALLBACK_TRANSCRIPTION_MODEL=whisper-large-v3')
@@ -203,7 +206,7 @@ describe('secure lyric transcription contracts', () => {
     expect(deploymentGuide).toContain('supabase db push')
     expect(deploymentGuide).toContain('supabase secrets set --env-file supabase/functions/.env.local')
     expect(deploymentGuide).toContain('supabase functions deploy lyric-transcription')
-    expect(deploymentGuide).toContain('requires a linked project, authenticated CLI session, and network access')
+    expect(deploymentGuide).toContain('The Supabase CLI commands require a linked project, authenticated CLI session, and network access')
     expect(deploymentGuide).toContain('browser-decode error')
     expect(deploymentGuide).not.toContain('unsupported_audio_codec')
     expect(deploymentGuide).not.toContain('OPENAI_API_KEY')
