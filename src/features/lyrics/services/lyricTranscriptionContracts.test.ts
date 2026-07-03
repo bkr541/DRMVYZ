@@ -7,6 +7,10 @@ import groqProviderMigrationSql from '../../../../supabase/migrations/0020_groq_
 import edgeFunctionSource from '../../../../supabase/functions/lyric-transcription/index.ts?raw'
 import clientSource from './lyricExtraction.ts?raw'
 import extractorSource from '../components/AiLyricExtractor.tsx?raw'
+import rootEnvExample from '../../../../.env.example?raw'
+import edgeEnvExample from '../../../../supabase/functions/.env.example?raw'
+import deploymentGuide from '../../../../docs/lyric-transcription-deployment.md?raw'
+import musicIntelligenceDoc from '../../../../docs/music-intelligence.md?raw'
 
 const compact = (value: string) => value.replace(/\s+/g, ' ').trim()
 const sql = compact(migrationSql)
@@ -120,6 +124,7 @@ describe('secure lyric transcription contracts', () => {
   it('keeps provider credentials server-only with no browser-exposed provider key', () => {
     expect(edgeFunctionSource).toContain("requiredEnv('GROQ_API_KEY')")
     expect(edgeFunctionSource).toContain("Deno.env.get('GROQ_TRANSCRIPTION_MODEL')")
+    expect(edgeFunctionSource).toContain("Deno.env.get('GROQ_FALLBACK_TRANSCRIPTION_MODEL')")
     expect(edgeFunctionSource).toContain("requiredEnv('LYRIC_TRANSCRIPTION_ENDPOINT_TOKEN')")
     expect(clientSource).not.toMatch(/VITE_(OPENAI|GROQ|ANTHROPIC|DEEPGRAM|ASSEMBLYAI|WHISPER)/)
     expect(edgeFunctionSource).not.toMatch(/VITE_(OPENAI|GROQ|ANTHROPIC|DEEPGRAM|ASSEMBLYAI|WHISPER)/)
@@ -137,8 +142,11 @@ describe('secure lyric transcription contracts', () => {
 
     expect(edgeFunctionSource).toContain("const GROQ_TRANSCRIPTION_ENDPOINT = 'https://api.groq.com/openai/v1/audio/transcriptions'")
     expect(groqProviderBlock).toContain("requiredEnv('GROQ_API_KEY')")
-    expect(groqProviderBlock).toContain("Deno.env.get('GROQ_TRANSCRIPTION_MODEL')")
+    expect(edgeFunctionSource).toContain("Deno.env.get('GROQ_TRANSCRIPTION_MODEL')")
+    expect(edgeFunctionSource).toContain("Deno.env.get('GROQ_FALLBACK_TRANSCRIPTION_MODEL')")
     expect(groqProviderBlock).toContain('requestGroqTranscript')
+    expect(groqProviderBlock).toContain('groqTranscriptionModels()')
+    expect(edgeFunctionSource).toContain('shouldTryGroqFallback')
     expect(edgeFunctionSource).not.toContain('https://api.openai.com/v1/audio/transcriptions')
     expect(edgeFunctionSource).not.toContain('requestOpenAITranscript')
     expect(createJobBlock).toContain('const provider = configuredProvider()')
@@ -146,6 +154,24 @@ describe('secure lyric transcription contracts', () => {
     expect(runtimeProviderBlock).toContain("provider === 'custom' ? 'custom' : 'groq'")
     expect(runtimeProviderBlock).not.toContain("provider === 'openai'")
     expect(edgeFunctionSource).toContain('Historical OpenAI rows stay readable')
+  })
+
+  it('keeps Groq environment and documentation canonical without frontend transcription secrets', () => {
+    expect(edgeEnvExample).toContain('GROQ_API_KEY=replace-with-server-secret')
+    expect(edgeEnvExample).toContain('GROQ_TRANSCRIPTION_MODEL=whisper-large-v3-turbo')
+    expect(edgeEnvExample).toContain('GROQ_FALLBACK_TRANSCRIPTION_MODEL=whisper-large-v3')
+    expect(edgeEnvExample).not.toContain('OPENAI_API_KEY')
+    expect(edgeEnvExample).not.toContain('whisper-1')
+    expect(rootEnvExample).not.toMatch(/VITE_(OPENAI|GROQ|ANTHROPIC|DEEPGRAM|ASSEMBLYAI|WHISPER)/)
+    expect(deploymentGuide).toContain('Groq Whisper is the provider for new lyric transcription jobs')
+    expect(deploymentGuide).toContain('There is intentionally no `VITE_GROQ_API_KEY`')
+    expect(deploymentGuide).toContain('Browser users do not send audio or credentials directly to Groq')
+    expect(deploymentGuide).toContain('Retry and rate-limit troubleshooting')
+    expect(deploymentGuide).not.toContain('OPENAI_API_KEY')
+    expect(deploymentGuide).not.toContain('whisper-1')
+    expect(musicIntelligenceDoc).toContain('Groq Whisper is the canonical online provider for new jobs')
+    expect(musicIntelligenceDoc).not.toContain('whisperx')
+    expect(musicIntelligenceDoc).not.toContain('OpenAI-specific lyric transcription')
   })
 
   it('creates a new inactive AI draft and completes document, cues, and job in one RPC transaction', () => {
@@ -163,7 +189,7 @@ describe('secure lyric transcription contracts', () => {
     expect(edgeFunctionSource).toContain('planTranscriptionUnits(durationMs, { forceChunking: false })')
     expect(edgeFunctionSource).toContain('planWavTranscriptionChunks(sourceBytes')
     expect(edgeFunctionSource).toContain('buildWavTranscriptionChunk(sourceBytes, plan, descriptor)')
-    expect(edgeFunctionSource).toContain('providerTranscriptionConcurrency()')
+    expect(edgeFunctionSource).toContain('groqTranscriptionConcurrency()')
     expect(edgeFunctionSource).toContain('GROQ_TRANSCRIPTION_CONCURRENCY')
     expect(edgeFunctionSource).not.toContain('OPENAI_TRANSCRIPTION_CONCURRENCY')
     expect(edgeFunctionSource).toContain('reconcileTranscriptUnits(normalizedUnits)')
@@ -191,7 +217,7 @@ describe('secure lyric transcription contracts', () => {
     const preparedRunBlock = edgeBlock('async function runPreparedAudioProvider(', 'async function runCustomProvider(')
     const wavPlanIndex = runGroqBlock.indexOf('plan = planWavTranscriptionChunks')
     const plannedChunksIndex = runGroqBlock.indexOf('if (plannedChunks) await plannedChunks(plan.chunks.length)')
-    const chunkRequestIndex = runGroqBlock.indexOf('const payload = await requestGroqTranscript(', plannedChunksIndex)
+    const chunkRequestIndex = runGroqBlock.indexOf('const result = await requestGroqTranscript(', plannedChunksIndex)
     const preparedUpdateIndex = edgeFunctionSource.indexOf('chunksTotal: prepared.chunks.length')
     const preparedRunIndex = edgeFunctionSource.indexOf('providerResult = await runPreparedAudioProvider(')
 

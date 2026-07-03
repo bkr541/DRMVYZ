@@ -44,7 +44,8 @@ Groq tuning:
 | Variable | Default | Description |
 |---|---:|---|
 | `GROQ_TRANSCRIPTION_MODEL` | `whisper-large-v3-turbo` | Primary Groq Whisper model |
-| `GROQ_MAX_AUDIO_BYTES` | `26214400` | Documented provider file maximum |
+| `GROQ_FALLBACK_TRANSCRIPTION_MODEL` | unset | Optional retry model, commonly `whisper-large-v3`, for transient or model-specific Groq failures |
+| `GROQ_MAX_AUDIO_BYTES` | `26214400` | Documented Groq file maximum |
 | `GROQ_SAFE_AUDIO_BYTES` | `24117248` | Application-safe direct/chunk limit, clamped below the documented maximum |
 | `GROQ_CHUNK_SAFETY_BYTES` | `262144` | Additional reserve used by server-side WAV splitting |
 | `GROQ_TRANSCRIPTION_OVERLAP_MS` | `4000` | Server-side WAV overlap |
@@ -62,7 +63,7 @@ Optional worker fallback:
 
 The worker is no longer required for ordinary oversized songs. It is only a fallback when the current browser cannot decode the source codec or when a historical custom-provider job is resumed.
 
-Do not expose Groq, custom backend, or Supabase service-role secrets through any `VITE_*` variable.
+Do not expose Groq, custom backend, or Supabase service-role secrets through any `VITE_*` variable. There is intentionally no `VITE_GROQ_API_KEY`, and the browser must never call Groq directly.
 
 ## Processing modes
 
@@ -105,6 +106,14 @@ supabase functions logs lyric-transcription --tail
 10. Turn off network access or use browser offline simulation. The extractor button should be disabled and show: `Lyric extraction requires an internet connection. Connect to the internet and try again.`
 
 A source codec the browser cannot decode produces `unsupported_audio_codec`. In that case, convert the source to a browser-decodable format or configure the optional worker fallback.
+
+## Retry and rate-limit troubleshooting
+
+- `provider_configuration_missing`: set `GROQ_API_KEY` as a Supabase Edge Function secret, then redeploy or restart the local function runtime.
+- `provider_authentication_failed`: rotate the Groq key and confirm the deployed function is reading the server-side secret, not a browser `VITE_*` variable.
+- `rate_limit`: reduce `GROQ_TRANSCRIPTION_CONCURRENCY`, wait for the provider quota window, then retry the job from Lyric Manager.
+- `provider_timeout` or `provider_unavailable`: check Supabase function logs, confirm outbound internet access, and consider setting `GROQ_FALLBACK_TRANSCRIPTION_MODEL=whisper-large-v3` for one fallback attempt.
+- `transcription_asset_required`: reload the frontend and retry extraction so the browser can prepare private PCM WAV chunks before the Edge Function calls Groq.
 
 ## Security and cleanup
 

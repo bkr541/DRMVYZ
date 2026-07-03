@@ -34,6 +34,7 @@ const DEFAULT_GROQ_CHUNK_SAFETY_BYTES = 256 * 1024
 const DEFAULT_GROQ_CHUNK_OVERLAP_MS = 4_000
 const DEFAULT_GROQ_CHUNK_CONCURRENCY = 1
 const DEFAULT_GROQ_PROVIDER_TIMEOUT_MS = 180_000
+const DEFAULT_GROQ_TRANSCRIPTION_MODEL = 'whisper-large-v3-turbo'
 const DEFAULT_PROVIDER_TIMEOUT_MS = 180_000
 const GROQ_TRANSCRIPTION_ENDPOINT = 'https://api.groq.com/openai/v1/audio/transcriptions'
 
@@ -173,28 +174,25 @@ function groqSafeAudioBytes(): number {
   return Math.max(1024 * 1024, Math.min(configuredSafe, documentedMax - 256 * 1024))
 }
 
-function providerSafeAudioBytes(): number {
-  return groqSafeAudioBytes()
-}
 
-function providerDocumentedMaxAudioBytes(): number {
+function groqDocumentedMaxAudioBytes(): number {
   return positiveEnvNumber('GROQ_MAX_AUDIO_BYTES', DEFAULT_GROQ_MAX_BYTES)
 }
 
-function providerChunkSafetyBytes(maxBytes: number): number {
+function groqChunkSafetyBytes(maxBytes: number): number {
   const configuredSafety = positiveEnvNumber('GROQ_CHUNK_SAFETY_BYTES', DEFAULT_GROQ_CHUNK_SAFETY_BYTES)
   return Math.min(configuredSafety, Math.max(1, Math.floor(maxBytes / 8)))
 }
 
-function providerTranscriptionOverlapMs(): number {
+function groqTranscriptionOverlapMs(): number {
   return positiveEnvNumber('GROQ_TRANSCRIPTION_OVERLAP_MS', DEFAULT_GROQ_CHUNK_OVERLAP_MS)
 }
 
-function providerTranscriptionConcurrency(): number {
+function groqTranscriptionConcurrency(): number {
   return positiveEnvInteger('GROQ_TRANSCRIPTION_CONCURRENCY', DEFAULT_GROQ_CHUNK_CONCURRENCY, 4)
 }
 
-function providerTimeoutMs(): number {
+function groqProviderTimeoutMs(): number {
   return positiveEnvNumber('GROQ_PROVIDER_TIMEOUT_MS', DEFAULT_GROQ_PROVIDER_TIMEOUT_MS)
 }
 
@@ -550,7 +548,7 @@ function reliableTranscriptDurationMs(transcript: ProviderTranscript, fallbackDu
   return durationMs
 }
 
-function providerChunkFileName(fileName: string, index: number): string {
+function groqChunkFileName(fileName: string, index: number): string {
   const extensionIndex = fileName.lastIndexOf('.')
   const base = extensionIndex > 0 ? fileName.slice(0, extensionIndex) : fileName
   return `${base}.transcription-${String(index + 1).padStart(2, '0')}.wav`
@@ -575,31 +573,61 @@ async function mapWithConcurrency<TInput, TOutput>(
   return results
 }
 
+interface GroqTranscriptResponse {
+  payload: unknown
+  model: string
+}
+
+function groqTranscriptionModels(): readonly string[] {
+  const primary = Deno.env.get('GROQ_TRANSCRIPTION_MODEL')?.trim() || DEFAULT_GROQ_TRANSCRIPTION_MODEL
+  const fallback = Deno.env.get('GROQ_FALLBACK_TRANSCRIPTION_MODEL')?.trim()
+  return fallback && fallback !== primary ? [primary, fallback] : [primary]
+}
+
+function shouldTryGroqFallback(error: unknown): boolean {
+  if (!(error instanceof TranscriptionError)) return false
+  if (error.httpStatus === 413) return false
+  return error.code === 'provider_unavailable' ||
+    error.code === 'provider_timeout' ||
+    error.code === 'normalization_failure' ||
+    error.code === 'unsupported_audio'
+}
+
 async function requestGroqTranscript(
   apiKey: string,
-  model: string,
+  models: readonly string[],
   blob: Blob,
   fileName: string,
   mimeType: string,
   options: Record<string, unknown>,
   timeoutMs = DEFAULT_PROVIDER_TIMEOUT_MS,
-): Promise<unknown> {
-  const form = new FormData()
-  form.append('file', new File([blob], fileName, { type: mimeType || blob.type || 'application/octet-stream' }))
-  form.append('model', model)
-  form.append('response_format', 'verbose_json')
-  form.append('timestamp_granularities[]', 'segment')
-  form.append('timestamp_granularities[]', 'word')
-  form.append('temperature', '0')
-  if (typeof options.language === 'string' && options.language !== 'auto') form.append('language', options.language)
+): Promise<GroqTranscriptResponse> {
+  let lastError: unknown = null
+  for (const [index, model] of models.entries()) {
+    const form = new FormData()
+    form.append('file', new File([blob], fileName, { type: mimeType || blob.type || 'application/octet-stream' }))
+    form.append('model', model)
+    form.append('response_format', 'verbose_json')
+    form.append('timestamp_granularities[]', 'segment')
+    form.append('timestamp_granularities[]', 'word')
+    form.append('temperature', '0')
+    if (typeof options.language === 'string' && options.language !== 'auto') form.append('language', options.language)
 
-  const response = await fetchWithTimeout(GROQ_TRANSCRIPTION_ENDPOINT, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body: form,
-  }, timeoutMs)
-  if (!response.ok) throw await providerHttpError(response)
-  return await response.json()
+    try {
+      const response = await fetchWithTimeout(GROQ_TRANSCRIPTION_ENDPOINT, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: form,
+      }, timeoutMs)
+      if (!response.ok) throw await providerHttpError(response)
+      return { payload: await response.json(), model }
+    } catch (error) {
+      lastError = error
+      const hasFallback = index < models.length - 1
+      if (!hasFallback || !shouldTryGroqFallback(error)) throw error
+    }
+  }
+  throw lastError instanceof Error ? lastError : new TranscriptionError('provider_unavailable', 'The transcription provider could not be reached.', 502)
 }
 
 function wavChunkingFailure(error: unknown): TranscriptionError {
@@ -611,7 +639,7 @@ function wavChunkingFailure(error: unknown): TranscriptionError {
   )
 }
 
-function wavChunkMetadata(plan: WavChunkPlan, descriptor: WavChunkDescriptor, transcript: ProviderTranscript) {
+function wavChunkMetadata(plan: WavChunkPlan, descriptor: WavChunkDescriptor, transcript: ProviderTranscript, model: string) {
   return {
     index: descriptor.index,
     startMs: descriptor.unit.startMs,
@@ -622,6 +650,7 @@ function wavChunkMetadata(plan: WavChunkPlan, descriptor: WavChunkDescriptor, tr
     wordCount: transcript.words?.length ?? 0,
     segmentCount: transcript.segments?.length ?? 0,
     language: transcript.language ?? null,
+    model,
   }
 }
 
@@ -634,39 +663,39 @@ async function runGroqProvider(
   plannedChunks?: (total: number) => Promise<void>,
 ): Promise<ProviderRunResult> {
   const apiKey = requiredEnv('GROQ_API_KEY')
-  const maxBytes = providerSafeAudioBytes()
-  const timeoutMs = providerTimeoutMs()
-  const model = Deno.env.get('GROQ_TRANSCRIPTION_MODEL')?.trim() || 'whisper-large-v3-turbo'
+  const maxBytes = groqSafeAudioBytes()
+  const timeoutMs = groqProviderTimeoutMs()
+  const models = groqTranscriptionModels()
 
   if (blob.size <= maxBytes) {
-    const payload = await requestGroqTranscript(
+    const result = await requestGroqTranscript(
       apiKey,
-      model,
+      models,
       blob,
       track.file_name,
       track.mime_type || blob.type || 'application/octet-stream',
       options,
       timeoutMs,
     )
-    const transcript = providerTranscript(payload)
+    const transcript = providerTranscript(result.payload)
     const storedDurationMs = track.duration_sec && track.duration_sec > 0
       ? Math.round(track.duration_sec * 1000)
       : 0
     const durationMs = reliableTranscriptDurationMs(transcript, storedDurationMs)
     const unit = planTranscriptionUnits(durationMs, { forceChunking: false })[0]
       ?? { index: 0, startMs: 0, endMs: durationMs, overlapBeforeMs: 0, overlapAfterMs: 0 }
-    return { transcripts: [{ unit, transcript }], rawPayload: payload, model }
+    return { transcripts: [{ unit, transcript }], rawPayload: result.payload, model: result.model }
   }
 
   const sourceBytes = preFetchedSourceBytes ?? new Uint8Array(await blob.arrayBuffer())
   if (!isRiffWave(sourceBytes)) throw wavChunkingFailure(null)
 
   const safetyBytes = Math.min(
-    providerChunkSafetyBytes(maxBytes),
+    groqChunkSafetyBytes(maxBytes),
     Math.max(1, Math.floor(maxBytes / 8)),
   )
   const chunkLimitBytes = Math.floor(maxBytes - safetyBytes)
-  const overlapMs = providerTranscriptionOverlapMs()
+  const overlapMs = groqTranscriptionOverlapMs()
   let plan: WavChunkPlan
   try {
     plan = planWavTranscriptionChunks(sourceBytes, { maxFileBytes: chunkLimitBytes, overlapMs })
@@ -676,24 +705,24 @@ async function runGroqProvider(
 
   if (plannedChunks) await plannedChunks(plan.chunks.length)
 
-  const concurrency = providerTranscriptionConcurrency()
+  const concurrency = groqTranscriptionConcurrency()
   let chunksCompleted = 0
   const completed = await mapWithConcurrency(plan.chunks, concurrency, async descriptor => {
     const chunkBytes = buildWavTranscriptionChunk(sourceBytes, plan, descriptor)
     const chunkBlob = new Blob([chunkBytes], { type: 'audio/wav' })
-    const payload = await requestGroqTranscript(
+    const result = await requestGroqTranscript(
       apiKey,
-      model,
+      models,
       chunkBlob,
-      providerChunkFileName(track.file_name, descriptor.index),
+      groqChunkFileName(track.file_name, descriptor.index),
       'audio/wav',
       options,
       timeoutMs,
     )
-    const transcript = providerTranscript(payload)
+    const transcript = providerTranscript(result.payload)
     chunksCompleted++
     if (onChunkProgress) await onChunkProgress(chunksCompleted, plan.chunks.length)
-    return { unit: descriptor.unit, transcript, metadata: wavChunkMetadata(plan, descriptor, transcript) }
+    return { unit: descriptor.unit, transcript, model: result.model, metadata: wavChunkMetadata(plan, descriptor, transcript, result.model) }
   })
 
   return {
@@ -701,15 +730,15 @@ async function runGroqProvider(
     rawPayload: {
       chunkedWav: true,
       sourceBytes: blob.size,
-      providerDocumentedMaxBytes: providerDocumentedMaxAudioBytes(),
-      providerSafeBytes: maxBytes,
+      groqDocumentedMaxBytes: groqDocumentedMaxAudioBytes(),
+      groqSafeBytes: maxBytes,
       chunkLimitBytes,
       sampleRate: plan.sampleRate,
       channelCount: plan.channelCount,
       bitsPerSample: plan.bitsPerSample,
       units: completed.map(({ metadata }) => metadata),
     },
-    model,
+    model: [...new Set(completed.map(({ model }) => model))].join(', ') || models[0],
   }
 }
 
@@ -720,10 +749,10 @@ async function runPreparedAudioProvider(
   onChunkProgress?: (completed: number, total: number) => Promise<void>,
 ): Promise<ProviderRunResult> {
   const apiKey = requiredEnv('GROQ_API_KEY')
-  const model = Deno.env.get('GROQ_TRANSCRIPTION_MODEL')?.trim() || 'whisper-large-v3-turbo'
-  const safeBytes = providerSafeAudioBytes()
-  const timeoutMs = providerTimeoutMs()
-  const concurrency = providerTranscriptionConcurrency()
+  const models = groqTranscriptionModels()
+  const safeBytes = groqSafeAudioBytes()
+  const timeoutMs = groqProviderTimeoutMs()
+  const concurrency = groqTranscriptionConcurrency()
   let chunksCompleted = 0
 
   const completed = await mapWithConcurrency(manifest.chunks, concurrency, async chunk => {
@@ -741,16 +770,16 @@ async function runPreparedAudioProvider(
       throw new TranscriptionError('prepared_audio_invalid', 'A prepared transcription audio chunk is not a valid WAV file. Retry extraction to rebuild it.', 409)
     }
 
-    const payload = await requestGroqTranscript(
+    const result = await requestGroqTranscript(
       apiKey,
-      model,
+      models,
       new Blob([bytes], { type: 'audio/wav' }),
       chunk.fileName,
       'audio/wav',
       options,
       timeoutMs,
     )
-    const transcript = providerTranscript(payload)
+    const transcript = providerTranscript(result.payload)
     chunksCompleted += 1
     if (onChunkProgress) await onChunkProgress(chunksCompleted, manifest.chunks.length)
     return {
@@ -772,7 +801,9 @@ async function runPreparedAudioProvider(
         wordCount: transcript.words?.length ?? 0,
         segmentCount: transcript.segments?.length ?? 0,
         language: transcript.language ?? null,
+        model: result.model,
       },
+      model: result.model,
     }
   })
 
@@ -788,7 +819,7 @@ async function runPreparedAudioProvider(
       durationMs: manifest.durationMs,
       units: completed.map(({ metadata }) => metadata),
     },
-    model,
+    model: [...new Set(completed.map(({ model }) => model))].join(', ') || models[0],
   }
 }
 
@@ -947,7 +978,7 @@ async function processJob(
     let providerResult: ProviderRunResult
     let processingMode: ProcessingMode = 'direct'
     const runtimeProvider = runtimeProviderForJob(job.provider)
-    const maxBytes = providerSafeAudioBytes()
+    const maxBytes = groqSafeAudioBytes()
     const prepared = runtimeProvider === 'groq' ? preparedAudioManifest(track, maxBytes) : null
 
     const updateChunkProgress = async (completed: number, total: number) => {

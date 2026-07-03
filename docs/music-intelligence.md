@@ -179,14 +179,14 @@ These are not implemented in the browser. Use the `StemAnalysisBackend` interfac
 | Tool | Use case |
 |------|----------|
 | **demucs** / **spleeter** / **openunmix** | Stem separation (vocals, drums, bass, instruments) |
-| **whisper** / **whisperx** | Lyric transcription with word-level timestamps |
-| **deepgram** / **assemblyai** | Cloud lyric transcription (faster, paid) |
+| **Groq Whisper via Supabase Edge Function** | Online lyric transcription with segment and word timestamps; credentials stay server-side |
+| **Private transcription worker** | Optional codec fallback when browser audio preparation cannot decode the source file |
 | **librosa** | Feature extraction, onset detection, chroma, MFCCs |
 | **essentia** | Music description, key/chord, rhythm, tonal analysis |
 | **pyloudnorm** | LUFS loudness normalization |
 | **torch** | Custom ML models for mood, genre, structure |
 
-Lyric transcription is routed through `supabase/functions/lyric-transcription` and currently requires an internet connection. Groq Whisper is the active provider for new jobs, called server-side from the Supabase Edge Function. Browser users never call Groq directly and no transcription credentials should be exposed through `VITE_*` variables.
+Lyric transcription is routed through `supabase/functions/lyric-transcription` and currently requires an internet connection. Groq Whisper is the canonical online provider for new jobs, called server-side from the Supabase Edge Function. Browser users never call Groq directly, there is no `VITE_GROQ_API_KEY`, and transcription credentials must stay out of `VITE_*` variables.
 
 Historical OpenAI-era job rows remain readable for compatibility, but active transcription execution and retries route through Groq. Existing lyric document saving, cue saving, word timing, chunk reconciliation, retry/cancel behavior, and private browser-prepared audio storage remain unchanged.
 
