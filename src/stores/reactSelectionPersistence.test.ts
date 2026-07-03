@@ -40,7 +40,7 @@ describe('repairReactEnginePresetSelection', () => {
   })
 
   it('retires a stale Neon engine selection to the explicit startup pair', () => {
-    expect(repairReactEnginePresetSelection('removed-preset', 'neonLattice')).toEqual({
+    expect(repairReactEnginePresetSelection('removed-preset', 'neonLattice' as never)).toEqual({
       activeReactPresetId: 'preset-dream-gate',
       activeReactEngineId: 'cinematicPortal',
     })
@@ -88,7 +88,7 @@ describe('React selection persistence invariant', () => {
   it('partialize retires a Neon selection even if external code corrupts memory', () => {
     useReactStore.setState({
       activeReactPresetId: firstFor('cinematicPortal').id,
-      activeReactEngineId: 'neonLattice',
+      activeReactEngineId: 'neonLattice' as never,
     } as never)
 
     const persisted = reactStorePartialize(useReactStore.getState())

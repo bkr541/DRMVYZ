@@ -41,8 +41,6 @@ describe('React performance action transient bus', () => {
     expect(persisted).not.toHaveProperty('performanceActionEvents')
     expect(persisted).not.toHaveProperty('performanceActionSeq')
     expect(persisted).not.toHaveProperty('performanceActionToggleStates')
-    expect(persisted).not.toHaveProperty('neonLatticeTrigger')
-    expect(persisted).not.toHaveProperty('neonLatticeTriggerSeq')
   })
 
   it('toggles transient actions and enforces exclusive temporary render modes', () => {
@@ -91,7 +89,6 @@ describe('React performance action transient bus', () => {
     expect(useReactStore.getState().performanceActionEvent?.actionId).toBe('laserDmx.whiteHit')
     useReactStore.getState().selectReactEngine('oscilloscope')
     expect(useReactStore.getState().performanceActionEvent).toBeNull()
-    expect(useReactStore.getState().neonLatticeTrigger).toBeNull()
   })
 
   it('rejects actions that are unavailable for the active engine or world', () => {

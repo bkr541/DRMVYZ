@@ -100,7 +100,6 @@ function seedAuthoredState() {
     ),
     activePadId: DEFAULT_PERFORMANCE_PADS[0].id,
     oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS, pathScale: 1.31, sourceType: 'text', text: 'AUTHORED' },
-    neonLatticeSettings: { ...useReactStore.getState().neonLatticeSettings, railDensity: 0.91 },
     laserDmxSettings: spatial,
     laserDmxWorkspaceMode: 'beamMatrix',
     laserDmxBeamMatrix: matrix,
@@ -231,7 +230,6 @@ describe('scoped React reset actions', () => {
     seedAuthoredState()
     const before = useReactStore.getState()
     const oscillatorBefore = before.oscillatorSettings
-    const neonBefore = before.neonLatticeSettings
 
     before.clearReactProjectContent()
     const after = useReactStore.getState()
@@ -248,7 +246,6 @@ describe('scoped React reset actions', () => {
     expect(after.activeLaserDmxBeamMatrixPresetId).toBeNull()
     expect(after.laserDmxBeamMatrixPresetDirty).toBe(false)
     expect(after.oscillatorSettings).toEqual(oscillatorBefore)
-    expect(after.neonLatticeSettings).toEqual(neonBefore)
     expect(after.reactIntensity).toBe(0.11)
   })
 })

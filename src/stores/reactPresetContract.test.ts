@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  DEFAULT_NEON_LATTICE_SETTINGS,
   DEFAULT_OSCILLATOR_SETTINGS,
   DEFAULT_REACT_PRESET_RENDER_SETTINGS,
   DEFAULT_REACT_PRESETS,
@@ -30,8 +29,8 @@ describe('React preset contracts', () => {
     liveB.masterDimmer = 1
     liveB.blackout = true
 
-    const patchA = buildPresetPatch(laserPreset, DEFAULT_OSCILLATOR_SETTINGS, liveA, DEFAULT_NEON_LATTICE_SETTINGS)
-    const patchB = buildPresetPatch(laserPreset, DEFAULT_OSCILLATOR_SETTINGS, liveB, DEFAULT_NEON_LATTICE_SETTINGS)
+    const patchA = buildPresetPatch(laserPreset, DEFAULT_OSCILLATOR_SETTINGS, liveA)
+    const patchB = buildPresetPatch(laserPreset, DEFAULT_OSCILLATOR_SETTINGS, liveB)
 
     expect(patchA.laserDmxSettings).toEqual(patchB.laserDmxSettings)
   })

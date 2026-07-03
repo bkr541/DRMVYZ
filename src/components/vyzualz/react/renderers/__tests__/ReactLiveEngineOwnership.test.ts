@@ -67,7 +67,7 @@ describe('React live engine ownership', () => {
   })
 
   it('blocks background work until the current owner is stable', async () => {
-    const owner = acquireReactLiveEngineOwnership('neonLattice', vi.fn())
+    const owner = acquireReactLiveEngineOwnership('laserDmx', vi.fn())
     let settled = false
     const waiting = waitForReactLiveEngineStable().then(() => { settled = true })
 

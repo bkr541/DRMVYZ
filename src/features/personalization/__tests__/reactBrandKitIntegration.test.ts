@@ -54,7 +54,7 @@ describe('ReactView Brand Kit boundary', () => {
   })
 
   it('does not expose a built-in Neon Lattice preset to the Brand Kit boundary', () => {
-    expect(DEFAULT_REACT_PRESETS.some(candidate => candidate.engine === 'neonLattice')).toBe(false)
+    expect(DEFAULT_REACT_PRESETS.some(candidate => String(candidate.engine) === 'neonLattice')).toBe(false)
   })
 
   it('delivers the Cinematic Worlds palette to Reactive Constellation', () => {

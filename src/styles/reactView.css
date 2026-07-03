@@ -2047,14 +2047,6 @@
 
 .rv-pad--active::before { opacity: 0.12 !important; }
 
-.rv-pad--nl-trigger {
-  border-color: color-mix(in srgb, var(--pad-color, #4ac7db) 40%, transparent);
-}
-
-.rv-pad--nl-trigger:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--pad-color, #4ac7db) 75%, transparent);
-}
-
 .rv-pad--pressed {
   border-color: var(--pad-color, #4ac7db) !important;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--pad-color, #4ac7db) 60%, transparent),

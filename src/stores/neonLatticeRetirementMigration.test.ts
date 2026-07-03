@@ -1,8 +1,10 @@
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { join, relative } from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  DEFAULT_NEON_LATTICE_SETTINGS,
   DEFAULT_PERFORMANCE_PADS,
   DEFAULT_REACT_PRESETS,
+  type ReactEngineId,
   type ReactPreset,
 } from '../components/vyzualz/react/ReactTypes'
 import {
@@ -21,34 +23,69 @@ import {
 
 const NEON_PRESET_ID = 'preset-nl-acid-magenta'
 const NON_NEON_PRESET = DEFAULT_REACT_PRESETS.find(preset => preset.engine === 'oscilloscope')!
-const BASE_NEON_PRESET: ReactPreset = {
+const SRC_ROOT = join(process.cwd(), 'src')
+const DELETED_NEON_PRODUCTION_MODULES = [
+  'NeonLatticeConfig',
+  'NeonLatticeEnginePanel',
+  'NeonLatticeRenderer',
+  'neonLatticeAudioDirector',
+  'neonLatticePresetValidation',
+  'neonLatticePreview',
+  'neonLatticeSequencer',
+  'neonLatticeUtils',
+]
+const PRODUCTION_SOURCE_EXTENSIONS = new Set(['.ts', '.tsx'])
+
+function collectProductionSourceFiles(dir: string, files: string[] = []): string[] {
+  for (const entry of readdirSync(dir)) {
+    const fullPath = join(dir, entry)
+    const stat = statSync(fullPath)
+    if (stat.isDirectory()) {
+      if (entry === '__tests__') continue
+      collectProductionSourceFiles(fullPath, files)
+      continue
+    }
+    if (!PRODUCTION_SOURCE_EXTENSIONS.has(fullPath.slice(fullPath.lastIndexOf('.')))) continue
+    if (fullPath.endsWith('.test.ts') || fullPath.endsWith('.test.tsx')) continue
+    files.push(fullPath)
+  }
+  return files
+}
+
+const BASE_NEON_PRESET: Record<string, unknown> = {
   ...structuredClone(NON_NEON_PRESET),
   id: NEON_PRESET_ID,
   name: 'Historical Neon Fixture',
   engine: 'neonLattice',
-  neonLatticeSettings: structuredClone(DEFAULT_NEON_LATTICE_SETTINGS),
+  neonLatticeSettings: {
+    railDensity: 0.77,
+    triggerRoutes: [{ id: 'legacy-route', source: 'beat', action: 'advanceSequence' }],
+  },
 }
 
-function customPreset(id: string, engine: ReactPreset['engine']): ReactPreset {
+function customPreset(id: string, engine: ReactEngineId): ReactPreset
+function customPreset(id: string, engine: 'neonLattice'): Record<string, unknown>
+function customPreset(id: string, engine: ReactEngineId | 'neonLattice'): ReactPreset | Record<string, unknown> {
   const base = engine === 'neonLattice' ? BASE_NEON_PRESET : NON_NEON_PRESET
   return {
     ...structuredClone(base),
     id,
     name: `Custom ${id}`,
     engine,
-  }
+  } as ReactPreset | Record<string, unknown>
 }
 
 function makeMigrationFixture() {
   const customNeon = customPreset('custom-neon-import', 'neonLattice')
+  const customNeonId = 'custom-neon-import'
   const customSoundDrawing = customPreset('custom-sound-drawing', 'oscilloscope')
   return {
-    activeReactPresetId: customNeon.id,
+    activeReactPresetId: customNeonId,
     activeReactEngineId: 'neonLattice',
     reactPresets: [BASE_NEON_PRESET, customNeon, customSoundDrawing],
     performancePads: [{
       ...DEFAULT_PERFORMANCE_PADS[0],
-      presetId: customNeon.id,
+      presetId: customNeonId,
       label: 'Keep My Label',
       color: '#123456',
       keyBinding: '9',
@@ -57,7 +94,7 @@ function makeMigrationFixture() {
     }],
     presetAutomationCuesByTrackId: {
       trackA: [
-        { id: 'neon-preset', timeSec: 10, presetId: customNeon.id, label: 'Neon', enabled: true, transitionMs: 250 },
+        { id: 'neon-preset', timeSec: 10, presetId: customNeonId, label: 'Neon', enabled: true, transitionMs: 250 },
         { id: 'neon-action', timeSec: 20, presetId: customSoundDrawing.id, label: 'Action', enabled: true, transitionMs: 350, actionId: 'neonLattice.blackout' },
         { id: 'sound', timeSec: 30, presetId: customSoundDrawing.id, label: 'Sound', enabled: true, transitionMs: 450 },
       ],
@@ -69,11 +106,11 @@ function makeMigrationFixture() {
       }],
     },
     cinematicConfigsByPresetId: {
-      [customNeon.id]: { stale: true },
+      [customNeonId]: { stale: true },
       keep: { safe: true },
     },
     cinematicSeedLocksByPresetId: {
-      [customNeon.id]: true,
+      [customNeonId]: true,
       keep: false,
     },
     neonLatticeSettings: { railDensity: 0.99 },
@@ -102,6 +139,34 @@ describe('Neon Lattice persisted-data retirement', () => {
     useReactStore.getState().resetReactView()
   })
 
+  it('keeps Neon out of current live engine, preset, and store shapes', () => {
+    const state = useReactStore.getState() as unknown as Record<string, unknown>
+    expect(state).not.toHaveProperty('neonLatticeSettings')
+    expect(state).not.toHaveProperty('neonLatticeTrigger')
+    expect(state).not.toHaveProperty('triggerNeonLattice')
+    expect(DEFAULT_REACT_PRESETS.some(preset => String(preset.engine) === 'neonLattice')).toBe(false)
+    expect(DEFAULT_REACT_PRESETS.some(preset => 'neonLatticeSettings' in preset)).toBe(false)
+  })
+
+  it('keeps the live ReactEngineId union closed to Neon Lattice', () => {
+    const acceptLiveEngine = (engine: ReactEngineId): ReactEngineId => engine
+    expect(acceptLiveEngine('cinematicPortal')).toBe('cinematicPortal')
+    // @ts-expect-error Neon Lattice is a historical raw string only, not a live engine member.
+    acceptLiveEngine('neonLattice')
+  })
+
+  it('has no production imports of deleted Neon-only runtime modules', () => {
+    const residues: string[] = []
+    for (const filePath of collectProductionSourceFiles(SRC_ROOT)) {
+      const text = readFileSync(filePath, 'utf8')
+      for (const moduleName of DELETED_NEON_PRODUCTION_MODULES) {
+        const importPattern = new RegExp(`(?:from\\s+['\"][^'\"]*${moduleName}|import\\(['\"][^'\"]*${moduleName})`)
+        if (importPattern.test(text)) residues.push(`${relative(process.cwd(), filePath)} -> ${moduleName}`)
+      }
+    }
+    expect(residues).toEqual([])
+  })
+
   it('migrates an active Neon project to the authoritative safe startup pair', () => {
     const migrated = migrateReactStore(makeMigrationFixture(), 36)
     expect(migrated.activeReactEngineId).toBe('cinematicPortal')
@@ -112,7 +177,7 @@ describe('Neon Lattice persisted-data retirement', () => {
     const migrated = migrateReactStore(makeMigrationFixture(), 36)
     const presets = migrated.reactPresets as ReactPreset[]
     expect(presets.map(preset => preset.id)).toEqual(['custom-sound-drawing'])
-    expect(presets.some(preset => preset.engine === 'neonLattice')).toBe(false)
+    expect(presets.some(preset => String(preset.engine) === 'neonLattice')).toBe(false)
   })
 
   it('clears only invalid pad assignments and keeps pad identity and user metadata', () => {

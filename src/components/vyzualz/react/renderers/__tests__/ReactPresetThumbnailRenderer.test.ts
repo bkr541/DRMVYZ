@@ -14,7 +14,6 @@ const mocks = vi.hoisted(() => ({
   renderReactEngine: vi.fn(),
   clearLaserDmxVisualState: vi.fn(),
   disposeLaserDmxRenderer: vi.fn(),
-  clearNeonLatticeVisualState: vi.fn(),
   disposeCinematicPortalRenderer: vi.fn(),
   resetCinematicPortalRenderer: vi.fn(),
   resolveCinematicPortalBackend: vi.fn(() => 'webgl2'),
@@ -25,7 +24,6 @@ vi.mock('../LaserDmxRenderer', () => ({
   clearLaserDmxVisualState: mocks.clearLaserDmxVisualState,
   disposeLaserDmxRenderer: mocks.disposeLaserDmxRenderer,
 }))
-vi.mock('../NeonLatticeRenderer', () => ({ clearNeonLatticeVisualState: mocks.clearNeonLatticeVisualState }))
 vi.mock('../CinematicPortalRenderer', () => ({
   disposeCinematicPortalRenderer: mocks.disposeCinematicPortalRenderer,
   resetCinematicPortalRenderer: mocks.resetCinematicPortalRenderer,
@@ -126,7 +124,6 @@ describe('React preset thumbnail renderer scheduling', () => {
     mocks.renderReactEngine.mockClear()
     mocks.clearLaserDmxVisualState.mockClear()
     mocks.disposeLaserDmxRenderer.mockClear()
-    mocks.clearNeonLatticeVisualState.mockClear()
     mocks.disposeCinematicPortalRenderer.mockClear()
     mocks.resetCinematicPortalRenderer.mockClear()
     mocks.resolveCinematicPortalBackend.mockClear()
@@ -198,12 +195,6 @@ describe('React preset thumbnail renderer scheduling', () => {
       activeFamily: 'react-preset-thumbnail',
       contextLimit: 1,
     })
-  })
-
-  it('does not register a Neon Lattice preset or invoke Neon-specific thumbnail cleanup', async () => {
-    expect(DEFAULT_REACT_PRESETS.some(candidate => candidate.engine === 'neonLattice')).toBe(false)
-    await expect(renderReactPresetThumbnail(preset('preset-cyan-reverie'))).resolves.toBe('data:image/png;base64,exact-preview')
-    expect(mocks.clearNeonLatticeVisualState).not.toHaveBeenCalled()
   })
 
   it('does not synchronously drain the collection and limits WebGL work to one job', async () => {

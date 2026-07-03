@@ -2,7 +2,6 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { createSplitPersistStorage } from '../lib/splitPersistStorage'
 import { createLegacyPortalCinematicConfig, normalizeCinematicWorldConfig } from '../components/vyzualz/react/CinematicWorldConfig'
-import { normalizeNeonLatticeSettings } from '../components/vyzualz/react/NeonLatticeConfig'
 import type { CinematicWorldConfig } from '../components/vyzualz/react/CinematicWorldConfig'
 import {
   getReactPerformanceAction,
@@ -18,7 +17,6 @@ import {
   DEFAULT_BEAM_MOTION,
   DEFAULT_BEAM_SEQUENCE,
   DEFAULT_LAUNCH_SETTINGS,
-  DEFAULT_NEON_LATTICE_SETTINGS,
   DEFAULT_REACT_PRESET_RENDER_SETTINGS,
   createDefaultLaserDmxSettings,
   createDefaultLaserDmxBeamMatrixSettings,
@@ -29,7 +27,6 @@ import {
 } from '../components/vyzualz/react/ReactTypes'
 import type {
   ReactEngineId,
-  ReactEngineCompatibilityId,
   ReactPreset,
   ReactPresetParams,
   ReactTrackSection,
@@ -55,9 +52,6 @@ import type {
   LaserDmxBeamMatrixCue,
   LaserDmxMatrixBeam,
   LaserDmxReactionGroup,
-  NeonLatticeSettings,
-  NeonLatticeTriggerType,
-  NeonLatticeTriggerEvent,
 } from '../components/vyzualz/react/ReactTypes'
 import { resolvePerformancePadTransition } from '../components/vyzualz/react/renderers/reactPresetTransition'
 import { adaptProductionPresetToRig, shouldPreserveCurrentProductionRig } from '../components/vyzualz/react/LaserDmxProductionPresets'
@@ -828,12 +822,11 @@ export function buildPresetPatch(
   preset: ReactPreset,
   currentOscSettings: OscillatorSettings,
   currentLaserSettings?: LaserDmxSettings,
-  currentNeonLatticeSettings?: NeonLatticeSettings,
 ) {
   if (!isSelectableReactEngineId(preset.engine)) {
     const fallback = DEFAULT_REACT_PRESETS.find(candidate => candidate.id === INITIAL_PRESET_ID)
     if (!fallback) throw new Error(`[DRMVYZ] Missing startup preset ${INITIAL_PRESET_ID}`)
-    return buildPresetPatch(fallback, currentOscSettings, currentLaserSettings, currentNeonLatticeSettings)
+    return buildPresetPatch(fallback, currentOscSettings, currentLaserSettings)
   }
 
   const laserDmxWorkspaceMode = resolveReactPresetLaserDmxWorkspace(preset)
@@ -871,10 +864,6 @@ export function buildPresetPatch(
     laserPatch = ensureProductionLookCompatibility(normalizeLaserDmxSettings(resolved), preset.name, 'spatialPreset')
   }
 
-  let neonLatticePatch: NeonLatticeSettings | undefined
-  if (preset.neonLatticeSettings != null) {
-    neonLatticePatch = normalizeNeonLatticeSettings({ ...DEFAULT_NEON_LATTICE_SETTINGS, ...preset.neonLatticeSettings })
-  }
 
   const renderSettings = {
     ...DEFAULT_REACT_PRESET_RENDER_SETTINGS,
@@ -894,7 +883,6 @@ export function buildPresetPatch(
     oscillatorSettings:  resolvePresetOscillatorSettings(preset, currentOscSettings),
     ...(laserDmxWorkspaceMode != null ? { laserDmxWorkspaceMode } : {}),
     ...(laserPatch        != null ? { laserDmxSettings:   laserPatch        } : {}),
-    ...(neonLatticePatch  != null ? { neonLatticeSettings: neonLatticePatch } : {}),
     ...clearPerformanceActionPatch(),
   }
 }
@@ -907,7 +895,6 @@ function buildPresetPatchForState(
     preset,
     state.oscillatorSettings,
     state.laserDmxSettings,
-    state.neonLatticeSettings,
   )
   const geometryChanged = [...TEXT_GEOMETRY_SETTING_KEYS].some(
     key => patch.oscillatorSettings[key] !== state.oscillatorSettings[key],
@@ -1050,14 +1037,14 @@ interface ReactStoreState {
    * Compatibility setter. Delegates to selectReactEngine so engine and preset
    * selection cannot drift apart in memory or in the persisted snapshot.
    */
-  setActiveReactEngineId: (id: ReactEngineCompatibilityId) => void
+  setActiveReactEngineId: (id: ReactEngineId) => void
   /**
    * High-level engine selector for UI use.  Finds a compatible preset for the given engine,
    * applies its params/oscillatorSettings, and keeps activeReactEngineId and
    * activeReactPresetId in sync.  Use this wherever the ENGINE tab or any other UI switches
    * the active engine family.
    */
-  selectReactEngine: (id: ReactEngineCompatibilityId) => void
+  selectReactEngine: (id: ReactEngineId) => void
   selectReactPreset: (id: string) => void
   updateReactPresetParams: (id: string, patch: Partial<ReactPresetParams>) => void
 
@@ -1186,12 +1173,6 @@ interface ReactStoreState {
   /** @deprecated Compatibility shim for tests and older callers. Not exposed in the React UI. */
   resetReactView: () => void
 
-  // Neon Lattice settings
-  neonLatticeSettings: NeonLatticeSettings
-  setNeonLatticeSettings: (partial: Partial<NeonLatticeSettings>) => void
-  resetNeonLatticeSettings: () => void
-  resetNeonLatticeSettingsToPreset: () => void
-
   // Generic visual performance actions (transient; excluded from persistence)
   performanceActionEvent: ReactPerformanceActionEvent | null
   performanceActionEvents: ReactPerformanceActionEvent[]
@@ -1199,11 +1180,6 @@ interface ReactStoreState {
   performanceActionToggleStates: Record<string, boolean>
   triggerPerformanceAction: (actionId: string, toggleState?: boolean) => void
   clearPerformanceActions: () => void
-
-  // Neon Lattice compatibility aliases. New UI code consumes the generic action contract.
-  neonLatticeTrigger:    NeonLatticeTriggerEvent | null
-  neonLatticeTriggerSeq: number
-  triggerNeonLattice: (type: NeonLatticeTriggerType) => void
 
   // LaserDMX Spatial Fixtures settings
   laserDmxSettings: LaserDmxSettings
@@ -1346,7 +1322,6 @@ function clearPerformanceActionPatch() {
     performanceActionEvent: null as ReactPerformanceActionEvent | null,
     performanceActionEvents: [] as ReactPerformanceActionEvent[],
     performanceActionToggleStates: {} as Record<string, boolean>,
-    neonLatticeTrigger: null as NeonLatticeTriggerEvent | null,
   }
 }
 
@@ -1608,7 +1583,7 @@ function sanitizeRetiredNeonPerformanceRuntime(state: Record<string, unknown>): 
 /**
  * Removes historical Neon Lattice references from persisted or imported React
  * state. This intentionally does not mutate the live engine catalog or runtime
- * fields; Patch 1 only prevents retired data from surviving persistence.
+ * fields; the tombstone only prevents retired data from surviving persistence or imports.
  */
 export function sanitizeRetiredNeonLatticeReactState(persistedState: unknown): Record<string, unknown> {
   const rawState = isRecord(persistedState) ? persistedState : {}
@@ -1638,16 +1613,12 @@ export function sanitizeRetiredNeonLatticeReactState(persistedState: unknown): R
   })
 
   const validPresets = [
-    ...DEFAULT_REACT_PRESETS.filter(preset => (
-      preset.engine !== RETIRED_NEON_LATTICE_ENGINE_ID
-      && !RETIRED_NEON_LATTICE_BUILT_IN_PRESET_IDS.has(preset.id)
-    )),
+    ...DEFAULT_REACT_PRESETS.filter(preset => !RETIRED_NEON_LATTICE_BUILT_IN_PRESET_IDS.has(preset.id)),
     ...(Array.isArray(sanitizedPresets)
       ? sanitizedPresets.filter((preset): preset is ReactPreset => (
           isRecord(preset)
           && typeof preset.id === 'string'
-          && typeof preset.engine === 'string'
-          && preset.engine !== RETIRED_NEON_LATTICE_ENGINE_ID
+          && isSelectableReactEngineId(preset.engine)
         ))
       : []),
   ]
@@ -2084,37 +2055,6 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       state = { ...state, oscillatorSettings: newOsc }
     }
   }
-  if (version < 16) {
-    // Add neonLatticeSettings for users that do not yet have it persisted.
-    if (!('neonLatticeSettings' in state)) {
-      state = { ...state, neonLatticeSettings: { ...DEFAULT_NEON_LATTICE_SETTINGS } }
-    }
-  }
-  if (version < 17) {
-    // Normalize persisted neonLatticeSettings: backfill any fields added since the
-    // object was first written, while preserving all values the user had tuned.
-    const existing = (state as Record<string, unknown>).neonLatticeSettings
-    state = {
-      ...state,
-      neonLatticeSettings: normalizeNeonLatticeSettings(existing),
-    }
-  }
-  if (version < 18) {
-    // Migrate shockwaves: boolean → shockwaveAmount: number.
-    // Persisted data written before this version may have a boolean `shockwaves` field.
-    const s = (state as Record<string, unknown>).neonLatticeSettings as Record<string, unknown> | undefined
-    if (s != null && 'shockwaves' in s) {
-      const { shockwaves, ...rest } = s
-      state = {
-        ...state,
-        neonLatticeSettings: {
-          ...DEFAULT_NEON_LATTICE_SETTINGS,
-          ...rest,
-          shockwaveAmount: shockwaves === false ? 0 : DEFAULT_NEON_LATTICE_SETTINGS.shockwaveAmount,
-        },
-      }
-    }
-  }
   if (version < 19) {
     // Legacy Shader Pads active-selection migration.
     // The five Shader Pads presets have been removed from DEFAULT_REACT_PRESETS and
@@ -2265,17 +2205,6 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       ),
     }
   }
-  if (version < 28) {
-    // Backfill the expanded Neon Lattice FX / MOD routing controls without
-    // disturbing any structure or appearance values the user already tuned.
-    const existing = isRecord(state.neonLatticeSettings)
-      ? state.neonLatticeSettings
-      : {}
-    state = {
-      ...state,
-      neonLatticeSettings: normalizeNeonLatticeSettings(existing),
-    }
-  }
   if (version < 29) {
     // Introduce explicit LaserDMX schema versions and normalize legacy Spatial
     // Fixtures without dropping unknown authored fields. Beam Matrix receives a
@@ -2382,9 +2311,6 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
   }
   if (isPersistedLaserDmxBeamMatrixDocument(state.laserDmxBeamMatrix)) {
     state = { ...state, laserDmxBeamMatrix: normalizeLaserDmxBeamMatrixSettings(state.laserDmxBeamMatrix) }
-  }
-  if ('neonLatticeSettings' in state) {
-    state = { ...state, neonLatticeSettings: normalizeNeonLatticeSettings(state.neonLatticeSettings) }
   }
   // Imported/current-version snapshots do not necessarily pass through a
   // numbered migration, so keep the retirement boundary defensive.
@@ -2538,7 +2464,6 @@ export function reactStorePartialize(s: ReactStoreState) {
     presetAutomationCuesByTrackId:      s.presetAutomationCuesByTrackId,
     oscillatorSettings:                 s.oscillatorSettings,
     oscillatorGlyphAssets:              s.oscillatorGlyphAssets,
-    neonLatticeSettings:                s.neonLatticeSettings,
     laserDmxSettings:                   sanitizeLaserDmxSettingsForPersistence(s.laserDmxSettings),
     laserDmxWorkspaceMode:              s.laserDmxWorkspaceMode,
     laserDmxBeamMatrix:                 sanitizeLaserDmxBeamMatrixForPersistence(s.laserDmxBeamMatrix),
@@ -2591,10 +2516,7 @@ export function mergeReactStoreState(
   )
   sanitizeReactPresetFavorites(
     reactPresets
-      .filter(preset => (
-        preset.engine !== RETIRED_NEON_LATTICE_ENGINE_ID
-        && !RETIRED_NEON_LATTICE_BUILT_IN_PRESET_IDS.has(preset.id)
-      ))
+      .filter(preset => !RETIRED_NEON_LATTICE_BUILT_IN_PRESET_IDS.has(preset.id))
       .map(preset => preset.id),
   )
   const performancePads = clearRetiredDuplicatePadAssignments(
@@ -2635,9 +2557,6 @@ export function mergeReactStoreState(
     laserDmxBeamMatrix: normalizeLaserDmxBeamMatrixSettings(
       persisted.laserDmxBeamMatrix ?? currentState.laserDmxBeamMatrix,
     ),
-    neonLatticeSettings: normalizeNeonLatticeSettings(
-      persisted.neonLatticeSettings ?? currentState.neonLatticeSettings,
-    ),
   } as ReactStoreState
   const repairedSelection = repairReactEnginePresetSelection(
     merged.activeReactPresetId,
@@ -2663,8 +2582,6 @@ export function mergeReactStoreState(
     performanceActionEvents: [],
     performanceActionSeq: currentState.performanceActionSeq,
     performanceActionToggleStates: {},
-    neonLatticeTrigger: null,
-    neonLatticeTriggerSeq: currentState.neonLatticeTriggerSeq,
   }
 }
 
@@ -2704,13 +2621,10 @@ export const useReactStore = create<ReactStoreState>()(
       fontsLoadState:    'idle',
       fontLoadError:     null,
       glyphLostNotice: null,
-      neonLatticeSettings:            normalizeNeonLatticeSettings(DEFAULT_NEON_LATTICE_SETTINGS),
       performanceActionEvent:         null,
       performanceActionEvents:        [],
       performanceActionSeq:           0,
       performanceActionToggleStates:  {},
-      neonLatticeTrigger:             null,
-      neonLatticeTriggerSeq:          0,
       laserDmxSettings:               ensureProductionLookCompatibility(createDefaultLaserDmxSettings()),
       selectedLaserDmxProductionCueId: null,
       laserDmxWorkspaceMode:  'spatialFixtures',
@@ -3589,27 +3503,7 @@ export const useReactStore = create<ReactStoreState>()(
         }
       },
 
-      // ── Neon Lattice actions ────────────────────────────────────────────────
-
-      setNeonLatticeSettings: (partial) =>
-        set(s => ({ neonLatticeSettings: normalizeNeonLatticeSettings({ ...s.neonLatticeSettings, ...partial }) })),
-
-      resetNeonLatticeSettings: () =>
-        set({ neonLatticeSettings: normalizeNeonLatticeSettings(DEFAULT_NEON_LATTICE_SETTINGS), ...clearPerformanceActionPatch() }),
-
-      resetNeonLatticeSettingsToPreset: () =>
-        set(s => {
-          const preset = s.activeReactPresetId
-            ? s.reactPresets.find(candidate => candidate.id === s.activeReactPresetId)
-            : undefined
-          return {
-            neonLatticeSettings: normalizeNeonLatticeSettings({
-              ...DEFAULT_NEON_LATTICE_SETTINGS,
-              ...(preset?.neonLatticeSettings ?? {}),
-            }),
-            ...clearPerformanceActionPatch(),
-          }
-        }),
+      // ── Generic visual performance actions ─────────────────────────────────
 
       triggerPerformanceAction: (actionId, requestedToggleState) =>
         set(s => {
@@ -3648,10 +3542,6 @@ export const useReactStore = create<ReactStoreState>()(
         }),
 
       clearPerformanceActions: () => set(clearPerformanceActionPatch()),
-
-      // Historical API retained until Patch 3. Neon is retired from live dispatch,
-      // so stale callers cannot enqueue an action or mutate renderer state.
-      triggerNeonLattice: (_type) => {},
 
       // ── LaserDMX actions ────────────────────────────────────────────────────
 
@@ -4961,11 +4851,9 @@ export const useReactStore = create<ReactStoreState>()(
           oscillatorGlyphPointCache: {},
           oscillatorTextPointCache:  {},
           glyphLostNotice:           null,
-          neonLatticeSettings:              normalizeNeonLatticeSettings(DEFAULT_NEON_LATTICE_SETTINGS),
           performanceActionEvent:           null,
           performanceActionEvents:          [],
           performanceActionToggleStates:    {},
-          neonLatticeTrigger:               null,
           laserDmxSettings:                 ensureProductionLookCompatibility(createDefaultLaserDmxSettings()),
           selectedLaserDmxProductionCueId:   null,
           laserDmxWorkspaceMode:            'spatialFixtures',
@@ -4985,7 +4873,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 37,
+      version: 38,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

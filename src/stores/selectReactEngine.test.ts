@@ -171,7 +171,7 @@ describe('selectReactEngine', () => {
   })
 
   it('rejects the retired Neon engine and restores the startup pair', () => {
-    useReactStore.getState().selectReactEngine('neonLattice')
+    useReactStore.getState().selectReactEngine('neonLattice' as never)
     const { activeReactPresetId, activeReactEngineId } = useReactStore.getState()
     expect(activeReactEngineId).toBe('cinematicPortal')
     expect(activeReactPresetId).toBe('preset-dream-gate')
