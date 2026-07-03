@@ -48,6 +48,12 @@ export function LyricPreviewPanel({ cues, document, selectedCue, onPreviewInVisu
   const validation = validateLyricCues(cues)
   const review = getLyricReviewStatistics(cues)
   const hasTimedCues = cues.some(c => typeof c.endMs === 'number' && typeof c.startMs === 'number' && c.endMs > c.startMs)
+  const selectedIndex = selectedCue ? cues.findIndex(cue => cue.id === selectedCue.id) : -1
+  const attentionCount = review.lowConfidence + review.unreviewed + validation.warnings.length + validation.errors.length
+  const selectedDurationMs = selectedCue ? Math.max(1, selectedCue.endMs - selectedCue.startMs) : 1
+  const selectedProgressPercent = selectedCue
+    ? Math.max(0, Math.min(100, ((selectedCue.endMs - selectedCue.startMs) / selectedDurationMs) * 100))
+    : 0
 
   const fmtMs = (ms: number | null) =>
     ms !== null ? formatMsCompact(ms) : '—'
@@ -64,10 +70,20 @@ export function LyricPreviewPanel({ cues, document, selectedCue, onPreviewInVisu
     <aside className="lmv-right-panel">
 
       {/* Live Preview */}
-      <div className="lmv-panel-card">
+      <div className="lmv-panel-card lmv-preview-card">
         <div className="lmv-panel-card-title">LIVE PREVIEW</div>
         {selectedCue ? (
-          <StylePreviewBox cue={selectedCue} doc={document} />
+          <>
+            <StylePreviewBox cue={selectedCue} doc={document} />
+            <div className="lmv-preview-cue-meta">
+              <span>Cue: {selectedIndex + 1} / {cues.length}</span>
+              <strong>{selectedCue.text || 'Empty cue'}</strong>
+              <div className="lmv-preview-progress" aria-hidden="true">
+                <span style={{ width: `${selectedProgressPercent}%` }} />
+              </div>
+              <em>{formatMsCompact(selectedCue.startMs)} / {formatMsCompact(selectedCue.endMs)}</em>
+            </div>
+          </>
         ) : (
           <div className="lmv-preview-empty">
             Select a cue to preview its appearance
@@ -81,7 +97,7 @@ export function LyricPreviewPanel({ cues, document, selectedCue, onPreviewInVisu
             ? 'Push draft cues to visualizer for live preview'
             : 'No cues to preview. Import or create lyric cues first.'}
         >
-          Preview in Visualizer
+          Preview in Visualizer ↗
         </button>
       </div>
 
@@ -113,6 +129,13 @@ export function LyricPreviewPanel({ cues, document, selectedCue, onPreviewInVisu
             )}
           </div>
         )}
+        {attentionCount > 0 && (
+          <div className="lmv-attention-box">
+            <strong>⚠ {attentionCount} cue review item{attentionCount === 1 ? '' : 's'}</strong>
+            <span>{review.lowConfidence} low-confidence, {review.unreviewed} unreviewed</span>
+            <button type="button">View details →</button>
+          </div>
+        )}
         {validation.valid && validation.warnings.length === 0 && cues.length > 0 && (
           <div className="lmv-valid-ok-msg">All cues are valid</div>
         )}
@@ -139,10 +162,6 @@ export function LyricPreviewPanel({ cues, document, selectedCue, onPreviewInVisu
             <span className="lmv-stat-value">{review.lowConfidence}</span>
           </div>
           <div className="lmv-stat-row">
-            <span className="lmv-stat-label">Warnings</span>
-            <span className="lmv-stat-value">{review.withWarnings}</span>
-          </div>
-          <div className="lmv-stat-row">
             <span className="lmv-stat-label">Review complete</span>
             <span className="lmv-stat-value">{Math.round(review.completionPercent)}%</span>
           </div>
@@ -157,10 +176,6 @@ export function LyricPreviewPanel({ cues, document, selectedCue, onPreviewInVisu
           <div className="lmv-stat-row">
             <span className="lmv-stat-label">End</span>
             <span className="lmv-stat-value">{fmtMs(validation.latestEndMs)}</span>
-          </div>
-          <div className="lmv-stat-row">
-            <span className="lmv-stat-label">Duration</span>
-            <span className="lmv-stat-value">{fmtDuration(validation.totalDurationMs)}</span>
           </div>
           {document && (
             <>

@@ -187,16 +187,21 @@ export function LyricDocumentSidebar({
   return (
     <aside className="lmv-doc-sidebar">
       <div className="lmv-doc-sidebar-head">
-        <div className="lmv-doc-sidebar-title">LYRIC VERSIONS</div>
-        <input
-          className="lmv-doc-search"
-          placeholder="Search versions…"
-          aria-label="Search lyric versions"
-          value={search}
-          onChange={event => setSearch(event.target.value)}
-        />
+        <div className="lmv-doc-title-row">
+          <div className="lmv-doc-sidebar-title">LYRIC VERSIONS</div>
+          <button className="lmv-icon-btn" onClick={onNewDocument} disabled={!hasSelectedTrack} aria-label="Create new lyric version">+</button>
+        </div>
+        <div className="lmv-doc-search-wrap">
+          <input
+            className="lmv-doc-search"
+            placeholder="Search versions…"
+            aria-label="Search lyric versions"
+            value={search}
+            onChange={event => setSearch(event.target.value)}
+          />
+        </div>
         <div className="lmv-doc-primary-actions">
-          <button className="lmv-btn lmv-btn--ghost" onClick={onNewDocument} disabled={!hasSelectedTrack}>+ Blank</button>
+          <button className="lmv-btn lmv-btn--ghost" onClick={onNewDocument} disabled={!hasSelectedTrack}>+ New Version</button>
           <button className="lmv-btn lmv-btn--ghost" onClick={onImportDocument} disabled={!hasSelectedTrack}>Import</button>
         </div>
       </div>

@@ -42,10 +42,45 @@ interface Props {
 const PAGE_SIZE = 18
 
 const TAB_LABELS: { id: WorkflowTab; label: string }[] = [
-  { id: 'manual', label: 'Manual Entry' },
-  { id: 'json', label: 'Import Lyrics' },
+  { id: 'manual', label: 'Timeline' },
+  { id: 'json', label: 'Import' },
   { id: 'ai', label: 'AI Extract' },
 ]
+
+function formatDuration(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return '—'
+  const safe = Math.max(0, Math.round(seconds))
+  const mins = Math.floor(safe / 60)
+  const secs = safe % 60
+  return `${mins}:${secs.toString().padStart(2, '0')}`
+}
+
+function formatMsClock(ms: number | null | undefined): string {
+  if (ms === null || ms === undefined || !Number.isFinite(ms)) return '0:00.00'
+  const safe = Math.max(0, Math.round(ms))
+  const mins = Math.floor(safe / 60_000)
+  const secs = Math.floor((safe % 60_000) / 1_000)
+  const hundredths = Math.floor((safe % 1_000) / 10)
+  return `${mins}:${secs.toString().padStart(2, '0')}.${hundredths.toString().padStart(2, '0')}`
+}
+
+function formatUpdatedDate(value: string | null | undefined): string {
+  if (!value) return '—'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString()
+}
+
+function trackInitials(track: LyricManagerTrack | null): string {
+  if (!track) return '♪'
+  const source = `${track.title || track.fileName || ''} ${track.artist || ''}`.trim()
+  const initials = source
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part[0]?.toUpperCase() ?? '')
+    .join('')
+  return initials || '♪'
+}
 
 function toLyricSectionType(type: string): LyricSectionType {
   if (type === 'preDrop') return 'build'
@@ -73,6 +108,184 @@ function mergeTracks(
   for (const track of incoming) merged.set(track.dbId, track)
   return [...merged.values()].sort((a, b) =>
     b.createdAt.localeCompare(a.createdAt),
+  )
+}
+
+function SelectedTrackHero({
+  track,
+  activeDocumentTitle,
+  selectedTrackLoaded,
+  selectedTrackPlaying,
+  loading,
+  onLoadTrack,
+  onTogglePlayback,
+}: {
+  track: LyricManagerTrack | null
+  activeDocumentTitle: string | null
+  selectedTrackLoaded: boolean
+  selectedTrackPlaying: boolean
+  loading: boolean
+  onLoadTrack: () => void
+  onTogglePlayback: () => void
+}) {
+  if (!track) {
+    return (
+      <section className="lmv-track-hero lmv-track-hero--empty" aria-label="Selected track">
+        <div className="lmv-track-art lmv-track-art--empty">♪</div>
+        <div className="lmv-track-hero-main">
+          <span className="lmv-kicker">No track selected</span>
+          <h2>Select a track from the library</h2>
+          <p>Pick a stored audio track to inspect lyric versions, edit timed cues, and preview the document in the visualizer.</p>
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <section className="lmv-track-hero" aria-label="Selected track">
+      <div className="lmv-track-art" aria-hidden="true">
+        <span>{trackInitials(track)}</span>
+      </div>
+
+      <div className="lmv-track-hero-main">
+        <div className="lmv-track-title-row">
+          <h2>{track.title || track.fileName}</h2>
+          <span className="lmv-favorite-star" aria-hidden="true">☆</span>
+          {selectedTrackPlaying && <span className="lmv-playing-badge">Playing</span>}
+          {!selectedTrackPlaying && selectedTrackLoaded && <span className="lmv-loaded-badge">Loaded</span>}
+        </div>
+        <p>{track.artist || 'Unknown artist'}</p>
+        {activeDocumentTitle && (
+          <span className="lmv-active-version-pill">Active version: {activeDocumentTitle}</span>
+        )}
+      </div>
+
+      <div className="lmv-track-hero-stats" aria-label="Track details">
+        <div className="lmv-track-stat"><strong>{formatDuration(track.durationSec)}</strong><span>Duration</span></div>
+        <div className="lmv-track-stat"><strong>{track.bpm ? `${Math.round(track.bpm)} BPM` : '—'}</strong><span>Tempo</span></div>
+        <div className="lmv-track-stat"><strong>{track.musicalKey || '—'}</strong><span>Key</span></div>
+        <div className="lmv-track-stat"><strong>{formatUpdatedDate(track.createdAt)}</strong><span>Updated</span></div>
+      </div>
+
+      <div className="lmv-track-hero-actions">
+        <button
+          className="lmv-btn lmv-btn--ghost"
+          onClick={onLoadTrack}
+          disabled={loading}
+        >
+          {loading ? 'Loading…' : selectedTrackLoaded ? 'Reload deck' : 'Load deck'}
+        </button>
+        <button
+          className="lmv-btn lmv-btn--primary"
+          onClick={onTogglePlayback}
+          disabled={!selectedTrackLoaded}
+        >
+          {selectedTrackPlaying ? 'Pause' : 'Preview'}
+        </button>
+      </div>
+    </section>
+  )
+}
+
+function ExtractionConsoleSummary({
+  selectedTrack,
+  documentCount,
+  cueCount,
+  documentsLoading,
+  activeTab,
+}: {
+  selectedTrack: LyricManagerTrack | null
+  documentCount: number
+  cueCount: number
+  documentsLoading: boolean
+  activeTab: WorkflowTab
+}) {
+  const steps = [
+    { label: selectedTrack ? 'Track selected' : 'Select a track', done: !!selectedTrack },
+    { label: documentsLoading ? 'Loading lyric versions' : documentCount > 0 ? 'Lyric versions loaded' : 'Create or import lyrics', done: documentCount > 0 },
+    { label: cueCount > 0 ? 'Timed cues available' : 'Add timed cues', done: cueCount > 0 },
+    { label: activeTab === 'ai' ? 'Groq extraction console open' : 'Review and save changes', done: cueCount > 0 },
+  ]
+
+  return (
+    <section className="lmv-extraction-console" aria-label="Lyric workflow console">
+      <div className="lmv-panel-card-title">✦ Extraction Console</div>
+      <div className="lmv-console-steps">
+        {steps.map((step, index) => (
+          <div className="lmv-console-step" key={step.label}>
+            <span>{index + 1}</span>
+            <strong>{step.label}</strong>
+            <em className={step.done ? 'lmv-console-ok' : 'lmv-console-pending'}>{step.done ? '✓' : '○'}</em>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function LyricTransportBar({
+  selectedTrack,
+  selectedTrackLoaded,
+  selectedTrackPlaying,
+  currentTimeMs,
+  durationMs,
+  volume,
+  bpm,
+  musicalKey,
+  onTogglePlayback,
+  onVolumeChange,
+}: {
+  selectedTrack: LyricManagerTrack | null
+  selectedTrackLoaded: boolean
+  selectedTrackPlaying: boolean
+  currentTimeMs: number | null
+  durationMs: number
+  volume: number
+  bpm: number | null
+  musicalKey: string | null
+  onTogglePlayback: () => void
+  onVolumeChange: (volume: number) => void
+}) {
+  const safeDuration = Math.max(0, durationMs)
+  const safeCurrent = Math.min(safeDuration, Math.max(0, currentTimeMs ?? 0))
+
+  return (
+    <footer className="lmv-transport-bar" aria-label="Lyric preview transport">
+      <div className="lmv-transport-left">
+        <button className="lmv-transport-chip" type="button">↻ Loop</button>
+        <button className="lmv-transport-chip" type="button">⌕ Snap</button>
+        <button className="lmv-transport-chip" type="button">⇄ Compare: Off</button>
+      </div>
+
+      <div className="lmv-transport-center">
+        <button className="lmv-transport-icon" type="button" disabled>⏮</button>
+        <button className="lmv-transport-icon" type="button" disabled={!selectedTrackLoaded} onClick={onTogglePlayback}>
+          {selectedTrackPlaying ? 'Ⅱ' : '▶'}
+        </button>
+        <button className="lmv-transport-icon" type="button" disabled>⏭</button>
+        <div className="lmv-transport-time">
+          <strong>{formatMsClock(safeCurrent)}</strong>
+          <span>/ {selectedTrack ? formatDuration((safeDuration || (selectedTrack.durationSec ?? 0) * 1000) / 1000) : '0:00'}</span>
+        </div>
+      </div>
+
+      <div className="lmv-transport-right">
+        <label className="lmv-volume-control">
+          <span>♬</span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={Number.isFinite(volume) ? volume : 0.8}
+            onChange={event => onVolumeChange(Number(event.target.value))}
+            aria-label="Preview volume"
+          />
+        </label>
+        <div className="lmv-mini-select"><span>BPM</span><strong>{bpm ? Math.round(bpm) : '—'}</strong></div>
+        <div className="lmv-mini-select"><span>Key</span><strong>{musicalKey || '—'}</strong></div>
+      </div>
+    </footer>
   )
 }
 
@@ -880,92 +1093,60 @@ export function LyricManagerView({ onBack }: Props) {
         </div>
       )}
 
-      <LyricTrackBrowser
-        tracks={tracks}
-        selectedTrackId={selectedTrack?.dbId ?? null}
-        loadedAudioTrackId={engine.currentAudioTrackId}
-        playingAudioTrackId={
-          engine.isPlaying ? engine.currentAudioTrackId : null
-        }
-        search={trackSearch}
-        loading={tracksLoading}
-        error={tracksError}
-        hasMore={hasMore}
-        onSearchChange={setTrackSearch}
-        onSelectTrack={handleSelectTrack}
-        onDeleteTrack={handleRequestDeleteTrack}
-        onLoadMore={() => {
-          void loadTracks(false)
-        }}
-        onUpload={() => setUploadOpen(true)}
-        onRetry={() => {
-          void loadTracks(true)
-        }}
-      />
+      <div className="lmv-body">
+        <aside className="lmv-left-rail" aria-label="Lyric Manager library and versions">
+          <LyricTrackBrowser
+            tracks={tracks}
+            selectedTrackId={selectedTrack?.dbId ?? null}
+            loadedAudioTrackId={engine.currentAudioTrackId}
+            playingAudioTrackId={
+              engine.isPlaying ? engine.currentAudioTrackId : null
+            }
+            search={trackSearch}
+            loading={tracksLoading}
+            error={tracksError}
+            hasMore={hasMore}
+            onSearchChange={setTrackSearch}
+            onSelectTrack={handleSelectTrack}
+            onDeleteTrack={handleRequestDeleteTrack}
+            onLoadMore={() => {
+              void loadTracks(false)
+            }}
+            onUpload={() => setUploadOpen(true)}
+            onRetry={() => {
+              void loadTracks(true)
+            }}
+          />
 
-      {selectedTrack && (
-        <div className="lmv-track-control-strip">
-          <div>
-            <strong>{selectedTrack.title}</strong>
-            <span>{selectedTrack.artist || 'Unknown artist'}</span>
-          </div>
-          <div className="lmv-track-identity-status">
-            <span>Editor: {selectedTrack.title}</span>
-            <span>
-              Deck:{' '}
-              {selectedTrackLoaded
-                ? selectedTrack.title
-                : (engine.currentTrack?.displayName ?? 'None')}
-            </span>
-            <span>
-              Playback:{' '}
-              {selectedTrackPlaying
-                ? 'Playing selected track'
-                : engine.isPlaying
-                  ? 'Playing another track'
-                  : 'Stopped'}
-            </span>
-          </div>
-          <button
-            className="lmv-btn lmv-btn--ghost"
-            onClick={() => {
+          <LyricDocumentSidebar
+            documents={documents}
+            legacyDocuments={legacyDocuments}
+            loading={documentsLoading || isLoading}
+            activeDocumentId={activeDocumentId}
+            hasSelectedTrack={!!selectedTrack}
+            onSelectDocument={handleSelectDocument}
+            onNewDocument={handleNewDocument}
+            onDuplicateDocument={handleDuplicateDocument}
+            onRenameDocument={handleRenameDocument}
+            onActivateDocument={handleActivateDocument}
+            onDeleteDocument={handleRequestDelete}
+            onImportDocument={handleImportDocument}
+          />
+        </aside>
+
+        <main className="lmv-center" aria-label="Lyric editing workspace">
+          <SelectedTrackHero
+            track={selectedTrack}
+            activeDocumentTitle={activeDocument?.title ?? selectedTrack?.activeLyricDocumentName ?? null}
+            selectedTrackLoaded={selectedTrackLoaded}
+            selectedTrackPlaying={selectedTrackPlaying}
+            loading={loadingTrackId === selectedTrack?.dbId}
+            onLoadTrack={() => {
               void handleLoadSelectedTrack()
             }}
-            disabled={loadingTrackId === selectedTrack.dbId}
-          >
-            {loadingTrackId === selectedTrack.dbId
-              ? 'Loading…'
-              : selectedTrackLoaded
-                ? 'Reload to Deck'
-                : 'Load to Deck'}
-          </button>
-          <button
-            className="lmv-btn lmv-btn--ghost"
-            onClick={handleTogglePlayback}
-            disabled={!selectedTrackLoaded}
-          >
-            {selectedTrackPlaying ? 'Pause Preview' : 'Play Preview'}
-          </button>
-        </div>
-      )}
+            onTogglePlayback={handleTogglePlayback}
+          />
 
-      <div className="lmv-body">
-        <LyricDocumentSidebar
-          documents={documents}
-          legacyDocuments={legacyDocuments}
-          loading={documentsLoading || isLoading}
-          activeDocumentId={activeDocumentId}
-          hasSelectedTrack={!!selectedTrack}
-          onSelectDocument={handleSelectDocument}
-          onNewDocument={handleNewDocument}
-          onDuplicateDocument={handleDuplicateDocument}
-          onRenameDocument={handleRenameDocument}
-          onActivateDocument={handleActivateDocument}
-          onDeleteDocument={handleRequestDelete}
-          onImportDocument={handleImportDocument}
-        />
-
-        <div className="lmv-center">
           <div className="lmv-tab-bar" role="tablist" aria-label="Lyric workflow">
             {TAB_LABELS.map((tab) => {
               const disabled = tab.id === 'ai'
@@ -1047,7 +1228,15 @@ export function LyricManagerView({ onBack }: Props) {
               />
             )}
           </div>
-        </div>
+
+          <ExtractionConsoleSummary
+            selectedTrack={selectedTrack}
+            documentCount={documents.length}
+            cueCount={storeCues.length}
+            documentsLoading={documentsLoading}
+            activeTab={activeTab}
+          />
+        </main>
 
         <LyricPreviewPanel
           cues={storeCues}
@@ -1056,6 +1245,19 @@ export function LyricManagerView({ onBack }: Props) {
           onPreviewInVisualizer={handlePreviewInVisualizer}
         />
       </div>
+
+      <LyricTransportBar
+        selectedTrack={selectedTrack}
+        selectedTrackLoaded={selectedTrackLoaded}
+        selectedTrackPlaying={selectedTrackPlaying}
+        currentTimeMs={selectedTrackLoaded ? currentAudioTimeMs : null}
+        durationMs={editorDurationMs}
+        volume={engine.volume}
+        bpm={selectedTrack?.bpm ?? null}
+        musicalKey={selectedTrack?.musicalKey ?? null}
+        onTogglePlayback={handleTogglePlayback}
+        onVolumeChange={engine.setVolume}
+      />
 
       <UnsavedLyricChangesDialog
         open={pendingTransition !== null}

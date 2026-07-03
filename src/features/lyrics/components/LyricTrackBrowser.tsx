@@ -30,6 +30,17 @@ function formatDate(value: string): string {
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString()
 }
 
+function trackInitials(track: LyricManagerTrack): string {
+  const source = `${track.title || track.fileName || ''} ${track.artist || ''}`.trim()
+  const initials = source
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part[0]?.toUpperCase() ?? '')
+    .join('')
+  return initials || '♪'
+}
+
 export function LyricTrackBrowser({
   tracks,
   selectedTrackId,
@@ -51,9 +62,12 @@ export function LyricTrackBrowser({
       <div className="lmv-track-browser-head">
         <div>
           <div className="lmv-track-browser-title">TRACK LIBRARY</div>
-          <div className="lmv-track-browser-subtitle">Select a persisted track before managing lyrics.</div>
+          <div className="lmv-track-browser-subtitle">Select or upload a track.</div>
         </div>
-        <button className="lmv-btn lmv-btn--primary" onClick={onUpload}>Upload Track</button>
+        <div className="lmv-track-browser-actions">
+          <button className="lmv-icon-btn" onClick={onUpload} aria-label="Upload track" title="Upload track"><span className="lmv-sr-label">Upload Track</span>⇧</button>
+          <button className="lmv-icon-btn" type="button" aria-label="Filter tracks" title="Filter tracks">▽</button>
+        </div>
       </div>
 
       <div className="lmv-track-search-wrap">
@@ -95,27 +109,30 @@ export function LyricTrackBrowser({
                 onClick={() => onSelectTrack(track)}
                 aria-pressed={selected}
               >
-                <div className="lmv-track-card-topline">
-                  <span className="lmv-track-title">{track.title || track.fileName}</span>
-                  {playing ? <span className="lmv-playing-badge">Playing</span> : loaded ? <span className="lmv-loaded-badge">Loaded</span> : null}
-                </div>
-                <div className="lmv-track-artist">{track.artist || 'Unknown artist'}</div>
-                <div className="lmv-track-meta">
-                  <span>{formatDuration(track.durationSec)}</span>
-                  <span>{track.bpm ? `${Math.round(track.bpm)} BPM` : 'BPM —'}</span>
-                  <span>{track.musicalKey || 'Key —'}</span>
-                  <span>{formatDate(track.createdAt)}</span>
-                </div>
-                <div className="lmv-track-lyrics-row">
-                  <span className={track.lyricVersionCount > 0 ? 'lmv-track-has-lyrics' : 'lmv-track-no-lyrics'}>
-                    {track.lyricVersionCount > 0
-                      ? `${track.lyricVersionCount} lyric version${track.lyricVersionCount === 1 ? '' : 's'}`
-                      : 'No lyrics'}
+                <span className="lmv-track-card-art" aria-hidden="true">{trackInitials(track)}</span>
+                <span className="lmv-track-card-main">
+                  <span className="lmv-track-card-topline">
+                    <span className="lmv-track-title">{track.title || track.fileName}</span>
+                    {playing ? <span className="lmv-playing-badge">Playing</span> : loaded ? <span className="lmv-loaded-badge">Loaded</span> : null}
                   </span>
-                  <span className="lmv-track-active-doc">
-                    {track.activeLyricDocumentName ? `Active: ${track.activeLyricDocumentName}` : 'No active version'}
+                  <span className="lmv-track-artist">{track.artist || 'Unknown artist'}</span>
+                  <span className="lmv-track-meta">
+                    <span>{formatDuration(track.durationSec)}</span>
+                    <span>{track.bpm ? `${Math.round(track.bpm)} BPM` : 'BPM —'}</span>
+                    <span>{track.musicalKey || 'Key —'}</span>
+                    <span>{formatDate(track.createdAt)}</span>
                   </span>
-                </div>
+                  <span className="lmv-track-lyrics-row">
+                    <span className={track.lyricVersionCount > 0 ? 'lmv-track-has-lyrics' : 'lmv-track-no-lyrics'}>
+                      {track.lyricVersionCount > 0
+                        ? `${track.lyricVersionCount} lyric version${track.lyricVersionCount === 1 ? '' : 's'}`
+                        : 'No lyrics'}
+                    </span>
+                    <span className="lmv-track-active-doc">
+                      {track.activeLyricDocumentName ? `Active: ${track.activeLyricDocumentName}` : 'No active version'}
+                    </span>
+                  </span>
+                </span>
               </button>
               <button
                 type="button"
