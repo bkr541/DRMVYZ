@@ -62,6 +62,24 @@ describe('Brand Kit normalization and cache', () => {
     expect(localStorage.getItem(brandKitCacheKey('user-a'))).toBeNull()
   })
 
+  it('rewrites cached Brand Kit data after removing only the retired Neon rule', () => {
+    const stale = structuredClone(activeFixture)
+    stale.kit.engineRules = {
+      neonLattice: { mode: 'brand', strength: 0.8 },
+      oscilloscope: { mode: 'hybrid', strength: 0.6 },
+    }
+    localStorage.setItem(brandKitCacheKey('user-a'), JSON.stringify({
+      version: BRAND_KIT_CACHE_VERSION,
+      userId: 'user-a',
+      active: stale,
+    }))
+
+    expect(readBrandKitCache('user-a')?.kit.engineRules).toEqual({
+      oscilloscope: { mode: 'hybrid', strength: 0.6 },
+    })
+    expect(localStorage.getItem(brandKitCacheKey('user-a'))).not.toContain('neonLattice')
+  })
+
   it('isolates active-kit cache by user', () => {
     writeBrandKitCache('user-a', activeFixture)
     expect(readBrandKitCache('user-a')?.kit.id).toBe('kit-1')

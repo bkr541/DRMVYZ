@@ -86,15 +86,15 @@ describe('React selection persistence invariant', () => {
     expect(result.activeReactPresetId).toBe(firstFor('laserDmx').id)
   })
 
-  it('partialize never writes a mismatched pair even if external code corrupts memory', () => {
+  it('partialize retires a Neon selection even if external code corrupts memory', () => {
     useReactStore.setState({
       activeReactPresetId: firstFor('cinematicPortal').id,
       activeReactEngineId: 'neonLattice',
     })
 
     const persisted = reactStorePartialize(useReactStore.getState())
-    expect(persisted.activeReactEngineId).toBe('neonLattice')
-    expect(persisted.activeReactPresetId).toBe(firstFor('neonLattice').id)
+    expect(persisted.activeReactEngineId).toBe('cinematicPortal')
+    expect(persisted.activeReactPresetId).toBe('preset-dream-gate')
   })
 
   it('compatibility engine setter routes through the invariant-preserving selector', () => {

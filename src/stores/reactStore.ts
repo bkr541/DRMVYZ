@@ -116,6 +116,7 @@ import {
   evictSvgVisual,
   isCurrentSvgVisualGeneration,
 } from '../components/vyzualz/react/renderers/svgVisualCache'
+import { sanitizeReactPresetFavorites } from '../components/vyzualz/react/reactPresetLibraryState'
 import {
   getMediaIdFromSvgGlyphId,
   getSvgGlyphAssetId,
@@ -1387,6 +1388,275 @@ const RETIRED_DUPLICATE_PRESET_REPLACEMENTS = new Map<string, string>([
 
 const RETIRED_DUPLICATE_PRESET_IDS = new Set(RETIRED_DUPLICATE_PRESET_REPLACEMENTS.keys())
 
+/** Historical persisted identifier only. It must never be used as a new catalog entry. */
+export const RETIRED_NEON_LATTICE_ENGINE_ID = 'neonLattice'
+
+/**
+ * Frozen historical IDs are kept here rather than derived from the live preset
+ * catalog so later removal patches can still recognize old project snapshots.
+ */
+export const RETIRED_NEON_LATTICE_BUILT_IN_PRESET_IDS = new Set<string>([
+  'preset-nl-acid-magenta',
+  'preset-nl-drmvyz-lattice',
+  'preset-nl-sparse-starlines',
+  'preset-nl-overload-matrix',
+  'preset-nl-reverie-keygrid',
+])
+
+const RETIRED_NEON_ACTION_PREFIX = `${RETIRED_NEON_LATTICE_ENGINE_ID}.`
+const RETIRED_NEON_ACTION_FIELDS = [
+  'action',
+  'actionId',
+  'performanceAction',
+  'performanceActionId',
+  'visualAction',
+  'visualActionId',
+] as const
+
+function isRetiredNeonEngine(value: unknown): boolean {
+  return value === RETIRED_NEON_LATTICE_ENGINE_ID
+}
+
+function isRetiredNeonActionValue(value: unknown): boolean {
+  if (typeof value === 'string') {
+    if (value.startsWith(RETIRED_NEON_ACTION_PREFIX)) return true
+    return getReactPerformanceAction(value)?.target.engineId === RETIRED_NEON_LATTICE_ENGINE_ID
+  }
+  if (!isRecord(value)) return false
+  if (isRetiredNeonEngine(value.engine) || isRetiredNeonEngine(value.engineId)) return true
+  if (isRecord(value.target) && isRetiredNeonEngine(value.target.engineId)) return true
+  return RETIRED_NEON_ACTION_FIELDS.some(field => isRetiredNeonActionValue(value[field]))
+}
+
+function referencesRetiredNeonAction(value: Record<string, unknown>): boolean {
+  if (isRetiredNeonEngine(value.engine) || isRetiredNeonEngine(value.engineId)) return true
+  if (isRecord(value.target) && isRetiredNeonEngine(value.target.engineId)) return true
+  return RETIRED_NEON_ACTION_FIELDS.some(field => isRetiredNeonActionValue(value[field]))
+}
+
+function collectRetiredNeonPresetIds(value: unknown): Set<string> {
+  const retired = new Set(RETIRED_NEON_LATTICE_BUILT_IN_PRESET_IDS)
+  if (!Array.isArray(value)) return retired
+  for (const rawPreset of value) {
+    if (!isRecord(rawPreset)) continue
+    const presetId = typeof rawPreset.id === 'string' ? rawPreset.id : null
+    if (presetId && (
+      RETIRED_NEON_LATTICE_BUILT_IN_PRESET_IDS.has(presetId)
+      || isRetiredNeonEngine(rawPreset.engine)
+      || isRetiredNeonEngine(rawPreset.engineId)
+    )) {
+      retired.add(presetId)
+    }
+  }
+  return retired
+}
+
+function stripRetiredNeonFields<T extends Record<string, unknown>>(value: T): T {
+  let next: Record<string, unknown> | null = null
+  for (const key of Object.keys(value)) {
+    if (!key.toLowerCase().includes('neonlattice')) continue
+    next ??= { ...value }
+    delete next[key]
+  }
+  return (next ?? value) as T
+}
+
+function sanitizeRetiredNeonPresetCollection(
+  value: unknown,
+  retiredPresetIds: ReadonlySet<string>,
+): unknown {
+  if (!Array.isArray(value)) return value
+  return value.flatMap((rawPreset) => {
+    if (!isRecord(rawPreset)) return [rawPreset]
+    const presetId = typeof rawPreset.id === 'string' ? rawPreset.id : null
+    if (
+      (presetId != null && retiredPresetIds.has(presetId))
+      || isRetiredNeonEngine(rawPreset.engine)
+      || isRetiredNeonEngine(rawPreset.engineId)
+    ) return []
+
+    let preset = stripRetiredNeonFields(rawPreset)
+    if (Array.isArray(preset.scenes)) {
+      const removedSceneIds = new Set<string>()
+      const scenes = preset.scenes.filter((scene) => {
+        if (!isRecord(scene)) return true
+        const remove = isRetiredNeonEngine(scene.engine) || isRetiredNeonEngine(scene.engineId)
+        if (remove && typeof scene.id === 'string') removedSceneIds.add(scene.id)
+        return !remove
+      })
+      if (scenes.length !== preset.scenes.length) {
+        preset = { ...preset, scenes }
+        if (Array.isArray(preset.sectionMappings) && removedSceneIds.size > 0) {
+          preset.sectionMappings = preset.sectionMappings.filter(mapping => (
+            !isRecord(mapping)
+            || typeof mapping.sceneId !== 'string'
+            || !removedSceneIds.has(mapping.sceneId)
+          ))
+        }
+      }
+    }
+    return [preset]
+  })
+}
+
+function sanitizeRetiredNeonPads(
+  value: unknown,
+  retiredPresetIds: ReadonlySet<string>,
+): unknown {
+  if (!Array.isArray(value)) return value
+  return value.map((rawPad) => {
+    if (!isRecord(rawPad)) return rawPad
+    let next: Record<string, unknown> | null = null
+    if (typeof rawPad.presetId === 'string' && retiredPresetIds.has(rawPad.presetId)) {
+      next = { ...rawPad, presetId: null }
+    }
+    for (const field of RETIRED_NEON_ACTION_FIELDS) {
+      if (!isRetiredNeonActionValue(rawPad[field])) continue
+      next ??= { ...rawPad }
+      next[field] = null
+    }
+    return next ?? rawPad
+  })
+}
+
+function sanitizeRetiredNeonAutomation(
+  value: unknown,
+  retiredPresetIds: ReadonlySet<string>,
+): unknown {
+  if (!isRecord(value)) return value
+  const next: Record<string, unknown> = {}
+  for (const [trackId, rawCues] of Object.entries(value)) {
+    if (!Array.isArray(rawCues)) {
+      next[trackId] = rawCues
+      continue
+    }
+    next[trackId] = rawCues.filter((cue) => {
+      if (!isRecord(cue)) return true
+      if (typeof cue.presetId === 'string' && retiredPresetIds.has(cue.presetId)) return false
+      return !referencesRetiredNeonAction(cue)
+    })
+  }
+  return next
+}
+
+function sanitizeRetiredNeonTrackSections(value: unknown): unknown {
+  const sanitizeSection = (section: unknown): unknown => {
+    if (!isRecord(section)) return section
+    if (!isRetiredNeonEngine(section.engineId) && !isRetiredNeonEngine(section.engine)) return section
+    const next = { ...section }
+    if (isRetiredNeonEngine(next.engineId)) delete next.engineId
+    if (isRetiredNeonEngine(next.engine)) delete next.engine
+    return next
+  }
+  if (Array.isArray(value)) return value.map(sanitizeSection)
+  if (!isRecord(value)) return value
+  return Object.fromEntries(Object.entries(value).map(([trackId, sections]) => [
+    trackId,
+    Array.isArray(sections) ? sections.map(sanitizeSection) : sections,
+  ]))
+}
+
+function removeRetiredPresetRecordEntries(
+  value: unknown,
+  retiredPresetIds: ReadonlySet<string>,
+): unknown {
+  if (!isRecord(value)) return value
+  return Object.fromEntries(Object.entries(value).filter(([presetId]) => !retiredPresetIds.has(presetId)))
+}
+
+function sanitizeRetiredNeonPerformanceRuntime(state: Record<string, unknown>): Record<string, unknown> {
+  let next = stripRetiredNeonFields(state)
+  if (isRecord(next.performanceActionEvent) && referencesRetiredNeonAction(next.performanceActionEvent)) {
+    next = { ...next, performanceActionEvent: null }
+  }
+  if (Array.isArray(next.performanceActionEvents)) {
+    next = {
+      ...next,
+      performanceActionEvents: next.performanceActionEvents.filter(event => (
+        !isRecord(event) || !referencesRetiredNeonAction(event)
+      )),
+    }
+  }
+  if (isRecord(next.performanceActionToggleStates)) {
+    next = {
+      ...next,
+      performanceActionToggleStates: Object.fromEntries(
+        Object.entries(next.performanceActionToggleStates)
+          .filter(([actionId]) => !isRetiredNeonActionValue(actionId)),
+      ),
+    }
+  }
+  return next
+}
+
+/**
+ * Removes historical Neon Lattice references from persisted or imported React
+ * state. This intentionally does not mutate the live engine catalog or runtime
+ * fields; Patch 1 only prevents retired data from surviving persistence.
+ */
+export function sanitizeRetiredNeonLatticeReactState(persistedState: unknown): Record<string, unknown> {
+  const rawState = isRecord(persistedState) ? persistedState : {}
+  const retiredPresetIds = collectRetiredNeonPresetIds(rawState.reactPresets)
+  const sanitizedPresets = sanitizeRetiredNeonPresetCollection(rawState.reactPresets, retiredPresetIds)
+  let state = sanitizeRetiredNeonPerformanceRuntime({
+    ...rawState,
+    ...(Array.isArray(rawState.reactPresets) ? { reactPresets: sanitizedPresets } : {}),
+    ...(rawState.performancePads !== undefined
+      ? { performancePads: sanitizeRetiredNeonPads(rawState.performancePads, retiredPresetIds) }
+      : {}),
+    ...(rawState.presetAutomationCuesByTrackId !== undefined
+      ? { presetAutomationCuesByTrackId: sanitizeRetiredNeonAutomation(rawState.presetAutomationCuesByTrackId, retiredPresetIds) }
+      : {}),
+    ...(rawState.manualTrackSectionsByTrackId !== undefined
+      ? { manualTrackSectionsByTrackId: sanitizeRetiredNeonTrackSections(rawState.manualTrackSectionsByTrackId) }
+      : {}),
+    ...(rawState.manualTrackSections !== undefined
+      ? { manualTrackSections: sanitizeRetiredNeonTrackSections(rawState.manualTrackSections) }
+      : {}),
+    ...(rawState.cinematicConfigsByPresetId !== undefined
+      ? { cinematicConfigsByPresetId: removeRetiredPresetRecordEntries(rawState.cinematicConfigsByPresetId, retiredPresetIds) }
+      : {}),
+    ...(rawState.cinematicSeedLocksByPresetId !== undefined
+      ? { cinematicSeedLocksByPresetId: removeRetiredPresetRecordEntries(rawState.cinematicSeedLocksByPresetId, retiredPresetIds) }
+      : {}),
+  })
+
+  const validPresets = [
+    ...DEFAULT_REACT_PRESETS.filter(preset => (
+      preset.engine !== RETIRED_NEON_LATTICE_ENGINE_ID
+      && !RETIRED_NEON_LATTICE_BUILT_IN_PRESET_IDS.has(preset.id)
+    )),
+    ...(Array.isArray(sanitizedPresets)
+      ? sanitizedPresets.filter((preset): preset is ReactPreset => (
+          isRecord(preset)
+          && typeof preset.id === 'string'
+          && typeof preset.engine === 'string'
+          && preset.engine !== RETIRED_NEON_LATTICE_ENGINE_ID
+        ))
+      : []),
+  ]
+  const validPresetById = new Map(validPresets.map(preset => [preset.id, preset]))
+  const activePresetId = typeof state.activeReactPresetId === 'string' ? state.activeReactPresetId : null
+  const activeEngineId = typeof state.activeReactEngineId === 'string' ? state.activeReactEngineId : null
+  const activePreset = activePresetId ? validPresetById.get(activePresetId) ?? null : null
+  const activePresetWasRetired = activePresetId != null && retiredPresetIds.has(activePresetId)
+  const validShaderSelection = activeEngineId === 'shaderPads' && activePresetId == null
+  const validPresetSelection = activeEngineId != null
+    && activeEngineId !== RETIRED_NEON_LATTICE_ENGINE_ID
+    && activePreset != null
+    && activePreset.engine === activeEngineId
+
+  const hasPersistedSelection = 'activeReactPresetId' in state || 'activeReactEngineId' in state
+  if (hasPersistedSelection && (activePresetWasRetired || (!validShaderSelection && !validPresetSelection))) {
+    state = {
+      ...state,
+      activeReactPresetId: INITIAL_PRESET_ID,
+      activeReactEngineId: INITIAL_ENGINE_ID,
+    }
+  }
+  return state
+}
+
 function replaceRetiredDuplicatePresetId(value: unknown): string | null {
   if (typeof value !== 'string') return null
   return RETIRED_DUPLICATE_PRESET_REPLACEMENTS.get(value) ?? value
@@ -2082,6 +2352,9 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       cinematicSeedLocksByPresetId: normalizeCinematicSeedLocks(state.cinematicSeedLocksByPresetId, presets),
     }
   }
+  if (version < 37) {
+    state = sanitizeRetiredNeonLatticeReactState(state)
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -2101,7 +2374,9 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
   if ('neonLatticeSettings' in state) {
     state = { ...state, neonLatticeSettings: normalizeNeonLatticeSettings(state.neonLatticeSettings) }
   }
-  return state
+  // Imported/current-version snapshots do not necessarily pass through a
+  // numbered migration, so keep the retirement boundary defensive.
+  return sanitizeRetiredNeonLatticeReactState(state)
 }
 
 export const MIN_SOUND_DRAWING_CLIP_DURATION_SEC = 0.1
@@ -2238,7 +2513,7 @@ export function reactStorePartialize(s: ReactStoreState) {
     s.activeReactEngineId,
     s.reactPresets,
   )
-  return {
+  const persisted = {
     activeReactPresetId:                repairedSelection.activeReactPresetId,
     activeReactEngineId:                repairedSelection.activeReactEngineId,
     reactPresets:                       s.reactPresets,
@@ -2267,6 +2542,7 @@ export function reactStorePartialize(s: ReactStoreState) {
     reactFogDensity:      s.reactFogDensity,
     reactParticleDensity: s.reactParticleDensity,
   }
+  return sanitizeRetiredNeonLatticeReactState(persisted) as typeof persisted
 }
 
 export type ReactPersistedState = ReturnType<typeof reactStorePartialize>
@@ -2294,12 +2570,20 @@ export function mergeReactStoreState(
   persistedState: unknown,
   currentState: ReactStoreState,
 ): ReactStoreState {
-  const persisted = (persistedState ?? {}) as Partial<ReactPersistedState>
+  const persisted = sanitizeRetiredNeonLatticeReactState(persistedState) as Partial<ReactPersistedState>
   const persistedPresets = Array.isArray(persisted.reactPresets)
     ? removeRetiredDuplicatePresets(persisted.reactPresets)
     : undefined
   const reactPresets = normalizeCinematicPresetCollection(
     removeRetiredDuplicatePresets(mergeCollectionsById(currentState.reactPresets, persistedPresets)),
+  )
+  sanitizeReactPresetFavorites(
+    reactPresets
+      .filter(preset => (
+        preset.engine !== RETIRED_NEON_LATTICE_ENGINE_ID
+        && !RETIRED_NEON_LATTICE_BUILT_IN_PRESET_IDS.has(preset.id)
+      ))
+      .map(preset => preset.id),
   )
   const performancePads = clearRetiredDuplicatePadAssignments(
     mergeCollectionsById(currentState.performancePads, persisted.performancePads),
@@ -4666,7 +4950,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 36,
+      version: 37,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

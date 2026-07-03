@@ -113,7 +113,16 @@ export function readBrandKitCache(userId: string): ActiveBrandKitData | null {
       localStorage.removeItem(brandKitCacheKey(userId))
       return null
     }
-    return normalizeCachedActive(parsed.active, userId)
+    const normalized = normalizeCachedActive(parsed.active, userId)
+    const rawEngineRules = isRecord(parsed.active)
+      && isRecord(parsed.active.kit)
+      && isRecord(parsed.active.kit.engineRules)
+      ? parsed.active.kit.engineRules
+      : null
+    if (normalized && rawEngineRules && 'neonLattice' in rawEngineRules) {
+      writeBrandKitCache(userId, normalized)
+    }
+    return normalized
   } catch {
     try { localStorage.removeItem(brandKitCacheKey(userId)) } catch { /* non-fatal cache cleanup */ }
     return null
@@ -378,7 +387,7 @@ export const useBrandKitStore = create<BrandKitState>((set, get) => ({
       extracted_palette: input.extracted_palette ?? {},
       extraction_metadata: input.extraction_metadata ?? {},
       default_strength: clampStrength(input.default_strength),
-      engine_rules: input.engine_rules ?? {},
+      engine_rules: normalizeBrandKitEngineRules(input.engine_rules) as unknown as BrandKitInsert['engine_rules'],
       preset_rules: input.preset_rules ?? {},
       use_for_app_accent: input.use_for_app_accent ?? false,
       auto_apply: input.auto_apply ?? true,

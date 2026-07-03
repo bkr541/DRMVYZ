@@ -7,7 +7,9 @@ const FAVORITES_STORAGE_KEY = 'drmvyz.reactPresetFavorites.v1'
 
 function getLocalStorage(): Storage | null {
   try {
-    return typeof window !== 'undefined' ? window.localStorage : null
+    return typeof globalThis !== 'undefined' && 'localStorage' in globalThis
+      ? globalThis.localStorage
+      : null
   } catch {
     return null
   }
@@ -35,6 +37,30 @@ export function writeReactPresetFavorites(
   } catch {
     // Preset browsing remains functional when storage is unavailable or full.
   }
+}
+
+/**
+ * Removes stale or retired preset IDs while preserving the user's remaining
+ * favorite order. The cleaned value is written back only when it differs from
+ * the stored value so hydration does not churn localStorage unnecessarily.
+ */
+export function sanitizeReactPresetFavorites(
+  validPresetIds: Iterable<string>,
+  storage: Storage | null = getLocalStorage(),
+): string[] {
+  if (!storage) return []
+  const valid = new Set(validPresetIds)
+  const existing = readReactPresetFavorites(storage)
+  const seen = new Set<string>()
+  const cleaned = existing.filter((presetId) => {
+    if (!valid.has(presetId) || seen.has(presetId)) return false
+    seen.add(presetId)
+    return true
+  })
+  if (cleaned.length !== existing.length || cleaned.some((value, index) => value !== existing[index])) {
+    writeReactPresetFavorites(cleaned, storage)
+  }
+  return cleaned
 }
 
 export function filterReactPresetLibrary(

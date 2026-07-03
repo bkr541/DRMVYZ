@@ -52,37 +52,23 @@ function makeHRail(birthSec = 0) {
 // ── 1. Store migration ────────────────────────────────────────────────────────
 
 describe('store migration (migrateReactStore)', () => {
-  it('adds neonLatticeSettings when missing (v<16)', () => {
+  it('does not re-persist Neon settings after the full migration chain', () => {
     const old = { activeReactEngineId: 'oscilloscope' }
     const result = migrateReactStore(old, 15)
-    expect(result).toHaveProperty('neonLatticeSettings')
-    expect((result.neonLatticeSettings as NeonLatticeSettings).railDensity)
-      .toBe(DEFAULT_NEON_LATTICE_SETTINGS.railDensity)
+    expect(result).not.toHaveProperty('neonLatticeSettings')
   })
 
-  it('v<17 migration normalizes partial settings: missing fields get default values', () => {
+  it('retires partial historical Neon settings after compatibility processing', () => {
     const existing: Partial<NeonLatticeSettings> = { railDensity: 0.9, bloom: 0.1 }
     const old = { neonLatticeSettings: existing }
     const result = migrateReactStore(old, 15)
-    const s = result.neonLatticeSettings as NeonLatticeSettings
-    // Explicitly-set values are preserved
-    expect(s.railDensity).toBe(0.9)
-    expect(s.bloom).toBe(0.1)
-    // Missing fields are backfilled from DEFAULT
-    expect(s.parallax).toBe(DEFAULT_NEON_LATTICE_SETTINGS.parallax)
-    expect(s.cameraMotion).toBe(DEFAULT_NEON_LATTICE_SETTINGS.cameraMotion)
-    // All keys from DEFAULT must be present
-    for (const key of Object.keys(DEFAULT_NEON_LATTICE_SETTINGS) as Array<keyof NeonLatticeSettings>) {
-      expect(s).toHaveProperty(key)
-    }
+    expect(result).not.toHaveProperty('neonLatticeSettings')
   })
 
-  it('v<17 migration with complete settings: all values are preserved unchanged', () => {
+  it('retires complete historical Neon settings after compatibility processing', () => {
     const state = { neonLatticeSettings: { ...DEFAULT_NEON_LATTICE_SETTINGS, railDensity: 0.77 } }
     const result = migrateReactStore(state, 16)
-    expect((result.neonLatticeSettings as NeonLatticeSettings).railDensity).toBe(0.77)
-    expect((result.neonLatticeSettings as NeonLatticeSettings).bloom)
-      .toBe(DEFAULT_NEON_LATTICE_SETTINGS.bloom)
+    expect(result).not.toHaveProperty('neonLatticeSettings')
   })
 })
 
@@ -96,11 +82,11 @@ describe('reactStorePartialize', () => {
     expect(partial).not.toHaveProperty('neonLatticeTrigger')
   })
 
-  it('neonLatticeSettings is present in persisted state', () => {
+  it('neonLatticeSettings is absent from persisted state', () => {
     freshStore()
     const s = useReactStore.getState()
     const partial = reactStorePartialize(s)
-    expect(partial).toHaveProperty('neonLatticeSettings')
+    expect(partial).not.toHaveProperty('neonLatticeSettings')
   })
 
   it('triggerNeonLattice is absent from persisted state', () => {
@@ -2172,34 +2158,29 @@ describe('shockwaveAmount: replaces boolean shockwaves', () => {
 
 // ── 45. shockwaves boolean → shockwaveAmount migration ───────────────────────
 
-describe('migrateReactStore v18: shockwaves boolean → shockwaveAmount number', () => {
-  it('false → 0', () => {
+describe('migrateReactStore v18 compatibility followed by Neon retirement', () => {
+  it('retires legacy shockwaves=false state', () => {
     const persisted = {
       neonLatticeSettings: { ...DEFAULT_NEON_LATTICE_SETTINGS, shockwaves: false },
     }
     const result = migrateReactStore(persisted, 17)
-    const s = (result as Record<string, unknown>).neonLatticeSettings as Record<string, unknown>
-    expect(s['shockwaveAmount']).toBe(0)
-    expect(s).not.toHaveProperty('shockwaves')
+    expect(result).not.toHaveProperty('neonLatticeSettings')
   })
 
-  it('true → default shockwaveAmount (0.65)', () => {
+  it('retires legacy shockwaves=true state', () => {
     const persisted = {
       neonLatticeSettings: { ...DEFAULT_NEON_LATTICE_SETTINGS, shockwaves: true },
     }
     const result = migrateReactStore(persisted, 17)
-    const s = (result as Record<string, unknown>).neonLatticeSettings as Record<string, unknown>
-    expect(s['shockwaveAmount']).toBe(DEFAULT_NEON_LATTICE_SETTINGS.shockwaveAmount)
-    expect(s).not.toHaveProperty('shockwaves')
+    expect(result).not.toHaveProperty('neonLatticeSettings')
   })
 
-  it('no shockwaves field: migration is a no-op (shockwaveAmount unchanged)', () => {
+  it('retires already-normalized shockwave state', () => {
     const persisted = {
       neonLatticeSettings: { ...DEFAULT_NEON_LATTICE_SETTINGS, shockwaveAmount: 0.4 },
     }
     const result = migrateReactStore(persisted, 17)
-    const s = (result as Record<string, unknown>).neonLatticeSettings as Record<string, unknown>
-    expect(s['shockwaveAmount']).toBe(0.4)
+    expect(result).not.toHaveProperty('neonLatticeSettings')
   })
 })
 

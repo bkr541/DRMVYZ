@@ -5,7 +5,8 @@
  *   - Each of the 5 removed preset IDs falls back to Dream Gate
  *   - shaderPads engine with null / unknown preset falls back to Dream Gate
  *   - Valid non-Shader preset with stale shaderPads engine is repaired
- *   - Valid Sound Drawing / LaserDMX / Neon Lattice / Cinematic Portal states are untouched
+ *   - Valid Sound Drawing / LaserDMX / Cinematic Portal states are untouched
+ *   - Historical Neon Lattice selections and settings are retired by the latest migration
  *   - All unrelated state fields survive migration unchanged
  *   - Version 19 is idempotent (no second-pass changes)
  *   - resetReactView() lands on Dream Gate / cinematicPortal
@@ -14,10 +15,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import { migrateReactStore, useReactStore } from './reactStore'
-import {
-  DEFAULT_NEON_LATTICE_SETTINGS,
-  DEFAULT_REACT_PRESETS,
-} from '../components/vyzualz/react/ReactTypes'
+import { DEFAULT_REACT_PRESETS } from '../components/vyzualz/react/ReactTypes'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -134,13 +132,13 @@ describe('valid non-Shader state is not modified', () => {
     expect(result.activeReactEngineId).toBe('laserDmx')
   })
 
-  it('Neon Lattice state is preserved', () => {
+  it('Neon Lattice state is retired to the safe fallback', () => {
     const result = migrate18({
       activeReactPresetId: 'preset-nl-acid-magenta',
       activeReactEngineId: 'neonLattice',
     })
-    expect(result.activeReactPresetId).toBe('preset-nl-acid-magenta')
-    expect(result.activeReactEngineId).toBe('neonLattice')
+    expect(result.activeReactPresetId).toBe('preset-dream-gate')
+    expect(result.activeReactEngineId).toBe('cinematicPortal')
   })
 
   it('Cinematic Portal state is preserved', () => {
@@ -225,10 +223,7 @@ describe('unrelated state fields survive migration unchanged', () => {
     expect(result.soundDrawingClipsByTrackId).toEqual(soundDrawingClipsByTrackId)
     expect(result.laserDmxSettings).toEqual(laserDmxSettings)
     expect(result.laserDmxBeamMatrix).toEqual(laserDmxBeamMatrix)
-    expect(result.neonLatticeSettings).toEqual({
-      ...DEFAULT_NEON_LATTICE_SETTINGS,
-      ...neonLatticeSettings,
-    })
+    expect(result).not.toHaveProperty('neonLatticeSettings')
     expect(result.presetAutomationCuesByTrackId).toEqual(presetAutomationCuesByTrackId)
     expect((result as Record<string, unknown>).futureField).toEqual(futureField)
   })

@@ -15,6 +15,7 @@ import type {
 } from './BrandKitTypes'
 import {
   normalizeBrandKitAssetRow,
+  normalizeBrandKitEngineRules,
   normalizeBrandKitRow,
 } from './brandKitNormalization'
 
@@ -184,7 +185,7 @@ export function brandKitToDbUpdate(kit: Partial<BrandKit>): BrandKitUpdate {
   if (kit.extractedPalette !== undefined) update.extracted_palette = asJson(kit.extractedPalette ?? {})
   if (kit.extractionMetadata !== undefined) update.extraction_metadata = asJson(kit.extractionMetadata ?? {})
   if (kit.defaultStrength !== undefined) update.default_strength = kit.defaultStrength
-  if (kit.engineRules !== undefined) update.engine_rules = asJson(kit.engineRules)
+  if (kit.engineRules !== undefined) update.engine_rules = asJson(normalizeBrandKitEngineRules(kit.engineRules))
   if (kit.presetRules !== undefined) update.preset_rules = asJson(kit.presetRules)
   if (kit.useForAppAccent !== undefined) update.use_for_app_accent = kit.useForAppAccent
   if (kit.autoApply !== undefined) update.auto_apply = kit.autoApply
