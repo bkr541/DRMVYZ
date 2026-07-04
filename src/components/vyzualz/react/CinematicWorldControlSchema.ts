@@ -32,7 +32,7 @@ import {
   type NumericBounds,
 } from './CinematicWorldSettings'
 
-export type CinematicWorldCategory = 'Cosmic' | 'Architectural' | 'Organic' | 'Mechanical' | 'Storm' | 'Media' | 'Legacy'
+export type CinematicWorldCategory = 'Cosmic' | 'Architectural' | 'Organic' | 'Mechanical' | 'Storm' | 'Legacy'
 export type CinematicWorldControlVisibility = 'all' | 'simple' | 'advanced'
 
 type SettingKey<Mode extends CinematicWorldMode> = Extract<keyof CinematicWorldSettingsByMode[Mode], string>
@@ -375,54 +375,6 @@ const REACTIVE_CONSTELLATION_CONTROLS = {
   ],
 } as const satisfies CinematicWorldControlSchema<'reactiveConstellation'>
 
-const MEDIA_PORTAL_CONTROLS = {
-  mode: 'mediaPortal',
-  groups: [
-    {
-      id: 'media-portal-playback',
-      label: 'Media',
-      visibility: 'all',
-      controls: [
-        {
-          kind: 'select', id: 'cinematic-media-fit', setting: 'fit', label: 'Source Fitting', description: 'Controls how the selected artwork fills the portal surface.', visibility: 'all',
-          options: [
-            { value: 'contain', label: 'Contain' },
-            { value: 'cover', label: 'Cover' },
-            { value: 'stretch', label: 'Stretch' },
-            { value: 'centerCrop', label: 'Center Crop' },
-          ],
-        },
-        { kind: 'toggle', id: 'cinematic-media-loop', setting: 'loop', label: 'Loop Video', visibility: 'all' },
-      ],
-    },
-    {
-      id: 'media-portal-effects',
-      label: 'Media Effects',
-      visibility: 'advanced',
-      controls: [
-        { kind: 'slider', id: 'cinematic-media-zoom', setting: 'zoom', label: 'Zoom', min: 0.25, max: 4, step: 0.01 },
-        { kind: 'slider', id: 'cinematic-media-pan-x', setting: 'panX', label: 'Pan X', min: -1, max: 1, step: 0.01 },
-        { kind: 'slider', id: 'cinematic-media-pan-y', setting: 'panY', label: 'Pan Y', min: -1, max: 1, step: 0.01 },
-        { kind: 'slider', id: 'cinematic-media-rotation', setting: 'rotation', label: 'Rotation', min: -3.14, max: 3.14, step: 0.01 },
-        { kind: 'toggle', id: 'cinematic-media-mirror-x', setting: 'mirrorX', label: 'Mirror Horizontally' },
-        { kind: 'toggle', id: 'cinematic-media-mirror-y', setting: 'mirrorY', label: 'Mirror Vertically' },
-        {
-          kind: 'select', id: 'cinematic-media-mask-mode', setting: 'maskMode', label: 'Mask Interpretation',
-          options: [{ value: 'alpha', label: 'Alpha' }, { value: 'luminance', label: 'Luminance' }],
-        },
-        { kind: 'slider', id: 'cinematic-media-displacement', setting: 'displacement', label: 'Displacement', min: 0, max: 1, step: 0.01 },
-        { kind: 'slider', id: 'cinematic-media-scanlines', setting: 'scanlines', label: 'Scanlines', min: 0, max: 1, step: 0.01 },
-        { kind: 'slider', id: 'cinematic-media-edgeGlow', setting: 'edgeGlow', label: 'Edge Glow', min: 0, max: 1.5, step: 0.01 },
-        { kind: 'slider', id: 'cinematic-media-ripple', setting: 'ripple', label: 'Ripple', min: 0, max: 1, step: 0.01 },
-        { kind: 'slider', id: 'cinematic-media-pixelation', setting: 'pixelation', label: 'Pixelation', min: 0, max: 1, step: 0.01 },
-        { kind: 'slider', id: 'cinematic-media-revealAmount', setting: 'revealAmount', label: 'Reveal Amount', min: 0, max: 1, step: 0.01 },
-        { kind: 'slider', id: 'cinematic-media-beatFlash', setting: 'beatFlash', label: 'Beat Flash', min: 0, max: 1, step: 0.01 },
-        { kind: 'slider', id: 'cinematic-media-bassWarping', setting: 'bassWarping', label: 'Bass Warping', min: 0, max: 1, step: 0.01 },
-      ],
-    },
-  ],
-} as const satisfies CinematicWorldControlSchema<'mediaPortal'>
-
 const COMMON_TARGETS = ['portalAperture', 'depth', 'cameraPunch', 'environmentBrightness', 'bloom', 'impact'] as const
 
 export const CINEMATIC_WORLD_CATALOG: CinematicWorldCatalog = {
@@ -436,7 +388,6 @@ export const CINEMATIC_WORLD_CATALOG: CinematicWorldCatalog = {
   ancientMachine: { id: 'ancientMachine', label: 'Ancient Machine', category: 'Mechanical', description: 'Interlocking rings, gears, glyphs and a mechanical unlock sequence.', cameraRigs: ['locked', 'dolly', 'orbit', 'autoDirector'], modulationTargets: ['portalAperture', 'depth', 'geometryRotation', 'cameraPunch', 'cameraTravel', 'environmentBrightness', 'bloom', 'impact'], supportsPortalShape: true, controls: ANCIENT_MACHINE_CONTROLS },
   reactiveConstellation: { id: 'reactiveConstellation', label: 'Reactive Constellation', category: 'Cosmic', description: 'A true 3D faceted crystal network with palette-derived emissive beams, crystalline materials, and bounded temporal beam fans.', cameraRigs: ['locked', 'dolly', 'orbit', 'handheld', 'autoDirector'], modulationTargets: ['networkSpread', 'nodeScale', 'nodeSpin', 'edgeBrightness', 'edgeWidth', 'trailLength', 'topologyMorph', 'collapseForce', 'burstImpulse', 'facetOpacity', 'depth', 'geometryRotation', 'environmentBrightness', 'cameraPunch', 'bloom', 'impact'], supportsPortalShape: false, controls: REACTIVE_CONSTELLATION_CONTROLS },
   stormGateway: { id: 'stormGateway', label: 'Storm Gateway', category: 'Storm', description: 'Cloud vortex, debris, turbulence and branching lightning.', cameraRigs: ['locked', 'orbit', 'handheld', 'autoDirector'], modulationTargets: ['portalAperture', 'depth', 'cameraPunch', 'fogDensity', 'particleEmission', 'lightning', 'environmentBrightness', 'distortion', 'bloom', 'chromaticAberration', 'impact'], supportsPortalShape: true, controls: STORM_GATEWAY_CONTROLS },
-  mediaPortal: { id: 'mediaPortal', label: 'Media Portal', category: 'Media', description: 'Places images, video, logos or SVG artwork inside a reactive gateway.', cameraRigs: ['locked', 'dolly', 'orbit', 'autoDirector'], modulationTargets: ['portalAperture', 'distortion', 'refraction', 'bloom', 'chromaticAberration', 'feedback', 'impact'], supportsPortalShape: true, controls: MEDIA_PORTAL_CONTROLS },
   legacyPortal: { id: 'legacyPortal', label: 'Legacy Portal', category: 'Legacy', description: 'Compatibility renderer for projects created before Cinematic Worlds.', cameraRigs: ['locked'], modulationTargets: ['portalAperture', 'cameraPunch', 'fogDensity', 'particleEmission', 'environmentBrightness', 'impact', 'fog', 'debris', 'atmosphere', 'glow', 'cameraMotion', 'portalPulse'], rendererModulationTargets: ['portalAperture', 'cameraPunch', 'fogDensity', 'particleEmission', 'environmentBrightness', 'impact'], supportsPortalShape: true, controls: EMPTY_SCHEMA('legacyPortal') },
 }
 
@@ -451,7 +402,6 @@ export const CINEMATIC_WORLD_CATALOG_LIST: readonly AnyCinematicWorldCatalogEntr
   CINEMATIC_WORLD_CATALOG.ancientMachine,
   CINEMATIC_WORLD_CATALOG.stormGateway,
   CINEMATIC_WORLD_CATALOG.reactiveConstellation,
-  CINEMATIC_WORLD_CATALOG.mediaPortal,
   CINEMATIC_WORLD_CATALOG.legacyPortal,
 ]
 

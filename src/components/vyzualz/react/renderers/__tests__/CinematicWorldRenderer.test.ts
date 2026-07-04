@@ -176,7 +176,6 @@ describe('CinematicWorldRendererRegistry', () => {
       'ancientMachine',
       'stormGateway',
       'reactiveConstellation',
-      'mediaPortal',
     ])
   })
 

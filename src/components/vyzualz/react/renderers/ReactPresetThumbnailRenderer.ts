@@ -632,7 +632,6 @@ function resolveThumbnailFrameBudget(preset: ReactPreset): number {
     case 'laserDmx': return 5
     case 'cinematicPortal':
       if (preset.cinematicConfig?.worldMode === 'reactiveConstellation') return 10
-      if (preset.cinematicConfig?.worldMode === 'mediaPortal') return 4
       return 7
     default: return 4
   }

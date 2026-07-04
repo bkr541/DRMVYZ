@@ -8,7 +8,6 @@ import { liquidMembraneWorldDefinition } from './LiquidMembraneWorld'
 import { mirrorDimensionWorldDefinition } from './MirrorDimensionWorld'
 import { monolithGateWorldDefinition } from './MonolithGateWorld'
 import { reactiveConstellationWorldDefinition } from './ReactiveConstellationWorld'
-import { mediaPortalWorldDefinition } from './MediaPortalWorld'
 import { stormGatewayWorldDefinition } from './StormGatewayWorld'
 
 export {
@@ -21,7 +20,6 @@ export {
   mirrorDimensionWorldDefinition,
   monolithGateWorldDefinition,
   reactiveConstellationWorldDefinition,
-  mediaPortalWorldDefinition,
   stormGatewayWorldDefinition,
 }
 
@@ -36,5 +34,4 @@ export const cinematicWorldDefinitions: readonly CinematicWebGLWorldDefinition[]
   ancientMachineWorldDefinition,
   stormGatewayWorldDefinition,
   reactiveConstellationWorldDefinition,
-  mediaPortalWorldDefinition,
 ]

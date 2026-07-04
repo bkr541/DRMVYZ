@@ -24,7 +24,6 @@ export const CINEMATIC_WORLD_MODES = [
   'ancientMachine',
   'stormGateway',
   'reactiveConstellation',
-  'mediaPortal',
 ] as const
 
 export type CinematicWorldMode = typeof CINEMATIC_WORLD_MODES[number]
@@ -551,11 +550,6 @@ const WORLD_DEFAULT_AUDIO_ROUTES: Readonly<Record<CinematicWorldMode, readonly C
     route('storm-bass-vortex', 'bass', 'portalAperture', { amount: 0.55, attackMs: 30, releaseMs: 280 }),
     route('storm-high-debris', 'highs', 'particleEmission', { amount: 0.5, attackMs: 24, releaseMs: 180 }),
   ],
-  mediaPortal: [
-    route('media-bass-warp', 'bass', 'distortion', { amount: 0.6, attackMs: 24, releaseMs: 220 }),
-    route('media-beat-flash', 'beat', 'impact', { amount: 0.85, attackMs: 0, releaseMs: 140, decayMs: 180 }),
-    route('media-high-chromatic', 'highs', 'chromaticAberration', { amount: 0.3, attackMs: 18, releaseMs: 160 }),
-  ],
 }
 
 export function createDefaultCinematicAudioRoutes(mode: CinematicWorldMode): CinematicAudioRoute[] {
@@ -645,7 +639,9 @@ const CINEMATIC_WORLD_MODE_ALIASES: Record<string, CinematicWorldMode> = {
   stormgateway: 'stormGateway',
   reactiveconstellation: 'reactiveConstellation',
   constellation: 'reactiveConstellation',
-  mediaportal: 'mediaPortal',
+  // Media Portal projects are no longer supported as a selectable world;
+  // route older saved configs to the stable legacy renderer instead.
+  mediaportal: 'legacyPortal',
 }
 
 const CINEMATIC_CAMERA_RIG_ALIASES: Record<string, CinematicCameraRig> = {

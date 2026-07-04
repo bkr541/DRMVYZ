@@ -472,7 +472,6 @@ describe('cinematic mapping validation and world defaults', () => {
     for (const preset of DEFAULT_REACT_PRESETS) {
       if (preset.engine !== 'cinematicPortal' || !preset.cinematicConfig) continue
       const mode = preset.cinematicConfig.worldMode
-      if (mode === 'mediaPortal') continue
       const targets = mode === 'legacyPortal'
         ? legacyTargets
         : definitions.get(mode)?.capabilities.modulationTargets
@@ -509,9 +508,7 @@ describe('cinematic mapping validation and world defaults', () => {
     const legacyTargets: CinematicAudioTarget[] = [
       'portalAperture', 'cameraPunch', 'fogDensity', 'particleEmission', 'environmentBrightness', 'impact',
     ]
-    const implemented = CINEMATIC_WORLD_MODES.filter(mode => mode !== 'mediaPortal')
-
-    for (const mode of implemented) {
+    for (const mode of CINEMATIC_WORLD_MODES) {
       const routes = createDefaultCinematicAudioRoutes(mode)
       const targets = mode === 'legacyPortal'
         ? legacyTargets

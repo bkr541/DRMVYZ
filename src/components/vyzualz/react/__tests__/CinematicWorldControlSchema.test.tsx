@@ -8,13 +8,11 @@ import {
   CINEMATIC_WORLD_CATALOG,
   CINEMATIC_WORLD_CATALOG_LIST,
   isAccessibilitySafeCinematicControlId,
-  updateCinematicWorldConfigSetting,
   updateCinematicWorldSettings,
   validateCinematicWorldControlSchema,
   type AnyCinematicWorldControlSchema,
   type CinematicWorldIntegerControl,
   type CinematicWorldSelectControl,
-  type CinematicWorldToggleControl,
 } from '../CinematicWorldControlSchema'
 import {
   CINEMATIC_WORLD_MODES,
@@ -84,7 +82,7 @@ describe('Cinematic World control schema', () => {
     }
 
     const invalid: AnyCinematicWorldControlSchema = {
-      mode: 'mediaPortal',
+      mode: 'eventHorizon',
       groups: [{
         id: 'bad group id',
         label: '',
@@ -123,7 +121,7 @@ describe('Cinematic World control schema', () => {
     }
   })
 
-  it('renders slider, integer, select, and toggle controls with labels, descriptions, and stable IDs', async () => {
+  it('renders slider, integer, and select controls with labels, descriptions, and stable IDs', async () => {
     const onChange = vi.fn()
     const eventConfig = createCinematicWorldConfig('eventHorizon', {})
     await render(
@@ -143,26 +141,19 @@ describe('Cinematic World control schema', () => {
     expect(integer.step).toBe('1')
     expect((container.querySelector('label[for="cinematic-world-setting-coreRadius"]') as HTMLLabelElement).textContent).toBe('Core Radius')
 
-    const mediaConfig = createCinematicWorldConfig('mediaPortal', {})
+    const constellationConfig = createCinematicWorldConfig('reactiveConstellation', {})
     await render(
       <CinematicWorldControlSchemaRenderer
-        config={mediaConfig}
-        schema={CINEMATIC_WORLD_CATALOG.mediaPortal.controls}
+        config={constellationConfig}
+        schema={CINEMATIC_WORLD_CATALOG.reactiveConstellation.controls}
         uiMode="advanced"
         onChange={onChange}
       />,
     )
 
-    const select = container.querySelector('#cinematic-media-fit') as HTMLSelectElement
-    const toggle = container.querySelector('#cinematic-media-loop') as HTMLButtonElement
-    const mediaSlider = container.querySelector('#cinematic-media-zoom') as HTMLInputElement
-    expect(select.value).toBe('cover')
-    expect(select.getAttribute('aria-describedby')).toBe('cinematic-media-fit-description')
-    expect(container.querySelector('#cinematic-media-fit-description')?.textContent).toContain('fills the portal surface')
-    expect(toggle.getAttribute('aria-labelledby')).toBe('cinematic-media-loop-label')
-    expect(toggle.getAttribute('aria-pressed')).toBe('true')
-    expect(mediaSlider.type).toBe('range')
-    expect(container.querySelector('#cinematic-media-mask-mode')).toBeInstanceOf(HTMLSelectElement)
+    const select = container.querySelector('#constellation-topology-style') as HTMLSelectElement
+    expect(select).toBeInstanceOf(HTMLSelectElement)
+    expect(select.value).toBe(REACTIVE_CONSTELLATION_DEFAULTS.topologyStyle)
   })
 
   it('preserves discriminated modes while clamping integers and validating select and toggle values', () => {
@@ -175,14 +166,11 @@ describe('Cinematic World control schema', () => {
     expect(updatedMonolith.settings.columnCount).toBe(7)
     expect('coreRadius' in updatedMonolith.settings).toBe(false)
 
-    const media = createDefaultCinematicWorldSettings('mediaPortal') as Extract<CinematicWorldSpecificConfig, { mode: 'mediaPortal' }>
-    const mediaControls = CINEMATIC_WORLD_CATALOG.mediaPortal.controls.groups.flatMap(group => group.controls)
-    const fit = mediaControls.find(control => control.setting === 'fit') as CinematicWorldSelectControl<'mediaPortal'>
-    const loop = mediaControls.find(control => control.setting === 'loop') as CinematicWorldToggleControl<'mediaPortal'>
-    expect(updateCinematicWorldSettings(media, fit, 'invalid').settings.fit).toBe('cover')
-    expect(updateCinematicWorldSettings(media, fit, 'contain').settings.fit).toBe('contain')
-    expect(updateCinematicWorldSettings(media, loop, 'yes').settings.loop).toBe(true)
-    expect(updateCinematicWorldSettings(media, loop, false).settings.loop).toBe(false)
+    const constellation = createDefaultCinematicWorldSettings('reactiveConstellation') as Extract<CinematicWorldSpecificConfig, { mode: 'reactiveConstellation' }>
+    const constellationControls = CINEMATIC_WORLD_CATALOG.reactiveConstellation.controls.groups.flatMap(group => group.controls)
+    const topology = constellationControls.find(control => control.setting === 'topologyStyle') as CinematicWorldSelectControl<'reactiveConstellation'>
+    expect(updateCinematicWorldSettings(constellation, topology, 'future').settings.topologyStyle).toBe(REACTIVE_CONSTELLATION_DEFAULTS.topologyStyle)
+    expect(updateCinematicWorldSettings(constellation, topology, 'chain').settings.topologyStyle).toBe('chain')
   })
 
   it('exposes only implemented Reactive Constellation controls and preserves typed selections', async () => {
@@ -270,33 +258,18 @@ describe('Cinematic World control schema', () => {
     expect(normalized.compatibility.extensions.futureRootField).toEqual({ enabled: true })
   })
 
-  it('keeps Media Portal settings functional while specialized source controls remain separate', () => {
-    const config = createCinematicWorldConfig('mediaPortal', {
-      sourceMediaId: 'asset-123',
-      sourceLabel: 'Logo',
-      fit: 'cover',
-      loop: true,
-      zoom: 1.25,
+  it('migrates retired Media Portal configs to Legacy Portal compatibility', () => {
+    const normalized = normalizeCinematicWorldConfig({
+      worldMode: 'mediaPortal',
+      worldSettings: {
+        mode: 'mediaPortal',
+        settings: { sourceMediaId: 'asset-123', sourceLabel: 'Logo', fit: 'cover' },
+      },
+      audioMapping: { routes: [] },
     })
-    const fit = CINEMATIC_WORLD_CATALOG.mediaPortal.controls.groups
-      .flatMap(group => group.controls)
-      .find(control => control.setting === 'fit')!
-    const updated = updateCinematicWorldConfigSetting(
-      config,
-      CINEMATIC_WORLD_CATALOG.mediaPortal.controls,
-      fit,
-      'contain',
-    )
 
-    expect(updated.worldMode).toBe('mediaPortal')
-    expect(updated.worldSettings.mode).toBe('mediaPortal')
-    if (updated.worldSettings.mode !== 'mediaPortal') throw new Error('Expected Media Portal settings')
-    expect(updated.worldSettings.settings).toMatchObject({
-      sourceMediaId: 'asset-123',
-      sourceLabel: 'Logo',
-      fit: 'contain',
-      loop: true,
-      zoom: 1.25,
-    })
+    expect(normalized.worldMode).toBe('legacyPortal')
+    expect(normalized.worldSettings.mode).toBe('legacyPortal')
+    expect(normalized.audioMapping.routes).toEqual([])
   })
 })

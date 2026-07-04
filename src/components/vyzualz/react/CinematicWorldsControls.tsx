@@ -1,7 +1,6 @@
 import { useMemo, useSyncExternalStore } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
-import { useMediaStore } from '../../../stores/mediaStore'
 import { resolveCinematicConfigForPreset, useReactStore } from '../../../stores/reactStore'
 import {
   CINEMATIC_AUDIO_SOURCES,
@@ -22,12 +21,8 @@ import {
   type CinematicWorldMode,
 } from './CinematicWorldConfig'
 import {
-  MEDIA_PORTAL_DEFAULTS,
   createDefaultCinematicWorldSettings,
   resolveReactiveConstellationSettings,
-  type MediaPortalFit,
-  type MediaPortalMaskMode,
-  type MediaPortalSettings,
 } from './CinematicWorldSettings'
 import {
   REACTIVE_CONSTELLATION_VISUAL_DNA_OPTIONS,
@@ -485,45 +480,6 @@ export function CinematicWorldsEngineControls() {
   )
 }
 
-function MediaPortalControls({ config, onChange, advanced }: { config: CinematicWorldConfig; onChange: (config: CinematicWorldConfig) => void; advanced: boolean }) {
-  const items = useMediaStore(state => state.items)
-  const openImportMediaModal = useMediaStore(state => state.openImportMediaModal)
-  const settings = config.worldSettings.mode === 'mediaPortal' ? config.worldSettings.settings : MEDIA_PORTAL_DEFAULTS
-  const sourceExists = !settings.sourceMediaId || items.some(item => item.id === settings.sourceMediaId)
-  const set = (patch: Partial<MediaPortalSettings>) => onChange({ ...config, worldSettings: { mode: 'mediaPortal', settings: { ...settings, ...patch } } })
-  const setAppearance = (appearance: string) => set(appearance === 'original'
-    ? { displacement: 0, scanlines: 0, edgeGlow: 0, ripple: 0, pixelation: 0, beatFlash: 0, bassWarping: 0, revealAmount: 1 }
-    : { displacement: 0.18, scanlines: 0.08, edgeGlow: 0.6, ripple: 0.2, beatFlash: 0.42, bassWarping: 0.48 })
-  const reactive = settings.displacement > 0 || settings.ripple > 0 || settings.beatFlash > 0 || settings.bassWarping > 0
-  return (
-    <>
-      <Collapsible label="Media" defaultOpen>
-        <SelectRow id="cinematic-media-source" label="Media Source" value={settings.sourceMediaId ?? ''} onChange={sourceMediaId => set({ sourceMediaId: sourceMediaId || null, sourceLabel: items.find(item => item.id === sourceMediaId)?.title ?? items.find(item => item.id === sourceMediaId)?.name ?? 'Relink media' })} options={[{ value: '', label: 'No media selected' }, ...items.map(item => ({ value: item.id, label: item.title ?? item.name }))]} />
-        <SelectRow id="cinematic-media-fit" label="Source Fitting" value={settings.fit} onChange={fit => set({ fit: fit as MediaPortalFit })} options={[{ value: 'contain', label: 'Contain' }, { value: 'cover', label: 'Cover' }, { value: 'stretch', label: 'Stretch' }, { value: 'centerCrop', label: 'Center Crop' }]} />
-        <SelectRow id="cinematic-media-mask" label="Custom Mask" value={config.customMaskId ?? ''} onChange={customMaskId => onChange({ ...config, customMaskId: customMaskId || null, portalShape: customMaskId ? 'customMask' : config.portalShape })} options={[{ value: '', label: 'No custom mask' }, ...items.filter(item => item.type === 'image').map(item => ({ value: item.id, label: item.title ?? item.name }))]} />
-        <SelectRow id="cinematic-media-appearance" label="Appearance" value={reactive ? 'reactive' : 'original'} onChange={setAppearance} options={[{ value: 'original', label: 'Original Artwork' }, { value: 'reactive', label: 'Reactive Appearance' }]} />
-        <ToggleRow id="cinematic-media-loop" label="Loop Video" value={settings.loop} onChange={loop => set({ loop })} />
-        {!sourceExists && <div className="rv-cinematic-warning" role="status">The saved media asset is unavailable. Relink it to restore this project.</div>}
-        <button type="button" className="rv-cinematic-wide-button" onClick={openImportMediaModal}>{sourceExists ? 'Import or Relink Media' : 'Relink Missing Asset'}</button>
-      </Collapsible>
-      {advanced && (
-        <Collapsible label="Media Effects" defaultOpen>
-          <SliderRow id="cinematic-media-zoom" label="Zoom" value={settings.zoom} min={0.25} max={4} step={0.01} onChange={zoom => set({ zoom })} />
-          <SliderRow id="cinematic-media-pan-x" label="Pan X" value={settings.panX} min={-1} max={1} step={0.01} onChange={panX => set({ panX })} />
-          <SliderRow id="cinematic-media-pan-y" label="Pan Y" value={settings.panY} min={-1} max={1} step={0.01} onChange={panY => set({ panY })} />
-          <SliderRow id="cinematic-media-rotation" label="Rotation" value={settings.rotation} min={-3.14} max={3.14} step={0.01} onChange={rotation => set({ rotation })} />
-          <ToggleRow id="cinematic-media-mirror-x" label="Mirror Horizontally" value={settings.mirrorX} onChange={mirrorX => set({ mirrorX })} />
-          <ToggleRow id="cinematic-media-mirror-y" label="Mirror Vertically" value={settings.mirrorY} onChange={mirrorY => set({ mirrorY })} />
-          <SelectRow id="cinematic-media-mask-mode" label="Mask Interpretation" value={settings.maskMode} onChange={maskMode => set({ maskMode: maskMode as MediaPortalMaskMode })} options={[{ value: 'alpha', label: 'Alpha' }, { value: 'luminance', label: 'Luminance' }]} />
-          {(['displacement', 'scanlines', 'edgeGlow', 'ripple', 'pixelation', 'revealAmount', 'beatFlash', 'bassWarping'] as const).map(key => (
-            <SliderRow key={key} id={`cinematic-media-${key}`} label={humanizeCinematicKey(key)} value={settings[key]} min={0} max={key === 'edgeGlow' ? 1.5 : 1} step={0.01} onChange={value => set({ [key]: value })} />
-          ))}
-        </Collapsible>
-      )}
-    </>
-  )
-}
-
 export function CinematicWorldsFxControls() {
   const active = useActiveCinematic()
   const { reactIntensity, setReactIntensity, reactMotion, setReactMotion, reactBassReactivity, setReactBassReactivity } = useReactStore(useShallow(state => ({
@@ -564,8 +520,6 @@ export function CinematicWorldsFxControls() {
 
       {config.worldMode === 'reactiveConstellation' && uiMode === 'simple' && <ReactiveConstellationMacroControls config={config} onChange={save} />}
 
-      {config.worldMode === 'mediaPortal' && <MediaPortalControls config={config} onChange={save} advanced={uiMode === 'advanced'} />}
-
       {uiMode === 'advanced' && (
         <>
           <Collapsible label="Environment" defaultOpen>
@@ -582,14 +536,12 @@ export function CinematicWorldsFxControls() {
           </Collapsible>
         </>
       )}
-      {config.worldMode !== 'mediaPortal' && (
-        <CinematicWorldControlSchemaRenderer
-          config={config}
-          schema={CINEMATIC_WORLD_BY_ID[config.worldMode].controls}
-          uiMode={uiMode}
-          onChange={saveDetailed}
-        />
-      )}
+      <CinematicWorldControlSchemaRenderer
+        config={config}
+        schema={CINEMATIC_WORLD_BY_ID[config.worldMode].controls}
+        uiMode={uiMode}
+        onChange={saveDetailed}
+      />
     </div>
   )
 }

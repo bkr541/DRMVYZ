@@ -212,7 +212,7 @@ function renderPresetCard(preset: ReactPreset, props: Omit<PresetCollectionProps
 
 function CinematicPresetGroups({ presets, ...props }: PresetCollectionProps) {
   const categories = useMemo(() => {
-    const order = ['Cosmic', 'Architectural', 'Organic', 'Mechanical', 'Storm', 'Media', 'Legacy'] as const
+    const order = ['Cosmic', 'Architectural', 'Organic', 'Mechanical', 'Storm', 'Legacy'] as const
     return order.map(category => ({
       category,
       worlds: CINEMATIC_WORLD_UI.filter(world => world.category === category).map(world => ({

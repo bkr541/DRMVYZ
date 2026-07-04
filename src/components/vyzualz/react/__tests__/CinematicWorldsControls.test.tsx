@@ -69,10 +69,10 @@ describe('Cinematic Worlds engine controls', () => {
     await render(<CinematicWorldsEngineControls />)
 
     const worlds = container.querySelectorAll('[role="radio"]')
-    expect(worlds).toHaveLength(12)
+    expect(worlds).toHaveLength(11)
     expect(container.querySelector('#cinematic-world-eventHorizon')?.getAttribute('aria-checked')).toBe('true')
     expect(container.querySelector('#cinematic-world-reactiveConstellation')?.textContent).toContain('true 3D faceted crystal network')
-    expect(container.querySelector('#cinematic-world-mediaPortal')?.textContent).toContain('Places images, video, logos or SVG artwork')
+    expect(container.querySelector('#cinematic-world-mediaPortal')).toBeNull()
     expect(container.textContent).toContain('Selected')
   })
 
@@ -173,19 +173,16 @@ describe('Cinematic Worlds FX and media controls', () => {
     expect(advanced.getAttribute('aria-pressed')).toBe('true')
   })
 
-  it('shows Media Portal controls only for Media Portal and labels quality effects', async () => {
+  it('does not expose retired Media Portal controls and labels quality effects', async () => {
     useReactStore.getState().selectReactPreset(presetFor('eventHorizon').id)
     await render(<CinematicWorldsFxControls />)
-    expect(container.querySelector('#cinematic-media-source')).toBeNull()
-    expect(container.querySelector('#cinematic-quality-description')?.textContent).toContain('geometry density')
 
-    await act(async () => useReactStore.getState().selectReactPreset(presetFor('mediaPortal').id))
-    expect(container.querySelector('#cinematic-media-source')).not.toBeNull()
-    expect(container.querySelector('#cinematic-media-fit')).not.toBeNull()
-    expect(container.querySelector('#cinematic-media-mask')).not.toBeNull()
-    expect(container.querySelector('#cinematic-media-appearance')).not.toBeNull()
-    expect(container.querySelector('#cinematic-media-loop')).not.toBeNull()
-    expect(buttonWithText('Import or Relink Media')).toBeTruthy()
+    expect(container.querySelector('#cinematic-media-source')).toBeNull()
+    expect(container.querySelector('#cinematic-media-fit')).toBeNull()
+    expect(container.querySelector('#cinematic-media-mask')).toBeNull()
+    expect(container.querySelector('#cinematic-media-appearance')).toBeNull()
+    expect(container.querySelector('#cinematic-media-loop')).toBeNull()
+    expect(container.querySelector('#cinematic-quality-description')?.textContent).toContain('geometry density')
   })
 
   it('reveals environment, material and world-specific values only in advanced mode', async () => {

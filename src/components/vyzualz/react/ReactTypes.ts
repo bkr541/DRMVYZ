@@ -2176,50 +2176,6 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     scenes: makeScenes('rcs3', 'cinematicPortal'), sectionMappings: makeMappings('rcs3'),
   },
 
-  // Cinematic Worlds: Media Portal (6)
-  {
-    id: 'preset-clean-broadcast-gate', name: 'Clean Broadcast Gate', description: 'Media Portal treatment with a distinct rectangle frame and contain media composition.',
-    engine: 'cinematicPortal', palette: { primary: DVYDRM_CYAN, secondary: '#6b4cff', accent: DVYDRM_GOLD, background: '#010309', highlight: DVYDRM_WHITE, text: DVYDRM_WHITE },
-    params: { intensity: 0.55, motion: 0.30, glow: 0.55, bassReactivity: 0.55 },
-    cinematicConfig: createCinematicWorldConfig('mediaPortal', { sourceMediaId: null, sourceLabel: 'Relink media', fit: 'contain', zoom: 1.00, panX: 0, panY: 0, rotation: 0.0, mirrorX: false, mirrorY: false, loop: true, muted: true, displacement: 0.02, scanlines: 0.02, edgeGlow: 0.12, ripple: 0.06, pixelation: 0, revealAmount: 1, beatFlash: 0.18, bassWarping: 0.08, maskMode: 'alpha' }, { portalShape: 'rectangle', cameraRig: 'locked', seed: 47001, material: { distortion: 0.02, refraction: 0.04, bloom: 0.45, chromaticAberration: 0.020, feedback: 0.00, glow: 0.10 } }),
-    scenes: makeScenes('mp1', 'cinematicPortal'), sectionMappings: makeMappings('mp1'),
-  },
-  {
-    id: 'preset-reactive-logo-chamber', name: 'Reactive Logo Chamber', description: 'Media Portal treatment with a distinct circle frame and contain media composition.',
-    engine: 'cinematicPortal', palette: { primary: DVYDRM_CYAN, secondary: '#6b4cff', accent: DVYDRM_GOLD, background: '#010309', highlight: DVYDRM_WHITE, text: DVYDRM_WHITE },
-    params: { intensity: 0.62, motion: 0.38, glow: 0.61, bassReactivity: 0.62 },
-    cinematicConfig: createCinematicWorldConfig('mediaPortal', { sourceMediaId: null, sourceLabel: 'Relink media', fit: 'contain', zoom: 1.04, panX: 0, panY: 0, rotation: 0.0, mirrorX: false, mirrorY: false, loop: true, muted: true, displacement: 0.12, scanlines: 0.06, edgeGlow: 0.65, ripple: 0.14, pixelation: 0, revealAmount: 1, beatFlash: 0.30, bassWarping: 0.36, maskMode: 'alpha' }, { portalShape: 'circle', cameraRig: 'locked', seed: 47002, material: { distortion: 0.12, refraction: 0.08, bloom: 0.53, chromaticAberration: 0.055, feedback: 0.00, glow: 0.54 } }),
-    scenes: makeScenes('mp2', 'cinematicPortal'), sectionMappings: makeMappings('mp2'),
-  },
-  {
-    id: 'preset-fractured-video-rift', name: 'Fractured Video Rift', description: 'Media Portal treatment with a distinct fracture frame and cover media composition.',
-    engine: 'cinematicPortal', palette: { primary: DVYDRM_CYAN, secondary: '#6b4cff', accent: DVYDRM_GOLD, background: '#010309', highlight: DVYDRM_WHITE, text: DVYDRM_WHITE },
-    params: { intensity: 0.69, motion: 0.46, glow: 0.67, bassReactivity: 0.69 },
-    cinematicConfig: createCinematicWorldConfig('mediaPortal', { sourceMediaId: null, sourceLabel: 'Relink media', fit: 'cover', zoom: 1.08, panX: 0, panY: 0, rotation: 0.0, mirrorX: false, mirrorY: false, loop: true, muted: true, displacement: 0.34, scanlines: 0.16, edgeGlow: 0.9, ripple: 0.22, pixelation: 0.12, revealAmount: 0.88, beatFlash: 0.42, bassWarping: 0.58, maskMode: 'alpha' }, { portalShape: 'fracture', cameraRig: 'autoDirector', seed: 47003, material: { distortion: 0.34, refraction: 0.12, bloom: 0.61, chromaticAberration: 0.090, feedback: 0.08, glow: 0.75 } }),
-    scenes: makeScenes('mp3', 'cinematicPortal'), sectionMappings: makeMappings('mp3'),
-  },
-  {
-    id: 'preset-liquid-memory', name: 'Liquid Memory', description: 'Media Portal treatment with a distinct organic frame and cover media composition.',
-    engine: 'cinematicPortal', palette: { primary: DVYDRM_CYAN, secondary: '#6b4cff', accent: DVYDRM_GOLD, background: '#010309', highlight: DVYDRM_WHITE, text: DVYDRM_WHITE },
-    params: { intensity: 0.76, motion: 0.54, glow: 0.73, bassReactivity: 0.76 },
-    cinematicConfig: createCinematicWorldConfig('mediaPortal', { sourceMediaId: null, sourceLabel: 'Relink media', fit: 'cover', zoom: 1.12, panX: 0, panY: 0, rotation: 0.0, mirrorX: false, mirrorY: false, loop: true, muted: true, displacement: 0.28, scanlines: 0.04, edgeGlow: 0.72, ripple: 0.30, pixelation: 0, revealAmount: 0.78, beatFlash: 0.54, bassWarping: 0.74, maskMode: 'alpha' }, { portalShape: 'organic', cameraRig: 'autoDirector', seed: 47004, material: { distortion: 0.28, refraction: 0.16, bloom: 0.69, chromaticAberration: 0.125, feedback: 0.10, glow: 0.60 } }),
-    scenes: makeScenes('mp4', 'cinematicPortal'), sectionMappings: makeMappings('mp4'),
-  },
-  {
-    id: 'preset-mirror-screen', name: 'Mirror Screen', description: 'Media Portal treatment with a distinct triangle frame and stretch media composition.',
-    engine: 'cinematicPortal', palette: { primary: DVYDRM_CYAN, secondary: '#6b4cff', accent: DVYDRM_GOLD, background: '#010309', highlight: DVYDRM_WHITE, text: DVYDRM_WHITE },
-    params: { intensity: 0.83, motion: 0.62, glow: 0.79, bassReactivity: 0.83 },
-    cinematicConfig: createCinematicWorldConfig('mediaPortal', { sourceMediaId: null, sourceLabel: 'Relink media', fit: 'stretch', zoom: 1.16, panX: 0, panY: 0, rotation: 0.08, mirrorX: true, mirrorY: false, loop: true, muted: true, displacement: 0.08, scanlines: 0.1, edgeGlow: 0.5, ripple: 0.38, pixelation: 0.08, revealAmount: 1, beatFlash: 0.66, bassWarping: 0.24, maskMode: 'alpha' }, { portalShape: 'triangle', cameraRig: 'autoDirector', seed: 47005, material: { distortion: 0.08, refraction: 0.20, bloom: 0.77, chromaticAberration: 0.160, feedback: 0.12, glow: 0.42 } }),
-    scenes: makeScenes('mp5', 'cinematicPortal'), sectionMappings: makeMappings('mp5'),
-  },
-  {
-    id: 'preset-storm-transmission', name: 'Storm Transmission', description: 'Media Portal treatment with a distinct arch frame and centerCrop media composition.',
-    engine: 'cinematicPortal', palette: { primary: DVYDRM_CYAN, secondary: '#6b4cff', accent: DVYDRM_GOLD, background: '#010309', highlight: DVYDRM_WHITE, text: DVYDRM_WHITE },
-    params: { intensity: 0.90, motion: 0.70, glow: 0.85, bassReactivity: 0.90 },
-    cinematicConfig: createCinematicWorldConfig('mediaPortal', { sourceMediaId: null, sourceLabel: 'Relink media', fit: 'centerCrop', zoom: 1.20, panX: 0, panY: 0, rotation: 0.08, mirrorX: false, mirrorY: false, loop: true, muted: true, displacement: 0.42, scanlines: 0.34, edgeGlow: 1.1, ripple: 0.46, pixelation: 0.22, revealAmount: 0.72, beatFlash: 0.78, bassWarping: 0.92, maskMode: 'alpha' }, { portalShape: 'arch', cameraRig: 'autoDirector', seed: 47006, material: { distortion: 0.42, refraction: 0.24, bloom: 0.85, chromaticAberration: 0.195, feedback: 0.14, glow: 0.92 } }),
-    scenes: makeScenes('mp6', 'cinematicPortal'), sectionMappings: makeMappings('mp6'),
-  },
-
   // ── Sound Drawing (5) ────────────────────────────────────────────────────
   {
     id: 'preset-xy-cyan-scope',

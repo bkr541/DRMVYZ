@@ -223,32 +223,6 @@ export interface ReactiveConstellationSettings {
   reseedEveryBars: number
 }
 
-export type MediaPortalFit = 'contain' | 'cover' | 'stretch' | 'centerCrop'
-export type MediaPortalMaskMode = 'alpha' | 'luminance'
-
-export interface MediaPortalSettings {
-  sourceMediaId: string | null
-  sourceLabel: string
-  fit: MediaPortalFit
-  zoom: number
-  panX: number
-  panY: number
-  rotation: number
-  mirrorX: boolean
-  mirrorY: boolean
-  loop: boolean
-  muted: boolean
-  displacement: number
-  scanlines: number
-  edgeGlow: number
-  ripple: number
-  pixelation: number
-  revealAmount: number
-  beatFlash: number
-  bassWarping: number
-  maskMode: MediaPortalMaskMode
-}
-
 export type EmptyCinematicWorldSettings = Record<string, never>
 
 export interface CinematicWorldSettingsByMode {
@@ -263,7 +237,6 @@ export interface CinematicWorldSettingsByMode {
   ancientMachine: AncientMachineSettings
   stormGateway: StormGatewaySettings
   reactiveConstellation: ReactiveConstellationSettings
-  mediaPortal: MediaPortalSettings
 }
 
 export type CinematicWorldSpecificConfig = {
@@ -807,37 +780,6 @@ function normalizeReactiveConstellationSettings(raw: unknown): ReactiveConstella
   return { ...numeric, visualDnaProfile, choreographyProfile, topologyStyle, polyhedronStyle }
 }
 
-export const MEDIA_PORTAL_DEFAULTS: MediaPortalSettings = {
-  sourceMediaId: null, sourceLabel: '', fit: 'cover', zoom: 1, panX: 0, panY: 0,
-  rotation: 0, mirrorX: false, mirrorY: false, loop: true, muted: true,
-  displacement: 0.08, scanlines: 0.08, edgeGlow: 0.45, ripple: 0.12,
-  pixelation: 0, revealAmount: 1, beatFlash: 0.28, bassWarping: 0.22,
-  maskMode: 'alpha',
-}
-
-function normalizeMediaPortalSettings(raw: unknown): MediaPortalSettings {
-  const source = isRecord(settingsPayload(raw, 'mediaPortal')) ? settingsPayload(raw, 'mediaPortal') as Record<string, unknown> : {}
-  const number = (key: keyof MediaPortalSettings, min: number, max: number) => {
-    const value = source[key as string]
-    const fallback = MEDIA_PORTAL_DEFAULTS[key] as number
-    return Math.min(max, Math.max(min, typeof value === 'number' && Number.isFinite(value) ? value : fallback))
-  }
-  const fit = ['contain', 'cover', 'stretch', 'centerCrop'].includes(String(source.fit)) ? source.fit as MediaPortalFit : MEDIA_PORTAL_DEFAULTS.fit
-  const maskMode = source.maskMode === 'luminance' ? 'luminance' : 'alpha'
-  const sourceMediaId = typeof source.sourceMediaId === 'string' && source.sourceMediaId.trim() && !/^(blob:|data:)/i.test(source.sourceMediaId)
-    ? source.sourceMediaId.trim() : null
-  return {
-    sourceMediaId,
-    sourceLabel: typeof source.sourceLabel === 'string' ? source.sourceLabel.slice(0, 160) : '',
-    fit, zoom: number('zoom', 0.1, 8), panX: number('panX', -2, 2), panY: number('panY', -2, 2),
-    rotation: number('rotation', -6.2832, 6.2832), mirrorX: source.mirrorX === true, mirrorY: source.mirrorY === true,
-    loop: source.loop !== false, muted: source.muted !== false,
-    displacement: number('displacement', 0, 1.5), scanlines: number('scanlines', 0, 1), edgeGlow: number('edgeGlow', 0, 2),
-    ripple: number('ripple', 0, 2), pixelation: number('pixelation', 0, 1), revealAmount: number('revealAmount', 0, 1),
-    beatFlash: number('beatFlash', 0, 2), bassWarping: number('bassWarping', 0, 2), maskMode,
-  }
-}
-
 export function createDefaultCinematicWorldSettings(mode: CinematicWorldMode): CinematicWorldSpecificConfig {
   switch (mode) {
     case 'eventHorizon': return { mode, settings: { ...EVENT_HORIZON_DEFAULTS } }
@@ -850,7 +792,6 @@ export function createDefaultCinematicWorldSettings(mode: CinematicWorldMode): C
     case 'ancientMachine': return { mode, settings: { ...ANCIENT_MACHINE_DEFAULTS } }
     case 'stormGateway': return { mode, settings: { ...STORM_GATEWAY_DEFAULTS } }
     case 'reactiveConstellation': return { mode, settings: { ...REACTIVE_CONSTELLATION_DEFAULTS } }
-    case 'mediaPortal': return { mode, settings: { ...MEDIA_PORTAL_DEFAULTS } }
     default: return { mode, settings: {} } as CinematicWorldSpecificConfig
   }
 }
@@ -917,7 +858,6 @@ export function normalizeCinematicWorldSettings(
         settings: normalizeNumericSettings(payload, STORM_GATEWAY_DEFAULTS, STORM_GATEWAY_BOUNDS, ['cloudLayers']),
       }
     case 'reactiveConstellation': return { mode, settings: normalizeReactiveConstellationSettings(value) }
-    case 'mediaPortal': return { mode, settings: normalizeMediaPortalSettings(value) }
     default:
       return { mode, settings: {} } as CinematicWorldSpecificConfig
   }
@@ -961,10 +901,6 @@ export function resolveStormGatewaySettings(value: CinematicWorldSpecificConfig)
 
 export function resolveReactiveConstellationSettings(value: CinematicWorldSpecificConfig): ReactiveConstellationSettings {
   return normalizeCinematicWorldSettings('reactiveConstellation', value).settings as ReactiveConstellationSettings
-}
-
-export function resolveMediaPortalSettings(value: CinematicWorldSpecificConfig): MediaPortalSettings {
-  return normalizeCinematicWorldSettings('mediaPortal', value).settings as MediaPortalSettings
 }
 
 function modeSalt(mode: CinematicWorldMode): number {
