@@ -1634,23 +1634,57 @@
 }
 
 .lmv-body {
+  --lmv-side-width: 400px;
+  --lmv-left-width: var(--lmv-side-width);
+  --lmv-right-width: var(--lmv-side-width);
+  --lmv-collapsed-rail-width: 48px;
+
   display: grid;
-  grid-template-columns: 360px minmax(580px, 1fr) 306px;
+  grid-template-columns: var(--lmv-left-width) minmax(560px, 1fr) var(--lmv-right-width);
   gap: 0;
   flex: 1;
   min-height: 0;
   overflow: hidden;
   border-top: 1px solid rgba(74,199,219,0.06);
+  transition: grid-template-columns 180ms ease;
+}
+
+.lmv-body[data-left-collapsed='true'] {
+  --lmv-left-width: var(--lmv-collapsed-rail-width);
+}
+
+.lmv-body[data-right-collapsed='true'] {
+  --lmv-right-width: var(--lmv-collapsed-rail-width);
+}
+
+.lmv-left-rail,
+.lmv-right-rail {
+  min-width: 0;
+  min-height: 0;
+  background: rgba(7,14,17,0.78);
 }
 
 .lmv-left-rail {
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  background: rgba(7,14,17,0.78);
   border-right: 1px solid rgba(126,218,232,0.12);
   box-shadow: inset -1px 0 0 rgba(255,255,255,0.025);
+}
+
+.lmv-right-rail {
+  border-left: 1px solid rgba(126,218,232,0.12);
+  box-shadow: inset 1px 0 0 rgba(255,255,255,0.025);
+}
+
+.lmv-left-rail .vz-inspector-inner,
+.lmv-right-rail .vz-inspector-inner {
+  background: rgba(8,12,18,0.96);
+}
+
+.lmv-left-rail .vz-inspector-inner {
+  box-shadow: inset -1px 0 0 rgba(255,255,255,0.025);
+}
+
+.lmv-right-rail .vz-inspector-inner {
+  box-shadow: inset 1px 0 0 rgba(255,255,255,0.025);
 }
 
 .lmv-track-browser {
@@ -1847,7 +1881,7 @@
 
 .lmv-track-hero {
   display: grid;
-  grid-template-columns: 78px minmax(180px, 1fr) auto auto;
+  grid-template-columns: 78px minmax(0, 1fr) minmax(312px, 448px) minmax(156px, 188px);
   align-items: center;
   gap: 16px;
   min-height: 112px;
@@ -1878,6 +1912,11 @@
   color: rgba(196,207,211,0.52);
 }
 
+.lmv-track-hero-main {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .lmv-kicker,
 .lmv-active-version-pill {
   display: inline-flex;
@@ -1896,9 +1935,17 @@
 }
 
 .lmv-active-version-pill {
+  display: inline-block;
+  box-sizing: border-box;
+  width: auto;
+  max-width: 100%;
+  min-width: 0;
   margin-top: 8px;
   background: rgba(97,214,170,0.12);
   color: #61d6aa;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lmv-track-title-row {
@@ -1906,10 +1953,13 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
+  max-width: 100%;
 }
 
 .lmv-track-title-row h2,
 .lmv-track-hero-main h2 {
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
   color: rgba(237,249,251,0.95);
   font-size: 21px;
@@ -1927,8 +1977,14 @@
 }
 
 .lmv-favorite-star {
+  flex: 0 0 auto;
   color: rgba(196,207,211,0.62);
   font-size: 20px;
+}
+
+.lmv-playing-badge,
+.lmv-loaded-badge {
+  flex: 0 0 auto;
 }
 
 .lmv-track-hero-stats {
@@ -2094,11 +2150,6 @@
 
 .lmv-extraction-console {
   flex-shrink: 0;
-  margin: 0 14px 12px;
-  padding: 10px 12px;
-  border-radius: 7px;
-  border: 1px solid rgba(126,218,232,0.12);
-  background: rgba(11,20,24,0.76);
 }
 
 .lmv-console-steps {
@@ -2136,17 +2187,93 @@
 .lmv-console-pending { color: #d8b95a; }
 
 .lmv-right-panel {
-  width: auto;
-  padding: 12px;
-  background: rgba(7,14,17,0.72);
+  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  padding: 6px;
+  background: transparent;
   border-left: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .lmv-panel-card {
-  border-radius: 7px;
-  background: rgba(11,20,24,0.78);
-  border-color: rgba(126,218,232,0.12);
-  box-shadow: 0 12px 34px rgba(0,0,0,0.16);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.03);
+  border-color: rgba(74,199,219,0.1);
+  box-shadow: none;
+}
+
+.lmv-right-section {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-top: 1px solid rgba(255,255,255,0.055);
+}
+
+.lmv-right-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 10px 9px;
+  border: 0;
+  background: rgba(255,255,255,0.012);
+  color: var(--az-text-muted, rgba(196,207,211,0.58));
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: color 0.12s, background 0.12s;
+}
+
+.lmv-right-section-header:hover {
+  color: rgba(245,248,250,0.85);
+  background: rgba(74,199,219,0.035);
+}
+
+.lmv-right-section-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.lmv-right-section-badge {
+  flex-shrink: 0;
+}
+
+.lmv-right-section-arrow {
+  flex-shrink: 0;
+  font-size: 9px;
+  line-height: 1;
+  opacity: 0.58;
+  transform: rotate(0deg);
+  transition: transform 0.15s ease, opacity 0.12s;
+}
+
+.lmv-right-section--closed .lmv-right-section-arrow {
+  transform: rotate(-90deg);
+}
+
+.lmv-right-section-header:hover .lmv-right-section-arrow {
+  opacity: 0.9;
+}
+
+.lmv-right-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
 }
 
 .lmv-preview-cue-box {
@@ -2222,7 +2349,7 @@
 .lmv-transport-bar {
   flex-shrink: 0;
   display: grid;
-  grid-template-columns: 360px minmax(360px, 1fr) 480px;
+  grid-template-columns: 400px minmax(360px, 1fr) 400px;
   align-items: center;
   gap: 18px;
   min-height: 66px;
@@ -2337,9 +2464,12 @@
   font-size: 12px;
 }
 
-@media (max-width: 1280px) {
-  .lmv-body { grid-template-columns: 320px minmax(520px, 1fr) 280px; }
-  .lmv-track-hero { grid-template-columns: 64px minmax(180px, 1fr); }
+@media (max-width: 1420px) {
+  .lmv-body {
+    --lmv-side-width: 360px;
+    grid-template-columns: var(--lmv-left-width) minmax(520px, 1fr) var(--lmv-right-width);
+  }
+  .lmv-track-hero { grid-template-columns: 64px minmax(0, 1fr); }
   .lmv-track-hero-stats { grid-column: 1 / -1; grid-template-columns: repeat(4, 1fr); }
   .lmv-track-hero-actions { grid-column: 1 / -1; flex-direction: row; }
   .lmv-transport-bar { grid-template-columns: 1fr; gap: 10px; }
@@ -2353,10 +2483,16 @@
     flex-direction: column;
     overflow-y: auto;
   }
-  .lmv-left-rail {
+  .lmv-left-rail,
+  .lmv-right-rail {
     min-height: 520px;
+    border-left: 0;
     border-right: 0;
     border-bottom: 1px solid rgba(126,218,232,0.12);
+  }
+  .lmv-left-rail.vz-inspector--collapsed,
+  .lmv-right-rail.vz-inspector--collapsed {
+    min-height: 48px;
   }
   .lmv-track-browser { flex-basis: 260px; }
   .lmv-doc-sidebar { min-height: 240px; }

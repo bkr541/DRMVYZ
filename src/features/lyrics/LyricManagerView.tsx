@@ -32,6 +32,7 @@ import { UnsavedLyricChangesDialog } from './components/UnsavedLyricChangesDialo
 import { ConfirmLyricDeleteDialog } from './components/ConfirmLyricDeleteDialog'
 import { ConfirmTrackDeleteDialog } from './components/ConfirmTrackDeleteDialog'
 import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
+import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
 
 type WorkflowTab = 'manual' | 'json' | 'ai'
 
@@ -207,18 +208,34 @@ function ExtractionConsoleSummary({
     { label: activeTab === 'ai' ? 'Groq extraction console open' : 'Review and save changes', done: cueCount > 0 },
   ]
 
+  const [open, setOpen] = useState(true)
+  const bodyId = 'lmv-extraction-console-panel'
+
   return (
-    <section className="lmv-extraction-console" aria-label="Lyric workflow console">
-      <div className="lmv-panel-card-title">✦ Extraction Console</div>
-      <div className="lmv-console-steps">
-        {steps.map((step, index) => (
-          <div className="lmv-console-step" key={step.label}>
-            <span>{index + 1}</span>
-            <strong>{step.label}</strong>
-            <em className={step.done ? 'lmv-console-ok' : 'lmv-console-pending'}>{step.done ? '✓' : '○'}</em>
+    <section className={`lmv-panel-card lmv-right-section lmv-extraction-console${open ? ' lmv-right-section--open' : ' lmv-right-section--closed'}`} aria-label="Lyric workflow console">
+      <button
+        type="button"
+        className="lmv-right-section-header"
+        onClick={() => setOpen(value => !value)}
+        aria-expanded={open}
+        aria-controls={bodyId}
+      >
+        <span className="lmv-right-section-title">Extraction Console</span>
+        <span className="lmv-right-section-arrow" aria-hidden="true">▾</span>
+      </button>
+      {open && (
+        <div id={bodyId} className="lmv-right-section-body">
+          <div className="lmv-console-steps">
+            {steps.map((step, index) => (
+              <div className="lmv-console-step" key={step.label}>
+                <span>{index + 1}</span>
+                <strong>{step.label}</strong>
+                <em className={step.done ? 'lmv-console-ok' : 'lmv-console-pending'}>{step.done ? '✓' : '○'}</em>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      )}
     </section>
   )
 }
@@ -358,6 +375,8 @@ export function LyricManagerView({ onBack }: Props) {
   const [deleting, setDeleting] = useState(false)
   const [trackDeleteTarget, setTrackDeleteTarget] = useState<LyricManagerTrack | null>(null)
   const [trackDeleting, setTrackDeleting] = useState(false)
+  const [leftRailCollapsed, setLeftRailCollapsed] = useState(false)
+  const [rightRailCollapsed, setRightRailCollapsed] = useState(false)
   const loadGeneration = useRef(0)
 
   useEffect(() => {
@@ -1093,8 +1112,18 @@ export function LyricManagerView({ onBack }: Props) {
         </div>
       )}
 
-      <div className="lmv-body">
-        <aside className="lmv-left-rail" aria-label="Lyric Manager library and versions">
+      <div
+        className="lmv-body"
+        data-left-collapsed={leftRailCollapsed ? 'true' : undefined}
+        data-right-collapsed={rightRailCollapsed ? 'true' : undefined}
+      >
+        <WorkspaceRail
+          side="left"
+          label="Lyric Manager library and versions"
+          collapsed={leftRailCollapsed}
+          onToggleCollapsed={() => setLeftRailCollapsed(value => !value)}
+          className="lmv-left-rail"
+        >
           <LyricTrackBrowser
             tracks={tracks}
             selectedTrackId={selectedTrack?.dbId ?? null}
@@ -1132,7 +1161,7 @@ export function LyricManagerView({ onBack }: Props) {
             onDeleteDocument={handleRequestDelete}
             onImportDocument={handleImportDocument}
           />
-        </aside>
+        </WorkspaceRail>
 
         <main className="lmv-center" aria-label="Lyric editing workspace">
           <SelectedTrackHero
@@ -1229,21 +1258,31 @@ export function LyricManagerView({ onBack }: Props) {
             )}
           </div>
 
-          <ExtractionConsoleSummary
-            selectedTrack={selectedTrack}
-            documentCount={documents.length}
-            cueCount={storeCues.length}
-            documentsLoading={documentsLoading}
-            activeTab={activeTab}
-          />
         </main>
 
-        <LyricPreviewPanel
-          cues={storeCues}
-          document={activeDocument}
-          selectedCue={selectedCue}
-          onPreviewInVisualizer={handlePreviewInVisualizer}
-        />
+        <WorkspaceRail
+          side="right"
+          label="Lyric Manager preview and validation"
+          collapsed={rightRailCollapsed}
+          onToggleCollapsed={() => setRightRailCollapsed(value => !value)}
+          className="lmv-right-rail"
+        >
+          <LyricPreviewPanel
+            cues={storeCues}
+            document={activeDocument}
+            selectedCue={selectedCue}
+            onPreviewInVisualizer={handlePreviewInVisualizer}
+            extractionConsole={
+              <ExtractionConsoleSummary
+                selectedTrack={selectedTrack}
+                documentCount={documents.length}
+                cueCount={storeCues.length}
+                documentsLoading={documentsLoading}
+                activeTab={activeTab}
+              />
+            }
+          />
+        </WorkspaceRail>
       </div>
 
       <LyricTransportBar

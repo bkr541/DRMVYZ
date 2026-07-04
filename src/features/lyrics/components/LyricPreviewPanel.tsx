@@ -1,3 +1,4 @@
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import type { LyricCue, LyricDocument, LyricStyle } from '../../../types/lyrics'
 import { validateLyricCues, formatMsCompact } from '../utils/lyricValidation'
 import { getLyricReviewStatistics } from '../utils/lyricReview'
@@ -7,6 +8,7 @@ interface Props {
   document: LyricDocument | null
   selectedCue: LyricCue | null
   onPreviewInVisualizer: () => void
+  extractionConsole?: ReactNode
 }
 
 function StylePreviewBox({ cue, doc }: { cue: LyricCue; doc: LyricDocument | null }) {
@@ -30,9 +32,9 @@ function StylePreviewBox({ cue, doc }: { cue: LyricCue; doc: LyricDocument | nul
           fontWeight,
           textShadow: shadowBlur > 0 ? `0 0 ${shadowBlur}px ${shadowColor}` : undefined,
           WebkitTextStroke: style.strokeWidth ? `${style.strokeWidth * 0.5}px ${strokeColor}` : undefined,
-          textAlign: (style.align as React.CSSProperties['textAlign']) ?? 'center',
+          textAlign: (style.align as CSSProperties['textAlign']) ?? 'center',
           letterSpacing: style.letterSpacing ? `${style.letterSpacing}em` : undefined,
-          textTransform: style.textTransform as React.CSSProperties['textTransform'],
+          textTransform: style.textTransform as CSSProperties['textTransform'],
         }}
       >
         {cue.text}
@@ -44,7 +46,43 @@ function StylePreviewBox({ cue, doc }: { cue: LyricCue; doc: LyricDocument | nul
   )
 }
 
-export function LyricPreviewPanel({ cues, document, selectedCue, onPreviewInVisualizer }: Props) {
+function RightInspectorSection({
+  title,
+  defaultOpen = true,
+  children,
+  badge,
+}: {
+  title: string
+  defaultOpen?: boolean
+  children: ReactNode
+  badge?: ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  const contentId = `lmv-right-section-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+
+  return (
+    <section className={`lmv-panel-card lmv-right-section${open ? ' lmv-right-section--open' : ' lmv-right-section--closed'}`}>
+      <button
+        type="button"
+        className="lmv-right-section-header"
+        onClick={() => setOpen(value => !value)}
+        aria-expanded={open}
+        aria-controls={contentId}
+      >
+        <span className="lmv-right-section-title">{title}</span>
+        {badge && <span className="lmv-right-section-badge">{badge}</span>}
+        <span className="lmv-right-section-arrow" aria-hidden="true">▾</span>
+      </button>
+      {open && (
+        <div id={contentId} className="lmv-right-section-body">
+          {children}
+        </div>
+      )}
+    </section>
+  )
+}
+
+export function LyricPreviewPanel({ cues, document, selectedCue, onPreviewInVisualizer, extractionConsole }: Props) {
   const validation = validateLyricCues(cues)
   const review = getLyricReviewStatistics(cues)
   const hasTimedCues = cues.some(c => typeof c.endMs === 'number' && typeof c.startMs === 'number' && c.endMs > c.startMs)
@@ -66,12 +104,15 @@ export function LyricPreviewPanel({ cues, document, selectedCue, onPreviewInVisu
     return m > 0 ? `${m}m ${sec}s` : `${sec}s`
   }
 
-  return (
-    <aside className="lmv-right-panel">
+  const validationBadge = (
+    <span className={`lmv-valid-badge${validation.valid ? ' lmv-valid-badge--ok' : ' lmv-valid-badge--err'}`}>
+      {validation.valid ? 'OK' : `${validation.errors.length} error${validation.errors.length !== 1 ? 's' : ''}`}
+    </span>
+  )
 
-      {/* Live Preview */}
-      <div className="lmv-panel-card lmv-preview-card">
-        <div className="lmv-panel-card-title">LIVE PREVIEW</div>
+  return (
+    <div className="lmv-right-panel">
+      <RightInspectorSection title="Live Preview">
         {selectedCue ? (
           <>
             <StylePreviewBox cue={selectedCue} doc={document} />
@@ -99,17 +140,11 @@ export function LyricPreviewPanel({ cues, document, selectedCue, onPreviewInVisu
         >
           Preview in Visualizer ↗
         </button>
-      </div>
+      </RightInspectorSection>
 
-      {/* Validation */}
-      <div className="lmv-panel-card">
-        <div className="lmv-panel-card-title">
-          VALIDATION
-          <span className={`lmv-valid-badge${validation.valid ? ' lmv-valid-badge--ok' : ' lmv-valid-badge--err'}`}>
-            {validation.valid ? 'OK' : `${validation.errors.length} error${validation.errors.length !== 1 ? 's' : ''}`}
-          </span>
-        </div>
+      {extractionConsole}
 
+      <RightInspectorSection title="Validation" badge={validationBadge}>
         {validation.errors.length > 0 && (
           <div className="lmv-msg-list lmv-msg-list--error">
             {validation.errors.map((e, i) => (
@@ -139,11 +174,9 @@ export function LyricPreviewPanel({ cues, document, selectedCue, onPreviewInVisu
         {validation.valid && validation.warnings.length === 0 && cues.length > 0 && (
           <div className="lmv-valid-ok-msg">All cues are valid</div>
         )}
-      </div>
+      </RightInspectorSection>
 
-      {/* Stats */}
-      <div className="lmv-panel-card">
-        <div className="lmv-panel-card-title">DOCUMENT STATS</div>
+      <RightInspectorSection title="Document Stats">
         <div className="lmv-stats-grid">
           <div className="lmv-stat-row">
             <span className="lmv-stat-label">Cues</span>
@@ -192,8 +225,7 @@ export function LyricPreviewPanel({ cues, document, selectedCue, onPreviewInVisu
             </>
           )}
         </div>
-      </div>
-
-    </aside>
+      </RightInspectorSection>
+    </div>
   )
 }
