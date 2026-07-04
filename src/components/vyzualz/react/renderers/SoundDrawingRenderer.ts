@@ -145,7 +145,7 @@ let _sdLyricPlayback: LyricPlaybackState = EMPTY_LYRIC_PLAYBACK_STATE
 let _sdLyricDocumentKey = 'none:none:none:0'
 let _sdExpectedAudioTrackId: string | null = null
 let _sdTrailResetRevision = 0
-const trailResetSeenMap = new WeakMap<CanvasRenderingContext2D, number>()
+const trailResetSeenMap = new WeakMap<CanvasRenderingContext2D, string>()
 
 const lyricTextRuntime = new SoundDrawingLyricTextRuntime()
 let textGeometryBuildCount = 0
@@ -1609,29 +1609,48 @@ function hasSvgGlyphPoints(osc: OscillatorSettings, params: ReactRenderParams): 
   return findNearestSvgGlyphCacheEntry(params.oscillatorGlyphPointCache, asset.id, res, asset.contentHash) !== null
 }
 
-function resetTrailForLyricDocumentIfNeeded(
+function clearSoundDrawingTrail(
   ctx: CanvasRenderingContext2D,
   W: number,
   H: number,
   background: string,
-  lyricDrivenTextActive: boolean,
 ): void {
-  if (!lyricDrivenTextActive || trailResetSeenMap.get(ctx) === _sdTrailResetRevision) return
-
   const trailCanvas = getTrail(ctx, W, H)
   const trailContext = trailCanvas.getContext('2d')
   if (trailContext) {
     trailContext.save()
+    trailContext.setTransform(1, 0, 0, 1, 0, 0)
     trailContext.globalCompositeOperation = 'source-over'
     trailContext.globalAlpha = 1
+    trailContext.clearRect(0, 0, trailCanvas.width, trailCanvas.height)
     trailContext.fillStyle = background
     trailContext.fillRect(0, 0, trailCanvas.width, trailCanvas.height)
     trailContext.restore()
   }
 
+  ctx.save()
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
   ctx.fillStyle = background
   ctx.fillRect(0, 0, W, H)
-  trailResetSeenMap.set(ctx, _sdTrailResetRevision)
+  ctx.restore()
+
+  lyricTextRuntime.clear()
+  beatEnvelopeMap.delete(ctx)
+  twistSignMap.delete(ctx)
+  twistPhasePrevMap.delete(ctx)
+  rotPhaseMap.delete(ctx)
+}
+
+function resetTrailForRevisionIfNeeded(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  background: string,
+  revisionKey: string,
+): void {
+  if (trailResetSeenMap.get(ctx) === revisionKey) return
+  clearSoundDrawingTrail(ctx, W, H, background)
+  trailResetSeenMap.set(ctx, revisionKey)
 }
 
 // ── Public export ─────────────────────────────────────────────────────────────
@@ -1767,17 +1786,8 @@ export function renderSoundDrawing(
   const intMul = params.intensity
   const osc    = params.oscillator
 
-  const lyricDrivenTextActive = _sdClips.length > 0
-    ? _sdLayers.some(layer => (
-        layer.enabled &&
-        layer.sourceType === 'text' &&
-        (layer.textSource === 'activeLyricLine' || layer.textSource === 'activeLyricWord')
-      ))
-    : osc.sourceType === 'text' &&
-      (osc.textSource === 'activeLyricLine' || osc.textSource === 'activeLyricWord')
-  resetTrailForLyricDocumentIfNeeded(
-    ctx, W, H, preset.palette.background, lyricDrivenTextActive,
-  )
+  const trailRevisionKey = `${params.soundDrawingTrailResetRevision ?? 0}:${_sdTrailResetRevision}`
+  resetTrailForRevisionIfNeeded(ctx, W, H, preset.palette.background, trailRevisionKey)
 
   // If clips are active for this frame, render through clip pipeline instead
   if (_sdClips.length > 0) {

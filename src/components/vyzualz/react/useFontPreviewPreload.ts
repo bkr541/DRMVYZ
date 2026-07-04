@@ -5,7 +5,7 @@ import type { OscillatorFontAsset } from './ReactTypes'
 
 export type FontPreviewStatus = 'idle' | 'loading' | 'ready' | 'error'
 
-const PREVIEW_CONCURRENCY = 3
+const PREVIEW_CONCURRENCY = 1
 
 function registerFontFace(id: string, buffer: ArrayBuffer, registered: Set<string>): void {
   if (registered.has(id)) return
@@ -33,11 +33,14 @@ export function useFontPreviewPreload(assets: OscillatorFontAsset[]): Record<str
   const [status, setStatus] = useState<Record<string, FontPreviewStatus>>({})
 
   // Tracks which asset IDs have been enqueued so assets aren't re-queued on re-render.
-  const queuedRef    = useRef<Set<string>>(new Set())
+  // The Font tab passes only selected/visible-nearby rows, so this queue stays small.
+  const queuedRef     = useRef<Set<string>>(new Set())
+  const queueRef      = useRef<OscillatorFontAsset[]>([])
+  const activeRef     = useRef(0)
   // Tracks which asset IDs have had a FontFace registered in document.fonts.
   const registeredRef = useRef<Set<string>>(new Set())
   // Set to true on unmount so in-flight async work doesn't update state.
-  const mountedRef   = useRef(true)
+  const mountedRef    = useRef(true)
 
   useEffect(() => {
     mountedRef.current = true
@@ -45,7 +48,6 @@ export function useFontPreviewPreload(assets: OscillatorFontAsset[]): Record<str
   }, [])
 
   useEffect(() => {
-    const toDownload: OscillatorFontAsset[] = []
     const immediate: Record<string, FontPreviewStatus> = {}
 
     for (const asset of assets) {
@@ -60,7 +62,7 @@ export function useFontPreviewPreload(assets: OscillatorFontAsset[]): Record<str
         immediate[asset.id] = 'ready'
       } else {
         immediate[asset.id] = 'idle'
-        toDownload.push(asset)
+        queueRef.current.push(asset)
       }
     }
 
@@ -68,23 +70,19 @@ export function useFontPreviewPreload(assets: OscillatorFontAsset[]): Record<str
       setStatus(prev => ({ ...prev, ...immediate }))
     }
 
-    if (toDownload.length === 0) return
-
-    // Semaphore-style concurrency queue — at most PREVIEW_CONCURRENCY active fetches.
-    let idx    = 0
-    let active = 0
-
+    // One small queue per mounted Font tab. It survives dependency churn from
+    // scrolling, so a cancelled effect cannot strand a font in queuedRef forever.
     function launchNext() {
-      while (active < PREVIEW_CONCURRENCY && idx < toDownload.length) {
-        const asset = toDownload[idx++]
-        active++
-
-        if (!mountedRef.current) return
+      if (!mountedRef.current) return
+      while (activeRef.current < PREVIEW_CONCURRENCY && queueRef.current.length > 0) {
+        const asset = queueRef.current.shift()
+        if (!asset) return
+        activeRef.current++
         setStatus(prev => ({ ...prev, [asset.id]: 'loading' }))
 
         downloadOne(asset).finally(() => {
-          active--
-          if (mountedRef.current) launchNext()
+          activeRef.current = Math.max(0, activeRef.current - 1)
+          launchNext()
         })
       }
     }

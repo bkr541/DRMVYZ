@@ -26,6 +26,7 @@ import {
   isPersistedTrack,
   type RuntimeTrackUrlInput,
 } from '../audio/runtimeTrack'
+import { upsertTrackAnalysisPayload } from '../lib/audioDb'
 
 // 60-second ring buffer
 class RingBuffer {
@@ -937,6 +938,13 @@ export function useAudioEngine(): AudioEngine {
         getCachedAnalysis:  (key) => useTrackAnalysisStore.getState().getTrackAnalysis(key),
         saveCachedAnalysis: (key, analysis) =>
           useTrackAnalysisStore.getState().saveTrackAnalysis(key, analysis),
+        saveCompletedTrackAnalysis: async (trackId, analysis) => {
+          const runtimeTrack = tracksRef.current.find(track => track.id === trackId)
+          const dbTrackId = runtimeTrack ? getTrackAudioTrackId(runtimeTrack) : null
+          if (!dbTrackId) return
+          const result = await upsertTrackAnalysisPayload(dbTrackId, analysis)
+          if (result.error) console.warn('[AudioEngine] track analysis payload save:', result.error)
+        },
       },
       {
         onRuntimeUpdate:  (trackId, patch)       => dispatchRef.current.runtime(trackId, patch),
@@ -978,7 +986,9 @@ export function useAudioEngine(): AudioEngine {
       if (prev.length === 0) setCurrentIndex(0)
       return [...prev, ...newTracks]
     })
-    newTracks.forEach(t => coordinatorRef.current?.enqueue(t, 'normal'))
+    newTracks
+      .filter(t => !(t.analysisRuntime.status === 'complete' && t.analysisRuntime.analysis))
+      .forEach(t => coordinatorRef.current?.enqueue(t, 'normal'))
   }, [])
 
   const replaceTrackUrls = useCallback((tracks: RuntimeTrackUrlInput[]) => {
@@ -992,7 +1002,9 @@ export function useAudioEngine(): AudioEngine {
       setCurrentIndex(newTracks.length > 0 ? 0 : -1)
       return newTracks
     })
-    newTracks.forEach(t => coordinatorRef.current?.enqueue(t, 'normal'))
+    newTracks
+      .filter(t => !(t.analysisRuntime.status === 'complete' && t.analysisRuntime.analysis))
+      .forEach(t => coordinatorRef.current?.enqueue(t, 'normal'))
   }, [])
 
   const removeTrack = useCallback((id: string) => {

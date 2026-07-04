@@ -99,13 +99,34 @@ export async function inspectFontFile(file: File): Promise<FontInspectionResult>
 // Cloud storage is the source of truth; these caches are populated on upload
 // or download and evicted on asset deletion.
 
+const PARSED_FONT_CACHE_MAX = 8
+const FONT_BUFFER_CACHE_MAX = 24
+
 const parsedFontCache = new Map<string, opentype.Font>()
 const fontBufferCache = new Map<string, ArrayBuffer>()
 
+function putBounded<K, V>(cache: Map<K, V>, key: K, value: V, maxEntries: number): void {
+  if (cache.has(key)) cache.delete(key)
+  cache.set(key, value)
+  while (cache.size > maxEntries) {
+    const oldest = cache.keys().next().value
+    if (oldest === undefined) break
+    cache.delete(oldest)
+  }
+}
+
+function getAndRefresh<K, V>(cache: Map<K, V>, key: K): V | undefined {
+  const value = cache.get(key)
+  if (value === undefined) return undefined
+  cache.delete(key)
+  cache.set(key, value)
+  return value
+}
+
 /** Insert (or replace) runtime font data keyed by asset ID. */
 export function storeFontRuntime(id: string, font: opentype.Font, buffer?: ArrayBuffer): void {
-  parsedFontCache.set(id, font)
-  if (buffer !== undefined) fontBufferCache.set(id, buffer)
+  putBounded(parsedFontCache, id, font, PARSED_FONT_CACHE_MAX)
+  if (buffer !== undefined) putBounded(fontBufferCache, id, buffer, FONT_BUFFER_CACHE_MAX)
 }
 
 /**
@@ -115,7 +136,7 @@ export function storeFontRuntime(id: string, font: opentype.Font, buffer?: Array
  * this buffer and only then parse with opentype.js.
  */
 export function storePreviewBuffer(id: string, buffer: ArrayBuffer): void {
-  fontBufferCache.set(id, buffer)
+  putBounded(fontBufferCache, id, buffer, FONT_BUFFER_CACHE_MAX)
 }
 
 /** Returns true when the parsed font for this ID is in the runtime cache. */
@@ -125,12 +146,12 @@ export function hasFontRuntime(id: string): boolean {
 
 /** Returns the cached parsed font, or undefined if not yet loaded. */
 export function getFontFromCache(id: string): opentype.Font | undefined {
-  return parsedFontCache.get(id)
+  return getAndRefresh(parsedFontCache, id)
 }
 
 /** Returns the cached raw ArrayBuffer, or undefined if not available. */
 export function getBufferFromCache(id: string): ArrayBuffer | undefined {
-  return fontBufferCache.get(id)
+  return getAndRefresh(fontBufferCache, id)
 }
 
 /**
@@ -150,7 +171,7 @@ export function evictFontFromCache(id: string): void {
  * downloaded and stored via storeFontRuntime() before calling this.
  */
 export function parseOpenTypeFontFromAsset(asset: OscillatorFontAsset): opentype.Font {
-  const cached = parsedFontCache.get(asset.id)
+  const cached = getFontFromCache(asset.id)
   if (!cached) {
     throw new Error(
       `[fontGlyphUtils] font data is not loaded for "${asset.name}" (id: ${asset.id}) — call storeFontRuntime() after downloading the font binary`,

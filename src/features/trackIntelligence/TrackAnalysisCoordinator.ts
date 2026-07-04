@@ -118,6 +118,8 @@ export interface CoordinatorDeps {
   getCachedAnalysis: (key: string) => TrackIntelligenceAnalysis | null
   /** Persist a completed analysis so it survives page reload. */
   saveCachedAnalysis: (key: string, analysis: TrackIntelligenceAnalysis) => void
+  /** Optional app-level persistence for decoded track records, e.g. Supabase track_analyses. */
+  saveCompletedTrackAnalysis?: (trackId: string, analysis: TrackIntelligenceAnalysis) => void | Promise<void>
   /** Max decoded buffers kept in memory (default 10). */
   maxBufferCacheSize?: number
   /** Max concurrent analysis jobs (default 1). */
@@ -307,6 +309,11 @@ export class TrackAnalysisCoordinator {
         }
 
         if (this.isStale(trackId, generation)) return
+        try {
+          await this.deps.saveCompletedTrackAnalysis?.(trackId, cached)
+        } catch (err) {
+          console.warn(`[TrackAnalysis] cached analysis persistence failed — trackId=${trackId}:`, err)
+        }
         this.callbacks.onRuntimeUpdate(trackId, {
           status:          'complete',
           analysis:        cached,
@@ -383,6 +390,12 @@ export class TrackAnalysisCoordinator {
       this.deps.saveCachedAnalysis(analysisKey, analysis)
     } catch (err) {
       console.warn(`[TrackAnalysis] cache save failed — key=${analysisKey} trackId=${trackId}:`, err)
+    }
+
+    try {
+      await this.deps.saveCompletedTrackAnalysis?.(trackId, analysis)
+    } catch (err) {
+      console.warn(`[TrackAnalysis] persisted analysis save failed — trackId=${trackId}:`, err)
     }
 
     this.callbacks.onRuntimeUpdate(trackId, {

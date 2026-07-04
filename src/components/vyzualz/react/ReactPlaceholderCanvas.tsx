@@ -45,6 +45,7 @@ interface Props {
   oscillatorGlyphAssets?:       OscillatorGlyphAsset[]
   oscillatorGlyphPointCache?:   Record<string, OscillatorGlyphPoint[]>
   oscillatorTextPointCache?:    Record<string, OscillatorGlyphPoint[]>
+  soundDrawingTrailResetRevision?: number
   performanceActionEvent?:      ReactPerformanceActionEvent | null
   performanceActionEvents?:     readonly ReactPerformanceActionEvent[]
   performanceActionToggleStates?: Readonly<Record<string, boolean>>
@@ -89,6 +90,7 @@ export function ReactPlaceholderCanvas({
   oscillatorGlyphAssets      = [] as OscillatorGlyphAsset[],
   oscillatorGlyphPointCache  = {} as Record<string, OscillatorGlyphPoint[]>,
   oscillatorTextPointCache   = {} as Record<string, OscillatorGlyphPoint[]>,
+  soundDrawingTrailResetRevision = 0,
   performanceActionEvent     = null,
   performanceActionEvents    = [],
   performanceActionToggleStates = {},
@@ -132,6 +134,7 @@ export function ReactPlaceholderCanvas({
   const glyphAssetsRef         = useRef<OscillatorGlyphAsset[]>(oscillatorGlyphAssets)
   const glyphPointCacheRef     = useRef<Record<string, OscillatorGlyphPoint[]>>(oscillatorGlyphPointCache)
   const textPointCacheRef      = useRef<Record<string, OscillatorGlyphPoint[]>>(oscillatorTextPointCache)
+  const soundDrawingTrailResetRevisionRef = useRef(soundDrawingTrailResetRevision)
   const performanceActionEventRef = useRef<ReactPerformanceActionEvent | null>(performanceActionEvent)
   const performanceActionEventsRef = useRef<readonly ReactPerformanceActionEvent[]>(performanceActionEvents)
   const performanceActionToggleStatesRef = useRef<Readonly<Record<string, boolean>>>(performanceActionToggleStates)
@@ -165,6 +168,7 @@ export function ReactPlaceholderCanvas({
   glyphAssetsRef.current         = oscillatorGlyphAssets
   glyphPointCacheRef.current     = oscillatorGlyphPointCache
   textPointCacheRef.current      = oscillatorTextPointCache
+  soundDrawingTrailResetRevisionRef.current = soundDrawingTrailResetRevision
   performanceActionEventRef.current = performanceActionEvent
   performanceActionEventsRef.current = performanceActionEvents
   performanceActionToggleStatesRef.current = performanceActionToggleStates
@@ -523,6 +527,7 @@ export function ReactPlaceholderCanvas({
         oscillatorGlyphAssets:     glyphAssetsRef.current,
         oscillatorGlyphPointCache: glyphPointCacheRef.current,
         oscillatorTextPointCache:  textPointCacheRef.current,
+        soundDrawingTrailResetRevision: soundDrawingTrailResetRevisionRef.current,
         performanceActionEvent:    performanceActionEventRef.current,
         performanceActionEvents:   performanceActionEventsRef.current,
         performanceActionToggleStates: performanceActionToggleStatesRef.current,

@@ -6435,3 +6435,41 @@
   border-color: rgba(74, 199, 219, 0.3);
   background: rgba(74, 199, 219, 0.065);
 }
+
+/* Virtualized font rows keep decorative preview fonts from repainting the whole library. */
+.rv-font-list-virtual {
+  position: relative;
+  display: block;
+  height: min(42vh, 360px);
+  min-height: 168px;
+  max-height: calc(100vh - 390px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  gap: 0;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.rv-font-list-virtual-spacer { position: relative; min-width: 0; }
+.rv-font-list-virtual-row { position: absolute; left: 0; right: 0; height: 38px; box-sizing: border-box; }
+
+/* Shader code editor parity with the rest of the React control surface. */
+.rv-shader-editor-header { gap: 8px; opacity: 1; }
+.rv-shader-editor-name { min-width: 0; flex: 1; text-transform: none; letter-spacing: 0.02em; }
+.rv-shader-editor-badge { flex-shrink: 0; padding: 4px 7px; border: 1px solid rgba(74, 199, 219, 0.18); border-radius: 999px; background: rgba(74, 199, 219, 0.07); color: rgba(232, 244, 248, 0.66); font: 800 9px/1 var(--az-font); letter-spacing: 0.08em; text-transform: uppercase; }
+.rv-shader-editor-badge--dirty { border-color: rgba(226, 196, 91, 0.32); background: rgba(226, 196, 91, 0.12); color: rgba(245, 221, 136, 0.85); }
+.rv-shader-editor-tabs { display: inline-flex; align-self: flex-start; padding: 2px; border: 1px solid rgba(232, 244, 248, 0.10); border-radius: 6px; background: rgba(255, 255, 255, 0.025); }
+.rv-shader-editor-tab { min-height: 24px; padding: 4px 11px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: rgba(232, 244, 248, 0.58); font: 800 10px/1 var(--az-font); letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; }
+.rv-shader-editor-tab:hover { color: rgba(232, 244, 248, 0.82); background: rgba(74, 199, 219, 0.06); }
+.rv-shader-editor-tab--active { color: #6cf5ff; border-color: rgba(74, 199, 219, 0.46); background: rgba(74, 199, 219, 0.12); box-shadow: inset 0 0 18px rgba(74, 199, 219, 0.08); }
+.rv-shader-editor-source,
+.rv-shader-editor-code { width: 100%; min-height: 138px; box-sizing: border-box; padding: 10px 11px; border: 1px solid rgba(74, 199, 219, 0.16); border-radius: 6px; outline: none; resize: vertical; background: rgba(2, 6, 10, 0.72); color: rgba(232, 244, 248, 0.86); font-family: 'SF Mono', 'Fira Code', 'Menlo', monospace; line-height: 1.55; letter-spacing: 0.01em; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.26); }
+.rv-shader-editor-code:focus { border-color: rgba(74, 199, 219, 0.46); box-shadow: 0 0 0 2px rgba(74, 199, 219, 0.10), inset 0 0 0 1px rgba(0, 0, 0, 0.32); }
+.rv-shader-editor-code--readonly { color: rgba(232, 244, 248, 0.62); background: rgba(2, 6, 10, 0.48); cursor: default; }
+.rv-shader-editor-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.rv-shader-editor-pref { display: inline-flex; align-items: center; gap: 6px; min-height: 26px; color: rgba(232, 244, 248, 0.72); font: 800 10px/1 var(--az-font); letter-spacing: 0.06em; text-transform: uppercase; user-select: none; }
+.rv-shader-editor-pref input { appearance: none; width: 14px; height: 14px; margin: 0; border: 1px solid rgba(232, 244, 248, 0.28); border-radius: 3px; background: rgba(255, 255, 255, 0.04); cursor: pointer; }
+.rv-shader-editor-pref input:checked { border-color: rgba(74, 199, 219, 0.72); background: linear-gradient(135deg, rgba(74, 199, 219, 0.94), rgba(97, 214, 170, 0.72)); box-shadow: 0 0 12px rgba(74, 199, 219, 0.26); }
+.rv-shader-editor-status { padding: 6px 8px; border: 1px solid rgba(97, 214, 170, 0.16); border-radius: 5px; background: rgba(97, 214, 170, 0.06); color: rgba(232, 244, 248, 0.74); font: 800 10px/1.25 var(--az-font); letter-spacing: 0.05em; }
+.rv-shader-editor-errors { display: flex; flex-direction: column; gap: 4px; }
+.rv-shader-editor-error { display: flex; gap: 6px; }
+.rv-shader-editor-error-line { color: rgba(255, 180, 180, 0.7); font-weight: 800; }

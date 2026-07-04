@@ -1,8 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { listAudioTracksPage } from '../../../lib/audioDb'
+import { listAudioTracksPage, listTrackAnalysisPayloads } from '../../../lib/audioDb'
 import { supabase } from '../../../lib/supabase'
 import { mapLyricDocumentRowToDocument } from '../../../types/lyrics'
-import type { AudioTrack } from '../../../types/database'
+import type { AudioTrack, Json } from '../../../types/database'
+import type { TrackIntelligenceAnalysis } from '../../musicIntelligence/types'
 import type { LyricDocumentRow } from '../../../types/lyrics'
 import { runtimeIdForAudioTrack } from '../../../audio/runtimeTrack'
 import type {
@@ -28,6 +29,20 @@ function nestedCount(value: LyricDocumentSummaryRow['lyric_cues']): number {
   return 0
 }
 
+function isTrackIntelligenceAnalysis(value: Json | null | undefined): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const candidate = value as Record<string, unknown>
+  return typeof candidate.analysisVersion === 'string'
+    && typeof candidate.durationMs === 'number'
+    && Array.isArray(candidate.beatGrid)
+    && Array.isArray(candidate.downbeats)
+    && Array.isArray(candidate.sections)
+}
+
+function normalizeTrackAnalysisPayload(value: Json | null | undefined): TrackIntelligenceAnalysis | null {
+  return isTrackIntelligenceAnalysis(value) ? value as unknown as TrackIntelligenceAnalysis : null
+}
+
 export function mapAudioTrackForLyricManager(row: AudioTrack): LyricManagerTrack {
   return {
     id: runtimeIdForAudioTrack(row.id),
@@ -49,6 +64,7 @@ export function mapAudioTrackForLyricManager(row: AudioTrack): LyricManagerTrack
     lyricVersionCount: 0,
     activeLyricDocumentId: null,
     activeLyricDocumentName: null,
+    analysisPayload: null,
   }
 }
 
@@ -100,8 +116,21 @@ export async function loadLyricManagerTrackPage(
   if (page.error) throw new Error(page.error)
 
   const tracks = page.rows.map(mapAudioTrackForLyricManager)
-  const versions = await getLyricDocumentVersionsForTracks(tracks.map(track => track.dbId))
+  const trackIds = tracks.map(track => track.dbId)
+  const [versions, analysesResult] = await Promise.all([
+    getLyricDocumentVersionsForTracks(trackIds),
+    listTrackAnalysisPayloads(trackIds),
+  ])
   const versionsByTrack = new Map<string, LyricDocumentVersion[]>()
+  const analysisByTrack = new Map<string, TrackIntelligenceAnalysis | null>()
+
+  if (analysesResult.error) {
+    console.warn('[LyricManager] track analysis hydration failed:', analysesResult.error)
+  } else {
+    for (const row of analysesResult.rows) {
+      analysisByTrack.set(row.track_id, normalizeTrackAnalysisPayload(row.analysis_payload))
+    }
+  }
 
   for (const version of versions) {
     if (!version.audioTrackId) continue
@@ -120,6 +149,7 @@ export async function loadLyricManagerTrackPage(
         lyricVersionCount: trackVersions.length,
         activeLyricDocumentId: active?.id ?? null,
         activeLyricDocumentName: active?.title ?? null,
+        analysisPayload: analysisByTrack.get(track.dbId) ?? null,
       }
     }),
   }

@@ -11,6 +11,9 @@ import { useAudioStore } from '../../stores/audioStore'
 import type { SavedAudioTrack } from '../../stores/audioStore'
 import { useSharedAudio } from '../../context/AudioEngineContext'
 import type { LyricSectionType } from '../../types/lyrics'
+import { DEFAULT_TRACK_ANALYSIS_RUNTIME } from '../../types'
+import type { TrackIntelligenceAnalysis, BeatMarkerMI } from '../musicIntelligence/types'
+import type { LyricBeatGridStatus } from './editor/LyricCueEditor'
 import type { LyricDocumentImportResult } from './utils/lyricDocumentImport'
 import type {
   LyricDocumentVersion,
@@ -33,6 +36,7 @@ import { ConfirmLyricDeleteDialog } from './components/ConfirmLyricDeleteDialog'
 import { ConfirmTrackDeleteDialog } from './components/ConfirmTrackDeleteDialog'
 import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
+import type { RuntimeTrackUrlInput } from '../../audio/runtimeTrack'
 
 type WorkflowTab = 'manual' | 'json' | 'ai'
 
@@ -92,12 +96,47 @@ function toLyricSectionType(type: string): LyricSectionType {
   return 'unknown'
 }
 
+function beatMarkersToMs(markers: readonly BeatMarkerMI[] | null | undefined): number[] {
+  return (markers ?? [])
+    .map(beat => Math.round(beat.timeSec * 1000))
+    .filter(ms => Number.isFinite(ms) && ms >= 0)
+}
+
+function generateBeatGridFromBpm(
+  bpm: number | null | undefined,
+  durationMs: number,
+  offsetSec: number | null | undefined = 0,
+): number[] {
+  if (!bpm || !Number.isFinite(bpm) || bpm <= 0 || durationMs <= 0) return []
+  const intervalMs = 60_000 / bpm
+  if (!Number.isFinite(intervalMs) || intervalMs <= 0) return []
+  const offsetMs = Number.isFinite(offsetSec ?? 0) ? Math.max(0, Math.round((offsetSec ?? 0) * 1000)) : 0
+  const grid: number[] = []
+  for (let ms = offsetMs; ms <= durationMs + intervalMs; ms += intervalMs) {
+    grid.push(Math.round(ms))
+    if (grid.length > 20_000) break
+  }
+  if (grid.length < 2 && offsetMs > 0) {
+    for (let ms = offsetMs - intervalMs; ms >= 0; ms -= intervalMs) grid.unshift(Math.round(ms))
+  }
+  return grid.length >= 2 ? grid : []
+}
+
+function sectionOptionsFromAnalysis(analysis: TrackIntelligenceAnalysis | null | undefined) {
+  return (analysis?.sections ?? []).map((section) => ({
+    id: section.id,
+    label: section.label,
+    type: toLyricSectionType(section.type),
+  }))
+}
+
 function uploadedTrackToManager(track: SavedAudioTrack): LyricManagerTrack {
   return {
     ...track,
     lyricVersionCount: 0,
     activeLyricDocumentId: null,
     activeLyricDocumentName: null,
+    analysisPayload: null,
   }
 }
 
@@ -935,7 +974,16 @@ export function LyricManagerView({ onBack }: Props) {
       const url = await getSignedUrl(selectedTrack.storagePath)
       if (!url)
         throw new Error('Unable to create a signed preview URL for this track.')
-      const trackEntry = {
+      const hydratedAnalysisRuntime = selectedTrack.analysisPayload
+        ? {
+            ...DEFAULT_TRACK_ANALYSIS_RUNTIME,
+            status:          'complete' as const,
+            analysis:        selectedTrack.analysisPayload,
+            analysisVersion: selectedTrack.analysisPayload.analysisVersion,
+            error:           null,
+          }
+        : null
+      const trackEntry: RuntimeTrackUrlInput = {
         name: selectedTrack.fileName || selectedTrack.title,
         title: selectedTrack.title,
         artist: selectedTrack.artist,
@@ -950,6 +998,7 @@ export function LyricManagerView({ onBack }: Props) {
           sampleRate: selectedTrack.sampleRate,
           channels: selectedTrack.channels,
         },
+        ...(hydratedAnalysisRuntime ? { analysisRuntime: hydratedAnalysisRuntime } : {}),
       }
       if (engine.tracks.length > 0) engine.replaceTrackUrls([trackEntry])
       else engine.addTrackUrls([trackEntry])
@@ -1044,17 +1093,50 @@ export function LyricManagerView({ onBack }: Props) {
         : (selectedTrack?.durationSec ?? 0) * 1000,
     ),
   )
-  const trustedBeatGridMs = selectedTrackLoaded && engine.currentAnalysisStatus === 'complete'
-    ? (engine.currentEffectiveBeatGrid ?? engine.currentAnalysis?.beatGrid ?? [])
-        .map((beat) => Math.round(beat.timeSec * 1000))
+  const liveAnalysis = selectedTrackLoaded && engine.currentAnalysisStatus === 'complete'
+    ? engine.currentAnalysis
+    : null
+  const savedAnalysis = selectedTrack?.analysisPayload ?? null
+  const activeEditorAnalysis = liveAnalysis ?? savedAnalysis
+  const liveBeatGridMs = selectedTrackLoaded && engine.currentAnalysisStatus === 'complete'
+    ? beatMarkersToMs(engine.currentEffectiveBeatGrid ?? engine.currentAnalysis?.beatGrid ?? [])
     : []
-  const sectionOptions = selectedTrackLoaded
-    ? (engine.currentAnalysis?.sections ?? []).map((section) => ({
-        id: section.id,
-        label: section.label,
-        type: toLyricSectionType(section.type),
-      }))
-    : []
+  const savedBeatGridMs = beatMarkersToMs(savedAnalysis?.beatGrid)
+  const fallbackBeatGridMs = generateBeatGridFromBpm(
+    savedAnalysis?.bpm ?? selectedTrack?.bpm ?? null,
+    editorDurationMs,
+    savedAnalysis?.beatGridOffsetSec ?? 0,
+  )
+  const trustedBeatGridMs = liveBeatGridMs.length >= 2
+    ? liveBeatGridMs
+    : savedBeatGridMs.length >= 2
+      ? savedBeatGridMs
+      : fallbackBeatGridMs
+  const beatGridStatus: LyricBeatGridStatus = !selectedTrack
+    ? 'no-track'
+    : liveBeatGridMs.length >= 2 || savedBeatGridMs.length >= 2
+      ? 'trusted'
+      : fallbackBeatGridMs.length >= 2
+        ? 'temporary'
+        : !selectedTrackLoaded
+          ? 'not-loaded'
+          : engine.currentAnalysisStatus === 'queued' || engine.currentAnalysisStatus === 'decoding' || engine.currentAnalysisStatus === 'analyzing'
+            ? 'analyzing'
+            : engine.currentAnalysisStatus === 'failed'
+              ? 'failed'
+              : 'missing'
+  const beatGridStatusMessage = beatGridStatus === 'trusted'
+    ? null
+    : beatGridStatus === 'temporary'
+      ? 'Beat snapping is using a temporary BPM grid. Load the deck or run analysis to replace it with detected beats.'
+      : beatGridStatus === 'not-loaded'
+        ? 'Load this track to the deck to enable detected beat snapping.'
+        : beatGridStatus === 'analyzing'
+          ? 'Analyzing beat grid… snapping will switch to detected beats when analysis completes.'
+          : beatGridStatus === 'failed'
+            ? 'Beat grid analysis failed. You can still use 10 ms/frame snapping, or re-load/reanalyze this track.'
+            : 'No BPM or beat grid is available for this track yet.'
+  const sectionOptions = sectionOptionsFromAnalysis(activeEditorAnalysis)
   const hasMore = tracks.length < trackTotal
   const selectedTrackName = selectedTrack?.title ?? null
 
@@ -1244,6 +1326,8 @@ export function LyricManagerView({ onBack }: Props) {
                   engine.seek(timeMs / 1000)
                 }}
                 beatGridMs={trustedBeatGridMs}
+                beatGridStatus={beatGridStatus}
+                beatGridStatusMessage={beatGridStatusMessage}
                 sections={sectionOptions}
               />
             ) : activeTab === 'json' ? (

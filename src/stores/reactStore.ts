@@ -570,6 +570,27 @@ function patchChangesTextGeometry(patch: Partial<OscillatorSettings>): boolean {
   return Object.keys(patch).some(key => TEXT_GEOMETRY_SETTING_KEYS.has(key as keyof OscillatorSettings))
 }
 
+const SOUND_DRAWING_TRAIL_RESET_SETTING_KEYS = new Set<keyof OscillatorSettings>([
+  'sourceType', 'classicMode', 'builtinShape', 'selectedGlyphId', 'selectedSvgVisualId',
+  'selectedSvgId', 'svgRenderMode', 'svgUseReactPalette', 'text', 'textSource',
+  'lyricGapBehavior', 'lyricFallbackText', 'textFontId', 'textFontSize',
+  'textLetterSpacing', 'textLineHeight', 'textAlignment', 'renderMode', 'pathResolution',
+])
+
+function patchNeedsSoundDrawingTrailReset(patch: Partial<OscillatorSettings>): boolean {
+  return Object.keys(patch).some(key => SOUND_DRAWING_TRAIL_RESET_SETTING_KEYS.has(key as keyof OscillatorSettings))
+}
+
+function prepareActiveSoundDrawingTextPoints(
+  assets: OscillatorFontAsset[],
+  settings: OscillatorSettings,
+  cache: Record<string, OscillatorGlyphPoint[]>,
+): Record<string, OscillatorGlyphPoint[]> {
+  return settings.sourceType === 'text'
+    ? prepareTextPoints(assets, settings, cache)
+    : cache
+}
+
 function resolveSoundDrawingLayerTextSettings(
   globalSettings: OscillatorSettings,
   layer: SoundDrawingLayer,
@@ -1110,6 +1131,9 @@ interface ReactStoreState {
 
   // Oscillator settings
   oscillatorSettings: OscillatorSettings
+  /** Transient revision used to clear the Sound Drawing trail canvas after semantic source changes. */
+  soundDrawingTrailResetRevision: number
+  requestSoundDrawingTrailReset: () => void
   setOscillatorSettings: (patch: Partial<OscillatorSettings>) => void
   resetOscillatorSettings: () => void
 
@@ -2634,6 +2658,7 @@ export const useReactStore = create<ReactStoreState>()(
       performancePads: DEFAULT_PERFORMANCE_PADS,
       activePadId: null,
       oscillatorSettings: DEFAULT_OSCILLATOR_SETTINGS,
+      soundDrawingTrailResetRevision: 0,
       oscillatorGlyphAssets: [],
       oscillatorGlyphPointCache: {},
       oscillatorFontAssets: [],
@@ -2969,6 +2994,9 @@ export const useReactStore = create<ReactStoreState>()(
           }
         }),
 
+      requestSoundDrawingTrailReset: () =>
+        set(s => ({ soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1 })),
+
       setOscillatorSettings: (patch) =>
         set((s) => {
           const newSettings = normalizeOscillatorSettings({ ...s.oscillatorSettings, ...patch })
@@ -3001,6 +3029,9 @@ export const useReactStore = create<ReactStoreState>()(
             oscillatorSettings:        newSettings,
             oscillatorGlyphPointCache: newGlyphCache,
             oscillatorTextPointCache:  newTextCache,
+            ...(patchNeedsSoundDrawingTrailReset(patch)
+              ? { soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1 }
+              : {}),
             // Clear the notice whenever the user actively changes the source type
             ...('sourceType' in patch ? { glyphLostNotice: null } : {}),
           }
@@ -3009,6 +3040,7 @@ export const useReactStore = create<ReactStoreState>()(
       resetOscillatorSettings: () =>
         set((s) => ({
           oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS },
+          soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
           oscillatorTextPointCache: prepareAllSoundDrawingTextPoints(
             s.oscillatorFontAssets,
             DEFAULT_OSCILLATOR_SETTINGS,
@@ -3059,6 +3091,7 @@ export const useReactStore = create<ReactStoreState>()(
                 }
               : s.oscillatorSettings,
             glyphLostNotice: removedName,
+            ...(wasActive ? { soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1 } : {}),
           }
         }),
 
@@ -3070,6 +3103,9 @@ export const useReactStore = create<ReactStoreState>()(
             s.oscillatorSettings.sourceType === 'svgGlyph'
               ? { ...s.oscillatorSettings, selectedGlyphId: null, sourceType: 'builtinShape' }
               : s.oscillatorSettings,
+          ...(s.oscillatorSettings.sourceType === 'svgGlyph'
+            ? { soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1 }
+            : {}),
         })),
 
       selectOscillatorGlyph: (id) =>
@@ -3091,6 +3127,7 @@ export const useReactStore = create<ReactStoreState>()(
               : { ...s.oscillatorSettings, sourceType: 'svgGlyph', selectedGlyphId: id },
             oscillatorGlyphPointCache: newCache,
             glyphLostNotice: null,
+            soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
           }
         }),
 
@@ -3104,6 +3141,7 @@ export const useReactStore = create<ReactStoreState>()(
             svgRenderMode: 'reactivePath',
           },
           glyphLostNotice: null,
+          soundDrawingTrailResetRevision: state.soundDrawingTrailResetRevision + 1,
         }))
         await ensureUnifiedSvgCaches(mediaId)
         if (requestGeneration !== _svgSelectionGeneration) return
@@ -3139,6 +3177,7 @@ export const useReactStore = create<ReactStoreState>()(
             svgRenderMode: 'originalArtwork',
           },
           glyphLostNotice: null,
+          soundDrawingTrailResetRevision: state.soundDrawingTrailResetRevision + 1,
         }))
         await ensureUnifiedSvgCaches(mediaId)
         if (requestGeneration !== _svgSelectionGeneration) return
@@ -3161,6 +3200,7 @@ export const useReactStore = create<ReactStoreState>()(
               selectedSvgId: activeUnified ? null : state.oscillatorSettings.selectedSvgId,
               selectedSvgVisualId: activeLegacy ? null : state.oscillatorSettings.selectedSvgVisualId,
             },
+            soundDrawingTrailResetRevision: state.soundDrawingTrailResetRevision + 1,
           }
         })
       },
@@ -3178,6 +3218,7 @@ export const useReactStore = create<ReactStoreState>()(
             selectedSvgId: mediaId,
           },
           glyphLostNotice: null,
+          soundDrawingTrailResetRevision: state.soundDrawingTrailResetRevision + 1,
         }))
 
         await ensureUnifiedSvgCaches(mediaId)
@@ -3236,6 +3277,9 @@ export const useReactStore = create<ReactStoreState>()(
                 s.oscillatorSettings.textFontId === id
                   ? { ...s.oscillatorSettings, textFontId: null }
                   : s.oscillatorSettings,
+              ...(s.oscillatorSettings.textFontId === id
+                ? { soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1 }
+                : {}),
               // Clear any in-flight select for this font — the download is now pointless
               fontSelectPending: s.fontSelectPending === id ? null : s.fontSelectPending,
               fontSelectError:   s.fontSelectPending === id ? null : s.fontSelectError,
@@ -3254,6 +3298,9 @@ export const useReactStore = create<ReactStoreState>()(
             s.oscillatorSettings.textFontId
               ? { ...s.oscillatorSettings, textFontId: null }
               : s.oscillatorSettings,
+          ...(s.oscillatorSettings.textFontId
+            ? { soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1 }
+            : {}),
         })),
 
       selectOscillatorFont: async (id) => {
@@ -3263,6 +3310,7 @@ export const useReactStore = create<ReactStoreState>()(
             fontSelectPending: null,
             fontSelectError:   null,
             oscillatorSettings: { ...s.oscillatorSettings, textFontId: null },
+            soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
           }))
           return
         }
@@ -3282,10 +3330,10 @@ export const useReactStore = create<ReactStoreState>()(
               fontSelectPending:        null,
               fontSelectError:          null,
               oscillatorSettings:       newSettings,
-              oscillatorTextPointCache: prepareAllSoundDrawingTextPoints(
+              soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
+              oscillatorTextPointCache: prepareActiveSoundDrawingTextPoints(
                 s.oscillatorFontAssets,
                 newSettings,
-                s.soundDrawingLayersByTrackId,
                 s.oscillatorTextPointCache,
               ),
             }
@@ -3340,10 +3388,10 @@ export const useReactStore = create<ReactStoreState>()(
               fontSelectPending:        null,
               fontSelectError:          null,
               oscillatorSettings:       newSettings,
-              oscillatorTextPointCache: prepareAllSoundDrawingTextPoints(
+              soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
+              oscillatorTextPointCache: prepareActiveSoundDrawingTextPoints(
                 s.oscillatorFontAssets,
                 newSettings,
-                s.soundDrawingLayersByTrackId,
                 s.oscillatorTextPointCache,
               ),
             }
@@ -3458,6 +3506,7 @@ export const useReactStore = create<ReactStoreState>()(
               fontUploadError:      null,
               oscillatorFontAssets: newAssets,
               oscillatorSettings:   newSettings,
+              soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
               oscillatorTextPointCache: newTextCache,
             }
           })
@@ -3515,6 +3564,9 @@ export const useReactStore = create<ReactStoreState>()(
                 currentFontId && !loadedIds.has(currentFontId)
                   ? { ...s.oscillatorSettings, textFontId: null }
                   : s.oscillatorSettings,
+              ...(currentFontId && !loadedIds.has(currentFontId)
+                ? { soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1 }
+                : {}),
             }
           })
 
@@ -4737,6 +4789,7 @@ export const useReactStore = create<ReactStoreState>()(
                 s.oscillatorTextPointCache,
               ),
               glyphLostNotice: null,
+              soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
             }
           }
 

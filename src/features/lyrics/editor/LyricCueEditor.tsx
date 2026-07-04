@@ -25,6 +25,7 @@ import { LyricCueTimeline } from './LyricCueTimeline'
 import { toCanonicalLyricTimeMs, toEffectiveLyricTimeMs } from '../runtime/lyricPlaybackResolver'
 
 export type LyricCueFilter = 'all' | 'unreviewed' | 'low-confidence' | 'warnings' | 'empty-text'
+export type LyricBeatGridStatus = 'trusted' | 'temporary' | 'not-loaded' | 'analyzing' | 'failed' | 'missing' | 'no-track'
 
 interface Props {
   trackId: string | null
@@ -35,6 +36,8 @@ interface Props {
   globalOffsetMs?: number
   onSeek: (timeMs: number) => void
   beatGridMs?: number[]
+  beatGridStatus?: LyricBeatGridStatus
+  beatGridStatusMessage?: string | null
   sections?: LyricSectionOption[]
 }
 
@@ -69,6 +72,8 @@ export function LyricCueEditor({
   globalOffsetMs = 0,
   onSeek,
   beatGridMs = [],
+  beatGridStatus = 'missing',
+  beatGridStatusMessage = null,
   sections = [],
 }: Props) {
   const {
@@ -210,6 +215,11 @@ export function LyricCueEditor({
 
   const cueIssues = useMemo(() => new Map(cues.map(cue => [cue.id, getCueIssues(cue, cues, durationMs)])), [cues, durationMs])
   const filteredCues = orderedCues.filter(cue => cueMatchesFilter(cue, filter, cueIssues.get(cue.id) ?? []))
+  const beatGridHint = beatGridStatus === 'trusted'
+    ? null
+    : beatGridStatusMessage ?? (beatGridMs.length >= 2
+      ? 'Beat snapping is using a temporary BPM grid. Run analysis to replace it with detected beats.'
+      : 'Beat snapping unavailable. Load or analyze this track to build a beat grid.')
 
   return (
     <div
@@ -244,7 +254,7 @@ export function LyricCueEditor({
           <span>Zoom {zoom.toFixed(2)}×</span>
           <input type="range" min={0.25} max={8} step={0.25} value={zoom} onChange={event => setZoom(Number(event.target.value))} aria-label="Lyric timeline zoom" />
         </label>
-        {beatGridMs.length < 2 && <span className="lyric-cue-editor-toolbar__hint">Beat snapping unavailable until this track has a trustworthy beat grid.</span>}
+        {beatGridHint && <span className="lyric-cue-editor-toolbar__hint">{beatGridHint}</span>}
       </div>
 
       <LyricCueTimeline

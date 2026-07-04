@@ -141,6 +141,7 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
     oscillatorGlyphAssets,
     oscillatorGlyphPointCache,
     oscillatorTextPointCache,
+    soundDrawingTrailResetRevision,
     performanceActionEvent,
     performanceActionEvents,
     performanceActionToggleStates,
@@ -170,6 +171,7 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
     oscillatorGlyphAssets:          s.oscillatorGlyphAssets,
     oscillatorGlyphPointCache:      s.oscillatorGlyphPointCache,
     oscillatorTextPointCache:       s.oscillatorTextPointCache,
+    soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision,
     performanceActionEvent:         s.performanceActionEvent,
     performanceActionEvents:        s.performanceActionEvents,
     performanceActionToggleStates:  s.performanceActionToggleStates,
@@ -480,6 +482,7 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
                 oscillatorGlyphAssets={oscillatorGlyphAssets}
                 oscillatorGlyphPointCache={oscillatorGlyphPointCache}
                 oscillatorTextPointCache={oscillatorTextPointCache}
+                soundDrawingTrailResetRevision={soundDrawingTrailResetRevision}
                 performanceActionEvent={performanceActionEvent}
                 performanceActionEvents={performanceActionEvents}
                 performanceActionToggleStates={performanceActionToggleStates}

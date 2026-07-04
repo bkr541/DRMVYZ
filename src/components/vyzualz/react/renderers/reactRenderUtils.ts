@@ -87,6 +87,8 @@ export interface ReactRenderParams {
   oscillatorGlyphPointCache: Record<string, OscillatorGlyphPoint[]>
   /** Pre-sampled OpenType text points keyed by "${fontId}:${text}:${fontSize}:${letterSpacing}:${resolution}". Populated at upload/select/settings-change time; never by the renderer. */
   oscillatorTextPointCache: Record<string, OscillatorGlyphPoint[]>
+  /** Incremented by the store when source/font/artwork changes should clear the persistent trail canvas. */
+  soundDrawingTrailResetRevision?: number
   /** Isolated preset-preview override. Never persisted and never read by the live control surface. */
   thumbnailLaserDmxSettings?: LaserDmxSettings
   /** Generic transient event. Renderers consume each sequence at most once. */
@@ -110,6 +112,7 @@ export const DEFAULT_REACT_RENDER_PARAMS: ReactRenderParams = {
   oscillatorGlyphAssets: [],
   oscillatorGlyphPointCache: {},
   oscillatorTextPointCache:  {},
+  soundDrawingTrailResetRevision: 0,
 }
 
 // ── VzFrameContext → ReactFrameContext conversion ────────────────────────────

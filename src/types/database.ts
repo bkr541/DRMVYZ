@@ -152,6 +152,8 @@ export interface TrackAnalysisRow {
   band_high_mid: number | null
   band_presence: number | null
   band_air: number | null
+  /** Full Music Intelligence analysis used to hydrate beat grids, downbeats, sections, and phrases. */
+  analysis_payload: Json | null
   analyzed_at: string
 }
 
@@ -518,7 +520,7 @@ export interface Database {
       }
       tags:                   { Row: DBRec<Tag>;                  Insert: DBRec<Omit<Tag,'id'>>;                                         Update: DBRec<Partial<Omit<Tag,'id'>>>; Relationships: [] }
       audio_tracks:           { Row: DBRec<AudioTrack>;           Insert: DBRec<AudioTrackInsert>;                                       Update: DBRec<Partial<Omit<AudioTrack,'id'>>>; Relationships: [] }
-      track_analyses:         { Row: DBRec<TrackAnalysisRow>;     Insert: DBRec<Omit<TrackAnalysisRow,'id'|'analyzed_at'>>;              Update: DBRec<Partial<Omit<TrackAnalysisRow,'id'>>>; Relationships: [] }
+      track_analyses:         { Row: DBRec<TrackAnalysisRow>;     Insert: DBRec<Omit<TrackAnalysisRow,'id'|'analyzed_at'|'analysis_payload'> & { analysis_payload?: Json | null }>;              Update: DBRec<Partial<Omit<TrackAnalysisRow,'id'>>>; Relationships: [] }
       analyzer_sessions:      { Row: DBRec<AnalyzerSessionRow>;   Insert: DBRec<Omit<AnalyzerSessionRow,'id'|'created_at'|'updated_at'>>;Update: DBRec<Partial<Omit<AnalyzerSessionRow,'id'>>>; Relationships: [] }
       ring_buffer_exports:    { Row: DBRec<RingBufferExport>;     Insert: DBRec<Omit<RingBufferExport,'id'|'exported_at'>>;              Update: DBRec<Partial<Omit<RingBufferExport,'id'>>>; Relationships: [] }
       bpm_detections:         { Row: DBRec<BpmDetection>;         Insert: DBRec<Omit<BpmDetection,'id'|'detected_at'>>;                 Update: DBRec<Partial<Omit<BpmDetection,'id'>>>; Relationships: [] }

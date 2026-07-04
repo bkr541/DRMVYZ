@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { LyricCueEditor } from '../editor/LyricCueEditor'
+import { LyricCueEditor, type LyricBeatGridStatus } from '../editor/LyricCueEditor'
 import type { LyricSectionOption } from '../editor/LyricCueInspector'
 
 interface Props {
@@ -16,6 +16,8 @@ interface Props {
   currentAudioTimeMs: number | null
   onSeek: (timeMs: number) => void
   beatGridMs?: number[]
+  beatGridStatus?: LyricBeatGridStatus
+  beatGridStatusMessage?: string | null
   sections?: LyricSectionOption[]
 }
 
@@ -33,6 +35,8 @@ export function ManualLyricEditor({
   currentAudioTimeMs,
   onSeek,
   beatGridMs,
+  beatGridStatus,
+  beatGridStatusMessage,
   sections,
 }: Props) {
   const [styleOpen, setStyleOpen] = useState(false)
@@ -102,6 +106,8 @@ export function ManualLyricEditor({
         globalOffsetMs={globalOffsetMs}
         onSeek={onSeek}
         beatGridMs={beatGridMs}
+        beatGridStatus={beatGridStatus}
+        beatGridStatusMessage={beatGridStatusMessage}
         sections={sections}
       />
     </div>
