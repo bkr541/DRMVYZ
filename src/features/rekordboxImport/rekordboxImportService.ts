@@ -3,6 +3,7 @@ import type { ImportedTrackIntelligence, RekordboxLibrary } from './types'
 import { parseRekordboxXmlFile } from './parseRekordboxXml'
 import { matchFileToRekordboxTrack } from './matchTrack'
 import { mapRekordboxMatchToDrmvyz } from './mapToDrmvyzAnalysis'
+import { getNativeFilePath, selectNativeRekordboxUsbRoot } from './nativeBridge'
 
 const AUDIO_EXT_RE = /\.(mp3|wav|aiff?|m4a|ogg|flac)$/i
 const XML_EXT_RE = /\.xml$/i
@@ -47,6 +48,9 @@ export interface RekordboxUsbRootSelectionResult extends RekordboxFolderImportRe
   cancelled: boolean
   scannedRootName?: string
   usedFileSystemAccessApi: boolean
+  usedNativeBridge?: boolean
+  scannedRootPath?: string
+  parserMode?: string
 }
 
 export interface PreparedTrackInputOptions {
@@ -105,6 +109,23 @@ export async function importRekordboxFolder(files: FileList | File[]): Promise<R
  * Rekordbox metadata folders needed for status and optional XML hydration.
  */
 export async function selectRekordboxUsbRoot(): Promise<RekordboxUsbRootSelectionResult> {
+  const nativeResult = await selectNativeRekordboxUsbRoot()
+  if (nativeResult) {
+    return {
+      library: nativeResult.library,
+      audioFiles: [],
+      warnings: nativeResult.warnings,
+      detectedPdbFiles: nativeResult.detectedPdbFiles,
+      detectedAnlzFiles: nativeResult.detectedAnlzFiles,
+      cancelled: nativeResult.cancelled,
+      scannedRootName: nativeResult.scannedRootName,
+      scannedRootPath: nativeResult.scannedRootPath,
+      usedFileSystemAccessApi: false,
+      usedNativeBridge: true,
+      parserMode: nativeResult.parserMode,
+    }
+  }
+
   const picker = (typeof window !== 'undefined'
     ? (window as DirectoryPickerWindow).showDirectoryPicker
     : undefined)
@@ -120,6 +141,7 @@ export async function selectRekordboxUsbRoot(): Promise<RekordboxUsbRootSelectio
       detectedAnlzFiles: 0,
       cancelled: false,
       usedFileSystemAccessApi: false,
+      usedNativeBridge: false,
     }
   }
 
@@ -136,6 +158,7 @@ export async function selectRekordboxUsbRoot(): Promise<RekordboxUsbRootSelectio
         detectedAnlzFiles: 0,
         cancelled: true,
         usedFileSystemAccessApi: true,
+        usedNativeBridge: false,
       }
     }
     throw err
@@ -203,6 +226,7 @@ export async function selectRekordboxUsbRoot(): Promise<RekordboxUsbRootSelectio
     cancelled: false,
     scannedRootName: root.name,
     usedFileSystemAccessApi: true,
+    usedNativeBridge: false,
   }
 }
 
@@ -297,7 +321,7 @@ function createUsbModeFallback(file: File, library: RekordboxLibrary | null): Im
       source: 'rekordbox_usb',
       sourceLibraryId: library?.id ?? 'manual-usb-mode',
       sourceTrackId: null,
-      sourcePath: relativePath(file),
+      sourcePath: getNativeFilePath(file) ?? relativePath(file),
       title: filenameWithoutExtension(file.name),
       artist: null,
       importedAt,
@@ -323,5 +347,8 @@ export function summarizeRekordboxLibrary(library: RekordboxLibrary): string {
   if (library.stats.loops > 0) parts.push(`${library.stats.loops} loops`)
   if (library.stats.detectedPdbFiles > 0) parts.push(`${library.stats.detectedPdbFiles} export.pdb`)
   if (library.stats.detectedAnlzFiles > 0) parts.push(`${library.stats.detectedAnlzFiles} ANLZ files`)
+  if (library.stats.tracksWithBeatGrids && library.stats.tracksWithBeatGrids > 0) {
+    parts.push(`${library.stats.tracksWithBeatGrids} beat grids`)
+  }
   return parts.join(' · ')
 }

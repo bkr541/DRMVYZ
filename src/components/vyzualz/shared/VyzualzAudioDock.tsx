@@ -13,6 +13,7 @@ import {
   summarizeRekordboxLibrary,
   type RekordboxLibrary,
 } from '../../../features/rekordboxImport'
+import { guessNativeUsbRootFromFile, scanNativeRekordboxUsbRoot } from '../../../features/rekordboxImport/nativeBridge'
 import { PeaksWaveformView } from '../transport/PeaksWaveformView'
 
 const AUDIO_DOCK_COLLAPSED_STORAGE_KEY = 'drmvyz.audioDock.collapsed.v1'
@@ -275,22 +276,51 @@ export function VyzualzAudioDock({
   }
 
   // ── File and Rekordbox input ─────────────────────────────────────────────
-  const handleFiles = (files: FileList | null) => {
+  const handleFiles = async (files: FileList | null) => {
     if (!files) return
     const audio = Array.from(files).filter(f =>
       f.type.startsWith('audio/') || /\.(mp3|wav|aiff?|m4a|ogg|flac)$/i.test(f.name)
     )
-    if (audio.length) {
-      const prepared = createPreparedTrackInputs(audio, rekordboxLibrary, { forceUsbMode: rekordboxUsbMode })
-      const importedCount = prepared.filter(input => input.imported).length
-      if (engine.tracks.length > 0) engine.replacePreparedTracks(prepared)
-      else engine.addPreparedTracks(prepared)
-      if (engine.source !== 'file') engine.setSource('file')
-      if (rekordboxLibrary || rekordboxUsbMode) {
-        setRekordboxStatus(importedCount > 0
-          ? `Matched ${importedCount}/${audio.length} loaded track${audio.length === 1 ? '' : 's'} to Rekordbox metadata or USB Mode.`
-          : `Rekordbox library loaded, but no selected audio files matched.`)
+    if (!audio.length) return
+
+    let activeLibrary = rekordboxLibrary
+    let autoNativeStatus: string | null = null
+
+    if (!activeLibrary) {
+      const guessedRoot = audio.map(guessNativeUsbRootFromFile).find((root): root is string => Boolean(root))
+      if (guessedRoot) {
+        setRekordboxBusy(true)
+        try {
+          const result = await scanNativeRekordboxUsbRoot(guessedRoot)
+          if (result?.library && !result.cancelled) {
+            activeLibrary = result.library
+            setRekordboxLibrary(result.library)
+            setRekordboxUsbMode(true)
+            autoNativeStatus = `Detected Rekordbox USB from loaded track path and parsed ${summarizeRekordboxLibrary(result.library)} with the native bridge.`
+          }
+        } catch (err) {
+          autoNativeStatus = err instanceof Error
+            ? `Native Rekordbox auto-scan failed: ${err.message}`
+            : `Native Rekordbox auto-scan failed: ${String(err)}`
+        } finally {
+          setRekordboxBusy(false)
+        }
       }
+    }
+
+    const shouldForceUsbMode = rekordboxUsbMode || activeLibrary?.source === 'rekordbox_usb'
+    const prepared = createPreparedTrackInputs(audio, activeLibrary, { forceUsbMode: shouldForceUsbMode })
+    const importedCount = prepared.filter(input => input.imported).length
+    if (engine.tracks.length > 0) engine.replacePreparedTracks(prepared)
+    else engine.addPreparedTracks(prepared)
+    if (engine.source !== 'file') engine.setSource('file')
+    if (activeLibrary || shouldForceUsbMode || autoNativeStatus) {
+      setRekordboxStatus([
+        autoNativeStatus,
+        importedCount > 0
+          ? `Matched ${importedCount}/${audio.length} loaded track${audio.length === 1 ? '' : 's'} to Rekordbox metadata or USB Mode.`
+          : activeLibrary ? 'Rekordbox library loaded, but no selected audio files matched.' : null,
+      ].filter(Boolean).join(' '))
     }
   }
 
@@ -330,6 +360,9 @@ export function VyzualzAudioDock({
       }
 
       const summary = result.library ? summarizeRekordboxLibrary(result.library) : 'USB Mode armed'
+      const bridgeLabel = result.usedNativeBridge
+        ? `Native parser${result.parserMode ? ` (${result.parserMode})` : ''}`
+        : result.usedFileSystemAccessApi ? 'Browser metadata probe' : 'USB Mode fallback'
       const detection = [
         result.detectedPdbFiles > 0 ? `${result.detectedPdbFiles} export.pdb` : null,
         result.detectedAnlzFiles > 0 ? `${result.detectedAnlzFiles} ANLZ` : null,
@@ -337,6 +370,7 @@ export function VyzualzAudioDock({
       const warnings = [...result.warnings, ...(result.library?.warnings ?? [])]
       setRekordboxStatus([
         result.scannedRootName ? `USB ${result.scannedRootName}: ${summary}.` : `${summary}.`,
+        bridgeLabel,
         detection ? `Detected ${detection}.` : null,
         currentFile ? (rehydratedCurrentTrack ? 'Current track rehydrated as Rekordbox USB.' : 'Current track marked as Rekordbox USB Mode.') : 'Load a track to attach USB metadata mode.',
         warnings.length ? warnings[0] : null,

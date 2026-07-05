@@ -75,9 +75,16 @@ export function mapRekordboxMatchToDrmvyz(match: RekordboxTrackMatch, library: R
   })
 
   const sourceSections = buildCueSeededSections(track)
+  const beatGrid = track.beatGrid?.filter(beat => Number.isFinite(beat.timeSec)) ?? []
+  const downbeats = track.downbeats?.length
+    ? track.downbeats
+    : beatGrid.filter(beat => beat.isDownbeat)
   const analysisSeed: RekordboxAnalysisSeed = {
     source: library.source,
-    bpm: track.bpm ?? null,
+    bpm: track.bpm ?? inferBpmFromBeatGrid(beatGrid),
+    beatGridOffsetSec: track.beatGridOffsetSec ?? beatGrid[0]?.timeSec ?? null,
+    beatGrid: beatGrid.length ? beatGrid : undefined,
+    downbeats: downbeats.length ? downbeats : undefined,
     key: track.key ?? null,
     keyConfidence: track.key ? 0.92 : null,
     sections: sourceSections,
@@ -87,7 +94,7 @@ export function mapRekordboxMatchToDrmvyz(match: RekordboxTrackMatch, library: R
     source: library.source,
     sourceLibraryId: library.id,
     sourceTrackId: track.trackId,
-    sourcePath: track.location ?? null,
+    sourcePath: track.location ?? track.analysisFilePaths?.[0] ?? null,
     title: track.name,
     artist: track.artist ?? null,
     album: track.album ?? null,
@@ -113,6 +120,20 @@ export function mapRekordboxMatchToDrmvyz(match: RekordboxTrackMatch, library: R
     matchReason: match.reason,
     warnings,
   }
+}
+
+function inferBpmFromBeatGrid(beatGrid: NonNullable<RekordboxTrackMetadata['beatGrid']>): number | null {
+  const explicit = beatGrid.map(beat => beat.bpm).find((bpm): bpm is number => typeof bpm === 'number' && Number.isFinite(bpm) && bpm > 0)
+  if (explicit) return explicit
+  if (beatGrid.length < 2) return null
+  const deltas: number[] = []
+  for (let i = 1; i < Math.min(beatGrid.length, 32); i++) {
+    const delta = beatGrid[i]!.timeSec - beatGrid[i - 1]!.timeSec
+    if (delta > 0.1 && delta < 3) deltas.push(delta)
+  }
+  if (!deltas.length) return null
+  const avg = deltas.reduce((sum, value) => sum + value, 0) / deltas.length
+  return Math.round((60 / avg) * 100) / 100
 }
 
 function buildCueSeededSections(track: RekordboxTrackMetadata): TrackSectionMI[] {

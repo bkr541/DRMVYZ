@@ -1,8 +1,9 @@
 import type { RekordboxLibrary, RekordboxTrackMetadata } from './types'
+import { getNativeFilePath } from './nativeBridge'
 
 function asRelativePath(file: File): string {
   const maybeRelative = (file as File & { webkitRelativePath?: string }).webkitRelativePath
-  return (maybeRelative || file.name).replace(/\\/g, '/').toLowerCase()
+  return (getNativeFilePath(file) || maybeRelative || file.name).replace(/\\/g, '/').toLowerCase()
 }
 
 function stripExtension(name: string): string {
@@ -25,6 +26,7 @@ export function matchFileToRekordboxTrack(file: File, library: RekordboxLibrary 
   if (!library) return null
 
   const relativePath = asRelativePath(file)
+  const nativePath = getNativeFilePath(file)?.toLowerCase() ?? ''
   const fileName = file.name.toLowerCase()
   const fileStem = stripExtension(file.name)
 
@@ -38,7 +40,12 @@ export function matchFileToRekordboxTrack(file: File, library: RekordboxLibrary 
     const rbFilename = (track.filename ?? basename(track.location) ?? '').toLowerCase()
     const rbStem = rbFilename ? stripExtension(rbFilename) : ''
 
-    if (location && relativePath && location.endsWith(relativePath)) {
+    if (location && nativePath && (nativePath.endsWith(location) || location.endsWith(nativePath))) {
+      accept(track, 0.995, 'Native USB path matched Rekordbox Location')
+      continue
+    }
+
+    if (location && relativePath && (location.endsWith(relativePath) || relativePath.endsWith(location))) {
       accept(track, 0.98, 'USB relative path matched Rekordbox Location')
       continue
     }

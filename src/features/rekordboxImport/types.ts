@@ -31,6 +31,10 @@ export interface RekordboxTrackMetadata {
   location?: string | null
   filename?: string | null
   cues: RekordboxCuePoint[]
+  beatGrid?: BeatMarkerMI[]
+  downbeats?: BeatMarkerMI[]
+  beatGridOffsetSec?: number | null
+  analysisFilePaths?: string[]
 }
 
 export interface RekordboxLibrary {
@@ -46,6 +50,8 @@ export interface RekordboxLibrary {
     loops: number
     detectedPdbFiles: number
     detectedAnlzFiles: number
+    tracksWithBeatGrids?: number
+    beatGridBeats?: number
   }
 }
 

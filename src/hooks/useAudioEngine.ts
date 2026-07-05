@@ -961,7 +961,7 @@ export function useAudioEngine(): AudioEngine {
 
   // ── Playlist ─────────────────────────────────────────────────────────────────
   const addTracks = useCallback((files: File[]) => {
-    const newTracks = files.map(createLocalRuntimeTrack)
+    const newTracks = files.map(file => createLocalRuntimeTrack(file))
     setTracks(prev => {
       if (prev.length === 0) setCurrentIndex(0)
       return [...prev, ...newTracks]
@@ -975,7 +975,7 @@ export function useAudioEngine(): AudioEngine {
     // old track's BPM/markers never bleed into the new track's analysis window.
     musicIntelligenceEngine.setSourceId(null, null)
     musicIntelligenceEngine.setTrackAnalysis(null)
-    const newTracks = files.map(createLocalRuntimeTrack)
+    const newTracks = files.map(file => createLocalRuntimeTrack(file))
     setTracks(prev => {
       prev.forEach(t => URL.revokeObjectURL(t.url))
       setCurrentIndex(newTracks.length > 0 ? 0 : -1)

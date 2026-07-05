@@ -245,6 +245,8 @@ export interface BeatMarkerMI {
   timeSec:    number
   confidence: number
   isDownbeat: boolean
+  /** Optional external tempo at this beat, used by Rekordbox beat-grid imports. */
+  bpm?: number
 }
 
 export interface PhraseMarker {
