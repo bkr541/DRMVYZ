@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { useReactStore } from '../../../stores/reactStore'
+import { resolveCinematicConfigForPreset, useReactStore } from '../../../stores/reactStore'
 import { CINEMATIC_WORLD_BY_ID, CINEMATIC_WORLD_UI, getCinematicPresetMood } from './CinematicWorldsUi'
 import {
   resolveReactPresetLaserDmxWorkspace,
@@ -358,19 +358,33 @@ export function ReactPresetsPanel() {
   }, [displayPresets])
 
   const favoriteIds = useMemo(() => new Set(favoritePresetIds), [favoritePresetIds])
-  const visiblePresets = useMemo(
-    () => filterReactPresetLibrary(displayPresets, activeReactEngineId, laserDmxWorkspaceMode, libraryView, favoriteIds),
-    [displayPresets, activeReactEngineId, laserDmxWorkspaceMode, libraryView, favoriteIds],
-  )
+  const active = displayPresets.find(preset => preset.id === activeReactPresetId)
+  const activeCinematicWorldMode = activeReactEngineId === 'cinematicPortal' && active?.engine === 'cinematicPortal'
+    ? resolveCinematicConfigForPreset(active, cinematicConfigsByPresetId)?.worldMode ?? null
+    : null
+  const visiblePresets = useMemo(() => {
+    const engineVisible = filterReactPresetLibrary(displayPresets, activeReactEngineId, laserDmxWorkspaceMode, libraryView, favoriteIds)
+    if (libraryView !== 'current' || activeReactEngineId !== 'cinematicPortal' || !activeCinematicWorldMode) return engineVisible
+    return engineVisible.filter(preset => (
+      resolveCinematicConfigForPreset(preset, cinematicConfigsByPresetId)?.worldMode === activeCinematicWorldMode
+    ))
+  }, [
+    displayPresets,
+    activeReactEngineId,
+    laserDmxWorkspaceMode,
+    libraryView,
+    favoriteIds,
+    activeCinematicWorldMode,
+    cinematicConfigsByPresetId,
+  ])
   const grouped = useMemo(
     () => ENGINE_ORDER
       .map(engine => ({ engine, presets: visiblePresets.filter(preset => preset.engine === engine) }))
       .filter(group => group.presets.length > 0),
     [visiblePresets],
   )
-  const active = displayPresets.find(preset => preset.id === activeReactPresetId)
-  const activeWorld = active?.engine === 'cinematicPortal'
-    ? CINEMATIC_WORLD_BY_ID[active.cinematicConfig?.worldMode ?? 'legacyPortal'].label
+  const activeWorld = activeCinematicWorldMode
+    ? CINEMATIC_WORLD_BY_ID[activeCinematicWorldMode].label
     : null
   const modifiedIds = useMemo(() => new Set(Object.keys(cinematicConfigsByPresetId)), [cinematicConfigsByPresetId])
   const activeEngine = REACT_ENGINE_CATALOG[activeReactEngineId]
@@ -432,7 +446,9 @@ export function ReactPresetsPanel() {
 
       <p className="rv-presets-hint">
         {libraryView === 'current'
-          ? `${activeReactEngineId === 'laserDmx' ? LASER_DMX_WORKSPACE_LABELS[laserDmxWorkspaceMode] : activeEngine.label} presets only. Use All Engines to browse and switch workspaces.`
+          ? activeReactEngineId === 'cinematicPortal' && activeWorld
+            ? `${activeWorld} presets only. Use All Engines to browse and switch worlds.`
+            : `${activeReactEngineId === 'laserDmx' ? LASER_DMX_WORKSPACE_LABELS[laserDmxWorkspaceMode] : activeEngine.label} presets only. Use All Engines to browse and switch workspaces.`
           : libraryView === 'favorites'
             ? 'Star presets from any engine to keep them together here.'
             : 'Selecting another engine’s preset switches that engine and loads the look.'}

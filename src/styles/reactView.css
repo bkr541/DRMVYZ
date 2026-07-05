@@ -23,6 +23,13 @@
   --ui-text-primary: rgba(232, 244, 248, 0.92);
   --ui-text-secondary: rgba(214, 228, 234, 0.68);
   --ui-text-muted: rgba(196, 212, 220, 0.5);
+  --rv-react-dock-height: 124px;
+  box-sizing: border-box;
+  padding-bottom: var(--rv-react-dock-height);
+}
+
+.rv-shell:has(> .vz-transport-dock--collapsed) {
+  --rv-react-dock-height: 72px;
 }
 
 /* Three-column content grid — takes all remaining space above the dock */
@@ -416,7 +423,11 @@
 
 .rv-preset-palette {
   display: flex;
+  align-items: center;
   gap: 4px;
+  min-height: 24px;
+  margin-top: auto;
+  padding-right: 56px;
 }
 
 .rv-palette-swatch {
@@ -430,23 +441,26 @@
 .rv-preset-more-btn {
   position: absolute;
   right: 12px;
-  bottom: 12px;
+  bottom: 10px;
   z-index: 4;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 30px;
-  padding: 0 12px;
+  justify-content: center;
+  gap: 4px;
+  min-width: 48px;
+  min-height: 22px;
+  padding: 0 8px;
   border: 1px solid rgba(74, 199, 219, 0.35);
-  border-radius: 7px;
+  border-radius: 6px;
   background: rgba(4, 16, 22, 0.9);
   color: #7cf0ff;
   font-family: var(--az-font);
-  font-size: 10px;
+  font-size: 8.5px;
+  line-height: 1;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.055em;
   cursor: pointer;
-  box-shadow: 0 0 16px rgba(74, 199, 219, 0.12);
+  box-shadow: 0 0 12px rgba(74, 199, 219, 0.12);
 }
 
 .rv-preset-more-btn:hover,
@@ -458,6 +472,10 @@
 
 .rv-preset-card-shell--expanded .rv-preset-more-btn span {
   transform: rotate(-90deg);
+}
+
+.rv-preset-card-shell--expanded .rv-preset-palette {
+  margin-top: 8px;
 }
 
 /* ── Center column ───────────────────────────────────────────────────────────── */
@@ -5713,14 +5731,17 @@
 
 /* ── React Track Deck: expandable performance deck ─────────────────────── */
 .rv-shell > .az-dock.vz-transport-dock {
-  position: relative;
-  left: calc(-1 * var(--vz-sidebar-width, 72px));
-  width: calc(100% + var(--vz-sidebar-width, 72px));
+  position: fixed;
+  z-index: 60;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: auto;
   height: 124px;
   padding: 9px 12px 10px;
   gap: 10px;
   grid-template-columns:
-    minmax(calc(300px + var(--vz-sidebar-width, 72px)), 0.9fr)
+    minmax(300px, 0.9fr)
     minmax(420px, 1.8fr)
     minmax(300px, 0.9fr);
   overflow: hidden;
@@ -6136,7 +6157,7 @@
 @media (max-width: 1320px) {
   .rv-shell > .az-dock.vz-transport-dock {
     grid-template-columns:
-      minmax(calc(260px + var(--vz-sidebar-width, 72px)), 0.9fr)
+      minmax(260px, 0.9fr)
       minmax(340px, 1.8fr)
       minmax(260px, 0.9fr);
   }
