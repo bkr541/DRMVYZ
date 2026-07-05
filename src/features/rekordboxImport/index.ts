@@ -11,5 +11,6 @@ export {
   createPreparedTrackInputs,
   importRekordboxFolder,
   importRekordboxXml,
+  selectRekordboxUsbRoot,
   summarizeRekordboxLibrary,
 } from './rekordboxImportService'
