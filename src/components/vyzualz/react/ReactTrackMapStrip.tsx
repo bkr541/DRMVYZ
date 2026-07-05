@@ -1517,6 +1517,12 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
     setEditorMode('edit')
   }, [activeTrackId, setSelectedSectionIdForTrack])
 
+  const closeSectionEditor = useCallback(() => {
+    setEditorMode('none')
+    setDragPreview(null)
+    if (activeTrackId) setSelectedSectionIdForTrack(activeTrackId, null)
+  }, [activeTrackId, setSelectedSectionIdForTrack])
+
   // Live boundary drag preview — relayed from SectionTimeline to EditSectionForm.
   const handleDragPreview = useCallback((sectionId: string, start: number, end: number) => {
     setDragPreview({ sectionId, start, end })
@@ -1743,9 +1749,54 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
             const editorDragPreview = dragPreview?.sectionId === selectedSectionId
               ? { start: dragPreview.start, end: dragPreview.end }
               : null
+            const isSectionDetailOpen = editorMode === 'edit' && selectedSection != null
+            const selectedSectionColor = selectedSection ? SECTION_COLORS[selectedSection.type] : '#4ac7db'
+            const selectedSectionBars = selectedSection
+              ? buildBarRange(selectedSection, currentEffectiveBeatGrid ?? currentAnalysis?.beatGrid ?? [])
+              : null
+            const selectedSectionDuration = selectedSection
+              ? Math.max(0, selectedSection.endSec - selectedSection.startSec)
+              : 0
+            const selectedSectionPresetCue = selectedSection
+              ? trackCues.find(c => c.id === buildPresetCueId(selectedSection.id)) ?? null
+              : null
+            const selectedSectionPreset = selectedSectionPresetCue
+              ? reactPresets.find(p => p.id === selectedSectionPresetCue.presetId) ?? null
+              : null
 
             return (
               <>
+                {isSectionDetailOpen && selectedSection ? (
+                  <div className="rv-timeline-detail-overview" aria-label="Selected section overview">
+                    <button
+                      type="button"
+                      className="rv-timeline-detail-back"
+                      onClick={closeSectionEditor}
+                      aria-label="Back to full Track Map"
+                      title="Back to full Track Map"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M15 18l-6-6 6-6" />
+                      </svg>
+                    </button>
+                    <span
+                      className="rv-timeline-detail-color"
+                      style={{ '--section-color': selectedSectionColor } as React.CSSProperties}
+                      aria-hidden="true"
+                    />
+                    <div className="rv-timeline-detail-title">
+                      <strong>{selectedSection.label}</strong>
+                      <span>{selectedSection.type} section</span>
+                    </div>
+                    <div className="rv-timeline-detail-meta">
+                      <span>{formatTimePrecise(selectedSection.startSec)} → {formatTimePrecise(selectedSection.endSec)}</span>
+                      <span>{selectedSectionDuration.toFixed(1)}s</span>
+                      {selectedSectionBars && <span>Bars {selectedSectionBars}</span>}
+                      <span>{Math.round(selectedSection.intensity * 100)}%</span>
+                      <span>{selectedSectionPreset?.name ?? 'No preset'}</span>
+                    </div>
+                  </div>
+                ) : (
                 <div className="rv-timeline-lanes" aria-label="Expandable Track Map timeline lanes">
                   <div className="rv-timeline-lane rv-timeline-lane--ruler">
                     <div className="rv-timeline-lane-label">
@@ -1896,6 +1947,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                     <div ref={playheadRef} className="rv-timeline-shared-playhead" />
                   </div>
                 </div>
+                )}
 
                 {(editorMode === 'create' || (editorMode === 'edit' && selectedSection)) && (
                   <div className="rv-timeline-editor-drawer">
@@ -1904,15 +1956,12 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                       <button
                         type="button"
                         className="rv-timeline-editor-close"
-                        onClick={() => {
-                          setEditorMode('none')
-                          if (activeTrackId) setSelectedSectionIdForTrack(activeTrackId, null)
-                        }}
+                        onClick={closeSectionEditor}
                         aria-label="Close section editor"
                       >×</button>
                     </div>
                     {editorMode === 'create' && (
-                      <AddSectionForm onAdd={handleAdd} onCancel={() => setEditorMode('none')} />
+                      <AddSectionForm onAdd={handleAdd} onCancel={closeSectionEditor} />
                     )}
                     {editorMode === 'edit' && selectedSection && (() => {
                       const src = selectedSection.source
@@ -1926,10 +1975,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                           effectiveBpm={currentEffectiveBpm}
                           dragPreview={editorDragPreview}
                           onSave={handleSaveSection}
-                          onCancel={() => {
-                            setEditorMode('none')
-                            if (activeTrackId) setSelectedSectionIdForTrack(activeTrackId, null)
-                          }}
+                          onCancel={closeSectionEditor}
                           onDelete={isUser ? handleDeleteSection : undefined}
                           onRestore={isEdited ? handleRestoreSection : undefined}
                           onSuppress={isAuto ? handleSuppressSection : undefined}

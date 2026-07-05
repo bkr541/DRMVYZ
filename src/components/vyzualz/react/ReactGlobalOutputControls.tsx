@@ -3,6 +3,36 @@ import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { productionOutputController } from './output/ProductionOutput'
 
+
+function OutputArmIcon() {
+  return (
+    <svg className="rv-global-output-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 2v8" />
+      <path d="M7.05 5.2a8 8 0 1 0 9.9 0" />
+    </svg>
+  )
+}
+
+function RevealIcon() {
+  return (
+    <svg className="rv-global-output-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+      <circle cx="12" cy="12" r="2.7" />
+    </svg>
+  )
+}
+
+function BlackoutIcon() {
+  return (
+    <svg className="rv-global-output-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 3l18 18" />
+      <path d="M10.7 5.15A10.7 10.7 0 0 1 12 5c6 0 9.5 7 9.5 7a17 17 0 0 1-3.15 4.05" />
+      <path d="M6.2 6.9C3.9 8.45 2.5 12 2.5 12s3.5 7 9.5 7a9.2 9.2 0 0 0 4.15-.96" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+    </svg>
+  )
+}
+
 function resolveStatusLabel(
   isLaserDmx: boolean,
   armed: boolean,
@@ -82,28 +112,36 @@ export function ReactGlobalOutputControls() {
         onClick={toggleArmed}
         disabled={!canControl}
         aria-pressed={snapshot.status.armed}
+        aria-label={statusLabel}
         title={isLaserDmx
-          ? `${selected?.label ?? 'Production output'}: click to ${snapshot.status.armed ? 'disarm' : 'arm'}`
+          ? `${statusLabel}: ${selected?.label ?? 'Production output'} · click to ${snapshot.status.armed ? 'disarm' : 'arm'}`
           : 'Production output controls become available when LaserDMX is active'}
       >
         <span className="rv-global-output-dot" aria-hidden="true" />
-        <span>{statusLabel}</span>
+        <OutputArmIcon />
+        <span className="rv-global-output-label">{statusLabel}</span>
       </button>
       <button
         type="button"
         className="rv-global-output-reveal"
         onClick={reveal}
         disabled={!isLaserDmx || (!blackout && !snapshot.emergencyBlackout)}
+        aria-label="Reveal output"
+        title="Reveal output"
       >
-        Reveal
+        <RevealIcon />
+        <span className="rv-global-output-label">Reveal</span>
       </button>
       <button
         type="button"
         className="rv-global-output-blackout"
         onClick={blackoutNow}
         disabled={!isLaserDmx || (visualBlackout && snapshot.emergencyBlackout)}
+        aria-label="Blackout output"
+        title="Blackout output"
       >
-        Blackout
+        <BlackoutIcon />
+        <span className="rv-global-output-label">Blackout</span>
       </button>
     </div>
   )

@@ -475,6 +475,37 @@ export function VyzualzAudioDock({
                 {importedBadge} · {activeImportedCues.length} cues
               </span>
             )}
+            <div className="vz-dock-rekordbox-strip" aria-label="Rekordbox import tools">
+              <span className="vz-dock-rekordbox-kicker">RB</span>
+              <div className="vz-dock-rekordbox-tools">
+                <label className="vz-dock-rekordbox-btn" htmlFor={rekordboxXmlInputId} title="Import a Rekordbox XML export before loading audio">
+                  XML
+                </label>
+                <button
+                  type="button"
+                  className="vz-dock-rekordbox-btn"
+                  onClick={handleRekordboxUsbRoot}
+                  disabled={rekordboxBusy}
+                  title="Safely scan only /PIONEER Rekordbox metadata from a USB root. This does not upload the whole USB."
+                >
+                  USB
+                </button>
+                <button
+                  type="button"
+                  className={`vz-dock-rekordbox-btn${rekordboxUsbMode ? ' vz-dock-rekordbox-btn--active' : ''}`}
+                  onClick={toggleRekordboxUsbMode}
+                  title="Confirm that the next loaded track is from a Rekordbox USB, even when direct metadata parsing is unavailable."
+                  aria-pressed={rekordboxUsbMode}
+                >
+                  {rekordboxUsbMode ? 'On' : 'Mode'}
+                </button>
+              </div>
+              {rekordboxStatus && (
+                <span className="vz-dock-rekordbox-status" title={rekordboxStatus}>
+                  {rekordboxBusy ? 'Reading Rekordbox…' : rekordboxStatus}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Transport receives its own full-width row instead of competing with track metadata. */}
@@ -537,33 +568,6 @@ export function VyzualzAudioDock({
           <span>{hasTrack ? 'Replace Track' : 'Add Track'}</span>
         </label>
 
-        <div className="vz-dock-rekordbox-tools">
-          <label className="vz-dock-rekordbox-btn" htmlFor={rekordboxXmlInputId} title="Import a Rekordbox XML export before loading audio">
-            RB XML
-          </label>
-          <button
-            type="button"
-            className="vz-dock-rekordbox-btn"
-            onClick={handleRekordboxUsbRoot}
-            disabled={rekordboxBusy}
-            title="Safely scan only /PIONEER Rekordbox metadata from a USB root. This does not upload the whole USB."
-          >
-            RB USB
-          </button>
-          <button
-            type="button"
-            className={`vz-dock-rekordbox-btn${rekordboxUsbMode ? ' vz-dock-rekordbox-btn--active' : ''}`}
-            onClick={toggleRekordboxUsbMode}
-            title="Confirm that the next loaded track is from a Rekordbox USB, even when direct metadata parsing is unavailable."
-          >
-            {rekordboxUsbMode ? 'USB ON' : 'USB MODE'}
-          </button>
-        </div>
-        {rekordboxStatus && (
-          <div className="vz-dock-rekordbox-status" title={rekordboxStatus}>
-            {rekordboxBusy ? 'Reading Rekordbox…' : rekordboxStatus}
-          </div>
-        )}
       </div>
 
       {/* ── CENTER: waveform + zoom buttons side by side ─────────────── */}
