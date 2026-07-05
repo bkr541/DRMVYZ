@@ -1,4 +1,5 @@
 import type { Track, TrackAnalysisRuntime, PersistedTrackMetadata } from '../types'
+import type { ImportedTrackIntelligence } from '../features/rekordboxImport/types'
 import { DEFAULT_TRACK_ANALYSIS_RUNTIME } from '../types'
 import { generateId, getFilenameWithoutExtension } from '../utils/audioUtils'
 import {
@@ -7,6 +8,11 @@ import {
 } from '../features/trackIntelligence/TrackAnalysisCoordinator'
 
 /** Backward-compatible input for signed URLs, restored remote tracks, and saved audio_tracks rows. */
+export interface PreparedTrackInput {
+  file: File
+  imported?: ImportedTrackIntelligence
+}
+
 export interface RuntimeTrackUrlInput {
   name: string
   url: string
@@ -38,18 +44,47 @@ function buildAnalysisRuntime(
   }
 }
 
-export function createLocalRuntimeTrack(file: File): Track {
+export function createLocalRuntimeTrack(file: File, imported?: ImportedTrackIntelligence): Track {
   const url = URL.createObjectURL(file)
-  return {
-    id:              generateId(),
-    name:            file.name,
-    displayName:     getFilenameWithoutExtension(file.name),
-    url,
-    duration:        0,
-    sourceKind:      'file',
-    sourceFile:      file,
-    analysisRuntime: buildAnalysisRuntime({ sourceKind: 'file', url, sourceFile: file }),
+  const importedMetadata = imported?.metadata
+  const title = importedMetadata?.title?.trim() || getFilenameWithoutExtension(file.name)
+  const analysisRuntime = buildAnalysisRuntime({ sourceKind: 'file', url, sourceFile: file })
+  if (importedMetadata) {
+    const seedKey = [
+      importedMetadata.source,
+      importedMetadata.sourceTrackId ?? 'unknown-track',
+      importedMetadata.bpm ?? 'no-bpm',
+      importedMetadata.musicalKey ?? 'no-key',
+      imported?.cueMarkers.length ?? 0,
+    ].join(':')
+    analysisRuntime.analysisKey = `${analysisRuntime.analysisKey}:external:${seedKey}`
   }
+
+  return {
+    id:                 generateId(),
+    name:               file.name,
+    displayName:        title,
+    title:              importedMetadata?.title ?? undefined,
+    artist:             importedMetadata?.artist ?? undefined,
+    url,
+    duration:           importedMetadata?.durationSec ?? 0,
+    persistedMetadata:  importedMetadata ? {
+      bpm:        importedMetadata.bpm ?? null,
+      musicalKey: importedMetadata.musicalKey ?? null,
+      genre:      importedMetadata.genre ?? null,
+    } : undefined,
+    externalMetadata:   importedMetadata,
+    importedCueMarkers: imported?.cueMarkers ?? [],
+    importedCueRegions: imported?.cueRegions ?? [],
+    importedAnalysisSeed: imported?.analysisSeed,
+    sourceKind:         'file',
+    sourceFile:         file,
+    analysisRuntime,
+  }
+}
+
+export function createPreparedRuntimeTrack(input: PreparedTrackInput): Track {
+  return createLocalRuntimeTrack(input.file, input.imported)
 }
 
 export function createRemoteRuntimeTrack(input: RuntimeTrackUrlInput): Track {

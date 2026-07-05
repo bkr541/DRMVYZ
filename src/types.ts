@@ -64,8 +64,10 @@ export type FftSize = 512 | 1024 | 2048 | 4096 | 8192
 // Re-exported so callers import from one place
 export type { TrackAnalysisStatus, BpmReanalysisStatus } from './features/musicIntelligence/types'
 import type { TrackIntelligenceAnalysis, TrackAnalysisStatus, BeatMarkerMI, BpmReanalysisStatus } from './features/musicIntelligence/types'
+import type { VzCueMarker, VzCueRegion } from './types/cue'
+import type { RekordboxAnalysisSeed } from './features/rekordboxImport/types'
 
-export type BpmSource = 'offline_analysis' | 'live_analysis' | 'manual_override'
+export type BpmSource = 'offline_analysis' | 'live_analysis' | 'manual_override' | 'rekordbox'
 
 export interface TrackAnalysisRuntime {
   status:            TrackAnalysisStatus
@@ -124,6 +126,26 @@ export interface PersistedTrackMetadata {
   channels?:   number | null
 }
 
+export interface ExternalTrackMetadata {
+  source: 'rekordbox_usb' | 'rekordbox_xml'
+  sourceLibraryId?: string | null
+  sourceTrackId?: string | null
+  sourcePath?: string | null
+  title?: string | null
+  artist?: string | null
+  album?: string | null
+  genre?: string | null
+  label?: string | null
+  comments?: string | null
+  rating?: number | null
+  color?: string | null
+  bpm?: number | null
+  musicalKey?: string | null
+  durationSec?: number | null
+  importedAt?: string
+  warnings?: string[]
+}
+
 export interface Track {
   /** Runtime playlist identity. Saved tracks use the deterministic `audio-<dbId>` form. */
   id: string
@@ -139,6 +161,11 @@ export interface Track {
   /** Supabase audio-tracks object path. Undefined for local and generic remote tracks. */
   storagePath?: string | null
   persistedMetadata?: PersistedTrackMetadata
+  externalMetadata?: ExternalTrackMetadata
+  importedCueMarkers?: VzCueMarker[]
+  importedCueRegions?: VzCueRegion[]
+  /** External analysis seed to pass into the offline analyzer for BPM/key/section hydration. */
+  importedAnalysisSeed?: RekordboxAnalysisSeed
   sourceKind:      'file' | 'remote'
   sourceFile?:     File
   analysisRuntime: TrackAnalysisRuntime

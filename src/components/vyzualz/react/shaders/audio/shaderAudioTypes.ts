@@ -187,6 +187,7 @@ export const SECTION_SOURCE_CODES: Readonly<Record<SectionSource, number>> = Obj
   manual: 1,
   analysis: 2,
   inferred: 3,
+  rekordbox: 4,
 })
 
 export const MELODY_CONTOUR_CODES: Readonly<Record<MelodyContourLabel, number>> = Object.freeze({

@@ -21,10 +21,12 @@ import { analyzeTrackBuffer } from '../features/musicIntelligence/offlineTrackAn
 import { useTrackAnalysisStore } from '../features/musicIntelligence/trackAnalysisStorage'
 import {
   createLocalRuntimeTrack,
+  createPreparedRuntimeTrack,
   createRemoteRuntimeTrack,
   getTrackAudioTrackId,
   isPersistedTrack,
   type RuntimeTrackUrlInput,
+  type PreparedTrackInput,
 } from '../audio/runtimeTrack'
 import { upsertTrackAnalysisPayload } from '../lib/audioDb'
 
@@ -83,6 +85,8 @@ export interface AudioEngine {
   volume: number
   addTracks: (files: File[]) => void
   replaceTracks: (files: File[]) => void
+  addPreparedTracks: (inputs: PreparedTrackInput[]) => void
+  replacePreparedTracks: (inputs: PreparedTrackInput[]) => void
   /** Load pre-built tracks by URL (e.g. signed Supabase URLs) without a File object. */
   addTrackUrls: (tracks: RuntimeTrackUrlInput[]) => void
   replaceTrackUrls: (tracks: RuntimeTrackUrlInput[]) => void
@@ -934,7 +938,7 @@ export function useAudioEngine(): AudioEngine {
           const ab = await resp.arrayBuffer()
           return ctx.decodeAudioData(ab)
         },
-        analyze: (buffer) => analyzeTrackBuffer(buffer),
+        analyze: (buffer, seed) => analyzeTrackBuffer(buffer, { seed }),
         getCachedAnalysis:  (key) => useTrackAnalysisStore.getState().getTrackAnalysis(key),
         saveCachedAnalysis: (key, analysis) =>
           useTrackAnalysisStore.getState().saveTrackAnalysis(key, analysis),
@@ -974,6 +978,28 @@ export function useAudioEngine(): AudioEngine {
     const newTracks = files.map(createLocalRuntimeTrack)
     setTracks(prev => {
       prev.forEach(t => URL.revokeObjectURL(t.url))
+      setCurrentIndex(newTracks.length > 0 ? 0 : -1)
+      return newTracks
+    })
+    newTracks.forEach(t => coordinatorRef.current?.enqueue(t, 'normal'))
+  }, [])
+
+  const addPreparedTracks = useCallback((inputs: PreparedTrackInput[]) => {
+    const newTracks = inputs.map(createPreparedRuntimeTrack)
+    setTracks(prev => {
+      if (prev.length === 0) setCurrentIndex(0)
+      return [...prev, ...newTracks]
+    })
+    newTracks.forEach(t => coordinatorRef.current?.enqueue(t, 'normal'))
+  }, [])
+
+  const replacePreparedTracks = useCallback((inputs: PreparedTrackInput[]) => {
+    coordinatorRef.current?.invalidate()
+    musicIntelligenceEngine.setSourceId(null, null)
+    musicIntelligenceEngine.setTrackAnalysis(null)
+    const newTracks = inputs.map(createPreparedRuntimeTrack)
+    setTracks(prev => {
+      prev.forEach(t => { if (t.url.startsWith('blob:')) URL.revokeObjectURL(t.url) })
       setCurrentIndex(newTracks.length > 0 ? 0 : -1)
       return newTracks
     })
@@ -1088,7 +1114,9 @@ export function useAudioEngine(): AudioEngine {
       currentBpmConfidence = analysis?.bpmConfidence ?? null
     } else if (analysis !== null) {
       currentEffectiveBpm  = analysis.bpm
-      currentBpmSource     = 'offline_analysis'
+      currentBpmSource     = currentTrack.externalMetadata?.source?.startsWith('rekordbox') && currentTrack.externalMetadata.bpm != null
+        ? 'rekordbox'
+        : 'offline_analysis'
       currentBpmConfidence = analysis.bpmConfidence
     }
     // No analysis and no override → null; never expose 120 as a track-derived value
@@ -1175,7 +1203,7 @@ export function useAudioEngine(): AudioEngine {
   return {
     source, setSource, micError, isActive,
     tracks, currentIndex, isPlaying, currentTime, getCurrentTime, duration, volume,
-    addTracks, replaceTracks, addTrackUrls, replaceTrackUrls, removeTrack, selectTrack, play, pause, stop, next, prev, seek, setVolume,
+    addTracks, replaceTracks, addPreparedTracks, replacePreparedTracks, addTrackUrls, replaceTrackUrls, removeTrack, selectTrack, play, pause, stop, next, prev, seek, setVolume,
     analyserMaster: aMasterRef.current,
     analyserL: aLRef.current,
     analyserR: aRRef.current,

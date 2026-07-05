@@ -6,6 +6,13 @@ import { useTapTempo } from '../hooks/useTapTempo'
 import { useWaveformPeaks } from '../hooks/useWaveformPeaks'
 import { useRgbWaveformAnalysis } from '../hooks/useRgbWaveformAnalysis'
 import { useRgbWaveformStore } from '../../../features/waveform/rgbWaveformStorage'
+import {
+  createPreparedTrackInputs,
+  importRekordboxFolder,
+  importRekordboxXml,
+  summarizeRekordboxLibrary,
+  type RekordboxLibrary,
+} from '../../../features/rekordboxImport'
 import { PeaksWaveformView } from '../transport/PeaksWaveformView'
 
 const AUDIO_DOCK_COLLAPSED_STORAGE_KEY = 'drmvyz.audioDock.collapsed.v1'
@@ -123,14 +130,20 @@ export function VyzualzAudioDock({
     cueMarkers:         s.cueMarkers,
   })))
 
-  const preset      = presets.find(p => p.id === activePresetId) ?? presets[0] ?? DEFAULT_PRESETS[0]
-  const engine      = useSharedAudio()
-  const fileInputId = useId()
+  const preset            = presets.find(p => p.id === activePresetId) ?? presets[0] ?? DEFAULT_PRESETS[0]
+  const engine            = useSharedAudio()
+  const fileInputId       = useId()
+  const rekordboxXmlInputId = useId()
+  const rekordboxFolderInputId = useId()
+  const rekordboxFolderInputRef = useRef<HTMLInputElement>(null)
   const { handleTap } = useTapTempo()
 
   const [collapsedByUser, setCollapsedByUser] = useState(() => (
     expandable ? readCollapsedPreference() : false
   ))
+  const [rekordboxLibrary, setRekordboxLibrary] = useState<RekordboxLibrary | null>(null)
+  const [rekordboxStatus, setRekordboxStatus] = useState<string | null>(null)
+  const [rekordboxBusy, setRekordboxBusy] = useState(false)
 
   const dockCollapsed = compact || (expandable && collapsedByUser)
 
@@ -138,6 +151,13 @@ export function VyzualzAudioDock({
     if (!expandable) return
     writeCollapsedPreference(collapsedByUser)
   }, [collapsedByUser, expandable])
+
+  useEffect(() => {
+    const input = rekordboxFolderInputRef.current
+    if (!input) return
+    input.setAttribute('webkitdirectory', '')
+    input.setAttribute('directory', '')
+  }, [])
 
   const track    = engine.currentTrack
   const hasTrack = engine.tracks.length > 0
@@ -261,16 +281,60 @@ export function VyzualzAudioDock({
     engine.reanalyzeWithBpmOverride(track.id, { bpm: effectiveBpm, mode: 'reanalyze' })
   }
 
-  // ── File input ────────────────────────────────────────────────────────────
+  // ── File and Rekordbox input ─────────────────────────────────────────────
   const handleFiles = (files: FileList | null) => {
     if (!files) return
     const audio = Array.from(files).filter(f =>
       f.type.startsWith('audio/') || /\.(mp3|wav|aiff?|m4a|ogg|flac)$/i.test(f.name)
     )
     if (audio.length) {
-      if (engine.tracks.length > 0) engine.replaceTracks(audio)
-      else engine.addTracks(audio)
+      const prepared = createPreparedTrackInputs(audio, rekordboxLibrary)
+      const importedCount = prepared.filter(input => input.imported).length
+      if (engine.tracks.length > 0) engine.replacePreparedTracks(prepared)
+      else engine.addPreparedTracks(prepared)
       if (engine.source !== 'file') engine.setSource('file')
+      if (rekordboxLibrary) {
+        setRekordboxStatus(importedCount > 0
+          ? `Matched ${importedCount}/${audio.length} loaded track${audio.length === 1 ? '' : 's'} to Rekordbox metadata.`
+          : `Rekordbox library loaded, but no selected audio files matched.`)
+      }
+    }
+  }
+
+  const handleRekordboxXml = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    setRekordboxBusy(true)
+    try {
+      const library = await importRekordboxXml(files)
+      setRekordboxLibrary(library)
+      setRekordboxStatus(`Rekordbox XML ready: ${summarizeRekordboxLibrary(library)}. Load/replace audio to hydrate cues and metadata.`)
+    } catch (err) {
+      setRekordboxStatus(err instanceof Error ? err.message : String(err))
+    } finally {
+      setRekordboxBusy(false)
+    }
+  }
+
+  const handleRekordboxFolder = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    setRekordboxBusy(true)
+    try {
+      const result = await importRekordboxFolder(files)
+      if (result.library) setRekordboxLibrary(result.library)
+      const prepared = createPreparedTrackInputs(result.audioFiles, result.library)
+      const importedCount = prepared.filter(input => input.imported).length
+      if (prepared.length > 0) {
+        if (engine.tracks.length > 0) engine.replacePreparedTracks(prepared)
+        else engine.addPreparedTracks(prepared)
+        if (engine.source !== 'file') engine.setSource('file')
+      }
+      const summary = result.library ? summarizeRekordboxLibrary(result.library) : 'No XML library imported'
+      const warnings = [...result.warnings, ...(result.library?.warnings ?? [])]
+      setRekordboxStatus(`USB scan: ${summary}. Matched ${importedCount}/${prepared.length} audio file${prepared.length === 1 ? '' : 's'}.${warnings.length ? ` ${warnings[0]}` : ''}`)
+    } catch (err) {
+      setRekordboxStatus(err instanceof Error ? err.message : String(err))
+    } finally {
+      setRekordboxBusy(false)
     }
   }
 
@@ -283,6 +347,12 @@ export function VyzualzAudioDock({
     if (engine.isPlaying) setCuePoint(engine.currentTime)
     else engine.seek(cuePoint)
   }
+
+  const activeImportedCues = track?.importedCueMarkers ?? []
+  const activeCueMarkers = [...cueMarkers, ...activeImportedCues].sort((a, b) => a.time - b.time)
+  const importedBadge = track?.externalMetadata?.source === 'rekordbox_usb'
+    ? 'USB Rekordbox'
+    : track?.externalMetadata?.source === 'rekordbox_xml' ? 'Rekordbox XML' : null
 
   const initial = track?.displayName?.[0]?.toUpperCase() ?? '♪'
   const title   = track?.displayName ?? 'No track loaded'
@@ -346,6 +416,11 @@ export function VyzualzAudioDock({
           <div className="vz-dock-track-row">
             <span className="vz-dock-track-title" title={title}>{title}</span>
             <span className="vz-dock-track-artist" title={artist}>{artist}</span>
+            {importedBadge && (
+              <span className="vz-dock-rekordbox-badge" title={`${activeImportedCues.length} imported Rekordbox cue marker${activeImportedCues.length === 1 ? '' : 's'}`}>
+                {importedBadge} · {activeImportedCues.length} cues
+              </span>
+            )}
           </div>
 
           {/* Transport receives its own full-width row instead of competing with track metadata. */}
@@ -407,6 +482,20 @@ export function VyzualzAudioDock({
           </svg>
           <span>{hasTrack ? 'Replace Track' : 'Add Track'}</span>
         </label>
+
+        <div className="vz-dock-rekordbox-tools">
+          <label className="vz-dock-rekordbox-btn" htmlFor={rekordboxXmlInputId} title="Import a Rekordbox XML export before loading audio">
+            RB XML
+          </label>
+          <label className="vz-dock-rekordbox-btn" htmlFor={rekordboxFolderInputId} title="Scan a Rekordbox USB/folder. XML exports hydrate cues; export.pdb/ANLZ files are detected for the future parser bridge.">
+            RB USB
+          </label>
+        </div>
+        {rekordboxStatus && (
+          <div className="vz-dock-rekordbox-status" title={rekordboxStatus}>
+            {rekordboxBusy ? 'Reading Rekordbox…' : rekordboxStatus}
+          </div>
+        )}
       </div>
 
       {/* ── CENTER: waveform + zoom buttons side by side ─────────────── */}
@@ -414,7 +503,7 @@ export function VyzualzAudioDock({
         <div className="vz-dock-waveform-wrap">
           <PeaksWaveformView
             engine={engine}
-            cueMarkers={cueMarkers}
+            cueMarkers={activeCueMarkers}
             waveformZoom={waveformZoom}
             rgbAnalysis={rgbAnalysis}
             fallbackPeaks={peaks}
@@ -623,6 +712,21 @@ export function VyzualzAudioDock({
         multiple
         className="az-upload-input"
         onChange={e => handleFiles(e.target.files)}
+      />
+      <input
+        id={rekordboxXmlInputId}
+        type="file"
+        accept=".xml,text/xml,application/xml"
+        className="az-upload-input"
+        onChange={e => handleRekordboxXml(e.target.files)}
+      />
+      <input
+        id={rekordboxFolderInputId}
+        ref={rekordboxFolderInputRef}
+        type="file"
+        multiple
+        className="az-upload-input"
+        onChange={e => handleRekordboxFolder(e.target.files)}
       />
     </div>
   )

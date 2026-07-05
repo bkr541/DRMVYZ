@@ -5,6 +5,7 @@
 
 import type { Track, TrackAnalysisRuntime } from '../../types'
 import type { TrackIntelligenceAnalysis } from '../musicIntelligence/types'
+import type { RekordboxAnalysisSeed } from '../rekordboxImport/types'
 
 // ── Schema version ────────────────────────────────────────────────────────────
 // Bump this string whenever the analysis schema changes incompatibly.
@@ -105,6 +106,7 @@ interface AnalysisJob {
   priority:              'high' | 'normal'
   bypassMemoryCache?:    boolean
   bypassPersistentCache?: boolean
+  analysisSeed?:          RekordboxAnalysisSeed
 }
 
 // ── Dependency / callback interfaces ─────────────────────────────────────────
@@ -113,7 +115,7 @@ export interface CoordinatorDeps {
   /** Fetch and decode a track into an AudioBuffer.  May receive an AbortSignal. */
   decodeBuffer: (track: { url: string; sourceFile?: File; signal?: AbortSignal }) => Promise<AudioBuffer>
   /** Run the full offline analysis on a decoded buffer. */
-  analyze: (buffer: AudioBuffer) => Promise<TrackIntelligenceAnalysis>
+  analyze: (buffer: AudioBuffer, seed?: RekordboxAnalysisSeed) => Promise<TrackIntelligenceAnalysis>
   /** Look up a completed analysis in the persistent cache. Returns null on miss. */
   getCachedAnalysis: (key: string) => TrackIntelligenceAnalysis | null
   /** Persist a completed analysis so it survives page reload. */
@@ -171,6 +173,7 @@ export class TrackAnalysisCoordinator {
       sourceFile:  track.sourceFile,
       generation:  this.generation,
       priority,
+      analysisSeed: track.importedAnalysisSeed,
     }
 
     if (priority === 'high') {
@@ -203,6 +206,7 @@ export class TrackAnalysisCoordinator {
       priority:             'high',
       bypassMemoryCache:    true,
       bypassPersistentCache: true,
+      analysisSeed:          track.importedAnalysisSeed,
     }
 
     this.queue.unshift(job)
@@ -371,7 +375,7 @@ export class TrackAnalysisCoordinator {
 
     let analysis: TrackIntelligenceAnalysis
     try {
-      analysis = await this.deps.analyze(buffer)
+      analysis = await this.deps.analyze(buffer, job.analysisSeed)
     } catch (err) {
       if (this.isStale(trackId, generation)) return
       const msg = err instanceof Error ? err.message : String(err)

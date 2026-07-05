@@ -174,7 +174,7 @@ function sectionPosePatch(section: CinematicDirectionSection): CinematicCameraPo
 export function resolveCinematicDirectionSection(audio: CinematicNormalizedAudioFrame): CinematicDirectionSection {
   const exactType = audio.section.type
   const source = audio.section.source
-  const exact = exactType != null && (source === 'manual' || source === 'analysis')
+  const exact = exactType != null && (source === 'manual' || source === 'analysis' || source === 'rekordbox')
   if (exact) {
     return {
       type: exactType,

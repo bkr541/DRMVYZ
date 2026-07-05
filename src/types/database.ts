@@ -17,7 +17,7 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export type AudioSource  = 'file' | 'microphone' | 'demo' | 'ring_buffer'
+export type AudioSource  = 'file' | 'microphone' | 'demo' | 'ring_buffer' | 'rekordbox_xml' | 'rekordbox_usb'
 export type MeterMode    = 'vu' | 'rms' | 'peak' | 'ebu'
 export type ViewMode     = 'analyzer' | 'reference' | 'vyzualz'
 export type Theme        = 'dark' | 'light' | 'system'
@@ -122,13 +122,38 @@ export interface AudioTrack {
   musical_key: string | null
   // Added in migration 0018
   transcription_assets: PreparedTranscriptionAudioManifest | null
+  // Added in migration 0022
+  external_source: string | null
+  external_track_id: string | null
+  external_metadata: Json | null
   created_at: string
   updated_at: string
 }
 
-export type AudioTrackInsert = Omit<AudioTrack, 'id' | 'created_at' | 'updated_at' | 'transcription_assets'> & {
+export type AudioTrackInsert = Omit<AudioTrack, 'id' | 'created_at' | 'updated_at' | 'transcription_assets' | 'external_source' | 'external_track_id' | 'external_metadata'> & {
   transcription_assets?: PreparedTranscriptionAudioManifest | null
+  external_source?: string | null
+  external_track_id?: string | null
+  external_metadata?: Json | null
 }
+
+
+export interface TrackCueRow {
+  id: string
+  track_id: string
+  source: 'manual' | 'rekordbox' | 'analysis'
+  source_cue_id: string | null
+  label: string
+  cue_kind: 'hot_cue' | 'memory_cue' | 'loop' | 'marker' | 'automation'
+  time_sec: number
+  end_time_sec: number | null
+  color: string | null
+  metadata: Json
+  created_at: string
+  updated_at: string
+}
+
+export type TrackCueInsert = Omit<TrackCueRow, 'id' | 'created_at' | 'updated_at'>
 
 export interface TrackAnalysisRow {
   id: string

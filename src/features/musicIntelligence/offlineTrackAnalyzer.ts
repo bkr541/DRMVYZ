@@ -12,6 +12,8 @@ import type {
   FeatureCurvePoint,
   BeatMarkerMI,
   ChordMarker,
+  TrackSectionMI,
+  PhraseMarker,
 } from './types'
 
 // Krumhansl-Schmuckler profiles (same as in harmonicAnalysis.ts for offline use)
@@ -19,11 +21,75 @@ const MAJOR_PROFILE = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.6
 const MINOR_PROFILE = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17]
 const NOTE_NAMES    = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
+export interface TrackAnalysisSeed {
+  source?: 'rekordbox_xml' | 'rekordbox_usb' | 'analysis' | 'manual'
+  bpm?: number | null
+  bpmConfidence?: number | null
+  beatGridOffsetSec?: number | null
+  beatGrid?: BeatMarkerMI[]
+  downbeats?: BeatMarkerMI[]
+  phrases?: PhraseMarker[]
+  sections?: TrackSectionMI[]
+  key?: string | null
+  keyConfidence?: number | null
+}
+
 export interface TrackAnalysisOptions {
   fftSize?:       number  // default 2048, must be power of 2
   hopSize?:       number  // default 1024
   maxCurvePoints?: number // default 300 — max stored per curve
   minSectionSec?:  number // default 8
+  /** Optional trusted timing/key metadata from Rekordbox or another importer. */
+  seed?: TrackAnalysisSeed
+}
+
+
+function mergeSeededSections(seeded: TrackSectionMI[], detected: TrackSectionMI[], durationSec: number): TrackSectionMI[] {
+  const cleaned = seeded
+    .filter(section => Number.isFinite(section.startSec) && Number.isFinite(section.endSec) && section.endSec > section.startSec)
+    .map(section => ({
+      ...section,
+      startSec: Math.max(0, Math.min(durationSec, section.startSec)),
+      endSec: Math.max(0, Math.min(durationSec, section.endSec)),
+      source: section.source ?? 'rekordbox',
+      locked: section.locked ?? true,
+    }))
+    .filter(section => section.endSec > section.startSec)
+    .sort((a, b) => a.startSec - b.startSec)
+
+  if (cleaned.length === 0) return detected
+
+  const overlapsSeed = (section: TrackSectionMI) => cleaned.some(seed => (
+    section.startSec < seed.endSec && section.endSec > seed.startSec
+  ))
+
+  return [
+    ...cleaned,
+    ...detected.filter(section => !overlapsSeed(section)),
+  ].sort((a, b) => a.startSec - b.startSec)
+}
+
+function parseSeededKey(key: string | null): { key: string; mode: 'major' | 'minor' } | null {
+  if (!key) return null
+  const trimmed = key.trim()
+  if (!trimmed) return null
+
+  const camelot = trimmed.match(/^(\d{1,2})([ab])$/i)
+  if (camelot) return null
+
+  const normalized = trimmed
+    .replace(/maj(or)?/i, ' major')
+    .replace(/min(or)?/i, ' minor')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const parts = normalized.split(' ')
+  const tonic = parts[0]?.replace('♯', '#').replace('♭', 'b')
+  if (!tonic) return null
+  const lower = normalized.toLowerCase()
+  const mode: 'major' | 'minor' = lower.includes('minor') || /m$/.test(trimmed) ? 'minor' : 'major'
+  const keyName = tonic.charAt(0).toUpperCase() + tonic.slice(1)
+  return { key: keyName, mode }
 }
 
 // ── Custom radix-2 DIT FFT (real input) ───────────────────────────────────────
@@ -221,6 +287,7 @@ export async function analyzeTrackBuffer(
     hopSize        = 1024,
     maxCurvePoints = 300,
     minSectionSec  = 8,
+    seed,
   } = options
 
   const sampleRate  = audioBuffer.sampleRate
@@ -244,16 +311,23 @@ export async function analyzeTrackBuffer(
   let bpmConfidence: number | null = null
   let beatOffsetSec = 0
   const bpmWarnings: string[] = []
-  try {
-    const result = await guess(audioBuffer)
-    bpm           = result.bpm
-    beatOffsetSec = result.offset
-    // web-audio-beat-detector does not expose a confidence score; leave null.
-    bpmConfidence = null
-  } catch (err) {
-    bpmWarnings.push(
-      `BPM detection failed: ${err instanceof Error ? err.message : String(err)}`,
-    )
+  if (seed?.bpm != null && seed.bpm > 0) {
+    bpm = seed.bpm
+    beatOffsetSec = seed.beatGridOffsetSec ?? 0
+    bpmConfidence = seed.bpmConfidence ?? 0.95
+    bpmWarnings.push(`BPM seeded from ${seed.source ?? 'external metadata'}.`)
+  } else {
+    try {
+      const result = await guess(audioBuffer)
+      bpm           = result.bpm
+      beatOffsetSec = result.offset
+      // web-audio-beat-detector does not expose a confidence score; leave null.
+      bpmConfidence = null
+    } catch (err) {
+      bpmWarnings.push(
+        `BPM detection failed: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
   }
 
   // ── Feature extraction (frame-by-frame FFT) ────────────────────────────────
@@ -352,22 +426,37 @@ export async function analyzeTrackBuffer(
   })
 
   // ── Section detection ──────────────────────────────────────────────────────
-  const sections = detectSections(
+  const detectedSections = detectSections(
     { instant: normInstant, bass: normBass, mid: normMid, high: normHigh },
     { centroid: normCentroid, flux: normFlux, complexity: normComplex },
     durationSec,
     { minSegmentSec: minSectionSec },
   )
+  const sections = seed?.sections?.length
+    ? mergeSeededSections(seed.sections, detectedSections, durationSec)
+    : detectedSections
 
   // ── Offline key detection (from accumulated chroma) ───────────────────────
-  const { dominantKey, dominantMode, keyChanges, keyConfidence } = detectOfflineKey(chromaAcc)
+  const detectedKey = detectOfflineKey(chromaAcc)
+  const seededKey = parseSeededKey(seed?.key ?? null)
+  const dominantKey = seededKey?.key ?? detectedKey.dominantKey
+  const dominantMode = seededKey?.mode ?? detectedKey.dominantMode
+  const keyConfidence = seededKey ? (seed?.keyConfidence ?? 0.92) : detectedKey.keyConfidence
+  const keyChanges = seededKey
+    ? [{ timeSec: 0, key: seededKey.key, mode: seededKey.mode, confidence: keyConfidence }]
+    : detectedKey.keyChanges
   const chordProgression: ChordMarker[] = []
 
   // ── Beat grid ──────────────────────────────────────────────────────────────
   // Only generate markers when BPM is known; an empty grid triggers the BPM-
   // grid fallback path in BeatGrid.update(), which is unavailable when bpm=null.
-  const beatMarkers = bpm !== null ? buildBeatMarkers(bpm, beatOffsetSec, durationSec) : []
-  const downbeats   = beatMarkers.filter(b => b.isDownbeat)
+  const beatMarkers = seed?.beatGrid?.length
+    ? seed.beatGrid
+    : bpm !== null ? buildBeatMarkers(bpm, beatOffsetSec, durationSec) : []
+  const downbeats = seed?.downbeats?.length
+    ? seed.downbeats
+    : beatMarkers.filter(b => b.isDownbeat)
+  const phrases = seed?.phrases?.length ? seed.phrases : []
 
   // ── Downsample curves for storage ─────────────────────────────────────────
   const ds = (c: FeatureCurvePoint[]) => downsampleCurve(c, maxCurvePoints)
@@ -382,7 +471,7 @@ export async function analyzeTrackBuffer(
     timeSignature:     4,
     beatGrid:          beatMarkers,
     downbeats,
-    phrases:           [],
+    phrases,
     sections,
     energyCurves: {
       instant:   ds(normInstant),
@@ -408,7 +497,7 @@ export async function analyzeTrackBuffer(
     },
     lyrics:          null,
     semanticMoments: [],
-    warnings:        bpmWarnings,
+    warnings:        [...bpmWarnings, ...(seed?.sections?.length ? [`Sections seeded from ${seed.source ?? 'external metadata'}.`] : []), ...(seededKey ? [`Key seeded from ${seed?.source ?? 'external metadata'}.`] : [])],
     errors:          [],
   }
 

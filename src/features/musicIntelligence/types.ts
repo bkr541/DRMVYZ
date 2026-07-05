@@ -71,7 +71,7 @@ export interface MIEnergy {
   spectralFlatness:  number
 }
 
-export type SectionSource = 'manual' | 'analysis' | 'inferred'
+export type SectionSource = 'manual' | 'analysis' | 'inferred' | 'rekordbox'
 
 export interface MISection {
   type:       ReactSectionType | null
@@ -262,7 +262,7 @@ export interface TrackSectionMI {
   intensity:  number
   confidence: number
   /** Origin of this section. Optional for backward compat; absent implies 'analysis'. */
-  source?: 'analysis' | 'manual' | 'inferred'
+  source?: SectionSource
   /** When true this section must not be overwritten by grid rebuilds or auto-reanalysis. */
   locked?: boolean
 }

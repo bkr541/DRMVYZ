@@ -6473,3 +6473,74 @@
 .rv-shader-editor-errors { display: flex; flex-direction: column; gap: 4px; }
 .rv-shader-editor-error { display: flex; gap: 6px; }
 .rv-shader-editor-error-line { color: rgba(255, 180, 180, 0.7); font-weight: 800; }
+
+/* ── Rekordbox import affordances in the transport deck ─────────────────── */
+.rv-shell > .vz-transport-dock .vz-dock-rekordbox-badge {
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  max-width: 100%;
+  margin-top: 2px;
+  padding: 2px 5px;
+  border: 1px solid rgba(54, 245, 255, 0.22);
+  border-radius: 999px;
+  color: rgba(124, 245, 255, 0.82);
+  background: rgba(54, 245, 255, 0.055);
+  font: 800 8px/1 var(--az-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-rekordbox-tools {
+  position: absolute;
+  left: 82px;
+  bottom: 7px;
+  display: flex;
+  gap: 5px;
+  pointer-events: auto;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-rekordbox-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  height: 19px;
+  padding: 0 7px;
+  border: 1px solid rgba(74, 199, 219, 0.26);
+  border-radius: 6px;
+  color: rgba(176, 244, 255, 0.72);
+  background: rgba(5, 14, 22, 0.84);
+  font: 850 8px/1 var(--az-font);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-rekordbox-btn:hover,
+.rv-shell > .vz-transport-dock .vz-dock-rekordbox-btn:focus-visible {
+  border-color: rgba(54, 245, 255, 0.64);
+  color: rgba(216, 255, 255, 0.96);
+  background: rgba(13, 35, 45, 0.92);
+  outline: none;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-rekordbox-status {
+  position: absolute;
+  right: 8px;
+  bottom: 7px;
+  max-width: 50%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: rgba(180, 231, 238, 0.58);
+  font: 650 8px/1.1 var(--az-font);
+  letter-spacing: 0.03em;
+}
+
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-rekordbox-tools,
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-rekordbox-status,
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-rekordbox-badge {
+  display: none;
+}

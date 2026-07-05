@@ -1,4 +1,4 @@
-import { forwardRef, useState, useCallback, useRef, useEffect, useId, useImperativeHandle, type MutableRefObject } from 'react'
+import { forwardRef, useState, useCallback, useRef, useEffect, useId, useImperativeHandle, useMemo, type MutableRefObject } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useReactStore } from '../../../stores/reactStore'
@@ -1210,6 +1210,12 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
   const assignedSectionIds = new Set(
     trackCues.filter(c => c.sectionId != null).map(c => c.sectionId!)
   )
+  const importedCueMarkers = currentTrack?.importedCueMarkers ?? []
+  const activeCueMarkers = useMemo(
+    () => [...cueMarkers, ...importedCueMarkers].sort((a, b) => a.time - b.time),
+    [cueMarkers, importedCueMarkers],
+  )
+
   const timelineCueItems = [
     ...trackCues.map(cue => {
       const preset = reactPresets.find(candidate => candidate.id === cue.presetId)
@@ -1222,8 +1228,8 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
         enabled: cue.enabled,
       }
     }),
-    ...cueMarkers.map(cue => ({
-      id: `transport:${cue.id}`,
+    ...activeCueMarkers.map(cue => ({
+      id: `${cue.source === 'rekordbox' ? 'rekordbox' : 'transport'}:${cue.id}`,
       timeSec: cue.time,
       label: cue.label,
       color: cue.color ?? '#4ac7db',
@@ -1314,7 +1320,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
     if (ruler) drawTimelineRuler(ruler, viewportRef.current)
     const cueLane = cueTimelineRef.current
     if (cueLane) applyTimelineCueViewport(cueLane, viewportRef.current)
-  }, [drawTick, collapsed, waveformZoom, durationSec, trackCues, cueMarkers])
+  }, [drawTick, collapsed, waveformZoom, durationSec, trackCues, activeCueMarkers])
 
   // Beat canvas — redraws when analysis, zoom, effective override, or collapse changes.
   // When a manual BPM override is active, currentEffectiveBeatGrid contains the
