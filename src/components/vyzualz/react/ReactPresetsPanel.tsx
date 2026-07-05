@@ -142,7 +142,6 @@ function PresetCard({
           <div className="rv-preset-card-content">
             <div className="rv-preset-card-header">
               <span className="rv-preset-name">{preset.name}</span>
-              {isActive && <span className="rv-preset-selected-label"><span className="rv-preset-active-dot" aria-hidden="true" />Selected</span>}
             </div>
             <div className="rv-preset-chip-row">
               {modeHint && <span className="rv-preset-mode-chip">{modeHint}</span>}
@@ -189,7 +188,7 @@ function PresetCard({
             setDetailsOpen(open => !open)
           }}
         >
-          {detailsOpen ? 'Less' : 'More'} <span aria-hidden="true">›</span>
+          {detailsOpen ? 'Less' : 'More'} <span aria-hidden="true">▾</span>
         </button>
       )}
     </div>

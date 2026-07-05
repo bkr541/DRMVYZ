@@ -403,7 +403,6 @@ export function CinematicWorldsEngineControls() {
             <span className="rv-cinematic-world-card-title">{item.label}</span>
             <span className="rv-cinematic-world-card-category">{item.category}</span>
             <span className="rv-cinematic-world-card-description">{item.description}</span>
-            {config.worldMode === item.id && <span className="rv-cinematic-selected-text">Selected</span>}
           </button>
         ))}
       </div>

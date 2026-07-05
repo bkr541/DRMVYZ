@@ -147,7 +147,7 @@ describe('LaserDMX fixture-list accessibility', () => {
 })
 
 describe('React preset accessibility', () => {
-  it('exposes the selected preset in button semantics and visible text', async () => {
+  it('exposes the selected preset in button semantics without adding a badge', async () => {
     const state = useReactStore.getState()
     const activeId = state.activeReactPresetId ?? state.reactPresets[0]?.id
     expect(activeId).toBeTruthy()
@@ -163,8 +163,8 @@ describe('React preset accessibility', () => {
 
     const activeButton = container.querySelector('button[aria-pressed="true"]') as HTMLButtonElement
     expect(activeButton).not.toBeNull()
-    expect(activeButton.textContent).toContain('Selected')
-    expect(activeButton.querySelector('.rv-preset-active-dot')?.getAttribute('aria-hidden')).toBe('true')
+    expect(activeButton.textContent).not.toContain('Selected')
+    expect(activeButton.querySelector('.rv-preset-selected-label')).toBeNull()
     expect(container.querySelector('button[aria-pressed="false"]')).not.toBeNull()
 
     const layout = activeButton.querySelector('.rv-preset-card-layout')

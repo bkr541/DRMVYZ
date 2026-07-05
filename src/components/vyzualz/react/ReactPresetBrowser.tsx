@@ -40,7 +40,6 @@ export function ReactPresetBrowser({ presets, activePresetId, onSelect }: Props)
                       {REACT_ENGINE_CATALOG[preset.engine].icon}
                     </span>
                     <span className="rv-preset-name">{preset.name}</span>
-                    {isActive && <span className="rv-preset-selected-label"><span className="rv-preset-active-dot" aria-hidden="true" />Selected</span>}
                   </div>
                   <div className="rv-preset-engine-label">
                     {REACT_ENGINE_CATALOG[preset.engine].label}

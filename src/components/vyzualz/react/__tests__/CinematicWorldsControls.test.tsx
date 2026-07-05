@@ -64,7 +64,7 @@ function activeConstellationSettings(presetId: string) {
 }
 
 describe('Cinematic Worlds engine controls', () => {
-  it('exposes all worlds with semantic selected state and focused descriptions', async () => {
+  it('exposes all worlds with aria-selected state and focused descriptions', async () => {
     useReactStore.getState().selectReactPreset(presetFor('eventHorizon').id)
     await render(<CinematicWorldsEngineControls />)
 
@@ -73,7 +73,8 @@ describe('Cinematic Worlds engine controls', () => {
     expect(container.querySelector('#cinematic-world-eventHorizon')?.getAttribute('aria-checked')).toBe('true')
     expect(container.querySelector('#cinematic-world-reactiveConstellation')?.textContent).toContain('true 3D faceted crystal network')
     expect(container.querySelector('#cinematic-world-mediaPortal')).toBeNull()
-    expect(container.textContent).toContain('Selected')
+    expect(container.querySelector('#cinematic-world-eventHorizon')?.classList.contains('rv-cinematic-world-card--selected')).toBe(true)
+    expect(container.querySelector('#cinematic-world-eventHorizon')?.textContent).not.toContain('Selected')
   })
 
   it('responds to right-rail simple and advanced mode changes without duplicating the mode switch', async () => {

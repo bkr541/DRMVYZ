@@ -186,7 +186,7 @@
 .rv-preset-card-content {
   min-width: 0;
   min-height: 124px;
-  padding: 10px 82px 10px 12px;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
 }
@@ -384,18 +384,6 @@
   flex-shrink: 0;
 }
 
-.rv-preset-selected-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  font-size: 8px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: rgba(232, 244, 248, 0.72);
-}
-
 .rv-preset-engine-label {
   font-size: 9px;
   font-weight: 500;
@@ -427,7 +415,7 @@
   gap: 4px;
   min-height: 24px;
   margin-top: auto;
-  padding-right: 56px;
+  padding-right: 48px;
 }
 
 .rv-palette-swatch {
@@ -441,18 +429,15 @@
 .rv-preset-more-btn {
   position: absolute;
   right: 12px;
-  bottom: 10px;
+  bottom: 15px;
   z-index: 4;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  min-width: 48px;
-  min-height: 22px;
-  padding: 0 8px;
-  border: 1px solid rgba(74, 199, 219, 0.35);
-  border-radius: 6px;
-  background: rgba(4, 16, 22, 0.9);
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: #7cf0ff;
   font-family: var(--az-font);
   font-size: 8.5px;
@@ -460,18 +445,23 @@
   font-weight: 800;
   letter-spacing: 0.055em;
   cursor: pointer;
-  box-shadow: 0 0 12px rgba(74, 199, 219, 0.12);
 }
 
 .rv-preset-more-btn:hover,
 .rv-preset-more-btn:focus-visible {
-  border-color: rgba(103, 247, 255, 0.68);
-  background: rgba(74, 199, 219, 0.13);
+  color: #b8fbff;
+  text-shadow: 0 0 10px rgba(74, 199, 219, 0.45);
   outline: none;
 }
 
+.rv-preset-more-btn span {
+  display: inline-block;
+  transform: translateY(-1px);
+  transition: transform 0.15s ease;
+}
+
 .rv-preset-card-shell--expanded .rv-preset-more-btn span {
-  transform: rotate(-90deg);
+  transform: translateY(-1px) rotate(180deg);
 }
 
 .rv-preset-card-shell--expanded .rv-preset-palette {
@@ -4204,11 +4194,10 @@
 .rv-cinematic-world-card { position: relative; min-height: 92px; padding: 8px; text-align: left; border: 1px solid rgba(255,255,255,.09); border-radius: 7px; background: rgba(255,255,255,.025); color: #e8f4f8; cursor: pointer; }
 .rv-cinematic-world-card:hover { border-color: rgba(74,199,219,.38); background: rgba(74,199,219,.06); }
 .rv-cinematic-world-card--selected { border-color: #4ac7db; box-shadow: inset 0 0 0 1px rgba(74,199,219,.22); }
-.rv-cinematic-world-card-title, .rv-cinematic-world-card-category, .rv-cinematic-world-card-description, .rv-cinematic-selected-text { display: block; }
+.rv-cinematic-world-card-title, .rv-cinematic-world-card-category, .rv-cinematic-world-card-description { display: block; }
 .rv-cinematic-world-card-title { font-size: 10px; font-weight: 700; }
 .rv-cinematic-world-card-category { margin-top: 2px; font-size: 8px; letter-spacing: .08em; text-transform: uppercase; color: #61d6aa; }
 .rv-cinematic-world-card-description { margin-top: 5px; font-size: 9px; line-height: 1.3; color: rgba(232,244,248,.48); }
-.rv-cinematic-selected-text { margin-top: 5px; font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #4ac7db; }
 .rv-cinematic-seed-readout { display: flex; align-items: center; justify-content: space-between; padding: 7px 9px; border-radius: 5px; background: rgba(255,255,255,.035); font-size: 10px; }
 .rv-cinematic-seed-readout output { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #61d6aa; }
 .rv-cinematic-action-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 4px; }
