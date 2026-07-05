@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import { CtrlSection, SelectRow, SliderRow } from '../ReactControlRows'
+import { Collapsible, SelectRow, SliderRow } from '../ReactControlRows'
 import { productionOutputController } from './ProductionOutput'
 
 function statusTone(state: string): string {
@@ -21,8 +21,7 @@ export function ProductionOutputPanel() {
   const physicalUnavailable = Boolean(selected?.canTransmit && !selected.protocolMetadata.executableInCurrentRuntime)
 
   return (
-    <>
-      <CtrlSection label="Production Output" />
+    <Collapsible label="Production Output" defaultOpen>
       <div className="rv-ctrl-info" role="status" aria-live="polite">
         <strong style={{ color: statusTone(snapshot.status.state) }}>
           {snapshot.status.state.toUpperCase()}
@@ -122,6 +121,6 @@ export function ProductionOutputPanel() {
       <div className="rv-ctrl-info">
         Address, overlap, profile, exclusion-zone, stale-frame, heartbeat, cooldown, and fail-dark checks are diagnostic safeguards only. DRMVYZ does not certify physical laser or venue safety.
       </div>
-    </>
+    </Collapsible>
   )
 }

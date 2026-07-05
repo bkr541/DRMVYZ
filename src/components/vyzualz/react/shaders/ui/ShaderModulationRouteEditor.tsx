@@ -80,7 +80,7 @@ export function ShaderModulationRouteEditor({
         </span>
         <div className="shader-mod-route-header-actions">
           <ToggleRow
-            label="On"
+            label="Route Enabled"
             value={route.enabled}
             onChange={v => onUpdate({ enabled: v })}
           />

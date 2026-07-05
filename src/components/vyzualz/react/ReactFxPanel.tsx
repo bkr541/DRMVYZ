@@ -287,7 +287,7 @@ export function ReactFxPanel() {
             </Collapsible>
 
             <Collapsible label="Fog" defaultOpen={false}>
-              <ToggleRow label="Enabled"          value={bmFog.enabled}        onChange={v => setFog({ enabled: v })} />
+              <ToggleRow label="Fog Enabled"      value={bmFog.enabled}        onChange={v => setFog({ enabled: v })} />
               <SliderRow label="Density"          value={bmFog.density}        onChange={v => setFog({ density: v })}        color="#61d6aa" />
               <SliderRow label="Opacity"          value={bmFog.opacity}        onChange={v => setFog({ opacity: v })}        color="#4ac7db" />
               <SliderRow label="Noise Scale"      value={bmFog.noiseScale}     onChange={v => setFog({ noiseScale: v })}     min={0.1} max={4} step={0.05} color="#d8b95a" />

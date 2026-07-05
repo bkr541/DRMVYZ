@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
-import { CtrlSection, Collapsible } from './ReactControlRows'
+import { Collapsible } from './ReactControlRows'
 import { LaserDmxBeamInspector } from './LaserDmxBeamInspector'
 import { LaserDmxReactionGroupInspector } from './LaserDmxReactionGroupInspector'
 import { LaserDmxBeamMatrixPresetBrowser } from './LaserDmxBeamMatrixPresetBrowser'
@@ -54,12 +54,12 @@ export function LaserDmxBeamMatrixPanel() {
       </Collapsible>
 
       {/* ── Program overview ────────────────────────────────────────────── */}
-      <CtrlSection label="Program" />
-      <div className="rv-bm-stats">
-        <span>Beams: <strong>{beamCount} / {LASER_DMX_MATRIX_MAX_BEAMS}</strong></span>
-        <span>Groups: <strong>{groupCount}</strong></span>
-        {selCount > 0 && <span className="rv-bm-sel-badge">{selCount} selected</span>}
-      </div>
+      <Collapsible label="Program" defaultOpen>
+        <div className="rv-bm-stats">
+          <span>Beams: <strong>{beamCount} / {LASER_DMX_MATRIX_MAX_BEAMS}</strong></span>
+          <span>Groups: <strong>{groupCount}</strong></span>
+          {selCount > 0 && <span className="rv-bm-sel-badge">{selCount} selected</span>}
+        </div>
 
       <div className="rv-bm-toolbar">
         <button
@@ -128,26 +128,27 @@ export function LaserDmxBeamMatrixPanel() {
       >
         Convert to Spatial Rig
       </button>
-      <div className="rv-ctrl-info">Conversion is explicit and non-destructive: Beam Matrix stays intact while a metre-based fixture rig is created.</div>
+        <div className="rv-ctrl-info">Conversion is explicit and non-destructive: Beam Matrix stays intact while a metre-based fixture rig is created.</div>
 
       {/* ── Reset with confirmation ──────────────────────────────────────── */}
-      {confirmReset ? (
-        <div className="rv-bm-confirm">
-          <span>Reset entire Beam Matrix program?</span>
-          <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" onClick={handleReset}>Confirm Reset</button>
-          <button type="button" className="rv-glyph-upload-btn" onClick={() => setConfirmReset(false)}>Cancel</button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          className="rv-glyph-upload-btn"
-          style={{ marginTop: 4, opacity: 0.65 }}
-          onClick={handleReset}
-          aria-label="Reset Beam Matrix"
-        >
-          Reset Matrix
-        </button>
-      )}
+        {confirmReset ? (
+          <div className="rv-bm-confirm">
+            <span>Reset entire Beam Matrix program?</span>
+            <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" onClick={handleReset}>Confirm Reset</button>
+            <button type="button" className="rv-glyph-upload-btn" onClick={() => setConfirmReset(false)}>Cancel</button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="rv-glyph-upload-btn"
+            style={{ marginTop: 4, opacity: 0.65 }}
+            onClick={handleReset}
+            aria-label="Reset Beam Matrix"
+          >
+            Reset Matrix
+          </button>
+        )}
+      </Collapsible>
 
       {/* ── Beam inspector ─────────────────────────────────────────────── */}
       <Collapsible label="Selected Beam" defaultOpen>
@@ -160,7 +161,9 @@ export function LaserDmxBeamMatrixPanel() {
       </Collapsible>
 
       {/* ── Cue list ────────────────────────────────────────────────────── */}
-      <CtrlSection label="Cue List" />
+      <Collapsible label="Cue List" defaultOpen={false}>
+        <div className="rv-ctrl-info">Cue list controls appear here when authored timeline cues are available.</div>
+      </Collapsible>
     </>
   )
 }

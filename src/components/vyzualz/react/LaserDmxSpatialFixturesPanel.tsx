@@ -414,27 +414,29 @@ export function LaserDmxSpatialFixturesPanel({ surface = 'setup' }: { surface?: 
   return (
     <>
       {surface === 'setup' && <>
-        <CtrlSection label="Looks / Output" />
-        <LaserDmxLookEditor />
+        <Collapsible label="Looks / Output" defaultOpen>
+          <LaserDmxLookEditor />
+        </Collapsible>
 
-        <CtrlSection label="Venue / Stage" />
-        <SelectRow
-          label="Starter Layout"
-          value={venueTemplateId}
-          onChange={value => setVenueTemplateId(value as (typeof PRODUCTION_VENUE_TEMPLATES)[number]['id'])}
-          options={PRODUCTION_VENUE_TEMPLATES.map(template => ({ value: template.id, label: template.label }))}
-          description="Applying is explicit and replaces the current stage layout and shared targets."
-        />
-        <button
-          type="button"
-          className="rv-glyph-upload-btn"
-          onClick={() => applyLaserDmxVenueTemplate(venueTemplateId)}
-          aria-label={`Apply ${PRODUCTION_VENUE_TEMPLATES.find(template => template.id === venueTemplateId)?.label ?? 'venue'} layout`}
-        >
-          Apply Layout
-        </button>
-        <div className="rv-ctrl-info">Axes: +X stage right, +Y up, +Z upstage. Origin is centre-downstage floor. Units are metres.</div>
-        <span className="rv-ctrl-description" style={{ display: 'none' }}>{PRODUCTION_STAGE_COORDINATE_CONVENTION}</span>
+        <Collapsible label="Venue / Stage" defaultOpen>
+          <SelectRow
+            label="Starter Layout"
+            value={venueTemplateId}
+            onChange={value => setVenueTemplateId(value as (typeof PRODUCTION_VENUE_TEMPLATES)[number]['id'])}
+            options={PRODUCTION_VENUE_TEMPLATES.map(template => ({ value: template.id, label: template.label }))}
+            description="Applying is explicit and replaces the current stage layout and shared targets."
+          />
+          <button
+            type="button"
+            className="rv-glyph-upload-btn"
+            onClick={() => applyLaserDmxVenueTemplate(venueTemplateId)}
+            aria-label={`Apply ${PRODUCTION_VENUE_TEMPLATES.find(template => template.id === venueTemplateId)?.label ?? 'venue'} layout`}
+          >
+            Apply Layout
+          </button>
+          <div className="rv-ctrl-info">Axes: +X stage right, +Y up, +Z upstage. Origin is centre-downstage floor. Units are metres.</div>
+          <span className="rv-ctrl-description" style={{ display: 'none' }}>{PRODUCTION_STAGE_COORDINATE_CONVENTION}</span>
+        </Collapsible>
 
         <Collapsible label="Stage Dimensions" defaultOpen={false}>
         <NumberInputRow label="Width" value={stage.dimensions.width} min={1} max={100} unit="m" onChange={width => updateStage({ dimensions: { ...stage.dimensions, width }, floor: { ...stage.floor, width } })} />
@@ -606,38 +608,39 @@ export function LaserDmxSpatialFixturesPanel({ surface = 'setup' }: { surface?: 
       </>}
 
       {surface === 'fixtures' && <>
-        <CtrlSection label="Fixtures" />
-        <div className="rv-fixture-add-row">
-        <div style={{ flex: '1 1 150px' }}>
-          <SelectRow label="Fixture Profile" value={newProfileId} onChange={value => setNewProfileId(value as LaserDmxProfileId)} options={PROFILE_OPTIONS} />
-        </div>
-        <button type="button" className="rv-glyph-upload-btn" onClick={() => addLaserFixture(newProfileId)}>+ Add Fixture</button>
-        </div>
-
-      {fixtures.length === 0 ? (
-        <div className="rv-ctrl-info">No fixtures. Choose a profile and add one to begin.</div>
-      ) : (
-        <div className="rv-fixture-list">
-          {fixtures.map(candidate => (
-            <div
-              key={candidate.id}
-              className={`rv-fixture-list-item${candidate.id === selectedFixtureId ? ' rv-fixture-list-item--active' : ''}${!candidate.enabled ? ' rv-fixture-list-item--disabled' : ''}`}
-            >
-              <button
-                type="button"
-                className="rv-fixture-list-item__select"
-                aria-label={`Select fixture ${candidate.name}`}
-                aria-pressed={candidate.id === selectedFixtureId}
-                onClick={() => selectLaserFixture(candidate.id)}
-              >
-                <span className="rv-fixture-list-item__status" aria-hidden="true">{candidate.enabled ? '●' : '○'}</span>
-                <span className="rv-fixture-list-item__name" title={candidate.name}>{candidate.name}</span>
-              </button>
-              <button type="button" className="rv-fixture-list-item__action" aria-label={`${candidate.enabled ? 'Disable' : 'Enable'} fixture ${candidate.name}`} onClick={event => { event.stopPropagation(); updateLaserFixture(candidate.id, { enabled: !candidate.enabled }) }}>{candidate.enabled ? '⏸' : '▶'}</button>
+        <Collapsible label="Fixtures" defaultOpen>
+          <div className="rv-fixture-add-row">
+            <div style={{ flex: '1 1 150px' }}>
+              <SelectRow label="Fixture Profile" value={newProfileId} onChange={value => setNewProfileId(value as LaserDmxProfileId)} options={PROFILE_OPTIONS} />
             </div>
-          ))}
-        </div>
-      )}
+            <button type="button" className="rv-glyph-upload-btn" onClick={() => addLaserFixture(newProfileId)}>+ Add Fixture</button>
+          </div>
+
+          {fixtures.length === 0 ? (
+            <div className="rv-ctrl-info">No fixtures. Choose a profile and add one to begin.</div>
+          ) : (
+            <div className="rv-fixture-list">
+              {fixtures.map(candidate => (
+                <div
+                  key={candidate.id}
+                  className={`rv-fixture-list-item${candidate.id === selectedFixtureId ? ' rv-fixture-list-item--active' : ''}${!candidate.enabled ? ' rv-fixture-list-item--disabled' : ''}`}
+                >
+                  <button
+                    type="button"
+                    className="rv-fixture-list-item__select"
+                    aria-label={`Select fixture ${candidate.name}`}
+                    aria-pressed={candidate.id === selectedFixtureId}
+                    onClick={() => selectLaserFixture(candidate.id)}
+                  >
+                    <span className="rv-fixture-list-item__status" aria-hidden="true">{candidate.enabled ? '●' : '○'}</span>
+                    <span className="rv-fixture-list-item__name" title={candidate.name}>{candidate.name}</span>
+                  </button>
+                  <button type="button" className="rv-fixture-list-item__action" aria-label={`${candidate.enabled ? 'Disable' : 'Enable'} fixture ${candidate.name}`} onClick={event => { event.stopPropagation(); updateLaserFixture(candidate.id, { enabled: !candidate.enabled }) }}>{candidate.enabled ? '⏸' : '▶'}</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Collapsible>
 
       {fixture && (
         <>
@@ -646,9 +649,10 @@ export function LaserDmxSpatialFixturesPanel({ surface = 'setup' }: { surface?: 
             <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" onClick={() => removeLaserFixture(fixture.id)}>× Delete</button>
           </div>
 
-          <CtrlSection label="Selected Fixture" />
-          <TextInputRow label="Name" value={fixture.name} onChange={name => updateLaserFixture(fixture.id, { name })} maxLength={48} />
-          <ToggleRow label="Enabled" value={fixture.enabled} onChange={enabled => updateLaserFixture(fixture.id, { enabled })} />
+          <Collapsible label="Selected Fixture" defaultOpen>
+            <TextInputRow label="Name" value={fixture.name} onChange={name => updateLaserFixture(fixture.id, { name })} maxLength={48} />
+            <ToggleRow label="Fixture Enabled" value={fixture.enabled} onChange={enabled => updateLaserFixture(fixture.id, { enabled })} />
+          </Collapsible>
 
           <Collapsible label="Profile / DMX" defaultOpen={false}>
             <SelectRow

@@ -1,5 +1,5 @@
 import type { LaserDmxBeamSequence, LaserDmxSequenceMode } from './ReactTypes'
-import { SliderRow, SelectRow, ToggleRow, CtrlSection } from './ReactControlRows'
+import { SliderRow, SelectRow, ToggleRow, Collapsible } from './ReactControlRows'
 
 // stepsPerBeat → musical subdivision label
 // stepsPerBeat=1 → 1 step per beat → quarter-note steps
@@ -42,10 +42,9 @@ export function LaserDmxGroupSequencerControls({ sequence, onChange }: LaserDmxG
   const showRotate = enabled && mode !== 'all' && mode !== 'custom'
 
   return (
-    <>
-      <CtrlSection label="Sequencer" />
+    <Collapsible label="Sequencer" defaultOpen>
       <ToggleRow
-        label="Enabled"
+        label="Sequencer Enabled"
         value={enabled}
         onChange={v => upd({ enabled: v })}
       />
@@ -102,6 +101,6 @@ export function LaserDmxGroupSequencerControls({ sequence, onChange }: LaserDmxG
           )}
         </>
       )}
-    </>
+    </Collapsible>
   )
 }

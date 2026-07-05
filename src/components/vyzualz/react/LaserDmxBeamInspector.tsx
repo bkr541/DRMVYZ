@@ -62,7 +62,7 @@ function SingleBeamInspector({ beam, groups }: SingleBeamProps) {
     <>
       <CtrlSection label="Selected Beam" />
       <TextInputRow label="Name" value={beam.name} onChange={v => upd({ name: v })} maxLength={32} />
-      <ToggleRow label="Enabled" value={beam.enabled} onChange={v => upd({ enabled: v })} />
+      <ToggleRow label="Beam Enabled" value={beam.enabled} onChange={v => upd({ enabled: v })} />
 
       <CtrlSection label="Group" />
       <SelectRow

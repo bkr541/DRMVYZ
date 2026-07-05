@@ -1,5 +1,5 @@
 import type { LaserDmxBeamMotion, LaserDmxBeamTravelMode } from './ReactTypes'
-import { SliderRow, SelectRow, CtrlSection } from './ReactControlRows'
+import { SliderRow, SelectRow, Collapsible } from './ReactControlRows'
 
 const TRAVEL_MODE_OPTIONS = [
   { value: 'static',     label: 'Static'      },
@@ -62,8 +62,7 @@ export function LaserDmxBeamMotionControls({ motion, onChange }: LaserDmxBeamMot
     : '1'
 
   return (
-    <>
-      <CtrlSection label="Beam Motion" />
+    <Collapsible label="Beam Motion" defaultOpen>
       <SelectRow
         label="Travel Mode"
         value={m}
@@ -127,6 +126,6 @@ export function LaserDmxBeamMotionControls({ motion, onChange }: LaserDmxBeamMot
           />
         </>
       )}
-    </>
+    </Collapsible>
   )
 }

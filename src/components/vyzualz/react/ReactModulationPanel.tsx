@@ -336,7 +336,7 @@ function RouteRow({
   return (
     <div className="rv-ldx-route">
       <div className="rv-ldx-route-header">
-        <ToggleRow label="On" value={route.enabled} onChange={v => onChange({ enabled: v })} />
+        <ToggleRow label="Route Enabled" value={route.enabled} onChange={v => onChange({ enabled: v })} />
         <button type="button" className="rv-glyph-item-del" title="Delete route" aria-label="Delete modulation route" onClick={onDelete}>×</button>
       </div>
       <SelectRow label="Source" value={route.source} onChange={v => onChange({ source: v })} options={sources} />

@@ -107,6 +107,7 @@ function PresetCard({
   currentRig: LaserDmxSettings
   thumbnailGenerationKey: string
 }) {
+  const [detailsOpen, setDetailsOpen] = useState(false)
   if (!isSelectableReactEngineId(preset.engine)) return null
   const modeHint = getModeHint(preset)
   const production = preset.productionPreset
@@ -121,12 +122,13 @@ function PresetCard({
   const destinationLabel = switchesLaserWorkspace && presetLaserWorkspace
     ? LASER_DMX_WORKSPACE_LABELS[presetLaserWorkspace]
     : REACT_ENGINE_CATALOG[preset.engine].label
+  const hasMoreDetails = true
 
   return (
-    <div className="rv-preset-card-shell">
+    <div className={`rv-preset-card-shell${detailsOpen ? ' rv-preset-card-shell--expanded' : ''}`}>
       <button
         type="button"
-        className={`rv-preset-card rv-preset-card--with-thumb${isActive ? ' rv-preset-card--active' : ''}`}
+        className={`rv-preset-card rv-preset-card--with-thumb${isActive ? ' rv-preset-card--active' : ''}${detailsOpen ? ' rv-preset-card--expanded' : ''}`}
         onClick={() => onSelect(preset.id)}
         onKeyDown={handlePresetCardKeyDown}
         data-preset-card
@@ -149,11 +151,15 @@ function PresetCard({
             </div>
             {production && <>
               <div className="rv-production-badges" aria-label={`${preset.name} fixture families`}>
-                {production.fixtureFamilyBadges.slice(0, 7).map(kind => <span key={kind}>{FIXTURE_BADGE_LABELS[kind]}</span>)}
+                {production.fixtureFamilyBadges.slice(0, detailsOpen ? 7 : 5).map(kind => <span key={kind}>{FIXTURE_BADGE_LABELS[kind]}</span>)}
               </div>
-              <div className="rv-production-meta"><span>Cost: {production.complexity}</span><span>{production.requiredCapabilities.map(item => item.label).join(' · ')}</span></div>
-              <div className="rv-production-tags">{production.styleTags.map(tag => <span key={tag}>{tag}</span>)}</div>
-              {compatibility && <CompatibilitySummary result={compatibility} />}
+              {detailsOpen && (
+                <div className="rv-preset-detail-panel">
+                  <div className="rv-production-meta"><span>Cost: {production.complexity}</span><span>{production.requiredCapabilities.map(item => item.label).join(' · ')}</span></div>
+                  <div className="rv-production-tags">{production.styleTags.map(tag => <span key={tag}>{tag}</span>)}</div>
+                  {compatibility && <CompatibilitySummary result={compatibility} />}
+                </div>
+              )}
             </>}
             <p className="rv-preset-desc">{preset.description}</p>
             <div className="rv-preset-palette" aria-label={`${preset.name} palette`}>
@@ -172,6 +178,20 @@ function PresetCard({
       >
         {isFavorite ? '★' : '☆'}
       </button>
+      {hasMoreDetails && (
+        <button
+          type="button"
+          className="rv-preset-more-btn"
+          aria-expanded={detailsOpen}
+          aria-label={`${detailsOpen ? 'Hide' : 'Show'} detailed information for ${preset.name}`}
+          onClick={event => {
+            event.stopPropagation()
+            setDetailsOpen(open => !open)
+          }}
+        >
+          {detailsOpen ? 'Less' : 'More'} <span aria-hidden="true">›</span>
+        </button>
+      )}
     </div>
   )
 }

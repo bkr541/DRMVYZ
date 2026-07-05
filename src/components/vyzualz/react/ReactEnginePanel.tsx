@@ -323,13 +323,12 @@ export function ReactEnginePanel() {
 
       {/* ── Engine Mode: GLSL Shader ──────────────────────────────────── */}
       {activeReactEngineId === 'shaderPads' && (
-        <>
-          <CtrlSection label="Shader Scenes" />
+        <Collapsible label="Shader Scenes" defaultOpen>
           <div className="rv-ctrl-info">
             Shader uses Scenes rather than React presets. Choose and manage the
             active scene from the SCENES tab in the right rail.
           </div>
-        </>
+        </Collapsible>
       )}
 
       {/* ── Engine Mode: LaserDMX ─────────────────────────────────────── */}

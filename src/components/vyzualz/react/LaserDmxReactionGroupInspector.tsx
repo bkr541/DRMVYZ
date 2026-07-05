@@ -131,7 +131,7 @@ export function LaserDmxReactionGroupInspector() {
             maxLength={32}
             placeholder="Group name"
           />
-          <ToggleRow label="Enabled" value={group.enabled} onChange={v => updateLaserDmxReactionGroup(group.id, { enabled: v })} />
+          <ToggleRow label="Group Enabled" value={group.enabled} onChange={v => updateLaserDmxReactionGroup(group.id, { enabled: v })} />
           <ToggleRow label="Muted"   value={group.muted}   onChange={v => setLaserDmxReactionGroupMuted(group.id, v)} />
           <ToggleRow label="Solo"    value={group.soloed}  onChange={v => setLaserDmxReactionGroupSoloed(group.id, v)} />
 

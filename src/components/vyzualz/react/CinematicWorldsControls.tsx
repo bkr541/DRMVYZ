@@ -345,7 +345,7 @@ function AutoDirectorControls({ config, onChange, advanced }: { config: Cinemati
   return (
     <>
       <CtrlSection label="Auto Director" />
-      <ToggleRow id="cinematic-auto-director-enabled" label="Enabled" value={config.cameraRig === 'autoDirector'} onChange={enabled => onChange({ ...config, cameraRig: enabled ? 'autoDirector' : 'locked' })} />
+      <ToggleRow id="cinematic-auto-director-enabled" label="Auto Director Enabled" value={config.cameraRig === 'autoDirector'} onChange={enabled => onChange({ ...config, cameraRig: enabled ? 'autoDirector' : 'locked' })} />
       <SliderRow id="cinematic-auto-director-strength" label="Strength" value={auto.strength} onChange={strength => setAuto({ strength })} />
       {advanced && (
         <>
@@ -596,7 +596,7 @@ export function CinematicWorldsModulationControls() {
                 return (
                   <fieldset className={`rv-cinematic-route${routeDiagnostic ? ' rv-cinematic-route--unavailable' : ''}`} key={route.id}>
                     <legend>Mapping {index + 1}</legend>
-                    <ToggleRow id={`cinematic-route-${index}-enabled`} label="Enabled" value={route.enabled} onChange={enabled => updateRoute(index, { enabled })} />
+                    <ToggleRow id={`cinematic-route-${index}-enabled`} label="Route Enabled" value={route.enabled} onChange={enabled => updateRoute(index, { enabled })} />
                     <SelectRow id={`cinematic-route-${index}-source`} label="Source" value={route.source} onChange={source => updateRoute(index, { source: source as CinematicAudioSource })} options={[
                       ...(currentSourceUnavailable ? [{ value: route.source, label: `${CINEMATIC_SOURCE_LABELS[route.source]} (Unavailable)`, disabled: true }] : []),
                       ...availableSources.filter(source => source !== route.source || !currentSourceUnavailable).map(source => ({ value: source, label: CINEMATIC_SOURCE_LABELS[source] })),

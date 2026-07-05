@@ -56,6 +56,8 @@
 .az-sidebar {
   width: 240px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 20;
   background: var(--az-sidebar);
   border-right: 1px solid var(--az-border);
   display: flex;
