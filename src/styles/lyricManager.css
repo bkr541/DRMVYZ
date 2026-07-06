@@ -1613,20 +1613,20 @@
 }
 
 .lmv-header {
-  height: 62px;
-  padding: 0 22px;
-  background: rgba(7,14,17,0.96);
-  box-shadow: 0 10px 38px rgba(0,0,0,0.22);
+  height: 54px;
+  padding: 0 20px;
+  background: rgba(12,16,19,0.96);
+  box-shadow: none;
 }
 
 .lmv-header-title {
-  font-size: 17px;
+  font-size: 13px;
   letter-spacing: 0.12em;
 }
 
 .lmv-header-subtitle {
   max-width: 620px;
-  color: rgba(196,207,211,0.56);
+  color: rgba(196,207,211,0.42);
 }
 
 .lmv-btn {

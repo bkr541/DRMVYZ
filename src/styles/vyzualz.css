@@ -3258,7 +3258,7 @@ input[type='range'].vz-slider--color {
 }
 .vz-dock-cue-overlay > * { pointer-events: all; }
 
-/* RIGHT: large BPM/TAP row + compact bottom action row */
+/* RIGHT: BPM + Rekordbox menu above, four equal action buttons below */
 .vz-dock-right {
   display: flex;
   flex-direction: column;
@@ -3273,14 +3273,70 @@ input[type='range'].vz-slider--color {
   min-height: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+.vz-dock-rekordbox-menu {
+  flex: 0 1 128px;
+  min-width: 96px;
+  max-width: 138px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 4px;
+}
+
+.vz-dock-rekordbox-label {
+  color: rgba(196, 207, 211, 0.44);
+  font: 800 8px/1 var(--az-font);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.vz-dock-rekordbox-select {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  padding: 0 24px 0 8px;
+  border: 1px solid rgba(74, 199, 219, 0.26);
+  border-radius: 6px;
+  color: rgba(176, 244, 255, 0.78);
+  background: rgba(5, 14, 22, 0.88);
+  font: 850 8.5px/1 var(--az-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  outline: none;
+}
+
+.vz-dock-rekordbox-select:hover:not(:disabled),
+.vz-dock-rekordbox-select:focus-visible {
+  border-color: rgba(54, 245, 255, 0.62);
+  color: rgba(216, 255, 255, 0.96);
+  background: rgba(13, 35, 45, 0.94);
+}
+
+.vz-dock-rekordbox-select:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.vz-dock-rekordbox-status {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: rgba(180, 231, 238, 0.56);
+  font: 650 7.5px/1.15 var(--az-font);
+  letter-spacing: 0.03em;
 }
 
 .vz-dock-right-btns {
   flex: 0 0 34px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
   min-width: 0;
 }
@@ -3507,33 +3563,38 @@ input[type='range'].vz-slider--color {
   line-height: 1.4;
 }
 
-/* TAP button */
+/* TAP button — same cell geometry as CUE / SYNC / GRID */
 .vz-dock-tap-btn {
-  width: 58px;
-  height: 58px;
-  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  padding: 0 10px;
   background: rgba(74, 199, 219, 0.055);
-  border: 2px solid rgba(74, 199, 219, 0.78);
-  border-radius: 50%;
+  border: 1px solid rgba(74, 199, 219, 0.42);
+  border-radius: 4px;
   color: rgba(102, 226, 244, 0.94);
   font-family: var(--az-font);
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   cursor: pointer;
   flex-shrink: 0;
   transition: all 0.12s;
 }
-.vz-dock-tap-btn:hover {
+.vz-dock-tap-btn:hover:not(:disabled) {
   background: rgba(74,199,219,0.12);
-  border-color: rgba(104, 222, 240, 0.95);
+  border-color: rgba(104, 222, 240, 0.82);
   color: var(--az-cyan);
-  box-shadow: 0 0 18px rgba(74,199,219,0.24);
+  box-shadow: 0 0 12px rgba(74,199,219,0.18);
 }
-.vz-dock-tap-btn:active {
-  background: rgba(74,199,219,0.24);
-  box-shadow: 0 0 8px rgba(74,199,219,0.3);
+.vz-dock-tap-btn:active:not(:disabled) {
+  background: rgba(74,199,219,0.22);
+  box-shadow: 0 0 8px rgba(74,199,219,0.24);
 }
 .vz-dock-tap-btn:disabled {
   opacity: 0.34;
@@ -3571,6 +3632,16 @@ input[type='range'].vz-slider--color {
   border-color: rgba(74,199,219,0.5);
   color: var(--az-cyan);
   box-shadow: 0 0 8px rgba(74,199,219,0.18);
+}
+
+.vz-dock-right-btns > .vz-dock-tap-btn,
+.vz-dock-right-btns > .vz-dock-cue-btn,
+.vz-dock-right-btns > .vz-dock-sync-master-btn,
+.vz-dock-right-btns > .vz-dock-beatgrid-btn {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  border-radius: 4px;
 }
 
 .vz-dock-action-icon {

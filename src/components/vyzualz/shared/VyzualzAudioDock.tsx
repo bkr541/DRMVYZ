@@ -135,6 +135,7 @@ export function VyzualzAudioDock({
   const engine            = useSharedAudio()
   const fileInputId       = useId()
   const rekordboxXmlInputId = useId()
+  const rekordboxActionSelectId = useId()
   const { handleTap } = useTapTempo()
 
   const [collapsedByUser, setCollapsedByUser] = useState(() => (
@@ -475,37 +476,6 @@ export function VyzualzAudioDock({
                 {importedBadge} · {activeImportedCues.length} cues
               </span>
             )}
-            <div className="vz-dock-rekordbox-strip" aria-label="Rekordbox import tools">
-              <span className="vz-dock-rekordbox-kicker">RB</span>
-              <div className="vz-dock-rekordbox-tools">
-                <label className="vz-dock-rekordbox-btn" htmlFor={rekordboxXmlInputId} title="Import a Rekordbox XML export before loading audio">
-                  XML
-                </label>
-                <button
-                  type="button"
-                  className="vz-dock-rekordbox-btn"
-                  onClick={handleRekordboxUsbRoot}
-                  disabled={rekordboxBusy}
-                  title="Safely scan only /PIONEER Rekordbox metadata from a USB root. This does not upload the whole USB."
-                >
-                  USB
-                </button>
-                <button
-                  type="button"
-                  className={`vz-dock-rekordbox-btn${rekordboxUsbMode ? ' vz-dock-rekordbox-btn--active' : ''}`}
-                  onClick={toggleRekordboxUsbMode}
-                  title="Confirm that the next loaded track is from a Rekordbox USB, even when direct metadata parsing is unavailable."
-                  aria-pressed={rekordboxUsbMode}
-                >
-                  {rekordboxUsbMode ? 'On' : 'Mode'}
-                </button>
-              </div>
-              {rekordboxStatus && (
-                <span className="vz-dock-rekordbox-status" title={rekordboxStatus}>
-                  {rekordboxBusy ? 'Reading Rekordbox…' : rekordboxStatus}
-                </span>
-              )}
-            </div>
           </div>
 
           {/* Transport receives its own full-width row instead of competing with track metadata. */}
@@ -729,17 +699,48 @@ export function VyzualzAudioDock({
         )}
         </div>{/* end vz-dock-bpm-wrap */}
 
-        <button
-          className="vz-dock-tap-btn"
-          onClick={handleTap}
-          disabled={engine.source !== 'file' || !track}
-          title={engine.source === 'file' && track ? 'Tap tempo' : 'Tap tempo (requires a file track)'}
-        >
-          TAP
-        </button>
+        <div className="vz-dock-rekordbox-menu" aria-label="Rekordbox import tools">
+          <label className="vz-dock-rekordbox-label" htmlFor={rekordboxActionSelectId}>
+            Rekordbox
+          </label>
+          <select
+            id={rekordboxActionSelectId}
+            className="vz-dock-rekordbox-select"
+            value=""
+            disabled={rekordboxBusy}
+            onChange={event => {
+              const action = event.currentTarget.value
+              event.currentTarget.value = ''
+              if (action === 'xml') {
+                document.getElementById(rekordboxXmlInputId)?.click()
+              }
+              if (action === 'usb') void handleRekordboxUsbRoot()
+              if (action === 'mode') toggleRekordboxUsbMode()
+            }}
+            title="Import Rekordbox metadata or arm USB Mode"
+          >
+            <option value="">{rekordboxBusy ? 'Reading…' : rekordboxUsbMode ? 'USB Mode On' : 'RB Tools'}</option>
+            <option value="xml">Import XML…</option>
+            <option value="usb">Scan USB…</option>
+            <option value="mode">{rekordboxUsbMode ? 'Turn USB Mode Off' : 'Turn USB Mode On'}</option>
+          </select>
+          {rekordboxStatus && (
+            <span className="vz-dock-rekordbox-status" title={rekordboxStatus}>
+              {rekordboxBusy ? 'Reading Rekordbox…' : rekordboxStatus}
+            </span>
+          )}
+        </div>
         </div>
 
         <div className="vz-dock-right-btns">
+          <button
+            className="vz-dock-tap-btn"
+            onClick={handleTap}
+            disabled={engine.source !== 'file' || !track}
+            title={engine.source === 'file' && track ? 'Tap tempo' : 'Tap tempo (requires a file track)'}
+          >
+            TAP
+          </button>
           <button
             className="vz-dock-cue-btn"
             onClick={handleCue}

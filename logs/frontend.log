@@ -3,12 +3,6 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 158 ms
+  VITE v5.4.21  ready in 118 ms
 
   ➜  Local:   http://127.0.0.1:5173/
-2:18:34 PM [vite] hmr update /src/components/vyzualz/react/ReactPresetsPanel.tsx
-2:18:34 PM [vite] hmr update /src/styles/reactView.css
-2:18:34 PM [vite] hmr invalidate /src/components/vyzualz/react/ReactPresetsPanel.tsx Could not Fast Refresh ("resolvePresetCardNavigationIndex" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
-2:18:34 PM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
-2:23:25 PM [vite] hmr update /src/components/vyzualz/react/CinematicWorldsControls.tsx
-2:23:25 PM [vite] hmr update /src/styles/reactView.css
