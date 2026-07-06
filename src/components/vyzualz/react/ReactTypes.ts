@@ -364,7 +364,7 @@ export interface LaserDmxBeamMatrixPresetSummary {
 // This is the safe authoring model for the future drag/drop 2D stage builder.
 // It intentionally does not compile into Beam Matrix or drive the renderer yet.
 
-export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 1
+export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 2
 
 export type LaserDmxShowDirectorFixtureKind =
   | 'laser'
@@ -405,7 +405,7 @@ export const LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS: Record<LaserDmxShowDir
 }
 
 export type LaserDmxShowDirectorColorMode = 'fixed' | 'palette' | 'music' | 'fixtureDefault'
-export type LaserDmxShowDirectorBeamTargetMode = 'forward' | 'stageCenter' | 'customPoint' | 'musicReactive'
+export type LaserDmxShowDirectorBeamTargetMode = 'fixed' | 'fan' | 'sweep' | 'cross' | 'mirror' | 'audioReactive'
 
 export type LaserDmxShowDirectorTriggerMode =
   | 'alwaysOn'
@@ -414,12 +414,18 @@ export type LaserDmxShowDirectorTriggerMode =
   | 'phrase'
   | 'section'
   | 'cuePoint'
+  | 'bassHit'
+  | 'snareTransient'
   | 'energy'
-  | 'audioBand'
 
+export type LaserDmxShowDirectorBeatDivision = 0.25 | 0.5 | 1 | 2 | 4 | 8
+export type LaserDmxShowDirectorSectionType = 'intro' | 'verse' | 'build' | 'drop' | 'breakdown' | 'outro'
 export type LaserDmxShowDirectorAudioBand = 'sub' | 'bass' | 'lowMid' | 'mid' | 'highMid' | 'high'
 export type LaserDmxShowDirectorTriggerRetrigger = 'allow' | 'oncePerBeat' | 'oncePerBar' | 'oncePerPhrase'
 export type LaserDmxShowDirectorTriggerQuantize = 'none' | 'beat' | 'bar' | 'phrase' | 'section'
+export type LaserDmxShowDirectorLedDirection = 'leftToRight' | 'rightToLeft' | 'centerOut' | 'edgesIn' | 'chase'
+export type LaserDmxShowDirectorMovingHeadPanTiltStyle = 'locked' | 'smoothSweep' | 'snap' | 'figureEight' | 'audioReactive'
+export type LaserDmxShowDirectorVideoWallSource = 'placeholder' | 'reactVisual' | 'media' | 'camera'
 
 export interface LaserDmxShowDirectorGridSize {
   columns: number
@@ -456,14 +462,27 @@ export interface LaserDmxShowDirectorTriggerConfig {
   mode:             LaserDmxShowDirectorTriggerMode
   quantize:         LaserDmxShowDirectorTriggerQuantize
   retrigger:        LaserDmxShowDirectorTriggerRetrigger
-  beatDivision:     1 | 2 | 4 | 8 | 16
+  beatDivision:     LaserDmxShowDirectorBeatDivision
   barInterval:      number
   phraseLengthBars: number
-  sectionTypes:     string[]
+  sectionTypes:     LaserDmxShowDirectorSectionType[]
   cuePointIds:      string[]
   energyThreshold:  number
   audioBand:        LaserDmxShowDirectorAudioBand
   audioThreshold:   number
+  fadeInMs:         number
+  fadeOutMs:        number
+}
+
+export interface LaserDmxShowDirectorFixtureSpecificConfig {
+  strobeRate:          number
+  ledCellCount:        number
+  ledDirection:        LaserDmxShowDirectorLedDirection
+  movingHeadPanTiltStyle: LaserDmxShowDirectorMovingHeadPanTiltStyle
+  hazeIntensity:       number
+  co2BurstDurationMs:  number
+  videoWallBrightness: number
+  videoWallSource:     LaserDmxShowDirectorVideoWallSource
 }
 
 export interface LaserDmxShowDirectorFixture {
@@ -482,11 +501,13 @@ export interface LaserDmxShowDirectorFixture {
   brightness: number
   beam:      LaserDmxShowDirectorBeamConfig
   trigger:   LaserDmxShowDirectorTriggerConfig
+  component: LaserDmxShowDirectorFixtureSpecificConfig
 }
 
-export type LaserDmxShowDirectorFixturePatch = Partial<Omit<LaserDmxShowDirectorFixture, 'beam' | 'trigger'>> & {
-  beam?:    Partial<LaserDmxShowDirectorBeamConfig>
-  trigger?: Partial<LaserDmxShowDirectorTriggerConfig>
+export type LaserDmxShowDirectorFixturePatch = Partial<Omit<LaserDmxShowDirectorFixture, 'beam' | 'trigger' | 'component'>> & {
+  beam?:      Partial<LaserDmxShowDirectorBeamConfig>
+  trigger?:   Partial<LaserDmxShowDirectorTriggerConfig>
+  component?: Partial<LaserDmxShowDirectorFixtureSpecificConfig>
 }
 
 export interface LaserDmxShowDirectorState {
@@ -521,11 +542,24 @@ export const DEFAULT_LASER_DMX_SHOW_DIRECTOR_TRIGGER: LaserDmxShowDirectorTrigge
   beatDivision:     1,
   barInterval:      1,
   phraseLengthBars: 8,
-  sectionTypes:     [],
+  sectionTypes:     ['drop'],
   cuePointIds:      [],
   energyThreshold:  0.7,
   audioBand:        'bass',
   audioThreshold:   0.65,
+  fadeInMs:         0,
+  fadeOutMs:        0,
+}
+
+export const DEFAULT_LASER_DMX_SHOW_DIRECTOR_COMPONENT: LaserDmxShowDirectorFixtureSpecificConfig = {
+  strobeRate:          8,
+  ledCellCount:        8,
+  ledDirection:        'leftToRight',
+  movingHeadPanTiltStyle: 'smoothSweep',
+  hazeIntensity:       0.5,
+  co2BurstDurationMs:  350,
+  videoWallBrightness: 0.85,
+  videoWallSource:     'placeholder',
 }
 
 function showDirectorRecord(value: unknown): value is Record<string, unknown> {
@@ -551,6 +585,10 @@ function showDirectorStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
 }
 
+function showDirectorMs(value: unknown, fallback: number, max = 10000): number {
+  return Math.max(0, Math.min(max, Math.round(showDirectorFinite(value, fallback))))
+}
+
 function showDirectorUnit(value: unknown, fallback: number): number {
   return Math.max(0, Math.min(1, showDirectorFinite(value, fallback)))
 }
@@ -568,19 +606,23 @@ function coerceShowDirectorColorMode(value: unknown): LaserDmxShowDirectorColorM
 }
 
 function coerceShowDirectorTargetMode(value: unknown): LaserDmxShowDirectorBeamTargetMode {
-  return value === 'stageCenter' || value === 'customPoint' || value === 'musicReactive' ? value : 'forward'
+  if (value === 'fan' || value === 'sweep' || value === 'cross' || value === 'mirror' || value === 'audioReactive') return value
+  // Patch 1–3 projects used forward/stageCenter/customPoint/musicReactive. They all recover into a safe, editable target mode.
+  if (value === 'musicReactive') return 'audioReactive'
+  return 'fixed'
 }
 
 function coerceShowDirectorTriggerMode(value: unknown): LaserDmxShowDirectorTriggerMode {
-  return value === 'beat'
+  if (value === 'beat'
     || value === 'bar'
     || value === 'phrase'
     || value === 'section'
     || value === 'cuePoint'
-    || value === 'energy'
-    || value === 'audioBand'
-    ? value
-    : 'alwaysOn'
+    || value === 'bassHit'
+    || value === 'snareTransient'
+    || value === 'energy') return value
+  if (value === 'audioBand') return 'bassHit'
+  return 'alwaysOn'
 }
 
 function coerceShowDirectorAudioBand(value: unknown): LaserDmxShowDirectorAudioBand {
@@ -597,9 +639,49 @@ function coerceShowDirectorTriggerQuantize(value: unknown): LaserDmxShowDirector
   return value === 'none' || value === 'bar' || value === 'phrase' || value === 'section' ? value : 'beat'
 }
 
-function coerceShowDirectorBeatDivision(value: unknown): 1 | 2 | 4 | 8 | 16 {
-  const candidate = showDirectorPositiveInt(value, 1, 1, 16)
-  return candidate === 2 || candidate === 4 || candidate === 8 || candidate === 16 ? candidate : 1
+function coerceShowDirectorBeatDivision(value: unknown): LaserDmxShowDirectorBeatDivision {
+  if (value === '1/4' || value === 'quarter') return 0.25
+  if (value === '1/2' || value === 'half') return 0.5
+  const candidate = showDirectorFinite(value, 1)
+  if (candidate === 0.25 || candidate === 0.5 || candidate === 2 || candidate === 4 || candidate === 8) return candidate
+  // Patch 1–3 stored 16 as the fastest supported division. Clamp it into the new public range.
+  if (candidate >= 8) return 8
+  return 1
+}
+
+function coerceShowDirectorSectionType(value: unknown): LaserDmxShowDirectorSectionType | null {
+  return value === 'intro'
+    || value === 'verse'
+    || value === 'build'
+    || value === 'drop'
+    || value === 'breakdown'
+    || value === 'outro'
+    ? value
+    : null
+}
+
+function coerceShowDirectorSectionTypes(value: unknown): LaserDmxShowDirectorSectionType[] {
+  const sections = showDirectorStringArray(value).flatMap(section => {
+    const normalized = coerceShowDirectorSectionType(section)
+    return normalized ? [normalized] : []
+  })
+  return sections.length ? sections : ['drop']
+}
+
+function coerceShowDirectorLedDirection(value: unknown): LaserDmxShowDirectorLedDirection {
+  return value === 'rightToLeft' || value === 'centerOut' || value === 'edgesIn' || value === 'chase'
+    ? value
+    : 'leftToRight'
+}
+
+function coerceShowDirectorMovingHeadPanTiltStyle(value: unknown): LaserDmxShowDirectorMovingHeadPanTiltStyle {
+  return value === 'locked' || value === 'snap' || value === 'figureEight' || value === 'audioReactive'
+    ? value
+    : 'smoothSweep'
+}
+
+function coerceShowDirectorVideoWallSource(value: unknown): LaserDmxShowDirectorVideoWallSource {
+  return value === 'reactVisual' || value === 'media' || value === 'camera' ? value : 'placeholder'
 }
 
 function createDefaultLaserDmxShowDirectorBeamConfig(kind: LaserDmxShowDirectorFixtureKind): LaserDmxShowDirectorBeamConfig {
@@ -608,7 +690,10 @@ function createDefaultLaserDmxShowDirectorBeamConfig(kind: LaserDmxShowDirectorF
     beamAngle:   kind === 'movingHead' ? -90 : 0,
     beamSpread:  kind === 'laser' ? 18 : kind === 'parWash' ? 55 : 0,
     focus:       kind === 'parWash' ? 0.45 : 0.8,
-    targetMode:  kind === 'movingHead' ? 'stageCenter' : 'forward',
+    targetMode:  kind === 'laser' ? 'fan' : 'fixed',
+    targetX:     Math.floor(DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.gridSize.columns / 2),
+    targetY:     Math.floor(DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.gridSize.rows / 2),
+    targetZ:     0,
   }
 }
 
@@ -635,7 +720,8 @@ export function createDefaultLaserDmxShowDirectorFixture(
     colorMode: 'fixed',
     brightness: 0.85,
     beam: createDefaultLaserDmxShowDirectorBeamConfig(kind),
-    trigger: { ...DEFAULT_LASER_DMX_SHOW_DIRECTOR_TRIGGER },
+    trigger: { ...DEFAULT_LASER_DMX_SHOW_DIRECTOR_TRIGGER, sectionTypes: [...DEFAULT_LASER_DMX_SHOW_DIRECTOR_TRIGGER.sectionTypes], cuePointIds: [] },
+    component: { ...DEFAULT_LASER_DMX_SHOW_DIRECTOR_COMPONENT },
   }
 }
 
@@ -670,17 +756,16 @@ export function normalizeLaserDmxShowDirectorSettings(raw: unknown): LaserDmxSho
 function normalizeLaserDmxShowDirectorBeamConfig(raw: unknown, kind: LaserDmxShowDirectorFixtureKind): LaserDmxShowDirectorBeamConfig {
   const fallback = createDefaultLaserDmxShowDirectorBeamConfig(kind)
   const value = showDirectorRecord(raw) ? raw : {}
-  const normalized: LaserDmxShowDirectorBeamConfig = {
+  return {
     beamEnabled: showDirectorBoolean(value.beamEnabled, fallback.beamEnabled),
     beamAngle:   Math.max(-360, Math.min(360, showDirectorFinite(value.beamAngle, fallback.beamAngle))),
     beamSpread:  Math.max(0, Math.min(180, showDirectorFinite(value.beamSpread, fallback.beamSpread))),
     focus:       showDirectorUnit(value.focus, fallback.focus),
     targetMode:  coerceShowDirectorTargetMode(value.targetMode),
+    targetX:     showDirectorFinite(value.targetX, fallback.targetX ?? 0),
+    targetY:     showDirectorFinite(value.targetY, fallback.targetY ?? 0),
+    targetZ:     showDirectorFinite(value.targetZ, fallback.targetZ ?? 0),
   }
-  if (Number.isFinite(showDirectorFinite(value.targetX, Number.NaN))) normalized.targetX = showDirectorFinite(value.targetX, 0)
-  if (Number.isFinite(showDirectorFinite(value.targetY, Number.NaN))) normalized.targetY = showDirectorFinite(value.targetY, 0)
-  if (Number.isFinite(showDirectorFinite(value.targetZ, Number.NaN))) normalized.targetZ = showDirectorFinite(value.targetZ, 0)
-  return normalized
 }
 
 function normalizeLaserDmxShowDirectorTriggerConfig(raw: unknown): LaserDmxShowDirectorTriggerConfig {
@@ -693,11 +778,28 @@ function normalizeLaserDmxShowDirectorTriggerConfig(raw: unknown): LaserDmxShowD
     beatDivision:     coerceShowDirectorBeatDivision(value.beatDivision),
     barInterval:      showDirectorPositiveInt(value.barInterval, fallback.barInterval, 1, 64),
     phraseLengthBars: showDirectorPositiveInt(value.phraseLengthBars, fallback.phraseLengthBars, 1, 128),
-    sectionTypes:     showDirectorStringArray(value.sectionTypes),
-    cuePointIds:      showDirectorStringArray(value.cuePointIds),
+    sectionTypes:     coerceShowDirectorSectionTypes(value.sectionTypes),
+    cuePointIds:      showDirectorStringArray(value.cuePointIds).slice(0, 16),
     energyThreshold:  showDirectorUnit(value.energyThreshold, fallback.energyThreshold),
     audioBand:        coerceShowDirectorAudioBand(value.audioBand),
     audioThreshold:   showDirectorUnit(value.audioThreshold, fallback.audioThreshold),
+    fadeInMs:         showDirectorMs(value.fadeInMs, fallback.fadeInMs),
+    fadeOutMs:        showDirectorMs(value.fadeOutMs, fallback.fadeOutMs),
+  }
+}
+
+function normalizeLaserDmxShowDirectorComponentConfig(raw: unknown): LaserDmxShowDirectorFixtureSpecificConfig {
+  const fallback = DEFAULT_LASER_DMX_SHOW_DIRECTOR_COMPONENT
+  const value = showDirectorRecord(raw) ? raw : {}
+  return {
+    strobeRate:          Math.max(0, Math.min(30, showDirectorFinite(value.strobeRate, fallback.strobeRate))),
+    ledCellCount:        showDirectorPositiveInt(value.ledCellCount, fallback.ledCellCount, 1, 64),
+    ledDirection:        coerceShowDirectorLedDirection(value.ledDirection),
+    movingHeadPanTiltStyle: coerceShowDirectorMovingHeadPanTiltStyle(value.movingHeadPanTiltStyle),
+    hazeIntensity:       showDirectorUnit(value.hazeIntensity, fallback.hazeIntensity),
+    co2BurstDurationMs:  showDirectorMs(value.co2BurstDurationMs, fallback.co2BurstDurationMs, 10000),
+    videoWallBrightness: showDirectorUnit(value.videoWallBrightness, fallback.videoWallBrightness),
+    videoWallSource:     coerceShowDirectorVideoWallSource(value.videoWallSource),
   }
 }
 
@@ -721,6 +823,7 @@ export function normalizeLaserDmxShowDirectorFixture(raw: unknown, index = 0): L
     brightness: showDirectorUnit(value.brightness, fallback.brightness),
     beam:       normalizeLaserDmxShowDirectorBeamConfig(value.beam, kind),
     trigger:    normalizeLaserDmxShowDirectorTriggerConfig(value.trigger),
+    component:  normalizeLaserDmxShowDirectorComponentConfig(value.component),
   }
 }
 

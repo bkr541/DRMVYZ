@@ -784,6 +784,7 @@ function mergeLaserDmxShowDirectorFixturePatch(
     id: patch.id ?? fixture.id,
     beam: patch.beam ? { ...fixture.beam, ...patch.beam } : fixture.beam,
     trigger: patch.trigger ? { ...fixture.trigger, ...patch.trigger } : fixture.trigger,
+    component: patch.component ? { ...fixture.component, ...patch.component } : fixture.component,
   }, index)
 }
 
@@ -4608,6 +4609,7 @@ export const useReactStore = create<ReactStoreState>()(
             kind,
             beam: initial?.beam ? { ...base.beam, ...initial.beam } : base.beam,
             trigger: initial?.trigger ? { ...base.trigger, ...initial.trigger } : base.trigger,
+            component: initial?.component ? { ...base.component, ...initial.component } : base.component,
           }, s.laserDmxShowDirector.fixtures.length)
           return {
             laserDmxShowDirector: normalizeLaserDmxShowDirectorState({
