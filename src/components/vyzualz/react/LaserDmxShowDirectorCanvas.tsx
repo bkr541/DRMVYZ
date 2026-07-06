@@ -218,6 +218,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settin
     duplicateFixture,
     mirrorFixture,
     updateSettings,
+    setAuthoringMode,
   } = useReactStore(useShallow(s => ({
     addFixture:       s.addLaserDmxShowDirectorFixture,
     selectFixture:    s.selectLaserDmxShowDirectorFixture,
@@ -226,6 +227,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settin
     duplicateFixture: s.duplicateLaserDmxShowDirectorFixture,
     mirrorFixture:    s.mirrorLaserDmxShowDirectorFixture,
     updateSettings:   s.updateLaserDmxShowDirectorSettings,
+    setAuthoringMode: s.setLaserDmxBeamMatrixAuthoringMode,
   })))
 
   const { columns, rows } = useMemo(() => coerceGridSize(settings), [settings])
@@ -282,6 +284,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settin
     event.preventDefault()
     const point = stagePointFromEvent(event, stageRef.current, settings)
     addFixture(payload, point)
+    setAuthoringMode('showDirector')
     setIsDragHot(false)
   }
 
@@ -475,7 +478,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settin
         <span>{columns} × {rows} grid</span>
         <span>{fixtures.length} fixture{fixtures.length === 1 ? '' : 's'}</span>
         <span>{selectedFixture ? `${selectedFixture.label} · X${roundTo(selectedFixture.x, 1)} Y${roundTo(selectedFixture.y, 1)} R${Math.round(selectedFixture.rotation)}°` : 'No fixture selected'}</span>
-        <span>Authoring only · Beam Matrix output unchanged</span>
+        <span>Show Director compiles to Beam Matrix when selected as the preview source</span>
       </div>
     </section>
   )

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { LaserDmxShowDirectorCanvas } from './LaserDmxShowDirectorCanvas'
@@ -18,6 +18,7 @@ export function LaserDmxShowDirector() {
     duplicateLayout,
     mirrorLayout,
     authoringMode,
+    setAuthoringMode,
   } = useReactStore(useShallow(s => ({
     fixtures:          s.laserDmxShowDirector.fixtures,
     selectedFixtureId: s.laserDmxShowDirector.selectedFixtureId,
@@ -28,6 +29,7 @@ export function LaserDmxShowDirector() {
     duplicateLayout:   s.duplicateLaserDmxShowDirectorLayout,
     mirrorLayout:      s.mirrorLaserDmxShowDirectorLayout,
     authoringMode:     s.laserDmxBeamMatrixAuthoringMode,
+    setAuthoringMode:  s.setLaserDmxBeamMatrixAuthoringMode,
   })))
 
   const selectedFixture = useMemo(
@@ -39,11 +41,20 @@ export function LaserDmxShowDirector() {
     [selectedTemplateId],
   )
   const hasFixtures = fixtures.length > 0
+  const showDirectorPreviewActive = authoringMode === 'showDirector'
+
+  useEffect(() => {
+    setAuthoringMode('showDirector')
+  }, [setAuthoringMode])
+
+  const activateShowDirectorPreview = () => setAuthoringMode('showDirector')
+  const activateManualMatrixPreview = () => setAuthoringMode('manual')
 
   const handleApplyTemplate = (templateId = selectedTemplate?.id) => {
     if (!templateId) return
     applyTemplate(templateId)
     setSelectedTemplateId(templateId)
+    activateShowDirectorPreview()
   }
 
   return (
@@ -58,7 +69,16 @@ export function LaserDmxShowDirector() {
           <span><strong>{fixtures.length}</strong> fixtures</span>
           <span><strong>{settings.gridSize.columns}×{settings.gridSize.rows}</strong> grid</span>
           <span><strong>{selectedFixture ? '1' : '0'}</strong> selected</span>
-          <span><strong>{authoringMode === 'showDirector' ? 'ON' : 'OFF'}</strong> preview</span>
+          <span><strong>{showDirectorPreviewActive ? 'ON' : 'OFF'}</strong> preview</span>
+        </div>
+        <div className={`rv-show-director-preview-card${showDirectorPreviewActive ? ' rv-show-director-preview-card--active' : ''}`} aria-label="Show Director preview source status">
+          <span className="rv-show-director-kicker">Preview Source</span>
+          <strong>{showDirectorPreviewActive ? 'Show Director is live' : 'Manual Matrix is live'}</strong>
+          <small>{showDirectorPreviewActive ? 'This layout is compiling into Beam Matrix preview output.' : 'Switch on Show Director preview to see this rig in the LaserDMX renderer.'}</small>
+          <div>
+            <button type="button" className="rv-glyph-upload-btn" onClick={activateShowDirectorPreview}>Use Show Director</button>
+            <button type="button" className="rv-glyph-upload-btn" onClick={activateManualMatrixPreview}>Manual Matrix</button>
+          </div>
         </div>
         <div className="rv-show-director-builder__actions" aria-label="Show Director layout actions">
           <button type="button" className="rv-glyph-upload-btn" onClick={duplicateLayout} disabled={!hasFixtures}>Duplicate Rig</button>
@@ -105,6 +125,7 @@ export function LaserDmxShowDirector() {
       <div className="rv-show-director-workflow-hints" aria-label="Show Director workflow hints">
         <span>Drag a light component onto the Show Director canvas</span>
         <span>Select a fixture to edit beam, color, and timing</span>
+        <span>Preview uses Beam Matrix; physical DMX patching remains a separate production-output step</span>
       </div>
 
       <div className="rv-show-director-builder__layout">

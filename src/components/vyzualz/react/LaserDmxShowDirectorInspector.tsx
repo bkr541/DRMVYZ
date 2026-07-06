@@ -149,6 +149,36 @@ function firstSection(fixture: LaserDmxShowDirectorFixture): LaserDmxShowDirecto
   return fixture.trigger.sectionTypes[0] ?? 'drop'
 }
 
+function triggerRequirementNotes(fixture: LaserDmxShowDirectorFixture): string[] {
+  const notes: string[] = []
+  switch (fixture.trigger.mode) {
+    case 'beat':
+    case 'bar':
+    case 'phrase':
+      notes.push('Requires BPM/beat analysis during playback. The editor still works without a loaded track.')
+      break
+    case 'section':
+      notes.push('Requires analyzed or manually edited track sections. Use Always On or Beat for a safe fallback when no sections exist.')
+      break
+    case 'cuePoint':
+      notes.push('Requires cue markers or matching analyzed drop/section markers. Enter a cue ID to target a specific marker.')
+      if (fixture.trigger.cuePointIds.length === 0) notes.push('No cue point ID is set yet; this trigger will listen for generic drop/cue markers only.')
+      break
+    case 'bassHit':
+    case 'snareTransient':
+    case 'audioBand':
+      notes.push('Requires live audio band/transient data. In silent preview this trigger may stay idle.')
+      break
+    case 'energy':
+      notes.push('Requires the Music Intelligence energy curve. If no curve is available, the fixture will not force itself on.')
+      break
+    case 'alwaysOn':
+    default:
+      break
+  }
+  return notes
+}
+
 export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorInspectorProps) {
   const {
     settings,
@@ -185,6 +215,7 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
 
   const typeLabel = LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS[fixture.kind]
   const supportsBeam = isBeamFixture(fixture)
+  const triggerNotes = triggerRequirementNotes(fixture)
   const defaultTargetX = Math.round(gridBounds.maxX / 2)
   const defaultTargetY = Math.round(gridBounds.maxY / 2)
   const update = (patch: Parameters<typeof updateFixture>[1]) => updateFixture(fixture.id, patch)
@@ -257,6 +288,11 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
         <CtrlSection label="Trigger / Timing" />
         <SelectRow label="Trigger mode" value={fixture.trigger.mode} options={TRIGGER_MODE_OPTIONS} onChange={mode => updateTriggerMode(mode as LaserDmxShowDirectorTriggerMode)} />
         <p className="rv-show-director-trigger-hint">{TRIGGER_HINTS[fixture.trigger.mode]}</p>
+        {triggerNotes.length > 0 && (
+          <div className="rv-show-director-trigger-notes" role="note" aria-label="Show Director timing requirements">
+            {triggerNotes.map(note => <span key={note}>{note}</span>)}
+          </div>
+        )}
         {(fixture.trigger.mode === 'beat' || fixture.trigger.mode === 'bar' || fixture.trigger.mode === 'phrase') && (
           <SelectRow label="Beat division" value={beatDivisionValue(fixture.trigger.beatDivision)} options={BEAT_DIVISION_OPTIONS} onChange={beatDivision => update({ trigger: { beatDivision: parseBeatDivision(beatDivision) } })} />
         )}

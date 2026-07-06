@@ -4681,6 +4681,7 @@ export const useReactStore = create<ReactStoreState>()(
             component: initial?.component ? { ...base.component, ...initial.component } : base.component,
           }, s.laserDmxShowDirector.fixtures.length)
           return {
+            laserDmxBeamMatrixAuthoringMode: 'showDirector' as const,
             laserDmxShowDirector: normalizeLaserDmxShowDirectorState({
               ...s.laserDmxShowDirector,
               fixtures: [...s.laserDmxShowDirector.fixtures, fixture],
@@ -4820,13 +4821,17 @@ export const useReactStore = create<ReactStoreState>()(
 
       resetLaserDmxShowDirectorLayout: () =>
         set(() => ({
+          laserDmxBeamMatrixAuthoringMode: 'showDirector' as const,
           laserDmxShowDirector: createDefaultLaserDmxShowDirectorState(),
         })),
 
       applyLaserDmxShowDirectorTemplate: (templateId) => {
         const next = createLaserDmxShowDirectorTemplateState(templateId, createLaserDmxShowDirectorId)
         if (!next) return false
-        set(() => ({ laserDmxShowDirector: next }))
+        set(() => ({
+          laserDmxBeamMatrixAuthoringMode: 'showDirector' as const,
+          laserDmxShowDirector: next,
+        }))
         return true
       },
 
