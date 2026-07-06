@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { LaserDmxBeamMatrixPanel } from './LaserDmxBeamMatrixPanel'
-import { LaserDmxCueListPanel } from './LaserDmxCueListPanel'
+import { LaserDmxShowDirector } from './LaserDmxShowDirector'
 
 type LaserDmxRigSurface = 'workspace' | 'showDirector'
 
@@ -31,7 +31,7 @@ export function LaserDmxEnginePanel() {
 
       <div className="rv-laser-workspace-surface" role="tabpanel">
         {surface === 'showDirector' ? (
-          <LaserDmxCueListPanel />
+          <LaserDmxShowDirector />
         ) : (
           <LaserDmxBeamMatrixPanel />
         )}
