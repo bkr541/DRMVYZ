@@ -362,7 +362,7 @@ export interface LaserDmxBeamMatrixPresetSummary {
 
 // ── LaserDMX Show Director layout foundation ─────────────────────────────────
 // This is the safe authoring model for the future drag/drop 2D stage builder.
-// It intentionally does not compile into Beam Matrix or drive the renderer yet.
+// It compiles into Beam Matrix through LaserDmxShowDirectorBeamMatrixCompiler when selected as the preview source.
 
 export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 2
 
@@ -1132,9 +1132,15 @@ export function createDefaultLaserDmxSettings(): LaserDmxSettings {
 // ── Beam Matrix workspace ─────────────────────────────────────────────────────
 
 export type LaserDmxWorkspaceMode = 'beamMatrix'
+export type LaserDmxBeamMatrixAuthoringMode = 'manual' | 'showDirector'
 
 /** LaserDMX is locked to Beam Matrix. Legacy workspace values hydrate as Beam Matrix. */
 export const LOCKED_LASER_DMX_WORKSPACE_MODE: LaserDmxWorkspaceMode = 'beamMatrix'
+export const DEFAULT_LASER_DMX_BEAM_MATRIX_AUTHORING_MODE: LaserDmxBeamMatrixAuthoringMode = 'manual'
+
+export function coerceLaserDmxBeamMatrixAuthoringMode(mode: unknown): LaserDmxBeamMatrixAuthoringMode {
+  return mode === 'showDirector' ? 'showDirector' : DEFAULT_LASER_DMX_BEAM_MATRIX_AUTHORING_MODE
+}
 export const LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID = 'preset-laser-dmx-beam-matrix'
 
 export const RETIRED_LASER_DMX_PRESET_IDS = new Set<string>([

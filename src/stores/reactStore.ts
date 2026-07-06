@@ -18,6 +18,7 @@ import {
   DEFAULT_BEAM_SEQUENCE,
   DEFAULT_LAUNCH_SETTINGS,
   DEFAULT_REACT_PRESET_RENDER_SETTINGS,
+  DEFAULT_LASER_DMX_BEAM_MATRIX_AUTHORING_MODE,
   createDefaultLaserDmxSettings,
   createDefaultLaserDmxBeamMatrixSettings,
   createDefaultLaserDmxShowDirectorFixture,
@@ -26,6 +27,7 @@ import {
   normalizeLaserDmxShowDirectorSettings,
   normalizeLaserDmxShowDirectorState,
   coerceLaserDmxWorkspaceMode,
+  coerceLaserDmxBeamMatrixAuthoringMode,
   resolveReactPresetLaserDmxWorkspace,
   isRetiredLaserDmxPreset,
   LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID,
@@ -56,6 +58,7 @@ import type {
   LaserDmxProfileId,
   LaserDmxModulationRoute,
   LaserDmxWorkspaceMode,
+  LaserDmxBeamMatrixAuthoringMode,
   LaserDmxBeamMatrixSettings,
   LaserDmxBeamMatrixEditorSettings,
   LaserDmxBeamMatrixCue,
@@ -1290,6 +1293,8 @@ interface ReactStoreState {
   // LaserDMX workspace mode (persisted, never changed by preset application)
   laserDmxWorkspaceMode: LaserDmxWorkspaceMode
   setLaserDmxWorkspaceMode: (mode: LaserDmxWorkspaceMode) => void
+  laserDmxBeamMatrixAuthoringMode: LaserDmxBeamMatrixAuthoringMode
+  setLaserDmxBeamMatrixAuthoringMode: (mode: LaserDmxBeamMatrixAuthoringMode) => void
 
   // LaserDMX Beam Matrix (persisted, never changed by preset application)
   laserDmxBeamMatrix: LaserDmxBeamMatrixSettings
@@ -1349,7 +1354,7 @@ interface ReactStoreState {
   removeLaserDmxBeamMatrixCue: (cueId: string) => void
   updateLaserDmxBeamMatrixCue: (cueId: string, patch: Partial<LaserDmxBeamMatrixCue>) => void
 
-  // LaserDMX Show Director layout model. Foundation-only; not wired to rendering yet.
+  // LaserDMX Show Director layout model. Compiles into Beam Matrix when Show Director preview is selected.
   laserDmxShowDirector: LaserDmxShowDirectorState
   addLaserDmxShowDirectorFixture: (kind: LaserDmxShowDirectorFixtureKind, initial?: LaserDmxShowDirectorFixturePatch) => string
   updateLaserDmxShowDirectorFixture: (fixtureId: string, patch: LaserDmxShowDirectorFixturePatch) => void
@@ -1948,6 +1953,7 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     state = {
       ...state,
       laserDmxWorkspaceMode: 'beamMatrix' as LaserDmxWorkspaceMode,
+      laserDmxBeamMatrixAuthoringMode: DEFAULT_LASER_DMX_BEAM_MATRIX_AUTHORING_MODE,
       laserDmxBeamMatrix:    createDefaultLaserDmxBeamMatrixSettings(),
     }
   }
@@ -2432,6 +2438,12 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       laserDmxShowDirector: normalizeLaserDmxShowDirectorState(state.laserDmxShowDirector),
     }
   }
+  if (version < 41) {
+    state = {
+      ...state,
+      laserDmxBeamMatrixAuthoringMode: DEFAULT_LASER_DMX_BEAM_MATRIX_AUTHORING_MODE,
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -2603,6 +2615,7 @@ export function reactStorePartialize(s: ReactStoreState) {
     oscillatorGlyphAssets:              s.oscillatorGlyphAssets,
     laserDmxSettings:                   sanitizeLaserDmxSettingsForPersistence(s.laserDmxSettings),
     laserDmxWorkspaceMode:              coerceLaserDmxWorkspaceMode(s.laserDmxWorkspaceMode),
+    laserDmxBeamMatrixAuthoringMode:    coerceLaserDmxBeamMatrixAuthoringMode(s.laserDmxBeamMatrixAuthoringMode),
     laserDmxBeamMatrix:                 sanitizeLaserDmxBeamMatrixForPersistence(s.laserDmxBeamMatrix),
     laserDmxShowDirector:               normalizeLaserDmxShowDirectorState(s.laserDmxShowDirector),
     activeLaserDmxBeamMatrixPresetId:   s.activeLaserDmxBeamMatrixPresetId,
@@ -2694,6 +2707,9 @@ export function mergeReactStoreState(
       })
     })(),
     laserDmxWorkspaceMode: coerceLaserDmxWorkspaceMode(persisted.laserDmxWorkspaceMode ?? currentState.laserDmxWorkspaceMode),
+    laserDmxBeamMatrixAuthoringMode: coerceLaserDmxBeamMatrixAuthoringMode(
+      persisted.laserDmxBeamMatrixAuthoringMode ?? currentState.laserDmxBeamMatrixAuthoringMode,
+    ),
     laserDmxBeamMatrix: normalizeLaserDmxBeamMatrixSettings(
       persisted.laserDmxBeamMatrix ?? currentState.laserDmxBeamMatrix,
     ),
@@ -2772,6 +2788,7 @@ export const useReactStore = create<ReactStoreState>()(
       laserDmxSettings:               ensureProductionLookCompatibility(createDefaultLaserDmxSettings()),
       selectedLaserDmxProductionCueId: null,
       laserDmxWorkspaceMode:  'beamMatrix',
+      laserDmxBeamMatrixAuthoringMode: DEFAULT_LASER_DMX_BEAM_MATRIX_AUTHORING_MODE,
       laserDmxBeamMatrix:     createDefaultLaserDmxBeamMatrixSettings(),
       laserDmxShowDirector:   createDefaultLaserDmxShowDirectorState(),
       activeLaserDmxBeamMatrixPresetId: null,
@@ -4130,6 +4147,9 @@ export const useReactStore = create<ReactStoreState>()(
       // ── LaserDMX workspace mode ─────────────────────────────────────────────
 
       setLaserDmxWorkspaceMode: (mode) => set({ laserDmxWorkspaceMode: coerceLaserDmxWorkspaceMode(mode) }),
+      setLaserDmxBeamMatrixAuthoringMode: (mode) => set({
+        laserDmxBeamMatrixAuthoringMode: coerceLaserDmxBeamMatrixAuthoringMode(mode),
+      }),
 
       // ── LaserDMX Beam Matrix ────────────────────────────────────────────────
 
@@ -4917,6 +4937,7 @@ export const useReactStore = create<ReactStoreState>()(
         resetFogState()
         set(s => ({
           laserDmxWorkspaceMode:              'beamMatrix' as const,
+          laserDmxBeamMatrixAuthoringMode:    'manual' as const,
           activeReactEngineId:                'laserDmx' as const,
           ...clearPerformanceActionPatch(),
           activeLaserDmxBeamMatrixPresetId:   presetId,
@@ -4988,6 +5009,7 @@ export const useReactStore = create<ReactStoreState>()(
             return {
               ...sharedDefaults,
               laserDmxWorkspaceMode: 'beamMatrix' as const,
+              laserDmxBeamMatrixAuthoringMode: 'manual' as const,
               laserDmxBeamMatrix,
               laserDmxBeamMatrixPresetDirty: isLaserDmxBeamMatrixPresetDirty(
                 laserDmxBeamMatrix,
@@ -5019,6 +5041,7 @@ export const useReactStore = create<ReactStoreState>()(
           return {
             ...startupPatch,
             laserDmxWorkspaceMode: 'beamMatrix' as const,
+            laserDmxBeamMatrixAuthoringMode: 'manual' as const,
             selectedSectionId: null,
             selectedSectionByTrackId: {},
             activePadId: null,
@@ -5067,6 +5090,7 @@ export const useReactStore = create<ReactStoreState>()(
             activePadId: null,
             laserDmxSettings: createDefaultLaserDmxSettings(),
             selectedLaserDmxProductionCueId: null,
+            laserDmxBeamMatrixAuthoringMode: DEFAULT_LASER_DMX_BEAM_MATRIX_AUTHORING_MODE,
             laserDmxBeamMatrix: createDefaultLaserDmxBeamMatrixSettings(),
             laserDmxShowDirector: createDefaultLaserDmxShowDirectorState(),
             activeLaserDmxBeamMatrixPresetId: null,
@@ -5105,6 +5129,7 @@ export const useReactStore = create<ReactStoreState>()(
           laserDmxSettings:                 ensureProductionLookCompatibility(createDefaultLaserDmxSettings()),
           selectedLaserDmxProductionCueId:   null,
           laserDmxWorkspaceMode:            'beamMatrix',
+          laserDmxBeamMatrixAuthoringMode:  DEFAULT_LASER_DMX_BEAM_MATRIX_AUTHORING_MODE,
           laserDmxBeamMatrix:               createDefaultLaserDmxBeamMatrixSettings(),
           laserDmxShowDirector:             createDefaultLaserDmxShowDirectorState(),
           activeLaserDmxBeamMatrixPresetId: null,
@@ -5122,7 +5147,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 40,
+      version: 41,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

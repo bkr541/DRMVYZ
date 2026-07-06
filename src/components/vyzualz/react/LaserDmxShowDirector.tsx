@@ -11,11 +11,13 @@ export function LaserDmxShowDirector() {
     selectedFixtureId,
     settings,
     clearFixtures,
+    authoringMode,
   } = useReactStore(useShallow(s => ({
     fixtures:          s.laserDmxShowDirector.fixtures,
     selectedFixtureId: s.laserDmxShowDirector.selectedFixtureId,
     settings:          s.laserDmxShowDirector.settings,
     clearFixtures:     s.clearLaserDmxShowDirectorFixtures,
+    authoringMode:     s.laserDmxBeamMatrixAuthoringMode,
   })))
 
   const selectedFixture = useMemo(
@@ -29,12 +31,13 @@ export function LaserDmxShowDirector() {
         <div>
           <span className="rv-show-director-kicker">LaserDMX</span>
           <h3>Show Director</h3>
-          <p>Drag DJ lighting components onto a 2D stage. This shell authors fixture layout data only, so Beam Matrix stays isolated and unchanged.</p>
+          <p>Drag DJ lighting components onto a 2D stage. Show Director now compiles this layout into Beam Matrix instructions for preview while the manual matrix editor stays intact.</p>
         </div>
         <div className="rv-show-director-builder__stats" aria-label="Show Director summary">
           <span><strong>{fixtures.length}</strong> fixtures</span>
           <span><strong>{settings.gridSize.columns}×{settings.gridSize.rows}</strong> grid</span>
           <span><strong>{selectedFixture ? '1' : '0'}</strong> selected</span>
+          <span><strong>{authoringMode === 'showDirector' ? 'ON' : 'OFF'}</strong> preview</span>
         </div>
         <button
           type="button"

@@ -8,6 +8,7 @@ import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { AudioFeatureBus } from '../../../../features/musicIntelligence/AudioFeatureBus'
 import { useReactStore } from '../../../../stores/reactStore'
 import { compileLaserDmxBeamMatrix, resetBeamMatrixCompilerState } from './LaserDmxBeamMatrixCompiler'
+import { compileLaserDmxShowDirectorToBeamMatrix } from './LaserDmxShowDirectorBeamMatrixCompiler'
 import { renderLaserDmxBeamMatrix } from './LaserDmxBeamMatrixRenderer'
 import { renderFog, resetFogState } from './LaserDmxFogRenderer'
 import { useBrandKitStore } from '../../../../features/personalization/brandKitStore'
@@ -163,11 +164,14 @@ export function renderLaserDmx(
   const affectProductionOutput = shouldAffectLaserDmxProductionOutput(params)
   const mi = AudioFeatureBus.getFrame()
   const trackKey = frame.trackKey ?? mi.trackId ?? mi.sourceId
+  const beamMatrixAuthoringMode = state.laserDmxBeamMatrixAuthoringMode === 'showDirector'
+    ? 'showDirector'
+    : 'manual'
   const lifecycle = getLaserDmxRendererLifecycle(ctx, reason => resetLaserDmxRuntimeState(reason, ctx))
   if (!lifecycle.sync({
     isPlaying: frame.isPlaying,
     trackKey,
-    presetKey: `${preset.id}:beamMatrix`,
+    presetKey: `${preset.id}:beamMatrix:${beamMatrixAuthoringMode}`,
   })) return
 
   // The audio engine playhead is the only Show Director clock. Wall time is intentionally excluded.
@@ -180,11 +184,17 @@ export function renderLaserDmx(
       : params.performanceActionEvent ? [params.performanceActionEvent] : []
   const actionResult = applyLaserDmxPerformanceActions(authoredSettings, actionEvents)
   const resolvedAuthoredSettings = resolveProductionLookTransitionRuntime(actionResult.settings)
-  const directorPresetKey = `${preset.id}:beamMatrix:${state.activeLaserDmxBeamMatrixPresetId ?? 'custom'}:${resolvedAuthoredSettings.rigId ?? 'rig'}`
+  const renderBeamMatrix = beamMatrixAuthoringMode === 'showDirector'
+    ? compileLaserDmxShowDirectorToBeamMatrix({
+        showDirector: state.laserDmxShowDirector,
+        beamMatrix: state.laserDmxBeamMatrix,
+      })
+    : state.laserDmxBeamMatrix
+  const directorPresetKey = `${preset.id}:beamMatrix:${beamMatrixAuthoringMode}:${state.activeLaserDmxBeamMatrixPresetId ?? 'custom'}:${resolvedAuthoredSettings.rigId ?? 'rig'}`
   const timingDiscontinuity = consumeLaserDmxTimingDiscontinuity(ctx, frame.timingDiscontinuity)
   const director = evaluateShowDirector(getShowDirectorRuntime(ctx), {
     settings: resolvedAuthoredSettings,
-    beamMatrix: state.laserDmxBeamMatrix,
+    beamMatrix: renderBeamMatrix,
     audioTimeSec: timeSec,
     isPlaying: frame.isPlaying,
     timingDiscontinuity,

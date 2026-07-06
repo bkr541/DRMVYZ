@@ -6362,6 +6362,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 10px;
   min-width: 0;
 }
@@ -6466,12 +6467,38 @@
   min-width: 0;
 }
 
-.rv-laser-rig-surfaces {
+.rv-laser-rig-toolbar {
   position: sticky;
   top: 0;
   z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 2px;
   background: rgba(6, 13, 16, 0.96);
   backdrop-filter: blur(10px);
+}
+
+.rv-laser-runtime-source {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rv-laser-runtime-source > span {
+  color: rgba(232, 244, 248, 0.46);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.rv-laser-rig-surfaces {
+  min-width: 0;
 }
 
 .rv-laser-workspace-surface {
