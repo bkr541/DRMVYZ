@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import {
   LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS,
+  type LaserDmxShowDirectorAudioBand,
   type LaserDmxShowDirectorBeatDivision,
   type LaserDmxShowDirectorBeamTargetMode,
   type LaserDmxShowDirectorColorMode,
@@ -46,16 +47,39 @@ const TRIGGER_MODE_OPTIONS: Array<{ value: LaserDmxShowDirectorTriggerMode; labe
   { value: 'bassHit', label: 'Bass hit' },
   { value: 'snareTransient', label: 'Snare / transient' },
   { value: 'energy', label: 'Energy' },
+  { value: 'audioBand', label: 'Audio band' },
 ]
 
 const BEAT_DIVISION_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: '0.25', label: '1/4' },
-  { value: '0.5', label: '1/2' },
-  { value: '1', label: '1' },
-  { value: '2', label: '2' },
-  { value: '4', label: '4' },
-  { value: '8', label: '8' },
+  { value: '0.25', label: '1/4 beat' },
+  { value: '0.5', label: '1/2 beat' },
+  { value: '1', label: '1 beat' },
+  { value: '2', label: '2 beats' },
+  { value: '4', label: '4 beats' },
+  { value: '8', label: '8 beats' },
 ]
+
+const AUDIO_BAND_OPTIONS: Array<{ value: LaserDmxShowDirectorAudioBand; label: string }> = [
+  { value: 'sub', label: 'Sub' },
+  { value: 'bass', label: 'Bass' },
+  { value: 'lowMid', label: 'Low-mid' },
+  { value: 'mid', label: 'Mid' },
+  { value: 'highMid', label: 'High-mid' },
+  { value: 'high', label: 'High' },
+]
+
+const TRIGGER_HINTS: Record<LaserDmxShowDirectorTriggerMode, string> = {
+  alwaysOn: 'Runs continuously. Good for haze, gentle washes, and layout previews when no track is loaded.',
+  beat: 'Pulses on the selected beat division using BPM, beat index, and beat phase.',
+  bar: 'Fires on downbeats. Use Bar interval for every 2, 4, or 8 bars.',
+  phrase: 'Fires on phrase boundaries from the Music Intelligence phrase clock.',
+  section: 'Stays active only while the current track section matches the selected gate.',
+  cuePoint: 'Uses manual/imported cue markers first, then matching drop/section markers from analysis.',
+  bassHit: 'Pulses when kick or bass transient strength crosses the hit threshold.',
+  snareTransient: 'Pulses on snare-like or mid/high transient hits.',
+  energy: 'Fades in when the track energy curve rises above the threshold.',
+  audioBand: 'Pulses when the selected audio band crosses the threshold from below.',
+}
 
 const SECTION_OPTIONS: Array<{ value: LaserDmxShowDirectorSectionType; label: string }> = [
   { value: 'intro', label: 'Intro' },
@@ -168,8 +192,9 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
     update({
       trigger: {
         mode,
-        ...(mode === 'bassHit' ? { audioBand: 'bass' as const } : {}),
-        ...(mode === 'snareTransient' ? { audioBand: 'highMid' as const } : {}),
+        ...(mode === 'bassHit' ? { audioBand: 'bass' as const, audioThreshold: fixture.trigger.audioThreshold || 0.65 } : {}),
+        ...(mode === 'snareTransient' ? { audioBand: 'highMid' as const, audioThreshold: fixture.trigger.audioThreshold || 0.58 } : {}),
+        ...(mode === 'audioBand' ? { audioBand: fixture.trigger.audioBand ?? 'bass', audioThreshold: fixture.trigger.audioThreshold || 0.5 } : {}),
       },
     })
   }
@@ -231,6 +256,7 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
 
         <CtrlSection label="Trigger / Timing" />
         <SelectRow label="Trigger mode" value={fixture.trigger.mode} options={TRIGGER_MODE_OPTIONS} onChange={mode => updateTriggerMode(mode as LaserDmxShowDirectorTriggerMode)} />
+        <p className="rv-show-director-trigger-hint">{TRIGGER_HINTS[fixture.trigger.mode]}</p>
         {(fixture.trigger.mode === 'beat' || fixture.trigger.mode === 'bar' || fixture.trigger.mode === 'phrase') && (
           <SelectRow label="Beat division" value={beatDivisionValue(fixture.trigger.beatDivision)} options={BEAT_DIVISION_OPTIONS} onChange={beatDivision => update({ trigger: { beatDivision: parseBeatDivision(beatDivision) } })} />
         )}
@@ -246,8 +272,11 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
         {fixture.trigger.mode === 'cuePoint' && (
           <TextInputRow label="Cue point ID" value={fixture.trigger.cuePointIds[0] ?? ''} maxLength={32} placeholder="A, B, Drop 1..." onChange={cuePointId => update({ trigger: { cuePointIds: cuePointId.trim() ? [cuePointId.trim()] : [] } })} />
         )}
-        {(fixture.trigger.mode === 'bassHit' || fixture.trigger.mode === 'snareTransient') && (
-          <SliderRow label="Hit threshold" value={fixture.trigger.audioThreshold} min={0} max={1} step={0.01} onChange={audioThreshold => update({ trigger: { audioThreshold: clamp(audioThreshold, 0, 1) } })} />
+        {fixture.trigger.mode === 'audioBand' && (
+          <SelectRow label="Audio band" value={fixture.trigger.audioBand} options={AUDIO_BAND_OPTIONS} onChange={audioBand => update({ trigger: { audioBand: audioBand as LaserDmxShowDirectorAudioBand } })} />
+        )}
+        {(fixture.trigger.mode === 'bassHit' || fixture.trigger.mode === 'snareTransient' || fixture.trigger.mode === 'audioBand') && (
+          <SliderRow label={fixture.trigger.mode === 'audioBand' ? 'Band threshold' : 'Hit threshold'} value={fixture.trigger.audioThreshold} min={0} max={1} step={0.01} onChange={audioThreshold => update({ trigger: { audioThreshold: clamp(audioThreshold, 0, 1) } })} />
         )}
         {fixture.trigger.mode === 'energy' && (
           <SliderRow label="Energy threshold" value={fixture.trigger.energyThreshold} min={0} max={1} step={0.01} onChange={energyThreshold => update({ trigger: { energyThreshold: clamp(energyThreshold, 0, 1) } })} />

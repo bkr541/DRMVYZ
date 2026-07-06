@@ -7,6 +7,7 @@ import {
   LASER_DMX_MATRIX_ROWS,
 } from '../ReactTypes'
 import type {
+  LaserDmxBeamMatrixCue,
   LaserDmxBeamMatrixSettings,
   LaserDmxLaunchSettings,
   LaserDmxMatrixBeam,
@@ -20,15 +21,25 @@ import type {
   LaserDmxShowDirectorBeatDivision,
   LaserDmxShowDirectorFixture,
   LaserDmxShowDirectorFixtureKind,
+  LaserDmxShowDirectorSectionType,
   LaserDmxShowDirectorLedDirection,
   LaserDmxShowDirectorState,
   LaserDmxShowDirectorTriggerConfig,
+  ReactTrackSection,
 } from '../ReactTypes'
+import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
+import type { VzCueMarker } from '../../../../types/cue'
 
 export interface CompileLaserDmxShowDirectorToBeamMatrixInput {
   showDirector: LaserDmxShowDirectorState
   /** Manual Beam Matrix program supplies output/fog/editor/global modulation defaults only. */
   beamMatrix: LaserDmxBeamMatrixSettings
+  /** Existing offline analysis / Music Intelligence timing data, when a track is loaded. */
+  analysis?: TrackIntelligenceAnalysis | null
+  /** Manual-section-aware React track sections. Preferred over analysis sections when present. */
+  sections?: readonly ReactTrackSection[] | null
+  /** Manual or imported cue markers from the visual timeline. */
+  cueMarkers?: readonly VzCueMarker[] | null
 }
 
 interface StagePoint01 {
@@ -43,6 +54,10 @@ interface FixtureCompileContext {
   matrixBeams: LaserDmxMatrixBeam[]
   groups: LaserDmxReactionGroup[]
   globalRoutes: LaserDmxModulationRoute[]
+  cues: LaserDmxBeamMatrixCue[]
+  analysis: TrackIntelligenceAnalysis | null
+  sections: readonly ReactTrackSection[]
+  cueMarkers: readonly VzCueMarker[]
   outputBeamCount: number
   hazeIntensity: number
   hasRenderableFixture: boolean
@@ -252,14 +267,42 @@ function phraseSource(trigger: LaserDmxShowDirectorTriggerConfig): string {
   return 'phrase32'
 }
 
+function beatDivisionSource(trigger: LaserDmxShowDirectorTriggerConfig): string {
+  const division = finite(trigger.beatDivision, 1)
+  const supported: LaserDmxShowDirectorBeatDivision = division === 0.25 || division === 0.5 || division === 2 || division === 4 || division === 8
+    ? division
+    : 1
+  return `beatDivision:${supported}`
+}
+
+function sectionTypesForTrigger(trigger: LaserDmxShowDirectorTriggerConfig): LaserDmxShowDirectorSectionType[] {
+  const allowed = Array.isArray(trigger.sectionTypes)
+    ? trigger.sectionTypes.filter((section): section is LaserDmxShowDirectorSectionType => (
+        section === 'intro'
+        || section === 'verse'
+        || section === 'build'
+        || section === 'drop'
+        || section === 'breakdown'
+        || section === 'outro'
+      ))
+    : []
+  return allowed.length > 0 ? allowed : ['drop']
+}
+
+function sectionSource(trigger: LaserDmxShowDirectorTriggerConfig): string {
+  return `section:${sectionTypesForTrigger(trigger).join(',')}`
+}
+
 function triggerSource(trigger: LaserDmxShowDirectorTriggerConfig): string | null {
   switch (trigger.mode) {
-    case 'beat': return 'beat'
+    case 'beat': return beatDivisionSource(trigger)
     case 'bar': return 'downbeat'
     case 'phrase': return phraseSource(trigger)
+    case 'section': return sectionSource(trigger)
     case 'bassHit': return 'kick'
     case 'snareTransient': return 'snare'
     case 'energy': return 'dropImpact'
+    case 'audioBand': return `audioBand:${sourceForAudioBand(trigger.audioBand)}`
     default: return null
   }
 }
@@ -267,7 +310,7 @@ function triggerSource(trigger: LaserDmxShowDirectorTriggerConfig): string | nul
 function launchForTrigger(trigger: LaserDmxShowDirectorTriggerConfig): LaserDmxLaunchSettings {
   switch (trigger.mode) {
     case 'beat':
-      return { trigger: 'beat', threshold: 0.2, cooldownBeats: 0, minimumEnergy: 0 }
+      return { trigger: 'beat', threshold: 0.2, cooldownBeats: Math.max(0, finite(trigger.beatDivision, 1) - 0.1), minimumEnergy: 0 }
     case 'bar':
     case 'phrase':
       return { trigger: 'downbeat', threshold: 0.2, cooldownBeats: Math.max(0, positiveInt(trigger.barInterval, 1, 1, 64) - 0.1), minimumEnergy: 0 }
@@ -275,6 +318,8 @@ function launchForTrigger(trigger: LaserDmxShowDirectorTriggerConfig): LaserDmxL
       return { trigger: 'kick', threshold: clamp01(finite(trigger.audioThreshold, 0.65)), cooldownBeats: 0.25, minimumEnergy: 0 }
     case 'snareTransient':
       return { trigger: 'snare', threshold: clamp01(finite(trigger.audioThreshold, 0.65)), cooldownBeats: 0.25, minimumEnergy: 0 }
+    case 'audioBand':
+      return { trigger: 'kick', threshold: clamp01(finite(trigger.audioThreshold, 0.65)), cooldownBeats: 0.25, minimumEnergy: 0 }
     case 'energy':
       return { trigger: 'dropImpact', threshold: clamp01(finite(trigger.energyThreshold, 0.7)), cooldownBeats: 2, minimumEnergy: clamp01(finite(trigger.energyThreshold, 0.7)) * 0.5 }
     default:
@@ -296,7 +341,7 @@ function triggerDimmerRoutes(
   if (trigger.mode === 'section') {
     return [makeRoute(
       `sd-${safeIdPart(fixture.id)}-${suffix}-section`,
-      'sectionIntensity',
+      sectionSource(trigger),
       'dimmer',
       {
         min: 0,
@@ -344,11 +389,219 @@ function triggerDimmerRoutes(
       attack,
       hold: trigger.mode === 'bar' ? 0.05 : 0.025,
       release,
+      threshold: trigger.mode === 'audioBand' || trigger.mode === 'bassHit' || trigger.mode === 'snareTransient'
+        ? clamp01(finite(trigger.audioThreshold, 0.65))
+        : undefined,
       timingFilter: trigger.mode === 'bar' && positiveInt(trigger.barInterval, 1, 1, 64) > 1
         ? { mode: 'barInterval', intervalBars: positiveInt(trigger.barInterval, 1, 1, 64), intervalAnchorBar: 1 }
         : undefined,
     },
   )]
+}
+
+interface ShowDirectorTimingSection {
+  id: string
+  label: string
+  type: LaserDmxShowDirectorSectionType | null
+  startSec: number
+  endSec: number
+  intensity: number
+  confidence: number
+}
+
+const IDLE_CUE_START_MS = Number.MAX_SAFE_INTEGER - 1000
+
+function normalizeToken(value: unknown): string {
+  return typeof value === 'string'
+    ? value.trim().toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ')
+    : ''
+}
+
+function canonicalShowDirectorSectionType(value: unknown): LaserDmxShowDirectorSectionType | null {
+  switch (value) {
+    case 'intro': return 'intro'
+    case 'verse': return 'verse'
+    case 'build':
+    case 'preDrop': return 'build'
+    case 'drop': return 'drop'
+    case 'break':
+    case 'breakdown':
+    case 'bridge': return 'breakdown'
+    case 'outro': return 'outro'
+    default: return null
+  }
+}
+
+function timingSectionFromReact(section: ReactTrackSection): ShowDirectorTimingSection | null {
+  const startSec = finite(section.startSec, Number.NaN)
+  const endSec = finite(section.endSec, Number.NaN)
+  if (!Number.isFinite(startSec) || !Number.isFinite(endSec) || endSec <= startSec) return null
+  return {
+    id: section.id,
+    label: section.label,
+    type: canonicalShowDirectorSectionType(section.type),
+    startSec,
+    endSec,
+    intensity: clamp01(finite(section.intensity, 1)),
+    confidence: clamp01(finite(section.confidence, 1)),
+  }
+}
+
+function timingSectionFromAnalysis(section: TrackIntelligenceAnalysis['sections'][number]): ShowDirectorTimingSection | null {
+  const startSec = finite(section.startSec, Number.NaN)
+  const endSec = finite(section.endSec, Number.NaN)
+  if (!Number.isFinite(startSec) || !Number.isFinite(endSec) || endSec <= startSec) return null
+  return {
+    id: section.id,
+    label: section.label,
+    type: canonicalShowDirectorSectionType(section.type),
+    startSec,
+    endSec,
+    intensity: clamp01(finite(section.intensity, 1)),
+    confidence: clamp01(finite(section.confidence, 1)),
+  }
+}
+
+function collectTimingSections(ctx: FixtureCompileContext): ShowDirectorTimingSection[] {
+  const manualSections = ctx.sections.map(timingSectionFromReact).filter((section): section is ShowDirectorTimingSection => section != null)
+  if (manualSections.length > 0) return manualSections
+  return (ctx.analysis?.sections ?? [])
+    .map(timingSectionFromAnalysis)
+    .filter((section): section is ShowDirectorTimingSection => section != null)
+}
+
+function sectionMatchesTrigger(section: ShowDirectorTimingSection, trigger: LaserDmxShowDirectorTriggerConfig): boolean {
+  if (!section.type) return false
+  return sectionTypesForTrigger(trigger).includes(section.type)
+}
+
+function cueNeedles(trigger: LaserDmxShowDirectorTriggerConfig): string[] {
+  return trigger.cuePointIds.map(normalizeToken).filter(Boolean)
+}
+
+function cueCandidateMatches(needles: string[], ...candidates: unknown[]): boolean {
+  if (needles.length === 0) return true
+  const haystack = candidates
+    .map(normalizeToken)
+    .filter(Boolean)
+  return needles.some(needle => haystack.some(candidate => (
+    candidate === needle
+    || candidate.includes(needle)
+    || needle.includes(candidate)
+  )))
+}
+
+function cueMarkerMatchesTrigger(marker: VzCueMarker, trigger: LaserDmxShowDirectorTriggerConfig): boolean {
+  const markerType = canonicalShowDirectorSectionType(marker.type)
+  return cueCandidateMatches(
+    cueNeedles(trigger),
+    marker.id,
+    marker.label,
+    marker.type,
+    markerType,
+    marker.kind,
+    marker.externalId,
+    marker.source,
+  )
+}
+
+function semanticMomentMatchesTrigger(moment: TrackIntelligenceAnalysis['semanticMoments'][number], trigger: LaserDmxShowDirectorTriggerConfig): boolean {
+  const canonicalType = moment.type === 'high_impact' ? 'drop' : canonicalShowDirectorSectionType(moment.type)
+  return cueCandidateMatches(cueNeedles(trigger), moment.type, canonicalType, moment.label, moment.source)
+}
+
+function cueGateDurationSec(fixture: LaserDmxShowDirectorFixture): number {
+  const trigger = fixture.trigger
+  const fadeSec = (Math.max(0, finite(trigger.fadeInMs, 0)) + Math.max(0, finite(trigger.fadeOutMs, 0))) / 1000
+  const burstSec = fixture.kind === 'co2Jet' ? Math.max(0.05, finite(fixture.component.co2BurstDurationMs, 350) / 1000) : 0.35
+  return clamp(Math.max(0.25, fadeSec + burstSec), 0.25, 12)
+}
+
+function pushGroupGateCue(
+  ctx: FixtureCompileContext,
+  fixture: LaserDmxShowDirectorFixture,
+  startSec: number,
+  endSec: number,
+  name: string,
+): void {
+  if (!Number.isFinite(startSec) || !Number.isFinite(endSec) || endSec <= startSec) return
+  const idPart = safeIdPart(fixture.id)
+  ctx.cues.push({
+    id: `sd-cue-${idPart}-${safeIdPart(name)}-${Math.round(startSec * 1000)}`,
+    name,
+    enabled: true,
+    targetType: 'group',
+    targetId: groupIdForFixture(fixture),
+    timingMode: 'absolute',
+    action: 'gate',
+    startMs: Math.max(0, Math.round(startSec * 1000)),
+    endMs: Math.max(0, Math.round(endSec * 1000)),
+    fadeInMs: Math.max(0, Math.round(finite(fixture.trigger.fadeInMs, 0))),
+    fadeOutMs: Math.max(0, Math.round(finite(fixture.trigger.fadeOutMs, 0))),
+  })
+}
+
+function pushIdleGateCue(ctx: FixtureCompileContext, fixture: LaserDmxShowDirectorFixture): void {
+  ctx.cues.push({
+    id: `sd-cue-${safeIdPart(fixture.id)}-idle`,
+    name: `${fixture.label || fixture.kind} idle until matching cue`,
+    enabled: true,
+    targetType: 'group',
+    targetId: groupIdForFixture(fixture),
+    timingMode: 'absolute',
+    action: 'gate',
+    startMs: IDLE_CUE_START_MS,
+    endMs: Number.MAX_SAFE_INTEGER,
+  })
+}
+
+function compileSectionGateCues(fixture: LaserDmxShowDirectorFixture, ctx: FixtureCompileContext): void {
+  if (fixture.trigger.mode !== 'section') return
+  const sections = collectTimingSections(ctx).filter(section => sectionMatchesTrigger(section, fixture.trigger))
+  for (const section of sections) {
+    pushGroupGateCue(ctx, fixture, section.startSec, section.endSec, `${fixture.label || fixture.kind} ${section.label || section.type || 'section'}`)
+  }
+}
+
+function compileCuePointGateCues(fixture: LaserDmxShowDirectorFixture, ctx: FixtureCompileContext): void {
+  if (fixture.trigger.mode !== 'cuePoint') return
+  const durationSec = cueGateDurationSec(fixture)
+  let count = 0
+
+  for (const marker of ctx.cueMarkers) {
+    if (!cueMarkerMatchesTrigger(marker, fixture.trigger)) continue
+    const startSec = finite(marker.time, Number.NaN)
+    const endSec = Number.isFinite(finite(marker.endTime, Number.NaN))
+      ? Math.max(startSec + 0.05, finite(marker.endTime, startSec + durationSec))
+      : startSec + durationSec
+    const before = ctx.cues.length
+    pushGroupGateCue(ctx, fixture, startSec, endSec, `${fixture.label || fixture.kind} cue ${marker.label || marker.id}`)
+    if (ctx.cues.length > before) count++
+  }
+
+  for (const moment of ctx.analysis?.semanticMoments ?? []) {
+    if (!semanticMomentMatchesTrigger(moment, fixture.trigger)) continue
+    const startSec = finite(moment.timeSec, Number.NaN)
+    const endSec = startSec + clamp(finite(moment.durationSec, durationSec), 0.1, 12)
+    const before = ctx.cues.length
+    pushGroupGateCue(ctx, fixture, startSec, endSec, `${fixture.label || fixture.kind} ${moment.label || moment.type}`)
+    if (ctx.cues.length > before) count++
+  }
+
+  // Useful fallback for cue/drop-friendly fixtures when tracks have sections but no explicit cue markers.
+  for (const section of collectTimingSections(ctx)) {
+    if (!sectionMatchesTrigger(section, fixture.trigger)) continue
+    const before = ctx.cues.length
+    pushGroupGateCue(ctx, fixture, section.startSec, Math.min(section.endSec, section.startSec + durationSec), `${fixture.label || fixture.kind} ${section.label || section.type || 'section'} entry`)
+    if (ctx.cues.length > before) count++
+  }
+
+  if (count === 0) pushIdleGateCue(ctx, fixture)
+}
+
+function compileTriggerGateCues(fixture: LaserDmxShowDirectorFixture, ctx: FixtureCompileContext): void {
+  compileSectionGateCues(fixture, ctx)
+  compileCuePointGateCues(fixture, ctx)
 }
 
 function musicColorRoutes(fixture: LaserDmxShowDirectorFixture): LaserDmxModulationRoute[] {
@@ -709,7 +962,8 @@ function compileCo2Fixture(fixture: LaserDmxShowDirectorFixture, ctx: FixtureCom
 }
 
 function co2FogRoutes(fixture: LaserDmxShowDirectorFixture): LaserDmxModulationRoute[] {
-  const source = triggerSource(fixture.trigger) ?? 'dropImpact'
+  const source = fixture.trigger.mode === 'cuePoint' ? null : (triggerSource(fixture.trigger) ?? 'dropImpact')
+  if (!source) return []
   const attack = Math.max(0, finite(fixture.trigger.fadeInMs, 0) / 1000)
   const release = Math.max(0.1, finite(fixture.component.co2BurstDurationMs, 350) / 1000)
   return [
@@ -734,9 +988,60 @@ function co2FogRoutes(fixture: LaserDmxShowDirectorFixture): LaserDmxModulationR
   ]
 }
 
+function hazeFogRoutes(fixture: LaserDmxShowDirectorFixture): LaserDmxModulationRoute[] {
+  const trigger = fixture.trigger
+  const source = trigger.mode === 'energy' ? 'energy' : triggerSource(trigger)
+  if (!source || trigger.mode === 'cuePoint') return []
+  const attack = Math.max(0, finite(trigger.fadeInMs, 0) / 1000)
+  const release = Math.max(0.1, finite(trigger.fadeOutMs, 600) / 1000)
+  const intensity = clamp01(finite(fixture.component.hazeIntensity, 0.5) * finite(fixture.brightness, 0.85))
+  const mode: LaserDmxModulationRoute['mode'] = trigger.mode === 'section' || trigger.mode === 'energy' ? 'set' : 'trigger'
+  const threshold = trigger.mode === 'energy'
+    ? clamp01(finite(trigger.energyThreshold, 0.7))
+    : trigger.mode === 'audioBand' || trigger.mode === 'bassHit' || trigger.mode === 'snareTransient'
+      ? clamp01(finite(trigger.audioThreshold, 0.65))
+      : undefined
+  return [
+    makeRoute(`sd-${safeIdPart(fixture.id)}-haze-density`, source, 'fogDensity', {
+      min: 0,
+      max: intensity * 0.62,
+      mode,
+      curve: 'easeOut',
+      smoothing: mode === 'set' ? 0.22 : 0.05,
+      attack,
+      hold: mode === 'trigger' ? 0.08 : undefined,
+      release,
+      threshold,
+    }),
+    makeRoute(`sd-${safeIdPart(fixture.id)}-haze-opacity`, source, 'fogOpacity', {
+      min: 0,
+      max: intensity * 0.52,
+      mode,
+      curve: 'easeOut',
+      smoothing: mode === 'set' ? 0.24 : 0.05,
+      attack,
+      hold: mode === 'trigger' ? 0.08 : undefined,
+      release,
+      threshold,
+    }),
+    makeRoute(`sd-${safeIdPart(fixture.id)}-haze-scatter`, source, 'fogBeamScatter', {
+      min: 0,
+      max: intensity * 0.78,
+      mode,
+      curve: 'easeOut',
+      smoothing: mode === 'set' ? 0.2 : 0.05,
+      attack,
+      hold: mode === 'trigger' ? 0.08 : undefined,
+      release,
+      threshold,
+    }),
+  ]
+}
+
 function compileFixture(fixture: LaserDmxShowDirectorFixture, ctx: FixtureCompileContext): void {
   if (!fixture || fixture.enabled !== true || !hasFixtureShape(fixture) || !isSupportedFixtureKind(fixture.kind)) return
   ctx.groups.push(makeGroup(fixture))
+  compileTriggerGateCues(fixture, ctx)
   ctx.hasRenderableFixture = true
 
   switch (fixture.kind) {
@@ -765,7 +1070,11 @@ function compileFixture(fixture: LaserDmxShowDirectorFixture, ctx: FixtureCompil
       compileVideoWallFixture(fixture, ctx)
       break
     case 'haze':
-      ctx.hazeIntensity = Math.max(ctx.hazeIntensity, clamp01(finite(fixture.component.hazeIntensity, 0.5) * finite(fixture.brightness, 0.85)))
+      if (fixture.trigger.mode === 'alwaysOn') {
+        ctx.hazeIntensity = Math.max(ctx.hazeIntensity, clamp01(finite(fixture.component.hazeIntensity, 0.5) * finite(fixture.brightness, 0.85)))
+      } else {
+        ctx.globalRoutes.push(...hazeFogRoutes(fixture))
+      }
       break
     case 'co2Jet':
       compileCo2Fixture(fixture, ctx)
@@ -800,6 +1109,10 @@ export function compileLaserDmxShowDirectorToBeamMatrix(
     matrixBeams: [],
     groups: [],
     globalRoutes: compileGlobalRoutes(base),
+    cues: [],
+    analysis: input.analysis ?? null,
+    sections: input.sections ?? [],
+    cueMarkers: input.cueMarkers ?? [],
     outputBeamCount: 0,
     hazeIntensity: 0,
     hasRenderableFixture: false,
@@ -811,10 +1124,11 @@ export function compileLaserDmxShowDirectorToBeamMatrix(
   }
 
   const hasFixtures = ctx.hasRenderableFixture
+  const hasShowDirectorFogRoutes = ctx.globalRoutes.some(route => route.enabled && typeof route.target === 'string' && route.target.startsWith('fog'))
   const fog = hasFixtures
     ? {
         ...base.fog,
-        enabled: base.fog.enabled || ctx.hazeIntensity > 0,
+        enabled: base.fog.enabled || ctx.hazeIntensity > 0 || hasShowDirectorFogRoutes,
         density: Math.max(base.fog.enabled ? base.fog.density : 0, ctx.hazeIntensity * 0.62),
         opacity: Math.max(base.fog.enabled ? base.fog.opacity : 0, ctx.hazeIntensity * 0.52),
         beamScatter: Math.max(base.fog.beamScatter, ctx.hazeIntensity * 0.78),
@@ -839,6 +1153,6 @@ export function compileLaserDmxShowDirectorToBeamMatrix(
     output: { ...base.output },
     fog,
     editor: { ...base.editor },
-    cues: [],
+    cues: ctx.cues,
   }
 }

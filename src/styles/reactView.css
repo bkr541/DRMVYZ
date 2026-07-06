@@ -7446,6 +7446,18 @@
   letter-spacing: 0.08em;
 }
 
+.rv-show-director-trigger-hint {
+  margin: -2px 0 5px;
+  padding: 7px 8px;
+  border: 1px solid rgba(103, 247, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(74, 199, 219, 0.06);
+  color: rgba(232, 244, 248, 0.48);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .rv-show-director-placeholder-note,
 .rv-show-director-empty {
   display: flex;

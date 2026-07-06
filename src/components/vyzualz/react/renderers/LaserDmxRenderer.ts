@@ -7,6 +7,7 @@ import type { ReactPreset, ReactSectionType } from '../ReactTypes'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { AudioFeatureBus } from '../../../../features/musicIntelligence/AudioFeatureBus'
 import { useReactStore } from '../../../../stores/reactStore'
+import { useVisualStore } from '../../../../stores/visualStore'
 import { compileLaserDmxBeamMatrix, resetBeamMatrixCompilerState } from './LaserDmxBeamMatrixCompiler'
 import { compileLaserDmxShowDirectorToBeamMatrix } from './LaserDmxShowDirectorBeamMatrixCompiler'
 import { renderLaserDmxBeamMatrix } from './LaserDmxBeamMatrixRenderer'
@@ -188,6 +189,9 @@ export function renderLaserDmx(
     ? compileLaserDmxShowDirectorToBeamMatrix({
         showDirector: state.laserDmxShowDirector,
         beamMatrix: state.laserDmxBeamMatrix,
+        analysis: frame.trackAnalysis,
+        sections: frame.trackSections,
+        cueMarkers: useVisualStore.getState().cueMarkers,
       })
     : state.laserDmxBeamMatrix
   const directorPresetKey = `${preset.id}:beamMatrix:${beamMatrixAuthoringMode}:${state.activeLaserDmxBeamMatrixPresetId ?? 'custom'}:${resolvedAuthoredSettings.rigId ?? 'rig'}`

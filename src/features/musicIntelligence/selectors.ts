@@ -45,10 +45,49 @@ export function miFrameToAudioBandValues(frame: MusicIntelligenceFrame): AudioBa
 
 // ── Continuous modulation source (returns 0–1 float) ─────────────────────────
 
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0))
+}
+
+function canonicalSectionType(type: string | null | undefined): string {
+  switch (type) {
+    case 'break': return 'breakdown'
+    case 'preDrop': return 'build'
+    case 'bridge': return 'verse'
+    default: return type ?? 'unknown'
+  }
+}
+
+function parseSectionSourceList(sourceKey: string): string[] {
+  return sourceKey
+    .slice('section:'.length)
+    .split(',')
+    .map(part => canonicalSectionType(part.trim()))
+    .filter(Boolean)
+}
+
+function getSectionGateValue(frame: MusicIntelligenceFrame, sourceKey: string): number {
+  const allowed = parseSectionSourceList(sourceKey)
+  if (allowed.length === 0) return 0
+  const current = canonicalSectionType(frame.section.type)
+  if (!allowed.includes(current)) return 0
+  const intensity = frame.section.intensity
+  const confidence = frame.section.confidence
+  const gate = Math.max(
+    Number.isFinite(intensity) ? intensity : 0,
+    Number.isFinite(confidence) ? confidence : 0,
+    1,
+  )
+  return clamp01(gate)
+}
+
 export function getModulationSourceValue(
   frame: MusicIntelligenceFrame,
   sourceKey: string,
 ): number {
+  if (sourceKey.startsWith('section:')) return getSectionGateValue(frame, sourceKey)
+  if (sourceKey.startsWith('audioBand:')) return getModulationSourceValue(frame, sourceKey.slice('audioBand:'.length))
+
   switch (sourceKey) {
     // Band energies
     case 'sub':     return frame.bands.sub

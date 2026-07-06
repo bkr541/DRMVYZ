@@ -70,14 +70,24 @@ interface EnvelopeState {
 }
 
 const envelopes = new Map<string, EnvelopeState>()
+const syntheticTriggerSlots = new Map<string, number>()
+const syntheticBandOverThreshold = new Map<string, boolean>()
 
 export function resetAllEnvelopes(): void {
   envelopes.clear()
+  syntheticTriggerSlots.clear()
+  syntheticBandOverThreshold.clear()
 }
 
 export function pruneEnvelopes(activeKeys: Set<string>): void {
   for (const k of envelopes.keys()) {
     if (!activeKeys.has(k)) envelopes.delete(k)
+  }
+  for (const k of syntheticTriggerSlots.keys()) {
+    if (!activeKeys.has(k)) syntheticTriggerSlots.delete(k)
+  }
+  for (const k of syntheticBandOverThreshold.keys()) {
+    if (!activeKeys.has(k)) syntheticBandOverThreshold.delete(k)
   }
 }
 
@@ -271,6 +281,71 @@ export function checkTriggerTimingFilter(
   }
 }
 
+function parseBeatDivisionSource(source: string): number | null {
+  if (!source.startsWith('beatDivision:')) return null
+  const value = Number(source.slice('beatDivision:'.length))
+  if (value === 0.25 || value === 0.5 || value === 1 || value === 2 || value === 4 || value === 8) return value
+  return null
+}
+
+function getSyntheticBeatDivisionHit(route: LaserDmxModulationRoute, mi: MusicIntelligenceFrame, envKey: string): boolean | null {
+  const division = parseBeatDivisionSource(route.source)
+  if (division == null) return null
+  if (safeNumber(mi.rhythm.bpm, 0) <= 0) return false
+
+  const absoluteBeat = Math.max(0, safeNumber(mi.rhythm.beatIndex, 0) + safeNumber(mi.rhythm.beatPhase, 0))
+  const slot = Math.floor(absoluteBeat / division)
+  const previousSlot = syntheticTriggerSlots.get(envKey)
+  syntheticTriggerSlots.set(envKey, slot)
+
+  // Do not fire immediately on first render; wait for an actual musical boundary.
+  if (previousSlot == null) return false
+  return slot > previousSlot
+}
+
+function getSyntheticAudioBandHit(route: LaserDmxModulationRoute, mi: MusicIntelligenceFrame, envKey: string): boolean | null {
+  if (!route.source.startsWith('audioBand:')) return null
+  const bandSource = route.source.slice('audioBand:'.length)
+  const value = clamp01(getModulationSourceValue(mi, bandSource))
+  const threshold = clamp01(route.threshold ?? 0.65)
+  const over = value >= threshold
+  const wasOver = syntheticBandOverThreshold.get(envKey) ?? false
+  syntheticBandOverThreshold.set(envKey, over)
+  return over && !wasOver
+}
+
+function getSyntheticTriggerSourceValue(route: LaserDmxModulationRoute, mi: MusicIntelligenceFrame, envKey: string): boolean | null {
+  const beatDivisionHit = getSyntheticBeatDivisionHit(route, mi, envKey)
+  if (beatDivisionHit != null) return beatDivisionHit
+  const audioBandHit = getSyntheticAudioBandHit(route, mi, envKey)
+  if (audioBandHit != null) return audioBandHit
+  return null
+}
+
+function triggerThresholdPassed(route: LaserDmxModulationRoute, mi: MusicIntelligenceFrame): boolean {
+  const threshold = route.threshold
+  if (threshold == null || threshold <= 0) return true
+  switch (route.source) {
+    case 'kick':
+    case 'kickHit':
+      return getModulationSourceValue(mi, 'kick') >= threshold
+    case 'snare':
+    case 'snareHit':
+      return getModulationSourceValue(mi, 'snare') >= threshold
+    case 'hat':
+    case 'hatHit':
+      return getModulationSourceValue(mi, 'hat') >= threshold
+    case 'transient':
+    case 'drumTrans':
+    case 'bassTrans':
+      return getModulationSourceValue(mi, 'transient') >= threshold
+    case 'dropImpact':
+      return getModulationSourceValue(mi, 'dropImpact') >= threshold
+    default:
+      return true
+  }
+}
+
 // ── Legacy source resolver (kept for callers outside applyModulationRoute) ────
 
 export function resolveSourceValue(
@@ -324,8 +399,9 @@ export function applyModulationRoute(
   const amount = clamp(safeNumber(route.amount, 1), -1, 2)
 
   if (route.mode === 'trigger') {
-    const timingOk   = checkTriggerTimingFilter(route.timingFilter, mi, route.source)
-    const rawHit     = getTriggerSourceValue(mi, route.source) && timingOk
+    const timingOk = checkTriggerTimingFilter(route.timingFilter, mi, route.source)
+    const syntheticHit = getSyntheticTriggerSourceValue(route, mi, envKey)
+    const rawHit = (syntheticHit ?? (getTriggerSourceValue(mi, route.source) && triggerThresholdPassed(route, mi))) && timingOk
     const triggered  = route.invert ? !rawHit : rawHit
     const envValue   = applyTriggerEnvelope(envKey, triggered, dt, attackSec, holdSec, releaseSec)
     // Map through min/max and amount; curve NOT applied (see module header).

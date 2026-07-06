@@ -230,6 +230,9 @@ export interface CueSummary {
   /** Beam/group IDs with a currently-active gate cue range. */
   beamGateActive:  Set<string>
   groupGateActive: Set<string>
+  /** Optional faded gate value for active cue ranges. Omitted means hard 1.0. */
+  beamGateValue?:  Map<string, number>
+  groupGateValue?: Map<string, number>
   /** Trigger-envelope contribution (0–1) per beam/group.  Present only while
    *  the 0.5 s decay envelope is running. */
   beamTriggerGate:  Map<string, number>
@@ -240,6 +243,15 @@ export interface CueSummary {
  *  Exported for use in validation and tests. */
 export function musicalCueToBeatPos(bar: number, beat: number): number {
   return (bar - 1) * BEATS_PER_BAR + (beat - 1)
+}
+
+function cueGateFadeValue(cue: LaserDmxBeamMatrixCue, currentMs: number, startMs: number, endMs: number): number {
+  const fadeInMs = Math.max(0, safeNumber(cue.fadeInMs, 0))
+  const fadeOutMs = Math.max(0, safeNumber(cue.fadeOutMs, 0))
+  let value = 1
+  if (fadeInMs > 0) value = Math.min(value, clamp01((currentMs - startMs) / fadeInMs))
+  if (fadeOutMs > 0 && Number.isFinite(endMs)) value = Math.min(value, clamp01((endMs - currentMs) / fadeOutMs))
+  return clamp01(value)
 }
 
 /** Build the per-frame CueSummary.  Called once per compileLaserDmxBeamMatrix call.
@@ -254,6 +266,8 @@ export function evaluateCueSummary(
   const groupHasGates   = new Set<string>()
   const beamGateActive  = new Set<string>()
   const groupGateActive = new Set<string>()
+  const beamGateValue  = new Map<string, number>()
+  const groupGateValue = new Map<string, number>()
   const beamTriggerGate  = new Map<string, number>()
   const groupTriggerGate = new Map<string, number>()
 
@@ -267,7 +281,8 @@ export function evaluateCueSummary(
       if (isBeam) beamHasGates.add(targetId)
       else        groupHasGates.add(targetId)
 
-      let active: boolean
+      let active = false
+      let gateValue = 1
       if (cue.timingMode === 'musical') {
         const start = musicalCueToBeatPos(cue.startBar ?? 1, cue.startBeat ?? 1)
         const end   = cue.endBar != null
@@ -278,11 +293,14 @@ export function evaluateCueSummary(
         const start = cue.startMs ?? 0
         const end   = cue.endMs != null ? cue.endMs : Infinity
         active = currentMs >= start && currentMs < end
+        if (active) gateValue = cueGateFadeValue(cue, currentMs, start, end)
       }
 
       if (active) {
-        if (isBeam) beamGateActive.add(targetId)
-        else        groupGateActive.add(targetId)
+        const activeSet = isBeam ? beamGateActive : groupGateActive
+        const valueMap = isBeam ? beamGateValue : groupGateValue
+        activeSet.add(targetId)
+        valueMap.set(targetId, Math.max(valueMap.get(targetId) ?? 0, gateValue))
       }
 
     } else if (cue.action === 'trigger') {
@@ -334,7 +352,7 @@ export function evaluateCueSummary(
   prevBeatPos = currentBeatPos
   prevMs      = currentMs
 
-  return { beamHasGates, groupHasGates, beamGateActive, groupGateActive, beamTriggerGate, groupTriggerGate }
+  return { beamHasGates, groupHasGates, beamGateActive, groupGateActive, beamGateValue, groupGateValue, beamTriggerGate, groupTriggerGate }
 }
 
 /** Resolve the cue gate factor (0–1) for a single beam given the CueSummary.
@@ -361,9 +379,12 @@ export function resolveCueGateFactor(
 
   if (!hasBeamGates && !hasGroupGates && trigGate === 0) return 1  // no cues → passthrough
 
-  const beamGateVal  = hasBeamGates  ? (summary.beamGateActive.has(beamId) ? 1 : 0) : 0
+  const beamGateVal  = hasBeamGates
+    ? (summary.beamGateValue?.get(beamId) ?? (summary.beamGateActive.has(beamId) ? 1 : 0))
+    : 0
   const groupGateVal = (hasGroupGates && groupId != null)
-    ? (summary.groupGateActive.has(groupId) ? 1 : 0) : 0
+    ? (summary.groupGateValue?.get(groupId) ?? (summary.groupGateActive.has(groupId) ? 1 : 0))
+    : 0
   const gateVal = Math.max(beamGateVal, groupGateVal)
 
   return Math.max(gateVal, trigGate)

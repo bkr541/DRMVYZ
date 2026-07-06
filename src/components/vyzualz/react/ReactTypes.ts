@@ -364,7 +364,7 @@ export interface LaserDmxBeamMatrixPresetSummary {
 // This is the safe authoring model for the future drag/drop 2D stage builder.
 // It compiles into Beam Matrix through LaserDmxShowDirectorBeamMatrixCompiler when selected as the preview source.
 
-export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 2
+export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 3
 
 export type LaserDmxShowDirectorFixtureKind =
   | 'laser'
@@ -417,6 +417,7 @@ export type LaserDmxShowDirectorTriggerMode =
   | 'bassHit'
   | 'snareTransient'
   | 'energy'
+  | 'audioBand'
 
 export type LaserDmxShowDirectorBeatDivision = 0.25 | 0.5 | 1 | 2 | 4 | 8
 export type LaserDmxShowDirectorSectionType = 'intro' | 'verse' | 'build' | 'drop' | 'breakdown' | 'outro'
@@ -620,8 +621,8 @@ function coerceShowDirectorTriggerMode(value: unknown): LaserDmxShowDirectorTrig
     || value === 'cuePoint'
     || value === 'bassHit'
     || value === 'snareTransient'
-    || value === 'energy') return value
-  if (value === 'audioBand') return 'bassHit'
+    || value === 'energy'
+    || value === 'audioBand') return value
   return 'alwaysOn'
 }
 
@@ -697,6 +698,38 @@ function createDefaultLaserDmxShowDirectorBeamConfig(kind: LaserDmxShowDirectorF
   }
 }
 
+function createDefaultLaserDmxShowDirectorTriggerConfig(kind: LaserDmxShowDirectorFixtureKind): LaserDmxShowDirectorTriggerConfig {
+  const fallback: LaserDmxShowDirectorTriggerConfig = {
+    ...DEFAULT_LASER_DMX_SHOW_DIRECTOR_TRIGGER,
+    sectionTypes: [...DEFAULT_LASER_DMX_SHOW_DIRECTOR_TRIGGER.sectionTypes],
+    cuePointIds: [],
+  }
+
+  switch (kind) {
+    case 'laser':
+      return { ...fallback, mode: 'beat', beatDivision: 1, fadeOutMs: 160, sectionTypes: ['drop'] }
+    case 'movingHead':
+      return { ...fallback, mode: 'beat', beatDivision: 2, fadeOutMs: 220, sectionTypes: ['build', 'drop'] }
+    case 'ledBar':
+      return { ...fallback, mode: 'audioBand', audioBand: 'bass', audioThreshold: 0.45, beatDivision: 0.5, fadeOutMs: 180 }
+    case 'ledTube':
+      return { ...fallback, mode: 'audioBand', audioBand: 'mid', audioThreshold: 0.42, beatDivision: 0.5, fadeOutMs: 220 }
+    case 'strobe':
+      return { ...fallback, mode: 'snareTransient', audioBand: 'highMid', audioThreshold: 0.58, fadeOutMs: 120 }
+    case 'blinder':
+      return { ...fallback, mode: 'bar', barInterval: 4, fadeOutMs: 360, sectionTypes: ['drop'] }
+    case 'parWash':
+      return { ...fallback, mode: 'section', sectionTypes: ['build', 'drop'], fadeInMs: 250, fadeOutMs: 450 }
+    case 'haze':
+      return { ...fallback, mode: 'alwaysOn', fadeInMs: 600, fadeOutMs: 1200 }
+    case 'co2Jet':
+      return { ...fallback, mode: 'cuePoint', cuePointIds: ['drop'], fadeOutMs: 450 }
+    case 'videoWall':
+    default:
+      return fallback
+  }
+}
+
 export function createDefaultLaserDmxShowDirectorFixture(
   kind: LaserDmxShowDirectorFixtureKind,
   id: string,
@@ -720,7 +753,7 @@ export function createDefaultLaserDmxShowDirectorFixture(
     colorMode: 'fixed',
     brightness: 0.85,
     beam: createDefaultLaserDmxShowDirectorBeamConfig(kind),
-    trigger: { ...DEFAULT_LASER_DMX_SHOW_DIRECTOR_TRIGGER, sectionTypes: [...DEFAULT_LASER_DMX_SHOW_DIRECTOR_TRIGGER.sectionTypes], cuePointIds: [] },
+    trigger: createDefaultLaserDmxShowDirectorTriggerConfig(kind),
     component: { ...DEFAULT_LASER_DMX_SHOW_DIRECTOR_COMPONENT },
   }
 }
@@ -768,20 +801,22 @@ function normalizeLaserDmxShowDirectorBeamConfig(raw: unknown, kind: LaserDmxSho
   }
 }
 
-function normalizeLaserDmxShowDirectorTriggerConfig(raw: unknown): LaserDmxShowDirectorTriggerConfig {
-  const fallback = DEFAULT_LASER_DMX_SHOW_DIRECTOR_TRIGGER
+function normalizeLaserDmxShowDirectorTriggerConfig(raw: unknown, kind: LaserDmxShowDirectorFixtureKind): LaserDmxShowDirectorTriggerConfig {
+  const fallback = createDefaultLaserDmxShowDirectorTriggerConfig(kind)
   const value = showDirectorRecord(raw) ? raw : {}
+  const sectionTypes = coerceShowDirectorSectionTypes(value.sectionTypes)
+  const cuePointIds = showDirectorStringArray(value.cuePointIds).slice(0, 16)
   return {
-    mode:             coerceShowDirectorTriggerMode(value.mode),
-    quantize:         coerceShowDirectorTriggerQuantize(value.quantize),
-    retrigger:        coerceShowDirectorTriggerRetrigger(value.retrigger),
-    beatDivision:     coerceShowDirectorBeatDivision(value.beatDivision),
+    mode:             value.mode == null ? fallback.mode : coerceShowDirectorTriggerMode(value.mode),
+    quantize:         value.quantize == null ? fallback.quantize : coerceShowDirectorTriggerQuantize(value.quantize),
+    retrigger:        value.retrigger == null ? fallback.retrigger : coerceShowDirectorTriggerRetrigger(value.retrigger),
+    beatDivision:     value.beatDivision == null ? fallback.beatDivision : coerceShowDirectorBeatDivision(value.beatDivision),
     barInterval:      showDirectorPositiveInt(value.barInterval, fallback.barInterval, 1, 64),
     phraseLengthBars: showDirectorPositiveInt(value.phraseLengthBars, fallback.phraseLengthBars, 1, 128),
-    sectionTypes:     coerceShowDirectorSectionTypes(value.sectionTypes),
-    cuePointIds:      showDirectorStringArray(value.cuePointIds).slice(0, 16),
+    sectionTypes:     sectionTypes.length > 0 ? sectionTypes : [...fallback.sectionTypes],
+    cuePointIds:      cuePointIds.length > 0 ? cuePointIds : [...fallback.cuePointIds],
     energyThreshold:  showDirectorUnit(value.energyThreshold, fallback.energyThreshold),
-    audioBand:        coerceShowDirectorAudioBand(value.audioBand),
+    audioBand:        value.audioBand == null ? fallback.audioBand : coerceShowDirectorAudioBand(value.audioBand),
     audioThreshold:   showDirectorUnit(value.audioThreshold, fallback.audioThreshold),
     fadeInMs:         showDirectorMs(value.fadeInMs, fallback.fadeInMs),
     fadeOutMs:        showDirectorMs(value.fadeOutMs, fallback.fadeOutMs),
@@ -822,7 +857,7 @@ export function normalizeLaserDmxShowDirectorFixture(raw: unknown, index = 0): L
     colorMode:  coerceShowDirectorColorMode(value.colorMode),
     brightness: showDirectorUnit(value.brightness, fallback.brightness),
     beam:       normalizeLaserDmxShowDirectorBeamConfig(value.beam, kind),
-    trigger:    normalizeLaserDmxShowDirectorTriggerConfig(value.trigger),
+    trigger:    normalizeLaserDmxShowDirectorTriggerConfig(value.trigger, kind),
     component:  normalizeLaserDmxShowDirectorComponentConfig(value.component),
   }
 }
@@ -1435,6 +1470,10 @@ export interface LaserDmxBeamMatrixCue {
   // Absolute timing — milliseconds from track start
   startMs?:   number
   endMs?:     number  // gate only; undefined = open-ended
+
+  /** Optional fade envelope for gate cues. Omitted cues stay hard-gated for backward compatibility. */
+  fadeInMs?:  number
+  fadeOutMs?: number
 }
 
 export interface LaserDmxBeamMatrixSettings {
