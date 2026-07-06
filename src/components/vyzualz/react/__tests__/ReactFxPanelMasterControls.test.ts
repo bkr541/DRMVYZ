@@ -7,7 +7,7 @@ describe('getReactFxMasterControls', () => {
     'cinematicPortal',
     'oscilloscope',
   ] as const)('shows all React-wide controls for %s', engineId => {
-    expect(getReactFxMasterControls(engineId, 'spatialFixtures')).toEqual([
+    expect(getReactFxMasterControls(engineId)).toEqual([
       'intensity',
       'motion',
       'glow',
@@ -15,15 +15,8 @@ describe('getReactFxMasterControls', () => {
     ])
   })
 
-  it('shows only controls consumed by Beam Matrix', () => {
-    expect(getReactFxMasterControls('laserDmx', 'beamMatrix')).toEqual([
-      'intensity',
-      'glow',
-    ])
-  })
-
-  it('coerces legacy Spatial Fixtures requests to Beam Matrix controls', () => {
-    expect(getReactFxMasterControls('laserDmx', 'spatialFixtures')).toEqual([
+  it('shows only controls consumed by Beam Matrix for LaserDMX', () => {
+    expect(getReactFxMasterControls('laserDmx')).toEqual([
       'intensity',
       'glow',
     ])

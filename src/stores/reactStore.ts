@@ -22,6 +22,9 @@ import {
   createDefaultLaserDmxBeamMatrixSettings,
   coerceLaserDmxWorkspaceMode,
   resolveReactPresetLaserDmxWorkspace,
+  isLegacySpatialLaserDmxPreset,
+  LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID,
+  LEGACY_SPATIAL_LASER_DMX_PRESET_IDS,
   LASER_DMX_MATRIX_COLUMNS,
   LASER_DMX_MATRIX_ROWS,
   LASER_DMX_MATRIX_MAX_BEAMS,
@@ -97,7 +100,6 @@ import {
   type ProductionCueAction,
   normalizeProductionCompoundCue,
 } from '../components/vyzualz/react/LaserDmxProductionRig'
-import { convertBeamMatrixToSpatialRig } from '../components/vyzualz/react/laserDmxBeamMatrixSpatialBridge'
 import {
   beginProductionLookTransition,
   captureProductionLook,
@@ -852,11 +854,14 @@ export function buildPresetPatch(
   }
 
   const laserDmxWorkspaceMode = resolveReactPresetLaserDmxWorkspace(preset)
-  const safeLaserDmxWorkspaceMode = laserDmxWorkspaceMode == null
-    ? null
-    : coerceLaserDmxWorkspaceMode(laserDmxWorkspaceMode)
+  const safeLaserDmxWorkspaceMode = preset.engine === 'laserDmx'
+    ? coerceLaserDmxWorkspaceMode(laserDmxWorkspaceMode)
+    : null
+  const shouldApplyLaserDmxSettings = preset.laserDmxSettings != null
+    && preset.engine === 'laserDmx'
+    && !isLegacySpatialLaserDmxPreset(preset)
   let laserPatch: LaserDmxSettings | undefined
-  if (preset.laserDmxSettings != null) {
+  if (shouldApplyLaserDmxSettings) {
     // Presets are complete looks, not deltas against live authored state.
     const merged = normalizeLaserDmxSettings({
       ...createDefaultLaserDmxSettings(),
@@ -1222,7 +1227,6 @@ interface ReactStoreState {
   updateLaserModulationRoute: (fixtureId: string, routeId: string, patch: Partial<LaserDmxModulationRoute>) => void
   removeLaserModulationRoute: (fixtureId: string, routeId: string) => void
   applyLaserDmxVenueTemplate: (templateId: string) => void
-  convertLaserDmxBeamMatrixToSpatialRig: () => void
   triggerLaserAtmosphericFixture: (fixtureId: string) => void
   clearLaserAtmosphericBursts: () => void
   triggerLaserAtmosphericGroup: (groupId: string) => void
@@ -1713,6 +1717,20 @@ function clearRetiredDuplicatePadAssignments(pads: ReactPerformancePad[]): React
     : pad)
 }
 
+function replaceLockedLaserDmxPresetId(value: unknown): string | null {
+  const presetId = replaceRetiredDuplicatePresetId(value)
+  if (presetId == null) return null
+  return LEGACY_SPATIAL_LASER_DMX_PRESET_IDS.has(presetId)
+    ? LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID
+    : presetId
+}
+
+function normalizeLockedLaserDmxPadAssignments(pads: ReactPerformancePad[]): ReactPerformancePad[] {
+  return pads.map(pad => pad.presetId && LEGACY_SPATIAL_LASER_DMX_PRESET_IDS.has(pad.presetId)
+    ? { ...pad, presetId: LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID, label: 'Beam Matrix', color: '#00ffdc' }
+    : pad)
+}
+
 const VALID_REACT_ENGINE_IDS = new Set<ReactEngineId>(REACT_ENGINE_IDS)
 
 export interface RepairedReactSelection {
@@ -1734,7 +1752,7 @@ export function repairReactEnginePresetSelection(
   activeReactEngineId: unknown,
   presets: ReactPreset[] = DEFAULT_REACT_PRESETS,
 ): RepairedReactSelection {
-  const presetId = replaceRetiredDuplicatePresetId(activeReactPresetId)
+  const presetId = replaceLockedLaserDmxPresetId(activeReactPresetId)
   const selectedPreset = presetId
     ? presets.find(p => p.id === presetId && isSelectableReactEngineId(p.engine)) ?? null
     : null
@@ -2340,7 +2358,7 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     )
     state = {
       ...state,
-      activeReactPresetId: replaceRetiredDuplicatePresetId(state.activeReactPresetId),
+      activeReactPresetId: replaceLockedLaserDmxPresetId(state.activeReactPresetId),
       reactPresets: normalizeCinematicPresetCollection(presets),
       performancePads: pads,
       cinematicConfigsByPresetId: normalizeCinematicConfigOverrides(state.cinematicConfigsByPresetId, presets),
@@ -2349,6 +2367,16 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
   }
   if (version < 37) {
     state = sanitizeRetiredNeonLatticeReactState(state)
+  }
+  if (version < 39) {
+    state = {
+      ...state,
+      activeReactPresetId: replaceLockedLaserDmxPresetId(state.activeReactPresetId),
+      laserDmxWorkspaceMode: 'beamMatrix' as const,
+      ...(Array.isArray(state.performancePads)
+        ? { performancePads: normalizeLockedLaserDmxPadAssignments(state.performancePads as ReactPerformancePad[]) }
+        : {}),
+    }
   }
   if (Array.isArray(state.reactPresets)) {
     state = {
@@ -2573,9 +2601,9 @@ export function mergeReactStoreState(
       .filter(preset => !RETIRED_NEON_LATTICE_BUILT_IN_PRESET_IDS.has(preset.id))
       .map(preset => preset.id),
   )
-  const performancePads = clearRetiredDuplicatePadAssignments(
+  const performancePads = normalizeLockedLaserDmxPadAssignments(clearRetiredDuplicatePadAssignments(
     mergeCollectionsById(currentState.performancePads, persisted.performancePads),
-  )
+  ))
   const cinematicConfigsByPresetId = normalizeCinematicConfigOverrides(
     persisted.cinematicConfigsByPresetId ?? currentState.cinematicConfigsByPresetId,
     reactPresets,
@@ -2819,7 +2847,8 @@ export const useReactStore = create<ReactStoreState>()(
 
       selectReactPreset: (id) =>
         set((s) => {
-          const preset = s.reactPresets.find((p) => p.id === id && isSelectableReactEngineId(p.engine))
+          const safePresetId = replaceLockedLaserDmxPresetId(id) ?? id
+          const preset = s.reactPresets.find((p) => p.id === safePresetId && isSelectableReactEngineId(p.engine))
           if (!preset) {
             const fallback = s.reactPresets.find(candidate => candidate.id === INITIAL_PRESET_ID && isSelectableReactEngineId(candidate.engine))
             return fallback ? { ...buildPresetPatchForState(fallback, s), performancePadTransition: null } : {}
@@ -2962,7 +2991,8 @@ export const useReactStore = create<ReactStoreState>()(
           if (!id) return { activePadId: null, performancePadTransition: null }
           const pad = s.performancePads.find((p) => p.id === id)
           if (!pad?.presetId) return { activePadId: id }
-          const preset = s.reactPresets.find((p) => p.id === pad.presetId && isSelectableReactEngineId(p.engine))
+          const safePresetId = replaceLockedLaserDmxPresetId(pad.presetId) ?? pad.presetId
+          const preset = s.reactPresets.find((p) => p.id === safePresetId && isSelectableReactEngineId(p.engine))
           if (!preset) return { activePadId: id, performancePadTransition: null }
           const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now()
           const currentTarget = getReactPresetControlValues(s)
@@ -2986,11 +3016,16 @@ export const useReactStore = create<ReactStoreState>()(
 
       updatePerformancePad: (id, patch) =>
         set((s) => {
-          const requestedPreset = patch.presetId
-            ? s.reactPresets.find(preset => preset.id === patch.presetId && isSelectableReactEngineId(preset.engine))
+          const requestedPresetId = patch.presetId
+            ? replaceLockedLaserDmxPresetId(patch.presetId) ?? patch.presetId
             : null
-          const safePatch = 'presetId' in patch && patch.presetId && !requestedPreset
-            ? { ...patch, presetId: null, label: 'Empty', color: '#3a4650' }
+          const requestedPreset = requestedPresetId
+            ? s.reactPresets.find(preset => preset.id === requestedPresetId && isSelectableReactEngineId(preset.engine))
+            : null
+          const safePatch = 'presetId' in patch && patch.presetId
+            ? requestedPreset
+              ? { ...patch, presetId: requestedPreset.id }
+              : { ...patch, presetId: null, label: 'Empty', color: '#3a4650' }
             : patch
           return {
             performancePads: s.performancePads.map((pad) =>
@@ -4031,28 +4066,6 @@ export const useReactStore = create<ReactStoreState>()(
       applyLaserDmxVenueTemplate: (templateId) =>
         set(s => ({ laserDmxSettings: applyProductionVenueTemplate(s.laserDmxSettings, templateId) })),
 
-      convertLaserDmxBeamMatrixToSpatialRig: () =>
-        set(s => {
-          const conversion = convertBeamMatrixToSpatialRig(
-            s.laserDmxBeamMatrix,
-            s.laserDmxSettings.productionStage,
-          )
-          return {
-            laserDmxWorkspaceMode: 'beamMatrix' as const,
-            laserDmxSettings: ensureProductionLookCompatibility(normalizeLaserDmxSettings({
-              ...s.laserDmxSettings,
-              productionStage: conversion.stage,
-              fixtures: conversion.fixtures,
-              productionGroups: conversion.groups,
-              productionTargets: conversion.targets,
-              productionLooks: [],
-              activeProductionLookId: null,
-              selectedFixtureId: conversion.fixtures[0]?.id ?? null,
-              rigName: 'Beam Matrix Spatial Conversion',
-            }), 'Beam Matrix Look', 'beamMatrixConversion'),
-          }
-        }),
-
       // ── LaserDMX workspace mode ─────────────────────────────────────────────
 
       setLaserDmxWorkspaceMode: (mode) => set({ laserDmxWorkspaceMode: coerceLaserDmxWorkspaceMode(mode) }),
@@ -4936,7 +4949,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 38,
+      version: 39,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

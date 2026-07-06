@@ -3,9 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { resolveCinematicConfigForPreset, useReactStore } from '../../../stores/reactStore'
 import { CINEMATIC_WORLD_BY_ID, CINEMATIC_WORLD_UI, getCinematicPresetMood } from './CinematicWorldsUi'
 import {
-  resolveReactPresetLaserDmxWorkspace,
   type LaserDmxSettings,
-  type LaserDmxWorkspaceMode,
   type ReactPreset,
   type ReactEngineId,
 } from './ReactTypes'
@@ -25,11 +23,6 @@ import {
 } from './reactPresetLibraryState'
 
 const ENGINE_ORDER: ReactEngineId[] = REACT_ENGINE_IDS.filter(engine => engine !== 'shaderPads')
-const LASER_DMX_WORKSPACE_LABELS: Record<LaserDmxWorkspaceMode, string> = {
-  spatialFixtures: 'Beam Matrix',
-  beamMatrix: 'Beam Matrix',
-}
-
 function getModeHint(preset: ReactPreset): string | null {
   if (preset.engine === 'cinematicPortal') {
     const mode = preset.cinematicConfig?.worldMode ?? 'legacyPortal'
@@ -91,7 +84,6 @@ function PresetCard({
   modified,
   isFavorite,
   activeEngineId,
-  activeLaserDmxWorkspace,
   onSelect,
   onToggleFavorite,
   currentRig,
@@ -102,7 +94,6 @@ function PresetCard({
   modified: boolean
   isFavorite: boolean
   activeEngineId: ReactEngineId
-  activeLaserDmxWorkspace: LaserDmxWorkspaceMode
   onSelect: (id: string) => void
   onToggleFavorite: (id: string) => void
   currentRig: LaserDmxSettings
@@ -113,16 +104,8 @@ function PresetCard({
   const modeHint = getModeHint(preset)
   const production = preset.productionPreset
   const compatibility = production ? analyzeProductionPresetCompatibility(preset, currentRig) : null
-  const presetLaserWorkspace = resolveReactPresetLaserDmxWorkspace(preset)
-  const switchesEngine = preset.engine !== activeEngineId
-  const switchesLaserWorkspace = preset.engine === 'laserDmx'
-    && activeEngineId === 'laserDmx'
-    && presetLaserWorkspace != null
-    && presetLaserWorkspace !== activeLaserDmxWorkspace
-  const switchesContext = switchesEngine || switchesLaserWorkspace
-  const destinationLabel = switchesLaserWorkspace && presetLaserWorkspace
-    ? LASER_DMX_WORKSPACE_LABELS[presetLaserWorkspace]
-    : REACT_ENGINE_CATALOG[preset.engine].label
+  const switchesContext = preset.engine !== activeEngineId
+  const destinationLabel = REACT_ENGINE_CATALOG[preset.engine].label
   const hasMoreDetails = true
 
   return (
@@ -202,7 +185,6 @@ type PresetCollectionProps = {
   modifiedIds: Set<string>
   favoriteIds: Set<string>
   activeEngineId: ReactEngineId
-  activeLaserDmxWorkspace: LaserDmxWorkspaceMode
   onSelect: (id: string) => void
   onToggleFavorite: (id: string) => void
   currentRig: LaserDmxSettings
@@ -210,18 +192,14 @@ type PresetCollectionProps = {
 }
 
 function renderPresetCard(preset: ReactPreset, props: Omit<PresetCollectionProps, 'presets'>) {
-  const presetWorkspace = resolveReactPresetLaserDmxWorkspace(preset)
-  const workspaceMatches = preset.engine !== 'laserDmx'
-    || (props.activeEngineId === 'laserDmx' && presetWorkspace === props.activeLaserDmxWorkspace)
   return (
     <PresetCard
       key={preset.id}
       preset={preset}
-      isActive={preset.id === props.activePresetId && preset.engine === props.activeEngineId && workspaceMatches}
+      isActive={preset.id === props.activePresetId && preset.engine === props.activeEngineId}
       modified={props.modifiedIds.has(preset.id)}
       isFavorite={props.favoriteIds.has(preset.id)}
       activeEngineId={props.activeEngineId}
-      activeLaserDmxWorkspace={props.activeLaserDmxWorkspace}
       onSelect={props.onSelect}
       onToggleFavorite={props.onToggleFavorite}
       currentRig={props.currentRig}
@@ -273,11 +251,9 @@ function EngineSection({ engineId, presets, expandedByDefault = false, ...props 
   engineId: ReactEngineId
   expandedByDefault?: boolean
 }) {
-  const containsActive = presets.some(preset => {
-    if (preset.id !== props.activePresetId || preset.engine !== props.activeEngineId) return false
-    const workspace = resolveReactPresetLaserDmxWorkspace(preset)
-    return preset.engine !== 'laserDmx' || workspace === props.activeLaserDmxWorkspace
-  })
+  const containsActive = presets.some(preset => (
+    preset.id === props.activePresetId && preset.engine === props.activeEngineId
+  ))
   const [collapsed, setCollapsed] = useState(() => !expandedByDefault && !containsActive)
 
   useEffect(() => {
@@ -316,7 +292,6 @@ export function ReactPresetsPanel() {
     reactPresets,
     activeReactPresetId,
     activeReactEngineId,
-    laserDmxWorkspaceMode,
     cinematicConfigsByPresetId,
     selectReactPreset,
     laserDmxSettings,
@@ -324,7 +299,6 @@ export function ReactPresetsPanel() {
     reactPresets: state.reactPresets,
     activeReactPresetId: state.activeReactPresetId,
     activeReactEngineId: state.activeReactEngineId,
-    laserDmxWorkspaceMode: state.laserDmxWorkspaceMode,
     cinematicConfigsByPresetId: state.cinematicConfigsByPresetId,
     selectReactPreset: state.selectReactPreset,
     laserDmxSettings: state.laserDmxSettings,
@@ -337,7 +311,7 @@ export function ReactPresetsPanel() {
   // Cinematic/other-engine content beside the newly selected workspace.
   useEffect(() => {
     setLibraryView('current')
-  }, [activeReactEngineId, laserDmxWorkspaceMode])
+  }, [activeReactEngineId])
 
   const displayPresets = useMemo(
     () => reactPresets.filter(preset => isSelectableReactEngineId(preset.engine)).map(preset => resolveBrandedReactPreset(
@@ -363,7 +337,7 @@ export function ReactPresetsPanel() {
     ? resolveCinematicConfigForPreset(active, cinematicConfigsByPresetId)?.worldMode ?? null
     : null
   const visiblePresets = useMemo(() => {
-    const engineVisible = filterReactPresetLibrary(displayPresets, activeReactEngineId, laserDmxWorkspaceMode, libraryView, favoriteIds)
+    const engineVisible = filterReactPresetLibrary(displayPresets, activeReactEngineId, libraryView, favoriteIds)
     if (libraryView !== 'current' || activeReactEngineId !== 'cinematicPortal' || !activeCinematicWorldMode) return engineVisible
     return engineVisible.filter(preset => (
       resolveCinematicConfigForPreset(preset, cinematicConfigsByPresetId)?.worldMode === activeCinematicWorldMode
@@ -371,7 +345,6 @@ export function ReactPresetsPanel() {
   }, [
     displayPresets,
     activeReactEngineId,
-    laserDmxWorkspaceMode,
     libraryView,
     favoriteIds,
     activeCinematicWorldMode,
@@ -389,8 +362,8 @@ export function ReactPresetsPanel() {
   const modifiedIds = useMemo(() => new Set(Object.keys(cinematicConfigsByPresetId)), [cinematicConfigsByPresetId])
   const activeEngine = REACT_ENGINE_CATALOG[activeReactEngineId]
   const thumbnailGenerationKey = useMemo(
-    () => `${activeReactEngineId}:${laserDmxWorkspaceMode}:${libraryView}:${visiblePresets.map(preset => preset.id).join('|')}`,
-    [activeReactEngineId, laserDmxWorkspaceMode, libraryView, visiblePresets],
+    () => `${activeReactEngineId}:${libraryView}:${visiblePresets.map(preset => preset.id).join('|')}`,
+    [activeReactEngineId, libraryView, visiblePresets],
   )
 
   const toggleFavorite = (presetId: string) => {
@@ -408,7 +381,6 @@ export function ReactPresetsPanel() {
     modifiedIds,
     favoriteIds,
     activeEngineId: activeReactEngineId,
-    activeLaserDmxWorkspace: laserDmxWorkspaceMode,
     onSelect: selectReactPreset,
     onToggleFavorite: toggleFavorite,
     currentRig: laserDmxSettings,
@@ -423,7 +395,7 @@ export function ReactPresetsPanel() {
           <div>
             <strong>{activeEngine.label}</strong>
             <small>{libraryView === 'current'
-              ? `${visiblePresets.length} presets for ${activeReactEngineId === 'laserDmx' ? LASER_DMX_WORKSPACE_LABELS[laserDmxWorkspaceMode] : 'the selected engine'}`
+              ? `${visiblePresets.length} presets for the selected engine`
               : `${visiblePresets.length} presets shown`}</small>
           </div>
         </div>

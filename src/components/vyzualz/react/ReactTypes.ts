@@ -656,9 +656,28 @@ export type LaserDmxWorkspaceMode = 'spatialFixtures' | 'beamMatrix'
  * normalize any live workspace request back to Beam Matrix.
  */
 export const LOCKED_LASER_DMX_WORKSPACE_MODE: LaserDmxWorkspaceMode = 'beamMatrix'
+export const LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID = 'preset-laser-dmx-beam-matrix'
+
+export const LEGACY_SPATIAL_LASER_DMX_PRESET_IDS = new Set<string>([
+  'preset-laser-dmx-default',
+  'preset-laser-dmx-fan-sweep',
+  'preset-laser-dmx-drop-cage',
+  'preset-laser-dmx-constellation',
+  'preset-laser-dmx-build-tunnel',
+  'preset-laser-dmx-vocal-skywriter',
+  'preset-red-club-crossfire',
+])
 
 export function coerceLaserDmxWorkspaceMode(_mode: unknown): LaserDmxWorkspaceMode {
   return LOCKED_LASER_DMX_WORKSPACE_MODE
+}
+
+export function isLegacySpatialLaserDmxPreset(
+  preset: { id: string; engine: ReactEngineId; laserDmxWorkspace?: LaserDmxWorkspaceMode },
+): boolean {
+  if (preset.engine !== 'laserDmx') return false
+  return preset.laserDmxWorkspace === 'spatialFixtures'
+    || (preset.laserDmxWorkspace == null && LEGACY_SPATIAL_LASER_DMX_PRESET_IDS.has(preset.id))
 }
 
 export const LASER_DMX_MATRIX_COLUMNS = 15
@@ -2390,6 +2409,20 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     },
   },
 
+  // ── LaserDMX Beam Matrix launcher ─────────────────────────────────────────
+  {
+    id: LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID,
+    name: 'Beam Matrix',
+    description: 'LaserDMX Beam Matrix launcher. Keeps authored matrix presets, beams, groups, fog, and modulation in the Beam Matrix workspace.',
+    engine: 'laserDmx',
+    laserDmxWorkspace: 'beamMatrix',
+    palette: PALETTE_LASER_DMX,
+    params: { intensity: 0.85, motion: 0.5, glow: 0.72, bassReactivity: 0.8 },
+    renderSettings: { trailDecay: 0.08, fogDensity: 0.35, particleDensity: 0.5 },
+    scenes: makeScenes('ldx-bm', 'laserDmx'),
+    sectionMappings: makeMappings('ldx-bm'),
+  },
+
   // ── LaserDMX (1) ─────────────────────────────────────────────────────────
   {
     id: 'preset-laser-dmx-default',
@@ -2830,9 +2863,9 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
 export const DEFAULT_PERFORMANCE_PADS: ReactPerformancePad[] = [
   // Row 1 — Mixed live-performance presets
   { id: 'pad-1',  presetId: 'preset-bass-triangle-reactor',  label: 'Reactor',   color: DVYDRM_GOLD,    keyBinding: '1', transitionTimeMs: 500 },
-  { id: 'pad-2',  presetId: 'preset-laser-dmx-drop-cage',    label: 'Drop Cage', color: DVYDRM_CYAN,    keyBinding: '2', transitionTimeMs: 400 },
+  { id: 'pad-2',  presetId: LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID,    label: 'Drop Cage', color: DVYDRM_CYAN,    keyBinding: '2', transitionTimeMs: 400 },
   { id: 'pad-3',  presetId: 'preset-infinity-signal',        label: 'Infinity',  color: DVYDRM_EMERALD, keyBinding: '3', transitionTimeMs: 600 },
-  { id: 'pad-4',  presetId: 'preset-laser-dmx-build-tunnel', label: 'Tunnel',    color: '#ff8c42',      keyBinding: '4', transitionTimeMs: 300 },
+  { id: 'pad-4',  presetId: LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID, label: 'Tunnel',    color: '#ff8c42',      keyBinding: '4', transitionTimeMs: 300 },
   { id: 'pad-17', presetId: null,                            label: 'Empty',    color: '#3a4650',      keyBinding: '5', transitionTimeMs: 600 },
   // Row 2 — Cinematic / open slots
   { id: 'pad-5',  presetId: 'preset-dream-gate',             label: 'Dream',    color: '#5b8def',      keyBinding: 'q', transitionTimeMs: 800 },
@@ -2851,5 +2884,5 @@ export const DEFAULT_PERFORMANCE_PADS: ReactPerformancePad[] = [
   { id: 'pad-14', presetId: 'preset-drmvyz-text-trace',      label: 'DRMVYZ',   color: '#b84fc9',      keyBinding: 'x', transitionTimeMs: 400 },
   { id: 'pad-15', presetId: 'preset-star-drop-burst',        label: 'StarBurst',color: DVYDRM_GOLD,    keyBinding: 'c', transitionTimeMs: 250 },
   { id: 'pad-16', presetId: 'preset-glyph-circle-pulse',     label: 'Circle',   color: DVYDRM_CYAN,    keyBinding: 'v', transitionTimeMs: 400 },
-  { id: 'pad-20', presetId: 'preset-laser-dmx-default',      label: 'Laser Fan',color: '#00ffdc',      keyBinding: 'b', transitionTimeMs: 300 },
+  { id: 'pad-20', presetId: LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID,      label: 'Laser Fan',color: '#00ffdc',      keyBinding: 'b', transitionTimeMs: 300 },
 ]

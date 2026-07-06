@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_REACT_PRESETS } from '../ReactTypes'
+import { DEFAULT_REACT_PRESETS, LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID } from '../ReactTypes'
 import {
   filterReactPresetLibrary,
   readReactPresetFavorites,
@@ -24,16 +24,15 @@ describe('React preset library state', () => {
     const filtered = filterReactPresetLibrary(
       DEFAULT_REACT_PRESETS,
       'laserDmx',
-      'beamMatrix',
       'current',
       new Set(),
     )
 
-    expect(filtered).toHaveLength(0)
+    expect(filtered.map(preset => preset.id)).toEqual([LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID])
   })
 
   it('keeps Beam Matrix presets visible while hiding legacy Spatial Fixtures presets', () => {
-    const spatial = DEFAULT_REACT_PRESETS.find(preset => preset.engine === 'laserDmx')!
+    const spatial = DEFAULT_REACT_PRESETS.find(preset => preset.engine === 'laserDmx' && preset.laserDmxWorkspace === 'spatialFixtures')!
     const beamMatrix = {
       ...spatial,
       id: 'test-beam-matrix-react-preset',
@@ -45,10 +44,9 @@ describe('React preset library state', () => {
     expect(filterReactPresetLibrary(
       [...DEFAULT_REACT_PRESETS, beamMatrix],
       'laserDmx',
-      'beamMatrix',
       'current',
       new Set(),
-    ).map(preset => preset.id)).toEqual([beamMatrix.id])
+    ).map(preset => preset.id)).toEqual([LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID, beamMatrix.id])
   })
 
   it('keeps all-engine browsing explicit and favorites engine-agnostic', () => {
@@ -56,10 +54,10 @@ describe('React preset library state', () => {
     const oscilloscope = DEFAULT_REACT_PRESETS.find(preset => preset.engine === 'oscilloscope')!
     const favorites = new Set([cinematic.id, oscilloscope.id])
 
-    const visibleDefaultPresets = DEFAULT_REACT_PRESETS.filter(preset => preset.engine !== 'laserDmx')
-    expect(filterReactPresetLibrary(DEFAULT_REACT_PRESETS, 'laserDmx', 'beamMatrix', 'all', favorites))
+    const visibleDefaultPresets = DEFAULT_REACT_PRESETS.filter(preset => preset.engine !== 'laserDmx' || preset.id === LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID)
+    expect(filterReactPresetLibrary(DEFAULT_REACT_PRESETS, 'laserDmx', 'all', favorites))
       .toHaveLength(visibleDefaultPresets.length)
-    expect(filterReactPresetLibrary(DEFAULT_REACT_PRESETS, 'laserDmx', 'beamMatrix', 'favorites', favorites).map(preset => preset.id))
+    expect(filterReactPresetLibrary(DEFAULT_REACT_PRESETS, 'laserDmx', 'favorites', favorites).map(preset => preset.id))
       .toEqual([cinematic.id, oscilloscope.id])
   })
 

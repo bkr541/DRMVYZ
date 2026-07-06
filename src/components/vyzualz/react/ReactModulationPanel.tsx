@@ -5,20 +5,17 @@ import { ConnectedShaderModulationPanel } from './shaders/ui/ConnectedShaderModu
 import { CinematicWorldsModulationControls } from './CinematicWorldsControls'
 import { SliderRow, SelectRow, ToggleRow, Collapsible } from './ReactControlRows'
 import {
-  coerceLaserDmxWorkspaceMode,
   type OscillatorAudioDisplaceMode,
   type OscillatorTextLetterReactionMode,
   type LetterReactionAssignment,
   type LetterReactionSource,
   type LetterReactionTarget,
-  type LaserDmxFixture,
   type LaserDmxModulationRoute,
   type LaserDmxTriggerTimingFilter,
   type LaserDmxTriggerTimingFilterMode,
 } from './ReactTypes'
 import { BEATS_PER_BAR } from './ReactTypes'
 import { TRIGGER_TIMING_EVENT_SOURCES } from './renderers/LaserDmxModulationEngine'
-import { resolveLaserDmxFixtureCapabilities } from './LaserDmxProductionRig'
 
 // ── Source / target option lists ──────────────────────────────────────────────
 
@@ -66,37 +63,6 @@ const MOD_SOURCES = [
   { value: 'harmonicConfidence', label: 'Harmonic Confidence'},
   // Other
   { value: 'complexity',         label: 'Complexity'         },
-]
-
-const MOD_TARGETS = [
-  { value: 'masterDimmer',  label: 'Master Dimmer'  },
-  { value: 'fixtureDimmer', label: 'Fixture Dimmer' },
-  { value: 'red',           label: 'Red'            },
-  { value: 'green',         label: 'Green'          },
-  { value: 'blue',          label: 'Blue'           },
-  { value: 'white',         label: 'White'          },
-  { value: 'alpha',         label: 'Alpha'          },
-  { value: 'pan',           label: 'Pan'            },
-  { value: 'tilt',          label: 'Tilt'           },
-  { value: 'rotation',      label: 'Rotation'       },
-  { value: 'zoom',          label: 'Zoom'           },
-  { value: 'focus',         label: 'Focus'          },
-  { value: 'iris',          label: 'Iris'           },
-  { value: 'frost',         label: 'Frost'          },
-  { value: 'goboRotation',  label: 'Gobo Rotation'  },
-  { value: 'prismRotation', label: 'Prism Rotation' },
-  { value: 'beamWidth',     label: 'Beam Width'     },
-  { value: 'strobeRate',    label: 'Strobe Rate'    },
-  { value: 'scanSpeed',     label: 'Scan Speed'     },
-  { value: 'pathProgress',  label: 'Path Progress'  },
-  { value: 'pathScale',     label: 'Path Scale'     },
-  { value: 'pathRotation',  label: 'Path Rotation'  },
-  { value: 'pathSpread',    label: 'Path Spread'    },
-  { value: 'pathRadius',    label: 'Path Radius'    },
-  { value: 'pathComplexity',label: 'Path Complexity'},
-  { value: 'hazeAmount',    label: 'Haze Amount'    },
-  { value: 'glowAmount',    label: 'Glow Amount'    },
-  { value: 'shutter',       label: 'Shutter'        },
 ]
 
 const CURVE_OPTIONS = [
@@ -289,43 +255,6 @@ function TriggerTimingSection({
   )
 }
 
-// ── Starter routes factory ────────────────────────────────────────────────────
-
-function starterRoutes(): LaserDmxModulationRoute[] {
-  return [
-    { id: crypto.randomUUID(), enabled: true,  source: 'kick',          target: 'fixtureDimmer', amount: 0.85, min: 0.35, max: 1,   curve: 'pulse',   mode: 'trigger',  smoothing: 0.1,  attack: 0.02, release: 0.25, invert: false },
-    { id: crypto.randomUUID(), enabled: true,  source: 'snare',         target: 'strobeRate',    amount: 0.6,  min: 0,    max: 0.65, curve: 'pulse',   mode: 'trigger',  smoothing: 0,    attack: 0,    release: 0.2,  invert: false },
-    { id: crypto.randomUUID(), enabled: true,  source: 'beatPhase',     target: 'pathProgress',  amount: 1,    min: 0,    max: 1,    curve: 'linear',  mode: 'set',      smoothing: 0,    attack: 0,    release: 0,    invert: false },
-    { id: crypto.randomUUID(), enabled: true,  source: 'buildProgress', target: 'pathSpread',    amount: 1,    min: 0.2,  max: 1,    curve: 'easeOut', mode: 'set',      smoothing: 0.3,  attack: 0.1,  release: 0.5,  invert: false },
-    { id: crypto.randomUUID(), enabled: true,  source: 'dropImpact',    target: 'masterDimmer',  amount: 1,    min: 0.65, max: 1,    curve: 'pulse',   mode: 'trigger',  smoothing: 0,    attack: 0,    release: 0.3,  invert: false },
-    { id: crypto.randomUUID(), enabled: false, source: 'vocalActivity', target: 'blue',          amount: 0.7,  min: 0.3,  max: 1,    curve: 'easeOut', mode: 'set',      smoothing: 0.4,  attack: 0.1,  release: 0.6,  invert: false },
-  ]
-}
-
-function modulationTargetsForFixture(fixture: LaserDmxFixture) {
-  const capabilities = resolveLaserDmxFixtureCapabilities(fixture)
-  const allowed = new Set<string>(['masterDimmer', 'alpha', 'hazeAmount', 'glowAmount'])
-  if (!capabilities) return MOD_TARGETS.filter(target => allowed.has(target.value))
-  if (capabilities.dimmer) allowed.add('fixtureDimmer')
-  if (capabilities.color?.mode === 'rgb' || capabilities.color?.mode === 'rgbw') {
-    allowed.add('red'); allowed.add('green'); allowed.add('blue')
-  }
-  if (capabilities.color?.mode === 'rgbw') allowed.add('white')
-  if (capabilities.panTilt) { allowed.add('pan'); allowed.add('tilt') }
-  if (capabilities.zoom) allowed.add('zoom')
-  if (capabilities.focus) allowed.add('focus')
-  if (capabilities.iris) allowed.add('iris')
-  if (capabilities.frost) allowed.add('frost')
-  if (capabilities.gobo?.rotation) allowed.add('goboRotation')
-  if (capabilities.prism?.rotation) allowed.add('prismRotation')
-  if (capabilities.strobe) allowed.add('strobeRate')
-  if (capabilities.shutter) allowed.add('shutter')
-  if (capabilities.beamPattern) {
-    for (const target of ['rotation', 'beamWidth', 'scanSpeed', 'pathProgress', 'pathScale', 'pathRotation', 'pathSpread', 'pathRadius', 'pathComplexity']) allowed.add(target)
-  }
-  return MOD_TARGETS.filter(target => allowed.has(target.value))
-}
-
 // ── Route row ─────────────────────────────────────────────────────────────────
 
 function RouteRow({
@@ -333,13 +262,13 @@ function RouteRow({
   onChange,
   onDelete,
   sources = MOD_SOURCES,
-  targets = MOD_TARGETS,
+  targets,
 }: {
   route:    LaserDmxModulationRoute
   onChange: (patch: Partial<LaserDmxModulationRoute>) => void
   onDelete: () => void
   sources?: { value: string; label: string }[]
-  targets?: { value: string; label: string }[]
+  targets: { value: string; label: string }[]
 }) {
   const r = (key: keyof LaserDmxModulationRoute) => (route[key] as number)
   const isOffsetTarget = (route.target === 'originOffsetX' || route.target === 'originOffsetY' ||
@@ -372,74 +301,6 @@ function RouteRow({
         />
       )}
     </div>
-  )
-}
-
-// ── LaserDMX Modulation sub-panel ─────────────────────────────────────────────
-
-function LaserDmxModPanel() {
-  const {
-    laserDmxSettings,
-    addLaserModulationRoute,
-    updateLaserModulationRoute,
-    removeLaserModulationRoute,
-    updateLaserFixture,
-  } = useReactStore(useShallow(s => ({
-    laserDmxSettings:            s.laserDmxSettings,
-    addLaserModulationRoute:     s.addLaserModulationRoute,
-    updateLaserModulationRoute:  s.updateLaserModulationRoute,
-    removeLaserModulationRoute:  s.removeLaserModulationRoute,
-    updateLaserFixture:          s.updateLaserFixture,
-  })))
-
-  const { fixtures, selectedFixtureId } = laserDmxSettings
-  const fixture = fixtures.find(f => f.id === selectedFixtureId) ?? null
-  const fid = fixture?.id ?? ''
-
-  if (!fixture) {
-    return (
-      <Collapsible label="Modulation Routes" defaultOpen>
-        <div className="rv-ctrl-info">Select or add a laser fixture to edit modulation routes.</div>
-      </Collapsible>
-    )
-  }
-
-  const routes = fixture.modulationRoutes
-  const fixtureTargets = modulationTargetsForFixture(fixture)
-  const supportedTargetIds = new Set(fixtureTargets.map(target => target.value))
-
-  return (
-    <Collapsible label={`Routes — ${fixture.name}`} defaultOpen>
-      {routes.length === 0 && (
-        <>
-          <div className="rv-ctrl-info">No modulation routes. Add starter routes or add one manually.</div>
-          <button
-            type="button"
-            className="rv-glyph-upload-btn"
-            onClick={() => updateLaserFixture(fid, { modulationRoutes: starterRoutes().filter(route => supportedTargetIds.has(route.target)) })}
-          >
-            Add Starter Routes
-          </button>
-        </>
-      )}
-      {routes.map(route => (
-        <RouteRow
-          key={route.id}
-          route={route}
-          targets={fixtureTargets}
-          onChange={patch => updateLaserModulationRoute(fid, route.id, patch)}
-          onDelete={() => removeLaserModulationRoute(fid, route.id)}
-        />
-      ))}
-      <button
-        type="button"
-        className="rv-glyph-upload-btn"
-        style={{ marginTop: 6 }}
-        onClick={() => addLaserModulationRoute(fid)}
-      >
-        + Add Mod Route
-      </button>
-    </Collapsible>
   )
 }
 
@@ -796,11 +657,9 @@ function LetterAssignmentEditor({
 export function ReactModulationPanel() {
   const {
     activeReactEngineId,
-    laserDmxWorkspaceMode,
     oscillatorSettings, setOscillatorSettings,
   } = useReactStore(useShallow(s => ({
     activeReactEngineId:   s.activeReactEngineId,
-    laserDmxWorkspaceMode: s.laserDmxWorkspaceMode,
     oscillatorSettings:    s.oscillatorSettings,
     setOscillatorSettings: s.setOscillatorSettings,
   })))
@@ -821,16 +680,9 @@ export function ReactModulationPanel() {
     return <div className="rv-ctrl-group"><CinematicWorldsModulationControls /></div>
   }
 
-  // ── LaserDMX: branch by workspace mode ───────────────────────────────────
+  // ── LaserDMX: Beam Matrix modulation only ────────────────────────────────
   if (isLaserDmx) {
-    return (
-      <div className="rv-ctrl-group">
-        {coerceLaserDmxWorkspaceMode(laserDmxWorkspaceMode) === 'beamMatrix'
-          ? <LaserDmxBeamMatrixModPanel />
-          : <LaserDmxModPanel />
-        }
-      </div>
-    )
+    return <div className="rv-ctrl-group"><LaserDmxBeamMatrixModPanel /></div>
   }
 
   // ── Non-oscilloscope engines: no per-frequency routing exists yet ──────────

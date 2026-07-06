@@ -458,12 +458,11 @@ describe('LaserDMX production Looks', () => {
     expect(settings.activeProductionLookId).toBe(settings.productionLooks?.[0].id)
   })
 
-  it('normalizes existing LaserDMX presets into a complete default Look', () => {
-    const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.engine === 'laserDmx' && candidate.laserDmxSettings)
+  it('ignores legacy Spatial Fixtures presets during Beam Matrix-only selection', () => {
+    const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.engine === 'laserDmx' && candidate.laserDmxWorkspace === 'spatialFixtures')
     expect(preset).toBeDefined()
     const patch = buildPresetPatch(preset!, DEFAULT_OSCILLATOR_SETTINGS)
-    expect(patch.laserDmxSettings?.productionLooks).toHaveLength(1)
-    expect(patch.laserDmxSettings?.productionLooks?.[0].source).toBe('spatialPreset')
-    expect(patch.laserDmxSettings?.fixtures).toHaveLength(preset!.laserDmxSettings!.fixtures?.length ?? 0)
+    expect(patch.laserDmxWorkspaceMode).toBe('beamMatrix')
+    expect(patch.laserDmxSettings).toBeUndefined()
   })
 })

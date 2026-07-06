@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_PERFORMANCE_PADS,
   DEFAULT_REACT_PRESETS,
+  LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID,
   type ReactPerformancePad,
   type ReactPreset,
 } from '../components/vyzualz/react/ReactTypes'
@@ -39,7 +40,7 @@ describe('retired duplicate React presets', () => {
     expect(repairReactEnginePresetSelection('preset-crimson-rift', 'cinematicPortal'))
       .toEqual({ activeReactPresetId: 'preset-dream-gate', activeReactEngineId: 'cinematicPortal' })
     expect(repairReactEnginePresetSelection('preset-white-fog-cathedral', 'laserDmx'))
-      .toEqual({ activeReactPresetId: 'preset-red-club-crossfire', activeReactEngineId: 'laserDmx' })
+      .toEqual({ activeReactPresetId: LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID, activeReactEngineId: 'laserDmx' })
   })
 
   it('prunes retired persisted definitions and clears their obsolete pad assignments', () => {
@@ -76,7 +77,7 @@ describe('retired duplicate React presets', () => {
 
     const presets = migrated.reactPresets as ReactPreset[]
     const pads = migrated.performancePads as ReactPerformancePad[]
-    expect(migrated.activeReactPresetId).toBe('preset-red-club-crossfire')
+    expect(migrated.activeReactPresetId).toBe(LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID)
     expect(presets.some(preset => RETIRED_IDS.includes(preset.id))).toBe(false)
     expect(pads).toEqual([expect.objectContaining({ id: 'pad-6', presetId: null, label: 'Empty' })])
     expect(migrated.cinematicConfigsByPresetId).toEqual({})

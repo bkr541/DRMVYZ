@@ -6,7 +6,6 @@ import {
 } from './ReactControlRows'
 import { getUnifiedSvgPointCount, resolveSvgUiCapabilities } from './svgSourceLifecycle'
 import {
-  coerceLaserDmxWorkspaceMode,
   type LaserDmxFogSettings,
   type OscillatorRenderMode,
 } from './ReactTypes'
@@ -29,10 +28,8 @@ export function ReactFxPanel() {
     reactFogDensity,      setReactFogDensity,
     reactParticleDensity, setReactParticleDensity,
     activeReactEngineId,
-    laserDmxWorkspaceMode,
     oscillatorSettings, oscillatorGlyphAssets, oscillatorGlyphPointCache,
     setOscillatorSettings, resetOscillatorSettings,
-    laserDmxSettings,     setLaserDmxSettings,
     laserDmxBeamMatrix,   setLaserDmxBeamMatrixSettings, setLaserDmxBeamMatrixEditorSettings,
   } = useReactStore(useShallow(s => ({
     reactIntensity:              s.reactIntensity,
@@ -50,14 +47,11 @@ export function ReactFxPanel() {
     reactParticleDensity:        s.reactParticleDensity,
     setReactParticleDensity:     s.setReactParticleDensity,
     activeReactEngineId:         s.activeReactEngineId,
-    laserDmxWorkspaceMode:       s.laserDmxWorkspaceMode,
     oscillatorSettings:          s.oscillatorSettings,
     oscillatorGlyphAssets:        s.oscillatorGlyphAssets,
     oscillatorGlyphPointCache:    s.oscillatorGlyphPointCache,
     setOscillatorSettings:       s.setOscillatorSettings,
     resetOscillatorSettings:     s.resetOscillatorSettings,
-    laserDmxSettings:            s.laserDmxSettings,
-    setLaserDmxSettings:         s.setLaserDmxSettings,
     laserDmxBeamMatrix:                  s.laserDmxBeamMatrix,
     setLaserDmxBeamMatrixSettings:       s.setLaserDmxBeamMatrixSettings,
     setLaserDmxBeamMatrixEditorSettings: s.setLaserDmxBeamMatrixEditorSettings,
@@ -70,11 +64,9 @@ export function ReactFxPanel() {
   const isSoundDrawing  = activeReactEngineId === 'oscilloscope'
   const isCinematic     = activeReactEngineId === 'cinematicPortal'
   const isLaserDmx      = activeReactEngineId === 'laserDmx'
-  const lockedLaserDmxWorkspaceMode = coerceLaserDmxWorkspaceMode(laserDmxWorkspaceMode)
-  const isBeamMatrix    = isLaserDmx && lockedLaserDmxWorkspaceMode === 'beamMatrix'
-  const isSpatialFixtures = isLaserDmx && lockedLaserDmxWorkspaceMode === 'spatialFixtures'
+  const isBeamMatrix    = isLaserDmx
 
-  const masterControls = getReactFxMasterControls(activeReactEngineId, lockedLaserDmxWorkspaceMode)
+  const masterControls = getReactFxMasterControls(activeReactEngineId)
   const showMasterIntensity = masterControls.includes('intensity')
   const showMasterMotion = masterControls.includes('motion')
   const showMasterGlow = masterControls.includes('glow')
@@ -242,34 +234,6 @@ export function ReactFxPanel() {
               </button>
             </Collapsible>
           )
-        )}
-
-        {/* ── Engine Appearance: LaserDMX Spatial Fixtures ─────────────── */}
-        {isSpatialFixtures && (
-          <>
-            <Collapsible label="Output Styling" defaultOpen>
-              <SliderRow label="Master Dimmer" value={laserDmxSettings.masterDimmer} onChange={v => setLaserDmxSettings({ masterDimmer: v })} color="#4ac7db" />
-              <SliderRow label="Safety Clamp"  value={laserDmxSettings.safetyClamp}  onChange={v => setLaserDmxSettings({ safetyClamp: v })} color="#c0314a" />
-            </Collapsible>
-
-            <Collapsible label="Atmosphere" defaultOpen>
-              <SliderRow label="Haze"         value={laserDmxSettings.hazeAmount}      onChange={v => setLaserDmxSettings({ hazeAmount: v })}      color="#61d6aa" />
-              <SliderRow label="Glow"         value={laserDmxSettings.glowAmount}      onChange={v => setLaserDmxSettings({ glowAmount: v })}      color="#b84fc9" />
-              <SliderRow label="Persistence"  value={laserDmxSettings.beamPersistence} onChange={v => setLaserDmxSettings({ beamPersistence: v })} color="#4ac7db" />
-              <SliderRow label="Bg Fade"      value={laserDmxSettings.backgroundFade}  onChange={v => setLaserDmxSettings({ backgroundFade: v })}  color="#d8b95a" />
-            </Collapsible>
-
-            <Collapsible label="Beam Global" defaultOpen>
-              <SliderRow label="Beam Width"  value={laserDmxSettings.globalBeamWidth}  onChange={v => setLaserDmxSettings({ globalBeamWidth: v })}  min={0.2} max={6} step={0.05} color="#61d6aa" />
-              <SliderRow label="Strobe Rate" value={laserDmxSettings.globalStrobeRate} onChange={v => setLaserDmxSettings({ globalStrobeRate: v })} color="#c0314a" />
-            </Collapsible>
-
-            <Collapsible label="Preview / Debug" defaultOpen={false}>
-              <ToggleRow label="Show Origins" value={laserDmxSettings.showFixtureOrigins ?? false} onChange={v => setLaserDmxSettings({ showFixtureOrigins: v })} />
-              <ToggleRow label="Show Points"  value={laserDmxSettings.showPathPoints     ?? false} onChange={v => setLaserDmxSettings({ showPathPoints: v })} />
-              <ToggleRow label="DMX Debug"    value={laserDmxSettings.showDmxDebug       ?? false} onChange={v => setLaserDmxSettings({ showDmxDebug: v })} />
-            </Collapsible>
-          </>
         )}
 
         {/* ── Engine Appearance: LaserDMX Beam Matrix ──────────────────── */}

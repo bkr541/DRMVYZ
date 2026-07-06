@@ -15,7 +15,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import { migrateReactStore, useReactStore } from './reactStore'
-import { DEFAULT_REACT_PRESETS } from '../components/vyzualz/react/ReactTypes'
+import { DEFAULT_REACT_PRESETS, LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID } from '../components/vyzualz/react/ReactTypes'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -101,12 +101,12 @@ describe('valid preset with stale shaderPads engine → engine repaired', () => 
     expect(result.activeReactEngineId).toBe('oscilloscope')
   })
 
-  it('preset-laser-dmx-default with shaderPads engine → repaired to laserDmx', () => {
+  it('legacy LaserDMX preset with shaderPads engine → repaired to Beam Matrix', () => {
     const result = migrate18({
       activeReactPresetId: 'preset-laser-dmx-default',
       activeReactEngineId: 'shaderPads',
     })
-    expect(result.activeReactPresetId).toBe('preset-laser-dmx-default')
+    expect(result.activeReactPresetId).toBe(LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID)
     expect(result.activeReactEngineId).toBe('laserDmx')
   })
 })
@@ -123,12 +123,12 @@ describe('valid non-Shader state is not modified', () => {
     expect(result.activeReactEngineId).toBe('oscilloscope')
   })
 
-  it('LaserDMX state is preserved', () => {
+  it('legacy LaserDMX state is coerced to Beam Matrix', () => {
     const result = migrate18({
       activeReactPresetId: 'preset-laser-dmx-default',
       activeReactEngineId: 'laserDmx',
     })
-    expect(result.activeReactPresetId).toBe('preset-laser-dmx-default')
+    expect(result.activeReactPresetId).toBe(LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID)
     expect(result.activeReactEngineId).toBe('laserDmx')
   })
 

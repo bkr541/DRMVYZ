@@ -13,6 +13,7 @@ import {
   LASER_DMX_MATRIX_ROWS,
   LASER_DMX_MATRIX_MAX_BEAMS,
   DEFAULT_BEAM_MOTION,
+  LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID,
   resolveReactPresetLaserDmxWorkspace,
 } from '../../ReactTypes'
 
@@ -102,7 +103,7 @@ describe('preset application preserves the locked Beam Matrix workspace', () => 
       useReactStore.getState().selectReactPreset(preset.id)
       const selected = useReactStore.getState()
       expect(selected.activeReactEngineId).toBe('laserDmx')
-      expect(selected.activeReactPresetId).toBe(preset.id)
+      expect(selected.activeReactPresetId).toBe(LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID)
       expect(selected.laserDmxWorkspaceMode).toBe('beamMatrix')
     }
   })

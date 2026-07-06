@@ -134,7 +134,7 @@ describe('Neon Lattice secondary integration retirement', () => {
     writeReactPresetFavorites(['preset-nl-acid-magenta', valid[1], 'missing-preset', valid[0]], storage)
     expect(sanitizeReactPresetFavorites(valid, storage)).toEqual([valid[1], valid[0]])
 
-    const visible = filterReactPresetLibrary(DEFAULT_REACT_PRESETS, 'cinematicPortal', 'spatialFixtures', 'current', new Set())
+    const visible = filterReactPresetLibrary(DEFAULT_REACT_PRESETS, 'cinematicPortal', 'current', new Set())
     expect(visible.length).toBeGreaterThan(0)
     expect(visible.every(preset => preset.engine === 'cinematicPortal')).toBe(true)
     expect(DEFAULT_REACT_PRESETS.some(preset => String(preset.engine) === 'neonLattice')).toBe(false)

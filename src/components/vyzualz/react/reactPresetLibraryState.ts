@@ -1,5 +1,5 @@
-import { resolveReactPresetLaserDmxWorkspace } from './ReactTypes'
-import type { LaserDmxWorkspaceMode, ReactEngineId, ReactPreset } from './ReactTypes'
+import { isLegacySpatialLaserDmxPreset } from './ReactTypes'
+import type { ReactEngineId, ReactPreset } from './ReactTypes'
 
 export type ReactPresetLibraryView = 'current' | 'favorites' | 'all'
 
@@ -64,23 +64,18 @@ export function sanitizeReactPresetFavorites(
 }
 
 export function isReactPresetVisibleForLockedLaserDmx(preset: ReactPreset): boolean {
-  return preset.engine !== 'laserDmx' || resolveReactPresetLaserDmxWorkspace(preset) === 'beamMatrix'
+  return !isLegacySpatialLaserDmxPreset(preset)
 }
 
 export function filterReactPresetLibrary(
   presets: ReactPreset[],
   activeEngineId: ReactEngineId,
-  activeLaserDmxWorkspace: LaserDmxWorkspaceMode,
   view: ReactPresetLibraryView,
   favoriteIds: ReadonlySet<string>,
 ): ReactPreset[] {
   const visiblePresets = presets.filter(isReactPresetVisibleForLockedLaserDmx)
   if (view === 'current') {
-    return visiblePresets.filter(preset => {
-      if (preset.engine !== activeEngineId) return false
-      if (activeEngineId !== 'laserDmx') return true
-      return resolveReactPresetLaserDmxWorkspace(preset) === activeLaserDmxWorkspace
-    })
+    return visiblePresets.filter(preset => preset.engine === activeEngineId)
   }
   if (view === 'favorites') return visiblePresets.filter(preset => favoriteIds.has(preset.id))
   return visiblePresets

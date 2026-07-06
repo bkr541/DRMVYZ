@@ -16,6 +16,7 @@ import {
   DEFAULT_REACT_PRESETS,
   DEFAULT_OSCILLATOR_SETTINGS,
   DEFAULT_PERFORMANCE_PADS,
+  LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID,
 } from '../components/vyzualz/react/ReactTypes'
 import type { ReactPreset } from '../components/vyzualz/react/ReactTypes'
 import { REACT_ENGINE_IDS } from '../components/vyzualz/react/reactEngineCatalog'
@@ -247,13 +248,13 @@ describe('DEFAULT_PERFORMANCE_PADS remapped assignments', () => {
       .toBe('preset-bass-triangle-reactor')
 
     expect(DEFAULT_PERFORMANCE_PADS.find(p => p.id === 'pad-2')?.presetId)
-      .toBe('preset-laser-dmx-drop-cage')
+      .toBe(LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID)
 
     expect(DEFAULT_PERFORMANCE_PADS.find(p => p.id === 'pad-3')?.presetId)
       .toBe('preset-infinity-signal')
 
     expect(DEFAULT_PERFORMANCE_PADS.find(p => p.id === 'pad-4')?.presetId)
-      .toBe('preset-laser-dmx-build-tunnel')
+      .toBe(LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID)
 
     expect(DEFAULT_PERFORMANCE_PADS.find(p => p.id === 'pad-13')?.presetId).toBeNull()
     expect(DEFAULT_PERFORMANCE_PADS.find(p => p.id === 'pad-18')?.presetId).toBeNull()

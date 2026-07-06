@@ -1,4 +1,4 @@
-import { coerceLaserDmxWorkspaceMode, type LaserDmxWorkspaceMode, type ReactEngineId } from './ReactTypes'
+import type { ReactEngineId } from './ReactTypes'
 
 export type ReactFxMasterControl =
   | 'intensity'
@@ -8,18 +8,12 @@ export type ReactFxMasterControl =
 
 /**
  * Returns only the React-wide master controls consumed by the active renderer.
- * LaserDMX intentionally uses a narrower contract than the other engines:
- * Beam Matrix consumes intensity + glow, while Spatial Fixtures consumes glow.
+ * LaserDMX is Beam Matrix-only, so it consumes intensity + glow from React-wide
+ * controls while matrix-specific output, fog, and editor state live below.
  */
 export function getReactFxMasterControls(
   engineId: ReactEngineId,
-  laserWorkspaceMode: LaserDmxWorkspaceMode,
 ): ReactFxMasterControl[] {
-  if (engineId !== 'laserDmx') {
-    return ['intensity', 'motion', 'glow', 'bassReactivity']
-  }
-
-  return coerceLaserDmxWorkspaceMode(laserWorkspaceMode) === 'beamMatrix'
-    ? ['intensity', 'glow']
-    : ['glow']
+  if (engineId === 'laserDmx') return ['intensity', 'glow']
+  return ['intensity', 'motion', 'glow', 'bassReactivity']
 }
