@@ -4649,16 +4649,20 @@ export const useReactStore = create<ReactStoreState>()(
         }),
 
       duplicateLaserDmxShowDirectorFixture: (fixtureId) => {
-        const source = get().laserDmxShowDirector.fixtures.find(fixture => fixture.id === fixtureId)
+        const state = get().laserDmxShowDirector
+        const source = state.fixtures.find(fixture => fixture.id === fixtureId)
         if (!source) return null
         const id = crypto.randomUUID()
+        const maxX = Math.max(0, Math.round(state.settings.gridSize.columns) - 1)
+        const maxY = Math.max(0, Math.round(state.settings.gridSize.rows) - 1)
+        const offset = state.settings.snapEnabled ? 1 : 0.8
         const copy = normalizeLaserDmxShowDirectorFixture({
           ...source,
           id,
           label: `${source.label} Copy`,
-          x: source.x + 1,
-          y: source.y + 1,
-        }, get().laserDmxShowDirector.fixtures.length)
+          x: Math.max(0, Math.min(maxX, source.x + offset)),
+          y: Math.max(0, Math.min(maxY, source.y + offset)),
+        }, state.fixtures.length)
         set(s => ({
           laserDmxShowDirector: normalizeLaserDmxShowDirectorState({
             ...s.laserDmxShowDirector,
