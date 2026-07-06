@@ -190,6 +190,21 @@ function stageTargetFromAngle(point: StagePoint01, angleDeg: number, length = 0.
   }
 }
 
+function defaultGridEndpointForFixture(
+  fixture: LaserDmxShowDirectorFixture,
+  gridColumns: number,
+  gridRows: number,
+): { x: number; y: number } {
+  const maxX = Math.max(1, gridColumns - 1)
+  const maxY = Math.max(1, gridRows - 1)
+  const distance = Math.max(2, Math.min(gridColumns, gridRows) * 0.32)
+  const radians = (finite(fixture.rotation, 0) + finite(fixture.beam?.beamAngle, 0)) * Math.PI / 180
+  return {
+    x: clamp(finite(fixture.x, 0) + Math.cos(radians) * distance, 0, maxX),
+    y: clamp(finite(fixture.y, 0) + Math.sin(radians) * distance, 0, maxY),
+  }
+}
+
 function gridTargetFromFixtureTarget(
   fixture: LaserDmxShowDirectorFixture,
   gridColumns: number,
@@ -197,8 +212,9 @@ function gridTargetFromFixtureTarget(
 ): LaserDmxMatrixTarget {
   const maxX = Math.max(1, gridColumns - 1)
   const maxY = Math.max(1, gridRows - 1)
-  const targetX = clamp(finite(fixture.beam.targetX, maxX / 2), 0, maxX) / maxX
-  const targetY = clamp(finite(fixture.beam.targetY, maxY / 2), 0, maxY) / maxY
+  const defaultEndpoint = defaultGridEndpointForFixture(fixture, gridColumns, gridRows)
+  const targetX = clamp(finite(fixture.beam.targetX, defaultEndpoint.x), 0, maxX) / maxX
+  const targetY = clamp(finite(fixture.beam.targetY, defaultEndpoint.y), 0, maxY) / maxY
   return {
     kind: 'grid',
     column: clamp(Math.round(targetX * (LASER_DMX_MATRIX_COLUMNS - 1)) + 1, 1, LASER_DMX_MATRIX_COLUMNS),

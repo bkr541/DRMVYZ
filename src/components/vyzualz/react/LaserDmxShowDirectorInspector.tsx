@@ -131,6 +131,26 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
 }
 
+function finite(value: unknown, fallback: number): number {
+  const candidate = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && value.trim().length > 0
+      ? Number(value)
+      : Number.NaN
+  return Number.isFinite(candidate) ? candidate : fallback
+}
+
+function defaultEndpointForFixture(fixture: LaserDmxShowDirectorFixture, maxX: number, maxY: number, snapEnabled: boolean): { x: number; y: number } {
+  const distance = Math.max(2, Math.min(maxX + 1, maxY + 1) * 0.32)
+  const radians = (finite(fixture.rotation, 0) + finite(fixture.beam?.beamAngle, 0)) * Math.PI / 180
+  const rawX = clamp(finite(fixture.x, 0) + Math.cos(radians) * distance, 0, maxX)
+  const rawY = clamp(finite(fixture.y, 0) + Math.sin(radians) * distance, 0, maxY)
+  return {
+    x: snapEnabled ? Math.round(rawX) : Math.round(rawX * 10) / 10,
+    y: snapEnabled ? Math.round(rawY) : Math.round(rawY * 10) / 10,
+  }
+}
+
 function colorInputValue(color: string): string {
   return /^#[0-9a-f]{6}$/i.test(color) ? color : '#4ac7db'
 }
@@ -223,8 +243,9 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
   const typeLabel = LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS[fixture.kind]
   const supportsBeam = isBeamFixture(fixture)
   const triggerNotes = triggerRequirementNotes(fixture)
-  const defaultTargetX = Math.round(gridBounds.maxX / 2)
-  const defaultTargetY = Math.round(gridBounds.maxY / 2)
+  const defaultEndpoint = defaultEndpointForFixture(fixture, gridBounds.maxX, gridBounds.maxY, settings.snapEnabled)
+  const defaultTargetX = defaultEndpoint.x
+  const defaultTargetY = defaultEndpoint.y
   const fixtureIndex = fixtures.findIndex(item => item.id === fixture.id)
   const defaultFixtureLabel = `${typeLabel} ${Math.max(1, fixtureIndex + 1)}`
   const update = (patch: Parameters<typeof updateFixture>[1]) => updateFixture(fixture.id, patch)

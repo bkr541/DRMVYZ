@@ -13,6 +13,7 @@ import {
   LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS,
   isLaserDmxShowDirectorFixtureKind,
   type LaserDmxShowDirectorFixture,
+  type LaserDmxShowDirectorFixtureKind,
   type LaserDmxShowDirectorSettings,
 } from './ReactTypes'
 import { SHOW_DIRECTOR_FIXTURE_DRAG_TYPE } from './LaserDmxShowDirectorPalette'
@@ -33,6 +34,23 @@ type FixtureDragState = {
   offsetY: number
 }
 
+type EndpointDragState = {
+  fixtureId: string
+  pointerId: number
+}
+
+type ContextMenuState = {
+  fixtureId: string
+  x: number
+  y: number
+}
+
+const ENDPOINT_EDITABLE_FIXTURE_KINDS = new Set<LaserDmxShowDirectorFixtureKind>([
+  'laser',
+  'movingHead',
+  'parWash',
+])
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
 }
@@ -40,6 +58,15 @@ function clamp(value: number, min: number, max: number): number {
 function roundTo(value: number, decimals = 2): number {
   const factor = 10 ** decimals
   return Math.round(value * factor) / factor
+}
+
+function finite(value: unknown, fallback: number): number {
+  const candidate = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && value.trim().length > 0
+      ? Number(value)
+      : Number.NaN
+  return Number.isFinite(candidate) ? candidate : fallback
 }
 
 function coerceGridSize(settings: LaserDmxShowDirectorSettings) {
@@ -111,6 +138,43 @@ function beamStyle(fixture: LaserDmxShowDirectorFixture): CSSProperties {
     '--show-director-beam-tilt-positive': `${roundTo(spread * 0.24, 2)}deg`,
     '--show-director-beam-blur': `${roundTo((1 - clamp(fixture.beam.focus, 0.1, 1)) * 2.8, 2)}px`,
   } as CSSProperties
+}
+
+function isEndpointEditableFixture(fixture: LaserDmxShowDirectorFixture): boolean {
+  return ENDPOINT_EDITABLE_FIXTURE_KINDS.has(fixture.kind)
+    && typeof fixture.beam === 'object'
+    && fixture.beam !== null
+    && fixture.beam.beamEnabled === true
+}
+
+function defaultEndpointForFixture(fixture: LaserDmxShowDirectorFixture, settings: LaserDmxShowDirectorSettings): StagePoint {
+  const { columns, rows } = coerceGridSize(settings)
+  const maxX = Math.max(0, columns - 1)
+  const maxY = Math.max(0, rows - 1)
+  const distance = Math.max(2, Math.min(columns, rows) * 0.32)
+  const radians = (finite(fixture.rotation, 0) + finite(fixture.beam?.beamAngle, 0)) * Math.PI / 180
+  return snapStagePoint({
+    x: clamp(finite(fixture.x, 0) + Math.cos(radians) * distance, 0, maxX),
+    y: clamp(finite(fixture.y, 0) + Math.sin(radians) * distance, 0, maxY),
+  }, settings)
+}
+
+function endpointForFixture(fixture: LaserDmxShowDirectorFixture, settings: LaserDmxShowDirectorSettings): StagePoint {
+  const fallback = defaultEndpointForFixture(fixture, settings)
+  return snapStagePoint({
+    x: finite(fixture.beam?.targetX, fallback.x),
+    y: finite(fixture.beam?.targetY, fallback.y),
+  }, settings)
+}
+
+function stagePointToPercent(point: StagePoint, settings: LaserDmxShowDirectorSettings): StagePoint {
+  const { columns, rows } = coerceGridSize(settings)
+  const x = clamp(point.x, 0, Math.max(0, columns - 1))
+  const y = clamp(point.y, 0, Math.max(0, rows - 1))
+  return {
+    x: ((x + 0.5) / columns) * 100,
+    y: ((y + 0.5) / rows) * 100,
+  }
 }
 
 function renderFixtureIcon(fixture: LaserDmxShowDirectorFixture) {
@@ -190,7 +254,7 @@ function renderFixtureIcon(fixture: LaserDmxShowDirectorFixture) {
   }
 }
 
-function safelyCapturePointer(element: HTMLButtonElement, pointerId: number): void {
+function safelyCapturePointer(element: Element, pointerId: number): void {
   try {
     element.setPointerCapture?.(pointerId)
   } catch {
@@ -198,7 +262,7 @@ function safelyCapturePointer(element: HTMLButtonElement, pointerId: number): vo
   }
 }
 
-function safelyReleasePointer(element: HTMLButtonElement, pointerId: number): void {
+function safelyReleasePointer(element: Element, pointerId: number): void {
   try {
     if (element.hasPointerCapture?.(pointerId)) element.releasePointerCapture?.(pointerId)
   } catch {
@@ -209,6 +273,9 @@ function safelyReleasePointer(element: HTMLButtonElement, pointerId: number): vo
 export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settings, variant = 'panel' }: LaserDmxShowDirectorCanvasProps) {
   const [isDragHot, setIsDragHot] = useState(false)
   const [fixtureDrag, setFixtureDrag] = useState<FixtureDragState | null>(null)
+  const [endpointDrag, setEndpointDrag] = useState<EndpointDragState | null>(null)
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
+  const [targetingFixtureId, setTargetingFixtureId] = useState<string | null>(null)
   const stageRef = useRef<HTMLDivElement | null>(null)
   const {
     addFixture,
@@ -223,6 +290,18 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settin
   })))
 
   const { columns, rows } = coerceGridSize(settings)
+  const targetingFixture = targetingFixtureId ? fixtures.find(fixture => fixture.id === targetingFixtureId) : null
+
+  const setFixtureEndpoint = (fixtureId: string, point: StagePoint) => {
+    const endpoint = snapStagePoint(point, settings)
+    updateFixture(fixtureId, {
+      beam: {
+        targetMode: 'fixed',
+        targetX: endpoint.x,
+        targetY: endpoint.y,
+      },
+    })
+  }
 
   useEffect(() => {
     if (!fixtureDrag) return undefined
@@ -250,6 +329,49 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settin
     }
   }, [fixtureDrag, settings, updateFixture])
 
+  useEffect(() => {
+    if (!endpointDrag) return undefined
+
+    const handlePointerMove = (event: globalThis.PointerEvent) => {
+      if (event.pointerId !== endpointDrag.pointerId || !stageRef.current) return
+      const point = stagePointFromClient(event.clientX, event.clientY, stageRef.current, settings)
+      setFixtureEndpoint(endpointDrag.fixtureId, point)
+    }
+
+    const handlePointerUp = (event: globalThis.PointerEvent) => {
+      if (event.pointerId === endpointDrag.pointerId) setEndpointDrag(null)
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointercancel', handlePointerUp)
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('pointercancel', handlePointerUp)
+    }
+  }, [endpointDrag, settings, updateFixture])
+
+  useEffect(() => {
+    if (!contextMenu && !targetingFixtureId) return undefined
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setContextMenu(null)
+      setTargetingFixtureId(null)
+      setEndpointDrag(null)
+    }
+
+    const handleWindowPointerDown = () => setContextMenu(null)
+
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('pointerdown', handleWindowPointerDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('pointerdown', handleWindowPointerDown)
+    }
+  }, [contextMenu, targetingFixtureId])
+
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
     if (!event.dataTransfer.types.includes(SHOW_DIRECTOR_FIXTURE_DRAG_TYPE)) return
     event.preventDefault()
@@ -269,14 +391,42 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settin
 
   const handleCanvasClick = (event: MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement | null
+    if (targetingFixtureId && stageRef.current && target?.closest('.rv-show-director-canvas__stage')) {
+      event.preventDefault()
+      event.stopPropagation()
+      setFixtureEndpoint(targetingFixtureId, stagePointFromClient(event.clientX, event.clientY, stageRef.current, settings))
+      setTargetingFixtureId(null)
+      setContextMenu(null)
+      return
+    }
+    setContextMenu(null)
     if (!target?.closest('.rv-show-director-fixture')) selectFixture(null)
   }
 
+  const handleFixtureContextMenu = (event: MouseEvent<HTMLButtonElement>, fixture: LaserDmxShowDirectorFixture) => {
+    if (!isEndpointEditableFixture(fixture)) return
+    event.preventDefault()
+    event.stopPropagation()
+    selectFixture(fixture.id)
+    setTargetingFixtureId(null)
+    setContextMenu({ fixtureId: fixture.id, x: event.clientX, y: event.clientY })
+  }
+
+  const handleSetEndpointFromMenu = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!contextMenu) return
+    selectFixture(contextMenu.fixtureId)
+    setTargetingFixtureId(contextMenu.fixtureId)
+    setContextMenu(null)
+  }
+
   const handleFixturePointerDown = (event: ReactPointerEvent<HTMLButtonElement>, fixture: LaserDmxShowDirectorFixture) => {
-    if (!stageRef.current || event.button !== 0) return
+    if (!stageRef.current || event.button !== 0 || targetingFixtureId) return
     event.stopPropagation()
     safelyCapturePointer(event.currentTarget, event.pointerId)
     selectFixture(fixture.id)
+    setContextMenu(null)
     const pointerPoint = stagePointFromClient(event.clientX, event.clientY, stageRef.current, settings)
     setFixtureDrag({
       fixtureId: fixture.id,
@@ -289,6 +439,23 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settin
   const handleFixturePointerRelease = (event: ReactPointerEvent<HTMLButtonElement>) => {
     safelyReleasePointer(event.currentTarget, event.pointerId)
     if (fixtureDrag?.pointerId === event.pointerId) setFixtureDrag(null)
+  }
+
+  const handleEndpointPointerDown = (event: ReactPointerEvent<SVGCircleElement>, fixture: LaserDmxShowDirectorFixture) => {
+    if (!stageRef.current || event.button !== 0 || !isEndpointEditableFixture(fixture)) return
+    event.preventDefault()
+    event.stopPropagation()
+    safelyCapturePointer(event.currentTarget, event.pointerId)
+    selectFixture(fixture.id)
+    setContextMenu(null)
+    setTargetingFixtureId(null)
+    setEndpointDrag({ fixtureId: fixture.id, pointerId: event.pointerId })
+    setFixtureEndpoint(fixture.id, stagePointFromClient(event.clientX, event.clientY, stageRef.current, settings))
+  }
+
+  const handleEndpointPointerRelease = (event: ReactPointerEvent<SVGCircleElement>) => {
+    safelyReleasePointer(event.currentTarget, event.pointerId)
+    if (endpointDrag?.pointerId === event.pointerId) setEndpointDrag(null)
   }
 
   return (
@@ -306,7 +473,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settin
       )}
 
       <div
-        className={`rv-show-director-canvas${isDragHot ? ' rv-show-director-canvas--drag-hot' : ''}${fixtureDrag ? ' rv-show-director-canvas--fixture-dragging' : ''}`}
+        className={`rv-show-director-canvas${isDragHot ? ' rv-show-director-canvas--drag-hot' : ''}${fixtureDrag ? ' rv-show-director-canvas--fixture-dragging' : ''}${endpointDrag ? ' rv-show-director-canvas--endpoint-dragging' : ''}${targetingFixtureId ? ' rv-show-director-canvas--targeting' : ''}`}
         onDragOver={handleDragOver}
         onDragEnter={event => {
           if (event.dataTransfer.types.includes(SHOW_DIRECTOR_FIXTURE_DRAG_TYPE)) setIsDragHot(true)
@@ -329,6 +496,45 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settin
           <div className="rv-show-director-stage-centerline rv-show-director-stage-centerline--vertical" aria-hidden="true" />
           <div className="rv-show-director-stage-centerline rv-show-director-stage-centerline--horizontal" aria-hidden="true" />
 
+          {settings.showBeams && fixtures.some(isEndpointEditableFixture) && (
+            <svg className="rv-show-director-beam-overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+              {fixtures.filter(isEndpointEditableFixture).map(fixture => {
+                const isSelected = fixture.id === selectedFixtureId
+                const isDraggingEndpoint = endpointDrag?.fixtureId === fixture.id
+                const origin = stagePointToPercent({ x: fixture.x, y: fixture.y }, settings)
+                const endpoint = stagePointToPercent(endpointForFixture(fixture, settings), settings)
+                return (
+                  <g
+                    key={fixture.id}
+                    className={`rv-show-director-beam-overlay__path${isSelected ? ' rv-show-director-beam-overlay__path--selected' : ''}${isDraggingEndpoint ? ' rv-show-director-beam-overlay__path--dragging' : ''}`}
+                    style={{ '--show-director-beam-color': fixture.color } as CSSProperties}
+                  >
+                    <line className="rv-show-director-beam-overlay__glow" x1={origin.x} y1={origin.y} x2={endpoint.x} y2={endpoint.y} />
+                    <line className="rv-show-director-beam-overlay__core" x1={origin.x} y1={origin.y} x2={endpoint.x} y2={endpoint.y} />
+                    <circle className="rv-show-director-beam-overlay__source" cx={origin.x} cy={origin.y} r={isSelected ? 0.86 : 0.62} />
+                    <circle
+                      className="rv-show-director-beam-overlay__endpoint"
+                      cx={endpoint.x}
+                      cy={endpoint.y}
+                      r={isSelected ? 1.34 : 0.82}
+                      onPointerDown={isSelected ? event => handleEndpointPointerDown(event, fixture) : undefined}
+                      onPointerUp={isSelected ? handleEndpointPointerRelease : undefined}
+                      onPointerCancel={isSelected ? handleEndpointPointerRelease : undefined}
+                      onLostPointerCapture={isSelected ? handleEndpointPointerRelease : undefined}
+                    />
+                  </g>
+                )
+              })}
+            </svg>
+          )}
+
+          {targetingFixture && (
+            <div className="rv-show-director-targeting-banner" role="status">
+              <strong>Set Endpoint</strong>
+              <span>Click the grid to aim {targetingFixture.label}. Press Esc to cancel.</span>
+            </div>
+          )}
+
           {fixtures.map(fixture => {
             const label = LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS[fixture.kind]
             const isSelected = fixture.id === selectedFixtureId
@@ -343,8 +549,10 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settin
                 onPointerUp={handleFixturePointerRelease}
                 onPointerCancel={handleFixturePointerRelease}
                 onLostPointerCapture={handleFixturePointerRelease}
+                onContextMenu={event => handleFixtureContextMenu(event, fixture)}
                 onClick={event => {
                   event.stopPropagation()
+                  setContextMenu(null)
                   selectFixture(fixture.id)
                 }}
                 aria-pressed={isSelected}
@@ -362,6 +570,17 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settin
           })}
         </div>
       </div>
+
+      {contextMenu && (
+        <div
+          className="rv-show-director-context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y } as CSSProperties}
+          role="menu"
+          onPointerDown={event => event.stopPropagation()}
+        >
+          <button type="button" role="menuitem" onClick={handleSetEndpointFromMenu}>Set Endpoint</button>
+        </div>
+      )}
     </section>
   )
 }

@@ -813,6 +813,24 @@ function clampShowDirectorGrid(value: number, max: number): number {
   return Math.max(0, Math.min(max, Number.isFinite(value) ? value : 0))
 }
 
+function createLaserDmxShowDirectorDefaultEndpoint(
+  fixture: Pick<LaserDmxShowDirectorFixture, 'kind' | 'x' | 'y' | 'rotation' | 'beam'>,
+  settings: LaserDmxShowDirectorState['settings'],
+): { targetX: number; targetY: number } {
+  const columns = Math.max(1, Math.round(settings.gridSize.columns || 1))
+  const rows = Math.max(1, Math.round(settings.gridSize.rows || 1))
+  const maxX = Math.max(0, columns - 1)
+  const maxY = Math.max(0, rows - 1)
+  const distance = Math.max(2, Math.min(columns, rows) * 0.32)
+  const rotation = Number.isFinite(fixture.rotation) ? fixture.rotation : 0
+  const beamAngle = Number.isFinite(fixture.beam.beamAngle) ? fixture.beam.beamAngle : 0
+  const radians = (rotation + beamAngle) * Math.PI / 180
+  return {
+    targetX: Math.round(clampShowDirectorGrid(fixture.x + Math.cos(radians) * distance, maxX)),
+    targetY: Math.round(clampShowDirectorGrid(fixture.y + Math.sin(radians) * distance, maxY)),
+  }
+}
+
 function clampLaserDmxShowDirectorFixtureToSettings(
   fixture: LaserDmxShowDirectorFixture,
   settings: LaserDmxShowDirectorState['settings'],
@@ -4734,14 +4752,22 @@ export const useReactStore = create<ReactStoreState>()(
         set(s => {
           const base = createDefaultLaserDmxShowDirectorFixture(kind, id, s.laserDmxShowDirector.fixtures.length)
           const openSlot = findLaserDmxShowDirectorOpenSlot(s.laserDmxShowDirector)
+          const x = initial?.x ?? openSlot.x
+          const y = initial?.y ?? openSlot.y
+          const beam = initial?.beam ? { ...base.beam, ...initial.beam } : base.beam
+          const defaultEndpoint = createLaserDmxShowDirectorDefaultEndpoint({ ...base, ...initial, kind, x, y, beam }, s.laserDmxShowDirector.settings)
           const fixture = normalizeLaserDmxShowDirectorFixture({
             ...base,
             ...initial,
             id,
             kind,
-            x: initial?.x ?? openSlot.x,
-            y: initial?.y ?? openSlot.y,
-            beam: initial?.beam ? { ...base.beam, ...initial.beam } : base.beam,
+            x,
+            y,
+            beam: {
+              ...beam,
+              targetX: initial?.beam?.targetX ?? defaultEndpoint.targetX,
+              targetY: initial?.beam?.targetY ?? defaultEndpoint.targetY,
+            },
             trigger: initial?.trigger ? { ...base.trigger, ...initial.trigger } : base.trigger,
             component: initial?.component ? { ...base.component, ...initial.component } : base.component,
           }, s.laserDmxShowDirector.fixtures.length)

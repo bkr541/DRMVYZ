@@ -700,6 +700,29 @@ function createDefaultLaserDmxShowDirectorBeamConfig(kind: LaserDmxShowDirectorF
   }
 }
 
+function clampDefaultShowDirectorCoordinate(value: number, max: number): number {
+  return Math.max(0, Math.min(max, Number.isFinite(value) ? value : 0))
+}
+
+function createDefaultLaserDmxShowDirectorBeamEndpoint(
+  kind: LaserDmxShowDirectorFixtureKind,
+  x: number,
+  y: number,
+  rotation = 0,
+): Pick<LaserDmxShowDirectorBeamConfig, 'targetX' | 'targetY'> {
+  const fallbackBeam = createDefaultLaserDmxShowDirectorBeamConfig(kind)
+  const columns = DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.gridSize.columns
+  const rows = DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.gridSize.rows
+  const maxX = Math.max(0, columns - 1)
+  const maxY = Math.max(0, rows - 1)
+  const distance = Math.max(2, Math.min(columns, rows) * 0.32)
+  const radians = (rotation + fallbackBeam.beamAngle) * Math.PI / 180
+  return {
+    targetX: Math.round(clampDefaultShowDirectorCoordinate(x + Math.cos(radians) * distance, maxX)),
+    targetY: Math.round(clampDefaultShowDirectorCoordinate(y + Math.sin(radians) * distance, maxY)),
+  }
+}
+
 function createDefaultLaserDmxShowDirectorTriggerConfig(kind: LaserDmxShowDirectorFixtureKind): LaserDmxShowDirectorTriggerConfig {
   const fallback: LaserDmxShowDirectorTriggerConfig = {
     ...DEFAULT_LASER_DMX_SHOW_DIRECTOR_TRIGGER,
@@ -740,6 +763,8 @@ export function createDefaultLaserDmxShowDirectorFixture(
   const label = LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS[kind]
   const column = index % DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.gridSize.columns
   const row = Math.floor(index / DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.gridSize.columns)
+  const beam = createDefaultLaserDmxShowDirectorBeamConfig(kind)
+  const defaultEndpoint = createDefaultLaserDmxShowDirectorBeamEndpoint(kind, column, row)
   return {
     schemaVersion: LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION,
     id,
@@ -754,7 +779,7 @@ export function createDefaultLaserDmxShowDirectorFixture(
     color: '#4ac7db',
     colorMode: 'fixed',
     brightness: 0.85,
-    beam: createDefaultLaserDmxShowDirectorBeamConfig(kind),
+    beam: { ...beam, ...defaultEndpoint },
     trigger: createDefaultLaserDmxShowDirectorTriggerConfig(kind),
     component: { ...DEFAULT_LASER_DMX_SHOW_DIRECTOR_COMPONENT },
   }
@@ -845,21 +870,31 @@ export function normalizeLaserDmxShowDirectorFixture(raw: unknown, index = 0): L
   const value = showDirectorRecord(raw) ? raw : {}
   const kind = isLaserDmxShowDirectorFixtureKind(value.kind) ? value.kind : 'laser'
   const fallback = createDefaultLaserDmxShowDirectorFixture(kind, `show-director-recovered-${index + 1}`, index)
+  const x = showDirectorFinite(value.x, fallback.x)
+  const y = showDirectorFinite(value.y, fallback.y)
+  const rotation = Math.max(-360, Math.min(360, showDirectorFinite(value.rotation, fallback.rotation)))
+  const beamValue = showDirectorRecord(value.beam) ? value.beam : {}
+  const normalizedBeam = normalizeLaserDmxShowDirectorBeamConfig(value.beam, kind)
+  const defaultEndpoint = createDefaultLaserDmxShowDirectorBeamEndpoint(kind, x, y, rotation)
   return {
     schemaVersion: LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION,
     id:         showDirectorString(value.id, fallback.id),
     kind,
     label:      showDirectorString(value.label, fallback.label),
     enabled:    showDirectorBoolean(value.enabled, fallback.enabled),
-    x:          showDirectorFinite(value.x, fallback.x),
-    y:          showDirectorFinite(value.y, fallback.y),
+    x,
+    y,
     z:          showDirectorFinite(value.z, fallback.z),
-    rotation:   Math.max(-360, Math.min(360, showDirectorFinite(value.rotation, fallback.rotation))),
+    rotation,
     groupId:    typeof value.groupId === 'string' && value.groupId.trim().length > 0 ? value.groupId : null,
     color:      showDirectorString(value.color, fallback.color),
     colorMode:  coerceShowDirectorColorMode(value.colorMode),
     brightness: showDirectorUnit(value.brightness, fallback.brightness),
-    beam:       normalizeLaserDmxShowDirectorBeamConfig(value.beam, kind),
+    beam:       {
+      ...normalizedBeam,
+      targetX: beamValue.targetX == null ? defaultEndpoint.targetX : normalizedBeam.targetX,
+      targetY: beamValue.targetY == null ? defaultEndpoint.targetY : normalizedBeam.targetY,
+    },
     trigger:    normalizeLaserDmxShowDirectorTriggerConfig(value.trigger, kind),
     component:  normalizeLaserDmxShowDirectorComponentConfig(value.component),
   }
