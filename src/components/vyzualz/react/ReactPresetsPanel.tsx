@@ -7,6 +7,7 @@ import {
   type ReactEngineId,
 } from './ReactTypes'
 import { ReactPresetThumbnail } from './ReactPresetThumbnail'
+import { LASER_DMX_SHOW_DIRECTOR_TEMPLATES } from './laserDmxShowDirectorTemplates'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
 import { resolveBrandedReactPreset } from '../../../features/personalization/resolveBrandedReactPreset'
 import type { ProductionFixtureKind } from './LaserDmxProductionRig'
@@ -265,6 +266,53 @@ function EngineSection({ engineId, presets, expandedByDefault = false, ...props 
   )
 }
 
+
+function ShowDirectorTemplatePresets() {
+  const applyTemplate = useReactStore(state => state.applyLaserDmxShowDirectorTemplate)
+  const setAuthoringMode = useReactStore(state => state.setLaserDmxBeamMatrixAuthoringMode)
+
+  const handleApplyTemplate = (templateId: string) => {
+    if (applyTemplate(templateId)) setAuthoringMode('showDirector')
+  }
+
+  return (
+    <section className="rv-preset-group rv-show-director-preset-group" aria-label="Show Director starter rig layouts">
+      <div className="rv-preset-group-hdr rv-show-director-preset-group__header">
+        <span className="rv-preset-group-hdr-icon" aria-hidden="true">⌁</span>
+        <span className="rv-preset-group-hdr-label">Show Director Rig Layouts</span>
+        <span className="rv-preset-group-hdr-count">{LASER_DMX_SHOW_DIRECTOR_TEMPLATES.length}</span>
+      </div>
+      <div className="rv-preset-group-cards rv-preset-group-cards--current" data-preset-grid>
+        {LASER_DMX_SHOW_DIRECTOR_TEMPLATES.map(template => (
+          <div key={template.id} className="rv-preset-card-shell rv-show-director-template-preset-shell">
+            <button
+              type="button"
+              className="rv-preset-card rv-show-director-template-preset-card"
+              onClick={() => handleApplyTemplate(template.id)}
+              onKeyDown={handlePresetCardKeyDown}
+              data-preset-card
+              aria-label={`Load Show Director rig layout ${template.name}`}
+              title={template.description}
+            >
+              <div className="rv-preset-card-content rv-show-director-template-preset-content">
+                <div className="rv-preset-card-header">
+                  <span className="rv-preset-name">{template.name}</span>
+                </div>
+                <div className="rv-preset-chip-row">
+                  <span className="rv-preset-mode-chip">{template.fixtures.length} fixtures</span>
+                  {template.tags.slice(0, 2).map(tag => <span key={tag} className="rv-preset-mode-chip">{tag}</span>)}
+                </div>
+                <p className="rv-preset-desc">{template.description}</p>
+                <span className="rv-show-director-template-preset-action">Load Layout</span>
+              </div>
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 const LIBRARY_VIEW_LABELS: Record<ReactPresetLibraryView, string> = {
   current: 'Current Engine',
   favorites: 'Favorites',
@@ -416,6 +464,8 @@ export function ReactPresetsPanel() {
           {activeReactPresetId && modifiedIds.has(activeReactPresetId) ? ' · Modified from preset' : ''}
         </div>
       )}
+
+      {activeReactEngineId === 'laserDmx' && libraryView === 'current' && <ShowDirectorTemplatePresets />}
 
       {visiblePresets.length === 0 ? (
         <div className="rv-preset-library-empty">

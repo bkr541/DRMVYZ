@@ -438,6 +438,7 @@ export interface LaserDmxShowDirectorSettings {
   snapEnabled: boolean
   showLabels:  boolean
   showBeams:   boolean
+  showGrid:    boolean
   zoom:        number
 }
 
@@ -533,6 +534,7 @@ export const DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS: LaserDmxShowDirectorSetti
   snapEnabled: true,
   showLabels:  true,
   showBeams:   true,
+  showGrid:    true,
   zoom:        1,
 }
 
@@ -782,6 +784,7 @@ export function normalizeLaserDmxShowDirectorSettings(raw: unknown): LaserDmxSho
     snapEnabled: showDirectorBoolean(value.snapEnabled, fallback.snapEnabled),
     showLabels:  showDirectorBoolean(value.showLabels,  fallback.showLabels),
     showBeams:   showDirectorBoolean(value.showBeams,   fallback.showBeams),
+    showGrid:    showDirectorBoolean(value.showGrid,    fallback.showGrid),
     zoom:        Math.max(0.25, Math.min(4, showDirectorFinite(value.zoom, fallback.zoom))),
   }
 }

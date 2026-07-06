@@ -6,6 +6,7 @@ import { ReactInspectorPanel } from '../ReactInspectorPanel'
 import { ReactModulationPanel } from '../ReactModulationPanel'
 import { ReactAudioPanel } from '../ReactAudioPanel'
 import { ReactRecordingPanel } from '../ReactRecordingPanel'
+import { LaserDmxShowDirectorControls } from '../LaserDmxShowDirectorControls'
 import { ProductionOutputPanel } from '../output/ProductionOutputPanel'
 
 type DesignSurface = 'engine' | 'selection'
@@ -43,17 +44,32 @@ function PanelSubtabs<T extends string>({
 }
 
 export function ReactDesignWorkspacePanel({ hasSelection }: { hasSelection: boolean }) {
+  const activeReactEngineId = useReactStore(state => state.activeReactEngineId)
+  const laserDmxBeamMatrixAuthoringMode = useReactStore(state => state.laserDmxBeamMatrixAuthoringMode)
+  const showDirectorDesign = activeReactEngineId === 'laserDmx' && laserDmxBeamMatrixAuthoringMode === 'showDirector'
   const [surface, setSurface] = useState<DesignSurface>(hasSelection ? 'selection' : 'engine')
 
   useEffect(() => {
     setSurface(hasSelection ? 'selection' : 'engine')
   }, [hasSelection])
 
+  if (showDirectorDesign) {
+    return (
+      <div className="rv-workspace-panel">
+        <div className="rv-workspace-panel-body">
+          <div className="rv-inspector rv-inspector-scroll">
+            <LaserDmxShowDirectorControls />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="rv-workspace-panel">
       <PanelSubtabs
         value={surface}
-        onChange={setSurface}
+        onChange={value => setSurface(value)}
         ariaLabel="Design surfaces"
         options={[
           { id: 'engine', label: 'ENGINE' },
@@ -76,7 +92,7 @@ export function ReactReactivityWorkspacePanel() {
     <div className="rv-workspace-panel">
       <PanelSubtabs
         value={surface}
-        onChange={setSurface}
+        onChange={value => setSurface(value)}
         ariaLabel="Reactivity surfaces"
         options={[
           { id: 'routing', label: 'ROUTING' },
@@ -118,7 +134,7 @@ export function ReactOutputWorkspacePanel({
     <div className="rv-workspace-panel">
       <PanelSubtabs
         value={surface}
-        onChange={setSurface}
+        onChange={value => setSurface(value)}
         ariaLabel="Output surfaces"
         options={[
           { id: 'recording', label: 'RECORDING' },

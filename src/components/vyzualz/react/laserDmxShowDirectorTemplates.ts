@@ -41,7 +41,7 @@ function createTemplateId(): string {
 }
 
 function grid(columns: number, rows: number): LaserDmxShowDirectorSettingsPatch {
-  return { gridSize: { columns, rows }, snapEnabled: true, showLabels: true, showBeams: true, zoom: 1 }
+  return { gridSize: { columns, rows }, snapEnabled: true, showLabels: true, showBeams: true, showGrid: true, zoom: 1 }
 }
 
 function fx(

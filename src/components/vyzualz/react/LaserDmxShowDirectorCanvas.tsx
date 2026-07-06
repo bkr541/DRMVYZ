@@ -1,6 +1,5 @@
 import {
   useEffect,
-  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -34,18 +33,6 @@ type FixtureDragState = {
   offsetY: number
 }
 
-const GRID_PRESETS = [
-  { label: '10 × 6', columns: 10, rows: 6 },
-  { label: '12 × 8', columns: 12, rows: 8 },
-  { label: '15 × 10', columns: 15, rows: 10 },
-  { label: '18 × 12', columns: 18, rows: 12 },
-  { label: '24 × 14', columns: 24, rows: 14 },
-] as const
-
-const MIN_ZOOM = 0.5
-const MAX_ZOOM = 2.5
-const ZOOM_STEP = 0.15
-
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
 }
@@ -53,11 +40,6 @@ function clamp(value: number, min: number, max: number): number {
 function roundTo(value: number, decimals = 2): number {
   const factor = 10 ** decimals
   return Math.round(value * factor) / factor
-}
-
-function normalizeDegrees(value: number): number {
-  const normalized = ((value % 360) + 360) % 360
-  return normalized > 180 ? normalized - 360 : normalized
 }
 
 function coerceGridSize(settings: LaserDmxShowDirectorSettings) {
@@ -108,6 +90,11 @@ function fixtureStyle(fixture: LaserDmxShowDirectorFixture, settings: LaserDmxSh
   } as CSSProperties
 }
 
+function normalizeDegrees(value: number): number {
+  const normalized = ((value % 360) + 360) % 360
+  return normalized > 180 ? normalized - 360 : normalized
+}
+
 function beamStyle(fixture: LaserDmxShowDirectorFixture): CSSProperties {
   const totalAngle = normalizeDegrees(fixture.rotation + fixture.beam.beamAngle)
   const spread = clamp(fixture.beam.beamSpread || 12, 8, 110)
@@ -120,14 +107,6 @@ function beamStyle(fixture: LaserDmxShowDirectorFixture): CSSProperties {
     '--show-director-beam-tilt-positive': `${roundTo(spread * 0.24, 2)}deg`,
     '--show-director-beam-blur': `${roundTo((1 - clamp(fixture.beam.focus, 0.1, 1)) * 2.8, 2)}px`,
   } as CSSProperties
-}
-
-function guideIndexes(count: number): number[] {
-  if (count <= 1) return [0]
-  const step = Math.max(1, Math.ceil((count - 1) / 6))
-  const values = new Set<number>([0, count - 1])
-  for (let index = step; index < count - 1; index += step) values.add(index)
-  return [...values].sort((a, b) => a - b)
 }
 
 function renderFixtureIcon(fixture: LaserDmxShowDirectorFixture) {
@@ -215,36 +194,15 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settin
     addFixture,
     selectFixture,
     updateFixture,
-    deleteFixture,
-    duplicateFixture,
-    mirrorFixture,
-    updateSettings,
     setAuthoringMode,
   } = useReactStore(useShallow(s => ({
     addFixture:       s.addLaserDmxShowDirectorFixture,
     selectFixture:    s.selectLaserDmxShowDirectorFixture,
     updateFixture:    s.updateLaserDmxShowDirectorFixture,
-    deleteFixture:    s.deleteLaserDmxShowDirectorFixture,
-    duplicateFixture: s.duplicateLaserDmxShowDirectorFixture,
-    mirrorFixture:    s.mirrorLaserDmxShowDirectorFixture,
-    updateSettings:   s.updateLaserDmxShowDirectorSettings,
     setAuthoringMode: s.setLaserDmxBeamMatrixAuthoringMode,
   })))
 
-  const { columns, rows } = useMemo(() => coerceGridSize(settings), [settings])
-  const selectedFixture = useMemo(
-    () => fixtures.find(fixture => fixture.id === selectedFixtureId) ?? null,
-    [fixtures, selectedFixtureId],
-  )
-  const columnGuides = useMemo(() => guideIndexes(columns), [columns])
-  const rowGuides = useMemo(() => guideIndexes(rows), [rows])
-  const currentGridKey = `${columns}x${rows}`
-  const gridOptions = useMemo(() => {
-    const hasCurrent = GRID_PRESETS.some(option => `${option.columns}x${option.rows}` === currentGridKey)
-    return hasCurrent
-      ? GRID_PRESETS
-      : [{ label: `${columns} × ${rows}`, columns, rows }, ...GRID_PRESETS]
-  }, [columns, currentGridKey, rows])
+  const { columns, rows } = coerceGridSize(settings)
 
   useEffect(() => {
     if (!fixtureDrag) return undefined
@@ -307,103 +265,19 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settin
     })
   }
 
-  const setZoom = (zoom: number) => updateSettings({ zoom: roundTo(clamp(zoom, MIN_ZOOM, MAX_ZOOM), 2) })
-
-  const handleGridPreset = (value: string) => {
-    const option = gridOptions.find(item => `${item.columns}x${item.rows}` === value)
-    if (!option) return
-    updateSettings({ gridSize: { columns: option.columns, rows: option.rows } })
-  }
-
-  const handleDuplicateSelected = () => {
-    if (selectedFixtureId) duplicateFixture(selectedFixtureId)
-  }
-
-  const handleDeleteSelected = () => {
-    if (selectedFixtureId) deleteFixture(selectedFixtureId)
-  }
-
-  const handleRotateSelected = () => {
-    if (!selectedFixture) return
-    updateFixture(selectedFixture.id, { rotation: normalizeDegrees(selectedFixture.rotation + 90) })
-  }
-
-  const handleMirrorHorizontal = () => {
-    if (selectedFixture) mirrorFixture(selectedFixture.id, 'horizontal')
-  }
-
-  const handleMirrorVertical = () => {
-    if (selectedFixture) mirrorFixture(selectedFixture.id, 'vertical')
-  }
-
-  const toolDisabled = !selectedFixture
-
   return (
     <section
       className={`rv-show-director-canvas-shell${variant === 'stage' ? ' rv-show-director-canvas-shell--stage' : ''}`}
       aria-label={variant === 'stage' ? 'Show Director visualizer stage canvas' : 'Show Director 2D canvas'}
     >
-      <div className="rv-show-director-canvas-shell__header">
-        <div>
-          <span className="rv-show-director-kicker">2D Canvas</span>
-          <h4>{variant === 'stage' ? 'Center Visualizer Stage' : 'Stage Layout Editor'}</h4>
-        </div>
-        <div className="rv-show-director-canvas-toolbar" aria-label="Show Director canvas options">
-          <button
-            type="button"
-            className="rv-ctrl-toggle rv-ctrl-toggle--on"
-            aria-pressed="true"
-            title="Select and move fixtures by dragging them on the stage grid."
-          >
-            Select / Move
-          </button>
-          <button
-            type="button"
-            className={`rv-ctrl-toggle${settings.snapEnabled ? ' rv-ctrl-toggle--on' : ''}`}
-            aria-pressed={settings.snapEnabled}
-            onClick={() => updateSettings({ snapEnabled: !settings.snapEnabled })}
-          >
-            Snap {settings.snapEnabled ? 'On' : 'Off'}
-          </button>
-          <button
-            type="button"
-            className={`rv-ctrl-toggle${settings.showLabels ? ' rv-ctrl-toggle--on' : ''}`}
-            aria-pressed={settings.showLabels}
-            onClick={() => updateSettings({ showLabels: !settings.showLabels })}
-          >
-            Labels
-          </button>
-          <button
-            type="button"
-            className={`rv-ctrl-toggle${settings.showBeams ? ' rv-ctrl-toggle--on' : ''}`}
-            aria-pressed={settings.showBeams}
-            onClick={() => updateSettings({ showBeams: !settings.showBeams })}
-          >
-            Beams
-          </button>
-          <label className="rv-show-director-grid-select">
-            <span>Grid</span>
-            <select value={currentGridKey} onChange={event => handleGridPreset(event.target.value)}>
-              {gridOptions.map(option => (
-                <option key={`${option.columns}x${option.rows}`} value={`${option.columns}x${option.rows}`}>{option.label}</option>
-              ))}
-            </select>
-          </label>
-          <div className="rv-show-director-tool-group" aria-label="Show Director fixture tools">
-            <button type="button" className="rv-ctrl-toggle" disabled={toolDisabled} onClick={handleDuplicateSelected}>Duplicate</button>
-            <button type="button" className="rv-ctrl-toggle" disabled={toolDisabled} onClick={handleRotateSelected}>Rotate 90°</button>
-            <button type="button" className="rv-ctrl-toggle" disabled={toolDisabled} onClick={handleMirrorHorizontal}>Mirror H</button>
-            <button type="button" className="rv-ctrl-toggle" disabled={toolDisabled} onClick={handleMirrorVertical}>Mirror V</button>
-            <button type="button" className="rv-ctrl-toggle rv-ctrl-toggle--danger" disabled={toolDisabled} onClick={handleDeleteSelected}>Delete</button>
-          </div>
-          <div className="rv-show-director-tool-group rv-show-director-tool-group--zoom" aria-label="Show Director zoom controls">
-            <button type="button" className="rv-ctrl-toggle" disabled={settings.zoom <= MIN_ZOOM} onClick={() => setZoom(settings.zoom - ZOOM_STEP)}>−</button>
-            <span>{Math.round(settings.zoom * 100)}%</span>
-            <button type="button" className="rv-ctrl-toggle" disabled={settings.zoom >= MAX_ZOOM} onClick={() => setZoom(settings.zoom + ZOOM_STEP)}>+</button>
-            <button type="button" className="rv-ctrl-toggle" onClick={() => setZoom(1)}>Fit</button>
+      {variant !== 'stage' && (
+        <div className="rv-show-director-canvas-shell__header">
+          <div>
+            <span className="rv-show-director-kicker">2D Canvas</span>
+            <h4>Stage Layout Editor</h4>
           </div>
         </div>
-      </div>
+      )}
 
       <div
         className={`rv-show-director-canvas${isDragHot ? ' rv-show-director-canvas--drag-hot' : ''}${fixtureDrag ? ' rv-show-director-canvas--fixture-dragging' : ''}`}
@@ -418,7 +292,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settin
       >
         <div
           ref={stageRef}
-          className="rv-show-director-canvas__stage"
+          className={`rv-show-director-canvas__stage${settings.showGrid ? '' : ' rv-show-director-canvas__stage--grid-hidden'}`}
           style={{
             '--show-director-columns': columns,
             '--show-director-rows': rows,
@@ -426,19 +300,8 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settin
           } as CSSProperties}
           onClick={handleCanvasClick}
         >
-          <div className="rv-show-director-canvas__drop-copy" aria-hidden="true">
-            Drop fixtures here · select a fixture to edit beam, color, and timing
-          </div>
-          <div className="rv-show-director-stage-guides rv-show-director-stage-guides--columns" aria-hidden="true">
-            {columnGuides.map(index => <span key={index} style={{ left: `${((index + 0.5) / columns) * 100}%` }}>X{index}</span>)}
-          </div>
-          <div className="rv-show-director-stage-guides rv-show-director-stage-guides--rows" aria-hidden="true">
-            {rowGuides.map(index => <span key={index} style={{ top: `${((index + 0.5) / rows) * 100}%` }}>Y{index}</span>)}
-          </div>
           <div className="rv-show-director-stage-centerline rv-show-director-stage-centerline--vertical" aria-hidden="true" />
           <div className="rv-show-director-stage-centerline rv-show-director-stage-centerline--horizontal" aria-hidden="true" />
-          <div className="rv-show-director-canvas__backline" aria-hidden="true">Back / Upstage</div>
-          <div className="rv-show-director-canvas__front-edge" aria-hidden="true">Front Edge / Audience</div>
 
           {fixtures.map(fixture => {
             const label = LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS[fixture.kind]
@@ -468,21 +331,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settin
               </button>
             )
           })}
-
-          {fixtures.length === 0 && (
-            <div className="rv-show-director-canvas__empty">
-              <strong>Drag a light component onto the Show Director canvas</strong>
-              <span>Start with a template above, or drag Laser, Strobe, LED Bar, Haze, or any palette component into the grid.</span>
-            </div>
-          )}
         </div>
-      </div>
-
-      <div className="rv-show-director-canvas-shell__footer">
-        <span>{columns} × {rows} grid</span>
-        <span>{fixtures.length} fixture{fixtures.length === 1 ? '' : 's'}</span>
-        <span>{selectedFixture ? `${selectedFixture.label} · X${roundTo(selectedFixture.x, 1)} Y${roundTo(selectedFixture.y, 1)} R${Math.round(selectedFixture.rotation)}°` : 'No fixture selected'}</span>
-        <span>Show Director compiles to Beam Matrix when selected as the preview source</span>
       </div>
     </section>
   )
