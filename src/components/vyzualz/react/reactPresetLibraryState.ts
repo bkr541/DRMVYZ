@@ -1,4 +1,4 @@
-import { isLegacySpatialLaserDmxPreset } from './ReactTypes'
+import { isRetiredLaserDmxPreset } from './ReactTypes'
 import type { ReactEngineId, ReactPreset } from './ReactTypes'
 
 export type ReactPresetLibraryView = 'current' | 'favorites' | 'all'
@@ -64,7 +64,7 @@ export function sanitizeReactPresetFavorites(
 }
 
 export function isReactPresetVisibleForLockedLaserDmx(preset: ReactPreset): boolean {
-  return !isLegacySpatialLaserDmxPreset(preset)
+  return !isRetiredLaserDmxPreset(preset)
 }
 
 export function filterReactPresetLibrary(

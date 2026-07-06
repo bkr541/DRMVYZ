@@ -1,4 +1,4 @@
-import { coerceLaserDmxWorkspaceMode, type LaserDmxWorkspaceMode, type ReactEngineId } from './ReactTypes'
+import type { ReactEngineId } from './ReactTypes'
 
 export type ReactLeftTab = 'workspace' | 'media' | 'layers' | 'fonts'
 export type ReactPresetSurface = 'enginePresets' | 'shaderScenes'
@@ -21,15 +21,14 @@ export interface ReactWorkspaceComposition {
  */
 export function resolveReactWorkspaceComposition(
   engineId: ReactEngineId,
-  laserWorkspaceMode: LaserDmxWorkspaceMode,
+  laserWorkspaceMode: unknown,
   beamEditorVisible: boolean,
 ): ReactWorkspaceComposition {
   const isShader = engineId === 'shaderPads'
   const isSoundDrawing = engineId === 'oscilloscope'
   const isCinematic = engineId === 'cinematicPortal'
   const isLaser = engineId === 'laserDmx'
-  const lockedLaserWorkspaceMode = coerceLaserDmxWorkspaceMode(laserWorkspaceMode)
-  const isLaserBeamMatrix = isLaser && lockedLaserWorkspaceMode === 'beamMatrix'
+  void laserWorkspaceMode
 
   let leftTabs: ReactLeftTab[] = ['workspace']
   let workspaceTabLabel: ReactWorkspaceTabLabel = 'SETUP'
@@ -41,7 +40,7 @@ export function resolveReactWorkspaceComposition(
     leftTabs = ['workspace', 'media', 'fonts']
     workspaceTabLabel = 'SOURCE'
   } else if (isLaser) {
-    leftTabs = isLaserBeamMatrix ? ['workspace', 'layers'] : ['workspace']
+    leftTabs = ['workspace', 'layers']
     workspaceTabLabel = 'RIG'
   }
 
@@ -52,8 +51,8 @@ export function resolveReactWorkspaceComposition(
     showSoundDrawingTimeline: isSoundDrawing,
     // Track sections and transport context are shared by every React engine.
     showTrackMap: true,
-    showLaserBeamEditor: isLaserBeamMatrix && beamEditorVisible,
-    showLaserLayersTab: isLaserBeamMatrix,
+    showLaserBeamEditor: isLaser && beamEditorVisible,
+    showLaserLayersTab: isLaser,
     presetSurface: isShader ? 'shaderScenes' : 'enginePresets',
     leftTabs,
     workspaceTabLabel,

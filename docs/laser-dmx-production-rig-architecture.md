@@ -15,7 +15,6 @@ This document describes the post-sequence LaserDMX contract. The system is a vir
 | Moving-head interpolation | `LaserDmxMovingHeadEngine.ts` |
 | Haze, fog, and cryogenic-style transient runtime | `LaserDmxAtmosphereEngine.ts` |
 | Virtual fixture compilation | `LaserDmxCompiler.ts` and the compatibility-only Beam Matrix compiler |
-| Shared stage rendering | `LaserDmxSpatialStageRenderer.ts` |
 | Output lifecycle and fail-dark boundary | `output/ProductionOutput.ts` |
 
 The renderer does not create a second BPM, beat grid, section detector, fixture schema, or free-running animation clock. Animated laser geometry, flashes, movement, cues, and atmosphere all derive from the audio playhead. The deprecated compiler `time` input is ignored so older call sites remain source-compatible without becoming a competing clock.
@@ -34,7 +33,7 @@ A registered fixture profile owns fixture family classification. During migratio
 - targets: named points or zones in the same metre-based space
 - audience and excluded/safe zones: stage-space validation metadata
 
-Legacy normalized fixture positions are converted through `legacyNormalizedToStageVector`; the inverse is `stageVectorToLegacyNormalized`. The shared stage renderer projects this model through the active camera. Canvas dimensions are physical pixels and fixed-size strokes/editor affordances use bounded device-pixel scaling, so resizing or changing device-pixel ratio does not alter authored timing or stage-space geometry.
+Legacy normalized fixture positions are converted through `legacyNormalizedToStageVector`; the inverse is `stageVectorToLegacyNormalized`. Compatibility tools may still project this model through a camera when needed. Canvas dimensions are physical pixels and fixed-size strokes/editor affordances use bounded device-pixel scaling, so resizing or changing device-pixel ratio does not alter authored timing or stage-space geometry.
 
 ## Fixture capabilities
 
@@ -84,7 +83,7 @@ Current versions are:
 - production rig/output frame: `9`
 - stage model: `1`
 
-All external or persisted input must pass through the normalizers before use. Serialization sanitizes runtime-only requests and produces canonical key ordering. Legacy pre-sequence Spatial Fixtures and Beam Matrix data remain loadable. Unknown fields are retained where compatibility requires it; unavailable profiles are preserved with diagnostics and disabled in the production rig.
+All external or persisted input must pass through the normalizers before use. Serialization sanitizes runtime-only requests and produces canonical key ordering. Legacy pre-sequence LaserDMX rig data and Beam Matrix data remain loadable. Unknown fields are retained where compatibility requires it; unavailable profiles are preserved with diagnostics and disabled in the production rig.
 
 Do not persist output arming, network binding, heartbeat state, emergency blackout state, active burst particles, cue crossing state, or renderer lifecycle state.
 

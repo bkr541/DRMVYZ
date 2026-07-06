@@ -122,7 +122,7 @@ export function resolveLaserDmxPersonalization(
   }
 }
 
-export function inferSpatialFixtureSemantic(fixture: Readonly<LaserDmxFixture>): LaserDmxSemanticSource {
+export function inferLegacyLaserDmxFixtureSemantic(fixture: Readonly<LaserDmxFixture>): LaserDmxSemanticSource {
   const fromRoutes = semanticFromText(fixture.modulationRoutes.map(route => `${route.source} ${route.target}`))
   return fromRoutes ?? semanticFromText([fixture.name, fixture.path.kind, fixture.color.paletteId]) ?? deterministicSemantic(fixture.id)
 }

@@ -210,8 +210,8 @@ describe('LaserDMX Show Director persistence and migration', () => {
       laserDmxSettings: createDefaultLaserDmxSettings(),
       laserDmxBeamMatrix: matrix,
     }, 33)
-    const spatial = migrated.laserDmxSettings as LaserDmxSettings
-    expect(spatial.productionCues).toEqual(expect.arrayContaining([
+    const legacyRig = migrated.laserDmxSettings as LaserDmxSettings
+    expect(legacyRig.productionCues).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'production-cue:legacy:legacy-gate', source: 'legacyBeamMigration' }),
     ]))
     expect((migrated.laserDmxBeamMatrix as typeof matrix).cues).toEqual(matrix.cues)

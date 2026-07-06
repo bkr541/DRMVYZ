@@ -29,7 +29,7 @@
  * Pure math functions (valueNoise, fbmNoise, fogBufferDimensions) are
  * exported for unit tests.
  *
- * Relationship to Spatial Fixtures haze: The existing drawHaze() function
+ * Relationship to legacy rig haze: The existing drawHaze() function
  * is a simple radial colour wash around fixture origins. It is NOT used here.
  * This renderer produces its own independent atmospheric effect.
  *

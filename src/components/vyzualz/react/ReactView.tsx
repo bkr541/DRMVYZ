@@ -150,7 +150,6 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
     beamEditorVisible,
     soundDrawingLayersByTrackId,
     soundDrawingClipsByTrackId,
-    laserDmxSettings,
     laserDmxBeamMatrix,
   } = useReactStore(useShallow(s => ({
     reactPresets:           s.reactPresets,
@@ -180,7 +179,6 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
     beamEditorVisible:              s.laserDmxBeamMatrix.editor.beamEditorVisible,
     soundDrawingLayersByTrackId:    s.soundDrawingLayersByTrackId,
     soundDrawingClipsByTrackId:     s.soundDrawingClipsByTrackId,
-    laserDmxSettings:               s.laserDmxSettings,
     laserDmxBeamMatrix:             s.laserDmxBeamMatrix,
   })))
   const activeShaderId = useShaderPanelStore(s => s.activeShaderId)
@@ -249,16 +247,14 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
       activeReactEngineId,
       activeShaderId,
       oscillatorSettings,
-      laserDmxSettings,
-      laserDmxWorkspaceMode,
+        laserDmxWorkspaceMode,
       laserDmxBeamMatrix,
     }),
     [
       activeReactEngineId,
       activeShaderId,
       oscillatorSettings,
-      laserDmxSettings,
-      laserDmxWorkspaceMode,
+        laserDmxWorkspaceMode,
       laserDmxBeamMatrix,
     ],
   )

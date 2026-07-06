@@ -22,9 +22,9 @@ import {
   createDefaultLaserDmxBeamMatrixSettings,
   coerceLaserDmxWorkspaceMode,
   resolveReactPresetLaserDmxWorkspace,
-  isLegacySpatialLaserDmxPreset,
+  isRetiredLaserDmxPreset,
   LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID,
-  LEGACY_SPATIAL_LASER_DMX_PRESET_IDS,
+  RETIRED_LASER_DMX_PRESET_IDS,
   LASER_DMX_MATRIX_COLUMNS,
   LASER_DMX_MATRIX_ROWS,
   LASER_DMX_MATRIX_MAX_BEAMS,
@@ -58,7 +58,6 @@ import type {
   LaserDmxReactionGroup,
 } from '../components/vyzualz/react/ReactTypes'
 import { resolvePerformancePadTransition } from '../components/vyzualz/react/renderers/reactPresetTransition'
-import { adaptProductionPresetToRig, shouldPreserveCurrentProductionRig } from '../components/vyzualz/react/LaserDmxProductionPresets'
 import {
   parseSvgToGlyphPoints,
   makeSvgGlyphAsset,
@@ -859,7 +858,7 @@ export function buildPresetPatch(
     : null
   const shouldApplyLaserDmxSettings = preset.laserDmxSettings != null
     && preset.engine === 'laserDmx'
-    && !isLegacySpatialLaserDmxPreset(preset)
+    && !isRetiredLaserDmxPreset(preset)
   let laserPatch: LaserDmxSettings | undefined
   if (shouldApplyLaserDmxSettings) {
     // Presets are complete looks, not deltas against live authored state.
@@ -867,9 +866,7 @@ export function buildPresetPatch(
       ...createDefaultLaserDmxSettings(),
       ...preset.laserDmxSettings,
     })
-    const adapted = preset.productionPreset && currentLaserSettings && shouldPreserveCurrentProductionRig(currentLaserSettings)
-      ? adaptProductionPresetToRig({ ...preset, laserDmxSettings: merged }, currentLaserSettings).settings
-      : merged
+    const adapted = merged
     const resolved = currentLaserSettings
       ? (() => {
           const currentStage = normalizeProductionStageModel(currentLaserSettings.productionStage)
@@ -891,7 +888,7 @@ export function buildPresetPatch(
           })
         })()
       : adapted
-    laserPatch = ensureProductionLookCompatibility(normalizeLaserDmxSettings(resolved), preset.name, 'spatialPreset')
+    laserPatch = ensureProductionLookCompatibility(normalizeLaserDmxSettings(resolved), preset.name, 'authored')
   }
 
 
@@ -1214,7 +1211,7 @@ interface ReactStoreState {
   triggerPerformanceAction: (actionId: string, toggleState?: boolean) => void
   clearPerformanceActions: () => void
 
-  // LaserDMX Spatial Fixtures settings
+  // LaserDMX compatibility settings retained for old projects and Show Director cues
   laserDmxSettings: LaserDmxSettings
   setLaserDmxSettings: (partial: Partial<LaserDmxSettings>) => void
   resetLaserDmxSettings: () => void
@@ -1720,13 +1717,13 @@ function clearRetiredDuplicatePadAssignments(pads: ReactPerformancePad[]): React
 function replaceLockedLaserDmxPresetId(value: unknown): string | null {
   const presetId = replaceRetiredDuplicatePresetId(value)
   if (presetId == null) return null
-  return LEGACY_SPATIAL_LASER_DMX_PRESET_IDS.has(presetId)
+  return RETIRED_LASER_DMX_PRESET_IDS.has(presetId)
     ? LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID
     : presetId
 }
 
 function normalizeLockedLaserDmxPadAssignments(pads: ReactPerformancePad[]): ReactPerformancePad[] {
-  return pads.map(pad => pad.presetId && LEGACY_SPATIAL_LASER_DMX_PRESET_IDS.has(pad.presetId)
+  return pads.map(pad => pad.presetId && RETIRED_LASER_DMX_PRESET_IDS.has(pad.presetId)
     ? { ...pad, presetId: LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID, label: 'Beam Matrix', color: '#00ffdc' }
     : pad)
 }
@@ -2278,8 +2275,8 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     }
   }
   if (version < 29) {
-    // Introduce explicit LaserDMX schema versions and normalize legacy Spatial
-    // Fixtures without dropping unknown authored fields. Beam Matrix receives a
+    // Introduce explicit LaserDMX schema versions and normalize legacy rig
+    // data without dropping unknown authored fields. Beam Matrix receives a
     // version marker only; its established document shape remains unchanged.
     state = {
       ...state,
@@ -2306,29 +2303,29 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     state = { ...state, laserDmxSettings: normalizeLaserDmxSettings(state.laserDmxSettings) }
   }
   if (version < 33 && isPersistedLaserDmxSettingsDocument(state.laserDmxSettings)) {
-    // Preserve pre-Look Spatial Fixtures as one complete compatibility Look.
+    // Preserve pre-Look LaserDMX rig data as one complete compatibility Look.
     state = {
       ...state,
       laserDmxSettings: ensureProductionLookCompatibility(
         normalizeLaserDmxSettings(state.laserDmxSettings),
-        'Migrated Spatial Look',
+        'Migrated LaserDMX Look',
         'migration',
       ),
     }
   }
   if (version < 34) {
-    const spatial = isPersistedLaserDmxSettingsDocument(state.laserDmxSettings)
+    const legacyRig = isPersistedLaserDmxSettingsDocument(state.laserDmxSettings)
       ? normalizeLaserDmxSettings(state.laserDmxSettings)
       : null
     const matrix = isPersistedLaserDmxBeamMatrixDocument(state.laserDmxBeamMatrix)
       ? normalizeLaserDmxBeamMatrixSettings(state.laserDmxBeamMatrix)
       : null
-    if (spatial && matrix) {
+    if (legacyRig && matrix) {
       state = {
         ...state,
         laserDmxSettings: normalizeLaserDmxSettings({
-          ...spatial,
-          productionCues: migrateLegacyBeamMatrixCues(matrix.cues ?? [], spatial.productionCues ?? []),
+          ...legacyRig,
+          productionCues: migrateLegacyBeamMatrixCues(matrix.cues ?? [], legacyRig.productionCues ?? []),
         }),
       }
     }
@@ -2629,11 +2626,11 @@ export function mergeReactStoreState(
       persisted.soundDrawingClipsByTrackId ?? currentState.soundDrawingClipsByTrackId,
     ),
     laserDmxSettings: (() => {
-      const spatial = normalizeLaserDmxSettings(persisted.laserDmxSettings ?? currentState.laserDmxSettings)
+      const legacyRig = normalizeLaserDmxSettings(persisted.laserDmxSettings ?? currentState.laserDmxSettings)
       const matrix = normalizeLaserDmxBeamMatrixSettings(persisted.laserDmxBeamMatrix ?? currentState.laserDmxBeamMatrix)
       return normalizeLaserDmxSettings({
-        ...spatial,
-        productionCues: migrateLegacyBeamMatrixCues(matrix.cues ?? [], spatial.productionCues ?? []),
+        ...legacyRig,
+        productionCues: migrateLegacyBeamMatrixCues(matrix.cues ?? [], legacyRig.productionCues ?? []),
       })
     })(),
     laserDmxWorkspaceMode: coerceLaserDmxWorkspaceMode(persisted.laserDmxWorkspaceMode ?? currentState.laserDmxWorkspaceMode),

@@ -9,7 +9,7 @@ DRMVYZ remains virtual-first. The repository is currently a Vite/React browser a
 
 ## Frame path
 
-Spatial Fixtures compile once into `ProductionOutputFrame`. The virtual stage renderer consumes the fixture frames, while the output controller consumes that same compiled production frame. The controller validates fixture profiles and patches, prepares 512-channel universe buffers, applies adapter-side limits, and sends only to the selected registered adapter.
+Retired LaserDMX rig data can still normalize into `ProductionOutputFrame` for compatibility tools, while live LaserDMX rendering now uses Beam Matrix only. The controller validates fixture profiles and patches, prepares 512-channel universe buffers, applies adapter-side limits, and sends only to the selected registered adapter.
 
 Virtual preview intensity and adapter output intensity are separate domains. Renderer controls continue to affect the preview. `hardwareMasterIntensity` is applied only while preparing adapter channel buffers.
 

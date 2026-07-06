@@ -6,7 +6,6 @@ import {
   type ReactPerformancePad,
   type ReactPreset,
 } from '../components/vyzualz/react/ReactTypes'
-import { LASER_DMX_PRODUCTION_PRESETS } from '../components/vyzualz/react/LaserDmxProductionPresets'
 import {
   migrateReactStore,
   repairReactEnginePresetSelection,
@@ -25,14 +24,13 @@ const RETIRED_IDS = [
 ]
 
 describe('retired duplicate React presets', () => {
-  it('keeps only Dream Gate and Red Club Crossfire from the retired duplicate families', () => {
+  it('keeps only Dream Gate and Beam Matrix from the retired duplicate families', () => {
     const ids = new Set(DEFAULT_REACT_PRESETS.map(preset => preset.id))
     expect(DEFAULT_REACT_PRESETS
       .filter(preset => preset.cinematicConfig?.worldMode === 'legacyPortal')
       .map(preset => preset.id))
       .toEqual(['preset-dream-gate'])
-    expect(LASER_DMX_PRODUCTION_PRESETS.map(preset => preset.id))
-      .toEqual(['preset-red-club-crossfire'])
+    expect(ids.has(LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID)).toBe(true)
     for (const id of RETIRED_IDS) expect(ids.has(id), id).toBe(false)
   })
 
@@ -45,14 +43,14 @@ describe('retired duplicate React presets', () => {
 
   it('prunes retired persisted definitions and clears their obsolete pad assignments', () => {
     const dreamGate = DEFAULT_REACT_PRESETS.find(preset => preset.id === 'preset-dream-gate')!
-    const redClub = DEFAULT_REACT_PRESETS.find(preset => preset.id === 'preset-red-club-crossfire')!
+    const beamMatrix = DEFAULT_REACT_PRESETS.find(preset => preset.id === LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID)!
     const retiredCinematic: ReactPreset = {
       ...structuredClone(dreamGate),
       id: 'preset-crimson-rift',
       name: 'Crimson Rift',
     }
-    const retiredSpatial: ReactPreset = {
-      ...structuredClone(redClub),
+    const retiredLaserDmxRig: ReactPreset = {
+      ...structuredClone(beamMatrix),
       id: 'preset-white-fog-cathedral',
       name: 'White Fog Cathedral',
     }
@@ -63,9 +61,9 @@ describe('retired duplicate React presets', () => {
     }
 
     const migrated = migrateReactStore({
-      activeReactPresetId: retiredSpatial.id,
+      activeReactPresetId: retiredLaserDmxRig.id,
       activeReactEngineId: 'laserDmx',
-      reactPresets: [...DEFAULT_REACT_PRESETS, retiredCinematic, retiredSpatial],
+      reactPresets: [...DEFAULT_REACT_PRESETS, retiredCinematic, retiredLaserDmxRig],
       performancePads: [obsoletePad],
       cinematicConfigsByPresetId: {
         [retiredCinematic.id]: retiredCinematic.cinematicConfig,

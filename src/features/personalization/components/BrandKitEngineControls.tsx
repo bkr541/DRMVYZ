@@ -14,7 +14,7 @@ const ENGINES: ReadonlyArray<{
 }> = [
   { id: 'oscilloscope', label: 'Sound Drawing', description: 'Waveforms, text, shapes, and palette-enabled SVG artwork.' },
   { id: 'cinematicPortal', label: 'Cinematic Worlds', description: 'All Cinematic Worlds, including Reactive Constellation.' },
-  { id: 'laserDmx', label: 'LaserDMX', description: 'Transient virtual RGBW adaptation for Spatial Fixtures and Beam Matrix.' },
+  { id: 'laserDmx', label: 'LaserDMX', description: 'Transient virtual RGBW adaptation for Beam Matrix.' },
   { id: 'shaderPads', label: 'Shader ENGINE', description: 'Semantic shader colors, gradients, and optional in-shader Brand Kit assets.' },
 ]
 

@@ -18,7 +18,7 @@ import { ReactModulationPanel } from '../ReactModulationPanel'
 import { ReactPresetsPanel } from '../ReactPresetsPanel'
 import { ReactPlaceholderCanvas } from '../ReactPlaceholderCanvas'
 import { ReactShaderCanvas } from '../ReactShaderCanvas'
-import { LaserDmxSpatialFixturesPanel } from '../LaserDmxSpatialFixturesPanel'
+import { LaserDmxBeamMatrixPanel } from '../LaserDmxBeamMatrixPanel'
 import { DEFAULT_REACT_PRESETS } from '../ReactTypes'
 import { isSelectableReactEngineId } from '../reactEngineCatalog'
 import { useReactStore } from '../../../../stores/reactStore'
@@ -127,22 +127,14 @@ describe('React right-rail groups', () => {
   })
 })
 
-describe('LaserDMX fixture-list accessibility', () => {
-  it('keeps fixture rows separate from Font Library glyph styling and exposes explicit controls', async () => {
-    const state = useReactStore.getState()
-    expect(state.laserDmxSettings.fixtures.length).toBeGreaterThan(0)
+describe('LaserDMX Beam Matrix accessibility', () => {
+  it('exposes Beam Matrix editing actions without depending on retired fixture rows', async () => {
+    await act(async () => root.render(<LaserDmxBeamMatrixPanel />))
 
-    await act(async () => root.render(<LaserDmxSpatialFixturesPanel surface="fixtures" />))
-
-    const fixtureRow = container.querySelector('.rv-fixture-list-item')
-    expect(fixtureRow).not.toBeNull()
-    expect(fixtureRow?.querySelector('.rv-glyph-item-name')).toBeNull()
-
-    const selectButton = fixtureRow?.querySelector<HTMLButtonElement>('.rv-fixture-list-item__select')
-    const enableButton = fixtureRow?.querySelector<HTMLButtonElement>('.rv-fixture-list-item__action')
-    expect(selectButton?.getAttribute('aria-pressed')).toMatch(/true|false/)
-    expect(selectButton?.getAttribute('aria-label')).toContain('Select fixture')
-    expect(enableButton?.getAttribute('aria-label')).toMatch(/Enable fixture|Disable fixture/)
+    expect(container.querySelector('.rv-fixture-list-item')).toBeNull()
+    expect(container.querySelector<HTMLButtonElement>('button[aria-label="Add beam"]')).not.toBeNull()
+    expect(container.querySelector<HTMLButtonElement>('button[aria-label="Select all beams"]')).not.toBeNull()
+    expect(container.querySelector<HTMLButtonElement>('button[aria-label="Reset Beam Matrix"]')).not.toBeNull()
   })
 })
 

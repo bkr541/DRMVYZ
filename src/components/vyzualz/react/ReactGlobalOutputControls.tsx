@@ -47,10 +47,10 @@ function resolveStatusLabel(
 }
 
 export function ReactGlobalOutputControls() {
-  const { activeReactEngineId, spatialBlackout, matrixBlackout, setBlackout } = useReactStore(
+  const { activeReactEngineId, legacyRigBlackout, matrixBlackout, setBlackout } = useReactStore(
     useShallow(state => ({
       activeReactEngineId: state.activeReactEngineId,
-      spatialBlackout: state.laserDmxSettings.blackout,
+      legacyRigBlackout: state.laserDmxSettings.blackout,
       matrixBlackout: state.laserDmxBeamMatrix.output.blackout,
       setBlackout: state.setLaserDmxBlackout,
     })),
@@ -68,7 +68,7 @@ export function ReactGlobalOutputControls() {
   const unavailable = !selected || Boolean(
     selected.canTransmit && !selected.protocolMetadata.executableInCurrentRuntime,
   )
-  const visualBlackout = spatialBlackout || matrixBlackout
+  const visualBlackout = legacyRigBlackout || matrixBlackout
   const blackout = visualBlackout || snapshot.emergencyBlackout
   const canControl = isLaserDmx && !unavailable
   const statusLabel = resolveStatusLabel(

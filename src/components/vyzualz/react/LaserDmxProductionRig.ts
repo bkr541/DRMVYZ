@@ -3,7 +3,7 @@
  *
  * This module deliberately keeps hardware transmission out of scope. It owns
  * serializable rig contracts, capability declarations, fixture-profile
- * validation, legacy Spatial Fixtures normalization, deterministic
+ * validation, legacy LaserDMX rig normalization, deterministic
  * serialization, and the virtual output contract consumed by the renderer.
  */
 
@@ -122,7 +122,7 @@ export interface ProductionStageTransform {
 }
 
 /**
- * Coordinate convention used by every spatial rig helper and renderer:
+ * Coordinate convention used by every metre-based stage helper and renderer:
  * - origin: centre of the downstage floor edge
  * - +X: stage right from the performer's perspective
  * - +Y: upward
@@ -859,7 +859,7 @@ export interface ProductionFixtureInstance {
   properties: ProductionFixturePropertyState
   capabilityOverrides?: ProductionFixtureCapabilityOverride
   compatibility?: {
-    source: 'laserDmxSpatialFixtures' | 'productionRig'
+    source: 'legacyLaserDmxRig' | 'productionRig'
     sourceSchemaVersion?: number
     validationErrors?: string[]
     migrationNotes?: string[]
@@ -976,7 +976,7 @@ export interface ProductionLook {
   atmosphere?: ProductionLookAtmosphereState
   stage?: ProductionLookStageState
   transition: ProductionLookTransitionSettings
-  source?: 'authored' | 'spatialPreset' | 'beamMatrixConversion' | 'migration'
+  source?: 'authored' | 'beamMatrixConversion' | 'migration'
   createdAt?: string
   updatedAt?: string
 }
@@ -2196,7 +2196,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Distinguishes an actual persisted Spatial Fixtures document from unrelated or
+ * Distinguishes an actual persisted legacy LaserDMX rig document from unrelated or
  * deliberately minimal objects used by older migration callers. This keeps the
  * store migration additive instead of interpreting every object named
  * `laserDmxSettings` as a complete document.
@@ -2588,7 +2588,7 @@ export function normalizeLegacyLaserDmxFixture(raw: unknown, index = 0): LaserDm
     ...(isRecord(raw.stageTransform) ? { stageTransform: raw.stageTransform as unknown as ProductionStageTransform } : {}),
     compatibility: {
       ...compatibility,
-      source: 'laserDmxSpatialFixtures',
+      source: 'legacyLaserDmxRig',
       sourceSchemaVersion: isFiniteNumber(compatibility.sourceSchemaVersion)
         ? compatibility.sourceSchemaVersion
         : (isFiniteNumber(raw.schemaVersion) ? raw.schemaVersion : 0),
@@ -2789,7 +2789,7 @@ export function normalizeProductionLook(value: unknown, index = 0): ProductionLo
     ...(isRecord(rawStage.camera) ? { camera: normalizeCameraView(rawStage.camera, createDefaultProductionStageModel().camera) } : {}),
     ...(typeof rawStage.activeCameraViewId === 'string' ? { activeCameraViewId: rawStage.activeCameraViewId } : {}),
   } satisfies ProductionLookStageState : undefined
-  const source = raw.source === 'spatialPreset' || raw.source === 'beamMatrixConversion' || raw.source === 'migration'
+  const source = raw.source === 'beamMatrixConversion' || raw.source === 'migration'
     ? raw.source
     : 'authored'
   return {
@@ -3095,8 +3095,8 @@ export function normalizeProductionCompoundCue(value: unknown, index = 0): Produ
 export function normalizeLaserDmxSettings(raw: unknown): LaserDmxSettings {
   const fallback: LaserDmxSettings = {
     schemaVersion: LASER_DMX_SETTINGS_SCHEMA_VERSION,
-    rigId: 'laser-dmx-spatial-rig',
-    rigName: 'LaserDMX Spatial Rig',
+    rigId: 'laser-dmx-legacy-rig',
+    rigName: 'LaserDMX Legacy Rig',
     selectedFixtureId: null,
     masterDimmer: 0.85,
     blackout: false,
@@ -3146,8 +3146,8 @@ export function normalizeLaserDmxSettings(raw: unknown): LaserDmxSettings {
     ...fallback,
     ...raw,
     schemaVersion: LASER_DMX_SETTINGS_SCHEMA_VERSION,
-    rigId: stringOr(raw.rigId, fallback.rigId ?? 'laser-dmx-spatial-rig'),
-    rigName: stringOr(raw.rigName, fallback.rigName ?? 'LaserDMX Spatial Rig'),
+    rigId: stringOr(raw.rigId, fallback.rigId ?? 'laser-dmx-legacy-rig'),
+    rigName: stringOr(raw.rigName, fallback.rigName ?? 'LaserDMX Legacy Rig'),
     selectedFixtureId,
     masterDimmer: finiteOr(raw.masterDimmer, fallback.masterDimmer),
     blackout: booleanOr(raw.blackout, fallback.blackout),
@@ -3299,8 +3299,8 @@ export function buildProductionRig(settingsInput: unknown): ProductionRig {
 
   return {
     schemaVersion: LASER_DMX_PRODUCTION_RIG_SCHEMA_VERSION,
-    id: settings.rigId ?? 'laser-dmx-spatial-rig',
-    name: settings.rigName ?? 'LaserDMX Spatial Rig',
+    id: settings.rigId ?? 'laser-dmx-legacy-rig',
+    name: settings.rigName ?? 'LaserDMX Legacy Rig',
     stage,
     fixtures: settings.fixtures.map(fixture => {
       const profile = getLaserDmxFixtureProfile(fixture.dmx.profileId)
@@ -3324,7 +3324,7 @@ export function buildProductionRig(settingsInput: unknown): ProductionRig {
         properties: buildFixturePropertyState(fixture, capabilities),
         capabilityOverrides: fixture.capabilityOverrides,
         compatibility: {
-          source: 'laserDmxSpatialFixtures',
+          source: 'legacyLaserDmxRig',
           sourceSchemaVersion: fixture.schemaVersion ?? 0,
           ...(validationErrors.length > 0 ? { validationErrors } : {}),
           ...(fixture.compatibility?.migrationNotes?.length

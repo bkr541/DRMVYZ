@@ -1,29 +1,23 @@
 // LaserDMX virtual renderer entry point.
-// Beam Matrix keeps its established normalized authoring renderer. Spatial
-// Fixtures compile through the same DMX path, then render against the shared
-// metre-based production stage with a perspective camera.
+// LaserDMX is locked to the Beam Matrix authoring/rendering path. Legacy
+// production-rig data may still hydrate for compatibility, but it is not a
+// selectable or renderable workspace.
 
-import { coerceLaserDmxWorkspaceMode, type ReactPreset, type ReactSectionType } from '../ReactTypes'
+import type { ReactPreset, ReactSectionType } from '../ReactTypes'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { AudioFeatureBus } from '../../../../features/musicIntelligence/AudioFeatureBus'
 import { useReactStore } from '../../../../stores/reactStore'
-import { compileLaserDmxFrame, clamp01, resetLaserDmxCompilerState } from './LaserDmxCompiler'
-import type { CompiledGlobal } from './LaserDmxCompiler'
 import { compileLaserDmxBeamMatrix, resetBeamMatrixCompilerState } from './LaserDmxBeamMatrixCompiler'
 import { renderLaserDmxBeamMatrix } from './LaserDmxBeamMatrixRenderer'
 import { renderFog, resetFogState } from './LaserDmxFogRenderer'
 import { useBrandKitStore } from '../../../../features/personalization/brandKitStore'
 import { resolveLaserDmxPersonalization } from '../../../../features/personalization/laserDmxPersonalization'
-import { buildProductionRig } from '../LaserDmxProductionRig'
 import { resolveProductionLookTransitionRuntime } from './LaserDmxProductionLookEngine'
-import { renderLaserDmxSpatialStage } from './LaserDmxSpatialStageRenderer'
 import {
   disposeLaserDmxRendererLifecycle,
   getLaserDmxRendererLifecycle,
   type LaserDmxRendererResetReason,
 } from './LaserDmxRendererLifecycle'
-import { resetMovingHeadRuntime } from './LaserDmxMovingHeadEngine'
-import { pauseProductionAtmosphere, resetProductionAtmosphereRuntime, resumeProductionAtmosphere, stepProductionAtmosphere } from './LaserDmxAtmosphereEngine'
 import { createShowDirectorRuntime, evaluateShowDirector, resetShowDirectorRuntime, type ShowDirectorRuntime } from './LaserDmxShowDirector'
 import { productionOutputController } from '../output/ProductionOutput'
 import { applyLaserDmxPerformanceActions } from './LaserDmxPerformanceActionEngine'
@@ -33,12 +27,15 @@ export const LASER_DMX_VIRTUAL_CAPTURE_LAYERS = [
   'stage', 'lasers', 'movingHeads', 'washes', 'ledBars', 'persistentHaze', 'localizedFog', 'cryoPlumes', 'flashImpacts',
 ] as const
 
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0))
+}
+
 export function shouldRenderLaserDmx(isPlaying: boolean): boolean {
   return isPlaying
 }
 
 let prevFogTimeSec = -1
-let prevSpatialTimeSec = -1
 const showDirectorRuntimeByContext = new WeakMap<CanvasRenderingContext2D, ShowDirectorRuntime>()
 const pausedAudioTimeByContext = new WeakMap<CanvasRenderingContext2D, number>()
 const pendingPausedDiscontinuityByContext = new WeakSet<CanvasRenderingContext2D>()
@@ -61,13 +58,9 @@ function getShowDirectorRuntime(ctx: CanvasRenderingContext2D): ShowDirectorRunt
 }
 
 function resetLaserDmxTransientRuntimeState(): void {
-  resetLaserDmxCompilerState()
   resetBeamMatrixCompilerState()
   resetFogState()
-  resetMovingHeadRuntime()
-  resetProductionAtmosphereRuntime({ consumeExistingRequests: true })
   prevFogTimeSec = -1
-  prevSpatialTimeSec = -1
 }
 
 function resetLaserDmxRuntimeState(reason?: LaserDmxRendererResetReason, ctx?: CanvasRenderingContext2D): void {
@@ -83,7 +76,7 @@ function resetLaserDmxRuntimeState(reason?: LaserDmxRendererResetReason, ctx?: C
 }
 
 /**
- * Wipes output and resets both compiler branches. The renderer owns no rAF loop;
+ * Wipes output and resets the Beam Matrix compiler. The renderer owns no rAF loop;
  * the parent React canvas remains the sole scheduler, so pause is a true stop.
  */
 export function clearLaserDmxVisualState(
@@ -102,7 +95,6 @@ export function clearLaserDmxVisualState(
   if (options.affectProductionOutput !== false) {
     productionOutputController.transportStopped('LaserDMX rendering stopped')
   }
-  if (prevSpatialTimeSec >= 0) pauseProductionAtmosphere(prevSpatialTimeSec)
   resetLaserDmxRuntimeState(undefined, ctx)
 }
 
@@ -126,7 +118,6 @@ export function pauseLaserDmxRenderer(
   if (options.affectProductionOutput !== false) {
     productionOutputController.transportStopped('LaserDMX playback paused')
   }
-  pauseProductionAtmosphere(canonicalAudioTime)
 }
 
 /** @internal Retains seeks observed during pause until Show Director can rebuild on resume. */
@@ -170,14 +161,13 @@ export function renderLaserDmx(
 
   const state = useReactStore.getState()
   const affectProductionOutput = shouldAffectLaserDmxProductionOutput(params)
-  const workspaceMode = coerceLaserDmxWorkspaceMode(state.laserDmxWorkspaceMode)
   const mi = AudioFeatureBus.getFrame()
   const trackKey = frame.trackKey ?? mi.trackId ?? mi.sourceId
   const lifecycle = getLaserDmxRendererLifecycle(ctx, reason => resetLaserDmxRuntimeState(reason, ctx))
   if (!lifecycle.sync({
     isPlaying: frame.isPlaying,
     trackKey,
-    presetKey: `${preset.id}:${workspaceMode}`,
+    presetKey: `${preset.id}:beamMatrix`,
   })) return
 
   // The audio engine playhead is the only Show Director clock. Wall time is intentionally excluded.
@@ -190,7 +180,7 @@ export function renderLaserDmx(
       : params.performanceActionEvent ? [params.performanceActionEvent] : []
   const actionResult = applyLaserDmxPerformanceActions(authoredSettings, actionEvents)
   const resolvedAuthoredSettings = resolveProductionLookTransitionRuntime(actionResult.settings)
-  const directorPresetKey = `${preset.id}:${workspaceMode}:${state.activeLaserDmxBeamMatrixPresetId ?? 'custom'}:${resolvedAuthoredSettings.rigId ?? 'rig'}`
+  const directorPresetKey = `${preset.id}:beamMatrix:${state.activeLaserDmxBeamMatrixPresetId ?? 'custom'}:${resolvedAuthoredSettings.rigId ?? 'rig'}`
   const timingDiscontinuity = consumeLaserDmxTimingDiscontinuity(ctx, frame.timingDiscontinuity)
   const director = evaluateShowDirector(getShowDirectorRuntime(ctx), {
     settings: resolvedAuthoredSettings,
@@ -209,111 +199,44 @@ export function renderLaserDmx(
   if (director.timingDiscontinuity) resetLaserDmxTransientRuntimeState()
   const personalization = resolveLaserDmxPersonalization(useBrandKitStore.getState().activeKit, preset.id)
 
-  if (workspaceMode === 'beamMatrix') {
-    if (affectProductionOutput) {
-      productionOutputController.transportStopped('Beam Matrix has no patched production output frame')
-    }
-    const bmSettings = director.beamMatrix
-    const compiled = compileLaserDmxBeamMatrix({
-      settings: bmSettings,
-      mi,
-      timeSec,
-      canvasWidth: W,
-      canvasHeight: H,
-      personalization,
-    })
-    const out = compiled.output
-    const fadeAlpha = clamp01(out.backgroundFade) * (0.3 + 0.7 * clamp01(1 - out.beamPersistence))
-    ctx.globalCompositeOperation = 'source-over'
-    ctx.globalAlpha = Math.max(0.01, fadeAlpha)
-    ctx.fillStyle = '#000000'
-    ctx.fillRect(0, 0, W, H)
-    ctx.globalAlpha = 1
-
-    if (out.blackout) {
-      ctx.fillStyle = '#000000'
-      ctx.fillRect(0, 0, W, H)
-      return
-    }
-
-    const fogDt = prevFogTimeSec >= 0 ? Math.max(0, Math.min(0.1, timeSec - prevFogTimeSec)) : 1 / 60
-    prevFogTimeSec = timeSec
-    renderFog(ctx, W, H, compiled.fog, compiled.beams, fogDt)
-    renderLaserDmxBeamMatrix(
-      ctx,
-      W,
-      H,
-      out,
-      compiled.beams,
-      clamp01(params.intensity),
-      clamp01(params.glow),
-      false,
-    )
-    return
+  if (affectProductionOutput) {
+    productionOutputController.transportStopped('Beam Matrix has no patched production output frame')
   }
 
-  const settings = director.settings
-  const compiled = compileLaserDmxFrame({
-    settings,
+  const compiled = compileLaserDmxBeamMatrix({
+    settings: director.beamMatrix,
     mi,
     timeSec,
     canvasWidth: W,
     canvasHeight: H,
     personalization,
   })
-  if (affectProductionOutput) {
-    productionOutputController.submitFrame(compiled.outputFrame, compiled.productionRig)
-  }
-  const global: CompiledGlobal = compiled.global
-  const fadeAlpha = clamp01(global.backgroundFade) * (0.3 + 0.7 * clamp01(1 - global.beamPersistence))
+  const out = compiled.output
+  const fadeAlpha = clamp01(out.backgroundFade) * (0.3 + 0.7 * clamp01(1 - out.beamPersistence))
   ctx.globalCompositeOperation = 'source-over'
   ctx.globalAlpha = Math.max(0.01, fadeAlpha)
   ctx.fillStyle = '#000000'
   ctx.fillRect(0, 0, W, H)
   ctx.globalAlpha = 1
 
-  const rig = buildProductionRig(settings)
-  resumeProductionAtmosphere(timeSec)
-  const rawSpatialDt = prevSpatialTimeSec >= 0 ? timeSec - prevSpatialTimeSec : 1 / 60
-  const seeked = director.timingDiscontinuity || rawSpatialDt < -0.001 || rawSpatialDt > 0.75
-  const atmosphere = stepProductionAtmosphere({ settings, timeSec, dt: Math.max(0, Math.min(0.1, rawSpatialDt)), seeked })
-  prevSpatialTimeSec = timeSec
-
-  // Blackout masks visible output only. The stage, moving heads, and atmosphere
-  // continue advancing so a subsequent reveal does not jump or replay effects.
-  if (global.blackout) {
+  if (out.blackout) {
     ctx.fillStyle = '#000000'
     ctx.fillRect(0, 0, W, H)
     return
   }
 
-  renderLaserDmxSpatialStage({
+  const fogDt = prevFogTimeSec >= 0 ? Math.max(0, Math.min(0.1, timeSec - prevFogTimeSec)) : 1 / 60
+  prevFogTimeSec = timeSec
+  renderFog(ctx, W, H, compiled.fog, compiled.beams, fogDt)
+  renderLaserDmxBeamMatrix(
     ctx,
     W,
     H,
-    dpr: frame.dpr,
-    rig,
-    settings,
-    frames: compiled.fixtures,
-    glowAmount: clamp01(global.glowAmount * params.glow),
-    hazeAmount: global.hazeAmount,
-    atmosphere,
-  })
+    out,
+    compiled.beams,
+    clamp01(params.intensity),
+    clamp01(params.glow),
+    false,
+  )
 
-  if (settings.showDmxDebug && compiled.fixtures.length > 0) {
-    ctx.save()
-    ctx.globalAlpha = 0.64
-    ctx.fillStyle = 'rgba(0,0,0,0.72)'
-    ctx.fillRect(4, 4, 244, compiled.fixtures.length * 14 + 26)
-    ctx.fillStyle = '#00ffcc'
-    ctx.font = '10px monospace'
-    ctx.fillText(`3D stage ${rig.stage.dimensions.width}×${rig.stage.dimensions.height}×${rig.stage.dimensions.depth}m · atmosphere ${atmosphere.particles.length}/${atmosphere.budget}`, 8, 16)
-    const actionDiagnostic = actionResult.diagnostics.find(item => item.severity === 'warning')
-    if (actionDiagnostic) ctx.fillText(`Action: ${actionDiagnostic.message}`, 8, 28)
-    compiled.fixtures.forEach((fixture, index) => {
-      const channels = Object.values(fixture.channels).slice(0, 6).map(value => String(value).padStart(3)).join(' ')
-      ctx.fillText(`U${fixture.universe} A${fixture.startAddress} | ${channels}`, 8, 30 + index * 14)
-    })
-    ctx.restore()
-  }
 }

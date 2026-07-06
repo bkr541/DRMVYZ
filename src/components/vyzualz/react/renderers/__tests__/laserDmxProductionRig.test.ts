@@ -119,7 +119,7 @@ describe('LaserDMX production-rig foundation', () => {
     })
   })
 
-  it('normalizes a legacy Spatial Fixture without discarding unknown fields', () => {
+  it('normalizes a legacy LaserDMX fixture without discarding unknown fields', () => {
     const legacy = {
       id: 'legacy-laser',
       name: 'Legacy RGBW',
@@ -213,12 +213,12 @@ describe('LaserDMX production-rig foundation', () => {
       },
     }, 28)
 
-    const spatial = migrated.laserDmxSettings as ReturnType<typeof createDefaultLaserDmxSettings>
+    const legacyRig = migrated.laserDmxSettings as ReturnType<typeof createDefaultLaserDmxSettings>
     const matrix = migrated.laserDmxBeamMatrix as ReturnType<typeof createDefaultLaserDmxBeamMatrixSettings>
-    expect(spatial.schemaVersion).toBe(LASER_DMX_SETTINGS_SCHEMA_VERSION)
-    expect(spatial.fixtures[0].schemaVersion).toBe(LASER_DMX_FIXTURE_SCHEMA_VERSION)
-    expect((spatial as unknown as Record<string, unknown>).legacyRigField).toBe(123)
-    expect((spatial.fixtures[0] as unknown as Record<string, unknown>).legacyManufacturerField).toBe('preserved')
+    expect(legacyRig.schemaVersion).toBe(LASER_DMX_SETTINGS_SCHEMA_VERSION)
+    expect(legacyRig.fixtures[0].schemaVersion).toBe(LASER_DMX_FIXTURE_SCHEMA_VERSION)
+    expect((legacyRig as unknown as Record<string, unknown>).legacyRigField).toBe(123)
+    expect((legacyRig.fixtures[0] as unknown as Record<string, unknown>).legacyManufacturerField).toBe('preserved')
     expect(matrix.schemaVersion).toBe(LASER_DMX_BEAM_MATRIX_SCHEMA_VERSION)
   })
 

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_OSCILLATOR_SETTINGS,
   createDefaultLaserDmxBeamMatrixSettings,
-  createDefaultLaserDmxSettings,
 } from '../ReactTypes'
 import { resolveReactInspectorSelection } from '../reactInspectorSelection'
 import type { LaserDmxMatrixBeam } from '../ReactTypes'
@@ -12,8 +11,7 @@ function baseArgs() {
     activeReactEngineId: 'cinematicPortal' as const,
     activeShaderId: null,
     oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS },
-    laserDmxSettings: createDefaultLaserDmxSettings(),
-    laserDmxWorkspaceMode: 'spatialFixtures' as const,
+    laserDmxWorkspaceMode: 'retiredFixtureRig',
     laserDmxBeamMatrix: createDefaultLaserDmxBeamMatrixSettings(),
   }
 }
@@ -57,16 +55,10 @@ describe('resolveReactInspectorSelection', () => {
     })).toEqual({ kind: 'shaderScene', id: 'shader-1' })
   })
 
-  it('does not expose Spatial Fixtures inspector selection when LaserDMX is locked to Beam Matrix', () => {
+  it('does not expose retired fixture selections when LaserDMX is locked to Beam Matrix', () => {
     const args = baseArgs()
     expect(resolveReactInspectorSelection({ ...args, activeReactEngineId: 'laserDmx' }))
       .toBeNull()
-
-    expect(resolveReactInspectorSelection({
-      ...args,
-      activeReactEngineId: 'laserDmx',
-      laserDmxSettings: { ...args.laserDmxSettings, selectedFixtureId: 'missing' },
-    })).toBeNull()
   })
 
   it('uses a valid selected beam before a selected reaction group', () => {

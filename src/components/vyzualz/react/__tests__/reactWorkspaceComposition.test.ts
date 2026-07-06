@@ -18,23 +18,23 @@ describe('React workspace composition', () => {
     ]
 
     for (const engine of engines) {
-      expect(resolveReactWorkspaceComposition(engine, 'spatialFixtures', false).showTrackMap)
+      expect(resolveReactWorkspaceComposition(engine, 'beamMatrix', false).showTrackMap)
         .toBe(true)
     }
   })
 
   it('mounts Sound Drawing authoring lanes only for Sound Drawing', () => {
-    expect(resolveReactWorkspaceComposition('oscilloscope', 'spatialFixtures', false).showSoundDrawingTimeline)
+    expect(resolveReactWorkspaceComposition('oscilloscope', 'beamMatrix', false).showSoundDrawingTimeline)
       .toBe(true)
 
     for (const engine of ['shaderPads', 'cinematicPortal', 'laserDmx'] as ReactEngineId[]) {
-      expect(resolveReactWorkspaceComposition(engine, 'spatialFixtures', false).showSoundDrawingTimeline)
+      expect(resolveReactWorkspaceComposition(engine, 'beamMatrix', false).showSoundDrawingTimeline)
         .toBe(false)
     }
   })
 
   it('uses Shader Scenes instead of React presets and preset performance pads', () => {
-    const shader = resolveReactWorkspaceComposition('shaderPads', 'spatialFixtures', false)
+    const shader = resolveReactWorkspaceComposition('shaderPads', 'beamMatrix', false)
 
     expect(DEFAULT_REACT_PRESETS.filter(preset => preset.engine === 'shaderPads')).toHaveLength(0)
     expect(shader.presetSurface).toBe('shaderScenes')
@@ -42,19 +42,19 @@ describe('React workspace composition', () => {
     expect(shader.showPerformancePads).toBe(false)
 
     for (const engine of ['cinematicPortal', 'oscilloscope', 'laserDmx'] as ReactEngineId[]) {
-      const composition = resolveReactWorkspaceComposition(engine, 'spatialFixtures', false)
+      const composition = resolveReactWorkspaceComposition(engine, 'beamMatrix', false)
       expect(composition.presetSurface).toBe('enginePresets')
       expect(getReactPresetTabLabel(composition)).toBe('PRESETS')
       expect(composition.showPerformancePads).toBe(true)
     }
   })
 
-  it('exposes Laser Layers and the beam editor even when legacy Spatial Fixtures mode is requested', () => {
-    const legacySpatialRequest = resolveReactWorkspaceComposition('laserDmx', 'spatialFixtures', true)
-    expect(legacySpatialRequest.showLaserLayersTab).toBe(true)
-    expect(legacySpatialRequest.showLaserBeamEditor).toBe(true)
-    expect(getReactLeftTabs(legacySpatialRequest)).toEqual(['workspace', 'layers'])
-    expect(getReactLeftTabLabel('workspace', legacySpatialRequest)).toBe('RIG')
+  it('exposes Laser Layers and the beam editor even when a retired workspace value is requested', () => {
+    const retiredWorkspaceRequest = resolveReactWorkspaceComposition('laserDmx', 'retiredFixtureRig', true)
+    expect(retiredWorkspaceRequest.showLaserLayersTab).toBe(true)
+    expect(retiredWorkspaceRequest.showLaserBeamEditor).toBe(true)
+    expect(getReactLeftTabs(retiredWorkspaceRequest)).toEqual(['workspace', 'layers'])
+    expect(getReactLeftTabLabel('workspace', retiredWorkspaceRequest)).toBe('RIG')
 
     const matrixHidden = resolveReactWorkspaceComposition('laserDmx', 'beamMatrix', false)
     expect(matrixHidden.showLaserLayersTab).toBe(true)
@@ -67,22 +67,22 @@ describe('React workspace composition', () => {
   })
 
   it('shows only source tools that are relevant to the selected engine', () => {
-    const shader = resolveReactWorkspaceComposition('shaderPads', 'spatialFixtures', false)
+    const shader = resolveReactWorkspaceComposition('shaderPads', 'beamMatrix', false)
     expect(getReactLeftTabs(shader)).toEqual(['workspace'])
     expect(getReactLeftTabLabel('workspace', shader)).toBe('SETUP')
 
-    const cinematic = resolveReactWorkspaceComposition('cinematicPortal', 'spatialFixtures', false)
+    const cinematic = resolveReactWorkspaceComposition('cinematicPortal', 'beamMatrix', false)
     expect(getReactLeftTabs(cinematic)).toEqual(['workspace', 'media'])
     expect(getReactLeftTabLabel('workspace', cinematic)).toBe('WORLD')
 
-    const soundDrawing = resolveReactWorkspaceComposition('oscilloscope', 'spatialFixtures', false)
+    const soundDrawing = resolveReactWorkspaceComposition('oscilloscope', 'beamMatrix', false)
     expect(getReactLeftTabs(soundDrawing)).toEqual(['workspace', 'media', 'fonts'])
     expect(getReactLeftTabLabel('workspace', soundDrawing)).toBe('SOURCE')
   })
 
   it('never advertises unfinished or unrelated contextual destinations', () => {
     for (const engine of ['shaderPads', 'cinematicPortal', 'oscilloscope', 'laserDmx'] as ReactEngineId[]) {
-      const tabs = getReactLeftTabs(resolveReactWorkspaceComposition(engine, 'spatialFixtures', false))
+      const tabs = getReactLeftTabs(resolveReactWorkspaceComposition(engine, 'beamMatrix', false))
       expect(tabs).not.toContain('sessions')
       if (engine !== 'oscilloscope') expect(tabs).not.toContain('fonts')
       if (engine !== 'cinematicPortal' && engine !== 'oscilloscope') expect(tabs).not.toContain('media')

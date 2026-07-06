@@ -10,6 +10,7 @@ import {
 import {
   DEFAULT_OSCILLATOR_SETTINGS,
   DEFAULT_REACT_PRESETS,
+  LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID,
   createDefaultLaserDmxBeamMatrixSettings,
   createDefaultLaserDmxSettings,
   type LaserDmxFixture,
@@ -450,18 +451,23 @@ describe('LaserDMX production Looks', () => {
     expect(merged.laserDmxSettings.activeProductionLookId).toBeNull()
   })
 
-  it('migrates existing Spatial Fixtures into a default compatibility Look', () => {
+  it('migrates existing legacy LaserDMX rig into a default compatibility Look', () => {
     const migrated = migrateReactStore({ laserDmxSettings: createDefaultLaserDmxSettings() }, 32)
     const settings = migrated.laserDmxSettings as ReturnType<typeof createDefaultLaserDmxSettings>
     expect(settings.productionLooks).toHaveLength(1)
-    expect(settings.productionLooks?.[0]).toMatchObject({ source: 'migration', name: 'Migrated Spatial Look' })
+    expect(settings.productionLooks?.[0]).toMatchObject({ source: 'migration', name: 'Migrated LaserDMX Look' })
     expect(settings.activeProductionLookId).toBe(settings.productionLooks?.[0].id)
   })
 
-  it('ignores legacy Spatial Fixtures presets during Beam Matrix-only selection', () => {
-    const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.engine === 'laserDmx' && candidate.laserDmxWorkspace === 'spatialFixtures')
-    expect(preset).toBeDefined()
-    const patch = buildPresetPatch(preset!, DEFAULT_OSCILLATOR_SETTINGS)
+  it('ignores retired LaserDMX preset settings during Beam Matrix-only selection', () => {
+    const base = DEFAULT_REACT_PRESETS.find(candidate => candidate.id === LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID)!
+    const preset = {
+      ...base,
+      id: 'preset-laser-dmx-default',
+      laserDmxWorkspace: 'retiredFixtureRig' as never,
+      laserDmxSettings: createDefaultLaserDmxSettings(),
+    }
+    const patch = buildPresetPatch(preset, DEFAULT_OSCILLATOR_SETTINGS)
     expect(patch.laserDmxWorkspaceMode).toBe('beamMatrix')
     expect(patch.laserDmxSettings).toBeUndefined()
   })

@@ -3,15 +3,13 @@ import { useShallow } from 'zustand/react/shallow'
 import { resolveCinematicConfigForPreset, useReactStore } from '../../../stores/reactStore'
 import { CINEMATIC_WORLD_BY_ID, CINEMATIC_WORLD_UI, getCinematicPresetMood } from './CinematicWorldsUi'
 import {
-  type LaserDmxSettings,
   type ReactPreset,
   type ReactEngineId,
 } from './ReactTypes'
 import { ReactPresetThumbnail } from './ReactPresetThumbnail'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
 import { resolveBrandedReactPreset } from '../../../features/personalization/resolveBrandedReactPreset'
-import { analyzeProductionPresetCompatibility } from './LaserDmxProductionPresets'
-import type { ProductionFixtureKind, ProductionPresetCompatibilityResult } from './LaserDmxProductionRig'
+import type { ProductionFixtureKind } from './LaserDmxProductionRig'
 import { isSelectableReactEngineId, REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from './reactEngineCatalog'
 import {
   filterReactPresetLibrary,
@@ -71,13 +69,6 @@ function handlePresetCardKeyDown(event: React.KeyboardEvent<HTMLButtonElement>):
   cards[nextIndex]?.focus()
 }
 
-function CompatibilitySummary({ result }: { result: ProductionPresetCompatibilityResult }) {
-  const label = result.mode === 'full' ? 'Rig ready' : result.mode === 'adapted' ? 'Safe adaptation' : result.mode === 'partial' ? 'Partial playback' : 'Reference rig only'
-  const detail = result.diagnostics.find(item => item.severity === 'error')?.message
-    ?? result.diagnostics.find(item => item.severity === 'warning')?.message
-  return <div className={`rv-production-compat rv-production-compat--${result.mode}`} title={detail}><strong>{label}</strong>{detail ? <span>{detail}</span> : null}</div>
-}
-
 function PresetCard({
   preset,
   isActive,
@@ -86,7 +77,6 @@ function PresetCard({
   activeEngineId,
   onSelect,
   onToggleFavorite,
-  currentRig,
   thumbnailGenerationKey,
 }: {
   preset: ReactPreset
@@ -96,14 +86,12 @@ function PresetCard({
   activeEngineId: ReactEngineId
   onSelect: (id: string) => void
   onToggleFavorite: (id: string) => void
-  currentRig: LaserDmxSettings
   thumbnailGenerationKey: string
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false)
   if (!isSelectableReactEngineId(preset.engine)) return null
   const modeHint = getModeHint(preset)
   const production = preset.productionPreset
-  const compatibility = production ? analyzeProductionPresetCompatibility(preset, currentRig) : null
   const switchesContext = preset.engine !== activeEngineId
   const destinationLabel = REACT_ENGINE_CATALOG[preset.engine].label
   const hasMoreDetails = true
@@ -140,7 +128,6 @@ function PresetCard({
                 <div className="rv-preset-detail-panel">
                   <div className="rv-production-meta"><span>Cost: {production.complexity}</span><span>{production.requiredCapabilities.map(item => item.label).join(' · ')}</span></div>
                   <div className="rv-production-tags">{production.styleTags.map(tag => <span key={tag}>{tag}</span>)}</div>
-                  {compatibility && <CompatibilitySummary result={compatibility} />}
                 </div>
               )}
             </>}
@@ -187,7 +174,6 @@ type PresetCollectionProps = {
   activeEngineId: ReactEngineId
   onSelect: (id: string) => void
   onToggleFavorite: (id: string) => void
-  currentRig: LaserDmxSettings
   thumbnailGenerationKey: string
 }
 
@@ -202,7 +188,6 @@ function renderPresetCard(preset: ReactPreset, props: Omit<PresetCollectionProps
       activeEngineId={props.activeEngineId}
       onSelect={props.onSelect}
       onToggleFavorite={props.onToggleFavorite}
-      currentRig={props.currentRig}
       thumbnailGenerationKey={props.thumbnailGenerationKey}
     />
   )
@@ -294,14 +279,12 @@ export function ReactPresetsPanel() {
     activeReactEngineId,
     cinematicConfigsByPresetId,
     selectReactPreset,
-    laserDmxSettings,
   } = useReactStore(useShallow(state => ({
     reactPresets: state.reactPresets,
     activeReactPresetId: state.activeReactPresetId,
     activeReactEngineId: state.activeReactEngineId,
     cinematicConfigsByPresetId: state.cinematicConfigsByPresetId,
     selectReactPreset: state.selectReactPreset,
-    laserDmxSettings: state.laserDmxSettings,
   })))
   const [libraryView, setLibraryView] = useState<ReactPresetLibraryView>('current')
   const [favoritePresetIds, setFavoritePresetIds] = useState<string[]>(readReactPresetFavorites)
@@ -383,7 +366,6 @@ export function ReactPresetsPanel() {
     activeEngineId: activeReactEngineId,
     onSelect: selectReactPreset,
     onToggleFavorite: toggleFavorite,
-    currentRig: laserDmxSettings,
     thumbnailGenerationKey,
   }
 

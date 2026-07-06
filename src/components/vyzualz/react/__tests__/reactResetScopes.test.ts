@@ -72,8 +72,8 @@ function seedAuthoredState() {
     id: 'custom-preset',
     name: 'Custom Preset',
   }
-  const spatial = createDefaultLaserDmxSettings()
-  spatial.fixtures = spatial.fixtures.map((fixture, index) =>
+  const legacyRig = createDefaultLaserDmxSettings()
+  legacyRig.fixtures = legacyRig.fixtures.map((fixture, index) =>
     index === 0 ? { ...fixture, name: 'Authored Fixture' } : fixture,
   )
   const matrix = createDefaultLaserDmxBeamMatrixSettings()
@@ -100,7 +100,7 @@ function seedAuthoredState() {
     ),
     activePadId: DEFAULT_PERFORMANCE_PADS[0].id,
     oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS, pathScale: 1.31, sourceType: 'text', text: 'AUTHORED' },
-    laserDmxSettings: spatial,
+    laserDmxSettings: legacyRig,
     laserDmxWorkspaceMode: 'beamMatrix',
     laserDmxBeamMatrix: matrix,
     activeLaserDmxBeamMatrixPresetId: 'matrix-rising-crown',
@@ -200,7 +200,7 @@ describe('scoped React reset actions', () => {
     seedAuthoredState()
     const before = useReactStore.getState()
     const authoredMatrix = before.laserDmxBeamMatrix
-    const authoredSpatial = before.laserDmxSettings
+    const authoredLegacyRig = before.laserDmxSettings
 
     before.resetReactViewPreferences()
     const after = useReactStore.getState()
@@ -216,7 +216,7 @@ describe('scoped React reset actions', () => {
     expect(after.laserDmxBeamMatrix.beams).toEqual(authoredMatrix.beams)
     expect(after.laserDmxBeamMatrix.groups).toEqual(authoredMatrix.groups)
     expect(after.laserDmxBeamMatrix.cues).toEqual(authoredMatrix.cues)
-    expect(after.laserDmxSettings.fixtures).toEqual(authoredSpatial.fixtures)
+    expect(after.laserDmxSettings.fixtures).toEqual(authoredLegacyRig.fixtures)
     expect(after.manualTrackSectionsByTrackId).toEqual(before.manualTrackSectionsByTrackId)
     expect(after.suppressedAutoSectionsByTrackId).toEqual(before.suppressedAutoSectionsByTrackId)
     expect(after.presetAutomationCuesByTrackId).toEqual(before.presetAutomationCuesByTrackId)

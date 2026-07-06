@@ -14,7 +14,6 @@ import {
   LASER_DMX_MATRIX_MAX_BEAMS,
   DEFAULT_BEAM_MOTION,
   LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID,
-  resolveReactPresetLaserDmxWorkspace,
 } from '../../ReactTypes'
 
 // ── Snapshot the store factory for isolated per-test state ────────────────────
@@ -91,21 +90,14 @@ describe('preset application preserves the locked Beam Matrix workspace', () => 
     expect(useReactStore.getState().laserDmxWorkspaceMode).toBe('beamMatrix')
   })
 
-  it('loads legacy Spatial Fixtures presets without unlocking Spatial Fixtures', () => {
-    const spatialPresets = useReactStore.getState().reactPresets.filter(preset =>
-      preset.engine === 'laserDmx'
-      && resolveReactPresetLaserDmxWorkspace(preset) === 'spatialFixtures',
-    )
-
-    expect(spatialPresets.length).toBeGreaterThan(1)
-    for (const preset of spatialPresets) {
-      useReactStore.getState().setLaserDmxWorkspaceMode('beamMatrix')
-      useReactStore.getState().selectReactPreset(preset.id)
-      const selected = useReactStore.getState()
-      expect(selected.activeReactEngineId).toBe('laserDmx')
-      expect(selected.activeReactPresetId).toBe(LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID)
-      expect(selected.laserDmxWorkspaceMode).toBe('beamMatrix')
-    }
+  it('maps retired LaserDMX preset IDs to the Beam Matrix launcher', () => {
+    const store = useReactStore.getState()
+    store.setLaserDmxWorkspaceMode('beamMatrix')
+    store.selectReactPreset('preset-laser-dmx-default')
+    const selected = useReactStore.getState()
+    expect(selected.activeReactEngineId).toBe('laserDmx')
+    expect(selected.activeReactPresetId).toBe(LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID)
+    expect(selected.laserDmxWorkspaceMode).toBe('beamMatrix')
   })
 
   it('selectReactPreset does not replace beam matrix beams', () => {
@@ -129,14 +121,14 @@ describe('workspace mode switching', () => {
     store.setLaserDmxWorkspaceMode('beamMatrix')
     const after = JSON.stringify(useReactStore.getState().laserDmxSettings)
     expect(after).toBe(before)
-    store.setLaserDmxWorkspaceMode('spatialFixtures')
+    store.setLaserDmxWorkspaceMode('retiredFixtureRig' as never)
   })
 
-  it('requesting spatialFixtures leaves Beam Matrix selected and does not modify laserDmxBeamMatrix', () => {
+  it('requesting retiredFixtureRig leaves Beam Matrix selected and does not modify laserDmxBeamMatrix', () => {
     const store = useReactStore.getState()
     store.setLaserDmxWorkspaceMode('beamMatrix')
     const before = JSON.stringify(useReactStore.getState().laserDmxBeamMatrix)
-    store.setLaserDmxWorkspaceMode('spatialFixtures')
+    store.setLaserDmxWorkspaceMode('retiredFixtureRig' as never)
     const after = JSON.stringify(useReactStore.getState().laserDmxBeamMatrix)
     expect(after).toBe(before)
   })
@@ -145,7 +137,7 @@ describe('workspace mode switching', () => {
     const store = useReactStore.getState()
     store.setLaserDmxWorkspaceMode('beamMatrix')
     expect(useReactStore.getState().laserDmxWorkspaceMode).toBe('beamMatrix')
-    store.setLaserDmxWorkspaceMode('spatialFixtures')
+    store.setLaserDmxWorkspaceMode('retiredFixtureRig' as never)
     expect(useReactStore.getState().laserDmxWorkspaceMode).toBe('beamMatrix')
   })
 })
@@ -428,9 +420,9 @@ describe('selection integrity', () => {
   })
 })
 
-// ── Spatial Fixture compiler continues passing (guard test) ───────────────────
+// ── Legacy rig compiler continues passing (guard test) ───────────────────
 
-describe('spatial fixture compiler backward compatibility', () => {
+describe('legacy rig compiler backward compatibility', () => {
   it('createDefaultLaserDmxSettings still returns valid settings', () => {
     const s = createDefaultLaserDmxSettings()
     expect(s.fixtures.length).toBeGreaterThan(0)

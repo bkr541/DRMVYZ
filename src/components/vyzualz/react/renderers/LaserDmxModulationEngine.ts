@@ -1,4 +1,4 @@
-// Shared modulation engine for LaserDMX Spatial Fixtures and Beam Matrix.
+// Shared modulation engine for legacy LaserDMX rig data and Beam Matrix.
 // Pure functions plus module-level ephemeral envelope state (never persisted).
 // Both compilers share this instance; envelope keys must be globally unique
 // (scoped by workspace, entity ID, and route ID).
@@ -55,7 +55,7 @@ export function resolveStrobeVisible(rate: number, timeSec: number): boolean {
 
 // ── Shared envelope state ─────────────────────────────────────────────────────
 // Key pattern: `${scope}:${entityId}:${routeId}`
-//   'sf'   → Spatial Fixtures beam route
+//   'sf'   → legacy rig beam route
 //   'bm'   → Beam Matrix beam route
 //   'bmg'  → Beam Matrix group route
 //   'bmgl' → Beam Matrix global route

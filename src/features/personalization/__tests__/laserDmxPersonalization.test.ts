@@ -77,7 +77,7 @@ function makeMi(overrides: Partial<MusicIntelligenceFrame> = {}): MusicIntellige
   } as MusicIntelligenceFrame
 }
 
-function compileSpatial(settings = createDefaultLaserDmxSettings(), kit: BrandKit | null = null) {
+function compileLegacyRig(settings = createDefaultLaserDmxSettings(), kit: BrandKit | null = null) {
   resetLaserDmxCompilerState()
   return compileLaserDmxFrame({
     settings, mi: makeMi(), time: 30, timeSec: 0.5, canvasWidth: 1280, canvasHeight: 720,
@@ -124,14 +124,14 @@ beforeEach(() => {
 })
 
 describe('LaserDMX Brand Kit adaptation', () => {
-  it('keeps Spatial Original mode byte-for-byte equivalent', () => {
+  it('keeps legacy rig Original mode byte-for-byte equivalent', () => {
     const settings = createDefaultLaserDmxSettings()
-    const legacy = compileSpatial(settings, null)
-    const original = compileSpatial(settings, makeKit('original'))
+    const legacy = compileLegacyRig(settings, null)
+    const original = compileLegacyRig(settings, makeKit('original'))
     expect(original).toEqual(legacy)
   })
 
-  it.each(['fixed', 'palette', 'music'] as const)('maps Spatial %s colors while preserving white and alpha intent', mode => {
+  it.each(['fixed', 'palette', 'music'] as const)('maps legacy rig %s colors while preserving white and alpha intent', mode => {
     const settings = createDefaultLaserDmxSettings()
     settings.fixtures = [structuredClone(settings.fixtures[2])]
     const fixture = settings.fixtures[0]
@@ -141,7 +141,7 @@ describe('LaserDMX Brand Kit adaptation', () => {
     fixture.color = { ...fixture.color, mode, red: 10, green: 20, blue: 30, white: 71, alpha: 0.62,
       paletteId: 'rainbowLaser', colorCycleSpeed: mode === 'palette' ? 1 : 0 }
     const before = structuredClone(settings)
-    const frame = compileSpatial(settings, makeKit('brand')).fixtures[0]
+    const frame = compileLegacyRig(settings, makeKit('brand')).fixtures[0]
     const primary = hexToRgb(PALETTE.primary)
     expect(frame.visual.rgba).toMatchObject({ r: primary.r, g: primary.g, b: primary.b })
     expect(frame.channels.ch12).toBe(71)

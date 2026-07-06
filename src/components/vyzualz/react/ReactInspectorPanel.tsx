@@ -155,7 +155,6 @@ export function ReactInspectorPanel() {
     oscillatorGlyphAssets,
     oscillatorGlyphPointCache,
     oscillatorFontAssets,
-    laserDmxSettings,
     laserDmxWorkspaceMode,
     laserDmxBeamMatrix,
     resetOscillatorSettings,
@@ -167,7 +166,6 @@ export function ReactInspectorPanel() {
     oscillatorGlyphAssets:     s.oscillatorGlyphAssets,
     oscillatorGlyphPointCache: s.oscillatorGlyphPointCache,
     oscillatorFontAssets:      s.oscillatorFontAssets,
-    laserDmxSettings:          s.laserDmxSettings,
     laserDmxWorkspaceMode:     s.laserDmxWorkspaceMode,
     laserDmxBeamMatrix:        s.laserDmxBeamMatrix,
     resetOscillatorSettings:   s.resetOscillatorSettings,
@@ -187,7 +185,6 @@ export function ReactInspectorPanel() {
     activeReactEngineId,
     activeShaderId,
     oscillatorSettings,
-    laserDmxSettings,
     laserDmxWorkspaceMode,
     laserDmxBeamMatrix,
   })
@@ -254,9 +251,6 @@ export function ReactInspectorPanel() {
     sourceModeLabel = detail ? `${src} · ${detail}` : src
   }
 
-  const selectedFixture = inspectableSelection.kind === 'laserFixture'
-    ? laserDmxSettings.fixtures.find(fixture => fixture.id === inspectableSelection.id) ?? null
-    : null
   const selectedBeam = inspectableSelection.kind === 'laserBeam'
     ? laserDmxBeamMatrix.beams.find(beam => beam.id === inspectableSelection.id) ?? null
     : null
@@ -289,16 +283,6 @@ export function ReactInspectorPanel() {
               <KvRow label="Render" value={RENDER_MODE_LABELS[osc.renderMode] ?? osc.renderMode} />
             ) : null}
             {osc.duplicateTraces > 1 && <KvRow label="Traces" value={String(osc.duplicateTraces)} />}
-          </>
-        )}
-
-        {selectedFixture && (
-          <>
-            <KvRow label="Type" value="LaserDMX Fixture" />
-            <KvRow label="Name" value={selectedFixture.name} />
-            <KvRow label="Profile" value={selectedFixture.dmx.profileId} />
-            <KvRow label="DMX" value={`Universe ${selectedFixture.dmx.universe}, address ${selectedFixture.dmx.startAddress}`} />
-            <KvRow label="Enabled" value={selectedFixture.enabled ? 'Yes' : 'No'} />
           </>
         )}
 

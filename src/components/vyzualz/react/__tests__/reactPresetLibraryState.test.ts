@@ -20,7 +20,7 @@ function createMemoryStorage(): Storage {
 }
 
 describe('React preset library state', () => {
-  it('hides legacy Spatial Fixtures presets from the locked LaserDMX default view', () => {
+  it('hides retired LaserDMX presets from the locked LaserDMX default view', () => {
     const filtered = filterReactPresetLibrary(
       DEFAULT_REACT_PRESETS,
       'laserDmx',
@@ -31,10 +31,17 @@ describe('React preset library state', () => {
     expect(filtered.map(preset => preset.id)).toEqual([LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID])
   })
 
-  it('keeps Beam Matrix presets visible while hiding legacy Spatial Fixtures presets', () => {
-    const spatial = DEFAULT_REACT_PRESETS.find(preset => preset.engine === 'laserDmx' && preset.laserDmxWorkspace === 'spatialFixtures')!
+  it('keeps Beam Matrix presets visible while hiding retired LaserDMX presets', () => {
+    const base = DEFAULT_REACT_PRESETS.find(preset => preset.id === LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID)!
+    const retired = {
+      ...base,
+      id: 'test-retired-laser-dmx-react-preset',
+      name: 'Retired LaserDMX Test',
+      laserDmxWorkspace: 'retiredFixtureRig' as never,
+      laserDmxSettings: undefined,
+    }
     const beamMatrix = {
-      ...spatial,
+      ...base,
       id: 'test-beam-matrix-react-preset',
       name: 'Beam Matrix Test',
       laserDmxWorkspace: 'beamMatrix' as const,
@@ -42,7 +49,7 @@ describe('React preset library state', () => {
     }
 
     expect(filterReactPresetLibrary(
-      [...DEFAULT_REACT_PRESETS, beamMatrix],
+      [...DEFAULT_REACT_PRESETS, retired, beamMatrix],
       'laserDmx',
       'current',
       new Set(),

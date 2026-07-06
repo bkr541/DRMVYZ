@@ -1,4 +1,4 @@
-// Virtual LaserDMX frame compiler (Spatial Fixtures mode).
+// Legacy LaserDMX rig frame compiler retained for compatibility tests and normalizers.
 // Produces CompiledLaserDmxResult from settings + MI data each animation tick.
 // Never writes to Zustand. Never produces NaN/Infinity in output channels.
 
@@ -41,7 +41,7 @@ import {
   resolveLaserDmxFixtureCapabilities,
 } from '../LaserDmxProductionRig'
 import type { ProductionOutputFrame, ProductionRig } from '../LaserDmxProductionRig'
-import { inferSpatialFixtureSemantic, personalizeRgbw } from '../../../../features/personalization/laserDmxPersonalization'
+import { inferLegacyLaserDmxFixtureSemantic, personalizeRgbw } from '../../../../features/personalization/laserDmxPersonalization'
 import { evaluateMovingHeadFixture } from './LaserDmxMovingHeadEngine'
 import { resolveProductionLookTransitionRuntime } from './LaserDmxProductionLookEngine'
 import {
@@ -255,7 +255,7 @@ function applyRoute(
   fixtureId: string,
   dt:        number,
 ): void {
-  // Spatial-Fixtures scope prefix: 'sf'
+  // Legacy rig scope prefix: 'sf'
   const envKey = `sf:${fixtureId}:${route.id}`
   const result = applyModulationRoute(route, mi, envKey, dt)
   if (!result) return
@@ -601,7 +601,7 @@ export function compileLaserDmxFrame(inp: CompileInput): CompiledLaserDmxResult 
           blue: b,
           white: fState.white,
           alpha: fState.alpha,
-        }, inferSpatialFixtureSemantic(fixture), personalization)
+        }, inferLegacyLaserDmxFixtureSemantic(fixture), personalization)
       : null
     if (personalized) {
       r = personalized.red
