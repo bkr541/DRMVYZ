@@ -6320,30 +6320,13 @@
   z-index: 3;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   flex-wrap: wrap;
   gap: 10px;
   padding: 2px;
   background: rgba(6, 13, 16, 0.96);
   backdrop-filter: blur(10px);
 }
-
-.rv-laser-runtime-source {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.rv-laser-runtime-source > span {
-  color: rgba(232, 244, 248, 0.46);
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
 .rv-laser-rig-surfaces {
   min-width: 0;
 }
@@ -8661,12 +8644,18 @@
   text-transform: uppercase;
 }
 
-.rv-show-director-preset-group {
+.rv-show-director-preset-group,
+.rv-laser-dmx-preset-group {
   margin: 0 0 12px;
 }
 
-.rv-show-director-preset-group__header {
+.rv-show-director-preset-group__header,
+.rv-laser-dmx-preset-group__header {
   cursor: default;
+}
+
+.rv-laser-dmx-preset-browser-wrap {
+  padding-top: 8px;
 }
 
 .rv-show-director-template-preset-card {

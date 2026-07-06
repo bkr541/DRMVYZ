@@ -8,6 +8,8 @@ import {
 } from './ReactTypes'
 import { ReactPresetThumbnail } from './ReactPresetThumbnail'
 import { LASER_DMX_SHOW_DIRECTOR_TEMPLATES } from './laserDmxShowDirectorTemplates'
+import { LaserDmxBeamMatrixPresetBrowser } from './LaserDmxBeamMatrixPresetBrowser'
+import { LASER_DMX_BEAM_MATRIX_PRESETS } from './laserDmxBeamMatrixPresets'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
 import { resolveBrandedReactPreset } from '../../../features/personalization/resolveBrandedReactPreset'
 import type { ProductionFixtureKind } from './LaserDmxProductionRig'
@@ -313,6 +315,21 @@ function ShowDirectorTemplatePresets() {
   )
 }
 
+function BeamMatrixRuntimePresets() {
+  return (
+    <section className="rv-preset-group rv-laser-dmx-preset-group" aria-label="Beam Matrix presets">
+      <div className="rv-preset-group-hdr rv-laser-dmx-preset-group__header">
+        <span className="rv-preset-group-hdr-icon" aria-hidden="true">⌬</span>
+        <span className="rv-preset-group-hdr-label">Beam Matrix Presets</span>
+        <span className="rv-preset-group-hdr-count">{LASER_DMX_BEAM_MATRIX_PRESETS.length}</span>
+      </div>
+      <div className="rv-laser-dmx-preset-browser-wrap">
+        <LaserDmxBeamMatrixPresetBrowser />
+      </div>
+    </section>
+  )
+}
+
 const LIBRARY_VIEW_LABELS: Record<ReactPresetLibraryView, string> = {
   current: 'Current Engine',
   favorites: 'Favorites',
@@ -325,12 +342,14 @@ export function ReactPresetsPanel() {
     reactPresets,
     activeReactPresetId,
     activeReactEngineId,
+    laserDmxBeamMatrixAuthoringMode,
     cinematicConfigsByPresetId,
     selectReactPreset,
   } = useReactStore(useShallow(state => ({
     reactPresets: state.reactPresets,
     activeReactPresetId: state.activeReactPresetId,
     activeReactEngineId: state.activeReactEngineId,
+    laserDmxBeamMatrixAuthoringMode: state.laserDmxBeamMatrixAuthoringMode,
     cinematicConfigsByPresetId: state.cinematicConfigsByPresetId,
     selectReactPreset: state.selectReactPreset,
   })))
@@ -392,6 +411,13 @@ export function ReactPresetsPanel() {
     : null
   const modifiedIds = useMemo(() => new Set(Object.keys(cinematicConfigsByPresetId)), [cinematicConfigsByPresetId])
   const activeEngine = REACT_ENGINE_CATALOG[activeReactEngineId]
+  const isLaserDmxCurrentLibrary = activeReactEngineId === 'laserDmx' && libraryView === 'current'
+  const laserDmxPresetCount = laserDmxBeamMatrixAuthoringMode === 'showDirector'
+    ? LASER_DMX_SHOW_DIRECTOR_TEMPLATES.length
+    : LASER_DMX_BEAM_MATRIX_PRESETS.length
+  const laserDmxPresetScopeLabel = laserDmxBeamMatrixAuthoringMode === 'showDirector'
+    ? `${laserDmxPresetCount} Show Director layout${laserDmxPresetCount === 1 ? '' : 's'}`
+    : `${laserDmxPresetCount} Beam Matrix preset${laserDmxPresetCount === 1 ? '' : 's'}`
   const thumbnailGenerationKey = useMemo(
     () => `${activeReactEngineId}:${libraryView}:${visiblePresets.map(preset => preset.id).join('|')}`,
     [activeReactEngineId, libraryView, visiblePresets],
@@ -424,9 +450,11 @@ export function ReactPresetsPanel() {
           <span aria-hidden="true">{activeEngine.icon}</span>
           <div>
             <strong>{activeEngine.label}</strong>
-            <small>{libraryView === 'current'
-              ? `${visiblePresets.length} presets for the selected engine`
-              : `${visiblePresets.length} presets shown`}</small>
+            <small>{isLaserDmxCurrentLibrary
+              ? laserDmxPresetScopeLabel
+              : libraryView === 'current'
+                ? `${visiblePresets.length} presets for the selected engine`
+                : `${visiblePresets.length} presets shown`}</small>
           </div>
         </div>
         <div className="rv-preset-library-views" role="tablist" aria-label="Preset library filter">
@@ -451,7 +479,9 @@ export function ReactPresetsPanel() {
           ? activeReactEngineId === 'cinematicPortal' && activeWorld
             ? `${activeWorld} presets only. Use All Engines to browse and switch worlds.`
             : activeReactEngineId === 'laserDmx'
-              ? 'Beam Matrix looks are managed from the Beam Matrix Presets section.'
+              ? laserDmxBeamMatrixAuthoringMode === 'showDirector'
+                ? 'Show Director rig layouts only. Switch to Matrix for Beam Matrix looks.'
+                : 'Beam Matrix looks only. Switch to Show Director for rig layouts.'
               : `${activeEngine.label} presets only. Use All Engines to browse other engines.`
           : libraryView === 'favorites'
             ? 'Star presets from any engine to keep them together here.'
@@ -465,9 +495,11 @@ export function ReactPresetsPanel() {
         </div>
       )}
 
-      {activeReactEngineId === 'laserDmx' && libraryView === 'current' && <ShowDirectorTemplatePresets />}
-
-      {visiblePresets.length === 0 ? (
+      {isLaserDmxCurrentLibrary ? (
+        laserDmxBeamMatrixAuthoringMode === 'showDirector'
+          ? <ShowDirectorTemplatePresets />
+          : <BeamMatrixRuntimePresets />
+      ) : visiblePresets.length === 0 ? (
         <div className="rv-preset-library-empty">
           <strong>{libraryView === 'favorites' ? 'No favorite presets yet' : `No ${activeEngine.label} presets found`}</strong>
           <span>{libraryView === 'favorites' ? 'Choose ☆ on a preset to pin it here.' : 'This engine can still be edited from its left workspace.'}</span>
