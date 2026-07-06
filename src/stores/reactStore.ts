@@ -946,6 +946,84 @@ function mirrorLaserDmxShowDirectorFixtureAcrossGrid(
   }, index)
 }
 
+function normalizeLaserDmxShowDirectorSelectionState(
+  current: LaserDmxShowDirectorState,
+  selectedFixtureIds: string[],
+  primaryFixtureId?: string | null,
+): LaserDmxShowDirectorState {
+  const fixtureIds = new Set(current.fixtures.map(fixture => fixture.id))
+  const uniqueSelectedFixtureIds = Array.from(new Set(selectedFixtureIds.filter(id => fixtureIds.has(id))))
+  const selectedFixtureId = primaryFixtureId && fixtureIds.has(primaryFixtureId)
+    ? primaryFixtureId
+    : uniqueSelectedFixtureIds[0] ?? null
+  const normalizedSelectedFixtureIds = selectedFixtureId
+    ? [selectedFixtureId, ...uniqueSelectedFixtureIds.filter(id => id !== selectedFixtureId)]
+    : uniqueSelectedFixtureIds
+
+  return normalizeLaserDmxShowDirectorState({
+    ...current,
+    selectedFixtureId,
+    selectedFixtureIds: normalizedSelectedFixtureIds,
+  })
+}
+
+function getLaserDmxShowDirectorSelectedFixtureIds(state: LaserDmxShowDirectorState): string[] {
+  if (state.selectedFixtureIds.length > 0) return state.selectedFixtureIds
+  return state.selectedFixtureId ? [state.selectedFixtureId] : []
+}
+
+function createOffsetLaserDmxShowDirectorFixtureCopy(
+  source: LaserDmxShowDirectorFixture,
+  state: LaserDmxShowDirectorState,
+  id: string,
+  index: number,
+  offset: number,
+): LaserDmxShowDirectorFixture {
+  const maxX = Math.max(0, Math.round(state.settings.gridSize.columns) - 1)
+  const maxY = Math.max(0, Math.round(state.settings.gridSize.rows) - 1)
+  const offsetTargets = (source.beam.targets ?? []).slice(0, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS).map((target, targetIndex) => ({
+    ...target,
+    id: `${id}-target-${targetIndex + 1}`,
+    x: Math.max(0, Math.min(maxX, target.x + offset)),
+    y: Math.max(0, Math.min(maxY, target.y + offset)),
+  }))
+
+  return normalizeLaserDmxShowDirectorFixture({
+    ...source,
+    id,
+    label: `${source.label} Copy`,
+    x: Math.max(0, Math.min(maxX, source.x + offset)),
+    y: Math.max(0, Math.min(maxY, source.y + offset)),
+    beam: {
+      ...source.beam,
+      targetX: offsetTargets[0]?.x ?? (source.beam.targetX == null ? source.beam.targetX : Math.max(0, Math.min(maxX, source.beam.targetX + offset))),
+      targetY: offsetTargets[0]?.y ?? (source.beam.targetY == null ? source.beam.targetY : Math.max(0, Math.min(maxY, source.beam.targetY + offset))),
+      targets: offsetTargets,
+    },
+  }, index)
+}
+
+function clampLaserDmxShowDirectorDelta(
+  fixtures: LaserDmxShowDirectorFixture[],
+  settings: LaserDmxShowDirectorState['settings'],
+  deltaX: number,
+  deltaY: number,
+): { deltaX: number; deltaY: number } {
+  if (fixtures.length === 0) return { deltaX: 0, deltaY: 0 }
+  const maxX = Math.max(0, Math.round(settings.gridSize.columns) - 1)
+  const maxY = Math.max(0, Math.round(settings.gridSize.rows) - 1)
+  const minFixtureX = Math.min(...fixtures.map(fixture => fixture.x))
+  const maxFixtureX = Math.max(...fixtures.map(fixture => fixture.x))
+  const minFixtureY = Math.min(...fixtures.map(fixture => fixture.y))
+  const maxFixtureY = Math.max(...fixtures.map(fixture => fixture.y))
+
+  return {
+    deltaX: Math.max(-minFixtureX, Math.min(maxX - maxFixtureX, Number.isFinite(deltaX) ? deltaX : 0)),
+    deltaY: Math.max(-minFixtureY, Math.min(maxY - maxFixtureY, Number.isFinite(deltaY) ? deltaY : 0)),
+  }
+}
+
+
 // ── Beam Matrix local helpers ─────────────────────────────────────────────────
 
 function clampCol(v: number): number { return Math.max(1, Math.min(LASER_DMX_MATRIX_COLUMNS, Math.round(v))) }
@@ -1519,6 +1597,12 @@ interface ReactStoreState {
   mirrorLaserDmxShowDirectorFixture: (fixtureId: string, axis: 'horizontal' | 'vertical') => void
   mirrorLaserDmxShowDirectorLayout: (axis: 'horizontal' | 'vertical') => void
   selectLaserDmxShowDirectorFixture: (fixtureId: string | null) => void
+  toggleLaserDmxShowDirectorFixtureSelection: (fixtureId: string) => void
+  selectLaserDmxShowDirectorFixtures: (fixtureIds: string[], primaryFixtureId?: string | null) => void
+  clearLaserDmxShowDirectorSelection: () => void
+  deleteSelectedLaserDmxShowDirectorFixtures: () => void
+  moveSelectedLaserDmxShowDirectorFixtures: (deltaX: number, deltaY: number) => void
+  duplicateSelectedLaserDmxShowDirectorFixtures: () => string[]
   clearLaserDmxShowDirectorFixtures: () => void
   resetLaserDmxShowDirectorLayout: () => void
   applyLaserDmxShowDirectorTemplate: (templateId: string) => boolean
@@ -4809,6 +4893,7 @@ export const useReactStore = create<ReactStoreState>()(
               ...s.laserDmxShowDirector,
               fixtures: [...s.laserDmxShowDirector.fixtures, fixture],
               selectedFixtureId: fixture.id,
+              selectedFixtureIds: [fixture.id],
             }),
           }
         })
@@ -4841,6 +4926,7 @@ export const useReactStore = create<ReactStoreState>()(
               selectedFixtureId: s.laserDmxShowDirector.selectedFixtureId === fixtureId
                 ? null
                 : s.laserDmxShowDirector.selectedFixtureId,
+              selectedFixtureIds: s.laserDmxShowDirector.selectedFixtureIds.filter(id => id !== fixtureId),
             }),
           }
         }),
@@ -4878,6 +4964,7 @@ export const useReactStore = create<ReactStoreState>()(
             ...s.laserDmxShowDirector,
             fixtures: [...s.laserDmxShowDirector.fixtures, copy],
             selectedFixtureId: id,
+            selectedFixtureIds: [id],
           }),
         }))
         return id
@@ -4918,6 +5005,7 @@ export const useReactStore = create<ReactStoreState>()(
               ...current,
               fixtures: [...current.fixtures, ...copies],
               selectedFixtureId: copies[0]?.id ?? current.selectedFixtureId,
+              selectedFixtureIds: copies.length > 0 ? copies.map(copy => copy.id) : current.selectedFixtureIds,
             }),
           }
         }),
@@ -4956,12 +5044,116 @@ export const useReactStore = create<ReactStoreState>()(
             ? fixtureId
             : null
           return {
-            laserDmxShowDirector: normalizeLaserDmxShowDirectorState({
-              ...s.laserDmxShowDirector,
+            laserDmxShowDirector: normalizeLaserDmxShowDirectorSelectionState(
+              s.laserDmxShowDirector,
+              selectedFixtureId ? [selectedFixtureId] : [],
               selectedFixtureId,
+            ),
+          }
+        }),
+
+      toggleLaserDmxShowDirectorFixtureSelection: (fixtureId) =>
+        set(s => {
+          const current = s.laserDmxShowDirector
+          if (!current.fixtures.some(fixture => fixture.id === fixtureId)) return {}
+          const selectedFixtureIds = getLaserDmxShowDirectorSelectedFixtureIds(current)
+          const isSelected = selectedFixtureIds.includes(fixtureId)
+          const nextSelectedFixtureIds = isSelected
+            ? selectedFixtureIds.filter(id => id !== fixtureId)
+            : [...selectedFixtureIds, fixtureId]
+          const nextPrimaryId = isSelected && current.selectedFixtureId === fixtureId
+            ? nextSelectedFixtureIds[0] ?? null
+            : current.selectedFixtureId ?? fixtureId
+          return {
+            laserDmxShowDirector: normalizeLaserDmxShowDirectorSelectionState(current, nextSelectedFixtureIds, nextPrimaryId),
+          }
+        }),
+
+      selectLaserDmxShowDirectorFixtures: (fixtureIds, primaryFixtureId) =>
+        set(s => ({
+          laserDmxShowDirector: normalizeLaserDmxShowDirectorSelectionState(
+            s.laserDmxShowDirector,
+            fixtureIds,
+            primaryFixtureId,
+          ),
+        })),
+
+      clearLaserDmxShowDirectorSelection: () =>
+        set(s => ({
+          laserDmxShowDirector: normalizeLaserDmxShowDirectorSelectionState(s.laserDmxShowDirector, [], null),
+        })),
+
+      deleteSelectedLaserDmxShowDirectorFixtures: () =>
+        set(s => {
+          const current = s.laserDmxShowDirector
+          const selectedFixtureIds = getLaserDmxShowDirectorSelectedFixtureIds(current)
+          if (selectedFixtureIds.length === 0) return {}
+          const selectedSet = new Set(selectedFixtureIds)
+          const fixtures = current.fixtures.filter(fixture => !selectedSet.has(fixture.id))
+          if (fixtures.length === current.fixtures.length) return {}
+          return {
+            laserDmxBeamMatrixPresetDirty: true,
+            laserDmxShowDirector: normalizeLaserDmxShowDirectorState({
+              ...current,
+              fixtures,
+              selectedFixtureId: null,
+              selectedFixtureIds: [],
             }),
           }
         }),
+
+      moveSelectedLaserDmxShowDirectorFixtures: (deltaX, deltaY) =>
+        set(s => {
+          const current = s.laserDmxShowDirector
+          const selectedFixtureIds = getLaserDmxShowDirectorSelectedFixtureIds(current)
+          if (selectedFixtureIds.length === 0) return {}
+          const selectedSet = new Set(selectedFixtureIds)
+          const selectedFixtures = current.fixtures.filter(fixture => selectedSet.has(fixture.id))
+          const clampedDelta = clampLaserDmxShowDirectorDelta(selectedFixtures, current.settings, deltaX, deltaY)
+          if (clampedDelta.deltaX === 0 && clampedDelta.deltaY === 0) return {}
+          return {
+            laserDmxBeamMatrixPresetDirty: true,
+            laserDmxShowDirector: normalizeLaserDmxShowDirectorState({
+              ...current,
+              fixtures: current.fixtures.map((fixture, index) => selectedSet.has(fixture.id)
+                ? clampLaserDmxShowDirectorFixtureToSettings({
+                    ...fixture,
+                    x: fixture.x + clampedDelta.deltaX,
+                    y: fixture.y + clampedDelta.deltaY,
+                  }, current.settings, index)
+                : fixture),
+            }),
+          }
+        }),
+
+      duplicateSelectedLaserDmxShowDirectorFixtures: () => {
+        const state = get().laserDmxShowDirector
+        const selectedFixtureIds = getLaserDmxShowDirectorSelectedFixtureIds(state)
+        if (selectedFixtureIds.length === 0) return []
+        const selectedSet = new Set(selectedFixtureIds)
+        const offset = state.settings.snapEnabled ? 1 : 0.8
+        const copies = state.fixtures
+          .filter(fixture => selectedSet.has(fixture.id))
+          .map((source, index) => createOffsetLaserDmxShowDirectorFixtureCopy(
+            source,
+            state,
+            createLaserDmxShowDirectorId(),
+            state.fixtures.length + index,
+            offset,
+          ))
+        if (copies.length === 0) return []
+        const copyIds = copies.map(copy => copy.id)
+        set(s => ({
+          laserDmxBeamMatrixPresetDirty: true,
+          laserDmxShowDirector: normalizeLaserDmxShowDirectorState({
+            ...s.laserDmxShowDirector,
+            fixtures: [...s.laserDmxShowDirector.fixtures, ...copies],
+            selectedFixtureId: copyIds[0] ?? null,
+            selectedFixtureIds: copyIds,
+          }),
+        }))
+        return copyIds
+      },
 
       clearLaserDmxShowDirectorFixtures: () =>
         set(s => ({
@@ -4970,6 +5162,7 @@ export const useReactStore = create<ReactStoreState>()(
             ...s.laserDmxShowDirector,
             fixtures: [],
             selectedFixtureId: null,
+            selectedFixtureIds: [],
           }),
         })),
 

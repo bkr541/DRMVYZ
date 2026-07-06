@@ -34,10 +34,13 @@ export function LaserDmxShowDirectorControls() {
   const {
     fixtures,
     selectedFixtureId,
+    selectedFixtureIds,
     settings,
     updateSettings,
     duplicateFixture,
     deleteFixture,
+    duplicateSelectedFixtures,
+    deleteSelectedFixtures,
     mirrorFixture,
     updateFixture,
     resetLayout,
@@ -47,10 +50,13 @@ export function LaserDmxShowDirectorControls() {
   } = useReactStore(useShallow(s => ({
     fixtures:          s.laserDmxShowDirector.fixtures,
     selectedFixtureId: s.laserDmxShowDirector.selectedFixtureId,
+    selectedFixtureIds: s.laserDmxShowDirector.selectedFixtureIds,
     settings:          s.laserDmxShowDirector.settings,
     updateSettings:    s.updateLaserDmxShowDirectorSettings,
-    duplicateFixture:  s.duplicateLaserDmxShowDirectorFixture,
-    deleteFixture:     s.deleteLaserDmxShowDirectorFixture,
+    duplicateFixture:          s.duplicateLaserDmxShowDirectorFixture,
+    deleteFixture:             s.deleteLaserDmxShowDirectorFixture,
+    duplicateSelectedFixtures: s.duplicateSelectedLaserDmxShowDirectorFixtures,
+    deleteSelectedFixtures:    s.deleteSelectedLaserDmxShowDirectorFixtures,
     mirrorFixture:     s.mirrorLaserDmxShowDirectorFixture,
     updateFixture:     s.updateLaserDmxShowDirectorFixture,
     resetLayout:       s.resetLaserDmxShowDirectorLayout,
@@ -63,6 +69,7 @@ export function LaserDmxShowDirectorControls() {
     () => fixtures.find(fixture => fixture.id === selectedFixtureId) ?? null,
     [fixtures, selectedFixtureId],
   )
+  const selectedFixtureCount = selectedFixtureIds.length
   const gridValue = currentGridValue(settings)
   const gridOptions = useMemo(() => {
     const hasCurrent = GRID_PRESETS.some(option => option.value === gridValue)
@@ -145,11 +152,11 @@ export function LaserDmxShowDirectorControls() {
 
       <Collapsible label="Fixture Tools" defaultOpen>
         <div className="rv-show-director-design-actions" aria-label="Selected Show Director fixture actions">
-          <button type="button" className="rv-glyph-upload-btn" disabled={!selectedFixture} onClick={() => selectedFixture && duplicateFixture(selectedFixture.id)}>Duplicate</button>
+          <button type="button" className="rv-glyph-upload-btn" disabled={!selectedFixture} onClick={() => selectedFixtureCount > 1 ? duplicateSelectedFixtures() : selectedFixture && duplicateFixture(selectedFixture.id)}>{selectedFixtureCount > 1 ? 'Duplicate Selected' : 'Duplicate'}</button>
           <button type="button" className="rv-glyph-upload-btn" disabled={!selectedFixture} onClick={rotateSelected}>Rotate 90°</button>
           <button type="button" className="rv-glyph-upload-btn" disabled={!selectedFixture} onClick={() => selectedFixture && mirrorFixture(selectedFixture.id, 'horizontal')}>Mirror H</button>
           <button type="button" className="rv-glyph-upload-btn" disabled={!selectedFixture} onClick={() => selectedFixture && mirrorFixture(selectedFixture.id, 'vertical')}>Mirror V</button>
-          <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" disabled={!selectedFixture} onClick={() => selectedFixture && deleteFixture(selectedFixture.id)}>Delete</button>
+          <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" disabled={!selectedFixture} onClick={() => selectedFixtureCount > 1 ? deleteSelectedFixtures() : selectedFixture && deleteFixture(selectedFixture.id)}>{selectedFixtureCount > 1 ? 'Delete Selected' : 'Delete'}</button>
         </div>
       </Collapsible>
 

@@ -364,7 +364,7 @@ export interface LaserDmxBeamMatrixPresetSummary {
 // This is the safe authoring model for the future drag/drop 2D stage builder.
 // It compiles into Beam Matrix through LaserDmxShowDirectorBeamMatrixCompiler when selected as the preview source.
 
-export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 4
+export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 5
 
 export type LaserDmxShowDirectorFixtureKind =
   | 'laser'
@@ -524,9 +524,11 @@ export type LaserDmxShowDirectorFixturePatch = Partial<Omit<LaserDmxShowDirector
 
 export interface LaserDmxShowDirectorState {
   schemaVersion?: number
-  fixtures:          LaserDmxShowDirectorFixture[]
-  selectedFixtureId: string | null
-  settings:          LaserDmxShowDirectorSettings
+  fixtures:           LaserDmxShowDirectorFixture[]
+  selectedFixtureId:  string | null
+  /** Multi-selection IDs. selectedFixtureId remains the primary selection for legacy/single-fixture inspector flows. */
+  selectedFixtureIds: string[]
+  settings:           LaserDmxShowDirectorSettings
 }
 
 const SHOW_DIRECTOR_BEAM_FIXTURE_KINDS = new Set<LaserDmxShowDirectorFixtureKind>([
@@ -810,6 +812,7 @@ export function createDefaultLaserDmxShowDirectorState(): LaserDmxShowDirectorSt
     schemaVersion: LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION,
     fixtures: [],
     selectedFixtureId: null,
+    selectedFixtureIds: [],
     settings: {
       ...DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS,
       gridSize: { ...DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.gridSize },
@@ -993,13 +996,20 @@ export function normalizeLaserDmxShowDirectorState(raw: unknown): LaserDmxShowDi
       .map(fixture => clampLaserDmxShowDirectorFixtureToSettings(fixture, settings))
     : []
   const ids = new Set(fixtures.map(fixture => fixture.id))
-  const selectedFixtureId = typeof raw.selectedFixtureId === 'string' && ids.has(raw.selectedFixtureId)
+  const rawSelectedFixtureIds = showDirectorStringArray(raw.selectedFixtureIds)
+  const selectedFixtureIds = Array.from(new Set(rawSelectedFixtureIds.filter(id => ids.has(id))))
+  const rawPrimaryId = typeof raw.selectedFixtureId === 'string' && ids.has(raw.selectedFixtureId)
     ? raw.selectedFixtureId
     : null
+  const selectedFixtureId = rawPrimaryId ?? selectedFixtureIds[0] ?? null
+  const normalizedSelectedFixtureIds = selectedFixtureId
+    ? [selectedFixtureId, ...selectedFixtureIds.filter(id => id !== selectedFixtureId)]
+    : selectedFixtureIds
   return {
     schemaVersion: LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION,
     fixtures,
     selectedFixtureId,
+    selectedFixtureIds: normalizedSelectedFixtureIds,
     settings,
   }
 }

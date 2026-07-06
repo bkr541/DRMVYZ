@@ -508,6 +508,7 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
                 <LaserDmxShowDirectorCanvas
                   fixtures={laserDmxShowDirector.fixtures}
                   selectedFixtureId={laserDmxShowDirector.selectedFixtureId}
+                  selectedFixtureIds={laserDmxShowDirector.selectedFixtureIds}
                   settings={laserDmxShowDirector.settings}
                   variant="stage"
                 />

@@ -7771,6 +7771,40 @@
     0 0 24px color-mix(in srgb, var(--fixture-color, #4ac7db) 38%, transparent);
 }
 
+
+.rv-show-director-selection-badge {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  z-index: 7;
+  padding: 5px 9px;
+  border: 1px solid rgba(103, 247, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(2, 8, 12, 0.78);
+  color: rgba(232, 244, 248, 0.9);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  pointer-events: none;
+  box-shadow: 0 0 18px rgba(74, 199, 219, 0.16);
+}
+
+.rv-show-director-selection-rect {
+  position: absolute;
+  z-index: 6;
+  border: 1px solid rgba(103, 247, 255, 0.78);
+  border-radius: 8px;
+  background: rgba(103, 247, 255, 0.13);
+  box-shadow: inset 0 0 18px rgba(103, 247, 255, 0.08), 0 0 18px rgba(74, 199, 219, 0.16);
+  pointer-events: none;
+}
+
+.rv-show-director-canvas--box-selecting,
+.rv-show-director-canvas--box-selecting * {
+  user-select: none;
+}
+
 .rv-show-director-fixture--dragging {
   z-index: 5;
   box-shadow:
@@ -8931,4 +8965,22 @@
   background: rgba(103, 247, 255, 0.12);
   color: #fff;
   outline: none;
+}
+
+.rv-show-director-fixture--multi-selected {
+  border-style: dashed;
+  box-shadow:
+    0 0 0 2px rgba(97, 214, 170, 0.46),
+    0 0 0 7px rgba(97, 214, 170, 0.1),
+    0 0 28px color-mix(in srgb, var(--fixture-color, #4ac7db) 40%, transparent),
+    0 18px 34px rgba(0, 0, 0, 0.32);
+}
+
+.rv-show-director-fixture--primary-selected {
+  border-style: solid;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.72),
+    0 0 0 8px rgba(103, 247, 255, 0.18),
+    0 0 34px color-mix(in srgb, var(--fixture-color, #4ac7db) 50%, transparent),
+    0 20px 38px rgba(0, 0, 0, 0.36);
 }

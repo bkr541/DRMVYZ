@@ -237,16 +237,22 @@ function triggerRequirementNotes(fixture: LaserDmxShowDirectorFixture): string[]
 export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorInspectorProps) {
   const {
     fixtures,
+    selectedFixtureIds,
     settings,
     updateFixture,
     deleteFixture,
     duplicateFixture,
+    deleteSelectedFixtures,
+    duplicateSelectedFixtures,
   } = useReactStore(useShallow(s => ({
-    fixtures:         s.laserDmxShowDirector.fixtures,
-    settings:         s.laserDmxShowDirector.settings,
-    updateFixture:    s.updateLaserDmxShowDirectorFixture,
-    deleteFixture:    s.deleteLaserDmxShowDirectorFixture,
-    duplicateFixture: s.duplicateLaserDmxShowDirectorFixture,
+    fixtures:                  s.laserDmxShowDirector.fixtures,
+    selectedFixtureIds:        s.laserDmxShowDirector.selectedFixtureIds,
+    settings:                  s.laserDmxShowDirector.settings,
+    updateFixture:             s.updateLaserDmxShowDirectorFixture,
+    deleteFixture:             s.deleteLaserDmxShowDirectorFixture,
+    duplicateFixture:          s.duplicateLaserDmxShowDirectorFixture,
+    deleteSelectedFixtures:    s.deleteSelectedLaserDmxShowDirectorFixtures,
+    duplicateSelectedFixtures: s.duplicateSelectedLaserDmxShowDirectorFixtures,
   })))
   const [draftLabel, setDraftLabel] = useState('')
 
@@ -258,6 +264,48 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
     maxX: Math.max(0, settings.gridSize.columns - 1),
     maxY: Math.max(0, settings.gridSize.rows - 1),
   }), [settings.gridSize.columns, settings.gridSize.rows])
+
+  const selectedFixtures = useMemo(() => {
+    const selectedSet = new Set(selectedFixtureIds)
+    return fixtures.filter(item => selectedSet.has(item.id))
+  }, [fixtures, selectedFixtureIds])
+  const selectedCount = selectedFixtures.length
+
+  const updateSelectedFixtures = (patch: Parameters<typeof updateFixture>[1]) => {
+    selectedFixtures.forEach(item => updateFixture(item.id, patch))
+  }
+
+  if (selectedCount > 1) {
+    return (
+      <aside className="rv-show-director-panel rv-show-director-inspector" aria-label="Show Director bulk fixture inspector">
+        <div className="rv-show-director-panel__header rv-show-director-inspector__header">
+          <div>
+            <span className="rv-show-director-kicker">Inspector</span>
+            <h4>Multi-select</h4>
+            <p>{selectedCount} lighting components selected for bulk actions.</p>
+          </div>
+        </div>
+
+        <div className="rv-show-director-inspector__body">
+          <CtrlSection label="Selected Fixtures" />
+          <div className="rv-show-director-readout-grid">
+            <div><span>Selected</span><strong>{selectedCount}</strong></div>
+            <div><span>Primary</span><strong>{fixture?.label ?? selectedFixtures[0]?.label ?? 'None'}</strong></div>
+          </div>
+          <p className="rv-show-director-trigger-hint">
+            Bulk editing is intentionally compact here: enable, disable, duplicate, or delete the selected fixtures. Advanced group controls can be added later without changing the single-fixture inspector.
+          </p>
+
+          <div className="rv-show-director-inspector__actions">
+            <button type="button" className="rv-glyph-upload-btn" onClick={() => updateSelectedFixtures({ enabled: true })}>Enable Selected</button>
+            <button type="button" className="rv-glyph-upload-btn" onClick={() => updateSelectedFixtures({ enabled: false })}>Disable Selected</button>
+            <button type="button" className="rv-glyph-upload-btn" onClick={duplicateSelectedFixtures}>Duplicate Selected</button>
+            <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" onClick={deleteSelectedFixtures}>Delete Selected</button>
+          </div>
+        </div>
+      </aside>
+    )
+  }
 
   if (!fixture) {
     return (
