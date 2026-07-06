@@ -216,6 +216,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settin
     updateFixture,
     deleteFixture,
     duplicateFixture,
+    mirrorFixture,
     updateSettings,
   } = useReactStore(useShallow(s => ({
     addFixture:       s.addLaserDmxShowDirectorFixture,
@@ -223,6 +224,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settin
     updateFixture:    s.updateLaserDmxShowDirectorFixture,
     deleteFixture:    s.deleteLaserDmxShowDirectorFixture,
     duplicateFixture: s.duplicateLaserDmxShowDirectorFixture,
+    mirrorFixture:    s.mirrorLaserDmxShowDirectorFixture,
     updateSettings:   s.updateLaserDmxShowDirectorSettings,
   })))
 
@@ -323,19 +325,11 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settin
   }
 
   const handleMirrorHorizontal = () => {
-    if (!selectedFixture) return
-    updateFixture(selectedFixture.id, {
-      x: Math.max(0, columns - 1) - clamp(selectedFixture.x, 0, Math.max(0, columns - 1)),
-      rotation: normalizeDegrees(180 - selectedFixture.rotation),
-    })
+    if (selectedFixture) mirrorFixture(selectedFixture.id, 'horizontal')
   }
 
   const handleMirrorVertical = () => {
-    if (!selectedFixture) return
-    updateFixture(selectedFixture.id, {
-      y: Math.max(0, rows - 1) - clamp(selectedFixture.y, 0, Math.max(0, rows - 1)),
-      rotation: normalizeDegrees(-selectedFixture.rotation),
-    })
+    if (selectedFixture) mirrorFixture(selectedFixture.id, 'vertical')
   }
 
   const toolDisabled = !selectedFixture
@@ -426,7 +420,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settin
           onClick={handleCanvasClick}
         >
           <div className="rv-show-director-canvas__drop-copy" aria-hidden="true">
-            Drop fixtures here · drag placed fixtures to move
+            Drop fixtures here · select a fixture to edit beam, color, and timing
           </div>
           <div className="rv-show-director-stage-guides rv-show-director-stage-guides--columns" aria-hidden="true">
             {columnGuides.map(index => <span key={index} style={{ left: `${((index + 0.5) / columns) * 100}%` }}>X{index}</span>)}
@@ -470,8 +464,8 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settin
 
           {fixtures.length === 0 && (
             <div className="rv-show-director-canvas__empty">
-              <strong>Build your rig.</strong>
-              <span>Drag Laser, Strobe, LED Bar, Haze, or any palette component into the grid.</span>
+              <strong>Drag a light component onto the Show Director canvas</strong>
+              <span>Start with a template above, or drag Laser, Strobe, LED Bar, Haze, or any palette component into the grid.</span>
             </div>
           )}
         </div>

@@ -173,11 +173,11 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
         <div className="rv-show-director-panel__header">
           <span className="rv-show-director-kicker">Inspector</span>
           <h4>No Fixture Selected</h4>
-          <p>Select a fixture on the canvas to tune transform, light output, beams, timing, fades, and fixture-specific parameters.</p>
+          <p>Select a fixture to edit beam, color, and timing, plus transform, fades, and fixture-specific parameters.</p>
         </div>
         <div className="rv-show-director-empty">
-          <strong>Canvas waiting for a click.</strong>
-          <span>Drag a component into the grid, then select it to edit the stored Show Director fixture settings.</span>
+          <strong>Select a fixture to edit beam, color, and timing</strong>
+          <span>Drag a light component onto the Show Director canvas, then click it to open its production controls.</span>
         </div>
       </aside>
     )

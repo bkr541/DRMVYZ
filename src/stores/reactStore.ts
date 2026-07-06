@@ -118,6 +118,7 @@ import {
   ensureProductionLookCompatibility,
 } from '../components/vyzualz/react/renderers/LaserDmxProductionLookEngine'
 import { migrateLegacyBeamMatrixCues } from '../components/vyzualz/react/renderers/LaserDmxShowDirector'
+import { createLaserDmxShowDirectorTemplateState } from '../components/vyzualz/react/laserDmxShowDirectorTemplates'
 import {
   getSvgVisualEntry,
   clearSvgVisualCache,
@@ -791,6 +792,49 @@ function mergeLaserDmxShowDirectorFixturePatch(
   }, index)
 }
 
+
+function createLaserDmxShowDirectorId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  return `show-director-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+function normalizeDegrees(value: number): number {
+  const normalized = ((value % 360) + 360) % 360
+  return normalized > 180 ? normalized - 360 : normalized
+}
+
+function clampShowDirectorGrid(value: number, max: number): number {
+  return Math.max(0, Math.min(max, Number.isFinite(value) ? value : 0))
+}
+
+function mirrorLaserDmxShowDirectorFixtureAcrossGrid(
+  fixture: LaserDmxShowDirectorFixture,
+  state: LaserDmxShowDirectorState,
+  axis: 'horizontal' | 'vertical',
+  index: number,
+): LaserDmxShowDirectorFixture {
+  const maxX = Math.max(0, Math.round(state.settings.gridSize.columns) - 1)
+  const maxY = Math.max(0, Math.round(state.settings.gridSize.rows) - 1)
+  const mirroredX = maxX - clampShowDirectorGrid(fixture.x, maxX)
+  const mirroredY = maxY - clampShowDirectorGrid(fixture.y, maxY)
+  const mirroredTargetX = fixture.beam.targetX == null ? fixture.beam.targetX : maxX - clampShowDirectorGrid(fixture.beam.targetX, maxX)
+  const mirroredTargetY = fixture.beam.targetY == null ? fixture.beam.targetY : maxY - clampShowDirectorGrid(fixture.beam.targetY, maxY)
+
+  return normalizeLaserDmxShowDirectorFixture({
+    ...fixture,
+    x: axis === 'horizontal' ? mirroredX : fixture.x,
+    y: axis === 'vertical' ? mirroredY : fixture.y,
+    rotation: axis === 'horizontal'
+      ? normalizeDegrees(180 - fixture.rotation)
+      : normalizeDegrees(-fixture.rotation),
+    beam: {
+      ...fixture.beam,
+      targetX: axis === 'horizontal' ? mirroredTargetX : fixture.beam.targetX,
+      targetY: axis === 'vertical' ? mirroredTargetY : fixture.beam.targetY,
+    },
+  }, index)
+}
+
 // ── Beam Matrix local helpers ─────────────────────────────────────────────────
 
 function clampCol(v: number): number { return Math.max(1, Math.min(LASER_DMX_MATRIX_COLUMNS, Math.round(v))) }
@@ -1360,8 +1404,13 @@ interface ReactStoreState {
   updateLaserDmxShowDirectorFixture: (fixtureId: string, patch: LaserDmxShowDirectorFixturePatch) => void
   deleteLaserDmxShowDirectorFixture: (fixtureId: string) => void
   duplicateLaserDmxShowDirectorFixture: (fixtureId: string) => string | null
+  duplicateLaserDmxShowDirectorLayout: () => void
+  mirrorLaserDmxShowDirectorFixture: (fixtureId: string, axis: 'horizontal' | 'vertical') => void
+  mirrorLaserDmxShowDirectorLayout: (axis: 'horizontal' | 'vertical') => void
   selectLaserDmxShowDirectorFixture: (fixtureId: string | null) => void
   clearLaserDmxShowDirectorFixtures: () => void
+  resetLaserDmxShowDirectorLayout: () => void
+  applyLaserDmxShowDirectorTemplate: (templateId: string) => boolean
   updateLaserDmxShowDirectorSettings: (patch: LaserDmxShowDirectorSettingsPatch) => void
 
   // Sound Drawing layers — stored per track ID.
@@ -4619,7 +4668,7 @@ export const useReactStore = create<ReactStoreState>()(
       // ── LaserDMX Show Director layout model ────────────────────────────────
 
       addLaserDmxShowDirectorFixture: (kind, initial) => {
-        const id = crypto.randomUUID()
+        const id = createLaserDmxShowDirectorId()
         set(s => {
           const base = createDefaultLaserDmxShowDirectorFixture(kind, id, s.laserDmxShowDirector.fixtures.length)
           const fixture = normalizeLaserDmxShowDirectorFixture({
@@ -4664,7 +4713,7 @@ export const useReactStore = create<ReactStoreState>()(
               ...s.laserDmxShowDirector,
               fixtures: remaining,
               selectedFixtureId: s.laserDmxShowDirector.selectedFixtureId === fixtureId
-                ? (remaining[0]?.id ?? null)
+                ? null
                 : s.laserDmxShowDirector.selectedFixtureId,
             }),
           }
@@ -4674,7 +4723,7 @@ export const useReactStore = create<ReactStoreState>()(
         const state = get().laserDmxShowDirector
         const source = state.fixtures.find(fixture => fixture.id === fixtureId)
         if (!source) return null
-        const id = crypto.randomUUID()
+        const id = createLaserDmxShowDirectorId()
         const maxX = Math.max(0, Math.round(state.settings.gridSize.columns) - 1)
         const maxY = Math.max(0, Math.round(state.settings.gridSize.rows) - 1)
         const offset = state.settings.snapEnabled ? 1 : 0.8
@@ -4694,6 +4743,58 @@ export const useReactStore = create<ReactStoreState>()(
         }))
         return id
       },
+
+      duplicateLaserDmxShowDirectorLayout: () =>
+        set(s => {
+          const current = s.laserDmxShowDirector
+          if (current.fixtures.length === 0) return {}
+          const maxX = Math.max(0, Math.round(current.settings.gridSize.columns) - 1)
+          const maxY = Math.max(0, Math.round(current.settings.gridSize.rows) - 1)
+          const offset = current.settings.snapEnabled ? 1 : 0.8
+          const copies = current.fixtures.map((source, index) => {
+            const id = createLaserDmxShowDirectorId()
+            return normalizeLaserDmxShowDirectorFixture({
+              ...source,
+              id,
+              label: `${source.label} Copy`,
+              x: Math.max(0, Math.min(maxX, source.x + offset)),
+              y: Math.max(0, Math.min(maxY, source.y + offset)),
+            }, current.fixtures.length + index)
+          })
+          return {
+            laserDmxShowDirector: normalizeLaserDmxShowDirectorState({
+              ...current,
+              fixtures: [...current.fixtures, ...copies],
+              selectedFixtureId: copies[0]?.id ?? current.selectedFixtureId,
+            }),
+          }
+        }),
+
+      mirrorLaserDmxShowDirectorFixture: (fixtureId, axis) =>
+        set(s => {
+          const current = s.laserDmxShowDirector
+          if (!current.fixtures.some(fixture => fixture.id === fixtureId)) return {}
+          return {
+            laserDmxShowDirector: normalizeLaserDmxShowDirectorState({
+              ...current,
+              fixtures: current.fixtures.map((fixture, index) => fixture.id === fixtureId
+                ? mirrorLaserDmxShowDirectorFixtureAcrossGrid(fixture, current, axis, index)
+                : fixture),
+            }),
+          }
+        }),
+
+      mirrorLaserDmxShowDirectorLayout: (axis) =>
+        set(s => {
+          const current = s.laserDmxShowDirector
+          if (current.fixtures.length === 0) return {}
+          return {
+            laserDmxShowDirector: normalizeLaserDmxShowDirectorState({
+              ...current,
+              fixtures: current.fixtures.map((fixture, index) => mirrorLaserDmxShowDirectorFixtureAcrossGrid(fixture, current, axis, index)),
+            }),
+          }
+        }),
 
       selectLaserDmxShowDirectorFixture: (fixtureId) =>
         set(s => {
@@ -4716,6 +4817,18 @@ export const useReactStore = create<ReactStoreState>()(
             selectedFixtureId: null,
           }),
         })),
+
+      resetLaserDmxShowDirectorLayout: () =>
+        set(() => ({
+          laserDmxShowDirector: createDefaultLaserDmxShowDirectorState(),
+        })),
+
+      applyLaserDmxShowDirectorTemplate: (templateId) => {
+        const next = createLaserDmxShowDirectorTemplateState(templateId, createLaserDmxShowDirectorId)
+        if (!next) return false
+        set(() => ({ laserDmxShowDirector: next }))
+        return true
+      },
 
       updateLaserDmxShowDirectorSettings: (patch) =>
         set(s => ({
