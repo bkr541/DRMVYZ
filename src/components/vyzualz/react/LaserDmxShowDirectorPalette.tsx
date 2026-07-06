@@ -29,26 +29,13 @@ function normalizeSearch(value: string): string {
 function FixtureIcon({ kind }: { kind: LaserDmxShowDirectorFixtureKind }) {
   switch (kind) {
     case 'laser':
-      return (
-        <svg viewBox="0 0 32 32" aria-hidden="true">
-          <path d="M5 19h8l4-5v10l-4-5" />
-          <path d="M17 15 29 7M17 19h12M17 23l12 7" />
-        </svg>
-      )
+      return <img src="/laser-dmx-icons/Laser.svg" alt="" />
     case 'movingHead':
-      return (
-        <svg viewBox="0 0 32 32" aria-hidden="true">
-          <path d="M9 26h14M12 21h8l3-7-7-5-7 5Z" />
-          <path d="M16 9V4M8 16c-2 2-2 5 0 7M24 16c2 2 2 5 0 7" />
-        </svg>
-      )
+      return <img src="/laser-dmx-icons/OverheadLight.svg" alt="" />
     case 'ledBar':
-      return (
-        <svg viewBox="0 0 32 32" aria-hidden="true">
-          <path d="M5 12h22v8H5Z" />
-          <path d="M9 12v8M13.5 12v8M18.5 12v8M23 12v8" />
-        </svg>
-      )
+      return <img src="/laser-dmx-icons/LEDBar.svg" alt="" />
+    case 'blinder':
+      return <img src="/laser-dmx-icons/BlinderLight.svg" alt="" />
     case 'ledTube':
       return (
         <svg viewBox="0 0 32 32" aria-hidden="true">
@@ -61,16 +48,6 @@ function FixtureIcon({ kind }: { kind: LaserDmxShowDirectorFixtureKind }) {
         <svg viewBox="0 0 32 32" aria-hidden="true">
           <path d="m16 4 2.4 7 6.8-3-3 6.8 7 2.2-7 2.4 3 6.8-6.8-3L16 30l-2.4-6.8-6.8 3 3-6.8-7-2.4 7-2.2-3-6.8 6.8 3Z" />
           <circle cx="16" cy="17" r="3" />
-        </svg>
-      )
-    case 'blinder':
-      return (
-        <svg viewBox="0 0 32 32" aria-hidden="true">
-          <path d="M8 8h16v16H8Z" />
-          <circle cx="13" cy="13" r="2.5" />
-          <circle cx="19" cy="13" r="2.5" />
-          <circle cx="13" cy="19" r="2.5" />
-          <circle cx="19" cy="19" r="2.5" />
         </svg>
       )
     case 'parWash':

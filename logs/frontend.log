@@ -3,6 +3,19 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 116 ms
+  VITE v5.4.21  ready in 130 ms
 
   ➜  Local:   http://127.0.0.1:5173/
+12:31:52 PM [vite] hmr update /src/components/vyzualz/react/LaserDmxShowDirectorPalette.tsx
+12:31:52 PM [vite] warning: This case clause will never be evaluated because it duplicates an earlier case clause
+70 |          </svg>);
+71 |  
+72 |      case 'blinder':
+   |           ^
+73 |        return (
+74 |          <svg viewBox="0 0 32 32" aria-hidden="true">
+
+  Plugin: vite:esbuild
+  File: /Users/kodyrobinson/Development/DRMVYZ/src/components/vyzualz/react/LaserDmxShowDirectorPalette.tsx
+12:32:05 PM [vite] hmr update /src/components/vyzualz/react/LaserDmxShowDirectorPalette.tsx
+12:32:12 PM [vite] hmr update /src/styles/reactView.css
