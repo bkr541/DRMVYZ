@@ -22,6 +22,7 @@ interface LaserDmxShowDirectorCanvasProps {
   fixtures: LaserDmxShowDirectorFixture[]
   selectedFixtureId: string | null
   settings: LaserDmxShowDirectorSettings
+  variant?: 'panel' | 'stage'
 }
 
 type StagePoint = { x: number; y: number }
@@ -206,7 +207,7 @@ function renderFixtureIcon(fixture: LaserDmxShowDirectorFixture) {
   }
 }
 
-export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settings }: LaserDmxShowDirectorCanvasProps) {
+export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settings, variant = 'panel' }: LaserDmxShowDirectorCanvasProps) {
   const [isDragHot, setIsDragHot] = useState(false)
   const [fixtureDrag, setFixtureDrag] = useState<FixtureDragState | null>(null)
   const stageRef = useRef<HTMLDivElement | null>(null)
@@ -338,11 +339,14 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, settin
   const toolDisabled = !selectedFixture
 
   return (
-    <section className="rv-show-director-canvas-shell" aria-label="Show Director 2D canvas">
+    <section
+      className={`rv-show-director-canvas-shell${variant === 'stage' ? ' rv-show-director-canvas-shell--stage' : ''}`}
+      aria-label={variant === 'stage' ? 'Show Director visualizer stage canvas' : 'Show Director 2D canvas'}
+    >
       <div className="rv-show-director-canvas-shell__header">
         <div>
           <span className="rv-show-director-kicker">2D Canvas</span>
-          <h4>Stage Layout Editor</h4>
+          <h4>{variant === 'stage' ? 'Center Visualizer Stage' : 'Stage Layout Editor'}</h4>
         </div>
         <div className="rv-show-director-canvas-toolbar" aria-label="Show Director canvas options">
           <button

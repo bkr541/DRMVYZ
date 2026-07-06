@@ -74,14 +74,13 @@ export function LaserDmxShowDirectorPalette() {
               draggable
               onDragStart={event => handleDragStart(event, kind)}
               role="listitem"
-              aria-label={`Drag ${label} into the Show Director canvas`}
+              aria-label={`Add ${label} to the Show Director canvas`}
             >
               <span className="rv-show-director-component-card__icon" aria-hidden="true">{meta.icon}</span>
               <span className="rv-show-director-component-card__body">
                 <span className="rv-show-director-component-card__label">{label}</span>
                 <span className="rv-show-director-component-card__description">{meta.description}</span>
               </span>
-              <span className="rv-show-director-component-card__drag" aria-hidden="true">Drag</span>
             </button>
           )
         })}

@@ -20,6 +20,7 @@ import {
   ReactReactivityWorkspacePanel,
 } from './panels/ReactWorkspacePanels'
 import { LaserDmxBeamMatrixEditorOverlay } from './LaserDmxBeamMatrixEditorOverlay'
+import { LaserDmxShowDirectorCanvas } from './LaserDmxShowDirectorCanvas'
 import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
 import { RailTabs } from '../layout/RailTabs'
@@ -151,6 +152,8 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
     soundDrawingLayersByTrackId,
     soundDrawingClipsByTrackId,
     laserDmxBeamMatrix,
+    laserDmxBeamMatrixAuthoringMode,
+    laserDmxShowDirector,
   } = useReactStore(useShallow(s => ({
     reactPresets:           s.reactPresets,
     cinematicConfigsByPresetId: s.cinematicConfigsByPresetId,
@@ -180,6 +183,8 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
     soundDrawingLayersByTrackId:    s.soundDrawingLayersByTrackId,
     soundDrawingClipsByTrackId:     s.soundDrawingClipsByTrackId,
     laserDmxBeamMatrix:             s.laserDmxBeamMatrix,
+    laserDmxBeamMatrixAuthoringMode: s.laserDmxBeamMatrixAuthoringMode,
+    laserDmxShowDirector:           s.laserDmxShowDirector,
   })))
   const activeShaderId = useShaderPanelStore(s => s.activeShaderId)
   const activeBrandKit = useBrandKitStore(s => s.activeKit)
@@ -349,6 +354,7 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
   const activeTrackId        = engine.currentTrack?.id ?? null
   const activeSdLayers       = activeTrackId ? (soundDrawingLayersByTrackId[activeTrackId] ?? []) : []
   const activeSdClips        = activeTrackId ? (soundDrawingClipsByTrackId[activeTrackId]   ?? []) : []
+  const showDirectorStageEditorVisible = activeReactEngineId === 'laserDmx' && laserDmxBeamMatrixAuthoringMode === 'showDirector'
 
   return (
     <div className="rv-shell" data-stage-focus={stageFocus ? 'true' : undefined}>
@@ -497,7 +503,17 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
                 activeAudioTrackId={engine.currentAudioTrackId}
               />
             )}
-            {workspaceComposition.showLaserBeamEditor && (
+            {showDirectorStageEditorVisible && (
+              <div className="rv-show-director-stage-overlay" aria-label="Show Director center visualizer editor">
+                <LaserDmxShowDirectorCanvas
+                  fixtures={laserDmxShowDirector.fixtures}
+                  selectedFixtureId={laserDmxShowDirector.selectedFixtureId}
+                  settings={laserDmxShowDirector.settings}
+                  variant="stage"
+                />
+              </div>
+            )}
+            {workspaceComposition.showLaserBeamEditor && !showDirectorStageEditorVisible && (
               <LaserDmxBeamMatrixEditorOverlay />
             )}
           </div>

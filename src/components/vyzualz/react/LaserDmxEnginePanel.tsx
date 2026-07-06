@@ -24,6 +24,11 @@ export function LaserDmxEnginePanel() {
     setAuthoringMode: s.setLaserDmxBeamMatrixAuthoringMode,
   })))
 
+  const handleSurfaceChange = (nextSurface: LaserDmxRigSurface) => {
+    setSurface(nextSurface)
+    setAuthoringMode(nextSurface === 'showDirector' ? 'showDirector' : 'manual')
+  }
+
   return (
     <div className="rv-laser-workspace">
       <div className="rv-laser-rig-toolbar">
@@ -35,7 +40,7 @@ export function LaserDmxEnginePanel() {
               role="tab"
               aria-selected={surface === option.id}
               className={surface === option.id ? 'is-active' : ''}
-              onClick={() => setSurface(option.id)}
+              onClick={() => handleSurfaceChange(option.id)}
             >
               {option.label}
             </button>

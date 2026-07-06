@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
-import { LaserDmxShowDirectorCanvas } from './LaserDmxShowDirectorCanvas'
 import { LaserDmxShowDirectorInspector } from './LaserDmxShowDirectorInspector'
 import { LaserDmxShowDirectorPalette } from './LaserDmxShowDirectorPalette'
 import { LASER_DMX_SHOW_DIRECTOR_TEMPLATES } from './laserDmxShowDirectorTemplates'
@@ -63,7 +62,7 @@ export function LaserDmxShowDirector() {
         <div>
           <span className="rv-show-director-kicker">LaserDMX</span>
           <h3>Show Director</h3>
-          <p>Drag DJ lighting components onto a 2D stage, load starter rigs, and compile the layout into Beam Matrix preview instructions without touching the manual matrix editor.</p>
+          <p>Choose lighting components here, then drag them onto the center visualizer stage. Starter rigs and fixture controls stay in this panel so the live canvas has room to breathe.</p>
         </div>
         <div className="rv-show-director-builder__stats" aria-label="Show Director summary">
           <span><strong>{fixtures.length}</strong> fixtures</span>
@@ -123,14 +122,13 @@ export function LaserDmxShowDirector() {
       </section>
 
       <div className="rv-show-director-workflow-hints" aria-label="Show Director workflow hints">
-        <span>Drag a light component onto the Show Director canvas</span>
-        <span>Select a fixture to edit beam, color, and timing</span>
-        <span>Preview uses Beam Matrix; physical DMX patching remains a separate production-output step</span>
+        <span>Drag from the palette into the center visualizer grid</span>
+        <span>Select fixtures on the stage to edit beam, color, and timing</span>
+        <span>Show Director preview compiles into Beam Matrix output</span>
       </div>
 
       <div className="rv-show-director-builder__layout">
         <LaserDmxShowDirectorPalette />
-        <LaserDmxShowDirectorCanvas fixtures={fixtures} selectedFixtureId={selectedFixtureId} settings={settings} />
         <LaserDmxShowDirectorInspector fixture={selectedFixture} />
       </div>
     </div>
