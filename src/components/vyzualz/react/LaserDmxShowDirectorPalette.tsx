@@ -37,49 +37,17 @@ function FixtureIcon({ kind }: { kind: LaserDmxShowDirectorFixtureKind }) {
     case 'blinder':
       return <img src="/laser-dmx-icons/BlinderLight.svg" alt="" />
     case 'ledTube':
-      return (
-        <svg viewBox="0 0 32 32" aria-hidden="true">
-          <path d="M14 5h4M14 27h4M16 6v20" />
-          <path d="M10 9c4 2 8 2 12 0M10 23c4-2 8-2 12 0" />
-        </svg>
-      )
+      return <img src="/laser-dmx-icons/LEDTube.svg" alt="" />
     case 'strobe':
-      return (
-        <svg viewBox="0 0 32 32" aria-hidden="true">
-          <path d="m16 4 2.4 7 6.8-3-3 6.8 7 2.2-7 2.4 3 6.8-6.8-3L16 30l-2.4-6.8-6.8 3 3-6.8-7-2.4 7-2.2-3-6.8 6.8 3Z" />
-          <circle cx="16" cy="17" r="3" />
-        </svg>
-      )
+      return <img src="/laser-dmx-icons/Strobe.svg" alt="" />
     case 'parWash':
-      return (
-        <svg viewBox="0 0 32 32" aria-hidden="true">
-          <circle cx="16" cy="16" r="8" />
-          <path d="M8 23h16M11 24l-3 4M21 24l3 4" />
-          <path d="M12 16h8M16 12v8" />
-        </svg>
-      )
+      return <img src="/laser-dmx-icons/ParWash.svg" alt="" />
     case 'videoWall':
-      return (
-        <svg viewBox="0 0 32 32" aria-hidden="true">
-          <path d="M5 7h22v18H5Z" />
-          <path d="M12.3 7v18M19.7 7v18M5 16h22" />
-        </svg>
-      )
+      return <img src="/laser-dmx-icons/VideoWall.svg" alt="" />
     case 'haze':
-      return (
-        <svg viewBox="0 0 32 32" aria-hidden="true">
-          <path d="M7 20h14a5 5 0 0 0-4-8 7 7 0 0 0-13 3" />
-          <path d="M5 24h18M10 27h14M21 13c3 0 5 2 5 5" />
-        </svg>
-      )
+      return <img src="/laser-dmx-icons/Hazer.svg" alt="" />
     case 'co2Jet':
-      return (
-        <svg viewBox="0 0 32 32" aria-hidden="true">
-          <path d="M14 27h4l1-6h-6Z" />
-          <path d="M16 4c4 4 5 8 2 13M16 4c-4 4-5 8-2 13M16 4v15" />
-          <path d="M9 10c2 1 4 1 7-6 3 7 5 7 7 6" />
-        </svg>
-      )
+      return <img src="/laser-dmx-icons/CO2.svg" alt="" />
     default:
       return null
   }
