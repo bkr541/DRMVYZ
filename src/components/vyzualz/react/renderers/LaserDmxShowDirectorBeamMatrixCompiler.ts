@@ -62,6 +62,7 @@ interface FixtureCompileContext {
   cueMarkers: readonly VzCueMarker[]
   outputBeamCount: number
   hazeIntensity: number
+  groupLabels: Map<string, string>
   hasRenderableFixture: boolean
 }
 
@@ -742,13 +743,13 @@ function stepsPerBeat(division: LaserDmxShowDirectorBeatDivision): number {
   return clamp(1 / Math.max(0.25, finite(division, 1)), 0.25, 4)
 }
 
-function makeGroup(fixture: LaserDmxShowDirectorFixture): LaserDmxReactionGroup {
+function makeGroup(fixture: LaserDmxShowDirectorFixture, groupLabels: Map<string, string>): LaserDmxReactionGroup {
   const color = fixture.kind === 'blinder' ? warmWhiteColor() : colorForFixture(fixture)
   const isLed = fixture.kind === 'ledBar' || fixture.kind === 'ledTube'
   const shouldSequence = isLed || fixture.beam.targetMode === 'sweep'
   return {
     id: groupIdForFixture(fixture),
-    name: fixture.groupId?.trim() || fixture.label || `Show Director ${fixture.kind}`,
+    name: ((fixture.groupId ? groupLabels.get(fixture.groupId) : null) ?? fixture.groupId?.trim()) || fixture.label || `Show Director ${fixture.kind}`,
     enabled: fixture.enabled,
     muted: false,
     soloed: false,
@@ -1120,7 +1121,7 @@ function hazeFogRoutes(fixture: LaserDmxShowDirectorFixture): LaserDmxModulation
 
 function compileFixture(fixture: LaserDmxShowDirectorFixture, ctx: FixtureCompileContext): void {
   if (!fixture || fixture.enabled !== true || !hasFixtureShape(fixture) || !isSupportedFixtureKind(fixture.kind)) return
-  ctx.groups.push(makeGroup(fixture))
+  ctx.groups.push(makeGroup(fixture, ctx.groupLabels))
   compileTriggerGateCues(fixture, ctx)
   ctx.hasRenderableFixture = true
 
@@ -1195,6 +1196,7 @@ export function compileLaserDmxShowDirectorToBeamMatrix(
     cueMarkers: input.cueMarkers ?? [],
     outputBeamCount: 0,
     hazeIntensity: 0,
+    groupLabels: new Map((showDirector?.groups ?? []).map(group => [group.id, group.label])),
     hasRenderableFixture: false,
   }
 

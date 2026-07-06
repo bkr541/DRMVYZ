@@ -190,6 +190,10 @@ function colorInputValue(color: string): string {
   return /^#[0-9a-f]{6}$/i.test(color) ? color : '#4ac7db'
 }
 
+function compactGroupLabel(label: string): string {
+  return label.trim().slice(0, 48)
+}
+
 function beatDivisionValue(value: LaserDmxShowDirectorBeatDivision): string {
   return String(value)
 }
@@ -237,6 +241,7 @@ function triggerRequirementNotes(fixture: LaserDmxShowDirectorFixture): string[]
 export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorInspectorProps) {
   const {
     fixtures,
+    groups,
     selectedFixtureIds,
     settings,
     updateFixture,
@@ -244,8 +249,13 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
     duplicateFixture,
     deleteSelectedFixtures,
     duplicateSelectedFixtures,
+    groupSelectedFixtures,
+    ungroupSelectedFixtures,
+    renameGroup,
+    duplicateGroup,
   } = useReactStore(useShallow(s => ({
     fixtures:                  s.laserDmxShowDirector.fixtures,
+    groups:                    s.laserDmxShowDirector.groups,
     selectedFixtureIds:        s.laserDmxShowDirector.selectedFixtureIds,
     settings:                  s.laserDmxShowDirector.settings,
     updateFixture:             s.updateLaserDmxShowDirectorFixture,
@@ -253,8 +263,13 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
     duplicateFixture:          s.duplicateLaserDmxShowDirectorFixture,
     deleteSelectedFixtures:    s.deleteSelectedLaserDmxShowDirectorFixtures,
     duplicateSelectedFixtures: s.duplicateSelectedLaserDmxShowDirectorFixtures,
+    groupSelectedFixtures:     s.groupSelectedLaserDmxShowDirectorFixtures,
+    ungroupSelectedFixtures:   s.ungroupSelectedLaserDmxShowDirectorFixtures,
+    renameGroup:               s.renameLaserDmxShowDirectorGroup,
+    duplicateGroup:            s.duplicateLaserDmxShowDirectorGroup,
   })))
   const [draftLabel, setDraftLabel] = useState('')
+  const [draftGroupLabel, setDraftGroupLabel] = useState('')
 
   useEffect(() => {
     setDraftLabel(fixture?.label ?? '')
@@ -270,9 +285,27 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
     return fixtures.filter(item => selectedSet.has(item.id))
   }, [fixtures, selectedFixtureIds])
   const selectedCount = selectedFixtures.length
+  const groupsById = useMemo(() => new Map(groups.map(group => [group.id, group])), [groups])
+  const selectedGroupIds = useMemo(() => Array.from(new Set(selectedFixtures.flatMap(item => item.groupId ? [item.groupId] : []))), [selectedFixtures])
+  const sharedGroupId = selectedCount > 1 && selectedGroupIds.length === 1 && selectedFixtures.every(item => item.groupId === selectedGroupIds[0])
+    ? selectedGroupIds[0]
+    : null
+  const sharedGroup = sharedGroupId ? groupsById.get(sharedGroupId) ?? null : null
+  const fixtureGroup = fixture?.groupId ? groupsById.get(fixture.groupId) ?? null : null
+
+  useEffect(() => {
+    setDraftGroupLabel(sharedGroup?.label ?? '')
+  }, [sharedGroup?.id, sharedGroup?.label])
 
   const updateSelectedFixtures = (patch: Parameters<typeof updateFixture>[1]) => {
     selectedFixtures.forEach(item => updateFixture(item.id, patch))
+  }
+
+  const commitBulkGroupDraft = () => {
+    if (!sharedGroupId || !sharedGroup) return
+    const nextLabel = compactGroupLabel(draftGroupLabel) || sharedGroup.label
+    setDraftGroupLabel(nextLabel)
+    if (nextLabel !== sharedGroup.label) renameGroup(sharedGroupId, nextLabel)
   }
 
   if (selectedCount > 1) {
@@ -292,13 +325,26 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
             <div><span>Selected</span><strong>{selectedCount}</strong></div>
             <div><span>Primary</span><strong>{fixture?.label ?? selectedFixtures[0]?.label ?? 'None'}</strong></div>
           </div>
-          <p className="rv-show-director-trigger-hint">
-            Bulk editing is intentionally compact here: enable, disable, duplicate, or delete the selected fixtures. Advanced group controls can be added later without changing the single-fixture inspector.
-          </p>
+          {sharedGroup ? (
+            <>
+              <div className="rv-show-director-readout-grid">
+                <div><span>Group</span><strong>{sharedGroup.label}</strong></div>
+                <div><span>Members</span><strong>{fixtures.filter(item => item.groupId === sharedGroup.id).length}</strong></div>
+              </div>
+              <TextInputRow label="Group name" value={draftGroupLabel} maxLength={48} onChange={setDraftGroupLabel} onBlur={commitBulkGroupDraft} />
+            </>
+          ) : (
+            <p className="rv-show-director-trigger-hint">
+              Group selected fixtures from the canvas context menu or use the button below. Mixed groups stay separate until you regroup them.
+            </p>
+          )}
 
           <div className="rv-show-director-inspector__actions">
             <button type="button" className="rv-glyph-upload-btn" onClick={() => updateSelectedFixtures({ enabled: true })}>Enable Selected</button>
             <button type="button" className="rv-glyph-upload-btn" onClick={() => updateSelectedFixtures({ enabled: false })}>Disable Selected</button>
+            {!sharedGroup && <button type="button" className="rv-glyph-upload-btn" onClick={() => groupSelectedFixtures()}>Group Selected</button>}
+            {sharedGroup && <button type="button" className="rv-glyph-upload-btn" onClick={() => duplicateGroup(sharedGroup.id)}>Duplicate Group</button>}
+            {selectedGroupIds.length > 0 && <button type="button" className="rv-glyph-upload-btn" onClick={ungroupSelectedFixtures}>Ungroup</button>}
             <button type="button" className="rv-glyph-upload-btn" onClick={duplicateSelectedFixtures}>Duplicate Selected</button>
             <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" onClick={deleteSelectedFixtures}>Delete Selected</button>
           </div>
@@ -377,7 +423,7 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
         <div>
           <span className="rv-show-director-kicker">Inspector</span>
           <h4>{fixture.label}</h4>
-          <p>{typeLabel} · {fixture.enabled ? 'Enabled' : 'Disabled'} · {fixture.groupId || 'No group'}</p>
+          <p>{typeLabel} · {fixture.enabled ? 'Enabled' : 'Disabled'} · {fixtureGroup?.label ?? fixture.groupId ?? 'No group'}</p>
         </div>
         <span className="rv-show-director-inspector__swatch" style={{ background: fixture.color }} aria-hidden="true" />
       </div>
@@ -400,7 +446,7 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
         <CtrlSection label="Light" />
         <ToggleRow label="Enabled / active" value={fixture.enabled} onChange={enabled => update({ enabled })} />
         <TextInputRow label="Label / name" value={draftLabel} maxLength={48} onChange={handleLabelDraftChange} onBlur={commitLabelDraft} />
-        <TextInputRow label="Group" value={fixture.groupId ?? ''} maxLength={32} placeholder="Ungrouped" onChange={group => update({ groupId: group.trim() ? group.trim() : null })} />
+        <TextInputRow label="Group" value={fixtureGroup?.label ?? fixture.groupId ?? ''} maxLength={48} placeholder="Ungrouped" onChange={group => update({ groupId: group.trim() ? group.trim() : null })} />
         <SelectRow label="Color mode" value={fixture.colorMode} options={COLOR_MODE_OPTIONS} onChange={colorMode => update({ colorMode: colorMode as LaserDmxShowDirectorColorMode })} />
         <label className="rv-show-director-color-field">
           <span className="rv-ctrl-label">Color</span>

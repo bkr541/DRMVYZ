@@ -16,6 +16,7 @@ import {
   isLaserDmxShowDirectorFixtureKind,
   type LaserDmxShowDirectorBeamTarget,
   type LaserDmxShowDirectorFixture,
+  type LaserDmxShowDirectorGroup,
   type LaserDmxShowDirectorFixtureKind,
   type LaserDmxShowDirectorSettings,
 } from './ReactTypes'
@@ -99,6 +100,19 @@ function coerceGridSize(settings: LaserDmxShowDirectorSettings) {
   }
 }
 
+function groupLabelForFixture(fixture: LaserDmxShowDirectorFixture, groupsById: Map<string, LaserDmxShowDirectorGroup>): string | null {
+  if (!fixture.groupId) return null
+  return groupsById.get(fixture.groupId)?.label ?? fixture.groupId
+}
+
+function groupAccentForId(groupId: string | null | undefined): string | null {
+  if (!groupId) return null
+  let hash = 0
+  for (let index = 0; index < groupId.length; index += 1) hash = ((hash << 5) - hash + groupId.charCodeAt(index)) | 0
+  const hue = Math.abs(hash) % 360
+  return `hsl(${hue} 82% 62%)`
+}
+
 function snapStagePoint(point: StagePoint, settings: LaserDmxShowDirectorSettings): StagePoint {
   const { columns, rows } = coerceGridSize(settings)
   const maxX = Math.max(0, columns - 1)
@@ -126,7 +140,7 @@ function stagePointFromEvent(event: DragEvent<HTMLDivElement>, stageElement: HTM
   return snapStagePoint(stagePointFromClient(event.clientX, event.clientY, stageElement, settings), settings)
 }
 
-function fixtureStyle(fixture: LaserDmxShowDirectorFixture, settings: LaserDmxShowDirectorSettings): CSSProperties {
+function fixtureStyle(fixture: LaserDmxShowDirectorFixture, settings: LaserDmxShowDirectorSettings, groupAccent?: string | null): CSSProperties {
   const { columns, rows } = coerceGridSize(settings)
   const x = clamp(fixture.x, 0, Math.max(0, columns - 1))
   const y = clamp(fixture.y, 0, Math.max(0, rows - 1))
@@ -140,6 +154,7 @@ function fixtureStyle(fixture: LaserDmxShowDirectorFixture, settings: LaserDmxSh
     '--fixture-brightness': `${outputBrightness}`,
     '--fixture-container-brightness': `${fixture.enabled ? clamp(fixture.brightness, 0.35, 1) : 0.74}`,
     '--fixture-output-opacity': `${outputBrightness}`,
+    '--fixture-group-color': groupAccent ?? fixture.color,
   } as CSSProperties
 }
 
@@ -433,18 +448,34 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
     clearSelection,
     deleteSelectedFixtures,
     moveSelectedFixtures,
+    duplicateSelectedFixtures,
+    groupSelectedFixtures,
+    ungroupSelectedFixtures,
+    selectGroup,
+    renameGroup,
+    duplicateGroup,
+    ungroupGroup,
     updateFixture,
     setAuthoringMode,
+    groups,
   } = useReactStore(useShallow(s => ({
-    addFixture:             s.addLaserDmxShowDirectorFixture,
-    selectFixture:          s.selectLaserDmxShowDirectorFixture,
-    toggleFixtureSelection: s.toggleLaserDmxShowDirectorFixtureSelection,
-    selectFixtures:         s.selectLaserDmxShowDirectorFixtures,
-    clearSelection:         s.clearLaserDmxShowDirectorSelection,
-    deleteSelectedFixtures: s.deleteSelectedLaserDmxShowDirectorFixtures,
-    moveSelectedFixtures:   s.moveSelectedLaserDmxShowDirectorFixtures,
-    updateFixture:          s.updateLaserDmxShowDirectorFixture,
-    setAuthoringMode:       s.setLaserDmxBeamMatrixAuthoringMode,
+    addFixture:                s.addLaserDmxShowDirectorFixture,
+    selectFixture:             s.selectLaserDmxShowDirectorFixture,
+    toggleFixtureSelection:    s.toggleLaserDmxShowDirectorFixtureSelection,
+    selectFixtures:            s.selectLaserDmxShowDirectorFixtures,
+    clearSelection:            s.clearLaserDmxShowDirectorSelection,
+    deleteSelectedFixtures:    s.deleteSelectedLaserDmxShowDirectorFixtures,
+    moveSelectedFixtures:      s.moveSelectedLaserDmxShowDirectorFixtures,
+    duplicateSelectedFixtures: s.duplicateSelectedLaserDmxShowDirectorFixtures,
+    groupSelectedFixtures:     s.groupSelectedLaserDmxShowDirectorFixtures,
+    ungroupSelectedFixtures:   s.ungroupSelectedLaserDmxShowDirectorFixtures,
+    selectGroup:               s.selectLaserDmxShowDirectorGroup,
+    renameGroup:               s.renameLaserDmxShowDirectorGroup,
+    duplicateGroup:            s.duplicateLaserDmxShowDirectorGroup,
+    ungroupGroup:              s.ungroupLaserDmxShowDirectorGroup,
+    updateFixture:             s.updateLaserDmxShowDirectorFixture,
+    setAuthoringMode:          s.setLaserDmxBeamMatrixAuthoringMode,
+    groups:                    s.laserDmxShowDirector.groups,
   })))
 
   const { columns, rows } = coerceGridSize(settings)
@@ -458,6 +489,9 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
   }, [fixtures, selectedFixtureId, selectedFixtureIds])
   const selectedFixtureSet = useMemo(() => new Set(canvasSelectedFixtureIds), [canvasSelectedFixtureIds])
   const selectedFixtureCount = canvasSelectedFixtureIds.length
+  const groupsById = useMemo(() => new Map(groups.map(group => [group.id, group])), [groups])
+  const contextFixture = contextMenu ? fixtures.find(fixture => fixture.id === contextMenu.fixtureId) ?? null : null
+  const contextGroup = contextFixture?.groupId ? groupsById.get(contextFixture.groupId) ?? null : null
   const targetingFixture = targetingFixtureId ? fixtures.find(fixture => fixture.id === targetingFixtureId) : null
 
   const updateSelectionRect = (nextRect: SelectionRectState | null) => {
@@ -722,14 +756,75 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
     event.preventDefault()
     event.stopPropagation()
     const isSelected = selectedFixtureSet.has(fixture.id)
+    const hasFixtureEndpointActions = isEndpointEditableFixture(fixture)
+    const hasBulkActions = isSelected && selectedFixtureCount > 1
     if (!isSelected) selectFixture(fixture.id)
     setTargetingFixtureId(null)
-    setSelectedEndpointId(beamTargetsForFixture(fixture, settings)[0]?.id ?? null)
-    if (!isEndpointEditableFixture(fixture)) {
+    setSelectedEndpointId(hasFixtureEndpointActions ? beamTargetsForFixture(fixture, settings)[0]?.id ?? null : null)
+    if (!hasBulkActions && !fixture.groupId && !hasFixtureEndpointActions) {
       setContextMenu(null)
       return
     }
     setContextMenu({ fixtureId: fixture.id, x: event.clientX, y: event.clientY })
+  }
+
+  const handleGroupSelectedFromMenu = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    groupSelectedFixtures()
+    setContextMenu(null)
+  }
+
+  const handleUngroupSelectedFromMenu = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    ungroupSelectedFixtures()
+    setContextMenu(null)
+  }
+
+  const handleDuplicateSelectedFromMenu = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    duplicateSelectedFixtures()
+    setContextMenu(null)
+  }
+
+  const handleDeleteSelectedFromMenu = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    deleteSelectedFixtures()
+    setContextMenu(null)
+  }
+
+  const handleSelectGroupFromMenu = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (contextFixture?.groupId) selectGroup(contextFixture.groupId)
+    setContextMenu(null)
+  }
+
+  const handleRenameGroupFromMenu = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!contextFixture?.groupId) return
+    const currentLabel = contextGroup?.label ?? contextFixture.groupId
+    const nextLabel = window.prompt('Rename Show Director group', currentLabel)
+    if (nextLabel && nextLabel.trim()) renameGroup(contextFixture.groupId, nextLabel.trim())
+    setContextMenu(null)
+  }
+
+  const handleDuplicateGroupFromMenu = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (contextFixture?.groupId) duplicateGroup(contextFixture.groupId)
+    setContextMenu(null)
+  }
+
+  const handleUngroupGroupFromMenu = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (contextFixture?.groupId) ungroupGroup(contextFixture.groupId)
+    setContextMenu(null)
   }
 
   const handleSetEndpointFromMenu = (event: MouseEvent<HTMLButtonElement>) => {
@@ -936,6 +1031,8 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
 
           {fixtures.map(fixture => {
             const label = LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS[fixture.kind]
+            const groupLabel = groupLabelForFixture(fixture, groupsById)
+            const groupAccent = groupAccentForId(fixture.groupId)
             const isSelected = selectedFixtureSet.has(fixture.id)
             const isPrimarySelected = fixture.id === selectedFixtureId
             const isMultiSelected = isSelected && selectedFixtureCount > 1
@@ -944,8 +1041,8 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
               <button
                 key={fixture.id}
                 type="button"
-                className={`rv-show-director-fixture rv-show-director-fixture--${fixture.kind}${isSelected ? ' rv-show-director-fixture--selected' : ''}${isPrimarySelected ? ' rv-show-director-fixture--primary-selected' : ''}${isMultiSelected ? ' rv-show-director-fixture--multi-selected' : ''}${isDragging ? ' rv-show-director-fixture--dragging' : ''}${fixture.enabled ? '' : ' rv-show-director-fixture--disabled'}`}
-                style={fixtureStyle(fixture, settings)}
+                className={`rv-show-director-fixture rv-show-director-fixture--${fixture.kind}${isSelected ? ' rv-show-director-fixture--selected' : ''}${isPrimarySelected ? ' rv-show-director-fixture--primary-selected' : ''}${isMultiSelected ? ' rv-show-director-fixture--multi-selected' : ''}${fixture.groupId ? ' rv-show-director-fixture--grouped' : ''}${isDragging ? ' rv-show-director-fixture--dragging' : ''}${fixture.enabled ? '' : ' rv-show-director-fixture--disabled'}`}
+                style={fixtureStyle(fixture, settings, groupAccent)}
                 onPointerDown={event => handleFixturePointerDown(event, fixture)}
                 onPointerUp={handleFixturePointerRelease}
                 onPointerCancel={handleFixturePointerRelease}
@@ -971,6 +1068,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
                 <span className="rv-show-director-fixture__body" aria-hidden="true">
                   {renderFixtureIcon(fixture)}
                 </span>
+                {groupLabel && <span className="rv-show-director-fixture__group-tag">{groupLabel}</span>}
                 {settings.showLabels && <span className="rv-show-director-fixture__label">{fixture.label}</span>}
               </button>
             )
@@ -985,10 +1083,32 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
           role="menu"
           onPointerDown={event => event.stopPropagation()}
         >
-          <button type="button" role="menuitem" onClick={handleSetEndpointFromMenu}>Set Endpoint</button>
-          <button type="button" role="menuitem" onClick={handleAddEndpointFromMenu}>Add Beam Endpoint</button>
-          <button type="button" role="menuitem" onClick={handleCreateFanFromMenu}>Create Fan</button>
-          <button type="button" role="menuitem" onClick={handleClearEndpointsFromMenu}>Clear Endpoints</button>
+          {selectedFixtureCount > 1 && (
+            <>
+              <button type="button" role="menuitem" onClick={handleGroupSelectedFromMenu}>Group Selected</button>
+              <button type="button" role="menuitem" onClick={handleUngroupSelectedFromMenu}>Ungroup Selected</button>
+              <button type="button" role="menuitem" onClick={handleDuplicateSelectedFromMenu}>Duplicate Selected</button>
+              <button type="button" role="menuitem" className="rv-show-director-context-menu__danger" onClick={handleDeleteSelectedFromMenu}>Delete Selected</button>
+            </>
+          )}
+          {contextFixture?.groupId && (
+            <>
+              <span className="rv-show-director-context-menu__divider" role="separator" />
+              <button type="button" role="menuitem" onClick={handleSelectGroupFromMenu}>Select Group</button>
+              <button type="button" role="menuitem" onClick={handleRenameGroupFromMenu}>Rename Group</button>
+              <button type="button" role="menuitem" onClick={handleDuplicateGroupFromMenu}>Duplicate Group</button>
+              <button type="button" role="menuitem" onClick={handleUngroupGroupFromMenu}>Ungroup</button>
+            </>
+          )}
+          {contextFixture && isEndpointEditableFixture(contextFixture) && (
+            <>
+              <span className="rv-show-director-context-menu__divider" role="separator" />
+              <button type="button" role="menuitem" onClick={handleSetEndpointFromMenu}>Set Endpoint</button>
+              <button type="button" role="menuitem" onClick={handleAddEndpointFromMenu}>Add Beam Endpoint</button>
+              <button type="button" role="menuitem" onClick={handleCreateFanFromMenu}>Create Fan</button>
+              <button type="button" role="menuitem" onClick={handleClearEndpointsFromMenu}>Clear Endpoints</button>
+            </>
+          )}
         </div>
       )}
     </section>

@@ -66,6 +66,7 @@ import type {
   LaserDmxMatrixBeam,
   LaserDmxReactionGroup,
   LaserDmxShowDirectorFixture,
+  LaserDmxShowDirectorGroup,
   LaserDmxShowDirectorFixtureKind,
   LaserDmxShowDirectorFixturePatch,
   LaserDmxShowDirectorSettingsPatch,
@@ -972,6 +973,23 @@ function getLaserDmxShowDirectorSelectedFixtureIds(state: LaserDmxShowDirectorSt
   return state.selectedFixtureId ? [state.selectedFixtureId] : []
 }
 
+function sanitizeLaserDmxShowDirectorGroupLabel(label: string | null | undefined, fallback: string): string {
+  const trimmed = typeof label === 'string' ? label.trim() : ''
+  return (trimmed || fallback).slice(0, 48)
+}
+
+function createLaserDmxShowDirectorGroupLabel(state: LaserDmxShowDirectorState): string {
+  const usedLabels = new Set(state.groups.map(group => group.label.trim().toLowerCase()))
+  let index = 1
+  while (usedLabels.has(`group ${index}`)) index += 1
+  return `Group ${index}`
+}
+
+function findLaserDmxShowDirectorGroup(state: LaserDmxShowDirectorState, groupId: string | null | undefined): LaserDmxShowDirectorGroup | null {
+  if (!groupId) return null
+  return state.groups.find(group => group.id === groupId) ?? null
+}
+
 function createOffsetLaserDmxShowDirectorFixtureCopy(
   source: LaserDmxShowDirectorFixture,
   state: LaserDmxShowDirectorState,
@@ -1603,6 +1621,12 @@ interface ReactStoreState {
   deleteSelectedLaserDmxShowDirectorFixtures: () => void
   moveSelectedLaserDmxShowDirectorFixtures: (deltaX: number, deltaY: number) => void
   duplicateSelectedLaserDmxShowDirectorFixtures: () => string[]
+  groupSelectedLaserDmxShowDirectorFixtures: (label?: string) => string | null
+  ungroupSelectedLaserDmxShowDirectorFixtures: () => void
+  selectLaserDmxShowDirectorGroup: (groupId: string) => void
+  renameLaserDmxShowDirectorGroup: (groupId: string, label: string) => void
+  duplicateLaserDmxShowDirectorGroup: (groupId: string) => string[]
+  ungroupLaserDmxShowDirectorGroup: (groupId: string) => void
   clearLaserDmxShowDirectorFixtures: () => void
   resetLaserDmxShowDirectorLayout: () => void
   applyLaserDmxShowDirectorTemplate: (templateId: string) => boolean
@@ -5154,6 +5178,134 @@ export const useReactStore = create<ReactStoreState>()(
         }))
         return copyIds
       },
+
+      groupSelectedLaserDmxShowDirectorFixtures: (label) => {
+        const state = get().laserDmxShowDirector
+        const selectedFixtureIds = getLaserDmxShowDirectorSelectedFixtureIds(state)
+        if (selectedFixtureIds.length < 2) return null
+        const groupId = createLaserDmxShowDirectorId()
+        const groupLabel = sanitizeLaserDmxShowDirectorGroupLabel(label, createLaserDmxShowDirectorGroupLabel(state))
+        const group: LaserDmxShowDirectorGroup = {
+          schemaVersion: state.schemaVersion,
+          id: groupId,
+          label: groupLabel,
+        }
+        const selectedSet = new Set(selectedFixtureIds)
+        set(s => ({
+          laserDmxBeamMatrixPresetDirty: true,
+          laserDmxShowDirector: normalizeLaserDmxShowDirectorState({
+            ...s.laserDmxShowDirector,
+            groups: [...s.laserDmxShowDirector.groups, group],
+            fixtures: s.laserDmxShowDirector.fixtures.map((fixture, index) => selectedSet.has(fixture.id)
+              ? mergeLaserDmxShowDirectorFixturePatch(fixture, { groupId }, index)
+              : fixture),
+            selectedFixtureIds,
+            selectedFixtureId: selectedFixtureIds[0] ?? null,
+          }),
+        }))
+        return groupId
+      },
+
+      ungroupSelectedLaserDmxShowDirectorFixtures: () =>
+        set(s => {
+          const current = s.laserDmxShowDirector
+          const selectedFixtureIds = getLaserDmxShowDirectorSelectedFixtureIds(current)
+          if (selectedFixtureIds.length === 0) return {}
+          const selectedSet = new Set(selectedFixtureIds)
+          const hasGroupedSelection = current.fixtures.some(fixture => selectedSet.has(fixture.id) && fixture.groupId)
+          if (!hasGroupedSelection) return {}
+          return {
+            laserDmxBeamMatrixPresetDirty: true,
+            laserDmxShowDirector: normalizeLaserDmxShowDirectorState({
+              ...current,
+              fixtures: current.fixtures.map((fixture, index) => selectedSet.has(fixture.id)
+                ? mergeLaserDmxShowDirectorFixturePatch(fixture, { groupId: null }, index)
+                : fixture),
+            }),
+          }
+        }),
+
+      selectLaserDmxShowDirectorGroup: (groupId) =>
+        set(s => {
+          const fixtureIds = s.laserDmxShowDirector.fixtures
+            .filter(fixture => fixture.groupId === groupId)
+            .map(fixture => fixture.id)
+          if (fixtureIds.length === 0) return {}
+          return {
+            laserDmxShowDirector: normalizeLaserDmxShowDirectorSelectionState(
+              s.laserDmxShowDirector,
+              fixtureIds,
+              fixtureIds[0] ?? null,
+            ),
+          }
+        }),
+
+      renameLaserDmxShowDirectorGroup: (groupId, label) =>
+        set(s => {
+          const current = s.laserDmxShowDirector
+          const group = findLaserDmxShowDirectorGroup(current, groupId)
+          if (!group) return {}
+          const nextLabel = sanitizeLaserDmxShowDirectorGroupLabel(label, group.label)
+          if (nextLabel === group.label) return {}
+          return {
+            laserDmxBeamMatrixPresetDirty: true,
+            laserDmxShowDirector: normalizeLaserDmxShowDirectorState({
+              ...current,
+              groups: current.groups.map(candidate => candidate.id === groupId ? { ...candidate, label: nextLabel } : candidate),
+            }),
+          }
+        }),
+
+      duplicateLaserDmxShowDirectorGroup: (groupId) => {
+        const state = get().laserDmxShowDirector
+        const group = findLaserDmxShowDirectorGroup(state, groupId)
+        if (!group) return []
+        const sourceFixtures = state.fixtures.filter(fixture => fixture.groupId === groupId)
+        if (sourceFixtures.length === 0) return []
+        const offset = state.settings.snapEnabled ? 1 : 0.8
+        const newGroup: LaserDmxShowDirectorGroup = {
+          schemaVersion: state.schemaVersion,
+          id: createLaserDmxShowDirectorId(),
+          label: sanitizeLaserDmxShowDirectorGroupLabel(`${group.label} Copy`, `${group.label} Copy`),
+        }
+        const copies = sourceFixtures.map((source, index) => ({
+          ...createOffsetLaserDmxShowDirectorFixtureCopy(
+            source,
+            state,
+            createLaserDmxShowDirectorId(),
+            state.fixtures.length + index,
+            offset,
+          ),
+          groupId: newGroup.id,
+        }))
+        const copyIds = copies.map(copy => copy.id)
+        set(s => ({
+          laserDmxBeamMatrixPresetDirty: true,
+          laserDmxShowDirector: normalizeLaserDmxShowDirectorState({
+            ...s.laserDmxShowDirector,
+            groups: [...s.laserDmxShowDirector.groups, newGroup],
+            fixtures: [...s.laserDmxShowDirector.fixtures, ...copies],
+            selectedFixtureId: copyIds[0] ?? null,
+            selectedFixtureIds: copyIds,
+          }),
+        }))
+        return copyIds
+      },
+
+      ungroupLaserDmxShowDirectorGroup: (groupId) =>
+        set(s => {
+          const current = s.laserDmxShowDirector
+          if (!current.fixtures.some(fixture => fixture.groupId === groupId)) return {}
+          return {
+            laserDmxBeamMatrixPresetDirty: true,
+            laserDmxShowDirector: normalizeLaserDmxShowDirectorState({
+              ...current,
+              fixtures: current.fixtures.map((fixture, index) => fixture.groupId === groupId
+                ? mergeLaserDmxShowDirectorFixturePatch(fixture, { groupId: null }, index)
+                : fixture),
+            }),
+          }
+        }),
 
       clearLaserDmxShowDirectorFixtures: () =>
         set(s => ({

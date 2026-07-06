@@ -364,7 +364,7 @@ export interface LaserDmxBeamMatrixPresetSummary {
 // This is the safe authoring model for the future drag/drop 2D stage builder.
 // It compiles into Beam Matrix through LaserDmxShowDirectorBeamMatrixCompiler when selected as the preview source.
 
-export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 5
+export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 6
 
 export type LaserDmxShowDirectorFixtureKind =
   | 'laser'
@@ -497,6 +497,12 @@ export interface LaserDmxShowDirectorFixtureSpecificConfig {
   videoWallSource:     LaserDmxShowDirectorVideoWallSource
 }
 
+export interface LaserDmxShowDirectorGroup {
+  schemaVersion?: number
+  id:    string
+  label: string
+}
+
 export interface LaserDmxShowDirectorFixture {
   schemaVersion?: number
   id:        string
@@ -524,6 +530,7 @@ export type LaserDmxShowDirectorFixturePatch = Partial<Omit<LaserDmxShowDirector
 
 export interface LaserDmxShowDirectorState {
   schemaVersion?: number
+  groups:             LaserDmxShowDirectorGroup[]
   fixtures:           LaserDmxShowDirectorFixture[]
   selectedFixtureId:  string | null
   /** Multi-selection IDs. selectedFixtureId remains the primary selection for legacy/single-fixture inspector flows. */
@@ -603,6 +610,18 @@ function showDirectorStringArray(value: unknown): string[] {
 function showDirectorTargetId(value: unknown, fallback: string): string {
   const candidate = typeof value === 'string' ? value.trim() : ''
   return candidate.length > 0 ? candidate : fallback
+}
+
+function showDirectorSafeIdSegment(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'group'
+}
+
+function createShowDirectorGroupIdFromLabel(label: string, index: number): string {
+  return `show-director-group-${showDirectorSafeIdSegment(label)}-${index + 1}`
+}
+
+function showDirectorGroupLabel(value: unknown, fallback: string): string {
+  return showDirectorString(value, fallback).slice(0, 48)
 }
 
 function showDirectorMs(value: unknown, fallback: number, max = 10000): number {
@@ -810,6 +829,7 @@ export function createDefaultLaserDmxShowDirectorFixture(
 export function createDefaultLaserDmxShowDirectorState(): LaserDmxShowDirectorState {
   return {
     schemaVersion: LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION,
+    groups: [],
     fixtures: [],
     selectedFixtureId: null,
     selectedFixtureIds: [],
@@ -834,6 +854,17 @@ export function normalizeLaserDmxShowDirectorSettings(raw: unknown): LaserDmxSho
     showBeams:   showDirectorBoolean(value.showBeams,   fallback.showBeams),
     showGrid:    showDirectorBoolean(value.showGrid,    fallback.showGrid),
     zoom:        Math.max(0.25, Math.min(4, showDirectorFinite(value.zoom, fallback.zoom))),
+  }
+}
+
+export function normalizeLaserDmxShowDirectorGroup(raw: unknown, index = 0): LaserDmxShowDirectorGroup {
+  const value = showDirectorRecord(raw) ? raw : {}
+  const fallbackLabel = `Group ${index + 1}`
+  const label = showDirectorGroupLabel(value.label ?? value.name, fallbackLabel)
+  return {
+    schemaVersion: LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION,
+    id: showDirectorTargetId(value.id, createShowDirectorGroupIdFromLabel(label, index)),
+    label,
   }
 }
 
@@ -990,11 +1021,54 @@ function clampLaserDmxShowDirectorFixtureToSettings(
 export function normalizeLaserDmxShowDirectorState(raw: unknown): LaserDmxShowDirectorState {
   if (!showDirectorRecord(raw)) return createDefaultLaserDmxShowDirectorState()
   const settings = normalizeLaserDmxShowDirectorSettings(raw.settings)
-  const fixtures = Array.isArray(raw.fixtures)
+  const rawFixtures = Array.isArray(raw.fixtures)
     ? raw.fixtures
       .map((fixture, index) => normalizeLaserDmxShowDirectorFixture(fixture, index))
       .map(fixture => clampLaserDmxShowDirectorFixtureToSettings(fixture, settings))
     : []
+
+  const groupsById = new Map<string, LaserDmxShowDirectorGroup>()
+  const labelLookup = new Map<string, string>()
+
+  const reserveGroup = (group: LaserDmxShowDirectorGroup): string => {
+    let id = group.id
+    let suffix = 2
+    while (groupsById.has(id)) {
+      id = `${group.id}-${suffix}`
+      suffix += 1
+    }
+    const normalizedGroup = { ...group, id }
+    groupsById.set(id, normalizedGroup)
+    labelLookup.set(normalizedGroup.label.trim().toLowerCase(), id)
+    return id
+  }
+
+  if (Array.isArray(raw.groups)) {
+    raw.groups
+      .map((group, index) => normalizeLaserDmxShowDirectorGroup(group, index))
+      .forEach(reserveGroup)
+  }
+
+  const resolveGroupId = (groupId: string | null): string | null => {
+    const trimmed = typeof groupId === 'string' ? groupId.trim() : ''
+    if (!trimmed) return null
+    if (groupsById.has(trimmed)) return trimmed
+    const existingByLabel = labelLookup.get(trimmed.toLowerCase())
+    if (existingByLabel) return existingByLabel
+    return reserveGroup({
+      schemaVersion: LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION,
+      id: createShowDirectorGroupIdFromLabel(trimmed, groupsById.size),
+      label: showDirectorGroupLabel(trimmed, `Group ${groupsById.size + 1}`),
+    })
+  }
+
+  const fixtures = rawFixtures.map(fixture => ({
+    ...fixture,
+    groupId: resolveGroupId(fixture.groupId),
+  }))
+  const referencedGroupIds = new Set(fixtures.flatMap(fixture => fixture.groupId ? [fixture.groupId] : []))
+  const groups = Array.from(groupsById.values()).filter(group => referencedGroupIds.has(group.id))
+
   const ids = new Set(fixtures.map(fixture => fixture.id))
   const rawSelectedFixtureIds = showDirectorStringArray(raw.selectedFixtureIds)
   const selectedFixtureIds = Array.from(new Set(rawSelectedFixtureIds.filter(id => ids.has(id))))
@@ -1007,6 +1081,7 @@ export function normalizeLaserDmxShowDirectorState(raw: unknown): LaserDmxShowDi
     : selectedFixtureIds
   return {
     schemaVersion: LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION,
+    groups,
     fixtures,
     selectedFixtureId,
     selectedFixtureIds: normalizedSelectedFixtureIds,
