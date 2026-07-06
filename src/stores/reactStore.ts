@@ -35,6 +35,7 @@ import {
   LASER_DMX_MATRIX_COLUMNS,
   LASER_DMX_MATRIX_ROWS,
   LASER_DMX_MATRIX_MAX_BEAMS,
+  LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS,
 } from '../components/vyzualz/react/ReactTypes'
 import type {
   ReactEngineId,
@@ -831,6 +832,26 @@ function createLaserDmxShowDirectorDefaultEndpoint(
   }
 }
 
+function clampLaserDmxShowDirectorBeamTargets(
+  fixture: LaserDmxShowDirectorFixture,
+  maxX: number,
+  maxY: number,
+): NonNullable<LaserDmxShowDirectorFixture['beam']['targets']> {
+  const fallbackX = fixture.beam.targetX == null ? fixture.x : fixture.beam.targetX
+  const fallbackY = fixture.beam.targetY == null ? fixture.y : fixture.beam.targetY
+  const sourceTargets = Array.isArray(fixture.beam.targets) && fixture.beam.targets.length > 0
+    ? fixture.beam.targets
+    : [{ id: `${fixture.id}-target-1`, x: fallbackX, y: fallbackY }]
+
+  return sourceTargets
+    .slice(0, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS)
+    .map((target, index) => ({
+      id: typeof target.id === 'string' && target.id.trim().length > 0 ? target.id : `${fixture.id}-target-${index + 1}`,
+      x:  clampShowDirectorGrid(target.x, maxX),
+      y:  clampShowDirectorGrid(target.y, maxY),
+    }))
+}
+
 function clampLaserDmxShowDirectorFixtureToSettings(
   fixture: LaserDmxShowDirectorFixture,
   settings: LaserDmxShowDirectorState['settings'],
@@ -838,14 +859,17 @@ function clampLaserDmxShowDirectorFixtureToSettings(
 ): LaserDmxShowDirectorFixture {
   const maxX = Math.max(0, Math.round(settings.gridSize.columns) - 1)
   const maxY = Math.max(0, Math.round(settings.gridSize.rows) - 1)
+  const targets = clampLaserDmxShowDirectorBeamTargets(fixture, maxX, maxY)
+  const primaryTarget = targets[0]
   return normalizeLaserDmxShowDirectorFixture({
     ...fixture,
     x: clampShowDirectorGrid(fixture.x, maxX),
     y: clampShowDirectorGrid(fixture.y, maxY),
     beam: {
       ...fixture.beam,
-      targetX: fixture.beam.targetX == null ? fixture.beam.targetX : clampShowDirectorGrid(fixture.beam.targetX, maxX),
-      targetY: fixture.beam.targetY == null ? fixture.beam.targetY : clampShowDirectorGrid(fixture.beam.targetY, maxY),
+      targetX: primaryTarget?.x ?? (fixture.beam.targetX == null ? fixture.beam.targetX : clampShowDirectorGrid(fixture.beam.targetX, maxX)),
+      targetY: primaryTarget?.y ?? (fixture.beam.targetY == null ? fixture.beam.targetY : clampShowDirectorGrid(fixture.beam.targetY, maxY)),
+      targets,
     },
   }, index)
 }
@@ -888,8 +912,14 @@ function mirrorLaserDmxShowDirectorFixtureAcrossGrid(
   const maxY = Math.max(0, Math.round(state.settings.gridSize.rows) - 1)
   const mirroredX = maxX - clampShowDirectorGrid(fixture.x, maxX)
   const mirroredY = maxY - clampShowDirectorGrid(fixture.y, maxY)
-  const mirroredTargetX = fixture.beam.targetX == null ? fixture.beam.targetX : maxX - clampShowDirectorGrid(fixture.beam.targetX, maxX)
-  const mirroredTargetY = fixture.beam.targetY == null ? fixture.beam.targetY : maxY - clampShowDirectorGrid(fixture.beam.targetY, maxY)
+  const mirroredTargets = (fixture.beam.targets ?? []).slice(0, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS).map(target => ({
+    ...target,
+    x: axis === 'horizontal' ? maxX - clampShowDirectorGrid(target.x, maxX) : clampShowDirectorGrid(target.x, maxX),
+    y: axis === 'vertical' ? maxY - clampShowDirectorGrid(target.y, maxY) : clampShowDirectorGrid(target.y, maxY),
+  }))
+  const mirroredPrimaryTarget = mirroredTargets[0]
+  const mirroredTargetX = mirroredPrimaryTarget?.x ?? (fixture.beam.targetX == null ? fixture.beam.targetX : maxX - clampShowDirectorGrid(fixture.beam.targetX, maxX))
+  const mirroredTargetY = mirroredPrimaryTarget?.y ?? (fixture.beam.targetY == null ? fixture.beam.targetY : maxY - clampShowDirectorGrid(fixture.beam.targetY, maxY))
   const rotation = Number.isFinite(fixture.rotation) ? fixture.rotation : 0
   const beamAngle = Number.isFinite(fixture.beam.beamAngle) ? fixture.beam.beamAngle : 0
   const mirroredRotation = axis === 'horizontal'
@@ -909,8 +939,9 @@ function mirrorLaserDmxShowDirectorFixtureAcrossGrid(
     beam: {
       ...fixture.beam,
       beamAngle: mirroredBeamAngle,
-      targetX: axis === 'horizontal' ? mirroredTargetX : fixture.beam.targetX,
-      targetY: axis === 'vertical' ? mirroredTargetY : fixture.beam.targetY,
+      targetX: mirroredPrimaryTarget ? mirroredPrimaryTarget.x : (axis === 'horizontal' ? mirroredTargetX : fixture.beam.targetX),
+      targetY: mirroredPrimaryTarget ? mirroredPrimaryTarget.y : (axis === 'vertical' ? mirroredTargetY : fixture.beam.targetY),
+      targets: mirroredTargets,
     },
   }, index)
 }
@@ -4822,12 +4853,24 @@ export const useReactStore = create<ReactStoreState>()(
         const maxX = Math.max(0, Math.round(state.settings.gridSize.columns) - 1)
         const maxY = Math.max(0, Math.round(state.settings.gridSize.rows) - 1)
         const offset = state.settings.snapEnabled ? 1 : 0.8
+        const offsetTargets = (source.beam.targets ?? []).slice(0, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS).map((target, index) => ({
+          ...target,
+          id: `${id}-target-${index + 1}`,
+          x: Math.max(0, Math.min(maxX, target.x + offset)),
+          y: Math.max(0, Math.min(maxY, target.y + offset)),
+        }))
         const copy = normalizeLaserDmxShowDirectorFixture({
           ...source,
           id,
           label: `${source.label} Copy`,
           x: Math.max(0, Math.min(maxX, source.x + offset)),
           y: Math.max(0, Math.min(maxY, source.y + offset)),
+          beam: {
+            ...source.beam,
+            targetX: offsetTargets[0]?.x ?? (source.beam.targetX == null ? source.beam.targetX : Math.max(0, Math.min(maxX, source.beam.targetX + offset))),
+            targetY: offsetTargets[0]?.y ?? (source.beam.targetY == null ? source.beam.targetY : Math.max(0, Math.min(maxY, source.beam.targetY + offset))),
+            targets: offsetTargets,
+          },
         }, state.fixtures.length)
         set(s => ({
           laserDmxBeamMatrixPresetDirty: true,
@@ -4849,12 +4892,24 @@ export const useReactStore = create<ReactStoreState>()(
           const offset = current.settings.snapEnabled ? 1 : 0.8
           const copies = current.fixtures.map((source, index) => {
             const id = createLaserDmxShowDirectorId()
+            const offsetTargets = (source.beam.targets ?? []).slice(0, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS).map((target, targetIndex) => ({
+              ...target,
+              id: `${id}-target-${targetIndex + 1}`,
+              x: Math.max(0, Math.min(maxX, target.x + offset)),
+              y: Math.max(0, Math.min(maxY, target.y + offset)),
+            }))
             return normalizeLaserDmxShowDirectorFixture({
               ...source,
               id,
               label: `${source.label} Copy`,
               x: Math.max(0, Math.min(maxX, source.x + offset)),
               y: Math.max(0, Math.min(maxY, source.y + offset)),
+              beam: {
+                ...source.beam,
+                targetX: offsetTargets[0]?.x ?? (source.beam.targetX == null ? source.beam.targetX : Math.max(0, Math.min(maxX, source.beam.targetX + offset))),
+                targetY: offsetTargets[0]?.y ?? (source.beam.targetY == null ? source.beam.targetY : Math.max(0, Math.min(maxY, source.beam.targetY + offset))),
+                targets: offsetTargets,
+              },
             }, current.fixtures.length + index)
           })
           return {

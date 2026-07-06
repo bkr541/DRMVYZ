@@ -5,6 +5,7 @@ import {
   LASER_DMX_MATRIX_COLUMNS,
   LASER_DMX_MATRIX_MAX_BEAMS,
   LASER_DMX_MATRIX_ROWS,
+  LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS,
 } from '../ReactTypes'
 import type {
   LaserDmxBeamMatrixCue,
@@ -18,6 +19,7 @@ import type {
   LaserDmxModulationRoute,
   LaserDmxReactionGroup,
   LaserDmxShowDirectorAudioBand,
+  LaserDmxShowDirectorBeamTarget,
   LaserDmxShowDirectorBeatDivision,
   LaserDmxShowDirectorFixture,
   LaserDmxShowDirectorFixtureKind,
@@ -215,6 +217,47 @@ function gridTargetFromFixtureTarget(
   const defaultEndpoint = defaultGridEndpointForFixture(fixture, gridColumns, gridRows)
   const targetX = clamp(finite(fixture.beam.targetX, defaultEndpoint.x), 0, maxX) / maxX
   const targetY = clamp(finite(fixture.beam.targetY, defaultEndpoint.y), 0, maxY) / maxY
+  return {
+    kind: 'grid',
+    column: clamp(Math.round(targetX * (LASER_DMX_MATRIX_COLUMNS - 1)) + 1, 1, LASER_DMX_MATRIX_COLUMNS),
+    row:    clamp(Math.round(targetY * (LASER_DMX_MATRIX_ROWS - 1)) + 1, 1, LASER_DMX_MATRIX_ROWS),
+    z:      clamp(finite(fixture.beam.targetZ, 0), -1, 1),
+  }
+}
+
+function editableTargetsForFixture(
+  fixture: LaserDmxShowDirectorFixture,
+  gridColumns: number,
+  gridRows: number,
+): LaserDmxShowDirectorBeamTarget[] {
+  const defaultEndpoint = defaultGridEndpointForFixture(fixture, gridColumns, gridRows)
+  const primary = {
+    x: clamp(finite(fixture.beam.targetX, defaultEndpoint.x), 0, Math.max(1, gridColumns - 1)),
+    y: clamp(finite(fixture.beam.targetY, defaultEndpoint.y), 0, Math.max(1, gridRows - 1)),
+  }
+  const rawTargets = Array.isArray(fixture.beam.targets) ? fixture.beam.targets : []
+  const targets = rawTargets
+    .filter((target): target is LaserDmxShowDirectorBeamTarget => target != null && typeof target === 'object')
+    .slice(0, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS)
+    .map((target, index) => ({
+      id: typeof target.id === 'string' && target.id.trim().length > 0 ? target.id : `${fixture.id}-target-${index + 1}`,
+      x:  clamp(finite(target.x, primary.x), 0, Math.max(1, gridColumns - 1)),
+      y:  clamp(finite(target.y, primary.y), 0, Math.max(1, gridRows - 1)),
+    }))
+  if (targets.length === 0) return [{ id: `${fixture.id}-target-1`, ...primary }]
+  return [{ ...targets[0], ...primary }, ...targets.slice(1)]
+}
+
+function gridTargetFromEditableTarget(
+  fixture: LaserDmxShowDirectorFixture,
+  target: LaserDmxShowDirectorBeamTarget,
+  gridColumns: number,
+  gridRows: number,
+): LaserDmxMatrixTarget {
+  const maxX = Math.max(1, gridColumns - 1)
+  const maxY = Math.max(1, gridRows - 1)
+  const targetX = clamp(finite(target.x, 0), 0, maxX) / maxX
+  const targetY = clamp(finite(target.y, 0), 0, maxY) / maxY
   return {
     kind: 'grid',
     column: clamp(Math.round(targetX * (LASER_DMX_MATRIX_COLUMNS - 1)) + 1, 1, LASER_DMX_MATRIX_COLUMNS),
@@ -781,22 +824,28 @@ function compileBeamFixture(
   const geometry = options.cone ? 'volumetricCone' : 'line'
   const isMovingHead = fixture.kind === 'movingHead'
   const movingHeadPanTiltStyle = isMovingHead ? fixture.component.movingHeadPanTiltStyle : null
-  const count = fixture.beam.targetMode === 'fan'
-    ? clamp(Math.round(spread / 9), 3, 9)
-    : fixture.beam.targetMode === 'cross'
-      ? 2
-      : fixture.beam.targetMode === 'mirror'
+  const editableTargets = editableTargetsForFixture(fixture, ctx.gridColumns, ctx.gridRows)
+  const useEditableTargets = fixture.beam.targetMode === 'fixed' || editableTargets.length > 1
+  const count = useEditableTargets
+    ? Math.min(editableTargets.length, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS)
+    : fixture.beam.targetMode === 'fan'
+      ? clamp(Math.round(spread / 9), 3, 9)
+      : fixture.beam.targetMode === 'cross'
         ? 2
-        : 1
+        : fixture.beam.targetMode === 'mirror'
+          ? 2
+          : 1
 
   for (let i = 0; i < count && ctx.outputBeamCount < LASER_DMX_MATRIX_MAX_BEAMS; i++) {
     const t = count === 1 ? 0.5 : i / (count - 1)
     const fanOffset = count === 1 ? 0 : (t - 0.5) * spread
     const mirrorSign = fixture.beam.targetMode === 'mirror' && i === 1 ? -1 : 1
     const crossOffset = fixture.beam.targetMode === 'cross' ? (i === 0 ? -spread * 0.5 : spread * 0.5) : fanOffset
-    const target = fixture.beam.targetMode === 'fixed'
-      ? gridTargetFromFixtureTarget(fixture, ctx.gridColumns, ctx.gridRows)
-      : stageTargetFromAngle(point, angle + crossOffset * mirrorSign, options.length ?? 0.62)
+    const target = useEditableTargets
+      ? gridTargetFromEditableTarget(fixture, editableTargets[i] ?? editableTargets[0], ctx.gridColumns, ctx.gridRows)
+      : fixture.beam.targetMode === 'fixed'
+        ? gridTargetFromFixtureTarget(fixture, ctx.gridColumns, ctx.gridRows)
+        : stageTargetFromAngle(point, angle + crossOffset * mirrorSign, options.length ?? 0.62)
     const motionMode: LaserDmxMatrixBeam['motion']['mode'] = fixture.beam.targetMode === 'sweep'
       ? 'scanner'
       : movingHeadPanTiltStyle === 'snap'
@@ -808,7 +857,7 @@ function compileBeamFixture(
             : 'static'
     ctx.matrixBeams.push(makeBeam(
       fixture,
-      `${fixture.kind}-${i + 1}`,
+      useEditableTargets ? `${fixture.kind}-target-${i + 1}` : `${fixture.kind}-${i + 1}`,
       ctx.outputBeamCount,
       origin,
       target,

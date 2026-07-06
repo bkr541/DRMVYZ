@@ -3,7 +3,9 @@ import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import {
   LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS,
+  LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS,
   type LaserDmxShowDirectorAudioBand,
+  type LaserDmxShowDirectorBeamTarget,
   type LaserDmxShowDirectorBeatDivision,
   type LaserDmxShowDirectorBeamTargetMode,
   type LaserDmxShowDirectorColorMode,
@@ -151,6 +153,39 @@ function defaultEndpointForFixture(fixture: LaserDmxShowDirectorFixture, maxX: n
   }
 }
 
+function snapEndpointPoint(point: { x: number; y: number }, maxX: number, maxY: number, snapEnabled: boolean): { x: number; y: number } {
+  const x = snapEnabled ? Math.round(point.x) : Math.round(point.x * 10) / 10
+  const y = snapEnabled ? Math.round(point.y) : Math.round(point.y * 10) / 10
+  return {
+    x: clamp(x, 0, maxX),
+    y: clamp(y, 0, maxY),
+  }
+}
+
+function beamTargetsForFixture(
+  fixture: LaserDmxShowDirectorFixture,
+  maxX: number,
+  maxY: number,
+  snapEnabled: boolean,
+): LaserDmxShowDirectorBeamTarget[] {
+  const fallback = defaultEndpointForFixture(fixture, maxX, maxY, snapEnabled)
+  const primary = snapEndpointPoint({
+    x: finite(fixture.beam?.targetX, fallback.x),
+    y: finite(fixture.beam?.targetY, fallback.y),
+  }, maxX, maxY, snapEnabled)
+  const rawTargets = Array.isArray(fixture.beam?.targets) ? fixture.beam.targets : []
+  const targets = rawTargets
+    .filter((target): target is LaserDmxShowDirectorBeamTarget => target != null && typeof target === 'object')
+    .slice(0, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS)
+    .map((target, index) => ({
+      id: typeof target.id === 'string' && target.id.trim().length > 0 ? target.id : `${fixture.id}-target-${index + 1}`,
+      ...snapEndpointPoint({ x: finite(target.x, primary.x), y: finite(target.y, primary.y) }, maxX, maxY, snapEnabled),
+    }))
+
+  if (targets.length === 0) return [{ id: `${fixture.id}-target-1`, ...primary }]
+  return [{ ...targets[0], ...primary }, ...targets.slice(1)]
+}
+
 function colorInputValue(color: string): string {
   return /^#[0-9a-f]{6}$/i.test(color) ? color : '#4ac7db'
 }
@@ -243,12 +278,30 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
   const typeLabel = LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS[fixture.kind]
   const supportsBeam = isBeamFixture(fixture)
   const triggerNotes = triggerRequirementNotes(fixture)
-  const defaultEndpoint = defaultEndpointForFixture(fixture, gridBounds.maxX, gridBounds.maxY, settings.snapEnabled)
-  const defaultTargetX = defaultEndpoint.x
-  const defaultTargetY = defaultEndpoint.y
+  const beamTargets = beamTargetsForFixture(fixture, gridBounds.maxX, gridBounds.maxY, settings.snapEnabled)
+  const primaryBeamTarget = beamTargets[0] ?? defaultEndpointForFixture(fixture, gridBounds.maxX, gridBounds.maxY, settings.snapEnabled)
+  const defaultTargetX = primaryBeamTarget.x
+  const defaultTargetY = primaryBeamTarget.y
   const fixtureIndex = fixtures.findIndex(item => item.id === fixture.id)
   const defaultFixtureLabel = `${typeLabel} ${Math.max(1, fixtureIndex + 1)}`
   const update = (patch: Parameters<typeof updateFixture>[1]) => updateFixture(fixture.id, patch)
+  const updatePrimaryBeamTarget = (point: Partial<Pick<LaserDmxShowDirectorBeamTarget, 'x' | 'y'>>) => {
+    const nextPrimary = snapEndpointPoint({
+      x: point.x ?? primaryBeamTarget.x,
+      y: point.y ?? primaryBeamTarget.y,
+    }, gridBounds.maxX, gridBounds.maxY, settings.snapEnabled)
+    const nextTargets = [
+      { ...primaryBeamTarget, ...nextPrimary },
+      ...beamTargets.slice(1),
+    ].slice(0, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS)
+    update({
+      beam: {
+        targetX: nextPrimary.x,
+        targetY: nextPrimary.y,
+        targets: nextTargets,
+      },
+    })
+  }
   const commitLabelDraft = () => {
     const trimmed = draftLabel.trim()
     const nextLabel = trimmed.length > 0 ? trimmed : defaultFixtureLabel
@@ -319,9 +372,14 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
             <SliderRow label="Focus" value={fixture.beam.focus} min={0} max={1} step={0.01} onChange={focus => update({ beam: { focus: clamp(focus, 0, 1) } })} />
             <SelectRow label="Target mode" value={fixture.beam.targetMode} options={BEAM_TARGET_OPTIONS} onChange={targetMode => update({ beam: { targetMode: targetMode as LaserDmxShowDirectorBeamTargetMode } })} />
             <div className="rv-show-director-field-grid">
-              <NumberInputRow label="Target X" value={fixture.beam.targetX ?? defaultTargetX} min={0} max={gridBounds.maxX} step={settings.snapEnabled ? 1 : 0.1} onChange={targetX => update({ beam: { targetX: clamp(targetX, 0, gridBounds.maxX) } })} />
-              <NumberInputRow label="Target Y" value={fixture.beam.targetY ?? defaultTargetY} min={0} max={gridBounds.maxY} step={settings.snapEnabled ? 1 : 0.1} onChange={targetY => update({ beam: { targetY: clamp(targetY, 0, gridBounds.maxY) } })} />
+              <NumberInputRow label="Target X" value={defaultTargetX} min={0} max={gridBounds.maxX} step={settings.snapEnabled ? 1 : 0.1} onChange={targetX => updatePrimaryBeamTarget({ x: clamp(targetX, 0, gridBounds.maxX) })} />
+              <NumberInputRow label="Target Y" value={defaultTargetY} min={0} max={gridBounds.maxY} step={settings.snapEnabled ? 1 : 0.1} onChange={targetY => updatePrimaryBeamTarget({ y: clamp(targetY, 0, gridBounds.maxY) })} />
             </div>
+            {beamTargets.length > 1 && (
+              <p className="rv-show-director-trigger-hint">
+                {beamTargets.length} beam endpoints are active. Target X/Y edits the primary ray; drag the endpoint dots on the canvas to shape the rest.
+              </p>
+            )}
           </>
         )}
 

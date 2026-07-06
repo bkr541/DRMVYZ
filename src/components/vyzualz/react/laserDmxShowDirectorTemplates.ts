@@ -1,6 +1,7 @@
 import {
   createDefaultLaserDmxShowDirectorFixture,
   DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS,
+  LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION,
   isLaserDmxShowDirectorFixtureKind,
   normalizeLaserDmxShowDirectorFixture,
   normalizeLaserDmxShowDirectorSettings,
@@ -224,7 +225,7 @@ export function createLaserDmxShowDirectorStateFromTemplate(
     : []
 
   return normalizeLaserDmxShowDirectorState({
-    schemaVersion: 3,
+    schemaVersion: LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION,
     fixtures,
     selectedFixtureId: fixtures[0]?.id ?? null,
     settings,

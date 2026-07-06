@@ -8803,6 +8803,31 @@
   opacity: 1;
 }
 
+.rv-show-director-beam-overlay__path--secondary {
+  --show-director-beam-color: #4ac7db;
+  opacity: 0.72;
+}
+
+.rv-show-director-beam-overlay__path--secondary .rv-show-director-beam-overlay__glow {
+  stroke: rgba(74, 199, 219, 0.46);
+  stroke-width: 4.4;
+  opacity: 0.26;
+  filter: drop-shadow(0 0 8px rgba(74, 199, 219, 0.38));
+}
+
+.rv-show-director-beam-overlay__path--secondary .rv-show-director-beam-overlay__core {
+  stroke: rgba(103, 247, 255, 0.82);
+  stroke-width: 1.15;
+  opacity: 0.78;
+  filter: drop-shadow(0 0 5px rgba(74, 199, 219, 0.42));
+}
+
+.rv-show-director-beam-overlay__path--secondary .rv-show-director-beam-overlay__endpoint {
+  stroke: rgba(103, 247, 255, 0.92);
+  fill: rgba(74, 199, 219, 0.34);
+  filter: drop-shadow(0 0 7px rgba(74, 199, 219, 0.58));
+}
+
 .rv-show-director-beam-overlay__path--selected .rv-show-director-beam-overlay__glow {
   stroke: rgba(255, 255, 255, 0.62);
   stroke-width: 6.6;
@@ -8824,7 +8849,8 @@
   filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.72));
 }
 
-.rv-show-director-beam-overlay__path--selected .rv-show-director-beam-overlay__endpoint {
+.rv-show-director-beam-overlay__path--selected .rv-show-director-beam-overlay__endpoint,
+.rv-show-director-beam-overlay__path--secondary .rv-show-director-beam-overlay__endpoint {
   cursor: grab;
   pointer-events: all;
 }
@@ -8832,6 +8858,10 @@
 .rv-show-director-beam-overlay__path--dragging .rv-show-director-beam-overlay__endpoint,
 .rv-show-director-canvas--endpoint-dragging .rv-show-director-beam-overlay__endpoint {
   cursor: grabbing;
+}
+
+.rv-show-director-beam-overlay__endpoint--primary {
+  stroke-width: 1.6;
 }
 
 .rv-show-director-canvas--targeting .rv-show-director-canvas__stage {

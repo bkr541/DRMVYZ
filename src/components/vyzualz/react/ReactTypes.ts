@@ -364,7 +364,7 @@ export interface LaserDmxBeamMatrixPresetSummary {
 // This is the safe authoring model for the future drag/drop 2D stage builder.
 // It compiles into Beam Matrix through LaserDmxShowDirectorBeamMatrixCompiler when selected as the preview source.
 
-export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 3
+export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 4
 
 export type LaserDmxShowDirectorFixtureKind =
   | 'laser'
@@ -428,6 +428,14 @@ export type LaserDmxShowDirectorLedDirection = 'leftToRight' | 'rightToLeft' | '
 export type LaserDmxShowDirectorMovingHeadPanTiltStyle = 'locked' | 'smoothSweep' | 'snap' | 'figureEight' | 'audioReactive'
 export type LaserDmxShowDirectorVideoWallSource = 'placeholder' | 'reactVisual' | 'media' | 'camera'
 
+export const LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS = 8
+
+export interface LaserDmxShowDirectorBeamTarget {
+  id: string
+  x:  number
+  y:  number
+}
+
 export interface LaserDmxShowDirectorGridSize {
   columns: number
   rows:    number
@@ -458,6 +466,8 @@ export interface LaserDmxShowDirectorBeamConfig {
   targetX?:    number
   targetY?:    number
   targetZ?:    number
+  /** Optional editable endpoint handles. targetX/targetY mirror the primary target for legacy project compatibility. */
+  targets?:    LaserDmxShowDirectorBeamTarget[]
 }
 
 export interface LaserDmxShowDirectorTriggerConfig {
@@ -588,6 +598,11 @@ function showDirectorStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
 }
 
+function showDirectorTargetId(value: unknown, fallback: string): string {
+  const candidate = typeof value === 'string' ? value.trim() : ''
+  return candidate.length > 0 ? candidate : fallback
+}
+
 function showDirectorMs(value: unknown, fallback: number, max = 10000): number {
   return Math.max(0, Math.min(max, Math.round(showDirectorFinite(value, fallback))))
 }
@@ -697,6 +712,11 @@ function createDefaultLaserDmxShowDirectorBeamConfig(kind: LaserDmxShowDirectorF
     targetX:     Math.floor(DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.gridSize.columns / 2),
     targetY:     Math.floor(DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.gridSize.rows / 2),
     targetZ:     0,
+    targets:    [{
+      id: 'target-1',
+      x:  Math.floor(DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.gridSize.columns / 2),
+      y:  Math.floor(DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.gridSize.rows / 2),
+    }],
   }
 }
 
@@ -709,7 +729,7 @@ function createDefaultLaserDmxShowDirectorBeamEndpoint(
   x: number,
   y: number,
   rotation = 0,
-): Pick<LaserDmxShowDirectorBeamConfig, 'targetX' | 'targetY'> {
+): { targetX: number; targetY: number } {
   const fallbackBeam = createDefaultLaserDmxShowDirectorBeamConfig(kind)
   const columns = DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.gridSize.columns
   const rows = DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.gridSize.rows
@@ -814,6 +834,36 @@ export function normalizeLaserDmxShowDirectorSettings(raw: unknown): LaserDmxSho
   }
 }
 
+function normalizeLaserDmxShowDirectorBeamTargets(
+  raw: unknown,
+  primary: { x: number; y: number },
+  fixtureId: string,
+): LaserDmxShowDirectorBeamTarget[] {
+  const primaryTarget: LaserDmxShowDirectorBeamTarget = {
+    id: `${fixtureId}-target-1`,
+    x:  showDirectorFinite(primary.x, 0),
+    y:  showDirectorFinite(primary.y, 0),
+  }
+
+  if (!Array.isArray(raw)) return [primaryTarget]
+
+  const targets = raw
+    .filter(showDirectorRecord)
+    .slice(0, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS)
+    .map((target, index): LaserDmxShowDirectorBeamTarget => ({
+      id: showDirectorTargetId(target.id, `${fixtureId}-target-${index + 1}`),
+      x:  showDirectorFinite(target.x, index === 0 ? primaryTarget.x : primaryTarget.x),
+      y:  showDirectorFinite(target.y, index === 0 ? primaryTarget.y : primaryTarget.y),
+    }))
+
+  if (targets.length === 0) return [primaryTarget]
+
+  return [
+    { ...targets[0], x: primaryTarget.x, y: primaryTarget.y },
+    ...targets.slice(1),
+  ]
+}
+
 function normalizeLaserDmxShowDirectorBeamConfig(raw: unknown, kind: LaserDmxShowDirectorFixtureKind): LaserDmxShowDirectorBeamConfig {
   const fallback = createDefaultLaserDmxShowDirectorBeamConfig(kind)
   const value = showDirectorRecord(raw) ? raw : {}
@@ -870,15 +920,21 @@ export function normalizeLaserDmxShowDirectorFixture(raw: unknown, index = 0): L
   const value = showDirectorRecord(raw) ? raw : {}
   const kind = isLaserDmxShowDirectorFixtureKind(value.kind) ? value.kind : 'laser'
   const fallback = createDefaultLaserDmxShowDirectorFixture(kind, `show-director-recovered-${index + 1}`, index)
+  const id = showDirectorString(value.id, fallback.id)
   const x = showDirectorFinite(value.x, fallback.x)
   const y = showDirectorFinite(value.y, fallback.y)
   const rotation = Math.max(-360, Math.min(360, showDirectorFinite(value.rotation, fallback.rotation)))
   const beamValue = showDirectorRecord(value.beam) ? value.beam : {}
   const normalizedBeam = normalizeLaserDmxShowDirectorBeamConfig(value.beam, kind)
   const defaultEndpoint = createDefaultLaserDmxShowDirectorBeamEndpoint(kind, x, y, rotation)
+  const primaryEndpoint = {
+    x: beamValue.targetX == null ? defaultEndpoint.targetX : showDirectorFinite(normalizedBeam.targetX, defaultEndpoint.targetX),
+    y: beamValue.targetY == null ? defaultEndpoint.targetY : showDirectorFinite(normalizedBeam.targetY, defaultEndpoint.targetY),
+  }
+  const targets = normalizeLaserDmxShowDirectorBeamTargets(beamValue.targets, primaryEndpoint, id)
   return {
     schemaVersion: LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION,
-    id:         showDirectorString(value.id, fallback.id),
+    id,
     kind,
     label:      showDirectorString(value.label, fallback.label),
     enabled:    showDirectorBoolean(value.enabled, fallback.enabled),
@@ -892,8 +948,9 @@ export function normalizeLaserDmxShowDirectorFixture(raw: unknown, index = 0): L
     brightness: showDirectorUnit(value.brightness, fallback.brightness),
     beam:       {
       ...normalizedBeam,
-      targetX: beamValue.targetX == null ? defaultEndpoint.targetX : normalizedBeam.targetX,
-      targetY: beamValue.targetY == null ? defaultEndpoint.targetY : normalizedBeam.targetY,
+      targetX: targets[0]?.x ?? primaryEndpoint.x,
+      targetY: targets[0]?.y ?? primaryEndpoint.y,
+      targets,
     },
     trigger:    normalizeLaserDmxShowDirectorTriggerConfig(value.trigger, kind),
     component:  normalizeLaserDmxShowDirectorComponentConfig(value.component),
@@ -918,6 +975,11 @@ function clampLaserDmxShowDirectorFixtureToSettings(
       ...fixture.beam,
       targetX: fixture.beam.targetX == null ? fixture.beam.targetX : clampShowDirectorGridCoordinate(fixture.beam.targetX, maxX),
       targetY: fixture.beam.targetY == null ? fixture.beam.targetY : clampShowDirectorGridCoordinate(fixture.beam.targetY, maxY),
+      targets: (fixture.beam.targets ?? []).slice(0, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS).map((target, index) => ({
+        id: showDirectorTargetId(target.id, `${fixture.id}-target-${index + 1}`),
+        x:  clampShowDirectorGridCoordinate(target.x, maxX),
+        y:  clampShowDirectorGridCoordinate(target.y, maxY),
+      })),
     },
   }
 }
