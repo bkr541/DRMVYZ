@@ -765,15 +765,21 @@ function mergeLaserDmxShowDirectorSettingsPatch(
   current: LaserDmxShowDirectorState,
   patch: LaserDmxShowDirectorSettingsPatch,
 ): LaserDmxShowDirectorState {
+  const settings = normalizeLaserDmxShowDirectorSettings({
+    ...current.settings,
+    ...patch,
+    gridSize: patch.gridSize
+      ? { ...current.settings.gridSize, ...patch.gridSize }
+      : current.settings.gridSize,
+  })
+  const gridChanged = settings.gridSize.columns !== current.settings.gridSize.columns
+    || settings.gridSize.rows !== current.settings.gridSize.rows
   return normalizeLaserDmxShowDirectorState({
     ...current,
-    settings: normalizeLaserDmxShowDirectorSettings({
-      ...current.settings,
-      ...patch,
-      gridSize: patch.gridSize
-        ? { ...current.settings.gridSize, ...patch.gridSize }
-        : current.settings.gridSize,
-    }),
+    settings,
+    fixtures: gridChanged
+      ? current.fixtures.map((fixture, index) => clampLaserDmxShowDirectorFixtureToSettings(fixture, settings, index))
+      : current.fixtures,
   })
 }
 
@@ -807,6 +813,25 @@ function clampShowDirectorGrid(value: number, max: number): number {
   return Math.max(0, Math.min(max, Number.isFinite(value) ? value : 0))
 }
 
+function clampLaserDmxShowDirectorFixtureToSettings(
+  fixture: LaserDmxShowDirectorFixture,
+  settings: LaserDmxShowDirectorState['settings'],
+  index: number,
+): LaserDmxShowDirectorFixture {
+  const maxX = Math.max(0, Math.round(settings.gridSize.columns) - 1)
+  const maxY = Math.max(0, Math.round(settings.gridSize.rows) - 1)
+  return normalizeLaserDmxShowDirectorFixture({
+    ...fixture,
+    x: clampShowDirectorGrid(fixture.x, maxX),
+    y: clampShowDirectorGrid(fixture.y, maxY),
+    beam: {
+      ...fixture.beam,
+      targetX: fixture.beam.targetX == null ? fixture.beam.targetX : clampShowDirectorGrid(fixture.beam.targetX, maxX),
+      targetY: fixture.beam.targetY == null ? fixture.beam.targetY : clampShowDirectorGrid(fixture.beam.targetY, maxY),
+    },
+  }, index)
+}
+
 function mirrorLaserDmxShowDirectorFixtureAcrossGrid(
   fixture: LaserDmxShowDirectorFixture,
   state: LaserDmxShowDirectorState,
@@ -819,16 +844,25 @@ function mirrorLaserDmxShowDirectorFixtureAcrossGrid(
   const mirroredY = maxY - clampShowDirectorGrid(fixture.y, maxY)
   const mirroredTargetX = fixture.beam.targetX == null ? fixture.beam.targetX : maxX - clampShowDirectorGrid(fixture.beam.targetX, maxX)
   const mirroredTargetY = fixture.beam.targetY == null ? fixture.beam.targetY : maxY - clampShowDirectorGrid(fixture.beam.targetY, maxY)
+  const rotation = Number.isFinite(fixture.rotation) ? fixture.rotation : 0
+  const beamAngle = Number.isFinite(fixture.beam.beamAngle) ? fixture.beam.beamAngle : 0
+  const mirroredRotation = axis === 'horizontal'
+    ? normalizeDegrees(180 - rotation)
+    : normalizeDegrees(-rotation)
+  const effectiveAngle = normalizeDegrees(rotation + beamAngle)
+  const mirroredEffectiveAngle = axis === 'horizontal'
+    ? normalizeDegrees(180 - effectiveAngle)
+    : normalizeDegrees(-effectiveAngle)
+  const mirroredBeamAngle = normalizeDegrees(mirroredEffectiveAngle - mirroredRotation)
 
   return normalizeLaserDmxShowDirectorFixture({
     ...fixture,
     x: axis === 'horizontal' ? mirroredX : fixture.x,
     y: axis === 'vertical' ? mirroredY : fixture.y,
-    rotation: axis === 'horizontal'
-      ? normalizeDegrees(180 - fixture.rotation)
-      : normalizeDegrees(-fixture.rotation),
+    rotation: mirroredRotation,
     beam: {
       ...fixture.beam,
+      beamAngle: mirroredBeamAngle,
       targetX: axis === 'horizontal' ? mirroredTargetX : fixture.beam.targetX,
       targetY: axis === 'vertical' ? mirroredTargetY : fixture.beam.targetY,
     },

@@ -251,6 +251,7 @@ function makeRoute(
 function sourceForAudioBand(audioBand: LaserDmxShowDirectorAudioBand): string {
   switch (audioBand) {
     case 'sub': return 'nSub'
+    case 'bass': return 'nBass'
     case 'lowMid': return 'nLowMid'
     case 'mid': return 'nMid'
     case 'highMid':
@@ -319,7 +320,9 @@ function launchForTrigger(trigger: LaserDmxShowDirectorTriggerConfig): LaserDmxL
     case 'snareTransient':
       return { trigger: 'snare', threshold: clamp01(finite(trigger.audioThreshold, 0.65)), cooldownBeats: 0.25, minimumEnergy: 0 }
     case 'audioBand':
-      return { trigger: 'kick', threshold: clamp01(finite(trigger.audioThreshold, 0.65)), cooldownBeats: 0.25, minimumEnergy: 0 }
+      return trigger.audioBand === 'sub' || trigger.audioBand === 'bass'
+        ? { trigger: 'kick', threshold: clamp01(finite(trigger.audioThreshold, 0.65)), cooldownBeats: 0.25, minimumEnergy: 0 }
+        : { ...DEFAULT_LAUNCH_SETTINGS, trigger: 'none', threshold: 0, cooldownBeats: 0, minimumEnergy: 0 }
     case 'energy':
       return { trigger: 'dropImpact', threshold: clamp01(finite(trigger.energyThreshold, 0.7)), cooldownBeats: 2, minimumEnergy: clamp01(finite(trigger.energyThreshold, 0.7)) * 0.5 }
     default:
@@ -617,8 +620,10 @@ function musicColorRoutes(fixture: LaserDmxShowDirectorFixture): LaserDmxModulat
 function targetMotionRoutes(fixture: LaserDmxShowDirectorFixture): LaserDmxModulationRoute[] {
   const id = safeIdPart(fixture.id)
   const routes: LaserDmxModulationRoute[] = []
+  const isMovingHead = fixture.kind === 'movingHead'
+  const movingHeadPanTiltStyle = isMovingHead ? fixture.component.movingHeadPanTiltStyle : null
 
-  if (fixture.beam.targetMode === 'sweep' || fixture.component.movingHeadPanTiltStyle === 'smoothSweep') {
+  if (fixture.beam.targetMode === 'sweep' || movingHeadPanTiltStyle === 'smoothSweep') {
     routes.push(makeRoute(`sd-${id}-sweep-x`, 'beatPhase', 'targetOffsetX', {
       min: -0.16,
       max: 0.16,
@@ -628,7 +633,7 @@ function targetMotionRoutes(fixture: LaserDmxShowDirectorFixture): LaserDmxModul
     }))
   }
 
-  if (fixture.beam.targetMode === 'audioReactive' || fixture.component.movingHeadPanTiltStyle === 'audioReactive') {
+  if (fixture.beam.targetMode === 'audioReactive' || movingHeadPanTiltStyle === 'audioReactive') {
     routes.push(
       makeRoute(`sd-${id}-audio-x`, sourceForAudioBand(fixture.trigger.audioBand), 'targetOffsetX', {
         min: -0.1,
@@ -654,7 +659,7 @@ function targetMotionRoutes(fixture: LaserDmxShowDirectorFixture): LaserDmxModul
     )
   }
 
-  if (fixture.component.movingHeadPanTiltStyle === 'figureEight') {
+  if (movingHeadPanTiltStyle === 'figureEight') {
     routes.push(
       makeRoute(`sd-${id}-figure-x`, 'phrase4', 'targetOffsetX', { min: -0.14, max: 0.14, mode: 'set', curve: 'pulse', smoothing: 0.05 }),
       makeRoute(`sd-${id}-figure-y`, 'beatPhase', 'targetOffsetY', { min: -0.12, max: 0.12, mode: 'set', curve: 'pulse', smoothing: 0.05 }),
@@ -752,12 +757,14 @@ function compileBeamFixture(
     length?: number
   } = {},
 ): void {
-  if (!fixture.beam.beamEnabled && fixture.kind !== 'parWash') return
+  if (!fixture.beam.beamEnabled) return
   const point = stagePointForFixture(fixture, ctx.gridColumns, ctx.gridRows)
   const origin = gridAnchorFromStagePoint(point)
   const angle = finite(fixture.rotation, 0) + finite(fixture.beam.beamAngle, 0)
   const spread = clamp(finite(fixture.beam.beamSpread, fixture.kind === 'laser' ? 18 : 0), 0, 180)
   const geometry = options.cone ? 'volumetricCone' : 'line'
+  const isMovingHead = fixture.kind === 'movingHead'
+  const movingHeadPanTiltStyle = isMovingHead ? fixture.component.movingHeadPanTiltStyle : null
   const count = fixture.beam.targetMode === 'fan'
     ? clamp(Math.round(spread / 9), 3, 9)
     : fixture.beam.targetMode === 'cross'
@@ -776,11 +783,13 @@ function compileBeamFixture(
       : stageTargetFromAngle(point, angle + crossOffset * mirrorSign, options.length ?? 0.62)
     const motionMode: LaserDmxMatrixBeam['motion']['mode'] = fixture.beam.targetMode === 'sweep'
       ? 'scanner'
-      : fixture.component.movingHeadPanTiltStyle === 'snap'
+      : movingHeadPanTiltStyle === 'snap'
         ? 'projectile'
-        : fixture.component.movingHeadPanTiltStyle === 'locked'
+        : movingHeadPanTiltStyle === 'locked'
           ? 'static'
-          : 'pingPong'
+          : isMovingHead
+            ? 'pingPong'
+            : 'static'
     ctx.matrixBeams.push(makeBeam(
       fixture,
       `${fixture.kind}-${i + 1}`,
@@ -794,7 +803,7 @@ function compileBeamFixture(
         geometry,
       },
       {
-        mode: fixture.kind === 'laser' && fixture.beam.targetMode !== 'sweep' ? 'static' : motionMode,
+        mode: motionMode,
         beatsPerTravel: Math.max(0.5, finite(fixture.trigger.beatDivision, 1) * 2),
         tailLength: fixture.kind === 'laser' ? 0.22 : 0.38,
         headGlow: fixture.kind === 'laser' ? 0.35 : 0.72,
@@ -806,6 +815,7 @@ function compileBeamFixture(
 }
 
 function compileLedFixture(fixture: LaserDmxShowDirectorFixture, ctx: FixtureCompileContext, tube = false): void {
+  if (!fixture.beam.beamEnabled) return
   const point = stagePointForFixture(fixture, ctx.gridColumns, ctx.gridRows)
   const anchor = gridAnchorFromStagePoint(point)
   const cells = Math.min(positiveInt(fixture.component.ledCellCount, 8, 1, 64), tube ? 12 : 16)
@@ -842,6 +852,7 @@ function compileLedFixture(fixture: LaserDmxShowDirectorFixture, ctx: FixtureCom
 }
 
 function compileStrobeFixture(fixture: LaserDmxShowDirectorFixture, ctx: FixtureCompileContext): void {
+  if (!fixture.beam.beamEnabled) return
   const point = stagePointForFixture(fixture, ctx.gridColumns, ctx.gridRows)
   const origin = gridAnchorFromStagePoint(point)
   const angles = [0, 90, 180, 270]
@@ -869,6 +880,7 @@ function compileStrobeFixture(fixture: LaserDmxShowDirectorFixture, ctx: Fixture
 }
 
 function compileBlinderFixture(fixture: LaserDmxShowDirectorFixture, ctx: FixtureCompileContext): void {
+  if (!fixture.beam.beamEnabled) return
   const point = stagePointForFixture(fixture, ctx.gridColumns, ctx.gridRows)
   const anchor = gridAnchorFromStagePoint(point)
   const offsets = [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const
@@ -962,10 +974,11 @@ function compileCo2Fixture(fixture: LaserDmxShowDirectorFixture, ctx: FixtureCom
 }
 
 function co2FogRoutes(fixture: LaserDmxShowDirectorFixture): LaserDmxModulationRoute[] {
-  const source = fixture.trigger.mode === 'cuePoint' ? null : (triggerSource(fixture.trigger) ?? 'dropImpact')
+  const source = triggerSource(fixture.trigger) ?? 'dropImpact'
   if (!source) return []
   const attack = Math.max(0, finite(fixture.trigger.fadeInMs, 0) / 1000)
   const release = Math.max(0.1, finite(fixture.component.co2BurstDurationMs, 350) / 1000)
+  const threshold = source === 'dropImpact' ? clamp01(finite(fixture.trigger.energyThreshold, 0.45)) : undefined
   return [
     makeRoute(`sd-${safeIdPart(fixture.id)}-co2-fog-density`, source, 'fogDensity', {
       min: 0,
@@ -975,6 +988,7 @@ function co2FogRoutes(fixture: LaserDmxShowDirectorFixture): LaserDmxModulationR
       attack,
       hold: Math.min(0.4, release * 0.35),
       release,
+      threshold,
     }),
     makeRoute(`sd-${safeIdPart(fixture.id)}-co2-fog-opacity`, source, 'fogOpacity', {
       min: 0,
@@ -984,6 +998,7 @@ function co2FogRoutes(fixture: LaserDmxShowDirectorFixture): LaserDmxModulationR
       attack,
       hold: Math.min(0.4, release * 0.35),
       release,
+      threshold,
     }),
   ]
 }

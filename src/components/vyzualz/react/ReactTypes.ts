@@ -865,10 +865,35 @@ export function normalizeLaserDmxShowDirectorFixture(raw: unknown, index = 0): L
   }
 }
 
+function clampShowDirectorGridCoordinate(value: number | undefined, max: number): number {
+  return Math.max(0, Math.min(max, typeof value === 'number' && Number.isFinite(value) ? value : 0))
+}
+
+function clampLaserDmxShowDirectorFixtureToSettings(
+  fixture: LaserDmxShowDirectorFixture,
+  settings: LaserDmxShowDirectorSettings,
+): LaserDmxShowDirectorFixture {
+  const maxX = Math.max(0, Math.round(settings.gridSize.columns) - 1)
+  const maxY = Math.max(0, Math.round(settings.gridSize.rows) - 1)
+  return {
+    ...fixture,
+    x: clampShowDirectorGridCoordinate(fixture.x, maxX),
+    y: clampShowDirectorGridCoordinate(fixture.y, maxY),
+    beam: {
+      ...fixture.beam,
+      targetX: fixture.beam.targetX == null ? fixture.beam.targetX : clampShowDirectorGridCoordinate(fixture.beam.targetX, maxX),
+      targetY: fixture.beam.targetY == null ? fixture.beam.targetY : clampShowDirectorGridCoordinate(fixture.beam.targetY, maxY),
+    },
+  }
+}
+
 export function normalizeLaserDmxShowDirectorState(raw: unknown): LaserDmxShowDirectorState {
   if (!showDirectorRecord(raw)) return createDefaultLaserDmxShowDirectorState()
+  const settings = normalizeLaserDmxShowDirectorSettings(raw.settings)
   const fixtures = Array.isArray(raw.fixtures)
-    ? raw.fixtures.map((fixture, index) => normalizeLaserDmxShowDirectorFixture(fixture, index))
+    ? raw.fixtures
+      .map((fixture, index) => normalizeLaserDmxShowDirectorFixture(fixture, index))
+      .map(fixture => clampLaserDmxShowDirectorFixtureToSettings(fixture, settings))
     : []
   const ids = new Set(fixtures.map(fixture => fixture.id))
   const selectedFixtureId = typeof raw.selectedFixtureId === 'string' && ids.has(raw.selectedFixtureId)
@@ -878,7 +903,7 @@ export function normalizeLaserDmxShowDirectorState(raw: unknown): LaserDmxShowDi
     schemaVersion: LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION,
     fixtures,
     selectedFixtureId,
-    settings: normalizeLaserDmxShowDirectorSettings(raw.settings),
+    settings,
   }
 }
 

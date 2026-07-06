@@ -197,6 +197,7 @@ export function getTriggerSourceValue(
     case 'snare':      return frame.rhythm.snareHit
     case 'hat':        return frame.rhythm.hatHit
     case 'downbeat':   return frame.rhythm.downbeatHit
+    case 'dropImpact': return frame.energy.dropImpact > 0
     case 'phrase4':    return frame.rhythm.phrase4Hit
     case 'phrase8':    return frame.rhythm.phrase8Hit
     case 'phrase16':   return frame.rhythm.phrase16Hit
