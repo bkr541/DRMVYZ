@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { Collapsible, CtrlSection, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
@@ -75,6 +75,7 @@ export function LaserDmxShowDirectorControls() {
   }, [gridValue, settings.gridSize.columns, settings.gridSize.rows])
 
   const hasFixtures = fixtures.length > 0
+  const [isConfirmingReset, setIsConfirmingReset] = useState(false)
 
   const applyGridPreset = (value: string) => {
     const option = GRID_PRESETS.find(item => item.value === value)
@@ -85,6 +86,15 @@ export function LaserDmxShowDirectorControls() {
   const rotateSelected = () => {
     if (!selectedFixture) return
     updateFixture(selectedFixture.id, { rotation: normalizeDegrees(selectedFixture.rotation + 90) })
+  }
+
+  const requestResetLayout = () => {
+    if (!isConfirmingReset) {
+      setIsConfirmingReset(true)
+      return
+    }
+    resetLayout()
+    setIsConfirmingReset(false)
   }
 
   return (
@@ -148,7 +158,17 @@ export function LaserDmxShowDirectorControls() {
           <button type="button" className="rv-glyph-upload-btn" disabled={!hasFixtures} onClick={duplicateLayout}>Duplicate Rig</button>
           <button type="button" className="rv-glyph-upload-btn" disabled={!hasFixtures} onClick={() => mirrorLayout('horizontal')}>Mirror Rig H</button>
           <button type="button" className="rv-glyph-upload-btn" disabled={!hasFixtures} onClick={() => mirrorLayout('vertical')}>Mirror Rig V</button>
-          <button type="button" className="rv-glyph-upload-btn" onClick={resetLayout}>Reset Layout</button>
+          <button
+            type="button"
+            className={`rv-glyph-upload-btn${isConfirmingReset ? ' rv-glyph-upload-btn--danger' : ''}`}
+            onClick={requestResetLayout}
+            aria-pressed={isConfirmingReset}
+          >
+            {isConfirmingReset ? 'Confirm Reset' : 'Reset Layout'}
+          </button>
+          {isConfirmingReset && (
+            <button type="button" className="rv-glyph-upload-btn" onClick={() => setIsConfirmingReset(false)}>Cancel</button>
+          )}
           <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" disabled={!hasFixtures} onClick={clearFixtures}>Clear Rig</button>
         </div>
       </Collapsible>

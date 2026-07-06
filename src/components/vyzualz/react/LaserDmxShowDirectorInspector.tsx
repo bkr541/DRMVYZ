@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import {
@@ -181,16 +181,23 @@ function triggerRequirementNotes(fixture: LaserDmxShowDirectorFixture): string[]
 
 export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorInspectorProps) {
   const {
+    fixtures,
     settings,
     updateFixture,
     deleteFixture,
     duplicateFixture,
   } = useReactStore(useShallow(s => ({
+    fixtures:         s.laserDmxShowDirector.fixtures,
     settings:         s.laserDmxShowDirector.settings,
     updateFixture:    s.updateLaserDmxShowDirectorFixture,
     deleteFixture:    s.deleteLaserDmxShowDirectorFixture,
     duplicateFixture: s.duplicateLaserDmxShowDirectorFixture,
   })))
+  const [draftLabel, setDraftLabel] = useState('')
+
+  useEffect(() => {
+    setDraftLabel(fixture?.label ?? '')
+  }, [fixture?.id, fixture?.label])
 
   const gridBounds = useMemo(() => ({
     maxX: Math.max(0, settings.gridSize.columns - 1),
@@ -218,7 +225,19 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
   const triggerNotes = triggerRequirementNotes(fixture)
   const defaultTargetX = Math.round(gridBounds.maxX / 2)
   const defaultTargetY = Math.round(gridBounds.maxY / 2)
+  const fixtureIndex = fixtures.findIndex(item => item.id === fixture.id)
+  const defaultFixtureLabel = `${typeLabel} ${Math.max(1, fixtureIndex + 1)}`
   const update = (patch: Parameters<typeof updateFixture>[1]) => updateFixture(fixture.id, patch)
+  const commitLabelDraft = () => {
+    const trimmed = draftLabel.trim()
+    const nextLabel = trimmed.length > 0 ? trimmed : defaultFixtureLabel
+    setDraftLabel(nextLabel)
+    if (nextLabel !== fixture.label) update({ label: nextLabel })
+  }
+  const handleLabelDraftChange = (label: string) => {
+    setDraftLabel(label)
+    if (label.trim().length > 0 && label !== fixture.label) update({ label })
+  }
   const updateTriggerMode = (mode: LaserDmxShowDirectorTriggerMode) => {
     update({
       trigger: {
@@ -258,7 +277,7 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
 
         <CtrlSection label="Light" />
         <ToggleRow label="Enabled / active" value={fixture.enabled} onChange={enabled => update({ enabled })} />
-        <TextInputRow label="Label / name" value={fixture.label} maxLength={48} onChange={label => update({ label })} />
+        <TextInputRow label="Label / name" value={draftLabel} maxLength={48} onChange={handleLabelDraftChange} onBlur={commitLabelDraft} />
         <TextInputRow label="Group" value={fixture.groupId ?? ''} maxLength={32} placeholder="Ungrouped" onChange={group => update({ groupId: group.trim() ? group.trim() : null })} />
         <SelectRow label="Color mode" value={fixture.colorMode} options={COLOR_MODE_OPTIONS} onChange={colorMode => update({ colorMode: colorMode as LaserDmxShowDirectorColorMode })} />
         <label className="rv-show-director-color-field">
@@ -364,7 +383,14 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
           <>
             <CtrlSection label="Video Wall" />
             <SliderRow label="Wall brightness" value={fixture.component.videoWallBrightness} min={0} max={1} step={0.01} onChange={videoWallBrightness => update({ component: { videoWallBrightness: clamp(videoWallBrightness, 0, 1) } })} />
-            <SelectRow label="Source" value={fixture.component.videoWallSource} options={VIDEO_WALL_SOURCE_OPTIONS} onChange={videoWallSource => update({ component: { videoWallSource: videoWallSource as LaserDmxShowDirectorVideoWallSource } })} />
+            <SelectRow
+              label="Source (coming soon)"
+              value={fixture.component.videoWallSource}
+              options={VIDEO_WALL_SOURCE_OPTIONS}
+              onChange={() => undefined}
+              disabled
+              description="Video Wall currently compiles as a layout placeholder panel. Media, camera, and React Visual routing are not wired yet."
+            />
           </>
         )}
 

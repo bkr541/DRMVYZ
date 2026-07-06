@@ -832,6 +832,34 @@ function clampLaserDmxShowDirectorFixtureToSettings(
   }, index)
 }
 
+function findLaserDmxShowDirectorOpenSlot(state: LaserDmxShowDirectorState): { x: number; y: number } {
+  const columns = Math.max(1, Math.round(state.settings.gridSize.columns || 1))
+  const rows = Math.max(1, Math.round(state.settings.gridSize.rows || 1))
+  const centerX = Math.floor((columns - 1) / 2)
+  const centerY = Math.floor((rows - 1) / 2)
+  const occupied = new Set(
+    state.fixtures.map(fixture => {
+      const x = clampShowDirectorGrid(Math.round(fixture.x), columns - 1)
+      const y = clampShowDirectorGrid(Math.round(fixture.y), rows - 1)
+      return `${x}:${y}`
+    }),
+  )
+
+  const candidates: Array<{ x: number; y: number; distance: number }> = []
+  for (let y = 0; y < rows; y += 1) {
+    for (let x = 0; x < columns; x += 1) {
+      candidates.push({
+        x,
+        y,
+        distance: ((x - centerX) ** 2) + ((y - centerY) ** 2),
+      })
+    }
+  }
+
+  candidates.sort((a, b) => a.distance - b.distance || a.y - b.y || a.x - b.x)
+  return candidates.find(candidate => !occupied.has(`${candidate.x}:${candidate.y}`)) ?? { x: centerX, y: centerY }
+}
+
 function mirrorLaserDmxShowDirectorFixtureAcrossGrid(
   fixture: LaserDmxShowDirectorFixture,
   state: LaserDmxShowDirectorState,
@@ -4705,17 +4733,21 @@ export const useReactStore = create<ReactStoreState>()(
         const id = createLaserDmxShowDirectorId()
         set(s => {
           const base = createDefaultLaserDmxShowDirectorFixture(kind, id, s.laserDmxShowDirector.fixtures.length)
+          const openSlot = findLaserDmxShowDirectorOpenSlot(s.laserDmxShowDirector)
           const fixture = normalizeLaserDmxShowDirectorFixture({
             ...base,
             ...initial,
             id,
             kind,
+            x: initial?.x ?? openSlot.x,
+            y: initial?.y ?? openSlot.y,
             beam: initial?.beam ? { ...base.beam, ...initial.beam } : base.beam,
             trigger: initial?.trigger ? { ...base.trigger, ...initial.trigger } : base.trigger,
             component: initial?.component ? { ...base.component, ...initial.component } : base.component,
           }, s.laserDmxShowDirector.fixtures.length)
           return {
             laserDmxBeamMatrixAuthoringMode: 'showDirector' as const,
+            laserDmxBeamMatrixPresetDirty: true,
             laserDmxShowDirector: normalizeLaserDmxShowDirectorState({
               ...s.laserDmxShowDirector,
               fixtures: [...s.laserDmxShowDirector.fixtures, fixture],
@@ -4730,6 +4762,7 @@ export const useReactStore = create<ReactStoreState>()(
         set(s => {
           if (!s.laserDmxShowDirector.fixtures.some(fixture => fixture.id === fixtureId)) return {}
           return {
+            laserDmxBeamMatrixPresetDirty: true,
             laserDmxShowDirector: normalizeLaserDmxShowDirectorState({
               ...s.laserDmxShowDirector,
               fixtures: s.laserDmxShowDirector.fixtures.map((fixture, index) => fixture.id === fixtureId
@@ -4744,6 +4777,7 @@ export const useReactStore = create<ReactStoreState>()(
           const remaining = s.laserDmxShowDirector.fixtures.filter(fixture => fixture.id !== fixtureId)
           if (remaining.length === s.laserDmxShowDirector.fixtures.length) return {}
           return {
+            laserDmxBeamMatrixPresetDirty: true,
             laserDmxShowDirector: normalizeLaserDmxShowDirectorState({
               ...s.laserDmxShowDirector,
               fixtures: remaining,
@@ -4770,6 +4804,7 @@ export const useReactStore = create<ReactStoreState>()(
           y: Math.max(0, Math.min(maxY, source.y + offset)),
         }, state.fixtures.length)
         set(s => ({
+          laserDmxBeamMatrixPresetDirty: true,
           laserDmxShowDirector: normalizeLaserDmxShowDirectorState({
             ...s.laserDmxShowDirector,
             fixtures: [...s.laserDmxShowDirector.fixtures, copy],
@@ -4797,6 +4832,7 @@ export const useReactStore = create<ReactStoreState>()(
             }, current.fixtures.length + index)
           })
           return {
+            laserDmxBeamMatrixPresetDirty: true,
             laserDmxShowDirector: normalizeLaserDmxShowDirectorState({
               ...current,
               fixtures: [...current.fixtures, ...copies],
@@ -4810,6 +4846,7 @@ export const useReactStore = create<ReactStoreState>()(
           const current = s.laserDmxShowDirector
           if (!current.fixtures.some(fixture => fixture.id === fixtureId)) return {}
           return {
+            laserDmxBeamMatrixPresetDirty: true,
             laserDmxShowDirector: normalizeLaserDmxShowDirectorState({
               ...current,
               fixtures: current.fixtures.map((fixture, index) => fixture.id === fixtureId
@@ -4824,6 +4861,7 @@ export const useReactStore = create<ReactStoreState>()(
           const current = s.laserDmxShowDirector
           if (current.fixtures.length === 0) return {}
           return {
+            laserDmxBeamMatrixPresetDirty: true,
             laserDmxShowDirector: normalizeLaserDmxShowDirectorState({
               ...current,
               fixtures: current.fixtures.map((fixture, index) => mirrorLaserDmxShowDirectorFixtureAcrossGrid(fixture, current, axis, index)),
@@ -4846,6 +4884,7 @@ export const useReactStore = create<ReactStoreState>()(
 
       clearLaserDmxShowDirectorFixtures: () =>
         set(s => ({
+          laserDmxBeamMatrixPresetDirty: true,
           laserDmxShowDirector: normalizeLaserDmxShowDirectorState({
             ...s.laserDmxShowDirector,
             fixtures: [],
@@ -4856,6 +4895,7 @@ export const useReactStore = create<ReactStoreState>()(
       resetLaserDmxShowDirectorLayout: () =>
         set(() => ({
           laserDmxBeamMatrixAuthoringMode: 'showDirector' as const,
+          laserDmxBeamMatrixPresetDirty: true,
           laserDmxShowDirector: createDefaultLaserDmxShowDirectorState(),
         })),
 
@@ -4864,6 +4904,7 @@ export const useReactStore = create<ReactStoreState>()(
         if (!next) return false
         set(() => ({
           laserDmxBeamMatrixAuthoringMode: 'showDirector' as const,
+          laserDmxBeamMatrixPresetDirty: true,
           laserDmxShowDirector: next,
         }))
         return true
@@ -4871,6 +4912,7 @@ export const useReactStore = create<ReactStoreState>()(
 
       updateLaserDmxShowDirectorSettings: (patch) =>
         set(s => ({
+          laserDmxBeamMatrixPresetDirty: true,
           laserDmxShowDirector: mergeLaserDmxShowDirectorSettingsPatch(s.laserDmxShowDirector, patch),
         })),
 

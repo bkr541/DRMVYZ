@@ -7755,7 +7755,7 @@
   min-height: 46px;
   touch-action: none;
   cursor: grab;
-  filter: brightness(var(--fixture-brightness, 1));
+  filter: brightness(var(--fixture-container-brightness, 1));
 }
 
 .rv-show-director-fixture:active,
@@ -7786,6 +7786,7 @@
   place-items: center;
   width: 34px;
   height: 34px;
+  opacity: var(--fixture-output-opacity, 1);
   transform: rotate(var(--fixture-rotation, 0deg));
   transform-origin: center;
   pointer-events: none;
@@ -8137,7 +8138,7 @@
 
 .rv-show-director-fixture:hover,
 .rv-show-director-fixture:focus-visible {
-  filter: brightness(calc(var(--fixture-brightness, 1) * 1.1));
+  filter: brightness(calc(var(--fixture-container-brightness, 1) * 1.1));
 }
 
 .rv-show-director-fixture--selected {

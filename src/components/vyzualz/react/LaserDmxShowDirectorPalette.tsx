@@ -1,4 +1,6 @@
 import { useMemo, useState, type DragEvent } from 'react'
+import { useShallow } from 'zustand/react/shallow'
+import { useReactStore } from '../../../stores/reactStore'
 import {
   LASER_DMX_SHOW_DIRECTOR_FIXTURE_KINDS,
   LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS,
@@ -108,6 +110,10 @@ function FixtureIcon({ kind }: { kind: LaserDmxShowDirectorFixtureKind }) {
 
 export function LaserDmxShowDirectorPalette() {
   const [query, setQuery] = useState('')
+  const { addFixture, setAuthoringMode } = useReactStore(useShallow(s => ({
+    addFixture:       s.addLaserDmxShowDirectorFixture,
+    setAuthoringMode: s.setLaserDmxBeamMatrixAuthoringMode,
+  })))
   const normalizedQuery = normalizeSearch(query)
 
   const filteredKinds = useMemo(() => {
@@ -122,6 +128,11 @@ export function LaserDmxShowDirectorPalette() {
     event.dataTransfer.effectAllowed = 'copy'
     event.dataTransfer.setData(SHOW_DIRECTOR_FIXTURE_DRAG_TYPE, kind)
     event.dataTransfer.setData('text/plain', LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS[kind])
+  }
+
+  const handleAddFixture = (kind: LaserDmxShowDirectorFixtureKind) => {
+    addFixture(kind)
+    setAuthoringMode('showDirector')
   }
 
   return (
@@ -150,6 +161,7 @@ export function LaserDmxShowDirectorPalette() {
               type="button"
               className="rv-show-director-component-card"
               draggable
+              onClick={() => handleAddFixture(kind)}
               onDragStart={event => handleDragStart(event, kind)}
               role="listitem"
               aria-label={`Add ${label} to the Show Director canvas`}

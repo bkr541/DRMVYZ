@@ -177,10 +177,11 @@ export interface TextInputRowProps {
   maxLength?: number
   placeholder?: string
   id?: string
+  onBlur?: () => void
 }
 
 export function TextInputRow({
-  label, value, onChange, maxLength = 32, placeholder = '', id,
+  label, value, onChange, maxLength = 32, placeholder = '', id, onBlur,
 }: TextInputRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
@@ -193,6 +194,7 @@ export function TextInputRow({
         className="rv-ctrl-text-input"
         value={value}
         onChange={e => onChange(e.target.value)}
+        onBlur={onBlur}
         maxLength={maxLength}
         placeholder={placeholder}
         spellCheck={false}
