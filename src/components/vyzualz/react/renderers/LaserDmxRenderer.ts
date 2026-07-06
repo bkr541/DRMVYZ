@@ -6,6 +6,8 @@
 import type { ReactPreset, ReactSectionType } from '../ReactTypes'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { AudioFeatureBus } from '../../../../features/musicIntelligence/AudioFeatureBus'
+import { DEFAULT_MI_FRAME } from '../../../../features/musicIntelligence/constants'
+import type { MusicIntelligenceFrame } from '../../../../features/musicIntelligence/types'
 import { useReactStore } from '../../../../stores/reactStore'
 import { useVisualStore } from '../../../../stores/visualStore'
 import { compileLaserDmxBeamMatrix, resetBeamMatrixCompilerState } from './LaserDmxBeamMatrixCompiler'
@@ -31,6 +33,196 @@ export const LASER_DMX_VIRTUAL_CAPTURE_LAYERS = [
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0))
+}
+
+function finiteNumber(value: unknown, fallback = 0): number {
+  const candidate = Number(value)
+  return Number.isFinite(candidate) ? candidate : fallback
+}
+
+function positiveNumber(value: unknown, fallback = 0): number {
+  const candidate = finiteNumber(value, fallback)
+  return candidate > 0 ? candidate : fallback
+}
+
+function resolveLaserDmxFrameBpm(frame: ReactFrameContext, busFrame: MusicIntelligenceFrame): number {
+  const frameBpm = positiveNumber(frame.bpm, 0)
+  if (frameBpm > 0) return frameBpm
+  const busBpm = positiveNumber(busFrame.rhythm?.bpm, 0)
+  if (busBpm > 0) return busBpm
+  return positiveNumber(frame.trackAnalysis?.bpmUsedForGrid ?? frame.trackAnalysis?.bpm, 0)
+}
+
+function resolveLaserDmxBeatGridOffset(frame: ReactFrameContext): number {
+  const direct = finiteNumber(frame.trackAnalysis?.beatGridOffsetSec, Number.NaN)
+  if (Number.isFinite(direct)) return Math.max(0, direct)
+  const firstMarker = finiteNumber(frame.trackAnalysis?.beatGrid?.[0]?.timeSec, Number.NaN)
+  return Number.isFinite(firstMarker) ? Math.max(0, firstMarker) : 0
+}
+
+function resolveLaserDmxFrameSection(frame: ReactFrameContext, timeSec: number): MusicIntelligenceFrame['section'] | null {
+  const resolved = frame.resolvedSection
+  if (resolved && resolved.type != null) {
+    return {
+      type: resolved.type as ReactSectionType,
+      label: String(resolved.type),
+      startSec: finiteNumber(resolved.startSec, 0),
+      endSec: finiteNumber(resolved.endSec, Infinity),
+      progress: clamp01(finiteNumber(resolved.progress, 0)),
+      intensity: 1,
+      confidence: 1,
+      source: resolved.source ?? 'inferred',
+    }
+  }
+
+  const section = frame.trackSections?.find(item => item.startSec <= timeSec && timeSec < item.endSec)
+  if (!section) return null
+  const startSec = finiteNumber(section.startSec, 0)
+  const endSec = finiteNumber(section.endSec, startSec)
+  return {
+    type: section.type,
+    label: section.label,
+    startSec,
+    endSec,
+    progress: endSec > startSec ? clamp01((timeSec - startSec) / (endSec - startSec)) : 0,
+    intensity: clamp01(finiteNumber(section.intensity, 1)),
+    confidence: clamp01(finiteNumber(section.confidence, 1)),
+    source: section.source === 'user-created' || section.source === 'user-edited-auto'
+      ? 'manual'
+      : section.source === 'auto'
+        ? 'analysis'
+        : 'inferred',
+  }
+}
+
+/**
+ * LaserDMX needs beat/bar data every render frame, even while Music Intelligence
+ * is still warming up or a canvas only has the simpler ReactFrameContext timing.
+ * This adapter keeps the live AudioFeatureBus frame when it exists, then patches
+ * in the audio-engine BPM/playhead, fallback bands, and track-section data so
+ * Show Director beat/bar/section triggers still compile into visible Beam Matrix output.
+ */
+function resolveLaserDmxMusicIntelligenceFrame(
+  frame: ReactFrameContext,
+  busFrame: MusicIntelligenceFrame,
+): MusicIntelligenceFrame {
+  const source = busFrame.frameId > 0
+    ? busFrame
+    : frame.musicIntelligence ?? busFrame ?? DEFAULT_MI_FRAME
+  const timeSec = Math.max(0, finiteNumber(frame.audioTime, finiteNumber(source.timeSec, 0)))
+  const bpm = resolveLaserDmxFrameBpm(frame, source)
+  const beatsPerBar = Math.max(1, Math.round(finiteNumber(frame.trackAnalysis?.timeSignature, 4)))
+  const beatDurationSec = bpm > 0 ? 60 / bpm : 0
+  const beatFloat = beatDurationSec > 0
+    ? Math.max(0, (timeSec - resolveLaserDmxBeatGridOffset(frame)) / beatDurationSec)
+    : 0
+  const computedBeatIndex = Math.floor(beatFloat)
+  const computedBeatPhase = beatFloat - computedBeatIndex
+  const sourceHasBeatGrid = source.frameId > 0 && positiveNumber(source.rhythm.bpm, 0) > 0
+  const beatIndex = sourceHasBeatGrid
+    ? Math.max(0, finiteNumber(source.rhythm.beatIndex, computedBeatIndex))
+    : computedBeatIndex
+  const beatPhase = sourceHasBeatGrid
+    ? clamp01(finiteNumber(source.rhythm.beatPhase, computedBeatPhase))
+    : clamp01(finiteNumber(frame.beatPhase, computedBeatPhase))
+  const beatInBar = Math.floor(beatIndex) % beatsPerBar
+  const barIndex = Math.floor(Math.floor(beatIndex) / beatsPerBar)
+  const beatHit = source.frameId > 0 ? source.rhythm.beatHit : Boolean(frame.beatHit)
+  const downbeatHit = source.frameId > 0 ? source.rhythm.downbeatHit : beatHit && beatInBar === 0
+  const phraseHit = (phraseBeats: number) => beatHit && Math.floor(beatIndex) % phraseBeats === 0
+  const phraseProgress = (phraseBeats: number) => clamp01(((beatIndex + beatPhase) % phraseBeats) / phraseBeats)
+  const bass = clamp01(finiteNumber(frame.audio.bass, source.bands.bass))
+  const mid = clamp01(finiteNumber(frame.audio.mid, source.bands.mid))
+  const high = clamp01(finiteNumber(frame.audio.high, source.bands.high))
+  const volume = clamp01(finiteNumber(frame.audio.volume, source.bands.volume))
+  const activeSection = resolveLaserDmxFrameSection(frame, timeSec)
+  const hasFallbackSignal = bpm > 0 || volume > 0 || bass > 0 || mid > 0 || high > 0 || activeSection != null
+
+  return {
+    ...DEFAULT_MI_FRAME,
+    ...source,
+    timeSec,
+    frameId: source.frameId > 0 ? source.frameId : hasFallbackSignal ? 1 : 0,
+    sourceId: source.sourceId ?? frame.trackKey ?? null,
+    trackId: source.trackId ?? frame.trackKey ?? null,
+    bands: {
+      ...DEFAULT_MI_FRAME.bands,
+      ...source.bands,
+      bass: Math.max(clamp01(source.bands.bass), bass),
+      lowMid: Math.max(clamp01(source.bands.lowMid), mid),
+      mid: Math.max(clamp01(source.bands.mid), mid),
+      high: Math.max(clamp01(source.bands.high), high),
+      volume: Math.max(clamp01(source.bands.volume), volume),
+      normalizedBass: Math.max(clamp01(source.bands.normalizedBass), bass),
+      normalizedLowMid: Math.max(clamp01(source.bands.normalizedLowMid), mid),
+      normalizedMid: Math.max(clamp01(source.bands.normalizedMid), mid),
+      normalizedHigh: Math.max(clamp01(source.bands.normalizedHigh), high),
+    },
+    rhythm: {
+      ...DEFAULT_MI_FRAME.rhythm,
+      ...source.rhythm,
+      bpm,
+      bpmConfidence: Math.max(clamp01(source.rhythm.bpmConfidence), bpm > 0 ? 0.75 : 0),
+      beatPhase,
+      beatHit,
+      beatIndex,
+      beatInBar,
+      barIndex,
+      downbeatHit,
+      phrase4Progress: phraseProgress(4),
+      phrase8Progress: phraseProgress(8),
+      phrase16Progress: phraseProgress(16),
+      phrase32Progress: phraseProgress(32),
+      phrase4Hit: source.frameId > 0 ? source.rhythm.phrase4Hit : phraseHit(4),
+      phrase8Hit: source.frameId > 0 ? source.rhythm.phrase8Hit : phraseHit(8),
+      phrase16Hit: source.frameId > 0 ? source.rhythm.phrase16Hit : phraseHit(16),
+      phrase32Hit: source.frameId > 0 ? source.rhythm.phrase32Hit : phraseHit(32),
+    },
+    energy: {
+      ...DEFAULT_MI_FRAME.energy,
+      ...source.energy,
+      instant: Math.max(clamp01(source.energy.instant), volume),
+      shortTerm: Math.max(clamp01(source.energy.shortTerm), volume),
+      rms: Math.max(clamp01(source.energy.rms), volume),
+    },
+    section: activeSection ?? {
+      ...DEFAULT_MI_FRAME.section,
+      ...source.section,
+    },
+    harmonic: {
+      ...DEFAULT_MI_FRAME.harmonic,
+      ...source.harmonic,
+    },
+    stems: {
+      ...DEFAULT_MI_FRAME.stems,
+      ...source.stems,
+    },
+    lyrics: {
+      ...DEFAULT_MI_FRAME.lyrics,
+      ...source.lyrics,
+    },
+    semantics: {
+      ...DEFAULT_MI_FRAME.semantics,
+      ...source.semantics,
+    },
+    capabilities: {
+      ...DEFAULT_MI_FRAME.capabilities!,
+      ...source.capabilities,
+      liveBands: Boolean(source.capabilities?.liveBands || volume > 0),
+      rhythmEvents: Boolean(source.capabilities?.rhythmEvents || beatHit),
+      beatGrid: Boolean(source.capabilities?.beatGrid || bpm > 0),
+      sections: Boolean(source.capabilities?.sections || activeSection != null || (frame.trackSections?.length ?? 0) > 0),
+    },
+    raw: {
+      freqData: source.raw?.freqData ?? frame.freqData,
+      timeDomainData: source.raw?.timeDomainData ?? frame.timeDomainData,
+    },
+    confidence: {
+      ...DEFAULT_MI_FRAME.confidence,
+      ...source.confidence,
+      rhythm: Math.max(clamp01(source.confidence.rhythm), bpm > 0 ? 0.75 : 0),
+    },
+  }
 }
 
 export function shouldRenderLaserDmx(isPlaying: boolean): boolean {
@@ -163,7 +355,8 @@ export function renderLaserDmx(
 
   const state = useReactStore.getState()
   const affectProductionOutput = shouldAffectLaserDmxProductionOutput(params)
-  const mi = AudioFeatureBus.getFrame()
+  const busMi = AudioFeatureBus.getFrame()
+  const mi = resolveLaserDmxMusicIntelligenceFrame(frame, busMi)
   const trackKey = frame.trackKey ?? mi.trackId ?? mi.sourceId
   const beamMatrixAuthoringMode = state.laserDmxBeamMatrixAuthoringMode === 'showDirector'
     ? 'showDirector'

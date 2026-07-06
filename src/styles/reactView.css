@@ -8700,3 +8700,53 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Show Director stage overlay should sit directly on the live Beam Matrix canvas.
+   Keep the editor grid full-bleed, remove the nested glass frame, and let the
+   real LaserDMX render pass show through instead of being hidden by gradients. */
+.rv-show-director-stage-overlay {
+  padding: 0;
+  background: transparent;
+}
+
+.rv-show-director-stage-overlay .rv-show-director-canvas-shell--stage {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.rv-show-director-canvas-shell--stage .rv-show-director-canvas {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.rv-show-director-canvas-shell--stage .rv-show-director-canvas::before,
+.rv-show-director-canvas-shell--stage .rv-show-director-canvas__stage::before {
+  display: none;
+}
+
+.rv-show-director-canvas-shell--stage .rv-show-director-canvas__stage {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  transform: none;
+  background-color: transparent;
+  background-image:
+    linear-gradient(rgba(103, 247, 255, 0.115) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(103, 247, 255, 0.115) 1px, transparent 1px);
+  background-size:
+    calc(100% / var(--show-director-columns, 15)) calc(100% / var(--show-director-rows, 10)),
+    calc(100% / var(--show-director-columns, 15)) calc(100% / var(--show-director-rows, 10));
+  box-shadow: none;
+}
+
+.rv-show-director-canvas-shell--stage .rv-show-director-canvas__stage--grid-hidden {
+  background-image: none;
+}
