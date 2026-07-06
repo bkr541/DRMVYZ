@@ -360,6 +360,387 @@ export interface LaserDmxBeamMatrixPresetSummary {
   musicSources:  string[]
 }
 
+// ── LaserDMX Show Director layout foundation ─────────────────────────────────
+// This is the safe authoring model for the future drag/drop 2D stage builder.
+// It intentionally does not compile into Beam Matrix or drive the renderer yet.
+
+export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 1
+
+export type LaserDmxShowDirectorFixtureKind =
+  | 'laser'
+  | 'movingHead'
+  | 'ledBar'
+  | 'ledTube'
+  | 'strobe'
+  | 'blinder'
+  | 'parWash'
+  | 'videoWall'
+  | 'haze'
+  | 'co2Jet'
+
+export const LASER_DMX_SHOW_DIRECTOR_FIXTURE_KINDS: readonly LaserDmxShowDirectorFixtureKind[] = [
+  'laser',
+  'movingHead',
+  'ledBar',
+  'ledTube',
+  'strobe',
+  'blinder',
+  'parWash',
+  'videoWall',
+  'haze',
+  'co2Jet',
+] as const
+
+export const LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS: Record<LaserDmxShowDirectorFixtureKind, string> = {
+  laser:      'Laser',
+  movingHead: 'Moving Head',
+  ledBar:     'LED Bar',
+  ledTube:    'LED Tube',
+  strobe:     'Strobe',
+  blinder:    'Blinder',
+  parWash:    'PAR Wash',
+  videoWall:  'Video Wall',
+  haze:       'Haze',
+  co2Jet:     'CO₂ Jet',
+}
+
+export type LaserDmxShowDirectorColorMode = 'fixed' | 'palette' | 'music' | 'fixtureDefault'
+export type LaserDmxShowDirectorBeamTargetMode = 'forward' | 'stageCenter' | 'customPoint' | 'musicReactive'
+
+export type LaserDmxShowDirectorTriggerMode =
+  | 'alwaysOn'
+  | 'beat'
+  | 'bar'
+  | 'phrase'
+  | 'section'
+  | 'cuePoint'
+  | 'energy'
+  | 'audioBand'
+
+export type LaserDmxShowDirectorAudioBand = 'sub' | 'bass' | 'lowMid' | 'mid' | 'highMid' | 'high'
+export type LaserDmxShowDirectorTriggerRetrigger = 'allow' | 'oncePerBeat' | 'oncePerBar' | 'oncePerPhrase'
+export type LaserDmxShowDirectorTriggerQuantize = 'none' | 'beat' | 'bar' | 'phrase' | 'section'
+
+export interface LaserDmxShowDirectorGridSize {
+  columns: number
+  rows:    number
+}
+
+export interface LaserDmxShowDirectorSettings {
+  gridSize:    LaserDmxShowDirectorGridSize
+  snapEnabled: boolean
+  showLabels:  boolean
+  showBeams:   boolean
+  zoom:        number
+}
+
+export type LaserDmxShowDirectorSettingsPatch = Partial<Omit<LaserDmxShowDirectorSettings, 'gridSize'>> & {
+  gridSize?: Partial<LaserDmxShowDirectorGridSize>
+}
+
+export interface LaserDmxShowDirectorBeamConfig {
+  beamEnabled: boolean
+  /** Direction in degrees on the 2D stage plane. */
+  beamAngle:   number
+  /** Cone/fan spread in degrees. 0 = tight beam. */
+  beamSpread:  number
+  /** 0 = soft/diffuse, 1 = sharp/tight. */
+  focus:       number
+  targetMode:  LaserDmxShowDirectorBeamTargetMode
+  targetX?:    number
+  targetY?:    number
+  targetZ?:    number
+}
+
+export interface LaserDmxShowDirectorTriggerConfig {
+  mode:             LaserDmxShowDirectorTriggerMode
+  quantize:         LaserDmxShowDirectorTriggerQuantize
+  retrigger:        LaserDmxShowDirectorTriggerRetrigger
+  beatDivision:     1 | 2 | 4 | 8 | 16
+  barInterval:      number
+  phraseLengthBars: number
+  sectionTypes:     string[]
+  cuePointIds:      string[]
+  energyThreshold:  number
+  audioBand:        LaserDmxShowDirectorAudioBand
+  audioThreshold:   number
+}
+
+export interface LaserDmxShowDirectorFixture {
+  schemaVersion?: number
+  id:        string
+  kind:      LaserDmxShowDirectorFixtureKind
+  label:     string
+  enabled:   boolean
+  x:         number
+  y:         number
+  z:         number
+  rotation:  number
+  groupId:   string | null
+  color:     string
+  colorMode: LaserDmxShowDirectorColorMode
+  brightness: number
+  beam:      LaserDmxShowDirectorBeamConfig
+  trigger:   LaserDmxShowDirectorTriggerConfig
+}
+
+export type LaserDmxShowDirectorFixturePatch = Partial<Omit<LaserDmxShowDirectorFixture, 'beam' | 'trigger'>> & {
+  beam?:    Partial<LaserDmxShowDirectorBeamConfig>
+  trigger?: Partial<LaserDmxShowDirectorTriggerConfig>
+}
+
+export interface LaserDmxShowDirectorState {
+  schemaVersion?: number
+  fixtures:          LaserDmxShowDirectorFixture[]
+  selectedFixtureId: string | null
+  settings:          LaserDmxShowDirectorSettings
+}
+
+const SHOW_DIRECTOR_BEAM_FIXTURE_KINDS = new Set<LaserDmxShowDirectorFixtureKind>([
+  'laser',
+  'movingHead',
+  'ledBar',
+  'ledTube',
+  'strobe',
+  'blinder',
+  'parWash',
+])
+
+export const DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS: LaserDmxShowDirectorSettings = {
+  gridSize:    { columns: 15, rows: 10 },
+  snapEnabled: true,
+  showLabels:  true,
+  showBeams:   true,
+  zoom:        1,
+}
+
+export const DEFAULT_LASER_DMX_SHOW_DIRECTOR_TRIGGER: LaserDmxShowDirectorTriggerConfig = {
+  mode:             'alwaysOn',
+  quantize:         'beat',
+  retrigger:        'allow',
+  beatDivision:     1,
+  barInterval:      1,
+  phraseLengthBars: 8,
+  sectionTypes:     [],
+  cuePointIds:      [],
+  energyThreshold:  0.7,
+  audioBand:        'bass',
+  audioThreshold:   0.65,
+}
+
+function showDirectorRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function showDirectorFinite(value: unknown, fallback: number): number {
+  const candidate = typeof value === 'number'
+    ? value
+    : (typeof value === 'string' && value.trim() ? Number(value) : Number.NaN)
+  return Number.isFinite(candidate) ? candidate : fallback
+}
+
+function showDirectorBoolean(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback
+}
+
+function showDirectorString(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.trim().length > 0 ? value : fallback
+}
+
+function showDirectorStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+}
+
+function showDirectorUnit(value: unknown, fallback: number): number {
+  return Math.max(0, Math.min(1, showDirectorFinite(value, fallback)))
+}
+
+function showDirectorPositiveInt(value: unknown, fallback: number, min = 1, max = 128): number {
+  return Math.max(min, Math.min(max, Math.round(showDirectorFinite(value, fallback))))
+}
+
+export function isLaserDmxShowDirectorFixtureKind(value: unknown): value is LaserDmxShowDirectorFixtureKind {
+  return typeof value === 'string' && LASER_DMX_SHOW_DIRECTOR_FIXTURE_KINDS.includes(value as LaserDmxShowDirectorFixtureKind)
+}
+
+function coerceShowDirectorColorMode(value: unknown): LaserDmxShowDirectorColorMode {
+  return value === 'palette' || value === 'music' || value === 'fixtureDefault' ? value : 'fixed'
+}
+
+function coerceShowDirectorTargetMode(value: unknown): LaserDmxShowDirectorBeamTargetMode {
+  return value === 'stageCenter' || value === 'customPoint' || value === 'musicReactive' ? value : 'forward'
+}
+
+function coerceShowDirectorTriggerMode(value: unknown): LaserDmxShowDirectorTriggerMode {
+  return value === 'beat'
+    || value === 'bar'
+    || value === 'phrase'
+    || value === 'section'
+    || value === 'cuePoint'
+    || value === 'energy'
+    || value === 'audioBand'
+    ? value
+    : 'alwaysOn'
+}
+
+function coerceShowDirectorAudioBand(value: unknown): LaserDmxShowDirectorAudioBand {
+  return value === 'sub' || value === 'lowMid' || value === 'mid' || value === 'highMid' || value === 'high'
+    ? value
+    : 'bass'
+}
+
+function coerceShowDirectorTriggerRetrigger(value: unknown): LaserDmxShowDirectorTriggerRetrigger {
+  return value === 'oncePerBeat' || value === 'oncePerBar' || value === 'oncePerPhrase' ? value : 'allow'
+}
+
+function coerceShowDirectorTriggerQuantize(value: unknown): LaserDmxShowDirectorTriggerQuantize {
+  return value === 'none' || value === 'bar' || value === 'phrase' || value === 'section' ? value : 'beat'
+}
+
+function coerceShowDirectorBeatDivision(value: unknown): 1 | 2 | 4 | 8 | 16 {
+  const candidate = showDirectorPositiveInt(value, 1, 1, 16)
+  return candidate === 2 || candidate === 4 || candidate === 8 || candidate === 16 ? candidate : 1
+}
+
+function createDefaultLaserDmxShowDirectorBeamConfig(kind: LaserDmxShowDirectorFixtureKind): LaserDmxShowDirectorBeamConfig {
+  return {
+    beamEnabled: SHOW_DIRECTOR_BEAM_FIXTURE_KINDS.has(kind),
+    beamAngle:   kind === 'movingHead' ? -90 : 0,
+    beamSpread:  kind === 'laser' ? 18 : kind === 'parWash' ? 55 : 0,
+    focus:       kind === 'parWash' ? 0.45 : 0.8,
+    targetMode:  kind === 'movingHead' ? 'stageCenter' : 'forward',
+  }
+}
+
+export function createDefaultLaserDmxShowDirectorFixture(
+  kind: LaserDmxShowDirectorFixtureKind,
+  id: string,
+  index = 0,
+): LaserDmxShowDirectorFixture {
+  const label = LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS[kind]
+  const column = index % DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.gridSize.columns
+  const row = Math.floor(index / DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.gridSize.columns)
+  return {
+    schemaVersion: LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION,
+    id,
+    kind,
+    label: `${label} ${index + 1}`,
+    enabled: true,
+    x: column,
+    y: row,
+    z: 0,
+    rotation: 0,
+    groupId: null,
+    color: '#4ac7db',
+    colorMode: 'fixed',
+    brightness: 0.85,
+    beam: createDefaultLaserDmxShowDirectorBeamConfig(kind),
+    trigger: { ...DEFAULT_LASER_DMX_SHOW_DIRECTOR_TRIGGER },
+  }
+}
+
+export function createDefaultLaserDmxShowDirectorState(): LaserDmxShowDirectorState {
+  return {
+    schemaVersion: LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION,
+    fixtures: [],
+    selectedFixtureId: null,
+    settings: {
+      ...DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS,
+      gridSize: { ...DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.gridSize },
+    },
+  }
+}
+
+export function normalizeLaserDmxShowDirectorSettings(raw: unknown): LaserDmxShowDirectorSettings {
+  const fallback = DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS
+  const value = showDirectorRecord(raw) ? raw : {}
+  const rawGrid = showDirectorRecord(value.gridSize) ? value.gridSize : {}
+  return {
+    gridSize: {
+      columns: showDirectorPositiveInt(rawGrid.columns, fallback.gridSize.columns, 1, 64),
+      rows:    showDirectorPositiveInt(rawGrid.rows,    fallback.gridSize.rows,    1, 64),
+    },
+    snapEnabled: showDirectorBoolean(value.snapEnabled, fallback.snapEnabled),
+    showLabels:  showDirectorBoolean(value.showLabels,  fallback.showLabels),
+    showBeams:   showDirectorBoolean(value.showBeams,   fallback.showBeams),
+    zoom:        Math.max(0.25, Math.min(4, showDirectorFinite(value.zoom, fallback.zoom))),
+  }
+}
+
+function normalizeLaserDmxShowDirectorBeamConfig(raw: unknown, kind: LaserDmxShowDirectorFixtureKind): LaserDmxShowDirectorBeamConfig {
+  const fallback = createDefaultLaserDmxShowDirectorBeamConfig(kind)
+  const value = showDirectorRecord(raw) ? raw : {}
+  const normalized: LaserDmxShowDirectorBeamConfig = {
+    beamEnabled: showDirectorBoolean(value.beamEnabled, fallback.beamEnabled),
+    beamAngle:   Math.max(-360, Math.min(360, showDirectorFinite(value.beamAngle, fallback.beamAngle))),
+    beamSpread:  Math.max(0, Math.min(180, showDirectorFinite(value.beamSpread, fallback.beamSpread))),
+    focus:       showDirectorUnit(value.focus, fallback.focus),
+    targetMode:  coerceShowDirectorTargetMode(value.targetMode),
+  }
+  if (Number.isFinite(showDirectorFinite(value.targetX, Number.NaN))) normalized.targetX = showDirectorFinite(value.targetX, 0)
+  if (Number.isFinite(showDirectorFinite(value.targetY, Number.NaN))) normalized.targetY = showDirectorFinite(value.targetY, 0)
+  if (Number.isFinite(showDirectorFinite(value.targetZ, Number.NaN))) normalized.targetZ = showDirectorFinite(value.targetZ, 0)
+  return normalized
+}
+
+function normalizeLaserDmxShowDirectorTriggerConfig(raw: unknown): LaserDmxShowDirectorTriggerConfig {
+  const fallback = DEFAULT_LASER_DMX_SHOW_DIRECTOR_TRIGGER
+  const value = showDirectorRecord(raw) ? raw : {}
+  return {
+    mode:             coerceShowDirectorTriggerMode(value.mode),
+    quantize:         coerceShowDirectorTriggerQuantize(value.quantize),
+    retrigger:        coerceShowDirectorTriggerRetrigger(value.retrigger),
+    beatDivision:     coerceShowDirectorBeatDivision(value.beatDivision),
+    barInterval:      showDirectorPositiveInt(value.barInterval, fallback.barInterval, 1, 64),
+    phraseLengthBars: showDirectorPositiveInt(value.phraseLengthBars, fallback.phraseLengthBars, 1, 128),
+    sectionTypes:     showDirectorStringArray(value.sectionTypes),
+    cuePointIds:      showDirectorStringArray(value.cuePointIds),
+    energyThreshold:  showDirectorUnit(value.energyThreshold, fallback.energyThreshold),
+    audioBand:        coerceShowDirectorAudioBand(value.audioBand),
+    audioThreshold:   showDirectorUnit(value.audioThreshold, fallback.audioThreshold),
+  }
+}
+
+export function normalizeLaserDmxShowDirectorFixture(raw: unknown, index = 0): LaserDmxShowDirectorFixture {
+  const value = showDirectorRecord(raw) ? raw : {}
+  const kind = isLaserDmxShowDirectorFixtureKind(value.kind) ? value.kind : 'laser'
+  const fallback = createDefaultLaserDmxShowDirectorFixture(kind, `show-director-recovered-${index + 1}`, index)
+  return {
+    schemaVersion: LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION,
+    id:         showDirectorString(value.id, fallback.id),
+    kind,
+    label:      showDirectorString(value.label, fallback.label),
+    enabled:    showDirectorBoolean(value.enabled, fallback.enabled),
+    x:          showDirectorFinite(value.x, fallback.x),
+    y:          showDirectorFinite(value.y, fallback.y),
+    z:          showDirectorFinite(value.z, fallback.z),
+    rotation:   Math.max(-360, Math.min(360, showDirectorFinite(value.rotation, fallback.rotation))),
+    groupId:    typeof value.groupId === 'string' && value.groupId.trim().length > 0 ? value.groupId : null,
+    color:      showDirectorString(value.color, fallback.color),
+    colorMode:  coerceShowDirectorColorMode(value.colorMode),
+    brightness: showDirectorUnit(value.brightness, fallback.brightness),
+    beam:       normalizeLaserDmxShowDirectorBeamConfig(value.beam, kind),
+    trigger:    normalizeLaserDmxShowDirectorTriggerConfig(value.trigger),
+  }
+}
+
+export function normalizeLaserDmxShowDirectorState(raw: unknown): LaserDmxShowDirectorState {
+  if (!showDirectorRecord(raw)) return createDefaultLaserDmxShowDirectorState()
+  const fixtures = Array.isArray(raw.fixtures)
+    ? raw.fixtures.map((fixture, index) => normalizeLaserDmxShowDirectorFixture(fixture, index))
+    : []
+  const ids = new Set(fixtures.map(fixture => fixture.id))
+  const selectedFixtureId = typeof raw.selectedFixtureId === 'string' && ids.has(raw.selectedFixtureId)
+    ? raw.selectedFixtureId
+    : null
+  return {
+    schemaVersion: LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION,
+    fixtures,
+    selectedFixtureId,
+    settings: normalizeLaserDmxShowDirectorSettings(raw.settings),
+  }
+}
+
 export interface LaserDmxFixture {
   /** Versioned on persistence; omitted legacy fixtures are normalized on load. */
   schemaVersion?: number
