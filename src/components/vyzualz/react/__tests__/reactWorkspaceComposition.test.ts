@@ -49,12 +49,12 @@ describe('React workspace composition', () => {
     }
   })
 
-  it('exposes Laser Layers and the beam editor only in Beam Matrix workspace', () => {
-    const spatial = resolveReactWorkspaceComposition('laserDmx', 'spatialFixtures', true)
-    expect(spatial.showLaserLayersTab).toBe(false)
-    expect(spatial.showLaserBeamEditor).toBe(false)
-    expect(getReactLeftTabs(spatial)).toEqual(['workspace'])
-    expect(getReactLeftTabLabel('workspace', spatial)).toBe('RIG')
+  it('exposes Laser Layers and the beam editor even when legacy Spatial Fixtures mode is requested', () => {
+    const legacySpatialRequest = resolveReactWorkspaceComposition('laserDmx', 'spatialFixtures', true)
+    expect(legacySpatialRequest.showLaserLayersTab).toBe(true)
+    expect(legacySpatialRequest.showLaserBeamEditor).toBe(true)
+    expect(getReactLeftTabs(legacySpatialRequest)).toEqual(['workspace', 'layers'])
+    expect(getReactLeftTabLabel('workspace', legacySpatialRequest)).toBe('RIG')
 
     const matrixHidden = resolveReactWorkspaceComposition('laserDmx', 'beamMatrix', false)
     expect(matrixHidden.showLaserLayersTab).toBe(true)

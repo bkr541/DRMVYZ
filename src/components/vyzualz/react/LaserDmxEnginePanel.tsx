@@ -1,38 +1,21 @@
-import { useEffect, useState } from 'react'
-import { useReactStore } from '../../../stores/reactStore'
-import { LaserDmxWorkspaceModeSelector } from './LaserDmxWorkspaceModeSelector'
-import { LaserDmxSpatialFixturesPanel } from './LaserDmxSpatialFixturesPanel'
+import { useState } from 'react'
 import { LaserDmxBeamMatrixPanel } from './LaserDmxBeamMatrixPanel'
 import { LaserDmxCueListPanel } from './LaserDmxCueListPanel'
 
-type LaserDmxRigSurface = 'workspace' | 'fixtures' | 'showDirector'
+type LaserDmxRigSurface = 'workspace' | 'showDirector'
+
+const SURFACE_OPTIONS: Array<{ id: LaserDmxRigSurface; label: string }> = [
+  { id: 'workspace', label: 'MATRIX' },
+  { id: 'showDirector', label: 'SHOW DIRECTOR' },
+]
 
 export function LaserDmxEnginePanel() {
-  const laserDmxWorkspaceMode = useReactStore(state => state.laserDmxWorkspaceMode)
   const [surface, setSurface] = useState<LaserDmxRigSurface>('workspace')
-
-  useEffect(() => {
-    if (laserDmxWorkspaceMode === 'beamMatrix' && surface === 'fixtures') {
-      setSurface('workspace')
-    }
-  }, [laserDmxWorkspaceMode, surface])
-
-  const surfaceOptions: Array<{ id: LaserDmxRigSurface; label: string }> = laserDmxWorkspaceMode === 'beamMatrix'
-    ? [
-        { id: 'workspace', label: 'MATRIX' },
-        { id: 'showDirector', label: 'SHOW DIRECTOR' },
-      ]
-    : [
-        { id: 'workspace', label: 'RIG SETUP' },
-        { id: 'fixtures', label: 'FIXTURES' },
-        { id: 'showDirector', label: 'SHOW DIRECTOR' },
-      ]
 
   return (
     <div className="rv-laser-workspace">
-      <LaserDmxWorkspaceModeSelector />
-      <div className="rv-segmented-control rv-laser-rig-surfaces" role="tablist" aria-label="LaserDMX workspace surfaces">
-        {surfaceOptions.map(option => (
+      <div className="rv-segmented-control rv-laser-rig-surfaces" role="tablist" aria-label="LaserDMX Beam Matrix surfaces">
+        {SURFACE_OPTIONS.map(option => (
           <button
             key={option.id}
             type="button"
@@ -49,10 +32,8 @@ export function LaserDmxEnginePanel() {
       <div className="rv-laser-workspace-surface" role="tabpanel">
         {surface === 'showDirector' ? (
           <LaserDmxCueListPanel />
-        ) : laserDmxWorkspaceMode === 'beamMatrix' ? (
-          <LaserDmxBeamMatrixPanel />
         ) : (
-          <LaserDmxSpatialFixturesPanel surface={surface === 'fixtures' ? 'fixtures' : 'setup'} />
+          <LaserDmxBeamMatrixPanel />
         )}
       </div>
     </div>

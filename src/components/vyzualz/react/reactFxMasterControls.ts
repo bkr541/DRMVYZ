@@ -1,4 +1,4 @@
-import type { LaserDmxWorkspaceMode, ReactEngineId } from './ReactTypes'
+import { coerceLaserDmxWorkspaceMode, type LaserDmxWorkspaceMode, type ReactEngineId } from './ReactTypes'
 
 export type ReactFxMasterControl =
   | 'intensity'
@@ -19,7 +19,7 @@ export function getReactFxMasterControls(
     return ['intensity', 'motion', 'glow', 'bassReactivity']
   }
 
-  return laserWorkspaceMode === 'beamMatrix'
+  return coerceLaserDmxWorkspaceMode(laserWorkspaceMode) === 'beamMatrix'
     ? ['intensity', 'glow']
     : ['glow']
 }

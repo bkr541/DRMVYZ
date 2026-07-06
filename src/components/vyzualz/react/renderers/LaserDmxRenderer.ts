@@ -3,7 +3,7 @@
 // Fixtures compile through the same DMX path, then render against the shared
 // metre-based production stage with a perspective camera.
 
-import type { ReactPreset, ReactSectionType } from '../ReactTypes'
+import { coerceLaserDmxWorkspaceMode, type ReactPreset, type ReactSectionType } from '../ReactTypes'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { AudioFeatureBus } from '../../../../features/musicIntelligence/AudioFeatureBus'
 import { useReactStore } from '../../../../stores/reactStore'
@@ -170,9 +170,7 @@ export function renderLaserDmx(
 
   const state = useReactStore.getState()
   const affectProductionOutput = shouldAffectLaserDmxProductionOutput(params)
-  const workspaceMode = params.thumbnailLaserDmxSettings
-    ? 'spatialFixtures'
-    : state.laserDmxWorkspaceMode
+  const workspaceMode = coerceLaserDmxWorkspaceMode(state.laserDmxWorkspaceMode)
   const mi = AudioFeatureBus.getFrame()
   const trackKey = frame.trackKey ?? mi.trackId ?? mi.sourceId
   const lifecycle = getLaserDmxRendererLifecycle(ctx, reason => resetLaserDmxRuntimeState(reason, ctx))

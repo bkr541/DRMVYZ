@@ -42,7 +42,7 @@ export const REACT_ENGINE_CATALOG: Record<ReactEngineId, ReactEngineCatalogEntry
     label: 'LaserDMX',
     shortLabel: 'Laser',
     icon: '✦',
-    description: 'DMX beam matrix and spatial fixture control with production atmosphere.',
+    description: 'DMX Beam Matrix control with production-ready cues, fog, and audio-reactive laser looks.',
   },
 }
 

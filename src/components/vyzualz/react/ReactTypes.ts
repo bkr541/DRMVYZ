@@ -650,6 +650,17 @@ export function createDefaultLaserDmxSettings(): LaserDmxSettings {
 
 export type LaserDmxWorkspaceMode = 'spatialFixtures' | 'beamMatrix'
 
+/**
+ * LaserDMX is locked to Beam Matrix in the first Spatial Fixtures removal pass.
+ * Keep the legacy union value readable so old saved projects hydrate safely, but
+ * normalize any live workspace request back to Beam Matrix.
+ */
+export const LOCKED_LASER_DMX_WORKSPACE_MODE: LaserDmxWorkspaceMode = 'beamMatrix'
+
+export function coerceLaserDmxWorkspaceMode(_mode: unknown): LaserDmxWorkspaceMode {
+  return LOCKED_LASER_DMX_WORKSPACE_MODE
+}
+
 export const LASER_DMX_MATRIX_COLUMNS = 15
 export const LASER_DMX_MATRIX_ROWS    = 10
 export const LASER_DMX_MATRIX_MAX_BEAMS = 300

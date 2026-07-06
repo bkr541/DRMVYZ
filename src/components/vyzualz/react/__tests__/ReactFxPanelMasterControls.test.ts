@@ -22,8 +22,9 @@ describe('getReactFxMasterControls', () => {
     ])
   })
 
-  it('shows only controls consumed by Spatial Fixtures', () => {
+  it('coerces legacy Spatial Fixtures requests to Beam Matrix controls', () => {
     expect(getReactFxMasterControls('laserDmx', 'spatialFixtures')).toEqual([
+      'intensity',
       'glow',
     ])
   })

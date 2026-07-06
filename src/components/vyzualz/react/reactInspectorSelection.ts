@@ -1,8 +1,9 @@
-import type {
-  LaserDmxBeamMatrixSettings,
-  LaserDmxSettings,
-  OscillatorSettings,
-  ReactEngineId,
+import {
+  coerceLaserDmxWorkspaceMode,
+  type LaserDmxBeamMatrixSettings,
+  type LaserDmxSettings,
+  type OscillatorSettings,
+  type ReactEngineId,
 } from './ReactTypes'
 
 export type ReactInspectableSelection =
@@ -60,7 +61,7 @@ export function resolveReactInspectorSelection({
 
   if (activeReactEngineId !== 'laserDmx') return null
 
-  if (laserDmxWorkspaceMode === 'spatialFixtures') {
+  if (coerceLaserDmxWorkspaceMode(laserDmxWorkspaceMode) === 'spatialFixtures') {
     const selectedFixture = laserDmxSettings.fixtures.find(
       fixture => fixture.id === laserDmxSettings.selectedFixtureId,
     )

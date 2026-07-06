@@ -4,7 +4,18 @@ import { useReactStore } from '../../../stores/reactStore'
 import { ConnectedShaderModulationPanel } from './shaders/ui/ConnectedShaderModulationPanel'
 import { CinematicWorldsModulationControls } from './CinematicWorldsControls'
 import { SliderRow, SelectRow, ToggleRow, Collapsible } from './ReactControlRows'
-import type { OscillatorAudioDisplaceMode, OscillatorTextLetterReactionMode, LetterReactionAssignment, LetterReactionSource, LetterReactionTarget, LaserDmxFixture, LaserDmxModulationRoute, LaserDmxTriggerTimingFilter, LaserDmxTriggerTimingFilterMode } from './ReactTypes'
+import {
+  coerceLaserDmxWorkspaceMode,
+  type OscillatorAudioDisplaceMode,
+  type OscillatorTextLetterReactionMode,
+  type LetterReactionAssignment,
+  type LetterReactionSource,
+  type LetterReactionTarget,
+  type LaserDmxFixture,
+  type LaserDmxModulationRoute,
+  type LaserDmxTriggerTimingFilter,
+  type LaserDmxTriggerTimingFilterMode,
+} from './ReactTypes'
 import { BEATS_PER_BAR } from './ReactTypes'
 import { TRIGGER_TIMING_EVENT_SOURCES } from './renderers/LaserDmxModulationEngine'
 import { resolveLaserDmxFixtureCapabilities } from './LaserDmxProductionRig'
@@ -814,7 +825,7 @@ export function ReactModulationPanel() {
   if (isLaserDmx) {
     return (
       <div className="rv-ctrl-group">
-        {laserDmxWorkspaceMode === 'beamMatrix'
+        {coerceLaserDmxWorkspaceMode(laserDmxWorkspaceMode) === 'beamMatrix'
           ? <LaserDmxBeamMatrixModPanel />
           : <LaserDmxModPanel />
         }

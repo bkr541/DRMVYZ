@@ -16,7 +16,6 @@ export function LaserDmxBeamMatrixPanel() {
     clearLaserDmxMatrixSelection,
     setSelectedLaserDmxMatrixBeams,
     resetLaserDmxBeamMatrix,
-    convertLaserDmxBeamMatrixToSpatialRig,
   } = useReactStore(useShallow(s => ({
     laserDmxBeamMatrix:                s.laserDmxBeamMatrix,
     addLaserDmxMatrixBeam:             s.addLaserDmxMatrixBeam,
@@ -25,7 +24,6 @@ export function LaserDmxBeamMatrixPanel() {
     clearLaserDmxMatrixSelection:      s.clearLaserDmxMatrixSelection,
     setSelectedLaserDmxMatrixBeams:    s.setSelectedLaserDmxMatrixBeams,
     resetLaserDmxBeamMatrix:           s.resetLaserDmxBeamMatrix,
-    convertLaserDmxBeamMatrixToSpatialRig: s.convertLaserDmxBeamMatrixToSpatialRig,
   })))
 
   const [confirmReset, setConfirmReset] = useState(false)
@@ -114,21 +112,6 @@ export function LaserDmxBeamMatrixPanel() {
         </button>
       </div>
 
-      <button
-        type="button"
-        className="rv-glyph-upload-btn"
-        style={{ marginTop: 4 }}
-        disabled={beamCount === 0}
-        onClick={() => {
-          if (window.confirm('Convert the current Beam Matrix into editable Spatial Fixtures? The Beam Matrix program will be preserved.')) {
-            convertLaserDmxBeamMatrixToSpatialRig()
-          }
-        }}
-        aria-label="Convert Beam Matrix to Spatial Fixtures"
-      >
-        Convert to Spatial Rig
-      </button>
-        <div className="rv-ctrl-info">Conversion is explicit and non-destructive: Beam Matrix stays intact while a metre-based fixture rig is created.</div>
 
       {/* ── Reset with confirmation ──────────────────────────────────────── */}
         {confirmReset ? (

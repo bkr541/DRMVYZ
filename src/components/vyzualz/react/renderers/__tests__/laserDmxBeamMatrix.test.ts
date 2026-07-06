@@ -33,16 +33,16 @@ function freshBeamMatrix() {
 // ── Default workspace mode tests ──────────────────────────────────────────────
 
 describe('default workspace mode', () => {
-  it('createDefaultLaserDmxBeamMatrixSettings returns spatialFixtures-compatible shape', () => {
+  it('createDefaultLaserDmxBeamMatrixSettings returns Beam Matrix-compatible shape', () => {
     const s = freshBeamMatrix()
     expect(s.beams).toHaveLength(0)
     expect(s.groups.length).toBeGreaterThanOrEqual(4)
   })
 
-  it('default store workspace mode is spatialFixtures', () => {
-    // The initial state value is set to 'spatialFixtures'
+  it('default store workspace mode is beamMatrix', () => {
+    // The initial state value is locked to 'beamMatrix'.
     const mode = useReactStore.getState().laserDmxWorkspaceMode
-    expect(mode).toBe('spatialFixtures')
+    expect(mode).toBe('beamMatrix')
   })
 })
 
@@ -66,12 +66,12 @@ describe('persist migration', () => {
 
 // ── Preset application isolation ──────────────────────────────────────────────
 
-describe('preset application switches to the preset-owned workspace', () => {
-  it('buildPresetPatch includes the Spatial Fixtures workspace', () => {
+describe('preset application preserves the locked Beam Matrix workspace', () => {
+  it('buildPresetPatch coerces LaserDMX presets to the Beam Matrix workspace', () => {
     const { reactPresets, oscillatorSettings, laserDmxSettings } = useReactStore.getState()
     const ldxPreset = reactPresets.find(p => p.engine === 'laserDmx')!
     const patch = buildPresetPatch(ldxPreset, oscillatorSettings, laserDmxSettings)
-    expect(patch.laserDmxWorkspaceMode).toBe('spatialFixtures')
+    expect(patch.laserDmxWorkspaceMode).toBe('beamMatrix')
   })
 
   it('buildPresetPatch does not include laserDmxBeamMatrix', () => {
@@ -81,16 +81,16 @@ describe('preset application switches to the preset-owned workspace', () => {
     expect(patch).not.toHaveProperty('laserDmxBeamMatrix')
   })
 
-  it('selectReactPreset switches from Beam Matrix to Spatial Fixtures', () => {
+  it('selectReactPreset cannot switch LaserDMX out of Beam Matrix', () => {
     const store = useReactStore.getState()
     const ldxPreset = store.reactPresets.find(p => p.engine === 'laserDmx')!
     // Set to beamMatrix first
     store.setLaserDmxWorkspaceMode('beamMatrix')
     store.selectReactPreset(ldxPreset.id)
-    expect(useReactStore.getState().laserDmxWorkspaceMode).toBe('spatialFixtures')
+    expect(useReactStore.getState().laserDmxWorkspaceMode).toBe('beamMatrix')
   })
 
-  it('loads every Spatial Fixtures preset with its complete workspace context', () => {
+  it('loads legacy Spatial Fixtures presets without unlocking Spatial Fixtures', () => {
     const spatialPresets = useReactStore.getState().reactPresets.filter(preset =>
       preset.engine === 'laserDmx'
       && resolveReactPresetLaserDmxWorkspace(preset) === 'spatialFixtures',
@@ -103,7 +103,7 @@ describe('preset application switches to the preset-owned workspace', () => {
       const selected = useReactStore.getState()
       expect(selected.activeReactEngineId).toBe('laserDmx')
       expect(selected.activeReactPresetId).toBe(preset.id)
-      expect(selected.laserDmxWorkspaceMode).toBe('spatialFixtures')
+      expect(selected.laserDmxWorkspaceMode).toBe('beamMatrix')
     }
   })
 
@@ -131,7 +131,7 @@ describe('workspace mode switching', () => {
     store.setLaserDmxWorkspaceMode('spatialFixtures')
   })
 
-  it('switching to spatialFixtures does not modify laserDmxBeamMatrix', () => {
+  it('requesting spatialFixtures leaves Beam Matrix selected and does not modify laserDmxBeamMatrix', () => {
     const store = useReactStore.getState()
     store.setLaserDmxWorkspaceMode('beamMatrix')
     const before = JSON.stringify(useReactStore.getState().laserDmxBeamMatrix)
@@ -140,12 +140,12 @@ describe('workspace mode switching', () => {
     expect(after).toBe(before)
   })
 
-  it('setLaserDmxWorkspaceMode updates the mode correctly', () => {
+  it('setLaserDmxWorkspaceMode always resolves to Beam Matrix', () => {
     const store = useReactStore.getState()
     store.setLaserDmxWorkspaceMode('beamMatrix')
     expect(useReactStore.getState().laserDmxWorkspaceMode).toBe('beamMatrix')
     store.setLaserDmxWorkspaceMode('spatialFixtures')
-    expect(useReactStore.getState().laserDmxWorkspaceMode).toBe('spatialFixtures')
+    expect(useReactStore.getState().laserDmxWorkspaceMode).toBe('beamMatrix')
   })
 })
 

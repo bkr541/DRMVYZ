@@ -20,21 +20,19 @@ function createMemoryStorage(): Storage {
 }
 
 describe('React preset library state', () => {
-  it('filters the default view to the selected engine only', () => {
+  it('hides legacy Spatial Fixtures presets from the locked LaserDMX default view', () => {
     const filtered = filterReactPresetLibrary(
       DEFAULT_REACT_PRESETS,
       'laserDmx',
-      'spatialFixtures',
+      'beamMatrix',
       'current',
       new Set(),
     )
 
-    expect(filtered.length).toBeGreaterThan(0)
-    expect(filtered.every(preset => preset.engine === 'laserDmx')).toBe(true)
-    expect(filtered.every(preset => preset.laserDmxWorkspace === 'spatialFixtures')).toBe(true)
+    expect(filtered).toHaveLength(0)
   })
 
-  it('filters LaserDMX presets by the active sub-workspace', () => {
+  it('keeps Beam Matrix presets visible while hiding legacy Spatial Fixtures presets', () => {
     const spatial = DEFAULT_REACT_PRESETS.find(preset => preset.engine === 'laserDmx')!
     const beamMatrix = {
       ...spatial,
@@ -58,9 +56,10 @@ describe('React preset library state', () => {
     const oscilloscope = DEFAULT_REACT_PRESETS.find(preset => preset.engine === 'oscilloscope')!
     const favorites = new Set([cinematic.id, oscilloscope.id])
 
-    expect(filterReactPresetLibrary(DEFAULT_REACT_PRESETS, 'laserDmx', 'spatialFixtures', 'all', favorites))
-      .toHaveLength(DEFAULT_REACT_PRESETS.length)
-    expect(filterReactPresetLibrary(DEFAULT_REACT_PRESETS, 'laserDmx', 'spatialFixtures', 'favorites', favorites).map(preset => preset.id))
+    const visibleDefaultPresets = DEFAULT_REACT_PRESETS.filter(preset => preset.engine !== 'laserDmx')
+    expect(filterReactPresetLibrary(DEFAULT_REACT_PRESETS, 'laserDmx', 'beamMatrix', 'all', favorites))
+      .toHaveLength(visibleDefaultPresets.length)
+    expect(filterReactPresetLibrary(DEFAULT_REACT_PRESETS, 'laserDmx', 'beamMatrix', 'favorites', favorites).map(preset => preset.id))
       .toEqual([cinematic.id, oscilloscope.id])
   })
 

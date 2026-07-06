@@ -39,7 +39,7 @@ function brandKit(): BrandKit {
 }
 
 describe('LaserDMX Production Rig Patch 10 curated presets', () => {
-  it('keeps Red Club Crossfire as the single curated Spatial Fixtures preset in the canonical browser library', () => {
+  it('keeps Red Club Crossfire as the retained curated production preset for compatibility', () => {
     expect(LASER_DMX_PRODUCTION_PRESETS.map(preset => preset.name)).toEqual(EXPECTED_NAMES)
     for (const name of EXPECTED_NAMES) {
       expect(DEFAULT_REACT_PRESETS.some(preset => preset.name === name && preset.engine === 'laserDmx')).toBe(true)

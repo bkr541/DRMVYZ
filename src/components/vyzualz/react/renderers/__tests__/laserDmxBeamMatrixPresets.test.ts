@@ -710,16 +710,18 @@ describe('loading a preset resets old envelope state', () => {
   })
 })
 
-// ── Switching to Spatial Fixtures preserves its state ─────────────────────────
+// ── Legacy workspace requests preserve spatial state without unlocking it ───────
 
-describe('switching to Spatial Fixtures after loading a Beam Matrix preset', () => {
-  it('laserDmxSettings is unchanged after applying a beam matrix preset and switching mode', () => {
+describe('legacy Spatial Fixtures request after loading a Beam Matrix preset', () => {
+  it('laserDmxSettings is unchanged and workspace remains Beam Matrix', () => {
     const store = useReactStore.getState()
     const before = JSON.stringify(store.laserDmxSettings)
     store.applyLaserDmxBeamMatrixPreset('kick-snare-duel')
     store.setLaserDmxWorkspaceMode('spatialFixtures')
-    const after = JSON.stringify(useReactStore.getState().laserDmxSettings)
+    const state = useReactStore.getState()
+    const after = JSON.stringify(state.laserDmxSettings)
     expect(after).toBe(before)
+    expect(state.laserDmxWorkspaceMode).toBe('beamMatrix')
     // Restore
     useReactStore.getState().setLaserDmxWorkspaceMode('beamMatrix')
   })

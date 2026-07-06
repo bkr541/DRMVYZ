@@ -17,6 +17,7 @@ import type { ProductionFixtureKind, ProductionPresetCompatibilityResult } from 
 import { isSelectableReactEngineId, REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from './reactEngineCatalog'
 import {
   filterReactPresetLibrary,
+  isReactPresetVisibleForLockedLaserDmx,
   readReactPresetFavorites,
   sanitizeReactPresetFavorites,
   writeReactPresetFavorites,
@@ -25,7 +26,7 @@ import {
 
 const ENGINE_ORDER: ReactEngineId[] = REACT_ENGINE_IDS.filter(engine => engine !== 'shaderPads')
 const LASER_DMX_WORKSPACE_LABELS: Record<LaserDmxWorkspaceMode, string> = {
-  spatialFixtures: 'Spatial Fixtures',
+  spatialFixtures: 'Beam Matrix',
   beamMatrix: 'Beam Matrix',
 }
 
@@ -304,7 +305,7 @@ function EngineSection({ engineId, presets, expandedByDefault = false, ...props 
 }
 
 const LIBRARY_VIEW_LABELS: Record<ReactPresetLibraryView, string> = {
-  current: 'Current Workspace',
+  current: 'Current Engine',
   favorites: 'Favorites',
   all: 'All Engines',
 }
@@ -348,7 +349,7 @@ export function ReactPresetsPanel() {
   )
 
   useEffect(() => {
-    const sanitized = sanitizeReactPresetFavorites(displayPresets.map(preset => preset.id))
+    const sanitized = sanitizeReactPresetFavorites(displayPresets.filter(isReactPresetVisibleForLockedLaserDmx).map(preset => preset.id))
     setFavoritePresetIds(current => (
       current.length === sanitized.length && current.every((presetId, index) => presetId === sanitized[index])
         ? current
@@ -447,7 +448,9 @@ export function ReactPresetsPanel() {
         {libraryView === 'current'
           ? activeReactEngineId === 'cinematicPortal' && activeWorld
             ? `${activeWorld} presets only. Use All Engines to browse and switch worlds.`
-            : `${activeReactEngineId === 'laserDmx' ? LASER_DMX_WORKSPACE_LABELS[laserDmxWorkspaceMode] : activeEngine.label} presets only. Use All Engines to browse and switch workspaces.`
+            : activeReactEngineId === 'laserDmx'
+              ? 'Beam Matrix looks are managed from the Beam Matrix Presets section.'
+              : `${activeEngine.label} presets only. Use All Engines to browse other engines.`
           : libraryView === 'favorites'
             ? 'Star presets from any engine to keep them together here.'
             : 'Selecting another engine’s preset switches that engine and loads the look.'}

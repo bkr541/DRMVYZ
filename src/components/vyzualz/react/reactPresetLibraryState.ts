@@ -63,6 +63,10 @@ export function sanitizeReactPresetFavorites(
   return cleaned
 }
 
+export function isReactPresetVisibleForLockedLaserDmx(preset: ReactPreset): boolean {
+  return preset.engine !== 'laserDmx' || resolveReactPresetLaserDmxWorkspace(preset) === 'beamMatrix'
+}
+
 export function filterReactPresetLibrary(
   presets: ReactPreset[],
   activeEngineId: ReactEngineId,
@@ -70,13 +74,14 @@ export function filterReactPresetLibrary(
   view: ReactPresetLibraryView,
   favoriteIds: ReadonlySet<string>,
 ): ReactPreset[] {
+  const visiblePresets = presets.filter(isReactPresetVisibleForLockedLaserDmx)
   if (view === 'current') {
-    return presets.filter(preset => {
+    return visiblePresets.filter(preset => {
       if (preset.engine !== activeEngineId) return false
       if (activeEngineId !== 'laserDmx') return true
       return resolveReactPresetLaserDmxWorkspace(preset) === activeLaserDmxWorkspace
     })
   }
-  if (view === 'favorites') return presets.filter(preset => favoriteIds.has(preset.id))
-  return presets
+  if (view === 'favorites') return visiblePresets.filter(preset => favoriteIds.has(preset.id))
+  return visiblePresets
 }

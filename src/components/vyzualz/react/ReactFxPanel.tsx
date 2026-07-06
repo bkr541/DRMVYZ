@@ -5,9 +5,10 @@ import {
   Collapsible,
 } from './ReactControlRows'
 import { getUnifiedSvgPointCount, resolveSvgUiCapabilities } from './svgSourceLifecycle'
-import type {
-  LaserDmxFogSettings,
-  OscillatorRenderMode,
+import {
+  coerceLaserDmxWorkspaceMode,
+  type LaserDmxFogSettings,
+  type OscillatorRenderMode,
 } from './ReactTypes'
 import { ShaderParameterPanel } from './shaders/ui/ShaderParameterPanel'
 import { getReactFxMasterControls } from './reactFxMasterControls'
@@ -69,10 +70,11 @@ export function ReactFxPanel() {
   const isSoundDrawing  = activeReactEngineId === 'oscilloscope'
   const isCinematic     = activeReactEngineId === 'cinematicPortal'
   const isLaserDmx      = activeReactEngineId === 'laserDmx'
-  const isBeamMatrix    = isLaserDmx && laserDmxWorkspaceMode === 'beamMatrix'
-  const isSpatialFixtures = isLaserDmx && laserDmxWorkspaceMode === 'spatialFixtures'
+  const lockedLaserDmxWorkspaceMode = coerceLaserDmxWorkspaceMode(laserDmxWorkspaceMode)
+  const isBeamMatrix    = isLaserDmx && lockedLaserDmxWorkspaceMode === 'beamMatrix'
+  const isSpatialFixtures = isLaserDmx && lockedLaserDmxWorkspaceMode === 'spatialFixtures'
 
-  const masterControls = getReactFxMasterControls(activeReactEngineId, laserDmxWorkspaceMode)
+  const masterControls = getReactFxMasterControls(activeReactEngineId, lockedLaserDmxWorkspaceMode)
   const showMasterIntensity = masterControls.includes('intensity')
   const showMasterMotion = masterControls.includes('motion')
   const showMasterGlow = masterControls.includes('glow')

@@ -131,7 +131,7 @@ beforeEach(() => {
     activePadId: null,
     oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS },
     laserDmxSettings: createDefaultLaserDmxSettings(),
-    laserDmxWorkspaceMode: 'spatialFixtures',
+    laserDmxWorkspaceMode: 'beamMatrix',
     laserDmxBeamMatrix: createDefaultLaserDmxBeamMatrixSettings(),
     activeLaserDmxBeamMatrixPresetId: null,
     laserDmxBeamMatrixPresetDirty: false,
@@ -207,7 +207,7 @@ describe('scoped React reset actions', () => {
 
     expect(after.activeReactPresetId).toBe('preset-dream-gate')
     expect(after.activeReactEngineId).toBe('cinematicPortal')
-    expect(after.laserDmxWorkspaceMode).toBe('spatialFixtures')
+    expect(after.laserDmxWorkspaceMode).toBe('beamMatrix')
     expect(after.selectedSectionId).toBeNull()
     expect(after.selectedSectionByTrackId).toEqual({})
     expect(after.activePadId).toBeNull()

@@ -869,7 +869,7 @@ describe('mode isolation', () => {
     resetBeamMatrixCompilerState()
   })
 
-  it('switching to Spatial Fixtures mode does not clear Beam Matrix beams', () => {
+  it('requesting Spatial Fixtures mode does not clear Beam Matrix beams or unlock the workspace', () => {
     // useReactStore.getState() returns a snapshot; call getState() again AFTER mutations
     // to read the updated beam count rather than the pre-mutation snapshot.
     const store = useReactStore.getState()
@@ -877,6 +877,7 @@ describe('mode isolation', () => {
     const bmBefore = useReactStore.getState().laserDmxBeamMatrix.beams.length  // re-read after add
 
     store.setLaserDmxWorkspaceMode('spatialFixtures')
+    expect(useReactStore.getState().laserDmxWorkspaceMode).toBe('beamMatrix')
     expect(useReactStore.getState().laserDmxBeamMatrix.beams.length).toBe(bmBefore)
     store.setLaserDmxWorkspaceMode('beamMatrix')
   })
@@ -889,6 +890,7 @@ describe('mode isolation', () => {
     const sfCount = useReactStore.getState().laserDmxSettings.fixtures.length
 
     store.setLaserDmxWorkspaceMode('spatialFixtures')
+    expect(useReactStore.getState().laserDmxWorkspaceMode).toBe('beamMatrix')
     store.setLaserDmxWorkspaceMode('beamMatrix')
 
     expect(useReactStore.getState().laserDmxBeamMatrix.beams.length).toBe(bmCount)

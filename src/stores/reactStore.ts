@@ -20,6 +20,7 @@ import {
   DEFAULT_REACT_PRESET_RENDER_SETTINGS,
   createDefaultLaserDmxSettings,
   createDefaultLaserDmxBeamMatrixSettings,
+  coerceLaserDmxWorkspaceMode,
   resolveReactPresetLaserDmxWorkspace,
   LASER_DMX_MATRIX_COLUMNS,
   LASER_DMX_MATRIX_ROWS,
@@ -851,6 +852,9 @@ export function buildPresetPatch(
   }
 
   const laserDmxWorkspaceMode = resolveReactPresetLaserDmxWorkspace(preset)
+  const safeLaserDmxWorkspaceMode = laserDmxWorkspaceMode == null
+    ? null
+    : coerceLaserDmxWorkspaceMode(laserDmxWorkspaceMode)
   let laserPatch: LaserDmxSettings | undefined
   if (preset.laserDmxSettings != null) {
     // Presets are complete looks, not deltas against live authored state.
@@ -902,7 +906,7 @@ export function buildPresetPatch(
     reactFogDensity:      renderSettings.fogDensity,
     reactParticleDensity: renderSettings.particleDensity,
     oscillatorSettings:  resolvePresetOscillatorSettings(preset, currentOscSettings),
-    ...(laserDmxWorkspaceMode != null ? { laserDmxWorkspaceMode } : {}),
+    ...(safeLaserDmxWorkspaceMode != null ? { laserDmxWorkspaceMode: safeLaserDmxWorkspaceMode } : {}),
     ...(laserPatch        != null ? { laserDmxSettings:   laserPatch        } : {}),
     ...clearPerformanceActionPatch(),
   }
@@ -1877,7 +1881,7 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
   if (version < 1) {
     state = {
       ...state,
-      laserDmxWorkspaceMode: 'spatialFixtures' as LaserDmxWorkspaceMode,
+      laserDmxWorkspaceMode: 'beamMatrix' as LaserDmxWorkspaceMode,
       laserDmxBeamMatrix:    createDefaultLaserDmxBeamMatrixSettings(),
     }
   }
@@ -2515,7 +2519,7 @@ export function reactStorePartialize(s: ReactStoreState) {
     oscillatorSettings:                 s.oscillatorSettings,
     oscillatorGlyphAssets:              s.oscillatorGlyphAssets,
     laserDmxSettings:                   sanitizeLaserDmxSettingsForPersistence(s.laserDmxSettings),
-    laserDmxWorkspaceMode:              s.laserDmxWorkspaceMode,
+    laserDmxWorkspaceMode:              coerceLaserDmxWorkspaceMode(s.laserDmxWorkspaceMode),
     laserDmxBeamMatrix:                 sanitizeLaserDmxBeamMatrixForPersistence(s.laserDmxBeamMatrix),
     activeLaserDmxBeamMatrixPresetId:   s.activeLaserDmxBeamMatrixPresetId,
     laserDmxBeamMatrixPresetDirty:      s.laserDmxBeamMatrixPresetDirty,
@@ -2604,6 +2608,7 @@ export function mergeReactStoreState(
         productionCues: migrateLegacyBeamMatrixCues(matrix.cues ?? [], spatial.productionCues ?? []),
       })
     })(),
+    laserDmxWorkspaceMode: coerceLaserDmxWorkspaceMode(persisted.laserDmxWorkspaceMode ?? currentState.laserDmxWorkspaceMode),
     laserDmxBeamMatrix: normalizeLaserDmxBeamMatrixSettings(
       persisted.laserDmxBeamMatrix ?? currentState.laserDmxBeamMatrix,
     ),
@@ -2678,7 +2683,7 @@ export const useReactStore = create<ReactStoreState>()(
       performanceActionToggleStates:  {},
       laserDmxSettings:               ensureProductionLookCompatibility(createDefaultLaserDmxSettings()),
       selectedLaserDmxProductionCueId: null,
-      laserDmxWorkspaceMode:  'spatialFixtures',
+      laserDmxWorkspaceMode:  'beamMatrix',
       laserDmxBeamMatrix:     createDefaultLaserDmxBeamMatrixSettings(),
       activeLaserDmxBeamMatrixPresetId: null,
       laserDmxBeamMatrixPresetDirty:    false,
@@ -4033,7 +4038,7 @@ export const useReactStore = create<ReactStoreState>()(
             s.laserDmxSettings.productionStage,
           )
           return {
-            laserDmxWorkspaceMode: 'spatialFixtures' as const,
+            laserDmxWorkspaceMode: 'beamMatrix' as const,
             laserDmxSettings: ensureProductionLookCompatibility(normalizeLaserDmxSettings({
               ...s.laserDmxSettings,
               productionStage: conversion.stage,
@@ -4050,7 +4055,7 @@ export const useReactStore = create<ReactStoreState>()(
 
       // ── LaserDMX workspace mode ─────────────────────────────────────────────
 
-      setLaserDmxWorkspaceMode: (mode) => set({ laserDmxWorkspaceMode: mode }),
+      setLaserDmxWorkspaceMode: (mode) => set({ laserDmxWorkspaceMode: coerceLaserDmxWorkspaceMode(mode) }),
 
       // ── LaserDMX Beam Matrix ────────────────────────────────────────────────
 
@@ -4794,41 +4799,20 @@ export const useReactStore = create<ReactStoreState>()(
           }
 
           if (s.activeReactEngineId === 'laserDmx') {
-            if (s.laserDmxWorkspaceMode === 'beamMatrix') {
-              const defaults = createDefaultLaserDmxBeamMatrixSettings()
-              const laserDmxBeamMatrix = {
-                ...s.laserDmxBeamMatrix,
-                output: defaults.output,
-                fog: defaults.fog,
-              }
-              return {
-                ...sharedDefaults,
-                laserDmxBeamMatrix,
-                laserDmxBeamMatrixPresetDirty: isLaserDmxBeamMatrixPresetDirty(
-                  laserDmxBeamMatrix,
-                  s.activeLaserDmxBeamMatrixPresetId,
-                ),
-              }
+            const defaults = createDefaultLaserDmxBeamMatrixSettings()
+            const laserDmxBeamMatrix = {
+              ...s.laserDmxBeamMatrix,
+              output: defaults.output,
+              fog: defaults.fog,
             }
-
-            const defaults = createDefaultLaserDmxSettings()
             return {
               ...sharedDefaults,
-              laserDmxSettings: {
-                ...s.laserDmxSettings,
-                masterDimmer:       defaults.masterDimmer,
-                blackout:           defaults.blackout,
-                hazeAmount:         defaults.hazeAmount,
-                beamPersistence:    defaults.beamPersistence,
-                glowAmount:         defaults.glowAmount,
-                globalBeamWidth:    defaults.globalBeamWidth,
-                globalStrobeRate:   defaults.globalStrobeRate,
-                safetyClamp:        defaults.safetyClamp,
-                backgroundFade:     defaults.backgroundFade,
-                showFixtureOrigins: defaults.showFixtureOrigins,
-                showPathPoints:     defaults.showPathPoints,
-                showDmxDebug:       defaults.showDmxDebug,
-              },
+              laserDmxWorkspaceMode: 'beamMatrix' as const,
+              laserDmxBeamMatrix,
+              laserDmxBeamMatrixPresetDirty: isLaserDmxBeamMatrixPresetDirty(
+                laserDmxBeamMatrix,
+                s.activeLaserDmxBeamMatrixPresetId,
+              ),
             }
           }
 
@@ -4854,7 +4838,7 @@ export const useReactStore = create<ReactStoreState>()(
 
           return {
             ...startupPatch,
-            laserDmxWorkspaceMode: 'spatialFixtures' as const,
+            laserDmxWorkspaceMode: 'beamMatrix' as const,
             selectedSectionId: null,
             selectedSectionByTrackId: {},
             activePadId: null,
@@ -4935,7 +4919,7 @@ export const useReactStore = create<ReactStoreState>()(
           performanceActionToggleStates:    {},
           laserDmxSettings:                 ensureProductionLookCompatibility(createDefaultLaserDmxSettings()),
           selectedLaserDmxProductionCueId:   null,
-          laserDmxWorkspaceMode:            'spatialFixtures',
+          laserDmxWorkspaceMode:            'beamMatrix',
           laserDmxBeamMatrix:               createDefaultLaserDmxBeamMatrixSettings(),
           activeLaserDmxBeamMatrixPresetId: null,
           laserDmxBeamMatrixPresetDirty:    false,

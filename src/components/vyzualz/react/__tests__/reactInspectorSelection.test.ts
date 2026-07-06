@@ -57,11 +57,10 @@ describe('resolveReactInspectorSelection', () => {
     })).toEqual({ kind: 'shaderScene', id: 'shader-1' })
   })
 
-  it('requires a valid selected LaserDMX fixture', () => {
+  it('does not expose Spatial Fixtures inspector selection when LaserDMX is locked to Beam Matrix', () => {
     const args = baseArgs()
-    const selectedId = args.laserDmxSettings.selectedFixtureId!
     expect(resolveReactInspectorSelection({ ...args, activeReactEngineId: 'laserDmx' }))
-      .toEqual({ kind: 'laserFixture', id: selectedId })
+      .toBeNull()
 
     expect(resolveReactInspectorSelection({
       ...args,

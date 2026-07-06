@@ -1,4 +1,4 @@
-import type { LaserDmxWorkspaceMode, ReactEngineId } from './ReactTypes'
+import { coerceLaserDmxWorkspaceMode, type LaserDmxWorkspaceMode, type ReactEngineId } from './ReactTypes'
 
 export type ReactLeftTab = 'workspace' | 'media' | 'layers' | 'fonts'
 export type ReactPresetSurface = 'enginePresets' | 'shaderScenes'
@@ -28,7 +28,8 @@ export function resolveReactWorkspaceComposition(
   const isSoundDrawing = engineId === 'oscilloscope'
   const isCinematic = engineId === 'cinematicPortal'
   const isLaser = engineId === 'laserDmx'
-  const isLaserBeamMatrix = isLaser && laserWorkspaceMode === 'beamMatrix'
+  const lockedLaserWorkspaceMode = coerceLaserDmxWorkspaceMode(laserWorkspaceMode)
+  const isLaserBeamMatrix = isLaser && lockedLaserWorkspaceMode === 'beamMatrix'
 
   let leftTabs: ReactLeftTab[] = ['workspace']
   let workspaceTabLabel: ReactWorkspaceTabLabel = 'SETUP'
