@@ -397,16 +397,12 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
           onToggleCollapsed={() => setLeftCollapsed(v => !v)}
         >
           <div className="rv-left-workspace-shell">
-            <ReactEngineBrowser />
             <section className="rv-context-workspace" aria-label={`${REACT_ENGINE_CATALOG[activeReactEngineId].label} workspace`}>
               <header className="rv-context-workspace-header">
-                <span className="rv-context-workspace-icon" aria-hidden="true">
-                  {REACT_ENGINE_CATALOG[activeReactEngineId].icon}
-                </span>
-                <span className="rv-context-workspace-copy">
-                  <strong>{REACT_ENGINE_CATALOG[activeReactEngineId].label}</strong>
-                  <span>{REACT_ENGINE_CATALOG[activeReactEngineId].description}</span>
-                </span>
+                <ReactEngineBrowser />
+                <p className="rv-context-workspace-description">
+                  {REACT_ENGINE_CATALOG[activeReactEngineId].description}
+                </p>
               </header>
               <RailTabs
                 tabs={leftTabs}

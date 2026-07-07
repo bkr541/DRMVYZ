@@ -34,7 +34,7 @@
 
 /* Three-column content grid — takes all remaining space above the dock */
 .rv-layout {
-  --rv-left-width: 400px;
+  --rv-left-width: 330px;
   --rv-right-width: 400px;
   --rv-collapsed-width: 48px;
   --rv-rail-inline-padding: 12px;
@@ -54,7 +54,7 @@
 /* Dock sits below the grid; set column widths to align with rv-layout panels */
 .rv-shell > .az-dock {
   --vz-sidebar-width: 72px;
-  --vz-left-width: 400px;
+  --vz-left-width: 330px;
   --vz-right-width: 400px;
 }
 
@@ -4360,12 +4360,12 @@
 
 /* ── React engine browser + contextual workspace (layout coherence pass) ───── */
 .rv-layout {
-  --rv-left-width: 400px;
+  --rv-left-width: 330px;
   --rv-right-width: 400px;
 }
 
 .rv-shell > .az-dock {
-  --vz-left-width: 400px;
+  --vz-left-width: 330px;
   --vz-right-width: 400px;
 }
 
@@ -4376,101 +4376,200 @@
 
 .rv-left-workspace-shell {
   display: grid;
-  grid-template-columns: 70px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   height: 100%;
   min-height: 0;
   overflow: hidden;
 }
 
-.rv-engine-browser {
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 7px;
-  padding: 9px 7px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  border-right: 1px solid rgba(74, 199, 219, 0.12);
-  background:
-    linear-gradient(180deg, rgba(74, 199, 219, 0.045), transparent 25%),
-    rgba(3, 9, 13, 0.94);
-}
-
-.rv-engine-browser::-webkit-scrollbar { width: 2px; }
-.rv-engine-browser::-webkit-scrollbar-thumb { background: rgba(74, 199, 219, 0.22); }
-
-.rv-engine-browser-heading {
-  padding: 0 0 2px;
-  text-align: center;
-  color: rgba(232, 244, 248, 0.28);
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-}
-
-.rv-engine-browser-list {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-
-.rv-engine-browser-item {
+.rv-engine-dropdown {
   position: relative;
-  min-height: 56px;
-  padding: 7px 3px 6px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.075);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.025);
-  color: rgba(232, 244, 248, 0.48);
-  cursor: pointer;
-  transition: color 140ms ease, border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
-}
-
-.rv-engine-browser-item:hover {
-  color: rgba(232, 244, 248, 0.86);
-  border-color: rgba(74, 199, 219, 0.28);
-  background: rgba(74, 199, 219, 0.065);
-}
-
-.rv-engine-browser-item--active {
-  color: #67f7ff;
-  border-color: rgba(103, 247, 255, 0.58);
-  background: rgba(74, 199, 219, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(103, 247, 255, 0.08), 0 0 16px rgba(74, 199, 219, 0.11);
-}
-
-.rv-engine-browser-icon {
-  font-size: 17px;
-  line-height: 1;
-}
-
-.rv-engine-browser-label {
+  z-index: 6;
   width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-align: center;
-  font-size: 7.5px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
+  min-width: 0;
+}
+
+.rv-engine-dropdown-trigger {
+  width: 100%;
+  min-height: 70px;
+  padding: 10px 11px;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 11px;
+  border: 1px solid rgba(103, 247, 255, 0.72);
+  border-radius: 11px;
+  background:
+    linear-gradient(135deg, rgba(74, 199, 219, 0.18), rgba(97, 214, 170, 0.045) 44%, rgba(255, 255, 255, 0.025)),
+    rgba(5, 12, 18, 0.96);
+  color: rgba(232, 244, 248, 0.94);
+  text-align: left;
+  cursor: pointer;
+  box-shadow:
+    inset 0 0 0 1px rgba(103, 247, 255, 0.08),
+    0 0 18px rgba(74, 199, 219, 0.12);
+  transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.rv-engine-dropdown-trigger:hover,
+.rv-engine-dropdown-trigger[aria-expanded='true'] {
+  border-color: rgba(103, 247, 255, 0.94);
+  background:
+    linear-gradient(135deg, rgba(74, 199, 219, 0.25), rgba(97, 214, 170, 0.07) 44%, rgba(255, 255, 255, 0.035)),
+    rgba(5, 12, 18, 0.98);
+  box-shadow:
+    inset 0 0 0 1px rgba(103, 247, 255, 0.13),
+    0 0 24px rgba(74, 199, 219, 0.18);
+}
+
+.rv-engine-dropdown-trigger:focus-visible {
+  outline: 2px solid rgba(103, 247, 255, 0.82);
+  outline-offset: 2px;
+}
+
+.rv-engine-dropdown-icon {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(74, 199, 219, 0.32);
+  border-radius: 10px;
+  background: rgba(74, 199, 219, 0.105);
+  color: #67f7ff;
+  font-size: 21px;
+  line-height: 1;
+  box-shadow: inset 0 0 18px rgba(74, 199, 219, 0.07);
+}
+
+.rv-engine-dropdown-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.rv-engine-dropdown-eyebrow {
+  color: rgba(232, 244, 248, 0.36);
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  line-height: 1;
   text-transform: uppercase;
 }
 
-.rv-engine-browser-active-dot {
+.rv-engine-dropdown-label {
+  overflow: hidden;
+  color: rgba(232, 244, 248, 0.96);
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.035em;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rv-engine-dropdown-chevron {
+  display: grid;
+  place-items: center;
+  color: #67f7ff;
+}
+
+.rv-engine-dropdown-chevron svg {
+  width: 18px;
+  height: 18px;
+}
+
+.rv-engine-dropdown-chevron path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rv-engine-dropdown-menu {
   position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #67f7ff;
-  box-shadow: 0 0 8px rgba(103, 247, 255, 0.9);
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: grid;
+  gap: 5px;
+  padding: 7px;
+  border: 1px solid rgba(103, 247, 255, 0.46);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(74, 199, 219, 0.13), rgba(4, 9, 13, 0.98) 38%),
+    rgba(4, 9, 13, 0.98);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.56), 0 0 26px rgba(74, 199, 219, 0.12);
+}
+
+.rv-engine-dropdown-option {
+  min-width: 0;
+  padding: 8px 9px;
+  display: grid;
+  grid-template-columns: 27px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.025);
+  color: rgba(232, 244, 248, 0.68);
+  text-align: left;
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+.rv-engine-dropdown-option:hover,
+.rv-engine-dropdown-option:focus-visible {
+  color: rgba(232, 244, 248, 0.9);
+  border-color: rgba(74, 199, 219, 0.34);
+  background: rgba(74, 199, 219, 0.07);
+  outline: none;
+}
+
+.rv-engine-dropdown-option.is-active {
+  color: #67f7ff;
+  border-color: rgba(103, 247, 255, 0.5);
+  background: rgba(74, 199, 219, 0.12);
+}
+
+.rv-engine-dropdown-option-icon {
+  color: #67f7ff;
+  font-size: 15px;
+  line-height: 1;
+  text-align: center;
+}
+
+.rv-engine-dropdown-option-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.rv-engine-dropdown-option-copy span {
+  overflow: hidden;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.055em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.rv-engine-dropdown-option-copy small {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  color: rgba(232, 244, 248, 0.38);
+  font-size: 7.5px;
+  line-height: 1.25;
+}
+
+.rv-engine-dropdown-option-check {
+  color: #67f7ff;
+  font-size: 12px;
+  text-align: center;
 }
 
 .rv-context-workspace {
@@ -4483,49 +4582,27 @@
 }
 
 .rv-context-workspace-header {
-  min-height: 62px;
-  padding: 9px 10px;
+  min-height: 114px;
+  padding: 12px 10px 10px;
   display: flex;
-  align-items: center;
-  gap: 9px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
   background: linear-gradient(90deg, rgba(74, 199, 219, 0.055), transparent 72%);
 }
 
-.rv-context-workspace-icon {
-  width: 29px;
-  height: 29px;
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  border: 1px solid rgba(74, 199, 219, 0.25);
-  border-radius: 8px;
-  background: rgba(74, 199, 219, 0.075);
-  color: #67f7ff;
-  font-size: 15px;
-}
-
-.rv-context-workspace-copy {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-
-.rv-context-workspace-copy strong {
-  color: rgba(232, 244, 248, 0.92);
-  font-size: 11px;
-  letter-spacing: 0.035em;
-}
-
-.rv-context-workspace-copy span {
+.rv-context-workspace-description {
+  margin: 0;
   display: -webkit-box;
   overflow: hidden;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  color: rgba(232, 244, 248, 0.38);
-  font-size: 8px;
-  line-height: 1.3;
+  color: rgba(232, 244, 248, 0.45);
+  font-size: 8.5px;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
 }
 
 .rv-context-workspace-tabs {
@@ -4706,17 +4783,17 @@
 
 @media (max-width: 1180px) {
   .rv-layout {
-    --rv-left-width: 350px;
+    --rv-left-width: 300px;
     --rv-right-width: 350px;
   }
 
   .rv-shell > .az-dock {
-    --vz-left-width: 350px;
+    --vz-left-width: 300px;
     --vz-right-width: 350px;
   }
 
   .rv-left-workspace-shell {
-    grid-template-columns: 62px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -4732,15 +4809,17 @@
   }
 
   .rv-left-workspace-shell {
-    grid-template-columns: 54px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .rv-engine-browser {
-    padding-inline: 5px;
+  .rv-engine-dropdown-trigger {
+    min-height: 64px;
+    grid-template-columns: 42px minmax(0, 1fr) 22px;
   }
 
-  .rv-engine-browser-label {
-    font-size: 7px;
+  .rv-engine-dropdown-icon {
+    width: 40px;
+    height: 40px;
   }
 }
 
