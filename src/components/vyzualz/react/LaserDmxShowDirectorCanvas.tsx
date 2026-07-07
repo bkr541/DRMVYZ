@@ -629,6 +629,8 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
     duplicateFixture,
     duplicateSelectedFixtures,
     mirrorFixture,
+    createMirrorPair,
+    unlinkMirrorPair,
     groupSelectedFixtures,
     ungroupSelectedFixtures,
     selectGroup,
@@ -638,6 +640,10 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
     updateFixture,
     updateSettings,
     setAuthoringMode,
+    undoShowDirectorEdit,
+    redoShowDirectorEdit,
+    beginHistoryTransaction,
+    commitHistoryTransaction,
     groups,
   } = useReactStore(useShallow(s => ({
     addFixture:                s.addLaserDmxShowDirectorFixture,
@@ -651,6 +657,8 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
     duplicateFixture:          s.duplicateLaserDmxShowDirectorFixture,
     duplicateSelectedFixtures: s.duplicateSelectedLaserDmxShowDirectorFixtures,
     mirrorFixture:             s.mirrorLaserDmxShowDirectorFixture,
+    createMirrorPair:          s.createLinkedLaserDmxShowDirectorMirrorPair,
+    unlinkMirrorPair:          s.unlinkLaserDmxShowDirectorMirrorPair,
     groupSelectedFixtures:     s.groupSelectedLaserDmxShowDirectorFixtures,
     ungroupSelectedFixtures:   s.ungroupSelectedLaserDmxShowDirectorFixtures,
     selectGroup:               s.selectLaserDmxShowDirectorGroup,
@@ -660,6 +668,10 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
     updateFixture:             s.updateLaserDmxShowDirectorFixture,
     updateSettings:            s.updateLaserDmxShowDirectorSettings,
     setAuthoringMode:          s.setLaserDmxBeamMatrixAuthoringMode,
+    undoShowDirectorEdit:      s.undoLaserDmxShowDirectorEdit,
+    redoShowDirectorEdit:      s.redoLaserDmxShowDirectorEdit,
+    beginHistoryTransaction:   s.beginLaserDmxShowDirectorHistoryTransaction,
+    commitHistoryTransaction:  s.commitLaserDmxShowDirectorHistoryTransaction,
     groups:                    s.laserDmxShowDirector.groups,
   })))
 
@@ -685,6 +697,40 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
     selectionRectRef.current = nextRect
     setSelectionRect(nextRect)
   }
+
+  const closeTransientUi = () => {
+    updateSelectionRect(null)
+    setContextMenu(null)
+    setQuickActionPopover(null)
+    setTargetingFixtureId(null)
+    setEndpointDrag(null)
+    setSelectedEndpointId(null)
+  }
+
+  const stageHasKeyboardFocus = () => {
+    const activeElement = typeof document !== 'undefined' ? document.activeElement : null
+    return Boolean(stageRef.current && activeElement && stageRef.current.contains(activeElement))
+  }
+
+  const focusStage = () => {
+    stageRef.current?.focus({ preventScroll: true })
+  }
+
+  useEffect(() => {
+    const fixtureIds = new Set(fixtures.map(fixture => fixture.id))
+    if (targetingFixtureId && !fixtureIds.has(targetingFixtureId)) setTargetingFixtureId(null)
+    if (endpointDrag && !fixtureIds.has(endpointDrag.fixtureId)) setEndpointDrag(null)
+    if (quickActionPopover && !fixtureIds.has(quickActionPopover.fixtureId)) setQuickActionPopover(null)
+    if (contextMenu?.kind === 'fixture' && !fixtureIds.has(contextMenu.fixtureId)) setContextMenu(null)
+    if (fixtures.length === 0) {
+      updateSelectionRect(null)
+      setTargetingFixtureId(null)
+      setEndpointDrag(null)
+      setSelectedEndpointId(null)
+      setQuickActionPopover(null)
+      setContextMenu(null)
+    }
+  }, [contextMenu, endpointDrag, fixtures, quickActionPopover, targetingFixtureId])
 
   const setFixtureEndpoint = (fixtureId: string, point: StagePoint, targetId?: string) => {
     const fixture = fixtures.find(item => item.id === fixtureId)
@@ -767,6 +813,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
     const handlePointerUp = (event: globalThis.PointerEvent) => {
       if (event.pointerId !== fixtureDrag.pointerId) return
       if (didPointerDragRef.current) suppressNextFixtureClickRef.current = true
+      commitHistoryTransaction()
       setFixtureDrag(null)
     }
 
@@ -778,7 +825,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
       window.removeEventListener('pointerup', handlePointerUp)
       window.removeEventListener('pointercancel', handlePointerUp)
     }
-  }, [fixtureDrag, moveSelectedFixtures, settings])
+  }, [commitHistoryTransaction, fixtureDrag, moveSelectedFixtures, settings])
 
   useEffect(() => {
     if (!endpointDrag) return undefined
@@ -790,7 +837,10 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
     }
 
     const handlePointerUp = (event: globalThis.PointerEvent) => {
-      if (event.pointerId === endpointDrag.pointerId) setEndpointDrag(null)
+      if (event.pointerId === endpointDrag.pointerId) {
+        commitHistoryTransaction()
+        setEndpointDrag(null)
+      }
     }
 
     window.addEventListener('pointermove', handlePointerMove)
@@ -801,7 +851,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
       window.removeEventListener('pointerup', handlePointerUp)
       window.removeEventListener('pointercancel', handlePointerUp)
     }
-  }, [endpointDrag, settings, updateFixture])
+  }, [commitHistoryTransaction, endpointDrag, settings, updateFixture])
 
   useEffect(() => {
     if (!selectionRect) return undefined
@@ -850,16 +900,35 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (isEditableKeyboardTarget(event.target)) return
+      const hasCanvasFocus = stageHasKeyboardFocus()
+      const hasCanvasTransientUi = Boolean(selectionRectRef.current || contextMenu || quickActionPopover || targetingFixtureId || endpointDrag)
+      if (!hasCanvasFocus && !hasCanvasTransientUi) return
+
+      const key = event.key.toLowerCase()
+      const commandKey = event.metaKey || event.ctrlKey
+
+      if (commandKey && key === 'z') {
+        if (event.shiftKey) redoShowDirectorEdit()
+        else undoShowDirectorEdit()
+        setContextMenu(null)
+        setQuickActionPopover(null)
+        event.preventDefault()
+        return
+      }
+
+      if (commandKey && key === 'a') {
+        const fixtureIds = fixtures.map(fixture => fixture.id)
+        selectFixtures(fixtureIds, fixtureIds[0] ?? null)
+        setSelectedEndpointId(null)
+        setContextMenu(null)
+        event.preventDefault()
+        return
+      }
 
       if (event.key === 'Escape') {
         const hadSomethingToCancel = Boolean(selectionRectRef.current || contextMenu || quickActionPopover || targetingFixtureId || endpointDrag || selectedEndpointId || selectedFixtureCount > 0)
         if (!hadSomethingToCancel) return
-        updateSelectionRect(null)
-        setContextMenu(null)
-        setQuickActionPopover(null)
-        setTargetingFixtureId(null)
-        setEndpointDrag(null)
-        setSelectedEndpointId(null)
+        closeTransientUi()
         if (selectedFixtureCount > 0) clearSelection()
         event.preventDefault()
         return
@@ -867,12 +936,29 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
 
       if ((event.key === 'Delete' || event.key === 'Backspace') && selectedFixtureCount > 0) {
         deleteSelectedFixtures()
-        setContextMenu(null)
-        setQuickActionPopover(null)
-        setTargetingFixtureId(null)
-        setSelectedEndpointId(null)
+        closeTransientUi()
         event.preventDefault()
         return
+      }
+
+      if (!commandKey && key === 'g' && selectedFixtureCount > 1) {
+        groupSelectedFixtures()
+        setContextMenu(null)
+        setQuickActionPopover(null)
+        event.preventDefault()
+        return
+      }
+
+      if (!commandKey && key === 'e' && selectedFixtureId) {
+        const primary = fixtures.find(fixture => fixture.id === selectedFixtureId)
+        if (primary && isEndpointEditableFixture(primary)) {
+          setTargetingFixtureId(primary.id)
+          setSelectedEndpointId(beamTargetsForFixture(primary, settings)[0]?.id ?? null)
+          setContextMenu(null)
+          setQuickActionPopover(null)
+          event.preventDefault()
+          return
+        }
       }
 
       const arrowDelta = event.shiftKey ? (settings.snapEnabled ? 5 : 1) : (settings.snapEnabled ? 1 : 0.25)
@@ -904,7 +990,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('pointerdown', handleWindowPointerDown)
     }
-  }, [clearSelection, contextMenu, deleteSelectedFixtures, endpointDrag, moveSelectedFixtures, quickActionPopover, selectedEndpointId, selectedFixtureCount, settings.snapEnabled, targetingFixtureId])
+  }, [clearSelection, contextMenu, deleteSelectedFixtures, endpointDrag, fixtures, groupSelectedFixtures, moveSelectedFixtures, quickActionPopover, redoShowDirectorEdit, selectFixtures, selectedEndpointId, selectedFixtureCount, selectedFixtureId, settings, targetingFixtureId, undoShowDirectorEdit])
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
     if (!event.dataTransfer.types.includes(SHOW_DIRECTOR_FIXTURE_DRAG_TYPE)) return
@@ -914,6 +1000,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
   }
 
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    focusStage()
     const payload = event.dataTransfer.getData(SHOW_DIRECTOR_FIXTURE_DRAG_TYPE)
     if (!isLaserDmxShowDirectorFixtureKind(payload) || !stageRef.current) return
     event.preventDefault()
@@ -926,6 +1013,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
   }
 
   const handleCanvasClick = (event: MouseEvent<HTMLDivElement>) => {
+    focusStage()
     if (suppressNextStageClickRef.current) {
       suppressNextStageClickRef.current = false
       return
@@ -949,6 +1037,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
   }
 
   const handleStagePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    focusStage()
     if (!stageRef.current || event.button !== 0 || targetingFixtureId || fixtureDrag || endpointDrag) return
     const target = event.target as HTMLElement | null
     if (target?.closest('.rv-show-director-fixture') || target?.closest('.rv-show-director-beam-overlay__endpoint')) return
@@ -975,6 +1064,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
     if (target?.closest('.rv-show-director-fixture') || target?.closest('.rv-show-director-beam-overlay__endpoint')) return
     event.preventDefault()
     event.stopPropagation()
+    focusStage()
     const point = snapStagePoint(stagePointFromClient(event.clientX, event.clientY, stageRef.current, settings), settings)
     setContextMenu({ kind: 'stage', point, x: event.clientX, y: event.clientY })
     setQuickActionPopover(null)
@@ -985,6 +1075,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
   const handleFixtureContextMenu = (event: MouseEvent<HTMLButtonElement>, fixture: LaserDmxShowDirectorFixture) => {
     event.preventDefault()
     event.stopPropagation()
+    focusStage()
     const isSelected = selectedFixtureSet.has(fixture.id)
     const hasFixtureEndpointActions = isEndpointEditableFixture(fixture)
     if (!isSelected) selectFixture(fixture.id)
@@ -1109,6 +1200,20 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
     setContextMenu(null)
   }
 
+  const handleCreateMirrorPairFromMenu = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (contextFixture) createMirrorPair(contextFixture.id, 'horizontal')
+    setContextMenu(null)
+  }
+
+  const handleUnlinkMirrorPairFromMenu = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (contextFixture) unlinkMirrorPair(contextFixture.id)
+    setContextMenu(null)
+  }
+
   const handleDeleteFixtureFromMenu = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault()
     event.stopPropagation()
@@ -1198,6 +1303,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
     }
 
     didPointerDragRef.current = false
+    beginHistoryTransaction()
     safelyCapturePointer(event.currentTarget, event.pointerId)
     const isAlreadySelected = selectedFixtureSet.has(fixture.id)
     const dragFixtureIds = isAlreadySelected ? canvasSelectedFixtureIds : [fixture.id]
@@ -1222,6 +1328,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
     safelyReleasePointer(event.currentTarget, event.pointerId)
     if (fixtureDrag?.pointerId === event.pointerId) {
       if (didPointerDragRef.current) suppressNextFixtureClickRef.current = true
+      commitHistoryTransaction()
       setFixtureDrag(null)
     }
   }
@@ -1230,6 +1337,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
     if (!stageRef.current || event.button !== 0 || !isEndpointEditableFixture(fixture)) return
     event.preventDefault()
     event.stopPropagation()
+    beginHistoryTransaction()
     safelyCapturePointer(event.currentTarget, event.pointerId)
     selectFixture(fixture.id)
     setContextMenu(null)
@@ -1241,7 +1349,10 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
 
   const handleEndpointPointerRelease = (event: ReactPointerEvent<SVGCircleElement>) => {
     safelyReleasePointer(event.currentTarget, event.pointerId)
-    if (endpointDrag?.pointerId === event.pointerId) setEndpointDrag(null)
+    if (endpointDrag?.pointerId === event.pointerId) {
+      commitHistoryTransaction()
+      setEndpointDrag(null)
+    }
   }
 
   const quickActionsForFixture = (fixture: LaserDmxShowDirectorFixture): Array<{ key: string; label: string; onClick: (event: MouseEvent<HTMLButtonElement>) => void }> => {
@@ -1337,6 +1448,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
           onClick={handleCanvasClick}
           onPointerDown={handleStagePointerDown}
           onContextMenu={handleStageContextMenu}
+          tabIndex={0}
         >
           <div className="rv-show-director-stage-centerline rv-show-director-stage-centerline--vertical" aria-hidden="true" />
           <div className="rv-show-director-stage-centerline rv-show-director-stage-centerline--horizontal" aria-hidden="true" />
@@ -1354,7 +1466,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
           {settings.showBeams && fixtures.some(isEndpointEditableFixture) && (
             <svg className="rv-show-director-beam-overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
               {fixtures.filter(isEndpointEditableFixture).map(fixture => {
-                const isSelectedFixture = fixture.id === selectedFixtureId
+                const isSelectedFixture = fixture.id === selectedFixtureId && selectedFixtureCount === 1
                 const isDraggingEndpoint = endpointDrag?.fixtureId === fixture.id
                 const origin = stagePointToPercent({ x: fixture.x, y: fixture.y }, settings)
                 const targets = beamTargetsForFixture(fixture, settings)
@@ -1500,6 +1612,8 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
                 <>
                   <button type="button" role="menuitem" onClick={handleCopyFixtureFromMenu}>Copy</button>
                   <button type="button" role="menuitem" onClick={handleDuplicateFixtureFromMenu}>Duplicate</button>
+                  <button type="button" role="menuitem" onClick={handleCreateMirrorPairFromMenu}>Create Mirror Pair</button>
+                  {contextFixture.linkedPairId && <button type="button" role="menuitem" onClick={handleUnlinkMirrorPairFromMenu}>Unlink Mirror Pair</button>}
                   <button type="button" role="menuitem" onClick={event => handleMirrorFixtureFromMenu(event, 'horizontal')}>Mirror Horizontally</button>
                   <button type="button" role="menuitem" onClick={event => handleMirrorFixtureFromMenu(event, 'vertical')}>Mirror Vertically</button>
                   <button type="button" role="menuitem" className="rv-show-director-context-menu__danger" onClick={handleDeleteFixtureFromMenu}>Delete</button>

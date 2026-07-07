@@ -364,7 +364,7 @@ export interface LaserDmxBeamMatrixPresetSummary {
 // This is the safe authoring model for the future drag/drop 2D stage builder.
 // It compiles into Beam Matrix through LaserDmxShowDirectorBeamMatrixCompiler when selected as the preview source.
 
-export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 6
+export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 7
 
 export type LaserDmxShowDirectorFixtureKind =
   | 'laser'
@@ -427,6 +427,7 @@ export type LaserDmxShowDirectorTriggerQuantize = 'none' | 'beat' | 'bar' | 'phr
 export type LaserDmxShowDirectorLedDirection = 'leftToRight' | 'rightToLeft' | 'centerOut' | 'edgesIn' | 'chase'
 export type LaserDmxShowDirectorMovingHeadPanTiltStyle = 'locked' | 'smoothSweep' | 'snap' | 'figureEight' | 'audioReactive'
 export type LaserDmxShowDirectorVideoWallSource = 'placeholder' | 'reactVisual' | 'media' | 'camera'
+export type LaserDmxShowDirectorMirrorAxis = 'horizontal' | 'vertical'
 
 export const LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS = 8
 
@@ -514,6 +515,10 @@ export interface LaserDmxShowDirectorFixture {
   z:         number
   rotation:  number
   groupId:   string | null
+  /** Shared ID for optional linked mirror pairs. Null/missing means this fixture is independent. */
+  linkedPairId?: string | null
+  /** Axis used by a linked mirror pair. Horizontal mirrors across the stage centerline left/right. */
+  mirrorAxis?: LaserDmxShowDirectorMirrorAxis | null
   color:     string
   colorMode: LaserDmxShowDirectorColorMode
   brightness: number
@@ -723,6 +728,10 @@ function coerceShowDirectorVideoWallSource(value: unknown): LaserDmxShowDirector
   return value === 'reactVisual' || value === 'media' || value === 'camera' ? value : 'placeholder'
 }
 
+function coerceShowDirectorMirrorAxis(value: unknown): LaserDmxShowDirectorMirrorAxis | null {
+  return value === 'vertical' || value === 'horizontal' ? value : null
+}
+
 function createDefaultLaserDmxShowDirectorBeamConfig(kind: LaserDmxShowDirectorFixtureKind): LaserDmxShowDirectorBeamConfig {
   return {
     beamEnabled: SHOW_DIRECTOR_BEAM_FIXTURE_KINDS.has(kind),
@@ -818,6 +827,8 @@ export function createDefaultLaserDmxShowDirectorFixture(
     z: 0,
     rotation: 0,
     groupId: null,
+    linkedPairId: null,
+    mirrorAxis: null,
     color: '#4ac7db',
     colorMode: 'fixed',
     brightness: 0.85,
@@ -978,6 +989,8 @@ export function normalizeLaserDmxShowDirectorFixture(raw: unknown, index = 0): L
     z:          showDirectorFinite(value.z, fallback.z),
     rotation,
     groupId:    typeof value.groupId === 'string' && value.groupId.trim().length > 0 ? value.groupId : null,
+    linkedPairId: typeof value.linkedPairId === 'string' && value.linkedPairId.trim().length > 0 ? value.linkedPairId.trim() : null,
+    mirrorAxis: coerceShowDirectorMirrorAxis(value.mirrorAxis),
     color:      showDirectorString(value.color, fallback.color),
     colorMode:  coerceShowDirectorColorMode(value.colorMode),
     brightness: showDirectorUnit(value.brightness, fallback.brightness),
@@ -1063,10 +1076,20 @@ export function normalizeLaserDmxShowDirectorState(raw: unknown): LaserDmxShowDi
     })
   }
 
-  const fixtures = rawFixtures.map(fixture => ({
-    ...fixture,
-    groupId: resolveGroupId(fixture.groupId),
-  }))
+  const fixturePairCounts = rawFixtures.reduce((counts, fixture) => {
+    if (fixture.linkedPairId && fixture.mirrorAxis) counts.set(fixture.linkedPairId, (counts.get(fixture.linkedPairId) ?? 0) + 1)
+    return counts
+  }, new Map<string, number>())
+
+  const fixtures = rawFixtures.map(fixture => {
+    const hasValidPair = Boolean(fixture.linkedPairId && fixture.mirrorAxis && (fixturePairCounts.get(fixture.linkedPairId) ?? 0) >= 2)
+    return {
+      ...fixture,
+      groupId: resolveGroupId(fixture.groupId),
+      linkedPairId: hasValidPair ? fixture.linkedPairId ?? null : null,
+      mirrorAxis: hasValidPair ? fixture.mirrorAxis ?? null : null,
+    }
+  })
   const referencedGroupIds = new Set(fixtures.flatMap(fixture => fixture.groupId ? [fixture.groupId] : []))
   const groups = Array.from(groupsById.values()).filter(group => referencedGroupIds.has(group.id))
 
