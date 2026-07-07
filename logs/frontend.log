@@ -3,6 +3,10 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 164 ms
+  VITE v5.4.21  ready in 159 ms
 
   ➜  Local:   http://127.0.0.1:5173/
+11:57:19 AM [vite] hmr update /src/components/vyzualz/react/LaserDmxShowDirectorCanvas.tsx
+11:57:19 AM [vite] hmr update /src/components/vyzualz/react/LaserDmxShowDirectorControls.tsx
+11:57:19 AM [vite] hmr update /src/components/vyzualz/react/ReactPlaceholderCanvas.tsx, /src/components/vyzualz/react/LaserDmxBeamMatrixEditorOverlay.tsx, /src/components/vyzualz/react/LaserDmxShowDirectorCanvas.tsx, /src/components/vyzualz/react/ReactView.tsx, /src/components/vyzualz/react/ReactGlobalOutputControls.tsx, /src/components/vyzualz/react/ReactEngineBrowser.tsx, /src/components/vyzualz/react/FontLibraryPanel.tsx, /src/components/vyzualz/react/ReactPresetsPanel.tsx, /src/components/vyzualz/react/panels/ReactWorkspacePanels.tsx, /src/components/vyzualz/react/ReactPerformancePads.tsx, /src/components/vyzualz/react/ReactFxPanel.tsx, /src/components/vyzualz/react/ReactInspectorPanel.tsx, /src/components/vyzualz/react/LaserDmxShowDirectorControls.tsx, /src/components/vyzualz/react/ReactEnginePanel.tsx, /src/components/vyzualz/react/ReactModulationPanel.tsx, /src/components/vyzualz/react/LaserDmxShowDirectorPalette.tsx, /src/components/vyzualz/stage/LiveVisualCanvas.tsx, /src/components/vyzualz/react/ReactPresetThumbnail.tsx, /src/components/vyzualz/react/ReactResetActions.tsx, /src/components/vyzualz/react/LaserDmxEnginePanel.tsx, /src/components/vyzualz/react/LaserDmxReactionGroupInspector.tsx, /src/components/vyzualz/react/LaserDmxBeamInspector.tsx, /src/components/vyzualz/react/LaserDmxBeamMatrixPresetBrowser.tsx, /src/components/vyzualz/react/CinematicWorldsControls.tsx, /src/components/vyzualz/react/LaserDmxShowDirectorInspector.tsx, /src/features/personalization/components/BrandPersonalizationDiagnostics.tsx, /src/features/personalization/components/BrandSoundDrawingShortcuts.tsx, /src/components/vyzualz/react/LaserDmxBeamMatrixPanel.tsx, /src/components/vyzualz/react/LaserDmxShowDirector.tsx, /src/components/vyzualz/react/ReactTrackMapStrip.tsx, /src/components/vyzualz/react/SoundDrawingTimelineLane.tsx
+11:57:19 AM [vite] hmr update /src/styles/reactView.css

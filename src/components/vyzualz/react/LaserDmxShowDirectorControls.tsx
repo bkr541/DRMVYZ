@@ -133,6 +133,11 @@ export function LaserDmxShowDirectorControls() {
           value={settings.showBeams}
           onChange={value => updateSettings({ showBeams: value })}
         />
+        <ToggleRow
+          label="Highlight Fixtures"
+          value={settings.highlightFixtures}
+          onChange={value => updateSettings({ highlightFixtures: value })}
+        />
         <SelectRow
           label="Grid Size"
           value={gridValue}

@@ -443,12 +443,13 @@ export interface LaserDmxShowDirectorGridSize {
 }
 
 export interface LaserDmxShowDirectorSettings {
-  gridSize:    LaserDmxShowDirectorGridSize
-  snapEnabled: boolean
-  showLabels:  boolean
-  showBeams:   boolean
-  showGrid:    boolean
-  zoom:        number
+  gridSize:          LaserDmxShowDirectorGridSize
+  snapEnabled:       boolean
+  showLabels:        boolean
+  showBeams:         boolean
+  showGrid:          boolean
+  highlightFixtures: boolean
+  zoom:              number
 }
 
 export type LaserDmxShowDirectorSettingsPatch = Partial<Omit<LaserDmxShowDirectorSettings, 'gridSize'>> & {
@@ -554,12 +555,13 @@ const SHOW_DIRECTOR_BEAM_FIXTURE_KINDS = new Set<LaserDmxShowDirectorFixtureKind
 ])
 
 export const DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS: LaserDmxShowDirectorSettings = {
-  gridSize:    { columns: 15, rows: 10 },
-  snapEnabled: true,
-  showLabels:  true,
-  showBeams:   true,
-  showGrid:    true,
-  zoom:        1,
+  gridSize:          { columns: 15, rows: 10 },
+  snapEnabled:       true,
+  showLabels:        true,
+  showBeams:         true,
+  showGrid:          true,
+  highlightFixtures: true,
+  zoom:              1,
 }
 
 export const DEFAULT_LASER_DMX_SHOW_DIRECTOR_TRIGGER: LaserDmxShowDirectorTriggerConfig = {
@@ -862,10 +864,11 @@ export function normalizeLaserDmxShowDirectorSettings(raw: unknown): LaserDmxSho
       rows:    showDirectorPositiveInt(rawGrid.rows,    fallback.gridSize.rows,    1, 64),
     },
     snapEnabled: showDirectorBoolean(value.snapEnabled, fallback.snapEnabled),
-    showLabels:  showDirectorBoolean(value.showLabels,  fallback.showLabels),
-    showBeams:   showDirectorBoolean(value.showBeams,   fallback.showBeams),
-    showGrid:    showDirectorBoolean(value.showGrid,    fallback.showGrid),
-    zoom:        Math.max(0.25, Math.min(4, showDirectorFinite(value.zoom, fallback.zoom))),
+    showLabels:        showDirectorBoolean(value.showLabels,        fallback.showLabels),
+    showBeams:         showDirectorBoolean(value.showBeams,         fallback.showBeams),
+    showGrid:          showDirectorBoolean(value.showGrid,          fallback.showGrid),
+    highlightFixtures: showDirectorBoolean(value.highlightFixtures, fallback.highlightFixtures),
+    zoom:              Math.max(0.25, Math.min(4, showDirectorFinite(value.zoom, fallback.zoom))),
   }
 }
 

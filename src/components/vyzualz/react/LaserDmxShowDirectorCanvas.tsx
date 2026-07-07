@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -8,6 +9,7 @@ import {
   type MouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
+import { createPortal } from 'react-dom'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import {
@@ -187,17 +189,21 @@ function fixtureStyle(fixture: LaserDmxShowDirectorFixture, settings: LaserDmxSh
   const { columns, rows } = coerceGridSize(settings)
   const x = clamp(fixture.x, 0, Math.max(0, columns - 1))
   const y = clamp(fixture.y, 0, Math.max(0, rows - 1))
-  const outputBrightness = fixture.enabled ? clamp(fixture.brightness, 0, 1) : 0
+  const highlightFixtures = settings.highlightFixtures !== false
+  const mutedFixtureColor = '#4f5960'
+  const outputBrightness = highlightFixtures
+    ? fixture.enabled ? clamp(fixture.brightness, 0, 1) : 0
+    : 0.28
   return {
     left: `${((x + 0.5) / columns) * 100}%`,
     top: `${((y + 0.5) / rows) * 100}%`,
     transform: 'translate(-50%, -50%)',
-    '--fixture-color': fixture.color,
+    '--fixture-color': highlightFixtures ? fixture.color : mutedFixtureColor,
     '--fixture-rotation': `${fixture.rotation}deg`,
     '--fixture-brightness': `${outputBrightness}`,
-    '--fixture-container-brightness': `${fixture.enabled ? clamp(fixture.brightness, 0.35, 1) : 0.74}`,
+    '--fixture-container-brightness': `${highlightFixtures ? fixture.enabled ? clamp(fixture.brightness, 0.35, 1) : 0.74 : 0.58}`,
     '--fixture-output-opacity': `${outputBrightness}`,
-    '--fixture-group-color': groupAccent ?? fixture.color,
+    '--fixture-group-color': highlightFixtures ? groupAccent ?? fixture.color : mutedFixtureColor,
   } as CSSProperties
 }
 
@@ -509,6 +515,34 @@ function isEditableKeyboardTarget(target: EventTarget | null): boolean {
   return element.closest('input, textarea, select, [contenteditable="true"]') !== null
 }
 
+const SHOW_DIRECTOR_FLOATING_MENU_MARGIN = 12
+
+function bottomDockReserve(stageElement: HTMLDivElement | null): number {
+  if (typeof window === 'undefined') return 0
+  const shell = stageElement?.closest('.rv-shell')
+  if (!shell) return 0
+  const value = window.getComputedStyle(shell).getPropertyValue('--rv-react-dock-height')
+  const parsed = Number.parseFloat(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function clampFloatingMenuPosition(
+  element: HTMLElement,
+  point: { x: number; y: number },
+  stageElement: HTMLDivElement | null,
+): { x: number; y: number } {
+  if (typeof window === 'undefined') return point
+  const rect = element.getBoundingClientRect()
+  const margin = SHOW_DIRECTOR_FLOATING_MENU_MARGIN
+  const dockReserve = bottomDockReserve(stageElement)
+  const maxX = Math.max(margin, window.innerWidth - rect.width - margin)
+  const maxY = Math.max(margin, window.innerHeight - rect.height - margin - dockReserve)
+  return {
+    x: Math.round(clamp(point.x, margin, maxX)),
+    y: Math.round(clamp(point.y, margin, maxY)),
+  }
+}
+
 function renderFixtureIcon(fixture: LaserDmxShowDirectorFixture) {
   switch (fixture.kind) {
     case 'laser':
@@ -613,6 +647,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
   const [targetingFixtureId, setTargetingFixtureId] = useState<string | null>(null)
   const [selectedEndpointId, setSelectedEndpointId] = useState<string | null>(null)
   const stageRef = useRef<HTMLDivElement | null>(null)
+  const contextMenuRef = useRef<HTMLDivElement | null>(null)
   const selectionRectRef = useRef<SelectionRectState | null>(null)
   const didPointerDragRef = useRef(false)
   const suppressNextFixtureClickRef = useRef(false)
@@ -782,6 +817,13 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
   const showQuickActionsForFixture = (fixtureId: string, clientX: number, clientY: number) => {
     setQuickActionPopover({ fixtureId, x: clientX + 12, y: clientY + 12 })
   }
+
+  useLayoutEffect(() => {
+    if (!contextMenu || !contextMenuRef.current) return
+    const nextPosition = clampFloatingMenuPosition(contextMenuRef.current, contextMenu, stageRef.current)
+    if (nextPosition.x === contextMenu.x && nextPosition.y === contextMenu.y) return
+    setContextMenu(current => current ? { ...current, ...nextPosition } : current)
+  }, [contextMenu])
 
   useEffect(() => {
     if (!fixtureDrag) return undefined
@@ -1427,7 +1469,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
       )}
 
       <div
-        className={`rv-show-director-canvas${isDragHot ? ' rv-show-director-canvas--drag-hot' : ''}${fixtureDrag ? ' rv-show-director-canvas--fixture-dragging' : ''}${endpointDrag ? ' rv-show-director-canvas--endpoint-dragging' : ''}${selectionRect ? ' rv-show-director-canvas--box-selecting' : ''}${targetingFixtureId ? ' rv-show-director-canvas--targeting' : ''}`}
+        className={`rv-show-director-canvas${isDragHot ? ' rv-show-director-canvas--drag-hot' : ''}${fixtureDrag ? ' rv-show-director-canvas--fixture-dragging' : ''}${endpointDrag ? ' rv-show-director-canvas--endpoint-dragging' : ''}${selectionRect ? ' rv-show-director-canvas--box-selecting' : ''}${targetingFixtureId ? ' rv-show-director-canvas--targeting' : ''}${settings.highlightFixtures === false ? ' rv-show-director-canvas--fixtures-muted' : ''}`}
         onDragOver={handleDragOver}
         onDragEnter={event => {
           if (event.dataTransfer.types.includes(SHOW_DIRECTOR_FIXTURE_DRAG_TYPE)) setIsDragHot(true)
@@ -1557,8 +1599,9 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
         </div>
       </div>
 
-      {contextMenu && (
+      {contextMenu && typeof document !== 'undefined' && createPortal((
         <div
+          ref={contextMenuRef}
           className="rv-show-director-context-menu"
           style={{ left: contextMenu.x, top: contextMenu.y } as CSSProperties}
           role="menu"
@@ -1622,7 +1665,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
             </>
           )}
         </div>
-      )}
+      ), document.body)}
 
       {quickActionPopover && quickActionFixture && (
         <div
