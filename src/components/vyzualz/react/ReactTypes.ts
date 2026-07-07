@@ -773,24 +773,25 @@ function createDefaultLaserDmxShowDirectorTriggerConfig(kind: LaserDmxShowDirect
 
   switch (kind) {
     case 'laser':
-      return { ...fallback, mode: 'beat', beatDivision: 1, fadeOutMs: 160, sectionTypes: ['drop'] }
+      return { ...fallback, mode: 'section', quantize: 'section', sectionTypes: ['drop'], fadeInMs: 120, fadeOutMs: 380 }
     case 'movingHead':
-      return { ...fallback, mode: 'beat', beatDivision: 2, fadeOutMs: 220, sectionTypes: ['build', 'drop'] }
+      return { ...fallback, mode: 'bar', quantize: 'bar', retrigger: 'oncePerBar', beatDivision: 1, barInterval: 1, fadeOutMs: 220, sectionTypes: ['drop'] }
     case 'ledBar':
-      return { ...fallback, mode: 'audioBand', audioBand: 'bass', audioThreshold: 0.45, beatDivision: 0.5, fadeOutMs: 180 }
+      return { ...fallback, mode: 'beat', quantize: 'beat', retrigger: 'oncePerBeat', beatDivision: 1, fadeOutMs: 140 }
     case 'ledTube':
-      return { ...fallback, mode: 'audioBand', audioBand: 'mid', audioThreshold: 0.42, beatDivision: 0.5, fadeOutMs: 220 }
+      return { ...fallback, mode: 'beat', quantize: 'beat', retrigger: 'oncePerBeat', beatDivision: 1, fadeOutMs: 140 }
     case 'strobe':
-      return { ...fallback, mode: 'snareTransient', audioBand: 'highMid', audioThreshold: 0.58, fadeOutMs: 120 }
+      return { ...fallback, mode: 'snareTransient', quantize: 'none', retrigger: 'allow', audioBand: 'highMid', audioThreshold: 0.58, fadeOutMs: 120 }
     case 'blinder':
-      return { ...fallback, mode: 'bar', barInterval: 4, fadeOutMs: 360, sectionTypes: ['drop'] }
+      return { ...fallback, mode: 'bar', quantize: 'bar', retrigger: 'oncePerBar', beatDivision: 1, barInterval: 4, fadeOutMs: 360, sectionTypes: ['drop'] }
     case 'parWash':
-      return { ...fallback, mode: 'section', sectionTypes: ['build', 'drop'], fadeInMs: 250, fadeOutMs: 450 }
+      return { ...fallback, mode: 'energy', quantize: 'none', energyThreshold: 0.7, fadeInMs: 180, fadeOutMs: 420 }
     case 'haze':
       return { ...fallback, mode: 'alwaysOn', fadeInMs: 600, fadeOutMs: 1200 }
     case 'co2Jet':
-      return { ...fallback, mode: 'cuePoint', cuePointIds: ['drop'], fadeOutMs: 450 }
+      return { ...fallback, mode: 'cuePoint', quantize: 'bar', retrigger: 'oncePerBar', cuePointIds: ['drop'], fadeOutMs: 450 }
     case 'videoWall':
+      return { ...fallback, mode: 'section', quantize: 'section', sectionTypes: ['drop'], fadeInMs: 120, fadeOutMs: 380 }
     default:
       return fallback
   }

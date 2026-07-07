@@ -11,6 +11,7 @@ import {
   type LaserDmxShowDirectorColorMode,
   type LaserDmxShowDirectorFixture,
   type LaserDmxShowDirectorFixtureKind,
+  type LaserDmxShowDirectorFixturePatch,
   type LaserDmxShowDirectorLedDirection,
   type LaserDmxShowDirectorMovingHeadPanTiltStyle,
   type LaserDmxShowDirectorSectionType,
@@ -124,6 +125,164 @@ const BEAM_FIXTURE_KINDS = new Set<LaserDmxShowDirectorFixtureKind>([
   'blinder',
   'parWash',
 ])
+
+type LaserDmxShowDirectorInspectorMode = 'simple' | 'advanced'
+
+type LaserDmxShowDirectorTriggerRecipe =
+  | 'alwaysOn'
+  | 'pulseEveryBeat'
+  | 'pulseEveryHalfBeat'
+  | 'pulseEveryBar'
+  | 'flashEvery4Bars'
+  | 'hitOnKick'
+  | 'hitOnSnareTransient'
+  | 'turnOnDuringBuild'
+  | 'turnOnDuringDrop'
+  | 'fireAtDrop'
+  | 'reactToEnergy'
+  | 'reactToHighs'
+  | 'reactToMids'
+  | 'reactToBass'
+
+const SHOW_DIRECTOR_INSPECTOR_MODE_STORAGE_KEY = 'drmvyz.showDirector.inspectorMode'
+
+const TRIGGER_RECIPE_OPTIONS: Array<{ value: LaserDmxShowDirectorTriggerRecipe; label: string }> = [
+  { value: 'alwaysOn', label: 'Always On' },
+  { value: 'pulseEveryBeat', label: 'Pulse Every Beat' },
+  { value: 'pulseEveryHalfBeat', label: 'Pulse Every Half Beat' },
+  { value: 'pulseEveryBar', label: 'Pulse Every Bar' },
+  { value: 'flashEvery4Bars', label: 'Flash Every 4 Bars' },
+  { value: 'hitOnKick', label: 'Hit on Kick' },
+  { value: 'hitOnSnareTransient', label: 'Hit on Snare / Transient' },
+  { value: 'turnOnDuringBuild', label: 'Turn On During Build' },
+  { value: 'turnOnDuringDrop', label: 'Turn On During Drop' },
+  { value: 'fireAtDrop', label: 'Fire at Drop' },
+  { value: 'reactToEnergy', label: 'React to Energy' },
+  { value: 'reactToHighs', label: 'React to Highs' },
+  { value: 'reactToMids', label: 'React to Mids' },
+  { value: 'reactToBass', label: 'React to Bass' },
+]
+
+const TRIGGER_RECIPE_HINTS: Record<LaserDmxShowDirectorTriggerRecipe, string> = {
+  alwaysOn: 'Keeps the fixture alive for steady atmosphere, washes, screens, or preview looks.',
+  pulseEveryBeat: 'A clean four-on-the-floor pulse. Great for LED bars, tubes, and simple laser hits.',
+  pulseEveryHalfBeat: 'A faster pulse for fills, chases, and busier sections without exposing beat math.',
+  pulseEveryBar: 'Fires on each downbeat so the look breathes with the phrase instead of flickering constantly.',
+  flashEvery4Bars: 'Big punctuation every 4 bars. Useful for blinders and stage-wide accents.',
+  hitOnKick: 'Listens for low-end hits and kicks, then snaps the fixture on briefly.',
+  hitOnSnareTransient: 'Listens for snare-like transients and bright impact hits.',
+  turnOnDuringBuild: 'Keeps the fixture active while Music Intelligence sees a build section.',
+  turnOnDuringDrop: 'Keeps the fixture active while Music Intelligence sees a drop section.',
+  fireAtDrop: 'Fires from drop/cue markers for CO₂ jets and single-shot moments.',
+  reactToEnergy: 'Fades in when the track energy rises above the show threshold.',
+  reactToHighs: 'Responds to hats, air, and bright sparkle in the high band.',
+  reactToMids: 'Responds to vocals, synth body, snares, and midrange motion.',
+  reactToBass: 'Responds to bass weight without asking DJs to tune a threshold first.',
+}
+
+const RECOMMENDED_TRIGGER_RECIPE_BY_KIND: Record<LaserDmxShowDirectorFixtureKind, LaserDmxShowDirectorTriggerRecipe> = {
+  laser:      'turnOnDuringDrop',
+  movingHead: 'pulseEveryBar',
+  ledBar:     'pulseEveryBeat',
+  ledTube:    'pulseEveryBeat',
+  strobe:     'hitOnSnareTransient',
+  blinder:    'flashEvery4Bars',
+  parWash:    'reactToEnergy',
+  videoWall:  'turnOnDuringDrop',
+  haze:       'alwaysOn',
+  co2Jet:     'fireAtDrop',
+}
+
+function readShowDirectorInspectorModePreference(): LaserDmxShowDirectorInspectorMode {
+  if (typeof window === 'undefined') return 'simple'
+  try {
+    const stored = window.localStorage.getItem(SHOW_DIRECTOR_INSPECTOR_MODE_STORAGE_KEY)
+    return stored === 'advanced' ? 'advanced' : 'simple'
+  } catch {
+    return 'simple'
+  }
+}
+
+function persistShowDirectorInspectorModePreference(mode: LaserDmxShowDirectorInspectorMode): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(SHOW_DIRECTOR_INSPECTOR_MODE_STORAGE_KEY, mode)
+  } catch {
+    // Local storage is optional; losing this preference must never touch fixture data.
+  }
+}
+
+function triggerRecipeLabel(recipe: LaserDmxShowDirectorTriggerRecipe): string {
+  return TRIGGER_RECIPE_OPTIONS.find(option => option.value === recipe)?.label ?? 'Always On'
+}
+
+function triggerPatchForRecipe(recipe: LaserDmxShowDirectorTriggerRecipe): NonNullable<LaserDmxShowDirectorFixturePatch['trigger']> {
+  switch (recipe) {
+    case 'pulseEveryBeat':
+      return { mode: 'beat', quantize: 'beat', retrigger: 'oncePerBeat', beatDivision: 1, fadeInMs: 0, fadeOutMs: 140 }
+    case 'pulseEveryHalfBeat':
+      return { mode: 'beat', quantize: 'beat', retrigger: 'oncePerBeat', beatDivision: 0.5, fadeInMs: 0, fadeOutMs: 110 }
+    case 'pulseEveryBar':
+      return { mode: 'bar', quantize: 'bar', retrigger: 'oncePerBar', beatDivision: 1, barInterval: 1, fadeInMs: 0, fadeOutMs: 220 }
+    case 'flashEvery4Bars':
+      return { mode: 'bar', quantize: 'bar', retrigger: 'oncePerBar', beatDivision: 1, barInterval: 4, fadeInMs: 0, fadeOutMs: 360 }
+    case 'hitOnKick':
+      return { mode: 'bassHit', quantize: 'none', retrigger: 'allow', audioBand: 'bass', audioThreshold: 0.65, fadeInMs: 0, fadeOutMs: 160 }
+    case 'hitOnSnareTransient':
+      return { mode: 'snareTransient', quantize: 'none', retrigger: 'allow', audioBand: 'highMid', audioThreshold: 0.58, fadeInMs: 0, fadeOutMs: 120 }
+    case 'turnOnDuringBuild':
+      return { mode: 'section', quantize: 'section', retrigger: 'allow', sectionTypes: ['build'], fadeInMs: 300, fadeOutMs: 520 }
+    case 'turnOnDuringDrop':
+      return { mode: 'section', quantize: 'section', retrigger: 'allow', sectionTypes: ['drop'], fadeInMs: 120, fadeOutMs: 380 }
+    case 'fireAtDrop':
+      return { mode: 'cuePoint', quantize: 'bar', retrigger: 'oncePerBar', cuePointIds: ['drop'], fadeInMs: 0, fadeOutMs: 450 }
+    case 'reactToEnergy':
+      return { mode: 'energy', quantize: 'none', retrigger: 'allow', energyThreshold: 0.7, fadeInMs: 180, fadeOutMs: 420 }
+    case 'reactToHighs':
+      return { mode: 'audioBand', quantize: 'none', retrigger: 'allow', audioBand: 'high', audioThreshold: 0.48, fadeInMs: 0, fadeOutMs: 160 }
+    case 'reactToMids':
+      return { mode: 'audioBand', quantize: 'none', retrigger: 'allow', audioBand: 'mid', audioThreshold: 0.48, fadeInMs: 0, fadeOutMs: 180 }
+    case 'reactToBass':
+      return { mode: 'audioBand', quantize: 'none', retrigger: 'allow', audioBand: 'bass', audioThreshold: 0.45, fadeInMs: 0, fadeOutMs: 190 }
+    case 'alwaysOn':
+    default:
+      return { mode: 'alwaysOn', quantize: 'beat', retrigger: 'allow', beatDivision: 1, fadeInMs: 0, fadeOutMs: 0 }
+  }
+}
+
+function recipeForTriggerConfig(trigger: LaserDmxShowDirectorFixture['trigger']): LaserDmxShowDirectorTriggerRecipe {
+  switch (trigger.mode) {
+    case 'beat':
+      return trigger.beatDivision === 0.5 ? 'pulseEveryHalfBeat' : 'pulseEveryBeat'
+    case 'bar':
+      return trigger.barInterval >= 4 ? 'flashEvery4Bars' : 'pulseEveryBar'
+    case 'section': {
+      const sections = new Set(trigger.sectionTypes)
+      return sections.has('build') && !sections.has('drop') ? 'turnOnDuringBuild' : 'turnOnDuringDrop'
+    }
+    case 'cuePoint':
+      return 'fireAtDrop'
+    case 'bassHit':
+      return 'hitOnKick'
+    case 'snareTransient':
+      return 'hitOnSnareTransient'
+    case 'energy':
+      return 'reactToEnergy'
+    case 'audioBand':
+      if (trigger.audioBand === 'high' || trigger.audioBand === 'highMid') return 'reactToHighs'
+      if (trigger.audioBand === 'mid' || trigger.audioBand === 'lowMid') return 'reactToMids'
+      return 'reactToBass'
+    case 'alwaysOn':
+    default:
+      return 'alwaysOn'
+  }
+}
+
+function sharedRecipeForFixtures(fixtures: LaserDmxShowDirectorFixture[]): LaserDmxShowDirectorTriggerRecipe | 'mixed' | null {
+  if (fixtures.length === 0) return null
+  const firstRecipe = recipeForTriggerConfig(fixtures[0].trigger)
+  return fixtures.every(fixture => recipeForTriggerConfig(fixture.trigger) === firstRecipe) ? firstRecipe : 'mixed'
+}
 
 function isBeamFixture(fixture: LaserDmxShowDirectorFixture): boolean {
   return BEAM_FIXTURE_KINDS.has(fixture.kind)
@@ -270,10 +429,37 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
   })))
   const [draftLabel, setDraftLabel] = useState('')
   const [draftGroupLabel, setDraftGroupLabel] = useState('')
+  const [inspectorMode, setInspectorMode] = useState<LaserDmxShowDirectorInspectorMode>(() => readShowDirectorInspectorModePreference())
 
   useEffect(() => {
     setDraftLabel(fixture?.label ?? '')
   }, [fixture?.id, fixture?.label])
+
+  useEffect(() => {
+    persistShowDirectorInspectorModePreference(inspectorMode)
+  }, [inspectorMode])
+
+  const showAdvanced = inspectorMode === 'advanced'
+  const renderInspectorModeToggle = () => (
+    <div className="rv-show-director-mode-toggle" role="group" aria-label="Show Director inspector mode">
+      <button
+        type="button"
+        className={`rv-show-director-mode-toggle__button${!showAdvanced ? ' rv-show-director-mode-toggle__button--active' : ''}`}
+        onClick={() => setInspectorMode('simple')}
+        aria-pressed={!showAdvanced}
+      >
+        Simple
+      </button>
+      <button
+        type="button"
+        className={`rv-show-director-mode-toggle__button${showAdvanced ? ' rv-show-director-mode-toggle__button--active' : ''}`}
+        onClick={() => setInspectorMode('advanced')}
+        aria-pressed={showAdvanced}
+      >
+        Advanced
+      </button>
+    </div>
+  )
 
   const gridBounds = useMemo(() => ({
     maxX: Math.max(0, settings.gridSize.columns - 1),
@@ -285,6 +471,11 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
     return fixtures.filter(item => selectedSet.has(item.id))
   }, [fixtures, selectedFixtureIds])
   const selectedCount = selectedFixtures.length
+  const selectedTriggerRecipe = useMemo(() => sharedRecipeForFixtures(selectedFixtures), [selectedFixtures])
+  const bulkTriggerRecipeOptions = useMemo(() => (selectedTriggerRecipe === 'mixed'
+    ? [{ value: 'mixed', label: 'Mixed recipes', disabled: true }, ...TRIGGER_RECIPE_OPTIONS]
+    : TRIGGER_RECIPE_OPTIONS), [selectedTriggerRecipe])
+  const bulkTriggerRecipeValue = selectedTriggerRecipe === 'mixed' || selectedTriggerRecipe == null ? 'mixed' : selectedTriggerRecipe
   const groupsById = useMemo(() => new Map(groups.map(group => [group.id, group])), [groups])
   const selectedGroupIds = useMemo(() => Array.from(new Set(selectedFixtures.flatMap(item => item.groupId ? [item.groupId] : []))), [selectedFixtures])
   const sharedGroupId = selectedCount > 1 && selectedGroupIds.length === 1 && selectedFixtures.every(item => item.groupId === selectedGroupIds[0])
@@ -299,6 +490,14 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
 
   const updateSelectedFixtures = (patch: Parameters<typeof updateFixture>[1]) => {
     selectedFixtures.forEach(item => updateFixture(item.id, patch))
+  }
+
+  const applyTriggerRecipeToSelectedFixtures = (recipe: LaserDmxShowDirectorTriggerRecipe) => {
+    selectedFixtures.forEach(item => updateFixture(item.id, { trigger: triggerPatchForRecipe(recipe) }))
+  }
+
+  const applyRecommendedTriggerRecipesToSelectedFixtures = () => {
+    selectedFixtures.forEach(item => updateFixture(item.id, { trigger: triggerPatchForRecipe(RECOMMENDED_TRIGGER_RECIPE_BY_KIND[item.kind]) }))
   }
 
   const commitBulkGroupDraft = () => {
@@ -320,11 +519,23 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
         </div>
 
         <div className="rv-show-director-inspector__body">
+          {renderInspectorModeToggle()}
           <CtrlSection label="Selected Fixtures" />
           <div className="rv-show-director-readout-grid">
             <div><span>Selected</span><strong>{selectedCount}</strong></div>
             <div><span>Primary</span><strong>{fixture?.label ?? selectedFixtures[0]?.label ?? 'None'}</strong></div>
           </div>
+
+          <CtrlSection label="Bulk Trigger Recipe" />
+          <SelectRow
+            label="Trigger Recipe"
+            value={bulkTriggerRecipeValue}
+            options={bulkTriggerRecipeOptions}
+            onChange={recipe => applyTriggerRecipeToSelectedFixtures(recipe as LaserDmxShowDirectorTriggerRecipe)}
+          />
+          <p className="rv-show-director-trigger-hint">
+            Apply one DJ-facing timing recipe to all selected fixtures. Use the recommended button to let each fixture type pick its best starter recipe.
+          </p>
           {sharedGroup ? (
             <>
               <div className="rv-show-director-readout-grid">
@@ -342,6 +553,7 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
           <div className="rv-show-director-inspector__actions">
             <button type="button" className="rv-glyph-upload-btn" onClick={() => updateSelectedFixtures({ enabled: true })}>Enable Selected</button>
             <button type="button" className="rv-glyph-upload-btn" onClick={() => updateSelectedFixtures({ enabled: false })}>Disable Selected</button>
+            <button type="button" className="rv-glyph-upload-btn" onClick={applyRecommendedTriggerRecipesToSelectedFixtures}>Recommended Recipes</button>
             {!sharedGroup && <button type="button" className="rv-glyph-upload-btn" onClick={() => groupSelectedFixtures()}>Group Selected</button>}
             {sharedGroup && <button type="button" className="rv-glyph-upload-btn" onClick={() => duplicateGroup(sharedGroup.id)}>Duplicate Group</button>}
             {selectedGroupIds.length > 0 && <button type="button" className="rv-glyph-upload-btn" onClick={ungroupSelectedFixtures}>Ungroup</button>}
@@ -376,6 +588,12 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
   const primaryBeamTarget = beamTargets[0] ?? defaultEndpointForFixture(fixture, gridBounds.maxX, gridBounds.maxY, settings.snapEnabled)
   const defaultTargetX = primaryBeamTarget.x
   const defaultTargetY = primaryBeamTarget.y
+  const endpointSummary = supportsBeam
+    ? `${beamTargets.length} ${beamTargets.length === 1 ? 'ray' : 'rays'} aimed · primary ${defaultTargetX}, ${defaultTargetY}`
+    : `No beam endpoint needed for ${typeLabel}`
+  const triggerRecipe = recipeForTriggerConfig(fixture.trigger)
+  const recommendedTriggerRecipe = RECOMMENDED_TRIGGER_RECIPE_BY_KIND[fixture.kind]
+  const recommendedTriggerRecipeLabel = triggerRecipeLabel(recommendedTriggerRecipe)
   const fixtureIndex = fixtures.findIndex(item => item.id === fixture.id)
   const defaultFixtureLabel = `${typeLabel} ${Math.max(1, fixtureIndex + 1)}`
   const update = (patch: Parameters<typeof updateFixture>[1]) => updateFixture(fixture.id, patch)
@@ -429,6 +647,63 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
       </div>
 
       <div className="rv-show-director-inspector__body">
+        {renderInspectorModeToggle()}
+        {!showAdvanced ? (
+          <>
+            <CtrlSection label="DJ Controls" />
+            <ToggleRow label="On / off" value={fixture.enabled} onChange={enabled => update({ enabled })} />
+            <TextInputRow label="Name" value={draftLabel} maxLength={48} onChange={handleLabelDraftChange} onBlur={commitLabelDraft} />
+            <label className="rv-show-director-color-field">
+              <span className="rv-ctrl-label">Color</span>
+              <input type="color" value={colorInputValue(fixture.color)} onChange={event => update({ color: event.target.value, colorMode: 'fixed' })} />
+              <span>{colorInputValue(fixture.color).toUpperCase()}</span>
+            </label>
+            <SliderRow label="Brightness" value={fixture.brightness} min={0} max={1} step={0.01} onChange={brightness => update({ brightness: clamp(brightness, 0, 1) })} />
+
+            <CtrlSection label="Aim" />
+            <div className="rv-show-director-readout-grid">
+              <div><span>Endpoint</span><strong>{endpointSummary}</strong></div>
+              <div><span>Beam</span><strong>{supportsBeam ? (fixture.beam.beamEnabled ? 'On' : 'Off') : 'Not needed'}</strong></div>
+            </div>
+            <p className="rv-show-director-trigger-hint">
+              Right-click the fixture on the grid and choose Set Endpoint to aim it visually. Switch to Advanced for exact X/Y numbers.
+            </p>
+
+            <CtrlSection label="Trigger Recipe" />
+            <SelectRow
+              label="Recipe"
+              value={triggerRecipe}
+              options={TRIGGER_RECIPE_OPTIONS}
+              onChange={recipe => update({ trigger: triggerPatchForRecipe(recipe as LaserDmxShowDirectorTriggerRecipe) })}
+            />
+            <p className="rv-show-director-trigger-hint">{TRIGGER_RECIPE_HINTS[triggerRecipe]}</p>
+            {triggerRecipe !== recommendedTriggerRecipe && (
+              <button
+                type="button"
+                className="rv-glyph-upload-btn rv-show-director-recommended-recipe-btn"
+                onClick={() => update({ trigger: triggerPatchForRecipe(recommendedTriggerRecipe) })}
+              >
+                Use recommended: {recommendedTriggerRecipeLabel}
+              </button>
+            )}
+
+            {fixtureGroup && (
+              <>
+                <CtrlSection label="Group" />
+                <div className="rv-show-director-readout-grid">
+                  <div><span>Group</span><strong>{fixtureGroup.label}</strong></div>
+                  <div><span>Status</span><strong>Grouped</strong></div>
+                </div>
+              </>
+            )}
+
+            <div className="rv-show-director-inspector__actions">
+              <button type="button" className="rv-glyph-upload-btn" onClick={() => duplicateFixture(fixture.id)}>Duplicate</button>
+              <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" onClick={() => deleteFixture(fixture.id)}>Delete</button>
+            </div>
+          </>
+        ) : (
+          <>
         <CtrlSection label="Fixture" />
         <div className="rv-show-director-readout-grid">
           <div><span>Type</span><strong>{typeLabel}</strong></div>
@@ -571,6 +846,8 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
           <button type="button" className="rv-glyph-upload-btn" onClick={() => duplicateFixture(fixture.id)}>Duplicate</button>
           <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" onClick={() => deleteFixture(fixture.id)}>Delete</button>
         </div>
+          </>
+        )}
       </div>
     </aside>
   )

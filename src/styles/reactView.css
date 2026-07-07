@@ -7409,6 +7409,48 @@
   padding: 0 11px 11px;
 }
 
+.rv-show-director-mode-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  margin: 10px 0 6px;
+  padding: 3px;
+  border: 1px solid rgba(74, 199, 219, 0.14);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.rv-show-director-mode-toggle__button {
+  min-width: 0;
+  min-height: 27px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: rgba(232, 244, 248, 0.46);
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.rv-show-director-mode-toggle__button:hover {
+  color: rgba(232, 244, 248, 0.78);
+  border-color: rgba(103, 247, 255, 0.16);
+}
+
+.rv-show-director-mode-toggle__button--active {
+  border-color: rgba(103, 247, 255, 0.34);
+  background: rgba(74, 199, 219, 0.14);
+  color: rgba(103, 247, 255, 0.92);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 16px rgba(74, 199, 219, 0.12);
+}
+
+.rv-show-director-recommended-recipe-btn {
+  width: 100%;
+  margin-top: 2px;
+}
+
 .rv-show-director-readout-grid,
 .rv-show-director-field-grid {
   display: grid;
