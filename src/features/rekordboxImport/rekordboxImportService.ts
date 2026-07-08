@@ -135,7 +135,7 @@ export async function selectRekordboxUsbRoot(): Promise<RekordboxUsbRootSelectio
       library: null,
       audioFiles: [],
       warnings: [
-        'This browser does not expose a safe USB folder picker. USB Mode was armed instead; import RB XML to hydrate cue points, or use a native/Electron parser bridge for export.pdb/ANLZ.',
+        'This browser does not expose a safe USB folder picker. USB Mode was armed only; cue import requires Rekordbox XML or the native/Electron parser bridge for export.pdb/ANLZ.',
       ],
       detectedPdbFiles: 0,
       detectedAnlzFiles: 0,
@@ -212,9 +212,9 @@ export async function selectRekordboxUsbRoot(): Promise<RekordboxUsbRootSelectio
       },
     }
   } else if (detectedPdbFiles > 0 || detectedAnlzFiles > 0) {
-    warnings.push('Rekordbox USB metadata was detected. DRMVYZ can mark loaded tracks as USB-sourced now, but direct export.pdb/ANLZ cue parsing still needs the native parser bridge.')
+    warnings.push('Rekordbox USB metadata was detected by the browser probe. Cue import still requires a Rekordbox XML match or the native/Electron parser bridge; USB Mode alone will not hydrate cue points.')
   } else {
-    warnings.push('No Rekordbox USB metadata was found under /PIONEER/rekordbox or /PIONEER/USBANLZ. USB Mode was armed so the next loaded track is still marked as USB-sourced if you confirm it.')
+    warnings.push('No Rekordbox USB metadata was found under /PIONEER/rekordbox or /PIONEER/USBANLZ. USB Mode was armed, but it only marks unmatched tracks as USB-sourced and will not import cue points by itself.')
   }
 
   return {
@@ -313,7 +313,7 @@ function createUsbModeFallback(file: File, library: RekordboxLibrary | null): Im
   const importedAt = new Date().toISOString()
   const warning = library
     ? 'Track was loaded in Rekordbox USB Mode, but it did not match the imported Rekordbox XML library. Cue points were not hydrated.'
-    : 'Track was loaded in Rekordbox USB Mode. Direct export.pdb/ANLZ parsing is not implemented yet, so cue points require RB XML or the native parser bridge.'
+    : 'Track was loaded in Rekordbox USB Mode only. Cue points were not imported because there was no XML/native metadata match.'
 
   return {
     source: 'rekordbox_usb',

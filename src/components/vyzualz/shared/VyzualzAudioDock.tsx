@@ -11,6 +11,7 @@ import {
   importRekordboxXml,
   selectRekordboxUsbRoot,
   summarizeRekordboxLibrary,
+  type ImportedTrackIntelligence,
   type RekordboxLibrary,
 } from '../../../features/rekordboxImport'
 import { guessNativeUsbRootFromFile, scanNativeRekordboxUsbRoot } from '../../../features/rekordboxImport/nativeBridge'
@@ -36,6 +37,46 @@ function writeCollapsedPreference(collapsed: boolean): void {
   } catch {
     // Storage can be unavailable in private browsing or embedded runtimes.
   }
+}
+
+
+interface RekordboxHydrationSummary {
+  total: number
+  imported: number
+  realMatches: number
+  usbFallbacks: number
+  cueCount: number
+  primaryReason: string | null
+}
+
+function summarizePreparedRekordboxInputs(
+  prepared: { imported?: ImportedTrackIntelligence }[],
+): RekordboxHydrationSummary {
+  const imported = prepared
+    .map(input => input.imported)
+    .filter((item): item is ImportedTrackIntelligence => Boolean(item))
+  const realMatches = imported.filter(item => !item.matchReason.startsWith('usb-mode-'))
+  const usbFallbacks = imported.length - realMatches.length
+  const primary = realMatches[0] ?? imported[0] ?? null
+  return {
+    total: prepared.length,
+    imported: imported.length,
+    realMatches: realMatches.length,
+    usbFallbacks,
+    cueCount: imported.reduce((sum, item) => sum + item.cueMarkers.length, 0),
+    primaryReason: primary?.matchReason ?? null,
+  }
+}
+
+function formatRekordboxDiagnostic(summary: RekordboxHydrationSummary): string {
+  const matchState = summary.realMatches > 0 ? 'yes' : 'no'
+  const reason = summary.primaryReason ? ` · ${summary.primaryReason}` : ''
+  return `Matched: ${matchState}${reason} · Imported cues: ${summary.cueCount}`
+}
+
+function formatRekordboxBadgeDiagnostic(summary: RekordboxHydrationSummary): string {
+  const matchState = summary.realMatches > 0 ? 'yes' : 'no'
+  return `Match ${matchState} · ${summary.cueCount} cue${summary.cueCount === 1 ? '' : 's'}`
 }
 
 function fmtPlayTime(secs: number): string {
@@ -143,6 +184,7 @@ export function VyzualzAudioDock({
   ))
   const [rekordboxLibrary, setRekordboxLibrary] = useState<RekordboxLibrary | null>(null)
   const [rekordboxStatus, setRekordboxStatus] = useState<string | null>(null)
+  const [rekordboxDiagnostic, setRekordboxDiagnostic] = useState<string | null>(null)
   const [rekordboxBusy, setRekordboxBusy] = useState(false)
   const [rekordboxUsbMode, setRekordboxUsbMode] = useState(false)
 
@@ -277,6 +319,30 @@ export function VyzualzAudioDock({
   }
 
   // ── File and Rekordbox input ─────────────────────────────────────────────
+  const setRekordboxStatusWithDiagnostic = (status: string | null, summary?: RekordboxHydrationSummary | null) => {
+    setRekordboxStatus(status)
+    setRekordboxDiagnostic(summary ? formatRekordboxBadgeDiagnostic(summary) : null)
+  }
+
+  const rehydrateCurrentTrackFromRekordbox = (
+    library: RekordboxLibrary | null,
+    options: { forceUsbMode?: boolean } = {},
+  ): { summary: RekordboxHydrationSummary | null; replaced: boolean; hadCurrentFile: boolean } => {
+    const currentFile = engine.currentTrack?.sourceFile
+    if (!currentFile) return { summary: null, replaced: false, hadCurrentFile: false }
+
+    const prepared = createPreparedTrackInputs([currentFile], library, options)
+    const summary = summarizePreparedRekordboxInputs(prepared)
+    const shouldReplace = summary.realMatches > 0 || summary.usbFallbacks > 0
+
+    if (shouldReplace) {
+      engine.replacePreparedTracks(prepared)
+      if (engine.source !== 'file') engine.setSource('file')
+    }
+
+    return { summary, replaced: shouldReplace, hadCurrentFile: true }
+  }
+
   const handleFiles = async (files: FileList | null) => {
     if (!files) return
     const audio = Array.from(files).filter(f =>
@@ -311,17 +377,23 @@ export function VyzualzAudioDock({
 
     const shouldForceUsbMode = rekordboxUsbMode || activeLibrary?.source === 'rekordbox_usb'
     const prepared = createPreparedTrackInputs(audio, activeLibrary, { forceUsbMode: shouldForceUsbMode })
-    const importedCount = prepared.filter(input => input.imported).length
+    const summary = summarizePreparedRekordboxInputs(prepared)
     if (engine.tracks.length > 0) engine.replacePreparedTracks(prepared)
     else engine.addPreparedTracks(prepared)
     if (engine.source !== 'file') engine.setSource('file')
+
     if (activeLibrary || shouldForceUsbMode || autoNativeStatus) {
-      setRekordboxStatus([
+      const matchedPhrase = summary.realMatches > 0
+        ? `Matched ${summary.realMatches}/${audio.length} loaded track${audio.length === 1 ? '' : 's'} to Rekordbox metadata.`
+        : summary.usbFallbacks > 0
+          ? `No Rekordbox metadata match; marked ${summary.usbFallbacks}/${audio.length} loaded track${audio.length === 1 ? '' : 's'} as USB Mode only.`
+          : activeLibrary ? 'Rekordbox library loaded, but no selected audio files matched.' : null
+
+      setRekordboxStatusWithDiagnostic([
         autoNativeStatus,
-        importedCount > 0
-          ? `Matched ${importedCount}/${audio.length} loaded track${audio.length === 1 ? '' : 's'} to Rekordbox metadata or USB Mode.`
-          : activeLibrary ? 'Rekordbox library loaded, but no selected audio files matched.' : null,
-      ].filter(Boolean).join(' '))
+        matchedPhrase,
+        formatRekordboxDiagnostic(summary),
+      ].filter(Boolean).join(' '), summary)
     }
   }
 
@@ -331,9 +403,22 @@ export function VyzualzAudioDock({
     try {
       const library = await importRekordboxXml(files)
       setRekordboxLibrary(library)
-      setRekordboxStatus(`Rekordbox XML ready: ${summarizeRekordboxLibrary(library)}. Load/replace audio to hydrate cues and metadata.`)
+      const hydration = rehydrateCurrentTrackFromRekordbox(library, { forceUsbMode: false })
+
+      const currentTrackMessage = hydration.hadCurrentFile
+        ? hydration.replaced && hydration.summary
+          ? `Current track rehydrated from XML. ${formatRekordboxDiagnostic(hydration.summary)}.`
+          : hydration.summary
+            ? `Current track did not match this XML and was left unchanged. ${formatRekordboxDiagnostic(hydration.summary)}.`
+            : 'Current track could not be rehydrated from XML.'
+        : 'Load/replace audio to hydrate cues and metadata.'
+
+      setRekordboxStatusWithDiagnostic(
+        `Rekordbox XML ready: ${summarizeRekordboxLibrary(library)}. ${currentTrackMessage}`,
+        hydration.summary,
+      )
     } catch (err) {
-      setRekordboxStatus(err instanceof Error ? err.message : String(err))
+      setRekordboxStatusWithDiagnostic(err instanceof Error ? err.message : String(err))
     } finally {
       setRekordboxBusy(false)
     }
@@ -344,40 +429,42 @@ export function VyzualzAudioDock({
     try {
       const result = await selectRekordboxUsbRoot()
       if (result.cancelled) {
-        setRekordboxStatus('USB scan canceled. No files were loaded or replaced.')
+        setRekordboxStatusWithDiagnostic('USB scan canceled. No files were loaded or replaced.')
         return
       }
 
       setRekordboxUsbMode(true)
       if (result.library) setRekordboxLibrary(result.library)
 
-      const currentFile = engine.currentTrack?.sourceFile
-      let rehydratedCurrentTrack = false
-      if (currentFile) {
-        const prepared = createPreparedTrackInputs([currentFile], result.library ?? rekordboxLibrary, { forceUsbMode: true })
-        engine.replacePreparedTracks(prepared)
-        if (engine.source !== 'file') engine.setSource('file')
-        rehydratedCurrentTrack = prepared.some(input => input.imported)
-      }
-
+      const hydration = rehydrateCurrentTrackFromRekordbox(result.library ?? rekordboxLibrary, { forceUsbMode: true })
       const summary = result.library ? summarizeRekordboxLibrary(result.library) : 'USB Mode armed'
       const bridgeLabel = result.usedNativeBridge
         ? `Native parser${result.parserMode ? ` (${result.parserMode})` : ''}`
-        : result.usedFileSystemAccessApi ? 'Browser metadata probe' : 'USB Mode fallback'
+        : result.usedFileSystemAccessApi
+          ? 'Browser probe only; cue import requires XML or the native bridge'
+          : 'USB Mode fallback only; cue import requires XML or the native bridge'
       const detection = [
         result.detectedPdbFiles > 0 ? `${result.detectedPdbFiles} export.pdb` : null,
         result.detectedAnlzFiles > 0 ? `${result.detectedAnlzFiles} ANLZ` : null,
       ].filter(Boolean).join(' · ')
       const warnings = [...result.warnings, ...(result.library?.warnings ?? [])]
-      setRekordboxStatus([
+      const currentTrackMessage = hydration.hadCurrentFile
+        ? hydration.summary?.realMatches
+          ? 'Current track matched and was rehydrated as Rekordbox USB.'
+          : hydration.summary?.usbFallbacks
+            ? 'Current track was marked as USB Mode only; no cue metadata was imported.'
+            : 'Current track was not matched to Rekordbox USB metadata.'
+        : 'Load a track to attach USB metadata mode.'
+      setRekordboxStatusWithDiagnostic([
         result.scannedRootName ? `USB ${result.scannedRootName}: ${summary}.` : `${summary}.`,
         bridgeLabel,
         detection ? `Detected ${detection}.` : null,
-        currentFile ? (rehydratedCurrentTrack ? 'Current track rehydrated as Rekordbox USB.' : 'Current track marked as Rekordbox USB Mode.') : 'Load a track to attach USB metadata mode.',
+        currentTrackMessage,
+        hydration.summary ? formatRekordboxDiagnostic(hydration.summary) : null,
         warnings.length ? warnings[0] : null,
-      ].filter(Boolean).join(' '))
+      ].filter(Boolean).join(' '), hydration.summary)
     } catch (err) {
-      setRekordboxStatus(err instanceof Error ? err.message : String(err))
+      setRekordboxStatusWithDiagnostic(err instanceof Error ? err.message : String(err))
     } finally {
       setRekordboxBusy(false)
     }
@@ -386,8 +473,8 @@ export function VyzualzAudioDock({
   const toggleRekordboxUsbMode = () => {
     setRekordboxUsbMode(current => {
       const next = !current
-      setRekordboxStatus(next
-        ? 'USB Mode armed. The next loaded track will be marked as Rekordbox USB even if no XML match is available.'
+      setRekordboxStatusWithDiagnostic(next
+        ? 'USB Mode armed. The next loaded track will be marked as Rekordbox USB only if no XML/native match is available; cue points still require a metadata match.'
         : 'USB Mode off. New tracks load as normal local audio unless matched to RB XML.')
       return next
     })
@@ -717,16 +804,16 @@ export function VyzualzAudioDock({
               if (action === 'usb') void handleRekordboxUsbRoot()
               if (action === 'mode') toggleRekordboxUsbMode()
             }}
-            title="Import Rekordbox metadata or arm USB Mode"
+            title="Import Rekordbox metadata or arm USB Mode. USB Mode does not import cues unless XML or the native parser matches the track."
           >
-            <option value="">{rekordboxBusy ? 'Reading…' : rekordboxUsbMode ? 'USB Mode On' : 'RB Tools'}</option>
+            <option value="">{rekordboxBusy ? 'Reading…' : rekordboxUsbMode ? 'USB Mode Armed' : 'RB Tools'}</option>
             <option value="xml">Import XML…</option>
             <option value="usb">Scan USB…</option>
-            <option value="mode">{rekordboxUsbMode ? 'Turn USB Mode Off' : 'Turn USB Mode On'}</option>
+            <option value="mode">{rekordboxUsbMode ? 'Turn USB Mode Off' : 'Arm USB Mode'}</option>
           </select>
-          {rekordboxStatus && (
-            <span className="vz-dock-rekordbox-status" title={rekordboxStatus}>
-              {rekordboxBusy ? 'Reading Rekordbox…' : rekordboxStatus}
+          {(rekordboxStatus || rekordboxDiagnostic) && (
+            <span className="vz-dock-rekordbox-status" title={rekordboxStatus ?? rekordboxDiagnostic ?? undefined}>
+              {rekordboxBusy ? 'Reading Rekordbox…' : rekordboxDiagnostic ?? rekordboxStatus}
             </span>
           )}
         </div>
