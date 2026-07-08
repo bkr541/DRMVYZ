@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { Collapsible } from './ReactControlRows'
-import { LaserDmxBeamInspector } from './LaserDmxBeamInspector'
 import { LaserDmxReactionGroupInspector } from './LaserDmxReactionGroupInspector'
 import { LASER_DMX_MATRIX_MAX_BEAMS } from './ReactTypes'
 
@@ -125,11 +124,6 @@ export function LaserDmxBeamMatrixPanel() {
             Reset Matrix
           </button>
         )}
-      </Collapsible>
-
-      {/* ── Beam inspector ─────────────────────────────────────────────── */}
-      <Collapsible label="Selected Beam" defaultOpen>
-        <LaserDmxBeamInspector />
       </Collapsible>
 
       {/* ── Group inspector ─────────────────────────────────────────────── */}

@@ -1951,17 +1951,19 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
 
                 {(editorMode === 'create' || (editorMode === 'edit' && selectedSection)) && (
                   <div className="rv-timeline-editor-drawer">
-                    <div className="rv-timeline-editor-heading">
-                      <span>{editorMode === 'create' ? 'New Section' : `Edit ${selectedSection?.label ?? 'Section'}`}</span>
-                      <button
-                        type="button"
-                        className="rv-timeline-editor-close"
-                        onClick={closeSectionEditor}
-                        aria-label="Close section editor"
-                      >×</button>
-                    </div>
                     {editorMode === 'create' && (
-                      <AddSectionForm onAdd={handleAdd} onCancel={closeSectionEditor} />
+                      <>
+                        <div className="rv-timeline-editor-heading">
+                          <span>New Section</span>
+                          <button
+                            type="button"
+                            className="rv-timeline-editor-close"
+                            onClick={closeSectionEditor}
+                            aria-label="Close section editor"
+                          >×</button>
+                        </div>
+                        <AddSectionForm onAdd={handleAdd} onCancel={closeSectionEditor} />
+                      </>
                     )}
                     {editorMode === 'edit' && selectedSection && (() => {
                       const src = selectedSection.source

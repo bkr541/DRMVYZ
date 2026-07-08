@@ -11,6 +11,8 @@ const GRID_PRESETS = [
   { label: '15 × 10', value: '15x10', columns: 15, rows: 10 },
   { label: '18 × 12', value: '18x12', columns: 18, rows: 12 },
   { label: '24 × 14', value: '24x14', columns: 24, rows: 14 },
+  { label: '30 × 18', value: '30x18', columns: 30, rows: 18 },
+  { label: '36 × 20', value: '36x20', columns: 36, rows: 20 },
 ] as const
 
 const MIN_ZOOM = 0.5

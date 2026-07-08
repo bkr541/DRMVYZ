@@ -3,10 +3,15 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 127 ms
+  VITE v5.4.21  ready in 163 ms
 
   ➜  Local:   http://127.0.0.1:5173/
-6:27:17 PM [vite] hmr update /src/styles/reactView.css
-6:27:25 PM [vite] hmr update /src/styles/reactView.css
-6:27:30 PM [vite] hmr update /src/styles/reactView.css
-6:27:42 PM [vite] hmr update /src/styles/reactView.css
+2:51:27 AM [vite] hmr update /src/components/vyzualz/react/LaserDmxBeamMatrixPanel.tsx
+2:51:27 AM [vite] hmr update /src/components/vyzualz/react/LaserDmxShowDirectorControls.tsx
+2:51:27 AM [vite] hmr update /src/components/vyzualz/react/ReactTrackMapStrip.tsx
+2:51:27 AM [vite] hmr update /src/styles/reactView.css
+2:51:27 AM [vite] hmr update /src/components/vyzualz/react/LaserDmxBeamMatrixPanel.tsx
+2:51:27 AM [vite] hmr update /src/components/vyzualz/react/LaserDmxShowDirectorControls.tsx
+2:51:27 AM [vite] hmr update /src/components/vyzualz/react/ReactTrackMapStrip.tsx
+2:51:27 AM [vite] hmr invalidate /src/components/vyzualz/react/ReactTrackMapStrip.tsx Could not Fast Refresh ("ENERGY_CURVE_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+2:51:27 AM [vite] hmr update /src/components/vyzualz/react/ReactView.tsx
