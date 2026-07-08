@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import {
@@ -18,6 +18,7 @@ import {
   type LaserDmxShowDirectorVideoWallSource,
 } from './ReactTypes'
 import { CtrlSection, NumberInputRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from './ReactControlRows'
+import { LaserDmxShowDirectorFixtureIcon } from './LaserDmxShowDirectorFixtureIcon'
 import {
   RECOMMENDED_TRIGGER_RECIPE_BY_KIND,
   TRIGGER_RECIPE_HINTS,
@@ -522,7 +523,13 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
           <h4>{fixture.label}</h4>
           <p>{typeLabel} · {fixture.enabled ? 'Enabled' : 'Disabled'} · {fixtureGroup?.label ?? fixture.groupId ?? 'No group'}</p>
         </div>
-        <span className="rv-show-director-inspector__swatch" style={{ background: fixture.color }} aria-hidden="true" />
+        <span
+          className="rv-show-director-inspector__fixture-icon"
+          style={{ '--fixture-color': fixture.color } as CSSProperties}
+          aria-hidden="true"
+        >
+          <LaserDmxShowDirectorFixtureIcon kind={fixture.kind} color={fixture.color} />
+        </span>
       </div>
 
       <div className="rv-show-director-inspector__body">

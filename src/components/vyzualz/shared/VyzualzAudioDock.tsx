@@ -492,13 +492,9 @@ export function VyzualzAudioDock({
 
   const activeImportedCues = track?.importedCueMarkers ?? []
   const activeCueMarkers = [...cueMarkers, ...activeImportedCues].sort((a, b) => a.time - b.time)
-  const importedBadge = track?.externalMetadata?.source === 'rekordbox_usb'
-    ? 'USB Rekordbox'
-    : track?.externalMetadata?.source === 'rekordbox_xml' ? 'Rekordbox XML' : null
-
   const initial = track?.displayName?.[0]?.toUpperCase() ?? '♪'
   const title   = track?.displayName ?? 'No track loaded'
-  const artist  = track?.artist?.trim() || (track?.externalMetadata?.source === 'rekordbox_usb' ? 'USB Rekordbox mode' : hasTrack ? 'Local audio track' : 'Load a track to begin')
+  const artist  = track?.artist?.trim() || (hasTrack ? '' : 'Load a track to begin')
   const vol     = engine.volume
   const volPct  = `${Math.round(vol * 100)}%`
 
@@ -557,12 +553,7 @@ export function VyzualzAudioDock({
         <div className="vz-dock-left-body">
           <div className="vz-dock-track-row">
             <span className="vz-dock-track-title" title={title}>{title}</span>
-            <span className="vz-dock-track-artist" title={artist}>{artist}</span>
-            {importedBadge && (
-              <span className="vz-dock-rekordbox-badge" title={`${activeImportedCues.length} imported Rekordbox cue marker${activeImportedCues.length === 1 ? '' : 's'}`}>
-                {importedBadge} · {activeImportedCues.length} cues
-              </span>
-            )}
+            {artist && <span className="vz-dock-track-artist" title={artist}>{artist}</span>}
           </div>
 
           {/* Transport receives its own full-width row instead of competing with track metadata. */}
@@ -811,11 +802,6 @@ export function VyzualzAudioDock({
             <option value="usb">Scan USB…</option>
             <option value="mode">{rekordboxUsbMode ? 'Turn USB Mode Off' : 'Arm USB Mode'}</option>
           </select>
-          {(rekordboxStatus || rekordboxDiagnostic) && (
-            <span className="vz-dock-rekordbox-status" title={rekordboxStatus ?? rekordboxDiagnostic ?? undefined}>
-              {rekordboxBusy ? 'Reading Rekordbox…' : rekordboxDiagnostic ?? rekordboxStatus}
-            </span>
-          )}
         </div>
         </div>
 

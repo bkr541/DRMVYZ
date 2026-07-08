@@ -111,10 +111,6 @@ export function LaserDmxShowDirectorControls() {
       <CtrlSection label="Show Director Design" />
 
       <Collapsible label="Canvas" defaultOpen>
-        <div className="rv-ctrl-info rv-show-director-tool-mode" role="status">
-          <strong>Select / Move</strong>
-          <span>Click or drag fixtures directly on the center visualizer stage.</span>
-        </div>
         <ToggleRow
           label="Snap to Grid"
           value={settings.snapEnabled}

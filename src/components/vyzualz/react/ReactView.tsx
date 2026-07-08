@@ -400,9 +400,6 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
             <section className="rv-context-workspace" aria-label={`${REACT_ENGINE_CATALOG[activeReactEngineId].label} workspace`}>
               <header className="rv-context-workspace-header">
                 <ReactEngineBrowser />
-                <p className="rv-context-workspace-description">
-                  {REACT_ENGINE_CATALOG[activeReactEngineId].description}
-                </p>
               </header>
               <RailTabs
                 tabs={leftTabs}

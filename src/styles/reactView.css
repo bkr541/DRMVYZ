@@ -9301,3 +9301,116 @@
   background: rgba(105, 116, 124, 0.38);
   box-shadow: none;
 }
+
+/* ── Show Director / transport tightening pass ─────────────────────────────── */
+.rv-context-workspace-header {
+  min-height: 0;
+  padding: 10px 10px 8px;
+  gap: 0;
+}
+
+.rv-context-workspace-description {
+  display: none;
+}
+
+.rv-laser-rig-toolbar,
+.rv-laser-rig-surfaces {
+  width: 100%;
+}
+
+.rv-laser-rig-toolbar {
+  padding: 0;
+}
+
+.rv-laser-rig-surfaces button {
+  min-height: 34px;
+}
+
+.rv-show-director-design-panel {
+  gap: 7px;
+}
+
+.rv-show-director-design-panel > * + * {
+  margin-top: 7px;
+}
+
+.rv-show-director-design-panel .rv-ctrl-collapsible {
+  margin: 5px 0;
+}
+
+.rv-show-director-design-panel .rv-ctrl-collapsible-hdr {
+  padding: 8px 10px 7px;
+}
+
+.rv-show-director-design-panel .rv-ctrl-collapsible-body {
+  gap: 6px;
+  padding: 7px 10px 9px;
+}
+
+.rv-show-director-design-panel .rv-ctrl-toggle-row {
+  gap: 2px;
+}
+
+.rv-show-director-design-panel .rv-ctrl-toggle-line {
+  min-height: 28px;
+}
+
+.rv-show-director-inspector__swatch {
+  display: none;
+}
+
+.rv-show-director-inspector__fixture-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 6px;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--fixture-color, #4ac7db) 42%, rgba(255,255,255,0.22));
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--fixture-color, #4ac7db) 22%, transparent), transparent 70%),
+    rgba(1, 7, 12, 0.74);
+  color: var(--fixture-color, #4ac7db);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--fixture-color, #4ac7db) 24%, transparent);
+}
+
+.rv-show-director-inspector__fixture-icon .rv-show-director-fixture-icon {
+  width: 100%;
+  height: 100%;
+}
+
+.rv-show-director-inspector__fixture-icon .rv-show-director-fixture-icon--blinder span {
+  background: currentColor;
+  box-shadow: 0 0 11px currentColor;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-track-row {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-track-title,
+.rv-shell > .vz-transport-dock .vz-dock-track-artist {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-rekordbox-menu {
+  flex: 0 0 156px;
+  min-width: 150px;
+  max-width: 166px;
+  gap: 3px;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-rekordbox-select {
+  font-size: 7.75px;
+  letter-spacing: 0.07em;
+  padding-inline: 9px 22px;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-rekordbox-status,
+.rv-shell > .vz-transport-dock .vz-dock-rekordbox-badge {
+  display: none;
+}
