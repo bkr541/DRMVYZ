@@ -330,7 +330,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
   {
     id: 'canvas-clean-playback',
     name: 'Clean Playback',
-    description: 'Neutral uploaded-media playback with only transform, fit, and opacity controls applied.',
+    description: 'A clean source-forward look that presents the selected video, image, or SVG without extra reactive treatment.',
     accent: '#e8f4f8',
     settings: { ...DEFAULT_CANVAS_PRESET_SETTINGS },
     controls: [],
@@ -338,7 +338,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
   {
     id: 'canvas-bass-bloom',
     name: 'Bass Bloom',
-    description: 'Bass-reactive scale, glow, and exposure bloom wrapped around the active CANVAS media.',
+    description: 'A warm, stage-light bloom that swells the selected media with bass energy, glow, and softened exposure.',
     accent: '#61d6aa',
     settings: { intensity: 0.68, glow: 0.72, motionTrailAmount: 0.1, glitchAmount: 0, stutterRate: 2, lumaThreshold: 0.55 },
     controls: ['intensity', 'glow'],
@@ -346,7 +346,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
   {
     id: 'canvas-ghost-echo',
     name: 'Ghost Echo',
-    description: 'Soft afterimage trails that make the selected video, image, or SVG feel like it is leaving vapor-light behind.',
+    description: 'A dreamy echo treatment that layers soft afterimages behind the selected media for slow, vapor-lit motion.',
     accent: '#9ddcff',
     settings: { intensity: 0.58, glow: 0.34, motionTrailAmount: 0.58, glitchAmount: 0, stutterRate: 2, lumaThreshold: 0.55 },
     controls: ['intensity', 'motionTrailAmount', 'glow'],
@@ -354,7 +354,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
   {
     id: 'canvas-glitch-pulse',
     name: 'Glitch Pulse',
-    description: 'Beat-reactive shake, RGB split, and subtle stutter shimmer for the active uploaded visual.',
+    description: 'A high-energy glitch look with beat-shaken edges, RGB split, and digital pulse for the selected media.',
     accent: '#ff4fd8',
     settings: { intensity: 0.62, glow: 0.18, motionTrailAmount: 0.1, glitchAmount: 0.58, stutterRate: 4, lumaThreshold: 0.55 },
     controls: ['intensity', 'glitchAmount'],
@@ -362,7 +362,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
   {
     id: 'canvas-luma-melt',
     name: 'Luma Melt',
-    description: 'Brightness-threshold blur, smear, and soft bloom that melts highlights without changing the source media.',
+    description: 'A liquid highlight treatment that smears bright areas into soft bloom while keeping the source recognizable.',
     accent: '#d8b95a',
     settings: { intensity: 0.58, glow: 0.44, motionTrailAmount: 0.42, glitchAmount: 0, stutterRate: 2, lumaThreshold: 0.62 },
     controls: ['intensity', 'lumaThreshold', 'motionTrailAmount'],
@@ -370,7 +370,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
   {
     id: 'canvas-frame-stutter',
     name: 'Frame Stutter',
-    description: 'Rhythmic frame-hold pulses for video clips with a safe CSS fallback for images and SVGs.',
+    description: 'A rhythmic cut-up look that creates frame-hold pulses across videos, images, and SVG source material.',
     accent: '#4ac7db',
     settings: { intensity: 0.54, glow: 0.18, motionTrailAmount: 0.1, glitchAmount: 0.22, stutterRate: 5, lumaThreshold: 0.55 },
     controls: ['intensity', 'stutterRate', 'glitchAmount'],
@@ -378,7 +378,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
   {
     id: 'canvas-particle-aura',
     name: 'Particle Aura',
-    description: 'Turns your uploaded media into glowing audio-reactive particles.',
+    description: 'A luminous particle-field look that rebuilds the selected media from glowing, audio-reactive points.',
     accent: '#dffcff',
     settings: {
       intensity: 0.72,

@@ -5,12 +5,13 @@ import { CINEMATIC_WORLD_BY_ID, CINEMATIC_WORLD_UI, getCinematicPresetMood } fro
 import {
   type ReactPreset,
   type ReactEngineId,
+  type CanvasPresetDefinition,
+  type CanvasPresetId,
   CANVAS_PRESETS,
 } from './ReactTypes'
 import { ReactPresetThumbnail } from './ReactPresetThumbnail'
 import { LASER_DMX_SHOW_DIRECTOR_TEMPLATES } from './laserDmxShowDirectorTemplates'
 import { LaserDmxBeamMatrixPresetBrowser } from './LaserDmxBeamMatrixPresetBrowser'
-import { CanvasPresetBrowser } from './ReactCanvasEngineShell'
 import { LASER_DMX_BEAM_MATRIX_PRESETS } from './laserDmxBeamMatrixPresets'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
 import { resolveBrandedReactPreset } from '../../../features/personalization/resolveBrandedReactPreset'
@@ -53,6 +54,50 @@ const FIXTURE_BADGE_LABELS: Record<ProductionFixtureKind, string> = {
   strobe: 'Strobe', blinder: 'Blinder', ledBar: 'LED Bar', hazer: 'Haze', fogger: 'Fog', cryoJet: 'Cryo',
 }
 
+const CANVAS_PRESET_CHIP_LABELS: Record<CanvasPresetId, string> = {
+  'canvas-clean-playback': 'Clean Source',
+  'canvas-bass-bloom': 'Bass Reactive',
+  'canvas-ghost-echo': 'Trail Layer',
+  'canvas-glitch-pulse': 'Beat Glitch',
+  'canvas-luma-melt': 'Luma Treatment',
+  'canvas-frame-stutter': 'Rhythm Stutter',
+  'canvas-particle-aura': 'Particle System',
+}
+
+function createCanvasPresetCardPreset(preset: CanvasPresetDefinition): ReactPreset {
+  const intensity = preset.settings.intensity ?? 0.5
+  const motion = Math.max(
+    preset.settings.motionTrailAmount ?? 0,
+    preset.settings.glitchAmount ?? 0,
+    preset.settings.turbulence ?? 0,
+    preset.settings.stutterRate ? Math.min(1, preset.settings.stutterRate / 8) : 0,
+  )
+  const glow = preset.settings.glow ?? 0.3
+  const bassReactivity = Math.max(
+    preset.settings.bassBurst ?? 0,
+    preset.settings.beatPulse ?? 0,
+    preset.id === 'canvas-bass-bloom' ? 0.75 : 0.45,
+  )
+
+  return {
+    id: preset.id,
+    name: preset.name,
+    description: preset.description,
+    engine: 'canvas',
+    palette: {
+      primary: preset.accent,
+      secondary: '#4ac7db',
+      accent: '#61d6aa',
+      background: '#060d10',
+      highlight: '#d8b95a',
+      text: '#e8f4f8',
+    },
+    params: { intensity, motion, glow, bassReactivity },
+    scenes: [],
+    sectionMappings: [],
+  }
+}
+
 export function resolvePresetCardNavigationIndex(currentIndex: number, key: string, itemCount: number, columns = 1): number | null {
   if (itemCount <= 0) return null
   if (key === 'Home') return 0
@@ -78,28 +123,32 @@ function PresetCard({
   preset,
   isActive,
   modified,
-  isFavorite,
+  isFavorite = false,
   activeEngineId,
   onSelect,
   onToggleFavorite,
   thumbnailGenerationKey,
+  modeHintOverride,
+  showMore = true,
 }: {
   preset: ReactPreset
   isActive: boolean
   modified: boolean
-  isFavorite: boolean
+  isFavorite?: boolean
   activeEngineId: ReactEngineId
   onSelect: (id: string) => void
-  onToggleFavorite: (id: string) => void
+  onToggleFavorite?: (id: string) => void
   thumbnailGenerationKey: string
+  modeHintOverride?: string | null
+  showMore?: boolean
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false)
   if (!isSelectableReactEngineId(preset.engine)) return null
-  const modeHint = getModeHint(preset)
+  const modeHint = modeHintOverride ?? getModeHint(preset)
   const production = preset.productionPreset
   const switchesContext = preset.engine !== activeEngineId
   const destinationLabel = REACT_ENGINE_CATALOG[preset.engine].label
-  const hasMoreDetails = true
+  const hasMoreDetails = showMore
 
   return (
     <div className={`rv-preset-card-shell${detailsOpen ? ' rv-preset-card-shell--expanded' : ''}`}>
@@ -143,16 +192,18 @@ function PresetCard({
           </div>
         </div>
       </button>
-      <button
-        type="button"
-        className={`rv-preset-favorite${isFavorite ? ' rv-preset-favorite--active' : ''}`}
-        onClick={() => onToggleFavorite(preset.id)}
-        aria-pressed={isFavorite}
-        aria-label={`${isFavorite ? 'Remove' : 'Add'} ${preset.name} ${isFavorite ? 'from' : 'to'} favorites`}
-        title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-      >
-        {isFavorite ? '★' : '☆'}
-      </button>
+      {onToggleFavorite && (
+        <button
+          type="button"
+          className={`rv-preset-favorite${isFavorite ? ' rv-preset-favorite--active' : ''}`}
+          onClick={() => onToggleFavorite(preset.id)}
+          aria-pressed={isFavorite}
+          aria-label={`${isFavorite ? 'Remove' : 'Add'} ${preset.name} ${isFavorite ? 'from' : 'to'} favorites`}
+          title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+        >
+          {isFavorite ? '★' : '☆'}
+        </button>
+      )}
       {hasMoreDetails && (
         <button
           type="button"
@@ -270,6 +321,46 @@ function EngineSection({ engineId, presets, expandedByDefault = false, ...props 
   )
 }
 
+
+function CanvasPresetCollection({ thumbnailGenerationKey }: { thumbnailGenerationKey: string }) {
+  const selectedCanvasPresetId = useReactStore(state => state.selectedCanvasPresetId)
+  const selectCanvasPreset = useReactStore(state => state.selectCanvasPreset)
+  const cardPresets = useMemo(() => CANVAS_PRESETS.map(createCanvasPresetCardPreset), [])
+  const cardById = useMemo(() => new Map(cardPresets.map(preset => [preset.id, preset])), [cardPresets])
+  const canvasThumbnailGenerationKey = useMemo(
+    () => `${thumbnailGenerationKey}:canvas:${CANVAS_PRESETS.map(item => item.id).join('|')}`,
+    [thumbnailGenerationKey],
+  )
+
+  return (
+    <section className="rv-preset-group" aria-label="CANVAS media presets">
+      <div className="rv-preset-group-hdr">
+        <span className="rv-preset-group-hdr-icon" aria-hidden="true">▣</span>
+        <span className="rv-preset-group-hdr-label">CANVAS Media Presets</span>
+        <span className="rv-preset-group-hdr-count">{CANVAS_PRESETS.length}</span>
+      </div>
+      <div className="rv-preset-group-cards rv-preset-group-cards--current" data-preset-grid>
+        {CANVAS_PRESETS.map(canvasPreset => {
+          const cardPreset = cardById.get(canvasPreset.id)
+          if (!cardPreset) return null
+          return (
+            <PresetCard
+              key={canvasPreset.id}
+              preset={cardPreset}
+              isActive={canvasPreset.id === selectedCanvasPresetId}
+              modified={false}
+              activeEngineId="canvas"
+              onSelect={id => selectCanvasPreset(id as CanvasPresetId)}
+              thumbnailGenerationKey={canvasThumbnailGenerationKey}
+              modeHintOverride={CANVAS_PRESET_CHIP_LABELS[canvasPreset.id]}
+              showMore={false}
+            />
+          )
+        })}
+      </div>
+    </section>
+  )
+}
 
 function ShowDirectorTemplatePresets() {
   const applyTemplate = useReactStore(state => state.applyLaserDmxShowDirectorTemplate)
@@ -503,7 +594,7 @@ export function ReactPresetsPanel() {
       )}
 
       {isCanvasCurrentLibrary ? (
-        <CanvasPresetBrowser />
+        <CanvasPresetCollection thumbnailGenerationKey={thumbnailGenerationKey} />
       ) : isLaserDmxCurrentLibrary ? (
         laserDmxBeamMatrixAuthoringMode === 'showDirector'
           ? <ShowDirectorTemplatePresets />

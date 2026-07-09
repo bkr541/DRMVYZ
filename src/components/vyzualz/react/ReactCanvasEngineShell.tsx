@@ -9,7 +9,6 @@ import { Collapsible, CtrlSection, NumberInputRow, SelectRow, SliderRow, ToggleR
 import { MediaLibraryBrowser } from '../media/MediaLibraryBrowser'
 import { CANVAS_MEDIA_LIBRARY_CAPABILITIES } from '../media/mediaLibraryCapabilities'
 import {
-  CANVAS_PRESETS,
   CANVAS_PRESET_BY_ID,
   DEFAULT_CANVAS_PRESET_ID,
   DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS,
@@ -1788,58 +1787,6 @@ const CANVAS_PRESET_CONTROL_META: Record<CanvasPresetSliderControlKey, {
   },
 }
 
-export function CanvasPresetBrowser() {
-  const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
-  const selectCanvasPreset = useReactStore(s => s.selectCanvasPreset)
-  const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
-  const mediaItems = useCanvasRuntimeMediaItems()
-  const activeItem = useMemo(() => mediaItems.find(item => item.id === activeCanvasMediaId) ?? null, [activeCanvasMediaId, mediaItems])
-
-  return (
-    <section className="rv-canvas-preset-browser" aria-label="CANVAS presets">
-      <div className="rv-canvas-preset-browser__copy">
-        <strong>CANVAS Presets</strong>
-        <span>{activeItem ? `These treatments apply to ${activeItem.name}.` : 'Select saved media from the CANVAS Source panel, then choose a treatment.'}</span>
-      </div>
-      <div className="rv-preset-group-cards rv-preset-group-cards--current rv-canvas-preset-grid" data-preset-grid>
-        {CANVAS_PRESETS.map(preset => {
-          const active = preset.id === selectedCanvasPresetId
-          return (
-            <div key={preset.id} className="rv-preset-card-shell rv-canvas-preset-card-shell">
-              <button
-                type="button"
-                className={`rv-preset-card rv-canvas-preset-card${active ? ' rv-preset-card--active' : ''}`}
-                onClick={() => selectCanvasPreset(preset.id)}
-                data-preset-card
-                aria-pressed={active}
-                aria-current={active ? 'true' : undefined}
-                title={preset.description}
-              >
-                <div className="rv-preset-card-content">
-                  <div className="rv-preset-card-header">
-                    <span className="rv-preset-engine-icon" style={{ color: preset.accent }} aria-hidden="true">▣</span>
-                    <span className="rv-preset-name">{preset.name}</span>
-                  </div>
-                  <div className="rv-preset-chip-row">
-                    <span className="rv-preset-mode-chip">Active media FX</span>
-                    {active && <span className="rv-preset-modified-chip">Selected</span>}
-                  </div>
-                  <p className="rv-preset-desc">{preset.description}</p>
-                  <div className="rv-preset-palette" aria-label={`${preset.name} accent`}>
-                    <span className="rv-palette-swatch" style={{ background: preset.accent }} title={preset.accent} />
-                    <span className="rv-palette-swatch" style={{ background: '#4ac7db' }} title="CANVAS cyan" />
-                    <span className="rv-palette-swatch" style={{ background: '#61d6aa' }} title="CANVAS emerald" />
-                  </div>
-                </div>
-              </button>
-            </div>
-          )
-        })}
-      </div>
-    </section>
-  )
-}
-
 function CanvasAutoSelectControl() {
   const engine = useSharedAudio()
   const settings = useReactStore(s => s.canvasEngineSettings)
@@ -2117,13 +2064,11 @@ function CanvasPresetControls() {
 
   return (
     <Collapsible label="Preset Treatment" defaultOpen>
-      <div className="rv-canvas-preset-controls-head">
-        <div>
-          <strong>{selectedPreset.name}</strong>
-          <span>Applies to the active CANVAS media only.</span>
-        </div>
+      <div className="rv-ctrl-toggle-line">
+        <span className="rv-ctrl-label">{selectedPreset.name}</span>
         <button type="button" className="rv-reset-btn" onClick={resetCanvasPresetSettings}>Reset</button>
       </div>
+      <div className="rv-ctrl-info">Applies to the active CANVAS media only.</div>
       {selectedPreset.id === 'canvas-particle-aura' && !activeItem && (
         <div className="rv-canvas-engine-note rv-canvas-engine-note--warning">
           Particle Aura needs an active CANVAS library media item before it can sample pixels and emit particles.
