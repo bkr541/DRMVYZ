@@ -296,46 +296,58 @@ function canvasObjectFit(fitMode: CanvasFitMode): CSSProperties['objectFit'] {
 
 function makeCanvasMediaStyle(
   settings: ReturnType<typeof useReactStore.getState>['canvasEngineSettings'],
-  presetId: CanvasPresetId,
   presetSettings: CanvasPresetSettings,
 ): CSSProperties {
-  const presetSourceVisibility = presetId === 'canvas-particle-aura'
-    ? presetSettings.sourceVisibility
-    : 1
-
   return {
     objectFit: canvasObjectFit(settings.fitMode),
-    opacity: settings.opacity * presetSourceVisibility,
+    opacity: settings.opacity * presetSettings.sourceVisibility,
     transform: `translate(calc(${settings.positionX}% + var(--canvas-preset-shake-x, 0px)), calc(${settings.positionY}% + var(--canvas-preset-shake-y, 0px))) rotate(calc(${settings.rotation}deg + var(--canvas-preset-rotate, 0deg))) scale(calc(${settings.scale} + var(--canvas-preset-scale-boost, 0)))`,
   }
 }
 
 function makeCanvasPresetStyle(settings: CanvasPresetSettings): CSSProperties {
-  const glitchPx = 2 + settings.glitchAmount * 10
-  const trailOffset = settings.motionTrailAmount * 18
+  const rgbPx = settings.rgbSplit * 12
+  const trailOffset = settings.trailAmount * 18
   const lumaLift = Math.max(0, 1 - settings.lumaThreshold)
+  const lumaAmount = settings.motionAmount * (0.35 + lumaLift * 0.65)
+  const stutterAnimation = settings.stutterRate > 0.2
+    ? `rv-canvas-frame-stutter ${(1 / Math.max(1, settings.stutterRate)).toFixed(3)}s steps(2, end) infinite`
+    : 'none'
   return {
     '--canvas-preset-intensity': settings.intensity.toFixed(3),
     '--canvas-preset-glow': settings.glow.toFixed(3),
-    '--canvas-preset-trail': settings.motionTrailAmount.toFixed(3),
+    '--canvas-preset-trail': settings.trailAmount.toFixed(3),
     '--canvas-preset-glitch': settings.glitchAmount.toFixed(3),
-    '--canvas-preset-glitch-opacity': (settings.glitchAmount * 0.5).toFixed(3),
+    '--canvas-preset-glitch-opacity': (settings.glitchAmount * settings.intensity * 0.5).toFixed(3),
     '--canvas-preset-stutter-rate': settings.stutterRate.toFixed(3),
     '--canvas-preset-stutter-duration': `${(1 / Math.max(1, settings.stutterRate)).toFixed(3)}s`,
     '--canvas-preset-luma-threshold': settings.lumaThreshold.toFixed(3),
-    '--canvas-preset-luma-opacity': (0.18 + lumaLift * 0.36 + settings.motionTrailAmount * 0.18).toFixed(3),
-    '--canvas-preset-luma-contrast': (1.04 + lumaLift * 0.28).toFixed(3),
-    '--canvas-preset-glitch-px': `${glitchPx.toFixed(2)}px`,
-    '--canvas-preset-glitch-neg-px': `${(-glitchPx).toFixed(2)}px`,
+    '--canvas-preset-luma-opacity': (lumaAmount * 0.5 + settings.glow * 0.16).toFixed(3),
+    '--canvas-preset-luma-contrast': (1.02 + lumaLift * settings.motionAmount * 0.35 + settings.glitchAmount * 0.12).toFixed(3),
+    '--canvas-preset-rgb-split': settings.rgbSplit.toFixed(3),
+    '--canvas-preset-rgb-px': `${rgbPx.toFixed(2)}px`,
+    '--canvas-preset-rgb-neg-px': `${(-rgbPx).toFixed(2)}px`,
     '--canvas-preset-trail-offset': `${trailOffset.toFixed(2)}px`,
     '--canvas-preset-trail-neg-offset': `${(-trailOffset).toFixed(2)}px`,
-    '--canvas-preset-luma-blur': `${(settings.motionTrailAmount * 5 + settings.intensity * 1.5 + lumaLift * 2).toFixed(2)}px`,
+    '--canvas-preset-luma-blur': `${(settings.motionAmount * 5 + settings.trailAmount * 2 + settings.intensity * 0.9).toFixed(2)}px`,
+    '--canvas-param-aura-opacity': (settings.glow * (0.18 + settings.intensity * 0.38) + settings.particleDensity * 0.26).toFixed(3),
+    '--canvas-param-trail-opacity': (settings.trailAmount * settings.intensity * 0.42).toFixed(3),
+    '--canvas-param-glitch-overlay-opacity': (settings.glitchAmount * settings.intensity * 0.42 + settings.rgbSplit * 0.16).toFixed(3),
+    '--canvas-param-motion-blur': `${(settings.motionAmount * 3.4 + settings.trailAmount * 1.8).toFixed(2)}px`,
+    '--canvas-param-brightness': (1 + settings.glow * 0.1 + settings.bassReactivity * settings.intensity * 0.08).toFixed(3),
+    '--canvas-param-contrast': (1 + settings.glitchAmount * 0.15 + lumaLift * settings.motionAmount * 0.2).toFixed(3),
+    '--canvas-param-saturate': (1 + settings.glow * 0.16 + settings.rgbSplit * 0.24).toFixed(3),
+    '--canvas-param-stutter-animation': stutterAnimation,
+    '--canvas-param-glow-px': `${(settings.glow * 34).toFixed(2)}px`,
+    '--canvas-param-particle-glow-px': `${(settings.particleDensity * 42).toFixed(2)}px`,
+    '--canvas-param-grid-opacity': (0.1 + settings.glow * 0.12 + settings.particleDensity * 0.08).toFixed(3),
     '--canvas-particle-source-visibility': settings.sourceVisibility.toFixed(3),
     '--canvas-particle-glow': settings.glow.toFixed(3),
-    '--canvas-particle-glow-blur': `${(18 + settings.glow * 28).toFixed(2)}px`,
+    '--canvas-particle-density': settings.particleDensity.toFixed(3),
+    '--canvas-particle-glow-blur': `${(18 + settings.glow * 28 + settings.particleDensity * 16).toFixed(2)}px`,
     '--canvas-particle-source-brightness': (0.82 + settings.sourceVisibility * 0.34).toFixed(3),
-    '--canvas-particle-dissolve': settings.dissolveAmount.toFixed(3),
-    '--canvas-particle-dissolve-blur': `${(settings.dissolveAmount * 1.8).toFixed(2)}px`,
+    '--canvas-particle-dissolve': settings.turbulence.toFixed(3),
+    '--canvas-particle-dissolve-blur': `${(settings.turbulence * 1.8).toFixed(2)}px`,
   } as CSSProperties & Record<string, string>
 }
 
@@ -413,7 +425,7 @@ function sampleCanvasParticleSource({
   settings: CanvasPresetSettings
   sampleCanvas: HTMLCanvasElement
 }): CanvasParticlePoint[] {
-  const targetCount = CANVAS_PARTICLE_MIN_COUNT + settings.particleAmount * (CANVAS_PARTICLE_MAX_COUNT - CANVAS_PARTICLE_MIN_COUNT)
+  const targetCount = CANVAS_PARTICLE_MIN_COUNT + settings.particleDensity * (CANVAS_PARTICLE_MAX_COUNT - CANVAS_PARTICLE_MIN_COUNT)
   if (!source || !isCanvasParticleSourceReady(source)) return createCanvasParticleFallbackPoints(targetCount)
 
   const sampleWidth = CANVAS_PARTICLE_SAMPLE_WIDTH
@@ -457,8 +469,8 @@ function sampleCanvasParticleSource({
   }
 
   const candidates: CanvasParticlePoint[] = []
-  const threshold = 0.08 + settings.dissolveAmount * 0.28
-  const stride = settings.particleAmount > 0.72 ? 1 : 2
+  const threshold = 0.08 + settings.turbulence * 0.28
+  const stride = settings.particleDensity > 0.72 ? 1 : 2
   for (let y = 0; y < sampleHeight; y += stride) {
     for (let x = 0; x < sampleWidth; x += stride) {
       const index = (y * sampleWidth + x) * 4
@@ -470,7 +482,7 @@ function sampleCanvasParticleSource({
       const visible = alpha * luma
       if (visible <= threshold) continue
       const seed = (x + 1) * 0.731 + (y + 1) * 1.371 + candidates.length * 0.113
-      if (seededCanvasParticleNoise(seed) < settings.dissolveAmount * 0.36) continue
+      if (seededCanvasParticleNoise(seed) < settings.turbulence * 0.36) continue
       candidates.push({
         baseX: (x + 0.5) / sampleWidth,
         baseY: (y + 0.5) / sampleHeight,
@@ -491,7 +503,7 @@ function sampleCanvasParticleSource({
   for (let index = 0; index < safeCount; index += 1) {
     const pick = Math.floor(seededCanvasParticleNoise(index * 9.17 + candidates.length * 0.27) * candidates.length)
     const candidate = candidates[pick] ?? candidates[index % candidates.length]
-    const jitter = 0.002 + settings.dissolveAmount * 0.018
+    const jitter = 0.002 + settings.turbulence * 0.018
     points.push({
       ...candidate,
       baseX: clampCanvasRange(candidate.baseX + (seededCanvasParticleNoise(index * 2.1) - 0.5) * jitter, 0, 1),
@@ -619,8 +631,8 @@ function CanvasParticleAuraLayer({
 
       const width = lastWidth || canvas.clientWidth || 1
       const height = lastHeight || canvas.clientHeight || 1
-      const fade = 1 - clampCanvasRange(settings.trailLength, 0, 0.94)
-      if (settings.trailLength <= 0.03) {
+      const fade = 1 - clampCanvasRange(settings.trailAmount, 0, 0.94)
+      if (settings.trailAmount <= 0.03) {
         context.clearRect(0, 0, width, height)
       } else {
         context.save()
@@ -634,10 +646,10 @@ function CanvasParticleAuraLayer({
       context.globalCompositeOperation = 'lighter'
       const centerX = width * 0.5
       const centerY = height * 0.5
-      const bassPush = bass * settings.bassBurst * settings.intensity * Math.min(width, height) * 0.18
+      const bassPush = bass * settings.bassReactivity * settings.intensity * Math.min(width, height) * 0.18
       const beatScale = 1 + beat * settings.beatPulse * 0.9
       const glow = settings.glow * (8 + bass * 28 + beat * 20)
-      const dissolveScatter = settings.dissolveAmount * Math.min(width, height) * 0.12
+      const dissolveScatter = settings.turbulence * Math.min(width, height) * 0.12
       const turbulence = settings.turbulence * (4 + high * 18 + bass * 8)
 
       points.forEach((point, index) => {
@@ -654,11 +666,11 @@ function CanvasParticleAuraLayer({
         const y = point.baseY * height + normalY * bassPush + noiseB * turbulence + (seededCanvasParticleNoise(point.seed * 2.3) - 0.5) * dissolveScatter
         const size = Math.max(0.35, settings.particleSize * (0.45 + point.luma * 1.25) * beatScale * (0.9 + high * 0.22))
         const alpha = clampCanvasRange(
-          (0.16 + point.luma * 0.78) * point.alpha * settings.intensity * (1 - settings.dissolveAmount * 0.42) * sparkle,
+          (0.16 + point.luma * 0.78) * point.alpha * settings.intensity * (1 - settings.turbulence * 0.42) * sparkle,
           0,
           0.95,
         )
-        if (alpha <= 0.015 || (settings.dissolveAmount > 0.72 && (index % 3) === 0 && dissolveNoise < settings.dissolveAmount - 0.46)) return
+        if (alpha <= 0.015 || (settings.turbulence > 0.72 && (index % 3) === 0 && dissolveNoise < settings.turbulence - 0.46)) return
 
         const color = getCanvasParticleColor(point, settings.particleColorMode, bass, high)
         context.beginPath()
@@ -1079,7 +1091,7 @@ export function CanvasEngineSurface({
   const activeTiming = activeItem?.timing ?? DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS
   const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
   const mediaStyle = useMemo(
-    () => makeCanvasMediaStyle(settings, selectedPreset.id, canvasPresetSettings),
+    () => makeCanvasMediaStyle(settings, canvasPresetSettings),
     [canvasPresetSettings, selectedPreset.id, settings],
   )
   const particleSourceRef = activeVideo ? videoRef : imageRef
@@ -1163,33 +1175,22 @@ export function CanvasEngineSurface({
         else drawHeight = cssWidth / sourceAspect
       }
 
-      const presetSourceVisibility = selectedPreset.id === 'canvas-particle-aura'
-        ? canvasPresetSettings.sourceVisibility
-        : 1
-      const liveScale = selectedPreset.id === 'canvas-bass-bloom'
-        ? settings.scale + bass * canvasPresetSettings.intensity * 0.16
-        : selectedPreset.id === 'canvas-frame-stutter'
-          ? settings.scale + beat * canvasPresetSettings.intensity * 0.035
-          : settings.scale
-      const shake = selectedPreset.id === 'canvas-glitch-pulse' || selectedPreset.id === 'canvas-frame-stutter'
-        ? (beat * 9 + high * 4 + 0.8) * canvasPresetSettings.glitchAmount * canvasPresetSettings.intensity
-        : 0
+      const liveScale = settings.scale
+        + bass * canvasPresetSettings.bassReactivity * canvasPresetSettings.intensity * 0.16
+        + beat * canvasPresetSettings.beatPulse * canvasPresetSettings.intensity * 0.045
+      const shake = (beat * 9 + high * 4 + 0.8) * canvasPresetSettings.glitchAmount * canvasPresetSettings.intensity
+      const motionDriftX = Math.sin(now * (0.9 + canvasPresetSettings.turbulence * 2.6)) * canvasPresetSettings.motionAmount * 9
+      const motionDriftY = Math.cos(now * (0.74 + canvasPresetSettings.turbulence * 2.1)) * canvasPresetSettings.motionAmount * 7
 
       captureContext.save()
-      captureContext.globalAlpha = clampCanvasRange(settings.opacity * presetSourceVisibility, 0, 1)
+      captureContext.globalAlpha = clampCanvasRange(settings.opacity * canvasPresetSettings.sourceVisibility, 0, 1)
       captureContext.translate(
-        cssWidth * 0.5 + cssWidth * 0.5 * (settings.positionX / 100) + Math.sin(now * 48) * shake,
-        cssHeight * 0.5 + cssHeight * 0.5 * (settings.positionY / 100) + Math.cos(now * 41) * shake,
+        cssWidth * 0.5 + cssWidth * 0.5 * (settings.positionX / 100) + Math.sin(now * 48) * shake + motionDriftX,
+        cssHeight * 0.5 + cssHeight * 0.5 * (settings.positionY / 100) + Math.cos(now * 41) * shake + motionDriftY,
       )
       captureContext.rotate((settings.rotation + shake * 0.16) * Math.PI / 180)
       captureContext.scale(liveScale, liveScale)
-      captureContext.filter = selectedPreset.id === 'canvas-luma-melt'
-        ? `blur(${(canvasPresetSettings.motionTrailAmount * 5 + canvasPresetSettings.intensity * 1.5).toFixed(2)}px) brightness(${(1.05 + canvasPresetSettings.intensity * 0.16).toFixed(3)}) contrast(${(1.04 + (1 - canvasPresetSettings.lumaThreshold) * 0.28).toFixed(3)})`
-        : selectedPreset.id === 'canvas-bass-bloom'
-          ? `brightness(${(1.03 + bass * canvasPresetSettings.intensity * 0.34).toFixed(3)}) contrast(${(1.02 + bass * 0.12).toFixed(3)})`
-          : selectedPreset.id === 'canvas-glitch-pulse'
-            ? `saturate(${(1.1 + high * canvasPresetSettings.glitchAmount * 1.4).toFixed(3)}) contrast(${(1.03 + beat * 0.18).toFixed(3)})`
-            : 'none'
+      captureContext.filter = `blur(${(canvasPresetSettings.motionAmount * 3.2 + canvasPresetSettings.trailAmount * 1.4).toFixed(2)}px) brightness(${(1.0 + canvasPresetSettings.glow * 0.12 + bass * canvasPresetSettings.bassReactivity * canvasPresetSettings.intensity * 0.34).toFixed(3)}) contrast(${(1.0 + canvasPresetSettings.glitchAmount * 0.16 + (1 - canvasPresetSettings.lumaThreshold) * canvasPresetSettings.motionAmount * 0.28).toFixed(3)}) saturate(${(1.0 + high * canvasPresetSettings.rgbSplit * 0.9 + canvasPresetSettings.glow * 0.14).toFixed(3)})`
       try {
         captureContext.drawImage(source, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight)
       } catch {
@@ -1197,17 +1198,17 @@ export function CanvasEngineSurface({
       }
       captureContext.restore()
 
-      if (selectedPreset.id === 'canvas-particle-aura') {
+      if (canvasPresetSettings.particleDensity > 0.02) {
         if (points.length === 0 || nowMs - lastParticleSampleAt > (activeItem.type === 'video' ? 260 : 900)) {
           points = sampleCanvasParticleSource({ source, settings: canvasPresetSettings, sampleCanvas })
           lastParticleSampleAt = nowMs
         }
         captureContext.save()
         captureContext.globalCompositeOperation = 'lighter'
-        const bassPush = bass * canvasPresetSettings.bassBurst * canvasPresetSettings.intensity * Math.min(cssWidth, cssHeight) * 0.18
+        const bassPush = bass * canvasPresetSettings.bassReactivity * canvasPresetSettings.intensity * Math.min(cssWidth, cssHeight) * 0.18
         const beatScale = 1 + beat * canvasPresetSettings.beatPulse * 0.9
         const turbulence = canvasPresetSettings.turbulence * (4 + high * 18 + bass * 8)
-        const dissolveScatter = canvasPresetSettings.dissolveAmount * Math.min(cssWidth, cssHeight) * 0.12
+        const dissolveScatter = canvasPresetSettings.turbulence * Math.min(cssWidth, cssHeight) * 0.12
         const glow = canvasPresetSettings.glow * (8 + bass * 28 + beat * 20)
         points.forEach((point, index) => {
           const dx = point.baseX - 0.5
@@ -1218,12 +1219,12 @@ export function CanvasEngineSurface({
           const noiseA = Math.sin(now * (0.65 + point.luma) + point.seed * 10.1)
           const noiseB = Math.cos(now * (0.78 + point.alpha) + point.seed * 7.7)
           const dissolveNoise = seededCanvasParticleNoise(point.seed + Math.floor(now * 12) * 0.31)
-          if (canvasPresetSettings.dissolveAmount > 0.72 && (index % 3) === 0 && dissolveNoise < canvasPresetSettings.dissolveAmount - 0.46) return
+          if (canvasPresetSettings.turbulence > 0.72 && (index % 3) === 0 && dissolveNoise < canvasPresetSettings.turbulence - 0.46) return
           const color = getCanvasParticleColor(point, canvasPresetSettings.particleColorMode, bass, high)
           const x = point.baseX * cssWidth + normalX * bassPush + noiseA * turbulence + (dissolveNoise - 0.5) * dissolveScatter
           const y = point.baseY * cssHeight + normalY * bassPush + noiseB * turbulence + (seededCanvasParticleNoise(point.seed * 2.3) - 0.5) * dissolveScatter
           const size = Math.max(0.35, canvasPresetSettings.particleSize * (0.45 + point.luma * 1.25) * beatScale)
-          const alpha = clampCanvasRange((0.16 + point.luma * 0.78) * point.alpha * canvasPresetSettings.intensity * (1 - canvasPresetSettings.dissolveAmount * 0.42), 0, 0.95)
+          const alpha = clampCanvasRange((0.16 + point.luma * 0.78) * point.alpha * canvasPresetSettings.intensity * (1 - canvasPresetSettings.turbulence * 0.42), 0, 0.95)
           if (alpha <= 0.015) return
           captureContext.beginPath()
           captureContext.fillStyle = color
@@ -1518,24 +1519,21 @@ export function CanvasEngineSurface({
       const glow = canvasPresetSettings.glow
       const glitch = canvasPresetSettings.glitchAmount
       const shakePhase = Math.sin(now * 48)
-      const shake = selectedCanvasPresetId === 'canvas-glitch-pulse' || selectedCanvasPresetId === 'canvas-frame-stutter'
-        ? (beat * 9 + high * 4 + 0.8) * glitch * intensity
-        : 0
-      const bloomScale = selectedCanvasPresetId === 'canvas-bass-bloom'
-        ? bass * intensity * 0.16
-        : selectedCanvasPresetId === 'canvas-frame-stutter'
-          ? beat * intensity * 0.035
-          : 0
+      const shake = (beat * 9 + high * 4 + 0.8) * glitch * intensity
+      const driftX = Math.sin(now * (0.9 + canvasPresetSettings.turbulence * 2.6)) * canvasPresetSettings.motionAmount * 9
+      const driftY = Math.cos(now * (0.74 + canvasPresetSettings.turbulence * 2.1)) * canvasPresetSettings.motionAmount * 7
+      const bloomScale = bass * canvasPresetSettings.bassReactivity * intensity * 0.16
+        + beat * canvasPresetSettings.beatPulse * intensity * 0.045
 
       output.style.setProperty('--canvas-preset-bass', bass.toFixed(3))
       output.style.setProperty('--canvas-preset-beat', beat.toFixed(3))
       output.style.setProperty('--canvas-preset-high', high.toFixed(3))
       output.style.setProperty('--canvas-preset-scale-boost', bloomScale.toFixed(4))
-      output.style.setProperty('--canvas-preset-shake-x', `${(shake * shakePhase).toFixed(2)}px`)
-      output.style.setProperty('--canvas-preset-shake-y', `${(shake * Math.cos(now * 41)).toFixed(2)}px`)
+      output.style.setProperty('--canvas-preset-shake-x', `${(shake * shakePhase + driftX).toFixed(2)}px`)
+      output.style.setProperty('--canvas-preset-shake-y', `${(shake * Math.cos(now * 41) + driftY).toFixed(2)}px`)
       output.style.setProperty('--canvas-preset-rotate', `${(shake * 0.16).toFixed(2)}deg`)
       output.style.setProperty('--canvas-preset-live-glow', (glow * (0.28 + bass * 0.85)).toFixed(3))
-      output.style.setProperty('--canvas-preset-live-trail', (canvasPresetSettings.motionTrailAmount * (0.35 + bass * 0.65)).toFixed(3))
+      output.style.setProperty('--canvas-preset-live-trail', (canvasPresetSettings.trailAmount * (0.35 + bass * 0.65)).toFixed(3))
       output.style.setProperty('--canvas-particle-bass-scale', (1.02 + bass * 0.08).toFixed(4))
 
       frameId = window.requestAnimationFrame(tick)
@@ -1546,7 +1544,7 @@ export function CanvasEngineSurface({
   }, [analyser, canvasPresetSettings, isPaused, isPlaying, selectedCanvasPresetId])
 
   useEffect(() => {
-    if (selectedCanvasPresetId !== 'canvas-frame-stutter' || !activeVideo || !isPlaying || isPaused || activeMediaLoadError) return
+    if (canvasPresetSettings.stutterRate <= 0.2 || !activeVideo || !isPlaying || isPaused || activeMediaLoadError) return
     const cleanupVideo = videoRef.current
     let resumeTimer = 0
     const intervalMs = Math.max(90, Math.round(1000 / Math.max(1, canvasPresetSettings.stutterRate)))
@@ -1586,7 +1584,7 @@ export function CanvasEngineSurface({
             {hasSelectableMedia ? 'No source selected' : 'Choose a CANVAS source'}
           </h2>
           <p className="rv-canvas-engine-desc">
-            {selectedPreset.id === 'canvas-particle-aura'
+            {canvasPresetSettings.particleDensity > 0.02
               ? 'Particle Aura needs an active video, image, or SVG before it can sample pixels.'
               : hasSelectableMedia
                 ? 'Select media in the left SOURCE panel to render it here.'
@@ -1603,7 +1601,7 @@ export function CanvasEngineSurface({
       {captureCanvasNode}
       <div
         ref={outputRef}
-        className={`rv-canvas-live-output ${canvasPresetClassName(selectedPreset.id)}`}
+        className="rv-canvas-live-output rv-canvas-param-output"
         data-fit-mode={settings.fitMode}
         data-canvas-preset={selectedPreset.id}
         style={presetStyle}
@@ -1646,7 +1644,7 @@ export function CanvasEngineSurface({
           </div>
         )}
         <CanvasParticleAuraLayer
-          active={selectedPreset.id === 'canvas-particle-aura'}
+          active={canvasPresetSettings.particleDensity > 0.02}
           activeItem={activeItem}
           sourceRef={particleSourceRef}
           settings={canvasPresetSettings}
@@ -1680,27 +1678,59 @@ const CANVAS_PRESET_CONTROL_META: Record<CanvasPresetSliderControlKey, {
   color: string
   description?: string
 }> = {
+  sourceVisibility: {
+    label: 'Source Visibility',
+    min: 0,
+    max: 1,
+    step: 0.01,
+    color: '#61d6aa',
+    description: 'Blends the selected media source beneath the live CANVAS treatment.',
+  },
   intensity: {
-    label: 'Intensity',
+    label: 'Visual Intensity',
     min: 0,
     max: 1,
     step: 0.01,
     color: '#4ac7db',
-    description: 'Overall strength of the selected CANVAS preset treatment.',
+    description: 'Master amount for the current CANVAS look recipe.',
+  },
+  bassReactivity: {
+    label: 'Bass Reactivity',
+    min: 0,
+    max: 1,
+    step: 0.01,
+    color: '#61d6aa',
+    description: 'Bass pushes scale, glow, and particle spread.',
+  },
+  beatPulse: {
+    label: 'Beat Pulse',
+    min: 0,
+    max: 1,
+    step: 0.01,
+    color: '#4ac7db',
+    description: 'Detected beats add pulse, scale, and frame energy.',
   },
   glow: {
-    label: 'Glow',
+    label: 'Glow Amount',
     min: 0,
     max: 1,
     step: 0.01,
     color: '#61d6aa',
   },
-  motionTrailAmount: {
-    label: 'Motion / Trail Amount',
+  trailAmount: {
+    label: 'Trail Amount',
     min: 0,
     max: 1,
     step: 0.01,
     color: '#9ddcff',
+  },
+  rgbSplit: {
+    label: 'RGB Split',
+    min: 0,
+    max: 1,
+    step: 0.01,
+    color: '#ff4fd8',
+    description: 'Offsets cyan and magenta edges without changing the selected source.',
   },
   glitchAmount: {
     label: 'Glitch Amount',
@@ -1711,11 +1741,11 @@ const CANVAS_PRESET_CONTROL_META: Record<CanvasPresetSliderControlKey, {
   },
   stutterRate: {
     label: 'Stutter Rate',
-    min: 1,
+    min: 0,
     max: 12,
     step: 1,
     color: '#d8b95a',
-    description: 'Frame holds per second when Frame Stutter is active.',
+    description: 'Frame holds per second. Set to 0 to disable frame stutter.',
   },
   lumaThreshold: {
     label: 'Luma Threshold',
@@ -1723,42 +1753,12 @@ const CANVAS_PRESET_CONTROL_META: Record<CanvasPresetSliderControlKey, {
     max: 1,
     step: 0.01,
     color: '#d8b95a',
-    description: 'Approximate brightness cutoff for the Luma Melt smear.',
+    description: 'Brightness cutoff used by luma smear and melt behavior.',
   },
-  particleAmount: {
-    label: 'Particle Amount',
+  motionAmount: {
+    label: 'Motion Amount',
     min: 0,
     max: 1,
-    step: 0.01,
-    color: '#dffcff',
-    description: 'Controls how many points Particle Aura emits from the active media.',
-  },
-  particleSize: {
-    label: 'Particle Size',
-    min: 0.35,
-    max: 8,
-    step: 0.05,
-    color: '#9ddcff',
-  },
-  sourceVisibility: {
-    label: 'Source Visibility',
-    min: 0,
-    max: 1,
-    step: 0.01,
-    color: '#61d6aa',
-    description: 'Blends the selected media beneath the particle layer.',
-  },
-  dissolveAmount: {
-    label: 'Dissolve Amount',
-    min: 0,
-    max: 1,
-    step: 0.01,
-    color: '#d8b95a',
-  },
-  trailLength: {
-    label: 'Trail Length',
-    min: 0,
-    max: 0.94,
     step: 0.01,
     color: '#9ddcff',
   },
@@ -1769,23 +1769,41 @@ const CANVAS_PRESET_CONTROL_META: Record<CanvasPresetSliderControlKey, {
     step: 0.01,
     color: '#ff4fd8',
   },
-  bassBurst: {
-    label: 'Bass Burst',
+  particleDensity: {
+    label: 'Particle Density',
     min: 0,
     max: 1,
     step: 0.01,
-    color: '#61d6aa',
-    description: 'Bass pushes particles outward and increases glow.',
+    color: '#dffcff',
+    description: 'Controls how many points CANVAS emits from the active media. Set to 0 to hide particles.',
   },
-  beatPulse: {
-    label: 'Beat Pulse',
-    min: 0,
-    max: 1,
-    step: 0.01,
-    color: '#4ac7db',
-    description: 'Detected beats scale and brighten the particle field.',
+  particleSize: {
+    label: 'Particle Size',
+    min: 0.35,
+    max: 8,
+    step: 0.05,
+    color: '#9ddcff',
   },
 }
+
+const CANVAS_REACT_CONTROL_GROUPS: Array<{
+  title: string
+  controls: CanvasPresetControlKey[]
+}> = [
+  {
+    title: 'Source + Reactivity',
+    controls: ['sourceVisibility', 'intensity', 'bassReactivity', 'beatPulse'],
+  },
+  {
+    title: 'FX',
+    controls: ['glow', 'trailAmount', 'rgbSplit', 'glitchAmount', 'stutterRate', 'lumaThreshold'],
+  },
+  {
+    title: 'Motion + Particles',
+    controls: ['motionAmount', 'turbulence', 'particleDensity', 'particleSize', 'particleColorMode'],
+  },
+]
+
 
 function CanvasAutoSelectControl() {
   const engine = useSharedAudio()
@@ -2030,13 +2048,14 @@ function CanvasPresetControls() {
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
   const mediaItems = useCanvasRuntimeMediaItems()
   const activeItem = useMemo(() => mediaItems.find(item => item.id === activeCanvasMediaId) ?? null, [activeCanvasMediaId, mediaItems])
+  const customized = canvasPresetOverride?.source === 'manual' && canvasPresetOverride.label === 'User-adjusted preset'
 
   const renderControl = (control: CanvasPresetControlKey) => {
     if (control === 'particleColorMode') {
       return (
         <SelectRow
           key={control}
-          label="Color Mode"
+          label="Particle Color Mode"
           value={canvasPresetSettings.particleColorMode}
           onChange={value => setCanvasPresetSettings({ particleColorMode: value as CanvasPresetColorMode })}
           options={CANVAS_PARTICLE_COLOR_MODE_OPTIONS}
@@ -2063,23 +2082,27 @@ function CanvasPresetControls() {
   }
 
   return (
-    <Collapsible label="Preset Treatment" defaultOpen>
+    <Collapsible label="CANVAS React Controls" defaultOpen>
       <div className="rv-ctrl-toggle-line">
-        <span className="rv-ctrl-label">{selectedPreset.name}</span>
-        <button type="button" className="rv-reset-btn" onClick={resetCanvasPresetSettings}>Reset</button>
+        <span className="rv-ctrl-label">{selectedPreset.name}{customized ? ' · Customized' : ''}</span>
+        <button type="button" className="rv-reset-btn" onClick={resetCanvasPresetSettings}>Reset Recipe</button>
       </div>
-      <div className="rv-ctrl-info">Applies to the active CANVAS media only.</div>
-      {selectedPreset.id === 'canvas-particle-aura' && !activeItem && (
+      <div className="rv-ctrl-info">
+        Presets now load full CANVAS recipes. These parameters stay live so you can reshape the look without changing media.
+      </div>
+      {canvasPresetSettings.particleDensity > 0.02 && !activeItem && (
         <div className="rv-canvas-engine-note rv-canvas-engine-note--warning">
-          Particle Aura needs an active CANVAS library media item before it can sample pixels and emit particles.
+          Particles need an active CANVAS library media item before they can sample pixels and emit from the source.
         </div>
       )}
-      {selectedPreset.controls.length > 0 ? selectedPreset.controls.map(renderControl) : (
-        <div className="rv-canvas-engine-note">Clean Playback keeps the selected media neutral. Use Display controls for transform and opacity.</div>
-      )}
+      {CANVAS_REACT_CONTROL_GROUPS.map(group => (
+        <Collapsible key={group.title} label={group.title} defaultOpen={group.title !== 'Motion + Particles'}>
+          {group.controls.map(renderControl)}
+        </Collapsible>
+      ))}
       {canvasPresetOverride?.source === 'manual' && (
         <div className="rv-canvas-engine-note">
-          Manual override active. Clear it under Auto Select to let CANVAS choose again.
+          {customized ? 'Customized look active.' : 'Manual preset override active.'} Clear it under Auto Select to let CANVAS choose recipes again.
         </div>
       )}
       {canvasPresetOverride?.source === 'auto' && (
@@ -2090,6 +2113,7 @@ function CanvasPresetControls() {
     </Collapsible>
   )
 }
+
 
 export function CanvasEnginePanel() {
   const libraryMediaCount = useMediaStore(s => s.items.length)

@@ -2462,22 +2462,58 @@ function normalizeCanvasPresetColorMode(value: unknown): CanvasPresetColorMode {
 
 function normalizeCanvasPresetSettings(value: unknown): CanvasPresetSettings {
   const source = isRecord(value) ? value : DEFAULT_CANVAS_PRESET_SETTINGS
+  const trailAmount = clampCanvasNumber(
+    source.trailAmount ?? source.motionTrailAmount ?? source.trailLength,
+    DEFAULT_CANVAS_PRESET_SETTINGS.trailAmount,
+    0,
+    1,
+  )
+  const motionAmount = clampCanvasNumber(
+    source.motionAmount ?? source.motionTrailAmount,
+    DEFAULT_CANVAS_PRESET_SETTINGS.motionAmount,
+    0,
+    1,
+  )
+  const particleDensity = clampCanvasNumber(
+    source.particleDensity ?? source.particleAmount,
+    DEFAULT_CANVAS_PRESET_SETTINGS.particleDensity,
+    0,
+    1,
+  )
+  const bassReactivity = clampCanvasNumber(
+    source.bassReactivity ?? source.bassBurst,
+    DEFAULT_CANVAS_PRESET_SETTINGS.bassReactivity,
+    0,
+    1,
+  )
+  const turbulence = clampCanvasNumber(
+    source.turbulence ?? source.dissolveAmount,
+    DEFAULT_CANVAS_PRESET_SETTINGS.turbulence,
+    0,
+    1,
+  )
+
   return {
-    intensity: clampCanvasNumber(source.intensity, DEFAULT_CANVAS_PRESET_SETTINGS.intensity, 0, 1),
-    glow: clampCanvasNumber(source.glow, DEFAULT_CANVAS_PRESET_SETTINGS.glow, 0, 1),
-    motionTrailAmount: clampCanvasNumber(source.motionTrailAmount, DEFAULT_CANVAS_PRESET_SETTINGS.motionTrailAmount, 0, 1),
-    glitchAmount: clampCanvasNumber(source.glitchAmount, DEFAULT_CANVAS_PRESET_SETTINGS.glitchAmount, 0, 1),
-    stutterRate: clampCanvasNumber(source.stutterRate, DEFAULT_CANVAS_PRESET_SETTINGS.stutterRate, 1, 12),
-    lumaThreshold: clampCanvasNumber(source.lumaThreshold, DEFAULT_CANVAS_PRESET_SETTINGS.lumaThreshold, 0, 1),
-    particleAmount: clampCanvasNumber(source.particleAmount, DEFAULT_CANVAS_PRESET_SETTINGS.particleAmount, 0, 1),
-    particleSize: clampCanvasNumber(source.particleSize, DEFAULT_CANVAS_PRESET_SETTINGS.particleSize, 0.35, 8),
     sourceVisibility: clampCanvasNumber(source.sourceVisibility, DEFAULT_CANVAS_PRESET_SETTINGS.sourceVisibility, 0, 1),
-    dissolveAmount: clampCanvasNumber(source.dissolveAmount, DEFAULT_CANVAS_PRESET_SETTINGS.dissolveAmount, 0, 1),
-    trailLength: clampCanvasNumber(source.trailLength, DEFAULT_CANVAS_PRESET_SETTINGS.trailLength, 0, 0.94),
-    turbulence: clampCanvasNumber(source.turbulence, DEFAULT_CANVAS_PRESET_SETTINGS.turbulence, 0, 1),
-    bassBurst: clampCanvasNumber(source.bassBurst, DEFAULT_CANVAS_PRESET_SETTINGS.bassBurst, 0, 1),
+    intensity: clampCanvasNumber(source.intensity, DEFAULT_CANVAS_PRESET_SETTINGS.intensity, 0, 1),
+    bassReactivity,
     beatPulse: clampCanvasNumber(source.beatPulse, DEFAULT_CANVAS_PRESET_SETTINGS.beatPulse, 0, 1),
+    glow: clampCanvasNumber(source.glow, DEFAULT_CANVAS_PRESET_SETTINGS.glow, 0, 1),
+    trailAmount,
+    rgbSplit: clampCanvasNumber(source.rgbSplit ?? source.glitchAmount, DEFAULT_CANVAS_PRESET_SETTINGS.rgbSplit, 0, 1),
+    glitchAmount: clampCanvasNumber(source.glitchAmount, DEFAULT_CANVAS_PRESET_SETTINGS.glitchAmount, 0, 1),
+    stutterRate: clampCanvasNumber(source.stutterRate, DEFAULT_CANVAS_PRESET_SETTINGS.stutterRate, 0, 12),
+    lumaThreshold: clampCanvasNumber(source.lumaThreshold, DEFAULT_CANVAS_PRESET_SETTINGS.lumaThreshold, 0, 1),
+    motionAmount,
+    turbulence,
+    particleDensity,
+    particleSize: clampCanvasNumber(source.particleSize, DEFAULT_CANVAS_PRESET_SETTINGS.particleSize, 0.35, 8),
     particleColorMode: normalizeCanvasPresetColorMode(source.particleColorMode),
+    motionTrailAmount: trailAmount,
+    particleAmount: particleDensity,
+    dissolveAmount: turbulence,
+    trailLength: trailAmount,
+    bassBurst: bassReactivity,
   }
 }
 

@@ -67,14 +67,16 @@ const CANVAS_PRESET_CHIP_LABELS: Record<CanvasPresetId, string> = {
 function createCanvasPresetCardPreset(preset: CanvasPresetDefinition): ReactPreset {
   const intensity = preset.settings.intensity ?? 0.5
   const motion = Math.max(
-    preset.settings.motionTrailAmount ?? 0,
+    preset.settings.motionAmount ?? 0,
+    preset.settings.trailAmount ?? preset.settings.motionTrailAmount ?? 0,
+    preset.settings.rgbSplit ?? 0,
     preset.settings.glitchAmount ?? 0,
     preset.settings.turbulence ?? 0,
     preset.settings.stutterRate ? Math.min(1, preset.settings.stutterRate / 8) : 0,
   )
   const glow = preset.settings.glow ?? 0.3
   const bassReactivity = Math.max(
-    preset.settings.bassBurst ?? 0,
+    preset.settings.bassReactivity ?? preset.settings.bassBurst ?? 0,
     preset.settings.beatPulse ?? 0,
     preset.id === 'canvas-bass-bloom' ? 0.75 : 0.45,
   )

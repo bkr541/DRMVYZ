@@ -175,20 +175,20 @@ export type CanvasPresetId =
 export type CanvasPresetColorMode = 'original' | 'palette' | 'audioReactive'
 
 export type CanvasPresetControlKey =
+  | 'sourceVisibility'
   | 'intensity'
+  | 'bassReactivity'
+  | 'beatPulse'
   | 'glow'
-  | 'motionTrailAmount'
+  | 'trailAmount'
+  | 'rgbSplit'
   | 'glitchAmount'
   | 'stutterRate'
   | 'lumaThreshold'
-  | 'particleAmount'
-  | 'particleSize'
-  | 'sourceVisibility'
-  | 'dissolveAmount'
-  | 'trailLength'
+  | 'motionAmount'
   | 'turbulence'
-  | 'bassBurst'
-  | 'beatPulse'
+  | 'particleDensity'
+  | 'particleSize'
   | 'particleColorMode'
 
 export type CanvasTriggerOn =
@@ -224,21 +224,27 @@ export const DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS: CanvasVideoTimingSettings = {
 }
 
 export interface CanvasPresetSettings {
+  sourceVisibility: number
   intensity: number
+  bassReactivity: number
+  beatPulse: number
   glow: number
-  motionTrailAmount: number
+  trailAmount: number
+  rgbSplit: number
   glitchAmount: number
   stutterRate: number
   lumaThreshold: number
-  particleAmount: number
+  motionAmount: number
+  turbulence: number
+  particleDensity: number
   particleSize: number
-  sourceVisibility: number
+  particleColorMode: CanvasPresetColorMode
+  /** Legacy Patch 3 aliases kept for persisted sessions and older patch compatibility. */
+  motionTrailAmount: number
+  particleAmount: number
   dissolveAmount: number
   trailLength: number
-  turbulence: number
   bassBurst: number
-  beatPulse: number
-  particleColorMode: CanvasPresetColorMode
 }
 
 export interface CanvasPresetDefinition {
@@ -307,21 +313,26 @@ export const DEFAULT_CANVAS_ENGINE_SETTINGS: CanvasEngineSettings = {
 export const DEFAULT_CANVAS_PRESET_ID: CanvasPresetId = 'canvas-clean-playback'
 
 export const DEFAULT_CANVAS_PRESET_SETTINGS: CanvasPresetSettings = {
-  intensity: 0.35,
+  sourceVisibility: 1,
+  intensity: 0.08,
+  bassReactivity: 0,
+  beatPulse: 0,
   glow: 0,
-  motionTrailAmount: 0,
+  trailAmount: 0,
+  rgbSplit: 0,
   glitchAmount: 0,
-  stutterRate: 2,
+  stutterRate: 0,
   lumaThreshold: 0.55,
-  particleAmount: 0.58,
+  motionAmount: 0,
+  turbulence: 0,
+  particleDensity: 0,
   particleSize: 2.4,
-  sourceVisibility: 0.42,
-  dissolveAmount: 0.18,
-  trailLength: 0.56,
-  turbulence: 0.42,
-  bassBurst: 0.62,
-  beatPulse: 0.58,
   particleColorMode: 'original',
+  motionTrailAmount: 0,
+  particleAmount: 0,
+  dissolveAmount: 0,
+  trailLength: 0,
+  bassBurst: 0,
 }
 
 export const DEFAULT_CANVAS_PRESET_OVERRIDE_STATE: CanvasPresetOverrideState | null = null
@@ -330,87 +341,179 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
   {
     id: 'canvas-clean-playback',
     name: 'Clean Playback',
-    description: 'A clean source-forward look that presents the selected video, image, or SVG without extra reactive treatment.',
+    description: 'A clean source-forward recipe with high source visibility, neutral motion, and minimal reactive FX.',
     accent: '#e8f4f8',
-    settings: { ...DEFAULT_CANVAS_PRESET_SETTINGS },
+    settings: {
+      ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      sourceVisibility: 1,
+      intensity: 0.06,
+      bassReactivity: 0,
+      beatPulse: 0,
+      glow: 0,
+      trailAmount: 0,
+      rgbSplit: 0,
+      glitchAmount: 0,
+      stutterRate: 0,
+      motionAmount: 0,
+      turbulence: 0,
+      particleDensity: 0,
+    },
     controls: [],
   },
   {
     id: 'canvas-bass-bloom',
     name: 'Bass Bloom',
-    description: 'A warm, stage-light bloom that swells the selected media with bass energy, glow, and softened exposure.',
+    description: 'A glow-forward recipe that swells source scale, bloom, and exposure with bass energy.',
     accent: '#61d6aa',
-    settings: { intensity: 0.68, glow: 0.72, motionTrailAmount: 0.1, glitchAmount: 0, stutterRate: 2, lumaThreshold: 0.55 },
-    controls: ['intensity', 'glow'],
+    settings: {
+      ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      sourceVisibility: 0.94,
+      intensity: 0.7,
+      bassReactivity: 0.82,
+      beatPulse: 0.32,
+      glow: 0.74,
+      trailAmount: 0.12,
+      rgbSplit: 0.03,
+      glitchAmount: 0,
+      stutterRate: 0,
+      motionAmount: 0.18,
+      turbulence: 0.08,
+      particleDensity: 0,
+    },
+    controls: ['sourceVisibility', 'intensity', 'bassReactivity', 'beatPulse', 'glow', 'trailAmount', 'motionAmount'],
   },
   {
     id: 'canvas-ghost-echo',
     name: 'Ghost Echo',
-    description: 'A dreamy echo treatment that layers soft afterimages behind the selected media for slow, vapor-lit motion.',
+    description: 'A soft echo recipe with visible source blend, trails, slow motion drift, and light glow.',
     accent: '#9ddcff',
-    settings: { intensity: 0.58, glow: 0.34, motionTrailAmount: 0.58, glitchAmount: 0, stutterRate: 2, lumaThreshold: 0.55 },
-    controls: ['intensity', 'motionTrailAmount', 'glow'],
+    settings: {
+      ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      sourceVisibility: 0.76,
+      intensity: 0.56,
+      bassReactivity: 0.18,
+      beatPulse: 0.12,
+      glow: 0.34,
+      trailAmount: 0.68,
+      rgbSplit: 0.05,
+      glitchAmount: 0,
+      stutterRate: 0,
+      motionAmount: 0.46,
+      turbulence: 0.18,
+      particleDensity: 0,
+    },
+    controls: ['sourceVisibility', 'intensity', 'trailAmount', 'motionAmount', 'glow', 'bassReactivity'],
   },
   {
     id: 'canvas-glitch-pulse',
     name: 'Glitch Pulse',
-    description: 'A high-energy glitch look with beat-shaken edges, RGB split, and digital pulse for the selected media.',
+    description: 'A high-energy recipe with RGB split, glitch shake, beat pulse, and tight stutter accents.',
     accent: '#ff4fd8',
-    settings: { intensity: 0.62, glow: 0.18, motionTrailAmount: 0.1, glitchAmount: 0.58, stutterRate: 4, lumaThreshold: 0.55 },
-    controls: ['intensity', 'glitchAmount'],
+    settings: {
+      ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      sourceVisibility: 0.92,
+      intensity: 0.66,
+      bassReactivity: 0.38,
+      beatPulse: 0.66,
+      glow: 0.2,
+      trailAmount: 0.1,
+      rgbSplit: 0.72,
+      glitchAmount: 0.66,
+      stutterRate: 4,
+      lumaThreshold: 0.55,
+      motionAmount: 0.28,
+      turbulence: 0.32,
+      particleDensity: 0,
+    },
+    controls: ['sourceVisibility', 'intensity', 'beatPulse', 'rgbSplit', 'glitchAmount', 'stutterRate', 'motionAmount'],
   },
   {
     id: 'canvas-luma-melt',
     name: 'Luma Melt',
-    description: 'A liquid highlight treatment that smears bright areas into soft bloom while keeping the source recognizable.',
+    description: 'A liquid highlight recipe that uses luma threshold, blur, glow, and motion smear as one look.',
     accent: '#d8b95a',
-    settings: { intensity: 0.58, glow: 0.44, motionTrailAmount: 0.42, glitchAmount: 0, stutterRate: 2, lumaThreshold: 0.62 },
-    controls: ['intensity', 'lumaThreshold', 'motionTrailAmount'],
+    settings: {
+      ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      sourceVisibility: 0.84,
+      intensity: 0.58,
+      bassReactivity: 0.2,
+      beatPulse: 0.18,
+      glow: 0.46,
+      trailAmount: 0.42,
+      rgbSplit: 0.08,
+      glitchAmount: 0,
+      stutterRate: 0,
+      lumaThreshold: 0.64,
+      motionAmount: 0.62,
+      turbulence: 0.26,
+      particleDensity: 0,
+    },
+    controls: ['sourceVisibility', 'intensity', 'lumaThreshold', 'glow', 'trailAmount', 'motionAmount', 'turbulence'],
   },
   {
     id: 'canvas-frame-stutter',
     name: 'Frame Stutter',
-    description: 'A rhythmic cut-up look that creates frame-hold pulses across videos, images, and SVG source material.',
+    description: 'A rhythmic frame-hold recipe with beat sync, stutter rate, RGB edge split, and frame shake.',
     accent: '#4ac7db',
-    settings: { intensity: 0.54, glow: 0.18, motionTrailAmount: 0.1, glitchAmount: 0.22, stutterRate: 5, lumaThreshold: 0.55 },
-    controls: ['intensity', 'stutterRate', 'glitchAmount'],
+    settings: {
+      ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      sourceVisibility: 0.95,
+      intensity: 0.55,
+      bassReactivity: 0.22,
+      beatPulse: 0.7,
+      glow: 0.18,
+      trailAmount: 0.08,
+      rgbSplit: 0.42,
+      glitchAmount: 0.26,
+      stutterRate: 6,
+      motionAmount: 0.18,
+      turbulence: 0.12,
+      particleDensity: 0,
+    },
+    controls: ['sourceVisibility', 'intensity', 'beatPulse', 'stutterRate', 'rgbSplit', 'glitchAmount'],
   },
   {
     id: 'canvas-particle-aura',
     name: 'Particle Aura',
-    description: 'A luminous particle-field look that rebuilds the selected media from glowing, audio-reactive points.',
+    description: 'A luminous particle recipe that rebuilds the selected media from glowing audio-reactive points.',
     accent: '#dffcff',
     settings: {
-      intensity: 0.72,
-      glow: 0.78,
-      motionTrailAmount: 0.16,
-      glitchAmount: 0,
-      stutterRate: 2,
-      lumaThreshold: 0.5,
-      particleAmount: 0.64,
-      particleSize: 2.8,
+      ...DEFAULT_CANVAS_PRESET_SETTINGS,
       sourceVisibility: 0.34,
+      intensity: 0.72,
+      bassReactivity: 0.78,
+      beatPulse: 0.7,
+      glow: 0.78,
+      trailAmount: 0.18,
+      rgbSplit: 0.06,
+      glitchAmount: 0,
+      stutterRate: 0,
+      lumaThreshold: 0.5,
+      motionAmount: 0.38,
+      turbulence: 0.58,
+      particleDensity: 0.66,
+      particleSize: 2.8,
+      particleColorMode: 'original',
+      motionTrailAmount: 0.18,
+      particleAmount: 0.66,
       dissolveAmount: 0.24,
       trailLength: 0.68,
-      turbulence: 0.58,
       bassBurst: 0.78,
-      beatPulse: 0.7,
-      particleColorMode: 'original',
     },
     controls: [
-      'particleAmount',
-      'particleSize',
       'sourceVisibility',
-      'dissolveAmount',
-      'trailLength',
+      'intensity',
+      'particleDensity',
+      'particleSize',
       'turbulence',
       'glow',
-      'bassBurst',
+      'bassReactivity',
       'beatPulse',
       'particleColorMode',
     ],
   },
 ]
+
 
 export const CANVAS_PRESET_BY_ID: Record<CanvasPresetId, CanvasPresetDefinition> = CANVAS_PRESETS.reduce((acc, preset) => {
   acc[preset.id] = preset
