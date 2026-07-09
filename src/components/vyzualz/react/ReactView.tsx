@@ -471,6 +471,10 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
                 isPlaying={engine.isPlaying}
                 isPaused={transportPaused}
                 analyser={analyser}
+                trackAnalysis={effectiveTrackAnalysis}
+                trackSections={resolvedTrackSections}
+                getAudioTime={engine.getCurrentTime}
+                activeAudioTrackId={engine.currentTrackId}
               />
             ) : (
               <ReactPlaceholderCanvas

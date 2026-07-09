@@ -255,11 +255,7 @@ export const DEFAULT_CANVAS_PRESET_SETTINGS: CanvasPresetSettings = {
   lumaThreshold: 0.55,
 }
 
-export const DEFAULT_CANVAS_PRESET_OVERRIDE_STATE: CanvasPresetOverrideState = {
-  source: 'manual',
-  presetId: DEFAULT_CANVAS_PRESET_ID,
-  label: 'User-selected preset',
-}
+export const DEFAULT_CANVAS_PRESET_OVERRIDE_STATE: CanvasPresetOverrideState | null = null
 
 export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
   {

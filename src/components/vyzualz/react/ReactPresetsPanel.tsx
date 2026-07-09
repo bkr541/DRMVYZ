@@ -484,7 +484,7 @@ export function ReactPresetsPanel() {
           ? activeReactEngineId === 'cinematicPortal' && activeWorld
             ? `${activeWorld} presets only. Use All Engines to browse and switch worlds.`
             : activeReactEngineId === 'canvas'
-              ? 'CANVAS presets transform the active uploaded video, image, or SVG. Auto Select arrives later.'
+              ? 'CANVAS presets transform active uploaded media. Auto Select can choose presets from Audio Intelligence.'
               : activeReactEngineId === 'laserDmx'
                 ? laserDmxBeamMatrixAuthoringMode === 'showDirector'
                   ? 'Show Director rig layouts only. Switch to Matrix for Beam Matrix looks.'

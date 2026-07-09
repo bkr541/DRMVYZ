@@ -10017,6 +10017,64 @@
   font-style: italic;
 }
 
+
+.rv-canvas-auto-select-block {
+  display: grid;
+  gap: 7px;
+}
+
+.rv-canvas-auto-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid rgba(74, 199, 219, 0.13);
+  border-radius: 9px;
+  padding: 7px 8px;
+  background: rgba(74, 199, 219, 0.045);
+  color: rgba(232, 244, 248, 0.54);
+  font-size: 9.5px;
+  line-height: 1.35;
+}
+
+.rv-canvas-auto-status--override {
+  border-color: rgba(216, 185, 90, 0.24);
+  background: rgba(216, 185, 90, 0.07);
+  color: rgba(232, 244, 248, 0.68);
+}
+
+.rv-canvas-auto-status--helper {
+  border-color: rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.025);
+  color: rgba(232, 244, 248, 0.38);
+  font-style: italic;
+}
+
+.rv-canvas-auto-status span {
+  min-width: 0;
+}
+
+.rv-canvas-auto-status button {
+  flex: 0 0 auto;
+  border: 1px solid rgba(216, 185, 90, 0.28);
+  border-radius: 999px;
+  padding: 4px 7px;
+  background: rgba(216, 185, 90, 0.08);
+  color: rgba(255, 230, 166, 0.82);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.rv-canvas-auto-status button:hover,
+.rv-canvas-auto-status button:focus-visible {
+  border-color: rgba(216, 185, 90, 0.5);
+  background: rgba(216, 185, 90, 0.14);
+  color: rgba(255, 241, 202, 0.96);
+}
+
 .rv-canvas-engine-panel {
   display: flex;
   flex-direction: column;

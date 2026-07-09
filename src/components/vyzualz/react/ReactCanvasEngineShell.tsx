@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from 'react'
 import { useReactStore } from '../../../stores/reactStore'
+import { useSharedAudio } from '../../../context/AudioEngineContext'
+import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
+import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
+import type { FeatureCurve, MusicIntelligenceFrame, TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
 import { Collapsible, CtrlSection, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
 import {
   CANVAS_PRESETS,
@@ -11,6 +15,8 @@ import {
   type CanvasPresetControlKey,
   type CanvasPresetId,
   type CanvasPresetSettings,
+  type ReactSectionType,
+  type ReactTrackSection,
 } from './ReactTypes'
 
 const CANVAS_DESCRIPTION = 'Upload your own media and turn it into audio-reactive visuals.'
@@ -297,6 +303,254 @@ function averageByteRange(data: Uint8Array, startRatio: number, endRatio: number
   return sum / ((end - start) * 255)
 }
 
+function clampCanvasUnit(value: unknown, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.min(1, Math.max(0, value))
+    : fallback
+}
+
+function sampleCanvasCurveAt(curve: FeatureCurve | undefined, timeSec: number): number {
+  if (!curve || curve.length === 0) return 0
+  if (timeSec <= curve[0].timeSec) return clampCanvasUnit(curve[0].value)
+  const last = curve[curve.length - 1]
+  if (timeSec >= last.timeSec) return clampCanvasUnit(last.value)
+
+  let low = 0
+  let high = curve.length - 1
+  while (high - low > 1) {
+    const middle = (low + high) >> 1
+    if (curve[middle].timeSec <= timeSec) low = middle
+    else high = middle
+  }
+
+  const left = curve[low]
+  const right = curve[high]
+  const span = right.timeSec - left.timeSec
+  const progress = span > 0 ? (timeSec - left.timeSec) / span : 0
+  return clampCanvasUnit(left.value + (right.value - left.value) * progress)
+}
+
+function findCanvasSectionAt<T extends { startSec: number; endSec: number }>(sections: T[], timeSec: number): T | null {
+  return sections.find(section => timeSec >= section.startSec && timeSec < section.endSec) ?? null
+}
+
+function isCanvasFrameForTrack(frame: MusicIntelligenceFrame, activeAudioTrackId: string | null | undefined): boolean {
+  if (!activeAudioTrackId || frame.frameId <= 0) return false
+  return frame.trackId === activeAudioTrackId || frame.sourceId === activeAudioTrackId
+}
+
+function resolveCanvasAudioTime(getAudioTime?: () => number): number {
+  const direct = getAudioTime?.()
+  if (typeof direct === 'number' && Number.isFinite(direct) && direct >= 0) return direct
+  const frameTime = AudioFeatureBus.getFrame().timeSec
+  return typeof frameTime === 'number' && Number.isFinite(frameTime) && frameTime >= 0 ? frameTime : 0
+}
+
+type CanvasAutoFeatureSnapshot = {
+  hasSmartData: boolean
+  presetId: CanvasPresetId
+  reason: string
+  energy: number
+  brightness: number
+  rhythm: number
+  sectionType: ReactSectionType | null
+  mood: string | null
+}
+
+function resolveCanvasAutoFeatures({
+  frame,
+  trackAnalysis,
+  trackSections,
+  audioTime,
+  activeAudioTrackId,
+}: {
+  frame: MusicIntelligenceFrame
+  trackAnalysis: TrackIntelligenceAnalysis | null | undefined
+  trackSections: ReactTrackSection[]
+  audioTime: number
+  activeAudioTrackId?: string | null
+}): CanvasAutoFeatureSnapshot {
+  const frameMatchesTrack = isCanvasFrameForTrack(frame, activeAudioTrackId)
+  const analyzedSection = trackAnalysis ? findCanvasSectionAt(trackAnalysis.sections, audioTime) : null
+  const authoredSection = findCanvasSectionAt(trackSections, audioTime)
+  const sectionType = (frameMatchesTrack ? frame.section.type : null)
+    ?? authoredSection?.type
+    ?? analyzedSection?.type
+    ?? null
+  const sectionIntensity = clampCanvasUnit(
+    frameMatchesTrack ? frame.section.intensity : undefined,
+    clampCanvasUnit(authoredSection?.intensity, clampCanvasUnit(analyzedSection?.intensity, 0.45)),
+  )
+
+  const curveEnergy = Math.max(
+    sampleCanvasCurveAt(trackAnalysis?.energyCurves.shortTerm, audioTime),
+    sampleCanvasCurveAt(trackAnalysis?.energyCurves.instant, audioTime),
+  )
+  const curveBass = sampleCanvasCurveAt(trackAnalysis?.energyCurves.bass, audioTime)
+  const curveHigh = sampleCanvasCurveAt(trackAnalysis?.energyCurves.high, audioTime)
+  const curveFlux = sampleCanvasCurveAt(trackAnalysis?.spectralCurves.flux, audioTime)
+  const curveComplexity = sampleCanvasCurveAt(trackAnalysis?.spectralCurves.complexity, audioTime)
+  const curveCentroid = sampleCanvasCurveAt(trackAnalysis?.spectralCurves.centroid, audioTime)
+
+  const energy = frameMatchesTrack
+    ? Math.max(
+        clampCanvasUnit(frame.energy.trackCurve),
+        clampCanvasUnit(frame.energy.shortTerm),
+        clampCanvasUnit(frame.energy.percentile),
+        sectionIntensity,
+      )
+    : Math.max(curveEnergy, sectionIntensity)
+  const brightness = frameMatchesTrack
+    ? Math.max(
+        clampCanvasUnit(frame.bands.normalizedHigh),
+        clampCanvasUnit(frame.bands.normalizedAir),
+        clampCanvasUnit(frame.energy.spectralCentroid),
+        curveHigh,
+        curveCentroid,
+      )
+    : Math.max(curveHigh, curveCentroid)
+  const rhythm = frameMatchesTrack
+    ? Math.max(
+        clampCanvasUnit(frame.rhythm.transient),
+        clampCanvasUnit(frame.rhythm.kickStrength),
+        clampCanvasUnit(frame.rhythm.snareStrength),
+        clampCanvasUnit(frame.stems.drumEnergy),
+        clampCanvasUnit(frame.energy.spectralFlux),
+        curveFlux,
+      )
+    : Math.max(curveFlux, curveBass, curveComplexity)
+  const buildConfidence = frameMatchesTrack ? clampCanvasUnit(frame.semantics.buildConfidence) : 0
+  const dropConfidence = frameMatchesTrack ? clampCanvasUnit(frame.semantics.dropConfidence) : 0
+  const complexity = frameMatchesTrack ? clampCanvasUnit(frame.energy.complexity, curveComplexity) : curveComplexity
+  const mood = frameMatchesTrack ? frame.semantics.mood : null
+  const hasSmartData = Boolean(
+    activeAudioTrackId && (
+      frameMatchesTrack ||
+      trackAnalysis ||
+      authoredSection ||
+      analyzedSection
+    ),
+  )
+
+  if (!hasSmartData) {
+    return {
+      hasSmartData: false,
+      presetId: DEFAULT_CANVAS_PRESET_ID,
+      reason: 'Load and analyze a track to enable smarter CANVAS Auto Select.',
+      energy,
+      brightness,
+      rhythm,
+      sectionType,
+      mood,
+    }
+  }
+
+  const highEnergySection = sectionType === 'drop' || dropConfidence >= 0.55 || energy >= 0.72
+  const buildSection = sectionType === 'build' || sectionType === 'preDrop' || buildConfidence >= 0.56
+  const atmosphericSection = sectionType === 'intro' || sectionType === 'breakdown' || sectionType === 'bridge' || sectionType === 'outro'
+  const brightSection = brightness >= 0.64 || mood === 'bright' || mood === 'euphoric'
+  const rhythmicSection = rhythm >= 0.62 || complexity >= 0.7
+  const smoothSection = atmosphericSection || mood === 'atmospheric' || mood === 'emotional' || mood === 'calm' || mood === 'minimal'
+
+  if (highEnergySection) {
+    const glitchy = rhythmicSection || mood === 'aggressive' || mood === 'chaotic'
+    return {
+      hasSmartData,
+      presetId: glitchy ? 'canvas-glitch-pulse' : 'canvas-bass-bloom',
+      reason: glitchy ? 'High-energy rhythmic section' : 'High-energy drop section',
+      energy,
+      brightness,
+      rhythm,
+      sectionType,
+      mood,
+    }
+  }
+
+  if (buildSection) {
+    return {
+      hasSmartData,
+      presetId: rhythmicSection ? 'canvas-frame-stutter' : 'canvas-bass-bloom',
+      reason: rhythmicSection ? 'Rhythmic build section' : 'Building energy section',
+      energy,
+      brightness,
+      rhythm,
+      sectionType,
+      mood,
+    }
+  }
+
+  if (brightSection) {
+    return {
+      hasSmartData,
+      presetId: 'canvas-luma-melt',
+      reason: 'Bright high-frequency section',
+      energy,
+      brightness,
+      rhythm,
+      sectionType,
+      mood,
+    }
+  }
+
+  if (rhythmicSection) {
+    return {
+      hasSmartData,
+      presetId: 'canvas-frame-stutter',
+      reason: 'Beat-heavy rhythmic section',
+      energy,
+      brightness,
+      rhythm,
+      sectionType,
+      mood,
+    }
+  }
+
+  if (smoothSection) {
+    return {
+      hasSmartData,
+      presetId: energy <= 0.28 ? 'canvas-clean-playback' : 'canvas-ghost-echo',
+      reason: energy <= 0.28 ? 'Smooth low-energy section' : 'Smooth atmospheric section',
+      energy,
+      brightness,
+      rhythm,
+      sectionType,
+      mood,
+    }
+  }
+
+  return {
+    hasSmartData,
+    presetId: energy <= 0.34 ? 'canvas-clean-playback' : 'canvas-ghost-echo',
+    reason: energy <= 0.34 ? 'Lower-energy section' : 'Moderate atmospheric section',
+    energy,
+    brightness,
+    rhythm,
+    sectionType,
+    mood,
+  }
+}
+
+function pickCanvasAutoMedia(
+  mediaItems: CanvasMediaItem[],
+  activeCanvasMediaId: string | null,
+  features: CanvasAutoFeatureSnapshot,
+): string | null {
+  if (mediaItems.length === 0) return null
+  if (mediaItems.length === 1) return activeCanvasMediaId ?? mediaItems[0].id
+
+  const activeItem = mediaItems.find(item => item.id === activeCanvasMediaId) ?? null
+  const video = mediaItems.find(item => item.type === 'video') ?? null
+  const still = mediaItems.find(item => item.type === 'image' || item.type === 'svg') ?? null
+  const highEnergy = features.sectionType === 'drop' || features.energy >= 0.72 || features.presetId === 'canvas-glitch-pulse' || features.presetId === 'canvas-bass-bloom'
+
+  if (highEnergy) return video?.id ?? activeItem?.id ?? mediaItems[0].id
+  if (features.presetId === 'canvas-ghost-echo' || features.presetId === 'canvas-clean-playback') {
+    if (activeItem && activeItem.type !== 'video') return activeItem.id
+    return still?.id ?? activeItem?.id ?? mediaItems[0].id
+  }
+  return activeItem?.id ?? mediaItems[0].id
+}
+
 function playCanvasVideo(video: HTMLVideoElement | null) {
   if (!video) return
   const playPromise = video.play()
@@ -309,10 +563,18 @@ export function CanvasEngineSurface({
   isPlaying,
   isPaused,
   analyser,
+  trackAnalysis = null,
+  trackSections = [],
+  getAudioTime,
+  activeAudioTrackId = null,
 }: {
   isPlaying: boolean
   isPaused: boolean
   analyser?: AnalyserNode | null
+  trackAnalysis?: TrackIntelligenceAnalysis | null
+  trackSections?: ReactTrackSection[]
+  getAudioTime?: () => number
+  activeAudioTrackId?: string | null
 }) {
   const settings = useReactStore(s => s.canvasEngineSettings)
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
@@ -321,8 +583,13 @@ export function CanvasEngineSurface({
   const restartCanvasVideo = useReactStore(s => s.restartCanvasVideo)
   const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
   const canvasPresetSettings = useReactStore(s => s.canvasPresetSettings)
+  const canvasPresetOverride = useReactStore(s => s.canvasPresetOverride)
+  const applyCanvasAutoSelection = useReactStore(s => s.applyCanvasAutoSelection)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const outputRef = useRef<HTMLDivElement | null>(null)
+  const trackAnalysisRef = useRef<TrackIntelligenceAnalysis | null>(trackAnalysis)
+  const trackSectionsRef = useRef<ReactTrackSection[]>(trackSections)
+  const getAudioTimeRef = useRef<typeof getAudioTime>(getAudioTime)
   const activeItem = useMemo(
     () => mediaItems.find(item => item.id === activeCanvasMediaId) ?? null,
     [activeCanvasMediaId, mediaItems],
@@ -331,6 +598,76 @@ export function CanvasEngineSurface({
   const presetStyle = useMemo(() => makeCanvasPresetStyle(canvasPresetSettings), [canvasPresetSettings])
   const activeVideo = activeItem?.type === 'video'
   const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
+
+  trackAnalysisRef.current = trackAnalysis
+  trackSectionsRef.current = trackSections
+  getAudioTimeRef.current = getAudioTime
+
+  useEffect(() => {
+    musicIntelligenceEngine.setTrackAnalysis(trackAnalysis ?? null)
+  }, [trackAnalysis])
+
+  useEffect(() => {
+    if (!analyser) return
+
+    let frameId = 0
+    let frequencyData: Uint8Array<ArrayBuffer> | null = null
+    let timeDomainData: Uint8Array<ArrayBuffer> | null = null
+
+    const tick = () => {
+      const freqSize = Math.max(1, analyser.frequencyBinCount)
+      if (!frequencyData || frequencyData.length !== freqSize) {
+        frequencyData = new Uint8Array(freqSize) as Uint8Array<ArrayBuffer>
+      }
+      const timeSize = Math.max(1, analyser.fftSize)
+      if (!timeDomainData || timeDomainData.length !== timeSize) {
+        timeDomainData = new Uint8Array(timeSize) as Uint8Array<ArrayBuffer>
+      }
+
+      analyser.getByteFrequencyData(frequencyData)
+      analyser.getByteTimeDomainData(timeDomainData)
+      musicIntelligenceEngine.updateFromAudioFrame({
+        freqBuf: frequencyData,
+        timeBuf: timeDomainData,
+        sampleRate: analyser.context.sampleRate,
+        audioTime: resolveCanvasAudioTime(getAudioTimeRef.current),
+        isPlaying: isPlaying && !isPaused,
+      })
+
+      frameId = window.requestAnimationFrame(tick)
+    }
+
+    tick()
+    return () => window.cancelAnimationFrame(frameId)
+  }, [analyser, isPaused, isPlaying])
+
+  useEffect(() => {
+    if (!settings.autoSelectEnabled || canvasPresetOverride?.source === 'manual') return
+
+    const intervalId = window.setInterval(() => {
+      const frame = AudioFeatureBus.getFrame()
+      const audioTime = resolveCanvasAudioTime(getAudioTimeRef.current)
+      const features = resolveCanvasAutoFeatures({
+        frame,
+        trackAnalysis: trackAnalysisRef.current,
+        trackSections: trackSectionsRef.current,
+        audioTime,
+        activeAudioTrackId,
+      })
+
+      if (!features.hasSmartData) return
+
+      const mediaId = pickCanvasAutoMedia(mediaItems, activeCanvasMediaId, features)
+      const preset = CANVAS_PRESET_BY_ID[features.presetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
+      applyCanvasAutoSelection({
+        presetId: preset.id,
+        mediaId,
+        label: `${features.reason}: ${preset.name}`,
+      })
+    }, 600)
+
+    return () => window.clearInterval(intervalId)
+  }, [activeAudioTrackId, activeCanvasMediaId, applyCanvasAutoSelection, canvasPresetOverride?.source, mediaItems, settings.autoSelectEnabled])
 
   useEffect(() => {
     const video = videoRef.current
@@ -620,6 +957,55 @@ export function CanvasPresetBrowser() {
   )
 }
 
+function CanvasAutoSelectControl() {
+  const engine = useSharedAudio()
+  const settings = useReactStore(s => s.canvasEngineSettings)
+  const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
+  const canvasPresetOverride = useReactStore(s => s.canvasPresetOverride)
+  const setCanvasAutoSelectEnabled = useReactStore(s => s.setCanvasAutoSelectEnabled)
+  const clearCanvasPresetOverride = useReactStore(s => s.clearCanvasPresetOverride)
+  const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
+  const hasTrackLoaded = Boolean(engine.currentTrackId)
+  const hasAnalyzedTrack = Boolean(engine.currentAnalysis && engine.currentAnalysisStatus === 'complete')
+  const manualOverrideActive = canvasPresetOverride?.source === 'manual'
+  const autoSelectionActive = settings.autoSelectEnabled && canvasPresetOverride?.source === 'auto'
+
+  const description = !hasTrackLoaded
+    ? 'Load and analyze a track to enable smarter CANVAS Auto Select.'
+    : !hasAnalyzedTrack
+      ? 'Load and analyze a track to enable smarter CANVAS Auto Select. Live audio fallback stays safe while analysis is missing.'
+      : manualOverrideActive
+        ? 'Auto Select can stay on, but it will not replace the manually selected preset until the override is cleared.'
+        : 'Uses Audio Intelligence sections, energy, brightness, and rhythm to choose CANVAS presets and media.'
+
+  return (
+    <div className="rv-canvas-auto-select-block">
+      <ToggleRow
+        label="Auto Select"
+        value={settings.autoSelectEnabled}
+        onChange={setCanvasAutoSelectEnabled}
+        description={description}
+      />
+      {manualOverrideActive && (
+        <div className="rv-canvas-auto-status rv-canvas-auto-status--override" role="status">
+          <span>Manual override: {selectedPreset.name} is selected.</span>
+          <button type="button" onClick={clearCanvasPresetOverride}>Clear Override</button>
+        </div>
+      )}
+      {!manualOverrideActive && autoSelectionActive && (
+        <div className="rv-canvas-auto-status" role="status">
+          <span>Auto Select: {selectedPreset.name} is selected.</span>
+        </div>
+      )}
+      {!manualOverrideActive && settings.autoSelectEnabled && !hasAnalyzedTrack && (
+        <div className="rv-canvas-auto-status rv-canvas-auto-status--helper" role="status">
+          <span>Load and analyze a track to enable smarter CANVAS Auto Select.</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function CanvasPresetControls() {
   const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
   const canvasPresetSettings = useReactStore(s => s.canvasPresetSettings)
@@ -657,9 +1043,16 @@ function CanvasPresetControls() {
       {selectedPreset.controls.length > 0 ? selectedPreset.controls.map(renderControl) : (
         <div className="rv-canvas-engine-note">Clean Playback keeps the uploaded media neutral. Use Display controls for transform and opacity.</div>
       )}
-      <div className="rv-canvas-engine-note">
-        Preset override: {canvasPresetOverride?.label ?? 'User-selected preset'}.
-      </div>
+      {canvasPresetOverride?.source === 'manual' && (
+        <div className="rv-canvas-engine-note">
+          Manual override active. Clear it under Auto Select to let CANVAS choose again.
+        </div>
+      )}
+      {canvasPresetOverride?.source === 'auto' && (
+        <div className="rv-canvas-engine-note">
+          {canvasPresetOverride.label ?? 'Auto-selected preset'}.
+        </div>
+      )}
     </Collapsible>
   )
 }
@@ -711,14 +1104,7 @@ export function CanvasEngineFxPlaceholder() {
     <div className="rv-ctrl-group">
       <Collapsible label="CANVAS Media" defaultOpen>
         <div className="rv-canvas-panel-copy">{CANVAS_MEDIA_COPY}</div>
-        <ToggleRow
-          label="Auto Select"
-          value={settings.autoSelectEnabled}
-          onChange={() => undefined}
-          disabled
-          title="CANVAS Auto Select arrives in a later preset/audio intelligence patch."
-          description={activeItem ? `Manual media override: ${activeItem.name}` : 'Upload media first. Audio Intelligence media selection is not enabled yet.'}
-        />
+        <CanvasAutoSelectControl />
         <CanvasUploadControl compact />
       </Collapsible>
 
