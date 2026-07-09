@@ -4,17 +4,21 @@ import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
 import type { FeatureCurve, MusicIntelligenceFrame, TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
-import { Collapsible, CtrlSection, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
+import { Collapsible, CtrlSection, NumberInputRow, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
 import {
   CANVAS_PRESETS,
   CANVAS_PRESET_BY_ID,
   DEFAULT_CANVAS_PRESET_ID,
+  DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS,
   type CanvasFitMode,
   type CanvasMediaItem,
   type CanvasMediaItemType,
   type CanvasPresetControlKey,
   type CanvasPresetId,
   type CanvasPresetSettings,
+  type CanvasSectionTriggerType,
+  type CanvasTriggerOn,
+  type CanvasVideoTimingSettings,
   type ReactSectionType,
   type ReactTrackSection,
 } from './ReactTypes'
@@ -38,6 +42,25 @@ const TYPE_LABELS: Record<CanvasMediaItemType, string> = {
   image: 'Image',
   svg:   'SVG',
 }
+
+const CANVAS_TRIGGER_OPTIONS: Array<{ value: CanvasTriggerOn; label: string }> = [
+  { value: 'manualOnly', label: 'Manual Only' },
+  { value: 'trackStart', label: 'Track Start' },
+  { value: 'sectionChange', label: 'Section Change' },
+  { value: 'drop', label: 'Drop' },
+  { value: 'every8Bars', label: 'Every 8 Bars' },
+  { value: 'every16Bars', label: 'Every 16 Bars' },
+]
+
+const CANVAS_SECTION_TRIGGER_OPTIONS: Array<{ value: CanvasSectionTriggerType; label: string }> = [
+  { value: 'intro', label: 'Intro' },
+  { value: 'build', label: 'Build' },
+  { value: 'drop', label: 'Drop' },
+  { value: 'breakdown', label: 'Breakdown' },
+  { value: 'outro', label: 'Outro' },
+]
+
+const CANVAS_TIMING_MAX_SECONDS = 60 * 60 * 6
 
 function CanvasMediaTokens() {
   return (
@@ -559,6 +582,76 @@ function playCanvasVideo(video: HTMLVideoElement | null) {
   }
 }
 
+function clampCanvasTimingSeconds(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Number.isFinite(value) ? value : min))
+}
+
+function getCanvasVideoDuration(video: HTMLVideoElement | null): number | null {
+  if (!video || !Number.isFinite(video.duration) || video.duration <= 0) return null
+  return video.duration
+}
+
+function resolveCanvasClipStart(video: HTMLVideoElement | null, timing: CanvasVideoTimingSettings): number {
+  const duration = getCanvasVideoDuration(video)
+  const maxStart = duration === null ? CANVAS_TIMING_MAX_SECONDS : Math.max(0, duration - 0.05)
+  return clampCanvasTimingSeconds(timing.clipStartSec, 0, maxStart)
+}
+
+function resolveCanvasClipEnd(video: HTMLVideoElement | null, timing: CanvasVideoTimingSettings, startSec: number): number | null {
+  const duration = getCanvasVideoDuration(video)
+  if (timing.clipEndSec <= 0) return duration
+  const maxEnd = duration === null ? CANVAS_TIMING_MAX_SECONDS : duration
+  return clampCanvasTimingSeconds(timing.clipEndSec, Math.min(maxEnd, startSec + 0.05), maxEnd)
+}
+
+function seekCanvasVideoToClipStart(
+  video: HTMLVideoElement | null,
+  timing: CanvasVideoTimingSettings,
+  shouldPlay: boolean,
+) {
+  if (!video) return
+  const startSec = resolveCanvasClipStart(video, timing)
+  try {
+    video.currentTime = startSec
+  } catch {
+    // Browser may reject seeks before metadata is available. The metadata hook retries safely.
+  }
+  if (shouldPlay) playCanvasVideo(video)
+}
+
+function normalizeCanvasTimingSectionType(sectionType: ReactSectionType | null | undefined): CanvasSectionTriggerType | null {
+  if (sectionType === 'intro' || sectionType === 'build' || sectionType === 'drop' || sectionType === 'breakdown' || sectionType === 'outro') {
+    return sectionType
+  }
+  if (sectionType === 'preDrop') return 'build'
+  if (sectionType === 'bridge') return 'breakdown'
+  return null
+}
+
+function resolveCanvasTimingSection({
+  frame,
+  trackAnalysis,
+  trackSections,
+  audioTime,
+  activeAudioTrackId,
+}: {
+  frame: MusicIntelligenceFrame
+  trackAnalysis: TrackIntelligenceAnalysis | null | undefined
+  trackSections: ReactTrackSection[]
+  audioTime: number
+  activeAudioTrackId?: string | null
+}): ReactSectionType | null {
+  const frameSection = isCanvasFrameForTrack(frame, activeAudioTrackId) ? frame.section.type : null
+  const authoredSection = findCanvasSectionAt(trackSections, audioTime)
+  const analyzedSection = trackAnalysis ? findCanvasSectionAt(trackAnalysis.sections, audioTime) : null
+  return frameSection ?? authoredSection?.type ?? analyzedSection?.type ?? null
+}
+
+function formatCanvasTimingSeconds(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return '0.0s'
+  return `${value.toFixed(value >= 10 ? 1 : 2)}s`
+}
+
 export function CanvasEngineSurface({
   isPlaying,
   isPaused,
@@ -597,6 +690,7 @@ export function CanvasEngineSurface({
   const mediaStyle = useMemo(() => makeCanvasMediaStyle(settings), [settings])
   const presetStyle = useMemo(() => makeCanvasPresetStyle(canvasPresetSettings), [canvasPresetSettings])
   const activeVideo = activeItem?.type === 'video'
+  const activeTiming = activeItem?.timing ?? DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS
   const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
 
   trackAnalysisRef.current = trackAnalysis
@@ -673,21 +767,155 @@ export function CanvasEngineSurface({
     const video = videoRef.current
     if (!video || !activeVideo) return
 
+    const hasClipEnd = activeTiming.clipEndSec > 0
     video.muted = true
-    video.loop = settings.loopVideo
+    video.loop = settings.loopVideo && !activeTiming.loopClipRange && !hasClipEnd
     video.playsInline = true
 
     if (isPlaying && !isPaused) playCanvasVideo(video)
     else video.pause()
-  }, [activeVideo, activeItem?.id, isPaused, isPlaying, settings.loopVideo])
+  }, [activeTiming, activeTiming.clipEndSec, activeTiming.loopClipRange, activeVideo, activeItem?.id, isPaused, isPlaying, settings.loopVideo])
 
   useEffect(() => {
     const video = videoRef.current
     if (!video || !activeVideo) return
 
-    video.currentTime = 0
-    if (isPlaying && !isPaused) playCanvasVideo(video)
-  }, [activeVideo, activeItem?.id, isPaused, isPlaying, restartRevision])
+    seekCanvasVideoToClipStart(video, activeTiming, isPlaying && !isPaused)
+  }, [activeTiming, activeTiming.clipStartSec, activeVideo, activeItem?.id, isPaused, isPlaying, restartRevision])
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !activeVideo) return
+
+    const handleMetadata = () => {
+      seekCanvasVideoToClipStart(video, activeTiming, isPlaying && !isPaused)
+    }
+
+    video.addEventListener('loadedmetadata', handleMetadata)
+    if (video.readyState >= 1) handleMetadata()
+    return () => video.removeEventListener('loadedmetadata', handleMetadata)
+  }, [activeTiming, activeTiming.clipStartSec, activeVideo, activeItem?.id, isPaused, isPlaying])
+
+  useEffect(() => {
+    if (!activeVideo) return
+
+    let frameId = 0
+    const tick = () => {
+      const video = videoRef.current
+      if (video && video.readyState >= 1) {
+        const startSec = resolveCanvasClipStart(video, activeTiming)
+        const endSec = resolveCanvasClipEnd(video, activeTiming, startSec)
+        const hasClipBoundary = endSec !== null && (activeTiming.clipEndSec > 0 || activeTiming.loopClipRange)
+
+        if (!video.seeking && video.currentTime < startSec - 0.08) {
+          seekCanvasVideoToClipStart(video, activeTiming, isPlaying && !isPaused)
+        }
+
+        if (hasClipBoundary && endSec !== null && video.currentTime >= endSec - 0.035) {
+          if (activeTiming.loopClipRange) {
+            seekCanvasVideoToClipStart(video, activeTiming, isPlaying && !isPaused)
+          } else {
+            video.pause()
+          }
+        }
+      }
+
+      frameId = window.requestAnimationFrame(tick)
+    }
+
+    tick()
+    return () => window.cancelAnimationFrame(frameId)
+  }, [activeTiming, activeTiming.clipEndSec, activeTiming.clipStartSec, activeTiming.loopClipRange, activeVideo, isPaused, isPlaying, settings.loopVideo])
+
+  const previousTimingPresetRef = useRef<CanvasPresetId>(selectedCanvasPresetId)
+  useEffect(() => {
+    const previousPresetId = previousTimingPresetRef.current
+    previousTimingPresetRef.current = selectedCanvasPresetId
+
+    if (!activeVideo || previousPresetId === selectedCanvasPresetId) return
+    if (!activeTiming.restartOnManualPresetChange || canvasPresetOverride?.source !== 'manual') return
+    seekCanvasVideoToClipStart(videoRef.current, activeTiming, isPlaying && !isPaused)
+  }, [activeTiming, activeVideo, canvasPresetOverride?.source, isPaused, isPlaying, selectedCanvasPresetId])
+
+  const timingTriggerRef = useRef({
+    lastAudioTime: 0,
+    lastSectionType: null as CanvasSectionTriggerType | null,
+    lastDropSignal: false,
+    lastBarIndex: -1,
+    wasPlaying: false,
+  })
+
+  useEffect(() => {
+    if (!activeVideo) {
+      timingTriggerRef.current = {
+        lastAudioTime: 0,
+        lastSectionType: null,
+        lastDropSignal: false,
+        lastBarIndex: -1,
+        wasPlaying: false,
+      }
+      return
+    }
+
+    const runTrigger = () => {
+      const shouldPlay = isPlaying && !isPaused
+      if (!shouldPlay) {
+        timingTriggerRef.current.wasPlaying = false
+        return
+      }
+
+      const frame = AudioFeatureBus.getFrame()
+      const audioTime = resolveCanvasAudioTime(getAudioTimeRef.current)
+      const frameMatchesTrack = isCanvasFrameForTrack(frame, activeAudioTrackId)
+      const sectionType = normalizeCanvasTimingSectionType(resolveCanvasTimingSection({
+        frame,
+        trackAnalysis: trackAnalysisRef.current,
+        trackSections: trackSectionsRef.current,
+        audioTime,
+        activeAudioTrackId,
+      }))
+      const selectedSectionMapped = sectionType !== null && activeTiming.sectionTriggerTypes.includes(sectionType)
+      const sectionChanged = sectionType !== null && sectionType !== timingTriggerRef.current.lastSectionType
+      const dropSignal = sectionType === 'drop' || (frameMatchesTrack && frame.semantics.dropConfidence >= 0.7)
+      const droppedNow = dropSignal && !timingTriggerRef.current.lastDropSignal
+      const startedAtBeginning = (
+        activeTiming.triggerOn === 'trackStart' &&
+        audioTime <= 0.35 &&
+        (!timingTriggerRef.current.wasPlaying || audioTime < timingTriggerRef.current.lastAudioTime - 0.5)
+      )
+      const barInterval = activeTiming.triggerOn === 'every8Bars' ? 8 : activeTiming.triggerOn === 'every16Bars' ? 16 : null
+      const barHit = Boolean(
+        frameMatchesTrack &&
+        barInterval &&
+        frame.rhythm.downbeatHit &&
+        frame.rhythm.barIndex > 0 &&
+        frame.rhythm.barIndex !== timingTriggerRef.current.lastBarIndex &&
+        frame.rhythm.barIndex % barInterval === 0
+      )
+      const sectionTrigger = Boolean(
+        selectedSectionMapped &&
+        sectionChanged &&
+        (activeTiming.triggerOn === 'sectionChange' || activeTiming.restartOnSectionChange)
+      )
+      const dropTrigger = Boolean(droppedNow && (activeTiming.triggerOn === 'drop' || activeTiming.restartOnDrop))
+
+      if (startedAtBeginning || sectionTrigger || dropTrigger || barHit) {
+        seekCanvasVideoToClipStart(videoRef.current, activeTiming, true)
+      }
+
+      if (sectionType !== null) timingTriggerRef.current.lastSectionType = sectionType
+      if (frameMatchesTrack && frame.rhythm.downbeatHit) {
+        timingTriggerRef.current.lastBarIndex = frame.rhythm.barIndex
+      }
+      timingTriggerRef.current.lastDropSignal = dropSignal
+      timingTriggerRef.current.lastAudioTime = audioTime
+      timingTriggerRef.current.wasPlaying = true
+    }
+
+    const intervalId = window.setInterval(runTrigger, 90)
+    runTrigger()
+    return () => window.clearInterval(intervalId)
+  }, [activeAudioTrackId, activeTiming, activeVideo, isPaused, isPlaying])
 
   useEffect(() => () => {
     videoRef.current?.pause()
@@ -753,6 +981,7 @@ export function CanvasEngineSurface({
 
   useEffect(() => {
     if (selectedCanvasPresetId !== 'canvas-frame-stutter' || !activeVideo || !isPlaying || isPaused) return
+    const cleanupVideo = videoRef.current
     let resumeTimer = 0
     const intervalMs = Math.max(90, Math.round(1000 / Math.max(1, canvasPresetSettings.stutterRate)))
     const holdMs = Math.round(38 + canvasPresetSettings.intensity * 118)
@@ -765,14 +994,15 @@ export function CanvasEngineSurface({
       }
       window.clearTimeout(resumeTimer)
       resumeTimer = window.setTimeout(() => {
-        if (isPlaying && !isPaused) playCanvasVideo(videoRef.current)
+        const currentVideo = videoRef.current
+        if (isPlaying && !isPaused) playCanvasVideo(currentVideo)
       }, holdMs)
     }, intervalMs)
 
     return () => {
       window.clearInterval(intervalId)
       window.clearTimeout(resumeTimer)
-      if (isPlaying && !isPaused) playCanvasVideo(videoRef.current)
+      if (isPlaying && !isPaused) playCanvasVideo(cleanupVideo)
     }
   }, [activeVideo, canvasPresetSettings.glitchAmount, canvasPresetSettings.intensity, canvasPresetSettings.stutterRate, isPaused, isPlaying, selectedCanvasPresetId])
 
@@ -814,7 +1044,7 @@ export function CanvasEngineSurface({
               style={mediaStyle}
               muted
               playsInline
-              loop={settings.loopVideo}
+              loop={settings.loopVideo && !activeTiming.loopClipRange && activeTiming.clipEndSec <= 0}
               preload="auto"
             />
           ) : (
@@ -840,7 +1070,7 @@ export function CanvasEngineSurface({
         {activeVideo && (
           <div className="rv-canvas-live-video-strip" aria-label="CANVAS video playback status">
             <span>{isPlaying && !isPaused ? 'Audio-linked playback' : 'Waiting for React transport'}</span>
-            <strong>{settings.loopVideo ? 'Loop on' : 'Loop off'}</strong>
+            <strong>{activeTiming.loopClipRange ? 'Clip loop on' : settings.loopVideo ? 'Loop on' : 'Loop off'}</strong>
             <button type="button" onClick={restartCanvasVideo}>Restart clip</button>
             <em>Muted</em>
           </div>
@@ -1006,6 +1236,155 @@ function CanvasAutoSelectControl() {
   )
 }
 
+function CanvasTimingControls() {
+  const engine = useSharedAudio()
+  const settings = useReactStore(s => s.canvasEngineSettings)
+  const setCanvasEngineSettings = useReactStore(s => s.setCanvasEngineSettings)
+  const restartCanvasVideo = useReactStore(s => s.restartCanvasVideo)
+  const setCanvasMediaTiming = useReactStore(s => s.setCanvasMediaTiming)
+  const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
+  const activeItem = useReactStore(s => s.canvasMediaItems.find(item => item.id === activeCanvasMediaId) ?? null)
+  const hasActiveVideo = activeItem?.type === 'video'
+  const timing = activeItem?.timing ?? DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS
+  const detectedSectionLabels = useMemo(() => {
+    const labels = new Set<string>()
+    const sections = engine.currentAnalysis?.sections ?? []
+    sections.forEach(section => {
+      const mapped = normalizeCanvasTimingSectionType(section.type)
+      const option = CANVAS_SECTION_TRIGGER_OPTIONS.find(entry => entry.value === mapped)
+      if (option) labels.add(option.label)
+    })
+    return Array.from(labels)
+  }, [engine.currentAnalysis])
+
+  const setTiming = (patch: Partial<CanvasVideoTimingSettings>) => {
+    if (!activeItem || activeItem.type !== 'video') return
+    setCanvasMediaTiming(activeItem.id, patch)
+  }
+
+  const toggleSectionTrigger = (sectionType: CanvasSectionTriggerType) => {
+    if (!hasActiveVideo) return
+    const current = timing.sectionTriggerTypes.length > 0
+      ? timing.sectionTriggerTypes
+      : DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS.sectionTriggerTypes
+    const next = current.includes(sectionType)
+      ? current.filter(value => value !== sectionType)
+      : [...current, sectionType]
+    setTiming({ sectionTriggerTypes: next.length > 0 ? next : current })
+  }
+
+  const timingDescription = hasActiveVideo
+    ? 'These controls affect uploaded video playback inside CANVAS. Clip audio stays muted so the loaded track remains in charge.'
+    : 'CANVAS timing controls are video-only. Select an uploaded video to enable clip starts, ranges, loops, and musical triggers.'
+
+  const sectionDescription = detectedSectionLabels.length > 0
+    ? `Audio Intelligence sections detected: ${detectedSectionLabels.join(', ')}.`
+    : 'Map section-trigger restarts to Audio Intelligence sections after a track has been loaded and analyzed.'
+
+  return (
+    <Collapsible label="Video Timing" defaultOpen>
+      <div className="rv-canvas-engine-note">{timingDescription}</div>
+      <SelectRow
+        label="Trigger On"
+        value={timing.triggerOn}
+        onChange={value => setTiming({ triggerOn: value as CanvasTriggerOn })}
+        disabled={!hasActiveVideo}
+        options={CANVAS_TRIGGER_OPTIONS}
+        description="Choose the musical moment that restarts the active CANVAS video clip."
+      />
+      <NumberInputRow
+        label="Clip Start Time"
+        value={timing.clipStartSec}
+        onChange={value => setTiming({ clipStartSec: value })}
+        min={0}
+        max={CANVAS_TIMING_MAX_SECONDS}
+        step={0.1}
+        unit="sec"
+        disabled={!hasActiveVideo}
+      />
+      <NumberInputRow
+        label="Clip End Time"
+        value={timing.clipEndSec}
+        onChange={value => setTiming({ clipEndSec: value })}
+        min={0}
+        max={CANVAS_TIMING_MAX_SECONDS}
+        step={0.1}
+        unit="sec"
+        disabled={!hasActiveVideo}
+      />
+      <div className="rv-canvas-engine-note">
+        End time 0 uses the full video. Active range: {formatCanvasTimingSeconds(timing.clipStartSec)} → {timing.clipEndSec > 0 ? formatCanvasTimingSeconds(timing.clipEndSec) : 'video end'}.
+      </div>
+      <ToggleRow
+        label="Loop Clip Range"
+        value={timing.loopClipRange}
+        onChange={value => setTiming({ loopClipRange: value })}
+        disabled={!hasActiveVideo}
+        description="Loops from Clip Start Time to Clip End Time, or to video end when end time is 0."
+      />
+      <ToggleRow
+        label="Loop Full Video"
+        value={settings.loopVideo}
+        onChange={value => setCanvasEngineSettings({ loopVideo: value })}
+        disabled={!hasActiveVideo}
+        description="Fallback full-video loop when no clip end time is set."
+      />
+      <ToggleRow
+        label="Restart on Drop"
+        value={timing.restartOnDrop}
+        onChange={value => setTiming({ restartOnDrop: value })}
+        disabled={!hasActiveVideo}
+        description="Restarts the clip when CANVAS detects a drop section or high-confidence drop moment."
+      />
+      <ToggleRow
+        label="Restart on Section Change"
+        value={timing.restartOnSectionChange}
+        onChange={value => setTiming({ restartOnSectionChange: value })}
+        disabled={!hasActiveVideo}
+        description="Restarts when the current Audio Intelligence section changes into one of the mapped section types below."
+      />
+      <ToggleRow
+        label="Restart on Manual Preset Change"
+        value={timing.restartOnManualPresetChange}
+        onChange={value => setTiming({ restartOnManualPresetChange: value })}
+        disabled={!hasActiveVideo}
+        description="Restarts the clip when the user manually changes the CANVAS preset."
+      />
+      <div className="rv-canvas-section-trigger-block" aria-label="CANVAS section trigger mapping">
+        <div className="rv-canvas-section-trigger-head">
+          <span>Section Trigger Mapping</span>
+          <em>{sectionDescription}</em>
+        </div>
+        <div className="rv-canvas-section-trigger-grid">
+          {CANVAS_SECTION_TRIGGER_OPTIONS.map(option => {
+            const active = timing.sectionTriggerTypes.includes(option.value)
+            return (
+              <button
+                key={option.value}
+                type="button"
+                className={`rv-canvas-section-trigger-chip${active ? ' rv-canvas-section-trigger-chip--active' : ''}`}
+                onClick={() => toggleSectionTrigger(option.value)}
+                disabled={!hasActiveVideo}
+                aria-pressed={active}
+              >
+                {option.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      <button
+        type="button"
+        className="rv-reset-btn rv-canvas-restart-btn"
+        onClick={restartCanvasVideo}
+        disabled={!hasActiveVideo}
+      >
+        Restart Clip
+      </button>
+    </Collapsible>
+  )
+}
+
 function CanvasPresetControls() {
   const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
   const canvasPresetSettings = useReactStore(s => s.canvasPresetSettings)
@@ -1091,10 +1470,6 @@ export function CanvasEnginePanel() {
 export function CanvasEngineFxPlaceholder() {
   const settings = useReactStore(s => s.canvasEngineSettings)
   const setCanvasEngineSettings = useReactStore(s => s.setCanvasEngineSettings)
-  const restartCanvasVideo = useReactStore(s => s.restartCanvasVideo)
-  const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
-  const activeItem = useReactStore(s => s.canvasMediaItems.find(item => item.id === activeCanvasMediaId) ?? null)
-  const hasActiveVideo = activeItem?.type === 'video'
 
   const setSettings = (patch: Partial<typeof settings>) => {
     setCanvasEngineSettings(patch)
@@ -1168,27 +1543,7 @@ export function CanvasEngineFxPlaceholder() {
         />
       </Collapsible>
 
-      <Collapsible label="Video Playback" defaultOpen>
-        <ToggleRow
-          label="Loop Video"
-          value={settings.loopVideo}
-          onChange={value => setSettings({ loopVideo: value })}
-          description={hasActiveVideo ? 'Video playback follows the React audio transport and stays muted by default.' : 'Loop applies when the active CANVAS visual is a video.'}
-        />
-        <button
-          type="button"
-          className="rv-reset-btn rv-canvas-restart-btn"
-          onClick={restartCanvasVideo}
-          disabled={!hasActiveVideo}
-        >
-          Restart Clip
-        </button>
-        <div className="rv-canvas-engine-note">
-          {hasActiveVideo
-            ? 'Video audio is muted so uploaded clips do not compete with the loaded track.'
-            : 'Images and SVGs use the same fit, scale, position, rotation, and opacity controls.'}
-        </div>
-      </Collapsible>
+      <CanvasTimingControls />
     </div>
   )
 }

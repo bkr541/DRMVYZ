@@ -18,6 +18,7 @@ import {
   DEFAULT_CANVAS_PRESET_ID,
   DEFAULT_CANVAS_PRESET_SETTINGS,
   DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
+  DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS,
   CANVAS_PRESET_BY_ID,
   DEFAULT_BEAM_MOTION,
   DEFAULT_BEAM_SEQUENCE,
@@ -58,6 +59,9 @@ import type {
   CanvasPresetId,
   CanvasPresetSettings,
   CanvasPresetOverrideState,
+  CanvasSectionTriggerType,
+  CanvasTriggerOn,
+  CanvasVideoTimingSettings,
   OscillatorGlyphAsset,
   OscillatorGlyphPoint,
   OscillatorFontAsset,
@@ -1483,6 +1487,7 @@ interface ReactStoreState {
   addCanvasMediaItems: (items: CanvasMediaItem[]) => void
   selectCanvasMediaItem: (id: string) => void
   restartCanvasVideo: () => void
+  setCanvasMediaTiming: (mediaId: string, patch: Partial<CanvasVideoTimingSettings>) => void
   removeCanvasMediaItem: (id: string) => void
   clearCanvasMediaItems: () => void
 
@@ -2252,6 +2257,70 @@ function normalizeCanvasFitMode(value: unknown): CanvasFitMode {
   return value === 'cover' || value === 'stretch' || value === 'contain'
     ? value
     : DEFAULT_CANVAS_ENGINE_SETTINGS.fitMode
+}
+
+const CANVAS_TRIGGER_ON_VALUES = new Set<CanvasTriggerOn>([
+  'manualOnly',
+  'trackStart',
+  'sectionChange',
+  'drop',
+  'every8Bars',
+  'every16Bars',
+])
+
+const CANVAS_SECTION_TRIGGER_VALUES = new Set<CanvasSectionTriggerType>([
+  'intro',
+  'build',
+  'drop',
+  'breakdown',
+  'outro',
+])
+
+function normalizeCanvasTriggerOn(value: unknown): CanvasTriggerOn {
+  return typeof value === 'string' && CANVAS_TRIGGER_ON_VALUES.has(value as CanvasTriggerOn)
+    ? value as CanvasTriggerOn
+    : DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS.triggerOn
+}
+
+function normalizeCanvasSectionTriggerTypes(value: unknown): CanvasSectionTriggerType[] {
+  const source = Array.isArray(value) ? value : DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS.sectionTriggerTypes
+  const normalized = source.filter((section): section is CanvasSectionTriggerType => (
+    typeof section === 'string' && CANVAS_SECTION_TRIGGER_VALUES.has(section as CanvasSectionTriggerType)
+  ))
+  return normalized.length > 0
+    ? [...new Set(normalized)]
+    : [...DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS.sectionTriggerTypes]
+}
+
+function normalizeCanvasVideoTimingSettings(value: unknown): CanvasVideoTimingSettings {
+  if (!isRecord(value)) return { ...DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS }
+
+  const clipStartSec = clampCanvasNumber(
+    value.clipStartSec,
+    DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS.clipStartSec,
+    0,
+    60 * 60 * 6,
+  )
+  const rawClipEndSec = clampCanvasNumber(
+    value.clipEndSec,
+    DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS.clipEndSec,
+    0,
+    60 * 60 * 6,
+  )
+  const clipEndSec = rawClipEndSec > 0 && rawClipEndSec <= clipStartSec
+    ? Math.min(60 * 60 * 6, clipStartSec + 0.1)
+    : rawClipEndSec
+
+  return {
+    clipStartSec,
+    clipEndSec,
+    loopClipRange: value.loopClipRange === true,
+    restartOnDrop: value.restartOnDrop === true,
+    restartOnSectionChange: value.restartOnSectionChange === true,
+    restartOnManualPresetChange: value.restartOnManualPresetChange === true,
+    triggerOn: normalizeCanvasTriggerOn(value.triggerOn),
+    sectionTriggerTypes: normalizeCanvasSectionTriggerTypes(value.sectionTriggerTypes),
+  }
 }
 
 function revokeCanvasMediaObjectUrl(item: CanvasMediaItem): void {
@@ -3588,6 +3657,24 @@ export const useReactStore = create<ReactStoreState>()(
       restartCanvasVideo: () => set((state) => ({
         canvasVideoRestartRevision: state.canvasVideoRestartRevision + 1,
       })),
+
+      setCanvasMediaTiming: (mediaId, patch) => set((state) => {
+        if (!state.canvasMediaItems.some(item => item.id === mediaId)) return {}
+        return {
+          canvasMediaItems: state.canvasMediaItems.map(item => (
+            item.id === mediaId
+              ? {
+                  ...item,
+                  timing: normalizeCanvasVideoTimingSettings({
+                    ...DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS,
+                    ...(item.timing ?? {}),
+                    ...patch,
+                  }),
+                }
+              : item
+          )),
+        }
+      }),
 
       removeCanvasMediaItem: (id) => set((state) => {
         const removeIndex = state.canvasMediaItems.findIndex(item => item.id === id)

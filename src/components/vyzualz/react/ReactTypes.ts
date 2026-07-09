@@ -179,6 +179,38 @@ export type CanvasPresetControlKey =
   | 'stutterRate'
   | 'lumaThreshold'
 
+export type CanvasTriggerOn =
+  | 'manualOnly'
+  | 'trackStart'
+  | 'sectionChange'
+  | 'drop'
+  | 'every8Bars'
+  | 'every16Bars'
+
+export type CanvasSectionTriggerType = 'intro' | 'build' | 'drop' | 'breakdown' | 'outro'
+
+export interface CanvasVideoTimingSettings {
+  clipStartSec: number
+  clipEndSec: number
+  loopClipRange: boolean
+  restartOnDrop: boolean
+  restartOnSectionChange: boolean
+  restartOnManualPresetChange: boolean
+  triggerOn: CanvasTriggerOn
+  sectionTriggerTypes: CanvasSectionTriggerType[]
+}
+
+export const DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS: CanvasVideoTimingSettings = {
+  clipStartSec: 0,
+  clipEndSec: 0,
+  loopClipRange: false,
+  restartOnDrop: false,
+  restartOnSectionChange: false,
+  restartOnManualPresetChange: false,
+  triggerOn: 'manualOnly',
+  sectionTriggerTypes: ['intro', 'build', 'drop', 'breakdown', 'outro'],
+}
+
 export interface CanvasPresetSettings {
   intensity: number
   glow: number
@@ -212,6 +244,7 @@ export interface CanvasMediaItem {
   mimeType?: string
   fileSize?: number
   createdAt: string
+  timing?: CanvasVideoTimingSettings
 }
 
 export interface CanvasEngineSettings {
