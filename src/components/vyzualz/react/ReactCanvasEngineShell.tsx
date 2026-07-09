@@ -26,6 +26,11 @@ import {
 
 const CANVAS_DESCRIPTION = 'Upload your own media and turn it into audio-reactive visuals.'
 const CANVAS_MEDIA_COPY = 'Videos, images, and SVGs uploaded here stay scoped to CANVAS and are never shared with other engines.'
+const CANVAS_SESSION_COPY = 'CANVAS media is session-only for now. Preset and display settings can persist, but large uploaded files must be re-uploaded after reopening the app or project.'
+const CANVAS_WARN_VIDEO_BYTES = 250 * 1024 * 1024
+const CANVAS_MAX_VIDEO_BYTES = 750 * 1024 * 1024
+const CANVAS_WARN_STILL_BYTES = 20 * 1024 * 1024
+const CANVAS_MAX_STILL_BYTES = 60 * 1024 * 1024
 const CANVAS_ACCEPT = [
   'video/mp4', 'video/webm', 'video/quicktime',
   'image/png', 'image/jpeg', 'image/webp', 'image/svg+xml',
@@ -64,8 +69,8 @@ const CANVAS_SECTION_TRIGGER_OPTIONS: Array<{ value: CanvasSectionTriggerType; l
 const CANVAS_TIMING_MAX_SECONDS = 60 * 60 * 6
 
 type CanvasMediaCreateResult =
-  | { item: CanvasMediaItem; error: null }
-  | { item: null; error: string }
+  | { item: CanvasMediaItem; error: null; warning?: string }
+  | { item: null; error: string; warning?: never }
 
 type CanvasMediaLoadState = { mediaId: string | null; message: string | null }
 
@@ -111,6 +116,23 @@ function makeCanvasMediaItem(file: File): CanvasMediaCreateResult {
     return { item: null, error: `${file.name} is not a supported CANVAS media type.` }
   }
 
+  const sizeLimit = type === 'video' ? CANVAS_MAX_VIDEO_BYTES : CANVAS_MAX_STILL_BYTES
+  const warningLimit = type === 'video' ? CANVAS_WARN_VIDEO_BYTES : CANVAS_WARN_STILL_BYTES
+  if (file.size > sizeLimit) {
+    return {
+      item: null,
+      error: `${file.name} is too large for safe live CANVAS use (${formatBytes(file.size)}). Use ${type === 'video' ? 'a shorter or lower-resolution video under 750 MB' : 'an optimized image/SVG under 60 MB'}.`,
+    }
+  }
+
+  const warningParts: string[] = []
+  if (file.size > warningLimit) {
+    warningParts.push(`${file.name} is ${formatBytes(file.size)}. Large CANVAS files can increase memory and decode load during performance.`)
+  }
+  if (type === 'video' && file.name.toLowerCase().endsWith('.mov')) {
+    warningParts.push(`${file.name} is a MOV file. Browser playback depends on the codec; H.264 MP4 or WebM is safer for live use.`)
+  }
+
   if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
     return { item: null, error: `${file.name} could not be prepared because this browser does not support local object URLs.` }
   }
@@ -127,6 +149,7 @@ function makeCanvasMediaItem(file: File): CanvasMediaCreateResult {
         createdAt: new Date().toISOString(),
       },
       error: null,
+      warning: warningParts.join(' '),
     }
   } catch {
     return { item: null, error: `${file.name} could not be prepared as local CANVAS media.` }
@@ -145,6 +168,7 @@ function CanvasUploadControl({ compact = false }: { compact?: boolean }) {
   const addCanvasMediaItems = useReactStore(s => s.addCanvasMediaItems)
   const selectCanvasMediaItem = useReactStore(s => s.selectCanvasMediaItem)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadNotice, setUploadNotice] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
 
   const handleFiles = useCallback((files: File[]) => {
@@ -152,20 +176,28 @@ function CanvasUploadControl({ compact = false }: { compact?: boolean }) {
 
     const accepted: CanvasMediaItem[] = []
     const rejected: string[] = []
+    const warnings: string[] = []
 
     files.forEach(file => {
       const result = makeCanvasMediaItem(file)
-      if (result.item) accepted.push(result.item)
-      else rejected.push(result.error)
+      if (result.item) {
+        accepted.push(result.item)
+        if (result.warning) warnings.push(result.warning)
+      } else {
+        rejected.push(result.error)
+      }
     })
 
     if (accepted.length > 0) {
       addCanvasMediaItems(accepted)
-      selectCanvasMediaItem(accepted[0].id)
+      selectCanvasMediaItem(accepted[0].id, { manual: false })
     }
 
     setUploadError(rejected.length > 0
       ? `${rejected.slice(0, 3).join(' ')}${rejected.length > 3 ? '…' : ''}`
+      : null)
+    setUploadNotice(warnings.length > 0
+      ? `${warnings.slice(0, 2).join(' ')}${warnings.length > 2 ? '…' : ''}`
       : null)
   }, [addCanvasMediaItems, selectCanvasMediaItem])
 
@@ -178,6 +210,7 @@ function CanvasUploadControl({ compact = false }: { compact?: boolean }) {
     <div className={`rv-canvas-upload-flow${compact ? ' rv-canvas-upload-flow--compact' : ''}`}>
       <div className="rv-canvas-upload-copy">
         {CANVAS_HELPER_LINES.map(line => <span key={line}>{line}</span>)}
+        <span>{CANVAS_SESSION_COPY}</span>
       </div>
       <label className="rv-canvas-upload-target">
         <input
@@ -191,6 +224,7 @@ function CanvasUploadControl({ compact = false }: { compact?: boolean }) {
         <span className="rv-canvas-upload-target__meta">MP4, WebM, MOV, PNG, JPG, WebP, SVG</span>
       </label>
       {uploadError && <div className="rv-canvas-upload-error">{uploadError}</div>}
+      {uploadNotice && <div className="rv-canvas-upload-notice">{uploadNotice}</div>}
     </div>
   )
 }
@@ -257,6 +291,8 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
   const selectCanvasMediaItem = useReactStore(s => s.selectCanvasMediaItem)
   const removeCanvasMediaItem = useReactStore(s => s.removeCanvasMediaItem)
+  const manualMediaOverrideId = useReactStore(s => s.canvasEngineSettings.manualMediaOverrideId)
+  const clearCanvasMediaOverride = useReactStore(s => s.clearCanvasMediaOverride)
 
   const handleRemove = (item: CanvasMediaItem) => {
     removeCanvasMediaItem(item.id)
@@ -273,6 +309,12 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
 
   return (
     <div className={`rv-canvas-library${compact ? ' rv-canvas-library--compact' : ''}`}>
+      {manualMediaOverrideId && mediaItems.some(item => item.id === manualMediaOverrideId) && (
+        <div className="rv-canvas-media-lock" role="status">
+          <span>Manual media lock: Auto Select will keep your chosen CANVAS visual.</span>
+          <button type="button" onClick={clearCanvasMediaOverride}>Clear Media Lock</button>
+        </div>
+      )}
       {mediaItems.map(item => {
         const active = item.id === activeCanvasMediaId
         return (
@@ -297,7 +339,7 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
                   <span>{formatBytes(item.fileSize)}</span>
                 </span>
               </span>
-              {active && <span className="rv-canvas-media-card__active">Active</span>}
+              {active && <span className="rv-canvas-media-card__active">{item.id === manualMediaOverrideId ? 'Locked' : 'Active'}</span>}
             </button>
             <button
               type="button"
@@ -1082,6 +1124,8 @@ export function CanvasEngineSurface({
   trackSections = [],
   getAudioTime,
   activeAudioTrackId = null,
+  onCanvasReady,
+  onLiveFps,
 }: {
   isPlaying: boolean
   isPaused: boolean
@@ -1090,6 +1134,8 @@ export function CanvasEngineSurface({
   trackSections?: ReactTrackSection[]
   getAudioTime?: () => number
   activeAudioTrackId?: string | null
+  onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
+  onLiveFps?: (fps: number) => void
 }) {
   const settings = useReactStore(s => s.canvasEngineSettings)
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
@@ -1103,6 +1149,7 @@ export function CanvasEngineSurface({
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const imageRef = useRef<HTMLImageElement | null>(null)
   const outputRef = useRef<HTMLDivElement | null>(null)
+  const outputCaptureCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const [mediaLoadError, setMediaLoadError] = useState<CanvasMediaLoadState>(EMPTY_CANVAS_MEDIA_LOAD_STATE)
   const trackAnalysisRef = useRef<TrackIntelligenceAnalysis | null>(trackAnalysis)
   const trackSectionsRef = useRef<ReactTrackSection[]>(trackSections)
@@ -1124,6 +1171,174 @@ export function CanvasEngineSurface({
   trackAnalysisRef.current = trackAnalysis
   trackSectionsRef.current = trackSections
   getAudioTimeRef.current = getAudioTime
+
+  useEffect(() => {
+    const captureCanvas = outputCaptureCanvasRef.current
+    onCanvasReady?.(captureCanvas)
+    return () => onCanvasReady?.(null)
+  }, [onCanvasReady])
+
+  useEffect(() => {
+    const captureCanvas = outputCaptureCanvasRef.current
+    if (!captureCanvas) return
+    const captureContext = captureCanvas.getContext('2d', { alpha: true })
+    if (!captureContext) return
+
+    const sampleCanvas = document.createElement('canvas')
+    const frequencyData = analyser ? new Uint8Array(Math.max(1, analyser.frequencyBinCount)) : null
+    let frameId = 0
+    let previousBass = 0
+    let heldBeat = 0
+    let points: CanvasParticlePoint[] = []
+    let lastParticleSampleAt = 0
+    let fpsFrames = 0
+    let fpsLastAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
+
+    const drawSource = () => {
+      const visibleRect = outputRef.current?.getBoundingClientRect()
+      const cssWidth = Math.max(1, Math.round(visibleRect?.width || 1280))
+      const cssHeight = Math.max(1, Math.round(visibleRect?.height || 720))
+      const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1))
+      const targetWidth = Math.max(1, Math.round(cssWidth * dpr))
+      const targetHeight = Math.max(1, Math.round(cssHeight * dpr))
+      if (captureCanvas.width !== targetWidth || captureCanvas.height !== targetHeight) {
+        captureCanvas.width = targetWidth
+        captureCanvas.height = targetHeight
+      }
+
+      captureContext.setTransform(dpr, 0, 0, dpr, 0, 0)
+      captureContext.clearRect(0, 0, cssWidth, cssHeight)
+      captureContext.fillStyle = '#02070a'
+      captureContext.fillRect(0, 0, cssWidth, cssHeight)
+
+      const source = particleSourceRef.current
+      if (!activeItem || !source || !isCanvasParticleSourceReady(source)) return
+
+      let bass = 0.14
+      let high = 0.1
+      let beat = 0
+      const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now()
+      const now = nowMs / 1000
+      if (analyser && frequencyData && isPlaying && !isPaused) {
+        analyser.getByteFrequencyData(frequencyData)
+        bass = averageByteRange(frequencyData, 0, 0.16)
+        high = averageByteRange(frequencyData, 0.62, 1)
+        const bassDelta = bass - previousBass
+        heldBeat = Math.max(0, heldBeat * 0.78, bass > 0.54 && bassDelta > 0.045 ? 1 : 0)
+        beat = heldBeat
+        previousBass = previousBass * 0.58 + bass * 0.42
+      } else {
+        bass = 0.18 + Math.sin(now * 1.3) * 0.04
+        high = 0.12 + Math.sin(now * 2.1) * 0.03
+        beat = Math.max(0, Math.sin(now * 2.6)) * 0.28
+        previousBass = bass
+      }
+
+      const sourceSize = getCanvasParticleSourceSize(source)
+      const sourceAspect = sourceSize.width / Math.max(1, sourceSize.height)
+      const canvasAspect = cssWidth / Math.max(1, cssHeight)
+      let drawWidth = cssWidth
+      let drawHeight = cssHeight
+      if (settings.fitMode === 'contain') {
+        if (sourceAspect > canvasAspect) drawHeight = cssWidth / sourceAspect
+        else drawWidth = cssHeight * sourceAspect
+      } else if (settings.fitMode === 'cover') {
+        if (sourceAspect > canvasAspect) drawWidth = cssHeight * sourceAspect
+        else drawHeight = cssWidth / sourceAspect
+      }
+
+      const presetSourceVisibility = selectedPreset.id === 'canvas-particle-aura'
+        ? canvasPresetSettings.sourceVisibility
+        : 1
+      const liveScale = selectedPreset.id === 'canvas-bass-bloom'
+        ? settings.scale + bass * canvasPresetSettings.intensity * 0.16
+        : selectedPreset.id === 'canvas-frame-stutter'
+          ? settings.scale + beat * canvasPresetSettings.intensity * 0.035
+          : settings.scale
+      const shake = selectedPreset.id === 'canvas-glitch-pulse' || selectedPreset.id === 'canvas-frame-stutter'
+        ? (beat * 9 + high * 4 + 0.8) * canvasPresetSettings.glitchAmount * canvasPresetSettings.intensity
+        : 0
+
+      captureContext.save()
+      captureContext.globalAlpha = clampCanvasRange(settings.opacity * presetSourceVisibility, 0, 1)
+      captureContext.translate(
+        cssWidth * 0.5 + cssWidth * 0.5 * (settings.positionX / 100) + Math.sin(now * 48) * shake,
+        cssHeight * 0.5 + cssHeight * 0.5 * (settings.positionY / 100) + Math.cos(now * 41) * shake,
+      )
+      captureContext.rotate((settings.rotation + shake * 0.16) * Math.PI / 180)
+      captureContext.scale(liveScale, liveScale)
+      captureContext.filter = selectedPreset.id === 'canvas-luma-melt'
+        ? `blur(${(canvasPresetSettings.motionTrailAmount * 5 + canvasPresetSettings.intensity * 1.5).toFixed(2)}px) brightness(${(1.05 + canvasPresetSettings.intensity * 0.16).toFixed(3)}) contrast(${(1.04 + (1 - canvasPresetSettings.lumaThreshold) * 0.28).toFixed(3)})`
+        : selectedPreset.id === 'canvas-bass-bloom'
+          ? `brightness(${(1.03 + bass * canvasPresetSettings.intensity * 0.34).toFixed(3)}) contrast(${(1.02 + bass * 0.12).toFixed(3)})`
+          : selectedPreset.id === 'canvas-glitch-pulse'
+            ? `saturate(${(1.1 + high * canvasPresetSettings.glitchAmount * 1.4).toFixed(3)}) contrast(${(1.03 + beat * 0.18).toFixed(3)})`
+            : 'none'
+      try {
+        captureContext.drawImage(source, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight)
+      } catch {
+        // If a browser blocks a specific source draw, keep the capture canvas alive and blank.
+      }
+      captureContext.restore()
+
+      if (selectedPreset.id === 'canvas-particle-aura') {
+        if (points.length === 0 || nowMs - lastParticleSampleAt > (activeItem.type === 'video' ? 260 : 900)) {
+          points = sampleCanvasParticleSource({ source, settings: canvasPresetSettings, sampleCanvas })
+          lastParticleSampleAt = nowMs
+        }
+        captureContext.save()
+        captureContext.globalCompositeOperation = 'lighter'
+        const bassPush = bass * canvasPresetSettings.bassBurst * canvasPresetSettings.intensity * Math.min(cssWidth, cssHeight) * 0.18
+        const beatScale = 1 + beat * canvasPresetSettings.beatPulse * 0.9
+        const turbulence = canvasPresetSettings.turbulence * (4 + high * 18 + bass * 8)
+        const dissolveScatter = canvasPresetSettings.dissolveAmount * Math.min(cssWidth, cssHeight) * 0.12
+        const glow = canvasPresetSettings.glow * (8 + bass * 28 + beat * 20)
+        points.forEach((point, index) => {
+          const dx = point.baseX - 0.5
+          const dy = point.baseY - 0.5
+          const distance = Math.max(0.08, Math.hypot(dx, dy))
+          const normalX = dx / distance
+          const normalY = dy / distance
+          const noiseA = Math.sin(now * (0.65 + point.luma) + point.seed * 10.1)
+          const noiseB = Math.cos(now * (0.78 + point.alpha) + point.seed * 7.7)
+          const dissolveNoise = seededCanvasParticleNoise(point.seed + Math.floor(now * 12) * 0.31)
+          if (canvasPresetSettings.dissolveAmount > 0.72 && (index % 3) === 0 && dissolveNoise < canvasPresetSettings.dissolveAmount - 0.46) return
+          const color = getCanvasParticleColor(point, canvasPresetSettings.particleColorMode, bass, high)
+          const x = point.baseX * cssWidth + normalX * bassPush + noiseA * turbulence + (dissolveNoise - 0.5) * dissolveScatter
+          const y = point.baseY * cssHeight + normalY * bassPush + noiseB * turbulence + (seededCanvasParticleNoise(point.seed * 2.3) - 0.5) * dissolveScatter
+          const size = Math.max(0.35, canvasPresetSettings.particleSize * (0.45 + point.luma * 1.25) * beatScale)
+          const alpha = clampCanvasRange((0.16 + point.luma * 0.78) * point.alpha * canvasPresetSettings.intensity * (1 - canvasPresetSettings.dissolveAmount * 0.42), 0, 0.95)
+          if (alpha <= 0.015) return
+          captureContext.beginPath()
+          captureContext.fillStyle = color
+          captureContext.globalAlpha = alpha
+          captureContext.shadowColor = color
+          captureContext.shadowBlur = glow * (0.35 + point.luma)
+          captureContext.arc(x, y, size, 0, Math.PI * 2)
+          captureContext.fill()
+        })
+        captureContext.restore()
+      }
+    }
+
+    const tick = () => {
+      drawSource()
+      const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now()
+      fpsFrames += 1
+      if (nowMs - fpsLastAt >= 1000) {
+        onLiveFps?.(Math.round((fpsFrames * 1000) / Math.max(1, nowMs - fpsLastAt)))
+        fpsFrames = 0
+        fpsLastAt = nowMs
+      }
+      frameId = window.requestAnimationFrame(tick)
+    }
+
+    tick()
+    return () => {
+      window.cancelAnimationFrame(frameId)
+      onLiveFps?.(0)
+    }
+  }, [activeItem, activeItem?.id, analyser, canvasPresetSettings, isPaused, isPlaying, onLiveFps, particleSourceRef, selectedPreset.id, settings])
 
   useEffect(() => {
     setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)
@@ -1443,10 +1658,13 @@ export function CanvasEngineSurface({
   }, [activeMediaLoadError, activeVideo, canvasPresetSettings.glitchAmount, canvasPresetSettings.intensity, canvasPresetSettings.stutterRate, isPaused, isPlaying, selectedCanvasPresetId])
 
 
+  const captureCanvasNode = <canvas ref={outputCaptureCanvasRef} className="rv-canvas-output-capture" aria-hidden="true" />
+
   if (!activeItem) {
     const hasUploadedMedia = mediaItems.length > 0
     return (
       <div className="rv-canvas-engine-surface rv-canvas-engine-surface--empty" role="region" aria-label="CANVAS engine media surface">
+        {captureCanvasNode}
         <div className="rv-canvas-live-empty-card">
           <div className="rv-canvas-engine-eyebrow">CANVAS Uploaded Media</div>
           <h2 className="rv-canvas-live-empty-title">
@@ -1460,6 +1678,7 @@ export function CanvasEngineSurface({
                 : 'Upload a personal video, image, or SVG in the CANVAS engine panel, then select it to make it the main React View visual.'}
           </p>
           <CanvasMediaTokens />
+          <div className="rv-canvas-engine-note">{CANVAS_SESSION_COPY}</div>
           <CanvasUploadControl />
           {hasUploadedMedia && <CanvasMediaLibrary compact />}
         </div>
@@ -1469,6 +1688,7 @@ export function CanvasEngineSurface({
 
   return (
     <div className="rv-canvas-engine-surface" role="region" aria-label="CANVAS engine media surface">
+      {captureCanvasNode}
       <div
         ref={outputRef}
         className={`rv-canvas-live-output ${canvasPresetClassName(selectedPreset.id)}`}
@@ -1728,24 +1948,38 @@ function CanvasAutoSelectControl() {
   const settings = useReactStore(s => s.canvasEngineSettings)
   const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
   const canvasPresetOverride = useReactStore(s => s.canvasPresetOverride)
-  const mediaCount = useReactStore(s => s.canvasMediaItems.length)
+  const mediaItems = useReactStore(s => s.canvasMediaItems)
+  const mediaCount = mediaItems.length
   const setCanvasAutoSelectEnabled = useReactStore(s => s.setCanvasAutoSelectEnabled)
   const clearCanvasPresetOverride = useReactStore(s => s.clearCanvasPresetOverride)
+  const clearCanvasMediaOverride = useReactStore(s => s.clearCanvasMediaOverride)
   const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
   const hasTrackLoaded = Boolean(engine.currentTrackId)
-  const hasAnalyzedTrack = Boolean(engine.currentAnalysis && engine.currentAnalysisStatus === 'complete')
   const manualOverrideActive = canvasPresetOverride?.source === 'manual'
   const autoSelectionActive = settings.autoSelectEnabled && canvasPresetOverride?.source === 'auto'
+  const manualMediaOverrideActive = Boolean(
+    settings.manualMediaOverrideId && mediaItems.some(item => item.id === settings.manualMediaOverrideId),
+  )
+  const autoPreview = useMemo(() => resolveCanvasAutoFeatures({
+    frame: AudioFeatureBus.getFrame(),
+    trackAnalysis: engine.currentAnalysis,
+    trackSections: [],
+    audioTime: resolveCanvasAudioTime(engine.getCurrentTime),
+    activeAudioTrackId: engine.currentTrackId,
+  }), [engine.currentAnalysis, engine.currentTrackId, engine.getCurrentTime, engine.currentAnalysisStatus])
+  const hasSmartAutoData = autoPreview.hasSmartData
 
   const description = mediaCount === 0
     ? 'Upload CANVAS media first. Auto Select can choose a preset, but it needs personal media to display.'
     : !hasTrackLoaded
       ? 'Load and analyze a track to enable smarter CANVAS Auto Select.'
-      : !hasAnalyzedTrack
-        ? 'Audio Intelligence is missing. Auto Select waits safely and the current preset stays live.'
+      : !hasSmartAutoData
+        ? 'Audio Intelligence is missing or still warming up. Auto Select waits safely and the current preset stays live.'
         : manualOverrideActive
           ? 'Auto Select can stay on, but it will not replace the manually selected preset until the override is cleared.'
-          : 'Uses Audio Intelligence sections, energy, brightness, and rhythm to choose CANVAS presets and media.'
+          : manualMediaOverrideActive
+            ? 'Uses Audio Intelligence to choose CANVAS presets while keeping your manually selected media locked.'
+            : 'Uses Audio Intelligence sections, energy, brightness, and rhythm to choose CANVAS presets and media.'
 
   return (
     <div className="rv-canvas-auto-select-block">
@@ -1771,14 +2005,20 @@ function CanvasAutoSelectControl() {
           <span>Upload personal media in CANVAS before Auto Select starts choosing visuals.</span>
         </div>
       )}
-      {!manualOverrideActive && settings.autoSelectEnabled && mediaCount > 0 && !hasAnalyzedTrack && (
+      {!manualOverrideActive && settings.autoSelectEnabled && mediaCount > 0 && !hasSmartAutoData && (
         <div className="rv-canvas-auto-status rv-canvas-auto-status--helper" role="status">
           <span>{hasTrackLoaded ? `Audio Intelligence missing. CANVAS will keep ${selectedPreset.name} until analysis data arrives.` : 'Load and analyze a track to enable smarter CANVAS Auto Select.'}</span>
         </div>
       )}
-      {!manualOverrideActive && settings.autoSelectEnabled && mediaCount > 0 && hasAnalyzedTrack && !autoSelectionActive && (
+      {!manualOverrideActive && settings.autoSelectEnabled && mediaCount > 0 && hasSmartAutoData && !autoSelectionActive && (
         <div className="rv-canvas-auto-status rv-canvas-auto-status--helper" role="status">
-          <span>Auto Select armed. CANVAS will choose from the uploaded media as the track moves.</span>
+          <span>Auto Select armed. CANVAS is reading {autoPreview.reason.toLowerCase()}.</span>
+        </div>
+      )}
+      {!manualOverrideActive && settings.autoSelectEnabled && manualMediaOverrideActive && (
+        <div className="rv-canvas-auto-status rv-canvas-auto-status--override" role="status">
+          <span>Manual media lock active. Auto Select will not replace the chosen CANVAS visual.</span>
+          <button type="button" onClick={clearCanvasMediaOverride}>Clear Media Lock</button>
         </div>
       )}
     </div>
@@ -2017,7 +2257,8 @@ export function CanvasEnginePanel() {
       <CtrlSection label="CANVAS" />
       <div className="rv-canvas-engine-panel">
         <div className="rv-canvas-panel-title">Media Visuals</div>
-        <div className="rv-canvas-panel-copy">{CANVAS_MEDIA_COPY}</div>
+        <div className="rv-canvas-panel-copy">{CANVAS_DESCRIPTION} {CANVAS_MEDIA_COPY}</div>
+        <div className="rv-canvas-engine-note">{CANVAS_SESSION_COPY}</div>
         <CanvasMediaTokens />
         <CanvasActivePreview />
         <CanvasUploadControl compact />
@@ -2039,7 +2280,7 @@ export function CanvasEnginePanel() {
   )
 }
 
-export function CanvasEngineFxPlaceholder() {
+export function CanvasEngineFxPanel() {
   const settings = useReactStore(s => s.canvasEngineSettings)
   const setCanvasEngineSettings = useReactStore(s => s.setCanvasEngineSettings)
 

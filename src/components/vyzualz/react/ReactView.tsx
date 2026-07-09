@@ -357,13 +357,6 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
   const activeSdClips        = activeTrackId ? (soundDrawingClipsByTrackId[activeTrackId]   ?? []) : []
   const showDirectorStageEditorVisible = activeReactEngineId === 'laserDmx' && laserDmxBeamMatrixAuthoringMode === 'showDirector'
 
-  useEffect(() => {
-    if (activeReactEngineId === 'canvas') {
-      setOutputCanvas(null)
-      setLiveFps(0)
-    }
-  }, [activeReactEngineId])
-
   return (
     <div className="rv-shell" data-stage-focus={stageFocus ? 'true' : undefined}>
       <div className="vz-header">
@@ -475,6 +468,8 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
                 trackSections={resolvedTrackSections}
                 getAudioTime={engine.getCurrentTime}
                 activeAudioTrackId={engine.currentTrackId}
+                onCanvasReady={setOutputCanvas}
+                onLiveFps={setLiveFps}
               />
             ) : (
               <ReactPlaceholderCanvas

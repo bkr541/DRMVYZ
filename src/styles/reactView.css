@@ -9849,6 +9849,16 @@
   line-height: 1.35;
 }
 
+.rv-canvas-upload-notice {
+  border: 1px solid rgba(216, 185, 90, 0.22);
+  border-radius: 8px;
+  padding: 7px 8px;
+  background: rgba(216, 185, 90, 0.07);
+  color: rgba(255, 232, 178, 0.82);
+  font-size: 9.5px;
+  line-height: 1.35;
+}
+
 .rv-canvas-library-shell {
   display: flex;
   flex-direction: column;
@@ -9914,6 +9924,41 @@
   color: rgba(232, 244, 248, 0.42);
   font-size: 9.5px;
   line-height: 1.35;
+}
+
+.rv-canvas-media-lock {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid rgba(216, 185, 90, 0.24);
+  border-radius: 10px;
+  padding: 8px 9px;
+  background: rgba(216, 185, 90, 0.07);
+  color: rgba(255, 232, 178, 0.78);
+  font-size: 9.5px;
+  line-height: 1.35;
+}
+
+.rv-canvas-media-lock button {
+  flex: 0 0 auto;
+  border: 1px solid rgba(216, 185, 90, 0.28);
+  border-radius: 999px;
+  padding: 4px 7px;
+  background: rgba(216, 185, 90, 0.08);
+  color: rgba(255, 230, 166, 0.82);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.rv-canvas-media-lock button:hover,
+.rv-canvas-media-lock button:focus-visible {
+  border-color: rgba(216, 185, 90, 0.5);
+  background: rgba(216, 185, 90, 0.14);
+  color: rgba(255, 241, 202, 0.96);
 }
 
 .rv-canvas-media-card {
@@ -10213,6 +10258,16 @@
 }
 
 /* ── CANVAS preset treatments ─────────────────────────────────────────────── */
+.rv-canvas-output-capture {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  left: -9999px;
+  top: -9999px;
+  pointer-events: none;
+  opacity: 0;
+}
+
 .rv-canvas-live-output {
   --canvas-preset-bass: 0;
   --canvas-preset-beat: 0;

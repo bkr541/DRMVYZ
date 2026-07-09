@@ -273,6 +273,8 @@ export interface CanvasEngineSettings {
   mediaIds: string[]
   uploadEnabled: boolean
   autoSelectEnabled: boolean
+  manualMediaOverrideId: string | null
+
   supportedMediaKinds: CanvasMediaKind[]
   fitMode: CanvasFitMode
   scale: number
@@ -288,6 +290,7 @@ export const DEFAULT_CANVAS_ENGINE_SETTINGS: CanvasEngineSettings = {
   mediaIds: [],
   uploadEnabled: true,
   autoSelectEnabled: false,
+  manualMediaOverrideId: null,
   supportedMediaKinds: ['video', 'image', 'svg'],
   fitMode: 'contain',
   scale: 1,

@@ -13,7 +13,7 @@ import { ShaderParameterPanel } from './shaders/ui/ShaderParameterPanel'
 import { getReactFxMasterControls } from './reactFxMasterControls'
 import { ReactResetActions } from './ReactResetActions'
 import { CinematicWorldsFxControls } from './CinematicWorldsControls'
-import { CanvasEngineFxPlaceholder } from './ReactCanvasEngineShell'
+import { CanvasEngineFxPanel } from './ReactCanvasEngineShell'
 
 // ── FX panel ──────────────────────────────────────────────────────────────────
 // Styles the currently active visual engine.
@@ -136,7 +136,7 @@ export function ReactFxPanel() {
   }
 
   if (isCanvas) {
-    return <CanvasEngineFxPlaceholder />
+    return <CanvasEngineFxPanel />
   }
 
   if (isShader) {

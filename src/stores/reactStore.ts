@@ -1482,11 +1482,12 @@ interface ReactStoreState {
   setCanvasAutoSelectEnabled: (enabled: boolean) => void
   applyCanvasAutoSelection: (selection: { presetId: CanvasPresetId; mediaId?: string | null; label?: string | null }) => void
   clearCanvasPresetOverride: () => void
+  clearCanvasMediaOverride: () => void
   selectCanvasPreset: (id: CanvasPresetId) => void
   setCanvasPresetSettings: (patch: Partial<CanvasPresetSettings>) => void
   resetCanvasPresetSettings: () => void
   addCanvasMediaItems: (items: CanvasMediaItem[]) => void
-  selectCanvasMediaItem: (id: string) => void
+  selectCanvasMediaItem: (id: string, options?: { manual?: boolean }) => void
   restartCanvasVideo: () => void
   setCanvasMediaTiming: (mediaId: string, patch: Partial<CanvasVideoTimingSettings>) => void
   removeCanvasMediaItem: (id: string) => void
@@ -2394,6 +2395,9 @@ function normalizeCanvasEngineSettings(value: unknown): CanvasEngineSettings {
     mediaIds,
     uploadEnabled: true,
     autoSelectEnabled: value.autoSelectEnabled === true,
+    manualMediaOverrideId: typeof value.manualMediaOverrideId === 'string' && mediaIds.includes(value.manualMediaOverrideId)
+      ? value.manualMediaOverrideId
+      : null,
     supportedMediaKinds: supportedMediaKinds.length > 0
       ? [...new Set(supportedMediaKinds)]
       : [...DEFAULT_CANVAS_ENGINE_SETTINGS.supportedMediaKinds],
@@ -2412,6 +2416,7 @@ function createCanvasEngineSettingsForPersistence(settings: CanvasEngineSettings
     ...settings,
     selectedMediaId: null,
     mediaIds: [],
+    manualMediaOverrideId: null,
   })
 }
 
@@ -3616,10 +3621,14 @@ export const useReactStore = create<ReactStoreState>()(
       applyCanvasAutoSelection: ({ presetId, mediaId, label }) => set((state) => {
         if (!state.canvasEngineSettings.autoSelectEnabled || state.canvasPresetOverride?.source === 'manual') return {}
         const preset = CANVAS_PRESET_BY_ID[presetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
-        const nextMediaId = typeof mediaId === 'string' && state.canvasMediaItems.some(item => item.id === mediaId)
-          ? mediaId
-          : state.activeCanvasMediaId
-        const mediaChanged = Boolean(nextMediaId && nextMediaId !== state.activeCanvasMediaId)
+        const manualMediaOverrideId = state.canvasEngineSettings.manualMediaOverrideId
+        const manualMediaOverrideValid = typeof manualMediaOverrideId === 'string' && state.canvasMediaItems.some(item => item.id === manualMediaOverrideId)
+        const nextMediaId = manualMediaOverrideValid
+          ? state.activeCanvasMediaId
+          : typeof mediaId === 'string' && state.canvasMediaItems.some(item => item.id === mediaId)
+            ? mediaId
+            : state.activeCanvasMediaId
+        const mediaChanged = Boolean(!manualMediaOverrideValid && nextMediaId && nextMediaId !== state.activeCanvasMediaId)
         const mediaPatch = mediaChanged && nextMediaId
           ? {
               selectedCanvasMediaId: nextMediaId,
@@ -3650,6 +3659,13 @@ export const useReactStore = create<ReactStoreState>()(
 
       clearCanvasPresetOverride: () => set((state) => ({
         canvasPresetOverride: state.canvasPresetOverride?.source === 'manual' ? null : state.canvasPresetOverride,
+      })),
+
+      clearCanvasMediaOverride: () => set((state) => ({
+        canvasEngineSettings: normalizeCanvasEngineSettings({
+          ...state.canvasEngineSettings,
+          manualMediaOverrideId: null,
+        }),
       })),
 
       selectCanvasPreset: (id) => set(() => {
@@ -3719,12 +3735,21 @@ export const useReactStore = create<ReactStoreState>()(
         })
       }),
 
-      selectCanvasMediaItem: (id) => set((state) => {
+      selectCanvasMediaItem: (id, options) => set((state) => {
         if (!state.canvasMediaItems.some(item => item.id === id)) return repairCanvasRuntimeState(state)
+        const manualMediaOverrideId = state.canvasEngineSettings.manualMediaOverrideId
+        const manualMediaOverrideValid = typeof manualMediaOverrideId === 'string' && state.canvasMediaItems.some(item => item.id === manualMediaOverrideId)
+        if (options?.manual === false && manualMediaOverrideValid) return repairCanvasRuntimeState(state)
         return repairCanvasRuntimeState({
           ...state,
           selectedCanvasMediaId: id,
           activeCanvasMediaId: id,
+          canvasEngineSettings: normalizeCanvasEngineSettings({
+            ...state.canvasEngineSettings,
+            selectedMediaId: id,
+            mediaIds: state.canvasMediaItems.map(item => item.id),
+            manualMediaOverrideId: options?.manual === false ? null : id,
+          }),
         })
       }),
 
@@ -3765,6 +3790,14 @@ export const useReactStore = create<ReactStoreState>()(
           canvasMediaItems: nextItems,
           selectedCanvasMediaId: nextSelectedId,
           activeCanvasMediaId: nextActiveId,
+          canvasEngineSettings: normalizeCanvasEngineSettings({
+            ...state.canvasEngineSettings,
+            selectedMediaId: nextActiveId,
+            mediaIds: nextItems.map(item => item.id),
+            manualMediaOverrideId: state.canvasEngineSettings.manualMediaOverrideId === id
+              ? null
+              : state.canvasEngineSettings.manualMediaOverrideId,
+          }),
           canvasVideoRestartRevision: state.canvasVideoRestartRevision + 1,
         })
       }),
@@ -3780,6 +3813,7 @@ export const useReactStore = create<ReactStoreState>()(
             ...state.canvasEngineSettings,
             selectedMediaId: null,
             mediaIds: [],
+            manualMediaOverrideId: null,
           }),
         }
       }),
