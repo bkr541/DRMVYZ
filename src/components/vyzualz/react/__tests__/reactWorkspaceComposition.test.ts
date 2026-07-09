@@ -87,8 +87,8 @@ describe('React workspace composition', () => {
     expect(getReactLeftTabLabel('workspace', soundDrawing)).toBe('SOURCE')
 
     const canvas = resolveReactWorkspaceComposition('canvas', 'beamMatrix', false)
-    expect(getReactLeftTabs(canvas)).toEqual(['workspace', 'media'])
-    expect(getReactLeftTabLabel('workspace', canvas)).toBe('SETUP')
+    expect(getReactLeftTabs(canvas)).toEqual(['workspace'])
+    expect(getReactLeftTabLabel('workspace', canvas)).toBe('SOURCE')
   })
 
   it('never advertises unfinished or unrelated contextual destinations', () => {
@@ -96,7 +96,7 @@ describe('React workspace composition', () => {
       const tabs = getReactLeftTabs(resolveReactWorkspaceComposition(engine, 'beamMatrix', false))
       expect(tabs).not.toContain('sessions')
       if (engine !== 'oscilloscope') expect(tabs).not.toContain('fonts')
-      if (engine !== 'cinematicPortal' && engine !== 'oscilloscope' && engine !== 'canvas') expect(tabs).not.toContain('media')
+      if (engine !== 'cinematicPortal' && engine !== 'oscilloscope') expect(tabs).not.toContain('media')
     }
   })
 })

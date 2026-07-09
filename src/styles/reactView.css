@@ -9448,6 +9448,26 @@
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
+.rv-canvas-live-empty-card--render-only {
+  width: min(360px, 82%);
+  align-items: center;
+  gap: 10px;
+  padding: 18px 20px;
+  border-style: solid;
+  background: rgba(4, 10, 12, 0.56);
+}
+
+.rv-canvas-live-empty-card--render-only .rv-canvas-live-empty-title {
+  max-width: 280px;
+  font-size: clamp(18px, 2.4vw, 28px);
+  letter-spacing: 0.06em;
+}
+
+.rv-canvas-live-empty-card--render-only .rv-canvas-engine-desc {
+  max-width: 280px;
+  font-size: 11px;
+}
+
 .rv-canvas-live-empty-title {
   max-width: 420px;
   margin: 0 auto;
@@ -9500,90 +9520,6 @@
   will-change: transform, opacity;
   transition: opacity 0.12s ease;
   user-select: none;
-}
-
-.rv-canvas-live-badge,
-.rv-canvas-live-video-strip {
-  position: absolute;
-  z-index: 2;
-  border: 1px solid rgba(74, 199, 219, 0.14);
-  background: rgba(2, 6, 8, 0.72);
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(12px);
-}
-
-.rv-canvas-live-badge {
-  top: 14px;
-  left: 14px;
-  max-width: min(420px, calc(100% - 28px));
-  display: grid;
-  gap: 3px;
-  border-radius: 12px;
-  padding: 9px 11px;
-}
-
-.rv-canvas-live-badge span {
-  color: rgba(97, 214, 170, 0.78);
-  font-size: 8.5px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.rv-canvas-live-badge strong {
-  overflow: hidden;
-  color: rgba(232, 244, 248, 0.9);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.rv-canvas-live-badge em {
-  color: rgba(232, 244, 248, 0.46);
-  font-size: 9px;
-  font-style: normal;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.rv-canvas-live-video-strip {
-  right: 14px;
-  bottom: 14px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-radius: 999px;
-  padding: 7px 9px 7px 11px;
-  color: rgba(232, 244, 248, 0.58);
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-}
-
-.rv-canvas-live-video-strip strong {
-  color: rgba(97, 214, 170, 0.78);
-}
-
-.rv-canvas-live-video-strip em {
-  color: rgba(232, 244, 248, 0.38);
-  font-style: normal;
-}
-
-.rv-canvas-live-video-strip button {
-  border: 1px solid rgba(74, 199, 219, 0.2);
-  border-radius: 999px;
-  padding: 4px 7px;
-  background: rgba(74, 199, 219, 0.08);
-  color: rgba(232, 244, 248, 0.78);
-  font: inherit;
-  cursor: pointer;
-}
-
-.rv-canvas-live-video-strip button:hover,
-.rv-canvas-live-video-strip button:focus-visible {
-  border-color: rgba(97, 214, 170, 0.5);
-  color: #e8f4f8;
 }
 
 .rv-canvas-engine-card {
@@ -10435,35 +10371,6 @@
 
 .rv-canvas-preset--frame-stutter .rv-canvas-live-media {
   animation: rv-canvas-frame-stutter var(--canvas-preset-stutter-duration, 0.5s) steps(2, end) infinite;
-}
-
-.rv-canvas-live-preset-strip {
-  position: absolute;
-  z-index: 2;
-  top: 14px;
-  right: 14px;
-  max-width: min(320px, calc(100% - 28px));
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid rgba(97, 214, 170, 0.18);
-  border-radius: 999px;
-  padding: 7px 10px;
-  background: rgba(2, 6, 8, 0.68);
-  color: rgba(232, 244, 248, 0.5);
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(12px);
-  font-size: 8.5px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.rv-canvas-live-preset-strip strong {
-  overflow: hidden;
-  color: rgba(97, 214, 170, 0.86);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .rv-canvas-preset-browser {

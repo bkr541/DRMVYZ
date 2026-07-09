@@ -44,8 +44,8 @@ export function resolveReactWorkspaceComposition(
     leftTabs = ['workspace', 'layers']
     workspaceTabLabel = 'RIG'
   } else if (isCanvas) {
-    leftTabs = ['workspace', 'media']
-    workspaceTabLabel = 'SETUP'
+    leftTabs = ['workspace']
+    workspaceTabLabel = 'SOURCE'
   }
 
   return {

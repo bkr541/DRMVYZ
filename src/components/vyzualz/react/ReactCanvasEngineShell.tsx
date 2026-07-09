@@ -24,8 +24,8 @@ import {
   type ReactTrackSection,
 } from './ReactTypes'
 
-const CANVAS_DESCRIPTION = 'Upload your own media and turn it into audio-reactive visuals.'
-const CANVAS_MEDIA_COPY = 'Videos, images, and SVGs uploaded here stay scoped to CANVAS and are never shared with other engines.'
+const CANVAS_DESCRIPTION = 'CANVAS uses your uploaded media as the visual source.'
+const CANVAS_MEDIA_COPY = 'Choose media from your library to render it in CANVAS.'
 const CANVAS_SESSION_COPY = 'CANVAS media is session-only for now. Preset and display settings can persist, but large uploaded files must be re-uploaded after reopening the app or project.'
 const CANVAS_WARN_VIDEO_BYTES = 250 * 1024 * 1024
 const CANVAS_MAX_VIDEO_BYTES = 750 * 1024 * 1024
@@ -40,7 +40,7 @@ const CANVAS_ACCEPT = [
 const CANVAS_HELPER_LINES = [
   'Upload media for CANVAS',
   'These files are used only inside the CANVAS engine.',
-  'Select a file below to make it the active CANVAS visual.',
+  'Choose media from your library to render it in CANVAS.',
 ]
 
 const TYPE_LABELS: Record<CanvasMediaItemType, string> = {
@@ -247,7 +247,7 @@ function CanvasActivePreview() {
       <div className="rv-canvas-active-preview rv-canvas-active-preview--empty">
         <div className="rv-canvas-active-preview__eyebrow">Active CANVAS Visual</div>
         <div className="rv-canvas-active-preview__title">No media selected</div>
-        <div className="rv-canvas-active-preview__copy">Upload personal media below, then choose a file from the CANVAS library.</div>
+        <div className="rv-canvas-active-preview__copy">Upload or choose media in this SOURCE panel to send it to the center visualizer.</div>
       </div>
     )
   }
@@ -354,12 +354,6 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
       })}
     </div>
   )
-}
-
-const CANVAS_FIT_LABELS: Record<CanvasFitMode, string> = {
-  contain: 'Contain',
-  cover:   'Cover',
-  stretch: 'Stretch',
 }
 
 function canvasObjectFit(fitMode: CanvasFitMode): CSSProperties['objectFit'] {
@@ -1106,16 +1100,6 @@ function getCanvasMediaLoadErrorMessage(item: CanvasMediaItem): string {
   return 'This CANVAS image could not load. Try PNG, JPG, or WebP.'
 }
 
-function formatCanvasControlSource(
-  autoSelectEnabled: boolean,
-  overrideSource: 'manual' | 'auto' | undefined,
-): string {
-  if (overrideSource === 'manual') return 'Manual override'
-  if (autoSelectEnabled && overrideSource === 'auto') return 'Auto Select'
-  if (autoSelectEnabled) return 'Auto Select waiting'
-  return 'Manual preset'
-}
-
 export function CanvasEngineSurface({
   isPlaying,
   isPaused,
@@ -1141,7 +1125,6 @@ export function CanvasEngineSurface({
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
   const mediaItems = useReactStore(s => s.canvasMediaItems)
   const restartRevision = useReactStore(s => s.canvasVideoRestartRevision)
-  const restartCanvasVideo = useReactStore(s => s.restartCanvasVideo)
   const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
   const canvasPresetSettings = useReactStore(s => s.canvasPresetSettings)
   const canvasPresetOverride = useReactStore(s => s.canvasPresetOverride)
@@ -1345,7 +1328,6 @@ export function CanvasEngineSurface({
   }, [activeItem?.id])
 
   const activeMediaLoadError = mediaLoadError.mediaId === activeItem?.id ? mediaLoadError.message : null
-  const canvasControlSource = formatCanvasControlSource(settings.autoSelectEnabled, canvasPresetOverride?.source)
 
   useEffect(() => {
     musicIntelligenceEngine.setTrackAnalysis(trackAnalysis ?? null)
@@ -1663,24 +1645,21 @@ export function CanvasEngineSurface({
   if (!activeItem) {
     const hasUploadedMedia = mediaItems.length > 0
     return (
-      <div className="rv-canvas-engine-surface rv-canvas-engine-surface--empty" role="region" aria-label="CANVAS engine media surface">
+      <div className="rv-canvas-engine-surface rv-canvas-engine-surface--empty" role="region" aria-label="CANVAS engine render surface">
         {captureCanvasNode}
-        <div className="rv-canvas-live-empty-card">
-          <div className="rv-canvas-engine-eyebrow">CANVAS Uploaded Media</div>
+        <div className="rv-canvas-live-empty-card rv-canvas-live-empty-card--render-only">
+          <div className="rv-canvas-engine-eyebrow">CANVAS Output</div>
           <h2 className="rv-canvas-live-empty-title">
-            {hasUploadedMedia ? 'No active CANVAS media selected' : 'No CANVAS media uploaded'}
+            {hasUploadedMedia ? 'No source selected' : 'Choose a CANVAS source'}
           </h2>
           <p className="rv-canvas-engine-desc">
             {selectedPreset.id === 'canvas-particle-aura'
-              ? 'Particle Aura needs an active personal video, image, or SVG to sample before it can emit particles.'
+              ? 'Particle Aura needs an active video, image, or SVG before it can sample pixels.'
               : hasUploadedMedia
-                ? 'Choose one uploaded personal file from the CANVAS library to make it the main React View visual.'
-                : 'Upload a personal video, image, or SVG in the CANVAS engine panel, then select it to make it the main React View visual.'}
+                ? 'Select media in the left SOURCE panel to render it here.'
+                : 'Add media in the left SOURCE panel, then this stage becomes render-only output.'}
           </p>
           <CanvasMediaTokens />
-          <div className="rv-canvas-engine-note">{CANVAS_SESSION_COPY}</div>
-          <CanvasUploadControl />
-          {hasUploadedMedia && <CanvasMediaLibrary compact />}
         </div>
       </div>
     )
@@ -1742,23 +1721,6 @@ export function CanvasEngineSurface({
           isPlaying={isPlaying}
           isPaused={isPaused}
         />
-        <div className="rv-canvas-live-badge">
-          <span>CANVAS uploaded media</span>
-          <strong title={activeItem.name}>{activeItem.name}</strong>
-          <em>{TYPE_LABELS[activeItem.type]} · {CANVAS_FIT_LABELS[settings.fitMode]} · {selectedPreset.name} · {canvasControlSource}</em>
-        </div>
-        <div className="rv-canvas-live-preset-strip" aria-label="CANVAS preset status">
-          <span>{canvasControlSource}</span>
-          <strong>{selectedPreset.name}</strong>
-        </div>
-        {activeVideo && (
-          <div className="rv-canvas-live-video-strip" aria-label="CANVAS video playback status">
-            <span>{isPlaying && !isPaused ? 'Audio-linked playback' : 'Waiting for React transport'}</span>
-            <strong>{activeTiming.loopClipRange ? 'Clip loop on' : settings.loopVideo ? 'Loop on' : 'Loop off'}</strong>
-            <button type="button" onClick={restartCanvasVideo}>Restart clip</button>
-            <em>Muted</em>
-          </div>
-        )}
       </div>
     </div>
   )
@@ -2029,8 +1991,8 @@ function CanvasTimingControls() {
   const engine = useSharedAudio()
   const settings = useReactStore(s => s.canvasEngineSettings)
   const setCanvasEngineSettings = useReactStore(s => s.setCanvasEngineSettings)
-  const restartCanvasVideo = useReactStore(s => s.restartCanvasVideo)
   const setCanvasMediaTiming = useReactStore(s => s.setCanvasMediaTiming)
+  const restartCanvasVideo = useReactStore(s => s.restartCanvasVideo)
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
   const activeItem = useReactStore(s => s.canvasMediaItems.find(item => item.id === activeCanvasMediaId) ?? null)
   const hasActiveVideo = activeItem?.type === 'video'
@@ -2255,16 +2217,17 @@ export function CanvasEnginePanel() {
   return (
     <>
       <CtrlSection label="CANVAS" />
-      <div className="rv-canvas-engine-panel">
-        <div className="rv-canvas-panel-title">Media Visuals</div>
-        <div className="rv-canvas-panel-copy">{CANVAS_DESCRIPTION} {CANVAS_MEDIA_COPY}</div>
+      <div className="rv-canvas-engine-panel rv-canvas-source-panel">
+        <div className="rv-canvas-panel-title">CANVAS Source</div>
+        <div className="rv-canvas-panel-copy">{CANVAS_DESCRIPTION}</div>
+        <div className="rv-canvas-panel-copy">{CANVAS_MEDIA_COPY}</div>
         <div className="rv-canvas-engine-note">{CANVAS_SESSION_COPY}</div>
         <CanvasMediaTokens />
-        <CanvasActivePreview />
         <CanvasUploadControl compact />
+        <CanvasActivePreview />
         <CanvasMediaLibrary compact />
         <div className="rv-canvas-panel-status">
-          <span>Loaded media</span>
+          <span>Library media</span>
           <strong>{mediaCount}</strong>
         </div>
         <div className="rv-canvas-panel-status">
@@ -2290,10 +2253,9 @@ export function CanvasEngineFxPanel() {
 
   return (
     <div className="rv-ctrl-group">
-      <Collapsible label="CANVAS Media" defaultOpen>
-        <div className="rv-canvas-panel-copy">{CANVAS_MEDIA_COPY}</div>
+      <Collapsible label="CANVAS Source Link" defaultOpen>
+        <div className="rv-canvas-panel-copy">Source selection lives in the left SOURCE panel so the center visualizer stays render-only.</div>
         <CanvasAutoSelectControl />
-        <CanvasUploadControl compact />
       </Collapsible>
 
       <CanvasPresetControls />
