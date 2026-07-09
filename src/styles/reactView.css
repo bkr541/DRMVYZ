@@ -10069,3 +10069,261 @@
   background: rgba(255, 255, 255, 0.04);
   color: rgba(232, 244, 248, 0.5);
 }
+
+/* ── CANVAS preset treatments ─────────────────────────────────────────────── */
+.rv-canvas-live-output {
+  --canvas-preset-bass: 0;
+  --canvas-preset-beat: 0;
+  --canvas-preset-high: 0;
+  --canvas-preset-scale-boost: 0;
+  --canvas-preset-shake-x: 0px;
+  --canvas-preset-shake-y: 0px;
+  --canvas-preset-rotate: 0deg;
+  --canvas-preset-live-glow: 0;
+  --canvas-preset-live-trail: 0;
+}
+
+.rv-canvas-live-media {
+  position: relative;
+  z-index: 1;
+  transition: opacity 0.12s ease, filter 0.12s ease;
+}
+
+.rv-canvas-preset-aura,
+.rv-canvas-live-media-shell::before,
+.rv-canvas-live-media-shell::after {
+  position: absolute;
+  inset: -8%;
+  z-index: 0;
+  content: '';
+  pointer-events: none;
+  opacity: 0;
+}
+
+.rv-canvas-preset-aura {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(97, 214, 170, 0.42), transparent 42%),
+    radial-gradient(circle at 50% 50%, rgba(74, 199, 219, 0.24), transparent 58%);
+  filter: blur(22px);
+  transform: scale(calc(1 + var(--canvas-preset-scale-boost, 0)));
+  transition: opacity 0.1s ease, transform 0.1s ease;
+}
+
+.rv-canvas-preset--clean-playback .rv-canvas-live-media {
+  filter: none;
+}
+
+.rv-canvas-preset--bass-bloom .rv-canvas-preset-aura {
+  opacity: var(--canvas-preset-live-glow, 0.22);
+}
+
+.rv-canvas-preset--bass-bloom .rv-canvas-live-media {
+  filter:
+    brightness(1.12)
+    saturate(1.16)
+    contrast(1.04)
+    drop-shadow(0 0 18px rgba(97, 214, 170, 0.38))
+    drop-shadow(0 0 34px rgba(74, 199, 219, 0.22));
+}
+
+.rv-canvas-preset--ghost-echo .rv-canvas-preset-aura {
+  opacity: var(--canvas-preset-live-trail, 0.24);
+  background:
+    radial-gradient(circle at 42% 45%, rgba(157, 220, 255, 0.28), transparent 34%),
+    radial-gradient(circle at 58% 54%, rgba(97, 214, 170, 0.18), transparent 44%);
+  filter: blur(28px);
+  animation: rv-canvas-ghost-drift 2.8s ease-in-out infinite alternate;
+}
+
+.rv-canvas-preset--ghost-echo .rv-canvas-live-media-shell::before,
+.rv-canvas-preset--ghost-echo .rv-canvas-live-media-shell::after {
+  opacity: var(--canvas-preset-live-trail, 0.18);
+  border: 1px solid rgba(157, 220, 255, 0.14);
+  background: linear-gradient(135deg, rgba(157, 220, 255, 0.08), rgba(97, 214, 170, 0.04));
+  mix-blend-mode: screen;
+}
+
+.rv-canvas-preset--ghost-echo .rv-canvas-live-media-shell::before {
+  transform: translate(var(--canvas-preset-trail-offset, 8px), 0) scale(1.01);
+  filter: blur(6px);
+}
+
+.rv-canvas-preset--ghost-echo .rv-canvas-live-media-shell::after {
+  transform: translate(var(--canvas-preset-trail-neg-offset, -8px), 0) scale(0.99);
+  filter: blur(10px);
+}
+
+.rv-canvas-preset--ghost-echo .rv-canvas-live-media {
+  filter:
+    saturate(1.08)
+    drop-shadow(0 0 16px rgba(157, 220, 255, 0.34))
+    drop-shadow(0 0 32px rgba(74, 199, 219, 0.18));
+}
+
+.rv-canvas-preset--glitch-pulse .rv-canvas-live-media,
+.rv-canvas-preset--frame-stutter .rv-canvas-live-media {
+  filter:
+    contrast(1.18)
+    saturate(1.28)
+    drop-shadow(var(--canvas-preset-glitch-px, 5px) 0 rgba(255, 79, 216, 0.42))
+    drop-shadow(var(--canvas-preset-glitch-neg-px, -5px) 0 rgba(74, 199, 219, 0.42));
+}
+
+.rv-canvas-preset--glitch-pulse .rv-canvas-preset-aura,
+.rv-canvas-preset--frame-stutter .rv-canvas-preset-aura {
+  opacity: var(--canvas-preset-glitch-opacity, 0.2);
+  background:
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.12) 0 1px, transparent 1px 7px),
+    linear-gradient(90deg, rgba(255, 79, 216, 0.18), rgba(74, 199, 219, 0.18));
+  mix-blend-mode: screen;
+  filter: blur(1px);
+  animation: rv-canvas-glitch-scan 0.42s steps(2, end) infinite;
+}
+
+.rv-canvas-preset--glitch-pulse .rv-canvas-live-media {
+  animation: rv-canvas-glitch-pulse 0.28s steps(2, end) infinite;
+}
+
+.rv-canvas-preset--luma-melt .rv-canvas-preset-aura {
+  opacity: var(--canvas-preset-luma-opacity, 0.34);
+  background:
+    linear-gradient(180deg, rgba(216, 185, 90, 0.18), transparent 38%, rgba(74, 199, 219, 0.12)),
+    radial-gradient(circle at 50% 20%, rgba(232, 244, 248, 0.3), transparent 36%);
+  filter: blur(18px);
+  animation: rv-canvas-luma-melt 1.8s ease-in-out infinite alternate;
+}
+
+.rv-canvas-preset--luma-melt .rv-canvas-live-media {
+  filter:
+    brightness(1.14)
+    contrast(var(--canvas-preset-luma-contrast, 1.16))
+    saturate(1.05)
+    blur(var(--canvas-preset-luma-blur, 2px))
+    drop-shadow(0 14px 32px rgba(216, 185, 90, 0.22));
+}
+
+.rv-canvas-preset--frame-stutter .rv-canvas-live-media {
+  animation: rv-canvas-frame-stutter var(--canvas-preset-stutter-duration, 0.5s) steps(2, end) infinite;
+}
+
+.rv-canvas-live-preset-strip {
+  position: absolute;
+  z-index: 2;
+  top: 14px;
+  right: 14px;
+  max-width: min(320px, calc(100% - 28px));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(97, 214, 170, 0.18);
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: rgba(2, 6, 8, 0.68);
+  color: rgba(232, 244, 248, 0.5);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rv-canvas-live-preset-strip strong {
+  overflow: hidden;
+  color: rgba(97, 214, 170, 0.86);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rv-canvas-preset-browser {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rv-canvas-preset-browser__copy {
+  display: grid;
+  gap: 3px;
+  border: 1px solid rgba(74, 199, 219, 0.12);
+  border-radius: 12px;
+  padding: 10px 11px;
+  background: rgba(255, 255, 255, 0.024);
+}
+
+.rv-canvas-preset-browser__copy strong {
+  color: rgba(232, 244, 248, 0.84);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rv-canvas-preset-browser__copy span {
+  color: rgba(232, 244, 248, 0.48);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.rv-canvas-preset-grid .rv-canvas-preset-card {
+  min-height: 148px;
+}
+
+.rv-canvas-preset-card .rv-preset-card-content {
+  min-height: 126px;
+}
+
+.rv-canvas-preset-controls-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  border: 1px solid rgba(74, 199, 219, 0.12);
+  border-radius: 10px;
+  padding: 9px;
+  background: rgba(255, 255, 255, 0.024);
+}
+
+.rv-canvas-preset-controls-head div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.rv-canvas-preset-controls-head strong {
+  color: rgba(232, 244, 248, 0.84);
+  font-size: 10.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.rv-canvas-preset-controls-head span {
+  color: rgba(232, 244, 248, 0.44);
+  font-size: 9.5px;
+  line-height: 1.35;
+}
+
+@keyframes rv-canvas-ghost-drift {
+  from { transform: translateX(-1.5%) scale(1.02); }
+  to { transform: translateX(1.5%) scale(1.045); }
+}
+
+@keyframes rv-canvas-glitch-scan {
+  0%, 100% { transform: translateY(-1.5%); opacity: 0.08; }
+  50% { transform: translateY(1.5%); opacity: 0.32; }
+}
+
+@keyframes rv-canvas-glitch-pulse {
+  0%, 100% { clip-path: inset(0 0 0 0); }
+  35% { clip-path: inset(8% 0 18% 0); }
+  70% { clip-path: inset(20% 0 4% 0); }
+}
+
+@keyframes rv-canvas-luma-melt {
+  from { transform: translateY(-1%) scale(1.01); }
+  to { transform: translateY(2.5%) scale(1.035); }
+}
+
+@keyframes rv-canvas-frame-stutter {
+  0%, 48%, 100% { filter: contrast(1.12) saturate(1.16); }
+  50%, 62% { filter: contrast(1.42) saturate(1.55) brightness(1.12); }
+}

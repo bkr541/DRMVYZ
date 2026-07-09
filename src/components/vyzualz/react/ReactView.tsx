@@ -470,6 +470,7 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
               <CanvasEngineSurface
                 isPlaying={engine.isPlaying}
                 isPaused={transportPaused}
+                analyser={analyser}
               />
             ) : (
               <ReactPlaceholderCanvas

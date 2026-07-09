@@ -15,6 +15,10 @@ import {
   DEFAULT_PERFORMANCE_PADS,
   DEFAULT_OSCILLATOR_SETTINGS,
   DEFAULT_CANVAS_ENGINE_SETTINGS,
+  DEFAULT_CANVAS_PRESET_ID,
+  DEFAULT_CANVAS_PRESET_SETTINGS,
+  DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
+  CANVAS_PRESET_BY_ID,
   DEFAULT_BEAM_MOTION,
   DEFAULT_BEAM_SEQUENCE,
   DEFAULT_LAUNCH_SETTINGS,
@@ -51,6 +55,9 @@ import type {
   CanvasEngineSettings,
   CanvasFitMode,
   CanvasMediaItem,
+  CanvasPresetId,
+  CanvasPresetSettings,
+  CanvasPresetOverrideState,
   OscillatorGlyphAsset,
   OscillatorGlyphPoint,
   OscillatorFontAsset,
@@ -1461,9 +1468,15 @@ interface ReactStoreState {
   canvasMediaItems: CanvasMediaItem[]
   selectedCanvasMediaId: string | null
   activeCanvasMediaId: string | null
+  selectedCanvasPresetId: CanvasPresetId
+  canvasPresetSettings: CanvasPresetSettings
+  canvasPresetOverride: CanvasPresetOverrideState | null
   canvasVideoRestartRevision: number
   setCanvasEngineSettings: (patch: Partial<CanvasEngineSettings>) => void
   resetCanvasEngineSettings: () => void
+  selectCanvasPreset: (id: CanvasPresetId) => void
+  setCanvasPresetSettings: (patch: Partial<CanvasPresetSettings>) => void
+  resetCanvasPresetSettings: () => void
   addCanvasMediaItems: (items: CanvasMediaItem[]) => void
   selectCanvasMediaItem: (id: string) => void
   restartCanvasVideo: () => void
@@ -2289,6 +2302,39 @@ function createCanvasEngineSettingsForPersistence(settings: CanvasEngineSettings
   })
 }
 
+
+function normalizeCanvasPresetId(value: unknown): CanvasPresetId {
+  return typeof value === 'string' && value in CANVAS_PRESET_BY_ID
+    ? value as CanvasPresetId
+    : DEFAULT_CANVAS_PRESET_ID
+}
+
+function normalizeCanvasPresetSettings(value: unknown): CanvasPresetSettings {
+  const source = isRecord(value) ? value : DEFAULT_CANVAS_PRESET_SETTINGS
+  return {
+    intensity: clampCanvasNumber(source.intensity, DEFAULT_CANVAS_PRESET_SETTINGS.intensity, 0, 1),
+    glow: clampCanvasNumber(source.glow, DEFAULT_CANVAS_PRESET_SETTINGS.glow, 0, 1),
+    motionTrailAmount: clampCanvasNumber(source.motionTrailAmount, DEFAULT_CANVAS_PRESET_SETTINGS.motionTrailAmount, 0, 1),
+    glitchAmount: clampCanvasNumber(source.glitchAmount, DEFAULT_CANVAS_PRESET_SETTINGS.glitchAmount, 0, 1),
+    stutterRate: clampCanvasNumber(source.stutterRate, DEFAULT_CANVAS_PRESET_SETTINGS.stutterRate, 1, 12),
+    lumaThreshold: clampCanvasNumber(source.lumaThreshold, DEFAULT_CANVAS_PRESET_SETTINGS.lumaThreshold, 0, 1),
+  }
+}
+
+function normalizeCanvasPresetOverride(value: unknown, presetId: CanvasPresetId): CanvasPresetOverrideState | null {
+  if (!isRecord(value)) return { ...DEFAULT_CANVAS_PRESET_OVERRIDE_STATE, presetId }
+  const rawPresetId = typeof value.presetId === 'string' && value.presetId in CANVAS_PRESET_BY_ID
+    ? value.presetId as CanvasPresetId
+    : presetId
+  return {
+    source: value.source === 'auto' ? 'auto' : 'manual',
+    presetId: rawPresetId,
+    label: typeof value.label === 'string' && value.label.trim().length > 0
+      ? value.label
+      : (value.source === 'auto' ? 'Auto-selected preset' : 'User-selected preset'),
+  }
+}
+
 export interface RepairedReactSelection {
   activeReactPresetId: string | null
   activeReactEngineId: ReactEngineId
@@ -2966,6 +3012,12 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
   state = {
     ...state,
     canvasEngineSettings: normalizeCanvasEngineSettings(state.canvasEngineSettings),
+    selectedCanvasPresetId: normalizeCanvasPresetId(state.selectedCanvasPresetId),
+    canvasPresetSettings: normalizeCanvasPresetSettings(state.canvasPresetSettings),
+    canvasPresetOverride: normalizeCanvasPresetOverride(
+      state.canvasPresetOverride,
+      normalizeCanvasPresetId(state.selectedCanvasPresetId),
+    ),
     laserDmxShowDirector: normalizeLaserDmxShowDirectorState(state.laserDmxShowDirector),
   }
   // Imported/current-version snapshots do not necessarily pass through a
@@ -3115,6 +3167,9 @@ export function reactStorePartialize(s: ReactStoreState) {
     cinematicSeedLocksByPresetId:       s.cinematicSeedLocksByPresetId,
     cinematicWorldsUiMode:              s.cinematicWorldsUiMode,
     canvasEngineSettings:                createCanvasEngineSettingsForPersistence(s.canvasEngineSettings),
+    selectedCanvasPresetId:             s.selectedCanvasPresetId,
+    canvasPresetSettings:               normalizeCanvasPresetSettings(s.canvasPresetSettings),
+    canvasPresetOverride:               s.canvasPresetOverride,
     performancePads:                    s.performancePads,
     manualTrackSectionsByTrackId:       s.manualTrackSectionsByTrackId,
     suppressedAutoSectionsByTrackId:    s.suppressedAutoSectionsByTrackId,
@@ -3153,6 +3208,9 @@ export const REACT_PROJECT_STATE_KEYS = [
   'cinematicSeedLocksByPresetId',
   'cinematicWorldsUiMode',
   'canvasEngineSettings',
+  'selectedCanvasPresetId',
+  'canvasPresetSettings',
+  'canvasPresetOverride',
   'manualTrackSectionsByTrackId',
   'suppressedAutoSectionsByTrackId',
   'presetAutomationCuesByTrackId',
@@ -3203,6 +3261,16 @@ export function mergeReactStoreState(
     cinematicWorldsUiMode,
     canvasEngineSettings: normalizeCanvasEngineSettings(
       persisted.canvasEngineSettings ?? currentState.canvasEngineSettings,
+    ),
+    selectedCanvasPresetId: normalizeCanvasPresetId(
+      persisted.selectedCanvasPresetId ?? currentState.selectedCanvasPresetId,
+    ),
+    canvasPresetSettings: normalizeCanvasPresetSettings(
+      persisted.canvasPresetSettings ?? currentState.canvasPresetSettings,
+    ),
+    canvasPresetOverride: normalizeCanvasPresetOverride(
+      persisted.canvasPresetOverride ?? currentState.canvasPresetOverride,
+      normalizeCanvasPresetId(persisted.selectedCanvasPresetId ?? currentState.selectedCanvasPresetId),
     ),
     soundDrawingLayersByTrackId: normalizeSoundDrawingLayersByTrackId(
       persisted.soundDrawingLayersByTrackId ?? currentState.soundDrawingLayersByTrackId,
@@ -3276,6 +3344,9 @@ export const useReactStore = create<ReactStoreState>()(
       canvasMediaItems: [],
       selectedCanvasMediaId: null,
       activeCanvasMediaId: null,
+      selectedCanvasPresetId: DEFAULT_CANVAS_PRESET_ID,
+      canvasPresetSettings: { ...DEFAULT_CANVAS_PRESET_SETTINGS },
+      canvasPresetOverride: { ...DEFAULT_CANVAS_PRESET_OVERRIDE_STATE },
       canvasVideoRestartRevision: 0,
       manualTrackSectionsByTrackId: {},
       selectedSectionId: null,
@@ -3381,7 +3452,47 @@ export const useReactStore = create<ReactStoreState>()(
           canvasMediaItems: [],
           selectedCanvasMediaId: null,
           activeCanvasMediaId: null,
+          selectedCanvasPresetId: DEFAULT_CANVAS_PRESET_ID,
+          canvasPresetSettings: { ...DEFAULT_CANVAS_PRESET_SETTINGS },
+          canvasPresetOverride: { ...DEFAULT_CANVAS_PRESET_OVERRIDE_STATE },
           canvasVideoRestartRevision: state.canvasVideoRestartRevision + 1,
+        }
+      }),
+
+      selectCanvasPreset: (id) => set(() => {
+        const preset = CANVAS_PRESET_BY_ID[id] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
+        return {
+          selectedCanvasPresetId: preset.id,
+          canvasPresetSettings: normalizeCanvasPresetSettings(preset.settings),
+          canvasPresetOverride: {
+            source: 'manual' as const,
+            presetId: preset.id,
+            label: 'User-selected preset',
+          },
+        }
+      }),
+
+      setCanvasPresetSettings: (patch) => set((state) => ({
+        canvasPresetSettings: normalizeCanvasPresetSettings({
+          ...state.canvasPresetSettings,
+          ...patch,
+        }),
+        canvasPresetOverride: {
+          source: 'manual' as const,
+          presetId: state.selectedCanvasPresetId,
+          label: 'User-adjusted preset',
+        },
+      })),
+
+      resetCanvasPresetSettings: () => set((state) => {
+        const preset = CANVAS_PRESET_BY_ID[state.selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
+        return {
+          canvasPresetSettings: normalizeCanvasPresetSettings(preset.settings),
+          canvasPresetOverride: {
+            source: 'manual' as const,
+            presetId: preset.id,
+            label: 'User-selected preset',
+          },
         }
       }),
 
@@ -6033,6 +6144,9 @@ export const useReactStore = create<ReactStoreState>()(
               canvasMediaItems: [],
               selectedCanvasMediaId: null,
               activeCanvasMediaId: null,
+              selectedCanvasPresetId: DEFAULT_CANVAS_PRESET_ID,
+              canvasPresetSettings: { ...DEFAULT_CANVAS_PRESET_SETTINGS },
+              canvasPresetOverride: { ...DEFAULT_CANVAS_PRESET_OVERRIDE_STATE },
               canvasVideoRestartRevision: s.canvasVideoRestartRevision + 1,
             }
           }
@@ -6103,6 +6217,9 @@ export const useReactStore = create<ReactStoreState>()(
             canvasMediaItems: [],
             selectedCanvasMediaId: null,
             activeCanvasMediaId: null,
+            selectedCanvasPresetId: DEFAULT_CANVAS_PRESET_ID,
+            canvasPresetSettings: { ...DEFAULT_CANVAS_PRESET_SETTINGS },
+            canvasPresetOverride: { ...DEFAULT_CANVAS_PRESET_OVERRIDE_STATE },
             canvasVideoRestartRevision: s.canvasVideoRestartRevision + 1,
             manualTrackSectionsByTrackId: {},
             selectedSectionId: null,
@@ -6141,6 +6258,9 @@ export const useReactStore = create<ReactStoreState>()(
           canvasMediaItems:             [],
           selectedCanvasMediaId:        null,
           activeCanvasMediaId:          null,
+          selectedCanvasPresetId:       DEFAULT_CANVAS_PRESET_ID,
+          canvasPresetSettings:         { ...DEFAULT_CANVAS_PRESET_SETTINGS },
+          canvasPresetOverride:         { ...DEFAULT_CANVAS_PRESET_OVERRIDE_STATE },
           canvasVideoRestartRevision:   get().canvasVideoRestartRevision + 1,
           manualTrackSectionsByTrackId: {},
           selectedSectionId:            null,

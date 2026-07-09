@@ -163,6 +163,46 @@ export type CanvasMediaKind = 'video' | 'image' | 'svg' | 'visualAsset'
 export type CanvasMediaItemType = 'video' | 'image' | 'svg'
 export type CanvasFitMode = 'contain' | 'cover' | 'stretch'
 
+export type CanvasPresetId =
+  | 'canvas-clean-playback'
+  | 'canvas-bass-bloom'
+  | 'canvas-ghost-echo'
+  | 'canvas-glitch-pulse'
+  | 'canvas-luma-melt'
+  | 'canvas-frame-stutter'
+
+export type CanvasPresetControlKey =
+  | 'intensity'
+  | 'glow'
+  | 'motionTrailAmount'
+  | 'glitchAmount'
+  | 'stutterRate'
+  | 'lumaThreshold'
+
+export interface CanvasPresetSettings {
+  intensity: number
+  glow: number
+  motionTrailAmount: number
+  glitchAmount: number
+  stutterRate: number
+  lumaThreshold: number
+}
+
+export interface CanvasPresetDefinition {
+  id: CanvasPresetId
+  name: string
+  description: string
+  accent: string
+  settings: CanvasPresetSettings
+  controls: CanvasPresetControlKey[]
+}
+
+export interface CanvasPresetOverrideState {
+  source: 'manual' | 'auto'
+  presetId: CanvasPresetId | null
+  label: string | null
+}
+
 export interface CanvasMediaItem {
   id: string
   name: string
@@ -203,6 +243,79 @@ export const DEFAULT_CANVAS_ENGINE_SETTINGS: CanvasEngineSettings = {
   opacity: 1,
   loopVideo: true,
 }
+
+export const DEFAULT_CANVAS_PRESET_ID: CanvasPresetId = 'canvas-clean-playback'
+
+export const DEFAULT_CANVAS_PRESET_SETTINGS: CanvasPresetSettings = {
+  intensity: 0.35,
+  glow: 0,
+  motionTrailAmount: 0,
+  glitchAmount: 0,
+  stutterRate: 2,
+  lumaThreshold: 0.55,
+}
+
+export const DEFAULT_CANVAS_PRESET_OVERRIDE_STATE: CanvasPresetOverrideState = {
+  source: 'manual',
+  presetId: DEFAULT_CANVAS_PRESET_ID,
+  label: 'User-selected preset',
+}
+
+export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
+  {
+    id: 'canvas-clean-playback',
+    name: 'Clean Playback',
+    description: 'Neutral uploaded-media playback with only transform, fit, and opacity controls applied.',
+    accent: '#e8f4f8',
+    settings: { ...DEFAULT_CANVAS_PRESET_SETTINGS },
+    controls: [],
+  },
+  {
+    id: 'canvas-bass-bloom',
+    name: 'Bass Bloom',
+    description: 'Bass-reactive scale, glow, and exposure bloom wrapped around the active CANVAS media.',
+    accent: '#61d6aa',
+    settings: { intensity: 0.68, glow: 0.72, motionTrailAmount: 0.1, glitchAmount: 0, stutterRate: 2, lumaThreshold: 0.55 },
+    controls: ['intensity', 'glow'],
+  },
+  {
+    id: 'canvas-ghost-echo',
+    name: 'Ghost Echo',
+    description: 'Soft afterimage trails that make the selected video, image, or SVG feel like it is leaving vapor-light behind.',
+    accent: '#9ddcff',
+    settings: { intensity: 0.58, glow: 0.34, motionTrailAmount: 0.58, glitchAmount: 0, stutterRate: 2, lumaThreshold: 0.55 },
+    controls: ['intensity', 'motionTrailAmount', 'glow'],
+  },
+  {
+    id: 'canvas-glitch-pulse',
+    name: 'Glitch Pulse',
+    description: 'Beat-reactive shake, RGB split, and subtle stutter shimmer for the active uploaded visual.',
+    accent: '#ff4fd8',
+    settings: { intensity: 0.62, glow: 0.18, motionTrailAmount: 0.1, glitchAmount: 0.58, stutterRate: 4, lumaThreshold: 0.55 },
+    controls: ['intensity', 'glitchAmount'],
+  },
+  {
+    id: 'canvas-luma-melt',
+    name: 'Luma Melt',
+    description: 'Brightness-threshold blur, smear, and soft bloom that melts highlights without changing the source media.',
+    accent: '#d8b95a',
+    settings: { intensity: 0.58, glow: 0.44, motionTrailAmount: 0.42, glitchAmount: 0, stutterRate: 2, lumaThreshold: 0.62 },
+    controls: ['intensity', 'lumaThreshold', 'motionTrailAmount'],
+  },
+  {
+    id: 'canvas-frame-stutter',
+    name: 'Frame Stutter',
+    description: 'Rhythmic frame-hold pulses for video clips with a safe CSS fallback for images and SVGs.',
+    accent: '#4ac7db',
+    settings: { intensity: 0.54, glow: 0.18, motionTrailAmount: 0.1, glitchAmount: 0.22, stutterRate: 5, lumaThreshold: 0.55 },
+    controls: ['intensity', 'stutterRate', 'glitchAmount'],
+  },
+]
+
+export const CANVAS_PRESET_BY_ID: Record<CanvasPresetId, CanvasPresetDefinition> = CANVAS_PRESETS.reduce((acc, preset) => {
+  acc[preset.id] = preset
+  return acc
+}, {} as Record<CanvasPresetId, CanvasPresetDefinition>)
 
 export const DEFAULT_OSCILLATOR_SETTINGS: OscillatorSettings = {
   sourceType:          'classic',
