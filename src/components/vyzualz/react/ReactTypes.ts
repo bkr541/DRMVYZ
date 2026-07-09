@@ -157,7 +157,7 @@ export interface OscillatorSettings {
   autoSectionMode: boolean
 }
 
-// ── CANVAS engine placeholder types ───────────────────────────────────────────
+// ── CANVAS engine types ─────────────────────────────────────────────────────
 
 export type CanvasMediaKind = 'video' | 'image' | 'svg' | 'visualAsset'
 export type CanvasMediaItemType = 'video' | 'image' | 'svg'

@@ -2334,6 +2334,46 @@ function revokeCanvasMediaObjectUrls(items: CanvasMediaItem[]): void {
   items.forEach(revokeCanvasMediaObjectUrl)
 }
 
+function isCanvasMediaItemRuntimeUsable(item: CanvasMediaItem): boolean {
+  return (
+    typeof item.id === 'string' && item.id.trim().length > 0 &&
+    typeof item.name === 'string' && item.name.trim().length > 0 &&
+    (item.type === 'video' || item.type === 'image' || item.type === 'svg') &&
+    typeof item.objectUrl === 'string' && item.objectUrl.trim().length > 0
+  )
+}
+
+function repairCanvasRuntimeState(state: ReactStoreState): Partial<ReactStoreState> {
+  const unusableCanvasMediaItems = state.canvasMediaItems.filter(item => !isCanvasMediaItemRuntimeUsable(item))
+  if (unusableCanvasMediaItems.length > 0) {
+    revokeCanvasMediaObjectUrls(unusableCanvasMediaItems)
+  }
+
+  const canvasMediaItems = state.canvasMediaItems.filter(isCanvasMediaItemRuntimeUsable)
+  const validIds = new Set(canvasMediaItems.map(item => item.id))
+  const selectedCanvasMediaId = state.selectedCanvasMediaId && validIds.has(state.selectedCanvasMediaId)
+    ? state.selectedCanvasMediaId
+    : state.canvasEngineSettings.selectedMediaId && validIds.has(state.canvasEngineSettings.selectedMediaId)
+      ? state.canvasEngineSettings.selectedMediaId
+      : state.activeCanvasMediaId && validIds.has(state.activeCanvasMediaId)
+        ? state.activeCanvasMediaId
+        : canvasMediaItems[0]?.id ?? null
+  const activeCanvasMediaId = state.activeCanvasMediaId && validIds.has(state.activeCanvasMediaId)
+    ? state.activeCanvasMediaId
+    : selectedCanvasMediaId
+
+  return {
+    canvasMediaItems,
+    selectedCanvasMediaId,
+    activeCanvasMediaId,
+    canvasEngineSettings: normalizeCanvasEngineSettings({
+      ...state.canvasEngineSettings,
+      selectedMediaId: activeCanvasMediaId,
+      mediaIds: canvasMediaItems.map(item => item.id),
+    }),
+  }
+}
+
 function normalizeCanvasEngineSettings(value: unknown): CanvasEngineSettings {
   if (!isRecord(value)) return { ...DEFAULT_CANVAS_ENGINE_SETTINGS }
 
@@ -3407,6 +3447,14 @@ export function mergeReactStoreState(
       ...merged.oscillatorSettings,
     }),
     laserDmxBeamMatrixPresetDirty: dirty,
+    canvasEngineSettings: createCanvasEngineSettingsForPersistence(merged.canvasEngineSettings),
+    canvasPresetOverride: merged.canvasEngineSettings.autoSelectEnabled || merged.canvasPresetOverride?.source !== 'auto'
+      ? merged.canvasPresetOverride
+      : null,
+    canvasMediaItems: [],
+    selectedCanvasMediaId: null,
+    activeCanvasMediaId: null,
+    canvasVideoRestartRevision: currentState.canvasVideoRestartRevision,
     laserDmxShowDirectorUndoStack: [],
     laserDmxShowDirectorRedoStack: [],
     laserDmxShowDirectorHistoryTransaction: null,
@@ -3529,10 +3577,16 @@ export const useReactStore = create<ReactStoreState>()(
       setCinematicWorldsUiMode: (mode) => set({ cinematicWorldsUiMode: mode }),
 
       setCanvasEngineSettings: (patch) => set((state) => ({
-        canvasEngineSettings: normalizeCanvasEngineSettings({
-          ...state.canvasEngineSettings,
-          ...patch,
+        ...repairCanvasRuntimeState({
+          ...state,
+          canvasEngineSettings: normalizeCanvasEngineSettings({
+            ...state.canvasEngineSettings,
+            ...patch,
+          }),
         }),
+        canvasPresetOverride: patch.autoSelectEnabled === false && state.canvasPresetOverride?.source === 'auto'
+          ? null
+          : state.canvasPresetOverride,
       })),
 
       resetCanvasEngineSettings: () => set((state) => {
@@ -3560,7 +3614,7 @@ export const useReactStore = create<ReactStoreState>()(
       })),
 
       applyCanvasAutoSelection: ({ presetId, mediaId, label }) => set((state) => {
-        if (state.canvasPresetOverride?.source === 'manual') return {}
+        if (!state.canvasEngineSettings.autoSelectEnabled || state.canvasPresetOverride?.source === 'manual') return {}
         const preset = CANVAS_PRESET_BY_ID[presetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
         const nextMediaId = typeof mediaId === 'string' && state.canvasMediaItems.some(item => item.id === mediaId)
           ? mediaId
@@ -3639,36 +3693,39 @@ export const useReactStore = create<ReactStoreState>()(
         if (items.length === 0) return {}
 
         const existingIds = new Set(state.canvasMediaItems.map(item => item.id))
-        const freshItems = items.filter(item => !existingIds.has(item.id))
-        if (freshItems.length === 0) return {}
+        const nextIds = new Set(existingIds)
+        const freshItems: CanvasMediaItem[] = []
+        const discardedItems: CanvasMediaItem[] = []
+        items.forEach(item => {
+          if (!isCanvasMediaItemRuntimeUsable(item) || nextIds.has(item.id)) {
+            discardedItems.push(item)
+            return
+          }
+          nextIds.add(item.id)
+          freshItems.push(item)
+        })
+        revokeCanvasMediaObjectUrls(discardedItems)
+        if (freshItems.length === 0) return repairCanvasRuntimeState(state)
 
         const nextItems = [...state.canvasMediaItems, ...freshItems]
         const nextActiveId = state.activeCanvasMediaId ?? freshItems[0].id
         const nextSelectedId = state.selectedCanvasMediaId ?? nextActiveId
 
-        return {
+        return repairCanvasRuntimeState({
+          ...state,
           canvasMediaItems: nextItems,
           selectedCanvasMediaId: nextSelectedId,
           activeCanvasMediaId: nextActiveId,
-          canvasEngineSettings: normalizeCanvasEngineSettings({
-            ...state.canvasEngineSettings,
-            selectedMediaId: nextSelectedId,
-            mediaIds: nextItems.map(item => item.id),
-          }),
-        }
+        })
       }),
 
       selectCanvasMediaItem: (id) => set((state) => {
-        if (!state.canvasMediaItems.some(item => item.id === id)) return {}
-        return {
+        if (!state.canvasMediaItems.some(item => item.id === id)) return repairCanvasRuntimeState(state)
+        return repairCanvasRuntimeState({
+          ...state,
           selectedCanvasMediaId: id,
           activeCanvasMediaId: id,
-          canvasEngineSettings: normalizeCanvasEngineSettings({
-            ...state.canvasEngineSettings,
-            selectedMediaId: id,
-            mediaIds: state.canvasMediaItems.map(item => item.id),
-          }),
-        }
+        })
       }),
 
       restartCanvasVideo: () => set((state) => ({
@@ -3695,7 +3752,7 @@ export const useReactStore = create<ReactStoreState>()(
 
       removeCanvasMediaItem: (id) => set((state) => {
         const removeIndex = state.canvasMediaItems.findIndex(item => item.id === id)
-        if (removeIndex < 0) return {}
+        if (removeIndex < 0) return repairCanvasRuntimeState(state)
         revokeCanvasMediaObjectUrl(state.canvasMediaItems[removeIndex])
 
         const nextItems = state.canvasMediaItems.filter(item => item.id !== id)
@@ -3703,16 +3760,13 @@ export const useReactStore = create<ReactStoreState>()(
         const nextSelectedId = state.selectedCanvasMediaId === id ? fallbackItem?.id ?? null : state.selectedCanvasMediaId
         const nextActiveId = state.activeCanvasMediaId === id ? fallbackItem?.id ?? null : state.activeCanvasMediaId
 
-        return {
+        return repairCanvasRuntimeState({
+          ...state,
           canvasMediaItems: nextItems,
-          selectedCanvasMediaId: nextSelectedId && nextItems.some(item => item.id === nextSelectedId) ? nextSelectedId : null,
-          activeCanvasMediaId: nextActiveId && nextItems.some(item => item.id === nextActiveId) ? nextActiveId : null,
-          canvasEngineSettings: normalizeCanvasEngineSettings({
-            ...state.canvasEngineSettings,
-            selectedMediaId: nextActiveId && nextItems.some(item => item.id === nextActiveId) ? nextActiveId : null,
-            mediaIds: nextItems.map(item => item.id),
-          }),
-        }
+          selectedCanvasMediaId: nextSelectedId,
+          activeCanvasMediaId: nextActiveId,
+          canvasVideoRestartRevision: state.canvasVideoRestartRevision + 1,
+        })
       }),
 
       clearCanvasMediaItems: () => set((state) => {

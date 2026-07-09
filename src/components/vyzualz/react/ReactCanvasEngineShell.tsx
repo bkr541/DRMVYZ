@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from 'react'
 import { useReactStore } from '../../../stores/reactStore'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
@@ -25,7 +25,7 @@ import {
 } from './ReactTypes'
 
 const CANVAS_DESCRIPTION = 'Upload your own media and turn it into audio-reactive visuals.'
-const CANVAS_MEDIA_COPY = 'Videos, images, and SVGs uploaded here stay scoped to CANVAS.'
+const CANVAS_MEDIA_COPY = 'Videos, images, and SVGs uploaded here stay scoped to CANVAS and are never shared with other engines.'
 const CANVAS_ACCEPT = [
   'video/mp4', 'video/webm', 'video/quicktime',
   'image/png', 'image/jpeg', 'image/webp', 'image/svg+xml',
@@ -63,6 +63,14 @@ const CANVAS_SECTION_TRIGGER_OPTIONS: Array<{ value: CanvasSectionTriggerType; l
 
 const CANVAS_TIMING_MAX_SECONDS = 60 * 60 * 6
 
+type CanvasMediaCreateResult =
+  | { item: CanvasMediaItem; error: null }
+  | { item: null; error: string }
+
+type CanvasMediaLoadState = { mediaId: string | null; message: string | null }
+
+const EMPTY_CANVAS_MEDIA_LOAD_STATE: CanvasMediaLoadState = { mediaId: null, message: null }
+
 function CanvasMediaTokens() {
   return (
     <div className="rv-canvas-media-tokens" aria-label="Supported CANVAS media types">
@@ -97,18 +105,31 @@ function createCanvasMediaId(): string {
   return `canvas-media-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
-function makeCanvasMediaItem(file: File): CanvasMediaItem | null {
+function makeCanvasMediaItem(file: File): CanvasMediaCreateResult {
   const type = getCanvasMediaType(file)
-  if (!type) return null
+  if (!type) {
+    return { item: null, error: `${file.name} is not a supported CANVAS media type.` }
+  }
 
-  return {
-    id: createCanvasMediaId(),
-    name: file.name,
-    type,
-    objectUrl: URL.createObjectURL(file),
-    mimeType: file.type || undefined,
-    fileSize: file.size,
-    createdAt: new Date().toISOString(),
+  if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+    return { item: null, error: `${file.name} could not be prepared because this browser does not support local object URLs.` }
+  }
+
+  try {
+    return {
+      item: {
+        id: createCanvasMediaId(),
+        name: file.name,
+        type,
+        objectUrl: URL.createObjectURL(file),
+        mimeType: file.type || undefined,
+        fileSize: file.size,
+        createdAt: new Date().toISOString(),
+      },
+      error: null,
+    }
+  } catch {
+    return { item: null, error: `${file.name} could not be prepared as local CANVAS media.` }
   }
 }
 
@@ -126,16 +147,16 @@ function CanvasUploadControl({ compact = false }: { compact?: boolean }) {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
 
-  const handleFiles = (files: File[]) => {
+  const handleFiles = useCallback((files: File[]) => {
     if (files.length === 0) return
 
     const accepted: CanvasMediaItem[] = []
     const rejected: string[] = []
 
     files.forEach(file => {
-      const item = makeCanvasMediaItem(file)
-      if (item) accepted.push(item)
-      else rejected.push(file.name)
+      const result = makeCanvasMediaItem(file)
+      if (result.item) accepted.push(result.item)
+      else rejected.push(result.error)
     })
 
     if (accepted.length > 0) {
@@ -144,9 +165,9 @@ function CanvasUploadControl({ compact = false }: { compact?: boolean }) {
     }
 
     setUploadError(rejected.length > 0
-      ? `Unsupported CANVAS media: ${rejected.slice(0, 3).join(', ')}${rejected.length > 3 ? '…' : ''}`
+      ? `${rejected.slice(0, 3).join(' ')}${rejected.length > 3 ? '…' : ''}`
       : null)
-  }
+  }, [addCanvasMediaItems, selectCanvasMediaItem])
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     handleFiles(Array.from(event.currentTarget.files ?? []))
@@ -177,20 +198,27 @@ function CanvasUploadControl({ compact = false }: { compact?: boolean }) {
 function CanvasActivePreview() {
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
   const mediaItems = useReactStore(s => s.canvasMediaItems)
+  const [previewError, setPreviewError] = useState<CanvasMediaLoadState>(EMPTY_CANVAS_MEDIA_LOAD_STATE)
   const activeItem = useMemo(
     () => mediaItems.find(item => item.id === activeCanvasMediaId) ?? null,
     [activeCanvasMediaId, mediaItems],
   )
+
+  useEffect(() => {
+    setPreviewError(EMPTY_CANVAS_MEDIA_LOAD_STATE)
+  }, [activeItem?.id])
 
   if (!activeItem) {
     return (
       <div className="rv-canvas-active-preview rv-canvas-active-preview--empty">
         <div className="rv-canvas-active-preview__eyebrow">Active CANVAS Visual</div>
         <div className="rv-canvas-active-preview__title">No media selected</div>
-        <div className="rv-canvas-active-preview__copy">Upload media below, then choose a file from the CANVAS library.</div>
+        <div className="rv-canvas-active-preview__copy">Upload personal media below, then choose a file from the CANVAS library.</div>
       </div>
     )
   }
+
+  const previewErrorActive = previewError.mediaId === activeItem.id && previewError.message
 
   return (
     <div className="rv-canvas-active-preview">
@@ -200,10 +228,24 @@ function CanvasActivePreview() {
       </div>
       <div className={`rv-canvas-active-preview__frame rv-canvas-active-preview__frame--${activeItem.type}`}>
         {activeItem.type === 'video' ? (
-          <video src={activeItem.objectUrl} muted playsInline controls preload="metadata" />
+          <video
+            src={activeItem.objectUrl}
+            muted
+            playsInline
+            controls
+            preload="metadata"
+            onCanPlay={() => setPreviewError(EMPTY_CANVAS_MEDIA_LOAD_STATE)}
+            onError={() => setPreviewError({ mediaId: activeItem.id, message: 'Preview could not play this video. Try MP4 or WebM for live use.' })}
+          />
         ) : (
-          <img src={activeItem.objectUrl} alt="" />
+          <img
+            src={activeItem.objectUrl}
+            alt=""
+            onLoad={() => setPreviewError(EMPTY_CANVAS_MEDIA_LOAD_STATE)}
+            onError={() => setPreviewError({ mediaId: activeItem.id, message: 'Preview could not load this image or SVG.' })}
+          />
         )}
+        {previewErrorActive && <span className="rv-canvas-media-load-warning">{previewError.message}</span>}
       </div>
       <div className="rv-canvas-active-preview__name" title={activeItem.name}>{activeItem.name}</div>
     </div>
@@ -1012,6 +1054,26 @@ function formatCanvasTimingSeconds(value: number): string {
   return `${value.toFixed(value >= 10 ? 1 : 2)}s`
 }
 
+function getCanvasMediaLoadErrorMessage(item: CanvasMediaItem): string {
+  if (item.type === 'video') {
+    return 'This CANVAS video cannot play in the browser. Try an H.264 MP4 or WebM file.'
+  }
+  if (item.type === 'svg') {
+    return 'This CANVAS SVG could not load. Check for external links or unsupported SVG content.'
+  }
+  return 'This CANVAS image could not load. Try PNG, JPG, or WebP.'
+}
+
+function formatCanvasControlSource(
+  autoSelectEnabled: boolean,
+  overrideSource: 'manual' | 'auto' | undefined,
+): string {
+  if (overrideSource === 'manual') return 'Manual override'
+  if (autoSelectEnabled && overrideSource === 'auto') return 'Auto Select'
+  if (autoSelectEnabled) return 'Auto Select waiting'
+  return 'Manual preset'
+}
+
 export function CanvasEngineSurface({
   isPlaying,
   isPaused,
@@ -1041,6 +1103,7 @@ export function CanvasEngineSurface({
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const imageRef = useRef<HTMLImageElement | null>(null)
   const outputRef = useRef<HTMLDivElement | null>(null)
+  const [mediaLoadError, setMediaLoadError] = useState<CanvasMediaLoadState>(EMPTY_CANVAS_MEDIA_LOAD_STATE)
   const trackAnalysisRef = useRef<TrackIntelligenceAnalysis | null>(trackAnalysis)
   const trackSectionsRef = useRef<ReactTrackSection[]>(trackSections)
   const getAudioTimeRef = useRef<typeof getAudioTime>(getAudioTime)
@@ -1061,6 +1124,13 @@ export function CanvasEngineSurface({
   trackAnalysisRef.current = trackAnalysis
   trackSectionsRef.current = trackSections
   getAudioTimeRef.current = getAudioTime
+
+  useEffect(() => {
+    setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)
+  }, [activeItem?.id])
+
+  const activeMediaLoadError = mediaLoadError.mediaId === activeItem?.id ? mediaLoadError.message : null
+  const canvasControlSource = formatCanvasControlSource(settings.autoSelectEnabled, canvasPresetOverride?.source)
 
   useEffect(() => {
     musicIntelligenceEngine.setTrackAnalysis(trackAnalysis ?? null)
@@ -1137,29 +1207,29 @@ export function CanvasEngineSurface({
     video.loop = settings.loopVideo && !activeTiming.loopClipRange && !hasClipEnd
     video.playsInline = true
 
-    if (isPlaying && !isPaused) playCanvasVideo(video)
+    if (isPlaying && !isPaused && !activeMediaLoadError) playCanvasVideo(video)
     else video.pause()
-  }, [activeTiming, activeTiming.clipEndSec, activeTiming.loopClipRange, activeVideo, activeItem?.id, isPaused, isPlaying, settings.loopVideo])
+  }, [activeMediaLoadError, activeTiming, activeTiming.clipEndSec, activeTiming.loopClipRange, activeVideo, activeItem?.id, isPaused, isPlaying, settings.loopVideo])
 
   useEffect(() => {
     const video = videoRef.current
     if (!video || !activeVideo) return
 
-    seekCanvasVideoToClipStart(video, activeTiming, isPlaying && !isPaused)
-  }, [activeTiming, activeTiming.clipStartSec, activeVideo, activeItem?.id, isPaused, isPlaying, restartRevision])
+    seekCanvasVideoToClipStart(video, activeTiming, isPlaying && !isPaused && !activeMediaLoadError)
+  }, [activeMediaLoadError, activeTiming, activeTiming.clipStartSec, activeVideo, activeItem?.id, isPaused, isPlaying, restartRevision])
 
   useEffect(() => {
     const video = videoRef.current
     if (!video || !activeVideo) return
 
     const handleMetadata = () => {
-      seekCanvasVideoToClipStart(video, activeTiming, isPlaying && !isPaused)
+      seekCanvasVideoToClipStart(video, activeTiming, isPlaying && !isPaused && !activeMediaLoadError)
     }
 
     video.addEventListener('loadedmetadata', handleMetadata)
     if (video.readyState >= 1) handleMetadata()
     return () => video.removeEventListener('loadedmetadata', handleMetadata)
-  }, [activeTiming, activeTiming.clipStartSec, activeVideo, activeItem?.id, isPaused, isPlaying])
+  }, [activeMediaLoadError, activeTiming, activeTiming.clipStartSec, activeVideo, activeItem?.id, isPaused, isPlaying])
 
   useEffect(() => {
     if (!activeVideo) return
@@ -1173,12 +1243,12 @@ export function CanvasEngineSurface({
         const hasClipBoundary = endSec !== null && (activeTiming.clipEndSec > 0 || activeTiming.loopClipRange)
 
         if (!video.seeking && video.currentTime < startSec - 0.08) {
-          seekCanvasVideoToClipStart(video, activeTiming, isPlaying && !isPaused)
+          seekCanvasVideoToClipStart(video, activeTiming, isPlaying && !isPaused && !activeMediaLoadError)
         }
 
         if (hasClipBoundary && endSec !== null && video.currentTime >= endSec - 0.035) {
           if (activeTiming.loopClipRange) {
-            seekCanvasVideoToClipStart(video, activeTiming, isPlaying && !isPaused)
+            seekCanvasVideoToClipStart(video, activeTiming, isPlaying && !isPaused && !activeMediaLoadError)
           } else {
             video.pause()
           }
@@ -1190,7 +1260,7 @@ export function CanvasEngineSurface({
 
     tick()
     return () => window.cancelAnimationFrame(frameId)
-  }, [activeTiming, activeTiming.clipEndSec, activeTiming.clipStartSec, activeTiming.loopClipRange, activeVideo, isPaused, isPlaying, settings.loopVideo])
+  }, [activeMediaLoadError, activeTiming, activeTiming.clipEndSec, activeTiming.clipStartSec, activeTiming.loopClipRange, activeVideo, isPaused, isPlaying, settings.loopVideo])
 
   const previousTimingPresetRef = useRef<CanvasPresetId>(selectedCanvasPresetId)
   useEffect(() => {
@@ -1199,8 +1269,8 @@ export function CanvasEngineSurface({
 
     if (!activeVideo || previousPresetId === selectedCanvasPresetId) return
     if (!activeTiming.restartOnManualPresetChange || canvasPresetOverride?.source !== 'manual') return
-    seekCanvasVideoToClipStart(videoRef.current, activeTiming, isPlaying && !isPaused)
-  }, [activeTiming, activeVideo, canvasPresetOverride?.source, isPaused, isPlaying, selectedCanvasPresetId])
+    seekCanvasVideoToClipStart(videoRef.current, activeTiming, isPlaying && !isPaused && !activeMediaLoadError)
+  }, [activeMediaLoadError, activeTiming, activeVideo, canvasPresetOverride?.source, isPaused, isPlaying, selectedCanvasPresetId])
 
   const timingTriggerRef = useRef({
     lastAudioTime: 0,
@@ -1223,7 +1293,7 @@ export function CanvasEngineSurface({
     }
 
     const runTrigger = () => {
-      const shouldPlay = isPlaying && !isPaused
+      const shouldPlay = isPlaying && !isPaused && !activeMediaLoadError
       if (!shouldPlay) {
         timingTriggerRef.current.wasPlaying = false
         return
@@ -1280,7 +1350,7 @@ export function CanvasEngineSurface({
     const intervalId = window.setInterval(runTrigger, 90)
     runTrigger()
     return () => window.clearInterval(intervalId)
-  }, [activeAudioTrackId, activeTiming, activeVideo, isPaused, isPlaying])
+  }, [activeAudioTrackId, activeMediaLoadError, activeTiming, activeVideo, isPaused, isPlaying])
 
   useEffect(() => () => {
     videoRef.current?.pause()
@@ -1346,7 +1416,7 @@ export function CanvasEngineSurface({
   }, [analyser, canvasPresetSettings, isPaused, isPlaying, selectedCanvasPresetId])
 
   useEffect(() => {
-    if (selectedCanvasPresetId !== 'canvas-frame-stutter' || !activeVideo || !isPlaying || isPaused) return
+    if (selectedCanvasPresetId !== 'canvas-frame-stutter' || !activeVideo || !isPlaying || isPaused || activeMediaLoadError) return
     const cleanupVideo = videoRef.current
     let resumeTimer = 0
     const intervalMs = Math.max(90, Math.round(1000 / Math.max(1, canvasPresetSettings.stutterRate)))
@@ -1361,31 +1431,37 @@ export function CanvasEngineSurface({
       window.clearTimeout(resumeTimer)
       resumeTimer = window.setTimeout(() => {
         const currentVideo = videoRef.current
-        if (isPlaying && !isPaused) playCanvasVideo(currentVideo)
+        if (isPlaying && !isPaused && !activeMediaLoadError) playCanvasVideo(currentVideo)
       }, holdMs)
     }, intervalMs)
 
     return () => {
       window.clearInterval(intervalId)
       window.clearTimeout(resumeTimer)
-      if (isPlaying && !isPaused) playCanvasVideo(cleanupVideo)
+      if (isPlaying && !isPaused && !activeMediaLoadError) playCanvasVideo(cleanupVideo)
     }
-  }, [activeVideo, canvasPresetSettings.glitchAmount, canvasPresetSettings.intensity, canvasPresetSettings.stutterRate, isPaused, isPlaying, selectedCanvasPresetId])
+  }, [activeMediaLoadError, activeVideo, canvasPresetSettings.glitchAmount, canvasPresetSettings.intensity, canvasPresetSettings.stutterRate, isPaused, isPlaying, selectedCanvasPresetId])
 
 
   if (!activeItem) {
+    const hasUploadedMedia = mediaItems.length > 0
     return (
       <div className="rv-canvas-engine-surface rv-canvas-engine-surface--empty" role="region" aria-label="CANVAS engine media surface">
         <div className="rv-canvas-live-empty-card">
           <div className="rv-canvas-engine-eyebrow">CANVAS Uploaded Media</div>
-          <h2 className="rv-canvas-live-empty-title">No active CANVAS media selected</h2>
+          <h2 className="rv-canvas-live-empty-title">
+            {hasUploadedMedia ? 'No active CANVAS media selected' : 'No CANVAS media uploaded'}
+          </h2>
           <p className="rv-canvas-engine-desc">
             {selectedPreset.id === 'canvas-particle-aura'
-              ? 'Particle Aura needs an active video, image, or SVG to sample before it can emit particles.'
-              : 'Upload a video, image, or SVG in the CANVAS engine panel, then select it to make it the main React View visual.'}
+              ? 'Particle Aura needs an active personal video, image, or SVG to sample before it can emit particles.'
+              : hasUploadedMedia
+                ? 'Choose one uploaded personal file from the CANVAS library to make it the main React View visual.'
+                : 'Upload a personal video, image, or SVG in the CANVAS engine panel, then select it to make it the main React View visual.'}
           </p>
           <CanvasMediaTokens />
           <CanvasUploadControl />
+          {hasUploadedMedia && <CanvasMediaLibrary compact />}
         </div>
       </div>
     )
@@ -1414,6 +1490,8 @@ export function CanvasEngineSurface({
               playsInline
               loop={settings.loopVideo && !activeTiming.loopClipRange && activeTiming.clipEndSec <= 0}
               preload="auto"
+              onCanPlay={() => setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)}
+              onError={() => setMediaLoadError({ mediaId: activeItem.id, message: getCanvasMediaLoadErrorMessage(activeItem) })}
             />
           ) : (
             <img
@@ -1424,9 +1502,17 @@ export function CanvasEngineSurface({
               className="rv-canvas-live-media"
               style={mediaStyle}
               draggable={false}
+              onLoad={() => setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)}
+              onError={() => setMediaLoadError({ mediaId: activeItem.id, message: getCanvasMediaLoadErrorMessage(activeItem) })}
             />
           )}
         </div>
+        {activeMediaLoadError && (
+          <div className="rv-canvas-live-error-card" role="alert">
+            <strong>CANVAS media could not load</strong>
+            <span>{activeMediaLoadError}</span>
+          </div>
+        )}
         <CanvasParticleAuraLayer
           active={selectedPreset.id === 'canvas-particle-aura'}
           activeItem={activeItem}
@@ -1439,10 +1525,10 @@ export function CanvasEngineSurface({
         <div className="rv-canvas-live-badge">
           <span>CANVAS uploaded media</span>
           <strong title={activeItem.name}>{activeItem.name}</strong>
-          <em>{TYPE_LABELS[activeItem.type]} · {CANVAS_FIT_LABELS[settings.fitMode]} · {selectedPreset.name}</em>
+          <em>{TYPE_LABELS[activeItem.type]} · {CANVAS_FIT_LABELS[settings.fitMode]} · {selectedPreset.name} · {canvasControlSource}</em>
         </div>
         <div className="rv-canvas-live-preset-strip" aria-label="CANVAS preset status">
-          <span>Preset affects active CANVAS media</span>
+          <span>{canvasControlSource}</span>
           <strong>{selectedPreset.name}</strong>
         </div>
         {activeVideo && (
@@ -1642,6 +1728,7 @@ function CanvasAutoSelectControl() {
   const settings = useReactStore(s => s.canvasEngineSettings)
   const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
   const canvasPresetOverride = useReactStore(s => s.canvasPresetOverride)
+  const mediaCount = useReactStore(s => s.canvasMediaItems.length)
   const setCanvasAutoSelectEnabled = useReactStore(s => s.setCanvasAutoSelectEnabled)
   const clearCanvasPresetOverride = useReactStore(s => s.clearCanvasPresetOverride)
   const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
@@ -1650,13 +1737,15 @@ function CanvasAutoSelectControl() {
   const manualOverrideActive = canvasPresetOverride?.source === 'manual'
   const autoSelectionActive = settings.autoSelectEnabled && canvasPresetOverride?.source === 'auto'
 
-  const description = !hasTrackLoaded
-    ? 'Load and analyze a track to enable smarter CANVAS Auto Select.'
-    : !hasAnalyzedTrack
-      ? 'Load and analyze a track to enable smarter CANVAS Auto Select. Live audio fallback stays safe while analysis is missing.'
-      : manualOverrideActive
-        ? 'Auto Select can stay on, but it will not replace the manually selected preset until the override is cleared.'
-        : 'Uses Audio Intelligence sections, energy, brightness, and rhythm to choose CANVAS presets and media.'
+  const description = mediaCount === 0
+    ? 'Upload CANVAS media first. Auto Select can choose a preset, but it needs personal media to display.'
+    : !hasTrackLoaded
+      ? 'Load and analyze a track to enable smarter CANVAS Auto Select.'
+      : !hasAnalyzedTrack
+        ? 'Audio Intelligence is missing. Auto Select waits safely and the current preset stays live.'
+        : manualOverrideActive
+          ? 'Auto Select can stay on, but it will not replace the manually selected preset until the override is cleared.'
+          : 'Uses Audio Intelligence sections, energy, brightness, and rhythm to choose CANVAS presets and media.'
 
   return (
     <div className="rv-canvas-auto-select-block">
@@ -1674,12 +1763,22 @@ function CanvasAutoSelectControl() {
       )}
       {!manualOverrideActive && autoSelectionActive && (
         <div className="rv-canvas-auto-status" role="status">
-          <span>Auto Select: {selectedPreset.name} is selected.</span>
+          <span>Auto Select: {canvasPresetOverride?.label ?? `${selectedPreset.name} is selected`}.</span>
         </div>
       )}
-      {!manualOverrideActive && settings.autoSelectEnabled && !hasAnalyzedTrack && (
+      {!manualOverrideActive && settings.autoSelectEnabled && mediaCount === 0 && (
         <div className="rv-canvas-auto-status rv-canvas-auto-status--helper" role="status">
-          <span>Load and analyze a track to enable smarter CANVAS Auto Select.</span>
+          <span>Upload personal media in CANVAS before Auto Select starts choosing visuals.</span>
+        </div>
+      )}
+      {!manualOverrideActive && settings.autoSelectEnabled && mediaCount > 0 && !hasAnalyzedTrack && (
+        <div className="rv-canvas-auto-status rv-canvas-auto-status--helper" role="status">
+          <span>{hasTrackLoaded ? `Audio Intelligence missing. CANVAS will keep ${selectedPreset.name} until analysis data arrives.` : 'Load and analyze a track to enable smarter CANVAS Auto Select.'}</span>
+        </div>
+      )}
+      {!manualOverrideActive && settings.autoSelectEnabled && mediaCount > 0 && hasAnalyzedTrack && !autoSelectionActive && (
+        <div className="rv-canvas-auto-status rv-canvas-auto-status--helper" role="status">
+          <span>Auto Select armed. CANVAS will choose from the uploaded media as the track moves.</span>
         </div>
       )}
     </div>
@@ -1920,6 +2019,7 @@ export function CanvasEnginePanel() {
         <div className="rv-canvas-panel-title">Media Visuals</div>
         <div className="rv-canvas-panel-copy">{CANVAS_MEDIA_COPY}</div>
         <CanvasMediaTokens />
+        <CanvasActivePreview />
         <CanvasUploadControl compact />
         <CanvasMediaLibrary compact />
         <div className="rv-canvas-panel-status">
