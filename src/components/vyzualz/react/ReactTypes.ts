@@ -173,6 +173,7 @@ export type CanvasPresetId =
   | 'canvas-particle-aura'
 
 export type CanvasPresetColorMode = 'original' | 'palette' | 'audioReactive'
+export type CanvasParticleQuality = 'low' | 'balanced' | 'high'
 
 export type CanvasPresetControlKey =
   | 'sourceVisibility'
@@ -190,6 +191,7 @@ export type CanvasPresetControlKey =
   | 'particleDensity'
   | 'particleSize'
   | 'particleColorMode'
+  | 'particleQuality'
 
 export type CanvasTriggerOn =
   | 'manualOnly'
@@ -239,6 +241,7 @@ export interface CanvasPresetSettings {
   particleDensity: number
   particleSize: number
   particleColorMode: CanvasPresetColorMode
+  particleQuality: CanvasParticleQuality
   /** Legacy Patch 3 aliases kept for persisted sessions and older patch compatibility. */
   motionTrailAmount: number
   particleAmount: number
@@ -328,6 +331,7 @@ export const DEFAULT_CANVAS_PRESET_SETTINGS: CanvasPresetSettings = {
   particleDensity: 0,
   particleSize: 2.4,
   particleColorMode: 'original',
+  particleQuality: 'balanced',
   motionTrailAmount: 0,
   particleAmount: 0,
   dissolveAmount: 0,
@@ -479,21 +483,22 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
     accent: '#dffcff',
     settings: {
       ...DEFAULT_CANVAS_PRESET_SETTINGS,
-      sourceVisibility: 0.34,
-      intensity: 0.72,
+      sourceVisibility: 0.28,
+      intensity: 0.82,
       bassReactivity: 0.78,
       beatPulse: 0.7,
-      glow: 0.78,
-      trailAmount: 0.18,
+      glow: 0.86,
+      trailAmount: 0.56,
       rgbSplit: 0.06,
       glitchAmount: 0,
       stutterRate: 0,
       lumaThreshold: 0.5,
-      motionAmount: 0.38,
-      turbulence: 0.58,
-      particleDensity: 0.66,
-      particleSize: 2.8,
+      motionAmount: 0.46,
+      turbulence: 0.62,
+      particleDensity: 0.72,
+      particleSize: 2.55,
       particleColorMode: 'original',
+      particleQuality: 'balanced',
       motionTrailAmount: 0.18,
       particleAmount: 0.66,
       dissolveAmount: 0.24,
@@ -510,6 +515,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       'bassReactivity',
       'beatPulse',
       'particleColorMode',
+      'particleQuality',
     ],
   },
 ]

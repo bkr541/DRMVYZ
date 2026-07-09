@@ -57,6 +57,7 @@ import type {
   CanvasFitMode,
   CanvasMediaItem,
   CanvasPresetColorMode,
+  CanvasParticleQuality,
   CanvasPresetId,
   CanvasPresetSettings,
   CanvasPresetOverrideState,
@@ -2460,6 +2461,12 @@ function normalizeCanvasPresetColorMode(value: unknown): CanvasPresetColorMode {
     : DEFAULT_CANVAS_PRESET_SETTINGS.particleColorMode
 }
 
+function normalizeCanvasParticleQuality(value: unknown): CanvasParticleQuality {
+  return value === 'low' || value === 'high' || value === 'balanced'
+    ? value
+    : DEFAULT_CANVAS_PRESET_SETTINGS.particleQuality
+}
+
 function normalizeCanvasPresetSettings(value: unknown): CanvasPresetSettings {
   const source = isRecord(value) ? value : DEFAULT_CANVAS_PRESET_SETTINGS
   const trailAmount = clampCanvasNumber(
@@ -2509,6 +2516,7 @@ function normalizeCanvasPresetSettings(value: unknown): CanvasPresetSettings {
     particleDensity,
     particleSize: clampCanvasNumber(source.particleSize, DEFAULT_CANVAS_PRESET_SETTINGS.particleSize, 0.35, 8),
     particleColorMode: normalizeCanvasPresetColorMode(source.particleColorMode),
+    particleQuality: normalizeCanvasParticleQuality(source.particleQuality),
     motionTrailAmount: trailAmount,
     particleAmount: particleDensity,
     dissolveAmount: turbulence,

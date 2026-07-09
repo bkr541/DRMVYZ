@@ -10,12 +10,23 @@ import { Collapsible, CtrlSection, NumberInputRow, SelectRow, SliderRow, ToggleR
 import { MediaLibraryBrowser } from '../media/MediaLibraryBrowser'
 import { CANVAS_MEDIA_LIBRARY_CAPABILITIES } from '../media/mediaLibraryCapabilities'
 import {
+  CanvasParticleAuraRenderer,
+  getCanvasParticleSourceSize,
+  isCanvasParticleSourceReady,
+  resolveCanvasParticleBudget,
+  resolveCanvasParticleQualityProfile,
+  sampleCanvasParticleSource,
+  type CanvasParticleAudioFrame,
+  type CanvasParticlePoint,
+} from './renderers/CanvasParticleAuraRenderer'
+import {
   CANVAS_PRESET_BY_ID,
   DEFAULT_CANVAS_PRESET_ID,
   DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS,
   type CanvasFitMode,
   type CanvasMediaItem,
   type CanvasMediaItemType,
+  type CanvasParticleQuality,
   type CanvasPresetColorMode,
   type CanvasPresetControlKey,
   type CanvasPresetId,
@@ -359,189 +370,12 @@ function canvasPresetClassName(presetId: CanvasPresetId): string {
 
 type CanvasParticleSourceElement = HTMLVideoElement | HTMLImageElement
 
-type CanvasParticlePoint = {
-  baseX: number
-  baseY: number
-  luma: number
-  alpha: number
-  r: number
-  g: number
-  b: number
-  seed: number
-}
-
-const CANVAS_PARTICLE_SAMPLE_WIDTH = 96
-const CANVAS_PARTICLE_SAMPLE_HEIGHT = 54
-const CANVAS_PARTICLE_MIN_COUNT = 90
-const CANVAS_PARTICLE_MAX_COUNT = 980
-
 function clampCanvasRange(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Number.isFinite(value) ? value : min))
 }
 
-function seededCanvasParticleNoise(seed: number): number {
-  const value = Math.sin(seed * 128.317 + 19.19) * 43758.5453
-  return value - Math.floor(value)
-}
-
-function isCanvasParticleSourceReady(source: CanvasParticleSourceElement | null): boolean {
-  if (!source) return false
-  if (source instanceof HTMLVideoElement) return source.readyState >= 2 && source.videoWidth > 0 && source.videoHeight > 0
-  return source.complete && source.naturalWidth > 0 && source.naturalHeight > 0
-}
-
-function getCanvasParticleSourceSize(source: CanvasParticleSourceElement): { width: number; height: number } {
-  if (source instanceof HTMLVideoElement) return { width: source.videoWidth, height: source.videoHeight }
-  return { width: source.naturalWidth, height: source.naturalHeight }
-}
-
-function createCanvasParticleFallbackPoints(targetCount: number): CanvasParticlePoint[] {
-  const points: CanvasParticlePoint[] = []
-  const safeCount = clampCanvasRange(Math.round(targetCount), CANVAS_PARTICLE_MIN_COUNT, CANVAS_PARTICLE_MAX_COUNT)
-  for (let index = 0; index < safeCount; index += 1) {
-    const seed = index + 1
-    const angle = seed * 2.399963
-    const radius = Math.sqrt((index + 0.5) / safeCount) * 0.44
-    const luma = 0.42 + seededCanvasParticleNoise(seed * 3.7) * 0.58
-    points.push({
-      baseX: 0.5 + Math.cos(angle) * radius,
-      baseY: 0.5 + Math.sin(angle) * radius,
-      luma,
-      alpha: 0.72,
-      r: 100 + Math.round(luma * 116),
-      g: 205 + Math.round(luma * 38),
-      b: 220 + Math.round(luma * 35),
-      seed,
-    })
-  }
-  return points
-}
-
-function sampleCanvasParticleSource({
-  source,
-  settings,
-  sampleCanvas,
-}: {
-  source: CanvasParticleSourceElement | null
-  settings: CanvasPresetSettings
-  sampleCanvas: HTMLCanvasElement
-}): CanvasParticlePoint[] {
-  const targetCount = CANVAS_PARTICLE_MIN_COUNT + settings.particleDensity * (CANVAS_PARTICLE_MAX_COUNT - CANVAS_PARTICLE_MIN_COUNT)
-  if (!source || !isCanvasParticleSourceReady(source)) return createCanvasParticleFallbackPoints(targetCount)
-
-  const sampleWidth = CANVAS_PARTICLE_SAMPLE_WIDTH
-  const sampleHeight = CANVAS_PARTICLE_SAMPLE_HEIGHT
-  sampleCanvas.width = sampleWidth
-  sampleCanvas.height = sampleHeight
-  const sampleContext = sampleCanvas.getContext('2d', { willReadFrequently: true })
-  if (!sampleContext) return createCanvasParticleFallbackPoints(targetCount)
-
-  sampleContext.clearRect(0, 0, sampleWidth, sampleHeight)
-  const sourceSize = getCanvasParticleSourceSize(source)
-  const sourceAspect = sourceSize.width / Math.max(1, sourceSize.height)
-  const sampleAspect = sampleWidth / sampleHeight
-  let drawWidth = sampleWidth
-  let drawHeight = sampleHeight
-  let drawX = 0
-  let drawY = 0
-  if (sourceAspect > sampleAspect) {
-    drawHeight = sampleWidth / sourceAspect
-    drawY = (sampleHeight - drawHeight) / 2
-  } else {
-    drawWidth = sampleHeight * sourceAspect
-    drawX = (sampleWidth - drawWidth) / 2
-  }
-
-  try {
-    sampleContext.drawImage(source, drawX, drawY, drawWidth, drawHeight)
-  } catch {
-    // Video/image/SVG files imported as object URLs are usually readable here. If a browser
-    // blocks pixel access, Particle Aura falls back to a safe procedural point cloud instead.
-    return createCanvasParticleFallbackPoints(targetCount)
-  }
-
-  let imageData: ImageData
-  try {
-    imageData = sampleContext.getImageData(0, 0, sampleWidth, sampleHeight)
-  } catch {
-    // Some SVGs with external references can taint the canvas. Keep the preset alive with
-    // the same audio-reactive motion, but without per-pixel source sampling.
-    return createCanvasParticleFallbackPoints(targetCount)
-  }
-
-  const candidates: CanvasParticlePoint[] = []
-  const threshold = 0.08 + settings.turbulence * 0.28
-  const stride = settings.particleDensity > 0.72 ? 1 : 2
-  for (let y = 0; y < sampleHeight; y += stride) {
-    for (let x = 0; x < sampleWidth; x += stride) {
-      const index = (y * sampleWidth + x) * 4
-      const r = imageData.data[index]
-      const g = imageData.data[index + 1]
-      const b = imageData.data[index + 2]
-      const alpha = imageData.data[index + 3] / 255
-      const luma = (r * 0.2126 + g * 0.7152 + b * 0.0722) / 255
-      const visible = alpha * luma
-      if (visible <= threshold) continue
-      const seed = (x + 1) * 0.731 + (y + 1) * 1.371 + candidates.length * 0.113
-      if (seededCanvasParticleNoise(seed) < settings.turbulence * 0.36) continue
-      candidates.push({
-        baseX: (x + 0.5) / sampleWidth,
-        baseY: (y + 0.5) / sampleHeight,
-        luma,
-        alpha,
-        r,
-        g,
-        b,
-        seed,
-      })
-    }
-  }
-
-  if (candidates.length === 0) return createCanvasParticleFallbackPoints(targetCount)
-
-  const points: CanvasParticlePoint[] = []
-  const safeCount = clampCanvasRange(Math.round(targetCount), CANVAS_PARTICLE_MIN_COUNT, CANVAS_PARTICLE_MAX_COUNT)
-  for (let index = 0; index < safeCount; index += 1) {
-    const pick = Math.floor(seededCanvasParticleNoise(index * 9.17 + candidates.length * 0.27) * candidates.length)
-    const candidate = candidates[pick] ?? candidates[index % candidates.length]
-    const jitter = 0.002 + settings.turbulence * 0.018
-    points.push({
-      ...candidate,
-      baseX: clampCanvasRange(candidate.baseX + (seededCanvasParticleNoise(index * 2.1) - 0.5) * jitter, 0, 1),
-      baseY: clampCanvasRange(candidate.baseY + (seededCanvasParticleNoise(index * 3.4) - 0.5) * jitter, 0, 1),
-      seed: candidate.seed + index * 0.019,
-    })
-  }
-  return points
-}
-
-function mixCanvasParticleChannel(a: number, b: number, amount: number): number {
-  return Math.round(a + (b - a) * clampCanvasRange(amount, 0, 1))
-}
-
-function getCanvasParticleColor(
-  point: CanvasParticlePoint,
-  mode: CanvasPresetColorMode,
-  bass: number,
-  high: number,
-): string {
-  if (mode === 'original') {
-    return `rgb(${point.r}, ${point.g}, ${point.b})`
-  }
-
-  if (mode === 'palette') {
-    const mix = clampCanvasRange(point.luma * 0.72 + seededCanvasParticleNoise(point.seed) * 0.28, 0, 1)
-    const r = mixCanvasParticleChannel(74, 97, mix)
-    const g = mixCanvasParticleChannel(199, 214, mix)
-    const b = mixCanvasParticleChannel(219, 170, mix)
-    return `rgb(${r}, ${g}, ${b})`
-  }
-
-  const energy = clampCanvasRange(bass * 0.65 + high * 0.6, 0, 1)
-  const r = mixCanvasParticleChannel(74, 255, high * 0.82)
-  const g = mixCanvasParticleChannel(199, 97, bass * 0.45)
-  const b = mixCanvasParticleChannel(219, 216, energy)
-  return `rgb(${r}, ${g}, ${b})`
+function lowerCanvasParticleQuality(quality: CanvasParticleQuality): CanvasParticleQuality {
+  return quality === 'high' ? 'balanced' : quality === 'balanced' ? 'low' : 'low'
 }
 
 function CanvasParticleAuraLayer({
@@ -567,9 +401,15 @@ function CanvasParticleAuraLayer({
     if (!active || !activeItem) return
     const canvas = canvasRef.current
     if (!canvas) return
-    const context = canvas.getContext('2d', { alpha: true })
-    if (!context) return
 
+    const createResult = CanvasParticleAuraRenderer.create(canvas)
+    if (!createResult.renderer) return
+
+    // Particle Aura uses the repo's existing WebGL2 direction instead of Three.js:
+    // the app has custom WebGL2/shader renderers but does not ship Three. The only
+    // Canvas2D work left here is bounded luma/alpha source sampling; all live glow,
+    // trails, turbulence, and particle drawing run on the GPU.
+    const renderer = createResult.renderer
     const sampleCanvas = document.createElement('canvas')
     const frequencyData = analyser ? new Uint8Array(Math.max(1, analyser.frequencyBinCount)) : null
     let points: CanvasParticlePoint[] = []
@@ -577,46 +417,16 @@ function CanvasParticleAuraLayer({
     let lastSampleAt = 0
     let previousBass = 0
     let heldBeat = 0
-    let lastWidth = 0
-    let lastHeight = 0
+    let fpsFrames = 0
+    let fpsLastAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
+    let runtimeQuality = settings.particleQuality
     let disposed = false
+    let lastUploadedColorMode = settings.particleColorMode
 
-    const rebuildParticles = () => {
-      points = sampleCanvasParticleSource({
-        source: sourceRef.current,
-        settings,
-        sampleCanvas,
-      })
-    }
-
-    const resizeCanvas = () => {
-      const rect = canvas.getBoundingClientRect()
-      const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1))
-      const width = Math.max(1, Math.round(rect.width * dpr))
-      const height = Math.max(1, Math.round(rect.height * dpr))
-      if (canvas.width === width && canvas.height === height) return
-      canvas.width = width
-      canvas.height = height
-      lastWidth = rect.width || width / dpr
-      lastHeight = rect.height || height / dpr
-      context.setTransform(dpr, 0, 0, dpr, 0, 0)
-      context.clearRect(0, 0, lastWidth, lastHeight)
-    }
-
-    const tick = () => {
-      if (disposed) return
-      resizeCanvas()
-      const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now()
-      const now = nowMs / 1000
-      const sampleInterval = activeItem.type === 'video' && isPlaying && !isPaused ? 180 : 650
-      if (points.length === 0 || nowMs - lastSampleAt > sampleInterval) {
-        rebuildParticles()
-        lastSampleAt = nowMs
-      }
-
+    const readAudioFrame = (now: number): CanvasParticleAudioFrame => {
       let bass = 0.16 + Math.sin(now * 1.4) * 0.035
       let high = 0.12 + Math.sin(now * 2.7) * 0.025
-      let beat = 0
+      let beat = Math.max(0, Math.sin(now * 2.2)) * 0.22
       if (analyser && frequencyData && isPlaying && !isPaused) {
         analyser.getByteFrequencyData(frequencyData)
         bass = averageByteRange(frequencyData, 0, 0.16)
@@ -626,73 +436,65 @@ function CanvasParticleAuraLayer({
         beat = heldBeat
         previousBass = previousBass * 0.58 + bass * 0.42
       } else {
-        beat = Math.max(0, Math.sin(now * 2.2)) * 0.22
         previousBass = bass
       }
+      return { bass, high, beat }
+    }
 
-      const width = lastWidth || canvas.clientWidth || 1
-      const height = lastHeight || canvas.clientHeight || 1
-      const fade = 1 - clampCanvasRange(settings.trailAmount, 0, 0.94)
-      if (settings.trailAmount <= 0.03) {
-        context.clearRect(0, 0, width, height)
-      } else {
-        context.save()
-        context.globalCompositeOperation = 'destination-out'
-        context.fillStyle = `rgba(0, 0, 0, ${clampCanvasRange(fade, 0.04, 0.82).toFixed(3)})`
-        context.fillRect(0, 0, width, height)
-        context.restore()
+    const tick = () => {
+      if (disposed) return
+      const rect = canvas.getBoundingClientRect()
+      const cssWidth = Math.max(1, Math.round(rect.width || canvas.clientWidth || 1))
+      const cssHeight = Math.max(1, Math.round(rect.height || canvas.clientHeight || 1))
+      const profile = resolveCanvasParticleQualityProfile(runtimeQuality)
+      const dpr = Math.min(profile.maxDpr, Math.max(1, window.devicePixelRatio || 1))
+      renderer.resize(Math.round(cssWidth * dpr), Math.round(cssHeight * dpr))
+
+      const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now()
+      const now = nowMs / 1000
+      const audio = readAudioFrame(now)
+      const source = sourceRef.current
+      const sampleInterval = activeItem.type === 'video' && isPlaying && !isPaused
+        ? profile.videoSampleIntervalMs
+        : profile.staticSampleIntervalMs
+      const targetCount = resolveCanvasParticleBudget(settings, profile, cssWidth, cssHeight)
+      const shouldResample = points.length === 0 || nowMs - lastSampleAt > sampleInterval || settings.particleColorMode !== lastUploadedColorMode
+
+      if (shouldResample) {
+        points = sampleCanvasParticleSource({
+          source,
+          settings,
+          sampleCanvas,
+          profile,
+          targetCount,
+        })
+        renderer.uploadPoints(points, settings, audio)
+        lastUploadedColorMode = settings.particleColorMode
+        lastSampleAt = nowMs
       }
 
-      context.save()
-      context.globalCompositeOperation = 'lighter'
-      const centerX = width * 0.5
-      const centerY = height * 0.5
-      const bassPush = bass * settings.bassReactivity * settings.intensity * Math.min(width, height) * 0.18
-      const beatScale = 1 + beat * settings.beatPulse * 0.9
-      const glow = settings.glow * (8 + bass * 28 + beat * 20)
-      const dissolveScatter = settings.turbulence * Math.min(width, height) * 0.12
-      const turbulence = settings.turbulence * (4 + high * 18 + bass * 8)
+      renderer.render({ settings, audio, timeSec: now, pixelRatio: dpr })
 
-      points.forEach((point, index) => {
-        const dx = point.baseX - 0.5
-        const dy = point.baseY - 0.5
-        const distance = Math.max(0.08, Math.hypot(dx, dy))
-        const normalX = dx / distance
-        const normalY = dy / distance
-        const noiseA = Math.sin(now * (0.65 + point.luma) + point.seed * 10.1)
-        const noiseB = Math.cos(now * (0.78 + point.alpha) + point.seed * 7.7)
-        const dissolveNoise = seededCanvasParticleNoise(point.seed + Math.floor(now * 12) * 0.31)
-        const sparkle = 0.72 + high * Math.abs(Math.sin(now * 24 + point.seed * 18)) * 0.58
-        const x = point.baseX * width + normalX * bassPush + noiseA * turbulence + (dissolveNoise - 0.5) * dissolveScatter
-        const y = point.baseY * height + normalY * bassPush + noiseB * turbulence + (seededCanvasParticleNoise(point.seed * 2.3) - 0.5) * dissolveScatter
-        const size = Math.max(0.35, settings.particleSize * (0.45 + point.luma * 1.25) * beatScale * (0.9 + high * 0.22))
-        const alpha = clampCanvasRange(
-          (0.16 + point.luma * 0.78) * point.alpha * settings.intensity * (1 - settings.turbulence * 0.42) * sparkle,
-          0,
-          0.95,
-        )
-        if (alpha <= 0.015 || (settings.turbulence > 0.72 && (index % 3) === 0 && dissolveNoise < settings.turbulence - 0.46)) return
-
-        const color = getCanvasParticleColor(point, settings.particleColorMode, bass, high)
-        context.beginPath()
-        context.fillStyle = color
-        context.globalAlpha = alpha
-        context.shadowColor = color
-        context.shadowBlur = glow * (0.35 + point.luma)
-        context.arc(x, y, size, 0, Math.PI * 2)
-        context.fill()
-      })
-      context.restore()
+      fpsFrames += 1
+      if (nowMs - fpsLastAt >= 1200) {
+        const fps = (fpsFrames * 1000) / Math.max(1, nowMs - fpsLastAt)
+        fpsFrames = 0
+        fpsLastAt = nowMs
+        if (fps < 24 && runtimeQuality !== 'low') {
+          runtimeQuality = lowerCanvasParticleQuality(runtimeQuality)
+          points = []
+          renderer.clear()
+        }
+      }
 
       frameId = window.requestAnimationFrame(tick)
     }
 
-    rebuildParticles()
     tick()
     return () => {
       disposed = true
       window.cancelAnimationFrame(frameId)
-      context.clearRect(0, 0, canvas.width, canvas.height)
+      renderer.dispose()
     }
   }, [active, activeItem, activeItem?.id, analyser, isPaused, isPlaying, settings, sourceRef])
 
@@ -1175,13 +977,10 @@ export function CanvasEngineSurface({
     const captureContext = captureCanvas.getContext('2d', { alpha: true })
     if (!captureContext) return
 
-    const sampleCanvas = document.createElement('canvas')
     const frequencyData = analyser ? new Uint8Array(Math.max(1, analyser.frequencyBinCount)) : null
     let frameId = 0
     let previousBass = 0
     let heldBeat = 0
-    let points: CanvasParticlePoint[] = []
-    let lastParticleSampleAt = 0
     let fpsFrames = 0
     let fpsLastAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
 
@@ -1261,44 +1060,9 @@ export function CanvasEngineSurface({
       }
       captureContext.restore()
 
-      if (canvasPresetSettings.particleDensity > 0.02) {
-        if (points.length === 0 || nowMs - lastParticleSampleAt > (activeItem.type === 'video' ? 260 : 900)) {
-          points = sampleCanvasParticleSource({ source, settings: canvasPresetSettings, sampleCanvas })
-          lastParticleSampleAt = nowMs
-        }
-        captureContext.save()
-        captureContext.globalCompositeOperation = 'lighter'
-        const bassPush = bass * canvasPresetSettings.bassReactivity * canvasPresetSettings.intensity * Math.min(cssWidth, cssHeight) * 0.18
-        const beatScale = 1 + beat * canvasPresetSettings.beatPulse * 0.9
-        const turbulence = canvasPresetSettings.turbulence * (4 + high * 18 + bass * 8)
-        const dissolveScatter = canvasPresetSettings.turbulence * Math.min(cssWidth, cssHeight) * 0.12
-        const glow = canvasPresetSettings.glow * (8 + bass * 28 + beat * 20)
-        points.forEach((point, index) => {
-          const dx = point.baseX - 0.5
-          const dy = point.baseY - 0.5
-          const distance = Math.max(0.08, Math.hypot(dx, dy))
-          const normalX = dx / distance
-          const normalY = dy / distance
-          const noiseA = Math.sin(now * (0.65 + point.luma) + point.seed * 10.1)
-          const noiseB = Math.cos(now * (0.78 + point.alpha) + point.seed * 7.7)
-          const dissolveNoise = seededCanvasParticleNoise(point.seed + Math.floor(now * 12) * 0.31)
-          if (canvasPresetSettings.turbulence > 0.72 && (index % 3) === 0 && dissolveNoise < canvasPresetSettings.turbulence - 0.46) return
-          const color = getCanvasParticleColor(point, canvasPresetSettings.particleColorMode, bass, high)
-          const x = point.baseX * cssWidth + normalX * bassPush + noiseA * turbulence + (dissolveNoise - 0.5) * dissolveScatter
-          const y = point.baseY * cssHeight + normalY * bassPush + noiseB * turbulence + (seededCanvasParticleNoise(point.seed * 2.3) - 0.5) * dissolveScatter
-          const size = Math.max(0.35, canvasPresetSettings.particleSize * (0.45 + point.luma * 1.25) * beatScale)
-          const alpha = clampCanvasRange((0.16 + point.luma * 0.78) * point.alpha * canvasPresetSettings.intensity * (1 - canvasPresetSettings.turbulence * 0.42), 0, 0.95)
-          if (alpha <= 0.015) return
-          captureContext.beginPath()
-          captureContext.fillStyle = color
-          captureContext.globalAlpha = alpha
-          captureContext.shadowColor = color
-          captureContext.shadowBlur = glow * (0.35 + point.luma)
-          captureContext.arc(x, y, size, 0, Math.PI * 2)
-          captureContext.fill()
-        })
-        captureContext.restore()
-      }
+      // Do not duplicate Particle Aura particles into the hidden Canvas2D capture surface.
+      // The live layer owns the GPU particle pass; keeping capture source-only avoids
+      // the old CPU point loop that caused video media to stutter during performance.
     }
 
     const tick = () => {
@@ -1719,7 +1483,7 @@ export function CanvasEngineSurface({
 }
 
 
-type CanvasPresetSliderControlKey = Exclude<CanvasPresetControlKey, 'particleColorMode'>
+type CanvasPresetSliderControlKey = Exclude<CanvasPresetControlKey, 'particleColorMode' | 'particleQuality'>
 
 const CANVAS_PARTICLE_COLOR_MODE_OPTIONS: Array<{ value: CanvasPresetColorMode; label: string }> = [
   { value: 'original', label: 'Original' },
@@ -1727,8 +1491,14 @@ const CANVAS_PARTICLE_COLOR_MODE_OPTIONS: Array<{ value: CanvasPresetColorMode; 
   { value: 'audioReactive', label: 'Audio Reactive' },
 ]
 
+const CANVAS_PARTICLE_QUALITY_OPTIONS: Array<{ value: CanvasParticleQuality; label: string }> = [
+  { value: 'low', label: 'Low' },
+  { value: 'balanced', label: 'Balanced' },
+  { value: 'high', label: 'High' },
+]
+
 function isCanvasPresetSliderControlKey(control: CanvasPresetControlKey): control is CanvasPresetSliderControlKey {
-  return control !== 'particleColorMode'
+  return control !== 'particleColorMode' && control !== 'particleQuality'
 }
 
 const CANVAS_PRESET_CONTROL_META: Record<CanvasPresetSliderControlKey, {
@@ -2146,6 +1916,21 @@ function CanvasPresetControls() {
           onChange={value => setCanvasPresetSettings({ particleColorMode: value as CanvasPresetColorMode })}
           options={CANVAS_PARTICLE_COLOR_MODE_OPTIONS}
           description="Original samples source color, Palette uses the DRMVYZ cyan/emerald palette, and Audio Reactive lets highs and bass recolor the particles."
+        />
+      )
+    }
+
+
+
+    if (control === 'particleQuality') {
+      return (
+        <SelectRow
+          key={control}
+          label="Particle Quality"
+          value={canvasPresetSettings.particleQuality}
+          onChange={value => setCanvasPresetSettings({ particleQuality: value as CanvasParticleQuality })}
+          options={CANVAS_PARTICLE_QUALITY_OPTIONS}
+          description="Caps WebGL particle budget and source-sampling resolution. Balanced is designed for live video playback."
         />
       )
     }
