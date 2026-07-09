@@ -91,6 +91,27 @@ describe('React performance action transient bus', () => {
     expect(useReactStore.getState().performanceActionEvent).toBeNull()
   })
 
+
+  it('routes CANVAS performance pad actions through manual preset override and clip restart state', () => {
+    useReactStore.getState().resetReactView()
+    useReactStore.getState().selectReactEngine('canvas')
+
+    useReactStore.getState().triggerPerformanceAction('canvas.bassBloom')
+    expect(useReactStore.getState().activeReactEngineId).toBe('canvas')
+    expect(useReactStore.getState().selectedCanvasPresetId).toBe('canvas-bass-bloom')
+    expect(useReactStore.getState().canvasPresetOverride).toMatchObject({
+      source: 'manual',
+      presetId: 'canvas-bass-bloom',
+      label: 'Performance pad preset',
+    })
+    expect(useReactStore.getState().performanceActionEvent?.actionId).toBe('canvas.bassBloom')
+
+    const beforeRestart = useReactStore.getState().canvasVideoRestartRevision
+    useReactStore.getState().triggerPerformanceAction('canvas.restartClip')
+    expect(useReactStore.getState().canvasVideoRestartRevision).toBe(beforeRestart + 1)
+    expect(useReactStore.getState().performanceActionEvent?.actionId).toBe('canvas.restartClip')
+  })
+
   it('rejects actions that are unavailable for the active engine or world', () => {
     const before = useReactStore.getState().performanceActionSeq
     useReactStore.getState().triggerPerformanceAction('neonLattice.railBurst')

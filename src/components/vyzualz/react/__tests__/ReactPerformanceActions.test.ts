@@ -22,6 +22,11 @@ describe('React visual performance action registry', () => {
     expect(constellation.filter(action => action.behavior === 'momentary').every(action => (
       action.envelope != null && action.envelope.releaseMs > 0
     ))).toBe(true)
+
+    const canvas = getReactPerformanceActionsForTarget({ engineId: 'canvas' })
+    expect(canvas.map(action => action.label)).toEqual([
+      'Clean', 'Bloom', 'Ghost', 'Glitch', 'Stutter', 'Aura', 'Restart', 'Luma',
+    ])
   })
 
   it('does not register retired Neon Lattice actions or targets', () => {
@@ -41,6 +46,15 @@ describe('React visual performance action registry', () => {
       kind: 'action', actionId: 'reactiveConstellation.blackout',
     })
     expect(resolvePerformancePadKeyboardRoute('d', actions)).toEqual({ kind: 'preset', padId: 'pad-11' })
+
+    const canvasActions = getReactPerformanceActionsForTarget({ engineId: 'canvas' })
+    expect(resolvePerformancePadKeyboardRoute('1', canvasActions)).toEqual({
+      kind: 'action', actionId: 'canvas.cleanPlayback',
+    })
+    expect(resolvePerformancePadKeyboardRoute('e', canvasActions)).toEqual({
+      kind: 'action', actionId: 'canvas.restartClip',
+    })
+    expect(resolvePerformancePadKeyboardRoute('a', canvasActions)).toEqual({ kind: 'preset', padId: 'pad-9' })
     expect(resolvePerformancePadKeyboardRoute('?', actions)).toBeNull()
   })
 

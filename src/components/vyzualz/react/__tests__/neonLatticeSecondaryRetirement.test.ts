@@ -98,12 +98,14 @@ describe('Neon Lattice secondary integration retirement', () => {
     }
   })
 
-  it('preserves LaserDMX and Reactive Constellation action IDs while excluding retired Neon actions', () => {
+  it('preserves LaserDMX, CANVAS, and Reactive Constellation action IDs while excluding retired Neon actions', () => {
     expect(REACT_VISUAL_PERFORMANCE_ACTIONS.map(action => action.id)).toEqual([
       'laserDmx.blackout', 'laserDmx.reveal', 'laserDmx.whiteHit', 'laserDmx.blinderHit',
       'laserDmx.laserStarburst', 'laserDmx.fanOpen', 'laserDmx.fanClose', 'laserDmx.movementVariation',
       'laserDmx.strobeBurst', 'laserDmx.fogBurst', 'laserDmx.cryoBurst', 'laserDmx.previousLook',
-      'laserDmx.nextLook', 'reactiveConstellation.collapse', 'reactiveConstellation.burst',
+      'laserDmx.nextLook', 'canvas.cleanPlayback', 'canvas.bassBloom', 'canvas.ghostEcho',
+      'canvas.glitchPulse', 'canvas.lumaMelt', 'canvas.frameStutter', 'canvas.particleAura',
+      'canvas.restartClip', 'reactiveConstellation.collapse', 'reactiveConstellation.burst',
       'reactiveConstellation.reseed', 'reactiveConstellation.freeze', 'reactiveConstellation.beamFan',
       'reactiveConstellation.crystalOnly', 'reactiveConstellation.edgesOnly', 'reactiveConstellation.paletteFlip',
       'reactiveConstellation.whiteFlash', 'reactiveConstellation.blackout',

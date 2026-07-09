@@ -1,5 +1,5 @@
 import type { CinematicWorldMode } from './CinematicWorldConfig'
-import type { ReactEngineId } from './ReactTypes'
+import type { CanvasPresetId, ReactEngineId } from './ReactTypes'
 
 export type ReactPerformanceActionBehavior = 'momentary' | 'toggle' | 'oneShot'
 
@@ -7,6 +7,8 @@ export type LaserDmxPerformanceActionId =
   | 'blackout' | 'reveal' | 'whiteHit' | 'blinderHit' | 'laserStarburst'
   | 'fanOpen' | 'fanClose' | 'movementVariation' | 'strobeBurst'
   | 'fogBurst' | 'cryoBurst' | 'nextLook' | 'previousLook'
+
+export type CanvasPerformanceActionId = 'selectPreset' | 'restartClip'
 
 export interface ReactPerformanceActionEnvelope {
   attackMs: number
@@ -32,6 +34,10 @@ export interface ReactPerformanceActionDefinition {
   exclusiveGroup?: string
   /** Generic production-rig command consumed by the LaserDMX action adapter. */
   productionAction?: LaserDmxPerformanceActionId
+  /** CANVAS command consumed directly by the React store for live pad triggering. */
+  canvasAction?: CanvasPerformanceActionId
+  /** CANVAS preset recipe to load when canvasAction is 'selectPreset'. */
+  canvasPresetId?: CanvasPresetId
 }
 
 export interface ReactPerformanceActionEvent {
@@ -50,6 +56,7 @@ const PAD_KEY_BINDINGS: Readonly<Record<string, string>> = {
 }
 
 const LASER_DMX_TARGET: ReactPerformanceActionTarget = { engineId: 'laserDmx' }
+const CANVAS_TARGET: ReactPerformanceActionTarget = { engineId: 'canvas' }
 
 const LASER_DMX_ACTIONS: readonly ReactPerformanceActionDefinition[] = [
   { id: 'laserDmx.blackout', padId: 'pad-1', keyBinding: '1', label: 'Blackout', description: 'Cut all visible production output while virtual movement and atmosphere keep advancing.', color: '#140b19', behavior: 'oneShot', target: LASER_DMX_TARGET, productionAction: 'blackout' },
@@ -65,6 +72,18 @@ const LASER_DMX_ACTIONS: readonly ReactPerformanceActionDefinition[] = [
   { id: 'laserDmx.cryoBurst', padId: 'pad-11', keyBinding: 'd', label: 'Cryo', description: 'Trigger a short virtual cryogenic-style plume event.', color: '#eafcff', behavior: 'momentary', envelope: { attackMs: 10, holdMs: 300, releaseMs: 520 }, target: LASER_DMX_TARGET, productionAction: 'cryoBurst' },
   { id: 'laserDmx.previousLook', padId: 'pad-12', keyBinding: 'f', label: 'Prev Look', description: 'Move to the previous authored production look.', color: '#b484ff', behavior: 'oneShot', target: LASER_DMX_TARGET, productionAction: 'previousLook' },
   { id: 'laserDmx.nextLook', padId: 'pad-13', keyBinding: 'z', label: 'Next Look', description: 'Move to the next authored production look.', color: '#ff72ca', behavior: 'oneShot', target: LASER_DMX_TARGET, productionAction: 'nextLook' },
+]
+
+
+const CANVAS_ACTIONS: readonly ReactPerformanceActionDefinition[] = [
+  { id: 'canvas.cleanPlayback', padId: 'pad-1', keyBinding: '1', label: 'Clean', description: 'Switch CANVAS to the Clean Playback recipe without touching the loaded track audio.', color: '#e8f4f8', behavior: 'oneShot', target: CANVAS_TARGET, canvasAction: 'selectPreset', canvasPresetId: 'canvas-clean-playback' },
+  { id: 'canvas.bassBloom', padId: 'pad-2', keyBinding: '2', label: 'Bloom', description: 'Switch CANVAS to the Bass Bloom recipe for a source-forward bass swell.', color: '#61d6aa', behavior: 'oneShot', target: CANVAS_TARGET, canvasAction: 'selectPreset', canvasPresetId: 'canvas-bass-bloom' },
+  { id: 'canvas.ghostEcho', padId: 'pad-3', keyBinding: '3', label: 'Ghost', description: 'Switch CANVAS to the Ghost Echo recipe for trails and transparent motion.', color: '#9ddcff', behavior: 'oneShot', target: CANVAS_TARGET, canvasAction: 'selectPreset', canvasPresetId: 'canvas-ghost-echo' },
+  { id: 'canvas.glitchPulse', padId: 'pad-4', keyBinding: '4', label: 'Glitch', description: 'Switch CANVAS to the Glitch Pulse recipe for RGB splits and hard rhythmic energy.', color: '#ff6b9d', behavior: 'oneShot', target: CANVAS_TARGET, canvasAction: 'selectPreset', canvasPresetId: 'canvas-glitch-pulse' },
+  { id: 'canvas.lumaMelt', padId: 'pad-17', keyBinding: '5', label: 'Luma', description: 'Switch CANVAS to the Luma Melt recipe for bright threshold smears.', color: '#d8b95a', behavior: 'oneShot', target: CANVAS_TARGET, canvasAction: 'selectPreset', canvasPresetId: 'canvas-luma-melt' },
+  { id: 'canvas.frameStutter', padId: 'pad-5', keyBinding: 'q', label: 'Stutter', description: 'Switch CANVAS to the Frame Stutter recipe for clipped rhythmic video motion.', color: '#b84fc9', behavior: 'oneShot', target: CANVAS_TARGET, canvasAction: 'selectPreset', canvasPresetId: 'canvas-frame-stutter' },
+  { id: 'canvas.particleAura', padId: 'pad-6', keyBinding: 'w', label: 'Aura', description: 'Switch CANVAS to the Particle Aura recipe and keep the active source selected.', color: '#4ac7db', behavior: 'oneShot', target: CANVAS_TARGET, canvasAction: 'selectPreset', canvasPresetId: 'canvas-particle-aura' },
+  { id: 'canvas.restartClip', padId: 'pad-7', keyBinding: 'e', label: 'Restart', description: 'Restart the active CANVAS video clip range without disrupting audio playback.', color: '#ffffff', behavior: 'oneShot', target: CANVAS_TARGET, canvasAction: 'restartClip' },
 ]
 
 const RC_TARGET: ReactPerformanceActionTarget = {
@@ -85,7 +104,7 @@ const RC_ACTIONS: readonly ReactPerformanceActionDefinition[] = [
   { id: 'reactiveConstellation.blackout',    padId: 'pad-10', keyBinding: 's', label: 'Blackout',     description: 'Toggle a temporary full blackout without changing the saved preset.', color: '#130b1d', behavior: 'toggle', target: RC_TARGET },
 ]
 
-export const REACT_VISUAL_PERFORMANCE_ACTIONS = [...LASER_DMX_ACTIONS, ...RC_ACTIONS] as const
+export const REACT_VISUAL_PERFORMANCE_ACTIONS = [...LASER_DMX_ACTIONS, ...CANVAS_ACTIONS, ...RC_ACTIONS] as const
 
 export interface ReactPerformanceActionRegistryValidationIssue {
   actionId: string
@@ -116,6 +135,12 @@ export function validateReactPerformanceActionRegistry(
 
     if (action.target.worldId && action.target.engineId !== 'cinematicPortal') {
       issues.push({ actionId: action.id, message: 'World-specific actions must target the cinematicPortal engine.' })
+    }
+    if (action.canvasAction && action.target.engineId !== 'canvas') {
+      issues.push({ actionId: action.id, message: 'CANVAS actions must target the CANVAS engine.' })
+    }
+    if (action.canvasAction === 'selectPreset' && !action.canvasPresetId) {
+      issues.push({ actionId: action.id, message: 'CANVAS preset actions require a canvasPresetId.' })
     }
     if (action.behavior === 'momentary') {
       const envelope = action.envelope

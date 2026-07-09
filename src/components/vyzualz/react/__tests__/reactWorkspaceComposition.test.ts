@@ -34,7 +34,7 @@ describe('React workspace composition', () => {
     }
   })
 
-  it('uses Shader Scenes instead of React presets and preset performance pads', () => {
+  it('uses Shader Scenes instead of React presets while CANVAS keeps contextual pads', () => {
     const shader = resolveReactWorkspaceComposition('shaderPads', 'beamMatrix', false)
 
     expect(DEFAULT_REACT_PRESETS.filter(preset => preset.engine === 'shaderPads')).toHaveLength(0)
@@ -46,9 +46,9 @@ describe('React workspace composition', () => {
     expect(DEFAULT_REACT_PRESETS.filter(preset => preset.engine === 'canvas')).toHaveLength(0)
     expect(canvas.presetSurface).toBe('enginePresets')
     expect(getReactPresetTabLabel(canvas)).toBe('PRESETS')
-    expect(canvas.showPerformancePads).toBe(false)
+    expect(canvas.showPerformancePads).toBe(true)
 
-    for (const engine of ['cinematicPortal', 'oscilloscope', 'laserDmx'] as ReactEngineId[]) {
+    for (const engine of ['cinematicPortal', 'oscilloscope', 'canvas', 'laserDmx'] as ReactEngineId[]) {
       const composition = resolveReactWorkspaceComposition(engine, 'beamMatrix', false)
       expect(composition.presetSurface).toBe('enginePresets')
       expect(getReactPresetTabLabel(composition)).toBe('PRESETS')

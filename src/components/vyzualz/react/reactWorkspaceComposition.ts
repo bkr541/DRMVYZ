@@ -51,7 +51,7 @@ export function resolveReactWorkspaceComposition(
   return {
     // React performance pads target live React presets and contextual production actions.
     // Shader uses its independent scene system and has no compatible React presets.
-    showPerformancePads: !isShader && !isCanvas,
+    showPerformancePads: !isShader,
     showSoundDrawingTimeline: isSoundDrawing,
     // Track sections and transport context are shared by every React engine.
     showTrackMap: true,

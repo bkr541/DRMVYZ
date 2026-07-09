@@ -1481,7 +1481,7 @@ interface ReactStoreState {
   setCanvasEngineSettings: (patch: Partial<CanvasEngineSettings>) => void
   resetCanvasEngineSettings: () => void
   setCanvasAutoSelectEnabled: (enabled: boolean) => void
-  applyCanvasAutoSelection: (selection: { presetId: CanvasPresetId; mediaId?: string | null; label?: string | null }) => void
+  applyCanvasAutoSelection: (selection: { presetId?: CanvasPresetId | null; mediaId?: string | null; label?: string | null }) => void
   clearCanvasPresetOverride: () => void
   clearCanvasMediaOverride: () => void
   selectCanvasPreset: (id: CanvasPresetId) => void
@@ -3690,8 +3690,12 @@ export const useReactStore = create<ReactStoreState>()(
       })),
 
       applyCanvasAutoSelection: ({ presetId, mediaId, label }) => set((state) => {
-        if (!state.canvasEngineSettings.autoSelectEnabled || state.canvasPresetOverride?.source === 'manual') return {}
-        const preset = CANVAS_PRESET_BY_ID[presetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
+        if (!state.canvasEngineSettings.autoSelectEnabled) return {}
+
+        const manualPresetOverrideActive = state.canvasPresetOverride?.source === 'manual'
+        const preset = !manualPresetOverrideActive && presetId
+          ? CANVAS_PRESET_BY_ID[presetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
+          : null
         const manualMediaOverrideId = state.canvasEngineSettings.manualMediaOverrideId
         const manualMediaOverrideValid = typeof manualMediaOverrideId === 'string' && manualMediaOverrideId.trim().length > 0
         const nextMediaId = manualMediaOverrideValid
@@ -3712,18 +3716,29 @@ export const useReactStore = create<ReactStoreState>()(
             }
           : {}
 
-        if (state.selectedCanvasPresetId === preset.id && !mediaChanged && state.canvasPresetOverride?.source === 'auto') {
-          return {}
-        }
+        const nextLabel = label ?? 'Auto-selected preset'
+        const presetChanged = Boolean(
+          preset && (
+            state.selectedCanvasPresetId !== preset.id ||
+            state.canvasPresetOverride?.source !== 'auto' ||
+            state.canvasPresetOverride.label !== nextLabel
+          ),
+        )
+
+        if (!presetChanged && !mediaChanged) return {}
 
         return {
-          selectedCanvasPresetId: preset.id,
-          canvasPresetSettings: normalizeCanvasPresetSettings(preset.settings),
-          canvasPresetOverride: {
-            source: 'auto' as const,
-            presetId: preset.id,
-            label: label ?? 'Auto-selected preset',
-          },
+          ...(preset
+            ? {
+                selectedCanvasPresetId: preset.id,
+                canvasPresetSettings: normalizeCanvasPresetSettings(preset.settings),
+                canvasPresetOverride: {
+                  source: 'auto' as const,
+                  presetId: preset.id,
+                  label: nextLabel,
+                },
+              }
+            : {}),
           ...mediaPatch,
         }
       }),
@@ -4780,12 +4795,43 @@ export const useReactStore = create<ReactStoreState>()(
             triggeredAtMs,
             ...(toggleState == null ? {} : { toggleState }),
           }
-          return {
+          const eventPatch = {
             performanceActionSeq: sequence,
             performanceActionEvent: event,
             performanceActionEvents: [...s.performanceActionEvents, event].slice(-MAX_PERFORMANCE_ACTION_EVENTS),
             performanceActionToggleStates: toggleStates,
           }
+
+          if (action.canvasAction === 'selectPreset' && action.canvasPresetId) {
+            const preset = CANVAS_PRESET_BY_ID[action.canvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
+            return {
+              ...eventPatch,
+              activeReactEngineId: 'canvas' as const,
+              activeReactPresetId: null,
+              activePadId: null,
+              selectedCanvasPresetId: preset.id,
+              canvasPresetSettings: normalizeCanvasPresetSettings(preset.settings),
+              canvasPresetOverride: {
+                source: 'manual' as const,
+                presetId: preset.id,
+                label: 'Performance pad preset',
+              },
+              performancePadTransition: null,
+            }
+          }
+
+          if (action.canvasAction === 'restartClip') {
+            return {
+              ...eventPatch,
+              activeReactEngineId: 'canvas' as const,
+              activeReactPresetId: null,
+              activePadId: null,
+              canvasVideoRestartRevision: s.canvasVideoRestartRevision + 1,
+              performancePadTransition: null,
+            }
+          }
+
+          return eventPatch
         }),
 
       clearPerformanceActions: () => set(clearPerformanceActionPatch()),
