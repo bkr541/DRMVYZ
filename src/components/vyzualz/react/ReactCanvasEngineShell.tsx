@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useReactStore } from '../../../stores/reactStore'
+import { useMediaStore, type UploadedMedia } from '../../../stores/mediaStore'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
 import type { FeatureCurve, MusicIntelligenceFrame, TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
 import { Collapsible, CtrlSection, NumberInputRow, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
+import { MediaLibraryBrowser } from '../media/MediaLibraryBrowser'
+import { CANVAS_MEDIA_LIBRARY_CAPABILITIES } from '../media/mediaLibraryCapabilities'
 import {
   CANVAS_PRESETS,
   CANVAS_PRESET_BY_ID,
@@ -24,24 +27,9 @@ import {
   type ReactTrackSection,
 } from './ReactTypes'
 
-const CANVAS_DESCRIPTION = 'CANVAS uses your uploaded media as the visual source.'
-const CANVAS_MEDIA_COPY = 'Choose media from your library to render it in CANVAS.'
-const CANVAS_SESSION_COPY = 'CANVAS media is session-only for now. Preset and display settings can persist, but large uploaded files must be re-uploaded after reopening the app or project.'
-const CANVAS_WARN_VIDEO_BYTES = 250 * 1024 * 1024
-const CANVAS_MAX_VIDEO_BYTES = 750 * 1024 * 1024
-const CANVAS_WARN_STILL_BYTES = 20 * 1024 * 1024
-const CANVAS_MAX_STILL_BYTES = 60 * 1024 * 1024
-const CANVAS_ACCEPT = [
-  'video/mp4', 'video/webm', 'video/quicktime',
-  'image/png', 'image/jpeg', 'image/webp', 'image/svg+xml',
-  '.mp4', '.webm', '.mov', '.png', '.jpg', '.jpeg', '.webp', '.svg',
-].join(',')
-
-const CANVAS_HELPER_LINES = [
-  'Upload media for CANVAS',
-  'These files are used only inside the CANVAS engine.',
-  'Choose media from your library to render it in CANVAS.',
-]
+const CANVAS_DESCRIPTION = 'CANVAS renders your saved user media as audio-reactive visuals.'
+const CANVAS_MEDIA_COPY = 'Select from your media library.'
+const CANVAS_LIBRARY_HELPER_COPY = 'Add media to library with the existing DRMVYZ upload flow, then select it here.'
 
 const TYPE_LABELS: Record<CanvasMediaItemType, string> = {
   video: 'Video',
@@ -68,10 +56,6 @@ const CANVAS_SECTION_TRIGGER_OPTIONS: Array<{ value: CanvasSectionTriggerType; l
 
 const CANVAS_TIMING_MAX_SECONDS = 60 * 60 * 6
 
-type CanvasMediaCreateResult =
-  | { item: CanvasMediaItem; error: null; warning?: string }
-  | { item: null; error: string; warning?: never }
-
 type CanvasMediaLoadState = { mediaId: string | null; message: string | null }
 
 const EMPTY_CANVAS_MEDIA_LOAD_STATE: CanvasMediaLoadState = { mediaId: null, message: null }
@@ -86,74 +70,75 @@ function CanvasMediaTokens() {
   )
 }
 
-function getCanvasMediaType(file: File): CanvasMediaItemType | null {
-  const name = file.name.toLowerCase()
-  const mime = file.type.toLowerCase()
-
-  if (mime === 'image/svg+xml' || name.endsWith('.svg')) return 'svg'
+function getCanvasLibraryMediaType(media: UploadedMedia): CanvasMediaItemType | null {
+  const name = media.name.toLowerCase()
+  const mime = (media.mimeType ?? '').toLowerCase()
+  if (mime === 'image/svg+xml' || name.endsWith('.svg') || media.mediaRole === 'svg') return 'svg'
   if (
-    mime === 'image/png' || mime === 'image/jpeg' || mime === 'image/webp' ||
-    name.endsWith('.png') || name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.webp')
+    media.type === 'image' && (
+      mime === 'image/png' || mime === 'image/jpeg' || mime === 'image/webp' ||
+      name.endsWith('.png') || name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.webp')
+    )
   ) return 'image'
   if (
-    mime === 'video/mp4' || mime === 'video/webm' || mime === 'video/quicktime' || mime === 'video/x-quicktime' ||
-    name.endsWith('.mp4') || name.endsWith('.webm') || name.endsWith('.mov')
+    media.type === 'video' && (
+      mime === 'video/mp4' || mime === 'video/webm' || mime === 'video/quicktime' || mime === 'video/x-quicktime' ||
+      name.endsWith('.mp4') || name.endsWith('.webm') || name.endsWith('.mov')
+    )
   ) return 'video'
-
   return null
 }
 
-function createCanvasMediaId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return `canvas-media-${crypto.randomUUID()}`
-  }
-  return `canvas-media-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+function getCanvasLibraryDisabledReason(media: UploadedMedia): string | null {
+  if (media.uploading) return 'Still syncing to the media library.'
+  if (!media.url && !media.proxyUrl) return 'Media URL is unavailable. Refresh or check storage access.'
+  if (!getCanvasLibraryMediaType(media)) return 'Unsupported in CANVAS. Use MP4, WebM, MOV, PNG, JPG, WebP, or SVG.'
+  return null
 }
 
-function makeCanvasMediaItem(file: File): CanvasMediaCreateResult {
-  const type = getCanvasMediaType(file)
-  if (!type) {
-    return { item: null, error: `${file.name} is not a supported CANVAS media type.` }
-  }
+function getCanvasLibraryUrl(media: UploadedMedia): string {
+  return media.proxyUrl || media.url
+}
 
-  const sizeLimit = type === 'video' ? CANVAS_MAX_VIDEO_BYTES : CANVAS_MAX_STILL_BYTES
-  const warningLimit = type === 'video' ? CANVAS_WARN_VIDEO_BYTES : CANVAS_WARN_STILL_BYTES
-  if (file.size > sizeLimit) {
-    return {
-      item: null,
-      error: `${file.name} is too large for safe live CANVAS use (${formatBytes(file.size)}). Use ${type === 'video' ? 'a shorter or lower-resolution video under 750 MB' : 'an optimized image/SVG under 60 MB'}.`,
-    }
+function makeCanvasMediaItemFromLibrary(
+  media: UploadedMedia,
+  timing?: CanvasVideoTimingSettings,
+): CanvasMediaItem | null {
+  const type = getCanvasLibraryMediaType(media)
+  const objectUrl = getCanvasLibraryUrl(media)
+  if (!type || !objectUrl) return null
+  return {
+    id: media.id,
+    name: media.title?.trim() || media.name,
+    type,
+    objectUrl,
+    thumbnailUrl: media.localThumbnailObjectUrl ?? media.thumbnailUrl ?? null,
+    mimeType: media.mimeType,
+    meta: media.meta,
+    source: 'library',
+    createdAt: typeof media.metadata.analyzedAt === 'string' ? media.metadata.analyzedAt : new Date(0).toISOString(),
+    timing,
   }
+}
 
-  const warningParts: string[] = []
-  if (file.size > warningLimit) {
-    warningParts.push(`${file.name} is ${formatBytes(file.size)}. Large CANVAS files can increase memory and decode load during performance.`)
-  }
-  if (type === 'video' && file.name.toLowerCase().endsWith('.mov')) {
-    warningParts.push(`${file.name} is a MOV file. Browser playback depends on the codec; H.264 MP4 or WebM is safer for live use.`)
-  }
-
-  if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
-    return { item: null, error: `${file.name} could not be prepared because this browser does not support local object URLs.` }
-  }
-
-  try {
-    return {
-      item: {
-        id: createCanvasMediaId(),
-        name: file.name,
-        type,
-        objectUrl: URL.createObjectURL(file),
-        mimeType: file.type || undefined,
-        fileSize: file.size,
-        createdAt: new Date().toISOString(),
-      },
-      error: null,
-      warning: warningParts.join(' '),
-    }
-  } catch {
-    return { item: null, error: `${file.name} could not be prepared as local CANVAS media.` }
-  }
+function useCanvasRuntimeMediaItems(): CanvasMediaItem[] {
+  const libraryItems = useMediaStore(s => s.items)
+  const legacyItems = useReactStore(s => s.canvasMediaItems)
+  const timingById = useReactStore(s => s.canvasMediaTimingById)
+  return useMemo(() => {
+    const mapped = libraryItems
+      .map(item => makeCanvasMediaItemFromLibrary(item, timingById[item.id]))
+      .filter((item): item is CanvasMediaItem => item !== null)
+    const mappedIds = new Set(mapped.map(item => item.id))
+    const legacy = legacyItems
+      .filter(item => !mappedIds.has(item.id))
+      .map(item => ({
+        ...item,
+        source: item.source ?? 'legacySession' as const,
+        timing: timingById[item.id] ?? item.timing,
+      }))
+    return [...mapped, ...legacy]
+  }, [libraryItems, legacyItems, timingById])
 }
 
 function formatBytes(bytes?: number): string {
@@ -164,74 +149,9 @@ function formatBytes(bytes?: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }
 
-function CanvasUploadControl({ compact = false }: { compact?: boolean }) {
-  const addCanvasMediaItems = useReactStore(s => s.addCanvasMediaItems)
-  const selectCanvasMediaItem = useReactStore(s => s.selectCanvasMediaItem)
-  const [uploadError, setUploadError] = useState<string | null>(null)
-  const [uploadNotice, setUploadNotice] = useState<string | null>(null)
-  const inputRef = useRef<HTMLInputElement | null>(null)
-
-  const handleFiles = useCallback((files: File[]) => {
-    if (files.length === 0) return
-
-    const accepted: CanvasMediaItem[] = []
-    const rejected: string[] = []
-    const warnings: string[] = []
-
-    files.forEach(file => {
-      const result = makeCanvasMediaItem(file)
-      if (result.item) {
-        accepted.push(result.item)
-        if (result.warning) warnings.push(result.warning)
-      } else {
-        rejected.push(result.error)
-      }
-    })
-
-    if (accepted.length > 0) {
-      addCanvasMediaItems(accepted)
-      selectCanvasMediaItem(accepted[0].id, { manual: false })
-    }
-
-    setUploadError(rejected.length > 0
-      ? `${rejected.slice(0, 3).join(' ')}${rejected.length > 3 ? '…' : ''}`
-      : null)
-    setUploadNotice(warnings.length > 0
-      ? `${warnings.slice(0, 2).join(' ')}${warnings.length > 2 ? '…' : ''}`
-      : null)
-  }, [addCanvasMediaItems, selectCanvasMediaItem])
-
-  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
-    handleFiles(Array.from(event.currentTarget.files ?? []))
-    event.currentTarget.value = ''
-  }
-
-  return (
-    <div className={`rv-canvas-upload-flow${compact ? ' rv-canvas-upload-flow--compact' : ''}`}>
-      <div className="rv-canvas-upload-copy">
-        {CANVAS_HELPER_LINES.map(line => <span key={line}>{line}</span>)}
-        <span>{CANVAS_SESSION_COPY}</span>
-      </div>
-      <label className="rv-canvas-upload-target">
-        <input
-          ref={inputRef}
-          type="file"
-          accept={CANVAS_ACCEPT}
-          multiple
-          onChange={handleChange}
-        />
-        <span className="rv-canvas-upload-target__title">Choose CANVAS media</span>
-        <span className="rv-canvas-upload-target__meta">MP4, WebM, MOV, PNG, JPG, WebP, SVG</span>
-      </label>
-      {uploadError && <div className="rv-canvas-upload-error">{uploadError}</div>}
-      {uploadNotice && <div className="rv-canvas-upload-notice">{uploadNotice}</div>}
-    </div>
-  )
-}
-
 function CanvasActivePreview() {
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
-  const mediaItems = useReactStore(s => s.canvasMediaItems)
+  const mediaItems = useCanvasRuntimeMediaItems()
   const [previewError, setPreviewError] = useState<CanvasMediaLoadState>(EMPTY_CANVAS_MEDIA_LOAD_STATE)
   const activeItem = useMemo(
     () => mediaItems.find(item => item.id === activeCanvasMediaId) ?? null,
@@ -247,7 +167,7 @@ function CanvasActivePreview() {
       <div className="rv-canvas-active-preview rv-canvas-active-preview--empty">
         <div className="rv-canvas-active-preview__eyebrow">Active CANVAS Visual</div>
         <div className="rv-canvas-active-preview__title">No media selected</div>
-        <div className="rv-canvas-active-preview__copy">Upload or choose media in this SOURCE panel to send it to the center visualizer.</div>
+        <div className="rv-canvas-active-preview__copy">Select from your media library in this SOURCE panel to send it to the center visualizer.</div>
       </div>
     )
   }
@@ -286,35 +206,20 @@ function CanvasActivePreview() {
   )
 }
 
-function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
+function CanvasLegacySessionMedia({ compact = false }: { compact?: boolean }) {
   const mediaItems = useReactStore(s => s.canvasMediaItems)
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
   const selectCanvasMediaItem = useReactStore(s => s.selectCanvasMediaItem)
   const removeCanvasMediaItem = useReactStore(s => s.removeCanvasMediaItem)
   const manualMediaOverrideId = useReactStore(s => s.canvasEngineSettings.manualMediaOverrideId)
-  const clearCanvasMediaOverride = useReactStore(s => s.clearCanvasMediaOverride)
 
-  const handleRemove = (item: CanvasMediaItem) => {
-    removeCanvasMediaItem(item.id)
-  }
-
-  if (mediaItems.length === 0) {
-    return (
-      <div className={`rv-canvas-empty-state${compact ? ' rv-canvas-empty-state--compact' : ''}`}>
-        <strong>No CANVAS media uploaded yet.</strong>
-        <span>Imported files will appear here and stay scoped to the CANVAS engine.</span>
-      </div>
-    )
-  }
+  if (mediaItems.length === 0) return null
 
   return (
-    <div className={`rv-canvas-library${compact ? ' rv-canvas-library--compact' : ''}`}>
-      {manualMediaOverrideId && mediaItems.some(item => item.id === manualMediaOverrideId) && (
-        <div className="rv-canvas-media-lock" role="status">
-          <span>Manual media lock: Auto Select will keep your chosen CANVAS visual.</span>
-          <button type="button" onClick={clearCanvasMediaOverride}>Clear Media Lock</button>
-        </div>
-      )}
+    <div className={`rv-canvas-library rv-canvas-library--legacy${compact ? ' rv-canvas-library--compact' : ''}`}>
+      <div className="rv-canvas-media-lock" role="status">
+        <span>Legacy session media from an older CANVAS import is still available for this run. Add new files to the shared media library.</span>
+      </div>
       {mediaItems.map(item => {
         const active = item.id === activeCanvasMediaId
         return (
@@ -344,14 +249,43 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
             <button
               type="button"
               className="rv-canvas-media-card__remove"
-              onClick={() => handleRemove(item)}
-              aria-label={`Remove ${item.name} from CANVAS media`}
+              onClick={() => removeCanvasMediaItem(item.id)}
+              aria-label={`Remove ${item.name} from legacy CANVAS session media`}
             >
               Remove
             </button>
           </div>
         )
       })}
+    </div>
+  )
+}
+
+function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
+  const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
+  const selectCanvasMediaItem = useReactStore(s => s.selectCanvasMediaItem)
+  const mediaItems = useCanvasRuntimeMediaItems()
+  const manualMediaOverrideId = useReactStore(s => s.canvasEngineSettings.manualMediaOverrideId)
+  const clearCanvasMediaOverride = useReactStore(s => s.clearCanvasMediaOverride)
+  const manualMediaOverrideActive = Boolean(manualMediaOverrideId && mediaItems.some(item => item.id === manualMediaOverrideId))
+
+  return (
+    <div className={`rv-canvas-library-shell${compact ? ' rv-canvas-library-shell--compact' : ''}`}>
+      {manualMediaOverrideActive && (
+        <div className="rv-canvas-media-lock" role="status">
+          <span>Manual media lock: Auto Select will keep your chosen CANVAS visual.</span>
+          <button type="button" onClick={clearCanvasMediaOverride}>Clear Media Lock</button>
+        </div>
+      )}
+      <MediaLibraryBrowser
+        activeMediaId={activeCanvasMediaId}
+        onSelect={id => selectCanvasMediaItem(id)}
+        context="canvas"
+        title="CANVAS Media Library"
+        capabilities={CANVAS_MEDIA_LIBRARY_CAPABILITIES}
+        getDisabledReason={getCanvasLibraryDisabledReason}
+      />
+      <CanvasLegacySessionMedia compact={compact} />
     </div>
   )
 }
@@ -1123,7 +1057,7 @@ export function CanvasEngineSurface({
 }) {
   const settings = useReactStore(s => s.canvasEngineSettings)
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
-  const mediaItems = useReactStore(s => s.canvasMediaItems)
+  const mediaItems = useCanvasRuntimeMediaItems()
   const restartRevision = useReactStore(s => s.canvasVideoRestartRevision)
   const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
   const canvasPresetSettings = useReactStore(s => s.canvasPresetSettings)
@@ -1643,21 +1577,21 @@ export function CanvasEngineSurface({
   const captureCanvasNode = <canvas ref={outputCaptureCanvasRef} className="rv-canvas-output-capture" aria-hidden="true" />
 
   if (!activeItem) {
-    const hasUploadedMedia = mediaItems.length > 0
+    const hasSelectableMedia = mediaItems.length > 0
     return (
       <div className="rv-canvas-engine-surface rv-canvas-engine-surface--empty" role="region" aria-label="CANVAS engine render surface">
         {captureCanvasNode}
         <div className="rv-canvas-live-empty-card rv-canvas-live-empty-card--render-only">
           <div className="rv-canvas-engine-eyebrow">CANVAS Output</div>
           <h2 className="rv-canvas-live-empty-title">
-            {hasUploadedMedia ? 'No source selected' : 'Choose a CANVAS source'}
+            {hasSelectableMedia ? 'No source selected' : 'Choose a CANVAS source'}
           </h2>
           <p className="rv-canvas-engine-desc">
             {selectedPreset.id === 'canvas-particle-aura'
               ? 'Particle Aura needs an active video, image, or SVG before it can sample pixels.'
-              : hasUploadedMedia
+              : hasSelectableMedia
                 ? 'Select media in the left SOURCE panel to render it here.'
-                : 'Add media in the left SOURCE panel, then this stage becomes render-only output.'}
+                : 'Select from your media library in the left SOURCE panel, then this stage becomes render-only output.'}
           </p>
           <CanvasMediaTokens />
         </div>
@@ -1813,7 +1747,7 @@ const CANVAS_PRESET_CONTROL_META: Record<CanvasPresetSliderControlKey, {
     max: 1,
     step: 0.01,
     color: '#61d6aa',
-    description: 'Blends the original uploaded media beneath the particle layer.',
+    description: 'Blends the selected media beneath the particle layer.',
   },
   dissolveAmount: {
     label: 'Dissolve Amount',
@@ -1858,13 +1792,14 @@ export function CanvasPresetBrowser() {
   const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
   const selectCanvasPreset = useReactStore(s => s.selectCanvasPreset)
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
-  const activeItem = useReactStore(s => s.canvasMediaItems.find(item => item.id === activeCanvasMediaId) ?? null)
+  const mediaItems = useCanvasRuntimeMediaItems()
+  const activeItem = useMemo(() => mediaItems.find(item => item.id === activeCanvasMediaId) ?? null, [activeCanvasMediaId, mediaItems])
 
   return (
     <section className="rv-canvas-preset-browser" aria-label="CANVAS presets">
       <div className="rv-canvas-preset-browser__copy">
         <strong>CANVAS Presets</strong>
-        <span>{activeItem ? `These treatments apply to ${activeItem.name}.` : 'Upload and select CANVAS media, then choose a treatment.'}</span>
+        <span>{activeItem ? `These treatments apply to ${activeItem.name}.` : 'Select saved media from the CANVAS Source panel, then choose a treatment.'}</span>
       </div>
       <div className="rv-preset-group-cards rv-preset-group-cards--current rv-canvas-preset-grid" data-preset-grid>
         {CANVAS_PRESETS.map(preset => {
@@ -1910,7 +1845,7 @@ function CanvasAutoSelectControl() {
   const settings = useReactStore(s => s.canvasEngineSettings)
   const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
   const canvasPresetOverride = useReactStore(s => s.canvasPresetOverride)
-  const mediaItems = useReactStore(s => s.canvasMediaItems)
+  const mediaItems = useCanvasRuntimeMediaItems()
   const mediaCount = mediaItems.length
   const setCanvasAutoSelectEnabled = useReactStore(s => s.setCanvasAutoSelectEnabled)
   const clearCanvasPresetOverride = useReactStore(s => s.clearCanvasPresetOverride)
@@ -1932,7 +1867,7 @@ function CanvasAutoSelectControl() {
   const hasSmartAutoData = autoPreview.hasSmartData
 
   const description = mediaCount === 0
-    ? 'Upload CANVAS media first. Auto Select can choose a preset, but it needs personal media to display.'
+    ? 'Select saved media from your library first. Auto Select can choose a preset, but it needs personal media to display.'
     : !hasTrackLoaded
       ? 'Load and analyze a track to enable smarter CANVAS Auto Select.'
       : !hasSmartAutoData
@@ -1964,7 +1899,7 @@ function CanvasAutoSelectControl() {
       )}
       {!manualOverrideActive && settings.autoSelectEnabled && mediaCount === 0 && (
         <div className="rv-canvas-auto-status rv-canvas-auto-status--helper" role="status">
-          <span>Upload personal media in CANVAS before Auto Select starts choosing visuals.</span>
+          <span>Select saved media from your library before Auto Select starts choosing visuals.</span>
         </div>
       )}
       {!manualOverrideActive && settings.autoSelectEnabled && mediaCount > 0 && !hasSmartAutoData && (
@@ -1994,7 +1929,8 @@ function CanvasTimingControls() {
   const setCanvasMediaTiming = useReactStore(s => s.setCanvasMediaTiming)
   const restartCanvasVideo = useReactStore(s => s.restartCanvasVideo)
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
-  const activeItem = useReactStore(s => s.canvasMediaItems.find(item => item.id === activeCanvasMediaId) ?? null)
+  const mediaItems = useCanvasRuntimeMediaItems()
+  const activeItem = useMemo(() => mediaItems.find(item => item.id === activeCanvasMediaId) ?? null, [activeCanvasMediaId, mediaItems])
   const hasActiveVideo = activeItem?.type === 'video'
   const timing = activeItem?.timing ?? DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS
   const detectedSectionLabels = useMemo(() => {
@@ -2025,8 +1961,8 @@ function CanvasTimingControls() {
   }
 
   const timingDescription = hasActiveVideo
-    ? 'These controls affect uploaded video playback inside CANVAS. Clip audio stays muted so the loaded track remains in charge.'
-    : 'CANVAS timing controls are video-only. Select an uploaded video to enable clip starts, ranges, loops, and musical triggers.'
+    ? 'These controls affect saved library video playback inside CANVAS. Clip audio stays muted so the loaded track remains in charge.'
+    : 'CANVAS timing controls are video-only. Select a saved video to enable clip starts, ranges, loops, and musical triggers.'
 
   const sectionDescription = detectedSectionLabels.length > 0
     ? `Audio Intelligence sections detected: ${detectedSectionLabels.join(', ')}.`
@@ -2145,7 +2081,8 @@ function CanvasPresetControls() {
   const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
 
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
-  const activeItem = useReactStore(s => s.canvasMediaItems.find(item => item.id === activeCanvasMediaId) ?? null)
+  const mediaItems = useCanvasRuntimeMediaItems()
+  const activeItem = useMemo(() => mediaItems.find(item => item.id === activeCanvasMediaId) ?? null, [activeCanvasMediaId, mediaItems])
 
   const renderControl = (control: CanvasPresetControlKey) => {
     if (control === 'particleColorMode') {
@@ -2189,11 +2126,11 @@ function CanvasPresetControls() {
       </div>
       {selectedPreset.id === 'canvas-particle-aura' && !activeItem && (
         <div className="rv-canvas-engine-note rv-canvas-engine-note--warning">
-          Particle Aura needs an active CANVAS media item before it can sample pixels and emit particles.
+          Particle Aura needs an active CANVAS library media item before it can sample pixels and emit particles.
         </div>
       )}
       {selectedPreset.controls.length > 0 ? selectedPreset.controls.map(renderControl) : (
-        <div className="rv-canvas-engine-note">Clean Playback keeps the uploaded media neutral. Use Display controls for transform and opacity.</div>
+        <div className="rv-canvas-engine-note">Clean Playback keeps the selected media neutral. Use Display controls for transform and opacity.</div>
       )}
       {canvasPresetOverride?.source === 'manual' && (
         <div className="rv-canvas-engine-note">
@@ -2210,8 +2147,8 @@ function CanvasPresetControls() {
 }
 
 export function CanvasEnginePanel() {
-  const settings = useReactStore(s => s.canvasEngineSettings)
-  const mediaCount = useReactStore(s => s.canvasMediaItems.length)
+  const libraryMediaCount = useMediaStore(s => s.items.length)
+  const canvasReadyCount = useCanvasRuntimeMediaItems().length
   const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
   const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
   return (
@@ -2221,18 +2158,17 @@ export function CanvasEnginePanel() {
         <div className="rv-canvas-panel-title">CANVAS Source</div>
         <div className="rv-canvas-panel-copy">{CANVAS_DESCRIPTION}</div>
         <div className="rv-canvas-panel-copy">{CANVAS_MEDIA_COPY}</div>
-        <div className="rv-canvas-engine-note">{CANVAS_SESSION_COPY}</div>
+        <div className="rv-canvas-engine-note">{CANVAS_LIBRARY_HELPER_COPY}</div>
         <CanvasMediaTokens />
-        <CanvasUploadControl compact />
         <CanvasActivePreview />
         <CanvasMediaLibrary compact />
         <div className="rv-canvas-panel-status">
-          <span>Library media</span>
-          <strong>{mediaCount}</strong>
+          <span>Saved media</span>
+          <strong>{libraryMediaCount}</strong>
         </div>
         <div className="rv-canvas-panel-status">
-          <span>Upload scope</span>
-          <strong>{settings.uploadEnabled ? 'CANVAS only' : 'Disabled'}</strong>
+          <span>CANVAS-ready</span>
+          <strong>{canvasReadyCount}</strong>
         </div>
         <div className="rv-canvas-panel-status">
           <span>Preset</span>

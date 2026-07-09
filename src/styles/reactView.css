@@ -9830,6 +9830,14 @@
   gap: 7px;
 }
 
+.rv-canvas-library-shell--compact .vz-media-browser {
+  min-height: 360px;
+}
+
+.rv-canvas-library--legacy {
+  margin-top: 4px;
+}
+
 .rv-canvas-empty-state {
   display: flex;
   flex-direction: column;

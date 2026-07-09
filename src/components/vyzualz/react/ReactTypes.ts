@@ -262,8 +262,11 @@ export interface CanvasMediaItem {
   type: CanvasMediaItemType
   objectUrl: string
   dataUrl?: string
-  mimeType?: string
+  thumbnailUrl?: string | null
+  mimeType?: string | null
   fileSize?: number
+  meta?: string
+  source?: 'library' | 'legacySession'
   createdAt: string
   timing?: CanvasVideoTimingSettings
 }

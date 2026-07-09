@@ -73,6 +73,15 @@ const REACT_FILTERS: { key: MediaLibraryFilter; label: string }[] = [
   { key: 'overlays',    label: 'Overlays'    },
 ]
 
+const CANVAS_FILTERS: { key: MediaLibraryFilter; label: string }[] = [
+  { key: 'all',         label: 'All'         },
+  { key: 'collections', label: 'Collections' },
+  { key: 'favorites',   label: 'Favorites'   },
+  { key: 'images',      label: 'Images'      },
+  { key: 'videos',      label: 'Videos'      },
+  { key: 'svg',         label: 'SVG'         },
+]
+
 
 const MANAGER_FILTERS: { key: MediaLibraryFilter; label: string }[] = [
   { key: 'all',         label: 'All Visuals' },
@@ -264,6 +273,7 @@ function MediaCard({
   canDrag,
   canRetry,
   onRetry,
+  disabledReason,
 }: {
   m: UploadedMedia
   isActive: boolean
@@ -281,8 +291,10 @@ function MediaCard({
   canDrag: boolean
   canRetry: boolean
   onRetry: () => void
+  disabledReason?: string | null
 }) {
   const isList = viewMode === 'list'
+  const disabled = Boolean(disabledReason)
   const displayName = (m.title ?? m.name).length > (isList ? 40 : 22)
     ? (m.title ?? m.name).slice(0, isList ? 40 : 22) + '…'
     : (m.title ?? m.name)
@@ -302,10 +314,11 @@ function MediaCard({
   if (isList) {
     return (
       <div
-        className={`vz-media-row ${isActive ? 'vz-media-row--active' : ''}`}
-        onClick={() => canSelect && !m.uploading && onSelect()}
-        style={m.uploading || !canSelect ? { opacity: m.uploading ? 0.6 : 1, cursor: 'default' } : undefined}
-        draggable={canDrag && !m.uploading}
+        className={`vz-media-row ${isActive ? 'vz-media-row--active' : ''}${disabled ? ' vz-media-row--disabled' : ''}`}
+        onClick={() => canSelect && !disabled && !m.uploading && onSelect()}
+        style={m.uploading || disabled || !canSelect ? { opacity: m.uploading ? 0.6 : disabled ? 0.72 : 1, cursor: disabled ? 'not-allowed' : 'default' } : undefined}
+        title={disabledReason ?? undefined}
+        draggable={canDrag && !m.uploading && !disabled}
         onDragStart={e => { e.dataTransfer.setData('vz/mediaId', m.id); e.dataTransfer.effectAllowed = 'copy' }}
       >
         <div className="vz-media-row-thumb">
@@ -328,6 +341,7 @@ function MediaCard({
         <div className="vz-media-row-info">
           <span className="vz-media-row-name">{displayName}</span>
           {m.meta && <span className="vz-media-row-meta">{m.meta}</span>}
+          {disabledReason && <span className="vz-media-disabled-reason">{disabledReason}</span>}
         </div>
         <div className="vz-media-row-actions">
           {canRetry && m.uploadError && <button type="button" className="vz-track-load-btn" onClick={e => { e.stopPropagation(); onRetry() }}>Retry</button>}
@@ -368,10 +382,11 @@ function MediaCard({
 
   return (
     <div
-      className={`vz-media-card ${isActive ? 'vz-media-card--active' : ''}`}
-      onClick={() => canSelect && !m.uploading && onSelect()}
-      style={m.uploading || !canSelect ? { opacity: m.uploading ? 0.6 : 1, cursor: 'default' } : undefined}
-      draggable={canDrag && !m.uploading}
+      className={`vz-media-card ${isActive ? 'vz-media-card--active' : ''}${disabled ? ' vz-media-card--disabled' : ''}`}
+      onClick={() => canSelect && !disabled && !m.uploading && onSelect()}
+      style={m.uploading || disabled || !canSelect ? { opacity: m.uploading ? 0.6 : disabled ? 0.72 : 1, cursor: disabled ? 'not-allowed' : 'default' } : undefined}
+      title={disabledReason ?? undefined}
+      draggable={canDrag && !m.uploading && !disabled}
       onDragStart={e => {
         e.dataTransfer.setData('vz/mediaId', m.id)
         e.dataTransfer.effectAllowed = 'copy'
@@ -387,6 +402,7 @@ function MediaCard({
         )}
         {badge}
         {canRetry && m.uploadError && <button type="button" className="vz-media-retry" onClick={e => { e.stopPropagation(); onRetry() }}>Retry upload</button>}
+        {disabledReason && <div className="vz-media-disabled-reason vz-media-disabled-reason--overlay">{disabledReason}</div>}
         {canFavorite && (
           <button
             className={`vz-media-star ${m.favorite ? 'vz-media-star--active' : ''}`}
@@ -429,6 +445,7 @@ function MediaCard({
           )}
         </div>
         <div className="vz-media-meta">{m.meta}</div>
+        {disabledReason && <div className="vz-media-disabled-reason">{disabledReason}</div>}
         {m.tags.length > 0 && (
           <div className="vz-media-tags">
             {m.tags.slice(0, 3).map(t => (
@@ -451,6 +468,7 @@ export interface MediaLibraryBrowserProps {
   context?: MediaLibraryContext
   title?: string
   capabilities: readonly MediaLibraryCapability[]
+  getDisabledReason?: (media: UploadedMedia) => string | null
 }
 
 export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
@@ -460,6 +478,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   context = 'visualizer',
   title = 'Media Library',
   capabilities,
+  getDisabledReason,
 }: MediaLibraryBrowserProps) {
   const {
     items, addFilesToUploadQueue, clearUploadQueue, removeItem, retryUpload, toggleFavorite,
@@ -490,11 +509,12 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
 
   const capabilitySet = useMemo(() => new Set<MediaLibraryCapability>(capabilities), [capabilities])
   const isManager = context === 'manager'
+  const isCanvasMode = context === 'canvas'
   const canSelect = capabilitySet.has('select') && onSelect !== undefined
   const canLoadTrack = capabilitySet.has('load-track')
   const canPreview = capabilitySet.has('preview')
   const canFavorite = capabilitySet.has('favorite')
-  const canUpload = isManager && capabilitySet.has('upload')
+  const canUpload = (isManager || isCanvasMode) && capabilitySet.has('upload')
   const canEdit = isManager && capabilitySet.has('edit')
   const canRemove = isManager && capabilitySet.has('remove')
   const canBrowseCollections = capabilitySet.has('collections')
@@ -502,11 +522,11 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
 
   const isReactMode = context === 'react'
   const availableFilters = useMemo(() => {
-    const source = context === 'manager' ? MANAGER_FILTERS : isReactMode ? REACT_FILTERS : VISUALIZER_FILTERS
+    const source = context === 'manager' ? MANAGER_FILTERS : isCanvasMode ? CANVAS_FILTERS : isReactMode ? REACT_FILTERS : VISUALIZER_FILTERS
     return canBrowseCollections
       ? source
       : source.filter(filter => filter.key !== 'collections')
-  }, [canBrowseCollections, context, isReactMode])
+  }, [canBrowseCollections, context, isCanvasMode, isReactMode])
 
   const loadFromSupabaseRef = useRef(loadFromSupabase)
   useEffect(() => { loadFromSupabaseRef.current = loadFromSupabase }, [loadFromSupabase])
@@ -659,29 +679,33 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
 
   const renderGrid = (mediaList: UploadedMedia[]) => (
     <div className={viewMode === 'list' ? 'vz-media-list' : 'vz-media-grid'}>
-      {mediaList.map(m => (
-        <MediaCard
-          key={m.id}
-          m={m}
-          isActive={activeMediaId === m.id}
-          viewMode={viewMode}
-          onSelect={() => onSelect?.(m.id)}
-          onEdit={canEdit ? () => setEditItem(m) : undefined}
-          onRemove={canRemove ? () => {
-            if (window.confirm(`Delete “${m.title ?? m.name}”? This removes the stored file and its collection assignments.`)) void removeItem(m.id)
-          } : undefined}
-          onToggleFavorite={() => toggleFavorite(m.id)}
-          onPreview={() => setPreviewItem(m)}
-          canSelect={canSelect}
-          canEdit={canEdit}
-          canRemove={canRemove}
-          canFavorite={canFavorite}
-          canPreview={canPreview}
-          canDrag={canDragMedia}
-          canRetry={context === 'manager'}
-          onRetry={() => { void retryUpload(m.id) }}
-        />
-      ))}
+      {mediaList.map(m => {
+        const disabledReason = getDisabledReason?.(m) ?? null
+        return (
+          <MediaCard
+            key={m.id}
+            m={m}
+            isActive={activeMediaId === m.id}
+            viewMode={viewMode}
+            onSelect={() => onSelect?.(m.id)}
+            onEdit={canEdit ? () => setEditItem(m) : undefined}
+            onRemove={canRemove ? () => {
+              if (window.confirm(`Delete “${m.title ?? m.name}”? This removes the stored file and its collection assignments.`)) void removeItem(m.id)
+            } : undefined}
+            onToggleFavorite={() => toggleFavorite(m.id)}
+            onPreview={() => setPreviewItem(m)}
+            canSelect={canSelect && !disabledReason}
+            canEdit={canEdit}
+            canRemove={canRemove}
+            canFavorite={canFavorite}
+            canPreview={canPreview}
+            canDrag={canDragMedia && !disabledReason}
+            canRetry={context === 'manager'}
+            onRetry={() => { void retryUpload(m.id) }}
+            disabledReason={disabledReason}
+          />
+        )
+      })}
     </div>
   )
 
@@ -853,7 +877,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
               <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor">
                 <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
               </svg>
-              Import
+              {isCanvasMode ? 'Add media to library' : 'Import'}
             </button>
           )}
         </div>
@@ -930,8 +954,8 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
                   <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
                 </svg>
               </div>
-              <div className="ref-empty-title">Import Media</div>
-              <div className="ref-empty-sub" style={{ fontSize: 9 }}>{dragOver ? 'Drop here!' : isReactMode ? 'SVGs, Logos & Overlays' : 'Images & Video'}</div>
+              <div className="ref-empty-title">{isCanvasMode ? 'Add media to library' : 'Import Media'}</div>
+              <div className="ref-empty-sub" style={{ fontSize: 9 }}>{dragOver ? 'Drop here!' : isCanvasMode ? 'Saved visual media' : isReactMode ? 'SVGs, Logos & Overlays' : 'Images & Video'}</div>
             </div>
           ) : filtered.length === 0 ? (
             isManager ? (
@@ -942,8 +966,8 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
               </div>
             ) : (
               <PerformanceDeckEmptyState
-                message={searchActive ? `No media matches "${searchQuery}"` : 'No media available. Add files from Media Manager.'}
-                onOpenMediaManager={searchActive ? undefined : onOpenMediaManager}
+                message={searchActive ? `No media matches "${searchQuery}"` : isCanvasMode ? 'No saved media available. Add media to your library.' : 'No media available. Add files from Media Manager.'}
+                onOpenMediaManager={searchActive || isCanvasMode ? undefined : onOpenMediaManager}
               />
             )
           ) : (

@@ -1,4 +1,4 @@
-export type MediaLibraryContext = 'visualizer' | 'react' | 'manager'
+export type MediaLibraryContext = 'visualizer' | 'react' | 'canvas' | 'manager'
 
 export type MediaLibraryCapability =
   | 'select'
@@ -36,6 +36,18 @@ export const MEDIA_MANAGER_CAPABILITIES = [
   'upload',
   'edit',
   'remove',
+  'collections',
+  'drag-media',
+] as const satisfies readonly MediaLibraryCapability[]
+
+
+/** CANVAS selects and imports saved visual media through the shared library.
+ * It intentionally does not expose destructive management controls. */
+export const CANVAS_MEDIA_LIBRARY_CAPABILITIES = [
+  'select',
+  'preview',
+  'favorite',
+  'upload',
   'collections',
   'drag-media',
 ] as const satisfies readonly MediaLibraryCapability[]

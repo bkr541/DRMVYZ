@@ -1468,9 +1468,10 @@ interface ReactStoreState {
   cinematicSeedLocksByPresetId: Record<string, boolean>
   cinematicWorldsUiMode: CinematicWorldsUiMode
 
-  // CANVAS media is runtime-only for now. Blob/Object URLs stay out of persisted project state.
+  // CANVAS persists safe media-library references. Legacy session blob URLs remain runtime-only.
   canvasEngineSettings: CanvasEngineSettings
   canvasMediaItems: CanvasMediaItem[]
+  canvasMediaTimingById: Record<string, CanvasVideoTimingSettings>
   selectedCanvasMediaId: string | null
   activeCanvasMediaId: string | null
   selectedCanvasPresetId: CanvasPresetId
@@ -2325,6 +2326,30 @@ function normalizeCanvasVideoTimingSettings(value: unknown): CanvasVideoTimingSe
   }
 }
 
+function normalizeCanvasMediaTimingById(value: unknown): Record<string, CanvasVideoTimingSettings> {
+  if (!isRecord(value)) return {}
+  const normalized: Record<string, CanvasVideoTimingSettings> = {}
+  Object.entries(value).forEach(([id, timing]) => {
+    if (typeof id === 'string' && id.trim().length > 0) {
+      normalized[id] = normalizeCanvasVideoTimingSettings(timing)
+    }
+  })
+  return normalized
+}
+
+function uniqueCanvasMediaIds(ids: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>()
+  const normalized: string[] = []
+  ids.forEach(id => {
+    if (typeof id !== 'string') return
+    const trimmed = id.trim()
+    if (!trimmed || seen.has(trimmed)) return
+    seen.add(trimmed)
+    normalized.push(trimmed)
+  })
+  return normalized
+}
+
 function revokeCanvasMediaObjectUrl(item: CanvasMediaItem): void {
   if (typeof URL === 'undefined' || typeof URL.revokeObjectURL !== 'function') return
   if (!item.objectUrl || !item.objectUrl.startsWith('blob:')) return
@@ -2351,26 +2376,30 @@ function repairCanvasRuntimeState(state: ReactStoreState): Partial<ReactStoreSta
   }
 
   const canvasMediaItems = state.canvasMediaItems.filter(isCanvasMediaItemRuntimeUsable)
-  const validIds = new Set(canvasMediaItems.map(item => item.id))
-  const selectedCanvasMediaId = state.selectedCanvasMediaId && validIds.has(state.selectedCanvasMediaId)
-    ? state.selectedCanvasMediaId
-    : state.canvasEngineSettings.selectedMediaId && validIds.has(state.canvasEngineSettings.selectedMediaId)
-      ? state.canvasEngineSettings.selectedMediaId
-      : state.activeCanvasMediaId && validIds.has(state.activeCanvasMediaId)
-        ? state.activeCanvasMediaId
-        : canvasMediaItems[0]?.id ?? null
-  const activeCanvasMediaId = state.activeCanvasMediaId && validIds.has(state.activeCanvasMediaId)
-    ? state.activeCanvasMediaId
-    : selectedCanvasMediaId
+  const legacyIds = canvasMediaItems.map(item => item.id)
+  const selectedCanvasMediaId = state.selectedCanvasMediaId
+    ?? state.canvasEngineSettings.selectedMediaId
+    ?? state.activeCanvasMediaId
+    ?? canvasMediaItems[0]?.id
+    ?? null
+  const activeCanvasMediaId = state.activeCanvasMediaId ?? selectedCanvasMediaId
+  const mediaIds = uniqueCanvasMediaIds([
+    ...state.canvasEngineSettings.mediaIds,
+    ...legacyIds,
+    selectedCanvasMediaId,
+    activeCanvasMediaId,
+    state.canvasEngineSettings.manualMediaOverrideId,
+  ])
 
   return {
     canvasMediaItems,
+    canvasMediaTimingById: normalizeCanvasMediaTimingById(state.canvasMediaTimingById),
     selectedCanvasMediaId,
     activeCanvasMediaId,
     canvasEngineSettings: normalizeCanvasEngineSettings({
       ...state.canvasEngineSettings,
       selectedMediaId: activeCanvasMediaId,
-      mediaIds: canvasMediaItems.map(item => item.id),
+      mediaIds,
     }),
   }
 }
@@ -2378,12 +2407,16 @@ function repairCanvasRuntimeState(state: ReactStoreState): Partial<ReactStoreSta
 function normalizeCanvasEngineSettings(value: unknown): CanvasEngineSettings {
   if (!isRecord(value)) return { ...DEFAULT_CANVAS_ENGINE_SETTINGS }
 
-  const mediaIds = Array.isArray(value.mediaIds)
+  const rawMediaIds = Array.isArray(value.mediaIds)
     ? value.mediaIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
     : []
-  const selectedMediaId = typeof value.selectedMediaId === 'string' && mediaIds.includes(value.selectedMediaId)
+  const selectedMediaId = typeof value.selectedMediaId === 'string' && value.selectedMediaId.trim().length > 0
     ? value.selectedMediaId
     : null
+  const manualMediaOverrideId = typeof value.manualMediaOverrideId === 'string' && value.manualMediaOverrideId.trim().length > 0
+    ? value.manualMediaOverrideId
+    : null
+  const mediaIds = uniqueCanvasMediaIds([...rawMediaIds, selectedMediaId, manualMediaOverrideId])
   const supportedMediaKinds = Array.isArray(value.supportedMediaKinds)
     ? value.supportedMediaKinds.filter((kind): kind is CanvasEngineSettings['supportedMediaKinds'][number] => (
         kind === 'video' || kind === 'image' || kind === 'svg' || kind === 'visualAsset'
@@ -2395,9 +2428,7 @@ function normalizeCanvasEngineSettings(value: unknown): CanvasEngineSettings {
     mediaIds,
     uploadEnabled: true,
     autoSelectEnabled: value.autoSelectEnabled === true,
-    manualMediaOverrideId: typeof value.manualMediaOverrideId === 'string' && mediaIds.includes(value.manualMediaOverrideId)
-      ? value.manualMediaOverrideId
-      : null,
+    manualMediaOverrideId,
     supportedMediaKinds: supportedMediaKinds.length > 0
       ? [...new Set(supportedMediaKinds)]
       : [...DEFAULT_CANVAS_ENGINE_SETTINGS.supportedMediaKinds],
@@ -2412,12 +2443,7 @@ function normalizeCanvasEngineSettings(value: unknown): CanvasEngineSettings {
 }
 
 function createCanvasEngineSettingsForPersistence(settings: CanvasEngineSettings): CanvasEngineSettings {
-  return normalizeCanvasEngineSettings({
-    ...settings,
-    selectedMediaId: null,
-    mediaIds: [],
-    manualMediaOverrideId: null,
-  })
+  return normalizeCanvasEngineSettings(settings)
 }
 
 
@@ -3302,6 +3328,9 @@ export function reactStorePartialize(s: ReactStoreState) {
     cinematicSeedLocksByPresetId:       s.cinematicSeedLocksByPresetId,
     cinematicWorldsUiMode:              s.cinematicWorldsUiMode,
     canvasEngineSettings:                createCanvasEngineSettingsForPersistence(s.canvasEngineSettings),
+    selectedCanvasMediaId:              s.selectedCanvasMediaId,
+    activeCanvasMediaId:                s.activeCanvasMediaId,
+    canvasMediaTimingById:              normalizeCanvasMediaTimingById(s.canvasMediaTimingById),
     selectedCanvasPresetId:             s.selectedCanvasPresetId,
     canvasPresetSettings:               normalizeCanvasPresetSettings(s.canvasPresetSettings),
     canvasPresetOverride:               s.canvasPresetOverride,
@@ -3343,6 +3372,9 @@ export const REACT_PROJECT_STATE_KEYS = [
   'cinematicSeedLocksByPresetId',
   'cinematicWorldsUiMode',
   'canvasEngineSettings',
+  'selectedCanvasMediaId',
+  'activeCanvasMediaId',
+  'canvasMediaTimingById',
   'selectedCanvasPresetId',
   'canvasPresetSettings',
   'canvasPresetOverride',
@@ -3457,8 +3489,9 @@ export function mergeReactStoreState(
       ? merged.canvasPresetOverride
       : null,
     canvasMediaItems: [],
-    selectedCanvasMediaId: null,
-    activeCanvasMediaId: null,
+    canvasMediaTimingById: normalizeCanvasMediaTimingById(merged.canvasMediaTimingById),
+    selectedCanvasMediaId: merged.selectedCanvasMediaId ?? merged.canvasEngineSettings.selectedMediaId ?? null,
+    activeCanvasMediaId: merged.activeCanvasMediaId ?? merged.selectedCanvasMediaId ?? merged.canvasEngineSettings.selectedMediaId ?? null,
     canvasVideoRestartRevision: currentState.canvasVideoRestartRevision,
     laserDmxShowDirectorUndoStack: [],
     laserDmxShowDirectorRedoStack: [],
@@ -3485,6 +3518,7 @@ export const useReactStore = create<ReactStoreState>()(
       cinematicWorldsUiMode: 'simple',
       canvasEngineSettings: { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
       canvasMediaItems: [],
+      canvasMediaTimingById: {},
       selectedCanvasMediaId: null,
       activeCanvasMediaId: null,
       selectedCanvasPresetId: DEFAULT_CANVAS_PRESET_ID,
@@ -3599,6 +3633,7 @@ export const useReactStore = create<ReactStoreState>()(
         return {
           canvasEngineSettings: { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
           canvasMediaItems: [],
+          canvasMediaTimingById: {},
           selectedCanvasMediaId: null,
           activeCanvasMediaId: null,
           selectedCanvasPresetId: DEFAULT_CANVAS_PRESET_ID,
@@ -3622,10 +3657,10 @@ export const useReactStore = create<ReactStoreState>()(
         if (!state.canvasEngineSettings.autoSelectEnabled || state.canvasPresetOverride?.source === 'manual') return {}
         const preset = CANVAS_PRESET_BY_ID[presetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
         const manualMediaOverrideId = state.canvasEngineSettings.manualMediaOverrideId
-        const manualMediaOverrideValid = typeof manualMediaOverrideId === 'string' && state.canvasMediaItems.some(item => item.id === manualMediaOverrideId)
+        const manualMediaOverrideValid = typeof manualMediaOverrideId === 'string' && manualMediaOverrideId.trim().length > 0
         const nextMediaId = manualMediaOverrideValid
           ? state.activeCanvasMediaId
-          : typeof mediaId === 'string' && state.canvasMediaItems.some(item => item.id === mediaId)
+          : typeof mediaId === 'string' && mediaId.trim().length > 0
             ? mediaId
             : state.activeCanvasMediaId
         const mediaChanged = Boolean(!manualMediaOverrideValid && nextMediaId && nextMediaId !== state.activeCanvasMediaId)
@@ -3636,7 +3671,7 @@ export const useReactStore = create<ReactStoreState>()(
               canvasEngineSettings: normalizeCanvasEngineSettings({
                 ...state.canvasEngineSettings,
                 selectedMediaId: nextMediaId,
-                mediaIds: state.canvasMediaItems.map(item => item.id),
+                mediaIds: uniqueCanvasMediaIds([...state.canvasEngineSettings.mediaIds, nextMediaId]),
               }),
             }
           : {}
@@ -3736,9 +3771,9 @@ export const useReactStore = create<ReactStoreState>()(
       }),
 
       selectCanvasMediaItem: (id, options) => set((state) => {
-        if (!state.canvasMediaItems.some(item => item.id === id)) return repairCanvasRuntimeState(state)
+        if (typeof id !== 'string' || id.trim().length === 0) return repairCanvasRuntimeState(state)
         const manualMediaOverrideId = state.canvasEngineSettings.manualMediaOverrideId
-        const manualMediaOverrideValid = typeof manualMediaOverrideId === 'string' && state.canvasMediaItems.some(item => item.id === manualMediaOverrideId)
+        const manualMediaOverrideValid = typeof manualMediaOverrideId === 'string' && manualMediaOverrideId.trim().length > 0
         if (options?.manual === false && manualMediaOverrideValid) return repairCanvasRuntimeState(state)
         return repairCanvasRuntimeState({
           ...state,
@@ -3747,7 +3782,7 @@ export const useReactStore = create<ReactStoreState>()(
           canvasEngineSettings: normalizeCanvasEngineSettings({
             ...state.canvasEngineSettings,
             selectedMediaId: id,
-            mediaIds: state.canvasMediaItems.map(item => item.id),
+            mediaIds: uniqueCanvasMediaIds([...state.canvasEngineSettings.mediaIds, ...state.canvasMediaItems.map(item => item.id), id]),
             manualMediaOverrideId: options?.manual === false ? null : id,
           }),
         })
@@ -3758,19 +3793,20 @@ export const useReactStore = create<ReactStoreState>()(
       })),
 
       setCanvasMediaTiming: (mediaId, patch) => set((state) => {
-        if (!state.canvasMediaItems.some(item => item.id === mediaId)) return {}
+        if (typeof mediaId !== 'string' || mediaId.trim().length === 0) return {}
+        const legacyItem = state.canvasMediaItems.find(item => item.id === mediaId) ?? null
+        const timing = normalizeCanvasVideoTimingSettings({
+          ...DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS,
+          ...(state.canvasMediaTimingById[mediaId] ?? legacyItem?.timing ?? {}),
+          ...patch,
+        })
         return {
+          canvasMediaTimingById: {
+            ...state.canvasMediaTimingById,
+            [mediaId]: timing,
+          },
           canvasMediaItems: state.canvasMediaItems.map(item => (
-            item.id === mediaId
-              ? {
-                  ...item,
-                  timing: normalizeCanvasVideoTimingSettings({
-                    ...DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS,
-                    ...(item.timing ?? {}),
-                    ...patch,
-                  }),
-                }
-              : item
+            item.id === mediaId ? { ...item, timing } : item
           )),
         }
       }),
@@ -3785,9 +3821,13 @@ export const useReactStore = create<ReactStoreState>()(
         const nextSelectedId = state.selectedCanvasMediaId === id ? fallbackItem?.id ?? null : state.selectedCanvasMediaId
         const nextActiveId = state.activeCanvasMediaId === id ? fallbackItem?.id ?? null : state.activeCanvasMediaId
 
+        const { [id]: _removedTiming, ...nextTimingById } = state.canvasMediaTimingById
+        void _removedTiming
+
         return repairCanvasRuntimeState({
           ...state,
           canvasMediaItems: nextItems,
+          canvasMediaTimingById: nextTimingById,
           selectedCanvasMediaId: nextSelectedId,
           activeCanvasMediaId: nextActiveId,
           canvasEngineSettings: normalizeCanvasEngineSettings({
@@ -3806,6 +3846,7 @@ export const useReactStore = create<ReactStoreState>()(
         revokeCanvasMediaObjectUrls(state.canvasMediaItems)
         return {
           canvasMediaItems: [],
+          canvasMediaTimingById: {},
           selectedCanvasMediaId: null,
           activeCanvasMediaId: null,
           canvasVideoRestartRevision: state.canvasVideoRestartRevision + 1,
@@ -6387,6 +6428,7 @@ export const useReactStore = create<ReactStoreState>()(
               ...sharedDefaults,
               canvasEngineSettings: { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
               canvasMediaItems: [],
+              canvasMediaTimingById: {},
               selectedCanvasMediaId: null,
               activeCanvasMediaId: null,
               selectedCanvasPresetId: DEFAULT_CANVAS_PRESET_ID,
@@ -6460,6 +6502,7 @@ export const useReactStore = create<ReactStoreState>()(
             cinematicSeedLocksByPresetId: {},
             canvasEngineSettings: { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
             canvasMediaItems: [],
+            canvasMediaTimingById: {},
             selectedCanvasMediaId: null,
             activeCanvasMediaId: null,
             selectedCanvasPresetId: DEFAULT_CANVAS_PRESET_ID,
@@ -6501,6 +6544,7 @@ export const useReactStore = create<ReactStoreState>()(
           cinematicWorldsUiMode:        'simple',
           canvasEngineSettings:         { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
           canvasMediaItems:             [],
+          canvasMediaTimingById:        {},
           selectedCanvasMediaId:        null,
           activeCanvasMediaId:          null,
           selectedCanvasPresetId:       DEFAULT_CANVAS_PRESET_ID,
