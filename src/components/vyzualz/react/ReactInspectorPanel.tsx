@@ -7,6 +7,7 @@ import type {
   OscillatorSettings,
   OscillatorGlyphAsset,
   OscillatorFontAsset,
+  CanvasMediaItemType,
 } from './ReactTypes'
 import { ShaderInspectorPanel } from './shaders/ui/ShaderInspectorPanel'
 import { useShaderPanelStore } from './shaders/ui/shaderPanelStore'
@@ -62,6 +63,12 @@ const RENDER_MODE_LABELS: Record<string, string> = {
   multiTrace: 'Multi Trace',
   dots:       'Dots',
   ribbon:     'Ribbon',
+}
+
+const CANVAS_MEDIA_TYPE_LABELS: Record<CanvasMediaItemType, string> = {
+  video: 'Video',
+  image: 'Image',
+  svg:   'SVG',
 }
 
 // ── Subcomponents ─────────────────────────────────────────────────────────────
@@ -157,6 +164,8 @@ export function ReactInspectorPanel() {
     oscillatorFontAssets,
     laserDmxWorkspaceMode,
     laserDmxBeamMatrix,
+    canvasMediaItems,
+    activeCanvasMediaId,
     resetOscillatorSettings,
   } = useReactStore(useShallow(s => ({
     activeReactPresetId:       s.activeReactPresetId,
@@ -168,6 +177,8 @@ export function ReactInspectorPanel() {
     oscillatorFontAssets:      s.oscillatorFontAssets,
     laserDmxWorkspaceMode:     s.laserDmxWorkspaceMode,
     laserDmxBeamMatrix:        s.laserDmxBeamMatrix,
+    canvasMediaItems:          s.canvasMediaItems,
+    activeCanvasMediaId:       s.activeCanvasMediaId,
     resetOscillatorSettings:   s.resetOscillatorSettings,
   })))
   const activeShaderId = useShaderPanelStore(s => s.activeShaderId)
@@ -214,13 +225,15 @@ export function ReactInspectorPanel() {
   }
 
   if (activeReactEngineId === 'canvas') {
+    const activeCanvasMedia = canvasMediaItems.find(item => item.id === activeCanvasMediaId) ?? null
     return (
       <>
         {engineSummary}
         <div className="rv-ctrl-group">
-          <div className="rv-ctrl-info">
-            CANVAS media inspection arrives with upload support in the next patch.
-          </div>
+          <CtrlSection label="CANVAS Media" />
+          <KvRow label="Loaded Media" value={canvasMediaItems.length.toString()} />
+          <KvRow label="Active Visual" value={activeCanvasMedia?.name ?? 'No media selected'} />
+          <KvRow label="Type" value={activeCanvasMedia ? CANVAS_MEDIA_TYPE_LABELS[activeCanvasMedia.type] : '—'} />
         </div>
       </>
     )

@@ -160,6 +160,18 @@ export interface OscillatorSettings {
 // ── CANVAS engine placeholder types ───────────────────────────────────────────
 
 export type CanvasMediaKind = 'video' | 'image' | 'svg' | 'visualAsset'
+export type CanvasMediaItemType = 'video' | 'image' | 'svg'
+
+export interface CanvasMediaItem {
+  id: string
+  name: string
+  type: CanvasMediaItemType
+  objectUrl: string
+  dataUrl?: string
+  mimeType?: string
+  fileSize?: number
+  createdAt: string
+}
 
 export interface CanvasEngineSettings {
   selectedMediaId: string | null
@@ -172,9 +184,9 @@ export interface CanvasEngineSettings {
 export const DEFAULT_CANVAS_ENGINE_SETTINGS: CanvasEngineSettings = {
   selectedMediaId: null,
   mediaIds: [],
-  uploadEnabled: false,
+  uploadEnabled: true,
   autoSelectEnabled: false,
-  supportedMediaKinds: ['video', 'image', 'svg', 'visualAsset'],
+  supportedMediaKinds: ['video', 'image', 'svg'],
 }
 
 export const DEFAULT_OSCILLATOR_SETTINGS: OscillatorSettings = {

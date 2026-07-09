@@ -1,9 +1,27 @@
+import { useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useReactStore } from '../../../stores/reactStore'
 import { Collapsible, CtrlSection, ToggleRow } from './ReactControlRows'
+import type { CanvasMediaItem, CanvasMediaItemType } from './ReactTypes'
 
 const CANVAS_DESCRIPTION = 'Upload your own media and turn it into audio-reactive visuals.'
-const CANVAS_MEDIA_COPY = 'Videos, images, SVGs, and visual assets will live here once upload is enabled.'
-const CANVAS_NEXT_PATCH_NOTE = 'Upload functionality arrives in the next patch.'
+const CANVAS_MEDIA_COPY = 'Videos, images, and SVGs uploaded here stay scoped to CANVAS.'
+const CANVAS_ACCEPT = [
+  'video/mp4', 'video/webm', 'video/quicktime',
+  'image/png', 'image/jpeg', 'image/webp', 'image/svg+xml',
+  '.mp4', '.webm', '.mov', '.png', '.jpg', '.jpeg', '.webp', '.svg',
+].join(',')
+
+const CANVAS_HELPER_LINES = [
+  'Upload media for CANVAS',
+  'These files are used only inside the CANVAS engine.',
+  'Select a file below to make it the active CANVAS visual.',
+]
+
+const TYPE_LABELS: Record<CanvasMediaItemType, string> = {
+  video: 'Video',
+  image: 'Image',
+  svg:   'SVG',
+}
 
 function CanvasMediaTokens() {
   return (
@@ -11,23 +29,227 @@ function CanvasMediaTokens() {
       <span>Video</span>
       <span>Images</span>
       <span>SVGs</span>
-      <span>Visual Assets</span>
+    </div>
+  )
+}
+
+function getCanvasMediaType(file: File): CanvasMediaItemType | null {
+  const name = file.name.toLowerCase()
+  const mime = file.type.toLowerCase()
+
+  if (mime === 'image/svg+xml' || name.endsWith('.svg')) return 'svg'
+  if (
+    mime === 'image/png' || mime === 'image/jpeg' || mime === 'image/webp' ||
+    name.endsWith('.png') || name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.webp')
+  ) return 'image'
+  if (
+    mime === 'video/mp4' || mime === 'video/webm' || mime === 'video/quicktime' || mime === 'video/x-quicktime' ||
+    name.endsWith('.mp4') || name.endsWith('.webm') || name.endsWith('.mov')
+  ) return 'video'
+
+  return null
+}
+
+function createCanvasMediaId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `canvas-media-${crypto.randomUUID()}`
+  }
+  return `canvas-media-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+function makeCanvasMediaItem(file: File): CanvasMediaItem | null {
+  const type = getCanvasMediaType(file)
+  if (!type) return null
+
+  return {
+    id: createCanvasMediaId(),
+    name: file.name,
+    type,
+    objectUrl: URL.createObjectURL(file),
+    mimeType: file.type || undefined,
+    fileSize: file.size,
+    createdAt: new Date().toISOString(),
+  }
+}
+
+function formatBytes(bytes?: number): string {
+  if (!Number.isFinite(bytes) || !bytes) return 'Local file'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}
+
+function CanvasUploadControl({ compact = false }: { compact?: boolean }) {
+  const addCanvasMediaItems = useReactStore(s => s.addCanvasMediaItems)
+  const selectCanvasMediaItem = useReactStore(s => s.selectCanvasMediaItem)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+
+  const handleFiles = (files: File[]) => {
+    if (files.length === 0) return
+
+    const accepted: CanvasMediaItem[] = []
+    const rejected: string[] = []
+
+    files.forEach(file => {
+      const item = makeCanvasMediaItem(file)
+      if (item) accepted.push(item)
+      else rejected.push(file.name)
+    })
+
+    if (accepted.length > 0) {
+      addCanvasMediaItems(accepted)
+      selectCanvasMediaItem(accepted[0].id)
+    }
+
+    setUploadError(rejected.length > 0
+      ? `Unsupported CANVAS media: ${rejected.slice(0, 3).join(', ')}${rejected.length > 3 ? '…' : ''}`
+      : null)
+  }
+
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    handleFiles(Array.from(event.currentTarget.files ?? []))
+    event.currentTarget.value = ''
+  }
+
+  return (
+    <div className={`rv-canvas-upload-flow${compact ? ' rv-canvas-upload-flow--compact' : ''}`}>
+      <div className="rv-canvas-upload-copy">
+        {CANVAS_HELPER_LINES.map(line => <span key={line}>{line}</span>)}
+      </div>
+      <label className="rv-canvas-upload-target">
+        <input
+          ref={inputRef}
+          type="file"
+          accept={CANVAS_ACCEPT}
+          multiple
+          onChange={handleChange}
+        />
+        <span className="rv-canvas-upload-target__title">Choose CANVAS media</span>
+        <span className="rv-canvas-upload-target__meta">MP4, WebM, MOV, PNG, JPG, WebP, SVG</span>
+      </label>
+      {uploadError && <div className="rv-canvas-upload-error">{uploadError}</div>}
+    </div>
+  )
+}
+
+function CanvasActivePreview() {
+  const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
+  const mediaItems = useReactStore(s => s.canvasMediaItems)
+  const activeItem = useMemo(
+    () => mediaItems.find(item => item.id === activeCanvasMediaId) ?? null,
+    [activeCanvasMediaId, mediaItems],
+  )
+
+  if (!activeItem) {
+    return (
+      <div className="rv-canvas-active-preview rv-canvas-active-preview--empty">
+        <div className="rv-canvas-active-preview__eyebrow">Active CANVAS Visual</div>
+        <div className="rv-canvas-active-preview__title">No media selected</div>
+        <div className="rv-canvas-active-preview__copy">Upload media below, then choose a file from the CANVAS library.</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rv-canvas-active-preview">
+      <div className="rv-canvas-active-preview__header">
+        <span>Active CANVAS Visual</span>
+        <strong>{TYPE_LABELS[activeItem.type]}</strong>
+      </div>
+      <div className={`rv-canvas-active-preview__frame rv-canvas-active-preview__frame--${activeItem.type}`}>
+        {activeItem.type === 'video' ? (
+          <video src={activeItem.objectUrl} muted playsInline controls preload="metadata" />
+        ) : (
+          <img src={activeItem.objectUrl} alt="" />
+        )}
+      </div>
+      <div className="rv-canvas-active-preview__name" title={activeItem.name}>{activeItem.name}</div>
+    </div>
+  )
+}
+
+function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
+  const mediaItems = useReactStore(s => s.canvasMediaItems)
+  const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
+  const selectCanvasMediaItem = useReactStore(s => s.selectCanvasMediaItem)
+  const removeCanvasMediaItem = useReactStore(s => s.removeCanvasMediaItem)
+
+  const handleRemove = (item: CanvasMediaItem) => {
+    removeCanvasMediaItem(item.id)
+    URL.revokeObjectURL(item.objectUrl)
+  }
+
+  if (mediaItems.length === 0) {
+    return (
+      <div className={`rv-canvas-empty-state${compact ? ' rv-canvas-empty-state--compact' : ''}`}>
+        <strong>No CANVAS media uploaded yet.</strong>
+        <span>Imported files will appear here and stay scoped to the CANVAS engine.</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className={`rv-canvas-library${compact ? ' rv-canvas-library--compact' : ''}`}>
+      {mediaItems.map(item => {
+        const active = item.id === activeCanvasMediaId
+        return (
+          <div key={item.id} className={`rv-canvas-media-card${active ? ' rv-canvas-media-card--active' : ''}`}>
+            <button
+              type="button"
+              className="rv-canvas-media-card__select"
+              onClick={() => selectCanvasMediaItem(item.id)}
+              aria-pressed={active}
+            >
+              <span className={`rv-canvas-media-card__thumb rv-canvas-media-card__thumb--${item.type}`}>
+                {item.type === 'video' ? (
+                  <span className="rv-canvas-media-card__video-mark">▶</span>
+                ) : (
+                  <img src={item.objectUrl} alt="" />
+                )}
+              </span>
+              <span className="rv-canvas-media-card__body">
+                <span className="rv-canvas-media-card__name" title={item.name}>{item.name}</span>
+                <span className="rv-canvas-media-card__meta">
+                  <span>{TYPE_LABELS[item.type]}</span>
+                  <span>{formatBytes(item.fileSize)}</span>
+                </span>
+              </span>
+              {active && <span className="rv-canvas-media-card__active">Active</span>}
+            </button>
+            <button
+              type="button"
+              className="rv-canvas-media-card__remove"
+              onClick={() => handleRemove(item)}
+              aria-label={`Remove ${item.name} from CANVAS media`}
+            >
+              Remove
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
 }
 
 export function CanvasEngineSurface() {
   return (
-    <div className="rv-canvas-engine-surface" role="img" aria-label="CANVAS engine placeholder">
+    <div className="rv-canvas-engine-surface" role="region" aria-label="CANVAS engine media surface">
       <div className="rv-canvas-engine-card">
         <div className="rv-canvas-engine-eyebrow">User Media Engine</div>
         <h2 className="rv-canvas-engine-title">CANVAS</h2>
         <p className="rv-canvas-engine-desc">{CANVAS_DESCRIPTION}</p>
         <CanvasMediaTokens />
-        <button type="button" className="rv-canvas-upload-placeholder" disabled>
-          Upload media for CANVAS
-        </button>
-        <div className="rv-canvas-engine-note">{CANVAS_NEXT_PATCH_NOTE}</div>
+        <CanvasActivePreview />
+        <CanvasUploadControl />
+        <div className="rv-canvas-library-shell">
+          <div className="rv-canvas-library-shell__header">
+            <span>CANVAS Media Library</span>
+            <strong>Session only</strong>
+          </div>
+          <CanvasMediaLibrary />
+        </div>
       </div>
     </div>
   )
@@ -35,20 +257,23 @@ export function CanvasEngineSurface() {
 
 export function CanvasEnginePanel() {
   const settings = useReactStore(s => s.canvasEngineSettings)
+  const mediaCount = useReactStore(s => s.canvasMediaItems.length)
   return (
     <>
       <CtrlSection label="CANVAS" />
       <div className="rv-canvas-engine-panel">
         <div className="rv-canvas-panel-title">Media Visuals</div>
-        <div className="rv-canvas-panel-copy">{CANVAS_DESCRIPTION}</div>
+        <div className="rv-canvas-panel-copy">{CANVAS_MEDIA_COPY}</div>
         <CanvasMediaTokens />
-        <button type="button" className="rv-canvas-upload-placeholder rv-canvas-upload-placeholder--panel" disabled>
-          Upload media for CANVAS
-        </button>
-        <div className="rv-canvas-engine-note">{CANVAS_NEXT_PATCH_NOTE}</div>
+        <CanvasUploadControl compact />
+        <CanvasMediaLibrary compact />
         <div className="rv-canvas-panel-status">
           <span>Loaded media</span>
-          <strong>{settings.mediaIds.length}</strong>
+          <strong>{mediaCount}</strong>
+        </div>
+        <div className="rv-canvas-panel-status">
+          <span>Upload scope</span>
+          <strong>{settings.uploadEnabled ? 'CANVAS only' : 'Disabled'}</strong>
         </div>
       </div>
     </>
@@ -57,6 +282,8 @@ export function CanvasEnginePanel() {
 
 export function CanvasEngineFxPlaceholder() {
   const settings = useReactStore(s => s.canvasEngineSettings)
+  const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
+  const activeItem = useReactStore(s => s.canvasMediaItems.find(item => item.id === activeCanvasMediaId) ?? null)
   return (
     <div className="rv-ctrl-group">
       <Collapsible label="CANVAS" defaultOpen>
@@ -66,13 +293,11 @@ export function CanvasEngineFxPlaceholder() {
           value={settings.autoSelectEnabled}
           onChange={() => undefined}
           disabled
-          title="CANVAS Auto Select arrives with media upload in the next patch."
-          description="Placeholder only. Audio Intelligence media selection is not enabled yet."
+          title="CANVAS Auto Select arrives in a later preset/audio intelligence patch."
+          description={activeItem ? `Manual media override: ${activeItem.name}` : 'Upload media first. Audio Intelligence media selection is not enabled yet.'}
         />
-        <button type="button" className="rv-canvas-upload-placeholder rv-canvas-upload-placeholder--panel" disabled>
-          Upload media for CANVAS
-        </button>
-        <div className="rv-canvas-engine-note">{CANVAS_NEXT_PATCH_NOTE}</div>
+        <CanvasUploadControl compact />
+        <div className="rv-canvas-engine-note">Advanced CANVAS FX and presets arrive in a later patch.</div>
       </Collapsible>
     </div>
   )

@@ -49,6 +49,7 @@ import type {
   ReactPresetAutomationCue,
   OscillatorSettings,
   CanvasEngineSettings,
+  CanvasMediaItem,
   OscillatorGlyphAsset,
   OscillatorGlyphPoint,
   OscillatorFontAsset,
@@ -1454,10 +1455,17 @@ interface ReactStoreState {
   cinematicSeedLocksByPresetId: Record<string, boolean>
   cinematicWorldsUiMode: CinematicWorldsUiMode
 
-  // CANVAS placeholder state. Media upload and playback are introduced by later patches.
+  // CANVAS media is runtime-only for now. Blob/Object URLs stay out of persisted project state.
   canvasEngineSettings: CanvasEngineSettings
+  canvasMediaItems: CanvasMediaItem[]
+  selectedCanvasMediaId: string | null
+  activeCanvasMediaId: string | null
   setCanvasEngineSettings: (patch: Partial<CanvasEngineSettings>) => void
   resetCanvasEngineSettings: () => void
+  addCanvasMediaItems: (items: CanvasMediaItem[]) => void
+  selectCanvasMediaItem: (id: string) => void
+  removeCanvasMediaItem: (id: string) => void
+  clearCanvasMediaItems: () => void
 
   setCinematicConfigForPreset: (presetId: string, config: CinematicWorldConfig) => void
   clearCinematicConfigForPreset: (presetId: string) => void
@@ -2231,12 +2239,20 @@ function normalizeCanvasEngineSettings(value: unknown): CanvasEngineSettings {
   return {
     selectedMediaId,
     mediaIds,
-    uploadEnabled: false,
+    uploadEnabled: true,
     autoSelectEnabled: value.autoSelectEnabled === true,
     supportedMediaKinds: supportedMediaKinds.length > 0
       ? [...new Set(supportedMediaKinds)]
       : [...DEFAULT_CANVAS_ENGINE_SETTINGS.supportedMediaKinds],
   }
+}
+
+function createCanvasEngineSettingsForPersistence(settings: CanvasEngineSettings): CanvasEngineSettings {
+  return normalizeCanvasEngineSettings({
+    ...settings,
+    selectedMediaId: null,
+    mediaIds: [],
+  })
 }
 
 export interface RepairedReactSelection {
@@ -3064,7 +3080,7 @@ export function reactStorePartialize(s: ReactStoreState) {
     cinematicConfigsByPresetId:         s.cinematicConfigsByPresetId,
     cinematicSeedLocksByPresetId:       s.cinematicSeedLocksByPresetId,
     cinematicWorldsUiMode:              s.cinematicWorldsUiMode,
-    canvasEngineSettings:                normalizeCanvasEngineSettings(s.canvasEngineSettings),
+    canvasEngineSettings:                createCanvasEngineSettingsForPersistence(s.canvasEngineSettings),
     performancePads:                    s.performancePads,
     manualTrackSectionsByTrackId:       s.manualTrackSectionsByTrackId,
     suppressedAutoSectionsByTrackId:    s.suppressedAutoSectionsByTrackId,
@@ -3223,6 +3239,9 @@ export const useReactStore = create<ReactStoreState>()(
       cinematicSeedLocksByPresetId: {},
       cinematicWorldsUiMode: 'simple',
       canvasEngineSettings: { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
+      canvasMediaItems: [],
+      selectedCanvasMediaId: null,
+      activeCanvasMediaId: null,
       manualTrackSectionsByTrackId: {},
       selectedSectionId: null,
       selectedSectionByTrackId: {},
@@ -3322,7 +3341,78 @@ export const useReactStore = create<ReactStoreState>()(
 
       resetCanvasEngineSettings: () => set({
         canvasEngineSettings: { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
+        canvasMediaItems: [],
+        selectedCanvasMediaId: null,
+        activeCanvasMediaId: null,
       }),
+
+      addCanvasMediaItems: (items) => set((state) => {
+        if (items.length === 0) return {}
+
+        const existingIds = new Set(state.canvasMediaItems.map(item => item.id))
+        const freshItems = items.filter(item => !existingIds.has(item.id))
+        if (freshItems.length === 0) return {}
+
+        const nextItems = [...state.canvasMediaItems, ...freshItems]
+        const nextActiveId = state.activeCanvasMediaId ?? freshItems[0].id
+        const nextSelectedId = state.selectedCanvasMediaId ?? nextActiveId
+
+        return {
+          canvasMediaItems: nextItems,
+          selectedCanvasMediaId: nextSelectedId,
+          activeCanvasMediaId: nextActiveId,
+          canvasEngineSettings: normalizeCanvasEngineSettings({
+            ...state.canvasEngineSettings,
+            selectedMediaId: nextSelectedId,
+            mediaIds: nextItems.map(item => item.id),
+          }),
+        }
+      }),
+
+      selectCanvasMediaItem: (id) => set((state) => {
+        if (!state.canvasMediaItems.some(item => item.id === id)) return {}
+        return {
+          selectedCanvasMediaId: id,
+          activeCanvasMediaId: id,
+          canvasEngineSettings: normalizeCanvasEngineSettings({
+            ...state.canvasEngineSettings,
+            selectedMediaId: id,
+            mediaIds: state.canvasMediaItems.map(item => item.id),
+          }),
+        }
+      }),
+
+      removeCanvasMediaItem: (id) => set((state) => {
+        const removeIndex = state.canvasMediaItems.findIndex(item => item.id === id)
+        if (removeIndex < 0) return {}
+
+        const nextItems = state.canvasMediaItems.filter(item => item.id !== id)
+        const fallbackItem = nextItems[removeIndex] ?? nextItems[removeIndex - 1] ?? nextItems[0] ?? null
+        const nextSelectedId = state.selectedCanvasMediaId === id ? fallbackItem?.id ?? null : state.selectedCanvasMediaId
+        const nextActiveId = state.activeCanvasMediaId === id ? fallbackItem?.id ?? null : state.activeCanvasMediaId
+
+        return {
+          canvasMediaItems: nextItems,
+          selectedCanvasMediaId: nextSelectedId && nextItems.some(item => item.id === nextSelectedId) ? nextSelectedId : null,
+          activeCanvasMediaId: nextActiveId && nextItems.some(item => item.id === nextActiveId) ? nextActiveId : null,
+          canvasEngineSettings: normalizeCanvasEngineSettings({
+            ...state.canvasEngineSettings,
+            selectedMediaId: nextActiveId && nextItems.some(item => item.id === nextActiveId) ? nextActiveId : null,
+            mediaIds: nextItems.map(item => item.id),
+          }),
+        }
+      }),
+
+      clearCanvasMediaItems: () => set((state) => ({
+        canvasMediaItems: [],
+        selectedCanvasMediaId: null,
+        activeCanvasMediaId: null,
+        canvasEngineSettings: normalizeCanvasEngineSettings({
+          ...state.canvasEngineSettings,
+          selectedMediaId: null,
+          mediaIds: [],
+        }),
+      })),
 
       setActiveReactPresetId: (id) =>
         set((s) => {
@@ -5891,6 +5981,9 @@ export const useReactStore = create<ReactStoreState>()(
             return {
               ...sharedDefaults,
               canvasEngineSettings: { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
+              canvasMediaItems: [],
+              selectedCanvasMediaId: null,
+              activeCanvasMediaId: null,
             }
           }
 
@@ -5956,6 +6049,9 @@ export const useReactStore = create<ReactStoreState>()(
             cinematicConfigsByPresetId: {},
             cinematicSeedLocksByPresetId: {},
             canvasEngineSettings: { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
+            canvasMediaItems: [],
+            selectedCanvasMediaId: null,
+            activeCanvasMediaId: null,
             manualTrackSectionsByTrackId: {},
             selectedSectionId: null,
             selectedSectionByTrackId: {},
@@ -5988,6 +6084,9 @@ export const useReactStore = create<ReactStoreState>()(
           cinematicSeedLocksByPresetId: {},
           cinematicWorldsUiMode:        'simple',
           canvasEngineSettings:         { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
+          canvasMediaItems:             [],
+          selectedCanvasMediaId:        null,
+          activeCanvasMediaId:          null,
           manualTrackSectionsByTrackId: {},
           selectedSectionId:            null,
           selectedSectionByTrackId:     {},
