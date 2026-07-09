@@ -170,6 +170,9 @@ export type CanvasPresetId =
   | 'canvas-glitch-pulse'
   | 'canvas-luma-melt'
   | 'canvas-frame-stutter'
+  | 'canvas-particle-aura'
+
+export type CanvasPresetColorMode = 'original' | 'palette' | 'audioReactive'
 
 export type CanvasPresetControlKey =
   | 'intensity'
@@ -178,6 +181,15 @@ export type CanvasPresetControlKey =
   | 'glitchAmount'
   | 'stutterRate'
   | 'lumaThreshold'
+  | 'particleAmount'
+  | 'particleSize'
+  | 'sourceVisibility'
+  | 'dissolveAmount'
+  | 'trailLength'
+  | 'turbulence'
+  | 'bassBurst'
+  | 'beatPulse'
+  | 'particleColorMode'
 
 export type CanvasTriggerOn =
   | 'manualOnly'
@@ -218,6 +230,15 @@ export interface CanvasPresetSettings {
   glitchAmount: number
   stutterRate: number
   lumaThreshold: number
+  particleAmount: number
+  particleSize: number
+  sourceVisibility: number
+  dissolveAmount: number
+  trailLength: number
+  turbulence: number
+  bassBurst: number
+  beatPulse: number
+  particleColorMode: CanvasPresetColorMode
 }
 
 export interface CanvasPresetDefinition {
@@ -225,7 +246,7 @@ export interface CanvasPresetDefinition {
   name: string
   description: string
   accent: string
-  settings: CanvasPresetSettings
+  settings: Partial<CanvasPresetSettings>
   controls: CanvasPresetControlKey[]
 }
 
@@ -286,6 +307,15 @@ export const DEFAULT_CANVAS_PRESET_SETTINGS: CanvasPresetSettings = {
   glitchAmount: 0,
   stutterRate: 2,
   lumaThreshold: 0.55,
+  particleAmount: 0.58,
+  particleSize: 2.4,
+  sourceVisibility: 0.42,
+  dissolveAmount: 0.18,
+  trailLength: 0.56,
+  turbulence: 0.42,
+  bassBurst: 0.62,
+  beatPulse: 0.58,
+  particleColorMode: 'original',
 }
 
 export const DEFAULT_CANVAS_PRESET_OVERRIDE_STATE: CanvasPresetOverrideState | null = null
@@ -338,6 +368,41 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
     accent: '#4ac7db',
     settings: { intensity: 0.54, glow: 0.18, motionTrailAmount: 0.1, glitchAmount: 0.22, stutterRate: 5, lumaThreshold: 0.55 },
     controls: ['intensity', 'stutterRate', 'glitchAmount'],
+  },
+  {
+    id: 'canvas-particle-aura',
+    name: 'Particle Aura',
+    description: 'Turns your uploaded media into glowing audio-reactive particles.',
+    accent: '#dffcff',
+    settings: {
+      intensity: 0.72,
+      glow: 0.78,
+      motionTrailAmount: 0.16,
+      glitchAmount: 0,
+      stutterRate: 2,
+      lumaThreshold: 0.5,
+      particleAmount: 0.64,
+      particleSize: 2.8,
+      sourceVisibility: 0.34,
+      dissolveAmount: 0.24,
+      trailLength: 0.68,
+      turbulence: 0.58,
+      bassBurst: 0.78,
+      beatPulse: 0.7,
+      particleColorMode: 'original',
+    },
+    controls: [
+      'particleAmount',
+      'particleSize',
+      'sourceVisibility',
+      'dissolveAmount',
+      'trailLength',
+      'turbulence',
+      'glow',
+      'bassBurst',
+      'beatPulse',
+      'particleColorMode',
+    ],
   },
 ]
 

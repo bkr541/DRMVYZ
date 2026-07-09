@@ -10446,6 +10446,52 @@
   to { transform: translateY(2.5%) scale(1.035); }
 }
 
+
+/* ── CANVAS Particle Aura preset ──────────────────────────────────────────── */
+.rv-canvas-particle-aura-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  filter:
+    drop-shadow(0 0 28px rgba(97, 214, 170, 0.28))
+    drop-shadow(0 0 42px rgba(74, 199, 219, 0.18));
+}
+
+.rv-canvas-preset--particle-aura .rv-canvas-preset-aura {
+  opacity: calc(0.22 + var(--canvas-preset-live-glow, 0.24) * 0.52);
+  background:
+    radial-gradient(circle at 50% 48%, rgba(223, 252, 255, 0.18), transparent 32%),
+    radial-gradient(circle at 42% 45%, rgba(97, 214, 170, 0.34), transparent 38%),
+    radial-gradient(circle at 62% 56%, rgba(74, 199, 219, 0.26), transparent 48%);
+  mix-blend-mode: screen;
+  filter: blur(var(--canvas-particle-glow-blur, 30px));
+  transform: scale(var(--canvas-particle-bass-scale, 1.02));
+}
+
+.rv-canvas-preset--particle-aura .rv-canvas-live-grid {
+  opacity: 0.12;
+}
+
+.rv-canvas-preset--particle-aura .rv-canvas-live-media {
+  filter:
+    brightness(var(--canvas-particle-source-brightness, 0.96))
+    saturate(1.16)
+    contrast(1.08)
+    blur(var(--canvas-particle-dissolve-blur, 0.3px));
+}
+
+.rv-canvas-engine-note--warning {
+  border: 1px solid rgba(216, 185, 90, 0.2);
+  border-radius: 9px;
+  padding: 7px 8px;
+  background: rgba(216, 185, 90, 0.07);
+  color: rgba(255, 230, 166, 0.78);
+}
+
 @keyframes rv-canvas-frame-stutter {
   0%, 48%, 100% { filter: contrast(1.12) saturate(1.16); }
   50%, 62% { filter: contrast(1.42) saturate(1.55) brightness(1.12); }

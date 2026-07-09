@@ -56,6 +56,7 @@ import type {
   CanvasEngineSettings,
   CanvasFitMode,
   CanvasMediaItem,
+  CanvasPresetColorMode,
   CanvasPresetId,
   CanvasPresetSettings,
   CanvasPresetOverrideState,
@@ -2381,6 +2382,13 @@ function normalizeCanvasPresetId(value: unknown): CanvasPresetId {
     : DEFAULT_CANVAS_PRESET_ID
 }
 
+
+function normalizeCanvasPresetColorMode(value: unknown): CanvasPresetColorMode {
+  return value === 'palette' || value === 'audioReactive' || value === 'original'
+    ? value
+    : DEFAULT_CANVAS_PRESET_SETTINGS.particleColorMode
+}
+
 function normalizeCanvasPresetSettings(value: unknown): CanvasPresetSettings {
   const source = isRecord(value) ? value : DEFAULT_CANVAS_PRESET_SETTINGS
   return {
@@ -2390,6 +2398,15 @@ function normalizeCanvasPresetSettings(value: unknown): CanvasPresetSettings {
     glitchAmount: clampCanvasNumber(source.glitchAmount, DEFAULT_CANVAS_PRESET_SETTINGS.glitchAmount, 0, 1),
     stutterRate: clampCanvasNumber(source.stutterRate, DEFAULT_CANVAS_PRESET_SETTINGS.stutterRate, 1, 12),
     lumaThreshold: clampCanvasNumber(source.lumaThreshold, DEFAULT_CANVAS_PRESET_SETTINGS.lumaThreshold, 0, 1),
+    particleAmount: clampCanvasNumber(source.particleAmount, DEFAULT_CANVAS_PRESET_SETTINGS.particleAmount, 0, 1),
+    particleSize: clampCanvasNumber(source.particleSize, DEFAULT_CANVAS_PRESET_SETTINGS.particleSize, 0.35, 8),
+    sourceVisibility: clampCanvasNumber(source.sourceVisibility, DEFAULT_CANVAS_PRESET_SETTINGS.sourceVisibility, 0, 1),
+    dissolveAmount: clampCanvasNumber(source.dissolveAmount, DEFAULT_CANVAS_PRESET_SETTINGS.dissolveAmount, 0, 1),
+    trailLength: clampCanvasNumber(source.trailLength, DEFAULT_CANVAS_PRESET_SETTINGS.trailLength, 0, 0.94),
+    turbulence: clampCanvasNumber(source.turbulence, DEFAULT_CANVAS_PRESET_SETTINGS.turbulence, 0, 1),
+    bassBurst: clampCanvasNumber(source.bassBurst, DEFAULT_CANVAS_PRESET_SETTINGS.bassBurst, 0, 1),
+    beatPulse: clampCanvasNumber(source.beatPulse, DEFAULT_CANVAS_PRESET_SETTINGS.beatPulse, 0, 1),
+    particleColorMode: normalizeCanvasPresetColorMode(source.particleColorMode),
   }
 }
 
