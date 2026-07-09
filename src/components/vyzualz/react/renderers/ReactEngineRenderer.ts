@@ -167,6 +167,12 @@ export function renderReactEngine(
     case 'oscilloscope':
       renderSoundDrawing(ctx, frame, preset, effectiveParams, sectionType)
       break
+    case 'canvas':
+      // CANVAS owns a dedicated placeholder surface until media playback lands.
+      ctx.clearRect(0, 0, frame.W, frame.H)
+      ctx.fillStyle = preset.palette.background
+      ctx.fillRect(0, 0, frame.W, frame.H)
+      break
     case 'laserDmx':
       // Level-1 gate: skip compilation entirely when not playing.
       // clearLaserDmxVisualState wipes trail persistence and resets compiler dt.
@@ -220,6 +226,9 @@ export function disposeReactEngineRenderer(
       break
     case 'shaderPads':
       // Shader Pads owns a dedicated canvas and ShaderEngineRenderer lifecycle.
+      break
+    case 'canvas':
+      // CANVAS renders a React shell, not the live canvas renderer yet.
       break
   }
 }

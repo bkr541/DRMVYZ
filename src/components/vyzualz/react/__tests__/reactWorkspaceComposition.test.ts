@@ -14,6 +14,7 @@ describe('React workspace composition', () => {
       'shaderPads',
       'cinematicPortal',
       'oscilloscope',
+      'canvas',
       'laserDmx',
     ]
 
@@ -27,7 +28,7 @@ describe('React workspace composition', () => {
     expect(resolveReactWorkspaceComposition('oscilloscope', 'beamMatrix', false).showSoundDrawingTimeline)
       .toBe(true)
 
-    for (const engine of ['shaderPads', 'cinematicPortal', 'laserDmx'] as ReactEngineId[]) {
+    for (const engine of ['shaderPads', 'cinematicPortal', 'canvas', 'laserDmx'] as ReactEngineId[]) {
       expect(resolveReactWorkspaceComposition(engine, 'beamMatrix', false).showSoundDrawingTimeline)
         .toBe(false)
     }
@@ -40,6 +41,12 @@ describe('React workspace composition', () => {
     expect(shader.presetSurface).toBe('shaderScenes')
     expect(getReactPresetTabLabel(shader)).toBe('SCENES')
     expect(shader.showPerformancePads).toBe(false)
+
+    const canvas = resolveReactWorkspaceComposition('canvas', 'beamMatrix', false)
+    expect(DEFAULT_REACT_PRESETS.filter(preset => preset.engine === 'canvas')).toHaveLength(0)
+    expect(canvas.presetSurface).toBe('enginePresets')
+    expect(getReactPresetTabLabel(canvas)).toBe('PRESETS')
+    expect(canvas.showPerformancePads).toBe(false)
 
     for (const engine of ['cinematicPortal', 'oscilloscope', 'laserDmx'] as ReactEngineId[]) {
       const composition = resolveReactWorkspaceComposition(engine, 'beamMatrix', false)
@@ -78,14 +85,18 @@ describe('React workspace composition', () => {
     const soundDrawing = resolveReactWorkspaceComposition('oscilloscope', 'beamMatrix', false)
     expect(getReactLeftTabs(soundDrawing)).toEqual(['workspace', 'media', 'fonts'])
     expect(getReactLeftTabLabel('workspace', soundDrawing)).toBe('SOURCE')
+
+    const canvas = resolveReactWorkspaceComposition('canvas', 'beamMatrix', false)
+    expect(getReactLeftTabs(canvas)).toEqual(['workspace', 'media'])
+    expect(getReactLeftTabLabel('workspace', canvas)).toBe('SETUP')
   })
 
   it('never advertises unfinished or unrelated contextual destinations', () => {
-    for (const engine of ['shaderPads', 'cinematicPortal', 'oscilloscope', 'laserDmx'] as ReactEngineId[]) {
+    for (const engine of ['shaderPads', 'cinematicPortal', 'oscilloscope', 'canvas', 'laserDmx'] as ReactEngineId[]) {
       const tabs = getReactLeftTabs(resolveReactWorkspaceComposition(engine, 'beamMatrix', false))
       expect(tabs).not.toContain('sessions')
       if (engine !== 'oscilloscope') expect(tabs).not.toContain('fonts')
-      if (engine !== 'cinematicPortal' && engine !== 'oscilloscope') expect(tabs).not.toContain('media')
+      if (engine !== 'cinematicPortal' && engine !== 'oscilloscope' && engine !== 'canvas') expect(tabs).not.toContain('media')
     }
   })
 })

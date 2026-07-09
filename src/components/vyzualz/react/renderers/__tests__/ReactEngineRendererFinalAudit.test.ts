@@ -82,6 +82,7 @@ function samplePreset(engine: ReactEngineId): ReactPreset {
 describe('React engine renderer final audit', () => {
   it('dispatches and disposes every currently registered engine family', () => {
     expect([...REACT_ENGINE_IDS].sort()).toEqual([
+      'canvas',
       'cinematicPortal',
       'laserDmx',
       'oscilloscope',

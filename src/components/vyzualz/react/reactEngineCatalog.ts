@@ -12,6 +12,7 @@ export const REACT_ENGINE_IDS: ReactEngineId[] = [
   'shaderPads',
   'cinematicPortal',
   'oscilloscope',
+  'canvas',
   'laserDmx',
 ]
 
@@ -36,6 +37,13 @@ export const REACT_ENGINE_CATALOG: Record<ReactEngineId, ReactEngineCatalogEntry
     shortLabel: 'Draw',
     icon: '〜',
     description: 'Live audio waveform drawing with glyph, SVG and text rendering.',
+  },
+  canvas: {
+    id: 'canvas',
+    label: 'CANVAS',
+    shortLabel: 'Canvas',
+    icon: '▣',
+    description: 'User-uploaded videos, images, SVGs and visual assets for audio-reactive shows.',
   },
   laserDmx: {
     id: 'laserDmx',

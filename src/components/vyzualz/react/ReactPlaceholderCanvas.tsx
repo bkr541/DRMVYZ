@@ -24,13 +24,14 @@ const ENGINE_ACCESSIBLE_LABELS: Record<ReactEngineId, string> = {
   shaderPads:      'Shader',
   cinematicPortal: 'Cinematic Worlds',
   oscilloscope:    'Sound Drawing',
+  canvas:          'CANVAS',
   laserDmx:        'LaserDMX',
 }
 
 interface Props {
   analyser:           AnalyserNode | null
   /** Stable ownership boundary for the mounted live renderer. */
-  engine:             Exclude<ReactEngineId, 'shaderPads'>
+  engine:             Exclude<ReactEngineId, 'shaderPads' | 'canvas'>
   activePreset:       ReactPreset | null
   intensity:          number
   motion:             number

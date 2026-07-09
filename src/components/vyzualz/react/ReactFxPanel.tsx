@@ -13,6 +13,7 @@ import { ShaderParameterPanel } from './shaders/ui/ShaderParameterPanel'
 import { getReactFxMasterControls } from './reactFxMasterControls'
 import { ReactResetActions } from './ReactResetActions'
 import { CinematicWorldsFxControls } from './CinematicWorldsControls'
+import { CanvasEngineFxPlaceholder } from './ReactCanvasEngineShell'
 
 // ── FX panel ──────────────────────────────────────────────────────────────────
 // Styles the currently active visual engine.
@@ -64,6 +65,7 @@ export function ReactFxPanel() {
   const isSoundDrawing  = activeReactEngineId === 'oscilloscope'
   const isCinematic     = activeReactEngineId === 'cinematicPortal'
   const isLaserDmx      = activeReactEngineId === 'laserDmx'
+  const isCanvas        = activeReactEngineId === 'canvas'
   const isBeamMatrix    = isLaserDmx
 
   const masterControls = getReactFxMasterControls(activeReactEngineId)
@@ -131,6 +133,10 @@ export function ReactFxPanel() {
   // renderer, so keep them visible above the scene-specific parameter controls.
   if (isCinematic) {
     return <CinematicWorldsFxControls />
+  }
+
+  if (isCanvas) {
+    return <CanvasEngineFxPlaceholder />
   }
 
   if (isShader) {

@@ -28,6 +28,7 @@ export function resolveReactWorkspaceComposition(
   const isSoundDrawing = engineId === 'oscilloscope'
   const isCinematic = engineId === 'cinematicPortal'
   const isLaser = engineId === 'laserDmx'
+  const isCanvas = engineId === 'canvas'
   void laserWorkspaceMode
 
   let leftTabs: ReactLeftTab[] = ['workspace']
@@ -42,12 +43,15 @@ export function resolveReactWorkspaceComposition(
   } else if (isLaser) {
     leftTabs = ['workspace', 'layers']
     workspaceTabLabel = 'RIG'
+  } else if (isCanvas) {
+    leftTabs = ['workspace', 'media']
+    workspaceTabLabel = 'SETUP'
   }
 
   return {
     // React performance pads target live React presets and contextual production actions.
     // Shader uses its independent scene system and has no compatible React presets.
-    showPerformancePads: !isShader,
+    showPerformancePads: !isShader && !isCanvas,
     showSoundDrawingTimeline: isSoundDrawing,
     // Track sections and transport context are shared by every React engine.
     showTrackMap: true,

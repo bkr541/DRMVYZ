@@ -213,6 +213,19 @@ export function ReactInspectorPanel() {
     )
   }
 
+  if (activeReactEngineId === 'canvas') {
+    return (
+      <>
+        {engineSummary}
+        <div className="rv-ctrl-group">
+          <div className="rv-ctrl-info">
+            CANVAS media inspection arrives with upload support in the next patch.
+          </div>
+        </div>
+      </>
+    )
+  }
+
   if (!inspectableSelection) {
     return (
       <>

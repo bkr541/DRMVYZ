@@ -10,6 +10,7 @@ import {
   ReactEnginePanel,
 } from './panels/ReactRightPanels'
 import { ReactPlaceholderCanvas } from './ReactPlaceholderCanvas'
+import { CanvasEngineSurface } from './ReactCanvasEngineShell'
 import { isReactTransportPaused }  from './reactTransportState'
 import { resolvePositiveDuration } from '../../../features/timeline/timelineViewport'
 import { ReactPerformancePads } from './ReactPerformancePads'
@@ -292,7 +293,7 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
 
   // Fall back only within the active engine family. Never render a preset from
   // another engine merely because it appears first in the global collection.
-  const activePreset = activeReactEngineId === 'shaderPads'
+  const activePreset = activeReactEngineId === 'shaderPads' || activeReactEngineId === 'canvas'
     ? null
     : (selectedPresetForEngine ?? reactPresets.find(p => p.engine === activeReactEngineId) ?? null)
 
@@ -355,6 +356,13 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
   const activeSdLayers       = activeTrackId ? (soundDrawingLayersByTrackId[activeTrackId] ?? []) : []
   const activeSdClips        = activeTrackId ? (soundDrawingClipsByTrackId[activeTrackId]   ?? []) : []
   const showDirectorStageEditorVisible = activeReactEngineId === 'laserDmx' && laserDmxBeamMatrixAuthoringMode === 'showDirector'
+
+  useEffect(() => {
+    if (activeReactEngineId === 'canvas') {
+      setOutputCanvas(null)
+      setLiveFps(0)
+    }
+  }, [activeReactEngineId])
 
   return (
     <div className="rv-shell" data-stage-focus={stageFocus ? 'true' : undefined}>
@@ -458,6 +466,8 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
                   brandOverlay={activeBrandOverlay}
                 />
               </Suspense>
+            ) : activeReactEngineId === 'canvas' ? (
+              <CanvasEngineSurface />
             ) : (
               <ReactPlaceholderCanvas
                 key={`react-live-${activeReactEngineId}`}

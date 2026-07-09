@@ -14,6 +14,7 @@ export type ReactFxMasterControl =
 export function getReactFxMasterControls(
   engineId: ReactEngineId,
 ): ReactFxMasterControl[] {
+  if (engineId === 'canvas') return []
   if (engineId === 'laserDmx') return ['intensity', 'glow']
   return ['intensity', 'motion', 'glow', 'bassReactivity']
 }

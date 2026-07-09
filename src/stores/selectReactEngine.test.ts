@@ -18,7 +18,7 @@ import {
   DEFAULT_PERFORMANCE_PADS,
   LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID,
 } from '../components/vyzualz/react/ReactTypes'
-import type { ReactPreset } from '../components/vyzualz/react/ReactTypes'
+import type { ReactEngineId, ReactPreset } from '../components/vyzualz/react/ReactTypes'
 import { REACT_ENGINE_IDS } from '../components/vyzualz/react/reactEngineCatalog'
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -28,6 +28,7 @@ const oscPreset       = DEFAULT_REACT_PRESETS.find(p => p.engine === 'oscillosco
 const enhancedOscPreset = DEFAULT_REACT_PRESETS.find(
   p => p.engine === 'oscilloscope' && p.oscillatorSettings != null,
 )
+const STANDALONE_ENGINE_IDS = new Set<ReactEngineId>(['shaderPads', 'canvas'])
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -156,13 +157,21 @@ describe('selectReactEngine', () => {
     },
   )
 
+  it('selecting canvas: sets a standalone engine with no preset', () => {
+    useReactStore.getState().selectReactEngine('canvas')
+    const { activeReactEngineId, activeReactPresetId, canvasEngineSettings } = useReactStore.getState()
+    expect(activeReactEngineId).toBe('canvas')
+    expect(activeReactPresetId).toBeNull()
+    expect(canvasEngineSettings.mediaIds).toEqual([])
+  })
+
   it('can repeatedly switch among every remaining engine without losing synchronization', () => {
     for (let pass = 0; pass < 3; pass += 1) {
       for (const engineId of REACT_ENGINE_IDS) {
         expect(() => useReactStore.getState().selectReactEngine(engineId)).not.toThrow()
         const { activeReactEngineId, activeReactPresetId, reactPresets } = useReactStore.getState()
         expect(activeReactEngineId).toBe(engineId)
-        if (engineId === 'shaderPads') {
+        if (STANDALONE_ENGINE_IDS.has(engineId)) {
           expect(activeReactPresetId).toBeNull()
         } else {
           expect(activePreset(reactPresets, activeReactPresetId)?.engine).toBe(engineId)

@@ -56,16 +56,20 @@ let host: HTMLDivElement | null = null
 let nextRafId = 1
 let rafCallbacks = new Map<number, FrameRequestCallback>()
 
-const LIVE_CANVAS_ENGINE_IDS = REACT_ENGINE_IDS.filter((engine): engine is Exclude<ReactEngineId, 'shaderPads'> => engine !== 'shaderPads')
+type LiveCanvasEngineId = Exclude<ReactEngineId, 'shaderPads' | 'canvas'>
 
-function findPreset(engine: Exclude<ReactEngineId, 'shaderPads'>): ReactPreset {
+const LIVE_CANVAS_ENGINE_IDS = REACT_ENGINE_IDS.filter((engine): engine is LiveCanvasEngineId => (
+  engine !== 'shaderPads' && engine !== 'canvas'
+))
+
+function findPreset(engine: LiveCanvasEngineId): ReactPreset {
   const found = DEFAULT_REACT_PRESETS.find(preset => preset.engine === engine)
   if (!found) throw new Error(`Missing test preset for ${engine}`)
   return found
 }
 
 function renderCanvas(
-  engine: Exclude<ReactEngineId, 'shaderPads'>,
+  engine: LiveCanvasEngineId,
   onCanvasReady = vi.fn(),
 ): React.ReactElement {
   return (

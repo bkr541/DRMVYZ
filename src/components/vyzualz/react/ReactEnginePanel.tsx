@@ -1,6 +1,7 @@
 import React, { useSyncExternalStore } from 'react'
 import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
 import { CinematicWorldsEngineControls } from './CinematicWorldsControls'
+import { CanvasEnginePanel } from './ReactCanvasEngineShell'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore } from '../../../stores/mediaStore'
@@ -330,6 +331,9 @@ export function ReactEnginePanel() {
           </div>
         </Collapsible>
       )}
+
+      {/* ── Engine Mode: CANVAS ──────────────────────────────────────── */}
+      {activeReactEngineId === 'canvas' && <CanvasEnginePanel />}
 
       {/* ── Engine Mode: LaserDMX ─────────────────────────────────────── */}
       {activeReactEngineId === 'laserDmx' && <LaserDmxEnginePanel />}

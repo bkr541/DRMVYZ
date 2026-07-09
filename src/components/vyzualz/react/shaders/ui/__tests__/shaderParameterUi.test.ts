@@ -468,11 +468,12 @@ describe('I: Internal development scenes hidden', () => {
 describe('J: Other engine branches not affected', () => {
   it('ENGINE_IDS list shape check — each engine has its own id', () => {
     // Verify the known set of engine IDs includes 'shaderPads'
-    const ENGINE_IDS = ['shaderPads', 'cinematicPortal', 'oscilloscope', 'laserDmx']
+    const ENGINE_IDS = ['shaderPads', 'cinematicPortal', 'oscilloscope', 'canvas', 'laserDmx']
     expect(ENGINE_IDS).toContain('shaderPads')
     expect(ENGINE_IDS).toContain('cinematicPortal')
     expect(ENGINE_IDS).toContain('oscilloscope')
     expect(ENGINE_IDS).toContain('laserDmx')
+    expect(ENGINE_IDS).toContain('canvas')
     expect(ENGINE_IDS).not.toContain('neonLattice')
   })
 

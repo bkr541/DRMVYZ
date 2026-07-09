@@ -24,7 +24,7 @@ import type {
   ProductionTarget,
 } from './LaserDmxProductionRig'
 
-export type ReactEngineId = 'shaderPads' | 'cinematicPortal' | 'oscilloscope' | 'laserDmx'
+export type ReactEngineId = 'shaderPads' | 'cinematicPortal' | 'oscilloscope' | 'canvas' | 'laserDmx'
 
 // ── Oscillator path/glyph types ───────────────────────────────────────────────
 
@@ -155,6 +155,26 @@ export interface OscillatorSettings {
   mirrorX: boolean
   mirrorY: boolean
   autoSectionMode: boolean
+}
+
+// ── CANVAS engine placeholder types ───────────────────────────────────────────
+
+export type CanvasMediaKind = 'video' | 'image' | 'svg' | 'visualAsset'
+
+export interface CanvasEngineSettings {
+  selectedMediaId: string | null
+  mediaIds: string[]
+  uploadEnabled: boolean
+  autoSelectEnabled: boolean
+  supportedMediaKinds: CanvasMediaKind[]
+}
+
+export const DEFAULT_CANVAS_ENGINE_SETTINGS: CanvasEngineSettings = {
+  selectedMediaId: null,
+  mediaIds: [],
+  uploadEnabled: false,
+  autoSelectEnabled: false,
+  supportedMediaKinds: ['video', 'image', 'svg', 'visualAsset'],
 }
 
 export const DEFAULT_OSCILLATOR_SETTINGS: OscillatorSettings = {

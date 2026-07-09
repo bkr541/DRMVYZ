@@ -82,7 +82,13 @@ describe('Neon Lattice secondary integration retirement', () => {
       id: 'test-shader-thumbnail',
       engine: 'shaderPads',
     }
+    const canvasPreset: ReactPreset = {
+      ...DEFAULT_REACT_PRESETS[0],
+      id: 'test-canvas-thumbnail',
+      engine: 'canvas',
+    }
     sampleByEngine.set('shaderPads', shaderPreset)
+    sampleByEngine.set('canvas', canvasPreset)
 
     expect([...sampleByEngine.keys()].sort()).toEqual([...REACT_ENGINE_IDS].sort())
     for (const engineId of REACT_ENGINE_IDS) {

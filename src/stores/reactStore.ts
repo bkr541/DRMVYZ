@@ -14,6 +14,7 @@ import {
   DEFAULT_REACT_PRESETS,
   DEFAULT_PERFORMANCE_PADS,
   DEFAULT_OSCILLATOR_SETTINGS,
+  DEFAULT_CANVAS_ENGINE_SETTINGS,
   DEFAULT_BEAM_MOTION,
   DEFAULT_BEAM_SEQUENCE,
   DEFAULT_LAUNCH_SETTINGS,
@@ -47,6 +48,7 @@ import type {
   ReactPresetControlValues,
   ReactPresetAutomationCue,
   OscillatorSettings,
+  CanvasEngineSettings,
   OscillatorGlyphAsset,
   OscillatorGlyphPoint,
   OscillatorFontAsset,
@@ -1451,6 +1453,12 @@ interface ReactStoreState {
   cinematicConfigsByPresetId: Record<string, CinematicWorldConfig>
   cinematicSeedLocksByPresetId: Record<string, boolean>
   cinematicWorldsUiMode: CinematicWorldsUiMode
+
+  // CANVAS placeholder state. Media upload and playback are introduced by later patches.
+  canvasEngineSettings: CanvasEngineSettings
+  setCanvasEngineSettings: (patch: Partial<CanvasEngineSettings>) => void
+  resetCanvasEngineSettings: () => void
+
   setCinematicConfigForPreset: (presetId: string, config: CinematicWorldConfig) => void
   clearCinematicConfigForPreset: (presetId: string) => void
   setCinematicSeedLocked: (presetId: string, locked: boolean) => void
@@ -2151,14 +2159,14 @@ export function sanitizeRetiredNeonLatticeReactState(persistedState: unknown): R
   const activeEngineId = typeof state.activeReactEngineId === 'string' ? state.activeReactEngineId : null
   const activePreset = activePresetId ? validPresetById.get(activePresetId) ?? null : null
   const activePresetWasRetired = activePresetId != null && retiredPresetIds.has(activePresetId)
-  const validShaderSelection = activeEngineId === 'shaderPads' && activePresetId == null
+  const validStandaloneSelection = (activeEngineId === 'shaderPads' || activeEngineId === 'canvas') && activePresetId == null
   const validPresetSelection = activeEngineId != null
     && activeEngineId !== RETIRED_NEON_LATTICE_ENGINE_ID
     && activePreset != null
     && activePreset.engine === activeEngineId
 
   const hasPersistedSelection = 'activeReactPresetId' in state || 'activeReactEngineId' in state
-  if (hasPersistedSelection && (activePresetWasRetired || (!validShaderSelection && !validPresetSelection))) {
+  if (hasPersistedSelection && (activePresetWasRetired || (!validStandaloneSelection && !validPresetSelection))) {
     state = {
       ...state,
       activeReactPresetId: INITIAL_PRESET_ID,
@@ -2198,6 +2206,38 @@ function normalizeLockedLaserDmxPadAssignments(pads: ReactPerformancePad[]): Rea
 }
 
 const VALID_REACT_ENGINE_IDS = new Set<ReactEngineId>(REACT_ENGINE_IDS)
+
+const STANDALONE_REACT_ENGINE_IDS = new Set<ReactEngineId>(['shaderPads', 'canvas'])
+
+function isStandaloneReactEngineId(engineId: ReactEngineId): boolean {
+  return STANDALONE_REACT_ENGINE_IDS.has(engineId)
+}
+
+function normalizeCanvasEngineSettings(value: unknown): CanvasEngineSettings {
+  if (!isRecord(value)) return { ...DEFAULT_CANVAS_ENGINE_SETTINGS }
+
+  const mediaIds = Array.isArray(value.mediaIds)
+    ? value.mediaIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+    : []
+  const selectedMediaId = typeof value.selectedMediaId === 'string' && mediaIds.includes(value.selectedMediaId)
+    ? value.selectedMediaId
+    : null
+  const supportedMediaKinds = Array.isArray(value.supportedMediaKinds)
+    ? value.supportedMediaKinds.filter((kind): kind is CanvasEngineSettings['supportedMediaKinds'][number] => (
+        kind === 'video' || kind === 'image' || kind === 'svg' || kind === 'visualAsset'
+      ))
+    : DEFAULT_CANVAS_ENGINE_SETTINGS.supportedMediaKinds
+
+  return {
+    selectedMediaId,
+    mediaIds,
+    uploadEnabled: false,
+    autoSelectEnabled: value.autoSelectEnabled === true,
+    supportedMediaKinds: supportedMediaKinds.length > 0
+      ? [...new Set(supportedMediaKinds)]
+      : [...DEFAULT_CANVAS_ENGINE_SETTINGS.supportedMediaKinds],
+  }
+}
 
 export interface RepairedReactSelection {
   activeReactPresetId: string | null
@@ -2239,7 +2279,7 @@ export function repairReactEnginePresetSelection(
   }
 
   const engineId = activeReactEngineId as ReactEngineId
-  if (engineId === 'shaderPads') {
+  if (isStandaloneReactEngineId(engineId)) {
     return { activeReactPresetId: null, activeReactEngineId: engineId }
   }
 
@@ -2873,7 +2913,11 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
   if (isPersistedLaserDmxBeamMatrixDocument(state.laserDmxBeamMatrix)) {
     state = { ...state, laserDmxBeamMatrix: normalizeLaserDmxBeamMatrixSettings(state.laserDmxBeamMatrix) }
   }
-  state = { ...state, laserDmxShowDirector: normalizeLaserDmxShowDirectorState(state.laserDmxShowDirector) }
+  state = {
+    ...state,
+    canvasEngineSettings: normalizeCanvasEngineSettings(state.canvasEngineSettings),
+    laserDmxShowDirector: normalizeLaserDmxShowDirectorState(state.laserDmxShowDirector),
+  }
   // Imported/current-version snapshots do not necessarily pass through a
   // numbered migration, so keep the retirement boundary defensive.
   return sanitizeRetiredNeonLatticeReactState(state)
@@ -3020,6 +3064,7 @@ export function reactStorePartialize(s: ReactStoreState) {
     cinematicConfigsByPresetId:         s.cinematicConfigsByPresetId,
     cinematicSeedLocksByPresetId:       s.cinematicSeedLocksByPresetId,
     cinematicWorldsUiMode:              s.cinematicWorldsUiMode,
+    canvasEngineSettings:                normalizeCanvasEngineSettings(s.canvasEngineSettings),
     performancePads:                    s.performancePads,
     manualTrackSectionsByTrackId:       s.manualTrackSectionsByTrackId,
     suppressedAutoSectionsByTrackId:    s.suppressedAutoSectionsByTrackId,
@@ -3057,6 +3102,7 @@ export const REACT_PROJECT_STATE_KEYS = [
   'cinematicConfigsByPresetId',
   'cinematicSeedLocksByPresetId',
   'cinematicWorldsUiMode',
+  'canvasEngineSettings',
   'manualTrackSectionsByTrackId',
   'suppressedAutoSectionsByTrackId',
   'presetAutomationCuesByTrackId',
@@ -3105,6 +3151,9 @@ export function mergeReactStoreState(
     cinematicConfigsByPresetId,
     cinematicSeedLocksByPresetId,
     cinematicWorldsUiMode,
+    canvasEngineSettings: normalizeCanvasEngineSettings(
+      persisted.canvasEngineSettings ?? currentState.canvasEngineSettings,
+    ),
     soundDrawingLayersByTrackId: normalizeSoundDrawingLayersByTrackId(
       persisted.soundDrawingLayersByTrackId ?? currentState.soundDrawingLayersByTrackId,
     ),
@@ -3173,6 +3222,7 @@ export const useReactStore = create<ReactStoreState>()(
       cinematicConfigsByPresetId: {},
       cinematicSeedLocksByPresetId: {},
       cinematicWorldsUiMode: 'simple',
+      canvasEngineSettings: { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
       manualTrackSectionsByTrackId: {},
       selectedSectionId: null,
       selectedSectionByTrackId: {},
@@ -3263,6 +3313,17 @@ export const useReactStore = create<ReactStoreState>()(
 
       setCinematicWorldsUiMode: (mode) => set({ cinematicWorldsUiMode: mode }),
 
+      setCanvasEngineSettings: (patch) => set((state) => ({
+        canvasEngineSettings: normalizeCanvasEngineSettings({
+          ...state.canvasEngineSettings,
+          ...patch,
+        }),
+      })),
+
+      resetCanvasEngineSettings: () => set({
+        canvasEngineSettings: { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
+      }),
+
       setActiveReactPresetId: (id) =>
         set((s) => {
           if (id != null) {
@@ -3272,7 +3333,7 @@ export const useReactStore = create<ReactStoreState>()(
               : {}
           }
 
-          if (s.activeReactEngineId === 'shaderPads') {
+          if (isStandaloneReactEngineId(s.activeReactEngineId)) {
             return { activeReactPresetId: null, performancePadTransition: null, ...clearPerformanceActionPatch() }
           }
 
@@ -3305,10 +3366,10 @@ export const useReactStore = create<ReactStoreState>()(
                 }
           }
 
-          // Shader Pads has no React presets.
-          if (engineId === 'shaderPads') {
+          // Shader Pads and CANVAS are standalone shells with no React presets.
+          if (isStandaloneReactEngineId(engineId)) {
             return {
-              activeReactEngineId: 'shaderPads',
+              activeReactEngineId: engineId,
               activeReactPresetId: null,
               performancePadTransition: null,
               ...clearPerformanceActionPatch(),
@@ -5826,6 +5887,13 @@ export const useReactStore = create<ReactStoreState>()(
             }
           }
 
+          if (s.activeReactEngineId === 'canvas') {
+            return {
+              ...sharedDefaults,
+              canvasEngineSettings: { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
+            }
+          }
+
           return sharedDefaults
         }),
 
@@ -5887,6 +5955,7 @@ export const useReactStore = create<ReactStoreState>()(
             reactPresets: DEFAULT_REACT_PRESETS,
             cinematicConfigsByPresetId: {},
             cinematicSeedLocksByPresetId: {},
+            canvasEngineSettings: { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
             manualTrackSectionsByTrackId: {},
             selectedSectionId: null,
             selectedSectionByTrackId: {},
@@ -5918,6 +5987,7 @@ export const useReactStore = create<ReactStoreState>()(
           cinematicConfigsByPresetId:   {},
           cinematicSeedLocksByPresetId: {},
           cinematicWorldsUiMode:        'simple',
+          canvasEngineSettings:         { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
           manualTrackSectionsByTrackId: {},
           selectedSectionId:            null,
           selectedSectionByTrackId:     {},
@@ -5958,7 +6028,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 41,
+      version: 42,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,
