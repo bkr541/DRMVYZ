@@ -161,6 +161,7 @@ export interface OscillatorSettings {
 
 export type CanvasMediaKind = 'video' | 'image' | 'svg' | 'visualAsset'
 export type CanvasMediaItemType = 'video' | 'image' | 'svg'
+export type CanvasFitMode = 'contain' | 'cover' | 'stretch'
 
 export interface CanvasMediaItem {
   id: string
@@ -179,6 +180,13 @@ export interface CanvasEngineSettings {
   uploadEnabled: boolean
   autoSelectEnabled: boolean
   supportedMediaKinds: CanvasMediaKind[]
+  fitMode: CanvasFitMode
+  scale: number
+  positionX: number
+  positionY: number
+  rotation: number
+  opacity: number
+  loopVideo: boolean
 }
 
 export const DEFAULT_CANVAS_ENGINE_SETTINGS: CanvasEngineSettings = {
@@ -187,6 +195,13 @@ export const DEFAULT_CANVAS_ENGINE_SETTINGS: CanvasEngineSettings = {
   uploadEnabled: true,
   autoSelectEnabled: false,
   supportedMediaKinds: ['video', 'image', 'svg'],
+  fitMode: 'contain',
+  scale: 1,
+  positionX: 0,
+  positionY: 0,
+  rotation: 0,
+  opacity: 1,
+  loopVideo: true,
 }
 
 export const DEFAULT_OSCILLATOR_SETTINGS: OscillatorSettings = {

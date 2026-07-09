@@ -467,7 +467,10 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
                 />
               </Suspense>
             ) : activeReactEngineId === 'canvas' ? (
-              <CanvasEngineSurface />
+              <CanvasEngineSurface
+                isPlaying={engine.isPlaying}
+                isPaused={transportPaused}
+              />
             ) : (
               <ReactPlaceholderCanvas
                 key={`react-live-${activeReactEngineId}`}

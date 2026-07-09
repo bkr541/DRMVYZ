@@ -49,6 +49,7 @@ import type {
   ReactPresetAutomationCue,
   OscillatorSettings,
   CanvasEngineSettings,
+  CanvasFitMode,
   CanvasMediaItem,
   OscillatorGlyphAsset,
   OscillatorGlyphPoint,
@@ -1460,10 +1461,12 @@ interface ReactStoreState {
   canvasMediaItems: CanvasMediaItem[]
   selectedCanvasMediaId: string | null
   activeCanvasMediaId: string | null
+  canvasVideoRestartRevision: number
   setCanvasEngineSettings: (patch: Partial<CanvasEngineSettings>) => void
   resetCanvasEngineSettings: () => void
   addCanvasMediaItems: (items: CanvasMediaItem[]) => void
   selectCanvasMediaItem: (id: string) => void
+  restartCanvasVideo: () => void
   removeCanvasMediaItem: (id: string) => void
   clearCanvasMediaItems: () => void
 
@@ -2221,6 +2224,30 @@ function isStandaloneReactEngineId(engineId: ReactEngineId): boolean {
   return STANDALONE_REACT_ENGINE_IDS.has(engineId)
 }
 
+function finiteCanvasNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function clampCanvasNumber(value: unknown, fallback: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, finiteCanvasNumber(value, fallback)))
+}
+
+function normalizeCanvasFitMode(value: unknown): CanvasFitMode {
+  return value === 'cover' || value === 'stretch' || value === 'contain'
+    ? value
+    : DEFAULT_CANVAS_ENGINE_SETTINGS.fitMode
+}
+
+function revokeCanvasMediaObjectUrl(item: CanvasMediaItem): void {
+  if (typeof URL === 'undefined' || typeof URL.revokeObjectURL !== 'function') return
+  if (!item.objectUrl || !item.objectUrl.startsWith('blob:')) return
+  URL.revokeObjectURL(item.objectUrl)
+}
+
+function revokeCanvasMediaObjectUrls(items: CanvasMediaItem[]): void {
+  items.forEach(revokeCanvasMediaObjectUrl)
+}
+
 function normalizeCanvasEngineSettings(value: unknown): CanvasEngineSettings {
   if (!isRecord(value)) return { ...DEFAULT_CANVAS_ENGINE_SETTINGS }
 
@@ -2244,6 +2271,13 @@ function normalizeCanvasEngineSettings(value: unknown): CanvasEngineSettings {
     supportedMediaKinds: supportedMediaKinds.length > 0
       ? [...new Set(supportedMediaKinds)]
       : [...DEFAULT_CANVAS_ENGINE_SETTINGS.supportedMediaKinds],
+    fitMode: normalizeCanvasFitMode(value.fitMode),
+    scale: clampCanvasNumber(value.scale, DEFAULT_CANVAS_ENGINE_SETTINGS.scale, 0.1, 4),
+    positionX: clampCanvasNumber(value.positionX, DEFAULT_CANVAS_ENGINE_SETTINGS.positionX, -100, 100),
+    positionY: clampCanvasNumber(value.positionY, DEFAULT_CANVAS_ENGINE_SETTINGS.positionY, -100, 100),
+    rotation: clampCanvasNumber(value.rotation, DEFAULT_CANVAS_ENGINE_SETTINGS.rotation, -180, 180),
+    opacity: clampCanvasNumber(value.opacity, DEFAULT_CANVAS_ENGINE_SETTINGS.opacity, 0, 1),
+    loopVideo: value.loopVideo === false ? false : DEFAULT_CANVAS_ENGINE_SETTINGS.loopVideo,
   }
 }
 
@@ -3242,6 +3276,7 @@ export const useReactStore = create<ReactStoreState>()(
       canvasMediaItems: [],
       selectedCanvasMediaId: null,
       activeCanvasMediaId: null,
+      canvasVideoRestartRevision: 0,
       manualTrackSectionsByTrackId: {},
       selectedSectionId: null,
       selectedSectionByTrackId: {},
@@ -3339,11 +3374,15 @@ export const useReactStore = create<ReactStoreState>()(
         }),
       })),
 
-      resetCanvasEngineSettings: () => set({
-        canvasEngineSettings: { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
-        canvasMediaItems: [],
-        selectedCanvasMediaId: null,
-        activeCanvasMediaId: null,
+      resetCanvasEngineSettings: () => set((state) => {
+        revokeCanvasMediaObjectUrls(state.canvasMediaItems)
+        return {
+          canvasEngineSettings: { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
+          canvasMediaItems: [],
+          selectedCanvasMediaId: null,
+          activeCanvasMediaId: null,
+          canvasVideoRestartRevision: state.canvasVideoRestartRevision + 1,
+        }
       }),
 
       addCanvasMediaItems: (items) => set((state) => {
@@ -3382,9 +3421,14 @@ export const useReactStore = create<ReactStoreState>()(
         }
       }),
 
+      restartCanvasVideo: () => set((state) => ({
+        canvasVideoRestartRevision: state.canvasVideoRestartRevision + 1,
+      })),
+
       removeCanvasMediaItem: (id) => set((state) => {
         const removeIndex = state.canvasMediaItems.findIndex(item => item.id === id)
         if (removeIndex < 0) return {}
+        revokeCanvasMediaObjectUrl(state.canvasMediaItems[removeIndex])
 
         const nextItems = state.canvasMediaItems.filter(item => item.id !== id)
         const fallbackItem = nextItems[removeIndex] ?? nextItems[removeIndex - 1] ?? nextItems[0] ?? null
@@ -3403,16 +3447,20 @@ export const useReactStore = create<ReactStoreState>()(
         }
       }),
 
-      clearCanvasMediaItems: () => set((state) => ({
-        canvasMediaItems: [],
-        selectedCanvasMediaId: null,
-        activeCanvasMediaId: null,
-        canvasEngineSettings: normalizeCanvasEngineSettings({
-          ...state.canvasEngineSettings,
-          selectedMediaId: null,
-          mediaIds: [],
-        }),
-      })),
+      clearCanvasMediaItems: () => set((state) => {
+        revokeCanvasMediaObjectUrls(state.canvasMediaItems)
+        return {
+          canvasMediaItems: [],
+          selectedCanvasMediaId: null,
+          activeCanvasMediaId: null,
+          canvasVideoRestartRevision: state.canvasVideoRestartRevision + 1,
+          canvasEngineSettings: normalizeCanvasEngineSettings({
+            ...state.canvasEngineSettings,
+            selectedMediaId: null,
+            mediaIds: [],
+          }),
+        }
+      }),
 
       setActiveReactPresetId: (id) =>
         set((s) => {
@@ -5978,12 +6026,14 @@ export const useReactStore = create<ReactStoreState>()(
           }
 
           if (s.activeReactEngineId === 'canvas') {
+            revokeCanvasMediaObjectUrls(s.canvasMediaItems)
             return {
               ...sharedDefaults,
               canvasEngineSettings: { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
               canvasMediaItems: [],
               selectedCanvasMediaId: null,
               activeCanvasMediaId: null,
+              canvasVideoRestartRevision: s.canvasVideoRestartRevision + 1,
             }
           }
 
@@ -6043,6 +6093,7 @@ export const useReactStore = create<ReactStoreState>()(
           )
           resetBeamMatrixCompilerState()
           resetFogState()
+          revokeCanvasMediaObjectUrls(s.canvasMediaItems)
           return {
             ...repairedSelection,
             reactPresets: DEFAULT_REACT_PRESETS,
@@ -6052,6 +6103,7 @@ export const useReactStore = create<ReactStoreState>()(
             canvasMediaItems: [],
             selectedCanvasMediaId: null,
             activeCanvasMediaId: null,
+            canvasVideoRestartRevision: s.canvasVideoRestartRevision + 1,
             manualTrackSectionsByTrackId: {},
             selectedSectionId: null,
             selectedSectionByTrackId: {},
@@ -6075,6 +6127,8 @@ export const useReactStore = create<ReactStoreState>()(
 
       // Legacy compatibility only. The React UI uses the three scoped actions above.
       resetReactView: () => {
+        const previousCanvasItems = get().canvasMediaItems
+        revokeCanvasMediaObjectUrls(previousCanvasItems)
         clearSvgVisualCache()
         set({
           activeReactPresetId:          INITIAL_PRESET_ID,
@@ -6087,6 +6141,7 @@ export const useReactStore = create<ReactStoreState>()(
           canvasMediaItems:             [],
           selectedCanvasMediaId:        null,
           activeCanvasMediaId:          null,
+          canvasVideoRestartRevision:   get().canvasVideoRestartRevision + 1,
           manualTrackSectionsByTrackId: {},
           selectedSectionId:            null,
           selectedSectionByTrackId:     {},

@@ -9417,17 +9417,173 @@
 
 /* ── CANVAS engine media foundation ────────────────────────────────────────── */
 .rv-canvas-engine-surface {
+  position: relative;
   width: 100%;
   height: 100%;
   min-height: 320px;
   display: grid;
-  place-items: center;
-  padding: 22px;
-  overflow: auto;
+  place-items: stretch;
+  overflow: hidden;
   background:
     radial-gradient(circle at 50% 34%, rgba(74, 199, 219, 0.16), transparent 34%),
     radial-gradient(circle at 18% 82%, rgba(97, 214, 170, 0.11), transparent 30%),
     linear-gradient(145deg, rgba(7, 15, 18, 0.96), rgba(3, 7, 9, 0.98));
+}
+
+.rv-canvas-engine-surface--empty {
+  place-items: center;
+  padding: 22px;
+}
+
+.rv-canvas-live-empty-card {
+  width: min(560px, 92%);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 13px;
+  padding: 26px;
+  border: 1px dashed rgba(74, 199, 219, 0.26);
+  border-radius: 18px;
+  background: rgba(4, 10, 12, 0.72);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.rv-canvas-live-empty-title {
+  max-width: 420px;
+  margin: 0 auto;
+  color: rgba(232, 244, 248, 0.92);
+  font-size: clamp(22px, 3.8vw, 40px);
+  line-height: 1.05;
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+
+.rv-canvas-live-output {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+  isolation: isolate;
+  overflow: hidden;
+  background: #020506;
+}
+
+.rv-canvas-live-grid {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.22;
+  background-image:
+    linear-gradient(rgba(74, 199, 219, 0.13) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74, 199, 219, 0.13) 1px, transparent 1px),
+    radial-gradient(circle at 50% 50%, rgba(97, 214, 170, 0.18), transparent 48%);
+  background-size: 44px 44px, 44px 44px, 100% 100%;
+}
+
+.rv-canvas-live-media-shell {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.rv-canvas-live-media {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  display: block;
+  transform-origin: center center;
+  will-change: transform, opacity;
+  transition: opacity 0.12s ease;
+  user-select: none;
+}
+
+.rv-canvas-live-badge,
+.rv-canvas-live-video-strip {
+  position: absolute;
+  z-index: 2;
+  border: 1px solid rgba(74, 199, 219, 0.14);
+  background: rgba(2, 6, 8, 0.72);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+}
+
+.rv-canvas-live-badge {
+  top: 14px;
+  left: 14px;
+  max-width: min(420px, calc(100% - 28px));
+  display: grid;
+  gap: 3px;
+  border-radius: 12px;
+  padding: 9px 11px;
+}
+
+.rv-canvas-live-badge span {
+  color: rgba(97, 214, 170, 0.78);
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.rv-canvas-live-badge strong {
+  overflow: hidden;
+  color: rgba(232, 244, 248, 0.9);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rv-canvas-live-badge em {
+  color: rgba(232, 244, 248, 0.46);
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.rv-canvas-live-video-strip {
+  right: 14px;
+  bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 7px 9px 7px 11px;
+  color: rgba(232, 244, 248, 0.58);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.rv-canvas-live-video-strip strong {
+  color: rgba(97, 214, 170, 0.78);
+}
+
+.rv-canvas-live-video-strip em {
+  color: rgba(232, 244, 248, 0.38);
+  font-style: normal;
+}
+
+.rv-canvas-live-video-strip button {
+  border: 1px solid rgba(74, 199, 219, 0.2);
+  border-radius: 999px;
+  padding: 4px 7px;
+  background: rgba(74, 199, 219, 0.08);
+  color: rgba(232, 244, 248, 0.78);
+  font: inherit;
+  cursor: pointer;
+}
+
+.rv-canvas-live-video-strip button:hover,
+.rv-canvas-live-video-strip button:focus-visible {
+  border-color: rgba(97, 214, 170, 0.5);
+  color: #e8f4f8;
 }
 
 .rv-canvas-engine-card {
@@ -9900,4 +10056,16 @@
 .rv-canvas-panel-status strong {
   color: rgba(97, 214, 170, 0.78);
   font-size: 11px;
+}
+
+
+.rv-canvas-restart-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.rv-canvas-restart-btn:disabled:hover {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(232, 244, 248, 0.5);
 }
