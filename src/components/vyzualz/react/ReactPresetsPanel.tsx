@@ -327,6 +327,10 @@ function EngineSection({ engineId, presets, expandedByDefault = false, ...props 
 function CanvasPresetCollection({ thumbnailGenerationKey }: { thumbnailGenerationKey: string }) {
   const selectedCanvasPresetId = useReactStore(state => state.selectedCanvasPresetId)
   const selectCanvasPreset = useReactStore(state => state.selectCanvasPreset)
+  const canvasPresetOverride = useReactStore(state => state.canvasPresetOverride)
+  const customizedPresetId = canvasPresetOverride?.source === 'manual' && canvasPresetOverride.label === 'User-adjusted preset'
+    ? canvasPresetOverride.presetId
+    : null
   const cardPresets = useMemo(() => CANVAS_PRESETS.map(createCanvasPresetCardPreset), [])
   const cardById = useMemo(() => new Map(cardPresets.map(preset => [preset.id, preset])), [cardPresets])
   const canvasThumbnailGenerationKey = useMemo(
@@ -350,7 +354,7 @@ function CanvasPresetCollection({ thumbnailGenerationKey }: { thumbnailGeneratio
               key={canvasPreset.id}
               preset={cardPreset}
               isActive={canvasPreset.id === selectedCanvasPresetId}
-              modified={false}
+              modified={canvasPreset.id === customizedPresetId}
               activeEngineId="canvas"
               onSelect={id => selectCanvasPreset(id as CanvasPresetId)}
               thumbnailGenerationKey={canvasThumbnailGenerationKey}

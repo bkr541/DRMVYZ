@@ -242,7 +242,7 @@ export interface CanvasPresetSettings {
   particleSize: number
   particleColorMode: CanvasPresetColorMode
   particleQuality: CanvasParticleQuality
-  /** Legacy Patch 3 aliases kept for persisted sessions and older patch compatibility. */
+  /** @deprecated Read/write compatibility for persisted pre-recipe CANVAS sessions only. */
   motionTrailAmount: number
   particleAmount: number
   dissolveAmount: number
@@ -500,11 +500,6 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       particleSize: 2.55,
       particleColorMode: 'original',
       particleQuality: 'balanced',
-      motionTrailAmount: 0.18,
-      particleAmount: 0.66,
-      dissolveAmount: 0.24,
-      trailLength: 0.68,
-      bassBurst: 0.78,
     },
     controls: [
       'sourceVisibility',

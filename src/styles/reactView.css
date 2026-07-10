@@ -10119,126 +10119,7 @@
   transition: opacity 0.1s ease, transform 0.1s ease;
 }
 
-.rv-canvas-preset--clean-playback .rv-canvas-live-media {
-  filter: none;
-}
-
-.rv-canvas-preset--bass-bloom .rv-canvas-preset-aura {
-  opacity: var(--canvas-preset-live-glow, 0.22);
-}
-
-.rv-canvas-preset--bass-bloom .rv-canvas-live-media {
-  filter:
-    brightness(1.12)
-    saturate(1.16)
-    contrast(1.04)
-    drop-shadow(0 0 18px rgba(97, 214, 170, 0.38))
-    drop-shadow(0 0 34px rgba(74, 199, 219, 0.22));
-}
-
-.rv-canvas-preset--ghost-echo .rv-canvas-preset-aura {
-  opacity: var(--canvas-preset-live-trail, 0.24);
-  background:
-    radial-gradient(circle at 42% 45%, rgba(157, 220, 255, 0.28), transparent 34%),
-    radial-gradient(circle at 58% 54%, rgba(97, 214, 170, 0.18), transparent 44%);
-  filter: blur(28px);
-  animation: rv-canvas-ghost-drift 2.8s ease-in-out infinite alternate;
-}
-
-.rv-canvas-preset--ghost-echo .rv-canvas-live-media-shell::before,
-.rv-canvas-preset--ghost-echo .rv-canvas-live-media-shell::after {
-  opacity: var(--canvas-preset-live-trail, 0.18);
-  border: 1px solid rgba(157, 220, 255, 0.14);
-  background: linear-gradient(135deg, rgba(157, 220, 255, 0.08), rgba(97, 214, 170, 0.04));
-  mix-blend-mode: screen;
-}
-
-.rv-canvas-preset--ghost-echo .rv-canvas-live-media-shell::before {
-  transform: translate(var(--canvas-preset-trail-offset, 8px), 0) scale(1.01);
-  filter: blur(6px);
-}
-
-.rv-canvas-preset--ghost-echo .rv-canvas-live-media-shell::after {
-  transform: translate(var(--canvas-preset-trail-neg-offset, -8px), 0) scale(0.99);
-  filter: blur(10px);
-}
-
-.rv-canvas-preset--ghost-echo .rv-canvas-live-media {
-  filter:
-    saturate(1.08)
-    drop-shadow(0 0 16px rgba(157, 220, 255, 0.34))
-    drop-shadow(0 0 32px rgba(74, 199, 219, 0.18));
-}
-
-.rv-canvas-preset--glitch-pulse .rv-canvas-live-media,
-.rv-canvas-preset--frame-stutter .rv-canvas-live-media {
-  filter:
-    contrast(1.18)
-    saturate(1.28)
-    drop-shadow(var(--canvas-preset-glitch-px, 5px) 0 rgba(255, 79, 216, 0.42))
-    drop-shadow(var(--canvas-preset-glitch-neg-px, -5px) 0 rgba(74, 199, 219, 0.42));
-}
-
-.rv-canvas-preset--glitch-pulse .rv-canvas-preset-aura,
-.rv-canvas-preset--frame-stutter .rv-canvas-preset-aura {
-  opacity: var(--canvas-preset-glitch-opacity, 0.2);
-  background:
-    repeating-linear-gradient(0deg, rgba(255,255,255,0.12) 0 1px, transparent 1px 7px),
-    linear-gradient(90deg, rgba(255, 79, 216, 0.18), rgba(74, 199, 219, 0.18));
-  mix-blend-mode: screen;
-  filter: blur(1px);
-  animation: rv-canvas-glitch-scan 0.42s steps(2, end) infinite;
-}
-
-.rv-canvas-preset--glitch-pulse .rv-canvas-live-media {
-  animation: rv-canvas-glitch-pulse 0.28s steps(2, end) infinite;
-}
-
-.rv-canvas-preset--luma-melt .rv-canvas-preset-aura {
-  opacity: var(--canvas-preset-luma-opacity, 0.34);
-  background:
-    linear-gradient(180deg, rgba(216, 185, 90, 0.18), transparent 38%, rgba(74, 199, 219, 0.12)),
-    radial-gradient(circle at 50% 20%, rgba(232, 244, 248, 0.3), transparent 36%);
-  filter: blur(18px);
-  animation: rv-canvas-luma-melt 1.8s ease-in-out infinite alternate;
-}
-
-.rv-canvas-preset--luma-melt .rv-canvas-live-media {
-  filter:
-    brightness(1.14)
-    contrast(var(--canvas-preset-luma-contrast, 1.16))
-    saturate(1.05)
-    blur(var(--canvas-preset-luma-blur, 2px))
-    drop-shadow(0 14px 32px rgba(216, 185, 90, 0.22));
-}
-
-.rv-canvas-preset--frame-stutter .rv-canvas-live-media {
-  animation: rv-canvas-frame-stutter var(--canvas-preset-stutter-duration, 0.5s) steps(2, end) infinite;
-}
-
-@keyframes rv-canvas-ghost-drift {
-  from { transform: translateX(-1.5%) scale(1.02); }
-  to { transform: translateX(1.5%) scale(1.045); }
-}
-
-@keyframes rv-canvas-glitch-scan {
-  0%, 100% { transform: translateY(-1.5%); opacity: 0.08; }
-  50% { transform: translateY(1.5%); opacity: 0.32; }
-}
-
-@keyframes rv-canvas-glitch-pulse {
-  0%, 100% { clip-path: inset(0 0 0 0); }
-  35% { clip-path: inset(8% 0 18% 0); }
-  70% { clip-path: inset(20% 0 4% 0); }
-}
-
-@keyframes rv-canvas-luma-melt {
-  from { transform: translateY(-1%) scale(1.01); }
-  to { transform: translateY(2.5%) scale(1.035); }
-}
-
-
-/* ── CANVAS Particle Aura preset ──────────────────────────────────────────── */
+/* Particle Aura is parameter-driven; presets only load recipe values. */
 .rv-canvas-particle-aura-layer {
   position: absolute;
   inset: 0;
@@ -10250,29 +10131,6 @@
   filter:
     drop-shadow(0 0 28px rgba(97, 214, 170, 0.28))
     drop-shadow(0 0 42px rgba(74, 199, 219, 0.18));
-}
-
-.rv-canvas-preset--particle-aura .rv-canvas-preset-aura {
-  opacity: calc(0.22 + var(--canvas-preset-live-glow, 0.24) * 0.52);
-  background:
-    radial-gradient(circle at 50% 48%, rgba(223, 252, 255, 0.18), transparent 32%),
-    radial-gradient(circle at 42% 45%, rgba(97, 214, 170, 0.34), transparent 38%),
-    radial-gradient(circle at 62% 56%, rgba(74, 199, 219, 0.26), transparent 48%);
-  mix-blend-mode: screen;
-  filter: blur(var(--canvas-particle-glow-blur, 30px));
-  transform: scale(var(--canvas-particle-bass-scale, 1.02));
-}
-
-.rv-canvas-preset--particle-aura .rv-canvas-live-grid {
-  opacity: 0.12;
-}
-
-.rv-canvas-preset--particle-aura .rv-canvas-live-media {
-  filter:
-    brightness(var(--canvas-particle-source-brightness, 0.96))
-    saturate(1.16)
-    contrast(1.08)
-    blur(var(--canvas-particle-dissolve-blur, 0.3px));
 }
 
 /* CANVAS parameters drive the live look; presets only load recipe values. */
@@ -10325,6 +10183,24 @@
   filter:
     drop-shadow(0 0 var(--canvas-param-glow-px, 0px) rgba(97, 214, 170, 0.3))
     drop-shadow(0 0 var(--canvas-param-particle-glow-px, 0px) rgba(74, 199, 219, 0.2));
+}
+
+
+.rv-canvas-render-notice {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 3;
+  max-width: min(440px, calc(100% - 24px));
+  border: 1px solid rgba(216, 185, 90, 0.28);
+  border-radius: 9px;
+  padding: 7px 9px;
+  background: rgba(2, 7, 10, 0.82);
+  color: rgba(255, 230, 166, 0.86);
+  font-size: 11px;
+  line-height: 1.35;
+  pointer-events: none;
+  backdrop-filter: blur(8px);
 }
 
 .rv-canvas-engine-note--warning {

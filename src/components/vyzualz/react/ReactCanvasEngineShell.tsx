@@ -11,6 +11,7 @@ import { MediaLibraryBrowser } from '../media/MediaLibraryBrowser'
 import { CANVAS_MEDIA_LIBRARY_CAPABILITIES } from '../media/mediaLibraryCapabilities'
 import {
   CanvasParticleAuraRenderer,
+  compositeCanvasParticleLayerToCapture,
   getCanvasParticleSourceSize,
   isCanvasParticleSourceReady,
   resolveCanvasParticleBudget,
@@ -194,6 +195,7 @@ function CanvasActivePreview() {
       <div className={`rv-canvas-active-preview__frame rv-canvas-active-preview__frame--${activeItem.type}`}>
         {activeItem.type === 'video' ? (
           <video
+            crossOrigin="anonymous"
             src={activeItem.objectUrl}
             muted
             playsInline
@@ -204,6 +206,7 @@ function CanvasActivePreview() {
           />
         ) : (
           <img
+            crossOrigin="anonymous"
             src={activeItem.objectUrl}
             alt=""
             onLoad={() => setPreviewError(EMPTY_CANVAS_MEDIA_LOAD_STATE)}
@@ -365,12 +368,8 @@ function makeCanvasPresetStyle(settings: CanvasPresetSettings): CSSProperties {
   } as CSSProperties & Record<string, string>
 }
 
-function canvasPresetClassName(presetId: CanvasPresetId): string {
-  return `rv-canvas-preset--${presetId.replace('canvas-', '')}`
-}
-
-
 type CanvasParticleSourceElement = HTMLVideoElement | HTMLImageElement
+type CanvasParticleRendererMode = 'webgl' | 'canvas2d'
 
 function clampCanvasRange(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Number.isFinite(value) ? value : min))
@@ -378,6 +377,104 @@ function clampCanvasRange(value: number, min: number, max: number): number {
 
 function lowerCanvasParticleQuality(quality: CanvasParticleQuality): CanvasParticleQuality {
   return quality === 'high' ? 'balanced' : quality === 'balanced' ? 'low' : 'low'
+}
+
+function resolveCanvas2dParticleBudget(
+  settings: CanvasPresetSettings,
+  profile: ReturnType<typeof resolveCanvasParticleQualityProfile>,
+  quality: CanvasParticleQuality,
+  width: number,
+  height: number,
+): number {
+  const qualityCap = quality === 'high' ? 900 : quality === 'balanced' ? 650 : 420
+  return Math.min(qualityCap, resolveCanvasParticleBudget(settings, profile, width, height))
+}
+
+function getCanvas2dParticleColor(
+  point: CanvasParticlePoint,
+  mode: CanvasPresetColorMode,
+  audio: CanvasParticleAudioFrame,
+  alpha: number,
+): string {
+  if (mode === 'original') return `rgba(${point.r}, ${point.g}, ${point.b}, ${alpha.toFixed(3)})`
+  if (mode === 'palette') {
+    const mix = clampCanvasRange(point.luma * 0.75 + (point.seed % 1) * 0.25, 0, 1)
+    const r = Math.round(74 + (97 - 74) * mix)
+    const g = Math.round(199 + (214 - 199) * mix)
+    const b = Math.round(219 + (170 - 219) * mix)
+    return `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`
+  }
+  const r = Math.round(74 + (255 - 74) * clampCanvasRange(audio.high * 0.82, 0, 1))
+  const g = Math.round(199 + (97 - 199) * clampCanvasRange(audio.bass * 0.45, 0, 1))
+  const b = Math.round(219 + (216 - 219) * clampCanvasRange(audio.bass * 0.65 + audio.high * 0.6, 0, 1))
+  return `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`
+}
+
+function drawCanvas2dParticleFrame({
+  context,
+  canvas,
+  points,
+  settings,
+  audio,
+  timeSec,
+  pixelRatio,
+}: {
+  context: CanvasRenderingContext2D
+  canvas: HTMLCanvasElement
+  points: CanvasParticlePoint[]
+  settings: CanvasPresetSettings
+  audio: CanvasParticleAudioFrame
+  timeSec: number
+  pixelRatio: number
+}) {
+  const width = canvas.width
+  const height = canvas.height
+  context.save()
+  context.setTransform(1, 0, 0, 1, 0, 0)
+  if (settings.trailAmount <= 0.01) {
+    context.clearRect(0, 0, width, height)
+  } else {
+    context.globalCompositeOperation = 'destination-out'
+    context.fillStyle = `rgba(0, 0, 0, ${clampCanvasRange(0.24 - settings.trailAmount * 0.19, 0.035, 0.24).toFixed(3)})`
+    context.fillRect(0, 0, width, height)
+  }
+
+  context.globalCompositeOperation = 'lighter'
+  const bassBurst = audio.bass * settings.bassReactivity * settings.intensity
+  const beatBurst = audio.beat * settings.beatPulse * settings.intensity
+  const centerX = width * 0.5
+  const centerY = height * 0.5
+  for (const point of points) {
+    const phase = timeSec * (0.65 + settings.turbulence * 1.9) + point.seed * 3.7
+    const drift = (2 + settings.turbulence * 18) * pixelRatio
+    const sourceX = point.baseX * width
+    const sourceY = point.baseY * height
+    const radialX = sourceX - centerX
+    const radialY = sourceY - centerY
+    const x = sourceX
+      + Math.sin(phase) * drift * settings.motionAmount
+      + radialX * (bassBurst * 0.11 + beatBurst * 0.045)
+    const y = sourceY
+      + Math.cos(phase * 1.13) * drift * settings.motionAmount
+      + radialY * (bassBurst * 0.11 + beatBurst * 0.045)
+    const size = Math.max(
+      0.55,
+      settings.particleSize * pixelRatio * (0.52 + point.luma * 0.78) * (1 + bassBurst * 0.7 + beatBurst * 0.42),
+    )
+    const alpha = clampCanvasRange(
+      point.alpha * settings.intensity * (0.28 + settings.glow * 0.64 + point.luma * 0.22),
+      0.04,
+      1,
+    )
+    const color = getCanvas2dParticleColor(point, settings.particleColorMode, audio, alpha)
+    context.fillStyle = color
+    context.shadowColor = color
+    context.shadowBlur = settings.glow * 16 * pixelRatio
+    context.beginPath()
+    context.arc(x, y, size, 0, Math.PI * 2)
+    context.fill()
+  }
+  context.restore()
 }
 
 function CanvasParticleAuraLayer({
@@ -388,6 +485,8 @@ function CanvasParticleAuraLayer({
   analyser,
   isPlaying,
   isPaused,
+  onCanvasReady,
+  onStatusChange,
 }: {
   active: boolean
   activeItem: CanvasMediaItem | null
@@ -396,23 +495,30 @@ function CanvasParticleAuraLayer({
   analyser?: AnalyserNode | null
   isPlaying: boolean
   isPaused: boolean
+  onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
+  onStatusChange?: (message: string | null) => void
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const settingsRef = useRef(settings)
+  const [rendererMode, setRendererMode] = useState<CanvasParticleRendererMode>('webgl')
 
   useEffect(() => {
     settingsRef.current = settings
   }, [settings])
 
   useEffect(() => {
-    if (!active || !activeItem) return
+    setRendererMode('webgl')
+  }, [activeItem?.id])
+
+  useEffect(() => {
+    if (!active || !activeItem) {
+      onCanvasReady?.(null)
+      onStatusChange?.(null)
+      return
+    }
     const canvas = canvasRef.current
     if (!canvas) return
 
-    const createResult = CanvasParticleAuraRenderer.create(canvas)
-    if (!createResult.renderer) return
-
-    const renderer = createResult.renderer
     const sampleCanvas = document.createElement('canvas')
     const frequencyData = analyser ? new Uint8Array(Math.max(1, analyser.frequencyBinCount)) : null
     let points: CanvasParticlePoint[] = []
@@ -445,6 +551,117 @@ function CanvasParticleAuraLayer({
       return { bass, high, beat }
     }
 
+    if (rendererMode === 'webgl') {
+      const createResult = CanvasParticleAuraRenderer.create(canvas)
+      if (!createResult.renderer) {
+        onStatusChange?.(`${createResult.error}. Using the lower-density Canvas2D compatibility renderer.`)
+        setRendererMode('canvas2d')
+        return () => {
+          disposed = true
+          onCanvasReady?.(null)
+        }
+      }
+
+      onStatusChange?.(null)
+      const renderer = createResult.renderer
+      const captureSnapshotCanvas = document.createElement('canvas')
+      const captureSnapshotContext = captureSnapshotCanvas.getContext('2d', { alpha: true })
+      let lastSnapshotAt = 0
+      onCanvasReady?.(captureSnapshotCanvas)
+
+      const handleContextLost = (event: Event) => {
+        event.preventDefault()
+        if (disposed) return
+        onStatusChange?.('Particle Aura lost its WebGL2 context. Switching to the Canvas2D compatibility renderer.')
+        setRendererMode('canvas2d')
+      }
+      canvas.addEventListener('webglcontextlost', handleContextLost)
+
+      const tick = () => {
+        if (disposed) return
+        const rect = canvas.getBoundingClientRect()
+        const cssWidth = Math.max(1, Math.round(rect.width || canvas.clientWidth || 1))
+        const cssHeight = Math.max(1, Math.round(rect.height || canvas.clientHeight || 1))
+        const liveSettings = settingsRef.current
+        if (liveSettings.particleQuality !== requestedQuality) {
+          requestedQuality = liveSettings.particleQuality
+          runtimeQuality = requestedQuality
+          points = []
+          renderer.clear()
+          lastSampleAt = 0
+        }
+        const profile = resolveCanvasParticleQualityProfile(runtimeQuality)
+        const dpr = Math.min(profile.maxDpr, Math.max(1, window.devicePixelRatio || 1))
+        renderer.resize(Math.round(cssWidth * dpr), Math.round(cssHeight * dpr))
+
+        const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now()
+        const now = nowMs / 1000
+        const audio = readAudioFrame(now)
+        const source = sourceRef.current
+        const sampleInterval = activeItem.type === 'video' && isPlaying && !isPaused
+          ? profile.videoSampleIntervalMs
+          : profile.staticSampleIntervalMs
+        const targetCount = resolveCanvasParticleBudget(liveSettings, profile, cssWidth, cssHeight)
+        const shouldResample = points.length === 0 || nowMs - lastSampleAt > sampleInterval || liveSettings.particleColorMode !== lastUploadedColorMode
+
+        if (shouldResample) {
+          points = sampleCanvasParticleSource({ source, settings: liveSettings, sampleCanvas, profile, targetCount })
+          renderer.uploadPoints(points, liveSettings, audio)
+          lastUploadedColorMode = liveSettings.particleColorMode
+          lastSampleAt = nowMs
+        }
+
+        renderer.render({ settings: liveSettings, audio, timeSec: now, pixelRatio: dpr })
+        if (captureSnapshotContext && nowMs - lastSnapshotAt >= 30) {
+          if (captureSnapshotCanvas.width !== canvas.width || captureSnapshotCanvas.height !== canvas.height) {
+            captureSnapshotCanvas.width = canvas.width
+            captureSnapshotCanvas.height = canvas.height
+          }
+          captureSnapshotContext.clearRect(0, 0, captureSnapshotCanvas.width, captureSnapshotCanvas.height)
+          try {
+            // Copy immediately after the WebGL draw, before the browser is allowed
+            // to recycle a non-preserved drawing buffer.
+            captureSnapshotContext.drawImage(canvas, 0, 0)
+          } catch {
+            // Keep the previous stable frame for recording if a transient copy fails.
+          }
+          lastSnapshotAt = nowMs
+        }
+
+        fpsFrames += 1
+        if (nowMs - fpsLastAt >= 1200) {
+          const fps = (fpsFrames * 1000) / Math.max(1, nowMs - fpsLastAt)
+          fpsFrames = 0
+          fpsLastAt = nowMs
+          if (fps < 24 && runtimeQuality !== 'low') {
+            runtimeQuality = lowerCanvasParticleQuality(runtimeQuality)
+            points = []
+            renderer.clear()
+          }
+        }
+
+        frameId = window.requestAnimationFrame(tick)
+      }
+
+      tick()
+      return () => {
+        disposed = true
+        window.cancelAnimationFrame(frameId)
+        canvas.removeEventListener('webglcontextlost', handleContextLost)
+        renderer.dispose()
+        captureSnapshotContext?.clearRect(0, 0, captureSnapshotCanvas.width, captureSnapshotCanvas.height)
+        onCanvasReady?.(null)
+      }
+    }
+
+    const context = canvas.getContext('2d', { alpha: true })
+    if (!context) {
+      onStatusChange?.('Particle Aura is unavailable because this browser could not initialize WebGL2 or Canvas2D.')
+      return () => onCanvasReady?.(null)
+    }
+    onStatusChange?.('Particle Aura is using the lower-density Canvas2D compatibility renderer because WebGL2 is unavailable.')
+    onCanvasReady?.(canvas)
+
     const tick = () => {
       if (disposed) return
       const rect = canvas.getBoundingClientRect()
@@ -455,37 +672,33 @@ function CanvasParticleAuraLayer({
         requestedQuality = liveSettings.particleQuality
         runtimeQuality = requestedQuality
         points = []
-        renderer.clear()
         lastSampleAt = 0
       }
       const profile = resolveCanvasParticleQualityProfile(runtimeQuality)
-      const dpr = Math.min(profile.maxDpr, Math.max(1, window.devicePixelRatio || 1))
-      renderer.resize(Math.round(cssWidth * dpr), Math.round(cssHeight * dpr))
+      const dpr = Math.min(1.25, Math.max(1, window.devicePixelRatio || 1))
+      const targetWidth = Math.round(cssWidth * dpr)
+      const targetHeight = Math.round(cssHeight * dpr)
+      if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+        canvas.width = targetWidth
+        canvas.height = targetHeight
+        points = []
+      }
 
       const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now()
       const now = nowMs / 1000
       const audio = readAudioFrame(now)
       const source = sourceRef.current
       const sampleInterval = activeItem.type === 'video' && isPlaying && !isPaused
-        ? profile.videoSampleIntervalMs
-        : profile.staticSampleIntervalMs
-      const targetCount = resolveCanvasParticleBudget(liveSettings, profile, cssWidth, cssHeight)
-      const shouldResample = points.length === 0 || nowMs - lastSampleAt > sampleInterval || liveSettings.particleColorMode !== lastUploadedColorMode
-
-      if (shouldResample) {
-        points = sampleCanvasParticleSource({
-          source,
-          settings: liveSettings,
-          sampleCanvas,
-          profile,
-          targetCount,
-        })
-        renderer.uploadPoints(points, liveSettings, audio)
+        ? Math.max(300, profile.videoSampleIntervalMs)
+        : Math.max(900, profile.staticSampleIntervalMs)
+      const targetCount = resolveCanvas2dParticleBudget(liveSettings, profile, runtimeQuality, cssWidth, cssHeight)
+      if (points.length === 0 || nowMs - lastSampleAt > sampleInterval || liveSettings.particleColorMode !== lastUploadedColorMode) {
+        points = sampleCanvasParticleSource({ source, settings: liveSettings, sampleCanvas, profile, targetCount })
         lastUploadedColorMode = liveSettings.particleColorMode
         lastSampleAt = nowMs
       }
 
-      renderer.render({ settings: liveSettings, audio, timeSec: now, pixelRatio: dpr })
+      drawCanvas2dParticleFrame({ context, canvas, points, settings: liveSettings, audio, timeSec: now, pixelRatio: dpr })
 
       fpsFrames += 1
       if (nowMs - fpsLastAt >= 1200) {
@@ -495,10 +708,8 @@ function CanvasParticleAuraLayer({
         if (fps < 24 && runtimeQuality !== 'low') {
           runtimeQuality = lowerCanvasParticleQuality(runtimeQuality)
           points = []
-          renderer.clear()
         }
       }
-
       frameId = window.requestAnimationFrame(tick)
     }
 
@@ -506,12 +717,21 @@ function CanvasParticleAuraLayer({
     return () => {
       disposed = true
       window.cancelAnimationFrame(frameId)
-      renderer.dispose()
+      context.clearRect(0, 0, canvas.width, canvas.height)
+      onCanvasReady?.(null)
     }
-  }, [active, activeItem?.id, activeItem?.type, analyser, isPaused, isPlaying, sourceRef])
+  }, [active, activeItem, analyser, isPaused, isPlaying, onCanvasReady, onStatusChange, rendererMode, sourceRef])
 
   if (!active || !activeItem) return null
-  return <canvas ref={canvasRef} className="rv-canvas-particle-aura-layer" aria-hidden="true" />
+  return (
+    <canvas
+      key={rendererMode}
+      ref={canvasRef}
+      className="rv-canvas-particle-aura-layer"
+      data-particle-renderer={rendererMode}
+      aria-hidden="true"
+    />
+  )
 }
 
 function averageByteRange(data: Uint8Array, startRatio: number, endRatio: number): number {
@@ -955,7 +1175,9 @@ export function CanvasEngineSurface({
   const imageRef = useRef<HTMLImageElement | null>(null)
   const outputRef = useRef<HTMLDivElement | null>(null)
   const outputCaptureCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const particleOutputCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const [mediaLoadError, setMediaLoadError] = useState<CanvasMediaLoadState>(EMPTY_CANVAS_MEDIA_LOAD_STATE)
+  const [particleRendererNotice, setParticleRendererNotice] = useState<string | null>(null)
   const trackAnalysisRef = useRef<TrackIntelligenceAnalysis | null>(trackAnalysis)
   const trackSectionsRef = useRef<ReactTrackSection[]>(trackSections)
   const getAudioTimeRef = useRef<typeof getAudioTime>(getAudioTime)
@@ -966,12 +1188,14 @@ export function CanvasEngineSurface({
   const presetStyle = useMemo(() => makeCanvasPresetStyle(canvasPresetSettings), [canvasPresetSettings])
   const activeVideo = activeItem?.type === 'video'
   const activeTiming = activeItem?.timing ?? DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS
-  const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
   const mediaStyle = useMemo(
     () => makeCanvasMediaStyle(settings, canvasPresetSettings),
-    [canvasPresetSettings, selectedPreset.id, settings],
+    [canvasPresetSettings, settings],
   )
   const particleSourceRef = activeVideo ? videoRef : imageRef
+  const handleParticleCanvasReady = useCallback((canvas: HTMLCanvasElement | null) => {
+    particleOutputCanvasRef.current = canvas
+  }, [])
 
   trackAnalysisRef.current = trackAnalysis
   trackSectionsRef.current = trackSections
@@ -1072,6 +1296,14 @@ export function CanvasEngineSurface({
       }
       captureContext.restore()
 
+      compositeCanvasParticleLayerToCapture({
+        context: captureContext,
+        particleCanvas: particleOutputCanvasRef.current,
+        settings: canvasPresetSettings,
+        width: cssWidth,
+        height: cssHeight,
+      })
+
     }
 
     const tick = () => {
@@ -1091,7 +1323,7 @@ export function CanvasEngineSurface({
       window.cancelAnimationFrame(frameId)
       onLiveFps?.(0)
     }
-  }, [activeItem, activeItem?.id, analyser, canvasPresetSettings, isPaused, isPlaying, onLiveFps, particleSourceRef, selectedPreset.id, settings])
+  }, [activeItem, analyser, canvasPresetSettings, isPaused, isPlaying, onLiveFps, particleSourceRef, settings])
 
   useEffect(() => {
     setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)
@@ -1437,7 +1669,6 @@ export function CanvasEngineSurface({
         ref={outputRef}
         className="rv-canvas-live-output rv-canvas-param-output"
         data-fit-mode={settings.fitMode}
-        data-canvas-preset={selectedPreset.id}
         style={presetStyle}
       >
         <div className="rv-canvas-live-grid" aria-hidden="true" />
@@ -1447,6 +1678,7 @@ export function CanvasEngineSurface({
             <video
               key={activeItem.id}
               ref={videoRef}
+              crossOrigin="anonymous"
               src={activeItem.objectUrl}
               className="rv-canvas-live-media"
               style={mediaStyle}
@@ -1461,6 +1693,7 @@ export function CanvasEngineSurface({
             <img
               key={activeItem.id}
               ref={imageRef}
+              crossOrigin="anonymous"
               src={activeItem.objectUrl}
               alt=""
               className="rv-canvas-live-media"
@@ -1485,7 +1718,12 @@ export function CanvasEngineSurface({
           analyser={analyser}
           isPlaying={isPlaying}
           isPaused={isPaused}
+          onCanvasReady={handleParticleCanvasReady}
+          onStatusChange={setParticleRendererNotice}
         />
+        {particleRendererNotice && canvasPresetSettings.particleDensity > 0.02 && (
+          <div className="rv-canvas-render-notice" role="status">{particleRendererNotice}</div>
+        )}
       </div>
     </div>
   )
@@ -1626,7 +1864,7 @@ const CANVAS_PRESET_CONTROL_META: Record<CanvasPresetSliderControlKey, {
   },
 }
 
-const CANVAS_REACT_CONTROL_GROUPS: Array<{
+export const CANVAS_REACT_CONTROL_GROUPS: Array<{
   title: string
   controls: CanvasPresetControlKey[]
 }> = [
@@ -1640,7 +1878,7 @@ const CANVAS_REACT_CONTROL_GROUPS: Array<{
   },
   {
     title: 'Motion + Particles',
-    controls: ['motionAmount', 'turbulence', 'particleDensity', 'particleSize', 'particleColorMode'],
+    controls: ['motionAmount', 'turbulence', 'particleDensity', 'particleSize', 'particleColorMode', 'particleQuality'],
   },
 ]
 
@@ -1683,13 +1921,16 @@ function CanvasAutoSelectControl() {
     const durationSec = Number.isFinite(engine.duration) && engine.duration > 0 ? engine.duration : analysisDurationSec
     return resolveTrackSections({ analyzedSections, manualSections, durationSec, suppressedIds })
   }, [engine.currentAnalysis, engine.currentTrackId, engine.duration, manualTrackSectionsByTrackId, suppressedAutoSectionsByTrackId])
-  const autoPreview = useMemo(() => resolveCanvasAutoFeatures({
-    frame: AudioFeatureBus.getFrame(),
-    trackAnalysis: engine.currentAnalysis,
-    trackSections: previewTrackSections,
-    audioTime: resolveCanvasAudioTime(engine.getCurrentTime),
-    activeAudioTrackId: engine.currentTrackId,
-  }), [autoPreviewRevision, engine.currentAnalysis, engine.currentTrackId, engine.getCurrentTime, engine.currentAnalysisStatus, previewTrackSections])
+  const autoPreview = useMemo(() => {
+    void autoPreviewRevision
+    return resolveCanvasAutoFeatures({
+      frame: AudioFeatureBus.getFrame(),
+      trackAnalysis: engine.currentAnalysis,
+      trackSections: previewTrackSections,
+      audioTime: resolveCanvasAudioTime(engine.getCurrentTime),
+      activeAudioTrackId: engine.currentTrackId,
+    })
+  }, [autoPreviewRevision, engine.currentAnalysis, engine.currentTrackId, engine.getCurrentTime, previewTrackSections])
   const autoPreviewPreset = CANVAS_PRESET_BY_ID[autoPreview.presetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
   const hasAutoSelectionData = autoPreview.dataMode !== 'fallback'
   const autoDataDescription = autoPreview.dataMode === 'audioIntelligence'

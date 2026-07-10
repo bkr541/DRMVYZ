@@ -2942,7 +2942,15 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     const persistedPresetId = state.activeReactPresetId as string | null | undefined
     const persistedEngineId = state.activeReactEngineId as string | undefined
 
-    if (persistedPresetId != null && LEGACY_SHADER_PRESET_IDS.has(persistedPresetId)) {
+    if (persistedPresetId != null && RETIRED_LASER_DMX_PRESET_IDS.has(persistedPresetId)) {
+      // Retired LaserDMX selections predate the Shader Pads removal and must keep
+      // their engine family instead of being mistaken for an unknown Shader preset.
+      state = {
+        ...state,
+        activeReactPresetId: LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID,
+        activeReactEngineId: 'laserDmx',
+      }
+    } else if (persistedPresetId != null && LEGACY_SHADER_PRESET_IDS.has(persistedPresetId)) {
       // Case A: active preset ID is one of the five removed legacy presets.
       state = { ...state, activeReactPresetId: INITIAL_PRESET_ID, activeReactEngineId: INITIAL_ENGINE_ID }
     } else {

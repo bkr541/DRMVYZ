@@ -390,6 +390,35 @@ export type CanvasParticleAuraCreateResult =
   | { renderer: CanvasParticleAuraRenderer; error: null }
   | { renderer: null; error: string }
 
+
+export function compositeCanvasParticleLayerToCapture({
+  context,
+  particleCanvas,
+  settings,
+  width,
+  height,
+}: {
+  context: CanvasRenderingContext2D
+  particleCanvas: HTMLCanvasElement | null
+  settings: CanvasPresetSettings
+  width: number
+  height: number
+}): boolean {
+  if (!particleCanvas?.width || !particleCanvas.height || settings.particleDensity <= 0.02) return false
+  context.save()
+  context.globalCompositeOperation = 'screen'
+  context.globalAlpha = clampCanvasParticleRange(settings.intensity * 0.9 + settings.glow * 0.18, 0, 1)
+  context.filter = `blur(${(settings.glow * 0.65).toFixed(2)}px)`
+  try {
+    context.drawImage(particleCanvas, 0, 0, width, height)
+  } catch {
+    context.restore()
+    return false
+  }
+  context.restore()
+  return true
+}
+
 export class CanvasParticleAuraRenderer {
   private readonly canvas: HTMLCanvasElement
   private readonly gl: WebGL2RenderingContext
@@ -426,6 +455,14 @@ export class CanvasParticleAuraRenderer {
     try {
       return { renderer: new CanvasParticleAuraRenderer(canvas, gl), error: null }
     } catch (error) {
+      // Constructor failures can occur after shaders or buffers were allocated.
+      // This canvas is replaced by the compatibility renderer, so explicitly
+      // retire the failed context and let the browser release partial resources.
+      try {
+        gl.getExtension('WEBGL_lose_context')?.loseContext()
+      } catch {
+        // Context retirement is best-effort; the replacement canvas still owns the fallback path.
+      }
       const message = error instanceof Error ? error.message : 'Particle Aura WebGL initialization failed'
       return { renderer: null, error: message }
     }

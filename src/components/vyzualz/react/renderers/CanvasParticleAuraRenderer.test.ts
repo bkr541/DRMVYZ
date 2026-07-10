@@ -1,0 +1,70 @@
+/** @vitest-environment jsdom */
+
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { DEFAULT_CANVAS_PRESET_SETTINGS } from '../ReactTypes'
+import {
+  CanvasParticleAuraRenderer,
+  compositeCanvasParticleLayerToCapture,
+  resolveCanvasParticleQualityProfile,
+  sampleCanvasParticleSource,
+} from './CanvasParticleAuraRenderer'
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
+describe('CanvasParticleAuraRenderer fallback and capture contract', () => {
+  it('returns a useful error when WebGL2 is unavailable so the shell can enter compatibility mode', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    const result = CanvasParticleAuraRenderer.create(document.createElement('canvas'))
+
+    expect(result.renderer).toBeNull()
+    expect(result.error).toContain('WebGL2')
+  })
+
+  it('keeps a bounded procedural particle source when media pixels are not readable yet', () => {
+    const points = sampleCanvasParticleSource({
+      source: null,
+      settings: DEFAULT_CANVAS_PRESET_SETTINGS,
+      sampleCanvas: document.createElement('canvas'),
+      profile: resolveCanvasParticleQualityProfile('low'),
+      targetCount: 48,
+    })
+
+    expect(points).toHaveLength(48)
+    expect(points.every(point => Number.isFinite(point.baseX) && Number.isFinite(point.baseY))).toBe(true)
+  })
+
+  it('composites the live particle canvas into the recorder output', () => {
+    const particleCanvas = document.createElement('canvas')
+    particleCanvas.width = 640
+    particleCanvas.height = 360
+    const drawImage = vi.fn()
+    const context = {
+      save: vi.fn(),
+      restore: vi.fn(),
+      drawImage,
+      globalCompositeOperation: 'source-over',
+      globalAlpha: 1,
+      filter: 'none',
+    } as unknown as CanvasRenderingContext2D
+
+    const composited = compositeCanvasParticleLayerToCapture({
+      context,
+      particleCanvas,
+      settings: {
+        ...DEFAULT_CANVAS_PRESET_SETTINGS,
+        particleDensity: 0.72,
+        intensity: 0.82,
+        glow: 0.86,
+      },
+      width: 1280,
+      height: 720,
+    })
+
+    expect(composited).toBe(true)
+    expect(drawImage).toHaveBeenCalledWith(particleCanvas, 0, 0, 1280, 720)
+    expect(context.save).toHaveBeenCalledTimes(1)
+    expect(context.restore).toHaveBeenCalledTimes(1)
+  })
+})
