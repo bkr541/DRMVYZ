@@ -8,7 +8,6 @@ import {
   CINEMATIC_PORTAL_SHAPES,
   CINEMATIC_TRANSITION_EASINGS,
   CINEMATIC_TRANSITION_MODES,
-  createDefaultCinematicAudioRoutes,
   type CinematicAudioRoute,
   type CinematicAudioSource,
   type CinematicAudioTarget,
@@ -21,7 +20,6 @@ import {
   type CinematicWorldMode,
 } from './CinematicWorldConfig'
 import {
-  createDefaultCinematicWorldSettings,
   resolveReactiveConstellationSettings,
 } from './CinematicWorldSettings'
 import {
@@ -40,8 +38,6 @@ import {
   CINEMATIC_SOURCE_LABELS,
   CINEMATIC_TARGET_LABELS,
   CINEMATIC_WORLD_BY_ID,
-  CINEMATIC_WORLD_UI,
-  getCinematicPresetMood,
   humanizeCinematicKey,
   isCinematicSourceAvailable,
   nextCinematicVariationSeed,
@@ -361,22 +357,16 @@ function AutoDirectorControls({ config, onChange, advanced }: { config: Cinemati
   )
 }
 
-export function CinematicWorldsEngineControls() {
+export function CinematicWorldsDesignControls() {
   const active = useActiveCinematic()
   if (!active.preset || !active.config) return <div className="rv-ctrl-info">No Cinematic Worlds preset is available.</div>
-  const { preset, config, modified, presets, selectPreset, setConfig, clearConfig, seedLocked, setSeedLocked, uiMode } = active
+  const { preset, config, modified, setConfig, clearConfig, seedLocked, setSeedLocked, uiMode } = active
   const world = CINEMATIC_WORLD_BY_ID[config.worldMode]
   const save = (next: CinematicWorldConfig) => setConfig(preset.id, next)
   const saveCameraEdit = (next: CinematicWorldConfig) => save(uiMode === 'advanced' && config.worldMode === 'reactiveConstellation'
     ? markReactiveConstellationVisualDnaCustom(next)
     : next)
   const baseConfig = resolveCinematicConfigForPreset(preset, {})!
-
-  const selectWorld = (worldMode: CinematicWorldMode) => {
-    const candidate = presets.find(item => item.cinematicConfig?.worldMode === worldMode)
-    if (candidate) selectPreset(candidate.id)
-    else save({ ...config, worldMode, worldSettings: createDefaultCinematicWorldSettings(worldMode), audioMapping: { ...config.audioMapping, routes: createDefaultCinematicAudioRoutes(worldMode) } })
-  }
 
   const resetCamera = () => save(config.worldMode === 'reactiveConstellation'
     ? markReactiveConstellationVisualDnaCustom({ ...config, cameraRig: baseConfig.cameraRig, camera: cloneConfig(baseConfig).camera })
@@ -387,38 +377,9 @@ export function CinematicWorldsEngineControls() {
 
   return (
     <div className="rv-cinematic-controls" data-world={config.worldMode}>
+      <CinematicModeSwitch />
       <WorldStatus presetName={preset.name} worldMode={config.worldMode} modified={modified} />
-      <CtrlSection label="World" />
-      <div className="rv-cinematic-world-grid" role="radiogroup" aria-label="Cinematic world">
-        {CINEMATIC_WORLD_UI.map(item => (
-          <button
-            id={`cinematic-world-${item.id}`}
-            key={item.id}
-            type="button"
-            role="radio"
-            aria-checked={config.worldMode === item.id}
-            className={config.worldMode === item.id ? 'rv-cinematic-world-card rv-cinematic-world-card--selected' : 'rv-cinematic-world-card'}
-            onClick={() => selectWorld(item.id)}
-          >
-            <span className="rv-cinematic-world-card-title">{item.label}</span>
-            <span className="rv-cinematic-world-card-category">{item.category}</span>
-            <span className="rv-cinematic-world-card-description">{item.description}</span>
-          </button>
-        ))}
-      </div>
-
-      <CtrlSection label="Preset and Palette" />
-      <SelectRow
-        id="cinematic-preset-select"
-        label="Preset"
-        value={preset.id}
-        onChange={selectPreset}
-        options={presets.filter(item => item.cinematicConfig?.worldMode === config.worldMode).map(item => ({
-          value: item.id,
-          label: `${item.name} · ${getCinematicPresetMood(item)}`,
-        }))}
-        description="Preset palettes and mood are saved with each world look."
-      />
+      <div className="rv-ctrl-info">Choose Worlds and presets from the PRESETS tab. Design controls below edit the active look.</div>
 
       <ReactiveConstellationProfileControls config={config} onChange={save} />
 
@@ -495,7 +456,6 @@ export function CinematicWorldsFxControls() {
   const ultraSupported = isUltraCinematicQualitySupported()
   return (
     <div className="rv-cinematic-controls">
-      <CinematicModeSwitch />
       <Collapsible label="Live Controls" defaultOpen>
         <SliderRow id="cinematic-live-intensity" label="Intensity" value={reactIntensity} onChange={setReactIntensity} />
         <SliderRow id="cinematic-live-motion" label="Motion" value={reactMotion} onChange={setReactMotion} />

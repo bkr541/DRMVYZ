@@ -4196,14 +4196,8 @@
 .rv-cinematic-status > div { display: flex; justify-content: space-between; gap: 10px; font-size: 10px; }
 .rv-cinematic-status span { color: rgba(232,244,248,.42); }
 .rv-cinematic-status strong { color: rgba(232,244,248,.88); text-align: right; }
-.rv-cinematic-world-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 6px; }
-.rv-cinematic-world-card { position: relative; min-height: 92px; padding: 8px; text-align: left; border: 1px solid rgba(255,255,255,.09); border-radius: 7px; background: rgba(255,255,255,.025); color: #e8f4f8; cursor: pointer; }
-.rv-cinematic-world-card:hover { border-color: rgba(74,199,219,.38); background: rgba(74,199,219,.06); }
-.rv-cinematic-world-card--selected { border-color: #4ac7db; box-shadow: inset 0 0 0 1px rgba(74,199,219,.22); }
-.rv-cinematic-world-card-title, .rv-cinematic-world-card-category, .rv-cinematic-world-card-description { display: block; }
-.rv-cinematic-world-card-title { font-size: 10px; font-weight: 700; }
-.rv-cinematic-world-card-category { margin-top: 2px; font-size: 8px; letter-spacing: .08em; text-transform: uppercase; color: #61d6aa; }
-.rv-cinematic-world-card-description { margin-top: 5px; font-size: 9px; line-height: 1.3; color: rgba(232,244,248,.48); }
+.rv-cinematic-design-controls { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.rv-cinematic-design-controls > .rv-cinematic-controls + .rv-cinematic-controls { padding-top: 10px; border-top: 1px solid rgba(255,255,255,.06); }
 .rv-cinematic-seed-readout { display: flex; align-items: center; justify-content: space-between; padding: 7px 9px; border-radius: 5px; background: rgba(255,255,255,.035); font-size: 10px; }
 .rv-cinematic-seed-readout output { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #61d6aa; }
 .rv-cinematic-action-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 4px; }
@@ -4247,6 +4241,19 @@
 .rv-ctrl-slider:disabled { opacity: .35; cursor: not-allowed; }
 .rv-preset-chip-row { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 6px; }
 .rv-preset-modified-chip { display: inline-block; padding: 1px 5px; border-radius: 3px; border: 1px solid rgba(216,185,90,.35); background: rgba(216,185,90,.09); color: #e8cd77; font-size: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-cinematic-preset-browser { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.rv-cinematic-world-browser { min-width: 0; }
+.rv-cinematic-world-browser-heading { cursor: default; }
+.rv-cinematic-world-categories { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.rv-cinematic-world-category { min-width: 0; }
+.rv-cinematic-world-category h3 { margin: 0 0 4px; color: rgba(97,214,170,.72); font-size: 8px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.rv-cinematic-world-group-list { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.rv-cinematic-world-group { min-width: 0; min-height: 31px; margin: 0; padding: 5px 7px; border: 1px solid rgba(255,255,255,.07); border-radius: 6px; background: rgba(255,255,255,.018); }
+.rv-cinematic-world-group:hover { border-color: rgba(74,199,219,.32); background: rgba(74,199,219,.055); }
+.rv-cinematic-world-group.is-active { border-color: rgba(74,199,219,.66); background: rgba(74,199,219,.12); box-shadow: inset 0 0 0 1px rgba(74,199,219,.12); }
+.rv-cinematic-world-group .rv-preset-group-hdr-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgba(232,244,248,.7); }
+.rv-cinematic-world-group.is-active .rv-preset-group-hdr-label { color: #e8f4f8; }
+.rv-cinematic-world-group .rv-preset-group-hdr-chevron { transform: none; }
 .rv-cinematic-current-world { margin: 0 8px 8px; padding: 7px 8px; border-radius: 5px; background: rgba(74,199,219,.07); color: rgba(232,244,248,.58); font-size: 9px; }
 .rv-cinematic-current-world strong { color: #e8f4f8; }
 .rv-cinematic-preset-taxonomy { display: flex; flex-direction: column; gap: 10px; padding: 7px; }
@@ -4258,7 +4265,6 @@
 .rv-cinematic-preset-mood h4 { margin: 7px 0 4px; color: #61d6aa; font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
 
 @media (max-width: 1180px) {
-  .rv-cinematic-world-grid { grid-template-columns: 1fr; }
   .rv-constellation-macro-grid { grid-template-columns: 1fr; }
 }
 

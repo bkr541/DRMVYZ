@@ -1,6 +1,5 @@
 import React, { useSyncExternalStore } from 'react'
 import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
-import { CinematicWorldsEngineControls } from './CinematicWorldsControls'
 import { CanvasEnginePanel } from './ReactCanvasEngineShell'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
@@ -319,9 +318,6 @@ export function ReactEnginePanel() {
 
   return (
     <div className="rv-ctrl-group">
-      {/* ── Engine Mode: Cinematic Worlds ─────────────────────────────── */}
-      {activeReactEngineId === 'cinematicPortal' && <CinematicWorldsEngineControls />}
-
       {/* ── Engine Mode: GLSL Shader ──────────────────────────────────── */}
       {activeReactEngineId === 'shaderPads' && (
         <Collapsible label="Shader Scenes" defaultOpen>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { resolveCinematicConfigForPreset, useReactStore } from '../../../stores/reactStore'
 import { CINEMATIC_WORLD_BY_ID, CINEMATIC_WORLD_UI, getCinematicPresetMood } from './CinematicWorldsUi'
+import type { CinematicWorldMode } from './CinematicWorldConfig'
 import {
   type ReactPreset,
   type ReactEngineId,
@@ -251,43 +252,179 @@ function renderPresetCard(preset: ReactPreset, props: Omit<PresetCollectionProps
   )
 }
 
-function CinematicPresetGroups({ presets, ...props }: PresetCollectionProps) {
-  const categories = useMemo(() => {
-    const order = ['Cosmic', 'Architectural', 'Organic', 'Mechanical', 'Storm', 'Legacy'] as const
-    return order.map(category => ({
-      category,
-      worlds: CINEMATIC_WORLD_UI.filter(world => world.category === category).map(world => ({
-        world,
-        moods: (['Ambient', 'Driving', 'Peak'] as const).map(mood => ({
-          mood,
-          presets: presets.filter(preset => (preset.cinematicConfig?.worldMode ?? 'legacyPortal') === world.id && getCinematicPresetMood(preset) === mood),
-        })).filter(group => group.presets.length > 0),
-      })).filter(group => group.moods.length > 0),
-    })).filter(group => group.worlds.length > 0)
-  }, [presets])
+const CINEMATIC_CATEGORY_ORDER = ['Cosmic', 'Architectural', 'Organic', 'Mechanical', 'Storm', 'Legacy'] as const
+const CINEMATIC_MOOD_ORDER = ['Ambient', 'Driving', 'Peak'] as const
 
-  return <div className="rv-cinematic-preset-taxonomy">
-    {categories.map(category => (
-      <section key={category.category} aria-labelledby={`cinematic-preset-category-${category.category}`}>
-        <h3 id={`cinematic-preset-category-${category.category}`}>{category.category}</h3>
-        {category.worlds.map(({ world, moods }) => (
-          <div className="rv-cinematic-preset-world" key={world.id}>
-            <div className="rv-cinematic-preset-world-heading">
-              <strong>{world.label}</strong><span>{world.description}</span>
-            </div>
-            {moods.map(({ mood, presets: moodPresets }) => (
-              <div key={mood} className="rv-cinematic-preset-mood">
-                <h4>{mood}</h4>
-                <div className="rv-preset-group-cards" data-preset-grid>
-                  {moodPresets.map(preset => renderPresetCard(preset, props))}
-                </div>
-              </div>
-            ))}
+export function getCinematicWorldPresetGroups(presets: ReactPreset[]) {
+  return CINEMATIC_WORLD_UI.map(world => {
+    const worldPresets = presets.filter(preset => (
+      preset.engine === 'cinematicPortal' &&
+      (preset.cinematicConfig?.worldMode ?? 'legacyPortal') === world.id
+    ))
+    return {
+      world,
+      presets: worldPresets,
+      moods: CINEMATIC_MOOD_ORDER.map(mood => ({
+        mood,
+        presets: worldPresets.filter(preset => getCinematicPresetMood(preset) === mood),
+      })).filter(group => group.presets.length > 0),
+    }
+  }).filter(group => group.presets.length > 0)
+}
+
+type CinematicWorldPresetGroup = ReturnType<typeof getCinematicWorldPresetGroups>[number]
+
+function CinematicWorldPresetCards({
+  group,
+  props,
+  headingId,
+}: {
+  group: CinematicWorldPresetGroup
+  props: Omit<PresetCollectionProps, 'presets'>
+  headingId: string
+}) {
+  return (
+    <section className="rv-cinematic-preset-world rv-preset-group" aria-labelledby={headingId}>
+      <div className="rv-cinematic-preset-world-heading">
+        <strong id={headingId}>{group.world.label}</strong>
+        <span>{group.world.description}</span>
+      </div>
+      {group.moods.map(({ mood, presets: moodPresets }) => (
+        <div key={mood} className="rv-cinematic-preset-mood">
+          <h4>{mood}</h4>
+          <div className="rv-preset-group-cards" data-preset-grid>
+            {moodPresets.map(preset => renderPresetCard(preset, props))}
           </div>
-        ))}
-      </section>
-    ))}
-  </div>
+        </div>
+      ))}
+    </section>
+  )
+}
+
+function handleCinematicWorldKeyDown(event: React.KeyboardEvent<HTMLButtonElement>): void {
+  const group = event.currentTarget.closest<HTMLElement>('[data-cinematic-world-grid]')
+  if (!group) return
+  const options = Array.from(group.querySelectorAll<HTMLButtonElement>('[data-cinematic-world-option]'))
+  const currentIndex = options.indexOf(event.currentTarget)
+  const nextIndex = resolvePresetCardNavigationIndex(currentIndex, event.key, options.length)
+  if (nextIndex == null || nextIndex === currentIndex) return
+  event.preventDefault()
+  options[nextIndex]?.focus()
+  options[nextIndex]?.click()
+}
+
+function CinematicWorldSelector({
+  groups,
+  activeWorldMode,
+  activePresetId,
+  onSelect,
+}: {
+  groups: CinematicWorldPresetGroup[]
+  activeWorldMode: CinematicWorldMode | null
+  activePresetId: string | null
+  onSelect: (presetId: string) => void
+}) {
+  return (
+    <section className="rv-cinematic-world-browser rv-preset-group" aria-labelledby="cinematic-world-browser-heading">
+      <div className="rv-preset-group-hdr rv-cinematic-world-browser-heading">
+        <span className="rv-preset-group-hdr-icon" aria-hidden="true">◇</span>
+        <span className="rv-preset-group-hdr-label" id="cinematic-world-browser-heading">Worlds</span>
+        <span className="rv-preset-group-hdr-count">{groups.length}</span>
+      </div>
+      <div className="rv-cinematic-world-categories" role="radiogroup" aria-label="Cinematic worlds" data-cinematic-world-grid>
+        {CINEMATIC_CATEGORY_ORDER.map(category => {
+          const categoryGroups = groups.filter(group => group.world.category === category)
+          if (categoryGroups.length === 0) return null
+          return (
+            <section className="rv-cinematic-world-category" key={category} aria-labelledby={`cinematic-world-category-${category}`}>
+              <h3 id={`cinematic-world-category-${category}`}>{category}</h3>
+              <div className="rv-cinematic-world-group-list">
+                {categoryGroups.map(group => {
+                  const isActive = group.world.id === activeWorldMode
+                  const activePresetInWorld = group.presets.find(preset => preset.id === activePresetId)
+                  const targetPreset = activePresetInWorld ?? group.presets[0]
+                  return (
+                    <button
+                      id={`cinematic-world-group-${group.world.id}`}
+                      key={group.world.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={isActive}
+                      tabIndex={isActive ? 0 : -1}
+                      aria-label={`${group.world.label}, ${group.presets.length} presets`}
+                      className={`rv-preset-group-hdr rv-cinematic-world-group${isActive ? ' is-active' : ''}`}
+                      title={group.world.description}
+                      data-cinematic-world-option
+                      onKeyDown={handleCinematicWorldKeyDown}
+                      onClick={() => targetPreset && !isActive && onSelect(targetPreset.id)}
+                    >
+                      <span className="rv-preset-group-hdr-icon" aria-hidden="true">◈</span>
+                      <span className="rv-preset-group-hdr-label">{group.world.label}</span>
+                      <span className="rv-preset-group-hdr-count">{group.presets.length}</span>
+                      <span className="rv-preset-group-hdr-chevron" aria-hidden="true">›</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function CinematicCurrentPresetBrowser({
+  presets,
+  activeWorldMode,
+  ...props
+}: PresetCollectionProps & { activeWorldMode: CinematicWorldMode | null }) {
+  const groups = useMemo(() => getCinematicWorldPresetGroups(presets), [presets])
+  const activeGroup = groups.find(group => group.world.id === activeWorldMode) ?? groups[0]
+
+  return (
+    <div className="rv-cinematic-preset-browser">
+      <CinematicWorldSelector
+        groups={groups}
+        activeWorldMode={activeWorldMode}
+        activePresetId={props.activePresetId}
+        onSelect={props.onSelect}
+      />
+      {activeGroup && (
+        <CinematicWorldPresetCards
+          group={activeGroup}
+          props={props}
+          headingId={`cinematic-active-world-${activeGroup.world.id}`}
+        />
+      )}
+    </div>
+  )
+}
+
+function CinematicPresetGroups({ presets, ...props }: PresetCollectionProps) {
+  const groups = useMemo(() => getCinematicWorldPresetGroups(presets), [presets])
+
+  return (
+    <div className="rv-cinematic-preset-taxonomy">
+      {CINEMATIC_CATEGORY_ORDER.map(category => {
+        const categoryGroups = groups.filter(group => group.world.category === category)
+        if (categoryGroups.length === 0) return null
+        return (
+          <section key={category} aria-labelledby={`cinematic-preset-category-${category}`}>
+            <h3 id={`cinematic-preset-category-${category}`}>{category}</h3>
+            {categoryGroups.map(group => (
+              <CinematicWorldPresetCards
+                key={group.world.id}
+                group={group}
+                props={props}
+                headingId={`cinematic-preset-world-${group.world.id}`}
+              />
+            ))}
+          </section>
+        )
+      })}
+    </div>
+  )
 }
 
 function EngineSection({ engineId, presets, expandedByDefault = false, ...props }: PresetCollectionProps & {
@@ -485,20 +622,10 @@ export function ReactPresetsPanel() {
   const activeCinematicWorldMode = activeReactEngineId === 'cinematicPortal' && active?.engine === 'cinematicPortal'
     ? resolveCinematicConfigForPreset(active, cinematicConfigsByPresetId)?.worldMode ?? null
     : null
-  const visiblePresets = useMemo(() => {
-    const engineVisible = filterReactPresetLibrary(displayPresets, activeReactEngineId, libraryView, favoriteIds)
-    if (libraryView !== 'current' || activeReactEngineId !== 'cinematicPortal' || !activeCinematicWorldMode) return engineVisible
-    return engineVisible.filter(preset => (
-      resolveCinematicConfigForPreset(preset, cinematicConfigsByPresetId)?.worldMode === activeCinematicWorldMode
-    ))
-  }, [
-    displayPresets,
-    activeReactEngineId,
-    libraryView,
-    favoriteIds,
-    activeCinematicWorldMode,
-    cinematicConfigsByPresetId,
-  ])
+  const visiblePresets = useMemo(
+    () => filterReactPresetLibrary(displayPresets, activeReactEngineId, libraryView, favoriteIds),
+    [displayPresets, activeReactEngineId, libraryView, favoriteIds],
+  )
   const grouped = useMemo(
     () => ENGINE_ORDER
       .map(engine => ({ engine, presets: visiblePresets.filter(preset => preset.engine === engine) }))
@@ -508,6 +635,9 @@ export function ReactPresetsPanel() {
   const activeWorld = activeCinematicWorldMode
     ? CINEMATIC_WORLD_BY_ID[activeCinematicWorldMode].label
     : null
+  const cinematicWorldCount = activeReactEngineId === 'cinematicPortal'
+    ? getCinematicWorldPresetGroups(visiblePresets).length
+    : 0
   const modifiedIds = useMemo(() => new Set(Object.keys(cinematicConfigsByPresetId)), [cinematicConfigsByPresetId])
   const activeEngine = REACT_ENGINE_CATALOG[activeReactEngineId]
   const isLaserDmxCurrentLibrary = activeReactEngineId === 'laserDmx' && libraryView === 'current'
@@ -555,7 +685,9 @@ export function ReactPresetsPanel() {
               : isCanvasCurrentLibrary
                 ? `${CANVAS_PRESETS.length} CANVAS media presets`
                 : libraryView === 'current'
-                  ? `${visiblePresets.length} presets for the selected engine`
+                  ? activeReactEngineId === 'cinematicPortal'
+                    ? `${visiblePresets.length} presets across ${cinematicWorldCount} worlds`
+                    : `${visiblePresets.length} presets for the selected engine`
                   : `${visiblePresets.length} presets shown`}</small>
           </div>
         </div>
@@ -579,7 +711,7 @@ export function ReactPresetsPanel() {
       <p className="rv-presets-hint">
         {libraryView === 'current'
           ? activeReactEngineId === 'cinematicPortal' && activeWorld
-            ? `${activeWorld} presets only. Use All Engines to browse and switch worlds.`
+            ? 'Choose a World, then load one of its grouped Cinematic presets.'
             : activeReactEngineId === 'canvas'
               ? 'CANVAS presets transform active uploaded media. Auto Select can choose presets from Audio Intelligence.'
               : activeReactEngineId === 'laserDmx'
@@ -608,11 +740,11 @@ export function ReactPresetsPanel() {
       ) : visiblePresets.length === 0 ? (
         <div className="rv-preset-library-empty">
           <strong>{libraryView === 'favorites' ? 'No favorite presets yet' : `No ${activeEngine.label} presets found`}</strong>
-          <span>{libraryView === 'favorites' ? 'Choose ☆ on a preset to pin it here.' : 'This engine can still be edited from its left workspace.'}</span>
+          <span>{libraryView === 'favorites' ? 'Choose ☆ on a preset to pin it here.' : 'Use the Design tab to edit the active engine look.'}</span>
         </div>
       ) : libraryView === 'current' ? (
         activeReactEngineId === 'cinematicPortal'
-          ? <CinematicPresetGroups presets={visiblePresets} {...collectionProps} />
+          ? <CinematicCurrentPresetBrowser presets={visiblePresets} activeWorldMode={activeCinematicWorldMode} {...collectionProps} />
           : <div className="rv-preset-group-cards rv-preset-group-cards--current" data-preset-grid>{visiblePresets.map(preset => renderPresetCard(preset, collectionProps))}</div>
       ) : (
         grouped.map(({ engine, presets }) => (

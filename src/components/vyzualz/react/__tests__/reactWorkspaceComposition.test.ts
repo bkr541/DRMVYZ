@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_REACT_PRESETS, type ReactEngineId } from '../ReactTypes'
 import {
+  getReactDefaultLeftTab,
   getReactLeftTabLabel,
   getReactLeftTabs,
   getReactPresetTabLabel,
@@ -79,8 +80,9 @@ describe('React workspace composition', () => {
     expect(getReactLeftTabLabel('workspace', shader)).toBe('SETUP')
 
     const cinematic = resolveReactWorkspaceComposition('cinematicPortal', 'beamMatrix', false)
-    expect(getReactLeftTabs(cinematic)).toEqual(['workspace', 'media'])
-    expect(getReactLeftTabLabel('workspace', cinematic)).toBe('WORLD')
+    expect(getReactLeftTabs(cinematic)).toEqual(['media'])
+    expect(getReactDefaultLeftTab(cinematic)).toBe('media')
+    expect(isReactLeftTabAvailable('workspace', cinematic)).toBe(false)
 
     const soundDrawing = resolveReactWorkspaceComposition('oscilloscope', 'beamMatrix', false)
     expect(getReactLeftTabs(soundDrawing)).toEqual(['workspace', 'media', 'fonts'])

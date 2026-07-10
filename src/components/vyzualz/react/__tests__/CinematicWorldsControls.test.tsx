@@ -7,11 +7,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AudioFeatureBus } from '../../../../features/musicIntelligence/AudioFeatureBus'
 import { resolveCinematicConfigForPreset, useReactStore } from '../../../../stores/reactStore'
 import {
-  CinematicWorldsEngineControls,
+  CinematicWorldsDesignControls,
   CinematicWorldsFxControls,
   CinematicWorldsModulationControls,
 } from '../CinematicWorldsControls'
-import { ReactPresetsPanel } from '../ReactPresetsPanel'
+import { ReactPresetsPanel, getCinematicWorldPresetGroups } from '../ReactPresetsPanel'
+import { ReactFxPanel } from '../ReactFxPanel'
 import { DEFAULT_REACT_PRESETS } from '../ReactTypes'
 import { resolveReactiveConstellationSettings } from '../CinematicWorldSettings'
 import { applyReactiveConstellationVisualDnaProfile } from '../ReactiveConstellationVisualDna'
@@ -64,17 +65,15 @@ function activeConstellationSettings(presetId: string) {
 }
 
 describe('Cinematic Worlds engine controls', () => {
-  it('exposes all worlds with aria-selected state and focused descriptions', async () => {
+  it('keeps World and preset navigation out of Cinematic design controls', async () => {
     useReactStore.getState().selectReactPreset(presetFor('eventHorizon').id)
-    await render(<CinematicWorldsEngineControls />)
+    await render(<CinematicWorldsDesignControls />)
 
-    const worlds = container.querySelectorAll('[role="radio"]')
-    expect(worlds).toHaveLength(11)
-    expect(container.querySelector('#cinematic-world-eventHorizon')?.getAttribute('aria-checked')).toBe('true')
-    expect(container.querySelector('#cinematic-world-reactiveConstellation')?.textContent).toContain('true 3D faceted crystal network')
-    expect(container.querySelector('#cinematic-world-mediaPortal')).toBeNull()
-    expect(container.querySelector('#cinematic-world-eventHorizon')?.classList.contains('rv-cinematic-world-card--selected')).toBe(true)
-    expect(container.querySelector('#cinematic-world-eventHorizon')?.textContent).not.toContain('Selected')
+    expect(container.querySelector('[id^="cinematic-world-group-"]')).toBeNull()
+    expect(container.querySelector('[id^="cinematic-world-"]')).toBeNull()
+    expect(container.querySelector('#cinematic-preset-select')).toBeNull()
+    expect(container.querySelector('#cinematic-camera-rig')).not.toBeNull()
+    expect(container.textContent).toContain('Choose Worlds and presets from the PRESETS tab')
   })
 
   it('responds to right-rail simple and advanced mode changes without duplicating the mode switch', async () => {
@@ -82,10 +81,10 @@ describe('Cinematic Worlds engine controls', () => {
     const base = resolveCinematicConfigForPreset(preset, {})!
     useReactStore.getState().selectReactPreset(preset.id)
     useReactStore.getState().setCinematicConfigForPreset(preset.id, { ...base, seed: 7654321 })
-    await render(<CinematicWorldsEngineControls />)
+    await render(<CinematicWorldsDesignControls />)
 
-    expect([...container.querySelectorAll('button')].some(button => button.textContent?.trim() === 'Simple')).toBe(false)
-    expect([...container.querySelectorAll('button')].some(button => button.textContent?.trim() === 'Advanced')).toBe(false)
+    expect(buttonWithText('Simple').getAttribute('aria-pressed')).toBe('true')
+    expect(buttonWithText('Advanced').getAttribute('aria-pressed')).toBe('false')
     expect(container.querySelector('#cinematic-portal-shape')).toBeNull()
     await act(async () => useReactStore.getState().setCinematicWorldsUiMode('advanced'))
     expect(container.querySelector('#cinematic-portal-shape')).not.toBeNull()
@@ -99,7 +98,7 @@ describe('Cinematic Worlds engine controls', () => {
   it('hides irrelevant portal controls and exposes safe Auto Director controls', async () => {
     useReactStore.getState().selectReactPreset(presetFor('infiniteCorridor').id)
     useReactStore.getState().setCinematicWorldsUiMode('advanced')
-    await render(<CinematicWorldsEngineControls />)
+    await render(<CinematicWorldsDesignControls />)
 
     expect(container.querySelector('#cinematic-portal-shape')).toBeNull()
     expect(labelControl('Strength')).not.toBeNull()
@@ -113,7 +112,7 @@ describe('Cinematic Worlds engine controls', () => {
 
   it('locks deterministic seed navigation and keeps reset actions accessible by name', async () => {
     useReactStore.getState().selectReactPreset(presetFor('stormGateway').id)
-    await render(<CinematicWorldsEngineControls />)
+    await render(<CinematicWorldsDesignControls />)
 
     const lock = container.querySelector('#cinematic-seed-lock') as HTMLButtonElement
     await act(async () => lock.click())
@@ -128,7 +127,7 @@ describe('Cinematic Worlds engine controls', () => {
     const preset = presetFor('reactiveConstellation')
     const base = resolveCinematicConfigForPreset(preset, {})!
     useReactStore.getState().selectReactPreset(preset.id)
-    await render(<CinematicWorldsEngineControls />)
+    await render(<CinematicWorldsDesignControls />)
 
     const selector = container.querySelector('#constellation-visual-dna-profile') as HTMLSelectElement
     expect(selector).toBeInstanceOf(HTMLSelectElement)
@@ -164,10 +163,12 @@ describe('Cinematic Worlds engine controls', () => {
 })
 
 describe('Cinematic Worlds FX and media controls', () => {
-  it('keeps the Simple and Advanced switch in the right-rail FX controls', async () => {
+  it('keeps one Simple and Advanced switch in the right-rail Design surface', async () => {
     useReactStore.getState().selectReactPreset(presetFor('eventHorizon').id)
-    await render(<CinematicWorldsFxControls />)
+    await render(<ReactFxPanel />)
 
+    expect([...container.querySelectorAll('button')].filter(button => button.textContent?.trim() === 'Simple')).toHaveLength(1)
+    expect([...container.querySelectorAll('button')].filter(button => button.textContent?.trim() === 'Advanced')).toHaveLength(1)
     expect(buttonWithText('Simple').getAttribute('aria-pressed')).toBe('true')
     const advanced = buttonWithText('Advanced')
     await act(async () => advanced.click())
@@ -188,7 +189,7 @@ describe('Cinematic Worlds FX and media controls', () => {
 
   it('reveals environment, material and world-specific values only in advanced mode', async () => {
     useReactStore.getState().selectReactPreset(presetFor('liquidMembrane').id)
-    await render(<CinematicWorldsFxControls />)
+    await render(<ReactFxPanel />)
     expect(container.querySelector('#cinematic-environment-depth')).toBeNull()
     expect(container.querySelector('#cinematic-world-setting-viscosity')).toBeNull()
 
@@ -201,7 +202,7 @@ describe('Cinematic Worlds FX and media controls', () => {
   it('exposes six responsive, focusable simple-mode macros and keeps low-level controls in advanced mode', async () => {
     const preset = presetFor('reactiveConstellation')
     useReactStore.getState().selectReactPreset(preset.id)
-    await render(<CinematicWorldsFxControls />)
+    await render(<ReactFxPanel />)
 
     const group = container.querySelector('[aria-label="Reactive Constellation performance macros"]')
     expect(group?.querySelectorAll('input[type="range"]')).toHaveLength(6)
@@ -273,17 +274,67 @@ describe('Cinematic Worlds audio mappings', () => {
 })
 
 describe('Cinematic Worlds preset semantics', () => {
-  it('communicates selected world and modified-from-preset state without color alone', async () => {
+  it('renders every World group in PRESETS and communicates selected and modified state', async () => {
     const preset = presetFor('ancientMachine')
     const base = resolveCinematicConfigForPreset(preset, {})!
     useReactStore.getState().selectReactPreset(preset.id)
     useReactStore.getState().setCinematicConfigForPreset(preset.id, { ...base, seed: base.seed + 1 })
     await render(<ReactPresetsPanel />)
 
-    const selected = container.querySelector('button[aria-current="true"]') as HTMLButtonElement
-    expect(selected.textContent).toContain('Selected')
-    expect(selected.textContent).toContain('Modified')
+    expect(container.querySelectorAll('[id^="cinematic-world-group-"]')).toHaveLength(11)
+    const selectedWorld = container.querySelector('#cinematic-world-group-ancientMachine') as HTMLButtonElement
+    expect(selectedWorld.getAttribute('aria-checked')).toBe('true')
+    expect(selectedWorld.classList.contains('is-active')).toBe(true)
+    const selectedPreset = container.querySelector('button[aria-current="true"]') as HTMLButtonElement
+    expect(selectedPreset.textContent).toContain('Modified')
     expect(container.textContent).toContain('Current world:')
     expect(container.textContent).toContain('Ancient Machine')
+    expect(container.querySelector('#cinematic-preset-select')).toBeNull()
+  })
+
+  it('supports keyboard navigation between World groups through the canonical preset path', async () => {
+    useReactStore.getState().selectReactPreset(presetFor('eventHorizon').id)
+    await render(<ReactPresetsPanel />)
+
+    const worldOptions = [...container.querySelectorAll<HTMLButtonElement>('[data-cinematic-world-option]')]
+    const eventHorizonGroup = worldOptions[0]
+    const nextWorldId = worldOptions[1].id.replace('cinematic-world-group-', '')
+    eventHorizonGroup.focus()
+    await act(async () => eventHorizonGroup.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })))
+
+    const selectedGroup = container.querySelector(`#cinematic-world-group-${nextWorldId}`) as HTMLButtonElement
+    expect((document.activeElement as HTMLElement | null)?.id).toBe(selectedGroup.id)
+    expect(selectedGroup.getAttribute('aria-checked')).toBe('true')
+    expect(resolveCinematicConfigForPreset(
+      useReactStore.getState().reactPresets.find(preset => preset.id === useReactStore.getState().activeReactPresetId) ?? null,
+      useReactStore.getState().cinematicConfigsByPresetId,
+    )?.worldMode).toBe(nextWorldId)
+  })
+
+  it('uses preset selection as the single World selection path and reaches renderer state', async () => {
+    const eventHorizon = presetFor('eventHorizon')
+    useReactStore.getState().selectReactPreset(eventHorizon.id)
+    await render(<ReactPresetsPanel />)
+
+    const corridorGroup = container.querySelector('#cinematic-world-group-infiniteCorridor') as HTMLButtonElement
+    await act(async () => corridorGroup.click())
+
+    const state = useReactStore.getState()
+    const expectedPreset = getCinematicWorldPresetGroups(state.reactPresets)
+      .find(group => group.world.id === 'infiniteCorridor')?.presets[0]
+    expect(expectedPreset).toBeDefined()
+    expect(state.activeReactEngineId).toBe('cinematicPortal')
+    expect(state.activeReactPresetId).toBe(expectedPreset?.id)
+    expect(resolveCinematicConfigForPreset(expectedPreset ?? null, state.cinematicConfigsByPresetId)?.worldMode)
+      .toBe('infiniteCorridor')
+    expect(container.querySelector('#cinematic-world-group-infiniteCorridor')?.getAttribute('aria-checked')).toBe('true')
+    const expectedWorldPresets = getCinematicWorldPresetGroups(state.reactPresets)
+      .find(group => group.world.id === 'infiniteCorridor')?.presets ?? []
+    const visibleCards = [...container.querySelectorAll<HTMLButtonElement>('[data-preset-card]')]
+    expect(visibleCards).toHaveLength(expectedWorldPresets.length)
+    for (const worldPreset of expectedWorldPresets) {
+      expect(visibleCards.some(card => card.textContent?.includes(worldPreset.name))).toBe(true)
+    }
+    expect(visibleCards.some(card => card.textContent?.includes(eventHorizon.name))).toBe(false)
   })
 })

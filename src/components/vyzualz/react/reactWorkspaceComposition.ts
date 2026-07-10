@@ -2,7 +2,7 @@ import type { ReactEngineId } from './ReactTypes'
 
 export type ReactLeftTab = 'workspace' | 'media' | 'layers' | 'fonts'
 export type ReactPresetSurface = 'enginePresets' | 'shaderScenes'
-export type ReactWorkspaceTabLabel = 'SETUP' | 'WORLD' | 'SOURCE' | 'RIG' | 'LAYOUT'
+export type ReactWorkspaceTabLabel = 'SETUP' | 'SOURCE' | 'RIG' | 'LAYOUT'
 
 export interface ReactWorkspaceComposition {
   showPerformancePads: boolean
@@ -35,8 +35,9 @@ export function resolveReactWorkspaceComposition(
   let workspaceTabLabel: ReactWorkspaceTabLabel = 'SETUP'
 
   if (isCinematic) {
-    leftTabs = ['workspace', 'media']
-    workspaceTabLabel = 'WORLD'
+    // Cinematic Worlds has no source/setup controls beyond the shared media
+    // library. World and preset navigation belong to the right PRESETS rail.
+    leftTabs = ['media']
   } else if (isSoundDrawing) {
     leftTabs = ['workspace', 'media', 'fonts']
     workspaceTabLabel = 'SOURCE'
@@ -90,4 +91,10 @@ export function isReactLeftTabAvailable(
   composition: ReactWorkspaceComposition,
 ): boolean {
   return getReactLeftTabs(composition).includes(tab)
+}
+
+export function getReactDefaultLeftTab(
+  composition: ReactWorkspaceComposition,
+): ReactLeftTab {
+  return composition.leftTabs[0] ?? 'workspace'
 }

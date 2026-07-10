@@ -42,6 +42,7 @@ import {
   type ReactRightPanel,
 } from './reactRightPanelPersistence'
 import {
+  getReactDefaultLeftTab,
   getReactLeftTabLabel,
   getReactLeftTabs,
   getReactPresetTabLabel,
@@ -207,7 +208,8 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
     [workspaceComposition],
   )
 
-  const [leftTab, setLeftTab]             = useState<ReactLeftTab>('workspace')
+  const defaultLeftTab = getReactDefaultLeftTab(workspaceComposition)
+  const [leftTab, setLeftTab]             = useState<ReactLeftTab>(() => defaultLeftTab)
   const [activeMediaId, setActiveMediaId] = useState<string | null>(null)
   const [leftCollapsed,  setLeftCollapsed]  = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(false)
@@ -280,16 +282,16 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
 
   useEffect(() => {
     if (!isReactLeftTabAvailable(leftTab, workspaceComposition)) {
-      setLeftTab('workspace')
+      setLeftTab(defaultLeftTab)
     }
-  }, [leftTab, workspaceComposition])
+  }, [defaultLeftTab, leftTab, workspaceComposition])
 
   // Engine selection is a top-level workspace change. Always return to that
   // engine's primary authoring surface rather than carrying a contextual tab
   // such as Media or Fonts into a different engine family.
   useEffect(() => {
-    setLeftTab('workspace')
-  }, [activeReactEngineId])
+    setLeftTab(defaultLeftTab)
+  }, [activeReactEngineId, defaultLeftTab])
 
   // Fall back only within the active engine family. Never render a preset from
   // another engine merely because it appears first in the global collection.

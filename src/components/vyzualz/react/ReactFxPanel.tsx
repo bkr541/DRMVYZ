@@ -12,7 +12,7 @@ import {
 import { ShaderParameterPanel } from './shaders/ui/ShaderParameterPanel'
 import { getReactFxMasterControls } from './reactFxMasterControls'
 import { ReactResetActions } from './ReactResetActions'
-import { CinematicWorldsFxControls } from './CinematicWorldsControls'
+import { CinematicWorldsDesignControls, CinematicWorldsFxControls } from './CinematicWorldsControls'
 import { CanvasEngineFxPanel } from './ReactCanvasEngineShell'
 
 // ── FX panel ──────────────────────────────────────────────────────────────────
@@ -132,7 +132,12 @@ export function ReactFxPanel() {
   // Shader scenes consume the same React-wide master values passed into the
   // renderer, so keep them visible above the scene-specific parameter controls.
   if (isCinematic) {
-    return <CinematicWorldsFxControls />
+    return (
+      <div className="rv-cinematic-design-controls">
+        <CinematicWorldsDesignControls />
+        <CinematicWorldsFxControls />
+      </div>
+    )
   }
 
   if (isCanvas) {
