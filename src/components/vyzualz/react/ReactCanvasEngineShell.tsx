@@ -8,6 +8,13 @@ import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIn
 import type { FeatureCurve, MusicIntelligenceFrame, TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
 import { Collapsible, CtrlSection, NumberInputRow, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
 import { MediaLibraryBrowser } from '../media/MediaLibraryBrowser'
+import {
+  getCanvasMediaTransparencyKey,
+  prepareCanvasCaptureBackground,
+  resolveCanvasBackgroundModeWithoutInspection,
+  resolveCanvasMediaBackgroundMode,
+  type CanvasBackgroundMode,
+} from './canvasMediaTransparency'
 import { CANVAS_MEDIA_LIBRARY_CAPABILITIES } from '../media/mediaLibraryCapabilities'
 import {
   CanvasParticleAuraRenderer,
@@ -1115,6 +1122,10 @@ export function CanvasEngineSurface({
   const particleOutputCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const [mediaLoadError, setMediaLoadError] = useState<CanvasMediaLoadState>(EMPTY_CANVAS_MEDIA_LOAD_STATE)
   const [particleRendererNotice, setParticleRendererNotice] = useState<string | null>(null)
+  const [detectedBackgroundMode, setDetectedBackgroundMode] = useState<{
+    mediaKey: string
+    mode: CanvasBackgroundMode
+  } | null>(null)
   const trackAnalysisRef = useRef<TrackIntelligenceAnalysis | null>(trackAnalysis)
   const trackSectionsRef = useRef<ReactTrackSection[]>(trackSections)
   const getAudioTimeRef = useRef<typeof getAudioTime>(getAudioTime)
@@ -1124,6 +1135,13 @@ export function CanvasEngineSurface({
   )
   const presetStyle = useMemo(() => makeCanvasPresetStyle(canvasPresetSettings), [canvasPresetSettings])
   const activeVideo = activeItem?.type === 'video'
+  const activeMediaTransparencyKey = activeItem ? getCanvasMediaTransparencyKey(activeItem) : null
+  const activeMediaTransparencyKeyRef = useRef<string | null>(activeMediaTransparencyKey)
+  activeMediaTransparencyKeyRef.current = activeMediaTransparencyKey
+  const immediateBackgroundMode = activeItem ? resolveCanvasBackgroundModeWithoutInspection(activeItem) : 'stage'
+  const effectiveBackgroundMode: CanvasBackgroundMode = immediateBackgroundMode
+    ?? (detectedBackgroundMode?.mediaKey === activeMediaTransparencyKey ? detectedBackgroundMode.mode : 'stage')
+  const transparentStage = effectiveBackgroundMode === 'transparent'
   const activeTiming = activeItem?.timing ?? DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS
   const mediaStyle = useMemo(
     () => makeCanvasMediaStyle(settings, canvasPresetSettings),
@@ -1170,9 +1188,7 @@ export function CanvasEngineSurface({
       }
 
       captureContext.setTransform(dpr, 0, 0, dpr, 0, 0)
-      captureContext.clearRect(0, 0, cssWidth, cssHeight)
-      captureContext.fillStyle = '#02070a'
-      captureContext.fillRect(0, 0, cssWidth, cssHeight)
+      prepareCanvasCaptureBackground(captureContext, cssWidth, cssHeight, effectiveBackgroundMode)
 
       const source = particleSourceRef.current
       if (!activeItem || !source || !isCanvasParticleSourceReady(source)) return
@@ -1260,11 +1276,23 @@ export function CanvasEngineSurface({
       window.cancelAnimationFrame(frameId)
       onLiveFps?.(0)
     }
-  }, [activeItem, analyser, canvasPresetSettings, isPaused, isPlaying, onLiveFps, particleSourceRef, settings])
+  }, [activeItem, analyser, canvasPresetSettings, effectiveBackgroundMode, isPaused, isPlaying, onLiveFps, particleSourceRef, settings])
 
   useEffect(() => {
     setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)
-  }, [activeItem?.id])
+    setDetectedBackgroundMode(null)
+  }, [activeItem?.id, activeItem?.objectUrl])
+
+  const handleCanvasImageLoad = useCallback((image: HTMLImageElement) => {
+    setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)
+    if (!activeItem || activeItem.type === 'video') return
+
+    const mediaKey = getCanvasMediaTransparencyKey(activeItem)
+    void resolveCanvasMediaBackgroundMode(activeItem, image).then(mode => {
+      if (activeMediaTransparencyKeyRef.current !== mediaKey) return
+      setDetectedBackgroundMode({ mediaKey, mode })
+    })
+  }, [activeItem])
 
   const activeMediaLoadError = mediaLoadError.mediaId === activeItem?.id ? mediaLoadError.message : null
 
@@ -1600,15 +1628,21 @@ export function CanvasEngineSurface({
   }
 
   return (
-    <div className="rv-canvas-engine-surface" role="region" aria-label="CANVAS engine media surface">
+    <div
+      className={`rv-canvas-engine-surface${transparentStage ? ' rv-canvas-engine-surface--transparent' : ''}`}
+      role="region"
+      aria-label="CANVAS engine media surface"
+      data-background-mode={effectiveBackgroundMode}
+    >
       {captureCanvasNode}
       <div
         ref={outputRef}
-        className="rv-canvas-live-output rv-canvas-param-output"
+        className={`rv-canvas-live-output rv-canvas-param-output${transparentStage ? ' rv-canvas-live-output--transparent' : ''}`}
         data-fit-mode={settings.fitMode}
+        data-background-mode={effectiveBackgroundMode}
         style={presetStyle}
       >
-        <div className="rv-canvas-live-grid" aria-hidden="true" />
+        {!transparentStage && <div className="rv-canvas-live-grid" aria-hidden="true" />}
         <div className="rv-canvas-preset-aura" aria-hidden="true" />
         <div className="rv-canvas-live-media-shell">
           {activeVideo ? (
@@ -1636,7 +1670,7 @@ export function CanvasEngineSurface({
               className="rv-canvas-live-media"
               style={mediaStyle}
               draggable={false}
-              onLoad={() => setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)}
+              onLoad={event => handleCanvasImageLoad(event.currentTarget)}
               onError={() => setMediaLoadError({ mediaId: activeItem.id, message: getCanvasMediaLoadErrorMessage(activeItem) })}
             />
           )}

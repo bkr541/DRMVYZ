@@ -1020,7 +1020,7 @@ function coerceShowDirectorColorMode(value: unknown): LaserDmxShowDirectorColorM
 
 function coerceShowDirectorTargetMode(value: unknown): LaserDmxShowDirectorBeamTargetMode {
   if (value === 'fan' || value === 'sweep' || value === 'cross' || value === 'mirror' || value === 'audioReactive') return value
-  // Patch 1–3 projects used forward/stageCenter/customPoint/musicReactive. They all recover into a safe, editable target mode.
+  // Earlier projects used forward/stageCenter/customPoint/musicReactive. They all recover into a safe, editable target mode.
   if (value === 'musicReactive') return 'audioReactive'
   return 'fixed'
 }
@@ -1057,7 +1057,7 @@ function coerceShowDirectorBeatDivision(value: unknown): LaserDmxShowDirectorBea
   if (value === '1/2' || value === 'half') return 0.5
   const candidate = showDirectorFinite(value, 1)
   if (candidate === 0.25 || candidate === 0.5 || candidate === 2 || candidate === 4 || candidate === 8) return candidate
-  // Patch 1–3 stored 16 as the fastest supported division. Clamp it into the new public range.
+  // Earlier projects stored 16 as the fastest supported division. Clamp it into the current public range.
   if (candidate >= 8) return 8
   return 1
 }

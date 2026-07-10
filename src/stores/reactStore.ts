@@ -3117,7 +3117,7 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     state = { ...state, laserDmxSettings: normalizeLaserDmxSettings(state.laserDmxSettings) }
   }
   if (version < 32 && isPersistedLaserDmxSettingsDocument(state.laserDmxSettings)) {
-    // Backfill Patch 4 production-fixture profiles, typed flash patterns,
+    // Backfill production-fixture profiles, typed flash patterns,
     // visual-comfort limits, wash/pixel state, and group chase documents.
     state = { ...state, laserDmxSettings: normalizeLaserDmxSettings(state.laserDmxSettings) }
   }

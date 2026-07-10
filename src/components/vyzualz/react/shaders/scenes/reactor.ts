@@ -263,9 +263,9 @@ export function isReactorRecipe(value: ShaderParamValue): value is ReactorRecipe
 }
 
 /**
- * Hydrate persisted Reactor values against the current schema. Patch 2 builds do
- * not contain the module mix controls, so this keeps existing Custom looks live
- * while supplying deterministic weights for newly introduced parameters.
+ * Hydrate persisted Reactor values against the current schema. Earlier saved
+ * configurations may not contain module mix controls, so this keeps Custom looks
+ * live while supplying deterministic weights for newly introduced parameters.
  */
 export function normalizeReactorParamValues(
   values: ShaderParamValues | undefined,

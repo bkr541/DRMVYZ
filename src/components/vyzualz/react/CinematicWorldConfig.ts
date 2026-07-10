@@ -208,7 +208,7 @@ export const CINEMATIC_AUDIO_CONTINUOUS_SOURCES = [
   'dropState',
   'trackEnergy',
   'vocalEnergy',
-  // Backward-compatible aliases retained for presets created before Patch 5.
+  // Backward-compatible aliases retained for older saved presets.
   'volume',
   'high',
   'sectionEnergy',
@@ -1049,7 +1049,7 @@ export interface LegacyPortalConfigValues {
 /**
  * Maps the original Portal controls onto their closest Cinematic Worlds fields
  * while retaining the complete legacy payload under compatibility. The legacy
- * Canvas renderer continues to consume the original controls during Patch 1.
+ * Canvas renderer can continue consuming the original controls during migration.
  */
 export function createLegacyPortalCinematicConfig(
   values: LegacyPortalConfigValues,

@@ -111,7 +111,7 @@ export interface ProductionStageOrientation {
   yawDeg: number
   pitchDeg: number
   rollDeg: number
-  /** Compatibility aliases retained for Patch 1 consumers. */
+  /** Compatibility aliases retained for earlier saved rigs and integrations. */
   panDeg: number
   tiltDeg: number
 }
