@@ -85,6 +85,27 @@ function CanvasMediaTokens() {
   )
 }
 
+interface CanvasOverrideStatusProps {
+  message: string
+  clearLabel: string
+  clearAriaLabel: string
+  onClear: () => void
+}
+
+function CanvasOverrideStatus({
+  message,
+  clearLabel,
+  clearAriaLabel,
+  onClear,
+}: CanvasOverrideStatusProps) {
+  return (
+    <div className="rv-canvas-auto-status rv-canvas-auto-status--override" role="status">
+      <span>{message}</span>
+      <button type="button" onClick={onClear} aria-label={clearAriaLabel}>{clearLabel}</button>
+    </div>
+  )
+}
+
 function getCanvasLibraryMediaType(media: UploadedMedia): CanvasMediaItemType | null {
   const name = media.name.toLowerCase()
   const mime = (media.mimeType ?? '').toLowerCase()
@@ -230,10 +251,12 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`rv-canvas-library-shell${compact ? ' rv-canvas-library-shell--compact' : ''}`}>
       {manualMediaOverrideActive && (
-        <div className="rv-canvas-media-lock" role="status">
-          <span>Lock Active Media: Auto Select can still change presets, but it will not replace this CANVAS source.</span>
-          <button type="button" onClick={clearCanvasMediaOverride}>Clear Media Lock</button>
-        </div>
+        <CanvasOverrideStatus
+          message="Media lock: This CANVAS source stays selected."
+          clearLabel="Clear"
+          clearAriaLabel="Clear CANVAS media lock"
+          onClear={clearCanvasMediaOverride}
+        />
       )}
       <MediaLibraryBrowser
         activeMediaId={activeCanvasMediaId}
@@ -1929,10 +1952,12 @@ function CanvasAutoSelectControl() {
         description={description}
       />
       {manualOverrideActive && (
-        <div className="rv-canvas-auto-status rv-canvas-auto-status--override" role="status">
-          <span>Manual override: {selectedPreset.name} is selected.</span>
-          <button type="button" onClick={clearCanvasPresetOverride}>Clear Override</button>
-        </div>
+        <CanvasOverrideStatus
+          message={`Manual override: ${selectedPreset.name} is selected.`}
+          clearLabel="Clear Override"
+          clearAriaLabel={`Clear ${selectedPreset.name} manual preset override`}
+          onClear={clearCanvasPresetOverride}
+        />
       )}
       {!manualOverrideActive && autoSelectionActive && (
         <div className="rv-canvas-auto-status" role="status">
@@ -1955,10 +1980,12 @@ function CanvasAutoSelectControl() {
         </div>
       )}
       {settings.autoSelectEnabled && manualMediaOverrideActive && (
-        <div className="rv-canvas-auto-status rv-canvas-auto-status--override" role="status">
-          <span>Lock Active Media is on. Auto Select can still update presets, but it will not replace this CANVAS source.</span>
-          <button type="button" onClick={clearCanvasMediaOverride}>Clear Media Lock</button>
-        </div>
+        <CanvasOverrideStatus
+          message="Media lock: Auto Select can change presets, but this source stays selected."
+          clearLabel="Clear"
+          clearAriaLabel="Clear CANVAS media lock"
+          onClear={clearCanvasMediaOverride}
+        />
       )}
     </div>
   )
@@ -2175,9 +2202,19 @@ function CanvasPresetControls() {
 
   return (
     <Collapsible label="CANVAS React Controls" defaultOpen>
-      <div className="rv-ctrl-toggle-line">
-        <span className="rv-ctrl-label">{selectedPreset.name}{customized ? ' · Customized' : ''}</span>
-        <button type="button" className="rv-reset-btn" onClick={resetCanvasPresetSettings}>Reset Recipe</button>
+      <div className="rv-ctrl-toggle-row rv-canvas-recipe-status">
+        <div className="rv-ctrl-toggle-line">
+          <span className="rv-ctrl-label">{selectedPreset.name}</span>
+          <button
+            type="button"
+            className="rv-ctrl-toggle rv-canvas-recipe-reset"
+            onClick={resetCanvasPresetSettings}
+            aria-label={`Reset ${selectedPreset.name} recipe`}
+          >
+            Reset
+          </button>
+        </div>
+        {customized && <span className="rv-ctrl-description">Customized recipe active.</span>}
       </div>
       {canvasPresetSettings.particleDensity > 0.02 && !activeItem && (
         <div className="rv-canvas-engine-note rv-canvas-engine-note--warning">

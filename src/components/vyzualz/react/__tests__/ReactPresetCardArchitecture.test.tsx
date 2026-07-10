@@ -181,6 +181,33 @@ describe('canonical React preset card architecture', () => {
     expect(card.getAttribute('aria-pressed')).toBe('true')
 
     await act(async () => {
+      useReactStore.getState().updateLaserDmxShowDirectorSettings({
+        snapEnabled: false,
+        showGrid: false,
+        showLabels: false,
+        showBeams: false,
+        highlightFixtures: false,
+      })
+    })
+    expect(useReactStore.getState().laserDmxBeamMatrixPresetDirty).toBe(false)
+    expect(container.querySelector('[data-preset-card-id="small-club-rig"][data-preset-card-shell]')?.textContent).not.toContain('Modified')
+
+    await act(async () => {
+      useReactStore.getState().applyLaserDmxShowDirectorTemplate('festival-front-beams')
+    })
+    expect(useReactStore.getState().laserDmxShowDirector.settings).toMatchObject({
+      snapEnabled: false,
+      showGrid: false,
+      showLabels: false,
+      showBeams: false,
+      highlightFixtures: false,
+    })
+    expect(useReactStore.getState().laserDmxBeamMatrixPresetDirty).toBe(false)
+
+    await act(async () => {
+      useReactStore.getState().applyLaserDmxShowDirectorTemplate('small-club-rig')
+    })
+    await act(async () => {
       useReactStore.getState().updateLaserDmxShowDirectorSettings({ zoom: 1.2 })
     })
     expect(container.querySelector('[data-preset-card-id="small-club-rig"][data-preset-card-shell]')?.textContent).toContain('Modified')
@@ -188,6 +215,13 @@ describe('canonical React preset card architecture', () => {
     await click(container.querySelector('[aria-label="Restore Show Director rig layout Small Club Rig"]')!)
     expect(useReactStore.getState().laserDmxShowDirector.sourceTemplateId).toBe('small-club-rig')
     expect(useReactStore.getState().laserDmxBeamMatrixPresetDirty).toBe(false)
+    expect(useReactStore.getState().laserDmxShowDirector.settings).toMatchObject({
+      snapEnabled: false,
+      showGrid: false,
+      showLabels: false,
+      showBeams: false,
+      highlightFixtures: false,
+    })
   })
 
   it('keeps standard non-Laser preset cards on the same canonical structure', async () => {

@@ -86,6 +86,7 @@ import type {
   LaserDmxShowDirectorGroup,
   LaserDmxShowDirectorFixtureKind,
   LaserDmxShowDirectorFixturePatch,
+  LaserDmxShowDirectorSettings,
   LaserDmxShowDirectorSettingsPatch,
   LaserDmxShowDirectorState,
   LaserDmxShowDirectorMirrorAxis,
@@ -801,6 +802,42 @@ function mergeLaserDmxShowDirectorSettingsPatch(
       ? current.fixtures.map((fixture, index) => clampLaserDmxShowDirectorFixtureToSettings(fixture, settings, index))
       : current.fixtures,
   })
+}
+
+const LASER_DMX_SHOW_DIRECTOR_GLOBAL_SETTING_KEYS = [
+  'snapEnabled',
+  'showLabels',
+  'showBeams',
+  'showGrid',
+  'highlightFixtures',
+] as const
+
+type LaserDmxShowDirectorGlobalSettingKey = typeof LASER_DMX_SHOW_DIRECTOR_GLOBAL_SETTING_KEYS[number]
+
+function preserveLaserDmxShowDirectorGlobalSettings(
+  next: LaserDmxShowDirectorState,
+  currentSettings: LaserDmxShowDirectorSettings,
+): LaserDmxShowDirectorState {
+  return normalizeLaserDmxShowDirectorState({
+    ...next,
+    settings: {
+      ...next.settings,
+      snapEnabled: currentSettings.snapEnabled,
+      showLabels: currentSettings.showLabels,
+      showBeams: currentSettings.showBeams,
+      showGrid: currentSettings.showGrid,
+      highlightFixtures: currentSettings.highlightFixtures,
+    },
+  })
+}
+
+function isLaserDmxShowDirectorGlobalSettingsPatch(
+  patch: LaserDmxShowDirectorSettingsPatch,
+): boolean {
+  const keys = Object.keys(patch)
+  return keys.length > 0 && keys.every(key => (
+    LASER_DMX_SHOW_DIRECTOR_GLOBAL_SETTING_KEYS.includes(key as LaserDmxShowDirectorGlobalSettingKey)
+  ))
 }
 
 function mergeLaserDmxShowDirectorFixturePatch(
@@ -5904,9 +5941,13 @@ export const useReactStore = create<ReactStoreState>()(
           const previous = s.laserDmxShowDirectorUndoStack[s.laserDmxShowDirectorUndoStack.length - 1]
           if (!previous) return {}
           const current = normalizeShowDirectorSnapshot(s.laserDmxShowDirector)
+          const previousWithGlobalSettings = preserveLaserDmxShowDirectorGlobalSettings(
+            normalizeShowDirectorSnapshot(previous),
+            current.settings,
+          )
           return {
             laserDmxBeamMatrixPresetDirty: true,
-            laserDmxShowDirector: normalizeShowDirectorSnapshot(previous),
+            laserDmxShowDirector: previousWithGlobalSettings,
             laserDmxShowDirectorUndoStack: s.laserDmxShowDirectorUndoStack.slice(0, -1),
             laserDmxShowDirectorRedoStack: trimShowDirectorHistory([...s.laserDmxShowDirectorRedoStack, current]),
             laserDmxShowDirectorHistoryTransaction: null,
@@ -5918,9 +5959,13 @@ export const useReactStore = create<ReactStoreState>()(
           const next = s.laserDmxShowDirectorRedoStack[s.laserDmxShowDirectorRedoStack.length - 1]
           if (!next) return {}
           const current = normalizeShowDirectorSnapshot(s.laserDmxShowDirector)
+          const nextWithGlobalSettings = preserveLaserDmxShowDirectorGlobalSettings(
+            normalizeShowDirectorSnapshot(next),
+            current.settings,
+          )
           return {
             laserDmxBeamMatrixPresetDirty: true,
-            laserDmxShowDirector: normalizeShowDirectorSnapshot(next),
+            laserDmxShowDirector: nextWithGlobalSettings,
             laserDmxShowDirectorUndoStack: trimShowDirectorHistory([...s.laserDmxShowDirectorUndoStack, current]),
             laserDmxShowDirectorRedoStack: s.laserDmxShowDirectorRedoStack.slice(0, -1),
             laserDmxShowDirectorHistoryTransaction: null,
@@ -6202,10 +6247,13 @@ export const useReactStore = create<ReactStoreState>()(
         })),
 
       resetLaserDmxShowDirectorLayout: () =>
-        set(() => ({
+        set(s => ({
           laserDmxBeamMatrixAuthoringMode: 'showDirector' as const,
           laserDmxBeamMatrixPresetDirty: true,
-          laserDmxShowDirector: createDefaultLaserDmxShowDirectorState(),
+          laserDmxShowDirector: preserveLaserDmxShowDirectorGlobalSettings(
+            createDefaultLaserDmxShowDirectorState(),
+            s.laserDmxShowDirector.settings,
+          ),
           laserDmxShowDirectorUndoStack: [],
           laserDmxShowDirectorRedoStack: [],
           laserDmxShowDirectorHistoryTransaction: null,
@@ -6214,16 +6262,33 @@ export const useReactStore = create<ReactStoreState>()(
       applyLaserDmxShowDirectorTemplate: (templateId) => {
         const next = createLaserDmxShowDirectorTemplateState(templateId, createLaserDmxShowDirectorId)
         if (!next) return false
-        set(s => ({
-          laserDmxBeamMatrixAuthoringMode: 'showDirector' as const,
-          ...buildLaserDmxShowDirectorHistoryPatch(s, next),
-          laserDmxBeamMatrixPresetDirty: false,
-        }))
+        set(s => {
+          const nextWithGlobalSettings = preserveLaserDmxShowDirectorGlobalSettings(
+            next,
+            s.laserDmxShowDirector.settings,
+          )
+          return {
+            laserDmxBeamMatrixAuthoringMode: 'showDirector' as const,
+            ...buildLaserDmxShowDirectorHistoryPatch(s, nextWithGlobalSettings),
+            laserDmxBeamMatrixPresetDirty: false,
+          }
+        })
         return true
       },
 
       updateLaserDmxShowDirectorSettings: (patch) =>
-        set(s => buildLaserDmxShowDirectorHistoryPatch(s, mergeLaserDmxShowDirectorSettingsPatch(s.laserDmxShowDirector, patch))),
+        set(s => {
+          const next = mergeLaserDmxShowDirectorSettingsPatch(s.laserDmxShowDirector, patch)
+          if (isLaserDmxShowDirectorGlobalSettingsPatch(patch)) {
+            return showDirectorSnapshotsEqual(
+              normalizeShowDirectorSnapshot(s.laserDmxShowDirector),
+              normalizeShowDirectorSnapshot(next),
+            )
+              ? {}
+              : { laserDmxShowDirector: next }
+          }
+          return buildLaserDmxShowDirectorHistoryPatch(s, next)
+        }),
 
       // ── React preset automation cues ────────────────────────────────────────
 

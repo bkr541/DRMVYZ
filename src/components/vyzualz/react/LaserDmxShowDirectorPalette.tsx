@@ -6,6 +6,7 @@ import {
   LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS,
   type LaserDmxShowDirectorFixtureKind,
 } from './ReactTypes'
+import { LaserDmxShowDirectorGlobalControls } from './LaserDmxShowDirectorControls'
 
 export const SHOW_DIRECTOR_FIXTURE_DRAG_TYPE = 'application/x-drmvyz-show-director-fixture-kind'
 
@@ -123,6 +124,10 @@ export function LaserDmxShowDirectorPalette() {
           No components matched “{query}”.
         </div>
       )}
+
+      <div className="rv-show-director-palette__design">
+        <LaserDmxShowDirectorGlobalControls />
+      </div>
     </aside>
   )
 }

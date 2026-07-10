@@ -8472,7 +8472,7 @@
   }
 }
 
-/* Show Director rail cleanup: palette left, design controls right */
+/* Show Director rail cleanup: global design left, fixture controls right */
 .rv-show-director-builder--palette-only {
   min-height: 0;
 }
@@ -8490,6 +8490,19 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   padding: 0 11px 11px;
+}
+
+.rv-show-director-palette__design {
+  padding: 0 11px 11px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.rv-show-director-global-controls .rv-ctrl-section-label {
+  position: static;
+  margin: 0;
+  padding: 11px 0 5px;
+  background: transparent;
+  box-shadow: none;
 }
 
 .rv-show-director-component-card,
@@ -8573,7 +8586,7 @@
   gap: 10px;
 }
 
-.rv-show-director-design-panel > .rv-show-director-inspector {
+.rv-show-director-component-controls > .rv-show-director-inspector {
   max-height: none;
   border-radius: 10px;
 }
@@ -8586,6 +8599,11 @@
 
 .rv-show-director-design-actions .rv-glyph-upload-btn,
 .rv-show-director-design-panel .rv-glyph-upload-btn {
+  width: 100%;
+  min-width: 0;
+}
+
+.rv-show-director-component-controls .rv-show-director-design-actions .rv-glyph-upload-btn {
   width: 100%;
   min-width: 0;
 }
@@ -9575,7 +9593,10 @@
 }
 
 .rv-canvas-auto-status span {
+  flex: 1 1 auto;
   min-width: 0;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .rv-canvas-auto-status button {
@@ -9597,6 +9618,21 @@
   border-color: rgba(216, 185, 90, 0.5);
   background: rgba(216, 185, 90, 0.14);
   color: rgba(255, 241, 202, 0.96);
+}
+
+.rv-canvas-recipe-status {
+  padding: 1px 0;
+}
+
+.rv-canvas-recipe-reset {
+  min-width: 72px;
+}
+
+.rv-canvas-recipe-reset:hover,
+.rv-canvas-recipe-reset:focus-visible {
+  border-color: rgba(74, 199, 219, 0.5);
+  background: rgba(74, 199, 219, 0.12);
+  color: rgba(214, 249, 255, 0.96);
 }
 
 .rv-canvas-engine-panel {
