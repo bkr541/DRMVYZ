@@ -282,15 +282,15 @@
   top: 50%;
   transform: translateY(-50%);
   width: 28px;
-  height: 48px;
+  height: 28px;
   display: grid;
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(12, 18, 26, 0.98);
   color: rgba(255, 255, 255, 0.82);
   cursor: pointer;
-  border-radius: 8px;
-  font-size: 16px;
+  border-radius: 50%;
+  font-size: 15px;
   line-height: 1;
   padding: 0;
   transition: color 0.15s, border-color 0.15s, box-shadow 0.15s;

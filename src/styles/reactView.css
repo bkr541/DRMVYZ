@@ -20,6 +20,8 @@
   --ui-control-height: 30px;
   --ui-control-radius: 6px;
   --ui-control-padding-inline: 9px;
+  --ui-panel-action-height: 36px;
+  --ui-panel-action-padding-inline: 12px;
   --ui-text-primary: rgba(232, 244, 248, 0.92);
   --ui-text-secondary: rgba(214, 228, 234, 0.68);
   --ui-text-muted: rgba(196, 212, 220, 0.5);
@@ -1157,9 +1159,16 @@
 }
 
 .rv-ctrl-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   padding: 12px 14px;
   border-top: 1px solid rgba(74, 199, 219, 0.08);
   flex-shrink: 0;
+}
+
+.rv-ctrl-footer > .rv-osc-reset-btn {
+  margin-top: 0;
 }
 
 .rv-reset-btn {
@@ -5730,7 +5739,14 @@
   grid-template-rows: minmax(0, 1fr);
   column-gap: 12px;
   row-gap: 0;
-  padding: 21px 12px 9px;
+  padding: 9px 12px;
+}
+
+/* Only reserve the label gutter when a deck label is actually rendered.
+   React View does not use one, so its artwork and controls remain vertically
+   centered instead of being pushed toward the bottom of the card. */
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed)[data-has-deck-label='true'] .vz-dock-left {
+  padding-top: 21px;
 }
 
 .rv-shell .vz-dock-card-label {
@@ -5761,12 +5777,14 @@
 }
 
 .rv-shell > .vz-transport-dock .vz-dock-left-body {
-  height: 100%;
+  height: auto;
   min-width: 0;
+  align-self: center;
   display: grid;
   grid-template-columns: auto minmax(76px, 1fr);
   grid-template-rows: auto 38px;
   align-items: center;
+  align-content: center;
   column-gap: 10px;
   row-gap: 4px;
 }
@@ -5774,7 +5792,7 @@
 .rv-shell > .vz-transport-dock .vz-dock-track-row {
   grid-column: 1 / -1;
   grid-row: 1;
-  align-self: end;
+  align-self: center;
   gap: 2px;
 }
 
@@ -10085,4 +10103,25 @@
 
 .rv-bm-clear-selection-btn {
   margin-top: 6px;
+}
+
+/* Full-width panel actions share one geometry across Design, FX, CANVAS,
+   Cinematic Worlds, Shader, and Beam Matrix panels. Long destructive labels
+   may wrap, but the reserved height and internal padding stay identical. */
+.rv-osc-reset-btn,
+.rv-reset-btn,
+.rv-cinematic-action-grid--resets button,
+.rv-bm-reset-btn {
+  width: 100%;
+  height: var(--ui-panel-action-height);
+  min-height: var(--ui-panel-action-height);
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px var(--ui-panel-action-padding-inline);
+  line-height: 1.15;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
