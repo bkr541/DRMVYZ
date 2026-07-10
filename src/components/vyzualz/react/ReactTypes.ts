@@ -901,6 +901,8 @@ export type LaserDmxShowDirectorFixturePatch = Partial<Omit<LaserDmxShowDirector
 
 export interface LaserDmxShowDirectorState {
   schemaVersion?: number
+  /** Starter layout source retained so the preset browser can show selected/modified state. */
+  sourceTemplateId?: string | null
   groups:             LaserDmxShowDirectorGroup[]
   fixtures:           LaserDmxShowDirectorFixture[]
   selectedFixtureId:  string | null
@@ -1208,6 +1210,7 @@ export function createDefaultLaserDmxShowDirectorFixture(
 export function createDefaultLaserDmxShowDirectorState(): LaserDmxShowDirectorState {
   return {
     schemaVersion: LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION,
+    sourceTemplateId: null,
     groups: [],
     fixtures: [],
     selectedFixtureId: null,
@@ -1473,6 +1476,9 @@ export function normalizeLaserDmxShowDirectorState(raw: unknown): LaserDmxShowDi
     : selectedFixtureIds
   return {
     schemaVersion: LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION,
+    sourceTemplateId: typeof raw.sourceTemplateId === 'string' && raw.sourceTemplateId.trim().length > 0
+      ? raw.sourceTemplateId.trim()
+      : null,
     groups,
     fixtures,
     selectedFixtureId,

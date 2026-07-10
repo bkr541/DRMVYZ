@@ -6217,6 +6217,7 @@ export const useReactStore = create<ReactStoreState>()(
         set(s => ({
           laserDmxBeamMatrixAuthoringMode: 'showDirector' as const,
           ...buildLaserDmxShowDirectorHistoryPatch(s, next),
+          laserDmxBeamMatrixPresetDirty: false,
         }))
         return true
       },

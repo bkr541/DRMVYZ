@@ -226,6 +226,7 @@ export function createLaserDmxShowDirectorStateFromTemplate(
 
   return normalizeLaserDmxShowDirectorState({
     schemaVersion: LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION,
+    sourceTemplateId: template.id,
     fixtures,
     selectedFixtureId: fixtures[0]?.id ?? null,
     settings,

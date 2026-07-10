@@ -11,7 +11,19 @@ import {
   CANVAS_PRESETS,
 } from './ReactTypes'
 import { ReactPresetThumbnail } from './ReactPresetThumbnail'
-import { LASER_DMX_SHOW_DIRECTOR_TEMPLATES } from './laserDmxShowDirectorTemplates'
+import {
+  ReactPresetCard,
+  resolvePresetCardNavigationIndex,
+  type ReactPresetCardChip,
+} from './ReactPresetCard'
+import {
+  ShowDirectorTemplateThumbnail,
+  getShowDirectorTemplatePalette,
+} from './LaserDmxPresetThumbnail'
+import {
+  LASER_DMX_SHOW_DIRECTOR_TEMPLATES,
+  type LaserDmxShowDirectorTemplate,
+} from './laserDmxShowDirectorTemplates'
 import { LaserDmxBeamMatrixPresetBrowser } from './LaserDmxBeamMatrixPresetBrowser'
 import { LASER_DMX_BEAM_MATRIX_PRESETS } from './laserDmxBeamMatrixPresets'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
@@ -101,28 +113,9 @@ function createCanvasPresetCardPreset(preset: CanvasPresetDefinition): ReactPres
   }
 }
 
-export function resolvePresetCardNavigationIndex(currentIndex: number, key: string, itemCount: number, columns = 1): number | null {
-  if (itemCount <= 0) return null
-  if (key === 'Home') return 0
-  if (key === 'End') return itemCount - 1
-  const delta = key === 'ArrowRight' ? 1 : key === 'ArrowLeft' ? -1 : key === 'ArrowDown' ? columns : key === 'ArrowUp' ? -columns : 0
-  if (delta === 0) return null
-  return Math.max(0, Math.min(itemCount - 1, currentIndex + delta))
-}
+export { resolvePresetCardNavigationIndex } from './ReactPresetCard'
 
-function handlePresetCardKeyDown(event: React.KeyboardEvent<HTMLButtonElement>): void {
-  const group = event.currentTarget.closest<HTMLElement>('[data-preset-grid]')
-  if (!group) return
-  const cards = Array.from(group.querySelectorAll<HTMLButtonElement>('[data-preset-card]'))
-  const currentIndex = cards.indexOf(event.currentTarget)
-  const columns = group.clientWidth >= 720 ? 2 : 1
-  const nextIndex = resolvePresetCardNavigationIndex(currentIndex, event.key, cards.length, columns)
-  if (nextIndex == null || nextIndex === currentIndex) return
-  event.preventDefault()
-  cards[nextIndex]?.focus()
-}
-
-function PresetCard({
+function StandardReactPresetCard({
   preset,
   isActive,
   modified,
@@ -145,83 +138,50 @@ function PresetCard({
   modeHintOverride?: string | null
   showMore?: boolean
 }) {
-  const [detailsOpen, setDetailsOpen] = useState(false)
   if (!isSelectableReactEngineId(preset.engine)) return null
   const modeHint = modeHintOverride ?? getModeHint(preset)
   const production = preset.productionPreset
   const switchesContext = preset.engine !== activeEngineId
   const destinationLabel = REACT_ENGINE_CATALOG[preset.engine].label
-  const hasMoreDetails = showMore
+  const chips: ReactPresetCardChip[] = [
+    ...(modeHint ? [{ label: modeHint }] : []),
+    ...(switchesContext ? [{ label: 'Switch & Load', tone: 'switch' as const }] : []),
+  ]
 
   return (
-    <div className={`rv-preset-card-shell${detailsOpen ? ' rv-preset-card-shell--expanded' : ''}`}>
-      <button
-        type="button"
-        className={`rv-preset-card rv-preset-card--with-thumb${isActive ? ' rv-preset-card--active' : ''}${detailsOpen ? ' rv-preset-card--expanded' : ''}`}
-        onClick={() => onSelect(preset.id)}
-        onKeyDown={handlePresetCardKeyDown}
-        data-preset-card
-        aria-pressed={isActive}
-        aria-current={isActive ? 'true' : undefined}
-        aria-label={`${switchesContext ? `Switch to ${destinationLabel} and load` : 'Load'} ${preset.name}`}
-        title={preset.description}
-      >
-        <div className="rv-preset-card-layout">
-          <ReactPresetThumbnail preset={preset} generationKey={thumbnailGenerationKey} />
-          <div className="rv-preset-card-content">
-            <div className="rv-preset-card-header">
-              <span className="rv-preset-name">{preset.name}</span>
-            </div>
-            <div className="rv-preset-chip-row">
-              {modeHint && <span className="rv-preset-mode-chip">{modeHint}</span>}
-              {modified && <span className="rv-preset-modified-chip">Modified</span>}
-              {switchesContext && <span className="rv-preset-switch-chip">Switch &amp; Load</span>}
-            </div>
-            {production && <>
-              <div className="rv-production-badges" aria-label={`${preset.name} fixture families`}>
-                {production.fixtureFamilyBadges.slice(0, detailsOpen ? 7 : 5).map(kind => <span key={kind}>{FIXTURE_BADGE_LABELS[kind]}</span>)}
-              </div>
-              {detailsOpen && (
-                <div className="rv-preset-detail-panel">
-                  <div className="rv-production-meta"><span>Cost: {production.complexity}</span><span>{production.requiredCapabilities.map(item => item.label).join(' · ')}</span></div>
-                  <div className="rv-production-tags">{production.styleTags.map(tag => <span key={tag}>{tag}</span>)}</div>
-                </div>
-              )}
-            </>}
-            <p className="rv-preset-desc">{preset.description}</p>
-            <div className="rv-preset-palette" aria-label={`${preset.name} palette`}>
-              {Object.values(preset.palette).slice(0, 5).map((color, index) => <span key={index} className="rv-palette-swatch" style={{ background: color }} title={color} />)}
-            </div>
+    <ReactPresetCard
+      id={preset.id}
+      title={preset.name}
+      description={preset.description}
+      thumbnail={<ReactPresetThumbnail preset={preset} generationKey={thumbnailGenerationKey} />}
+      chips={chips}
+      palette={Object.values(preset.palette).slice(0, 5).map(color => ({ color }))}
+      isActive={isActive}
+      isModified={modified}
+      isFavorite={isFavorite}
+      activateLabel={`${switchesContext ? `Switch to ${destinationLabel} and load` : 'Load'} ${preset.name}`}
+      onActivate={() => onSelect(preset.id)}
+      onToggleFavorite={onToggleFavorite ? () => onToggleFavorite(preset.id) : undefined}
+      contentBeforeDescription={detailsOpen => production ? (
+        <div className="rv-production-badges" aria-label={`${preset.name} fixture families`}>
+          {production.fixtureFamilyBadges.slice(0, detailsOpen ? 7 : 5).map(kind => (
+            <span key={kind}>{FIXTURE_BADGE_LABELS[kind]}</span>
+          ))}
+        </div>
+      ) : null}
+      expandedContent={production ? (
+        <div className="rv-preset-detail-panel">
+          <div className="rv-production-meta">
+            <span>Cost: {production.complexity}</span>
+            <span>{production.requiredCapabilities.map(item => item.label).join(' · ')}</span>
+          </div>
+          <div className="rv-production-tags">
+            {production.styleTags.map(tag => <span key={tag}>{tag}</span>)}
           </div>
         </div>
-      </button>
-      {onToggleFavorite && (
-        <button
-          type="button"
-          className={`rv-preset-favorite${isFavorite ? ' rv-preset-favorite--active' : ''}`}
-          onClick={() => onToggleFavorite(preset.id)}
-          aria-pressed={isFavorite}
-          aria-label={`${isFavorite ? 'Remove' : 'Add'} ${preset.name} ${isFavorite ? 'from' : 'to'} favorites`}
-          title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-        >
-          {isFavorite ? '★' : '☆'}
-        </button>
-      )}
-      {hasMoreDetails && (
-        <button
-          type="button"
-          className="rv-preset-more-btn"
-          aria-expanded={detailsOpen}
-          aria-label={`${detailsOpen ? 'Hide' : 'Show'} detailed information for ${preset.name}`}
-          onClick={event => {
-            event.stopPropagation()
-            setDetailsOpen(open => !open)
-          }}
-        >
-          {detailsOpen ? 'Less' : 'More'} <span aria-hidden="true">▾</span>
-        </button>
-      )}
-    </div>
+      ) : undefined}
+      showMore={showMore}
+    />
   )
 }
 
@@ -238,7 +198,7 @@ type PresetCollectionProps = {
 
 function renderPresetCard(preset: ReactPreset, props: Omit<PresetCollectionProps, 'presets'>) {
   return (
-    <PresetCard
+    <StandardReactPresetCard
       key={preset.id}
       preset={preset}
       isActive={preset.id === props.activePresetId && preset.engine === props.activeEngineId}
@@ -487,7 +447,7 @@ function CanvasPresetCollection({ thumbnailGenerationKey }: { thumbnailGeneratio
           const cardPreset = cardById.get(canvasPreset.id)
           if (!cardPreset) return null
           return (
-            <PresetCard
+            <StandardReactPresetCard
               key={canvasPreset.id}
               preset={cardPreset}
               isActive={canvasPreset.id === selectedCanvasPresetId}
@@ -505,9 +465,43 @@ function CanvasPresetCollection({ thumbnailGenerationKey }: { thumbnailGeneratio
   )
 }
 
+const SHOW_DIRECTOR_CATEGORY_LABELS: Record<LaserDmxShowDirectorTemplate['category'], string> = {
+  club: 'Club',
+  festival: 'Festival',
+  drop: 'Drop',
+  led: 'LED',
+  hits: 'Hits',
+  movement: 'Movement',
+  atmosphere: 'Atmosphere',
+}
+
+function getShowDirectorTemplateChips(template: LaserDmxShowDirectorTemplate): ReactPresetCardChip[] {
+  const triggerModes = Array.from(new Set(template.fixtures.map(fixture => fixture.trigger?.mode).filter(Boolean)))
+  const triggerLabel = triggerModes.length === 1
+    ? `${triggerModes[0]} trigger`
+    : triggerModes.length > 1
+      ? `${triggerModes.length} trigger types`
+      : 'Static layout'
+  return [
+    { label: `${template.fixtures.length} fixtures` },
+    { label: SHOW_DIRECTOR_CATEGORY_LABELS[template.category] },
+    { label: triggerLabel },
+    ...template.tags.slice(0, 2).map(tag => ({ label: tag })),
+  ]
+}
+
 function ShowDirectorTemplatePresets() {
-  const applyTemplate = useReactStore(state => state.applyLaserDmxShowDirectorTemplate)
-  const setAuthoringMode = useReactStore(state => state.setLaserDmxBeamMatrixAuthoringMode)
+  const {
+    applyTemplate,
+    setAuthoringMode,
+    showDirector,
+    presetDirty,
+  } = useReactStore(useShallow(state => ({
+    applyTemplate: state.applyLaserDmxShowDirectorTemplate,
+    setAuthoringMode: state.setLaserDmxBeamMatrixAuthoringMode,
+    showDirector: state.laserDmxShowDirector,
+    presetDirty: state.laserDmxBeamMatrixPresetDirty,
+  })))
 
   const handleApplyTemplate = (templateId: string) => {
     if (applyTemplate(templateId)) setAuthoringMode('showDirector')
@@ -521,31 +515,32 @@ function ShowDirectorTemplatePresets() {
         <span className="rv-preset-group-hdr-count">{LASER_DMX_SHOW_DIRECTOR_TEMPLATES.length}</span>
       </div>
       <div className="rv-preset-group-cards rv-preset-group-cards--current" data-preset-grid>
-        {LASER_DMX_SHOW_DIRECTOR_TEMPLATES.map(template => (
-          <div key={template.id} className="rv-preset-card-shell rv-show-director-template-preset-shell">
-            <button
-              type="button"
-              className="rv-preset-card rv-show-director-template-preset-card"
-              onClick={() => handleApplyTemplate(template.id)}
-              onKeyDown={handlePresetCardKeyDown}
-              data-preset-card
-              aria-label={`Load Show Director rig layout ${template.name}`}
-              title={template.description}
-            >
-              <div className="rv-preset-card-content rv-show-director-template-preset-content">
-                <div className="rv-preset-card-header">
-                  <span className="rv-preset-name">{template.name}</span>
-                </div>
-                <div className="rv-preset-chip-row">
-                  <span className="rv-preset-mode-chip">{template.fixtures.length} fixtures</span>
-                  {template.tags.slice(0, 2).map(tag => <span key={tag} className="rv-preset-mode-chip">{tag}</span>)}
-                </div>
-                <p className="rv-preset-desc">{template.description}</p>
-                <span className="rv-show-director-template-preset-action">Load Layout</span>
-              </div>
-            </button>
-          </div>
-        ))}
+        {LASER_DMX_SHOW_DIRECTOR_TEMPLATES.map(template => {
+          const isActive = showDirector.sourceTemplateId === template.id
+          const isModified = isActive && presetDirty
+          return (
+            <ReactPresetCard
+              key={template.id}
+              id={template.id}
+              title={template.name}
+              description={template.description}
+              thumbnail={<ShowDirectorTemplateThumbnail template={template} />}
+              chips={getShowDirectorTemplateChips(template)}
+              palette={getShowDirectorTemplatePalette(template).map(color => ({ color }))}
+              isActive={isActive}
+              isModified={isModified}
+              activateLabel={`Load Show Director rig layout ${template.name}`}
+              onActivate={() => handleApplyTemplate(template.id)}
+              secondaryActions={isActive ? [{
+                id: isModified ? 'restore' : 'reload',
+                label: isModified ? 'Restore' : 'Reload',
+                ariaLabel: `${isModified ? 'Restore' : 'Reload'} Show Director rig layout ${template.name}`,
+                onSelect: () => handleApplyTemplate(template.id),
+              }] : []}
+              showMore={false}
+            />
+          )
+        })}
       </div>
     </section>
   )
