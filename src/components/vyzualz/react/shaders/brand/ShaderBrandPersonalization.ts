@@ -3,6 +3,8 @@ import type { BrandKit, BrandPaletteRole, BrandPersonalizationMode } from '../..
 import { resolveEffectivePalette } from '../../../../../features/personalization/effectivePalette'
 import type { ShaderDefinition, ShaderParamValue, RGBA } from '../registry/shaderRegistryTypes'
 import type { ShaderProgram } from '../runtime/ShaderProgram'
+import { REACTOR_SCENE_ID, isReactorRecipe } from '../scenes/reactor'
+import { getLegacyReactorSceneIdForRecipe } from '../scenes/reactorMigration'
 
 const FALLBACK_PALETTE: ReactPalette = {
   primary: '#00E5FF',
@@ -31,7 +33,7 @@ export function resolveShaderBrandPalette(
   brandKit: Readonly<BrandKit> | null | undefined,
 ): ShaderBrandPaletteContext {
   const basePalette = buildShaderBasePalette(def, paramValues)
-  const presetRule = brandKit?.presetRules?.[def.id]
+  const presetRule = resolveShaderPresetRule(def, paramValues, brandKit)
   const engineRule = brandKit?.engineRules?.shaderPads
   const mode = presetRule?.enabled === false
     ? 'original'
@@ -62,6 +64,21 @@ export function resolveShaderBrandPalette(
     strength: enabled ? strength : 0,
     mode: enabled ? mode : 'original',
   }
+}
+
+function resolveShaderPresetRule(
+  def: ShaderDefinition,
+  paramValues: Readonly<Record<string, ShaderParamValue>>,
+  brandKit: Readonly<BrandKit> | null | undefined,
+) {
+  const directRule = brandKit?.presetRules?.[def.id]
+  if (directRule || def.id !== REACTOR_SCENE_ID) return directRule
+
+  const recipeValue = paramValues.recipe
+  const legacySceneId = isReactorRecipe(recipeValue)
+    ? getLegacyReactorSceneIdForRecipe(recipeValue)
+    : null
+  return legacySceneId ? brandKit?.presetRules?.[legacySceneId] : undefined
 }
 
 export function resolveShaderColorParam(

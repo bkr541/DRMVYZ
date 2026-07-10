@@ -1,5 +1,6 @@
 import type { ShaderDefinition, ShaderCategory } from '../registry/shaderRegistryTypes'
 import { shaderRegistry } from '../registry'
+import { migrateLegacyReactorSceneId } from '../scenes/reactorMigration'
 
 // ── Library entry ─────────────────────────────────────────────────────────────
 
@@ -59,7 +60,7 @@ export class ShaderLibrary {
   }
 
   isBundled(id: string): boolean {
-    return shaderRegistry.has(id)
+    return shaderRegistry.has(migrateLegacyReactorSceneId(id) ?? id)
   }
 
   // ── All entries ────────────────────────────────────────────────────────────
@@ -73,9 +74,10 @@ export class ShaderLibrary {
   }
 
   getEntry(id: string): ShaderLibraryEntry | null {
-    const bundled = shaderRegistry.get(id)
+    const targetId = migrateLegacyReactorSceneId(id) ?? id
+    const bundled = shaderRegistry.get(targetId)
     if (bundled && !this._isDevScene(bundled)) return this._toEntry(bundled, true)
-    const user = this._userDefs.get(id)
+    const user = this._userDefs.get(targetId)
     if (user) return this._toEntry(user, false)
     return null
   }

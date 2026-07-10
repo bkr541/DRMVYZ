@@ -201,5 +201,5 @@ export const TRAP_SHRAPNEL_REACTOR: ShaderDefinition = {
   quality: { minimumTier: 'medium', recommendedTier: 'high', particleLimit: { min: 16, recommended: 42, max: 64 }, estimatedPassCount: 3, requiresPersistentBuffers: true },
   transitions: { supportsGpuTransitions: true, supportedTransitionTypes: ['pixel-scatter', 'flash-cut', 'feedback-collapse', 'rgb-split-dissolve'] },
   thumbnail: { color: '#16052b' },
-  tags: ['hybrid-trap', 'shrapnel', 'particles', 'feedback', 'fakeout', 'stems', 'brand-kit'],
+  tags: ['hybrid-trap', 'shrapnel', 'particles', 'feedback', 'fakeout', 'stems', 'brand-kit', 'internal'],
 }

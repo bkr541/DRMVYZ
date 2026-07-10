@@ -4,6 +4,14 @@ import type { ShaderDefinition, ShaderParamValues } from '../registry/shaderRegi
 import type { QualityTierWithAuto } from '../performance/shaderPerformanceTypes'
 import { shaderRegistry } from '../registry'
 import { ShaderDefinitionValidator } from '../registry/ShaderDefinitionValidator'
+import { REACTOR_SCENE_ID } from '../scenes/reactor'
+import {
+  migrateLegacyReactorCollections,
+  migrateLegacyReactorIdList,
+  migrateLegacyReactorParamValues,
+  migrateLegacyReactorPresets,
+  migrateLegacyReactorSceneId,
+} from '../scenes/reactorMigration'
 
 // ── User scene entry ──────────────────────────────────────────────────────────
 
@@ -41,7 +49,7 @@ const DEFAULT_EDITOR_PREFS: ShaderEditorPreferences = {
 
 // ── Persisted state ───────────────────────────────────────────────────────────
 
-interface ShaderLibraryPersistedState {
+export interface ShaderLibraryPersistedState {
   userScenes:        Record<string, UserSceneEntry>  // keyed by scene id
   favorites:         string[]                        // array of scene ids
   collections:       Record<string, string[]>        // name → scene id array
@@ -50,6 +58,20 @@ interface ShaderLibraryPersistedState {
   qualityPreference: QualityTierWithAuto
   editorPreferences: ShaderEditorPreferences
   thumbnailCache:    string[]                        // scene ids with cached thumbnails
+}
+
+export function migrateShaderLibraryPersistedState(
+  persistedState: unknown,
+): Partial<ShaderLibraryPersistedState> {
+  const persisted = (persistedState ?? {}) as Partial<ShaderLibraryPersistedState>
+  return {
+    ...persisted,
+    favorites: migrateLegacyReactorIdList(persisted.favorites),
+    collections: migrateLegacyReactorCollections(persisted.collections),
+    recentlyUsed: migrateLegacyReactorIdList(persisted.recentlyUsed),
+    shaderPresets: migrateLegacyReactorPresets(persisted.shaderPresets),
+    thumbnailCache: migrateLegacyReactorIdList(persisted.thumbnailCache),
+  }
 }
 
 // ── Full store state ──────────────────────────────────────────────────────────
@@ -243,15 +265,17 @@ export const useShaderLibraryStore = create<ShaderLibraryState>()(
 
       // ── Favorites ────────────────────────────────────────────────────────
       setFavorite(id, fav) {
+        const targetId = migrateLegacyReactorSceneId(id) ?? id
         set(s => ({
           favorites: fav
-            ? s.favorites.includes(id) ? s.favorites : [...s.favorites, id]
-            : s.favorites.filter(f => f !== id),
+            ? s.favorites.includes(targetId) ? s.favorites : [...s.favorites, targetId]
+            : s.favorites.filter(f => f !== targetId),
         }))
       },
 
       toggleFavorite(id) {
-        get().setFavorite(id, !get().favorites.includes(id))
+        const targetId = migrateLegacyReactorSceneId(id) ?? id
+        get().setFavorite(targetId, !get().favorites.includes(targetId))
       },
 
       // ── Collections ──────────────────────────────────────────────────────
@@ -279,37 +303,44 @@ export const useShaderLibraryStore = create<ShaderLibraryState>()(
       },
 
       addToCollection(name, id) {
+        const targetId = migrateLegacyReactorSceneId(id) ?? id
         set(s => {
           const ids = s.collections[name] ?? []
-          if (ids.includes(id)) return s
-          return { collections: { ...s.collections, [name]: [...ids, id] } }
+          if (ids.includes(targetId)) return s
+          return { collections: { ...s.collections, [name]: [...ids, targetId] } }
         })
       },
 
       removeFromCollection(name, id) {
+        const targetId = migrateLegacyReactorSceneId(id) ?? id
         set(s => ({
           collections: {
             ...s.collections,
-            [name]: (s.collections[name] ?? []).filter(i => i !== id),
+            [name]: (s.collections[name] ?? []).filter(i => i !== targetId),
           },
         }))
       },
 
       // ── Recently used ─────────────────────────────────────────────────────
       markUsed(id) {
+        const targetId = migrateLegacyReactorSceneId(id) ?? id
         set(s => {
-          const filtered = s.recentlyUsed.filter(r => r !== id)
-          return { recentlyUsed: [id, ...filtered].slice(0, MAX_RECENTLY_USED) }
+          const filtered = s.recentlyUsed.filter(r => r !== targetId)
+          return { recentlyUsed: [targetId, ...filtered].slice(0, MAX_RECENTLY_USED) }
         })
       },
 
       // ── Presets ───────────────────────────────────────────────────────────
       savePreset(name, sceneId, values) {
+        const targetSceneId = migrateLegacyReactorSceneId(sceneId) ?? sceneId
+        const targetValues = targetSceneId === REACTOR_SCENE_ID && sceneId !== REACTOR_SCENE_ID
+          ? migrateLegacyReactorParamValues(sceneId, values)
+          : values
         const preset: ShaderPreset = {
           id:        generatePresetId(),
           name:      name.trim() || 'Unnamed Preset',
-          sceneId,
-          values,
+          sceneId:   targetSceneId,
+          values:    targetValues,
           createdAt: new Date().toISOString(),
         }
         set(s => ({ shaderPresets: { ...s.shaderPresets, [preset.id]: preset } }))
@@ -324,7 +355,8 @@ export const useShaderLibraryStore = create<ShaderLibraryState>()(
       },
 
       getPresetsForScene(sceneId) {
-        return Object.values(get().shaderPresets).filter(p => p.sceneId === sceneId)
+        const targetSceneId = migrateLegacyReactorSceneId(sceneId) ?? sceneId
+        return Object.values(get().shaderPresets).filter(p => p.sceneId === targetSceneId)
       },
 
       // ── Quality & editor ──────────────────────────────────────────────────
@@ -338,25 +370,28 @@ export const useShaderLibraryStore = create<ShaderLibraryState>()(
 
       // ── Thumbnail cache ───────────────────────────────────────────────────
       markThumbnailCached(id) {
+        const targetId = migrateLegacyReactorSceneId(id) ?? id
         set(s => ({
-          thumbnailCache: s.thumbnailCache.includes(id)
+          thumbnailCache: s.thumbnailCache.includes(targetId)
             ? s.thumbnailCache
-            : [...s.thumbnailCache, id],
+            : [...s.thumbnailCache, targetId],
         }))
       },
 
       clearThumbnailCache(id) {
+        const targetId = id ? (migrateLegacyReactorSceneId(id) ?? id) : null
         set(s => ({
-          thumbnailCache: id
-            ? s.thumbnailCache.filter(i => i !== id)
+          thumbnailCache: targetId
+            ? s.thumbnailCache.filter(i => i !== targetId)
             : [],
         }))
       },
     }),
     {
       name:    'drmvyz:shader-library',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage),
+      migrate: persistedState => migrateShaderLibraryPersistedState(persistedState),
       // Never persist any WebGL objects or runtime state — only POJO data.
       partialize: (s): ShaderLibraryPersistedState => ({
         userScenes:        s.userScenes,

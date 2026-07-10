@@ -196,5 +196,5 @@ export const BRAND_SINGULARITY: ShaderDefinition = {
   quality: { minimumTier: 'medium', recommendedTier: 'high', estimatedPassCount: 3, requiresPersistentBuffers: true },
   transitions: { supportsGpuTransitions: true, supportedTransitionTypes: ['feedback-collapse', 'luma-dissolve', 'rgb-split-dissolve', 'flash-cut'] },
   thumbnail: { color: '#07102c' },
-  tags: ['brand-kit', 'logo', 'feedback', 'media', 'lyrics', 'stems', 'universal'],
+  tags: ['brand-kit', 'logo', 'feedback', 'media', 'lyrics', 'stems', 'universal', 'internal'],
 }

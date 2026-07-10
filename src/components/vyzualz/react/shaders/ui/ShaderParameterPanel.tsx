@@ -6,6 +6,7 @@ import { ShaderParameterGroup } from './ShaderParameterGroup'
 import { ShaderTextureInputControl } from './ShaderTextureInputControl'
 import { Collapsible } from '../../ReactControlRows'
 import { groupParams } from './shaderParameterUiTypes'
+import { REACTOR_SCENE_ID, isReactorParamVisible } from '../scenes/reactor'
 
 // ── ShaderParameterPanel ──────────────────────────────────────────────────────
 //
@@ -75,6 +76,13 @@ export function ShaderParameterPanel() {
   }
 
   const groups = groupParams(nonTextureParms)
+    .map(group => ({
+      ...group,
+      params: activeShaderId === REACTOR_SCENE_ID
+        ? group.params.filter(param => isReactorParamVisible(param.id, paramValues))
+        : group.params,
+    }))
+    .filter(group => group.params.length > 0)
 
   return (
     <div className="rv-ctrl-group">

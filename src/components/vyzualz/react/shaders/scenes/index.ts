@@ -12,6 +12,8 @@ export { DREAMSTATE_MYCELIUM } from './dreamstateMycelium'
 export { MELODIC_RIFT_BLOOM } from './melodicRiftBloom'
 export { RIDDIM_RAILGUN_SEQUENCER } from './riddimRailgunSequencer'
 export { BRAND_SINGULARITY } from './brandSingularity'
+export { REACTOR, REACTOR_SCENE_ID } from './reactor'
+export * from './reactorMigration'
 
 import { PRISM_TUNNEL } from './prismTunnel'
 import { LIQUID_METABALLS } from './liquidMetaballs'
@@ -27,6 +29,7 @@ import { DREAMSTATE_MYCELIUM } from './dreamstateMycelium'
 import { MELODIC_RIFT_BLOOM } from './melodicRiftBloom'
 import { RIDDIM_RAILGUN_SEQUENCER } from './riddimRailgunSequencer'
 import { BRAND_SINGULARITY } from './brandSingularity'
+import { REACTOR } from './reactor'
 import type { ShaderDefinition } from '../registry/shaderRegistryTypes'
 
 export const PRODUCTION_SCENES: ShaderDefinition[] = [
@@ -35,6 +38,7 @@ export const PRODUCTION_SCENES: ShaderDefinition[] = [
   FEEDBACK_KALEIDOSCOPE,
   SPECTRUM_CATHEDRAL,
   BRAND_ECHO_SIGNAL,
+  REACTOR,
   SEMANTIC_DROP_REACTOR,
   BASS_CATHEDRAL,
   LASER_LATTICE_OVERDRIVE,

@@ -147,5 +147,5 @@ void main() {
 
   quality: { minimumTier: 'low', recommendedTier: 'medium', estimatedPassCount: 1 },
   thumbnail: { color: '#18051f' },
-  tags: ['build', 'drop', 'fakeout', 'stems', 'phrases', 'semantic'],
+  tags: ['build', 'drop', 'fakeout', 'stems', 'phrases', 'semantic', 'internal'],
 }

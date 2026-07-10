@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { BrandKit } from '../../../../../../features/personalization/BrandKitTypes'
 import type { ShaderDefinition } from '../../registry/shaderRegistryTypes'
+import { LEGACY_REACTOR_SCENE_IDS, REACTOR, applyReactorRecipe } from '../../scenes/reactor'
 import {
   applyShaderBrandUniforms,
   resolveShaderBrandPalette,
@@ -68,6 +69,18 @@ describe('Shader Brand Kit personalization', () => {
 
     expect(resolveShaderColorParam(authored, 'primary', original)).toEqual(authored)
     expect(resolveShaderColorParam(authored, undefined, branded)).toEqual(authored)
+  })
+
+  it('preserves a legacy Reactor recipe-specific Brand Kit rule', () => {
+    const legacyKit = kit('brand')
+    legacyKit.presetRules[LEGACY_REACTOR_SCENE_IDS.singularity] = {
+      mode: 'original',
+      enabled: false,
+    }
+
+    const context = resolveShaderBrandPalette(REACTOR, applyReactorRecipe('singularity'), legacyKit)
+    expect(context.enabled).toBe(false)
+    expect(context.mode).toBe('original')
   })
 
   it('uploads universal palette, strength, enable, and neutral impact uniforms', () => {

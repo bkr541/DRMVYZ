@@ -85,6 +85,7 @@ export function sortStops(stops: GradientStop[]): GradientStop[] {
 // ── Parameter grouping ────────────────────────────────────────────────────────
 
 export const PARAM_GROUP_ORDER: string[] = [
+  'Recipe', 'Modules', 'Core and Motion', 'Semantic', 'Shrapnel', 'Brand and Media', 'Reactivity',
   'Geometry', 'Camera', 'Motion', 'Surface', 'Lighting',
   'Color', 'Particles', 'Feedback', 'Distortion', 'Post Processing',
 ]

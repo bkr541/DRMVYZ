@@ -13,6 +13,20 @@ import type { ShaderCompileStatus } from '../editor/ShaderCompilePanel'
 import type { PerformanceMetrics } from '../performance/shaderPerformanceTypes'
 import type { QualityTier } from '../registry/shaderRegistryTypes'
 import type { RenderPassInfo } from '../rendergraph/shaderRenderGraphTypes'
+import {
+  REACTOR_SCENE_ID,
+  applyReactorRecipe as getReactorRecipeValues,
+  isReactorRecipe,
+  type ReactorRecipe,
+} from '../scenes/reactor'
+import {
+  getLegacyReactorRecipe,
+  migrateLegacyReactorParamValueMap,
+  migrateLegacyReactorParamValues,
+  migrateLegacyReactorRoutes,
+  migrateLegacyReactorSceneId,
+  migrateLegacyReactorTextureSelections,
+} from '../scenes/reactorMigration'
 
 // ── ShaderPanelStore ──────────────────────────────────────────────────────────
 
@@ -48,6 +62,7 @@ export interface ShaderPanelState {
   // ── Actions ───────────────────────────────────────────────────────────────
   setActiveShaderId:  (id: string | null) => void
   setParamValue:      (paramId: string, value: ShaderParamValue) => void
+  applyReactorRecipe: (recipe: Exclude<ReactorRecipe, 'custom'>) => void
   setModulatedValue:  (paramId: string, value: number) => void
   setCompileError:    (error: string | null) => void
   resetParams:        () => void
@@ -131,19 +146,55 @@ export function shaderPanelPartialize(state: ShaderPanelState): ShaderPanelPersi
   }
 }
 
+export function migrateShaderPanelPersistedState(
+  persistedState: unknown,
+): Partial<ShaderPanelPersistedState> {
+  const persisted = (persistedState ?? {}) as Partial<ShaderPanelPersistedState>
+  const persistedActiveShaderId = typeof persisted.activeShaderId === 'string'
+    ? persisted.activeShaderId
+    : null
+  const activeShaderId = migrateLegacyReactorSceneId(persistedActiveShaderId)
+  const paramValuesByShaderId = migrateLegacyReactorParamValueMap(persisted.paramValuesByShaderId)
+  const textureSelectionsByShaderId = migrateLegacyReactorTextureSelections(
+    persisted.textureSelectionsByShaderId,
+  )
+
+  if (persistedActiveShaderId && getLegacyReactorRecipe(persistedActiveShaderId)) {
+    paramValuesByShaderId[REACTOR_SCENE_ID] = migrateLegacyReactorParamValues(
+      persistedActiveShaderId,
+      persisted.paramValuesByShaderId?.[persistedActiveShaderId],
+    )
+    const activeTextureSelections = persisted.textureSelectionsByShaderId?.[persistedActiveShaderId]
+    if (activeTextureSelections) {
+      textureSelectionsByShaderId[REACTOR_SCENE_ID] = {
+        ...(textureSelectionsByShaderId[REACTOR_SCENE_ID] ?? {}),
+        ...activeTextureSelections,
+      }
+    }
+  }
+
+  return {
+    ...persisted,
+    activeShaderId,
+    paramValuesByShaderId,
+    routesByShaderId: migrateLegacyReactorRoutes(persisted.routesByShaderId),
+    textureSelectionsByShaderId,
+  }
+}
+
 export function mergeShaderPanelState(
   persistedState: unknown,
   currentState: ShaderPanelState,
 ): ShaderPanelState {
-  const persisted = (persistedState ?? {}) as Partial<ShaderPanelPersistedState>
-  const activeShaderId = typeof persisted.activeShaderId === 'string'
-    ? persisted.activeShaderId
-    : null
+  const persisted = migrateShaderPanelPersistedState(persistedState)
+  const activeShaderId = persisted.activeShaderId ?? null
   const paramValuesByShaderId = persisted.paramValuesByShaderId ?? {}
   const def = activeShaderId ? shaderRegistry.get(activeShaderId) : null
   const paramValues = activeShaderId
     ? (paramValuesByShaderId[activeShaderId] ?? (def ? { ...def.defaults } : {}))
     : {}
+
+  if (activeShaderId) paramValuesByShaderId[activeShaderId] = { ...paramValues }
 
   return {
     ...currentState,
@@ -177,38 +228,60 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
   passInfo:                    null,
 
   setActiveShaderId: (id) => {
-    const def = id ? shaderRegistry.get(id) : null
+    const legacyRecipe = getLegacyReactorRecipe(id)
+    const migratedId = migrateLegacyReactorSceneId(id)
+    const def = migratedId ? shaderRegistry.get(migratedId) : null
     const prev = get()
-    // Preserve previously edited param values for this scene when available
-    const savedValues = id ? (prev.paramValuesByShaderId[id] ?? null) : null
-    const newValues = savedValues ?? (def ? { ...def.defaults } : {})
+    // Preserve previously edited param values for normal scene activation. A legacy
+    // scene reference deliberately selects the equivalent Reactor recipe.
+    const savedValues = migratedId ? (prev.paramValuesByShaderId[migratedId] ?? null) : null
+    const legacyValues = id ? prev.paramValuesByShaderId[id] : undefined
+    const newValues = legacyRecipe && id
+      ? migrateLegacyReactorParamValues(id, legacyValues)
+      : savedValues ?? (def ? { ...def.defaults } : {})
 
-    set({
-      activeShaderId:  id,
+    set(s => ({
+      activeShaderId:  migratedId,
       paramValues:     newValues,
+      paramValuesByShaderId: migratedId
+        ? { ...s.paramValuesByShaderId, [migratedId]: { ...newValues } }
+        : s.paramValuesByShaderId,
       modulatedValues: {},
       compileError:    null,
       compileStatus:   IDLE_COMPILE_STATUS,
-    })
-
-    // Save fresh defaults into by-scene map only when no prior values exist
-    if (id && def && !savedValues) {
-      set(s => ({
-        paramValuesByShaderId: {
-          ...s.paramValuesByShaderId,
-          [id]: { ...def.defaults },
-        },
-      }))
-    }
+    }))
   },
 
   setParamValue: (paramId, value) =>
     set(s => {
-      const newParamValues = { ...s.paramValues, [paramId]: value }
+      let newParamValues: ShaderParamValues
+      if (s.activeShaderId === REACTOR_SCENE_ID && paramId === 'recipe' && isReactorRecipe(value)) {
+        newParamValues = value === 'custom'
+          ? { ...s.paramValues, recipe: 'custom' }
+          : getReactorRecipeValues(value)
+      } else if (s.activeShaderId === REACTOR_SCENE_ID) {
+        newParamValues = { ...s.paramValues, [paramId]: value, recipe: 'custom' }
+      } else {
+        newParamValues = { ...s.paramValues, [paramId]: value }
+      }
       const byId = s.activeShaderId
         ? { ...s.paramValuesByShaderId, [s.activeShaderId]: newParamValues }
         : s.paramValuesByShaderId
       return { paramValues: newParamValues, paramValuesByShaderId: byId }
+    }),
+
+  applyReactorRecipe: (recipe) =>
+    set(s => {
+      const newParamValues = getReactorRecipeValues(recipe)
+      return {
+        activeShaderId: REACTOR_SCENE_ID,
+        paramValues: newParamValues,
+        paramValuesByShaderId: {
+          ...s.paramValuesByShaderId,
+          [REACTOR_SCENE_ID]: newParamValues,
+        },
+        modulatedValues: {},
+      }
     }),
 
   setModulatedValue: (paramId, value) =>
@@ -231,36 +304,44 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
     }))
   },
 
-  setRoutesForShader: (shaderId, routes) =>
+  setRoutesForShader: (shaderId, routes) => {
+    const targetShaderId = migrateLegacyReactorSceneId(shaderId) ?? shaderId
     set(s => ({
-      routesByShaderId: { ...s.routesByShaderId, [shaderId]: routes },
-    })),
+      routesByShaderId: { ...s.routesByShaderId, [targetShaderId]: routes },
+    }))
+  },
 
-  addRoute: (shaderId, route) =>
+  addRoute: (shaderId, route) => {
+    const targetShaderId = migrateLegacyReactorSceneId(shaderId) ?? shaderId
     set(s => ({
       routesByShaderId: {
         ...s.routesByShaderId,
-        [shaderId]: [...(s.routesByShaderId[shaderId] ?? []), route],
+        [targetShaderId]: [...(s.routesByShaderId[targetShaderId] ?? []), route],
       },
-    })),
+    }))
+  },
 
-  updateRoute: (shaderId, routeId, patch) =>
+  updateRoute: (shaderId, routeId, patch) => {
+    const targetShaderId = migrateLegacyReactorSceneId(shaderId) ?? shaderId
     set(s => ({
       routesByShaderId: {
         ...s.routesByShaderId,
-        [shaderId]: (s.routesByShaderId[shaderId] ?? []).map(r =>
+        [targetShaderId]: (s.routesByShaderId[targetShaderId] ?? []).map(r =>
           r.id === routeId ? { ...r, ...patch } : r
         ),
       },
-    })),
+    }))
+  },
 
-  removeRoute: (shaderId, routeId) =>
+  removeRoute: (shaderId, routeId) => {
+    const targetShaderId = migrateLegacyReactorSceneId(shaderId) ?? shaderId
     set(s => ({
       routesByShaderId: {
         ...s.routesByShaderId,
-        [shaderId]: (s.routesByShaderId[shaderId] ?? []).filter(r => r.id !== routeId),
+        [targetShaderId]: (s.routesByShaderId[targetShaderId] ?? []).filter(r => r.id !== routeId),
       },
-    })),
+    }))
+  },
 
   setLiveAudioFrame:       (frame)   => set({ audioFrame: frame }),
   setEvaluationFrame:      (frame)   => set({ evaluationFrame: frame }),
@@ -268,36 +349,42 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
   setPerformanceMetrics:   (metrics) => set({ performanceMetrics: metrics }),
   setEffectiveQualityTier: (tier)    => set({ effectiveQualityTier: tier }),
 
-  setTextureSelection: (shaderId, inputName, sel) =>
+  setTextureSelection: (shaderId, inputName, sel) => {
+    const targetShaderId = migrateLegacyReactorSceneId(shaderId) ?? shaderId
     set(s => ({
       textureSelectionsByShaderId: {
         ...s.textureSelectionsByShaderId,
-        [shaderId]: {
-          ...(s.textureSelectionsByShaderId[shaderId] ?? {}),
+        [targetShaderId]: {
+          ...(s.textureSelectionsByShaderId[targetShaderId] ?? {}),
           [inputName]: sel,
         },
       },
-    })),
+    }))
+  },
 
-  clearTextureSelection: (shaderId, inputName) =>
+  clearTextureSelection: (shaderId, inputName) => {
+    const targetShaderId = migrateLegacyReactorSceneId(shaderId) ?? shaderId
     set(s => {
-      const current = { ...(s.textureSelectionsByShaderId[shaderId] ?? {}) }
+      const current = { ...(s.textureSelectionsByShaderId[targetShaderId] ?? {}) }
       delete current[inputName]
       return {
         textureSelectionsByShaderId: {
           ...s.textureSelectionsByShaderId,
-          [shaderId]: current,
+          [targetShaderId]: current,
         },
       }
-    }),
+    })
+  },
 
-  setTextureValidation: (shaderId, results) =>
+  setTextureValidation: (shaderId, results) => {
+    const targetShaderId = migrateLegacyReactorSceneId(shaderId) ?? shaderId
     set(s => ({
       textureValidationByShaderId: {
         ...s.textureValidationByShaderId,
-        [shaderId]: results,
+        [targetShaderId]: results,
       },
-    })),
+    }))
+  },
 
   triggerParam: (paramId) =>
     set(s => ({
@@ -332,7 +419,9 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
     get()._previewResetCallback?.()
   },
 
-  requestRecompile: (sceneId) => set({ pendingRecompileSceneId: sceneId }),
+  requestRecompile: (sceneId) => set({
+    pendingRecompileSceneId: migrateLegacyReactorSceneId(sceneId) ?? sceneId,
+  }),
 
   consumePendingRecompile: () => {
     const id = get().pendingRecompileSceneId
@@ -343,9 +432,10 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
   setPassInfo: (info) => set({ passInfo: info }),
   }), {
     name: 'drmvyz:shader-panel',
-    version: 1,
+    version: 2,
     storage: createJSONStorage(() => localStorage),
     partialize: shaderPanelPartialize,
+    migrate: persistedState => migrateShaderPanelPersistedState(persistedState),
     merge: mergeShaderPanelState,
     // Quality preference is already persisted by ShaderLibraryStore. Keeping a
     // single owner avoids two stores racing to restore different quality tiers.
@@ -356,5 +446,6 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
 
 export function getActiveRoutes(shaderId: string | null): ShaderModulationRoute[] {
   if (!shaderId) return []
-  return useShaderPanelStore.getState().routesByShaderId[shaderId] ?? []
+  const targetShaderId = migrateLegacyReactorSceneId(shaderId) ?? shaderId
+  return useShaderPanelStore.getState().routesByShaderId[targetShaderId] ?? []
 }

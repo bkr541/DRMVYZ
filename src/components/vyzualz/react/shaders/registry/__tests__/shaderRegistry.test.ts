@@ -333,13 +333,14 @@ describe('I — development scene', () => {
     expect(def.params.map(p => p.id)).toEqual(['color', 'brightness'])
   })
 
-  it('registers and validates the fourteen production scenes', () => {
+  it('registers and validates the fifteen production scenes', () => {
     expect(PRODUCTION_SCENES.map(scene => scene.id)).toEqual([
       'shader-neon-tunnel',
       'shader-liquid-metaballs',
       'shader-feedback-kaleidoscope',
       'shader-spectrum-cathedral',
       'shader-brand-echo-signal',
+      'shader-reactor',
       'shader-semantic-drop-reactor',
       'shader-bass-cathedral',
       'shader-laser-lattice-overdrive',
