@@ -25,7 +25,8 @@
     "lint": "eslint . --max-warnings=25",
     "repo:hygiene": "node scripts/check-repository-hygiene.mjs",
     "clean:generated": "node scripts/clean-generated.mjs",
-    "clean:all": "node scripts/clean-generated.mjs --dependencies"
+    "clean:all": "node scripts/clean-generated.mjs --dependencies",
+    "test:e2e:shaders": "playwright test src/test/e2e/shaderCompilation.spec.ts --project=chromium"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.0",

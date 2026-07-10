@@ -22,7 +22,7 @@ import type { ReactFrameContext }      from '../renderers/reactRenderUtils'
 import type {
   ShaderDefinition, ShaderParamValue, RGBA, Vec2, EnumParamDef, GradientStop, QualityTier,
 } from './registry/shaderRegistryTypes'
-import type { CompiledGraph }          from './rendergraph/shaderRenderGraphTypes'
+import type { CompiledGraph, RenderGraphError } from './rendergraph/shaderRenderGraphTypes'
 import type { ShaderProgram }          from './runtime/ShaderProgram'
 import type { ShaderTexSourceSelection, ShaderTextureMeta } from './textures/shaderTextureInputTypes'
 import { DEFAULT_TRANSITION }          from './transitions/shaderTransitionTypes'
@@ -505,13 +505,7 @@ export class ShaderEngineRenderer {
     const result = this._compiler.compile(previewDef)
 
     if (result.error) {
-      const msg = result.error.programError?.log ?? result.error.message
-      store.setCompileStatus({
-        state:         'error',
-        errorLog:      msg,
-        compiledDefId: this._activeDef.id,
-      })
-      store.setCompileError(msg)
+      this._publishCompileFailure(this._activeDef, result.error, store)
       return
     }
 
@@ -621,9 +615,7 @@ export class ShaderEngineRenderer {
     const result = this._compiler.compile(def)
 
     if (result.error || !result.graph) {
-      const msg = result.error?.programError?.log ?? result.error?.message ?? 'compile failed'
-      store.setCompileError(msg)
-      store.setCompileStatus({ state: 'error', errorLog: msg, compiledDefId: id })
+      if (result.error) this._publishCompileFailure(def, result.error, store)
       return
     }
 
@@ -665,9 +657,7 @@ export class ShaderEngineRenderer {
     const result = this._compiler.compile(def)
 
     if (result.error || !result.graph) {
-      const msg = result.error?.programError?.log ?? result.error?.message ?? 'compile failed'
-      store.setCompileError(msg)
-      store.setCompileStatus({ state: 'error', errorLog: msg, compiledDefId: id })
+      if (result.error) this._publishCompileFailure(def, result.error, store)
       return
     }
 
@@ -716,6 +706,37 @@ export class ShaderEngineRenderer {
       state:        'ok',
       lastOkAt:     new Date().toISOString(),
       compiledDefId: id,
+    })
+  }
+
+  private _publishCompileFailure(
+    def: ShaderDefinition,
+    error: RenderGraphError,
+    store: ReturnType<typeof useShaderPanelStore.getState>,
+  ): void {
+    const stage = error.programError?.stage ?? 'render-graph'
+    const compilerError = error.programError?.log || error.message || 'Unknown shader compiler error'
+    const passLabel = error.passId ? `\nPass: ${error.passId}` : ''
+    const annotatedSource = error.programError && 'annotatedSource' in error.programError
+      ? error.programError.annotatedSource
+      : undefined
+
+    if (import.meta.env.DEV) {
+      console.error(
+        `[ShaderEngineRenderer] Shader compilation failed\n` +
+        `Scene ID: ${def.id}\n` +
+        `Scene name: ${def.name}\n` +
+        `Shader stage: ${stage}${passLabel}\n` +
+        `Compiler error: ${compilerError}`,
+        annotatedSource ?? '',
+      )
+    }
+
+    store.setCompileError(compilerError)
+    store.setCompileStatus({
+      state: 'error',
+      errorLog: compilerError,
+      compiledDefId: def.id,
     })
   }
 

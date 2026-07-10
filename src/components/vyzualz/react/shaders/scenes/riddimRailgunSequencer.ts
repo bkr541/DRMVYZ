@@ -53,14 +53,14 @@ void main() {
   float railId = floor(railUv);
   float railLocal = fract(railUv) - 0.5;
   float lane = beam(abs(railLocal) - 0.12, 78.0);
-  float active = 1.0 - step(0.45, abs(railId - activeRail));
+  float activeRailMask = 1.0 - step(0.45, abs(railId - activeRail));
   float response = 1.0 - step(0.45, abs(railId - responseRail));
 
   float depthGrid = beam(fract((q.y + z) * (7.0 + uPerspective * 4.0)) - 0.5, 52.0);
   float chassis = lane * (0.18 + depthGrid * 0.82);
-  float charge = active * lane * beam(fract(q.y * 2.5 - uBarPhase) - 0.5, 34.0)
+  float charge = activeRailMask * lane * beam(fract(q.y * 2.5 - uBarPhase) - 0.5, 34.0)
     * (0.25 + music.build * uChargeGlow + music.fakeout * 0.9);
-  float forwardFire = active * lane * beam(q.y - (-0.8 + uBeatPhase * 1.8), 95.0)
+  float forwardFire = activeRailMask * lane * beam(q.y - (-0.8 + uBeatPhase * 1.8), 95.0)
     * (uKickHit + uBeatHit * 0.25 + uBassStemTransient * uHasStems);
   float sideFire = response * beam(q.y, 90.0) * beam(abs(railLocal) - 0.28, 55.0)
     * (uSnareHit + uDrumStemTransient * uHasStems * 0.45);
