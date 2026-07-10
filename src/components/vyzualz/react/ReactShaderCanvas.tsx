@@ -32,6 +32,7 @@ interface Props {
   isPaused?:         boolean
   getAudioTime?:     () => number
   effectiveBpm?:     number | null
+  trackKey?:         string | null
   durationSec?:      number
   trackSections?:    ReactTrackSection[]
   onCanvasReady?:    (canvas: HTMLCanvasElement | null) => void
@@ -69,6 +70,7 @@ export function ReactShaderCanvas({
   isPaused         = false,
   getAudioTime,
   effectiveBpm    = null,
+  trackKey        = null,
   durationSec     = 0,
   trackSections   = [],
   onCanvasReady,
@@ -105,6 +107,7 @@ export function ReactShaderCanvas({
   const isPlayingRef        = useRef(isPlaying)
   const isPausedRef         = useRef(isPaused)
   const effectiveBpmRef     = useRef<number | null>(effectiveBpm)
+  const trackKeyRef         = useRef<string | null>(trackKey)
   const durationSecRef      = useRef(durationSec)
   const trackSectionsRef    = useRef(trackSections)
   const getAudioTimeRef     = useRef(getAudioTime)
@@ -124,6 +127,7 @@ export function ReactShaderCanvas({
   isPlayingRef.current       = isPlaying
   isPausedRef.current         = isPaused
   effectiveBpmRef.current    = effectiveBpm
+  trackKeyRef.current        = trackKey
   durationSecRef.current     = durationSec
   trackSectionsRef.current   = trackSections
   getAudioTimeRef.current    = getAudioTime
@@ -521,6 +525,7 @@ export function ReactShaderCanvas({
         timingDiscontinuity,
         timeSec:   now / 1000,
         audioTime: audioTimeRef.current,
+        trackKey:  trackKeyRef.current,
         bpm:       activeBpm,
         beatPhase: activeBeatPhase,
         beatHit,

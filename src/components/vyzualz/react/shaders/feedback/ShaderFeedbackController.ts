@@ -5,8 +5,8 @@ import {
   type FeedbackResetConfig,
   type FeedbackFrameSignals,
   DEFAULT_FEEDBACK_PARAMS,
-  DEFAULT_FEEDBACK_RESET_CONFIG,
 } from './shaderFeedbackTypes'
+import { ShaderFeedbackResetTracker } from './ShaderFeedbackResetTracker'
 
 // ── ShaderFeedbackController ──────────────────────────────────────────────────
 
@@ -30,13 +30,7 @@ export class ShaderFeedbackController {
   private readonly _pingPong: ShaderPingPongBuffer
   private readonly _pass:     ShaderFeedbackPass
 
-  // ── Reset-condition tracking ──────────────────────────────────────────────
-  private _lastSceneId:      string | null = null
-  private _lastTrackId:      string | null = null
-  private _lastPlaybackTime: number         = -1
-  private _lastSectionType:  string | null = null
-  private _lastW:            number         = 0
-  private _lastH:            number         = 0
+  private readonly _resetTracker = new ShaderFeedbackResetTracker()
 
   private _disposed = false
 
@@ -57,56 +51,7 @@ export class ShaderFeedbackController {
   update(signals: FeedbackFrameSignals, config: FeedbackResetConfig = {}): void {
     if (this._disposed) return
 
-    const cfg: Required<FeedbackResetConfig> = {
-      ...DEFAULT_FEEDBACK_RESET_CONFIG,
-      ...config,
-    }
-
-    let shouldReset = false
-
-    if (cfg.onSceneChange && signals.sceneId !== this._lastSceneId) {
-      shouldReset = true
-    }
-
-    if (!shouldReset && cfg.onTrackChange &&
-        signals.trackId !== null && signals.trackId !== this._lastTrackId) {
-      shouldReset = true
-    }
-
-    if (!shouldReset && cfg.onPlaybackRestart &&
-        this._lastPlaybackTime > 0 &&
-        signals.playbackTime < this._lastPlaybackTime - 0.5) {
-      shouldReset = true
-    }
-
-    if (!shouldReset && cfg.onSectionChange &&
-        signals.sectionType !== this._lastSectionType) {
-      shouldReset = true
-    }
-
-    if (!shouldReset && cfg.onDropImpact &&
-        signals.dropImpact > (cfg.dropImpactThreshold ?? 0.7)) {
-      shouldReset = true
-    }
-
-    if (!shouldReset && cfg.onResolutionChange &&
-        (signals.w !== this._lastW || signals.h !== this._lastH)) {
-      shouldReset = true
-    }
-
-    if (!shouldReset && cfg.onContextRestore && signals.contextJustRestored) {
-      shouldReset = true
-    }
-
-    if (shouldReset) this.reset()
-
-    // Advance tracking state (always, even after reset)
-    this._lastSceneId      = signals.sceneId
-    this._lastTrackId      = signals.trackId
-    this._lastPlaybackTime = signals.playbackTime
-    this._lastSectionType  = signals.sectionType
-    this._lastW            = signals.w
-    this._lastH            = signals.h
+    if (this._resetTracker.update(signals, config)) this.reset()
   }
 
   // ── Execute ───────────────────────────────────────────────────────────────

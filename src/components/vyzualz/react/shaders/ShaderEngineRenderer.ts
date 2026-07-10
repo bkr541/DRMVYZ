@@ -18,6 +18,8 @@ import { shaderRegistry }              from './registry'
 import { useShaderPanelStore }         from './ui/shaderPanelStore'
 import { useShaderLibraryStore }       from './library/ShaderLibraryStore'
 import { DEFAULT_SHADER_SCENE_ID }     from './scenes'
+import { REACTOR_SCENE_ID }            from './scenes/reactor'
+import { ShaderFeedbackResetTracker }  from './feedback/ShaderFeedbackResetTracker'
 import type { ReactFrameContext }      from '../renderers/reactRenderUtils'
 import type {
   ShaderDefinition, ShaderParamValue, RGBA, Vec2, EnumParamDef, GradientStop, QualityTier,
@@ -91,6 +93,9 @@ export class ShaderEngineRenderer {
   private _activeDef:       ShaderDefinition | null = null
   private _activeGraph:     CompiledGraph | null = null
   private _graphLoaded      = false  // true after loadGraph() for the current _activeGraph
+  private readonly _feedbackResetTracker = new ShaderFeedbackResetTracker()
+  private _pendingFeedbackReset = false
+  private _lastReactorRecipe: string | null = null
 
   // Preview graph (kept alive while previewing, disposed on scene switch or reset)
   private _previewGraph:    CompiledGraph | null = null
@@ -324,6 +329,34 @@ export class ShaderEngineRenderer {
     // ── Uniform callback ────────────────────────────────────────────────────
     const dims    = this._runtime.dims
     const def     = this._activeDef
+
+    // Graph-owned ping-pong history must obey the same lifecycle contract as
+    // the standalone feedback controller. Recipe changes reset only when a
+    // named bundle is selected; ordinary slider edits become Custom without
+    // destroying useful trails.
+    const feedbackResetRequested = this._feedbackResetTracker.update({
+      sceneId: this._activeSceneId ?? '',
+      trackId: frame.trackKey ?? null,
+      playbackTime: timingFrame.playbackTime,
+      sectionType: frame.resolvedSection?.type ?? null,
+      dropImpact: audioFrame.dropImpact,
+      w: dims.W,
+      h: dims.H,
+    }, def.feedbackReset)
+    const currentReactorRecipe = this._activeSceneId === REACTOR_SCENE_ID
+      && typeof store.paramValues.recipe === 'string'
+      ? store.paramValues.recipe
+      : null
+    const namedRecipeChanged = currentReactorRecipe !== null
+      && currentReactorRecipe !== 'custom'
+      && this._lastReactorRecipe !== null
+      && currentReactorRecipe !== this._lastReactorRecipe
+    this._lastReactorRecipe = currentReactorRecipe
+
+    if (feedbackResetRequested || namedRecipeChanged) {
+      if (this._graphLoaded) this._graph.clearFeedbackBuffers()
+      else this._pendingFeedbackReset = true
+    }
     // Build texture metadata snapshot once per frame (not per program)
     const texMeta = this._texManager.getAllMetadata()
     const reservedUnits = getShaderReservedTextureUnits(this._gl)
@@ -401,6 +434,7 @@ export class ShaderEngineRenderer {
           : this._activeGraph!
         this._graph.loadGraph(incomingCompiledGraph)
         this._graphLoaded = true
+        this._flushPendingFeedbackReset()
       }
 
       this._graph.setOutputFbo(this._transRend.inCaptureFbo)
@@ -427,6 +461,7 @@ export class ShaderEngineRenderer {
       if (!this._graphLoaded) {
         this._graph.loadGraph(graphToRender)
         this._graphLoaded = true
+        this._flushPendingFeedbackReset()
       }
 
       this._graph.execute(dims, texMap, applyUniforms)
@@ -631,6 +666,8 @@ export class ShaderEngineRenderer {
     this._activeGraph = result.graph
     this._activeDef   = def
     this._graphLoaded = false  // loadGraph() called on next render frame
+    this._pendingFeedbackReset = true
+    this._feedbackResetTracker.resetTracking()
 
     if (oldGraph) ShaderPassCompiler.disposeGraph(oldGraph)
 
@@ -688,6 +725,12 @@ export class ShaderEngineRenderer {
     this._activeSceneId = id
     this._activeDef     = def
     this._graphLoaded   = false  // loadGraph() deferred to first render frame
+    this._pendingFeedbackReset = def.resetOnActivation === true
+    this._feedbackResetTracker.resetTracking()
+    this._lastReactorRecipe = id === REACTOR_SCENE_ID
+      && typeof store.paramValues.recipe === 'string'
+      ? store.paramValues.recipe
+      : null
 
     // Clear previous scene's runtime texture bindings before applying the new
     // scene's selections.  Without this, two scenes sharing the same input name
@@ -707,6 +750,13 @@ export class ShaderEngineRenderer {
       lastOkAt:     new Date().toISOString(),
       compiledDefId: id,
     })
+  }
+
+
+  private _flushPendingFeedbackReset(): void {
+    if (!this._pendingFeedbackReset || !this._graphLoaded) return
+    this._graph.clearFeedbackBuffers()
+    this._pendingFeedbackReset = false
   }
 
   private _publishCompileFailure(

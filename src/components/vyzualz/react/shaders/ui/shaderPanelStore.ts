@@ -17,6 +17,7 @@ import {
   REACTOR_SCENE_ID,
   applyReactorRecipe as getReactorRecipeValues,
   isReactorRecipe,
+  normalizeReactorParamValues,
   type ReactorRecipe,
 } from '../scenes/reactor'
 import {
@@ -190,9 +191,12 @@ export function mergeShaderPanelState(
   const activeShaderId = persisted.activeShaderId ?? null
   const paramValuesByShaderId = persisted.paramValuesByShaderId ?? {}
   const def = activeShaderId ? shaderRegistry.get(activeShaderId) : null
-  const paramValues = activeShaderId
+  const storedParamValues = activeShaderId
     ? (paramValuesByShaderId[activeShaderId] ?? (def ? { ...def.defaults } : {}))
     : {}
+  const paramValues = activeShaderId === REACTOR_SCENE_ID
+    ? normalizeReactorParamValues(storedParamValues)
+    : storedParamValues
 
   if (activeShaderId) paramValuesByShaderId[activeShaderId] = { ...paramValues }
 
@@ -236,9 +240,12 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
     // scene reference deliberately selects the equivalent Reactor recipe.
     const savedValues = migratedId ? (prev.paramValuesByShaderId[migratedId] ?? null) : null
     const legacyValues = id ? prev.paramValuesByShaderId[id] : undefined
-    const newValues = legacyRecipe && id
+    const rawValues = legacyRecipe && id
       ? migrateLegacyReactorParamValues(id, legacyValues)
       : savedValues ?? (def ? { ...def.defaults } : {})
+    const newValues = migratedId === REACTOR_SCENE_ID
+      ? normalizeReactorParamValues(rawValues)
+      : rawValues
 
     set(s => ({
       activeShaderId:  migratedId,

@@ -5,6 +5,7 @@ import {
   LEGACY_REACTOR_SCENE_IDS,
   REACTOR_SCENE_ID,
   applyReactorRecipe,
+  normalizeReactorParamValues,
   type ReactorRecipe,
 } from './reactor'
 
@@ -98,6 +99,7 @@ export function migrateLegacyReactorParamValues(
   values: ShaderParamValues | undefined,
 ): ShaderParamValues {
   const recipe = getLegacyReactorRecipe(sceneId)
+  if (sceneId === REACTOR_SCENE_ID) return normalizeReactorParamValues(values)
   if (!recipe) return { ...(values ?? {}) }
   return migrateLegacyValueAliases(recipe, values)
 }
@@ -113,7 +115,7 @@ export function migrateLegacyReactorParamValueMap(
   }
 
   const reactorValues = input[REACTOR_SCENE_ID]
-  if (reactorValues) output[REACTOR_SCENE_ID] = { ...reactorValues }
+  if (reactorValues) output[REACTOR_SCENE_ID] = normalizeReactorParamValues(reactorValues)
 
   for (const legacyId of Object.values(LEGACY_REACTOR_SCENE_IDS)) {
     if (!input[legacyId]) continue
@@ -208,6 +210,9 @@ export function migrateLegacyReactorPresets<T extends ReactorMigratablePreset>(
 ): Record<string, T> {
   return Object.fromEntries(
     Object.entries(presets ?? {}).map(([id, preset]) => {
+      if (preset.sceneId === REACTOR_SCENE_ID) {
+        return [id, { ...preset, values: normalizeReactorParamValues(preset.values) }]
+      }
       if (!isLegacyReactorSceneId(preset.sceneId)) return [id, preset]
       return [id, {
         ...preset,

@@ -3,23 +3,21 @@ import { ShaderDefinitionValidator } from '../ShaderDefinitionValidator'
 import {
   BASS_CATHEDRAL,
   LASER_LATTICE_OVERDRIVE,
-  TRAP_SHRAPNEL_REACTOR,
+  REACTOR,
   WOBBLE_GLYPH_FORGE,
   DREAMSTATE_MYCELIUM,
   MELODIC_RIFT_BLOOM,
   RIDDIM_RAILGUN_SEQUENCER,
-  BRAND_SINGULARITY,
 } from '../../scenes'
 
 const PACK = [
   BASS_CATHEDRAL,
   LASER_LATTICE_OVERDRIVE,
-  TRAP_SHRAPNEL_REACTOR,
+  REACTOR,
   WOBBLE_GLYPH_FORGE,
   DREAMSTATE_MYCELIUM,
   MELODIC_RIFT_BLOOM,
   RIDDIM_RAILGUN_SEQUENCER,
-  BRAND_SINGULARITY,
 ]
 
 function allFragmentSource(scene: (typeof PACK)[number]): string {
@@ -27,21 +25,20 @@ function allFragmentSource(scene: (typeof PACK)[number]): string {
 }
 
 describe('bass-reactor shader pack', () => {
-  it('ships eight stable, distinct, valid production scenes', () => {
+  it('ships seven stable, distinct, valid production scenes', () => {
     expect(PACK.map(scene => scene.id)).toEqual([
       'shader-bass-cathedral',
       'shader-laser-lattice-overdrive',
-      'shader-trap-shrapnel-reactor',
+      'shader-reactor',
       'shader-wobble-glyph-forge',
       'shader-dreamstate-mycelium',
       'shader-melodic-rift-bloom',
       'shader-riddim-railgun-sequencer',
-      'shader-brand-singularity',
     ])
     expect(new Set(PACK.map(scene => scene.id)).size).toBe(PACK.length)
     for (const scene of PACK) {
       expect(ShaderDefinitionValidator.validate(scene)).toEqual({ valid: true, errors: [] })
-      expect(scene.tags).toContain('brand-kit')
+      expect(scene.tags?.some(tag => tag === 'brand-kit' || tag === 'brand-logo')).toBe(true)
       expect(scene.params.some(param => param.type === 'color' && param.brandRole === 'primary')).toBe(true)
       expect(scene.params.some(param => param.type === 'color' && param.brandRole === 'background')).toBe(true)
       expect(scene.transitions?.supportsGpuTransitions).toBe(true)
@@ -75,9 +72,8 @@ describe('bass-reactor shader pack', () => {
   it('uses persistent feedback only where the concept benefits from trails or growth history', () => {
     const feedbackScenes = PACK.filter(scene => scene.quality?.requiresPersistentBuffers)
     expect(feedbackScenes.map(scene => scene.id)).toEqual([
-      'shader-trap-shrapnel-reactor',
+      'shader-reactor',
       'shader-dreamstate-mycelium',
-      'shader-brand-singularity',
     ])
     for (const scene of feedbackScenes) {
       expect(scene.feedback?.pingPongBuffers).toBe(1)
@@ -86,11 +82,14 @@ describe('bass-reactor shader pack', () => {
     }
   })
 
-  it('makes Brand Singularity logo-native and media-capable', () => {
-    const source = allFragmentSource(BRAND_SINGULARITY)
+  it('makes Reactor logo-native, media-capable, and composition-native', () => {
+    const source = allFragmentSource(REACTOR)
+    expect(source).toContain('renderSemanticModule')
+    expect(source).toContain('renderShrapnelModule')
+    expect(source).toContain('renderBrandModule')
     expect(source).toContain('brandLogoMask')
     expect(source).toContain('uBrandLogoTexture')
-    expect(BRAND_SINGULARITY.textureInputs?.map(input => input.source)).toEqual([
+    expect(REACTOR.textureInputs?.map(input => input.source)).toEqual([
       'uploaded-image', 'album-artwork', 'media-output',
     ])
   })

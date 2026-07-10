@@ -452,6 +452,7 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
                   isPaused={transportPaused}
                   getAudioTime={engine.getCurrentTime}
                   effectiveBpm={engine.currentEffectiveBpm}
+                  trackKey={engine.currentTrackId}
                   durationSec={audioDurationSec}
                   trackSections={resolvedTrackSections}
                   onCanvasReady={setOutputCanvas}

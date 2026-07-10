@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { ShaderLibrary } from '../../library/ShaderLibrary'
 import { migrateShaderLibraryPersistedState } from '../../library/ShaderLibraryStore'
 import { ShaderDefinitionValidator } from '../../registry/ShaderDefinitionValidator'
+import { shaderRegistry } from '../../registry'
 import { validateParamValue } from '../../registry/ShaderParameterSchema'
 import type { ShaderParamValues } from '../../registry/shaderRegistryTypes'
 import {
@@ -11,6 +12,7 @@ import {
   REACTOR_SCENE_ID,
   applyReactorRecipe,
   isReactorParamVisible,
+  normalizeReactorParamValues,
 } from '../reactor'
 import {
   migrateLegacyReactorParamValues,
@@ -36,7 +38,7 @@ describe('Reactor unified Shader architecture', () => {
     })
   })
 
-  it('shows one canonical Reactor card while keeping legacy scenes internal', () => {
+  it('shows one canonical Reactor card and keeps legacy definitions out of the runtime registry', () => {
     const library = new ShaderLibrary(new Map(), new Set(), new Map(), [], new Set())
     const bundled = library.getBundled()
     const unifiedEntries = bundled.filter(definition => (
@@ -45,6 +47,7 @@ describe('Reactor unified Shader architecture', () => {
 
     expect(unifiedEntries.map(definition => definition.id)).toEqual([REACTOR_SCENE_ID])
     expect(unifiedEntries[0]?.name).toBe('Reactor')
+    for (const legacyId of LEGACY_IDS) expect(shaderRegistry.has(legacyId)).toBe(false)
     expect(library.getEntry(LEGACY_REACTOR_SCENE_IDS.semantic)?.definition.id).toBe(REACTOR_SCENE_ID)
   })
 
@@ -157,6 +160,74 @@ describe('Reactor unified Shader architecture', () => {
       spread: 1.48,
       shrapnelEnabled: true,
     })
+  })
+
+  it('supports each module alone, any combination, and a balanced three-module recipe', () => {
+    const semantic = applyReactorRecipe('semantic')
+    const shrapnel = applyReactorRecipe('shrapnel')
+    const singularity = applyReactorRecipe('singularity')
+    const hybrid = applyReactorRecipe('hybrid')
+
+    expect(semantic).toMatchObject({
+      semanticGeometryEnabled: true, shrapnelEnabled: false, brandCoreEnabled: false,
+      semanticMix: 1, shrapnelMix: 0, brandMix: 0,
+    })
+    expect(shrapnel).toMatchObject({
+      semanticGeometryEnabled: false, shrapnelEnabled: true, brandCoreEnabled: false,
+      semanticMix: 0, shrapnelMix: 1, brandMix: 0,
+    })
+    expect(singularity).toMatchObject({
+      semanticGeometryEnabled: false, shrapnelEnabled: false, brandCoreEnabled: true,
+      semanticMix: 0, shrapnelMix: 0, brandMix: 1,
+    })
+    expect(hybrid).toMatchObject({
+      semanticGeometryEnabled: true, shrapnelEnabled: true, brandCoreEnabled: true,
+    })
+    expect(hybrid.semanticMix).toBeLessThan(1)
+    expect(hybrid.shrapnelMix).toBeLessThan(1)
+    expect(hybrid.brandMix).toBeLessThan(1)
+
+    const anyTwo = {
+      ...hybrid,
+      recipe: 'custom',
+      semanticGeometryEnabled: true,
+      shrapnelEnabled: false,
+      brandCoreEnabled: true,
+    }
+    expect(anyTwo.semanticGeometryEnabled && anyTwo.brandCoreEnabled).toBe(true)
+    expect(anyTwo.shrapnelEnabled).toBe(false)
+  })
+
+  it('hydrates Patch 2 Reactor values with module weights without changing authored controls', () => {
+    const normalized = normalizeReactorParamValues({
+      recipe: 'custom',
+      semanticGeometryEnabled: true,
+      shrapnelEnabled: false,
+      brandCoreEnabled: true,
+      spread: 1.42,
+    })
+
+    expect(normalized).toMatchObject({
+      recipe: 'custom',
+      semanticMix: 1,
+      shrapnelMix: 0,
+      brandMix: 1,
+      spread: 1.42,
+    })
+  })
+
+  it('uses one modular render graph rather than switching among legacy scenes', () => {
+    expect(REACTOR.passes?.map(pass => pass.id)).toEqual(['generator', 'feedback', 'composite'])
+    const source = REACTOR.passes?.map(pass => pass.fragSrc).join('\n') ?? ''
+    expect(source).toContain('renderSemanticModule')
+    expect(source).toContain('renderShrapnelModule')
+    expect(source).toContain('renderBrandModule')
+    expect(source).toContain('uSemanticMix')
+    expect(source).toContain('uShrapnelMix')
+    expect(source).toContain('uBrandMix')
+    expect(source).toContain('logoOcclusion')
+    expect(source).toContain('neutralDiamond')
+    for (const legacyId of LEGACY_IDS) expect(source).not.toContain(legacyId)
   })
 
   it('defines valid defaults and keeps every recipe value within parameter bounds', () => {
