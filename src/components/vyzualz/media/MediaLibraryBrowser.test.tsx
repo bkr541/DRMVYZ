@@ -52,7 +52,7 @@ vi.mock('./MediaStatusBar', () => ({
 }))
 
 import { MediaLibraryBrowser } from './MediaLibraryBrowser'
-import { MEDIA_DECK_CAPABILITIES, MEDIA_MANAGER_CAPABILITIES } from './mediaLibraryCapabilities'
+import { CANVAS_MEDIA_LIBRARY_CAPABILITIES, MEDIA_DECK_CAPABILITIES, MEDIA_MANAGER_CAPABILITIES } from './mediaLibraryCapabilities'
 
 let container: HTMLDivElement | null = null
 let root: ReturnType<typeof createRoot> | null = null
@@ -251,6 +251,34 @@ describe('MediaLibraryBrowser capability boundaries', () => {
         dbId: track.dbId,
       }),
     ])
+  })
+
+  it('keeps CANVAS browsing-only and routes uploads through Media Manager', async () => {
+    await renderBrowser({
+      activeMediaId: 'media-1',
+      onSelect: vi.fn(),
+      context: 'canvas',
+      title: 'Media Library',
+      capabilities: CANVAS_MEDIA_LIBRARY_CAPABILITIES,
+    })
+
+    expect(findButton('Add media to library')).toBeNull()
+    expect(findButton('Import')).toBeNull()
+    const title = container?.querySelector('.vz-panel-title')
+    expect(title?.textContent).toBe('Media Library')
+    expect(title?.classList.contains('vz-panel-title--nowrap')).toBe(true)
+
+    const dropEvent = new Event('drop', { bubbles: true, cancelable: true })
+    Object.defineProperty(dropEvent, 'dataTransfer', {
+      value: { files: [new File(['image'], 'canvas.png', { type: 'image/png' })] },
+    })
+    act(() => {
+      container?.querySelector('.vz-media-browser')?.dispatchEvent(dropEvent)
+    })
+
+    expect(dropEvent.defaultPrevented).toBe(false)
+    expect(mocks.mediaState.addFilesToUploadQueue).not.toHaveBeenCalled()
+    expect(mocks.mediaState.openImportMediaModal).not.toHaveBeenCalled()
   })
 
   it('retains upload, edit, delete, and drop workflows in Media Manager', async () => {

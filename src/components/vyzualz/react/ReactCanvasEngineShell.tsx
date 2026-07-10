@@ -39,10 +39,6 @@ import {
   type ReactTrackSection,
 } from './ReactTypes'
 
-const CANVAS_DESCRIPTION = 'CANVAS renders your saved user media as audio-reactive visuals.'
-const CANVAS_MEDIA_COPY = 'Select from your media library.'
-const CANVAS_LIBRARY_HELPER_COPY = 'Add media to library with the existing DRMVYZ upload flow, then select it here.'
-
 const TYPE_LABELS: Record<CanvasMediaItemType, string> = {
   video: 'Video',
   image: 'Image',
@@ -161,65 +157,6 @@ function formatBytes(bytes?: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }
 
-function CanvasActivePreview() {
-  const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
-  const mediaItems = useCanvasRuntimeMediaItems()
-  const [previewError, setPreviewError] = useState<CanvasMediaLoadState>(EMPTY_CANVAS_MEDIA_LOAD_STATE)
-  const activeItem = useMemo(
-    () => mediaItems.find(item => item.id === activeCanvasMediaId) ?? null,
-    [activeCanvasMediaId, mediaItems],
-  )
-
-  useEffect(() => {
-    setPreviewError(EMPTY_CANVAS_MEDIA_LOAD_STATE)
-  }, [activeItem?.id])
-
-  if (!activeItem) {
-    return (
-      <div className="rv-canvas-active-preview rv-canvas-active-preview--empty">
-        <div className="rv-canvas-active-preview__eyebrow">Active CANVAS Visual</div>
-        <div className="rv-canvas-active-preview__title">No media selected</div>
-        <div className="rv-canvas-active-preview__copy">Select from your media library in this SOURCE panel to send it to the center visualizer.</div>
-      </div>
-    )
-  }
-
-  const previewErrorActive = previewError.mediaId === activeItem.id && previewError.message
-
-  return (
-    <div className="rv-canvas-active-preview">
-      <div className="rv-canvas-active-preview__header">
-        <span>Active CANVAS Visual</span>
-        <strong>{TYPE_LABELS[activeItem.type]}</strong>
-      </div>
-      <div className={`rv-canvas-active-preview__frame rv-canvas-active-preview__frame--${activeItem.type}`}>
-        {activeItem.type === 'video' ? (
-          <video
-            crossOrigin="anonymous"
-            src={activeItem.objectUrl}
-            muted
-            playsInline
-            controls
-            preload="metadata"
-            onCanPlay={() => setPreviewError(EMPTY_CANVAS_MEDIA_LOAD_STATE)}
-            onError={() => setPreviewError({ mediaId: activeItem.id, message: 'Preview could not play this video. Try MP4 or WebM for live use.' })}
-          />
-        ) : (
-          <img
-            crossOrigin="anonymous"
-            src={activeItem.objectUrl}
-            alt=""
-            onLoad={() => setPreviewError(EMPTY_CANVAS_MEDIA_LOAD_STATE)}
-            onError={() => setPreviewError({ mediaId: activeItem.id, message: 'Preview could not load this image or SVG.' })}
-          />
-        )}
-        {previewErrorActive && <span className="rv-canvas-media-load-warning">{previewError.message}</span>}
-      </div>
-      <div className="rv-canvas-active-preview__name" title={activeItem.name}>{activeItem.name}</div>
-    </div>
-  )
-}
-
 function CanvasLegacySessionMedia({ compact = false }: { compact?: boolean }) {
   const mediaItems = useReactStore(s => s.canvasMediaItems)
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
@@ -295,7 +232,7 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
         activeMediaId={activeCanvasMediaId}
         onSelect={id => selectCanvasMediaItem(id)}
         context="canvas"
-        title="CANVAS Media Library"
+        title="Media Library"
         capabilities={CANVAS_MEDIA_LIBRARY_CAPABILITIES}
         getDisabledReason={getCanvasLibraryDisabledReason}
       />
@@ -2208,9 +2145,6 @@ function CanvasPresetControls() {
         <span className="rv-ctrl-label">{selectedPreset.name}{customized ? ' · Customized' : ''}</span>
         <button type="button" className="rv-reset-btn" onClick={resetCanvasPresetSettings}>Reset Recipe</button>
       </div>
-      <div className="rv-ctrl-info">
-        Presets now load full CANVAS recipes. These parameters stay live so you can reshape the look without changing media.
-      </div>
       {canvasPresetSettings.particleDensity > 0.02 && !activeItem && (
         <div className="rv-canvas-engine-note rv-canvas-engine-note--warning">
           Particles need an active CANVAS library media item before they can sample pixels and emit from the source.
@@ -2221,11 +2155,6 @@ function CanvasPresetControls() {
           {group.controls.map(renderControl)}
         </Collapsible>
       ))}
-      {canvasPresetOverride?.source === 'manual' && (
-        <div className="rv-canvas-engine-note">
-          {customized ? 'Customized look active.' : 'Manual preset override active.'} Clear it under Auto Select to let CANVAS choose recipes again.
-        </div>
-      )}
       {canvasPresetOverride?.source === 'auto' && (
         <div className="rv-canvas-engine-note">
           {canvasPresetOverride.label ?? 'Auto-selected preset'}.
@@ -2244,13 +2173,7 @@ export function CanvasEnginePanel() {
   return (
     <>
       <CtrlSection label="CANVAS" />
-      <div className="rv-canvas-engine-panel rv-canvas-source-panel">
-        <div className="rv-canvas-panel-title">CANVAS Source</div>
-        <div className="rv-canvas-panel-copy">{CANVAS_DESCRIPTION}</div>
-        <div className="rv-canvas-panel-copy">{CANVAS_MEDIA_COPY}</div>
-        <div className="rv-canvas-engine-note">{CANVAS_LIBRARY_HELPER_COPY}</div>
-        <CanvasMediaTokens />
-        <CanvasActivePreview />
+      <div className="rv-canvas-engine-panel">
         <CanvasMediaLibrary compact />
         <div className="rv-canvas-panel-status">
           <span>Saved media</span>

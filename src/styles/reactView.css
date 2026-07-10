@@ -4246,7 +4246,7 @@
 .rv-ctrl-description { display: block; margin-top: 3px; color: rgba(232,244,248,.38); font-size: 8px; line-height: 1.35; }
 .rv-ctrl-slider:disabled { opacity: .35; cursor: not-allowed; }
 .rv-preset-chip-row { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 6px; }
-.rv-preset-modified-chip { display: inline-flex; padding: 2px 5px; border-radius: 999px; border: 1px solid rgba(216,185,90,.35); background: rgba(216,185,90,.09); color: #e8cd77; font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.rv-preset-modified-chip { display: inline-block; padding: 1px 5px; border-radius: 3px; border: 1px solid rgba(216,185,90,.35); background: rgba(216,185,90,.09); color: #e8cd77; font-size: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rv-cinematic-current-world { margin: 0 8px 8px; padding: 7px 8px; border-radius: 5px; background: rgba(74,199,219,.07); color: rgba(232,244,248,.58); font-size: 9px; }
 .rv-cinematic-current-world strong { color: #e8f4f8; }
 .rv-cinematic-preset-taxonomy { display: flex; flex-direction: column; gap: 10px; padding: 7px; }
@@ -6284,7 +6284,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 10px;
   min-width: 0;
 }
@@ -9567,116 +9567,6 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-.rv-canvas-active-preview {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  border: 1px solid rgba(74, 199, 219, 0.12);
-  border-radius: 14px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.025);
-}
-
-.rv-canvas-active-preview--empty {
-  align-items: center;
-  justify-content: center;
-  min-height: 150px;
-  text-align: center;
-  border-style: dashed;
-  background:
-    linear-gradient(135deg, rgba(74, 199, 219, 0.045), rgba(97, 214, 170, 0.035)),
-    rgba(255, 255, 255, 0.018);
-}
-
-.rv-canvas-active-preview__eyebrow,
-.rv-canvas-active-preview__header span {
-  color: rgba(97, 214, 170, 0.72);
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.rv-canvas-active-preview__title {
-  color: rgba(232, 244, 248, 0.86);
-  font-size: 18px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-}
-
-.rv-canvas-active-preview__copy {
-  max-width: 360px;
-  color: rgba(232, 244, 248, 0.48);
-  font-size: 11px;
-  line-height: 1.45;
-}
-
-.rv-canvas-active-preview__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.rv-canvas-active-preview__header strong {
-  border: 1px solid rgba(74, 199, 219, 0.16);
-  border-radius: 999px;
-  padding: 3px 7px;
-  background: rgba(74, 199, 219, 0.05);
-  color: rgba(232, 244, 248, 0.6);
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.rv-canvas-active-preview__frame {
-  position: relative;
-  display: grid;
-  place-items: center;
-  min-height: 190px;
-  overflow: hidden;
-  border-radius: 10px;
-  background:
-    linear-gradient(135deg, rgba(74, 199, 219, 0.055), rgba(255, 255, 255, 0.018)),
-    rgba(0, 0, 0, 0.28);
-}
-
-.rv-canvas-active-preview__frame img,
-.rv-canvas-active-preview__frame video {
-  width: 100%;
-  max-height: 340px;
-  object-fit: contain;
-  display: block;
-}
-
-.rv-canvas-media-load-warning {
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  left: 10px;
-  border: 1px solid rgba(255, 116, 116, 0.22);
-  border-radius: 8px;
-  padding: 7px 8px;
-  background: rgba(24, 6, 8, 0.78);
-  color: rgba(255, 184, 184, 0.9);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  line-height: 1.35;
-  text-align: left;
-  backdrop-filter: blur(10px);
-}
-
-.rv-canvas-active-preview__name {
-  overflow: hidden;
-  color: rgba(232, 244, 248, 0.72);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .rv-canvas-library-shell {

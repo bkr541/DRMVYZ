@@ -41,13 +41,12 @@ export const MEDIA_MANAGER_CAPABILITIES = [
 ] as const satisfies readonly MediaLibraryCapability[]
 
 
-/** CANVAS selects and imports saved visual media through the shared library.
- * It intentionally does not expose destructive management controls. */
+/** CANVAS selects saved visual media through the shared library.
+ * Uploading and all management actions remain exclusive to Media Manager. */
 export const CANVAS_MEDIA_LIBRARY_CAPABILITIES = [
   'select',
   'preview',
   'favorite',
-  'upload',
   'collections',
   'drag-media',
 ] as const satisfies readonly MediaLibraryCapability[]

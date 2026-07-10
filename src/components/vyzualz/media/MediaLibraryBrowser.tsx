@@ -868,7 +868,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
       >
         <div className="vz-panel-header">
           <Layers01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
-          <span className="vz-panel-title">{title}</span>
+          <span className={`vz-panel-title${isCanvasMode ? ' vz-panel-title--nowrap' : ''}`} title={title}>{title}</span>
           {isManager && canBrowseCollections && (
             <button type="button" className="vz-import-btn vz-import-btn--secondary" onClick={() => { setEditCollection(undefined); setCollectionEditorOpen(true) }}>New Collection</button>
           )}
@@ -966,7 +966,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
               </div>
             ) : (
               <PerformanceDeckEmptyState
-                message={searchActive ? `No media matches "${searchQuery}"` : isCanvasMode ? 'No saved media available. Add media to your library.' : 'No media available. Add files from Media Manager.'}
+                message={searchActive ? `No media matches "${searchQuery}"` : isCanvasMode ? 'No saved media available. Add files from Media Manager.' : 'No media available. Add files from Media Manager.'}
                 onOpenMediaManager={searchActive || isCanvasMode ? undefined : onOpenMediaManager}
               />
             )

@@ -530,6 +530,13 @@
   flex: 1;
 }
 
+.vz-panel-title--nowrap {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Media Deck ──────────────────────────────────────────────────────── */
 .vz-import-btn {
   display: flex;
