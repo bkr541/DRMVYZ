@@ -2,15 +2,15 @@
  * Focused migration tests for the version-19 Legacy Shader Pads removal.
  *
  * Covers:
- *   - Each of the 5 removed preset IDs falls back to Dream Gate
- *   - shaderPads engine with null / unknown preset falls back to Dream Gate
+ *   - Each of the 5 removed preset IDs falls back to Singularity Crown
+ *   - shaderPads engine with null / unknown preset falls back to Singularity Crown
  *   - Valid non-Shader preset with stale shaderPads engine is repaired
  *   - Valid Sound Drawing / LaserDMX / Cinematic Portal states are untouched
  *   - Historical Neon Lattice selections and settings are retired by the latest migration
  *   - All unrelated state fields survive migration unchanged
  *   - Version 19 is idempotent (no second-pass changes)
- *   - resetReactView() lands on Dream Gate / cinematicPortal
- *   - Fallback invariant: preset-dream-gate exists in DEFAULT_REACT_PRESETS with engine cinematicPortal
+ *   - resetReactView() lands on Singularity Crown / cinematicPortal
+ *   - Fallback invariant: preset-singularity-crown exists in DEFAULT_REACT_PRESETS with engine cinematicPortal
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'
@@ -36,8 +36,8 @@ beforeEach(() => {
 // ── Fallback invariant ────────────────────────────────────────────────────────
 
 describe('fallback invariant', () => {
-  it('DEFAULT_REACT_PRESETS contains exactly one preset-dream-gate with engine cinematicPortal', () => {
-    const matches = DEFAULT_REACT_PRESETS.filter(p => p.id === 'preset-dream-gate')
+  it('DEFAULT_REACT_PRESETS contains exactly one preset-singularity-crown with engine cinematicPortal', () => {
+    const matches = DEFAULT_REACT_PRESETS.filter(p => p.id === 'preset-singularity-crown')
     expect(matches).toHaveLength(1)
     expect(matches[0].engine).toBe('cinematicPortal')
   })
@@ -45,7 +45,7 @@ describe('fallback invariant', () => {
 
 // ── Legacy preset migration ───────────────────────────────────────────────────
 
-describe('legacy preset migration — each removed ID falls back to Dream Gate', () => {
+describe('legacy preset migration — each removed ID falls back to Singularity Crown', () => {
   const LEGACY_IDS = [
     'preset-neon-energy-cloud',
     'preset-lava-tunnel',
@@ -55,13 +55,13 @@ describe('legacy preset migration — each removed ID falls back to Dream Gate',
   ]
 
   it.each(LEGACY_IDS)(
-    'version-18 state with activeReactPresetId=%s → preset-dream-gate / cinematicPortal',
+    'version-18 state with activeReactPresetId=%s → preset-singularity-crown / cinematicPortal',
     (legacyId) => {
       const result = migrate18({
         activeReactPresetId: legacyId,
         activeReactEngineId: 'shaderPads',
       })
-      expect(result.activeReactPresetId).toBe('preset-dream-gate')
+      expect(result.activeReactPresetId).toBe('preset-singularity-crown')
       expect(result.activeReactEngineId).toBe('cinematicPortal')
     },
   )
@@ -69,22 +69,22 @@ describe('legacy preset migration — each removed ID falls back to Dream Gate',
 
 // ── Legacy engine without valid preset ───────────────────────────────────────
 
-describe('legacy engine without valid preset → Dream Gate fallback', () => {
-  it('shaderPads engine with null activeReactPresetId falls back to Dream Gate', () => {
+describe('legacy engine without valid preset → Singularity Crown fallback', () => {
+  it('shaderPads engine with null activeReactPresetId falls back to Singularity Crown', () => {
     const result = migrate18({
       activeReactPresetId: null,
       activeReactEngineId: 'shaderPads',
     })
-    expect(result.activeReactPresetId).toBe('preset-dream-gate')
+    expect(result.activeReactPresetId).toBe('preset-singularity-crown')
     expect(result.activeReactEngineId).toBe('cinematicPortal')
   })
 
-  it('shaderPads engine with unknown preset ID falls back to Dream Gate', () => {
+  it('shaderPads engine with unknown preset ID falls back to Singularity Crown', () => {
     const result = migrate18({
       activeReactPresetId: 'unknown-preset',
       activeReactEngineId: 'shaderPads',
     })
-    expect(result.activeReactPresetId).toBe('preset-dream-gate')
+    expect(result.activeReactPresetId).toBe('preset-singularity-crown')
     expect(result.activeReactEngineId).toBe('cinematicPortal')
   })
 })
@@ -137,16 +137,16 @@ describe('valid non-Shader state is not modified', () => {
       activeReactPresetId: 'preset-nl-acid-magenta',
       activeReactEngineId: 'neonLattice',
     })
-    expect(result.activeReactPresetId).toBe('preset-dream-gate')
+    expect(result.activeReactPresetId).toBe('preset-singularity-crown')
     expect(result.activeReactEngineId).toBe('cinematicPortal')
   })
 
   it('Cinematic Portal state is preserved', () => {
     const result = migrate18({
-      activeReactPresetId: 'preset-dream-gate',
+      activeReactPresetId: 'preset-singularity-crown',
       activeReactEngineId: 'cinematicPortal',
     })
-    expect(result.activeReactPresetId).toBe('preset-dream-gate')
+    expect(result.activeReactPresetId).toBe('preset-singularity-crown')
     expect(result.activeReactEngineId).toBe('cinematicPortal')
   })
 })
@@ -182,7 +182,7 @@ describe('unrelated state fields survive migration unchanged', () => {
       bloom: 0.77,
     }
     const presetAutomationCuesByTrackId = {
-      'track-1': [{ id: 'cue-1', timeSec: 12, presetId: 'preset-dream-gate', label: 'Intro', enabled: true, transitionMs: 500 }],
+      'track-1': [{ id: 'cue-1', timeSec: 12, presetId: 'preset-singularity-crown', label: 'Intro', enabled: true, transitionMs: 500 }],
     }
     const futureField = { custom: 'value', count: 42 }
 
@@ -202,7 +202,7 @@ describe('unrelated state fields survive migration unchanged', () => {
     const result = migrate18(input)
 
     // Active IDs must be migrated
-    expect(result.activeReactPresetId).toBe('preset-dream-gate')
+    expect(result.activeReactPresetId).toBe('preset-singularity-crown')
     expect(result.activeReactEngineId).toBe('cinematicPortal')
 
     // Unrelated values are preserved while Patch 8 adds safe lyric-source defaults.
@@ -247,9 +247,9 @@ describe('version 20 selection normalization', () => {
 // ── Reset behavior ────────────────────────────────────────────────────────────
 
 describe('resetReactView', () => {
-  it('lands on preset-dream-gate / cinematicPortal after reset', () => {
+  it('lands on preset-singularity-crown / cinematicPortal after reset', () => {
     const { activeReactPresetId, activeReactEngineId } = useReactStore.getState()
-    expect(activeReactPresetId).toBe('preset-dream-gate')
+    expect(activeReactPresetId).toBe('preset-singularity-crown')
     expect(activeReactEngineId).toBe('cinematicPortal')
   })
 })

@@ -5,7 +5,6 @@ import {
   LASER_LATTICE_OVERDRIVE,
   REACTOR,
   WOBBLE_GLYPH_FORGE,
-  DREAMSTATE_MYCELIUM,
   MELODIC_RIFT_BLOOM,
   RIDDIM_RAILGUN_SEQUENCER,
 } from '../../scenes'
@@ -15,7 +14,6 @@ const PACK = [
   LASER_LATTICE_OVERDRIVE,
   REACTOR,
   WOBBLE_GLYPH_FORGE,
-  DREAMSTATE_MYCELIUM,
   MELODIC_RIFT_BLOOM,
   RIDDIM_RAILGUN_SEQUENCER,
 ]
@@ -25,13 +23,12 @@ function allFragmentSource(scene: (typeof PACK)[number]): string {
 }
 
 describe('bass-reactor shader pack', () => {
-  it('ships seven stable, distinct, valid production scenes', () => {
+  it('ships six stable, distinct, valid production scenes', () => {
     expect(PACK.map(scene => scene.id)).toEqual([
       'shader-bass-cathedral',
       'shader-laser-lattice-overdrive',
       'shader-reactor',
       'shader-wobble-glyph-forge',
-      'shader-dreamstate-mycelium',
       'shader-melodic-rift-bloom',
       'shader-riddim-railgun-sequencer',
     ])
@@ -73,7 +70,6 @@ describe('bass-reactor shader pack', () => {
     const feedbackScenes = PACK.filter(scene => scene.quality?.requiresPersistentBuffers)
     expect(feedbackScenes.map(scene => scene.id)).toEqual([
       'shader-reactor',
-      'shader-dreamstate-mycelium',
     ])
     for (const scene of feedbackScenes) {
       expect(scene.feedback?.pingPongBuffers).toBe(1)

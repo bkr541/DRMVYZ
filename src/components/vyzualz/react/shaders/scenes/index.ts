@@ -1,14 +1,12 @@
 export { PRISM_TUNNEL } from './prismTunnel'
 export { LIQUID_METABALLS } from './liquidMetaballs'
 export { FEEDBACK_KALEIDOSCOPE } from './feedbackKaleidoscope'
-export { SPECTRUM_CATHEDRAL } from './spectrumCathedral'
 export { BRAND_ECHO_SIGNAL } from './brandEchoSignal'
 export { SEMANTIC_DROP_REACTOR } from './semanticDropReactor'
 export { BASS_CATHEDRAL } from './bassCathedral'
 export { LASER_LATTICE_OVERDRIVE } from './laserLatticeOverdrive'
 export { TRAP_SHRAPNEL_REACTOR } from './trapShrapnelReactor'
 export { WOBBLE_GLYPH_FORGE } from './wobbleGlyphForge'
-export { DREAMSTATE_MYCELIUM } from './dreamstateMycelium'
 export { MELODIC_RIFT_BLOOM } from './melodicRiftBloom'
 export { RIDDIM_RAILGUN_SEQUENCER } from './riddimRailgunSequencer'
 export { BRAND_SINGULARITY } from './brandSingularity'
@@ -22,12 +20,10 @@ export * from './reactorMigration'
 import { PRISM_TUNNEL } from './prismTunnel'
 import { LIQUID_METABALLS } from './liquidMetaballs'
 import { FEEDBACK_KALEIDOSCOPE } from './feedbackKaleidoscope'
-import { SPECTRUM_CATHEDRAL } from './spectrumCathedral'
 import { BRAND_ECHO_SIGNAL } from './brandEchoSignal'
 import { BASS_CATHEDRAL } from './bassCathedral'
 import { LASER_LATTICE_OVERDRIVE } from './laserLatticeOverdrive'
 import { WOBBLE_GLYPH_FORGE } from './wobbleGlyphForge'
-import { DREAMSTATE_MYCELIUM } from './dreamstateMycelium'
 import { MELODIC_RIFT_BLOOM } from './melodicRiftBloom'
 import { RIDDIM_RAILGUN_SEQUENCER } from './riddimRailgunSequencer'
 import { REACTOR } from './reactor'
@@ -37,13 +33,11 @@ export const PRODUCTION_SCENES: ShaderDefinition[] = [
   PRISM_TUNNEL,
   LIQUID_METABALLS,
   FEEDBACK_KALEIDOSCOPE,
-  SPECTRUM_CATHEDRAL,
   BRAND_ECHO_SIGNAL,
   REACTOR,
   BASS_CATHEDRAL,
   LASER_LATTICE_OVERDRIVE,
   WOBBLE_GLYPH_FORGE,
-  DREAMSTATE_MYCELIUM,
   MELODIC_RIFT_BLOOM,
   RIDDIM_RAILGUN_SEQUENCER,
 ]

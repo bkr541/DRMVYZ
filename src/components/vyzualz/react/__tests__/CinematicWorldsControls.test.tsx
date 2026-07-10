@@ -188,15 +188,15 @@ describe('Cinematic Worlds FX and media controls', () => {
   })
 
   it('reveals environment, material and world-specific values only in advanced mode', async () => {
-    useReactStore.getState().selectReactPreset(presetFor('liquidMembrane').id)
+    useReactStore.getState().selectReactPreset(presetFor('eventHorizon').id)
     await render(<ReactFxPanel />)
     expect(container.querySelector('#cinematic-environment-depth')).toBeNull()
-    expect(container.querySelector('#cinematic-world-setting-viscosity')).toBeNull()
+    expect(container.querySelector('#cinematic-world-setting-coreRadius')).toBeNull()
 
     await act(async () => buttonWithText('Advanced').click())
     expect(container.querySelector('#cinematic-environment-depth')).not.toBeNull()
     expect(container.querySelector('#cinematic-material-refraction')).not.toBeNull()
-    expect(container.querySelector('#cinematic-world-setting-viscosity')).not.toBeNull()
+    expect(container.querySelector('#cinematic-world-setting-coreRadius')).not.toBeNull()
   })
 
   it('exposes six responsive, focusable simple-mode macros and keeps low-level controls in advanced mode', async () => {
@@ -281,7 +281,11 @@ describe('Cinematic Worlds preset semantics', () => {
     useReactStore.getState().setCinematicConfigForPreset(preset.id, { ...base, seed: base.seed + 1 })
     await render(<ReactPresetsPanel />)
 
-    expect(container.querySelectorAll('[id^="cinematic-world-group-"]')).toHaveLength(11)
+    const visibleGroups = getCinematicWorldPresetGroups(useReactStore.getState().reactPresets)
+    expect(container.querySelectorAll('[id^="cinematic-world-group-"]')).toHaveLength(visibleGroups.length)
+    expect(visibleGroups.map(group => group.world.id)).not.toEqual(expect.arrayContaining([
+      'legacyPortal', 'monolithGate', 'liquidMembrane', 'celestialCathedral',
+    ]))
     const selectedWorld = container.querySelector('#cinematic-world-group-ancientMachine') as HTMLButtonElement
     expect(selectedWorld.getAttribute('aria-checked')).toBe('true')
     expect(selectedWorld.classList.contains('is-active')).toBe(true)

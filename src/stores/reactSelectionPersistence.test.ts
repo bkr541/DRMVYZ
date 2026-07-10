@@ -41,7 +41,7 @@ describe('repairReactEnginePresetSelection', () => {
 
   it('retires a stale Neon engine selection to the explicit startup pair', () => {
     expect(repairReactEnginePresetSelection('removed-preset', 'neonLattice' as never)).toEqual({
-      activeReactPresetId: 'preset-dream-gate',
+      activeReactPresetId: 'preset-singularity-crown',
       activeReactEngineId: 'cinematicPortal',
     })
   })
@@ -64,7 +64,7 @@ describe('repairReactEnginePresetSelection', () => {
 
   it('falls back to the explicit startup pair when both values are invalid', () => {
     expect(repairReactEnginePresetSelection('removed-preset', 'removed-engine')).toEqual({
-      activeReactPresetId: 'preset-dream-gate',
+      activeReactPresetId: 'preset-singularity-crown',
       activeReactEngineId: 'cinematicPortal',
     })
   })
@@ -93,7 +93,7 @@ describe('React selection persistence invariant', () => {
 
     const persisted = reactStorePartialize(useReactStore.getState())
     expect(persisted.activeReactEngineId).toBe('cinematicPortal')
-    expect(persisted.activeReactPresetId).toBe('preset-dream-gate')
+    expect(persisted.activeReactPresetId).toBe('preset-singularity-crown')
   })
 
   it('compatibility engine setter routes through the invariant-preserving selector', () => {

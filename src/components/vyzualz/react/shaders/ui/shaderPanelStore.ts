@@ -9,6 +9,7 @@ import type {
   TextureInputValidation,
 } from '../textures/shaderTextureInputTypes'
 import { shaderRegistry } from '../registry'
+import { DEFAULT_SHADER_SCENE_ID } from '../scenes'
 import type { ShaderCompileStatus } from '../editor/ShaderCompilePanel'
 import type { PerformanceMetrics } from '../performance/shaderPerformanceTypes'
 import type { QualityTier } from '../registry/shaderRegistryTypes'
@@ -113,6 +114,26 @@ export interface ShaderPanelState {
 
 const IDLE_COMPILE_STATUS: ShaderCompileStatus = { state: 'idle' }
 
+export const RETIRED_SHADER_SCENE_IDS = new Set<string>([
+  'shader-spectrum-cathedral',
+  'shader-dreamstate-mycelium',
+])
+
+export function migrateRetiredShaderSceneId(id: string | null): string | null {
+  return id && RETIRED_SHADER_SCENE_IDS.has(id) ? DEFAULT_SHADER_SCENE_ID : id
+}
+
+function normalizeShaderSceneId(id: string | null): string | null {
+  return migrateRetiredShaderSceneId(migrateLegacyReactorSceneId(id))
+}
+
+function removeRetiredShaderRecords<T>(value: Record<string, T> | undefined): Record<string, T> {
+  if (!value) return {}
+  return Object.fromEntries(
+    Object.entries(value).filter(([shaderId]) => !RETIRED_SHADER_SCENE_IDS.has(shaderId)),
+  )
+}
+
 export interface ShaderPanelPersistedState {
   activeShaderId: string | null
   paramValuesByShaderId: Record<string, ShaderParamValues>
@@ -140,10 +161,12 @@ function serializableTextureSelections(
 
 export function shaderPanelPartialize(state: ShaderPanelState): ShaderPanelPersistedState {
   return {
-    activeShaderId:              state.activeShaderId,
-    paramValuesByShaderId:       state.paramValuesByShaderId,
-    routesByShaderId:            state.routesByShaderId,
-    textureSelectionsByShaderId: serializableTextureSelections(state.textureSelectionsByShaderId),
+    activeShaderId:              normalizeShaderSceneId(state.activeShaderId),
+    paramValuesByShaderId:       removeRetiredShaderRecords(state.paramValuesByShaderId),
+    routesByShaderId:            removeRetiredShaderRecords(state.routesByShaderId),
+    textureSelectionsByShaderId: removeRetiredShaderRecords(
+      serializableTextureSelections(state.textureSelectionsByShaderId),
+    ),
   }
 }
 
@@ -154,10 +177,12 @@ export function migrateShaderPanelPersistedState(
   const persistedActiveShaderId = typeof persisted.activeShaderId === 'string'
     ? persisted.activeShaderId
     : null
-  const activeShaderId = migrateLegacyReactorSceneId(persistedActiveShaderId)
-  const paramValuesByShaderId = migrateLegacyReactorParamValueMap(persisted.paramValuesByShaderId)
-  const textureSelectionsByShaderId = migrateLegacyReactorTextureSelections(
-    persisted.textureSelectionsByShaderId,
+  const activeShaderId = normalizeShaderSceneId(persistedActiveShaderId)
+  const paramValuesByShaderId = removeRetiredShaderRecords(
+    migrateLegacyReactorParamValueMap(persisted.paramValuesByShaderId),
+  )
+  const textureSelectionsByShaderId = removeRetiredShaderRecords(
+    migrateLegacyReactorTextureSelections(persisted.textureSelectionsByShaderId),
   )
 
   if (persistedActiveShaderId && getLegacyReactorRecipe(persistedActiveShaderId)) {
@@ -178,7 +203,7 @@ export function migrateShaderPanelPersistedState(
     ...persisted,
     activeShaderId,
     paramValuesByShaderId,
-    routesByShaderId: migrateLegacyReactorRoutes(persisted.routesByShaderId),
+    routesByShaderId: removeRetiredShaderRecords(migrateLegacyReactorRoutes(persisted.routesByShaderId)),
     textureSelectionsByShaderId,
   }
 }
@@ -233,7 +258,7 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
 
   setActiveShaderId: (id) => {
     const legacyRecipe = getLegacyReactorRecipe(id)
-    const migratedId = migrateLegacyReactorSceneId(id)
+    const migratedId = normalizeShaderSceneId(id)
     const def = migratedId ? shaderRegistry.get(migratedId) : null
     const prev = get()
     // Preserve previously edited param values for normal scene activation. A legacy
@@ -312,14 +337,14 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
   },
 
   setRoutesForShader: (shaderId, routes) => {
-    const targetShaderId = migrateLegacyReactorSceneId(shaderId) ?? shaderId
+    const targetShaderId = normalizeShaderSceneId(shaderId) ?? shaderId
     set(s => ({
       routesByShaderId: { ...s.routesByShaderId, [targetShaderId]: routes },
     }))
   },
 
   addRoute: (shaderId, route) => {
-    const targetShaderId = migrateLegacyReactorSceneId(shaderId) ?? shaderId
+    const targetShaderId = normalizeShaderSceneId(shaderId) ?? shaderId
     set(s => ({
       routesByShaderId: {
         ...s.routesByShaderId,
@@ -329,7 +354,7 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
   },
 
   updateRoute: (shaderId, routeId, patch) => {
-    const targetShaderId = migrateLegacyReactorSceneId(shaderId) ?? shaderId
+    const targetShaderId = normalizeShaderSceneId(shaderId) ?? shaderId
     set(s => ({
       routesByShaderId: {
         ...s.routesByShaderId,
@@ -341,7 +366,7 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
   },
 
   removeRoute: (shaderId, routeId) => {
-    const targetShaderId = migrateLegacyReactorSceneId(shaderId) ?? shaderId
+    const targetShaderId = normalizeShaderSceneId(shaderId) ?? shaderId
     set(s => ({
       routesByShaderId: {
         ...s.routesByShaderId,
@@ -357,7 +382,7 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
   setEffectiveQualityTier: (tier)    => set({ effectiveQualityTier: tier }),
 
   setTextureSelection: (shaderId, inputName, sel) => {
-    const targetShaderId = migrateLegacyReactorSceneId(shaderId) ?? shaderId
+    const targetShaderId = normalizeShaderSceneId(shaderId) ?? shaderId
     set(s => ({
       textureSelectionsByShaderId: {
         ...s.textureSelectionsByShaderId,
@@ -370,7 +395,7 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
   },
 
   clearTextureSelection: (shaderId, inputName) => {
-    const targetShaderId = migrateLegacyReactorSceneId(shaderId) ?? shaderId
+    const targetShaderId = normalizeShaderSceneId(shaderId) ?? shaderId
     set(s => {
       const current = { ...(s.textureSelectionsByShaderId[targetShaderId] ?? {}) }
       delete current[inputName]
@@ -384,7 +409,7 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
   },
 
   setTextureValidation: (shaderId, results) => {
-    const targetShaderId = migrateLegacyReactorSceneId(shaderId) ?? shaderId
+    const targetShaderId = normalizeShaderSceneId(shaderId) ?? shaderId
     set(s => ({
       textureValidationByShaderId: {
         ...s.textureValidationByShaderId,
@@ -427,7 +452,7 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
   },
 
   requestRecompile: (sceneId) => set({
-    pendingRecompileSceneId: migrateLegacyReactorSceneId(sceneId) ?? sceneId,
+    pendingRecompileSceneId: normalizeShaderSceneId(sceneId) ?? sceneId,
   }),
 
   consumePendingRecompile: () => {
@@ -439,7 +464,7 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
   setPassInfo: (info) => set({ passInfo: info }),
   }), {
     name: 'drmvyz:shader-panel',
-    version: 2,
+    version: 3,
     storage: createJSONStorage(() => localStorage),
     partialize: shaderPanelPartialize,
     migrate: persistedState => migrateShaderPanelPersistedState(persistedState),
@@ -453,6 +478,6 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
 
 export function getActiveRoutes(shaderId: string | null): ShaderModulationRoute[] {
   if (!shaderId) return []
-  const targetShaderId = migrateLegacyReactorSceneId(shaderId) ?? shaderId
+  const targetShaderId = normalizeShaderSceneId(shaderId) ?? shaderId
   return useShaderPanelStore.getState().routesByShaderId[targetShaderId] ?? []
 }

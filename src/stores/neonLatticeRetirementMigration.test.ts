@@ -170,7 +170,7 @@ describe('Neon Lattice persisted-data retirement', () => {
   it('migrates an active Neon project to the authoritative safe startup pair', () => {
     const migrated = migrateReactStore(makeMigrationFixture(), 36)
     expect(migrated.activeReactEngineId).toBe('cinematicPortal')
-    expect(migrated.activeReactPresetId).toBe('preset-dream-gate')
+    expect(migrated.activeReactPresetId).toBe('preset-singularity-crown')
   })
 
   it('removes built-in and custom Neon presets while preserving non-Neon custom presets', () => {
@@ -244,7 +244,7 @@ describe('Neon Lattice persisted-data retirement', () => {
       neonLatticePreviewState: { lane: 3 },
     }
     const sanitized = migrateReactStore(imported, 37)
-    expect(sanitized.activeReactPresetId).toBe('preset-dream-gate')
+    expect(sanitized.activeReactPresetId).toBe('preset-singularity-crown')
     expect(sanitized).not.toHaveProperty('neonLatticePreviewState')
     expect(sanitized).not.toHaveProperty('neonLatticeSettings')
   })
@@ -295,7 +295,7 @@ describe('Neon Lattice persisted-data retirement', () => {
 
     const sanitized = migrateReactStore(fixture, 37)
     expect(sanitized.activeReactEngineId).toBe('cinematicPortal')
-    expect(sanitized.activeReactPresetId).toBe('preset-dream-gate')
+    expect(sanitized.activeReactPresetId).toBe('preset-singularity-crown')
     expect((sanitized.reactPresets as ReactPreset[]).map(preset => preset.id)).toEqual([safePreset.id])
     expect((sanitized.performancePads as Array<Record<string, unknown>>)[0]).toMatchObject({ presetId: null, actionId: null, visualAction: null })
     expect((sanitized.presetAutomationCuesByTrackId as Record<string, Array<Record<string, unknown>>>).trackA)
@@ -337,6 +337,6 @@ describe('Neon Lattice persisted-data retirement', () => {
       expect(serialized).not.toContain(presetId)
     }
     expect(persistedTwice.activeReactEngineId).toBe('cinematicPortal')
-    expect(persistedTwice.activeReactPresetId).toBe('preset-dream-gate')
+    expect(persistedTwice.activeReactPresetId).toBe('preset-singularity-crown')
   })
 })

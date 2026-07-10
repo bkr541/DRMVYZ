@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_MI_FRAME } from '../../../../../features/musicIntelligence/constants'
-import { createDefaultCinematicWorldConfig } from '../../CinematicWorldConfig'
-import { DEFAULT_REACT_PRESETS } from '../../ReactTypes'
+import {
+  createCinematicWorldConfig,
+  createDefaultCinematicWorldConfig,
+  createLegacyPortalCinematicConfig,
+  type CinematicWorldMode,
+} from '../../CinematicWorldConfig'
+import { DEFAULT_REACT_PRESETS, type ReactPreset } from '../../ReactTypes'
 import {
   CINEMATIC_DIAGNOSTIC_WORLD_ID,
   CinematicWorldRendererHost,
@@ -111,12 +116,29 @@ function makeContext(): CanvasRenderingContext2D {
   } as unknown as CanvasRenderingContext2D
 }
 
-function makeInput(presetId = 'preset-dream-gate'): CinematicFrameContext {
-  const preset = {
-    ...DEFAULT_REACT_PRESETS.find(item => item.id === 'preset-dream-gate')!,
-    id: presetId,
+const LIVE_CINEMATIC_PRESET = DEFAULT_REACT_PRESETS.find(
+  item => item.id === 'preset-singularity-crown',
+)!
+
+function cinematicPresetFixture(id: string, worldMode: CinematicWorldMode): ReactPreset {
+  return {
+    ...structuredClone(LIVE_CINEMATIC_PRESET),
+    id,
+    name: `Fixture ${worldMode}`,
+    cinematicConfig: worldMode === 'legacyPortal'
+      ? createLegacyPortalCinematicConfig({ intensity: 0.7, fogDensity: 0.4 })
+      : createCinematicWorldConfig(worldMode, {}),
   }
-  const config = createDefaultCinematicWorldConfig()
+}
+
+const LEGACY_PORTAL_FIXTURE = cinematicPresetFixture('fixture-legacy-portal', 'legacyPortal')
+
+function makeInput(presetId = LEGACY_PORTAL_FIXTURE.id): CinematicFrameContext {
+  const preset = DEFAULT_REACT_PRESETS.find(item => item.id === presetId)
+    ?? (presetId === LEGACY_PORTAL_FIXTURE.id
+      ? LEGACY_PORTAL_FIXTURE
+      : { ...LEGACY_PORTAL_FIXTURE, id: presetId })
+  const config = preset.cinematicConfig ?? createDefaultCinematicWorldConfig()
   return {
     elapsedTimeSec: 2,
     deltaTimeSec: 1 / 60,
@@ -147,6 +169,16 @@ function makeInput(presetId = 'preset-dream-gate'): CinematicFrameContext {
     presetId,
     params: DEFAULT_REACT_RENDER_PARAMS,
   }
+}
+
+function makeWorldInput(worldMode: Exclude<CinematicWorldMode, 'legacyPortal'>): CinematicFrameContext {
+  const preset = cinematicPresetFixture(`fixture-${worldMode}`, worldMode)
+  const input = makeInput(preset.id)
+  input.preset = preset
+  input.config = preset.cinematicConfig!
+  input.randomSeed = input.config.seed
+  input.transition = { ...input.transition, toWorld: input.config.worldMode }
+  return input
 }
 
 describe('legacy portal timing', () => {
@@ -217,28 +249,20 @@ describe('CinematicWorldRendererHost', () => {
     for (const definition of cinematicWorldDefinitions) registry.register(definition)
     const runtime = new RecordingWebGLRuntime()
     const host = new CinematicWorldRendererHost(makeContext(), registry, 'legacyPortal', () => runtime)
-    const presetIds = [
-      'preset-singularity-crown',
-      'preset-cathedral-run',
-      'preset-glass-wound',
-      'preset-titan-seal',
-      'preset-placid-veil',
-      'preset-starlit-basilica',
-      'preset-sixfold-chamber',
-      'preset-oracle-lock',
-      'preset-tempest-eye',
-      'preset-crystal-synapse',
+    const worldModes: Array<Exclude<CinematicWorldMode, 'legacyPortal'>> = [
+      'eventHorizon',
+      'infiniteCorridor',
+      'fractureRift',
+      'monolithGate',
+      'liquidMembrane',
+      'celestialCathedral',
+      'mirrorDimension',
+      'ancientMachine',
+      'stormGateway',
+      'reactiveConstellation',
     ]
 
-    for (const presetId of presetIds) {
-      const preset = DEFAULT_REACT_PRESETS.find(item => item.id === presetId)!
-      const input = makeInput(presetId)
-      input.preset = preset
-      input.config = preset.cinematicConfig!
-      input.randomSeed = input.config.seed
-      input.transition = { ...input.transition, toWorld: input.config.worldMode }
-      host.render(input)
-    }
+    for (const worldMode of worldModes) host.render(makeWorldInput(worldMode))
 
     expect(runtime.renders.map(item => item.definition.id)).toEqual([
       'eventHorizon',
@@ -324,12 +348,8 @@ describe('CinematicWorldRendererHost', () => {
     } as unknown as CinematicWebGLServices
 
     for (const definition of cinematicWorldDefinitions) {
-      const preset = DEFAULT_REACT_PRESETS.find(item => item.cinematicConfig?.worldMode === definition.id)!
-      const frame = makeInput(preset.id)
-      frame.preset = preset
-      frame.config = preset.cinematicConfig!
-      frame.randomSeed = frame.config.seed
-      frame.transition = { ...frame.transition, toWorld: frame.config.worldMode }
+      const frame = makeWorldInput(definition.id as Exclude<CinematicWorldMode, 'legacyPortal'>)
+      const preset = frame.preset
       const world = definition.create()
       world.initialize({ services, config: frame.config, presetId: preset.id })
       world.resize({ width: 640, height: 360, dpr: 1 })
@@ -516,21 +536,8 @@ describe('CinematicWorldRendererHost', () => {
       .mockReturnValueOnce(recovered)
     const host = new CinematicWorldRendererHost(makeContext(), registry, 'legacyPortal', factory)
 
-    const failingPreset = DEFAULT_REACT_PRESETS.find(item => item.id === 'preset-placid-veil')!
-    const failingInput = makeInput(failingPreset.id)
-    failingInput.preset = failingPreset
-    failingInput.config = failingPreset.cinematicConfig!
-    failingInput.randomSeed = failingInput.config.seed
-    failingInput.transition = { ...failingInput.transition, toWorld: failingInput.config.worldMode }
-    host.render(failingInput)
-
-    const nextPreset = DEFAULT_REACT_PRESETS.find(item => item.id === 'preset-tempest-eye')!
-    const nextInput = makeInput(nextPreset.id)
-    nextInput.preset = nextPreset
-    nextInput.config = nextPreset.cinematicConfig!
-    nextInput.randomSeed = nextInput.config.seed
-    nextInput.transition = { ...nextInput.transition, toWorld: nextInput.config.worldMode }
-    host.render(nextInput)
+    host.render(makeWorldInput('liquidMembrane'))
+    host.render(makeWorldInput('stormGateway'))
 
     expect(failed.disposed).toBe(1)
     expect(legacy.recorder.rendered).toHaveLength(1)
@@ -559,8 +566,8 @@ describe('CinematicWorldRendererHost', () => {
 
 describe('cinematic frame normalization', () => {
   it('passes one normalized frame with raw audio, beat, section, transition, and deterministic seed', () => {
-    const preset = DEFAULT_REACT_PRESETS.find(item => item.id === 'preset-dream-gate')!
-    const config = createDefaultCinematicWorldConfig()
+    const preset = LEGACY_PORTAL_FIXTURE
+    const config = preset.cinematicConfig!
     const frame = cinematicInputFromReactFrame({
       W: 1920,
       H: 1080,

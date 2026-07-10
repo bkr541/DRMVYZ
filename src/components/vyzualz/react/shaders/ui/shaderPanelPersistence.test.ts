@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_SHADER_SCENE_ID } from '../scenes'
 import {
   mergeShaderPanelState,
+  migrateShaderPanelPersistedState,
   shaderPanelPartialize,
   useShaderPanelStore,
 } from './shaderPanelStore'
@@ -56,4 +57,38 @@ describe('Shader panel persistence', () => {
     expect(merged.evaluationFrame).toBeNull()
     expect(merged.compileError).toBe('runtime-only')
   })
+
+  it.each(['shader-spectrum-cathedral', 'shader-dreamstate-mycelium'])(
+    'retires %s without preserving stale scene records',
+    (retiredId) => {
+      const migrated = migrateShaderPanelPersistedState({
+        activeShaderId: retiredId,
+        paramValuesByShaderId: { [retiredId]: { speed: 0.9 } },
+        routesByShaderId: { [retiredId]: [] },
+        textureSelectionsByShaderId: { [retiredId]: {} },
+      })
+
+      expect(migrated.activeShaderId).toBe(DEFAULT_SHADER_SCENE_ID)
+      expect(migrated.paramValuesByShaderId).toEqual({})
+      expect(migrated.routesByShaderId).toEqual({})
+      expect(migrated.textureSelectionsByShaderId).toEqual({})
+    },
+  )
+
+  it('strips retired scene records before writing current state', () => {
+    const current = useShaderPanelStore.getState()
+    const persisted = shaderPanelPartialize({
+      ...current,
+      activeShaderId: 'shader-spectrum-cathedral',
+      paramValuesByShaderId: { 'shader-spectrum-cathedral': { speed: 0.4 } },
+      routesByShaderId: { 'shader-spectrum-cathedral': [] },
+      textureSelectionsByShaderId: { 'shader-spectrum-cathedral': {} },
+    })
+
+    expect(persisted.activeShaderId).toBe(DEFAULT_SHADER_SCENE_ID)
+    expect(persisted.paramValuesByShaderId).toEqual({})
+    expect(persisted.routesByShaderId).toEqual({})
+    expect(persisted.textureSelectionsByShaderId).toEqual({})
+  })
+
 })

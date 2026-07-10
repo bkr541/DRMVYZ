@@ -121,7 +121,12 @@ describe('Cinematic Worlds authored state serialization', () => {
   })
 
   it('loads old projects without Cinematic Worlds overrides and keeps legacy portal visuals', () => {
-    const legacy = DEFAULT_REACT_PRESETS.find(preset => preset.cinematicConfig?.worldMode === 'legacyPortal')!
+    const legacy = {
+      ...eventHorizon,
+      id: 'preset-legacy-compatibility-fixture',
+      name: 'Legacy Compatibility Fixture',
+      cinematicConfig: undefined,
+    }
     const migrated = migrateReactStore({
       activeReactPresetId: legacy.id,
       activeReactEngineId: 'cinematicPortal',

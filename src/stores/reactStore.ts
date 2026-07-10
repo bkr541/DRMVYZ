@@ -1916,7 +1916,7 @@ function isLivePresetId(presets: readonly ReactPreset[], presetId: string): bool
   return presets.some(preset => preset.id === presetId && isSelectableReactEngineId(preset.engine))
 }
 
-const INITIAL_PRESET_ID = 'preset-dream-gate'
+const INITIAL_PRESET_ID = 'preset-singularity-crown'
 const INITIAL_ENGINE_ID: ReactEngineId = 'cinematicPortal'
 
 // Module-level invariant: verify the explicit startup preset exists and is consistent.
@@ -1945,11 +1945,23 @@ const LEGACY_SHADER_PRESET_IDS = new Set([
   'preset-festival-burst',
 ])
 
-const RETIRED_DUPLICATE_PRESET_REPLACEMENTS = new Map<string, string>([
-  ['preset-crimson-rift', 'preset-dream-gate'],
-  ['preset-emerald-fog', 'preset-dream-gate'],
-  ['preset-portal-overload', 'preset-dream-gate'],
-  ['preset-quiet-ruins', 'preset-dream-gate'],
+const RETIRED_REACT_PRESET_REPLACEMENTS = new Map<string, string>([
+  // Retired Legacy Portal and audited Cinematic Worlds presets fall back to the
+  // first live Cinematic World without keeping their removed definitions alive.
+  ['preset-dream-gate', INITIAL_PRESET_ID],
+  ['preset-crimson-rift', INITIAL_PRESET_ID],
+  ['preset-emerald-fog', INITIAL_PRESET_ID],
+  ['preset-portal-overload', INITIAL_PRESET_ID],
+  ['preset-quiet-ruins', INITIAL_PRESET_ID],
+  ['preset-titan-seal', INITIAL_PRESET_ID],
+  ['preset-sunken-oracle', INITIAL_PRESET_ID],
+  ['preset-ascension-array', INITIAL_PRESET_ID],
+  ['preset-placid-veil', INITIAL_PRESET_ID],
+  ['preset-bass-breach', INITIAL_PRESET_ID],
+  ['preset-prismatic-amnion', INITIAL_PRESET_ID],
+  ['preset-starlit-basilica', INITIAL_PRESET_ID],
+  ['preset-solar-nave', INITIAL_PRESET_ID],
+  ['preset-void-choir', INITIAL_PRESET_ID],
   ['preset-rgb-plane-shift', 'preset-red-club-crossfire'],
   ['preset-ceiling-lattice-overload', 'preset-red-club-crossfire'],
   ['preset-magenta-cyan-festival-fan', 'preset-red-club-crossfire'],
@@ -1957,7 +1969,7 @@ const RETIRED_DUPLICATE_PRESET_REPLACEMENTS = new Map<string, string>([
   ['preset-white-fog-cathedral', 'preset-red-club-crossfire'],
 ])
 
-const RETIRED_DUPLICATE_PRESET_IDS = new Set(RETIRED_DUPLICATE_PRESET_REPLACEMENTS.keys())
+const RETIRED_REACT_PRESET_IDS = new Set(RETIRED_REACT_PRESET_REPLACEMENTS.keys())
 
 /** Historical persisted identifier only. It must never be used as a new catalog entry. */
 export const RETIRED_NEON_LATTICE_ENGINE_ID = 'neonLattice'
@@ -2249,23 +2261,77 @@ export function sanitizeRetiredNeonLatticeReactState(persistedState: unknown): R
   return state
 }
 
-function replaceRetiredDuplicatePresetId(value: unknown): string | null {
+function replaceRetiredReactPresetId(value: unknown): string | null {
   if (typeof value !== 'string') return null
-  return RETIRED_DUPLICATE_PRESET_REPLACEMENTS.get(value) ?? value
+  return RETIRED_REACT_PRESET_REPLACEMENTS.get(value) ?? value
 }
 
-function removeRetiredDuplicatePresets(presets: ReactPreset[]): ReactPreset[] {
-  return presets.filter(preset => !RETIRED_DUPLICATE_PRESET_IDS.has(preset.id))
+function removeRetiredReactPresets(presets: ReactPreset[]): ReactPreset[] {
+  return presets.filter(preset => !RETIRED_REACT_PRESET_IDS.has(preset.id))
 }
 
-function clearRetiredDuplicatePadAssignments(pads: ReactPerformancePad[]): ReactPerformancePad[] {
-  return pads.map(pad => pad.presetId && RETIRED_DUPLICATE_PRESET_IDS.has(pad.presetId)
+function clearRetiredReactPresetPadAssignments(pads: ReactPerformancePad[]): ReactPerformancePad[] {
+  return pads.map(pad => pad.presetId && RETIRED_REACT_PRESET_IDS.has(pad.presetId)
     ? { ...pad, presetId: null, label: 'Empty', color: '#3a4650' }
     : pad)
 }
 
+function removeRetiredPresetAutomationCues(value: unknown): unknown {
+  if (!isRecord(value)) return value
+  return Object.fromEntries(Object.entries(value).map(([trackId, rawCues]) => [
+    trackId,
+    Array.isArray(rawCues)
+      ? rawCues.filter(cue => (
+          !isRecord(cue)
+          || typeof cue.presetId !== 'string'
+          || !RETIRED_REACT_PRESET_IDS.has(cue.presetId)
+        ))
+      : rawCues,
+  ]))
+}
+
+/**
+ * Removes retired built-in preset definitions and every persisted reference
+ * that could otherwise revive them after an upgrade or project import.
+ */
+export function sanitizeRetiredReactPresetState(persistedState: unknown): Record<string, unknown> {
+  const rawState = isRecord(persistedState) ? persistedState : {}
+  const activePresetId = typeof rawState.activeReactPresetId === 'string'
+    ? rawState.activeReactPresetId
+    : null
+  const replacementPresetId = replaceRetiredReactPresetId(activePresetId)
+  const replacementPreset = replacementPresetId && replacementPresetId !== activePresetId
+    ? DEFAULT_REACT_PRESETS.find(preset => preset.id === replacementPresetId) ?? null
+    : null
+
+  return {
+    ...rawState,
+    ...(Array.isArray(rawState.reactPresets)
+      ? { reactPresets: removeRetiredReactPresets(rawState.reactPresets as ReactPreset[]) }
+      : {}),
+    ...(Array.isArray(rawState.performancePads)
+      ? { performancePads: clearRetiredReactPresetPadAssignments(rawState.performancePads as ReactPerformancePad[]) }
+      : {}),
+    ...(rawState.presetAutomationCuesByTrackId !== undefined
+      ? { presetAutomationCuesByTrackId: removeRetiredPresetAutomationCues(rawState.presetAutomationCuesByTrackId) }
+      : {}),
+    ...(rawState.cinematicConfigsByPresetId !== undefined
+      ? { cinematicConfigsByPresetId: removeRetiredPresetRecordEntries(rawState.cinematicConfigsByPresetId, RETIRED_REACT_PRESET_IDS) }
+      : {}),
+    ...(rawState.cinematicSeedLocksByPresetId !== undefined
+      ? { cinematicSeedLocksByPresetId: removeRetiredPresetRecordEntries(rawState.cinematicSeedLocksByPresetId, RETIRED_REACT_PRESET_IDS) }
+      : {}),
+    ...(replacementPreset
+      ? {
+          activeReactPresetId: replacementPreset.id,
+          activeReactEngineId: replacementPreset.engine,
+        }
+      : {}),
+  }
+}
+
 function replaceLockedLaserDmxPresetId(value: unknown): string | null {
-  const presetId = replaceRetiredDuplicatePresetId(value)
+  const presetId = replaceRetiredReactPresetId(value)
   if (presetId == null) return null
   return RETIRED_LASER_DMX_PRESET_IDS.has(presetId)
     ? LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID
@@ -3199,12 +3265,12 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     }
   }
   if (version < 36) {
-    const presets = removeRetiredDuplicatePresets(
+    const presets = removeRetiredReactPresets(
       Array.isArray(state.reactPresets)
         ? state.reactPresets as ReactPreset[]
         : DEFAULT_REACT_PRESETS,
     )
-    const pads = clearRetiredDuplicatePadAssignments(
+    const pads = clearRetiredReactPresetPadAssignments(
       Array.isArray(state.performancePads)
         ? state.performancePads as ReactPerformancePad[]
         : DEFAULT_PERFORMANCE_PADS,
@@ -3243,6 +3309,9 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       laserDmxBeamMatrixAuthoringMode: DEFAULT_LASER_DMX_BEAM_MATRIX_AUTHORING_MODE,
     }
   }
+  if (version < 43) {
+    state = sanitizeRetiredReactPresetState(state)
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -3272,7 +3341,9 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
   }
   // Imported/current-version snapshots do not necessarily pass through a
   // numbered migration, so keep the retirement boundary defensive.
-  return sanitizeRetiredNeonLatticeReactState(state)
+  return sanitizeRetiredReactPresetState(
+    sanitizeRetiredNeonLatticeReactState(state),
+  )
 }
 
 export const MIN_SOUND_DRAWING_CLIP_DURATION_SEC = 0.1
@@ -3446,7 +3517,9 @@ export function reactStorePartialize(s: ReactStoreState) {
     reactFogDensity:      s.reactFogDensity,
     reactParticleDensity: s.reactParticleDensity,
   }
-  return sanitizeRetiredNeonLatticeReactState(persisted) as typeof persisted
+  return sanitizeRetiredReactPresetState(
+    sanitizeRetiredNeonLatticeReactState(persisted),
+  ) as typeof persisted
 }
 
 export type ReactPersistedState = ReturnType<typeof reactStorePartialize>
@@ -3482,19 +3555,21 @@ export function mergeReactStoreState(
   persistedState: unknown,
   currentState: ReactStoreState,
 ): ReactStoreState {
-  const persisted = sanitizeRetiredNeonLatticeReactState(persistedState) as Partial<ReactPersistedState>
+  const persisted = sanitizeRetiredReactPresetState(
+    sanitizeRetiredNeonLatticeReactState(persistedState),
+  ) as Partial<ReactPersistedState>
   const persistedPresets = Array.isArray(persisted.reactPresets)
-    ? removeRetiredDuplicatePresets(persisted.reactPresets)
+    ? removeRetiredReactPresets(persisted.reactPresets)
     : undefined
   const reactPresets = normalizeCinematicPresetCollection(
-    removeRetiredDuplicatePresets(mergeCollectionsById(currentState.reactPresets, persistedPresets)),
+    removeRetiredReactPresets(mergeCollectionsById(currentState.reactPresets, persistedPresets)),
   )
   sanitizeReactPresetFavorites(
     reactPresets
       .filter(preset => !RETIRED_NEON_LATTICE_BUILT_IN_PRESET_IDS.has(preset.id))
       .map(preset => preset.id),
   )
-  const performancePads = normalizeLockedLaserDmxPadAssignments(clearRetiredDuplicatePadAssignments(
+  const performancePads = normalizeLockedLaserDmxPadAssignments(clearRetiredReactPresetPadAssignments(
     mergeCollectionsById(currentState.performancePads, persisted.performancePads),
   ))
   const cinematicConfigsByPresetId = normalizeCinematicConfigOverrides(
@@ -6755,7 +6830,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 42,
+      version: 43,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

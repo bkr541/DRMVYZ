@@ -31,7 +31,7 @@ import type { CinematicFrameContext } from '../renderers/CinematicWorldRenderer'
 import { DEFAULT_REACT_RENDER_PARAMS } from '../renderers/reactRenderUtils'
 
 function makeFrame(config = createDefaultCinematicWorldConfig()): CinematicFrameContext {
-  const preset = DEFAULT_REACT_PRESETS.find(item => item.id === 'preset-dream-gate')!
+  const preset = DEFAULT_REACT_PRESETS.find(item => item.id === 'preset-singularity-crown')!
   return {
     elapsedTimeSec: 1,
     deltaTimeSec: 1 / 60,
@@ -257,7 +257,7 @@ describe('world-specific cinematic configuration', () => {
     expect(high.geometryScale).toBeLessThan(ultra.geometryScale)
   })
 
-  it('keeps Dream Gate as the single legacy Portal preset and preserves compatibility payloads', () => {
+  it('keeps Legacy Portal compatibility data loadable without exposing Legacy Portal presets', () => {
     const legacy = createLegacyPortalCinematicConfig({ intensity: 0.6, fogDensity: 0.3 })
     expect(legacy.worldMode).toBe('legacyPortal')
     expect(legacy.worldSettings).toEqual({ mode: 'legacyPortal', settings: {} })
@@ -266,7 +266,7 @@ describe('world-specific cinematic configuration', () => {
     const legacyPresetIds = DEFAULT_REACT_PRESETS
       .filter(preset => preset.cinematicConfig?.worldMode === 'legacyPortal')
       .map(preset => preset.id)
-    expect(legacyPresetIds).toEqual(['preset-dream-gate'])
+    expect(legacyPresetIds).toEqual([])
   })
 
   it('derives deterministic seeded structural variation', () => {
@@ -286,8 +286,13 @@ describe('world-specific cinematic configuration', () => {
     const ids = DEFAULT_REACT_PRESETS.map(preset => preset.id)
     expect(new Set(ids).size).toBe(ids.length)
 
+    const retiredWorldModes = new Set(['monolithGate', 'liquidMembrane', 'celestialCathedral'])
     for (const mode of IMPLEMENTED_CINEMATIC_WORLD_MODES) {
       const presets = DEFAULT_REACT_PRESETS.filter(preset => preset.cinematicConfig?.worldMode === mode)
+      if (retiredWorldModes.has(mode)) {
+        expect(presets, mode).toEqual([])
+        continue
+      }
       expect(presets, mode).toHaveLength(mode === 'reactiveConstellation' ? 11 : 3)
       const structuralSignatures = presets.map(preset => JSON.stringify({
         settings: preset.cinematicConfig?.worldSettings,

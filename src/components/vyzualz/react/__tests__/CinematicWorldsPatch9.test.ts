@@ -29,10 +29,10 @@ import { DEFAULT_REACT_RENDER_PARAMS } from '../renderers/reactRenderUtils'
 import { validateCinematicMappings } from '../renderers/cinematic/CinematicAudioModulation'
 import { migrateReactStore, normalizeCinematicPresetConfiguration } from '../../../../stores/reactStore'
 
-const dreamGate = DEFAULT_REACT_PRESETS.find(preset => preset.id === 'preset-dream-gate')!
+const liveCinematicPreset = DEFAULT_REACT_PRESETS.find(preset => preset.id === 'preset-singularity-crown')!
 
-function frameFor(presetId = dreamGate.id): CinematicFrameContext {
-  const preset = DEFAULT_REACT_PRESETS.find(item => item.id === presetId) ?? dreamGate
+function frameFor(presetId = liveCinematicPreset.id): CinematicFrameContext {
+  const preset = DEFAULT_REACT_PRESETS.find(item => item.id === presetId) ?? liveCinematicPreset
   const config = preset.cinematicConfig ?? createDefaultCinematicWorldConfig()
   return {
     elapsedTimeSec: 1,
@@ -90,6 +90,7 @@ describe('Cinematic Worlds final preset and feature audit', () => {
   })
 
   it('keeps structurally distinct authored presets for every world', () => {
+    const retiredPresetWorldModes = new Set(['legacyPortal', 'monolithGate', 'liquidMembrane', 'celestialCathedral'])
     for (const mode of CINEMATIC_WORLD_MODES) {
       const configs = DEFAULT_REACT_PRESETS
         .filter(preset => preset.cinematicConfig?.worldMode === mode)
@@ -100,8 +101,12 @@ describe('Cinematic Worlds final preset and feature audit', () => {
           cameraRig: preset.cinematicConfig?.cameraRig,
           legacy: preset.cinematicConfig?.compatibility.legacyValues,
         }))
-      expect(configs.length, mode).toBeGreaterThan(0)
-      expect(new Set(configs).size, mode).toBe(configs.length)
+      if (retiredPresetWorldModes.has(mode)) {
+        expect(configs, mode).toEqual([])
+      } else {
+        expect(configs.length, mode).toBeGreaterThan(0)
+        expect(new Set(configs).size, mode).toBe(configs.length)
+      }
     }
   })
 
@@ -150,7 +155,7 @@ describe('Cinematic Worlds final timing and transition audit', () => {
       timingDiscontinuity: true, timeSec: 12, audioTime: 7, bpm: 128, beatPhase: 0.25,
       beatHit: false, isPlaying: true, audio: { bass: 0, mid: 0, high: 0, volume: 0 },
       freqData: null, timeDomainData: null, musicIntelligence: null,
-    }, dreamGate, DEFAULT_REACT_RENDER_PARAMS, null, dreamGate.cinematicConfig!)
+    }, liveCinematicPreset, DEFAULT_REACT_RENDER_PARAMS, null, liveCinematicPreset.cinematicConfig!)
     expect(frame.deltaTimeSec).toBe(0.1)
     expect(frame.elapsedTimeSec).toBe(12)
     expect(frame.timingDiscontinuity).toBe(true)
@@ -185,10 +190,12 @@ describe('Cinematic Worlds final migration and failure audit', () => {
 
   it('maps historical Portal payloads and remains idempotent', () => {
     const legacy = {
-      ...dreamGate,
+      ...liveCinematicPreset,
+      id: 'fixture-legacy-portal',
+      name: 'Legacy Portal Fixture',
       cinematicConfig: undefined,
       portalSettings: { fogDensity: 0.31, particleDensity: 0.73, oldRingSpeed: 8 },
-    } as typeof dreamGate & { portalSettings: Record<string, unknown> }
+    } as typeof liveCinematicPreset & { portalSettings: Record<string, unknown> }
     const once = normalizeCinematicPresetConfiguration(legacy)
     const twice = normalizeCinematicPresetConfiguration(once)
     expect(once.cinematicConfig?.environment).toMatchObject({ fog: 0.31, debris: 0.73 })
@@ -196,7 +203,7 @@ describe('Cinematic Worlds final migration and failure audit', () => {
   })
 
   it('keeps store migration idempotent at the final schema version', () => {
-    const first = migrateReactStore({ reactPresets: [{ ...dreamGate, cinematicConfig: undefined }] }, 23)
+    const first = migrateReactStore({ reactPresets: [{ ...liveCinematicPreset, id: 'fixture-legacy-portal', cinematicConfig: undefined }] }, 23)
     const second = migrateReactStore(first, 26)
     expect(second).toEqual(first)
   })

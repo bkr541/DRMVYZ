@@ -184,7 +184,7 @@ describe('selectReactEngine', () => {
     useReactStore.getState().selectReactEngine('neonLattice' as never)
     const { activeReactPresetId, activeReactEngineId } = useReactStore.getState()
     expect(activeReactEngineId).toBe('cinematicPortal')
-    expect(activeReactPresetId).toBe('preset-dream-gate')
+    expect(activeReactPresetId).toBe('preset-singularity-crown')
   })
 })
 

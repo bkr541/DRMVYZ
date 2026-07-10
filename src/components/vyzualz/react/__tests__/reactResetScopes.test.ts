@@ -117,7 +117,7 @@ function seedAuthoredState() {
 
 beforeEach(() => {
   useReactStore.setState({
-    activeReactPresetId: 'preset-dream-gate',
+    activeReactPresetId: 'preset-singularity-crown',
     activeReactEngineId: 'cinematicPortal',
     reactPresets: DEFAULT_REACT_PRESETS,
     manualTrackSectionsByTrackId: {},
@@ -205,7 +205,7 @@ describe('scoped React reset actions', () => {
     before.resetReactViewPreferences()
     const after = useReactStore.getState()
 
-    expect(after.activeReactPresetId).toBe('preset-dream-gate')
+    expect(after.activeReactPresetId).toBe('preset-singularity-crown')
     expect(after.activeReactEngineId).toBe('cinematicPortal')
     expect(after.laserDmxWorkspaceMode).toBe('beamMatrix')
     expect(after.selectedSectionId).toBeNull()

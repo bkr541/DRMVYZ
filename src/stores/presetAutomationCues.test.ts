@@ -23,7 +23,7 @@ function makeCue(overrides: Partial<ReactPresetAutomationCue> = {}): ReactPreset
   return {
     id:           `cue-${_cueCounter}`,
     timeSec:      10,
-    presetId:     'preset-dream-gate',
+    presetId:     'preset-singularity-crown',
     label:        'Test Cue',
     enabled:      true,
     transitionMs: 500,

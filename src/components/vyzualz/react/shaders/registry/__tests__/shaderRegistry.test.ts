@@ -333,18 +333,16 @@ describe('I — development scene', () => {
     expect(def.params.map(p => p.id)).toEqual(['color', 'brightness'])
   })
 
-  it('registers and validates the twelve production scenes', () => {
+  it('registers and validates the ten production scenes', () => {
     expect(PRODUCTION_SCENES.map(scene => scene.id)).toEqual([
       'shader-neon-tunnel',
       'shader-liquid-metaballs',
       'shader-feedback-kaleidoscope',
-      'shader-spectrum-cathedral',
       'shader-brand-echo-signal',
       'shader-reactor',
       'shader-bass-cathedral',
       'shader-laser-lattice-overdrive',
       'shader-wobble-glyph-forge',
-      'shader-dreamstate-mycelium',
       'shader-melodic-rift-bloom',
       'shader-riddim-railgun-sequencer',
     ])
@@ -354,11 +352,11 @@ describe('I — development scene', () => {
     }
   })
 
-  it('ships production coverage for FFT, waveform, gradients, Brand roles, and media inputs', () => {
-    const spectrum = shaderRegistry.get('shader-spectrum-cathedral')!
+  it('ships production coverage for FFT, waveform, Brand roles, and media inputs', () => {
+    const reactor = shaderRegistry.get('shader-reactor')!
     const echo = shaderRegistry.get('shader-brand-echo-signal')!
-    expect(spectrum.fragSrc).toContain('uSpectrumTexture')
-    expect(spectrum.params.some(param => param.type === 'gradient')).toBe(true)
+    const reactorSource = [reactor.fragSrc ?? '', ...(reactor.passes ?? []).map(pass => pass.fragSrc)].join('\n')
+    expect(reactorSource).toContain('uSpectrumTexture')
     expect(echo.fragSrc).toContain('uWaveformTexture')
     expect(echo.fragSrc).toContain('uBrandLogoTexture')
     expect(echo.textureInputs?.map(input => input.source)).toEqual([
@@ -367,6 +365,8 @@ describe('I — development scene', () => {
     expect(PRODUCTION_SCENES.some(scene => scene.params.some(param =>
       param.type === 'color' && param.brandRole === 'primary'
     ))).toBe(true)
+    expect(shaderRegistry.has('shader-spectrum-cathedral')).toBe(false)
+    expect(shaderRegistry.has('shader-dreamstate-mycelium')).toBe(false)
   })
 })
 
