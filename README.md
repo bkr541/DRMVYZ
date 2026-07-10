@@ -3,6 +3,10 @@
 A screen-recordable, modular audio visualization dashboard for DVYDRM track teasers.
 MiniMeters-inspired feature set in a DVYDRM neon cyan/green dark dashboard theme.
 
+## AI Implementation Rule
+
+Before making code changes, read `AI_IMPLEMENTATION_CONTRACT.md` and follow its layout, styling, component, media, preset, and rendering rules.
+
 ## Quick Start
 
 ```bash
