@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
-import { useMediaStore } from '../../../stores/mediaStore'
+import { useMediaStore, type UploadedMedia } from '../../../stores/mediaStore'
 import { CtrlSection } from './ReactControlRows'
 import type {
   OscillatorSettings,
@@ -69,6 +69,20 @@ const CANVAS_MEDIA_TYPE_LABELS: Record<CanvasMediaItemType, string> = {
   video: 'Video',
   image: 'Image',
   svg:   'SVG',
+}
+
+
+function resolveCanvasLibraryMediaType(item: UploadedMedia): CanvasMediaItemType | null {
+  const name = item.name.toLowerCase()
+  const mimeType = item.mimeType?.toLowerCase() ?? ''
+  if (item.mediaRole === 'svg' || mimeType === 'image/svg+xml' || name.endsWith('.svg')) return 'svg'
+  if (item.type === 'image') return 'image'
+  if (item.type === 'video') return 'video'
+  return null
+}
+
+function getCanvasLibraryMediaName(item: UploadedMedia): string {
+  return item.title?.trim() || item.name
 }
 
 // ── Subcomponents ─────────────────────────────────────────────────────────────
@@ -225,15 +239,27 @@ export function ReactInspectorPanel() {
   }
 
   if (activeReactEngineId === 'canvas') {
-    const activeCanvasMedia = canvasMediaItems.find(item => item.id === activeCanvasMediaId) ?? null
+    const canvasReadyLibraryItems = allMediaItems.filter(item => resolveCanvasLibraryMediaType(item) !== null)
+    const activeLibraryMedia = activeCanvasMediaId
+      ? allMediaItems.find(item => item.id === activeCanvasMediaId) ?? null
+      : null
+    const activeLegacyMedia = canvasMediaItems.find(item => item.id === activeCanvasMediaId) ?? null
+    const activeType = activeLibraryMedia
+      ? resolveCanvasLibraryMediaType(activeLibraryMedia)
+      : activeLegacyMedia?.type ?? null
+    const activeName = activeLibraryMedia
+      ? getCanvasLibraryMediaName(activeLibraryMedia)
+      : activeLegacyMedia?.name ?? 'No media selected'
+
     return (
       <>
         {engineSummary}
         <div className="rv-ctrl-group">
           <CtrlSection label="CANVAS Media" />
-          <KvRow label="Loaded Media" value={canvasMediaItems.length.toString()} />
-          <KvRow label="Active Visual" value={activeCanvasMedia?.name ?? 'No media selected'} />
-          <KvRow label="Type" value={activeCanvasMedia ? CANVAS_MEDIA_TYPE_LABELS[activeCanvasMedia.type] : '—'} />
+          <KvRow label="Library Media" value={canvasReadyLibraryItems.length.toString()} />
+          {canvasMediaItems.length > 0 && <KvRow label="Legacy Session Media" value={canvasMediaItems.length.toString()} />}
+          <KvRow label="Active Visual" value={activeName} />
+          <KvRow label="Type" value={activeType ? CANVAS_MEDIA_TYPE_LABELS[activeType] : '—'} />
         </div>
       </>
     )

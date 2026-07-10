@@ -407,6 +407,7 @@ export class CanvasParticleAuraRenderer {
   private width = 1
   private height = 1
   private pointCount = 0
+  private pointUploadBuffer = new Float32Array(0)
   private disposed = false
   private initialized = false
 
@@ -506,7 +507,11 @@ export class CanvasParticleAuraRenderer {
   uploadPoints(points: CanvasParticlePoint[], settings: CanvasPresetSettings, audio: CanvasParticleAudioFrame): void {
     if (this.disposed) return
     const gl = this.gl
-    const data = new Float32Array(points.length * POINT_FLOATS)
+    const requiredLength = points.length * POINT_FLOATS
+    if (this.pointUploadBuffer.length < requiredLength) {
+      this.pointUploadBuffer = new Float32Array(requiredLength)
+    }
+    const data = this.pointUploadBuffer.subarray(0, requiredLength)
     for (let index = 0; index < points.length; index += 1) {
       const point = points[index]
       const [r, g, b] = getCanvasParticleChannels(point, settings.particleColorMode, audio.bass, audio.high)
@@ -646,9 +651,12 @@ export class CanvasParticleAuraRenderer {
     this.feedbackProgram.dispose()
     this.blitProgram.dispose()
     this.particleProgram.dispose()
+    this.pointCount = 0
     gl.bindBuffer(gl.ARRAY_BUFFER, null)
     gl.bindVertexArray(null)
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    gl.bindTexture(gl.TEXTURE_2D, null)
+    gl.useProgram(null)
   }
 
   private createRenderTexture(width: number, height: number): WebGLTexture {

@@ -339,6 +339,8 @@ function makeCanvasPresetStyle(settings: CanvasPresetSettings): CSSProperties {
     '--canvas-preset-rgb-split': settings.rgbSplit.toFixed(3),
     '--canvas-preset-rgb-px': `${rgbPx.toFixed(2)}px`,
     '--canvas-preset-rgb-neg-px': `${(-rgbPx).toFixed(2)}px`,
+    '--canvas-preset-glitch-px': `${rgbPx.toFixed(2)}px`,
+    '--canvas-preset-glitch-neg-px': `${(-rgbPx).toFixed(2)}px`,
     '--canvas-preset-trail-offset': `${trailOffset.toFixed(2)}px`,
     '--canvas-preset-trail-neg-offset': `${(-trailOffset).toFixed(2)}px`,
     '--canvas-preset-luma-blur': `${(settings.motionAmount * 5 + settings.trailAmount * 2 + settings.intensity * 0.9).toFixed(2)}px`,
@@ -396,6 +398,11 @@ function CanvasParticleAuraLayer({
   isPaused: boolean
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const settingsRef = useRef(settings)
+
+  useEffect(() => {
+    settingsRef.current = settings
+  }, [settings])
 
   useEffect(() => {
     if (!active || !activeItem) return
@@ -405,10 +412,6 @@ function CanvasParticleAuraLayer({
     const createResult = CanvasParticleAuraRenderer.create(canvas)
     if (!createResult.renderer) return
 
-    // Particle Aura uses the repo's existing WebGL2 direction instead of Three.js:
-    // the app has custom WebGL2/shader renderers but does not ship Three. The only
-    // Canvas2D work left here is bounded luma/alpha source sampling; all live glow,
-    // trails, turbulence, and particle drawing run on the GPU.
     const renderer = createResult.renderer
     const sampleCanvas = document.createElement('canvas')
     const frequencyData = analyser ? new Uint8Array(Math.max(1, analyser.frequencyBinCount)) : null
@@ -419,9 +422,10 @@ function CanvasParticleAuraLayer({
     let heldBeat = 0
     let fpsFrames = 0
     let fpsLastAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
-    let runtimeQuality = settings.particleQuality
+    let requestedQuality = settingsRef.current.particleQuality
+    let runtimeQuality = requestedQuality
     let disposed = false
-    let lastUploadedColorMode = settings.particleColorMode
+    let lastUploadedColorMode = settingsRef.current.particleColorMode
 
     const readAudioFrame = (now: number): CanvasParticleAudioFrame => {
       let bass = 0.16 + Math.sin(now * 1.4) * 0.035
@@ -446,6 +450,14 @@ function CanvasParticleAuraLayer({
       const rect = canvas.getBoundingClientRect()
       const cssWidth = Math.max(1, Math.round(rect.width || canvas.clientWidth || 1))
       const cssHeight = Math.max(1, Math.round(rect.height || canvas.clientHeight || 1))
+      const liveSettings = settingsRef.current
+      if (liveSettings.particleQuality !== requestedQuality) {
+        requestedQuality = liveSettings.particleQuality
+        runtimeQuality = requestedQuality
+        points = []
+        renderer.clear()
+        lastSampleAt = 0
+      }
       const profile = resolveCanvasParticleQualityProfile(runtimeQuality)
       const dpr = Math.min(profile.maxDpr, Math.max(1, window.devicePixelRatio || 1))
       renderer.resize(Math.round(cssWidth * dpr), Math.round(cssHeight * dpr))
@@ -457,23 +469,23 @@ function CanvasParticleAuraLayer({
       const sampleInterval = activeItem.type === 'video' && isPlaying && !isPaused
         ? profile.videoSampleIntervalMs
         : profile.staticSampleIntervalMs
-      const targetCount = resolveCanvasParticleBudget(settings, profile, cssWidth, cssHeight)
-      const shouldResample = points.length === 0 || nowMs - lastSampleAt > sampleInterval || settings.particleColorMode !== lastUploadedColorMode
+      const targetCount = resolveCanvasParticleBudget(liveSettings, profile, cssWidth, cssHeight)
+      const shouldResample = points.length === 0 || nowMs - lastSampleAt > sampleInterval || liveSettings.particleColorMode !== lastUploadedColorMode
 
       if (shouldResample) {
         points = sampleCanvasParticleSource({
           source,
-          settings,
+          settings: liveSettings,
           sampleCanvas,
           profile,
           targetCount,
         })
-        renderer.uploadPoints(points, settings, audio)
-        lastUploadedColorMode = settings.particleColorMode
+        renderer.uploadPoints(points, liveSettings, audio)
+        lastUploadedColorMode = liveSettings.particleColorMode
         lastSampleAt = nowMs
       }
 
-      renderer.render({ settings, audio, timeSec: now, pixelRatio: dpr })
+      renderer.render({ settings: liveSettings, audio, timeSec: now, pixelRatio: dpr })
 
       fpsFrames += 1
       if (nowMs - fpsLastAt >= 1200) {
@@ -496,7 +508,7 @@ function CanvasParticleAuraLayer({
       window.cancelAnimationFrame(frameId)
       renderer.dispose()
     }
-  }, [active, activeItem, activeItem?.id, analyser, isPaused, isPlaying, settings, sourceRef])
+  }, [active, activeItem?.id, activeItem?.type, analyser, isPaused, isPlaying, sourceRef])
 
   if (!active || !activeItem) return null
   return <canvas ref={canvasRef} className="rv-canvas-particle-aura-layer" aria-hidden="true" />
@@ -1060,9 +1072,6 @@ export function CanvasEngineSurface({
       }
       captureContext.restore()
 
-      // Do not duplicate Particle Aura particles into the hidden Canvas2D capture surface.
-      // The live layer owns the GPU particle pass; keeping capture source-only avoids
-      // the old CPU point loop that caused video media to stutter during performance.
     }
 
     const tick = () => {

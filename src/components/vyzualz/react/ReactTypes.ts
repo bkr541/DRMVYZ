@@ -283,6 +283,7 @@ export interface CanvasMediaItem {
 export interface CanvasEngineSettings {
   selectedMediaId: string | null
   mediaIds: string[]
+  /** @deprecated CANVAS imports now route through the shared media library. */
   uploadEnabled: boolean
   autoSelectEnabled: boolean
   manualMediaOverrideId: string | null
@@ -300,7 +301,7 @@ export interface CanvasEngineSettings {
 export const DEFAULT_CANVAS_ENGINE_SETTINGS: CanvasEngineSettings = {
   selectedMediaId: null,
   mediaIds: [],
-  uploadEnabled: true,
+  uploadEnabled: false,
   autoSelectEnabled: false,
   manualMediaOverrideId: null,
   supportedMediaKinds: ['video', 'image', 'svg'],
@@ -362,7 +363,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       turbulence: 0,
       particleDensity: 0,
     },
-    controls: [],
+    controls: ['sourceVisibility', 'intensity'],
   },
   {
     id: 'canvas-bass-bloom',

@@ -2427,7 +2427,7 @@ function normalizeCanvasEngineSettings(value: unknown): CanvasEngineSettings {
   return {
     selectedMediaId,
     mediaIds,
-    uploadEnabled: true,
+    uploadEnabled: false,
     autoSelectEnabled: value.autoSelectEnabled === true,
     manualMediaOverrideId,
     supportedMediaKinds: supportedMediaKinds.length > 0

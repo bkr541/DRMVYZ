@@ -9522,19 +9522,6 @@
   user-select: none;
 }
 
-.rv-canvas-engine-card {
-  width: min(760px, 94%);
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 12px;
-  padding: 24px;
-  border: 1px solid rgba(74, 199, 219, 0.18);
-  border-radius: 18px;
-  background: rgba(4, 10, 12, 0.74);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
 .rv-canvas-engine-eyebrow {
   font-size: 9.5px;
   font-weight: 700;
@@ -9692,130 +9679,10 @@
   white-space: nowrap;
 }
 
-.rv-canvas-upload-flow {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.rv-canvas-upload-flow--compact {
-  gap: 7px;
-}
-
-.rv-canvas-upload-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  color: rgba(232, 244, 248, 0.5);
-  font-size: 10px;
-  line-height: 1.35;
-  text-align: center;
-}
-
-.rv-canvas-upload-flow--compact .rv-canvas-upload-copy {
-  text-align: left;
-}
-
-.rv-canvas-upload-copy span:first-child {
-  color: rgba(232, 244, 248, 0.82);
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.rv-canvas-upload-target {
-  width: min(360px, 100%);
-  min-height: 58px;
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  align-self: center;
-  margin-top: 2px;
-  border: 1px dashed rgba(74, 199, 219, 0.42);
-  border-radius: 12px;
-  background: rgba(74, 199, 219, 0.055);
-  color: rgba(74, 199, 219, 0.78);
-  cursor: pointer;
-  transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
-}
-
-.rv-canvas-upload-flow--compact .rv-canvas-upload-target {
-  width: 100%;
-  min-height: 46px;
-  border-radius: 9px;
-}
-
-.rv-canvas-upload-target:hover,
-.rv-canvas-upload-target:focus-within {
-  border-color: rgba(97, 214, 170, 0.58);
-  background: rgba(74, 199, 219, 0.085);
-  transform: translateY(-1px);
-}
-
-.rv-canvas-upload-target input {
-  position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.rv-canvas-upload-target__title {
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-}
-
-.rv-canvas-upload-target__meta {
-  color: rgba(232, 244, 248, 0.38);
-  font-size: 9px;
-  letter-spacing: 0.04em;
-}
-
-.rv-canvas-upload-error {
-  border: 1px solid rgba(255, 96, 96, 0.22);
-  border-radius: 8px;
-  padding: 7px 8px;
-  background: rgba(255, 96, 96, 0.07);
-  color: rgba(255, 174, 174, 0.86);
-  font-size: 9.5px;
-  line-height: 1.35;
-}
-
-.rv-canvas-upload-notice {
-  border: 1px solid rgba(216, 185, 90, 0.22);
-  border-radius: 8px;
-  padding: 7px 8px;
-  background: rgba(216, 185, 90, 0.07);
-  color: rgba(255, 232, 178, 0.82);
-  font-size: 9.5px;
-  line-height: 1.35;
-}
-
 .rv-canvas-library-shell {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.rv-canvas-library-shell__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  color: rgba(232, 244, 248, 0.66);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.rv-canvas-library-shell__header strong {
-  color: rgba(232, 244, 248, 0.34);
-  font-size: 9px;
 }
 
 .rv-canvas-library {
@@ -9836,38 +9703,6 @@
 
 .rv-canvas-library--legacy {
   margin-top: 4px;
-}
-
-.rv-canvas-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  min-height: 92px;
-  border: 1px dashed rgba(74, 199, 219, 0.18);
-  border-radius: 12px;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.018);
-  text-align: center;
-}
-
-.rv-canvas-empty-state--compact {
-  min-height: 72px;
-  align-items: flex-start;
-  text-align: left;
-}
-
-.rv-canvas-empty-state strong {
-  color: rgba(232, 244, 248, 0.74);
-  font-size: 10.5px;
-  letter-spacing: 0.04em;
-}
-
-.rv-canvas-empty-state span {
-  color: rgba(232, 244, 248, 0.42);
-  font-size: 9.5px;
-  line-height: 1.35;
 }
 
 .rv-canvas-media-lock {
