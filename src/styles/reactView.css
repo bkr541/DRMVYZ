@@ -10215,3 +10215,200 @@
   0%, 48%, 100% { filter: contrast(1.12) saturate(1.16); }
   50%, 62% { filter: contrast(1.42) saturate(1.55) brightness(1.12); }
 }
+
+/* ── React View styling contract cleanup: shared rows + Beam Matrix presets ── */
+.rv-preset-active-dot--dirty {
+  background: var(--color-warn, #f90);
+  box-shadow: 0 0 6px var(--color-warn, #f90);
+}
+
+.rv-preset-mode-chip--active,
+.rv-laser-dmx-preset-filter-chip--active {
+  background: var(--color-accent, #4af);
+  border-color: color-mix(in srgb, var(--color-accent, #4af) 72%, transparent);
+  color: #061015;
+}
+
+.rv-laser-dmx-search-wrap {
+  margin-bottom: 6px;
+}
+
+.rv-laser-dmx-preset-card-shell {
+  position: relative;
+}
+
+.rv-laser-dmx-preset-card {
+  cursor: default;
+}
+
+.rv-laser-dmx-preset-card-content {
+  min-height: auto;
+  padding: 10px 12px;
+}
+
+.rv-laser-dmx-preset-chip-row {
+  margin: 3px 0 7px;
+}
+
+.rv-laser-dmx-preset-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 4px;
+  opacity: 0.55;
+}
+
+.rv-laser-dmx-preset-tags span {
+  color: var(--color-text-muted, #8aa);
+  font-size: 9px;
+  line-height: 1.25;
+}
+
+.rv-laser-dmx-preset-actions,
+.rv-laser-dmx-preset-nav,
+.rv-laser-dmx-preset-filter-row {
+  display: flex;
+  gap: 3px;
+}
+
+.rv-laser-dmx-preset-actions {
+  margin-top: 6px;
+}
+
+.rv-laser-dmx-preset-action,
+.rv-laser-dmx-preset-nav-btn {
+  flex: 1 1 0;
+}
+
+.rv-laser-dmx-preset-filter-row {
+  flex-wrap: wrap;
+  margin-bottom: 5px;
+}
+
+.rv-laser-dmx-preset-filter-row--tags {
+  margin-top: 4px;
+  margin-bottom: 0;
+}
+
+.rv-laser-dmx-preset-filter-chip {
+  border: none;
+  cursor: pointer;
+}
+
+.rv-laser-dmx-preset-filter-chip--muted {
+  opacity: 0.6;
+}
+
+.rv-laser-dmx-preset-nav {
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.rv-laser-dmx-preset-nav-count {
+  align-self: center;
+  color: rgba(232, 244, 248, 0.6);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rv-laser-dmx-preset-empty {
+  margin-top: 8px;
+}
+
+.rv-laser-dmx-preset-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 2px;
+}
+
+.rv-laser-dmx-preset-category {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rv-laser-dmx-preset-category-heading {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(232, 244, 248, 0.55);
+  cursor: pointer;
+  font-family: var(--az-font);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  opacity: 0.75;
+  text-transform: uppercase;
+}
+
+.rv-laser-dmx-preset-category-heading:hover,
+.rv-laser-dmx-preset-category-heading:focus-visible {
+  color: rgba(232, 244, 248, 0.82);
+  outline: none;
+}
+
+.rv-laser-dmx-preset-category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rv-laser-dmx-preset-tag-browser {
+  margin-top: 8px;
+}
+
+.rv-laser-dmx-preset-tag-summary {
+  color: rgba(232, 244, 248, 0.5);
+  cursor: pointer;
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.rv-bm-reset-btn {
+  margin-top: 4px;
+  opacity: 0.65;
+}
+
+.rv-form-inline-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rv-validation-errors--full {
+  width: 100%;
+}
+
+.rv-section-body-tint,
+.rv-section-header {
+  background: var(--section-color, #4ac7db);
+}
+
+.rv-track-map-status-icon {
+  flex-shrink: 0;
+}
+
+.rv-bm-button-row {
+  display: flex;
+  gap: 4px;
+}
+
+.rv-bm-button-row--wrap {
+  flex-wrap: wrap;
+}
+
+.rv-bm-button-row--spaced {
+  margin-top: 6px;
+}
+
+.rv-bm-button-row--spaced-sm,
+.rv-bm-block-btn,
+.rv-bm-inline-message {
+  margin-top: 4px;
+}
+
+.rv-bm-clear-selection-btn {
+  margin-top: 6px;
+}

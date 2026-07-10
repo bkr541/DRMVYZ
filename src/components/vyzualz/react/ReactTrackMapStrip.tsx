@@ -536,7 +536,7 @@ function EditSectionForm({
 
       <div className="rv-form-row">
         <label className="rv-form-label" htmlFor={`${idPrefix}-intensity`}>Intensity</label>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div className="rv-form-inline-control">
           <input
             id={`${idPrefix}-intensity`}
             className="rv-form-range"
@@ -612,7 +612,7 @@ function EditSectionForm({
       </div>
 
       {errors.length > 0 && (
-        <div className="rv-validation-errors" style={{ width: '100%' }}>
+        <div className="rv-validation-errors rv-validation-errors--full">
           {errors.map((err, i) => <p key={i} className="rv-validation-error">{err}</p>)}
         </div>
       )}
@@ -1014,8 +1014,8 @@ const SectionTimeline = forwardRef<SectionTimelineHandle, SectionTimelineProps>(
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(orig.id) }
               }}
             >
-              <div className="rv-section-body-tint" style={{ background: color }} />
-              <div className="rv-section-header" style={{ background: color }}>
+              <div className="rv-section-body-tint" />
+              <div className="rv-section-header">
                 <span className="rv-section-label">{section.label.toUpperCase()}</span>
                 {barRange && <span className="rv-section-barrange">{barRange}</span>}
                 {presetAssignedSectionIds?.has(orig.id) && (
@@ -1664,7 +1664,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
           if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCollapsed(v => !v) }
         }}
       >
-        <svg width="14" height="14" viewBox="0 0 512 512" fill="#38bdf8" style={{ flexShrink: 0 }}>
+        <svg className="rv-track-map-status-icon" width="14" height="14" viewBox="0 0 512 512" fill="#38bdf8">
           <path d="M29.002,0v368.238L256.002,512l226.996-143.762V0H29.002z M379.593,247.561H287.92v91.659h-63.836v-91.659h-91.673v-63.843h91.673v-91.68h63.836v91.68h91.673V247.561z"/>
         </svg>
         <span className="rv-strip-title">Track Map</span>

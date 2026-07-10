@@ -137,7 +137,7 @@ function SingleBeamInspector({ beam, groups }: SingleBeamProps) {
         </Collapsible>
       )}
 
-      <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
+      <div className="rv-bm-button-row rv-bm-button-row--spaced">
         <button type="button" className="rv-glyph-upload-btn" onClick={() => duplicateLaserDmxMatrixBeam(bid)}>⧉ Dupe</button>
         <button
           type="button"
@@ -209,7 +209,7 @@ function MultiBeamBulkEditor({ beams, groups, maxBeams }: MultiBeamProps) {
     <>
       <CtrlSection label={`${beams.length} Beams Selected`} />
 
-      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+      <div className="rv-bm-button-row rv-bm-button-row--wrap">
         <button type="button" className="rv-glyph-upload-btn" onClick={() => bulkEnable(true)}>Enable All</button>
         <button type="button" className="rv-glyph-upload-btn" onClick={() => bulkEnable(false)}>Disable All</button>
         <button
@@ -226,8 +226,7 @@ function MultiBeamBulkEditor({ beams, groups, maxBeams }: MultiBeamProps) {
       <SelectRow label="Group" value="" onChange={bulkSetGroup} options={groupOptions} />
       <button
         type="button"
-        className="rv-glyph-upload-btn"
-        style={{ marginTop: 4 }}
+        className="rv-glyph-upload-btn rv-bm-block-btn"
         onClick={() => beams.forEach(b => updateLaserDmxMatrixBeam(b.id, { groupId: null }))}
       >
         Clear Group
@@ -237,17 +236,16 @@ function MultiBeamBulkEditor({ beams, groups, maxBeams }: MultiBeamProps) {
       <SliderRow label="Column Offset" value={colOff} onChange={v => setColOff(Math.round(v))} min={-14} max={14} step={1} color="#4ac7db" />
       <SliderRow label="Row Offset"    value={rowOff} onChange={v => setRowOff(Math.round(v))} min={-9}  max={9}  step={1} color="#61d6aa" />
       <ToggleRow label="Keep Groups" value={preserveGrp} onChange={setPreserveGrp} />
-      <button type="button" className="rv-glyph-upload-btn" style={{ marginTop: 4 }} onClick={dupeWithOffset}>
+      <button type="button" className="rv-glyph-upload-btn rv-bm-block-btn" onClick={dupeWithOffset}>
         Duplicate {beams.length} Beam{beams.length !== 1 ? 's' : ''}
       </button>
       {lastDupeMsg && (
-        <div className="rv-ctrl-info" style={{ marginTop: 4 }}>{lastDupeMsg}</div>
+        <div className="rv-ctrl-info rv-bm-inline-message">{lastDupeMsg}</div>
       )}
 
       <button
         type="button"
-        className="rv-glyph-upload-btn"
-        style={{ marginTop: 6 }}
+        className="rv-glyph-upload-btn rv-bm-clear-selection-btn"
         onClick={() => setSelectedLaserDmxMatrixBeams([])}
       >
         Clear Selection

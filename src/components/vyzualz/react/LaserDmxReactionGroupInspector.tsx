@@ -81,7 +81,7 @@ export function LaserDmxReactionGroupInspector() {
         })}
       </div>
 
-      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+      <div className="rv-bm-button-row rv-bm-button-row--wrap rv-bm-button-row--spaced-sm">
         <button
           type="button"
           className="rv-glyph-upload-btn"

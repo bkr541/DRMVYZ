@@ -116,8 +116,7 @@ export function LaserDmxBeamMatrixPanel() {
         ) : (
           <button
             type="button"
-            className="rv-glyph-upload-btn"
-            style={{ marginTop: 4, opacity: 0.65 }}
+            className="rv-glyph-upload-btn rv-bm-reset-btn"
             onClick={handleReset}
             aria-label="Reset Beam Matrix"
           >

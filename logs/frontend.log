@@ -3,6 +3,14 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 167 ms
+  VITE v5.4.21  ready in 147 ms
 
   ➜  Local:   http://127.0.0.1:5173/
+10:52:39 PM [vite] hmr update /src/components/vyzualz/react/LaserDmxBeamInspector.tsx
+10:52:39 PM [vite] hmr update /src/components/vyzualz/react/LaserDmxBeamMatrixPanel.tsx
+10:52:39 PM [vite] hmr update /src/components/vyzualz/react/LaserDmxBeamMatrixPresetBrowser.tsx
+10:52:39 PM [vite] hmr update /src/components/vyzualz/react/LaserDmxReactionGroupInspector.tsx
+10:52:39 PM [vite] hmr update /src/components/vyzualz/react/ReactControlRows.tsx
+10:52:39 PM [vite] hmr update /src/components/vyzualz/react/ReactModulationPanel.tsx
+10:52:39 PM [vite] hmr update /src/components/vyzualz/react/ReactTrackMapStrip.tsx
+10:52:39 PM [vite] hmr update /src/styles/reactView.css

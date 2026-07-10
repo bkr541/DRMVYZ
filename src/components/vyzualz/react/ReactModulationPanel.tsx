@@ -1,9 +1,9 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { ConnectedShaderModulationPanel } from './shaders/ui/ConnectedShaderModulationPanel'
 import { CinematicWorldsModulationControls } from './CinematicWorldsControls'
-import { SliderRow, SelectRow, ToggleRow, Collapsible } from './ReactControlRows'
+import { SliderRow, NumberInputRow, SelectRow, TextInputRow, ToggleRow, Collapsible } from './ReactControlRows'
 import {
   type OscillatorAudioDisplaceMode,
   type OscillatorTextLetterReactionMode,
@@ -113,9 +113,25 @@ function TriggerTimingSection({
   const idPrefix      = useId()
   const mode           = filter?.mode ?? 'everyOccurrence'
   const isDownbeatOnly = DOWNBEAT_ONLY_SOURCES_UI.has(source)
+  const [barsText, setBarsText] = useState(() => (filter?.bars ?? []).join(', '))
+
+  useEffect(() => {
+    setBarsText((filter?.bars ?? []).join(', '))
+  }, [filter?.bars])
 
   const upd = (patch: Partial<LaserDmxTriggerTimingFilter>) =>
     onChange({ mode: 'everyOccurrence', ...filter, ...patch } as LaserDmxTriggerTimingFilter)
+
+  const parseAndCommitBars = (value: string) => {
+    const parsed = value
+      .split(',')
+      .map(s => parseInt(s.trim(), 10))
+      .filter(n => !isNaN(n) && n >= 1)
+    const sorted = [...new Set(parsed)].sort((a, b) => a - b)
+    const nextText = sorted.join(', ')
+    setBarsText(nextText)
+    upd({ bars: sorted })
+  }
 
   return (
     <Collapsible label="Trigger Timing" defaultOpen={false}>
@@ -134,18 +150,14 @@ function TriggerTimingSection({
 
       {mode === 'specificPosition' && (
         <>
-          <div className="rv-ctrl-row">
-            <label className="rv-ctrl-label" htmlFor={`${idPrefix}-bar`}>Bar</label>
-            <input
-              id={`${idPrefix}-bar`}
-              type="number"
-              className="rv-timing-num-input"
-              value={filter?.bar ?? 1}
-              min={1}
-              step={1}
-              onChange={e => upd({ bar: Math.max(1, parseInt(e.target.value, 10) || 1) })}
-            />
-          </div>
+          <NumberInputRow
+            id={`${idPrefix}-bar`}
+            label="Bar"
+            value={filter?.bar ?? 1}
+            min={1}
+            step={1}
+            onChange={value => upd({ bar: Math.max(1, Math.round(value) || 1) })}
+          />
           {isDownbeatOnly ? (
             <p className="rv-ctrl-info">Downbeat always fires on Beat 1.</p>
           ) : (
@@ -161,25 +173,16 @@ function TriggerTimingSection({
 
       {mode === 'specificBars' && (
         <>
-          <div className="rv-ctrl-row">
-            <label className="rv-ctrl-label" htmlFor={`${idPrefix}-bars`}>Bars</label>
-            <input
-              id={`${idPrefix}-bars`}
-              type="text"
-              className="rv-timing-bars-input"
-              defaultValue={(filter?.bars ?? []).join(', ')}
-              placeholder="e.g. 17, 21, 25"
-              onBlur={e => {
-                const parsed = e.target.value
-                  .split(',')
-                  .map(s => parseInt(s.trim(), 10))
-                  .filter(n => !isNaN(n) && n >= 1)
-                const sorted = [...new Set(parsed)].sort((a, b) => a - b)
-                upd({ bars: sorted })
-                e.target.value = sorted.join(', ')
-              }}
-            />
-          </div>
+          <TextInputRow
+            id={`${idPrefix}-bars`}
+            label="Bars"
+            value={barsText}
+            onChange={setBarsText}
+            onBlur={parseAndCommitBars}
+            placeholder="e.g. 17, 21, 25"
+            inputMode="numeric"
+            maxLength={64}
+          />
           {(filter?.bars ?? []).length === 0 && (
             <p className="rv-ctrl-info">Enter comma-separated bar numbers.</p>
           )}
@@ -188,64 +191,46 @@ function TriggerTimingSection({
 
       {mode === 'barRange' && (
         <>
-          <div className="rv-ctrl-row">
-            <label className="rv-ctrl-label" htmlFor={`${idPrefix}-start-bar`}>Start Bar</label>
-            <input
-              id={`${idPrefix}-start-bar`}
-              type="number"
-              className="rv-timing-num-input"
-              value={filter?.startBar ?? 1}
-              min={1}
-              step={1}
-              onChange={e => upd({ startBar: Math.max(1, parseInt(e.target.value, 10) || 1) })}
-            />
-          </div>
-          <div className="rv-ctrl-row">
-            <label className="rv-ctrl-label" htmlFor={`${idPrefix}-end-bar`}>End Bar</label>
-            <input
-              id={`${idPrefix}-end-bar`}
-              type="number"
-              className="rv-timing-num-input"
-              value={filter?.endBar ?? ''}
-              min={1}
-              step={1}
-              placeholder="∞"
-              onChange={e => {
-                const v = parseInt(e.target.value, 10)
-                upd({ endBar: isNaN(v) ? undefined : Math.max(1, v) })
-              }}
-            />
-          </div>
+          <NumberInputRow
+            id={`${idPrefix}-start-bar`}
+            label="Start Bar"
+            value={filter?.startBar ?? 1}
+            min={1}
+            step={1}
+            onChange={value => upd({ startBar: Math.max(1, Math.round(value) || 1) })}
+          />
+          <NumberInputRow
+            id={`${idPrefix}-end-bar`}
+            label="End Bar"
+            value={filter?.endBar ?? ''}
+            min={1}
+            step={1}
+            placeholder="∞"
+            onEmpty={() => upd({ endBar: undefined })}
+            onChange={value => upd({ endBar: Math.max(1, Math.round(value) || 1) })}
+          />
           <p className="rv-ctrl-info">Start and end are inclusive.</p>
         </>
       )}
 
       {mode === 'barInterval' && (
         <>
-          <div className="rv-ctrl-row">
-            <label className="rv-ctrl-label" htmlFor={`${idPrefix}-interval`}>Every N bars</label>
-            <input
-              id={`${idPrefix}-interval`}
-              type="number"
-              className="rv-timing-num-input"
-              value={filter?.intervalBars ?? 4}
-              min={1}
-              step={1}
-              onChange={e => upd({ intervalBars: Math.max(1, parseInt(e.target.value, 10) || 1) })}
-            />
-          </div>
-          <div className="rv-ctrl-row">
-            <label className="rv-ctrl-label" htmlFor={`${idPrefix}-anchor`}>Anchor bar</label>
-            <input
-              id={`${idPrefix}-anchor`}
-              type="number"
-              className="rv-timing-num-input"
-              value={filter?.intervalAnchorBar ?? 1}
-              min={1}
-              step={1}
-              onChange={e => upd({ intervalAnchorBar: Math.max(1, parseInt(e.target.value, 10) || 1) })}
-            />
-          </div>
+          <NumberInputRow
+            id={`${idPrefix}-interval`}
+            label="Every N bars"
+            value={filter?.intervalBars ?? 4}
+            min={1}
+            step={1}
+            onChange={value => upd({ intervalBars: Math.max(1, Math.round(value) || 1) })}
+          />
+          <NumberInputRow
+            id={`${idPrefix}-anchor`}
+            label="Anchor bar"
+            value={filter?.intervalAnchorBar ?? 1}
+            min={1}
+            step={1}
+            onChange={value => upd({ intervalAnchorBar: Math.max(1, Math.round(value) || 1) })}
+          />
           <p className="rv-ctrl-info">
             Fires at: anchor, anchor+N, anchor+2N, …
           </p>

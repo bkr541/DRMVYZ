@@ -53,7 +53,7 @@ export function SliderRow({
 
 export interface NumberInputRowProps {
   label: string
-  value: number
+  value: number | ''
   onChange: (value: number) => void
   min?: number
   max?: number
@@ -61,10 +61,12 @@ export interface NumberInputRowProps {
   unit?: string
   disabled?: boolean
   id?: string
+  placeholder?: string
+  onEmpty?: () => void
 }
 
 export function NumberInputRow({
-  label, value, onChange, min, max, step = 0.1, unit, disabled = false, id,
+  label, value, onChange, min, max, step = 0.1, unit, disabled = false, id, placeholder, onEmpty,
 }: NumberInputRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
@@ -76,12 +78,17 @@ export function NumberInputRow({
           id={inputId}
           type="number"
           className="rv-ctrl-text-input"
-          value={Number.isFinite(value) ? value : 0}
+          value={value === '' ? '' : Number.isFinite(value) ? value : 0}
           min={min}
           max={max}
           step={step}
           disabled={disabled}
+          placeholder={placeholder}
           onChange={event => {
+            if (event.target.value === '') {
+              onEmpty?.()
+              return
+            }
             const next = Number(event.target.value)
             if (Number.isFinite(next)) onChange(next)
           }}
@@ -177,11 +184,13 @@ export interface TextInputRowProps {
   maxLength?: number
   placeholder?: string
   id?: string
-  onBlur?: () => void
+  onBlur?: (value: string) => void
+  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode']
+  autoComplete?: string
 }
 
 export function TextInputRow({
-  label, value, onChange, maxLength = 32, placeholder = '', id, onBlur,
+  label, value, onChange, maxLength = 32, placeholder = '', id, onBlur, inputMode, autoComplete = 'off',
 }: TextInputRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
@@ -194,8 +203,10 @@ export function TextInputRow({
         className="rv-ctrl-text-input"
         value={value}
         onChange={e => onChange(e.target.value)}
-        onBlur={onBlur}
+        onBlur={() => onBlur?.(value)}
         maxLength={maxLength}
+        inputMode={inputMode}
+        autoComplete={autoComplete}
         placeholder={placeholder}
         spellCheck={false}
       />
