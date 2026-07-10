@@ -592,7 +592,7 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
 
               <div
                 hidden={lowerSurface !== 'trackMap' || lowerWorkspaceCollapsed || stageFocus}
-                className="rv-lower-workspace-surface"
+                className="rv-lower-workspace-surface rv-lower-workspace-surface--track-map"
               >
                 {workspaceComposition.showSoundDrawingTimeline && (
                   <Suspense fallback={<LazyWorkspaceFallback label="Sound Drawing timeline" />}>

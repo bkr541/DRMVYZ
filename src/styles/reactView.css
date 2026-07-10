@@ -13,7 +13,6 @@
   width: 100%;
   overflow: hidden;
   background: #060d10;
-  --rv-timeline-label-width: 124px;
   --rv-timeline-tool-width: 72px;
   --rv-timeline-column-gap: 8px;
   --rv-timeline-inline-pad: 10px;
@@ -5199,6 +5198,14 @@
   display: none;
 }
 
+.rv-lower-workspace-surface--track-map {
+  height: auto;
+}
+
+.rv-lower-workspace-surface--track-map .rv-track-map-strip--embedded {
+  min-height: 0;
+}
+
 .rv-track-map-strip--embedded {
   min-height: 100%;
   max-height: none;
@@ -5221,12 +5228,12 @@
   white-space: nowrap;
 }
 
-/* ── Restored Track Map lane geometry ────────────────────────────────────── */
+/* ── Compact Track Map lane geometry ─────────────────────────────────────── */
 .rv-track-map-strip--embedded .rv-timeline-lanes {
   position: relative;
   display: grid;
-  grid-template-rows: 24px 44px 48px 32px 38px;
-  min-height: 186px;
+  grid-template-rows: 32px 44px 38px 24px;
+  min-height: 138px;
   padding: 0 var(--rv-timeline-inline-pad);
   overflow: hidden;
   isolation: isolate;
@@ -5368,7 +5375,6 @@
 .rv-timeline-lane {
   display: grid;
   grid-template-columns:
-    var(--rv-timeline-label-width)
     minmax(0, 1fr)
     var(--rv-timeline-tool-width);
   column-gap: var(--rv-timeline-column-gap);
@@ -5380,40 +5386,6 @@
 }
 
 .rv-timeline-lane:first-child { border-top: 0; }
-
-.rv-timeline-lane-label {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-width: 0;
-  padding: 4px 7px 4px 4px;
-  overflow: hidden;
-  border-right: 1px solid rgba(74, 199, 219, 0.08);
-  background: linear-gradient(90deg, rgba(8, 17, 25, 0.97), rgba(8, 17, 25, 0.76));
-}
-
-.rv-timeline-lane-label strong {
-  overflow: hidden;
-  color: rgba(232, 244, 248, 0.74);
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: 0.075em;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.rv-timeline-lane-label span {
-  overflow: hidden;
-  margin-top: 2px;
-  color: rgba(232, 244, 248, 0.34);
-  font-size: 8px;
-  line-height: 1.1;
-  letter-spacing: 0.035em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 .rv-timeline-lane-content {
   position: relative;
@@ -5573,7 +5545,7 @@
   top: 0;
   right: calc(var(--rv-timeline-inline-pad) + var(--rv-timeline-tool-width) + var(--rv-timeline-column-gap));
   bottom: 0;
-  left: calc(var(--rv-timeline-inline-pad) + var(--rv-timeline-label-width) + var(--rv-timeline-column-gap));
+  left: var(--rv-timeline-inline-pad);
   overflow: hidden;
   pointer-events: none;
   z-index: 6;

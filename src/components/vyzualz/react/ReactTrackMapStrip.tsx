@@ -94,6 +94,10 @@ export const ENERGY_CURVE_OPTIONS: { key: EnergyCurveKey; label: string; color: 
   { key: 'high',      label: 'High',    color: '#b84fc9' },
 ]
 
+// Keep the energy implementation available while the lane is intentionally
+// hidden from the Track Map UI. Re-enable it here without rebuilding the lane.
+const SHOW_ENERGY_LANE = false
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 export function formatTime(secs: number): string {
@@ -1798,24 +1802,28 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                   </div>
                 ) : (
                 <div className="rv-timeline-lanes" aria-label="Expandable Track Map timeline lanes">
-                  <div className="rv-timeline-lane rv-timeline-lane--ruler">
-                    <div className="rv-timeline-lane-label">
-                      <strong>Visible Range</strong>
-                      <span>Shared with waveform</span>
+                  <div
+                    className="rv-timeline-lane rv-timeline-lane--beats"
+                    role="group"
+                    aria-label="Beat Grid"
+                  >
+                    <div className="rv-timeline-lane-content rv-beat-canvas-wrap">
+                      <canvas ref={beatCanvasRef} className="rv-beat-canvas" aria-hidden="true" />
                     </div>
-                    <div className="rv-timeline-lane-content rv-timeline-ruler-content">
-                      <canvas ref={rulerCanvasRef} className="rv-timeline-ruler-canvas" aria-hidden="true" />
-                    </div>
-                    <div className="rv-timeline-lane-tools rv-timeline-zoom-readout" title="Waveform zoom">
-                      {waveformZoom}×
+                    <div
+                      className="rv-timeline-lane-tools rv-timeline-lane-state"
+                      title={`Beat Grid ${beatGridEnabled ? 'enabled' : 'disabled'}`}
+                      aria-label={`Beat Grid ${beatGridEnabled ? 'enabled' : 'disabled'}`}
+                    >
+                      {beatGridEnabled ? 'ON' : 'OFF'}
                     </div>
                   </div>
 
-                  <div className="rv-timeline-lane rv-timeline-lane--sections">
-                    <div className="rv-timeline-lane-label">
-                      <strong>Sections</strong>
-                      <span>Structure</span>
-                    </div>
+                  <div
+                    className="rv-timeline-lane rv-timeline-lane--sections"
+                    role="group"
+                    aria-label="Sections"
+                  >
                     <div className="rv-timeline-lane-content">
                       {resolvedSections.length > 0 ? (
                         <SectionTimeline
@@ -1870,47 +1878,36 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                     </div>
                   </div>
 
-                  <div className="rv-timeline-lane rv-timeline-lane--energy">
-                    <div className="rv-timeline-lane-label">
-                      <strong>Energy</strong>
-                      <span>Intensity</span>
+                  {SHOW_ENERGY_LANE && (
+                    <div
+                      className="rv-timeline-lane rv-timeline-lane--energy"
+                      role="group"
+                      aria-label="Energy Intensity"
+                    >
+                      <div className="rv-timeline-lane-content">
+                        <canvas ref={energyCanvasRef} className="rv-energy-canvas" aria-hidden="true" />
+                      </div>
+                      <div className="rv-timeline-lane-tools">
+                        <select
+                          className="rv-timeline-lane-select"
+                          value={energyCurveKey}
+                          onChange={e => setEnergyCurveKey(e.target.value as EnergyCurveKey)}
+                          title="Energy curve"
+                          aria-label="Energy curve"
+                        >
+                          {ENERGY_CURVE_OPTIONS.map(o => (
+                            <option key={o.key} value={o.key}>{o.label}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                    <div className="rv-timeline-lane-content">
-                      <canvas ref={energyCanvasRef} className="rv-energy-canvas" aria-hidden="true" />
-                    </div>
-                    <div className="rv-timeline-lane-tools">
-                      <select
-                        className="rv-timeline-lane-select"
-                        value={energyCurveKey}
-                        onChange={e => setEnergyCurveKey(e.target.value as EnergyCurveKey)}
-                        title="Energy curve"
-                        aria-label="Energy curve"
-                      >
-                        {ENERGY_CURVE_OPTIONS.map(o => (
-                          <option key={o.key} value={o.key}>{o.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
+                  )}
 
-                  <div className="rv-timeline-lane rv-timeline-lane--beats">
-                    <div className="rv-timeline-lane-label">
-                      <strong>Beat Grid</strong>
-                      <span>{currentEffectiveBpm != null ? `1/4 · ${currentEffectiveBpm.toFixed(2)} BPM` : 'Quarter-note grid'}</span>
-                    </div>
-                    <div className="rv-timeline-lane-content rv-beat-canvas-wrap">
-                      <canvas ref={beatCanvasRef} className="rv-beat-canvas" aria-hidden="true" />
-                    </div>
-                    <div className="rv-timeline-lane-tools rv-timeline-lane-state">
-                      {beatGridEnabled ? 'ON' : 'OFF'}
-                    </div>
-                  </div>
-
-                  <div className="rv-timeline-lane rv-timeline-lane--cues">
-                    <div className="rv-timeline-lane-label">
-                      <strong>Cues / Presets</strong>
-                      <span>Markers & looks</span>
-                    </div>
+                  <div
+                    className="rv-timeline-lane rv-timeline-lane--cues"
+                    role="group"
+                    aria-label="Cues and Presets"
+                  >
                     <div ref={cueTimelineRef} className="rv-timeline-lane-content rv-timeline-cue-lane">
                       {timelineCueItems.map(cue => {
                         const layout = computeTimelineCueLayout(cue.timeSec, viewportRef.current)
@@ -1938,8 +1935,25 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                         <span className="rv-timeline-lane-empty">No cue or preset markers</span>
                       )}
                     </div>
-                    <div className="rv-timeline-lane-tools rv-timeline-lane-state">
+                    <div
+                      className="rv-timeline-lane-tools rv-timeline-lane-state"
+                      title={`${timelineCueItems.length} cue or preset marker${timelineCueItems.length === 1 ? '' : 's'}`}
+                      aria-label={`${timelineCueItems.length} cue or preset marker${timelineCueItems.length === 1 ? '' : 's'}`}
+                    >
                       {timelineCueItems.length}
+                    </div>
+                  </div>
+
+                  <div
+                    className="rv-timeline-lane rv-timeline-lane--ruler"
+                    role="group"
+                    aria-label="Visible Range"
+                  >
+                    <div className="rv-timeline-lane-content rv-timeline-ruler-content">
+                      <canvas ref={rulerCanvasRef} className="rv-timeline-ruler-canvas" aria-hidden="true" />
+                    </div>
+                    <div className="rv-timeline-lane-tools rv-timeline-zoom-readout" title="Waveform zoom">
+                      {waveformZoom}×
                     </div>
                   </div>
 
