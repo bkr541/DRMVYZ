@@ -25,14 +25,13 @@ export function VyzualzSidebar({
 
       <nav className="az-nav">
         {/* React performance mode icon — default/top view */}
-        <div
+        <button
+          type="button"
           className={`az-nav-item${appView === 'react' || !appView ? ' az-nav-item--active' : ''}`}
           onClick={() => onAppViewChange?.('react')}
           title="React"
-          role="button"
-          tabIndex={0}
           aria-label="React"
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onAppViewChange?.('react') }}
+          aria-current={appView === 'react' || !appView ? 'page' : undefined}
         >
           <svg viewBox="0 0 28 28" width="28" height="28" fill="none">
             {/* Atom-style orbit rings */}
@@ -48,17 +47,16 @@ export function VyzualzSidebar({
             <circle cx="14" cy="14" r="2.2" fill="currentColor" fillOpacity="0.85"/>
           </svg>
           <span className="az-nav-label">React</span>
-        </div>
+        </button>
 
         {/* Visualizer icon */}
-        <div
+        <button
+          type="button"
           className={`az-nav-item${appView === 'visualizer' ? ' az-nav-item--active' : ''}`}
           onClick={() => onAppViewChange?.('visualizer')}
           title="Visualizer"
-          role="button"
-          tabIndex={0}
           aria-label="Visualizer"
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onAppViewChange?.('visualizer') }}
+          aria-current={appView === 'visualizer' ? 'page' : undefined}
         >
           <svg viewBox="0 0 1024 1024" width="28" height="28">
             {/* Monitor frame */}
@@ -75,17 +73,16 @@ export function VyzualzSidebar({
             <path d="M426.666667 554.666667a21.269333 21.269333 0 0 1-21.333334-21.333334V277.333333a21.333333 21.333333 0 0 1 33.173334-17.749333l192 128a21.333333 21.333333 0 0 1 0 35.498667l-192 128A21.333333 21.333333 0 0 1 426.666667 554.666667z" fill="#67f7ff"/>
           </svg>
           <span className="az-nav-label">Visualizer</span>
-        </div>
+        </button>
 
         {/* Lyric Manager icon */}
-        <div
+        <button
+          type="button"
           className={`az-nav-item${appView === 'lyrics' ? ' az-nav-item--active' : ''}`}
           onClick={() => onAppViewChange?.('lyrics')}
           title="Lyric Manager"
-          role="button"
-          tabIndex={0}
           aria-label="Lyric Manager"
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onAppViewChange?.('lyrics') }}
+          aria-current={appView === 'lyrics' ? 'page' : undefined}
         >
           <svg viewBox="0 0 28 28" width="28" height="28" fill="none">
             <rect x="4" y="2" width="16" height="21" rx="2.5" fill="#0d1820"/>
@@ -99,17 +96,16 @@ export function VyzualzSidebar({
             <line x1="21.2" y1="19.6" x2="23" y2="20.4" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
           </svg>
           <span className="az-nav-label">Lyrics</span>
-        </div>
+        </button>
 
         {/* Media Manager icon */}
-        <div
+        <button
+          type="button"
           className={`az-nav-item${appView === 'media' ? ' az-nav-item--active' : ''}`}
           onClick={() => onAppViewChange?.('media')}
           title="Media Manager"
-          role="button"
-          tabIndex={0}
           aria-label="Media Manager"
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onAppViewChange?.('media') }}
+          aria-current={appView === 'media' ? 'page' : undefined}
         >
           <svg viewBox="0 0 28 28" width="28" height="28" fill="none">
             <rect x="3.5" y="5" width="21" height="17" rx="2.5" fill="#0d1820" />
@@ -120,7 +116,7 @@ export function VyzualzSidebar({
             <path d="M9 23.8h10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeOpacity="0.45" />
           </svg>
           <span className="az-nav-label">Media Manager</span>
-        </div>
+        </button>
       </nav>
 
       <div className="az-sidebar-footer">

@@ -72,6 +72,13 @@ export function ShaderCodeEditor({
   const [errors,   setErrors]   = useState<CompileError[]>([])
 
   const autoCompileTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hasDefinition = definition != null
+  const definitionFragSrc = definition?.fragSrc ?? definition?.passes?.[0]?.fragSrc ?? ''
+  const definitionVertSrc = typeof definition?.vertSrc === 'string' && definition.vertSrc !== 'shared'
+    ? definition.vertSrc
+    : ''
+  const definitionName = definition?.name ?? 'Untitled Shader'
+
   // A scene is bundled (read-only) when it's in the registry but NOT a user scene.
   const isBundled = definition
     ? (shaderRegistry.has(definition.id) && !isUserScene)
@@ -79,7 +86,7 @@ export function ShaderCodeEditor({
 
   // Sync state when definition changes
   useEffect(() => {
-    if (!definition) {
+    if (!hasDefinition) {
       setFragSrc('#version 300 es\nprecision highp float;\nout vec4 fragColor;\nvoid main() {\n  fragColor = vec4(0.1, 0.1, 0.2, 1.0);\n}\n')
       setVertSrc('')
       setEditName('Untitled Shader')
@@ -87,13 +94,12 @@ export function ShaderCodeEditor({
       setErrors([])
       return
     }
-    setFragSrc(definition.fragSrc ?? definition.passes?.[0]?.fragSrc ?? '')
-    setVertSrc(typeof definition.vertSrc === 'string' && definition.vertSrc !== 'shared'
-      ? definition.vertSrc : '')
-    setEditName(definition.name)
+    setFragSrc(definitionFragSrc)
+    setVertSrc(definitionVertSrc)
+    setEditName(definitionName)
     setIsDirty(false)
     setErrors([])
-  }, [definition?.id])
+  }, [definition?.id, definitionFragSrc, definitionName, definitionVertSrc, hasDefinition])
 
   // Parse runtime error into structured errors
   useEffect(() => {

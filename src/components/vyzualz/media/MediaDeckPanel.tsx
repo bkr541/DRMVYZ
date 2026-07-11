@@ -1,12 +1,15 @@
 import { memo } from 'react'
 import { MediaLibraryBrowser } from './MediaLibraryBrowser'
 import { MEDIA_DECK_CAPABILITIES } from './mediaLibraryCapabilities'
+import type { UploadedMedia } from '../../../stores/mediaStore'
 
 export interface MediaDeckPanelProps {
   activeMediaId: string | null
   onSelect: (id: string) => void
   mode?: 'visualizer' | 'react'
   onOpenMediaManager?: () => void
+  title?: string
+  getDisabledReason?: (media: UploadedMedia) => string | null
 }
 
 /**
@@ -20,15 +23,18 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({
   onSelect,
   mode = 'visualizer',
   onOpenMediaManager,
+  title = 'Media Deck',
+  getDisabledReason,
 }: MediaDeckPanelProps) {
   return (
     <MediaLibraryBrowser
       activeMediaId={activeMediaId}
       onSelect={onSelect}
       context={mode}
-      title="Media Deck"
+      title={title}
       capabilities={MEDIA_DECK_CAPABILITIES}
       onOpenMediaManager={onOpenMediaManager}
+      getDisabledReason={getDisabledReason}
     />
   )
 })

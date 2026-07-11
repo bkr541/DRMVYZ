@@ -8,6 +8,7 @@ interface Props {
   document: LyricDocument | null
   selectedCue: LyricCue | null
   onPreviewInVisualizer: () => void
+  previewDestination?: 'React' | 'Visualizer'
   extractionConsole?: ReactNode
 }
 
@@ -82,7 +83,7 @@ function RightInspectorSection({
   )
 }
 
-export function LyricPreviewPanel({ cues, document, selectedCue, onPreviewInVisualizer, extractionConsole }: Props) {
+export function LyricPreviewPanel({ cues, document, selectedCue, onPreviewInVisualizer, previewDestination = 'Visualizer', extractionConsole }: Props) {
   const validation = validateLyricCues(cues)
   const review = getLyricReviewStatistics(cues)
   const hasTimedCues = cues.some(c => typeof c.endMs === 'number' && typeof c.startMs === 'number' && c.endMs > c.startMs)
@@ -135,10 +136,10 @@ export function LyricPreviewPanel({ cues, document, selectedCue, onPreviewInVisu
           onClick={onPreviewInVisualizer}
           disabled={!hasTimedCues}
           title={hasTimedCues
-            ? 'Push draft cues to visualizer for live preview'
+            ? `Push draft cues to ${previewDestination} for live preview`
             : 'No cues to preview. Import or create lyric cues first.'}
         >
-          Preview in Visualizer ↗
+          Preview in {previewDestination} ↗
         </button>
       </RightInspectorSection>
 

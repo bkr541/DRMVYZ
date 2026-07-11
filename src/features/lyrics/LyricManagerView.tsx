@@ -37,11 +37,13 @@ import { ConfirmTrackDeleteDialog } from './components/ConfirmTrackDeleteDialog'
 import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
 import type { RuntimeTrackUrlInput } from '../../audio/runtimeTrack'
+import type { PerformanceAppView } from '../../components/vyzualz/appView'
 
 type WorkflowTab = 'manual' | 'json' | 'ai'
 
 interface Props {
   onBack: () => void
+  returnView?: PerformanceAppView
 }
 
 const PAGE_SIZE = 18
@@ -345,7 +347,7 @@ function LyricTransportBar({
   )
 }
 
-export function LyricManagerView({ onBack }: Props) {
+export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
   const {
     lyricsEnabled,
     setLyricsEnabled,
@@ -1024,21 +1026,21 @@ export function LyricManagerView({ onBack }: Props) {
     else engine.play()
   }, [engine, selectedTrack, showStatus])
 
-  const handlePreviewInVisualizer = useCallback(() => {
+  const handlePreviewInPerformanceView = useCallback(() => {
     const timedCues = storeCues.filter((cue) => cue.endMs > cue.startMs)
     if (timedCues.length === 0) {
-      showStatus('Timed cues are required before previewing in the visualizer.')
+      showStatus('Timed cues are required before previewing in the performance view.')
       return
     }
     if (editorDirty) {
       showStatus(
-        'Save or discard unsaved changes before opening the visualizer preview.',
+        'Save or discard unsaved changes before opening the performance preview.',
       )
       return
     }
     if (selectedTrack && engine.currentAudioTrackId !== selectedTrack.dbId) {
       showStatus(
-        'Load the selected track to the deck before opening the visualizer preview.',
+        'Load the selected track to the deck before opening the performance preview.',
       )
       return
     }
@@ -1355,7 +1357,8 @@ export function LyricManagerView({ onBack }: Props) {
             cues={storeCues}
             document={activeDocument}
             selectedCue={selectedCue}
-            onPreviewInVisualizer={handlePreviewInVisualizer}
+            onPreviewInVisualizer={handlePreviewInPerformanceView}
+            previewDestination={returnView === 'react' ? 'React' : 'Visualizer'}
             extractionConsole={
               <ExtractionConsoleSummary
                 selectedTrack={selectedTrack}

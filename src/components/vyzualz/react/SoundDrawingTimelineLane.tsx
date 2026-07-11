@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useId } from 'react'
+import { useState, useEffect, useRef, useCallback, useId, useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useReactStore } from '../../../stores/reactStore'
@@ -521,6 +521,7 @@ export function SoundDrawingTimelineLane({
 }: SoundDrawingTimelineLaneProps) {
   const snapLabelId = useId()
   const engine       = useSharedAudio()
+  const { getCurrentTime } = engine
   const allMediaItems = useMediaStore(s => s.items)
 
   const { waveformZoom } = useVisualStore(useShallow(s => ({ waveformZoom: s.waveformZoom })))
@@ -566,10 +567,16 @@ export function SoundDrawingTimelineLane({
   })))
 
   const activeTrackId = engine.currentTrack?.id ?? null
-  const beatGrid      = (engine.currentEffectiveBeatGrid ?? engine.currentAnalysis?.beatGrid ?? []) as BeatMarkerMI[]
-  const svgOptions    = allMediaItems
-    .filter(isUnifiedSvgMediaItem)
-    .map(m => ({ value: m.id, label: m.title ?? m.name }))
+  const beatGrid = useMemo(
+    () => (engine.currentEffectiveBeatGrid ?? engine.currentAnalysis?.beatGrid ?? []) as BeatMarkerMI[],
+    [engine.currentAnalysis?.beatGrid, engine.currentEffectiveBeatGrid],
+  )
+  const svgOptions = useMemo(
+    () => allMediaItems
+      .filter(isUnifiedSvgMediaItem)
+      .map(m => ({ value: m.id, label: m.title ?? m.name })),
+    [allMediaItems],
+  )
 
   // ── State ───────────────────────────────────────────────────────────────────
 
@@ -599,8 +606,14 @@ export function SoundDrawingTimelineLane({
 
   // ── Data ────────────────────────────────────────────────────────────────────
 
-  const layers = activeTrackId ? (soundDrawingLayersByTrackId[activeTrackId] ?? []) : []
-  const clips  = activeTrackId ? (soundDrawingClipsByTrackId[activeTrackId]  ?? []) : []
+  const layers = useMemo(
+    () => activeTrackId ? (soundDrawingLayersByTrackId[activeTrackId] ?? []) : [],
+    [activeTrackId, soundDrawingLayersByTrackId],
+  )
+  const clips = useMemo(
+    () => activeTrackId ? (soundDrawingClipsByTrackId[activeTrackId] ?? []) : [],
+    [activeTrackId, soundDrawingClipsByTrackId],
+  )
   const lyricsBelongToLoadedTrack = Boolean(
     engine.currentAudioTrackId &&
     lyricAudioTrackId === engine.currentAudioTrackId &&
@@ -636,11 +649,11 @@ export function SoundDrawingTimelineLane({
   audioDurationSecRef.current = safeDurationSec
 
   useEffect(() => {
-    const t  = engine.getCurrentTime()
+    const t  = getCurrentTime()
     const vp = computeWaveformViewport(safeDurationSec, t, waveformZoom)
     viewportRef.current = vp
     setLayoutViewport(vp)
-  }, [waveformZoom, safeDurationSec, engine.getCurrentTime])
+  }, [getCurrentTime, safeDurationSec, waveformZoom])
 
   // Playback clock: update only DOM geometry. The clip/layer React tree is not
   // rerendered as the playhead advances or the follow viewport scrolls.
@@ -650,7 +663,7 @@ export function SoundDrawingTimelineLane({
     const tick = () => {
       const dur  = audioDurationSecRef.current
       const zoom = waveformZoomRef.current
-      const t    = engine.getCurrentTime()
+      const t    = getCurrentTime()
       const vp   = computeWaveformViewport(dur, t, zoom)
       const prev = viewportRef.current
       viewportRef.current = vp
@@ -678,7 +691,7 @@ export function SoundDrawingTimelineLane({
     return () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
     }
-  }, [collapsed, engine.getCurrentTime])
+  }, [collapsed, getCurrentTime])
 
   // ── Drag / resize ────────────────────────────────────────────────────────────
 
@@ -748,7 +761,7 @@ export function SoundDrawingTimelineLane({
 
   const handleAdd = useCallback((sourceType: SoundDrawingLayerSourceType, name: string) => {
     if (!activeTrackId) return
-    const t       = engine.getCurrentTime()
+    const t       = getCurrentTime()
     const layerId = addSoundDrawingLayer(activeTrackId, {
       name:          name || `${sourceType} layer`,
       enabled:       true,
@@ -778,7 +791,7 @@ export function SoundDrawingTimelineLane({
     }, safeDurationSec)
     setAddOpen(false)
     setSelectedClipId(clipId)
-  }, [activeTrackId, engine.getCurrentTime, safeDurationSec, addSoundDrawingLayer, addSoundDrawingClip])
+  }, [activeTrackId, getCurrentTime, safeDurationSec, addSoundDrawingLayer, addSoundDrawingClip])
 
   const handleDuplicateClip = useCallback(() => {
     if (!selectedClipId || !activeTrackId) return

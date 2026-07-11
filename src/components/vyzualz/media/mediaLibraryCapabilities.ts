@@ -29,7 +29,6 @@ export const MEDIA_DECK_CAPABILITIES = [
 /** Full management mode backed by the canonical upload, signed-URL, collection,
  * visual-media, and saved-audio services. */
 export const MEDIA_MANAGER_CAPABILITIES = [
-  'select',
   'load-track',
   'preview',
   'favorite',

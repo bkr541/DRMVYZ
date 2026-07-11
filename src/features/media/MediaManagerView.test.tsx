@@ -6,15 +6,7 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  setActiveMedia: vi.fn(),
   browserProps: vi.fn(),
-}))
-
-vi.mock('../../stores/visualStore', () => ({
-  useVisualStore: (selector: (state: unknown) => unknown) => selector({
-    activeMediaId: 'media-1',
-    setActiveMedia: mocks.setActiveMedia,
-  }),
 }))
 
 vi.mock('../../stores/mediaStore', () => ({
@@ -66,13 +58,13 @@ describe('MediaManagerView', () => {
     expect(container.textContent).toContain('2 visual assets')
     expect(container.textContent).toContain('1 audio track')
     expect(mocks.browserProps).toHaveBeenCalledWith(expect.objectContaining({
-      activeMediaId: 'media-1',
+      activeMediaId: null,
       context: 'manager',
       title: 'Media Library',
-      onSelect: mocks.setActiveMedia,
       capabilities: MEDIA_MANAGER_CAPABILITIES,
     }))
     expect(MEDIA_MANAGER_CAPABILITIES).toEqual(expect.arrayContaining(['upload', 'edit', 'remove', 'collections']))
+    expect(MEDIA_MANAGER_CAPABILITIES).not.toContain('select')
   })
 
   it('returns to the prior performance view', () => {

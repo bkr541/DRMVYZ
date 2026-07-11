@@ -10217,3 +10217,45 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+
+.rv-persistence-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 5px;
+  color: var(--az-text-faint);
+  background: rgba(5, 12, 18, 0.55);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.rv-persistence-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.rv-persistence-status--saving .rv-persistence-status-dot {
+  animation: rv-persistence-pulse 1s ease-in-out infinite;
+}
+.rv-persistence-status--saved { color: var(--az-green, #61d6aa); }
+.rv-persistence-status--error {
+  color: #ff9f86;
+  border-color: rgba(255, 116, 88, 0.32);
+  background: rgba(90, 23, 16, 0.3);
+}
+.rv-persistence-status button {
+  border: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 0 0 0 7px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.rv-persistence-status button:disabled { cursor: progress; opacity: 0.65; }
+@keyframes rv-persistence-pulse { 50% { opacity: 0.3; } }

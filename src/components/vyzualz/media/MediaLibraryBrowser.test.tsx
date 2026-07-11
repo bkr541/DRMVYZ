@@ -283,10 +283,8 @@ describe('MediaLibraryBrowser capability boundaries', () => {
 
   it('retains upload, edit, delete, and drop workflows in Media Manager', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
-    const onSelect = vi.fn()
     await renderBrowser({
       activeMediaId: null,
-      onSelect,
       context: 'manager',
       capabilities: MEDIA_MANAGER_CAPABILITIES,
     })
@@ -296,10 +294,9 @@ describe('MediaLibraryBrowser capability boundaries', () => {
     expect(container?.querySelector('[title="Edit media"]')).not.toBeNull()
     expect(container?.querySelector('.vz-media-remove')).not.toBeNull()
 
-    act(() => {
-      container?.querySelector<HTMLElement>('.vz-media-card')?.click()
-    })
-    expect(onSelect).toHaveBeenCalledWith('media-1')
+    // Media Manager is asset management, not deck selection — clicking a card
+    // must not require (or invoke) onSelect. See MEDIA_MANAGER_CAPABILITIES.
+    expect(MEDIA_MANAGER_CAPABILITIES).not.toContain('select')
 
     act(() => {
       container?.querySelector<HTMLButtonElement>('[title="Edit media"]')?.click()

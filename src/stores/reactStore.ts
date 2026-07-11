@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { createSplitPersistStorage } from '../lib/splitPersistStorage'
+import { handleReactPersistenceStatus } from './reactPersistenceStatusStore'
 import { createLegacyPortalCinematicConfig, normalizeCinematicWorldConfig } from '../components/vyzualz/react/CinematicWorldConfig'
 import type { CinematicWorldConfig } from '../components/vyzualz/react/CinematicWorldConfig'
 import {
@@ -3669,6 +3670,7 @@ export function mergeReactStoreState(
 
 export const reactPersistStorage = createSplitPersistStorage<Record<string, unknown>>({
   projectKeys: REACT_PROJECT_STATE_KEYS,
+  onStatusChange: handleReactPersistenceStatus,
 })
 
 export const useReactStore = create<ReactStoreState>()(

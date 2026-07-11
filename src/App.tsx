@@ -1,16 +1,23 @@
-import { useState, useEffect } from 'react'
+import { lazy, Suspense, useState, useEffect } from 'react'
 import { supabase, supabaseConfigured } from './lib/supabase'
 import { AudioEngineProvider } from './context/AudioEngineContext'
 import { AuthPage }            from './components/auth/AuthPage'
-import { VyzualzView }         from './components/vyzualz/VyzualzView'
 import { VyzualzErrorBoundary } from './components/vyzualz/VyzualzErrorBoundary'
 import { ActiveTrackLyricsBridge } from './features/lyrics/ActiveTrackLyricsBridge'
 import { useBrandKitStore } from './features/personalization/brandKitStore'
 import { applyBrandAppAccent, restoreStandardAppAccent } from './features/personalization/appAccentPersonalization'
 import { productionOutputController } from './components/vyzualz/react/output/ProductionOutput'
 
+const VyzualzView = lazy(() =>
+  import('./components/vyzualz/VyzualzView').then(module => ({ default: module.VyzualzView })),
+)
+
+type AuthGateState = 'checking' | 'configuration-required' | 'signed-out' | 'authenticated'
+
 export default function App() {
-  const [authed, setAuthed] = useState<boolean | null>(null)
+  const [authGate, setAuthGate] = useState<AuthGateState>(() =>
+    supabaseConfigured ? 'checking' : 'configuration-required',
+  )
   const activeBrandKit = useBrandKitStore(state => state.activeKit)
 
   useEffect(() => {
@@ -35,17 +42,18 @@ export default function App() {
   useEffect(() => {
     let activeUserId: string | null = null
 
-    // Skip auth check when Supabase is not configured (dev without .env)
+    // Unconfigured environments get an explicit configuration gate. Authentication
+    // is never bypassed, including local and packaged production builds.
     if (!supabaseConfigured) {
       useBrandKitStore.getState().clearForSignedOut()
-      setAuthed(false)
+      setAuthGate('configuration-required')
       return
     }
 
     supabase.auth.getSession().then(({ data }) => {
       const userId = data.session?.user.id ?? null
       activeUserId = userId
-      setAuthed(Boolean(userId))
+      setAuthGate(userId ? 'authenticated' : 'signed-out')
       if (userId) void useBrandKitStore.getState().initializeForUser(userId)
       else useBrandKitStore.getState().clearForSignedOut()
     })
@@ -54,7 +62,7 @@ export default function App() {
       const userId = session?.user.id ?? null
       if (activeUserId !== userId) productionOutputController.handleAuthChange()
       activeUserId = userId
-      setAuthed(Boolean(userId))
+      setAuthGate(userId ? 'authenticated' : 'signed-out')
       if (userId) void useBrandKitStore.getState().initializeForUser(userId)
       else useBrandKitStore.getState().clearForSignedOut()
     })
@@ -66,17 +74,21 @@ export default function App() {
   }, [])
 
   // Still checking session — render blank to avoid flash
-  if (authed === null) return <div className="auth-loading"/>
+  if (authGate === 'checking') return <div className="auth-loading" role="status" aria-label="Checking authentication" />
 
   // Not authenticated — show auth gate
-  if (!authed) return <AuthPage onAuth={() => setAuthed(true)}/>
+  if (authGate !== 'authenticated') {
+    return <AuthPage onAuth={() => setAuthGate('authenticated')} />
+  }
 
   // Authenticated — VYZUALZ is the sole view
   return (
     <AudioEngineProvider>
       <ActiveTrackLyricsBridge />
       <VyzualzErrorBoundary section="VyzualzView">
-        <VyzualzView activeView="vyzualz" onNavigate={() => {}} />
+        <Suspense fallback={<div className="auth-loading" role="status" aria-label="Loading DRMVYZ" />}>
+          <VyzualzView activeView="vyzualz" onNavigate={() => {}} />
+        </Suspense>
       </VyzualzErrorBoundary>
     </AudioEngineProvider>
   )

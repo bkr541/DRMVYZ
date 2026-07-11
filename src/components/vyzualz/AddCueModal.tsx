@@ -49,6 +49,7 @@ interface Props {
 
 export function AddCueModal({ isOpen, onClose }: Props) {
   const engine = useSharedAudio()
+  const { getCurrentTime, duration: trackDuration } = engine
   const addCue           = useLyricsStore(s => s.addCue)
   const setLyricsEnabled = useLyricsStore(s => s.setLyricsEnabled)
   const saveTimingChanges = useLyricsStore(s => s.saveTimingChanges)
@@ -73,8 +74,8 @@ export function AddCueModal({ isOpen, onClose }: Props) {
   // Initialise fresh form every time the modal opens
   useEffect(() => {
     if (!isOpen) return
-    const currentMs = Math.max(0, Math.round(engine.getCurrentTime() * 1000))
-    const trackDurMs = engine.duration > 0 ? Math.floor(engine.duration * 1000) : Infinity
+    const currentMs = Math.max(0, Math.round(getCurrentTime() * 1000))
+    const trackDurMs = trackDuration > 0 ? Math.floor(trackDuration * 1000) : Infinity
     const rawEnd = currentMs + 2000
     const safeEnd = Math.min(rawEnd, trackDurMs)
     const clampedEnd = Math.max(safeEnd, currentMs + MIN_CUE_DURATION_MS)
@@ -94,7 +95,7 @@ export function AddCueModal({ isOpen, onClose }: Props) {
     setErrors({})
 
     requestAnimationFrame(() => { textareaRef.current?.focus() })
-  }, [isOpen]) // intentionally omit engine — values are read at open time
+  }, [getCurrentTime, isOpen, trackDuration])
 
   // Escape to close
   useEffect(() => {
@@ -109,22 +110,22 @@ export function AddCueModal({ isOpen, onClose }: Props) {
   const durationMs = Math.max(0, endMs - startMs)
 
   const handleUsePlayhead = useCallback(() => {
-    const ms = Math.max(0, Math.round(engine.getCurrentTime() * 1000))
+    const ms = Math.max(0, Math.round(getCurrentTime() * 1000))
     const dur = Math.max(endMs - startMs, MIN_CUE_DURATION_MS)
     setStartMs(ms)
     setEndMs(ms + dur)
     setErrors(e => ({ ...e, startMs: '', endMs: '' }))
-  }, [engine, startMs, endMs])
+  }, [endMs, getCurrentTime, startMs])
 
   const handleSetEndFromPlayhead = useCallback(() => {
-    const ms = Math.round(engine.getCurrentTime() * 1000)
+    const ms = Math.round(getCurrentTime() * 1000)
     if (ms > startMs) {
       setEndMs(ms)
       setErrors(e => ({ ...e, endMs: '' }))
     } else {
       setErrors(e => ({ ...e, endMs: 'Playhead must be after start time' }))
     }
-  }, [engine, startMs])
+  }, [getCurrentTime, startMs])
 
   function validate(): boolean {
     const next: Record<string, string> = {}

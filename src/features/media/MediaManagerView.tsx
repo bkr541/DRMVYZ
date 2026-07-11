@@ -1,6 +1,5 @@
 import { useAudioStore } from '../../stores/audioStore'
 import { useMediaStore } from '../../stores/mediaStore'
-import { useVisualStore } from '../../stores/visualStore'
 import type { PerformanceAppView } from '../../components/vyzualz/appView'
 import { APP_VIEW_LABELS } from '../../components/vyzualz/appView'
 import { MediaLibraryBrowser } from '../../components/vyzualz/media/MediaLibraryBrowser'
@@ -12,8 +11,6 @@ interface MediaManagerViewProps {
 }
 
 export function MediaManagerView({ onBack, returnView }: MediaManagerViewProps) {
-  const activeMediaId = useVisualStore(state => state.activeMediaId)
-  const setActiveMedia = useVisualStore(state => state.setActiveMedia)
   const mediaCount = useMediaStore(state => state.items.length)
   const collectionCount = useMediaStore(state => state.collections.length)
   const trackCount = useAudioStore(state => state.savedTracks.length)
@@ -56,8 +53,7 @@ export function MediaManagerView({ onBack, returnView }: MediaManagerViewProps) 
           <span className="mmv-foundation-badge">Management online</span>
         </div>
         <MediaLibraryBrowser
-          activeMediaId={activeMediaId}
-          onSelect={setActiveMedia}
+          activeMediaId={null}
           context="manager"
           title="Media Library"
           capabilities={MEDIA_MANAGER_CAPABILITIES}

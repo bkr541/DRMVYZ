@@ -2,10 +2,21 @@ import type { PersistStorage, StorageValue } from 'zustand/middleware'
 
 type PersistableState = Record<string, unknown>
 
+export type SplitPersistencePhase = 'dirty' | 'saving' | 'saved' | 'error'
+
+export interface SplitPersistenceStatusEvent {
+  phase: SplitPersistencePhase
+  storageName: string
+  error?: string
+  lastSavedAt?: number
+  retry?: () => Promise<boolean>
+}
+
 type SplitStorageOptions<S extends PersistableState> = {
   projectKeys: readonly (keyof S)[]
   databaseName?: string
   objectStoreName?: string
+  onStatusChange?: (event: SplitPersistenceStatusEvent) => void
 }
 
 export interface SplitStorageValue<S extends PersistableState> {
@@ -86,6 +97,7 @@ export function createSplitPersistStorage<S extends PersistableState>({
   projectKeys,
   databaseName = 'drmvyz-project-state',
   objectStoreName = 'zustand-project-state',
+  onStatusChange,
 }: SplitStorageOptions<S>): PersistStorage<S, Promise<void>> {
   const indexedDbSupported = typeof indexedDB !== 'undefined'
   let databasePromise: Promise<IDBDatabase | null> | null = null
@@ -205,6 +217,35 @@ export function createSplitPersistStorage<S extends PersistableState>({
     return next.then(() => writeSucceeded)
   }
 
+  function reportFor(name: string, event: Omit<SplitPersistenceStatusEvent, 'storageName'>): void {
+    onStatusChange?.({ ...event, storageName: name })
+  }
+
+  async function persistProject(
+    name: string,
+    value: StorageValue<Partial<S>>,
+    announceDirty = true,
+  ): Promise<boolean> {
+    if (announceDirty) reportFor(name, { phase: 'dirty' })
+    reportFor(name, { phase: 'saving' })
+    const written = await queueProjectWrite(name, value)
+    if (written) {
+      lastProjectState.set(name, value.state)
+      reportFor(name, { phase: 'saved', lastSavedAt: Date.now() })
+      return true
+    }
+
+    lastProjectState.delete(name)
+    const retry = () => persistProject(name, value, false)
+    reportFor(name, {
+      phase: 'error',
+      error: 'Recent project edits could not be saved to IndexedDB.',
+      retry,
+    })
+    console.error(`[splitPersistStorage] Project state for "${name}" was not persisted because IndexedDB is unavailable`)
+    return false
+  }
+
   async function removeProject(name: string): Promise<void> {
     projectCache.delete(name)
     lastProjectState.delete(name)
@@ -274,10 +315,9 @@ export function createSplitPersistStorage<S extends PersistableState>({
         if (local) {
           const legacySplit = splitStorageValue<S>(local, projectKeys)
           if (legacySplit.hasProjectData) {
-            const migrated = await queueProjectWrite(name, legacySplit.project)
+            const migrated = await persistProject(name, legacySplit.project)
             if (migrated) {
               writeLocal(name, legacySplit.local)
-              lastProjectState.set(name, legacySplit.project.state)
             }
             return local as StorageValue<S>
           }
@@ -290,19 +330,24 @@ export function createSplitPersistStorage<S extends PersistableState>({
 
     async setItem(name, value) {
       const split = splitStorageValue<S>(value, projectKeys)
-      writeLocal(name, split.local)
+      const localWritten = writeLocal(name, split.local)
+      if (!localWritten) {
+        reportFor(name, {
+          phase: 'error',
+          error: 'Workspace preferences could not be saved locally.',
+          retry: async () => {
+            const retried = writeLocal(name, split.local)
+            if (retried) reportFor(name, { phase: 'saved', lastSavedAt: Date.now() })
+            return retried
+          },
+        })
+      }
 
       if (sameProjectReferences(lastProjectState.get(name), split.project.state, projectKeys)) {
         return
       }
 
-      lastProjectState.set(name, split.project.state)
-      const written = await queueProjectWrite(name, split.project)
-      if (!written) {
-        // Chromium/Electron normally provides IndexedDB. Keep the failure loud
-        // rather than silently pushing project-sized data back into localStorage.
-        console.error(`[splitPersistStorage] Project state for "${name}" was not persisted because IndexedDB is unavailable`)
-      }
+      await persistProject(name, split.project)
     },
 
     async removeItem(name) {

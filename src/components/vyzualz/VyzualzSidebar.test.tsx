@@ -38,7 +38,11 @@ describe('VyzualzSidebar Media Manager navigation', () => {
     expect(labels.indexOf('Media Manager')).toBe(labels.indexOf('Lyric Manager') + 1)
 
     const mediaItem = navItems.find(item => item.getAttribute('aria-label') === 'Media Manager')
-    expect(mediaItem).toBeDefined()
+    expect(mediaItem).toBeInstanceOf(HTMLButtonElement)
+    expect((mediaItem as HTMLButtonElement).type).toBe('button')
+    expect(mediaItem?.getAttribute('aria-current')).toBeNull()
+    const lyricItem = navItems.find(item => item.getAttribute('aria-label') === 'Lyric Manager')
+    expect(lyricItem?.getAttribute('aria-current')).toBe('page')
     act(() => mediaItem?.click())
     expect(onAppViewChange).toHaveBeenCalledWith('media')
   })

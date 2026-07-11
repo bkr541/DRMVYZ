@@ -1079,6 +1079,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
     // willReadFrequently is NOT set — this canvas never calls getImageData/putImageData.
     const ctx = canvas.getContext('2d', { alpha: false })
     if (!ctx) return
+    const targetEffectOffscreen = targetEffectOffscreenRef.current
 
     function requestRedraw() {
       if (animRef.current === 0) {
@@ -2644,7 +2645,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         vfcIdRef.current = 0
       }
       ro.disconnect()
-      targetEffectOffscreenRef.current.dispose()
+      targetEffectOffscreen.dispose()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

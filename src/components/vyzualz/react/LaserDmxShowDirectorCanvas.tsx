@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -728,19 +729,24 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
   const quickActionFixture = quickActionPopover ? fixtures.find(fixture => fixture.id === quickActionPopover.fixtureId) ?? null : null
   const targetingFixture = targetingFixtureId ? fixtures.find(fixture => fixture.id === targetingFixtureId) : null
 
-  const updateSelectionRect = (nextRect: SelectionRectState | null) => {
+  const fixturesRef = useRef(fixtures)
+  const settingsRef = useRef(settings)
+  fixturesRef.current = fixtures
+  settingsRef.current = settings
+
+  const updateSelectionRect = useCallback((nextRect: SelectionRectState | null) => {
     selectionRectRef.current = nextRect
     setSelectionRect(nextRect)
-  }
+  }, [])
 
-  const closeTransientUi = () => {
+  const closeTransientUi = useCallback(() => {
     updateSelectionRect(null)
     setContextMenu(null)
     setQuickActionPopover(null)
     setTargetingFixtureId(null)
     setEndpointDrag(null)
     setSelectedEndpointId(null)
-  }
+  }, [updateSelectionRect])
 
   const stageHasKeyboardFocus = () => {
     const activeElement = typeof document !== 'undefined' ? document.activeElement : null
@@ -765,15 +771,16 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
       setQuickActionPopover(null)
       setContextMenu(null)
     }
-  }, [contextMenu, endpointDrag, fixtures, quickActionPopover, targetingFixtureId])
+  }, [contextMenu, endpointDrag, fixtures, quickActionPopover, targetingFixtureId, updateSelectionRect])
 
-  const setFixtureEndpoint = (fixtureId: string, point: StagePoint, targetId?: string) => {
-    const fixture = fixtures.find(item => item.id === fixtureId)
+  const setFixtureEndpoint = useCallback((fixtureId: string, point: StagePoint, targetId?: string) => {
+    const currentSettings = settingsRef.current
+    const fixture = fixturesRef.current.find(item => item.id === fixtureId)
     if (!fixture) return
-    const targets = beamTargetsForFixture(fixture, settings)
+    const targets = beamTargetsForFixture(fixture, currentSettings)
     const selectedTargetId = targetId ?? targets[0]?.id ?? `${fixtureId}-target-1`
-    const nextTargets = replaceBeamTarget(targets, selectedTargetId, point, settings)
-    const primary = nextTargets[0] ?? snapStagePoint(point, settings)
+    const nextTargets = replaceBeamTarget(targets, selectedTargetId, point, currentSettings)
+    const primary = nextTargets[0] ?? snapStagePoint(point, currentSettings)
     setSelectedEndpointId(selectedTargetId)
     updateFixture(fixtureId, {
       beam: {
@@ -783,7 +790,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
         targets: nextTargets,
       },
     })
-  }
+  }, [updateFixture])
 
   const updateFixtureTargets = (
     fixture: LaserDmxShowDirectorFixture,
@@ -893,7 +900,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
       window.removeEventListener('pointerup', handlePointerUp)
       window.removeEventListener('pointercancel', handlePointerUp)
     }
-  }, [commitHistoryTransaction, endpointDrag, settings, updateFixture])
+  }, [commitHistoryTransaction, endpointDrag, setFixtureEndpoint, settings])
 
   useEffect(() => {
     if (!selectionRect) return undefined
@@ -937,7 +944,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
       window.removeEventListener('pointerup', handlePointerUp)
       window.removeEventListener('pointercancel', handlePointerUp)
     }
-  }, [clearSelection, fixtures, selectFixtures, selectionRect, settings])
+  }, [clearSelection, fixtures, selectFixtures, selectionRect, settings, updateSelectionRect])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -1032,7 +1039,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('pointerdown', handleWindowPointerDown)
     }
-  }, [clearSelection, contextMenu, deleteSelectedFixtures, endpointDrag, fixtures, groupSelectedFixtures, moveSelectedFixtures, quickActionPopover, redoShowDirectorEdit, selectFixtures, selectedEndpointId, selectedFixtureCount, selectedFixtureId, settings, targetingFixtureId, undoShowDirectorEdit])
+  }, [clearSelection, closeTransientUi, contextMenu, deleteSelectedFixtures, endpointDrag, fixtures, groupSelectedFixtures, moveSelectedFixtures, quickActionPopover, redoShowDirectorEdit, selectFixtures, selectedEndpointId, selectedFixtureCount, selectedFixtureId, settings, targetingFixtureId, undoShowDirectorEdit])
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
     if (!event.dataTransfer.types.includes(SHOW_DIRECTOR_FIXTURE_DRAG_TYPE)) return

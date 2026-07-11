@@ -4,6 +4,7 @@ import { musicIntelligenceEngine } from '../../../features/musicIntelligence/Mus
 import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useRecorder } from '../../../hooks/useRecorder'
+import { ReactPersistenceStatus } from './ReactPersistenceStatus'
 import { useReactStore } from '../../../stores/reactStore'
 import {
   ReactPresetsPanel,
@@ -52,6 +53,12 @@ import {
 } from './reactWorkspaceComposition'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
 import { useActiveBrandOverlay } from '../../../features/personalization/useActiveBrandOverlay'
+import { useReactWorkspacePreferences } from './reactWorkspacePreferences'
+import {
+  getReactMediaDisabledReason,
+  getReactMediaSourceCapability,
+  getReactMediaSourceId,
+} from './reactMediaSourceCapabilities'
 import { resolveBrandedReactPreset } from '../../../features/personalization/resolveBrandedReactPreset'
 import '../../../styles/reactView.css'
 
@@ -108,8 +115,6 @@ const REACT_RIGHT_BASE_TABS: Omit<RailTabOption<ReactRightPanel>, 'disabled'>[] 
   { id: 'output',  label: 'OUTPUT'  },
 ]
 
-type ReactLowerSurface = 'trackMap' | 'performancePads'
-
 export interface ReactViewProps {
   onOpenMediaManager?: () => void
 }
@@ -156,6 +161,7 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
     laserDmxBeamMatrix,
     laserDmxBeamMatrixAuthoringMode,
     laserDmxShowDirector,
+    selectSvgAsset,
   } = useReactStore(useShallow(s => ({
     reactPresets:           s.reactPresets,
     cinematicConfigsByPresetId: s.cinematicConfigsByPresetId,
@@ -187,6 +193,7 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
     laserDmxBeamMatrix:             s.laserDmxBeamMatrix,
     laserDmxBeamMatrixAuthoringMode: s.laserDmxBeamMatrixAuthoringMode,
     laserDmxShowDirector:           s.laserDmxShowDirector,
+    selectSvgAsset:                  s.selectSvgAsset,
   })))
   const activeShaderId = useShaderPanelStore(s => s.activeShaderId)
   const activeBrandKit = useBrandKitStore(s => s.activeKit)
@@ -209,16 +216,37 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
   )
 
   const defaultLeftTab = getReactDefaultLeftTab(workspaceComposition)
-  const [leftTab, setLeftTab]             = useState<ReactLeftTab>(() => defaultLeftTab)
-  const [activeMediaId, setActiveMediaId] = useState<string | null>(null)
-  const [leftCollapsed,  setLeftCollapsed]  = useState(false)
-  const [rightCollapsed, setRightCollapsed] = useState(false)
-  const [lowerSurface, setLowerSurface] = useState<ReactLowerSurface>('trackMap')
-  const [lowerWorkspaceCollapsed, setLowerWorkspaceCollapsed] = useState(true)
+  const {
+    leftCollapsed,
+    setLeftCollapsed,
+    rightCollapsed,
+    setRightCollapsed,
+    lowerSurface,
+    setLowerSurface,
+    lowerWorkspaceCollapsed,
+    setLowerWorkspaceCollapsed,
+    leftTab: preferredLeftTab,
+    setLeftTab,
+  } = useReactWorkspacePreferences()
+  const leftTab = isReactLeftTabAvailable(preferredLeftTab, workspaceComposition)
+    ? preferredLeftTab
+    : defaultLeftTab
   const [stageFocus, setStageFocus] = useState(false)
+  const mediaSourceCapability = getReactMediaSourceCapability(activeReactEngineId)
+  const activeMediaId = getReactMediaSourceId(mediaSourceCapability, oscillatorSettings)
+  const getMediaDisabledReason = useCallback(
+    (media: Parameters<typeof getReactMediaDisabledReason>[1]) =>
+      getReactMediaDisabledReason(mediaSourceCapability, media),
+    [mediaSourceCapability],
+  )
+  const handleSelectMedia = useCallback((mediaId: string) => {
+    void selectSvgAsset(mediaId)
+  }, [selectSvgAsset])
 
   // Recording — useRecorder lives at view level so active recordings survive tab switches
   const recorder = useRecorder()
+  const { startVideoRecording } = recorder
+  const { isActive: hasActiveProgramAudio, getRecordingStream } = engine
   const [outputCanvas, setOutputCanvas] = useState<HTMLCanvasElement | null>(null)
   const [liveFps, setLiveFps]           = useState(0)
 
@@ -227,9 +255,9 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
   useEffect(() => { setLiveFps(0) }, [activeReactEngineId])
 
   const handleStartRecording = useCallback((canvas: HTMLCanvasElement) => {
-    const audioStream = engine.isActive ? engine.getRecordingStream() : null
-    recorder.startVideoRecording(canvas, audioStream)
-  }, [engine.isActive, engine.getRecordingStream, recorder.startVideoRecording])
+    const audioStream = hasActiveProgramAudio ? getRecordingStream() : null
+    startVideoRecording(canvas, audioStream)
+  }, [getRecordingStream, hasActiveProgramAudio, startVideoRecording])
 
   // Right tab — persisted to localStorage after runtime validation.
   // PRESETS is the default and is always a valid right-rail destination.
@@ -278,20 +306,20 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
     if (lowerSurface === 'performancePads' && !workspaceComposition.showPerformancePads) {
       setLowerSurface('trackMap')
     }
-  }, [lowerSurface, workspaceComposition.showPerformancePads])
+  }, [lowerSurface, setLowerSurface, workspaceComposition.showPerformancePads])
 
   useEffect(() => {
-    if (!isReactLeftTabAvailable(leftTab, workspaceComposition)) {
+    if (!isReactLeftTabAvailable(preferredLeftTab, workspaceComposition)) {
       setLeftTab(defaultLeftTab)
     }
-  }, [defaultLeftTab, leftTab, workspaceComposition])
+  }, [defaultLeftTab, preferredLeftTab, setLeftTab, workspaceComposition])
 
   // Engine selection is a top-level workspace change. Always return to that
   // engine's primary authoring surface rather than carrying a contextual tab
   // such as Media or Fonts into a different engine family.
   useEffect(() => {
     setLeftTab(defaultLeftTab)
-  }, [activeReactEngineId, defaultLeftTab])
+  }, [activeReactEngineId, defaultLeftTab, setLeftTab])
 
   // Fall back only within the active engine family. Never render a preset from
   // another engine merely because it appears first in the global collection.
@@ -384,6 +412,7 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
         </div>
 
         <span className="az-spacer" />
+        <ReactPersistenceStatus />
         <ReactGlobalOutputControls />
         <VyzualzHeaderActions />
       </div>
@@ -418,8 +447,10 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
                     <MediaDeckPanel
                       mode="react"
                       activeMediaId={activeMediaId}
-                      onSelect={setActiveMediaId}
+                      onSelect={handleSelectMedia}
                       onOpenMediaManager={onOpenMediaManager}
+                      title="Sound Drawing SVG Media"
+                      getDisabledReason={getMediaDisabledReason}
                     />
                   )}
                   {leftTab === 'layers' && workspaceComposition.showLaserLayersTab && (
@@ -653,7 +684,7 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
                 canvas={outputCanvas}
                 recorder={recorder}
                 liveFps={liveFps}
-                hasActiveProgramAudio={engine.isActive}
+                hasActiveProgramAudio={hasActiveProgramAudio}
                 onStartRecording={handleStartRecording}
               />
             )}

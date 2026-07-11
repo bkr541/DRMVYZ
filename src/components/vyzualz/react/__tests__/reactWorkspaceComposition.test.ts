@@ -80,9 +80,9 @@ describe('React workspace composition', () => {
     expect(getReactLeftTabLabel('workspace', shader)).toBe('SETUP')
 
     const cinematic = resolveReactWorkspaceComposition('cinematicPortal', 'beamMatrix', false)
-    expect(getReactLeftTabs(cinematic)).toEqual(['media'])
-    expect(getReactDefaultLeftTab(cinematic)).toBe('media')
-    expect(isReactLeftTabAvailable('workspace', cinematic)).toBe(false)
+    expect(getReactLeftTabs(cinematic)).toEqual(['workspace'])
+    expect(getReactDefaultLeftTab(cinematic)).toBe('workspace')
+    expect(isReactLeftTabAvailable('media', cinematic)).toBe(false)
 
     const soundDrawing = resolveReactWorkspaceComposition('oscilloscope', 'beamMatrix', false)
     expect(getReactLeftTabs(soundDrawing)).toEqual(['workspace', 'media', 'fonts'])
@@ -98,7 +98,7 @@ describe('React workspace composition', () => {
       const tabs = getReactLeftTabs(resolveReactWorkspaceComposition(engine, 'beamMatrix', false))
       expect(tabs).not.toContain('sessions')
       if (engine !== 'oscilloscope') expect(tabs).not.toContain('fonts')
-      if (engine !== 'cinematicPortal' && engine !== 'oscilloscope') expect(tabs).not.toContain('media')
+      if (engine !== 'oscilloscope') expect(tabs).not.toContain('media')
     }
   })
 })

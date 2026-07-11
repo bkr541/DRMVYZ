@@ -109,6 +109,16 @@
 .az-nav { padding: 10px 0; flex: 1; }
 
 .az-nav-item {
+  width: 100%;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  background: transparent;
+  border-radius: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  text-align: left;
   display: flex;
   align-items: center;
   gap: 11px;
@@ -128,6 +138,12 @@
 
 .az-nav-label { flex-shrink: 0; }
 .az-nav-item:hover { color: var(--az-text-muted); background: rgba(255,255,255,0.03); }
+.az-nav-item:focus-visible {
+  outline: 1px solid rgba(103,247,255,0.8);
+  outline-offset: -3px;
+  color: var(--az-text-muted);
+  background: rgba(74,199,219,0.08);
+}
 .az-nav-item--active {
   color: var(--az-cyan);
   border-left-color: var(--az-cyan);

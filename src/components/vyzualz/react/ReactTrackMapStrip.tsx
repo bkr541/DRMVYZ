@@ -447,7 +447,7 @@ interface EditSectionFormProps {
   onAssignPreset?:   (presetId: string | null) => void
 }
 
-function EditSectionForm({
+export function EditSectionForm({
   section,
   durationSec,
   effectiveBpm,
@@ -468,28 +468,44 @@ function EditSectionForm({
   const [endSec,         setEndSec]         = useState(section.endSec)
   const [intensity,      setIntensity]      = useState(section.intensity ?? 0.7)
   const [confirmDelete,  setConfirmDelete]  = useState(false)
+  const previousSectionIdRef = useRef(section.id)
+  const dirtyFieldsRef = useRef(new Set<'type' | 'label' | 'startSec' | 'endSec' | 'intensity'>())
+  const markDirty = (field: 'type' | 'label' | 'startSec' | 'endSec' | 'intensity') => {
+    dirtyFieldsRef.current.add(field)
+  }
 
-  // Reset draft when switching to a different section
+  // Canonical section updates can arrive without an identity change during undo,
+  // restore, analysis refresh, or an external boundary edit. Resynchronize every
+  // untouched draft field while preserving fields the user is actively editing.
   useEffect(() => {
-    setType(section.type)
-    setLabel(section.label)
-    setStartSec(section.startSec)
-    setEndSec(section.endSec)
-    setIntensity(section.intensity ?? 0.7)
-    setConfirmDelete(false)
-  }, [section.id])  // keyed on identity, not value fields
+    const sectionChanged = previousSectionIdRef.current !== section.id
+    if (sectionChanged) {
+      previousSectionIdRef.current = section.id
+      dirtyFieldsRef.current.clear()
+      setConfirmDelete(false)
+    }
+    const dirty = dirtyFieldsRef.current
+    if (sectionChanged || !dirty.has('type')) setType(section.type)
+    if (sectionChanged || !dirty.has('label')) setLabel(section.label)
+    if (sectionChanged || !dirty.has('startSec')) setStartSec(section.startSec)
+    if (sectionChanged || !dirty.has('endSec')) setEndSec(section.endSec)
+    if (sectionChanged || !dirty.has('intensity')) setIntensity(section.intensity ?? 0.7)
+  }, [section.endSec, section.id, section.intensity, section.label, section.startSec, section.type])
 
-  // Sync start/end with live boundary drag preview
+  // A boundary drag is a canonical timeline edit and should always win over an
+  // older form draft. Clear the time-field dirty flags so the committed values
+  // remain synchronized after the drag ends.
   useEffect(() => {
     if (dragPreview) {
+      dirtyFieldsRef.current.delete('startSec')
+      dirtyFieldsRef.current.delete('endSec')
       setStartSec(dragPreview.start)
       setEndSec(dragPreview.end)
     } else {
-      // Drag ended — snap to committed section values
-      setStartSec(section.startSec)
-      setEndSec(section.endSec)
+      if (!dirtyFieldsRef.current.has('startSec')) setStartSec(section.startSec)
+      if (!dirtyFieldsRef.current.has('endSec')) setEndSec(section.endSec)
     }
-  }, [dragPreview, section.startSec, section.endSec])
+  }, [dragPreview, section.endSec, section.startSec])
 
   const minDur = computeMinDuration(effectiveBpm)
   const errors: string[] = []
@@ -526,7 +542,7 @@ function EditSectionForm({
           id={`${idPrefix}-type`}
           className="rv-form-select"
           value={type}
-          onChange={e => setType(e.target.value as ReactSectionType)}
+          onChange={e => { markDirty('type'); setType(e.target.value as ReactSectionType) }}
         >
           {SECTION_ORDER.map(t => (
             <option key={t} value={t} style={{ color: SECTION_COLORS[t] }}>
@@ -544,7 +560,7 @@ function EditSectionForm({
           type="text"
           placeholder={type}
           value={label}
-          onChange={e => setLabel(e.target.value)}
+          onChange={e => { markDirty('label'); setLabel(e.target.value) }}
           maxLength={32}
         />
       </div>
@@ -560,7 +576,7 @@ function EditSectionForm({
             max={durationSec}
             step={0.01}
             value={startSec.toFixed(3)}
-            onChange={e => setStartSec(Math.max(0, parseFloat(e.target.value) || 0))}
+            onChange={e => { markDirty('startSec'); setStartSec(Math.max(0, parseFloat(e.target.value) || 0)) }}
           />
           <span className="rv-form-time">{formatTimePrecise(startSec)}</span>
         </div>
@@ -577,7 +593,7 @@ function EditSectionForm({
             max={durationSec}
             step={0.01}
             value={endSec.toFixed(3)}
-            onChange={e => setEndSec(Math.max(0, parseFloat(e.target.value) || 0))}
+            onChange={e => { markDirty('endSec'); setEndSec(Math.max(0, parseFloat(e.target.value) || 0)) }}
           />
           <span className="rv-form-time">{formatTimePrecise(endSec)}</span>
         </div>
@@ -592,7 +608,7 @@ function EditSectionForm({
             type="range"
             min={0} max={1} step={0.01}
             value={intensity}
-            onChange={e => setIntensity(parseFloat(e.target.value))}
+            onChange={e => { markDirty('intensity'); setIntensity(parseFloat(e.target.value)) }}
           />
           <span className="rv-form-val">{Math.round(intensity * 100)}%</span>
         </div>
@@ -1245,26 +1261,32 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
   const selectedSectionId = activeTrackId
     ? (selectedSectionByTrackId[activeTrackId] ?? null)
     : null
-  const suppressedIds = activeTrackId
-    ? (suppressedAutoSectionsByTrackId[activeTrackId] ?? [])
-    : []
+  const suppressedIds = useMemo(
+    () => activeTrackId ? (suppressedAutoSectionsByTrackId[activeTrackId] ?? []) : [],
+    [activeTrackId, suppressedAutoSectionsByTrackId],
+  )
 
   // Per-track manual sections for the active track only
-  const manualTrackSections = activeTrackId
-    ? (manualTrackSectionsByTrackId[activeTrackId] ?? [])
-    : []
+  const manualTrackSections = useMemo(
+    () => activeTrackId ? (manualTrackSectionsByTrackId[activeTrackId] ?? []) : [],
+    [activeTrackId, manualTrackSectionsByTrackId],
+  )
 
   // Per-track preset automation cues and the set of section IDs that have one
-  const trackCues = activeTrackId ? (presetAutomationCuesByTrackId[activeTrackId] ?? []) : []
-  const assignedSectionIds = new Set(
-    trackCues.filter(c => c.sectionId != null).map(c => c.sectionId!)
+  const trackCues = useMemo(
+    () => activeTrackId ? (presetAutomationCuesByTrackId[activeTrackId] ?? []) : [],
+    [activeTrackId, presetAutomationCuesByTrackId],
+  )
+  const assignedSectionIds = useMemo(
+    () => new Set(trackCues.filter(c => c.sectionId != null).map(c => c.sectionId!)),
+    [trackCues],
   )
   const activeCueMarkers = useMemo(() => [
     ...cueMarkers.filter(cue => cueMarkerBelongsToTrack(cue, activeTrackId)),
     ...(currentTrack?.importedCueMarkers ?? []),
   ].sort((a, b) => a.time - b.time), [activeTrackId, cueMarkers, currentTrack])
 
-  const timelineCueItems = [
+  const timelineCueItems = useMemo(() => [
     ...trackCues.map(cue => {
       const preset = reactPresets.find(candidate => candidate.id === cue.presetId)
       return {
@@ -1285,7 +1307,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
       enabled: true,
       title: buildTimelineCueTitle(cue),
     })),
-  ].filter(cue => Number.isFinite(cue.timeSec))
+  ].filter(cue => Number.isFinite(cue.timeSec)), [activeCueMarkers, reactPresets, trackCues])
 
   // Derived
   const hasTrack    = currentTrack != null
@@ -1312,16 +1334,17 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
     (currentAnalysis.sections?.length ?? 0) > 0
   )
 
-  const autoSections: ReactTrackSection[] = isComplete
-    ? adaptMIAnalysis(currentAnalysis!)
-    : []
+  const autoSections = useMemo<ReactTrackSection[]>(
+    () => isComplete ? adaptMIAnalysis(currentAnalysis!) : [],
+    [currentAnalysis, isComplete],
+  )
 
-  const resolvedSections = resolveTrackSections({
+  const resolvedSections = useMemo(() => resolveTrackSections({
     analyzedSections: autoSections,
-    manualSections:   manualTrackSections,
+    manualSections: manualTrackSections,
     durationSec,
     suppressedIds,
-  })
+  }), [autoSections, durationSec, manualTrackSections, suppressedIds])
 
   const keyLabel = currentKey ? buildKeyLabel(currentKey) : null
 
@@ -1338,7 +1361,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
       viewportRef.current = vp
       setLayoutViewport(vp)
     }
-  }, [activeTrackId])
+  }, [activeTrackId, durationSec])
 
   // ResizeObserver: redraws canvases when the strip width changes (e.g. when the
   // left/right panels open or close). Supersedes the window 'resize' listener
