@@ -30,6 +30,12 @@ export interface PeaksWaveformViewProps {
   beatGrid?: readonly BeatMarkerMI[] | null
   /** Enables the waveform context menu for authoring manual cue points. */
   onCreateCuePoint?: (request: WaveformCueCreateRequest) => void
+  /** IDs that belong to editable/manual cues. Imported metadata remains read-only. */
+  editableCueMarkerIds?: readonly string[]
+  /** Updates an existing editable cue from the waveform context menu. */
+  onUpdateCuePoint?: (id: string, patch: Partial<Omit<VzCueMarker, 'id'>>) => void
+  /** Deletes an existing editable cue from the waveform context menu. */
+  onDeleteCuePoint?: (id: string) => void
 }
 
 export function syncCueMarkers(instance: PeaksInstance, markers: VzCueMarker[]): void {
@@ -48,14 +54,19 @@ export function syncCueMarkers(instance: PeaksInstance, markers: VzCueMarker[]):
 }
 
 
+type WaveformViewport = { startSec: number; endSec: number }
+
 type WaveformContextMenuState = {
   x: number
   y: number
   authoredTimeSec: number
   beat: ReturnType<typeof buildWaveformCueRequest>['beat']
+  cueMarker: VzCueMarker | null
+  cueEditable: boolean
 }
 
 const WAVEFORM_CONTEXT_MENU_MARGIN = 12
+const WAVEFORM_CUE_HIT_TOLERANCE_PX = 14
 
 function formatWaveformCueTime(timeSec: number): string {
   const totalMs = Math.max(0, Math.round(timeSec * 1000))
@@ -95,6 +106,30 @@ function contextTargetRect(
   return { rect: root.getBoundingClientRect(), fullTrack: false }
 }
 
+export function findCueMarkerNearClientX(
+  markers: readonly VzCueMarker[],
+  clientX: number,
+  rect: Pick<DOMRect, 'left' | 'width'>,
+  viewport: WaveformViewport,
+  tolerancePx = WAVEFORM_CUE_HIT_TOLERANCE_PX,
+): VzCueMarker | null {
+  const spanSec = viewport.endSec - viewport.startSec
+  if (rect.width <= 0 || spanSec <= 0 || !Number.isFinite(clientX)) return null
+
+  let nearest: VzCueMarker | null = null
+  let nearestDistance = Number.POSITIVE_INFINITY
+  for (const marker of markers) {
+    if (!Number.isFinite(marker.time) || marker.time < viewport.startSec || marker.time > viewport.endSec) continue
+    const markerX = rect.left + ((marker.time - viewport.startSec) / spanSec) * rect.width
+    const distance = Math.abs(clientX - markerX)
+    if (distance <= tolerancePx && distance < nearestDistance) {
+      nearest = marker
+      nearestDistance = distance
+    }
+  }
+  return nearest
+}
+
 export function PeaksWaveformView({
   engine,
   cueMarkers,
@@ -105,6 +140,9 @@ export function PeaksWaveformView({
   appearance = 'rgb',
   beatGrid = null,
   onCreateCuePoint,
+  editableCueMarkerIds = [],
+  onUpdateCuePoint,
+  onDeleteCuePoint,
 }: PeaksWaveformViewProps) {
   const waveformRootRef = useRef<HTMLDivElement>(null)
   const overviewRef = useRef<HTMLDivElement>(null)
@@ -382,7 +420,8 @@ export function PeaksWaveformView({
   const handleContextMenu = (event: MouseEvent<HTMLDivElement>) => {
     const root = waveformRootRef.current
     const duration = engineRef.current.duration
-    if (!root || !onCreateCuePoint || duration <= 0 || !engineRef.current.currentTrack) return
+    const hasCueMenuActions = Boolean(onCreateCuePoint || onUpdateCuePoint || onDeleteCuePoint)
+    if (!root || !hasCueMenuActions || duration <= 0 || !engineRef.current.currentTrack) return
     event.preventDefault()
     event.stopPropagation()
 
@@ -393,24 +432,63 @@ export function PeaksWaveformView({
     } | null
     const peaksStartSec = activeZoomView?.getStartTime?.()
     const peaksEndSec = activeZoomView?.getEndTime?.()
-    const viewport = target.fullTrack
+    const viewport: WaveformViewport = target.fullTrack
       ? { startSec: 0, endSec: duration }
       : Number.isFinite(peaksStartSec) && Number.isFinite(peaksEndSec) && (peaksEndSec ?? 0) > (peaksStartSec ?? 0)
         ? { startSec: peaksStartSec ?? 0, endSec: peaksEndSec ?? duration }
         : computeWaveformViewport(duration, engineRef.current.getCurrentTime(), waveformZoomRef.current)
     const authoredTimeSec = waveformClientXToTime(event.clientX, target.rect, viewport, duration)
     const request = buildWaveformCueRequest(authoredTimeSec, beatGrid, false)
+    const cueMarker = findCueMarkerNearClientX(cueMarkersRef.current, event.clientX, target.rect, viewport)
     setContextMenu({
       x: event.clientX,
       y: event.clientY,
       authoredTimeSec,
       beat: request.beat,
+      cueMarker,
+      cueEditable: cueMarker ? editableCueMarkerIds.includes(cueMarker.id) : false,
     })
   }
 
   const createCue = (snapToBeat: boolean) => {
     if (!contextMenu || !onCreateCuePoint) return
     onCreateCuePoint(buildWaveformCueRequest(contextMenu.authoredTimeSec, beatGrid, snapToBeat))
+    setContextMenu(null)
+  }
+
+  const jumpToCue = () => {
+    if (!contextMenu?.cueMarker) return
+    engineRef.current.seek(contextMenu.cueMarker.time)
+    setContextMenu(null)
+  }
+
+  const updateContextCue = (snapToBeat: boolean) => {
+    if (!contextMenu?.cueMarker || !contextMenu.cueEditable || !onUpdateCuePoint) return
+    const request = buildWaveformCueRequest(contextMenu.authoredTimeSec, beatGrid, snapToBeat)
+    onUpdateCuePoint(contextMenu.cueMarker.id, {
+      time: request.timeSec,
+      authoredTime: request.authoredTimeSec,
+      beatIndex: request.beat?.beatIndex,
+      barIndex: request.beat?.barIndex,
+      beatInBar: request.beat?.beatInBar,
+      beatTime: request.beat?.beatTimeSec,
+      beatOffsetSec: request.beat?.offsetSec,
+      snappedToBeat: request.snappedToBeat,
+    })
+    setContextMenu(null)
+  }
+
+  const renameContextCue = () => {
+    if (!contextMenu?.cueMarker || !contextMenu.cueEditable || !onUpdateCuePoint || typeof window === 'undefined') return
+    const nextLabel = window.prompt('Cue point name', contextMenu.cueMarker.label)?.trim()
+    if (!nextLabel || nextLabel === contextMenu.cueMarker.label) return
+    onUpdateCuePoint(contextMenu.cueMarker.id, { label: nextLabel.slice(0, 48) })
+    setContextMenu(null)
+  }
+
+  const deleteContextCue = () => {
+    if (!contextMenu?.cueMarker || !contextMenu.cueEditable || !onDeleteCuePoint) return
+    onDeleteCuePoint(contextMenu.cueMarker.id)
     setContextMenu(null)
   }
 
@@ -424,19 +502,55 @@ export function PeaksWaveformView({
       onPointerDown={event => event.stopPropagation()}
     >
       <div className="vz-waveform-context-menu__meta">
-        <strong>{formatWaveformCueTime(contextMenu.authoredTimeSec)}</strong>
-        <span>{formatCueBeatReference(contextMenu.beat) ?? 'No beat grid available'}</span>
+        <strong>{contextMenu.cueMarker?.label ?? formatWaveformCueTime(contextMenu.authoredTimeSec)}</strong>
+        <span>
+          {contextMenu.cueMarker
+            ? `${formatWaveformCueTime(contextMenu.cueMarker.time)} · ${formatCueBeatReference(contextMenu.beat) ?? 'No beat grid available'}`
+            : formatCueBeatReference(contextMenu.beat) ?? 'No beat grid available'}
+        </span>
+        {contextMenu.cueMarker && (
+          <em>{contextMenu.cueEditable ? 'Editable cue point' : `${contextMenu.cueMarker.source ?? 'Imported'} cue · read only`}</em>
+        )}
       </div>
       <span className="rv-show-director-context-menu__divider" role="separator" />
-      <button type="button" role="menuitem" onClick={() => createCue(false)}>Set Cue Point Here</button>
-      <button
-        type="button"
-        role="menuitem"
-        disabled={!contextMenu.beat}
-        onClick={() => createCue(true)}
-      >
-        Set Cue on Nearest Beat
-      </button>
+      {contextMenu.cueMarker && (
+        <>
+          <button type="button" role="menuitem" onClick={jumpToCue}>Jump to Cue</button>
+          {contextMenu.cueEditable && onUpdateCuePoint && (
+            <>
+              <button type="button" role="menuitem" onClick={renameContextCue}>Rename Cue…</button>
+              <button type="button" role="menuitem" onClick={() => updateContextCue(false)}>Move Cue Here</button>
+              <button type="button" role="menuitem" disabled={!contextMenu.beat} onClick={() => updateContextCue(true)}>Snap Cue to Nearest Beat</button>
+            </>
+          )}
+          {contextMenu.cueEditable && onDeleteCuePoint && (
+            <button
+              type="button"
+              role="menuitem"
+              className="rv-show-director-context-menu__danger"
+              onClick={deleteContextCue}
+            >
+              Delete Cue Point
+            </button>
+          )}
+          {onCreateCuePoint && <span className="rv-show-director-context-menu__divider" role="separator" />}
+        </>
+      )}
+      {onCreateCuePoint && (
+        <>
+          <button type="button" role="menuitem" onClick={() => createCue(false)}>
+            {contextMenu.cueMarker ? 'Set New Cue Point Here' : 'Set Cue Point Here'}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!contextMenu.beat}
+            onClick={() => createCue(true)}
+          >
+            {contextMenu.cueMarker ? 'Set New Cue on Nearest Beat' : 'Set Cue on Nearest Beat'}
+          </button>
+        </>
+      )}
     </div>
   ), document.body)
 

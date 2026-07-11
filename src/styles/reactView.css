@@ -8487,7 +8487,8 @@
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.rv-show-director-global-controls .rv-ctrl-section-label {
+.rv-show-director-global-controls .rv-ctrl-section-label,
+.rv-laser-global-controls .rv-ctrl-section-label {
   position: static;
   margin: 0;
   padding: 11px 0 5px;
@@ -10206,4 +10207,13 @@
   background: transparent;
   color: rgba(232, 244, 248, 0.28);
   cursor: default;
+}
+
+.vz-waveform-context-menu__meta em {
+  color: rgba(232, 244, 248, 0.45);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }

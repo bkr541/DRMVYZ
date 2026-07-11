@@ -158,7 +158,7 @@ export function VyzualzAudioDock({
   const {
     presets, activePresetId, bpmSync, toggleBpmSync, setPlaying,
     cuePoint, setCuePoint, beatGridEnabled, setBeatGridEnabled,
-    waveformZoom, setWaveformZoom, cueMarkers, addCueMarker,
+    waveformZoom, setWaveformZoom, cueMarkers, addCueMarker, removeCueMarker, updateCueMarker,
   } = useVisualStore(useShallow(s => ({
     presets:            s.presets,
     activePresetId:     s.activePresetId,
@@ -173,6 +173,8 @@ export function VyzualzAudioDock({
     setWaveformZoom:    s.setWaveformZoom,
     cueMarkers:         s.cueMarkers,
     addCueMarker:        s.addCueMarker,
+    removeCueMarker:     s.removeCueMarker,
+    updateCueMarker:     s.updateCueMarker,
   })))
 
   const preset            = presets.find(p => p.id === activePresetId) ?? presets[0] ?? DEFAULT_PRESETS[0]
@@ -664,6 +666,9 @@ export function VyzualzAudioDock({
             appearance={waveformAppearance}
             beatGrid={engine.currentEffectiveBeatGrid ?? engine.currentAnalysis?.beatGrid ?? null}
             onCreateCuePoint={track ? handleCreateCuePoint : undefined}
+            editableCueMarkerIds={activeManualCues.map(marker => marker.id)}
+            onUpdateCuePoint={track ? updateCueMarker : undefined}
+            onDeleteCuePoint={track ? removeCueMarker : undefined}
           />
         </div>
         <div className="vz-dock-zoom-btns">

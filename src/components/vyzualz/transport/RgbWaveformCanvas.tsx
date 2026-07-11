@@ -353,7 +353,7 @@ export function RgbWaveformCanvas({
         seekAtPointer(e)
       }}
       onPointerMove={e => { if ((e.buttons & 1) === 1) seekAtPointer(e) }}
-      title={duration > 0 ? 'Click or drag to seek · Right-click to set a cue point' : undefined}
+      title={duration > 0 ? 'Click or drag to seek · Right-click to add or manage cue points' : undefined}
       style={{ cursor: onSeek && duration > 0 ? 'pointer' : 'default' }}
     />
   )

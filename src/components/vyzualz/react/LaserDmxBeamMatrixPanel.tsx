@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
-import { Collapsible } from './ReactControlRows'
+import { Collapsible, CtrlSection, SliderRow, ToggleRow } from './ReactControlRows'
 import { LaserDmxReactionGroupInspector } from './LaserDmxReactionGroupInspector'
 import { LASER_DMX_MATRIX_MAX_BEAMS } from './ReactTypes'
 
@@ -14,6 +14,7 @@ export function LaserDmxBeamMatrixPanel() {
     clearLaserDmxMatrixSelection,
     setSelectedLaserDmxMatrixBeams,
     resetLaserDmxBeamMatrix,
+    setLaserDmxBeamMatrixEditorSettings,
   } = useReactStore(useShallow(s => ({
     laserDmxBeamMatrix:                s.laserDmxBeamMatrix,
     addLaserDmxMatrixBeam:             s.addLaserDmxMatrixBeam,
@@ -22,11 +23,12 @@ export function LaserDmxBeamMatrixPanel() {
     clearLaserDmxMatrixSelection:      s.clearLaserDmxMatrixSelection,
     setSelectedLaserDmxMatrixBeams:    s.setSelectedLaserDmxMatrixBeams,
     resetLaserDmxBeamMatrix:           s.resetLaserDmxBeamMatrix,
+    setLaserDmxBeamMatrixEditorSettings: s.setLaserDmxBeamMatrixEditorSettings,
   })))
 
   const [confirmReset, setConfirmReset] = useState(false)
 
-  const { beams, groups, selectedBeamIds } = laserDmxBeamMatrix
+  const { beams, groups, selectedBeamIds, editor } = laserDmxBeamMatrix
   const beamCount  = beams.length
   const groupCount = groups.length
   const selCount   = selectedBeamIds.length
@@ -124,6 +126,46 @@ export function LaserDmxBeamMatrixPanel() {
           </button>
         )}
       </Collapsible>
+
+      {/* ── Stage-wide visualizer guides ────────────────────────────────── */}
+      <div className="rv-show-director-design-panel rv-laser-global-controls">
+        <CtrlSection label="Beam Matrix Design" />
+        <Collapsible label="Canvas" defaultOpen>
+          <ToggleRow
+            label="Show Beam Editor"
+            value={editor.beamEditorVisible}
+            onChange={beamEditorVisible => setLaserDmxBeamMatrixEditorSettings({ beamEditorVisible })}
+            title="Show editing handles and Beam Matrix guides without affecting live laser output."
+          />
+          <ToggleRow
+            label="Snap to Grid"
+            value={editor.snapEnabled}
+            onChange={snapEnabled => setLaserDmxBeamMatrixEditorSettings({ snapEnabled })}
+          />
+          <ToggleRow
+            label="Show Grid"
+            value={editor.guidesVisible}
+            onChange={guidesVisible => setLaserDmxBeamMatrixEditorSettings({ guidesVisible })}
+            disabled={!editor.beamEditorVisible}
+          />
+          <ToggleRow
+            label="Show Beam Paths"
+            value={editor.beamPathsVisible}
+            onChange={beamPathsVisible => setLaserDmxBeamMatrixEditorSettings({ beamPathsVisible })}
+            disabled={!editor.beamEditorVisible}
+            title="Show origin-to-target path lines in the editor."
+          />
+          <SliderRow
+            label="Overscan"
+            value={editor.overscanAmount}
+            onChange={overscanAmount => setLaserDmxBeamMatrixEditorSettings({ overscanAmount })}
+            min={0}
+            max={0.5}
+            step={0.01}
+            color="#d8b95a"
+          />
+        </Collapsible>
+      </div>
 
       {/* ── Group inspector ─────────────────────────────────────────────── */}
       <Collapsible label="Reaction Groups" defaultOpen>

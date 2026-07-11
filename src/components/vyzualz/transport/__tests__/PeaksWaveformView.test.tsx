@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import Peaks from 'peaks.js'
-import { PeaksWaveformView, syncCueMarkers } from '../PeaksWaveformView'
+import { PeaksWaveformView, findCueMarkerNearClientX, syncCueMarkers } from '../PeaksWaveformView'
 import type { AudioEngine } from '../../../../hooks/useAudioEngine'
 import type { VzCueMarker } from '../../../../types/cue'
 import type { PeaksInstance } from 'peaks.js'
@@ -117,6 +117,26 @@ afterEach(async () => {
 })
 
 // ── syncCueMarkers (pure helper) ──────────────────────────────────────────────
+
+describe('findCueMarkerNearClientX', () => {
+  it('returns the nearest visible cue inside the pixel hit tolerance', () => {
+    expect(findCueMarkerNearClientX(
+      MARKERS,
+      298,
+      { left: 100, width: 400 },
+      { startSec: 30, endSec: 90 },
+    )?.id).toBe('c2')
+  })
+
+  it('does not select a cue outside the hit tolerance', () => {
+    expect(findCueMarkerNearClientX(
+      MARKERS,
+      250,
+      { left: 100, width: 400 },
+      { startSec: 30, endSec: 90 },
+    )).toBeNull()
+  })
+})
 
 describe('syncCueMarkers', () => {
   it('clears all points then adds new ones', () => {
@@ -515,6 +535,106 @@ describe('PeaksWaveformView', () => {
         snappedToBeat: true,
         beat: expect.objectContaining({ offsetSec: 0 }),
       }))
+    })
+
+    it('shows management actions and deletes an editable cue when right-clicked', async () => {
+      const onCreateCuePoint = vi.fn()
+      const onUpdateCuePoint = vi.fn()
+      const onDeleteCuePoint = vi.fn()
+      const engine = makeEngine({ currentTime: 60, getCurrentTime: vi.fn(() => 60) })
+      const marker: VzCueMarker = {
+        id: 'manual-cue',
+        label: 'CUE 1',
+        time: 60,
+        type: 'custom',
+        source: 'manual',
+        trackId: 'track-1',
+      }
+
+      await act(async () => {
+        root.render(
+          <PeaksWaveformView
+            engine={engine}
+            cueMarkers={[marker]}
+            waveformZoom={2}
+            appearance="deck"
+            beatGrid={beatGrid}
+            onCreateCuePoint={onCreateCuePoint}
+            editableCueMarkerIds={[marker.id]}
+            onUpdateCuePoint={onUpdateCuePoint}
+            onDeleteCuePoint={onDeleteCuePoint}
+          />,
+        )
+      })
+
+      const waveform = container.querySelector('.vz-peaks-wrap--deck') as HTMLDivElement
+      waveform.getBoundingClientRect = vi.fn(() => ({
+        left: 100, top: 50, right: 500, bottom: 150, width: 400, height: 100, x: 100, y: 50, toJSON: () => ({}),
+      }))
+      await act(async () => {
+        waveform.dispatchEvent(new MouseEvent('contextmenu', {
+          bubbles: true, cancelable: true, clientX: 300, clientY: 80,
+        }))
+      })
+
+      const menu = document.body.querySelector('.vz-waveform-context-menu') as HTMLDivElement
+      expect(menu.textContent).toContain('CUE 1')
+      expect(menu.textContent).toContain('Jump to Cue')
+      expect(menu.textContent).toContain('Rename Cue')
+      expect(menu.textContent).toContain('Move Cue Here')
+      expect(menu.textContent).toContain('Delete Cue Point')
+
+      const deleteButton = Array.from(menu.querySelectorAll('button'))
+        .find(button => button.textContent === 'Delete Cue Point')
+      await act(async () => { deleteButton?.click() })
+
+      expect(onDeleteCuePoint).toHaveBeenCalledWith(marker.id)
+      expect(document.body.querySelector('.vz-waveform-context-menu')).toBeNull()
+    })
+
+    it('keeps imported cues read-only while still offering jump and new-cue actions', async () => {
+      const onCreateCuePoint = vi.fn()
+      const onDeleteCuePoint = vi.fn()
+      const engine = makeEngine({ currentTime: 60, getCurrentTime: vi.fn(() => 60) })
+      const marker: VzCueMarker = {
+        id: 'rb-cue',
+        label: 'HOT CUE A',
+        time: 60,
+        type: 'drop',
+        source: 'rekordbox',
+        kind: 'hot_cue',
+      }
+
+      await act(async () => {
+        root.render(
+          <PeaksWaveformView
+            engine={engine}
+            cueMarkers={[marker]}
+            waveformZoom={2}
+            appearance="deck"
+            beatGrid={beatGrid}
+            onCreateCuePoint={onCreateCuePoint}
+            editableCueMarkerIds={[]}
+            onDeleteCuePoint={onDeleteCuePoint}
+          />,
+        )
+      })
+
+      const waveform = container.querySelector('.vz-peaks-wrap--deck') as HTMLDivElement
+      waveform.getBoundingClientRect = vi.fn(() => ({
+        left: 100, top: 50, right: 500, bottom: 150, width: 400, height: 100, x: 100, y: 50, toJSON: () => ({}),
+      }))
+      await act(async () => {
+        waveform.dispatchEvent(new MouseEvent('contextmenu', {
+          bubbles: true, cancelable: true, clientX: 300, clientY: 80,
+        }))
+      })
+
+      const menu = document.body.querySelector('.vz-waveform-context-menu') as HTMLDivElement
+      expect(menu.textContent).toContain('read only')
+      expect(menu.textContent).toContain('Jump to Cue')
+      expect(menu.textContent).toContain('Set New Cue Point Here')
+      expect(menu.textContent).not.toContain('Delete Cue Point')
     })
   })
 
