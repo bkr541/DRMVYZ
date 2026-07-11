@@ -10,6 +10,14 @@ const mediaDbMocks = vi.hoisted(() => ({
   createSignedMediaUrl: vi.fn(),
   uploadMediaFile: vi.fn(),
   deleteMediaFiles: vi.fn(),
+  deleteMediaFile: vi.fn(),
+  beginMediaUpload: vi.fn(),
+  finalizeMediaUploadAtomic: vi.fn(),
+  markMediaUploadCleanupPending: vi.fn(),
+  updateMediaCleanupJob: vi.fn(),
+  requestMediaDeletion: vi.fn(),
+  finalizeMediaDeletion: vi.fn(),
+  listPendingMediaCleanup: vi.fn(),
   setMediaItemTags: vi.fn(),
   listMediaItemTagNames: vi.fn(),
   listMediaCollections: vi.fn(),
@@ -118,11 +126,23 @@ function canonical(input: SaveMediaItemAtomicInput, overrides: Record<string, un
   }
 }
 
+function uploadCanonical(operationId: string, overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'uploaded-media', user_id: 'user-1', name: 'visual.png', type: 'image',
+    storage_path: `user-1/uploads/${operationId}/original.png`, thumbnail_path: `user-1/uploads/${operationId}/original.png`,
+    width: 640, height: 360, duration_sec: null, file_size: 3, mime_type: 'image/png',
+    favorite: false, media_role: 'overlay', title: 'Visual', description: null, metadata: { width: 640, height: 360 },
+    revision: 1, upload_operation_id: operationId, lifecycle_status: 'complete', derivative_paths: [],
+    created_at: '2026-07-11T00:00:00.000Z', updated_at: '2026-07-11T00:00:00.000Z',
+    tags: ['live'], collection_ids: ['collection-1'], ...overrides,
+  }
+}
+
 function resetStore() {
   useMediaStore.setState({
     items: [], collections: [], loading: false, collectionsLoading: false,
     loadError: null, deleteError: null, authRequired: false, storageAvailable: true,
-    lastRestored: null, activeFilter: 'all', mutationStates: {}, collectionOrderMutations: {},
+    lastRestored: null, activeFilter: 'all', mutationStates: {}, collectionOrderMutations: {}, deletionStates: {}, uploadCleanupStates: {},
     importModalOpen: false, uploadQueue: [],
     uploadDraft: {
       role: 'other', title: '', description: '', tags: [], collectionIds: [], metadata: {},
@@ -141,6 +161,13 @@ describe('Media Manager canonical workflows', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:test'), revokeObjectURL: vi.fn() })
+    vi.stubGlobal('Image', class {
+      naturalWidth = 640
+      naturalHeight = 360
+      onload: (() => void) | null = null
+      onerror: (() => void) | null = null
+      set src(_value: string) { queueMicrotask(() => this.onload?.()) }
+    })
     resetStore()
     runtimeMocks.visual.activeMediaId = null
     runtimeMocks.visual.setActiveMedia.mockImplementation(id => { runtimeMocks.visual.activeMediaId = id })
@@ -161,7 +188,41 @@ describe('Media Manager canonical workflows', () => {
     mediaDbMocks.reorderMediaCollectionAtomic.mockResolvedValue({ ok: true, kind: 'success', orderedMediaIds: [] })
     mediaDbMocks.deleteMediaItem.mockResolvedValue({ error: null })
     mediaDbMocks.deleteMediaFiles.mockResolvedValue({ error: null })
-    mediaDbMocks.uploadMediaFile.mockResolvedValue({ error: null })
+    mediaDbMocks.deleteMediaFile.mockResolvedValue({ error: null })
+    mediaDbMocks.uploadMediaFile.mockResolvedValue({ error: null, reused: false })
+    mediaDbMocks.listPendingMediaCleanup.mockResolvedValue({ rows: [], error: null })
+    mediaDbMocks.requestMediaDeletion.mockResolvedValue({
+      ok: true,
+      reconciled: false,
+      cleanupJob: {
+        id: 'cleanup-1', user_id: 'user-1', media_item_id: 'media-1', upload_operation_id: null,
+        kind: 'media_deletion', status: 'pending', storage_paths: ['user-1/media-1/image.png'],
+        completed_paths: [], last_error: null, created_at: '2026-07-11T00:00:00.000Z',
+        updated_at: '2026-07-11T00:00:00.000Z', completed_at: null,
+      },
+    })
+    mediaDbMocks.updateMediaCleanupJob.mockImplementation(async (_id: string, completed: string[], status: string, error: string | null) => ({
+      ok: true,
+      cleanupJob: {
+        id: 'cleanup-1', user_id: 'user-1', media_item_id: 'media-1', upload_operation_id: null,
+        kind: 'media_deletion', status, storage_paths: ['user-1/media-1/image.png'],
+        completed_paths: completed, last_error: error, created_at: '2026-07-11T00:00:00.000Z',
+        updated_at: '2026-07-11T00:00:00.000Z', completed_at: null,
+      },
+    }))
+    mediaDbMocks.finalizeMediaDeletion.mockResolvedValue({ ok: true, mediaItemId: 'media-1' })
+    mediaDbMocks.beginMediaUpload.mockResolvedValue({ ok: true, mediaItem: null, operationStatus: 'uploading', phase: 'uploading_original' })
+    mediaDbMocks.finalizeMediaUploadAtomic.mockImplementation(async (input: { operationId: string }) => ({
+      ok: true, mediaItem: uploadCanonical(input.operationId), reconciled: false,
+    }))
+    mediaDbMocks.markMediaUploadCleanupPending.mockImplementation(async (operationId: string, paths: string[], error: string) => ({
+      ok: true,
+      cleanupJob: {
+        id: 'upload-cleanup-1', user_id: 'user-1', media_item_id: null, upload_operation_id: operationId,
+        kind: 'upload_rollback', status: 'pending', storage_paths: paths, completed_paths: [], last_error: error,
+        created_at: '2026-07-11T00:00:00.000Z', updated_at: '2026-07-11T00:00:00.000Z', completed_at: null,
+      },
+    }))
     mediaDbMocks.createMediaItem.mockResolvedValue({ id: 'media-retried', revision: 1, error: null })
     mediaDbMocks.updateMediaCollection.mockResolvedValue({ error: null })
     mediaDbMocks.deleteMediaCollection.mockResolvedValue({ error: null })
@@ -372,7 +433,9 @@ describe('Media Manager canonical workflows', () => {
     runtimeMocks.visual.activeMediaId = selected.id
 
     expect(await useMediaStore.getState().removeItem(selected.id)).toBe(true)
-    expect(mediaDbMocks.deleteMediaItem).toHaveBeenCalledWith(selected.dbId)
+    expect(mediaDbMocks.requestMediaDeletion).toHaveBeenCalledWith(selected.dbId)
+    expect(mediaDbMocks.deleteMediaFile).toHaveBeenCalledWith(selected.storagePath)
+    expect(mediaDbMocks.finalizeMediaDeletion).toHaveBeenCalledWith('cleanup-1')
     expect(useMediaStore.getState().items).toEqual([fallback])
     expect(runtimeMocks.visual.setActiveMedia).toHaveBeenCalledWith(fallback.id)
   })
@@ -390,4 +453,119 @@ describe('Media Manager canonical workflows', () => {
     expect(result).toMatchObject({ total: 2, succeeded: 1 })
     expect(useMediaStore.getState().uploadQueue.map(item => item.file.name)).toEqual(['two.wav'])
   })
+
+  it('creates one canonical visual item with role, tags, collections, and stable upload identity', async () => {
+    const file = new File(['png'], 'visual.png', { type: 'image/png' })
+    expect(useMediaStore.getState().addFilesToUploadQueue([file])).toBe(1)
+    const queued = useMediaStore.getState().uploadQueue[0]
+    useMediaStore.setState(state => ({
+      uploadDraft: { ...state.uploadDraft, role: 'overlay', title: 'Visual', tags: ['live'], collectionIds: ['collection-1'] },
+    }))
+
+    const result = await useMediaStore.getState().uploadQueuedMedia()
+
+    expect(result).toEqual({ total: 1, succeeded: 1, failures: [] })
+    expect(mediaDbMocks.finalizeMediaUploadAtomic).toHaveBeenCalledWith(expect.objectContaining({
+      operationId: queued.operationId,
+      media: expect.objectContaining({ media_role: 'overlay', storage_path: `user-1/uploads/${queued.operationId}/original.png` }),
+      tagNames: ['live'], collectionIds: ['collection-1'],
+    }))
+    expect(useMediaStore.getState().items).toHaveLength(1)
+    expect(useMediaStore.getState().items[0]).toMatchObject({
+      id: 'db-uploaded-media', dbId: 'uploaded-media', uploadOperationId: queued.operationId,
+      tags: ['live'], collectionIds: ['collection-1'], mediaRole: 'overlay', revision: 1,
+    })
+  })
+
+  it('does not report relationship failure as success and durably cleans the uploaded object', async () => {
+    const file = new File(['png'], 'visual.png', { type: 'image/png' })
+    useMediaStore.getState().addFilesToUploadQueue([file])
+    const queued = useMediaStore.getState().uploadQueue[0]
+    mediaDbMocks.finalizeMediaUploadAtomic.mockResolvedValueOnce({
+      ok: false, kind: 'validation', message: 'Selected collection is unavailable.',
+    })
+
+    const result = await useMediaStore.getState().uploadQueuedMedia()
+
+    expect(result).toMatchObject({ total: 1, succeeded: 0, failures: [{ error: 'Selected collection is unavailable.' }] })
+    expect(useMediaStore.getState().items).toEqual([])
+    expect(useMediaStore.getState().uploadQueue).toHaveLength(1)
+    expect(mediaDbMocks.markMediaUploadCleanupPending).toHaveBeenCalledWith(
+      queued.operationId,
+      [`user-1/uploads/${queued.operationId}/original.png`],
+      'Selected collection is unavailable.',
+    )
+    expect(mediaDbMocks.deleteMediaFile).toHaveBeenCalledWith(`user-1/uploads/${queued.operationId}/original.png`)
+  })
+
+  it('reconciles an ambiguous retry without re-uploading or creating a duplicate row', async () => {
+    const file = new File(['png'], 'visual.png', { type: 'image/png' })
+    useMediaStore.getState().addFilesToUploadQueue([file])
+    const queued = useMediaStore.getState().uploadQueue[0]
+    mediaDbMocks.beginMediaUpload.mockResolvedValueOnce({
+      ok: true, operationStatus: 'complete', phase: 'complete', mediaItem: uploadCanonical(queued.operationId),
+    })
+
+    const result = await useMediaStore.getState().uploadQueuedMedia()
+
+    expect(result.succeeded).toBe(1)
+    expect(mediaDbMocks.uploadMediaFile).not.toHaveBeenCalled()
+    expect(mediaDbMocks.finalizeMediaUploadAtomic).not.toHaveBeenCalled()
+    expect(useMediaStore.getState().items.map(item => item.dbId)).toEqual(['uploaded-media'])
+  })
+
+  it('keeps partial deletion cleanup visible and retries only unfinished exact paths', async () => {
+    const selected = mediaItem({
+      type: 'video', storagePath: 'user-1/uploads/op-1/original.mp4', thumbnailUrl: null,
+      derivativePaths: [
+        { kind: 'thumbnail', path: 'user-1/uploads/op-1/thumbnail.jpg', required: false, status: 'ready' },
+        { kind: 'filmstrip', path: 'user-1/uploads/op-1/filmstrip.jpg', required: false, status: 'ready' },
+      ],
+    })
+    const paths = selected.derivativePaths!.map(path => path.path)
+    const allPaths = [selected.storagePath!, ...paths]
+    mediaDbMocks.requestMediaDeletion.mockResolvedValueOnce({
+      ok: true, reconciled: false,
+      cleanupJob: {
+        id: 'cleanup-video', user_id: 'user-1', media_item_id: selected.dbId, upload_operation_id: 'op-1',
+        kind: 'media_deletion', status: 'pending', storage_paths: allPaths, completed_paths: [], last_error: null,
+        created_at: '2026-07-11T00:00:00.000Z', updated_at: '2026-07-11T00:00:00.000Z', completed_at: null,
+      },
+    })
+    mediaDbMocks.deleteMediaFile
+      .mockResolvedValueOnce({ error: null })
+      .mockResolvedValueOnce({ error: 'network offline' })
+    useMediaStore.setState({ items: [selected] })
+
+    expect(await useMediaStore.getState().removeItem(selected.id)).toBe(false)
+    expect(useMediaStore.getState().items).toEqual([])
+    expect(useMediaStore.getState().deletionStates[selected.id]).toMatchObject({
+      status: 'failed', completedPaths: [allPaths[0]], storagePaths: allPaths,
+    })
+
+    mediaDbMocks.deleteMediaFile.mockReset().mockResolvedValue({ error: null })
+    mediaDbMocks.finalizeMediaDeletion.mockResolvedValueOnce({ ok: true, mediaItemId: selected.dbId })
+    expect(await useMediaStore.getState().retryDeletion(selected.id)).toBe(true)
+    expect(mediaDbMocks.deleteMediaFile.mock.calls.map(call => call[0])).toEqual(allPaths.slice(1))
+    expect(useMediaStore.getState().deletionStates[selected.id]).toBeUndefined()
+  })
+
+  it('blocks foreign cleanup paths before storage deletion and clears account-scoped operation state', async () => {
+    useMediaStore.setState({
+      deletionStates: {
+        'db-media-1': {
+          itemId: 'db-media-1', dbId: 'media-1', jobId: 'cleanup-foreign', status: 'failed', message: 'retry',
+          storagePaths: ['user-2/uploads/op-1/original.mp4'], completedPaths: [], updatedAt: Date.now(),
+        },
+      },
+    })
+
+    expect(await useMediaStore.getState().retryDeletion('db-media-1')).toBe(false)
+    expect(mediaDbMocks.deleteMediaFile).not.toHaveBeenCalled()
+    expect(useMediaStore.getState().deletionStates['db-media-1']).toMatchObject({ status: 'failed' })
+
+    useMediaStore.getState().clear()
+    expect(useMediaStore.getState()).toMatchObject({ items: [], collections: [], uploadQueue: [], deletionStates: {} })
+  })
+
 })

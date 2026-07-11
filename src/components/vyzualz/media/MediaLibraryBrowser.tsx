@@ -315,6 +315,8 @@ function MediaCard({
     <span className="vz-media-type-badge" style={{ background: 'rgba(74,199,219,0.25)', color: '#4ac7db' }}>↑ SYNC</span>
   ) : m.uploadError ? (
     <span className="vz-media-type-badge" style={{ background: 'rgba(248,113,113,0.22)', color: '#f87171' }} title={m.uploadError}>⚠ LOCAL</span>
+  ) : m.derivativeWarning ? (
+    <span className="vz-media-type-badge" style={{ background: 'rgba(251,191,36,0.22)', color: '#fbbf24' }} title={m.derivativeWarning}>⚠ DERIVATIVE</span>
   ) : m.mediaRole && m.mediaRole !== 'other' ? (
     <span className="vz-media-type-badge" style={{ background: 'rgba(10,20,32,0.75)' }} title={`Role: ${MEDIA_ROLE_LABELS[m.mediaRole]}`}>
       {MEDIA_ROLE_BADGE_LABELS[m.mediaRole]}
@@ -357,7 +359,7 @@ function MediaCard({
           {mutationLabel && <span className={`vz-media-mutation-state vz-media-mutation-state--${mutationState!.status}`}>{mutationLabel}</span>}
         </div>
         <div className="vz-media-row-actions">
-          {canRetry && m.uploadError && <button type="button" className="vz-track-load-btn" onClick={e => { e.stopPropagation(); onRetry() }}>Retry</button>}
+          {canRetry && (m.uploadError || (m.derivativeWarning && m.uploadSourceFile)) && <button type="button" className="vz-track-load-btn" onClick={e => { e.stopPropagation(); onRetry() }}>{m.derivativeWarning ? 'Retry derivative' : 'Retry'}</button>}
           {canFavorite && (
             <button
               className={`vz-media-star ${m.favorite ? 'vz-media-star--active' : ''}`}
@@ -416,7 +418,7 @@ function MediaCard({
           />
         )}
         {badge}
-        {canRetry && m.uploadError && <button type="button" className="vz-media-retry" onClick={e => { e.stopPropagation(); onRetry() }}>Retry upload</button>}
+        {canRetry && (m.uploadError || (m.derivativeWarning && m.uploadSourceFile)) && <button type="button" className="vz-media-retry" onClick={e => { e.stopPropagation(); onRetry() }}>{m.derivativeWarning ? 'Retry derivative' : 'Retry upload'}</button>}
         {disabledReason && <div className="vz-media-disabled-reason vz-media-disabled-reason--overlay">{disabledReason}</div>}
         {canFavorite && (
           <button
@@ -709,7 +711,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             onSelect={() => onSelect?.(m.id)}
             onEdit={canEdit ? () => setEditItem(m) : undefined}
             onRemove={canRemove ? () => {
-              if (window.confirm(`Delete “${m.title ?? m.name}”? This removes the stored file and its collection assignments.`)) void removeItem(m.id)
+              if (window.confirm(`Delete “${m.title ?? m.name}”? It will disappear immediately, while exact storage cleanup remains recoverable until finalized.`)) void removeItem(m.id)
             } : undefined}
             onToggleFavorite={() => toggleFavorite(m.id)}
             onPreview={() => setPreviewItem(m)}

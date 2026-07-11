@@ -23,6 +23,21 @@ export type ViewMode     = 'analyzer' | 'reference' | 'vyzualz'
 export type Theme        = 'dark' | 'light' | 'system'
 export type MediaType    = 'image' | 'video'
 export type ExportFormat = 'png' | 'jpeg' | 'webm' | 'gif'
+
+export type MediaLifecycleStatus = 'complete' | 'deletion_pending' | 'deletion_failed'
+export type MediaDerivativeStatus = 'ready' | 'failed' | 'pending'
+export interface MediaDerivativePath {
+  kind: string
+  path: string
+  required: boolean
+  status: MediaDerivativeStatus
+  error?: string
+}
+export type MediaUploadOperationStatus = 'preparing' | 'uploading' | 'saving' | 'cleanup_pending' | 'failed' | 'complete'
+export type MediaUploadPhase = 'preparing' | 'uploading_original' | 'preparing_derivative' | 'saving_record' | 'applying_organization' | 'finalizing' | 'cleanup_pending' | 'complete' | 'failed'
+export type MediaCleanupKind = 'upload_rollback' | 'media_deletion' | 'derivative_cleanup'
+export type MediaCleanupStatus = 'pending' | 'failed' | 'complete'
+
 export type MediaRoleDb  =
   | 'background_image' | 'background_video' | 'logo' | 'transparent_element'
   | 'overlay' | 'character_art' | 'texture' | 'loop' | 'transition'
@@ -301,6 +316,9 @@ export interface MediaItemRow {
   description: string | null
   metadata:    MediaMetadata   // JSONB column
   revision:    number          // optimistic concurrency token (migration 0023)
+  upload_operation_id: string | null
+  lifecycle_status: MediaLifecycleStatus
+  derivative_paths: MediaDerivativePath[]
   created_at: string
   updated_at: string
 }
@@ -322,6 +340,39 @@ export interface MediaItemInsert {
   description?: string | null
   metadata?: MediaMetadata
   revision?: number
+  upload_operation_id?: string | null
+  lifecycle_status?: MediaLifecycleStatus
+  derivative_paths?: MediaDerivativePath[]
+}
+
+
+export interface MediaUploadOperationRow {
+  id: string
+  user_id: string
+  operation_id: string
+  original_path: string
+  derivative_paths: MediaDerivativePath[]
+  status: MediaUploadOperationStatus
+  phase: MediaUploadPhase
+  media_item_id: string | null
+  last_error: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface MediaCleanupJobRow {
+  id: string
+  user_id: string
+  media_item_id: string | null
+  upload_operation_id: string | null
+  kind: MediaCleanupKind
+  status: MediaCleanupStatus
+  storage_paths: string[]
+  completed_paths: string[]
+  last_error: string | null
+  created_at: string
+  updated_at: string
+  completed_at: string | null
 }
 
 export interface MediaTagRow {
@@ -531,6 +582,35 @@ export interface Database {
         }
         Returns: Json
       }
+
+      begin_media_upload: {
+        Args: { p_operation_id: string; p_original_path: string; p_derivative_paths: Json }
+        Returns: Json
+      }
+      finalize_media_upload_atomic: {
+        Args: { p_operation_id: string; p_media: Json; p_tag_names: Json; p_collection_ids: Json; p_derivative_paths: Json }
+        Returns: Json
+      }
+      mark_media_upload_cleanup_pending: {
+        Args: { p_operation_id: string; p_storage_paths: Json; p_error: string }
+        Returns: Json
+      }
+      update_media_cleanup_job: {
+        Args: { p_job_id: string; p_completed_paths: Json; p_status: string; p_error?: string | null }
+        Returns: Json
+      }
+      request_media_deletion: {
+        Args: { p_media_item_id: string }
+        Returns: Json
+      }
+      finalize_media_deletion: {
+        Args: { p_cleanup_job_id: string }
+        Returns: Json
+      }
+      list_pending_media_cleanup: {
+        Args: Record<string, never>
+        Returns: Json
+      }
       save_media_item_atomic: {
         Args: {
           p_media_item_id: string
@@ -571,6 +651,8 @@ export interface Database {
       reference_sessions:     { Row: DBRec<ReferenceSessionRow>;  Insert: DBRec<Omit<ReferenceSessionRow,'id'|'created_at'|'updated_at'>>; Update: DBRec<Partial<Omit<ReferenceSessionRow,'id'>>>; Relationships: [] }
       reference_slots:        { Row: DBRec<ReferenceSlot>;        Insert: DBRec<Omit<ReferenceSlot,'id'|'created_at'>>;                 Update: DBRec<Partial<Omit<ReferenceSlot,'id'>>>; Relationships: [] }
       reference_comparisons:  { Row: DBRec<ReferenceComparison>;  Insert: DBRec<Omit<ReferenceComparison,'id'|'computed_at'>>;           Update: DBRec<Partial<Omit<ReferenceComparison,'id'>>>; Relationships: [] }
+      media_upload_operations: { Row: DBRec<MediaUploadOperationRow>; Insert: never; Update: never; Relationships: [] }
+      media_cleanup_jobs:       { Row: DBRec<MediaCleanupJobRow>; Insert: never; Update: never; Relationships: [] }
       media_items:              { Row: DBRec<MediaItemRow>;           Insert: DBRec<MediaItemInsert>;                                                   Update: DBRec<Partial<Omit<MediaItemRow,'id'>>>; Relationships: [] }
       media_tags:               { Row: DBRec<MediaTagRow>;            Insert: DBRec<MediaTagInsert>;                                                    Update: DBRec<Partial<Omit<MediaTagRow,'id'>>>; Relationships: [] }
       media_item_tags:          { Row: DBRec<MediaItemTagRow>;        Insert: DBRec<Omit<MediaItemTagRow,'created_at'>>;                                Update: never; Relationships: [] }

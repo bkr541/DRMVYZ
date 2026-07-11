@@ -69,6 +69,14 @@
 
 `save_media_item_atomic` locks and ownership-checks the media row, verifies the expected revision, validates owned collections, updates supported metadata, replaces tags and collection memberships, and returns the complete canonical item in one transaction. `reorder_media_collection_atomic` validates the complete owned membership set and applies the final order in one bulk transaction. Collection-membership writes lock their parent collection so edits, uploads, deletes, and reorders cannot interleave into a partial order. Both RPCs are executable only by authenticated users and retain explicit ownership checks in addition to RLS.
 
+#### Recoverable media upload and deletion
+
+Migration `0024_media_upload_deletion_recovery.sql` adds a user-scoped `upload_operation_id`, lifecycle state, and canonical derivative-path metadata to `media_items`. Uploads use deterministic paths under `<user_id>/uploads/<operation_id>/`, and `(user_id, upload_operation_id)` is unique so retrying the same logical operation reconciles one canonical row.
+
+`begin_media_upload` durably binds the operation to its exact original and derivative paths before storage work begins. `finalize_media_upload_atomic` creates or reconciles the media row, role, tags, collections, derivative state, and revision in one database transaction. A pre-created upload rollback record means an interrupted or failed cross-system upload always retains owned cleanup paths. Successful finalization closes that rollback record so a stale client cannot later delete canonical storage.
+
+Deletion is a tombstone workflow. `request_media_deletion` ownership-checks and locks the media row, captures the original, thumbnail, filmstrip, and all known derivative paths, creates an idempotent cleanup job, and moves the row out of the normal library with `deletion_pending`. The client removes only those exact paths and persists progress after each object. `finalize_media_deletion` deletes the canonical row, and its tag and collection relationships through foreign-key behavior, only after every recorded path is complete. Failed cleanup remains user-visible and retryable through `media_cleanup_jobs`; RLS and RPC path validation prevent cross-user, traversal, or broad-prefix cleanup.
+
 #### `effect_chain_options` columns
 
 | Column | Type | Notes |

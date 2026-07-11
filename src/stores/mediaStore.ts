@@ -2,23 +2,26 @@ import { create } from 'zustand'
 import { supabase, supabaseConfigured } from '../lib/supabase'
 import {
   listMediaItems,
-  createMediaItem,
   saveMediaItemAtomic,
   reorderMediaCollectionAtomic,
-  deleteMediaItem,
   createSignedMediaUrl,
   uploadMediaFile,
-  deleteMediaFiles,
-  setMediaItemTags,
+  deleteMediaFile,
+  beginMediaUpload,
+  finalizeMediaUploadAtomic,
+  markMediaUploadCleanupPending,
+  updateMediaCleanupJob,
+  requestMediaDeletion,
+  finalizeMediaDeletion,
+  listPendingMediaCleanup,
   listMediaItemTagNames,
   listMediaCollections,
   createMediaCollection,
   updateMediaCollection,
   deleteMediaCollection,
   listMediaItemCollectionIds,
-  setMediaItemCollections,
 } from '../lib/mediaDb'
-import type { MediaItemRow, MediaMetadata } from '../types/database'
+import type { MediaItemRow, MediaMetadata, MediaDerivativePath, MediaCleanupJobRow, MediaUploadPhase } from '../types/database'
 import type { CanonicalMediaItem } from '../lib/mediaDb'
 import { suggestMediaRole, isAudioFile, isSvgFile } from '../lib/mediaRoles'
 import type { MediaRole, MediaEnergy } from '../lib/mediaRoles'
@@ -52,6 +55,7 @@ export interface UploadedMedia {
   metadata: MediaMetadata           // width, height, duration, fps, hasAlpha, analyzedAt, etc.
   uploading?: boolean
   uploadError?: string
+  derivativeWarning?: string
   /** Retained only for a failed local upload so the user can retry without reselecting the file. */
   uploadSourceFile?: File
   storagePath?: string
@@ -60,6 +64,10 @@ export interface UploadedMedia {
   mimeType?: string | null
   /** Server-issued optimistic concurrency token. Present for synced media. */
   revision?: number
+  uploadOperationId?: string
+  lifecycleStatus?: 'complete' | 'deletion_pending' | 'deletion_failed'
+  derivativePaths?: MediaDerivativePath[]
+  uploadPhase?: MediaUploadPhase
 }
 
 export type MediaMutationOperation =
@@ -95,17 +103,42 @@ export interface CollectionOrderMutationState {
   updatedAt: number
 }
 
+export interface MediaDeletionState {
+  itemId: string
+  dbId: string
+  jobId: string
+  status: 'pending' | 'failed'
+  message: string | null
+  storagePaths: string[]
+  completedPaths: string[]
+  updatedAt: number
+}
+
+
+export interface MediaUploadCleanupState {
+  jobId: string
+  operationId: string
+  status: 'pending' | 'failed'
+  message: string | null
+  storagePaths: string[]
+  completedPaths: string[]
+  updatedAt: number
+}
+
 export function mediaMutationKey(itemId: string, operation: MediaMutationOperation): string {
   return `${itemId}:${operation}`
 }
 
 export interface UploadQueueItem {
   tempId: string
+  operationId: string
   file: File
   previewUrl: string        // object URL for preview in modal
   suggestedRole: MediaRole
   isAudio: boolean
 }
+
+export type UploadWorkflowPhase = MediaUploadPhase | 'cancelled'
 
 export interface UploadProgressEvent {
   tempId: string
@@ -113,6 +146,7 @@ export interface UploadProgressEvent {
   completed: number
   total: number
   status: 'uploading' | 'done' | 'error'
+  phase?: UploadWorkflowPhase
   error?: string
 }
 
@@ -130,6 +164,7 @@ export interface UploadBatchResult {
 
 export interface UploadQueuedMediaOptions {
   onProgress?: (event: UploadProgressEvent) => void
+  signal?: AbortSignal
 }
 
 export interface UploadDraft {
@@ -171,6 +206,32 @@ const DEFAULT_DRAFT: UploadDraft = {
 
 function generateId() {
   return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
+}
+
+function generateOperationId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  const bytes = new Uint8Array(16)
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') crypto.getRandomValues(bytes)
+  else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256)
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
+function storageExtensionForFile(file: File): string {
+  const filenameExt = file.name.toLowerCase().match(/\.([a-z0-9]{1,8})$/)?.[1]
+  const allowed = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'mp4', 'mov', 'webm'])
+  if (filenameExt && allowed.has(filenameExt)) return filenameExt === 'jpeg' ? 'jpg' : filenameExt
+  const byMime: Record<string, string> = {
+    'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp',
+    'image/svg+xml': 'svg', 'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/webm': 'webm',
+  }
+  return byMime[file.type] ?? 'bin'
+}
+
+function isOwnedExactStoragePath(userId: string, path: string): boolean {
+  return path.startsWith(`${userId}/`) && !path.split('/').some(segment => segment === '..' || segment === '.')
 }
 
 function fmtDur(seconds: number): string {
@@ -349,78 +410,196 @@ async function getCurrentUserId(): Promise<string | null> {
 }
 
 type UploadResult =
-  | { ok: true; storagePath: string; dbId: string; revision: number; thumbnailStoragePath: string | null }
-  | { ok: false; error: string }
+  | {
+      ok: true
+      storagePath: string
+      thumbnailStoragePath: string | null
+      derivatives: MediaDerivativePath[]
+      mediaItem: CanonicalMediaItem
+      derivativeWarning?: string
+    }
+  | { ok: false; error: string; phase: UploadWorkflowPhase; cleanupPending?: boolean }
+
+function uploadCancelled(signal?: AbortSignal): boolean {
+  return signal?.aborted === true
+}
+
+async function cleanupFailedUpload(
+  operationId: string,
+  paths: string[],
+  reason: string,
+): Promise<{ cleanupPending: boolean; detail?: string }> {
+  const uniquePaths = Array.from(new Set(paths))
+  const recorded = await markMediaUploadCleanupPending(operationId, uniquePaths, reason)
+  if (!recorded.ok) {
+    return { cleanupPending: true, detail: `${reason} Cleanup recovery could not be recorded: ${recorded.message}` }
+  }
+
+  const completed = [...recorded.cleanupJob.completed_paths]
+  let cleanupError: string | null = null
+  for (const path of uniquePaths) {
+    if (completed.includes(path)) continue
+    const result = await deleteMediaFile(path)
+    if (result.error) {
+      cleanupError = interpretError(result.error)
+      break
+    }
+    completed.push(path)
+  }
+
+  if (cleanupError) {
+    await updateMediaCleanupJob(recorded.cleanupJob.id, completed, 'failed', cleanupError)
+    return { cleanupPending: true, detail: `${reason} Uploaded objects are queued for cleanup. Retry after reconnecting.` }
+  }
+
+  const updated = await updateMediaCleanupJob(recorded.cleanupJob.id, completed, 'complete', null)
+  if (!updated.ok) {
+    return { cleanupPending: true, detail: `${reason} Storage was cleaned, but cleanup completion could not be reconciled.` }
+  }
+  return { cleanupPending: false }
+}
 
 async function uploadToSupabase(
   file: File,
   item: LocalItem,
   userId: string,
+  operationId: string,
+  options: { signal?: AbortSignal; onPhase?: (phase: UploadWorkflowPhase) => void } = {},
 ): Promise<UploadResult> {
-  const storagePath = `${userId}/${item.id}/${item.name}`
-  let thumbnailStoragePath: string | null = null
-  const uploadedPaths: string[] = []
+  const extension = storageExtensionForFile(file)
+  const storagePath = `${userId}/uploads/${operationId}/original.${extension}`
+  const thumbPath = `${userId}/uploads/${operationId}/thumbnail.jpg`
+  const plannedDerivatives: MediaDerivativePath[] = item.type === 'video'
+    ? [{ kind: 'thumbnail', path: thumbPath, required: false, status: 'pending' }]
+    : []
+  const cleanupPaths: string[] = []
+
+  const fail = async (error: string, phase: UploadWorkflowPhase): Promise<UploadResult> => {
+    if (!cleanupPaths.length) return { ok: false, error, phase }
+    options.onPhase?.('cleanup_pending')
+    const cleanup = await cleanupFailedUpload(operationId, cleanupPaths, error)
+    return {
+      ok: false,
+      error: cleanup.detail ?? error,
+      phase: cleanup.cleanupPending ? 'cleanup_pending' : phase,
+      cleanupPending: cleanup.cleanupPending,
+    }
+  }
 
   try {
+    options.onPhase?.('preparing')
+    const begun = await beginMediaUpload(operationId, storagePath, plannedDerivatives)
+    if (!begun.ok) return { ok: false, error: begun.message, phase: 'preparing' }
+    const existingCanonical = begun.mediaItem
+    const retryableDerivativeFailure = existingCanonical?.derivative_paths?.some(
+      derivative => derivative.status === 'failed',
+    ) === true
+    if (existingCanonical && !retryableDerivativeFailure) {
+      return {
+        ok: true,
+        storagePath: existingCanonical.storage_path,
+        thumbnailStoragePath: existingCanonical.thumbnail_path,
+        derivatives: existingCanonical.derivative_paths ?? [],
+        mediaItem: existingCanonical,
+      }
+    }
+    if (uploadCancelled(options.signal)) return { ok: false, error: 'Upload cancelled before storage changes began.', phase: 'cancelled' }
+
+    options.onPhase?.('uploading_original')
     const contentType = item.metadata.svgValidation?.isValidSvg
       ? 'image/svg+xml'
       : (item.mimeType || file.type || 'application/octet-stream')
-    const { error: uploadErr } = await uploadMediaFile(storagePath, file, contentType)
-    if (uploadErr) return { ok: false, error: interpretError(uploadErr) }
-    uploadedPaths.push(storagePath)
+    const originalResult = await uploadMediaFile(storagePath, file, contentType)
+    if (originalResult.error) return { ok: false, error: interpretError(originalResult.error), phase: 'uploading_original' }
+    if (!existingCanonical) cleanupPaths.push(storagePath)
+    if (uploadCancelled(options.signal)) return fail('Upload cancelled. The uploaded original is being cleaned up.', 'cancelled')
 
-    if (item.type === 'video' && item._thumbDataUrl) {
-      try {
-        const thumbBlob = dataUrlToBlob(item._thumbDataUrl)
-        const thumbPath = `${userId}/${item.id}/thumb.jpg`
-        const { error: thumbErr } = await uploadMediaFile(thumbPath, thumbBlob, 'image/jpeg')
-        if (!thumbErr) {
-          thumbnailStoragePath = thumbPath
-          uploadedPaths.push(thumbPath)
+    let thumbnailStoragePath: string | null = item.type === 'image' ? storagePath : null
+    let derivativeWarning: string | undefined
+    const derivatives = plannedDerivatives.map(derivative => ({ ...derivative }))
+
+    if (item.type === 'video') {
+      options.onPhase?.('preparing_derivative')
+      const thumbnail = derivatives[0]
+      if (item._thumbDataUrl) {
+        try {
+          const thumbBlob = dataUrlToBlob(item._thumbDataUrl)
+          const thumbResult = await uploadMediaFile(thumbPath, thumbBlob, 'image/jpeg')
+          if (thumbResult.error) {
+            thumbnail.status = 'failed'
+            thumbnail.error = interpretError(thumbResult.error)
+            derivativeWarning = `Thumbnail failed: ${thumbnail.error}`
+          } else {
+            thumbnail.status = 'ready'
+            thumbnailStoragePath = thumbPath
+            if (!existingCanonical) cleanupPaths.push(thumbPath)
+          }
+        } catch (error) {
+          thumbnail.status = 'failed'
+          thumbnail.error = error instanceof Error ? error.message : 'Thumbnail preparation failed.'
+          derivativeWarning = `Thumbnail failed: ${thumbnail.error}`
         }
-      } catch { /* thumbnail generation is non-fatal */ }
-    } else if (item.type === 'image') {
-      thumbnailStoragePath = storagePath
+      } else {
+        thumbnail.status = 'failed'
+        thumbnail.error = 'A thumbnail could not be generated from this video.'
+        derivativeWarning = thumbnail.error
+      }
     }
 
-    const { id: dbId, revision, error: dbErr } = await createMediaItem({
-      user_id:        userId,
-      name:           item.name,
-      type:           item.type,
-      storage_path:   storagePath,
-      thumbnail_path: thumbnailStoragePath,
-      mime_type:      contentType || null,
-      file_size:      file.size,
-      width:          item._width  ?? item.metadata.width  ?? null,
-      height:         item._height ?? item.metadata.height ?? null,
-      duration_sec:   item._duration ?? item.metadata.duration ?? null,
-      favorite:       false,
-      media_role:     item.mediaRole,
-      title:          item.title    ?? null,
-      description:    item.description ?? null,
-      metadata:       item.metadata,
+    if (uploadCancelled(options.signal)) return fail('Upload cancelled. Uploaded objects are being cleaned up.', 'cancelled')
+
+    options.onPhase?.('saving_record')
+    const finalized = await finalizeMediaUploadAtomic({
+      operationId,
+      media: {
+        name: item.name,
+        type: item.type,
+        storage_path: storagePath,
+        thumbnail_path: thumbnailStoragePath,
+        mime_type: contentType || null,
+        file_size: file.size,
+        width: item._width ?? item.metadata.width ?? null,
+        height: item._height ?? item.metadata.height ?? null,
+        duration_sec: item._duration ?? item.metadata.duration ?? null,
+        favorite: false,
+        media_role: item.mediaRole,
+        title: item.title ?? null,
+        description: item.description ?? null,
+        metadata: item.metadata,
+      },
+      tagNames: item.tags,
+      collectionIds: item.collectionIds,
+      derivatives,
     })
-
-    if (dbErr || !dbId || revision == null) {
-      await deleteMediaFiles(uploadedPaths)
-      return { ok: false, error: interpretError(dbErr || 'Media record did not return a revision') }
+    if (!finalized.ok) {
+      if (finalized.kind === 'transport') {
+        const reconciled = await beginMediaUpload(operationId, storagePath, plannedDerivatives)
+        if (reconciled.ok && reconciled.mediaItem) {
+          options.onPhase?.('complete')
+          return {
+            ok: true,
+            storagePath: reconciled.mediaItem.storage_path,
+            thumbnailStoragePath: reconciled.mediaItem.thumbnail_path,
+            derivatives: reconciled.mediaItem.derivative_paths ?? derivatives,
+            mediaItem: reconciled.mediaItem,
+          }
+        }
+      }
+      return fail(finalized.message, 'saving_record')
     }
 
-    if (item.tags.length) {
-      const { error: tagsErr } = await setMediaItemTags(dbId, userId, item.tags)
-      if (tagsErr) console.warn('[mediaStore] setMediaItemTags:', tagsErr)
+    options.onPhase?.('complete')
+    return {
+      ok: true,
+      storagePath: finalized.mediaItem.storage_path,
+      thumbnailStoragePath: finalized.mediaItem.thumbnail_path,
+      derivatives: finalized.mediaItem.derivative_paths ?? derivatives,
+      mediaItem: finalized.mediaItem,
+      ...(derivativeWarning ? { derivativeWarning } : {}),
     }
-    if (item.collectionIds.length) {
-      const { error: collErr } = await setMediaItemCollections(dbId, item.collectionIds)
-      if (collErr) console.warn('[mediaStore] setMediaItemCollections:', collErr)
-    }
-
-    return { ok: true, storagePath, dbId, revision, thumbnailStoragePath }
   } catch (error) {
-    if (uploadedPaths.length) await deleteMediaFiles(uploadedPaths).catch(() => {})
     const message = error instanceof Error ? error.message : 'Unexpected upload error'
-    console.error('[mediaStore] uploadToSupabase:', error)
-    return { ok: false, error: interpretError(message) }
+    return fail(interpretError(message), 'failed')
   }
 }
 
@@ -471,7 +650,133 @@ function reconcileCanonicalMediaItem(item: UploadedMedia, canonical: CanonicalMe
     collectionIds: [...canonical.collection_ids],
     metadata,
     revision: canonical.revision,
+    uploadOperationId: canonical.upload_operation_id ?? undefined,
+    lifecycleStatus: canonical.lifecycle_status,
+    derivativePaths: [...(canonical.derivative_paths ?? [])],
+    uploadPhase: 'complete',
   }
+}
+
+function cleanupJobToUploadState(job: MediaCleanupJobRow): MediaUploadCleanupState | null {
+  if (job.kind !== 'upload_rollback' || !job.upload_operation_id || job.status === 'complete') return null
+  return {
+    jobId: job.id,
+    operationId: job.upload_operation_id,
+    status: job.status === 'failed' ? 'failed' : 'pending',
+    message: job.last_error,
+    storagePaths: [...job.storage_paths],
+    completedPaths: [...job.completed_paths],
+    updatedAt: Date.parse(job.updated_at) || Date.now(),
+  }
+}
+
+function uploadCleanupStatesFromRows(rows: MediaCleanupJobRow[]): Record<string, MediaUploadCleanupState> {
+  return Object.fromEntries(
+    rows.map(cleanupJobToUploadState)
+      .filter((state): state is MediaUploadCleanupState => state !== null)
+      .map(state => [state.jobId, state]),
+  )
+}
+
+async function runUploadRollbackCleanup(
+  state: MediaUploadCleanupState,
+  userId: string,
+): Promise<{ ok: true } | { ok: false; state: MediaUploadCleanupState }> {
+  const completed = [...state.completedPaths]
+  for (const path of state.storagePaths) {
+    if (completed.includes(path)) continue
+    if (!isOwnedExactStoragePath(userId, path)) {
+      const message = 'Upload cleanup stopped because a path is invalid or belongs to another account.'
+      await updateMediaCleanupJob(state.jobId, completed, 'failed', message)
+      return { ok: false, state: { ...state, status: 'failed', message, completedPaths: completed, updatedAt: Date.now() } }
+    }
+    const removed = await deleteMediaFile(path)
+    if (removed.error) {
+      const message = `Upload cleanup failed for one exact object: ${interpretError(removed.error)}`
+      await updateMediaCleanupJob(state.jobId, completed, 'failed', message)
+      return { ok: false, state: { ...state, status: 'failed', message, completedPaths: completed, updatedAt: Date.now() } }
+    }
+    completed.push(path)
+    const progress = await updateMediaCleanupJob(state.jobId, completed, 'pending', null)
+    if (!progress.ok) {
+      const message = `Storage was removed, but upload cleanup progress could not be saved: ${progress.message}`
+      return { ok: false, state: { ...state, status: 'failed', message, completedPaths: completed, updatedAt: Date.now() } }
+    }
+  }
+  const complete = await updateMediaCleanupJob(state.jobId, completed, 'complete', null)
+  if (!complete.ok) {
+    const message = complete.message
+    return { ok: false, state: { ...state, status: 'failed', message, completedPaths: completed, updatedAt: Date.now() } }
+  }
+  return { ok: true }
+}
+
+function cleanupJobToDeletionState(job: MediaCleanupJobRow): MediaDeletionState | null {
+  if (job.kind !== 'media_deletion' || !job.media_item_id || job.status === 'complete') return null
+  return {
+    itemId: `db-${job.media_item_id}`,
+    dbId: job.media_item_id,
+    jobId: job.id,
+    status: job.status === 'failed' ? 'failed' : 'pending',
+    message: job.last_error,
+    storagePaths: [...job.storage_paths],
+    completedPaths: [...job.completed_paths],
+    updatedAt: Date.parse(job.updated_at) || Date.now(),
+  }
+}
+
+async function runDeletionCleanup(
+  state: MediaDeletionState,
+  userId: string,
+): Promise<{ ok: true } | { ok: false; state: MediaDeletionState }> {
+  const completed = [...state.completedPaths]
+  for (const path of state.storagePaths) {
+    if (completed.includes(path)) continue
+    if (!isOwnedExactStoragePath(userId, path)) {
+      const message = 'Deletion stopped because a cleanup path is invalid or belongs to another account.'
+      await updateMediaCleanupJob(state.jobId, completed, 'failed', message)
+      return { ok: false, state: { ...state, status: 'failed', message, completedPaths: completed, updatedAt: Date.now() } }
+    }
+
+    const removed = await deleteMediaFile(path)
+    if (removed.error) {
+      const message = `Storage cleanup failed for one exact media object: ${interpretError(removed.error)}`
+      await updateMediaCleanupJob(state.jobId, completed, 'failed', message)
+      return { ok: false, state: { ...state, status: 'failed', message, completedPaths: completed, updatedAt: Date.now() } }
+    }
+    completed.push(path)
+    const progress = await updateMediaCleanupJob(state.jobId, completed, 'pending', null)
+    if (!progress.ok) {
+      const message = `Storage was removed, but cleanup progress could not be saved: ${progress.message}`
+      return { ok: false, state: { ...state, status: 'failed', message, completedPaths: completed, updatedAt: Date.now() } }
+    }
+  }
+
+  const finalized = await finalizeMediaDeletion(state.jobId)
+  if (!finalized.ok) {
+    const message = finalized.message
+    await updateMediaCleanupJob(state.jobId, completed, 'failed', message)
+    return { ok: false, state: { ...state, status: 'failed', message, completedPaths: completed, updatedAt: Date.now() } }
+  }
+  return { ok: true }
+}
+
+function purgeRuntimeMedia(item: UploadedMedia, remaining: UploadedMedia[]): void {
+  const visual = useVisualStore.getState()
+  const wasActive = visual.activeMediaId === item.id
+  visual.removeMediaReferences(item.id)
+  if (wasActive) visual.setActiveMedia(remaining[0]?.id ?? null)
+
+  if (item.url.startsWith('blob:')) URL.revokeObjectURL(item.url)
+  if (item.thumbnailUrl?.startsWith('blob:')) URL.revokeObjectURL(item.thumbnailUrl)
+  if (item.localThumbnailObjectUrl?.startsWith('blob:')) URL.revokeObjectURL(item.localThumbnailObjectUrl)
+  if (item.type === 'video') {
+    clearFilmstripCache(item.url)
+    if (item.localThumbnailObjectUrl) clearFilmstripCache(item.localThumbnailObjectUrl)
+  }
+  void import('../components/vyzualz/react/services/svgMediaBridge')
+    .then(({ cleanupRemovedSvgMedia }) => cleanupRemovedSvgMedia(item.id))
+    .catch(() => undefined)
 }
 
 function applyLocalAttempt(item: UploadedMedia, attempt: MediaEditAttempt): UploadedMedia {
@@ -538,6 +843,8 @@ interface MediaState {
   activeFilter: MediaFilter
   mutationStates: Record<string, MediaMutationState>
   collectionOrderMutations: Record<string, CollectionOrderMutationState>
+  deletionStates: Record<string, MediaDeletionState>
+  uploadCleanupStates: Record<string, MediaUploadCleanupState>
 
   // Modal
   importModalOpen: boolean
@@ -575,6 +882,8 @@ interface MediaState {
   // Item mutations
   removeItem(id: string): Promise<boolean>
   retryUpload(id: string): Promise<boolean>
+  retryDeletion(itemId: string): Promise<boolean>
+  retryUploadCleanup(jobId: string): Promise<boolean>
   persistMediaMutation(id: string, operation: MediaMutationOperation, attempt: MediaEditAttempt): Promise<boolean>
   retryMediaMutation(id: string, operation: MediaMutationOperation): Promise<boolean>
   reapplyMediaMutation(id: string, operation: MediaMutationOperation): Promise<boolean>
@@ -629,6 +938,8 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   activeFilter: 'all',
   mutationStates: {},
   collectionOrderMutations: {},
+  deletionStates: {},
+  uploadCleanupStates: {},
 
   // ── Modal ─────────────────────────────────────────────────────────────────
 
@@ -659,6 +970,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       const audio = isAudioFile(file)
       return {
         tempId: generateId(),
+        operationId: generateOperationId(),
         file,
         previewUrl: URL.createObjectURL(file),
         suggestedRole: audio ? 'audio_track' : suggestMediaRole(file),
@@ -711,7 +1023,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       const error = 'Upload audio and visual files in separate batches.'
       for (const item of uploadQueue) {
         failures.push({ tempId: item.tempId, fileName: item.file.name, error })
-        options.onProgress?.({ tempId: item.tempId, fileName: item.file.name, completed: failures.length, total, status: 'error', error })
+        options.onProgress?.({ tempId: item.tempId, fileName: item.file.name, completed: failures.length, total, status: 'error', phase: 'failed', error })
       }
       return { total, succeeded: 0, failures }
     }
@@ -722,7 +1034,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       set({ authRequired: supabaseConfigured, loadError: error })
       for (const item of uploadQueue) {
         failures.push({ tempId: item.tempId, fileName: item.file.name, error })
-        options.onProgress?.({ tempId: item.tempId, fileName: item.file.name, completed: failures.length, total, status: 'error', error })
+        options.onProgress?.({ tempId: item.tempId, fileName: item.file.name, completed: failures.length, total, status: 'error', phase: 'failed', error })
       }
       return { total, succeeded: 0, failures }
     }
@@ -730,22 +1042,30 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     let completed = 0
     let succeeded = 0
     for (const queueItem of uploadQueue) {
+      if (uploadCancelled(options.signal)) {
+        const error = 'Upload cancelled. Files that were not started remain in the queue.'
+        failures.push({ tempId: queueItem.tempId, fileName: queueItem.file.name, error })
+        options.onProgress?.({ tempId: queueItem.tempId, fileName: queueItem.file.name, completed, total, status: 'error', phase: 'cancelled', error })
+        continue
+      }
+
       options.onProgress?.({
         tempId: queueItem.tempId,
         fileName: queueItem.file.name,
         completed,
         total,
         status: 'uploading',
+        phase: 'preparing',
       })
 
       if (queueItem.isAudio) {
         const analysis = await analyzeAudioFile(queueItem.file).catch(() => null)
         const saved = await useAudioStore.getState().uploadAndSaveTrack({
-          file:       queueItem.file,
-          title:      total === 1 ? uploadDraft.title : '',
-          artist:     uploadDraft.audioArtist,
-          genre:      uploadDraft.audioGenre,
-          bpmInput:   uploadDraft.audioBpm,
+          file: queueItem.file,
+          title: total === 1 ? uploadDraft.title : '',
+          artist: uploadDraft.audioArtist,
+          genre: uploadDraft.audioGenre,
+          bpmInput: uploadDraft.audioBpm,
           musicalKey: uploadDraft.audioMusicalKey,
           userId,
           analysis,
@@ -754,57 +1074,65 @@ export const useMediaStore = create<MediaState>((set, get) => ({
         if (!saved) {
           const error = useAudioStore.getState().loadError ?? 'Audio upload failed.'
           failures.push({ tempId: queueItem.tempId, fileName: queueItem.file.name, error })
-          options.onProgress?.({ tempId: queueItem.tempId, fileName: queueItem.file.name, completed, total, status: 'error', error })
+          options.onProgress?.({ tempId: queueItem.tempId, fileName: queueItem.file.name, completed, total, status: 'error', phase: 'failed', error })
           continue
         }
         succeeded += 1
         get().removeUploadQueueItem(queueItem.tempId)
-        options.onProgress?.({ tempId: queueItem.tempId, fileName: queueItem.file.name, completed, total, status: 'done' })
+        options.onProgress?.({ tempId: queueItem.tempId, fileName: queueItem.file.name, completed, total, status: 'done', phase: 'complete' })
         continue
       }
 
       const localItem = await buildLocalItem(queueItem.file, {
-        role:          uploadDraft.role,
-        title:         total === 1 ? (uploadDraft.title || undefined) : undefined,
-        description:   uploadDraft.description || undefined,
-        tags:          uploadDraft.tags,
+        role: uploadDraft.role,
+        title: total === 1 ? (uploadDraft.title || undefined) : undefined,
+        description: uploadDraft.description || undefined,
+        tags: uploadDraft.tags,
         collectionIds: uploadDraft.collectionIds,
-        metadata:      uploadDraft.metadata,
+        metadata: uploadDraft.metadata,
       })
-      const result = await uploadToSupabase(queueItem.file, localItem, userId)
+      const result = await uploadToSupabase(queueItem.file, localItem, userId, queueItem.operationId, {
+        signal: options.signal,
+        onPhase: phase => options.onProgress?.({
+          tempId: queueItem.tempId,
+          fileName: queueItem.file.name,
+          completed,
+          total,
+          status: 'uploading',
+          phase,
+        }),
+      })
       completed += 1
       if (!result.ok) {
         if (localItem.url.startsWith('blob:')) URL.revokeObjectURL(localItem.url)
         failures.push({ tempId: queueItem.tempId, fileName: queueItem.file.name, error: result.error })
-        options.onProgress?.({ tempId: queueItem.tempId, fileName: queueItem.file.name, completed, total, status: 'error', error: result.error })
+        options.onProgress?.({ tempId: queueItem.tempId, fileName: queueItem.file.name, completed, total, status: 'error', phase: result.phase, error: result.error })
         continue
       }
 
-      const stableId = `db-${result.dbId}`
-      const uploadedItem: UploadedMedia = {
+      const stableId = `db-${result.mediaItem.id}`
+      const uploadedItem = reconcileCanonicalMediaItem({
         ...localItem,
         id: stableId,
         uploading: false,
         uploadError: undefined,
-        storagePath: result.storagePath,
-        dbId: result.dbId,
-        revision: result.revision,
-      }
-      set(state => ({ items: [uploadedItem, ...state.items], loadError: null }))
+        derivativeWarning: result.derivativeWarning,
+        uploadSourceFile: result.derivativeWarning ? queueItem.file : undefined,
+        uploadOperationId: queueItem.operationId,
+      }, result.mediaItem)
+      set(state => ({
+        items: [uploadedItem, ...state.items.filter(item => item.id !== stableId)],
+        loadError: result.derivativeWarning ?? null,
+      }))
       succeeded += 1
       get().removeUploadQueueItem(queueItem.tempId)
-      options.onProgress?.({ tempId: queueItem.tempId, fileName: queueItem.file.name, completed, total, status: 'done' })
+      options.onProgress?.({ tempId: queueItem.tempId, fileName: queueItem.file.name, completed, total, status: 'done', phase: 'complete' })
 
       if (isSvgFile(queueItem.file)) {
         void (async () => {
           try {
             const { precacheUploadedSvgGlyph } = await import('../components/vyzualz/react/services/svgMediaBridge')
-            await precacheUploadedSvgGlyph({
-              file: queueItem.file,
-              mediaId: stableId,
-              title: localItem.title,
-              name: localItem.name,
-            })
+            await precacheUploadedSvgGlyph({ file: queueItem.file, mediaId: stableId, title: localItem.title, name: localItem.name })
           } catch (error) {
             console.warn('[mediaStore] SVG glyph pre-cache failed (non-fatal):', error)
           }
@@ -824,82 +1152,92 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     )
     if (!mediaFiles.length) return
 
-    const localItems = await Promise.all(
-      mediaFiles.map(f => buildLocalItem(f, { role: suggestMediaRole(f) }))
-    )
-    const withUploading = localItems.map(i => ({ ...i, uploading: true }))
-    set(s => ({ items: [...s.items, ...withUploading] }))
+    const prepared = await Promise.all(mediaFiles.map(async file => ({
+      file,
+      operationId: generateOperationId(),
+      item: await buildLocalItem(file, { role: suggestMediaRole(file) }),
+    })))
+    const withUploading = prepared.map(({ item, operationId }) => ({
+      ...item,
+      uploading: true,
+      uploadOperationId: operationId,
+      uploadPhase: 'preparing' as MediaUploadPhase,
+    }))
+    set(state => ({ items: [...state.items, ...withUploading] }))
 
     const userId = await getCurrentUserId()
     if (!userId) {
-      set(s => ({
-        authRequired: true,
-        items: s.items.map(i =>
-          withUploading.some(w => w.id === i.id)
-            ? { ...i, uploading: false, uploadError: supabaseConfigured ? 'Sign in to upload this file' : 'Supabase is not configured', uploadSourceFile: mediaFiles[withUploading.findIndex(w => w.id === i.id)] }
-            : i
-        ),
+      set(state => ({
+        authRequired: supabaseConfigured,
+        items: state.items.map(item => {
+          const index = withUploading.findIndex(candidate => candidate.id === item.id)
+          return index < 0 ? item : {
+            ...item,
+            uploading: false,
+            uploadError: supabaseConfigured ? 'Sign in to upload this file' : 'Supabase is not configured',
+            uploadSourceFile: prepared[index].file,
+          }
+        }),
       }))
       return
     }
 
-    await Promise.all(
-      withUploading.map(async (item, i) => {
-        const result = await uploadToSupabase(mediaFiles[i], item as LocalItem, userId)
-        if (!result.ok) {
-          set(s => ({
-            items: s.items.map(e =>
-              e.id === item.id
-                ? { ...e, uploading: false, uploadError: result.error, uploadSourceFile: mediaFiles[i] }
-                : e
-            ),
-          }))
-          return
-        }
-
-        const stableId = `db-${result.dbId}`
-        const prevId   = item.id
-        set(s => ({
-          items: s.items.map(e =>
-            e.id === prevId
-              ? { ...e, id: stableId, uploading: false, uploadError: undefined, uploadSourceFile: undefined, storagePath: result.storagePath, dbId: result.dbId, revision: result.revision }
-              : e
-          ),
-        }))
-
-        // Atomically remap every visual reference (activeMediaId, timeline
-        // clips, overlay clips, layer items, session and preset snapshots) so
-        // that anything placed while the upload was in-flight is not orphaned.
-        useVisualStore.getState().remapMediaId(prevId, stableId)
-
-        // SVG glyph pre-cache — fire-and-forget, non-blocking. The bridge is
-        // lazy so the general media store stays independent of React-view internals.
-        if (isSvgFile(mediaFiles[i])) {
-          ;(async () => {
-            try {
-              const { precacheUploadedSvgGlyph } = await import('../components/vyzualz/react/services/svgMediaBridge')
-              const outcome = await precacheUploadedSvgGlyph({
-                file: mediaFiles[i],
-                mediaId: `db-${result.dbId}`,
-                title: item.title,
-                name: item.name,
-              })
-              if (outcome === 'invalid') {
-                console.warn('[mediaStore] SVG pre-cache: not valid SVG:', item.name)
-              }
-            } catch (e) {
-              console.warn('[mediaStore] SVG glyph pre-cache failed (non-fatal):', e)
-            }
-          })()
-        }
+    await Promise.all(prepared.map(async ({ file, operationId, item }) => {
+      const previousId = item.id
+      const result = await uploadToSupabase(file, item, userId, operationId, {
+        onPhase: phase => set(state => ({
+          items: state.items.map(candidate => candidate.id === previousId ? { ...candidate, uploadPhase: phase === 'cancelled' ? 'failed' : phase } : candidate),
+        })),
       })
-    )
+      if (!result.ok) {
+        set(state => ({
+          items: state.items.map(candidate => candidate.id === previousId ? {
+            ...candidate,
+            uploading: false,
+            uploadError: result.error,
+            uploadSourceFile: file,
+            uploadPhase: result.phase === 'cancelled' ? 'failed' : result.phase,
+          } : candidate),
+          loadError: result.error,
+        }))
+        return
+      }
+
+      const stableId = `db-${result.mediaItem.id}`
+      set(state => ({
+        items: state.items.map(candidate => candidate.id === previousId
+          ? reconcileCanonicalMediaItem({
+              ...candidate,
+              id: stableId,
+              uploading: false,
+              uploadError: undefined,
+              derivativeWarning: result.derivativeWarning,
+              uploadSourceFile: result.derivativeWarning ? file : undefined,
+              uploadOperationId: operationId,
+            }, result.mediaItem)
+          : candidate),
+        loadError: result.derivativeWarning ?? null,
+      }))
+      useVisualStore.getState().remapMediaId(previousId, stableId)
+
+      if (isSvgFile(file)) {
+        void (async () => {
+          try {
+            const { precacheUploadedSvgGlyph } = await import('../components/vyzualz/react/services/svgMediaBridge')
+            const outcome = await precacheUploadedSvgGlyph({ file, mediaId: stableId, title: item.title, name: item.name })
+            if (outcome === 'invalid') console.warn('[mediaStore] SVG pre-cache: not valid SVG:', item.name)
+          } catch (error) {
+            console.warn('[mediaStore] SVG glyph pre-cache failed (non-fatal):', error)
+          }
+        })()
+      }
+    }))
   },
 
   async retryUpload(id) {
     const item = get().items.find(candidate => candidate.id === id)
-    if (!item?.uploadSourceFile) {
-      set({ loadError: 'The original file is no longer available. Choose it again to retry.' })
+    if (!item?.uploadSourceFile || !item.uploadOperationId) {
+      set({ loadError: 'The original file or stable upload session is no longer available. Choose the file again to retry.' })
       return false
     }
     const userId = await getCurrentUserId()
@@ -909,9 +1247,19 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     }
 
     set(state => ({
-      items: state.items.map(candidate => candidate.id === id ? { ...candidate, uploading: true, uploadError: undefined } : candidate),
+      items: state.items.map(candidate => candidate.id === id ? {
+        ...candidate,
+        uploading: true,
+        uploadError: undefined,
+        derivativeWarning: undefined,
+        uploadPhase: 'preparing',
+      } : candidate),
     }))
-    const result = await uploadToSupabase(item.uploadSourceFile, item as LocalItem, userId)
+    const result = await uploadToSupabase(item.uploadSourceFile, item as LocalItem, userId, item.uploadOperationId, {
+      onPhase: phase => set(state => ({
+        items: state.items.map(candidate => candidate.id === id ? { ...candidate, uploadPhase: phase === 'cancelled' ? 'failed' : phase } : candidate),
+      })),
+    })
     if (!result.ok) {
       set(state => ({
         items: state.items.map(candidate => candidate.id === id ? { ...candidate, uploading: false, uploadError: result.error } : candidate),
@@ -920,21 +1268,21 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       return false
     }
 
-    const stableId = `db-${result.dbId}`
+    const stableId = `db-${result.mediaItem.id}`
     set(state => ({
-      items: state.items.map(candidate => candidate.id === id ? {
-        ...candidate,
-        id: stableId,
-        uploading: false,
-        uploadError: undefined,
-        uploadSourceFile: undefined,
-        storagePath: result.storagePath,
-        dbId: result.dbId,
-        revision: result.revision,
-      } : candidate),
-      loadError: null,
+      items: state.items.map(candidate => candidate.id === id
+        ? reconcileCanonicalMediaItem({
+            ...candidate,
+            id: stableId,
+            uploading: false,
+            uploadError: undefined,
+            derivativeWarning: result.derivativeWarning,
+            uploadSourceFile: result.derivativeWarning ? item.uploadSourceFile : undefined,
+          }, result.mediaItem)
+        : candidate),
+      loadError: result.derivativeWarning ?? null,
     }))
-    useVisualStore.getState().remapMediaId(id, stableId)
+    if (id !== stableId) useVisualStore.getState().remapMediaId(id, stableId)
     return true
   },
 
@@ -942,7 +1290,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
 
   async loadFromSupabase() {
     if (!supabaseConfigured) {
-      set({ loadError: 'Storage not configured — add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env' })
+      set({ loadError: 'Storage not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.' })
       return
     }
     const userId = await getCurrentUserId()
@@ -955,96 +1303,97 @@ export const useMediaStore = create<MediaState>((set, get) => ({
         { tagMap, error: tagErr },
         { collMap, error: collErr },
         { rows: collRows, error: collListErr },
+        { rows: cleanupRows, error: cleanupErr },
       ] = await Promise.all([
         listMediaItems(userId),
         listMediaItemTagNames(userId),
         listMediaItemCollectionIds(userId),
         listMediaCollections(userId),
+        listPendingMediaCleanup(),
       ])
 
-      if (error)        { set({ loadError: interpretError(error) }); return }
-      if (tagErr)       console.warn('[mediaStore] tag load:', tagErr)
-      if (collErr)      console.warn('[mediaStore] collection-items load:', collErr)
-      if (collListErr)  console.warn('[mediaStore] collections load:', collListErr)
+      if (error) { set({ loadError: interpretError(error) }); return }
+      if (tagErr) console.warn('[mediaStore] tag load:', tagErr)
+      if (collErr) console.warn('[mediaStore] collection-items load:', collErr)
+      if (collListErr) console.warn('[mediaStore] collections load:', collListErr)
+
+      const deletionStates = Object.fromEntries(
+        cleanupRows
+          .map(cleanupJobToDeletionState)
+          .filter((state): state is MediaDeletionState => state !== null)
+          .map(state => [state.itemId, state]),
+      )
+      const uploadCleanupStates = uploadCleanupStatesFromRows(cleanupRows)
+      const cleanupMessage = cleanupErr
+        ? `Pending cleanup could not be loaded: ${interpretError(cleanupErr)}`
+        : null
 
       let signedUrlFailures = 0
-      const collections: MediaCollection[] = collRows.map(r => ({
-        id: r.id,
-        name: r.name,
-        description: r.description ?? undefined,
+      const collections: MediaCollection[] = collRows.map(row => ({
+        id: row.id,
+        name: row.name,
+        description: row.description ?? undefined,
       }))
 
-      if (!rows.length) {
-        const currentItems = get().items
-        const localOnly = currentItems.filter(item => !item.dbId)
-        const removedRemoteIds = currentItems.filter(item => item.dbId).map(item => item.id)
-        const visual = useVisualStore.getState()
-        const previousActiveId = visual.activeMediaId
-        removedRemoteIds.forEach(id => visual.removeMediaReferences(id))
-        if (previousActiveId && removedRemoteIds.includes(previousActiveId)) {
-          visual.setActiveMedia(localOnly[0]?.id ?? null)
+      const items: UploadedMedia[] = await Promise.all(rows.map(async (row: MediaItemRow) => {
+        const { url, error: signErr } = await createSignedMediaUrl(row.storage_path)
+        if (signErr) {
+          signedUrlFailures += 1
+          console.warn('[mediaStore] signed URL:', signErr, row.storage_path)
         }
-        set({ items: localOnly, lastRestored: 0, collections })
-        return
-      }
 
-      const items: UploadedMedia[] = await Promise.all(
-        rows.map(async (row: MediaItemRow) => {
-          const { url, error: signErr } = await createSignedMediaUrl(row.storage_path)
-          if (signErr) {
-            signedUrlFailures += 1
-            console.warn('[mediaStore] signed URL:', signErr, row.storage_path)
-          }
+        const isVideo = row.type === 'video'
+        const ext = row.storage_path.split('.').pop()?.toUpperCase() ?? ''
+        const displayMeta = isVideo
+          ? `${ext} · ${fmtDur(row.duration_sec ?? 0)}`
+          : row.width && row.height
+            ? `${ext} · ${row.width}×${row.height}`
+            : ext
 
-          const isVideo = row.type === 'video'
-          const ext = row.storage_path.split('.').pop()?.toUpperCase() ?? ''
-          const displayMeta = isVideo
-            ? `${ext} · ${fmtDur(row.duration_sec ?? 0)}`
-            : row.width && row.height
-              ? `${ext} · ${row.width}×${row.height}`
-              : ext
+        let thumbnailUrl: string | null = null
+        if (isVideo && row.thumbnail_path) {
+          const { url: thumbUrl, error: thumbError } = await createSignedMediaUrl(row.thumbnail_path)
+          if (thumbError) signedUrlFailures += 1
+          thumbnailUrl = thumbUrl ?? null
+        } else if (!isVideo) {
+          thumbnailUrl = url
+        }
 
-          let thumbnailUrl: string | null = null
-          if (isVideo) {
-            if (row.thumbnail_path) {
-              const { url: thumbUrl, error: thumbError } = await createSignedMediaUrl(row.thumbnail_path)
-              if (thumbError) signedUrlFailures += 1
-              thumbnailUrl = thumbUrl ?? null
-            }
-            // Missing video thumbnails are generated lazily after load — not blocking here
-          } else {
-            thumbnailUrl = url
-          }
+        const metadata: MediaMetadata = {
+          width: row.width ?? undefined,
+          height: row.height ?? undefined,
+          duration: row.duration_sec ?? undefined,
+          ...((row.metadata as MediaMetadata) ?? {}),
+        }
+        const failedDerivatives = (row.derivative_paths ?? []).filter(derivative => derivative.status === 'failed')
 
-          // Merge DB-column dims into metadata JSONB
-          const mergedMeta: MediaMetadata = {
-            width:    row.width    ?? undefined,
-            height:   row.height   ?? undefined,
-            duration: row.duration_sec ?? undefined,
-            ...((row.metadata as MediaMetadata) ?? {}),
-          }
-
-          return {
-            id:           `db-${row.id}`,
-            dbId:         row.id,
-            storagePath:  row.storage_path,
-            mimeType:      row.mime_type,
-            name:         row.name,
-            title:        row.title ?? undefined,
-            description:  row.description ?? undefined,
-            type:         row.type,
-            url:          url ?? '',
-            thumbnailUrl,
-            meta:         displayMeta,
-            favorite:     row.favorite,
-            mediaRole:    row.media_role as MediaRole,
-            tags:         tagMap.get(row.id) ?? [],
-            collectionIds: collMap.get(row.id) ?? [],
-            metadata:     mergedMeta,
-            revision:     row.revision,
-          } satisfies UploadedMedia
-        })
-      )
+        return {
+          id: `db-${row.id}`,
+          dbId: row.id,
+          storagePath: row.storage_path,
+          mimeType: row.mime_type,
+          name: row.name,
+          title: row.title ?? undefined,
+          description: row.description ?? undefined,
+          type: row.type,
+          url: url ?? '',
+          thumbnailUrl,
+          meta: displayMeta,
+          favorite: row.favorite,
+          mediaRole: row.media_role as MediaRole,
+          tags: tagMap.get(row.id) ?? [],
+          collectionIds: collMap.get(row.id) ?? [],
+          metadata,
+          revision: row.revision,
+          uploadOperationId: row.upload_operation_id ?? undefined,
+          lifecycleStatus: row.lifecycle_status,
+          derivativePaths: [...(row.derivative_paths ?? [])],
+          derivativeWarning: failedDerivatives.length
+            ? `${failedDerivatives.map(derivative => derivative.kind).join(', ')} generation failed. Re-select the original file to retry.`
+            : undefined,
+          uploadPhase: 'complete',
+        } satisfies UploadedMedia
+      }))
 
       const currentItems = get().items
       const localOnly = currentItems.filter(item => !item.dbId)
@@ -1059,20 +1408,23 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       if (previousActiveId && !merged.some(item => item.id === previousActiveId)) {
         visual.setActiveMedia(merged[0]?.id ?? null)
       }
+
+      const signedMessage = signedUrlFailures > 0
+        ? `${signedUrlFailures} media file${signedUrlFailures === 1 ? '' : 's'} could not be opened. Refresh or check storage access.`
+        : null
       set({
         items: merged,
         lastRestored: items.length,
         collections,
-        loadError: signedUrlFailures > 0
-          ? `${signedUrlFailures} media file${signedUrlFailures === 1 ? '' : 's'} could not be opened. Refresh or check storage access.`
-          : null,
+        deletionStates,
+        uploadCleanupStates,
+        loadError: cleanupMessage ?? signedMessage,
       })
-      // Lazily generate thumbnails for any videos that lack a stored thumb
       get().generateMissingThumbnails()
-    } catch (e) {
-      const msg = e instanceof Error ? interpretError(e.message) : 'Unexpected error loading media'
-      console.error('[mediaStore] loadFromSupabase exception:', e)
-      set({ loadError: msg })
+    } catch (error) {
+      const message = error instanceof Error ? interpretError(error.message) : 'Unexpected error loading media'
+      console.error('[mediaStore] loadFromSupabase exception:', error)
+      set({ loadError: message })
     } finally {
       set({ loading: false })
     }
@@ -1087,56 +1439,103 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       return false
     }
 
-    if (item.dbId) {
-      if (!supabaseConfigured) {
-        set({ deleteError: 'Supabase is not configured. Synced media cannot be deleted.' })
-        return false
-      }
-      const { error } = await deleteMediaItem(item.dbId)
-      if (error) {
-        set({ deleteError: interpretError(error) })
-        return false
-      }
+    if (!item.dbId) {
+      const remaining = get().items.filter(candidate => candidate.id !== id)
+      set(state => ({
+        items: remaining,
+        deleteError: null,
+        mutationStates: Object.fromEntries(Object.entries(state.mutationStates).filter(([, mutation]) => mutation.itemId !== id)),
+      }))
+      purgeRuntimeMedia(item, remaining)
+      return true
+    }
+
+    if (!supabaseConfigured) {
+      set({ deleteError: 'Supabase is not configured. Synced media cannot be deleted.' })
+      return false
+    }
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      set({ authRequired: true, deleteError: 'Sign in to delete synced media.' })
+      return false
+    }
+
+    const requested = await requestMediaDeletion(item.dbId)
+    if (!requested.ok) {
+      set({ deleteError: interpretError(requested.message) })
+      return false
+    }
+    const deletion = cleanupJobToDeletionState(requested.cleanupJob)
+    if (!deletion) {
+      set({ deleteError: 'The deletion request returned incomplete cleanup state.' })
+      return false
     }
 
     const remaining = get().items.filter(candidate => candidate.id !== id)
     set(state => ({
       items: remaining,
       deleteError: null,
-      mutationStates: Object.fromEntries(
-        Object.entries(state.mutationStates).filter(([, mutation]) => mutation.itemId !== id),
-      ),
+      deletionStates: { ...state.deletionStates, [id]: deletion },
+      mutationStates: Object.fromEntries(Object.entries(state.mutationStates).filter(([, mutation]) => mutation.itemId !== id)),
     }))
-    const visual = useVisualStore.getState()
-    const wasActive = visual.activeMediaId === id
-    visual.removeMediaReferences(id)
-    if (wasActive) visual.setActiveMedia(remaining[0]?.id ?? null)
+    purgeRuntimeMedia(item, remaining)
 
-    if (item.url.startsWith('blob:')) URL.revokeObjectURL(item.url)
-    if (item.thumbnailUrl?.startsWith('blob:')) URL.revokeObjectURL(item.thumbnailUrl)
-    if (item.localThumbnailObjectUrl?.startsWith('blob:')) URL.revokeObjectURL(item.localThumbnailObjectUrl)
-    if (item.type === 'video') {
-      clearFilmstripCache(item.url)
-      if (item.localThumbnailObjectUrl) clearFilmstripCache(item.localThumbnailObjectUrl)
+    const cleaned = await runDeletionCleanup(deletion, userId)
+    if (!cleaned.ok) {
+      set(state => ({
+        deletionStates: { ...state.deletionStates, [id]: cleaned.state },
+        deleteError: cleaned.state.message,
+      }))
+      return false
     }
+    set(state => ({
+      deletionStates: Object.fromEntries(Object.entries(state.deletionStates).filter(([itemId]) => itemId !== id)),
+      deleteError: null,
+    }))
+    return true
+  },
 
-    try {
-      const { cleanupRemovedSvgMedia } = await import('../components/vyzualz/react/services/svgMediaBridge')
-      cleanupRemovedSvgMedia(id)
-    } catch { /* non-fatal */ }
-
-    if (item.dbId) {
-      const storagePaths = [
-        item.storagePath,
-        item.storagePath && item.type === 'video'
-          ? item.storagePath.replace(/\/[^/]+$/, '/thumb.jpg')
-          : null,
-      ].filter((path): path is string => Boolean(path))
-      if (storagePaths.length) {
-        const { error } = await deleteMediaFiles(storagePaths)
-        if (error) set({ loadError: `Media deleted, but storage cleanup failed: ${interpretError(error)}` })
-      }
+  async retryDeletion(itemId) {
+    const deletion = get().deletionStates[itemId]
+    if (!deletion) return false
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      set({ authRequired: true, deleteError: 'Sign in to retry media cleanup.' })
+      return false
     }
+    const pending: MediaDeletionState = { ...deletion, status: 'pending', message: null, updatedAt: Date.now() }
+    set(state => ({ deletionStates: { ...state.deletionStates, [itemId]: pending }, deleteError: null }))
+    const cleaned = await runDeletionCleanup(pending, userId)
+    if (!cleaned.ok) {
+      set(state => ({ deletionStates: { ...state.deletionStates, [itemId]: cleaned.state }, deleteError: cleaned.state.message }))
+      return false
+    }
+    set(state => ({
+      deletionStates: Object.fromEntries(Object.entries(state.deletionStates).filter(([id]) => id !== itemId)),
+      deleteError: null,
+    }))
+    return true
+  },
+
+  async retryUploadCleanup(jobId) {
+    const cleanup = get().uploadCleanupStates[jobId]
+    if (!cleanup) return false
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      set({ authRequired: true, loadError: 'Sign in to retry failed upload cleanup.' })
+      return false
+    }
+    const pending = { ...cleanup, status: 'pending' as const, message: null, updatedAt: Date.now() }
+    set(state => ({ uploadCleanupStates: { ...state.uploadCleanupStates, [jobId]: pending }, loadError: null }))
+    const result = await runUploadRollbackCleanup(pending, userId)
+    if (!result.ok) {
+      set(state => ({ uploadCleanupStates: { ...state.uploadCleanupStates, [jobId]: result.state }, loadError: result.state.message }))
+      return false
+    }
+    set(state => ({
+      uploadCleanupStates: Object.fromEntries(Object.entries(state.uploadCleanupStates).filter(([id]) => id !== jobId)),
+      loadError: null,
+    }))
     return true
   },
 
@@ -1597,6 +1996,18 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       }
     })
     get().uploadQueue.forEach(q => URL.revokeObjectURL(q.previewUrl))
-    set({ items: [], uploadQueue: [], mutationStates: {}, collectionOrderMutations: {} })
+    set({
+      items: [],
+      collections: [],
+      uploadQueue: [],
+      mutationStates: {},
+      collectionOrderMutations: {},
+      deletionStates: {},
+      uploadCleanupStates: {},
+      loadError: null,
+      deleteError: null,
+      authRequired: false,
+      lastRestored: null,
+    })
   },
 }))

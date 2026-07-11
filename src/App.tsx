@@ -7,6 +7,7 @@ import { ActiveTrackLyricsBridge } from './features/lyrics/ActiveTrackLyricsBrid
 import { useBrandKitStore } from './features/personalization/brandKitStore'
 import { applyBrandAppAccent, restoreStandardAppAccent } from './features/personalization/appAccentPersonalization'
 import { productionOutputController } from './components/vyzualz/react/output/ProductionOutput'
+import { useMediaStore } from './stores/mediaStore'
 
 const VyzualzView = lazy(() =>
   import('./components/vyzualz/VyzualzView').then(module => ({ default: module.VyzualzView })),
@@ -46,6 +47,7 @@ export default function App() {
     // is never bypassed, including local and packaged production builds.
     if (!supabaseConfigured) {
       useBrandKitStore.getState().clearForSignedOut()
+      useMediaStore.getState().clear()
       setAuthGate('configuration-required')
       return
     }
@@ -53,6 +55,7 @@ export default function App() {
     supabase.auth.getSession().then(({ data }) => {
       const userId = data.session?.user.id ?? null
       activeUserId = userId
+      useMediaStore.getState().clear()
       setAuthGate(userId ? 'authenticated' : 'signed-out')
       if (userId) void useBrandKitStore.getState().initializeForUser(userId)
       else useBrandKitStore.getState().clearForSignedOut()
@@ -60,7 +63,10 @@ export default function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const userId = session?.user.id ?? null
-      if (activeUserId !== userId) productionOutputController.handleAuthChange()
+      if (activeUserId !== userId) {
+        productionOutputController.handleAuthChange()
+        useMediaStore.getState().clear()
+      }
       activeUserId = userId
       setAuthGate(userId ? 'authenticated' : 'signed-out')
       if (userId) void useBrandKitStore.getState().initializeForUser(userId)

@@ -8,8 +8,8 @@ export function MediaStatusBar({ includeAudio = false }: { includeAudio?: boolea
     loading, loadError, deleteError, authRequired,
     storageAvailable, lastRestored,
     clearLoadError, clearDeleteError, clearRestored,
-    mutationStates = {}, collectionOrderMutations = {}, retryMediaMutation, reapplyMediaMutation, clearMediaMutation,
-    retryCollectionReorder, clearCollectionReorderError,
+    mutationStates = {}, collectionOrderMutations = {}, deletionStates = {}, uploadCleanupStates = {}, retryMediaMutation, reapplyMediaMutation, clearMediaMutation,
+    retryCollectionReorder, clearCollectionReorderError, retryDeletion, retryUploadCleanup,
   } = useMediaStore()
   const audioError = useAudioStore(state => state.loadError)
   const clearAudioError = useAudioStore(state => state.clearError)
@@ -28,6 +28,10 @@ export function MediaStatusBar({ includeAudio = false }: { includeAudio?: boolea
     .sort((a, b) => b.updatedAt - a.updatedAt)[0]
   const reorderFailure = Object.values(collectionOrderMutations)
     .filter(state => state.status !== 'pending')
+    .sort((a, b) => b.updatedAt - a.updatedAt)[0]
+  const deletionState = Object.values(deletionStates)
+    .sort((a, b) => b.updatedAt - a.updatedAt)[0]
+  const uploadCleanupState = Object.values(uploadCleanupStates)
     .sort((a, b) => b.updatedAt - a.updatedAt)[0]
 
   useEffect(() => {
@@ -77,6 +81,31 @@ export function MediaStatusBar({ includeAudio = false }: { includeAudio?: boolea
       </span>
       <button type="button" className="vz-media-status-action" onClick={() => { void retryCollectionReorder(reorderFailure.collectionId) }}>Retry</button>
       <button className="vz-media-status-dismiss" onClick={() => clearCollectionReorderError(reorderFailure.collectionId)} title="Dismiss">✕</button>
+    </div>
+  )
+
+
+  if (uploadCleanupState) return (
+    <div className={`vz-media-status vz-media-status--${uploadCleanupState.status === 'failed' ? 'error' : 'warn'}`}>
+      <span className="vz-media-status-dot" />
+      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        Failed upload cleanup: {uploadCleanupState.message ?? `${uploadCleanupState.completedPaths.length}/${uploadCleanupState.storagePaths.length} objects removed.`}
+      </span>
+      <button type="button" className="vz-media-status-action" onClick={() => { void retryUploadCleanup(uploadCleanupState.jobId) }}>Retry cleanup</button>
+    </div>
+  )
+
+  if (deletionState) return (
+    <div className={`vz-media-status vz-media-status--${deletionState.status === 'failed' ? 'error' : 'info'}`}>
+      <span className={`vz-media-status-dot${deletionState.status === 'pending' ? ' vz-media-status-dot--pulse' : ''}`} />
+      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {deletionState.status === 'failed'
+          ? `Media deletion cleanup needs attention: ${deletionState.message ?? 'Retry the remaining storage objects.'}`
+          : `Deleting media safely (${deletionState.completedPaths.length}/${deletionState.storagePaths.length} objects)…`}
+      </span>
+      {deletionState.status === 'failed' && (
+        <button type="button" className="vz-media-status-action" onClick={() => { void retryDeletion(deletionState.itemId) }}>Retry</button>
+      )}
     </div>
   )
 

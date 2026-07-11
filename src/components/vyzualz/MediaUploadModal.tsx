@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useId } from 'react'
 import { mediaMutationKey, useMediaStore } from '../../stores/mediaStore'
-import type { MediaCollection, UploadedMedia } from '../../stores/mediaStore'
+import type { MediaCollection, UploadedMedia, UploadWorkflowPhase } from '../../stores/mediaStore'
 import {
   VISUAL_MEDIA_ROLES,
   MEDIA_ROLE_LABELS,
@@ -28,6 +28,7 @@ interface EntryDisplay {
   duration?: number
   isAudio?: boolean
   status: 'ready' | 'uploading' | 'done' | 'error'
+  phase?: UploadWorkflowPhase
   errorMsg?: string
 }
 
@@ -107,8 +108,18 @@ const MAX_FILE_LABEL = '5 GB'
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function StatusBadge({ status, errorMsg }: { status: EntryDisplay['status']; errorMsg?: string }) {
-  if (status === 'uploading') return <span className="mum-badge mum-badge--uploading">Uploading…</span>
+function StatusBadge({ status, phase, errorMsg }: { status: EntryDisplay['status']; phase?: UploadWorkflowPhase; errorMsg?: string }) {
+  const phaseLabel: Partial<Record<UploadWorkflowPhase, string>> = {
+    preparing: 'Preparing…',
+    uploading_original: 'Uploading original…',
+    preparing_derivative: 'Preparing derivative…',
+    saving_record: 'Saving record…',
+    applying_organization: 'Applying organization…',
+    finalizing: 'Finalizing…',
+    cleanup_pending: 'Cleanup pending',
+    cancelled: 'Cancelled',
+  }
+  if (status === 'uploading') return <span className="mum-badge mum-badge--uploading">{phaseLabel[phase ?? 'preparing'] ?? 'Uploading…'}</span>
   if (status === 'done')      return <span className="mum-badge mum-badge--done">Done</span>
   if (status === 'error')     return <span className="mum-badge mum-badge--error" title={errorMsg}>Error</span>
   return <span className="mum-badge mum-badge--ready">Ready</span>
@@ -211,6 +222,9 @@ export function MediaUploadModal({
 
   const fileInputId = useId()
   const dropRef = useRef<HTMLDivElement>(null)
+  const uploadAbortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => () => uploadAbortRef.current?.abort(), [])
 
   // Whether the current queue is all audio files
   const isAudioQueue = uploadQueue.length > 0 && uploadQueue.every(q => q.isAudio)
@@ -489,6 +503,8 @@ export function MediaUploadModal({
   // Upload
   const handleUpload = async () => {
     if (!uploadQueue.length || bpmError) return
+    const controller = new AbortController()
+    uploadAbortRef.current = controller
     setUploading(true)
     clearLoadError()
     setBatchError(null)
@@ -500,34 +516,41 @@ export function MediaUploadModal({
     })
 
     const beforeIds = new Set(useAudioStore.getState().savedTracks.map(track => track.dbId))
-    const result = await uploadQueuedMedia({
-      onProgress: event => {
-        setProgress({ completed: event.completed, total: event.total })
-        setDisplayMeta(prev => {
-          const next = new Map(prev)
-          const current = next.get(event.tempId)
-          if (current) next.set(event.tempId, { ...current, status: event.status, errorMsg: event.error })
-          return next
-        })
-      },
-    })
-    const uploadedTracks = useAudioStore.getState().savedTracks.filter(track => !beforeIds.has(track.dbId))
-    if (uploadedTracks.length > 0) onAudioUploaded?.(uploadedTracks)
-    setUploading(false)
+    try {
+      const result = await uploadQueuedMedia({
+        signal: controller.signal,
+        onProgress: event => {
+          setProgress({ completed: event.completed, total: event.total })
+          setDisplayMeta(prev => {
+            const next = new Map(prev)
+            const current = next.get(event.tempId)
+            if (current) next.set(event.tempId, { ...current, status: event.status, phase: event.phase, errorMsg: event.error })
+            return next
+          })
+        },
+      })
+      const uploadedTracks = useAudioStore.getState().savedTracks.filter(track => !beforeIds.has(track.dbId))
+      if (uploadedTracks.length > 0) onAudioUploaded?.(uploadedTracks)
 
-    if (result.failures.length > 0) {
-      setBatchError(result.succeeded > 0
-        ? `${result.succeeded} file${result.succeeded === 1 ? '' : 's'} uploaded. ${result.failures.length} failed and can be retried.`
-        : result.failures[0].error)
-      return
-    }
+      if (result.failures.length > 0) {
+        setBatchError(result.succeeded > 0
+          ? `${result.succeeded} file${result.succeeded === 1 ? '' : 's'} uploaded. ${result.failures.length} failed and can be retried.`
+          : result.failures[0].error)
+        return
+      }
 
-    if (uploadAnother) {
-      setDisplayMeta(new Map())
-      setProgress({ completed: 0, total: 0 })
-      resetUploadDraft()
-    } else {
-      onClose()
+      if (uploadAnother) {
+        setDisplayMeta(new Map())
+        setProgress({ completed: 0, total: 0 })
+        resetUploadDraft()
+      } else {
+        onClose()
+      }
+    } catch (error) {
+      setBatchError(error instanceof Error ? error.message : 'The upload workflow stopped unexpectedly. Retry the remaining queued files.')
+    } finally {
+      uploadAbortRef.current = null
+      setUploading(false)
     }
   }
 
@@ -754,7 +777,7 @@ export function MediaUploadModal({
                             <div className="mum-file-error" role="alert">{dm.errorMsg}</div>
                           )}
                         </div>
-                        <StatusBadge status={dm?.status ?? 'ready'} errorMsg={dm?.errorMsg} />
+                        <StatusBadge status={dm?.status ?? 'ready'} phase={dm?.phase} errorMsg={dm?.errorMsg} />
                         <button
                           className="mum-file-remove"
                           onClick={() => removeEntry(q.tempId)}
@@ -1040,7 +1063,15 @@ export function MediaUploadModal({
 
         {/* ── Footer ─────────────────────────────────────────────────── */}
         <div className={`mum-footer${isEdit ? ' mum-footer--edit' : ''}`}>
-          <button className="mum-cancel-btn" onClick={() => { if (!busy) onClose() }}>Cancel</button>
+          <button
+            className="mum-cancel-btn"
+            onClick={() => {
+              if (uploading) uploadAbortRef.current?.abort()
+              else if (!busy) onClose()
+            }}
+          >
+            {uploading ? 'Cancel Upload' : 'Cancel'}
+          </button>
           {!isEdit && (
             <label className="mum-upload-another">
               <input
