@@ -1,4 +1,4 @@
-import { useId, useState, useRef, useEffect } from 'react'
+import { useId, useState, useRef, useEffect, useCallback } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useVisualStore, DEFAULT_PRESETS } from '../../../stores/visualStore'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
@@ -16,6 +16,8 @@ import {
 } from '../../../features/rekordboxImport'
 import { guessNativeUsbRootFromFile, scanNativeRekordboxUsbRoot } from '../../../features/rekordboxImport/nativeBridge'
 import { PeaksWaveformView } from '../transport/PeaksWaveformView'
+import type { WaveformCueCreateRequest } from '../../../features/timeline/waveformCuePoint'
+import { cueMarkerBelongsToTrack } from '../../../types/cue'
 
 const AUDIO_DOCK_COLLAPSED_STORAGE_KEY = 'drmvyz.audioDock.collapsed.v1'
 
@@ -156,7 +158,7 @@ export function VyzualzAudioDock({
   const {
     presets, activePresetId, bpmSync, toggleBpmSync, setPlaying,
     cuePoint, setCuePoint, beatGridEnabled, setBeatGridEnabled,
-    waveformZoom, setWaveformZoom, cueMarkers,
+    waveformZoom, setWaveformZoom, cueMarkers, addCueMarker,
   } = useVisualStore(useShallow(s => ({
     presets:            s.presets,
     activePresetId:     s.activePresetId,
@@ -170,6 +172,7 @@ export function VyzualzAudioDock({
     waveformZoom:       s.waveformZoom,
     setWaveformZoom:    s.setWaveformZoom,
     cueMarkers:         s.cueMarkers,
+    addCueMarker:        s.addCueMarker,
   })))
 
   const preset            = presets.find(p => p.id === activePresetId) ?? presets[0] ?? DEFAULT_PRESETS[0]
@@ -491,7 +494,37 @@ export function VyzualzAudioDock({
   }
 
   const activeImportedCues = track?.importedCueMarkers ?? []
-  const activeCueMarkers = [...cueMarkers, ...activeImportedCues].sort((a, b) => a.time - b.time)
+  const activeManualCues = cueMarkers.filter(marker => cueMarkerBelongsToTrack(marker, track?.id))
+  const activeCueMarkers = [...activeManualCues, ...activeImportedCues].sort((a, b) => a.time - b.time)
+
+  const handleCreateCuePoint = useCallback((request: WaveformCueCreateRequest) => {
+    const activeTrack = engine.currentTrack
+    if (!activeTrack) return
+
+    const activeManualLabels = new Set(cueMarkers
+      .filter(marker => marker.source !== 'rekordbox' && cueMarkerBelongsToTrack(marker, activeTrack.id))
+      .map(marker => marker.label.trim().toUpperCase()))
+    let cueNumber = 1
+    while (activeManualLabels.has(`CUE ${cueNumber}`)) cueNumber += 1
+    const beat = request.beat
+
+    addCueMarker({
+      label: `CUE ${cueNumber}`,
+      time: request.timeSec,
+      type: 'custom',
+      color: '#e2364f',
+      source: 'manual',
+      kind: 'memory_cue',
+      trackId: activeTrack.id,
+      authoredTime: request.authoredTimeSec,
+      beatIndex: beat?.beatIndex,
+      barIndex: beat?.barIndex,
+      beatInBar: beat?.beatInBar,
+      beatTime: beat?.beatTimeSec,
+      beatOffsetSec: beat?.offsetSec,
+      snappedToBeat: request.snappedToBeat,
+    })
+  }, [addCueMarker, cueMarkers, engine])
   const initial = track?.displayName?.[0]?.toUpperCase() ?? '♪'
   const title   = track?.displayName ?? 'No track loaded'
   const artist  = track?.artist?.trim() || (hasTrack ? '' : 'Load a track to begin')
@@ -629,6 +662,8 @@ export function VyzualzAudioDock({
             fallbackPeaks={peaks}
             followTimelineViewport={unifiedTimeline}
             appearance={waveformAppearance}
+            beatGrid={engine.currentEffectiveBeatGrid ?? engine.currentAnalysis?.beatGrid ?? null}
+            onCreateCuePoint={track ? handleCreateCuePoint : undefined}
           />
         </div>
         <div className="vz-dock-zoom-btns">

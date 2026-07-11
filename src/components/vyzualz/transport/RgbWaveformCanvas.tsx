@@ -279,12 +279,23 @@ export function RgbWaveformCanvas({
       }
     }
 
-    // Cue markers
+    // Rekordbox-inspired cue markers: a compact top flag with a precise line.
     for (const m of mks) {
       if (m.time < winStart || m.time > winEnd) continue
       const mx = timeToX(m.time)
-      ctx.fillStyle = m.color ?? 'rgba(184,79,201,0.88)'
-      ctx.fillRect(mx - 0.75, 0, 1.5, cssH)
+      const markerColor = m.color ?? '#e2364f'
+      ctx.save()
+      ctx.fillStyle = markerColor
+      ctx.shadowColor = markerColor
+      ctx.shadowBlur = 5
+      ctx.fillRect(mx - 1, 0, 2, cssH)
+      ctx.beginPath()
+      ctx.moveTo(mx - 6, 0)
+      ctx.lineTo(mx + 6, 0)
+      ctx.lineTo(mx, 8)
+      ctx.closePath()
+      ctx.fill()
+      ctx.restore()
     }
 
     // Playhead
@@ -336,9 +347,13 @@ export function RgbWaveformCanvas({
     <canvas
       ref={canvasRef}
       className="vz-mini-waveform"
-      onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); seekAtPointer(e) }}
-      onPointerMove={e => { if (e.buttons > 0) seekAtPointer(e) }}
-      title={duration > 0 ? 'Click or drag to seek' : undefined}
+      onPointerDown={e => {
+        if (e.button !== 0) return
+        e.currentTarget.setPointerCapture(e.pointerId)
+        seekAtPointer(e)
+      }}
+      onPointerMove={e => { if ((e.buttons & 1) === 1) seekAtPointer(e) }}
+      title={duration > 0 ? 'Click or drag to seek · Right-click to set a cue point' : undefined}
       style={{ cursor: onSeek && duration > 0 ? 'pointer' : 'default' }}
     />
   )

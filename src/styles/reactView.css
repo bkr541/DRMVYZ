@@ -10097,3 +10097,113 @@
   white-space: normal;
   overflow-wrap: anywhere;
 }
+
+/* ── Waveform-authored cue points ───────────────────────────────────────── */
+.rv-timeline-cue--cue {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  max-width: none;
+  height: 100%;
+  padding: 0;
+  gap: 0;
+  transform: translateX(-0.5px);
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--cue-color, #e2364f);
+}
+
+.rv-timeline-cue--cue::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  transform: translateX(-0.5px);
+  background: var(--cue-color, #e2364f);
+  box-shadow: 0 0 7px color-mix(in srgb, var(--cue-color, #e2364f) 66%, transparent);
+  content: '';
+}
+
+.rv-timeline-cue--cue::after {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  transform: translateX(-6px);
+  border-top: 8px solid var(--cue-color, #e2364f);
+  border-right: 6px solid transparent;
+  border-left: 6px solid transparent;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--cue-color, #e2364f) 62%, transparent));
+  content: '';
+}
+
+.rv-timeline-cue--cue:hover {
+  border: 0;
+  background: transparent;
+}
+
+.rv-timeline-cue--cue:hover::before {
+  width: 3px;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--cue-color, #e2364f) 82%, transparent);
+}
+
+.rv-timeline-cue--cue .rv-timeline-cue-diamond {
+  display: none;
+}
+
+.rv-timeline-cue--cue .rv-timeline-cue-label {
+  position: absolute;
+  top: 3px;
+  left: 7px;
+  max-width: 76px;
+  padding: 2px 4px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--cue-color, #e2364f) 54%, transparent);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--cue-color, #e2364f) 26%, rgba(4, 8, 13, 0.96));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.34);
+  color: rgba(255, 245, 247, 0.96);
+  font-size: 7px;
+  font-weight: 850;
+  line-height: 1;
+  letter-spacing: 0.055em;
+  pointer-events: none;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.vz-waveform-context-menu {
+  min-width: 220px;
+}
+
+.vz-waveform-context-menu__meta {
+  display: grid;
+  gap: 3px;
+  padding: 7px 9px 6px;
+  pointer-events: none;
+}
+
+.vz-waveform-context-menu__meta strong {
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.055em;
+}
+
+.vz-waveform-context-menu__meta span {
+  color: rgba(103, 247, 255, 0.62);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.035em;
+}
+
+.rv-show-director-context-menu.vz-waveform-context-menu button:disabled {
+  background: transparent;
+  color: rgba(232, 244, 248, 0.28);
+  cursor: default;
+}

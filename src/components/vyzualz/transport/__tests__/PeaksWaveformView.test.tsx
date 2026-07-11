@@ -10,6 +10,7 @@ import { PeaksWaveformView, syncCueMarkers } from '../PeaksWaveformView'
 import type { AudioEngine } from '../../../../hooks/useAudioEngine'
 import type { VzCueMarker } from '../../../../types/cue'
 import type { PeaksInstance } from 'peaks.js'
+import type { BeatMarkerMI } from '../../../../features/musicIntelligence/types'
 
 // ── Mock peaks.js ─────────────────────────────────────────────────────────────
 
@@ -140,7 +141,7 @@ describe('syncCueMarkers', () => {
       { id: 'x', label: 'X', time: 1, type: 'custom' },  // no color
     ])
     expect(mockPointsAdd).toHaveBeenCalledWith([
-      expect.objectContaining({ color: '#b84fc9' }),
+      expect.objectContaining({ color: '#e2364f' }),
     ])
   })
 
@@ -422,6 +423,98 @@ describe('PeaksWaveformView', () => {
 
       const opts = vi.mocked(Peaks.init).mock.calls[0][0] as { zoomview: { autoScroll: boolean } }
       expect(opts.zoomview.autoScroll).toBe(false)
+    })
+  })
+
+
+  describe('waveform cue authoring', () => {
+    const beatGrid: BeatMarkerMI[] = Array.from({ length: 241 }, (_, index) => ({
+      timeSec: index * 0.5,
+      confidence: 1,
+      isDownbeat: index % 4 === 0,
+    }))
+
+    async function openCueMenu(onCreateCuePoint: ReturnType<typeof vi.fn>) {
+      const engine = makeEngine({
+        currentTime: 60,
+        getCurrentTime: vi.fn(() => 60),
+      })
+      await act(async () => {
+        root.render(
+          <PeaksWaveformView
+            engine={engine}
+            cueMarkers={[]}
+            waveformZoom={2}
+            appearance="deck"
+            beatGrid={beatGrid}
+            onCreateCuePoint={onCreateCuePoint}
+          />,
+        )
+      })
+
+      const waveform = container.querySelector('.vz-peaks-wrap--deck') as HTMLDivElement
+      waveform.getBoundingClientRect = vi.fn(() => ({
+        left: 100,
+        top: 50,
+        right: 500,
+        bottom: 150,
+        width: 400,
+        height: 100,
+        x: 100,
+        y: 50,
+        toJSON: () => ({}),
+      }))
+
+      await act(async () => {
+        waveform.dispatchEvent(new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          clientX: 300,
+          clientY: 80,
+        }))
+      })
+      return document.body.querySelector('.vz-waveform-context-menu') as HTMLDivElement
+    }
+
+    it('maps a right-click through the zoom viewport and keeps the exact timestamp', async () => {
+      const onCreateCuePoint = vi.fn()
+      const menu = await openCueMenu(onCreateCuePoint)
+
+      expect(menu).not.toBeNull()
+      expect(menu.textContent).toContain('01:00.000')
+      expect(menu.textContent).toContain('Bar 31 · Beat 1')
+
+      const exactButton = Array.from(menu.querySelectorAll('button'))
+        .find(button => button.textContent === 'Set Cue Point Here')
+      await act(async () => { exactButton?.click() })
+
+      expect(onCreateCuePoint).toHaveBeenCalledWith(expect.objectContaining({
+        timeSec: 60,
+        authoredTimeSec: 60,
+        snappedToBeat: false,
+        beat: expect.objectContaining({
+          beatIndex: 120,
+          barIndex: 30,
+          beatInBar: 0,
+          beatTimeSec: 60,
+        }),
+      }))
+    })
+
+    it('offers a beat-snapped cue using the same authored pointer position', async () => {
+      const onCreateCuePoint = vi.fn()
+      const menu = await openCueMenu(onCreateCuePoint)
+      const snapButton = Array.from(menu.querySelectorAll('button'))
+        .find(button => button.textContent === 'Set Cue on Nearest Beat')
+
+      await act(async () => { snapButton?.click() })
+
+      expect(onCreateCuePoint).toHaveBeenCalledWith(expect.objectContaining({
+        timeSec: 60,
+        authoredTimeSec: 60,
+        snappedToBeat: true,
+        beat: expect.objectContaining({ offsetSec: 0 }),
+      }))
     })
   })
 

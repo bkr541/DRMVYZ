@@ -3,6 +3,12 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  VITE v5.4.21  ready in 158 ms
+  VITE v5.4.21  ready in 179 ms
 
   ➜  Local:   http://127.0.0.1:5173/
+8:55:09 PM [vite] hmr update /src/components/vyzualz/react/ReactTrackMapStrip.tsx
+8:55:09 PM [vite] hmr update /src/components/vyzualz/react/ReactPlaceholderCanvas.tsx, /src/components/vyzualz/stage/LiveVisualCanvas.tsx, /src/components/vyzualz/react/ReactPresetThumbnail.tsx
+8:55:09 PM [vite] hmr update /src/components/vyzualz/shared/VyzualzAudioDock.tsx
+8:55:09 PM [vite] hmr update /src/components/vyzualz/transport/PeaksWaveformView.tsx
+8:55:09 PM [vite] hmr update /src/components/vyzualz/transport/RgbWaveformCanvas.tsx
+8:55:09 PM [vite] hmr update /src/styles/reactView.css

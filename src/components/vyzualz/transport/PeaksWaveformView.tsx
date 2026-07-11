@@ -1,4 +1,5 @@
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useState, useCallback, useLayoutEffect, type CSSProperties, type MouseEvent } from 'react'
+import { createPortal } from 'react-dom'
 import Peaks from 'peaks.js'
 import type { PeaksInstance } from 'peaks.js'
 import type { AudioEngine } from '../../../hooks/useAudioEngine'
@@ -7,6 +8,13 @@ import { PeaksAudioEngineAdapter } from './peaksAudioEngineAdapter'
 import { RgbWaveformCanvas } from './RgbWaveformCanvas'
 import type { RgbWaveformAnalysis } from '../../../features/waveform/rgbWaveformTypes'
 import { computeWaveformViewport } from '../../../features/timeline/timelineViewport'
+import type { BeatMarkerMI } from '../../../features/musicIntelligence/types'
+import {
+  buildWaveformCueRequest,
+  formatCueBeatReference,
+  waveformClientXToTime,
+  type WaveformCueCreateRequest,
+} from '../../../features/timeline/waveformCuePoint'
 
 export interface PeaksWaveformViewProps {
   engine:         AudioEngine
@@ -18,6 +26,10 @@ export interface PeaksWaveformViewProps {
   followTimelineViewport?: boolean
   /** Visual treatment for both Peaks.js and the canvas fallback. */
   appearance?: 'rgb' | 'deck'
+  /** Effective beat grid used to attach musical position metadata to new cues. */
+  beatGrid?: readonly BeatMarkerMI[] | null
+  /** Enables the waveform context menu for authoring manual cue points. */
+  onCreateCuePoint?: (request: WaveformCueCreateRequest) => void
 }
 
 export function syncCueMarkers(instance: PeaksInstance, markers: VzCueMarker[]): void {
@@ -28,11 +40,59 @@ export function syncCueMarkers(instance: PeaksInstance, markers: VzCueMarker[]):
         id:        m.id,
         time:      m.time,
         labelText: m.label,
-        color:     m.color ?? '#b84fc9',
+        color:     m.color ?? '#e2364f',
         editable:  false,
       })),
     )
   }
+}
+
+
+type WaveformContextMenuState = {
+  x: number
+  y: number
+  authoredTimeSec: number
+  beat: ReturnType<typeof buildWaveformCueRequest>['beat']
+}
+
+const WAVEFORM_CONTEXT_MENU_MARGIN = 12
+
+function formatWaveformCueTime(timeSec: number): string {
+  const totalMs = Math.max(0, Math.round(timeSec * 1000))
+  const minutes = Math.floor(totalMs / 60_000)
+  const seconds = Math.floor((totalMs % 60_000) / 1000)
+  const milliseconds = totalMs % 1000
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(milliseconds).padStart(3, '0')}`
+}
+
+function clampWaveformContextMenu(
+  element: HTMLElement,
+  point: Pick<WaveformContextMenuState, 'x' | 'y'>,
+): { x: number; y: number } {
+  if (typeof window === 'undefined') return point
+  const rect = element.getBoundingClientRect()
+  const maxX = Math.max(WAVEFORM_CONTEXT_MENU_MARGIN, window.innerWidth - rect.width - WAVEFORM_CONTEXT_MENU_MARGIN)
+  const maxY = Math.max(WAVEFORM_CONTEXT_MENU_MARGIN, window.innerHeight - rect.height - WAVEFORM_CONTEXT_MENU_MARGIN)
+  return {
+    x: Math.round(Math.max(WAVEFORM_CONTEXT_MENU_MARGIN, Math.min(maxX, point.x))),
+    y: Math.round(Math.max(WAVEFORM_CONTEXT_MENU_MARGIN, Math.min(maxY, point.y))),
+  }
+}
+
+function contextTargetRect(
+  clientY: number,
+  root: HTMLDivElement,
+  overview: HTMLDivElement | null,
+  zoomview: HTMLDivElement | null,
+): { rect: DOMRect; fullTrack: boolean } {
+  if (overview && typeof window !== 'undefined' && window.getComputedStyle(overview).display !== 'none') {
+    const overviewRect = overview.getBoundingClientRect()
+    if (clientY >= overviewRect.top && clientY <= overviewRect.bottom) {
+      return { rect: overviewRect, fullTrack: true }
+    }
+  }
+  if (zoomview) return { rect: zoomview.getBoundingClientRect(), fullTrack: false }
+  return { rect: root.getBoundingClientRect(), fullTrack: false }
 }
 
 export function PeaksWaveformView({
@@ -43,9 +103,13 @@ export function PeaksWaveformView({
   fallbackPeaks,
   followTimelineViewport = false,
   appearance = 'rgb',
+  beatGrid = null,
+  onCreateCuePoint,
 }: PeaksWaveformViewProps) {
+  const waveformRootRef = useRef<HTMLDivElement>(null)
   const overviewRef = useRef<HTMLDivElement>(null)
   const zoomviewRef = useRef<HTMLDivElement>(null)
+  const contextMenuRef = useRef<HTMLDivElement>(null)
   const peaksRef    = useRef<PeaksInstance | null>(null)
   const adapterRef  = useRef<PeaksAudioEngineAdapter | null>(null)
   const engineRef   = useRef<AudioEngine>(engine)
@@ -65,6 +129,7 @@ export function PeaksWaveformView({
 
   const [peaksReady, setPeaksReady] = useState(false)
   const [peaksError, setPeaksError] = useState(false)
+  const [contextMenu, setContextMenu] = useState<WaveformContextMenuState | null>(null)
 
   const destroyPeaks = useCallback(() => {
     initGenRef.current += 1
@@ -189,6 +254,7 @@ export function PeaksWaveformView({
     destroyPeaks()
     setPeaksReady(false)
     setPeaksError(false)
+    setContextMenu(null)
   }, [currentTrackId, destroyPeaks])
 
   // ── Init / reinit when the active track, status, or buffer availability changes ─
@@ -288,32 +354,100 @@ export function PeaksWaveformView({
     }
   }, [destroyPeaks])
 
-  if (appearance === 'deck') {
-    return (
-      <div className="vz-peaks-wrap vz-peaks-wrap--deck">
-        <RgbWaveformCanvas
-          analysis={rgbAnalysis}
-          fallbackPeaks={fallbackPeaks}
-          duration={engine.duration}
-          currentTime={engine.currentTime}
-          markers={cueMarkers}
-          onSeek={engine.currentTrack ? engine.seek : undefined}
-          zoom={waveformZoom}
-          monochrome
-        />
-      </div>
-    )
+  useLayoutEffect(() => {
+    if (!contextMenu || !contextMenuRef.current) return
+    const next = clampWaveformContextMenu(contextMenuRef.current, contextMenu)
+    if (next.x === contextMenu.x && next.y === contextMenu.y) return
+    setContextMenu(current => current ? { ...current, ...next } : current)
+  }, [contextMenu])
+
+  useEffect(() => {
+    if (!contextMenu) return
+    const closeOnPointerDown = (event: globalThis.PointerEvent) => {
+      const target = event.target instanceof HTMLElement ? event.target : null
+      if (target?.closest('.vz-waveform-context-menu')) return
+      setContextMenu(null)
+    }
+    const closeOnKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setContextMenu(null)
+    }
+    window.addEventListener('pointerdown', closeOnPointerDown)
+    window.addEventListener('keydown', closeOnKeyDown)
+    return () => {
+      window.removeEventListener('pointerdown', closeOnPointerDown)
+      window.removeEventListener('keydown', closeOnKeyDown)
+    }
+  }, [contextMenu])
+
+  const handleContextMenu = (event: MouseEvent<HTMLDivElement>) => {
+    const root = waveformRootRef.current
+    const duration = engineRef.current.duration
+    if (!root || !onCreateCuePoint || duration <= 0 || !engineRef.current.currentTrack) return
+    event.preventDefault()
+    event.stopPropagation()
+
+    const target = contextTargetRect(event.clientY, root, overviewRef.current, zoomviewRef.current)
+    const activeZoomView = peaksRef.current?.views.getView('zoomview') as unknown as {
+      getStartTime?: () => number
+      getEndTime?: () => number
+    } | null
+    const peaksStartSec = activeZoomView?.getStartTime?.()
+    const peaksEndSec = activeZoomView?.getEndTime?.()
+    const viewport = target.fullTrack
+      ? { startSec: 0, endSec: duration }
+      : Number.isFinite(peaksStartSec) && Number.isFinite(peaksEndSec) && (peaksEndSec ?? 0) > (peaksStartSec ?? 0)
+        ? { startSec: peaksStartSec ?? 0, endSec: peaksEndSec ?? duration }
+        : computeWaveformViewport(duration, engineRef.current.getCurrentTime(), waveformZoomRef.current)
+    const authoredTimeSec = waveformClientXToTime(event.clientX, target.rect, viewport, duration)
+    const request = buildWaveformCueRequest(authoredTimeSec, beatGrid, false)
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      authoredTimeSec,
+      beat: request.beat,
+    })
   }
 
-  return (
-    <div className={`vz-peaks-wrap${followTimelineViewport ? ' vz-peaks-wrap--unified' : ''}`}>
-      {/* Peaks containers are always in the DOM so Peaks can mount/resize into them */}
-      <div className="vz-peaks-overview" ref={overviewRef} />
-      <div className="vz-peaks-zoomview" ref={zoomviewRef} />
+  const createCue = (snapToBeat: boolean) => {
+    if (!contextMenu || !onCreateCuePoint) return
+    onCreateCuePoint(buildWaveformCueRequest(contextMenu.authoredTimeSec, beatGrid, snapToBeat))
+    setContextMenu(null)
+  }
 
-      {/* Fallback canvas: overlays the Peaks containers until they are ready */}
-      {!peaksReady && (
-        <div className="vz-peaks-fallback">
+  const contextMenuPortal = contextMenu && typeof document !== 'undefined' && createPortal((
+    <div
+      ref={contextMenuRef}
+      className="rv-show-director-context-menu vz-waveform-context-menu"
+      style={{ left: contextMenu.x, top: contextMenu.y } as CSSProperties}
+      role="menu"
+      aria-label="Waveform cue point menu"
+      onPointerDown={event => event.stopPropagation()}
+    >
+      <div className="vz-waveform-context-menu__meta">
+        <strong>{formatWaveformCueTime(contextMenu.authoredTimeSec)}</strong>
+        <span>{formatCueBeatReference(contextMenu.beat) ?? 'No beat grid available'}</span>
+      </div>
+      <span className="rv-show-director-context-menu__divider" role="separator" />
+      <button type="button" role="menuitem" onClick={() => createCue(false)}>Set Cue Point Here</button>
+      <button
+        type="button"
+        role="menuitem"
+        disabled={!contextMenu.beat}
+        onClick={() => createCue(true)}
+      >
+        Set Cue on Nearest Beat
+      </button>
+    </div>
+  ), document.body)
+
+  if (appearance === 'deck') {
+    return (
+      <>
+        <div
+          ref={waveformRootRef}
+          className="vz-peaks-wrap vz-peaks-wrap--deck"
+          onContextMenu={handleContextMenu}
+        >
           <RgbWaveformCanvas
             analysis={rgbAnalysis}
             fallbackPeaks={fallbackPeaks}
@@ -322,9 +456,41 @@ export function PeaksWaveformView({
             markers={cueMarkers}
             onSeek={engine.currentTrack ? engine.seek : undefined}
             zoom={waveformZoom}
+            monochrome
           />
         </div>
-      )}
-    </div>
+        {contextMenuPortal}
+      </>
+    )
+  }
+
+  return (
+    <>
+      <div
+        ref={waveformRootRef}
+        className={`vz-peaks-wrap${followTimelineViewport ? ' vz-peaks-wrap--unified' : ''}`}
+        onContextMenu={handleContextMenu}
+      >
+        {/* Peaks containers are always in the DOM so Peaks can mount/resize into them */}
+        <div className="vz-peaks-overview" ref={overviewRef} />
+        <div className="vz-peaks-zoomview" ref={zoomviewRef} />
+
+        {/* Fallback canvas: overlays the Peaks containers until they are ready */}
+        {!peaksReady && (
+          <div className="vz-peaks-fallback">
+            <RgbWaveformCanvas
+              analysis={rgbAnalysis}
+              fallbackPeaks={fallbackPeaks}
+              duration={engine.duration}
+              currentTime={engine.currentTime}
+              markers={cueMarkers}
+              onSeek={engine.currentTrack ? engine.seek : undefined}
+              zoom={waveformZoom}
+            />
+          </div>
+        )}
+      </div>
+      {contextMenuPortal}
+    </>
   )
 }

@@ -10,6 +10,7 @@ import { DEFAULT_MI_FRAME } from '../../../../features/musicIntelligence/constan
 import type { MusicIntelligenceFrame } from '../../../../features/musicIntelligence/types'
 import { useReactStore } from '../../../../stores/reactStore'
 import { useVisualStore } from '../../../../stores/visualStore'
+import { cueMarkerBelongsToTrack } from '../../../../types/cue'
 import { compileLaserDmxBeamMatrix, resetBeamMatrixCompilerState } from './LaserDmxBeamMatrixCompiler'
 import { compileLaserDmxShowDirectorToBeamMatrix } from './LaserDmxShowDirectorBeamMatrixCompiler'
 import { renderLaserDmxBeamMatrix } from './LaserDmxBeamMatrixRenderer'
@@ -384,7 +385,7 @@ export function renderLaserDmx(
         beamMatrix: state.laserDmxBeamMatrix,
         analysis: frame.trackAnalysis,
         sections: frame.trackSections,
-        cueMarkers: useVisualStore.getState().cueMarkers,
+        cueMarkers: useVisualStore.getState().cueMarkers.filter(marker => cueMarkerBelongsToTrack(marker, trackKey)),
       })
     : state.laserDmxBeamMatrix
   const directorPresetKey = `${preset.id}:beamMatrix:${beamMatrixAuthoringMode}:${state.activeLaserDmxBeamMatrixPresetId ?? 'custom'}:${resolvedAuthoredSettings.rigId ?? 'rig'}`

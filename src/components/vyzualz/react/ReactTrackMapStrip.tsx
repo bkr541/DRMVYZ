@@ -31,6 +31,7 @@ import type {
 } from '../../../features/musicIntelligence/types'
 import { applyCanvasResolution, resolveCanvasResolution } from './rendering/canvasResolution'
 import { isSelectableReactEngineId, REACT_ENGINE_CATALOG } from './reactEngineCatalog'
+import { cueMarkerBelongsToTrack, type VzCueMarker } from '../../../types/cue'
 
 // ── Engine display labels ─────────────────────────────────────────────────────
 
@@ -44,6 +45,22 @@ export function buildPresetCueId(sectionId: string): string {
 /** Returns a human-readable cue label, e.g. "Drop → Energy Cloud". */
 export function buildPresetCueLabel(sectionLabel: string, presetName: string): string {
   return `${sectionLabel} → ${presetName}`
+}
+
+export function buildTimelineCueTitle(
+  cue: Pick<VzCueMarker, 'label' | 'time' | 'barIndex' | 'beatInBar' | 'beatOffsetSec' | 'snappedToBeat'>,
+): string {
+  const parts = [cue.label, formatTimePrecise(cue.time)]
+  if (Number.isInteger(cue.barIndex) && Number.isInteger(cue.beatInBar)) {
+    parts.push(`Bar ${(cue.barIndex ?? 0) + 1} · Beat ${(cue.beatInBar ?? 0) + 1}`)
+  }
+  if (cue.snappedToBeat) {
+    parts.push('Snapped to beat grid')
+  } else if (Number.isFinite(cue.beatOffsetSec)) {
+    const offsetMs = Math.round((cue.beatOffsetSec ?? 0) * 1000)
+    parts.push(`${offsetMs >= 0 ? '+' : ''}${offsetMs} ms from beat`)
+  }
+  return parts.join(' · ')
 }
 
 // ── Section display metadata ───────────────────────────────────────────────────
@@ -1242,11 +1259,10 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
   const assignedSectionIds = new Set(
     trackCues.filter(c => c.sectionId != null).map(c => c.sectionId!)
   )
-  const importedCueMarkers = currentTrack?.importedCueMarkers ?? []
-  const activeCueMarkers = useMemo(
-    () => [...cueMarkers, ...importedCueMarkers].sort((a, b) => a.time - b.time),
-    [cueMarkers, importedCueMarkers],
-  )
+  const activeCueMarkers = useMemo(() => [
+    ...cueMarkers.filter(cue => cueMarkerBelongsToTrack(cue, activeTrackId)),
+    ...(currentTrack?.importedCueMarkers ?? []),
+  ].sort((a, b) => a.time - b.time), [activeTrackId, cueMarkers, currentTrack])
 
   const timelineCueItems = [
     ...trackCues.map(cue => {
@@ -1264,9 +1280,10 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
       id: `${cue.source === 'rekordbox' ? 'rekordbox' : 'transport'}:${cue.id}`,
       timeSec: cue.time,
       label: cue.label,
-      color: cue.color ?? '#4ac7db',
+      color: cue.color ?? '#e2364f',
       kind: 'cue' as const,
       enabled: true,
+      title: buildTimelineCueTitle(cue),
     })),
   ].filter(cue => Number.isFinite(cue.timeSec))
 
@@ -1952,7 +1969,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                               '--cue-color': cue.color,
                             } as React.CSSProperties}
                             onClick={() => engine.seek(cue.timeSec)}
-                            title={`${cue.label} · ${formatTimePrecise(cue.timeSec)}`}
+                            title={'title' in cue ? cue.title : `${cue.label} · ${formatTimePrecise(cue.timeSec)}`}
                           >
                             <span className="rv-timeline-cue-diamond" aria-hidden="true" />
                             <span className="rv-timeline-cue-label">{cue.label}</span>

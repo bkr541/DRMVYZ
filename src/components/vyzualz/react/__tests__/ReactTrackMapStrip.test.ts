@@ -17,11 +17,37 @@ import {
   TRACK_MAP_RULER_FONT_SIZE,
   buildPresetCueId,
   buildPresetCueLabel,
+  buildTimelineCueTitle,
 } from '../ReactTrackMapStrip'
 import { adaptMIAnalysis } from '../../../../features/trackIntelligence/trackMapAdapter'
 import type { TrackIntelligenceAnalysis, FeatureCurve, TrackAnalysisStatus, BeatMarkerMI } from '../../../../features/musicIntelligence/types'
 import { useReactStore } from '../../../../stores/reactStore'
 import type { ReactTrackSection } from '../ReactTypes'
+
+
+describe('cue marker labels', () => {
+  it('includes the exact timestamp and nearest musical position', () => {
+    expect(buildTimelineCueTitle({
+      label: 'CUE 1',
+      time: 81.426,
+      barIndex: 40,
+      beatInBar: 2,
+      beatOffsetSec: 0.036,
+      snappedToBeat: false,
+    })).toBe('CUE 1 · 01:21.426 · Bar 41 · Beat 3 · +36 ms from beat')
+  })
+
+  it('identifies a cue that was explicitly snapped to the grid', () => {
+    expect(buildTimelineCueTitle({
+      label: 'CUE 2',
+      time: 60,
+      barIndex: 29,
+      beatInBar: 3,
+      beatOffsetSec: 0,
+      snappedToBeat: true,
+    })).toBe('CUE 2 · 01:00.000 · Bar 30 · Beat 4 · Snapped to beat grid')
+  })
+})
 
 // ── Canvas mock (avoids DOM / jsdom requirement) ──────────────────────────────
 
