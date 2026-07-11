@@ -1,53 +1,16 @@
 # Rekordbox Import Intelligence
 
-DRMVYZ now has a browser-safe Rekordbox import layer for the performance deck.
+DRMVYZ supports two Rekordbox metadata paths: a native Electron USB parser and a browser-compatible XML importer.
 
-## Current supported flow
+## Recommended desktop USB flow
 
-1. Export Rekordbox XML from Rekordbox.
-2. In the DRMVYZ audio dock, choose **RB XML** and select the XML file.
-3. Load or replace audio tracks.
-4. DRMVYZ matches selected audio files to Rekordbox tracks by USB relative path, filename, filename stem, or title.
-5. Matched tracks are loaded with Rekordbox metadata, cue markers, loop regions, BPM/key seeds, and cue-seeded sections before the normal DRMVYZ audio intelligence pass runs.
+1. Export tracks from Rekordbox to a prepared USB.
+2. Start DRMVYZ with `npm run electron:dev`, `npm run electron:start`, or an installed desktop build.
+3. In the audio dock, choose **Rekordbox → Scan USB…** and select the USB root.
+4. DRMVYZ reads the USB metadata in the Electron main process and returns only normalized track/cue data to React.
+5. Load a track from the USB. DRMVYZ matches the native file path to the parsed Rekordbox track and hydrates cues, loops, BPM, key, and beat-grid seeds.
 
-The **RB USB** control can scan a selected folder/USB and load audio files directly when an XML export is present in the selection. It also detects `/PIONEER/rekordbox/export.pdb` and `/PIONEER/USBANLZ` analysis files so the app can explain when a full Rekordbox-device parser is needed.
-
-## Imported data
-
-- title, artist, album, genre, comments, rating, color
-- BPM and musical key as trusted analysis seeds
-- hot cues, memory cues, markers, and loops
-- cue-seeded sections for labels like intro, build, drop, break, and outro
-
-## Intentional limitation
-
-The browser UI does not parse `export.pdb`, `.DAT`, `.EXT`, or `.2EX` yet. That should be implemented in an Electron/main-process bridge or a dedicated parser package so binary Rekordbox USB exports can be read without blocking the React render thread.
-
-## Native/Electron USB parser bridge
-
-The browser-safe `RB USB` path intentionally avoids `<input webkitdirectory>` because Brave/Chrome will try to enumerate or upload the entire USB. For the real USB flow, wire the native bridge into the Electron main/preload process and let Node read only Rekordbox metadata from disk.
-
-### Main process wiring
-
-```js
-const path = require('node:path')
-const { app, BrowserWindow, ipcMain, dialog } = require('electron')
-const { installRekordboxUsbBridge } = require('./native/rekordbox/rekordboxUsbBridge.cjs')
-
-installRekordboxUsbBridge({ ipcMain, dialog, BrowserWindow })
-
-const win = new BrowserWindow({
-  webPreferences: {
-    contextIsolation: true,
-    nodeIntegration: false,
-    preload: path.join(__dirname, 'native/rekordbox/preloadRekordboxBridge.cjs'),
-  },
-})
-```
-
-### What the native bridge reads
-
-When the user clicks `RB USB`, the bridge opens a native folder picker and expects the selected root to contain:
+The selected USB root is expected to contain:
 
 ```txt
 /PIONEER/rekordbox/export.pdb
@@ -56,25 +19,81 @@ When the user clicks `RB USB`, the bridge opens a native folder picker and expec
 /PIONEER/USBANLZ/**/*.2EX
 ```
 
-It does **not** load the whole USB into the renderer. The main process reads metadata only and returns a DRMVYZ-native `RekordboxLibrary` object.
+`rekordbox.xml` does not need to be stored on the USB for this desktop flow.
 
-### Parsed metadata
+## XML fallback flow
 
-The bridge now parses ANLZ files directly for:
+1. Export Rekordbox XML from Rekordbox.
+2. In the DRMVYZ audio dock, choose **Rekordbox → Import XML…**.
+3. Load or replace audio tracks.
+4. DRMVYZ matches selected audio files by absolute path, USB-relative path, filename, filename stem, or title.
+5. Matched tracks hydrate with Rekordbox metadata and cue markers before normal DRMVYZ audio intelligence runs.
 
-- PPTH path tags for audio-file matching
-- PQTZ beat grids and downbeats
-- PCO2 extended hot cues, memory cues, comments, colors, and loops
-- PCOB legacy hot cues, memory cues, and loops
+The XML route remains useful in a normal browser, for unsupported USB database versions, or as a troubleshooting fallback.
 
-If the optional `rekordbox-parser` package is available in the Electron main process, the bridge also enriches the ANLZ metadata with `export.pdb` fields such as artist, album, genre, label, key, rating, and comments. Without that optional package, DRMVYZ still imports beat grids, cue points, loops, and the analyzed audio path directly from ANLZ files.
+## Native architecture
 
-### Automatic USB detection from a loaded track
+The Electron main process installs `native/rekordbox/rekordboxUsbBridge.cjs`. A context-isolated preload exposes only these narrow operations:
 
-In Electron runtimes that expose an absolute path on selected `File` objects, loading a track from `/Volumes/<USB name>/...`, a Windows drive root, or common Linux media mount paths triggers a native scan of that USB root automatically. That means the expected DJ flow becomes:
+- open a native USB-root folder picker and parse it
+- parse a known USB root inferred from a loaded track
+- resolve a selected Electron `File` to its native path with `webUtils.getPathForFile`
+
+Node integration stays disabled in the React renderer. The full USB is never copied into browser memory; the main process reads only Rekordbox metadata files and sends a normalized `RekordboxLibrary` over IPC.
+
+## Parsed ANLZ metadata
+
+The built-in parser reads:
+
+- `PPTH` analyzed audio paths for track matching
+- `PQTZ` beat grids, BPM values, and downbeats
+- `PCO2` extended hot cues, memory cues, cue comments, colors, and loops
+- `PCOB` legacy hot cues, memory cues, and loops
+
+## Optional `export.pdb` enrichment
+
+`rekordbox-parser` is installed as an optional production dependency. When available, DRMVYZ merges `export.pdb` fields with ANLZ data, including:
+
+- title and artist
+- album, genre, and label
+- musical key and BPM
+- rating, color, and comments
+- canonical device audio path
+
+If the optional package cannot be installed or cannot parse a particular database version, DRMVYZ falls back to its built-in ANLZ parser and surfaces a warning instead of blocking cue import.
+
+## Automatic USB-root detection
+
+Electron no longer exposes the legacy `File.path` property. DRMVYZ’s preload uses `webUtils.getPathForFile` to resolve selected audio files safely. Files loaded from paths such as these trigger a best-effort automatic metadata scan:
 
 ```txt
-Load track from Rekordbox USB → DRMVYZ detects USB root → native bridge parses Rekordbox metadata → current track hydrates with cues/beat grid
+/Volumes/<USB name>/...       # macOS
+E:/...                        # Windows
+/media/<user>/<USB name>/...  # Linux
+/run/media/<user>/<USB>/...   # Linux
 ```
 
-If the app is running in a normal browser, absolute file paths are not available for privacy reasons. In that case the app falls back to explicit `RB USB` / `RB XML` import controls.
+Expected flow:
+
+```txt
+Load track from Rekordbox USB
+  → infer USB root
+  → native bridge parses export.pdb + ANLZ
+  → match the loaded file
+  → hydrate cues, loops, metadata, and beat grid
+```
+
+## Browser behavior
+
+`npm run dev` still launches the browser-safe application. Browsers cannot expose native file paths or let the React renderer directly parse arbitrary USB files. In that mode, **Scan USB…** can only perform a limited File System Access API probe, and XML remains the reliable cue-import route.
+
+## Packaging
+
+```bash
+npm run desktop:pack
+npm run desktop:dist:mac
+npm run desktop:dist:win
+npm run desktop:dist:linux
+```
+
+Electron Builder writes outputs to `release/`. macOS microphone permission text is included in the packaged application. Code signing and notarization credentials are intentionally not committed to the repository.

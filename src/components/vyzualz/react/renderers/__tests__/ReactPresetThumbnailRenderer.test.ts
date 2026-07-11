@@ -447,11 +447,13 @@ describe('React preset thumbnail renderer scheduling', () => {
 
   it('falls back to null and still disposes when preview serialization fails', async () => {
     const source = preset('preset-minimal-skeleton')
-    vi.mocked(document.createElement).mockImplementationOnce(() => {
+    // Electron augments HTMLElementTagNameMap with <webview>, so preserve the
+    // complete overloaded createElement signature while returning the test canvas.
+    vi.mocked(document.createElement).mockImplementationOnce((() => {
       const canvas = createFakeCanvas()
       canvas.toDataURL.mockImplementation(() => { throw new Error('serialization failed') })
       return canvas as HTMLCanvasElement
-    })
+    }) as unknown as typeof document.createElement)
 
     await expect(renderReactPresetThumbnail(source)).resolves.toBeNull()
     expect(mocks.disposeCinematicPortalRenderer).toHaveBeenCalledWith(expect.anything(), 'terminal-retire')

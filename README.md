@@ -9,13 +9,36 @@ Before making code changes, read `AI_IMPLEMENTATION_CONTRACT.md` and follow its 
 
 ## Quick Start
 
+### Desktop app (recommended)
+
+DRMVYZ Desktop requires Node.js 22.12 or newer within the Node 22 release line.
+
 ```bash
 npm ci
-npm run dev
-# or double-click launch.command
+npm run electron:dev
+# or double-click launch.command on macOS
 ```
 
-Open [http://localhost:5173](http://localhost:5173)
+The Electron shell enables native Rekordbox USB scanning, including `export.pdb` and `PIONEER/USBANLZ` cue/beat-grid metadata.
+
+### Browser-only development
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173). The browser build remains supported, but native USB database parsing is unavailable there; use Rekordbox XML for cue hydration.
+
+### Package installers
+
+```bash
+npm run desktop:pack       # unpacked local application
+npm run desktop:dist:mac   # DMG
+npm run desktop:dist:win   # NSIS installer
+npm run desktop:dist:linux # AppImage
+```
+
+Desktop artifacts are written to `release/`. Cross-platform installers normally need to be built on their target operating system, and production distribution should add platform code signing/notarization.
 
 For the complete locked-install, unit, production-build, Chromium smoke, and audit workflow, see [`docs/verification.md`](docs/verification.md).
 
@@ -29,7 +52,7 @@ For the complete locked-install, unit, production-build, Chromium smoke, and aud
 | **Microphone** | Uses `getUserMedia` — browser will prompt for permission |
 | **Demo** | Synthetic oscillators feeding the analysers — no audio output |
 
-> **Browser limitation:** System audio (e.g., Spotify, system sounds) cannot be captured via Web Audio API without OS-level virtual routing (e.g., BlackHole on macOS, VB-Cable on Windows) or using OBS for screen+audio recording.
+> **Audio-routing limitation:** System audio (e.g., Spotify or other applications) still requires OS-level virtual routing such as BlackHole on macOS or VB-Cable on Windows, or capture through OBS.
 
 ---
 

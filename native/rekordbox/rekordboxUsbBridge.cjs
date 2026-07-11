@@ -8,6 +8,26 @@ const AUDIO_EXT_RE = /\.(mp3|wav|aiff?|m4a|ogg|flac)$/i
 const ANLZ_EXT_RE = /\.(DAT|EXT|2EX)$/i
 const MAX_NATIVE_ANLZ_FILES = 50000
 
+// Matches the same removable-media mount-point shapes the renderer uses to guess
+// a USB root from a loaded file's path (see guessNativeUsbRootFromFile in
+// src/features/rekordboxImport/nativeBridge.ts). The select-usb-root-and-parse
+// handler only ever receives a path the user picked via the native OS folder
+// dialog, so it's inherently authorized. scan-usb-root instead takes a path
+// string supplied directly by renderer JS, so it gets checked against this
+// pattern before the main process reads anything from disk on its behalf.
+const REMOVABLE_ROOT_RE = new RegExp(
+  [
+    '^/Volumes/[^/]+/?$', // macOS
+    '^[A-Za-z]:[\\\\/]?$', // Windows drive root
+    '^/(?:media|mnt)/[^/]+(?:/[^/]+)?/?$', // Linux
+    '^/run/media/[^/]+/[^/]+/?$', // Linux (systemd-managed mounts)
+  ].join('|'),
+)
+
+function isPlausibleRemovableRoot(rootPath) {
+  return REMOVABLE_ROOT_RE.test(path.resolve(String(rootPath || '')))
+}
+
 function installRekordboxUsbBridge({ ipcMain, dialog, BrowserWindow }) {
   if (!ipcMain || !dialog) throw new Error('installRekordboxUsbBridge requires Electron ipcMain and dialog.')
 
@@ -27,6 +47,11 @@ function installRekordboxUsbBridge({ ipcMain, dialog, BrowserWindow }) {
   })
 
   ipcMain.handle('drmvyz:rekordbox:scan-usb-root', async (_event, rootPath) => {
+    if (!isPlausibleRemovableRoot(rootPath)) {
+      return emptyResult({
+        warnings: ['The requested path does not look like a removable-media mount point and was not scanned.'],
+      })
+    }
     return scanRekordboxUsbRoot(rootPath)
   })
 }
@@ -51,14 +76,12 @@ async function scanRekordboxUsbRoot(rootPath) {
   tracks = anlzLibrary.tracks
 
   if (detectedPdbFiles > 0) {
-    const pdbTracks = await parsePdbIfParserAvailable(exportPdb, warnings)
-    if (pdbTracks.length > 0) {
-      tracks = mergePdbAndAnlzTracks(pdbTracks, tracks)
-      parserMode = tracks.some(track => (track.cues || []).length > 0 || (track.beatGrid || []).length > 0)
-        ? 'hybrid'
-        : 'rekordbox-parser'
-    } else {
-      warnings.push('export.pdb was found, but no optional rekordbox-parser module is installed in the Electron main process. DRMVYZ parsed ANLZ cue/beat-grid files directly instead.')
+    const pdbResult = await parsePdbIfParserAvailable(exportPdb, warnings)
+    if (pdbResult.tracks.length > 0) {
+      tracks = mergePdbAndAnlzTracks(pdbResult.tracks, tracks)
+      parserMode = anlzLibrary.tracks.length > 0 ? 'hybrid' : 'rekordbox-parser'
+    } else if (!pdbResult.available) {
+      warnings.push('export.pdb was found, but the optional rekordbox-parser module is not installed. DRMVYZ parsed ANLZ cue and beat-grid files directly instead.')
     }
   }
 
@@ -251,7 +274,7 @@ async function parsePdbIfParserAvailable(exportPdbPath, warnings) {
   try {
     parser = require('rekordbox-parser')
   } catch {
-    return []
+    return { available: false, tracks: [] }
   }
 
   try {
@@ -259,42 +282,54 @@ async function parsePdbIfParserAvailable(exportPdbPath, warnings) {
     const pageType = parser.RekordboxPdb?.PageType || {}
     const tracksTable = (db.tables || []).find(table => table.type === pageType.TRACKS)
       || (db.tables || []).find(table => table.rows?.some?.(row => row.filePath || row.filename || row.title))
-    if (!tracksTable) return []
+    if (!tracksTable) {
+      warnings.push('rekordbox-parser opened export.pdb, but no track table was found.')
+      return { available: true, tracks: [] }
+    }
 
-    const rows = typeof parser.tableRows === 'function'
-      ? Array.from(parser.tableRows(tracksTable))
-      : Array.from(tracksTable.rows || [])
+    const rows = rowsForTable(tracksTable, parser)
     const lookups = buildPdbLookups(db, parser)
-    return rows.map(row => pdbRowToTrack(row, lookups)).filter(Boolean)
+    return {
+      available: true,
+      tracks: rows.map(row => pdbRowToTrack(row, lookups)).filter(Boolean),
+    }
   } catch (err) {
     warnings.push(`export.pdb parser failed: ${err instanceof Error ? err.message : String(err)}`)
-    return []
+    return { available: true, tracks: [] }
   }
 }
 
+function rowsForTable(table, parser) {
+  if (!table) return []
+  return typeof parser.tableRows === 'function'
+    ? Array.from(parser.tableRows(table))
+    : Array.from(table.rows || [])
+}
+
 function buildPdbLookups(db, parser) {
-  const lookups = new Map()
-  for (const table of db.tables || []) {
-    const rows = typeof parser.tableRows === 'function'
-      ? Array.from(parser.tableRows(table))
-      : Array.from(table.rows || [])
+  const pageType = parser.RekordboxPdb?.PageType || {}
+  const tablesByType = new Map((db.tables || []).map(table => [table.type, table]))
+  const lookupFor = type => {
     const map = new Map()
-    for (const row of rows) {
+    for (const row of rowsForTable(tablesByType.get(type), parser)) {
       if (row && row.id != null) map.set(row.id, rowText(row))
     }
-    lookups.set(table.type, map)
+    return map
   }
+
   return {
-    byTable: lookups,
-    textForId: id => {
-      if (id == null || id === 0) return null
-      for (const map of lookups.values()) {
-        const v = map.get(id)
-        if (v) return v
-      }
-      return null
-    },
+    artists: lookupFor(pageType.ARTISTS),
+    albums: lookupFor(pageType.ALBUMS),
+    genres: lookupFor(pageType.GENRES),
+    labels: lookupFor(pageType.LABELS),
+    keys: lookupFor(pageType.KEYS),
+    colors: lookupFor(pageType.COLORS),
   }
+}
+
+function lookupText(map, id) {
+  if (!map || id == null || id === 0) return null
+  return map.get(id) || null
 }
 
 function pdbRowToTrack(row, lookups) {
@@ -306,15 +341,15 @@ function pdbRowToTrack(row, lookups) {
   const track = {
     trackId: String(row.id ?? hash(filePath || filename || title)),
     name: title || filenameWithoutExtension(filename || 'Rekordbox Track'),
-    artist: textOf(row.artist) || lookups.textForId(row.artistId) || null,
-    album: textOf(row.album) || lookups.textForId(row.albumId) || null,
-    genre: textOf(row.genre) || lookups.textForId(row.genreId) || null,
-    label: textOf(row.label) || lookups.textForId(row.labelId) || null,
+    artist: textOf(row.artist) || lookupText(lookups.artists, row.artistId),
+    album: textOf(row.album) || lookupText(lookups.albums, row.albumId),
+    genre: textOf(row.genre) || lookupText(lookups.genres, row.genreId),
+    label: textOf(row.label) || lookupText(lookups.labels, row.labelId),
     comments: textOf(row.comment) || null,
     rating: typeof row.rating === 'number' ? row.rating : null,
-    color: textOf(row.color) || lookups.textForId(row.colorId) || null,
+    color: textOf(row.color) || lookupText(lookups.colors, row.colorId),
     bpm: Number.isFinite(tempo) && tempo > 0 ? tempo : null,
-    key: textOf(row.key) || lookups.textForId(row.keyId) || null,
+    key: textOf(row.key) || lookupText(lookups.keys, row.keyId),
     durationSec: typeof row.duration === 'number' ? row.duration : null,
     location: normalizeDevicePath(filePath || filename || ''),
     filename,
@@ -553,4 +588,5 @@ module.exports = {
   installRekordboxUsbBridge,
   scanRekordboxUsbRoot,
   parseAnlzBuffer,
+  isPlausibleRemovableRoot,
 }

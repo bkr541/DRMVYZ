@@ -3,6 +3,10 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
+  // Relative asset URLs let the built renderer resolve its own JS/CSS bundle
+  // entrypoints when Electron serves dist/ through the app's custom protocol
+  // (see electron/main.cjs) instead of the dev server's HTTP origin.
+  base: './',
   plugins: [react()],
   test: {
     // Global setup: localStorage stub + noise suppression for every test file.
@@ -18,8 +22,9 @@ export default defineConfig({
     minWorkers: 1,
     maxWorkers: 4,
 
-    // E2E specs are Playwright-only — Vitest must not collect them.
-    exclude: ['**/node_modules/**', 'src/test/e2e/**'],
+    // E2E specs are Playwright-only, and native/**/*.test.cjs specs run under
+    // Node's built-in test runner (npm run test:native) — Vitest must not collect either.
+    exclude: ['**/node_modules/**', 'src/test/e2e/**', 'native/**'],
 
     coverage: {
       provider: 'v8',

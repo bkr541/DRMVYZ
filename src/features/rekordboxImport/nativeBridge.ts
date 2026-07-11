@@ -18,11 +18,23 @@ export interface NativeRekordboxBridge {
   scanUsbRoot?: (rootPath: string) => Promise<NativeRekordboxUsbScanResult>
 }
 
+export interface NativeFileBridge {
+  /** Resolve the absolute path backing an Electron File object. */
+  getPathForFile?: (file: File) => string | null
+}
+
+export interface DrmvyzNativeBridge {
+  runtime?: {
+    isElectron: boolean
+    platform: string
+  }
+  files?: NativeFileBridge
+  rekordbox?: NativeRekordboxBridge
+}
+
 declare global {
   interface Window {
-    drmvyzNative?: {
-      rekordbox?: NativeRekordboxBridge
-    }
+    drmvyzNative?: DrmvyzNativeBridge
   }
 }
 
@@ -34,6 +46,10 @@ export function getNativeRekordboxBridge(): NativeRekordboxBridge | null {
 
 export function isNativeRekordboxBridgeAvailable(): boolean {
   return getNativeRekordboxBridge() !== null
+}
+
+export function isElectronRuntime(): boolean {
+  return typeof window !== 'undefined' && window.drmvyzNative?.runtime?.isElectron === true
 }
 
 export async function selectNativeRekordboxUsbRoot(): Promise<NativeRekordboxUsbScanResult | null> {
@@ -49,10 +65,22 @@ export async function scanNativeRekordboxUsbRoot(rootPath: string): Promise<Nati
 }
 
 /**
- * Electron exposes absolute paths for File objects in some runtimes. Browsers do
- * not, so this stays best-effort and never blocks normal local-file loading.
+ * Electron removed the legacy `File.path` augmentation. The preload bridge now
+ * resolves the path with `webUtils.getPathForFile`, while the fallback keeps
+ * compatibility with older Electron builds and tests.
  */
 export function getNativeFilePath(file: File): string | null {
+  if (typeof window !== 'undefined') {
+    try {
+      const bridgedPath = window.drmvyzNative?.files?.getPathForFile?.(file)
+      if (typeof bridgedPath === 'string' && bridgedPath.trim().length > 0) {
+        return bridgedPath.replace(/\\/g, '/')
+      }
+    } catch {
+      // Continue to the legacy fallback below.
+    }
+  }
+
   const maybePath = (file as File & { path?: unknown }).path
   return typeof maybePath === 'string' && maybePath.trim().length > 0
     ? maybePath.replace(/\\/g, '/')
