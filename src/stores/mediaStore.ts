@@ -3,9 +3,8 @@ import { supabase, supabaseConfigured } from '../lib/supabase'
 import {
   listMediaItems,
   createMediaItem,
-  updateMediaItem,
-  updateMediaItemRole,
-  updateMediaItemFavorite,
+  saveMediaItemAtomic,
+  reorderMediaCollectionAtomic,
   deleteMediaItem,
   createSignedMediaUrl,
   uploadMediaFile,
@@ -18,9 +17,9 @@ import {
   deleteMediaCollection,
   listMediaItemCollectionIds,
   setMediaItemCollections,
-  reorderCollectionItems as dbReorderCollectionItems,
 } from '../lib/mediaDb'
 import type { MediaItemRow, MediaMetadata } from '../types/database'
+import type { CanonicalMediaItem } from '../lib/mediaDb'
 import { suggestMediaRole, isAudioFile, isSvgFile } from '../lib/mediaRoles'
 import type { MediaRole, MediaEnergy } from '../lib/mediaRoles'
 import { useAudioStore } from './audioStore'
@@ -59,6 +58,45 @@ export interface UploadedMedia {
   dbId?: string
   /** Stored upload MIME type. Used with mediaRole/content inspection for SVG filtering. */
   mimeType?: string | null
+  /** Server-issued optimistic concurrency token. Present for synced media. */
+  revision?: number
+}
+
+export type MediaMutationOperation =
+  | 'edit' | 'role' | 'favorite' | 'tags' | 'add-to-collection'
+  | 'remove-from-collection' | 'metadata'
+
+export interface MediaEditAttempt {
+  role: MediaRole
+  title: string
+  description: string
+  favorite: boolean
+  tags: string[]
+  collectionIds: string[]
+  metadata: MediaMetadata
+}
+
+export interface MediaMutationState {
+  itemId: string
+  operation: MediaMutationOperation
+  status: 'pending' | 'failed' | 'conflict'
+  message: string | null
+  attempted: MediaEditAttempt
+  baseline: MediaEditAttempt
+  updatedAt: number
+}
+
+export interface CollectionOrderMutationState {
+  collectionId: string
+  status: 'pending' | 'failed' | 'conflict'
+  message: string | null
+  attemptedOrder: string[]
+  previousOrder: string[]
+  updatedAt: number
+}
+
+export function mediaMutationKey(itemId: string, operation: MediaMutationOperation): string {
+  return `${itemId}:${operation}`
 }
 
 export interface UploadQueueItem {
@@ -311,7 +349,7 @@ async function getCurrentUserId(): Promise<string | null> {
 }
 
 type UploadResult =
-  | { ok: true; storagePath: string; dbId: string; thumbnailStoragePath: string | null }
+  | { ok: true; storagePath: string; dbId: string; revision: number; thumbnailStoragePath: string | null }
   | { ok: false; error: string }
 
 async function uploadToSupabase(
@@ -345,7 +383,7 @@ async function uploadToSupabase(
       thumbnailStoragePath = storagePath
     }
 
-    const { id: dbId, error: dbErr } = await createMediaItem({
+    const { id: dbId, revision, error: dbErr } = await createMediaItem({
       user_id:        userId,
       name:           item.name,
       type:           item.type,
@@ -363,9 +401,9 @@ async function uploadToSupabase(
       metadata:       item.metadata,
     })
 
-    if (dbErr || !dbId) {
+    if (dbErr || !dbId || revision == null) {
       await deleteMediaFiles(uploadedPaths)
-      return { ok: false, error: interpretError(dbErr || 'Media record was not created') }
+      return { ok: false, error: interpretError(dbErr || 'Media record did not return a revision') }
     }
 
     if (item.tags.length) {
@@ -377,7 +415,7 @@ async function uploadToSupabase(
       if (collErr) console.warn('[mediaStore] setMediaItemCollections:', collErr)
     }
 
-    return { ok: true, storagePath, dbId, thumbnailStoragePath }
+    return { ok: true, storagePath, dbId, revision, thumbnailStoragePath }
   } catch (error) {
     if (uploadedPaths.length) await deleteMediaFiles(uploadedPaths).catch(() => {})
     const message = error instanceof Error ? error.message : 'Unexpected upload error'
@@ -398,6 +436,93 @@ function interpretError(msg: string): string {
   return msg.length > 80 ? msg.slice(0, 80) + '…' : msg
 }
 
+
+function mediaAttemptFromItem(item: UploadedMedia, overrides: Partial<MediaEditAttempt> = {}): MediaEditAttempt {
+  return {
+    role: overrides.role ?? item.mediaRole,
+    title: overrides.title ?? item.title ?? '',
+    description: overrides.description ?? item.description ?? '',
+    favorite: overrides.favorite ?? item.favorite,
+    tags: overrides.tags ?? [...item.tags],
+    collectionIds: overrides.collectionIds ?? [...item.collectionIds],
+    metadata: overrides.metadata ?? { ...item.metadata },
+  }
+}
+
+function reconcileCanonicalMediaItem(item: UploadedMedia, canonical: CanonicalMediaItem): UploadedMedia {
+  const metadata: MediaMetadata = {
+    width: canonical.width ?? undefined,
+    height: canonical.height ?? undefined,
+    duration: canonical.duration_sec ?? undefined,
+    ...(canonical.metadata ?? {}),
+  }
+  return {
+    ...item,
+    dbId: canonical.id,
+    storagePath: canonical.storage_path,
+    mimeType: canonical.mime_type,
+    name: canonical.name,
+    title: canonical.title ?? undefined,
+    description: canonical.description ?? undefined,
+    type: canonical.type,
+    favorite: canonical.favorite,
+    mediaRole: canonical.media_role as MediaRole,
+    tags: [...canonical.tags],
+    collectionIds: [...canonical.collection_ids],
+    metadata,
+    revision: canonical.revision,
+  }
+}
+
+function applyLocalAttempt(item: UploadedMedia, attempt: MediaEditAttempt): UploadedMedia {
+  return {
+    ...item,
+    mediaRole: attempt.role,
+    title: attempt.title.trim() || undefined,
+    description: attempt.description.trim() || undefined,
+    favorite: attempt.favorite,
+    tags: [...attempt.tags],
+    collectionIds: [...attempt.collectionIds],
+    metadata: { ...attempt.metadata },
+  }
+}
+
+
+function rebaseAttemptForOperation(
+  current: UploadedMedia,
+  operation: MediaMutationOperation,
+  attempted: MediaEditAttempt,
+  baseline: MediaEditAttempt,
+): MediaEditAttempt {
+  if (operation === 'edit') return attempted
+  const rebased = mediaAttemptFromItem(current)
+  if (operation === 'role') return { ...rebased, role: attempted.role }
+  if (operation === 'favorite') return { ...rebased, favorite: attempted.favorite }
+  if (operation === 'tags') return { ...rebased, tags: [...attempted.tags] }
+  if (operation === 'add-to-collection') {
+    const added = attempted.collectionIds.filter(id => !baseline.collectionIds.includes(id))
+    return { ...rebased, collectionIds: Array.from(new Set([...rebased.collectionIds, ...added])) }
+  }
+  if (operation === 'remove-from-collection') {
+    const removed = new Set(baseline.collectionIds.filter(id => !attempted.collectionIds.includes(id)))
+    return { ...rebased, collectionIds: rebased.collectionIds.filter(id => !removed.has(id)) }
+  }
+  const changedMetadata = Object.fromEntries(
+    Object.entries(attempted.metadata).filter(([key, value]) =>
+      JSON.stringify(value) !== JSON.stringify(baseline.metadata[key as keyof MediaMetadata])),
+  ) as Partial<MediaMetadata>
+  return { ...rebased, metadata: mergeMediaMetadata(rebased.metadata, changedMetadata) }
+}
+
+function applyCollectionOrder(items: UploadedMedia[], collectionId: string, orderedIds: string[]): UploadedMedia[] {
+  const ordered = orderedIds
+    .map(id => items.find(item => item.id === id))
+    .filter((item): item is UploadedMedia => Boolean(item && item.collectionIds.includes(collectionId)))
+  if (ordered.length !== orderedIds.length) return items
+  let index = 0
+  return items.map(item => item.collectionIds.includes(collectionId) ? ordered[index++] : item)
+}
+
 // ── Store interface ───────────────────────────────────────────────────────────
 
 interface MediaState {
@@ -411,6 +536,8 @@ interface MediaState {
   storageAvailable: boolean
   lastRestored: number | null
   activeFilter: MediaFilter
+  mutationStates: Record<string, MediaMutationState>
+  collectionOrderMutations: Record<string, CollectionOrderMutationState>
 
   // Modal
   importModalOpen: boolean
@@ -431,6 +558,7 @@ interface MediaState {
   setUploadDraftTags(tags: string[]): void
   setUploadDraftCollections(ids: string[]): void
   setUploadDraftMetadata(patch: Partial<MediaMetadata>): void
+  replaceUploadDraftMetadata(metadata: MediaMetadata): void
   setUploadDraftAudioArtist(v: string): void
   setUploadDraftAudioGenre(v: string): void
   setUploadDraftAudioBpm(v: string): void
@@ -447,14 +575,18 @@ interface MediaState {
   // Item mutations
   removeItem(id: string): Promise<boolean>
   retryUpload(id: string): Promise<boolean>
-  toggleFavorite(id: string): void
-  toggleFavoriteMedia(id: string): void    // alias for toggleFavorite
+  persistMediaMutation(id: string, operation: MediaMutationOperation, attempt: MediaEditAttempt): Promise<boolean>
+  retryMediaMutation(id: string, operation: MediaMutationOperation): Promise<boolean>
+  reapplyMediaMutation(id: string, operation: MediaMutationOperation): Promise<boolean>
+  clearMediaMutation(id: string, operation: MediaMutationOperation): void
+  toggleFavorite(id: string): Promise<boolean>
+  toggleFavoriteMedia(id: string): Promise<boolean>    // alias for toggleFavorite
   reorderItems(order: string[]): void
-  setMediaRole(mediaId: string, role: MediaRole): void
-  setMediaTags(mediaId: string, tags: string[]): void
-  addMediaTag(mediaId: string, tag: string): void
-  removeMediaTag(mediaId: string, tag: string): void
-  bulkTagMedia(mediaIds: string[], tags: string[]): void
+  setMediaRole(mediaId: string, role: MediaRole): Promise<boolean>
+  setMediaTags(mediaId: string, tags: string[]): Promise<boolean>
+  addMediaTag(mediaId: string, tag: string): Promise<boolean>
+  removeMediaTag(mediaId: string, tag: string): Promise<boolean>
+  bulkTagMedia(mediaIds: string[], tags: string[]): Promise<void>
   saveMediaEdits(id: string, patch: { role: MediaRole; title: string; description: string; tags: string[]; collectionIds: string[]; metadata: MediaMetadata }): Promise<boolean>
   updateMediaMetadata(mediaId: string, patch: Partial<MediaMetadata>): Promise<boolean>
 
@@ -463,9 +595,11 @@ interface MediaState {
   createCollection(name: string, description?: string): Promise<string | null>
   updateCollection(id: string, name: string, description?: string): Promise<boolean>
   removeCollection(id: string): Promise<boolean>
-  addMediaToCollection(collectionId: string, mediaIds: string[]): void
-  removeMediaFromCollection(collectionId: string, mediaIds: string[]): void
-  reorderCollectionItems(collectionId: string, orderedMediaIds: string[]): Promise<void>
+  addMediaToCollection(collectionId: string, mediaIds: string[]): Promise<void>
+  removeMediaFromCollection(collectionId: string, mediaIds: string[]): Promise<void>
+  reorderCollectionItems(collectionId: string, orderedMediaIds: string[]): Promise<boolean>
+  retryCollectionReorder(collectionId: string): Promise<boolean>
+  clearCollectionReorderError(collectionId: string): void
 
   // Thumbnail generation
   generateMissingThumbnails(): void
@@ -493,6 +627,8 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   storageAvailable: supabaseConfigured,
   lastRestored: null,
   activeFilter: 'all',
+  mutationStates: {},
+  collectionOrderMutations: {},
 
   // ── Modal ─────────────────────────────────────────────────────────────────
 
@@ -554,6 +690,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   setUploadDraftTags(tags)               { set(s => ({ uploadDraft: { ...s.uploadDraft, tags } })) },
   setUploadDraftCollections(collectionIds) { set(s => ({ uploadDraft: { ...s.uploadDraft, collectionIds } })) },
   setUploadDraftMetadata(patch)          { set(s => ({ uploadDraft: { ...s.uploadDraft, metadata: { ...s.uploadDraft.metadata, ...patch } } })) },
+  replaceUploadDraftMetadata(metadata)    { set(s => ({ uploadDraft: { ...s.uploadDraft, metadata: { ...metadata } } })) },
   setUploadDraftAudioArtist(v)     { set(s => ({ uploadDraft: { ...s.uploadDraft, audioArtist: v } })) },
   setUploadDraftAudioGenre(v)      { set(s => ({ uploadDraft: { ...s.uploadDraft, audioGenre: v } })) },
   setUploadDraftAudioBpm(v)        { set(s => ({ uploadDraft: { ...s.uploadDraft, audioBpm: v } })) },
@@ -651,6 +788,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
         uploadError: undefined,
         storagePath: result.storagePath,
         dbId: result.dbId,
+        revision: result.revision,
       }
       set(state => ({ items: [uploadedItem, ...state.items], loadError: null }))
       succeeded += 1
@@ -724,7 +862,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
         set(s => ({
           items: s.items.map(e =>
             e.id === prevId
-              ? { ...e, id: stableId, uploading: false, uploadError: undefined, uploadSourceFile: undefined, storagePath: result.storagePath, dbId: result.dbId }
+              ? { ...e, id: stableId, uploading: false, uploadError: undefined, uploadSourceFile: undefined, storagePath: result.storagePath, dbId: result.dbId, revision: result.revision }
               : e
           ),
         }))
@@ -792,6 +930,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
         uploadSourceFile: undefined,
         storagePath: result.storagePath,
         dbId: result.dbId,
+        revision: result.revision,
       } : candidate),
       loadError: null,
     }))
@@ -902,6 +1041,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
             tags:         tagMap.get(row.id) ?? [],
             collectionIds: collMap.get(row.id) ?? [],
             metadata:     mergedMeta,
+            revision:     row.revision,
           } satisfies UploadedMedia
         })
       )
@@ -960,7 +1100,13 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     }
 
     const remaining = get().items.filter(candidate => candidate.id !== id)
-    set({ items: remaining, deleteError: null })
+    set(state => ({
+      items: remaining,
+      deleteError: null,
+      mutationStates: Object.fromEntries(
+        Object.entries(state.mutationStates).filter(([, mutation]) => mutation.itemId !== id),
+      ),
+    }))
     const visual = useVisualStore.getState()
     const wasActive = visual.activeMediaId === id
     visual.removeMediaReferences(id)
@@ -994,145 +1140,186 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     return true
   },
 
-  toggleFavorite(id) {
-    const item = get().items.find(i => i.id === id)
-    if (!item) return
-    const newFav = !item.favorite
-    set(s => ({ items: s.items.map(i => i.id === id ? { ...i, favorite: newFav } : i) }))
-    if (item.dbId && supabaseConfigured) {
-      updateMediaItemFavorite(item.dbId, newFav)
-        .then(({ error }) => {
-          if (!error) return
-          console.error('[mediaStore] toggle fav:', error)
-          set(state => ({
-            items: state.items.map(candidate => candidate.id === id ? { ...candidate, favorite: item.favorite } : candidate),
-            loadError: `Favorite update failed: ${interpretError(error)}`,
-          }))
-        })
+  async persistMediaMutation(id, operation, attempt) {
+    const item = get().items.find(candidate => candidate.id === id)
+    if (!item) return false
+
+    const key = mediaMutationKey(id, operation)
+    const baseline = mediaAttemptFromItem(item)
+    if (get().mutationStates[key]?.status === 'pending') return false
+
+    if (!item.dbId) {
+      set(state => ({
+        items: state.items.map(candidate => candidate.id === id ? applyLocalAttempt(candidate, attempt) : candidate),
+        mutationStates: Object.fromEntries(Object.entries(state.mutationStates).filter(([entryKey]) => entryKey !== key)),
+      }))
+      return true
     }
+
+    const failBeforeRequest = (message: string) => {
+      set(state => ({
+        mutationStates: {
+          ...state.mutationStates,
+          [key]: { itemId: id, operation, status: 'failed', message, attempted: attempt, baseline, updatedAt: Date.now() },
+        },
+      }))
+      return false
+    }
+
+    // Claim the mutation slot synchronously, before any `await`. getCurrentUserId()
+    // below yields to the event loop; without claiming the slot first, a second
+    // call for the same (id, operation) racing in during that gap would also pass
+    // the pending-guard above and fire a duplicate concurrent RPC.
+    set(state => ({
+      mutationStates: {
+        ...state.mutationStates,
+        [key]: { itemId: id, operation, status: 'pending', message: null, attempted: attempt, baseline, updatedAt: Date.now() },
+      },
+    }))
+
+    if (!supabaseConfigured) return failBeforeRequest('Supabase is not configured. This media change was not saved.')
+    if (item.revision == null) return failBeforeRequest('This media item has no server revision. Reload the library after applying the latest database migration.')
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      set({ authRequired: true })
+      return failBeforeRequest('Sign in to save this media change.')
+    }
+
+    const result = await saveMediaItemAtomic({
+      mediaItemId: item.dbId,
+      expectedRevision: item.revision,
+      patch: {
+        media_role: attempt.role,
+        title: attempt.title.trim() || null,
+        description: attempt.description.trim() || null,
+        favorite: attempt.favorite,
+        metadata: attempt.metadata,
+      },
+      tagNames: attempt.tags,
+      collectionIds: attempt.collectionIds,
+    })
+
+    if (result.ok) {
+      set(state => ({
+        items: state.items.map(candidate => candidate.id === id ? reconcileCanonicalMediaItem(candidate, result.mediaItem) : candidate),
+        mutationStates: Object.fromEntries(Object.entries(state.mutationStates).filter(([entryKey]) => entryKey !== key)),
+      }))
+      return true
+    }
+
+    set(state => ({
+      items: result.mediaItem
+        ? state.items.map(candidate => candidate.id === id ? reconcileCanonicalMediaItem(candidate, result.mediaItem!) : candidate)
+        : state.items,
+      mutationStates: {
+        ...state.mutationStates,
+        [key]: {
+          itemId: id,
+          operation,
+          status: result.kind === 'conflict' ? 'conflict' : 'failed',
+          message: result.message,
+          attempted: attempt,
+          baseline,
+          updatedAt: Date.now(),
+        },
+      },
+    }))
+    return false
   },
 
-  toggleFavoriteMedia(id) { get().toggleFavorite(id) },
+  async retryMediaMutation(id, operation) {
+    const state = get().mutationStates[mediaMutationKey(id, operation)]
+    if (!state || state.status === 'pending') return false
+    const item = get().items.find(candidate => candidate.id === id)
+    if (!item) return false
+    return get().persistMediaMutation(
+      id,
+      operation,
+      rebaseAttemptForOperation(item, operation, state.attempted, state.baseline),
+    )
+  },
+
+  async reapplyMediaMutation(id, operation) {
+    return get().retryMediaMutation(id, operation)
+  },
+
+  clearMediaMutation(id, operation) {
+    const key = mediaMutationKey(id, operation)
+    set(state => ({
+      mutationStates: Object.fromEntries(Object.entries(state.mutationStates).filter(([entryKey]) => entryKey !== key)),
+    }))
+  },
+
+  async toggleFavorite(id) {
+    const item = get().items.find(candidate => candidate.id === id)
+    if (!item) return false
+    return get().persistMediaMutation(id, 'favorite', mediaAttemptFromItem(item, { favorite: !item.favorite }))
+  },
+
+  async toggleFavoriteMedia(id) { return get().toggleFavorite(id) },
 
   reorderItems(order) {
-    set(s => {
-      const ordered   = order.map(id => s.items.find(i => i.id === id)).filter(Boolean) as UploadedMedia[]
-      const remaining = s.items.filter(i => !order.includes(i.id))
+    set(state => {
+      const ordered = order.map(id => state.items.find(item => item.id === id)).filter(Boolean) as UploadedMedia[]
+      const remaining = state.items.filter(item => !order.includes(item.id))
       return { items: [...ordered, ...remaining] }
     })
   },
 
-  setMediaRole(mediaId, role) {
-    const item = get().items.find(i => i.id === mediaId)
-    if (!item) return
-    set(s => ({ items: s.items.map(i => i.id === mediaId ? { ...i, mediaRole: role } : i) }))
-    if (item.dbId && supabaseConfigured) {
-      updateMediaItemRole(item.dbId, role)
-        .then(({ error }) => { if (error) console.error('[mediaStore] setMediaRole:', error) })
-    }
+  async setMediaRole(mediaId, role) {
+    const item = get().items.find(candidate => candidate.id === mediaId)
+    if (!item) return false
+    return get().persistMediaMutation(mediaId, 'role', mediaAttemptFromItem(item, { role }))
   },
 
-  setMediaTags(mediaId, tags) {
-    const item = get().items.find(i => i.id === mediaId)
-    if (!item) return
-    set(s => ({ items: s.items.map(i => i.id === mediaId ? { ...i, tags } : i) }))
-    if (item.dbId && supabaseConfigured) {
-      getCurrentUserId().then(userId => {
-        if (!userId) return
-        setMediaItemTags(item.dbId!, userId, tags)
-          .then(({ error }) => { if (error) console.error('[mediaStore] setMediaTags:', error) })
-      })
-    }
+  async setMediaTags(mediaId, tags) {
+    const item = get().items.find(candidate => candidate.id === mediaId)
+    if (!item) return false
+    const normalized = Array.from(new Set(tags.map(tag => tag.trim()).filter(Boolean)))
+    return get().persistMediaMutation(mediaId, 'tags', mediaAttemptFromItem(item, { tags: normalized }))
   },
 
-  addMediaTag(mediaId, tag) {
-    const item = get().items.find(i => i.id === mediaId)
-    if (!item || item.tags.includes(tag)) return
-    get().setMediaTags(mediaId, [...item.tags, tag])
+  async addMediaTag(mediaId, tag) {
+    const item = get().items.find(candidate => candidate.id === mediaId)
+    const cleanTag = tag.trim()
+    if (!item || !cleanTag || item.tags.includes(cleanTag)) return false
+    return get().setMediaTags(mediaId, [...item.tags, cleanTag])
   },
 
-  removeMediaTag(mediaId, tag) {
-    const item = get().items.find(i => i.id === mediaId)
-    if (!item) return
-    get().setMediaTags(mediaId, item.tags.filter(t => t !== tag))
+  async removeMediaTag(mediaId, tag) {
+    const item = get().items.find(candidate => candidate.id === mediaId)
+    if (!item) return false
+    return get().setMediaTags(mediaId, item.tags.filter(existing => existing !== tag))
   },
 
-  bulkTagMedia(mediaIds, tags) {
-    for (const id of mediaIds) {
-      const item = get().items.find(i => i.id === id)
-      if (!item) continue
-      const merged = Array.from(new Set([...item.tags, ...tags]))
-      get().setMediaTags(id, merged)
-    }
+  async bulkTagMedia(mediaIds, tags) {
+    await Promise.all(mediaIds.map(async id => {
+      const item = get().items.find(candidate => candidate.id === id)
+      if (!item) return
+      const merged = Array.from(new Set([...item.tags, ...tags.map(tag => tag.trim()).filter(Boolean)]))
+      await get().setMediaTags(id, merged)
+    }))
   },
 
   async saveMediaEdits(id, patch) {
     const item = get().items.find(candidate => candidate.id === id)
-    if (!item) {
-      set({ loadError: 'That media item is no longer available.' })
-      return false
-    }
-
-    const nextItem: UploadedMedia = {
-      ...item,
-      mediaRole: patch.role,
-      title: patch.title.trim() || undefined,
-      description: patch.description.trim() || undefined,
-      tags: patch.tags,
-      collectionIds: patch.collectionIds,
+    if (!item) return false
+    return get().persistMediaMutation(id, 'edit', mediaAttemptFromItem(item, {
+      role: patch.role,
+      title: patch.title,
+      description: patch.description,
+      tags: [...patch.tags],
+      collectionIds: [...patch.collectionIds],
       metadata: mergeMediaMetadata(item.metadata, patch.metadata),
-    }
-
-    if (item.dbId) {
-      if (!supabaseConfigured) {
-        set({ loadError: 'Supabase is not configured. Media changes were not saved.' })
-        return false
-      }
-      const userId = await getCurrentUserId()
-      if (!userId) {
-        set({ authRequired: true, loadError: 'Sign in to save media changes.' })
-        return false
-      }
-      const results = await Promise.all([
-        updateMediaItem(item.dbId, {
-          media_role: nextItem.mediaRole,
-          title: nextItem.title ?? null,
-          description: nextItem.description ?? null,
-          metadata: nextItem.metadata,
-        }),
-        setMediaItemTags(item.dbId, userId, patch.tags),
-        setMediaItemCollections(item.dbId, patch.collectionIds),
-      ])
-      const error = results.find(result => result.error)?.error
-      if (error) {
-        set({ loadError: `Media update failed: ${interpretError(error)}` })
-        return false
-      }
-    }
-
-    set(state => ({
-      items: state.items.map(candidate => candidate.id === id ? nextItem : candidate),
-      loadError: null,
     }))
-    return true
   },
 
   async updateMediaMetadata(mediaId, patch) {
     const item = get().items.find(candidate => candidate.id === mediaId || candidate.dbId === mediaId)
     if (!item) return false
-    const previous = item.metadata
-    const metadata = mergeMediaMetadata(previous, patch)
-    set(state => ({
-      items: state.items.map(candidate => candidate.id === item.id ? { ...candidate, metadata } : candidate),
+    return get().persistMediaMutation(item.id, 'metadata', mediaAttemptFromItem(item, {
+      metadata: mergeMediaMetadata(item.metadata, patch),
     }))
-    if (!item.dbId || !supabaseConfigured) return true
-    const { error } = await updateMediaItem(item.dbId, { metadata })
-    if (!error) return true
-    console.error('[mediaStore] updateMediaMetadata:', error)
-    set(state => ({
-      items: state.items.map(candidate => candidate.id === item.id ? { ...candidate, metadata: previous } : candidate),
-    }))
-    return false
   },
 
   // ── Collections ───────────────────────────────────────────────────────────
@@ -1234,43 +1421,135 @@ export const useMediaStore = create<MediaState>((set, get) => ({
         collectionIds: item.collectionIds.filter(collectionId => collectionId !== id),
       })),
       loadError: null,
+      collectionOrderMutations: Object.fromEntries(
+        Object.entries(state.collectionOrderMutations).filter(([collectionId]) => collectionId !== id),
+      ),
     }))
     return true
   },
 
-  addMediaToCollection(collectionId, mediaIds) {
-    for (const mediaId of mediaIds) {
-      const item = get().items.find(i => i.id === mediaId)
-      if (!item || item.collectionIds.includes(collectionId)) continue
-      const newIds = [...item.collectionIds, collectionId]
-      set(s => ({ items: s.items.map(i => i.id === mediaId ? { ...i, collectionIds: newIds } : i) }))
-      if (item.dbId && supabaseConfigured) {
-        setMediaItemCollections(item.dbId, newIds)
-          .then(({ error }) => { if (error) console.error('[mediaStore] addMediaToCollection:', error) })
-      }
-    }
+  async addMediaToCollection(collectionId, mediaIds) {
+    await Promise.all(mediaIds.map(async mediaId => {
+      const item = get().items.find(candidate => candidate.id === mediaId)
+      if (!item || item.collectionIds.includes(collectionId)) return
+      await get().persistMediaMutation(mediaId, 'add-to-collection', mediaAttemptFromItem(item, {
+        collectionIds: [...item.collectionIds, collectionId],
+      }))
+    }))
   },
 
-  removeMediaFromCollection(collectionId, mediaIds) {
-    for (const mediaId of mediaIds) {
-      const item = get().items.find(i => i.id === mediaId)
-      if (!item) continue
-      const newIds = item.collectionIds.filter(id => id !== collectionId)
-      set(s => ({ items: s.items.map(i => i.id === mediaId ? { ...i, collectionIds: newIds } : i) }))
-      if (item.dbId && supabaseConfigured) {
-        setMediaItemCollections(item.dbId, newIds)
-          .then(({ error }) => { if (error) console.error('[mediaStore] removeMediaFromCollection:', error) })
-      }
-    }
+  async removeMediaFromCollection(collectionId, mediaIds) {
+    await Promise.all(mediaIds.map(async mediaId => {
+      const item = get().items.find(candidate => candidate.id === mediaId)
+      if (!item || !item.collectionIds.includes(collectionId)) return
+      await get().persistMediaMutation(mediaId, 'remove-from-collection', mediaAttemptFromItem(item, {
+        collectionIds: item.collectionIds.filter(id => id !== collectionId),
+      }))
+    }))
   },
 
   async reorderCollectionItems(collectionId, orderedMediaIds) {
-    const dbIds = orderedMediaIds
-      .map(id => get().items.find(i => i.id === id)?.dbId)
-      .filter(Boolean) as string[]
-    if (!dbIds.length || !supabaseConfigured) return
-    const { error } = await dbReorderCollectionItems(collectionId, dbIds)
-    if (error) console.error('[mediaStore] reorderCollectionItems:', error)
+    const currentItems = get().items
+    const previousOrder = currentItems.filter(item => item.collectionIds.includes(collectionId)).map(item => item.id)
+    const stateKey = collectionId
+    if (get().collectionOrderMutations[stateKey]?.status === 'pending') return false
+
+    const failBeforeRequest = (message: string) => {
+      set(state => ({
+        collectionOrderMutations: {
+          ...state.collectionOrderMutations,
+          [stateKey]: {
+            collectionId,
+            status: 'failed',
+            message,
+            attemptedOrder: [...orderedMediaIds],
+            previousOrder,
+            updatedAt: Date.now(),
+          },
+        },
+      }))
+      return false
+    }
+
+    if (new Set(orderedMediaIds).size !== orderedMediaIds.length) {
+      return failBeforeRequest('Collection order cannot contain duplicate media items.')
+    }
+    if (orderedMediaIds.length !== previousOrder.length || orderedMediaIds.some(id => !previousOrder.includes(id))) {
+      return failBeforeRequest('Collection order must include every current item exactly once.')
+    }
+    if (!supabaseConfigured) return failBeforeRequest('Supabase is not configured. Collection order was not saved.')
+    const dbIds = orderedMediaIds.map(id => currentItems.find(item => item.id === id)?.dbId)
+    if (dbIds.some(id => !id)) return failBeforeRequest('Every reordered media item must be synced before collection order can be saved.')
+
+    set(state => ({
+      items: applyCollectionOrder(state.items, collectionId, orderedMediaIds),
+      collectionOrderMutations: {
+        ...state.collectionOrderMutations,
+        [stateKey]: {
+          collectionId,
+          status: 'pending',
+          message: null,
+          attemptedOrder: [...orderedMediaIds],
+          previousOrder,
+          updatedAt: Date.now(),
+        },
+      },
+    }))
+
+    const result = await reorderMediaCollectionAtomic(collectionId, dbIds as string[])
+    if (result.ok) {
+      const canonicalLocalIds = result.orderedMediaIds.map(dbId => get().items.find(item => item.dbId === dbId)?.id)
+      if (canonicalLocalIds.some(id => !id)) {
+        set(state => ({
+          items: applyCollectionOrder(state.items, collectionId, previousOrder),
+          collectionOrderMutations: {
+            ...state.collectionOrderMutations,
+            [stateKey]: {
+              collectionId,
+              status: 'failed',
+              message: 'The server returned a collection item that is not present in the local library. Reload and retry.',
+              attemptedOrder: [...orderedMediaIds],
+              previousOrder,
+              updatedAt: Date.now(),
+            },
+          },
+        }))
+        return false
+      }
+      set(state => ({
+        items: applyCollectionOrder(state.items, collectionId, canonicalLocalIds as string[]),
+        collectionOrderMutations: Object.fromEntries(Object.entries(state.collectionOrderMutations).filter(([key]) => key !== stateKey)),
+      }))
+      return true
+    }
+
+    set(state => ({
+      items: applyCollectionOrder(state.items, collectionId, previousOrder),
+      collectionOrderMutations: {
+        ...state.collectionOrderMutations,
+        [stateKey]: {
+          collectionId,
+          status: result.kind === 'conflict' ? 'conflict' : 'failed',
+          message: result.message,
+          attemptedOrder: [...orderedMediaIds],
+          previousOrder,
+          updatedAt: Date.now(),
+        },
+      },
+    }))
+    return false
+  },
+
+  async retryCollectionReorder(collectionId) {
+    const mutation = get().collectionOrderMutations[collectionId]
+    if (!mutation || mutation.status === 'pending') return false
+    return get().reorderCollectionItems(collectionId, mutation.attemptedOrder)
+  },
+
+  clearCollectionReorderError(collectionId) {
+    set(state => ({
+      collectionOrderMutations: Object.fromEntries(Object.entries(state.collectionOrderMutations).filter(([key]) => key !== collectionId)),
+    }))
   },
 
   // ── Thumbnail generation ──────────────────────────────────────────────────
@@ -1318,6 +1597,6 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       }
     })
     get().uploadQueue.forEach(q => URL.revokeObjectURL(q.previewUrl))
-    set({ items: [], uploadQueue: [] })
+    set({ items: [], uploadQueue: [], mutationStates: {}, collectionOrderMutations: {} })
   },
 }))

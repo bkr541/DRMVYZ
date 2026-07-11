@@ -63,6 +63,12 @@
 | `visual_sessions` | Per-session canvas state (active preset, media, BPM, effects) |
 | `canvas_exports` | Recorded/exported canvas frames |
 
+#### Media mutation integrity
+
+`media_items.revision` is the canonical optimistic-concurrency token. Existing rows begin at revision `1`, and the database advances the token only when a media-row update commits. The client must reconcile from the canonical item returned by `save_media_item_atomic`; it must not invent the next revision.
+
+`save_media_item_atomic` locks and ownership-checks the media row, verifies the expected revision, validates owned collections, updates supported metadata, replaces tags and collection memberships, and returns the complete canonical item in one transaction. `reorder_media_collection_atomic` validates the complete owned membership set and applies the final order in one bulk transaction. Collection-membership writes lock their parent collection so edits, uploads, deletes, and reorders cannot interleave into a partial order. Both RPCs are executable only by authenticated users and retain explicit ownership checks in addition to RLS.
+
 #### `effect_chain_options` columns
 
 | Column | Type | Notes |

@@ -12,7 +12,7 @@ import {
   MusicNote01Icon,
 } from 'hugeicons-react'
 import { useMediaStore } from '../../../stores/mediaStore'
-import type { UploadedMedia, MediaCollection } from '../../../stores/mediaStore'
+import type { UploadedMedia, MediaCollection, MediaMutationState } from '../../../stores/mediaStore'
 import type { MediaRole } from '../../../lib/mediaRoles'
 import { useAudioStore } from '../../../stores/audioStore'
 import type { SavedAudioTrack } from '../../../stores/audioStore'
@@ -274,6 +274,7 @@ function MediaCard({
   canRetry,
   onRetry,
   disabledReason,
+  mutationStates,
 }: {
   m: UploadedMedia
   isActive: boolean
@@ -292,9 +293,20 @@ function MediaCard({
   canRetry: boolean
   onRetry: () => void
   disabledReason?: string | null
+  mutationStates: MediaMutationState[]
 }) {
   const isList = viewMode === 'list'
   const disabled = Boolean(disabledReason)
+  const mutationState = [...mutationStates].sort((a, b) => {
+    const priority = { conflict: 3, failed: 2, pending: 1 }
+    return priority[b.status] - priority[a.status] || b.updatedAt - a.updatedAt
+  })[0]
+  const favoritePending = mutationStates.some(state => state.operation === 'favorite' && state.status === 'pending')
+  const mutationLabel = mutationState?.status === 'pending'
+    ? 'Saving'
+    : mutationState?.status === 'conflict'
+      ? 'Conflict'
+      : mutationState ? 'Retry available' : null
   const displayName = (m.title ?? m.name).length > (isList ? 40 : 22)
     ? (m.title ?? m.name).slice(0, isList ? 40 : 22) + '…'
     : (m.title ?? m.name)
@@ -342,6 +354,7 @@ function MediaCard({
           <span className="vz-media-row-name">{displayName}</span>
           {m.meta && <span className="vz-media-row-meta">{m.meta}</span>}
           {disabledReason && <span className="vz-media-disabled-reason">{disabledReason}</span>}
+          {mutationLabel && <span className={`vz-media-mutation-state vz-media-mutation-state--${mutationState!.status}`}>{mutationLabel}</span>}
         </div>
         <div className="vz-media-row-actions">
           {canRetry && m.uploadError && <button type="button" className="vz-track-load-btn" onClick={e => { e.stopPropagation(); onRetry() }}>Retry</button>}
@@ -349,7 +362,9 @@ function MediaCard({
             <button
               className={`vz-media-star ${m.favorite ? 'vz-media-star--active' : ''}`}
               onClick={e => { e.stopPropagation(); onToggleFavorite() }}
-              title={m.favorite ? 'Unfavourite' : 'Favourite'}
+              disabled={favoritePending}
+              aria-busy={favoritePending}
+              title={favoritePending ? 'Saving favorite…' : m.favorite ? 'Unfavourite' : 'Favourite'}
               style={{ position: 'static' }}
             >
               <FavouriteIcon size={14} color="currentColor" />
@@ -407,7 +422,9 @@ function MediaCard({
           <button
             className={`vz-media-star ${m.favorite ? 'vz-media-star--active' : ''}`}
             onClick={e => { e.stopPropagation(); onToggleFavorite() }}
-            title={m.favorite ? 'Unfavourite' : 'Favourite'}
+            disabled={favoritePending}
+            aria-busy={favoritePending}
+            title={favoritePending ? 'Saving favorite…' : m.favorite ? 'Unfavourite' : 'Favourite'}
           >
             <FavouriteIcon size={17} color="currentColor" />
           </button>
@@ -445,6 +462,7 @@ function MediaCard({
           )}
         </div>
         <div className="vz-media-meta">{m.meta}</div>
+        {mutationLabel && <div className={`vz-media-mutation-state vz-media-mutation-state--${mutationState!.status}`}>{mutationLabel}</div>}
         {disabledReason && <div className="vz-media-disabled-reason">{disabledReason}</div>}
         {m.tags.length > 0 && (
           <div className="vz-media-tags">
@@ -485,6 +503,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     loadFromSupabase, loading,
     collections, collectionsLoading, loadCollections, removeCollection,
     importModalOpen, openImportMediaModal, closeImportMediaModal,
+    mutationStates = {},
   } = useMediaStore()
 
   const { savedTracks, loading: tracksLoading, loadSavedTracks, removeSavedTrack, getSignedUrl } = useAudioStore()
@@ -702,6 +721,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             canDrag={canDragMedia && !disabledReason}
             canRetry={context === 'manager'}
             onRetry={() => { void retryUpload(m.id) }}
+            mutationStates={Object.values(mutationStates).filter(state => state.itemId === m.id)}
             disabledReason={disabledReason}
           />
         )

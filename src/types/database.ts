@@ -300,6 +300,7 @@ export interface MediaItemRow {
   title:       string | null
   description: string | null
   metadata:    MediaMetadata   // JSONB column
+  revision:    number          // optimistic concurrency token (migration 0023)
   created_at: string
   updated_at: string
 }
@@ -320,6 +321,7 @@ export interface MediaItemInsert {
   title?: string | null
   description?: string | null
   metadata?: MediaMetadata
+  revision?: number
 }
 
 export interface MediaTagRow {
@@ -526,6 +528,23 @@ export interface Database {
           p_document: Json
           p_cues: Json
           p_provider_metadata: Json
+        }
+        Returns: Json
+      }
+      save_media_item_atomic: {
+        Args: {
+          p_media_item_id: string
+          p_expected_revision: number
+          p_patch: Json
+          p_tag_names: Json
+          p_collection_ids: Json
+        }
+        Returns: Json
+      }
+      reorder_media_collection_atomic: {
+        Args: {
+          p_collection_id: string
+          p_ordered_media_ids: Json
         }
         Returns: Json
       }

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useId } from 'react'
-import { useMediaStore } from '../../stores/mediaStore'
+import { mediaMutationKey, useMediaStore } from '../../stores/mediaStore'
 import type { MediaCollection, UploadedMedia } from '../../stores/mediaStore'
 import {
   VISUAL_MEDIA_ROLES,
@@ -173,6 +173,7 @@ export function MediaUploadModal({
     setUploadDraftTags,
     setUploadDraftCollections,
     setUploadDraftMetadata,
+    replaceUploadDraftMetadata,
     setUploadDraftAudioArtist,
     setUploadDraftAudioGenre,
     setUploadDraftAudioBpm,
@@ -185,7 +186,11 @@ export function MediaUploadModal({
     loadCollections,
     loadError,
     clearLoadError,
+    items, mutationStates, retryMediaMutation, reapplyMediaMutation, clearMediaMutation,
   } = useMediaStore()
+
+  const editMutation = editItem ? mutationStates[mediaMutationKey(editItem.id, 'edit')] : undefined
+  const canonicalEditItem = editItem ? items.find(item => item.id === editItem.id) ?? editItem : undefined
 
   // Local display metadata keyed by tempId — only for thumbnail/dims in file list
   const [displayMeta, setDisplayMeta] = useState<Map<string, EntryDisplay>>(new Map())
@@ -269,7 +274,7 @@ export function MediaUploadModal({
     setUploadDraftDescription(editItem.description ?? '')
     setUploadDraftTags([...editItem.tags])
     setUploadDraftCollections([...editItem.collectionIds])
-    setUploadDraftMetadata(editItem.metadata)
+    replaceUploadDraftMetadata(editItem.metadata)
     return () => { resetUploadDraft() }
   }, [editItem?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -546,6 +551,39 @@ export function MediaUploadModal({
     }
   }
 
+  const handleRetryEdit = async () => {
+    if (!editItem) return
+    setSaving(true)
+    try {
+      const saved = await retryMediaMutation(editItem.id, 'edit')
+      if (saved) onClose()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleReapplyEdit = async () => {
+    if (!editItem) return
+    setSaving(true)
+    try {
+      const saved = await reapplyMediaMutation(editItem.id, 'edit')
+      if (saved) onClose()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleUseServerVersion = () => {
+    if (!editItem || !canonicalEditItem) return
+    setUploadDraftRole(canonicalEditItem.mediaRole)
+    setUploadDraftTitle(canonicalEditItem.title ?? '')
+    setUploadDraftDescription(canonicalEditItem.description ?? '')
+    setUploadDraftTags([...canonicalEditItem.tags])
+    setUploadDraftCollections([...canonicalEditItem.collectionIds])
+    replaceUploadDraftMetadata(canonicalEditItem.metadata)
+    clearMediaMutation(editItem.id, 'edit')
+  }
+
   // Drag-drop
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault(); setDragOver(false)
@@ -558,7 +596,7 @@ export function MediaUploadModal({
   const detectedRes    = firstMeta?.width && firstMeta?.height ? `${firstMeta.width} × ${firstMeta.height}` : undefined
   const detectedDur    = firstMeta?.duration !== undefined ? firstMeta.duration.toFixed(2) : undefined
 
-  const busy      = uploading || saving
+  const busy      = uploading || saving || editMutation?.status === 'pending'
   const canUpload = uploadQueue.length > 0 && !busy && !bpmError
   const canSave   = !busy
 
@@ -967,6 +1005,29 @@ export function MediaUploadModal({
           </div>{/* /mum-right */}
         </div>{/* /mum-body */}
 
+        {isEdit && editMutation?.status === 'conflict' && (
+          <div className="mum-conflict-panel" role="alert">
+            <div className="mum-conflict-copy">
+              <strong>Newer media changes are available.</strong>
+              <span>{editMutation.message} Your attempted values are still in this form.</span>
+            </div>
+            <div className="mum-conflict-actions">
+              <button type="button" className="mum-cancel-btn" disabled={saving} onClick={handleUseServerVersion}>Use Server Version</button>
+              <button type="button" className="mum-upload-btn" disabled={saving} onClick={handleReapplyEdit}>{saving ? 'Reapplying…' : 'Reapply My Changes'}</button>
+            </div>
+          </div>
+        )}
+        {isEdit && editMutation?.status === 'failed' && (
+          <div className="mum-conflict-panel mum-conflict-panel--error" role="alert">
+            <div className="mum-conflict-copy">
+              <strong>Media changes were not saved.</strong>
+              <span>{editMutation.message}</span>
+            </div>
+            <div className="mum-conflict-actions">
+              <button type="button" className="mum-upload-btn" disabled={saving} onClick={handleRetryEdit}>{saving ? 'Retrying…' : 'Retry Save'}</button>
+            </div>
+          </div>
+        )}
         {(selectionError || batchError || (isEdit && loadError)) && (
           <div className="mum-batch-error" role="alert">{selectionError ?? batchError ?? loadError}</div>
         )}

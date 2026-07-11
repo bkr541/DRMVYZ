@@ -22,8 +22,83 @@ const db = supabase as unknown as SupabaseClient
 
 export interface DbListResult<T> { rows: T[]; error: string | null }
 export interface DbCreateResult  { id: string | null; error: string | null }
+export interface DbCreateMediaResult { id: string | null; revision: number | null; error: string | null }
 export interface DbMutateResult  { error: string | null }
 export interface SignedUrlResult { url: string | null; error: string | null }
+
+
+export interface CanonicalMediaItem extends MediaItemRow {
+  tags: string[]
+  collection_ids: string[]
+}
+
+export interface SaveMediaItemAtomicInput {
+  mediaItemId: string
+  expectedRevision: number
+  patch: {
+    media_role: MediaRoleDb
+    title: string | null
+    description: string | null
+    favorite: boolean
+    metadata: MediaMetadata
+  }
+  tagNames: string[]
+  collectionIds: string[]
+}
+
+export type MediaPersistenceFailureKind = 'validation' | 'conflict' | 'authorization' | 'transport' | 'unexpected'
+
+export type SaveMediaItemAtomicResult =
+  | { ok: true; kind: 'success'; mediaItem: CanonicalMediaItem }
+  | {
+      ok: false
+      kind: MediaPersistenceFailureKind
+      message: string
+      code?: string
+      currentRevision?: number
+      mediaItem?: CanonicalMediaItem
+    }
+
+export type ReorderMediaCollectionResult =
+  | { ok: true; kind: 'success'; orderedMediaIds: string[] }
+  | { ok: false; kind: MediaPersistenceFailureKind; message: string; code?: string }
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function parseCanonicalMediaItem(value: unknown): CanonicalMediaItem | null {
+  if (!isRecord(value)) return null
+  if (typeof value.id !== 'string' || typeof value.revision !== 'number') return null
+  if (!Array.isArray(value.tags) || !value.tags.every(tag => typeof tag === 'string')) return null
+  if (!Array.isArray(value.collection_ids) || !value.collection_ids.every(id => typeof id === 'string')) return null
+  return value as unknown as CanonicalMediaItem
+}
+
+function parsePersistenceFailure(data: Record<string, unknown>, fallback: string): Exclude<SaveMediaItemAtomicResult, { ok: true }> {
+  const message = typeof data.message === 'string' ? data.message : fallback
+  const code = typeof data.error_code === 'string' ? data.error_code : undefined
+  const mediaItem = parseCanonicalMediaItem(data.media_item)
+  switch (data.status) {
+    case 'validation_failure':
+      return { ok: false, kind: 'validation', message, ...(code ? { code } : {}) }
+    case 'conflict':
+      return {
+        ok: false,
+        kind: 'conflict',
+        message,
+        ...(code ? { code } : {}),
+        ...(typeof data.current_revision === 'number' ? { currentRevision: data.current_revision } : {}),
+        ...(mediaItem ? { mediaItem } : {}),
+      }
+    case 'authorization_failure':
+      return { ok: false, kind: 'authorization', message }
+    case 'unexpected_failure':
+      return { ok: false, kind: 'unexpected', message, ...(code ? { code } : {}) }
+    default:
+      return { ok: false, kind: 'unexpected', message: fallback }
+  }
+}
 
 // ── media_items ────────────────────────────────────────────────────────────────
 
@@ -36,47 +111,109 @@ export async function listMediaItems(userId: string): Promise<DbListResult<Media
   return { rows: (data as MediaItemRow[] | null) ?? [], error: error?.message ?? null }
 }
 
-export async function createMediaItem(insert: MediaItemInsert): Promise<DbCreateResult> {
+export async function createMediaItem(insert: MediaItemInsert): Promise<DbCreateMediaResult> {
   const { data, error } = await db
     .from('media_items')
     .insert(insert)
-    .select('id')
+    .select('id, revision')
     .single()
-  return { id: (data as { id: string } | null)?.id ?? null, error: error?.message ?? null }
-}
-
-export async function updateMediaItem(
-  id: string,
-  update: Partial<Omit<MediaItemRow, 'id' | 'created_at' | 'updated_at'>>,
-): Promise<DbMutateResult> {
-  const { error } = await db.from('media_items').update(update).eq('id', id)
-  return { error: error?.message ?? null }
-}
-
-export async function updateMediaItemRole(id: string, role: MediaRoleDb): Promise<DbMutateResult> {
-  return updateMediaItem(id, { media_role: role })
-}
-
-export async function updateMediaItemFavorite(id: string, favorite: boolean): Promise<DbMutateResult> {
-  return updateMediaItem(id, { favorite })
-}
-
-export async function updateMediaItemMetadata(id: string, patch: Partial<MediaMetadata>): Promise<DbMutateResult> {
-  // Merge patch into existing JSONB using Postgres || operator via RPC would be ideal,
-  // but a simple read-modify-write is safe and correct for this volume.
-  const { data: current, error: readErr } = await db
-    .from('media_items')
-    .select('metadata')
-    .eq('id', id)
-    .single()
-  if (readErr) return { error: readErr.message }
-  const merged = { ...((current as { metadata: MediaMetadata })?.metadata ?? {}), ...patch }
-  return updateMediaItem(id, { metadata: merged })
+  const row = data as { id: string; revision: number } | null
+  return {
+    id: row?.id ?? null,
+    revision: typeof row?.revision === 'number' ? row.revision : null,
+    error: error?.message ?? null,
+  }
 }
 
 export async function deleteMediaItem(id: string): Promise<DbMutateResult> {
   const { error } = await db.from('media_items').delete().eq('id', id)
   return { error: error?.message ?? null }
+}
+
+
+/**
+ * Updates one canonical media item plus its complete tag and collection sets in
+ * a single PostgreSQL transaction guarded by the expected revision.
+ */
+export async function saveMediaItemAtomic(
+  input: SaveMediaItemAtomicInput,
+): Promise<SaveMediaItemAtomicResult> {
+  if (!Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 1) {
+    return { ok: false, kind: 'validation', message: 'A valid expected media revision is required.' }
+  }
+
+  try {
+    const { data, error } = await db.rpc('save_media_item_atomic', {
+      p_media_item_id: input.mediaItemId,
+      p_expected_revision: input.expectedRevision,
+      p_patch: input.patch,
+      p_tag_names: input.tagNames,
+      p_collection_ids: input.collectionIds,
+    })
+
+    if (error) {
+      return {
+        ok: false,
+        kind: 'transport',
+        message: 'The media update request failed before a canonical result was received.',
+        ...(typeof error.code === 'string' ? { code: error.code } : {}),
+      }
+    }
+    if (!isRecord(data)) {
+      return { ok: false, kind: 'unexpected', message: 'The media update returned malformed data.' }
+    }
+    if (data.status !== 'success') {
+      return parsePersistenceFailure(data, 'The media update was rejected.')
+    }
+    const mediaItem = parseCanonicalMediaItem(data.media_item)
+    if (!mediaItem) {
+      return { ok: false, kind: 'unexpected', message: 'The media update returned an incomplete canonical item.' }
+    }
+    return { ok: true, kind: 'success', mediaItem }
+  } catch (error) {
+    return {
+      ok: false,
+      kind: 'transport',
+      message: error instanceof Error ? error.message : 'Unexpected media update transport failure.',
+    }
+  }
+}
+
+export async function reorderMediaCollectionAtomic(
+  collectionId: string,
+  orderedMediaIds: string[],
+): Promise<ReorderMediaCollectionResult> {
+  try {
+    const { data, error } = await db.rpc('reorder_media_collection_atomic', {
+      p_collection_id: collectionId,
+      p_ordered_media_ids: orderedMediaIds,
+    })
+    if (error) {
+      return {
+        ok: false,
+        kind: 'transport',
+        message: 'The collection reorder request failed before a canonical result was received.',
+        ...(typeof error.code === 'string' ? { code: error.code } : {}),
+      }
+    }
+    if (!isRecord(data)) {
+      return { ok: false, kind: 'unexpected', message: 'The collection reorder returned malformed data.' }
+    }
+    if (data.status !== 'success') {
+      const failure = parsePersistenceFailure(data, 'The collection reorder was rejected.')
+      return { ok: false, kind: failure.kind, message: failure.message, ...(failure.code ? { code: failure.code } : {}) }
+    }
+    if (!Array.isArray(data.ordered_media_ids) || !data.ordered_media_ids.every(id => typeof id === 'string')) {
+      return { ok: false, kind: 'unexpected', message: 'The collection reorder returned an incomplete canonical order.' }
+    }
+    return { ok: true, kind: 'success', orderedMediaIds: data.ordered_media_ids }
+  } catch (error) {
+    return {
+      ok: false,
+      kind: 'transport',
+      message: error instanceof Error ? error.message : 'Unexpected collection reorder transport failure.',
+    }
+  }
 }
 
 // ── Storage ────────────────────────────────────────────────────────────────────
@@ -188,8 +325,8 @@ export async function listMediaItemTagNames(userId: string): Promise<{ tagMap: M
 }
 
 /**
- * Replaces all tag associations for a media item.
- * Upserts tag names first, then sets the junction rows.
+ * Upload bootstrap only. Existing canonical media mutations must use
+ * saveMediaItemAtomic so tag replacement cannot partially commit.
  */
 export async function setMediaItemTags(
   mediaId: string,
@@ -273,7 +410,8 @@ export async function listMediaItemCollectionIds(userId: string): Promise<{ coll
 }
 
 /**
- * Replaces all collection memberships for a media item.
+ * Upload bootstrap only. Existing canonical media mutations must use
+ * saveMediaItemAtomic so relationship replacement cannot partially commit.
  */
 export async function setMediaItemCollections(
   mediaId: string,
@@ -293,19 +431,4 @@ export async function setMediaItemCollections(
   }))
   const { error: insErr } = await db.from('media_collection_items').insert(rows)
   return { error: insErr?.message ?? null }
-}
-
-export async function reorderCollectionItems(
-  collectionId: string,
-  orderedMediaIds: string[],
-): Promise<DbMutateResult> {
-  for (let i = 0; i < orderedMediaIds.length; i++) {
-    const { error } = await db
-      .from('media_collection_items')
-      .update({ sort_order: i })
-      .eq('collection_id', collectionId)
-      .eq('media_item_id', orderedMediaIds[i])
-    if (error) return { error: error.message }
-  }
-  return { error: null }
 }

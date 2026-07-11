@@ -7661,3 +7661,36 @@ input[type='range'].vz-slider--color {
   border-radius: 4px;
   background: rgba(5, 10, 16, 0.88);
 }
+
+.vz-media-status-action {
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  background: transparent;
+  color: currentColor;
+  cursor: pointer;
+  flex-shrink: 0;
+  font: inherit;
+  padding: 2px 6px;
+  opacity: 0.9;
+}
+.vz-media-status-action:hover { opacity: 1; background: rgba(255,255,255,0.05); }
+
+.vz-media-mutation-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(74,199,219,0.82);
+}
+.vz-media-mutation-state--failed { color: rgba(248,113,113,0.9); }
+.vz-media-mutation-state--conflict { color: rgba(251,191,36,0.9); }
+.vz-media-mutation-state::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+}
