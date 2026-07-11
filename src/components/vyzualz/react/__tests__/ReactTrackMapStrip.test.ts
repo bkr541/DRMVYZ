@@ -11,7 +11,10 @@ import {
   computeBeatStride,
   ENERGY_CURVE_OPTIONS,
   TRACK_MAP_DOWNBEAT_COLOR,
+  TRACK_MAP_FOUR_BAR_COLOR,
   TRACK_MAP_BEAT_TICK_HEIGHT,
+  TRACK_MAP_FOUR_BAR_TICK_HEIGHT,
+  TRACK_MAP_RULER_FONT_SIZE,
   buildPresetCueId,
   buildPresetCueLabel,
 } from '../ReactTrackMapStrip'
@@ -75,6 +78,7 @@ function makeAnalysis(overrides: Partial<TrackIntelligenceAnalysis> = {}): Track
 
 function makeCanvas(w = 400, h = 24): HTMLCanvasElement {
   const calls: string[] = []
+  const fillText = vi.fn((_text: string, _x: number, _y: number) => { calls.push('fillText') })
   const ctx2d = {
     clearRect: () => { calls.push('clearRect') },
     beginPath: () => { calls.push('beginPath') },
@@ -85,7 +89,7 @@ function makeCanvas(w = 400, h = 24): HTMLCanvasElement {
     closePath: () => { calls.push('closePath') },
     scale:     () => { calls.push('scale')     },
     setTransform: () => { calls.push('setTransform') },
-    fillText: () => { calls.push('fillText') },
+    fillText,
     font: '',
     textBaseline: 'top' as CanvasTextBaseline,
     textAlign: 'left' as CanvasTextAlign,
@@ -105,7 +109,7 @@ function makeCanvas(w = 400, h = 24): HTMLCanvasElement {
 }
 
 // Groups canvas draw commands by stroke() call so each pass (regular beats,
-// downbeats, section boundaries) has its own entry with commands + style info.
+// downbeats, four-bar markers) has its own entry with commands + style info.
 type Cmd   = { cmd: string; x?: number; y?: number }
 type Group = { cmds: Cmd[]; strokeStyle: string; lineWidth: number }
 
@@ -158,6 +162,21 @@ describe('unified timeline helpers', () => {
   it('draws the visible range ruler without throwing', () => {
     const canvas = makeCanvas(600, 22)
     expect(() => drawTimelineRuler(canvas, { startSec: 30, endSec: 90 })).not.toThrow()
+  })
+
+  it('centers slightly larger time labels vertically in the visible-range lane', () => {
+    const canvas = makeCanvas(600, 24)
+    drawTimelineRuler(canvas, { startSec: 30, endSec: 90 })
+
+    const ctx = canvas.getContext('2d')!
+    expect(ctx.font).toBe(`${TRACK_MAP_RULER_FONT_SIZE}px sans-serif`)
+    expect(ctx.textBaseline).toBe('middle')
+
+    const fillTextMock = vi.mocked(ctx.fillText)
+    expect(fillTextMock).toHaveBeenCalled()
+    for (const call of fillTextMock.mock.calls) {
+      expect(call[2]).toBe(12)
+    }
   })
 
   it('places cues relative to the shared viewport', () => {
@@ -313,7 +332,7 @@ describe('drawBeatCanvas', () => {
   })
 
   // ── regular beat tick style ────────────────────────────────────────────────
-  // drawBeatCanvas draws regular beats as bottom-anchored ruler ticks (≈5 CSS px)
+  // drawBeatCanvas draws regular beats as top-anchored ruler ticks (≈5 CSS px)
   // rather than lines that span the full canvas height.
 
   describe('regular beat tick style', () => {
@@ -330,13 +349,13 @@ describe('drawBeatCanvas', () => {
       })
     }
 
-    it('regular beat moveTo starts at canvas bottom (y === h)', () => {
+    it('regular beat moveTo starts at the canvas top (y === 0)', () => {
       const { canvas, groups } = makeTrackingCanvas(400, 24)
       drawBeatCanvas(canvas, regularAnalysis())
       // groups[0] = first stroke call = regular beats
       const moves = groups[0].cmds.filter(p => p.cmd === 'moveTo')
       expect(moves.length).toBeGreaterThan(0)
-      for (const m of moves) expect(m.y).toBe(24)
+      for (const m of moves) expect(m.y).toBe(0)
     })
 
     it('regular beat tick height is between 4 and 7 CSS pixels', () => {
@@ -352,12 +371,12 @@ describe('drawBeatCanvas', () => {
       }
     })
 
-    it('no regular beat line reaches the canvas top (y > 0 for all lineTo)', () => {
+    it('no regular beat line reaches the canvas bottom', () => {
       const { canvas, groups } = makeTrackingCanvas(400, 24)
       drawBeatCanvas(canvas, regularAnalysis())
       const lineTos = groups[0].cmds.filter(p => p.cmd === 'lineTo')
       expect(lineTos.length).toBeGreaterThan(0)
-      for (const l of lineTos) expect(l.y).toBeGreaterThan(0)
+      for (const l of lineTos) expect(l.y).toBeLessThan(24)
     })
 
     it('regular beat x-position is proportional to timeSec / durationSec * width', () => {
@@ -388,18 +407,16 @@ describe('drawBeatCanvas', () => {
       }
     })
 
-    it('downbeat ticks are bottom-anchored and taller than regular beats', () => {
-      const h = 24
-      const { canvas, groups } = makeTrackingCanvas(400, h)
+    it('downbeat ticks are top-anchored and taller than regular beats', () => {
+      const { canvas, groups } = makeTrackingCanvas(400, 24)
       drawBeatCanvas(canvas, regularAnalysis())
       // groups[1] = second stroke call = downbeat ticks
       const moves   = groups[1].cmds.filter(p => p.cmd === 'moveTo')
       const lineTos = groups[1].cmds.filter(p => p.cmd === 'lineTo')
       expect(moves.length).toBeGreaterThan(0)
-      for (const m of moves) expect(m.y).toBe(h)                         // same bottom anchor
+      for (const m of moves) expect(m.y).toBe(0)
       for (const l of lineTos) {
-        expect(l.y).toBeGreaterThan(0)                                    // does not reach top
-        expect(h - l.y!).toBeGreaterThan(TRACK_MAP_BEAT_TICK_HEIGHT)     // taller than regular
+        expect(l.y).toBeGreaterThan(TRACK_MAP_BEAT_TICK_HEIGHT)
       }
     })
 
@@ -457,7 +474,7 @@ describe('drawBeatCanvas', () => {
       drawBeatCanvas(canvas, barAnalysis())
       const regularLineTo  = groups[0].cmds.find(p => p.cmd === 'lineTo')!
       const downbeatLineTo = groups[1].cmds.find(p => p.cmd === 'lineTo')!
-      expect(h - downbeatLineTo.y!).toBeGreaterThan(h - regularLineTo.y!)
+      expect(downbeatLineTo.y!).toBeGreaterThan(regularLineTo.y!)
     })
 
     it('downbeat x-position does not appear in the regular beat pass', () => {
@@ -492,11 +509,70 @@ describe('drawBeatCanvas', () => {
       expect(groups[1].cmds.filter(p => p.cmd === 'moveTo').length).toBe(1) // 1 downbeat
     })
 
-    it('empty effective grid produces no ticks in regular or downbeat pass', () => {
+    it('empty effective grid produces no ticks in any beat-grid pass', () => {
       const { canvas, groups } = makeTrackingCanvas(400, 24)
       drawBeatCanvas(canvas, makeAnalysis({ durationMs: 10_000 }), { beatGrid: [] })
       expect(groups[0].cmds.filter(p => p.cmd === 'moveTo').length).toBe(0)
       expect(groups[1].cmds.filter(p => p.cmd === 'moveTo').length).toBe(0)
+      expect(groups[2].cmds.filter(p => p.cmd === 'moveTo').length).toBe(0)
+    })
+  })
+
+  // ── four-bar marker differentiation ───────────────────────────────────────
+
+  describe('four-bar marker style', () => {
+    function fourBarAnalysis() {
+      return makeAnalysis({
+        durationMs: 10_000,
+        beatGrid: [
+          { timeSec: 0, confidence: 1, isDownbeat: true },
+          { timeSec: 2, confidence: 1, isDownbeat: true },
+          { timeSec: 4, confidence: 1, isDownbeat: true },
+          { timeSec: 6, confidence: 1, isDownbeat: true },
+        ],
+      })
+    }
+
+    it('promotes every fourth bar to one red marker without duplicating the downbeat', () => {
+      const { canvas, groups } = makeTrackingCanvas(400, 24)
+      drawBeatCanvas(canvas, fourBarAnalysis())
+
+      const downbeatCount = groups[1].cmds.filter(p => p.cmd === 'moveTo').length
+      const fourBarCount = groups[2].cmds.filter(p => p.cmd === 'moveTo').length
+      expect(downbeatCount).toBe(3)
+      expect(fourBarCount).toBe(1)
+      expect(groups[2].strokeStyle).toBe(TRACK_MAP_FOUR_BAR_COLOR)
+    })
+
+    it('anchors the four-bar marker at the top and extends it below normal downbeats', () => {
+      const { canvas, groups } = makeTrackingCanvas(400, 24)
+      drawBeatCanvas(canvas, fourBarAnalysis())
+
+      const fourBarMove = groups[2].cmds.find(p => p.cmd === 'moveTo')!
+      const fourBarLine = groups[2].cmds.find(p => p.cmd === 'lineTo')!
+      const downbeatLine = groups[1].cmds.find(p => p.cmd === 'lineTo')!
+      expect(fourBarMove.y).toBe(0)
+      expect(fourBarLine.y).toBe(TRACK_MAP_FOUR_BAR_TICK_HEIGHT)
+      expect(fourBarLine.y!).toBeGreaterThan(downbeatLine.y!)
+    })
+
+    it('keeps the four-bar cadence global when the visible range is zoomed', () => {
+      const analysis = makeAnalysis({
+        durationMs: 10_000,
+        beatGrid: [
+          { timeSec: 0, confidence: 1, isDownbeat: true },
+          { timeSec: 2, confidence: 1, isDownbeat: true },
+          { timeSec: 4, confidence: 1, isDownbeat: true },
+          { timeSec: 6, confidence: 1, isDownbeat: true },
+          { timeSec: 8, confidence: 1, isDownbeat: true },
+        ],
+      })
+      const { canvas, groups } = makeTrackingCanvas(400, 24)
+      drawBeatCanvas(canvas, analysis, undefined, { startSec: 4, endSec: 8 })
+
+      const fourBarMoves = groups[2].cmds.filter(p => p.cmd === 'moveTo')
+      expect(fourBarMoves).toHaveLength(1)
+      expect(Math.abs(fourBarMoves[0].x! - 200)).toBeLessThan(1)
     })
   })
 
@@ -505,11 +581,11 @@ describe('drawBeatCanvas', () => {
   // Section regions will be rendered by a dedicated overlay layer.
 
   describe('section-start line removal', () => {
-    it('analysis with sections produces exactly 2 stroke passes (regular + downbeats only)', () => {
+    it('analysis with sections produces only the 3 beat-grid stroke passes', () => {
       const { canvas, groups } = makeTrackingCanvas(400, 24)
-      // makeAnalysis() includes 3 sections — a third pass would indicate gold lines
+      // makeAnalysis() includes 3 sections; no extra section-driven pass is allowed.
       drawBeatCanvas(canvas, makeAnalysis())
-      expect(groups.length).toBe(2)
+      expect(groups.length).toBe(3)
     })
 
     it('empty beatGrid with sections present produces zero moveTo calls', () => {

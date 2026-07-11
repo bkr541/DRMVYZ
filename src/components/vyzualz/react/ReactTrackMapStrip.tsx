@@ -146,13 +146,17 @@ export function buildBarRange(
 
 // ── Canvas drawing ─────────────────────────────────────────────────────────────
 
-// Centralized beat/downbeat mark constants so tests and the draw function agree.
-export const TRACK_MAP_BEAT_COLOR            = 'rgba(74,199,219,0.45)'
-export const TRACK_MAP_DOWNBEAT_COLOR        = 'rgba(97,214,170,0.85)'
-export const TRACK_MAP_BEAT_TICK_HEIGHT      = 5    // CSS px
-export const TRACK_MAP_DOWNBEAT_TICK_HEIGHT  = 13   // CSS px
-export const TRACK_MAP_BEAT_LINE_WIDTH       = 1    // px
-export const TRACK_MAP_DOWNBEAT_LINE_WIDTH   = 2    // px
+// Centralized beat-grid and ruler constants so tests and the draw functions agree.
+export const TRACK_MAP_BEAT_COLOR             = 'rgba(74,199,219,0.45)'
+export const TRACK_MAP_DOWNBEAT_COLOR         = 'rgba(97,214,170,0.85)'
+export const TRACK_MAP_FOUR_BAR_COLOR         = 'rgba(192,49,74,0.96)'
+export const TRACK_MAP_BEAT_TICK_HEIGHT       = 5    // CSS px
+export const TRACK_MAP_DOWNBEAT_TICK_HEIGHT   = 13   // CSS px
+export const TRACK_MAP_FOUR_BAR_TICK_HEIGHT   = 20   // CSS px
+export const TRACK_MAP_BEAT_LINE_WIDTH        = 1    // px
+export const TRACK_MAP_DOWNBEAT_LINE_WIDTH    = 2    // px
+export const TRACK_MAP_FOUR_BAR_LINE_WIDTH    = 2    // px
+export const TRACK_MAP_RULER_FONT_SIZE        = 10   // CSS px
 
 function setupCanvas(canvas: HTMLCanvasElement): CanvasRenderingContext2D | null {
   const resolution = resolveCanvasResolution({
@@ -186,7 +190,9 @@ export function computeBeatStride(regularBeatCount: number, canvasWidth: number,
  *
  * Every beat in the grid has exactly one tick. `isDownbeat` on each
  * BeatMarkerMI determines the style: regular beats get a short cyan tick;
- * downbeats get a taller, thicker, brighter tick from the same bottom anchor.
+ * downbeats get a taller green tick; and every fourth bar boundary gets the
+ * tallest red tick. All ticks share the same top anchor so the beat grid reads
+ * from the top edge of its lane.
  *
  * When `effective` is supplied (manual BPM override active), `effective.beatGrid`
  * replaces `analysis.beatGrid` for all tick rendering so that regular beats and
@@ -221,6 +227,15 @@ export function drawBeatCanvas(
   const rawGrid  = effective?.beatGrid ?? analysis.beatGrid
   const allBeats = rawGrid.filter(b => isFinite(b.timeSec) && b.timeSec >= 0)
 
+  // Promote every fourth downbeat to a four-bar marker. Build this set from the
+  // full grid before viewport filtering so zooming or panning does not reset
+  // the four-bar cadence at the left edge of the visible range.
+  const fourBarDownbeats = new Set(
+    allBeats
+      .filter(beat => beat.isDownbeat)
+      .filter((_, downbeatIndex) => (downbeatIndex + 1) % 4 === 0),
+  )
+
   // Only draw beats within the visible viewport (plus one tolerance beat on each side).
   const beatGrid = allBeats.filter(b => b.timeSec >= vpStart - 0.01 && b.timeSec <= vpEnd + 0.01)
 
@@ -232,7 +247,7 @@ export function drawBeatCanvas(
 
   const timeToX = (t: number) => Math.floor(((t - vpStart) / vpDur) * w) + 0.5
 
-  // Regular beats — bottom-anchored ruler marks.
+  // Regular beats — short top-anchored ruler marks.
   // Half-pixel x offset (+0.5) keeps 1 px strokes crisp on all DPR values.
   ctx.beginPath()
   let beatIdx = 0
@@ -240,8 +255,8 @@ export function drawBeatCanvas(
     if (beat.isDownbeat) continue
     if (beatIdx % stride === 0) {
       const x = timeToX(beat.timeSec)
-      ctx.moveTo(x, h)
-      ctx.lineTo(x, h - TRACK_MAP_BEAT_TICK_HEIGHT)
+      ctx.moveTo(x, 0)
+      ctx.lineTo(x, Math.min(h, TRACK_MAP_BEAT_TICK_HEIGHT))
     }
     beatIdx++
   }
@@ -249,18 +264,31 @@ export function drawBeatCanvas(
   ctx.lineWidth   = TRACK_MAP_BEAT_LINE_WIDTH
   ctx.stroke()
 
-  // Downbeat ticks — same bottom anchor, taller + thicker + brighter.
+  // Downbeat ticks — same top anchor, taller + thicker + brighter. Four-bar
+  // boundaries are excluded here so each beat still renders exactly once.
   // Drawn in a separate pass so lineWidth/strokeStyle differ per category
   // without any duplicate stroke at the same x-position.
   ctx.beginPath()
   for (const beat of beatGrid) {
-    if (!beat.isDownbeat) continue
+    if (!beat.isDownbeat || fourBarDownbeats.has(beat)) continue
     const x = timeToX(beat.timeSec)
-    ctx.moveTo(x, h)
-    ctx.lineTo(x, h - TRACK_MAP_DOWNBEAT_TICK_HEIGHT)
+    ctx.moveTo(x, 0)
+    ctx.lineTo(x, Math.min(h, TRACK_MAP_DOWNBEAT_TICK_HEIGHT))
   }
   ctx.strokeStyle = TRACK_MAP_DOWNBEAT_COLOR
   ctx.lineWidth   = TRACK_MAP_DOWNBEAT_LINE_WIDTH
+  ctx.stroke()
+
+  // Four-bar boundaries — the strongest visual divider in the beat lane.
+  ctx.beginPath()
+  for (const beat of beatGrid) {
+    if (!fourBarDownbeats.has(beat)) continue
+    const x = timeToX(beat.timeSec)
+    ctx.moveTo(x, 0)
+    ctx.lineTo(x, Math.min(h, TRACK_MAP_FOUR_BAR_TICK_HEIGHT))
+  }
+  ctx.strokeStyle = TRACK_MAP_FOUR_BAR_COLOR
+  ctx.lineWidth   = TRACK_MAP_FOUR_BAR_LINE_WIDTH
   ctx.stroke()
 }
 
@@ -325,8 +353,8 @@ export function drawTimelineRuler(
   if (w <= 0 || h <= 0 || !Number.isFinite(span) || span <= 0) return
 
   ctx.clearRect(0, 0, w, h)
-  ctx.font = '9px sans-serif'
-  ctx.textBaseline = 'top'
+  ctx.font = `${TRACK_MAP_RULER_FONT_SIZE}px sans-serif`
+  ctx.textBaseline = 'middle'
   ctx.fillStyle = 'rgba(232,244,248,0.42)'
   ctx.strokeStyle = 'rgba(74,199,219,0.12)'
   ctx.lineWidth = 1
@@ -344,7 +372,7 @@ export function drawTimelineRuler(
 
     const label = formatTime(Math.max(0, timeSec))
     ctx.textAlign = i === 0 ? 'left' : i === count ? 'right' : 'center'
-    ctx.fillText(label, Math.max(1, Math.min(w - 1, x)), 2)
+    ctx.fillText(label, Math.max(1, Math.min(w - 1, x)), h / 2)
   }
 }
 
