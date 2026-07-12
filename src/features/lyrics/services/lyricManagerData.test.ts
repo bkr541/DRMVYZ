@@ -4,11 +4,13 @@ import type { LyricDocumentRow } from '../../../types/lyrics'
 
 const mocks = vi.hoisted(() => ({
   listAudioTracksPage: vi.fn(),
+  listTrackAnalysisPayloads: vi.fn(),
   from: vi.fn(),
 }))
 
 vi.mock('../../../lib/audioDb', () => ({
   listAudioTracksPage: mocks.listAudioTracksPage,
+  listTrackAnalysisPayloads: mocks.listTrackAnalysisPayloads,
 }))
 
 vi.mock('../../../lib/supabase', () => ({
@@ -38,6 +40,8 @@ function audioTrack(id: string, title = `Track ${id}`): AudioTrack {
     external_track_id: null,
     external_metadata: null,
     transcription_assets: null,
+    lifecycle_status: 'complete',
+    deletion_requested_at: null,
     artist: 'DVYDRM',
     genre: 'Melodic Bass',
     bpm: 150,
@@ -86,6 +90,7 @@ function mockDocumentQuery(rows: unknown[], error: { message: string } | null = 
 describe('lyricManagerData', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.listTrackAnalysisPayloads.mockResolvedValue({ rows: [], error: null })
   })
 
   it('loads one paged track query and one batched lyric-version query for all visible tracks', async () => {

@@ -5,6 +5,7 @@ import { supabase, supabaseConfigured } from './supabase'
 import type { AudioTrack, AudioTrackInsert, TrackAnalysisRow, Json } from '../types/database'
 import type { TrackIntelligenceAnalysis } from '../features/musicIntelligence/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { deleteAudioTrackCanonical } from './audioTrackDeletion'
 
 const db = supabase as unknown as SupabaseClient
 
@@ -16,6 +17,8 @@ export interface DbPageResult<T> { rows: T[]; count: number; error: string | nul
 export interface DbMutateResult  { error: string | null }
 export interface SignedUrlResult { url: string | null; error: string | null }
 
+export type AudioTrackMetadataUpdate = Pick<AudioTrack, 'title' | 'artist' | 'genre' | 'bpm' | 'musical_key'>
+
 // ── audio_tracks ──────────────────────────────────────────────────────────────
 
 export async function listAudioTracks(userId: string): Promise<DbListResult<AudioTrack>> {
@@ -23,6 +26,7 @@ export async function listAudioTracks(userId: string): Promise<DbListResult<Audi
     .from('audio_tracks')
     .select('*')
     .eq('user_id', userId)
+    .eq('lifecycle_status', 'complete')
     .order('created_at', { ascending: false })
   return { rows: (data as AudioTrack[] | null) ?? [], error: error?.message ?? null }
 }
@@ -48,6 +52,7 @@ export async function listAudioTracksPage(
     .from('audio_tracks')
     .select('*', { count: 'exact' })
     .eq('user_id', userId)
+    .eq('lifecycle_status', 'complete')
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)
 
@@ -74,15 +79,16 @@ export async function createAudioTrack(insert: AudioTrackInsert): Promise<DbCrea
 
 export async function updateAudioTrack(
   id: string,
-  update: Partial<Omit<AudioTrack, 'id' | 'created_at' | 'updated_at'>>,
+  update: AudioTrackMetadataUpdate,
 ): Promise<DbMutateResult> {
   const { error } = await db.from('audio_tracks').update(update).eq('id', id)
   return { error: error?.message ?? null }
 }
 
+/** @deprecated Persisted audio deletion must use the canonical server-owned cleanup operation. */
 export async function deleteAudioTrack(id: string): Promise<DbMutateResult> {
-  const { error } = await db.from('audio_tracks').delete().eq('id', id)
-  return { error: error?.message ?? null }
+  const result = await deleteAudioTrackCanonical(id)
+  return { error: result.ok ? null : result.message ?? 'Audio track deletion failed.' }
 }
 
 // ── Storage (audio-tracks bucket) ─────────────────────────────────────────────

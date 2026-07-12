@@ -5,7 +5,6 @@ import {
   deleteLyricDocument,
   getFullLyricDocument,
 } from '../../lib/lyricsDb'
-import { deleteAudioTrack, deleteAudioFiles } from '../../lib/audioDb'
 import { useAudioStore } from '../../stores/audioStore'
 import type { SavedAudioTrack } from '../../stores/audioStore'
 import { useSharedAudio } from '../../context/AudioEngineContext'
@@ -409,6 +408,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
   const engineRef = useRef(engine)
   engineRef.current = engine
   const getSignedUrl = useAudioStore((state) => state.getSignedUrl)
+  const removeSavedTrackByDbId = useAudioStore((state) => state.removeSavedTrackByDbId)
 
   const [currentAudioTimeMs, setCurrentAudioTimeMs] = useState<number | null>(null)
   const [tracks, setTracks] = useState<LyricManagerTrack[]>([])
@@ -988,11 +988,12 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     setTrackDeleting(true)
     try {
       const wasSelected = trackDeleteTarget.dbId === selectedTrack?.dbId
-      const { error: dbError } = await deleteAudioTrack(trackDeleteTarget.dbId)
-      if (dbError) {
-        setError(`Track deletion failed: ${dbError}`)
+      const removed = await removeSavedTrackByDbId(trackDeleteTarget.dbId)
+      if (!removed) {
+        setError(useAudioStore.getState().loadError ?? 'Track deletion failed.')
         return
       }
+      const cleanupPending = Boolean(useAudioStore.getState().loadError)
       setTrackDeleteTarget(null)
       markEditorDirty(false)
       setTracks(current => current.filter(item => item.dbId !== trackDeleteTarget.dbId))
@@ -1002,14 +1003,9 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         setDocuments([])
         setActiveDocument(null, [])
       }
-      if (trackDeleteTarget.storagePath) {
-        const { error: storageError } = await deleteAudioFiles([trackDeleteTarget.storagePath])
-        if (storageError) {
-          showStatus('Track deleted, but audio file cleanup failed.')
-          return
-        }
-      }
-      showStatus('Track and all lyric versions deleted')
+      showStatus(cleanupPending
+        ? 'Track removed. Storage cleanup is pending and will retry automatically.'
+        : 'Track and all lyric versions deleted')
     } catch (deleteError) {
       setError(
         deleteError instanceof Error
@@ -1021,6 +1017,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     }
   }, [
     markEditorDirty,
+    removeSavedTrackByDbId,
     selectedTrack?.dbId,
     selectTrackState,
     setActiveDocument,

@@ -16,8 +16,10 @@ import {
 import { getLyricReviewStatistics } from '../utils/lyricReview'
 import {
   ensurePreparedTranscriptionAudio,
+  rollbackPreparedTranscriptionAudio,
   type LocalAudioPreparationProgress,
 } from '../services/localAudioPreparation'
+import { getAudioPreparationOperation } from '../../../lib/audioPreparationDb'
 
 const TIMING_OPTS = [
   { value: 'line', label: 'Line-level' },
@@ -60,11 +62,13 @@ function processingStageLabel(job: LyricTranscriptionJob): string | null {
 
 const LOCAL_PREPARATION_LABELS: Record<LocalAudioPreparationProgress['stage'], string> = {
   downloading: 'Downloading stored audio…',
+  preflight: 'Checking renderer memory and workload…',
   decoding: 'Decoding audio locally…',
   planning: 'Planning Groq-ready audio…',
   encoding: 'Encoding transcription audio…',
   uploading: 'Uploading private transcription audio…',
   saving: 'Saving transcription manifest…',
+  cleanup: 'Cleaning incomplete preparation assets…',
   complete: 'Audio preparation complete',
 }
 
@@ -127,11 +131,30 @@ export function AiLyricExtractor({
   const [notice, setNotice] = useState<string | null>(null)
   const [localPreparation, setLocalPreparation] = useState<LocalAudioPreparationProgress | null>(null)
   const [browserOnline, setBrowserOnline] = useState(browserReportsOnline)
-  const preparationAbortRef = useRef<AbortController | null>(null)
-  const previewDocumentId = useRef<string | null>(null)
-
   const selectedTrackId = selectedTrack?.dbId ?? null
+  const preparationAbortRef = useRef<AbortController | null>(null)
+  const operationGenerationRef = useRef(0)
+  const selectedTrackIdRef = useRef<string | null>(selectedTrackId)
+  selectedTrackIdRef.current = selectedTrackId
+  const previewDocumentId = useRef<string | null>(null)
+  const previewRequestGenerationRef = useRef(0)
+
   const activeJobId = job && isActiveLyricTranscriptionJob(job) ? job.id : null
+
+  const beginOwnedOperation = useCallback(() => {
+    operationGenerationRef.current += 1
+    preparationAbortRef.current?.abort()
+    const generation = operationGenerationRef.current
+    const trackId = selectedTrackId
+    const controller = new AbortController()
+    preparationAbortRef.current = controller
+    const isCurrent = () => (
+      !controller.signal.aborted
+      && operationGenerationRef.current === generation
+      && selectedTrackIdRef.current === trackId
+    )
+    return { generation, trackId, controller, isCurrent }
+  }, [selectedTrackId])
 
   useEffect(() => {
     const updateOnlineState = () => setBrowserOnline(browserReportsOnline())
@@ -152,6 +175,7 @@ export function AiLyricExtractor({
   })
 
   const loadPreview = useCallback(async (nextJob: LyricTranscriptionJob | null) => {
+    const requestGeneration = ++previewRequestGenerationRef.current
     if (!nextJob?.lyricDocumentId || nextJob.status !== 'completed') {
       previewDocumentId.current = null
       setDocument(null)
@@ -160,6 +184,10 @@ export function AiLyricExtractor({
     }
     if (previewDocumentId.current === nextJob.lyricDocumentId) return
     const full = await getFullLyricDocument(nextJob.lyricDocumentId)
+    if (
+      previewRequestGenerationRef.current !== requestGeneration
+      || selectedTrackIdRef.current !== nextJob.audioTrackId
+    ) return
     previewDocumentId.current = nextJob.lyricDocumentId
     setDocument(full.document)
     setCues(full.cues)
@@ -167,6 +195,9 @@ export function AiLyricExtractor({
 
   useEffect(() => {
     let cancelled = false
+    selectedTrackIdRef.current = selectedTrackId
+    operationGenerationRef.current += 1
+    previewRequestGenerationRef.current += 1
     previewDocumentId.current = null
     setJob(null)
     setDocument(null)
@@ -174,6 +205,7 @@ export function AiLyricExtractor({
     setError(null)
     setNotice(null)
     setLocalPreparation(null)
+    setActionBusy(false)
     preparationAbortRef.current?.abort()
     preparationAbortRef.current = null
     if (!selectedTrackId) return () => { cancelled = true }
@@ -193,7 +225,12 @@ export function AiLyricExtractor({
         if (!cancelled) setLoading(false)
       })
 
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      operationGenerationRef.current += 1
+      preparationAbortRef.current?.abort()
+      preparationAbortRef.current = null
+    }
   }, [loadPreview, selectedTrackId])
 
   useEffect(() => {
@@ -202,7 +239,7 @@ export function AiLyricExtractor({
     const poll = async () => {
       try {
         const refreshed = await refreshLyricTranscriptionJob(activeJobId)
-        if (cancelled) return
+        if (cancelled || refreshed.audioTrackId !== selectedTrackIdRef.current || refreshed.id !== activeJobId) return
         setJob(refreshed)
         setError(null)
         await loadPreview(refreshed)
@@ -230,27 +267,34 @@ export function AiLyricExtractor({
       setError(OFFLINE_LYRIC_EXTRACTION_MESSAGE)
       return
     }
+    const owned = beginOwnedOperation()
     setActionBusy(true)
     setError(null)
     setNotice(null)
+    let preparationOperationId: string | undefined
     try {
-      const controller = new AbortController()
-      preparationAbortRef.current = controller
-      let preparation = { prepared: false }
+      let preparation = { prepared: false } as Awaited<ReturnType<typeof ensurePreparedTranscriptionAudio>>
       let usingServerFallback = false
       try {
         preparation = await ensurePreparedTranscriptionAudio(selectedTrack, {
-          signal: controller.signal,
-          onProgress: setLocalPreparation,
+          signal: owned.controller.signal,
+          isCurrent: owned.isCurrent,
+          onProgress: progress => { if (owned.isCurrent()) setLocalPreparation(progress) },
         })
+        preparationOperationId = preparation.operationId
       } catch (preparationError) {
         if (preparationError instanceof DOMException && preparationError.name === 'AbortError') throw preparationError
         if (!isBrowserCodecFallbackError(preparationError)) throw preparationError
         usingServerFallback = true
-        setLocalPreparation(null)
+        if (owned.isCurrent()) setLocalPreparation(null)
       }
-      preparationAbortRef.current = null
-      const result = await startLyricTranscription(selectedTrack.dbId, options)
+      if (!owned.isCurrent()) throw new DOMException('Audio preparation was cancelled.', 'AbortError')
+
+      const result = await startLyricTranscription(selectedTrack.dbId, options, preparationOperationId)
+      if (!owned.isCurrent()) {
+        void cancelLyricTranscription(result.job.id).catch(() => undefined)
+        throw new DOMException('The transcription request no longer owns the selected track.', 'AbortError')
+      }
       setLocalPreparation(null)
       setJob(result.job)
       setDocument(null)
@@ -264,26 +308,61 @@ export function AiLyricExtractor({
             ? 'Groq-ready audio prepared privately and extraction queued.'
             : 'Extraction queued. You can leave Lyric Manager and return without losing the job.')
     } catch (startError) {
-      if (!(startError instanceof DOMException && startError.name === 'AbortError')) {
-        setError(startError instanceof Error ? startError.message : 'Failed to start lyric extraction.')
-      } else {
-        setNotice('Audio preparation cancelled.')
+      const wasCancelled = startError instanceof DOMException && startError.name === 'AbortError'
+      let recovered = false
+      if (preparationOperationId) {
+        try {
+          const operation = await getAudioPreparationOperation(preparationOperationId)
+          if (operation?.job_id) {
+            if (!owned.isCurrent()) {
+              await cancelLyricTranscription(operation.job_id).catch(() => undefined)
+            } else {
+              const attachedJob = await refreshLyricTranscriptionJob(operation.job_id)
+              if (owned.isCurrent() && attachedJob.audioTrackId === selectedTrack.dbId) {
+                setJob(attachedJob)
+                setNotice('The server accepted the extraction before the response was interrupted. Its status has been recovered.')
+                recovered = true
+              }
+            }
+          } else if (!operation?.job_id) {
+            await rollbackPreparedTranscriptionAudio(
+              preparationOperationId,
+              wasCancelled ? 'Audio preparation was cancelled before job creation.' : 'Transcription job creation failed.',
+              wasCancelled ? 'cancelled' : 'failed',
+            )
+          }
+        } catch (reconcileError) {
+          console.error('[AiLyricExtractor] preparation reconciliation failed:', reconcileError)
+        }
+      }
+      if (!recovered && owned.isCurrent()) {
+        if (!wasCancelled) setError(startError instanceof Error ? startError.message : 'Failed to start lyric extraction.')
+        else setNotice('Audio preparation cancelled. Any uploaded temporary chunks are being cleaned safely.')
       }
     } finally {
-      preparationAbortRef.current = null
-      setLocalPreparation(null)
-      setActionBusy(false)
+      if (operationGenerationRef.current === owned.generation) {
+        preparationAbortRef.current = null
+        setLocalPreparation(null)
+        setActionBusy(false)
+      }
     }
-  }, [options, selectedTrack])
+  }, [beginOwnedOperation, options, selectedTrack])
 
   const handleCancel = useCallback(async () => {
-    if (!job) return
+    preparationAbortRef.current?.abort()
+    operationGenerationRef.current += 1
+    if (!job) {
+      setNotice('Audio preparation cancellation requested. Temporary assets will be cleaned before the operation retires.')
+      setActionBusy(false)
+      return
+    }
     setActionBusy(true)
     setError(null)
     try {
-      const cancelled = await cancelLyricTranscription(job.id)
-      setJob(cancelled)
-      setNotice('Cancellation requested. A provider call already in flight may finish, but its result will not replace your lyrics.')
+      const cancelledJob = await cancelLyricTranscription(job.id)
+      if (cancelledJob.audioTrackId !== selectedTrackIdRef.current) return
+      setJob(cancelledJob)
+      setNotice('Cancellation requested. Work already inside a provider call may finish, but no later chunk, manifest, job result, or lyric draft will be applied.')
     } catch (cancelError) {
       setError(cancelError instanceof Error ? cancelError.message : 'Failed to cancel transcription.')
     } finally {
@@ -299,27 +378,33 @@ export function AiLyricExtractor({
       setError(OFFLINE_LYRIC_EXTRACTION_MESSAGE)
       return
     }
+    const owned = beginOwnedOperation()
     setActionBusy(true)
     setError(null)
     setNotice(null)
+    let preparationOperationId: string | undefined
     try {
       if (selectedTrack) {
-        const controller = new AbortController()
-        preparationAbortRef.current = controller
         try {
-          await ensurePreparedTranscriptionAudio(selectedTrack, {
-            signal: controller.signal,
-            onProgress: setLocalPreparation,
-            force: job.errorCode === 'prepared_audio_missing' || job.errorCode === 'prepared_audio_invalid',
+          const preparation = await ensurePreparedTranscriptionAudio(selectedTrack, {
+            signal: owned.controller.signal,
+            isCurrent: owned.isCurrent,
+            onProgress: progress => { if (owned.isCurrent()) setLocalPreparation(progress) },
+            force: job.errorCode === 'prepared_audio_missing' || job.errorCode === 'prepared_audio_invalid' || job.status === 'cancelled',
           })
+          preparationOperationId = preparation.operationId
         } catch (preparationError) {
           if (preparationError instanceof DOMException && preparationError.name === 'AbortError') throw preparationError
           if (!isBrowserCodecFallbackError(preparationError)) throw preparationError
-          setLocalPreparation(null)
+          if (owned.isCurrent()) setLocalPreparation(null)
         }
-        preparationAbortRef.current = null
       }
-      const result = await retryLyricTranscription(job.id)
+      if (!owned.isCurrent()) throw new DOMException('Retry was cancelled.', 'AbortError')
+      const result = await retryLyricTranscription(job.id, preparationOperationId)
+      if (!owned.isCurrent()) {
+        void cancelLyricTranscription(result.job.id).catch(() => undefined)
+        throw new DOMException('Retry no longer owns the selected track.', 'AbortError')
+      }
       setLocalPreparation(null)
       setJob(result.job)
       setDocument(null)
@@ -327,17 +412,35 @@ export function AiLyricExtractor({
       previewDocumentId.current = null
       setNotice(result.duplicate ? 'An active retry was already found and resumed.' : 'Retry queued.')
     } catch (retryError) {
-      if (!(retryError instanceof DOMException && retryError.name === 'AbortError')) {
-        setError(retryError instanceof Error ? retryError.message : 'Failed to retry transcription.')
-      } else {
-        setNotice('Audio preparation cancelled.')
+      const wasCancelled = retryError instanceof DOMException && retryError.name === 'AbortError'
+      if (preparationOperationId) {
+        try {
+          const operation = await getAudioPreparationOperation(preparationOperationId)
+          if (operation?.job_id && !owned.isCurrent()) {
+            await cancelLyricTranscription(operation.job_id).catch(() => undefined)
+          } else if (!operation?.job_id) {
+            await rollbackPreparedTranscriptionAudio(
+              preparationOperationId,
+              wasCancelled ? 'Retry preparation was cancelled before job creation.' : 'Retry job creation failed.',
+              wasCancelled ? 'cancelled' : 'failed',
+            )
+          }
+        } catch (reconcileError) {
+          console.error('[AiLyricExtractor] retry reconciliation failed:', reconcileError)
+        }
+      }
+      if (owned.isCurrent()) {
+        if (!wasCancelled) setError(retryError instanceof Error ? retryError.message : 'Failed to retry transcription.')
+        else setNotice('Audio preparation cancelled. Temporary assets will not be reused until cleanup is reconciled.')
       }
     } finally {
-      preparationAbortRef.current = null
-      setLocalPreparation(null)
-      setActionBusy(false)
+      if (operationGenerationRef.current === owned.generation) {
+        preparationAbortRef.current = null
+        setLocalPreparation(null)
+        setActionBusy(false)
+      }
     }
-  }, [job, selectedTrack])
+  }, [beginOwnedOperation, job, selectedTrack])
 
   if (!selectedTrack) {
     return (
@@ -472,8 +575,13 @@ export function AiLyricExtractor({
               Chunk {localPreparation.chunkIndex ?? 1} of {localPreparation.chunkTotal}
             </div>
           )}
+          {localPreparation.stage === 'decoding' && (
+            <div className="lmv-parse-next-hint">
+              Browser decoding cannot stop mid-call. Cancel still blocks every later resample, encode, upload, manifest, job, poll, and result step.
+            </div>
+          )}
           <div className="lmv-import-actions">
-            <button className="lmv-btn lmv-btn--ghost" onClick={() => preparationAbortRef.current?.abort()}>Cancel Preparation</button>
+            <button className="lmv-btn lmv-btn--ghost" onClick={() => { void handleCancel() }}>Cancel Preparation</button>
           </div>
         </div>
       )}

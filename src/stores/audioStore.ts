@@ -5,7 +5,6 @@ import {
   uploadAudioFile,
   createAudioTrack,
   createSignedAudioUrl,
-  deleteAudioTrack,
   deleteAudioFiles,
   updateAudioTrack,
   createTrackAnalysis,
@@ -15,6 +14,8 @@ import type { PreparedTranscriptionAudioManifest } from '../types/audio'
 import { getFilenameWithoutExtension } from '../utils/audioUtils'
 import type { AudioFileAnalysis } from '../utils/analyzeAudioFile'
 import { runtimeIdForAudioTrack } from '../audio/runtimeTrack'
+import { deleteAudioTrackCanonical, retryPendingAudioCleanup } from '../lib/audioTrackDeletion'
+import { retryPendingAudioPreparationCleanup } from '../lib/audioPreparationDb'
 
 // ── Public types ───────────────────────────────────────────────────────────────
 
@@ -98,6 +99,7 @@ interface AudioStoreState {
   getSignedUrl(storagePath: string): Promise<string | null>
   updateSavedTrackMetadata(id: string, patch: SavedAudioMetadataPatch): Promise<boolean>
   removeSavedTrack(id: string): Promise<boolean>
+  removeSavedTrackByDbId(dbId: string): Promise<boolean>
   clearError(): void
 }
 
@@ -122,6 +124,14 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
 
     set({ loading: true, loadError: null })
     try {
+      await Promise.all([
+        retryPendingAudioCleanup().catch(error => {
+          console.warn('[audioStore] pending track cleanup retry:', error)
+        }),
+        retryPendingAudioPreparationCleanup().catch(error => {
+          console.warn('[audioStore] pending preparation cleanup retry:', error)
+        }),
+      ])
       const { rows, error } = await listAudioTracks(userId)
       if (error) { set({ loadError: interpretError(error) }); return }
       set({ savedTracks: rows.map(rowToSaved) })
@@ -313,32 +323,28 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
       set({ loadError: 'That audio track is no longer available.' })
       return false
     }
+    return get().removeSavedTrackByDbId(track.dbId)
+  },
 
+  async removeSavedTrackByDbId(dbId) {
     if (!supabaseConfigured) {
       set({ loadError: 'Supabase is not configured.' })
       return false
     }
 
     try {
-      const { error: databaseError } = await deleteAudioTrack(track.dbId)
-      if (databaseError) {
-        set({ loadError: `Track deletion failed: ${interpretError(databaseError)}` })
+      const result = await deleteAudioTrackCanonical(dbId)
+      if (!result.ok) {
+        set({ loadError: `Track deletion failed: ${interpretError(result.message ?? 'Unknown deletion failure')}` })
         return false
       }
 
       set(state => ({
-        savedTracks: state.savedTracks.filter(item => item.id !== id),
-        loadError: null,
+        savedTracks: state.savedTracks.filter(item => item.dbId !== dbId),
+        loadError: result.pendingCleanup
+          ? interpretError(result.message ?? 'Track removed; storage cleanup is pending and will retry automatically.')
+          : null,
       }))
-
-      const derivativePaths = track.transcriptionAssets?.chunks.map(chunk => chunk.storagePath) ?? []
-      const storagePaths = [track.storagePath, ...derivativePaths].filter((path): path is string => Boolean(path))
-      if (storagePaths.length) {
-        const { error: storageError } = await deleteAudioFiles(storagePaths)
-        if (storageError) {
-          set({ loadError: `Track deleted, but audio cleanup failed: ${interpretError(storageError)}` })
-        }
-      }
       return true
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unexpected track deletion error'

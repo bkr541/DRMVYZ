@@ -1,5 +1,6 @@
-import { createContext, useContext, useMemo, useRef } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef } from 'react'
 import { useAudioEngine, type AudioEngine } from '../hooks/useAudioEngine'
+import { AUDIO_TRACK_DELETED_EVENT } from '../lib/audioTrackDeletion'
 
 const AudioEngineCtx = createContext<AudioEngine | null>(null)
 
@@ -7,6 +8,21 @@ export function AudioEngineProvider({ children }: { children: React.ReactNode })
   const engine = useAudioEngine()
   const engineRef = useRef(engine)
   engineRef.current = engine
+
+  useEffect(() => {
+    const handleDeletedTrack = (event: Event) => {
+      const detail = (event as CustomEvent<{ trackId?: string }>).detail
+      const trackId = detail?.trackId
+      if (!trackId) return
+      const current = engineRef.current
+      const runtimeTrack = current.tracks.find(track => track.dbId === trackId)
+      if (!runtimeTrack) return
+      if (current.currentAudioTrackId === trackId) current.stop()
+      current.removeTrack(runtimeTrack.id)
+    }
+    window.addEventListener(AUDIO_TRACK_DELETED_EVENT, handleDeletedTrack)
+    return () => window.removeEventListener(AUDIO_TRACK_DELETED_EVENT, handleDeletedTrack)
+  }, [])
 
   // Only propagate a new context value when observable state fields change.
   // Stable useCallback method references are intentionally excluded — they don't

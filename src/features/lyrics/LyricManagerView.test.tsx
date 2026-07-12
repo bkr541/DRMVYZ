@@ -39,6 +39,7 @@ const mocks = vi.hoisted(() => {
     getLyricDocumentByClientLogicalId: vi.fn(),
     updateLyricDocument: vi.fn(),
     getSignedUrl: vi.fn(),
+    removeSavedTrackByDbId: vi.fn(),
   }
 })
 
@@ -70,10 +71,16 @@ vi.mock('../../context/AudioEngineContext', () => ({
   useSharedAudio: () => mocks.engine,
 }))
 
-vi.mock('../../stores/audioStore', () => ({
-  useAudioStore: (selector: (state: { getSignedUrl: typeof mocks.getSignedUrl }) => unknown) =>
-    selector({ getSignedUrl: mocks.getSignedUrl }),
-}))
+vi.mock('../../stores/audioStore', () => {
+  const state = {
+    getSignedUrl: mocks.getSignedUrl,
+    removeSavedTrackByDbId: mocks.removeSavedTrackByDbId,
+    loadError: null as string | null,
+  }
+  const useAudioStore = (selector: (value: typeof state) => unknown) => selector(state)
+  useAudioStore.getState = () => state
+  return { useAudioStore }
+})
 
 vi.mock('../../components/vyzualz/shared/VyzualzHeaderActions', () => ({
   VyzualzHeaderActions: () => null,
@@ -211,6 +218,7 @@ beforeEach(() => {
   indexDocuments()
 
   mocks.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
+  mocks.removeSavedTrackByDbId.mockResolvedValue(true)
   mocks.loadTrackPage.mockResolvedValue({ tracks: [trackA, trackB], total: 2 })
   mocks.getLegacyVersions.mockResolvedValue([])
   mocks.getLyricDocumentByClientLogicalId.mockResolvedValue(null)
@@ -336,6 +344,19 @@ function buttonWithText(text: string, rootElement: ParentNode = container): HTML
 }
 
 describe('LyricManagerView track-first workflow', () => {
+  it('routes track deletion through the same canonical audio-store operation used by other audio surfaces', async () => {
+    await render()
+    const deleteButton = container.querySelector<HTMLButtonElement>('[aria-label="Delete Reverie and all lyric versions"]')
+    expect(deleteButton).not.toBeNull()
+
+    await act(async () => deleteButton!.click())
+    expect(container.textContent).toContain('Delete track?')
+    await act(async () => buttonWithText('Delete Track').click())
+    await waitFor(() => expect(mocks.removeSavedTrackByDbId).toHaveBeenCalledWith('track-a'))
+
+    expect(container.textContent).not.toContain('Reverie')
+  })
+
   it('loads stored tracks, selects a track, loads all versions, and opens the active version without starting playback', async () => {
     await render()
 

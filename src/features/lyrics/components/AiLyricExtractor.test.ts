@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   functionsInvoke: vi.fn(),
   from: vi.fn(),
   getFullLyricDocument: vi.fn(),
+  rollbackPreparedTranscriptionAudio: vi.fn(),
+  getAudioPreparationOperation: vi.fn(),
 }))
 
 vi.mock('../../../lib/supabase', () => ({
@@ -27,6 +29,11 @@ vi.mock('../../../lib/lyricsDb', () => ({
 
 vi.mock('../services/localAudioPreparation', () => ({
   ensurePreparedTranscriptionAudio: mocks.ensurePreparedTranscriptionAudio,
+  rollbackPreparedTranscriptionAudio: mocks.rollbackPreparedTranscriptionAudio,
+}))
+
+vi.mock('../../../lib/audioPreparationDb', () => ({
+  getAudioPreparationOperation: mocks.getAudioPreparationOperation,
 }))
 
 import { OFFLINE_LYRIC_EXTRACTION_MESSAGE, AiLyricExtractor, chooseRecoveredJob } from './AiLyricExtractor'
@@ -181,6 +188,28 @@ async function renderExtractor(track: LyricManagerTrack | null = selectedTrack()
   await flush()
 }
 
+async function rerenderExtractor(track: LyricManagerTrack | null): Promise<void> {
+  await act(async () => {
+    root!.render(React.createElement(AiLyricExtractor, {
+      selectedTrack: track,
+      existingDocumentCount: 0,
+      onOpenCompletedDraft: vi.fn(),
+      onActivateCompletedDraft: vi.fn(),
+    }))
+  })
+  await flush()
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
 function buttonByText(text: string): HTMLButtonElement {
   const button = [...container!.querySelectorAll<HTMLButtonElement>('button')]
     .find(candidate => candidate.textContent?.trim() === text)
@@ -195,6 +224,8 @@ beforeEach(() => {
   setNavigatorOnline(true)
   mockRecentJobs()
   mocks.ensurePreparedTranscriptionAudio.mockResolvedValue({ prepared: false })
+  mocks.rollbackPreparedTranscriptionAudio.mockResolvedValue(true)
+  mocks.getAudioPreparationOperation.mockResolvedValue(null)
   mocks.functionsInvoke.mockImplementation(async (_name: string, options: { body?: Record<string, unknown> }) => {
     const action = options.body?.action
     if (action === 'start') return { data: { job: jobRow('started', 'queued'), duplicate: false }, error: null }
@@ -259,7 +290,7 @@ describe('AI lyric extractor refresh recovery', () => {
       provider_metadata: { processingStage: 'transcribing', processingMode: 'prepared-audio', chunksCompleted: 1, chunksTotal: 3 },
     })]
     mocks.functionsInvoke.mockResolvedValue({
-      data: { job: jobRow('completed', 'completed', { lyric_document_id: 'doc-completed', provider_metadata: { model: 'whisper-large-v3-turbo', processingMode: 'prepared-audio', unitCount: 3 } }) },
+      data: { job: jobRow('processing', 'completed', { lyric_document_id: 'doc-completed', provider_metadata: { model: 'whisper-large-v3-turbo', processingMode: 'prepared-audio', unitCount: 3 } }) },
       error: null,
     })
 
@@ -319,11 +350,11 @@ describe('AI lyric extractor internet-required guard', () => {
 
     expect(mocks.ensurePreparedTranscriptionAudio).toHaveBeenCalled()
     expect(mocks.functionsInvoke).toHaveBeenCalledWith('lyric-transcription', {
-      body: {
+      body: expect.objectContaining({
         action: 'start',
         audioTrackId: 'track-1',
         options: expect.objectContaining({ timingDetail: 'line+word' }),
-      },
+      }),
     })
     expect(container!.textContent).toContain('Extraction queued')
   })
@@ -359,6 +390,87 @@ describe('AI lyric extractor internet-required guard', () => {
   })
 })
 
+describe('AI lyric extractor operation ownership', () => {
+  it('rolls back prepared chunks when transcription job creation fails', async () => {
+    mocks.ensurePreparedTranscriptionAudio.mockResolvedValueOnce({ prepared: true, operationId: 'prep-op-1' })
+    mocks.functionsInvoke.mockResolvedValueOnce({ data: { error: { code: 'database_save_failure', message: 'Job creation failed.' } }, error: null })
+    mocks.getAudioPreparationOperation.mockResolvedValueOnce({ job_id: null })
+
+    await renderExtractor()
+    await act(async () => buttonByText('Start Automatic Extraction').click())
+    await flush()
+
+    expect(mocks.rollbackPreparedTranscriptionAudio).toHaveBeenCalledWith(
+      'prep-op-1',
+      'Transcription job creation failed.',
+      'failed',
+    )
+    expect(container!.textContent).toContain('Job creation failed.')
+  })
+
+  it('ignores a completed-document response that arrives after the selected track changes', async () => {
+    const previewResponse = deferred<{ document: LyricDocument; cues: LyricCue[] }>()
+    recentRows = [jobRow('old-completed', 'completed')]
+    mocks.getFullLyricDocument.mockReturnValueOnce(previewResponse.promise)
+
+    await renderExtractor()
+    recentRows = []
+    await rerenderExtractor({ ...selectedTrack(), id: 'audio-track-2', dbId: 'track-2', title: 'From Grace' })
+
+    previewResponse.resolve({ document: lyricDocument('doc-old-completed'), cues: [cue()] })
+    await flush()
+
+    expect(container!.textContent).toContain('From Grace')
+    expect(container!.textContent).not.toContain('Recovered AI Draft')
+  })
+
+  it('cancels and ignores a late start response after the selected track changes', async () => {
+    const startResponse = deferred<{ data: { job: LyricTranscriptionJobRow; duplicate: boolean }; error: null }>()
+    mocks.functionsInvoke.mockImplementation(async (_name: string, options: { body?: Record<string, unknown> }) => {
+      if (options.body?.action === 'start') return startResponse.promise
+      if (options.body?.action === 'cancel') return { data: { job: jobRow('late-job', 'cancelled') }, error: null }
+      return { data: {}, error: null }
+    })
+
+    await renderExtractor()
+    await act(async () => buttonByText('Start Automatic Extraction').click())
+    const nextTrack = { ...selectedTrack(), id: 'audio-track-2', dbId: 'track-2', title: 'From Grace', fileName: 'from-grace.mp3', storagePath: 'user-1/from-grace.mp3' }
+    await rerenderExtractor(nextTrack)
+    expect(buttonByText('Start Automatic Extraction').disabled).toBe(false)
+
+    startResponse.resolve({ data: { job: jobRow('late-job', 'queued'), duplicate: false }, error: null })
+    await flush()
+    await flush()
+
+    expect(mocks.functionsInvoke).toHaveBeenCalledWith('lyric-transcription', { body: { action: 'cancel', jobId: 'late-job' } })
+    expect(container!.textContent).toContain('From Grace')
+    expect(container!.textContent).not.toContain('Extraction queued')
+    expect(mocks.getFullLyricDocument).not.toHaveBeenCalled()
+  })
+
+  it('cancels a reconciled server job when an ambiguous start failure arrives after ownership changed', async () => {
+    const startResponse = deferred<{ data: { error: { code: string; message: string } }; error: null }>()
+    mocks.ensurePreparedTranscriptionAudio.mockResolvedValueOnce({ prepared: true, operationId: 'prep-op-attached' })
+    mocks.getAudioPreparationOperation.mockResolvedValueOnce({ job_id: 'attached-job' })
+    mocks.functionsInvoke.mockImplementation(async (_name: string, options: { body?: Record<string, unknown> }) => {
+      if (options.body?.action === 'start') return startResponse.promise
+      if (options.body?.action === 'cancel') return { data: { job: jobRow('attached-job', 'cancelled') }, error: null }
+      return { data: {}, error: null }
+    })
+
+    await renderExtractor()
+    await act(async () => buttonByText('Start Automatic Extraction').click())
+    await rerenderExtractor({ ...selectedTrack(), id: 'audio-track-2', dbId: 'track-2', title: 'From Grace' })
+
+    startResponse.resolve({ data: { error: { code: 'database_save_failure', message: 'Response interrupted.' } }, error: null })
+    await flush()
+    await flush()
+
+    expect(mocks.functionsInvoke).toHaveBeenCalledWith('lyric-transcription', { body: { action: 'cancel', jobId: 'attached-job' } })
+    expect(container!.textContent).not.toContain('Response interrupted.')
+  })
+})
+
 describe('AI lyric extractor provider labels and retries', () => {
   it('labels known providers and only falls back to a raw id for unknown providers', () => {
     expect(lyricTranscriptionProviderLabel('groq')).toBe('Groq Whisper')
@@ -381,7 +493,7 @@ describe('AI lyric extractor provider labels and retries', () => {
     expect(mocks.ensurePreparedTranscriptionAudio).toHaveBeenCalledWith(selectedTrack(), expect.objectContaining({
       force: false,
     }))
-    expect(mocks.functionsInvoke).toHaveBeenCalledWith('lyric-transcription', { body: { action: 'retry', jobId: 'failed-groq' } })
+    expect(mocks.functionsInvoke).toHaveBeenCalledWith('lyric-transcription', { body: expect.objectContaining({ action: 'retry', jobId: 'failed-groq' }) })
     expect(container!.textContent).toContain('Retry queued.')
   })
 })

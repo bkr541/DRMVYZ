@@ -141,17 +141,65 @@ export interface AudioTrack {
   external_source: string | null
   external_track_id: string | null
   external_metadata: Json | null
+  // Added in migration 0027
+  lifecycle_status: 'complete' | 'deletion_pending'
+  deletion_requested_at: string | null
   created_at: string
   updated_at: string
 }
 
-export type AudioTrackInsert = Omit<AudioTrack, 'id' | 'created_at' | 'updated_at' | 'transcription_assets' | 'external_source' | 'external_track_id' | 'external_metadata'> & {
+export type AudioTrackInsert = Omit<AudioTrack, 'id' | 'created_at' | 'updated_at' | 'transcription_assets' | 'external_source' | 'external_track_id' | 'external_metadata' | 'lifecycle_status' | 'deletion_requested_at'> & {
   transcription_assets?: PreparedTranscriptionAudioManifest | null
   external_source?: string | null
   external_track_id?: string | null
   external_metadata?: Json | null
+  lifecycle_status?: 'complete' | 'deletion_pending'
+  deletion_requested_at?: string | null
 }
 
+
+
+export interface AudioPreparationOperationRow {
+  id: string
+  user_id: string
+  audio_track_id: string
+  operation_id: string
+  version: string
+  source_file_size: number
+  duration_ms: number
+  source_sample_rate: number
+  source_channels: number
+  target_sample_rate: number
+  intended_chunk_count: number
+  intended_paths: string[]
+  uploaded_chunks: Array<{ index: number; path: string; byteSize: number }>
+  cleanup_completed_indices: number[]
+  superseded_paths: string[]
+  superseded_completed_paths: string[]
+  manifest_saved: boolean
+  job_id: string | null
+  status: 'preparing' | 'uploading' | 'manifest_saved' | 'job_created' | 'cleanup_pending' | 'cancelled' | 'failed' | 'complete'
+  phase: 'planning' | 'encoding' | 'uploading' | 'saving_manifest' | 'creating_job' | 'cleanup' | 'complete' | 'failed' | 'cancelled'
+  last_error: string | null
+  created_at: string
+  updated_at: string
+  completed_at: string | null
+}
+
+export interface AudioCleanupJobRow {
+  id: string
+  user_id: string
+  audio_track_id: string | null
+  track_id_snapshot: string
+  kind: 'track_deletion'
+  status: 'pending' | 'failed' | 'complete'
+  storage_paths: string[]
+  completed_paths: string[]
+  last_error: string | null
+  created_at: string
+  updated_at: string
+  completed_at: string | null
+}
 
 export interface TrackCueRow {
   id: string
@@ -583,6 +631,50 @@ export interface Database {
         Returns: Json
       }
 
+      begin_audio_preparation: {
+        Args: {
+          p_audio_track_id: string
+          p_operation_id: string
+          p_source_file_size: number
+          p_duration_ms: number
+          p_source_sample_rate: number
+          p_source_channels: number
+          p_chunk_count: number
+        }
+        Returns: Json
+      }
+      mark_audio_preparation_chunk_uploaded: {
+        Args: { p_operation_id: string; p_chunk_index: number; p_byte_size: number }
+        Returns: Json
+      }
+      finalize_audio_preparation_manifest: {
+        Args: { p_operation_id: string; p_manifest: Json }
+        Returns: Json
+      }
+      record_audio_preparation_cleanup: {
+        Args: { p_operation_id: string; p_completed_indices: Json; p_status: string; p_error?: string | null }
+        Returns: Json
+      }
+      record_audio_preparation_superseded_cleanup: {
+        Args: { p_operation_id: string; p_completed_paths: Json; p_error?: string | null }
+        Returns: Json
+      }
+      request_audio_track_deletion: {
+        Args: { p_audio_track_id: string }
+        Returns: Json
+      }
+      update_audio_cleanup_job: {
+        Args: { p_cleanup_job_id: string; p_completed_paths: Json; p_status: string; p_error?: string | null }
+        Returns: Json
+      }
+      finalize_audio_track_deletion: {
+        Args: { p_cleanup_job_id: string }
+        Returns: Json
+      }
+      list_pending_audio_cleanup: {
+        Args: Record<string, never>
+        Returns: Json
+      }
       begin_media_upload: {
         Args: { p_operation_id: string; p_original_path: string; p_derivative_paths: Json }
         Returns: Json
@@ -643,6 +735,8 @@ export interface Database {
         ]
       }
       tags:                   { Row: DBRec<Tag>;                  Insert: DBRec<Omit<Tag,'id'>>;                                         Update: DBRec<Partial<Omit<Tag,'id'>>>; Relationships: [] }
+      audio_preparation_operations: { Row: DBRec<AudioPreparationOperationRow>; Insert: never; Update: never; Relationships: [] }
+      audio_cleanup_jobs: { Row: DBRec<AudioCleanupJobRow>; Insert: never; Update: never; Relationships: [] }
       audio_tracks:           { Row: DBRec<AudioTrack>;           Insert: DBRec<AudioTrackInsert>;                                       Update: DBRec<Partial<Omit<AudioTrack,'id'>>>; Relationships: [] }
       track_analyses:         { Row: DBRec<TrackAnalysisRow>;     Insert: DBRec<Omit<TrackAnalysisRow,'id'|'analyzed_at'|'analysis_payload'> & { analysis_payload?: Json | null }>;              Update: DBRec<Partial<Omit<TrackAnalysisRow,'id'>>>; Relationships: [] }
       analyzer_sessions:      { Row: DBRec<AnalyzerSessionRow>;   Insert: DBRec<Omit<AnalyzerSessionRow,'id'|'created_at'|'updated_at'>>;Update: DBRec<Partial<Omit<AnalyzerSessionRow,'id'>>>; Relationships: [] }

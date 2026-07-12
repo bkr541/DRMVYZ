@@ -74,7 +74,9 @@ export interface PreparedTranscriptionAudioChunk {
 }
 
 export interface PreparedTranscriptionAudioManifest {
-  version: 'browser-pcm16-v1'
+  version: 'browser-pcm16-v1' | 'browser-pcm16-v2'
+  /** Stable, account-scoped preparation identity for retry/cancellation ownership. */
+  operationId?: string
   preparedAt: string
   sourceFileSize: number
   sourceMimeType: string | null

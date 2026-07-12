@@ -133,8 +133,9 @@ export function isActiveLyricTranscriptionJob(job: LyricTranscriptionJob | null 
 export async function startLyricTranscription(
   audioTrackId: string,
   options: LyricTranscriptionOptions = {},
+  preparationOperationId?: string,
 ): Promise<StartLyricTranscriptionResult> {
-  const payload = await invokeJobAction({ action: 'start', audioTrackId, options })
+  const payload = await invokeJobAction({ action: 'start', audioTrackId, options, preparationOperationId })
   if (!payload.job) throw new Error('The transcription service did not return a job.')
   return { job: mapJob(payload.job), duplicate: payload.duplicate === true }
 }
@@ -151,8 +152,11 @@ export async function cancelLyricTranscription(jobId: string): Promise<LyricTran
   return mapJob(payload.job)
 }
 
-export async function retryLyricTranscription(jobId: string): Promise<StartLyricTranscriptionResult> {
-  const payload = await invokeJobAction({ action: 'retry', jobId })
+export async function retryLyricTranscription(
+  jobId: string,
+  preparationOperationId?: string,
+): Promise<StartLyricTranscriptionResult> {
+  const payload = await invokeJobAction({ action: 'retry', jobId, preparationOperationId })
   if (!payload.job) throw new Error('The transcription job could not be retried.')
   return { job: mapJob(payload.job), duplicate: payload.duplicate === true }
 }

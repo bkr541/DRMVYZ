@@ -45,8 +45,8 @@ const ACTIVE_STATUSES = ['queued', 'processing'] as const
 
 // Increment this whenever a behaviorally significant change is deployed so clients
 // can detect stale deployments from job.providerMetadata.fnVersion.
-const LYRIC_TRANSCRIPTION_FN_VERSION = '3.0.0'
-const PREPARED_AUDIO_VERSION = 'browser-pcm16-v1'
+const LYRIC_TRANSCRIPTION_FN_VERSION = '3.1.0'
+const PREPARED_AUDIO_VERSION = 'browser-pcm16-v2'
 const MAX_PREPARED_AUDIO_CHUNKS = 64
 
 type ProcessingMode = 'direct' | 'wav-chunking' | 'prepared-audio' | 'long-audio-worker'
@@ -62,6 +62,7 @@ interface AudioTrackRow {
   file_size: number | null
   mime_type: string | null
   transcription_assets: unknown
+  lifecycle_status: 'complete' | 'deletion_pending'
 }
 
 
@@ -79,6 +80,7 @@ interface PreparedAudioChunk {
 
 interface PreparedAudioManifest {
   version: string
+  operationId?: string
   preparedAt: string
   sourceFileSize: number
   sourceMimeType: string | null
@@ -111,11 +113,13 @@ interface StartRequest {
   action: 'start'
   audioTrackId: string
   options?: Record<string, unknown>
+  preparationOperationId?: string
 }
 
 interface JobRequest {
   action: 'status' | 'cancel' | 'retry'
   jobId: string
+  preparationOperationId?: string
 }
 
 type RequestBody = StartRequest | JobRequest
@@ -238,9 +242,19 @@ function isLikelyWavFile(track: AudioTrackRow): boolean {
 }
 
 
-function preparedAudioManifest(track: AudioTrackRow, maxChunkBytes: number): PreparedAudioManifest | null {
+function preparedAudioManifest(
+  track: AudioTrackRow,
+  maxChunkBytes: number,
+  expectedOperationId?: string | null,
+): PreparedAudioManifest | null {
   const root = asRecord(track.transcription_assets)
-  if (root.version !== PREPARED_AUDIO_VERSION || !Array.isArray(root.chunks)) return null
+  if ((root.version !== 'browser-pcm16-v1' && root.version !== PREPARED_AUDIO_VERSION) || !Array.isArray(root.chunks)) return null
+  const operationId = typeof root.operationId === 'string' ? root.operationId : undefined
+  // Ledger-backed v2 assets are only consumable by the job that supplied and
+  // validated their operation identity. Legacy v1 manifests remain readable
+  // for backward compatibility, but cannot gain v2 cancellation semantics.
+  if (root.version === PREPARED_AUDIO_VERSION && (!operationId || !expectedOperationId)) return null
+  if (expectedOperationId && operationId !== expectedOperationId) return null
   if (root.chunks.length < 1 || root.chunks.length > MAX_PREPARED_AUDIO_CHUNKS) return null
 
   const durationMs = finiteNumber(root.durationMs)
@@ -286,7 +300,8 @@ function preparedAudioManifest(track: AudioTrackRow, maxChunkBytes: number): Pre
   }
 
   return {
-    version: PREPARED_AUDIO_VERSION,
+    version: root.version as string,
+    operationId,
     preparedAt: root.preparedAt,
     sourceFileSize,
     sourceMimeType: root.sourceMimeType as string | null,
@@ -348,7 +363,7 @@ async function authenticatedClients(req: Request): Promise<{
 async function ownedTrack(adminClient: SupabaseClient, userId: string, audioTrackId: string): Promise<AudioTrackRow> {
   const { data, error } = await adminClient
     .from('audio_tracks')
-    .select('id,user_id,title,artist,file_name,storage_path,duration_sec,file_size,mime_type,transcription_assets')
+    .select('id,user_id,title,artist,file_name,storage_path,duration_sec,file_size,mime_type,transcription_assets,lifecycle_status')
     .eq('id', audioTrackId)
     .eq('user_id', userId)
     .maybeSingle()
@@ -358,6 +373,7 @@ async function ownedTrack(adminClient: SupabaseClient, userId: string, audioTrac
 }
 
 function validateTrack(track: AudioTrackRow): void {
+  if (track.lifecycle_status !== 'complete') throw new TranscriptionError('track_deletion_pending', 'This track is being deleted and cannot start new transcription work.', 409)
   if (!track.storage_path) throw new TranscriptionError('missing_stored_file', 'The selected track does not have a stored audio file.')
   if (!isSupportedAudio(track)) throw new TranscriptionError('unsupported_audio', 'This audio format is not supported for automatic lyric extraction.')
   if (track.file_size !== null && track.file_size > MAX_STORED_AUDIO_BYTES) {
@@ -384,6 +400,7 @@ async function createJob(
   userId: string,
   track: AudioTrackRow,
   options: Record<string, unknown>,
+  preparationOperationId?: string | null,
 ): Promise<{ job: JobRow; duplicate: boolean }> {
   const existing = await activeJob(adminClient, userId, track.id)
   if (existing) return { job: existing, duplicate: true }
@@ -397,7 +414,7 @@ async function createJob(
       provider,
       status: 'queued',
       progress: 0,
-      request_options: options,
+      request_options: preparationOperationId ? { ...options, preparationOperationId } : options,
       provider_metadata: {},
     })
     .select('*')
@@ -418,17 +435,269 @@ async function updateJob(
   jobId: string,
   patch: Record<string, unknown>,
 ): Promise<void> {
-  const { error } = await adminClient.from('lyric_transcription_jobs').update(patch).eq('id', jobId)
+  let query = adminClient.from('lyric_transcription_jobs').update(patch).eq('id', jobId)
+  if (patch.status === 'processing') query = query.eq('status', 'queued')
+  else if (patch.status === 'cancelled' || patch.status === 'failed') query = query.in('status', [...ACTIVE_STATUSES])
+  else if (!('status' in patch)) query = query.in('status', [...ACTIVE_STATUSES])
+  const { error } = await query
   if (error) console.error('[lyric-transcription] job update failed', error.code)
+}
+
+async function throwIfJobCancelled(adminClient: SupabaseClient, jobId: string): Promise<void> {
+  if (await jobWasCancelled(adminClient, jobId)) {
+    throw new TranscriptionError('cancelled', 'Transcription was cancelled.', 409)
+  }
 }
 
 async function jobWasCancelled(adminClient: SupabaseClient, jobId: string): Promise<boolean> {
   const { data } = await adminClient
     .from('lyric_transcription_jobs')
-    .select('status')
+    .select('status,audio_track_id')
     .eq('id', jobId)
     .maybeSingle()
-  return data?.status === 'cancelled'
+  if (!data || !ACTIVE_STATUSES.has(data.status as JobStatus)) return true
+  const { data: track } = await adminClient
+    .from('audio_tracks')
+    .select('lifecycle_status')
+    .eq('id', data.audio_track_id)
+    .maybeSingle()
+  return !track || track.lifecycle_status !== 'complete'
+}
+
+interface PreparationOperationRow {
+  operation_id: string
+  user_id: string
+  audio_track_id: string
+  intended_chunk_count: number
+  intended_paths: string[]
+  cleanup_completed_indices: number[]
+  manifest_saved: boolean
+  job_id: string | null
+  status: string
+}
+
+async function validatePreparationOperation(
+  adminClient: SupabaseClient,
+  userId: string,
+  track: AudioTrackRow,
+  operationId: string | undefined,
+): Promise<PreparationOperationRow | null> {
+  if (!operationId) return null
+  const manifest = preparedAudioManifest(track, groqSafeAudioBytes(), operationId)
+  if (!manifest || manifest.operationId !== operationId) {
+    throw new TranscriptionError('prepared_audio_invalid', 'The prepared transcription manifest is stale or incomplete. Retry audio preparation.', 409)
+  }
+  const { data, error } = await adminClient
+    .from('audio_preparation_operations')
+    .select('operation_id,user_id,audio_track_id,intended_chunk_count,intended_paths,cleanup_completed_indices,manifest_saved,job_id,status')
+    .eq('operation_id', operationId)
+    .eq('user_id', userId)
+    .eq('audio_track_id', track.id)
+    .maybeSingle()
+  if (error) throw new TranscriptionError('database_save_failure', 'The preparation operation could not be verified.', 500)
+  const operation = data as PreparationOperationRow | null
+  if (!operation || !operation.manifest_saved || !['manifest_saved', 'job_created'].includes(operation.status)) {
+    throw new TranscriptionError('prepared_audio_invalid', 'The prepared transcription operation is not ready for a job.', 409)
+  }
+  if (
+    !Array.isArray(operation.intended_paths)
+    || operation.intended_paths.length !== operation.intended_chunk_count
+    || manifest.chunks.length !== operation.intended_chunk_count
+    || manifest.chunks.some((chunk, index) => chunk.storagePath !== operation.intended_paths[index])
+  ) {
+    throw new TranscriptionError('prepared_audio_invalid', 'The prepared transcription manifest does not match its canonical operation paths.', 409)
+  }
+  return operation
+}
+
+async function attachPreparationJob(
+  adminClient: SupabaseClient,
+  operation: PreparationOperationRow | null,
+  job: JobRow,
+): Promise<void> {
+  if (!operation) return
+  if (operation.job_id && operation.job_id !== job.id) {
+    const { data: priorJob, error: priorJobError } = await adminClient
+      .from('lyric_transcription_jobs')
+      .select('status')
+      .eq('id', operation.job_id)
+      .eq('user_id', operation.user_id)
+      .eq('audio_track_id', operation.audio_track_id)
+      .maybeSingle()
+    if (priorJobError || !priorJob || !['failed', 'cancelled'].includes(String(priorJob.status))) {
+      throw new TranscriptionError('prepared_audio_invalid', 'This preparation operation is already bound to another transcription job.', 409)
+    }
+  }
+
+  let query = adminClient
+    .from('audio_preparation_operations')
+    .update({
+      job_id: job.id,
+      status: 'job_created',
+      phase: 'complete',
+      completed_at: new Date().toISOString(),
+      last_error: null,
+    })
+    .eq('operation_id', operation.operation_id)
+    .eq('user_id', operation.user_id)
+    .eq('audio_track_id', operation.audio_track_id)
+    .in('status', ['manifest_saved', 'job_created'])
+  query = operation.job_id ? query.eq('job_id', operation.job_id) : query.is('job_id', null)
+  const { data, error } = await query.select('operation_id').maybeSingle()
+  if (error || !data) throw new TranscriptionError('database_save_failure', 'The transcription job could not be bound to its prepared audio.', 500)
+}
+
+function exactPreparationPath(operation: PreparationOperationRow, index: number): string {
+  return `${operation.user_id}/transcription-chunks/${operation.audio_track_id}/${operation.operation_id}/chunk-${String(index).padStart(3, '0')}.wav`
+}
+
+async function removePreparationPaths(
+  adminClient: SupabaseClient,
+  operation: PreparationOperationRow,
+): Promise<{ completed: Set<number>; allCleaned: boolean; lastError: string | null }> {
+  const completed = new Set(operation.cleanup_completed_indices)
+  let lastError: string | null = null
+  if (
+    !Number.isInteger(operation.intended_chunk_count)
+    || operation.intended_chunk_count < 1
+    || operation.intended_chunk_count > MAX_PREPARED_AUDIO_CHUNKS
+    || operation.intended_paths.length !== operation.intended_chunk_count
+  ) {
+    return { completed, allCleaned: false, lastError: 'Prepared-audio cleanup metadata is incomplete.' }
+  }
+
+  for (let index = 0; index < operation.intended_paths.length; index += 1) {
+    if (completed.has(index)) continue
+    const path = operation.intended_paths[index]
+    if (path !== exactPreparationPath(operation, index)) {
+      lastError = 'Prepared-audio cleanup metadata contains an invalid path.'
+      break
+    }
+    const { error } = await adminClient.storage.from(AUDIO_BUCKET).remove([path])
+    if (error) { lastError = error.message; break }
+    completed.add(index)
+  }
+  return {
+    completed,
+    allCleaned: operation.intended_paths.every((_path, index) => completed.has(index)),
+    lastError,
+  }
+}
+
+async function cleanupUnattachedPreparationOperation(
+  adminClient: SupabaseClient,
+  operation: PreparationOperationRow,
+  reason: string,
+): Promise<void> {
+  const { completed, allCleaned, lastError } = await removePreparationPaths(adminClient, operation)
+  await adminClient
+    .from('audio_preparation_operations')
+    .update({
+      cleanup_completed_indices: [...completed].sort((a, b) => a - b),
+      status: allCleaned ? 'cancelled' : 'cleanup_pending',
+      phase: allCleaned ? 'cancelled' : 'cleanup',
+      manifest_saved: false,
+      job_id: null,
+      last_error: lastError ?? reason,
+      completed_at: allCleaned ? new Date().toISOString() : null,
+    })
+    .eq('operation_id', operation.operation_id)
+    .eq('user_id', operation.user_id)
+    .eq('audio_track_id', operation.audio_track_id)
+    .is('job_id', null)
+
+  const { data: trackData } = await adminClient
+    .from('audio_tracks')
+    .select('transcription_assets')
+    .eq('id', operation.audio_track_id)
+    .eq('user_id', operation.user_id)
+    .maybeSingle()
+  if (asRecord(trackData?.transcription_assets).operationId === operation.operation_id) {
+    await adminClient.from('audio_tracks')
+      .update({ transcription_assets: null })
+      .eq('id', operation.audio_track_id)
+      .eq('user_id', operation.user_id)
+  }
+}
+
+async function cleanupPreparationAfterCancellation(
+  adminClient: SupabaseClient,
+  userId: string,
+  job: JobRow,
+): Promise<void> {
+  const operationId = typeof job.request_options.preparationOperationId === 'string'
+    ? job.request_options.preparationOperationId
+    : null
+  if (!operationId) return
+  const { data } = await adminClient
+    .from('audio_preparation_operations')
+    .select('operation_id,user_id,audio_track_id,intended_chunk_count,intended_paths,cleanup_completed_indices,manifest_saved,job_id,status')
+    .eq('operation_id', operationId)
+    .eq('user_id', userId)
+    .eq('audio_track_id', job.audio_track_id)
+    .eq('job_id', job.id)
+    .maybeSingle()
+  const operation = data as PreparationOperationRow | null
+  if (!operation) return
+
+  const { completed, allCleaned, lastError } = await removePreparationPaths(adminClient, operation)
+  await adminClient
+    .from('audio_preparation_operations')
+    .update({
+      cleanup_completed_indices: [...completed].sort((a, b) => a - b),
+      status: allCleaned ? 'cancelled' : 'cleanup_pending',
+      phase: allCleaned ? 'cancelled' : 'cleanup',
+      manifest_saved: false,
+      last_error: lastError ?? 'Transcription and prepared audio were cancelled.',
+      completed_at: allCleaned ? new Date().toISOString() : null,
+    })
+    .eq('operation_id', operationId)
+    .eq('user_id', userId)
+    .eq('job_id', job.id)
+
+  const { data: trackData } = await adminClient
+    .from('audio_tracks')
+    .select('transcription_assets')
+    .eq('id', job.audio_track_id)
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (asRecord(trackData?.transcription_assets).operationId === operationId) {
+    await adminClient.from('audio_tracks')
+      .update({ transcription_assets: null })
+      .eq('id', job.audio_track_id)
+      .eq('user_id', userId)
+  }
+}
+
+async function reconcileCreatedPreparationJob(
+  adminClient: SupabaseClient,
+  operation: PreparationOperationRow | null,
+  created: { job: JobRow; duplicate: boolean },
+): Promise<void> {
+  if (created.duplicate && operation && operation.job_id !== created.job.id) {
+    await cleanupUnattachedPreparationOperation(adminClient, operation, 'An existing active transcription job already owns this track.')
+    return
+  }
+  try {
+    await attachPreparationJob(adminClient, operation, created.job)
+  } catch (error) {
+    if (!created.duplicate) {
+      await updateJob(adminClient, created.job.id, {
+        status: 'failed',
+        error_code: 'database_save_failure',
+        error_message: 'The transcription job could not be bound to its prepared audio.',
+        completed_at: new Date().toISOString(),
+      })
+      if (operation && !operation.job_id) {
+        await cleanupUnattachedPreparationOperation(
+          adminClient,
+          operation,
+          'The transcription job could not be bound to its prepared audio.',
+        )
+      }
+    }
+    throw error
+  }
 }
 
 function providerWords(value: unknown): ProviderWord[] {
@@ -661,6 +930,7 @@ async function runGroqProvider(
   onChunkProgress?: (completed: number, total: number) => Promise<void>,
   preFetchedSourceBytes?: Uint8Array,
   plannedChunks?: (total: number) => Promise<void>,
+  assertCurrent?: () => Promise<void>,
 ): Promise<ProviderRunResult> {
   const apiKey = requiredEnv('GROQ_API_KEY')
   const maxBytes = groqSafeAudioBytes()
@@ -668,6 +938,7 @@ async function runGroqProvider(
   const models = groqTranscriptionModels()
 
   if (blob.size <= maxBytes) {
+    if (assertCurrent) await assertCurrent()
     const result = await requestGroqTranscript(
       apiKey,
       models,
@@ -677,6 +948,7 @@ async function runGroqProvider(
       options,
       timeoutMs,
     )
+    if (assertCurrent) await assertCurrent()
     const transcript = providerTranscript(result.payload)
     const storedDurationMs = track.duration_sec && track.duration_sec > 0
       ? Math.round(track.duration_sec * 1000)
@@ -708,8 +980,9 @@ async function runGroqProvider(
   const concurrency = groqTranscriptionConcurrency()
   let chunksCompleted = 0
   const completed = await mapWithConcurrency(plan.chunks, concurrency, async descriptor => {
+    if (assertCurrent) await assertCurrent()
     const chunkBytes = buildWavTranscriptionChunk(sourceBytes, plan, descriptor)
-    const chunkBlob = new Blob([chunkBytes], { type: 'audio/wav' })
+    const chunkBlob = new Blob([Uint8Array.from(chunkBytes).buffer], { type: 'audio/wav' })
     const result = await requestGroqTranscript(
       apiKey,
       models,
@@ -719,6 +992,7 @@ async function runGroqProvider(
       options,
       timeoutMs,
     )
+    if (assertCurrent) await assertCurrent()
     const transcript = providerTranscript(result.payload)
     chunksCompleted++
     if (onChunkProgress) await onChunkProgress(chunksCompleted, plan.chunks.length)
@@ -747,6 +1021,7 @@ async function runPreparedAudioProvider(
   manifest: PreparedAudioManifest,
   options: Record<string, unknown>,
   onChunkProgress?: (completed: number, total: number) => Promise<void>,
+  assertCurrent?: () => Promise<void>,
 ): Promise<ProviderRunResult> {
   const apiKey = requiredEnv('GROQ_API_KEY')
   const models = groqTranscriptionModels()
@@ -756,6 +1031,7 @@ async function runPreparedAudioProvider(
   let chunksCompleted = 0
 
   const completed = await mapWithConcurrency(manifest.chunks, concurrency, async chunk => {
+    if (assertCurrent) await assertCurrent()
     const { data: blob, error } = await adminClient.storage
       .from(AUDIO_BUCKET)
       .download(chunk.storagePath)
@@ -773,12 +1049,13 @@ async function runPreparedAudioProvider(
     const result = await requestGroqTranscript(
       apiKey,
       models,
-      new Blob([bytes], { type: 'audio/wav' }),
+      new Blob([Uint8Array.from(bytes).buffer], { type: 'audio/wav' }),
       chunk.fileName,
       'audio/wav',
       options,
       timeoutMs,
     )
+    if (assertCurrent) await assertCurrent()
     const transcript = providerTranscript(result.payload)
     chunksCompleted += 1
     if (onChunkProgress) await onChunkProgress(chunksCompleted, manifest.chunks.length)
@@ -980,7 +1257,13 @@ async function processJob(
     const runtimeProvider = runtimeProviderForJob(job.provider)
     let actualProvider: RuntimeTranscriptionProviderName = runtimeProvider
     const maxBytes = groqSafeAudioBytes()
-    const prepared = runtimeProvider === 'groq' ? preparedAudioManifest(track, maxBytes) : null
+    const preparationOperationId = typeof job.request_options.preparationOperationId === 'string'
+      ? job.request_options.preparationOperationId
+      : null
+    const prepared = runtimeProvider === 'groq'
+      ? preparedAudioManifest(track, maxBytes, preparationOperationId)
+      : null
+    const assertCurrent = () => throwIfJobCancelled(adminClient, job.id)
 
     const updateChunkProgress = async (completed: number, total: number) => {
       await updateJob(adminClient, job.id, {
@@ -1021,6 +1304,7 @@ async function processJob(
         prepared,
         job.request_options,
         updateChunkProgress,
+        assertCurrent,
       )
     } else {
       // A current client prepares oversized compressed sources as private PCM WAV
@@ -1118,6 +1402,7 @@ async function processJob(
                   },
                 })
               },
+              assertCurrent,
             )
           }
         } else {
@@ -1130,7 +1415,7 @@ async function processJob(
               processingMode,
             },
           })
-          providerResult = await runGroqProvider(audioBlob, track, job.request_options)
+          providerResult = await runGroqProvider(audioBlob, track, job.request_options, undefined, undefined, undefined, assertCurrent)
         }
       }
     }
@@ -1265,7 +1550,9 @@ Deno.serve(async (req: Request) => {
       if (typeof body.audioTrackId !== 'string' || !body.audioTrackId) throw new TranscriptionError('invalid_request', 'Select a stored audio track first.')
       const track = await ownedTrack(adminClient, userId, body.audioTrackId)
       validateTrack(track)
-      const created = await createJob(adminClient, userId, track, safeOptions(body.options))
+      const operation = await validatePreparationOperation(adminClient, userId, track, body.preparationOperationId)
+      const created = await createJob(adminClient, userId, track, safeOptions(body.options), body.preparationOperationId)
+      await reconcileCreatedPreparationJob(adminClient, operation, created)
       if (!created.duplicate) runInBackground(processJob(adminClient, userClient, created.job, track))
       return json({ job: publicJob(created.job), duplicate: created.duplicate }, created.duplicate ? 200 : 202)
     }
@@ -1284,6 +1571,7 @@ Deno.serve(async (req: Request) => {
           completed_at: new Date().toISOString(),
         })
       }
+      await cleanupPreparationAfterCancellation(adminClient, userId, job)
       return json({ job: publicJob(await findOwnedJob(adminClient, userId, job.id)) })
     }
 
@@ -1293,7 +1581,9 @@ Deno.serve(async (req: Request) => {
       }
       const track = await ownedTrack(adminClient, userId, job.audio_track_id)
       validateTrack(track)
-      const created = await createJob(adminClient, userId, track, safeOptions(job.request_options))
+      const operation = await validatePreparationOperation(adminClient, userId, track, body.preparationOperationId)
+      const created = await createJob(adminClient, userId, track, safeOptions(job.request_options), body.preparationOperationId)
+      await reconcileCreatedPreparationJob(adminClient, operation, created)
       if (!created.duplicate) runInBackground(processJob(adminClient, userClient, created.job, track))
       return json({ job: publicJob(created.job), duplicate: created.duplicate }, created.duplicate ? 200 : 202)
     }

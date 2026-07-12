@@ -1042,7 +1042,7 @@ export function useAudioEngine(): AudioEngine {
     }
     setTracks(prev => {
       const idx = prev.findIndex(t => t.id === id)
-      if (idx >= 0) URL.revokeObjectURL(prev[idx].url)
+      if (idx >= 0 && prev[idx].url.startsWith('blob:')) URL.revokeObjectURL(prev[idx].url)
       const next = prev.filter(t => t.id !== id)
       setCurrentIndex(ci => {
         if (ci === idx) return Math.min(ci, next.length - 1)

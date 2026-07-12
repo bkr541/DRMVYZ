@@ -5,17 +5,26 @@ const audioDbMocks = vi.hoisted(() => ({
   uploadAudioFile: vi.fn(),
   createAudioTrack: vi.fn(),
   createSignedAudioUrl: vi.fn(),
-  deleteAudioTrack: vi.fn(),
   deleteAudioFiles: vi.fn(),
   updateAudioTrack: vi.fn(),
   createTrackAnalysis: vi.fn(),
 }))
+const deletionMocks = vi.hoisted(() => ({
+  deleteAudioTrackCanonical: vi.fn(),
+  retryPendingAudioCleanup: vi.fn(),
+}))
+const preparationMocks = vi.hoisted(() => ({
+  retryPendingAudioPreparationCleanup: vi.fn(),
+}))
+
 
 vi.mock('../lib/supabase', () => ({
   supabaseConfigured: true,
   supabase: { auth: { getUser: vi.fn() } },
 }))
 vi.mock('../lib/audioDb', () => audioDbMocks)
+vi.mock('../lib/audioTrackDeletion', () => deletionMocks)
+vi.mock('../lib/audioPreparationDb', () => preparationMocks)
 
 import type { SavedAudioTrack } from './audioStore'
 import { useAudioStore } from './audioStore'
@@ -48,7 +57,9 @@ describe('audioStore persistence safety', () => {
     useAudioStore.setState({ savedTracks: [], loading: false, loadError: null })
     audioDbMocks.uploadAudioFile.mockResolvedValue({ error: null })
     audioDbMocks.deleteAudioFiles.mockResolvedValue({ error: null })
-    audioDbMocks.deleteAudioTrack.mockResolvedValue({ error: null })
+    deletionMocks.deleteAudioTrackCanonical.mockResolvedValue({ ok: true, trackId: 'track-1', pendingCleanup: false, message: null })
+    deletionMocks.retryPendingAudioCleanup.mockResolvedValue([])
+    preparationMocks.retryPendingAudioPreparationCleanup.mockResolvedValue([])
     audioDbMocks.updateAudioTrack.mockResolvedValue({ error: null })
   })
 
@@ -77,7 +88,7 @@ describe('audioStore persistence safety', () => {
   it('keeps the track visible and its storage intact when database deletion fails', async () => {
     const track = savedTrack()
     useAudioStore.setState({ savedTracks: [track] })
-    audioDbMocks.deleteAudioTrack.mockResolvedValue({ error: 'permission denied' })
+    deletionMocks.deleteAudioTrackCanonical.mockResolvedValue({ ok: false, trackId: track.dbId, pendingCleanup: false, message: 'Track deletion request failed: permission denied' })
 
     await useAudioStore.getState().removeSavedTrack(track.id)
 
@@ -88,24 +99,15 @@ describe('audioStore persistence safety', () => {
     expect(audioDbMocks.deleteAudioFiles).not.toHaveBeenCalled()
   })
 
-  it('deletes the database row before removing storage and local state', async () => {
+  it('routes deletion through the canonical audio operation and reconciles local state', async () => {
     const track = savedTrack()
     useAudioStore.setState({ savedTracks: [track] })
-    const order: string[] = []
-    audioDbMocks.deleteAudioTrack.mockImplementation(async () => {
-      order.push('database')
-      return { error: null }
-    })
-    audioDbMocks.deleteAudioFiles.mockImplementation(async () => {
-      order.push('storage')
-      return { error: null }
-    })
 
     await useAudioStore.getState().removeSavedTrack(track.id)
 
-    await vi.waitFor(() => expect(useAudioStore.getState().savedTracks).toEqual([]))
-    await vi.waitFor(() => expect(audioDbMocks.deleteAudioFiles).toHaveBeenCalled())
-    expect(order).toEqual(['database', 'storage'])
+    expect(deletionMocks.deleteAudioTrackCanonical).toHaveBeenCalledWith(track.dbId)
+    expect(useAudioStore.getState().savedTracks).toEqual([])
+    expect(audioDbMocks.deleteAudioFiles).not.toHaveBeenCalled()
   })
 
   it('deletes database-only track rows even when no storage path exists', async () => {
@@ -115,8 +117,25 @@ describe('audioStore persistence safety', () => {
     await useAudioStore.getState().removeSavedTrack(track.id)
 
     await vi.waitFor(() => expect(useAudioStore.getState().savedTracks).toEqual([]))
-    expect(audioDbMocks.deleteAudioTrack).toHaveBeenCalledWith(track.dbId)
+    expect(deletionMocks.deleteAudioTrackCanonical).toHaveBeenCalledWith(track.dbId)
     expect(audioDbMocks.deleteAudioFiles).not.toHaveBeenCalled()
+  })
+
+  it('removes a tombstoned track while keeping partial storage cleanup visible', async () => {
+    const track = savedTrack()
+    useAudioStore.setState({ savedTracks: [track] })
+    deletionMocks.deleteAudioTrackCanonical.mockResolvedValue({
+      ok: true,
+      trackId: track.dbId,
+      pendingCleanup: true,
+      message: 'Track removal is pending storage cleanup: network unavailable',
+    })
+
+    const removed = await useAudioStore.getState().removeSavedTrackByDbId(track.dbId)
+
+    expect(removed).toBe(true)
+    expect(useAudioStore.getState().savedTracks).toEqual([])
+    expect(useAudioStore.getState().loadError).toBe('Network error — check connection')
   })
 
   it('updates saved-audio metadata through the canonical database service', async () => {
