@@ -196,6 +196,7 @@ const launchEnvelopes = new Map<string, BeamLaunchEnvelope>()
 
 /** Last absoluteBeat at which each group successfully launched a beam. */
 const groupLastLaunchBeat = new Map<string, number>()
+const groupLastLaunchBar = new Map<string, number>()
 
 const MAX_QUEUE_DEPTH = 4
 
@@ -399,6 +400,7 @@ export function resetBeamMatrixCompilerState(): void {
   prevSourceId = ''
   launchEnvelopes.clear()
   groupLastLaunchBeat.clear()
+  groupLastLaunchBar.clear()
   cueTriggerState.clear()
   resetAllEnvelopes()
 }
@@ -593,6 +595,7 @@ export function compileLaserDmxBeamMatrix(
   if (prevTimeSec >= 0 && timeSec < prevTimeSec - 0.5) {
     launchEnvelopes.clear()
     groupLastLaunchBeat.clear()
+    groupLastLaunchBar.clear()
   }
 
   // ── Cue evaluation (must run BEFORE prevTimeSec/prevBeatPos/prevMs update) ─
@@ -617,6 +620,7 @@ export function compileLaserDmxBeamMatrix(
   if (sourceId !== prevSourceId) {
     launchEnvelopes.clear()
     groupLastLaunchBeat.clear()
+    groupLastLaunchBar.clear()
     cueTriggerState.clear()
     prevSourceId = sourceId
   }
@@ -740,16 +744,27 @@ export function compileLaserDmxBeamMatrix(
       continue
     }
 
-    // Cooldown gate: check absoluteBeat against last launch
-    const lastLaunch = groupLastLaunchBeat.get(group.id) ?? -Infinity
-    const elapsed    = absoluteBeat - lastLaunch
-    if (elapsed < launch.cooldownBeats) {
-      groupTriggerFired.set(group.id, false)
-      continue
+    // Musical-bar cooldown takes precedence over the legacy beat cooldown.
+    const cooldownBars = Math.max(0, safeNumber(launch.cooldownBars, 0))
+    if (cooldownBars > 0) {
+      const currentBar = safeNumber(mi.rhythm.barIndex, 0)
+      const lastLaunchBar = groupLastLaunchBar.get(group.id) ?? -Infinity
+      if (currentBar - lastLaunchBar < cooldownBars) {
+        groupTriggerFired.set(group.id, false)
+        continue
+      }
+      groupLastLaunchBar.set(group.id, currentBar)
+    } else {
+      const lastLaunch = groupLastLaunchBeat.get(group.id) ?? -Infinity
+      const elapsed = absoluteBeat - lastLaunch
+      if (elapsed < launch.cooldownBeats) {
+        groupTriggerFired.set(group.id, false)
+        continue
+      }
+      groupLastLaunchBeat.set(group.id, absoluteBeat)
     }
 
     groupTriggerFired.set(group.id, true)
-    groupLastLaunchBeat.set(group.id, absoluteBeat)
   }
 
   // ── 6. Compile beams ──────────────────────────────────────────────────────

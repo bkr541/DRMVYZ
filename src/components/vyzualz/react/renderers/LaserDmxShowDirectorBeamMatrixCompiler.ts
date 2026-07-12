@@ -320,14 +320,6 @@ function sourceForAudioBand(audioBand: LaserDmxShowDirectorAudioBand): string {
   }
 }
 
-function phraseSource(trigger: LaserDmxShowDirectorTriggerConfig): string {
-  const bars = positiveInt(trigger.phraseLengthBars, 8, 1, 128)
-  if (bars <= 4) return 'phrase4'
-  if (bars <= 8) return 'phrase8'
-  if (bars <= 16) return 'phrase16'
-  return 'phrase32'
-}
-
 function beatDivisionSource(trigger: LaserDmxShowDirectorTriggerConfig): string {
   const division = finite(trigger.beatDivision, 1)
   const supported: LaserDmxShowDirectorBeatDivision = division === 0.25 || division === 0.5 || division === 2 || division === 4 || division === 8
@@ -342,9 +334,12 @@ function sectionTypesForTrigger(trigger: LaserDmxShowDirectorTriggerConfig): Las
         section === 'intro'
         || section === 'verse'
         || section === 'build'
+        || section === 'preDrop'
         || section === 'drop'
         || section === 'breakdown'
+        || section === 'bridge'
         || section === 'outro'
+        || section === 'unknown'
       ))
     : []
   return allowed.length > 0 ? allowed : ['drop']
@@ -358,7 +353,8 @@ function triggerSource(trigger: LaserDmxShowDirectorTriggerConfig): string | nul
   switch (trigger.mode) {
     case 'beat': return beatDivisionSource(trigger)
     case 'bar': return 'downbeat'
-    case 'phrase': return phraseSource(trigger)
+    // Legacy phrase4/8/16/32 sources are beat-counted. Show Director phrases are musical bars.
+    case 'phrase': return 'downbeat'
     case 'section': return sectionSource(trigger)
     case 'bassHit': return 'kick'
     case 'snareTransient': return 'snare'
@@ -373,8 +369,9 @@ function launchForTrigger(trigger: LaserDmxShowDirectorTriggerConfig): LaserDmxL
     case 'beat':
       return { trigger: 'beat', threshold: 0.2, cooldownBeats: Math.max(0, finite(trigger.beatDivision, 1) - 0.1), minimumEnergy: 0 }
     case 'bar':
+      return { trigger: 'downbeat', threshold: 0.2, cooldownBeats: 0, cooldownBars: positiveInt(trigger.barInterval, 1, 1, 64), minimumEnergy: 0 }
     case 'phrase':
-      return { trigger: 'downbeat', threshold: 0.2, cooldownBeats: Math.max(0, positiveInt(trigger.barInterval, 1, 1, 64) - 0.1), minimumEnergy: 0 }
+      return { trigger: 'downbeat', threshold: 0.2, cooldownBeats: 0, cooldownBars: positiveInt(trigger.phraseLengthBars, 8, 1, 128), minimumEnergy: 0 }
     case 'bassHit':
       return { trigger: 'kick', threshold: clamp01(finite(trigger.audioThreshold, 0.65)), cooldownBeats: 0.25, minimumEnergy: 0 }
     case 'snareTransient':
@@ -450,14 +447,16 @@ function triggerDimmerRoutes(
       mode: 'trigger',
       curve: 'pulse',
       attack,
-      hold: trigger.mode === 'bar' ? 0.05 : 0.025,
+      hold: trigger.mode === 'bar' || trigger.mode === 'phrase' ? 0.05 : 0.025,
       release,
       threshold: trigger.mode === 'audioBand' || trigger.mode === 'bassHit' || trigger.mode === 'snareTransient'
         ? clamp01(finite(trigger.audioThreshold, 0.65))
         : undefined,
-      timingFilter: trigger.mode === 'bar' && positiveInt(trigger.barInterval, 1, 1, 64) > 1
+      timingFilter: trigger.mode === 'bar'
         ? { mode: 'barInterval', intervalBars: positiveInt(trigger.barInterval, 1, 1, 64), intervalAnchorBar: 1 }
-        : undefined,
+        : trigger.mode === 'phrase'
+          ? { mode: 'barInterval', intervalBars: positiveInt(trigger.phraseLengthBars, 8, 1, 128), intervalAnchorBar: 1 }
+          : undefined,
     },
   )]
 }
@@ -484,13 +483,14 @@ function canonicalShowDirectorSectionType(value: unknown): LaserDmxShowDirectorS
   switch (value) {
     case 'intro': return 'intro'
     case 'verse': return 'verse'
-    case 'build':
-    case 'preDrop': return 'build'
+    case 'build': return 'build'
+    case 'preDrop': return 'preDrop'
     case 'drop': return 'drop'
     case 'break':
-    case 'breakdown':
-    case 'bridge': return 'breakdown'
+    case 'breakdown': return 'breakdown'
+    case 'bridge': return 'bridge'
     case 'outro': return 'outro'
+    case 'unknown': return 'unknown'
     default: return null
   }
 }

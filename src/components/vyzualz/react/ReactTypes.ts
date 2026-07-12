@@ -729,7 +729,7 @@ export interface LaserDmxBeamMatrixPresetSummary {
 // This is the safe authoring model for the future drag/drop 2D stage builder.
 // It compiles into Beam Matrix through LaserDmxShowDirectorBeamMatrixCompiler when selected as the preview source.
 
-export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 7
+export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 8
 
 export type LaserDmxShowDirectorFixtureKind =
   | 'laser'
@@ -785,7 +785,7 @@ export type LaserDmxShowDirectorTriggerMode =
   | 'audioBand'
 
 export type LaserDmxShowDirectorBeatDivision = 0.25 | 0.5 | 1 | 2 | 4 | 8
-export type LaserDmxShowDirectorSectionType = 'intro' | 'verse' | 'build' | 'drop' | 'breakdown' | 'outro'
+export type LaserDmxShowDirectorSectionType = 'intro' | 'verse' | 'build' | 'preDrop' | 'drop' | 'breakdown' | 'bridge' | 'outro' | 'unknown'
 export type LaserDmxShowDirectorAudioBand = 'sub' | 'bass' | 'lowMid' | 'mid' | 'highMid' | 'high'
 export type LaserDmxShowDirectorTriggerRetrigger = 'allow' | 'oncePerBeat' | 'oncePerBar' | 'oncePerPhrase'
 export type LaserDmxShowDirectorTriggerQuantize = 'none' | 'beat' | 'bar' | 'phrase' | 'section'
@@ -867,12 +867,16 @@ export interface LaserDmxShowDirectorFixtureSpecificConfig {
 export interface LaserDmxShowDirectorGroup {
   schemaVersion?: number
   id:    string
+  /** Stable program-facing key; fixture/group IDs remain the persistence identity. */
+  semanticKey?: string
   label: string
 }
 
 export interface LaserDmxShowDirectorFixture {
   schemaVersion?: number
   id:        string
+  /** Stable program-facing key; fixture IDs remain unchanged and authoritative for editing. */
+  semanticKey?: string
   kind:      LaserDmxShowDirectorFixtureKind
   label:     string
   enabled:   boolean
@@ -990,6 +994,27 @@ function showDirectorSafeIdSegment(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'group'
 }
 
+export function showDirectorSafeSemanticKey(value: unknown, fallback = 'fixture'): string {
+  const candidate = typeof value === 'string' ? value : ''
+  return candidate.trim().toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 64) || fallback
+}
+
+function reserveShowDirectorSemanticKey(base: string, used: Set<string>): string {
+  let key = base.slice(0, 64)
+  let suffix = 2
+  while (used.has(key)) {
+    const suffixText = `-${suffix}`
+    key = `${base.slice(0, Math.max(1, 64 - suffixText.length))}${suffixText}`
+    suffix += 1
+  }
+  used.add(key)
+  return key
+}
+
 function createShowDirectorGroupIdFromLabel(label: string, index: number): string {
   return `show-director-group-${showDirectorSafeIdSegment(label)}-${index + 1}`
 }
@@ -1066,9 +1091,12 @@ function coerceShowDirectorSectionType(value: unknown): LaserDmxShowDirectorSect
   return value === 'intro'
     || value === 'verse'
     || value === 'build'
+    || value === 'preDrop'
     || value === 'drop'
     || value === 'breakdown'
+    || value === 'bridge'
     || value === 'outro'
+    || value === 'unknown'
     ? value
     : null
 }
@@ -1188,6 +1216,7 @@ export function createDefaultLaserDmxShowDirectorFixture(
   return {
     schemaVersion: LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION,
     id,
+    semanticKey: showDirectorSafeSemanticKey(`${label}-${index + 1}`, `${kind}-${index + 1}`),
     kind,
     label: `${label} ${index + 1}`,
     enabled: true,
@@ -1247,6 +1276,7 @@ export function normalizeLaserDmxShowDirectorGroup(raw: unknown, index = 0): Las
   return {
     schemaVersion: LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION,
     id: showDirectorTargetId(value.id, createShowDirectorGroupIdFromLabel(label, index)),
+    semanticKey: showDirectorSafeSemanticKey(value.semanticKey ?? label, `group-${index + 1}`),
     label,
   }
 }
@@ -1352,6 +1382,7 @@ export function normalizeLaserDmxShowDirectorFixture(raw: unknown, index = 0): L
   return {
     schemaVersion: LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION,
     id,
+    semanticKey: showDirectorSafeSemanticKey(value.semanticKey ?? value.label, `${kind}-${index + 1}`),
     kind,
     label:      showDirectorString(value.label, fallback.label),
     enabled:    showDirectorBoolean(value.enabled, fallback.enabled),
@@ -1452,17 +1483,29 @@ export function normalizeLaserDmxShowDirectorState(raw: unknown): LaserDmxShowDi
     return counts
   }, new Map<string, number>())
 
-  const fixtures = rawFixtures.map(fixture => {
+  const usedFixtureSemanticKeys = new Set<string>()
+  const fixtures = rawFixtures.map((fixture, index) => {
     const hasValidPair = Boolean(fixture.linkedPairId && fixture.mirrorAxis && (fixturePairCounts.get(fixture.linkedPairId) ?? 0) >= 2)
+    const semanticBase = showDirectorSafeSemanticKey(fixture.semanticKey ?? fixture.label, `${fixture.kind}-${index + 1}`)
     return {
       ...fixture,
+      semanticKey: reserveShowDirectorSemanticKey(semanticBase, usedFixtureSemanticKeys),
       groupId: resolveGroupId(fixture.groupId),
       linkedPairId: hasValidPair ? fixture.linkedPairId ?? null : null,
       mirrorAxis: hasValidPair ? fixture.mirrorAxis ?? null : null,
     }
   })
   const referencedGroupIds = new Set(fixtures.flatMap(fixture => fixture.groupId ? [fixture.groupId] : []))
-  const groups = Array.from(groupsById.values()).filter(group => referencedGroupIds.has(group.id))
+  const usedGroupSemanticKeys = new Set<string>()
+  const groups = Array.from(groupsById.values())
+    .filter(group => referencedGroupIds.has(group.id))
+    .map((group, index) => ({
+      ...group,
+      semanticKey: reserveShowDirectorSemanticKey(
+        showDirectorSafeSemanticKey(group.semanticKey ?? group.label, `group-${index + 1}`),
+        usedGroupSemanticKeys,
+      ),
+    }))
 
   const ids = new Set(fixtures.map(fixture => fixture.id))
   const rawSelectedFixtureIds = showDirectorStringArray(raw.selectedFixtureIds)
@@ -1872,8 +1915,10 @@ export interface LaserDmxLaunchSettings {
   trigger:       LaserDmxLaunchTrigger
   /** 0–1 minimum trigger strength (kickStrength / snareStrength / dropImpact magnitude) */
   threshold:     number
-  /** Minimum beats between successive launches (0 = no cooldown) */
+  /** Minimum beats between successive launches (0 = no beat cooldown). */
   cooldownBeats: number
+  /** Optional musical-bar cooldown. When positive, this takes precedence over cooldownBeats. */
+  cooldownBars?: number
   /** 0–1 minimum mi.energy.instant value before a launch fires */
   minimumEnergy: number
 }
@@ -1882,6 +1927,7 @@ export const DEFAULT_LAUNCH_SETTINGS: LaserDmxLaunchSettings = {
   trigger:       'none',
   threshold:     0.4,
   cooldownBeats: 0,
+  cooldownBars:  0,
   minimumEnergy: 0,
 }
 
