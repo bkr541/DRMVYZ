@@ -7694,3 +7694,73 @@ input[type='range'].vz-slider--color {
   border-radius: 50%;
   background: currentColor;
 }
+
+/* ── Bounded media-library rendering and signing states ─────────────── */
+.vz-media-virtual {
+  min-height: 100%;
+  contain: layout style;
+}
+
+.vz-media-virtual-spacer {
+  width: 100%;
+  pointer-events: none;
+}
+
+.vz-media-page-state,
+.vz-media-page-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 8px 10px;
+  color: rgba(196,207,211,0.58);
+  font-size: 10px;
+  text-align: center;
+}
+
+.vz-media-page-error {
+  min-height: 120px;
+  flex-direction: column;
+  color: rgba(248,113,113,0.9);
+}
+
+.vz-media-signing-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  background: linear-gradient(90deg, #0a1420 25%, #0f1f30 50%, #0a1420 75%);
+  background-size: 200% 100%;
+  animation: vz-skeleton-shimmer 1.4s infinite;
+  color: rgba(196,207,211,0.58);
+  font-size: 9px;
+  text-align: center;
+}
+
+.vz-media-signing-placeholder--error {
+  animation: none;
+  background: rgba(248,113,113,0.06);
+  color: rgba(248,113,113,0.85);
+}
+
+.vz-media-virtual > .vz-media-grid {
+  grid-auto-rows: 146px;
+}
+
+.vz-media-virtual > .vz-media-grid > .vz-media-card {
+  height: 146px;
+  min-height: 0;
+}
+
+.vz-media-virtual > .vz-media-list {
+  gap: 4px;
+}
+
+.vz-media-virtual > .vz-media-list > .vz-media-row {
+  box-sizing: border-box;
+  height: 54px;
+  min-height: 54px;
+}

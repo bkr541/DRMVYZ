@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useId } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { mediaMutationKey, useMediaStore } from '../../stores/mediaStore'
 import type { MediaCollection, UploadedMedia, UploadWorkflowPhase } from '../../stores/mediaStore'
 import {
@@ -197,8 +198,42 @@ export function MediaUploadModal({
     loadCollections,
     loadError,
     clearLoadError,
-    items, mutationStates, retryMediaMutation, reapplyMediaMutation, clearMediaMutation,
-  } = useMediaStore()
+    items,
+    mutationStates,
+    retryMediaMutation,
+    reapplyMediaMutation,
+    clearMediaMutation,
+  } = useMediaStore(useShallow(state => ({
+    uploadQueue: state.uploadQueue,
+    addFilesToUploadQueue: state.addFilesToUploadQueue,
+    removeUploadQueueItem: state.removeUploadQueueItem,
+    clearUploadQueue: state.clearUploadQueue,
+    uploadDraft: state.uploadDraft,
+    setUploadDraftRole: state.setUploadDraftRole,
+    setUploadDraftTitle: state.setUploadDraftTitle,
+    setUploadDraftDescription: state.setUploadDraftDescription,
+    setUploadDraftTags: state.setUploadDraftTags,
+    setUploadDraftCollections: state.setUploadDraftCollections,
+    setUploadDraftMetadata: state.setUploadDraftMetadata,
+    replaceUploadDraftMetadata: state.replaceUploadDraftMetadata,
+    setUploadDraftAudioArtist: state.setUploadDraftAudioArtist,
+    setUploadDraftAudioGenre: state.setUploadDraftAudioGenre,
+    setUploadDraftAudioBpm: state.setUploadDraftAudioBpm,
+    setUploadDraftAudioMusicalKey: state.setUploadDraftAudioMusicalKey,
+    resetUploadDraft: state.resetUploadDraft,
+    uploadQueuedMedia: state.uploadQueuedMedia,
+    saveMediaEdits: state.saveMediaEdits,
+    collections: state.collections,
+    createCollection: state.createCollection,
+    loadCollections: state.loadCollections,
+    loadError: state.loadError,
+    clearLoadError: state.clearLoadError,
+    items: state.items,
+    mutationStates: state.mutationStates,
+    retryMediaMutation: state.retryMediaMutation,
+    reapplyMediaMutation: state.reapplyMediaMutation,
+    clearMediaMutation: state.clearMediaMutation,
+  })))
 
   const editMutation = editItem ? mutationStates[mediaMutationKey(editItem.id, 'edit')] : undefined
   const canonicalEditItem = editItem ? items.find(item => item.id === editItem.id) ?? editItem : undefined

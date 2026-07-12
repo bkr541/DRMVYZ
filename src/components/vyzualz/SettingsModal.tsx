@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useVisualStore } from '../../stores/visualStore'
 import { useMediaStore } from '../../stores/mediaStore'
 
@@ -32,7 +33,10 @@ function SystemSettingsPanel() {
     quality, setQuality, bpmSync, toggleBpmSync, bpm,
     resetEffects, resetModulationRoutes,
   } = useVisualStore()
-  const { storageAvailable, authRequired } = useMediaStore()
+  const { storageAvailable, authRequired } = useMediaStore(useShallow(state => ({
+    storageAvailable: state.storageAvailable,
+    authRequired: state.authRequired,
+  })))
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

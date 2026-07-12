@@ -1,4 +1,6 @@
 import { memo, useState, useMemo, useRef, useEffect, useCallback } from 'react'
+import type { ReactNode, RefObject } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import {
   Layers01Icon,
   FavouriteIcon,
@@ -13,6 +15,7 @@ import {
 } from 'hugeicons-react'
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { UploadedMedia, MediaCollection, MediaMutationState } from '../../../stores/mediaStore'
+import type { MediaLibraryQuery, MediaLibraryServerFilter } from '../../../lib/mediaDb'
 import type { MediaRole } from '../../../lib/mediaRoles'
 import { useAudioStore } from '../../../stores/audioStore'
 import type { SavedAudioTrack } from '../../../stores/audioStore'
@@ -29,6 +32,134 @@ import type { MediaLibraryCapability, MediaLibraryContext } from './mediaLibrary
 
 type MediaLibraryFilter = 'all' | 'tracks' | 'collections' | 'images' | 'videos' | 'favorites' | 'backgrounds' | 'logos' | 'transparent' | 'overlays' | 'svg'
 type ViewMode = 'grid' | 'list'
+
+
+export interface VirtualMediaWindow {
+  columns: number
+  rowHeight: number
+  startIndex: number
+  endIndex: number
+  topSpacer: number
+  bottomSpacer: number
+}
+
+export function computeVirtualMediaWindow(input: {
+  itemCount: number
+  width: number
+  height: number
+  scrollTop: number
+  viewMode: ViewMode
+  manager: boolean
+  overscanRows?: number
+}): VirtualMediaWindow {
+  const width = Math.max(240, input.width || (input.manager ? 900 : 320))
+  const height = Math.max(240, input.height || 600)
+  const columns = input.viewMode === 'list'
+    ? 1
+    : input.manager ? Math.max(1, Math.floor((width - 8 + 10) / 200)) : 2
+  const rowHeight = input.viewMode === 'list' ? 58 : input.manager ? 190 : 150
+  const totalRows = Math.ceil(input.itemCount / columns)
+  const overscan = input.overscanRows ?? 3
+  const firstVisibleRow = Math.max(0, Math.floor(Math.max(0, input.scrollTop) / rowHeight))
+  const visibleRows = Math.max(1, Math.ceil(height / rowHeight))
+  const startRow = Math.max(0, firstVisibleRow - overscan)
+  const endRow = Math.min(totalRows, firstVisibleRow + visibleRows + overscan)
+  return {
+    columns,
+    rowHeight,
+    startIndex: Math.min(input.itemCount, startRow * columns),
+    endIndex: Math.min(input.itemCount, endRow * columns),
+    topSpacer: startRow * rowHeight,
+    bottomSpacer: Math.max(0, (totalRows - endRow) * rowHeight),
+  }
+}
+
+const VirtualizedMediaCards = memo(function VirtualizedMediaCards({
+  items,
+  viewMode,
+  manager,
+  scrollRef,
+  renderCard,
+  ensureSigned,
+  onNearEnd,
+  hasMore,
+  loadingMore,
+}: {
+  items: UploadedMedia[]
+  viewMode: ViewMode
+  manager: boolean
+  scrollRef: RefObject<HTMLDivElement>
+  renderCard: (item: UploadedMedia) => ReactNode
+  ensureSigned?: (visibleIds: string[], nearIds: string[]) => void
+  onNearEnd?: () => void
+  hasMore?: boolean
+  loadingMore?: boolean
+}) {
+  const [metrics, setMetrics] = useState({ width: manager ? 900 : 320, height: 600, scrollTop: 0 })
+
+  useEffect(() => {
+    const element = scrollRef.current
+    if (!element) return
+    const update = () => setMetrics({
+      width: element.clientWidth || (manager ? 900 : 320),
+      height: element.clientHeight || 600,
+      scrollTop: element.scrollTop,
+    })
+    update()
+    element.addEventListener('scroll', update, { passive: true })
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null
+    observer?.observe(element)
+    return () => {
+      element.removeEventListener('scroll', update)
+      observer?.disconnect()
+    }
+  }, [manager, scrollRef])
+
+  const windowed = computeVirtualMediaWindow({ itemCount: items.length, ...metrics, viewMode, manager })
+  const visibleItems = items.slice(windowed.startIndex, windowed.endIndex)
+  const nearStart = Math.max(0, windowed.startIndex - windowed.columns * 2)
+  const nearEnd = Math.min(items.length, windowed.endIndex + windowed.columns * 2)
+  const visibleIdKey = visibleItems.map(item => item.id).join('\u0000')
+  const nearIdKey = items.slice(nearStart, nearEnd).map(item => item.id).join('\u0000')
+
+  useEffect(() => {
+    ensureSigned?.(
+      visibleIdKey ? visibleIdKey.split('\u0000') : [],
+      nearIdKey ? nearIdKey.split('\u0000') : [],
+    )
+  }, [ensureSigned, nearIdKey, visibleIdKey])
+
+  useEffect(() => {
+    if (!hasMore || loadingMore || items.length === 0) return
+    if (windowed.endIndex >= Math.max(0, items.length - windowed.columns * 3)) onNearEnd?.()
+  }, [hasMore, items.length, loadingMore, onNearEnd, windowed.columns, windowed.endIndex])
+
+  return (
+    <div className="vz-media-virtual" data-rendered-cards={visibleItems.length}>
+      {windowed.topSpacer > 0 && <div className="vz-media-virtual-spacer" style={{ height: windowed.topSpacer }} aria-hidden="true" />}
+      <div className={viewMode === 'list' ? 'vz-media-list' : 'vz-media-grid'}>
+        {visibleItems.map(renderCard)}
+      </div>
+      {windowed.bottomSpacer > 0 && <div className="vz-media-virtual-spacer" style={{ height: windowed.bottomSpacer }} aria-hidden="true" />}
+      {loadingMore && <div className="vz-media-page-state" role="status">Loading more media…</div>}
+      {!hasMore && items.length > 0 && <div className="vz-media-page-state">End of library</div>}
+    </div>
+  )
+})
+
+function toServerFilter(filter: MediaLibraryFilter): MediaLibraryServerFilter {
+  if (filter === 'tracks' || filter === 'collections') return 'all'
+  return filter
+}
+
+function matchesSearch(item: UploadedMedia, query: string): boolean {
+  const lower = query.trim().toLowerCase()
+  if (!lower) return true
+  return (item.title ?? item.name).toLowerCase().includes(lower)
+    || item.name.toLowerCase().includes(lower)
+    || (item.description ?? '').toLowerCase().includes(lower)
+    || item.tags.some(tag => tag.toLowerCase().includes(lower))
+}
 
 function PerformanceDeckEmptyState({
   message,
@@ -275,6 +406,8 @@ function MediaCard({
   onRetry,
   disabledReason,
   mutationStates,
+  onThumbnailError,
+  onThumbnailLoad,
 }: {
   m: UploadedMedia
   isActive: boolean
@@ -294,6 +427,8 @@ function MediaCard({
   onRetry: () => void
   disabledReason?: string | null
   mutationStates: MediaMutationState[]
+  onThumbnailError: () => void
+  onThumbnailLoad: () => void
 }) {
   const isList = viewMode === 'list'
   const disabled = Boolean(disabledReason)
@@ -336,9 +471,13 @@ function MediaCard({
         onDragStart={e => { e.dataTransfer.setData('vz/mediaId', m.id); e.dataTransfer.effectAllowed = 'copy' }}
       >
         <div className="vz-media-row-thumb">
-          {(m.localThumbnailObjectUrl ?? m.thumbnailUrl) && (
-            <img src={m.localThumbnailObjectUrl ?? m.thumbnailUrl!} alt={m.name}
+          {(m.localThumbnailObjectUrl ?? m.thumbnailUrl) ? (
+            <img src={m.localThumbnailObjectUrl ?? m.thumbnailUrl!} alt={m.name} onError={onThumbnailError} onLoad={onThumbnailLoad}
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          ) : (
+            <div className={`vz-media-signing-placeholder${m.thumbnailSigningError ? ' vz-media-signing-placeholder--error' : ''}`}>
+              {m.thumbnailSigningError ? 'Preview unavailable' : m.thumbnailSigning ? 'Signing…' : 'Preview pending'}
+            </div>
           )}
           {badge}
           {canPreview && (
@@ -410,12 +549,18 @@ function MediaCard({
       }}
     >
       <div className="vz-media-thumb" style={{ background: '#050a12', overflow: 'hidden', position: 'relative' }}>
-        {(m.localThumbnailObjectUrl ?? m.thumbnailUrl) && (
+        {(m.localThumbnailObjectUrl ?? m.thumbnailUrl) ? (
           <img
             src={m.localThumbnailObjectUrl ?? m.thumbnailUrl!}
             alt={m.name}
+            onError={onThumbnailError}
+            onLoad={onThumbnailLoad}
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
           />
+        ) : (
+          <div className={`vz-media-signing-placeholder${m.thumbnailSigningError ? ' vz-media-signing-placeholder--error' : ''}`}>
+            {m.thumbnailSigningError ? 'Preview unavailable' : m.thumbnailSigning ? 'Signing media…' : 'Preview pending'}
+          </div>
         )}
         {badge}
         {canRetry && (m.uploadError || (m.derivativeWarning && m.uploadSourceFile)) && <button type="button" className="vz-media-retry" onClick={e => { e.stopPropagation(); onRetry() }}>{m.derivativeWarning ? 'Retry derivative' : 'Retry upload'}</button>}
@@ -501,12 +646,43 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   getDisabledReason,
 }: MediaLibraryBrowserProps) {
   const {
-    items, addFilesToUploadQueue, clearUploadQueue, removeItem, retryUpload, toggleFavorite,
-    loadFromSupabase, loading,
+    items, queryItemIds, addFilesToUploadQueue, clearUploadQueue, removeItem, retryUpload, toggleFavorite,
+    loadFromSupabase, setLibraryQuery, ensureLibraryLoaded, loadNextPage, refreshLibrary,
+    ensureMediaSigned, retryMediaAsset, markMediaAssetLoaded, loading, nextPageLoading, refreshing, hasMore, queryError, invalidated,
     collections, collectionsLoading, loadCollections, removeCollection,
     importModalOpen, openImportMediaModal, closeImportMediaModal,
     mutationStates = {},
-  } = useMediaStore()
+  } = useMediaStore(useShallow(state => ({
+    items: state.items,
+    queryItemIds: state.queryItemIds,
+    addFilesToUploadQueue: state.addFilesToUploadQueue,
+    clearUploadQueue: state.clearUploadQueue,
+    removeItem: state.removeItem,
+    retryUpload: state.retryUpload,
+    toggleFavorite: state.toggleFavorite,
+    loadFromSupabase: state.loadFromSupabase,
+    setLibraryQuery: state.setLibraryQuery,
+    ensureLibraryLoaded: state.ensureLibraryLoaded,
+    loadNextPage: state.loadNextPage,
+    refreshLibrary: state.refreshLibrary,
+    ensureMediaSigned: state.ensureMediaSigned,
+    retryMediaAsset: state.retryMediaAsset,
+    markMediaAssetLoaded: state.markMediaAssetLoaded,
+    loading: state.loading,
+    nextPageLoading: state.nextPageLoading,
+    refreshing: state.refreshing,
+    hasMore: state.hasMore,
+    queryError: state.queryError,
+    invalidated: state.invalidated,
+    collections: state.collections,
+    collectionsLoading: state.collectionsLoading,
+    loadCollections: state.loadCollections,
+    removeCollection: state.removeCollection,
+    importModalOpen: state.importModalOpen,
+    openImportMediaModal: state.openImportMediaModal,
+    closeImportMediaModal: state.closeImportMediaModal,
+    mutationStates: state.mutationStates,
+  })))
 
   const { savedTracks, loading: tracksLoading, loadSavedTracks, removeSavedTrack, getSignedUrl } = useAudioStore()
   const engine = useSharedAudio()
@@ -515,6 +691,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const [libraryFilter, setMediaLibraryFilter] = useState<MediaLibraryFilter>('all')
   const [openCollectionId, setOpenCollectionId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [dragOver, setDragOver]       = useState(false)
   const [editItem, setEditItem]       = useState<UploadedMedia | null>(null)
@@ -524,9 +701,16 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const [editCollection, setEditCollection] = useState<MediaCollection | undefined>(undefined)
   const [collectionEditorOpen, setCollectionEditorOpen] = useState(false)
   const [preserveQueuedFiles, setPreserveQueuedFiles] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
-  const searchActive = searchQuery.length > 2
+  const searchActive = searchQuery.length > 0
   const searchLower  = searchQuery.toLowerCase()
+  const serverManaged = Array.isArray(queryItemIds)
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(searchQuery.trim()), 180)
+    return () => window.clearTimeout(timer)
+  }, [searchQuery])
 
   const capabilitySet = useMemo(() => new Set<MediaLibraryCapability>(capabilities), [capabilities])
   const isManager = context === 'manager'
@@ -549,33 +733,46 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
       : source.filter(filter => filter.key !== 'collections')
   }, [canBrowseCollections, context, isCanvasMode, isReactMode])
 
-  const loadFromSupabaseRef = useRef(loadFromSupabase)
-  useEffect(() => { loadFromSupabaseRef.current = loadFromSupabase }, [loadFromSupabase])
-
   const loadCollectionsRef = useRef(loadCollections)
   useEffect(() => { loadCollectionsRef.current = loadCollections }, [loadCollections])
-
   const loadSavedTracksRef = useRef(loadSavedTracks)
   useEffect(() => { loadSavedTracksRef.current = loadSavedTracks }, [loadSavedTracks])
 
-  useEffect(() => { loadFromSupabaseRef.current() }, [])
+  const libraryQuery = useMemo<MediaLibraryQuery>(() => ({
+    search: debouncedSearch,
+    filter: toServerFilter(libraryFilter),
+    scope: isReactMode ? 'react' : 'all',
+    collectionId: openCollectionId,
+    sort: 'created_desc',
+  }), [debouncedSearch, isReactMode, libraryFilter, openCollectionId])
 
-  // Media Manager owns both halves of the library, so hydrate its summaries and
-  // editors immediately instead of waiting for the user to visit each tab.
+  useEffect(() => {
+    if (typeof setLibraryQuery === 'function' && typeof ensureLibraryLoaded === 'function') {
+      setLibraryQuery(libraryQuery)
+      void ensureLibraryLoaded(libraryQuery)
+    } else {
+      void loadFromSupabase?.()
+    }
+  }, [ensureLibraryLoaded, libraryQuery, loadFromSupabase, setLibraryQuery])
+
+  useEffect(() => {
+    if (invalidated && !loading && !refreshing && typeof ensureLibraryLoaded === 'function') {
+      void ensureLibraryLoaded(libraryQuery, true)
+    }
+  }, [ensureLibraryLoaded, invalidated, libraryQuery, loading, refreshing])
+
   useEffect(() => {
     if (context !== 'manager') return
-    loadCollectionsRef.current()
-    loadSavedTracksRef.current()
+    loadCollectionsRef.current?.()
+    loadSavedTracksRef.current?.()
   }, [context])
 
-  // Load collections when switching to collections tab (lazy)
   useEffect(() => {
-    if (canBrowseCollections && libraryFilter === 'collections') loadCollectionsRef.current()
+    if (canBrowseCollections && libraryFilter === 'collections') loadCollectionsRef.current?.()
   }, [canBrowseCollections, libraryFilter])
 
-  // Load saved tracks when switching to tracks tab (lazy)
   useEffect(() => {
-    if (libraryFilter === 'tracks') loadSavedTracksRef.current()
+    if (libraryFilter === 'tracks') loadSavedTracksRef.current?.()
   }, [libraryFilter])
 
   const handleSetFilter = useCallback((f: MediaLibraryFilter) => {
@@ -583,16 +780,19 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     if (f !== 'collections') setOpenCollectionId(null)
   }, [])
 
+  const queryItems = useMemo(() => {
+    if (!serverManaged) return items
+    const byId = new Map(items.map(item => [item.id, item]))
+    return queryItemIds.map(id => byId.get(id)).filter((item): item is UploadedMedia => Boolean(item))
+  }, [items, queryItemIds, serverManaged])
+
   const filtered = useMemo(() => {
-    const eligible = isReactMode ? items.filter(isReactEligibleMedia) : items
-    const base = eligible.filter(m => matchesMediaLibraryFilter(m, libraryFilter))
+    const source = serverManaged ? queryItems : (isReactMode ? items.filter(isReactEligibleMedia) : items)
+    const base = serverManaged ? source : source.filter(item => matchesMediaLibraryFilter(item, libraryFilter))
     if (!searchActive) return base
-    return base.filter(m =>
-      (m.title ?? m.name).toLowerCase().includes(searchLower) ||
-      m.name.toLowerCase().includes(searchLower) ||
-      m.tags.some(t => t.toLowerCase().includes(searchLower))
-    )
-  }, [items, libraryFilter, searchActive, searchLower, isReactMode])
+    if (serverManaged && searchQuery.trim() === debouncedSearch) return base
+    return base.filter(item => matchesSearch(item, searchQuery))
+  }, [debouncedSearch, isReactMode, items, libraryFilter, queryItems, searchActive, searchQuery, serverManaged])
 
   const filteredTracks = useMemo(() => {
     if (!searchActive) return savedTracks
@@ -622,15 +822,11 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   )
 
   const openCollectionItems = useMemo(() => {
-    const raw = openCollectionId ? (itemsByCollection.get(openCollectionId) ?? []) : []
+    const raw = serverManaged && openCollectionId ? queryItems : (openCollectionId ? (itemsByCollection.get(openCollectionId) ?? []) : [])
     const base = isReactMode ? raw.filter(isReactEligibleMedia) : raw
-    if (!searchActive) return base
-    return base.filter(m =>
-      (m.title ?? m.name).toLowerCase().includes(searchLower) ||
-      m.name.toLowerCase().includes(searchLower) ||
-      m.tags.some(t => t.toLowerCase().includes(searchLower))
-    )
-  }, [itemsByCollection, openCollectionId, searchActive, searchLower, isReactMode])
+    if (!searchActive || (serverManaged && searchQuery.trim() === debouncedSearch)) return base
+    return base.filter(item => matchesSearch(item, searchQuery))
+  }, [debouncedSearch, isReactMode, itemsByCollection, openCollectionId, queryItems, searchActive, searchQuery, serverManaged])
 
   const filteredCollections = useMemo(() => {
     let list = collections
@@ -687,8 +883,16 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   }, [engine, removeSavedTrack])
 
   useEffect(() => {
-    if (editItem && !items.some(item => item.id === editItem.id)) setEditItem(null)
-    if (previewItem && !items.some(item => item.id === previewItem.id)) setPreviewItem(null)
+    if (editItem) {
+      const current = items.find(item => item.id === editItem.id)
+      if (!current) setEditItem(null)
+      else if (current !== editItem) setEditItem(current)
+    }
+    if (previewItem) {
+      const current = items.find(item => item.id === previewItem.id)
+      if (!current) setPreviewItem(null)
+      else if (current !== previewItem) setPreviewItem(current)
+    }
   }, [editItem, items, previewItem])
 
   useEffect(() => {
@@ -698,37 +902,70 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
 
   // ── Render ────────────────────────────────────────────────────────────────
 
+  const handleSelectMedia = useCallback(async (media: UploadedMedia) => {
+    if (typeof ensureMediaSigned === 'function') await ensureMediaSigned([media.id], 'visible')
+    onSelect?.(media.id)
+  }, [ensureMediaSigned, onSelect])
+
+  const handlePreviewMedia = useCallback(async (media: UploadedMedia) => {
+    if (typeof ensureMediaSigned === 'function') await ensureMediaSigned([media.id], 'visible')
+    const current = items.find(item => item.id === media.id) ?? media
+    setPreviewItem(current)
+  }, [ensureMediaSigned, items])
+
+  const renderMediaCard = useCallback((media: UploadedMedia) => {
+    const disabledReason = getDisabledReason?.(media) ?? null
+    return (
+      <MediaCard
+        key={media.id}
+        m={media}
+        isActive={activeMediaId === media.id}
+        viewMode={viewMode}
+        onSelect={() => { void handleSelectMedia(media) }}
+        onEdit={canEdit ? () => setEditItem(media) : undefined}
+        onRemove={canRemove ? () => {
+          if (window.confirm(`Delete “${media.title ?? media.name}”? It will disappear immediately, while exact storage cleanup remains recoverable until finalized.`)) void removeItem(media.id)
+        } : undefined}
+        onToggleFavorite={() => { void toggleFavorite(media.id) }}
+        onPreview={() => { void handlePreviewMedia(media) }}
+        canSelect={canSelect && !disabledReason}
+        canEdit={canEdit}
+        canRemove={canRemove}
+        canFavorite={canFavorite}
+        canPreview={canPreview}
+        canDrag={canDragMedia && !disabledReason}
+        canRetry={context === 'manager'}
+        onRetry={() => { void retryUpload(media.id) }}
+        mutationStates={Object.values(mutationStates).filter(state => state.itemId === media.id)}
+        disabledReason={disabledReason}
+        onThumbnailError={() => { void retryMediaAsset?.(media.id, 'thumbnail') }}
+        onThumbnailLoad={() => { markMediaAssetLoaded?.(media.id, 'thumbnail') }}
+      />
+    )
+  }, [activeMediaId, canDragMedia, canEdit, canFavorite, canPreview, canRemove, canSelect, context, getDisabledReason, handlePreviewMedia, handleSelectMedia, markMediaAssetLoaded, mutationStates, removeItem, retryMediaAsset, retryUpload, toggleFavorite, viewMode])
+
+  const handleEnsureSigned = useCallback((visibleIds: string[], nearIds: string[]) => {
+    void ensureMediaSigned?.(visibleIds, 'visible')
+    const visible = new Set(visibleIds)
+    void ensureMediaSigned?.(nearIds.filter(id => !visible.has(id)), 'near')
+  }, [ensureMediaSigned])
+
+  const handleNearEnd = useCallback(() => {
+    void loadNextPage?.()
+  }, [loadNextPage])
+
   const renderGrid = (mediaList: UploadedMedia[]) => (
-    <div className={viewMode === 'list' ? 'vz-media-list' : 'vz-media-grid'}>
-      {mediaList.map(m => {
-        const disabledReason = getDisabledReason?.(m) ?? null
-        return (
-          <MediaCard
-            key={m.id}
-            m={m}
-            isActive={activeMediaId === m.id}
-            viewMode={viewMode}
-            onSelect={() => onSelect?.(m.id)}
-            onEdit={canEdit ? () => setEditItem(m) : undefined}
-            onRemove={canRemove ? () => {
-              if (window.confirm(`Delete “${m.title ?? m.name}”? It will disappear immediately, while exact storage cleanup remains recoverable until finalized.`)) void removeItem(m.id)
-            } : undefined}
-            onToggleFavorite={() => toggleFavorite(m.id)}
-            onPreview={() => setPreviewItem(m)}
-            canSelect={canSelect && !disabledReason}
-            canEdit={canEdit}
-            canRemove={canRemove}
-            canFavorite={canFavorite}
-            canPreview={canPreview}
-            canDrag={canDragMedia && !disabledReason}
-            canRetry={context === 'manager'}
-            onRetry={() => { void retryUpload(m.id) }}
-            mutationStates={Object.values(mutationStates).filter(state => state.itemId === m.id)}
-            disabledReason={disabledReason}
-          />
-        )
-      })}
-    </div>
+    <VirtualizedMediaCards
+      items={mediaList}
+      viewMode={viewMode}
+      manager={isManager}
+      scrollRef={scrollRef}
+      renderCard={renderMediaCard}
+      ensureSigned={handleEnsureSigned}
+      onNearEnd={handleNearEnd}
+      hasMore={hasMore ?? false}
+      loadingMore={nextPageLoading ?? false}
+    />
   )
 
   const renderTracksView = () => {
@@ -894,6 +1131,15 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
           {isManager && canBrowseCollections && (
             <button type="button" className="vz-import-btn vz-import-btn--secondary" onClick={() => { setEditCollection(undefined); setCollectionEditorOpen(true) }}>New Collection</button>
           )}
+          <button
+            type="button"
+            className="vz-import-btn vz-import-btn--secondary"
+            onClick={() => { void refreshLibrary?.() }}
+            disabled={refreshing}
+            title="Refresh media library"
+          >
+            {refreshing ? 'Refreshing…' : 'Refresh'}
+          </button>
           {canUpload && (
             <button type="button" className="vz-import-btn" onClick={() => { setPreserveQueuedFiles(false); openImportMediaModal() }}>
               <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor">
@@ -951,12 +1197,17 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
 
         <MediaStatusBar includeAudio={isManager} />
 
-        <div className="vz-media-scroll">
+        <div className="vz-media-scroll" ref={scrollRef}>
           {libraryFilter === 'tracks' ? (
             renderTracksView()
           ) : libraryFilter === 'collections' ? (
             renderCollectionsView()
-          ) : loading && items.length === 0 ? (
+          ) : queryError && filtered.length === 0 ? (
+            <div className="vz-media-page-error" role="alert">
+              <span>{queryError}</span>
+              <button type="button" className="vz-media-empty-action" onClick={() => { void refreshLibrary?.() }}>Retry</button>
+            </div>
+          ) : loading && filtered.length === 0 ? (
             <div className="vz-media-grid" style={{ padding: '8px 4px' }}>
               {[0, 1, 2].map(i => (
                 <div key={i} className="vz-media-card" style={{ opacity: 0.4, pointerEvents: 'none' }}>
@@ -965,7 +1216,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
                 </div>
               ))}
             </div>
-          ) : items.length === 0 && canUpload ? (
+          ) : filtered.length === 0 && !searchActive && canUpload ? (
             <div
               className="ref-empty-slot"
               style={{ cursor: 'pointer', margin: 12, height: 120, display: 'flex' }}

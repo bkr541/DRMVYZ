@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest'
 import type { MediaPool } from './mediaPool'
-import { getOrCreateMediaInstance, pauseInactiveMediaInstances, destroyMediaInstance } from './mediaPool'
+import { getOrCreateMediaInstance, pauseInactiveMediaInstances, destroyMediaInstance, MAX_MEDIA_POOL_INSTANCES } from './mediaPool'
 
 // ── Mock browser DOM APIs ──────────────────────────────────────────────────────
 // Node environment has no DOM; stub the globals so instanceof checks work.
@@ -88,6 +88,22 @@ describe('getOrCreateMediaInstance', () => {
     expect(el1).not.toBe(el2)
     expect(pool.get('background:clip-A')).toBe(el1)
     expect(pool.get('background:clip-B')).toBe(el2)
+  })
+
+
+  it('bounds decoded media instances and evicts the least-recently-used video', () => {
+    const pool = makePool()
+    for (let index = 0; index < MAX_MEDIA_POOL_INSTANCES; index += 1) {
+      getOrCreateMediaInstance(pool, `background:${index}`, VIDEO_MEDIA)
+    }
+    const oldest = pool.get('background:0') as unknown as FakeVideo
+    getOrCreateMediaInstance(pool, 'background:1', VIDEO_MEDIA)
+    getOrCreateMediaInstance(pool, 'background:new', VIDEO_MEDIA)
+    expect(pool.size).toBe(MAX_MEDIA_POOL_INSTANCES)
+    expect(pool.has('background:0')).toBe(false)
+    expect(pool.has('background:1')).toBe(true)
+    expect(oldest.pause).toHaveBeenCalled()
+    expect(oldest.src).toBe('')
   })
 })
 

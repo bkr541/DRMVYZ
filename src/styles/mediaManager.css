@@ -264,3 +264,11 @@
   outline: 2px solid rgba(74,199,219,0.75);
   outline-offset: 2px;
 }
+
+.vz-media-browser--manager .vz-media-virtual > .vz-media-grid {
+  grid-auto-rows: 180px;
+}
+
+.vz-media-browser--manager .vz-media-virtual > .vz-media-grid > .vz-media-card {
+  height: 180px;
+}

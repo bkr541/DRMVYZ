@@ -51,7 +51,7 @@ vi.mock('./MediaStatusBar', () => ({
   MediaStatusBar: () => <div data-testid="media-status-bar" />,
 }))
 
-import { MediaLibraryBrowser } from './MediaLibraryBrowser'
+import { MediaLibraryBrowser, computeVirtualMediaWindow } from './MediaLibraryBrowser'
 import { CANVAS_MEDIA_LIBRARY_CAPABILITIES, MEDIA_DECK_CAPABILITIES, MEDIA_MANAGER_CAPABILITIES } from './mediaLibraryCapabilities'
 
 let container: HTMLDivElement | null = null
@@ -352,5 +352,21 @@ describe('MediaLibraryBrowser capability boundaries', () => {
     expect(container?.textContent).toContain('No media available. Add files from Media Manager.')
     act(() => findButton('Open Media Manager')?.click())
     expect(onOpenMediaManager).toHaveBeenCalledTimes(1)
+  })
+})
+
+
+describe('MediaLibraryBrowser virtualization', () => {
+  it('renders a bounded window relative to the viewport instead of the complete library', () => {
+    const windowed = computeVirtualMediaWindow({ itemCount: 10_000, width: 1000, height: 600, scrollTop: 0, viewMode: 'grid', manager: true })
+    expect(windowed.columns).toBeGreaterThan(1)
+    expect(windowed.endIndex - windowed.startIndex).toBeLessThan(100)
+    expect(windowed.bottomSpacer).toBeGreaterThan(0)
+  })
+
+  it('keeps the rendered window bounded near the end of a large library', () => {
+    const windowed = computeVirtualMediaWindow({ itemCount: 10_000, width: 320, height: 500, scrollTop: 740_000, viewMode: 'grid', manager: false })
+    expect(windowed.endIndex - windowed.startIndex).toBeLessThanOrEqual(24)
+    expect(windowed.startIndex).toBeGreaterThan(0)
   })
 })

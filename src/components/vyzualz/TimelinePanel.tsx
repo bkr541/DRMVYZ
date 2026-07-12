@@ -149,10 +149,10 @@ function ClipBlock({
   useEffect(() => {
     if (!isVideo || !media?.url) { setFilmstrip([]); return }
     let alive = true
-    generateVideoFilmstrip(media.url, 6, clip.mediaInSec, clip.mediaOutSec)
+    generateVideoFilmstrip(media.url, 6, clip.mediaInSec, clip.mediaOutSec, media.storagePath ?? media.id)
       .then(frames => { if (alive) setFilmstrip(frames) })
     return () => { alive = false }
-  }, [isVideo, media?.url, clip.mediaInSec, clip.mediaOutSec])
+  }, [isVideo, media?.url, media?.storagePath, media?.id, clip.mediaInSec, clip.mediaOutSec])
 
   // Show as many frames as fit at ~32px each; at least 1 when filmstrip exists
   const frameCount = filmstrip.length > 0

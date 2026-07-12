@@ -351,7 +351,11 @@ export function VisualizerWorkspace({
     setAudioReactivityEnabled: s.setAudioReactivityEnabled,
   })))
 
-  const { items, loading, reorderItems } = useMediaStore()
+  const { items, loading, reorderItems } = useMediaStore(useShallow(state => ({
+    items: state.items,
+    loading: state.loading,
+    reorderItems: state.reorderItems,
+  })))
 
   const enabledFxSet = useMemo(() => new Set(enabledFxArr), [enabledFxArr])
   // Baseline mode overrides the enabled-effects set to empty without touching the store,

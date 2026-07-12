@@ -4,7 +4,7 @@ import { useVisualStore } from '../../../stores/visualStore'
 import { isPrimaryMedia } from '../../../lib/mediaRoles'
 
 export function useMediaNavigation() {
-  const { items } = useMediaStore()
+  const items = useMediaStore(state => state.items)
   const { activeMediaId, setActiveMedia } = useVisualStore()
 
   const handlePrev = useCallback(() => {

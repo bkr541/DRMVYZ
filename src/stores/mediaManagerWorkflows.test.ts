@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mediaDbMocks = vi.hoisted(() => ({
   listMediaItems: vi.fn(),
+  listMediaItemsPage: vi.fn(),
   createMediaItem: vi.fn(),
   saveMediaItemAtomic: vi.fn(),
   reorderMediaCollectionAtomic: vi.fn(),
@@ -58,6 +59,7 @@ vi.mock('../utils/analyzeAudioFile', () => ({ analyzeAudioFile: runtimeMocks.ana
 vi.mock('../components/vyzualz/media/generateThumbnail', () => ({
   generateThumbnail: vi.fn().mockResolvedValue({ thumbnailObjectUrl: null, analyzedAt: null }),
   clearFilmstripCache: vi.fn(),
+  clearMediaGenerationCaches: vi.fn(),
 }))
 vi.mock('../components/vyzualz/react/services/svgMediaBridge', () => ({
   cleanupRemovedSvgMedia: runtimeMocks.cleanupRemovedSvgMedia,
@@ -74,6 +76,7 @@ vi.mock('../components/vyzualz/react/renderers/svgCapabilityAnalysis', () => ({
 import type { SaveMediaItemAtomicInput } from '../lib/mediaDb'
 import type { UploadedMedia } from './mediaStore'
 import { mediaMutationKey, useMediaStore } from './mediaStore'
+import { supabase } from '../lib/supabase'
 
 function mediaItem(overrides: Partial<UploadedMedia> = {}): UploadedMedia {
   return {
@@ -140,7 +143,10 @@ function uploadCanonical(operationId: string, overrides: Record<string, unknown>
 
 function resetStore() {
   useMediaStore.setState({
-    items: [], collections: [], loading: false, collectionsLoading: false,
+    items: [], queryItemIds: [], collections: [], loading: false, nextPageLoading: false, refreshing: false,
+    hasMore: true, cursor: null, libraryQuery: { search: '', filter: 'all', scope: 'all', collectionId: null, sort: 'created_desc' },
+    libraryQueryKey: JSON.stringify({ search: '', filter: 'all', scope: 'all', collectionId: null, sort: 'created_desc' }),
+    queryError: null, lastSuccessfulLoad: null, invalidated: true, accountId: null, collectionsLoading: false,
     loadError: null, deleteError: null, authRequired: false, storageAvailable: true,
     lastRestored: null, activeFilter: 'all', mutationStates: {}, collectionOrderMutations: {}, deletionStates: {}, uploadCleanupStates: {},
     importModalOpen: false, uploadQueue: [],
@@ -179,6 +185,7 @@ describe('Media Manager canonical workflows', () => {
     runtimeMocks.analyzeAudioFile.mockResolvedValue(null)
 
     mediaDbMocks.listMediaItems.mockResolvedValue({ rows: [], error: null })
+    mediaDbMocks.listMediaItemsPage.mockResolvedValue({ ok: true, page: { items: [], nextCursor: null, hasMore: false } })
     mediaDbMocks.listMediaItemTagNames.mockResolvedValue({ tagMap: new Map(), error: null })
     mediaDbMocks.listMediaItemCollectionIds.mockResolvedValue({ collMap: new Map(), error: null })
     mediaDbMocks.listMediaCollections.mockResolvedValue({ rows: [], error: null })
@@ -566,6 +573,110 @@ describe('Media Manager canonical workflows', () => {
 
     useMediaStore.getState().clear()
     expect(useMediaStore.getState()).toMatchObject({ items: [], collections: [], uploadQueue: [], deletionStates: {} })
+  })
+
+
+  it('loads multiple stable pages without duplicate items and preserves selection state', async () => {
+    const first = uploadCanonical('page-a', { id: 'page-a', title: 'A' })
+    const equalTimestamp = uploadCanonical('page-b', { id: 'page-b', title: 'B' })
+    const third = uploadCanonical('page-c', { id: 'page-c', title: 'C', created_at: '2026-07-10T00:00:00.000Z' })
+    mediaDbMocks.listMediaItemsPage
+      .mockResolvedValueOnce({ ok: true, page: { items: [first, equalTimestamp], nextCursor: { createdAt: first.created_at, id: equalTimestamp.id }, hasMore: true } })
+      .mockResolvedValueOnce({ ok: true, page: { items: [equalTimestamp, third], nextCursor: null, hasMore: false } })
+
+    runtimeMocks.visual.activeMediaId = 'db-page-a'
+    await useMediaStore.getState().refreshLibrary()
+    await useMediaStore.getState().loadNextPage()
+
+    expect(useMediaStore.getState().queryItemIds).toEqual(['db-page-a', 'db-page-b', 'db-page-c'])
+    expect(new Set(useMediaStore.getState().queryItemIds).size).toBe(3)
+    expect(runtimeMocks.visual.activeMediaId).toBe('db-page-a')
+    expect(mediaDbMocks.listMediaItemsPage.mock.calls[1][1]).toEqual({ createdAt: first.created_at, id: equalTimestamp.id })
+  })
+
+  it('does not append a stale next-page response after the query changes', async () => {
+    const oldPage = uploadCanonical('old', { id: 'old', title: 'Old' })
+    const staleItem = uploadCanonical('stale', { id: 'stale', title: 'Stale' })
+    const newItem = uploadCanonical('new', { id: 'new', title: 'DJ Visual' })
+    const pending = deferred<{ ok: true; page: { items: ReturnType<typeof uploadCanonical>[]; nextCursor: null; hasMore: false } }>()
+    mediaDbMocks.listMediaItemsPage
+      .mockResolvedValueOnce({ ok: true, page: { items: [oldPage], nextCursor: { createdAt: oldPage.created_at, id: oldPage.id }, hasMore: true } })
+      .mockImplementationOnce(() => pending.promise)
+      .mockResolvedValueOnce({ ok: true, page: { items: [newItem], nextCursor: null, hasMore: false } })
+
+    await useMediaStore.getState().refreshLibrary()
+    const oldRequest = useMediaStore.getState().loadNextPage()
+    useMediaStore.getState().setLibraryQuery({ search: 'DJ', filter: 'all', scope: 'all', collectionId: null, sort: 'created_desc' })
+    await useMediaStore.getState().refreshLibrary()
+    pending.resolve({ ok: true, page: { items: [staleItem], nextCursor: null, hasMore: false } })
+    await oldRequest
+
+    expect(useMediaStore.getState().queryItemIds).toEqual(['db-new'])
+    expect(useMediaStore.getState().queryItemIds).not.toContain('db-stale')
+  })
+
+  it('sends one- and two-character searches to the complete server query and reuses a fresh page', async () => {
+    const dj = uploadCanonical('dj', { id: 'dj', title: 'DJ' })
+    mediaDbMocks.listMediaItemsPage.mockResolvedValue({ ok: true, page: { items: [dj], nextCursor: null, hasMore: false } })
+    const oneCharacter = { search: 'D', filter: 'all' as const, scope: 'all' as const, collectionId: null, sort: 'created_desc' as const }
+    await useMediaStore.getState().ensureLibraryLoaded(oneCharacter)
+    await useMediaStore.getState().ensureLibraryLoaded(oneCharacter)
+    expect(mediaDbMocks.listMediaItemsPage).toHaveBeenCalledTimes(1)
+    expect(mediaDbMocks.listMediaItemsPage).toHaveBeenCalledWith(oneCharacter, null, 48)
+
+    const twoCharacters = { ...oneCharacter, search: 'DJ' }
+    await useMediaStore.getState().ensureLibraryLoaded(twoCharacters)
+    expect(mediaDbMocks.listMediaItemsPage).toHaveBeenLastCalledWith(twoCharacters, null, 48)
+  })
+
+
+  it('coalesces repeated near-end requests into one next-page RPC', async () => {
+    const page = uploadCanonical('next-once', { id: 'next-once' })
+    const pending = deferred<{ ok: true; page: { items: ReturnType<typeof uploadCanonical>[]; nextCursor: null; hasMore: false } }>()
+    mediaDbMocks.listMediaItemsPage.mockImplementationOnce(() => pending.promise)
+    useMediaStore.setState({
+      accountId: 'user-1', hasMore: true, cursor: { createdAt: '2026-07-11T00:00:00.000Z', id: 'cursor' },
+      loading: false, refreshing: false, nextPageLoading: false,
+    })
+    const first = useMediaStore.getState().loadNextPage()
+    const second = useMediaStore.getState().loadNextPage()
+    expect(mediaDbMocks.listMediaItemsPage).toHaveBeenCalledTimes(1)
+    pending.resolve({ ok: true, page: { items: [page], nextCursor: null, hasMore: false } })
+    await Promise.all([first, second])
+    expect(useMediaStore.getState().queryItemIds).toEqual(['db-next-once'])
+  })
+
+  it('refreshes an expired asset once, stops a repeated failure loop, and permits a later healthy cycle', async () => {
+    const asset = mediaItem({ id: 'db-expiry', dbId: 'expiry', storagePath: 'user-1/expiry/original.mp4', type: 'video', url: 'https://expired.test/one' })
+    useMediaStore.setState({ items: [asset], accountId: 'user-1' })
+    mediaDbMocks.createSignedMediaUrl
+      .mockResolvedValueOnce({ url: 'https://signed.test/two', error: null })
+      .mockResolvedValueOnce({ url: 'https://signed.test/three', error: null })
+
+    expect(await useMediaStore.getState().retryMediaAsset(asset.id, 'original')).toBe(true)
+    expect(await useMediaStore.getState().retryMediaAsset(asset.id, 'original')).toBe(false)
+    expect(mediaDbMocks.createSignedMediaUrl).toHaveBeenCalledTimes(1)
+
+    useMediaStore.getState().markMediaAssetLoaded(asset.id, 'original')
+    expect(await useMediaStore.getState().retryMediaAsset(asset.id, 'original')).toBe(true)
+    expect(mediaDbMocks.createSignedMediaUrl).toHaveBeenCalledTimes(2)
+  })
+
+  it('clears private rows and reloads when the authenticated account changes', async () => {
+    const privateItem = mediaItem({ id: 'db-private', dbId: 'private', url: 'blob:private', localObjectUrlKey: 'local:private:original' })
+    const nextAccountItem = uploadCanonical('user-2-item', { id: 'user-2-item', user_id: 'user-2', storage_path: 'user-2/item/original.png' })
+    useMediaStore.setState({
+      items: [privateItem], queryItemIds: [privateItem.id], accountId: 'user-1', invalidated: false,
+      lastSuccessfulLoad: Date.now(), hasMore: false,
+    })
+    vi.mocked(supabase.auth.getUser).mockResolvedValue({ data: { user: { id: 'user-2' } }, error: null } as never)
+    mediaDbMocks.listMediaItemsPage.mockResolvedValueOnce({ ok: true, page: { items: [nextAccountItem], nextCursor: null, hasMore: false } })
+
+    await useMediaStore.getState().ensureLibraryLoaded()
+    expect(useMediaStore.getState().accountId).toBe('user-2')
+    expect(useMediaStore.getState().queryItemIds).toEqual(['db-user-2-item'])
+    expect(useMediaStore.getState().items.some(item => item.id === privateItem.id)).toBe(false)
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:private')
   })
 
 })

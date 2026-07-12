@@ -1,16 +1,53 @@
 import { useEffect } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { MediaMutationOperation } from '../../../stores/mediaStore'
 import { useAudioStore } from '../../../stores/audioStore'
 
 export function MediaStatusBar({ includeAudio = false }: { includeAudio?: boolean }) {
   const {
-    loading, loadError, deleteError, authRequired,
-    storageAvailable, lastRestored,
-    clearLoadError, clearDeleteError, clearRestored,
-    mutationStates = {}, collectionOrderMutations = {}, deletionStates = {}, uploadCleanupStates = {}, retryMediaMutation, reapplyMediaMutation, clearMediaMutation,
-    retryCollectionReorder, clearCollectionReorderError, retryDeletion, retryUploadCleanup,
-  } = useMediaStore()
+    loading,
+    loadError,
+    deleteError,
+    authRequired,
+    storageAvailable,
+    lastRestored,
+    clearLoadError,
+    clearDeleteError,
+    clearRestored,
+    mutationStates = {},
+    collectionOrderMutations = {},
+    deletionStates = {},
+    uploadCleanupStates = {},
+    retryMediaMutation,
+    reapplyMediaMutation,
+    clearMediaMutation,
+    retryCollectionReorder,
+    clearCollectionReorderError,
+    retryDeletion,
+    retryUploadCleanup,
+  } = useMediaStore(useShallow(state => ({
+    loading: state.loading,
+    loadError: state.loadError,
+    deleteError: state.deleteError,
+    authRequired: state.authRequired,
+    storageAvailable: state.storageAvailable,
+    lastRestored: state.lastRestored,
+    clearLoadError: state.clearLoadError,
+    clearDeleteError: state.clearDeleteError,
+    clearRestored: state.clearRestored,
+    mutationStates: state.mutationStates,
+    collectionOrderMutations: state.collectionOrderMutations,
+    deletionStates: state.deletionStates,
+    uploadCleanupStates: state.uploadCleanupStates,
+    retryMediaMutation: state.retryMediaMutation,
+    reapplyMediaMutation: state.reapplyMediaMutation,
+    clearMediaMutation: state.clearMediaMutation,
+    retryCollectionReorder: state.retryCollectionReorder,
+    clearCollectionReorderError: state.clearCollectionReorderError,
+    retryDeletion: state.retryDeletion,
+    retryUploadCleanup: state.retryUploadCleanup,
+  })))
   const audioError = useAudioStore(state => state.loadError)
   const clearAudioError = useAudioStore(state => state.clearError)
 

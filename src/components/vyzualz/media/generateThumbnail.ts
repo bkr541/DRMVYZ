@@ -1,17 +1,26 @@
-// Lightweight thumbnail generation and metadata extraction.
-// Works entirely in the browser without blocking the UI.
-// Falls back gracefully on CORS failures or decode errors.
+// Browser-side thumbnail and filmstrip generation with stable, bounded caches.
+// Cache identities must be user + stable media id/storage path, never signed URLs.
+
+import { BoundedLruCache } from '../../../lib/boundedLru'
 
 export interface ThumbnailResult {
-  thumbnailObjectUrl: string | null  // data URL (jpeg), or original URL for small images
-  width:   number
-  height:  number
-  duration?: number  // seconds; videos only
-  analyzedAt: number // Date.now() snapshot
+  thumbnailObjectUrl: string | null
+  width: number
+  height: number
+  duration?: number
+  analyzedAt: number
 }
 
 const THUMB_W = 200
-const THUMB_H = 112  // 16:9 target
+const THUMB_H = 112
+export const MAX_FILMSTRIP_FRAMES = 8
+export const MAX_GENERATED_THUMBNAILS = 64
+export const MAX_FILMSTRIP_CACHE_ENTRIES = 24
+
+const thumbnailCache = new BoundedLruCache<string, ThumbnailResult>({ maxEntries: MAX_GENERATED_THUMBNAILS })
+const thumbnailPending = new Map<string, Promise<ThumbnailResult>>()
+const filmstripCache = new BoundedLruCache<string, string[]>({ maxEntries: MAX_FILMSTRIP_CACHE_ENTRIES })
+const filmstripPending = new Map<string, Promise<string[]>>()
 
 function drawToDataUrl(
   source: HTMLImageElement | HTMLVideoElement,
@@ -24,12 +33,12 @@ function drawToDataUrl(
     let th = Math.round(THUMB_W / aspect)
     if (th > THUMB_H) { th = THUMB_H; tw = Math.round(THUMB_H * aspect) }
     tw = Math.max(1, tw); th = Math.max(1, th)
-    const c = document.createElement('canvas')
-    c.width = tw; c.height = th
-    const ctx = c.getContext('2d')
-    if (!ctx) return null
-    ctx.drawImage(source, 0, 0, tw, th)
-    return c.toDataURL('image/jpeg', 0.75)
+    const canvas = document.createElement('canvas')
+    canvas.width = tw; canvas.height = th
+    const context = canvas.getContext('2d')
+    if (!context) return null
+    context.drawImage(source, 0, 0, tw, th)
+    return canvas.toDataURL('image/jpeg', 0.75)
   } catch {
     return null
   }
@@ -38,166 +47,182 @@ function drawToDataUrl(
 export function generateImageThumbnail(url: string): Promise<ThumbnailResult> {
   const analyzedAt = Date.now()
   return new Promise(resolve => {
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    img.onload = () => {
-      const w = img.naturalWidth, h = img.naturalHeight
-      // Skip canvas round-trip for small images — original URL is fine as-is
-      if (w <= THUMB_W * 2 && h <= THUMB_H * 2) {
-        resolve({ thumbnailObjectUrl: url, width: w, height: h, analyzedAt })
-        return
-      }
-      const dataUrl = drawToDataUrl(img, w, h)
-      resolve({ thumbnailObjectUrl: dataUrl ?? url, width: w, height: h, analyzedAt })
+    const image = new Image()
+    image.crossOrigin = 'anonymous'
+    image.onload = () => {
+      const width = image.naturalWidth
+      const height = image.naturalHeight
+      resolve({ thumbnailObjectUrl: drawToDataUrl(image, width, height), width, height, analyzedAt })
     }
-    img.onerror = () => resolve({ thumbnailObjectUrl: null, width: 0, height: 0, analyzedAt })
-    img.src = url
+    image.onerror = () => resolve({ thumbnailObjectUrl: null, width: 0, height: 0, analyzedAt })
+    image.src = url
   })
 }
 
 export function generateVideoThumbnail(url: string): Promise<ThumbnailResult> {
   const analyzedAt = Date.now()
   return new Promise(resolve => {
-    const v = document.createElement('video')
-    v.muted = true
-    v.playsInline = true
-    v.preload = 'metadata'
-    v.crossOrigin = 'anonymous'
+    const video = document.createElement('video')
+    video.muted = true
+    video.playsInline = true
+    video.preload = 'metadata'
+    video.crossOrigin = 'anonymous'
 
     let settled = false
-    const done = (result: ThumbnailResult) => {
+    const timer = setTimeout(() => finish({ thumbnailObjectUrl: null, width: 0, height: 0, analyzedAt }), 8000)
+    const finish = (result: ThumbnailResult) => {
       if (settled) return
       settled = true
-      v.onerror = null; v.onloadedmetadata = null; v.onseeked = null
-      v.src = ''
-      v.load()
+      clearTimeout(timer)
+      video.onerror = null; video.onloadedmetadata = null; video.onseeked = null
+      video.src = ''
+      video.load()
       resolve(result)
     }
-    const fail = () => done({ thumbnailObjectUrl: null, width: 0, height: 0, analyzedAt })
 
-    // Hard timeout so we never block the caller indefinitely
-    const timer = setTimeout(fail, 8000)
-
-    v.onerror = fail
-    v.onloadedmetadata = () => {
-      const duration = isFinite(v.duration) ? v.duration : undefined
-      const w = v.videoWidth, h = v.videoHeight
-      // Seek to 10% of duration or 0.5 s, whichever is smaller, avoiding seek to 0
+    video.onerror = () => finish({ thumbnailObjectUrl: null, width: 0, height: 0, analyzedAt })
+    video.onloadedmetadata = () => {
+      const duration = isFinite(video.duration) ? video.duration : undefined
+      const width = video.videoWidth
+      const height = video.videoHeight
       const seekTo = duration && duration > 0 ? Math.min(duration * 0.1, 0.5) : 0.5
-      v.onseeked = () => {
-        clearTimeout(timer)
-        const dataUrl = drawToDataUrl(v, w || 160, h || 90)
-        done({ thumbnailObjectUrl: dataUrl, width: w, height: h, duration, analyzedAt })
-      }
-      v.onerror = () => { clearTimeout(timer); fail() }
-      v.currentTime = seekTo
+      video.onseeked = () => finish({
+        thumbnailObjectUrl: drawToDataUrl(video, width || 160, height || 90),
+        width,
+        height,
+        duration,
+        analyzedAt,
+      })
+      video.currentTime = seekTo
     }
-
-    v.src = url
+    video.src = url
   })
 }
 
-export function generateThumbnail(url: string, type: 'image' | 'video'): Promise<ThumbnailResult> {
-  return type === 'video' ? generateVideoThumbnail(url) : generateImageThumbnail(url)
+export function generateThumbnail(
+  url: string,
+  type: 'image' | 'video',
+  stableCacheKey = url,
+): Promise<ThumbnailResult> {
+  const cached = thumbnailCache.get(stableCacheKey)
+  if (cached) return Promise.resolve(cached)
+  const pending = thumbnailPending.get(stableCacheKey)
+  if (pending) return pending
+  const promise = (type === 'video' ? generateVideoThumbnail(url) : generateImageThumbnail(url)).then(result => {
+    thumbnailPending.delete(stableCacheKey)
+    if (result.thumbnailObjectUrl) thumbnailCache.set(stableCacheKey, result)
+    return result
+  }, error => {
+    thumbnailPending.delete(stableCacheKey)
+    throw error
+  })
+  thumbnailPending.set(stableCacheKey, promise)
+  return promise
 }
 
-// ── Video filmstrip ────────────────────────────────────────────────────────────
-// Extracts N evenly-spaced frames from a video and caches them by URL.
-// Frames are data URLs (no revocation needed). Cache persists for the session.
-
-export const MAX_FILMSTRIP_FRAMES = 8
-
-const filmstripCache   = new Map<string, string[]>()
-const filmstripPending = new Map<string, Promise<string[]>>()
-
 function extractFilmstripFrames(
-  url: string, count: number, inSec: number, outSec: number | undefined,
+  url: string,
+  count: number,
+  inSec: number,
+  outSec: number | undefined,
 ): Promise<string[]> {
   return new Promise(resolve => {
-    const v = document.createElement('video')
-    v.muted = true
-    v.playsInline = true
-    v.preload = 'metadata'
-    v.crossOrigin = 'anonymous'
+    const video = document.createElement('video')
+    video.muted = true
+    video.playsInline = true
+    video.preload = 'metadata'
+    video.crossOrigin = 'anonymous'
 
     let settled = false
     const finish = (frames: string[]) => {
       if (settled) return
       settled = true
       clearTimeout(timer)
-      v.onerror = null; v.onloadedmetadata = null; v.onseeked = null
-      v.src = ''; v.load()
+      video.onerror = null; video.onloadedmetadata = null; video.onseeked = null
+      video.src = ''; video.load()
       resolve(frames)
     }
-
-    // Hard timeout to prevent indefinite hang on problematic videos
     const timer = setTimeout(() => finish([]), 12_000)
-
-    v.onerror = () => finish([])
-
-    v.onloadedmetadata = () => {
-      const fullDur = isFinite(v.duration) && v.duration > 0 ? v.duration : 1
-      // Clamp sampling range to [inSec, outSec] so frames reflect the trimmed region
+    video.onerror = () => finish([])
+    video.onloadedmetadata = () => {
+      const fullDuration = isFinite(video.duration) && video.duration > 0 ? video.duration : 1
       const start = Math.max(0, inSec)
-      const end   = outSec !== undefined ? Math.min(outSec, fullDur) : fullDur
-      const dur   = Math.max(0.1, end - start)
-      const N     = Math.min(MAX_FILMSTRIP_FRAMES, Math.max(1, count))
-      const W     = v.videoWidth  || 160
-      const H     = v.videoHeight || 90
+      const end = outSec !== undefined ? Math.min(outSec, fullDuration) : fullDuration
+      const duration = Math.max(0.1, end - start)
+      const frameTotal = Math.min(MAX_FILMSTRIP_FRAMES, Math.max(1, count))
+      const width = video.videoWidth || 160
+      const height = video.videoHeight || 90
       const frames: string[] = []
-
-      const seekNext = (i: number) => {
-        if (i >= N) { finish(frames); return }
-        v.onseeked = () => {
-          const dataUrl = drawToDataUrl(v, W, H)
+      const seekNext = (index: number) => {
+        if (index >= frameTotal) { finish(frames); return }
+        video.onseeked = () => {
+          const dataUrl = drawToDataUrl(video, width, height)
           if (dataUrl) frames.push(dataUrl)
-          seekNext(i + 1)
+          seekNext(index + 1)
         }
-        // Sample from the middle of each equal-length segment within the trim range
-        v.currentTime = start + ((i + 0.5) / N) * dur
+        video.currentTime = start + ((index + 0.5) / frameTotal) * duration
       }
       seekNext(0)
     }
-
-    v.src = url
+    video.src = url
   })
 }
 
-// Cache key includes trim bounds so the same video trimmed differently gets separate entries.
-// Null character (U+0000) is used as separator — it cannot appear in any valid URL.
-function filmstripKey(url: string, inSec: number, outSec: number | undefined): string {
-  return (inSec > 0 || outSec !== undefined) ? `${url}\x00${inSec},${outSec ?? ''}` : url
+function filmstripKey(stableCacheKey: string, inSec: number, outSec: number | undefined): string {
+  return `${stableCacheKey}\u0000${inSec},${outSec ?? ''}`
 }
 
-/** Returns an array of frame data URLs for a video, cached by URL + trim range. */
 export function generateVideoFilmstrip(
-  url: string, frameCount = 4, inSec = 0, outSec?: number,
+  url: string,
+  frameCount = 4,
+  inSec = 0,
+  outSec?: number,
+  stableCacheKey = url,
 ): Promise<string[]> {
-  const key = filmstripKey(url, inSec, outSec)
-
+  const key = filmstripKey(stableCacheKey, inSec, outSec)
   const cached = filmstripCache.get(key)
   if (cached) return Promise.resolve(cached)
-
-  // Deduplicate concurrent calls for the same key
   const pending = filmstripPending.get(key)
   if (pending) return pending
-
   const promise = extractFilmstripFrames(url, frameCount, inSec, outSec).then(frames => {
     filmstripPending.delete(key)
-    filmstripCache.set(key, frames)
+    if (frames.length > 0) filmstripCache.set(key, frames)
     return frames
+  }, error => {
+    filmstripPending.delete(key)
+    throw error
   })
   filmstripPending.set(key, promise)
   return promise
 }
 
-/** Remove all cached filmstrip entries for a URL (all trim variants). */
-export function clearFilmstripCache(url: string): void {
-  const prefix = url + '\x00'
-  for (const key of filmstripCache.keys()) {
-    if (key === url || key.startsWith(prefix)) filmstripCache.delete(key)
+export function clearFilmstripCache(stableCacheKey: string): void {
+  const prefix = `${stableCacheKey}\u0000`
+  filmstripCache.deleteWhere((_frames, key) => key.startsWith(prefix))
+  for (const key of Array.from(filmstripPending.keys())) {
+    if (key.startsWith(prefix)) filmstripPending.delete(key)
   }
-  for (const key of filmstripPending.keys()) {
-    if (key === url || key.startsWith(prefix)) filmstripPending.delete(key)
+}
+
+export function clearGeneratedThumbnailCache(stableCacheKey: string): void {
+  thumbnailCache.delete(stableCacheKey)
+  thumbnailPending.delete(stableCacheKey)
+}
+
+export function clearMediaGenerationCaches(stablePrefix?: string): void {
+  if (!stablePrefix) {
+    thumbnailCache.clear()
+    filmstripCache.clear()
+    thumbnailPending.clear()
+    filmstripPending.clear()
+    return
   }
+  thumbnailCache.deleteWhere((_result, key) => key.startsWith(stablePrefix))
+  filmstripCache.deleteWhere((_frames, key) => key.startsWith(stablePrefix))
+  for (const key of Array.from(thumbnailPending.keys())) if (key.startsWith(stablePrefix)) thumbnailPending.delete(key)
+  for (const key of Array.from(filmstripPending.keys())) if (key.startsWith(stablePrefix)) filmstripPending.delete(key)
+}
+
+export function getMediaGenerationCacheStats(): { thumbnails: number; filmstrips: number } {
+  return { thumbnails: thumbnailCache.size, filmstrips: filmstripCache.size }
 }

@@ -1,4 +1,15 @@
 export type MediaPool = Map<string, HTMLImageElement | HTMLVideoElement>
+export const MAX_MEDIA_POOL_INSTANCES = 32
+
+function touchMediaInstance(pool: MediaPool, key: string, value: HTMLImageElement | HTMLVideoElement): void {
+  pool.delete(key)
+  pool.set(key, value)
+}
+
+function evictOldestMediaInstance(pool: MediaPool): void {
+  const oldestKey = pool.keys().next().value as string | undefined
+  if (oldestKey !== undefined) destroyMediaInstance(pool, oldestKey)
+}
 
 /**
  * Returns the existing pool entry for `key`, or creates a new element and
@@ -14,7 +25,12 @@ export function getOrCreateMediaInstance(
   opts: { loop?: boolean } = {},
 ): HTMLImageElement | HTMLVideoElement {
   const existing = pool.get(key)
-  if (existing) return existing
+  if (existing) {
+    touchMediaInstance(pool, key, existing)
+    return existing
+  }
+
+  if (pool.size >= MAX_MEDIA_POOL_INSTANCES) evictOldestMediaInstance(pool)
 
   if (media.type === 'image') {
     const img = new Image()

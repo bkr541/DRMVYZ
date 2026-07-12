@@ -34,7 +34,7 @@ export function VzLayersPanel() {
     selectedLayerItemId:      s.selectedLayerItemId,
     setSelectedLayerItem:     s.setSelectedLayerItem,
   })))
-  const { items } = useMediaStore()
+  const items = useMediaStore(state => state.items)
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const toggleExpand = (id: string) =>

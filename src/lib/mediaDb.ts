@@ -29,6 +29,26 @@ export interface DbMutateResult  { error: string | null }
 export interface SignedUrlResult { url: string | null; error: string | null }
 
 
+export type MediaLibraryServerFilter = 'all' | 'images' | 'videos' | 'favorites' | 'backgrounds' | 'logos' | 'transparent' | 'overlays' | 'svg'
+export type MediaLibraryScope = 'all' | 'react'
+export interface MediaLibraryCursor { createdAt: string; id: string }
+export interface MediaLibraryQuery {
+  search: string
+  filter: MediaLibraryServerFilter
+  scope: MediaLibraryScope
+  collectionId: string | null
+  sort: 'created_desc'
+}
+export interface MediaLibraryPage {
+  items: CanonicalMediaItem[]
+  nextCursor: MediaLibraryCursor | null
+  hasMore: boolean
+}
+export type MediaLibraryPageResult =
+  | { ok: true; page: MediaLibraryPage }
+  | { ok: false; kind: MediaPersistenceFailureKind; message: string; code?: string }
+
+
 export interface CanonicalMediaItem extends MediaItemRow {
   tags: string[]
   collection_ids: string[]
@@ -161,6 +181,49 @@ function parsePersistenceFailure(data: Record<string, unknown>, fallback: string
 }
 
 // ── media_items ────────────────────────────────────────────────────────────────
+
+
+export async function listMediaItemsPage(
+  query: MediaLibraryQuery,
+  cursor: MediaLibraryCursor | null = null,
+  limit = 48,
+): Promise<MediaLibraryPageResult> {
+  try {
+    const { data, error } = await db.rpc('list_media_library_page', {
+      p_limit: Math.max(1, Math.min(100, Math.floor(limit))),
+      p_cursor_created_at: cursor?.createdAt ?? null,
+      p_cursor_id: cursor?.id ?? null,
+      p_search: query.search,
+      p_filter: query.filter,
+      p_scope: query.scope,
+      p_collection_id: query.collectionId,
+    })
+    if (error) return { ok: false, kind: 'transport', message: error.message, ...(error.code ? { code: error.code } : {}) }
+    if (!isRecord(data)) return { ok: false, kind: 'unexpected', message: 'The media library returned malformed data.' }
+    if (data.status !== 'success') return persistenceFailure(data, 'The media library page was rejected.')
+    if (!Array.isArray(data.items)) return { ok: false, kind: 'unexpected', message: 'The media library page did not include items.' }
+    const items = data.items.map(parseCanonicalMediaItem)
+    if (items.some(item => item === null)) return { ok: false, kind: 'unexpected', message: 'The media library page contained an invalid item.' }
+    let nextCursor: MediaLibraryCursor | null = null
+    if (data.next_cursor !== null && data.next_cursor !== undefined) {
+      if (!isRecord(data.next_cursor) || typeof data.next_cursor.created_at !== 'string' || typeof data.next_cursor.id !== 'string') {
+        return { ok: false, kind: 'unexpected', message: 'The media library returned an invalid cursor.' }
+      }
+      nextCursor = { createdAt: data.next_cursor.created_at, id: data.next_cursor.id }
+    }
+    return {
+      ok: true,
+      page: {
+        items: items as CanonicalMediaItem[],
+        nextCursor,
+        hasMore: data.has_more === true,
+      },
+    }
+  } catch (error) {
+    return { ok: false, kind: 'transport', message: error instanceof Error ? error.message : 'Unexpected media library transport failure.' }
+  }
+}
+
 
 export async function listMediaItems(userId: string): Promise<DbListResult<MediaItemRow>> {
   const { data, error } = await db

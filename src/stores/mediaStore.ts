@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { supabase, supabaseConfigured } from '../lib/supabase'
 import {
-  listMediaItems,
+  listMediaItemsPage,
   saveMediaItemAtomic,
   reorderMediaCollectionAtomic,
   createSignedMediaUrl,
@@ -14,21 +14,22 @@ import {
   requestMediaDeletion,
   finalizeMediaDeletion,
   listPendingMediaCleanup,
-  listMediaItemTagNames,
   listMediaCollections,
   createMediaCollection,
   updateMediaCollection,
   deleteMediaCollection,
-  listMediaItemCollectionIds,
 } from '../lib/mediaDb'
-import type { MediaItemRow, MediaMetadata, MediaDerivativePath, MediaCleanupJobRow, MediaUploadPhase } from '../types/database'
-import type { CanonicalMediaItem } from '../lib/mediaDb'
+import type { MediaMetadata, MediaDerivativePath, MediaCleanupJobRow, MediaUploadPhase } from '../types/database'
+import type { CanonicalMediaItem, MediaLibraryCursor, MediaLibraryQuery } from '../lib/mediaDb'
 import { suggestMediaRole, isAudioFile, isSvgFile } from '../lib/mediaRoles'
 import type { MediaRole, MediaEnergy } from '../lib/mediaRoles'
 import { useAudioStore } from './audioStore'
 import { analyzeAudioFile } from '../utils/analyzeAudioFile'
 import { useVisualStore } from './visualStore'
-import { generateThumbnail, clearFilmstripCache } from '../components/vyzualz/media/generateThumbnail'
+import { generateThumbnail, clearMediaGenerationCaches } from '../components/vyzualz/media/generateThumbnail'
+import { MediaSigningCoordinator } from '../lib/mediaSigning'
+import { BoundedObjectUrlCache } from '../lib/mediaAssetCache'
+import type { MediaSigningPriority } from '../lib/mediaSigning'
 import { analyzeSvgCapabilities } from '../components/vyzualz/react/renderers/svgCapabilityAnalysis'
 import { analyzePaletteForMediaFile, mergeMediaMetadata } from '../features/personalization/mediaPaletteMetadata'
 
@@ -59,6 +60,7 @@ export interface UploadedMedia {
   /** Retained only for a failed local upload so the user can retry without reselecting the file. */
   uploadSourceFile?: File
   storagePath?: string
+  thumbnailStoragePath?: string | null
   dbId?: string
   /** Stored upload MIME type. Used with mediaRole/content inspection for SVG filtering. */
   mimeType?: string | null
@@ -68,6 +70,16 @@ export interface UploadedMedia {
   lifecycleStatus?: 'complete' | 'deletion_pending' | 'deletion_failed'
   derivativePaths?: MediaDerivativePath[]
   uploadPhase?: MediaUploadPhase
+  urlExpiresAt?: number
+  thumbnailExpiresAt?: number
+  originalSigning?: boolean
+  thumbnailSigning?: boolean
+  originalSigningError?: string
+  thumbnailSigningError?: string
+  originalLoadRetries?: number
+  thumbnailLoadRetries?: number
+  /** Registry key for a temporary local blob URL so eviction and cleanup revoke it exactly once. */
+  localObjectUrlKey?: string
 }
 
 export type MediaMutationOperation =
@@ -202,6 +214,95 @@ const DEFAULT_DRAFT: UploadDraft = {
   audioMusicalKey: '',
 }
 
+export const MEDIA_LIBRARY_PAGE_SIZE = 48
+export const MEDIA_LIBRARY_STALE_AFTER_MS = 2 * 60 * 1000
+const MEDIA_STORAGE_BUCKET = 'media-items'
+const DEFAULT_LIBRARY_QUERY: MediaLibraryQuery = { search: '', filter: 'all', scope: 'all', collectionId: null, sort: 'created_desc' }
+const MEDIA_BATCH_CONCURRENCY = 4
+
+/** Run input-sized media work through a fixed worker pool instead of spawning one promise per item. */
+async function mapWithConcurrency<T, R>(
+  values: readonly T[],
+  concurrency: number,
+  worker: (value: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  if (values.length === 0) return []
+  const results = new Array<R>(values.length)
+  let nextIndex = 0
+  const workerCount = Math.max(1, Math.min(Math.floor(concurrency), values.length))
+
+  const runWorker = async () => {
+    while (true) {
+      const index = nextIndex
+      nextIndex += 1
+      if (index >= values.length) return
+      results[index] = await worker(values[index], index)
+    }
+  }
+
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()))
+  return results
+}
+
+let libraryRequestGeneration = 0
+let nextPagePromise: Promise<void> | null = null
+let refreshPromise: { queryKey: string; promise: Promise<void> } | null = null
+const mediaObjectUrlCache = new BoundedObjectUrlCache(512)
+
+function managedObjectUrl(key: string, blob: Blob): string {
+  const url = URL.createObjectURL(blob)
+  mediaObjectUrlCache.set(key, url)
+  return url
+}
+
+function releaseManagedObjectUrl(key: string | undefined, fallbackUrl?: string | null): void {
+  if (key && mediaObjectUrlCache.delete(key)) return
+  if (fallbackUrl?.startsWith('blob:')) URL.revokeObjectURL(fallbackUrl)
+}
+
+const mediaSigningCoordinator = new MediaSigningCoordinator({
+  maxConcurrency: 4,
+  maxCacheEntries: 256,
+  expiresInSeconds: 60 * 60,
+  refreshSkewMs: 60_000,
+  signer: async (_bucket, path, expiresInSeconds) => createSignedMediaUrl(path, expiresInSeconds),
+})
+
+export function mediaLibraryQueryKey(query: MediaLibraryQuery): string {
+  return JSON.stringify({ search: query.search.trim(), filter: query.filter, scope: query.scope, collectionId: query.collectionId, sort: query.sort })
+}
+
+function normalizeLibraryQuery(query: MediaLibraryQuery): MediaLibraryQuery {
+  return { ...query, search: query.search.trim(), collectionId: query.collectionId || null, sort: 'created_desc' }
+}
+
+function stableMediaCachePrefix(item: Pick<UploadedMedia, 'storagePath' | 'id'>): string {
+  return item.storagePath ?? item.id
+}
+
+function itemMatchesLibraryQuery(item: UploadedMedia, query: MediaLibraryQuery): boolean {
+  if (query.collectionId && !item.collectionIds.includes(query.collectionId)) return false
+  if (query.scope === 'react' && !(
+    item.mediaRole === 'svg' || item.mediaRole === 'logo' || item.mediaRole === 'transparent_element' || item.mediaRole === 'overlay'
+    || item.mimeType?.toLowerCase() === 'image/svg+xml' || item.storagePath?.toLowerCase().endsWith('.svg')
+  )) return false
+  switch (query.filter) {
+    case 'images': if (item.type !== 'image') return false; break
+    case 'videos': if (item.type !== 'video') return false; break
+    case 'favorites': if (!item.favorite) return false; break
+    case 'backgrounds': if (item.mediaRole !== 'background_image' && item.mediaRole !== 'background_video') return false; break
+    case 'logos': if (item.mediaRole !== 'logo') return false; break
+    case 'transparent': if (item.mediaRole !== 'transparent_element') return false; break
+    case 'overlays': if (item.mediaRole !== 'overlay') return false; break
+    case 'svg': if (!(item.mediaRole === 'svg' || item.mimeType?.toLowerCase() === 'image/svg+xml' || item.storagePath?.toLowerCase().endsWith('.svg'))) return false; break
+  }
+  const search = query.search.trim().toLowerCase()
+  return !search || (item.title ?? item.name).toLowerCase().includes(search)
+    || item.name.toLowerCase().includes(search)
+    || (item.description ?? '').toLowerCase().includes(search)
+    || item.tags.some(tag => tag.toLowerCase().includes(search))
+}
+
 // ── Local helpers ─────────────────────────────────────────────────────────────
 
 function generateId() {
@@ -318,7 +419,9 @@ interface BuildItemOptions {
 }
 
 async function buildLocalItem(file: File, opts?: BuildItemOptions): Promise<LocalItem> {
-  const url     = URL.createObjectURL(file)
+  const id = generateId()
+  const localObjectUrlKey = `local:${id}:original`
+  const url = managedObjectUrl(localObjectUrlKey, file)
   const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|mkv)$/i.test(file.name)
   const ext     = (file.name.split('.').pop() ?? '').toUpperCase()
   const role    = opts?.role ?? suggestMediaRole(file)
@@ -357,7 +460,8 @@ async function buildLocalItem(file: File, opts?: BuildItemOptions): Promise<Loca
       getVideoDuration(url),
     ])
     return {
-      id: generateId(), name: file.name, type: 'video', url,
+      id, name: file.name, type: 'video', url,
+      localObjectUrlKey,
       thumbnailUrl: thumbDataUrl,
       meta: `${ext} · ${fmtDur(duration)}`,
       favorite: false,
@@ -385,7 +489,8 @@ async function buildLocalItem(file: File, opts?: BuildItemOptions): Promise<Loca
     console.warn('[mediaStore] palette analysis failed (non-fatal):', file.name, paletteMetadata.paletteAnalysisError.message)
   }
   return {
-    id: generateId(), name: file.name, type: 'image', url,
+    id, name: file.name, type: 'image', url,
+    localObjectUrlKey,
     thumbnailUrl: url,
     meta: dims ? `${ext} · ${dims.w}×${dims.h}` : ext,
     favorite: false,
@@ -639,6 +744,7 @@ function reconcileCanonicalMediaItem(item: UploadedMedia, canonical: CanonicalMe
     ...item,
     dbId: canonical.id,
     storagePath: canonical.storage_path,
+    thumbnailStoragePath: canonical.thumbnail_path,
     mimeType: canonical.mime_type,
     name: canonical.name,
     title: canonical.title ?? undefined,
@@ -655,6 +761,67 @@ function reconcileCanonicalMediaItem(item: UploadedMedia, canonical: CanonicalMe
     derivativePaths: [...(canonical.derivative_paths ?? [])],
     uploadPhase: 'complete',
   }
+}
+
+
+function canonicalMediaToUploaded(canonical: CanonicalMediaItem, existing?: UploadedMedia): UploadedMedia {
+  const extension = canonical.storage_path.split('.').pop()?.toUpperCase() ?? ''
+  const displayMeta = canonical.type === 'video'
+    ? `${extension} · ${fmtDur(canonical.duration_sec ?? 0)}`
+    : canonical.width && canonical.height ? `${extension} · ${canonical.width}×${canonical.height}` : extension
+  return reconcileCanonicalMediaItem(existing ?? {
+    id: `db-${canonical.id}`,
+    dbId: canonical.id,
+    name: canonical.name,
+    type: canonical.type,
+    url: '',
+    thumbnailUrl: null,
+    meta: displayMeta,
+    favorite: canonical.favorite,
+    mediaRole: canonical.media_role as MediaRole,
+    tags: [],
+    collectionIds: [],
+    metadata: {},
+  }, canonical)
+}
+
+function withCanonicalWarnings(item: UploadedMedia, canonical: CanonicalMediaItem): UploadedMedia {
+  const failed = (canonical.derivative_paths ?? []).filter(derivative => derivative.status === 'failed')
+  return {
+    ...canonicalMediaToUploaded(canonical, item),
+    derivativeWarning: failed.length
+      ? `${failed.map(derivative => derivative.kind).join(', ')} generation failed. Re-select the original file to retry.`
+      : undefined,
+  }
+}
+
+function reconcileLibraryItems(
+  current: UploadedMedia[],
+  canonicalItems: CanonicalMediaItem[],
+  mutationStates: Record<string, MediaMutationState>,
+): UploadedMedia[] {
+  const byId = new Map(current.map(item => [item.id, item]))
+  for (const canonical of canonicalItems) {
+    const id = `db-${canonical.id}`
+    const existing = byId.get(id)
+    const pending = Object.values(mutationStates).some(state => state.itemId === id && state.status === 'pending')
+    const reconciled = withCanonicalWarnings(existing ?? canonicalMediaToUploaded(canonical), canonical)
+    byId.set(id, existing && pending ? {
+      ...reconciled,
+      title: existing.title,
+      description: existing.description,
+      favorite: existing.favorite,
+      mediaRole: existing.mediaRole,
+      tags: [...existing.tags],
+      collectionIds: [...existing.collectionIds],
+      metadata: { ...existing.metadata },
+    } : reconciled)
+  }
+  const existingIds = new Set(current.map(item => item.id))
+  return [
+    ...current.map(item => byId.get(item.id)!).filter(Boolean),
+    ...canonicalItems.map(item => byId.get(`db-${item.id}`)!).filter(item => !existingIds.has(item.id)),
+  ]
 }
 
 function cleanupJobToUploadState(job: MediaCleanupJobRow): MediaUploadCleanupState | null {
@@ -767,12 +934,17 @@ function purgeRuntimeMedia(item: UploadedMedia, remaining: UploadedMedia[]): voi
   visual.removeMediaReferences(item.id)
   if (wasActive) visual.setActiveMedia(remaining[0]?.id ?? null)
 
-  if (item.url.startsWith('blob:')) URL.revokeObjectURL(item.url)
+  releaseManagedObjectUrl(item.localObjectUrlKey, item.url)
   if (item.thumbnailUrl?.startsWith('blob:')) URL.revokeObjectURL(item.thumbnailUrl)
   if (item.localThumbnailObjectUrl?.startsWith('blob:')) URL.revokeObjectURL(item.localThumbnailObjectUrl)
-  if (item.type === 'video') {
-    clearFilmstripCache(item.url)
-    if (item.localThumbnailObjectUrl) clearFilmstripCache(item.localThumbnailObjectUrl)
+  clearMediaGenerationCaches(stableMediaCachePrefix(item))
+  const pathUserId = item.storagePath?.split('/')[0]
+  if (pathUserId) {
+    mediaSigningCoordinator.purgePaths(pathUserId, MEDIA_STORAGE_BUCKET, [
+      item.storagePath,
+      item.thumbnailStoragePath,
+      ...(item.derivativePaths ?? []).map(derivative => derivative.path),
+    ].filter((path): path is string => Boolean(path)))
   }
   void import('../components/vyzualz/react/services/svgMediaBridge')
     .then(({ cleanupRemovedSvgMedia }) => cleanupRemovedSvgMedia(item.id))
@@ -832,8 +1004,19 @@ function applyCollectionOrder(items: UploadedMedia[], collectionId: string, orde
 
 interface MediaState {
   items: UploadedMedia[]
+  queryItemIds: string[]
   collections: MediaCollection[]
   loading: boolean
+  nextPageLoading: boolean
+  refreshing: boolean
+  hasMore: boolean
+  cursor: MediaLibraryCursor | null
+  libraryQuery: MediaLibraryQuery
+  libraryQueryKey: string
+  queryError: string | null
+  lastSuccessfulLoad: number | null
+  invalidated: boolean
+  accountId: string | null
   collectionsLoading: boolean
   loadError: string | null
   deleteError: string | null
@@ -877,7 +1060,15 @@ interface MediaState {
   addFiles(files: File[]): Promise<void>   // quick drag-drop path (no modal)
 
   // Load
+  setLibraryQuery(query: MediaLibraryQuery): void
+  ensureLibraryLoaded(query?: MediaLibraryQuery, force?: boolean): Promise<void>
   loadFromSupabase(): Promise<void>
+  loadNextPage(): Promise<void>
+  refreshLibrary(): Promise<void>
+  invalidateLibrary(): void
+  ensureMediaSigned(itemIds: string[], priority: MediaSigningPriority): Promise<void>
+  retryMediaAsset(itemId: string, variant: 'original' | 'thumbnail'): Promise<boolean>
+  markMediaAssetLoaded(itemId: string, variant: 'original' | 'thumbnail'): void
 
   // Item mutations
   removeItem(id: string): Promise<boolean>
@@ -927,8 +1118,19 @@ interface MediaState {
 
 export const useMediaStore = create<MediaState>((set, get) => ({
   items: [],
+  queryItemIds: [],
   collections: [],
   loading: false,
+  nextPageLoading: false,
+  refreshing: false,
+  hasMore: true,
+  cursor: null,
+  libraryQuery: { ...DEFAULT_LIBRARY_QUERY },
+  libraryQueryKey: mediaLibraryQueryKey(DEFAULT_LIBRARY_QUERY),
+  queryError: null,
+  lastSuccessfulLoad: null,
+  invalidated: true,
+  accountId: null,
   collectionsLoading: false,
   loadError: null,
   deleteError: null,
@@ -968,11 +1170,12 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     }
     const items: UploadQueueItem[] = mediaFiles.map(file => {
       const audio = isAudioFile(file)
+      const tempId = generateId()
       return {
-        tempId: generateId(),
+        tempId,
         operationId: generateOperationId(),
         file,
-        previewUrl: URL.createObjectURL(file),
+        previewUrl: managedObjectUrl(`queue:${tempId}`, file),
         suggestedRole: audio ? 'audio_track' : suggestMediaRole(file),
         isAudio: audio,
       }
@@ -983,12 +1186,12 @@ export const useMediaStore = create<MediaState>((set, get) => ({
 
   removeUploadQueueItem(tempId) {
     const item = get().uploadQueue.find(q => q.tempId === tempId)
-    if (item) URL.revokeObjectURL(item.previewUrl)
+    if (item) releaseManagedObjectUrl(`queue:${item.tempId}`, item.previewUrl)
     set(s => ({ uploadQueue: s.uploadQueue.filter(q => q.tempId !== tempId) }))
   },
 
   clearUploadQueue() {
-    get().uploadQueue.forEach(q => URL.revokeObjectURL(q.previewUrl))
+    get().uploadQueue.forEach(q => releaseManagedObjectUrl(`queue:${q.tempId}`, q.previewUrl))
     set({ uploadQueue: [] })
   },
 
@@ -1104,7 +1307,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       })
       completed += 1
       if (!result.ok) {
-        if (localItem.url.startsWith('blob:')) URL.revokeObjectURL(localItem.url)
+        releaseManagedObjectUrl(localItem.localObjectUrlKey, localItem.url)
         failures.push({ tempId: queueItem.tempId, fileName: queueItem.file.name, error: result.error })
         options.onProgress?.({ tempId: queueItem.tempId, fileName: queueItem.file.name, completed, total, status: 'error', phase: result.phase, error: result.error })
         continue
@@ -1122,6 +1325,10 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       }, result.mediaItem)
       set(state => ({
         items: [uploadedItem, ...state.items.filter(item => item.id !== stableId)],
+        queryItemIds: itemMatchesLibraryQuery(uploadedItem, state.libraryQuery)
+          ? [stableId, ...state.queryItemIds.filter(id => id !== stableId)]
+          : state.queryItemIds.filter(id => id !== stableId),
+        invalidated: true,
         loadError: result.derivativeWarning ?? null,
       }))
       succeeded += 1
@@ -1152,11 +1359,11 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     )
     if (!mediaFiles.length) return
 
-    const prepared = await Promise.all(mediaFiles.map(async file => ({
+    const prepared = await mapWithConcurrency(mediaFiles, MEDIA_BATCH_CONCURRENCY, async file => ({
       file,
       operationId: generateOperationId(),
       item: await buildLocalItem(file, { role: suggestMediaRole(file) }),
-    })))
+    }))
     const withUploading = prepared.map(({ item, operationId }) => ({
       ...item,
       uploading: true,
@@ -1182,7 +1389,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       return
     }
 
-    await Promise.all(prepared.map(async ({ file, operationId, item }) => {
+    await mapWithConcurrency(prepared, MEDIA_BATCH_CONCURRENCY, async ({ file, operationId, item }) => {
       const previousId = item.id
       const result = await uploadToSupabase(file, item, userId, operationId, {
         onPhase: phase => set(state => ({
@@ -1204,20 +1411,25 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       }
 
       const stableId = `db-${result.mediaItem.id}`
-      set(state => ({
-        items: state.items.map(candidate => candidate.id === previousId
-          ? reconcileCanonicalMediaItem({
-              ...candidate,
-              id: stableId,
-              uploading: false,
-              uploadError: undefined,
-              derivativeWarning: result.derivativeWarning,
-              uploadSourceFile: result.derivativeWarning ? file : undefined,
-              uploadOperationId: operationId,
-            }, result.mediaItem)
-          : candidate),
-        loadError: result.derivativeWarning ?? null,
-      }))
+      set(state => {
+        const reconciled = reconcileCanonicalMediaItem({
+          ...(state.items.find(candidate => candidate.id === previousId) ?? item),
+          id: stableId,
+          uploading: false,
+          uploadError: undefined,
+          derivativeWarning: result.derivativeWarning,
+          uploadSourceFile: result.derivativeWarning ? file : undefined,
+          uploadOperationId: operationId,
+        }, result.mediaItem)
+        return {
+          items: state.items.map(candidate => candidate.id === previousId ? reconciled : candidate),
+          queryItemIds: itemMatchesLibraryQuery(reconciled, state.libraryQuery)
+            ? [stableId, ...state.queryItemIds.filter(id => id !== previousId && id !== stableId)]
+            : state.queryItemIds.filter(id => id !== previousId && id !== stableId),
+          invalidated: true,
+          loadError: result.derivativeWarning ?? null,
+        }
+      })
       useVisualStore.getState().remapMediaId(previousId, stableId)
 
       if (isSvgFile(file)) {
@@ -1231,7 +1443,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
           }
         })()
       }
-    }))
+    })
   },
 
   async retryUpload(id) {
@@ -1269,165 +1481,372 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     }
 
     const stableId = `db-${result.mediaItem.id}`
-    set(state => ({
-      items: state.items.map(candidate => candidate.id === id
-        ? reconcileCanonicalMediaItem({
-            ...candidate,
-            id: stableId,
-            uploading: false,
-            uploadError: undefined,
-            derivativeWarning: result.derivativeWarning,
-            uploadSourceFile: result.derivativeWarning ? item.uploadSourceFile : undefined,
-          }, result.mediaItem)
-        : candidate),
-      loadError: result.derivativeWarning ?? null,
-    }))
+    set(state => {
+      const reconciled = reconcileCanonicalMediaItem({
+        ...(state.items.find(candidate => candidate.id === id) ?? item),
+        id: stableId,
+        uploading: false,
+        uploadError: undefined,
+        derivativeWarning: result.derivativeWarning,
+        uploadSourceFile: result.derivativeWarning ? item.uploadSourceFile : undefined,
+      }, result.mediaItem)
+      return {
+        items: state.items.map(candidate => candidate.id === id ? reconciled : candidate),
+        queryItemIds: itemMatchesLibraryQuery(reconciled, state.libraryQuery)
+          ? [stableId, ...state.queryItemIds.filter(candidateId => candidateId !== id && candidateId !== stableId)]
+          : state.queryItemIds.filter(candidateId => candidateId !== id && candidateId !== stableId),
+        invalidated: true,
+        loadError: result.derivativeWarning ?? null,
+      }
+    })
     if (id !== stableId) useVisualStore.getState().remapMediaId(id, stableId)
     return true
   },
 
-  // ── Load from Supabase ────────────────────────────────────────────────────
+  // ── Canonical paged library ───────────────────────────────────────────────
+
+  setLibraryQuery(query) {
+    const normalized = normalizeLibraryQuery(query)
+    const key = mediaLibraryQueryKey(normalized)
+    const previous = get()
+    if (key === previous.libraryQueryKey) return
+    libraryRequestGeneration += 1
+    nextPagePromise = null
+    refreshPromise = null
+    mediaSigningCoordinator.abandonScope(previous.libraryQueryKey)
+    set({
+      libraryQuery: normalized,
+      libraryQueryKey: key,
+      queryItemIds: [],
+      cursor: null,
+      hasMore: true,
+      queryError: null,
+      loadError: null,
+      invalidated: true,
+      loading: false,
+      nextPageLoading: false,
+      refreshing: false,
+    })
+  },
+
+  async ensureLibraryLoaded(query, force = false) {
+    const requestedQuery = normalizeLibraryQuery(query ?? get().libraryQuery)
+    if (query) get().setLibraryQuery(requestedQuery)
+
+    // A fresh page may be reused across compatible surfaces, but never across
+    // accounts. Verify the cheap auth identity before accepting cached private
+    // rows or signed URLs.
+    if (supabaseConfigured) {
+      const userId = await getCurrentUserId()
+      const accountId = get().accountId
+      if (!userId) {
+        if (accountId) get().clear()
+        set({ authRequired: true })
+        return
+      }
+      if (accountId && accountId !== userId) {
+        get().clear()
+        get().setLibraryQuery(requestedQuery)
+      }
+    }
+
+    const state = get()
+    const stale = state.lastSuccessfulLoad == null || Date.now() - state.lastSuccessfulLoad >= MEDIA_LIBRARY_STALE_AFTER_MS
+    if (!force && !state.invalidated && !stale && state.queryItemIds.length > 0) return
+    await get().refreshLibrary()
+  },
 
   async loadFromSupabase() {
-    if (!supabaseConfigured) {
-      set({ loadError: 'Storage not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.' })
-      return
-    }
-    const userId = await getCurrentUserId()
-    if (!userId) { set({ authRequired: true }); return }
+    await get().ensureLibraryLoaded(undefined, false)
+  },
 
-    set({ loading: true, loadError: null, authRequired: false })
+  async refreshLibrary() {
+    const requestedQuery = { ...get().libraryQuery }
+    const requestedQueryKey = get().libraryQueryKey
+    if (refreshPromise?.queryKey === requestedQueryKey) return refreshPromise.promise
+
+    const promise = (async () => {
+        if (!supabaseConfigured) {
+          set({ loadError: 'Storage not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.', queryError: 'Storage not configured.' })
+          return
+        }
+        const userId = await getCurrentUserId()
+        if (!userId) { set({ authRequired: true }); return }
+        if (get().libraryQueryKey !== requestedQueryKey) return
+
+        const before = get()
+        if (before.accountId && before.accountId !== userId) {
+          get().clear()
+          get().setLibraryQuery(requestedQuery)
+        }
+        if (get().libraryQueryKey !== requestedQueryKey) return
+        const query = requestedQuery
+        const queryKey = requestedQueryKey
+        const requestGeneration = ++libraryRequestGeneration
+        const initial = get().queryItemIds.length === 0
+        mediaSigningCoordinator.activateScope(queryKey, userId)
+        set({
+          accountId: userId,
+          loading: initial,
+          refreshing: !initial,
+          queryError: null,
+          loadError: null,
+          authRequired: false,
+        })
+
+        try {
+          const [pageResult, collectionsResult, cleanupResult] = await Promise.all([
+            listMediaItemsPage(query, null, MEDIA_LIBRARY_PAGE_SIZE),
+            listMediaCollections(userId),
+            listPendingMediaCleanup(),
+          ])
+          if (requestGeneration !== libraryRequestGeneration || get().libraryQueryKey !== queryKey || get().accountId !== userId) return
+          if (!pageResult.ok) {
+            const message = interpretError(pageResult.message)
+            set({ queryError: message, loadError: message })
+            return
+          }
+
+          const deletionStates = Object.fromEntries(
+            cleanupResult.rows.map(cleanupJobToDeletionState)
+              .filter((state): state is MediaDeletionState => state !== null)
+              .map(state => [state.itemId, state]),
+          )
+          const deletedIds = new Set(Object.keys(deletionStates))
+          const pageItems = pageResult.page.items.filter(item => !deletedIds.has(`db-${item.id}`))
+          const pageIds = pageItems.map(item => `db-${item.id}`)
+          const collections: MediaCollection[] = collectionsResult.rows.map(row => ({
+            id: row.id,
+            name: row.name,
+            description: row.description ?? undefined,
+          }))
+          const cleanupMessage = cleanupResult.error
+            ? `Pending cleanup could not be loaded: ${interpretError(cleanupResult.error)}`
+            : collectionsResult.error ? `Collections could not be refreshed: ${interpretError(collectionsResult.error)}` : null
+
+          set(state => ({
+            items: reconcileLibraryItems(state.items, pageItems, state.mutationStates),
+            queryItemIds: Array.from(new Set(pageIds)),
+            cursor: pageResult.page.nextCursor,
+            hasMore: pageResult.page.hasMore,
+            collections,
+            deletionStates,
+            uploadCleanupStates: uploadCleanupStatesFromRows(cleanupResult.rows),
+            lastRestored: pageItems.length,
+            lastSuccessfulLoad: Date.now(),
+            invalidated: false,
+            queryError: null,
+            loadError: cleanupMessage,
+          }))
+        } catch (error) {
+          if (requestGeneration !== libraryRequestGeneration) return
+          const message = error instanceof Error ? interpretError(error.message) : 'Unexpected error loading media'
+          set({ queryError: message, loadError: message })
+        } finally {
+          if (requestGeneration === libraryRequestGeneration) set({ loading: false, refreshing: false })
+        }
+
+    })()
+    refreshPromise = { queryKey: requestedQueryKey, promise }
     try {
-      const [
-        { rows, error },
-        { tagMap, error: tagErr },
-        { collMap, error: collErr },
-        { rows: collRows, error: collListErr },
-        { rows: cleanupRows, error: cleanupErr },
-      ] = await Promise.all([
-        listMediaItems(userId),
-        listMediaItemTagNames(userId),
-        listMediaItemCollectionIds(userId),
-        listMediaCollections(userId),
-        listPendingMediaCleanup(),
-      ])
-
-      if (error) { set({ loadError: interpretError(error) }); return }
-      if (tagErr) console.warn('[mediaStore] tag load:', tagErr)
-      if (collErr) console.warn('[mediaStore] collection-items load:', collErr)
-      if (collListErr) console.warn('[mediaStore] collections load:', collListErr)
-
-      const deletionStates = Object.fromEntries(
-        cleanupRows
-          .map(cleanupJobToDeletionState)
-          .filter((state): state is MediaDeletionState => state !== null)
-          .map(state => [state.itemId, state]),
-      )
-      const uploadCleanupStates = uploadCleanupStatesFromRows(cleanupRows)
-      const cleanupMessage = cleanupErr
-        ? `Pending cleanup could not be loaded: ${interpretError(cleanupErr)}`
-        : null
-
-      let signedUrlFailures = 0
-      const collections: MediaCollection[] = collRows.map(row => ({
-        id: row.id,
-        name: row.name,
-        description: row.description ?? undefined,
-      }))
-
-      const items: UploadedMedia[] = await Promise.all(rows.map(async (row: MediaItemRow) => {
-        const { url, error: signErr } = await createSignedMediaUrl(row.storage_path)
-        if (signErr) {
-          signedUrlFailures += 1
-          console.warn('[mediaStore] signed URL:', signErr, row.storage_path)
-        }
-
-        const isVideo = row.type === 'video'
-        const ext = row.storage_path.split('.').pop()?.toUpperCase() ?? ''
-        const displayMeta = isVideo
-          ? `${ext} · ${fmtDur(row.duration_sec ?? 0)}`
-          : row.width && row.height
-            ? `${ext} · ${row.width}×${row.height}`
-            : ext
-
-        let thumbnailUrl: string | null = null
-        if (isVideo && row.thumbnail_path) {
-          const { url: thumbUrl, error: thumbError } = await createSignedMediaUrl(row.thumbnail_path)
-          if (thumbError) signedUrlFailures += 1
-          thumbnailUrl = thumbUrl ?? null
-        } else if (!isVideo) {
-          thumbnailUrl = url
-        }
-
-        const metadata: MediaMetadata = {
-          width: row.width ?? undefined,
-          height: row.height ?? undefined,
-          duration: row.duration_sec ?? undefined,
-          ...((row.metadata as MediaMetadata) ?? {}),
-        }
-        const failedDerivatives = (row.derivative_paths ?? []).filter(derivative => derivative.status === 'failed')
-
-        return {
-          id: `db-${row.id}`,
-          dbId: row.id,
-          storagePath: row.storage_path,
-          mimeType: row.mime_type,
-          name: row.name,
-          title: row.title ?? undefined,
-          description: row.description ?? undefined,
-          type: row.type,
-          url: url ?? '',
-          thumbnailUrl,
-          meta: displayMeta,
-          favorite: row.favorite,
-          mediaRole: row.media_role as MediaRole,
-          tags: tagMap.get(row.id) ?? [],
-          collectionIds: collMap.get(row.id) ?? [],
-          metadata,
-          revision: row.revision,
-          uploadOperationId: row.upload_operation_id ?? undefined,
-          lifecycleStatus: row.lifecycle_status,
-          derivativePaths: [...(row.derivative_paths ?? [])],
-          derivativeWarning: failedDerivatives.length
-            ? `${failedDerivatives.map(derivative => derivative.kind).join(', ')} generation failed. Re-select the original file to retry.`
-            : undefined,
-          uploadPhase: 'complete',
-        } satisfies UploadedMedia
-      }))
-
-      const currentItems = get().items
-      const localOnly = currentItems.filter(item => !item.dbId)
-      const merged = [...items, ...localOnly]
-      const restoredIds = new Set(items.map(item => item.id))
-      const removedRemoteIds = currentItems
-        .filter(item => item.dbId && !restoredIds.has(item.id))
-        .map(item => item.id)
-      const visual = useVisualStore.getState()
-      const previousActiveId = visual.activeMediaId
-      removedRemoteIds.forEach(id => visual.removeMediaReferences(id))
-      if (previousActiveId && !merged.some(item => item.id === previousActiveId)) {
-        visual.setActiveMedia(merged[0]?.id ?? null)
-      }
-
-      const signedMessage = signedUrlFailures > 0
-        ? `${signedUrlFailures} media file${signedUrlFailures === 1 ? '' : 's'} could not be opened. Refresh or check storage access.`
-        : null
-      set({
-        items: merged,
-        lastRestored: items.length,
-        collections,
-        deletionStates,
-        uploadCleanupStates,
-        loadError: cleanupMessage ?? signedMessage,
-      })
-      get().generateMissingThumbnails()
-    } catch (error) {
-      const message = error instanceof Error ? interpretError(error.message) : 'Unexpected error loading media'
-      console.error('[mediaStore] loadFromSupabase exception:', error)
-      set({ loadError: message })
+      await promise
     } finally {
-      set({ loading: false })
+      if (refreshPromise?.promise === promise) refreshPromise = null
     }
+  },
+
+  async loadNextPage() {
+    if (nextPagePromise) return nextPagePromise
+    const state = get()
+    if (!state.hasMore || !state.cursor || state.loading || state.refreshing || state.nextPageLoading) return
+    const query = state.libraryQuery
+    const queryKey = state.libraryQueryKey
+    const cursor = state.cursor
+    const requestGeneration = libraryRequestGeneration
+    const userId = state.accountId
+    set({ nextPageLoading: true, queryError: null })
+
+    nextPagePromise = (async () => {
+      try {
+        const result = await listMediaItemsPage(query, cursor, MEDIA_LIBRARY_PAGE_SIZE)
+        if (requestGeneration !== libraryRequestGeneration || get().libraryQueryKey !== queryKey || get().accountId !== userId) return
+        if (!result.ok) {
+          const message = interpretError(result.message)
+          set({ queryError: message, loadError: message })
+          return
+        }
+        const deletedIds = new Set(Object.keys(get().deletionStates))
+        const pageItems = result.page.items.filter(item => !deletedIds.has(`db-${item.id}`))
+        const pageIds = pageItems.map(item => `db-${item.id}`)
+        set(current => ({
+          items: reconcileLibraryItems(current.items, pageItems, current.mutationStates),
+          queryItemIds: Array.from(new Set([...current.queryItemIds, ...pageIds])),
+          cursor: result.page.nextCursor,
+          hasMore: result.page.hasMore,
+          lastSuccessfulLoad: Date.now(),
+          invalidated: false,
+          queryError: null,
+        }))
+      } catch (error) {
+        if (requestGeneration !== libraryRequestGeneration) return
+        const message = error instanceof Error ? interpretError(error.message) : 'Unexpected error loading more media'
+        set({ queryError: message, loadError: message })
+      } finally {
+        if (requestGeneration === libraryRequestGeneration) {
+          set({ nextPageLoading: false })
+          nextPagePromise = null
+        }
+      }
+    })()
+    return nextPagePromise
+  },
+
+  invalidateLibrary() { set({ invalidated: true }) },
+
+  async ensureMediaSigned(itemIds, priority) {
+    const state = get()
+    const userId = state.accountId ?? await getCurrentUserId()
+    if (!userId) return
+    const scopeId = state.libraryQueryKey
+    mediaSigningCoordinator.activateScope(scopeId, userId)
+    const now = Date.now()
+    const jobs: Promise<void>[] = []
+
+    const requestAsset = (item: UploadedMedia, variant: 'original' | 'thumbnail', path: string) => {
+      const expiresAt = variant === 'original' ? item.urlExpiresAt : item.thumbnailExpiresAt
+      const currentUrl = variant === 'original' ? item.url : item.thumbnailUrl
+      if (currentUrl && expiresAt && expiresAt - now > 60_000) return
+      set(current => ({
+        items: current.items.map(candidate => candidate.id === item.id ? {
+          ...candidate,
+          ...(variant === 'original' ? { originalSigning: true, originalSigningError: undefined } : { thumbnailSigning: true, thumbnailSigningError: undefined }),
+        } : candidate),
+      }))
+      jobs.push(mediaSigningCoordinator.request({ userId, bucket: MEDIA_STORAGE_BUCKET, path, priority, scopeId }).then(asset => {
+        if (variant === 'original') releaseManagedObjectUrl(item.localObjectUrlKey, item.url)
+        set(current => ({
+          items: current.items.map(candidate => {
+            if (candidate.id !== item.id) return candidate
+            const currentPath = variant === 'original'
+              ? candidate.storagePath
+              : (candidate.thumbnailStoragePath ?? (candidate.type === 'image' ? candidate.storagePath : null))
+            if (currentPath !== path) return candidate
+            if (variant === 'original') {
+              return {
+                ...candidate,
+                url: asset.url,
+                urlExpiresAt: asset.expiresAt,
+                originalSigning: false,
+                originalSigningError: undefined,
+                localObjectUrlKey: undefined,
+                ...(candidate.type === 'image' && path === (candidate.thumbnailStoragePath ?? candidate.storagePath)
+                  ? { thumbnailUrl: asset.url, thumbnailExpiresAt: asset.expiresAt, thumbnailSigning: false, thumbnailSigningError: undefined }
+                  : {}),
+              }
+            }
+            return { ...candidate, thumbnailUrl: asset.url, thumbnailExpiresAt: asset.expiresAt, thumbnailSigning: false, thumbnailSigningError: undefined }
+          }),
+        }))
+      }).catch(error => {
+        if (error instanceof Error && error.name === 'AbortError') return
+        const message = error instanceof Error ? interpretError(error.message) : 'Media signing failed.'
+        set(current => ({
+          items: current.items.map(candidate => candidate.id === item.id ? {
+            ...candidate,
+            ...(variant === 'original' ? { originalSigning: false, originalSigningError: message } : { thumbnailSigning: false, thumbnailSigningError: message }),
+          } : candidate),
+        }))
+      }))
+    }
+
+    for (const itemId of Array.from(new Set(itemIds))) {
+      const item = get().items.find(candidate => candidate.id === itemId)
+      if (!item || item.uploading || !item.storagePath || item.storagePath.startsWith('blob:')) continue
+      const thumbnailPath = item.thumbnailStoragePath ?? (item.type === 'image' ? item.storagePath : null)
+      if (priority === 'visible') requestAsset(item, 'original', item.storagePath)
+      if (thumbnailPath && (thumbnailPath !== item.storagePath || priority !== 'visible')) requestAsset(item, 'thumbnail', thumbnailPath)
+      if (priority === 'visible' && item.type === 'image' && thumbnailPath === item.storagePath && !item.url) {
+        // The original request above hydrates both image fields.
+      }
+    }
+    await Promise.allSettled(jobs)
+  },
+
+  async retryMediaAsset(itemId, variant) {
+    const item = get().items.find(candidate => candidate.id === itemId)
+    if (!item) return false
+    const retryField = variant === 'original' ? 'originalLoadRetries' : 'thumbnailLoadRetries'
+    const retries = item[retryField] ?? 0
+    if (retries >= 1) {
+      const message = 'The signed media URL was refreshed once and still could not be loaded.'
+      set(state => ({
+        items: state.items.map(candidate => candidate.id === itemId ? {
+          ...candidate,
+          ...(variant === 'original' ? { originalSigningError: message } : { thumbnailSigningError: message }),
+        } : candidate),
+      }))
+      return false
+    }
+    const userId = get().accountId ?? await getCurrentUserId()
+    if (!userId) return false
+    const path = variant === 'original'
+      ? item.storagePath
+      : (item.thumbnailStoragePath ?? (item.type === 'image' ? item.storagePath : null))
+    if (!path) return false
+    set(state => ({
+      items: state.items.map(candidate => candidate.id === itemId ? { ...candidate, [retryField]: retries + 1 } : candidate),
+    }))
+    try {
+      const asset = await mediaSigningCoordinator.request({
+        userId,
+        bucket: MEDIA_STORAGE_BUCKET,
+        path,
+        priority: 'visible',
+        scopeId: get().libraryQueryKey,
+        force: true,
+      })
+      if (variant === 'original') releaseManagedObjectUrl(item.localObjectUrlKey, item.url)
+      set(state => ({
+        items: state.items.map(candidate => candidate.id === itemId ? variant === 'original'
+          ? {
+              ...candidate,
+              url: asset.url,
+              urlExpiresAt: asset.expiresAt,
+              originalSigningError: undefined,
+              localObjectUrlKey: undefined,
+              ...(candidate.type === 'image' ? { thumbnailUrl: asset.url, thumbnailExpiresAt: asset.expiresAt } : {}),
+            }
+          : { ...candidate, thumbnailUrl: asset.url, thumbnailExpiresAt: asset.expiresAt, thumbnailSigningError: undefined }
+          : candidate),
+      }))
+      return true
+    } catch (error) {
+      const message = error instanceof Error ? interpretError(error.message) : 'Media URL refresh failed.'
+      set(state => ({
+        items: state.items.map(candidate => candidate.id === itemId ? {
+          ...candidate,
+          ...(variant === 'original' ? { originalSigningError: message } : { thumbnailSigningError: message }),
+        } : candidate),
+      }))
+      return false
+    }
+  },
+
+
+  markMediaAssetLoaded(itemId, variant) {
+    const item = get().items.find(candidate => candidate.id === itemId)
+    if (!item) return
+    const retries = variant === 'original' ? item.originalLoadRetries : item.thumbnailLoadRetries
+    const error = variant === 'original' ? item.originalSigningError : item.thumbnailSigningError
+    if (!retries && !error) return
+    set(state => ({
+      items: state.items.map(candidate => candidate.id === itemId ? {
+        ...candidate,
+        ...(variant === 'original'
+          ? { originalLoadRetries: 0, originalSigningError: undefined }
+          : { thumbnailLoadRetries: 0, thumbnailSigningError: undefined }),
+      } : candidate),
+    }))
   },
 
   // ── Item mutations ────────────────────────────────────────────────────────
@@ -1443,6 +1862,8 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       const remaining = get().items.filter(candidate => candidate.id !== id)
       set(state => ({
         items: remaining,
+        queryItemIds: state.queryItemIds.filter(itemId => itemId !== id),
+        invalidated: true,
         deleteError: null,
         mutationStates: Object.fromEntries(Object.entries(state.mutationStates).filter(([, mutation]) => mutation.itemId !== id)),
       }))
@@ -1474,6 +1895,8 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     const remaining = get().items.filter(candidate => candidate.id !== id)
     set(state => ({
       items: remaining,
+      queryItemIds: state.queryItemIds.filter(itemId => itemId !== id),
+      invalidated: true,
       deleteError: null,
       deletionStates: { ...state.deletionStates, [id]: deletion },
       mutationStates: Object.fromEntries(Object.entries(state.mutationStates).filter(([, mutation]) => mutation.itemId !== id)),
@@ -1601,6 +2024,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     if (result.ok) {
       set(state => ({
         items: state.items.map(candidate => candidate.id === id ? reconcileCanonicalMediaItem(candidate, result.mediaItem) : candidate),
+        invalidated: true,
         mutationStates: Object.fromEntries(Object.entries(state.mutationStates).filter(([entryKey]) => entryKey !== key)),
       }))
       return true
@@ -1692,12 +2116,12 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   },
 
   async bulkTagMedia(mediaIds, tags) {
-    await Promise.all(mediaIds.map(async id => {
+    await mapWithConcurrency(mediaIds, MEDIA_BATCH_CONCURRENCY, async id => {
       const item = get().items.find(candidate => candidate.id === id)
       if (!item) return
       const merged = Array.from(new Set([...item.tags, ...tags.map(tag => tag.trim()).filter(Boolean)]))
       await get().setMediaTags(id, merged)
-    }))
+    })
   },
 
   async saveMediaEdits(id, patch) {
@@ -1764,6 +2188,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     const collection = { id, name: cleanName, description: description?.trim() || undefined }
     set(state => ({
       collections: [...state.collections.filter(item => item.id !== id), collection].sort((a, b) => a.name.localeCompare(b.name)),
+      invalidated: true,
       loadError: null,
     }))
     return id
@@ -1793,6 +2218,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
         name: cleanName,
         description: description?.trim() || undefined,
       } : item).sort((a, b) => a.name.localeCompare(b.name)),
+      invalidated: true,
       loadError: null,
     }))
     return true
@@ -1820,6 +2246,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
         collectionIds: item.collectionIds.filter(collectionId => collectionId !== id),
       })),
       loadError: null,
+      invalidated: true,
       collectionOrderMutations: Object.fromEntries(
         Object.entries(state.collectionOrderMutations).filter(([collectionId]) => collectionId !== id),
       ),
@@ -1828,23 +2255,23 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   },
 
   async addMediaToCollection(collectionId, mediaIds) {
-    await Promise.all(mediaIds.map(async mediaId => {
+    await mapWithConcurrency(mediaIds, MEDIA_BATCH_CONCURRENCY, async mediaId => {
       const item = get().items.find(candidate => candidate.id === mediaId)
       if (!item || item.collectionIds.includes(collectionId)) return
       await get().persistMediaMutation(mediaId, 'add-to-collection', mediaAttemptFromItem(item, {
         collectionIds: [...item.collectionIds, collectionId],
       }))
-    }))
+    })
   },
 
   async removeMediaFromCollection(collectionId, mediaIds) {
-    await Promise.all(mediaIds.map(async mediaId => {
+    await mapWithConcurrency(mediaIds, MEDIA_BATCH_CONCURRENCY, async mediaId => {
       const item = get().items.find(candidate => candidate.id === mediaId)
       if (!item || !item.collectionIds.includes(collectionId)) return
       await get().persistMediaMutation(mediaId, 'remove-from-collection', mediaAttemptFromItem(item, {
         collectionIds: item.collectionIds.filter(id => id !== collectionId),
       }))
-    }))
+    })
   },
 
   async reorderCollectionItems(collectionId, orderedMediaIds) {
@@ -1917,6 +2344,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       }
       set(state => ({
         items: applyCollectionOrder(state.items, collectionId, canonicalLocalIds as string[]),
+        invalidated: true,
         collectionOrderMutations: Object.fromEntries(Object.entries(state.collectionOrderMutations).filter(([key]) => key !== stateKey)),
       }))
       return true
@@ -1958,7 +2386,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       !i.uploading && !i.thumbnailUrl && !i.localThumbnailObjectUrl && i.url
     )
     for (const item of needsThumb) {
-      generateThumbnail(item.url, item.type).then(result => {
+      generateThumbnail(item.url, item.type, stableMediaCachePrefix(item)).then(result => {
         if (!result.thumbnailObjectUrl) return
         set(s => ({
           items: s.items.map(i =>
@@ -1986,18 +2414,22 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   clearRestored()    { set({ lastRestored: null }) },
 
   clear() {
-    get().items.forEach(i => {
-      if (i.url.startsWith('blob:'))                         URL.revokeObjectURL(i.url)
-      if (i.thumbnailUrl?.startsWith('blob:'))               URL.revokeObjectURL(i.thumbnailUrl)
-      if (i.localThumbnailObjectUrl?.startsWith('blob:'))    URL.revokeObjectURL(i.localThumbnailObjectUrl)
-      if (i.type === 'video') {
-        clearFilmstripCache(i.url)
-        if (i.localThumbnailObjectUrl) clearFilmstripCache(i.localThumbnailObjectUrl)
-      }
+    const current = get()
+    current.items.forEach(item => {
+      releaseManagedObjectUrl(item.localObjectUrlKey, item.url)
+      if (item.thumbnailUrl?.startsWith('blob:')) URL.revokeObjectURL(item.thumbnailUrl)
+      if (item.localThumbnailObjectUrl?.startsWith('blob:')) URL.revokeObjectURL(item.localThumbnailObjectUrl)
     })
-    get().uploadQueue.forEach(q => URL.revokeObjectURL(q.previewUrl))
+    current.uploadQueue.forEach(item => URL.revokeObjectURL(item.previewUrl))
+    if (current.accountId) mediaSigningCoordinator.clearUser(current.accountId)
+    mediaSigningCoordinator.abandonScope(current.libraryQueryKey)
+    clearMediaGenerationCaches()
+    libraryRequestGeneration += 1
+    nextPagePromise = null
+    refreshPromise = null
     set({
       items: [],
+      queryItemIds: [],
       collections: [],
       uploadQueue: [],
       mutationStates: {},
@@ -2005,9 +2437,20 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       deletionStates: {},
       uploadCleanupStates: {},
       loadError: null,
+      queryError: null,
       deleteError: null,
       authRequired: false,
       lastRestored: null,
+      lastSuccessfulLoad: null,
+      invalidated: true,
+      accountId: null,
+      cursor: null,
+      hasMore: true,
+      loading: false,
+      nextPageLoading: false,
+      refreshing: false,
+      libraryQuery: { ...DEFAULT_LIBRARY_QUERY },
+      libraryQueryKey: mediaLibraryQueryKey(DEFAULT_LIBRARY_QUERY),
     })
   },
 }))
