@@ -6,6 +6,8 @@ const lyricDbMocks = vi.hoisted(() => ({
   getLyricCuesForDocument: vi.fn(),
   getActiveLyricDocumentForAudioTrack: vi.fn(),
   getActiveLyricDocumentForVisualSession: vi.fn(),
+  getFullLyricDocument: vi.fn(),
+  getLyricDocumentByClientLogicalId: vi.fn(),
   saveLyricDocumentAtomic: vi.fn(),
   activateLyricDocument: vi.fn(),
 }))
@@ -104,6 +106,7 @@ describe('lyricsStore transactional save behavior', () => {
 
   it('uses transactional activation and refreshes cues for a newly selected version', async () => {
     const activated = document(7)
+    lyricDbMocks.getFullLyricDocument.mockResolvedValue({ document: document(6), cues: [] })
     lyricDbMocks.activateLyricDocument.mockResolvedValue({
       ok: true,
       kind: 'success',
@@ -114,7 +117,7 @@ describe('lyricsStore transactional save behavior', () => {
     const result = await useLyricsStore.getState().activateLyricDocument(activated.id)
 
     expect(result?.ok).toBe(true)
-    expect(lyricDbMocks.activateLyricDocument).toHaveBeenCalledWith(activated.id, null)
+    expect(lyricDbMocks.activateLyricDocument).toHaveBeenCalledWith(activated.id, 6)
     expect(useLyricsStore.getState().activeDocument?.revision).toBe(7)
   })
 

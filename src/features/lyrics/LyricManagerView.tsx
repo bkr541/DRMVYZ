@@ -4,13 +4,12 @@ import { useLyricsStore } from '../../stores/lyricsStore'
 import {
   deleteLyricDocument,
   getFullLyricDocument,
-  updateLyricDocument,
 } from '../../lib/lyricsDb'
 import { deleteAudioTrack, deleteAudioFiles } from '../../lib/audioDb'
 import { useAudioStore } from '../../stores/audioStore'
 import type { SavedAudioTrack } from '../../stores/audioStore'
 import { useSharedAudio } from '../../context/AudioEngineContext'
-import type { LyricSectionType } from '../../types/lyrics'
+import type { LyricCue, LyricDocument, LyricSectionType } from '../../types/lyrics'
 import { DEFAULT_TRACK_ANALYSIS_RUNTIME } from '../../types'
 import type { TrackIntelligenceAnalysis, BeatMarkerMI } from '../musicIntelligence/types'
 import type { LyricBeatGridStatus } from './editor/LyricCueEditor'
@@ -151,6 +150,22 @@ function mergeTracks(
   return [...merged.values()].sort((a, b) =>
     b.createdAt.localeCompare(a.createdAt),
   )
+}
+
+function canonicalDocumentVersion(
+  document: LyricDocument,
+  cues: LyricCue[],
+): LyricDocumentVersion {
+  const metadataValue = (key: string): string | null => {
+    const value = document.metadata[key]
+    return typeof value === 'string' && value.trim() ? value.trim() : null
+  }
+  return {
+    ...document,
+    cueCount: cues.length,
+    language: metadataValue('language'),
+    documentReviewStatus: metadataValue('reviewStatus') ?? metadataValue('review_status'),
+  }
 }
 
 function SelectedTrackHero({
@@ -353,6 +368,9 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     setLyricsEnabled,
     activeDocument,
     activeDocumentId,
+    activeLogicalDocumentId,
+    activeWriteStatus,
+    lastCanonicalWrite,
     cues: storeCues,
     setCues,
     selectedCueId,
@@ -371,12 +389,17 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     updateDraftDefaultAnimation,
     updateDraftDefaultEffects,
     saveActiveLyricDocument,
+    saveLyricDocumentMetadata,
     setActiveDocument,
     loadLyricDocument,
     setDraftSourceMeta,
     activateLyricDocument,
     beginEditorSession,
     endEditorSession,
+    setOperationAccount,
+    releaseOperationResources,
+    abandonActiveLyricDraft,
+    abandonLyricDocument,
     editorDirty,
     markEditorDirty,
     preserveDraftForNextEditorExit,
@@ -405,7 +428,10 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
   const [activeTab, setActiveTab] = useState<WorkflowTab>('manual')
   const [statusMsg, setStatusMsg] = useState<string | null>(null)
   const [uploadOpen, setUploadOpen] = useState(false)
-  const [loadingTrackId, setLoadingTrackId] = useState<string | null>(null)
+  const [audioPreviewStates, setAudioPreviewStates] = useState<Record<string, {
+    status: 'idle' | 'loading' | 'ready' | 'error'
+    error: string | null
+  }>>({})
   const [pendingTransition, setPendingTransition] = useState<{
     message: string
     action: () => void | Promise<void>
@@ -418,12 +444,58 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
   const [trackDeleting, setTrackDeleting] = useState(false)
   const [leftRailCollapsed, setLeftRailCollapsed] = useState(false)
   const [rightRailCollapsed, setRightRailCollapsed] = useState(false)
-  const loadGeneration = useRef(0)
+  const mountedRef = useRef(false)
+  const accountIdRef = useRef<string | null>(null)
+  const selectedTrackIdRef = useRef<string | null>(null)
+  const selectedDocumentIntentRef = useRef(0)
+  const trackListGenerationRef = useRef(0)
+  const documentListGenerationRef = useRef(new Map<string, number>())
+  const canonicalReconcileSequenceRef = useRef(0)
+  const audioRequestRef = useRef({ generation: 0, trackId: null as string | null, accountId: null as string | null })
 
   useEffect(() => {
+    const documentListGenerations = documentListGenerationRef.current
+    mountedRef.current = true
     beginEditorSession()
-    return () => endEditorSession()
-  }, [beginEditorSession, endEditorSession])
+    let unsubscribe: (() => void) | undefined
+
+    void supabase.auth.getUser().then(({ data }) => {
+      if (!mountedRef.current) return
+      const accountId = data.user?.id ?? null
+      accountIdRef.current = accountId
+      setOperationAccount(accountId)
+    })
+
+    const authSubscription = supabase.auth.onAuthStateChange?.((_event, session) => {
+      const accountId = session?.user?.id ?? null
+      if (accountIdRef.current === accountId) return
+      accountIdRef.current = accountId
+      selectedDocumentIntentRef.current += 1
+      trackListGenerationRef.current += 1
+      documentListGenerations.clear()
+      audioRequestRef.current.generation += 1
+      setOperationAccount(accountId)
+      setSelectedTrack(null)
+      selectedTrackIdRef.current = null
+      setDocuments([])
+      setAudioPreviewStates({})
+      setLegacyDocuments([])
+      setTracks([])
+      setTrackTotal(0)
+    })
+    unsubscribe = () => authSubscription?.data.subscription.unsubscribe()
+
+    return () => {
+      mountedRef.current = false
+      selectedDocumentIntentRef.current += 1
+      trackListGenerationRef.current += 1
+      documentListGenerations.clear()
+      audioRequestRef.current.generation += 1
+      unsubscribe?.()
+      releaseOperationResources()
+      endEditorSession()
+    }
+  }, [beginEditorSession, endEditorSession, releaseOperationResources, setOperationAccount])
 
   useEffect(() => {
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -457,12 +529,30 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     window.setTimeout(() => setStatusMsg(null), 3000)
   }, [])
 
+  const selectTrackState = useCallback((track: LyricManagerTrack | null) => {
+    const previousTrackId = audioRequestRef.current.trackId
+    selectedTrackIdRef.current = track?.dbId ?? null
+    selectedDocumentIntentRef.current += 1
+    audioRequestRef.current.generation += 1
+    audioRequestRef.current.trackId = track?.dbId ?? null
+    if (previousTrackId && previousTrackId !== track?.dbId) {
+      setAudioPreviewStates(current => {
+        if (current[previousTrackId]?.status !== 'loading') return current
+        return { ...current, [previousTrackId]: { status: 'idle', error: null } }
+      })
+    }
+    setSelectedTrack(track)
+    setDocuments([])
+    setDocumentsLoading(false)
+  }, [])
+
   const prepareTrackDraft = useCallback(
     (
       track: LyricManagerTrack,
       dirty = false,
       activateOnSave = track.activeLyricDocumentId === null,
     ) => {
+      selectedDocumentIntentRef.current += 1
       setActiveDocument(null, [], track.dbId)
       useLyricsStore.setState({
         draftTitle: track.title,
@@ -485,35 +575,38 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         setTracksError('Supabase is not configured.')
         return
       }
-      const generation = ++loadGeneration.current
+      const generation = ++trackListGenerationRef.current
       setTracksLoading(true)
       setTracksError(null)
       try {
         const { data } = await supabase.auth.getUser()
         if (!data.user) throw new Error('Sign in to view stored audio tracks.')
+        const accountId = data.user.id
+        if (accountIdRef.current !== accountId) {
+          accountIdRef.current = accountId
+          setOperationAccount(accountId)
+        }
         const offset = reset ? 0 : tracks.length
-        const page = await loadLyricManagerTrackPage(data.user.id, {
+        const page = await loadLyricManagerTrackPage(accountId, {
           offset,
           limit: PAGE_SIZE,
           search: debouncedSearch,
         })
-        if (generation !== loadGeneration.current) return
+        if (!mountedRef.current
+          || generation !== trackListGenerationRef.current
+          || accountIdRef.current !== accountId) return
+        const { data: currentAuth } = await supabase.auth.getUser()
+        if (!mountedRef.current || currentAuth.user?.id !== accountId) return
         setTrackTotal(page.total)
-        setTracks((current) =>
-          reset ? page.tracks : mergeTracks(current, page.tracks),
-        )
+        setTracks((current) => reset ? page.tracks : mergeTracks(current, page.tracks))
       } catch (loadError) {
-        if (generation !== loadGeneration.current) return
-        setTracksError(
-          loadError instanceof Error
-            ? loadError.message
-            : 'Failed to load stored tracks.',
-        )
+        if (!mountedRef.current || generation !== trackListGenerationRef.current) return
+        setTracksError(loadError instanceof Error ? loadError.message : 'Failed to load stored tracks.')
       } finally {
-        if (generation === loadGeneration.current) setTracksLoading(false)
+        if (mountedRef.current && generation === trackListGenerationRef.current) setTracksLoading(false)
       }
     },
-    [debouncedSearch, tracks.length],
+    [debouncedSearch, setOperationAccount, tracks.length],
   )
 
   useEffect(() => {
@@ -522,55 +615,92 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
 
   useEffect(() => {
     if (!supabaseConfigured) return
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) return
+    let cancelled = false
+    void supabase.auth.getUser().then(async ({ data }) => {
+      const accountId = data.user?.id
+      if (!accountId) return
       try {
-        setLegacyDocuments(await getLegacyLyricDocumentVersions(data.user.id))
+        const next = await getLegacyLyricDocumentVersions(accountId)
+        if (!cancelled && mountedRef.current && accountIdRef.current === accountId) setLegacyDocuments(next)
       } catch {
         // Legacy documents are supplementary; track-first loading should still work.
       }
     })
+    return () => { cancelled = true }
   }, [])
 
   const refreshDocuments = useCallback(
     async (track: LyricManagerTrack, selectPreferred = false) => {
-      setDocumentsLoading(true)
+      const { data } = await supabase.auth.getUser()
+      const accountId = data.user?.id ?? null
+      if (!accountId || accountIdRef.current !== accountId) return []
+      const token = (documentListGenerationRef.current.get(track.dbId) ?? 0) + 1
+      documentListGenerationRef.current.set(track.dbId, token)
+      const selectionIntent = selectedDocumentIntentRef.current
+      const logicalDocumentAtStart = useLyricsStore.getState().activeLogicalDocumentId
+      const canonicalSequenceAtStart = useLyricsStore.getState().lastCanonicalWrite?.sequence ?? 0
+      if (selectedTrackIdRef.current === track.dbId) setDocumentsLoading(true)
+
       try {
-        const nextDocuments = await getLyricDocumentVersionsForTracks([
-          track.dbId,
-        ])
+        const loadedDocuments = await getLyricDocumentVersionsForTracks([track.dbId])
+        const { data: currentAuth } = await supabase.auth.getUser()
+        if (!mountedRef.current
+          || currentAuth.user?.id !== accountId
+          || accountIdRef.current !== accountId
+          || selectedTrackIdRef.current !== track.dbId
+          || documentListGenerationRef.current.get(track.dbId) !== token) return []
+
+        let nextDocuments = loadedDocuments
+        const latestWrite = useLyricsStore.getState().lastCanonicalWrite
+        if (latestWrite
+          && latestWrite.sequence > canonicalSequenceAtStart
+          && latestWrite.accountId === accountId
+          && latestWrite.document.audioTrackId === track.dbId
+          && !nextDocuments.some(document => document.id === latestWrite.document.id)) {
+          nextDocuments = [canonicalDocumentVersion(latestWrite.document, latestWrite.cues), ...nextDocuments]
+        }
+
         setDocuments(nextDocuments)
-        setTracks((current) =>
-          current.map((item) => {
-            if (item.dbId !== track.dbId) return item
-            const active =
-              nextDocuments.find((document) => document.isActive) ?? null
-            return {
-              ...item,
-              lyricVersionCount: nextDocuments.length,
-              activeLyricDocumentId: active?.id ?? null,
-              activeLyricDocumentName: active?.title ?? null,
-            }
-          }),
-        )
+        setTracks((current) => current.map((item) => {
+          if (item.dbId !== track.dbId) return item
+          const active = nextDocuments.find((document) => document.isActive) ?? null
+          return {
+            ...item,
+            lyricVersionCount: nextDocuments.length,
+            activeLyricDocumentId: active?.id ?? null,
+            activeLyricDocumentName: active?.title ?? null,
+          }
+        }))
 
         if (selectPreferred) {
-          const preferred =
-            nextDocuments.find((document) => document.isActive) ??
-            nextDocuments[0]
-          if (preferred) await loadLyricDocument(preferred.id)
-          else prepareTrackDraft(track, false)
+          const currentState = useLyricsStore.getState()
+          const selectionStillOwned = selectedDocumentIntentRef.current === selectionIntent
+            && currentState.activeLogicalDocumentId === logicalDocumentAtStart
+            && !currentState.editorDirty
+          if (selectionStillOwned) {
+            const preferred = nextDocuments.find((document) => document.isActive) ?? nextDocuments[0]
+            if (preferred) {
+              selectedDocumentIntentRef.current += 1
+              await loadLyricDocument(preferred.id)
+            } else {
+              prepareTrackDraft(track, false)
+            }
+          }
         }
         return nextDocuments
       } catch (documentError) {
-        setError(
-          documentError instanceof Error
-            ? documentError.message
-            : 'Failed to load lyric versions.',
-        )
+        if (mountedRef.current
+          && selectedTrackIdRef.current === track.dbId
+          && documentListGenerationRef.current.get(track.dbId) === token) {
+          setError(documentError instanceof Error ? documentError.message : 'Failed to load lyric versions.')
+        }
         return []
       } finally {
-        setDocumentsLoading(false)
+        if (mountedRef.current
+          && selectedTrackIdRef.current === track.dbId
+          && documentListGenerationRef.current.get(track.dbId) === token) {
+          setDocumentsLoading(false)
+        }
       }
     },
     [loadLyricDocument, prepareTrackDraft, setError],
@@ -591,13 +721,11 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     setError(null)
     const result = await saveActiveLyricDocument(storeCues)
     if (!result?.ok) return false
-    markEditorDirty(false)
     showStatus('Saved')
     if (selectedTrack) await refreshDocuments(selectedTrack)
     return true
   }, [
     storeCues,
-    markEditorDirty,
     refreshDocuments,
     saveActiveLyricDocument,
     selectedTrack,
@@ -612,7 +740,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         `Save changes before selecting “${track.title}”?`,
         async () => {
           markEditorDirty(false)
-          setSelectedTrack(track)
+          selectTrackState(track)
           prepareTrackDraft(track, false)
           setActiveTab('manual')
           await refreshDocuments(track, true)
@@ -625,6 +753,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
       refreshDocuments,
       requestTransition,
       selectedTrack?.dbId,
+      selectTrackState,
     ],
   )
 
@@ -635,8 +764,9 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         `Save changes before opening “${document.title}”?`,
         async () => {
           markEditorDirty(false)
+          selectedDocumentIntentRef.current += 1
           if (!document.audioTrackId) {
-            setSelectedTrack(null)
+            selectTrackState(null)
             setDocuments([])
           }
           await loadLyricDocument(document.id)
@@ -644,7 +774,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         },
       )
     },
-    [activeDocumentId, loadLyricDocument, markEditorDirty, requestTransition],
+    [activeDocumentId, loadLyricDocument, markEditorDirty, requestTransition, selectTrackState],
   )
 
   const handleNewDocument = useCallback(() => {
@@ -690,6 +820,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
       requestTransition(
         `Save changes before duplicating “${document.title}”?`,
         async () => {
+          selectedDocumentIntentRef.current += 1
           const full = await getFullLyricDocument(document.id)
           setActiveDocument(null, full.cues, selectedTrack.dbId)
           useLyricsStore.setState({
@@ -725,16 +856,13 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         return
       }
       try {
-        const updated = await updateLyricDocument(document.id, { title })
-        if (document.id === activeDocumentId)
-          setActiveDocument(updated, storeCues)
+        const result = await saveLyricDocumentMetadata(document.id, { title })
+        if (!result?.ok) return
         if (selectedTrack) await refreshDocuments(selectedTrack)
         else {
           const { data } = await supabase.auth.getUser()
-          if (data.user)
-            setLegacyDocuments(
-              await getLegacyLyricDocumentVersions(data.user.id),
-            )
+          if (data.user && accountIdRef.current === data.user.id)
+            setLegacyDocuments(await getLegacyLyricDocumentVersions(data.user.id))
         }
         showStatus('Version renamed')
       } catch (renameError) {
@@ -748,10 +876,9 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     [
       activeDocumentId,
       editorDirty,
-      storeCues,
       refreshDocuments,
+      saveLyricDocumentMetadata,
       selectedTrack,
-      setActiveDocument,
       setDraftTitle,
       setError,
       showStatus,
@@ -799,6 +926,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     setDeleting(true)
     try {
       const deletingCurrent = deleteTarget.id === activeDocumentId
+      abandonLyricDocument(deleteTarget.id)
       await deleteLyricDocument(deleteTarget.id)
       setDeleteTarget(null)
       markEditorDirty(false)
@@ -827,6 +955,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
       setDeleting(false)
     }
   }, [
+    abandonLyricDocument,
     activeDocumentId,
     deleteTarget,
     loadLyricDocument,
@@ -869,7 +998,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
       setTracks(current => current.filter(item => item.dbId !== trackDeleteTarget.dbId))
       setTrackTotal(current => Math.max(0, current - 1))
       if (wasSelected) {
-        setSelectedTrack(null)
+        selectTrackState(null)
         setDocuments([])
         setActiveDocument(null, [])
       }
@@ -893,6 +1022,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
   }, [
     markEditorDirty,
     selectedTrack?.dbId,
+    selectTrackState,
     setActiveDocument,
     setError,
     showStatus,
@@ -905,6 +1035,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         'Save changes before opening the extracted lyric draft?',
         async () => {
           markEditorDirty(false)
+          selectedDocumentIntentRef.current += 1
           await loadLyricDocument(documentId)
           if (selectedTrack) await refreshDocuments(selectedTrack)
           setActiveTab('manual')
@@ -923,6 +1054,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
           const result = await activateLyricDocument(documentId)
           if (!result?.ok) return
           if (selectedTrack) await refreshDocuments(selectedTrack)
+          selectedDocumentIntentRef.current += 1
           await loadLyricDocument(documentId)
           setActiveTab('manual')
           showStatus('Extracted lyric version activated')
@@ -970,50 +1102,95 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
   )
 
   const handleLoadSelectedTrack = useCallback(async () => {
-    if (!selectedTrack?.storagePath) return
-    setLoadingTrackId(selectedTrack.dbId)
+    const requestedTrack = selectedTrack
+    if (!requestedTrack?.storagePath) return
+    const { data } = await supabase.auth.getUser()
+    const requestedAccountId = data.user?.id ?? null
+    if (!requestedAccountId || accountIdRef.current !== requestedAccountId) {
+      setError('Sign in to load the selected track preview.')
+      return
+    }
+
+    const generation = audioRequestRef.current.generation + 1
+    audioRequestRef.current = {
+      generation,
+      trackId: requestedTrack.dbId,
+      accountId: requestedAccountId,
+    }
+    setAudioPreviewStates(current => ({
+      ...current,
+      [requestedTrack.dbId]: { status: 'loading', error: null },
+    }))
+
     try {
-      const url = await getSignedUrl(selectedTrack.storagePath)
-      if (!url)
-        throw new Error('Unable to create a signed preview URL for this track.')
-      const hydratedAnalysisRuntime = selectedTrack.analysisPayload
+      const url = await getSignedUrl(requestedTrack.storagePath)
+      const { data: currentAuth } = await supabase.auth.getUser()
+      const stillOwned = mountedRef.current
+        && audioRequestRef.current.generation === generation
+        && audioRequestRef.current.trackId === requestedTrack.dbId
+        && audioRequestRef.current.accountId === requestedAccountId
+        && selectedTrackIdRef.current === requestedTrack.dbId
+        && accountIdRef.current === requestedAccountId
+        && currentAuth.user?.id === requestedAccountId
+      if (!stillOwned) return
+      if (!url) throw new Error('Unable to create a signed preview URL for this track.')
+
+      const hydratedAnalysisRuntime = requestedTrack.analysisPayload
         ? {
             ...DEFAULT_TRACK_ANALYSIS_RUNTIME,
             status:          'complete' as const,
-            analysis:        selectedTrack.analysisPayload,
-            analysisVersion: selectedTrack.analysisPayload.analysisVersion,
+            analysis:        requestedTrack.analysisPayload,
+            analysisVersion: requestedTrack.analysisPayload.analysisVersion,
             error:           null,
           }
         : null
       const trackEntry: RuntimeTrackUrlInput = {
-        name: selectedTrack.fileName || selectedTrack.title,
-        title: selectedTrack.title,
-        artist: selectedTrack.artist,
+        name: requestedTrack.fileName || requestedTrack.title,
+        title: requestedTrack.title,
+        artist: requestedTrack.artist,
         url,
-        dbId: selectedTrack.dbId,
-        storagePath: selectedTrack.storagePath,
-        duration: selectedTrack.durationSec,
+        dbId: requestedTrack.dbId,
+        storagePath: requestedTrack.storagePath,
+        duration: requestedTrack.durationSec,
         persistedMetadata: {
-          bpm: selectedTrack.bpm,
-          musicalKey: selectedTrack.musicalKey,
-          genre: selectedTrack.genre,
-          sampleRate: selectedTrack.sampleRate,
-          channels: selectedTrack.channels,
+          bpm: requestedTrack.bpm,
+          musicalKey: requestedTrack.musicalKey,
+          genre: requestedTrack.genre,
+          sampleRate: requestedTrack.sampleRate,
+          channels: requestedTrack.channels,
         },
         ...(hydratedAnalysisRuntime ? { analysisRuntime: hydratedAnalysisRuntime } : {}),
       }
       if (engine.tracks.length > 0) engine.replaceTrackUrls([trackEntry])
       else engine.addTrackUrls([trackEntry])
       if (engine.source !== 'file') engine.setSource('file')
+      setAudioPreviewStates(current => ({
+        ...current,
+        [requestedTrack.dbId]: { status: 'ready', error: null },
+      }))
       showStatus('Track loaded to the audio deck without starting playback')
     } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : 'Failed to load track preview.',
-      )
+      const message = loadError instanceof Error ? loadError.message : 'Failed to load track preview.'
+      const stillOwned = mountedRef.current
+        && audioRequestRef.current.generation === generation
+        && selectedTrackIdRef.current === requestedTrack.dbId
+        && accountIdRef.current === requestedAccountId
+      if (!stillOwned) return
+      setAudioPreviewStates(current => ({
+        ...current,
+        [requestedTrack.dbId]: { status: 'error', error: message },
+      }))
+      setError(message)
     } finally {
-      setLoadingTrackId(null)
+      if (mountedRef.current
+        && audioRequestRef.current.generation === generation
+        && selectedTrackIdRef.current === requestedTrack.dbId) {
+        setAudioPreviewStates(current => {
+          const state = current[requestedTrack.dbId]
+          if (!state || state.status !== 'loading') return current
+          return { ...current, [requestedTrack.dbId]: { status: 'idle', error: null } }
+        })
+      }
     }
   }, [engine, getSignedUrl, selectedTrack, setError, showStatus])
 
@@ -1070,7 +1247,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
       requestTransition(
         `Save changes before selecting the newly uploaded track “${managerTrack.title}”?`,
         () => {
-          setSelectedTrack(managerTrack)
+          selectTrackState(managerTrack)
           setDocuments([])
           prepareTrackDraft(managerTrack, false, true)
           setActiveTab('ai')
@@ -1078,8 +1255,39 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         },
       )
     },
-    [prepareTrackDraft, requestTransition, showStatus],
+    [prepareTrackDraft, requestTransition, selectTrackState, showStatus],
   )
+
+  useEffect(() => {
+    if (!lastCanonicalWrite || lastCanonicalWrite.accountId !== accountIdRef.current) return
+    if (lastCanonicalWrite.sequence <= canonicalReconcileSequenceRef.current) return
+    canonicalReconcileSequenceRef.current = lastCanonicalWrite.sequence
+    const trackId = lastCanonicalWrite.document.audioTrackId
+    if (!trackId) {
+      setLegacyDocuments(current => {
+        const next = canonicalDocumentVersion(lastCanonicalWrite.document, lastCanonicalWrite.cues)
+        return [next, ...current.filter(document => document.id !== next.id)]
+      })
+      return
+    }
+
+    const next = canonicalDocumentVersion(lastCanonicalWrite.document, lastCanonicalWrite.cues)
+    setTracks(current => current.map(track => {
+      if (track.dbId !== trackId) return track
+      const wasKnown = documents.some(document => document.id === next.id)
+      return {
+        ...track,
+        lyricVersionCount: lastCanonicalWrite.created && !wasKnown
+          ? track.lyricVersionCount + 1
+          : track.lyricVersionCount,
+        activeLyricDocumentId: next.isActive ? next.id : track.activeLyricDocumentId,
+        activeLyricDocumentName: next.isActive ? next.title : track.activeLyricDocumentName,
+      }
+    }))
+    if (selectedTrackIdRef.current === trackId) {
+      setDocuments(current => [next, ...current.filter(document => document.id !== next.id)])
+    }
+  }, [documents, lastCanonicalWrite])
 
   const selectedTrackLoaded = selectedTrack?.dbId === engine.currentAudioTrackId
   const selectedTrackPlaying = selectedTrackLoaded && engine.isPlaying
@@ -1154,6 +1362,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     <div className="lmv-root">
       <LyricManagerHeader
         isSaving={isSaving}
+        saveStatus={activeWriteStatus}
         lyricsEnabled={lyricsEnabled}
         hasDocument={!!activeDocument}
         draftTitle={draftTitle}
@@ -1253,7 +1462,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
             activeDocumentTitle={activeDocument?.title ?? selectedTrack?.activeLyricDocumentName ?? null}
             selectedTrackLoaded={selectedTrackLoaded}
             selectedTrackPlaying={selectedTrackPlaying}
-            loading={loadingTrackId === selectedTrack?.dbId}
+            loading={selectedTrack ? audioPreviewStates[selectedTrack.dbId]?.status === 'loading' : false}
             onLoadTrack={() => {
               void handleLoadSelectedTrack()
             }}
@@ -1393,6 +1602,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         onDiscard={() => {
           const pending = pendingTransition
           setPendingTransition(null)
+          abandonActiveLyricDraft()
           markEditorDirty(false)
           if (pending) void pending.action()
         }}

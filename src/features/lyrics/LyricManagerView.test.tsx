@@ -36,6 +36,7 @@ const mocks = vi.hoisted(() => {
     activateLyricDocument: vi.fn(),
     deleteLyricDocument: vi.fn(),
     getFullLyricDocument: vi.fn(),
+    getLyricDocumentByClientLogicalId: vi.fn(),
     updateLyricDocument: vi.fn(),
     getSignedUrl: vi.fn(),
   }
@@ -55,6 +56,7 @@ vi.mock('../../lib/lyricsDb', () => ({
   activateLyricDocument: mocks.activateLyricDocument,
   deleteLyricDocument: mocks.deleteLyricDocument,
   getFullLyricDocument: mocks.getFullLyricDocument,
+  getLyricDocumentByClientLogicalId: mocks.getLyricDocumentByClientLogicalId,
   updateLyricDocument: mocks.updateLyricDocument,
 }))
 
@@ -89,6 +91,22 @@ let root: ReturnType<typeof createRoot>
 let documentsByTrack: Map<string, LyricDocumentVersion[]>
 let documentById: Map<string, LyricDocumentVersion>
 let cuesByDocument: Map<string, LyricCue[]>
+
+interface Deferred<T> {
+  promise: Promise<T>
+  resolve(value: T): void
+  reject(reason: unknown): void
+}
+
+function deferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
 
 function track(id: string, title: string): LyricManagerTrack {
   return {
@@ -195,6 +213,7 @@ beforeEach(() => {
   mocks.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
   mocks.loadTrackPage.mockResolvedValue({ tracks: [trackA, trackB], total: 2 })
   mocks.getLegacyVersions.mockResolvedValue([])
+  mocks.getLyricDocumentByClientLogicalId.mockResolvedValue(null)
   mocks.getVersions.mockImplementation(async (ids: string[]) =>
     ids.flatMap(id => documentsByTrack.get(id) ?? []))
   mocks.getLyricDocumentById.mockImplementation(async (id: string) => documentById.get(id) ?? null)
@@ -254,32 +273,9 @@ beforeEach(() => {
     return { ok: true, kind: 'success', document: saved, cues: savedCues }
   })
 
-  useLyricsStore.setState({
-    lyricsEnabled: false,
-    activeDocumentId: null,
-    activeDocument: null,
-    activeAudioTrackId: null,
-    cues: [],
-    isLoading: false,
-    isSaving: false,
-    error: null,
-    lastPersistenceFailure: null,
-    draftTitle: '',
-    draftArtist: '',
-    draftDefaultStyle: {},
-    draftDefaultAnimation: {},
-    draftDefaultEffects: {},
-    globalOffsetMs: 0,
-    draftSourceType: null,
-    draftSourceFormat: null,
-    draftRawSourceText: null,
-    draftMetadata: null,
-    selectedCueId: null,
-    lyricTimingDirty: false,
-    editorSessionActive: false,
-    editorDirty: false,
-    draftActivateOnSave: true,
-  })
+  useLyricsStore.getState().setOperationAccount(null)
+  useLyricsStore.getState().clearLyrics()
+  useLyricsStore.getState().setOperationAccount('user-1')
 
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -404,7 +400,7 @@ describe('LyricManagerView track-first workflow', () => {
     expect(duplicateInput.activate).toBe(false)
 
     await act(async () => buttonWithText('Make Active', documentCard('Alternate Lyrics')).click())
-    await waitFor(() => expect(mocks.activateLyricDocument).toHaveBeenCalledWith('doc-a2', null))
+    await waitFor(() => expect(mocks.activateLyricDocument).toHaveBeenCalledWith('doc-a2', 1))
     expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a2')
   })
 
@@ -443,4 +439,152 @@ describe('LyricManagerView track-first workflow', () => {
     await act(async () => buttonWithText('Discard').click())
     expect(onBack).toHaveBeenCalledOnce()
   })
+
+  it('keeps document-list responses scoped to the selected track', async () => {
+    const trackAResponse = deferred<LyricDocumentVersion[]>()
+    const trackBResponse = deferred<LyricDocumentVersion[]>()
+    mocks.getVersions.mockImplementation((ids: string[]) => {
+      if (ids[0] === 'track-a') return trackAResponse.promise
+      if (ids[0] === 'track-b') return trackBResponse.promise
+      return Promise.resolve([])
+    })
+
+    await render()
+    await act(async () => trackCard('Reverie').click())
+    await waitFor(() => expect(mocks.getVersions).toHaveBeenCalledWith(['track-a']))
+    await act(async () => trackCard('From Grace').click())
+    await waitFor(() => expect(mocks.getVersions).toHaveBeenCalledWith(['track-b']))
+
+    trackBResponse.resolve([])
+    await flush()
+    trackAResponse.resolve(documentsByTrack.get('track-a') ?? [])
+    await flush()
+
+    expect(trackCard('From Grace').getAttribute('aria-pressed')).toBe('true')
+    const versionTitles = [...container.querySelectorAll<HTMLElement>('.lmv-doc-card-title')].map(node => node.textContent)
+    expect(versionTitles).not.toContain('Approved Lyrics')
+    expect(useLyricsStore.getState()).toMatchObject({ activeAudioTrackId: 'track-b', activeDocumentId: null })
+  })
+
+  it('ignores an older response when the same track is selected again later', async () => {
+    const firstTrackAResponse = deferred<LyricDocumentVersion[]>()
+    const secondTrackAResponse = deferred<LyricDocumentVersion[]>()
+    let trackACall = 0
+    mocks.getVersions.mockImplementation((ids: string[]) => {
+      if (ids[0] === 'track-a') {
+        trackACall += 1
+        return trackACall === 1 ? firstTrackAResponse.promise : secondTrackAResponse.promise
+      }
+      return Promise.resolve([])
+    })
+
+    await render()
+    await act(async () => trackCard('Reverie').click())
+    await waitFor(() => expect(trackACall).toBe(1))
+    await act(async () => trackCard('From Grace').click())
+    await waitFor(() => expect(trackCard('From Grace').getAttribute('aria-pressed')).toBe('true'))
+    await act(async () => trackCard('Reverie').click())
+    await waitFor(() => expect(trackACall).toBe(2))
+
+    const newest = documentById.get('doc-a2')!
+    secondTrackAResponse.resolve([newest])
+    await waitFor(() => expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a2'))
+    firstTrackAResponse.resolve([documentById.get('doc-a1')!])
+    await flush()
+
+    expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a2')
+    expect(container.textContent).toContain('Alternate Lyrics')
+    expect(container.textContent).not.toContain('Approved Lyrics')
+  })
+
+  it('preserves a local dirty draft created after a document request starts', async () => {
+    const response = deferred<LyricDocumentVersion[]>()
+    mocks.getVersions.mockReturnValue(response.promise)
+
+    await render()
+    await act(async () => trackCard('Reverie').click())
+    await waitFor(() => expect(container.textContent).toContain('This track has no lyrics yet.'))
+    await act(async () => buttonWithText('Create Blank Lyrics').click())
+
+    await act(async () => useLyricsStore.getState().setDraftTitle('Local unsaved version'))
+    expect(useLyricsStore.getState()).toMatchObject({ activeDocumentId: null, editorDirty: true })
+
+    response.resolve(documentsByTrack.get('track-a') ?? [])
+    await flush()
+
+    expect(useLyricsStore.getState()).toMatchObject({
+      activeDocumentId: null,
+      activeAudioTrackId: 'track-a',
+      draftTitle: 'Local unsaved version',
+      editorDirty: true,
+    })
+  })
+
+  it('abandons a stale signed-audio response when the selected track changes', async () => {
+    const trackAUrl = deferred<string | null>()
+    mocks.getSignedUrl.mockImplementation((path: string) => {
+      if (path.includes('track-a')) return trackAUrl.promise
+      return Promise.resolve('signed-track-b')
+    })
+
+    await render()
+    await act(async () => trackCard('Reverie').click())
+    await waitFor(() => expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a1'))
+    await act(async () => buttonWithText('Load deck').click())
+    await waitFor(() => expect(buttonWithText('Loading…')).toBeTruthy())
+
+    await act(async () => trackCard('From Grace').click())
+    await waitFor(() => expect(buttonWithText('Load deck')).toBeTruthy())
+    await act(async () => buttonWithText('Load deck').click())
+    await waitFor(() => expect(mocks.engine.addTrackUrls).toHaveBeenCalledTimes(1))
+
+    trackAUrl.resolve('signed-track-a')
+    await flush()
+
+    expect(mocks.engine.addTrackUrls).toHaveBeenCalledTimes(1)
+    expect(mocks.engine.addTrackUrls).toHaveBeenCalledWith([
+      expect.objectContaining({ dbId: 'track-b', url: 'signed-track-b' }),
+    ])
+  })
+
+  it('keeps obsolete audio failures off the newly selected track', async () => {
+    const trackAUrl = deferred<string | null>()
+    mocks.getSignedUrl.mockImplementation((path: string) => {
+      if (path.includes('track-a')) return trackAUrl.promise
+      return Promise.resolve('signed-track-b')
+    })
+
+    await render()
+    await act(async () => trackCard('Reverie').click())
+    await waitFor(() => expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a1'))
+    await act(async () => buttonWithText('Load deck').click())
+    await act(async () => trackCard('From Grace').click())
+    await waitFor(() => expect(buttonWithText('Load deck')).toBeTruthy())
+
+    trackAUrl.reject(new Error('Track A signing failed'))
+    await flush()
+
+    expect(container.textContent).not.toContain('Track A signing failed')
+    expect(buttonWithText('Load deck')).toBeTruthy()
+    expect(mocks.engine.addTrackUrls).not.toHaveBeenCalled()
+  })
+
+  it('prevents a signed-audio request from committing after unmount', async () => {
+    const signedUrl = deferred<string | null>()
+    mocks.getSignedUrl.mockReturnValue(signedUrl.promise)
+
+    await render()
+    await act(async () => trackCard('Reverie').click())
+    await waitFor(() => expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a1'))
+    await act(async () => buttonWithText('Load deck').click())
+    await act(async () => root.unmount())
+
+    signedUrl.resolve('signed-after-unmount')
+    await flush()
+    expect(mocks.engine.addTrackUrls).not.toHaveBeenCalled()
+    expect(mocks.engine.replaceTrackUrls).not.toHaveBeenCalled()
+
+    root = createRoot(container)
+  })
+
 })

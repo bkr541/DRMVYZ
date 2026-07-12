@@ -1,7 +1,9 @@
 import { VyzualzHeaderActions } from '../../../components/vyzualz/shared/VyzualzHeaderActions'
+import type { LyricWriteStatus } from '../../../stores/lyricsStore'
 
 interface Props {
   isSaving: boolean
+  saveStatus: LyricWriteStatus
   lyricsEnabled: boolean
   hasDocument: boolean
   draftTitle: string
@@ -15,6 +17,7 @@ interface Props {
 
 export function LyricManagerHeader({
   isSaving,
+  saveStatus,
   lyricsEnabled,
   hasDocument,
   draftTitle,
@@ -25,6 +28,18 @@ export function LyricManagerHeader({
   onSave,
   onSaveAndEnable,
 }: Props) {
+  const saveStatusLabel = saveStatus === 'conflict'
+    ? 'Conflict'
+    : saveStatus === 'failed'
+      ? 'Save failed'
+      : saveStatus === 'queued'
+        ? 'Queued'
+        : saveStatus === 'saving'
+          ? 'Saving'
+          : dirty || saveStatus === 'unsaved'
+            ? 'Unsaved'
+            : null
+
   return (
     <header className="lmv-header">
       <div className="lmv-header-left">
@@ -39,7 +54,7 @@ export function LyricManagerHeader({
                 : 'Select or upload a track, then manage its lyric versions'}
           </span>
         </div>
-        {dirty && <span className="lmv-dirty-badge">Unsaved</span>}
+        {saveStatusLabel && <span className={`lmv-dirty-badge lmv-dirty-badge--${saveStatus}`}>{saveStatusLabel}</span>}
       </div>
 
       <div className="lmv-header-right">

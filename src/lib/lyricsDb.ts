@@ -153,6 +153,20 @@ export async function getLyricDocumentById(documentId: string): Promise<LyricDoc
   return data ? mapLyricDocumentRowToDocument(data as LyricDocumentRow) : null
 }
 
+/** Resolve the canonical row assigned to one stable client-side draft identity. */
+export async function getLyricDocumentByClientLogicalId(
+  logicalDocumentId: string,
+): Promise<LyricDocument | null> {
+  const { data, error } = await db
+    .from('lyric_documents')
+    .select('*')
+    .eq('metadata->>_drmvyzLogicalDocumentId', logicalDocumentId)
+    .maybeSingle()
+
+  if (error) throwSupabaseError(error, 'Failed to reconcile the saved lyric draft')
+  return data ? mapLyricDocumentRowToDocument(data as LyricDocumentRow) : null
+}
+
 // ── Transactional document persistence ───────────────────────────────────────
 
 /**
