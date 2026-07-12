@@ -73,6 +73,13 @@ const LOCAL_PREPARATION_LABELS: Record<LocalAudioPreparationProgress['stage'], s
 }
 
 export const OFFLINE_LYRIC_EXTRACTION_MESSAGE = 'Lyric extraction requires an internet connection. Connect to the internet and try again.'
+export const LYRIC_JOB_STALLED_AFTER_MS = 20 * 60 * 1000
+
+export function lyricJobPollDelayMs(attempt: number, random = Math.random): number {
+  const boundedAttempt = Math.max(0, Math.min(4, Math.floor(attempt)))
+  const base = Math.min(30_000, 2_000 * (2 ** boundedAttempt))
+  return Math.round(base * (0.85 + random() * 0.3))
+}
 
 const PROCESSING_MODE_LABELS: Record<string, string> = {
   direct: 'Direct mode',
@@ -131,6 +138,8 @@ export function AiLyricExtractor({
   const [notice, setNotice] = useState<string | null>(null)
   const [localPreparation, setLocalPreparation] = useState<LocalAudioPreparationProgress | null>(null)
   const [browserOnline, setBrowserOnline] = useState(browserReportsOnline)
+  const [jobStalled, setJobStalled] = useState(false)
+  const [pollRefreshNonce, setPollRefreshNonce] = useState(0)
   const selectedTrackId = selectedTrack?.dbId ?? null
   const preparationAbortRef = useRef<AbortController | null>(null)
   const operationGenerationRef = useRef(0)
@@ -138,8 +147,16 @@ export function AiLyricExtractor({
   selectedTrackIdRef.current = selectedTrackId
   const previewDocumentId = useRef<string | null>(null)
   const previewRequestGenerationRef = useRef(0)
+  const pollGenerationRef = useRef(0)
+  const pollTimerRef = useRef<number | null>(null)
+  const jobOwnerRef = useRef<{ jobId: string | null; trackId: string | null; userId: string | null }>({ jobId: null, trackId: null, userId: null })
+  jobOwnerRef.current = { jobId: job?.id ?? null, trackId: job?.audioTrackId ?? null, userId: job?.userId ?? null }
 
   const activeJobId = job && isActiveLyricTranscriptionJob(job) ? job.id : null
+  const activeJobTrackId = activeJobId ? job?.audioTrackId ?? null : null
+  const activeJobUserId = activeJobId ? job?.userId ?? null : null
+  const jobFingerprintRef = useRef('')
+  jobFingerprintRef.current = job ? `${job.status}:${job.progress}:${job.updatedAt}` : ''
 
   const beginOwnedOperation = useCallback(() => {
     operationGenerationRef.current += 1
@@ -206,6 +223,12 @@ export function AiLyricExtractor({
     setNotice(null)
     setLocalPreparation(null)
     setActionBusy(false)
+    setJobStalled(false)
+    pollGenerationRef.current += 1
+    if (pollTimerRef.current !== null) {
+      window.clearTimeout(pollTimerRef.current)
+      pollTimerRef.current = null
+    }
     preparationAbortRef.current?.abort()
     preparationAbortRef.current = null
     if (!selectedTrackId) return () => { cancelled = true }
@@ -228,31 +251,102 @@ export function AiLyricExtractor({
     return () => {
       cancelled = true
       operationGenerationRef.current += 1
+      pollGenerationRef.current += 1
+      if (pollTimerRef.current !== null) window.clearTimeout(pollTimerRef.current)
       preparationAbortRef.current?.abort()
       preparationAbortRef.current = null
     }
   }, [loadPreview, selectedTrackId])
 
   useEffect(() => {
-    if (!activeJobId) return
-    let cancelled = false
-    const poll = async () => {
-      try {
-        const refreshed = await refreshLyricTranscriptionJob(activeJobId)
-        if (cancelled || refreshed.audioTrackId !== selectedTrackIdRef.current || refreshed.id !== activeJobId) return
-        setJob(refreshed)
-        setError(null)
-        await loadPreview(refreshed)
-      } catch (pollError) {
-        if (!cancelled) setError(pollError instanceof Error ? pollError.message : 'Failed to refresh transcription status.')
+    if (!activeJobId || !activeJobTrackId || !activeJobUserId) {
+      setJobStalled(false)
+      return
+    }
+    const generation = ++pollGenerationRef.current
+    const owner = { jobId: activeJobId, trackId: activeJobTrackId, userId: activeJobUserId }
+    const startedAt = Date.now()
+    let attempt = 0
+    let lastFingerprint = jobFingerprintRef.current
+    let stopped = false
+    let polling = false
+
+    const ownsPoll = () => {
+      const current = jobOwnerRef.current
+      return !stopped
+        && pollGenerationRef.current === generation
+        && selectedTrackIdRef.current === owner.trackId
+        && current.jobId === owner.jobId
+        && current.trackId === owner.trackId
+        && current.userId === owner.userId
+    }
+
+    const clearTimer = () => {
+      if (pollTimerRef.current !== null) {
+        window.clearTimeout(pollTimerRef.current)
+        pollTimerRef.current = null
       }
     }
-    const timer = window.setInterval(() => { void poll() }, 4_000)
-    return () => {
-      cancelled = true
-      window.clearInterval(timer)
+
+    const schedule = (delay: number) => {
+      if (!ownsPoll()) return
+      clearTimer()
+      pollTimerRef.current = window.setTimeout(() => { void poll() }, delay)
     }
-  }, [activeJobId, loadPreview])
+
+    const poll = async () => {
+      if (!ownsPoll() || polling) return
+      if (globalThis.document.visibilityState === 'hidden') return
+      if (Date.now() - startedAt >= LYRIC_JOB_STALLED_AFTER_MS) {
+        setJobStalled(true)
+        return
+      }
+      polling = true
+      try {
+        const refreshed = await refreshLyricTranscriptionJob(owner.jobId)
+        if (!ownsPoll()
+          || refreshed.audioTrackId !== owner.trackId
+          || refreshed.userId !== owner.userId
+          || refreshed.id !== owner.jobId) return
+        const fingerprint = `${refreshed.status}:${refreshed.progress}:${refreshed.updatedAt}`
+        attempt = fingerprint === lastFingerprint ? attempt + 1 : 0
+        lastFingerprint = fingerprint
+        setJob(refreshed)
+        setJobStalled(false)
+        setError(null)
+        await loadPreview(refreshed)
+        if (!isActiveLyricTranscriptionJob(refreshed)) return
+      } catch (pollError) {
+        if (!ownsPoll()) return
+        attempt += 1
+        setError(pollError instanceof Error ? pollError.message : 'Failed to refresh transcription status.')
+      } finally {
+        polling = false
+      }
+      if (ownsPoll()) schedule(lyricJobPollDelayMs(attempt))
+    }
+
+    const onVisibilityChange = () => {
+      if (!ownsPoll()) return
+      if (globalThis.document.visibilityState === 'hidden') {
+        clearTimer()
+        return
+      }
+      clearTimer()
+      void poll()
+    }
+
+    setJobStalled(false)
+    globalThis.document.addEventListener('visibilitychange', onVisibilityChange)
+    schedule(lyricJobPollDelayMs(0))
+
+    return () => {
+      stopped = true
+      pollGenerationRef.current += 1
+      clearTimer()
+      globalThis.document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [activeJobId, activeJobTrackId, activeJobUserId, loadPreview, pollRefreshNonce])
 
   const review = useMemo(
     () => getLyricReviewStatistics(cues, options.confidenceThreshold),
@@ -310,6 +404,7 @@ export function AiLyricExtractor({
     } catch (startError) {
       const wasCancelled = startError instanceof DOMException && startError.name === 'AbortError'
       let recovered = false
+      let reconciliationFailure: string | null = null
       if (preparationOperationId) {
         try {
           const operation = await getAudioPreparationOperation(preparationOperationId)
@@ -332,12 +427,20 @@ export function AiLyricExtractor({
             )
           }
         } catch (reconcileError) {
-          console.error('[AiLyricExtractor] preparation reconciliation failed:', reconcileError)
+          reconciliationFailure = reconcileError instanceof Error
+            ? reconcileError.message
+            : 'Prepared-audio cleanup reconciliation failed.'
         }
       }
       if (!recovered && owned.isCurrent()) {
-        if (!wasCancelled) setError(startError instanceof Error ? startError.message : 'Failed to start lyric extraction.')
-        else setNotice('Audio preparation cancelled. Any uploaded temporary chunks are being cleaned safely.')
+        const failure = startError instanceof Error ? startError.message : 'Failed to start lyric extraction.'
+        if (!wasCancelled) {
+          setError(reconciliationFailure ? `${failure} Cleanup reconciliation also failed: ${reconciliationFailure}` : failure)
+        } else {
+          setNotice(reconciliationFailure
+            ? `Audio preparation was cancelled, but cleanup reconciliation needs attention: ${reconciliationFailure}`
+            : 'Audio preparation cancelled. Any uploaded temporary chunks are being cleaned safely.')
+        }
       }
     } finally {
       if (operationGenerationRef.current === owned.generation) {
@@ -350,6 +453,11 @@ export function AiLyricExtractor({
 
   const handleCancel = useCallback(async () => {
     preparationAbortRef.current?.abort()
+    pollGenerationRef.current += 1
+    if (pollTimerRef.current !== null) {
+      window.clearTimeout(pollTimerRef.current)
+      pollTimerRef.current = null
+    }
     operationGenerationRef.current += 1
     if (!job) {
       setNotice('Audio preparation cancellation requested. Temporary assets will be cleaned before the operation retires.')
@@ -413,6 +521,7 @@ export function AiLyricExtractor({
       setNotice(result.duplicate ? 'An active retry was already found and resumed.' : 'Retry queued.')
     } catch (retryError) {
       const wasCancelled = retryError instanceof DOMException && retryError.name === 'AbortError'
+      let reconciliationFailure: string | null = null
       if (preparationOperationId) {
         try {
           const operation = await getAudioPreparationOperation(preparationOperationId)
@@ -426,12 +535,20 @@ export function AiLyricExtractor({
             )
           }
         } catch (reconcileError) {
-          console.error('[AiLyricExtractor] retry reconciliation failed:', reconcileError)
+          reconciliationFailure = reconcileError instanceof Error
+            ? reconcileError.message
+            : 'Retry cleanup reconciliation failed.'
         }
       }
       if (owned.isCurrent()) {
-        if (!wasCancelled) setError(retryError instanceof Error ? retryError.message : 'Failed to retry transcription.')
-        else setNotice('Audio preparation cancelled. Temporary assets will not be reused until cleanup is reconciled.')
+        const failure = retryError instanceof Error ? retryError.message : 'Failed to retry transcription.'
+        if (!wasCancelled) {
+          setError(reconciliationFailure ? `${failure} Cleanup reconciliation also failed: ${reconciliationFailure}` : failure)
+        } else {
+          setNotice(reconciliationFailure
+            ? `Audio preparation was cancelled, but retry cleanup needs attention: ${reconciliationFailure}`
+            : 'Audio preparation cancelled. Temporary assets will not be reused until cleanup is reconciled.')
+        }
       }
     } finally {
       if (operationGenerationRef.current === owned.generation) {
@@ -624,6 +741,14 @@ export function AiLyricExtractor({
           {active && (
             <div className="lmv-import-actions">
               <button className="lmv-btn lmv-btn--ghost" disabled={actionBusy} onClick={() => { void handleCancel() }}>Cancel</button>
+            </div>
+          )}
+          {active && jobStalled && (
+            <div className="lmv-msg-list lmv-msg-list--warn" role="status">
+              <div className="lmv-msg-item">This extraction has not changed for a while. Background polling is paused to avoid unnecessary traffic.</div>
+              <div className="lmv-import-actions">
+                <button className="lmv-btn lmv-btn--ghost" onClick={() => setPollRefreshNonce(value => value + 1)}>Refresh status</button>
+              </div>
             </div>
           )}
           {canRetry && (

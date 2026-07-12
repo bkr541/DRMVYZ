@@ -39,6 +39,8 @@ interface Props {
   beatGridStatus?: LyricBeatGridStatus
   beatGridStatusMessage?: string | null
   sections?: LyricSectionOption[]
+  snapMode?: LyricSnapMode
+  onSnapModeChange?: (mode: LyricSnapMode) => void
 }
 
 function createCueId(prefix = 'cue'): string {
@@ -75,6 +77,8 @@ export function LyricCueEditor({
   beatGridStatus = 'missing',
   beatGridStatusMessage = null,
   sections = [],
+  snapMode: controlledSnapMode,
+  onSnapModeChange,
 }: Props) {
   const {
     cues,
@@ -102,7 +106,12 @@ export function LyricCueEditor({
     redoCueEdit: state.redoCueEdit,
   })))
   const [zoom, setZoom] = useState(1)
-  const [snapMode, setSnapMode] = useState<LyricSnapMode>('none')
+  const [localSnapMode, setLocalSnapMode] = useState<LyricSnapMode>('none')
+  const snapMode = controlledSnapMode ?? localSnapMode
+  const setSnapMode = useCallback((mode: LyricSnapMode) => {
+    if (controlledSnapMode === undefined) setLocalSnapMode(mode)
+    onSnapModeChange?.(mode)
+  }, [controlledSnapMode, onSnapModeChange])
   const [filter, setFilter] = useState<LyricCueFilter>('all')
   const rootRef = useRef<HTMLDivElement>(null)
   const selectedCue = cues.find(cue => cue.id === selectedCueId) ?? null
@@ -128,7 +137,7 @@ export function LyricCueEditor({
 
   useEffect(() => {
     if (!canUseSnapMode(snapMode, { beatGridMs, wordBoundaryMs })) setSnapMode('none')
-  }, [beatGridMs, snapMode, wordBoundaryMs])
+  }, [beatGridMs, setSnapMode, snapMode, wordBoundaryMs])
 
   const focusCue = useCallback((cueId: string | null) => {
     if (!cueId) return

@@ -16,6 +16,7 @@ import type { AudioFileAnalysis } from '../utils/analyzeAudioFile'
 import { runtimeIdForAudioTrack } from '../audio/runtimeTrack'
 import { deleteAudioTrackCanonical, retryPendingAudioCleanup } from '../lib/audioTrackDeletion'
 import { retryPendingAudioPreparationCleanup } from '../lib/audioPreparationDb'
+import { deleteLyricRecoveryForTrack } from '../lib/lyricDraftRecovery'
 
 // ── Public types ───────────────────────────────────────────────────────────────
 
@@ -333,17 +334,29 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
     }
 
     try {
+      const { data: authData } = await supabase.auth.getUser()
       const result = await deleteAudioTrackCanonical(dbId)
       if (!result.ok) {
         set({ loadError: `Track deletion failed: ${interpretError(result.message ?? 'Unknown deletion failure')}` })
         return false
       }
 
+      let recoveryCleanupError: string | null = null
+      if (authData.user?.id) {
+        try {
+          await deleteLyricRecoveryForTrack(authData.user.id, dbId)
+        } catch (error) {
+          recoveryCleanupError = error instanceof Error
+            ? `Track removed, but local lyric recovery cleanup failed: ${error.message}`
+            : 'Track removed, but local lyric recovery cleanup failed.'
+        }
+      }
+
       set(state => ({
         savedTracks: state.savedTracks.filter(item => item.dbId !== dbId),
-        loadError: result.pendingCleanup
+        loadError: recoveryCleanupError ?? (result.pendingCleanup
           ? interpretError(result.message ?? 'Track removed; storage cleanup is pending and will retry automatically.')
-          : null,
+          : null),
       }))
       return true
     } catch (error) {

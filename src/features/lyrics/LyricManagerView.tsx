@@ -32,10 +32,22 @@ import { LyricPreviewPanel } from './components/LyricPreviewPanel'
 import { UnsavedLyricChangesDialog } from './components/UnsavedLyricChangesDialog'
 import { ConfirmLyricDeleteDialog } from './components/ConfirmLyricDeleteDialog'
 import { ConfirmTrackDeleteDialog } from './components/ConfirmTrackDeleteDialog'
+import { LyricRecoveryDialog } from './components/LyricRecoveryDialog'
 import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
 import type { RuntimeTrackUrlInput } from '../../audio/runtimeTrack'
 import type { PerformanceAppView } from '../../components/vyzualz/appView'
+import type { LyricSnapMode } from './editor/lyricCueEditorModel'
+import {
+  cleanupObsoleteLyricRecoveries,
+  createLyricRecoveryRecord,
+  deleteLyricRecoveryForDocument,
+  findLyricRecovery,
+  getLyricRecoveryRepository,
+  lyricRecoveryKey,
+  reconcileLyricRecoveryAfterCanonicalWrite,
+  type LyricRecoveryRecord,
+} from '../../lib/lyricDraftRecovery'
 
 type WorkflowTab = 'manual' | 'json' | 'ai'
 
@@ -69,7 +81,7 @@ function formatMsClock(ms: number | null | undefined): string {
   return `${mins}:${secs.toString().padStart(2, '0')}.${hundredths.toString().padStart(2, '0')}`
 }
 
-function formatUpdatedDate(value: string | null | undefined): string {
+function formatTrackDate(value: string | null | undefined): string {
   if (!value) return '—'
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString()
@@ -220,7 +232,7 @@ function SelectedTrackHero({
         <div className="lmv-track-stat"><strong>{formatDuration(track.durationSec)}</strong><span>Duration</span></div>
         <div className="lmv-track-stat"><strong>{track.bpm ? `${Math.round(track.bpm)} BPM` : '—'}</strong><span>Tempo</span></div>
         <div className="lmv-track-stat"><strong>{track.musicalKey || '—'}</strong><span>Key</span></div>
-        <div className="lmv-track-stat"><strong>{formatUpdatedDate(track.createdAt)}</strong><span>Updated</span></div>
+        <div className="lmv-track-stat"><strong>{formatTrackDate(track.createdAt)}</strong><span>Added</span></div>
       </div>
 
       <div className="lmv-track-hero-actions">
@@ -304,6 +316,8 @@ function LyricTransportBar({
   volume,
   bpm,
   musicalKey,
+  snapMode,
+  onToggleSnap,
   onTogglePlayback,
   onVolumeChange,
 }: {
@@ -315,6 +329,8 @@ function LyricTransportBar({
   volume: number
   bpm: number | null
   musicalKey: string | null
+  snapMode: LyricSnapMode
+  onToggleSnap: () => void
   onTogglePlayback: () => void
   onVolumeChange: (volume: number) => void
 }) {
@@ -324,17 +340,17 @@ function LyricTransportBar({
   return (
     <footer className="lmv-transport-bar" aria-label="Lyric preview transport">
       <div className="lmv-transport-left">
-        <button className="lmv-transport-chip" type="button">↻ Loop</button>
-        <button className="lmv-transport-chip" type="button">⌕ Snap</button>
-        <button className="lmv-transport-chip" type="button">⇄ Compare: Off</button>
+        <button className="lmv-transport-chip" type="button" disabled title="Loop boundaries are not defined for Lyric Manager preview." aria-label="Loop unavailable: no loop boundaries are defined">↻ Loop</button>
+        <button className="lmv-transport-chip" type="button" onClick={onToggleSnap} aria-pressed={snapMode !== 'none'} title="Toggle the cue editor's canonical snap mode">⌕ Snap: {snapMode === 'none' ? 'Off' : snapMode}</button>
+        <button className="lmv-transport-chip" type="button" disabled title="No lyric comparison model is available for this document." aria-label="Compare unavailable: no comparison model is available">⇄ Compare: Off</button>
       </div>
 
       <div className="lmv-transport-center">
-        <button className="lmv-transport-icon" type="button" disabled>⏮</button>
+        <button className="lmv-transport-icon" type="button" disabled title="Previous navigation is unavailable because no transport order is defined." aria-label="Previous unavailable">⏮</button>
         <button className="lmv-transport-icon" type="button" disabled={!selectedTrackLoaded} onClick={onTogglePlayback}>
           {selectedTrackPlaying ? 'Ⅱ' : '▶'}
         </button>
-        <button className="lmv-transport-icon" type="button" disabled>⏭</button>
+        <button className="lmv-transport-icon" type="button" disabled title="Next navigation is unavailable because no transport order is defined." aria-label="Next unavailable">⏭</button>
         <div className="lmv-transport-time">
           <strong>{formatMsClock(safeCurrent)}</strong>
           <span>/ {selectedTrack ? formatDuration((safeDuration || (selectedTrack.durationSec ?? 0) * 1000) / 1000) : '0:00'}</span>
@@ -369,6 +385,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     activeDocumentId,
     activeLogicalDocumentId,
     activeWriteStatus,
+    activeEditVersion,
     lastCanonicalWrite,
     cues: storeCues,
     setCues,
@@ -380,7 +397,15 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     setError,
     draftTitle,
     draftArtist,
+    draftDefaultStyle,
+    draftDefaultAnimation,
+    draftDefaultEffects,
     globalOffsetMs,
+    draftSourceType,
+    draftSourceFormat,
+    draftRawSourceText,
+    draftMetadata,
+    draftActivateOnSave,
     setDraftTitle,
     setDraftArtist,
     setGlobalOffsetMs,
@@ -402,6 +427,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     editorDirty,
     markEditorDirty,
     preserveDraftForNextEditorExit,
+    restoreRecoveredLyricDraft,
   } = useLyricsStore()
 
   const engine = useSharedAudio()
@@ -427,6 +453,10 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
   const [documentsLoading, setDocumentsLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<WorkflowTab>('manual')
   const [statusMsg, setStatusMsg] = useState<string | null>(null)
+  const [recoveryCandidate, setRecoveryCandidate] = useState<LyricRecoveryRecord | null>(null)
+  const [recoveryReviewing, setRecoveryReviewing] = useState(false)
+  const [recoveryBusy, setRecoveryBusy] = useState(false)
+  const [snapMode, setSnapMode] = useState<LyricSnapMode>('none')
   const [uploadOpen, setUploadOpen] = useState(false)
   const [audioPreviewStates, setAudioPreviewStates] = useState<Record<string, {
     status: 'idle' | 'loading' | 'ready' | 'error'
@@ -452,6 +482,19 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
   const documentListGenerationRef = useRef(new Map<string, number>())
   const canonicalReconcileSequenceRef = useRef(0)
   const audioRequestRef = useRef({ generation: 0, trackId: null as string | null, accountId: null as string | null })
+  const statusTimerRef = useRef<number | null>(null)
+  const statusRequestRef = useRef(0)
+  const recoveryReadGenerationRef = useRef(0)
+  const recoveryAutosaveTimerRef = useRef<number | null>(null)
+  const recoveryMutationChainRef = useRef<Promise<void>>(Promise.resolve())
+
+  const queueRecoveryMutation = useCallback((mutation: () => Promise<void>): Promise<void> => {
+    const next = recoveryMutationChainRef.current
+      .catch(() => undefined)
+      .then(mutation)
+    recoveryMutationChainRef.current = next.catch(() => undefined)
+    return next
+  }, [])
 
   useEffect(() => {
     const documentListGenerations = documentListGenerationRef.current
@@ -464,12 +507,22 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
       const accountId = data.user?.id ?? null
       accountIdRef.current = accountId
       setOperationAccount(accountId)
+      if (accountId && typeof indexedDB !== 'undefined') {
+        void cleanupObsoleteLyricRecoveries(accountId).catch(() => undefined)
+      }
     })
 
     const authSubscription = supabase.auth.onAuthStateChange?.((_event, session) => {
       const accountId = session?.user?.id ?? null
       if (accountIdRef.current === accountId) return
       accountIdRef.current = accountId
+      recoveryReadGenerationRef.current += 1
+      if (recoveryAutosaveTimerRef.current !== null) {
+        window.clearTimeout(recoveryAutosaveTimerRef.current)
+        recoveryAutosaveTimerRef.current = null
+      }
+      setRecoveryCandidate(null)
+      setRecoveryReviewing(false)
       selectedDocumentIntentRef.current += 1
       trackListGenerationRef.current += 1
       documentListGenerations.clear()
@@ -487,6 +540,8 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
 
     return () => {
       mountedRef.current = false
+      recoveryReadGenerationRef.current += 1
+      if (recoveryAutosaveTimerRef.current !== null) window.clearTimeout(recoveryAutosaveTimerRef.current)
       selectedDocumentIntentRef.current += 1
       trackListGenerationRef.current += 1
       documentListGenerations.clear()
@@ -524,12 +579,201 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     return () => clearTimeout(id)
   }, [trackSearch])
 
-  const showStatus = useCallback((message: string) => {
-    setStatusMsg(message)
-    window.setTimeout(() => setStatusMsg(null), 3000)
+  const clearStatus = useCallback(() => {
+    statusRequestRef.current += 1
+    if (statusTimerRef.current !== null) {
+      window.clearTimeout(statusTimerRef.current)
+      statusTimerRef.current = null
+    }
+    setStatusMsg(null)
   }, [])
 
+  const showStatus = useCallback((message: string) => {
+    const request = ++statusRequestRef.current
+    if (statusTimerRef.current !== null) window.clearTimeout(statusTimerRef.current)
+    setStatusMsg(message)
+    statusTimerRef.current = window.setTimeout(() => {
+      if (!mountedRef.current || statusRequestRef.current !== request) return
+      statusTimerRef.current = null
+      setStatusMsg(null)
+    }, 3000)
+  }, [])
+
+  useEffect(() => () => {
+    if (statusTimerRef.current !== null) window.clearTimeout(statusTimerRef.current)
+    if (recoveryAutosaveTimerRef.current !== null) window.clearTimeout(recoveryAutosaveTimerRef.current)
+  }, [])
+
+  useEffect(() => {
+    if (recoveryAutosaveTimerRef.current !== null) {
+      window.clearTimeout(recoveryAutosaveTimerRef.current)
+      recoveryAutosaveTimerRef.current = null
+    }
+    const accountId = accountIdRef.current
+    if (!editorDirty || !accountId) return
+    const logicalDocumentId = activeLogicalDocumentId
+    recoveryAutosaveTimerRef.current = window.setTimeout(() => {
+      recoveryAutosaveTimerRef.current = null
+      const state = useLyricsStore.getState()
+      if (!mountedRef.current
+        || !state.editorDirty
+        || state.operationAccountId !== accountId
+        || state.activeLogicalDocumentId !== logicalDocumentId) return
+      const recovery = createLyricRecoveryRecord({
+        userId: accountId,
+        trackId: state.activeAudioTrackId,
+        documentId: state.activeDocumentId,
+        logicalDocumentId,
+      }, {
+        baseServerRevision: state.activeDocument?.revision ?? null,
+        cues: state.cues,
+        title: state.draftTitle,
+        artist: state.draftArtist,
+        defaultStyle: state.draftDefaultStyle,
+        defaultAnimation: state.draftDefaultAnimation,
+        defaultEffects: state.draftDefaultEffects,
+        globalOffsetMs: state.globalOffsetMs,
+        sourceType: state.draftSourceType,
+        sourceFormat: state.draftSourceFormat,
+        rawSourceText: state.draftRawSourceText,
+        metadata: state.draftMetadata,
+        activateOnSave: state.draftActivateOnSave,
+        editVersion: state.activeEditVersion,
+      })
+      void queueRecoveryMutation(() => getLyricRecoveryRepository().put(recovery)).catch(saveError => {
+        if (!mountedRef.current
+          || useLyricsStore.getState().operationAccountId !== accountId
+          || useLyricsStore.getState().activeLogicalDocumentId !== logicalDocumentId) return
+        setError(saveError instanceof Error
+          ? `Lyric recovery autosave failed: ${saveError.message}`
+          : 'Lyric recovery autosave failed. Your in-memory edits are still intact.')
+      })
+    }, 800)
+    return () => {
+      if (recoveryAutosaveTimerRef.current !== null) {
+        window.clearTimeout(recoveryAutosaveTimerRef.current)
+        recoveryAutosaveTimerRef.current = null
+      }
+    }
+  }, [
+    activeDocumentId,
+    activeEditVersion,
+    activeLogicalDocumentId,
+    draftActivateOnSave,
+    draftArtist,
+    draftDefaultAnimation,
+    draftDefaultEffects,
+    draftDefaultStyle,
+    draftMetadata,
+    draftRawSourceText,
+    draftSourceFormat,
+    draftSourceType,
+    draftTitle,
+    editorDirty,
+    globalOffsetMs,
+    queueRecoveryMutation,
+    setError,
+    storeCues,
+  ])
+
+  useEffect(() => {
+    const accountId = accountIdRef.current
+    if (!accountId || isLoading || editorDirty) return
+    const trackId = activeDocument?.audioTrackId ?? selectedTrackIdRef.current
+    const generation = ++recoveryReadGenerationRef.current
+    const identity = {
+      userId: accountId,
+      trackId: trackId ?? null,
+      documentId: activeDocumentId,
+      logicalDocumentId: activeLogicalDocumentId,
+    }
+    void recoveryMutationChainRef.current
+      .catch(() => undefined)
+      .then(() => findLyricRecovery(identity))
+      .then(recovery => {
+      if (!mountedRef.current
+        || recoveryReadGenerationRef.current !== generation
+        || accountIdRef.current !== accountId
+        || useLyricsStore.getState().activeLogicalDocumentId !== activeLogicalDocumentId
+        || useLyricsStore.getState().editorDirty) return
+      setRecoveryCandidate(recovery)
+      setRecoveryReviewing(false)
+    }).catch(loadError => {
+      if (!mountedRef.current || recoveryReadGenerationRef.current !== generation) return
+      setError(loadError instanceof Error
+        ? `Lyric recovery could not be checked: ${loadError.message}`
+        : 'Lyric recovery could not be checked.')
+    })
+  }, [activeDocument, activeDocumentId, activeLogicalDocumentId, editorDirty, isLoading, setError])
+
+  useEffect(() => {
+    if (!lastCanonicalWrite || lastCanonicalWrite.accountId !== accountIdRef.current) return
+    const accountId = lastCanonicalWrite.accountId
+    if (!accountId) return
+    const current = useLyricsStore.getState()
+    const trackId = lastCanonicalWrite.document.audioTrackId ?? null
+    const draftKey = lyricRecoveryKey({
+      userId: accountId,
+      trackId,
+      documentId: null,
+      logicalDocumentId: lastCanonicalWrite.logicalDocumentId,
+    })
+    const canonicalKey = lyricRecoveryKey({
+      userId: accountId,
+      trackId,
+      documentId: lastCanonicalWrite.document.id,
+      logicalDocumentId: lastCanonicalWrite.logicalDocumentId,
+    })
+    const hasNewerLocalEdits = current.activeLogicalDocumentId === lastCanonicalWrite.logicalDocumentId
+      && current.editorDirty
+      && current.activeEditVersion > lastCanonicalWrite.editVersion
+    const newerRecovery = hasNewerLocalEdits
+      ? createLyricRecoveryRecord({
+          userId: accountId,
+          trackId: current.activeAudioTrackId,
+          documentId: lastCanonicalWrite.document.id,
+          logicalDocumentId: lastCanonicalWrite.logicalDocumentId,
+        }, {
+          baseServerRevision: lastCanonicalWrite.document.revision,
+          cues: current.cues,
+          title: current.draftTitle,
+          artist: current.draftArtist,
+          defaultStyle: current.draftDefaultStyle,
+          defaultAnimation: current.draftDefaultAnimation,
+          defaultEffects: current.draftDefaultEffects,
+          globalOffsetMs: current.globalOffsetMs,
+          sourceType: current.draftSourceType,
+          sourceFormat: current.draftSourceFormat,
+          rawSourceText: current.draftRawSourceText,
+          metadata: current.draftMetadata,
+          activateOnSave: current.draftActivateOnSave,
+          editVersion: current.activeEditVersion,
+        })
+      : null
+    void queueRecoveryMutation(() => reconcileLyricRecoveryAfterCanonicalWrite({
+      userId: accountId,
+      trackId,
+      documentId: lastCanonicalWrite.document.id,
+      logicalDocumentId: lastCanonicalWrite.logicalDocumentId,
+      newerRecovery,
+    })).catch(reconcileError => {
+      if (mountedRef.current) setError(reconcileError instanceof Error
+        ? `${hasNewerLocalEdits ? 'Lyric recovery reconciliation failed' : 'Saved lyrics, but the local recovery copy could not be cleared'}: ${reconcileError.message}`
+        : hasNewerLocalEdits
+          ? 'Lyric recovery reconciliation failed.'
+          : 'Saved lyrics, but the local recovery copy could not be cleared.')
+    })
+    if (!hasNewerLocalEdits) {
+      setRecoveryCandidate(currentCandidate => currentCandidate
+        && (currentCandidate.key === draftKey || currentCandidate.key === canonicalKey) ? null : currentCandidate)
+    }
+  }, [lastCanonicalWrite, queueRecoveryMutation, setError])
+
   const selectTrackState = useCallback((track: LyricManagerTrack | null) => {
+    clearStatus()
+    recoveryReadGenerationRef.current += 1
+    setRecoveryCandidate(null)
+    setRecoveryReviewing(false)
     const previousTrackId = audioRequestRef.current.trackId
     selectedTrackIdRef.current = track?.dbId ?? null
     selectedDocumentIntentRef.current += 1
@@ -544,7 +788,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     setSelectedTrack(track)
     setDocuments([])
     setDocumentsLoading(false)
-  }, [])
+  }, [clearStatus])
 
   const prepareTrackDraft = useCallback(
     (
@@ -552,6 +796,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
       dirty = false,
       activateOnSave = track.activeLyricDocumentId === null,
     ) => {
+      clearStatus()
       selectedDocumentIntentRef.current += 1
       setActiveDocument(null, [], track.dbId)
       useLyricsStore.setState({
@@ -566,7 +811,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
       })
       selectCue(null)
     },
-    [selectCue, setActiveDocument],
+    [clearStatus, selectCue, setActiveDocument],
   )
 
   const loadTracks = useCallback(
@@ -733,6 +978,50 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     showStatus,
   ])
 
+  const handleRestoreRecovery = useCallback(() => {
+    if (!recoveryCandidate) return
+    restoreRecoveredLyricDraft(recoveryCandidate)
+    setRecoveryCandidate(null)
+    setRecoveryReviewing(false)
+    showStatus('Recovered lyric draft restored as unsaved changes')
+  }, [recoveryCandidate, restoreRecoveredLyricDraft, showStatus])
+
+  const handleDiscardRecovery = useCallback(async () => {
+    if (!recoveryCandidate) return
+    setRecoveryBusy(true)
+    try {
+      await queueRecoveryMutation(() => getLyricRecoveryRepository().delete(recoveryCandidate.key))
+      setRecoveryCandidate(null)
+      setRecoveryReviewing(false)
+      showStatus('Local lyric recovery discarded')
+    } catch (discardError) {
+      setError(discardError instanceof Error
+        ? `Lyric recovery could not be discarded: ${discardError.message}`
+        : 'Lyric recovery could not be discarded.')
+    } finally {
+      if (mountedRef.current) setRecoveryBusy(false)
+    }
+  }, [queueRecoveryMutation, recoveryCandidate, setError, showStatus])
+
+  const discardActiveRecovery = useCallback(async () => {
+    const state = useLyricsStore.getState()
+    const accountId = accountIdRef.current
+    if (!accountId) return
+    const key = lyricRecoveryKey({
+      userId: accountId,
+      trackId: state.activeAudioTrackId,
+      documentId: state.activeDocumentId,
+      logicalDocumentId: state.activeLogicalDocumentId,
+    })
+    try {
+      await queueRecoveryMutation(() => getLyricRecoveryRepository().delete(key))
+    } catch (discardError) {
+      setError(discardError instanceof Error
+        ? `Unsaved edits were discarded, but their recovery copy could not be removed: ${discardError.message}`
+        : 'Unsaved edits were discarded, but their recovery copy could not be removed.')
+    }
+  }, [queueRecoveryMutation, setError])
+
   const handleSelectTrack = useCallback(
     (track: LyricManagerTrack) => {
       if (selectedTrack?.dbId === track.dbId) return
@@ -763,6 +1052,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
       requestTransition(
         `Save changes before opening “${document.title}”?`,
         async () => {
+          clearStatus()
           markEditorDirty(false)
           selectedDocumentIntentRef.current += 1
           if (!document.audioTrackId) {
@@ -774,7 +1064,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         },
       )
     },
-    [activeDocumentId, loadLyricDocument, markEditorDirty, requestTransition, selectTrackState],
+    [activeDocumentId, clearStatus, loadLyricDocument, markEditorDirty, requestTransition, selectTrackState],
   )
 
   const handleNewDocument = useCallback(() => {
@@ -928,6 +1218,16 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
       const deletingCurrent = deleteTarget.id === activeDocumentId
       abandonLyricDocument(deleteTarget.id)
       await deleteLyricDocument(deleteTarget.id)
+      const accountId = accountIdRef.current
+      if (accountId) {
+        try {
+          await queueRecoveryMutation(() => deleteLyricRecoveryForDocument(accountId, deleteTarget.id))
+        } catch (cleanupError) {
+          setError(cleanupError instanceof Error
+            ? `Lyric version deleted, but local recovery cleanup failed: ${cleanupError.message}`
+            : 'Lyric version deleted, but local recovery cleanup failed.')
+        }
+      }
       setDeleteTarget(null)
       markEditorDirty(false)
       if (selectedTrack) {
@@ -961,6 +1261,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     loadLyricDocument,
     markEditorDirty,
     prepareTrackDraft,
+    queueRecoveryMutation,
     refreshDocuments,
     selectedTrack,
     setActiveDocument,
@@ -1031,6 +1332,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
       requestTransition(
         'Save changes before opening the extracted lyric draft?',
         async () => {
+          clearStatus()
           markEditorDirty(false)
           selectedDocumentIntentRef.current += 1
           await loadLyricDocument(documentId)
@@ -1040,7 +1342,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         },
       )
     },
-    [loadLyricDocument, markEditorDirty, refreshDocuments, requestTransition, selectedTrack, showStatus],
+    [clearStatus, loadLyricDocument, markEditorDirty, refreshDocuments, requestTransition, selectedTrack, showStatus],
   )
 
   const handleActivateCompletedDraft = useCallback(
@@ -1048,6 +1350,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
       requestTransition(
         'Save changes before activating the extracted lyric version?',
         async () => {
+          clearStatus()
           const result = await activateLyricDocument(documentId)
           if (!result?.ok) return
           if (selectedTrack) await refreshDocuments(selectedTrack)
@@ -1058,7 +1361,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         },
       )
     },
-    [activateLyricDocument, loadLyricDocument, refreshDocuments, requestTransition, selectedTrack, showStatus],
+    [activateLyricDocument, clearStatus, loadLyricDocument, refreshDocuments, requestTransition, selectedTrack, showStatus],
   )
 
   const applyDraftCues = useCallback((next: typeof storeCues) => setCues(next), [setCues])
@@ -1259,7 +1562,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     if (!lastCanonicalWrite || lastCanonicalWrite.accountId !== accountIdRef.current) return
     if (lastCanonicalWrite.sequence <= canonicalReconcileSequenceRef.current) return
     canonicalReconcileSequenceRef.current = lastCanonicalWrite.sequence
-    const trackId = lastCanonicalWrite.document.audioTrackId
+    const trackId = lastCanonicalWrite.document.audioTrackId ?? null
     if (!trackId) {
       setLegacyDocuments(current => {
         const next = canonicalDocumentVersion(lastCanonicalWrite.document, lastCanonicalWrite.cues)
@@ -1537,6 +1840,8 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
                 beatGridStatus={beatGridStatus}
                 beatGridStatusMessage={beatGridStatusMessage}
                 sections={sectionOptions}
+                snapMode={snapMode}
+                onSnapModeChange={setSnapMode}
               />
             ) : activeTab === 'json' ? (
               <JsonLyricImporter onImportToDraft={handleImportToDraft} />
@@ -1587,8 +1892,21 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         volume={engine.volume}
         bpm={selectedTrack?.bpm ?? null}
         musicalKey={selectedTrack?.musicalKey ?? null}
+        snapMode={snapMode}
+        onToggleSnap={() => setSnapMode(current => current === 'none' ? (trustedBeatGridMs.length >= 2 ? 'beat' : 'millisecond') : 'none')}
         onTogglePlayback={handleTogglePlayback}
         onVolumeChange={engine.setVolume}
+      />
+
+      <LyricRecoveryDialog
+        recovery={recoveryCandidate}
+        document={activeDocument}
+        canonicalCues={storeCues}
+        reviewing={recoveryReviewing}
+        busy={recoveryBusy}
+        onRestore={handleRestoreRecovery}
+        onReview={() => setRecoveryReviewing(value => !value)}
+        onDiscard={() => { void handleDiscardRecovery() }}
       />
 
       <UnsavedLyricChangesDialog
@@ -1599,9 +1917,11 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         onDiscard={() => {
           const pending = pendingTransition
           setPendingTransition(null)
-          abandonActiveLyricDraft()
-          markEditorDirty(false)
-          if (pending) void pending.action()
+          void discardActiveRecovery().finally(() => {
+            abandonActiveLyricDraft()
+            markEditorDirty(false)
+            if (pending) void pending.action()
+          })
         }}
         onSave={() => {
           const pending = pendingTransition

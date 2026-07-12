@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { LyricCueEditor, type LyricBeatGridStatus } from '../editor/LyricCueEditor'
 import type { LyricSectionOption } from '../editor/LyricCueInspector'
+import type { LyricSnapMode } from '../editor/lyricCueEditorModel'
 
 interface Props {
   draftTitle: string
@@ -19,6 +20,8 @@ interface Props {
   beatGridStatus?: LyricBeatGridStatus
   beatGridStatusMessage?: string | null
   sections?: LyricSectionOption[]
+  snapMode: LyricSnapMode
+  onSnapModeChange: (mode: LyricSnapMode) => void
 }
 
 export function ManualLyricEditor({
@@ -38,6 +41,8 @@ export function ManualLyricEditor({
   beatGridStatus,
   beatGridStatusMessage,
   sections,
+  snapMode,
+  onSnapModeChange,
 }: Props) {
   const [styleOpen, setStyleOpen] = useState(false)
 
@@ -109,6 +114,8 @@ export function ManualLyricEditor({
         beatGridStatus={beatGridStatus}
         beatGridStatusMessage={beatGridStatusMessage}
         sections={sections}
+        snapMode={snapMode}
+        onSnapModeChange={onSnapModeChange}
       />
     </div>
   )

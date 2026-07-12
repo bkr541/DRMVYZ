@@ -36,7 +36,7 @@ vi.mock('../../../lib/audioPreparationDb', () => ({
   getAudioPreparationOperation: mocks.getAudioPreparationOperation,
 }))
 
-import { OFFLINE_LYRIC_EXTRACTION_MESSAGE, AiLyricExtractor, chooseRecoveredJob } from './AiLyricExtractor'
+import { OFFLINE_LYRIC_EXTRACTION_MESSAGE, AiLyricExtractor, chooseRecoveredJob, lyricJobPollDelayMs } from './AiLyricExtractor'
 import { lyricTranscriptionProviderLabel } from '../services/lyricExtraction'
 
 let container: HTMLDivElement | null = null
@@ -147,6 +147,14 @@ function cue(): LyricCue {
   }
 }
 
+
+function setDocumentVisibility(state: DocumentVisibilityState): void {
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    get: () => state,
+  })
+}
+
 function setNavigatorOnline(online: boolean): void {
   Object.defineProperty(window.navigator, 'onLine', {
     configurable: true,
@@ -222,6 +230,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   recentRows = []
   setNavigatorOnline(true)
+  setDocumentVisibility('visible')
   mockRecentJobs()
   mocks.ensurePreparedTranscriptionAudio.mockResolvedValue({ prepared: false })
   mocks.rollbackPreparedTranscriptionAudio.mockResolvedValue(true)
@@ -243,6 +252,104 @@ afterEach(async () => {
   root = null
   container = null
   vi.useRealTimers()
+})
+
+describe('AI lyric polling policy', () => {
+  it('uses bounded exponential backoff with jitter instead of a constant interval', () => {
+    expect(lyricJobPollDelayMs(0, () => 0.5)).toBe(2_000)
+    expect(lyricJobPollDelayMs(1, () => 0.5)).toBe(4_000)
+    expect(lyricJobPollDelayMs(4, () => 0.5)).toBe(30_000)
+    expect(lyricJobPollDelayMs(99, () => 0)).toBe(25_500)
+  })
+
+  it('stops polling after a terminal completion', async () => {
+    vi.useFakeTimers()
+    recentRows = [jobRow('processing', 'processing')]
+    mocks.functionsInvoke.mockResolvedValue({
+      data: { job: jobRow('processing', 'completed', { lyric_document_id: 'doc-completed' }) },
+      error: null,
+    })
+
+    await renderExtractor()
+    await act(async () => {
+      vi.advanceTimersByTime(3_000)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    const statusCalls = mocks.functionsInvoke.mock.calls.filter(([, options]) => options?.body?.action === 'status')
+    expect(statusCalls).toHaveLength(1)
+
+    await act(async () => {
+      vi.advanceTimersByTime(120_000)
+      await Promise.resolve()
+    })
+    expect(mocks.functionsInvoke.mock.calls.filter(([, options]) => options?.body?.action === 'status')).toHaveLength(1)
+  })
+
+  it('pauses while hidden and performs one immediate refresh when visible again', async () => {
+    vi.useFakeTimers()
+    recentRows = [jobRow('processing', 'processing')]
+    mocks.functionsInvoke.mockResolvedValue({
+      data: { job: jobRow('processing', 'processing', { updated_at: '2026-06-29T12:00:10.000Z' }) },
+      error: null,
+    })
+
+    setDocumentVisibility('hidden')
+    await renderExtractor()
+    await act(async () => {
+      vi.advanceTimersByTime(60_000)
+      await Promise.resolve()
+    })
+    expect(mocks.functionsInvoke.mock.calls.filter(([, options]) => options?.body?.action === 'status')).toHaveLength(0)
+
+    setDocumentVisibility('visible')
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(mocks.functionsInvoke.mock.calls.filter(([, options]) => options?.body?.action === 'status')).toHaveLength(1)
+  })
+
+  it('abandons a stale polling response after the selected track changes', async () => {
+    vi.useFakeTimers()
+    recentRows = [jobRow('processing', 'processing')]
+    const status = deferred<{ data: { job: LyricTranscriptionJobRow }; error: null }>()
+    mocks.functionsInvoke.mockImplementation(async (_name: string, options: { body?: Record<string, unknown> }) => {
+      if (options.body?.action === 'status') return status.promise
+      return { data: { job: jobRow('cancelled', 'cancelled') }, error: null }
+    })
+
+    await renderExtractor()
+    await act(async () => {
+      vi.advanceTimersByTime(3_000)
+      await Promise.resolve()
+    })
+    await rerenderExtractor({ ...selectedTrack(), dbId: 'track-2', id: 'audio-track-2', title: 'From Grace', storagePath: 'user-1/from-grace.mp3' })
+    status.resolve({ data: { job: jobRow('processing', 'completed', { lyric_document_id: 'doc-completed' }) }, error: null })
+    await flush()
+
+    expect(mocks.getFullLyricDocument).not.toHaveBeenCalledWith('doc-completed')
+    expect(container!.textContent).not.toContain('Draft ready')
+  })
+
+  it('clears polling timers on cancellation and unmount', async () => {
+    vi.useFakeTimers()
+    recentRows = [jobRow('processing', 'processing')]
+    await renderExtractor()
+
+    await act(async () => buttonByText('Cancel').click())
+    await flush()
+    await act(async () => {
+      vi.advanceTimersByTime(120_000)
+      await Promise.resolve()
+    })
+    expect(mocks.functionsInvoke.mock.calls.filter(([, options]) => options?.body?.action === 'status')).toHaveLength(0)
+
+    await act(async () => root?.unmount())
+    root = null
+    expect(vi.getTimerCount()).toBe(0)
+  })
 })
 
 describe('AI lyric extractor refresh recovery', () => {
@@ -340,6 +447,7 @@ describe('AI lyric extractor internet-required guard', () => {
     expect(buttonByText('Start Automatic Extraction').disabled).toBe(true)
 
     setNavigatorOnline(true)
+  setDocumentVisibility('visible')
     await act(async () => window.dispatchEvent(new Event('online')))
 
     const button = buttonByText('Start Automatic Extraction')

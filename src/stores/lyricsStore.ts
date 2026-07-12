@@ -31,6 +31,7 @@ import type {
   SaveLyricDocumentResult,
 } from '../types/lyrics'
 import { createLyricCueInputFromCue, toCanonicalLyricMs } from '../types/lyrics'
+import type { LyricRecoveryRecord } from '../lib/lyricDraftRecovery'
 
 export type LyricWriteStatus = 'unsaved' | 'queued' | 'saving' | 'saved' | 'conflict' | 'failed'
 
@@ -51,6 +52,7 @@ export interface LyricCanonicalWrite {
   logicalDocumentId: string
   document: LyricDocument
   cues: LyricCue[]
+  editVersion: number
 }
 
 export interface LyricsState {
@@ -140,6 +142,7 @@ export interface LyricsState {
   saveTimingChanges(): Promise<SaveLyricDocumentResult | null>
   retryActiveLyricWrite(): Promise<SaveLyricDocumentResult | ActivateLyricDocumentResult | null>
   resolveActiveLyricConflict(document: LyricDocument, cues: LyricCue[]): void
+  restoreRecoveredLyricDraft(recovery: LyricRecoveryRecord): void
 }
 
 type ReadKind = 'trackList' | 'trackDocuments' | 'selectedDocument' | 'audioTrack' | 'visualSession'
@@ -195,8 +198,10 @@ function uniqueId(prefix: string): string {
   return `${prefix}:${Date.now()}:${fallbackId}`
 }
 
-function logicalIdForDocument(document: LyricDocument | null): string {
-  return document ? `document:${document.id}` : uniqueId('draft')
+function logicalIdForDocument(document: LyricDocument | null, activeAudioTrackId?: string | null): string {
+  if (document) return `document:${document.id}`
+  if (activeAudioTrackId) return `draft:track:${activeAudioTrackId}`
+  return uniqueId('draft')
 }
 
 function accountScope(state: Pick<LyricsState, 'operationAccountId' | 'activeDocument'>): string | null {
@@ -232,7 +237,7 @@ function activeDocumentState(
   cues: LyricCue[] = [],
   activeAudioTrackId: string | null = document?.audioTrackId ?? null,
   selectedCueId: string | null = null,
-  logicalDocumentId = logicalIdForDocument(document),
+  logicalDocumentId = logicalIdForDocument(document, activeAudioTrackId),
 ): Partial<LyricsState> {
   return {
     activeDocument:        document,
@@ -579,6 +584,7 @@ function commitCanonicalResult(
     logicalDocumentId: queue.logicalDocumentId,
     document: result.document,
     cues: [...queue.canonicalCues],
+    editVersion: job.editVersion,
   }
 
   set(state => {
@@ -808,7 +814,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     invalidateRead('selectedDocument')
     invalidateRead('audioTrack')
     invalidateRead('visualSession')
-    const logicalDocumentId = logicalIdForDocument(document)
+    const logicalDocumentId = logicalIdForDocument(document, activeAudioTrackId)
     abandonedLogicalDocuments.delete(logicalDocumentId)
     if (document) abandonedCanonicalDocuments.delete(document.id)
     const queue = ensureQueue(get(), logicalDocumentId, document, cues)
@@ -855,11 +861,17 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     disposeAllQueues()
     abandonedLogicalDocuments.clear()
     abandonedCanonicalDocuments.clear()
+    const state = get()
+    const clearLoadedState = current !== null
+      || accountId === null
+      || (state.activeDocument !== null && state.activeDocument.userId !== accountId)
     set({
+      ...(clearLoadedState ? activeDocumentState(null, [], null, null, uniqueId('draft')) : {}),
       operationAccountId: accountId,
       writeStates: {},
+      isLoading: false,
       isSaving: false,
-      activeWriteStatus: get().editorDirty ? 'unsaved' : 'saved',
+      activeWriteStatus: clearLoadedState ? 'saved' : state.editorDirty ? 'unsaved' : 'saved',
       lastPersistenceFailure: null,
       lastCanonicalWrite: null,
     })
@@ -1319,6 +1331,49 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       activeWriteStatus: queue.jobs.length > 0 ? 'queued' : current.editorDirty ? 'unsaved' : 'saved',
     }))
     if (queue.jobs.length > 0) void drainQueue(set, get, queue)
+  },
+
+
+  restoreRecoveredLyricDraft: (recovery) => {
+    const state = get()
+    if (state.operationAccountId !== recovery.userId) return
+    if ((state.activeAudioTrackId ?? null) !== recovery.trackId) return
+    if (recovery.documentId && state.activeDocumentId !== recovery.documentId) return
+    const logicalDocumentId = state.activeLogicalDocumentId
+    const existing = state.writeStates[logicalDocumentId]
+    const writeState: LyricWriteState = {
+      logicalDocumentId,
+      canonicalDocumentId: state.activeDocumentId,
+      status: existing?.status === 'queued' || existing?.status === 'saving' ? existing.status : 'unsaved',
+      pendingCount: existing?.pendingCount ?? 0,
+      message: null,
+      failure: null,
+      updatedAt: Date.now(),
+    }
+    set({
+      cues: structuredClone(recovery.cues),
+      draftTitle: recovery.title,
+      draftArtist: recovery.artist,
+      draftDefaultStyle: structuredClone(recovery.defaultStyle),
+      draftDefaultAnimation: structuredClone(recovery.defaultAnimation),
+      draftDefaultEffects: structuredClone(recovery.defaultEffects),
+      globalOffsetMs: toCanonicalLyricMs(recovery.globalOffsetMs),
+      draftSourceType: recovery.sourceType,
+      draftSourceFormat: recovery.sourceFormat,
+      draftRawSourceText: recovery.rawSourceText,
+      draftMetadata: recovery.metadata ? structuredClone(recovery.metadata) : null,
+      draftActivateOnSave: recovery.activateOnSave,
+      activeEditVersion: Math.max(state.activeEditVersion + 1, recovery.editVersion),
+      selectedCueId: null,
+      cueHistoryPast: [],
+      cueHistoryFuture: [],
+      lyricTimingDirty: true,
+      editorDirty: true,
+      activeWriteStatus: writeState.status,
+      writeStates: { ...state.writeStates, [logicalDocumentId]: writeState },
+      error: null,
+      lastPersistenceFailure: null,
+    })
   },
 }))
 

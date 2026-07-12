@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const authMocks = vi.hoisted(() => ({
+  getUser: vi.fn(),
+}))
 const audioDbMocks = vi.hoisted(() => ({
   listAudioTracks: vi.fn(),
   uploadAudioFile: vi.fn(),
@@ -16,15 +19,19 @@ const deletionMocks = vi.hoisted(() => ({
 const preparationMocks = vi.hoisted(() => ({
   retryPendingAudioPreparationCleanup: vi.fn(),
 }))
+const recoveryMocks = vi.hoisted(() => ({
+  deleteLyricRecoveryForTrack: vi.fn(),
+}))
 
 
 vi.mock('../lib/supabase', () => ({
   supabaseConfigured: true,
-  supabase: { auth: { getUser: vi.fn() } },
+  supabase: { auth: { getUser: authMocks.getUser } },
 }))
 vi.mock('../lib/audioDb', () => audioDbMocks)
 vi.mock('../lib/audioTrackDeletion', () => deletionMocks)
 vi.mock('../lib/audioPreparationDb', () => preparationMocks)
+vi.mock('../lib/lyricDraftRecovery', () => recoveryMocks)
 
 import type { SavedAudioTrack } from './audioStore'
 import { useAudioStore } from './audioStore'
@@ -55,6 +62,8 @@ describe('audioStore persistence safety', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useAudioStore.setState({ savedTracks: [], loading: false, loadError: null })
+    authMocks.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
+    recoveryMocks.deleteLyricRecoveryForTrack.mockResolvedValue(undefined)
     audioDbMocks.uploadAudioFile.mockResolvedValue({ error: null })
     audioDbMocks.deleteAudioFiles.mockResolvedValue({ error: null })
     deletionMocks.deleteAudioTrackCanonical.mockResolvedValue({ ok: true, trackId: 'track-1', pendingCleanup: false, message: null })
@@ -106,8 +115,22 @@ describe('audioStore persistence safety', () => {
     await useAudioStore.getState().removeSavedTrack(track.id)
 
     expect(deletionMocks.deleteAudioTrackCanonical).toHaveBeenCalledWith(track.dbId)
+    expect(recoveryMocks.deleteLyricRecoveryForTrack).toHaveBeenCalledWith('user-1', track.dbId)
     expect(useAudioStore.getState().savedTracks).toEqual([])
     expect(audioDbMocks.deleteAudioFiles).not.toHaveBeenCalled()
+  })
+
+  it('keeps canonical track deletion successful when local recovery cleanup fails and surfaces the cleanup error', async () => {
+    const track = savedTrack()
+    useAudioStore.setState({ savedTracks: [track] })
+    recoveryMocks.deleteLyricRecoveryForTrack.mockRejectedValue(new Error('IndexedDB unavailable'))
+
+    const removed = await useAudioStore.getState().removeSavedTrackByDbId(track.dbId)
+
+    expect(removed).toBe(true)
+    expect(useAudioStore.getState().savedTracks).toEqual([])
+    expect(useAudioStore.getState().loadError).toContain('local lyric recovery cleanup failed')
+    expect(useAudioStore.getState().loadError).toContain('IndexedDB unavailable')
   })
 
   it('deletes database-only track rows even when no storage path exists', async () => {

@@ -92,12 +92,19 @@ vi.mock('../../components/vyzualz/MediaUploadModal', () => ({
 
 import { useLyricsStore } from '../../stores/lyricsStore'
 import { LyricManagerView } from './LyricManagerView'
+import {
+  createLyricRecoveryRecord,
+  createMemoryLyricRecoveryRepository,
+  setLyricRecoveryRepositoryForTests,
+  type LyricRecoveryRepository,
+} from '../../lib/lyricDraftRecovery'
 
 let container: HTMLElement
 let root: ReturnType<typeof createRoot>
 let documentsByTrack: Map<string, LyricDocumentVersion[]>
 let documentById: Map<string, LyricDocumentVersion>
 let cuesByDocument: Map<string, LyricCue[]>
+let recoveryRepository: LyricRecoveryRepository
 
 interface Deferred<T> {
   promise: Promise<T>
@@ -190,6 +197,7 @@ function indexDocuments() {
 }
 
 beforeEach(() => {
+  vi.useRealTimers()
   vi.clearAllMocks()
   mocks.engine.duration = 0
   mocks.engine.currentTime = 0
@@ -281,6 +289,9 @@ beforeEach(() => {
     return { ok: true, kind: 'success', document: saved, cues: savedCues }
   })
 
+  recoveryRepository = createMemoryLyricRecoveryRepository()
+  setLyricRecoveryRepositoryForTests(recoveryRepository)
+
   useLyricsStore.getState().setOperationAccount(null)
   useLyricsStore.getState().clearLyrics()
   useLyricsStore.getState().setOperationAccount('user-1')
@@ -293,6 +304,8 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
+  setLyricRecoveryRepositoryForTests(null)
+  vi.useRealTimers()
 })
 
 async function flush() {
@@ -606,6 +619,164 @@ describe('LyricManagerView track-first workflow', () => {
     expect(mocks.engine.replaceTrackUrls).not.toHaveBeenCalled()
 
     root = createRoot(container)
+  })
+
+  it('uses truthful timestamp and transport semantics while Snap controls the editor state', async () => {
+    await render()
+    await act(async () => trackCard('Reverie').click())
+    await waitFor(() => expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a1'))
+
+    const heroStats = container.querySelector('.lmv-track-hero-stats')?.textContent ?? ''
+    expect(heroStats).toContain('Added')
+    expect(heroStats).not.toContain('Updated')
+
+    const loop = buttonWithText('↻ Loop')
+    const compare = buttonWithText('⇄ Compare: Off')
+    const previous = container.querySelector<HTMLButtonElement>('[aria-label="Previous unavailable"]')
+    const next = container.querySelector<HTMLButtonElement>('[aria-label="Next unavailable"]')
+    expect(loop.disabled).toBe(true)
+    expect(loop.title).toContain('Loop boundaries')
+    expect(compare.disabled).toBe(true)
+    expect(compare.title).toContain('comparison model')
+    expect(previous?.disabled).toBe(true)
+    expect(next?.disabled).toBe(true)
+
+    const snap = buttonWithText('⌕ Snap: Off')
+    expect(snap.disabled).toBe(false)
+    await act(async () => snap.click())
+    expect(buttonWithText('⌕ Snap: beat').getAttribute('aria-pressed')).toBe('true')
+    const snapSelect = [...container.querySelectorAll<HTMLSelectElement>('select')]
+      .find(select => [...select.options].some(option => option.textContent === 'No snap'))
+    expect(snapSelect?.value).toBe('beat')
+  })
+
+  it('autosaves dirty lyric edits to the user-scoped recovery repository', async () => {
+    await render()
+    await act(async () => trackCard('Reverie').click())
+    await waitFor(() => expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a1'))
+
+    vi.useFakeTimers()
+    await act(async () => useLyricsStore.getState().setDraftTitle('Recovered local title'))
+    await act(async () => {
+      vi.advanceTimersByTime(801)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    const records = await recoveryRepository.listByUser('user-1')
+    expect(records).toHaveLength(1)
+    expect(records[0]).toMatchObject({
+      userId: 'user-1',
+      trackId: 'track-a',
+      documentId: 'doc-a1',
+      baseServerRevision: 1,
+      title: 'Recovered local title',
+    })
+  })
+
+  it('offers conflict-aware recovery and restores it only as unsaved local state', async () => {
+    const recovered = createLyricRecoveryRecord({
+      userId: 'user-1',
+      trackId: 'track-a',
+      documentId: 'doc-a1',
+      logicalDocumentId: 'document:doc-a1',
+    }, {
+      baseServerRevision: 0,
+      cues: [{ ...cue('recovered-cue'), text: 'Recovered local cue' }],
+      title: 'Recovered title',
+      artist: 'DVYDRM',
+      defaultStyle: {},
+      defaultAnimation: {},
+      defaultEffects: {},
+      globalOffsetMs: 0,
+      sourceType: 'manual',
+      sourceFormat: 'json',
+      rawSourceText: null,
+      metadata: null,
+      activateOnSave: true,
+      editVersion: 4,
+    })
+    await recoveryRepository.put(recovered)
+
+    await render()
+    await act(async () => trackCard('Reverie').click())
+    await waitFor(() => expect(container.textContent).toContain('Recovered lyric draft conflicts with the server'))
+    expect(mocks.saveLyricDocumentAtomic).not.toHaveBeenCalled()
+
+    await act(async () => buttonWithText('Review').click())
+    expect(container.textContent).toContain('Cue timing, text, or metadata changed')
+    await act(async () => buttonWithText('Restore as Unsaved').click())
+
+    expect(useLyricsStore.getState()).toMatchObject({
+      draftTitle: 'Recovered title',
+      editorDirty: true,
+      activeWriteStatus: 'unsaved',
+    })
+    expect(useLyricsStore.getState().activeDocument?.revision).toBe(1)
+    expect(useLyricsStore.getState().cues[0]?.text).toBe('Recovered local cue')
+    expect(mocks.saveLyricDocumentAtomic).not.toHaveBeenCalled()
+  })
+
+  it('prevents an older status timer from clearing a newer success message', async () => {
+    await render()
+    await act(async () => trackCard('From Grace').click())
+    await waitFor(() => expect(container.textContent).toContain('This track has no lyrics yet.'))
+
+    vi.useFakeTimers()
+    await act(async () => buttonWithText('Create Blank Lyrics').click())
+    expect(container.textContent).toContain('Blank lyric version ready to edit')
+    await act(async () => vi.advanceTimersByTime(2_000))
+
+    await act(async () => {
+      buttonWithText('Save').click()
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(container.textContent).toContain('Saved')
+
+    await act(async () => vi.advanceTimersByTime(1_100))
+    expect(container.textContent).toContain('Saved')
+    await act(async () => vi.advanceTimersByTime(2_000))
+    expect(container.textContent).not.toContain('Saved')
+  })
+
+
+  it('clears recovery only after a successful canonical save and preserves it after failure', async () => {
+    await render()
+    await act(async () => trackCard('Reverie').click())
+    await waitFor(() => expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a1'))
+
+    vi.useFakeTimers()
+    await act(async () => useLyricsStore.getState().setDraftTitle('Recovery before failed save'))
+    await act(async () => {
+      vi.advanceTimersByTime(801)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(await recoveryRepository.listByUser('user-1')).toHaveLength(1)
+
+    mocks.saveLyricDocumentAtomic.mockRejectedValueOnce(new Error('network save failed'))
+    await act(async () => {
+      buttonWithText('Save').click()
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(await recoveryRepository.listByUser('user-1')).toHaveLength(1)
+    expect(container.textContent).toContain('network save failed')
+
+    await act(async () => {
+      buttonWithText('Save').click()
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await act(async () => { await Promise.resolve() })
+    }
+    expect(await recoveryRepository.listByUser('user-1')).toEqual([])
   })
 
 })
