@@ -17,10 +17,10 @@ import {
 } from './canvasMediaTransparency'
 import { CANVAS_MEDIA_LIBRARY_CAPABILITIES } from '../media/mediaLibraryCapabilities'
 import {
-  hasCanvasSourceAnimation,
-  hasCanvasSourceFilter,
-  hasCanvasSourceTransform,
+  hasCanvasBaseTransform,
+  hasCanvasEffectPass,
   makeCanvasCaptureFilter,
+  resolveCanvasEffectOpacity,
   resolveCanvasPlaybackUrl,
 } from './canvasMediaFidelity'
 import {
@@ -287,8 +287,8 @@ function makeCanvasMediaStyle(
   settings: ReturnType<typeof useReactStore.getState>['canvasEngineSettings'],
   presetSettings: CanvasPresetSettings,
 ): CSSProperties {
-  const transform = hasCanvasSourceTransform(settings, presetSettings)
-    ? `translate(calc(${settings.positionX}% + var(--canvas-preset-shake-x, 0px)), calc(${settings.positionY}% + var(--canvas-preset-shake-y, 0px))) rotate(calc(${settings.rotation}deg + var(--canvas-preset-rotate, 0deg))) scale(calc(${settings.scale} + var(--canvas-preset-scale-boost, 0)))`
+  const transform = hasCanvasBaseTransform(settings)
+    ? `translate(${settings.positionX}%, ${settings.positionY}%) rotate(${settings.rotation}deg) scale(${settings.scale})`
     : undefined
 
   return {
@@ -1153,6 +1153,7 @@ export function CanvasEngineSurface({
   const imageRef = useRef<HTMLImageElement | null>(null)
   const outputRef = useRef<HTMLDivElement | null>(null)
   const outputCaptureCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const sourceEffectsCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const particleOutputCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const [mediaLoadError, setMediaLoadError] = useState<CanvasMediaLoadState>(EMPTY_CANVAS_MEDIA_LOAD_STATE)
   const [particleRendererNotice, setParticleRendererNotice] = useState<string | null>(null)
@@ -1168,9 +1169,7 @@ export function CanvasEngineSurface({
     [activeCanvasMediaId, mediaItems],
   )
   const presetStyle = useMemo(() => makeCanvasPresetStyle(canvasPresetSettings), [canvasPresetSettings])
-  const sourceFilterActive = hasCanvasSourceFilter(canvasPresetSettings)
-  const sourceAnimationActive = hasCanvasSourceAnimation(canvasPresetSettings)
-  const sourceTransformActive = hasCanvasSourceTransform(settings, canvasPresetSettings)
+  const effectPassActive = hasCanvasEffectPass(canvasPresetSettings)
   const activeVideo = activeItem?.type === 'video'
   const activeMediaTransparencyKey = activeItem ? getCanvasMediaTransparencyKey(activeItem) : null
   const activeMediaTransparencyKeyRef = useRef<string | null>(activeMediaTransparencyKey)
@@ -1201,9 +1200,11 @@ export function CanvasEngineSurface({
 
   useEffect(() => {
     const captureCanvas = outputCaptureCanvasRef.current
-    if (!captureCanvas) return
+    const effectsCanvas = sourceEffectsCanvasRef.current
+    if (!captureCanvas || !effectsCanvas) return
     const captureContext = captureCanvas.getContext('2d', { alpha: true })
-    if (!captureContext) return
+    const effectsContext = effectsCanvas.getContext('2d', { alpha: true })
+    if (!captureContext || !effectsContext) return
 
     const frequencyData = analyser ? new Uint8Array(Math.max(1, analyser.frequencyBinCount)) : null
     let frameId = 0
@@ -1219,13 +1220,17 @@ export function CanvasEngineSurface({
       const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1))
       const targetWidth = Math.max(1, Math.round(cssWidth * dpr))
       const targetHeight = Math.max(1, Math.round(cssHeight * dpr))
-      if (captureCanvas.width !== targetWidth || captureCanvas.height !== targetHeight) {
-        captureCanvas.width = targetWidth
-        captureCanvas.height = targetHeight
+      for (const canvas of [captureCanvas, effectsCanvas]) {
+        if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+          canvas.width = targetWidth
+          canvas.height = targetHeight
+        }
       }
 
       captureContext.setTransform(dpr, 0, 0, dpr, 0, 0)
       prepareCanvasCaptureBackground(captureContext, cssWidth, cssHeight, effectiveBackgroundMode)
+      effectsContext.setTransform(dpr, 0, 0, dpr, 0, 0)
+      effectsContext.clearRect(0, 0, cssWidth, cssHeight)
 
       const source = particleSourceRef.current
       if (!activeItem || !source || !isCanvasParticleSourceReady(source)) return
@@ -1263,6 +1268,9 @@ export function CanvasEngineSurface({
         else drawHeight = cssWidth / sourceAspect
       }
 
+      const baseAlpha = clampCanvasRange(settings.opacity * canvasPresetSettings.sourceVisibility, 0, 1)
+      const baseTranslateX = cssWidth * 0.5 + cssWidth * 0.5 * (settings.positionX / 100)
+      const baseTranslateY = cssHeight * 0.5 + cssHeight * 0.5 * (settings.positionY / 100)
       const liveScale = settings.scale
         + bass * canvasPresetSettings.bassReactivity * canvasPresetSettings.intensity * 0.16
         + beat * canvasPresetSettings.beatPulse * canvasPresetSettings.intensity * 0.045
@@ -1270,21 +1278,59 @@ export function CanvasEngineSurface({
       const motionDriftX = Math.sin(now * (0.9 + canvasPresetSettings.turbulence * 2.6)) * canvasPresetSettings.motionAmount * 9
       const motionDriftY = Math.cos(now * (0.74 + canvasPresetSettings.turbulence * 2.1)) * canvasPresetSettings.motionAmount * 7
 
-      captureContext.save()
-      captureContext.globalAlpha = clampCanvasRange(settings.opacity * canvasPresetSettings.sourceVisibility, 0, 1)
-      captureContext.translate(
-        cssWidth * 0.5 + cssWidth * 0.5 * (settings.positionX / 100) + Math.sin(now * 48) * shake + motionDriftX,
-        cssHeight * 0.5 + cssHeight * 0.5 * (settings.positionY / 100) + Math.cos(now * 41) * shake + motionDriftY,
-      )
-      captureContext.rotate((settings.rotation + shake * 0.16) * Math.PI / 180)
-      captureContext.scale(liveScale, liveScale)
-      captureContext.filter = makeCanvasCaptureFilter(canvasPresetSettings, bass, high)
-      try {
-        captureContext.drawImage(source, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight)
-      } catch {
-        // If a browser blocks a specific source draw, keep the capture canvas alive and blank.
+      const drawMediaFrame = ({
+        context,
+        alpha,
+        filter,
+        reactive,
+      }: {
+        context: CanvasRenderingContext2D
+        alpha: number
+        filter: string
+        reactive: boolean
+      }) => {
+        context.save()
+        context.globalCompositeOperation = 'source-over'
+        context.globalAlpha = alpha
+        context.translate(
+          baseTranslateX + (reactive ? Math.sin(now * 48) * shake + motionDriftX : 0),
+          baseTranslateY + (reactive ? Math.cos(now * 41) * shake + motionDriftY : 0),
+        )
+        context.rotate((settings.rotation + (reactive ? shake * 0.16 : 0)) * Math.PI / 180)
+        context.scale(reactive ? liveScale : settings.scale, reactive ? liveScale : settings.scale)
+        context.filter = filter
+        try {
+          context.drawImage(source, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight)
+        } catch {
+          // If a browser blocks a specific source draw, keep both render canvases alive.
+        }
+        context.restore()
       }
-      captureContext.restore()
+
+      // The capture/export source begins with the same pristine, unfiltered
+      // fidelity anchor shown by the browser-owned video/image element.
+      drawMediaFrame({
+        context: captureContext,
+        alpha: baseAlpha,
+        filter: 'none',
+        reactive: false,
+      })
+
+      if (effectPassActive) {
+        drawMediaFrame({
+          context: effectsContext,
+          alpha: baseAlpha * resolveCanvasEffectOpacity(canvasPresetSettings),
+          filter: makeCanvasCaptureFilter(canvasPresetSettings, bass, high),
+          reactive: true,
+        })
+
+        captureContext.save()
+        captureContext.globalCompositeOperation = 'screen'
+        captureContext.globalAlpha = 1
+        captureContext.filter = 'none'
+        captureContext.drawImage(effectsCanvas, 0, 0, cssWidth, cssHeight)
+        captureContext.restore()
+      }
 
       compositeCanvasParticleLayerToCapture({
         context: captureContext,
@@ -1293,7 +1339,6 @@ export function CanvasEngineSurface({
         width: cssWidth,
         height: cssHeight,
       })
-
     }
 
     const tick = () => {
@@ -1313,7 +1358,7 @@ export function CanvasEngineSurface({
       window.cancelAnimationFrame(frameId)
       onLiveFps?.(0)
     }
-  }, [activeItem, analyser, canvasPresetSettings, effectiveBackgroundMode, isPaused, isPlaying, onLiveFps, particleSourceRef, settings])
+  }, [activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, isPaused, isPlaying, onLiveFps, particleSourceRef, settings])
 
   useEffect(() => {
     setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)
@@ -1640,12 +1685,20 @@ export function CanvasEngineSurface({
 
 
   const captureCanvasNode = <canvas ref={outputCaptureCanvasRef} className="rv-canvas-output-capture" aria-hidden="true" />
+  const sourceEffectsCanvasNode = (
+    <canvas
+      ref={sourceEffectsCanvasRef}
+      className={`rv-canvas-source-fx-canvas${effectPassActive ? ' rv-canvas-source-fx-canvas--active' : ''}`}
+      aria-hidden="true"
+    />
+  )
 
   if (!activeItem) {
     const hasSelectableMedia = mediaItems.length > 0
     return (
       <div className="rv-canvas-engine-surface rv-canvas-engine-surface--empty" role="region" aria-label="CANVAS engine render surface">
         {captureCanvasNode}
+        {sourceEffectsCanvasNode}
         <div className="rv-canvas-live-empty-card rv-canvas-live-empty-card--render-only">
           <div className="rv-canvas-engine-eyebrow">CANVAS Output</div>
           <h2 className="rv-canvas-live-empty-title">
@@ -1677,9 +1730,7 @@ export function CanvasEngineSurface({
         className={`rv-canvas-live-output rv-canvas-param-output${transparentStage ? ' rv-canvas-live-output--transparent' : ''}`}
         data-fit-mode={settings.fitMode}
         data-background-mode={effectiveBackgroundMode}
-        data-source-filter-active={sourceFilterActive ? 'true' : 'false'}
-        data-source-animation-active={sourceAnimationActive ? 'true' : 'false'}
-        data-source-transform-active={sourceTransformActive ? 'true' : 'false'}
+        data-source-effect-active={effectPassActive ? 'true' : 'false'}
         style={presetStyle}
       >
         {!transparentStage && <div className="rv-canvas-live-grid" aria-hidden="true" />}
@@ -1714,6 +1765,7 @@ export function CanvasEngineSurface({
               onError={() => setMediaLoadError({ mediaId: activeItem.id, message: getCanvasMediaLoadErrorMessage(activeItem) })}
             />
           )}
+          {sourceEffectsCanvasNode}
         </div>
         {activeMediaLoadError && (
           <div className="rv-canvas-live-error-card" role="alert">

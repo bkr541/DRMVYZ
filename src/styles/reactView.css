@@ -9705,13 +9705,28 @@
 .rv-canvas-live-media {
   position: relative;
   z-index: 1;
-  animation: none;
-  filter: none;
+  animation: none !important;
+  filter: none !important;
   transition: opacity 0.12s ease;
 }
 
-.rv-canvas-param-output[data-source-transform-active='true'] .rv-canvas-live-media {
-  will-change: transform;
+/* Preset processing belongs on this transparent high-DPI overlay. The
+   browser-owned media element beneath it remains the sharp fidelity anchor. */
+.rv-canvas-source-fx-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  display: block;
+  opacity: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  transition: opacity 0.1s ease;
+}
+
+.rv-canvas-source-fx-canvas--active {
+  opacity: 1;
 }
 
 .rv-canvas-live-error-card {
@@ -9812,22 +9827,6 @@
   filter: blur(10px);
 }
 
-.rv-canvas-param-output[data-source-animation-active='true'] .rv-canvas-live-media {
-  animation: var(--canvas-param-stutter-animation, none);
-}
-
-.rv-canvas-param-output[data-source-filter-active='true'] .rv-canvas-live-media {
-  filter:
-    brightness(var(--canvas-param-brightness, 1))
-    contrast(var(--canvas-param-contrast, 1))
-    saturate(var(--canvas-param-saturate, 1))
-    blur(var(--canvas-param-motion-blur, 0px))
-    drop-shadow(var(--canvas-preset-rgb-px, 0px) 0 rgba(255, 79, 216, 0.42))
-    drop-shadow(var(--canvas-preset-rgb-neg-px, 0px) 0 rgba(74, 199, 219, 0.42))
-    drop-shadow(0 0 var(--canvas-param-glow-px, 0px) rgba(97, 214, 170, 0.32));
-  transition: opacity 0.12s ease, filter 0.12s ease;
-}
-
 .rv-canvas-param-output .rv-canvas-live-grid {
   opacity: var(--canvas-param-grid-opacity, 0.1);
 }
@@ -9864,10 +9863,7 @@
   color: rgba(255, 230, 166, 0.78);
 }
 
-@keyframes rv-canvas-frame-stutter {
-  0%, 48%, 100% { filter: contrast(1.12) saturate(1.16); }
-  50%, 62% { filter: contrast(1.42) saturate(1.55) brightness(1.12); }
-}
+/* Frame stutter is driven by video timing, never by filtering the source element. */
 
 /* ── Canonical preset cards + Beam Matrix browser tools ───────────────────── */
 .rv-preset-active-dot--dirty {
