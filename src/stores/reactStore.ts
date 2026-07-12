@@ -3842,6 +3842,7 @@ export const useReactStore = create<ReactStoreState>()(
                 ...state.canvasEngineSettings,
                 selectedMediaId: nextMediaId,
                 mediaIds: uniqueCanvasMediaIds([...state.canvasEngineSettings.mediaIds, nextMediaId]),
+                rotation: 0,
               }),
             }
           : {}
@@ -3942,12 +3943,16 @@ export const useReactStore = create<ReactStoreState>()(
         const nextItems = [...state.canvasMediaItems, ...freshItems]
         const nextActiveId = state.activeCanvasMediaId ?? freshItems[0].id
         const nextSelectedId = state.selectedCanvasMediaId ?? nextActiveId
+        const activatedFreshItem = state.activeCanvasMediaId === null && nextActiveId !== null
 
         return repairCanvasRuntimeState({
           ...state,
           canvasMediaItems: nextItems,
           selectedCanvasMediaId: nextSelectedId,
           activeCanvasMediaId: nextActiveId,
+          canvasEngineSettings: activatedFreshItem
+            ? normalizeCanvasEngineSettings({ ...state.canvasEngineSettings, rotation: 0 })
+            : state.canvasEngineSettings,
         })
       }),
 
@@ -3965,6 +3970,7 @@ export const useReactStore = create<ReactStoreState>()(
             selectedMediaId: id,
             mediaIds: uniqueCanvasMediaIds([...state.canvasEngineSettings.mediaIds, ...state.canvasMediaItems.map(item => item.id), id]),
             manualMediaOverrideId: options?.manual === false ? null : id,
+            rotation: 0,
           }),
         })
       }),
