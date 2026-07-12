@@ -17,13 +17,20 @@ import {
   type ReactPresetCardChip,
 } from './ReactPresetCard'
 import {
+  ShowDirectorPerformanceThumbnail,
   ShowDirectorTemplateThumbnail,
+  getShowDirectorPerformancePresetPalette,
   getShowDirectorTemplatePalette,
 } from './LaserDmxPresetThumbnail'
 import {
   LASER_DMX_SHOW_DIRECTOR_TEMPLATES,
   type LaserDmxShowDirectorTemplate,
 } from './laserDmxShowDirectorTemplates'
+import {
+  LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS,
+  readLaserDmxShowDirectorPerformanceFavorites,
+  writeLaserDmxShowDirectorPerformanceFavorites,
+} from './LaserDmxShowDirectorPerformancePresets'
 import { LaserDmxBeamMatrixPresetBrowser } from './LaserDmxBeamMatrixPresetBrowser'
 import { LASER_DMX_BEAM_MATRIX_PRESETS } from './laserDmxBeamMatrixPresets'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
@@ -490,6 +497,80 @@ function getShowDirectorTemplateChips(template: LaserDmxShowDirectorTemplate): R
   ]
 }
 
+function ShowDirectorPerformancePresets() {
+  const { performance, applyPerformancePreset } = useReactStore(useShallow(state => ({
+    performance: state.laserDmxShowDirectorPerformance,
+    applyPerformancePreset: state.applyLaserDmxShowDirectorPerformancePreset,
+  })))
+  const [favoriteIds, setFavoriteIds] = useState<string[]>(readLaserDmxShowDirectorPerformanceFavorites)
+
+  const toggleFavorite = (presetId: string) => {
+    setFavoriteIds(current => {
+      const next = current.includes(presetId) ? current.filter(id => id !== presetId) : [...current, presetId]
+      writeLaserDmxShowDirectorPerformanceFavorites(next)
+      return next
+    })
+  }
+
+  return (
+    <section className="rv-preset-group rv-show-director-performance-preset-group" aria-label="Show Director Performance Shows">
+      <div className="rv-preset-group-hdr rv-show-director-preset-group__header">
+        <span className="rv-preset-group-hdr-icon" aria-hidden="true">◆</span>
+        <span className="rv-preset-group-hdr-label">Show Director Performance Shows</span>
+        <span className="rv-preset-group-hdr-count">{LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.length}</span>
+      </div>
+      {LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.length === 0 ? (
+        <div className="rv-preset-library-empty rv-show-director-performance-empty">
+          <strong>No Performance Shows installed</strong>
+          <span>Rig Layouts remain available below. Performance Shows will appear here when installed.</span>
+        </div>
+      ) : (
+        <div className="rv-preset-group-cards rv-preset-group-cards--current" data-preset-grid>
+          {LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.map(preset => {
+            const isActive = performance.activePresetId === preset.id
+            return (
+              <ReactPresetCard
+                key={preset.id}
+                id={preset.id}
+                title={preset.name}
+                description={preset.description}
+                thumbnail={<ShowDirectorPerformanceThumbnail preset={preset} />}
+                chips={[
+                  { label: `${preset.fixtureCount} fixtures` },
+                  { label: `≈${preset.approximatePeakBeamDemand} beams` },
+                  ...preset.genreTags.slice(0, 1).map(label => ({ label })),
+                  ...preset.behaviorTags.slice(0, 1).map(label => ({ label })),
+                  ...preset.musicIntelligenceCapabilities.slice(0, 1).map(label => ({ label, tone: 'mode' as const })),
+                ]}
+                palette={getShowDirectorPerformancePresetPalette(preset).map(color => ({ color }))}
+                isActive={isActive}
+                isModified={isActive && performance.presetDirty}
+                isFavorite={favoriteIds.includes(preset.id)}
+                activateLabel={`Load Show Director performance show ${preset.name}`}
+                onActivate={() => applyPerformancePreset(preset)}
+                onToggleFavorite={() => toggleFavorite(preset.id)}
+                expandedContent={(
+                  <div className="rv-show-director-performance-card-details">
+                    <span>Sections: {preset.supportedSectionRoles.join(', ')}</span>
+                    <span>Music Intelligence: {preset.musicIntelligenceCapabilities.join(', ') || 'Optional'}</span>
+                  </div>
+                )}
+                secondaryActions={isActive ? [{
+                  id: performance.presetDirty ? 'restore' : 'reload',
+                  label: performance.presetDirty ? 'Restore' : 'Reload',
+                  ariaLabel: `${performance.presetDirty ? 'Restore' : 'Reload'} performance show ${preset.name}`,
+                  onSelect: () => applyPerformancePreset(preset),
+                }] : []}
+                showMore
+              />
+            )
+          })}
+        </div>
+      )}
+    </section>
+  )
+}
+
 function ShowDirectorTemplatePresets() {
   const {
     applyTemplate,
@@ -638,10 +719,10 @@ export function ReactPresetsPanel() {
   const isLaserDmxCurrentLibrary = activeReactEngineId === 'laserDmx' && libraryView === 'current'
   const isCanvasCurrentLibrary = activeReactEngineId === 'canvas' && libraryView === 'current'
   const laserDmxPresetCount = laserDmxBeamMatrixAuthoringMode === 'showDirector'
-    ? LASER_DMX_SHOW_DIRECTOR_TEMPLATES.length
+    ? LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.length + LASER_DMX_SHOW_DIRECTOR_TEMPLATES.length
     : LASER_DMX_BEAM_MATRIX_PRESETS.length
   const laserDmxPresetScopeLabel = laserDmxBeamMatrixAuthoringMode === 'showDirector'
-    ? `${laserDmxPresetCount} Show Director layout${laserDmxPresetCount === 1 ? '' : 's'}`
+    ? `${LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.length} Performance Shows · ${LASER_DMX_SHOW_DIRECTOR_TEMPLATES.length} Rig Layouts`
     : `${laserDmxPresetCount} Beam Matrix preset${laserDmxPresetCount === 1 ? '' : 's'}`
   const thumbnailGenerationKey = useMemo(
     () => `${activeReactEngineId}:${libraryView}:${visiblePresets.map(preset => preset.id).join('|')}`,
@@ -711,8 +792,8 @@ export function ReactPresetsPanel() {
               ? 'CANVAS presets transform active uploaded media. Auto Select can choose presets from Audio Intelligence.'
               : activeReactEngineId === 'laserDmx'
                 ? laserDmxBeamMatrixAuthoringMode === 'showDirector'
-                  ? 'Show Director rig layouts only. Switch to Matrix for Beam Matrix looks.'
-                  : 'Beam Matrix looks only. Switch to Show Director for rig layouts.'
+                  ? 'Performance Shows combine a deterministic program with a rig. Rig Layouts remain static, and Matrix mode contains Beam Matrix looks.'
+                  : 'Beam Matrix looks only. Switch to Show Director for Performance Shows and Rig Layouts.'
                 : `${activeEngine.label} presets only. Use All Engines to browse other engines.`
           : libraryView === 'favorites'
             ? 'Star presets from any engine to keep them together here.'
@@ -730,7 +811,12 @@ export function ReactPresetsPanel() {
         <CanvasPresetCollection thumbnailGenerationKey={thumbnailGenerationKey} />
       ) : isLaserDmxCurrentLibrary ? (
         laserDmxBeamMatrixAuthoringMode === 'showDirector'
-          ? <ShowDirectorTemplatePresets />
+          ? (
+              <>
+                <ShowDirectorPerformancePresets />
+                <ShowDirectorTemplatePresets />
+              </>
+            )
           : <BeamMatrixRuntimePresets />
       ) : visiblePresets.length === 0 ? (
         <div className="rv-preset-library-empty">

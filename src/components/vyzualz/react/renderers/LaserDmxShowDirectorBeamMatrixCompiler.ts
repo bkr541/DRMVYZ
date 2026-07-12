@@ -42,6 +42,8 @@ export interface CompileLaserDmxShowDirectorToBeamMatrixInput {
   sections?: readonly ReactTrackSection[] | null
   /** Manual or imported cue markers from the visual timeline. */
   cueMarkers?: readonly VzCueMarker[] | null
+  /** Optional deterministic runtime priority. Omitted for authored/static compilation to preserve legacy ordering exactly. */
+  fixturePriorityById?: Readonly<Record<string, number>> | null
 }
 
 interface StagePoint01 {
@@ -281,6 +283,7 @@ function defaultAppearance(fixture: LaserDmxShowDirectorFixture, patch: Partial<
     glow:          0.72,
     geometry:      'line',
     ...patch,
+    ...(fixture.runtimeBeamAppearance ?? {}),
   }
 }
 
@@ -789,6 +792,7 @@ function makeBeam(
   const motion = {
     ...DEFAULT_BEAM_MOTION,
     ...motionPatch,
+    ...(fixture.runtimeBeamTravel ?? {}),
   }
   return {
     id: beamIdForFixture(fixture, suffix),
@@ -1183,7 +1187,15 @@ export function compileLaserDmxShowDirectorToBeamMatrix(
   const showDirector = input.showDirector
   const gridColumns = positiveInt(showDirector?.settings?.gridSize?.columns, 15, 1, 64)
   const gridRows = positiveInt(showDirector?.settings?.gridSize?.rows, 10, 1, 64)
-  const fixtures = Array.isArray(showDirector?.fixtures) ? showDirector.fixtures : []
+  const authoredFixtures = Array.isArray(showDirector?.fixtures) ? showDirector.fixtures : []
+  const fixtures = input.fixturePriorityById
+    ? [...authoredFixtures].sort((a, b) => (
+        (input.fixturePriorityById?.[a.id] ?? Number.MAX_SAFE_INTEGER)
+        - (input.fixturePriorityById?.[b.id] ?? Number.MAX_SAFE_INTEGER)
+        || (a.semanticKey ?? '').localeCompare(b.semanticKey ?? '')
+        || a.id.localeCompare(b.id)
+      ))
+    : authoredFixtures
   const ctx: FixtureCompileContext = {
     gridColumns,
     gridRows,

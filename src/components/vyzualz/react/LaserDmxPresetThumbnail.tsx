@@ -162,3 +162,70 @@ export function ShowDirectorTemplateThumbnail({ template }: { template: LaserDmx
     </div>
   )
 }
+
+export function getShowDirectorPerformancePresetPalette(
+  preset: import('./LaserDmxShowDirectorPerformancePresets').LaserDmxShowDirectorPerformancePresetDefinition,
+): string[] {
+  let index = 0
+  const rig = preset.createRig(() => `${preset.id}-thumbnail-${++index}`)
+  return Array.from(new Set(rig.fixtures.map(fixture => fixture.color).filter(Boolean))).slice(0, 5)
+}
+
+/** Static representative rendering only. It never invokes the production renderer or audio pipeline. */
+export function ShowDirectorPerformanceThumbnail({
+  preset,
+}: {
+  preset: import('./LaserDmxShowDirectorPerformancePresets').LaserDmxShowDirectorPerformancePresetDefinition
+}) {
+  const rig = useMemo(() => {
+    let index = 0
+    return preset.createRig(() => `${preset.id}-thumbnail-${++index}`)
+  }, [preset])
+  const columns = Math.max(1, rig.settings.gridSize.columns)
+  const rows = Math.max(1, rig.settings.gridSize.rows)
+  const point = (x: number, y: number) => ({
+    x: 7 + (Math.max(0, Math.min(columns - 1, x)) / Math.max(1, columns - 1)) * 98,
+    y: 8 + (Math.max(0, Math.min(rows - 1, y)) / Math.max(1, rows - 1)) * 108,
+  })
+
+  return (
+    <div className="rv-preset-thumb rv-laser-dmx-preset-thumb" aria-hidden="true" data-thumbnail-kind="show-director-performance">
+      <svg className="rv-laser-dmx-preset-thumb-svg" viewBox="0 0 112 124" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id={`performance-thumb-${preset.id}`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#020508" />
+            <stop offset="1" stopColor="#07151b" />
+          </linearGradient>
+        </defs>
+        <rect width="112" height="124" fill={`url(#performance-thumb-${preset.id})`} />
+        <path d="M7 116 L56 10 L105 116 Z" fill="rgba(97,214,170,.04)" stroke="rgba(74,199,219,.16)" strokeWidth="0.8" />
+        {rig.fixtures.filter(fixture => fixture.enabled).slice(0, 40).map((fixture, index) => {
+          const location = point(fixture.x, fixture.y)
+          const target = point(fixture.beam.targetX ?? fixture.x, fixture.beam.targetY ?? Math.max(0, fixture.y - 2))
+          const shape = FIXTURE_SHAPES[fixture.kind]
+          const rendersBeam = fixture.kind === 'laser' || fixture.kind === 'movingHead' || fixture.kind === 'parWash'
+          return (
+            <g key={`${preset.id}-${fixture.semanticKey ?? fixture.id}-${index}`}>
+              {rendersBeam && (
+                <line
+                  x1={location.x}
+                  y1={location.y}
+                  x2={target.x}
+                  y2={target.y}
+                  stroke={fixture.color}
+                  strokeOpacity="0.5"
+                  strokeWidth={fixture.kind === 'parWash' ? 4 : 1.25}
+                  strokeLinecap="round"
+                />
+              )}
+              {shape === 'circle' && <circle cx={location.x} cy={location.y} r="2.8" fill={fixture.color} />}
+              {shape === 'square' && <rect x={location.x - 2.5} y={location.y - 2.5} width="5" height="5" rx="0.8" fill={fixture.color} />}
+              {shape === 'bar' && <rect x={location.x - 4} y={location.y - 1.5} width="8" height="3" rx="1" fill={fixture.color} />}
+              {shape === 'diamond' && <path d={`M${location.x} ${location.y - 3.3} L${location.x + 3.3} ${location.y} L${location.x} ${location.y + 3.3} L${location.x - 3.3} ${location.y} Z`} fill={fixture.color} />}
+            </g>
+          )
+        })}
+      </svg>
+    </div>
+  )
+}

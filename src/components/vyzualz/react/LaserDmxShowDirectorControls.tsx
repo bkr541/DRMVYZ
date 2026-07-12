@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
-import { Collapsible, CtrlSection, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
+import { Collapsible, CtrlSection, NumberInputRow, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
 import { LaserDmxShowDirectorInspector } from './LaserDmxShowDirectorInspector'
 import type { LaserDmxShowDirectorSettings } from './ReactTypes'
+import type { LaserDmxShowDirectorPerformanceFallbackBehavior } from './LaserDmxShowDirectorPerformanceProgram'
+import { useLaserDmxShowDirectorPerformanceRuntimeStatus } from './LaserDmxShowDirectorPerformanceRuntimeStatus'
 
 const GRID_PRESETS = [
   { label: '10 × 6', value: '10x6', columns: 10, rows: 6 },
@@ -155,6 +157,105 @@ export function LaserDmxShowDirectorGlobalControls() {
   )
 }
 
+function PerformanceProgramControls() {
+  const {
+    performance,
+    setEnabled,
+    updateTuning,
+    setAudioIntelligenceEnabled,
+    setFallbackBehavior,
+    setSeed,
+  } = useReactStore(useShallow(state => ({
+    performance: state.laserDmxShowDirectorPerformance,
+    setEnabled: state.setLaserDmxShowDirectorPerformanceEnabled,
+    updateTuning: state.updateLaserDmxShowDirectorPerformanceTuning,
+    setAudioIntelligenceEnabled: state.setLaserDmxShowDirectorPerformanceAudioIntelligenceEnabled,
+    setFallbackBehavior: state.setLaserDmxShowDirectorPerformanceFallbackBehavior,
+    setSeed: state.setLaserDmxShowDirectorPerformanceSeed,
+  })))
+  const status = useLaserDmxShowDirectorPerformanceRuntimeStatus()
+  const program = performance.activeProgramDefinition
+  const supportsVariation = Boolean(program?.scenes.some(scene => (
+    (scene.variations?.length ?? 0) > 0
+    || (scene.fourBarVariations?.length ?? 0) > 0
+    || (scene.eightBarRecruitment?.length ?? 0) > 0
+    || (scene.sixteenBarEvolution?.length ?? 0) > 0
+  )))
+  const statusReason = status.fallbackOrSuppressionReason
+    ?? (!program ? 'Load a Performance Show or authored performance program.' : null)
+
+  return (
+    <Collapsible label="Performance Program" defaultOpen>
+      <ToggleRow
+        label="Performance Program"
+        value={performance.enabled}
+        onChange={setEnabled}
+        disabled={!program}
+        description="Disabling reveals the immutable authored rig without deleting the program."
+      />
+      <SliderRow
+        label="Program Intensity"
+        value={performance.tuning.intensity}
+        onChange={value => updateTuning({ intensity: value })}
+        min={0}
+        max={2}
+        step={0.05}
+        disabled={!program}
+      />
+      <SliderRow
+        label="Variation Amount"
+        value={performance.tuning.variation}
+        onChange={value => updateTuning({ variation: value })}
+        min={0}
+        max={2}
+        step={0.05}
+        disabled={!program || !supportsVariation}
+      />
+      <ToggleRow
+        label="Audio Intelligence Response"
+        value={performance.audioIntelligenceEnabled}
+        onChange={setAudioIntelligenceEnabled}
+        disabled={!program}
+      />
+      <NumberInputRow
+        label="Variation Seed"
+        value={performance.deterministicSeed}
+        onChange={setSeed}
+        min={0}
+        max={0x7fffffff}
+        step={1}
+        disabled={!program}
+      />
+      <SelectRow
+        label="Analysis Fallback"
+        value={performance.fallbackBehavior}
+        onChange={value => setFallbackBehavior(value as LaserDmxShowDirectorPerformanceFallbackBehavior)}
+        disabled={!program}
+        options={[
+          { value: 'authoredRig', label: 'Authored Rig Only' },
+          { value: 'basicTiming', label: 'Basic Timing' },
+          { value: 'programDefault', label: 'Program Default Scene' },
+        ]}
+      />
+      <div className="rv-show-director-performance-status" aria-live="polite" data-performance-runtime-status>
+        <div className="rv-show-director-performance-status__title">Runtime Status</div>
+        <dl className="rv-show-director-performance-status__grid">
+          <div><dt>Show</dt><dd>{status.performanceShowName ?? program?.name ?? 'None'}</dd></div>
+          <div><dt>Section</dt><dd>{status.section}{status.sectionOccurrence > 0 ? ` ${status.sectionOccurrence}` : ''}</dd></div>
+          <div><dt>Scene</dt><dd>{status.scene ?? 'Authored rig'}</dd></div>
+          <div><dt>Variation</dt><dd>{status.fourBarVariation ?? status.variation ?? 'Base'}</dd></div>
+          <div><dt>8-bar Stage</dt><dd>{status.eightBarRecruitmentStage || 0}</dd></div>
+          <div><dt>Fixture Groups</dt><dd>{status.activeFixtureGroupCount}</dd></div>
+          <div><dt>Beam Demand</dt><dd>{status.estimatedBeamDemand}{status.boundedBeamDemand !== status.estimatedBeamDemand ? ` → ${status.boundedBeamDemand}` : ''}</dd></div>
+          <div><dt>Analysis</dt><dd>{status.analysisReady ? 'Ready' : 'Fallback'}</dd></div>
+        </dl>
+        {statusReason && <p className="rv-show-director-performance-status__notice">{statusReason}</p>}
+        {status.beamBudgetWarning && <p className="rv-show-director-performance-status__warning">{status.beamBudgetWarning}</p>}
+      </div>
+    </Collapsible>
+  )
+}
+
 /** Fixture-specific Show Director controls for the right DESIGN rail. */
 export function LaserDmxShowDirectorControls() {
   const {
@@ -192,6 +293,7 @@ export function LaserDmxShowDirectorControls() {
 
   return (
     <div className="rv-ctrl-group rv-show-director-component-controls">
+      <PerformanceProgramControls />
       <Collapsible label="Fixture Tools" defaultOpen>
         <div className="rv-show-director-design-actions" aria-label="Selected Show Director fixture actions">
           <button type="button" className="rv-glyph-upload-btn" disabled={!selectedFixture} onClick={() => selectedFixtureCount > 1 ? duplicateSelectedFixtures() : selectedFixture && duplicateFixture(selectedFixture.id)}>{selectedFixtureCount > 1 ? 'Duplicate Selected' : 'Duplicate'}</button>

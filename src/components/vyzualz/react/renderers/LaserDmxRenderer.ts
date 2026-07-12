@@ -13,6 +13,10 @@ import { useVisualStore } from '../../../../stores/visualStore'
 import { cueMarkerBelongsToTrack } from '../../../../types/cue'
 import { compileLaserDmxBeamMatrix, resetBeamMatrixCompilerState } from './LaserDmxBeamMatrixCompiler'
 import { compileLaserDmxShowDirectorToBeamMatrix } from './LaserDmxShowDirectorBeamMatrixCompiler'
+import { buildLaserDmxShowDirectorPerformanceContext, type LaserDmxShowDirectorPerformanceTimingContext } from '../LaserDmxShowDirectorPerformanceContext'
+import { resolveLaserDmxShowDirectorPerformance } from '../LaserDmxShowDirectorPerformanceResolver'
+import type { LaserDmxShowDirectorGlobalOutputOverrides } from '../LaserDmxShowDirectorPerformanceProgram'
+import { clearLaserDmxShowDirectorPerformanceRuntimeStatus, publishLaserDmxShowDirectorPerformanceRuntimeStatus } from '../LaserDmxShowDirectorPerformanceRuntimeStatus'
 import { renderLaserDmxBeamMatrix } from './LaserDmxBeamMatrixRenderer'
 import { renderFog, resetFogState } from './LaserDmxFogRenderer'
 import { useBrandKitStore } from '../../../../features/personalization/brandKitStore'
@@ -234,6 +238,8 @@ let prevFogTimeSec = -1
 const showDirectorRuntimeByContext = new WeakMap<CanvasRenderingContext2D, ShowDirectorRuntime>()
 const pausedAudioTimeByContext = new WeakMap<CanvasRenderingContext2D, number>()
 const pendingPausedDiscontinuityByContext = new WeakSet<CanvasRenderingContext2D>()
+const performanceContextByCanvas = new WeakMap<CanvasRenderingContext2D, LaserDmxShowDirectorPerformanceTimingContext>()
+const performanceStatusCanvas = new WeakSet<CanvasRenderingContext2D>()
 
 export interface LaserDmxRendererBoundaryOptions {
   /** Offscreen previews must never arm, submit to, stop, or disarm physical output. */
@@ -264,6 +270,11 @@ function resetLaserDmxRuntimeState(reason?: LaserDmxRendererResetReason, ctx?: C
     resetShowDirectorRuntime(getShowDirectorRuntime(ctx))
     pausedAudioTimeByContext.delete(ctx)
     pendingPausedDiscontinuityByContext.delete(ctx)
+    performanceContextByCanvas.delete(ctx)
+    if (performanceStatusCanvas.has(ctx)) {
+      performanceStatusCanvas.delete(ctx)
+      clearLaserDmxShowDirectorPerformanceRuntimeStatus()
+    }
   }
   if (reason === 'contextLost') {
     productionOutputController.handleRendererCrash('LaserDMX canvas context lost')
@@ -339,6 +350,36 @@ export function disposeLaserDmxRenderer(
   showDirectorRuntimeByContext.delete(ctx)
 }
 
+export function applyShowDirectorPerformanceGlobalOverrides(
+  beamMatrix: ReturnType<typeof compileLaserDmxShowDirectorToBeamMatrix>,
+  overrides: LaserDmxShowDirectorGlobalOutputOverrides,
+): ReturnType<typeof compileLaserDmxShowDirectorToBeamMatrix> {
+  const dimmer = overrides.dimmer == null ? 1 : clamp01(overrides.dimmer)
+  const haze = overrides.haze == null ? null : clamp01(overrides.haze)
+  return {
+    ...beamMatrix,
+    output: {
+      ...beamMatrix.output,
+      masterDimmer: clamp01(beamMatrix.output.masterDimmer * dimmer),
+      blackout: beamMatrix.output.blackout || overrides.blackout === true,
+      backgroundFade: overrides.backgroundFade == null ? beamMatrix.output.backgroundFade : clamp01(overrides.backgroundFade),
+      beamPersistence: overrides.beamPersistence == null ? beamMatrix.output.beamPersistence : clamp01(overrides.beamPersistence),
+      globalBeamWidth: overrides.globalBeamWidth == null ? beamMatrix.output.globalBeamWidth : Math.max(0.1, Math.min(6, overrides.globalBeamWidth)),
+      globalGlow: overrides.globalGlow == null ? beamMatrix.output.globalGlow : clamp01(overrides.globalGlow),
+      globalStrobeRate: overrides.globalStrobeRate == null ? beamMatrix.output.globalStrobeRate : clamp01(overrides.globalStrobeRate),
+    },
+    fog: haze == null
+      ? beamMatrix.fog
+      : {
+          ...beamMatrix.fog,
+          enabled: beamMatrix.fog.enabled || haze > 0,
+          density: Math.max(beamMatrix.fog.density, haze * 0.62),
+          opacity: Math.max(beamMatrix.fog.opacity, haze * 0.52),
+          beamScatter: Math.max(beamMatrix.fog.beamScatter, haze * 0.78),
+        },
+  }
+}
+
 export function renderLaserDmx(
   ctx: CanvasRenderingContext2D,
   frame: ReactFrameContext,
@@ -379,17 +420,69 @@ export function renderLaserDmx(
       : params.performanceActionEvent ? [params.performanceActionEvent] : []
   const actionResult = applyLaserDmxPerformanceActions(authoredSettings, actionEvents)
   const resolvedAuthoredSettings = resolveProductionLookTransitionRuntime(actionResult.settings)
-  const renderBeamMatrix = beamMatrixAuthoringMode === 'showDirector'
+  const timingDiscontinuity = consumeLaserDmxTimingDiscontinuity(ctx, frame.timingDiscontinuity)
+  const performanceState = state.laserDmxShowDirectorPerformance
+  const previousPerformanceContext = performanceContextByCanvas.get(ctx) ?? null
+  const loopWrapped = previousPerformanceContext != null && timeSec + 0.05 < previousPerformanceContext.audioTimeSec
+  const performanceContext = buildLaserDmxShowDirectorPerformanceContext({
+    audioTimeSec: timeSec,
+    frame: mi,
+    analysis: frame.trackAnalysis,
+    resolvedSections: frame.trackSections,
+    durationSec: Math.max(
+      finiteNumber(frame.trackAnalysis?.durationMs, 0) / 1000,
+      frame.trackSections?.reduce((maximum, section) => Math.max(maximum, finiteNumber(section.endSec, 0)), 0) ?? 0,
+    ),
+    trackIdentity: trackKey,
+    seekIdentity: timingDiscontinuity ? `seek:${timeSec.toFixed(4)}` : previousPerformanceContext?.seekIdentity ?? 'seek:initial',
+    loopIdentity: loopWrapped ? `loop:${timeSec.toFixed(4)}` : previousPerformanceContext?.loopIdentity ?? 'loop:initial',
+    trackChangeIdentity: trackKey ?? 'track:none',
+    timingDiscontinuityIdentity: timingDiscontinuity ? `discontinuity:${timeSec.toFixed(4)}` : 'continuous',
+    previous: previousPerformanceContext,
+  })
+  performanceContextByCanvas.set(ctx, performanceContext)
+
+  const shouldResolvePerformance = beamMatrixAuthoringMode === 'showDirector'
+    && params.thumbnailLaserDmxSettings == null
+    && performanceState.enabled
+    && performanceState.activeProgramDefinition != null
+  const performanceResolution = shouldResolvePerformance
+    ? resolveLaserDmxShowDirectorPerformance({
+        authoredShowDirector: state.laserDmxShowDirector,
+        program: performanceState.activeProgramDefinition,
+        context: performanceContext,
+        tuning: performanceState.tuning,
+        programSeed: performanceState.deterministicSeed,
+        enabled: performanceState.enabled,
+        audioIntelligenceEnabled: performanceState.audioIntelligenceEnabled,
+        fallbackBehavior: performanceState.fallbackBehavior,
+        runtimeInvalidationId: performanceState.runtimeInvalidationId,
+        transportDiscontinuityIdentity: `${performanceContext.seekIdentity}:${performanceContext.loopIdentity}:${performanceContext.timingDiscontinuityIdentity}`,
+      })
+    : null
+  const showDirectorRuntimeRig = performanceResolution?.showDirector ?? state.laserDmxShowDirector
+  let renderBeamMatrix = beamMatrixAuthoringMode === 'showDirector'
     ? compileLaserDmxShowDirectorToBeamMatrix({
-        showDirector: state.laserDmxShowDirector,
+        showDirector: showDirectorRuntimeRig,
         beamMatrix: state.laserDmxBeamMatrix,
         analysis: frame.trackAnalysis,
         sections: frame.trackSections,
         cueMarkers: useVisualStore.getState().cueMarkers.filter(marker => cueMarkerBelongsToTrack(marker, trackKey)),
+        fixturePriorityById: performanceResolution?.fixturePriorityById,
       })
     : state.laserDmxBeamMatrix
-  const directorPresetKey = `${preset.id}:beamMatrix:${beamMatrixAuthoringMode}:${state.activeLaserDmxBeamMatrixPresetId ?? 'custom'}:${resolvedAuthoredSettings.rigId ?? 'rig'}`
-  const timingDiscontinuity = consumeLaserDmxTimingDiscontinuity(ctx, frame.timingDiscontinuity)
+  if (performanceResolution) {
+    renderBeamMatrix = applyShowDirectorPerformanceGlobalOverrides(renderBeamMatrix, performanceResolution.requestedGlobalOutputOverrides)
+    publishLaserDmxShowDirectorPerformanceRuntimeStatus(
+      performanceState.activeProgramDefinition?.name ?? performanceState.activeProgramId ?? 'Performance Show',
+      performanceResolution,
+    )
+    performanceStatusCanvas.add(ctx)
+  } else if (params.thumbnailLaserDmxSettings == null && performanceStatusCanvas.has(ctx)) {
+    performanceStatusCanvas.delete(ctx)
+    clearLaserDmxShowDirectorPerformanceRuntimeStatus()
+  }
+  const directorPresetKey = `${preset.id}:beamMatrix:${beamMatrixAuthoringMode}:${state.activeLaserDmxBeamMatrixPresetId ?? 'custom'}:${performanceState.runtimeInvalidationId}:${resolvedAuthoredSettings.rigId ?? 'rig'}`
   const director = evaluateShowDirector(getShowDirectorRuntime(ctx), {
     settings: resolvedAuthoredSettings,
     beamMatrix: renderBeamMatrix,

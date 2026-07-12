@@ -15,6 +15,13 @@ export const LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_STATE_SCHEMA_VERSION = 1
 export type LaserDmxShowDirectorPerformanceSectionType = ReactSectionType
 export type LaserDmxShowDirectorPerformanceMutationMode = 'set' | 'add' | 'multiply' | 'toggle'
 export type LaserDmxShowDirectorPerformanceTransitionCurve = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut' | 'step'
+export type LaserDmxShowDirectorPerformanceFallbackBehavior = 'authoredRig' | 'basicTiming' | 'programDefault'
+export type LaserDmxShowDirectorBeamPriorityRole =
+  | 'heroImpact'
+  | 'primaryArchitecture'
+  | 'secondaryFan'
+  | 'detailLattice'
+  | 'decorativeAccent'
 export type LaserDmxShowDirectorPerformanceConditionOperator =
   | 'gt'
   | 'gte'
@@ -89,6 +96,7 @@ export interface LaserDmxShowDirectorFixtureRuntimeOverrides {
   beamTravel?: Partial<LaserDmxBeamMotion>
   component?: Partial<LaserDmxShowDirectorFixtureSpecificConfig>
   participatingGroupSemanticKeys?: string[]
+  beamPriorityRole?: LaserDmxShowDirectorBeamPriorityRole
 }
 
 export interface LaserDmxShowDirectorGroupRuntimeOverrides {
@@ -120,7 +128,7 @@ export interface LaserDmxShowDirectorPerformanceMutationPayload {
   modulations?: LaserDmxShowDirectorMusicIntelligenceModulationReference[]
 }
 
-interface LaserDmxShowDirectorPerformanceMutationBase extends LaserDmxShowDirectorPerformanceMutationPayload {
+export interface LaserDmxShowDirectorPerformanceMutationBase extends LaserDmxShowDirectorPerformanceMutationPayload {
   id: string
   enabled?: boolean
   probability?: number
@@ -137,6 +145,10 @@ export interface LaserDmxShowDirectorPerformanceKickMutation extends LaserDmxSho
 }
 
 export interface LaserDmxShowDirectorPerformanceSnareMutation extends LaserDmxShowDirectorPerformanceMutationBase {
+  threshold?: number
+}
+
+export interface LaserDmxShowDirectorPerformanceTransientMutation extends LaserDmxShowDirectorPerformanceMutationBase {
   threshold?: number
 }
 
@@ -175,22 +187,34 @@ export interface LaserDmxShowDirectorPerformanceSceneTransition {
   blackoutDuringTransition?: boolean
 }
 
+export interface LaserDmxShowDirectorPerformanceSceneBarMatch {
+  startBar?: number
+  endBar?: number
+  everyBars?: number
+  barOffsets?: number[]
+}
+
 export interface LaserDmxShowDirectorPerformanceScene extends LaserDmxShowDirectorPerformanceMutationPayload {
   id: string
   label: string
   enabled: boolean
   section: LaserDmxShowDirectorPerformanceSectionMatch
   priority?: number
+  barMatch?: LaserDmxShowDirectorPerformanceSceneBarMatch
   transitionIn?: LaserDmxShowDirectorPerformanceSceneTransition
   transitionOut?: LaserDmxShowDirectorPerformanceSceneTransition
   variations?: LaserDmxShowDirectorPerformanceSceneVariation[]
   beatMutations?: LaserDmxShowDirectorPerformanceBeatMutation[]
   kickMutations?: LaserDmxShowDirectorPerformanceKickMutation[]
   snareMutations?: LaserDmxShowDirectorPerformanceSnareMutation[]
+  transientMutations?: LaserDmxShowDirectorPerformanceTransientMutation[]
   barMutations?: LaserDmxShowDirectorPerformanceBarMutation[]
   fourBarVariations?: LaserDmxShowDirectorPerformanceFourBarVariation[]
   eightBarRecruitment?: LaserDmxShowDirectorPerformanceEightBarFixtureRecruitmentStage[]
   sixteenBarEvolution?: LaserDmxShowDirectorPerformanceSixteenBarEvolution[]
+  sectionEntryMutations?: LaserDmxShowDirectorPerformanceMutationBase[]
+  sectionBodyMutations?: LaserDmxShowDirectorPerformanceMutationBase[]
+  sectionExitMutations?: LaserDmxShowDirectorPerformanceMutationBase[]
 }
 
 export interface LaserDmxShowDirectorPerformanceProgramTuning {
@@ -216,6 +240,7 @@ export interface LaserDmxShowDirectorPerformanceProgram {
   description?: string
   deterministicSeed: number
   scenes: LaserDmxShowDirectorPerformanceScene[]
+  fallbackOrder?: LaserDmxShowDirectorPerformanceSectionType[]
   tuning: LaserDmxShowDirectorPerformanceProgramTuning
   diagnostics?: LaserDmxShowDirectorPerformanceRuntimeDiagnosticsMetadata
 }
@@ -250,6 +275,9 @@ export interface LaserDmxShowDirectorPerformanceState {
   tuning: LaserDmxShowDirectorPerformanceProgramTuning
   audioIntelligenceEnabled: boolean
   deterministicSeed: number
+  fallbackBehavior: LaserDmxShowDirectorPerformanceFallbackBehavior
+  activePresetId: string | null
+  presetDirty: boolean
   runtimeInvalidationId: string
 }
 
@@ -356,10 +384,14 @@ function normalizeScene(raw: unknown, index: number): LaserDmxShowDirectorPerfor
     beatMutations: Array.isArray(raw.beatMutations) ? raw.beatMutations.filter(isRecord) as unknown as LaserDmxShowDirectorPerformanceBeatMutation[] : [],
     kickMutations: Array.isArray(raw.kickMutations) ? raw.kickMutations.filter(isRecord) as unknown as LaserDmxShowDirectorPerformanceKickMutation[] : [],
     snareMutations: Array.isArray(raw.snareMutations) ? raw.snareMutations.filter(isRecord) as unknown as LaserDmxShowDirectorPerformanceSnareMutation[] : [],
+    transientMutations: Array.isArray(raw.transientMutations) ? raw.transientMutations.filter(isRecord) as unknown as LaserDmxShowDirectorPerformanceTransientMutation[] : [],
     barMutations: Array.isArray(raw.barMutations) ? raw.barMutations.filter(isRecord) as unknown as LaserDmxShowDirectorPerformanceBarMutation[] : [],
     fourBarVariations: Array.isArray(raw.fourBarVariations) ? raw.fourBarVariations.filter(isRecord) as unknown as LaserDmxShowDirectorPerformanceFourBarVariation[] : [],
     eightBarRecruitment: Array.isArray(raw.eightBarRecruitment) ? raw.eightBarRecruitment.filter(isRecord) as unknown as LaserDmxShowDirectorPerformanceEightBarFixtureRecruitmentStage[] : [],
     sixteenBarEvolution: Array.isArray(raw.sixteenBarEvolution) ? raw.sixteenBarEvolution.filter(isRecord) as unknown as LaserDmxShowDirectorPerformanceSixteenBarEvolution[] : [],
+    sectionEntryMutations: Array.isArray(raw.sectionEntryMutations) ? raw.sectionEntryMutations.filter(isRecord) as unknown as LaserDmxShowDirectorPerformanceMutationBase[] : [],
+    sectionBodyMutations: Array.isArray(raw.sectionBodyMutations) ? raw.sectionBodyMutations.filter(isRecord) as unknown as LaserDmxShowDirectorPerformanceMutationBase[] : [],
+    sectionExitMutations: Array.isArray(raw.sectionExitMutations) ? raw.sectionExitMutations.filter(isRecord) as unknown as LaserDmxShowDirectorPerformanceMutationBase[] : [],
   }
 }
 
@@ -379,6 +411,9 @@ export function normalizeLaserDmxShowDirectorPerformanceProgram(
     description: cleanString(raw.description, '', 1000) || undefined,
     deterministicSeed: positiveInt(raw.deterministicSeed, 0),
     scenes,
+    fallbackOrder: Array.isArray(raw.fallbackOrder)
+      ? Array.from(new Set(raw.fallbackOrder.filter(isSectionType)))
+      : undefined,
     tuning: normalizeLaserDmxShowDirectorPerformanceTuning(raw.tuning),
     diagnostics: isRecord(raw.diagnostics) ? raw.diagnostics as LaserDmxShowDirectorPerformanceRuntimeDiagnosticsMetadata : undefined,
   }
@@ -400,6 +435,9 @@ export function createDefaultLaserDmxShowDirectorPerformanceState(): LaserDmxSho
     tuning: { ...DEFAULT_TUNING },
     audioIntelligenceEnabled: true,
     deterministicSeed: 0,
+    fallbackBehavior: 'basicTiming',
+    activePresetId: null,
+    presetDirty: false,
     runtimeInvalidationId: 'show-director-performance:none:0',
   }
 }
@@ -422,6 +460,11 @@ export function normalizeLaserDmxShowDirectorPerformanceState(
     tuning: normalizeLaserDmxShowDirectorPerformanceTuning(raw.tuning),
     audioIntelligenceEnabled: raw.audioIntelligenceEnabled !== false,
     deterministicSeed: positiveInt(raw.deterministicSeed, definition?.deterministicSeed ?? 0),
+    fallbackBehavior: raw.fallbackBehavior === 'authoredRig' || raw.fallbackBehavior === 'programDefault'
+      ? raw.fallbackBehavior
+      : 'basicTiming',
+    activePresetId: cleanString(raw.activePresetId, '', 96) || null,
+    presetDirty: raw.presetDirty === true,
     runtimeInvalidationId: cleanString(
       raw.runtimeInvalidationId,
       `show-director-performance:${activeProgramId ?? 'none'}:0`,
@@ -454,6 +497,9 @@ export function applyLaserDmxShowDirectorPerformanceProgramState(
     tuning: { ...normalized.tuning },
     audioIntelligenceEnabled: current.audioIntelligenceEnabled,
     deterministicSeed: normalized.deterministicSeed,
+    fallbackBehavior: current.fallbackBehavior,
+    activePresetId: null,
+    presetDirty: false,
     runtimeInvalidationId: nextLaserDmxShowDirectorPerformanceInvalidationId(current.runtimeInvalidationId, normalized.id),
   }
 }
@@ -464,6 +510,7 @@ export function clearLaserDmxShowDirectorPerformanceProgramState(
   return {
     ...createDefaultLaserDmxShowDirectorPerformanceState(),
     audioIntelligenceEnabled: current.audioIntelligenceEnabled,
+    fallbackBehavior: current.fallbackBehavior,
     runtimeInvalidationId: nextLaserDmxShowDirectorPerformanceInvalidationId(current.runtimeInvalidationId, null),
   }
 }

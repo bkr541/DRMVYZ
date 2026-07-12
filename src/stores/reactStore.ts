@@ -149,9 +149,14 @@ import {
   normalizeLaserDmxShowDirectorPerformanceState,
   normalizeLaserDmxShowDirectorPerformanceTuning,
   type LaserDmxShowDirectorPerformanceProgram,
+  type LaserDmxShowDirectorPerformanceFallbackBehavior,
   type LaserDmxShowDirectorPerformanceProgramTuning,
   type LaserDmxShowDirectorPerformanceState,
 } from '../components/vyzualz/react/LaserDmxShowDirectorPerformanceProgram'
+import {
+  createLaserDmxShowDirectorPerformancePresetLoadResult,
+  type LaserDmxShowDirectorPerformancePresetDefinition,
+} from '../components/vyzualz/react/LaserDmxShowDirectorPerformancePresets'
 import {
   getSvgVisualEntry,
   clearSvgVisualCache,
@@ -1222,21 +1227,32 @@ function trimShowDirectorHistory(stack: LaserDmxShowDirectorState[]): LaserDmxSh
 }
 
 function buildLaserDmxShowDirectorHistoryPatch(
-  storeState: Pick<ReactStoreState, 'laserDmxShowDirector' | 'laserDmxShowDirectorUndoStack' | 'laserDmxShowDirectorRedoStack' | 'laserDmxShowDirectorHistoryTransaction'>,
+  storeState: Pick<ReactStoreState, 'laserDmxShowDirector' | 'laserDmxShowDirectorPerformance' | 'laserDmxShowDirectorUndoStack' | 'laserDmxShowDirectorRedoStack' | 'laserDmxShowDirectorHistoryTransaction'>,
   nextState: LaserDmxShowDirectorState,
 ) {
   const current = normalizeShowDirectorSnapshot(storeState.laserDmxShowDirector)
   const next = normalizeShowDirectorSnapshot(nextState)
   if (showDirectorSnapshotsEqual(current, next)) return {}
+  const performance = normalizeLaserDmxShowDirectorPerformanceState(storeState.laserDmxShowDirectorPerformance)
+  const invalidatedPerformance = {
+    ...performance,
+    presetDirty: performance.activePresetId != null ? true : performance.presetDirty,
+    runtimeInvalidationId: nextLaserDmxShowDirectorPerformanceInvalidationId(
+      performance.runtimeInvalidationId,
+      performance.activeProgramId,
+    ),
+  }
   if (storeState.laserDmxShowDirectorHistoryTransaction) {
     return {
       laserDmxBeamMatrixPresetDirty: true,
       laserDmxShowDirector: next,
+      laserDmxShowDirectorPerformance: invalidatedPerformance,
     }
   }
   return {
     laserDmxBeamMatrixPresetDirty: true,
     laserDmxShowDirector: next,
+    laserDmxShowDirectorPerformance: invalidatedPerformance,
     laserDmxShowDirectorUndoStack: trimShowDirectorHistory([
       ...storeState.laserDmxShowDirectorUndoStack,
       current,
@@ -1841,10 +1857,12 @@ interface ReactStoreState {
   /** Performance state is independent from the authored fixture rig. */
   laserDmxShowDirectorPerformance: LaserDmxShowDirectorPerformanceState
   applyLaserDmxShowDirectorPerformanceProgram: (program: LaserDmxShowDirectorPerformanceProgram) => boolean
+  applyLaserDmxShowDirectorPerformancePreset: (preset: LaserDmxShowDirectorPerformancePresetDefinition) => boolean
   clearLaserDmxShowDirectorPerformanceProgram: () => void
   setLaserDmxShowDirectorPerformanceEnabled: (enabled: boolean) => void
   updateLaserDmxShowDirectorPerformanceTuning: (patch: Partial<LaserDmxShowDirectorPerformanceProgramTuning>) => void
   setLaserDmxShowDirectorPerformanceAudioIntelligenceEnabled: (enabled: boolean) => void
+  setLaserDmxShowDirectorPerformanceFallbackBehavior: (fallback: LaserDmxShowDirectorPerformanceFallbackBehavior) => void
   setLaserDmxShowDirectorPerformanceSeed: (seed: number) => void
   laserDmxShowDirectorUndoStack: LaserDmxShowDirectorState[]
   laserDmxShowDirectorRedoStack: LaserDmxShowDirectorState[]
@@ -5416,8 +5434,20 @@ export const useReactStore = create<ReactStoreState>()(
       // ── LaserDMX workspace mode ─────────────────────────────────────────────
 
       setLaserDmxWorkspaceMode: (mode) => set({ laserDmxWorkspaceMode: coerceLaserDmxWorkspaceMode(mode) }),
-      setLaserDmxBeamMatrixAuthoringMode: (mode) => set({
-        laserDmxBeamMatrixAuthoringMode: coerceLaserDmxBeamMatrixAuthoringMode(mode),
+      setLaserDmxBeamMatrixAuthoringMode: (mode) => set(s => {
+        const nextMode = coerceLaserDmxBeamMatrixAuthoringMode(mode)
+        if (nextMode === s.laserDmxBeamMatrixAuthoringMode) return {}
+        const performance = normalizeLaserDmxShowDirectorPerformanceState(s.laserDmxShowDirectorPerformance)
+        return {
+          laserDmxBeamMatrixAuthoringMode: nextMode,
+          laserDmxShowDirectorPerformance: {
+            ...performance,
+            runtimeInvalidationId: nextLaserDmxShowDirectorPerformanceInvalidationId(
+              performance.runtimeInvalidationId,
+              performance.activeProgramId,
+            ),
+          },
+        }
       }),
 
       // ── LaserDMX Beam Matrix ────────────────────────────────────────────────
@@ -5897,6 +5927,31 @@ export const useReactStore = create<ReactStoreState>()(
         return true
       },
 
+      applyLaserDmxShowDirectorPerformancePreset: (preset) => {
+        const current = get()
+        const loaded = createLaserDmxShowDirectorPerformancePresetLoadResult(
+          current.laserDmxShowDirector,
+          current.laserDmxShowDirectorPerformance,
+          preset,
+        )
+        if (!loaded) return false
+        set({
+          activeReactEngineId: 'laserDmx',
+          laserDmxWorkspaceMode: 'beamMatrix',
+          laserDmxBeamMatrixAuthoringMode: 'showDirector',
+          activeLaserDmxBeamMatrixPresetId: null,
+          laserDmxBeamMatrixPresetDirty: false,
+          laserDmxShowDirector: loaded.rig,
+          laserDmxShowDirectorPerformance: loaded.performance,
+          laserDmxShowDirectorUndoStack: [],
+          laserDmxShowDirectorRedoStack: [],
+          laserDmxShowDirectorHistoryTransaction: null,
+        })
+        resetBeamMatrixCompilerState()
+        resetFogState()
+        return true
+      },
+
       clearLaserDmxShowDirectorPerformanceProgram: () =>
         set(s => ({
           laserDmxShowDirectorPerformance: clearLaserDmxShowDirectorPerformanceProgramState(
@@ -5914,6 +5969,7 @@ export const useReactStore = create<ReactStoreState>()(
             laserDmxShowDirectorPerformance: {
               ...current,
               enabled: nextEnabled,
+              presetDirty: current.activePresetId != null ? true : current.presetDirty,
               runtimeInvalidationId: nextLaserDmxShowDirectorPerformanceInvalidationId(
                 current.runtimeInvalidationId,
                 current.activeProgramId,
@@ -5929,6 +5985,7 @@ export const useReactStore = create<ReactStoreState>()(
             laserDmxShowDirectorPerformance: {
               ...current,
               tuning: normalizeLaserDmxShowDirectorPerformanceTuning({ ...current.tuning, ...patch }),
+              presetDirty: current.activePresetId != null ? true : current.presetDirty,
               runtimeInvalidationId: nextLaserDmxShowDirectorPerformanceInvalidationId(
                 current.runtimeInvalidationId,
                 current.activeProgramId,
@@ -5944,6 +6001,24 @@ export const useReactStore = create<ReactStoreState>()(
             laserDmxShowDirectorPerformance: {
               ...current,
               audioIntelligenceEnabled: enabled,
+              presetDirty: current.activePresetId != null ? true : current.presetDirty,
+              runtimeInvalidationId: nextLaserDmxShowDirectorPerformanceInvalidationId(
+                current.runtimeInvalidationId,
+                current.activeProgramId,
+              ),
+            },
+          }
+        }),
+
+      setLaserDmxShowDirectorPerformanceFallbackBehavior: (fallbackBehavior) =>
+        set(s => {
+          const current = normalizeLaserDmxShowDirectorPerformanceState(s.laserDmxShowDirectorPerformance)
+          if (fallbackBehavior === current.fallbackBehavior) return {}
+          return {
+            laserDmxShowDirectorPerformance: {
+              ...current,
+              fallbackBehavior,
+              presetDirty: current.activePresetId != null ? true : current.presetDirty,
               runtimeInvalidationId: nextLaserDmxShowDirectorPerformanceInvalidationId(
                 current.runtimeInvalidationId,
                 current.activeProgramId,
@@ -5960,6 +6035,7 @@ export const useReactStore = create<ReactStoreState>()(
             laserDmxShowDirectorPerformance: {
               ...current,
               deterministicSeed,
+              presetDirty: current.activePresetId != null ? true : current.presetDirty,
               runtimeInvalidationId: nextLaserDmxShowDirectorPerformanceInvalidationId(
                 current.runtimeInvalidationId,
                 current.activeProgramId,
@@ -6145,9 +6221,18 @@ export const useReactStore = create<ReactStoreState>()(
             normalizeShowDirectorSnapshot(previous),
             current.settings,
           )
+          const performance = normalizeLaserDmxShowDirectorPerformanceState(s.laserDmxShowDirectorPerformance)
           return {
             laserDmxBeamMatrixPresetDirty: true,
             laserDmxShowDirector: previousWithGlobalSettings,
+            laserDmxShowDirectorPerformance: {
+              ...performance,
+              presetDirty: performance.activePresetId != null ? true : performance.presetDirty,
+              runtimeInvalidationId: nextLaserDmxShowDirectorPerformanceInvalidationId(
+                performance.runtimeInvalidationId,
+                performance.activeProgramId,
+              ),
+            },
             laserDmxShowDirectorUndoStack: s.laserDmxShowDirectorUndoStack.slice(0, -1),
             laserDmxShowDirectorRedoStack: trimShowDirectorHistory([...s.laserDmxShowDirectorRedoStack, current]),
             laserDmxShowDirectorHistoryTransaction: null,
@@ -6163,9 +6248,18 @@ export const useReactStore = create<ReactStoreState>()(
             normalizeShowDirectorSnapshot(next),
             current.settings,
           )
+          const performance = normalizeLaserDmxShowDirectorPerformanceState(s.laserDmxShowDirectorPerformance)
           return {
             laserDmxBeamMatrixPresetDirty: true,
             laserDmxShowDirector: nextWithGlobalSettings,
+            laserDmxShowDirectorPerformance: {
+              ...performance,
+              presetDirty: performance.activePresetId != null ? true : performance.presetDirty,
+              runtimeInvalidationId: nextLaserDmxShowDirectorPerformanceInvalidationId(
+                performance.runtimeInvalidationId,
+                performance.activeProgramId,
+              ),
+            },
             laserDmxShowDirectorUndoStack: trimShowDirectorHistory([...s.laserDmxShowDirectorUndoStack, current]),
             laserDmxShowDirectorRedoStack: s.laserDmxShowDirectorRedoStack.slice(0, -1),
             laserDmxShowDirectorHistoryTransaction: null,
@@ -6458,6 +6552,14 @@ export const useReactStore = create<ReactStoreState>()(
           laserDmxShowDirectorUndoStack: [],
           laserDmxShowDirectorRedoStack: [],
           laserDmxShowDirectorHistoryTransaction: null,
+          laserDmxShowDirectorPerformance: {
+            ...normalizeLaserDmxShowDirectorPerformanceState(s.laserDmxShowDirectorPerformance),
+            presetDirty: s.laserDmxShowDirectorPerformance.activePresetId != null ? true : s.laserDmxShowDirectorPerformance.presetDirty,
+            runtimeInvalidationId: nextLaserDmxShowDirectorPerformanceInvalidationId(
+              s.laserDmxShowDirectorPerformance.runtimeInvalidationId,
+              s.laserDmxShowDirectorPerformance.activeProgramId,
+            ),
+          },
         })),
 
       applyLaserDmxShowDirectorTemplate: (templateId) => {

@@ -83,6 +83,7 @@ export interface LaserDmxShowDirectorPerformanceTimingContext extends LaserDmxSh
   loopIdentity: string
   trackChangeIdentity: string
   timingDiscontinuityIdentity: string
+  sections: LaserDmxShowDirectorPerformanceResolvedSection[]
   resolvedSection: LaserDmxShowDirectorPerformanceResolvedSection | null
   sectionProgress: number
   sectionConfidence: number
@@ -90,6 +91,7 @@ export interface LaserDmxShowDirectorPerformanceTimingContext extends LaserDmxSh
   dropOccurrence: number
   barWithinSection: number
   barsSinceSectionStart: number
+  barsUntilSectionEnd: number
   fourBarBlockIndex: number
   eightBarBlockIndex: number
   sixteenBarBlockIndex: number
@@ -479,8 +481,14 @@ export function buildLaserDmxShowDirectorPerformanceContext(
   const sectionStartGrid = resolvedSection
     ? resolveLaserDmxShowDirectorGridPosition(resolvedSection.startSec, frame, analysis)
     : null
+  const sectionEndGrid = resolvedSection
+    ? resolveLaserDmxShowDirectorGridPosition(Math.max(resolvedSection.startSec, resolvedSection.endSec - EPSILON_SEC), frame, analysis)
+    : null
   const barsSinceSectionStart = sectionStartGrid
     ? Math.max(0, (grid.absoluteBeat - sectionStartGrid.absoluteBeat) / grid.timeSignature)
+    : 0
+  const barsUntilSectionEnd = sectionEndGrid
+    ? Math.max(0, (sectionEndGrid.absoluteBeat - grid.absoluteBeat) / grid.timeSignature)
     : 0
   const sectionDuration = resolvedSection ? resolvedSection.endSec - resolvedSection.startSec : 0
   const sectionProgress = resolvedSection && sectionDuration > EPSILON_SEC
@@ -515,6 +523,7 @@ export function buildLaserDmxShowDirectorPerformanceContext(
     trackChangeIdentity,
     timingDiscontinuityIdentity,
     ...grid,
+    sections,
     resolvedSection,
     sectionProgress,
     sectionConfidence: resolvedSection?.confidence ?? 0,
@@ -522,6 +531,7 @@ export function buildLaserDmxShowDirectorPerformanceContext(
     dropOccurrence: resolveLaserDmxShowDirectorDropOccurrence(sections, resolvedSection),
     barWithinSection: Math.floor(barsSinceSectionStart + EPSILON_SEC),
     barsSinceSectionStart,
+    barsUntilSectionEnd,
     fourBarBlockIndex: Math.floor(grid.barIndex / 4),
     eightBarBlockIndex: Math.floor(grid.barIndex / 8),
     sixteenBarBlockIndex: Math.floor(grid.barIndex / 16),

@@ -895,6 +895,10 @@ export interface LaserDmxShowDirectorFixture {
   beam:      LaserDmxShowDirectorBeamConfig
   trigger:   LaserDmxShowDirectorTriggerConfig
   component: LaserDmxShowDirectorFixtureSpecificConfig
+  /** Transient performance-program appearance override. Normalization intentionally omits this field. */
+  runtimeBeamAppearance?: Partial<LaserDmxMatrixBeamAppearance>
+  /** Transient performance-program travel override. Normalization intentionally omits this field. */
+  runtimeBeamTravel?: Partial<LaserDmxBeamMotion>
 }
 
 export type LaserDmxShowDirectorFixturePatch = Partial<Omit<LaserDmxShowDirectorFixture, 'beam' | 'trigger' | 'component'>> & {
