@@ -17,6 +17,13 @@ import {
 } from './canvasMediaTransparency'
 import { CANVAS_MEDIA_LIBRARY_CAPABILITIES } from '../media/mediaLibraryCapabilities'
 import {
+  hasCanvasSourceAnimation,
+  hasCanvasSourceFilter,
+  hasCanvasSourceTransform,
+  makeCanvasCaptureFilter,
+  resolveCanvasPlaybackUrl,
+} from './canvasMediaFidelity'
+import {
   CanvasParticleAuraRenderer,
   compositeCanvasParticleLayerToCapture,
   getCanvasParticleSourceSize,
@@ -133,7 +140,7 @@ function getCanvasLibraryDisabledReason(media: UploadedMedia): string | null {
 }
 
 function getCanvasLibraryUrl(media: UploadedMedia): string {
-  return media.proxyUrl || media.url
+  return resolveCanvasPlaybackUrl(media)
 }
 
 function makeCanvasMediaItemFromLibrary(
@@ -280,10 +287,14 @@ function makeCanvasMediaStyle(
   settings: ReturnType<typeof useReactStore.getState>['canvasEngineSettings'],
   presetSettings: CanvasPresetSettings,
 ): CSSProperties {
+  const transform = hasCanvasSourceTransform(settings, presetSettings)
+    ? `translate(calc(${settings.positionX}% + var(--canvas-preset-shake-x, 0px)), calc(${settings.positionY}% + var(--canvas-preset-shake-y, 0px))) rotate(calc(${settings.rotation}deg + var(--canvas-preset-rotate, 0deg))) scale(calc(${settings.scale} + var(--canvas-preset-scale-boost, 0)))`
+    : undefined
+
   return {
     objectFit: canvasObjectFit(settings.fitMode),
     opacity: settings.opacity * presetSettings.sourceVisibility,
-    transform: `translate(calc(${settings.positionX}% + var(--canvas-preset-shake-x, 0px)), calc(${settings.positionY}% + var(--canvas-preset-shake-y, 0px))) rotate(calc(${settings.rotation}deg + var(--canvas-preset-rotate, 0deg))) scale(calc(${settings.scale} + var(--canvas-preset-scale-boost, 0)))`,
+    transform,
   }
 }
 
@@ -1157,6 +1168,9 @@ export function CanvasEngineSurface({
     [activeCanvasMediaId, mediaItems],
   )
   const presetStyle = useMemo(() => makeCanvasPresetStyle(canvasPresetSettings), [canvasPresetSettings])
+  const sourceFilterActive = hasCanvasSourceFilter(canvasPresetSettings)
+  const sourceAnimationActive = hasCanvasSourceAnimation(canvasPresetSettings)
+  const sourceTransformActive = hasCanvasSourceTransform(settings, canvasPresetSettings)
   const activeVideo = activeItem?.type === 'video'
   const activeMediaTransparencyKey = activeItem ? getCanvasMediaTransparencyKey(activeItem) : null
   const activeMediaTransparencyKeyRef = useRef<string | null>(activeMediaTransparencyKey)
@@ -1264,7 +1278,7 @@ export function CanvasEngineSurface({
       )
       captureContext.rotate((settings.rotation + shake * 0.16) * Math.PI / 180)
       captureContext.scale(liveScale, liveScale)
-      captureContext.filter = `blur(${(canvasPresetSettings.motionAmount * 3.2 + canvasPresetSettings.trailAmount * 1.4).toFixed(2)}px) brightness(${(1.0 + canvasPresetSettings.glow * 0.12 + bass * canvasPresetSettings.bassReactivity * canvasPresetSettings.intensity * 0.34).toFixed(3)}) contrast(${(1.0 + canvasPresetSettings.glitchAmount * 0.16 + (1 - canvasPresetSettings.lumaThreshold) * canvasPresetSettings.motionAmount * 0.28).toFixed(3)}) saturate(${(1.0 + high * canvasPresetSettings.rgbSplit * 0.9 + canvasPresetSettings.glow * 0.14).toFixed(3)})`
+      captureContext.filter = makeCanvasCaptureFilter(canvasPresetSettings, bass, high)
       try {
         captureContext.drawImage(source, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight)
       } catch {
@@ -1663,6 +1677,9 @@ export function CanvasEngineSurface({
         className={`rv-canvas-live-output rv-canvas-param-output${transparentStage ? ' rv-canvas-live-output--transparent' : ''}`}
         data-fit-mode={settings.fitMode}
         data-background-mode={effectiveBackgroundMode}
+        data-source-filter-active={sourceFilterActive ? 'true' : 'false'}
+        data-source-animation-active={sourceAnimationActive ? 'true' : 'false'}
+        data-source-transform-active={sourceTransformActive ? 'true' : 'false'}
         style={presetStyle}
       >
         {!transparentStage && <div className="rv-canvas-live-grid" aria-hidden="true" />}

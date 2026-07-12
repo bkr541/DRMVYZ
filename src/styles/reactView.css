@@ -9252,7 +9252,7 @@
   max-height: none;
   display: block;
   transform-origin: center center;
-  will-change: transform, opacity;
+  will-change: auto;
   transition: opacity 0.12s ease;
   user-select: none;
 }
@@ -9705,7 +9705,13 @@
 .rv-canvas-live-media {
   position: relative;
   z-index: 1;
-  transition: opacity 0.12s ease, filter 0.12s ease;
+  animation: none;
+  filter: none;
+  transition: opacity 0.12s ease;
+}
+
+.rv-canvas-param-output[data-source-transform-active='true'] .rv-canvas-live-media {
+  will-change: transform;
 }
 
 .rv-canvas-live-error-card {
@@ -9806,8 +9812,11 @@
   filter: blur(10px);
 }
 
-.rv-canvas-param-output .rv-canvas-live-media {
+.rv-canvas-param-output[data-source-animation-active='true'] .rv-canvas-live-media {
   animation: var(--canvas-param-stutter-animation, none);
+}
+
+.rv-canvas-param-output[data-source-filter-active='true'] .rv-canvas-live-media {
   filter:
     brightness(var(--canvas-param-brightness, 1))
     contrast(var(--canvas-param-contrast, 1))
@@ -9816,6 +9825,7 @@
     drop-shadow(var(--canvas-preset-rgb-px, 0px) 0 rgba(255, 79, 216, 0.42))
     drop-shadow(var(--canvas-preset-rgb-neg-px, 0px) 0 rgba(74, 199, 219, 0.42))
     drop-shadow(0 0 var(--canvas-param-glow-px, 0px) rgba(97, 214, 170, 0.32));
+  transition: opacity 0.12s ease, filter 0.12s ease;
 }
 
 .rv-canvas-param-output .rv-canvas-live-grid {
