@@ -385,4 +385,43 @@ describe('Show Director deterministic performance resolver', () => {
     expect(fixtureByKey(result, 'hero-left').rotation).toBeLessThan(100)
   })
 
+  it('resolves fixture-keyed local targets without creating a shared target network', () => {
+    const localProgram = program()
+    localProgram.scenes = [{
+      id: 'fixture-local-targets',
+      label: 'Fixture Local Targets',
+      enabled: true,
+      section: { types: ['drop'] },
+      address: { fixtureKinds: ['laser'] },
+      fixture: {
+        enabled: true,
+        targetMode: 'fixed',
+        targetPoints: [{ id: 'legacy-fallback', x: 9, y: 5 }],
+        targetPointsByFixtureSemanticKey: {
+          'hero-left': [
+            { id: 'hero-a', x: 5, y: 3 },
+            { id: 'hero-b', x: 6, y: 5 },
+            { id: 'hero-c', x: 5, y: 7 },
+          ],
+          'recruit-right': [
+            { id: 'recruit-a', x: 13, y: 3 },
+            { id: 'recruit-b', x: 12, y: 5 },
+            { id: 'recruit-c', x: 13, y: 7 },
+          ],
+        },
+      },
+    }]
+    const result = resolveLaserDmxShowDirectorPerformance({
+      authoredShowDirector: rig(), program: localProgram, context: contextAt(2.1), tuning: localProgram.tuning,
+      programSeed: 77, enabled: true, audioIntelligenceEnabled: true, fallbackBehavior: 'basicTiming',
+      runtimeInvalidationId: 'runtime:fixture-local-targets',
+    })
+    const heroTargets = fixtureByKey(result, 'hero-left').beam.targets
+    const recruitTargets = fixtureByKey(result, 'recruit-right').beam.targets
+
+    expect(heroTargets?.map(target => [target.x, target.y])).toEqual([[5, 3], [6, 5], [5, 7]])
+    expect(recruitTargets?.map(target => [target.x, target.y])).toEqual([[13, 3], [12, 5], [13, 7]])
+    expect(heroTargets).not.toEqual(recruitTargets)
+  })
+
 })

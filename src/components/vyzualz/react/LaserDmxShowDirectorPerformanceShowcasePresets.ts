@@ -14,6 +14,11 @@ import type {
   LaserDmxShowDirectorPerformanceSectionMatch,
 } from './LaserDmxShowDirectorPerformanceProgram'
 import type { LaserDmxShowDirectorPerformancePresetDefinition } from './LaserDmxShowDirectorPerformancePresets'
+import {
+  authorCardinalFanReactorLocalGeometry,
+  authorCyanMirrorCageLocalGeometry,
+  authorPrismCathedralLocalGeometry,
+} from './LaserDmxShowDirectorPerformanceShowcaseGeometry'
 
 const CYAN = '#39e7ff'
 const ICE = '#8ff5ff'
@@ -504,7 +509,7 @@ export function createPrismCathedralRig(createId: CreateId): LaserDmxShowDirecto
 }
 
 export function createPrismCathedralProgram(): LaserDmxShowDirectorPerformanceProgram {
-  return {
+  const program: LaserDmxShowDirectorPerformanceProgram = {
     schemaVersion: 2,
     id: 'prism-cathedral',
     name: 'Prism Cathedral',
@@ -529,6 +534,7 @@ export function createPrismCathedralProgram(): LaserDmxShowDirectorPerformancePr
       prismOutroScene(),
     ],
   }
+  return authorPrismCathedralLocalGeometry(program, PRISM_FIXTURES)
 }
 
 // ── Cardinal Fan Reactor ─────────────────────────────────────────────────────
@@ -796,7 +802,7 @@ export function createCardinalFanReactorRig(createId: CreateId): LaserDmxShowDir
 }
 
 export function createCardinalFanReactorProgram(): LaserDmxShowDirectorPerformanceProgram {
-  return {
+  const program: LaserDmxShowDirectorPerformanceProgram = {
     schemaVersion: 2,
     id: 'cardinal-fan-reactor',
     name: 'Cardinal Fan Reactor',
@@ -821,6 +827,7 @@ export function createCardinalFanReactorProgram(): LaserDmxShowDirectorPerforman
       cardinalOutroScene(),
     ],
   }
+  return authorCardinalFanReactorLocalGeometry(program, CARDINAL_FIXTURES)
 }
 
 // ── Cyan Mirror Cage ─────────────────────────────────────────────────────────
@@ -1084,7 +1091,7 @@ export function createCyanMirrorCageRig(createId: CreateId): LaserDmxShowDirecto
 }
 
 export function createCyanMirrorCageProgram(): LaserDmxShowDirectorPerformanceProgram {
-  return {
+  const program: LaserDmxShowDirectorPerformanceProgram = {
     schemaVersion: 2,
     id: 'cyan-mirror-cage',
     name: 'Cyan Mirror Cage',
@@ -1109,6 +1116,7 @@ export function createCyanMirrorCageProgram(): LaserDmxShowDirectorPerformancePr
       cageOutroScene(),
     ],
   }
+  return authorCyanMirrorCageLocalGeometry(program, CAGE_FIXTURES)
 }
 
 export const PRISM_CATHEDRAL_PERFORMANCE_PRESET: LaserDmxShowDirectorPerformancePresetDefinition = Object.freeze({

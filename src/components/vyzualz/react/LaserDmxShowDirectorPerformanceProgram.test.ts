@@ -84,6 +84,10 @@ describe('Show Director performance-program foundation', () => {
           fixture: {
             brightness: 8, fanSpread: 900, targetMode: 'bogus', participatingGroupSemanticKeys: [' Group A '],
             targetPoints: Array.from({ length: 20 }, (_, index) => ({ id: `point-${index}`, x: index * 100, y: -index * 100 })),
+            targetPointsByFixtureSemanticKey: {
+              ' Hero Fixture ': Array.from({ length: 20 }, (_, index) => ({ id: `hero-point-${index}`, x: index * 100, y: -index * 100 })),
+              '': [{ id: 'discarded-empty-key', x: 1, y: 1 }],
+            },
             beamAppearance: { geometry: 'bogus', width: 999, glow: -2 },
           },
           global: { globalGlow: 3, dimmer: -1, globalBeamWidth: 99 },
@@ -106,6 +110,8 @@ describe('Show Director performance-program foundation', () => {
     expect(mutation.fixture?.fanSpread).toBe(180)
     expect(mutation.fixture?.targetMode).toBeUndefined()
     expect(mutation.fixture?.targetPoints).toHaveLength(8)
+    expect(Object.keys(mutation.fixture?.targetPointsByFixtureSemanticKey ?? {})).toEqual(['Hero Fixture'])
+    expect(mutation.fixture?.targetPointsByFixtureSemanticKey?.['Hero Fixture']).toHaveLength(8)
     expect(mutation.fixture?.participatingGroupSemanticKeys).toEqual(['Group A'])
     expect(mutation.fixture?.beamAppearance?.geometry).toBeUndefined()
     expect(mutation.fixture?.beamAppearance?.width).toBe(8)

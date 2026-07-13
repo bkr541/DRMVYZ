@@ -94,6 +94,8 @@ export interface LaserDmxShowDirectorFixtureRuntimeOverrides {
   focus?: number
   targetMode?: LaserDmxShowDirectorBeamConfig['targetMode']
   targetPoints?: LaserDmxShowDirectorBeamConfig['targets']
+  /** Fixture-local authored endpoints keyed by stable fixture semantic key. */
+  targetPointsByFixtureSemanticKey?: Record<string, NonNullable<LaserDmxShowDirectorBeamConfig['targets']>>
   targetPosition?: { x: number; y: number; z?: number }
   rotation?: number
   mirrorAxis?: LaserDmxShowDirectorMirrorAxis | null
@@ -512,6 +514,18 @@ function normalizeTargetPoints(raw: unknown): LaserDmxShowDirectorBeamConfig['ta
   return points.length ? points : undefined
 }
 
+function normalizeTargetPointsByFixtureSemanticKey(
+  raw: unknown,
+): LaserDmxShowDirectorFixtureRuntimeOverrides['targetPointsByFixtureSemanticKey'] | undefined {
+  if (!isRecord(raw)) return undefined
+  const entries = Object.entries(raw).slice(0, 512).flatMap(([rawKey, rawTargets]) => {
+    const key = cleanString(rawKey, '', 128)
+    const targets = normalizeTargetPoints(rawTargets)
+    return key && targets ? [[key, targets] as const] : []
+  })
+  return entries.length ? Object.fromEntries(entries) : undefined
+}
+
 function normalizeTrigger(raw: unknown): Partial<LaserDmxShowDirectorTriggerConfig> | undefined {
   if (!isRecord(raw)) return undefined
   const trigger: Partial<LaserDmxShowDirectorTriggerConfig> = {}
@@ -586,6 +600,7 @@ function normalizeFixtureOverrides(raw: unknown): LaserDmxShowDirectorFixtureRun
   const focus = optionalFinite(raw.focus, 0, 1); if (focus != null) fixture.focus = focus
   if (TARGET_MODES.has(raw.targetMode as LaserDmxShowDirectorBeamConfig['targetMode'])) fixture.targetMode = raw.targetMode as LaserDmxShowDirectorBeamConfig['targetMode']
   const targetPoints = normalizeTargetPoints(raw.targetPoints); if (targetPoints) fixture.targetPoints = targetPoints
+  const targetPointsByFixtureSemanticKey = normalizeTargetPointsByFixtureSemanticKey(raw.targetPointsByFixtureSemanticKey); if (targetPointsByFixtureSemanticKey) fixture.targetPointsByFixtureSemanticKey = targetPointsByFixtureSemanticKey
   if (isRecord(raw.targetPosition)) {
     const x = optionalFinite(raw.targetPosition.x, -1024, 1024)
     const y = optionalFinite(raw.targetPosition.y, -1024, 1024)

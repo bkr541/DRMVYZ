@@ -356,8 +356,9 @@ function applyFixtureOverrides(
   if (overrides.fanSpread != null) beam.beamSpread = clamp(mixNumber(beam.beamSpread, overrides.fanSpread * scalar, mode), 0, 180)
   if (overrides.focus != null) beam.focus = clamp01(mixNumber(beam.focus, overrides.focus * scalar, mode))
   if (overrides.targetMode) beam.targetMode = overrides.targetMode
-  if (overrides.targetPoints) {
-    beam.targets = overrides.targetPoints.slice(0, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS).map(target => ({ ...target }))
+  const targetPoints = overrides.targetPointsByFixtureSemanticKey?.[semanticFixtureKey(fixture)] ?? overrides.targetPoints
+  if (targetPoints) {
+    beam.targets = targetPoints.slice(0, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS).map(target => ({ ...target }))
     const first = beam.targets[0]
     if (first) {
       beam.targetX = first.x
