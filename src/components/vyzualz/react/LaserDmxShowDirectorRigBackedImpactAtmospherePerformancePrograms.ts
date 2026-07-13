@@ -364,6 +364,28 @@ function strobeBlinderScene(
         threshold: dropTwo ? 0.72 : 0.8,
         probability: dropTwo ? 0.7 : 0.5,
       }],
+      fourBarVariations: [
+        {
+          id: `${id}-four-bar-call`,
+          motifFamily: dropTwo ? 'expanded-side-call' : 'side-call',
+          global: { globalGlow: dropTwo ? 0.96 : 0.88, backgroundFade: 0.95 },
+        },
+        {
+          id: `${id}-four-bar-response`,
+          motifFamily: dropTwo ? 'expanded-center-response' : 'center-response',
+          global: { globalGlow: dropTwo ? 1 : 0.94, backgroundFade: 0.93 },
+        },
+      ],
+      eightBarRecruitment: [
+        { id: `${id}-eight-bar-core`, stage: 1, cumulative: true, global: { dimmer: dropTwo ? 0.96 : 0.9 } },
+        { id: `${id}-eight-bar-full-bank`, stage: 2, cumulative: true, global: { dimmer: 1, globalGlow: dropTwo ? 1 : 0.98 } },
+      ],
+      sixteenBarEvolution: [{
+        id: `${id}-sixteen-bar-impact-evolution`,
+        phase: 1,
+        phraseLengthBars: 16,
+        global: { globalGlow: 1, backgroundFade: dropTwo ? 0.92 : 0.93 },
+      }],
     })
   }
 
@@ -511,6 +533,47 @@ function hazeCo2Scene(
         threshold: dropTwo ? 0.76 : 0.84,
         probability: dropTwo ? 0.6 : 0.4,
       }],
+      fourBarVariations: [
+        {
+          id: `${id}-four-bar-alternating-plumes`,
+          motifFamily: dropTwo ? 'expanded-alternating-plumes' : 'alternating-plumes',
+          global: { haze: dropTwo ? 0.54 : 0.44, globalGlow: dropTwo ? 0.86 : 0.78 },
+        },
+        {
+          id: `${id}-four-bar-center-plume`,
+          motifFamily: dropTwo ? 'expanded-center-plume' : 'center-plume',
+          global: { haze: dropTwo ? 0.58 : 0.48, globalGlow: dropTwo ? 0.9 : 0.82 },
+        },
+      ],
+      eightBarRecruitment: [
+        { id: `${id}-eight-bar-atmosphere-bed`, stage: 1, cumulative: true, global: { haze: dropTwo ? 0.54 : 0.46 } },
+        {
+          id: `${id}-eight-bar-expanded-atmosphere`,
+          stage: 2,
+          cumulative: true,
+          address: { bankRoles: ['dropHazeBank'] },
+          global: { haze: dropTwo ? 0.62 : 0.54 },
+          fixtureActions: [hazeAction(`${id}-eight-bar-expanded-atmosphere-action`, {
+            enabled: true,
+            brightness: dropTwo ? 0.94 : 0.86,
+            amount: dropTwo ? 0.62 : 0.56,
+            color: dropTwo ? EMERALD : CYAN,
+          })],
+        },
+      ],
+      sixteenBarEvolution: [{
+        id: `${id}-sixteen-bar-atmosphere-evolution`,
+        phase: 1,
+        phraseLengthBars: 16,
+        address: { bankRoles: ['dropHazeBank'] },
+        global: { haze: dropTwo ? 0.6 : 0.52, globalGlow: dropTwo ? 0.94 : 0.86 },
+        fixtureActions: [hazeAction(`${id}-sixteen-bar-atmosphere-evolution-action`, {
+          enabled: true,
+          brightness: dropTwo ? 0.96 : 0.88,
+          amount: dropTwo ? 0.6 : 0.54,
+          color: EMERALD,
+        })],
+      }],
     })
   }
 
@@ -569,6 +632,7 @@ export function createHazeCo2PerformanceProgram(): LaserDmxShowDirectorPerforman
         `Maximum authored virtual CO2-style burst: ${HAZE_CO2_PERFORMANCE_LIMITS.maximumCo2BurstDurationMs} ms.`,
         'Atmosphere recedes in the pre-drop and breakdown instead of becoming permanent gray output.',
         'All plume behavior is virtual DRMVYZ visualization and remains subordinate to final blackout authority.',
+        'Four-bar atmosphere motifs, eight-bar capped recruitment, and sixteen-bar evolution remain below the authored haze and burst limits.',
       ],
     },
   }

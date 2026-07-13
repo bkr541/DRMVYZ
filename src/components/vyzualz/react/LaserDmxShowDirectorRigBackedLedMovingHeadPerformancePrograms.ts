@@ -724,12 +724,19 @@ function movingDrop(dropTwo: boolean): LaserDmxShowDirectorPerformanceScene {
           { ...headMutation(`${id}-wide-sweep`, 'allHeads', { enabled: true, brightness: 0.88, fanSpread: 24, movementStyle: 'smoothSweep' }), motifFamily: 'wide-sweep' },
           { ...headMutation(`${id}-alternating-sweep`, 'allHeads', { enabled: true, brightness: 0.9, fanSpread: 20, movementStyle: 'figureEight' }), motifFamily: 'alternating-sweep' },
         ],
-    barMutations: dropTwo
-      ? [
-          ...headPathMutations(`${id}-cross-bar`, PATH_CROSSING, { brightness: 0.9, color: CYAN, spread: 28, focus: 0.88, style: 'figureEight' }).map(item => ({ ...item, intervalBars: 2, anchorBar: 0 })),
-          ...headPathMutations(`${id}-radial-bar`, PATH_RADIAL, { brightness: 0.92, color: EMERALD, spread: 34, focus: 0.86, style: 'smoothSweep' }).map(item => ({ ...item, intervalBars: 2, anchorBar: 1 })),
-        ]
-      : [],
+    barMutations: [
+      ...(dropTwo
+        ? [
+            ...headPathMutations(`${id}-cross-bar`, PATH_CROSSING, { brightness: 0.9, color: CYAN, spread: 28, focus: 0.88, style: 'figureEight' }).map(item => ({ ...item, intervalBars: 2, anchorBar: 0 })),
+            ...headPathMutations(`${id}-radial-bar`, PATH_RADIAL, { brightness: 0.92, color: EMERALD, spread: 34, focus: 0.86, style: 'smoothSweep' }).map(item => ({ ...item, intervalBars: 2, anchorBar: 1 })),
+          ]
+        : []),
+      ...headPathMutations(
+        `${id}-stage-two-outer-path`,
+        (dropTwo ? PATH_RADIAL : PATH_CROSSING).filter(point => point.role === 'frontLeft' || point.role === 'frontRight'),
+        { brightness: dropTwo ? 0.98 : 0.94, color: EMERALD, spread: dropTwo ? 38 : 32, focus: 0.84, style: 'figureEight' },
+      ).map(item => ({ ...item, intervalBars: 8, anchorBar: 8 })),
+    ],
     eightBarRecruitment: [
       { ...headMutation(`${id}-inner-stage`, 'innerPrimary', { enabled: true, brightness: 0.84, color: CYAN, movementStyle: dropTwo ? 'figureEight' : 'smoothSweep' }), stage: 1, cumulative: true },
       { ...headMutation(`${id}-outer-stage`, 'outerHero', { enabled: true, brightness: 0.96, color: EMERALD, movementStyle: dropTwo ? 'figureEight' : 'smoothSweep' }), stage: 2, cumulative: true },

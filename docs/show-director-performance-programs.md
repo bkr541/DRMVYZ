@@ -422,45 +422,71 @@ The current browser application remains virtual-first. Canvas2D display output a
 
 ## Final rendered visual hierarchy and validation
 
-The final Canvas2D finish carries semantic beam roles from the performance resolver through the Show Director compiler and Beam Matrix compiler into the renderer. The roles are not interchangeable brightness labels:
+Patch 5 closes the rig-backed conversion sequence with one deterministic acceptance path for all ten built-in Performance Shows. It audits authored state, transient runtime state, the Show Director compiler, Beam Matrix compilation, the production Canvas2D beam and fog renderers, persistence boundaries, and static source-rig immutability. Fixture-state tests remain useful, but they are not accepted as a substitute for rendered inspection.
 
-- **Hero** beams own the main architecture, fan edges, and structural anchors. They receive the strongest saturated body, brightest controlled core, and highest ordinary beam priority.
-- **Primary** beams form the readable fan body and repeated architectural lines. They retain a saturated body and clear core without competing with hero beams.
-- **Secondary** beams add depth, diagonal banks, cage edges, and supporting geometry with narrower cores and lower glow.
-- **Texture** beams provide the quietest detail layer. They are the first visual layer removed under beam-budget pressure.
-- **Impact** beams are bounded transient accents with a whiter core and slightly stronger source bloom. Impact styling does not replace the surrounding bank colors and does not promote the entire frame to gray-white haze.
+### Canonical ten-show library
 
-The renderer uses three controlled line passes: a narrow screen-composited glow, a saturated source-over body, and a tinted bright core. Core white mixing is role dependent instead of universal. Fog and persistence are capped by the active performance scene, so dense frames retain ray separation rather than relying on wider blur. Performance haze may reduce an authored static fog level, but safety blackout and user blackout authority remain unchanged.
+The `Performance Shows` category contains exactly these stable built-in definitions:
 
-Fixture origins use one deduplicated source bloom per fixture or co-located fixture bank. The bloom selects the strongest active role at that source, scales with beam intensity, fixture brightness, and global intensity, and remains below the renderer's bounded source radius. Multiple rays sharing one origin therefore read as attached to a small bright lens rather than accumulating into a large diffuse cloud.
+| Performance Show | Program identifier | Source Rig Layout |
+| --- | --- | --- |
+| Prism Cathedral | `prism-cathedral` | Authored showcase rig |
+| Cardinal Fan Reactor | `cardinal-fan-reactor` | Authored showcase rig |
+| Cyan Mirror Cage | `cyan-mirror-cage` | Authored showcase rig |
+| Small Club Performance | `small-club-rig-performance` | `small-club-rig` |
+| Festival Front Beams Performance | `festival-front-beams-performance` | `festival-front-beams` |
+| Dubstep Drop Lasers Performance | `dubstep-drop-lasers-performance` | `dubstep-drop-lasers` |
+| LED Bar Grid Performance | `led-bar-grid-performance` | `led-bar-grid` |
+| Moving Head Sweep Performance | `moving-head-sweep-performance` | `moving-head-sweep` |
+| Strobe + Blinder Performance | `strobe-blinder-hits-performance` | `strobe-blinder-hits` |
+| Haze + CO2 Performance | `haze-co2-drops-performance` | `haze-co2-drops` |
 
-### Palette and negative-space rules
+The seven source Rig Layout cards remain in `Rig Layouts`, retain their original identifiers and editable fixture data, and never receive transient playback mutations. Loading, seeking, looping, reloading, or switching a Performance Show creates an independent rig instance and cannot alter a source template or a saved static project.
 
-Prism Cathedral uses cyan and magenta as the dominant pair, lavender as support, and white only for bounded crowns, spears, or impacts. Cardinal Fan Reactor keeps quadrant ownership: cyan or blue above, orange or red below, blue or violet left, magenta right, with one white impact ray per principal bank. Cyan Mirror Cage uses cyan and icy blue walls plus restrained lavender or white accents.
+### Render hierarchy, palette, and negative space
 
-Ordinary scenes prefer one or two dominant colors and one accent. Full multicolor allocation is reserved for evolved Drop 2 structures or bounded impact moments. The local target geometry from the first remediation patch remains authoritative after every visual-role mutation.
+Semantic beam roles survive the resolver, Show Director compiler, Beam Matrix compiler, and Canvas2D renderer:
 
-Negative space is authored as structure:
+- **Hero** owns outer architecture, dominant fan edges, and major anchors.
+- **Primary** owns the readable motif body.
+- **Secondary** adds depth and supporting banks.
+- **Texture** is decorative detail and is removed first under budget pressure.
+- **Impact** is a bounded transient layer with a brighter core and controlled source bloom.
 
-- Prism Cathedral protects a composed center around its X, diamond, crown, and lower-wing geometry.
-- Cardinal Fan Reactor protects a central aperture between top, bottom, left, and right local fan banks.
-- Cyan Mirror Cage protects a dark central corridor while upper, middle, and lower mirrored roles remain visible.
+The renderer uses a narrow glow pass, a saturated body pass, and a tinted bright core. White mixing is role dependent rather than universal. One deduplicated source bloom is emitted per fixture or co-located bank, preventing multi-ray origins from accumulating into oversized blurry clouds. Ordinary scenes prefer one or two dominant colors plus one subordinate accent. White is reserved for bounded impacts, crowns, spears, strobes, blinders, and virtual plume highlights.
 
-### Deterministic rendered review
+Negative space is authored geometry, not accidental darkness. Prism Cathedral protects a composed center, Cardinal Fan Reactor protects a four-bank aperture, Cyan Mirror Cage protects its central corridor, Small Club protects a compact tunnel opening, Festival Front Beams frames a clean stage center, and Dubstep Drop Lasers keeps gate and cross banks locally sourced rather than forming a global wireframe web.
 
-Run:
+The compiler remains hard-capped at 300 beams. Hero and primary survive first, secondary follows, and texture is shed before structural rays. Haze, persistence, glow, cone opacity, and source bloom stay scene bounded. Safety blackout, user blackout, renderer disposal, and fail-dark output authority remain final.
+
+### Mixed-fixture boundaries
+
+Mixed-fixture programs use only properties already supported by their fixture kinds:
+
+- LED bars and tubes use enabled state, brightness, color, and the existing chase direction. Row, column, diagonal, checker, and full-grid ownership is authored through stable fixture banks.
+- Moving heads use existing target, spread, focus, rotation, movement style, color, and brightness. Beat accents preserve phrase motion rather than replacing the active path.
+- Strobes and blinders are scheduler-owned transient actions. Strobes are capped at 100 ms in the dedicated show, blinders at 250 ms, and neither is continuously enabled as a scene body state.
+- Haze is capped below 0.65 in validation, with authored fixture haze capped at 0.62. Simulated CO2-style bursts are capped at 700 ms in validation and three simultaneous virtual plume sources.
+
+These are virtual Canvas2D performance visualizations. They do not add or imply physical lighting, laser, DMX, or atmospheric-effect control.
+
+### Deterministic 100-frame review
+
+Run the complete review with one command:
 
 ```bash
 npm run visual:show-director
 ```
 
-The command bundles only the visual-review entry with the repository's existing esbuild dependency, launches the existing Playwright Chromium project, renders through the production Canvas2D fog and Beam Matrix functions, and writes uncommitted artifacts to:
+The command extends the existing Playwright and Canvas2D review path. It bundles the review page with the repository's existing esbuild dependency, launches the existing Chromium project, renders production Beam Matrix and fog output, and writes uncommitted artifacts to:
 
 ```text
 artifacts/show-director-visual-review/
 ```
 
-Each preset receives ten 640×360 PNG frames plus entries in `report.json`:
+Generated artifacts are ignored by the repository and are not committed. The output contains 100 PNG screenshots, 100 per-frame JSON reports, `report.json`, and `counts.json`.
+
+Every show is evaluated at:
 
 1. Intro
 2. Verse
@@ -473,18 +499,70 @@ Each preset receives ten 640×360 PNG frames plus entries in `report.json`:
 9. Drop 2 body
 10. Outro
 
-The deterministic synthetic track uses 120 BPM, 4/4 time, seed `0x5a17cafe`, and explicit section spans from 0 to 108 seconds. Every report entry records preset and frame IDs, time, section, macro bar, authored fixture count, active source count, compiled beam count, active motif, recruitment stage, geometry metrics, and rendered pixel metrics.
+The synthetic review track is 140 seconds at 120 BPM and 4/4, with deterministic seed `0x5a17cafe`. It deliberately uses four-second fine Track Map entries grouped into longer macro sections. This verifies that short fine sections do not reset the four-bar clock or prevent the second eight-bar recruitment stage. Macro spans are Intro 0-16, Verse 16-32, Build 32-48, Pre-drop 48-52, Drop 1 52-76, Breakdown 76-92, Drop 2 92-124, and Outro 124-140 seconds.
 
-Geometry assertions cover distinguishable origins, active source count, angular diversity, protected-zone occupancy, central aperture or corridor preservation, left/right symmetry, saturation, luminance, black-frame ratio, adjacent-beat difference, four-bar difference, Drop-to-Verse density, Drop 2 structural growth, dominant-color count, and hero-to-texture brightness ratio. Browser assertions additionally measure visible-pixel luminance, lit-pixel ratio, black-frame ratio, saturation, and high-luminance source-bloom occupancy.
+Each report entry records show name, source Rig Layout when applicable, Performance Program identifier, track assumptions, deterministic seed, fine and macro section, beat, absolute and macro bar, four-bar index, eight-bar index, sixteen-bar index, drop occurrence, recruitment stage, active motif, active fixture count, compiled and visible beam counts where applicable, fixture-native effect counts, visual metrics, and screenshot/report paths.
 
-Generated PNGs and reports are review artifacts and are not production UI overlays. They are not committed unless a future repository-wide visual-baseline convention explicitly adopts them.
+The harness performs a deterministic compiler pre-roll before the captured boundary and then evaluates the higher-energy hit or bounded release sample. This mirrors production travel and release envelopes without advancing by wall time, prevents isolated first-frame grow routes from collapsing to their origins, and remains reproducible across seeks and repeated runs.
 
-### Built-in acceptance criteria
+### Visual and choreography metrics
 
-**Prism Cathedral** must render mirrored cyan and magenta architecture, a readable X or diamond, lower wings, bright controlled origins, and a composed center. Its breakdown uses sparse white or lavender full-length spears.
+State, geometry, and rendered-pixel assertions cover:
 
-**Cardinal Fan Reactor** must render four identifiable local origins and fan banks around a clean aperture. Drop 1 owns strong quadrant colors. Drop 2 adds diagonal banks and radial density while preserving source and aperture clarity.
+- Distinguishable fixture origins and active source count
+- Active fixture count, compiled beam count, and semantic beam-role counts
+- Beam angular diversity and geometry signature
+- Protected-zone occupancy and center aperture or corridor preservation
+- Frame luminance, visible luminance, saturation, dominant-color ownership, and black-frame ratio
+- Left-right and top-bottom symmetry
+- Hero-to-texture brightness ratio and source-bloom occupancy
+- Beat-to-beat, kick-to-snare, four-bar, and eight-bar differences
+- Drop-to-Verse density and Drop 2-to-Drop 1 structural difference
+- LED row, column, color, and brightness ownership
+- Moving-head bank, target, spread, and path signatures
+- Strobe, blinder, and virtual plume activation counts and durations
+- Haze occupancy and outro release
+- Static source-rig immutability and cross-show runtime isolation
 
-**Cyan Mirror Cage** must render balanced mirrored cyan walls, inward arrowheads or X geometry, distinct upper, middle, and lower roles, and a protected dark corridor. White impacts may punctuate the frame but cannot erase the corridor.
+The assertions detect long accidental darkness, many-bar state stagnation, shared global wireframe geometry, hidden origins, washed sustained body color, oversized source blooms, missing event distinction, unreachable recruitment, duplicate Drop 2 structure, continuous impact fixtures, excessive haze, and transient state leaking into static rigs.
 
-All three shows remain under the 300-beam hard limit. Hero and primary identity survive budget pressure, secondary structure follows, and texture or decorative detail is shed first.
+A bounded Drop 1 or Drop 2 white impact may use a slightly higher bright-pixel allowance than a body frame. The next body frame remains subject to the stricter saturation and wash thresholds, so a legitimate short impact cannot disguise a sustained gray or pastel scene.
+
+### Acceptance criteria by show
+
+**Prism Cathedral** renders deliberate cathedral X, diamond, crown, and lower-wing architecture; keeps local origins and a composed center; maintains sparse visible breakdown spears; and returns with an evolved Drop 2.
+
+**Cardinal Fan Reactor** renders identifiable top, bottom, left, and right local fan banks around a protected aperture; preserves quadrant color ownership; and uses a bounded white impact before returning to saturated Drop 2 structure.
+
+**Cyan Mirror Cage** renders balanced mirrored cyan walls, distinct upper, middle, and lower roles, inward chevrons or X geometry, and a protected dark corridor through both drops.
+
+**Small Club Performance** renders compact local fans, mirrored tunnel or aperture geometry, distinct upper and lower roles, controlled dense drops, a sparse breakdown, and a second-drop tunnel expansion.
+
+**Festival Front Beams Performance** renders wide local fan banks, hero outer edges, layered primary rays, clean stage-center framing, progressive recruitment, and a larger diagonal or radial Drop 2.
+
+**Dubstep Drop Lasers Performance** renders visibly different kick gates and snare crosses, perceptible every-beat motion, aggressive coherent local geometry, short purposeful cuts, bounded strobe/blinder/plume accents, and an evolved second drop.
+
+**LED Bar Grid Performance** renders stable row and column ownership, separated kick and snare regions, progressive build recruitment, a broad Drop 1, sparse breakdown, and diagonal, checker, or mirrored Drop 2 structure. Full-grid white remains quarter-beat bounded.
+
+**Moving Head Sweep Performance** renders smooth phrase paths, distinguishable left and right banks, beat accents that preserve motion, build compression, drop expansion, deterministic seek positions, and an eight-bar outer-bank path evolution in both drops.
+
+**Strobe + Blinder Performance** renders no continuous activation, separate kick, snare, downbeat, and side ownership, short full-frame impacts, a sparse breakdown, explicit four-bar call/response, reachable eight-bar bank expansion, bounded sixteen-bar evolution, and a larger but still capped Drop 2.
+
+**Haze + CO2 Performance** renders restrained atmosphere, progressive build haze, bounded drop-support plumes, reduced breakdown haze, explicit four-bar plume motifs, reachable eight-bar atmosphere expansion, capped sixteen-bar evolution, stronger Drop 2 support, and a clean zero-haze outro release.
+
+### Persistence, seeking, looping, and regression contract
+
+Program identity, intensity, variation, seed, source linkage, selection, reload state, and invalidation identity use the existing persistence model. Seeking or looping reconstructs the same section occurrence, motif, recruitment stage, fixture targets, effect envelopes, and compiled output from transport time and lifecycle identity. Runtime compiler state is isolated per review resolution and per loaded show. No production debug overlay, center-canvas control, renderer replacement, dependency, or second timing engine is introduced.
+
+The final regression contract is:
+
+1. Seven static Rig Layouts remain static, editable, and independently selectable.
+2. Seven rig-backed Performance Shows load separately from their source layouts.
+3. All ten Performance Shows resolve deterministically and preserve local geometry.
+4. Four-bar continuity and eight-bar recruitment survive short Track Map entries.
+5. Beat behavior animates coherent motifs, with distinguishable kick and snare ownership where supported.
+6. Breakdowns stay intentional, blackouts stay short, and outros release cleanly.
+7. Drop 2 changes structure rather than merely increasing brightness.
+8. Beam hierarchy, negative space, mixed-fixture property boundaries, bounded effects, and the 300-beam ceiling remain enforced.
+9. Safety blackout remains dominant.
+10. The three original showcase Performance Shows remain regression protected by the same 100-frame rendered review.
