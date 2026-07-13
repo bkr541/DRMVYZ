@@ -245,8 +245,29 @@ function PerformanceProgramControls() {
           <div><dt>Scene</dt><dd>{status.scene ?? 'Authored rig'}</dd></div>
           <div><dt>Variation</dt><dd>{status.fourBarVariation ?? status.variation ?? 'Base'}</dd></div>
           <div><dt>8-bar Stage</dt><dd>{status.eightBarRecruitmentStage || 0}</dd></div>
-          <div><dt>Fixture Groups</dt><dd>{status.activeFixtureGroupCount}</dd></div>
-          <div><dt>Beam Demand</dt><dd>{status.estimatedBeamDemand}{status.boundedBeamDemand !== status.estimatedBeamDemand ? ` → ${status.boundedBeamDemand}` : ''}</dd></div>
+          {status.effectCountReport?.mode === 'ledGrid' ? (
+            <>
+              <div><dt>Active LEDs</dt><dd>{status.effectCountReport.activeLedFixtureCount}</dd></div>
+              <div><dt>Rows / Columns</dt><dd>{status.effectCountReport.activeRowCount} / {status.effectCountReport.activeColumnCount}</dd></div>
+              <div><dt>Colors</dt><dd>{status.effectCountReport.simultaneousColorCount}</dd></div>
+              <div><dt>Brightness Min / Avg / Max</dt><dd>{status.effectCountReport.brightnessHierarchy.minimum} / {status.effectCountReport.brightnessHierarchy.average} / {status.effectCountReport.brightnessHierarchy.maximum}</dd></div>
+              <div><dt>Impact Duration</dt><dd>{status.effectCountReport.impactDurationBeats} beat</dd></div>
+            </>
+          ) : status.effectCountReport?.mode === 'movingHead' ? (
+            <>
+              <div><dt>Active Heads</dt><dd>{status.effectCountReport.activeMovingHeadCount}</dd></div>
+              <div><dt>Movement Banks</dt><dd>{status.effectCountReport.activeMovementBankCount}</dd></div>
+              <div><dt>Movement Spread</dt><dd>{status.effectCountReport.representativeMovementSpread}°</dd></div>
+              <div><dt>Mirrored Participation</dt><dd>{status.effectCountReport.mirroredPairParticipation}</dd></div>
+              <div><dt>Impact Duration</dt><dd>{status.effectCountReport.impactDurationBeats} beat</dd></div>
+              <div><dt>Head Beam Count</dt><dd>{status.effectCountReport.legitimateBeamCount ?? 0}</dd></div>
+            </>
+          ) : (
+            <>
+              <div><dt>Fixture Groups</dt><dd>{status.activeFixtureGroupCount}</dd></div>
+              <div><dt>Beam Demand</dt><dd>{status.estimatedBeamDemand}{status.boundedBeamDemand !== status.estimatedBeamDemand ? ` → ${status.boundedBeamDemand}` : ''}</dd></div>
+            </>
+          )}
           <div><dt>Analysis</dt><dd>{status.analysisStatus === 'ready' ? 'Ready' : status.analysisStatus === 'partial' ? 'Partial' : 'Fallback'}</dd></div>
         </dl>
         {status.missingCapabilities.length > 0 && (

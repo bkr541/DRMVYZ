@@ -95,12 +95,12 @@ function context(timeSec: number, seekIdentity = 'seek:initial', loopIdentity = 
 }
 
 describe('rig-backed Performance Show architecture foundation', () => {
-  it('registers three authored laser shows while keeping four later conversions hidden', () => {
+  it('registers five authored shows while keeping two later conversions hidden', () => {
     expect(Object.keys(LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS)).toHaveLength(7)
-    expect(Object.values(LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS).filter(item => item.status === 'available')).toHaveLength(3)
-    expect(Object.values(LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS).filter(item => item.status === 'foundation')).toHaveLength(4)
-    expect(LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_PRESETS).toHaveLength(3)
-    expect(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS).toHaveLength(6)
+    expect(Object.values(LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS).filter(item => item.status === 'available')).toHaveLength(5)
+    expect(Object.values(LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS).filter(item => item.status === 'foundation')).toHaveLength(2)
+    expect(LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_PRESETS).toHaveLength(5)
+    expect(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS).toHaveLength(8)
     expect(LASER_DMX_SHOW_DIRECTOR_TEMPLATES).toHaveLength(7)
   })
 
@@ -187,7 +187,7 @@ describe('rig-backed Performance Show architecture foundation', () => {
 
   it('suppresses unknown or foundation-only Performance Program IDs safely', () => {
     const unknown = normalizeLaserDmxShowDirectorPerformanceState({ enabled: true, activeProgramId: 'unknown-program' })
-    const foundation = normalizeLaserDmxShowDirectorPerformanceState({ enabled: true, activeProgramId: 'led-bar-grid-performance', activeBuiltInProgramId: 'led-bar-grid-performance' })
+    const foundation = normalizeLaserDmxShowDirectorPerformanceState({ enabled: true, activeProgramId: 'strobe-blinder-hits-performance', activeBuiltInProgramId: 'strobe-blinder-hits-performance' })
     expect(unknown).toMatchObject({ enabled: false, activeProgramDefinition: null, activeProgramId: null })
     expect(foundation).toMatchObject({ enabled: false, activeProgramDefinition: null, activeProgramId: null })
     expect(createDefaultLaserDmxShowDirectorPerformanceState().enabled).toBe(false)
@@ -198,6 +198,7 @@ describe('rig-backed Performance Show architecture foundation', () => {
     expect(available.map(entry => entry.id)).toEqual([
       'prism-cathedral', 'cardinal-fan-reactor', 'cyan-mirror-cage',
       'small-club-rig-performance', 'festival-front-beams-performance', 'dubstep-drop-lasers-performance',
+      'led-bar-grid-performance', 'moving-head-sweep-performance',
     ])
     for (const entry of available) {
       const before = JSON.stringify(entry.program)
@@ -207,7 +208,7 @@ describe('rig-backed Performance Show architecture foundation', () => {
   })
 
   it('keeps foundation definitions out of registration until a program factory is authored', () => {
-    const definition = getRigBackedPerformanceShowDefinition('led-bar-grid-performance')!
+    const definition = getRigBackedPerformanceShowDefinition('strobe-blinder-hits-performance')!
     expect(createRigBackedPerformancePresetDefinition(definition)).toBeNull()
     expect(definition.createProgram).toBeNull()
   })

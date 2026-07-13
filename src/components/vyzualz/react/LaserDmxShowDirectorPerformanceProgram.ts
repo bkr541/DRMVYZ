@@ -20,6 +20,10 @@ import {
   createFestivalFrontBeamsPerformanceProgram,
   createSmallClubPerformanceProgram,
 } from './LaserDmxShowDirectorRigBackedLaserPerformancePrograms'
+import {
+  createLedBarGridPerformanceProgram,
+  createMovingHeadSweepPerformanceProgram,
+} from './LaserDmxShowDirectorRigBackedLedMovingHeadPerformancePrograms'
 
 export const LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PROGRAM_SCHEMA_VERSION = 3
 export const LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_STATE_SCHEMA_VERSION = 1
@@ -484,8 +488,8 @@ export const LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY: Readonly<Rec
   'small-club-rig-performance': Object.freeze({ id: 'small-club-rig-performance', name: 'Small Club Performance', status: 'available', program: createSmallClubPerformanceProgram() }),
   'festival-front-beams-performance': Object.freeze({ id: 'festival-front-beams-performance', name: 'Festival Front Beams Performance', status: 'available', program: createFestivalFrontBeamsPerformanceProgram() }),
   'dubstep-drop-lasers-performance': Object.freeze({ id: 'dubstep-drop-lasers-performance', name: 'Dubstep Drop Lasers Performance', status: 'available', program: createDubstepDropLasersPerformanceProgram() }),
-  'led-bar-grid-performance': Object.freeze({ id: 'led-bar-grid-performance', name: 'LED Bar Grid Performance', status: 'foundation', program: null }),
-  'moving-head-sweep-performance': Object.freeze({ id: 'moving-head-sweep-performance', name: 'Moving Head Sweep Performance', status: 'foundation', program: null }),
+  'led-bar-grid-performance': Object.freeze({ id: 'led-bar-grid-performance', name: 'LED Bar Grid Performance', status: 'available', program: createLedBarGridPerformanceProgram() }),
+  'moving-head-sweep-performance': Object.freeze({ id: 'moving-head-sweep-performance', name: 'Moving Head Sweep Performance', status: 'available', program: createMovingHeadSweepPerformanceProgram() }),
   'strobe-blinder-hits-performance': Object.freeze({ id: 'strobe-blinder-hits-performance', name: 'Strobe + Blinder Hits Performance', status: 'foundation', program: null }),
   'haze-co2-drops-performance': Object.freeze({ id: 'haze-co2-drops-performance', name: 'Haze + CO₂ Drops Performance', status: 'foundation', program: null }),
 })

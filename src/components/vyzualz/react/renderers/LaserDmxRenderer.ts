@@ -500,6 +500,7 @@ export function renderLaserDmx(
     publishLaserDmxShowDirectorPerformanceRuntimeStatus(
       performanceState.activeProgramDefinition?.name ?? performanceState.activeProgramId ?? 'Performance Show',
       performanceResolution,
+      performanceState.activeProgramId,
     )
     performanceStatusCanvas.add(ctx)
   } else if (params.thumbnailLaserDmxSettings == null && performanceStatusCanvas.has(ctx)) {

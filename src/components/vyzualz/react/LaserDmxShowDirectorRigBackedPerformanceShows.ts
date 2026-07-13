@@ -17,6 +17,12 @@ import {
   FESTIVAL_FRONT_BEAMS_PERFORMANCE_BANKS,
   SMALL_CLUB_PERFORMANCE_BANKS,
 } from './LaserDmxShowDirectorRigBackedLaserPerformancePrograms'
+import {
+  createLedBarGridPerformanceProgram,
+  createMovingHeadSweepPerformanceProgram,
+  LED_BAR_GRID_PERFORMANCE_BANKS,
+  MOVING_HEAD_SWEEP_PERFORMANCE_BANKS,
+} from './LaserDmxShowDirectorRigBackedLedMovingHeadPerformancePrograms'
 import type {
   LaserDmxShowDirectorAuthoredFixtureBankMetadata,
   LaserDmxShowDirectorAuthoredFixtureBankRole,
@@ -52,6 +58,17 @@ export interface LaserDmxShowDirectorPerformanceBudgetMetadata {
   maxHazeAmount?: number
 }
 
+export type LaserDmxShowDirectorRigPerformanceEffectCountMode = 'ledGrid' | 'movingHead'
+
+export interface LaserDmxShowDirectorRigPerformanceEffectCountMetadata {
+  mode: LaserDmxShowDirectorRigPerformanceEffectCountMode
+  countedFixtureKinds: LaserDmxShowDirectorFixtureKind[]
+  movementBankKeys?: string[]
+  mirroredFixturePairs?: Array<readonly [string, string]>
+  maxImpactDurationBeats: number
+  presetChipLabel: string
+}
+
 export interface LaserDmxShowDirectorVisualValidationMetadata {
   requiredBankRoles: string[]
   negativeSpaceRules: string[]
@@ -75,6 +92,7 @@ export interface LaserDmxShowDirectorRigBackedPerformanceShowDefinition {
   supportedFixtureKinds: LaserDmxShowDirectorFixtureKind[]
   fixtureBanks: Record<string, LaserDmxShowDirectorAuthoredFixtureBankMetadata>
   visualValidation: LaserDmxShowDirectorVisualValidationMetadata
+  effectCountReporting?: LaserDmxShowDirectorRigPerformanceEffectCountMetadata
   version: number
   migration?: LaserDmxShowDirectorRigBackedPerformanceMigrationMetadata
   status: 'foundation' | 'available'
@@ -287,16 +305,39 @@ export const LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS: Readonly<Reco
     },
   }),
   'led-bar-grid-performance': definition({
-    id: 'led-bar-grid-performance', displayName: 'LED Bar Grid Performance', description: 'Authored full-song conversion foundation for the LED bar and tube grid.', sourceRigLayoutId: 'led-bar-grid', performanceProgramId: 'led-bar-grid-performance', version: 1,
-    supportedFixtureKinds: ['ledBar', 'ledTube'], fixtureBanks: {
-      hero: bank('hero', ['top-bar-2', 'mid-bar-2']), primary: bank('primary', ['top-bar-1', 'top-bar-3', 'mid-bar-1', 'mid-bar-3']), texture: bank('texture', ['tube-l-1', 'tube-l-2', 'tube-r-1', 'tube-r-2']), top: bank('top', ['top-bar-1', 'top-bar-2', 'top-bar-3']), center: bank('center', ['mid-bar-1', 'mid-bar-2', 'mid-bar-3']), left: bank('left', ['top-bar-1', 'mid-bar-1', 'tube-l-1', 'tube-l-2']), right: bank('right', ['top-bar-3', 'mid-bar-3', 'tube-r-1', 'tube-r-2']), outer: bank('outer', ['tube-l-1', 'tube-l-2', 'tube-r-1', 'tube-r-2']), kick: bank('kick', ['mid-bar-1', 'mid-bar-3']), hat: bank('hat', ['top-bar-1', 'top-bar-3']), downbeat: bank('downbeat', ['top-bar-2', 'mid-bar-2']),
-    }, visualValidation: { requiredBankRoles: ['hero', 'primary', 'texture', 'top', 'center'], negativeSpaceRules: ['Keep cell-chase patterns readable as discrete horizontal and vertical structures.'], acceptanceNotes: ['LED direction changes must not be represented as laser fan geometry.'], budgets: definePerformanceBudgets({ maxBeamDemand: 0 }) },
+    id: 'led-bar-grid-performance', displayName: 'LED Bar Grid Performance',
+    description: 'Rhythmic authored LED architecture with explicit row, column, diagonal, checker, texture, and bounded full-grid impact ownership.',
+    sourceRigLayoutId: 'led-bar-grid', performanceProgramId: 'led-bar-grid-performance', version: 2,
+    supportedFixtureKinds: ['ledBar', 'ledTube'], fixtureBanks: LED_BAR_GRID_PERFORMANCE_BANKS,
+    createProgram: createLedBarGridPerformanceProgram,
+    effectCountReporting: {
+      mode: 'ledGrid', countedFixtureKinds: ['ledBar', 'ledTube'], maxImpactDurationBeats: 0.25,
+      presetChipLabel: 'LED grid metrics',
+    },
+    visualValidation: {
+      requiredBankRoles: ['lowerRowKick', 'upperRowSnare', 'leftColumnResponse', 'rightColumnResponse', 'innerGridPrimary', 'outerGridHero', 'diagonalA', 'diagonalB', 'textureTransient', 'fullGridImpact'],
+      negativeSpaceRules: ['Keep row, column, diagonal, and checker ownership readable; full-grid white may appear only as a bounded impact.'],
+      acceptanceNotes: ['LED actions are limited to enabled state, brightness, color, and supported chase direction.', 'No LED fixture receives laser targets, fan geometry, or beam-travel actions.'],
+      budgets: definePerformanceBudgets({ maxBeamDemand: 0 }),
+    },
   }),
   'moving-head-sweep-performance': definition({
-    id: 'moving-head-sweep-performance', displayName: 'Moving Head Sweep Performance', description: 'Authored full-song conversion foundation for mirrored moving-head motion and wash support.', sourceRigLayoutId: 'moving-head-sweep', performanceProgramId: 'moving-head-sweep-performance', version: 1,
-    supportedFixtureKinds: ['movingHead', 'parWash'], fixtureBanks: {
-      hero: bank('hero', ['sweep-head-fl', 'sweep-head-fr']), primary: bank('primary', ['sweep-head-bl', 'sweep-head-br']), movement: bank('movement', ['sweep-head-fl', 'sweep-head-fr', 'sweep-head-bl', 'sweep-head-br']), atmosphere: bank('atmosphere', ['sweep-wash']), left: bank('left', ['sweep-head-fl', 'sweep-head-bl']), right: bank('right', ['sweep-head-fr', 'sweep-head-br']), top: bank('top', ['sweep-head-bl', 'sweep-head-br']), bottom: bank('bottom', ['sweep-head-fl', 'sweep-head-fr']), kick: bank('kick', ['sweep-head-fl', 'sweep-head-fr']), downbeat: bank('downbeat', ['sweep-head-bl', 'sweep-head-br']),
-    }, visualValidation: { requiredBankRoles: ['hero', 'primary', 'movement', 'left', 'right'], negativeSpaceRules: ['Mirrored sweeps must cross deliberately without collapsing into one shared target knot.'], acceptanceNotes: ['Movement style remains moving-head behavior, not laser-only targeting.'], budgets: definePerformanceBudgets({ maxBeamDemand: 56 }) },
+    id: 'moving-head-sweep-performance', displayName: 'Moving Head Sweep Performance',
+    description: 'Phrase-driven authored moving-head choreography with mirrored sides, controlled compression, broad expansion, and evolved crossing motion.',
+    sourceRigLayoutId: 'moving-head-sweep', performanceProgramId: 'moving-head-sweep-performance', version: 2,
+    supportedFixtureKinds: ['movingHead', 'parWash'], fixtureBanks: MOVING_HEAD_SWEEP_PERFORMANCE_BANKS,
+    createProgram: createMovingHeadSweepPerformanceProgram,
+    effectCountReporting: {
+      mode: 'movingHead', countedFixtureKinds: ['movingHead'], movementBankKeys: ['leftMovement', 'rightMovement', 'innerPrimary', 'outerHero'],
+      mirroredFixturePairs: [['sweep-head-fl', 'sweep-head-fr'], ['sweep-head-bl', 'sweep-head-br']],
+      maxImpactDurationBeats: 0.25, presetChipLabel: '≤4 head beams',
+    },
+    visualValidation: {
+      requiredBankRoles: ['leftMovement', 'rightMovement', 'innerPrimary', 'outerHero', 'upperRear', 'kickAccent', 'snareAccent', 'downbeatImpact', 'breakdownIsolation'],
+      negativeSpaceRules: ['Left and right paths remain distinguishable; crossings are authored phrase shapes rather than a shared target knot.'],
+      acceptanceNotes: ['Beat accents preserve the active path and affect brightness or color only.', 'Moving-head targets, spread, focus, rotation, and movement style remain within existing renderer support.'],
+      budgets: definePerformanceBudgets({ maxBeamDemand: 4 }),
+    },
   }),
   'strobe-blinder-hits-performance': definition({
     id: 'strobe-blinder-hits-performance', displayName: 'Strobe + Blinder Hits Performance', description: 'Authored full-song conversion foundation for a bounded impact-only fixture layer.', sourceRigLayoutId: 'strobe-blinder-hits', performanceProgramId: 'strobe-blinder-hits-performance', version: 1,

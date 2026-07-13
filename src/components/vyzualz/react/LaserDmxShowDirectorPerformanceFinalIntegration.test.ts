@@ -23,6 +23,8 @@ import {
   type LaserDmxShowDirectorPerformancePresetDefinition,
 } from './LaserDmxShowDirectorPerformancePresets'
 import { resolveLaserDmxShowDirectorPerformance } from './LaserDmxShowDirectorPerformanceResolver'
+import { getRigBackedPerformanceShowDefinition } from './LaserDmxShowDirectorRigBackedPerformanceShows'
+import { createRigBackedPerformanceEffectCountReport } from './LaserDmxShowDirectorRigPerformanceInspection'
 import { compileLaserDmxBeamMatrix, resetBeamMatrixCompilerState } from './renderers/LaserDmxBeamMatrixCompiler'
 import { compileLaserDmxShowDirectorToBeamMatrix } from './renderers/LaserDmxShowDirectorBeamMatrixCompiler'
 import {
@@ -218,7 +220,14 @@ describe('Show Director performance final integration', () => {
       expect(compiled.beams.length).toBeLessThanOrEqual(300)
       expect(first.boundedBeamDemand).toBeLessThanOrEqual(300)
     }
-    expect(peak).toBeLessThanOrEqual(preset.approximatePeakBeamDemand)
+    const rigBackedDefinition = getRigBackedPerformanceShowDefinition(preset.id)
+    if (rigBackedDefinition?.effectCountReporting?.mode === 'ledGrid') {
+      const ledReport = createRigBackedPerformanceEffectCountReport(preset.id, resolvePreset(preset, 128.1).showDirector)
+      expect(ledReport?.legitimateBeamCount).toBeNull()
+      expect(ledReport?.activeLedFixtureCount).toBeGreaterThan(0)
+    } else {
+      expect(peak).toBeLessThanOrEqual(preset.approximatePeakBeamDemand)
+    }
     expect(resolvePreset(preset, 128.1).currentSectionOccurrence).toBe(2)
     expect(resolvePreset(preset, 88.1, false).activeSceneId).toContain('drop-1')
   })

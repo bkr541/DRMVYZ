@@ -29,6 +29,7 @@ export interface LaserDmxShowDirectorPerformancePresetDefinition {
   musicIntelligenceCapabilities: string[]
   fixtureCount: number
   approximatePeakBeamDemand: number
+  effectCountLabel?: string
   sourceRigLayoutId?: string
   rigBackedShowVersion?: number
   createRig: (createId: () => string) => LaserDmxShowDirectorState
@@ -56,6 +57,7 @@ export function createRigBackedPerformancePresetDefinition(
     musicIntelligenceCapabilities: ['Beat Grid', 'Rhythm Events', 'Sections', 'Energy'],
     fixtureCount: canonicalRig.fixtures.length,
     approximatePeakBeamDemand: definition.visualValidation.budgets.maxBeamDemand ?? 0,
+    effectCountLabel: definition.effectCountReporting?.presetChipLabel,
     sourceRigLayoutId: definition.sourceRigLayoutId,
     rigBackedShowVersion: definition.version,
     createRig: createId => definition.createCanonicalRig(createId) as LaserDmxShowDirectorState,

@@ -170,7 +170,7 @@ The three shows intentionally use different fixture families, addressing pattern
 
 Loading a Performance Show installs its authored rig and a cloned program definition. Reloading reapplies the built-in rig and program, increments runtime invalidation, and clears stale runtime state. Disabling or clearing a program restores authored Show Director behavior without deleting the rig. User fixture edits mark the loaded preset dirty but are never overwritten by transient runtime mutations.
 
-The compact status surface reports current section, occurrence, scene, four-bar variation, eight-bar recruitment stage, beam demand, and capability or fallback diagnostics. It uses a fingerprinted external-store snapshot rather than raw audio-frame React state. No center-canvas control overlay is used.
+The compact status surface reports current section, occurrence, scene, four-bar variation, eight-bar recruitment stage, fixture-aware effect counts, and capability or fallback diagnostics. Laser shows retain beam-demand reporting. LED shows report active fixtures, rows, columns, colors, impact duration, and brightness hierarchy. Moving-head shows report active heads, movement banks, representative spread, mirrored-pair participation, bounded impact duration, and only the beam geometry legitimately produced by moving heads. It uses a fingerprinted external-store snapshot rather than raw audio-frame React state. No center-canvas control overlay is used.
 
 ## Static Rig Layouts and rig-backed Performance Shows
 
@@ -178,15 +178,17 @@ A static Rig Layout remains an editable Show Director authoring preset. Loading 
 
 A rig-backed Performance Show is a separate authored show definition. It links a Performance Show identifier to one canonical built-in Rig Layout and one dedicated Performance Program identifier. The base rig is recreated through the existing Rig Layout factory, then normalized into an independent performance-owned instance. The performance runtime never mutates the source template, a saved static layout, or another loaded instance.
 
-The seven conversion foundations are registered in `LaserDmxShowDirectorRigBackedPerformanceShows.ts` with status `foundation`:
+The seven conversion definitions are registered in `LaserDmxShowDirectorRigBackedPerformanceShows.ts`. Five are complete and selectable:
 
 1. Small Club Rig Performance
 2. Festival Front Beams Performance
 3. Dubstep Drop Lasers Performance
 4. LED Bar Grid Performance
 5. Moving Head Sweep Performance
-6. Strobe + Blinder Hits Performance
-7. Haze + CO₂ Drops Performance
+The remaining two definitions stay at status `foundation` until their authored programs are supplied:
+
+1. Strobe + Blinder Hits Performance
+2. Haze + CO₂ Drops Performance
 
 Foundation-only definitions are intentionally omitted from the Performance Shows browser. A definition becomes selectable only after it has an authored program factory and its status changes to `available`. This preserves canonical preset selection and avoids empty or duplicate cards.
 
@@ -212,7 +214,7 @@ Output authority remains: safety blackout, explicit cue/transport or authored bl
 
 `LaserDmxShowDirectorRigPerformanceInspection.ts` produces development/test reports for all seven sources, including fixture IDs and semantic keys, fixture kinds, groups, beam/non-beam counts, supported authored properties, local targets, candidate authored banks, and unsupported-property warnings. It does not create a production overlay.
 
-The planned sequence is: establish this shared foundation, author the laser-forward source shows, author the mixed movement/LED shows, author the impact/atmosphere shows, then perform final integration and visual validation. Each later conversion supplies its own scenes, transient choreography, palette hierarchy, recruitment order, budgets, negative-space rules, and blackout policy.
+The implemented sequence is: shared foundation, three laser-forward source shows, then the LED-grid and moving-head shows. The remaining sequence is to author the impact/atmosphere shows, then perform final integration and visual validation. Each conversion supplies its own scenes, transient choreography, palette hierarchy, recruitment order, budgets, negative-space rules, and blackout policy.
 
 ## Authored rig-backed laser Performance Shows
 
@@ -288,6 +290,55 @@ All three programs respond deterministically to beat, kick, snare, available hat
 Hero beams retain outer architecture and dominant anchors. Primary beams own the central motif. Secondary beams add depth. Texture is discarded first under budget pressure. Impact fixtures are short-lived and bounded. Source blooms remain fixture-local and deduplicated. Each program authors a central aperture rather than relying on accidental darkness, and fixture-keyed targets prevent shared global polygons or wireframe webs.
 
 Static Rig Layout preservation is contractual: the seven original template definitions, names, identifiers, fixture properties, and Rig Layout browser cards are not modified by program playback or registration. The new shows appear only in the Performance Shows category and use canonical preset selection and the existing performance controls.
+
+## Authored LED-grid and moving-head Performance Shows
+
+Patch 3 activates the two non-laser architectural source rigs as complete authored Performance Shows. They use the same macro musical clock, section occurrence model, resolver, persistence, seeking, looping, and safety-blackout authority as the laser shows, but their actions remain fixture-native. LED fixtures are not converted into laser rays, and moving heads are not given simulated capabilities beyond the existing target, spread, focus, rotation, color, brightness, and movement-style fields.
+
+### LED Bar Grid Performance
+
+**Source Rig Layout:** `led-bar-grid`
+
+LED Bar Grid Performance is a rhythmic architectural wall. The ten canonical LED fixtures are addressed through stable semantic keys rather than inferred coordinates. Its primary banks are:
+
+- `lowerRowKick`: the three middle bars and lower side tubes.
+- `upperRowSnare`: the three top bars and upper side tubes.
+- `leftColumnResponse` and `rightColumnResponse`: mirrored call-and-response columns.
+- `innerGridPrimary`: the two center bars used for restrained scenes and pre-drop compression.
+- `outerGridHero`: the outer bars and four tubes that form broad drop architecture.
+- `diagonalA`, `diagonalB`, `checkerA`, and `checkerB`: four-bar and Drop 2 structural variations.
+- `textureTransient`: narrow high-frequency detail.
+- `fullGridImpact`: all ten LEDs, reserved for a maximum quarter-beat white impact.
+
+The intro begins with the center bars and recruits only a quiet outer whisper. Verse establishes cyan and emerald row-column ownership. Build recruits center, upper, lower, and outer banks across successive macro bars. Pre-drop compresses toward the center strip and permits only the authored half-beat final cut. Drop 1 uses broad row, column, and mirrored architecture with separated kick and snare ownership. Breakdown isolates a sparse row or column while remaining visibly intentional. Drop 2 adds diagonal and checker alternation rather than merely raising brightness. Outro releases the grid in ordered stages.
+
+Ordinary scenes use one or two dominant colors, usually cyan and emerald, with blue, violet, or magenta used as a subordinate accent. Full-grid white is bounded to 0.25 beat. Runtime validation reports active LED fixture count, distinct active rows and columns, simultaneous colors, maximum impact duration, and minimum/average/maximum brightness. It intentionally does not expose the Beam Matrix segment total as an LED beam count.
+
+Representative full Drop 2 validation resolves all 10 LED fixtures across 4 source rows and 5 source columns, with no more than 3 simultaneous colors and a non-flat brightness hierarchy. All LED actions are limited to enabled state, brightness, color, and the existing LED chase-direction field. No target points, fan spread, beam travel, or laser appearance actions are authored.
+
+### Moving Head Sweep Performance
+
+**Source Rig Layout:** `moving-head-sweep`
+
+Moving Head Sweep Performance is a phrase-driven four-head movement system with a subordinate PAR wash. Its authored banks are:
+
+- `leftMovement` and `rightMovement`: distinguishable side ownership.
+- `innerPrimary` and `outerHero`: restrained center motion versus broad hero expansion.
+- `upperRear`: the rear pair used for phrase depth and intro recruitment.
+- `kickAccent` and `snareAccent`: separate beat-response pairs that modify brightness or color without replacing the active path.
+- `downbeatImpact`: all four heads for a bounded quarter-beat impact.
+- `breakdownIsolation`: a single rear head that keeps breakdown motion intentional.
+- `washTexture`: the existing PAR wash, kept subordinate to the moving-head architecture.
+
+The intro uses one rear head, then recruits its mirrored partner. Verse establishes a stable mirrored phrase sweep. Build progressively recruits the rear and front pairs while compressing targets inward. Pre-drop holds a narrow fixed center position. Drop 1 expands all four heads into a broad synchronized path with side-specific beat accents. Breakdown returns to one isolated slow bank before a restrained answer. Drop 2 changes to crossing, radial, and figure-eight path families with wider spread and full mirrored-pair participation. Outro returns smoothly toward the opening mirrored shape and releases banks in stages.
+
+Movement targets are changed at bar, four-bar, eight-bar, sixteen-bar, or section timescales. Beat, kick, and snare mutations accent brightness and color, preserving the current phrase path and avoiding random teleportation. Seeking and looping reconstruct target points, spread, focus, rotation, movement style, color, and brightness deterministically from the playhead and lifecycle identities.
+
+Representative Drop 2 validation resolves 4 active moving heads, all 4 members of the two mirrored pairs, at least 2 active movement-bank classifications, a representative spread above 20 degrees, a maximum impact duration of 0.25 beat, and 4 legitimate moving-head beam sources. The PAR wash is reported as texture rather than a moving-head or laser beam.
+
+### Supported-property and preservation boundaries
+
+Both programs are schema-version-3 authored programs with complete intro, verse, build, pre-drop, Drop 1, breakdown, Drop 2, and outro scenes. They respond at beat, rhythm-event, bar, four-bar, eight-bar, phrase, section, and repeated-drop timescales. Capability inspection must report no unsupported fixture-action warnings. Resolver diagnostics must report no incompatible writes. The original `LED Bar Grid` and `Moving Head Sweep` static Rig Layout templates remain byte-equivalent before and after performance registration, cloning, playback, seeking, and looping.
 
 ## Persistence and migration
 

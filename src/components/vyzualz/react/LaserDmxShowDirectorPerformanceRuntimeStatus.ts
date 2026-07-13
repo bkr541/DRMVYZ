@@ -1,5 +1,9 @@
 import { useSyncExternalStore } from 'react'
 import type { LaserDmxShowDirectorPerformanceSectionType } from './LaserDmxShowDirectorPerformanceProgram'
+import {
+  createRigBackedPerformanceEffectCountReport,
+  type LaserDmxShowDirectorRigPerformanceEffectCountReport,
+} from './LaserDmxShowDirectorRigPerformanceInspection'
 import type {
   LaserDmxShowDirectorPerformanceAnalysisStatus,
   LaserDmxShowDirectorPerformanceResolution,
@@ -17,6 +21,7 @@ export interface LaserDmxShowDirectorPerformanceRuntimeStatusSnapshot {
   activeFixtureGroupCount: number
   estimatedBeamDemand: number
   boundedBeamDemand: number
+  effectCountReport: LaserDmxShowDirectorRigPerformanceEffectCountReport | null
   analysisReady: boolean
   analysisStatus: LaserDmxShowDirectorPerformanceAnalysisStatus
   missingCapabilities: string[]
@@ -37,6 +42,7 @@ const EMPTY_SNAPSHOT: LaserDmxShowDirectorPerformanceRuntimeStatusSnapshot = Obj
   activeFixtureGroupCount: 0,
   estimatedBeamDemand: 0,
   boundedBeamDemand: 0,
+  effectCountReport: null,
   analysisReady: false,
   analysisStatus: 'fallback',
   missingCapabilities: [],
@@ -61,6 +67,7 @@ function statusFingerprint(value: LaserDmxShowDirectorPerformanceRuntimeStatusSn
     value.activeFixtureGroupCount,
     value.estimatedBeamDemand,
     value.boundedBeamDemand,
+    value.effectCountReport ? JSON.stringify(value.effectCountReport) : '',
     value.analysisReady,
     value.analysisStatus,
     value.missingCapabilities.join(','),
@@ -73,6 +80,7 @@ function statusFingerprint(value: LaserDmxShowDirectorPerformanceRuntimeStatusSn
 export function publishLaserDmxShowDirectorPerformanceRuntimeStatus(
   performanceShowName: string,
   resolution: LaserDmxShowDirectorPerformanceResolution,
+  performanceShowId?: string | null,
 ): void {
   const next: LaserDmxShowDirectorPerformanceRuntimeStatusSnapshot = {
     active: resolution.activeSceneId !== null,
@@ -86,6 +94,9 @@ export function publishLaserDmxShowDirectorPerformanceRuntimeStatus(
     activeFixtureGroupCount: resolution.activeGroupKeys.length,
     estimatedBeamDemand: resolution.estimatedBeamDemand,
     boundedBeamDemand: resolution.boundedBeamDemand,
+    effectCountReport: performanceShowId
+      ? createRigBackedPerformanceEffectCountReport(performanceShowId, resolution.showDirector)
+      : null,
     analysisReady: resolution.diagnostics.analysisReady,
     analysisStatus: resolution.diagnostics.analysisStatus,
     missingCapabilities: [...resolution.diagnostics.missingCapabilities],
@@ -100,6 +111,7 @@ export function publishLaserDmxShowDirectorPerformanceRuntimeStatus(
       resolution.eightBarRecruitmentStage,
       resolution.activeGroupKeys.join(','),
       resolution.estimatedBeamDemand,
+      performanceShowId ?? '',
       resolution.diagnostics.analysisReady,
       resolution.diagnostics.analysisStatus,
       resolution.diagnostics.missingCapabilities.join(','),

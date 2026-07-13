@@ -12,7 +12,7 @@ import { buildLaserDmxShowDirectorPerformanceContext, type LaserDmxShowDirectorP
 import { resolveLaserDmxShowDirectorPerformance, type LaserDmxShowDirectorPerformanceResolution } from './LaserDmxShowDirectorPerformanceResolver'
 import {
   createLaserDmxShowDirectorPerformancePresetLoadResult,
-  LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS,
+  LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS as ALL_PERFORMANCE_PRESETS,
   type LaserDmxShowDirectorPerformancePresetDefinition,
 } from './LaserDmxShowDirectorPerformancePresets'
 import { createDefaultLaserDmxShowDirectorPerformanceState } from './LaserDmxShowDirectorPerformanceProgram'
@@ -30,6 +30,12 @@ const SECTIONS: ReactTrackSection[] = [
   { id: 'drop-2', label: 'Drop 2', type: 'drop', startSec: 128, endSec: 160, intensity: 1, source: 'auto', confidence: 1 },
   { id: 'outro', label: 'Outro', type: 'outro', startSec: 160, endSec: 176, intensity: 0.24, source: 'auto', confidence: 1 },
 ]
+
+const SHOWCASE_PERFORMANCE_PRESETS = ALL_PERFORMANCE_PRESETS.filter(preset => (
+  preset.id === 'prism-cathedral'
+  || preset.id === 'cardinal-fan-reactor'
+  || preset.id === 'cyan-mirror-cage'
+))
 
 function sectionAt(timeSec: number): ReactTrackSection {
   return SECTIONS.find(section => timeSec >= section.startSec && timeSec < section.endSec) ?? SECTIONS[SECTIONS.length - 1]
@@ -238,15 +244,12 @@ const REQUIRED_SECTIONS: ReactSectionType[] = ['intro', 'verse', 'build', 'preDr
 
 describe('Show Director showcase performance shows', () => {
   it('registers complete canonical cards with accurate authored metadata', () => {
-    expect(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.map(preset => preset.name)).toEqual([
+    expect(SHOWCASE_PERFORMANCE_PRESETS.map(preset => preset.name)).toEqual([
       'Prism Cathedral',
       'Cardinal Fan Reactor',
       'Cyan Mirror Cage',
-      'Small Club Performance',
-      'Festival Front Beams Performance',
-      'Dubstep Drop Lasers Performance',
     ])
-    for (const preset of LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS) {
+    for (const preset of SHOWCASE_PERFORMANCE_PRESETS) {
       const rig = preset.createRig(deterministicIdFactory(`${preset.id}-metadata`))
       const program = preset.createProgram()
       expect(rig.fixtures).toHaveLength(preset.fixtureCount)
@@ -264,7 +267,7 @@ describe('Show Director showcase performance shows', () => {
   })
 
   it('keeps fixture and group semantic keys stable across recreation, normalization, loading, and reloading', () => {
-    for (const preset of LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS) {
+    for (const preset of SHOWCASE_PERFORMANCE_PRESETS) {
       const first = preset.createRig(deterministicIdFactory(`${preset.id}-first`))
       const second = preset.createRig(deterministicIdFactory(`${preset.id}-second`))
       expect(first.fixtures.map(fixture => fixture.semanticKey)).toEqual(second.fixtures.map(fixture => fixture.semanticKey))
@@ -283,7 +286,7 @@ describe('Show Director showcase performance shows', () => {
     }
   })
 
-  describe.each(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS)('$name', (preset: LaserDmxShowDirectorPerformancePresetDefinition) => {
+  describe.each(SHOWCASE_PERFORMANCE_PRESETS)('$name', (preset: LaserDmxShowDirectorPerformancePresetDefinition) => {
     it('changes perceptible parameters on every consecutive beat and reacts independently to kick and snare', () => {
       for (const startSec of [0, 16, 48, 72, 80, 112, 128, 160]) {
         const beatA = resolvePreset(preset, startSec + 0.1)
@@ -410,12 +413,12 @@ describe('Show Director showcase performance shows', () => {
   })
 
   it('produces structurally different drop programs for every registered show', () => {
-    const signatures = LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.map(preset => activeSignature(resolvePreset(preset, 88.1)))
-    expect(new Set(signatures).size).toBe(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.length)
+    const signatures = SHOWCASE_PERFORMANCE_PRESETS.map(preset => activeSignature(resolvePreset(preset, 88.1)))
+    expect(new Set(signatures).size).toBe(SHOWCASE_PERFORMANCE_PRESETS.length)
   })
 
   it('keeps every registered show visible when Variation Amount is zero', () => {
-    for (const preset of LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS) {
+    for (const preset of SHOWCASE_PERFORMANCE_PRESETS) {
       const program = preset.createProgram()
       const resolution = resolveLaserDmxShowDirectorPerformance({
         authoredShowDirector: preset.createRig(deterministicIdFactory(`${preset.id}-variation-zero`)),
@@ -445,7 +448,7 @@ describe('Show Director showcase performance shows', () => {
       resolvedSections: extendedSections,
       trackIdentity: 'showcase-drop-three',
     })
-    for (const preset of LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS) {
+    for (const preset of SHOWCASE_PERFORMANCE_PRESETS) {
       const program = preset.createProgram()
       const result = resolveLaserDmxShowDirectorPerformance({
         authoredShowDirector: preset.createRig(deterministicIdFactory(`${preset.id}-drop-three`)),
@@ -472,7 +475,7 @@ describe('Show Director showcase performance shows', () => {
       trackIdentity: 'showcase-energy-only',
     })
     expect(context.dropOccurrence).toBe(0)
-    for (const preset of LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS) {
+    for (const preset of SHOWCASE_PERFORMANCE_PRESETS) {
       const program = preset.createProgram()
       const result = resolveLaserDmxShowDirectorPerformance({
         authoredShowDirector: preset.createRig(deterministicIdFactory(`${preset.id}-energy-only`)),
@@ -489,7 +492,7 @@ describe('Show Director showcase performance shows', () => {
 
   it('keeps built-in output values in range and demonstrates broad Music Intelligence coverage', () => {
     const sources = new Set<string>()
-    for (const preset of LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS) {
+    for (const preset of SHOWCASE_PERFORMANCE_PRESETS) {
       const program = preset.createProgram()
       for (const scene of program.scenes) {
         if (scene.global?.globalGlow != null) expect(scene.global.globalGlow).toBeLessThanOrEqual(1)
@@ -515,7 +518,7 @@ describe('Show Director showcase performance shows', () => {
 
   describe('fixture-local geometry remediation', () => {
     it('authors fixture-keyed targets instead of shared complete polygons', () => {
-      for (const preset of LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS) {
+      for (const preset of SHOWCASE_PERFORMANCE_PRESETS) {
         const payloads = programPayloads(preset.createProgram())
           .filter(payload => payload.fixture?.targetPointsByFixtureSemanticKey)
         expect(payloads.length, preset.id).toBeGreaterThan(20)
@@ -532,7 +535,7 @@ describe('Show Director showcase performance shows', () => {
     })
 
     it('keeps Cardinal top, bottom, left, and right banks in separate readable sectors', () => {
-      const preset = LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.find(candidate => candidate.id === 'cardinal-fan-reactor')!
+      const preset = SHOWCASE_PERFORMANCE_PRESETS.find(candidate => candidate.id === 'cardinal-fan-reactor')!
       const result = resolvePreset(preset, 136.1)
       const top = fixtureByKey(result, 'cardinal-top-primary')!
       const bottom = fixtureByKey(result, 'cardinal-bottom-primary')!
@@ -577,7 +580,7 @@ describe('Show Director showcase performance shows', () => {
     })
 
     it('retains separate Prism Cathedral architectural roles without knotting lower wings into the upper X', () => {
-      const preset = LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.find(candidate => candidate.id === 'prism-cathedral')!
+      const preset = SHOWCASE_PERFORMANCE_PRESETS.find(candidate => candidate.id === 'prism-cathedral')!
       const result = resolvePreset(preset, 136.1)
       const upperInnerLeft = fixtureByKey(result, 'prism-upper-inner-left')!
       const upperInnerRight = fixtureByKey(result, 'prism-upper-inner-right')!
@@ -600,7 +603,7 @@ describe('Show Director showcase performance shows', () => {
     })
 
     it('keeps ordinary Cyan Mirror Cage beams out of the authored central corridor', () => {
-      const preset = LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.find(candidate => candidate.id === 'cyan-mirror-cage')!
+      const preset = SHOWCASE_PERFORMANCE_PRESETS.find(candidate => candidate.id === 'cyan-mirror-cage')!
       let ordinaryBeamCount = 0
       let violatingBeamCount = 0
       for (const timeSec of [4.1, 20.1, 56.1, 76.1, 88.1, 116.1, 136.1, 164.1]) {
@@ -619,7 +622,7 @@ describe('Show Director showcase performance shows', () => {
     })
 
     it('keeps mirrored Cyan cage sides balanced and reconstructs identical local targets after seeking', () => {
-      const preset = LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.find(candidate => candidate.id === 'cyan-mirror-cage')!
+      const preset = SHOWCASE_PERFORMANCE_PRESETS.find(candidate => candidate.id === 'cyan-mirror-cage')!
       const direct = resolvePreset(preset, 136.1)
       const sought = resolvePreset(preset, 136.1, { previous: contextAt(164.1), seekIdentity: 'local-geometry-seek' })
       expect(sought.showDirector.fixtures.map(fixtureTargetSignature)).toEqual(direct.showDirector.fixtures.map(fixtureTargetSignature))

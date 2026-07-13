@@ -66,6 +66,12 @@ const EXPECTED = Object.freeze({
   center: { minX: number; maxX: number }
 }>)
 
+const LASER_PERFORMANCE_PRESETS = LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_PRESETS.filter(preset => (
+  preset.id === 'small-club-rig-performance'
+  || preset.id === 'festival-front-beams-performance'
+  || preset.id === 'dubstep-drop-lasers-performance'
+))
+
 function sectionAt(timeSec: number): ReactTrackSection {
   return SECTIONS.find(section => timeSec >= section.startSec && timeSec < section.endSec) ?? SECTIONS[SECTIONS.length - 1]
 }
@@ -239,12 +245,12 @@ function targetSignature(fixture: LaserDmxShowDirectorFixture): string {
 describe('authored rig-backed laser Performance Shows', () => {
   it('registers exactly the three canonical laser conversions without mutating static Rig Layout presets', () => {
     const before = JSON.stringify(LASER_DMX_SHOW_DIRECTOR_TEMPLATES)
-    expect(LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_PRESETS.map(preset => preset.name)).toEqual([
+    expect(LASER_PERFORMANCE_PRESETS.map(preset => preset.name)).toEqual([
       'Small Club Performance',
       'Festival Front Beams Performance',
       'Dubstep Drop Lasers Performance',
     ])
-    for (const preset of LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_PRESETS) {
+    for (const preset of LASER_PERFORMANCE_PRESETS) {
       const expected = EXPECTED[preset.id as keyof typeof EXPECTED]
       expect(expected).toBeDefined()
       expect(preset.sourceRigLayoutId).toBe(expected.sourceRigLayoutId)
@@ -254,7 +260,7 @@ describe('authored rig-backed laser Performance Shows', () => {
     expect(JSON.stringify(LASER_DMX_SHOW_DIRECTOR_TEMPLATES)).toBe(before)
   })
 
-  for (const preset of LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_PRESETS) {
+  for (const preset of LASER_PERFORMANCE_PRESETS) {
     const expected = EXPECTED[preset.id as keyof typeof EXPECTED]
 
     describe(preset.name, () => {

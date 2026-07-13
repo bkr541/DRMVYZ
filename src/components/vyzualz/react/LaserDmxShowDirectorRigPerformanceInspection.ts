@@ -1,12 +1,15 @@
 import type {
   LaserDmxShowDirectorFixture,
   LaserDmxShowDirectorFixtureKind,
+  LaserDmxShowDirectorState,
 } from './ReactTypes'
 import {
   LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS,
+  getRigBackedPerformanceShowDefinition,
   type LaserDmxShowDirectorRigBackedPerformanceShowDefinition,
   type LaserDmxShowDirectorSourceRigLayoutId,
 } from './LaserDmxShowDirectorRigBackedPerformanceShows'
+import { estimateLaserDmxShowDirectorFixtureBeamDemand } from './LaserDmxShowDirectorBeamBudget'
 
 export interface LaserDmxShowDirectorRigFixtureInspection {
   id: string
@@ -98,6 +101,71 @@ export function inspectRigBackedPerformanceShowSource(
       [...(bank.address.fixtureSemanticKeys ?? [])],
     ])),
     unsupportedPropertyWarnings,
+  }
+}
+
+
+export interface LaserDmxShowDirectorRigPerformanceEffectCountReport {
+  mode: 'ledGrid' | 'movingHead'
+  activeFixtureCount: number
+  activeLedFixtureCount: number
+  activeRowCount: number
+  activeColumnCount: number
+  simultaneousColorCount: number
+  activeMovingHeadCount: number
+  activeMovementBankCount: number
+  representativeMovementSpread: number
+  mirroredPairParticipation: number
+  impactDurationBeats: number
+  brightnessHierarchy: { minimum: number; average: number; maximum: number }
+  legitimateBeamCount: number | null
+}
+
+function roundedAverage(values: readonly number[]): number {
+  if (!values.length) return 0
+  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length * 100) / 100
+}
+
+export function createRigBackedPerformanceEffectCountReport(
+  showId: string,
+  state: LaserDmxShowDirectorState,
+): LaserDmxShowDirectorRigPerformanceEffectCountReport | null {
+  const definition = getRigBackedPerformanceShowDefinition(showId)
+  const metadata = definition?.effectCountReporting
+  if (!definition || !metadata) return null
+  const countedKinds = new Set(metadata.countedFixtureKinds)
+  const active = state.fixtures.filter(fixture => fixture.enabled && fixture.brightness > 0.04 && countedKinds.has(fixture.kind))
+  const activeKeys = new Set(active.map(fixture => fixture.semanticKey ?? fixture.id))
+  const led = active.filter(fixture => fixture.kind === 'ledBar' || fixture.kind === 'ledTube')
+  const heads = active.filter(fixture => fixture.kind === 'movingHead')
+  const brightness = active.map(fixture => fixture.brightness)
+  const activeMovementBankCount = (metadata.movementBankKeys ?? []).filter(bankKey => {
+    const bank = definition.fixtureBanks[bankKey]
+    return (bank?.address.fixtureSemanticKeys ?? []).some(key => activeKeys.has(key))
+  }).length
+  const mirroredPairParticipation = (metadata.mirroredFixturePairs ?? []).reduce((count, [left, right]) => (
+    count + (activeKeys.has(left) && activeKeys.has(right) ? 2 : 0)
+  ), 0)
+  return {
+    mode: metadata.mode,
+    activeFixtureCount: active.length,
+    activeLedFixtureCount: led.length,
+    activeRowCount: new Set(led.map(fixture => fixture.y.toFixed(3))).size,
+    activeColumnCount: new Set(led.map(fixture => fixture.x.toFixed(3))).size,
+    simultaneousColorCount: new Set(active.map(fixture => fixture.color.toLowerCase())).size,
+    activeMovingHeadCount: heads.length,
+    activeMovementBankCount,
+    representativeMovementSpread: roundedAverage(heads.map(fixture => fixture.beam.beamSpread)),
+    mirroredPairParticipation,
+    impactDurationBeats: metadata.maxImpactDurationBeats,
+    brightnessHierarchy: {
+      minimum: brightness.length ? Math.round(Math.min(...brightness) * 100) / 100 : 0,
+      average: roundedAverage(brightness),
+      maximum: brightness.length ? Math.round(Math.max(...brightness) * 100) / 100 : 0,
+    },
+    legitimateBeamCount: metadata.mode === 'movingHead'
+      ? heads.reduce((sum, fixture) => sum + estimateLaserDmxShowDirectorFixtureBeamDemand(fixture), 0)
+      : null,
   }
 }
 

@@ -537,7 +537,7 @@ function ShowDirectorPerformancePresets() {
                 thumbnail={<ShowDirectorPerformanceThumbnail preset={preset} />}
                 chips={[
                   { label: `${preset.fixtureCount} fixtures` },
-                  { label: `≈${preset.approximatePeakBeamDemand} beams` },
+                  { label: preset.effectCountLabel ?? `≈${preset.approximatePeakBeamDemand} beams` },
                   ...preset.genreTags.slice(0, 1).map(label => ({ label })),
                   ...preset.behaviorTags.slice(0, 1).map(label => ({ label })),
                   ...preset.musicIntelligenceCapabilities.slice(0, 1).map(label => ({ label, tone: 'mode' as const })),
