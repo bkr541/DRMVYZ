@@ -172,6 +172,48 @@ Loading a Performance Show installs its authored rig and a cloned program defini
 
 The compact status surface reports current section, occurrence, scene, four-bar variation, eight-bar recruitment stage, beam demand, and capability or fallback diagnostics. It uses a fingerprinted external-store snapshot rather than raw audio-frame React state. No center-canvas control overlay is used.
 
+## Static Rig Layouts and rig-backed Performance Shows
+
+A static Rig Layout remains an editable Show Director authoring preset. Loading one creates a normal authored rig, keeps its existing preset identifier and category, and clears any incompatible active Performance Show. Static layouts, saved user edits, and custom rigs are not rewritten by the performance system.
+
+A rig-backed Performance Show is a separate authored show definition. It links a Performance Show identifier to one canonical built-in Rig Layout and one dedicated Performance Program identifier. The base rig is recreated through the existing Rig Layout factory, then normalized into an independent performance-owned instance. The performance runtime never mutates the source template, a saved static layout, or another loaded instance.
+
+The seven conversion foundations are registered in `LaserDmxShowDirectorRigBackedPerformanceShows.ts` with status `foundation`:
+
+1. Small Club Rig Performance
+2. Festival Front Beams Performance
+3. Dubstep Drop Lasers Performance
+4. LED Bar Grid Performance
+5. Moving Head Sweep Performance
+6. Strobe + Blinder Hits Performance
+7. Haze + CO₂ Drops Performance
+
+Foundation-only definitions are intentionally omitted from the Performance Shows browser. A definition becomes selectable only after it has an authored program factory and its status changes to `available`. This preserves canonical preset selection and avoids empty or duplicate cards.
+
+### Canonical source-rig linkage
+
+Each definition records its source Rig Layout identifier, supported fixture kinds, version, migration metadata, authored fixture banks, validation metadata, and canonical rig factory. Fixture IDs are created per instance. Performance-facing semantic fixture keys are deterministically derived from the source fixture labels, so bank membership remains stable without changing the static template definition. Unknown source layouts fail closed and are not registered.
+
+### Authored fixture banks
+
+Fixture banks are explicit metadata, not runtime geometry guesses. Shared roles include hero, primary, secondary, texture, impact, kick, snare, hat/transient, downbeat, left/right, top/bottom, center, inner/outer, atmosphere, movement, strobe, blinder, and CO₂ impact. Programs may retain the compact `bankRoles` address map while also carrying richer `fixtureBanks` labels and descriptions. The resolver accepts either representation.
+
+### Mixed-fixture action boundaries
+
+Performance payloads may include typed `fixtureActions` for beam fixtures, moving heads, LED bars/tubes, strobes, blinders, washes, haze, and simulated CO₂ fixtures. Each action is applied only to compatible fixture kinds and only maps to properties already present in Show Director. Bounded strobe, blinder, and simulated CO₂ actions normalize their durations and feed existing trigger or component duration fields. Unsupported action-to-fixture combinations are reported in runtime diagnostics rather than being treated as laser behavior. No physical DMX or laser-output capability is added.
+
+### Musical clock and authority order
+
+Rig-backed shows reuse the existing Performance Context and macro musical clock: beat, downbeat, bar, four-bar, eight-bar, sixteen-bar/phrase, Track Map section, repeated-section occurrence, drop occurrence, seek, and loop identities. They do not create another timing engine.
+
+Output authority remains: safety blackout, explicit cue/transport or authored blackout, Performance Program behavior, fixture-authored values, then renderer defaults. Performance global overrides can add blackout or reduce output but cannot clear an authoritative blackout.
+
+### Development inspection and planned conversion sequence
+
+`LaserDmxShowDirectorRigPerformanceInspection.ts` produces development/test reports for all seven sources, including fixture IDs and semantic keys, fixture kinds, groups, beam/non-beam counts, supported authored properties, local targets, candidate authored banks, and unsupported-property warnings. It does not create a production overlay.
+
+The planned sequence is: establish this shared foundation, author the laser-forward source shows, author the mixed movement/LED shows, author the impact/atmosphere shows, then perform final integration and visual validation. Each later conversion supplies its own scenes, transient choreography, palette hierarchy, recruitment order, budgets, negative-space rules, and blackout policy.
+
 ## Persistence and migration
 
 Projects created before performance programs normalize to a disabled default state. Program definitions normalize to schema version 3, including bounded blackout windows, section energy envelopes, and bar-progression stages. A legacy built-in ID-only project hydrates a fresh cloned program from the current built-in registry. A missing or removed built-in ID is suppressed safely instead of appearing enabled without an executable program.

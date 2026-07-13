@@ -18,6 +18,7 @@ import type {
   LaserDmxShowDirectorGroupRuntimeOverrides,
   LaserDmxShowDirectorMusicIntelligenceCondition,
   LaserDmxShowDirectorMusicIntelligenceModulationReference,
+  LaserDmxShowDirectorMixedFixtureAction,
   LaserDmxShowDirectorPerformanceAddress,
   LaserDmxShowDirectorPerformanceBlackoutPolicy,
   LaserDmxShowDirectorPerformanceBeatMutation,
@@ -81,6 +82,7 @@ export interface LaserDmxShowDirectorPerformanceCapabilityDiagnostics {
   missingFixtureKeys: string[]
   missingGroupKeys: string[]
   malformedMutationIds: string[]
+  unsupportedFixtureActionIds?: string[]
   fallbackReason: string | null
   suppressionReason: string | null
   beamBudgetWarning: string | null
@@ -135,6 +137,7 @@ interface ResolverWork {
   missingFixtureKeys: Set<string>
   missingGroupKeys: Set<string>
   malformedMutationIds: Set<string>
+  unsupportedFixtureActionIds: Set<string>
   programmedBlackout: {
     kind: LaserDmxShowDirectorProgrammedBlackoutKind
     windowId: string
@@ -384,7 +387,7 @@ function addressMatchesFixture(
   }
   if (allowBankRoles && address.bankRoles?.length) {
     for (const role of address.bankRoles) {
-      const roleAddress = work.input.program?.bankRoles?.[role]
+      const roleAddress = work.input.program?.fixtureBanks?.[role]?.address ?? work.input.program?.bankRoles?.[role]
       if (!roleAddress) {
         work.missingGroupKeys.add(`bank-role:${role}`)
         checks.push(false)
@@ -605,6 +608,42 @@ function applyModulation(
   }
 }
 
+function mixedFixtureActionSupportsFixture(
+  action: LaserDmxShowDirectorMixedFixtureAction,
+  fixture: LaserDmxShowDirectorFixture,
+): boolean {
+  switch (action.kind) {
+    case 'beam': return fixture.kind === 'laser' || fixture.kind === 'movingHead'
+    case 'movingHead': return fixture.kind === 'movingHead'
+    case 'led': return fixture.kind === 'ledBar' || fixture.kind === 'ledTube'
+    case 'strobe': return fixture.kind === 'strobe'
+    case 'blinder': return fixture.kind === 'blinder'
+    case 'wash': return fixture.kind === 'parWash'
+    case 'haze': return fixture.kind === 'haze'
+    case 'co2': return fixture.kind === 'co2Jet'
+  }
+}
+
+function mixedFixtureActionOverrides(
+  action: LaserDmxShowDirectorMixedFixtureAction,
+): LaserDmxShowDirectorFixtureRuntimeOverrides {
+  const common: LaserDmxShowDirectorFixtureRuntimeOverrides = {
+    ...(action.enabled != null ? { enabled: action.enabled } : {}),
+    ...(action.brightness != null ? { brightness: action.brightness } : {}),
+    ...(action.color ? { color: action.color } : {}),
+  }
+  switch (action.kind) {
+    case 'beam': return { ...common, targetMode: action.targetMode, targetPoints: action.targetPoints, targetPosition: action.targetPosition, fanSpread: action.fanSpread, focus: action.focus, beamVisualRole: action.beamVisualRole, beamPriorityRole: action.beamPriorityRole, beamAppearance: action.beamAppearance, beamTravel: action.beamTravel }
+    case 'movingHead': return { ...common, targetMode: action.targetMode, targetPoints: action.targetPoints, fanSpread: action.fanSpread, focus: action.focus, rotation: action.rotation, component: action.movementStyle ? { movingHeadPanTiltStyle: action.movementStyle } : undefined }
+    case 'led': return { ...common, component: action.direction ? { ledDirection: action.direction } : undefined }
+    case 'strobe': return { ...common, ...(action.active != null ? { enabled: action.active } : {}), trigger: action.durationMs != null ? { fadeOutMs: action.durationMs } : undefined, component: action.rateHz != null ? { strobeRate: action.rateHz } : undefined, beamAppearance: action.rateHz != null ? { strobeRate: clamp(action.rateHz / 30, 0, 1) } : undefined }
+    case 'blinder': return { ...common, ...(action.active != null ? { enabled: action.active } : {}), trigger: action.durationMs != null ? { fadeOutMs: action.durationMs } : undefined }
+    case 'wash': return { ...common, fanSpread: action.fanSpread, focus: action.focus }
+    case 'haze': return { ...common, component: action.amount != null ? { hazeIntensity: action.amount } : undefined }
+    case 'co2': return { ...common, ...(action.active != null ? { enabled: action.active } : {}), ...(action.burstStrength != null ? { brightness: action.burstStrength } : {}), trigger: action.durationMs != null ? { fadeOutMs: action.durationMs } : undefined, component: action.durationMs != null ? { co2BurstDurationMs: action.durationMs } : undefined }
+  }
+}
+
 function applyPayload(
   payload: LaserDmxShowDirectorPerformanceMutationPayload,
   work: ResolverWork,
@@ -618,6 +657,16 @@ function applyPayload(
       ? applyFixtureOverrides(fixture, payload.fixture, mode, work.input.tuning.intensity * responseStrength, work)
       : fixture
     : fixture)
+
+  for (const action of payload.fixtureActions ?? []) {
+    let applied = false
+    fixtures = fixtures.map(fixture => {
+      if (!addressMatchesFixture(fixture, address, work) || !mixedFixtureActionSupportsFixture(action, fixture)) return fixture
+      applied = true
+      return applyFixtureOverrides(fixture, mixedFixtureActionOverrides(action), mode, work.input.tuning.intensity * responseStrength, work)
+    })
+    if (!applied) work.unsupportedFixtureActionIds.add(action.id)
+  }
 
   if (payload.group) {
     const addressedGroupIds = new Set(work.runtime.fixtures
@@ -952,6 +1001,7 @@ function resolveSceneStateWithoutTransitions(
     missingFixtureKeys: new Set(),
     missingGroupKeys: new Set(),
     malformedMutationIds: new Set(),
+    unsupportedFixtureActionIds: new Set(),
     programmedBlackout: null,
     visibleOutputRecovered: false,
   }
@@ -964,6 +1014,7 @@ function resolveSceneStateWithoutTransitions(
   neighbor.missingCapabilities.forEach(value => work.missingCapabilities.add(value))
   neighbor.missingFixtureKeys.forEach(value => work.missingFixtureKeys.add(value))
   neighbor.missingGroupKeys.forEach(value => work.missingGroupKeys.add(value))
+  neighbor.unsupportedFixtureActionIds.forEach(value => work.unsupportedFixtureActionIds.add(value))
   neighbor.malformedMutationIds.forEach(value => work.malformedMutationIds.add(value))
   return { state: neighbor.runtime, global: neighbor.global }
 }
@@ -1243,6 +1294,7 @@ function buildDiagnostics(
     missingFixtureKeys: [...work.missingFixtureKeys].sort(),
     missingGroupKeys: [...work.missingGroupKeys].sort(),
     malformedMutationIds: [...work.malformedMutationIds].sort(),
+    unsupportedFixtureActionIds: [...work.unsupportedFixtureActionIds].sort(),
     fallbackReason,
     suppressionReason,
     beamBudgetWarning: budget.overBudget
@@ -1294,6 +1346,7 @@ function unchangedResolution(
       missingFixtureKeys: [],
       missingGroupKeys: [],
       malformedMutationIds: [],
+      unsupportedFixtureActionIds: [],
       fallbackReason: null,
       suppressionReason,
       beamBudgetWarning: budget.overBudget ? `Requested ${budget.estimatedDemand} beams; bounded to ${budget.boundedDemand}.` : null,
@@ -1340,6 +1393,7 @@ export function resolveLaserDmxShowDirectorPerformance(
       missingFixtureKeys: new Set(),
       missingGroupKeys: new Set(),
       malformedMutationIds: new Set(),
+      unsupportedFixtureActionIds: new Set(),
       programmedBlackout: null,
       visibleOutputRecovered: false,
     }

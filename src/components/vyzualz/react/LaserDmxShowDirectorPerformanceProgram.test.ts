@@ -162,18 +162,22 @@ describe('Show Director performance-program foundation', () => {
     }
   })
 
-  it('registers the three finished built-in showcase programs', () => {
-    expect(Object.values(LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY).map(entry => entry.name)).toEqual([
+  it('keeps the three finished showcase programs available while reserving rig-backed foundation IDs', () => {
+    const entries = Object.values(LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY)
+    const available = entries.filter(entry => entry.status === 'available')
+    const foundations = entries.filter(entry => entry.status === 'foundation')
+    expect(available.map(entry => entry.name)).toEqual([
       'Prism Cathedral',
       'Cardinal Fan Reactor',
       'Cyan Mirror Cage',
     ])
-    expect(Object.values(LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY).every(entry => entry.status === 'available')).toBe(true)
-    expect(Object.values(LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY).map(entry => entry.program?.id)).toEqual([
+    expect(available.map(entry => entry.program?.id)).toEqual([
       'prism-cathedral',
       'cardinal-fan-reactor',
       'cyan-mirror-cage',
     ])
+    expect(foundations).toHaveLength(7)
+    expect(foundations.every(entry => entry.program === null)).toBe(true)
   })
 
   it('migrates existing state and round-trips performance state through persistence', () => {

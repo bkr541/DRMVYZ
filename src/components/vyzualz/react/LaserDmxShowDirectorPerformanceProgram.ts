@@ -23,6 +23,11 @@ export type LaserDmxShowDirectorPerformanceSectionType = ReactSectionType
 export type LaserDmxShowDirectorPerformanceMutationMode = 'set' | 'add' | 'multiply' | 'toggle'
 export type LaserDmxShowDirectorPerformanceTransitionCurve = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut' | 'step'
 export type LaserDmxShowDirectorPerformanceFallbackBehavior = 'authoredRig' | 'basicTiming' | 'programDefault'
+export type LaserDmxShowDirectorAuthoredFixtureBankRole =
+  | 'hero' | 'primary' | 'secondary' | 'texture' | 'impact'
+  | 'kick' | 'snare' | 'hat' | 'transient' | 'downbeat'
+  | 'left' | 'right' | 'top' | 'bottom' | 'center' | 'inner' | 'outer'
+  | 'atmosphere' | 'movement' | 'strobe' | 'blinder' | 'co2Impact'
 export type LaserDmxShowDirectorPerformanceEnergyEnvelopeKey =
   | 'intro'
   | 'verse'
@@ -78,6 +83,89 @@ export interface LaserDmxShowDirectorPerformanceAddress {
   bankRoles?: string[]
   match?: 'any' | 'all'
 }
+
+export interface LaserDmxShowDirectorAuthoredFixtureBankMetadata {
+  role: string
+  label?: string
+  description?: string
+  address: LaserDmxShowDirectorPerformanceAddress
+}
+
+interface LaserDmxShowDirectorMixedFixtureActionBase {
+  id: string
+  enabled?: boolean
+  brightness?: number
+  color?: string
+}
+
+export interface LaserDmxShowDirectorBeamFixtureAction extends LaserDmxShowDirectorMixedFixtureActionBase {
+  kind: 'beam'
+  targetMode?: LaserDmxShowDirectorBeamConfig['targetMode']
+  targetPoints?: LaserDmxShowDirectorBeamConfig['targets']
+  targetPosition?: { x: number; y: number; z?: number }
+  fanSpread?: number
+  focus?: number
+  beamVisualRole?: LaserDmxMatrixBeamVisualRole
+  beamPriorityRole?: LaserDmxShowDirectorBeamPriorityRole
+  beamAppearance?: Partial<LaserDmxMatrixBeamAppearance>
+  beamTravel?: Partial<LaserDmxBeamMotion>
+}
+
+export interface LaserDmxShowDirectorMovingHeadFixtureAction extends LaserDmxShowDirectorMixedFixtureActionBase {
+  kind: 'movingHead'
+  targetMode?: LaserDmxShowDirectorBeamConfig['targetMode']
+  targetPoints?: LaserDmxShowDirectorBeamConfig['targets']
+  fanSpread?: number
+  focus?: number
+  rotation?: number
+  movementStyle?: LaserDmxShowDirectorFixtureSpecificConfig['movingHeadPanTiltStyle']
+}
+
+export interface LaserDmxShowDirectorLedFixtureAction extends LaserDmxShowDirectorMixedFixtureActionBase {
+  kind: 'led'
+  direction?: LaserDmxShowDirectorFixtureSpecificConfig['ledDirection']
+}
+
+export interface LaserDmxShowDirectorStrobeFixtureAction extends LaserDmxShowDirectorMixedFixtureActionBase {
+  kind: 'strobe'
+  active?: boolean
+  rateHz?: number
+  durationMs?: number
+}
+
+export interface LaserDmxShowDirectorBlinderFixtureAction extends LaserDmxShowDirectorMixedFixtureActionBase {
+  kind: 'blinder'
+  active?: boolean
+  durationMs?: number
+}
+
+export interface LaserDmxShowDirectorWashFixtureAction extends LaserDmxShowDirectorMixedFixtureActionBase {
+  kind: 'wash'
+  fanSpread?: number
+  focus?: number
+}
+
+export interface LaserDmxShowDirectorHazeFixtureAction extends LaserDmxShowDirectorMixedFixtureActionBase {
+  kind: 'haze'
+  amount?: number
+}
+
+export interface LaserDmxShowDirectorCo2FixtureAction extends LaserDmxShowDirectorMixedFixtureActionBase {
+  kind: 'co2'
+  active?: boolean
+  burstStrength?: number
+  durationMs?: number
+}
+
+export type LaserDmxShowDirectorMixedFixtureAction =
+  | LaserDmxShowDirectorBeamFixtureAction
+  | LaserDmxShowDirectorMovingHeadFixtureAction
+  | LaserDmxShowDirectorLedFixtureAction
+  | LaserDmxShowDirectorStrobeFixtureAction
+  | LaserDmxShowDirectorBlinderFixtureAction
+  | LaserDmxShowDirectorWashFixtureAction
+  | LaserDmxShowDirectorHazeFixtureAction
+  | LaserDmxShowDirectorCo2FixtureAction
 
 export interface LaserDmxShowDirectorMusicIntelligenceCondition {
   source: string
@@ -147,6 +235,7 @@ export interface LaserDmxShowDirectorGlobalOutputOverrides {
 export interface LaserDmxShowDirectorPerformanceMutationPayload {
   address?: LaserDmxShowDirectorPerformanceAddress
   fixture?: LaserDmxShowDirectorFixtureRuntimeOverrides
+  fixtureActions?: LaserDmxShowDirectorMixedFixtureAction[]
   group?: LaserDmxShowDirectorGroupRuntimeOverrides
   global?: LaserDmxShowDirectorGlobalOutputOverrides
   conditions?: LaserDmxShowDirectorMusicIntelligenceCondition[]
@@ -337,6 +426,8 @@ export interface LaserDmxShowDirectorPerformanceProgram {
   scenes: LaserDmxShowDirectorPerformanceScene[]
   /** Reusable semantic bank roles used by payload addresses. */
   bankRoles?: Record<string, LaserDmxShowDirectorPerformanceAddress>
+  /** Rich authored bank metadata. bankRoles remains the compact compatibility address map. */
+  fixtureBanks?: Record<string, LaserDmxShowDirectorAuthoredFixtureBankMetadata>
   energyEnvelopes?: Partial<Record<LaserDmxShowDirectorPerformanceEnergyEnvelopeKey, LaserDmxShowDirectorSectionEnergyEnvelope>>
   blackoutPolicy?: LaserDmxShowDirectorPerformanceBlackoutPolicy
   fallbackOrder?: LaserDmxShowDirectorPerformanceSectionType[]
@@ -348,6 +439,13 @@ export type LaserDmxShowDirectorBuiltInPerformanceProgramId =
   | 'prism-cathedral'
   | 'cardinal-fan-reactor'
   | 'cyan-mirror-cage'
+  | 'small-club-rig-performance'
+  | 'festival-front-beams-performance'
+  | 'dubstep-drop-lasers-performance'
+  | 'led-bar-grid-performance'
+  | 'moving-head-sweep-performance'
+  | 'strobe-blinder-hits-performance'
+  | 'haze-co2-drops-performance'
 
 export interface LaserDmxShowDirectorBuiltInPerformanceRegistryEntry {
   id: LaserDmxShowDirectorBuiltInPerformanceProgramId
@@ -378,6 +476,13 @@ export const LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY: Readonly<Rec
     status: 'available',
     program: createCyanMirrorCageProgram(),
   }),
+  'small-club-rig-performance': Object.freeze({ id: 'small-club-rig-performance', name: 'Small Club Rig Performance', status: 'foundation', program: null }),
+  'festival-front-beams-performance': Object.freeze({ id: 'festival-front-beams-performance', name: 'Festival Front Beams Performance', status: 'foundation', program: null }),
+  'dubstep-drop-lasers-performance': Object.freeze({ id: 'dubstep-drop-lasers-performance', name: 'Dubstep Drop Lasers Performance', status: 'foundation', program: null }),
+  'led-bar-grid-performance': Object.freeze({ id: 'led-bar-grid-performance', name: 'LED Bar Grid Performance', status: 'foundation', program: null }),
+  'moving-head-sweep-performance': Object.freeze({ id: 'moving-head-sweep-performance', name: 'Moving Head Sweep Performance', status: 'foundation', program: null }),
+  'strobe-blinder-hits-performance': Object.freeze({ id: 'strobe-blinder-hits-performance', name: 'Strobe + Blinder Hits Performance', status: 'foundation', program: null }),
+  'haze-co2-drops-performance': Object.freeze({ id: 'haze-co2-drops-performance', name: 'Haze + CO₂ Drops Performance', status: 'foundation', program: null }),
 })
 
 export interface LaserDmxShowDirectorPerformanceState {
@@ -688,6 +793,40 @@ function normalizeComponent(raw: unknown): Partial<LaserDmxShowDirectorFixtureSp
   return Object.keys(component).length ? component : undefined
 }
 
+function normalizeMixedFixtureAction(raw: unknown, index: number): LaserDmxShowDirectorMixedFixtureAction | null {
+  if (!isRecord(raw)) return null
+  const id = cleanString(raw.id, `fixture-action-${index + 1}`, 96)
+  const kind = cleanString(raw.kind, '', 32)
+  if (!id || !['beam', 'movingHead', 'led', 'strobe', 'blinder', 'wash', 'haze', 'co2'].includes(kind)) return null
+  const common = {
+    id,
+    ...(typeof raw.enabled === 'boolean' ? { enabled: raw.enabled } : {}),
+    ...(optionalFinite(raw.brightness, 0, 2) != null ? { brightness: optionalFinite(raw.brightness, 0, 2) } : {}),
+    ...(cleanString(raw.color, '', 64) ? { color: cleanString(raw.color, '', 64) } : {}),
+  }
+  if (kind === 'beam') {
+    return {
+      ...common, kind,
+      ...(TARGET_MODES.has(raw.targetMode as LaserDmxShowDirectorBeamConfig['targetMode']) ? { targetMode: raw.targetMode as LaserDmxShowDirectorBeamConfig['targetMode'] } : {}),
+      ...(normalizeTargetPoints(raw.targetPoints) ? { targetPoints: normalizeTargetPoints(raw.targetPoints) } : {}),
+      ...(isRecord(raw.targetPosition) && optionalFinite(raw.targetPosition.x, -1024, 1024) != null && optionalFinite(raw.targetPosition.y, -1024, 1024) != null ? { targetPosition: { x: optionalFinite(raw.targetPosition.x, -1024, 1024)!, y: optionalFinite(raw.targetPosition.y, -1024, 1024)!, ...(optionalFinite(raw.targetPosition.z, -1, 1) != null ? { z: optionalFinite(raw.targetPosition.z, -1, 1) } : {}) } } : {}),
+      ...(optionalFinite(raw.fanSpread, 0, 180) != null ? { fanSpread: optionalFinite(raw.fanSpread, 0, 180) } : {}),
+      ...(optionalFinite(raw.focus, 0, 1) != null ? { focus: optionalFinite(raw.focus, 0, 1) } : {}),
+      ...(VISUAL_ROLES.has(raw.beamVisualRole as LaserDmxMatrixBeamVisualRole) ? { beamVisualRole: raw.beamVisualRole as LaserDmxMatrixBeamVisualRole } : {}),
+      ...(PRIORITY_ROLES.has(raw.beamPriorityRole as LaserDmxShowDirectorBeamPriorityRole) ? { beamPriorityRole: raw.beamPriorityRole as LaserDmxShowDirectorBeamPriorityRole } : {}),
+      ...(normalizeBeamAppearance(raw.beamAppearance) ? { beamAppearance: normalizeBeamAppearance(raw.beamAppearance) } : {}),
+      ...(normalizeBeamTravel(raw.beamTravel) ? { beamTravel: normalizeBeamTravel(raw.beamTravel) } : {}),
+    }
+  }
+  if (kind === 'movingHead') return { ...common, kind, ...(TARGET_MODES.has(raw.targetMode as LaserDmxShowDirectorBeamConfig['targetMode']) ? { targetMode: raw.targetMode as LaserDmxShowDirectorBeamConfig['targetMode'] } : {}), ...(normalizeTargetPoints(raw.targetPoints) ? { targetPoints: normalizeTargetPoints(raw.targetPoints) } : {}), ...(optionalFinite(raw.fanSpread, 0, 180) != null ? { fanSpread: optionalFinite(raw.fanSpread, 0, 180) } : {}), ...(optionalFinite(raw.focus, 0, 1) != null ? { focus: optionalFinite(raw.focus, 0, 1) } : {}), ...(optionalFinite(raw.rotation, -720, 720) != null ? { rotation: optionalFinite(raw.rotation, -720, 720) } : {}), ...(PAN_TILT_STYLES.has(raw.movementStyle as LaserDmxShowDirectorFixtureSpecificConfig['movingHeadPanTiltStyle']) ? { movementStyle: raw.movementStyle as LaserDmxShowDirectorFixtureSpecificConfig['movingHeadPanTiltStyle'] } : {}) }
+  if (kind === 'led') return { ...common, kind, ...(LED_DIRECTIONS.has(raw.direction as LaserDmxShowDirectorFixtureSpecificConfig['ledDirection']) ? { direction: raw.direction as LaserDmxShowDirectorFixtureSpecificConfig['ledDirection'] } : {}) }
+  if (kind === 'strobe') return { ...common, kind, ...(typeof raw.active === 'boolean' ? { active: raw.active } : {}), ...(optionalFinite(raw.rateHz, 0, 30) != null ? { rateHz: optionalFinite(raw.rateHz, 0, 30) } : {}), ...(optionalFinite(raw.durationMs, 1, 10_000) != null ? { durationMs: optionalFinite(raw.durationMs, 1, 10_000) } : {}) }
+  if (kind === 'blinder') return { ...common, kind, ...(typeof raw.active === 'boolean' ? { active: raw.active } : {}), ...(optionalFinite(raw.durationMs, 1, 10_000) != null ? { durationMs: optionalFinite(raw.durationMs, 1, 10_000) } : {}) }
+  if (kind === 'wash') return { ...common, kind, ...(optionalFinite(raw.fanSpread, 0, 180) != null ? { fanSpread: optionalFinite(raw.fanSpread, 0, 180) } : {}), ...(optionalFinite(raw.focus, 0, 1) != null ? { focus: optionalFinite(raw.focus, 0, 1) } : {}) }
+  if (kind === 'haze') return { ...common, kind, ...(optionalFinite(raw.amount, 0, 1) != null ? { amount: optionalFinite(raw.amount, 0, 1) } : {}) }
+  return { ...common, kind: 'co2', ...(typeof raw.active === 'boolean' ? { active: raw.active } : {}), ...(optionalFinite(raw.burstStrength, 0, 1) != null ? { burstStrength: optionalFinite(raw.burstStrength, 0, 1) } : {}), ...(optionalFinite(raw.durationMs, 1, 10_000) != null ? { durationMs: optionalFinite(raw.durationMs, 1, 10_000) } : {}) }
+}
+
 function normalizeFixtureOverrides(raw: unknown): LaserDmxShowDirectorFixtureRuntimeOverrides | undefined {
   if (!isRecord(raw)) return undefined
   const fixture: LaserDmxShowDirectorFixtureRuntimeOverrides = {}
@@ -749,6 +888,9 @@ function normalizePayload(raw: unknown): LaserDmxShowDirectorPerformanceMutation
   if (!isRecord(raw)) return {}
   const address = normalizeAddress(raw.address)
   const fixture = normalizeFixtureOverrides(raw.fixture)
+  const fixtureActions = Array.isArray(raw.fixtureActions)
+    ? raw.fixtureActions.map(normalizeMixedFixtureAction).filter((value): value is LaserDmxShowDirectorMixedFixtureAction => value !== null).slice(0, 64)
+    : []
   const group = normalizeGroupOverrides(raw.group)
   const global = normalizeGlobalOverrides(raw.global)
   const conditions = normalizeConditions(raw.conditions)
@@ -758,6 +900,7 @@ function normalizePayload(raw: unknown): LaserDmxShowDirectorPerformanceMutation
   return {
     ...(address ? { address } : {}),
     ...(fixture ? { fixture } : {}),
+    ...(fixtureActions.length ? { fixtureActions } : {}),
     ...(group ? { group } : {}),
     ...(global ? { global } : {}),
     ...(conditions.length ? { conditions } : {}),
@@ -1009,6 +1152,15 @@ export function normalizeLaserDmxShowDirectorPerformanceProgram(
         const normalizedRole = cleanString(role, '', 96)
         const address = normalizeAddress(value)
         return normalizedRole && address ? [[normalizedRole, address]] : []
+      }).slice(0, 128))
+      : undefined,
+    fixtureBanks: isRecord(raw.fixtureBanks)
+      ? Object.fromEntries(Object.entries(raw.fixtureBanks).flatMap(([key, value]) => {
+        if (!isRecord(value)) return []
+        const role = cleanString(value.role ?? key, '', 96)
+        const address = normalizeAddress(value.address)
+        if (!role || !address) return []
+        return [[cleanString(key, role, 96), { role, ...(cleanString(value.label, '', 160) ? { label: cleanString(value.label, '', 160) } : {}), ...(cleanString(value.description, '', 320) ? { description: cleanString(value.description, '', 320) } : {}), address }]]
       }).slice(0, 128))
       : undefined,
     energyEnvelopes: isRecord(raw.energyEnvelopes)

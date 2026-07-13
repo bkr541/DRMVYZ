@@ -14,6 +14,10 @@ import {
   type LaserDmxShowDirectorPerformanceState,
 } from './LaserDmxShowDirectorPerformanceProgram'
 import { LASER_DMX_SHOW_DIRECTOR_SHOWCASE_PRESETS } from './LaserDmxShowDirectorPerformanceShowcasePresets'
+import {
+  LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS,
+  type LaserDmxShowDirectorRigBackedPerformanceShowDefinition,
+} from './LaserDmxShowDirectorRigBackedPerformanceShows'
 
 export interface LaserDmxShowDirectorPerformancePresetDefinition {
   id: string
@@ -25,6 +29,8 @@ export interface LaserDmxShowDirectorPerformancePresetDefinition {
   musicIntelligenceCapabilities: string[]
   fixtureCount: number
   approximatePeakBeamDemand: number
+  sourceRigLayoutId?: string
+  rigBackedShowVersion?: number
   createRig: (createId: () => string) => LaserDmxShowDirectorState
   createProgram: () => LaserDmxShowDirectorPerformanceProgram
 }
@@ -34,8 +40,40 @@ export interface LaserDmxShowDirectorPerformancePresetLoadResult {
   performance: LaserDmxShowDirectorPerformanceState
 }
 
-/** Canonical full-song Show Director performance shows. */
-export const LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS: readonly LaserDmxShowDirectorPerformancePresetDefinition[] = LASER_DMX_SHOW_DIRECTOR_SHOWCASE_PRESETS
+export function createRigBackedPerformancePresetDefinition(
+  definition: LaserDmxShowDirectorRigBackedPerformanceShowDefinition,
+): LaserDmxShowDirectorPerformancePresetDefinition | null {
+  if (definition.status !== 'available' || !definition.createProgram) return null
+  const canonicalRig = definition.createCanonicalRig()
+  if (!canonicalRig) return null
+  return {
+    id: definition.id,
+    name: definition.displayName,
+    description: definition.description,
+    genreTags: ['rig-backed'],
+    behaviorTags: ['authored', 'full-song', 'mixed-fixture'],
+    supportedSectionRoles: ['intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'outro'],
+    musicIntelligenceCapabilities: ['Beat Grid', 'Rhythm Events', 'Sections', 'Energy'],
+    fixtureCount: canonicalRig.fixtures.length,
+    approximatePeakBeamDemand: definition.visualValidation.budgets.maxBeamDemand ?? 0,
+    sourceRigLayoutId: definition.sourceRigLayoutId,
+    rigBackedShowVersion: definition.version,
+    createRig: createId => definition.createCanonicalRig(createId) as LaserDmxShowDirectorState,
+    createProgram: definition.createProgram,
+  }
+}
+
+export const LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_PRESETS: readonly LaserDmxShowDirectorPerformancePresetDefinition[] = Object.freeze(
+  Object.values(LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS)
+    .map(createRigBackedPerformancePresetDefinition)
+    .filter((preset): preset is LaserDmxShowDirectorPerformancePresetDefinition => preset !== null),
+)
+
+/** Canonical full-song Show Director performance shows. Foundation-only rig-backed shows stay out of the browser. */
+export const LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS: readonly LaserDmxShowDirectorPerformancePresetDefinition[] = Object.freeze([
+  ...LASER_DMX_SHOW_DIRECTOR_SHOWCASE_PRESETS,
+  ...LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_PRESETS,
+])
 
 const FAVORITES_STORAGE_KEY = 'drmvyz.showDirector.performanceFavorites.v1'
 
