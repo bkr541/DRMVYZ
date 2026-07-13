@@ -80,6 +80,39 @@ Eight-bar stages are indexed from the macro-section anchor. Recruitment mutation
 
 Patch 1 fixture-local target geometry remains authoritative. The continuity resolver does not replace fixture-keyed target arrays with shared global targets, so projector origins, deliberate negative space, and the Cyan Mirror Cage center corridor survive phrase evolution, seeking, and looping.
 
+## Section energy envelopes and full-song arc
+
+Performance-program schema version 3 adds explicit `intro`, `verse`, `build`, `preDrop`, `drop1`, `breakdown`, `drop2`, and `outro` energy envelopes. Every built-in show declares target ranges for active fixture groups, estimated beam count, fixture brightness, fan spread, movement strength, global glow, normalized density, and negative space. Music Intelligence can modulate inside the authored architecture, while the resolver caps accidental overshoot and retains the section hierarchy.
+
+The built-in arc follows these deterministic rules:
+
+- Intros begin with one fixture family and recruit a second family later instead of opening at drop density.
+- Verses remain visibly alive on every beat and retain authored negative space.
+- Builds use one-based macro-section bar progression. Successive bars recruit groups, widen fans, increase endpoint motion and brightness, and reduce negative space. The final build beat contracts and freezes the composition for tension.
+- Pre-drops narrow to a small spear or aperture allocation and may use only their authored bounded blackout window.
+- Drop entry activates the primary bank immediately, adds a white impact layer, and then resolves into the existing Patch 3 beat-bank and four-/eight-bar drop-body choreography.
+- Breakdowns substantially reduce fixture count and movement but must retain visible authored beams unless `allowZeroBeamOutput` is explicitly set.
+- Drop 2 preserves each show identity while adding fixture families and structural layers. The same 300-beam hard limit remains authoritative.
+- Outros use non-cumulative bar snapshots to remove groups progressively, return to a simplified opening identity, and fade the final half beat without leaving stale runtime beams.
+
+Bar-progression mutations pass through the same fixture-local geometry authoring step as beat, bar, four-bar, eight-bar, entry, body, and exit mutations. This prevents build and outro stages from accidentally restoring shared global polygons.
+
+## Deterministic blackout policy and transitions
+
+Blackout authority is deliberately separated into five concepts:
+
+1. **Safety blackout** is renderer and output-safety authority. It is evaluated last and cannot be weakened by a performance program.
+2. **User blackout** is the authored Matrix or Show Director blackout request and remains authoritative over program output.
+3. **Programmed pre-drop blackout** is an authored transport-relative window, ordinarily one-half beat and bounded to one beat by the built-in policy.
+4. **Programmed impact cut or fakeout blackout** is an authored short punctuation window with its own maximum duration.
+5. **Section-transition fade** interpolates fixture brightness plus global dimmer, glow, haze, persistence, and beam width. It is not treated as a blackout.
+
+Built-in policy limits are deterministic: pre-drop blackouts are capped at one beat, impact cuts at one-half beat, fakeouts at one beat, and total programmed blackout time at six percent of the authored show. Windows are anchored to macro-section start or end and reconstructed from the transport playhead, so seeking into a window restores only its remaining duration and looping cannot stretch it. Repeated retriggering is guarded by the authored window identity and transport position.
+
+A missing or malformed fixture address cannot create darkness by itself. Unless a scene explicitly permits zero-beam output, the resolver restores a minimal deterministic set of authored laser fixtures at the policy brightness floor. Breakdown scenes therefore compile to sparse nonzero output rather than looking disconnected. Programmed blackout requests are applied only after this visibility safeguard and still remain subordinate to final safety authority.
+
+Transitions interpolate target positions and fixture brightness rather than popping enabled state at the midpoint. Prism uses target and color continuity, Cardinal contracts or expands local fans, and Cage narrows or widens mirrored walls while preserving its protected corridor. Global dimmer, glow, and haze travel with the same transition progress.
+
 ## Music Intelligence reuse and fallback
 
 Performance programs consume the existing canonical selectors. They do not duplicate BPM detection, beat-grid generation, section analysis, harmonic analysis, stem analysis, or lyric tracking.
@@ -141,7 +174,7 @@ The compact status surface reports current section, occurrence, scene, four-bar 
 
 ## Persistence and migration
 
-Projects created before performance programs normalize to a disabled default state. A legacy built-in ID-only project hydrates a fresh cloned program from the current built-in registry. A missing or removed built-in ID is suppressed safely instead of appearing enabled without an executable program.
+Projects created before performance programs normalize to a disabled default state. Program definitions normalize to schema version 3, including bounded blackout windows, section energy envelopes, and bar-progression stages. A legacy built-in ID-only project hydrates a fresh cloned program from the current built-in registry. A missing or removed built-in ID is suppressed safely instead of appearing enabled without an executable program.
 
 Malformed program data normalizes to a disabled or safely suppressed state. Stable semantic fixture and group keys survive recreation and preset reload. Clearing a program leaves the authored rig intact.
 

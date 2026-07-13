@@ -18,7 +18,9 @@ import type {
   LaserDmxShowDirectorMusicIntelligenceCondition,
   LaserDmxShowDirectorMusicIntelligenceModulationReference,
   LaserDmxShowDirectorPerformanceAddress,
+  LaserDmxShowDirectorPerformanceBlackoutPolicy,
   LaserDmxShowDirectorPerformanceBeatMutation,
+  LaserDmxShowDirectorPerformanceEnergyEnvelopeKey,
   LaserDmxShowDirectorPerformanceFallbackBehavior,
   LaserDmxShowDirectorPerformanceMutationBase,
   LaserDmxShowDirectorPerformanceMutationMode,
@@ -28,12 +30,24 @@ import type {
   LaserDmxShowDirectorPerformanceScene,
   LaserDmxShowDirectorPerformanceSceneTransition,
   LaserDmxShowDirectorPerformanceSceneVariation,
+  LaserDmxShowDirectorProgrammedBlackoutKind,
+  LaserDmxShowDirectorProgrammedBlackoutWindow,
+  LaserDmxShowDirectorSectionEnergyEnvelope,
   LaserDmxShowDirectorPerformanceSectionType,
   LaserDmxShowDirectorPerformanceTransitionCurve,
 } from './LaserDmxShowDirectorPerformanceProgram'
 import type { LaserDmxShowDirectorPerformanceTimingContext } from './LaserDmxShowDirectorPerformanceContext'
 
 const EPSILON = 1e-6
+const DEFAULT_BLACKOUT_POLICY: LaserDmxShowDirectorPerformanceBlackoutPolicy = Object.freeze({
+  maxPreDropBeats: 1,
+  maxImpactCutBeats: 0.5,
+  maxFakeoutBeats: 1,
+  maximumProgrammedBlackoutRatio: 0.04,
+  retriggerGuardBeats: 0.25,
+  breakdownRequiresVisibleOutput: true,
+  minimumVisibleFixtureBrightness: 0.34,
+})
 const normalizedAuthoredRigCache = new WeakMap<object, LaserDmxShowDirectorState>()
 
 function normalizedAuthoredRig(state: LaserDmxShowDirectorState): LaserDmxShowDirectorState {
@@ -69,6 +83,21 @@ export interface LaserDmxShowDirectorPerformanceCapabilityDiagnostics {
   fallbackReason: string | null
   suppressionReason: string | null
   beamBudgetWarning: string | null
+  programmedBlackoutKind?: LaserDmxShowDirectorProgrammedBlackoutKind | null
+  programmedBlackoutWindowId?: string | null
+  programmedBlackoutRemainingBeats?: number
+  visibleOutputRecovered?: boolean
+}
+
+export interface LaserDmxShowDirectorResolvedEnergyMetrics {
+  activeFixtureGroups: number
+  estimatedBeamCount: number
+  brightness: number
+  fanSpread: number
+  movementStrength: number
+  glow: number
+  density: number
+  negativeSpace: number
 }
 
 export interface LaserDmxShowDirectorPerformanceResolution {
@@ -86,6 +115,9 @@ export interface LaserDmxShowDirectorPerformanceResolution {
   estimatedBeamDemand: number
   boundedBeamDemand: number
   requestedGlobalOutputOverrides: LaserDmxShowDirectorGlobalOutputOverrides
+  energyEnvelopeKey?: LaserDmxShowDirectorPerformanceEnergyEnvelopeKey | null
+  energyEnvelope?: LaserDmxShowDirectorSectionEnergyEnvelope | null
+  energyMetrics?: LaserDmxShowDirectorResolvedEnergyMetrics
   fixturePriorityById: Record<string, number>
   diagnostics: LaserDmxShowDirectorPerformanceCapabilityDiagnostics
   deterministicIdentity: string
@@ -101,6 +133,12 @@ interface ResolverWork {
   missingFixtureKeys: Set<string>
   missingGroupKeys: Set<string>
   malformedMutationIds: Set<string>
+  programmedBlackout: {
+    kind: LaserDmxShowDirectorProgrammedBlackoutKind
+    windowId: string
+    remainingBeats: number
+  } | null
+  visibleOutputRecovered: boolean
 }
 
 function finite(value: unknown, fallback = 0): number {
@@ -117,6 +155,18 @@ function clamp01(value: number): number {
 
 function positiveInt(value: unknown, fallback = 0): number {
   return Math.max(0, Math.round(finite(value, fallback)))
+}
+
+function blackoutPolicy(work: ResolverWork): LaserDmxShowDirectorPerformanceBlackoutPolicy {
+  return work.input.program?.blackoutPolicy ?? DEFAULT_BLACKOUT_POLICY
+}
+
+function beatsSinceMacroSectionStart(context: LaserDmxShowDirectorPerformanceTimingContext): number {
+  return Math.max(0, context.barsSinceMacroSectionStart * Math.max(1, context.timeSignature))
+}
+
+function beatsUntilMacroSectionEnd(context: LaserDmxShowDirectorPerformanceTimingContext): number {
+  return Math.max(0, context.barsUntilMacroSectionEnd * Math.max(1, context.timeSignature))
 }
 
 function hashString(value: string): number {
@@ -662,11 +712,17 @@ function applyCadence(scene: LaserDmxShowDirectorPerformanceScene, work: Resolve
   // Cadence precedence runs from broad musical structure to short-lived impacts.
   // Fine Track Map boundaries do not restart this clock when they belong to the
   // same macro role. Faster layers only mutate parameters inside the active motif.
+  const entryBeats = beatsSinceMacroSectionStart(context)
+  const exitBeats = beatsUntilMacroSectionEnd(context)
   const isEntry = context.barsSinceMacroSectionStart < 1
   const isExit = context.barsUntilMacroSectionEnd < 1
-  if (isEntry) for (const mutation of scene.sectionEntryMutations ?? []) applyMutation(mutation, work, `${baseIdentity}|entry`)
+  if (isEntry) for (const mutation of scene.sectionEntryMutations ?? []) {
+    if (mutation.durationBeats == null || entryBeats < mutation.durationBeats) applyMutation(mutation, work, `${baseIdentity}|entry`)
+  }
   if (!isEntry && !isExit) for (const mutation of scene.sectionBodyMutations ?? []) applyMutation(mutation, work, `${baseIdentity}|body|${context.barWithinMacroSection}`)
-  if (isExit) for (const mutation of scene.sectionExitMutations ?? []) applyMutation(mutation, work, `${baseIdentity}|exit`)
+  if (isExit) for (const mutation of scene.sectionExitMutations ?? []) {
+    if (mutation.durationBeats == null || exitBeats < mutation.durationBeats) applyMutation(mutation, work, `${baseIdentity}|exit`)
+  }
 
   for (const mutation of scene.sixteenBarEvolution ?? []) {
     const phraseLength = Math.max(1, positiveInt(mutation.phraseLengthBars, 16))
@@ -704,6 +760,30 @@ function applyCadence(scene: LaserDmxShowDirectorPerformanceScene, work: Resolve
             : fixture.runtimeBeamTravel,
         }
       }),
+    }
+  }
+
+  const currentBar = Math.max(1, context.barWithinMacroSection + 1)
+  const progression = [...(scene.barProgression ?? [])].sort((a, b) => a.stageBar - b.stageBar || a.id.localeCompare(b.id))
+  if (progression.length) {
+    const latestNonCumulative = [...progression].reverse().find(mutation => mutation.cumulative === false && mutation.stageBar <= currentBar)
+    if (latestNonCumulative) {
+      // Replacement stages are complete authored snapshots. Disable the scene's
+      // participating fixture domain first so earlier eight-bar recruitment
+      // cannot leave stale outro beams behind.
+      work.runtime = {
+        ...work.runtime,
+        fixtures: work.runtime.fixtures.map(fixture => addressMatchesFixture(fixture, scene.address, work)
+          ? { ...fixture, enabled: false }
+          : fixture),
+      }
+      applyMutation(latestNonCumulative, work, `${baseIdentity}|bar-progression|${currentBar}|${latestNonCumulative.stageBar}`)
+    } else {
+      for (const mutation of progression) {
+        if (mutation.cumulative !== false && mutation.stageBar <= currentBar) {
+          applyMutation(mutation, work, `${baseIdentity}|bar-progression|${currentBar}|${mutation.stageBar}`)
+        }
+      }
     }
   }
 
@@ -857,7 +937,7 @@ function adjacentSectionContext(
 function resolveSceneStateWithoutTransitions(
   work: ResolverWork,
   context: LaserDmxShowDirectorPerformanceTimingContext,
-): LaserDmxShowDirectorState | null {
+): { state: LaserDmxShowDirectorState; global: LaserDmxShowDirectorGlobalOutputOverrides } | null {
   const neighbor: ResolverWork = {
     authored: work.authored,
     runtime: normalizeLaserDmxShowDirectorState(work.authored),
@@ -868,6 +948,8 @@ function resolveSceneStateWithoutTransitions(
     missingFixtureKeys: new Set(),
     missingGroupKeys: new Set(),
     malformedMutationIds: new Set(),
+    programmedBlackout: null,
+    visibleOutputRecovered: false,
   }
   const selected = selectScene(neighbor)
   if (!selected.scene) return null
@@ -879,7 +961,7 @@ function resolveSceneStateWithoutTransitions(
   neighbor.missingFixtureKeys.forEach(value => work.missingFixtureKeys.add(value))
   neighbor.missingGroupKeys.forEach(value => work.missingGroupKeys.add(value))
   neighbor.malformedMutationIds.forEach(value => work.malformedMutationIds.add(value))
-  return neighbor.runtime
+  return { state: neighbor.runtime, global: neighbor.global }
 }
 
 function parseHex(value: string): [number, number, number] | null {
@@ -928,7 +1010,7 @@ function interpolateFixtures(
   const fromById = new Map(from.fixtures.map(fixture => [fixture.id, fixture]))
   return to.fixtures.map(target => {
     const source = fromById.get(target.id)
-    if (!source) return progress >= 0.5 ? target : { ...target, enabled: false, brightness: 0 }
+    if (!source) return { ...target, enabled: target.enabled && progress > EPSILON, brightness: target.brightness * progress }
     const mix = (a: number, b: number) => a + (b - a) * progress
     const sourceTargets = source.beam.targets ?? []
     const targetTargets = target.beam.targets ?? []
@@ -938,8 +1020,8 @@ function interpolateFixtures(
     })
     return {
       ...target,
-      enabled: progress >= 0.5 ? target.enabled : source.enabled,
-      brightness: clamp01(mix(source.brightness, target.brightness)),
+      enabled: (source.enabled || target.enabled) && mix(source.enabled ? source.brightness : 0, target.enabled ? target.brightness : 0) > EPSILON,
+      brightness: clamp01(mix(source.enabled ? source.brightness : 0, target.enabled ? target.brightness : 0)),
       color: interpolateColor(source.color, target.color, progress),
       rotation: mix(source.rotation, target.rotation),
       beam: {
@@ -956,6 +1038,25 @@ function interpolateFixtures(
   })
 }
 
+function interpolateGlobalOverrides(
+  from: LaserDmxShowDirectorGlobalOutputOverrides,
+  to: LaserDmxShowDirectorGlobalOutputOverrides,
+  progress: number,
+): LaserDmxShowDirectorGlobalOutputOverrides {
+  const keys: Array<Exclude<keyof LaserDmxShowDirectorGlobalOutputOverrides, 'blackout'>> = [
+    'dimmer', 'haze', 'backgroundFade', 'beamPersistence', 'globalBeamWidth', 'globalGlow', 'globalStrobeRate',
+  ]
+  const result: LaserDmxShowDirectorGlobalOutputOverrides = {}
+  for (const key of keys) {
+    const fallback = key === 'dimmer' ? 1 : key === 'globalBeamWidth' ? 1 : 0
+    const a = finite(from[key], fallback)
+    const b = finite(to[key], fallback)
+    result[key] = a + (b - a) * progress
+  }
+  result.blackout = Boolean(from.blackout && to.blackout)
+  return result
+}
+
 function applyTransitions(scene: LaserDmxShowDirectorPerformanceScene, work: ResolverWork): void {
   const section = work.input.context.resolvedMacroSection
   if (!section) return
@@ -966,16 +1067,153 @@ function applyTransitions(scene: LaserDmxShowDirectorPerformanceScene, work: Res
   if (entryDuration > EPSILON && elapsed < entryDuration) {
     const progress = curveProgress(elapsed / entryDuration, scene.transitionIn?.curve ?? 'linear')
     const previousContext = adjacentSectionContext(work, -1)
-    const previousState = previousContext ? resolveSceneStateWithoutTransitions(work, previousContext) : null
-    work.runtime = { ...work.runtime, fixtures: interpolateFixtures(previousState ?? work.authored, work.runtime, progress) }
+    const previous = previousContext ? resolveSceneStateWithoutTransitions(work, previousContext) : null
+    work.runtime = { ...work.runtime, fixtures: interpolateFixtures(previous?.state ?? work.authored, work.runtime, progress) }
+    work.global = interpolateGlobalOverrides(previous?.global ?? {}, work.global, progress)
     if (scene.transitionIn?.blackoutDuringTransition) work.global.blackout = progress < 0.5
   } else if (exitDuration > EPSILON && remaining < exitDuration) {
     const progress = curveProgress(1 - remaining / exitDuration, scene.transitionOut?.curve ?? 'linear')
     const nextContext = adjacentSectionContext(work, 1)
-    const nextState = nextContext ? resolveSceneStateWithoutTransitions(work, nextContext) : null
-    work.runtime = { ...work.runtime, fixtures: interpolateFixtures(work.runtime, nextState ?? work.authored, progress) }
+    const next = nextContext ? resolveSceneStateWithoutTransitions(work, nextContext) : null
+    work.runtime = { ...work.runtime, fixtures: interpolateFixtures(work.runtime, next?.state ?? work.authored, progress) }
+    work.global = interpolateGlobalOverrides(work.global, next?.global ?? {}, progress)
     if (scene.transitionOut?.blackoutDuringTransition) work.global.blackout = progress >= 0.5
   }
+}
+
+function maxBlackoutBeats(kind: LaserDmxShowDirectorProgrammedBlackoutKind, policy: LaserDmxShowDirectorPerformanceBlackoutPolicy): number {
+  if (kind === 'preDrop') return policy.maxPreDropBeats
+  if (kind === 'impactCut') return policy.maxImpactCutBeats
+  return policy.maxFakeoutBeats
+}
+
+function resolveProgrammedBlackoutWindow(
+  scene: LaserDmxShowDirectorPerformanceScene,
+  work: ResolverWork,
+): void {
+  const context = work.input.context
+  const policy = blackoutPolicy(work)
+  const sinceStart = beatsSinceMacroSectionStart(context)
+  const untilEnd = beatsUntilMacroSectionEnd(context)
+  const ordered = [...(scene.blackoutWindows ?? [])].sort((a, b) => a.id.localeCompare(b.id))
+  for (const window of ordered) {
+    const offset = Math.max(0, finite(window.offsetBeats, 0))
+    const duration = Math.min(Math.max(0, finite(window.durationBeats, 0)), maxBlackoutBeats(window.kind, policy))
+    if (duration <= EPSILON) continue
+    const active = window.anchor === 'sectionStart'
+      ? sinceStart >= offset && sinceStart < offset + duration
+      : untilEnd > offset - EPSILON && untilEnd <= offset + duration + EPSILON
+    if (!active) continue
+    work.global = { ...work.global, blackout: true, dimmer: 0 }
+    work.programmedBlackout = {
+      kind: window.kind,
+      windowId: window.id,
+      remainingBeats: window.anchor === 'sectionStart'
+        ? Math.max(0, offset + duration - sinceStart)
+        : Math.max(0, untilEnd - offset),
+    }
+    return
+  }
+}
+
+function visibleBeamCount(fixtures: readonly LaserDmxShowDirectorFixture[]): number {
+  return fixtures.reduce((sum, fixture) => {
+    if (!fixture.enabled || fixture.brightness <= 0.04) return sum
+    return sum + Math.max(1, Math.min(LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS, fixture.beam.targets?.length ?? 0))
+  }, 0)
+}
+
+function ensureVisibleOutput(scene: LaserDmxShowDirectorPerformanceScene, work: ResolverWork): void {
+  if (scene.allowZeroBeamOutput || visibleBeamCount(work.runtime.fixtures) > 0) return
+  const policy = blackoutPolicy(work)
+  const envelope = scene.energyEnvelopeKey ? work.input.program?.energyEnvelopes?.[scene.energyEnvelopeKey] : undefined
+  const desiredGroups = Math.max(1, Math.min(4, Math.ceil(envelope?.activeFixtureGroups.min ?? 1)))
+  const selectedGroupIds = new Set<string>()
+  const selectedFixtureIds = new Set<string>()
+  for (const fixture of [...work.authored.fixtures].sort((a, b) => semanticFixtureKey(a).localeCompare(semanticFixtureKey(b)))) {
+    if (fixture.kind !== 'laser') continue
+    const groupId = fixture.groupId || fixture.id
+    if (!selectedGroupIds.has(groupId) && selectedGroupIds.size >= desiredGroups) continue
+    selectedGroupIds.add(groupId)
+    selectedFixtureIds.add(fixture.id)
+  }
+  work.runtime = {
+    ...work.runtime,
+    fixtures: work.runtime.fixtures.map(fixture => selectedFixtureIds.has(fixture.id)
+      ? { ...fixture, enabled: true, brightness: Math.max(fixture.brightness, policy.minimumVisibleFixtureBrightness) }
+      : fixture),
+  }
+  work.visibleOutputRecovered = visibleBeamCount(work.runtime.fixtures) > 0
+}
+
+function movementStrengthForFixture(fixture: LaserDmxShowDirectorFixture): number {
+  const beats = fixture.runtimeBeamTravel?.beatsPerTravel
+  if (beats == null) return Math.min(1, Math.abs(fixture.rotation) / 180)
+  return clamp01(1 - (clamp(beats, 0.25, 16) - 0.25) / 15.75)
+}
+
+export function measureLaserDmxShowDirectorEnergyMetrics(
+  state: LaserDmxShowDirectorState,
+  global: LaserDmxShowDirectorGlobalOutputOverrides = {},
+): LaserDmxShowDirectorResolvedEnergyMetrics {
+  const active = state.fixtures.filter(fixture => fixture.enabled && fixture.brightness > 0.04)
+  const groups = new Set(active.map(fixture => fixture.groupId).filter(Boolean))
+  const average = (values: number[], fallback = 0) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : fallback
+  const estimatedBeamCount = visibleBeamCount(active)
+  const fixtureGlow = average(active.map(fixture => finite(fixture.runtimeBeamAppearance?.glow, 0.6)), finite(global.globalGlow, 0.6))
+  return {
+    activeFixtureGroups: groups.size,
+    estimatedBeamCount,
+    brightness: average(active.map(fixture => fixture.brightness * finite(global.dimmer, 1))),
+    fanSpread: average(active.map(fixture => fixture.beam.beamSpread)),
+    movementStrength: average(active.map(movementStrengthForFixture)),
+    glow: clamp01((fixtureGlow + finite(global.globalGlow, fixtureGlow)) / 2),
+    density: clamp01(estimatedBeamCount / 300),
+    negativeSpace: clamp01(1 - active.length / Math.max(1, state.fixtures.length)),
+  }
+}
+
+function scaleAverageIntoRange(values: number[], min: number, max: number): number {
+  if (!values.length) return 1
+  const average = values.reduce((sum, value) => sum + value, 0) / values.length
+  // Envelopes cap Music Intelligence overshoot but never inflate an authored
+  // duck/fakeout. Minimum presence is supplied by scene authoring and the
+  // zero-output recovery safeguard, preserving Patch 3's bank contrast.
+  void min
+  if (average > max) return max / average
+  return 1
+}
+
+function applyEnergyEnvelope(scene: LaserDmxShowDirectorPerformanceScene, work: ResolverWork): LaserDmxShowDirectorSectionEnergyEnvelope | null {
+  const key = scene.energyEnvelopeKey
+  const envelope = key ? work.input.program?.energyEnvelopes?.[key] : undefined
+  if (!envelope) return null
+  const active = work.runtime.fixtures.filter(fixture => fixture.enabled)
+  const brightnessScale = scaleAverageIntoRange(active.map(fixture => fixture.brightness), envelope.brightness.min, envelope.brightness.max)
+  const spreadScale = scaleAverageIntoRange(active.map(fixture => fixture.beam.beamSpread), envelope.fanSpread.min, envelope.fanSpread.max)
+  const glowScale = scaleAverageIntoRange(active.map(fixture => finite(fixture.runtimeBeamAppearance?.glow, finite(work.global.globalGlow, 0.6))), envelope.glow.min, envelope.glow.max)
+  work.runtime = {
+    ...work.runtime,
+    fixtures: work.runtime.fixtures.map(fixture => {
+      if (!fixture.enabled) return fixture
+      const movement = movementStrengthForFixture(fixture)
+      const targetMovement = clamp(movement, envelope.movementStrength.min, envelope.movementStrength.max)
+      const beatsPerTravel = fixture.runtimeBeamTravel?.beatsPerTravel
+      return {
+        ...fixture,
+        brightness: clamp01(fixture.brightness * brightnessScale),
+        beam: { ...fixture.beam, beamSpread: clamp(fixture.beam.beamSpread * spreadScale, 0, 180) },
+        runtimeBeamAppearance: fixture.runtimeBeamAppearance
+          ? { ...fixture.runtimeBeamAppearance, glow: clamp01(finite(fixture.runtimeBeamAppearance.glow, 0.6) * glowScale) }
+          : fixture.runtimeBeamAppearance,
+        runtimeBeamTravel: beatsPerTravel == null
+          ? fixture.runtimeBeamTravel
+          : { ...fixture.runtimeBeamTravel, beatsPerTravel: clamp(0.25 + (1 - targetMovement) * 15.75, 0.25, 16) },
+      }
+    }),
+  }
+  if (work.global.globalGlow != null) work.global.globalGlow = clamp01(work.global.globalGlow * glowScale)
+  return envelope
 }
 
 function buildDiagnostics(
@@ -1006,6 +1244,10 @@ function buildDiagnostics(
     beamBudgetWarning: budget.overBudget
       ? `Requested ${budget.estimatedDemand} beams; the deterministic allocator bounded output to ${budget.boundedDemand}.`
       : null,
+    programmedBlackoutKind: work.programmedBlackout?.kind ?? null,
+    programmedBlackoutWindowId: work.programmedBlackout?.windowId ?? null,
+    programmedBlackoutRemainingBeats: work.programmedBlackout?.remainingBeats ?? 0,
+    visibleOutputRecovered: work.visibleOutputRecovered,
   }
 }
 
@@ -1033,6 +1275,9 @@ function unchangedResolution(
     estimatedBeamDemand: budget.estimatedDemand,
     boundedBeamDemand: budget.boundedDemand,
     requestedGlobalOutputOverrides: {},
+    energyEnvelopeKey: null,
+    energyEnvelope: null,
+    energyMetrics: measureLaserDmxShowDirectorEnergyMetrics(authored),
     fixturePriorityById: budget.priorityByFixtureId,
     diagnostics: {
       analysisReady: (input.context.intelligence.capabilities.beatGrid || input.context.bpm > 0)
@@ -1047,6 +1292,10 @@ function unchangedResolution(
       fallbackReason: null,
       suppressionReason,
       beamBudgetWarning: budget.overBudget ? `Requested ${budget.estimatedDemand} beams; bounded to ${budget.boundedDemand}.` : null,
+      programmedBlackoutKind: null,
+      programmedBlackoutWindowId: null,
+      programmedBlackoutRemainingBeats: 0,
+      visibleOutputRecovered: false,
     },
     deterministicIdentity: [input.runtimeInvalidationId, input.context.runtimeIdentity, input.programSeed, 'authored'].join('|'),
   }
@@ -1086,6 +1335,8 @@ export function resolveLaserDmxShowDirectorPerformance(
       missingFixtureKeys: new Set(),
       missingGroupKeys: new Set(),
       malformedMutationIds: new Set(),
+      programmedBlackout: null,
+      visibleOutputRecovered: false,
     }
     const selected = selectScene(work)
     if (!selected.scene) return unchangedResolution(input, authored, selected.fallbackReason ?? `No scene matched ${selected.sectionType}.`)
@@ -1095,8 +1346,12 @@ export function resolveLaserDmxShowDirectorPerformance(
     if (variation) applyPayload(variation, work)
     const cadence = applyCadence(selected.scene, work)
     applyTransitions(selected.scene, work)
+    const energyEnvelope = applyEnergyEnvelope(selected.scene, work)
+    ensureVisibleOutput(selected.scene, work)
+    resolveProgrammedBlackoutWindow(selected.scene, work)
 
     const budget = createLaserDmxShowDirectorBeamBudgetReport(work.runtime.fixtures, work.fixtureRoles)
+    const energyMetrics = measureLaserDmxShowDirectorEnergyMetrics(work.runtime, work.global)
     const activeFixtures = work.runtime.fixtures.filter(fixture => fixture.enabled)
     const activeGroupKeys = Array.from(new Set(activeFixtures.map(fixture => {
       const group = work.runtime.groups.find(item => item.id === fixture.groupId)
@@ -1129,6 +1384,9 @@ export function resolveLaserDmxShowDirectorPerformance(
       estimatedBeamDemand: budget.estimatedDemand,
       boundedBeamDemand: budget.boundedDemand,
       requestedGlobalOutputOverrides: work.global,
+      energyEnvelopeKey: selected.scene.energyEnvelopeKey ?? null,
+      energyEnvelope,
+      energyMetrics,
       fixturePriorityById: budget.priorityByFixtureId,
       diagnostics: buildDiagnostics(work, budget, selected.fallbackReason, null),
       deterministicIdentity,

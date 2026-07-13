@@ -142,6 +142,7 @@ function localizeScene(
     snareMutations: localizeMutationArray(scene.snareMutations, scene.id, fixtures, resolver),
     transientMutations: localizeMutationArray(scene.transientMutations, scene.id, fixtures, resolver),
     barMutations: localizeMutationArray(scene.barMutations, scene.id, fixtures, resolver),
+    barProgression: localizeMutationArray(scene.barProgression, scene.id, fixtures, resolver),
     fourBarVariations: localizeMutationArray(scene.fourBarVariations, scene.id, fixtures, resolver),
     eightBarRecruitment: localizeMutationArray(scene.eightBarRecruitment, scene.id, fixtures, resolver),
     sixteenBarEvolution: localizeMutationArray(scene.sixteenBarEvolution, scene.id, fixtures, resolver),
@@ -206,6 +207,14 @@ function prismGeometry(context: GeometryResolverContext): LaserDmxShowDirectorBe
 
   if (fixture.groupKey === 'prism-upper-inner') {
     const targetCenter = point(left ? 13.2 : 4.8, 9.1)
+    if (context.sceneId.includes('drop-2') && !family.includes('spears')) {
+      return nestedDiamondLayer({
+        ...base,
+        semanticRole: 'drop-two-inner-diamond-layer',
+        localTargetCenter: targetCenter,
+        rayCount: Math.min(6, rayCount(originalTargets, 6)),
+      }, 2)
+    }
     return crossfirePair({
       ...base,
       semanticRole: 'upper-inner-x',

@@ -15,13 +15,24 @@ import {
   createPrismCathedralProgram,
 } from './LaserDmxShowDirectorPerformanceShowcasePresets'
 
-export const LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PROGRAM_SCHEMA_VERSION = 2
+export const LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PROGRAM_SCHEMA_VERSION = 3
 export const LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_STATE_SCHEMA_VERSION = 1
 
 export type LaserDmxShowDirectorPerformanceSectionType = ReactSectionType
 export type LaserDmxShowDirectorPerformanceMutationMode = 'set' | 'add' | 'multiply' | 'toggle'
 export type LaserDmxShowDirectorPerformanceTransitionCurve = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut' | 'step'
 export type LaserDmxShowDirectorPerformanceFallbackBehavior = 'authoredRig' | 'basicTiming' | 'programDefault'
+export type LaserDmxShowDirectorPerformanceEnergyEnvelopeKey =
+  | 'intro'
+  | 'verse'
+  | 'build'
+  | 'preDrop'
+  | 'drop1'
+  | 'breakdown'
+  | 'drop2'
+  | 'outro'
+export type LaserDmxShowDirectorProgrammedBlackoutKind = 'preDrop' | 'impactCut' | 'fakeout'
+export type LaserDmxShowDirectorProgrammedBlackoutAnchor = 'sectionStart' | 'sectionEnd'
 export type LaserDmxShowDirectorBeamPriorityRole =
   | 'heroImpact'
   | 'primaryArchitecture'
@@ -145,6 +156,8 @@ export interface LaserDmxShowDirectorPerformanceMutationBase extends LaserDmxSho
   enabled?: boolean
   probability?: number
   seedOffset?: number
+  /** Optional deterministic lifetime for section entry/exit mutations. */
+  durationBeats?: number
 }
 
 export interface LaserDmxShowDirectorPerformanceBeatResponseEnvelope {
@@ -196,6 +209,13 @@ export interface LaserDmxShowDirectorPerformanceEightBarFixtureRecruitmentStage 
   cumulative?: boolean
 }
 
+export interface LaserDmxShowDirectorPerformanceBarProgressionStage extends LaserDmxShowDirectorPerformanceMutationBase {
+  /** One-based bar within the macro section at which this stage becomes eligible. */
+  stageBar: number
+  /** Cumulative stages build upward. Non-cumulative stages replace the prior authored stage. */
+  cumulative?: boolean
+}
+
 export interface LaserDmxShowDirectorPerformanceSixteenBarEvolution extends LaserDmxShowDirectorPerformanceMutationBase {
   phase?: number
   phraseLengthBars?: number
@@ -217,6 +237,43 @@ export interface LaserDmxShowDirectorPerformanceSceneTransition {
   blackoutDuringTransition?: boolean
 }
 
+export interface LaserDmxShowDirectorProgrammedBlackoutWindow {
+  id: string
+  kind: LaserDmxShowDirectorProgrammedBlackoutKind
+  anchor: LaserDmxShowDirectorProgrammedBlackoutAnchor
+  /** Window length in musical beats. The resolver clamps this to the program policy. */
+  durationBeats: number
+  /** Musical-beat offset from the anchor. Positive values move inward from section end. */
+  offsetBeats?: number
+  justification?: string
+}
+
+export interface LaserDmxShowDirectorPerformanceMetricRange {
+  min: number
+  max: number
+}
+
+export interface LaserDmxShowDirectorSectionEnergyEnvelope {
+  activeFixtureGroups: LaserDmxShowDirectorPerformanceMetricRange
+  estimatedBeamCount: LaserDmxShowDirectorPerformanceMetricRange
+  brightness: LaserDmxShowDirectorPerformanceMetricRange
+  fanSpread: LaserDmxShowDirectorPerformanceMetricRange
+  movementStrength: LaserDmxShowDirectorPerformanceMetricRange
+  glow: LaserDmxShowDirectorPerformanceMetricRange
+  density: LaserDmxShowDirectorPerformanceMetricRange
+  negativeSpace: LaserDmxShowDirectorPerformanceMetricRange
+}
+
+export interface LaserDmxShowDirectorPerformanceBlackoutPolicy {
+  maxPreDropBeats: number
+  maxImpactCutBeats: number
+  maxFakeoutBeats: number
+  maximumProgrammedBlackoutRatio: number
+  retriggerGuardBeats: number
+  breakdownRequiresVisibleOutput: boolean
+  minimumVisibleFixtureBrightness: number
+}
+
 export interface LaserDmxShowDirectorPerformanceSceneBarMatch {
   startBar?: number
   endBar?: number
@@ -233,6 +290,10 @@ export interface LaserDmxShowDirectorPerformanceScene extends LaserDmxShowDirect
   barMatch?: LaserDmxShowDirectorPerformanceSceneBarMatch
   transitionIn?: LaserDmxShowDirectorPerformanceSceneTransition
   transitionOut?: LaserDmxShowDirectorPerformanceSceneTransition
+  energyEnvelopeKey?: LaserDmxShowDirectorPerformanceEnergyEnvelopeKey
+  blackoutWindows?: LaserDmxShowDirectorProgrammedBlackoutWindow[]
+  /** Explicit opt-in for an authored zero-beam scene. Safety/user blackout authority remains external. */
+  allowZeroBeamOutput?: boolean
   variations?: LaserDmxShowDirectorPerformanceSceneVariation[]
   beatMutations?: LaserDmxShowDirectorPerformanceBeatMutation[]
   kickMutations?: LaserDmxShowDirectorPerformanceKickMutation[]
@@ -240,6 +301,7 @@ export interface LaserDmxShowDirectorPerformanceScene extends LaserDmxShowDirect
   hatMutations?: LaserDmxShowDirectorPerformanceHatMutation[]
   transientMutations?: LaserDmxShowDirectorPerformanceTransientMutation[]
   barMutations?: LaserDmxShowDirectorPerformanceBarMutation[]
+  barProgression?: LaserDmxShowDirectorPerformanceBarProgressionStage[]
   fourBarVariations?: LaserDmxShowDirectorPerformanceFourBarVariation[]
   eightBarRecruitment?: LaserDmxShowDirectorPerformanceEightBarFixtureRecruitmentStage[]
   sixteenBarEvolution?: LaserDmxShowDirectorPerformanceSixteenBarEvolution[]
@@ -273,6 +335,8 @@ export interface LaserDmxShowDirectorPerformanceProgram {
   scenes: LaserDmxShowDirectorPerformanceScene[]
   /** Reusable semantic bank roles used by payload addresses. */
   bankRoles?: Record<string, LaserDmxShowDirectorPerformanceAddress>
+  energyEnvelopes?: Partial<Record<LaserDmxShowDirectorPerformanceEnergyEnvelopeKey, LaserDmxShowDirectorSectionEnergyEnvelope>>
+  blackoutPolicy?: LaserDmxShowDirectorPerformanceBlackoutPolicy
   fallbackOrder?: LaserDmxShowDirectorPerformanceSectionType[]
   tuning: LaserDmxShowDirectorPerformanceProgramTuning
   diagnostics?: LaserDmxShowDirectorPerformanceRuntimeDiagnosticsMetadata
@@ -423,6 +487,11 @@ const CONDITION_OPERATORS = new Set<LaserDmxShowDirectorPerformanceConditionOper
 ])
 const MUTATION_MODES = new Set<LaserDmxShowDirectorPerformanceMutationMode>(['set', 'add', 'multiply', 'toggle'])
 const TRANSITION_CURVES = new Set<LaserDmxShowDirectorPerformanceTransitionCurve>(['linear', 'easeIn', 'easeOut', 'easeInOut', 'step'])
+const ENERGY_ENVELOPE_KEYS = new Set<LaserDmxShowDirectorPerformanceEnergyEnvelopeKey>([
+  'intro', 'verse', 'build', 'preDrop', 'drop1', 'breakdown', 'drop2', 'outro',
+])
+const BLACKOUT_KINDS = new Set<LaserDmxShowDirectorProgrammedBlackoutKind>(['preDrop', 'impactCut', 'fakeout'])
+const BLACKOUT_ANCHORS = new Set<LaserDmxShowDirectorProgrammedBlackoutAnchor>(['sectionStart', 'sectionEnd'])
 const TARGET_MODES = new Set<LaserDmxShowDirectorBeamConfig['targetMode']>(['fixed', 'fan', 'sweep', 'cross', 'mirror', 'audioReactive'])
 const MIRROR_AXES = new Set<LaserDmxShowDirectorMirrorAxis>(['horizontal', 'vertical'])
 const PRIORITY_ROLES = new Set<LaserDmxShowDirectorBeamPriorityRole>([
@@ -698,12 +767,72 @@ function normalizeMutationBase(raw: unknown, fallbackId: string): LaserDmxShowDi
   if (!id) return null
   const probability = raw.probability == null ? undefined : optionalFinite(raw.probability, 0, 1)
   const seedOffset = raw.seedOffset == null ? undefined : optionalInt(raw.seedOffset, -0x7fffffff, 0x7fffffff)
+  const durationBeats = raw.durationBeats == null ? undefined : optionalFinite(raw.durationBeats, 0.0625, 64)
   return {
     id,
     ...(raw.enabled === false ? { enabled: false } : {}),
     ...(probability != null ? { probability } : {}),
     ...(seedOffset != null ? { seedOffset } : {}),
+    ...(durationBeats != null ? { durationBeats } : {}),
     ...normalizePayload(raw),
+  }
+}
+
+function normalizeMetricRange(raw: unknown, minLimit: number, maxLimit: number): LaserDmxShowDirectorPerformanceMetricRange | null {
+  if (!isRecord(raw)) return null
+  const min = optionalFinite(raw.min, minLimit, maxLimit)
+  const max = optionalFinite(raw.max, minLimit, maxLimit)
+  if (min == null || max == null) return null
+  return { min: Math.min(min, max), max: Math.max(min, max) }
+}
+
+function normalizeEnergyEnvelope(raw: unknown): LaserDmxShowDirectorSectionEnergyEnvelope | null {
+  if (!isRecord(raw)) return null
+  const activeFixtureGroups = normalizeMetricRange(raw.activeFixtureGroups, 0, 512)
+  const estimatedBeamCount = normalizeMetricRange(raw.estimatedBeamCount, 0, 300)
+  const brightness = normalizeMetricRange(raw.brightness, 0, 1)
+  const fanSpread = normalizeMetricRange(raw.fanSpread, 0, 180)
+  const movementStrength = normalizeMetricRange(raw.movementStrength, 0, 1)
+  const glow = normalizeMetricRange(raw.glow, 0, 1)
+  const density = normalizeMetricRange(raw.density, 0, 1)
+  const negativeSpace = normalizeMetricRange(raw.negativeSpace, 0, 1)
+  if (!activeFixtureGroups || !estimatedBeamCount || !brightness || !fanSpread || !movementStrength || !glow || !density || !negativeSpace) return null
+  return { activeFixtureGroups, estimatedBeamCount, brightness, fanSpread, movementStrength, glow, density, negativeSpace }
+}
+
+function normalizeBlackoutWindow(raw: unknown, index: number): LaserDmxShowDirectorProgrammedBlackoutWindow | null {
+  if (!isRecord(raw)) return null
+  const id = cleanString(raw.id, `blackout-${index + 1}`, 96)
+  const kind = BLACKOUT_KINDS.has(raw.kind as LaserDmxShowDirectorProgrammedBlackoutKind)
+    ? raw.kind as LaserDmxShowDirectorProgrammedBlackoutKind
+    : null
+  const anchor = BLACKOUT_ANCHORS.has(raw.anchor as LaserDmxShowDirectorProgrammedBlackoutAnchor)
+    ? raw.anchor as LaserDmxShowDirectorProgrammedBlackoutAnchor
+    : null
+  const durationBeats = optionalFinite(raw.durationBeats, 0.0625, 64)
+  if (!id || !kind || !anchor || durationBeats == null) return null
+  const offsetBeats = optionalFinite(raw.offsetBeats, 0, 64)
+  const justification = cleanString(raw.justification, '', 240)
+  return {
+    id,
+    kind,
+    anchor,
+    durationBeats,
+    ...(offsetBeats != null ? { offsetBeats } : {}),
+    ...(justification ? { justification } : {}),
+  }
+}
+
+function normalizeBlackoutPolicy(raw: unknown): LaserDmxShowDirectorPerformanceBlackoutPolicy | undefined {
+  if (!isRecord(raw)) return undefined
+  return {
+    maxPreDropBeats: clamp(raw.maxPreDropBeats, 1, 0.5, 2),
+    maxImpactCutBeats: clamp(raw.maxImpactCutBeats, 0.5, 0.25, 2),
+    maxFakeoutBeats: clamp(raw.maxFakeoutBeats, 1, 0.25, 2),
+    maximumProgrammedBlackoutRatio: clamp(raw.maximumProgrammedBlackoutRatio, 0.04, 0, 0.25),
+    retriggerGuardBeats: clamp(raw.retriggerGuardBeats, 0.25, 0, 2),
+    breakdownRequiresVisibleOutput: raw.breakdownRequiresVisibleOutput !== false,
+    minimumVisibleFixtureBrightness: clamp(raw.minimumVisibleFixtureBrightness, 0.34, 0.1, 0.8),
   }
 }
 
@@ -823,6 +952,11 @@ function normalizeScene(raw: unknown, index: number): LaserDmxShowDirectorPerfor
       ...(optionalInt(value.intervalBars, 1, 1024) != null ? { intervalBars: optionalInt(value.intervalBars, 1, 1024) } : {}),
       ...(optionalInt(value.anchorBar, 0, 1024) != null ? { anchorBar: optionalInt(value.anchorBar, 0, 1024) } : {}),
     })),
+    barProgression: normalizeMutationArray(raw.barProgression, `${id}-bar-progression`, (value, base) => ({
+      ...base,
+      stageBar: Math.max(1, positiveInt(value.stageBar, 1, 4096)),
+      ...(typeof value.cumulative === 'boolean' ? { cumulative: value.cumulative } : {}),
+    })),
     fourBarVariations: normalizeMutationArray(raw.fourBarVariations, `${id}-four`, (value, base) => ({
       ...base,
       ...(Array.isArray(value.blockOffsets) ? { blockOffsets: Array.from(new Set(value.blockOffsets.map(offset => positiveInt(offset, 0, 4096)))).sort((a, b) => a - b) } : {}),
@@ -841,6 +975,13 @@ function normalizeScene(raw: unknown, index: number): LaserDmxShowDirectorPerfor
     sectionEntryMutations: normalizeMutationArray(raw.sectionEntryMutations, `${id}-entry`, (_value, base) => base),
     sectionBodyMutations: normalizeMutationArray(raw.sectionBodyMutations, `${id}-body`, (_value, base) => base),
     sectionExitMutations: normalizeMutationArray(raw.sectionExitMutations, `${id}-exit`, (_value, base) => base),
+    ...(ENERGY_ENVELOPE_KEYS.has(raw.energyEnvelopeKey as LaserDmxShowDirectorPerformanceEnergyEnvelopeKey)
+      ? { energyEnvelopeKey: raw.energyEnvelopeKey as LaserDmxShowDirectorPerformanceEnergyEnvelopeKey }
+      : {}),
+    ...(Array.isArray(raw.blackoutWindows)
+      ? { blackoutWindows: raw.blackoutWindows.map(normalizeBlackoutWindow).filter((value): value is LaserDmxShowDirectorProgrammedBlackoutWindow => value !== null).slice(0, 16) }
+      : {}),
+    ...(typeof raw.allowZeroBeamOutput === 'boolean' ? { allowZeroBeamOutput: raw.allowZeroBeamOutput } : {}),
   }
 }
 export function normalizeLaserDmxShowDirectorPerformanceProgram(
@@ -866,6 +1007,14 @@ export function normalizeLaserDmxShowDirectorPerformanceProgram(
         return normalizedRole && address ? [[normalizedRole, address]] : []
       }).slice(0, 128))
       : undefined,
+    energyEnvelopes: isRecord(raw.energyEnvelopes)
+      ? Object.fromEntries(Object.entries(raw.energyEnvelopes).flatMap(([key, value]) => {
+        if (!ENERGY_ENVELOPE_KEYS.has(key as LaserDmxShowDirectorPerformanceEnergyEnvelopeKey)) return []
+        const envelope = normalizeEnergyEnvelope(value)
+        return envelope ? [[key, envelope]] : []
+      })) as Partial<Record<LaserDmxShowDirectorPerformanceEnergyEnvelopeKey, LaserDmxShowDirectorSectionEnergyEnvelope>>
+      : undefined,
+    blackoutPolicy: normalizeBlackoutPolicy(raw.blackoutPolicy),
     fallbackOrder: Array.isArray(raw.fallbackOrder)
       ? Array.from(new Set(raw.fallbackOrder.filter(isSectionType)))
       : undefined,

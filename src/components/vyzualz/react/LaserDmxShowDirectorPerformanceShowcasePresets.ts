@@ -10,10 +10,14 @@ import type {
   LaserDmxShowDirectorPerformanceAddress,
   LaserDmxShowDirectorPerformanceBeatMutation,
   LaserDmxShowDirectorPerformanceMutationBase,
+  LaserDmxShowDirectorPerformanceEnergyEnvelopeKey,
+  LaserDmxShowDirectorPerformanceBlackoutPolicy,
   LaserDmxShowDirectorPerformanceOccurrenceMatch,
   LaserDmxShowDirectorPerformanceProgram,
   LaserDmxShowDirectorPerformanceScene,
   LaserDmxShowDirectorPerformanceSectionMatch,
+  LaserDmxShowDirectorProgrammedBlackoutWindow,
+  LaserDmxShowDirectorSectionEnergyEnvelope,
 } from './LaserDmxShowDirectorPerformanceProgram'
 import type { LaserDmxShowDirectorPerformancePresetDefinition } from './LaserDmxShowDirectorPerformancePresets'
 import {
@@ -48,6 +52,64 @@ const MUSIC_CAPABILITIES = [
 const PRISM_MOTIF_SEQUENCE = ['prism-open-x', 'prism-nested-diamond', 'prism-mirrored-crown', 'prism-cathedral-cage'] as const
 const CARDINAL_MOTIF_SEQUENCE = ['cardinal-horizontal-opposing-fans', 'cardinal-vertical-opposing-fans', 'cardinal-aperture', 'cardinal-diagonal-expansion'] as const
 const CAGE_MOTIF_SEQUENCE = ['cage-outer-mirrored-walls', 'cage-inner-chevrons', 'cage-double-x', 'cage-wide-cage-wings'] as const
+
+export const LASER_DMX_SHOW_DIRECTOR_SHOWCASE_BLACKOUT_POLICY: LaserDmxShowDirectorPerformanceBlackoutPolicy = Object.freeze({
+  maxPreDropBeats: 1,
+  maxImpactCutBeats: 0.5,
+  maxFakeoutBeats: 1,
+  maximumProgrammedBlackoutRatio: 0.06,
+  retriggerGuardBeats: 0.25,
+  breakdownRequiresVisibleOutput: true,
+  minimumVisibleFixtureBrightness: 0.34,
+})
+
+const envelope = (
+  activeFixtureGroups: [number, number], estimatedBeamCount: [number, number], brightness: [number, number],
+  fanSpread: [number, number], movementStrength: [number, number], glow: [number, number],
+  density: [number, number], negativeSpace: [number, number],
+): LaserDmxShowDirectorSectionEnergyEnvelope => ({
+  activeFixtureGroups: { min: activeFixtureGroups[0], max: activeFixtureGroups[1] },
+  estimatedBeamCount: { min: estimatedBeamCount[0], max: estimatedBeamCount[1] },
+  brightness: { min: brightness[0], max: brightness[1] },
+  fanSpread: { min: fanSpread[0], max: fanSpread[1] },
+  movementStrength: { min: movementStrength[0], max: movementStrength[1] },
+  glow: { min: glow[0], max: glow[1] },
+  density: { min: density[0], max: density[1] },
+  negativeSpace: { min: negativeSpace[0], max: negativeSpace[1] },
+})
+
+export const PRISM_CATHEDRAL_ENERGY_ENVELOPES: Record<LaserDmxShowDirectorPerformanceEnergyEnvelopeKey, LaserDmxShowDirectorSectionEnergyEnvelope> = Object.freeze({
+  intro: envelope([1, 2], [4, 24], [0.46, 0.68], [16, 38], [0.12, 0.42], [0.5, 0.72], [0.01, 0.08], [0.66, 0.86]),
+  verse: envelope([2, 4], [16, 56], [0.58, 0.8], [26, 62], [0.24, 0.6], [0.62, 0.82], [0.05, 0.2], [0.42, 0.7]),
+  build: envelope([2, 6], [16, 96], [0.64, 0.94], [34, 92], [0.35, 0.9], [0.72, 0.96], [0.06, 0.34], [0.16, 0.62]),
+  preDrop: envelope([1, 2], [2, 16], [0.42, 0.72], [4, 18], [0, 0.22], [0.42, 0.68], [0.005, 0.06], [0.72, 0.92]),
+  drop1: envelope([3, 6], [48, 104], [0.78, 1], [58, 108], [0.55, 1], [0.84, 1], [0.16, 0.36], [0.08, 0.52]),
+  breakdown: envelope([1, 2], [2, 16], [0.42, 0.68], [5, 24], [0.04, 0.28], [0.46, 0.68], [0.005, 0.06], [0.68, 0.9]),
+  drop2: envelope([6, 6], [88, 144], [0.86, 1], [72, 122], [0.65, 1], [0.92, 1], [0.29, 0.48], [0, 0.24]),
+  outro: envelope([1, 2], [2, 20], [0.34, 0.62], [6, 30], [0.05, 0.32], [0.4, 0.62], [0.005, 0.07], [0.72, 0.92]),
+})
+
+export const CARDINAL_FAN_REACTOR_ENERGY_ENVELOPES: Record<LaserDmxShowDirectorPerformanceEnergyEnvelopeKey, LaserDmxShowDirectorSectionEnergyEnvelope> = Object.freeze({
+  intro: envelope([1, 2], [4, 24], [0.46, 0.68], [18, 40], [0.14, 0.44], [0.5, 0.72], [0.01, 0.08], [0.7, 0.88]),
+  verse: envelope([2, 4], [16, 60], [0.58, 0.8], [28, 64], [0.25, 0.62], [0.62, 0.82], [0.05, 0.2], [0.46, 0.74]),
+  build: envelope([3, 8], [24, 120], [0.66, 0.95], [38, 104], [0.38, 0.92], [0.74, 0.98], [0.08, 0.4], [0.1, 0.58]),
+  preDrop: envelope([1, 2], [2, 16], [0.42, 0.72], [4, 16], [0, 0.22], [0.42, 0.68], [0.005, 0.06], [0.76, 0.94]),
+  drop1: envelope([4, 8], [64, 136], [0.8, 1], [62, 112], [0.58, 1], [0.86, 1], [0.21, 0.46], [0.04, 0.48]),
+  breakdown: envelope([1, 3], [2, 20], [0.42, 0.68], [5, 26], [0.04, 0.3], [0.46, 0.68], [0.005, 0.07], [0.68, 0.92]),
+  drop2: envelope([8, 8], [112, 176], [0.88, 1], [78, 132], [0.68, 1], [0.94, 1], [0.37, 0.59], [0, 0.18]),
+  outro: envelope([1, 2], [2, 20], [0.34, 0.62], [6, 30], [0.05, 0.32], [0.4, 0.62], [0.005, 0.07], [0.76, 0.94]),
+})
+
+export const CYAN_MIRROR_CAGE_ENERGY_ENVELOPES: Record<LaserDmxShowDirectorPerformanceEnergyEnvelopeKey, LaserDmxShowDirectorSectionEnergyEnvelope> = Object.freeze({
+  intro: envelope([1, 2], [4, 24], [0.46, 0.68], [16, 38], [0.12, 0.42], [0.5, 0.72], [0.01, 0.08], [0.72, 0.9]),
+  verse: envelope([2, 4], [16, 60], [0.58, 0.8], [26, 64], [0.24, 0.62], [0.62, 0.82], [0.05, 0.2], [0.5, 0.76]),
+  build: envelope([2, 8], [16, 120], [0.64, 0.95], [34, 104], [0.36, 0.92], [0.72, 0.98], [0.06, 0.4], [0.16, 0.66]),
+  preDrop: envelope([1, 2], [2, 16], [0.42, 0.72], [4, 18], [0, 0.22], [0.42, 0.68], [0.005, 0.06], [0.78, 0.94]),
+  drop1: envelope([3, 7], [48, 128], [0.78, 1], [58, 112], [0.55, 1], [0.84, 1], [0.16, 0.43], [0.08, 0.54]),
+  breakdown: envelope([1, 2], [2, 16], [0.42, 0.68], [5, 24], [0.04, 0.28], [0.46, 0.68], [0.005, 0.06], [0.72, 0.92]),
+  drop2: envelope([8, 8], [112, 176], [0.86, 1], [76, 128], [0.65, 1], [0.92, 1], [0.37, 0.59], [0.08, 0.24]),
+  outro: envelope([1, 2], [2, 20], [0.34, 0.62], [6, 30], [0.05, 0.32], [0.4, 0.62], [0.005, 0.07], [0.78, 0.94]),
+})
 
 type CreateId = () => string
 
@@ -169,6 +231,22 @@ function baseScene(
   sectionMatch: LaserDmxShowDirectorPerformanceSectionMatch,
   patch: Partial<LaserDmxShowDirectorPerformanceScene>,
 ): LaserDmxShowDirectorPerformanceScene {
+  const energyEnvelopeKey: LaserDmxShowDirectorPerformanceEnergyEnvelopeKey = id.includes('drop-2')
+    ? 'drop2'
+    : id.includes('drop-1')
+      ? 'drop1'
+      : id.includes('pre-drop')
+        ? 'preDrop'
+        : id.includes('breakdown')
+          ? 'breakdown'
+          : id.includes('build')
+            ? 'build'
+            : id.includes('verse')
+              ? 'verse'
+              : id.includes('outro')
+                ? 'outro'
+                : 'intro'
+  const isImmediateImpact = energyEnvelopeKey === 'drop1' || energyEnvelopeKey === 'drop2' || energyEnvelopeKey === 'preDrop'
   return {
     id,
     label,
@@ -183,6 +261,11 @@ function baseScene(
       beamPriorityRole: 'primaryArchitecture',
     },
     global: { dimmer: 0.9, globalGlow: 0.82, beamPersistence: 0.22 },
+    energyEnvelopeKey,
+    ...(isImmediateImpact ? {} : {
+      transitionIn: { durationBars: 0.25, curve: 'easeInOut' },
+      transitionOut: { durationBars: 0.25, curve: 'easeInOut' },
+    }),
     ...patch,
   }
 }
@@ -215,6 +298,22 @@ function enableFixtures(
     stage,
     cumulative,
     address: { fixtureSemanticKeys },
+    fixture: { enabled: true, ...fixture },
+  }
+}
+
+function enableGroupAtBar(
+  id: string,
+  stageBar: number,
+  groupSemanticKey: string,
+  fixture: NonNullable<LaserDmxShowDirectorPerformanceMutationBase['fixture']>,
+  cumulative = true,
+) {
+  return {
+    id,
+    stageBar,
+    cumulative,
+    address: { groupSemanticKeys: [groupSemanticKey] },
     fixture: { enabled: true, ...fixture },
   }
 }
@@ -395,15 +494,164 @@ function applyPresetBankChoreography(
   }
 }
 
-function shortPredropBlackout(prefix: string): LaserDmxShowDirectorPerformanceMutationBase[] {
+function shortPredropBlackout(prefix: string): LaserDmxShowDirectorProgrammedBlackoutWindow[] {
   return [{
     id: `${prefix}-final-half-beat-blackout`,
-    conditions: [
-      { source: 'sectionProgress', operator: 'gte', value: 0.96, requiredCapability: 'Sections' },
-      { source: 'beatPhase', operator: 'gte', value: 0.5, requiredCapability: 'Beat Grid' },
-    ],
-    global: { blackout: true, dimmer: 0 },
+    kind: 'preDrop',
+    anchor: 'sectionEnd',
+    durationBeats: 0.5,
+    justification: 'Half-beat release before the authored full-bank drop impact.',
   }]
+}
+
+function appendSceneMutations(
+  scene: LaserDmxShowDirectorPerformanceScene,
+  patch: Partial<LaserDmxShowDirectorPerformanceScene>,
+): LaserDmxShowDirectorPerformanceScene {
+  return {
+    ...scene,
+    ...patch,
+    barProgression: [...(scene.barProgression ?? []), ...(patch.barProgression ?? [])],
+    sectionEntryMutations: [...(scene.sectionEntryMutations ?? []), ...(patch.sectionEntryMutations ?? [])],
+    sectionExitMutations: [...(scene.sectionExitMutations ?? []), ...(patch.sectionExitMutations ?? [])],
+  }
+}
+
+function applyPrismSectionEnergyArc(program: LaserDmxShowDirectorPerformanceProgram): LaserDmxShowDirectorPerformanceProgram {
+  const allKeys = PRISM_FIXTURES.map(fixture => fixture.key)
+  return {
+    ...program,
+    scenes: program.scenes.map(scene => {
+      if (scene.id === 'prism-intro') return appendSceneMutations({
+        ...scene,
+        fourBarVariations: [{ id: 'prism-intro-sparse-motif', motifFamily: PRISM_MOTIF_SEQUENCE[0], address: { groupSemanticKeys: ['prism-upper-outer'] }, fixture: { targetMode: 'fixed', targetPoints: PRISM_X.slice(0, 2), fanSpread: 20 } }],
+      }, {
+        barProgression: [enableGroupAtBar('prism-intro-bar-three-inner', 3, 'prism-upper-inner', { brightness: 0.58, color: CYAN, fanSpread: 28, targetMode: 'fixed', targetPoints: PRISM_DIAMOND.slice(0, 4) })],
+      })
+      if (scene.id === 'prism-build') return appendSceneMutations(scene, {
+        barProgression: [
+          enableGroupAtBar('prism-build-bar-two-inner', 2, 'prism-upper-inner', { brightness: 0.76, color: MAGENTA, fanSpread: 52, targetMode: 'fixed', targetPoints: PRISM_DIAMOND }),
+          enableGroupAtBar('prism-build-bar-three-middle', 3, 'prism-middle-side', { brightness: 0.82, color: ICE, fanSpread: 64, targetMode: 'fixed', targetPoints: PRISM_CAGE }),
+          enableGroupAtBar('prism-build-bar-four-accent', 4, 'prism-center-accent', { brightness: 0.92, color: WHITE, fanSpread: 38, targetMode: 'fixed', targetPoints: PRISM_CROWN, beamPriorityRole: 'heroImpact' }),
+        ],
+        sectionExitMutations: [{
+          id: 'prism-build-final-beat-contraction', durationBeats: 1,
+          address: { fixtureSemanticKeys: allKeys },
+          fixture: { fanSpread: 12, targetPosition: { x: 9, y: 5 }, rotation: 0, beamTravel: { mode: 'static', beatsPerTravel: 4 } },
+          global: { dimmer: 0.74, globalGlow: 0.68 },
+        }],
+      })
+      if (scene.id === 'prism-drop-1' || scene.id === 'prism-drop-2') {
+        const dropTwo = scene.id === 'prism-drop-2'
+        const entryKeys = dropTwo ? allKeys : allKeys.filter(key => !PRISM_ACCENTS.includes(key))
+        return appendSceneMutations(scene, {
+        sectionEntryMutations: [
+          { id: `${scene.id}-full-bank-entry`, durationBeats: 0.5, address: { fixtureSemanticKeys: entryKeys }, fixture: { enabled: true, brightness: 1, fanSpread: dropTwo ? 112 : 98, ...(dropTwo ? { targetMode: 'fixed' as const, targetPoints: PRISM_CAGE } : {}), beamPriorityRole: 'heroImpact', beamAppearance: { width: 2.8, glow: 1 } }, global: { dimmer: 1, globalGlow: 1 } },
+          { id: `${scene.id}-white-crown-entry`, durationBeats: 0.5, address: { fixtureSemanticKeys: dropTwo ? PRISM_ACCENTS : PRISM_INNER }, fixture: { enabled: true, brightness: 1, color: WHITE, targetPoints: PRISM_CROWN, beamPriorityRole: 'heroImpact' } },
+        ],
+      })
+      }
+      if (scene.id === 'prism-breakdown') return { ...scene, transitionIn: { durationBars: 0.04, curve: 'easeOut' }, global: { ...scene.global, dimmer: 0.62, globalGlow: 0.58 } }
+      if (scene.id === 'prism-outro') return appendSceneMutations(scene, {
+        barProgression: [
+          { id: 'prism-outro-stage-one', stageBar: 1, cumulative: false, address: { groupSemanticKeys: ['prism-upper-inner', 'prism-lower-inner'] }, fixture: { enabled: true, brightness: 0.5, color: ICE, fanSpread: 24, targetMode: 'fixed', targetPoints: PRISM_DIAMOND.slice(0, 4) } },
+          { id: 'prism-outro-stage-two', stageBar: 3, cumulative: false, address: { groupSemanticKeys: ['prism-upper-inner'] }, fixture: { enabled: true, brightness: 0.46, color: CYAN, fanSpread: 18, targetMode: 'fixed', targetPoints: PRISM_DIAMOND.slice(0, 3) } },
+          { id: 'prism-outro-stage-three', stageBar: 5, cumulative: false, address: { fixtureSemanticKeys: ['prism-upper-inner-left', 'prism-upper-inner-right'] }, fixture: { enabled: true, brightness: 0.4, color: ICE, fanSpread: 10, targetMode: 'fixed', targetPoints: PRISM_SPEARS.slice(0, 2) } },
+          { id: 'prism-outro-stage-four', stageBar: 7, cumulative: false, address: { fixtureSemanticKeys: ['prism-upper-inner-left'] }, fixture: { enabled: true, brightness: 0.34, color: WHITE, fanSpread: 6, targetMode: 'fixed', targetPoints: PRISM_SPEARS.slice(0, 1) } },
+        ],
+        sectionExitMutations: [{ id: 'prism-outro-final-fade', durationBeats: 0.5, global: { dimmer: 0.12, globalGlow: 0.28 } }],
+      })
+      return scene
+    }),
+  }
+}
+
+function applyCardinalSectionEnergyArc(program: LaserDmxShowDirectorPerformanceProgram): LaserDmxShowDirectorPerformanceProgram {
+  const allKeys = CARDINAL_FIXTURES.map(fixture => fixture.key)
+  return {
+    ...program,
+    scenes: program.scenes.map(scene => {
+      if (scene.id === 'cardinal-intro') return appendSceneMutations({
+        ...scene,
+        fourBarVariations: [{ id: 'cardinal-intro-sparse-motif', motifFamily: CARDINAL_MOTIF_SEQUENCE[0], address: { groupSemanticKeys: ['cardinal-left', 'cardinal-right'] }, fixture: { targetMode: 'fixed', targetPoints: CARDINAL_SPEARS.slice(0, 2), fanSpread: 22 } }],
+      }, {
+        barProgression: [enableGroupAtBar('cardinal-intro-bar-three-top', 3, 'cardinal-top', { brightness: 0.58, color: CYAN, fanSpread: 30, targetMode: 'fixed', targetPoints: CARDINAL_OUTWARD.slice(0, 4) })],
+      })
+      if (scene.id === 'cardinal-build') return appendSceneMutations(scene, {
+        barProgression: [
+          enableGroupAtBar('cardinal-build-bar-two-bottom', 2, 'cardinal-bottom', { brightness: 0.76, color: ORANGE, fanSpread: 56, targetMode: 'fixed', targetPoints: CARDINAL_OUTWARD.slice().reverse() }),
+          { id: 'cardinal-build-bar-three-upper-diagonals', stageBar: 3, address: { groupSemanticKeys: ['cardinal-upper-left', 'cardinal-upper-right'] }, fixture: { enabled: true, brightness: 0.82, fanSpread: 70, targetMode: 'fixed', targetPoints: CARDINAL_CROSSED } },
+          { id: 'cardinal-build-bar-four-lower-diagonals', stageBar: 4, address: { groupSemanticKeys: ['cardinal-lower-left', 'cardinal-lower-right'] }, fixture: { enabled: true, brightness: 0.9, fanSpread: 84, targetMode: 'fixed', targetPoints: CARDINAL_APERTURE, beamPriorityRole: 'secondaryFan' } },
+        ],
+        sectionExitMutations: [{ id: 'cardinal-build-final-beat-aperture', durationBeats: 1, address: { fixtureSemanticKeys: allKeys }, fixture: { fanSpread: 10, targetPosition: { x: 9, y: 6 }, rotation: 0, beamTravel: { mode: 'static', beatsPerTravel: 4 } }, global: { dimmer: 0.74, globalGlow: 0.68 } }],
+      })
+      if (scene.id === 'cardinal-drop-1' || scene.id === 'cardinal-drop-2') {
+        const dropTwo = scene.id === 'cardinal-drop-2'
+        const entryKeys = dropTwo ? allKeys : [...CARDINAL_HORIZONTAL, ...CARDINAL_VERTICAL]
+        return appendSceneMutations(scene, {
+        sectionEntryMutations: [
+          { id: `${scene.id}-full-bank-entry`, durationBeats: 0.5, address: { fixtureSemanticKeys: entryKeys }, fixture: { enabled: true, brightness: 1, fanSpread: dropTwo ? 124 : 106, targetMode: 'fixed', targetPoints: CARDINAL_APERTURE, beamPriorityRole: 'heroImpact', beamAppearance: { width: 2.8, glow: 1 } }, global: { dimmer: 1, globalGlow: 1 } },
+          { id: `${scene.id}-white-cardinal-entry`, durationBeats: 0.5, address: { fixtureSemanticKeys: [...CARDINAL_HORIZONTAL, ...CARDINAL_VERTICAL] }, fixture: { enabled: true, brightness: 1, color: WHITE, targetPoints: CARDINAL_OUTWARD, beamPriorityRole: 'heroImpact' } },
+        ],
+      })
+      }
+      if (scene.id === 'cardinal-breakdown') return { ...scene, transitionIn: { durationBars: 0.04, curve: 'easeOut' }, global: { ...scene.global, dimmer: 0.62, globalGlow: 0.58 } }
+      if (scene.id === 'cardinal-outro') return appendSceneMutations(scene, {
+        barProgression: [
+          { id: 'cardinal-outro-stage-one', stageBar: 1, cumulative: false, address: { groupSemanticKeys: ['cardinal-left', 'cardinal-right', 'cardinal-top', 'cardinal-bottom'] }, fixture: { enabled: true, brightness: 0.5, fanSpread: 26, targetMode: 'fixed', targetPoints: CARDINAL_INWARD } },
+          { id: 'cardinal-outro-stage-two', stageBar: 3, cumulative: false, address: { groupSemanticKeys: ['cardinal-left', 'cardinal-right'] }, fixture: { enabled: true, brightness: 0.46, fanSpread: 18, targetMode: 'fixed', targetPoints: CARDINAL_INWARD.slice(0, 4) } },
+          { id: 'cardinal-outro-stage-three', stageBar: 5, cumulative: false, address: { fixtureSemanticKeys: ['cardinal-left-primary', 'cardinal-right-primary'] }, fixture: { enabled: true, brightness: 0.4, color: CYAN, fanSpread: 10, targetMode: 'fixed', targetPoints: CARDINAL_SPEARS.slice(0, 2) } },
+          { id: 'cardinal-outro-stage-four', stageBar: 7, cumulative: false, address: { fixtureSemanticKeys: ['cardinal-top-primary'] }, fixture: { enabled: true, brightness: 0.34, color: WHITE, fanSpread: 6, targetMode: 'fixed', targetPoints: CARDINAL_SPEARS.slice(0, 1) } },
+        ],
+        sectionExitMutations: [{ id: 'cardinal-outro-final-fade', durationBeats: 0.5, global: { dimmer: 0.12, globalGlow: 0.28 } }],
+      })
+      return scene
+    }),
+  }
+}
+
+function applyCageSectionEnergyArc(program: LaserDmxShowDirectorPerformanceProgram): LaserDmxShowDirectorPerformanceProgram {
+  const allKeys = CAGE_FIXTURES.map(fixture => fixture.key)
+  return {
+    ...program,
+    scenes: program.scenes.map(scene => {
+      if (scene.id === 'cage-intro') return appendSceneMutations({
+        ...scene,
+        fourBarVariations: [{ id: 'cage-intro-sparse-motif', motifFamily: CAGE_MOTIF_SEQUENCE[0], address: { groupSemanticKeys: ['cage-upper-outer'] }, fixture: { targetMode: 'fixed', targetPoints: CAGE_SPEARS.slice(0, 2), fanSpread: 20 } }],
+      }, {
+        barProgression: [enableGroupAtBar('cage-intro-bar-three-inner', 3, 'cage-upper-inner', { brightness: 0.58, color: CYAN, fanSpread: 28, targetMode: 'fixed', targetPoints: CAGE_CHEVRONS.slice(0, 4) })],
+      })
+      if (scene.id === 'cage-build') return appendSceneMutations(scene, {
+        barProgression: [
+          { id: 'cage-build-bar-two-inner-rows', stageBar: 2, address: { groupSemanticKeys: ['cage-upper-inner', 'cage-lower-inner'] }, fixture: { enabled: true, brightness: 0.76, color: CYAN, fanSpread: 54, targetMode: 'fixed', targetPoints: CAGE_CHEVRONS } },
+          { id: 'cage-build-bar-three-middle-rows', stageBar: 3, address: { groupSemanticKeys: ['cage-middle-outer', 'cage-middle-inner'] }, fixture: { enabled: true, brightness: 0.84, color: ICE, fanSpread: 70, targetMode: 'fixed', targetPoints: CAGE_DOUBLE_X } },
+          { id: 'cage-build-bar-four-corners', stageBar: 4, address: { groupSemanticKeys: ['cage-corner-upper'] }, fixture: { enabled: true, brightness: 0.92, color: WHITE, fanSpread: 42, targetMode: 'fixed', targetPoints: CAGE_WINGS, beamPriorityRole: 'heroImpact' } },
+        ],
+        sectionExitMutations: [{ id: 'cage-build-final-beat-corridor-hold', durationBeats: 1, address: { fixtureSemanticKeys: allKeys }, fixture: { fanSpread: 10, targetMode: 'fixed', targetPoints: CAGE_SPEARS, rotation: 0, beamTravel: { mode: 'static', beatsPerTravel: 4 } }, global: { dimmer: 0.74, globalGlow: 0.68 } }],
+      })
+      if (scene.id === 'cage-drop-1' || scene.id === 'cage-drop-2') {
+        const dropTwo = scene.id === 'cage-drop-2'
+        const entryKeys = dropTwo ? allKeys : allKeys.filter(key => !CAGE_ACCENTS.includes(key))
+        return appendSceneMutations(scene, {
+        sectionEntryMutations: [
+          { id: `${scene.id}-full-bank-entry`, durationBeats: 0.5, address: { fixtureSemanticKeys: entryKeys }, fixture: { enabled: true, brightness: 1, fanSpread: dropTwo ? 120 : 102, beamPriorityRole: 'heroImpact', beamAppearance: { width: 2.8, glow: 1 } }, global: { dimmer: 1, globalGlow: 1 } },
+          { id: `${scene.id}-white-outer-wall-entry`, durationBeats: 0.5, address: { fixtureSemanticKeys: dropTwo ? [...CAGE_OUTER, ...CAGE_ACCENTS] : CAGE_OUTER }, fixture: { enabled: true, brightness: 1, color: WHITE, targetMode: 'fixed', targetPoints: CAGE_WINGS, beamPriorityRole: 'heroImpact' } },
+        ],
+      })
+      }
+      if (scene.id === 'cage-breakdown') return { ...scene, transitionIn: { durationBars: 0.04, curve: 'easeOut' }, global: { ...scene.global, dimmer: 0.62, globalGlow: 0.58 } }
+      if (scene.id === 'cage-outro') return appendSceneMutations(scene, {
+        barProgression: [
+          { id: 'cage-outro-stage-one', stageBar: 1, cumulative: false, address: { groupSemanticKeys: ['cage-upper-outer', 'cage-lower-outer'] }, fixture: { enabled: true, brightness: 0.5, color: ICE, fanSpread: 24, targetMode: 'fixed', targetPoints: CAGE_WIDE.slice(0, 4) } },
+          { id: 'cage-outro-stage-two', stageBar: 3, cumulative: false, address: { groupSemanticKeys: ['cage-upper-outer'] }, fixture: { enabled: true, brightness: 0.46, color: CYAN, fanSpread: 18, targetMode: 'fixed', targetPoints: CAGE_CHEVRONS.slice(0, 4) } },
+          { id: 'cage-outro-stage-three', stageBar: 5, cumulative: false, address: { fixtureSemanticKeys: ['cage-upper-left-outer', 'cage-upper-right-outer'] }, fixture: { enabled: true, brightness: 0.4, color: ICE, fanSpread: 10, targetMode: 'fixed', targetPoints: CAGE_SPEARS.slice(0, 2) } },
+          { id: 'cage-outro-stage-four', stageBar: 7, cumulative: false, address: { fixtureSemanticKeys: ['cage-upper-left-outer'] }, fixture: { enabled: true, brightness: 0.34, color: WHITE, fanSpread: 6, targetMode: 'fixed', targetPoints: CAGE_SPEARS.slice(0, 1) } },
+        ],
+        sectionExitMutations: [{ id: 'cage-outro-final-fade', durationBeats: 0.5, global: { dimmer: 0.12, globalGlow: 0.28 } }],
+      })
+      return scene
+    }),
+  }
 }
 
 // ── Prism Cathedral ──────────────────────────────────────────────────────────
@@ -557,7 +805,7 @@ function prismPreDropScene(): LaserDmxShowDirectorPerformanceScene {
     fourBarVariations: [
       { id: 'prism-pre-drop-spire', address: { fixtureSemanticKeys: [...PRISM_INNER, ...PRISM_ACCENTS] }, fixture: { targetPoints: PRISM_SPEARS, targetMode: 'fixed', fanSpread: 12 } },
     ],
-    sectionExitMutations: shortPredropBlackout('prism-pre-drop'),
+    blackoutWindows: shortPredropBlackout('prism-pre-drop'),
   })
 }
 
@@ -659,13 +907,15 @@ export function createPrismCathedralRig(createId: CreateId): LaserDmxShowDirecto
 
 export function createPrismCathedralProgram(): LaserDmxShowDirectorPerformanceProgram {
   const program: LaserDmxShowDirectorPerformanceProgram = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     id: 'prism-cathedral',
     name: 'Prism Cathedral',
     description: 'A cyan-and-magenta mirrored cathedral that evolves through X lattices, nested diamonds, crowns, cages, sparse spears, and a larger second-drop return.',
     deterministicSeed: 0x50a17,
     fallbackOrder: ['verse', 'intro', 'breakdown'],
     tuning: { intensity: 1, variation: 1, audioIntelligenceResponse: 1, transitionScale: 1 },
+    energyEnvelopes: PRISM_CATHEDRAL_ENERGY_ENVELOPES,
+    blackoutPolicy: LASER_DMX_SHOW_DIRECTOR_SHOWCASE_BLACKOUT_POLICY,
     bankRoles: {
       'prism-kick-outer-wings': { fixtureSemanticKeys: PRISM_OUTER },
       'prism-kick-rest': { fixtureSemanticKeys: [...PRISM_INNER, 'prism-middle-side-left', 'prism-middle-side-right', ...PRISM_ACCENTS] },
@@ -678,7 +928,7 @@ export function createPrismCathedralProgram(): LaserDmxShowDirectorPerformancePr
       'prism-bass-width': { fixtureSemanticKeys: PRISM_OUTER },
     },
     diagnostics: {
-      authoringVersion: 'showcase-04-beat-banks',
+      authoringVersion: 'showcase-05-section-energy-arc',
       expectedFixtureSemanticKeys: PRISM_FIXTURES.map(fixture => fixture.key),
       expectedGroupSemanticKeys: PRISM_GROUPS.map(group => group.key),
       notes: ['Twelve mirrored laser fixtures', 'Native Show Director and Beam Matrix only', 'Drop 2 keeps cathedral motifs while adding every fixture group'],
@@ -710,7 +960,7 @@ export function createPrismCathedralProgram(): LaserDmxShowDirectorPerformancePr
     snareSpread: 74,
     transientSpread: 34,
   })
-  return authorPrismCathedralLocalGeometry(applyMotifFamilySequence(choreographed, PRISM_MOTIF_SEQUENCE), PRISM_FIXTURES)
+  return authorPrismCathedralLocalGeometry(applyPrismSectionEnergyArc(applyMotifFamilySequence(choreographed, PRISM_MOTIF_SEQUENCE)), PRISM_FIXTURES)
 }
 
 // ── Cardinal Fan Reactor ─────────────────────────────────────────────────────
@@ -843,7 +1093,7 @@ function cardinalPreDropScene(): LaserDmxShowDirectorPerformanceScene {
       { id: 'cardinal-pre-drop-contract-bottom', intervalBars: 2, anchorBar: 1, address: { fixtureSemanticKeys: CARDINAL_VERTICAL }, fixture: { targetPoints: CARDINAL_SPEARS.slice().reverse(), fanSpread: 7, rotation: 5 } },
     ],
     fourBarVariations: [{ id: 'cardinal-pre-drop-slit', address: { fixtureSemanticKeys: CARDINAL_VERTICAL }, fixture: { targetPoints: CARDINAL_SPEARS, targetMode: 'fixed', fanSpread: 8 } }],
-    sectionExitMutations: shortPredropBlackout('cardinal-pre-drop'),
+    blackoutWindows: shortPredropBlackout('cardinal-pre-drop'),
   })
 }
 
@@ -979,13 +1229,15 @@ export function createCardinalFanReactorRig(createId: CreateId): LaserDmxShowDir
 
 export function createCardinalFanReactorProgram(): LaserDmxShowDirectorPerformanceProgram {
   const program: LaserDmxShowDirectorPerformanceProgram = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     id: 'cardinal-fan-reactor',
     name: 'Cardinal Fan Reactor',
     description: 'Opposing cardinal and diagonal fan banks rotate, inhale, exhale, cross, and explode into a multicolor radial second drop.',
     deterministicSeed: 0xca4d1,
     fallbackOrder: ['verse', 'intro', 'breakdown'],
     tuning: { intensity: 1, variation: 1, audioIntelligenceResponse: 1, transitionScale: 1 },
+    energyEnvelopes: CARDINAL_FAN_REACTOR_ENERGY_ENVELOPES,
+    blackoutPolicy: LASER_DMX_SHOW_DIRECTOR_SHOWCASE_BLACKOUT_POLICY,
     bankRoles: {
       'cardinal-horizontal': { groupSemanticKeys: ['cardinal-left', 'cardinal-right'] },
       'cardinal-horizontal-rest': { groupSemanticKeys: ['cardinal-top', 'cardinal-bottom', 'cardinal-upper-left', 'cardinal-upper-right', 'cardinal-lower-left', 'cardinal-lower-right'] },
@@ -998,7 +1250,7 @@ export function createCardinalFanReactorProgram(): LaserDmxShowDirectorPerforman
       'cardinal-bass-aperture': { groupSemanticKeys: ['cardinal-top', 'cardinal-bottom', 'cardinal-left', 'cardinal-right'] },
     },
     diagnostics: {
-      authoringVersion: 'showcase-04-beat-banks',
+      authoringVersion: 'showcase-05-section-energy-arc',
       expectedFixtureSemanticKeys: CARDINAL_FIXTURES.map(fixture => fixture.key),
       expectedGroupSemanticKeys: CARDINAL_GROUPS.map(group => group.key),
       notes: ['Sixteen near-co-located cardinal and diagonal fan fixtures', 'Kick favors horizontal banks; snare favors vertical banks', 'Drop 2 activates all eight origins'],
@@ -1031,7 +1283,7 @@ export function createCardinalFanReactorProgram(): LaserDmxShowDirectorPerforman
     transientSpread: 120,
     deterministicFakeout: true,
   })
-  return authorCardinalFanReactorLocalGeometry(applyMotifFamilySequence(choreographed, CARDINAL_MOTIF_SEQUENCE), CARDINAL_FIXTURES)
+  return authorCardinalFanReactorLocalGeometry(applyCardinalSectionEnergyArc(applyMotifFamilySequence(choreographed, CARDINAL_MOTIF_SEQUENCE)), CARDINAL_FIXTURES)
 }
 
 // ── Cyan Mirror Cage ─────────────────────────────────────────────────────────
@@ -1175,7 +1427,7 @@ function cagePreDropScene(): LaserDmxShowDirectorPerformanceScene {
       { id: 'cage-pre-drop-restrain-outward', intervalBars: 2, anchorBar: 1, address: { fixtureSemanticKeys: [...CAGE_INNER, ...CAGE_MIDDLE] }, fixture: { targetPoints: CAGE_DIAMOND.slice().reverse(), fanSpread: 8, rotation: 4 } },
     ],
     fourBarVariations: [{ id: 'cage-pre-drop-arrowheads', address: { fixtureSemanticKeys: [...CAGE_INNER, ...CAGE_MIDDLE] }, fixture: { targetPoints: CAGE_CHEVRONS, targetMode: 'fixed', fanSpread: 10 } }],
-    sectionExitMutations: shortPredropBlackout('cage-pre-drop'),
+    blackoutWindows: shortPredropBlackout('cage-pre-drop'),
   })
 }
 
@@ -1296,13 +1548,15 @@ export function createCyanMirrorCageRig(createId: CreateId): LaserDmxShowDirecto
 
 export function createCyanMirrorCageProgram(): LaserDmxShowDirectorPerformanceProgram {
   const program: LaserDmxShowDirectorPerformanceProgram = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     id: 'cyan-mirror-cage',
     name: 'Cyan Mirror Cage',
     description: 'Sixteen mirrored row and corner lasers protect a dark center corridor with cyan arrowheads, X structures, diamonds, angular cages, and sparse white breakdown spears.',
     deterministicSeed: 0xc7a6e,
     fallbackOrder: ['verse', 'intro', 'breakdown'],
     tuning: { intensity: 1, variation: 1, audioIntelligenceResponse: 1, transitionScale: 1 },
+    energyEnvelopes: CYAN_MIRROR_CAGE_ENERGY_ENVELOPES,
+    blackoutPolicy: LASER_DMX_SHOW_DIRECTOR_SHOWCASE_BLACKOUT_POLICY,
     bankRoles: {
       'cage-outer-walls': { fixtureSemanticKeys: CAGE_OUTER },
       'cage-outer-walls-rest': { fixtureSemanticKeys: [...CAGE_INNER, ...CAGE_MIDDLE, ...CAGE_ACCENTS] },
@@ -1315,7 +1569,7 @@ export function createCyanMirrorCageProgram(): LaserDmxShowDirectorPerformancePr
       'cage-bass-wall-pressure': { fixtureSemanticKeys: CAGE_OUTER },
     },
     diagnostics: {
-      authoringVersion: 'showcase-04-beat-banks',
+      authoringVersion: 'showcase-05-section-energy-arc',
       expectedFixtureSemanticKeys: CAGE_FIXTURES.map(fixture => fixture.key),
       expectedGroupSemanticKeys: CAGE_GROUPS.map(group => group.key),
       notes: ['Sixteen upper, middle, lower, and corner laser fixtures', 'Endpoint sets preserve a dark central corridor', 'Drop 2 activates every mirrored row and impact accent'],
@@ -1347,7 +1601,7 @@ export function createCyanMirrorCageProgram(): LaserDmxShowDirectorPerformancePr
     snareSpread: 72,
     transientSpread: 56,
   })
-  return authorCyanMirrorCageLocalGeometry(applyMotifFamilySequence(choreographed, CAGE_MOTIF_SEQUENCE), CAGE_FIXTURES)
+  return authorCyanMirrorCageLocalGeometry(applyCageSectionEnergyArc(applyMotifFamilySequence(choreographed, CAGE_MOTIF_SEQUENCE)), CAGE_FIXTURES)
 }
 
 export const PRISM_CATHEDRAL_PERFORMANCE_PRESET: LaserDmxShowDirectorPerformancePresetDefinition = Object.freeze({

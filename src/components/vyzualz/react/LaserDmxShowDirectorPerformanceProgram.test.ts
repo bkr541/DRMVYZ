@@ -98,7 +98,7 @@ describe('Show Director performance-program foundation', () => {
     const normalized = normalizeLaserDmxShowDirectorPerformanceProgram(malformed)!
     const scene = normalized.scenes[0]!
     const mutation = scene.beatMutations![0]!
-    expect(normalized.schemaVersion).toBe(2)
+    expect(normalized.schemaVersion).toBe(3)
     expect(scene.transitionIn).toMatchObject({ durationBars: 0, durationMs: 120000 })
     expect(scene.transitionIn?.curve).toBeUndefined()
     expect(mutation.probability).toBe(1)
