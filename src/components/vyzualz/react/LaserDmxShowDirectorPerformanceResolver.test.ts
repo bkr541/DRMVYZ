@@ -306,4 +306,83 @@ describe('Show Director deterministic performance resolver', () => {
     })
     expect(compiled.beams).toHaveLength(300)
   })
+
+  it('keeps mandatory choreography active at Variation Amount zero while suppressing optional accents', () => {
+    const authoredProgram = program()
+    authoredProgram.scenes[0]!.sectionBodyMutations = [{
+      id: 'optional-accent', probability: 1,
+      address: { fixtureSemanticKeys: ['hero-left'] },
+      fixture: { beamAppearance: { glow: 0.123 } },
+    }]
+    const tuning = { ...authoredProgram.tuning, variation: 0 }
+    const result = resolveLaserDmxShowDirectorPerformance({
+      authoredShowDirector: rig(), program: authoredProgram, context: contextAt(16.1), tuning,
+      programSeed: 77, enabled: true, audioIntelligenceEnabled: true, fallbackBehavior: 'basicTiming',
+      runtimeInvalidationId: 'runtime:variation-zero',
+    })
+    expect(result.activeFixtureKeys.length).toBeGreaterThan(0)
+    expect(result.activeFixtureKeys).toContain('recruit-right')
+    expect(result.estimatedBeamDemand).toBeGreaterThan(0)
+    expect(fixtureByKey(result, 'hero-left').runtimeBeamAppearance?.glow).not.toBe(0.123)
+  })
+
+  it('uses an explicit or inferred beat cycle instead of the number of offsets', () => {
+    const beatProgram = program()
+    beatProgram.scenes = [{
+      id: 'beat-cycle', label: 'Beat Cycle', enabled: true, section: { types: ['drop'] },
+      beatMutations: [{
+        id: 'beats-zero-and-three', beatDivision: 1, beatOffsets: [0, 3], beatCycleLength: 4,
+        address: { fixtureSemanticKeys: ['hero-left'] }, fixture: { rotation: 99 },
+      }],
+    }]
+    const resolveBeat = (timeSec: number) => resolveLaserDmxShowDirectorPerformance({
+      authoredShowDirector: rig(), program: beatProgram, context: contextAt(timeSec), tuning: beatProgram.tuning,
+      programSeed: 77, enabled: true, audioIntelligenceEnabled: true, fallbackBehavior: 'basicTiming',
+      runtimeInvalidationId: 'runtime:beat-cycle',
+    })
+    expect(fixtureByKey(resolveBeat(0.1), 'hero-left').rotation).toBe(99)
+    expect(fixtureByKey(resolveBeat(0.6), 'hero-left').rotation).toBe(10)
+    expect(fixtureByKey(resolveBeat(1.6), 'hero-left').rotation).toBe(99)
+  })
+
+  it('applies participating semantic group overrides and reports missing requested groups', () => {
+    const groupProgram = program()
+    groupProgram.scenes = [{
+      id: 'group-participation', label: 'Group Participation', enabled: true, section: { types: ['drop'] },
+      address: { fixtureSemanticKeys: ['hero-left'] },
+      fixture: { participatingGroupSemanticKeys: ['recruit-group', 'missing-group'] },
+    }]
+    const result = resolveLaserDmxShowDirectorPerformance({
+      authoredShowDirector: rig(), program: groupProgram, context: contextAt(2.1), tuning: groupProgram.tuning,
+      programSeed: 77, enabled: true, audioIntelligenceEnabled: true, fallbackBehavior: 'basicTiming',
+      runtimeInvalidationId: 'runtime:groups',
+    })
+    expect(fixtureByKey(result, 'hero-left').groupId).toBe('recruit-group')
+    expect(result.diagnostics.missingGroupKeys).toContain('missing-group')
+  })
+
+  it('interpolates transitions between adjacent performance scenes instead of the authored rig', () => {
+    const transitionProgram = program()
+    transitionProgram.scenes = [
+      {
+        id: 'transition-one', label: 'Transition One', enabled: true, priority: 10,
+        section: { types: ['drop'], occurrence: { occurrences: [1] } },
+        address: { fixtureSemanticKeys: ['hero-left'] }, fixture: { rotation: 0 },
+        transitionOut: { durationBars: 1, curve: 'linear' },
+      },
+      {
+        id: 'transition-two', label: 'Transition Two', enabled: true, priority: 10,
+        section: { types: ['drop'], occurrence: { minOccurrence: 2 } },
+        address: { fixtureSemanticKeys: ['hero-left'] }, fixture: { rotation: 100 },
+      },
+    ]
+    const result = resolveLaserDmxShowDirectorPerformance({
+      authoredShowDirector: rig(), program: transitionProgram, context: contextAt(63.75), tuning: transitionProgram.tuning,
+      programSeed: 77, enabled: true, audioIntelligenceEnabled: true, fallbackBehavior: 'basicTiming',
+      runtimeInvalidationId: 'runtime:transition',
+    })
+    expect(fixtureByKey(result, 'hero-left').rotation).toBeGreaterThan(50)
+    expect(fixtureByKey(result, 'hero-left').rotation).toBeLessThan(100)
+  })
+
 })

@@ -56,8 +56,11 @@ export interface ResolveLaserDmxShowDirectorPerformanceInput {
   transportDiscontinuityIdentity?: string | null
 }
 
+export type LaserDmxShowDirectorPerformanceAnalysisStatus = 'ready' | 'partial' | 'fallback'
+
 export interface LaserDmxShowDirectorPerformanceCapabilityDiagnostics {
   analysisReady: boolean
+  analysisStatus: LaserDmxShowDirectorPerformanceAnalysisStatus
   missingCapabilities: string[]
   missingFixtureKeys: string[]
   missingGroupKeys: string[]
@@ -214,6 +217,24 @@ function sectionTypeForFallback(input: ResolveLaserDmxShowDirectorPerformanceInp
   return 'verse'
 }
 
+function effectiveSectionOccurrence(
+  type: LaserDmxShowDirectorPerformanceSectionType,
+  context: LaserDmxShowDirectorPerformanceTimingContext,
+): number {
+  if (context.sectionOccurrence > 0) return context.sectionOccurrence
+  return type === 'unknown' ? 0 : 1
+}
+
+function effectiveDropOccurrence(
+  type: LaserDmxShowDirectorPerformanceSectionType,
+  context: LaserDmxShowDirectorPerformanceTimingContext,
+): number {
+  if (context.dropOccurrence > 0) return context.dropOccurrence
+  // Energy/semantic fallback can identify a drop even when no authoritative section map
+  // exists. Treat that inferred section as Drop 1 without mutating Track Map authority.
+  return type === 'drop' && context.resolvedSection == null ? 1 : 0
+}
+
 function sceneMatches(
   scene: LaserDmxShowDirectorPerformanceScene,
   type: LaserDmxShowDirectorPerformanceSectionType,
@@ -222,8 +243,8 @@ function sceneMatches(
   const context = work.input.context
   if (!scene.enabled || !scene.section.types.includes(type)) return false
   if (scene.section.sectionIds?.length && !scene.section.sectionIds.includes(context.resolvedSection?.id ?? '')) return false
-  if (!occurrenceMatches(context.sectionOccurrence, scene.section.occurrence)) return false
-  if (!occurrenceMatches(context.dropOccurrence, scene.section.dropOccurrence)) return false
+  if (!occurrenceMatches(effectiveSectionOccurrence(type, context), scene.section.occurrence)) return false
+  if (!occurrenceMatches(effectiveDropOccurrence(type, context), scene.section.dropOccurrence)) return false
   if (scene.section.minConfidence != null && context.sectionConfidence < scene.section.minConfidence) return false
   if (!sceneBarMatches(scene, context)) return false
   return conditionsPass(scene.conditions, work)
@@ -257,8 +278,8 @@ function selectScene(work: ResolverWork): { scene: LaserDmxShowDirectorPerforman
     work.input.programSeed,
     program.id,
     work.input.context.sectionIdentity,
-    work.input.context.sectionOccurrence,
-    work.input.context.dropOccurrence,
+    effectiveSectionOccurrence(sectionType, work.input.context),
+    effectiveDropOccurrence(sectionType, work.input.context),
     work.input.context.barWithinSection,
     Math.round(work.input.context.energy * 10),
   ].join('|')
@@ -354,6 +375,16 @@ function applyFixtureOverrides(
   if (overrides.component) next.component = { ...component, ...overrides.component }
   if (overrides.beamAppearance) next.runtimeBeamAppearance = { ...next.runtimeBeamAppearance, ...overrides.beamAppearance }
   if (overrides.beamTravel) next.runtimeBeamTravel = { ...next.runtimeBeamTravel, ...overrides.beamTravel }
+  if (overrides.participatingGroupSemanticKeys?.length) {
+    const requestedKeys = overrides.participatingGroupSemanticKeys
+    const matchedGroup = requestedKeys
+      .map(key => work.runtime.groups.find(group => semanticGroupKey(group) === key))
+      .find((group): group is LaserDmxShowDirectorState['groups'][number] => Boolean(group))
+    if (matchedGroup) next.groupId = matchedGroup.id
+    for (const key of requestedKeys) {
+      if (!work.runtime.groups.some(group => semanticGroupKey(group) === key)) work.missingGroupKeys.add(key)
+    }
+  }
   if (overrides.beamPriorityRole) work.fixtureRoles[fixture.id] = overrides.beamPriorityRole
   return next
 }
@@ -389,7 +420,10 @@ function mergeGlobal(
     if (typeof raw !== 'number') continue
     const typedKey = key as Exclude<keyof LaserDmxShowDirectorGlobalOutputOverrides, 'blackout'>
     const previous = typeof next[typedKey] === 'number' ? next[typedKey] as number : (typedKey === 'dimmer' ? 1 : 0)
-    next[typedKey] = mixNumber(previous, raw, mode)
+    const mixed = mixNumber(previous, raw, mode)
+    next[typedKey] = typedKey === 'globalBeamWidth'
+      ? clamp(mixed, 0.1, 6)
+      : clamp01(mixed)
   }
   return next
 }
@@ -472,6 +506,10 @@ function mutationActive(
     return false
   }
   if (mutation.enabled === false || !conditionsPass(mutation.conditions, work)) return false
+  // Mutations without an explicit probability are structural choreography and must
+  // remain active even when Variation Amount is zero. The tuning value only scales
+  // optional/probabilistic accents.
+  if (mutation.probability == null) return true
   const probability = clamp01(finite(mutation.probability, 1) * clamp(work.input.tuning.variation, 0, 2))
   return deterministicUnit(work.input.programSeed, mutation.seedOffset ?? 0, identity, mutation.id) <= probability
 }
@@ -588,8 +626,10 @@ function applyCadence(scene: LaserDmxShowDirectorPerformanceScene, work: Resolve
   for (const mutation of scene.beatMutations ?? []) {
     const division = Math.max(0.25, finite(mutation.beatDivision, 1))
     const beatStep = Math.floor(context.absoluteBeat / division)
-    const offsets = mutation.beatOffsets?.length ? mutation.beatOffsets : [0]
-    if (beatGate && offsets.some(offset => beatStep % Math.max(1, offsets.length) === positiveInt(offset) % Math.max(1, offsets.length))) {
+    const offsets = mutation.beatOffsets?.length ? mutation.beatOffsets.map(offset => positiveInt(offset)) : [0]
+    const inferredCycle = Math.max(...offsets, 0) + 1
+    const cycleLength = Math.max(1, positiveInt(mutation.beatCycleLength, inferredCycle))
+    if (beatGate && offsets.some(offset => beatStep % cycleLength === offset % cycleLength)) {
       applyMutation(mutation, work, `${baseIdentity}|beat|${beatStep}`)
     }
   }
@@ -598,6 +638,93 @@ function applyCadence(scene: LaserDmxShowDirectorPerformanceScene, work: Resolve
   for (const mutation of scene.transientMutations ?? []) if (context.transient >= finite(mutation.threshold, 0.45)) applyMutation(mutation, work, `${baseIdentity}|transient|${context.beatIndex}`)
 
   return { fourBarVariation, eightBarStage }
+}
+
+function adjacentSectionContext(
+  work: ResolverWork,
+  direction: -1 | 1,
+): LaserDmxShowDirectorPerformanceTimingContext | null {
+  const current = work.input.context.resolvedSection
+  if (!current) return null
+  const sections = work.input.context.sections
+  const currentIndex = sections.findIndex(section => section.id === current.id)
+  const targetIndex = currentIndex + direction
+  const target = sections[targetIndex]
+  if (currentIndex < 0 || !target) return null
+
+  const secondsPerBar = work.input.context.bpm > 0
+    ? 60 / work.input.context.bpm * Math.max(1, work.input.context.timeSignature)
+    : 2
+  const duration = Math.max(EPSILON, target.endSec - target.startSec)
+  const audioTimeSec = direction < 0
+    ? Math.max(target.startSec, target.endSec - Math.min(0.001, duration / 2))
+    : Math.min(target.endSec, target.startSec + Math.min(0.001, duration / 2))
+  const elapsed = Math.max(0, audioTimeSec - target.startSec)
+  const remaining = Math.max(0, target.endSec - audioTimeSec)
+  const barWithinSection = Math.max(0, Math.floor(elapsed / Math.max(EPSILON, secondsPerBar)))
+  const sectionOccurrence = sections.slice(0, targetIndex + 1).filter(section => section.type === target.type).length
+  const dropOccurrence = target.type === 'drop'
+    ? sections.slice(0, targetIndex + 1).filter(section => section.type === 'drop').length
+    : 0
+
+  return {
+    ...work.input.context,
+    audioTimeSec,
+    resolvedSection: target,
+    sectionProgress: clamp01(elapsed / duration),
+    sectionConfidence: target.confidence,
+    sectionOccurrence,
+    dropOccurrence,
+    barWithinSection,
+    barsSinceSectionStart: elapsed / Math.max(EPSILON, secondsPerBar),
+    barsUntilSectionEnd: remaining / Math.max(EPSILON, secondsPerBar),
+    fourBarBlockIndex: Math.floor(barWithinSection / 4),
+    eightBarBlockIndex: Math.floor(barWithinSection / 8),
+    sixteenBarBlockIndex: Math.floor(barWithinSection / 16),
+    energy: target.intensity,
+    runtimeIdentity: `${work.input.context.runtimeIdentity}|transition-neighbor:${target.id}:${direction}`,
+    boundaries: {
+      ...work.input.context.boundaries,
+      beatBoundary: false,
+      barBoundary: false,
+      fourBarBoundary: false,
+      eightBarBoundary: false,
+      sixteenBarBoundary: false,
+      sectionEntry: direction > 0,
+      sectionExit: direction < 0,
+      previousSectionId: direction > 0 ? current.id : sections[targetIndex - 1]?.id ?? null,
+      currentSectionId: target.id,
+      timingDiscontinuity: false,
+    },
+  }
+}
+
+function resolveSceneStateWithoutTransitions(
+  work: ResolverWork,
+  context: LaserDmxShowDirectorPerformanceTimingContext,
+): LaserDmxShowDirectorState | null {
+  const neighbor: ResolverWork = {
+    authored: work.authored,
+    runtime: normalizeLaserDmxShowDirectorState(work.authored),
+    input: { ...work.input, context },
+    fixtureRoles: {},
+    global: {},
+    missingCapabilities: new Set(),
+    missingFixtureKeys: new Set(),
+    missingGroupKeys: new Set(),
+    malformedMutationIds: new Set(),
+  }
+  const selected = selectScene(neighbor)
+  if (!selected.scene) return null
+  applyPayload(selected.scene, neighbor)
+  const variation = selectVariation(selected.scene.variations, selected.scene, neighbor)
+  if (variation) applyPayload(variation, neighbor)
+  applyCadence(selected.scene, neighbor)
+  neighbor.missingCapabilities.forEach(value => work.missingCapabilities.add(value))
+  neighbor.missingFixtureKeys.forEach(value => work.missingFixtureKeys.add(value))
+  neighbor.missingGroupKeys.forEach(value => work.missingGroupKeys.add(value))
+  neighbor.malformedMutationIds.forEach(value => work.malformedMutationIds.add(value))
+  return neighbor.runtime
 }
 
 function parseHex(value: string): [number, number, number] | null {
@@ -683,11 +810,15 @@ function applyTransitions(scene: LaserDmxShowDirectorPerformanceScene, work: Res
   const remaining = Math.max(0, section.endSec - work.input.context.audioTimeSec)
   if (entryDuration > EPSILON && elapsed < entryDuration) {
     const progress = curveProgress(elapsed / entryDuration, scene.transitionIn?.curve ?? 'linear')
-    work.runtime = { ...work.runtime, fixtures: interpolateFixtures(work.authored, work.runtime, progress) }
+    const previousContext = adjacentSectionContext(work, -1)
+    const previousState = previousContext ? resolveSceneStateWithoutTransitions(work, previousContext) : null
+    work.runtime = { ...work.runtime, fixtures: interpolateFixtures(previousState ?? work.authored, work.runtime, progress) }
     if (scene.transitionIn?.blackoutDuringTransition) work.global.blackout = progress < 0.5
   } else if (exitDuration > EPSILON && remaining < exitDuration) {
     const progress = curveProgress(1 - remaining / exitDuration, scene.transitionOut?.curve ?? 'linear')
-    work.runtime = { ...work.runtime, fixtures: interpolateFixtures(work.runtime, work.authored, progress) }
+    const nextContext = adjacentSectionContext(work, 1)
+    const nextState = nextContext ? resolveSceneStateWithoutTransitions(work, nextContext) : null
+    work.runtime = { ...work.runtime, fixtures: interpolateFixtures(work.runtime, nextState ?? work.authored, progress) }
     if (scene.transitionOut?.blackoutDuringTransition) work.global.blackout = progress >= 0.5
   }
 }
@@ -699,10 +830,19 @@ function buildDiagnostics(
   suppressionReason: string | null,
 ): LaserDmxShowDirectorPerformanceCapabilityDiagnostics {
   const capabilities = work.input.context.intelligence.capabilities
-  const analysisReady = capabilities.beatGrid && capabilities.sections
+  const coreTimingReady = capabilities.beatGrid || work.input.context.bpm > 0
+  const sectionsReady = capabilities.sections || work.input.context.resolvedSection !== null
+  const missingCapabilities = [...work.missingCapabilities].sort()
+  const analysisReady = coreTimingReady && sectionsReady
+  const analysisStatus: LaserDmxShowDirectorPerformanceAnalysisStatus = !coreTimingReady
+    ? 'fallback'
+    : (!sectionsReady || missingCapabilities.length > 0)
+      ? 'partial'
+      : 'ready'
   return {
     analysisReady,
-    missingCapabilities: [...work.missingCapabilities].sort(),
+    analysisStatus,
+    missingCapabilities,
     missingFixtureKeys: [...work.missingFixtureKeys].sort(),
     missingGroupKeys: [...work.missingGroupKeys].sort(),
     malformedMutationIds: [...work.malformedMutationIds].sort(),
@@ -739,7 +879,11 @@ function unchangedResolution(
     requestedGlobalOutputOverrides: {},
     fixturePriorityById: budget.priorityByFixtureId,
     diagnostics: {
-      analysisReady: input.context.intelligence.capabilities.beatGrid && input.context.intelligence.capabilities.sections,
+      analysisReady: (input.context.intelligence.capabilities.beatGrid || input.context.bpm > 0)
+        && (input.context.intelligence.capabilities.sections || input.context.resolvedSection !== null),
+      analysisStatus: !(input.context.intelligence.capabilities.beatGrid || input.context.bpm > 0)
+        ? 'fallback'
+        : (!(input.context.intelligence.capabilities.sections || input.context.resolvedSection !== null) ? 'partial' : 'ready'),
       missingCapabilities: [],
       missingFixtureKeys: [],
       missingGroupKeys: [],
@@ -822,7 +966,7 @@ export function resolveLaserDmxShowDirectorPerformance(
       fourBarVariation: cadence.fourBarVariation,
       eightBarRecruitmentStage: cadence.eightBarStage,
       currentSection: selected.sectionType,
-      currentSectionOccurrence: input.context.sectionOccurrence,
+      currentSectionOccurrence: effectiveSectionOccurrence(selected.sectionType, input.context),
       activeFixtureKeys: activeFixtures.map(semanticFixtureKey).sort(),
       activeGroupKeys,
       estimatedBeamDemand: budget.estimatedDemand,

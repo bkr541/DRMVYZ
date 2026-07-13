@@ -71,6 +71,50 @@ describe('Show Director performance-program foundation', () => {
     expect(JSON.parse(JSON.stringify(normalized))).toEqual(normalized)
   })
 
+
+  it('deep-normalizes nested mutations, targets, conditions, transitions, and output values', () => {
+    const malformed = {
+      ...program(),
+      scenes: [{
+        ...program().scenes[0],
+        transitionIn: { durationBars: -5, durationMs: 999999, curve: 'bogus' },
+        beatMutations: [{
+          id: 'deep', beatOffsets: [-2, 3, 3], beatCycleLength: 0, probability: 4,
+          address: { fixtureSemanticKeys: [' A ', 'A'], fixtureKinds: ['laser', 'bogus'] },
+          fixture: {
+            brightness: 8, fanSpread: 900, targetMode: 'bogus', participatingGroupSemanticKeys: [' Group A '],
+            targetPoints: Array.from({ length: 20 }, (_, index) => ({ id: `point-${index}`, x: index * 100, y: -index * 100 })),
+            beamAppearance: { geometry: 'bogus', width: 999, glow: -2 },
+          },
+          global: { globalGlow: 3, dimmer: -1, globalBeamWidth: 99 },
+          conditions: [{ source: ' energy ', operator: 'gte', value: 0.5 }, { source: '', operator: 'gte' }],
+        }],
+      }],
+    }
+    const normalized = normalizeLaserDmxShowDirectorPerformanceProgram(malformed)!
+    const scene = normalized.scenes[0]!
+    const mutation = scene.beatMutations![0]!
+    expect(normalized.schemaVersion).toBe(2)
+    expect(scene.transitionIn).toMatchObject({ durationBars: 0, durationMs: 120000 })
+    expect(scene.transitionIn?.curve).toBeUndefined()
+    expect(mutation.probability).toBe(1)
+    expect(mutation.beatOffsets).toEqual([0, 3])
+    expect(mutation.beatCycleLength).toBe(1)
+    expect(mutation.address?.fixtureSemanticKeys).toEqual(['A'])
+    expect(mutation.address?.fixtureKinds).toEqual(['laser'])
+    expect(mutation.fixture?.brightness).toBe(2)
+    expect(mutation.fixture?.fanSpread).toBe(180)
+    expect(mutation.fixture?.targetMode).toBeUndefined()
+    expect(mutation.fixture?.targetPoints).toHaveLength(8)
+    expect(mutation.fixture?.participatingGroupSemanticKeys).toEqual(['Group A'])
+    expect(mutation.fixture?.beamAppearance?.geometry).toBeUndefined()
+    expect(mutation.fixture?.beamAppearance?.width).toBe(8)
+    expect(mutation.fixture?.beamAppearance?.glow).toBe(0)
+    expect(mutation.global).toEqual({ globalGlow: 1, dimmer: 0, globalBeamWidth: 6 })
+    expect(mutation.conditions).toHaveLength(1)
+    expect(normalizeLaserDmxShowDirectorPerformanceProgram(normalized)).toEqual(normalized)
+  })
+
   it('creates stable, unique semantic fixture and group keys without replacing fixture IDs', () => {
     const left = createDefaultLaserDmxShowDirectorFixture('laser', 'fixture-left', 0)
     const right = createDefaultLaserDmxShowDirectorFixture('laser', 'fixture-right', 1)

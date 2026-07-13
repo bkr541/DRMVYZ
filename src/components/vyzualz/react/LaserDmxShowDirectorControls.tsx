@@ -247,8 +247,13 @@ function PerformanceProgramControls() {
           <div><dt>8-bar Stage</dt><dd>{status.eightBarRecruitmentStage || 0}</dd></div>
           <div><dt>Fixture Groups</dt><dd>{status.activeFixtureGroupCount}</dd></div>
           <div><dt>Beam Demand</dt><dd>{status.estimatedBeamDemand}{status.boundedBeamDemand !== status.estimatedBeamDemand ? ` → ${status.boundedBeamDemand}` : ''}</dd></div>
-          <div><dt>Analysis</dt><dd>{status.analysisReady ? 'Ready' : 'Fallback'}</dd></div>
+          <div><dt>Analysis</dt><dd>{status.analysisStatus === 'ready' ? 'Ready' : status.analysisStatus === 'partial' ? 'Partial' : 'Fallback'}</dd></div>
         </dl>
+        {status.missingCapabilities.length > 0 && (
+          <p className="rv-show-director-performance-status__notice">
+            Optional intelligence unavailable: {status.missingCapabilities.join(', ')}
+          </p>
+        )}
         {statusReason && <p className="rv-show-director-performance-status__notice">{statusReason}</p>}
         {status.beamBudgetWarning && <p className="rv-show-director-performance-status__warning">{status.beamBudgetWarning}</p>}
       </div>

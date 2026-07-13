@@ -8,6 +8,7 @@ import {
 } from './ReactTypes'
 import type {
   LaserDmxShowDirectorPerformanceMutationBase,
+  LaserDmxShowDirectorPerformanceOccurrenceMatch,
   LaserDmxShowDirectorPerformanceProgram,
   LaserDmxShowDirectorPerformanceScene,
   LaserDmxShowDirectorPerformanceSectionMatch,
@@ -25,7 +26,10 @@ const RED = '#ff426f'
 const ORANGE = '#ff8a38'
 
 const ALL_SECTIONS = ['intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'outro'] as const
-const MUSIC_CAPABILITIES = ['Beat Grid', 'Rhythm Events', 'Live Bands', 'Sections', 'Energy']
+const MUSIC_CAPABILITIES = [
+  'Beat Grid', 'Rhythm Events', 'Live Bands', 'Sections', 'Energy',
+  'Track Energy Curve', 'Stem Curves', 'Lyrics', 'Harmonic', 'Semantics', 'Spectral Features',
+]
 
 type CreateId = () => string
 
@@ -117,8 +121,12 @@ function createRig(
   })
 }
 
-function section(types: LaserDmxShowDirectorPerformanceSectionMatch['types'], dropOccurrence?: number[]): LaserDmxShowDirectorPerformanceSectionMatch {
-  return { types, ...(dropOccurrence ? { dropOccurrence: { occurrences: dropOccurrence } } : {}) }
+function section(
+  types: LaserDmxShowDirectorPerformanceSectionMatch['types'],
+  dropOccurrence?: number[] | LaserDmxShowDirectorPerformanceOccurrenceMatch,
+): LaserDmxShowDirectorPerformanceSectionMatch {
+  if (!dropOccurrence) return { types }
+  return { types, dropOccurrence: Array.isArray(dropOccurrence) ? { occurrences: dropOccurrence } : dropOccurrence }
 }
 
 function baseScene(
@@ -327,9 +335,26 @@ function prismVerseScene(): LaserDmxShowDirectorPerformanceScene {
       { id: 'prism-verse-open-x', address: { fixtureSemanticKeys: PRISM_OUTER }, fixture: { enabled: true, targetPoints: PRISM_X, targetMode: 'fixed', fanSpread: 58 } },
       { id: 'prism-verse-restrained-diamond', address: { fixtureSemanticKeys: PRISM_INNER }, fixture: { enabled: true, targetPoints: PRISM_DIAMOND, targetMode: 'fixed', fanSpread: 34 } },
     ],
+    sectionBodyMutations: [
+      {
+        id: 'prism-verse-chord-change-accent', probability: 0.8,
+        conditions: [{ source: 'isChordChange', operator: 'truthy', minConfidence: 0.45 }],
+        address: { fixtureSemanticKeys: PRISM_INNER },
+        fixture: { enabled: true, color: LAVENDER, targetMode: 'fixed', targetPoints: PRISM_DIAMOND },
+      },
+      {
+        id: 'prism-verse-vocal-hook-accent', probability: 0.7,
+        conditions: [{ source: 'isVocalHook', operator: 'truthy', minConfidence: 0.5 }],
+        address: { fixtureSemanticKeys: PRISM_ACCENTS },
+        fixture: { enabled: true, color: WHITE, brightness: 0.9 },
+      },
+    ],
     modulations: [
       { source: 'nBass', target: 'fixture.brightness', amount: 0.28, min: 0, max: 0.28, mode: 'add', requiredCapability: 'Live Bands' },
       { source: 'delta', target: 'fixture.rotation', amount: 5, min: 0, max: 5, mode: 'add' },
+      { source: 'melodyHeight', target: 'fixture.rotation', amount: 8, min: 0, max: 8, mode: 'add', minConfidence: 0.35 },
+      { source: 'trackEnergy', target: 'fixture.fanSpread', amount: 12, min: 0, max: 12, mode: 'add', requiredCapability: 'Track Energy Curve' },
+      { source: 'chordConfidence', target: 'global.globalGlow', amount: 0.12, min: 0, max: 0.12, mode: 'add' },
     ],
   })
 }
@@ -385,8 +410,8 @@ function prismPreDropScene(): LaserDmxShowDirectorPerformanceScene {
 function prismDropScene(dropTwo: boolean): LaserDmxShowDirectorPerformanceScene {
   const suffix = dropTwo ? 'drop-2' : 'drop-1'
   const impact = impactMutations(`prism-${suffix}`, PRISM_INNER, PRISM_OUTER, PRISM_ACCENTS)
-  return baseScene(`prism-${suffix}`, `Prism Cathedral · ${dropTwo ? 'Drop 2' : 'Drop 1'}`, section(['drop'], dropTwo ? [2] : [1]), {
-    global: { dimmer: 1, globalGlow: dropTwo ? 1.18 : 1, beamPersistence: dropTwo ? 0.34 : 0.24, globalBeamWidth: dropTwo ? 1.2 : 1 },
+  return baseScene(`prism-${suffix}`, `Prism Cathedral · ${dropTwo ? 'Drop 2' : 'Drop 1'}`, section(['drop'], dropTwo ? { minOccurrence: 2 } : [1]), {
+    global: { dimmer: 1, globalGlow: 1, beamPersistence: dropTwo ? 0.34 : 0.24, globalBeamWidth: dropTwo ? 1.2 : 1 },
     eightBarRecruitment: dropTwo ? [
       enableGroup('prism-drop2-upper-outer', 1, 'prism-upper-outer', { brightness: 1, color: CYAN, fanSpread: 82, targetMode: 'fixed', targetPoints: PRISM_X, beamPriorityRole: 'primaryArchitecture' }),
       enableGroup('prism-drop2-upper-inner', 1, 'prism-upper-inner', { brightness: 0.96, color: MAGENTA, fanSpread: 78, targetMode: 'fixed', targetPoints: PRISM_DIAMOND, beamPriorityRole: 'primaryArchitecture' }),
@@ -426,6 +451,8 @@ function prismDropScene(dropTwo: boolean): LaserDmxShowDirectorPerformanceScene 
       { source: 'nBass', target: 'fixture.brightness', amount: 0.22, min: 0, max: 0.22, mode: 'add', requiredCapability: 'Live Bands' },
       { source: 'nHigh', target: 'fixture.beamWidth', amount: 0.9, min: 0, max: 0.9, mode: 'add', requiredCapability: 'Live Bands' },
       { source: 'dropImpact', target: 'global.globalGlow', amount: 0.32, min: 0, max: 0.32, mode: 'add' },
+      { source: 'spectralCentroid', target: 'fixture.beamWidth', amount: 0.55, min: 0, max: 0.55, mode: 'add' },
+      { source: 'trackEnergy', target: 'fixture.fanSpread', amount: 10, min: 0, max: 10, mode: 'add', requiredCapability: 'Track Energy Curve' },
     ],
   })
 }
@@ -478,7 +505,7 @@ export function createPrismCathedralRig(createId: CreateId): LaserDmxShowDirecto
 
 export function createPrismCathedralProgram(): LaserDmxShowDirectorPerformanceProgram {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: 'prism-cathedral',
     name: 'Prism Cathedral',
     description: 'A cyan-and-magenta mirrored cathedral that evolves through X lattices, nested diamonds, crowns, cages, sparse spears, and a larger second-drop return.',
@@ -641,8 +668,8 @@ function cardinalPreDropScene(): LaserDmxShowDirectorPerformanceScene {
 function cardinalDropScene(dropTwo: boolean): LaserDmxShowDirectorPerformanceScene {
   const suffix = dropTwo ? 'drop-2' : 'drop-1'
   const allCardinal = [...CARDINAL_HORIZONTAL, ...CARDINAL_VERTICAL]
-  return baseScene(`cardinal-${suffix}`, `Cardinal Fan Reactor · ${dropTwo ? 'Drop 2' : 'Drop 1'}`, section(['drop'], dropTwo ? [2] : [1]), {
-    global: { dimmer: 1, globalGlow: dropTwo ? 1.18 : 1, beamPersistence: dropTwo ? 0.32 : 0.22, globalBeamWidth: dropTwo ? 1.18 : 1 },
+  return baseScene(`cardinal-${suffix}`, `Cardinal Fan Reactor · ${dropTwo ? 'Drop 2' : 'Drop 1'}`, section(['drop'], dropTwo ? { minOccurrence: 2 } : [1]), {
+    global: { dimmer: 1, globalGlow: 1, beamPersistence: dropTwo ? 0.32 : 0.22, globalBeamWidth: dropTwo ? 1.18 : 1 },
     eightBarRecruitment: dropTwo ? [
       enableGroup('cardinal-drop2-top', 1, 'cardinal-top', { brightness: 1, color: CYAN, fanSpread: 86, targetMode: 'fixed', targetPoints: CARDINAL_OUTWARD, beamPriorityRole: 'primaryArchitecture' }),
       enableGroup('cardinal-drop2-bottom', 1, 'cardinal-bottom', { brightness: 1, color: ORANGE, fanSpread: 86, targetMode: 'fixed', targetPoints: CARDINAL_OUTWARD.slice().reverse(), beamPriorityRole: 'primaryArchitecture' }),
@@ -671,7 +698,15 @@ function cardinalDropScene(dropTwo: boolean): LaserDmxShowDirectorPerformanceSce
     ],
     kickMutations: [{ id: `cardinal-${suffix}-kick-horizontal`, threshold: 0.42, address: { fixtureSemanticKeys: CARDINAL_HORIZONTAL }, fixture: { brightness: 1, color: WHITE, beamAppearance: { width: 2.2, glow: 1 }, beamPriorityRole: 'heroImpact' } }],
     snareMutations: [{ id: `cardinal-${suffix}-snare-vertical`, threshold: 0.42, address: { fixtureSemanticKeys: CARDINAL_VERTICAL }, fixture: { brightness: 1, color: WHITE, beamAppearance: { width: 2.2, glow: 1 }, beamPriorityRole: 'heroImpact' } }],
-    transientMutations: [{ id: `cardinal-${suffix}-all-four-impact`, threshold: 0.72, address: { fixtureSemanticKeys: allCardinal }, fixture: { brightness: 1, fanSpread: 120, beamAppearance: { width: 2.8, glow: 1 }, beamPriorityRole: 'heroImpact' } }],
+    transientMutations: [
+      { id: `cardinal-${suffix}-all-four-impact`, threshold: 0.72, address: { fixtureSemanticKeys: allCardinal }, fixture: { brightness: 1, fanSpread: 120, beamAppearance: { width: 2.8, glow: 1 }, beamPriorityRole: 'heroImpact' } },
+      {
+        id: `cardinal-${suffix}-hat-diagonal-spark`, threshold: 0, probability: 0.7,
+        conditions: [{ source: 'hat', operator: 'gte', value: 0.25, requiredCapability: 'Rhythm Events' }],
+        address: { fixtureSemanticKeys: CARDINAL_DIAGONALS },
+        fixture: { enabled: true, brightness: 0.9, color: WHITE, fanSpread: 34, beamPriorityRole: 'decorativeAccent' },
+      },
+    ],
     barMutations: [
       { id: `cardinal-${suffix}-rotate-clockwise`, intervalBars: 2, anchorBar: 0, address: { fixtureSemanticKeys: [...allCardinal, ...CARDINAL_DIAGONALS] }, fixture: { rotation: 18, beamTravel: { mode: 'pingPong', beatsPerTravel: 2, direction: 'forward' } } },
       { id: `cardinal-${suffix}-rotate-counter`, intervalBars: 2, anchorBar: 1, address: { fixtureSemanticKeys: [...allCardinal, ...CARDINAL_DIAGONALS] }, fixture: { rotation: -18, beamTravel: { mode: 'pingPong', beatsPerTravel: 2, direction: 'reverse' } } },
@@ -682,16 +717,33 @@ function cardinalDropScene(dropTwo: boolean): LaserDmxShowDirectorPerformanceSce
       { id: `cardinal-${suffix}-crossed-banks`, address: { fixtureSemanticKeys: [...allCardinal, ...CARDINAL_DIAGONALS] }, fixture: { enabled: true, targetMode: 'fixed', targetPoints: CARDINAL_CROSSED, fanSpread: dropTwo ? 112 : 92 } },
       { id: `cardinal-${suffix}-four-way-aperture`, address: { fixtureSemanticKeys: allCardinal }, fixture: { enabled: true, targetMode: 'fixed', targetPoints: CARDINAL_APERTURE, fanSpread: dropTwo ? 118 : 96 } },
     ],
-    sectionBodyMutations: [{
-      id: `cardinal-${suffix}-optional-drum-stem-diagonals`,
-      conditions: [{ source: 'drumEnergy', operator: 'gt', value: 0.65, requiredCapability: 'Stem Curves', minConfidence: 0.55 }],
-      address: { fixtureSemanticKeys: CARDINAL_DIAGONALS },
-      fixture: { enabled: true, brightness: 1, color: WHITE },
-    }],
+    sectionBodyMutations: [
+      {
+        id: `cardinal-${suffix}-optional-drum-stem-diagonals`, probability: 0.8,
+        conditions: [{ source: 'drumEnergy', operator: 'gt', value: 0.65, requiredCapability: 'Stem Curves', minConfidence: 0.55 }],
+        address: { fixtureSemanticKeys: CARDINAL_DIAGONALS },
+        fixture: { enabled: true, brightness: 1, color: WHITE },
+      },
+      {
+        id: `cardinal-${suffix}-fakeout-collapse`, probability: 0.85,
+        conditions: [{ source: 'isFakeout', operator: 'truthy', minConfidence: 0.5 }],
+        address: { fixtureKinds: ['laser'] },
+        fixture: { brightness: 0.42, fanSpread: 18, focus: 1 },
+      },
+      {
+        id: `cardinal-${suffix}-aggressive-warm-quadrants`, probability: 0.75,
+        conditions: [{ source: 'isAggressive', operator: 'truthy', minConfidence: 0.35 }],
+        address: { groupSemanticKeys: ['cardinal-right', 'cardinal-bottom'] },
+        fixture: { color: RED, beamAppearance: { glow: 1 } },
+      },
+    ],
     modulations: [
       { source: 'nBass', target: 'fixture.fanSpread', amount: 28, min: 0, max: 28, mode: 'add', requiredCapability: 'Live Bands' },
       { source: 'nHigh', target: 'fixture.beamWidth', amount: 0.8, min: 0, max: 0.8, mode: 'add', requiredCapability: 'Live Bands' },
       { source: 'dropImpact', target: 'global.globalGlow', amount: 0.34, min: 0, max: 0.34, mode: 'add' },
+      { source: 'spectralFlux', target: 'fixture.fanSpread', amount: 12, min: 0, max: 12, mode: 'add' },
+      { source: 'spectralCentroid', target: 'fixture.beamWidth', amount: 0.65, min: 0, max: 0.65, mode: 'add' },
+      { source: 'trackEnergy', target: 'fixture.brightness', amount: 0.14, min: 0, max: 0.14, mode: 'add', requiredCapability: 'Track Energy Curve' },
     ],
   })
 }
@@ -745,7 +797,7 @@ export function createCardinalFanReactorRig(createId: CreateId): LaserDmxShowDir
 
 export function createCardinalFanReactorProgram(): LaserDmxShowDirectorPerformanceProgram {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: 'cardinal-fan-reactor',
     name: 'Cardinal Fan Reactor',
     description: 'Opposing cardinal and diagonal fan banks rotate, inhale, exhale, cross, and explode into a multicolor radial second drop.',
@@ -919,8 +971,8 @@ function cagePreDropScene(): LaserDmxShowDirectorPerformanceScene {
 function cageDropScene(dropTwo: boolean): LaserDmxShowDirectorPerformanceScene {
   const suffix = dropTwo ? 'drop-2' : 'drop-1'
   const impact = impactMutations(`cage-${suffix}`, [...CAGE_INNER, ...CAGE_MIDDLE], CAGE_OUTER, CAGE_ACCENTS)
-  return baseScene(`cage-${suffix}`, `Cyan Mirror Cage · ${dropTwo ? 'Drop 2' : 'Drop 1'}`, section(['drop'], dropTwo ? [2] : [1]), {
-    global: { dimmer: 1, globalGlow: dropTwo ? 1.16 : 0.98, beamPersistence: dropTwo ? 0.34 : 0.24, globalBeamWidth: dropTwo ? 1.2 : 1 },
+  return baseScene(`cage-${suffix}`, `Cyan Mirror Cage · ${dropTwo ? 'Drop 2' : 'Drop 1'}`, section(['drop'], dropTwo ? { minOccurrence: 2 } : [1]), {
+    global: { dimmer: 1, globalGlow: dropTwo ? 1 : 0.98, beamPersistence: dropTwo ? 0.34 : 0.24, globalBeamWidth: dropTwo ? 1.2 : 1 },
     eightBarRecruitment: dropTwo ? [
       enableGroup('cage-drop2-upper-outer', 1, 'cage-upper-outer', { brightness: 0.96, color: ICE, fanSpread: 84, targetMode: 'fixed', targetPoints: CAGE_WIDE, beamPriorityRole: 'primaryArchitecture' }),
       enableGroup('cage-drop2-upper-inner', 1, 'cage-upper-inner', { brightness: 0.92, color: CYAN, fanSpread: 76, targetMode: 'fixed', targetPoints: CAGE_DIAMOND, beamPriorityRole: 'primaryArchitecture' }),
@@ -953,16 +1005,34 @@ function cageDropScene(dropTwo: boolean): LaserDmxShowDirectorPerformanceScene {
       { id: `cage-${suffix}-double-x-lattice`, address: { fixtureSemanticKeys: [...CAGE_OUTER, ...CAGE_MIDDLE] }, fixture: { enabled: true, targetMode: 'fixed', targetPoints: CAGE_DOUBLE_X, fanSpread: dropTwo ? 108 : 88 } },
       { id: `cage-${suffix}-outward-mirrored-wings`, address: { fixtureSemanticKeys: [...CAGE_UPPER, ...CAGE_LOWER] }, fixture: { enabled: true, targetMode: 'fixed', targetPoints: CAGE_WINGS, fanSpread: dropTwo ? 114 : 94 } },
     ],
-    sectionBodyMutations: [{
-      id: `cage-${suffix}-optional-vocal-corridor-accents`,
-      conditions: [{ source: 'vocalEnergy', operator: 'gt', value: 0.62, requiredCapability: 'Stem Curves', minConfidence: 0.55 }],
-      address: { fixtureSemanticKeys: CAGE_ACCENTS },
-      fixture: { enabled: true, color: WHITE, brightness: 1, targetPoints: CAGE_SPEARS },
-    }],
+    sectionBodyMutations: [
+      {
+        id: `cage-${suffix}-optional-vocal-corridor-accents`, probability: 0.8,
+        conditions: [{ source: 'vocalEnergy', operator: 'gt', value: 0.62, requiredCapability: 'Stem Curves', minConfidence: 0.55 }],
+        address: { fixtureSemanticKeys: CAGE_ACCENTS },
+        fixture: { enabled: true, color: WHITE, brightness: 1, targetPoints: CAGE_SPEARS },
+      },
+      {
+        id: `cage-${suffix}-dark-corridor`, probability: 0.85,
+        conditions: [{ source: 'isDark', operator: 'truthy', minConfidence: 0.35 }],
+        address: { fixtureSemanticKeys: CAGE_INNER },
+        fixture: { color: BLUE, focus: 1, fanSpread: 38 },
+      },
+      {
+        id: `cage-${suffix}-atmospheric-outer-wings`, probability: 0.75,
+        conditions: [{ source: 'isAtmospheric', operator: 'truthy', minConfidence: 0.35 }],
+        address: { fixtureSemanticKeys: CAGE_OUTER },
+        fixture: { beamAppearance: { geometry: 'volumetricCone', glow: 1 }, brightness: 0.78 },
+      },
+    ],
     modulations: [
       { source: 'nBass', target: 'fixture.brightness', amount: 0.24, min: 0, max: 0.24, mode: 'add', requiredCapability: 'Live Bands' },
       { source: 'nHigh', target: 'fixture.beamWidth', amount: 0.9, min: 0, max: 0.9, mode: 'add', requiredCapability: 'Live Bands' },
       { source: 'dropImpact', target: 'global.globalGlow', amount: 0.34, min: 0, max: 0.34, mode: 'add' },
+      { source: 'spectralFlatness', target: 'fixture.rotation', amount: 9, min: 0, max: 9, mode: 'add' },
+      { source: 'spectralRolloff', target: 'fixture.beamWidth', amount: 0.6, min: 0, max: 0.6, mode: 'add' },
+      { source: 'tension', target: 'global.globalGlow', amount: 0.16, min: 0, max: 0.16, mode: 'add' },
+      { source: 'trackEnergy', target: 'fixture.fanSpread', amount: 10, min: 0, max: 10, mode: 'add', requiredCapability: 'Track Energy Curve' },
     ],
   })
 }
@@ -1015,7 +1085,7 @@ export function createCyanMirrorCageRig(createId: CreateId): LaserDmxShowDirecto
 
 export function createCyanMirrorCageProgram(): LaserDmxShowDirectorPerformanceProgram {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: 'cyan-mirror-cage',
     name: 'Cyan Mirror Cage',
     description: 'Sixteen mirrored row and corner lasers protect a dark center corridor with cyan arrowheads, X structures, diamonds, angular cages, and sparse white breakdown spears.',

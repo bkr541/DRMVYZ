@@ -132,7 +132,7 @@ describe('Show Director performance preset workflow', () => {
       fourBarVariation: 'four-a', eightBarRecruitmentStage: 1, currentSection: 'drop' as const, currentSectionOccurrence: 1,
       activeFixtureKeys: ['hero'], activeGroupKeys: ['group'], estimatedBeamDemand: 10, boundedBeamDemand: 10,
       requestedGlobalOutputOverrides: {}, fixturePriorityById: {}, deterministicIdentity: 'frame-a',
-      diagnostics: { analysisReady: true, missingCapabilities: [], missingFixtureKeys: [], missingGroupKeys: [], malformedMutationIds: [], fallbackReason: null, suppressionReason: null, beamBudgetWarning: null },
+      diagnostics: { analysisReady: true, analysisStatus: 'ready' as const, missingCapabilities: [], missingFixtureKeys: [], missingGroupKeys: [], malformedMutationIds: [], fallbackReason: null, suppressionReason: null, beamBudgetWarning: null },
     }
     publishLaserDmxShowDirectorPerformanceRuntimeStatus('Show', resolution)
     publishLaserDmxShowDirectorPerformanceRuntimeStatus('Show', { ...resolution, deterministicIdentity: 'frame-b' })
@@ -140,6 +140,35 @@ describe('Show Director performance preset workflow', () => {
     expect(getLaserDmxShowDirectorPerformanceRuntimeStatus().scene).toBe('Scene')
     unsubscribe()
   })
+  it('clears an incompatible Performance Show when a static Rig Layout is loaded', () => {
+    const performancePreset = LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS[0]!
+    expect(useReactStore.getState().applyLaserDmxShowDirectorPerformancePreset(performancePreset)).toBe(true)
+    expect(useReactStore.getState().laserDmxShowDirectorPerformance.enabled).toBe(true)
+
+    expect(useReactStore.getState().applyLaserDmxShowDirectorTemplate('small-club-rig')).toBe(true)
+    const state = useReactStore.getState()
+    expect(state.laserDmxShowDirector.sourceTemplateId).toBe('small-club-rig')
+    expect(state.laserDmxShowDirectorPerformance.enabled).toBe(false)
+    expect(state.laserDmxShowDirectorPerformance.activePresetId).toBeNull()
+    expect(state.laserDmxShowDirectorPerformance.activeProgramId).toBeNull()
+    expect(state.laserDmxShowDirectorPerformance.activeProgramDefinition).toBeNull()
+  })
+
+  it('publishes partial analysis state and the missing optional capabilities', () => {
+    clearLaserDmxShowDirectorPerformanceRuntimeStatus()
+    const resolution = {
+      showDirector: createDefaultLaserDmxShowDirectorState(), activeSceneId: 'scene', activeSceneLabel: 'Scene', activeVariation: null,
+      fourBarVariation: null, eightBarRecruitmentStage: 1, currentSection: 'verse' as const, currentSectionOccurrence: 1,
+      activeFixtureKeys: ['hero'], activeGroupKeys: ['group'], estimatedBeamDemand: 8, boundedBeamDemand: 8,
+      requestedGlobalOutputOverrides: {}, fixturePriorityById: {}, deterministicIdentity: 'partial',
+      diagnostics: { analysisReady: true, analysisStatus: 'partial' as const, missingCapabilities: ['Lyrics', 'Stem Curves'], missingFixtureKeys: [], missingGroupKeys: [], malformedMutationIds: [], fallbackReason: null, suppressionReason: null, beamBudgetWarning: null },
+    }
+    publishLaserDmxShowDirectorPerformanceRuntimeStatus('Show', resolution)
+    const status = getLaserDmxShowDirectorPerformanceRuntimeStatus()
+    expect(status.analysisStatus).toBe('partial')
+    expect(status.missingCapabilities).toEqual(['Lyrics', 'Stem Curves'])
+  })
+
 })
 
 describe('Show Director performance UI architecture', () => {
@@ -161,7 +190,8 @@ describe('Show Director performance UI architecture', () => {
     expect(controlsSource).toContain('SliderRow')
     expect(controlsSource).toContain('SelectRow')
     expect(controlsSource).toContain('NumberInputRow')
-    expect(controlsSource).toContain("status.analysisReady ? 'Ready' : 'Fallback'")
+    expect(controlsSource).toContain("status.analysisStatus === 'ready'")
+    expect(controlsSource).toContain('Optional intelligence unavailable')
     expect(controlsSource).toContain('data-performance-runtime-status')
   })
 

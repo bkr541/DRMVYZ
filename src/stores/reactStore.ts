@@ -6574,8 +6574,15 @@ export const useReactStore = create<ReactStoreState>()(
             laserDmxBeamMatrixAuthoringMode: 'showDirector' as const,
             ...buildLaserDmxShowDirectorHistoryPatch(s, nextWithGlobalSettings),
             laserDmxBeamMatrixPresetDirty: false,
+            // A normal Rig Layout is an authored static rig. Do not silently keep an
+            // incompatible full-song Performance Show active against different keys.
+            laserDmxShowDirectorPerformance: clearLaserDmxShowDirectorPerformanceProgramState(
+              normalizeLaserDmxShowDirectorPerformanceState(s.laserDmxShowDirectorPerformance),
+            ),
           }
         })
+        resetBeamMatrixCompilerState()
+        resetFogState()
         return true
       },
 

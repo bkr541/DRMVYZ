@@ -1,6 +1,9 @@
 import { useSyncExternalStore } from 'react'
 import type { LaserDmxShowDirectorPerformanceSectionType } from './LaserDmxShowDirectorPerformanceProgram'
-import type { LaserDmxShowDirectorPerformanceResolution } from './LaserDmxShowDirectorPerformanceResolver'
+import type {
+  LaserDmxShowDirectorPerformanceAnalysisStatus,
+  LaserDmxShowDirectorPerformanceResolution,
+} from './LaserDmxShowDirectorPerformanceResolver'
 
 export interface LaserDmxShowDirectorPerformanceRuntimeStatusSnapshot {
   active: boolean
@@ -15,6 +18,8 @@ export interface LaserDmxShowDirectorPerformanceRuntimeStatusSnapshot {
   estimatedBeamDemand: number
   boundedBeamDemand: number
   analysisReady: boolean
+  analysisStatus: LaserDmxShowDirectorPerformanceAnalysisStatus
+  missingCapabilities: string[]
   fallbackOrSuppressionReason: string | null
   beamBudgetWarning: string | null
   boundaryIdentity: string
@@ -33,6 +38,8 @@ const EMPTY_SNAPSHOT: LaserDmxShowDirectorPerformanceRuntimeStatusSnapshot = Obj
   estimatedBeamDemand: 0,
   boundedBeamDemand: 0,
   analysisReady: false,
+  analysisStatus: 'fallback',
+  missingCapabilities: [],
   fallbackOrSuppressionReason: null,
   beamBudgetWarning: null,
   boundaryIdentity: 'inactive',
@@ -55,6 +62,8 @@ function statusFingerprint(value: LaserDmxShowDirectorPerformanceRuntimeStatusSn
     value.estimatedBeamDemand,
     value.boundedBeamDemand,
     value.analysisReady,
+    value.analysisStatus,
+    value.missingCapabilities.join(','),
     value.fallbackOrSuppressionReason,
     value.beamBudgetWarning,
     value.boundaryIdentity,
@@ -78,6 +87,8 @@ export function publishLaserDmxShowDirectorPerformanceRuntimeStatus(
     estimatedBeamDemand: resolution.estimatedBeamDemand,
     boundedBeamDemand: resolution.boundedBeamDemand,
     analysisReady: resolution.diagnostics.analysisReady,
+    analysisStatus: resolution.diagnostics.analysisStatus,
+    missingCapabilities: [...resolution.diagnostics.missingCapabilities],
     fallbackOrSuppressionReason: resolution.diagnostics.suppressionReason ?? resolution.diagnostics.fallbackReason,
     beamBudgetWarning: resolution.diagnostics.beamBudgetWarning,
     boundaryIdentity: [
@@ -90,6 +101,8 @@ export function publishLaserDmxShowDirectorPerformanceRuntimeStatus(
       resolution.activeGroupKeys.join(','),
       resolution.estimatedBeamDemand,
       resolution.diagnostics.analysisReady,
+      resolution.diagnostics.analysisStatus,
+      resolution.diagnostics.missingCapabilities.join(','),
       resolution.diagnostics.fallbackReason,
       resolution.diagnostics.suppressionReason,
     ].join('|'),

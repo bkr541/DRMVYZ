@@ -245,7 +245,7 @@ describe('Show Director showcase performance shows', () => {
     }
   })
 
-  describe.each(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS)('$name', preset => {
+  describe.each(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS)('$name', (preset: LaserDmxShowDirectorPerformancePresetDefinition) => {
     it('changes perceptible parameters on every consecutive beat and reacts independently to kick and snare', () => {
       for (const startSec of [0, 16, 48, 72, 80, 112, 128, 160]) {
         const beatA = resolvePreset(preset, startSec + 0.1)
@@ -371,4 +371,103 @@ describe('Show Director showcase performance shows', () => {
     const signatures = LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.map(preset => activeSignature(resolvePreset(preset, 88.1)))
     expect(new Set(signatures).size).toBe(3)
   })
+
+  it('keeps all three shows visible when Variation Amount is zero', () => {
+    for (const preset of LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS) {
+      const program = preset.createProgram()
+      const resolution = resolveLaserDmxShowDirectorPerformance({
+        authoredShowDirector: preset.createRig(deterministicIdFactory(`${preset.id}-variation-zero`)),
+        program,
+        context: contextAt(88.1),
+        tuning: { ...program.tuning, variation: 0 },
+        programSeed: program.deterministicSeed,
+        enabled: true,
+        audioIntelligenceEnabled: true,
+        fallbackBehavior: 'basicTiming',
+        runtimeInvalidationId: `${preset.id}:variation-zero`,
+      })
+      expect(resolution.activeFixtureKeys.length, preset.id).toBeGreaterThan(0)
+      expect(resolution.estimatedBeamDemand, preset.id).toBeGreaterThan(0)
+    }
+  })
+
+  it('uses the evolved Drop 2 scene for Drop 3 and later occurrences', () => {
+    const extendedSections: ReactTrackSection[] = [
+      ...SECTIONS.slice(0, 7),
+      { id: 'drop-3', label: 'Drop 3', type: 'drop', startSec: 160, endSec: 192, intensity: 1, source: 'auto', confidence: 1 },
+      { id: 'outro-extended', label: 'Outro', type: 'outro', startSec: 192, endSec: 208, intensity: 0.2, source: 'auto', confidence: 1 },
+    ]
+    const context = buildLaserDmxShowDirectorPerformanceContext({
+      audioTimeSec: 164.1,
+      frame: frameAt(164.1),
+      resolvedSections: extendedSections,
+      trackIdentity: 'showcase-drop-three',
+    })
+    for (const preset of LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS) {
+      const program = preset.createProgram()
+      const result = resolveLaserDmxShowDirectorPerformance({
+        authoredShowDirector: preset.createRig(deterministicIdFactory(`${preset.id}-drop-three`)),
+        program, context, tuning: program.tuning, programSeed: program.deterministicSeed,
+        enabled: true, audioIntelligenceEnabled: true, fallbackBehavior: 'basicTiming',
+        runtimeInvalidationId: `${preset.id}:drop-three`,
+      })
+      expect(context.dropOccurrence).toBe(3)
+      expect(result.activeSceneId, preset.id).toContain('drop-2')
+    }
+  })
+
+  it('selects Drop 1 from high-energy basic timing when no section map is available', () => {
+    const highEnergyFrame: MusicIntelligenceFrame = {
+      ...frameAt(88.1, { advanced: false }),
+      section: { ...DEFAULT_MI_FRAME.section, type: 'unknown', confidence: 0 },
+      capabilities: { ...DEFAULT_MI_FRAME.capabilities!, ...frameAt(88.1, { advanced: false }).capabilities!, sections: false },
+      energy: { ...frameAt(88.1, { advanced: false }).energy, instant: 0.95, shortTerm: 0.95 },
+    }
+    const context = buildLaserDmxShowDirectorPerformanceContext({
+      audioTimeSec: 88.1,
+      frame: highEnergyFrame,
+      resolvedSections: [],
+      trackIdentity: 'showcase-energy-only',
+    })
+    expect(context.dropOccurrence).toBe(0)
+    for (const preset of LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS) {
+      const program = preset.createProgram()
+      const result = resolveLaserDmxShowDirectorPerformance({
+        authoredShowDirector: preset.createRig(deterministicIdFactory(`${preset.id}-energy-only`)),
+        program, context, tuning: program.tuning, programSeed: program.deterministicSeed,
+        enabled: true, audioIntelligenceEnabled: true, fallbackBehavior: 'basicTiming',
+        runtimeInvalidationId: `${preset.id}:energy-only`,
+      })
+      expect(result.currentSection, preset.id).toBe('drop')
+      expect(result.currentSectionOccurrence, preset.id).toBe(1)
+      expect(result.activeSceneId, preset.id).toContain('drop-1')
+      expect(result.activeFixtureKeys.length, preset.id).toBeGreaterThan(0)
+    }
+  })
+
+  it('keeps built-in output values in range and demonstrates broad Music Intelligence coverage', () => {
+    const sources = new Set<string>()
+    for (const preset of LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS) {
+      const program = preset.createProgram()
+      for (const scene of program.scenes) {
+        if (scene.global?.globalGlow != null) expect(scene.global.globalGlow).toBeLessThanOrEqual(1)
+        const payloads = [
+          scene, ...(scene.variations ?? []), ...(scene.beatMutations ?? []), ...(scene.kickMutations ?? []),
+          ...(scene.snareMutations ?? []), ...(scene.transientMutations ?? []), ...(scene.barMutations ?? []),
+          ...(scene.fourBarVariations ?? []), ...(scene.eightBarRecruitment ?? []), ...(scene.sixteenBarEvolution ?? []),
+          ...(scene.sectionEntryMutations ?? []), ...(scene.sectionBodyMutations ?? []), ...(scene.sectionExitMutations ?? []),
+        ]
+        for (const payload of payloads) {
+          payload.conditions?.forEach(condition => sources.add(condition.source))
+          payload.modulations?.forEach(modulation => sources.add(modulation.source))
+        }
+      }
+    }
+    expect([...sources]).toEqual(expect.arrayContaining([
+      'hat', 'isChordChange', 'isVocalHook', 'melodyHeight', 'trackEnergy',
+      'isFakeout', 'isAggressive', 'spectralFlux', 'spectralCentroid',
+      'isDark', 'isAtmospheric', 'spectralFlatness', 'spectralRolloff', 'tension',
+    ]))
+  })
+
 })
