@@ -141,14 +141,15 @@ export class BeatGrid {
     const beatHit  = isPlaying && rawIndex === this.prevBeatIndex + 1
     if (rawIndex !== this.prevBeatIndex) this.prevBeatIndex = rawIndex
 
-    const beatInBar = rawIndex % this.timeSignature
-    const barIndex  = Math.floor(rawIndex / this.timeSignature)
+    const marker = markers[rawIndex]!
+    const beatInBar = marker.beatWithinBar ?? rawIndex % this.timeSignature
+    const barIndex  = marker.barIndex ?? Math.floor(rawIndex / this.timeSignature)
 
     // Prefer explicit downbeat markers; fall back to bar position
     const downbeatHit = beatHit && (
       this.downbeats.length > 0
-        ? this.downbeats.some(d => Math.abs(d.timeSec - markers[rawIndex].timeSec) < 0.06)
-        : beatInBar === 0
+        ? this.downbeats.some(d => Math.abs(d.timeSec - marker.timeSec) < 0.06)
+        : marker.isDownbeat || beatInBar === 0
     )
 
     return this.buildState(rawIndex, beatPhase, beatHit, beatInBar, barIndex, downbeatHit)

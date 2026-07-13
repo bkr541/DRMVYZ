@@ -247,6 +247,130 @@ export interface BeatMarkerMI {
   isDownbeat: boolean
   /** Optional external tempo at this beat, used by Rekordbox beat-grid imports. */
   bpm?: number
+  /** Analysis-v2 musical-grid metadata. Optional for legacy/imported records. */
+  beatIndex?: number
+  beatWithinBar?: number
+  barIndex?: number
+  gridSource?: MusicalGridSource
+  gridConfidence?: number
+}
+
+export type MusicalGridSource =
+  | 'locked_user'
+  | 'imported'
+  | 'manual_correction'
+  | 'automatic'
+  | 'legacy_fallback'
+
+export type MusicalGridFallbackReason =
+  | 'tempo_unavailable'
+  | 'beat_phase_low_confidence'
+  | 'downbeat_phase_low_confidence'
+  | 'insufficient_duration'
+  | 'insufficient_features'
+  | 'unsupported_meter'
+  | 'invalid_imported_grid'
+  | null
+
+export interface MusicalGridConfidence {
+  bpm:           number
+  beatPhase:     number
+  downbeatPhase: number
+  barGrid:       number
+}
+
+export interface MusicalGridInfo {
+  source:          MusicalGridSource
+  fallbackReason:  MusicalGridFallbackReason
+  timeSignature:   number
+  downbeatPhase:   number | null
+  beatPeriodSec:   number | null
+  authoritative:   boolean
+  confidence:      MusicalGridConfidence
+}
+
+export interface BarMarkerMI {
+  barIndex:       number
+  startSec:       number
+  endSec:         number
+  gridSource:     MusicalGridSource
+  gridConfidence: number
+  /** True for a short pickup window before the first resolved downbeat. */
+  isPickup?:      boolean
+}
+
+export type BarFeatureSource = 'bar_grid' | 'time_window_fallback'
+
+export interface BarMusicalFeatures {
+  barIndex:                  number
+  startSec:                  number
+  endSec:                    number
+  source:                    BarFeatureSource
+  gridSource:                MusicalGridSource
+  gridConfidence:            number
+  meanEnergy:                number
+  peakEnergy:                number
+  energySlope:               number
+  dynamicRange:              number
+  bassAverage:               number
+  midAverage:                number
+  highAverage:               number
+  spectralFlux:              number
+  spectralCentroid:          number
+  spectralComplexity:        number
+  overallTransientDensity:   number
+  lowFrequencyOnsetDensity:  number
+  midFrequencyOnsetDensity:  number
+  highFrequencyOnsetDensity: number
+  silenceRatio:              number
+  /** Normalized pitch-class energy ordered C..B. Empty when unavailable. */
+  chromaSummary:             number[]
+  harmonicChange:            number
+}
+
+export type AnalysisStage =
+  | 'decoding'
+  | 'extracting_features'
+  | 'resolving_tempo'
+  | 'resolving_musical_grid'
+  | 'building_bar_features'
+  | 'structural_analysis'
+  | 'finalizing'
+
+export interface AnalysisProgressInfo {
+  stage:    AnalysisStage
+  progress: number
+  message?: string
+}
+
+export type AnalysisWarningCode =
+  | 'bpm_detection_failed'
+  | 'low_bpm_confidence'
+  | 'low_beat_phase_confidence'
+  | 'low_downbeat_phase_confidence'
+  | 'invalid_imported_grid'
+  | 'time_domain_fallback'
+  | 'short_track'
+  | 'silent_track'
+
+export interface AnalysisWarning {
+  code:        AnalysisWarningCode
+  stage:       AnalysisStage
+  message:     string
+  recoverable: boolean
+}
+
+export interface AnalysisDiagnostics {
+  featureFrameCount: number
+  beatCount:         number
+  downbeatCount:     number
+  barCount:          number
+  barFeatureCount:   number
+  sectionCount:      number
+  usedFallback:      boolean
+  gridSource:        MusicalGridSource
+  fallbackReason:    MusicalGridFallbackReason
+  downbeatPhaseScores?: number[]
 }
 
 export interface PhraseMarker {
@@ -308,11 +432,18 @@ export interface TrackIntelligenceAnalysis {
   bpm:              number | null
   /** null when BPM detection failed. */
   bpmConfidence:    number | null
+  /** Analysis-v2 confidence fields; optional on legacy cached/imported data. */
+  beatPhaseConfidence?:     number | null
+  downbeatPhaseConfidence?: number | null
+  barGridConfidence?:       number | null
   /** null when BPM detection failed (offset cannot be determined without BPM). */
   beatGridOffsetSec: number | null
   timeSignature:    number  // beats per bar, typically 4
   beatGrid:         BeatMarkerMI[]
   downbeats:        BeatMarkerMI[]
+  barMarkers?:      BarMarkerMI[]
+  barFeatures?:     BarMusicalFeatures[]
+  musicalGrid?:     MusicalGridInfo
   phrases:          PhraseMarker[]
   sections:         TrackSectionMI[]
   energyCurves: {
@@ -345,6 +476,9 @@ export interface TrackIntelligenceAnalysis {
   semanticMoments: SemanticMomentMarker[]
   warnings:        string[]
   errors:          string[]
+  /** Typed companions to the legacy string warnings/errors fields. */
+  analysisWarnings?:    AnalysisWarning[]
+  analysisDiagnostics?: AnalysisDiagnostics
 
   // ── BPM tracking metadata (optional; absent in analyses created before this field) ──
 

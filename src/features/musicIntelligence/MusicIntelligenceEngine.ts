@@ -225,7 +225,15 @@ export class MusicIntelligenceEngine {
     this.bpmConfidence  = Math.max(0, Math.min(1, confidence))
     this.beatGridOffset = offsetSec
     this.beatGrid.setBpm(bpm, this.bpmConfidence, offsetSec)
-    const markers = buildBeatMarkers(bpm, offsetSec, durationSec)
+    const downbeatPhase = this.trackAnalysis?.musicalGrid?.downbeatPhase
+      ?? this.trackAnalysis?.beatGrid.findIndex(marker => marker.isDownbeat)
+      ?? 0
+    const markers = buildBeatMarkers(bpm, offsetSec, durationSec, {
+      timeSignature: this.trackAnalysis?.timeSignature ?? 4,
+      downbeatPhase: downbeatPhase >= 0 ? downbeatPhase : 0,
+      source: 'manual_correction',
+      confidence: this.bpmConfidence,
+    })
     this.beatGrid.setMarkers(markers, markers.filter(m => m.isDownbeat))
     this.publishCapabilityState()
   }

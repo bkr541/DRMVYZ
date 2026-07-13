@@ -63,7 +63,7 @@ export type FftSize = 512 | 1024 | 2048 | 4096 | 8192
 
 // Re-exported so callers import from one place
 export type { TrackAnalysisStatus, BpmReanalysisStatus } from './features/musicIntelligence/types'
-import type { TrackIntelligenceAnalysis, TrackAnalysisStatus, BeatMarkerMI, BpmReanalysisStatus } from './features/musicIntelligence/types'
+import type { TrackIntelligenceAnalysis, TrackAnalysisStatus, BeatMarkerMI, BpmReanalysisStatus, AnalysisStage } from './features/musicIntelligence/types'
 import type { VzCueMarker, VzCueRegion } from './types/cue'
 import type { RekordboxAnalysisSeed } from './features/rekordboxImport/types'
 
@@ -102,6 +102,9 @@ export interface TrackAnalysisRuntime {
    * 'idle' until the first reanalysis is requested.
    */
   bpmReanalysisStatus: BpmReanalysisStatus
+  /** Fine-grained analysis-v2 progress. Optional for restored legacy tracks. */
+  analysisStage?:      AnalysisStage | null
+  analysisProgress?:   number
 }
 
 export const DEFAULT_TRACK_ANALYSIS_RUNTIME: TrackAnalysisRuntime = {
@@ -116,6 +119,8 @@ export const DEFAULT_TRACK_ANALYSIS_RUNTIME: TrackAnalysisRuntime = {
   detectedBpm:          null,
   gridStale:            false,
   bpmReanalysisStatus:  'idle',
+  analysisStage:        null,
+  analysisProgress:     0,
 }
 
 export interface PersistedTrackMetadata {

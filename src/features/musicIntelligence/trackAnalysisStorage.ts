@@ -4,13 +4,25 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { TrackIntelligenceAnalysis, AnalysisStatus, BeatMarkerMI, PhraseMarker } from './types'
+import type {
+  TrackIntelligenceAnalysis,
+  AnalysisStatus,
+  BeatMarkerMI,
+  PhraseMarker,
+  BarMarkerMI,
+  BarMusicalFeatures,
+  MusicalGridInfo,
+} from './types'
+import { isCurrentAnalysisVersion } from './analysisVersion'
 
 /** The subset of TrackIntelligenceAnalysis fields that a grid rebuild may replace. */
 export interface AnalysisGridPatch {
   beatGrid:           BeatMarkerMI[]
   downbeats:          BeatMarkerMI[]
   phrases:            PhraseMarker[]
+  barMarkers?:        BarMarkerMI[]
+  barFeatures?:       BarMusicalFeatures[]
+  musicalGrid?:       MusicalGridInfo
   bpmUsedForGrid:     number
   lastGridRebuiltAt:  string
   lastReanalysisMode: 'grid_only'
@@ -122,6 +134,19 @@ export const useTrackAnalysisStore = create<TrackAnalysisStorageState>()(
     }),
     {
       name: 'drmvyz:track-analyses',
+      version: 2,
+      migrate: persisted => {
+        const state = (persisted ?? {}) as Partial<TrackAnalysisStorageState>
+        const analyses = state.analyses ?? {}
+        const statuses = { ...(state.statuses ?? {}) }
+        // Retain legacy records so protected/manual data is never deleted by a
+        // schema bump, but mark them stale so the coordinator cannot silently
+        // treat auto-1.x output as analysis-v2.
+        for (const [key, analysis] of Object.entries(analyses)) {
+          if (!isCurrentAnalysisVersion(analysis.analysisVersion)) statuses[key] = 'stale'
+        }
+        return { ...state, analyses, statuses }
+      },
       // Only persist the data — actions are recreated each hydration.
       partialize: s => ({ analyses: s.analyses, statuses: s.statuses }),
     },

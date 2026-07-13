@@ -6,6 +6,15 @@ import { guess } from 'web-audio-beat-detector'
 import { PitchDetector } from 'pitchy'
 import { detectSections } from './sectionAnalysis'
 import { detectSemanticMoments } from './semanticAnalysis'
+import { CURRENT_ANALYSIS_VERSION } from './analysisVersion'
+import {
+  aggregateBarFeatures,
+  buildBeatMarkers as buildMusicalBeatMarkers,
+  estimateBeatPhaseConfidence,
+  resolveMusicalGrid,
+  type ChromaFrame,
+  type MusicalFeatureCurves,
+} from './musicalGridAnalysis'
 import type {
   TrackIntelligenceAnalysis,
   FeatureCurve,
@@ -14,6 +23,9 @@ import type {
   ChordMarker,
   TrackSectionMI,
   PhraseMarker,
+  AnalysisProgressInfo,
+  AnalysisWarning,
+  MusicalGridSource,
 } from './types'
 
 // Krumhansl-Schmuckler profiles (same as in harmonicAnalysis.ts for offline use)
@@ -41,6 +53,8 @@ export interface TrackAnalysisOptions {
   minSectionSec?:  number // default 8
   /** Optional trusted timing/key metadata from Rekordbox or another importer. */
   seed?: TrackAnalysisSeed
+  /** Optional stage-level progress reporting owned by the shared coordinator. */
+  onProgress?: (progress: AnalysisProgressInfo) => void
 }
 
 
@@ -202,18 +216,9 @@ export function buildBeatMarkers(
   bpm: number,
   offsetSec: number,
   durationSec: number,
+  options: Parameters<typeof buildMusicalBeatMarkers>[3] = {},
 ): BeatMarkerMI[] {
-  const beatPeriod = 60 / Math.max(1, bpm)
-  const markers: BeatMarkerMI[] = []
-  let t = offsetSec
-  if (t > beatPeriod) t = t % beatPeriod
-  let beatInBar = 0
-  while (t < durationSec) {
-    markers.push({ timeSec: t, confidence: 0.85, isDownbeat: beatInBar === 0 })
-    t        += beatPeriod
-    beatInBar = (beatInBar + 1) % 4
-  }
-  return markers
+  return buildMusicalBeatMarkers(bpm, offsetSec, durationSec, options)
 }
 
 // ── Harmonic helpers ──────────────────────────────────────────────────────────
@@ -238,16 +243,25 @@ function accumulateChroma(
   sampleRate: number,
   N: number,
   decay: number,
-): void {
+  captureFrame: boolean = false,
+): number[] | null {
   for (let i = 0; i < 12; i++) chromaAcc[i] *= decay
+  const frameChroma = captureFrame ? new Float32Array(12) : null
   const binCount = mags.length
   for (let bin = 1; bin < binCount; bin++) {
     const hz = bin * sampleRate / N
     if (hz < 50 || hz > sampleRate / 2) continue
     const midi = 12 * Math.log2(hz / 440) + 69
     const pc = ((Math.round(midi) % 12) + 12) % 12
-    chromaAcc[pc] += mags[bin]
+    const magnitude = mags[bin] ?? 0
+    chromaAcc[pc] += magnitude
+    if (frameChroma) frameChroma[pc] += magnitude
   }
+  if (!frameChroma) return null
+  const total = frameChroma.reduce((sum, value) => sum + value, 0)
+  return total > 1e-10
+    ? Array.from(frameChroma, value => value / total)
+    : Array.from(frameChroma)
 }
 
 function detectOfflineKey(chromaAcc: Float32Array): {
@@ -276,6 +290,31 @@ function detectOfflineKey(chromaAcc: Float32Array): {
   }
 }
 
+function frameRms(samples: Float32Array, start: number, length: number): number {
+  let sumSquares = 0
+  let count = 0
+  const end = Math.min(samples.length, start + length)
+  for (let index = start; index < end; index++) {
+    const sample = samples[index] ?? 0
+    sumSquares += sample * sample
+    count++
+  }
+  return count > 0 ? Math.sqrt(sumSquares / count) : 0
+}
+
+function seedGridSource(seed: TrackAnalysisSeed | undefined): MusicalGridSource {
+  if (seed?.source === 'manual') return 'manual_correction'
+  if (seed?.source === 'rekordbox_xml' || seed?.source === 'rekordbox_usb') return 'imported'
+  return 'automatic'
+}
+
+function progressReporter(options: TrackAnalysisOptions): (progress: AnalysisProgressInfo) => void {
+  return progress => options.onProgress?.({
+    ...progress,
+    progress: Math.max(0, Math.min(1, progress.progress)),
+  })
+}
+
 // ── Main analysis function ────────────────────────────────────────────────────
 
 export async function analyzeTrackBuffer(
@@ -289,48 +328,26 @@ export async function analyzeTrackBuffer(
     minSectionSec  = 8,
     seed,
   } = options
+  const report = progressReporter(options)
 
   const sampleRate  = audioBuffer.sampleRate
-  const durationSec = audioBuffer.duration
+  const durationSec = Math.max(0, audioBuffer.duration)
   const durationMs  = Math.round(durationSec * 1000)
+  const typedWarnings: AnalysisWarning[] = []
 
-  // Mix to mono
+  // The coordinator owns decoding. This analyzer starts with the already-decoded
+  // buffer and performs one shared feature pass reused by every later stage.
+  report({ stage: 'extracting_features', progress: 0.08 })
+
   const monoData = new Float32Array(audioBuffer.length)
-  for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) {
-    const chData = audioBuffer.getChannelData(ch)
-    for (let i = 0; i < monoData.length; i++) monoData[i] += chData[i]
+  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+    const channelData = audioBuffer.getChannelData(channel)
+    for (let index = 0; index < monoData.length; index++) monoData[index] += channelData[index] ?? 0
   }
-  const chCount = audioBuffer.numberOfChannels
-  if (chCount > 1) for (let i = 0; i < monoData.length; i++) monoData[i] /= chCount
-
-  // ── BPM detection ──────────────────────────────────────────────────────────
-  // bpm is null when detection fails — beat markers will not be generated.
-  // bpmConfidence is null because web-audio-beat-detector does not expose
-  // a meaningful confidence value (distance from 120 is not a valid heuristic).
-  let bpm: number | null = null
-  let bpmConfidence: number | null = null
-  let beatOffsetSec = 0
-  const bpmWarnings: string[] = []
-  if (seed?.bpm != null && seed.bpm > 0) {
-    bpm = seed.bpm
-    beatOffsetSec = seed.beatGridOffsetSec ?? 0
-    bpmConfidence = seed.bpmConfidence ?? 0.95
-    bpmWarnings.push(`BPM seeded from ${seed.source ?? 'external metadata'}.`)
-  } else {
-    try {
-      const result = await guess(audioBuffer)
-      bpm           = result.bpm
-      beatOffsetSec = result.offset
-      // web-audio-beat-detector does not expose a confidence score; leave null.
-      bpmConfidence = null
-    } catch (err) {
-      bpmWarnings.push(
-        `BPM detection failed: ${err instanceof Error ? err.message : String(err)}`,
-      )
-    }
+  if (audioBuffer.numberOfChannels > 1) {
+    for (let index = 0; index < monoData.length; index++) monoData[index] /= audioBuffer.numberOfChannels
   }
 
-  // ── Feature extraction (frame-by-frame FFT) ────────────────────────────────
   const instantPoints:  FeatureCurvePoint[] = []
   const shortTermPts:   FeatureCurvePoint[] = []
   const bassPoints:     FeatureCurvePoint[] = []
@@ -339,71 +356,101 @@ export async function analyzeTrackBuffer(
   const centroidPoints: FeatureCurvePoint[] = []
   const fluxPoints:     FeatureCurvePoint[] = []
   const complexityPts:  FeatureCurvePoint[] = []
-  const pitchPoints:    FeatureCurvePoint[] = []  // Hz (raw), normalized later
-  const chromaAcc       = new Float32Array(12)    // accumulated chroma for key
+  const transientPts:   FeatureCurvePoint[] = []
+  const lowOnsetPts:    FeatureCurvePoint[] = []
+  const midOnsetPts:    FeatureCurvePoint[] = []
+  const highOnsetPts:   FeatureCurvePoint[] = []
+  const rmsPoints:      FeatureCurvePoint[] = []
+  const pitchPoints:    FeatureCurvePoint[] = []
+  const chromaFrames:   ChromaFrame[] = []
+  const chromaAcc       = new Float32Array(12)
 
-  // Offline pitch detector (separate from real-time one)
   const pitchDetector = PitchDetector.forFloat32Array(fftSize)
   pitchDetector.minVolumeDecibels = -40
 
-  let prevMags     = new Float32Array((fftSize >> 1) + 1) as Float32Array<ArrayBuffer>
+  let prevMags = new Float32Array((fftSize >> 1) + 1) as Float32Array<ArrayBuffer>
+  let prevBass = 0
+  let prevMid = 0
+  let prevHigh = 0
   let shortTermEma = 0
-  const EMA_ALPHA  = 0.1   // ~100ms at typical hop=1024/44100
+  const EMA_ALPHA = 0.1
   const CHROMA_DECAY = 0.999
-
-  const totalFrames = Math.floor((monoData.length - fftSize) / hopSize)
+  const totalFrames = monoData.length >= fftSize
+    ? Math.floor((monoData.length - fftSize) / hopSize) + 1
+    : 0
+  const progressStride = Math.max(1, Math.floor(totalFrames / 4))
 
   for (let frame = 0; frame < totalFrames; frame++) {
     const sampleOffset = frame * hopSize
-    const timeSec      = sampleOffset / sampleRate
-
-    const mags    = fftMagnitudes(monoData, fftSize, sampleOffset)
-    const energy  = bandSum(mags,  20, 20000, sampleRate, fftSize)
-    const bass    = bandSum(mags,  60,   250, sampleRate, fftSize)
-    const mid     = bandSum(mags, 250,  4000, sampleRate, fftSize)
-    const high    = bandSum(mags, 4000,20000, sampleRate, fftSize)
-    const cent    = spectralCentroid(mags, sampleRate, fftSize)
-    const flux    = spectralFlux(mags, prevMags)
-
-    // Spectral complexity: spread of energy across bands
-    const bassW = bass * 4, midW = mid * 4, highW = high * 4
-    const total = bassW + midW + highW + 1e-8
-    const complexity = 1 - Math.max(bassW, midW, highW) / total
+    const timeSec = sampleOffset / sampleRate
+    const mags = fftMagnitudes(monoData, fftSize, sampleOffset)
+    const energy = bandSum(mags, 20, 20000, sampleRate, fftSize)
+    const bass = bandSum(mags, 60, 250, sampleRate, fftSize)
+    const mid = bandSum(mags, 250, 4000, sampleRate, fftSize)
+    const high = bandSum(mags, 4000, 20000, sampleRate, fftSize)
+    const centroid = spectralCentroid(mags, sampleRate, fftSize)
+    const flux = spectralFlux(mags, prevMags)
+    const lowOnset = Math.max(0, bass - prevBass)
+    const midOnset = Math.max(0, mid - prevMid)
+    const highOnset = Math.max(0, high - prevHigh)
+    const transient = flux * 0.5 + lowOnset * 0.28 + midOnset * 0.12 + highOnset * 0.10
+    const bassWeight = bass * 4
+    const midWeight = mid * 4
+    const highWeight = high * 4
+    const spectralTotal = bassWeight + midWeight + highWeight + 1e-8
+    const complexity = 1 - Math.max(bassWeight, midWeight, highWeight) / spectralTotal
+    const rms = frameRms(monoData, sampleOffset, fftSize)
 
     shortTermEma = EMA_ALPHA * energy + (1 - EMA_ALPHA) * shortTermEma
 
-    instantPoints .push({ timeSec, value: energy })
-    shortTermPts  .push({ timeSec, value: shortTermEma })
-    bassPoints    .push({ timeSec, value: bass })
-    midPoints     .push({ timeSec, value: mid })
-    highPoints    .push({ timeSec, value: high })
-    centroidPoints.push({ timeSec, value: cent })
-    fluxPoints    .push({ timeSec, value: flux })
-    complexityPts .push({ timeSec, value: complexity })
+    instantPoints.push({ timeSec, value: energy })
+    shortTermPts.push({ timeSec, value: shortTermEma })
+    bassPoints.push({ timeSec, value: bass })
+    midPoints.push({ timeSec, value: mid })
+    highPoints.push({ timeSec, value: high })
+    centroidPoints.push({ timeSec, value: centroid })
+    fluxPoints.push({ timeSec, value: flux })
+    complexityPts.push({ timeSec, value: complexity })
+    transientPts.push({ timeSec, value: transient })
+    lowOnsetPts.push({ timeSec, value: lowOnset })
+    midOnsetPts.push({ timeSec, value: midOnset })
+    highOnsetPts.push({ timeSec, value: highOnset })
+    rmsPoints.push({ timeSec, value: rms })
 
-    // Accumulate chroma (for key detection)
-    accumulateChroma(mags, chromaAcc, sampleRate, fftSize, CHROMA_DECAY)
+    const frameChroma = accumulateChroma(
+      mags,
+      chromaAcc,
+      sampleRate,
+      fftSize,
+      CHROMA_DECAY,
+      frame % 2 === 0,
+    )
+    if (frameChroma) chromaFrames.push({ timeSec, values: frameChroma })
 
-    // Offline pitch detection from time-domain window
-    const windowStart = frame * hopSize
-    if (windowStart + fftSize <= monoData.length) {
-      const window = monoData.subarray(windowStart, windowStart + fftSize)
-      try {
-        const [pitch, clarity] = pitchDetector.findPitch(window, sampleRate)
-        if (clarity > 0.85 && pitch > 50 && pitch < 2000) {
-          pitchPoints.push({ timeSec, value: pitch })
-        } else {
-          pitchPoints.push({ timeSec, value: 0 })
-        }
-      } catch {
-        pitchPoints.push({ timeSec, value: 0 })
-      }
+    const window = monoData.subarray(sampleOffset, sampleOffset + fftSize)
+    try {
+      const [pitch, clarity] = pitchDetector.findPitch(window, sampleRate)
+      pitchPoints.push({
+        timeSec,
+        value: clarity > 0.85 && pitch > 50 && pitch < 2000 ? pitch : 0,
+      })
+    } catch {
+      pitchPoints.push({ timeSec, value: 0 })
     }
 
     prevMags = mags
+    prevBass = bass
+    prevMid = mid
+    prevHigh = high
+
+    if (frame > 0 && frame % progressStride === 0) {
+      report({
+        stage: 'extracting_features',
+        progress: 0.08 + 0.30 * (frame / Math.max(1, totalFrames)),
+      })
+    }
   }
 
-  // Normalize curves before section detection
   const normInstant  = normalizeCurve(instantPoints)
   const normBass     = normalizeCurve(bassPoints)
   const normMid      = normalizeCurve(midPoints)
@@ -412,31 +459,181 @@ export async function analyzeTrackBuffer(
   const normFlux     = normalizeCurve(fluxPoints)
   const normComplex  = normalizeCurve(complexityPts)
   const normShort    = normalizeCurve(shortTermPts)
+  const normTransient = normalizeCurve(transientPts)
+  const normLowOnset = normalizeCurve(lowOnsetPts)
+  const normMidOnset = normalizeCurve(midOnsetPts)
+  const normHighOnset = normalizeCurve(highOnsetPts)
+  const normRms = normalizeCurve(rmsPoints)
+  const silenceCurve: FeatureCurve = normRms.map(point => ({
+    timeSec: point.timeSec,
+    value: point.value < 0.035 ? 1 : 0,
+  }))
 
-  // ── Melody contour curve (0=descending, 0.5=flat, 1=ascending) ──────────────
-  const CONTOUR_WINDOW = 10
-  const CONTOUR_RANGE  = 200  // ±200 Hz maps to 0–1
-  const melodyContourCurve: FeatureCurve = pitchPoints.map((p, i) => {
-    if (p.value === 0) return { timeSec: p.timeSec, value: 0.5 }
-    const lo = Math.max(0, i - CONTOUR_WINDOW)
-    const windowPts = pitchPoints.slice(lo, i + 1).filter(x => x.value > 0)
-    if (windowPts.length < 2) return { timeSec: p.timeSec, value: 0.5 }
-    const diff = windowPts[windowPts.length - 1]!.value - windowPts[0]!.value
-    return { timeSec: p.timeSec, value: Math.max(0, Math.min(1, (diff / CONTOUR_RANGE + 1) / 2)) }
+  if (durationSec < 5) {
+    typedWarnings.push({
+      code: 'short_track',
+      stage: 'extracting_features',
+      message: 'Track is too short for confident musical-structure analysis; deterministic fallback windows are retained.',
+      recoverable: true,
+    })
+  }
+  const nonSilentFrames = silenceCurve.filter(point => point.value < 0.5).length
+  if (silenceCurve.length > 0 && nonSilentFrames / silenceCurve.length < 0.05) {
+    typedWarnings.push({
+      code: 'silent_track',
+      stage: 'extracting_features',
+      message: 'Track contains too little audible energy for authoritative tempo or bar analysis.',
+      recoverable: true,
+    })
+  }
+
+  const musicalFeatures: MusicalFeatureCurves = {
+    energy: normInstant,
+    bass: normBass,
+    mid: normMid,
+    high: normHigh,
+    spectralFlux: normFlux,
+    spectralCentroid: normCentroid,
+    spectralComplexity: normComplex,
+    transient: normTransient,
+    lowFrequencyOnset: normLowOnset,
+    midFrequencyOnset: normMidOnset,
+    highFrequencyOnset: normHighOnset,
+    silence: silenceCurve,
+    chromaFrames,
+  }
+
+  // Tempo is intentionally resolved after the shared high-resolution feature
+  // pass so confidence can be measured against real transient alignment.
+  report({ stage: 'resolving_tempo', progress: 0.42 })
+  let bpm: number | null = null
+  let bpmConfidence: number | null = null
+  let beatPhaseConfidence: number | null = null
+  let beatOffsetSec: number | null = null
+
+  if (seed?.bpm != null && seed.bpm > 0) {
+    bpm = seed.bpm
+    beatOffsetSec = seed.beatGridOffsetSec ?? seed.beatGrid?.[0]?.timeSec ?? 0
+    bpmConfidence = seed.bpmConfidence ?? 0.97
+    beatPhaseConfidence = seed.beatGrid?.length ? 0.99 : 0.92
+  } else if (seed?.beatGrid && seed.beatGrid.length >= 2) {
+    const deltas = seed.beatGrid.slice(1).map((marker, index) => marker.timeSec - seed.beatGrid![index]!.timeSec)
+      .filter(delta => delta > 0.1 && delta < 3)
+      .sort((a, b) => a - b)
+    const medianDelta = deltas[Math.floor(deltas.length / 2)]
+    bpm = medianDelta ? 60 / medianDelta : null
+    beatOffsetSec = seed.beatGrid[0]?.timeSec ?? 0
+    bpmConfidence = bpm ? 0.96 : null
+    beatPhaseConfidence = bpm ? 0.99 : null
+  } else {
+    try {
+      const result = await guess(audioBuffer)
+      bpm = Number.isFinite(result.bpm) && result.bpm > 0 ? result.bpm : null
+      beatOffsetSec = Number.isFinite(result.offset) ? result.offset : 0
+      if (bpm != null) {
+        const provisional = buildMusicalBeatMarkers(bpm, beatOffsetSec ?? 0, durationSec)
+        beatPhaseConfidence = estimateBeatPhaseConfidence(provisional, normTransient, bpm)
+        bpmConfidence = beatPhaseConfidence > 0
+          ? Math.max(0.05, Math.min(1, 0.15 + beatPhaseConfidence * 0.85))
+          : 0.05
+      }
+    } catch (error) {
+      typedWarnings.push({
+        code: 'bpm_detection_failed',
+        stage: 'resolving_tempo',
+        message: `BPM detection failed: ${error instanceof Error ? error.message : String(error)}`,
+        recoverable: true,
+      })
+    }
+  }
+
+  if (bpm != null && (bpmConfidence ?? 0) < 0.35) {
+    typedWarnings.push({
+      code: 'low_bpm_confidence',
+      stage: 'resolving_tempo',
+      message: 'Tempo was detected with low confidence; structural analysis will retain explicit fallback metadata.',
+      recoverable: true,
+    })
+  }
+  if (bpm != null && (beatPhaseConfidence ?? 0) < 0.25) {
+    typedWarnings.push({
+      code: 'low_beat_phase_confidence',
+      stage: 'resolving_tempo',
+      message: 'Beat phase is weakly supported by transients; the grid remains usable but is not marked authoritative.',
+      recoverable: true,
+    })
+  }
+
+  report({ stage: 'resolving_musical_grid', progress: 0.55 })
+  const gridSource = seedGridSource(seed)
+  const gridResolution = resolveMusicalGrid({
+    durationSec,
+    bpm,
+    bpmConfidence,
+    beatPhaseConfidence,
+    beatOffsetSec,
+    timeSignature: 4,
+    source: gridSource,
+    importedBeatGrid: seed?.beatGrid,
+    importedDownbeats: seed?.downbeats,
+    features: {
+      energy: normInstant,
+      transient: normTransient,
+      lowFrequencyOnset: normLowOnset,
+      highFrequencyOnset: normHighOnset,
+    },
   })
 
-  // ── Section detection ──────────────────────────────────────────────────────
+  if (gridResolution.info.fallbackReason === 'downbeat_phase_low_confidence') {
+    typedWarnings.push({
+      code: 'low_downbeat_phase_confidence',
+      stage: 'resolving_musical_grid',
+      message: 'No downbeat phase clearly won the four-phase evaluation; deterministic phase-zero fallback is explicitly marked.',
+      recoverable: true,
+    })
+  }
+  if (gridResolution.info.source === 'legacy_fallback') {
+    typedWarnings.push({
+      code: gridResolution.info.fallbackReason === 'invalid_imported_grid'
+        ? 'invalid_imported_grid'
+        : 'time_domain_fallback',
+      stage: 'resolving_musical_grid',
+      message: 'Authoritative bars could not be resolved; fixed time-window features preserve Track Map and section fallback behavior.',
+      recoverable: true,
+    })
+  }
+
+  report({ stage: 'building_bar_features', progress: 0.66 })
+  const barFeatures = aggregateBarFeatures(gridResolution.bars, musicalFeatures, durationSec)
+
+  const CONTOUR_WINDOW = 10
+  const CONTOUR_RANGE = 200
+  const melodyContourCurve: FeatureCurve = pitchPoints.map((point, index) => {
+    if (point.value === 0) return { timeSec: point.timeSec, value: 0.5 }
+    const low = Math.max(0, index - CONTOUR_WINDOW)
+    const window = pitchPoints.slice(low, index + 1).filter(candidate => candidate.value > 0)
+    if (window.length < 2) return { timeSec: point.timeSec, value: 0.5 }
+    const difference = window[window.length - 1]!.value - window[0]!.value
+    return {
+      timeSec: point.timeSec,
+      value: Math.max(0, Math.min(1, (difference / CONTOUR_RANGE + 1) / 2)),
+    }
+  })
+
+  // Structural analysis now receives the resolved grid-derived bar features.
+  // The current novelty classifier remains available as the marked fallback and
+  // will be replaced by self-similarity segmentation in later patches.
+  report({ stage: 'structural_analysis', progress: 0.76 })
   const detectedSections = detectSections(
     { instant: normInstant, bass: normBass, mid: normMid, high: normHigh },
     { centroid: normCentroid, flux: normFlux, complexity: normComplex },
     durationSec,
-    { minSegmentSec: minSectionSec },
+    { minSegmentSec: minSectionSec, barFeatures },
   )
   const sections = seed?.sections?.length
     ? mergeSeededSections(seed.sections, detectedSections, durationSec)
     : detectedSections
 
-  // ── Offline key detection (from accumulated chroma) ───────────────────────
   const detectedKey = detectOfflineKey(chromaAcc)
   const seededKey = parseSeededKey(seed?.key ?? null)
   const dominantKey = seededKey?.key ?? detectedKey.dominantKey
@@ -447,43 +644,44 @@ export async function analyzeTrackBuffer(
     : detectedKey.keyChanges
   const chordProgression: ChordMarker[] = []
 
-  // ── Beat grid ──────────────────────────────────────────────────────────────
-  // Only generate markers when BPM is known; an empty grid triggers the BPM-
-  // grid fallback path in BeatGrid.update(), which is unavailable when bpm=null.
-  const beatMarkers = seed?.beatGrid?.length
-    ? seed.beatGrid
-    : bpm !== null ? buildBeatMarkers(bpm, beatOffsetSec, durationSec) : []
-  const downbeats = seed?.downbeats?.length
-    ? seed.downbeats
-    : beatMarkers.filter(b => b.isDownbeat)
-  const phrases = seed?.phrases?.length ? seed.phrases : []
-
-  // ── Downsample curves for storage ─────────────────────────────────────────
-  const ds = (c: FeatureCurvePoint[]) => downsampleCurve(c, maxCurvePoints)
+  report({ stage: 'finalizing', progress: 0.90 })
+  const downsample = (curve: FeatureCurvePoint[]) => downsampleCurve(curve, maxCurvePoints)
+  const warnings = [
+    ...typedWarnings.map(warning => warning.message),
+    ...(seed?.bpm != null ? [`BPM seeded from ${seed.source ?? 'external metadata'}.`] : []),
+    ...(seed?.sections?.length ? [`Sections seeded from ${seed.source ?? 'external metadata'}.`] : []),
+    ...(seededKey ? [`Key seeded from ${seed?.source ?? 'external metadata'}.`] : []),
+  ]
 
   const partialAnalysis: TrackIntelligenceAnalysis = {
-    analysisVersion:   'auto-1.0',
-    createdAt:         new Date().toISOString(),
+    analysisVersion: CURRENT_ANALYSIS_VERSION,
+    createdAt: new Date().toISOString(),
     durationMs,
     bpm,
     bpmConfidence,
-    beatGridOffsetSec: beatOffsetSec,
-    timeSignature:     4,
-    beatGrid:          beatMarkers,
-    downbeats,
-    phrases,
+    beatPhaseConfidence,
+    downbeatPhaseConfidence: gridResolution.info.confidence.downbeatPhase,
+    barGridConfidence: gridResolution.info.confidence.barGrid,
+    beatGridOffsetSec: gridResolution.beatGridOffsetSec,
+    timeSignature: 4,
+    beatGrid: gridResolution.beatGrid,
+    downbeats: gridResolution.downbeats,
+    barMarkers: gridResolution.bars,
+    barFeatures,
+    musicalGrid: gridResolution.info,
+    phrases: seed?.phrases?.length ? seed.phrases : gridResolution.phrases,
     sections,
     energyCurves: {
-      instant:   ds(normInstant),
-      shortTerm: ds(normShort),
-      bass:      ds(normBass),
-      mid:       ds(normMid),
-      high:      ds(normHigh),
+      instant: downsample(normInstant),
+      shortTerm: downsample(normShort),
+      bass: downsample(normBass),
+      mid: downsample(normMid),
+      high: downsample(normHigh),
     },
     spectralCurves: {
-      centroid:   ds(normCentroid),
-      flux:       ds(normFlux),
-      complexity: ds(normComplex),
+      centroid: downsample(normCentroid),
+      flux: downsample(normFlux),
+      complexity: downsample(normComplex),
     },
     stemCurves: null,
     harmonic: {
@@ -492,17 +690,37 @@ export async function analyzeTrackBuffer(
       dominantKey,
       dominantMode,
       keyConfidence,
-      pitchCurve:         ds(normalizeCurve(pitchPoints)),
-      melodyContourCurve: ds(melodyContourCurve),
+      pitchCurve: downsample(normalizeCurve(pitchPoints)),
+      melodyContourCurve: downsample(melodyContourCurve),
     },
-    lyrics:          null,
+    lyrics: null,
     semanticMoments: [],
-    warnings:        [...bpmWarnings, ...(seed?.sections?.length ? [`Sections seeded from ${seed.source ?? 'external metadata'}.`] : []), ...(seededKey ? [`Key seeded from ${seed?.source ?? 'external metadata'}.`] : [])],
-    errors:          [],
+    warnings,
+    errors: [],
+    analysisWarnings: typedWarnings,
+    analysisDiagnostics: {
+      featureFrameCount: totalFrames,
+      beatCount: gridResolution.beatGrid.length,
+      downbeatCount: gridResolution.downbeats.length,
+      barCount: gridResolution.bars.length,
+      barFeatureCount: barFeatures.length,
+      sectionCount: sections.length,
+      usedFallback: gridResolution.info.source === 'legacy_fallback' || barFeatures.some(feature => feature.source === 'time_window_fallback'),
+      gridSource: gridResolution.info.source,
+      fallbackReason: gridResolution.info.fallbackReason,
+      downbeatPhaseScores: gridResolution.phaseScores,
+    },
+    detectedBpm: bpm,
+    bpmUsedForGrid: bpm,
+    gridStale: false,
+    lastGridRebuiltAt: null,
+    lastReanalysisMode: 'full',
   }
 
-  return {
+  const result = {
     ...partialAnalysis,
     semanticMoments: detectSemanticMoments(partialAnalysis),
   }
+  report({ stage: 'finalizing', progress: 1 })
+  return result
 }

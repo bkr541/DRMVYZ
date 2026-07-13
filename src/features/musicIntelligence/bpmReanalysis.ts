@@ -91,6 +91,12 @@ export function applyResnap(
     beatGrid:           gridData.beatGrid,
     downbeats:          gridData.downbeats,
     phrases:            gridData.phrases,
+    barMarkers:         gridData.barMarkers,
+    barFeatures:        gridData.barFeatures,
+    musicalGrid:        gridData.musicalGrid,
+    beatPhaseConfidence:     gridData.musicalGrid.confidence.beatPhase,
+    downbeatPhaseConfidence: gridData.musicalGrid.confidence.downbeatPhase,
+    barGridConfidence:       gridData.musicalGrid.confidence.barGrid,
     sections:           resnappedSections,
     detectedBpm:        analysis.detectedBpm ?? analysis.bpm,
     bpmUsedForGrid:     bpm,
@@ -143,6 +149,7 @@ export function applyReanalyze(
     },
     analysis.spectralCurves,
     durationSec,
+    { barFeatures: gridData.barFeatures },
   ).map(s => ({ ...s, source: 'analysis' as const }))
 
   // Snap fresh section boundaries to the new beat grid.
@@ -160,6 +167,12 @@ export function applyReanalyze(
     beatGrid:           gridData.beatGrid,
     downbeats:          gridData.downbeats,
     phrases:            gridData.phrases,
+    barMarkers:         gridData.barMarkers,
+    barFeatures:        gridData.barFeatures,
+    musicalGrid:        gridData.musicalGrid,
+    beatPhaseConfidence:     gridData.musicalGrid.confidence.beatPhase,
+    downbeatPhaseConfidence: gridData.musicalGrid.confidence.downbeatPhase,
+    barGridConfidence:       gridData.musicalGrid.confidence.barGrid,
     sections:           merged,
     detectedBpm:        analysis.detectedBpm ?? analysis.bpm,
     bpmUsedForGrid:     bpm,

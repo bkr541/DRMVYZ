@@ -20,14 +20,14 @@ function makeTrack(overrides: Partial<Track> = {}): Track {
     url:             'blob:http://localhost/abc123',
     duration:        180,
     sourceKind:      'remote',
-    analysisRuntime: { ...DEFAULT_TRACK_ANALYSIS_RUNTIME, analysisKey: 'u:blob:http://localhost/abc123:auto-1.0' },
+    analysisRuntime: { ...DEFAULT_TRACK_ANALYSIS_RUNTIME, analysisKey: `u:blob:http://localhost/abc123:${CURRENT_ANALYSIS_VERSION}` },
     ...overrides,
   }
 }
 
 function makeAnalysis(bpm = 128): TrackIntelligenceAnalysis {
   return {
-    analysisVersion:   'auto-1.0',
+    analysisVersion:   CURRENT_ANALYSIS_VERSION,
     createdAt:         new Date().toISOString(),
     durationMs:        180_000,
     bpm,
@@ -153,6 +153,24 @@ describe('TrackAnalysisCoordinator — happy path', () => {
     expect(calls).toContain('complete')
   })
 
+  it('publishes fine-grained shared analysis stages without changing status semantics', async () => {
+    const analyze = vi.fn().mockImplementation(async (_buffer, _seed, onProgress) => {
+      onProgress?.({ stage: 'resolving_tempo', progress: 0.42 })
+      onProgress?.({ stage: 'building_bar_features', progress: 0.66 })
+      return makeAnalysis()
+    })
+    const { coordinator, cbs } = makeCoordinator({ analyze })
+    coordinator.enqueue(makeTrack(), 'normal')
+    await new Promise(r => setTimeout(r, 50))
+
+    const stages = (cbs.onRuntimeUpdate as ReturnType<typeof vi.fn>).mock.calls
+      .map(call => call[1].analysisStage)
+      .filter(Boolean)
+    expect(stages).toContain('decoding')
+    expect(stages).toContain('resolving_tempo')
+    expect(stages).toContain('building_bar_features')
+  })
+
   it('calls onDurationUpdate with buffer duration', async () => {
     const buffer = makeFakeBuffer(240)
     const { coordinator, cbs } = makeCoordinator({ decodeBuffer: vi.fn().mockResolvedValue(buffer) })
@@ -196,6 +214,21 @@ describe('TrackAnalysisCoordinator — happy path', () => {
 // ── Persistent cache hit ───────────────────────────────────────────────────────
 
 describe('TrackAnalysisCoordinator — cache hit', () => {
+  it('treats legacy schema results as stale and runs analysis-v2 instead', async () => {
+    const legacy = { ...makeAnalysis(140), analysisVersion: 'auto-1.0' }
+    const { coordinator, deps, cbs } = makeCoordinator({
+      getCachedAnalysis: vi.fn().mockReturnValue(legacy),
+    })
+    coordinator.enqueue(makeTrack(), 'normal')
+    await new Promise(r => setTimeout(r, 50))
+
+    expect(deps.analyze).toHaveBeenCalledTimes(1)
+    const complete = (cbs.onRuntimeUpdate as ReturnType<typeof vi.fn>).mock.calls.find(
+      call => call[1].status === 'complete',
+    )
+    expect(complete?.[1].analysis.analysisVersion).toBe(CURRENT_ANALYSIS_VERSION)
+  })
+
   it('decodes buffer but skips analysis on persistent cache hit', async () => {
     const cached = makeAnalysis(140)
     const { coordinator, deps, cbs } = makeCoordinator({ getCachedAnalysis: vi.fn().mockReturnValue(cached) })

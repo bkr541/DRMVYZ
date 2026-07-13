@@ -5,7 +5,11 @@ import type {
   StemFeatureCurve,
   TrackSectionMI,
   TrackIntelligenceAnalysis,
+  BarMarkerMI,
+  BarMusicalFeatures,
+  MusicalGridInfo,
 } from '../musicIntelligence/types'
+import { aggregateBarFeatures, buildBarMarkers } from '../musicIntelligence/musicalGridAnalysis'
 
 /**
  * Builds a beat grid from a manual BPM override.
@@ -25,6 +29,7 @@ export function buildEffectiveBeatGrid(
   durationSec:        number,
   firstBeatOffsetSec: number = 0,
   beatsPerBar:        number = 4,
+  downbeatPhase:      number = 0,
 ): BeatMarkerMI[] {
   if (bpm <= 0 || durationSec <= 0) return []
 
@@ -41,10 +46,19 @@ export function buildEffectiveBeatGrid(
     const timeSec = offset + beatIndex * beatPeriodSec
     // Allow a tiny epsilon so a beat landing exactly on durationSec is included.
     if (timeSec > durationSec + 1e-9) break
+    const normalizedPhase = ((Math.floor(downbeatPhase) % beatsPerBar) + beatsPerBar) % beatsPerBar
+    const beatWithinBar = ((beatIndex - normalizedPhase) % beatsPerBar + beatsPerBar) % beatsPerBar
+    const pickupShift = normalizedPhase > 0 ? beatsPerBar - normalizedPhase : 0
     markers.push({
       timeSec,
       confidence:  1.0,
-      isDownbeat:  beatIndex % beatsPerBar === 0,
+      isDownbeat:  beatWithinBar === 0,
+      bpm,
+      beatIndex,
+      beatWithinBar,
+      barIndex: Math.max(0, Math.floor((beatIndex + pickupShift) / beatsPerBar)),
+      gridSource: 'manual_correction',
+      gridConfidence: 1,
     })
     beatIndex++
   }
@@ -252,6 +266,9 @@ export interface BpmDependentData {
   beatGrid:           BeatMarkerMI[]
   downbeats:          BeatMarkerMI[]
   phrases:            PhraseMarker[]
+  barMarkers:         BarMarkerMI[]
+  barFeatures:        BarMusicalFeatures[]
+  musicalGrid:        MusicalGridInfo
   bpmUsedForGrid:     number
   lastGridRebuiltAt:  string
   lastReanalysisMode: 'grid_only'
@@ -282,15 +299,58 @@ export function rebuildBpmDependentData(
 ): BpmDependentData {
   const durationSec  = analysis.durationMs / 1000
   const offsetSec    = analysis.beatGridOffsetSec ?? 0
+  const existingPhase = analysis.musicalGrid?.downbeatPhase
+    ?? analysis.beatGrid.findIndex(marker => marker.isDownbeat)
+  const downbeatPhase = existingPhase != null && existingPhase >= 0 ? existingPhase : 0
 
-  const beatGrid  = buildEffectiveBeatGrid(bpm, durationSec, offsetSec, beatsPerBar)
+  const beatGrid  = buildEffectiveBeatGrid(bpm, durationSec, offsetSec, beatsPerBar, downbeatPhase)
   const downbeats = beatGrid.filter(b => b.isDownbeat)
   const phrases   = buildPhrasesFromGrid(beatGrid, beatsPerBar)
+  const barMarkers = buildBarMarkers(beatGrid, durationSec, 'manual_correction', 1)
+  const deriveOnset = (curve: FeatureCurve): FeatureCurve => curve.map((point, index) => ({
+    timeSec: point.timeSec,
+    value: index === 0 ? 0 : Math.max(0, point.value - curve[index - 1]!.value),
+  }))
+  const silence = analysis.energyCurves.instant.map(point => ({
+    timeSec: point.timeSec,
+    value: point.value < 0.035 ? 1 : 0,
+  }))
+  const barFeatures = aggregateBarFeatures(barMarkers, {
+    energy: analysis.energyCurves.instant,
+    bass: analysis.energyCurves.bass,
+    mid: analysis.energyCurves.mid,
+    high: analysis.energyCurves.high,
+    spectralFlux: analysis.spectralCurves.flux,
+    spectralCentroid: analysis.spectralCurves.centroid,
+    spectralComplexity: analysis.spectralCurves.complexity,
+    transient: analysis.spectralCurves.flux,
+    lowFrequencyOnset: deriveOnset(analysis.energyCurves.bass),
+    midFrequencyOnset: deriveOnset(analysis.energyCurves.mid),
+    highFrequencyOnset: deriveOnset(analysis.energyCurves.high),
+    silence,
+  }, durationSec)
+  const musicalGrid: MusicalGridInfo = {
+    source: 'manual_correction',
+    fallbackReason: null,
+    timeSignature: beatsPerBar,
+    downbeatPhase,
+    beatPeriodSec: 60 / bpm,
+    authoritative: true,
+    confidence: {
+      bpm: 1,
+      beatPhase: 1,
+      downbeatPhase: analysis.downbeatPhaseConfidence ?? analysis.musicalGrid?.confidence.downbeatPhase ?? 1,
+      barGrid: 1,
+    },
+  }
 
   return {
     beatGrid,
     downbeats,
     phrases,
+    barMarkers,
+    barFeatures,
+    musicalGrid,
     bpmUsedForGrid:     bpm,
     lastGridRebuiltAt:  new Date().toISOString(),
     lastReanalysisMode: 'grid_only',

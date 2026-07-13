@@ -6,6 +6,7 @@ import {
   computeAnalysisKey,
   CURRENT_ANALYSIS_VERSION,
 } from '../features/trackIntelligence/TrackAnalysisCoordinator'
+import { isCurrentAnalysisVersion } from '../features/musicIntelligence/analysisVersion'
 
 /** Backward-compatible input for signed URLs, restored remote tracks, and saved audio_tracks rows. */
 export interface PreparedTrackInput {
@@ -34,13 +35,26 @@ function buildAnalysisRuntime(
   source: Pick<Track, 'sourceKind' | 'url'> & { sourceFile?: File },
   restored?: TrackAnalysisRuntime,
 ): TrackAnalysisRuntime {
-  const analysisKey = restored?.analysisKey || computeAnalysisKey(source)
+  const restoredIsCurrent = Boolean(
+    restored &&
+    isCurrentAnalysisVersion(restored.analysisVersion) &&
+    (!restored.analysis || isCurrentAnalysisVersion(restored.analysis.analysisVersion)),
+  )
+  const analysisKey = restoredIsCurrent && restored?.analysisKey
+    ? restored.analysisKey
+    : computeAnalysisKey(source)
   return {
     ...DEFAULT_TRACK_ANALYSIS_RUNTIME,
-    ...restored,
+    ...(restoredIsCurrent ? restored : {
+      bpmOverride: restored?.bpmOverride ?? null,
+      bpmOverrideSource: restored?.bpmOverrideSource ?? null,
+      detectedBpm: restored?.detectedBpm ?? null,
+      gridStale: restored?.bpmOverride != null,
+    }),
     analysisKey,
-    analysisVersion: restored?.analysisVersion || CURRENT_ANALYSIS_VERSION,
-    status: restored?.status ?? 'queued',
+    analysisVersion: CURRENT_ANALYSIS_VERSION,
+    status: restoredIsCurrent ? (restored?.status ?? 'queued') : 'queued',
+    analysis: restoredIsCurrent ? (restored?.analysis ?? null) : null,
   }
 }
 

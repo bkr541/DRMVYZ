@@ -938,7 +938,7 @@ export function useAudioEngine(): AudioEngine {
           const ab = await resp.arrayBuffer()
           return ctx.decodeAudioData(ab)
         },
-        analyze: (buffer, seed) => analyzeTrackBuffer(buffer, { seed }),
+        analyze: (buffer, seed, onProgress) => analyzeTrackBuffer(buffer, { seed, onProgress }),
         getCachedAnalysis:  (key) => useTrackAnalysisStore.getState().getTrackAnalysis(key),
         saveCachedAnalysis: (key, analysis) =>
           useTrackAnalysisStore.getState().saveTrackAnalysis(key, analysis),
@@ -1173,7 +1173,16 @@ export function useAudioEngine(): AudioEngine {
 
       // Regenerate the Track Map beat grid from the same BPM + offset so both
       // the visual engine and the canvas always draw identical timing.
-      const effectiveBeatGrid = buildEffectiveBeatGrid(currentEffectiveBpm, durationSec, offsetSec)
+      const existingPhase = analysis?.musicalGrid?.downbeatPhase
+        ?? analysis?.beatGrid.findIndex(marker => marker.isDownbeat)
+        ?? 0
+      const effectiveBeatGrid = buildEffectiveBeatGrid(
+        currentEffectiveBpm,
+        durationSec,
+        offsetSec,
+        analysis?.timeSignature ?? 4,
+        existingPhase >= 0 ? existingPhase : 0,
+      )
       updateTrackRuntime(trackId, { effectiveBeatGrid })
     } else if (analysis) {
       // Override cleared — restore original analyzed markers and wipe the

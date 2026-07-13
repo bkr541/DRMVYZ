@@ -8,6 +8,7 @@ import {
   isPersistedTrack,
   runtimeIdForAudioTrack,
 } from './runtimeTrack'
+import { CURRENT_ANALYSIS_VERSION } from '../features/musicIntelligence/analysisVersion'
 
 describe('runtime track identity', () => {
   beforeEach(() => {
@@ -87,6 +88,24 @@ describe('runtime track identity', () => {
     expect(track.id).not.toMatch(/^audio-/)
     expect(track.displayName).toBe('legacy')
     expect(track.dbId).toBeUndefined()
+  })
+
+  it('migrates restored legacy analysis keys without retaining stale automatic results', () => {
+    const track = createRemoteRuntimeTrack({
+      name: 'legacy-analysis.mp3',
+      url: 'https://example.test/legacy-analysis.mp3',
+      analysisRuntime: {
+        ...DEFAULT_TRACK_ANALYSIS_RUNTIME,
+        status: 'complete',
+        analysisKey: 'u:https://example.test/legacy-analysis.mp3:auto-1.0',
+        analysisVersion: 'auto-1.0',
+      },
+    })
+
+    expect(track.analysisRuntime.analysisVersion).toBe(CURRENT_ANALYSIS_VERSION)
+    expect(track.analysisRuntime.analysisKey).toContain(CURRENT_ANALYSIS_VERSION)
+    expect(track.analysisRuntime.status).toBe('queued')
+    expect(track.analysisRuntime.analysis).toBeNull()
   })
 
   it('keeps legacy serialized Track objects backward compatible', () => {

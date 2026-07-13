@@ -1,13 +1,15 @@
 // Offline section detection from feature curves.
 // Two-pass: (1) novelty-based boundary detection, (2) heuristic type labeling.
 
-import type { FeatureCurve, TrackSectionMI } from './types'
+import type { BarMusicalFeatures, FeatureCurve, TrackSectionMI } from './types'
 import type { ReactSectionType } from '../../components/vyzualz/react/ReactTypes'
 
 export interface SectionDetectionOptions {
   minSegmentSec?:   number  // default 8 — merge segments shorter than this
   maxSegments?:     number  // default 20 — hard cap after merging
   noveltyThreshold?: number  // 0–1, default 0.25 — minimum novelty peak height
+  /** Analysis-v2 preferred structural input. Legacy curves remain the fallback. */
+  barFeatures?: BarMusicalFeatures[]
 }
 
 // ── Internal frame representation ────────────────────────────────────────────
@@ -60,6 +62,21 @@ function buildFrames(
   return frames
 }
 
+function buildFramesFromBars(barFeatures: BarMusicalFeatures[]): FeatureFrame[] {
+  return barFeatures
+    .filter(bar => Number.isFinite(bar.startSec) && Number.isFinite(bar.endSec) && bar.endSec > bar.startSec)
+    .sort((a, b) => a.startSec - b.startSec)
+    .map(bar => ({
+      timeSec:  bar.startSec,
+      energy:   bar.meanEnergy,
+      bass:     bar.bassAverage,
+      mid:      bar.midAverage,
+      high:     bar.highAverage,
+      centroid: bar.spectralCentroid,
+      flux:     bar.spectralFlux,
+    }))
+}
+
 // ── Novelty curve (L1 distance of adjacent feature vectors) ──────────────────
 
 function computeNovelty(frames: FeatureFrame[]): number[] {
@@ -89,7 +106,8 @@ function computeNovelty(frames: FeatureFrame[]): number[] {
 
 function findNoveltyPeaks(
   novelty: number[],
-  minDistFrames: number,
+  frames: FeatureFrame[],
+  minSegmentSec: number,
   threshold: number,
 ): number[] {
   // Normalize to 0–1
@@ -98,15 +116,16 @@ function findNoveltyPeaks(
   if (maxN < 1e-6) return []
 
   const peaks: number[] = []
-  let lastPeak = -minDistFrames
+  let lastPeakTime = -Infinity
 
   for (let i = 1; i < novelty.length - 1; i++) {
-    if (i - lastPeak < minDistFrames) continue
+    const timeSec = frames[i]?.timeSec ?? 0
+    if (timeSec - lastPeakTime < minSegmentSec) continue
     const norm = novelty[i] / maxN
     if (norm < threshold) continue
     if (novelty[i] >= novelty[i - 1] && novelty[i] >= novelty[i + 1]) {
       peaks.push(i)
-      lastPeak = i
+      lastPeakTime = timeSec
     }
   }
   return peaks
@@ -273,12 +292,16 @@ export function detectSections(
 
   if (durationSec < 5) return []
 
-  const HOP_SEC        = 0.5
-  const minDistFrames  = Math.max(1, Math.round(minSegmentSec / HOP_SEC))
-
-  const frames  = buildFrames(energyCurves, spectralCurves, durationSec, HOP_SEC)
+  const HOP_SEC = 0.5
+  const barFrames = options.barFeatures?.length
+    ? buildFramesFromBars(options.barFeatures)
+    : []
+  const frames = barFrames.length >= 2
+    ? barFrames
+    : buildFrames(energyCurves, spectralCurves, durationSec, HOP_SEC)
+  if (frames.length < 2) return []
   const novelty = computeNovelty(frames)
-  const peakIdx = findNoveltyPeaks(novelty, minDistFrames, noveltyThreshold)
+  const peakIdx = findNoveltyPeaks(novelty, frames, minSegmentSec, noveltyThreshold)
 
   // Build boundary list: always start at 0, always end at last frame
   const boundaryFrames = [0, ...peakIdx, frames.length]

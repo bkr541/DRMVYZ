@@ -4,13 +4,17 @@
 // Pure class — no React dependencies; all React interaction goes through callbacks.
 
 import type { Track, TrackAnalysisRuntime } from '../../types'
-import type { TrackIntelligenceAnalysis } from '../musicIntelligence/types'
+import type { AnalysisProgressInfo, TrackIntelligenceAnalysis } from '../musicIntelligence/types'
 import type { RekordboxAnalysisSeed } from '../rekordboxImport/types'
+import {
+  CURRENT_ANALYSIS_VERSION,
+  isCurrentAnalysisVersion,
+} from '../musicIntelligence/analysisVersion'
 
 // ── Schema version ────────────────────────────────────────────────────────────
 // Bump this string whenever the analysis schema changes incompatibly.
 // It is embedded in the analysis key so old cached results are never reused.
-export const CURRENT_ANALYSIS_VERSION = 'auto-1.0'
+export { CURRENT_ANALYSIS_VERSION } from '../musicIntelligence/analysisVersion'
 
 // ── URL normalisation ─────────────────────────────────────────────────────────
 
@@ -115,7 +119,11 @@ export interface CoordinatorDeps {
   /** Fetch and decode a track into an AudioBuffer.  May receive an AbortSignal. */
   decodeBuffer: (track: { url: string; sourceFile?: File; signal?: AbortSignal }) => Promise<AudioBuffer>
   /** Run the full offline analysis on a decoded buffer. */
-  analyze: (buffer: AudioBuffer, seed?: RekordboxAnalysisSeed) => Promise<TrackIntelligenceAnalysis>
+  analyze: (
+    buffer: AudioBuffer,
+    seed?: RekordboxAnalysisSeed,
+    onProgress?: (progress: AnalysisProgressInfo) => void,
+  ) => Promise<TrackIntelligenceAnalysis>
   /** Look up a completed analysis in the persistent cache. Returns null on miss. */
   getCachedAnalysis: (key: string) => TrackIntelligenceAnalysis | null
   /** Persist a completed analysis so it survives page reload. */
@@ -282,12 +290,17 @@ export class TrackAnalysisCoordinator {
       } catch (err) {
         console.warn(`[TrackAnalysis] cache load failed — key=${analysisKey} trackId=${trackId}:`, err)
       }
-      if (cached) {
+      if (cached && isCurrentAnalysisVersion(cached.analysisVersion)) {
         if (this.isStale(trackId, generation)) return
 
         // Decode and cache the buffer so AudioEngine/Peaks can initialize.
         // Full analysis is skipped — the cached result is used as-is.
-        this.callbacks.onRuntimeUpdate(trackId, { status: 'decoding', error: null })
+        this.callbacks.onRuntimeUpdate(trackId, {
+          status: 'decoding',
+          error: null,
+          analysisStage: 'decoding',
+          analysisProgress: 0.02,
+        })
         try {
           let buffer: AudioBuffer | undefined = this.bufferCache.get(trackId)
           if (!buffer) {
@@ -323,6 +336,8 @@ export class TrackAnalysisCoordinator {
           analysis:        cached,
           analysisVersion: cached.analysisVersion,
           error:           null,
+          analysisStage:   null,
+          analysisProgress: 1,
         })
         if (this.callbacks.isActiveTrack(trackId)) {
           this.callbacks.onApplyToEngine(cached, trackId)
@@ -332,7 +347,12 @@ export class TrackAnalysisCoordinator {
     }
 
     // ── 2. Decode ────────────────────────────────────────────────────────────
-    this.callbacks.onRuntimeUpdate(trackId, { status: 'decoding', error: null })
+    this.callbacks.onRuntimeUpdate(trackId, {
+      status: 'decoding',
+      error: null,
+      analysisStage: 'decoding',
+      analysisProgress: 0.02,
+    })
 
     let buffer: AudioBuffer
     try {
@@ -362,6 +382,7 @@ export class TrackAnalysisCoordinator {
       this.callbacks.onRuntimeUpdate(trackId, {
         status: 'failed',
         error:  `Decode error: ${msg}`,
+        analysisStage: null,
       })
       return
     }
@@ -371,11 +392,22 @@ export class TrackAnalysisCoordinator {
     this.callbacks.onDurationUpdate(trackId, buffer.duration)
 
     // ── 3. Analyze ───────────────────────────────────────────────────────────
-    this.callbacks.onRuntimeUpdate(trackId, { status: 'analyzing' })
+    this.callbacks.onRuntimeUpdate(trackId, {
+      status: 'analyzing',
+      analysisStage: 'extracting_features',
+      analysisProgress: 0.08,
+    })
 
     let analysis: TrackIntelligenceAnalysis
     try {
-      analysis = await this.deps.analyze(buffer, job.analysisSeed)
+      analysis = await this.deps.analyze(buffer, job.analysisSeed, progress => {
+        if (this.isStale(trackId, generation)) return
+        this.callbacks.onRuntimeUpdate(trackId, {
+          status: 'analyzing',
+          analysisStage: progress.stage,
+          analysisProgress: progress.progress,
+        })
+      })
     } catch (err) {
       if (this.isStale(trackId, generation)) return
       const msg = err instanceof Error ? err.message : String(err)
@@ -383,6 +415,7 @@ export class TrackAnalysisCoordinator {
       this.callbacks.onRuntimeUpdate(trackId, {
         status: 'failed',
         error:  `Analysis error: ${msg}`,
+        analysisStage: null,
       })
       return
     }
@@ -407,6 +440,8 @@ export class TrackAnalysisCoordinator {
       analysis,
       analysisVersion: analysis.analysisVersion,
       error:           null,
+      analysisStage:   null,
+      analysisProgress: 1,
     })
 
     if (this.callbacks.isActiveTrack(trackId)) {
