@@ -9,7 +9,7 @@ import type { TrackIntelligenceAnalysis, TrackSectionMI } from './types'
 import { rebuildBpmDependentData } from '../../features/trackIntelligence/beatGridUtils'
 
 function isProtected(section: TrackSectionMI): boolean {
-  return section.source === 'manual' || section.locked === true
+  return section.source === 'manual' || section.source === 'rekordbox' || section.locked === true
 }
 
 function overlapDuration(a: TrackSectionMI, b: TrackSectionMI): number {
@@ -27,9 +27,10 @@ function mergeProtectedSections(protectedSections: TrackSectionMI[], automaticSe
 }
 
 /**
- * Grid-only mode still rebuilds neutral structural regions. It then transfers
- * existing analyzer labels to the new regions by maximum temporal overlap so
- * current engine semantics remain stable until Patch 3 replaces the classifier.
+ * Grid-only mode rebuilds neutral structural regions and contextual sections,
+ * then transfers the user's current automatic semantic choice by maximum
+ * temporal overlap. Boundary/grid confidence comes from the fresh grid while
+ * label confidence and interpretation remain stable until full reanalysis.
  */
 function preserveCompatibilityLabels(
   previousSections: TrackSectionMI[],
@@ -52,7 +53,21 @@ function preserveCompatibilityLabels(
       label: best.label,
       type: best.type,
       intensity: best.intensity,
+      labelConfidence: best.labelConfidence ?? best.confidence,
+      boundaryConfidence: fresh.boundaryConfidence ?? fresh.confidence,
+      gridConfidence: fresh.gridConfidence,
+      analysisConfidence: Math.max(fresh.analysisConfidence ?? fresh.confidence, Math.min(0.9, best.analysisConfidence ?? best.confidence)),
       confidence: Math.max(fresh.confidence, Math.min(0.9, best.confidence)),
+      dropConfidence: best.dropConfidence ?? fresh.dropConfidence,
+      interpretation: best.interpretation
+        ? {
+            ...best.interpretation,
+            startBar: fresh.interpretation?.startBar ?? best.interpretation.startBar,
+            endBar: fresh.interpretation?.endBar ?? best.interpretation.endBar,
+            durationBars: fresh.interpretation?.durationBars ?? best.interpretation.durationBars,
+            boundaryRefinementReason: 'Grid-only resnap preserved the prior semantic label while refreshing bar-aligned boundaries.',
+          }
+        : fresh.interpretation,
       id: `auto-sec-${index}`,
       source: 'analysis',
     }
@@ -121,6 +136,12 @@ function assembleReanalysis(
           selectedStructuralBoundaryCount: structuralSegmentation?.diagnostics.selectedBoundaryCount,
           similarityMatrixDimension: structuralSegmentation?.diagnostics.matrixDimension,
           similarityMatrixBytes: structuralSegmentation?.diagnostics.matrixBytes,
+          contextualClassifierVersion: structuralSegmentation?.contextualDiagnostics?.classifierVersion,
+          detectedDropAnchorCount: structuralSegmentation?.contextualDiagnostics?.dropAnchorCount,
+          refinedBuildBoundaryCount: structuralSegmentation?.contextualDiagnostics?.buildRefinementCount,
+          detectedPreDropCount: structuralSegmentation?.contextualDiagnostics?.preDropCount,
+          sectionFamilyCount: structuralSegmentation?.contextualDiagnostics?.familyCount,
+          ambiguousSectionCount: structuralSegmentation?.contextualDiagnostics?.ambiguousSectionCount,
         }
       : analysis.analysisDiagnostics,
   }
@@ -132,8 +153,8 @@ function assembleReanalysis(
 
 /**
  * Rebuilds beats, downbeats, bars, bar features, neutral structural regions,
- * and section boundaries from a new BPM. Existing compatibility labels are
- * retained where possible. Manual and locked sections remain authoritative.
+ * and section boundaries from a new BPM. Existing semantic labels are retained
+ * where possible. Manual and locked sections remain authoritative.
  */
 export function applyResnap(
   analysis: TrackIntelligenceAnalysis,
@@ -155,8 +176,8 @@ export function applyResnap(
 }
 
 /**
- * Rebuilds all BPM-dependent data and reruns the shared structural segmentation
- * compatibility labeling. Manual and locked sections remain authoritative.
+ * Rebuilds all BPM-dependent data and reruns both shared structural segmentation
+ * and contextual section interpretation. Manual and locked sections remain authoritative.
  */
 export function applyReanalyze(
   analysis: TrackIntelligenceAnalysis,

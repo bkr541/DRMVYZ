@@ -111,7 +111,7 @@ export const useTrackAnalysisStore = create<TrackAnalysisStorageState>()(
           if (!existing) return s
           // Preserve manual and locked sections; only replace analyzer-created ones.
           const preservedSections = existing.sections.filter(
-            sec => sec.source === 'manual' || sec.locked === true,
+            sec => sec.source === 'manual' || sec.source === 'rekordbox' || sec.locked === true,
           )
           const updatedAnalysis: TrackIntelligenceAnalysis = {
             ...existing,
@@ -121,7 +121,7 @@ export const useTrackAnalysisStore = create<TrackAnalysisStorageState>()(
               ? [
                   ...patch.beatGrid.length > 0
                     ? existing.sections.filter(
-                        sec => sec.source !== 'manual' && !sec.locked,
+                        sec => sec.source !== 'manual' && sec.source !== 'rekordbox' && !sec.locked,
                       )
                     : [],
                   ...preservedSections,
@@ -134,14 +134,14 @@ export const useTrackAnalysisStore = create<TrackAnalysisStorageState>()(
     }),
     {
       name: 'drmvyz:track-analyses',
-      version: 3,
+      version: 4,
       migrate: persisted => {
         const state = (persisted ?? {}) as Partial<TrackAnalysisStorageState>
         const analyses = state.analyses ?? {}
         const statuses = { ...(state.statuses ?? {}) }
         // Retain legacy records so protected/manual data is never deleted by a
         // schema bump, but mark them stale so the coordinator cannot silently
-        // treat auto-1.x output as analysis-v2.
+        // treat an older automatic-analysis schema as current output.
         for (const [key, analysis] of Object.entries(analyses)) {
           if (!isCurrentAnalysisVersion(analysis.analysisVersion)) statuses[key] = 'stale'
         }

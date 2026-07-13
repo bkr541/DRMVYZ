@@ -31,6 +31,12 @@ export function adaptMIAnalysis(analysis: TrackIntelligenceAnalysis): ReactTrack
     endSec:     sec.endSec,
     intensity:  sec.intensity,
     confidence: sec.confidence,
+    boundaryConfidence: sec.boundaryConfidence,
+    labelConfidence: sec.labelConfidence,
+    gridConfidence: sec.gridConfidence,
+    analysisConfidence: sec.analysisConfidence,
+    dropConfidence: sec.dropConfidence,
+    interpretation: sec.interpretation,
     source:     'auto' as const,
   }))
 }

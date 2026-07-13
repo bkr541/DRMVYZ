@@ -2262,6 +2262,56 @@ export interface ReactPerformancePad {
 
 export type ReactSectionType = 'intro' | 'verse' | 'build' | 'preDrop' | 'drop' | 'breakdown' | 'bridge' | 'outro' | 'unknown'
 
+export type ReactSectionEnergyShape = 'rising' | 'falling' | 'stable' | 'arched' | 'volatile'
+export type ReactSectionDensityCategory = 'sparse' | 'moderate' | 'dense'
+export type ReactSectionRhythmicCharacter = 'sparse' | 'steady' | 'driving' | 'fill-heavy'
+export type ReactSectionHarmonicCharacter = 'stable' | 'evolving' | 'changing' | 'unavailable'
+export type ReactSectionTransitionCharacter = 'impact' | 'lift' | 'release' | 'cut' | 'continuous'
+
+export interface ReactSectionLabelAlternative {
+  type: ReactSectionType
+  confidence: number
+}
+
+export interface ReactDropAnchorDiagnostics {
+  entryImpact: number
+  energyIncrease: number
+  bassIncrease: number
+  transientIncrease: number
+  postEntryStability: number
+  preEntryReduction: number
+  precedingRise: number
+  repeatedHighEnergySimilarity: number
+  structuralBoundarySupport: number
+}
+
+export interface ReactSectionClassificationDiagnostics {
+  scores: Partial<Record<ReactSectionType, number>>
+  evidence: string[]
+  sourceRegionIds: string[]
+  dropAnchor?: ReactDropAnchorDiagnostics
+}
+
+export interface ReactSectionInterpretationMetadata {
+  startBar?: number | null
+  endBar?: number | null
+  durationBars?: number | null
+  energyShape?: ReactSectionEnergyShape
+  densityCategory?: ReactSectionDensityCategory
+  rhythmicCharacter?: ReactSectionRhythmicCharacter
+  harmonicCharacter?: ReactSectionHarmonicCharacter
+  entryImpact?: number
+  exitTransition?: ReactSectionTransitionCharacter
+  familyId?: string
+  occurrenceIndex?: number
+  familySimilarity?: number
+  relatedSectionIds?: string[]
+  isVariation?: boolean
+  alternativeLabels?: ReactSectionLabelAlternative[]
+  boundaryRefinementReason?: string
+  classificationDiagnostics?: ReactSectionClassificationDiagnostics
+}
+
 export interface ReactPalette {
   primary: string
   secondary: string
@@ -2313,6 +2363,18 @@ export interface ReactTrackSection {
   engineId?: ReactEngineId
   source?: 'manual' | 'auto' | 'mock' | 'user-edited-auto' | 'user-created'
   confidence?: number
+  /** Confidence that the section's start/end boundaries are musically placed. */
+  boundaryConfidence?: number
+  /** Confidence in the semantic role independently of boundary placement. */
+  labelConfidence?: number
+  /** Confidence in the beat/downbeat/bar grid supporting the section. */
+  gridConfidence?: number
+  /** Combined compatibility score; mirrored to confidence for older consumers. */
+  analysisConfidence?: number
+  /** Contextual Drop-entry confidence. Zero/absent does not imply low energy. */
+  dropConfidence?: number
+  /** Optional analysis-v3 interpretation data. Manual sections may omit it. */
+  interpretation?: ReactSectionInterpretationMetadata
 }
 
 export interface ReactSectionMapping {

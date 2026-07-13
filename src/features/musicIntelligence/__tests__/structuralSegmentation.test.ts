@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { analyzeStructuralRegions } from '../sectionAnalysis'
 import { applyReanalyze } from '../bpmReanalysis'
+import { CURRENT_ANALYSIS_VERSION } from '../analysisVersion'
 import { aggregateBarFeatures, buildBarMarkers, buildBeatMarkers, type MusicalFeatureCurves } from '../musicalGridAnalysis'
 import { rebuildBpmDependentData } from '../../trackIntelligence/beatGridUtils'
 import type {
@@ -285,7 +286,7 @@ describe('BPM reanalysis integration', () => {
       { barFeatures, musicalGrid: GRID },
     )
     return {
-      analysisVersion: 'auto-2.1',
+      analysisVersion: CURRENT_ANALYSIS_VERSION,
       createdAt: '2026-07-13T00:00:00.000Z',
       durationMs: durationSec * 1000,
       bpm: 120,
@@ -357,12 +358,24 @@ describe('BPM reanalysis integration', () => {
       source: 'manual' as const,
       locked: true,
     }
-    analysis.sections = [...analysis.sections, protectedSection]
+    const importedSection = {
+      id: 'rekordbox-verse',
+      label: 'Imported Verse',
+      type: 'verse' as const,
+      startSec: 40,
+      endSec: 46,
+      intensity: 0.55,
+      confidence: 0.98,
+      source: 'rekordbox' as const,
+      locked: false,
+    }
+    analysis.sections = [...analysis.sections, protectedSection, importedSection]
 
     const result = applyReanalyze(analysis, 130)
     const preserved = result.sections.find(section => section.id === protectedSection.id)
 
     expect(preserved).toEqual(protectedSection)
+    expect(result.sections.find(section => section.id === importedSection.id)).toEqual(importedSection)
     expect(result.sections.filter(section => section.id !== protectedSection.id).every(section => (
       section.endSec <= protectedSection.startSec || section.startSec >= protectedSection.endSec
     ))).toBe(true)

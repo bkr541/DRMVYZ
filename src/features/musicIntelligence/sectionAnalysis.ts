@@ -1,6 +1,6 @@
 // Shared loaded-audio structural segmentation.
 //
-// Analysis-v2 prefers a reliable musical grid and performs deterministic,
+// Patch 2 prefers a reliable musical grid and performs deterministic,
 // bar-aligned global segmentation from robust per-bar features and a bounded
 // self-similarity matrix. The legacy half-second detector remains only as an
 // explicitly marked fallback for tracks without a usable grid.
@@ -15,6 +15,7 @@ import type {
   TrackSectionMI,
 } from './types'
 import type { ReactSectionType } from '../../components/vyzualz/react/ReactTypes'
+import { classifyContextualSections } from './contextualSectionAnalysis'
 
 const EPS = 1e-9
 const MAX_SELF_SIMILARITY_BARS = 512
@@ -137,18 +138,6 @@ function buildFrames(
     })
   }
   return frames
-}
-
-function buildFramesFromBars(barFeatures: BarMusicalFeatures[]): FeatureFrame[] {
-  return barFeatures.map(bar => ({
-    timeSec: bar.startSec,
-    energy: bar.meanEnergy,
-    bass: bar.bassAverage,
-    mid: bar.midAverage,
-    high: bar.highAverage,
-    centroid: bar.spectralCentroid,
-    flux: bar.spectralFlux,
-  }))
 }
 
 function rawBarVector(bar: BarMusicalFeatures): number[] {
@@ -598,8 +587,9 @@ function computeTrackMeans(frames: FeatureFrame[]): TrackMeans {
   }
 }
 
-// Compatibility-only heuristic labels keep current engines behaving as before.
-// Patch 3 replaces this layer with the final semantic role classifier.
+// Legacy fallback labels remain intentionally simple. The grid-aligned path uses
+// contextualSectionAnalysis instead, but tracks without a reliable grid must
+// still degrade deterministically rather than losing sections entirely.
 function labelSegment(stats: SegmentStats, means: TrackMeans, midpointRatio: number): { type: ReactSectionType; intensity: number; confidence: number } {
   const ratio = (value: number, mean: number) => Math.max(0.1, Math.min(3, mean > 0.001 ? value / mean : 1))
   const energyRatio = ratio(stats.energy, means.energy)
@@ -635,31 +625,6 @@ function labelToDisplayName(type: ReactSectionType, index: number): string {
     breakdown: 'Breakdown', bridge: 'Bridge', outro: 'Outro', unknown: 'Section',
   }
   return `${labels[type]} ${index + 1}`
-}
-
-function compatibilitySectionsFromRegions(regions: StructuralRegion[], barFeatures: BarMusicalFeatures[], durationSec: number): TrackSectionMI[] {
-  const frames = buildFramesFromBars(barFeatures)
-  const means = computeTrackMeans(frames)
-  const classified = regions.map(region => {
-    const start = region.startBar ?? 0
-    const end = region.endBar ?? barFeatures.length
-    const stats = segmentStats(frames, start, end)
-    return {
-      ...labelSegment(stats, means, ((region.startSec + region.endSec) * 0.5) / Math.max(EPS, durationSec)),
-      region,
-    }
-  })
-  refineWithContext(classified)
-  return classified.map((entry, index) => ({
-    id: `auto-sec-${index}`,
-    label: labelToDisplayName(entry.type, index),
-    type: entry.type,
-    startSec: entry.region.startSec,
-    endSec: entry.region.endSec,
-    intensity: entry.intensity,
-    confidence: clamp01(entry.confidence * 0.55 + entry.region.boundaryConfidence * 0.45),
-    source: 'analysis',
-  }))
 }
 
 function crossRegionSimilarity(matrix: Float32Array, dimension: number, aStart: number, aEnd: number, bStart: number, bEnd: number): number {
@@ -781,7 +746,13 @@ function analyzeBarAligned(
   const selectedSet = new Set(selection.boundaries.slice(1, -1))
   candidates.forEach((candidate, index) => { candidate.selected = selectedSet.has(index + 1) })
   const regions = buildStructuralRegions(selection.boundaries, analyzedBars, sortedBars, candidates, matrix, durationSec, gridConfidence)
-  const sections = compatibilitySectionsFromRegions(regions, sortedBars, durationSec)
+  const contextual = classifyContextualSections({
+    regions,
+    barFeatures: sortedBars,
+    durationSec,
+    boundaryCandidates: candidates,
+  })
+  const sections = contextual.sections
   const bounded = boundedCandidateOutput(candidates)
   return {
     sections,
@@ -802,6 +773,7 @@ function analyzeBarAligned(
         globalObjectiveScore: selection.objective,
         usedFallback: false,
       },
+      contextualDiagnostics: contextual.diagnostics,
     },
   }
 }
@@ -885,7 +857,33 @@ function analyzeFallback(
     endSec: segment.endSec,
     intensity: segment.intensity,
     confidence: Math.min(0.45, segment.confidence),
+    boundaryConfidence: Math.min(0.45, segment.confidence),
+    labelConfidence: Math.min(0.45, segment.confidence),
+    gridConfidence: 0,
+    analysisConfidence: Math.min(0.45, segment.confidence),
+    dropConfidence: segment.type === 'drop' ? Math.min(0.35, segment.confidence) : 0,
     source: 'analysis',
+    interpretation: {
+      startBar: null,
+      endBar: null,
+      durationBars: null,
+      energyShape: segment.type === 'build' || segment.type === 'preDrop'
+        ? 'rising'
+        : segment.type === 'outro'
+          ? 'falling'
+          : 'stable',
+      densityCategory: segment.intensity >= 0.72 ? 'dense' : segment.intensity <= 0.34 ? 'sparse' : 'moderate',
+      rhythmicCharacter: 'steady',
+      harmonicCharacter: 'unavailable',
+      entryImpact: 0,
+      exitTransition: 'continuous',
+      alternativeLabels: [{ type: segment.type, confidence: 1 }],
+      classificationDiagnostics: {
+        scores: { [segment.type]: Math.min(0.45, segment.confidence) },
+        evidence: ['Legacy time-domain fallback used because a reliable musical grid was unavailable.'],
+        sourceRegionIds: [`structural-region-${index}`],
+      },
+    },
   }))
   const candidates: StructuralBoundaryCandidate[] = candidateIndices.map(index => ({
     barIndex: null,

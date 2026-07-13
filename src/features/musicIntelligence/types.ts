@@ -1,7 +1,10 @@
-import type { ReactSectionType } from '../../components/vyzualz/react/ReactTypes'
-import type { ReactTrackSection } from '../../components/vyzualz/react/ReactTypes'
+import type {
+  ReactSectionInterpretationMetadata,
+  ReactSectionType,
+  ReactTrackSection,
+} from '../../components/vyzualz/react/ReactTypes'
 
-export type { ReactSectionType, ReactTrackSection }
+export type { ReactSectionInterpretationMetadata, ReactSectionType, ReactTrackSection }
 
 // ── Sub-object types ──────────────────────────────────────────────────────────
 
@@ -376,6 +379,12 @@ export interface AnalysisDiagnostics {
   selectedStructuralBoundaryCount?: number
   similarityMatrixDimension?: number
   similarityMatrixBytes?: number
+  contextualClassifierVersion?: string
+  detectedDropAnchorCount?: number
+  refinedBuildBoundaryCount?: number
+  detectedPreDropCount?: number
+  sectionFamilyCount?: number
+  ambiguousSectionCount?: number
 }
 
 export interface PhraseMarker {
@@ -451,6 +460,17 @@ export interface StructuralSegmentationAnalysis {
   boundaryCandidates: StructuralBoundaryCandidate[]
   alternativeBoundaryCandidates: StructuralBoundaryCandidate[]
   diagnostics: StructuralSegmentationDiagnostics
+  /** Optional Patch 3 semantic interpretation summary. */
+  contextualDiagnostics?: ContextualSectionAnalysisDiagnostics
+}
+
+export interface ContextualSectionAnalysisDiagnostics {
+  classifierVersion: string
+  dropAnchorCount: number
+  buildRefinementCount: number
+  preDropCount: number
+  familyCount: number
+  ambiguousSectionCount: number
 }
 
 export interface TrackSectionMI {
@@ -461,6 +481,18 @@ export interface TrackSectionMI {
   endSec:     number
   intensity:  number
   confidence: number
+  /** Boundary certainty is intentionally independent from semantic certainty. */
+  boundaryConfidence?: number
+  /** Semantic-role certainty, independent from grid and boundary placement. */
+  labelConfidence?: number
+  /** Supporting beat/downbeat/bar-grid confidence. */
+  gridConfidence?: number
+  /** Combined confidence mirrored to confidence for legacy consumers. */
+  analysisConfidence?: number
+  /** Contextual confidence that this section begins at a Drop anchor. */
+  dropConfidence?: number
+  /** Rich optional interpretation metadata; absent on legacy/imported records. */
+  interpretation?: ReactSectionInterpretationMetadata
   /** Origin of this section. Optional for backward compat; absent implies 'analysis'. */
   source?: SectionSource
   /** When true this section must not be overwritten by grid rebuilds or auto-reanalysis. */
