@@ -36,6 +36,10 @@ const MUSIC_CAPABILITIES = [
   'Track Energy Curve', 'Stem Curves', 'Lyrics', 'Harmonic', 'Semantics', 'Spectral Features',
 ]
 
+const PRISM_MOTIF_SEQUENCE = ['prism-open-x', 'prism-nested-diamond', 'prism-mirrored-crown', 'prism-cathedral-cage'] as const
+const CARDINAL_MOTIF_SEQUENCE = ['cardinal-horizontal-opposing-fans', 'cardinal-vertical-opposing-fans', 'cardinal-aperture', 'cardinal-diagonal-expansion'] as const
+const CAGE_MOTIF_SEQUENCE = ['cage-outer-mirrored-walls', 'cage-inner-chevrons', 'cage-double-x', 'cage-wide-cage-wings'] as const
+
 type CreateId = () => string
 
 type FixtureSpec = {
@@ -132,6 +136,22 @@ function section(
 ): LaserDmxShowDirectorPerformanceSectionMatch {
   if (!dropOccurrence) return { types }
   return { types, dropOccurrence: Array.isArray(dropOccurrence) ? { occurrences: dropOccurrence } : dropOccurrence }
+}
+
+function applyMotifFamilySequence(
+  program: LaserDmxShowDirectorPerformanceProgram,
+  sequence: readonly string[],
+): LaserDmxShowDirectorPerformanceProgram {
+  return {
+    ...program,
+    scenes: program.scenes.map(scene => ({
+      ...scene,
+      fourBarVariations: scene.fourBarVariations?.map((variation, index) => ({
+        ...variation,
+        motifFamily: sequence[index % sequence.length],
+      })),
+    })),
+  }
 }
 
 function baseScene(
@@ -534,7 +554,7 @@ export function createPrismCathedralProgram(): LaserDmxShowDirectorPerformancePr
       prismOutroScene(),
     ],
   }
-  return authorPrismCathedralLocalGeometry(program, PRISM_FIXTURES)
+  return authorPrismCathedralLocalGeometry(applyMotifFamilySequence(program, PRISM_MOTIF_SEQUENCE), PRISM_FIXTURES)
 }
 
 // ── Cardinal Fan Reactor ─────────────────────────────────────────────────────
@@ -827,7 +847,7 @@ export function createCardinalFanReactorProgram(): LaserDmxShowDirectorPerforman
       cardinalOutroScene(),
     ],
   }
-  return authorCardinalFanReactorLocalGeometry(program, CARDINAL_FIXTURES)
+  return authorCardinalFanReactorLocalGeometry(applyMotifFamilySequence(program, CARDINAL_MOTIF_SEQUENCE), CARDINAL_FIXTURES)
 }
 
 // ── Cyan Mirror Cage ─────────────────────────────────────────────────────────
@@ -1116,7 +1136,7 @@ export function createCyanMirrorCageProgram(): LaserDmxShowDirectorPerformancePr
       cageOutroScene(),
     ],
   }
-  return authorCyanMirrorCageLocalGeometry(program, CAGE_FIXTURES)
+  return authorCyanMirrorCageLocalGeometry(applyMotifFamilySequence(program, CAGE_MOTIF_SEQUENCE), CAGE_FIXTURES)
 }
 
 export const PRISM_CATHEDRAL_PERFORMANCE_PRESET: LaserDmxShowDirectorPerformancePresetDefinition = Object.freeze({

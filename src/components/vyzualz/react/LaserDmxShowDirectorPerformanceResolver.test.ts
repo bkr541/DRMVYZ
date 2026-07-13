@@ -211,7 +211,7 @@ describe('Show Director deterministic performance resolver', () => {
     expect(fixtureByKey(stageOne, 'recruit-right').enabled).toBe(false)
     expect(stageTwo.eightBarRecruitmentStage).toBe(2)
     expect(fixtureByKey(stageTwo, 'recruit-right').enabled).toBe(true)
-    expect(fixtureByKey(stageTwo, 'hero-left').beam.targetX).not.toBe(fixtureByKey(stageOne, 'hero-left').beam.targetX)
+    expect(fixtureByKey(stageTwo, 'hero-left').beam.beamSpread).not.toBe(fixtureByKey(stageOne, 'hero-left').beam.beamSpread)
     expect(fixtureByKey(stageTwo, 'hero-left').rotation).not.toBe(fixtureByKey(stageOne, 'hero-left').rotation)
   })
 

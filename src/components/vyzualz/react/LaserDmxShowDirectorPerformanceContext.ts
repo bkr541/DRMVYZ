@@ -18,7 +18,9 @@ import type { ReactSectionType, ReactTrackSection } from './ReactTypes'
 const EPSILON_SEC = 1e-5
 const analysisIdentityCache = new WeakMap<TrackIntelligenceAnalysis, string>()
 const sortedBeatGridCache = new WeakMap<TrackIntelligenceAnalysis, TrackIntelligenceAnalysis['beatGrid']>()
-const resolvedSectionsCache = new WeakMap<object, LaserDmxShowDirectorPerformanceResolvedSection[]>()
+const resolvedSectionsCache = new WeakMap<object, { sourceIdentity: string; sections: LaserDmxShowDirectorPerformanceResolvedSection[] }>()
+const macroSectionsCache = new Map<string, LaserDmxShowDirectorPerformanceMacroSection[]>()
+const MAX_MACRO_SECTION_CACHE_ENTRIES = 32
 
 export interface LaserDmxShowDirectorPerformanceGridPosition {
   bpm: number
@@ -32,16 +34,29 @@ export interface LaserDmxShowDirectorPerformanceGridPosition {
   downbeat: boolean
 }
 
+export type LaserDmxShowDirectorPerformanceBoundaryClassification = 'none' | 'hardReset' | 'continuation' | 'variation'
+
 export interface LaserDmxShowDirectorPerformanceBoundaryInfo {
   beatBoundary: boolean
   barBoundary: boolean
   fourBarBoundary: boolean
   eightBarBoundary: boolean
   sixteenBarBoundary: boolean
+  performanceFourBarBoundary: boolean
+  performanceEightBarBoundary: boolean
+  performanceSixteenBarBoundary: boolean
   sectionEntry: boolean
   sectionExit: boolean
   previousSectionId: string | null
   currentSectionId: string | null
+  macroSectionEntry: boolean
+  macroSectionExit: boolean
+  previousMacroSectionId: string | null
+  currentMacroSectionId: string | null
+  boundaryClassification: LaserDmxShowDirectorPerformanceBoundaryClassification
+  hardMusicalReset: boolean
+  microSectionContinuation: boolean
+  variationBoundary: boolean
   timingDiscontinuity: boolean
 }
 
@@ -54,6 +69,18 @@ export interface LaserDmxShowDirectorPerformanceResolvedSection {
   intensity: number
   confidence: number
   source: ReactTrackSection['source']
+}
+
+export interface LaserDmxShowDirectorPerformanceMacroSection {
+  id: string
+  label: string
+  type: ReactSectionType
+  startSec: number
+  endSec: number
+  intensity: number
+  confidence: number
+  source: ReactTrackSection['source']
+  sectionIds: string[]
 }
 
 export interface LaserDmxShowDirectorPerformanceMusicIntelligenceAdapter {
@@ -84,23 +111,38 @@ export interface LaserDmxShowDirectorPerformanceTimingContext extends LaserDmxSh
   trackIdentity: string | null
   analysisIdentity: string | null
   sectionIdentity: string
+  macroSectionIdentity: string
   runtimeIdentity: string
   seekIdentity: string
   loopIdentity: string
   trackChangeIdentity: string
   timingDiscontinuityIdentity: string
   sections: LaserDmxShowDirectorPerformanceResolvedSection[]
+  macroSections: LaserDmxShowDirectorPerformanceMacroSection[]
   resolvedSection: LaserDmxShowDirectorPerformanceResolvedSection | null
+  resolvedMacroSection: LaserDmxShowDirectorPerformanceMacroSection | null
   sectionProgress: number
   sectionConfidence: number
+  fineSectionOccurrence: number
   sectionOccurrence: number
   dropOccurrence: number
+  macroSectionOccurrence: number
+  macroDropOccurrence: number
+  boundaryClassification: LaserDmxShowDirectorPerformanceBoundaryClassification
+  absoluteTrackBarIndex: number
   barWithinSection: number
+  barWithinMacroSection: number
   barsSinceSectionStart: number
   barsUntilSectionEnd: number
+  barsSinceMacroSectionStart: number
+  barsUntilMacroSectionEnd: number
   fourBarBlockIndex: number
   eightBarBlockIndex: number
   sixteenBarBlockIndex: number
+  performanceFourBarBlockIndex: number
+  performanceEightBarBlockIndex: number
+  performanceSixteenBarBlockIndex: number
+  sceneLocalVariationIndex: number
   kick: boolean
   kickStrength: number
   snare: boolean
@@ -303,9 +345,12 @@ export function resolveLaserDmxShowDirectorPerformanceSections(
   input: Pick<BuildLaserDmxShowDirectorPerformanceContextInput,
     'analysis' | 'resolvedSections' | 'analyzedSections' | 'manualSections' | 'suppressedSectionIds' | 'durationSec'>,
 ): LaserDmxShowDirectorPerformanceResolvedSection[] {
-  if (input.resolvedSections) {
+  const resolvedSourceIdentity = input.resolvedSections
+    ? resolvedSectionSourceIdentity(input.resolvedSections)
+    : null
+  if (input.resolvedSections && resolvedSourceIdentity) {
     const cached = resolvedSectionsCache.get(input.resolvedSections as object)
-    if (cached) return cached
+    if (cached?.sourceIdentity === resolvedSourceIdentity) return cached.sections
   }
   const sourceSections = input.resolvedSections
     ? [...input.resolvedSections]
@@ -324,7 +369,9 @@ export function resolveLaserDmxShowDirectorPerformanceSections(
     .map(normalizeSection)
     .filter((section): section is LaserDmxShowDirectorPerformanceResolvedSection => section !== null)
     .sort((a, b) => a.startSec - b.startSec || sectionSourcePriority(b.source) - sectionSourcePriority(a.source) || a.id.localeCompare(b.id))
-  if (input.resolvedSections) resolvedSectionsCache.set(input.resolvedSections as object, resolved)
+  if (input.resolvedSections && resolvedSourceIdentity) {
+    resolvedSectionsCache.set(input.resolvedSections as object, { sourceIdentity: resolvedSourceIdentity, sections: resolved })
+  }
   return resolved
 }
 
@@ -341,6 +388,174 @@ export function resolveLaserDmxShowDirectorSectionAtTime(
     || a.endSec - b.endSec
     || a.id.localeCompare(b.id)
   ))[0] ?? null
+}
+
+function resolvedSectionSourceIdentity(sections: readonly ReactTrackSection[]): string {
+  return createLaserDmxShowDirectorSectionIdentity(sections)
+}
+
+function explicitMacroOccurrence(label: string, type: ReactSectionType): number | null {
+  const normalized = label.trim().toLowerCase().replace(/[._-]+/g, ' ')
+  const role = type === 'preDrop' ? 'pre\\s*drop' : type.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = normalized.match(new RegExp(`\\b${role}\\s*(\\d+)\\s*[a-z]?\\b`, 'i'))
+    ?? normalized.match(/\b(?:first|1st)\b/i)
+    ?? normalized.match(/\b(?:second|2nd)\b/i)
+  if (!match) return null
+  if (/first|1st/i.test(match[0])) return 1
+  if (/second|2nd/i.test(match[0])) return 2
+  const value = Number(match[1])
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : null
+}
+
+function normalizedSectionLabelFamily(label: string): string {
+  return label
+    .trim()
+    .toLowerCase()
+    .replace(/[._-]+/g, ' ')
+    .replace(/\b(part|phrase|segment|section|variation|var)\s*[a-z0-9ivx-]*$/i, '')
+    .replace(/\s+(?:[a-z]|[ivx]+|\d+[a-z]?)$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function resolveAuthoritativeSectionSpans(
+  sections: readonly LaserDmxShowDirectorPerformanceResolvedSection[],
+): LaserDmxShowDirectorPerformanceResolvedSection[] {
+  const boundaries = Array.from(new Set(sections.flatMap(section => [section.startSec, section.endSec])))
+    .filter(Number.isFinite)
+    .sort((a, b) => a - b)
+  const spans: LaserDmxShowDirectorPerformanceResolvedSection[] = []
+  for (let index = 0; index < boundaries.length - 1; index += 1) {
+    const startSec = boundaries[index]
+    const endSec = boundaries[index + 1]
+    if (endSec - startSec <= EPSILON_SEC) continue
+    const active = resolveLaserDmxShowDirectorSectionAtTime(sections, startSec + (endSec - startSec) * 0.5)
+    if (!active) continue
+    const previous = spans[spans.length - 1]
+    if (previous && previous.id === active.id && Math.abs(previous.endSec - startSec) <= EPSILON_SEC) {
+      previous.endSec = endSec
+      continue
+    }
+    spans.push({ ...active, startSec, endSec })
+  }
+  return spans
+}
+
+export function resolveLaserDmxShowDirectorMacroSections(
+  sections: readonly LaserDmxShowDirectorPerformanceResolvedSection[],
+  sectionIdentity = createLaserDmxShowDirectorSectionIdentity(sections),
+): LaserDmxShowDirectorPerformanceMacroSection[] {
+  const cached = macroSectionsCache.get(sectionIdentity)
+  if (cached) return cached
+
+  const spans = resolveAuthoritativeSectionSpans(sections)
+  const groups: Array<{
+    type: ReactSectionType
+    startSec: number
+    endSec: number
+    weightedIntensity: number
+    weightedConfidence: number
+    duration: number
+    source: ReactTrackSection['source']
+    labels: string[]
+    sectionIds: string[]
+    explicitOccurrence: number | null
+  }> = []
+
+  for (const span of spans) {
+    const duration = Math.max(EPSILON_SEC, span.endSec - span.startSec)
+    const previous = groups[groups.length - 1]
+    const occurrence = explicitMacroOccurrence(span.label, span.type)
+    const continuous = Boolean(previous
+      && previous.type === span.type
+      && Math.abs(previous.endSec - span.startSec) <= EPSILON_SEC
+      && !(previous.explicitOccurrence != null && occurrence != null && previous.explicitOccurrence !== occurrence))
+    if (continuous && previous) {
+      previous.endSec = span.endSec
+      previous.weightedIntensity += span.intensity * duration
+      previous.weightedConfidence += span.confidence * duration
+      previous.duration += duration
+      if (sectionSourcePriority(span.source) > sectionSourcePriority(previous.source)) previous.source = span.source
+      if (!previous.labels.includes(span.label)) previous.labels.push(span.label)
+      if (!previous.sectionIds.includes(span.id)) previous.sectionIds.push(span.id)
+      if (previous.explicitOccurrence == null) previous.explicitOccurrence = occurrence
+      continue
+    }
+    groups.push({
+      type: span.type,
+      startSec: span.startSec,
+      endSec: span.endSec,
+      weightedIntensity: span.intensity * duration,
+      weightedConfidence: span.confidence * duration,
+      duration,
+      source: span.source,
+      labels: [span.label],
+      sectionIds: [span.id],
+      explicitOccurrence: occurrence,
+    })
+  }
+
+  const macroSections = groups.map((group, index): LaserDmxShowDirectorPerformanceMacroSection => ({
+    id: `macro-${group.type}-${index + 1}-${group.startSec.toFixed(6)}-${group.sectionIds.join('+')}`,
+    label: group.labels.filter(Boolean).join(' / ') || group.type,
+    type: group.type,
+    startSec: group.startSec,
+    endSec: group.endSec,
+    intensity: clamp01(group.weightedIntensity / Math.max(EPSILON_SEC, group.duration)),
+    confidence: clamp01(group.weightedConfidence / Math.max(EPSILON_SEC, group.duration)),
+    source: group.source,
+    sectionIds: [...group.sectionIds],
+  }))
+
+  macroSectionsCache.set(sectionIdentity, macroSections)
+  if (macroSectionsCache.size > MAX_MACRO_SECTION_CACHE_ENTRIES) {
+    const oldest = macroSectionsCache.keys().next().value
+    if (oldest) macroSectionsCache.delete(oldest)
+  }
+  return macroSections
+}
+
+export function resolveLaserDmxShowDirectorMacroSectionAtTime(
+  macroSections: readonly LaserDmxShowDirectorPerformanceMacroSection[],
+  audioTimeSec: number,
+): LaserDmxShowDirectorPerformanceMacroSection | null {
+  const time = Math.max(0, finite(audioTimeSec))
+  return macroSections.find(section => time + EPSILON_SEC >= section.startSec && time < section.endSec - EPSILON_SEC) ?? null
+}
+
+export function resolveLaserDmxShowDirectorMacroSectionOccurrence(
+  macroSections: readonly LaserDmxShowDirectorPerformanceMacroSection[],
+  current: LaserDmxShowDirectorPerformanceMacroSection | null,
+): number {
+  if (!current) return 0
+  const sameType = macroSections.filter(section => section.type === current.type)
+  const index = sameType.findIndex(section => section.id === current.id)
+  return index >= 0 ? index + 1 : 0
+}
+
+export function classifyLaserDmxShowDirectorPerformanceBoundary(
+  sections: readonly LaserDmxShowDirectorPerformanceResolvedSection[],
+  macroSections: readonly LaserDmxShowDirectorPerformanceMacroSection[],
+  current: LaserDmxShowDirectorPerformanceResolvedSection | null,
+  audioTimeSec: number,
+): LaserDmxShowDirectorPerformanceBoundaryClassification {
+  if (!current) return 'none'
+  const spans = resolveAuthoritativeSectionSpans(sections)
+  const time = Math.max(0, finite(audioTimeSec))
+  const activeSpanIndex = spans.findIndex(span => (
+    span.id === current.id
+    && time + EPSILON_SEC >= span.startSec
+    && time < span.endSec - EPSILON_SEC
+  ))
+  if (activeSpanIndex <= 0) return 'hardReset'
+  const previous = spans[activeSpanIndex - 1]
+  const active = spans[activeSpanIndex]
+  const previousMacro = resolveLaserDmxShowDirectorMacroSectionAtTime(macroSections, Math.max(previous.startSec, previous.endSec - EPSILON_SEC * 2))
+  const currentMacro = resolveLaserDmxShowDirectorMacroSectionAtTime(macroSections, active.startSec + EPSILON_SEC)
+  if (!previousMacro || !currentMacro || previousMacro.id !== currentMacro.id) return 'hardReset'
+  const sameLabelFamily = normalizedSectionLabelFamily(previous.label) === normalizedSectionLabelFamily(active.label)
+  const intensityChanged = Math.abs(previous.intensity - active.intensity) >= 0.12
+  return sameLabelFamily && !intensityChanged ? 'continuation' : 'variation'
 }
 
 export function resolveLaserDmxShowDirectorSectionOccurrence(
@@ -593,7 +808,18 @@ export function buildLaserDmxShowDirectorPerformanceContext(
   const audioTimeSec = Math.max(0, finite(input.audioTimeSec, frame.timeSec))
   const analysis = input.analysis ?? null
   const sections = resolveLaserDmxShowDirectorPerformanceSections(input)
+  const sectionIdentity = createLaserDmxShowDirectorSectionIdentity(sections)
+  const macroSections = resolveLaserDmxShowDirectorMacroSections(sections, sectionIdentity)
+  const macroSectionIdentity = macroSections.map(section => [
+    section.id,
+    section.type,
+    section.startSec,
+    section.endSec,
+    section.sectionIds.join(','),
+  ].join(':')).join('|')
   const resolvedSection = resolveLaserDmxShowDirectorSectionAtTime(sections, audioTimeSec)
+  const resolvedMacroSection = resolveLaserDmxShowDirectorMacroSectionAtTime(macroSections, audioTimeSec)
+  const boundaryClassification = classifyLaserDmxShowDirectorPerformanceBoundary(sections, macroSections, resolvedSection, audioTimeSec)
   const grid = resolveLaserDmxShowDirectorGridPosition(audioTimeSec, frame, analysis)
   const sectionStartGrid = resolvedSection
     ? resolveLaserDmxShowDirectorGridPosition(resolvedSection.startSec, frame, analysis)
@@ -601,24 +827,41 @@ export function buildLaserDmxShowDirectorPerformanceContext(
   const sectionEndGrid = resolvedSection
     ? resolveLaserDmxShowDirectorGridPosition(Math.max(resolvedSection.startSec, resolvedSection.endSec - EPSILON_SEC), frame, analysis)
     : null
+  const macroSectionStartGrid = resolvedMacroSection
+    ? resolveLaserDmxShowDirectorGridPosition(resolvedMacroSection.startSec, frame, analysis)
+    : null
+  const macroSectionEndGrid = resolvedMacroSection
+    ? resolveLaserDmxShowDirectorGridPosition(Math.max(resolvedMacroSection.startSec, resolvedMacroSection.endSec - EPSILON_SEC), frame, analysis)
+    : null
   const barsSinceSectionStart = sectionStartGrid
     ? Math.max(0, (grid.absoluteBeat - sectionStartGrid.absoluteBeat) / grid.timeSignature)
     : 0
   const barsUntilSectionEnd = sectionEndGrid
     ? Math.max(0, (sectionEndGrid.absoluteBeat - grid.absoluteBeat) / grid.timeSignature)
     : 0
+  const barsSinceMacroSectionStart = macroSectionStartGrid
+    ? Math.max(0, (grid.absoluteBeat - macroSectionStartGrid.absoluteBeat) / grid.timeSignature)
+    : 0
+  const barsUntilMacroSectionEnd = macroSectionEndGrid
+    ? Math.max(0, (macroSectionEndGrid.absoluteBeat - grid.absoluteBeat) / grid.timeSignature)
+    : 0
   const sectionDuration = resolvedSection ? resolvedSection.endSec - resolvedSection.startSec : 0
   const sectionProgress = resolvedSection && sectionDuration > EPSILON_SEC
     ? clamp01((audioTimeSec - resolvedSection.startSec) / sectionDuration)
     : 0
+  const fineSectionOccurrence = resolveLaserDmxShowDirectorSectionOccurrence(sections, resolvedSection)
+  const macroSectionOccurrence = resolveLaserDmxShowDirectorMacroSectionOccurrence(macroSections, resolvedMacroSection)
+  const macroDropOccurrence = resolvedMacroSection?.type === 'drop' ? macroSectionOccurrence : 0
+  const performanceFourBarBlockIndex = Math.floor(barsSinceMacroSectionStart / 4 + EPSILON_SEC)
+  const performanceEightBarBlockIndex = Math.floor(barsSinceMacroSectionStart / 8 + EPSILON_SEC)
+  const performanceSixteenBarBlockIndex = Math.floor(barsSinceMacroSectionStart / 16 + EPSILON_SEC)
   const trackIdentity = input.trackIdentity ?? frame.trackId ?? frame.sourceId ?? null
   const analysisIdentity = createLaserDmxShowDirectorAnalysisIdentity(analysis)
-  const sectionIdentity = createLaserDmxShowDirectorSectionIdentity(sections)
   const seekIdentity = identityToken(input.seekIdentity, 'seek:0')
   const loopIdentity = identityToken(input.loopIdentity, 'loop:0')
   const trackChangeIdentity = identityToken(input.trackChangeIdentity, `track:${trackIdentity ?? 'none'}`)
   const timingDiscontinuityIdentity = identityToken(input.timingDiscontinuityIdentity, 'timing:0')
-  const runtimeIdentity = [trackIdentity ?? 'none', analysisIdentity ?? 'none', sectionIdentity, seekIdentity, loopIdentity, trackChangeIdentity, timingDiscontinuityIdentity].join('::')
+  const runtimeIdentity = [trackIdentity ?? 'none', analysisIdentity ?? 'none', sectionIdentity, macroSectionIdentity, seekIdentity, loopIdentity, trackChangeIdentity, timingDiscontinuityIdentity].join('::')
   const previous = input.previous ?? null
   const timingDiscontinuity = Boolean(previous && (
     previous.runtimeIdentity !== runtimeIdentity
@@ -626,6 +869,17 @@ export function buildLaserDmxShowDirectorPerformanceContext(
   ))
   const previousSectionId = previous?.resolvedSection?.id ?? null
   const currentSectionId = resolvedSection?.id ?? null
+  const previousMacroSectionId = previous?.resolvedMacroSection?.id ?? null
+  const currentMacroSectionId = resolvedMacroSection?.id ?? null
+  const sectionEntry = didEnterLaserDmxShowDirectorSection(previousSectionId, currentSectionId)
+  const sectionExit = didExitLaserDmxShowDirectorSection(previousSectionId, currentSectionId)
+  const macroSectionEntry = didEnterLaserDmxShowDirectorSection(previousMacroSectionId, currentMacroSectionId)
+  const macroSectionExit = didExitLaserDmxShowDirectorSection(previousMacroSectionId, currentMacroSectionId)
+  const boundaryForFrame = sectionEntry ? boundaryClassification : 'none'
+  const sameMacroClock = Boolean(previous && previousMacroSectionId !== null && previousMacroSectionId === currentMacroSectionId)
+  const crossedPerformanceBlock = (previousIndex: number, currentIndex: number) => (
+    !timingDiscontinuity && sameMacroClock && currentIndex > previousIndex
+  )
   const intelligence = createLaserDmxShowDirectorMusicIntelligenceAdapter(frame, { analysis, hasSections: sections.length > 0 })
 
   return {
@@ -633,6 +887,7 @@ export function buildLaserDmxShowDirectorPerformanceContext(
     trackIdentity,
     analysisIdentity,
     sectionIdentity,
+    macroSectionIdentity,
     runtimeIdentity,
     seekIdentity,
     loopIdentity,
@@ -640,17 +895,31 @@ export function buildLaserDmxShowDirectorPerformanceContext(
     timingDiscontinuityIdentity,
     ...grid,
     sections,
+    macroSections,
     resolvedSection,
+    resolvedMacroSection,
     sectionProgress,
-    sectionConfidence: resolvedSection?.confidence ?? 0,
-    sectionOccurrence: resolveLaserDmxShowDirectorSectionOccurrence(sections, resolvedSection),
-    dropOccurrence: resolveLaserDmxShowDirectorDropOccurrence(sections, resolvedSection),
+    sectionConfidence: resolvedSection?.confidence ?? resolvedMacroSection?.confidence ?? 0,
+    fineSectionOccurrence,
+    sectionOccurrence: macroSectionOccurrence,
+    dropOccurrence: macroDropOccurrence,
+    macroSectionOccurrence,
+    macroDropOccurrence,
+    boundaryClassification,
+    absoluteTrackBarIndex: grid.barIndex,
     barWithinSection: Math.floor(barsSinceSectionStart + EPSILON_SEC),
+    barWithinMacroSection: Math.floor(barsSinceMacroSectionStart + EPSILON_SEC),
     barsSinceSectionStart,
     barsUntilSectionEnd,
+    barsSinceMacroSectionStart,
+    barsUntilMacroSectionEnd,
     fourBarBlockIndex: Math.floor(grid.barIndex / 4),
     eightBarBlockIndex: Math.floor(grid.barIndex / 8),
     sixteenBarBlockIndex: Math.floor(grid.barIndex / 16),
+    performanceFourBarBlockIndex,
+    performanceEightBarBlockIndex,
+    performanceSixteenBarBlockIndex,
+    sceneLocalVariationIndex: performanceFourBarBlockIndex % 4,
     kick: frame.rhythm.kickHit,
     kickStrength: clamp01(frame.rhythm.kickStrength),
     snare: frame.rhythm.snareHit,
@@ -667,10 +936,21 @@ export function buildLaserDmxShowDirectorPerformanceContext(
       fourBarBoundary: previous ? didCrossLaserDmxShowDirectorFourBarBoundary(previous.barIndex, grid.barIndex, timingDiscontinuity) : false,
       eightBarBoundary: previous ? didCrossLaserDmxShowDirectorEightBarBoundary(previous.barIndex, grid.barIndex, timingDiscontinuity) : false,
       sixteenBarBoundary: previous ? didCrossLaserDmxShowDirectorSixteenBarBoundary(previous.barIndex, grid.barIndex, timingDiscontinuity) : false,
-      sectionEntry: didEnterLaserDmxShowDirectorSection(previousSectionId, currentSectionId),
-      sectionExit: didExitLaserDmxShowDirectorSection(previousSectionId, currentSectionId),
+      performanceFourBarBoundary: previous ? crossedPerformanceBlock(previous.performanceFourBarBlockIndex, performanceFourBarBlockIndex) : false,
+      performanceEightBarBoundary: previous ? crossedPerformanceBlock(previous.performanceEightBarBlockIndex, performanceEightBarBlockIndex) : false,
+      performanceSixteenBarBoundary: previous ? crossedPerformanceBlock(previous.performanceSixteenBarBlockIndex, performanceSixteenBarBlockIndex) : false,
+      sectionEntry,
+      sectionExit,
       previousSectionId,
       currentSectionId,
+      macroSectionEntry,
+      macroSectionExit,
+      previousMacroSectionId,
+      currentMacroSectionId,
+      boundaryClassification: boundaryForFrame,
+      hardMusicalReset: macroSectionEntry || boundaryForFrame === 'hardReset',
+      microSectionContinuation: boundaryForFrame === 'continuation',
+      variationBoundary: boundaryForFrame === 'variation',
       timingDiscontinuity,
     },
     intelligence,

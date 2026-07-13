@@ -25,34 +25,60 @@ The effective precedence is:
 
 A blackout already requested by the authored Matrix state or performance program cannot be reopened by a later cue in the same frame.
 
-## Timing hierarchy
+## Timing hierarchy and cadence anchors
 
 The audio transport playhead is the only choreography clock. Wall time is not used to advance a show.
 
-- Beat mutations use canonical beat position and beat events.
-- Kick, snare, hat, and general transient reactions use canonical Music Intelligence events.
-- Bar mutations use the active time signature.
-- Four-bar and eight-bar behavior counts musical bars, not raw beats.
-- `phraseLengthBars` is expressed in musical bars and remains correct outside 4/4.
-- Sixteen-bar evolution derives from the same true-bar grid.
-- Section entry, body, and exit behavior derives from the resolved Track Map section.
+The context exposes two related timing layers:
 
-Forward frame gaps still cross any intervening beat, bar, four-bar, eight-bar, and sixteen-bar boundaries. An explicit seek, backward transport movement, loop wrap, track replacement, analysis replacement, preset reload, or seed/invalidation change reconstructs state from the target playhead instead of replaying missed mutations.
+- **Absolute track timing**: absolute beat, absolute track bar, and absolute four-, eight-, and sixteen-bar blocks.
+- **Performance phrase timing**: bars since the current macro-section entry plus continuous four-, eight-, and sixteen-bar blocks anchored to that macro entry.
 
-Pausing does not advance choreography. The Canvas2D renderer owns no independent animation loop.
+Beat mutations use canonical beat position and Music Intelligence events. Bar mutations use the active time signature. Four-bar variation, eight-bar recruitment, and sixteen-bar evolution use the performance phrase clock, so they count true musical bars rather than raw beats or render frames. `phraseLengthBars` remains correct outside 4/4.
 
-## Section authority and occurrence
+Fine Track Map boundaries do not automatically restart the performance phrase clock. A verse split into 5-, 6-, and 7-bar analyzed segments can therefore reach its second eight-bar recruitment stage and later four-bar variations. A true macro-role change, such as verse to build, build to pre-drop, drop to breakdown, or an explicitly numbered Drop 1 to Drop 2 change, starts a new macro clock.
 
-Manual Track Map sections override overlapping analyzed sections through the canonical Track Map resolver. Section identity includes ID, type, bounds, label, intensity, source, and confidence, so a manual edit invalidates stale scene selection and progress.
+Forward frame gaps still report any crossed absolute and performance four-, eight-, and sixteen-bar boundaries. An explicit seek, backward transport movement, loop wrap, track replacement, analysis replacement, preset reload, or seed/invalidation change reconstructs all block indexes from the target playhead instead of replaying missed mutations. Pausing does not advance choreography, and the Canvas2D renderer owns no independent animation loop.
 
-Section occurrence is derived from the ordered resolved section map, not from the number of render-time entries:
+## Fine sections, macro sections, and boundary classification
 
-- Seeking directly into the second drop resolves Drop 2.
-- Looping within Drop 1 continues to resolve Drop 1.
-- Replacing the track, analysis object, or resolved section map resets runtime identity.
-- Unknown sections use the program fallback order or the configured basic-timing fallback without borrowing stale section data.
+Manual Track Map sections remain authoritative over overlapping analyzed sections through the canonical Track Map resolver. The context first creates non-overlapping authoritative fine-section spans, then groups compatible adjacent spans into macro performance sections.
 
-Analysis identity covers beat markers, phrases, sections, energy and spectral curves, harmonic data, stems, lyrics, and semantic moments. Identity and sorted-grid work are cached by immutable analysis object identity, so unchanged frame reads stay bounded.
+Macro grouping follows these rules:
+
+- Related labels with the same musical role continue one clock, such as Verse A to Verse B, Build A to Build B, or Drop 1A to Drop 1B.
+- Explicitly numbered role changes remain separate occurrences, so Drop 1 and Drop 2 never share a clock even when adjacent.
+- A role change always creates a new macro section.
+- Manual and user-edited sections keep their source priority while participating in the same deterministic grouping rules.
+
+Each fine boundary is classified as:
+
+- **Hard performance boundary**: the macro role or explicit occurrence changes, so cadence resets.
+- **Continuation boundary**: the fine label family and intensity remain compatible, so motif and cadence continue.
+- **Variation boundary**: the fine section remains in the same macro role but its label family or intensity meaningfully changes; the clock continues while the resolver may express a related variation.
+
+Section identity includes ID, type, bounds, label, intensity, source, and confidence. Macro identity includes the authoritative span composition. Editing a Track Map array in place therefore invalidates stale fine and macro calculations instead of relying only on array identity.
+
+Section occurrence is derived from ordered macro sections rather than render-time entries:
+
+- Seeking directly into the second drop resolves Drop 2 and its own macro clock.
+- Looping within Drop 1 continues to resolve Drop 1 and repeats the same phrase state.
+- Looping bars 9 through 16 reconstructs the same four-bar variation and eight-bar recruitment stage on every pass.
+- Unknown sections use the program fallback order or configured basic-timing fallback without borrowing stale section data.
+
+Analysis identity covers beat markers, phrases, sections, energy and spectral curves, harmonic data, stems, lyrics, and semantic moments. Identity and sorted-grid work remain cached, while resolved-section caches are content-fingerprinted so manual edits cannot leave stale macro clocks behind.
+
+## Motif continuity and recruitment
+
+A four-bar block ordinarily owns one motif family. Beat and bar mutations change brightness, spread, endpoint emphasis, direction, focus, or bank balance inside that family rather than replacing the complete composition every beat. The built-in shows declare deterministic four-step motif sequences:
+
+- Prism Cathedral: Open X, Nested Diamond, Mirrored Crown, Cathedral Cage.
+- Cardinal Fan Reactor: Horizontal Opposing Fans, Vertical Opposing Fans, Cardinal Aperture, Diagonal Expansion.
+- Cyan Mirror Cage: Outer Mirrored Walls, Inner Chevrons, Double X, Wide Cage Wings.
+
+Eight-bar stages are indexed from the macro-section anchor. Recruitment mutations remain cumulative unless the authored stage opts out. Whenever a scene has recruitment stages, fixtures already active at the boundary also evolve deterministically through rotation, angle, spread, and travel direction changes. This prevents a new bank from appearing as an unchanged extra layer while the original architecture freezes.
+
+Patch 1 fixture-local target geometry remains authoritative. The continuity resolver does not replace fixture-keyed target arrays with shared global targets, so projector origins, deliberate negative space, and the Cyan Mirror Cage center corridor survive phrase evolution, seeking, and looping.
 
 ## Music Intelligence reuse and fallback
 

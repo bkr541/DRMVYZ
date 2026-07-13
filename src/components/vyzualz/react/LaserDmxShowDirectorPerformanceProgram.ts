@@ -169,6 +169,8 @@ export interface LaserDmxShowDirectorPerformanceBarMutation extends LaserDmxShow
 
 export interface LaserDmxShowDirectorPerformanceFourBarVariation extends LaserDmxShowDirectorPerformanceMutationBase {
   blockOffsets?: number[]
+  /** Stable motif identity retained for the whole four-bar block. */
+  motifFamily?: string
 }
 
 export interface LaserDmxShowDirectorPerformanceEightBarFixtureRecruitmentStage extends LaserDmxShowDirectorPerformanceMutationBase {
@@ -781,6 +783,7 @@ function normalizeScene(raw: unknown, index: number): LaserDmxShowDirectorPerfor
     fourBarVariations: normalizeMutationArray(raw.fourBarVariations, `${id}-four`, (value, base) => ({
       ...base,
       ...(Array.isArray(value.blockOffsets) ? { blockOffsets: Array.from(new Set(value.blockOffsets.map(offset => positiveInt(offset, 0, 4096)))).sort((a, b) => a - b) } : {}),
+      ...(cleanString(value.motifFamily, '', 160) ? { motifFamily: cleanString(value.motifFamily, '', 160) } : {}),
     })),
     eightBarRecruitment: normalizeMutationArray(raw.eightBarRecruitment, `${id}-eight`, (value, base) => ({
       ...base,

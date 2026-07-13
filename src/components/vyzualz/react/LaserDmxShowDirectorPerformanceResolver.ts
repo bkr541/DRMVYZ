@@ -75,6 +75,7 @@ export interface LaserDmxShowDirectorPerformanceResolution {
   activeSceneId: string | null
   activeSceneLabel: string | null
   activeVariation: string | null
+  activeMotifFamily?: string | null
   fourBarVariation: string | null
   eightBarRecruitmentStage: number
   currentSection: LaserDmxShowDirectorPerformanceSectionType
@@ -150,7 +151,7 @@ function occurrenceMatches(value: number, match: LaserDmxShowDirectorPerformance
 function sceneBarMatches(scene: LaserDmxShowDirectorPerformanceScene, context: LaserDmxShowDirectorPerformanceTimingContext): boolean {
   const match = scene.barMatch
   if (!match) return true
-  const bar = Math.max(0, context.barWithinSection)
+  const bar = Math.max(0, context.barWithinMacroSection)
   if (match.startBar != null && bar < match.startBar) return false
   if (match.endBar != null && bar > match.endBar) return false
   if (match.everyBars != null && match.everyBars > 0) {
@@ -206,7 +207,7 @@ function conditionsPass(
 }
 
 function sectionTypeForFallback(input: ResolveLaserDmxShowDirectorPerformanceInput): LaserDmxShowDirectorPerformanceSectionType {
-  const direct = input.context.resolvedSection?.type ?? input.context.intelligence.section.type ?? 'unknown'
+  const direct = input.context.resolvedMacroSection?.type ?? input.context.resolvedSection?.type ?? input.context.intelligence.section.type ?? 'unknown'
   if (direct !== 'unknown') return direct
   if (input.fallbackBehavior !== 'basicTiming') return 'unknown'
   const energy = clamp01(input.context.energy)
@@ -278,10 +279,9 @@ function selectScene(work: ResolverWork): { scene: LaserDmxShowDirectorPerforman
     work.input.programSeed,
     program.id,
     work.input.context.sectionIdentity,
+    work.input.context.resolvedMacroSection?.id ?? 'macro:none',
     effectiveSectionOccurrence(sectionType, work.input.context),
     effectiveDropOccurrence(sectionType, work.input.context),
-    work.input.context.barWithinSection,
-    Math.round(work.input.context.energy * 10),
   ].join('|')
   const scene = [...tied].sort((a, b) => {
     const scoreA = deterministicUnit(identity, a.id)
@@ -530,7 +530,7 @@ function selectVariation(
   work: ResolverWork,
 ): LaserDmxShowDirectorPerformanceSceneVariation | null {
   if (!variations?.length || work.input.tuning.variation <= EPSILON) return null
-  const bar = work.input.context.barWithinSection
+  const bar = work.input.context.barWithinMacroSection
   const eligible = variations.filter(variation => {
     if (!conditionsPass(variation.conditions, work)) return false
     if (variation.everyBars != null && variation.everyBars > 0) {
@@ -546,7 +546,7 @@ function selectVariation(
     scene.id,
     work.input.context.sectionIdentity,
     work.input.context.sectionOccurrence,
-    work.input.context.fourBarBlockIndex,
+    work.input.context.performanceFourBarBlockIndex,
   ) * totalWeight
   for (const variation of eligible) {
     cursor -= Math.max(EPSILON, finite(variation.weight, 1))
@@ -555,72 +555,80 @@ function selectVariation(
   return eligible[eligible.length - 1]
 }
 
-function applyCadence(scene: LaserDmxShowDirectorPerformanceScene, work: ResolverWork): { fourBarVariation: string | null; eightBarStage: number } {
+function applyCadence(scene: LaserDmxShowDirectorPerformanceScene, work: ResolverWork): { fourBarVariation: string | null; motifFamily: string | null; eightBarStage: number } {
   const context = work.input.context
-  const baseIdentity = `${context.sectionIdentity}|${context.sectionOccurrence}`
+  const macroIdentity = context.resolvedMacroSection?.id ?? 'macro:none'
+  const baseIdentity = `${context.sectionIdentity}|${macroIdentity}|${context.sectionOccurrence}`
 
   // Cadence precedence runs from broad musical structure to short-lived impacts.
-  // A faster layer can intentionally refine or replace a property from a slower layer.
-  const isEntry = context.barsSinceSectionStart < 1
-  const isExit = context.barsUntilSectionEnd < 1
+  // Fine Track Map boundaries do not restart this clock when they belong to the
+  // same macro role. Faster layers only mutate parameters inside the active motif.
+  const isEntry = context.barsSinceMacroSectionStart < 1
+  const isExit = context.barsUntilMacroSectionEnd < 1
   if (isEntry) for (const mutation of scene.sectionEntryMutations ?? []) applyMutation(mutation, work, `${baseIdentity}|entry`)
-  if (!isEntry && !isExit) for (const mutation of scene.sectionBodyMutations ?? []) applyMutation(mutation, work, `${baseIdentity}|body|${context.barIndex}`)
+  if (!isEntry && !isExit) for (const mutation of scene.sectionBodyMutations ?? []) applyMutation(mutation, work, `${baseIdentity}|body|${context.barWithinMacroSection}`)
   if (isExit) for (const mutation of scene.sectionExitMutations ?? []) applyMutation(mutation, work, `${baseIdentity}|exit`)
 
   for (const mutation of scene.sixteenBarEvolution ?? []) {
     const phraseLength = Math.max(1, positiveInt(mutation.phraseLengthBars, 16))
+    const phraseIndex = Math.floor(context.barsSinceMacroSectionStart / phraseLength)
     const phase = positiveInt(mutation.phase, 0)
-    if (Math.floor(context.barWithinSection / phraseLength) % Math.max(1, phase + 1) === phase) {
-      applyMutation(mutation, work, `${baseIdentity}|phrase|${Math.floor(context.barWithinSection / phraseLength)}`)
+    if (phraseIndex % Math.max(1, phase + 1) === phase) {
+      applyMutation(mutation, work, `${baseIdentity}|phrase|${phraseIndex}`)
     }
   }
 
-  const eightBarStage = Math.max(1, Math.floor(context.barWithinSection / 8) + 1)
+  const eightBarStage = Math.max(1, context.performanceEightBarBlockIndex + 1)
   const beforeRecruitment = new Map(work.runtime.fixtures.filter(fixture => fixture.enabled).map(fixture => [fixture.id, fixture]))
   for (const mutation of [...(scene.eightBarRecruitment ?? [])].sort((a, b) => a.stage - b.stage || a.id.localeCompare(b.id))) {
     const active = mutation.cumulative === false ? mutation.stage === eightBarStage : mutation.stage <= eightBarStage
     if (active) applyMutation(mutation, work, `${baseIdentity}|eight|${eightBarStage}|${mutation.stage}`)
   }
-  if ((scene.eightBarRecruitment?.length ?? 0) > 0 && eightBarStage > 0) {
+  if ((scene.eightBarRecruitment?.length ?? 0) > 0) {
     work.runtime = {
       ...work.runtime,
       fixtures: work.runtime.fixtures.map(fixture => {
         if (!fixture.enabled || !beforeRecruitment.has(fixture.id)) return fixture
-        const direction = deterministicUnit(work.input.programSeed, fixture.id, eightBarStage) >= 0.5 ? 1 : -1
-        const targetX = finite(fixture.beam.targetX, fixture.x) + direction * Math.min(1.5, 0.25 * eightBarStage)
+        const semanticKey = semanticFixtureKey(fixture)
+        const direction = deterministicUnit(work.input.programSeed, macroIdentity, semanticKey, eightBarStage) >= 0.5 ? 1 : -1
+        const stagePressure = Math.min(1, eightBarStage / 4)
         return {
           ...fixture,
-          rotation: clamp(fixture.rotation + direction * Math.min(28, 4 * eightBarStage) * work.input.tuning.variation, -720, 720),
+          rotation: clamp(fixture.rotation + direction * (6 + 12 * stagePressure) * work.input.tuning.variation, -720, 720),
           beam: {
             ...fixture.beam,
-            beamAngle: clamp(fixture.beam.beamAngle - direction * Math.min(20, 3 * eightBarStage), -360, 360),
-            beamSpread: clamp(fixture.beam.beamSpread + Math.min(36, 4 * eightBarStage), 0, 180),
-            targetX,
+            beamAngle: clamp(fixture.beam.beamAngle - direction * (4 + 10 * stagePressure), -360, 360),
+            beamSpread: clamp(fixture.beam.beamSpread + 4 + 12 * stagePressure, 0, 180),
           },
+          runtimeBeamTravel: fixture.runtimeBeamTravel
+            ? { ...fixture.runtimeBeamTravel, direction: direction > 0 ? 'forward' : 'reverse' }
+            : fixture.runtimeBeamTravel,
         }
       }),
     }
   }
 
   let fourBarVariation: string | null = null
-  const fourBarBlockWithinSection = Math.floor(context.barWithinSection / 4)
+  let motifFamily: string | null = null
+  const fourBarBlockWithinMacro = context.performanceFourBarBlockIndex
   const fourBarMutations = scene.fourBarVariations ?? []
   for (let index = 0; index < fourBarMutations.length; index += 1) {
     const mutation = fourBarMutations[index]
     const offsets = mutation.blockOffsets?.length ? mutation.blockOffsets.map(offset => positiveInt(offset)) : null
     const active = offsets
-      ? offsets.includes(fourBarBlockWithinSection)
-      : fourBarBlockWithinSection % Math.max(1, fourBarMutations.length) === index
+      ? offsets.includes(fourBarBlockWithinMacro)
+      : fourBarBlockWithinMacro % Math.max(1, fourBarMutations.length) === index
     if (active) {
-      applyMutation(mutation, work, `${baseIdentity}|four|${fourBarBlockWithinSection}`)
+      applyMutation(mutation, work, `${baseIdentity}|four|${fourBarBlockWithinMacro}`)
       fourBarVariation = mutation.id
+      motifFamily = mutation.motifFamily ?? mutation.id
     }
   }
 
   for (const mutation of scene.barMutations ?? []) {
     const interval = Math.max(1, positiveInt(mutation.intervalBars, 1))
     const anchor = positiveInt(mutation.anchorBar, 0)
-    if ((context.barWithinSection - anchor) % interval === 0) applyMutation(mutation, work, `${baseIdentity}|bar|${context.barIndex}`)
+    if ((context.barWithinMacroSection - anchor) % interval === 0) applyMutation(mutation, work, `${baseIdentity}|bar|${context.barWithinMacroSection}`)
   }
 
   const beatGate = context.beatPhase < 0.48
@@ -638,52 +646,87 @@ function applyCadence(scene: LaserDmxShowDirectorPerformanceScene, work: Resolve
   if (context.snare) for (const mutation of scene.snareMutations ?? []) if (context.snareStrength >= finite(mutation.threshold, 0.45)) applyMutation(mutation, work, `${baseIdentity}|snare|${context.beatIndex}`)
   for (const mutation of scene.transientMutations ?? []) if (context.transient >= finite(mutation.threshold, 0.45)) applyMutation(mutation, work, `${baseIdentity}|transient|${context.beatIndex}`)
 
-  return { fourBarVariation, eightBarStage }
+  return { fourBarVariation, motifFamily, eightBarStage }
 }
 
 function adjacentSectionContext(
   work: ResolverWork,
   direction: -1 | 1,
 ): LaserDmxShowDirectorPerformanceTimingContext | null {
-  const current = work.input.context.resolvedSection
-  if (!current) return null
-  const sections = work.input.context.sections
-  const currentIndex = sections.findIndex(section => section.id === current.id)
+  const currentMacro = work.input.context.resolvedMacroSection
+  if (!currentMacro) return null
+  const macroSections = work.input.context.macroSections
+  const currentIndex = macroSections.findIndex(section => section.id === currentMacro.id)
   const targetIndex = currentIndex + direction
-  const target = sections[targetIndex]
-  if (currentIndex < 0 || !target) return null
+  const targetMacro = macroSections[targetIndex]
+  if (currentIndex < 0 || !targetMacro) return null
 
   const secondsPerBar = work.input.context.bpm > 0
     ? 60 / work.input.context.bpm * Math.max(1, work.input.context.timeSignature)
     : 2
-  const duration = Math.max(EPSILON, target.endSec - target.startSec)
+  const duration = Math.max(EPSILON, targetMacro.endSec - targetMacro.startSec)
   const audioTimeSec = direction < 0
-    ? Math.max(target.startSec, target.endSec - Math.min(0.001, duration / 2))
-    : Math.min(target.endSec, target.startSec + Math.min(0.001, duration / 2))
-  const elapsed = Math.max(0, audioTimeSec - target.startSec)
-  const remaining = Math.max(0, target.endSec - audioTimeSec)
-  const barWithinSection = Math.max(0, Math.floor(elapsed / Math.max(EPSILON, secondsPerBar)))
-  const sectionOccurrence = sections.slice(0, targetIndex + 1).filter(section => section.type === target.type).length
-  const dropOccurrence = target.type === 'drop'
-    ? sections.slice(0, targetIndex + 1).filter(section => section.type === 'drop').length
-    : 0
+    ? Math.max(targetMacro.startSec, targetMacro.endSec - Math.min(0.001, duration / 2))
+    : Math.min(targetMacro.endSec, targetMacro.startSec + Math.min(0.001, duration / 2))
+  const targetSection = work.input.context.sections.find(section => (
+    targetMacro.sectionIds.includes(section.id)
+    && audioTimeSec + EPSILON >= section.startSec
+    && audioTimeSec < section.endSec - EPSILON
+  )) ?? work.input.context.sections.find(section => targetMacro.sectionIds.includes(section.id)) ?? null
+  const sectionDuration = targetSection ? Math.max(EPSILON, targetSection.endSec - targetSection.startSec) : duration
+  const sectionElapsed = targetSection ? Math.max(0, audioTimeSec - targetSection.startSec) : 0
+  const sectionRemaining = targetSection ? Math.max(0, targetSection.endSec - audioTimeSec) : 0
+  const macroElapsed = Math.max(0, audioTimeSec - targetMacro.startSec)
+  const macroRemaining = Math.max(0, targetMacro.endSec - audioTimeSec)
+  const barsSinceMacroSectionStart = macroElapsed / Math.max(EPSILON, secondsPerBar)
+  const absoluteBar = Math.max(0, work.input.context.absoluteBar + (audioTimeSec - work.input.context.audioTimeSec) / Math.max(EPSILON, secondsPerBar))
+  const barIndex = Math.floor(absoluteBar + EPSILON)
+  const absoluteBeat = absoluteBar * work.input.context.timeSignature
+  const beatIndex = Math.floor(absoluteBeat + EPSILON)
+  const macroSectionOccurrence = macroSections.slice(0, targetIndex + 1).filter(section => section.type === targetMacro.type).length
+  const macroDropOccurrence = targetMacro.type === 'drop' ? macroSectionOccurrence : 0
+  const performanceFourBarBlockIndex = Math.floor(barsSinceMacroSectionStart / 4 + EPSILON)
+  const performanceEightBarBlockIndex = Math.floor(barsSinceMacroSectionStart / 8 + EPSILON)
+  const performanceSixteenBarBlockIndex = Math.floor(barsSinceMacroSectionStart / 16 + EPSILON)
 
   return {
     ...work.input.context,
     audioTimeSec,
-    resolvedSection: target,
-    sectionProgress: clamp01(elapsed / duration),
-    sectionConfidence: target.confidence,
-    sectionOccurrence,
-    dropOccurrence,
-    barWithinSection,
-    barsSinceSectionStart: elapsed / Math.max(EPSILON, secondsPerBar),
-    barsUntilSectionEnd: remaining / Math.max(EPSILON, secondsPerBar),
-    fourBarBlockIndex: Math.floor(barWithinSection / 4),
-    eightBarBlockIndex: Math.floor(barWithinSection / 8),
-    sixteenBarBlockIndex: Math.floor(barWithinSection / 16),
-    energy: target.intensity,
-    runtimeIdentity: `${work.input.context.runtimeIdentity}|transition-neighbor:${target.id}:${direction}`,
+    absoluteBeat,
+    beatIndex,
+    beatPhase: Math.max(0, Math.min(0.999999, absoluteBeat - beatIndex)),
+    beatWithinBar: ((beatIndex % work.input.context.timeSignature) + work.input.context.timeSignature) % work.input.context.timeSignature,
+    downbeat: beatIndex % work.input.context.timeSignature === 0,
+    absoluteBar,
+    barIndex,
+    absoluteTrackBarIndex: barIndex,
+    resolvedSection: targetSection,
+    resolvedMacroSection: targetMacro,
+    sectionProgress: targetSection ? clamp01(sectionElapsed / sectionDuration) : clamp01(macroElapsed / duration),
+    sectionConfidence: targetSection?.confidence ?? targetMacro.confidence,
+    fineSectionOccurrence: targetSection
+      ? work.input.context.sections.filter(section => section.type === targetSection.type && section.startSec <= targetSection.startSec + EPSILON).length
+      : 0,
+    sectionOccurrence: macroSectionOccurrence,
+    dropOccurrence: macroDropOccurrence,
+    macroSectionOccurrence,
+    macroDropOccurrence,
+    boundaryClassification: 'hardReset',
+    barWithinSection: Math.max(0, Math.floor(sectionElapsed / Math.max(EPSILON, secondsPerBar))),
+    barWithinMacroSection: Math.max(0, Math.floor(barsSinceMacroSectionStart + EPSILON)),
+    barsSinceSectionStart: sectionElapsed / Math.max(EPSILON, secondsPerBar),
+    barsUntilSectionEnd: sectionRemaining / Math.max(EPSILON, secondsPerBar),
+    barsSinceMacroSectionStart,
+    barsUntilMacroSectionEnd: macroRemaining / Math.max(EPSILON, secondsPerBar),
+    fourBarBlockIndex: Math.floor(barIndex / 4),
+    eightBarBlockIndex: Math.floor(barIndex / 8),
+    sixteenBarBlockIndex: Math.floor(barIndex / 16),
+    performanceFourBarBlockIndex,
+    performanceEightBarBlockIndex,
+    performanceSixteenBarBlockIndex,
+    sceneLocalVariationIndex: performanceFourBarBlockIndex % 4,
+    energy: targetMacro.intensity,
+    runtimeIdentity: `${work.input.context.runtimeIdentity}|transition-neighbor:${targetMacro.id}:${direction}`,
     boundaries: {
       ...work.input.context.boundaries,
       beatBoundary: false,
@@ -691,10 +734,21 @@ function adjacentSectionContext(
       fourBarBoundary: false,
       eightBarBoundary: false,
       sixteenBarBoundary: false,
+      performanceFourBarBoundary: false,
+      performanceEightBarBoundary: false,
+      performanceSixteenBarBoundary: false,
       sectionEntry: direction > 0,
       sectionExit: direction < 0,
-      previousSectionId: direction > 0 ? current.id : sections[targetIndex - 1]?.id ?? null,
-      currentSectionId: target.id,
+      previousSectionId: direction > 0 ? work.input.context.resolvedSection?.id ?? null : null,
+      currentSectionId: targetSection?.id ?? null,
+      macroSectionEntry: direction > 0,
+      macroSectionExit: direction < 0,
+      previousMacroSectionId: direction > 0 ? currentMacro.id : macroSections[targetIndex - 1]?.id ?? null,
+      currentMacroSectionId: targetMacro.id,
+      boundaryClassification: 'hardReset',
+      hardMusicalReset: true,
+      microSectionContinuation: false,
+      variationBoundary: false,
       timingDiscontinuity: false,
     },
   }
@@ -803,7 +857,7 @@ function interpolateFixtures(
 }
 
 function applyTransitions(scene: LaserDmxShowDirectorPerformanceScene, work: ResolverWork): void {
-  const section = work.input.context.resolvedSection
+  const section = work.input.context.resolvedMacroSection
   if (!section) return
   const entryDuration = transitionDurationSec(scene.transitionIn, work)
   const exitDuration = transitionDurationSec(scene.transitionOut, work)
@@ -866,8 +920,9 @@ function unchangedResolution(
     activeSceneId: null,
     activeSceneLabel: null,
     activeVariation: null,
+    activeMotifFamily: null,
     fourBarVariation: null,
-    eightBarRecruitmentStage: Math.max(1, Math.floor(input.context.barWithinSection / 8) + 1),
+    eightBarRecruitmentStage: Math.max(1, input.context.performanceEightBarBlockIndex + 1),
     currentSection: input.context.resolvedSection?.type ?? 'unknown',
     currentSectionOccurrence: input.context.sectionOccurrence,
     activeFixtureKeys: authored.fixtures.filter(fixture => fixture.enabled).map(semanticFixtureKey).sort(),
@@ -956,14 +1011,15 @@ export function resolveLaserDmxShowDirectorPerformance(
       selected.scene.id,
       variation?.id ?? '',
       input.context.beatIndex,
-      input.context.fourBarBlockIndex,
-      input.context.eightBarBlockIndex,
+      input.context.performanceFourBarBlockIndex,
+      input.context.performanceEightBarBlockIndex,
     ].join('|')
     return {
       showDirector: work.runtime,
       activeSceneId: selected.scene.id,
       activeSceneLabel: selected.scene.label,
       activeVariation: variation?.id ?? null,
+      activeMotifFamily: cadence.motifFamily,
       fourBarVariation: cadence.fourBarVariation,
       eightBarRecruitmentStage: cadence.eightBarStage,
       currentSection: selected.sectionType,
