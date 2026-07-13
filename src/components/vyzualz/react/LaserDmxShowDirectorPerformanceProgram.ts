@@ -60,6 +60,10 @@ export interface LaserDmxShowDirectorPerformanceAddress {
   groupSemanticKeys?: string[]
   fixtureKinds?: LaserDmxShowDirectorFixtureKind[]
   fixtureIds?: string[]
+  /** Stable mirrored-pair or mirrored-group keys, usually backed by linkedPairId/group semantic keys. */
+  mirroredGroupKeys?: string[]
+  /** Program-authored semantic bank roles resolved through program.bankRoles. */
+  bankRoles?: string[]
   match?: 'any' | 'all'
 }
 
@@ -143,11 +147,21 @@ export interface LaserDmxShowDirectorPerformanceMutationBase extends LaserDmxSho
   seedOffset?: number
 }
 
+export interface LaserDmxShowDirectorPerformanceBeatResponseEnvelope {
+  /** Beat phase through which the action remains at full strength. */
+  holdUntil?: number
+  /** Beat phase at which the action has deterministically returned to the authored state. */
+  releaseUntil?: number
+  curve?: LaserDmxShowDirectorPerformanceTransitionCurve
+}
+
 export interface LaserDmxShowDirectorPerformanceBeatMutation extends LaserDmxShowDirectorPerformanceMutationBase {
   beatDivision?: number
   beatOffsets?: number[]
   /** Explicit modulo cycle for beatOffsets. Defaults to max(offset) + 1. */
   beatCycleLength?: number
+  /** Optional beat-phase envelope. It is reconstructed from transport time and needs no frame accumulator. */
+  responseEnvelope?: LaserDmxShowDirectorPerformanceBeatResponseEnvelope
 }
 
 export interface LaserDmxShowDirectorPerformanceKickMutation extends LaserDmxShowDirectorPerformanceMutationBase {
@@ -155,6 +169,10 @@ export interface LaserDmxShowDirectorPerformanceKickMutation extends LaserDmxSho
 }
 
 export interface LaserDmxShowDirectorPerformanceSnareMutation extends LaserDmxShowDirectorPerformanceMutationBase {
+  threshold?: number
+}
+
+export interface LaserDmxShowDirectorPerformanceHatMutation extends LaserDmxShowDirectorPerformanceMutationBase {
   threshold?: number
 }
 
@@ -219,6 +237,7 @@ export interface LaserDmxShowDirectorPerformanceScene extends LaserDmxShowDirect
   beatMutations?: LaserDmxShowDirectorPerformanceBeatMutation[]
   kickMutations?: LaserDmxShowDirectorPerformanceKickMutation[]
   snareMutations?: LaserDmxShowDirectorPerformanceSnareMutation[]
+  hatMutations?: LaserDmxShowDirectorPerformanceHatMutation[]
   transientMutations?: LaserDmxShowDirectorPerformanceTransientMutation[]
   barMutations?: LaserDmxShowDirectorPerformanceBarMutation[]
   fourBarVariations?: LaserDmxShowDirectorPerformanceFourBarVariation[]
@@ -252,6 +271,8 @@ export interface LaserDmxShowDirectorPerformanceProgram {
   description?: string
   deterministicSeed: number
   scenes: LaserDmxShowDirectorPerformanceScene[]
+  /** Reusable semantic bank roles used by payload addresses. */
+  bankRoles?: Record<string, LaserDmxShowDirectorPerformanceAddress>
   fallbackOrder?: LaserDmxShowDirectorPerformanceSectionType[]
   tuning: LaserDmxShowDirectorPerformanceProgramTuning
   diagnostics?: LaserDmxShowDirectorPerformanceRuntimeDiagnosticsMetadata
@@ -438,16 +459,20 @@ function normalizeAddress(raw: unknown): LaserDmxShowDirectorPerformanceAddress 
   const fixtureSemanticKeys = cleanStringArray(raw.fixtureSemanticKeys)
   const groupSemanticKeys = cleanStringArray(raw.groupSemanticKeys)
   const fixtureIds = cleanStringArray(raw.fixtureIds)
+  const mirroredGroupKeys = cleanStringArray(raw.mirroredGroupKeys)
+  const bankRoles = cleanStringArray(raw.bankRoles)
   const fixtureKinds = Array.isArray(raw.fixtureKinds)
     ? Array.from(new Set(raw.fixtureKinds.filter((value): value is LaserDmxShowDirectorFixtureKind => FIXTURE_KINDS.has(value as LaserDmxShowDirectorFixtureKind))))
     : []
   const match = raw.match === 'all' ? 'all' : raw.match === 'any' ? 'any' : undefined
-  if (!fixtureSemanticKeys.length && !groupSemanticKeys.length && !fixtureIds.length && !fixtureKinds.length && !match) return undefined
+  if (!fixtureSemanticKeys.length && !groupSemanticKeys.length && !fixtureIds.length && !fixtureKinds.length && !mirroredGroupKeys.length && !bankRoles.length && !match) return undefined
   return {
     ...(fixtureSemanticKeys.length ? { fixtureSemanticKeys } : {}),
     ...(groupSemanticKeys.length ? { groupSemanticKeys } : {}),
     ...(fixtureKinds.length ? { fixtureKinds } : {}),
     ...(fixtureIds.length ? { fixtureIds } : {}),
+    ...(mirroredGroupKeys.length ? { mirroredGroupKeys } : {}),
+    ...(bankRoles.length ? { bankRoles } : {}),
     ...(match ? { match } : {}),
   }
 }
@@ -730,6 +755,22 @@ function normalizeTransition(raw: unknown): LaserDmxShowDirectorPerformanceScene
   }
 }
 
+function normalizeBeatResponseEnvelope(raw: unknown): LaserDmxShowDirectorPerformanceBeatResponseEnvelope | undefined {
+  if (!isRecord(raw)) return undefined
+  const holdUntil = optionalFinite(raw.holdUntil, 0, 1)
+  const releaseUntil = optionalFinite(raw.releaseUntil, 0, 1)
+  const curve = TRANSITION_CURVES.has(raw.curve as LaserDmxShowDirectorPerformanceTransitionCurve)
+    ? raw.curve as LaserDmxShowDirectorPerformanceTransitionCurve
+    : undefined
+  if (holdUntil == null && releaseUntil == null && !curve) return undefined
+  const normalizedHold = holdUntil ?? 0.18
+  return {
+    holdUntil: normalizedHold,
+    releaseUntil: Math.max(normalizedHold, releaseUntil ?? 0.82),
+    ...(curve ? { curve } : {}),
+  }
+}
+
 function normalizeBarMatch(raw: unknown): LaserDmxShowDirectorPerformanceSceneBarMatch | undefined {
   if (!isRecord(raw)) return undefined
   const startBar = raw.startBar == null ? undefined : optionalInt(raw.startBar, 0, 100_000)
@@ -771,9 +812,11 @@ function normalizeScene(raw: unknown, index: number): LaserDmxShowDirectorPerfor
       ...(optionalFinite(value.beatDivision, 0.25, 32) != null ? { beatDivision: optionalFinite(value.beatDivision, 0.25, 32) } : {}),
       ...(Array.isArray(value.beatOffsets) ? { beatOffsets: Array.from(new Set(value.beatOffsets.map(offset => positiveInt(offset, 0, 4096)))).sort((a, b) => a - b) } : {}),
       ...(optionalInt(value.beatCycleLength, 1, 4096) != null ? { beatCycleLength: optionalInt(value.beatCycleLength, 1, 4096) } : {}),
+      ...(normalizeBeatResponseEnvelope(value.responseEnvelope) ? { responseEnvelope: normalizeBeatResponseEnvelope(value.responseEnvelope) } : {}),
     })),
     kickMutations: normalizeMutationArray(raw.kickMutations, `${id}-kick`, (value, base) => ({ ...base, ...(optionalFinite(value.threshold, 0, 1) != null ? { threshold: optionalFinite(value.threshold, 0, 1) } : {}) })),
     snareMutations: normalizeMutationArray(raw.snareMutations, `${id}-snare`, (value, base) => ({ ...base, ...(optionalFinite(value.threshold, 0, 1) != null ? { threshold: optionalFinite(value.threshold, 0, 1) } : {}) })),
+    hatMutations: normalizeMutationArray(raw.hatMutations, `${id}-hat`, (value, base) => ({ ...base, ...(optionalFinite(value.threshold, 0, 1) != null ? { threshold: optionalFinite(value.threshold, 0, 1) } : {}) })),
     transientMutations: normalizeMutationArray(raw.transientMutations, `${id}-transient`, (value, base) => ({ ...base, ...(optionalFinite(value.threshold, 0, 1) != null ? { threshold: optionalFinite(value.threshold, 0, 1) } : {}) })),
     barMutations: normalizeMutationArray(raw.barMutations, `${id}-bar`, (value, base) => ({
       ...base,
@@ -816,6 +859,13 @@ export function normalizeLaserDmxShowDirectorPerformanceProgram(
     description: cleanString(raw.description, '', 1000) || undefined,
     deterministicSeed: positiveInt(raw.deterministicSeed, 0),
     scenes,
+    bankRoles: isRecord(raw.bankRoles)
+      ? Object.fromEntries(Object.entries(raw.bankRoles).flatMap(([role, value]) => {
+        const normalizedRole = cleanString(role, '', 96)
+        const address = normalizeAddress(value)
+        return normalizedRole && address ? [[normalizedRole, address]] : []
+      }).slice(0, 128))
+      : undefined,
     fallbackOrder: Array.isArray(raw.fallbackOrder)
       ? Array.from(new Set(raw.fallbackOrder.filter(isSectionType)))
       : undefined,

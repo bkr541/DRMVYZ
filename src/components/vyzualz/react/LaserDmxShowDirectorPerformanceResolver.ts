@@ -18,6 +18,7 @@ import type {
   LaserDmxShowDirectorMusicIntelligenceCondition,
   LaserDmxShowDirectorMusicIntelligenceModulationReference,
   LaserDmxShowDirectorPerformanceAddress,
+  LaserDmxShowDirectorPerformanceBeatMutation,
   LaserDmxShowDirectorPerformanceFallbackBehavior,
   LaserDmxShowDirectorPerformanceMutationBase,
   LaserDmxShowDirectorPerformanceMutationMode,
@@ -295,10 +296,13 @@ function addressMatchesFixture(
   fixture: LaserDmxShowDirectorFixture,
   address: LaserDmxShowDirectorPerformanceAddress | undefined,
   work: ResolverWork,
+  allowBankRoles = true,
 ): boolean {
   if (!address) return true
   const checks: boolean[] = []
   const fixtureKey = semanticFixtureKey(fixture)
+  const group = work.runtime.groups.find(item => item.id === fixture.groupId)
+  const groupKey = group ? semanticGroupKey(group) : ''
   if (address.fixtureSemanticKeys?.length) {
     const matched = address.fixtureSemanticKeys.includes(fixtureKey)
     checks.push(matched)
@@ -309,12 +313,32 @@ function addressMatchesFixture(
   if (address.fixtureIds?.length) checks.push(address.fixtureIds.includes(fixture.id))
   if (address.fixtureKinds?.length) checks.push(address.fixtureKinds.includes(fixture.kind))
   if (address.groupSemanticKeys?.length) {
-    const group = work.runtime.groups.find(item => item.id === fixture.groupId)
-    const groupKey = group ? semanticGroupKey(group) : ''
     const matched = address.groupSemanticKeys.includes(groupKey)
     checks.push(matched)
     if (!matched && !work.runtime.groups.some(item => address.groupSemanticKeys?.includes(semanticGroupKey(item)))) {
       address.groupSemanticKeys.forEach(key => work.missingGroupKeys.add(key))
+    }
+  }
+  if (address.mirroredGroupKeys?.length) {
+    const linkedPairId = fixture.linkedPairId?.trim() ?? ''
+    const matched = address.mirroredGroupKeys.some(key => key === groupKey || key === linkedPairId)
+    checks.push(matched)
+    if (!matched) {
+      for (const key of address.mirroredGroupKeys) {
+        if (!work.runtime.fixtures.some(item => item.linkedPairId === key)
+          && !work.runtime.groups.some(item => semanticGroupKey(item) === key)) work.missingGroupKeys.add(key)
+      }
+    }
+  }
+  if (allowBankRoles && address.bankRoles?.length) {
+    for (const role of address.bankRoles) {
+      const roleAddress = work.input.program?.bankRoles?.[role]
+      if (!roleAddress) {
+        work.missingGroupKeys.add(`bank-role:${role}`)
+        checks.push(false)
+        continue
+      }
+      checks.push(addressMatchesFixture(fixture, roleAddress, work, false))
     }
   }
   if (checks.length === 0) return true
@@ -329,6 +353,51 @@ function mixNumber(current: number, incoming: number, mode: LaserDmxShowDirector
     case 'toggle': return incoming >= 0.5 ? (current ? 0 : 1) : current
     default: return incoming
   }
+}
+
+function mixIntensityDelta(
+  current: number,
+  incoming: number,
+  mode: LaserDmxShowDirectorPerformanceMutationMode,
+  intensity: number,
+  geometry = false,
+): number {
+  const pressure = clamp(intensity, 0, 2)
+  const influence = geometry ? clamp(pressure, 0, 1.25) : pressure
+  if (!Number.isFinite(incoming)) return current
+  switch (mode) {
+    case 'add': return current + incoming * (geometry ? clamp(pressure, 0, 1.5) : pressure)
+    case 'multiply': return current * (1 + (incoming - 1) * influence)
+    case 'toggle': return incoming >= 0.5 ? (current ? 0 : 1) : current
+    default: return current + (incoming - current) * influence
+  }
+}
+
+function applyBeamAppearanceOverrides(
+  current: Partial<LaserDmxMatrixBeamAppearance> | undefined,
+  incoming: Partial<LaserDmxMatrixBeamAppearance>,
+  mode: LaserDmxShowDirectorPerformanceMutationMode,
+  intensity: number,
+): Partial<LaserDmxMatrixBeamAppearance> {
+  const next = { ...current }
+  const defaults: Pick<LaserDmxMatrixBeamAppearance, 'dimmer' | 'width' | 'focus' | 'strobeRate' | 'flickerAmount' | 'divergence' | 'glow'> = {
+    dimmer: 1,
+    width: 1,
+    focus: 0.8,
+    strobeRate: 0,
+    flickerAmount: 0,
+    divergence: 0.2,
+    glow: 0.72,
+  }
+  for (const key of Object.keys(defaults) as Array<keyof typeof defaults>) {
+    const value = incoming[key]
+    if (typeof value !== 'number') continue
+    const mixed = mixIntensityDelta(typeof next[key] === 'number' ? next[key] as number : defaults[key], value, mode, intensity, key === 'focus' || key === 'divergence')
+    next[key] = key === 'width' ? clamp(mixed, 0.1, 8) : clamp01(mixed)
+  }
+  if (typeof incoming.shutterOpen === 'boolean') next.shutterOpen = incoming.shutterOpen
+  if (incoming.geometry) next.geometry = incoming.geometry
+  return next
 }
 
 function applyFixtureOverrides(
@@ -350,11 +419,11 @@ function applyFixtureOverrides(
     runtimeBeamTravel: fixture.runtimeBeamTravel ? { ...fixture.runtimeBeamTravel } : undefined,
   }
   if (overrides.enabled != null) next.enabled = overrides.enabled
-  if (overrides.brightness != null) next.brightness = clamp01(mixNumber(next.brightness, overrides.brightness * scalar, mode))
+  if (overrides.brightness != null) next.brightness = clamp01(mixIntensityDelta(next.brightness, overrides.brightness, mode, scalar, false))
   if (overrides.color) next.color = overrides.color
-  if (overrides.beamAngle != null) beam.beamAngle = clamp(mixNumber(beam.beamAngle, overrides.beamAngle * scalar, mode), -360, 360)
-  if (overrides.fanSpread != null) beam.beamSpread = clamp(mixNumber(beam.beamSpread, overrides.fanSpread * scalar, mode), 0, 180)
-  if (overrides.focus != null) beam.focus = clamp01(mixNumber(beam.focus, overrides.focus * scalar, mode))
+  if (overrides.beamAngle != null) beam.beamAngle = clamp(mixIntensityDelta(beam.beamAngle, overrides.beamAngle, mode, scalar, true), -360, 360)
+  if (overrides.fanSpread != null) beam.beamSpread = clamp(mixIntensityDelta(beam.beamSpread, overrides.fanSpread, mode, scalar, true), 0, 180)
+  if (overrides.focus != null) beam.focus = clamp01(mixIntensityDelta(beam.focus, overrides.focus, mode, scalar, true))
   if (overrides.targetMode) beam.targetMode = overrides.targetMode
   const targetPoints = overrides.targetPointsByFixtureSemanticKey?.[semanticFixtureKey(fixture)] ?? overrides.targetPoints
   if (targetPoints) {
@@ -370,11 +439,11 @@ function applyFixtureOverrides(
     beam.targetY = finite(overrides.targetPosition.y, beam.targetY ?? fixture.y)
     if (overrides.targetPosition.z != null) beam.targetZ = clamp(finite(overrides.targetPosition.z), -1, 1)
   }
-  if (overrides.rotation != null) next.rotation = clamp(mixNumber(next.rotation, overrides.rotation * scalar, mode), -720, 720)
+  if (overrides.rotation != null) next.rotation = clamp(mixIntensityDelta(next.rotation, overrides.rotation, mode, scalar, true), -720, 720)
   if (overrides.mirrorAxis !== undefined) next.mirrorAxis = overrides.mirrorAxis
   if (overrides.trigger) next.trigger = { ...next.trigger, ...overrides.trigger }
   if (overrides.component) next.component = { ...component, ...overrides.component }
-  if (overrides.beamAppearance) next.runtimeBeamAppearance = { ...next.runtimeBeamAppearance, ...overrides.beamAppearance }
+  if (overrides.beamAppearance) next.runtimeBeamAppearance = applyBeamAppearanceOverrides(next.runtimeBeamAppearance, overrides.beamAppearance, mode, scalar)
   if (overrides.beamTravel) next.runtimeBeamTravel = { ...next.runtimeBeamTravel, ...overrides.beamTravel }
   if (overrides.participatingGroupSemanticKeys?.length) {
     const requestedKeys = overrides.participatingGroupSemanticKeys
@@ -448,6 +517,8 @@ function applyModulation(
   reference: LaserDmxShowDirectorMusicIntelligenceModulationReference,
   work: ResolverWork,
   fixtures: LaserDmxShowDirectorFixture[],
+  address?: LaserDmxShowDirectorPerformanceAddress,
+  responseStrength = 1,
 ): void {
   const value = modulationValue(reference, work)
   if (value == null) return
@@ -460,6 +531,7 @@ function applyModulation(
   }
   for (let index = 0; index < fixtures.length; index += 1) {
     const fixture = fixtures[index]
+    if (!addressMatchesFixture(fixture, address, work)) continue
     const patch: LaserDmxShowDirectorFixtureRuntimeOverrides = {}
     if (target === 'brightness') patch.brightness = value
     else if (target === 'rotation') patch.rotation = value
@@ -469,7 +541,13 @@ function applyModulation(
     else if (target === 'beamWidth') patch.beamAppearance = { width: value } as Partial<LaserDmxMatrixBeamAppearance>
     else if (target === 'travelSpeed') patch.beamTravel = { beatsPerTravel: Math.max(0.25, value) } as Partial<LaserDmxBeamMotion>
     else continue
-    fixtures[index] = applyFixtureOverrides(fixture, patch, mode, work.input.tuning.audioIntelligenceResponse, work)
+    fixtures[index] = applyFixtureOverrides(
+      fixture,
+      patch,
+      mode,
+      work.input.tuning.audioIntelligenceResponse * responseStrength,
+      work,
+    )
   }
 }
 
@@ -477,24 +555,27 @@ function applyPayload(
   payload: LaserDmxShowDirectorPerformanceMutationPayload,
   work: ResolverWork,
   mode: LaserDmxShowDirectorPerformanceMutationMode = 'set',
+  responseStrength = 1,
 ): void {
   if (!conditionsPass(payload.conditions, work)) return
   const address = payload.address
   let fixtures = work.runtime.fixtures.map(fixture => addressMatchesFixture(fixture, address, work)
     ? payload.fixture
-      ? applyFixtureOverrides(fixture, payload.fixture, mode, work.input.tuning.intensity, work)
+      ? applyFixtureOverrides(fixture, payload.fixture, mode, work.input.tuning.intensity * responseStrength, work)
       : fixture
     : fixture)
 
   if (payload.group) {
-    const addressedGroupIds = new Set(work.runtime.groups
-      .filter(group => !address?.groupSemanticKeys?.length || address.groupSemanticKeys.includes(semanticGroupKey(group)))
-      .map(group => group.id))
+    const addressedGroupIds = new Set(work.runtime.fixtures
+      .filter(fixture => addressMatchesFixture(fixture, address, work))
+      .flatMap(fixture => fixture.groupId ? [fixture.groupId] : []))
     fixtures = fixtures.map(fixture => applyGroupOverrides(fixture, payload.group as LaserDmxShowDirectorGroupRuntimeOverrides, addressedGroupIds))
   }
   work.runtime = { ...work.runtime, fixtures }
   if (payload.global) work.global = mergeGlobal(work.global, payload.global, mode)
-  for (const modulation of payload.modulations ?? []) applyModulation(modulation, work, work.runtime.fixtures)
+  for (const modulation of payload.modulations ?? []) {
+    applyModulation(modulation, work, work.runtime.fixtures, address, responseStrength)
+  }
 }
 
 function mutationActive(
@@ -519,9 +600,27 @@ function applyMutation(
   mutation: LaserDmxShowDirectorPerformanceMutationBase,
   work: ResolverWork,
   identity: string,
+  responseStrength = 1,
 ): void {
-  if (!mutationActive(mutation, work, identity)) return
-  applyPayload(mutation, work)
+  if (!mutationActive(mutation, work, identity) || responseStrength <= EPSILON) return
+  applyPayload(mutation, work, 'set', responseStrength)
+}
+
+function beatResponseStrength(
+  mutation: LaserDmxShowDirectorPerformanceBeatMutation,
+  beatPhase: number,
+): number {
+  const envelope = mutation.responseEnvelope
+  if (!envelope) return beatPhase < 0.48 ? 1 : 0
+  const holdUntil = clamp(finite(envelope.holdUntil, 0.18), 0, 1)
+  const releaseUntil = clamp(Math.max(holdUntil, finite(envelope.releaseUntil, 0.82)), holdUntil, 1)
+  if (beatPhase <= holdUntil) return 1
+  if (beatPhase >= releaseUntil || releaseUntil - holdUntil <= EPSILON) return 0
+  const releaseProgress = curveProgress(
+    (beatPhase - holdUntil) / (releaseUntil - holdUntil),
+    envelope.curve ?? 'easeOut',
+  )
+  return clamp01(1 - releaseProgress)
 }
 
 function selectVariation(
@@ -631,19 +730,20 @@ function applyCadence(scene: LaserDmxShowDirectorPerformanceScene, work: Resolve
     if ((context.barWithinMacroSection - anchor) % interval === 0) applyMutation(mutation, work, `${baseIdentity}|bar|${context.barWithinMacroSection}`)
   }
 
-  const beatGate = context.beatPhase < 0.48
   for (const mutation of scene.beatMutations ?? []) {
     const division = Math.max(0.25, finite(mutation.beatDivision, 1))
     const beatStep = Math.floor(context.absoluteBeat / division)
     const offsets = mutation.beatOffsets?.length ? mutation.beatOffsets.map(offset => positiveInt(offset)) : [0]
     const inferredCycle = Math.max(...offsets, 0) + 1
     const cycleLength = Math.max(1, positiveInt(mutation.beatCycleLength, inferredCycle))
-    if (beatGate && offsets.some(offset => beatStep % cycleLength === offset % cycleLength)) {
-      applyMutation(mutation, work, `${baseIdentity}|beat|${beatStep}`)
+    const responseStrength = beatResponseStrength(mutation, context.beatPhase)
+    if (offsets.some(offset => beatStep % cycleLength === offset % cycleLength)) {
+      applyMutation(mutation, work, `${baseIdentity}|beat|${beatStep}`, responseStrength)
     }
   }
   if (context.kick) for (const mutation of scene.kickMutations ?? []) if (context.kickStrength >= finite(mutation.threshold, 0.45)) applyMutation(mutation, work, `${baseIdentity}|kick|${context.beatIndex}`)
   if (context.snare) for (const mutation of scene.snareMutations ?? []) if (context.snareStrength >= finite(mutation.threshold, 0.45)) applyMutation(mutation, work, `${baseIdentity}|snare|${context.beatIndex}`)
+  if (context.hat) for (const mutation of scene.hatMutations ?? []) if (context.hatStrength >= finite(mutation.threshold, 0.35)) applyMutation(mutation, work, `${baseIdentity}|hat|${context.beatIndex}`)
   for (const mutation of scene.transientMutations ?? []) if (context.transient >= finite(mutation.threshold, 0.45)) applyMutation(mutation, work, `${baseIdentity}|transient|${context.beatIndex}`)
 
   return { fourBarVariation, motifFamily, eightBarStage }

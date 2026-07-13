@@ -7,6 +7,8 @@ import {
   type LaserDmxShowDirectorState,
 } from './ReactTypes'
 import type {
+  LaserDmxShowDirectorPerformanceAddress,
+  LaserDmxShowDirectorPerformanceBeatMutation,
   LaserDmxShowDirectorPerformanceMutationBase,
   LaserDmxShowDirectorPerformanceOccurrenceMatch,
   LaserDmxShowDirectorPerformanceProgram,
@@ -19,6 +21,13 @@ import {
   authorCyanMirrorCageLocalGeometry,
   authorPrismCathedralLocalGeometry,
 } from './LaserDmxShowDirectorPerformanceShowcaseGeometry'
+import {
+  LASER_DMX_SHOW_DIRECTOR_BEAT_PERCEPTIBILITY,
+  LASER_DMX_SHOW_DIRECTOR_BEAT_RECOVERY_ENVELOPE,
+  createBankDuckMutation,
+  createBankHitMutation,
+  createDownbeatImpactMutations,
+} from './LaserDmxShowDirectorBeatActions'
 
 const CYAN = '#39e7ff'
 const ICE = '#8ff5ff'
@@ -215,27 +224,27 @@ function alternatingBeatMutations(
   leftKeys: string[],
   rightKeys: string[],
   options: { leftColor?: string; rightColor?: string; spreadA?: number; spreadB?: number; rotation?: number } = {},
-) {
+): LaserDmxShowDirectorPerformanceBeatMutation[] {
   return [
     {
-      id: `${prefix}-beat-even-left`, beatDivision: 1, beatOffsets: [0, 2],
+      id: `${prefix}-beat-even-left`, beatDivision: 1, beatOffsets: [0, 2], responseEnvelope: LASER_DMX_SHOW_DIRECTOR_BEAT_RECOVERY_ENVELOPE,
       address: { fixtureSemanticKeys: leftKeys },
-      fixture: { brightness: 1, fanSpread: options.spreadA ?? 70, rotation: -(options.rotation ?? 8), color: options.leftColor },
+      fixture: { brightness: 1, fanSpread: options.spreadA ?? 70, rotation: -(options.rotation ?? 8), color: options.leftColor, beamAppearance: { width: 1.65, glow: 1 }, beamTravel: { mode: 'grow', beatsPerTravel: 1, phaseOffset: 0, retrigger: 'restart' }, beamPriorityRole: 'heroImpact' as const },
     },
     {
-      id: `${prefix}-beat-even-right-dim`, beatDivision: 1, beatOffsets: [0, 2],
+      id: `${prefix}-beat-even-right-dim`, beatDivision: 1, beatOffsets: [0, 2], responseEnvelope: LASER_DMX_SHOW_DIRECTOR_BEAT_RECOVERY_ENVELOPE,
       address: { fixtureSemanticKeys: rightKeys },
-      fixture: { brightness: 0.46, fanSpread: options.spreadB ?? 48 },
+      fixture: { brightness: LASER_DMX_SHOW_DIRECTOR_BEAT_PERCEPTIBILITY.restingBrightness, fanSpread: options.spreadB ?? 48, beamAppearance: { width: 0.9, glow: 0.54 }, beamPriorityRole: 'decorativeAccent' as const },
     },
     {
-      id: `${prefix}-beat-odd-right`, beatDivision: 1, beatOffsets: [1, 3],
+      id: `${prefix}-beat-odd-right`, beatDivision: 1, beatOffsets: [1, 3], responseEnvelope: LASER_DMX_SHOW_DIRECTOR_BEAT_RECOVERY_ENVELOPE,
       address: { fixtureSemanticKeys: rightKeys },
-      fixture: { brightness: 1, fanSpread: options.spreadA ?? 70, rotation: options.rotation ?? 8, color: options.rightColor },
+      fixture: { brightness: 1, fanSpread: options.spreadA ?? 70, rotation: options.rotation ?? 8, color: options.rightColor, beamAppearance: { width: 1.65, glow: 1 }, beamTravel: { mode: 'grow', beatsPerTravel: 1, phaseOffset: 0, retrigger: 'restart' }, beamPriorityRole: 'heroImpact' as const },
     },
     {
-      id: `${prefix}-beat-odd-left-dim`, beatDivision: 1, beatOffsets: [1, 3],
+      id: `${prefix}-beat-odd-left-dim`, beatDivision: 1, beatOffsets: [1, 3], responseEnvelope: LASER_DMX_SHOW_DIRECTOR_BEAT_RECOVERY_ENVELOPE,
       address: { fixtureSemanticKeys: leftKeys },
-      fixture: { brightness: 0.46, fanSpread: options.spreadB ?? 48 },
+      fixture: { brightness: LASER_DMX_SHOW_DIRECTOR_BEAT_PERCEPTIBILITY.restingBrightness, fanSpread: options.spreadB ?? 48, beamAppearance: { width: 0.9, glow: 0.54 }, beamPriorityRole: 'decorativeAccent' as const },
     },
   ]
 }
@@ -263,6 +272,126 @@ function impactMutations(prefix: string, innerKeys: string[], outerKeys: string[
         fixture: { enabled: true, brightness: 1, focus: 1, beamAppearance: { width: 2.8, glow: 1 }, beamPriorityRole: 'heroImpact' as const },
       },
     ],
+  }
+}
+
+
+type PresetBankChoreography = {
+  kickRole: string
+  kickRestRole: string
+  snareRole: string
+  snareRestRole: string
+  hatRole: string
+  hatRestRole: string
+  transientRole: string
+  transientRestRole: string
+  bassRole: string
+  impactColor: string
+  complementaryColor: string
+  kickSpread: number
+  snareSpread: number
+  transientSpread: number
+  deterministicFakeout?: boolean
+}
+
+function roleAddress(role: string): LaserDmxShowDirectorPerformanceAddress {
+  return { bankRoles: [role] }
+}
+
+function applyPresetBankChoreography(
+  program: LaserDmxShowDirectorPerformanceProgram,
+  choreography: PresetBankChoreography,
+): LaserDmxShowDirectorPerformanceProgram {
+  return {
+    ...program,
+    scenes: program.scenes.map(scene => {
+      const prefix = `${scene.id}-bank-response`
+      const kick = [
+        createBankHitMutation(`${prefix}-kick-hero`, roleAddress(choreography.kickRole), {
+          fanSpread: choreography.kickSpread,
+          color: choreography.impactColor,
+          travelMode: 'grow',
+        }),
+        createBankDuckMutation(`${prefix}-kick-duck`, roleAddress(choreography.kickRestRole)),
+      ]
+      const snare = [
+        createBankHitMutation(`${prefix}-snare-hero`, roleAddress(choreography.snareRole), {
+          fanSpread: choreography.snareSpread,
+          color: WHITE,
+          width: 2.45,
+          travelMode: 'scanner',
+        }),
+        createBankDuckMutation(`${prefix}-snare-duck`, roleAddress(choreography.snareRestRole)),
+      ]
+      const hat = [
+        createBankHitMutation(`${prefix}-hat-detail`, roleAddress(choreography.hatRole), {
+          threshold: 0.25,
+          brightness: LASER_DMX_SHOW_DIRECTOR_BEAT_PERCEPTIBILITY.hatBrightness,
+          fanSpread: Math.max(18, choreography.snareSpread - 22),
+          color: choreography.complementaryColor,
+          width: 1.25,
+          glow: 0.82,
+          travelMode: 'pulseTrain',
+        }),
+        createBankDuckMutation(`${prefix}-hat-duck`, roleAddress(choreography.hatRestRole), {
+          threshold: 0.25,
+          brightness: 0.58,
+          glow: 0.62,
+        }),
+      ]
+      const transient = [
+        createBankHitMutation(`${prefix}-transient-impact`, roleAddress(choreography.transientRole), {
+          threshold: 0.68,
+          brightness: 1,
+          fanSpread: choreography.transientSpread,
+          color: WHITE,
+          width: 2.85,
+          geometry: 'volumetricCone',
+          travelMode: 'projectile',
+        }),
+        createBankDuckMutation(`${prefix}-transient-duck`, roleAddress(choreography.transientRestRole), {
+          threshold: 0.68,
+          brightness: 0.32,
+          glow: 0.48,
+        }),
+      ]
+      const downbeat = createDownbeatImpactMutations(
+        prefix,
+        roleAddress(choreography.transientRole),
+        roleAddress(choreography.transientRestRole),
+        { color: WHITE, geometry: 'volumetricCone' },
+      )
+      const fakeout = choreography.deterministicFakeout ? [{
+        ...createBankDuckMutation(`${prefix}-withheld-impact`, roleAddress(choreography.transientRole), {
+          threshold: 0,
+          brightness: 0.24,
+          glow: 0.42,
+        }),
+        beatDivision: 1,
+        beatOffsets: [12],
+        beatCycleLength: 16,
+        responseEnvelope: LASER_DMX_SHOW_DIRECTOR_BEAT_RECOVERY_ENVELOPE,
+      }] : []
+      return {
+        ...scene,
+        beatMutations: [...(scene.beatMutations ?? []), ...downbeat, ...fakeout],
+        kickMutations: [...(scene.kickMutations ?? []), ...kick],
+        snareMutations: [...(scene.snareMutations ?? []), ...snare],
+        hatMutations: [...(scene.hatMutations ?? []), ...hat],
+        transientMutations: [...(scene.transientMutations ?? []), ...transient],
+        sectionBodyMutations: [
+          ...(scene.sectionBodyMutations ?? []),
+          {
+            id: `${prefix}-bass-pressure`,
+            address: roleAddress(choreography.bassRole),
+            modulations: [
+              { source: 'nBass', target: 'fixture.fanSpread', amount: 14, min: 0, max: 14, mode: 'add' as const, requiredCapability: 'Live Bands' },
+              { source: 'nBass', target: 'fixture.brightness', amount: 0.12, min: 0, max: 0.12, mode: 'add' as const, requiredCapability: 'Live Bands' },
+            ],
+          },
+        ],
+      }
+    }),
   }
 }
 
@@ -537,8 +666,19 @@ export function createPrismCathedralProgram(): LaserDmxShowDirectorPerformancePr
     deterministicSeed: 0x50a17,
     fallbackOrder: ['verse', 'intro', 'breakdown'],
     tuning: { intensity: 1, variation: 1, audioIntelligenceResponse: 1, transitionScale: 1 },
+    bankRoles: {
+      'prism-kick-outer-wings': { fixtureSemanticKeys: PRISM_OUTER },
+      'prism-kick-rest': { fixtureSemanticKeys: [...PRISM_INNER, 'prism-middle-side-left', 'prism-middle-side-right', ...PRISM_ACCENTS] },
+      'prism-snare-inner-x': { fixtureSemanticKeys: PRISM_INNER },
+      'prism-snare-rest': { fixtureSemanticKeys: [...PRISM_OUTER, 'prism-middle-side-left', 'prism-middle-side-right', ...PRISM_ACCENTS] },
+      'prism-hat-upper-detail': { fixtureSemanticKeys: ['prism-upper-outer-left', 'prism-upper-outer-right', 'prism-upper-inner-left', 'prism-upper-inner-right'] },
+      'prism-hat-rest': { fixtureSemanticKeys: ['prism-middle-side-left', 'prism-middle-side-right', 'prism-lower-inner-left', 'prism-lower-inner-right', 'prism-lower-outer-left', 'prism-lower-outer-right', ...PRISM_ACCENTS] },
+      'prism-center-impact': { groupSemanticKeys: ['prism-center-accent'] },
+      'prism-center-impact-rest': { fixtureSemanticKeys: [...PRISM_OUTER, ...PRISM_INNER, 'prism-middle-side-left', 'prism-middle-side-right'] },
+      'prism-bass-width': { fixtureSemanticKeys: PRISM_OUTER },
+    },
     diagnostics: {
-      authoringVersion: 'showcase-03',
+      authoringVersion: 'showcase-04-beat-banks',
       expectedFixtureSemanticKeys: PRISM_FIXTURES.map(fixture => fixture.key),
       expectedGroupSemanticKeys: PRISM_GROUPS.map(group => group.key),
       notes: ['Twelve mirrored laser fixtures', 'Native Show Director and Beam Matrix only', 'Drop 2 keeps cathedral motifs while adding every fixture group'],
@@ -554,7 +694,23 @@ export function createPrismCathedralProgram(): LaserDmxShowDirectorPerformancePr
       prismOutroScene(),
     ],
   }
-  return authorPrismCathedralLocalGeometry(applyMotifFamilySequence(program, PRISM_MOTIF_SEQUENCE), PRISM_FIXTURES)
+  const choreographed = applyPresetBankChoreography(program, {
+    kickRole: 'prism-kick-outer-wings',
+    kickRestRole: 'prism-kick-rest',
+    snareRole: 'prism-snare-inner-x',
+    snareRestRole: 'prism-snare-rest',
+    hatRole: 'prism-hat-upper-detail',
+    hatRestRole: 'prism-hat-rest',
+    transientRole: 'prism-center-impact',
+    transientRestRole: 'prism-center-impact-rest',
+    bassRole: 'prism-bass-width',
+    impactColor: CYAN,
+    complementaryColor: LAVENDER,
+    kickSpread: 92,
+    snareSpread: 74,
+    transientSpread: 34,
+  })
+  return authorPrismCathedralLocalGeometry(applyMotifFamilySequence(choreographed, PRISM_MOTIF_SEQUENCE), PRISM_FIXTURES)
 }
 
 // ── Cardinal Fan Reactor ─────────────────────────────────────────────────────
@@ -830,8 +986,19 @@ export function createCardinalFanReactorProgram(): LaserDmxShowDirectorPerforman
     deterministicSeed: 0xca4d1,
     fallbackOrder: ['verse', 'intro', 'breakdown'],
     tuning: { intensity: 1, variation: 1, audioIntelligenceResponse: 1, transitionScale: 1 },
+    bankRoles: {
+      'cardinal-horizontal': { groupSemanticKeys: ['cardinal-left', 'cardinal-right'] },
+      'cardinal-horizontal-rest': { groupSemanticKeys: ['cardinal-top', 'cardinal-bottom', 'cardinal-upper-left', 'cardinal-upper-right', 'cardinal-lower-left', 'cardinal-lower-right'] },
+      'cardinal-vertical': { groupSemanticKeys: ['cardinal-top', 'cardinal-bottom'] },
+      'cardinal-vertical-rest': { groupSemanticKeys: ['cardinal-left', 'cardinal-right', 'cardinal-upper-left', 'cardinal-upper-right', 'cardinal-lower-left', 'cardinal-lower-right'] },
+      'cardinal-diagonals': { groupSemanticKeys: ['cardinal-upper-left', 'cardinal-upper-right', 'cardinal-lower-left', 'cardinal-lower-right'] },
+      'cardinal-diagonal-rest': { groupSemanticKeys: ['cardinal-top', 'cardinal-bottom', 'cardinal-left', 'cardinal-right'] },
+      'cardinal-all-four': { groupSemanticKeys: ['cardinal-top', 'cardinal-bottom', 'cardinal-left', 'cardinal-right'] },
+      'cardinal-all-four-rest': { groupSemanticKeys: ['cardinal-upper-left', 'cardinal-upper-right', 'cardinal-lower-left', 'cardinal-lower-right'] },
+      'cardinal-bass-aperture': { groupSemanticKeys: ['cardinal-top', 'cardinal-bottom', 'cardinal-left', 'cardinal-right'] },
+    },
     diagnostics: {
-      authoringVersion: 'showcase-03',
+      authoringVersion: 'showcase-04-beat-banks',
       expectedFixtureSemanticKeys: CARDINAL_FIXTURES.map(fixture => fixture.key),
       expectedGroupSemanticKeys: CARDINAL_GROUPS.map(group => group.key),
       notes: ['Sixteen near-co-located cardinal and diagonal fan fixtures', 'Kick favors horizontal banks; snare favors vertical banks', 'Drop 2 activates all eight origins'],
@@ -847,7 +1014,24 @@ export function createCardinalFanReactorProgram(): LaserDmxShowDirectorPerforman
       cardinalOutroScene(),
     ],
   }
-  return authorCardinalFanReactorLocalGeometry(applyMotifFamilySequence(program, CARDINAL_MOTIF_SEQUENCE), CARDINAL_FIXTURES)
+  const choreographed = applyPresetBankChoreography(program, {
+    kickRole: 'cardinal-horizontal',
+    kickRestRole: 'cardinal-horizontal-rest',
+    snareRole: 'cardinal-vertical',
+    snareRestRole: 'cardinal-vertical-rest',
+    hatRole: 'cardinal-diagonals',
+    hatRestRole: 'cardinal-diagonal-rest',
+    transientRole: 'cardinal-all-four',
+    transientRestRole: 'cardinal-all-four-rest',
+    bassRole: 'cardinal-bass-aperture',
+    impactColor: ORANGE,
+    complementaryColor: WHITE,
+    kickSpread: 104,
+    snareSpread: 104,
+    transientSpread: 120,
+    deterministicFakeout: true,
+  })
+  return authorCardinalFanReactorLocalGeometry(applyMotifFamilySequence(choreographed, CARDINAL_MOTIF_SEQUENCE), CARDINAL_FIXTURES)
 }
 
 // ── Cyan Mirror Cage ─────────────────────────────────────────────────────────
@@ -1119,8 +1303,19 @@ export function createCyanMirrorCageProgram(): LaserDmxShowDirectorPerformancePr
     deterministicSeed: 0xc7a6e,
     fallbackOrder: ['verse', 'intro', 'breakdown'],
     tuning: { intensity: 1, variation: 1, audioIntelligenceResponse: 1, transitionScale: 1 },
+    bankRoles: {
+      'cage-outer-walls': { fixtureSemanticKeys: CAGE_OUTER },
+      'cage-outer-walls-rest': { fixtureSemanticKeys: [...CAGE_INNER, ...CAGE_MIDDLE, ...CAGE_ACCENTS] },
+      'cage-inner-arrowheads': { fixtureSemanticKeys: [...CAGE_INNER, 'cage-middle-left-inner', 'cage-middle-right-inner'] },
+      'cage-inner-arrowheads-rest': { fixtureSemanticKeys: [...CAGE_OUTER, 'cage-middle-left-outer', 'cage-middle-right-outer', ...CAGE_ACCENTS] },
+      'cage-hat-diagonals': { fixtureSemanticKeys: ['cage-upper-left-outer', 'cage-upper-right-outer', 'cage-lower-left-outer', 'cage-lower-right-outer'] },
+      'cage-hat-rest': { fixtureSemanticKeys: [...CAGE_INNER, ...CAGE_MIDDLE, ...CAGE_ACCENTS] },
+      'cage-mirrored-impact-crossing': { fixtureSemanticKeys: [...CAGE_ACCENTS, 'cage-middle-left-outer', 'cage-middle-right-outer'] },
+      'cage-mirrored-impact-rest': { fixtureSemanticKeys: CAGE_FIXTURES.filter(fixture => !fixture.key.includes('corner') && !['cage-middle-left-outer', 'cage-middle-right-outer'].includes(fixture.key)).map(fixture => fixture.key) },
+      'cage-bass-wall-pressure': { fixtureSemanticKeys: CAGE_OUTER },
+    },
     diagnostics: {
-      authoringVersion: 'showcase-03',
+      authoringVersion: 'showcase-04-beat-banks',
       expectedFixtureSemanticKeys: CAGE_FIXTURES.map(fixture => fixture.key),
       expectedGroupSemanticKeys: CAGE_GROUPS.map(group => group.key),
       notes: ['Sixteen upper, middle, lower, and corner laser fixtures', 'Endpoint sets preserve a dark central corridor', 'Drop 2 activates every mirrored row and impact accent'],
@@ -1136,7 +1331,23 @@ export function createCyanMirrorCageProgram(): LaserDmxShowDirectorPerformancePr
       cageOutroScene(),
     ],
   }
-  return authorCyanMirrorCageLocalGeometry(applyMotifFamilySequence(program, CAGE_MOTIF_SEQUENCE), CAGE_FIXTURES)
+  const choreographed = applyPresetBankChoreography(program, {
+    kickRole: 'cage-outer-walls',
+    kickRestRole: 'cage-outer-walls-rest',
+    snareRole: 'cage-inner-arrowheads',
+    snareRestRole: 'cage-inner-arrowheads-rest',
+    hatRole: 'cage-hat-diagonals',
+    hatRestRole: 'cage-hat-rest',
+    transientRole: 'cage-mirrored-impact-crossing',
+    transientRestRole: 'cage-mirrored-impact-rest',
+    bassRole: 'cage-bass-wall-pressure',
+    impactColor: CYAN,
+    complementaryColor: LAVENDER,
+    kickSpread: 94,
+    snareSpread: 72,
+    transientSpread: 56,
+  })
+  return authorCyanMirrorCageLocalGeometry(applyMotifFamilySequence(choreographed, CAGE_MOTIF_SEQUENCE), CAGE_FIXTURES)
 }
 
 export const PRISM_CATHEDRAL_PERFORMANCE_PRESET: LaserDmxShowDirectorPerformancePresetDefinition = Object.freeze({
