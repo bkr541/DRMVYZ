@@ -49,3 +49,5 @@ This order is deterministic and does not depend on object iteration or render ti
 ## Missing analysis
 
 When no Music Intelligence frame is available, automatic choreography returns the unchanged normalized rig state and reports `missingAnalysis`. When all relevant capabilities are unavailable or below confidence thresholds, it reports `lowConfidence` and emits no timing-derived event. It never silently falls back to an unrelated BPM.
+
+Full-song Show Director performance-program architecture, true-bar timing, section occurrence, beam budgeting, migration, and the three built-in shows are documented in `show-director-performance-programs.md`.

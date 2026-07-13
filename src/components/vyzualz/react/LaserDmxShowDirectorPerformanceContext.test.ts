@@ -152,6 +152,30 @@ describe('Show Director canonical performance timing context', () => {
     expect(createLaserDmxShowDirectorAnalysisIdentity(null)).toBeNull()
   })
 
+  it('detects manual section property edits and content changes inside replacement analysis objects', () => {
+    const baseAnalysis = analysis()
+    const changedAnalysis = analysis()
+    changedAnalysis.energyCurves.instant = [{ timeSec: 4, value: 0.9 }]
+    expect(createLaserDmxShowDirectorAnalysisIdentity(changedAnalysis)).not.toBe(createLaserDmxShowDirectorAnalysisIdentity(baseAnalysis))
+
+    const base = buildLaserDmxShowDirectorPerformanceContext({ audioTimeSec: 10, frame: frame(), analysis: baseAnalysis, resolvedSections: sections })
+    const editedSections = sections.map(section => section.id === 'drop-1'
+      ? { ...section, label: 'Manual Drop Edit', intensity: 0.65, source: 'user-edited-auto' as const }
+      : section)
+    const edited = buildLaserDmxShowDirectorPerformanceContext({ audioTimeSec: 10, frame: frame(), analysis: baseAnalysis, resolvedSections: editedSections, previous: base })
+    expect(edited.sectionIdentity).not.toBe(base.sectionIdentity)
+    expect(edited.boundaries.timingDiscontinuity).toBe(true)
+  })
+
+  it('preserves musical boundary crossings across a dropped render interval without treating forward time as a seek', () => {
+    const a = analysis()
+    const before = buildLaserDmxShowDirectorPerformanceContext({ audioTimeSec: 7.9, frame: frame(), analysis: a, resolvedSections: sections })
+    const after = buildLaserDmxShowDirectorPerformanceContext({ audioTimeSec: 16.1, frame: frame(), analysis: a, resolvedSections: sections, previous: before })
+    expect(after.boundaries.timingDiscontinuity).toBe(false)
+    expect(after.boundaries.fourBarBoundary).toBe(true)
+    expect(after.boundaries.eightBarBoundary).toBe(true)
+  })
+
   it('degrades safely without analysis while exposing neutral unsupported intelligence', () => {
     const context = buildLaserDmxShowDirectorPerformanceContext({
       audioTimeSec: 3,

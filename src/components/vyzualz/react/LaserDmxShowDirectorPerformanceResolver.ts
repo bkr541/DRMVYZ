@@ -33,6 +33,15 @@ import type {
 import type { LaserDmxShowDirectorPerformanceTimingContext } from './LaserDmxShowDirectorPerformanceContext'
 
 const EPSILON = 1e-6
+const normalizedAuthoredRigCache = new WeakMap<object, LaserDmxShowDirectorState>()
+
+function normalizedAuthoredRig(state: LaserDmxShowDirectorState): LaserDmxShowDirectorState {
+  const cached = normalizedAuthoredRigCache.get(state as object)
+  if (cached) return cached
+  const normalized = normalizeLaserDmxShowDirectorState(state)
+  normalizedAuthoredRigCache.set(state as object, normalized)
+  return normalized
+}
 
 export interface ResolveLaserDmxShowDirectorPerformanceInput {
   authoredShowDirector: LaserDmxShowDirectorState
@@ -148,10 +157,11 @@ function sceneBarMatches(scene: LaserDmxShowDirectorPerformanceScene, context: L
   return true
 }
 
-function conditionValue(condition: LaserDmxShowDirectorMusicIntelligenceCondition, context: LaserDmxShowDirectorPerformanceTimingContext): number | boolean {
-  const modulation = context.intelligence.modulation(condition.source)
-  if (Number.isFinite(modulation)) return modulation
-  return context.intelligence.condition(condition.source)
+function conditionValue(
+  condition: LaserDmxShowDirectorMusicIntelligenceCondition,
+  context: LaserDmxShowDirectorPerformanceTimingContext,
+): number | boolean | string | null {
+  return context.intelligence.value(condition.source)
 }
 
 function conditionPasses(
@@ -161,7 +171,7 @@ function conditionPasses(
   const { context, audioIntelligenceEnabled } = work.input
   if (!audioIntelligenceEnabled) return false
   const capability = condition.requiredCapability
-  if (capability && !context.intelligence.supports(condition.source)) {
+  if (capability && !context.intelligence.supports(capability)) {
     work.missingCapabilities.add(capability)
     return false
   }
@@ -389,7 +399,7 @@ function modulationValue(
   work: ResolverWork,
 ): number | null {
   if (!work.input.audioIntelligenceEnabled) return null
-  if (reference.requiredCapability && !work.input.context.intelligence.supports(reference.source)) {
+  if (reference.requiredCapability && !work.input.context.intelligence.supports(reference.requiredCapability)) {
     work.missingCapabilities.add(reference.requiredCapability)
     return null
   }
@@ -756,7 +766,7 @@ function isStructurallyValidProgram(program: LaserDmxShowDirectorPerformanceProg
 export function resolveLaserDmxShowDirectorPerformance(
   input: ResolveLaserDmxShowDirectorPerformanceInput,
 ): LaserDmxShowDirectorPerformanceResolution {
-  const authored = normalizeLaserDmxShowDirectorState(input.authoredShowDirector)
+  const authored = normalizedAuthoredRig(input.authoredShowDirector)
   if (!input.enabled) return unchangedResolution(input, authored, 'Performance program disabled.')
   if (!input.program || !Array.isArray(input.program.scenes) || input.program.scenes.length === 0) {
     return unchangedResolution(input, authored, 'No valid performance program is loaded.')

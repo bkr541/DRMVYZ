@@ -467,10 +467,19 @@ export function normalizeLaserDmxShowDirectorPerformanceState(
 ): LaserDmxShowDirectorPerformanceState {
   const fallback = createDefaultLaserDmxShowDirectorPerformanceState()
   if (!isRecord(raw)) return fallback
-  const definition = normalizeLaserDmxShowDirectorPerformanceProgram(raw.activeProgramDefinition)
-  const builtInId = isBuiltInId(raw.activeBuiltInProgramId) ? raw.activeBuiltInProgramId : null
-  const activeProgramId = definition?.id ?? builtInId ?? null
-  const enabled = raw.enabled === true && activeProgramId !== null && (definition !== null || LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY[builtInId!]?.program !== null)
+  const persistedDefinition = normalizeLaserDmxShowDirectorPerformanceProgram(raw.activeProgramDefinition)
+  const requestedBuiltInId = isBuiltInId(raw.activeBuiltInProgramId)
+    ? raw.activeBuiltInProgramId
+    : isBuiltInId(raw.activeProgramId)
+      ? raw.activeProgramId
+      : persistedDefinition && isBuiltInId(persistedDefinition.id)
+        ? persistedDefinition.id
+        : null
+  const registryProgram = requestedBuiltInId ? LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY[requestedBuiltInId]?.program ?? null : null
+  const definition = persistedDefinition ?? (registryProgram ? cloneLaserDmxShowDirectorPerformanceProgram(registryProgram) : null)
+  const activeProgramId = definition?.id ?? null
+  const builtInId = definition && isBuiltInId(definition.id) ? definition.id : null
+  const enabled = raw.enabled === true && definition !== null
   return {
     schemaVersion: LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_STATE_SCHEMA_VERSION,
     activeProgramId,

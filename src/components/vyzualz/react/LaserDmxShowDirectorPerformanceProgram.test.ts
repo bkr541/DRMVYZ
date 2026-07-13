@@ -44,6 +44,23 @@ describe('Show Director performance-program foundation', () => {
     expect(malformed.activeProgramId).toBeNull()
   })
 
+  it('hydrates legacy built-in ID-only state from the current registry and suppresses missing IDs', () => {
+    const hydrated = normalizeLaserDmxShowDirectorPerformanceState({
+      enabled: true,
+      activeProgramId: 'prism-cathedral',
+      activeBuiltInProgramId: 'prism-cathedral',
+    })
+    expect(hydrated.enabled).toBe(true)
+    expect(hydrated.activeProgramId).toBe('prism-cathedral')
+    expect(hydrated.activeProgramDefinition?.id).toBe('prism-cathedral')
+    expect(hydrated.activeProgramDefinition).not.toBe(LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY['prism-cathedral'].program)
+
+    const missing = normalizeLaserDmxShowDirectorPerformanceState({ enabled: true, activeProgramId: 'removed-built-in' })
+    expect(missing.enabled).toBe(false)
+    expect(missing.activeProgramDefinition).toBeNull()
+    expect(missing.activeProgramId).toBeNull()
+  })
+
   it('serializes, clones, and normalizes programs idempotently', () => {
     const normalized = normalizeLaserDmxShowDirectorPerformanceProgram(program())
     expect(normalized).not.toBeNull()

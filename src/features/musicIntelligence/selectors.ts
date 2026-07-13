@@ -224,6 +224,17 @@ export function getTriggerSourceValue(
 
 // ── Condition source (boolean predicate on section / state) ──────────────────
 
+const CONDITION_SOURCE_KEYS = new Set([
+  'isActive', 'isDrop', 'isBuild', 'isVerse', 'isIntro', 'isOutro', 'isBreakdown', 'isPreDrop', 'isBridge', 'isUnknown',
+  'isHighEnergy', 'isBeat', 'isMajor', 'isMinor', 'isChordChange', 'hasActiveLine', 'hasActiveWord', 'lyricGap',
+  'hasLiveBands', 'hasRhythmEvents', 'hasBeatGrid', 'hasSections', 'hasTrackEnergyCurve', 'hasStems', 'hasLyrics',
+  'isBuildPhase', 'isDropPhase', 'isFakeout', 'isVocalHook', 'isEnergetic', 'isAggressive', 'isAtmospheric', 'isDark', 'isCalm',
+])
+
+export function isMusicIntelligenceConditionSource(sourceKey: string): boolean {
+  return CONDITION_SOURCE_KEYS.has(sourceKey)
+}
+
 export function getConditionSourceValue(
   frame: MusicIntelligenceFrame,
   sourceKey: string,
@@ -268,5 +279,36 @@ export function getConditionSourceValue(
     case 'isDark':       return frame.semantics.mood === 'dark'
     case 'isCalm':       return frame.semantics.mood === 'calm'
     default:             return false
+  }
+}
+
+export type MusicIntelligenceSourceValue = number | boolean | string | null
+
+/**
+ * Canonical heterogeneous source lookup for authored condition expressions.
+ * Numeric routes continue through getModulationSourceValue, boolean predicates
+ * continue through getConditionSourceValue, and categorical values are read
+ * directly from the already-populated Music Intelligence frame.
+ */
+export function getMusicIntelligenceSourceValue(
+  frame: MusicIntelligenceFrame,
+  sourceKey: string,
+): MusicIntelligenceSourceValue {
+  if (isMusicIntelligenceConditionSource(sourceKey)) {
+    return getConditionSourceValue(frame, sourceKey)
+  }
+  switch (sourceKey) {
+    case 'sectionType': return frame.section.type ?? 'unknown'
+    case 'key':
+    case 'harmonicKey': return frame.harmonic.key
+    case 'mode':
+    case 'harmonicMode': return frame.harmonic.mode
+    case 'chord': return frame.harmonic.chord
+    case 'rootNote': return frame.harmonic.rootNote
+    case 'note': return frame.harmonic.note
+    case 'melodyContour': return frame.harmonic.melodyContour
+    case 'mood': return frame.semantics.mood
+    case 'texture': return frame.semantics.texture
+    default: return getModulationSourceValue(frame, sourceKey)
   }
 }

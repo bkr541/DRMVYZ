@@ -100,6 +100,16 @@ function resolveLaserDmxFrameSection(frame: ReactFrameContext, timeSec: number):
   }
 }
 
+function musicIntelligenceFrameMatchesTrack(
+  candidate: MusicIntelligenceFrame | null | undefined,
+  trackKey: string | null | undefined,
+): candidate is MusicIntelligenceFrame {
+  if (!candidate || candidate.frameId <= 0) return false
+  if (!trackKey) return true
+  const identities = [candidate.trackId, candidate.sourceId].filter((value): value is string => Boolean(value))
+  return identities.length === 0 || identities.includes(trackKey)
+}
+
 /**
  * LaserDMX needs beat/bar data every render frame, even while Music Intelligence
  * is still warming up or a canvas only has the simpler ReactFrameContext timing.
@@ -107,13 +117,16 @@ function resolveLaserDmxFrameSection(frame: ReactFrameContext, timeSec: number):
  * in the audio-engine BPM/playhead, fallback bands, and track-section data so
  * Show Director beat/bar/section triggers still compile into visible Beam Matrix output.
  */
-function resolveLaserDmxMusicIntelligenceFrame(
+export function resolveLaserDmxMusicIntelligenceFrame(
   frame: ReactFrameContext,
   busFrame: MusicIntelligenceFrame,
 ): MusicIntelligenceFrame {
-  const source = busFrame.frameId > 0
+  const trackKey = frame.trackKey ?? null
+  const source = musicIntelligenceFrameMatchesTrack(busFrame, trackKey)
     ? busFrame
-    : frame.musicIntelligence ?? busFrame ?? DEFAULT_MI_FRAME
+    : musicIntelligenceFrameMatchesTrack(frame.musicIntelligence, trackKey)
+      ? frame.musicIntelligence
+      : DEFAULT_MI_FRAME
   const timeSec = Math.max(0, finiteNumber(frame.audioTime, finiteNumber(source.timeSec, 0)))
   const bpm = resolveLaserDmxFrameBpm(frame, source)
   const beatsPerBar = Math.max(1, Math.round(finiteNumber(frame.trackAnalysis?.timeSignature, 4)))
@@ -148,8 +161,8 @@ function resolveLaserDmxMusicIntelligenceFrame(
     ...source,
     timeSec,
     frameId: source.frameId > 0 ? source.frameId : hasFallbackSignal ? 1 : 0,
-    sourceId: source.sourceId ?? frame.trackKey ?? null,
-    trackId: source.trackId ?? frame.trackKey ?? null,
+    sourceId: source.sourceId ?? trackKey,
+    trackId: source.trackId ?? trackKey,
     bands: {
       ...DEFAULT_MI_FRAME.bands,
       ...source.bands,
@@ -350,6 +363,15 @@ export function disposeLaserDmxRenderer(
   showDirectorRuntimeByContext.delete(ctx)
 }
 
+export function enforceLaserDmxFinalBlackoutAuthority<T extends { output: { blackout: boolean } }>(
+  authoritative: T,
+  evaluated: T,
+): T {
+  return authoritative.output.blackout && !evaluated.output.blackout
+    ? { ...evaluated, output: { ...evaluated.output, blackout: true } }
+    : evaluated
+}
+
 export function applyShowDirectorPerformanceGlobalOverrides(
   beamMatrix: ReturnType<typeof compileLaserDmxShowDirectorToBeamMatrix>,
   overrides: LaserDmxShowDirectorGlobalOutputOverrides,
@@ -498,6 +520,7 @@ export function renderLaserDmx(
     musicIntelligence: mi.frameId > 0 ? mi : null,
   })
   if (director.timingDiscontinuity) resetLaserDmxTransientRuntimeState()
+  const finalBeamMatrix = enforceLaserDmxFinalBlackoutAuthority(renderBeamMatrix, director.beamMatrix)
   const personalization = resolveLaserDmxPersonalization(useBrandKitStore.getState().activeKit, preset.id)
 
   if (affectProductionOutput) {
@@ -505,7 +528,7 @@ export function renderLaserDmx(
   }
 
   const compiled = compileLaserDmxBeamMatrix({
-    settings: director.beamMatrix,
+    settings: finalBeamMatrix,
     mi,
     timeSec,
     canvasWidth: W,

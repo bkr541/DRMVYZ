@@ -3,7 +3,9 @@ import { DEFAULT_MI_FRAME } from '../../../features/musicIntelligence/constants'
 import {
   getConditionSourceValue,
   getModulationSourceValue,
+  getMusicIntelligenceSourceValue,
   getTriggerSourceValue,
+  type MusicIntelligenceSourceValue,
 } from '../../../features/musicIntelligence/selectors'
 import type {
   MusicIntelligenceCapabilities,
@@ -14,6 +16,9 @@ import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIn
 import type { ReactSectionType, ReactTrackSection } from './ReactTypes'
 
 const EPSILON_SEC = 1e-5
+const analysisIdentityCache = new WeakMap<TrackIntelligenceAnalysis, string>()
+const sortedBeatGridCache = new WeakMap<TrackIntelligenceAnalysis, TrackIntelligenceAnalysis['beatGrid']>()
+const resolvedSectionsCache = new WeakMap<object, LaserDmxShowDirectorPerformanceResolvedSection[]>()
 
 export interface LaserDmxShowDirectorPerformanceGridPosition {
   bpm: number
@@ -67,6 +72,7 @@ export interface LaserDmxShowDirectorPerformanceMusicIntelligenceAdapter {
   stems: MusicIntelligenceFrame['stems']
   lyrics: MusicIntelligenceFrame['lyrics']
   modulation(source: string): number
+  value(source: string): MusicIntelligenceSourceValue
   trigger(source: string): boolean
   condition(source: string): boolean
   supports(source: string): boolean
@@ -172,28 +178,110 @@ export function createLaserDmxShowDirectorAnalysisIdentity(
   analysis: TrackIntelligenceAnalysis | null | undefined,
 ): string | null {
   if (!analysis) return null
-  const firstBeat = analysis.beatGrid[0]?.timeSec ?? -1
-  const lastBeat = analysis.beatGrid[analysis.beatGrid.length - 1]?.timeSec ?? -1
-  const firstSection = analysis.sections[0]
-  const lastSection = analysis.sections[analysis.sections.length - 1]
-  return [
-    analysis.analysisVersion,
-    analysis.createdAt,
-    analysis.durationMs,
-    analysis.bpm ?? 'none',
-    analysis.bpmUsedForGrid ?? 'none',
-    analysis.beatGridOffsetSec ?? 'none',
-    analysis.timeSignature,
-    analysis.beatGrid.length,
-    firstBeat,
-    lastBeat,
-    analysis.sections.length,
-    firstSection?.id ?? '',
-    firstSection?.startSec ?? '',
-    lastSection?.id ?? '',
-    lastSection?.endSec ?? '',
-    analysis.lastGridRebuiltAt ?? '',
-  ].join('|')
+  const cached = analysisIdentityCache.get(analysis)
+  if (cached) return cached
+
+  let hash = 2166136261
+  const add = (value: unknown) => {
+    const text = String(value ?? '')
+    for (let index = 0; index < text.length; index += 1) {
+      hash ^= text.charCodeAt(index)
+      hash = Math.imul(hash, 16777619)
+    }
+    hash ^= 124
+    hash = Math.imul(hash, 16777619)
+  }
+  const addCurve = (curve: readonly { timeSec: number; value: number }[]) => {
+    add(curve.length)
+    for (const point of curve) {
+      add(point.timeSec)
+      add(point.value)
+    }
+  }
+
+  add(analysis.analysisVersion)
+  add(analysis.createdAt)
+  add(analysis.durationMs)
+  add(analysis.bpm)
+  add(analysis.bpmUsedForGrid)
+  add(analysis.bpmConfidence)
+  add(analysis.beatGridOffsetSec)
+  add(analysis.timeSignature)
+  add(analysis.lastGridRebuiltAt)
+  for (const marker of analysis.beatGrid) {
+    add(marker.timeSec)
+    add(marker.confidence)
+    add(marker.isDownbeat)
+    add(marker.bpm)
+  }
+  for (const phrase of analysis.phrases) {
+    add(phrase.timeSec)
+    add(phrase.phraseLength)
+    add(phrase.confidence)
+  }
+  for (const section of analysis.sections) {
+    add(section.id)
+    add(section.label)
+    add(section.type)
+    add(section.startSec)
+    add(section.endSec)
+    add(section.intensity)
+    add(section.confidence)
+    add(section.source)
+    add(section.locked)
+  }
+  for (const curve of Object.values(analysis.energyCurves)) addCurve(curve)
+  for (const curve of Object.values(analysis.spectralCurves)) addCurve(curve)
+  add(analysis.harmonic.dominantKey)
+  add(analysis.harmonic.dominantMode)
+  add(analysis.harmonic.keyConfidence)
+  for (const change of analysis.harmonic.keyChanges) {
+    add(change.timeSec)
+    add(change.key)
+    add(change.mode)
+    add(change.confidence)
+  }
+  for (const chord of analysis.harmonic.chordProgression) {
+    add(chord.timeSec)
+    add(chord.chord)
+    add(chord.confidence)
+    add(chord.durationSec)
+  }
+  addCurve(analysis.harmonic.pitchCurve)
+  addCurve(analysis.harmonic.melodyContourCurve)
+  if (analysis.stemCurves) {
+    for (const stem of Object.values(analysis.stemCurves)) {
+      addCurve(stem.energy)
+      addCurve(stem.rms)
+      addCurve(stem.transient)
+    }
+  }
+  if (analysis.lyrics) {
+    for (const line of analysis.lyrics.lines) {
+      add(line.text)
+      add(line.startMs)
+      add(line.endMs)
+      add(line.confidence)
+      for (const word of line.words) {
+        add(word.text)
+        add(word.startMs)
+        add(word.endMs)
+        add(word.confidence)
+      }
+    }
+  }
+  for (const moment of analysis.semanticMoments) {
+    add(moment.timeSec)
+    add(moment.durationSec)
+    add(moment.type)
+    add(moment.confidence)
+    add(moment.label)
+    add(moment.source)
+  }
+
+  const identity = `${analysis.analysisVersion}|${analysis.createdAt}|${(hash >>> 0).toString(36)}`
+  analysisIdentityCache.set(analysis, identity)
+  return identity
 }
 
 export function createLaserDmxShowDirectorSectionIdentity(
@@ -204,6 +292,8 @@ export function createLaserDmxShowDirectorSectionIdentity(
     section.type,
     finite(section.startSec),
     finite(section.endSec),
+    section.label ?? '',
+    finite(section.intensity, 0),
     section.source ?? '',
     finite(section.confidence, 0),
   ].join(':')).join('|')
@@ -213,6 +303,10 @@ export function resolveLaserDmxShowDirectorPerformanceSections(
   input: Pick<BuildLaserDmxShowDirectorPerformanceContextInput,
     'analysis' | 'resolvedSections' | 'analyzedSections' | 'manualSections' | 'suppressedSectionIds' | 'durationSec'>,
 ): LaserDmxShowDirectorPerformanceResolvedSection[] {
+  if (input.resolvedSections) {
+    const cached = resolvedSectionsCache.get(input.resolvedSections as object)
+    if (cached) return cached
+  }
   const sourceSections = input.resolvedSections
     ? [...input.resolvedSections]
     : resolveTrackSections({
@@ -226,10 +320,12 @@ export function resolveLaserDmxShowDirectorPerformanceSections(
         suppressedIds: input.suppressedSectionIds ? [...input.suppressedSectionIds] : [],
       })
 
-  return sourceSections
+  const resolved = sourceSections
     .map(normalizeSection)
     .filter((section): section is LaserDmxShowDirectorPerformanceResolvedSection => section !== null)
     .sort((a, b) => a.startSec - b.startSec || sectionSourcePriority(b.source) - sectionSourcePriority(a.source) || a.id.localeCompare(b.id))
+  if (input.resolvedSections) resolvedSectionsCache.set(input.resolvedSections as object, resolved)
+  return resolved
 }
 
 export function resolveLaserDmxShowDirectorSectionAtTime(
@@ -271,10 +367,14 @@ export function resolveLaserDmxShowDirectorDropOccurrence(
 }
 
 function sortedBeatGrid(analysis: TrackIntelligenceAnalysis): TrackIntelligenceAnalysis['beatGrid'] {
-  return analysis.beatGrid
+  const cached = sortedBeatGridCache.get(analysis)
+  if (cached) return cached
+  const sorted = analysis.beatGrid
     .filter(marker => Number.isFinite(marker.timeSec))
     .slice()
     .sort((a, b) => a.timeSec - b.timeSec)
+  sortedBeatGridCache.set(analysis, sorted)
+  return sorted
 }
 
 function beatPositionFromGrid(
@@ -390,7 +490,23 @@ export function didExitLaserDmxShowDirectorSection(previousSectionId: string | n
   return previousSectionId !== null && previousSectionId !== currentSectionId
 }
 
+function capabilityKey(value: string): keyof MusicIntelligenceCapabilities | null {
+  const normalized = value.replace(/[\s_-]+/g, '').toLowerCase()
+  switch (normalized) {
+    case 'livebands': return 'liveBands'
+    case 'rhythmevents': return 'rhythmEvents'
+    case 'beatgrid': return 'beatGrid'
+    case 'sections': return 'sections'
+    case 'trackenergycurve': return 'trackEnergyCurve'
+    case 'stemcurves': return 'stemCurves'
+    case 'lyrics': return 'lyrics'
+    default: return null
+  }
+}
+
 function capabilityForSource(source: string): keyof MusicIntelligenceCapabilities | null {
+  const explicit = capabilityKey(source)
+  if (explicit) return explicit
   if (/^(sub|bass|lowMid|mid|high|air|volume|nSub|nBass|nLowMid|nMid|nHigh|nAir|audioBand:)/.test(source)) return 'liveBands'
   if (/^(kick|snare|hat|transient|kickHit|snareHit|hatHit|drumTrans|bassTrans|hasRhythmEvents)/.test(source)) return 'rhythmEvents'
   if (/^(beat|downbeat|phrase4|phrase8|phrase16|phrase32|bpm|hasBeatGrid)/.test(source)) return 'beatGrid'
@@ -459,6 +575,7 @@ export function createLaserDmxShowDirectorMusicIntelligenceAdapter(
     stems: frame.stems,
     lyrics: frame.lyrics,
     modulation: source => getModulationSourceValue(frame, source),
+    value: source => getMusicIntelligenceSourceValue(frame, source),
     trigger: source => getTriggerSourceValue(frame, source),
     condition: source => getConditionSourceValue(frame, source),
     supports: source => {
@@ -506,7 +623,6 @@ export function buildLaserDmxShowDirectorPerformanceContext(
   const timingDiscontinuity = Boolean(previous && (
     previous.runtimeIdentity !== runtimeIdentity
     || audioTimeSec + EPSILON_SEC < previous.audioTimeSec
-    || Math.abs(audioTimeSec - previous.audioTimeSec) > 1
   ))
   const previousSectionId = previous?.resolvedSection?.id ?? null
   const currentSectionId = resolvedSection?.id ?? null
