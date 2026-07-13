@@ -92,23 +92,21 @@ describe('scanner mode — computeKinematics', () => {
   })
 })
 
-// ── 5. PingPong mode ──────────────────────────────────────────────────────────
+// ── 5. Legacy pingPong migration ─────────────────────────────────────────────
 
-describe('pingPong mode — computeKinematics', () => {
-  it('at rawProgress=0 starts at origin', () => {
+describe('legacy pingPong mode — computeKinematics', () => {
+  it('starts at the fixture origin', () => {
     const r = computeKinematics('pingPong', 0, 0.3, 0.5, 'linear')
     expect(r.visibleOriginFrac).toBe(0)
     expect(r.visibleTargetFrac).toBeCloseTo(0)
   })
 
-  it('at rawProgress=0.5 reaches target (triangle peak)', () => {
-    const r = computeKinematics('pingPong', 0.5, 0.3, 0.5, 'linear')
-    expect(r.visibleTargetFrac).toBeCloseTo(1)
-  })
-
-  it('at rawProgress=1 is back at origin (triangle completes)', () => {
-    const r = computeKinematics('pingPong', 1, 0.3, 0.5, 'linear')
-    expect(r.visibleTargetFrac).toBeCloseTo(0)
+  it('uses monotonic forward progress instead of folding back', () => {
+    const middle = computeKinematics('pingPong', 0.5, 0.3, 0.5, 'linear')
+    const end = computeKinematics('pingPong', 1, 0.3, 0.5, 'linear')
+    expect(middle.visibleTargetFrac).toBeCloseTo(0.5)
+    expect(end.visibleTargetFrac).toBeCloseTo(1)
+    expect(end.visibleTargetFrac).toBeGreaterThan(middle.visibleTargetFrac)
   })
 })
 

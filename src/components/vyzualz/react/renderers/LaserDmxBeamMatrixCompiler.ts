@@ -36,11 +36,9 @@
  *   sweep.  The compiler multiplies by canvasWidth/Height before applying to
  *   canvas pixel coordinates, so movement stays proportional on any canvas size.
  *
- * Direction:
- *   'forward'  = travel from saved origin toward saved target.
- *   'reverse'  = travel from saved target toward saved origin (fracs mirrored).
- *   'alternate'= even sequence positions use forward, odd use reverse.
- *   Direction is applied in the compiler after kinematics as a frac mirror.
+ * Travel direction:
+ *   Every animated beam progresses from its saved fixture origin toward its
+ *   saved target. Legacy reverse/alternate data is ignored during compilation.
  *
  * Travel duration (beatsPerTravel) in sequenced mode:
  *   The sequence gate controls activation; beatsPerTravel controls how fast
@@ -105,7 +103,7 @@ export interface CompiledLaserDmxMatrixBeam {
   origin: { x: number; y: number; z: number }
   target: { x: number; y: number; z: number; offscreen: boolean }
 
-  /** Visible segment endpoints after travel mode and direction are applied.
+  /** Visible segment endpoints after forward-only travel is applied.
    *  Equal to origin/target in static mode.  Renderer uses these, NOT origin/target. */
   visibleOrigin: { x: number; y: number; z: number }
   visibleTarget: { x: number; y: number; z: number }
@@ -141,11 +139,6 @@ export interface CompiledLaserDmxMatrixBeam {
   sequenceGate:   number
   /** 0–1 extra head-flare brightness for non-static modes. */
   headIntensity:  number
-  /**
-   * When true, the head flare should be drawn at visibleOrigin (the lower-frac
-   * end) rather than visibleTarget.  Set for reverse/alternate-odd beams.
-   */
-  headAtOriginFrac: boolean
   /** Present only for pulseTrain: additional segment geometry. */
   pulseSegments?: { startFrac: number; endFrac: number }[]
 }
@@ -923,12 +916,15 @@ export function compileLaserDmxBeamMatrix(
     const targetOffscreen = targetX < 0 || targetX > W || targetY < 0 || targetY > H
 
     // ── Motion / sequencer ────────────────────────────────────────────────
-    const motion     = beam.motion ?? DEFAULT_BEAM_MOTION
-    const motionMode = motion.mode ?? 'static'
+    const motion = beam.motion ?? DEFAULT_BEAM_MOTION
+    // Legacy projects may still contain pingPong/reverse/alternate values. The
+    // renderer contract is now physically forward-only: origin → target.
+    const motionMode: LaserDmxBeamTravelMode = (motion.mode as string) === 'pingPong'
+      ? 'grow'
+      : (motion.mode ?? 'static')
 
     let travelProgress  = 0
     let sequenceGate    = 1
-    let beamOrderIndex  = 0  // visual sequence position (for direction alternate)
 
     // Sequence gate applies to ALL motion modes including static.
     // Static beams keep travelProgress=0 (full geometry) but their visibility
@@ -936,7 +932,6 @@ export function compileLaserDmxBeamMatrix(
     const seqState = seqStateMap.get(beam.id)
     if (seqState) {
       sequenceGate   = seqState.gate
-      beamOrderIndex = seqState.beamOrderIndex
     }
 
     if (motionMode !== 'static') {
@@ -990,29 +985,15 @@ export function compileLaserDmxBeamMatrix(
     }
     // Static + no seqState: sequenceGate stays 1 (beam always visible)
 
-    // ── Direction: resolve forward/reverse/alternate ───────────────────────
-    // beamOrderIndex drives 'alternate': even=forward, odd=reverse.
-    const isReverse = (
-      motion.direction === 'reverse' ||
-      (motion.direction === 'alternate' && beamOrderIndex % 2 === 1)
-    )
-
     // ── Kinematics → visible segment fracs ───────────────────────────────
+    // Direction is intentionally not consulted here. Every animated segment
+    // progresses from the fixture origin toward its authored target.
     const kin = computeKinematics(motionMode, travelProgress, motion.tailLength, motion.headGlow, motion.easing)
 
-    let visOriginFrac = kin.visibleOriginFrac
-    let visTargetFrac = kin.visibleTargetFrac
-    let headAtOriginFrac = false
+    const visOriginFrac = kin.visibleOriginFrac
+    const visTargetFrac = kin.visibleTargetFrac
 
-    if (isReverse && motionMode !== 'static') {
-      // Mirror fracs: forward (a, b) → reverse (1-b, 1-a)
-      // Head is now at visibleOriginFrac (the tip moving toward origin).
-      visOriginFrac    = 1 - kin.visibleTargetFrac
-      visTargetFrac    = 1 - kin.visibleOriginFrac
-      headAtOriginFrac = true
-    }
-
-    // Maximal active beams gate (applied after direction / gate resolution)
+    // Maximal active beams gate (applied after kinematics / gate resolution)
     if (group && (group.maxActiveBeams ?? 0) > 0) {
       const cnt = groupActiveCount.get(group.id) ?? 0
       if (sequenceGate > 0 && cnt >= group.maxActiveBeams) {
@@ -1027,14 +1008,7 @@ export function compileLaserDmxBeamMatrix(
     const visOriginPt = lerpPt(originX, originY, originBase.z, targetX, targetY, targetBase.z, visOriginFrac)
     const visTargetPt = lerpPt(originX, originY, originBase.z, targetX, targetY, targetBase.z, visTargetFrac)
 
-    // Mirror pulse segments for reverse direction
-    let pulseSegments = kin.pulseSegments
-    if (isReverse && pulseSegments) {
-      pulseSegments = pulseSegments.map(s => ({
-        startFrac: 1 - s.endFrac,
-        endFrac:   1 - s.startFrac,
-      })).reverse()
-    }
+    const pulseSegments = kin.pulseSegments
 
     const cueGate = resolveCueGateFactor(beam.id, beam.groupId, cueSummary)
     const finalIntensity = clamp01(baseDepthIntensity * sequenceGate * cueGate)
@@ -1078,7 +1052,6 @@ export function compileLaserDmxBeamMatrix(
       travelProgress:    safeF(travelProgress, 0),
       sequenceGate:      safeF(sequenceGate, 1),
       headIntensity:     safeF(kin.headIntensity, 0),
-      headAtOriginFrac,
       pulseSegments,
     })
   }

@@ -43,7 +43,8 @@ const VALID_ROUTE_MODES     = new Set(['set', 'add', 'multiply', 'trigger'])
 const VALID_ROUTE_CURVES    = new Set(['linear', 'easeIn', 'easeOut', 'easeInOut', 'pulse', 'exponential'])
 const VALID_GEOMETRY        = new Set(['line', 'volumetricCone'])
 const VALID_EASING          = new Set(['linear', 'easeIn', 'easeOut', 'easeInOut'])
-const VALID_DIRECTIONS      = new Set(['forward', 'reverse', 'alternate'])
+const VALID_DIRECTIONS      = new Set(['forward'])
+const LEGACY_DIRECTIONS     = new Set(['reverse', 'alternate'])
 const VALID_RETRIGGER       = new Set(['restart', 'continue', 'queue'])
 
 // ── Issue types ───────────────────────────────────────────────────────────────
@@ -106,8 +107,15 @@ function validateMotion(
   if (!VALID_EASING.has(motion.easing)) {
     issues.push({ severity: 'error', path: `${path}.easing`, message: `Invalid easing "${motion.easing}"` })
   }
-  if (!VALID_DIRECTIONS.has(motion.direction)) {
-    issues.push({ severity: 'error', path: `${path}.direction`, message: `Invalid direction "${motion.direction}"` })
+  const rawDirection = (motion as { direction?: unknown }).direction
+  if (typeof rawDirection === 'string' && LEGACY_DIRECTIONS.has(rawDirection)) {
+    issues.push({ severity: 'warning', path: `${path}.direction`, message: `Legacy direction "${rawDirection}" is coerced to forward` })
+  } else if (typeof rawDirection !== 'string' || !VALID_DIRECTIONS.has(rawDirection)) {
+    issues.push({ severity: 'error', path: `${path}.direction`, message: `Invalid direction "${String(rawDirection)}"` })
+  }
+  const rawMode = (motion as { mode?: unknown }).mode
+  if (rawMode === 'pingPong') {
+    issues.push({ severity: 'warning', path: `${path}.mode`, message: 'Legacy pingPong motion is coerced to forward grow' })
   }
   if (!VALID_RETRIGGER.has(motion.retrigger)) {
     issues.push({ severity: 'error', path: `${path}.retrigger`, message: `Invalid retrigger "${motion.retrigger}"` })
@@ -266,7 +274,21 @@ export function normalizeBeamMatrixSettings(
 ): LaserDmxBeamMatrixSettings {
   for (let i = 0; i < settings.beams.length; i++) {
     const b = settings.beams[i]
-    if (!b.motion) settings.beams[i] = { ...b, motion: DEFAULT_BEAM_MOTION }
+    if (!b.motion) {
+      settings.beams[i] = { ...b, motion: DEFAULT_BEAM_MOTION }
+    } else if (
+      (b.motion as { direction?: unknown }).direction !== 'forward'
+      || (b.motion as { mode?: unknown }).mode === 'pingPong'
+    ) {
+      settings.beams[i] = {
+        ...b,
+        motion: {
+          ...b.motion,
+          direction: 'forward',
+          mode: (b.motion as { mode?: unknown }).mode === 'pingPong' ? 'grow' : b.motion.mode,
+        },
+      }
+    }
     if (!Number.isFinite(b.sequenceIndex)) settings.beams[i] = { ...settings.beams[i], sequenceIndex: i }
   }
   for (let i = 0; i < settings.groups.length; i++) {

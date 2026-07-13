@@ -61,7 +61,7 @@ export function createBankHitMutation(
     width?: number
     glow?: number
     geometry?: 'line' | 'volumetricCone'
-    travelMode?: 'static' | 'grow' | 'projectile' | 'scanner' | 'pulseTrain' | 'pingPong'
+    travelMode?: 'static' | 'grow' | 'projectile' | 'scanner' | 'pulseTrain'
     visualRole?: 'hero' | 'impact' | 'primary' | 'secondary' | 'texture'
   } = {},
 ): ThresholdMutation {

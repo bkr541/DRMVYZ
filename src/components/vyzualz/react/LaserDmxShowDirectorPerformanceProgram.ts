@@ -635,8 +635,7 @@ const TRIGGER_RETRIGGER = new Set<LaserDmxShowDirectorTriggerConfig['retrigger']
 const BEAT_DIVISIONS = new Set<LaserDmxShowDirectorTriggerConfig['beatDivision']>([0.25, 0.5, 1, 2, 4, 8])
 const AUDIO_BANDS = new Set<LaserDmxShowDirectorTriggerConfig['audioBand']>(['sub', 'bass', 'lowMid', 'mid', 'highMid', 'high'])
 const BEAM_GEOMETRIES = new Set<LaserDmxMatrixBeamAppearance['geometry']>(['line', 'volumetricCone'])
-const TRAVEL_MODES = new Set<LaserDmxBeamMotion['mode']>(['static', 'grow', 'projectile', 'scanner', 'pulseTrain', 'pingPong'])
-const TRAVEL_DIRECTIONS = new Set<LaserDmxBeamMotion['direction']>(['forward', 'reverse', 'alternate'])
+const TRAVEL_MODES = new Set<LaserDmxBeamMotion['mode']>(['static', 'grow', 'projectile', 'scanner', 'pulseTrain'])
 const TRAVEL_EASINGS = new Set<LaserDmxBeamMotion['easing']>(['linear', 'easeIn', 'easeOut', 'easeInOut'])
 const TRAVEL_RETRIGGER = new Set<LaserDmxBeamMotion['retrigger']>(['restart', 'continue', 'queue'])
 const LED_DIRECTIONS = new Set<LaserDmxShowDirectorFixtureSpecificConfig['ledDirection']>(['leftToRight', 'rightToLeft', 'centerOut', 'edgesIn', 'chase'])
@@ -790,10 +789,11 @@ function normalizeBeamAppearance(raw: unknown): Partial<LaserDmxMatrixBeamAppear
 function normalizeBeamTravel(raw: unknown): Partial<LaserDmxBeamMotion> | undefined {
   if (!isRecord(raw)) return undefined
   const travel: Partial<LaserDmxBeamMotion> = {}
-  if (TRAVEL_MODES.has(raw.mode as LaserDmxBeamMotion['mode'])) travel.mode = raw.mode as LaserDmxBeamMotion['mode']
+  if (raw.mode === 'pingPong') travel.mode = 'grow'
+  else if (TRAVEL_MODES.has(raw.mode as LaserDmxBeamMotion['mode'])) travel.mode = raw.mode as LaserDmxBeamMotion['mode']
   const beatsPerTravel = optionalFinite(raw.beatsPerTravel, 0.25, 16); if (beatsPerTravel != null) travel.beatsPerTravel = beatsPerTravel
   const phaseOffset = optionalFinite(raw.phaseOffset, 0, 1); if (phaseOffset != null) travel.phaseOffset = phaseOffset
-  if (TRAVEL_DIRECTIONS.has(raw.direction as LaserDmxBeamMotion['direction'])) travel.direction = raw.direction as LaserDmxBeamMotion['direction']
+  if (typeof raw.direction === 'string') travel.direction = 'forward'
   const tailLength = optionalFinite(raw.tailLength, 0, 1); if (tailLength != null) travel.tailLength = tailLength
   const headGlow = optionalFinite(raw.headGlow, 0, 1); if (headGlow != null) travel.headGlow = headGlow
   if (TRAVEL_EASINGS.has(raw.easing as LaserDmxBeamMotion['easing'])) travel.easing = raw.easing as LaserDmxBeamMotion['easing']

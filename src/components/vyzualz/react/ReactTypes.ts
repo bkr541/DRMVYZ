@@ -1893,13 +1893,13 @@ export type LaserDmxBeamTravelMode =
   | 'projectile'  // Segment travels along path; tail trails behind
   | 'scanner'     // Short bright segment sweeps along path
   | 'pulseTrain'  // Multiple pulse segments traveling in unison
-  | 'pingPong'    // Beam tip bounces back and forth (triangle wave)
 
 export interface LaserDmxBeamMotion {
   mode:           LaserDmxBeamTravelMode
   beatsPerTravel: number   // 0.25–16 beats for a full path traversal
   phaseOffset:    number   // 0–1 phase shift (delays beat alignment per beam)
-  direction:      'forward' | 'reverse' | 'alternate'
+  /** Beam travel always progresses from the fixture origin toward its target. */
+  direction:      'forward'
   tailLength:     number   // 0–1 fraction of path used as tail / pulse width
   headGlow:       number   // 0–1 extra brightness at beam head
   easing:         'linear' | 'easeIn' | 'easeOut' | 'easeInOut'

@@ -43,13 +43,13 @@ export function applyEasing(t: number, easing: string): number {
  *
  * @param mode        Travel mode.
  * @param rawProgress 0–1 travel progress (from sequence or free-running phase).
- *                    pingPong applies triangle-wave internally.
+ *                    Legacy pingPong values are treated as forward grow.
  * @param tailLength  0–1 fraction of path occupied by tail / pulse width.
  * @param headGlow    0–1 head-flare brightness (0 = no flare).
- * @param easing      Easing function name (applied after pingPong fold-back).
+ * @param easing      Easing function name.
  */
 export function computeKinematics(
-  mode:        LaserDmxBeamTravelMode,
+  mode:        LaserDmxBeamTravelMode | 'pingPong',
   rawProgress: number,
   tailLength:  number,
   headGlow:    number,
@@ -59,12 +59,10 @@ export function computeKinematics(
     return { visibleOriginFrac: 0, visibleTargetFrac: 1, headIntensity: 0 }
   }
 
-  // pingPong: fold raw 0→1 into triangle wave 0→1→0 before easing
-  const folded = mode === 'pingPong'
-    ? (rawProgress < 0.5 ? rawProgress * 2 : (1 - rawProgress) * 2)
-    : rawProgress
-
-  const p = applyEasing(folded < 0 ? 0 : folded > 1 ? 1 : folded, easing)
+  // Beam travel is physically source-to-target only. Legacy pingPong values
+  // deliberately use the same monotonic progress as grow instead of folding
+  // back toward the fixture.
+  const p = applyEasing(rawProgress < 0 ? 0 : rawProgress > 1 ? 1 : rawProgress, easing)
 
   switch (mode) {
     case 'grow':

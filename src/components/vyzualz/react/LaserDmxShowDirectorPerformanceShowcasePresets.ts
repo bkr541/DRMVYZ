@@ -942,7 +942,7 @@ function prismDropScene(dropTwo: boolean): LaserDmxShowDirectorPerformanceScene 
     ...impact,
     barMutations: [
       { id: `prism-${suffix}-bar-forward`, intervalBars: 2, anchorBar: 0, address: { fixtureSemanticKeys: PRISM_LEFT }, fixture: { rotation: -18, beamTravel: { mode: 'grow', beatsPerTravel: 1, direction: 'forward' } } },
-      { id: `prism-${suffix}-bar-reverse`, intervalBars: 2, anchorBar: 1, address: { fixtureSemanticKeys: PRISM_RIGHT }, fixture: { rotation: 18, beamTravel: { mode: 'grow', beatsPerTravel: 1, direction: 'reverse' } } },
+      { id: `prism-${suffix}-bar-counter`, intervalBars: 2, anchorBar: 1, address: { fixtureSemanticKeys: PRISM_RIGHT }, fixture: { rotation: 18, beamTravel: { mode: 'grow', beatsPerTravel: 1, direction: 'forward' } } },
     ],
     fourBarVariations: [
       { id: `prism-${suffix}-large-x-lattice`, address: { fixtureSemanticKeys: PRISM_OUTER }, fixture: { enabled: true, targetMode: 'fixed', targetPoints: PRISM_X, fanSpread: dropTwo ? 100 : 82 } },
@@ -970,8 +970,8 @@ function prismBreakdownScene(): LaserDmxShowDirectorPerformanceScene {
   return baseScene('prism-breakdown', 'Prism Cathedral · Breakdown', section(['breakdown', 'bridge']), {
     global: { dimmer: 0.5, globalGlow: 0.58, beamPersistence: 0.58, backgroundFade: 0.72 },
     eightBarRecruitment: [
-      enableFixtures('prism-breakdown-spears', 1, ['prism-upper-outer-left', 'prism-lower-outer-right'], { brightness: 0.62, color: WHITE, fanSpread: 8, targetMode: 'fixed', targetPoints: PRISM_SPEARS.slice(0, 2), beamTravel: { mode: 'static', beatsPerTravel: 8, direction: 'alternate' } }),
-      enableFixtures('prism-breakdown-lavender', 2, ['prism-upper-inner-right', 'prism-lower-inner-left'], { brightness: 0.54, color: LAVENDER, fanSpread: 10, targetMode: 'fixed', targetPoints: PRISM_SPEARS.slice(2, 4), beamTravel: { mode: 'static', beatsPerTravel: 12, direction: 'alternate' } }),
+      enableFixtures('prism-breakdown-spears', 1, ['prism-upper-outer-left', 'prism-lower-outer-right'], { brightness: 0.62, color: WHITE, fanSpread: 8, targetMode: 'fixed', targetPoints: PRISM_SPEARS.slice(0, 2), beamTravel: { mode: 'static', beatsPerTravel: 8, direction: 'forward' } }),
+      enableFixtures('prism-breakdown-lavender', 2, ['prism-upper-inner-right', 'prism-lower-inner-left'], { brightness: 0.54, color: LAVENDER, fanSpread: 10, targetMode: 'fixed', targetPoints: PRISM_SPEARS.slice(2, 4), beamTravel: { mode: 'static', beatsPerTravel: 12, direction: 'forward' } }),
     ],
     beatMutations: alternatingBeatMutations('prism-breakdown', ['prism-upper-outer-left', 'prism-lower-inner-left'], ['prism-upper-inner-right', 'prism-lower-outer-right'], { spreadA: 14, spreadB: 6, rotation: 2 }),
     barMutations: [
@@ -1248,7 +1248,7 @@ function cardinalDropScene(dropTwo: boolean): LaserDmxShowDirectorPerformanceSce
     ],
     barMutations: [
       { id: `cardinal-${suffix}-rotate-clockwise`, intervalBars: 2, anchorBar: 0, address: { fixtureSemanticKeys: [...allCardinal, ...CARDINAL_DIAGONALS] }, fixture: { rotation: 18, beamTravel: { mode: 'static', beatsPerTravel: 2, direction: 'forward' } } },
-      { id: `cardinal-${suffix}-rotate-counter`, intervalBars: 2, anchorBar: 1, address: { fixtureSemanticKeys: [...allCardinal, ...CARDINAL_DIAGONALS] }, fixture: { rotation: -18, beamTravel: { mode: 'static', beatsPerTravel: 2, direction: 'reverse' } } },
+      { id: `cardinal-${suffix}-rotate-counter`, intervalBars: 2, anchorBar: 1, address: { fixtureSemanticKeys: [...allCardinal, ...CARDINAL_DIAGONALS] }, fixture: { rotation: -18, beamTravel: { mode: 'static', beatsPerTravel: 2, direction: 'forward' } } },
     ],
     fourBarVariations: [
       { id: `cardinal-${suffix}-outward-fans`, address: { fixtureSemanticKeys: allCardinal }, fixture: { enabled: true, targetMode: 'fixed', targetPoints: CARDINAL_OUTWARD, fanSpread: dropTwo ? 108 : 88 } },
@@ -1291,8 +1291,8 @@ function cardinalBreakdownScene(): LaserDmxShowDirectorPerformanceScene {
   return baseScene('cardinal-breakdown', 'Cardinal Fan Reactor · Breakdown', section(['breakdown', 'bridge']), {
     global: { dimmer: 0.48, globalGlow: 0.56, beamPersistence: 0.62, backgroundFade: 0.74 },
     eightBarRecruitment: [
-      enableGroup('cardinal-breakdown-top', 1, 'cardinal-top', { brightness: 0.58, color: ICE, fanSpread: 12, targetMode: 'fixed', targetPoints: CARDINAL_SPEARS.slice(0, 2), beamTravel: { mode: 'static', beatsPerTravel: 10, direction: 'alternate' } }),
-      enableGroup('cardinal-breakdown-bottom', 1, 'cardinal-bottom', { brightness: 0.58, color: LAVENDER, fanSpread: 12, targetMode: 'fixed', targetPoints: CARDINAL_SPEARS.slice(2, 4), beamTravel: { mode: 'static', beatsPerTravel: 10, direction: 'alternate' } }),
+      enableGroup('cardinal-breakdown-top', 1, 'cardinal-top', { brightness: 0.58, color: ICE, fanSpread: 12, targetMode: 'fixed', targetPoints: CARDINAL_SPEARS.slice(0, 2), beamTravel: { mode: 'static', beatsPerTravel: 10, direction: 'forward' } }),
+      enableGroup('cardinal-breakdown-bottom', 1, 'cardinal-bottom', { brightness: 0.58, color: LAVENDER, fanSpread: 12, targetMode: 'fixed', targetPoints: CARDINAL_SPEARS.slice(2, 4), beamTravel: { mode: 'static', beatsPerTravel: 10, direction: 'forward' } }),
       enableFixtures('cardinal-breakdown-side-spears', 2, ['cardinal-left-primary', 'cardinal-right-primary'], { brightness: 0.48, color: WHITE, fanSpread: 6, targetMode: 'fixed', targetPoints: CARDINAL_INWARD.slice(0, 2) }),
     ],
     beatMutations: alternatingBeatMutations('cardinal-breakdown', ['cardinal-top-primary', 'cardinal-left-primary'], ['cardinal-bottom-primary', 'cardinal-right-primary'], { spreadA: 16, spreadB: 6, rotation: 2 }),
@@ -1446,7 +1446,7 @@ function cageIntroScene(): LaserDmxShowDirectorPerformanceScene {
   return baseScene('cage-intro', 'Cyan Mirror Cage · Intro', section(['intro']), {
     global: { dimmer: 0.54, globalGlow: 0.58, beamPersistence: 0.52, backgroundFade: 0.7 },
     eightBarRecruitment: [
-      enableFixtures('cage-intro-outer-spears', 1, ['cage-upper-left-outer', 'cage-lower-right-outer'], { brightness: 0.56, color: WHITE, fanSpread: 8, targetMode: 'fixed', targetPoints: CAGE_SPEARS.slice(0, 2), beamTravel: { mode: 'grow', beatsPerTravel: 4, direction: 'alternate' } }),
+      enableFixtures('cage-intro-outer-spears', 1, ['cage-upper-left-outer', 'cage-lower-right-outer'], { brightness: 0.56, color: WHITE, fanSpread: 8, targetMode: 'fixed', targetPoints: CAGE_SPEARS.slice(0, 2), beamTravel: { mode: 'grow', beatsPerTravel: 4, direction: 'forward' } }),
       enableGroup('cage-intro-upper-inner', 2, 'cage-upper-inner', { brightness: 0.58, color: ICE, fanSpread: 18, targetMode: 'fixed', targetPoints: CAGE_CHEVRONS.slice(0, 4) }),
       enableGroup('cage-intro-lower-inner', 3, 'cage-lower-inner', { brightness: 0.54, color: CYAN, fanSpread: 18, targetMode: 'fixed', targetPoints: CAGE_CHEVRONS.slice(4, 8) }),
     ],
@@ -1567,7 +1567,7 @@ function cageDropScene(dropTwo: boolean): LaserDmxShowDirectorPerformanceScene {
     ...impact,
     barMutations: [
       { id: `cage-${suffix}-travel-inward`, intervalBars: 2, anchorBar: 0, address: { fixtureSemanticKeys: [...CAGE_INNER, ...CAGE_OUTER] }, fixture: { targetPoints: CAGE_DIAMOND, beamTravel: { mode: 'grow', beatsPerTravel: 1, direction: 'forward' }, rotation: -14 } },
-      { id: `cage-${suffix}-travel-outward`, intervalBars: 2, anchorBar: 1, address: { fixtureSemanticKeys: [...CAGE_INNER, ...CAGE_OUTER] }, fixture: { targetPoints: CAGE_WINGS, beamTravel: { mode: 'grow', beatsPerTravel: 1, direction: 'reverse' }, rotation: 14 } },
+      { id: `cage-${suffix}-travel-outward`, intervalBars: 2, anchorBar: 1, address: { fixtureSemanticKeys: [...CAGE_INNER, ...CAGE_OUTER] }, fixture: { targetPoints: CAGE_WINGS, beamTravel: { mode: 'grow', beatsPerTravel: 1, direction: 'forward' }, rotation: 14 } },
     ],
     fourBarVariations: [
       { id: `cage-${suffix}-wide-mirrored-cage`, address: { fixtureSemanticKeys: CAGE_OUTER }, fixture: { enabled: true, targetMode: 'fixed', targetPoints: CAGE_WIDE, fanSpread: dropTwo ? 102 : 82 } },
@@ -1611,8 +1611,8 @@ function cageBreakdownScene(): LaserDmxShowDirectorPerformanceScene {
   return baseScene('cage-breakdown', 'Cyan Mirror Cage · Breakdown', section(['breakdown', 'bridge']), {
     global: { dimmer: 0.46, globalGlow: 0.54, beamPersistence: 0.64, backgroundFade: 0.78 },
     eightBarRecruitment: [
-      enableFixtures('cage-breakdown-diagonals', 1, ['cage-upper-left-outer', 'cage-lower-right-outer'], { brightness: 0.58, color: WHITE, fanSpread: 8, targetMode: 'fixed', targetPoints: CAGE_SPEARS.slice(0, 2), beamTravel: { mode: 'static', beatsPerTravel: 10, direction: 'alternate' } }),
-      enableFixtures('cage-breakdown-lavender', 2, ['cage-upper-right-inner', 'cage-lower-left-inner'], { brightness: 0.52, color: LAVENDER, fanSpread: 10, targetMode: 'fixed', targetPoints: CAGE_SPEARS.slice(2, 4), beamTravel: { mode: 'static', beatsPerTravel: 12, direction: 'alternate' } }),
+      enableFixtures('cage-breakdown-diagonals', 1, ['cage-upper-left-outer', 'cage-lower-right-outer'], { brightness: 0.58, color: WHITE, fanSpread: 8, targetMode: 'fixed', targetPoints: CAGE_SPEARS.slice(0, 2), beamTravel: { mode: 'static', beatsPerTravel: 10, direction: 'forward' } }),
+      enableFixtures('cage-breakdown-lavender', 2, ['cage-upper-right-inner', 'cage-lower-left-inner'], { brightness: 0.52, color: LAVENDER, fanSpread: 10, targetMode: 'fixed', targetPoints: CAGE_SPEARS.slice(2, 4), beamTravel: { mode: 'static', beatsPerTravel: 12, direction: 'forward' } }),
     ],
     beatMutations: alternatingBeatMutations('cage-breakdown', ['cage-upper-left-outer', 'cage-lower-left-inner'], ['cage-upper-right-inner', 'cage-lower-right-outer'], { spreadA: 14, spreadB: 5, rotation: 2 }),
     barMutations: [

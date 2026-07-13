@@ -263,7 +263,7 @@ function drawVolumetricCone(
 
 /**
  * Draw a radial head flare at the beam's leading edge.
- * Position: visibleTarget normally, visibleOrigin when headAtOriginFrac=true.
+ * Position: always the target-facing end of the visible beam segment.
  */
 function drawHeadGlow(
   ctx:       CanvasRenderingContext2D,
@@ -274,7 +274,7 @@ function drawHeadGlow(
   const alpha = clamp01(intensity * beam.rgba.a * beam.headIntensity)
   if (alpha < 0.01) return
 
-  const pt = beam.headAtOriginFrac ? beam.visibleOrigin : beam.visibleTarget
+  const pt = beam.visibleTarget
   const { r, g, b } = beam.rgba
   const profile = profileFor(beam)
   const radius = Math.max(1.5, beam.beamWidth * profile.headRadius)

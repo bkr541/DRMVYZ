@@ -203,7 +203,7 @@ function barOpposition(
     },
     {
       id: `${prefix}-bar-b`, intervalBars: 2, anchorBar: 1, address: { bankRoles: [role] },
-      fixture: { rotation, targetMode: 'fixed', targetPointsByFixtureSemanticKey: targetB, beamTravel: { direction: 'reverse' } },
+      fixture: { rotation, targetMode: 'fixed', targetPointsByFixtureSemanticKey: targetB, beamTravel: { direction: 'forward' } },
     },
   ]
 }

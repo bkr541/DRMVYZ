@@ -1157,7 +1157,7 @@ describe('Alternating Fan — structure', () => {
   })
 })
 
-describe('Ping Pong Pulse — structure', () => {
+describe('Forward Pulse — structure', () => {
   it('has 6 beams', () => {
     expect(createLaserDmxBeamMatrixPresetSettings('ping-pong-pulse')!.beams).toHaveLength(6)
   })
@@ -1167,6 +1167,13 @@ describe('Ping Pong Pulse — structure', () => {
   it('all beams use line geometry', () => {
     const s = createLaserDmxBeamMatrixPresetSettings('ping-pong-pulse')!
     for (const b of s.beams) expect(b.appearance.geometry).toBe('line')
+  })
+  it('all beams use forward grow motion', () => {
+    const s = createLaserDmxBeamMatrixPresetSettings('ping-pong-pulse')!
+    for (const b of s.beams) {
+      expect(b.motion.mode).toBe('grow')
+      expect(b.motion.direction).toBe('forward')
+    }
   })
   it('group has sequence mode=forward with stepsPerBeat=2', () => {
     const s = createLaserDmxBeamMatrixPresetSettings('ping-pong-pulse')!

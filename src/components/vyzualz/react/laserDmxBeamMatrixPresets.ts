@@ -1677,10 +1677,10 @@ function createPhraseScannerSettings(): LaserDmxBeamMatrixSettings {
     { enabled: true, mode: 'all', stepsPerBeat: 1, stepGate: 0.85 },
   )
 
-  // Reverse scanners — alternate phrase pattern via trigger routing
+  // Counter-direction scanners originate on the right and travel toward the left.
   const scanRev = mkSeqGroup(
     `${P}:group:rev`,
-    'Scan Reverse',
+    'Counter Scan',
     mkColor(255, 160, 0, 25, 1),
     [
       mkRoute(`${P}:route:downbeat-glow`, 'downbeat', 'beamGlow', 'trigger',
@@ -1695,17 +1695,17 @@ function createPhraseScannerSettings(): LaserDmxBeamMatrixSettings {
     geometry: 'line',
   }
   const fwdMotion: Partial<LaserDmxBeamMotion> = { mode: 'scanner', beatsPerTravel: 1, tailLength: 0.2, direction: 'forward', easing: 'easeInOut' }
-  const revMotion: Partial<LaserDmxBeamMotion> = { mode: 'scanner', beatsPerTravel: 1, tailLength: 0.2, direction: 'reverse', easing: 'easeInOut' }
+  const counterMotion: Partial<LaserDmxBeamMotion> = { mode: 'scanner', beatsPerTravel: 1, tailLength: 0.2, direction: 'forward', easing: 'easeInOut' }
 
   const beams = withSequenceIndices([
     mkMotionBeam(`${P}:beam:f1`, 'Fwd 1', scanFwd.id,  1,  2, 15,  2, app, fwdMotion),
     mkMotionBeam(`${P}:beam:f2`, 'Fwd 2', scanFwd.id,  1,  4, 15,  4, app, fwdMotion),
     mkMotionBeam(`${P}:beam:f3`, 'Fwd 3', scanFwd.id,  1,  6, 15,  6, app, fwdMotion),
     mkMotionBeam(`${P}:beam:f4`, 'Fwd 4', scanFwd.id,  1,  8, 15,  8, app, fwdMotion),
-    mkMotionBeam(`${P}:beam:r1`, 'Rev 1', scanRev.id, 15,  3,  1,  3, app, revMotion),
-    mkMotionBeam(`${P}:beam:r2`, 'Rev 2', scanRev.id, 15,  5,  1,  5, app, revMotion),
-    mkMotionBeam(`${P}:beam:r3`, 'Rev 3', scanRev.id, 15,  7,  1,  7, app, revMotion),
-    mkMotionBeam(`${P}:beam:r4`, 'Rev 4', scanRev.id, 15,  9,  1,  9, app, revMotion),
+    mkMotionBeam(`${P}:beam:r1`, 'Counter 1', scanRev.id, 15,  3,  1,  3, app, counterMotion),
+    mkMotionBeam(`${P}:beam:r2`, 'Counter 2', scanRev.id, 15,  5,  1,  5, app, counterMotion),
+    mkMotionBeam(`${P}:beam:r3`, 'Counter 3', scanRev.id, 15,  7,  1,  7, app, counterMotion),
+    mkMotionBeam(`${P}:beam:r4`, 'Counter 4', scanRev.id, 15,  9,  1,  9, app, counterMotion),
   ])
 
   return {
@@ -1802,7 +1802,7 @@ function createAlternatingFanSettings(): LaserDmxBeamMatrixSettings {
     strobeRate: 0, flickerAmount: 0, divergence: 0.2, glow: 0.62,
     geometry: 'volumetricCone',
   }
-  const growMotion: Partial<LaserDmxBeamMotion> = { mode: 'grow', beatsPerTravel: 0.5, direction: 'alternate', easing: 'easeInOut', headGlow: 0.55 }
+  const growMotion: Partial<LaserDmxBeamMotion> = { mode: 'grow', beatsPerTravel: 0.5, direction: 'forward', easing: 'easeInOut', headGlow: 0.55 }
 
   const beams = withSequenceIndices([
     mkMotionBeam(`${P}:beam:c1r10-c8r1`,   'Fan L1',  altFan.id,  1, 10, 8,  1, app, growMotion),
@@ -1831,14 +1831,14 @@ function createAlternatingFanSettings(): LaserDmxBeamMatrixSettings {
   }
 }
 
-// ── Preset 20: Ping Pong Pulse ────────────────────────────────────────────────
+// ── Preset 20: Forward Pulse ────────────────────────────────────────────────
 
-function createPingPongPulseSettings(): LaserDmxBeamMatrixSettings {
+function createForwardPulseSettings(): LaserDmxBeamMatrixSettings {
   const P = 'ping-pong-pulse'
 
   const pingGroup = mkSeqGroup(
     `${P}:group:ping`,
-    'Ping Pong Pulse',
+    'Forward Pulse',
     mkColor(0, 255, 130, 20, 1),
     [
       mkRoute(`${P}:route:energy-dimmer`, 'energy', 'dimmer', 'set',
@@ -1854,16 +1854,16 @@ function createPingPongPulseSettings(): LaserDmxBeamMatrixSettings {
     strobeRate: 0, flickerAmount: 0, divergence: 0.04, glow: 0.58,
     geometry: 'line',
   }
-  const pingMotion: Partial<LaserDmxBeamMotion> = { mode: 'pingPong', beatsPerTravel: 1, easing: 'easeInOut', headGlow: 0.5 }
+  const pulseMotion: Partial<LaserDmxBeamMotion> = { mode: 'grow', beatsPerTravel: 1, easing: 'easeInOut', headGlow: 0.5, direction: 'forward' }
 
-  // 6 beams across the stage forming a ping-pong grid
+  // 6 beams across the stage forming a forward-launch grid
   const beams = withSequenceIndices([
-    mkMotionBeam(`${P}:beam:c1r1-c15r1`,   'H1', pingGroup.id,  1,  1, 15,  1, app, pingMotion),
-    mkMotionBeam(`${P}:beam:c1r3-c15r3`,   'H2', pingGroup.id,  1,  3, 15,  3, app, pingMotion),
-    mkMotionBeam(`${P}:beam:c1r5-c15r5`,   'H3', pingGroup.id,  1,  5, 15,  5, app, pingMotion),
-    mkMotionBeam(`${P}:beam:c1r7-c15r7`,   'H4', pingGroup.id,  1,  7, 15,  7, app, pingMotion),
-    mkMotionBeam(`${P}:beam:c1r9-c15r9`,   'H5', pingGroup.id,  1,  9, 15,  9, app, pingMotion),
-    mkMotionBeam(`${P}:beam:c1r10-c15r10`, 'H6', pingGroup.id,  1, 10, 15, 10, app, pingMotion),
+    mkMotionBeam(`${P}:beam:c1r1-c15r1`,   'H1', pingGroup.id,  1,  1, 15,  1, app, pulseMotion),
+    mkMotionBeam(`${P}:beam:c1r3-c15r3`,   'H2', pingGroup.id,  1,  3, 15,  3, app, pulseMotion),
+    mkMotionBeam(`${P}:beam:c1r5-c15r5`,   'H3', pingGroup.id,  1,  5, 15,  5, app, pulseMotion),
+    mkMotionBeam(`${P}:beam:c1r7-c15r7`,   'H4', pingGroup.id,  1,  7, 15,  7, app, pulseMotion),
+    mkMotionBeam(`${P}:beam:c1r9-c15r9`,   'H5', pingGroup.id,  1,  9, 15,  9, app, pulseMotion),
+    mkMotionBeam(`${P}:beam:c1r10-c15r10`, 'H6', pingGroup.id,  1, 10, 15, 10, app, pulseMotion),
   ])
 
   return {
@@ -2018,9 +2018,9 @@ export const LASER_DMX_BEAM_MATRIX_PRESETS: LaserDmxBeamMatrixPreset[] = [
   {
     id:          'phrase-scanner',
     name:        'Phrase Scanner',
-    description: 'Forward and reverse scanner groups sweep across horizontal rows, crossing on phrase boundaries.',
+    description: 'Opposed scanner groups launch from their fixtures across horizontal rows, crossing on phrase boundaries.',
     category:    'rhythmic',
-    tags:        ['scanner', 'phrase', 'forward', 'reverse', 'sequence', 'cyan', 'amber'],
+    tags:        ['scanner', 'phrase', 'forward', 'counter', 'sequence', 'cyan', 'amber'],
     createSettings: createPhraseScannerSettings,
   },
   {
@@ -2041,11 +2041,11 @@ export const LASER_DMX_BEAM_MATRIX_PRESETS: LaserDmxBeamMatrixPreset[] = [
   },
   {
     id:          'ping-pong-pulse',
-    name:        'Ping Pong Pulse',
-    description: 'Six horizontal beams ping-pong back and forth on eighth-note steps, driven by energy and spectral flux.',
+    name:        'Forward Pulse',
+    description: 'Six horizontal beams launch source-to-target on eighth-note steps, driven by energy and spectral flux.',
     category:    'rhythmic',
-    tags:        ['pingPong', 'pulse', 'sequence', 'green', 'horizontal', 'energy'],
-    createSettings: createPingPongPulseSettings,
+    tags:        ['forward', 'pulse', 'sequence', 'green', 'horizontal', 'energy'],
+    createSettings: createForwardPulseSettings,
   },
 ]
 

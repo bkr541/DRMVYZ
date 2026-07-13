@@ -811,10 +811,15 @@ function makeBeam(
   motionPatch: Partial<LaserDmxMatrixBeam['motion']> = {},
   routes: LaserDmxModulationRoute[] = [],
 ): LaserDmxMatrixBeam {
-  const motion = {
+  const requestedMotion = {
     ...DEFAULT_BEAM_MOTION,
     ...motionPatch,
     ...(fixture.runtimeBeamTravel ?? {}),
+  }
+  const motion: LaserDmxMatrixBeam['motion'] = {
+    ...requestedMotion,
+    direction: 'forward',
+    mode: (requestedMotion.mode as string) === 'pingPong' ? 'grow' : requestedMotion.mode,
   }
   return {
     id: beamIdForFixture(fixture, suffix),
@@ -881,7 +886,7 @@ function compileBeamFixture(
         : movingHeadPanTiltStyle === 'locked'
           ? 'static'
           : isMovingHead
-            ? 'pingPong'
+            ? 'grow'
             : 'static'
     ctx.matrixBeams.push(makeBeam(
       fixture,
@@ -901,7 +906,7 @@ function compileBeamFixture(
         beatsPerTravel: Math.max(0.5, finite(fixture.trigger.beatDivision, 1) * 2),
         tailLength: fixture.kind === 'laser' ? 0.22 : 0.38,
         headGlow: fixture.kind === 'laser' ? 0.35 : 0.72,
-        direction: fixture.beam.targetMode === 'mirror' ? 'alternate' : 'forward',
+        direction: 'forward',
       },
     ))
     ctx.outputBeamCount++

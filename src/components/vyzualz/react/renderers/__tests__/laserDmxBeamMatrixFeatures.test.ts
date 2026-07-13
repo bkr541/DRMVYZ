@@ -1,12 +1,12 @@
 /**
  * Feature tests for the LaserDMX Beam Matrix implementation:
  *   - phaseSpread stagger
- *   - direction (forward / reverse / alternate)
+ *   - physically forward-only travel (legacy reverse / alternate coercion)
  *   - beatsPerTravel in sequenced mode
  *   - retrigger modes (restart / continue / queue)
  *   - audio launch triggers
  *   - pulse train segments in compiled output
- *   - head glow + headAtOriginFrac for reverse direction
+ *   - head glow remains on the target-facing travel head
  *   - group route ops (add / multiply relative to beam base)
  *   - white channel blending
  *   - maxActiveBeams enforcement
@@ -201,60 +201,63 @@ describe('phaseSpread', () => {
   })
 })
 
-// ── 2. Direction ──────────────────────────────────────────────────────────────
+// ── 2. Physically forward-only travel ────────────────────────────────────────
 
-describe('direction', () => {
+describe('beam travel direction', () => {
   beforeEach(() => resetBeamMatrixCompilerState())
 
-  it('forward direction: headAtOriginFrac=false', () => {
+  it('forward grow remains anchored at the fixture and extends toward the target', () => {
     const beam = makeBeam({
       motion: { ...DEFAULT_BEAM_MOTION, mode: 'grow', direction: 'forward', beatsPerTravel: 1 },
     })
     const mi = makeMi({ rhythm: { bpm: 120, beatIndex: 0, beatPhase: 0.5, beatInBar: 0, barIndex: 0 } })
-    const result = compile(makeSettings([beam]), mi)
-    expect(result.beams[0].headAtOriginFrac).toBe(false)
+    const compiled = compile(makeSettings([beam]), mi).beams[0]
+
+    expect(compiled.visibleOrigin.x).toBeCloseTo(compiled.origin.x)
+    expect(compiled.visibleOrigin.y).toBeCloseTo(compiled.origin.y)
+    expect(compiled.visibleTarget.x).toBeGreaterThan(compiled.visibleOrigin.x)
+    expect(compiled.visibleTarget.x).toBeLessThan(compiled.target.x)
   })
 
-  it('reverse direction: headAtOriginFrac=true', () => {
+  it('legacy reverse grow is coerced to fixture-to-target travel', () => {
     const beam = makeBeam({
-      motion: { ...DEFAULT_BEAM_MOTION, mode: 'grow', direction: 'reverse', beatsPerTravel: 1 },
+      motion: { ...DEFAULT_BEAM_MOTION, mode: 'grow', direction: 'reverse' as any, beatsPerTravel: 1 },
     })
     const mi = makeMi({ rhythm: { bpm: 120, beatIndex: 0, beatPhase: 0.5, beatInBar: 0, barIndex: 0 } })
-    const result = compile(makeSettings([beam]), mi)
-    expect(result.beams[0].headAtOriginFrac).toBe(true)
+    const compiled = compile(makeSettings([beam]), mi).beams[0]
+
+    expect(compiled.visibleOrigin.x).toBeCloseTo(compiled.origin.x)
+    expect(compiled.visibleOrigin.y).toBeCloseTo(compiled.origin.y)
+    expect(compiled.visibleTarget.x).toBeGreaterThan(compiled.visibleOrigin.x)
   })
 
-  it('reverse mirrors travelProgress frac: visibleOrigin.x > visibleTarget.x when reversed at p=0.5 along a left-to-right beam', () => {
-    // A horizontal beam from left to right: forward would put head to the right
-    // Reverse would flip, so visibleOrigin (head) appears to the right of visibleTarget
+  it('legacy reverse projectile still advances from origin toward target', () => {
     const beam = makeBeam({
-      motion: { ...DEFAULT_BEAM_MOTION, mode: 'projectile', direction: 'reverse', tailLength: 0.2, beatsPerTravel: 1 },
+      motion: { ...DEFAULT_BEAM_MOTION, mode: 'projectile', direction: 'reverse' as any, tailLength: 0.2, beatsPerTravel: 1 },
     })
     const mi = makeMi({ rhythm: { bpm: 120, beatIndex: 0, beatPhase: 0.5, beatInBar: 0, barIndex: 0 } })
-    const result = compile(makeSettings([beam]), mi)
-    const b = result.beams[0]
-    // For reverse projectile at ~p=0.5: the visible segment is mirrored
-    expect(b.headAtOriginFrac).toBe(true)
-    expect(b.travelProgress).toBeGreaterThan(0)
+    const compiled = compile(makeSettings([beam]), mi).beams[0]
+
+    expect(compiled.visibleOrigin.x).toBeLessThan(compiled.visibleTarget.x)
   })
 
-  it('alternate: even-index beam is forward (headAtOriginFrac=false)', () => {
+  it('legacy alternate direction cannot reverse odd-index beams', () => {
     const group = makeGroup({
       id: 'g-alt',
-      sequence: { ...DEFAULT_BEAM_SEQUENCE, enabled: true, mode: 'forward', stepsPerBeat: 1, stepGate: 1 },
+      sequence: { ...DEFAULT_BEAM_SEQUENCE, enabled: true, mode: 'all', stepsPerBeat: 1, stepGate: 1 },
     })
     const beams = [
-      makeBeam({ id: 'b0', groupId: 'g-alt', sequenceIndex: 0, motion: { ...DEFAULT_BEAM_MOTION, mode: 'grow', direction: 'alternate', beatsPerTravel: 4 } }),
-      makeBeam({ id: 'b1', groupId: 'g-alt', sequenceIndex: 1, motion: { ...DEFAULT_BEAM_MOTION, mode: 'grow', direction: 'alternate', beatsPerTravel: 4 } }),
+      makeBeam({ id: 'b0', groupId: 'g-alt', sequenceIndex: 0, motion: { ...DEFAULT_BEAM_MOTION, mode: 'grow', direction: 'alternate' as any, beatsPerTravel: 4 } }),
+      makeBeam({ id: 'b1', groupId: 'g-alt', sequenceIndex: 1, motion: { ...DEFAULT_BEAM_MOTION, mode: 'grow', direction: 'alternate' as any, beatsPerTravel: 4 } }),
     ]
     const settings = makeSettings(beams, { masterDimmer: 1, safetyClamp: 1 }, [group])
-    const mi = makeMi({ rhythm: { bpm: 120, beatIndex: 0, beatPhase: 0.1, beatInBar: 0, barIndex: 0 } })
+    const mi = makeMi({ rhythm: { bpm: 120, beatIndex: 0, beatPhase: 0.5, beatInBar: 0, barIndex: 0 } })
     const result = compile(settings, mi)
-    const r0 = result.beams.find(b => b.beamId === 'b0')
-    const r1 = result.beams.find(b => b.beamId === 'b1')
-    // Even index (0) = forward; odd (1) = reverse (but b1 may have gate=0 here)
-    if (r0) expect(r0.headAtOriginFrac).toBe(false)
-    if (r1) expect(r1.headAtOriginFrac).toBe(true)
+
+    for (const compiled of result.beams) {
+        expect(compiled.visibleOrigin.x).toBeCloseTo(compiled.origin.x)
+      expect(compiled.visibleTarget.x).toBeGreaterThanOrEqual(compiled.visibleOrigin.x)
+    }
   })
 })
 
@@ -545,13 +548,14 @@ describe('head glow', () => {
     expect(result.beams[0].headIntensity).toBe(0)
   })
 
-  it('reverse direction: headAtOriginFrac=true', () => {
+  it('legacy reverse direction keeps the head on the target-facing end', () => {
     const beam = makeBeam({
-      motion: { ...DEFAULT_BEAM_MOTION, mode: 'grow', direction: 'reverse', headGlow: 0.5, beatsPerTravel: 1 },
+      motion: { ...DEFAULT_BEAM_MOTION, mode: 'grow', direction: 'reverse' as any, headGlow: 0.5, beatsPerTravel: 1 },
     })
     const mi = makeMi({ rhythm: { bpm: 120, beatIndex: 0, beatPhase: 0.5, beatInBar: 0, barIndex: 0 } })
-    const result = compile(makeSettings([beam]), mi)
-    expect(result.beams[0].headAtOriginFrac).toBe(true)
+    const compiled = compile(makeSettings([beam]), mi).beams[0]
+    expect(compiled.visibleOrigin.x).toBeCloseTo(compiled.origin.x)
+    expect(compiled.visibleTarget.x).toBeGreaterThan(compiled.visibleOrigin.x)
   })
 })
 

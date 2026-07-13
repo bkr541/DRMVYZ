@@ -205,6 +205,14 @@ describe('normalizeBeamMatrixSettings', () => {
     expect(s.groups[0].sequence).toEqual(DEFAULT_BEAM_SEQUENCE)
   })
 
+  it('migrates legacy reverse and pingPong motion to forward grow', () => {
+    const s = createLaserDmxBeamMatrixPresetSettings('minimal-crossfire')!
+    s.beams[0].motion = { ...DEFAULT_BEAM_MOTION, mode: 'pingPong' as any, direction: 'reverse' as any }
+    normalizeBeamMatrixSettings(s)
+    expect(s.beams[0].motion.mode).toBe('grow')
+    expect(s.beams[0].motion.direction).toBe('forward')
+  })
+
   it('fixes NaN sequenceIndex', () => {
     const s = createLaserDmxBeamMatrixPresetSettings('minimal-crossfire')!
     s.beams[1].sequenceIndex = NaN

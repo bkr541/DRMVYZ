@@ -7,7 +7,6 @@ const TRAVEL_MODE_OPTIONS = [
   { value: 'projectile', label: 'Projectile'  },
   { value: 'scanner',    label: 'Scanner'     },
   { value: 'pulseTrain', label: 'Pulse Train' },
-  { value: 'pingPong',   label: 'Ping Pong'   },
 ]
 
 // beatsPerTravel = N means the full travel takes N beats
@@ -28,12 +27,6 @@ const EASING_OPTIONS = [
   { value: 'easeInOut', label: 'Ease In/Out' },
 ]
 
-const DIRECTION_OPTIONS = [
-  { value: 'forward',   label: 'Forward'   },
-  { value: 'reverse',   label: 'Reverse'   },
-  { value: 'alternate', label: 'Alternate' },
-]
-
 const RETRIGGER_OPTIONS = [
   { value: 'restart',  label: 'Restart'  },
   { value: 'continue', label: 'Continue' },
@@ -46,8 +39,14 @@ interface LaserDmxBeamMotionControlsProps {
 }
 
 export function LaserDmxBeamMotionControls({ motion, onChange }: LaserDmxBeamMotionControlsProps) {
-  const upd = (patch: Partial<LaserDmxBeamMotion>) => onChange({ ...motion, ...patch })
-  const m = motion.mode
+  const upd = (patch: Partial<LaserDmxBeamMotion>) => onChange({
+    ...motion,
+    ...patch,
+    // Editing a legacy beam also migrates it to physically valid source-to-target travel.
+    direction: 'forward',
+    mode: patch.mode ?? ((motion.mode as string) === 'pingPong' ? 'grow' : motion.mode),
+  })
+  const m = (motion.mode as string) === 'pingPong' ? 'grow' : motion.mode
 
   // Conditional visibility by mode
   const isAnimated  = m !== 'static'
@@ -76,12 +75,6 @@ export function LaserDmxBeamMotionControls({ motion, onChange }: LaserDmxBeamMot
             value={beatsValue}
             onChange={v => upd({ beatsPerTravel: parseFloat(v) })}
             options={BEATS_PER_TRAVEL_OPTIONS}
-          />
-          <SelectRow
-            label="Direction"
-            value={motion.direction}
-            onChange={v => upd({ direction: v as LaserDmxBeamMotion['direction'] })}
-            options={DIRECTION_OPTIONS}
           />
           {showEasing && (
             <SelectRow
