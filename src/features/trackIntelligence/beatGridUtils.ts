@@ -328,6 +328,14 @@ export function rebuildBpmDependentData(
     midFrequencyOnset: deriveOnset(analysis.energyCurves.mid),
     highFrequencyOnset: deriveOnset(analysis.energyCurves.high),
     silence,
+    // Reuse persisted per-bar chroma summaries so a BPM override can rebuild
+    // harmonic bar evidence without repeating the expensive FFT pass.
+    chromaFrames: analysis.barFeatures
+      ?.filter(feature => feature.chromaSummary.length === 12)
+      .map(feature => ({
+        timeSec: (feature.startSec + feature.endSec) * 0.5,
+        values: feature.chromaSummary,
+      })),
   }, durationSec)
   const musicalGrid: MusicalGridInfo = {
     source: 'manual_correction',

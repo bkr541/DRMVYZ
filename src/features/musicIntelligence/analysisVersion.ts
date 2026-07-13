@@ -5,7 +5,7 @@
  * and the offline analyzer publish the same version without introducing a
  * coordinator -> analyzer dependency cycle.
  */
-export const CURRENT_ANALYSIS_VERSION = 'auto-2.0'
+export const CURRENT_ANALYSIS_VERSION = 'auto-2.1'
 
 export function isCurrentAnalysisVersion(version: string | null | undefined): boolean {
   return version === CURRENT_ANALYSIS_VERSION

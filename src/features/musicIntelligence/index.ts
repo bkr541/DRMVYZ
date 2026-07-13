@@ -28,6 +28,13 @@ export type {
   SemanticMomentMarker,
   AnalysisStatus,
   VisualAutomationSuggestion,
+  StructuralAnalysisSource,
+  StructuralBoundaryCandidate,
+  StructuralRegionRelation,
+  StructuralRegionDiagnostics,
+  StructuralRegion,
+  StructuralSegmentationDiagnostics,
+  StructuralSegmentationAnalysis,
 } from './types'
 
 export { DEFAULT_MI_FRAME } from './constants'
@@ -79,8 +86,8 @@ export {
   musicIntelligenceEngine,
 } from './MusicIntelligenceEngine'
 
-export type { SectionDetectionOptions } from './sectionAnalysis'
-export { detectSections } from './sectionAnalysis'
+export type { SectionDetectionOptions, StructuralSegmentationResult } from './sectionAnalysis'
+export { analyzeStructuralRegions, detectSections } from './sectionAnalysis'
 
 export type { TrackAnalysisOptions } from './offlineTrackAnalyzer'
 export { analyzeTrackBuffer } from './offlineTrackAnalyzer'

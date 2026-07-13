@@ -371,12 +371,86 @@ export interface AnalysisDiagnostics {
   gridSource:        MusicalGridSource
   fallbackReason:    MusicalGridFallbackReason
   downbeatPhaseScores?: number[]
+  structuralSource?: StructuralAnalysisSource
+  structuralCandidateCount?: number
+  selectedStructuralBoundaryCount?: number
+  similarityMatrixDimension?: number
+  similarityMatrixBytes?: number
 }
 
 export interface PhraseMarker {
   timeSec:      number
   phraseLength: 4 | 8 | 16 | 32
   confidence:   number
+}
+
+
+export type StructuralAnalysisSource = 'bar_self_similarity' | 'time_domain_fallback'
+
+export interface StructuralBoundaryCandidate {
+  barIndex: number | null
+  timeSec: number
+  totalScore: number
+  acousticNovelty: number
+  rhythmicNovelty: number
+  harmonicNovelty: number
+  selfSimilarityNovelty: number
+  energyTransitionEvidence: number
+  silenceOrImpactEvidence: number
+  gridConfidence: number
+  candidateConfidence: number
+  selected: boolean
+  offGrid: boolean
+}
+
+export interface StructuralRegionRelation {
+  regionId: string
+  similarity: number
+}
+
+export interface StructuralRegionDiagnostics {
+  meanEnergy: number
+  energySlope: number
+  transientDensity: number
+  harmonicChange: number
+  repeatAffinity: number
+  phrasePriorScore: number
+}
+
+export interface StructuralRegion {
+  id: string
+  startSec: number
+  endSec: number
+  startBar: number | null
+  endBar: number | null
+  durationBars: number | null
+  boundaryConfidence: number
+  internalCohesion: number
+  gridConfidence: number
+  relatedRegions: StructuralRegionRelation[]
+  analysisSource: StructuralAnalysisSource
+  diagnostics: StructuralRegionDiagnostics
+}
+
+export interface StructuralSegmentationDiagnostics {
+  analyzedBarCount: number
+  originalBarCount: number
+  selfSimilarityStride: number
+  matrixDimension: number
+  matrixBytes: number
+  candidateCount: number
+  selectedBoundaryCount: number
+  alternativeCandidateCount: number
+  globalObjectiveScore: number
+  usedFallback: boolean
+}
+
+export interface StructuralSegmentationAnalysis {
+  source: StructuralAnalysisSource
+  regions: StructuralRegion[]
+  boundaryCandidates: StructuralBoundaryCandidate[]
+  alternativeBoundaryCandidates: StructuralBoundaryCandidate[]
+  diagnostics: StructuralSegmentationDiagnostics
 }
 
 export interface TrackSectionMI {
@@ -446,6 +520,8 @@ export interface TrackIntelligenceAnalysis {
   musicalGrid?:     MusicalGridInfo
   phrases:          PhraseMarker[]
   sections:         TrackSectionMI[]
+  /** Neutral structural regions and boundary diagnostics produced before semantic labeling. */
+  structuralSegmentation?: StructuralSegmentationAnalysis
   energyCurves: {
     instant:   FeatureCurve
     shortTerm: FeatureCurve

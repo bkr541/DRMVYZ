@@ -134,7 +134,7 @@ export const useTrackAnalysisStore = create<TrackAnalysisStorageState>()(
     }),
     {
       name: 'drmvyz:track-analyses',
-      version: 2,
+      version: 3,
       migrate: persisted => {
         const state = (persisted ?? {}) as Partial<TrackAnalysisStorageState>
         const analyses = state.analyses ?? {}

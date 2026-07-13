@@ -4,7 +4,7 @@
 
 import { guess } from 'web-audio-beat-detector'
 import { PitchDetector } from 'pitchy'
-import { detectSections } from './sectionAnalysis'
+import { analyzeStructuralRegions } from './sectionAnalysis'
 import { detectSemanticMoments } from './semanticAnalysis'
 import { CURRENT_ANALYSIS_VERSION } from './analysisVersion'
 import {
@@ -620,19 +620,19 @@ export async function analyzeTrackBuffer(
     }
   })
 
-  // Structural analysis now receives the resolved grid-derived bar features.
-  // The current novelty classifier remains available as the marked fallback and
-  // will be replaced by self-similarity segmentation in later patches.
+  // Structural analysis consumes the resolved grid-derived bar features.
+  // Bar-aware self-similarity is primary; the deterministic time-domain detector
+  // remains available only as an explicitly marked low-confidence fallback.
   report({ stage: 'structural_analysis', progress: 0.76 })
-  const detectedSections = detectSections(
+  const structuralResult = analyzeStructuralRegions(
     { instant: normInstant, bass: normBass, mid: normMid, high: normHigh },
     { centroid: normCentroid, flux: normFlux, complexity: normComplex },
     durationSec,
-    { minSegmentSec: minSectionSec, barFeatures },
+    { minSegmentSec: minSectionSec, barFeatures, musicalGrid: gridResolution.info },
   )
   const sections = seed?.sections?.length
-    ? mergeSeededSections(seed.sections, detectedSections, durationSec)
-    : detectedSections
+    ? mergeSeededSections(seed.sections, structuralResult.sections, durationSec)
+    : structuralResult.sections
 
   const detectedKey = detectOfflineKey(chromaAcc)
   const seededKey = parseSeededKey(seed?.key ?? null)
@@ -671,6 +671,7 @@ export async function analyzeTrackBuffer(
     musicalGrid: gridResolution.info,
     phrases: seed?.phrases?.length ? seed.phrases : gridResolution.phrases,
     sections,
+    structuralSegmentation: structuralResult.structuralSegmentation,
     energyCurves: {
       instant: downsample(normInstant),
       shortTerm: downsample(normShort),
@@ -705,10 +706,15 @@ export async function analyzeTrackBuffer(
       barCount: gridResolution.bars.length,
       barFeatureCount: barFeatures.length,
       sectionCount: sections.length,
-      usedFallback: gridResolution.info.source === 'legacy_fallback' || barFeatures.some(feature => feature.source === 'time_window_fallback'),
+      usedFallback: structuralResult.structuralSegmentation.diagnostics.usedFallback,
       gridSource: gridResolution.info.source,
       fallbackReason: gridResolution.info.fallbackReason,
       downbeatPhaseScores: gridResolution.phaseScores,
+      structuralSource: structuralResult.structuralSegmentation.source,
+      structuralCandidateCount: structuralResult.structuralSegmentation.diagnostics.candidateCount,
+      selectedStructuralBoundaryCount: structuralResult.structuralSegmentation.diagnostics.selectedBoundaryCount,
+      similarityMatrixDimension: structuralResult.structuralSegmentation.diagnostics.matrixDimension,
+      similarityMatrixBytes: structuralResult.structuralSegmentation.diagnostics.matrixBytes,
     },
     detectedBpm: bpm,
     bpmUsedForGrid: bpm,
